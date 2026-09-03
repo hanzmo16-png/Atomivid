@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { GenerateButton } from "./GenerateButton";
+import { AutoRefresh } from "./AutoRefresh";
 
 type VideoRequest = {
   id: string;
@@ -7,6 +9,8 @@ type VideoRequest = {
   style: string;
   duration_seconds: number;
   status: string;
+  video_url: string | null;
+  error_message: string | null;
   created_at: string;
 };
 
@@ -38,13 +42,19 @@ export default async function DashboardPage({
 
   const { data: requests } = await supabase
     .from("video_requests")
-    .select("id, topic, style, duration_seconds, status, created_at")
+    .select(
+      "id, topic, style, duration_seconds, status, video_url, error_message, created_at",
+    )
     .eq("user_id", user?.id ?? "")
     .order("created_at", { ascending: false })
     .returns<VideoRequest[]>();
 
+  const hasProcessing = (requests ?? []).some((r) => r.status === "processing");
+
   return (
     <div>
+      <AutoRefresh active={hasProcessing} />
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Tus videos</h1>
         <Link
@@ -57,8 +67,9 @@ export default async function DashboardPage({
 
       {created && (
         <p className="mt-4 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
-          Tu solicitud se guardó correctamente. La generación automática
-          llegará en la siguiente fase.
+          Tu solicitud se guardó correctamente. Pulsa &quot;Generar
+          video&quot; para crear el guion, la voz, el footage y el video
+          final automáticamente.
         </p>
       )}
 
@@ -86,15 +97,47 @@ export default async function DashboardPage({
                     {req.style} · {req.duration_seconds}s ·{" "}
                     {new Date(req.created_at).toLocaleString("es-MX")}
                   </p>
+                  {req.status === "failed" && req.error_message && (
+                    <p className="mt-2 max-w-md text-sm text-red-600">
+                      {req.error_message}
+                    </p>
+                  )}
                 </div>
-                <span
-                  className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
-                    STATUS_CLASS[req.status] ?? "bg-gray-100 text-gray-800"
-                  }`}
-                >
-                  {STATUS_LABEL[req.status] ?? req.status}
-                </span>
+
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${
+                      STATUS_CLASS[req.status] ?? "bg-gray-100 text-gray-800"
+                    }`}
+                  >
+                    {STATUS_LABEL[req.status] ?? req.status}
+                  </span>
+
+                  {req.status === "pending" && <GenerateButton requestId={req.id} />}
+                  {req.status === "failed" && (
+                    <GenerateButton requestId={req.id} label="Reintentar" />
+                  )}
+                </div>
               </div>
+
+              {req.status === "completed" && req.video_url && (
+                <div className="mt-4 flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+                  <video
+                    src={req.video_url}
+                    controls
+                    className="aspect-[9/16] w-40 rounded-lg bg-black"
+                  />
+                  <a
+                    href={req.video_url}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-900 hover:bg-gray-50"
+                  >
+                    Descargar video
+                  </a>
+                </div>
+              )}
             </li>
           ))}
         </ul>
