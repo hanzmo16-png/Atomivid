@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { stripe } from "@/lib/stripe/client";
+import { getStripe } from "@/lib/stripe/client";
 
 const PRICE_ID = process.env.STRIPE_PRICE_ID;
 
@@ -41,7 +41,7 @@ export async function createCheckoutSession() {
   const existingCustomerId = (existing as { stripe_customer_id: string | null } | null)
     ?.stripe_customer_id;
 
-  const session = await stripe.checkout.sessions.create({
+  const session = await getStripe().checkout.sessions.create({
     mode: "subscription",
     line_items: [{ price: PRICE_ID, quantity: 1 }],
     client_reference_id: user.id,
@@ -87,7 +87,7 @@ export async function createPortalSession() {
     redirect("/dashboard/billing?error=Todavía+no+tienes+una+suscripción");
   }
 
-  const portalSession = await stripe.billingPortal.sessions.create({
+  const portalSession = await getStripe().billingPortal.sessions.create({
     customer: customerId,
     return_url: `${siteUrl}/dashboard/billing`,
   });
