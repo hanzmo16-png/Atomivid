@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export function GenerateButton({
@@ -13,16 +14,21 @@ export function GenerateButton({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsSubscription, setNeedsSubscription] = useState(false);
 
   async function handleClick() {
     setLoading(true);
     setError(null);
+    setNeedsSubscription(false);
 
     try {
       const res = await fetch(`/api/generate/${requestId}`, { method: "POST" });
       const data = await res.json();
 
       if (!res.ok) {
+        if (res.status === 402) {
+          setNeedsSubscription(true);
+        }
         throw new Error(data?.error ?? "No se pudo generar el video");
       }
 
@@ -44,6 +50,14 @@ export function GenerateButton({
         {loading ? "Generando…" : label}
       </button>
       {error && <p className="max-w-[220px] text-right text-xs text-red-600">{error}</p>}
+      {needsSubscription && (
+        <Link
+          href="/dashboard/billing"
+          className="text-right text-xs font-medium text-gray-900 underline"
+        >
+          Ver planes
+        </Link>
+      )}
     </div>
   );
 }

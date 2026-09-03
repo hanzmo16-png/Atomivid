@@ -28,6 +28,9 @@ export default async function DashboardLayout({
             <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
               Historial
             </Link>
+            <Link href="/dashboard/billing" className="text-gray-600 hover:text-gray-900">
+              Facturación
+            </Link>
             <Link
               href="/dashboard/new"
               className="rounded-md bg-gray-900 px-3 py-1.5 font-medium text-white hover:bg-gray-700"

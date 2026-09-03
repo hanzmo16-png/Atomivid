@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { generateVideoForRequest } from "@/lib/video/generate";
+import { assertCanGenerate } from "@/lib/billing/quota";
 
 // El render de video (Remotion + llamadas a APIs externas) puede tardar
 // más que una función serverless típica. En Vercel esto requiere un plan
@@ -45,6 +46,11 @@ export async function POST(
       { error: `La solicitud ya está en estado "${videoRequest.status}"` },
       { status: 409 },
     );
+  }
+
+  const check = await assertCanGenerate(service, user.id);
+  if (!check.allowed) {
+    return NextResponse.json({ error: check.reason }, { status: 402 });
   }
 
   await service
