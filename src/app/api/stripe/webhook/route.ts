@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
-import { stripe } from "@/lib/stripe/client";
+import { getStripe } from "@/lib/stripe/client";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type ServiceClient = ReturnType<typeof createServiceClient>;
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
 
   let event: Stripe.Event;
   try {
-    event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret);
+    event = await getStripe().webhooks.constructEventAsync(body, signature, webhookSecret);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Firma inválida";
     return NextResponse.json({ error: message }, { status: 400 });
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
         typeof session.customer === "string" ? session.customer : session.customer?.id;
 
       if (userId && subscriptionId) {
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
         await upsertSubscription(service, userId, subscription, customerId);
       }
       break;
