@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { isSubscriptionActive } from "@/lib/billing/subscription";
 import { GenerateButton } from "./GenerateButton";
 import { AutoRefresh } from "./AutoRefresh";
 
@@ -49,6 +50,16 @@ export default async function DashboardPage({
     .order("created_at", { ascending: false })
     .returns<VideoRequest[]>();
 
+  const { data: subscriptionData } = await supabase
+    .from("subscriptions")
+    .select("status")
+    .eq("user_id", user?.id ?? "")
+    .maybeSingle();
+
+  const subscribed = isSubscriptionActive(
+    (subscriptionData as { status: string } | null)?.status,
+  );
+
   const hasProcessing = (requests ?? []).some((r) => r.status === "processing");
 
   return (
@@ -64,6 +75,15 @@ export default async function DashboardPage({
           Nuevo video
         </Link>
       </div>
+
+      {!subscribed && (
+        <p className="mt-4 rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">
+          Necesitas una suscripción activa para generar videos.{" "}
+          <Link href="/dashboard/billing" className="font-medium underline">
+            Suscribirme
+          </Link>
+        </p>
+      )}
 
       {created && (
         <p className="mt-4 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
