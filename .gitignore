@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# salida local del script de prueba del pipeline (scripts/test-pipeline.ts)
+/scripts/atomivid-test-output.mp4
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

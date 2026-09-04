@@ -5,13 +5,16 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { generateScript } from "@/lib/ai/script";
-import { synthesizeVoice, type WordTiming } from "@/lib/ai/voice";
-import { downloadImage, fetchSceneImage } from "@/lib/ai/footage";
+import { getScriptProvider } from "@/lib/providers/script";
+import { getVoiceProvider } from "@/lib/providers/voice";
+import { getFootageProvider } from "@/lib/providers/footage";
+import { getMusicProvider } from "@/lib/providers/music";
+import type { WordTiming } from "@/lib/providers/types";
 import type { Caption, Scene } from "../../../remotion/VerticalReel";
 
 const STORAGE_BUCKET = "videos";
-const CAPTION_WORDS_PER_CHUNK = 4;
+const MAX_CAPTION_WORDS = 7;
+const MIN_CAPTION_WORDS = 2;
 const COMPOSITION_ID = "VerticalReel";
 
 export async function generateVideoForRequest({
@@ -27,29 +30,34 @@ export async function generateVideoForRequest({
   style: string;
   durationSeconds: number;
 }): Promise<{ videoUrl: string }> {
-  // 1. Guion (título + escenas) vía Claude
-  const script = await generateScript({ topic, style, durationSeconds });
+  const scriptProvider = getScriptProvider();
+  const voiceProvider = getVoiceProvider();
+  const footageProvider = getFootageProvider();
+  const musicProvider = getMusicProvider();
+
+  // 1. Guion (título + escenas)
+  const script = await scriptProvider.generateScript({ topic, style, durationSeconds });
 
   // 2. Voz narrada completa en una sola llamada, con timestamps por
   // palabra (así toda la narración usa la misma voz y ritmo).
   const fullText = script.segments.map((s) => s.text).join(" ");
-  const voice = await synthesizeVoice(fullText);
+  const voice = await voiceProvider.synthesize(fullText);
 
   // 3. Repartir el tiempo de la narración real entre las escenas del guion
   const sceneTimings = alignScenesToWords(script.segments, voice.words);
 
-  // 4. Footage: una imagen de Pexels por escena, subida a Storage
+  // 4. Footage: una imagen por escena, subida a Storage
   const scenes: Scene[] = [];
   for (let i = 0; i < script.segments.length; i++) {
     const segment = script.segments[i];
     const timing = sceneTimings[i];
-    const image = await fetchSceneImage(segment.visualQuery);
-    const imageBuffer = await downloadImage(image.url);
+    const image = await footageProvider.fetchImage(segment.visualQuery);
+    const imageBuffer = await footageProvider.downloadImage(image.url);
     const imageUrl = await uploadToStorage(
       supabase,
-      `${requestId}/scene-${i}.jpg`,
+      `${requestId}/scene-${i}.${image.extension}`,
       imageBuffer,
-      "image/jpeg",
+      image.mimeType,
     );
     scenes.push({
       imageUrl,
@@ -61,24 +69,35 @@ export async function generateVideoForRequest({
   // 5. Subir la narración generada
   const audioUrl = await uploadToStorage(
     supabase,
-    `${requestId}/voice.mp3`,
+    `${requestId}/voice.${voice.extension}`,
     voice.audioBuffer,
-    "audio/mpeg",
+    voice.mimeType,
   );
 
-  // 6. Subtítulos incrustados: frases cortas de pocas palabras
+  // 6. Música de fondo (por debajo del volumen de la narración)
+  const finalDurationSeconds = voice.durationSeconds + 0.5;
+  const music = await musicProvider.getTrack(finalDurationSeconds);
+  const musicUrl = await uploadToStorage(
+    supabase,
+    `${requestId}/music.${music.extension}`,
+    music.audioBuffer,
+    music.mimeType,
+  );
+
+  // 7. Subtítulos incrustados: frases naturales (corte en puntuación),
+  // nunca una sola palabra a la vez.
   const captions = buildCaptions(voice.words);
 
-  // 7. Ensamblar el video final con Remotion
-  const finalDurationSeconds = voice.durationSeconds + 0.5;
+  // 8. Ensamblar el video final con Remotion
   const outputPath = await renderVerticalReel({
     audioUrl,
+    musicUrl,
     scenes,
     captions,
     durationSeconds: finalDurationSeconds,
   });
 
-  // 8. Subir el video renderizado
+  // 9. Subir el video renderizado
   const videoBuffer = await fs.readFile(outputPath);
   const videoUrl = await uploadToStorage(
     supabase,
@@ -120,18 +139,46 @@ function alignScenesToWords(
   return result;
 }
 
+/**
+ * Agrupa palabras en subtítulos por frase natural (corta en puntuación),
+ * con un máximo de palabras por línea para que no queden demasiado largas.
+ * Nunca deja una sola palabra visible a la vez (estilo karaoke).
+ */
 function buildCaptions(words: WordTiming[]): Caption[] {
   const captions: Caption[] = [];
+  let group: WordTiming[] = [];
 
-  for (let i = 0; i < words.length; i += CAPTION_WORDS_PER_CHUNK) {
-    const chunk = words.slice(i, i + CAPTION_WORDS_PER_CHUNK);
-    if (chunk.length === 0) continue;
-
+  const flush = () => {
+    if (group.length === 0) return;
     captions.push({
-      text: chunk.map((w) => w.text).join(" "),
-      startSeconds: chunk[0].startSeconds,
-      endSeconds: chunk[chunk.length - 1].endSeconds,
+      text: group.map((w) => w.text).join(" "),
+      startSeconds: group[0].startSeconds,
+      endSeconds: group[group.length - 1].endSeconds,
     });
+    group = [];
+  };
+
+  for (const word of words) {
+    group.push(word);
+    const endsPhrase = /[,.;:!?]$/.test(word.text);
+    const longEnough = group.length >= MIN_CAPTION_WORDS;
+
+    if (group.length >= MAX_CAPTION_WORDS || (endsPhrase && longEnough)) {
+      flush();
+    }
+  }
+  flush();
+
+  // Si quedó un grupo final de una sola palabra, pégalo al anterior en vez
+  // de mostrarlo solo.
+  if (captions.length >= 2) {
+    const last = captions[captions.length - 1];
+    if (last.text.split(/\s+/).length < MIN_CAPTION_WORDS) {
+      const prev = captions[captions.length - 2];
+      prev.text = `${prev.text} ${last.text}`;
+      prev.endSeconds = last.endSeconds;
+      captions.pop();
+    }
   }
 
   return captions;
@@ -157,11 +204,13 @@ async function uploadToStorage(
 
 async function renderVerticalReel({
   audioUrl,
+  musicUrl,
   scenes,
   captions,
   durationSeconds,
 }: {
   audioUrl: string;
+  musicUrl?: string;
   scenes: Scene[];
   captions: Caption[];
   durationSeconds: number;
@@ -177,7 +226,7 @@ async function renderVerticalReel({
 
   const serveUrl = await bundle({ entryPoint });
 
-  const inputProps = { audioUrl, scenes, captions, durationSeconds };
+  const inputProps = { audioUrl, musicUrl, scenes, captions, durationSeconds };
 
   const composition = await selectComposition({
     serveUrl,

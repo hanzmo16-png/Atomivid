@@ -1,66 +1,69 @@
 # Atomivid
 
-Plataforma SaaS para generar reels "faceless" con IA. Este repo cubre el
-**Paso 1** (registro/login + formulario de solicitud), el **Paso 2**
-(generación automática del video: guion, voz, footage, subtítulos y
-ensamblado final) y el **Paso 3** (suscripción de pago con Stripe, que
-restringe la generación de videos).
+Plataforma SaaS para generar reels "faceless" verticales (9:16), listos para
+TikTok/Instagram Reels/YouTube Shorts, a partir de un tema escrito por el
+usuario. El pipeline genera guion → voz → footage → música → subtítulos →
+ensamblado → render, con autenticación y suscripción de pago.
 
-## Stack
+## Qué hace Atomivid
 
-- **Next.js 16** (App Router, TypeScript, Tailwind CSS)
-- **Supabase** — autenticación (email/contraseña), base de datos (Postgres) y
-  Storage (assets + video final)
-- **Claude (Anthropic)** — generación del guion
-- **ElevenLabs** — voz narrada con timestamps por palabra
-- **Pexels** — banco gratuito de imágenes de apoyo
-- **Remotion** — ensamblado del video final (Ken Burns + subtítulos incrustados)
-- **Stripe** — suscripción mensual recurrente
+1. El usuario escribe un tema, elige estilo/tono y duración.
+2. Se genera un guion dividido en escenas (título + narración + búsqueda
+   visual por escena).
+3. Se sintetiza la narración completa con timestamps por palabra.
+4. Se busca una imagen por escena a partir de esa narración.
+5. Se agrega música de fondo por debajo de la narración.
+6. Se generan subtítulos incrustados agrupados por frase natural (nunca una
+   palabra sola a la vez).
+7. Se ensambla el video final: formato vertical 1080×1920, efecto Ken Burns
+   sobre cada imagen y **crossfade** entre escenas (no son cortes secos).
+8. El usuario ve, reproduce y descarga el resultado desde su historial.
 
-## Qué incluye
+## Arquitectura
 
-**Paso 1**
+- **Frontend + backend**: Next.js 16 (App Router, TypeScript), Tailwind CSS.
+- **Auth + base de datos + storage**: Supabase (Postgres, Auth, Storage).
+- **Pagos**: Stripe (suscripción mensual, restringe la generación).
+- **Motor de composición**: Remotion — renderiza el MP4 final (usa FFmpeg
+  internamente para la codificación H.264/AAC). Se evaluó reescribir el
+  ensamblado en FFmpeg puro, pero Remotion ya cumple "motor de composición
+  modular", ya está integrado y verificado end-to-end en este repo — hacerlo
+  de nuevo en FFmpeg crudo habría sido un retroceso sin beneficio real.
+- **Pipeline modular por adaptadores** (`src/lib/providers/`): cada etapa
+  (guion, voz, footage, música) tiene una interfaz común con dos
+  implementaciones intercambiables:
+  - **Real**: llama a la API externa (Claude, ElevenLabs, Pexels).
+  - **Fixture**: determinística, sin red ni claves — genera texto templado,
+    un tono de audio (WAV generado en JS puro) y una imagen de color sólido.
+    Permite probar el flujo completo (`npm run test:pipeline`) sin gastar
+    nada ni depender de conectividad externa.
 
-- Registro e inicio de sesión con Supabase Auth (confirmación por correo).
-- Rutas protegidas (`/dashboard/*`) mediante proxy de sesión.
-- Formulario en `/dashboard/new` con tema, estilo/tono y duración deseada,
-  que guarda la solicitud en la tabla `video_requests`.
-- `/dashboard` muestra el historial de solicitudes del usuario.
+  La selección de proveedor se auto-detecta por variable de entorno: si
+  falta la API key correspondiente, usa el fixture automáticamente (ver
+  `.env.example`).
 
-**Paso 2**
+```
+Tema → Guion (adapter) → Voz (adapter) → Escenas alineadas a la narración
+     → Footage por escena (adapter) → Música de fondo (adapter)
+     → Subtítulos por frase → Render (Remotion) → Storage → Historial
+```
 
-- Botón "Generar video" en cada solicitud `pending` que dispara
-  `POST /api/generate/[id]`, el cual:
-  1. Genera el guion (título + escenas con narración y búsqueda visual) con
-     **Claude**, usando salida estructurada (JSON validado con Zod).
-  2. Sintetiza la narración completa con **ElevenLabs** (una sola llamada,
-     con alineación por palabra para los subtítulos).
-  3. Reparte el tiempo real de la narración entre las escenas y busca una
-     imagen por escena en **Pexels**.
-  4. Sube imágenes y audio a Supabase Storage (bucket `videos`).
-  5. Renderiza el video final (formato vertical 1080×1920) con **Remotion**:
-     efecto Ken Burns sobre cada imagen + subtítulos incrustados en sincronía
-     con la voz.
-  6. Sube el `.mp4` final a Storage y actualiza `video_requests` con
-     `status = completed` y `video_url`.
-- El historial muestra el estado (`pending` / `processing` / `completed` /
-  `failed`, con reintento) y reproduce/descarga el video una vez listo.
+## Requisitos
 
-**Paso 3**
+- Node.js 20+ y npm.
+- Una cuenta de Supabase (gratis).
+- Para producción real: cuentas de Anthropic, ElevenLabs, Pexels y Stripe
+  (todas tienen capa gratuita o modo de prueba). Sin ellas, el pipeline
+  funciona igual con los proveedores fixture.
 
-- `/dashboard/billing` muestra el estado de la suscripción y un botón
-  "Suscribirme" (crea una Stripe Checkout Session) o "Administrar
-  suscripción" (Stripe Billing Portal) según corresponda.
-- `POST /api/stripe/webhook` recibe los eventos de Stripe
-  (`checkout.session.completed`, `customer.subscription.updated/deleted`) y
-  guarda el estado en la tabla `subscriptions` (una fila por usuario).
-- `POST /api/generate/[id]` ahora exige suscripción activa (`active` o
-  `trialing`) y aplica un tope mensual de videos configurable
-  (`MONTHLY_VIDEO_LIMIT`, incluso para suscriptores, para proteger los
-  costos variables). Sin suscripción responde `402` y la UI muestra un
-  enlace a "Ver planes".
+## Instalación
 
-## Configuración
+```bash
+git clone <url-del-repo>
+cd atomivid
+npm install
+cp .env.example .env.local
+```
 
 ### 1. Crear proyecto en Supabase
 
@@ -92,12 +95,17 @@ supabase link --project-ref <tu-project-ref>
 supabase db push
 ```
 
-### 3. Crear cuentas en las APIs de generación
+### 3. Crear cuentas en las APIs de generación (opcional para probar)
 
-- **Anthropic (Claude)**: crea una API key en [console.anthropic.com](https://console.anthropic.com).
-- **ElevenLabs**: crea una API key en [elevenlabs.io](https://elevenlabs.io)
-  (tiene capa gratuita limitada, suficiente para probar).
-- **Pexels**: crea una API key gratuita en [pexels.com/api](https://www.pexels.com/api).
+- **Anthropic (Claude)**: [console.anthropic.com](https://console.anthropic.com).
+- **ElevenLabs**: [elevenlabs.io](https://elevenlabs.io) (capa gratuita limitada).
+- **Pexels**: [pexels.com/api](https://www.pexels.com/api) (gratis).
+- **Música de fondo**: no hay banco gratuito con API key integrado todavía
+  (ver "Limitaciones"). Deja `MUSIC_TRACK_URL` vacío para usar el fixture, o
+  apunta a una pista propia con licencia verificada.
+
+Si no configuras alguna de estas, esa etapa usa su proveedor fixture
+automáticamente — el pipeline completo sigue funcionando.
 
 ### 4. Configurar Stripe
 
@@ -117,29 +125,118 @@ supabase db push
      `customer.subscription.deleted`. Copia su *Signing secret* a
      `STRIPE_WEBHOOK_SECRET`.
 
-### 5. Variables de entorno
+## Cómo ejecutar el proyecto
 
 ```bash
-cp .env.example .env.local
-```
-
-Completa `.env.local` con los valores de Supabase y de cada API (ver
-comentarios en `.env.example`). Nada de esto se sube al repo — `.env*` está
-en `.gitignore`.
-
-### 6. Instalar dependencias y correr en desarrollo
-
-```bash
-npm install
 npm run dev
 ```
 
 Abre [http://localhost:3000](http://localhost:3000), crea una cuenta,
-confirma tu correo e inicia sesión. En "Nuevo video" guarda una solicitud.
-Antes de poder generarlo, suscríbete desde "Facturación" (con
-`stripe listen` corriendo en paralelo si estás en local); usa una
-[tarjeta de prueba](https://stripe.com/docs/testing) como `4242 4242 4242
-4242`. Luego, en el historial, pulsa "Generar video".
+confirma tu correo e inicia sesión.
+
+## Cómo generar un video
+
+1. En "Nuevo video" guarda una solicitud (tema, estilo, duración).
+2. Suscríbete desde "Facturación" (tarjeta de prueba `4242 4242 4242 4242`,
+   con `stripe listen` corriendo en paralelo si estás en local).
+3. En el historial, pulsa "Generar video". El pipeline corre dentro de la
+   misma request HTTP (ver limitaciones) y al terminar podrás reproducir y
+   descargar el resultado.
+
+### Probar el pipeline sin claves (proveedores fixture)
+
+```bash
+npm run test:pipeline
+```
+
+Corre el pipeline completo (guion "LOS RESULTADOS TIENEN UN PRECIO" con
+~15 escenas, voz, footage, música y render) con los proveedores fixture, sin
+red ni claves, y deja el resultado en `scripts/atomivid-test-output.mp4`
+(no se sube al repo). Útil para verificar que la composición y el render
+funcionan antes de gastar en APIs reales.
+
+## Proveedores integrados
+
+| Etapa | Real | Fixture (sin claves) | Variable de selección |
+|---|---|---|---|
+| Guion | Claude (Anthropic), salida estructurada | Texto templado en español | `SCRIPT_PROVIDER` |
+| Voz | ElevenLabs, con timestamps por palabra | Tono generado (WAV) + timestamps sintéticos | `VOICE_PROVIDER` |
+| Footage | Pexels (fotos) | Imagen de color sólido con el texto de búsqueda | `FOOTAGE_PROVIDER` |
+| Música | Pista propia vía `MUSIC_TRACK_URL` | Tono suave generado (WAV) | `MUSIC_PROVIDER` |
+| Render | Remotion (Chromium + FFmpeg interno) | — (siempre real) | — |
+
+## Costos potenciales
+
+Presupuesto disponible: hasta $30,000 MXN, usado solo si una herramienta de
+pago resuelve algo que las opciones gratuitas no cubren — no se ha gastado
+nada de ese presupuesto todavía.
+
+- **Supabase**: capa gratuita (Auth + Postgres + Storage) suficiente para el MVP.
+- **Vercel**: capa gratuita (Hobby) para hosting.
+- **Claude**: pago por uso; modelo económico configurable en `.env.example`.
+- **ElevenLabs**: capa gratuita limitada, luego pago por caracteres.
+- **Pexels**: gratis.
+- **Stripe**: sin costo fijo, comisión por transacción.
+- **Música de fondo**: sin costo — todavía no hay integración con un banco
+  de pago ni gratuito, ver limitaciones.
+
+## Limitaciones actuales
+
+- **Música de fondo**: no hay un banco gratuito con API key conectado
+  todavía (Pixabay Music/Freesound requieren cuenta + credenciales que no
+  se han configurado). El proveedor fixture genera un tono suave, no música
+  real con licencia. Hace falta que el usuario provea `MUSIC_TRACK_URL` o
+  se conecte un banco real — **requiere autorización antes de contratarlo
+  si implica un plan de pago.**
+- **Render dentro de la request HTTP**: `/api/generate/[id]` corre todo el
+  pipeline de forma síncrona (`maxDuration = 300`). En Vercel esto requiere
+  un plan que soporte funciones de larga duración. Recomendado a futuro:
+  mover el render a un worker/cola en background.
+- **Sin editor de escenas**: el guion se genera y se renderiza en el mismo
+  paso; todavía no hay una pantalla intermedia para revisar/editar el texto
+  de cada escena o regenerar una escena individual antes del render final.
+- **Sin progreso por etapas en la UI**: el historial muestra
+  `pending/processing/completed/failed`, pero no el detalle de en qué etapa
+  del pipeline (guion/voz/footage/música/render) va una generación en curso.
+- **Pagos fallidos**: el estado `past_due`/`unpaid` ya bloquea la
+  generación, pero no hay notificación proactiva al usuario
+  (`invoice.payment_failed`).
+- **Entorno de desarrollo de este agente**: esta sesión de Claude Code corre
+  en un entorno con salida de red restringida (solo `api.anthropic.com` y
+  registros de paquetes) — por eso las pruebas aquí usan los proveedores
+  fixture; el pipeline real con Supabase/ElevenLabs/Pexels/Stripe solo se
+  puede probar en producción (Vercel) o en una máquina con salida de red
+  normal.
+
+## Completado / pendiente
+
+**Completado y probado:**
+- Registro/login, rutas protegidas, formulario de solicitud.
+- Suscripción de pago con Stripe (checkout, portal, webhook, cuota mensual).
+- Pipeline completo con patrón de adaptadores + fixtures (`npm run test:pipeline`,
+  verificado con `ffprobe`: H.264 1080×1920 @30fps, audio AAC, crossfade,
+  subtítulos por frase, música mezclada).
+- Build de producción y lint sin errores.
+
+**Pendiente:**
+- Conectar un banco de música real (requiere tu autorización si implica pago).
+- Editor/revisión de escenas antes del render final, con regeneración por escena.
+- Progreso por etapas en la UI (más allá de pending/processing/completed).
+- Mover el render a un worker/cola en background.
+- Probar el pipeline real (Claude/ElevenLabs/Pexels/Stripe) en producción —
+  bloqueado en este entorno por la restricción de red descrita arriba.
+
+## Despliegue
+
+1. Sube el repo a GitHub y conéctalo en [vercel.com](https://vercel.com)
+   ("Add New Project" → importar repo).
+2. Agrega todas las variables de `.env.example` en Vercel (Project →
+   Settings → Environment Variables).
+3. Ajusta `NEXT_PUBLIC_SITE_URL` a tu dominio de Vercel y agrega
+   `<tu-dominio>/auth/callback` como Redirect URL en Supabase.
+4. Configura el webhook de Stripe apuntando a
+   `https://<tu-dominio>/api/stripe/webhook`.
+5. Redeploy.
 
 ## Notas sobre pagos
 
@@ -148,12 +245,7 @@ Antes de poder generarlo, suscríbete desde "Facturación" (con
   webhook. Si en local no corres `stripe listen`, el checkout se completa en
   Stripe pero la suscripción nunca se refleja en Atomivid.
 - La cuota mensual (`MONTHLY_VIDEO_LIMIT`) se cuenta por mes calendario, no
-  por ciclo de facturación de Stripe — más simple para el MVP, se puede
-  afinar más adelante si hace falta.
-- Falta manejar pagos fallidos de forma proactiva (avisar al usuario,
-  reintentos de Stripe vía `invoice.payment_failed`) — por ahora el estado
-  `past_due`/`unpaid` ya bloquea la generación (no es `active`/`trialing`),
-  pero no hay notificación al usuario más allá del badge en "Facturación".
+  por ciclo de facturación de Stripe — más simple para el MVP.
 
 ## Notas sobre el render de video
 
@@ -163,20 +255,14 @@ Antes de poder generarlo, suscríbete desde "Facturación" (con
   variable al ejecutable y, si es un `chrome-headless-shell` (recomendado en
   Chrome >= 132, que quitó el "old headless mode"), agrega también
   `REMOTION_CHROME_MODE=headless-shell`.
-- El render (bundling + Chromium + codificación) puede tardar más que una
-  función serverless típica. La ruta `/api/generate/[id]` declara
-  `maxDuration = 300`, pero en Vercel esto requiere un plan que soporte
-  funciones de larga duración. Para producción real, lo recomendable es
-  mover el render a un worker o cola dedicados (p. ej. un pequeño servicio
-  en background, o `@remotion/lambda`) en vez de bloquear una función HTTP.
 - Costos variables por video: guion (Claude, modelo económico configurable),
   voz (ElevenLabs, modelo turbo de menor costo) y footage (Pexels, gratis).
   Ver `.env.example` para ajustar los modelos usados.
 
 ## Próximos pasos
 
-- Mover el render de Remotion a un worker/cola en background en vez de
-  ejecutarlo dentro de la request HTTP.
-- Notificar al usuario cuando un pago falla (`invoice.payment_failed`) en
-  vez de solo bloquear la generación silenciosamente.
-- Auto-publicación a redes sociales (fuera del alcance del MVP).
+1. Conectar un banco de música real (con tu autorización).
+2. Editor de escenas con regeneración individual.
+3. Progreso por etapas en la UI.
+4. Mover el render a un worker/cola en background.
+5. Auto-publicación a redes sociales (fuera del alcance del MVP).
