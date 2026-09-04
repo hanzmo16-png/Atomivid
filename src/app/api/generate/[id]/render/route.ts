@@ -61,7 +61,7 @@ export async function POST(
 
   await service
     .from("video_requests")
-    .update({ status: "processing", error_message: null })
+    .update({ status: "processing", error_message: null, progress_stage: null })
     .eq("id", id);
 
   try {
@@ -69,11 +69,14 @@ export async function POST(
       supabase: service,
       requestId: id,
       script: videoRequest.script_json,
+      onProgress: async (stage) => {
+        await service.from("video_requests").update({ progress_stage: stage }).eq("id", id);
+      },
     });
 
     await service
       .from("video_requests")
-      .update({ status: "completed", video_url: videoUrl })
+      .update({ status: "completed", video_url: videoUrl, progress_stage: null })
       .eq("id", id);
 
     return NextResponse.json({ status: "completed", videoUrl });

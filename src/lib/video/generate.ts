@@ -10,12 +10,15 @@ import { getVoiceProvider } from "@/lib/providers/voice";
 import { getFootageProvider } from "@/lib/providers/footage";
 import { getMusicProvider } from "@/lib/providers/music";
 import type { GeneratedScript, WordTiming } from "@/lib/providers/types";
+import type { RenderStage } from "@/lib/video/stages";
 import type { Caption, Scene } from "../../../remotion/VerticalReel";
 
 const STORAGE_BUCKET = "videos";
 const MAX_CAPTION_WORDS = 7;
 const MIN_CAPTION_WORDS = 2;
 const COMPOSITION_ID = "VerticalReel";
+
+type OnProgress = (stage: RenderStage) => void | Promise<void>;
 
 /**
  * Etapa 1 del pipeline: solo el guion. Se guarda para que el usuario lo
@@ -44,10 +47,12 @@ export async function generateVideoFromScript({
   supabase,
   requestId,
   script,
+  onProgress,
 }: {
   supabase: SupabaseClient;
   requestId: string;
   script: GeneratedScript;
+  onProgress?: OnProgress;
 }): Promise<{ videoUrl: string }> {
   const voiceProvider = getVoiceProvider();
   const footageProvider = getFootageProvider();
@@ -55,6 +60,7 @@ export async function generateVideoFromScript({
 
   // 1. Voz narrada completa en una sola llamada, con timestamps por
   // palabra (así toda la narración usa la misma voz y ritmo).
+  await onProgress?.("voice");
   const fullText = script.segments.map((s) => s.text).join(" ");
   const voice = await voiceProvider.synthesize(fullText);
 
@@ -62,6 +68,7 @@ export async function generateVideoFromScript({
   const sceneTimings = alignScenesToWords(script.segments, voice.words);
 
   // 3. Footage: una imagen por escena, subida a Storage
+  await onProgress?.("footage");
   const scenes: Scene[] = [];
   for (let i = 0; i < script.segments.length; i++) {
     const segment = script.segments[i];
@@ -90,6 +97,7 @@ export async function generateVideoFromScript({
   );
 
   // 5. Música de fondo (por debajo del volumen de la narración)
+  await onProgress?.("music");
   const finalDurationSeconds = voice.durationSeconds + 0.5;
   const music = await musicProvider.getTrack(finalDurationSeconds);
   const musicUrl = await uploadToStorage(
@@ -104,6 +112,7 @@ export async function generateVideoFromScript({
   const captions = buildCaptions(voice.words);
 
   // 7. Ensamblar el video final con Remotion
+  await onProgress?.("render");
   const outputPath = await renderVerticalReel({
     audioUrl,
     musicUrl,
@@ -113,6 +122,7 @@ export async function generateVideoFromScript({
   });
 
   // 8. Subir el video renderizado
+  await onProgress?.("uploading");
   const videoBuffer = await fs.readFile(outputPath);
   const videoUrl = await uploadToStorage(
     supabase,

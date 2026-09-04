@@ -95,6 +95,7 @@ async function main() {
     supabase: mockSupabase,
     requestId: "test-atomivid",
     script,
+    onProgress: (stage) => console.log(`  → etapa: ${stage}`),
   });
 
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
