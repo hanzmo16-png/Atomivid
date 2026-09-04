@@ -28,6 +28,9 @@ const ScriptSchema = z.object({
 
 export type VideoScript = z.infer<typeof ScriptSchema>;
 
+const SceneSchema = ScriptSchema.shape.segments.element;
+export type VideoScriptScene = z.infer<typeof SceneSchema>;
+
 const WORDS_PER_SECOND = 2.6;
 
 export async function generateScript({
@@ -75,6 +78,59 @@ La suma de las palabras de todos los "text" debe acercarse a ${targetWords} pala
 
   if (!response.parsed_output) {
     throw new Error("Claude no devolvió un guion válido");
+  }
+
+  return response.parsed_output;
+}
+
+export async function regenerateScene({
+  topic,
+  style,
+  script,
+  sceneIndex,
+}: {
+  topic: string;
+  style: string;
+  script: VideoScript;
+  sceneIndex: number;
+}): Promise<VideoScriptScene> {
+  const current = script.segments[sceneIndex];
+  if (!current) {
+    throw new Error(`No existe la escena ${sceneIndex}`);
+  }
+
+  const previous = script.segments[sceneIndex - 1]?.text;
+  const next = script.segments[sceneIndex + 1]?.text;
+  const targetWords = current.text.split(/\s+/).filter(Boolean).length;
+
+  const response = await client.messages.parse({
+    model: SCRIPT_MODEL,
+    max_tokens: 500,
+    system:
+      "Eres guionista de reels 'faceless' para redes sociales. Reescribes " +
+      "UNA SOLA escena de un guion ya existente, manteniendo el mismo " +
+      "idioma, tono y continuidad con las escenas vecinas. No repitas la " +
+      "versión anterior — dala un giro distinto (otro ángulo, otro dato, " +
+      "otra forma de decirlo) mientras encaja en el mismo lugar del guion.",
+    messages: [
+      {
+        role: "user",
+        content: `Guion completo — tema: "${topic}", estilo/tono: "${style}".
+
+${previous ? `Escena anterior: "${previous}"\n` : ""}Escena actual (a reescribir): "${current.text}"
+${next ? `Escena siguiente: "${next}"\n` : ""}
+Reescribe SOLO la escena actual. Da:
+- "text": nueva narración (~${targetWords} palabras, sin emojis ni acotaciones).
+- "visualQuery": 2-4 palabras EN INGLÉS para buscar una foto de stock que la ilustre.`,
+      },
+    ],
+    output_config: {
+      format: zodOutputFormat(SceneSchema),
+    },
+  });
+
+  if (!response.parsed_output) {
+    throw new Error("Claude no devolvió una escena válida");
   }
 
   return response.parsed_output;

@@ -1,4 +1,4 @@
-import type { GeneratedScript, ScriptProvider } from "../types";
+import type { GeneratedScript, ScriptProvider, ScriptScene } from "../types";
 
 const WORDS_PER_SECOND = 2.6;
 
@@ -20,6 +20,21 @@ const TEMPLATES: Array<(topic: string) => string> = [
   (topic) => `${topic} apenas comienza para ti.`,
 ];
 
+function buildScene(topic: string, templateIndex: number, wordsPerScene: number): ScriptScene {
+  const template = TEMPLATES[templateIndex % TEMPLATES.length];
+  let text = template(topic);
+
+  // Rellena hasta acercarse a la duración objetivo por escena.
+  while (text.split(/\s+/).length < wordsPerScene) {
+    text += ` ${template(topic)}`;
+  }
+
+  return {
+    text,
+    visualQuery: `${topic} motivation ${templateIndex + 1}`.slice(0, 60),
+  };
+}
+
 // Proveedor determinístico (sin red): útil para probar el pipeline completo
 // sin necesitar ANTHROPIC_API_KEY. No pretende igualar la calidad creativa
 // del proveedor real — genera texto templado, suficiente para validar
@@ -31,24 +46,23 @@ export const fixtureScriptProvider: ScriptProvider = {
     const targetWords = Math.round(durationSeconds * WORDS_PER_SECOND);
     const wordsPerScene = Math.max(4, Math.round(targetWords / targetScenes));
 
-    const segments = Array.from({ length: targetScenes }, (_, i) => {
-      const template = TEMPLATES[i % TEMPLATES.length];
-      let text = template(topic);
-
-      // Rellena hasta acercarse a la duración objetivo por escena.
-      while (text.split(/\s+/).length < wordsPerScene) {
-        text += ` ${template(topic)}`;
-      }
-
-      return {
-        text,
-        visualQuery: `${topic} motivation ${i + 1}`.slice(0, 60),
-      };
-    });
+    const segments = Array.from({ length: targetScenes }, (_, i) =>
+      buildScene(topic, i, wordsPerScene),
+    );
 
     return {
       title: `${topic} (fixture)`,
       segments,
     };
+  },
+  async regenerateScene({ topic, script, sceneIndex }): Promise<ScriptScene> {
+    const current = script.segments[sceneIndex];
+    if (!current) {
+      throw new Error(`No existe la escena ${sceneIndex}`);
+    }
+    const wordsPerScene = Math.max(4, current.text.split(/\s+/).filter(Boolean).length);
+    // Desplaza medio ciclo de plantillas para que se note distinta a la actual.
+    const variantIndex = sceneIndex + Math.ceil(TEMPLATES.length / 2);
+    return buildScene(topic, variantIndex, wordsPerScene);
   },
 };

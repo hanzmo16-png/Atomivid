@@ -87,6 +87,8 @@ En **SQL Editor** de Supabase, ejecuta en orden:
 3. `supabase/migrations/0003_billing.sql` — tabla `subscriptions` (una fila
    por usuario, RLS de solo lectura; las escrituras las hace el backend con
    la service role key).
+4. `supabase/migrations/0004_script_review.sql` — columna `script_json` y el
+   estado `script_ready`, para el editor de guion antes del render final.
 
 Si usas la [CLI de Supabase](https://supabase.com/docs/guides/cli):
 
@@ -139,9 +141,15 @@ confirma tu correo e inicia sesión.
 1. En "Nuevo video" guarda una solicitud (tema, estilo, duración).
 2. Suscríbete desde "Facturación" (tarjeta de prueba `4242 4242 4242 4242`,
    con `stripe listen` corriendo en paralelo si estás en local).
-3. En el historial, pulsa "Generar video". El pipeline corre dentro de la
-   misma request HTTP (ver limitaciones) y al terminar podrás reproducir y
-   descargar el resultado.
+3. En el historial, pulsa "Generar guion". Te lleva a la pantalla de
+   revisión (`/dashboard/review/[id]`), donde puedes:
+   - Editar el texto de narración o la búsqueda visual de cualquier escena.
+   - Regenerar una sola escena (sin tocar las demás).
+   - Guardar los cambios.
+4. Cuando el guion te convenza, pulsa "Generar video final". Ahí sí corre el
+   resto del pipeline (voz, footage, música, render) dentro de la misma
+   request HTTP (ver limitaciones), y al terminar podrás reproducir y
+   descargar el resultado desde el historial.
 
 ### Probar el pipeline sin claves (proveedores fixture)
 
@@ -188,16 +196,16 @@ nada de ese presupuesto todavía.
   real con licencia. Hace falta que el usuario provea `MUSIC_TRACK_URL` o
   se conecte un banco real — **requiere autorización antes de contratarlo
   si implica un plan de pago.**
-- **Render dentro de la request HTTP**: `/api/generate/[id]` corre todo el
-  pipeline de forma síncrona (`maxDuration = 300`). En Vercel esto requiere
-  un plan que soporte funciones de larga duración. Recomendado a futuro:
-  mover el render a un worker/cola en background.
-- **Sin editor de escenas**: el guion se genera y se renderiza en el mismo
-  paso; todavía no hay una pantalla intermedia para revisar/editar el texto
-  de cada escena o regenerar una escena individual antes del render final.
-- **Sin progreso por etapas en la UI**: el historial muestra
-  `pending/processing/completed/failed`, pero no el detalle de en qué etapa
-  del pipeline (guion/voz/footage/música/render) va una generación en curso.
+- **Render dentro de la request HTTP**: `/api/generate/[id]/render` corre el
+  resto del pipeline (voz/footage/música/render) de forma síncrona
+  (`maxDuration = 300`). En Vercel esto requiere un plan que soporte
+  funciones de larga duración. Recomendado a futuro: mover el render a un
+  worker/cola en background. La generación del guion (`/script`) es rápida
+  y no tiene este problema.
+- **Sin progreso por etapas dentro del render**: una vez que se pulsa
+  "Generar video final", el historial muestra `processing` sin detalle de
+  en qué etapa interna (voz/footage/música/render) va — sí hay progreso
+  explícito para la etapa de guion (`pending` → `script_ready`).
 - **Pagos fallidos**: el estado `past_due`/`unpaid` ya bloquea la
   generación, pero no hay notificación proactiva al usuario
   (`invoice.payment_failed`).
@@ -216,12 +224,16 @@ nada de ese presupuesto todavía.
 - Pipeline completo con patrón de adaptadores + fixtures (`npm run test:pipeline`,
   verificado con `ffprobe`: H.264 1080×1920 @30fps, audio AAC, crossfade,
   subtítulos por frase, música mezclada).
+- Editor/revisión de guion (`/dashboard/review/[id]`): editar texto y
+  búsqueda visual por escena, regenerar una escena individual, guardar
+  cambios, y recién entonces generar el video final — probado end-to-end
+  con `npm run test:pipeline` (incluye una regeneración de escena real
+  antes del render).
 - Build de producción y lint sin errores.
 
 **Pendiente:**
 - Conectar un banco de música real (requiere tu autorización si implica pago).
-- Editor/revisión de escenas antes del render final, con regeneración por escena.
-- Progreso por etapas en la UI (más allá de pending/processing/completed).
+- Progreso por etapas dentro del render (voz/footage/música/render).
 - Mover el render a un worker/cola en background.
 - Probar el pipeline real (Claude/ElevenLabs/Pexels/Stripe) en producción —
   bloqueado en este entorno por la restricción de red descrita arriba.
@@ -262,7 +274,6 @@ nada de ese presupuesto todavía.
 ## Próximos pasos
 
 1. Conectar un banco de música real (con tu autorización).
-2. Editor de escenas con regeneración individual.
-3. Progreso por etapas en la UI.
-4. Mover el render a un worker/cola en background.
-5. Auto-publicación a redes sociales (fuera del alcance del MVP).
+2. Progreso por etapas dentro del render (voz/footage/música/render).
+3. Mover el render a un worker/cola en background.
+4. Auto-publicación a redes sociales (fuera del alcance del MVP).

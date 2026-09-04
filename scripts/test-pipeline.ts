@@ -21,7 +21,10 @@ process.env.REMOTION_BROWSER_EXECUTABLE =
 process.env.REMOTION_CHROME_MODE = process.env.REMOTION_CHROME_MODE || "headless-shell";
 
 async function main() {
-  const { generateVideoForRequest } = await import("../src/lib/video/generate");
+  const { generateScriptForRequest, generateVideoFromScript } = await import(
+    "../src/lib/video/generate"
+  );
+  const { getScriptProvider } = await import("../src/lib/providers/script");
   const storageDir = await fs.mkdtemp(path.join(os.tmpdir(), "atomivid-storage-"));
 
   const CONTENT_TYPES: Record<string, string> = {
@@ -70,15 +73,28 @@ async function main() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 
-  console.log("Generando video de prueba con proveedores fixture...");
-  const start = Date.now();
+  const topic = "LOS RESULTADOS TIENEN UN PRECIO";
+  const style = "motivacional, cinematográfico";
+  const durationSeconds = 75;
 
-  const { videoUrl } = await generateVideoForRequest({
+  console.log("Generando guion de prueba con proveedores fixture...");
+  const start = Date.now();
+  const script = await generateScriptForRequest({ topic, style, durationSeconds });
+  console.log(`Guion generado: "${script.title}" con ${script.segments.length} escenas`);
+
+  // Ejerce también el flujo de revisión: regenerar una escena antes de
+  // renderizar, igual que haría un usuario desde /dashboard/review/[id].
+  console.log("Regenerando la escena 0 (flujo del editor de guion)...");
+  const scriptProvider = getScriptProvider();
+  const newScene = await scriptProvider.regenerateScene({ topic, style, script, sceneIndex: 0 });
+  script.segments[0] = newScene;
+  console.log(`Escena 0 regenerada: "${newScene.text.slice(0, 60)}..."`);
+
+  console.log("Renderizando video final...");
+  const { videoUrl } = await generateVideoFromScript({
     supabase: mockSupabase,
     requestId: "test-atomivid",
-    topic: "LOS RESULTADOS TIENEN UN PRECIO",
-    style: "motivacional, cinematográfico",
-    durationSeconds: 75,
+    script,
   });
 
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);

@@ -12,11 +12,13 @@ type VideoRequest = {
   status: string;
   video_url: string | null;
   error_message: string | null;
+  script_json: unknown;
   created_at: string;
 };
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Pendiente",
+  script_ready: "Guion listo",
   processing: "Generando",
   completed: "Listo",
   failed: "Error",
@@ -24,6 +26,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 const STATUS_CLASS: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
+  script_ready: "bg-purple-100 text-purple-800",
   processing: "bg-blue-100 text-blue-800",
   completed: "bg-green-100 text-green-800",
   failed: "bg-red-100 text-red-800",
@@ -44,7 +47,7 @@ export default async function DashboardPage({
   const { data: requests } = await supabase
     .from("video_requests")
     .select(
-      "id, topic, style, duration_seconds, status, video_url, error_message, created_at",
+      "id, topic, style, duration_seconds, status, video_url, error_message, script_json, created_at",
     )
     .eq("user_id", user?.id ?? "")
     .order("created_at", { ascending: false })
@@ -88,8 +91,8 @@ export default async function DashboardPage({
       {created && (
         <p className="mt-4 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
           Tu solicitud se guardó correctamente. Pulsa &quot;Generar
-          video&quot; para crear el guion, la voz, el footage y el video
-          final automáticamente.
+          guion&quot; para crear el guion — podrás revisarlo y editarlo antes
+          de generar el video final.
         </p>
       )}
 
@@ -133,10 +136,34 @@ export default async function DashboardPage({
                     {STATUS_LABEL[req.status] ?? req.status}
                   </span>
 
-                  {req.status === "pending" && <GenerateButton requestId={req.id} />}
-                  {req.status === "failed" && (
-                    <GenerateButton requestId={req.id} label="Reintentar" />
+                  {req.status === "pending" && (
+                    <GenerateButton
+                      endpoint={`/api/generate/${req.id}/script`}
+                      label="Generar guion"
+                      redirectTo={`/dashboard/review/${req.id}`}
+                    />
                   )}
+                  {req.status === "script_ready" && (
+                    <Link
+                      href={`/dashboard/review/${req.id}`}
+                      className="rounded-full bg-gray-900 px-3 py-1 text-xs font-medium text-white hover:bg-gray-700"
+                    >
+                      Revisar guion
+                    </Link>
+                  )}
+                  {req.status === "failed" &&
+                    (req.script_json ? (
+                      <GenerateButton
+                        endpoint={`/api/generate/${req.id}/render`}
+                        label="Reintentar"
+                      />
+                    ) : (
+                      <GenerateButton
+                        endpoint={`/api/generate/${req.id}/script`}
+                        label="Reintentar"
+                        redirectTo={`/dashboard/review/${req.id}`}
+                      />
+                    ))}
                 </div>
               </div>
 

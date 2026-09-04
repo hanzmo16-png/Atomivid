@@ -22,6 +22,13 @@ export interface ScriptProvider {
     style: string;
     durationSeconds: number;
   }): Promise<GeneratedScript>;
+  /** Reescribe una sola escena (revisión/edición desde la UI). */
+  regenerateScene(input: {
+    topic: string;
+    style: string;
+    script: GeneratedScript;
+    sceneIndex: number;
+  }): Promise<ScriptScene>;
 }
 
 export type WordTiming = {

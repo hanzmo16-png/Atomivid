@@ -5,11 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export function GenerateButton({
-  requestId,
-  label = "Generar video",
+  endpoint,
+  label,
+  redirectTo,
 }: {
-  requestId: string;
-  label?: string;
+  endpoint: string;
+  label: string;
+  /** Si se da, navega ahí al terminar en vez de solo refrescar la página. */
+  redirectTo?: string;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -22,17 +25,21 @@ export function GenerateButton({
     setNeedsSubscription(false);
 
     try {
-      const res = await fetch(`/api/generate/${requestId}`, { method: "POST" });
+      const res = await fetch(endpoint, { method: "POST" });
       const data = await res.json();
 
       if (!res.ok) {
         if (res.status === 402) {
           setNeedsSubscription(true);
         }
-        throw new Error(data?.error ?? "No se pudo generar el video");
+        throw new Error(data?.error ?? "No se pudo completar la acción");
       }
 
-      router.refresh();
+      if (redirectTo) {
+        router.push(redirectTo);
+      } else {
+        router.refresh();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
       setLoading(false);
