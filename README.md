@@ -104,9 +104,11 @@ supabase db push
 - **Anthropic (Claude)**: [console.anthropic.com](https://console.anthropic.com).
 - **ElevenLabs**: [elevenlabs.io](https://elevenlabs.io) (capa gratuita limitada).
 - **Pexels**: [pexels.com/api](https://www.pexels.com/api) (gratis).
-- **Música de fondo**: no hay banco gratuito con API key integrado todavía
-  (ver "Limitaciones"). Deja `MUSIC_TRACK_URL` vacío para usar el fixture, o
-  apunta a una pista propia con licencia verificada.
+- **Música de fondo**: no hay una API en vivo conectada (ver "Música de
+  fondo" abajo — ni Pixabay Music ni Freesound ofrecen hoy una API lista
+  para uso comercial gratis sin pasos extra). Deja `MUSIC_TRACK_URL(S)`
+  vacío para usar el fixture, o sigue esa sección para curar pistas reales
+  gratis.
 
 Si no configuras alguna de estas, esa etapa usa su proveedor fixture
 automáticamente — el pipeline completo sigue funcionando.
@@ -172,8 +174,37 @@ funcionan antes de gastar en APIs reales.
 | Guion | Claude (Anthropic), salida estructurada | Texto templado en español | `SCRIPT_PROVIDER` |
 | Voz | ElevenLabs, con timestamps por palabra | Tono generado (WAV) + timestamps sintéticos | `VOICE_PROVIDER` |
 | Footage | Pexels (fotos) | Imagen de color sólido con el texto de búsqueda | `FOOTAGE_PROVIDER` |
-| Música | Pista propia vía `MUSIC_TRACK_URL` | Tono suave generado (WAV) | `MUSIC_PROVIDER` |
+| Música | Playlist propia vía `MUSIC_TRACK_URL(S)` | Tono suave generado (WAV) | `MUSIC_PROVIDER` |
 | Render | Remotion (Chromium + FFmpeg interno) | — (siempre real) | — |
+
+## Música de fondo: investigación Pixabay Music / Freesound
+
+Investigado antes de conectar nada (sin gastar ni contratar):
+
+- **Pixabay Music**: el contenido (imágenes, video **y música**) se
+  publica bajo la Pixabay Content License, que permite uso comercial sin
+  atribución obligatoria — es decir, sí es legal y gratis usar sus pistas
+  en Atomivid. **Pero** la API pública documentada de Pixabay
+  (`pixabay.com/api/docs`) solo cubre imágenes y video; no tiene un
+  endpoint de audio/música. No hay forma de buscar/descargar música por
+  API con solo crear una cuenta — habría que descargar pistas manualmente
+  desde el sitio.
+- **Freesound**: la API sí tiene endpoint de audio y la API key es
+  instantánea (cuenta gratis en freesound.org → apply). Pero su uso
+  gratuito está limitado a fines **no comerciales**; para uso comercial
+  (nuestro caso) hay que escribirles a `mtg@upf.edu` para acordar
+  licencia — no es autocontratable ni está garantizado que sea gratis.
+- **Conclusión**: ninguna de las dos da hoy "solo crea cuenta/API key y ya
+  puedes usarla en producción" para un SaaS comercial. La solución sin
+  costo y sin bloquear nada: descargar manualmente 10-20 pistas de Pixabay
+  Music (licencia comercial gratuita confirmada) o de
+  [Mixkit](https://mixkit.co/free-stock-music/) (también gratis para uso
+  comercial, sin cuenta), subirlas a un bucket propio (p. ej. Supabase
+  Storage) y configurar `MUSIC_TRACK_URLS` con la lista separada por comas
+  — el proveedor `custom-url` ahora elige una al azar por video en vez de
+  repetir siempre la misma. Esto no requiere ninguna credencial nueva ni
+  gasto; solo curaduría manual de pistas (paso que le corresponde al
+  usuario, ya que implica elegir el estilo musical del producto).
 
 ## Costos potenciales
 
@@ -187,23 +218,53 @@ nada de ese presupuesto todavía.
 - **ElevenLabs**: capa gratuita limitada, luego pago por caracteres.
 - **Pexels**: gratis.
 - **Stripe**: sin costo fijo, comisión por transacción.
-- **Música de fondo**: sin costo — todavía no hay integración con un banco
-  de pago ni gratuito, ver limitaciones.
+- **Música de fondo**: sin costo — playlist curada manualmente por el
+  usuario desde bancos gratuitos (ver sección de música arriba).
+
+## Worker en background para el render: alternativas evaluadas
+
+`/api/generate/[id]/render` hoy corre voz+footage+música+render+subida de
+forma síncrona dentro de la request HTTP (`maxDuration = 300`). Esto ya
+funciona en el fixture (~90-200s), pero en Vercel Hobby el límite real de
+función serverless es 60s (300s solo con Fluid Compute activado, y hasta
+300s en Pro); un render real con APIs externas puede superar eso.
+Comparación de opciones para moverlo a un worker aparte, sin implementar
+ninguna todavía (solo investigación, como se pidió):
+
+| Opción | Costo mínimo/mes | Capa gratuita | Dificultad | Escalabilidad | Compatibilidad |
+|---|---|---|---|---|---|
+| **GitHub Actions** (dispara un workflow desde la API, corre el render con el mismo Chromium/ffmpeg que ya usa `test:pipeline`, sube a Supabase Storage) | **$0** | 2,000 min/mes gratis en repos privados (ilimitado en públicos) | Media — hay que orquestar: la API dispara el workflow vía GitHub API (token), el workflow corre el render y notifica de vuelta (webhook o polling del estado) | Baja/media — sin cola real, min limitados, latencia extra por arrancar el runner (~10-30s) | Alta — reutiliza el mismo código Node/Remotion/ffmpeg que ya corre en este repo, sin reescribir nada del pipeline |
+| **Remotion Lambda (AWS)** | Pago por uso, sin mínimo fijo (AWS Lambda tiene capa gratis perpetua: 400,000 GB-s + 1M requests/mes) | Sí (capa gratis de AWS Lambda) | Media-alta — requiere cuenta AWS, configurar `@remotion/lambda`, S3 para assets/salida; Remotion en sí es gratis para equipos de ≤3 personas (nuestro caso), sin licencia de pago | Muy alta — es el producto oficial de Remotion para esto, pensado para producción | Alta — mismo motor de render que ya usamos, solo cambia dónde corre |
+| **Railway** | ~$5-20+/mes reales para un worker persistente | Solo un trial de $5 una vez; después $1 de crédito gratis/mes (no alcanza para un worker que use Chromium) | Baja — despliegue simple tipo Heroku | Media | Alta — es solo un contenedor Node, correría el mismo código |
+| **Render.com** | $7/mes (Starter, 512MB/0.5CPU) para un *background worker* | Free tier existe pero es para *web services* que se duermen a los 15 min de inactividad — no apto para un worker persistente que reciba jobs de render (que además necesita más de 512MB con Chromium) | Baja | Media | Alta — mismo modelo, contenedor Node |
+
+**Recomendación objetiva para validar el MVP con pocos usuarios y
+presupuesto ajustado**: **GitHub Actions** como worker gratuito para la
+fase de validación (cero costo fijo, reutiliza exactamente lo ya construido
+y probado en este repo), y dejar **Remotion Lambda** como el camino a
+escalar cuando haya usuarios reales pagando — sigue siendo pago por uso
+(no una cuota fija mensual) y es la opción diseñada específicamente para
+esto por los mismos creadores de Remotion. Railway y Render.com no tienen
+ya una capa gratuita real para esta carga de trabajo (Chromium + render de
+video), así que solo tendrían sentido si se prefiere algo "siempre
+encendido" sin usar GitHub Actions — no se recomienda para esta etapa.
+Ninguna de estas dos opciones se ha implementado ni contratado — requiere
+tu decisión y, en el caso de Remotion Lambda, una cuenta de AWS con tarjeta
+de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
 
 ## Limitaciones actuales
 
-- **Música de fondo**: no hay un banco gratuito con API key conectado
-  todavía (Pixabay Music/Freesound requieren cuenta + credenciales que no
-  se han configurado). El proveedor fixture genera un tono suave, no música
-  real con licencia. Hace falta que el usuario provea `MUSIC_TRACK_URL` o
-  se conecte un banco real — **requiere autorización antes de contratarlo
-  si implica un plan de pago.**
+- **Música de fondo**: sin API en vivo conectada (ver arriba). El
+  proveedor fixture genera un tono suave, no música real con licencia. El
+  usuario debe curar manualmente algunas pistas gratuitas y configurar
+  `MUSIC_TRACK_URLS`.
 - **Render dentro de la request HTTP**: `/api/generate/[id]/render` corre el
   resto del pipeline (voz/footage/música/render) de forma síncrona
-  (`maxDuration = 300`). En Vercel esto requiere un plan que soporte
-  funciones de larga duración. Recomendado a futuro: mover el render a un
-  worker/cola en background. La generación del guion (`/script`) es rápida
-  y no tiene este problema.
+  (`maxDuration = 300`). En Vercel Hobby el límite real es 60s salvo que
+  actives Fluid Compute (hasta 300s) — un render con APIs reales puede
+  superarlo. Ver "Worker en background" arriba para las alternativas
+  evaluadas (ninguna implementada todavía, pendiente de tu decisión). La
+  generación del guion (`/script`) es rápida y no tiene este problema.
 - **Pagos fallidos**: el estado `past_due`/`unpaid` ya bloquea la
   generación, pero no hay notificación proactiva al usuario
   (`invoice.payment_failed`).
@@ -231,12 +292,23 @@ nada de ese presupuesto todavía.
   va (voz → footage → música → ensamblado → subiendo) mientras
   `status = processing`, verificado con `npm run test:pipeline`.
 - Build de producción y lint sin errores.
+- Investigación de música (Pixabay Music/Freesound) y de alternativas de
+  worker en background — ver secciones dedicadas arriba.
+- `customUrlMusicProvider` ahora acepta `MUSIC_TRACK_URLS` (lista) además de
+  `MUSIC_TRACK_URL` (una sola pista), eligiendo una al azar por video.
 
 **Pendiente:**
-- Conectar un banco de música real (requiere tu autorización si implica pago).
-- Mover el render a un worker/cola en background.
+- Curar manualmente pistas de música reales y configurar `MUSIC_TRACK_URLS`
+  (paso del usuario: elegir el estilo musical del producto).
+- Decidir e implementar un worker en background para el render (ver
+  comparación arriba) — requiere tu decisión, y en el caso de Remotion
+  Lambda, una cuenta de AWS.
 - Probar el pipeline real (Claude/ElevenLabs/Pexels/Stripe) en producción —
-  bloqueado en este entorno por la restricción de red descrita arriba.
+  bloqueado en este entorno por la restricción de red descrita arriba, y
+  sin señal indirecta disponible por GitHub (este repo no tiene un GitHub
+  Actions configurado ni un Pull Request abierto sobre el que Vercel
+  publique el estado del deploy) — requiere verificarlo directamente en el
+  dashboard de Vercel/Supabase.
 
 ## Despliegue
 
@@ -273,6 +345,39 @@ nada de ese presupuesto todavía.
 
 ## Próximos pasos
 
-1. Conectar un banco de música real (con tu autorización).
-2. Mover el render a un worker/cola en background.
-3. Auto-publicación a redes sociales (fuera del alcance del MVP).
+1. Curar manualmente pistas de música gratuitas (Pixabay Music/Mixkit) y
+   configurar `MUSIC_TRACK_URLS`.
+2. Decidir el worker en background: GitHub Actions para validar gratis,
+   Remotion Lambda para escalar (ver comparación arriba) — con tu
+   autorización, ya que Remotion Lambda implica dar de alta una cuenta AWS.
+3. Verificar en Vercel qué variables de entorno faltan (guía en "Qué falta
+   verificar en producción" abajo) y probar el flujo real con datos reales.
+4. Auto-publicación a redes sociales (fuera del alcance del MVP).
+
+## Qué falta verificar en producción (requiere que lo hagas tú o me des acceso)
+
+Este entorno de Claude Code no tiene salida de red hacia Vercel, Supabase,
+ElevenLabs, Pexels ni Stripe (solo hacia `api.anthropic.com` y registros de
+paquetes — ver "Limitaciones"), y el repo no tiene un Pull Request abierto
+ni GitHub Actions configurado del que pueda leer el estado del deploy de
+Vercel indirectamente. Por eso no puedo confirmar por mi cuenta qué
+funciona en producción. Para completarlo:
+
+1. En Vercel → tu proyecto → **Deployments**, confirma que el último
+   commit de `claude/atomivid-mvp-setup-0079jv` desplegó sin errores (si
+   falló, copia aquí el mensaje de error del log de build).
+2. En Vercel → **Settings → Environment Variables**, confirma que están
+   configuradas (no solo creadas como placeholder vacío):
+   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+   `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`,
+   `PEXELS_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
+   `STRIPE_PRICE_ID`, `NEXT_PUBLIC_SITE_URL`.
+3. En Supabase, confirma que las 5 migraciones de `supabase/migrations/` ya
+   se aplicaron (`supabase db push`, o pegadas manualmente en el SQL
+   Editor) y que existe el bucket de Storage `videos` (público, para poder
+   reproducir/descargar el video final).
+4. Con eso puesto, prueba en el sitio real: crear una solicitud → generar
+   guion → editar/regenerar una escena → generar video final → reproducir y
+   descargar. Cuéntame qué falla (si algo falla) con el mensaje de error
+   exacto que veas, así lo puedo diagnosticar y corregir sin necesitar tus
+   credenciales directamente.
