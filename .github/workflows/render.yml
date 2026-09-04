@@ -1,0 +1,58 @@
+name: Render video (worker de Atomivid)
+
+# Disparado por /api/generate/[id]/render (src/lib/worker/github-actions.ts)
+# vía la API de "repository dispatch" de GitHub — nunca manualmente. Corre
+# Chromium (Remotion) y produce el video final fuera de Vercel, como
+# worker gratuito para validar el MVP (ver README, sección "Worker en
+# background").
+on:
+  repository_dispatch:
+    types: [render-video]
+
+# Evita que dos renders de la MISMA solicitud corran en paralelo si por lo
+# que sea llegara un dispatch duplicado; distintas solicitudes sí corren en
+# paralelo entre sí.
+concurrency:
+  group: atomivid-render-${{ github.event.client_payload.requestId }}
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    # Tope duro: si el render se cuelga, GitHub lo mata a los 12 minutos y
+    # el paso "Marcar como fallido" deja la solicitud en un estado
+    # reintentable en vez de "processing" para siempre.
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Renderizar video
+        run: npx tsx scripts/render-worker.ts
+        env:
+          REQUEST_ID: ${{ github.event.client_payload.requestId }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          MUSIC_TRACK_URLS: ${{ secrets.MUSIC_TRACK_URLS }}
+          MUSIC_PROVIDER: ${{ secrets.MUSIC_PROVIDER }}
+
+      - name: Marcar como fallido si el render no terminó
+        if: failure()
+        run: npx tsx scripts/mark-render-failed.ts
+        env:
+          REQUEST_ID: ${{ github.event.client_payload.requestId }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

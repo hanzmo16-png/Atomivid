@@ -17,6 +17,10 @@ const STORAGE_BUCKET = "videos";
 const MAX_CAPTION_WORDS = 7;
 const MIN_CAPTION_WORDS = 2;
 const COMPOSITION_ID = "VerticalReel";
+// El bucket es privado: los assets intermedios (voz/footage/música) se
+// firman por un rato corto, solo el tiempo que tarda este mismo proceso en
+// leerlos para el render — no necesitan durar más que eso.
+const ASSET_SIGNED_URL_TTL_SECONDS = 60 * 60;
 
 type OnProgress = (stage: RenderStage) => void | Promise<void>;
 
@@ -53,7 +57,7 @@ export async function generateVideoFromScript({
   requestId: string;
   script: GeneratedScript;
   onProgress?: OnProgress;
-}): Promise<{ videoUrl: string }> {
+}): Promise<{ videoPath: string }> {
   const voiceProvider = getVoiceProvider();
   const footageProvider = getFootageProvider();
   const musicProvider = getMusicProvider();
@@ -75,7 +79,7 @@ export async function generateVideoFromScript({
     const timing = sceneTimings[i];
     const image = await footageProvider.fetchImage(segment.visualQuery);
     const imageBuffer = await footageProvider.downloadImage(image.url);
-    const imageUrl = await uploadToStorage(
+    const { url: imageUrl } = await uploadToStorage(
       supabase,
       `${requestId}/scene-${i}.${image.extension}`,
       imageBuffer,
@@ -89,7 +93,7 @@ export async function generateVideoFromScript({
   }
 
   // 4. Subir la narración generada
-  const audioUrl = await uploadToStorage(
+  const { url: audioUrl } = await uploadToStorage(
     supabase,
     `${requestId}/voice.${voice.extension}`,
     voice.audioBuffer,
@@ -100,7 +104,7 @@ export async function generateVideoFromScript({
   await onProgress?.("music");
   const finalDurationSeconds = voice.durationSeconds + 0.5;
   const music = await musicProvider.getTrack(finalDurationSeconds);
-  const musicUrl = await uploadToStorage(
+  const { url: musicUrl } = await uploadToStorage(
     supabase,
     `${requestId}/music.${music.extension}`,
     music.audioBuffer,
@@ -121,10 +125,11 @@ export async function generateVideoFromScript({
     durationSeconds: finalDurationSeconds,
   });
 
-  // 8. Subir el video renderizado
+  // 8. Subir el video renderizado (se referencia por su ruta; la URL para
+  // verlo/descargarlo se firma bajo demanda, después de validar dueño).
   await onProgress?.("uploading");
   const videoBuffer = await fs.readFile(outputPath);
-  const videoUrl = await uploadToStorage(
+  const { path: videoPath } = await uploadToStorage(
     supabase,
     `${requestId}/final.mp4`,
     videoBuffer,
@@ -132,7 +137,7 @@ export async function generateVideoFromScript({
   );
   await fs.unlink(outputPath).catch(() => {});
 
-  return { videoUrl };
+  return { videoPath };
 }
 
 function alignScenesToWords(
@@ -209,12 +214,18 @@ function buildCaptions(words: WordTiming[]): Caption[] {
   return captions;
 }
 
+/**
+ * Sube un archivo al bucket privado y devuelve tanto su ruta (para
+ * guardarla y firmar una URL nueva más adelante) como una URL firmada de
+ * corta duración (para que este mismo proceso de render pueda leerlo de
+ * inmediato, p. ej. Remotion descargando una imagen o un audio).
+ */
 async function uploadToStorage(
   supabase: SupabaseClient,
   objectPath: string,
   buffer: Buffer,
   contentType: string,
-): Promise<string> {
+): Promise<{ path: string; url: string }> {
   const { error } = await supabase.storage
     .from(STORAGE_BUCKET)
     .upload(objectPath, buffer, { contentType, upsert: true });
@@ -223,8 +234,17 @@ async function uploadToStorage(
     throw new Error(`No se pudo subir ${objectPath}: ${error.message}`);
   }
 
-  const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(objectPath);
-  return data.publicUrl;
+  const { data, error: signError } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUrl(objectPath, ASSET_SIGNED_URL_TTL_SECONDS);
+
+  if (signError || !data) {
+    throw new Error(
+      `No se pudo firmar la URL de ${objectPath}: ${signError?.message ?? "desconocido"}`,
+    );
+  }
+
+  return { path: objectPath, url: data.signedUrl };
 }
 
 async function renderVerticalReel({
