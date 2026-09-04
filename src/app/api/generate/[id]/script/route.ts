@@ -14,6 +14,13 @@ type VideoRequestRow = {
   status: string;
 };
 
+// Coincide con targetScenes en src/lib/ai/script.ts (máximo 10 para la
+// duración más larga que ofrece la UI) con margen para ediciones manuales,
+// sin dejarlo abierto a un guion arbitrariamente largo.
+const MAX_SEGMENTS = 20;
+const MAX_SCENE_TEXT_LENGTH = 800;
+const MAX_VISUAL_QUERY_LENGTH = 200;
+
 async function loadOwnedRequest(id: string, userId: string) {
   const service = createServiceClient();
 
@@ -128,9 +135,31 @@ export async function PATCH(
   if (!body?.title || !Array.isArray(body.segments) || body.segments.length === 0) {
     return NextResponse.json({ error: "Guion inválido" }, { status: 400 });
   }
+  // Topes defensivos: el guion editado alimenta directamente la síntesis
+  // de voz (costo por carácter) y el render — sin límite, una edición
+  // manual podría inflar el costo/duración muy por encima de lo que la
+  // solicitud original pidió.
+  if (body.segments.length > MAX_SEGMENTS) {
+    return NextResponse.json(
+      { error: `El guion no puede tener más de ${MAX_SEGMENTS} escenas` },
+      { status: 400 },
+    );
+  }
   for (const segment of body.segments) {
     if (typeof segment.text !== "string" || typeof segment.visualQuery !== "string") {
       return NextResponse.json({ error: "Guion inválido" }, { status: 400 });
+    }
+    if (segment.text.length > MAX_SCENE_TEXT_LENGTH) {
+      return NextResponse.json(
+        { error: `El texto de una escena no puede superar ${MAX_SCENE_TEXT_LENGTH} caracteres` },
+        { status: 400 },
+      );
+    }
+    if (segment.visualQuery.length > MAX_VISUAL_QUERY_LENGTH) {
+      return NextResponse.json(
+        { error: `La búsqueda visual no puede superar ${MAX_VISUAL_QUERY_LENGTH} caracteres` },
+        { status: 400 },
+      );
     }
   }
 

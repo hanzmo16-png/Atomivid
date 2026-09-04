@@ -51,11 +51,14 @@ export async function generateVideoFromScript({
   supabase,
   requestId,
   script,
+  style,
   onProgress,
 }: {
   supabase: SupabaseClient;
   requestId: string;
   script: GeneratedScript;
+  /** Estilo elegido por el usuario (p. ej. "Motivacional") — usado para elegir música acorde. */
+  style?: string;
   onProgress?: OnProgress;
 }): Promise<{ videoPath: string }> {
   const voiceProvider = getVoiceProvider();
@@ -103,7 +106,7 @@ export async function generateVideoFromScript({
   // 5. Música de fondo (por debajo del volumen de la narración)
   await onProgress?.("music");
   const finalDurationSeconds = voice.durationSeconds + 0.5;
-  const music = await musicProvider.getTrack(finalDurationSeconds);
+  const music = await musicProvider.getTrack(finalDurationSeconds, style);
   const { url: musicUrl } = await uploadToStorage(
     supabase,
     `${requestId}/music.${music.extension}`,
