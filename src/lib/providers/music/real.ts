@@ -1,22 +1,39 @@
 import type { MusicProvider } from "../types";
 
-// No hay un banco de música gratuito con API key configurada todavía
-// (Pixabay Music/Freesound requieren cuenta + credenciales que no están
-// disponibles en este entorno). Como alternativa "real" sin bloquear el
-// pipeline: si defines MUSIC_TRACK_URL apuntando a una pista propia con
-// licencia verificada (por ejemplo subida a tu bucket de Supabase Storage
-// o cualquier URL pública), la usamos tal cual. Documentado en el README
-// como pendiente de conectar un banco de música real.
+// Ni Pixabay Music ni Freesound ofrecen hoy una API pública lista para uso
+// comercial sin pasos extra: la API pública de Pixabay (pixabay.com/api/docs)
+// solo cubre imágenes y video, no audio; la API de Freesound es gratis pero
+// su licencia limita el uso gratuito a fines no comerciales (uso comercial
+// requiere contactarlos aparte). Por eso, en vez de una integración en vivo,
+// este proveedor usa una pequeña playlist de pistas ya descargadas por el
+// usuario bajo una licencia verificada (p. ej. Pixabay Music o Mixkit,
+// ambas permiten uso comercial sin costo) y subidas a una URL propia — por
+// ejemplo el bucket de Supabase Storage. Define MUSIC_TRACK_URLS con una
+// lista separada por comas para variar la pista entre videos, o
+// MUSIC_TRACK_URL con una sola pista. Documentado en el README.
+function getConfiguredTrackUrls(): string[] {
+  const list = process.env.MUSIC_TRACK_URLS;
+  if (list) {
+    return list
+      .split(",")
+      .map((url) => url.trim())
+      .filter(Boolean);
+  }
+  const single = process.env.MUSIC_TRACK_URL;
+  return single ? [single] : [];
+}
+
 export const customUrlMusicProvider: MusicProvider = {
   name: "custom-url",
   async getTrack(durationSeconds) {
-    const trackUrl = process.env.MUSIC_TRACK_URL;
-    if (!trackUrl) {
+    const trackUrls = getConfiguredTrackUrls();
+    if (trackUrls.length === 0) {
       throw new Error(
-        "MUSIC_TRACK_URL no está configurada. Define MUSIC_TRACK_URL con una " +
-          "pista de música libre de derechos, o usa MUSIC_PROVIDER=fixture.",
+        "MUSIC_TRACK_URL / MUSIC_TRACK_URLS no está configurada. Define al menos " +
+          "una pista de música libre de derechos, o usa MUSIC_PROVIDER=fixture.",
       );
     }
+    const trackUrl = trackUrls[Math.floor(Math.random() * trackUrls.length)];
 
     const res = await fetch(trackUrl);
     if (!res.ok) {
