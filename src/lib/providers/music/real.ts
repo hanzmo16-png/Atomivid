@@ -1,4 +1,5 @@
 import type { MusicProvider } from "../types";
+import { MUSIC_MANIFEST } from "./manifest";
 
 // Ni Pixabay Music ni Freesound ofrecen hoy una API pública lista para uso
 // comercial sin pasos extra: la API pública de Pixabay (pixabay.com/api/docs)
@@ -8,9 +9,14 @@ import type { MusicProvider } from "../types";
 // este proveedor usa una pequeña playlist de pistas ya descargadas por el
 // usuario bajo una licencia verificada (p. ej. Pixabay Music o Mixkit,
 // ambas permiten uso comercial sin costo) y subidas a una URL propia — por
-// ejemplo el bucket de Supabase Storage. Define MUSIC_TRACK_URLS con una
-// lista separada por comas para variar la pista entre videos, o
-// MUSIC_TRACK_URL con una sola pista. Documentado en el README.
+// ejemplo el bucket de Supabase Storage. Documentado en el README.
+//
+// Dos formas de configurarla, de la más a la menos completa:
+// 1. MUSIC_MANIFEST (manifest.ts): registra fuente/autor/licencia por
+//    pista y permite elegir por estilo de video.
+// 2. MUSIC_TRACK_URLS (env var, lista separada por comas) o
+//    MUSIC_TRACK_URL (una sola pista): más simple, sin estilos ni
+//    metadata, para arrancar rápido.
 function getConfiguredTrackUrls(): string[] {
   const list = process.env.MUSIC_TRACK_URLS;
   if (list) {
@@ -23,17 +29,33 @@ function getConfiguredTrackUrls(): string[] {
   return single ? [single] : [];
 }
 
+function pickTrackUrl(style?: string): string {
+  if (MUSIC_MANIFEST.length > 0) {
+    const normalizedStyle = style?.trim().toLowerCase();
+    const matching = normalizedStyle
+      ? MUSIC_MANIFEST.filter((track) =>
+          track.styleTags.some((tag) => tag.toLowerCase() === normalizedStyle),
+        )
+      : [];
+    const pool = matching.length > 0 ? matching : MUSIC_MANIFEST;
+    return pool[Math.floor(Math.random() * pool.length)].storageUrl;
+  }
+
+  const trackUrls = getConfiguredTrackUrls();
+  if (trackUrls.length === 0) {
+    throw new Error(
+      "No hay música de fondo configurada (ni MUSIC_MANIFEST ni " +
+        "MUSIC_TRACK_URL/MUSIC_TRACK_URLS). Define al menos una pista libre " +
+        "de derechos, o usa MUSIC_PROVIDER=fixture para pruebas internas.",
+    );
+  }
+  return trackUrls[Math.floor(Math.random() * trackUrls.length)];
+}
+
 export const customUrlMusicProvider: MusicProvider = {
   name: "custom-url",
-  async getTrack(durationSeconds) {
-    const trackUrls = getConfiguredTrackUrls();
-    if (trackUrls.length === 0) {
-      throw new Error(
-        "MUSIC_TRACK_URL / MUSIC_TRACK_URLS no está configurada. Define al menos " +
-          "una pista de música libre de derechos, o usa MUSIC_PROVIDER=fixture.",
-      );
-    }
-    const trackUrl = trackUrls[Math.floor(Math.random() * trackUrls.length)];
+  async getTrack(durationSeconds, style) {
+    const trackUrl = pickTrackUrl(style);
 
     const res = await fetch(trackUrl);
     if (!res.ok) {

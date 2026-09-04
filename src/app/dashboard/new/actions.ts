@@ -3,6 +3,14 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
+// Duraciones que ofrece el formulario — se valida contra esta misma lista
+// en el servidor (nunca confiar solo en el <select> del cliente) para no
+// dejar pasar una duración arbitraria que dispare un guion/voz/render
+// desproporcionado. Ver también el CHECK de la migración 0007.
+const ALLOWED_DURATIONS = [30, 60, 90];
+const MAX_TOPIC_LENGTH = 500;
+const MAX_STYLE_LENGTH = 100;
+
 export async function createVideoRequest(formData: FormData) {
   const topic = String(formData.get("topic") ?? "").trim();
   const style = String(formData.get("style") ?? "").trim();
@@ -10,6 +18,15 @@ export async function createVideoRequest(formData: FormData) {
 
   if (!topic || !style || !durationSeconds) {
     redirect("/dashboard/new?error=Completa+todos+los+campos");
+  }
+  if (topic.length > MAX_TOPIC_LENGTH) {
+    redirect(`/dashboard/new?error=El+tema+no+puede+superar+${MAX_TOPIC_LENGTH}+caracteres`);
+  }
+  if (style.length > MAX_STYLE_LENGTH) {
+    redirect(`/dashboard/new?error=El+estilo+no+puede+superar+${MAX_STYLE_LENGTH}+caracteres`);
+  }
+  if (!ALLOWED_DURATIONS.includes(durationSeconds)) {
+    redirect("/dashboard/new?error=Duración+no+válida");
   }
 
   const supabase = await createClient();

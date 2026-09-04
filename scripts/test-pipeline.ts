@@ -101,6 +101,7 @@ async function main() {
     supabase: mockSupabase,
     requestId: "test-atomivid",
     script,
+    style,
     onProgress: (stage) => console.log(`  → etapa: ${stage}`),
   });
 

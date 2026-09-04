@@ -72,5 +72,11 @@ export type MusicResult = {
 
 export interface MusicProvider {
   readonly name: string;
-  getTrack(durationSeconds: number): Promise<MusicResult>;
+  /**
+   * `style` es el mismo valor que el usuario eligió en /dashboard/new
+   * (p. ej. "Motivacional", "Humor") — opcional porque no todos los
+   * proveedores lo usan (el fixture lo ignora), pero permite elegir una
+   * pista acorde en vez de puramente al azar.
+   */
+  getTrack(durationSeconds: number, style?: string): Promise<MusicResult>;
 }

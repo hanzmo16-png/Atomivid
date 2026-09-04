@@ -20,15 +20,22 @@ async function main() {
   // si falta una API key y el pipeline caería a un proveedor fixture
   // (texto/tono/imagen de relleno), mejor fallar con un mensaje claro que
   // entregar un video que no es el que el usuario pidió.
+  // El tono genérico del fixture de música es intencional solo para
+  // pruebas internas (ver README, "Música de fondo") — nunca debe llegar
+  // a un video final para un usuario real, así que también bloquea aquí.
   const { getVoiceProvider } = await import("../src/lib/providers/voice");
   const { getFootageProvider } = await import("../src/lib/providers/footage");
+  const { getMusicProvider } = await import("../src/lib/providers/music");
   const voiceName = getVoiceProvider().name;
   const footageName = getFootageProvider().name;
-  if (voiceName === "fixture" || footageName === "fixture") {
+  const musicName = getMusicProvider().name;
+  if (voiceName === "fixture" || footageName === "fixture" || musicName === "fixture") {
     throw new Error(
-      `Faltan credenciales reales en los secrets del worker (voz="${voiceName}", ` +
-        `footage="${footageName}"). Configura ELEVENLABS_API_KEY y PEXELS_API_KEY ` +
-        "como secrets del repositorio antes de usar este worker para usuarios reales.",
+      `Faltan credenciales/configuración reales en los secrets del worker ` +
+        `(voz="${voiceName}", footage="${footageName}", música="${musicName}"). ` +
+        "Configura ELEVENLABS_API_KEY, PEXELS_API_KEY y al menos una pista de " +
+        "música (MUSIC_MANIFEST o MUSIC_TRACK_URLS) antes de usar este worker " +
+        "para usuarios reales.",
     );
   }
 

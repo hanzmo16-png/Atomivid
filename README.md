@@ -91,6 +91,16 @@ En **SQL Editor** de Supabase, ejecuta en orden:
    estado `script_ready`, para el editor de guion antes del render final.
 5. `supabase/migrations/0005_render_progress.sql` — columna `progress_stage`,
    para mostrar en qué parte del render va una generación en curso.
+6. `supabase/migrations/0006_render_worker.sql` — columnas para el worker en
+   background (`render_attempts`, `render_started_at`, `render_worker`,
+   `video_path`) y **cambia el bucket `videos` de público a privado**
+   (las URLs ahora se firman bajo demanda — ver "Worker en background").
+   Si ya habías generado algún video de prueba con la URL pública
+   anterior, esa URL deja de funcionar; no hay pérdida de datos, solo de
+   ese enlace.
+7. `supabase/migrations/0007_input_limits.sql` — topes de longitud/duración
+   en `video_requests` (defensa en profundidad para no permitir una
+   solicitud que dispare un gasto desproporcionado).
 
 Si usas la [CLI de Supabase](https://supabase.com/docs/guides/cli):
 
@@ -206,6 +216,53 @@ Investigado antes de conectar nada (sin gastar ni contratar):
   gasto; solo curaduría manual de pistas (paso que le corresponde al
   usuario, ya que implica elegir el estilo musical del producto).
 
+## Música de fondo: banco inicial (pendiente de que cures las pistas)
+
+El tono genérico del proveedor fixture (un pad de dos tonos) es **solo
+para pruebas internas** — `scripts/render-worker.ts` (el worker de GitHub
+Actions) se niega a correr si la música resuelve a "fixture", precisamente
+para que nunca le llegue a un usuario real. Antes de invitar usuarios
+reales hace falta curar un banco mínimo. Yo no puedo hacerlo desde este
+entorno (sin salida de red hacia Pixabay/Mixkit), así que aquí están los
+pasos exactos:
+
+**Criterios para cada pista (los tres son obligatorios):**
+1. Licencia explícita de uso comercial gratuito — Pixabay Content License
+   o Mixkit Free License son las dos verificadas en la investigación de
+   arriba. Si dudas de la licencia de una pista, no la uses.
+2. Instrumental (sin voz) — para no competir con la narración.
+3. Energía pareja/de fondo, no un tema con subidas y bajadas fuertes de
+   volumen — tiene que poder mezclarse bajo la voz sin distraer.
+
+**Pasos:**
+1. En [Pixabay Music](https://pixabay.com/music/) o
+   [Mixkit](https://mixkit.co/free-stock-music/), busca 10-15 pistas que
+   cumplan los tres criterios. Cubre varios estilos: al menos 2-3 pistas
+   por cada opción del selector de `/dashboard/new` (Motivacional,
+   Educativo, Humor, Historias de terror, Curiosidades, Noticias /
+   actualidad, Storytelling personal) — no hace falta una pista distinta
+   por estilo si una pista "neutra" combina con varios.
+2. Descarga el MP3 de cada una y súbelas a un bucket propio de Supabase
+   Storage (puede ser el mismo proyecto, en un bucket separado como
+   `music-bank`, o cualquier otro hosting propio con URL pública/firmable
+   estable) — nunca a este repositorio.
+3. Por cada pista, agrega una entrada en
+   `src/lib/providers/music/manifest.ts` (`MUSIC_MANIFEST`) con: `id`,
+   `title`, `author` (tal como lo indica la página de origen), `sourceUrl`
+   (la página exacta de donde la bajaste, para poder verificar la licencia
+   después), `license` (el nombre exacto, p. ej. `"Pixabay Content
+   License"`), `styleTags` (uno o más de los valores del selector de
+   estilo) y `storageUrl` (la URL pública/firmada donde la subiste).
+4. Confirma con `npm run test:pipeline` que el pipeline sigue corriendo
+   (el manifest se usa automáticamente en cuanto tenga al menos una
+   entrada — no hace falta ninguna variable de entorno nueva).
+
+Mientras el manifest esté vacío y no haya `MUSIC_TRACK_URLS` configurada,
+`getMusicProvider()` sigue usando el fixture — el worker de GitHub Actions
+simplemente rechazará renders reales hasta que completes esto (ver
+"Worker en background" arriba), así que no hay riesgo de que un video con
+tono de prueba llegue a un usuario por accidente.
+
 ## Costos potenciales
 
 Presupuesto disponible: hasta $30,000 MXN, usado solo si una herramienta de
@@ -221,15 +278,46 @@ nada de ese presupuesto todavía.
 - **Música de fondo**: sin costo — playlist curada manualmente por el
   usuario desde bancos gratuitos (ver sección de música arriba).
 
-## Worker en background para el render: alternativas evaluadas
+## Worker en background para el render
 
-`/api/generate/[id]/render` hoy corre voz+footage+música+render+subida de
-forma síncrona dentro de la request HTTP (`maxDuration = 300`). Esto ya
-funciona en el fixture (~90-200s), pero en Vercel Hobby el límite real de
-función serverless es 60s (300s solo con Fluid Compute activado, y hasta
-300s en Pro); un render real con APIs externas puede superar eso.
-Comparación de opciones para moverlo a un worker aparte, sin implementar
-ninguna todavía (solo investigación, como se pidió):
+**Implementado**: `/api/generate/[id]/render` ya no corre el pipeline
+dentro de la request HTTP. Ahora:
+
+1. Valida dueño/estado/cuota, marca la solicitud `processing` (con una
+   guarda de concurrencia optimista para evitar dos renders del mismo
+   video) y responde de inmediato (HTTP 202-equivalente).
+2. Dispara `.github/workflows/render.yml` vía la API de "repository
+   dispatch" de GitHub (`src/lib/worker/github-actions.ts`).
+3. El workflow corre en un runner de GitHub Actions: instala
+   dependencias, ejecuta `scripts/render-worker.ts` (que llama al mismo
+   `runRenderJob()`/pipeline que usa `npm run test:pipeline`), y actualiza
+   `progress_stage`/`status`/`video_path` en Supabase directamente.
+4. Si el paso de render falla o se corta por `timeout-minutes: 12`, un
+   paso `if: failure()` (`scripts/mark-render-failed.ts`) deja la
+   solicitud en `failed` en vez de `processing` para siempre.
+
+Si `GH_WORKER_TOKEN`/`GH_WORKER_REPO` no están configuradas, cae
+automáticamente al worker `inline` (corre en el mismo proceso — el
+comportamiento síncrono original, útil para desarrollo/pruebas locales;
+ver `npm run test:pipeline`).
+
+**Verificado en este entorno**: el pipeline en sí (`runRenderJob` →
+`generateVideoFromScript`) con `npm run test:pipeline`, incluida la ruta
+que ahora también usa `video_path` + URLs firmadas. **No verificado**: el
+disparo real del workflow de GitHub Actions (`repository_dispatch` +
+ejecución del runner) — este sandbox no tiene salida de red hacia la API
+de GitHub más allá del MCP de este chat, y no hay `GH_WORKER_TOKEN`
+configurado. Eso requiere que configures las credenciales (ver
+"Credenciales que faltan" al final) y hagas una prueba real end-to-end.
+
+Antes de implementar el workflow se verificó que `repository_dispatch` no
+tiene la restricción de `schedule` en repos privados gratuitos (esa
+restricción solo afecta a los triggers de cron); el tope real es 2,000
+minutos/mes en repos privados y 6h por job — ambos muy por encima de lo
+que necesita este MVP.
+
+A continuación, la comparación completa de alternativas que llevó a elegir
+GitHub Actions para esta etapa:
 
 | Opción | Costo mínimo/mes | Capa gratuita | Dificultad | Escalabilidad | Compatibilidad |
 |---|---|---|---|---|---|
@@ -254,61 +342,86 @@ de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
 
 ## Limitaciones actuales
 
-- **Música de fondo**: sin API en vivo conectada (ver arriba). El
-  proveedor fixture genera un tono suave, no música real con licencia. El
-  usuario debe curar manualmente algunas pistas gratuitas y configurar
-  `MUSIC_TRACK_URLS`.
-- **Render dentro de la request HTTP**: `/api/generate/[id]/render` corre el
-  resto del pipeline (voz/footage/música/render) de forma síncrona
-  (`maxDuration = 300`). En Vercel Hobby el límite real es 60s salvo que
-  actives Fluid Compute (hasta 300s) — un render con APIs reales puede
-  superarlo. Ver "Worker en background" arriba para las alternativas
-  evaluadas (ninguna implementada todavía, pendiente de tu decisión). La
-  generación del guion (`/script`) es rápida y no tiene este problema.
+- **Música de fondo**: sin pistas reales curadas todavía (ver "Banco
+  inicial" arriba). El proveedor fixture genera un tono suave, nunca
+  música con licencia real, y el worker de GitHub Actions se niega a
+  generar un video real mientras esto siga así — no es un riesgo de que
+  llegue al usuario, es un bloqueo pendiente de que cures ~10-15 pistas.
+- **Render en segundo plano**: implementado vía GitHub Actions (ver
+  arriba), pero el disparo real (`repository_dispatch` + ejecución del
+  workflow) no se pudo probar desde este entorno — falta
+  `GH_WORKER_TOKEN`/`GH_WORKER_REPO` y los secrets del workflow en GitHub.
+  Mientras tanto cae al worker `inline` (síncrono, el comportamiento
+  original), que sigue atado al límite de duración de la función
+  serverless que lo invoca.
 - **Pagos fallidos**: el estado `past_due`/`unpaid` ya bloquea la
   generación, pero no hay notificación proactiva al usuario
   (`invoice.payment_failed`).
+- **Timeout de render sin cron**: si un render en GitHub Actions se cuelga,
+  el propio `timeout-minutes: 12` del job y el paso `if: failure()` lo
+  marcan como `failed`. Lo que no hay es un "reaper" activo con cron — un
+  render colgado que el runner no llega a matar (caso raro) queda en
+  `processing` hasta que el usuario intenta un nuevo render, momento en el
+  que la ruta API detecta que pasó `RENDER_TIMEOUT_MS` (15 min) y permite
+  reintentar. Aceptable para el volumen de un MVP; un cron sería la mejora
+  natural con más usuarios.
 - **Entorno de desarrollo de este agente**: esta sesión de Claude Code corre
   en un entorno con salida de red restringida (solo `api.anthropic.com` y
   registros de paquetes) — por eso las pruebas aquí usan los proveedores
-  fixture; el pipeline real con Supabase/ElevenLabs/Pexels/Stripe solo se
-  puede probar en producción (Vercel) o en una máquina con salida de red
-  normal.
+  fixture; el pipeline real con Supabase/ElevenLabs/Pexels/Stripe/GitHub
+  Actions solo se puede probar en producción (Vercel) o en una máquina con
+  salida de red normal.
 
 ## Completado / pendiente
 
-**Completado y probado:**
-- Registro/login, rutas protegidas, formulario de solicitud.
-- Suscripción de pago con Stripe (checkout, portal, webhook, cuota mensual).
+**Completado y probado (local, con fixtures):**
+- Registro/login, rutas protegidas, formulario de solicitud (con límites
+  de tema/estilo/duración validados en servidor, no solo en el `<select>`).
+- Suscripción de pago con Stripe (checkout, portal, webhook con verificación
+  de firma, cuota mensual).
 - Pipeline completo con patrón de adaptadores + fixtures (`npm run test:pipeline`,
   verificado con `ffprobe`: H.264 1080×1920 @30fps, audio AAC, crossfade,
-  subtítulos por frase, música mezclada).
+  subtítulos por frase, música mezclada, ~97s).
 - Editor/revisión de guion (`/dashboard/review/[id]`): editar texto y
-  búsqueda visual por escena, regenerar una escena individual, guardar
-  cambios, y recién entonces generar el video final — probado end-to-end
-  con `npm run test:pipeline` (incluye una regeneración de escena real
-  antes del render).
+  búsqueda visual por escena (con topes de longitud/cantidad de escenas),
+  regenerar una escena individual, guardar cambios, y recién entonces
+  generar el video final — probado end-to-end con `npm run test:pipeline`.
 - Progreso por etapas dentro del render: el historial muestra en qué parte
-  va (voz → footage → música → ensamblado → subiendo) mientras
-  `status = processing`, verificado con `npm run test:pipeline`.
-- Build de producción y lint sin errores.
+  va (voz → footage → música → ensamblado → subiendo).
+- Worker en background vía GitHub Actions: disparo asíncrono, idempotencia
+  (guarda de concurrencia), límite de 3 reintentos, timeout de 15 min con
+  aviso y botón de reintento en el historial, y un paso de "marcar como
+  fallido" si el workflow muere. El pipeline que corre dentro (`runRenderJob`)
+  está verificado con `npm run test:pipeline`; el disparo real del workflow
+  no (ver limitaciones).
+- Storage privado con URLs firmadas: el bucket "videos" ya no es público;
+  el historial solo firma una URL después de confirmar (vía la consulta
+  filtrada por RLS) que el video pertenece al usuario que lo pide.
+- Banco de música por estilo (`MUSIC_MANIFEST`) con selección acorde al
+  estilo elegido en `/dashboard/new`, compatible con la playlist plana
+  anterior (`MUSIC_TRACK_URLS`) — sin pistas reales cargadas todavía.
 - Investigación de música (Pixabay Music/Freesound) y de alternativas de
   worker en background — ver secciones dedicadas arriba.
-- `customUrlMusicProvider` ahora acepta `MUSIC_TRACK_URLS` (lista) además de
-  `MUSIC_TRACK_URL` (una sola pista), eligiendo una al azar por video.
+- Build de producción, lint y verificación de tipos sin errores.
 
-**Pendiente:**
-- Curar manualmente pistas de música reales y configurar `MUSIC_TRACK_URLS`
-  (paso del usuario: elegir el estilo musical del producto).
-- Decidir e implementar un worker en background para el render (ver
-  comparación arriba) — requiere tu decisión, y en el caso de Remotion
-  Lambda, una cuenta de AWS.
+**Pendiente (requiere al usuario o una decisión suya):**
+- Curar 10-15 pistas de música reales y llenar `MUSIC_MANIFEST` (paso del
+  usuario: implica elegir el estilo musical del producto — instrucciones
+  exactas en "Banco inicial" arriba).
+- Configurar `GH_WORKER_TOKEN`/`GH_WORKER_REPO` en Vercel y los secrets del
+  workflow en GitHub, y hacer una prueba real de render end-to-end.
+- Decidir si escalar a Remotion Lambda cuando haya usuarios de pago (ver
+  comparación arriba) — requiere una cuenta de AWS.
 - Probar el pipeline real (Claude/ElevenLabs/Pexels/Stripe) en producción —
   bloqueado en este entorno por la restricción de red descrita arriba, y
-  sin señal indirecta disponible por GitHub (este repo no tiene un GitHub
-  Actions configurado ni un Pull Request abierto sobre el que Vercel
-  publique el estado del deploy) — requiere verificarlo directamente en el
-  dashboard de Vercel/Supabase.
+  sin señal indirecta disponible por GitHub (no hay Pull Request abierto
+  sobre el que Vercel publique el estado del deploy) — requiere
+  verificarlo directamente en el dashboard de Vercel/Supabase.
+- Aplicar las migraciones 0006 y 0007 en el proyecto real de Supabase (ver
+  "Instalación" arriba) — cambian el bucket "videos" a privado y agregan
+  columnas/límites nuevos; no son destructivas (no hay datos reales
+  todavía) pero si ya subiste algo de prueba con URL pública, esa URL
+  dejará de servir.
 
 ## Despliegue
 
@@ -320,7 +433,17 @@ de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
    `<tu-dominio>/auth/callback` como Redirect URL en Supabase.
 4. Configura el webhook de Stripe apuntando a
    `https://<tu-dominio>/api/stripe/webhook`.
-5. Redeploy.
+5. Para el worker de render (ver "Worker en background"):
+   - En GitHub → tu repo → **Settings → Secrets and variables → Actions**,
+     agrega los secrets que usa `.github/workflows/render.yml`:
+     `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ELEVENLABS_API_KEY`,
+     `ELEVENLABS_VOICE_ID` (opcional), `ELEVENLABS_MODEL_ID` (opcional),
+     `PEXELS_API_KEY`, `MUSIC_TRACK_URLS` (opcional si ya llenaste
+     `MUSIC_MANIFEST` en código).
+   - En Vercel, agrega `GH_WORKER_TOKEN` (un Personal Access Token de
+     GitHub con permiso para disparar workflows en este repo) y
+     `GH_WORKER_REPO` (`owner/repo`, p. ej. `tu-usuario/Atomivid`).
+6. Redeploy.
 
 ## Notas sobre pagos
 
@@ -372,12 +495,32 @@ funciona en producción. Para completarlo:
    `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`,
    `PEXELS_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
    `STRIPE_PRICE_ID`, `NEXT_PUBLIC_SITE_URL`.
-3. En Supabase, confirma que las 5 migraciones de `supabase/migrations/` ya
+3. En Supabase, confirma que las 7 migraciones de `supabase/migrations/` ya
    se aplicaron (`supabase db push`, o pegadas manualmente en el SQL
-   Editor) y que existe el bucket de Storage `videos` (público, para poder
-   reproducir/descargar el video final).
-4. Con eso puesto, prueba en el sitio real: crear una solicitud → generar
+   Editor, en orden) — las 0006 y 0007 son nuevas en esta sesión y cambian
+   el bucket `videos` de público a privado.
+4. Para que el render corra en segundo plano (en vez de caer al worker
+   `inline`, más lento y atado al límite de la función serverless):
+   1. En GitHub → este repo → **Settings → Secrets and variables →
+      Actions → New repository secret**, crea uno por uno:
+      `SUPABASE_URL` (la misma URL de Supabase, sin el prefijo
+      `NEXT_PUBLIC_`), `SUPABASE_SERVICE_ROLE_KEY`, `ELEVENLABS_API_KEY`,
+      `PEXELS_API_KEY` (y opcionalmente `ELEVENLABS_VOICE_ID`,
+      `ELEVENLABS_MODEL_ID`, `MUSIC_TRACK_URLS`).
+   2. Genera un Personal Access Token de GitHub: **Settings de tu cuenta →
+      Developer settings → Fine-grained tokens → Generate new token**,
+      limitado a este repositorio, con permiso **Actions: Read and
+      write**. Cópialo (no lo pegues aquí en el chat).
+   3. En Vercel, agrega `GH_WORKER_TOKEN` (ese token) y `GH_WORKER_REPO`
+      (`tu-usuario/Atomivid`) como variables de entorno.
+   4. Redeploy en Vercel para que tome las variables nuevas.
+5. Con eso puesto, prueba en el sitio real: crear una solicitud → generar
    guion → editar/regenerar una escena → generar video final → reproducir y
    descargar. Cuéntame qué falla (si algo falla) con el mensaje de error
    exacto que veas, así lo puedo diagnosticar y corregir sin necesitar tus
    credenciales directamente.
+
+**Nota**: el paso 4 (worker en background) es opcional para una primera
+prueba — sin `GH_WORKER_TOKEN`/`GH_WORKER_REPO` el render sigue
+funcionando, solo que de forma síncrona (worker `inline`). Puedes probar
+el flujo completo primero con los pasos 1-3 y 5, y volver al 4 después.
