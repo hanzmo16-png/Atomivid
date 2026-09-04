@@ -89,6 +89,8 @@ En **SQL Editor** de Supabase, ejecuta en orden:
    la service role key).
 4. `supabase/migrations/0004_script_review.sql` — columna `script_json` y el
    estado `script_ready`, para el editor de guion antes del render final.
+5. `supabase/migrations/0005_render_progress.sql` — columna `progress_stage`,
+   para mostrar en qué parte del render va una generación en curso.
 
 Si usas la [CLI de Supabase](https://supabase.com/docs/guides/cli):
 
@@ -202,10 +204,6 @@ nada de ese presupuesto todavía.
   funciones de larga duración. Recomendado a futuro: mover el render a un
   worker/cola en background. La generación del guion (`/script`) es rápida
   y no tiene este problema.
-- **Sin progreso por etapas dentro del render**: una vez que se pulsa
-  "Generar video final", el historial muestra `processing` sin detalle de
-  en qué etapa interna (voz/footage/música/render) va — sí hay progreso
-  explícito para la etapa de guion (`pending` → `script_ready`).
 - **Pagos fallidos**: el estado `past_due`/`unpaid` ya bloquea la
   generación, pero no hay notificación proactiva al usuario
   (`invoice.payment_failed`).
@@ -229,11 +227,13 @@ nada de ese presupuesto todavía.
   cambios, y recién entonces generar el video final — probado end-to-end
   con `npm run test:pipeline` (incluye una regeneración de escena real
   antes del render).
+- Progreso por etapas dentro del render: el historial muestra en qué parte
+  va (voz → footage → música → ensamblado → subiendo) mientras
+  `status = processing`, verificado con `npm run test:pipeline`.
 - Build de producción y lint sin errores.
 
 **Pendiente:**
 - Conectar un banco de música real (requiere tu autorización si implica pago).
-- Progreso por etapas dentro del render (voz/footage/música/render).
 - Mover el render a un worker/cola en background.
 - Probar el pipeline real (Claude/ElevenLabs/Pexels/Stripe) en producción —
   bloqueado en este entorno por la restricción de red descrita arriba.
@@ -274,6 +274,5 @@ nada de ese presupuesto todavía.
 ## Próximos pasos
 
 1. Conectar un banco de música real (con tu autorización).
-2. Progreso por etapas dentro del render (voz/footage/música/render).
-3. Mover el render a un worker/cola en background.
-4. Auto-publicación a redes sociales (fuera del alcance del MVP).
+2. Mover el render a un worker/cola en background.
+3. Auto-publicación a redes sociales (fuera del alcance del MVP).

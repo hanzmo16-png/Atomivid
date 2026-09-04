@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { isSubscriptionActive } from "@/lib/billing/subscription";
+import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
 import { GenerateButton } from "./GenerateButton";
 import { AutoRefresh } from "./AutoRefresh";
 
@@ -13,6 +14,7 @@ type VideoRequest = {
   video_url: string | null;
   error_message: string | null;
   script_json: unknown;
+  progress_stage: string | null;
   created_at: string;
 };
 
@@ -47,7 +49,7 @@ export default async function DashboardPage({
   const { data: requests } = await supabase
     .from("video_requests")
     .select(
-      "id, topic, style, duration_seconds, status, video_url, error_message, script_json, created_at",
+      "id, topic, style, duration_seconds, status, video_url, error_message, script_json, progress_stage, created_at",
     )
     .eq("user_id", user?.id ?? "")
     .order("created_at", { ascending: false })
@@ -123,6 +125,13 @@ export default async function DashboardPage({
                   {req.status === "failed" && req.error_message && (
                     <p className="mt-2 max-w-md text-sm text-red-600">
                       {req.error_message}
+                    </p>
+                  )}
+                  {req.status === "processing" && req.progress_stage && (
+                    <p className="mt-2 text-sm text-gray-500">
+                      {RENDER_STAGE_LABEL[req.progress_stage as RenderStage] ??
+                        req.progress_stage}
+                      …
                     </p>
                   )}
                 </div>
