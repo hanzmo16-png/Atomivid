@@ -22,27 +22,44 @@ export type Caption = {
 
 export type VerticalReelProps = {
   audioUrl: string;
+  musicUrl?: string;
   durationSeconds: number;
   scenes: Scene[];
   captions: Caption[];
 };
 
-export function VerticalReel({ audioUrl, scenes, captions }: VerticalReelProps) {
+// Duración del crossfade entre escenas. A 30fps, 15 frames = 0.5s.
+const FADE_FRAMES = 15;
+const MUSIC_VOLUME = 0.12;
+
+export function VerticalReel({
+  audioUrl,
+  musicUrl,
+  scenes,
+  captions,
+}: VerticalReelProps) {
   const { fps, durationInFrames } = useVideoConfig();
 
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
       {scenes.map((scene, i) => {
+        const isFirst = i === 0;
+        const isLast = i === scenes.length - 1;
         const from = Math.round(scene.startSeconds * fps);
-        const to =
-          i === scenes.length - 1
-            ? durationInFrames
-            : Math.round(scene.endSeconds * fps);
-        const sceneDuration = Math.max(1, to - from);
+        const rawTo = isLast ? durationInFrames : Math.round(scene.endSeconds * fps);
+        // Cada escena (salvo la última) se extiende un poco más allá de su
+        // fin para solaparse con la siguiente y poder cruzar (crossfade).
+        const extendedTo = Math.min(durationInFrames, rawTo + (isLast ? 0 : FADE_FRAMES));
+        const sequenceDuration = Math.max(1, extendedTo - from);
 
         return (
-          <Sequence key={i} from={from} durationInFrames={sceneDuration}>
-            <KenBurnsImage src={scene.imageUrl} durationInFrames={sceneDuration} />
+          <Sequence key={i} from={from} durationInFrames={sequenceDuration}>
+            <KenBurnsImage
+              src={scene.imageUrl}
+              durationInFrames={sequenceDuration}
+              fadeInFrames={isFirst ? 0 : FADE_FRAMES}
+              fadeOutFrames={isLast ? 0 : FADE_FRAMES}
+            />
           </Sequence>
         );
       })}
@@ -57,6 +74,7 @@ export function VerticalReel({ audioUrl, scenes, captions }: VerticalReelProps) 
       <Captions captions={captions} />
 
       {audioUrl && <Audio src={audioUrl} />}
+      {musicUrl && <Audio src={musicUrl} loop volume={MUSIC_VOLUME} />}
     </AbsoluteFill>
   );
 }
@@ -64,17 +82,40 @@ export function VerticalReel({ audioUrl, scenes, captions }: VerticalReelProps) 
 function KenBurnsImage({
   src,
   durationInFrames,
+  fadeInFrames,
+  fadeOutFrames,
 }: {
   src: string;
   durationInFrames: number;
+  fadeInFrames: number;
+  fadeOutFrames: number;
 }) {
   const frame = useCurrentFrame();
   const progress = durationInFrames > 1 ? frame / (durationInFrames - 1) : 0;
   const scale = interpolate(progress, [0, 1], [1, 1.15]);
   const translateX = interpolate(progress, [0, 1], [0, -20]);
 
+  let opacity = 1;
+  if (fadeInFrames > 0) {
+    opacity = Math.min(opacity, interpolate(frame, [0, fadeInFrames], [0, 1], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    }));
+  }
+  if (fadeOutFrames > 0) {
+    opacity = Math.min(
+      opacity,
+      interpolate(
+        frame,
+        [durationInFrames - fadeOutFrames, durationInFrames],
+        [1, 0],
+        { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+      ),
+    );
+  }
+
   return (
-    <AbsoluteFill style={{ overflow: "hidden" }}>
+    <AbsoluteFill style={{ overflow: "hidden", opacity }}>
       <Img
         src={src}
         style={{
@@ -109,11 +150,11 @@ function Captions({ captions }: { captions: Caption[] }) {
         style={{
           fontFamily: "Arial, Helvetica, sans-serif",
           fontWeight: 800,
-          fontSize: 62,
+          fontSize: 58,
           color: "white",
           textAlign: "center",
-          lineHeight: 1.15,
-          padding: "0 60px",
+          lineHeight: 1.25,
+          padding: "0 70px",
           textShadow: "0 2px 6px rgba(0,0,0,0.85), 0 0 24px rgba(0,0,0,0.6)",
         }}
       >
