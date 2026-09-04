@@ -9,7 +9,7 @@ import { getScriptProvider } from "@/lib/providers/script";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { getFootageProvider } from "@/lib/providers/footage";
 import { getMusicProvider } from "@/lib/providers/music";
-import type { WordTiming } from "@/lib/providers/types";
+import type { GeneratedScript, WordTiming } from "@/lib/providers/types";
 import type { Caption, Scene } from "../../../remotion/VerticalReel";
 
 const STORAGE_BUCKET = "videos";
@@ -17,36 +17,51 @@ const MAX_CAPTION_WORDS = 7;
 const MIN_CAPTION_WORDS = 2;
 const COMPOSITION_ID = "VerticalReel";
 
-export async function generateVideoForRequest({
-  supabase,
-  requestId,
+/**
+ * Etapa 1 del pipeline: solo el guion. Se guarda para que el usuario lo
+ * revise/edite (y pueda regenerar una escena puntual) antes de gastar en
+ * voz, footage, música y render.
+ */
+export async function generateScriptForRequest({
   topic,
   style,
   durationSeconds,
 }: {
-  supabase: SupabaseClient;
-  requestId: string;
   topic: string;
   style: string;
   durationSeconds: number;
-}): Promise<{ videoUrl: string }> {
+}): Promise<GeneratedScript> {
   const scriptProvider = getScriptProvider();
+  return scriptProvider.generateScript({ topic, style, durationSeconds });
+}
+
+/**
+ * Etapa 2 del pipeline: a partir de un guion ya aprobado (generado o
+ * editado por el usuario), sintetiza voz, busca footage, agrega música,
+ * arma subtítulos y renderiza el video final.
+ */
+export async function generateVideoFromScript({
+  supabase,
+  requestId,
+  script,
+}: {
+  supabase: SupabaseClient;
+  requestId: string;
+  script: GeneratedScript;
+}): Promise<{ videoUrl: string }> {
   const voiceProvider = getVoiceProvider();
   const footageProvider = getFootageProvider();
   const musicProvider = getMusicProvider();
 
-  // 1. Guion (título + escenas)
-  const script = await scriptProvider.generateScript({ topic, style, durationSeconds });
-
-  // 2. Voz narrada completa en una sola llamada, con timestamps por
+  // 1. Voz narrada completa en una sola llamada, con timestamps por
   // palabra (así toda la narración usa la misma voz y ritmo).
   const fullText = script.segments.map((s) => s.text).join(" ");
   const voice = await voiceProvider.synthesize(fullText);
 
-  // 3. Repartir el tiempo de la narración real entre las escenas del guion
+  // 2. Repartir el tiempo de la narración real entre las escenas del guion
   const sceneTimings = alignScenesToWords(script.segments, voice.words);
 
-  // 4. Footage: una imagen por escena, subida a Storage
+  // 3. Footage: una imagen por escena, subida a Storage
   const scenes: Scene[] = [];
   for (let i = 0; i < script.segments.length; i++) {
     const segment = script.segments[i];
@@ -66,7 +81,7 @@ export async function generateVideoForRequest({
     });
   }
 
-  // 5. Subir la narración generada
+  // 4. Subir la narración generada
   const audioUrl = await uploadToStorage(
     supabase,
     `${requestId}/voice.${voice.extension}`,
@@ -74,7 +89,7 @@ export async function generateVideoForRequest({
     voice.mimeType,
   );
 
-  // 6. Música de fondo (por debajo del volumen de la narración)
+  // 5. Música de fondo (por debajo del volumen de la narración)
   const finalDurationSeconds = voice.durationSeconds + 0.5;
   const music = await musicProvider.getTrack(finalDurationSeconds);
   const musicUrl = await uploadToStorage(
@@ -84,11 +99,11 @@ export async function generateVideoForRequest({
     music.mimeType,
   );
 
-  // 7. Subtítulos incrustados: frases naturales (corte en puntuación),
+  // 6. Subtítulos incrustados: frases naturales (corte en puntuación),
   // nunca una sola palabra a la vez.
   const captions = buildCaptions(voice.words);
 
-  // 8. Ensamblar el video final con Remotion
+  // 7. Ensamblar el video final con Remotion
   const outputPath = await renderVerticalReel({
     audioUrl,
     musicUrl,
@@ -97,7 +112,7 @@ export async function generateVideoForRequest({
     durationSeconds: finalDurationSeconds,
   });
 
-  // 9. Subir el video renderizado
+  // 8. Subir el video renderizado
   const videoBuffer = await fs.readFile(outputPath);
   const videoUrl = await uploadToStorage(
     supabase,
