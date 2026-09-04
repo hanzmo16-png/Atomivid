@@ -67,6 +67,12 @@ async function main() {
           getPublicUrl(objectPath: string) {
             return { data: { publicUrl: `${baseUrl}/${objectPath}` } };
           },
+          async createSignedUrl(objectPath: string) {
+            // El bucket real es privado y usa URLs firmadas (ver
+            // src/lib/video/generate.ts); aquí, sin Supabase real, basta
+            // con simular la firma devolviendo la misma URL local.
+            return { data: { signedUrl: `${baseUrl}/${objectPath}` }, error: null };
+          },
         };
       },
     },
@@ -91,7 +97,7 @@ async function main() {
   console.log(`Escena 0 regenerada: "${newScene.text.slice(0, 60)}..."`);
 
   console.log("Renderizando video final...");
-  const { videoUrl } = await generateVideoFromScript({
+  const { videoPath } = await generateVideoFromScript({
     supabase: mockSupabase,
     requestId: "test-atomivid",
     script,
@@ -99,9 +105,9 @@ async function main() {
   });
 
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-  console.log(`Video generado en ${elapsed}s: ${videoUrl}`);
+  console.log(`Video generado en ${elapsed}s: ${videoPath}`);
 
-  const localPath = videoUrl.replace(baseUrl, storageDir);
+  const localPath = path.join(storageDir, videoPath);
   const outPath = path.join(process.cwd(), "scripts", "atomivid-test-output.mp4");
   await fs.copyFile(localPath, outPath);
   console.log(`Copiado a: ${outPath}`);
