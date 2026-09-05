@@ -1,19 +1,28 @@
 name: Render video (worker de Atomivid)
 
-# Disparado por /api/generate/[id]/render (src/lib/worker/github-actions.ts)
-# vía la API de "repository dispatch" de GitHub — nunca manualmente. Corre
-# Chromium (Remotion) y produce el video final fuera de Vercel, como
-# worker gratuito para validar el MVP (ver README, sección "Worker en
-# background").
+# Disparado normalmente por /api/generate/[id]/render
+# (src/lib/worker/github-actions.ts) vía la API de "repository dispatch" de
+# GitHub. También acepta workflow_dispatch (run_workflow por API/CLI/UI)
+# con un requestId manual — únicamente para probar el worker end-to-end
+# apuntando a una solicitud real ya creada por la app, sin depender de que
+# el trigger automático esté configurado. Corre Chromium (Remotion) y
+# produce el video final fuera de Vercel, como worker gratuito para
+# validar el MVP (ver README, sección "Worker en background").
 on:
   repository_dispatch:
     types: [render-video]
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: "ID de la solicitud (video_requests.id) a renderizar"
+        required: true
+        type: string
 
 # Evita que dos renders de la MISMA solicitud corran en paralelo si por lo
 # que sea llegara un dispatch duplicado; distintas solicitudes sí corren en
 # paralelo entre sí.
 concurrency:
-  group: atomivid-render-${{ github.event.client_payload.requestId }}
+  group: atomivid-render-${{ github.event.client_payload.requestId || inputs.request_id }}
   cancel-in-progress: false
 
 jobs:
@@ -39,7 +48,7 @@ jobs:
       - name: Renderizar video
         run: npx tsx scripts/render-worker.ts
         env:
-          REQUEST_ID: ${{ github.event.client_payload.requestId }}
+          REQUEST_ID: ${{ github.event.client_payload.requestId || inputs.request_id }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
@@ -53,6 +62,6 @@ jobs:
         if: failure()
         run: npx tsx scripts/mark-render-failed.ts
         env:
-          REQUEST_ID: ${{ github.event.client_payload.requestId }}
+          REQUEST_ID: ${{ github.event.client_payload.requestId || inputs.request_id }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
