@@ -1,7 +1,11 @@
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-// "Rachel", una de las voces por defecto de ElevenLabs, como fallback si no
-// se configura una voz propia.
-const VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM";
+// "Roger", una voz "premade" (incluida gratis con cualquier cuenta,
+// usable por API sin plan de pago) como fallback si no se configura una
+// voz propia. "Rachel" (21m00Tcm4TlvDq8ikWAM), el fallback anterior, pasó
+// a ser una voz de la Voice Library de ElevenLabs — esas requieren plan
+// de pago para usarse por API ("Free users cannot use library voices via
+// the API"), confirmado al probar el worker real.
+const VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "CwhRBWXzGAHq8TQ4Fs17";
 // Turbo v2.5: modelo multilingüe de menor costo/latencia de ElevenLabs,
 // suficiente para narración de reels (ver notas de presupuesto).
 const MODEL_ID = process.env.ELEVENLABS_MODEL_ID || "eleven_turbo_v2_5";
