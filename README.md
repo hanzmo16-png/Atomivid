@@ -301,14 +301,27 @@ automáticamente al worker `inline` (corre en el mismo proceso — el
 comportamiento síncrono original, útil para desarrollo/pruebas locales;
 ver `npm run test:pipeline`).
 
-**Verificado en este entorno**: el pipeline en sí (`runRenderJob` →
-`generateVideoFromScript`) con `npm run test:pipeline`, incluida la ruta
-que ahora también usa `video_path` + URLs firmadas. **No verificado**: el
-disparo real del workflow de GitHub Actions (`repository_dispatch` +
-ejecución del runner) — este sandbox no tiene salida de red hacia la API
-de GitHub más allá del MCP de este chat, y no hay `GH_WORKER_TOKEN`
-configurado. Eso requiere que configures las credenciales (ver
-"Credenciales que faltan" al final) y hagas una prueba real end-to-end.
+**Verificado con datos reales (no solo fixtures)**: además de
+`npm run test:pipeline` (fixtures, local), el workflow real se disparó
+sobre una solicitud real en la base de datos de producción (creada vía
+`scripts/seed-test-request.ts`, otro workflow de un solo uso, asociada a
+un usuario real de Supabase Auth) y corrió de punta a punta con
+credenciales reales: síntesis de voz con ElevenLabs, footage con Pexels,
+render con Remotion/Chromium, subida a Supabase Storage. El video
+resultante se verificó con `ffprobe` (corrido dentro del runner de GitHub
+Actions, ya que este entorno de desarrollo tampoco tiene salida de red
+hacia Supabase ni hacia el almacenamiento de artifacts de GitHub):
+H.264, 1080×1920, 30fps, audio AAC, ~14MB.
+
+**Lo que sigue sin probarse**: el disparo *automático* desde la app real
+(un usuario hace clic en "Generar video final" en Vercel →
+`repository_dispatch` vía `GH_WORKER_TOKEN`/`GH_WORKER_REPO`) — lo que se
+probó fue el workflow en sí, disparado manualmente
+(`workflow_dispatch`) apuntando a una solicitud real. También sigue sin
+probarse la generación de guion real con Claude (el guion de la prueba se
+generó con el proveedor fixture a propósito, para no necesitar
+`ANTHROPIC_API_KEY` en los secrets del workflow — esa etapa corre en
+Vercel, no en este worker).
 
 Antes de implementar el workflow se verificó que `repository_dispatch` no
 tiene la restricción de `schedule` en repos privados gratuitos (esa
@@ -347,13 +360,19 @@ de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
   música con licencia real, y el worker de GitHub Actions se niega a
   generar un video real mientras esto siga así — no es un riesgo de que
   llegue al usuario, es un bloqueo pendiente de que cures ~10-15 pistas.
-- **Render en segundo plano**: implementado vía GitHub Actions (ver
-  arriba), pero el disparo real (`repository_dispatch` + ejecución del
-  workflow) no se pudo probar desde este entorno — falta
-  `GH_WORKER_TOKEN`/`GH_WORKER_REPO` y los secrets del workflow en GitHub.
-  Mientras tanto cae al worker `inline` (síncrono, el comportamiento
-  original), que sigue atado al límite de duración de la función
-  serverless que lo invoca.
+- **Render en segundo plano**: implementado vía GitHub Actions y **verificado
+  en producción real** (no solo local): voz con ElevenLabs real, footage
+  con Pexels real, render con Remotion/Chromium, y subida a Supabase
+  Storage, disparado vía `workflow_dispatch` sobre una solicitud real en la
+  base de datos de producción. Video final verificado con `ffprobe` dentro
+  del propio runner de GitHub Actions (este entorno de desarrollo no tiene
+  salida de red hacia Supabase ni hacia el almacenamiento de artifacts de
+  GitHub, así que la verificación no se pudo hacer descargando el archivo
+  aquí — se corrió `ffprobe` en el runner y se leyó el resultado de los
+  logs): H.264, 1080×1920, 30fps, audio AAC, ~14MB. El disparo automático
+  real desde la app (`repository_dispatch` vía `GH_WORKER_TOKEN`/
+  `GH_WORKER_REPO` en Vercel) no se probó todavía — lo probado fue el
+  workflow en sí, disparado manualmente apuntando a una solicitud real.
 - **Pagos fallidos**: el estado `past_due`/`unpaid` ya bloquea la
   generación, pero no hay notificación proactiva al usuario
   (`invoice.payment_failed`).
@@ -374,54 +393,62 @@ de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
 
 ## Completado / pendiente
 
-**Completado y probado (local, con fixtures):**
+**Completado y probado en producción real** (no solo local/fixtures):
+- Las 7 migraciones aplicadas en el proyecto real de Supabase.
+- Worker en background vía GitHub Actions: probado end-to-end con
+  credenciales reales — voz con ElevenLabs, footage con Pexels, render con
+  Remotion/Chromium, subida a Supabase Storage. Video final verificado con
+  `ffprobe` corrido dentro del runner (H.264, 1080×1920, 30fps, audio AAC,
+  ~14MB). Incluye idempotencia (guarda de concurrencia), límite de 3
+  reintentos, timeout de 15 min con aviso/reintento en el historial, y el
+  paso "marcar como fallido" si el workflow muere — confirmado en la
+  práctica (se activó correctamente en los primeros intentos fallidos
+  mientras se ajustaban credenciales).
+- Storage privado con URLs firmadas: confirmado con la descarga real del
+  video de prueba vía `getSignedVideoUrl`.
+- Encontrados y corregidos en el camino (todos con commits propios): Node
+  20→22 en los workflows (`@supabase/supabase-js` necesita WebSocket
+  nativo), voz default "Rachel" ya no es gratuita por API en ElevenLabs
+  (cambiada a "Roger", confirmada como voz premade real de la cuenta), y
+  CRF de Remotion sin acotar generaba videos más grandes que el límite de
+  Supabase Storage (bajado a `crf: 26`).
+
+**Completado y probado localmente (con fixtures):**
 - Registro/login, rutas protegidas, formulario de solicitud (con límites
   de tema/estilo/duración validados en servidor, no solo en el `<select>`).
 - Suscripción de pago con Stripe (checkout, portal, webhook con verificación
-  de firma, cuota mensual).
+  de firma, cuota mensual) — no probado con una transacción real.
 - Pipeline completo con patrón de adaptadores + fixtures (`npm run test:pipeline`,
   verificado con `ffprobe`: H.264 1080×1920 @30fps, audio AAC, crossfade,
   subtítulos por frase, música mezclada, ~97s).
 - Editor/revisión de guion (`/dashboard/review/[id]`): editar texto y
   búsqueda visual por escena (con topes de longitud/cantidad de escenas),
   regenerar una escena individual, guardar cambios, y recién entonces
-  generar el video final — probado end-to-end con `npm run test:pipeline`.
+  generar el video final.
 - Progreso por etapas dentro del render: el historial muestra en qué parte
   va (voz → footage → música → ensamblado → subiendo).
-- Worker en background vía GitHub Actions: disparo asíncrono, idempotencia
-  (guarda de concurrencia), límite de 3 reintentos, timeout de 15 min con
-  aviso y botón de reintento en el historial, y un paso de "marcar como
-  fallido" si el workflow muere. El pipeline que corre dentro (`runRenderJob`)
-  está verificado con `npm run test:pipeline`; el disparo real del workflow
-  no (ver limitaciones).
-- Storage privado con URLs firmadas: el bucket "videos" ya no es público;
-  el historial solo firma una URL después de confirmar (vía la consulta
-  filtrada por RLS) que el video pertenece al usuario que lo pide.
 - Banco de música por estilo (`MUSIC_MANIFEST`) con selección acorde al
   estilo elegido en `/dashboard/new`, compatible con la playlist plana
   anterior (`MUSIC_TRACK_URLS`) — sin pistas reales cargadas todavía.
-- Investigación de música (Pixabay Music/Freesound) y de alternativas de
-  worker en background — ver secciones dedicadas arriba.
 - Build de producción, lint y verificación de tipos sin errores.
 
 **Pendiente (requiere al usuario o una decisión suya):**
 - Curar 10-15 pistas de música reales y llenar `MUSIC_MANIFEST` (paso del
   usuario: implica elegir el estilo musical del producto — instrucciones
   exactas en "Banco inicial" arriba).
-- Configurar `GH_WORKER_TOKEN`/`GH_WORKER_REPO` en Vercel y los secrets del
-  workflow en GitHub, y hacer una prueba real de render end-to-end.
+- Probar el disparo *automático* real: crear una solicitud desde la app en
+  Vercel, generar guion (con Claude real) y pulsar "Generar video final" —
+  lo probado hasta ahora fue el workflow disparado manualmente
+  (`workflow_dispatch`) sobre una solicitud sembrada directamente en la
+  base de datos, no el flujo completo iniciado por un clic real en la UI.
+- Probar una transacción real de Stripe (checkout → webhook → estado de
+  suscripción reflejado en la app).
 - Decidir si escalar a Remotion Lambda cuando haya usuarios de pago (ver
   comparación arriba) — requiere una cuenta de AWS.
-- Probar el pipeline real (Claude/ElevenLabs/Pexels/Stripe) en producción —
-  bloqueado en este entorno por la restricción de red descrita arriba, y
-  sin señal indirecta disponible por GitHub (no hay Pull Request abierto
-  sobre el que Vercel publique el estado del deploy) — requiere
-  verificarlo directamente en el dashboard de Vercel/Supabase.
-- Aplicar las migraciones 0006 y 0007 en el proyecto real de Supabase (ver
-  "Instalación" arriba) — cambian el bucket "videos" a privado y agregan
-  columnas/límites nuevos; no son destructivas (no hay datos reales
-  todavía) pero si ya subiste algo de prueba con URL pública, esa URL
-  dejará de servir.
+- Borrar la solicitud/usuario de prueba que quedaron en la base de datos
+  real (tema `"[PRUEBA AUTOMÁTICA] Validación técnica del worker de
+  Atomivid"`, usuario con email bajo `atomivid-internal.test`) cuando ya
+  no los necesites como referencia.
 
 ## Despliegue
 
@@ -469,58 +496,36 @@ de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
 ## Próximos pasos
 
 1. Curar manualmente pistas de música gratuitas (Pixabay Music/Mixkit) y
-   configurar `MUSIC_TRACK_URLS`.
-2. Decidir el worker en background: GitHub Actions para validar gratis,
-   Remotion Lambda para escalar (ver comparación arriba) — con tu
-   autorización, ya que Remotion Lambda implica dar de alta una cuenta AWS.
-3. Verificar en Vercel qué variables de entorno faltan (guía en "Qué falta
-   verificar en producción" abajo) y probar el flujo real con datos reales.
-4. Auto-publicación a redes sociales (fuera del alcance del MVP).
+   configurar `MUSIC_TRACK_URLS`/`MUSIC_MANIFEST`.
+2. Probar el flujo completo iniciado por un clic real en la app (Vercel):
+   crear solicitud → generar guion con Claude real → revisar/editar →
+   "Generar video final" → confirmar que dispara el worker real
+   (`repository_dispatch`) y que el video aparece en el historial.
+3. Probar una transacción real de Stripe (checkout → webhook → estado de
+   suscripción reflejado en la app).
+4. Decidir si escalar a Remotion Lambda cuando haya usuarios de pago (ver
+   comparación arriba) — requiere una cuenta de AWS, con tu autorización.
+5. Auto-publicación a redes sociales (fuera del alcance del MVP).
 
-## Qué falta verificar en producción (requiere que lo hagas tú o me des acceso)
+## Qué se verificó en producción real vs. solo localmente
 
-Este entorno de Claude Code no tiene salida de red hacia Vercel, Supabase,
-ElevenLabs, Pexels ni Stripe (solo hacia `api.anthropic.com` y registros de
-paquetes — ver "Limitaciones"), y el repo no tiene un Pull Request abierto
-ni GitHub Actions configurado del que pueda leer el estado del deploy de
-Vercel indirectamente. Por eso no puedo confirmar por mi cuenta qué
-funciona en producción. Para completarlo:
-
-1. En Vercel → tu proyecto → **Deployments**, confirma que el último
-   commit de `claude/atomivid-mvp-setup-0079jv` desplegó sin errores (si
-   falló, copia aquí el mensaje de error del log de build).
-2. En Vercel → **Settings → Environment Variables**, confirma que están
-   configuradas (no solo creadas como placeholder vacío):
-   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
-   `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`,
-   `PEXELS_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
-   `STRIPE_PRICE_ID`, `NEXT_PUBLIC_SITE_URL`.
-3. En Supabase, confirma que las 7 migraciones de `supabase/migrations/` ya
-   se aplicaron (`supabase db push`, o pegadas manualmente en el SQL
-   Editor, en orden) — las 0006 y 0007 son nuevas en esta sesión y cambian
-   el bucket `videos` de público a privado.
-4. Para que el render corra en segundo plano (en vez de caer al worker
-   `inline`, más lento y atado al límite de la función serverless):
-   1. En GitHub → este repo → **Settings → Secrets and variables →
-      Actions → New repository secret**, crea uno por uno:
-      `SUPABASE_URL` (la misma URL de Supabase, sin el prefijo
-      `NEXT_PUBLIC_`), `SUPABASE_SERVICE_ROLE_KEY`, `ELEVENLABS_API_KEY`,
-      `PEXELS_API_KEY` (y opcionalmente `ELEVENLABS_VOICE_ID`,
-      `ELEVENLABS_MODEL_ID`, `MUSIC_TRACK_URLS`).
-   2. Genera un Personal Access Token de GitHub: **Settings de tu cuenta →
-      Developer settings → Fine-grained tokens → Generate new token**,
-      limitado a este repositorio, con permiso **Actions: Read and
-      write**. Cópialo (no lo pegues aquí en el chat).
-   3. En Vercel, agrega `GH_WORKER_TOKEN` (ese token) y `GH_WORKER_REPO`
-      (`tu-usuario/Atomivid`) como variables de entorno.
-   4. Redeploy en Vercel para que tome las variables nuevas.
-5. Con eso puesto, prueba en el sitio real: crear una solicitud → generar
-   guion → editar/regenerar una escena → generar video final → reproducir y
-   descargar. Cuéntame qué falla (si algo falla) con el mensaje de error
-   exacto que veas, así lo puedo diagnosticar y corregir sin necesitar tus
-   credenciales directamente.
-
-**Nota**: el paso 4 (worker en background) es opcional para una primera
-prueba — sin `GH_WORKER_TOKEN`/`GH_WORKER_REPO` el render sigue
-funcionando, solo que de forma síncrona (worker `inline`). Puedes probar
-el flujo completo primero con los pasos 1-3 y 5, y volver al 4 después.
+- **Verificado en producción real** (Supabase real, ElevenLabs real,
+  Pexels real, GitHub Actions real): las 7 migraciones aplicadas; el
+  worker de render completo (voz → footage → música → render → subida →
+  video verificado con `ffprobe`); Storage privado con URLs firmadas.
+  Disparado manualmente (`workflow_dispatch`) sobre una solicitud sembrada
+  directamente en la base de datos — no fue un clic real en la UI de
+  Vercel.
+- **No verificado todavía**: el disparo automático desde un clic real en
+  la app (`/dashboard/review/[id]` → "Generar video final" →
+  `repository_dispatch`), la generación de guion real con Claude (la
+  prueba usó el proveedor fixture para el guion a propósito), y cualquier
+  transacción real de Stripe. El código de estas rutas es el mismo que ya
+  se probó en las otras partes del pipeline, pero el camino específico
+  "clic del usuario → Vercel → GitHub Actions" en sí no se ejercitó.
+- Este entorno de Claude Code no tiene salida de red hacia Vercel,
+  Supabase, ElevenLabs, Pexels, Stripe ni el almacenamiento de artifacts
+  de GitHub (solo hacia `api.anthropic.com`, registros de paquetes, y la
+  API de GitHub a través del conector MCP de este chat) — por eso la
+  verificación del render real se hizo disparando workflows de GitHub
+  Actions y leyendo sus logs, en vez de probar la app directamente.
