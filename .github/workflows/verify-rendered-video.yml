@@ -1,0 +1,44 @@
+name: Verificar video renderizado (descargar como artifact)
+
+# Workflow de un solo uso: descarga el video final ya generado para una
+# solicitud completed y lo sube como artifact de GitHub Actions, para
+# poder correr ffprobe fuera de este entorno (el sandbox de desarrollo no
+# tiene salida de red hacia Supabase).
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: "ID de la solicitud (video_requests.id) ya completada"
+        required: true
+        type: string
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Descargar video
+        run: npx tsx scripts/download-rendered-video.ts
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Subir como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendered-video
+          path: verify-output.mp4
+          retention-days: 1
