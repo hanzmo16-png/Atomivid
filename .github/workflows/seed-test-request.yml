@@ -1,0 +1,35 @@
+name: Seed test request (worker de Atomivid)
+
+# Workflow de un solo uso para validar el worker de render end-to-end:
+# crea una solicitud real en la base de datos de producción (guion vía el
+# proveedor fixture, sin llamar a Claude) lista para renderizar, y expone
+# su id como output para poder disparar render.yml (workflow_dispatch)
+# apuntando a ella. Se dispara solo manualmente.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      request_id: ${{ steps.seed.outputs.request_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Crear solicitud de prueba
+        id: seed
+        run: npx tsx scripts/seed-test-request.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
