@@ -14,8 +14,12 @@
  * + Storage, que es lo nuevo que hay que probar.
  *
  * Asocia la solicitud a un usuario real ya existente en el proyecto
- * (el primero que encuentre vía la Admin API), para que aparezca en su
- * historial normal y respete la restricción de clave foránea de
+ * (el primero que encuentre vía la Admin API) para que aparezca en su
+ * historial normal. Si el proyecto todavía no tiene ningún usuario
+ * registrado (nadie se ha registrado aún en el sitio real), crea uno
+ * sintético marcado como cuenta de prueba interna — así la validación
+ * técnica del worker no depende de que alguien haya hecho login primero.
+ * De cualquier forma respeta la restricción de clave foránea de
  * video_requests.user_id.
  *
  * Uso: npx tsx scripts/seed-test-request.ts
@@ -31,12 +35,26 @@ async function main() {
   const { data: usersData, error: usersError } = await service.auth.admin.listUsers({
     perPage: 1,
   });
-  if (usersError || !usersData?.users?.length) {
-    throw new Error(
-      `No hay ningún usuario registrado en Supabase Auth para asociar la prueba: ${usersError?.message ?? "sin usuarios"}`,
-    );
+  if (usersError) {
+    throw new Error(`No se pudo consultar los usuarios existentes: ${usersError.message}`);
   }
-  const userId = usersData.users[0].id;
+
+  let userId = usersData?.users?.[0]?.id;
+  if (!userId) {
+    console.log(
+      "No hay ningún usuario registrado todavía — creando una cuenta de prueba interna solo para esta validación técnica.",
+    );
+    const { data: created, error: createError } = await service.auth.admin.createUser({
+      email: `worker-test+${Date.now()}@atomivid-internal.test`,
+      password: crypto.randomUUID(),
+      email_confirm: true,
+      user_metadata: { atomivid_internal_test_account: true },
+    });
+    if (createError || !created?.user) {
+      throw new Error(`No se pudo crear un usuario de prueba: ${createError?.message}`);
+    }
+    userId = created.user.id;
+  }
 
   const topic = "[PRUEBA AUTOMÁTICA] Validación técnica del worker de Atomivid";
   const style = "Educativo";
