@@ -36,6 +36,12 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
+      - name: Verificar con ffprobe
+        run: |
+          ffprobe -v error -show_entries format=duration,size \
+            -show_entries stream=codec_name,width,height,codec_type,r_frame_rate \
+            -of default=noprint_wrappers=1 verify-output.mp4
+
       - name: Subir como artifact
         uses: actions/upload-artifact@v4
         with:
