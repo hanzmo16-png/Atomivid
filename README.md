@@ -313,15 +313,26 @@ Actions, ya que este entorno de desarrollo tampoco tiene salida de red
 hacia Supabase ni hacia el almacenamiento de artifacts de GitHub):
 H.264, 1080×1920, 30fps, audio AAC, ~14MB.
 
+**Generación de guion real con Claude**: verificada por separado
+(`scripts/test-real-script.ts`, otro workflow de un solo uso) — guion e
+regeneración de escena reales, con calidad y coherencia correctas
+("10 minutos que reprograman tu cerebro", 6 escenas con narración y
+búsqueda visual acordes al tema). `src/lib/providers/script/real.ts`
+reintenta hasta 3 veces ante fallos transitorios de Claude (red, rate
+limit); si sigue fallando, la solicitud queda en `failed` para
+reintentar — deliberadamente no sustituye el contenido por el fixture en
+producción (un guion templado no debe llegarle a un usuario real sin que
+lo sepa, misma política que la música fixture).
+
 **Lo que sigue sin probarse**: el disparo *automático* desde la app real
 (un usuario hace clic en "Generar video final" en Vercel →
 `repository_dispatch` vía `GH_WORKER_TOKEN`/`GH_WORKER_REPO`) — lo que se
-probó fue el workflow en sí, disparado manualmente
-(`workflow_dispatch`) apuntando a una solicitud real. También sigue sin
-probarse la generación de guion real con Claude (el guion de la prueba se
-generó con el proveedor fixture a propósito, para no necesitar
-`ANTHROPIC_API_KEY` en los secrets del workflow — esa etapa corre en
-Vercel, no en este worker).
+probó fue el workflow en sí, disparado manualmente (`workflow_dispatch`)
+apuntando a una solicitud real. Se investigó a fondo: el endpoint de
+`repository_dispatch` (`/repos/.../dispatches`) también está bloqueado
+por la política de red de este entorno de desarrollo, igual que las rutas
+de Actions — no hay token ni mecanismo que lo evite desde aquí. Probarlo
+de verdad requiere un clic real en la app desplegada.
 
 Antes de implementar el workflow se verificó que `repository_dispatch` no
 tiene la restricción de `schedule` en repos privados gratuitos (esa
@@ -406,12 +417,16 @@ de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
   mientras se ajustaban credenciales).
 - Storage privado con URLs firmadas: confirmado con la descarga real del
   video de prueba vía `getSignedVideoUrl`.
+- Generación de guion real con Claude y regeneración de escena: probadas
+  con `scripts/test-real-script.ts` — guion coherente y en tema, con
+  reintentos ante fallos transitorios (`src/lib/providers/script/real.ts`).
 - Encontrados y corregidos en el camino (todos con commits propios): Node
   20→22 en los workflows (`@supabase/supabase-js` necesita WebSocket
   nativo), voz default "Rachel" ya no es gratuita por API en ElevenLabs
-  (cambiada a "Roger", confirmada como voz premade real de la cuenta), y
-  CRF de Remotion sin acotar generaba videos más grandes que el límite de
-  Supabase Storage (bajado a `crf: 26`).
+  (cambiada a "Roger", confirmada como voz premade real de la cuenta), CRF
+  de Remotion sin acotar generaba videos más grandes que el límite de
+  Supabase Storage (bajado a `crf: 26`), y saldo insuficiente en la cuenta
+  de Anthropic (resuelto por el usuario agregando crédito).
 
 **Completado y probado localmente (con fixtures):**
 - Registro/login, rutas protegidas, formulario de solicitud (con límites
@@ -510,19 +525,21 @@ de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
 ## Qué se verificó en producción real vs. solo localmente
 
 - **Verificado en producción real** (Supabase real, ElevenLabs real,
-  Pexels real, GitHub Actions real): las 7 migraciones aplicadas; el
-  worker de render completo (voz → footage → música → render → subida →
-  video verificado con `ffprobe`); Storage privado con URLs firmadas.
-  Disparado manualmente (`workflow_dispatch`) sobre una solicitud sembrada
-  directamente en la base de datos — no fue un clic real en la UI de
-  Vercel.
+  Pexels real, Claude real, GitHub Actions real): las 7 migraciones
+  aplicadas; el worker de render completo (voz → footage → música →
+  render → subida → video verificado con `ffprobe`); Storage privado con
+  URLs firmadas; generación de guion y regeneración de escena con Claude
+  real. Todo disparado manualmente (`workflow_dispatch`) sobre una
+  solicitud sembrada directamente en la base de datos — no fue un clic
+  real en la UI de Vercel.
 - **No verificado todavía**: el disparo automático desde un clic real en
   la app (`/dashboard/review/[id]` → "Generar video final" →
-  `repository_dispatch`), la generación de guion real con Claude (la
-  prueba usó el proveedor fixture para el guion a propósito), y cualquier
-  transacción real de Stripe. El código de estas rutas es el mismo que ya
-  se probó en las otras partes del pipeline, pero el camino específico
-  "clic del usuario → Vercel → GitHub Actions" en sí no se ejercitó.
+  `repository_dispatch` — investigado y confirmado que no se puede probar
+  desde este entorno bajo ningún token, ver "Worker en background"
+  arriba) y cualquier transacción real de Stripe. El código de estas
+  rutas es el mismo que ya se probó en las otras partes del pipeline,
+  pero el camino específico "clic del usuario → Vercel → GitHub Actions"
+  en sí no se ejercitó.
 - Este entorno de Claude Code no tiene salida de red hacia Vercel,
   Supabase, ElevenLabs, Pexels, Stripe ni el almacenamiento de artifacts
   de GitHub (solo hacia `api.anthropic.com`, registros de paquetes, y la
