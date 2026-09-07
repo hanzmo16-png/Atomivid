@@ -1,0 +1,30 @@
+name: Probar generación real de guion (Claude)
+
+# Workflow de un solo uso: genera un guion real con Claude y regenera una
+# escena, para confirmar la integración con credenciales reales sin
+# depender de la app en Vercel.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  test-script:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Generar guion real
+        run: npx tsx scripts/test-real-script.ts
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_SCRIPT_MODEL: ${{ secrets.ANTHROPIC_SCRIPT_MODEL }}
