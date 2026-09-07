@@ -1,0 +1,29 @@
+name: Diagnóstico ElevenLabs (listar voces)
+
+# Workflow de un solo uso: lista las voces disponibles para la cuenta de
+# ElevenLabs ya configurada, sin generar audio ni costo, para encontrar
+# una voz "premade" usable por API sin plan de pago.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  list-voices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Listar voces
+        run: npx tsx scripts/list-elevenlabs-voices.ts
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
