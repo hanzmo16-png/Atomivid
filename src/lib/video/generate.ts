@@ -297,6 +297,13 @@ async function renderVerticalReel({
     inputProps,
     browserExecutable,
     chromeMode,
+    // Sin esto, Remotion usa un CRF cercano a sin-pérdida por defecto — con
+    // fotos reales (no los placeholders planos del fixture) y Ken Burns,
+    // eso produce archivos varias veces más grandes de lo necesario para
+    // un reel vertical (llegó a exceder el límite de tamaño de Supabase
+    // Storage). CRF 26 es suficiente para TikTok/Reels/Shorts, que de
+    // todas formas re-comprimen el video al subirlo.
+    crf: 26,
   });
 
   return outputLocation;
