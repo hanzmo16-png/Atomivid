@@ -1,4 +1,5 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { getSupabaseServiceRoleKey, getSupabaseUrl } from "./env";
 
 /**
  * Client authenticated with the Supabase service role key. Bypasses Row
@@ -7,14 +8,10 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
  * browser.
  */
 export function createServiceClient() {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
+  return createSupabaseClient(getSupabaseUrl(), getSupabaseServiceRoleKey(), {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
     },
-  );
+  });
 }
