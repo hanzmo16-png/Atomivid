@@ -192,7 +192,7 @@ funcionan antes de gastar en APIs reales.
 | Guion | Claude (Anthropic), salida estructurada | Texto templado en español | `SCRIPT_PROVIDER` |
 | Voz | ElevenLabs, con timestamps por palabra | Tono generado (WAV) + timestamps sintéticos | `VOICE_PROVIDER` |
 | Footage | Pexels (video vertical con respaldo en foto) | Imagen de color sólido con el texto de búsqueda | `FOOTAGE_PROVIDER` |
-| Música | Playlist propia vía `MUSIC_TRACK_URL(S)` | Tono suave generado (WAV) | `MUSIC_PROVIDER` |
+| Música | Biblioteca curada con selección por tono (`MUSIC_MANIFEST`) o playlist plana (`MUSIC_TRACK_URL(S)`) | Tono suave generado (WAV) | `MUSIC_PROVIDER` |
 | Render | Remotion (Chromium + FFmpeg interno) | — (siempre real) | — |
 
 ## Música de fondo: investigación Pixabay Music / Freesound
@@ -217,12 +217,64 @@ Investigado antes de conectar nada (sin gastar ni contratar):
   costo y sin bloquear nada: descargar manualmente 10-20 pistas de Pixabay
   Music (licencia comercial gratuita confirmada) o de
   [Mixkit](https://mixkit.co/free-stock-music/) (también gratis para uso
-  comercial, sin cuenta), subirlas a un bucket propio (p. ej. Supabase
-  Storage) y configurar `MUSIC_TRACK_URLS` con la lista separada por comas
-  — el proveedor `custom-url` ahora elige una al azar por video en vez de
-  repetir siempre la misma. Esto no requiere ninguna credencial nueva ni
-  gasto; solo curaduría manual de pistas (paso que le corresponde al
-  usuario, ya que implica elegir el estilo musical del producto).
+  comercial, sin cuenta), registrarlas con su metadata completa en
+  `MUSIC_MANIFEST` (procedencia, licencia, tono) y subirlas a un bucket
+  propio (p. ej. Supabase Storage). El proveedor `curated-library`
+  (`src/lib/providers/music/real.ts`, antes llamado `custom-url`) elige
+  entre ellas según el tono del video, no al azar puro — ver la sección
+  siguiente. Esto no requiere ninguna credencial nueva ni gasto; solo
+  curaduría manual de pistas (paso que le corresponde al usuario, ya que
+  implica elegir el estilo musical del producto) — **sigue sin hacerse**:
+  `MUSIC_MANIFEST` sigue vacío, ver "Banco inicial" abajo.
+
+## Selección inteligente de música y mezcla profesional
+
+Con el manifest lleno, la música ya no se elige al azar sin contexto:
+
+1. **Tono** (`src/lib/providers/music/tone.ts`): cada video se clasifica en
+   una o más de 10 categorías normalizadas (Motivacional, Corporativo,
+   Cinematográfico, Inspirador, Tensión, Reflexivo, Energético,
+   Minimalista, Tecnología, Lujo), combinando el estilo elegido en
+   `/dashboard/new` (señal base) con palabras clave detectadas en el tema
+   y en el guion ya generado (señal más fuerte — p. ej. "inteligencia
+   artificial" empuja hacia "Tecnología" aunque el estilo sea
+   "Curiosidades"). Determinístico, sin aleatoriedad: mismo input, mismo
+   tono siempre.
+2. **Selección** (`select.ts`): puntúa cada pista del manifest por
+   coincidencia de tono y elige entre las mejor puntuadas con una semilla
+   determinística (el `requestId`) — la misma solicitud siempre cae en la
+   misma pista (repetible para depurar), pero solicitudes distintas
+   normalmente caen en pistas distintas. Si ninguna pista coincide en
+   tono, cae a cualquiera del manifest en vez de fallar (variedad por
+   sobre precisión con un banco chico).
+3. **Validación** (`validate.ts`): antes de usar el archivo descargado, se
+   confirma por sus "magic bytes" que es un WAV/MP3/OGG real (no, por
+   ejemplo, una página de error HTML guardada con extensión `.mp3` — causa
+   común de fallos silenciosos). No extrae duración/canales exactos de
+   MP3/OGG sin `ffmpeg` — limitación documentada, ver el archivo.
+4. **Mezcla** (`remotion/audio-mix.ts`, aplicada en `VerticalReel.tsx` vía
+   el prop `volume` de `<Audio>` de Remotion, que acepta una función por
+   frame — sample-accurate, sin pasos de audio externos): la voz queda
+   dominante (~-0.5dB) con un fade mínimo solo en los bordes absolutos
+   (evita un click de corte seco); la música entra con fade-in/out en los
+   extremos del video, se mantiene baja (~-20dB) mientras la voz narra, y
+   sube suavemente (~-9dB, con una transición de 0.4s, nunca un salto) en
+   silencios reales de la narración (≥0.6s entre palabras, calculado de
+   los timestamps que ya devuelve ElevenLabs). Todos los niveles están
+   centralizados y documentados con su equivalente en dB en `AUDIO_MIX`
+   (`audio-mix.ts`) — nunca hardcodeados sueltos en el componente.
+5. **Fallback tolerante a fallas** (`errors.ts` + `generate.ts`): el
+   proveedor distingue `MusicNoMatchError` (nada en el manifest),
+   `MusicProviderError`, `MusicDownloadError` y `MusicInvalidFileError`.
+   Cualquiera de estos hace que el video se genere **sin música** en vez
+   de fallar por completo — se registra en logs estructurados
+   (`[atomivid:music] ...`) y en `generation_costs.music_provider` (queda
+   en `"none"`), nunca en silencio absoluto.
+
+Verificado con `npm run test:unit` (32 pruebas: tono, selección
+determinística/variada, validación de archivos, fades/ducking sin saltos,
+protección contra que la música supere a la voz) y con
+`npm run test:pipeline` (video real de prueba, ver "Qué se verificó").
 
 ## Música de fondo: banco inicial (pendiente de que cures las pistas)
 
@@ -259,8 +311,14 @@ pasos exactos:
    `title`, `author` (tal como lo indica la página de origen), `sourceUrl`
    (la página exacta de donde la bajaste, para poder verificar la licencia
    después), `license` (el nombre exacto, p. ej. `"Pixabay Content
-   License"`), `styleTags` (uno o más de los valores del selector de
-   estilo) y `storageUrl` (la URL pública/firmada donde la subiste).
+   License"`), `provider` (`"pixabay"` o `"mixkit"`, la fuente real —
+   distinto del proveedor de selección `curated-library`),
+   `dateObtainedISO` (fecha en que la descargaste/verificaste),
+   `instrumental: true` (obligatorio — nunca una pista con voz), `tones`
+   (uno o más valores de `MusicTone`, ver `tone.ts` — la señal que usa la
+   selección inteligente), `styleTags` (opcional, compatibilidad con el
+   selector de estilo literal) y `storageUrl` (la URL pública/firmada
+   donde la subiste).
 4. Confirma con `npm run test:pipeline` que el pipeline sigue corriendo
    (el manifest se usa automáticamente en cuanto tenga al menos una
    entrada — no hace falta ninguna variable de entorno nueva).
@@ -301,7 +359,10 @@ pipeline — sin pasos manuales. Mide, por video:
 - Duración del video (`video_duration_seconds`) y tiempo de render
   (`render_ms`).
 - Bytes subidos a Storage (`storage_bytes`).
-- Costo total estimado en USD (`estimated_cost_usd`).
+- Costo total estimado en USD (`estimated_cost_usd`), incluyendo música
+  solo si `music_provider` no es `"none"` — la biblioteca curada actual es
+  gratis, así que suma $0 por defecto (`PRICING_MUSIC_USD_PER_TRACK`, ver
+  abajo); nunca se inventa un cargo por una pista gratuita.
 
 Las tarifas usadas para convertir eso a USD viven en
 `src/lib/billing/pricing.ts`, con valores por defecto aproximados y
@@ -315,11 +376,25 @@ Si el registro de costo falla por cualquier motivo (tabla no migrada, error
 de red), el video se genera igual — la instrumentación nunca bloquea el
 resultado, solo deja un warning en los logs.
 
-**Verificado localmente** (con un mock de Supabase, sin red): acumulación
-correcta de llamadas/regeneraciones/caracteres y cálculo de
-`estimated_cost_usd`. **No verificado todavía con la tabla real** — la
-migración 0008 no se ha aplicado aún al proyecto de Supabase de producción
-(ver "Instalación" para cómo aplicarla).
+**Qué pista de música sonó en cada video, exactamente:** `generation_costs`
+hoy (migración 0008) solo guarda el nombre del proveedor
+(`"curated-library"`/`"fixture"`/`"none"`), no la pista específica. Esa
+metadata (trackId, título, autor, licencia, tonos) ya se emite en logs
+estructurados (`[atomivid:music] pista seleccionada ...`,
+`src/lib/video/generate.ts`) en cada render — suficiente para auditar hoy.
+Para guardarla también en la base de datos, `supabase/migrations/0009_music_traceability.sql`
+está preparada y documentada (columnas `music_track_*`, idempotente), pero
+**no se aplicó** — requiere tu autorización, igual que la 0008.
+
+**Verificado**: con un mock de Supabase (sin red), acumulación correcta de
+llamadas/regeneraciones/caracteres y cálculo de `estimated_cost_usd`
+(incluida la rama de música). **Aplicado en producción**: la migración
+0008 (`language`, `generation_costs`) ya está aplicada en el proyecto real
+de Supabase — confirmado (`language_exists = true`,
+`generation_costs_exists = true`). **No verificado todavía**: una
+escritura real contra esa tabla en producción (requiere una generación
+real de video, ver "Qué se verificó en producción real vs. solo
+localmente").
 
 ## Worker en background para el render
 
@@ -485,29 +560,42 @@ de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
   generar el video final.
 - Progreso por etapas dentro del render: el historial muestra en qué parte
   va (voz → footage → música → ensamblado → subiendo).
-- Banco de música por estilo (`MUSIC_MANIFEST`) con selección acorde al
-  estilo elegido en `/dashboard/new`, compatible con la playlist plana
-  anterior (`MUSIC_TRACK_URLS`) — sin pistas reales cargadas todavía.
+- Sistema de música profesional: selección inteligente por tono
+  (`tone.ts`, 10 categorías, estilo + palabras clave del tema/guion),
+  elección determinística/repetible con variedad entre videos
+  (`select.ts`), validación de archivo descargado (`validate.ts`), y
+  mezcla con fade-in/out + ducking suave en silencios de narración vía el
+  `volume` por frame de Remotion (`remotion/audio-mix.ts`) — ver
+  "Selección inteligente de música y mezcla profesional" arriba. Errores
+  tipados (`errors.ts`) con fallback a "video sin música" en vez de fallar
+  la generación completa. `MUSIC_MANIFEST` sigue vacío (sin pistas reales
+  cargadas todavía).
 - Selección de idioma (español/inglés) en `/dashboard/new`: se pasa
   explícitamente al prompt de Claude (ya no se infiere del texto del
   tema) y, opcionalmente, a una voz de ElevenLabs específica por idioma.
   Verificado con fixtures (el guion generado confirma el idioma elegido).
 - Costo estimado por video (`generation_costs`, migración 0008): caracteres
   de voz, llamadas al modelo de guion, regeneraciones, recursos visuales,
-  duración, tiempo de render, bytes de storage y costo total en USD según
-  tarifas configurables (`src/lib/billing/pricing.ts`). Verificado con un
-  mock de Supabase (acumulación y cálculo correctos) — no probado aún
-  contra la tabla real (falta aplicar la migración 0008 en producción).
-- Build de producción, lint y verificación de tipos sin errores.
+  duración, tiempo de render, bytes de storage, música (0 si es gratis) y
+  costo total en USD según tarifas configurables
+  (`src/lib/billing/pricing.ts`). Verificado con un mock de Supabase
+  (acumulación y cálculo correctos, incluida la rama de música).
+- Build de producción, lint, verificación de tipos y `npm run test:unit`
+  (32 pruebas: tono, selección, validación de audio, mezcla) sin errores.
+
+**Aplicado en producción:**
+- `supabase/migrations/0008_language_and_costs.sql` — confirmado
+  (`language_exists = true`, `generation_costs_exists = true`).
 
 **Pendiente (requiere al usuario o una decisión suya):**
-- **Aplicar `supabase/migrations/0008_language_and_costs.sql` en el
-  proyecto real de Supabase** — sin esto, crear una solicitud desde
-  `/dashboard/new` fallará (la columna `language` no existe todavía en la
-  base de datos real).
-- Curar 10-15 pistas de música reales y llenar `MUSIC_MANIFEST` (paso del
-  usuario: implica elegir el estilo musical del producto — instrucciones
-  exactas en "Banco inicial" arriba).
+- Curar 10-15 pistas de música reales y llenar `MUSIC_MANIFEST` con el
+  esquema completo (procedencia, licencia, tono) — paso del usuario:
+  implica elegir el estilo musical del producto — instrucciones exactas en
+  "Banco inicial" arriba.
+- Autorizar (o no) aplicar `supabase/migrations/0009_music_traceability.sql`
+  (columnas para guardar qué pista sonó en cada video — hoy esa
+  información ya queda en logs estructurados, la migración es una mejora
+  de trazabilidad en base de datos, no un bloqueo).
 - Probar el disparo *automático* real: crear una solicitud desde la app en
   Vercel, generar guion (con Claude real) y pulsar "Generar video final" —
   lo probado hasta ahora fue el workflow disparado manualmente

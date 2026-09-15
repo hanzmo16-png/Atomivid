@@ -8,6 +8,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
+import { type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from "./audio-mix";
 
 export type Scene = {
   mediaUrl: string;
@@ -28,17 +29,20 @@ export type VerticalReelProps = {
   durationSeconds: number;
   scenes: Scene[];
   captions: Caption[];
+  /** Huecos de silencio real en la narración — ver remotion/audio-mix.ts. */
+  narrationGaps?: NarrationGap[];
 };
 
 // Duración del crossfade entre escenas. A 30fps, 15 frames = 0.5s.
 const FADE_FRAMES = 15;
-const MUSIC_VOLUME = 0.12;
 
 export function VerticalReel({
   audioUrl,
   musicUrl,
+  durationSeconds,
   scenes,
   captions,
+  narrationGaps = [],
 }: VerticalReelProps) {
   const { fps, durationInFrames } = useVideoConfig();
 
@@ -75,8 +79,19 @@ export function VerticalReel({
 
       <Captions captions={captions} />
 
-      {audioUrl && <Audio src={audioUrl} />}
-      {musicUrl && <Audio src={musicUrl} loop volume={MUSIC_VOLUME} />}
+      {audioUrl && (
+        <Audio
+          src={audioUrl}
+          volume={(frame) => voiceVolumeAtSeconds(frame / fps, durationSeconds)}
+        />
+      )}
+      {musicUrl && (
+        <Audio
+          src={musicUrl}
+          loop
+          volume={(frame) => musicVolumeAtSeconds(frame / fps, durationSeconds, narrationGaps)}
+        />
+      )}
     </AbsoluteFill>
   );
 }

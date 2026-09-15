@@ -58,7 +58,11 @@ async function loadRow(
 }
 
 async function saveRow(service: SupabaseClient, row: GenerationCostsRow) {
-  const estimated_cost_usd = estimateCostUsd(row);
+  // has_music_track se deriva de music_provider en vez de guardarse como
+  // columna aparte — "none" (fallback sin música) y null (todavía no se
+  // llegó a la etapa de música) no deben sumar costo musical.
+  const hasMusicTrack = Boolean(row.music_provider) && row.music_provider !== "none";
+  const estimated_cost_usd = estimateCostUsd({ ...row, has_music_track: hasMusicTrack });
   await service
     .from("generation_costs")
     .upsert({ ...row, estimated_cost_usd, updated_at: new Date().toISOString() });

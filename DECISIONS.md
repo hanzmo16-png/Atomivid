@@ -117,6 +117,60 @@ clip adecuado, conserva el flujo anterior con fotografía y Ken Burns. Así se
 mejora el movimiento visual sin sumar un proveedor pagado ni volver frágil el
 pipeline ante búsquedas con poco material.
 
+## Música profesional: mezcla dentro de Remotion, no con ffmpeg externo
+
+`<Audio volume={...}>` de Remotion acepta una función `(frame) => number`
+(sample-accurate, evaluada por Remotion al renderizar) — así que los
+fades/ducking de voz y música (`remotion/audio-mix.ts`) se implementan como
+funciones puras de volumen por segundo, sin un paso de preprocesamiento de
+audio con `ffmpeg`. Se consideró recortar/normalizar la pista con `ffmpeg`
+antes de subirla, pero: (1) el worker de GitHub Actions no trae `ffmpeg`
+preinstalado (confirmado en una fase anterior, ver README), y Remotion usa
+su propio binario interno, no el del sistema — depender de `ffmpeg` del
+sistema habría sido una dependencia nueva y frágil entre entornos; (2) el
+`loop` de `<Audio>` ya rellena la música hasta la duración del video sin
+necesidad de recortarla/loopearla manualmente. El resultado es más simple
+(cero pasos de audio adicionales, cero archivos temporales de audio) y más
+testeable (las funciones de volumen son puro TypeScript, sin Remotion ni
+React — ver `audio-mix.test.ts`).
+
+## Selección de música por tono, no aleatoria ni por API en vivo
+
+Confirmado (otra vez, en esta fase) que Pixabay Music no tiene endpoint de
+audio en su API pública — ver la investigación ya documentada arriba. En
+vez de construir una integración en vivo que no existe, se invirtió el
+esfuerzo en la calidad de la selección sobre la biblioteca curada: tono
+inferido de estilo + palabras clave del tema/guion (`tone.ts`), puntuación
+por coincidencia de tono con desempate determinístico por seed
+(`select.ts`). La seed determinística usa FNV-1a + módulo entero, no un
+hash polinomial simple normalizado a float — se detectó empíricamente
+(ver `select.test.ts`) que ese segundo enfoque agrupaba seeds con el mismo
+prefijo (p. ej. `"req-1".."req-9"`, el patrón típico de un requestId de
+prueba) en el mismo índice, por mal "avalanche" del hash. Con UUIDs reales
+el efecto sería menos notorio pero igual de incorrecto en principio — se
+corrigió antes de que importara.
+
+## Costo de música: no se inventa un cargo por algo gratis
+
+`generation_costs.estimated_cost_usd` solo suma una tarifa de música
+(`PRICING_MUSIC_USD_PER_TRACK`) si el video terminó usando una pista real
+(`music_provider != "none"`) — y esa tarifa es $0 por defecto, porque la
+biblioteca curada actual (Pixabay Music/Mixkit) es gratis bajo sus
+licencias de uso comercial. La variable existe para el día en que se
+conecte un proveedor de pago (p. ej. Epidemic Sound), no para simular un
+costo que hoy no existe.
+
+## Migración 0009: preparada, no aplicada
+
+Instrucción explícita del usuario: no aplicar nuevas migraciones remotas
+sin autorización. `0009_music_traceability.sql` agrega columnas
+(`music_track_id`, `_title`, `_author`, `_license`, `_source_url`,
+`music_fallback_reason`) a `generation_costs` para guardar qué pista
+sonó en cada video — hoy esa misma metadata ya se emite en logs
+estructurados (`[atomivid:music] pista seleccionada ...`,
+`src/lib/video/generate.ts`), así que no aplicar la migración no bloquea
+nada, solo pospone tenerlo también consultable por SQL.
+
 ## Qué se dejó fuera del MVP a propósito
 
 - **Cancelar un render en curso**: el enunciado lo marcaba como "si
