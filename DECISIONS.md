@@ -75,6 +75,38 @@ construyó `MUSIC_MANIFEST` — un banco curado manualmente por el usuario
 manifest esté vacío, para que el tono de prueba del fixture nunca le
 llegue a un usuario.
 
+## Costo estimado por video: aproximado a partir de lo que ya medimos, no facturación exacta
+
+Ningún proveedor (Claude, ElevenLabs, GitHub Actions) expone el costo real
+de una llamada individual sin pegarle a su propia API de facturación (con
+su propio costo/latencia/riesgo de error). En vez de eso, `generation_costs`
+(migración 0008) acumula lo que el pipeline ya sabe sin llamadas extra:
+caracteres enviados a voz, número de llamadas al modelo de guion (estimando
+tokens a ~4 caracteres/token, ver `src/lib/billing/pricing.ts`), duración
+del video, tiempo de render y bytes subidos a Storage. Las tarifas usadas
+para convertir eso a USD son valores por defecto públicos, siempre
+sobreescribibles por variable de entorno (`PRICING_*` en `.env.example`) —
+nunca hardcodeadas como si fueran el precio real de tu cuenta. Sirve para
+comparar el costo relativo entre videos y detectar solicitudes anormalmente
+caras, no para reconciliar con la factura exacta.
+
+El registro de costo nunca puede tumbar un video que sí se generó bien: si
+falla (tabla no migrada, red, etc.), se captura y se registra como warning
+en logs — ver el `.catch()` alrededor de `recordVideoGeneration`/
+`recordScriptCall` en `src/lib/video/generate.ts` y las rutas de guion.
+
+## Idioma como elección explícita del usuario, no inferido del tema
+
+Antes, el guion "adivinaba" el idioma del texto que el usuario escribía
+como tema — funcionaba mientras el tema estuviera en el idioma deseado,
+pero no daba control real (p. ej. un tema en español para narración en
+inglés). Se agregó `language` (columna en `video_requests`, selector en
+`/dashboard/new`) y se pasa explícitamente al prompt de Claude ("responde
+SIEMPRE en X, sin importar el idioma del tema"). ElevenLabs también puede
+recibir una voz específica por idioma (`ELEVENLABS_VOICE_ID_ES`/`_EN`) —
+opcional, porque una sola voz multilingüe (turbo v2.5) ya funciona, solo
+que con acento si no es nativa en ese idioma.
+
 ## Qué se dejó fuera del MVP a propósito
 
 - **Cancelar un render en curso**: el enunciado lo marcaba como "si

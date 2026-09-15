@@ -15,12 +15,16 @@ export type GeneratedScript = {
   segments: ScriptScene[];
 };
 
+export type ScriptLanguage = "es" | "en";
+
 export interface ScriptProvider {
   readonly name: string;
   generateScript(input: {
     topic: string;
     style: string;
     durationSeconds: number;
+    /** Idioma elegido por el usuario en /dashboard/new. Por defecto "es". */
+    language?: ScriptLanguage;
   }): Promise<GeneratedScript>;
   /** Reescribe una sola escena (revisión/edición desde la UI). */
   regenerateScene(input: {
@@ -47,7 +51,7 @@ export type VoiceResult = {
 
 export interface VoiceProvider {
   readonly name: string;
-  synthesize(text: string): Promise<VoiceResult>;
+  synthesize(text: string, language?: ScriptLanguage): Promise<VoiceResult>;
 }
 
 export type FootageResult = {

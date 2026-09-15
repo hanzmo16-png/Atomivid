@@ -5,7 +5,17 @@ const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 // a ser una voz de la Voice Library de ElevenLabs — esas requieren plan
 // de pago para usarse por API ("Free users cannot use library voices via
 // the API"), confirmado al probar el worker real.
-const VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "CwhRBWXzGAHq8TQ4Fs17";
+const DEFAULT_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "CwhRBWXzGAHq8TQ4Fs17";
+// Voces específicas por idioma (opcionales): "Roger" narra en inglés con
+// acento correcto, pero no es una voz nativa en español. Configura estas
+// env vars con voces "premade"/propias de tu cuenta en cada idioma para
+// una pronunciación natural; si no las configuras, cae a la voz por
+// defecto en ambos idiomas (funcional, no óptimo — eleven_turbo_v2_5 es
+// multilingüe y puede narrar en español con esa voz, pero con acento).
+const VOICE_ID_BY_LANGUAGE: Record<"es" | "en", string | undefined> = {
+  es: process.env.ELEVENLABS_VOICE_ID_ES,
+  en: process.env.ELEVENLABS_VOICE_ID_EN,
+};
 // Turbo v2.5: modelo multilingüe de menor costo/latencia de ElevenLabs,
 // suficiente para narración de reels (ver notas de presupuesto).
 const MODEL_ID = process.env.ELEVENLABS_MODEL_ID || "eleven_turbo_v2_5";
@@ -27,7 +37,10 @@ export type WordTiming = {
   endSeconds: number;
 };
 
-export async function synthesizeVoice(text: string): Promise<{
+export async function synthesizeVoice(
+  text: string,
+  language: "es" | "en" = "es",
+): Promise<{
   audioBuffer: Buffer;
   durationSeconds: number;
   words: WordTiming[];
@@ -36,8 +49,10 @@ export async function synthesizeVoice(text: string): Promise<{
     throw new Error("Falta configurar ELEVENLABS_API_KEY");
   }
 
+  const voiceId = VOICE_ID_BY_LANGUAGE[language] || DEFAULT_VOICE_ID;
+
   const res = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/with-timestamps`,
+    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps`,
     {
       method: "POST",
       headers: {

@@ -33,14 +33,22 @@ export type VideoScriptScene = z.infer<typeof SceneSchema>;
 
 const WORDS_PER_SECOND = 2.6;
 
+const LANGUAGE_NAME: Record<"es" | "en", string> = {
+  es: "español",
+  en: "inglés (English)",
+};
+
 export async function generateScript({
   topic,
   style,
   durationSeconds,
+  language = "es",
 }: {
   topic: string;
   style: string;
   durationSeconds: number;
+  /** Idioma elegido por el usuario — no se infiere del texto del tema. */
+  language?: "es" | "en";
 }): Promise<VideoScript> {
   const targetWords = Math.round(durationSeconds * WORDS_PER_SECOND);
   const targetScenes = Math.max(3, Math.min(10, Math.round(durationSeconds / 5)));
@@ -52,13 +60,15 @@ export async function generateScript({
       "Eres guionista de reels 'faceless' (sin rostro) para redes sociales, " +
       "en el estilo de canales virales de TikTok/Instagram Reels/YouTube " +
       "Shorts. Escribes narraciones dinámicas, con un gancho fuerte en los " +
-      "primeros segundos, frases cortas y un cierre memorable. Respondes " +
-      "siempre en el mismo idioma en el que el usuario describe el tema.",
+      `primeros segundos, frases cortas y un cierre memorable. Responde ` +
+      `SIEMPRE en ${LANGUAGE_NAME[language]}, sin importar en qué idioma ` +
+      "esté escrito el tema que te da el usuario.",
     messages: [
       {
         role: "user",
         content: `Escribe el guion de un reel faceless.
 
+Idioma de la narración: ${LANGUAGE_NAME[language]} (obligatorio, sin excepción).
 Tema: ${topic}
 Estilo/tono: ${style}
 Duración objetivo: ${durationSeconds} segundos (~${targetWords} palabras narradas en total)

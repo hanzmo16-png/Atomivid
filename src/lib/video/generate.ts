@@ -9,9 +9,10 @@ import { getScriptProvider } from "@/lib/providers/script";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { getFootageProvider } from "@/lib/providers/footage";
 import { getMusicProvider } from "@/lib/providers/music";
-import type { GeneratedScript, WordTiming } from "@/lib/providers/types";
+import type { GeneratedScript, ScriptLanguage, WordTiming } from "@/lib/providers/types";
 import type { RenderStage } from "@/lib/video/stages";
 import type { Caption, Scene } from "../../../remotion/VerticalReel";
+import { recordVideoGeneration } from "@/lib/billing/usage";
 
 const STORAGE_BUCKET = "videos";
 const MAX_CAPTION_WORDS = 7;
@@ -33,13 +34,15 @@ export async function generateScriptForRequest({
   topic,
   style,
   durationSeconds,
+  language = "es",
 }: {
   topic: string;
   style: string;
   durationSeconds: number;
+  language?: ScriptLanguage;
 }): Promise<GeneratedScript> {
   const scriptProvider = getScriptProvider();
-  return scriptProvider.generateScript({ topic, style, durationSeconds });
+  return scriptProvider.generateScript({ topic, style, durationSeconds, language });
 }
 
 /**
@@ -52,6 +55,7 @@ export async function generateVideoFromScript({
   requestId,
   script,
   style,
+  language = "es",
   onProgress,
 }: {
   supabase: SupabaseClient;
@@ -59,17 +63,19 @@ export async function generateVideoFromScript({
   script: GeneratedScript;
   /** Estilo elegido por el usuario (p. ej. "Motivacional") — usado para elegir música acorde. */
   style?: string;
+  language?: ScriptLanguage;
   onProgress?: OnProgress;
 }): Promise<{ videoPath: string }> {
   const voiceProvider = getVoiceProvider();
   const footageProvider = getFootageProvider();
   const musicProvider = getMusicProvider();
+  let storageBytes = 0;
 
   // 1. Voz narrada completa en una sola llamada, con timestamps por
   // palabra (así toda la narración usa la misma voz y ritmo).
   await onProgress?.("voice");
   const fullText = script.segments.map((s) => s.text).join(" ");
-  const voice = await voiceProvider.synthesize(fullText);
+  const voice = await voiceProvider.synthesize(fullText, language);
 
   // 2. Repartir el tiempo de la narración real entre las escenas del guion
   const sceneTimings = alignScenesToWords(script.segments, voice.words);
@@ -82,6 +88,7 @@ export async function generateVideoFromScript({
     const timing = sceneTimings[i];
     const image = await footageProvider.fetchImage(segment.visualQuery);
     const imageBuffer = await footageProvider.downloadImage(image.url);
+    storageBytes += imageBuffer.byteLength;
     const { url: imageUrl } = await uploadToStorage(
       supabase,
       `${requestId}/scene-${i}.${image.extension}`,
@@ -96,6 +103,7 @@ export async function generateVideoFromScript({
   }
 
   // 4. Subir la narración generada
+  storageBytes += voice.audioBuffer.byteLength;
   const { url: audioUrl } = await uploadToStorage(
     supabase,
     `${requestId}/voice.${voice.extension}`,
@@ -107,6 +115,7 @@ export async function generateVideoFromScript({
   await onProgress?.("music");
   const finalDurationSeconds = voice.durationSeconds + 0.5;
   const music = await musicProvider.getTrack(finalDurationSeconds, style);
+  storageBytes += music.audioBuffer.byteLength;
   const { url: musicUrl } = await uploadToStorage(
     supabase,
     `${requestId}/music.${music.extension}`,
@@ -120,6 +129,7 @@ export async function generateVideoFromScript({
 
   // 7. Ensamblar el video final con Remotion
   await onProgress?.("render");
+  const renderStartedAt = Date.now();
   const outputPath = await renderVerticalReel({
     audioUrl,
     musicUrl,
@@ -127,11 +137,13 @@ export async function generateVideoFromScript({
     captions,
     durationSeconds: finalDurationSeconds,
   });
+  const renderMs = Date.now() - renderStartedAt;
 
   // 8. Subir el video renderizado (se referencia por su ruta; la URL para
   // verlo/descargarlo se firma bajo demanda, después de validar dueño).
   await onProgress?.("uploading");
   const videoBuffer = await fs.readFile(outputPath);
+  storageBytes += videoBuffer.byteLength;
   const { path: videoPath } = await uploadToStorage(
     supabase,
     `${requestId}/final.mp4`,
@@ -139,6 +151,21 @@ export async function generateVideoFromScript({
     "video/mp4",
   );
   await fs.unlink(outputPath).catch(() => {});
+
+  // Costo estimado de esta etapa — no bloquea el resultado si falla (es
+  // instrumentación, no debe tumbar un video que sí se generó bien).
+  await recordVideoGeneration(supabase, requestId, {
+    voiceProvider: voiceProvider.name,
+    voiceCharacters: fullText.length,
+    footageProvider: footageProvider.name,
+    footageCount: scenes.length,
+    musicProvider: musicProvider.name,
+    videoDurationSeconds: finalDurationSeconds,
+    renderMs,
+    storageBytes,
+  }).catch((err) => {
+    console.warn(`No se pudo registrar el costo de ${requestId}:`, err);
+  });
 
   return { videoPath };
 }
