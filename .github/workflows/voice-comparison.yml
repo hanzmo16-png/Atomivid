@@ -1,0 +1,47 @@
+name: Comparación de voces ElevenLabs (3 muestras)
+
+# Workflow de un solo uso: genera 3 muestras de audio con el MISMO texto y
+# los MISMOS parámetros, usando 3 voces masculinas reales de la cuenta de
+# ElevenLabs ya configurada (consultadas en vivo, nunca hardcodeadas) para
+# elegir manualmente la voz "aprobada" de producción — ver
+# scripts/voice-comparison.ts.
+#
+# No genera clips, imágenes, música, subtítulos ni video. No modifica el
+# voice_id por defecto de producción (src/lib/ai/voice.ts) ni ningún otro
+# secreto/config de Supabase, Stripe o Vercel.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  compare-voices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Generar muestras de comparación
+        run: npx tsx scripts/voice-comparison.ts
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+
+      - name: Subir muestras como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-comparison
+          path: |
+            voice-a.mp3
+            voice-b.mp3
+            voice-c.mp3
+            voice-comparison.json
+          retention-days: 7

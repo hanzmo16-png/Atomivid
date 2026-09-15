@@ -1,3 +1,14 @@
+// PENDIENTE (no implementado todavía — solo documentado): una vez que se
+// elija la voz ganadora entre las probadas por scripts/voice-comparison.ts,
+// DEFAULT_VOICE_ID/VOICE_ID_BY_LANGUAGE deben pasar de "una voz hardcodeada
+// con fallback silencioso" a una lista cerrada de voces PRE-APROBADAS
+// (p. ej. un array/enum aquí mismo, o una env var con los voice_id
+// aprobados). Si ninguna voz aprobada está disponible/configurada, este
+// módulo debe lanzar un error explícito en vez de caer en silencio a
+// "Roger" (o cualquier otra voz no aprobada) — igual que ya se hace arriba
+// cuando falta ELEVENLABS_API_KEY. Ese mismo criterio aplica a
+// getVoiceProvider() en src/lib/providers/voice/index.ts, que hoy decide
+// real-vs-fixture solo por presencia de la API key, sin validar la voz.
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 // "Roger", una voz "premade" (incluida gratis con cualquier cuenta,
 // usable por API sin plan de pago) como fallback si no se configura una
@@ -5,6 +16,9 @@ const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 // a ser una voz de la Voice Library de ElevenLabs — esas requieren plan
 // de pago para usarse por API ("Free users cannot use library voices via
 // the API"), confirmado al probar el worker real.
+//
+// Este valor es HOY el fallback de producción (sin voz aprobada
+// configurada todavía) — ver el PENDIENTE arriba para el reemplazo.
 const DEFAULT_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "CwhRBWXzGAHq8TQ4Fs17";
 // Voces específicas por idioma (opcionales): "Roger" narra en inglés con
 // acento correcto, pero no es una voz nativa en español. Configura estas
