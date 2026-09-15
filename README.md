@@ -218,8 +218,9 @@ Investigado antes de conectar nada (sin gastar ni contratar):
   Music (licencia comercial gratuita confirmada) o de
   [Mixkit](https://mixkit.co/free-stock-music/) (también gratis para uso
   comercial, sin cuenta), registrarlas con su metadata completa en
-  `MUSIC_MANIFEST` (procedencia, licencia, tono) y subirlas a un bucket
-  propio (p. ej. Supabase Storage). El proveedor `curated-library`
+  `MUSIC_MANIFEST` (procedencia, licencia, tono) y subirlas al bucket
+  privado `music-library` de Supabase Storage (nunca público — ver "Cómo
+  se resguardan las pistas" abajo). El proveedor `curated-library`
   (`src/lib/providers/music/real.ts`, antes llamado `custom-url`) elige
   entre ellas según el tono del video, no al azar puro — ver la sección
   siguiente. Esto no requiere ninguna credencial nueva ni gasto; solo
@@ -302,10 +303,11 @@ pasos exactos:
    Educativo, Humor, Historias de terror, Curiosidades, Noticias /
    actualidad, Storytelling personal) — no hace falta una pista distinta
    por estilo si una pista "neutra" combina con varios.
-2. Descarga el MP3 de cada una y súbelas a un bucket propio de Supabase
-   Storage (puede ser el mismo proyecto, en un bucket separado como
-   `music-bank`, o cualquier otro hosting propio con URL pública/firmable
-   estable) — nunca a este repositorio.
+2. Descarga el MP3 de cada una y súbela al bucket **privado** dedicado
+   `music-library` en Supabase Storage (créalo manualmente en el
+   dashboard: Storage → New bucket → "Public bucket" **desactivado** — sin
+   ninguna policy pública; ver "Cómo se resguardan las pistas" abajo para
+   el porqué). Nunca a este repositorio, y nunca a un bucket público.
 3. Por cada pista, agrega una entrada en
    `src/lib/providers/music/manifest.ts` (`MUSIC_MANIFEST`) con: `id`,
    `title`, `author` (tal como lo indica la página de origen), `sourceUrl`
@@ -317,8 +319,11 @@ pasos exactos:
    `instrumental: true` (obligatorio — nunca una pista con voz), `tones`
    (uno o más valores de `MusicTone`, ver `tone.ts` — la señal que usa la
    selección inteligente), `styleTags` (opcional, compatibilidad con el
-   selector de estilo literal) y `storageUrl` (la URL pública/firmada
-   donde la subiste).
+   selector de estilo literal) y `storagePath` (la ruta del archivo
+   *dentro* del bucket `music-library`, p. ej.
+   `"pixabay-335162-upbeat-corporate-inspiring.mp3"` — **no** una URL; el
+   pipeline firma una URL de lectura de máximo 1 hora bajo demanda, solo
+   en el servidor, ver "Cómo se resguardan las pistas" abajo).
 4. Confirma con `npm run test:pipeline` que el pipeline sigue corriendo
    (el manifest se usa automáticamente en cuanto tenga al menos una
    entrada — no hace falta ninguna variable de entorno nueva).
@@ -328,6 +333,30 @@ Mientras el manifest esté vacío y no haya `MUSIC_TRACK_URLS` configurada,
 simplemente rechazará renders reales hasta que completes esto (ver
 "Worker en background" arriba), así que no hay riesgo de que un video con
 tono de prueba llegue a un usuario por accidente.
+
+### Cómo se resguardan las pistas (bucket privado + URL firmada bajo demanda)
+
+Las pistas de `MUSIC_MANIFEST` nunca quedan accesibles por una URL
+permanente ni pública:
+
+- El bucket `music-library` es **privado**, sin ninguna policy de lectura
+  pública — solo la service role key puede leerlo (igual que el bucket
+  `videos`, ver `DECISIONS.md`).
+- `src/lib/providers/music/storage.ts` firma una URL de lectura temporal
+  (máximo 1 hora, `MUSIC_LIBRARY_SIGNED_URL_TTL_SECONDS`) **bajo demanda**,
+  en el momento del render, solo desde código de servidor
+  (`createServiceClient()`, la misma service role key que ya usa el resto
+  del pipeline) — nunca se genera por adelantado ni se guarda.
+- Esa URL firmada nunca llega al navegador del usuario: se usa una sola
+  vez, del lado del servidor, para descargar el MP3 y volver a subirlo
+  como copia efímera en el bucket `videos` (mismo patrón que la voz y el
+  footage) — lo único que el usuario final ve alguna vez es la URL firmada
+  del **video ya renderizado**, nunca la de una pista individual.
+- Objeto inexistente, fallo al firmar, descarga fallida y archivo inválido
+  son errores distintos y tipados (`MusicObjectNotFoundError`,
+  `MusicSigningError`, `MusicDownloadError`, `MusicInvalidFileError`) — el
+  video se genera igual sin música si cualquiera de estos ocurre (ver
+  "Selección inteligente de música y mezcla profesional" arriba).
 
 ## Costos potenciales
 
@@ -376,25 +405,28 @@ Si el registro de costo falla por cualquier motivo (tabla no migrada, error
 de red), el video se genera igual — la instrumentación nunca bloquea el
 resultado, solo deja un warning en los logs.
 
-**Qué pista de música sonó en cada video, exactamente:** `generation_costs`
-hoy (migración 0008) solo guarda el nombre del proveedor
-(`"curated-library"`/`"fixture"`/`"none"`), no la pista específica. Esa
-metadata (trackId, título, autor, licencia, tonos) ya se emite en logs
-estructurados (`[atomivid:music] pista seleccionada ...`,
-`src/lib/video/generate.ts`) en cada render — suficiente para auditar hoy.
-Para guardarla también en la base de datos, `supabase/migrations/0009_music_traceability.sql`
-está preparada y documentada (columnas `music_track_*`, idempotente), pero
-**no se aplicó** — requiere tu autorización, igual que la 0008.
+**Qué pista de música sonó en cada video, exactamente:** además del nombre
+del proveedor (`"curated-library"`/`"fixture"`/`"none"`), `generation_costs`
+guarda por video `music_track_id`, `music_track_title`, `music_track_author`,
+`music_track_license`, `music_track_source_url` (null si el video se generó
+sin música o vino del modo "arranque rápido" sin manifest) y
+`music_fallback_reason` (el motivo exacto cuando no hubo música — null si
+sí la hubo) — columnas de `supabase/migrations/0009_music_traceability.sql`,
+escritas por `recordVideoGeneration` (`src/lib/billing/usage.ts`). La misma
+metadata también se emite en logs estructurados
+(`[atomivid:music] pista seleccionada ...`, `src/lib/video/generate.ts`).
 
 **Verificado**: con un mock de Supabase (sin red), acumulación correcta de
 llamadas/regeneraciones/caracteres y cálculo de `estimated_cost_usd`
-(incluida la rama de música). **Aplicado en producción**: la migración
-0008 (`language`, `generation_costs`) ya está aplicada en el proyecto real
-de Supabase — confirmado (`language_exists = true`,
-`generation_costs_exists = true`). **No verificado todavía**: una
-escritura real contra esa tabla en producción (requiere una generación
-real de video, ver "Qué se verificó en producción real vs. solo
-localmente").
+(incluida la rama de música), y escritura correcta de las columnas
+`music_track_*`/`music_fallback_reason` con datos simulados. **Aplicado en
+producción**: las migraciones 0008 (`language`, `generation_costs`) y 0009
+(`music_track_*`, `music_fallback_reason`) ya están aplicadas en el
+proyecto real de Supabase — ambas confirmadas por el usuario. **No
+verificado todavía**: una escritura real contra esa tabla en producción
+con una pista de música real (requiere `MUSIC_MANIFEST` poblado + una
+generación real de video, ver "Qué se verificó en producción real vs.
+solo localmente").
 
 ## Worker en background para el render
 
@@ -568,8 +600,11 @@ de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
   `volume` por frame de Remotion (`remotion/audio-mix.ts`) — ver
   "Selección inteligente de música y mezcla profesional" arriba. Errores
   tipados (`errors.ts`) con fallback a "video sin música" en vez de fallar
-  la generación completa. `MUSIC_MANIFEST` sigue vacío (sin pistas reales
-  cargadas todavía).
+  la generación completa. Las pistas del manifest se sirven desde un
+  bucket privado (`music-library`) con URL firmada bajo demanda de máximo
+  1 hora, generada solo en el servidor (`storage.ts`) — nunca una URL
+  pública ni permanente, nunca expuesta al navegador. `MUSIC_MANIFEST`
+  sigue vacío (sin pistas reales cargadas todavía).
 - Selección de idioma (español/inglés) en `/dashboard/new`: se pasa
   explícitamente al prompt de Claude (ya no se infiere del texto del
   tema) y, opcionalmente, a una voz de ElevenLabs específica por idioma.
@@ -581,21 +616,23 @@ de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
   (`src/lib/billing/pricing.ts`). Verificado con un mock de Supabase
   (acumulación y cálculo correctos, incluida la rama de música).
 - Build de producción, lint, verificación de tipos y `npm run test:unit`
-  (32 pruebas: tono, selección, validación de audio, mezcla) sin errores.
+  (40 pruebas: tono, selección, validación de audio, mezcla, firma de URL
+  de la biblioteca de música) sin errores.
 
 **Aplicado en producción:**
 - `supabase/migrations/0008_language_and_costs.sql` — confirmado
   (`language_exists = true`, `generation_costs_exists = true`).
+- `supabase/migrations/0009_music_traceability.sql` — confirmado por el
+  usuario (existen las 6 columnas `music_track_*`/`music_fallback_reason`
+  en `generation_costs`).
 
 **Pendiente (requiere al usuario o una decisión suya):**
-- Curar 10-15 pistas de música reales y llenar `MUSIC_MANIFEST` con el
-  esquema completo (procedencia, licencia, tono) — paso del usuario:
-  implica elegir el estilo musical del producto — instrucciones exactas en
-  "Banco inicial" arriba.
-- Autorizar (o no) aplicar `supabase/migrations/0009_music_traceability.sql`
-  (columnas para guardar qué pista sonó en cada video — hoy esa
-  información ya queda en logs estructurados, la migración es una mejora
-  de trazabilidad en base de datos, no un bloqueo).
+- Crear el bucket privado `music-library` en Supabase Storage y curar
+  10-15 pistas de música reales (descargar + subir al bucket + llenar
+  `MUSIC_MANIFEST` con el esquema completo: procedencia, licencia, tono,
+  `storagePath`) — paso del usuario: implica elegir el estilo musical del
+  producto — instrucciones exactas en "Banco inicial" y "Cómo se
+  resguardan las pistas" arriba.
 - Probar el disparo *automático* real: crear una solicitud desde la app en
   Vercel, generar guion (con Claude real) y pulsar "Generar video final" —
   lo probado hasta ahora fue el workflow disparado manualmente

@@ -20,6 +20,22 @@ export class MusicProviderError extends Error {
   }
 }
 
+/** El objeto no existe en el bucket privado de la biblioteca de música (ruta mal escrita, archivo borrado/nunca subido). */
+export class MusicObjectNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MusicObjectNotFoundError";
+  }
+}
+
+/** El objeto existe pero Supabase no pudo firmar una URL de lectura temporal para él. */
+export class MusicSigningError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MusicSigningError";
+  }
+}
+
 /** La pista se identificó pero no se pudo descargar (red, 404, timeout). */
 export class MusicDownloadError extends Error {
   constructor(message: string) {

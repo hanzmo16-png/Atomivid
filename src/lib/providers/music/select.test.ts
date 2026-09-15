@@ -16,7 +16,7 @@ function track(id: string, tones: MusicTrackEntry["tones"]): MusicTrackEntry {
     instrumental: true,
     tones,
     styleTags: [],
-    storageUrl: `https://example.com/${id}.mp3`,
+    storagePath: `${id}.mp3`,
   };
 }
 

@@ -160,16 +160,39 @@ licencias de uso comercial. La variable existe para el día en que se
 conecte un proveedor de pago (p. ej. Epidemic Sound), no para simular un
 costo que hoy no existe.
 
-## Migración 0009: preparada, no aplicada
+## Migración 0009: aplicada y confirmada
 
-Instrucción explícita del usuario: no aplicar nuevas migraciones remotas
-sin autorización. `0009_music_traceability.sql` agrega columnas
-(`music_track_id`, `_title`, `_author`, `_license`, `_source_url`,
-`music_fallback_reason`) a `generation_costs` para guardar qué pista
-sonó en cada video — hoy esa misma metadata ya se emite en logs
-estructurados (`[atomivid:music] pista seleccionada ...`,
-`src/lib/video/generate.ts`), así que no aplicar la migración no bloquea
-nada, solo pospone tenerlo también consultable por SQL.
+`0009_music_traceability.sql` agrega columnas (`music_track_id`, `_title`,
+`_author`, `_license`, `_source_url`, `music_fallback_reason`) a
+`generation_costs` para guardar qué pista sonó en cada video. Se preparó
+primero sin aplicar (instrucción explícita de no tocar Supabase sin
+autorización) mientras la misma metadata se emitía solo en logs
+estructurados; el usuario la aplicó y verificó manualmente, y
+`recordVideoGeneration` (`src/lib/billing/usage.ts`) ya escribe esas
+columnas en cada render (ver `src/lib/video/generate.ts`).
+
+## Biblioteca de música: bucket privado + URL firmada bajo demanda, nunca una URL guardada
+
+`MUSIC_MANIFEST` guarda `storagePath` (una ruta dentro del bucket
+`music-library`), no una URL — ni pública ni firmada de antemano. Se
+evaluaron dos opciones para que el pipeline pueda descargar la pista sin
+exponerla al usuario ni redistribuirla de forma independiente:
+
+- **Elegida**: bucket privado sin ninguna policy pública + una URL firmada
+  de máximo 1 hora, generada en el momento exacto del render, solo en
+  código de servidor (`src/lib/providers/music/storage.ts`,
+  `createServiceClient()`) — mismo patrón que `getSignedVideoUrl`
+  (`src/lib/storage/signed-url.ts`) para el video final. Nada queda
+  "horneado" en el código fuente con acceso de larga vida.
+- **Descartada**: generar manualmente una URL firmada de larga duración y
+  pegarla directamente en el manifest (funciona sin tocar código, pero esa
+  URL es efectivamente una credencial de acceso permanente guardada en el
+  repositorio — más débil si el repo cambia de visibilidad algún día).
+
+Errores tipados nuevos (`MusicObjectNotFoundError`, `MusicSigningError`,
+en `errors.ts`) distinguen "el objeto no existe en el bucket" de "Supabase
+no pudo firmar la URL" — cualquiera de los dos cae en el mismo fallback ya
+existente ("video sin música"), pero con una causa exacta en logs.
 
 ## Qué se dejó fuera del MVP a propósito
 

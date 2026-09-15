@@ -21,6 +21,16 @@ type GenerationCostsRow = {
   footage_provider: string | null;
   footage_count: number;
   music_provider: string | null;
+  // Trazabilidad por video de qué pista sonó (migración 0009, aplicada y
+  // verificada) — null cuando el video se generó sin música o con el
+  // modo "arranque rápido" (MUSIC_TRACK_URLS, sin metadata de pista).
+  music_track_id: string | null;
+  music_track_title: string | null;
+  music_track_author: string | null;
+  music_track_license: string | null;
+  music_track_source_url: string | null;
+  /** Motivo del fallback cuando NO hubo música — null si sí hubo. */
+  music_fallback_reason: string | null;
   video_duration_seconds: number | null;
   render_ms: number | null;
   storage_bytes: number;
@@ -37,6 +47,12 @@ const EMPTY_USAGE: Omit<GenerationCostsRow, "request_id"> = {
   footage_provider: null,
   footage_count: 0,
   music_provider: null,
+  music_track_id: null,
+  music_track_title: null,
+  music_track_author: null,
+  music_track_license: null,
+  music_track_source_url: null,
+  music_fallback_reason: null,
   video_duration_seconds: null,
   render_ms: null,
   storage_bytes: 0,
@@ -102,6 +118,16 @@ export async function recordVideoGeneration(
     footageProvider: string;
     footageCount: number;
     musicProvider: string;
+    /** Metadata de la pista específica usada — ausente si no hubo música o si vino del modo "arranque rápido" sin manifest. */
+    musicTrack?: {
+      id: string;
+      title: string;
+      author: string;
+      license: string;
+      sourceUrl: string;
+    } | null;
+    /** Motivo del fallback cuando el video se generó sin música — null si sí hubo. */
+    musicFallbackReason?: string | null;
     videoDurationSeconds: number;
     renderMs: number;
     storageBytes: number;
@@ -114,6 +140,12 @@ export async function recordVideoGeneration(
   row.footage_provider = usage.footageProvider;
   row.footage_count = usage.footageCount;
   row.music_provider = usage.musicProvider;
+  row.music_track_id = usage.musicTrack?.id ?? null;
+  row.music_track_title = usage.musicTrack?.title ?? null;
+  row.music_track_author = usage.musicTrack?.author ?? null;
+  row.music_track_license = usage.musicTrack?.license ?? null;
+  row.music_track_source_url = usage.musicTrack?.sourceUrl ?? null;
+  row.music_fallback_reason = usage.musicFallbackReason ?? null;
   row.video_duration_seconds = usage.videoDurationSeconds;
   row.render_ms = usage.renderMs;
   row.storage_bytes = usage.storageBytes;
