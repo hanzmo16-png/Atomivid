@@ -9,9 +9,10 @@ import { getScriptProvider } from "@/lib/providers/script";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { getFootageProvider } from "@/lib/providers/footage";
 import { getMusicProvider } from "@/lib/providers/music";
-import type { GeneratedScript, ScriptLanguage, WordTiming } from "@/lib/providers/types";
+import type { GeneratedScript, MusicResult, ScriptLanguage, WordTiming } from "@/lib/providers/types";
 import type { RenderStage } from "@/lib/video/stages";
 import type { Caption, Scene } from "../../../remotion/VerticalReel";
+import { computeNarrationGaps, type NarrationGap } from "../../../remotion/audio-mix";
 import { recordVideoGeneration } from "@/lib/billing/usage";
 
 const STORAGE_BUCKET = "videos";
@@ -55,6 +56,7 @@ export async function generateVideoFromScript({
   requestId,
   script,
   style,
+  topic,
   language = "es",
   onProgress,
 }: {
@@ -63,6 +65,8 @@ export async function generateVideoFromScript({
   script: GeneratedScript;
   /** Estilo elegido por el usuario (p. ej. "Motivacional") — usado para elegir música acorde. */
   style?: string;
+  /** Tema original de la solicitud — señal adicional para el tono musical (ver providers/music/tone.ts). */
+  topic?: string;
   language?: ScriptLanguage;
   onProgress?: OnProgress;
 }): Promise<{ videoPath: string }> {
@@ -117,21 +121,59 @@ export async function generateVideoFromScript({
     voice.mimeType,
   );
 
-  // 5. Música de fondo (por debajo del volumen de la narración)
+  // 5. Música de fondo, seleccionada por tono (tema + estilo + guion) y
+  // mezclada por debajo de la narración (ver remotion/audio-mix.ts). Un
+  // fallo aquí (proveedor caído, sin coincidencia, descarga corrupta) NO
+  // debe tumbar el video completo — se continúa sin música, mezclando la
+  // razón claramente en logs y en el registro de costo, nunca en silencio
+  // absoluto (ver Fase 4/6 de la especificación de esta etapa).
   await onProgress?.("music");
   const finalDurationSeconds = voice.durationSeconds + 0.5;
-  const music = await musicProvider.getTrack(finalDurationSeconds, style);
-  storageBytes += music.audioBuffer.byteLength;
-  const { url: musicUrl } = await uploadToStorage(
-    supabase,
-    `${requestId}/music.${music.extension}`,
-    music.audioBuffer,
-    music.mimeType,
-  );
+  let music: MusicResult | null = null;
+  let musicFallbackReason: string | null = null;
+  try {
+    music = await musicProvider.getTrack({
+      durationSeconds: finalDurationSeconds,
+      style,
+      topic,
+      scriptText: fullText,
+      language,
+      seed: requestId,
+    });
+  } catch (err) {
+    const errorName = err instanceof Error ? err.name : "Error";
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    musicFallbackReason = `${errorName}: ${errorMessage}`;
+    console.warn(
+      `[atomivid:music] ${requestId} — no se pudo obtener música, el video se genera sin ella:`,
+      musicFallbackReason,
+    );
+  }
+
+  let musicUrl: string | undefined;
+  if (music) {
+    storageBytes += music.audioBuffer.byteLength;
+    const uploaded = await uploadToStorage(
+      supabase,
+      `${requestId}/music.${music.extension}`,
+      music.audioBuffer,
+      music.mimeType,
+    );
+    musicUrl = uploaded.url;
+    console.log(
+      "[atomivid:music] pista seleccionada",
+      JSON.stringify({
+        requestId,
+        musicProvider: musicProvider.name,
+        ...(music.track ?? { note: "sin metadata (modo MUSIC_TRACK_URLS sin manifest)" }),
+      }),
+    );
+  }
 
   // 6. Subtítulos incrustados: frases naturales (corte en puntuación),
   // nunca una sola palabra a la vez.
   const captions = buildCaptions(voice.words);
+  const narrationGaps = computeNarrationGaps(voice.words);
 
   // 7. Ensamblar el video final con Remotion
   await onProgress?.("render");
@@ -141,6 +183,7 @@ export async function generateVideoFromScript({
     musicUrl,
     scenes,
     captions,
+    narrationGaps,
     durationSeconds: finalDurationSeconds,
   });
   const renderMs = Date.now() - renderStartedAt;
@@ -165,7 +208,10 @@ export async function generateVideoFromScript({
     voiceCharacters: fullText.length,
     footageProvider: footageProvider.name,
     footageCount: scenes.length,
-    musicProvider: musicProvider.name,
+    // "none" dice explícitamente que el video se generó sin música por un
+    // fallback (no confundir con "no se registró" — ver musicFallbackReason
+    // en los logs de arriba para la causa exacta).
+    musicProvider: music ? musicProvider.name : "none",
     videoDurationSeconds: finalDurationSeconds,
     renderMs,
     storageBytes,
@@ -288,12 +334,14 @@ async function renderVerticalReel({
   musicUrl,
   scenes,
   captions,
+  narrationGaps,
   durationSeconds,
 }: {
   audioUrl: string;
   musicUrl?: string;
   scenes: Scene[];
   captions: Caption[];
+  narrationGaps: NarrationGap[];
   durationSeconds: number;
 }): Promise<string> {
   const entryPoint = path.join(process.cwd(), "remotion", "index.ts");
@@ -307,7 +355,7 @@ async function renderVerticalReel({
 
   const serveUrl = await bundle({ entryPoint });
 
-  const inputProps = { audioUrl, musicUrl, scenes, captions, durationSeconds };
+  const inputProps = { audioUrl, musicUrl, scenes, captions, narrationGaps, durationSeconds };
 
   const composition = await selectComposition({
     serveUrl,

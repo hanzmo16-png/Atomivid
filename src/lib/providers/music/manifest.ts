@@ -1,3 +1,5 @@
+import type { MusicTone } from "../types";
+
 /**
  * Banco de música de fondo con procedencia verificable. Cada entrada debe
  * tener una licencia confirmada para uso comercial ANTES de agregarse
@@ -11,7 +13,7 @@
  * proyecto), nunca en este repositorio.
  */
 export type MusicTrackEntry = {
-  /** Identificador corto y estable, usado solo en logs/debug. */
+  /** Identificador corto y estable, usado en logs/debug y como trackId en generation_costs (futuro). */
   id: string;
   title: string;
   author: string;
@@ -20,20 +22,38 @@ export type MusicTrackEntry = {
   /** Nombre de la licencia bajo la que se descargó (no un link genérico). */
   license: string;
   /**
-   * Con qué estilos de video (los mismos valores del selector en
-   * /dashboard/new) combina esta pista. Una pista puede tener varios tags;
-   * `getTrack` intenta un tag que coincida con el estilo del video antes
-   * de elegir al azar de todo el banco.
+   * Fuente real de la pista (p. ej. "pixabay", "mixkit") — distinto del
+   * nombre del MusicProvider ("curated-library"), que es el mecanismo de
+   * selección, no la procedencia de cada pista individual.
+   */
+  provider: string;
+  /** Fecha (ISO 8601, solo fecha) en que se descargó/verificó la licencia. */
+  dateObtainedISO: string;
+  /** Debe ser instrumental (sin voz) — condición obligatoria, ver README. */
+  instrumental: true;
+  /**
+   * Tonos normalizados con los que combina esta pista (ver tone.ts) — el
+   * algoritmo de selección puntúa por coincidencia con los tonos
+   * inferidos del video. Una pista puede tener varios.
+   */
+  tones: MusicTone[];
+  /**
+   * Compatibilidad con el selector de estilo de /dashboard/new (valores
+   * tal como aparecen ahí, p. ej. "Motivacional") — usado solo como señal
+   * adicional si se quiere filtrar/depurar por estilo literal; la
+   * selección real usa `tones`.
    */
   styleTags: string[];
-  /** URL pública (o firmada) desde donde el pipeline puede descargarla. */
+  /** URL pública (o firmable) desde donde el pipeline puede descargarla. */
   storageUrl: string;
 };
 
 // Banco inicial: vacío a propósito. Este entorno de desarrollo no tiene
-// salida de red hacia bancos de música (Pixabay/Mixkit/etc.), así que no
-// se pudo descargar ni verificar ninguna pista real desde aquí — hacerlo
-// requiere que el usuario la seleccione y confirme la licencia. Mientras
-// esté vacío, el proveedor de música cae a MUSIC_TRACK_URLS (una lista
-// plana, sin estilos) y, si tampoco hay nada configurado, al fixture.
+// salida de red hacia bancos de música (Pixabay Music/Mixkit/etc.), así
+// que no se pudo descargar ni verificar ninguna pista real desde aquí —
+// hacerlo requiere que el usuario la seleccione y confirme la licencia
+// (ver README, "Música de fondo: banco inicial", para el paso a paso
+// exacto con el esquema de arriba). Mientras esté vacío, el proveedor cae
+// a MUSIC_TRACK_URLS (lista plana, sin tonos/metadata) y, si tampoco hay
+// nada configurado, al fixture.
 export const MUSIC_MANIFEST: MusicTrackEntry[] = [];

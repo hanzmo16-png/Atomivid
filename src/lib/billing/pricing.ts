@@ -11,6 +11,11 @@
  * - Footage (Pexels): gratis, sin costo por request
  * - Render (GitHub Actions): https://docs.github.com/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions
  * - Storage (Supabase): https://supabase.com/pricing
+ * - Música: la biblioteca curada (Pixabay Music/Mixkit, ver
+ *   src/lib/providers/music/real.ts) es gratis bajo sus licencias de uso
+ *   comercial — el default es $0. Solo tiene sentido configurar
+ *   PRICING_MUSIC_USD_PER_TRACK si en el futuro se conecta un proveedor de
+ *   pago (p. ej. Epidemic Sound); no lo actives sin una tarifa real.
  */
 
 function rate(envVar: string, fallback: number): number {
@@ -30,6 +35,8 @@ export function getPricingConfig() {
     scriptOutputUsdPer1MTokens: rate("PRICING_SCRIPT_OUTPUT_USD_PER_1M_TOKENS", 15),
     /** USD por minuto de runner usado para renderizar (GitHub Actions Linux). */
     renderUsdPerMinute: rate("PRICING_RENDER_USD_PER_MINUTE", 0.008),
+    /** USD por pista de música usada. 0 por defecto — la biblioteca curada actual es gratis. */
+    musicUsdPerTrack: rate("PRICING_MUSIC_USD_PER_TRACK", 0),
   };
 }
 
@@ -50,6 +57,8 @@ export function estimateCostUsd(usage: {
   script_estimated_output_tokens: number;
   voice_characters: number;
   render_ms: number | null;
+  /** Si el video terminó usando una pista de música real (no el fallback "sin música"). */
+  has_music_track?: boolean;
 }): number {
   const pricing = getPricingConfig();
 
@@ -62,5 +71,7 @@ export function estimateCostUsd(usage: {
   const renderMinutes = (usage.render_ms ?? 0) / 60_000;
   const renderCost = renderMinutes * pricing.renderUsdPerMinute;
 
-  return Math.round((scriptCost + voiceCost + renderCost) * 1e6) / 1e6;
+  const musicCost = usage.has_music_track ? pricing.musicUsdPerTrack : 0;
+
+  return Math.round((scriptCost + voiceCost + renderCost + musicCost) * 1e6) / 1e6;
 }

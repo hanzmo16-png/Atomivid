@@ -7,7 +7,7 @@ import type { MusicProvider } from "../types";
 // de música. Ver MusicProvider "custom" para conectar una pista real.
 export const fixtureMusicProvider: MusicProvider = {
   name: "fixture",
-  async getTrack(durationSeconds) {
+  async getTrack({ durationSeconds }) {
     const base = generateToneWav({
       durationSeconds,
       frequencyHz: 130.81, // Do3

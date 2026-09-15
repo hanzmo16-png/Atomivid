@@ -10,6 +10,7 @@ const defaultProps: VerticalReelProps = {
   durationSeconds: 30,
   scenes: [],
   captions: [],
+  narrationGaps: [],
 };
 
 export function RemotionRoot() {
