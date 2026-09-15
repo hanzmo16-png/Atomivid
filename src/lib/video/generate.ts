@@ -80,23 +80,29 @@ export async function generateVideoFromScript({
   // 2. Repartir el tiempo de la narración real entre las escenas del guion
   const sceneTimings = alignScenesToWords(script.segments, voice.words);
 
-  // 3. Footage: una imagen por escena, subida a Storage
+  // 3. Footage: preferentemente un clip vertical por escena; el proveedor
+  // cae a imagen cuando Pexels no tiene un video adecuado.
   await onProgress?.("footage");
   const scenes: Scene[] = [];
   for (let i = 0; i < script.segments.length; i++) {
     const segment = script.segments[i];
     const timing = sceneTimings[i];
-    const image = await footageProvider.fetchImage(segment.visualQuery);
-    const imageBuffer = await footageProvider.downloadImage(image.url);
-    storageBytes += imageBuffer.byteLength;
-    const { url: imageUrl } = await uploadToStorage(
+    const sceneDuration = Math.max(0, timing.end - timing.start);
+    const footage = await footageProvider.fetchFootage(
+      segment.visualQuery,
+      sceneDuration + 0.5,
+    );
+    const footageBuffer = await footageProvider.downloadFootage(footage.url);
+    storageBytes += footageBuffer.byteLength;
+    const { url: mediaUrl } = await uploadToStorage(
       supabase,
-      `${requestId}/scene-${i}.${image.extension}`,
-      imageBuffer,
-      image.mimeType,
+      `${requestId}/scene-${i}.${footage.extension}`,
+      footageBuffer,
+      footage.mimeType,
     );
     scenes.push({
-      imageUrl,
+      mediaUrl,
+      mediaType: footage.mediaType,
       startSeconds: timing.start,
       endSeconds: timing.end,
     });
