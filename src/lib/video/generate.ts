@@ -212,6 +212,16 @@ export async function generateVideoFromScript({
     // fallback (no confundir con "no se registró" — ver musicFallbackReason
     // en los logs de arriba para la causa exacta).
     musicProvider: music ? musicProvider.name : "none",
+    musicTrack: music?.track
+      ? {
+          id: music.track.trackId,
+          title: music.track.title,
+          author: music.track.author,
+          license: music.track.license,
+          sourceUrl: music.track.sourceUrl,
+        }
+      : null,
+    musicFallbackReason,
     videoDurationSeconds: finalDurationSeconds,
     renderMs,
     storageBytes,

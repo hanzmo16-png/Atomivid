@@ -9,8 +9,10 @@ import type { MusicTone } from "../types";
  *
  * Este archivo solo referencia metadata (para poder demostrar de dónde
  * salió cada pista si algún día hay que justificarlo) — el audio en sí
- * vive donde `storageUrl` apunte (p. ej. el bucket de Supabase Storage del
- * proyecto), nunca en este repositorio.
+ * vive en el bucket privado `music-library` de Supabase Storage (nunca en
+ * este repositorio), referenciado por `storagePath`. El pipeline firma una
+ * URL de lectura temporal bajo demanda para descargarlo — ver
+ * src/lib/providers/music/storage.ts.
  */
 export type MusicTrackEntry = {
   /** Identificador corto y estable, usado en logs/debug y como trackId en generation_costs (futuro). */
@@ -44,8 +46,15 @@ export type MusicTrackEntry = {
    * selección real usa `tones`.
    */
   styleTags: string[];
-  /** URL pública (o firmable) desde donde el pipeline puede descargarla. */
-  storageUrl: string;
+  /**
+   * Ruta del objeto dentro del bucket privado `music-library` (ver
+   * src/lib/providers/music/storage.ts) — NO una URL pública ni una URL
+   * firmada. El pipeline firma una URL de lectura de máximo 1 hora bajo
+   * demanda, solo en el servidor, en el momento de renderizar — nunca se
+   * guarda ni se envía una URL descargable permanente. Ejemplo:
+   * "pixabay-335162-upbeat-corporate-inspiring.mp3".
+   */
+  storagePath: string;
 };
 
 // Banco inicial: vacío a propósito. Este entorno de desarrollo no tiene
