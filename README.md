@@ -106,9 +106,14 @@ En **SQL Editor** de Supabase, ejecuta en orden:
 8. `supabase/migrations/0008_language_and_costs.sql` — columna `language`
    en `video_requests` (idioma elegido por el usuario) y tabla
    `generation_costs` (registro de uso/costo estimado por video — ver
-   "Costo estimado por video" más abajo). **Pendiente de aplicar en el
-   proyecto real de Supabase** — sin esto, guardar una solicitud fallará
-   (la columna `language` no existirá).
+   "Costo estimado por video" más abajo). **Aplicada y confirmada** en el
+   proyecto real de Supabase.
+9. `supabase/migrations/0009_music_traceability.sql` — columnas
+   `music_track_id`, `music_track_title`, `music_track_author`,
+   `music_track_license`, `music_track_source_url` y
+   `music_fallback_reason` en `generation_costs`, para saber qué pista
+   sonó en cada video (o por qué no sonó ninguna). **Aplicada y
+   confirmada** en el proyecto real de Supabase.
 
 Si usas la [CLI de Supabase](https://supabase.com/docs/guides/cli):
 
@@ -225,8 +230,10 @@ Investigado antes de conectar nada (sin gastar ni contratar):
   entre ellas según el tono del video, no al azar puro — ver la sección
   siguiente. Esto no requiere ninguna credencial nueva ni gasto; solo
   curaduría manual de pistas (paso que le corresponde al usuario, ya que
-  implica elegir el estilo musical del producto) — **sigue sin hacerse**:
-  `MUSIC_MANIFEST` sigue vacío, ver "Banco inicial" abajo.
+  implica elegir el estilo musical del producto) — **ya en curso**: el
+  bucket `music-library` está creado y `MUSIC_MANIFEST` tiene sus primeras
+  dos pistas reales, ver "Banco inicial" abajo para el detalle y lo que
+  falta.
 
 ## Selección inteligente de música y mezcla profesional
 
@@ -272,20 +279,46 @@ Con el manifest lleno, la música ya no se elige al azar sin contexto:
    (`[atomivid:music] ...`) y en `generation_costs.music_provider` (queda
    en `"none"`), nunca en silencio absoluto.
 
-Verificado con `npm run test:unit` (32 pruebas: tono, selección
+Verificado con `npm run test:unit` (40 pruebas: tono, selección
 determinística/variada, validación de archivos, fades/ducking sin saltos,
-protección contra que la música supere a la voz) y con
-`npm run test:pipeline` (video real de prueba, ver "Qué se verificó").
+protección contra que la música supere a la voz, firma de URL de la
+biblioteca de música) y con `npm run test:pipeline` (video real de
+prueba, ver "Qué se verificó").
 
-## Música de fondo: banco inicial (pendiente de que cures las pistas)
+## Música de fondo: banco inicial
 
-El tono genérico del proveedor fixture (un pad de dos tonos) es **solo
-para pruebas internas** — `scripts/render-worker.ts` (el worker de GitHub
-Actions) se niega a correr si la música resuelve a "fixture", precisamente
-para que nunca le llegue a un usuario real. Antes de invitar usuarios
-reales hace falta curar un banco mínimo. Yo no puedo hacerlo desde este
-entorno (sin salida de red hacia Pixabay/Mixkit), así que aquí están los
-pasos exactos:
+**Pistas actualmente en `MUSIC_MANIFEST`** (verificadas y cargadas el
+2026-09-15, ambas con Pixabay Content License, en el bucket privado
+`music-library`):
+
+| Título | Autor | Tonos | Ruta en el bucket |
+|---|---|---|---|
+| Upbeat Corporate Inspiring | AudioCoffee | corporate, motivational, technology | `pixabay-335162-upbeat-corporate-inspiring.mp3` |
+| Instrumental music - powerful, motivational | Huynhhoa89 | motivational, energetic, cinematic | `pixabay-266030-instrumental-music-powerful-motivational.mp3` |
+
+Metadata completa (URL de origen, licencia exacta, fecha) vive en
+`src/lib/providers/music/manifest.ts`. La primera pista trae además un
+crédito sugerido por su página de origen ("Music by Denys Kyshchuk from
+Pixabay."), distinto del perfil uploader (AudioCoffee) — documentado como
+comentario en `manifest.ts` y en `DECISIONS.md`, porque `MusicTrackEntry`
+todavía no tiene un campo estructurado para una línea de atribución
+adicional a `author`, ni el pipeline genera créditos automáticamente en
+ningún lado (subtítulos, descripción, etc.). Ampliar el esquema para esto
+requiere autorización explícita antes de tocarlo.
+
+Con el manifest ya no vacío, `getMusicProvider()` deja de caer al fixture
+por defecto y `scripts/render-worker.ts` ya no rechaza un render real por
+falta de música (antes sí lo hacía, mientras el manifest estaba vacío) —
+pero esto **todavía no se probó con una generación real contra Supabase**:
+ningún video se ha renderizado todavía usando estas dos pistas, ni se
+confirmó que `signMusicLibraryUrl()` funcione contra el bucket real (ver
+"Qué se verificó en producción real vs. solo localmente").
+
+El tono genérico del proveedor fixture (un pad de dos tonos) sigue siendo
+**solo para pruebas internas**. Dos pistas ya cubren un banco mínimo, pero
+la investigación original recomendaba 10-15 para variedad completa entre
+estilos — para ampliarlo, yo no puedo hacerlo desde este entorno (sin
+salida de red hacia Pixabay/Mixkit), así que aquí están los pasos exactos:
 
 **Criterios para cada pista (los tres son obligatorios):**
 1. Licencia explícita de uso comercial gratuito — Pixabay Content License
@@ -295,19 +328,19 @@ pasos exactos:
 3. Energía pareja/de fondo, no un tema con subidas y bajadas fuertes de
    volumen — tiene que poder mezclarse bajo la voz sin distraer.
 
-**Pasos:**
+**Pasos** (el bucket `music-library` ya existe — creado, privado, sin
+policies públicas — así que solo falta repetir esto por cada pista nueva):
 1. En [Pixabay Music](https://pixabay.com/music/) o
-   [Mixkit](https://mixkit.co/free-stock-music/), busca 10-15 pistas que
-   cumplan los tres criterios. Cubre varios estilos: al menos 2-3 pistas
-   por cada opción del selector de `/dashboard/new` (Motivacional,
-   Educativo, Humor, Historias de terror, Curiosidades, Noticias /
-   actualidad, Storytelling personal) — no hace falta una pista distinta
-   por estilo si una pista "neutra" combina con varios.
-2. Descarga el MP3 de cada una y súbela al bucket **privado** dedicado
-   `music-library` en Supabase Storage (créalo manualmente en el
-   dashboard: Storage → New bucket → "Public bucket" **desactivado** — sin
-   ninguna policy pública; ver "Cómo se resguardan las pistas" abajo para
-   el porqué). Nunca a este repositorio, y nunca a un bucket público.
+   [Mixkit](https://mixkit.co/free-stock-music/), busca pistas adicionales
+   que cumplan los tres criterios (van 2 de las ~10-15 recomendadas).
+   Cubre varios estilos: al menos 2-3 pistas por cada opción del selector
+   de `/dashboard/new` (Motivacional, Educativo, Humor, Historias de
+   terror, Curiosidades, Noticias / actualidad, Storytelling personal) —
+   no hace falta una pista distinta por estilo si una pista "neutra"
+   combina con varios.
+2. Descarga el MP3 de cada una y súbela a la raíz del bucket **privado**
+   `music-library` en Supabase Storage. Nunca a este repositorio, y nunca
+   a un bucket público.
 3. Por cada pista, agrega una entrada en
    `src/lib/providers/music/manifest.ts` (`MUSIC_MANIFEST`) con: `id`,
    `title`, `author` (tal como lo indica la página de origen), `sourceUrl`
@@ -327,12 +360,6 @@ pasos exactos:
 4. Confirma con `npm run test:pipeline` que el pipeline sigue corriendo
    (el manifest se usa automáticamente en cuanto tenga al menos una
    entrada — no hace falta ninguna variable de entorno nueva).
-
-Mientras el manifest esté vacío y no haya `MUSIC_TRACK_URLS` configurada,
-`getMusicProvider()` sigue usando el fixture — el worker de GitHub Actions
-simplemente rechazará renders reales hasta que completes esto (ver
-"Worker en background" arriba), así que no hay riesgo de que un video con
-tono de prueba llegue a un usuario por accidente.
 
 ### Cómo se resguardan las pistas (bucket privado + URL firmada bajo demanda)
 
@@ -424,9 +451,9 @@ producción**: las migraciones 0008 (`language`, `generation_costs`) y 0009
 (`music_track_*`, `music_fallback_reason`) ya están aplicadas en el
 proyecto real de Supabase — ambas confirmadas por el usuario. **No
 verificado todavía**: una escritura real contra esa tabla en producción
-con una pista de música real (requiere `MUSIC_MANIFEST` poblado + una
-generación real de video, ver "Qué se verificó en producción real vs.
-solo localmente").
+con una pista de música real — `MUSIC_MANIFEST` ya tiene sus primeras dos
+pistas, pero falta ejecutar una generación real de video para confirmarlo
+(ver "Qué se verificó en producción real vs. solo localmente").
 
 ## Worker en background para el render
 
@@ -555,7 +582,9 @@ de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
 ## Completado / pendiente
 
 **Completado y probado en producción real** (no solo local/fixtures):
-- Las 7 migraciones aplicadas en el proyecto real de Supabase.
+- Las 9 migraciones aplicadas en el proyecto real de Supabase (las
+  primeras 7 desde el inicio del proyecto; 0008 y 0009 confirmadas por
+  separado más abajo, en "Aplicado en producción").
 - Worker en background vía GitHub Actions: probado end-to-end con
   credenciales reales — voz con ElevenLabs, footage con Pexels, render con
   Remotion/Chromium, subida a Supabase Storage. Video final verificado con
@@ -600,11 +629,13 @@ de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
   `volume` por frame de Remotion (`remotion/audio-mix.ts`) — ver
   "Selección inteligente de música y mezcla profesional" arriba. Errores
   tipados (`errors.ts`) con fallback a "video sin música" en vez de fallar
-  la generación completa. Las pistas del manifest se sirven desde un
-  bucket privado (`music-library`) con URL firmada bajo demanda de máximo
-  1 hora, generada solo en el servidor (`storage.ts`) — nunca una URL
-  pública ni permanente, nunca expuesta al navegador. `MUSIC_MANIFEST`
-  sigue vacío (sin pistas reales cargadas todavía).
+  la generación completa. Las pistas del manifest se sirven desde el
+  bucket privado `music-library` (ya creado) con URL firmada bajo demanda
+  de máximo 1 hora, generada solo en el servidor (`storage.ts`) — nunca
+  una URL pública ni permanente, nunca expuesta al navegador.
+  `MUSIC_MANIFEST` tiene sus primeras dos pistas reales (ver "Música de
+  fondo: banco inicial" arriba) — sin probar todavía contra una
+  generación real (ver "Pendiente" abajo).
 - Selección de idioma (español/inglés) en `/dashboard/new`: se pasa
   explícitamente al prompt de Claude (ya no se infiere del texto del
   tema) y, opcionalmente, a una voz de ElevenLabs específica por idioma.
@@ -627,12 +658,19 @@ de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
   en `generation_costs`).
 
 **Pendiente (requiere al usuario o una decisión suya):**
-- Crear el bucket privado `music-library` en Supabase Storage y curar
-  10-15 pistas de música reales (descargar + subir al bucket + llenar
-  `MUSIC_MANIFEST` con el esquema completo: procedencia, licencia, tono,
-  `storagePath`) — paso del usuario: implica elegir el estilo musical del
-  producto — instrucciones exactas en "Banco inicial" y "Cómo se
-  resguardan las pistas" arriba.
+- Ampliar `MUSIC_MANIFEST` más allá de las 2 pistas actuales (bucket
+  `music-library` ya creado) hasta las ~10-15 recomendadas para variedad
+  completa entre estilos — instrucciones exactas en "Banco inicial"
+  arriba.
+- Probar una generación real de video usando estas pistas: ningún video se
+  ha renderizado todavía contra el bucket `music-library` real, así que
+  `signMusicLibraryUrl()` y todo el flujo de descarga/mezcla siguen sin
+  verificarse fuera de las pruebas con mocks.
+- Definir un campo estructurado de atribución adicional en
+  `MusicTrackEntry` (p. ej. `suggestedCredit?: string`) si se necesita
+  mostrar créditos como "Music by Denys Kyshchuk from Pixabay." en algún
+  lugar visible — hoy solo está documentado en comentarios/`DECISIONS.md`,
+  sin campo ni generación automática.
 - Probar el disparo *automático* real: crear una solicitud desde la app en
   Vercel, generar guion (con Claude real) y pulsar "Generar video final" —
   lo probado hasta ahora fue el workflow disparado manualmente
@@ -692,8 +730,9 @@ de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
 
 ## Próximos pasos
 
-1. Curar manualmente pistas de música gratuitas (Pixabay Music/Mixkit) y
-   configurar `MUSIC_TRACK_URLS`/`MUSIC_MANIFEST`.
+1. Ampliar `MUSIC_MANIFEST` más allá de las 2 pistas actuales (bucket
+   `music-library` ya creado) y probar una generación real de video con
+   ellas contra el bucket real.
 2. Probar el flujo completo iniciado por un clic real en la app (Vercel):
    crear solicitud → generar guion con Claude real → revisar/editar →
    "Generar video final" → confirmar que dispara el worker real
@@ -707,21 +746,25 @@ de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
 ## Qué se verificó en producción real vs. solo localmente
 
 - **Verificado en producción real** (Supabase real, ElevenLabs real,
-  Pexels real, Claude real, GitHub Actions real): las 7 migraciones
-  aplicadas; el worker de render completo (voz → footage → música →
-  render → subida → video verificado con `ffprobe`); Storage privado con
-  URLs firmadas; generación de guion y regeneración de escena con Claude
-  real. Todo disparado manualmente (`workflow_dispatch`) sobre una
-  solicitud sembrada directamente en la base de datos — no fue un clic
-  real en la UI de Vercel.
+  Pexels real, Claude real, GitHub Actions real): las primeras 7
+  migraciones aplicadas (0008 y 0009 se aplicaron y confirmaron después,
+  por separado — ver "Completado / pendiente"); el worker de render
+  completo (voz → footage → música fixture → render → subida → video
+  verificado con `ffprobe`); Storage privado con URLs firmadas;
+  generación de guion y regeneración de escena con Claude real. Todo
+  disparado manualmente (`workflow_dispatch`) sobre una solicitud sembrada
+  directamente en la base de datos — no fue un clic real en la UI de
+  Vercel.
 - **No verificado todavía**: el disparo automático desde un clic real en
   la app (`/dashboard/review/[id]` → "Generar video final" →
   `repository_dispatch` — investigado y confirmado que no se puede probar
   desde este entorno bajo ningún token, ver "Worker en background"
-  arriba) y cualquier transacción real de Stripe. El código de estas
-  rutas es el mismo que ya se probó en las otras partes del pipeline,
-  pero el camino específico "clic del usuario → Vercel → GitHub Actions"
-  en sí no se ejercitó.
+  arriba); cualquier transacción real de Stripe; y una generación real
+  usando las dos pistas reales ya cargadas en `MUSIC_MANIFEST` y el bucket
+  `music-library` (el render con `ffprobe` mencionado arriba se hizo antes
+  de que el manifest tuviera pistas, con música fixture). El código de
+  estas rutas es el mismo que ya se probó en las otras partes del
+  pipeline, pero esos caminos específicos no se ejercitaron todavía.
 - Este entorno de Claude Code no tiene salida de red hacia Vercel,
   Supabase, ElevenLabs, Pexels, Stripe ni el almacenamiento de artifacts
   de GitHub (solo hacia `api.anthropic.com`, registros de paquetes, y la

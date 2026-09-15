@@ -194,6 +194,39 @@ en `errors.ts`) distinguen "el objeto no existe en el bucket" de "Supabase
 no pudo firmar la URL" — cualquiera de los dos cae en el mismo fallback ya
 existente ("video sin música"), pero con una causa exacta en logs.
 
+## Primeras pistas reales del banco de música
+
+`MUSIC_MANIFEST` deja de estar vacío con las dos primeras pistas, ambas
+verificadas directamente por el usuario en Pixabay Music (este entorno no
+tiene salida de red hacia Pixabay — ver limitación documentada en turnos
+anteriores) y subidas manualmente al bucket privado `music-library`
+(creado por el usuario: Public bucket desactivado, sin policies
+públicas). Registro de la verificación, tal como la confirmó el usuario el
+2026-09-15:
+
+- **"Upbeat Corporate Inspiring"** — autor/perfil de Pixabay: AudioCoffee.
+  Duración 2:25. Licencia: Pixabay Content License.
+  `https://pixabay.com/music/upbeat-upbeat-corporate-inspiring-335162/`.
+  La página sugiere además el crédito **"Music by Denys Kyshchuk from
+  Pixabay."** — distinto del perfil/cuenta uploader (AudioCoffee). El tipo
+  `MusicTrackEntry` no tiene hoy un campo dedicado para una línea de
+  atribución sugerida además de `author`; se documentó como comentario en
+  `manifest.ts` en vez de ampliar el esquema sin autorización (instrucción
+  explícita del usuario: reportarlo como pendiente antes de tocar el
+  modelo). Si más adelante se agrega un campo `suggestedCredit?: string`
+  (opcional, no rompe las entradas existentes, no requiere migración de
+  base de datos porque `MUSIC_MANIFEST` vive en código), este es el primer
+  caso real que lo justificaría.
+- **"Instrumental music - powerful, motivational"** — autor: Huynhhoa89.
+  Duración 2:25. Licencia: Pixabay Content License.
+  `https://pixabay.com/music/build-up-scenes-instrumental-music-powerful-motivational-266030/`.
+  Sin crédito sugerido adicional reportado.
+
+Tonos asignados (ver `tone.ts`) tal como los propuso una sesión anterior y
+el usuario confirmó sin cambios: la primera con `corporate`,
+`motivational`, `technology`; la segunda con `motivational`, `energetic`,
+`cinematic` — los seis valores pertenecen al tipo `MusicTone`.
+
 ## Qué se dejó fuera del MVP a propósito
 
 - **Cancelar un render en curso**: el enunciado lo marcaba como "si
