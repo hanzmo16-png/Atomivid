@@ -7,87 +7,140 @@
  * las credenciales ya configuradas como secrets del repo — nadie ve ni
  * pega ninguna clave para esto.
  *
- * Usa el proveedor de guion "fixture" (determinístico, sin llamar a
- * Claude) porque ANTHROPIC_API_KEY no está configurada en este worker —
- * el guion generado por Claude ya se prueba por separado, en Vercel. Este
- * script solo valida voz (ElevenLabs) + footage (Pexels) + música + render
- * + Storage, que es lo nuevo que hay que probar.
+ * Tema, idioma, estilo, duración y modo de guion son parametrizables (ver
+ * .github/workflows/seed-test-request.yml, inputs del workflow_dispatch,
+ * pasados por `env:` — nunca interpolados en el comando de shell, así un
+ * tema con comillas/backticks no puede inyectar nada). La validación de
+ * esos inputs y la orquestación (buscar/crear usuario, protección contra
+ * duplicados, generar guion, insertar) viven en scripts/lib/seed-request.ts,
+ * separadas de este archivo para poder probarlas con `node:test` sin
+ * Supabase ni el SDK de Anthropic — ver scripts/lib/seed-request.test.ts.
  *
- * Asocia la solicitud a un usuario real ya existente en el proyecto
- * (el primero que encuentre vía la Admin API) para que aparezca en su
- * historial normal. Si el proyecto todavía no tiene ningún usuario
- * registrado (nadie se ha registrado aún en el sitio real), crea uno
- * sintético marcado como cuenta de prueba interna — así la validación
- * técnica del worker no depende de que alguien haya hecho login primero.
- * De cualquier forma respeta la restricción de clave foránea de
- * video_requests.user_id.
+ * - SEED_MODE=fixture (por defecto): guion determinístico, sin llamar a
+ *   Claude — para probar solo voz/footage/música/render sin gastar en LLM.
+ * - SEED_MODE=real: exige ANTHROPIC_API_KEY y usa el proveedor real
+ *   (Claude) — falla explícitamente si no se resuelve a "anthropic" (no
+ *   cae en silencio al fixture).
+ * Sin ninguna variable SEED_* configurada, el comportamiento es idéntico
+ * al de antes de parametrizarlo (mismo tema/estilo/duración/modo fixture).
  *
  * Uso: npx tsx scripts/seed-test-request.ts
+ * (opcionalmente con SEED_TOPIC, SEED_LANGUAGE, SEED_MODE, SEED_STYLE,
+ * SEED_DURATION_SECONDS en el entorno)
  */
 export {}; // Fuerza scope de módulo — evita colisionar con `main()` de otros scripts.
+
+import { resolveScriptProvider, resolveSeedInput, seedTestRequest } from "./lib/seed-request";
 
 async function main() {
   const { createServiceClient } = await import("../src/lib/supabase/service");
   const { fixtureScriptProvider } = await import("../src/lib/providers/script/fixture");
 
+  const inputResult = resolveSeedInput({
+    topic: process.env.SEED_TOPIC,
+    style: process.env.SEED_STYLE,
+    language: process.env.SEED_LANGUAGE,
+    mode: process.env.SEED_MODE,
+    durationSeconds: process.env.SEED_DURATION_SECONDS,
+  });
+  if (!inputResult.ok) {
+    throw new Error(`Input inválido: ${inputResult.reason}`);
+  }
+  const { topic, style, language, mode, durationSeconds } = inputResult.value;
+
+  console.log(
+    `Sembrando solicitud — tema: "${topic}" | idioma: ${language} | estilo: ${style} | ` +
+      `duración: ${durationSeconds}s | modo de guion: ${mode}`,
+  );
+
+  const providerResult = await resolveScriptProvider(mode, {
+    hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
+    resolveRealProvider: async () => {
+      const { getScriptProvider } = await import("../src/lib/providers/script");
+      return getScriptProvider();
+    },
+    fixtureProvider: fixtureScriptProvider,
+  });
+  if (!providerResult.ok) {
+    throw new Error(providerResult.reason);
+  }
+  // resolveScriptProvider ya validó que esto resuelve a "anthropic" en
+  // modo real (o falla antes de llegar aquí) — se vuelve a resolver el
+  // proveedor concreto (en vez de castear providerResult.value, que solo
+  // tiene `.name` por diseño) para no perder el tipo real de ScriptProvider.
+  const scriptProvider =
+    mode === "real"
+      ? (await import("../src/lib/providers/script")).getScriptProvider()
+      : fixtureScriptProvider;
+
   const service = createServiceClient();
 
-  const { data: usersData, error: usersError } = await service.auth.admin.listUsers({
-    perPage: 1,
+  const outcome = await seedTestRequest(inputResult.value, scriptProvider, {
+    getFirstUserId: async () => {
+      const { data, error } = await service.auth.admin.listUsers({ perPage: 1 });
+      if (error) {
+        throw new Error(`No se pudo consultar los usuarios existentes: ${error.message}`);
+      }
+      return data?.users?.[0]?.id ?? null;
+    },
+    createInternalTestUser: async () => {
+      console.log(
+        "No hay ningún usuario registrado todavía — creando una cuenta de prueba interna solo para esta validación técnica.",
+      );
+      const { data, error } = await service.auth.admin.createUser({
+        email: `worker-test+${Date.now()}@atomivid-internal.test`,
+        password: crypto.randomUUID(),
+        email_confirm: true,
+        user_metadata: { atomivid_internal_test_account: true },
+      });
+      if (error || !data?.user) {
+        throw new Error(`No se pudo crear un usuario de prueba: ${error?.message}`);
+      }
+      return data.user.id;
+    },
+    // Protección por mejor esfuerzo contra duplicar la solicitud si este
+    // workflow se reintenta manualmente justo después de un fallo — no es
+    // atómica (sin constraint UNIQUE en la base de datos), ver el
+    // comentario de DUPLICATE_WINDOW_MS en lib/seed-request.ts.
+    findRecentDuplicate: async ({ userId, topic: dupTopic, sinceISO }) => {
+      const { data } = await service
+        .from("video_requests")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("topic", dupTopic)
+        .in("status", ["processing", "script_ready"])
+        .gte("created_at", sinceISO)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<{ id: string }>();
+      return data?.id ?? null;
+    },
+    insertVideoRequest: async (payload) => {
+      const { data, error } = await service
+        .from("video_requests")
+        .insert(payload)
+        .select("id")
+        .single<{ id: string }>();
+      if (error || !data) {
+        throw new Error(`No se pudo crear la solicitud de prueba: ${error?.message}`);
+      }
+      return data.id;
+    },
   });
-  if (usersError) {
-    throw new Error(`No se pudo consultar los usuarios existentes: ${usersError.message}`);
-  }
 
-  let userId = usersData?.users?.[0]?.id;
-  if (!userId) {
+  if (outcome.reused) {
     console.log(
-      "No hay ningún usuario registrado todavía — creando una cuenta de prueba interna solo para esta validación técnica.",
+      "Ya existe una solicitud reciente con el mismo tema y usuario — se reutiliza en vez de crear una nueva.",
     );
-    const { data: created, error: createError } = await service.auth.admin.createUser({
-      email: `worker-test+${Date.now()}@atomivid-internal.test`,
-      password: crypto.randomUUID(),
-      email_confirm: true,
-      user_metadata: { atomivid_internal_test_account: true },
-    });
-    if (createError || !created?.user) {
-      throw new Error(`No se pudo crear un usuario de prueba: ${createError?.message}`);
-    }
-    userId = created.user.id;
+  } else {
+    console.log(`Guion generado (${outcome.scriptProviderName}) e insertado.`);
   }
-
-  const topic = "[PRUEBA AUTOMÁTICA] Validación técnica del worker de Atomivid";
-  const style = "Educativo";
-  const durationSeconds = 30;
-
-  const script = await fixtureScriptProvider.generateScript({ topic, style, durationSeconds });
-
-  const { data: inserted, error: insertError } = await service
-    .from("video_requests")
-    .insert({
-      user_id: userId,
-      topic,
-      style,
-      duration_seconds: durationSeconds,
-      status: "processing",
-      script_json: script,
-      render_attempts: 0,
-      render_started_at: new Date().toISOString(),
-      render_worker: "github-actions-manual-test",
-    })
-    .select("id")
-    .single<{ id: string }>();
-
-  if (insertError || !inserted) {
-    throw new Error(`No se pudo crear la solicitud de prueba: ${insertError?.message}`);
-  }
-
-  console.log(`REQUEST_ID=${inserted.id}`);
+  console.log(`REQUEST_ID=${outcome.requestId}`);
 
   const githubOutput = process.env.GITHUB_OUTPUT;
   if (githubOutput) {
     const fs = await import("node:fs/promises");
-    await fs.appendFile(githubOutput, `request_id=${inserted.id}\n`);
+    await fs.appendFile(githubOutput, `request_id=${outcome.requestId}\n`);
   }
 }
 

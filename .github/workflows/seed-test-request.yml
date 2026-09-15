@@ -1,12 +1,51 @@
 name: Seed test request (worker de Atomivid)
 
 # Workflow de un solo uso para validar el worker de render end-to-end:
-# crea una solicitud real en la base de datos de producción (guion vía el
-# proveedor fixture, sin llamar a Claude) lista para renderizar, y expone
-# su id como output para poder disparar render.yml (workflow_dispatch)
-# apuntando a ella. Se dispara solo manualmente.
+# crea una solicitud real en la base de datos de producción lista para
+# renderizar, y expone su id como output para poder disparar render.yml
+# (workflow_dispatch) apuntando a ella. Se dispara solo manualmente.
+#
+# Tema, idioma, estilo, duración y modo de guion son parametrizables. Si
+# no se especifican, el comportamiento es idéntico al original (tema de
+# prueba fijo, guion fixture) — ver scripts/seed-test-request.ts.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Tema del video de prueba"
+        required: false
+        type: string
+        default: "[PRUEBA AUTOMÁTICA] Validación técnica del worker de Atomivid"
+      language:
+        description: "Idioma de la narración"
+        required: false
+        type: choice
+        options:
+          - es
+          - en
+        default: es
+      mode:
+        description: "Proveedor de guion: fixture (sin red, sin costo) o real (Claude, requiere ANTHROPIC_API_KEY)"
+        required: false
+        type: choice
+        options:
+          - fixture
+          - real
+        default: fixture
+      style:
+        description: "Estilo/tono del video"
+        required: false
+        type: string
+        default: "Educativo"
+      duration_seconds:
+        description: "Duración objetivo en segundos"
+        required: false
+        type: choice
+        options:
+          - "30"
+          - "60"
+          - "90"
+        default: "30"
 
 jobs:
   seed:
@@ -29,7 +68,18 @@ jobs:
 
       - name: Crear solicitud de prueba
         id: seed
+        # Los inputs viajan por `env:` (leídos como process.env.SEED_* en
+        # Node), nunca interpolados dentro de `run:` — un tema con
+        # comillas, backticks o `${{ }}` no puede inyectar nada en el
+        # comando de shell, que es un string fijo sin variables.
         run: npx tsx scripts/seed-test-request.ts
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_SCRIPT_MODEL: ${{ secrets.ANTHROPIC_SCRIPT_MODEL }}
+          SEED_TOPIC: ${{ inputs.topic }}
+          SEED_LANGUAGE: ${{ inputs.language }}
+          SEED_MODE: ${{ inputs.mode }}
+          SEED_STYLE: ${{ inputs.style }}
+          SEED_DURATION_SECONDS: ${{ inputs.duration_seconds }}
