@@ -101,6 +101,12 @@ En **SQL Editor** de Supabase, ejecuta en orden:
 7. `supabase/migrations/0007_input_limits.sql` — topes de longitud/duración
    en `video_requests` (defensa en profundidad para no permitir una
    solicitud que dispare un gasto desproporcionado).
+8. `supabase/migrations/0008_language_and_costs.sql` — columna `language`
+   en `video_requests` (idioma elegido por el usuario) y tabla
+   `generation_costs` (registro de uso/costo estimado por video — ver
+   "Costo estimado por video" más abajo). **Pendiente de aplicar en el
+   proyecto real de Supabase** — sin esto, guardar una solicitud fallará
+   (la columna `language` no existirá).
 
 Si usas la [CLI de Supabase](https://supabase.com/docs/guides/cli):
 
@@ -152,7 +158,7 @@ confirma tu correo e inicia sesión.
 
 ## Cómo generar un video
 
-1. En "Nuevo video" guarda una solicitud (tema, estilo, duración).
+1. En "Nuevo video" guarda una solicitud (idioma, tema, estilo, duración).
 2. Suscríbete desde "Facturación" (tarjeta de prueba `4242 4242 4242 4242`,
    con `stripe listen` corriendo en paralelo si estás en local).
 3. En el historial, pulsa "Generar guion". Te lleva a la pantalla de
@@ -277,6 +283,41 @@ nada de ese presupuesto todavía.
 - **Stripe**: sin costo fijo, comisión por transacción.
 - **Música de fondo**: sin costo — playlist curada manualmente por el
   usuario desde bancos gratuitos (ver sección de música arriba).
+
+### Costo estimado por video
+
+Cada solicitud guarda su propio registro de uso/costo en la tabla
+`generation_costs` (migración 0008), poblado automáticamente por el
+pipeline — sin pasos manuales. Mide, por video:
+
+- Caracteres enviados a ElevenLabs (`voice_characters`).
+- Número de llamadas al modelo de guion, incluyendo regeneraciones de
+  escena (`script_calls`, `regenerations`) y una estimación de tokens de
+  entrada/salida (`script_estimated_input_tokens`/`_output_tokens`).
+- Recursos visuales usados (`footage_count`) y proveedor de cada etapa
+  (`voice_provider`, `footage_provider`, `music_provider`).
+- Duración del video (`video_duration_seconds`) y tiempo de render
+  (`render_ms`).
+- Bytes subidos a Storage (`storage_bytes`).
+- Costo total estimado en USD (`estimated_cost_usd`).
+
+Las tarifas usadas para convertir eso a USD viven en
+`src/lib/billing/pricing.ts`, con valores por defecto aproximados y
+públicos — **no son la tarifa real de tu cuenta**. Configúralas con las
+variables `PRICING_*` de `.env.example` (comentarios ahí mismo indican
+dónde consultar tu tarifa vigente en cada proveedor). No es una
+reconciliación exacta de factura — sirve para comparar el costo relativo
+entre videos. Ver `DECISIONS.md` para el razonamiento completo.
+
+Si el registro de costo falla por cualquier motivo (tabla no migrada, error
+de red), el video se genera igual — la instrumentación nunca bloquea el
+resultado, solo deja un warning en los logs.
+
+**Verificado localmente** (con un mock de Supabase, sin red): acumulación
+correcta de llamadas/regeneraciones/caracteres y cálculo de
+`estimated_cost_usd`. **No verificado todavía con la tabla real** — la
+migración 0008 no se ha aplicado aún al proyecto de Supabase de producción
+(ver "Instalación" para cómo aplicarla).
 
 ## Worker en background para el render
 
@@ -445,9 +486,23 @@ de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
 - Banco de música por estilo (`MUSIC_MANIFEST`) con selección acorde al
   estilo elegido en `/dashboard/new`, compatible con la playlist plana
   anterior (`MUSIC_TRACK_URLS`) — sin pistas reales cargadas todavía.
+- Selección de idioma (español/inglés) en `/dashboard/new`: se pasa
+  explícitamente al prompt de Claude (ya no se infiere del texto del
+  tema) y, opcionalmente, a una voz de ElevenLabs específica por idioma.
+  Verificado con fixtures (el guion generado confirma el idioma elegido).
+- Costo estimado por video (`generation_costs`, migración 0008): caracteres
+  de voz, llamadas al modelo de guion, regeneraciones, recursos visuales,
+  duración, tiempo de render, bytes de storage y costo total en USD según
+  tarifas configurables (`src/lib/billing/pricing.ts`). Verificado con un
+  mock de Supabase (acumulación y cálculo correctos) — no probado aún
+  contra la tabla real (falta aplicar la migración 0008 en producción).
 - Build de producción, lint y verificación de tipos sin errores.
 
 **Pendiente (requiere al usuario o una decisión suya):**
+- **Aplicar `supabase/migrations/0008_language_and_costs.sql` en el
+  proyecto real de Supabase** — sin esto, crear una solicitud desde
+  `/dashboard/new` fallará (la columna `language` no existe todavía en la
+  base de datos real).
 - Curar 10-15 pistas de música reales y llenar `MUSIC_MANIFEST` (paso del
   usuario: implica elegir el estilo musical del producto — instrucciones
   exactas en "Banco inicial" arriba).

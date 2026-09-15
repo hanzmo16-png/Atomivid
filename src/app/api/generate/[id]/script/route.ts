@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { generateScriptForRequest } from "@/lib/video/generate";
 import { assertCanGenerate } from "@/lib/billing/quota";
-import type { GeneratedScript } from "@/lib/providers/types";
+import { recordScriptCall } from "@/lib/billing/usage";
+import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 
 type VideoRequestRow = {
   id: string;
@@ -12,6 +13,7 @@ type VideoRequestRow = {
   style: string;
   duration_seconds: number;
   status: string;
+  language: ScriptLanguage;
 };
 
 // Coincide con targetScenes en src/lib/ai/script.ts (máximo 10 para la
@@ -26,7 +28,7 @@ async function loadOwnedRequest(id: string, userId: string) {
 
   const { data: videoRequest, error } = await service
     .from("video_requests")
-    .select("id, user_id, topic, style, duration_seconds, status")
+    .select("id, user_id, topic, style, duration_seconds, status, language")
     .eq("id", id)
     .single<VideoRequestRow>();
 
@@ -84,12 +86,19 @@ export async function POST(
       topic: videoRequest.topic,
       style: videoRequest.style,
       durationSeconds: videoRequest.duration_seconds,
+      language: videoRequest.language,
     });
 
     await service
       .from("video_requests")
       .update({ status: "script_ready", script_json: script, error_message: null })
       .eq("id", id);
+
+    const inputChars = videoRequest.topic.length + videoRequest.style.length;
+    const outputChars = JSON.stringify(script).length;
+    await recordScriptCall(service, id, { inputChars, outputChars }).catch((err) => {
+      console.warn(`No se pudo registrar el costo de guion de ${id}:`, err);
+    });
 
     return NextResponse.json({ status: "script_ready", script });
   } catch (error) {

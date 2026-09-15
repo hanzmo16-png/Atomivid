@@ -1,12 +1,13 @@
 import { createServiceClient } from "@/lib/supabase/service";
 import { generateVideoFromScript } from "./generate";
-import type { GeneratedScript } from "@/lib/providers/types";
+import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import type { RenderStage } from "./stages";
 
 type JobRow = {
   status: string;
   script_json: GeneratedScript | null;
   style: string | null;
+  language: ScriptLanguage | null;
 };
 
 /**
@@ -29,7 +30,7 @@ export async function runRenderJob(requestId: string): Promise<void> {
 
   const { data: row } = await service
     .from("video_requests")
-    .select("status, script_json, style")
+    .select("status, script_json, style, language")
     .eq("id", requestId)
     .single<JobRow>();
 
@@ -66,6 +67,7 @@ export async function runRenderJob(requestId: string): Promise<void> {
       requestId,
       script: row.script_json,
       style: row.style ?? undefined,
+      language: row.language ?? undefined,
       onProgress: async (stage: RenderStage) => {
         await service.from("video_requests").update({ progress_stage: stage }).eq("id", requestId);
       },

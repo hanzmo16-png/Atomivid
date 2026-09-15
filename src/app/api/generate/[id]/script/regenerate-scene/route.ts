@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getScriptProvider } from "@/lib/providers/script";
+import { recordScriptCall } from "@/lib/billing/usage";
 import type { GeneratedScript } from "@/lib/providers/types";
 
 type VideoRequestRow = {
@@ -54,7 +55,8 @@ export async function POST(
       { status: 409 },
     );
   }
-  if (!videoRequest.script_json.segments[sceneIndex]) {
+  const current = videoRequest.script_json.segments[sceneIndex];
+  if (!current) {
     return NextResponse.json({ error: "Esa escena no existe" }, { status: 400 });
   }
 
@@ -72,6 +74,14 @@ export async function POST(
     const script: GeneratedScript = { ...videoRequest.script_json, segments };
 
     await service.from("video_requests").update({ script_json: script }).eq("id", id);
+
+    const inputChars = videoRequest.topic.length + videoRequest.style.length + current.text.length;
+    const outputChars = newScene.text.length + newScene.visualQuery.length;
+    await recordScriptCall(service, id, { inputChars, outputChars, isRegeneration: true }).catch(
+      (err) => {
+        console.warn(`No se pudo registrar el costo de regeneración de ${id}:`, err);
+      },
+    );
 
     return NextResponse.json({ scene: newScene, script });
   } catch (err) {

@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 // dejar pasar una duración arbitraria que dispare un guion/voz/render
 // desproporcionado. Ver también el CHECK de la migración 0007.
 const ALLOWED_DURATIONS = [30, 60, 90];
+const ALLOWED_LANGUAGES = ["es", "en"] as const;
 const MAX_TOPIC_LENGTH = 500;
 const MAX_STYLE_LENGTH = 100;
 
@@ -15,9 +16,13 @@ export async function createVideoRequest(formData: FormData) {
   const topic = String(formData.get("topic") ?? "").trim();
   const style = String(formData.get("style") ?? "").trim();
   const durationSeconds = Number(formData.get("duration_seconds"));
+  const language = String(formData.get("language") ?? "es").trim();
 
   if (!topic || !style || !durationSeconds) {
     redirect("/dashboard/new?error=Completa+todos+los+campos");
+  }
+  if (!ALLOWED_LANGUAGES.includes(language as (typeof ALLOWED_LANGUAGES)[number])) {
+    redirect("/dashboard/new?error=Idioma+no+válido");
   }
   if (topic.length > MAX_TOPIC_LENGTH) {
     redirect(`/dashboard/new?error=El+tema+no+puede+superar+${MAX_TOPIC_LENGTH}+caracteres`);
@@ -43,6 +48,7 @@ export async function createVideoRequest(formData: FormData) {
     topic,
     style,
     duration_seconds: durationSeconds,
+    language,
     status: "pending",
   });
 

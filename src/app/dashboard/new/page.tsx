@@ -56,6 +56,22 @@ export default async function NewVideoPage({
         </div>
 
         <div>
+          <label htmlFor="language" className="mb-1 block text-sm font-medium text-gray-700">
+            Idioma de la narración
+          </label>
+          <select
+            id="language"
+            name="language"
+            required
+            defaultValue="es"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+          >
+            <option value="es">Español</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+
+        <div>
           <label htmlFor="style" className="mb-1 block text-sm font-medium text-gray-700">
             Estilo / tono
           </label>

@@ -1,0 +1,66 @@
+/**
+ * Tarifas estimadas para calcular el costo aproximado por video. Estas NO
+ * son las tarifas reales de tu cuenta (varían por plan/volumen) — son
+ * valores por defecto públicos, razonables pero aproximados, usados solo
+ * si no configuras el valor real vía variable de entorno.
+ *
+ * Cómo actualizarlas: define la env var correspondiente (ver `.env.example`)
+ * con la tarifa vigente de tu plan real. Fuentes para verificarla:
+ * - Guion (Claude/Anthropic): https://www.anthropic.com/pricing
+ * - Voz (ElevenLabs): https://elevenlabs.io/pricing — depende de tu plan
+ * - Footage (Pexels): gratis, sin costo por request
+ * - Render (GitHub Actions): https://docs.github.com/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions
+ * - Storage (Supabase): https://supabase.com/pricing
+ */
+
+function rate(envVar: string, fallback: number): number {
+  const raw = process.env[envVar];
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+export function getPricingConfig() {
+  return {
+    /** USD por 1,000 caracteres enviados a síntesis de voz. */
+    elevenLabsUsdPer1kChars: rate("PRICING_ELEVENLABS_USD_PER_1K_CHARS", 0.18),
+    /** USD por 1,000,000 de tokens de entrada del modelo de guion. */
+    scriptInputUsdPer1MTokens: rate("PRICING_SCRIPT_INPUT_USD_PER_1M_TOKENS", 3),
+    /** USD por 1,000,000 de tokens de salida del modelo de guion. */
+    scriptOutputUsdPer1MTokens: rate("PRICING_SCRIPT_OUTPUT_USD_PER_1M_TOKENS", 15),
+    /** USD por minuto de runner usado para renderizar (GitHub Actions Linux). */
+    renderUsdPerMinute: rate("PRICING_RENDER_USD_PER_MINUTE", 0.008),
+  };
+}
+
+// Aproximación gruesa (no exacta): ~4 caracteres por token en inglés/español.
+// Se usa solo para estimar costo cuando no tenemos el conteo real de tokens
+// que devuelve la API de Anthropic (ver nota en src/lib/billing/usage.ts).
+const CHARS_PER_TOKEN_ESTIMATE = 4;
+
+export function estimateTokensFromChars(inputChars: number, outputChars: number) {
+  return {
+    inputTokens: Math.ceil(inputChars / CHARS_PER_TOKEN_ESTIMATE),
+    outputTokens: Math.ceil(outputChars / CHARS_PER_TOKEN_ESTIMATE),
+  };
+}
+
+export function estimateCostUsd(usage: {
+  script_estimated_input_tokens: number;
+  script_estimated_output_tokens: number;
+  voice_characters: number;
+  render_ms: number | null;
+}): number {
+  const pricing = getPricingConfig();
+
+  const scriptCost =
+    (usage.script_estimated_input_tokens / 1_000_000) * pricing.scriptInputUsdPer1MTokens +
+    (usage.script_estimated_output_tokens / 1_000_000) * pricing.scriptOutputUsdPer1MTokens;
+
+  const voiceCost = (usage.voice_characters / 1000) * pricing.elevenLabsUsdPer1kChars;
+
+  const renderMinutes = (usage.render_ms ?? 0) / 60_000;
+  const renderCost = renderMinutes * pricing.renderUsdPerMinute;
+
+  return Math.round((scriptCost + voiceCost + renderCost) * 1e6) / 1e6;
+}
