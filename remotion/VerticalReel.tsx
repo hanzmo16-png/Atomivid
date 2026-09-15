@@ -2,6 +2,7 @@ import {
   AbsoluteFill,
   Audio,
   Img,
+  OffthreadVideo,
   Sequence,
   interpolate,
   useCurrentFrame,
@@ -9,7 +10,8 @@ import {
 } from "remotion";
 
 export type Scene = {
-  imageUrl: string;
+  mediaUrl: string;
+  mediaType: "image" | "video";
   startSeconds: number;
   endSeconds: number;
 };
@@ -54,8 +56,8 @@ export function VerticalReel({
 
         return (
           <Sequence key={i} from={from} durationInFrames={sequenceDuration}>
-            <KenBurnsImage
-              src={scene.imageUrl}
+            <SceneMedia
+              scene={scene}
               durationInFrames={sequenceDuration}
               fadeInFrames={isFirst ? 0 : FADE_FRAMES}
               fadeOutFrames={isLast ? 0 : FADE_FRAMES}
@@ -79,13 +81,13 @@ export function VerticalReel({
   );
 }
 
-function KenBurnsImage({
-  src,
+function SceneMedia({
+  scene,
   durationInFrames,
   fadeInFrames,
   fadeOutFrames,
 }: {
-  src: string;
+  scene: Scene;
   durationInFrames: number;
   fadeInFrames: number;
   fadeOutFrames: number;
@@ -116,15 +118,23 @@ function KenBurnsImage({
 
   return (
     <AbsoluteFill style={{ overflow: "hidden", opacity }}>
-      <Img
-        src={src}
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-          transform: `scale(${scale}) translateX(${translateX}px)`,
-        }}
-      />
+      {scene.mediaType === "video" ? (
+        <OffthreadVideo
+          src={scene.mediaUrl}
+          muted
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
+      ) : (
+        <Img
+          src={scene.mediaUrl}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            transform: `scale(${scale}) translateX(${translateX}px)`,
+          }}
+        />
+      )}
     </AbsoluteFill>
   );
 }

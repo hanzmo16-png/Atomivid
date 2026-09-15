@@ -11,12 +11,14 @@ ensamblado → render, con autenticación y suscripción de pago.
 2. Se genera un guion dividido en escenas (título + narración + búsqueda
    visual por escena).
 3. Se sintetiza la narración completa con timestamps por palabra.
-4. Se busca una imagen por escena a partir de esa narración.
+4. Se busca preferentemente un clip vertical por escena; si no existe uno
+   adecuado, se usa una imagen vertical como respaldo.
 5. Se agrega música de fondo por debajo de la narración.
 6. Se generan subtítulos incrustados agrupados por frase natural (nunca una
    palabra sola a la vez).
-7. Se ensambla el video final: formato vertical 1080×1920, efecto Ken Burns
-   sobre cada imagen y **crossfade** entre escenas (no son cortes secos).
+7. Se ensambla el video final: formato vertical 1080×1920, clips de video
+   silenciados, efecto Ken Burns sobre imágenes de respaldo y **crossfade**
+   entre escenas (no son cortes secos).
 8. El usuario ve, reproduce y descarga el resultado desde su historial.
 
 ## Arquitectura
@@ -189,7 +191,7 @@ funcionan antes de gastar en APIs reales.
 |---|---|---|---|
 | Guion | Claude (Anthropic), salida estructurada | Texto templado en español | `SCRIPT_PROVIDER` |
 | Voz | ElevenLabs, con timestamps por palabra | Tono generado (WAV) + timestamps sintéticos | `VOICE_PROVIDER` |
-| Footage | Pexels (fotos) | Imagen de color sólido con el texto de búsqueda | `FOOTAGE_PROVIDER` |
+| Footage | Pexels (video vertical con respaldo en foto) | Imagen de color sólido con el texto de búsqueda | `FOOTAGE_PROVIDER` |
 | Música | Playlist propia vía `MUSIC_TRACK_URL(S)` | Tono suave generado (WAV) | `MUSIC_PROVIDER` |
 | Render | Remotion (Chromium + FFmpeg interno) | — (siempre real) | — |
 

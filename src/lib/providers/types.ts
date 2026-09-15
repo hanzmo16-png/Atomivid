@@ -56,6 +56,7 @@ export interface VoiceProvider {
 
 export type FootageResult = {
   url: string;
+  mediaType: "image" | "video";
   photographer?: string;
   mimeType: string;
   extension: string;
@@ -63,8 +64,9 @@ export type FootageResult = {
 
 export interface FootageProvider {
   readonly name: string;
-  fetchImage(query: string): Promise<FootageResult>;
-  downloadImage(url: string): Promise<Buffer>;
+  /** Busca preferentemente video vertical; el proveedor puede caer a imagen. */
+  fetchFootage(query: string, minimumDurationSeconds?: number): Promise<FootageResult>;
+  downloadFootage(url: string): Promise<Buffer>;
 }
 
 export type MusicResult = {

@@ -49,19 +49,20 @@ let counter = 0;
 // para probar el pipeline completo sin PEXELS_API_KEY.
 export const fixtureFootageProvider: FootageProvider = {
   name: "fixture",
-  async fetchImage(query) {
+  async fetchFootage(query) {
     counter += 1;
     return {
       url: svgDataUri(query, counter),
+      mediaType: "image",
       photographer: "fixture",
       mimeType: "image/svg+xml",
       extension: "svg",
     };
   },
-  async downloadImage(url) {
+  async downloadFootage(url) {
     const match = /^data:image\/svg\+xml;utf8,(.*)$/.exec(url);
     if (!match) {
-      throw new Error("downloadImage del fixture solo acepta data URIs propias");
+      throw new Error("downloadFootage del fixture solo acepta data URIs propias");
     }
     return Buffer.from(decodeURIComponent(match[1]), "utf8");
   },

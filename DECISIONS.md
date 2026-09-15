@@ -107,6 +107,16 @@ recibir una voz específica por idioma (`ELEVENLABS_VOICE_ID_ES`/`_EN`) —
 opcional, porque una sola voz multilingüe (turbo v2.5) ya funciona, solo
 que con acento si no es nativa en ese idioma.
 
+## Footage dinámico: video primero, fotografía como respaldo
+
+El proveedor Pexels consulta primero su catálogo de videos verticales y elige
+un MP4 de al menos 720 px de ancho, favoreciendo 1080×1920 sin descargar el
+original más pesado. También exige que el clip cubra la duración completa de
+la escena para evitar congelar su último cuadro. Si una búsqueda no tiene un
+clip adecuado, conserva el flujo anterior con fotografía y Ken Burns. Así se
+mejora el movimiento visual sin sumar un proveedor pagado ni volver frágil el
+pipeline ante búsquedas con poco material.
+
 ## Qué se dejó fuera del MVP a propósito
 
 - **Cancelar un render en curso**: el enunciado lo marcaba como "si
