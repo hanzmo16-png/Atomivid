@@ -57,12 +57,43 @@ export type MusicTrackEntry = {
   storagePath: string;
 };
 
-// Banco inicial: vacío a propósito. Este entorno de desarrollo no tiene
-// salida de red hacia bancos de música (Pixabay Music/Mixkit/etc.), así
-// que no se pudo descargar ni verificar ninguna pista real desde aquí —
-// hacerlo requiere que el usuario la seleccione y confirme la licencia
-// (ver README, "Música de fondo: banco inicial", para el paso a paso
-// exacto con el esquema de arriba). Mientras esté vacío, el proveedor cae
-// a MUSIC_TRACK_URLS (lista plana, sin tonos/metadata) y, si tampoco hay
-// nada configurado, al fixture.
-export const MUSIC_MANIFEST: MusicTrackEntry[] = [];
+// Primeras dos pistas reales del banco, verificadas y subidas manualmente
+// por el usuario (este entorno no tiene salida de red hacia Pixabay) —
+// ver DECISIONS.md, "Primeras pistas reales del banco de música", para el
+// registro completo de la verificación.
+export const MUSIC_MANIFEST: MusicTrackEntry[] = [
+  {
+    id: "pixabay-335162",
+    title: "Upbeat Corporate Inspiring",
+    author: "AudioCoffee",
+    // La página de origen sugiere además el crédito "Music by Denys
+    // Kyshchuk from Pixabay." — MusicTrackEntry no tiene hoy un campo
+    // dedicado para una línea de atribución además de `author` (ver
+    // DECISIONS.md para el registro de esta limitación, reportada en vez
+    // de ampliar el esquema sin autorización). `author` se deja como
+    // "AudioCoffee" (el perfil/cuenta de Pixabay que publicó la pista),
+    // que es lo que ese campo representa en el resto del manifest.
+    sourceUrl: "https://pixabay.com/music/upbeat-upbeat-corporate-inspiring-335162/",
+    license: "Pixabay Content License",
+    provider: "pixabay",
+    dateObtainedISO: "2026-09-15",
+    instrumental: true,
+    tones: ["corporate", "motivational", "technology"],
+    styleTags: [],
+    storagePath: "pixabay-335162-upbeat-corporate-inspiring.mp3",
+  },
+  {
+    id: "pixabay-266030",
+    title: "Instrumental music - powerful, motivational",
+    author: "Huynhhoa89",
+    sourceUrl:
+      "https://pixabay.com/music/build-up-scenes-instrumental-music-powerful-motivational-266030/",
+    license: "Pixabay Content License",
+    provider: "pixabay",
+    dateObtainedISO: "2026-09-15",
+    instrumental: true,
+    tones: ["motivational", "energetic", "cinematic"],
+    styleTags: [],
+    storagePath: "pixabay-266030-instrumental-music-powerful-motivational.mp3",
+  },
+];
