@@ -1,7 +1,27 @@
 import type { RenderWorker } from "./types";
+import { MissingEnvVarError } from "@/lib/env-errors";
 
 const GITHUB_API = "https://api.github.com";
 const DISPATCH_EVENT_TYPE = "render-video";
+
+/**
+ * Error tipado para un fallo HTTP al disparar `repository_dispatch` —
+ * separado de un `Error` genérico para que classifyRenderError pueda dar
+ * un mensaje seguro y específico según el status (p. ej. 401/403 apunta a
+ * un GH_WORKER_TOKEN inválido/expirado, 404 a un GH_WORKER_REPO
+ * incorrecto), sin necesitar exponer el cuerpo de la respuesta de GitHub
+ * al cliente. El log de servidor (logRenderError) sí registra el mensaje
+ * completo vía `error.message`, que incluye el cuerpo truncado.
+ */
+export class GitHubWorkerDispatchError extends Error {
+  constructor(
+    public readonly status: number,
+    body: string,
+  ) {
+    super(`No se pudo activar el worker de GitHub Actions (HTTP ${status}): ${body.slice(0, 300)}`);
+    this.name = "GitHubWorkerDispatchError";
+  }
+}
 
 /**
  * Dispara `.github/workflows/render.yml` vía la API de "repository
@@ -22,11 +42,12 @@ export const githubActionsWorker: RenderWorker = {
     const token = process.env.GH_WORKER_TOKEN;
     const repo = process.env.GH_WORKER_REPO;
 
-    if (!token || !repo) {
-      throw new Error(
-        "El worker de GitHub Actions no está configurado (faltan GH_WORKER_TOKEN/GH_WORKER_REPO).",
-      );
-    }
+    // Tipados (no un Error genérico) para que classifyRenderError pueda
+    // decirle al cliente exactamente qué variable falta, en vez de un
+    // mensaje que suena transitorio ("intenta de nuevo") para un problema
+    // de configuración permanente.
+    if (!token) throw new MissingEnvVarError("GH_WORKER_TOKEN");
+    if (!repo) throw new MissingEnvVarError("GH_WORKER_REPO");
 
     const res = await fetch(`${GITHUB_API}/repos/${repo}/dispatches`, {
       method: "POST",
@@ -45,9 +66,7 @@ export const githubActionsWorker: RenderWorker = {
       // No incluir el token ni headers en el mensaje de error — solo el
       // código de estado y el cuerpo de la respuesta de GitHub.
       const body = await res.text().catch(() => "");
-      throw new Error(
-        `No se pudo activar el worker de GitHub Actions (HTTP ${res.status}): ${body.slice(0, 300)}`,
-      );
+      throw new GitHubWorkerDispatchError(res.status, body);
     }
   },
 };

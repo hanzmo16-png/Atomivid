@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MissingEnvVarError } from "@/lib/env-errors";
+import { GitHubWorkerDispatchError } from "@/lib/worker/github-actions";
 import { classifyRenderError, generateDiagnosticId, logRenderError } from "./render-error";
 
 test("generateDiagnosticId da identificadores cortos y distintos en cada llamada", () => {
@@ -57,4 +58,42 @@ test("classifyRenderError (el mensaje que sí ve el cliente) nunca expone un val
   const id = "abc12345";
   const message = classifyRenderError(new Error(`fallo con token ${FAKE_TOKEN} incluido`), id);
   assert.ok(!message.includes(FAKE_TOKEN));
+});
+
+/**
+ * Regresión exacta del incidente en producción (Código: 30451999): un
+ * fallo al disparar el worker de GitHub Actions (token sin permisos,
+ * expirado, o repo mal configurado) caía en el mensaje genérico "Intenta
+ * de nuevo en un momento" — indistinguible de un fallo transitorio real, y
+ * sin ninguna pista accionable sin poder leer los logs del servidor.
+ */
+test("classifyRenderError da un mensaje específico para GH_WORKER_TOKEN inválido/expirado (401/403)", () => {
+  const id = "abc12345";
+  for (const status of [401, 403]) {
+    const message = classifyRenderError(
+      new GitHubWorkerDispatchError(status, "bad credentials"),
+      id,
+    );
+    assert.ok(message.includes("GH_WORKER_TOKEN"));
+    assert.ok(message.includes(id));
+    assert.ok(!message.includes("bad credentials"));
+  }
+});
+
+test("classifyRenderError da un mensaje específico para GH_WORKER_REPO incorrecto (404)", () => {
+  const id = "abc12345";
+  const message = classifyRenderError(new GitHubWorkerDispatchError(404, "Not Found"), id);
+  assert.ok(message.includes("GH_WORKER_REPO"));
+  assert.ok(message.includes(id));
+  assert.ok(!message.includes("Not Found"));
+});
+
+test("classifyRenderError incluye el status HTTP (no el cuerpo) para otros fallos de GitHub", () => {
+  const id = "abc12345";
+  const message = classifyRenderError(
+    new GitHubWorkerDispatchError(500, "internal server error detail"),
+    id,
+  );
+  assert.ok(message.includes("500"));
+  assert.ok(!message.includes("internal server error detail"));
 });
