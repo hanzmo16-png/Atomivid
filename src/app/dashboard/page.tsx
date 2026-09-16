@@ -6,6 +6,11 @@ import { MAX_RENDER_ATTEMPTS, RENDER_TIMEOUT_MS } from "@/lib/video/limits";
 import { getSignedVideoUrl } from "@/lib/storage/signed-url";
 import { GenerateButton } from "./GenerateButton";
 import { AutoRefresh } from "./AutoRefresh";
+import { Card } from "@/components/ui/Card";
+import { Badge, type BadgeTone } from "@/components/ui/Badge";
+import { Alert } from "@/components/ui/Alert";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { LinkButton } from "@/components/ui/Button";
 
 type VideoRequest = {
   id: string;
@@ -30,12 +35,12 @@ const STATUS_LABEL: Record<string, string> = {
   failed: "Error",
 };
 
-const STATUS_CLASS: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800",
-  script_ready: "bg-purple-100 text-purple-800",
-  processing: "bg-blue-100 text-blue-800",
-  completed: "bg-green-100 text-green-800",
-  failed: "bg-red-100 text-red-800",
+const STATUS_TONE: Record<string, BadgeTone> = {
+  pending: "warning",
+  script_ready: "accent",
+  processing: "info",
+  completed: "success",
+  failed: "danger",
 };
 
 export default async function DashboardPage({
@@ -84,47 +89,54 @@ export default async function DashboardPage({
   );
 
   const hasProcessing = (requests ?? []).some((r) => r.status === "processing");
+  const firstName = user?.email?.split("@")[0];
 
   return (
     <div>
       <AutoRefresh active={hasProcessing} />
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Tus videos</h1>
-        <Link
-          href="/dashboard/new"
-          className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700"
-        >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm text-ink-muted">
+            {firstName ? `Hola, ${firstName}` : "Tus videos"}
+          </p>
+          <h1 className="text-2xl font-bold text-ink">Tus videos</h1>
+        </div>
+        <LinkButton href="/dashboard/new" className="w-full sm:w-auto">
           Nuevo video
-        </Link>
+        </LinkButton>
       </div>
 
-      {!subscribed && (
-        <p className="mt-4 rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">
-          Necesitas una suscripción activa para generar videos.{" "}
-          <Link href="/dashboard/billing" className="font-medium underline">
-            Suscribirme
-          </Link>
-        </p>
-      )}
+      <div className="mt-4 space-y-3">
+        {!subscribed && (
+          <Alert tone="info">
+            Necesitas una suscripción activa para generar videos.{" "}
+            <Link href="/dashboard/billing" className="font-medium underline">
+              Suscribirme
+            </Link>
+          </Alert>
+        )}
 
-      {created && (
-        <p className="mt-4 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
-          Tu solicitud se guardó correctamente. Pulsa &quot;Generar
-          guion&quot; para crear el guion — podrás revisarlo y editarlo antes
-          de generar el video final.
-        </p>
-      )}
+        {created && (
+          <Alert tone="success">
+            Tu solicitud se guardó correctamente. Pulsa &quot;Generar guion&quot; para
+            crear el guion — podrás revisarlo y editarlo antes de generar el video final.
+          </Alert>
+        )}
+      </div>
 
       {!requests || requests.length === 0 ? (
-        <div className="mt-10 rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center">
-          <p className="text-gray-600">Todavía no has generado ningún video.</p>
-          <Link
-            href="/dashboard/new"
-            className="mt-4 inline-block rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
-          >
-            Crear tu primer video
-          </Link>
+        <div className="mt-10">
+          <EmptyState
+            icon={
+              <svg width="22" height="22" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
+              </svg>
+            }
+            title="Todavía no has generado ningún video"
+            description="Crea tu primera solicitud — describe un tema y en minutos tendrás un video vertical listo para descargar."
+            action={<LinkButton href="/dashboard/new">Crear tu primer video</LinkButton>}
+          />
         </div>
       ) : (
         <ul className="mt-6 space-y-3">
@@ -143,31 +155,30 @@ export default async function DashboardPage({
             const videoUrl = req.video_path ? videoUrlByPath.get(req.video_path) : null;
 
             return (
-              <li
-                key={req.id}
-                className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
-              >
+              <Card key={req.id} className="p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="truncate font-medium text-gray-900">{req.topic}</p>
-                    <p className="mt-1 text-sm text-gray-500">
+                    <p className="truncate font-medium text-ink">{req.topic}</p>
+                    <p className="mt-1 text-sm text-ink-muted">
                       {req.style} · {req.duration_seconds}s ·{" "}
                       {new Date(req.created_at).toLocaleString("es-MX")}
                     </p>
                     {req.status === "failed" && req.error_message && (
-                      <p className="mt-2 max-w-md text-sm text-red-600">
-                        {req.error_message}
-                      </p>
+                      <p className="mt-2 max-w-md text-sm text-danger">{req.error_message}</p>
                     )}
                     {req.status === "processing" && !isStaleProcessing && req.progress_stage && (
-                      <p className="mt-2 text-sm text-gray-500">
+                      <p className="mt-2 flex items-center gap-1.5 text-sm text-ink-muted">
+                        <span
+                          className="size-1.5 shrink-0 animate-pulse rounded-full bg-info"
+                          aria-hidden="true"
+                        />
                         {RENDER_STAGE_LABEL[req.progress_stage as RenderStage] ??
                           req.progress_stage}
                         …
                       </p>
                     )}
                     {req.status === "processing" && isStaleProcessing && (
-                      <p className="mt-2 max-w-md text-sm text-amber-700">
+                      <p className="mt-2 max-w-md text-sm text-warning">
                         Esto está tardando más de lo normal.{" "}
                         {attemptsExhausted
                           ? "Se alcanzó el máximo de intentos para este video."
@@ -177,13 +188,9 @@ export default async function DashboardPage({
                   </div>
 
                   <div className="flex shrink-0 flex-col items-end gap-2">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-medium ${
-                        STATUS_CLASS[req.status] ?? "bg-gray-100 text-gray-800"
-                      }`}
-                    >
+                    <Badge tone={STATUS_TONE[req.status] ?? "neutral"}>
                       {STATUS_LABEL[req.status] ?? req.status}
-                    </span>
+                    </Badge>
 
                     {req.status === "pending" && (
                       <GenerateButton
@@ -193,31 +200,22 @@ export default async function DashboardPage({
                       />
                     )}
                     {req.status === "script_ready" && (
-                      <Link
-                        href={`/dashboard/review/${req.id}`}
-                        className="rounded-full bg-gray-900 px-3 py-1 text-xs font-medium text-white hover:bg-gray-700"
-                      >
+                      <LinkButton href={`/dashboard/review/${req.id}`} size="sm">
                         Revisar guion
-                      </Link>
+                      </LinkButton>
                     )}
                     {req.status === "processing" && isStaleProcessing && !attemptsExhausted && (
-                      <GenerateButton
-                        endpoint={`/api/generate/${req.id}/render`}
-                        label="Reintentar"
-                      />
+                      <GenerateButton endpoint={`/api/generate/${req.id}/render`} label="Reintentar" />
                     )}
                     {req.status === "failed" && Boolean(req.script_json) && attemptsExhausted && (
-                      <p className="max-w-[220px] text-right text-xs text-gray-500">
+                      <p className="max-w-[220px] text-right text-xs text-ink-faint">
                         Se alcanzó el máximo de intentos. Crea un video nuevo.
                       </p>
                     )}
                     {req.status === "failed" &&
                       (req.script_json ? (
                         !attemptsExhausted && (
-                          <GenerateButton
-                            endpoint={`/api/generate/${req.id}/render`}
-                            label="Reintentar"
-                          />
+                          <GenerateButton endpoint={`/api/generate/${req.id}/render`} label="Reintentar" />
                         )
                       ) : (
                         <GenerateButton
@@ -230,29 +228,32 @@ export default async function DashboardPage({
                 </div>
 
                 {req.status === "completed" && videoUrl && (
-                  <div className="mt-4 flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+                  <div className="mt-4 flex flex-col items-start gap-3 border-t border-border pt-4 sm:flex-row sm:items-center">
                     <video
                       src={videoUrl}
                       controls
-                      className="aspect-[9/16] w-40 rounded-lg bg-black"
-                    />
+                      preload="metadata"
+                      className="aspect-9/16 w-36 rounded-md bg-black"
+                    >
+                      Tu navegador no puede reproducir este video.
+                    </video>
                     <a
                       href={videoUrl}
                       download
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-900 hover:bg-gray-50"
+                      className="inline-flex items-center gap-1.5 rounded-md border border-border-strong px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-accent-border hover:bg-surface-raised"
                     >
                       Descargar video
                     </a>
                   </div>
                 )}
                 {req.status === "completed" && !videoUrl && (
-                  <p className="mt-4 text-sm text-red-600">
+                  <p className="mt-4 border-t border-border pt-4 text-sm text-danger">
                     No se pudo generar el enlace del video. Intenta recargar la página.
                   </p>
                 )}
-              </li>
+              </Card>
             );
           })}
         </ul>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/Button";
 
 export function GenerateButton({
   endpoint,
@@ -47,21 +48,13 @@ export function GenerateButton({
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={loading}
-        className="rounded-full bg-gray-900 px-3 py-1 text-xs font-medium text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
-      >
+    <div className="flex flex-col items-end gap-1.5">
+      <Button type="button" size="sm" onClick={handleClick} loading={loading}>
         {loading ? "Generando…" : label}
-      </button>
-      {error && <p className="max-w-[220px] text-right text-xs text-red-600">{error}</p>}
+      </Button>
+      {error && <p className="max-w-[220px] text-right text-xs text-danger">{error}</p>}
       {needsSubscription && (
-        <Link
-          href="/dashboard/billing"
-          className="text-right text-xs font-medium text-gray-900 underline"
-        >
+        <Link href="/dashboard/billing" className="text-right text-xs font-medium text-accent hover:text-accent-hover">
           Ver planes
         </Link>
       )}

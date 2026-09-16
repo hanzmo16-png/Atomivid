@@ -4,6 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { GeneratedScript } from "@/lib/providers/types";
+import { Card } from "@/components/ui/Card";
+import { Alert } from "@/components/ui/Alert";
+import { Button, LinkButton } from "@/components/ui/Button";
 
 export function ScriptReview({
   requestId,
@@ -105,21 +108,20 @@ export function ScriptReview({
   return (
     <div className="mt-6">
       {!editable && (
-        <p className="mb-4 rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">
+        <Alert tone={status === "failed" ? "danger" : "info"}>
           {status === "processing" &&
             "El video ya se está generando a partir de este guion. Esta vista es de solo lectura."}
-          {status === "completed" &&
-            "Este guion ya generó un video. Puedes verlo en el historial."}
+          {status === "completed" && "Este guion ya generó un video. Puedes verlo en el historial."}
           {status === "failed" &&
             `La generación falló${errorMessage ? `: ${errorMessage}` : ""}. Vuelve al historial para reintentar.`}
-        </p>
+        </Alert>
       )}
 
-      <div className="space-y-4">
+      <div className="mt-4 space-y-4">
         {script.segments.map((scene, i) => (
-          <div key={i} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <Card key={i} className="p-4">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+              <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
                 Escena {i + 1}
               </span>
               {editable && (
@@ -127,7 +129,7 @@ export function ScriptReview({
                   type="button"
                   onClick={() => regenerateScene(i)}
                   disabled={savingIndex !== null || saving || generating}
-                  className="text-xs font-medium text-gray-900 underline disabled:opacity-50"
+                  className="text-xs font-medium text-accent hover:text-accent-hover disabled:opacity-50"
                 >
                   {savingIndex === i ? "Regenerando…" : "Regenerar esta escena"}
                 </button>
@@ -139,61 +141,50 @@ export function ScriptReview({
               onChange={(e) => updateScene(i, "text", e.target.value)}
               disabled={!editable}
               rows={3}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-500"
+              aria-label={`Narración de la escena ${i + 1}`}
+              className="w-full rounded-md border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:opacity-60"
             />
-            <label className="mt-2 block text-xs text-gray-500">
+            <label htmlFor={`visual-${i}`} className="mt-2 block text-xs text-ink-faint">
               Búsqueda visual (imagen de apoyo)
             </label>
             <input
+              id={`visual-${i}`}
               value={scene.visualQuery}
               onChange={(e) => updateScene(i, "visualQuery", e.target.value)}
               disabled={!editable}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-500"
+              className="mt-1 w-full rounded-md border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:opacity-60"
             />
-          </div>
+          </Card>
         ))}
       </div>
 
       {error && (
-        <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+        <div className="mt-4">
+          <Alert tone="danger">{error}</Alert>
+        </div>
       )}
       {needsSubscription && (
         <p className="mt-2 text-sm">
-          <Link href="/dashboard/billing" className="font-medium text-gray-900 underline">
+          <Link href="/dashboard/billing" className="font-medium text-accent hover:text-accent-hover">
             Ver planes
           </Link>
         </p>
       )}
 
       {editable && (
-        <div className="sticky bottom-4 mt-6 flex flex-col gap-2 rounded-xl border border-gray-200 bg-white p-4 shadow-lg sm:flex-row sm:items-center sm:justify-between">
-          <button
-            type="button"
-            onClick={saveChanges}
-            disabled={!dirty || saving || generating}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 disabled:opacity-50"
-          >
+        <div className="sticky bottom-4 mt-6 flex flex-col gap-2 rounded-lg border border-border-strong bg-surface-raised p-4 shadow-lg sm:flex-row sm:items-center sm:justify-between">
+          <Button variant="secondary" onClick={saveChanges} disabled={!dirty || saving || generating} loading={saving}>
             {saving ? "Guardando…" : dirty ? "Guardar cambios" : "Sin cambios pendientes"}
-          </button>
-          <button
-            type="button"
-            onClick={generateFinalVideo}
-            disabled={generating || saving}
-            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
-          >
+          </Button>
+          <Button onClick={generateFinalVideo} disabled={generating || saving} loading={generating}>
             {generating ? "Generando video…" : "Generar video final"}
-          </button>
+          </Button>
         </div>
       )}
 
       {!editable && (
         <div className="mt-6">
-          <Link
-            href="/dashboard"
-            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
-          >
-            Volver al historial
-          </Link>
+          <LinkButton href="/dashboard">Volver al historial</LinkButton>
         </div>
       )}
     </div>
