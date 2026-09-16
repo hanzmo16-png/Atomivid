@@ -321,43 +321,62 @@ Todas ejecutadas localmente en este entorno, contra el HEAD
 
 ## 15. Pendientes, ordenados por prioridad
 
-1. **Alta** — Obtener y revisar el preview de Vercel del Draft PR de esta
-   fase (ver sección 16 y 17).
-2. **Alta** — Evaluación visual humana de landing y logotipo sobre ese
+1. **Alta** — Decidir si/cuándo crear una rama base (`main`) para poder
+   abrir un PR más adelante (ver sección 17 — decisión pendiente del
+   usuario sobre desde qué commit debería partir).
+2. **Alta** — Obtener y revisar el estado de despliegue/preview de Vercel
+   para la rama `claude/atomivid-mvp-setup-0079jv` directamente desde el
+   dashboard de Vercel (ver sección 16 y 17 — no verificable desde este
+   entorno).
+3. **Alta** — Evaluación visual humana de landing y logotipo sobre ese
    preview (no se puede hacer desde este entorno sin salida de red hacia
    Vercel).
-3. **Media** — Probar el disparo automático real del render desde un clic
+4. **Media** — Probar el disparo automático real del render desde un clic
    en la UI desplegada (`/dashboard/review/[id]` → "Generar video final")
    — nunca probado, solo el `workflow_dispatch` manual.
-4. **Media** — Probar una generación real usando las pistas ya cargadas en
+5. **Media** — Probar una generación real usando las pistas ya cargadas en
    `MUSIC_MANIFEST`/`music-library` (el único render E2E verificado usó
    música fixture).
-5. **Media** — Ampliar `MUSIC_MANIFEST` de 2 a ~10-15 pistas para variedad
+6. **Media** — Ampliar `MUSIC_MANIFEST` de 2 a ~10-15 pistas para variedad
    completa entre estilos (bucket ya existe).
-6. **Media** — Probar al menos una transacción real de Stripe
+7. **Media** — Probar al menos una transacción real de Stripe
    (checkout → webhook → estado de suscripción reflejado en la app).
-7. **Baja** — Definir un campo estructurado de atribución adicional en
+8. **Baja** — Definir un campo estructurado de atribución adicional en
    `MusicTrackEntry` (p. ej. `suggestedCredit?: string`) si se necesita
    mostrar créditos tipo "Music by X from Pixabay" en algún lugar visible.
-8. **Baja** — Decidir si escalar a Remotion Lambda cuando haya usuarios de
+9. **Baja** — Decidir si escalar a Remotion Lambda cuando haya usuarios de
    pago (requiere cuenta AWS, no contratada).
-9. **Baja** — Borrar la solicitud/usuario de prueba interno que quedó en
-   la base de datos real (ver sección 10).
-10. **Sin fecha / decisión del usuario** — Cancelar un render en curso y
+10. **Baja** — Borrar la solicitud/usuario de prueba interno que quedó en
+    la base de datos real (ver sección 10).
+11. **Sin fecha / decisión del usuario** — Cancelar un render en curso y
     un cron/reaper activo para renders colgados: evaluados y descartados a
     propósito en el MVP (ver `DECISIONS.md`, "Qué se dejó fuera del MVP a
     propósito") — revisar solo si el volumen de usuarios lo justifica.
 
 ## 16. Siguiente paso exacto
 
-1. Obtener y revisar el preview de Vercel generado a partir del Draft PR
-   de esta fase (no crear el preview manualmente, no desplegar a
-   producción).
+**Nota importante (ver también sección 17)**: no se abrió un Draft PR en
+esta fase — el repositorio no tiene ninguna rama base (`main`/`master`)
+distinta de `claude/atomivid-mvp-setup-0079jv`, que además es la rama por
+defecto (`list_branches` devuelve una sola rama). GitHub no permite abrir
+un PR sin dos ramas distintas. Se le presentó esta situación al usuario
+(crear `main` vacía desde el primer commit, crear `main` desde un commit
+específico que él indicara, o no abrir PR por ahora) y **decidió no abrir
+PR por ahora** — decisión explícita, no una limitación no comunicada.
+
+1. Obtener y revisar el estado de despliegue/preview de Vercel para esta
+   rama por el canal que corresponda (Vercel puede estar configurado para
+   desplegar previews por push directo a la rama, sin necesitar un PR —
+   confirmarlo desde el dashboard de Vercel, que este entorno no puede
+   alcanzar por red). No crear el preview manualmente, no desplegar a
+   producción.
 2. Evaluar visualmente landing y logotipo sobre ese preview.
 3. Recién después de esa evaluación, iniciar la fase de identidad visual
    (si el usuario la confirma).
-4. **No hacer merge todavía** — el Draft PR permanece abierto como borrador
-   hasta que el usuario decida lo contrario.
+4. **No hacer merge ni crear una rama base unilateralmente** — si más
+   adelante se decide abrir un PR, la elección de desde qué commit debe
+   partir la rama base es una decisión del usuario, ya planteada y sin
+   resolver (ver sección 17).
 
 ## 17. Enlaces relevantes
 
@@ -369,14 +388,26 @@ Todas ejecutadas localmente en este entorno, contra el HEAD
   - https://github.com/hanzmo16-png/Atomivid/commit/796b837
   - https://github.com/hanzmo16-png/Atomivid/commit/68f8e75
   - https://github.com/hanzmo16-png/Atomivid/commit/f31f880863fed3e3e9f6e6340a3ac94b3956454e
-- **Draft PR**: _pendiente de crear — se agrega el enlace aquí en cuanto
-  exista (ver secuencia de esta tarea)._
-- **Preview de Vercel**: _pendiente de confirmar — se agrega aquí solo si
-  se puede verificar (ver sección 15, pendiente #1). Si no se puede
-  verificar desde este entorno, se documenta el bloqueador exacto en su
-  lugar, no una URL adivinada._
+- **Draft PR**: **no abierto**. El repositorio no tiene ninguna rama base
+  (`main`/`master`) distinta de `claude/atomivid-mvp-setup-0079jv` —
+  confirmado con `list_branches` (una sola rama, que además es la rama por
+  defecto del repo). GitHub requiere dos ramas distintas para un PR. Se
+  presentaron tres opciones al usuario (crear `main` vacía desde el primer
+  commit del historial; crear `main` desde un commit específico que él
+  indicara; no abrir PR por ahora) y **decidió no abrir PR por ahora**. Si
+  se retoma esta decisión más adelante, ese es el primer paso pendiente —
+  no crear una rama base sin que el usuario indique desde qué commit debe
+  partir.
+- **Preview de Vercel**: _pendiente de confirmar — no se pudo verificar
+  desde este entorno (sin salida de red hacia Vercel, y sin PR ni checks
+  de commit accesibles sin uno vía las herramientas de GitHub disponibles
+  en esta sesión). Verificar manualmente desde el dashboard de Vercel o
+  indicarle a una sesión futura cómo consultarlo._
 
 ## 18. Fecha y hora de actualización
 
-2026-09-16T06:11:41Z (UTC) — versión inicial de este documento, HEAD
-`f31f880863fed3e3e9f6e6340a3ac94b3956454e`.
+- 2026-09-16T06:11:41Z (UTC) — versión inicial de este documento, HEAD
+  `f31f880863fed3e3e9f6e6340a3ac94b3956454e`.
+- 2026-09-16T06:19:32Z (UTC) — actualizado tras confirmar que el
+  repositorio no tiene rama base (`main`/`master`) y que el usuario
+  decidió no abrir un Draft PR por ahora (ver secciones 15, 16 y 17).
