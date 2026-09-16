@@ -1,8 +1,24 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { MissingEnvVarError } from "@/lib/env-errors";
 
-const client = new Anthropic();
+// Instanciado de forma perezosa, mismo patrón que getStripe() en
+// src/lib/stripe/client.ts: así ANTHROPIC_API_KEY se valida explícitamente
+// en cada uso (con un error tipado y con el nombre exacto de la variable)
+// en vez de dejar que el SDK falle más tarde con un mensaje genérico.
+let cachedClient: Anthropic | null = null;
+
+function getClient(): Anthropic {
+  if (!cachedClient) {
+    const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+    if (!apiKey) {
+      throw new MissingEnvVarError("ANTHROPIC_API_KEY");
+    }
+    cachedClient = new Anthropic({ apiKey });
+  }
+  return cachedClient;
+}
 
 // Modelo económico: el guion es texto corto y no requiere razonamiento
 // profundo, así que priorizamos costo por video sobre la máxima capacidad
@@ -53,7 +69,7 @@ export async function generateScript({
   const targetWords = Math.round(durationSeconds * WORDS_PER_SECOND);
   const targetScenes = Math.max(3, Math.min(10, Math.round(durationSeconds / 5)));
 
-  const response = await client.messages.parse({
+  const response = await getClient().messages.parse({
     model: SCRIPT_MODEL,
     max_tokens: 2000,
     system:
@@ -113,7 +129,7 @@ export async function regenerateScene({
   const next = script.segments[sceneIndex + 1]?.text;
   const targetWords = current.text.split(/\s+/).filter(Boolean).length;
 
-  const response = await client.messages.parse({
+  const response = await getClient().messages.parse({
     model: SCRIPT_MODEL,
     max_tokens: 500,
     system:

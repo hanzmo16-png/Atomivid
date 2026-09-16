@@ -7,6 +7,7 @@ import type { GeneratedScript } from "@/lib/providers/types";
 import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
 import { Button, LinkButton } from "@/components/ui/Button";
+import { safeParseJsonResponse } from "@/lib/http/safe-json";
 
 export function ScriptReview({
   requestId,
@@ -47,8 +48,8 @@ export function ScriptReview({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(script),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "No se pudieron guardar los cambios");
+      const result = await safeParseJsonResponse(res);
+      if (!result.ok) throw new Error(result.error);
       setDirty(false);
       return true;
     } catch (err) {
@@ -68,9 +69,9 @@ export function ScriptReview({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sceneIndex: index }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "No se pudo regenerar la escena");
-      setScript(data.script);
+      const result = await safeParseJsonResponse<{ script: GeneratedScript }>(res);
+      if (!result.ok) throw new Error(result.error);
+      setScript(result.data.script);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
     } finally {
@@ -93,10 +94,10 @@ export function ScriptReview({
 
     try {
       const res = await fetch(`/api/generate/${requestId}/render`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        if (res.status === 402) setNeedsSubscription(true);
-        throw new Error(data?.error ?? "No se pudo generar el video");
+      const result = await safeParseJsonResponse(res);
+      if (!result.ok) {
+        if (result.status === 402) setNeedsSubscription(true);
+        throw new Error(result.error);
       }
       router.push("/dashboard");
     } catch (err) {

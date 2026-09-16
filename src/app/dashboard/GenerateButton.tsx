@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
+import { safeParseJsonResponse } from "@/lib/http/safe-json";
 
 export function GenerateButton({
   endpoint,
@@ -27,13 +28,13 @@ export function GenerateButton({
 
     try {
       const res = await fetch(endpoint, { method: "POST" });
-      const data = await res.json();
+      const result = await safeParseJsonResponse(res);
 
-      if (!res.ok) {
-        if (res.status === 402) {
+      if (!result.ok) {
+        if (result.status === 402) {
           setNeedsSubscription(true);
         }
-        throw new Error(data?.error ?? "No se pudo completar la acción");
+        throw new Error(result.error);
       }
 
       if (redirectTo) {
