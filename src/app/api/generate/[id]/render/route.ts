@@ -14,9 +14,12 @@ import type { GeneratedScript } from "@/lib/providers/types";
 
 // El worker por defecto (GitHub Actions) solo dispara un webhook y
 // retorna — esta función ya no espera el render completo. maxDuration se
-// mantiene alto solo como red de seguridad para el worker "inline"
-// (fallback de desarrollo/sin credenciales), que sí corre el pipeline
-// dentro de esta misma request.
+// mantiene alto solo como red de seguridad para el worker "inline", que
+// sí corre el pipeline dentro de esta misma request — pero getRenderWorker()
+// (src/lib/worker/index.ts) nunca lo selecciona en Vercel, así que en
+// Production/Preview esta función jamás llega a usar ese tiempo. Sigue
+// siendo relevante para quien corra esta ruta localmente sin GH_WORKER_TOKEN/
+// GH_WORKER_REPO configurados.
 export const maxDuration = 300;
 
 type VideoRequestRow = {

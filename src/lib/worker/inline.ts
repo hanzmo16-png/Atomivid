@@ -3,13 +3,23 @@ import type { RenderWorker } from "./types";
 /**
  * Corre el pipeline completo en el mismo proceso que respondió la request
  * HTTP — el comportamiento original del proyecto, antes de tener un worker
- * separado. Se usa automáticamente cuando no hay credenciales de GitHub
- * Actions configuradas (desarrollo local, `npm run test:pipeline`, o antes
- * de que el usuario configure `GH_WORKER_TOKEN`/`GH_WORKER_REPO`).
+ * separado. Solo pensado para desarrollo local (o `npm run test:pipeline`)
+ * cuando no hay credenciales de GitHub Actions configuradas.
  *
- * Limitación conocida (documentada en el README): al no delegar a un
- * proceso aparte, esto sigue atado al límite de duración de la función
- * serverless que lo invoca.
+ * NUNCA se selecciona en Vercel — getRenderWorker() (src/lib/worker/
+ * index.ts) lo excluye explícitamente ahí, ni siquiera como fallback
+ * automático. Incidente real en producción (Código cde1d3da): con
+ * GH_WORKER_TOKEN/GH_WORKER_REPO ausentes, el fallback automático a
+ * inline intentó cargar @remotion/bundler dentro de la función de Vercel
+ * y falló con "Cannot find module '@rspack/binding'" (un binario nativo
+ * que Vercel no empaqueta para funciones serverless) — el render
+ * pertenece exclusivamente al worker de GitHub Actions en producción; la
+ * solución no es instalar ese binario en Vercel, sino que este worker no
+ * pueda ejecutarse ahí bajo ninguna circunstancia.
+ *
+ * Limitación conocida de todas formas (documentada en el README): al no
+ * delegar a un proceso aparte, esto sigue atado al límite de duración de
+ * la función que lo invoca — relevante solo para quien lo use localmente.
  *
  * runRenderJob se importa de forma perezosa (dentro de trigger, no arriba
  * a nivel de módulo): run-job.ts importa generate-video.ts, que a su vez

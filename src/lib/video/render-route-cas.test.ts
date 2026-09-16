@@ -100,3 +100,29 @@ test('render/route.ts nunca pierde el mensaje ya clasificado del worker si la re
     "debe seguir devolviendo el mensaje ya clasificado del worker, no uno nuevo, incluso si la restauración falla",
   );
 });
+
+/**
+ * Regresión exacta del incidente en producción (Código cde1d3da): en
+ * Vercel, si faltan GH_WORKER_TOKEN/GH_WORKER_REPO, getRenderWorker()
+ * lanza MissingEnvVarError en vez de caer a inline (ver
+ * src/lib/worker/index.test.ts). Esa excepción solo evita que la
+ * solicitud quede bloqueada en "processing" si getRenderWorker() se
+ * llama ANTES del UPDATE que la transiciona a ese estado — si el orden
+ * se invirtiera algún día, la solicitud quedaría marcada "processing"
+ * sin que ningún worker la esté procesando de verdad.
+ */
+test("render/route.ts llama a getRenderWorker() antes del UPDATE que transiciona a processing", () => {
+  const source = fs.readFileSync(ROUTE_PATH, "utf-8");
+
+  const getWorkerIndex = source.indexOf("getRenderWorker()");
+  assert.ok(getWorkerIndex !== -1, "debe seguir llamando a getRenderWorker()");
+
+  const markProcessingIndex = source.indexOf('status: "processing"');
+  assert.ok(markProcessingIndex !== -1, 'debe seguir existiendo el UPDATE a "processing"');
+
+  assert.ok(
+    getWorkerIndex < markProcessingIndex,
+    "getRenderWorker() debe llamarse antes de transicionar la solicitud a \"processing\" — " +
+      "si faltan las credenciales de GitHub Actions en Vercel, debe detenerse antes de tocar el estado",
+  );
+});
