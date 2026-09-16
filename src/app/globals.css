@@ -1,26 +1,120 @@
 @import "tailwindcss";
 
+/*
+ * Sistema visual de ATOMIVID — tokens únicos, oscuro por defecto.
+ * Dirección: tecnológica, cinematográfica, alto contraste, un solo acento
+ * controlado (violeta eléctrico). Nada de esto reemplaza Tailwind: son
+ * variables que los componentes consumen vía las utilidades @theme.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Superficies */
+  --color-canvas: #08080c;
+  --color-surface: #121218;
+  --color-surface-raised: #1a1a22;
+  --color-border: rgba(255, 255, 255, 0.09);
+  --color-border-strong: rgba(255, 255, 255, 0.16);
+
+  /* Texto */
+  --color-ink: #f5f5f7;
+  --color-ink-muted: #a3a3b0;
+  --color-ink-faint: #6b6b78;
+
+  /* Acento único (violeta eléctrico) */
+  --color-accent: #7c6aef;
+  --color-accent-hover: #8f7ff5;
+  --color-accent-ink: #ffffff;
+  --color-accent-soft: rgba(124, 106, 239, 0.14);
+  --color-accent-border: rgba(124, 106, 239, 0.35);
+
+  /* Semántico */
+  --color-success: #22c55e;
+  --color-success-soft: rgba(34, 197, 94, 0.12);
+  --color-warning: #f0a93a;
+  --color-warning-soft: rgba(240, 169, 58, 0.12);
+  --color-danger: #f2554f;
+  --color-danger-soft: rgba(242, 85, 79, 0.12);
+  --color-info: #4fa3f7;
+  --color-info-soft: rgba(79, 163, 247, 0.12);
+
+  /* Radios */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 26px;
+
+  /* Sombras (pensadas para fondo oscuro) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 24px 64px -16px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 0 1px var(--color-accent-border), 0 8px 32px -8px rgba(124, 106, 239, 0.35);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-canvas: var(--color-canvas);
+  --color-surface: var(--color-surface);
+  --color-surface-raised: var(--color-surface-raised);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+  --color-ink: var(--color-ink);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-ink-faint: var(--color-ink-faint);
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-accent-ink: var(--color-accent-ink);
+  --color-accent-soft: var(--color-accent-soft);
+  --color-success: var(--color-success);
+  --color-success-soft: var(--color-success-soft);
+  --color-warning: var(--color-warning);
+  --color-warning-soft: var(--color-warning-soft);
+  --color-danger: var(--color-danger);
+  --color-danger-soft: var(--color-danger-soft);
+  --color-info: var(--color-info);
+  --color-info-soft: var(--color-info-soft);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Foco visible consistente en todo el producto — teclado y lector de pantalla,
+   nunca solo color (además del contorno, el color de acento ya sube el contraste). */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: var(--color-accent-soft);
+  color: var(--color-ink);
+}
+
+/* Textura de fondo sutil para la landing — un solo halo radial, nunca un
+   degradado que cubra toda la pantalla. */
+.bg-atomivid-glow {
+  background:
+    radial-gradient(60% 50% at 50% -10%, rgba(124, 106, 239, 0.18), transparent 70%),
+    var(--color-canvas);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
