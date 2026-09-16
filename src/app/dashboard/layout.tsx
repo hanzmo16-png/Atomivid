@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { signOut } from "@/app/auth/actions";
 import { Logo } from "@/components/ui/Logo";
 import { LinkButton } from "@/components/ui/Button";
+import { Onboarding } from "@/components/onboarding/Onboarding";
 
 export default async function DashboardLayout({
   children,
@@ -66,6 +67,7 @@ export default async function DashboardLayout({
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">{children}</main>
+      <Onboarding />
     </div>
   );
 }
