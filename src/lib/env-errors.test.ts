@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MissingEnvVarError } from "./env-errors";
+import { MissingEnvVarError, InvalidEnvVarError } from "./env-errors";
 
 test("MissingEnvVarError incluye el nombre exacto de la variable en el mensaje", () => {
   const err = new MissingEnvVarError("STRIPE_SECRET_KEY");
@@ -23,4 +23,13 @@ test("MissingEnvVarError nunca incluye un valor, solo el nombre de la variable",
     err.message,
     `Falta la variable de entorno "SUPABASE_SERVICE_ROLE_KEY" (o está vacía). Configúrala en Vercel → Settings → Environment Variables para el entorno Production y vuelve a desplegar.`,
   );
+});
+
+test("InvalidEnvVarError incluye el nombre de la variable y el formato esperado, nunca un valor", () => {
+  const err = new InvalidEnvVarError("GH_WORKER_REPO", '"owner/repo"');
+  assert.ok(err instanceof Error);
+  assert.equal(err.name, "InvalidEnvVarError");
+  assert.equal(err.varName, "GH_WORKER_REPO");
+  assert.ok(err.message.includes("GH_WORKER_REPO"));
+  assert.ok(err.message.includes('"owner/repo"'));
 });

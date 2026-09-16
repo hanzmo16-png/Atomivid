@@ -13,3 +13,22 @@ export class MissingEnvVarError extends Error {
     this.name = "MissingEnvVarError";
   }
 }
+
+/**
+ * Igual que MissingEnvVarError pero para el caso en que la variable SÍ
+ * está configurada, con un formato reconociblemente incorrecto (p. ej.
+ * "GH_WORKER_REPO" sin la forma "owner/repo") — nunca incluye el valor
+ * real en el mensaje, solo el nombre de la variable y qué formato se
+ * esperaba, para no arriesgar exponer algo sensible.
+ */
+export class InvalidEnvVarError extends Error {
+  constructor(
+    public readonly varName: string,
+    expectedFormat: string,
+  ) {
+    super(
+      `La variable de entorno "${varName}" tiene un formato inválido (se esperaba ${expectedFormat}). Configúrala en Vercel → Settings → Environment Variables para el entorno Production y vuelve a desplegar.`,
+    );
+    this.name = "InvalidEnvVarError";
+  }
+}

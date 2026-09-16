@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MissingEnvVarError } from "@/lib/env-errors";
-import { GitHubWorkerDispatchError } from "@/lib/worker/github-actions";
+import { MissingEnvVarError, InvalidEnvVarError } from "@/lib/env-errors";
+import { GitHubWorkerDispatchError, GitHubWorkerNetworkError } from "@/lib/worker/github-actions";
 import { classifyRenderError, generateDiagnosticId, logRenderError } from "./render-error";
 
 test("generateDiagnosticId da identificadores cortos y distintos en cada llamada", () => {
@@ -88,7 +88,7 @@ test("classifyRenderError da un mensaje específico para GH_WORKER_REPO incorrec
   assert.ok(!message.includes("Not Found"));
 });
 
-test("classifyRenderError incluye el status HTTP (no el cuerpo) para otros fallos de GitHub", () => {
+test("classifyRenderError incluye el status HTTP (no el cuerpo) para un 5xx de GitHub", () => {
   const id = "abc12345";
   const message = classifyRenderError(
     new GitHubWorkerDispatchError(500, "internal server error detail"),
@@ -96,4 +96,46 @@ test("classifyRenderError incluye el status HTTP (no el cuerpo) para otros fallo
   );
   assert.ok(message.includes("500"));
   assert.ok(!message.includes("internal server error detail"));
+});
+
+test("classifyRenderError da un mensaje específico para 422 (datos inválidos) sin exponer el cuerpo", () => {
+  const id = "abc12345";
+  const message = classifyRenderError(new GitHubWorkerDispatchError(422, "validation failed"), id);
+  assert.ok(message.includes(id));
+  assert.ok(!message.includes("validation failed"));
+});
+
+test("classifyRenderError da un mensaje específico para 429 (límite de peticiones)", () => {
+  const id = "abc12345";
+  const message = classifyRenderError(new GitHubWorkerDispatchError(429, "rate limited"), id);
+  assert.ok(/l[íi]mite/i.test(message));
+  assert.ok(!message.includes("rate limited"));
+});
+
+test("classifyRenderError cae al mensaje con status para un código HTTP no clasificado específicamente", () => {
+  const id = "abc12345";
+  const message = classifyRenderError(new GitHubWorkerDispatchError(400, "bad request detail"), id);
+  assert.ok(message.includes("400"));
+  assert.ok(!message.includes("bad request detail"));
+});
+
+test("classifyRenderError reusa el mensaje seguro de InvalidEnvVarError (sin el valor real)", () => {
+  const id = "abc12345";
+  const message = classifyRenderError(
+    new InvalidEnvVarError("GH_WORKER_REPO", '"owner/repo"'),
+    id,
+  );
+  assert.ok(message.includes("GH_WORKER_REPO"));
+  assert.ok(message.includes(id));
+});
+
+test("classifyRenderError da un mensaje de red/timeout para GitHubWorkerNetworkError sin exponer la causa cruda", () => {
+  const id = "abc12345";
+  const message = classifyRenderError(
+    new GitHubWorkerNetworkError(new TypeError("connect ECONNREFUSED 10.0.0.1:443")),
+    id,
+  );
+  assert.ok(message.includes(id));
+  assert.ok(!message.includes("ECONNREFUSED"));
+  assert.ok(!message.includes("10.0.0.1"));
 });
