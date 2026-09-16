@@ -1,75 +1,70 @@
 import Link from "next/link";
 import { signIn } from "./actions";
+import { Card } from "@/components/ui/Card";
+import { Alert } from "@/components/ui/Alert";
+import { Field, INPUT_CLASS } from "@/components/ui/Field";
+import { Button } from "@/components/ui/Button";
+import { Logo } from "@/components/ui/Logo";
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; message?: string }>;
+  searchParams: Promise<{ error?: string; message?: string; redirectedFrom?: string }>;
 }) {
-  const { error, message } = await searchParams;
+  const { error, message, redirectedFrom } = await searchParams;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm space-y-6 rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
-        <div className="space-y-1 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Atomivid</h1>
-          <p className="text-sm text-gray-500">Inicia sesión en tu cuenta</p>
+    <div className="flex min-h-screen items-center justify-center px-4 py-12">
+      <Card className="w-full max-w-sm p-8">
+        <div className="mb-6 flex flex-col items-center gap-3 text-center">
+          <Link href="/">
+            <Logo />
+          </Link>
+          <p className="text-sm text-ink-muted">Inicia sesión en tu cuenta</p>
         </div>
 
-        {message && (
-          <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
-            {message}
-          </p>
-        )}
-        {error && (
-          <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <div className="space-y-3">
+          {message && <Alert tone="success">{message}</Alert>}
+          {error && <Alert tone="danger">{error}</Alert>}
+        </div>
 
-        <form action={signIn} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-700">
-              Correo electrónico
-            </label>
+        <form action={signIn} className="mt-5 space-y-4">
+          {redirectedFrom && <input type="hidden" name="redirectedFrom" value={redirectedFrom} />}
+          <Field id="email" label="Correo electrónico">
             <input
               id="email"
               name="email"
               type="email"
               required
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+              autoComplete="email"
+              className={INPUT_CLASS}
               placeholder="tu@correo.com"
             />
-          </div>
-          <div>
-            <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-700">
-              Contraseña
-            </label>
+          </Field>
+          <Field id="password" label="Contraseña">
             <input
               id="password"
               name="password"
               type="password"
               required
               minLength={6}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+              autoComplete="current-password"
+              className={INPUT_CLASS}
               placeholder="••••••••"
             />
-          </div>
-          <button
-            type="submit"
-            className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-700"
-          >
+          </Field>
+          <Button type="submit" className="w-full">
             Iniciar sesión
-          </button>
+          </Button>
         </form>
 
-        <p className="text-center text-sm text-gray-500">
+        <p className="mt-6 text-center text-sm text-ink-muted">
           ¿No tienes cuenta?{" "}
-          <Link href="/register" className="font-medium text-gray-900 underline">
+          <Link href="/register" className="font-medium text-accent hover:text-accent-hover">
             Regístrate
           </Link>
         </p>
-      </div>
+      </Card>
     </div>
   );
 }

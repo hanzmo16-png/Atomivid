@@ -1,5 +1,10 @@
 import Link from "next/link";
 import { signUp } from "./actions";
+import { Card } from "@/components/ui/Card";
+import { Alert } from "@/components/ui/Alert";
+import { Field, INPUT_CLASS } from "@/components/ui/Field";
+import { Button } from "@/components/ui/Button";
+import { Logo } from "@/components/ui/Logo";
 
 export default async function RegisterPage({
   searchParams,
@@ -9,62 +14,53 @@ export default async function RegisterPage({
   const { error } = await searchParams;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm space-y-6 rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
-        <div className="space-y-1 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Atomivid</h1>
-          <p className="text-sm text-gray-500">Crea tu cuenta</p>
+    <div className="flex min-h-screen items-center justify-center px-4 py-12">
+      <Card className="w-full max-w-sm p-8">
+        <div className="mb-6 flex flex-col items-center gap-3 text-center">
+          <Link href="/">
+            <Logo />
+          </Link>
+          <p className="text-sm text-ink-muted">Crea tu cuenta</p>
         </div>
 
-        {error && (
-          <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        {error && <Alert tone="danger">{error}</Alert>}
 
-        <form action={signUp} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-700">
-              Correo electrónico
-            </label>
+        <form action={signUp} className="mt-5 space-y-4">
+          <Field id="email" label="Correo electrónico">
             <input
               id="email"
               name="email"
               type="email"
               required
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+              autoComplete="email"
+              className={INPUT_CLASS}
               placeholder="tu@correo.com"
             />
-          </div>
-          <div>
-            <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-700">
-              Contraseña
-            </label>
+          </Field>
+          <Field id="password" label="Contraseña" hint="Mínimo 6 caracteres.">
             <input
               id="password"
               name="password"
               type="password"
               required
               minLength={6}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-              placeholder="Mínimo 6 caracteres"
+              autoComplete="new-password"
+              className={INPUT_CLASS}
+              placeholder="••••••••"
             />
-          </div>
-          <button
-            type="submit"
-            className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-700"
-          >
+          </Field>
+          <Button type="submit" className="w-full">
             Crear cuenta
-          </button>
+          </Button>
         </form>
 
-        <p className="text-center text-sm text-gray-500">
+        <p className="mt-6 text-center text-sm text-ink-muted">
           ¿Ya tienes cuenta?{" "}
-          <Link href="/login" className="font-medium text-gray-900 underline">
+          <Link href="/login" className="font-medium text-accent hover:text-accent-hover">
             Inicia sesión
           </Link>
         </p>
-      </div>
+      </Card>
     </div>
   );
 }
