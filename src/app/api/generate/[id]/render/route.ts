@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getRenderWorker } from "@/lib/worker";
 import { assertCanGenerate } from "@/lib/billing/quota";
-import { MAX_RENDER_ATTEMPTS, RENDER_TIMEOUT_MS } from "@/lib/video/limits";
+import { evaluateRenderStart } from "@/lib/video/render-guard";
 import { classifyRenderError, generateDiagnosticId, logRenderError } from "@/lib/video/render-error";
 import type { GeneratedScript } from "@/lib/providers/types";
 
@@ -67,34 +67,14 @@ export async function POST(
       );
     }
 
-    // Un render "processing" que lleva más de RENDER_TIMEOUT_MS sin
-    // resolverse se trata como colgado (el worker probablemente murió sin
-    // poder reportarlo) — se permite reintentar en vez de bloquear para
-    // siempre. Mientras no esté vencido, un segundo disparo se rechaza.
-    const startedAt = videoRequest.render_started_at
-      ? new Date(videoRequest.render_started_at).getTime()
-      : null;
-    const isStale =
-      videoRequest.status === "processing" &&
-      startedAt !== null &&
-      Date.now() - startedAt > RENDER_TIMEOUT_MS;
-
-    if (videoRequest.status === "processing" && !isStale) {
-      return NextResponse.json({ error: "Este video ya se está generando." }, { status: 409 });
-    }
-    if (videoRequest.status !== "script_ready" && videoRequest.status !== "failed" && !isStale) {
-      return NextResponse.json(
-        { error: `La solicitud ya está en estado "${videoRequest.status}"` },
-        { status: 409 },
-      );
-    }
-    if (videoRequest.render_attempts >= MAX_RENDER_ATTEMPTS) {
-      return NextResponse.json(
-        {
-          error: `Se alcanzó el máximo de ${MAX_RENDER_ATTEMPTS} intentos de render para este video. Crea una nueva solicitud desde "Nuevo video".`,
-        },
-        { status: 409 },
-      );
+    // Primera línea de defensa contra doble render (solicitud duplicada,
+    // ya en proceso, colgada, o máximo de intentos alcanzado) — lógica
+    // pura extraída a render-guard.ts para poder probarla sin Supabase.
+    // La garantía real contra una carrera (doble clic, dos pestañas) es
+    // el UPDATE condicional más abajo, que Postgres serializa por fila.
+    const decision = evaluateRenderStart(videoRequest);
+    if (!decision.allowed) {
+      return NextResponse.json({ error: decision.error }, { status: decision.status });
     }
 
     const check = await assertCanGenerate(service, user.id);

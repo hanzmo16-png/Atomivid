@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { MissingEnvVarError } from "@/lib/env-errors";
-import { GitHubWorkerDispatchError } from "@/lib/worker/github-actions";
+import { MissingEnvVarError, InvalidEnvVarError } from "@/lib/env-errors";
+import { GitHubWorkerDispatchError, GitHubWorkerNetworkError } from "@/lib/worker/github-actions";
 
 /**
  * Mismo principio que src/lib/video/script-error.ts y
@@ -21,6 +21,18 @@ export function classifyRenderError(error: unknown, diagnosticId: string): strin
   if (error instanceof MissingEnvVarError) {
     return `Falta configurar ${error.varName} en el servidor. Contacta al soporte. (Código: ${diagnosticId})`;
   }
+  // El mensaje de InvalidEnvVarError ya es seguro por construcción (solo
+  // nombre de variable + formato esperado, nunca el valor real) — se
+  // reusa tal cual en vez de duplicar el texto aquí.
+  if (error instanceof InvalidEnvVarError) {
+    return `${error.message} (Código: ${diagnosticId})`;
+  }
+  if (error instanceof GitHubWorkerNetworkError) {
+    return (
+      `No se pudo contactar al worker de render (problema de red o tiempo de espera agotado). ` +
+      `Intenta de nuevo en un momento. (Código: ${diagnosticId})`
+    );
+  }
   // El status HTTP de una respuesta de la API de GitHub no es secreto — a
   // diferencia del cuerpo de la respuesta (nunca expuesto al cliente),
   // permite distinguir un problema de configuración permanente (token sin
@@ -37,6 +49,24 @@ export function classifyRenderError(error: unknown, diagnosticId: string): strin
       return (
         `No se encontró el repositorio configurado para el worker de render (GH_WORKER_REPO). ` +
         `Contacta al soporte. (Código: ${diagnosticId})`
+      );
+    }
+    if (error.status === 422) {
+      return (
+        `GitHub rechazó la solicitud de disparar el render (datos inválidos). Contacta al soporte. ` +
+        `(Código: ${diagnosticId})`
+      );
+    }
+    if (error.status === 429) {
+      return (
+        `Se alcanzó el límite de peticiones de GitHub. Intenta de nuevo en unos minutos. ` +
+        `(Código: ${diagnosticId})`
+      );
+    }
+    if (error.status >= 500) {
+      return (
+        `GitHub Actions tiene un problema temporal (HTTP ${error.status}). Intenta de nuevo en unos minutos. ` +
+        `(Código: ${diagnosticId})`
       );
     }
     return (

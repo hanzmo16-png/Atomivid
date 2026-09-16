@@ -1,7 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MissingEnvVarError } from "@/lib/env-errors";
-import { githubActionsWorker, GitHubWorkerDispatchError } from "./github-actions";
+import { MissingEnvVarError, InvalidEnvVarError } from "@/lib/env-errors";
+import {
+  githubActionsWorker,
+  GitHubWorkerDispatchError,
+  GitHubWorkerNetworkError,
+} from "./github-actions";
 
 const ENV_KEYS = ["GH_WORKER_TOKEN", "GH_WORKER_REPO"] as const;
 
@@ -85,6 +89,88 @@ test("trigger no lanza si la API de GitHub responde ok", async () => {
   try {
     await withEnv({ GH_WORKER_TOKEN: "fake-token-value", GH_WORKER_REPO: "owner/repo" }, async () => {
       await githubActionsWorker.trigger({ requestId: "req-1" });
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+for (const status of [422, 429, 500, 503]) {
+  test(`trigger lanza GitHubWorkerDispatchError con status ${status}`, async () => {
+    const originalFetch = global.fetch;
+    global.fetch = (async () => new Response("detalle interno", { status })) as typeof fetch;
+
+    try {
+      await withEnv({ GH_WORKER_TOKEN: "fake-token-value", GH_WORKER_REPO: "owner/repo" }, async () => {
+        await assert.rejects(
+          () => githubActionsWorker.trigger({ requestId: "req-1" }),
+          (error: unknown) => {
+            assert.ok(error instanceof GitHubWorkerDispatchError);
+            assert.equal(error.status, status);
+            return true;
+          },
+        );
+      });
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+}
+
+test("trigger lanza InvalidEnvVarError(GH_WORKER_REPO) si el repo no tiene forma owner/repo", async () => {
+  for (const badRepo of ["not-a-repo", "https://github.com/owner/repo", "owner/repo/extra", " "]) {
+    await withEnv({ GH_WORKER_TOKEN: "fake-token-value", GH_WORKER_REPO: badRepo }, async () => {
+      await assert.rejects(
+        () => githubActionsWorker.trigger({ requestId: "req-1" }),
+        (error: unknown) => {
+          assert.ok(error instanceof InvalidEnvVarError);
+          assert.equal(error.varName, "GH_WORKER_REPO");
+          return true;
+        },
+      );
+    });
+  }
+});
+
+test("trigger lanza GitHubWorkerNetworkError si fetch rechaza (DNS/conexión)", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = (async () => {
+    throw new TypeError("fetch failed");
+  }) as typeof fetch;
+
+  try {
+    await withEnv({ GH_WORKER_TOKEN: "fake-token-value", GH_WORKER_REPO: "owner/repo" }, async () => {
+      await assert.rejects(
+        () => githubActionsWorker.trigger({ requestId: "req-1" }),
+        (error: unknown) => {
+          assert.ok(error instanceof GitHubWorkerNetworkError);
+          return true;
+        },
+      );
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("trigger lanza GitHubWorkerNetworkError si la señal de abort se dispara (timeout)", async () => {
+  // Simula lo que produce el AbortController interno al vencer
+  // DISPATCH_TIMEOUT_MS, sin esperar los 15s reales — el mock rechaza
+  // igual que lo haría fetch() cuando su propia señal se aborta.
+  const originalFetch = global.fetch;
+  global.fetch = (async () => {
+    throw new DOMException("The operation was aborted.", "AbortError");
+  }) as typeof fetch;
+
+  try {
+    await withEnv({ GH_WORKER_TOKEN: "fake-token-value", GH_WORKER_REPO: "owner/repo" }, async () => {
+      await assert.rejects(
+        () => githubActionsWorker.trigger({ requestId: "req-1" }),
+        (error: unknown) => {
+          assert.ok(error instanceof GitHubWorkerNetworkError);
+          return true;
+        },
+      );
     });
   } finally {
     global.fetch = originalFetch;
