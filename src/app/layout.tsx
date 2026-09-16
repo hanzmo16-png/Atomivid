@@ -12,9 +12,29 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+const TITLE = "Atomivid — Videos verticales con IA";
+const DESCRIPTION =
+  "Convierte una idea en un video vertical listo para publicar: guion, narración, clips y subtítulos generados con IA en minutos.";
+
 export const metadata: Metadata = {
-  title: "Atomivid",
-  description: "Genera reels faceless con IA",
+  metadataBase: new URL(SITE_URL),
+  title: { default: TITLE, template: "%s · Atomivid" },
+  description: DESCRIPTION,
+  robots: { index: true, follow: true },
+  openGraph: {
+    type: "website",
+    locale: "es_ES",
+    siteName: "Atomivid",
+    title: TITLE,
+    description: DESCRIPTION,
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -23,7 +43,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="flex min-h-full flex-col bg-canvas text-ink">{children}</body>
     </html>
   );
 }
