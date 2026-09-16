@@ -1,4 +1,8 @@
 import { createVideoRequest } from "./actions";
+import { Card } from "@/components/ui/Card";
+import { Alert } from "@/components/ui/Alert";
+import { Field, INPUT_CLASS } from "@/components/ui/Field";
+import { SubmitButton } from "./SubmitButton";
 
 const STYLES = [
   "Motivacional",
@@ -16,6 +20,15 @@ const DURATIONS = [
   { value: 90, label: "90 segundos" },
 ];
 
+const INCLUDES = [
+  "Guion escrito por IA a partir de tu tema",
+  "Narración con voz natural en el idioma que elijas",
+  "Clips e imágenes reales por escena",
+  "Música de fondo con licencia comercial",
+  "Subtítulos incrustados automáticamente",
+  "Video vertical 1080×1920, listo para descargar",
+];
+
 export default async function NewVideoPage({
   searchParams,
 }: {
@@ -24,104 +37,100 @@ export default async function NewVideoPage({
   const { error } = await searchParams;
 
   return (
-    <div className="mx-auto max-w-xl">
-      <h1 className="text-2xl font-bold text-gray-900">Generar nuevo video</h1>
-      <p className="mt-1 text-sm text-gray-500">
-        Describe el video que quieres. Por ahora guardamos tu solicitud; la
-        generación automática se activará en la siguiente fase.
+    <div className="mx-auto max-w-3xl">
+      <h1 className="text-2xl font-bold text-ink">Generar nuevo video</h1>
+      <p className="mt-1 text-sm text-ink-muted">
+        Describe el tema y revisa el guion antes de que se produzca el video final.
       </p>
 
       {error && (
-        <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
+        <Alert tone="danger" role="alert">
+          <span className="[&::first-letter]:uppercase">{error.replaceAll("+", " ")}</span>
+        </Alert>
       )}
 
-      <form
-        action={createVideoRequest}
-        className="mt-6 space-y-5 rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
-      >
-        <div>
-          <label htmlFor="topic" className="mb-1 block text-sm font-medium text-gray-700">
-            Tema del video
-          </label>
-          <textarea
-            id="topic"
-            name="topic"
-            required
-            rows={3}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-            placeholder="Ej: 5 datos curiosos sobre el espacio que no sabías"
-          />
-        </div>
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+        <Card className="p-6">
+          <form action={createVideoRequest} className="space-y-5">
+            <Field id="topic" label="Tema del video">
+              <textarea
+                id="topic"
+                name="topic"
+                required
+                rows={3}
+                maxLength={500}
+                className={INPUT_CLASS}
+                placeholder="Ej: 5 datos curiosos sobre el espacio que no sabías"
+              />
+            </Field>
 
-        <div>
-          <label htmlFor="language" className="mb-1 block text-sm font-medium text-gray-700">
-            Idioma de la narración
-          </label>
-          <select
-            id="language"
-            name="language"
-            required
-            defaultValue="es"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-          >
-            <option value="es">Español</option>
-            <option value="en">English</option>
-          </select>
-        </div>
+            <Field id="language" label="Idioma de la narración">
+              <select id="language" name="language" required defaultValue="es" className={INPUT_CLASS}>
+                <option value="es">Español</option>
+                <option value="en">English</option>
+              </select>
+            </Field>
 
-        <div>
-          <label htmlFor="style" className="mb-1 block text-sm font-medium text-gray-700">
-            Estilo / tono
-          </label>
-          <select
-            id="style"
-            name="style"
-            required
-            defaultValue=""
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-          >
-            <option value="" disabled>
-              Selecciona un estilo
-            </option>
-            {STYLES.map((style) => (
-              <option key={style} value={style}>
-                {style}
-              </option>
+            <Field id="style" label="Estilo / tono">
+              <select id="style" name="style" required defaultValue="" className={INPUT_CLASS}>
+                <option value="" disabled>
+                  Selecciona un estilo
+                </option>
+                {STYLES.map((style) => (
+                  <option key={style} value={style}>
+                    {style}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field id="duration_seconds" label="Duración deseada">
+              <select
+                id="duration_seconds"
+                name="duration_seconds"
+                required
+                defaultValue={30}
+                className={INPUT_CLASS}
+              >
+                {DURATIONS.map((d) => (
+                  <option key={d.value} value={d.value}>
+                    {d.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <SubmitButton />
+          </form>
+        </Card>
+
+        <Card className="h-fit p-6">
+          <p className="text-sm font-semibold text-ink">Tu video incluirá</p>
+          <ul className="mt-4 space-y-2.5">
+            {INCLUDES.map((item) => (
+              <li key={item} className="flex items-start gap-2.5 text-sm text-ink-muted">
+                <svg
+                  className="mt-0.5 size-4 shrink-0 text-accent"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M16.7 5.3a1 1 0 010 1.4l-7.4 7.4a1 1 0 01-1.4 0L3.3 9.5a1 1 0 111.4-1.4l3.9 3.9 6.7-6.7a1 1 0 011.4 0z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                {item}
+              </li>
             ))}
-          </select>
-        </div>
-
-        <div>
-          <label
-            htmlFor="duration_seconds"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Duración deseada
-          </label>
-          <select
-            id="duration_seconds"
-            name="duration_seconds"
-            required
-            defaultValue={60}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-          >
-            {DURATIONS.map((d) => (
-              <option key={d.value} value={d.value}>
-                {d.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <button
-          type="submit"
-          className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-700"
-        >
-          Guardar solicitud
-        </button>
-      </form>
+          </ul>
+          <p className="mt-5 text-xs text-ink-faint">
+            Al enviar, primero se genera el guion — podrás revisarlo y ajustarlo antes de
+            producir el video final.
+          </p>
+        </Card>
+      </div>
     </div>
   );
 }

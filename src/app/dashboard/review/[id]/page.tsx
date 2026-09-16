@@ -41,8 +41,8 @@ export default async function ReviewPage({
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="text-2xl font-bold text-gray-900">Revisar guion</h1>
-      <p className="mt-1 text-sm text-gray-500">
+      <h1 className="text-2xl font-bold text-ink">Revisar guion</h1>
+      <p className="mt-1 text-sm text-ink-muted">
         {data.topic} · {data.style} · {data.duration_seconds}s
       </p>
 
