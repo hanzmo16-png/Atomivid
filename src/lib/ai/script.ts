@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { MissingEnvVarError } from "@/lib/env-errors";
+import { targetWordsFor } from "@/lib/video/script-pacing";
 
 // Instanciado de forma perezosa, mismo patrón que getStripe() en
 // src/lib/stripe/client.ts: así ANTHROPIC_API_KEY se valida explícitamente
@@ -47,8 +48,6 @@ export type VideoScript = z.infer<typeof ScriptSchema>;
 const SceneSchema = ScriptSchema.shape.segments.element;
 export type VideoScriptScene = z.infer<typeof SceneSchema>;
 
-const WORDS_PER_SECOND = 2.6;
-
 const LANGUAGE_NAME: Record<"es" | "en", string> = {
   es: "español",
   en: "inglés (English)",
@@ -66,7 +65,7 @@ export async function generateScript({
   /** Idioma elegido por el usuario — no se infiere del texto del tema. */
   language?: "es" | "en";
 }): Promise<VideoScript> {
-  const targetWords = Math.round(durationSeconds * WORDS_PER_SECOND);
+  const targetWords = targetWordsFor(durationSeconds);
   const targetScenes = Math.max(3, Math.min(10, Math.round(durationSeconds / 5)));
 
   const response = await getClient().messages.parse({
@@ -75,14 +74,19 @@ export async function generateScript({
     system:
       "Eres guionista de reels 'faceless' (sin rostro) para redes sociales, " +
       "en el estilo de canales virales de TikTok/Instagram Reels/YouTube " +
-      "Shorts. Escribes narraciones dinámicas, con un gancho fuerte en los " +
-      `primeros segundos, frases cortas y un cierre memorable. Responde ` +
+      "Shorts. Escribes narraciones dinámicas y naturales, con un arco " +
+      "real: gancho fuerte en los primeros segundos, tensión o problema, " +
+      "desarrollo, conclusión y un cierre memorable — nunca una lista de " +
+      "frases sueltas que dicen lo mismo con otras palabras. El tema que " +
+      "te da el usuario es el ASUNTO del video, no una frase que deba " +
+      "aparecer copiada o casi copiada en la narración ('hoy hablamos de...', " +
+      "'esto es sobre...' y variantes similares están prohibidas). Responde " +
       `SIEMPRE en ${LANGUAGE_NAME[language]}, sin importar en qué idioma ` +
       "esté escrito el tema que te da el usuario.",
     messages: [
       {
         role: "user",
-        content: `Escribe el guion de un reel faceless.
+        content: `Escribe el guion de un reel faceless con un arco narrativo real: gancho → tensión/problema → desarrollo → conclusión → cierre.
 
 Idioma de la narración: ${LANGUAGE_NAME[language]} (obligatorio, sin excepción).
 Tema: ${topic}
@@ -90,9 +94,14 @@ Estilo/tono: ${style}
 Duración objetivo: ${durationSeconds} segundos (~${targetWords} palabras narradas en total)
 Número de escenas sugerido: ${targetScenes}
 
-Divide la narración en ${targetScenes} escenas cortas. Para cada escena da:
-- "text": el texto exacto que narrará la voz IA (sin acotaciones, sin emojis, sin marcas de tiempo).
-- "visualQuery": 2-4 palabras EN INGLÉS para buscar una foto de stock que ilustre esa escena (el concepto visual, no la frase narrada).
+Reglas estrictas:
+- Nunca copies el tema tal cual dentro de una frase de plantilla — el tema es el asunto del video, no texto literal a repetir en cada escena.
+- Cada escena avanza el arco narrativo; no repitas la misma idea con otras palabras entre escenas.
+- Narración natural y motivacional, sin frases de relleno ni acotaciones/emojis/marcas de tiempo.
+
+Para cada escena da:
+- "text": el texto exacto que narrará la voz IA.
+- "visualQuery": 2-4 palabras EN INGLÉS, concretas (una acción, persona, lugar u objeto visible) para buscar una foto o video de stock que ilustre esa escena — nunca el tema completo ni la misma búsqueda repetida en otra escena.
 
 La suma de las palabras de todos los "text" debe acercarse a ${targetWords} palabras.`,
       },

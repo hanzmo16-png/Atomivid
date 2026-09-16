@@ -1,6 +1,5 @@
 import type { GeneratedScript, ScriptLanguage, ScriptProvider, ScriptScene } from "../types";
-
-const WORDS_PER_SECOND = 2.6;
+import { targetWordsFor } from "@/lib/video/script-pacing";
 
 const TEMPLATES: Record<ScriptLanguage, Array<(topic: string) => string>> = {
   es: [
@@ -68,7 +67,7 @@ export const fixtureScriptProvider: ScriptProvider = {
   name: "fixture",
   async generateScript({ topic, durationSeconds, language = "es" }): Promise<GeneratedScript> {
     const targetScenes = Math.max(3, Math.min(15, Math.round(durationSeconds / 5)));
-    const targetWords = Math.round(durationSeconds * WORDS_PER_SECOND);
+    const targetWords = targetWordsFor(durationSeconds);
     const wordsPerScene = Math.max(4, Math.round(targetWords / targetScenes));
 
     const segments = Array.from({ length: targetScenes }, (_, i) =>

@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { getScriptProvider } from "@/lib/providers/script";
 import { recordScriptCall } from "@/lib/billing/usage";
 import { classifyScriptError, logScriptError } from "@/lib/video/script-error";
+import { ScriptQualityError } from "@/lib/video/script-quality";
 import type { GeneratedScript } from "@/lib/providers/types";
 
 // Ver el mismo comentario en ../route.ts: sin esto, una llamada real a
@@ -74,12 +75,33 @@ export async function POST(
     let newScene;
     try {
       const scriptProvider = getScriptProvider();
+      if (scriptProvider.name !== "anthropic") {
+        // Mismo principio que en ../route.ts: nunca presentar contenido de
+        // respaldo como si fuera el resultado real de una regeneración.
+        throw new ScriptQualityError({
+          ok: false,
+          issue: "fallback_provider",
+          detail: `El proveedor de guion usado fue "${scriptProvider.name}", no el proveedor de IA principal.`,
+        });
+      }
+
       newScene = await scriptProvider.regenerateScene({
         topic: videoRequest.topic,
         style: videoRequest.style,
         script: videoRequest.script_json,
         sceneIndex,
       });
+
+      const otherVisualQueries = videoRequest.script_json.segments
+        .filter((_, i) => i !== sceneIndex)
+        .map((s) => s.visualQuery.trim().toLowerCase());
+      if (otherVisualQueries.includes(newScene.visualQuery.trim().toLowerCase())) {
+        throw new ScriptQualityError({
+          ok: false,
+          issue: "duplicate_visual_queries",
+          detail: "La escena regenerada pide la misma búsqueda visual que otra escena.",
+        });
+      }
     } catch (err) {
       logScriptError("POST /script/regenerate-scene", err);
       return NextResponse.json({ error: classifyScriptError(err) }, { status: 500 });

@@ -26,6 +26,7 @@ export function ScriptReview({
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [regeneratingAll, setRegeneratingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsSubscription, setNeedsSubscription] = useState(false);
 
@@ -79,6 +80,34 @@ export function ScriptReview({
     }
   }
 
+  /**
+   * Regenera el guion completo (título + todas las escenas) desde cero —
+   * no escena por escena. Reemplaza cualquier edición manual sin guardar,
+   * así que pide confirmación antes de descartarla.
+   */
+  async function regenerateFullScript() {
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm("Esto reemplaza el guion completo (todas las escenas). ¿Continuar?")
+    ) {
+      return;
+    }
+
+    setRegeneratingAll(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/generate/${requestId}/script`, { method: "POST" });
+      const result = await safeParseJsonResponse<{ script: GeneratedScript }>(res);
+      if (!result.ok) throw new Error(result.error);
+      setScript(result.data.script);
+      setDirty(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error inesperado");
+    } finally {
+      setRegeneratingAll(false);
+    }
+  }
+
   async function generateFinalVideo() {
     setGenerating(true);
     setError(null);
@@ -118,6 +147,22 @@ export function ScriptReview({
         </Alert>
       )}
 
+      {editable && (
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-sm text-ink-muted">
+            ¿El guion no cumple lo que esperabas? Puedes regenerarlo completo.
+          </p>
+          <button
+            type="button"
+            onClick={regenerateFullScript}
+            disabled={saving || generating || regeneratingAll || savingIndex !== null}
+            className="shrink-0 text-sm font-medium text-accent hover:text-accent-hover disabled:opacity-50"
+          >
+            {regeneratingAll ? "Regenerando guion…" : "Regenerar guion completo"}
+          </button>
+        </div>
+      )}
+
       <div className="mt-4 space-y-4">
         {script.segments.map((scene, i) => (
           <Card key={i} className="p-4">
@@ -129,7 +174,7 @@ export function ScriptReview({
                 <button
                   type="button"
                   onClick={() => regenerateScene(i)}
-                  disabled={savingIndex !== null || saving || generating}
+                  disabled={savingIndex !== null || saving || generating || regeneratingAll}
                   className="text-xs font-medium text-accent hover:text-accent-hover disabled:opacity-50"
                 >
                   {savingIndex === i ? "Regenerando…" : "Regenerar esta escena"}
@@ -174,10 +219,19 @@ export function ScriptReview({
 
       {editable && (
         <div className="sticky bottom-4 mt-6 flex flex-col gap-2 rounded-lg border border-border-strong bg-surface-raised p-4 shadow-lg sm:flex-row sm:items-center sm:justify-between">
-          <Button variant="secondary" onClick={saveChanges} disabled={!dirty || saving || generating} loading={saving}>
+          <Button
+            variant="secondary"
+            onClick={saveChanges}
+            disabled={!dirty || saving || generating || regeneratingAll}
+            loading={saving}
+          >
             {saving ? "Guardando…" : dirty ? "Guardar cambios" : "Sin cambios pendientes"}
           </Button>
-          <Button onClick={generateFinalVideo} disabled={generating || saving} loading={generating}>
+          <Button
+            onClick={generateFinalVideo}
+            disabled={generating || saving || regeneratingAll}
+            loading={generating}
+          >
             {generating ? "Generando video…" : "Generar video final"}
           </Button>
         </div>
