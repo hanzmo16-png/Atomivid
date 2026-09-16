@@ -3,7 +3,7 @@
  * `.github/workflows/render.yml` vía `repository_dispatch` cuando
  * `/api/generate/[id]/render` llama a la API de GitHub — no corre dentro
  * de Next.js, pero reutiliza exactamente el mismo pipeline
- * (src/lib/video/run-job.ts → src/lib/video/generate.ts) que ya se
+ * (src/lib/video/run-job.ts → src/lib/video/generate-video.ts) que ya se
  * verifica con `npm run test:pipeline`.
  *
  * Uso: REQUEST_ID=<uuid> npx tsx scripts/render-worker.ts

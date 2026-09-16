@@ -4,7 +4,7 @@ import { MusicObjectNotFoundError, MusicProviderError, MusicSigningError } from 
 /**
  * Bucket privado dedicado a la biblioteca curada de música (distinto de
  * "videos", que es para archivos efímeros por solicitud — ver
- * src/lib/video/generate.ts). Debe crearse manualmente en el dashboard de
+ * src/lib/video/generate-video.ts). Debe crearse manualmente en el dashboard de
  * Supabase como privado, sin ninguna policy pública — un bucket privado
  * sin policies de select para anon/authenticated solo es legible con la
  * service role key, que es exactamente el acceso que necesita este código
