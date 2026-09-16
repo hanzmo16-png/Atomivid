@@ -61,8 +61,14 @@ export class GitHubWorkerNetworkError extends Error {
  *
  * Requiere dos variables de entorno (nunca secretos hardcodeados):
  * - GH_WORKER_TOKEN: un Personal Access Token con permiso para disparar
- *   workflows en el repo (fine-grained: "Actions: Read and write"; classic:
- *   scope "repo").
+ *   este endpoint específico ("Create a repository dispatch event"). Para
+ *   un token classic: scope "repo". Para uno fine-grained, la
+ *   documentación de GitHub lista "Contents: Read and write" como el
+ *   permiso que cubre este endpoint (no "Actions" — ese permiso cubre
+ *   gestionar workflow runs/artifacts existentes, no crear el evento de
+ *   dispatch); en la práctica, conviene igual otorgar también "Actions:
+ *   Read and write" porque el resto del worker (scripts/render-worker.ts,
+ *   vía el mismo repo) puede necesitarlo para otras operaciones.
  * - GH_WORKER_REPO: "owner/repo", p. ej. "hanzmo16-png/Atomivid".
  */
 export const githubActionsWorker: RenderWorker = {

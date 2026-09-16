@@ -82,6 +82,53 @@ test("trigger lanza GitHubWorkerDispatchError con el status HTTP cuando la API d
   }
 });
 
+/**
+ * Auditoría de la solicitud real (incidente Código f25825c0: token
+ * fine-grained scopeado correctamente, "last used" reciente en GitHub,
+ * pero 401/403 reportado por ATOMIVID). Captura exactamente lo que
+ * trigger() manda a fetch() para verificar mecánicamente, no solo por
+ * lectura manual: endpoint y método correctos, el token no se transforma
+ * ni se le antepone/recorta nada antes de ir en el header Authorization,
+ * los headers son los que GitHub espera para un PAT fine-grained, y el
+ * body tiene exactamente el event_type y client_payload esperados.
+ */
+test("trigger construye la solicitud POST /repos/{owner}/{repo}/dispatches exactamente como espera GitHub", async () => {
+  const originalFetch = global.fetch;
+  let capturedUrl: string | undefined;
+  let capturedInit: RequestInit | undefined;
+  global.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    capturedUrl = String(url);
+    capturedInit = init;
+    return new Response(null, { status: 204 });
+  }) as typeof fetch;
+
+  const RAW_TOKEN = "fake-fine-grained-token-value-for-test-9f8a7b";
+
+  try {
+    await withEnv({ GH_WORKER_TOKEN: RAW_TOKEN, GH_WORKER_REPO: "hanzmo16-png/Atomivid" }, async () => {
+      await githubActionsWorker.trigger({ requestId: "req-abc-123" });
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+
+  assert.equal(capturedUrl, "https://api.github.com/repos/hanzmo16-png/Atomivid/dispatches");
+  assert.equal(capturedInit?.method, "POST");
+
+  const headers = capturedInit?.headers as Record<string, string>;
+  // El token va exactamente como llegó de la variable de entorno, sin
+  // recortar, sin re-serializar, sin texto extra antepuesto — solo el
+  // esquema "Bearer " estándar, que GitHub acepta tanto para PAT classic
+  // como fine-grained.
+  assert.equal(headers.Authorization, `Bearer ${RAW_TOKEN}`);
+  assert.equal(headers.Accept, "application/vnd.github+json");
+  assert.equal(headers["X-GitHub-Api-Version"], "2022-11-28");
+
+  const body = JSON.parse(capturedInit?.body as string);
+  assert.equal(body.event_type, "render-video");
+  assert.deepEqual(body.client_payload, { requestId: "req-abc-123" });
+});
+
 test("trigger no lanza si la API de GitHub responde ok", async () => {
   const originalFetch = global.fetch;
   global.fetch = (async () => new Response(null, { status: 204 })) as typeof fetch;
