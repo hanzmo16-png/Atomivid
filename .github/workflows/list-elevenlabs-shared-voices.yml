@@ -1,0 +1,31 @@
+name: Diagnóstico ElevenLabs (biblioteca compartida, solo lectura)
+
+# Workflow de un solo uso, exclusivamente de LECTURA: consulta
+# GET /v1/shared-voices (Voice Library) filtrando por idioma español, para
+# encontrar candidatas reales antes de elegir una voz de producción. No
+# genera audio, no agrega voces, no consume créditos de síntesis y no
+# toca ninguna configuración de producción — ver scripts/list-elevenlabs-shared-voices.ts.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  list-shared-voices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Consultar biblioteca compartida (solo lectura)
+        run: npx tsx scripts/list-elevenlabs-shared-voices.ts
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
