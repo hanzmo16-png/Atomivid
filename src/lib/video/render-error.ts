@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { MissingEnvVarError } from "@/lib/env-errors";
+import { GitHubWorkerDispatchError } from "@/lib/worker/github-actions";
 
 /**
  * Mismo principio que src/lib/video/script-error.ts y
@@ -19,6 +20,29 @@ export function generateDiagnosticId(): string {
 export function classifyRenderError(error: unknown, diagnosticId: string): string {
   if (error instanceof MissingEnvVarError) {
     return `Falta configurar ${error.varName} en el servidor. Contacta al soporte. (Código: ${diagnosticId})`;
+  }
+  // El status HTTP de una respuesta de la API de GitHub no es secreto — a
+  // diferencia del cuerpo de la respuesta (nunca expuesto al cliente),
+  // permite distinguir un problema de configuración permanente (token sin
+  // permisos válidos, repo incorrecto) de un fallo realmente transitorio,
+  // sin depender de poder leer los logs del servidor.
+  if (error instanceof GitHubWorkerDispatchError) {
+    if (error.status === 401 || error.status === 403) {
+      return (
+        `El token del worker de render (GH_WORKER_TOKEN) no tiene permisos válidos o expiró. ` +
+        `Contacta al soporte. (Código: ${diagnosticId})`
+      );
+    }
+    if (error.status === 404) {
+      return (
+        `No se encontró el repositorio configurado para el worker de render (GH_WORKER_REPO). ` +
+        `Contacta al soporte. (Código: ${diagnosticId})`
+      );
+    }
+    return (
+      `No se pudo activar el worker de render (HTTP ${error.status}). Intenta de nuevo en un momento. ` +
+      `(Código: ${diagnosticId})`
+    );
   }
   return `${GENERIC_RENDER_ERROR} (Código: ${diagnosticId})`;
 }
