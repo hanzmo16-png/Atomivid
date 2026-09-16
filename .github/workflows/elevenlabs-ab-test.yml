@@ -1,0 +1,47 @@
+name: Prueba A/B ElevenLabs (Víctor vs Mateo)
+
+# Workflow de un solo uso: sintetiza el MISMO texto con Víctor y Mateo
+# (mismo modelo/parámetros) para comparar el audio final antes de elegir
+# la voz definitiva de producción — ver scripts/elevenlabs-ab-test.ts.
+#
+# El script valida en cada paso antes de gastar nada: confirma plan
+# pagado, reconfirma disponibilidad de ambas voces, agrega a My Voices
+# solo si hace falta (solo estas 2), calcula el consumo estimado y
+# aborta ANTES de sintetizar si supera el límite autorizado, y hace como
+# máximo 2 llamadas de síntesis (sin reintentos). No toca
+# DEFAULT_VOICE_ID ni ninguna configuración de producción.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  ab-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Prueba A/B (Víctor vs Mateo)
+        run: npx tsx scripts/elevenlabs-ab-test.ts
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+
+      - name: Subir muestras A/B como artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: elevenlabs-ab-test-samples
+          path: |
+            victor-ab-test.mp3
+            mateo-ab-test.mp3
+          if-no-files-found: warn
+          retention-days: 7
