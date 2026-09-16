@@ -73,15 +73,33 @@ export function classifyRenderError(error: unknown, diagnosticId: string): strin
   // permisos válidos, repo incorrecto) de un fallo realmente transitorio,
   // sin depender de poder leer los logs del servidor.
   if (error instanceof GitHubWorkerDispatchError) {
-    if (error.status === 401 || error.status === 403) {
+    // 401 y 403 significan cosas distintas y accionables de forma
+    // distinta: 401 es que GitHub rechazó la credencial misma (no la
+    // reconoce como válida — inválida, revocada, o el valor configurado
+    // no es el token real); 403 es que GitHub SÍ reconoció el token pero
+    // negó la acción por falta de autorización (permisos insuficientes,
+    // política de la organización, o similar). Mezclarlos en un solo
+    // mensaje le esconde al usuario justo la pista que necesita para
+    // saber qué revisar primero.
+    if (error.status === 401) {
       return (
-        `El token del worker de render (GH_WORKER_TOKEN) no tiene permisos válidos o expiró. ` +
-        `Contacta al soporte. (Código: ${diagnosticId})`
+        `GitHub rechazó la credencial del worker de render (GH_WORKER_TOKEN) por no ser válida ` +
+        `(HTTP 401: no autenticado) — puede estar mal copiada, revocada, o no coincidir con el ` +
+        `token real configurado en GitHub. Contacta al soporte. (Código: ${diagnosticId})`
+      );
+    }
+    if (error.status === 403) {
+      return (
+        `GitHub reconoció el token del worker de render (GH_WORKER_TOKEN) pero denegó la acción ` +
+        `por falta de autorización (HTTP 403) — revisa que tenga permiso de repositorio ` +
+        `"Contents: Read and write" sobre GH_WORKER_REPO y que no esté bloqueado por una política ` +
+        `de la organización. Contacta al soporte. (Código: ${diagnosticId})`
       );
     }
     if (error.status === 404) {
       return (
-        `No se encontró el repositorio configurado para el worker de render (GH_WORKER_REPO). ` +
+        `No se encontró el repositorio configurado para el worker de render (GH_WORKER_REPO) ` +
+        `(HTTP 404) — puede no existir, estar mal escrito, o el token no tener acceso a él. ` +
         `Contacta al soporte. (Código: ${diagnosticId})`
       );
     }

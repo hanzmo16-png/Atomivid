@@ -61,29 +61,52 @@ test("classifyRenderError (el mensaje que sí ve el cliente) nunca expone un val
 });
 
 /**
- * Regresión exacta del incidente en producción (Código: 30451999): un
- * fallo al disparar el worker de GitHub Actions (token sin permisos,
- * expirado, o repo mal configurado) caía en el mensaje genérico "Intenta
- * de nuevo en un momento" — indistinguible de un fallo transitorio real, y
- * sin ninguna pista accionable sin poder leer los logs del servidor.
+ * Regresión exacta del incidente en producción (Código: 30451999, y su
+ * seguimiento Código: f25825c0): un fallo al disparar el worker de
+ * GitHub Actions caía en un solo mensaje genérico ("token sin permisos o
+ * expiró") que trataba 401 y 403 como si fueran lo mismo. Son fallos
+ * distintos y accionables de forma distinta: 401 es que GitHub rechazó
+ * la credencial misma (inválida/revocada/no coincide); 403 es que
+ * GitHub SÍ reconoció el token pero negó la acción por falta de
+ * autorización (permisos insuficientes, política de la organización).
+ * En el incidente real, GitHub mostraba "Last used within the last
+ * week" para el token — evidencia de que la credencial fue reconocida,
+ * lo que apunta a 403, no a 401 — pero el mensaje anterior no permitía
+ * distinguir cuál de los dos había ocurrido.
  */
-test("classifyRenderError da un mensaje específico para GH_WORKER_TOKEN inválido/expirado (401/403)", () => {
+test("classifyRenderError da un mensaje distinto y específico para 401 (credencial rechazada)", () => {
   const id = "abc12345";
-  for (const status of [401, 403]) {
-    const message = classifyRenderError(
-      new GitHubWorkerDispatchError(status, "bad credentials"),
-      id,
-    );
-    assert.ok(message.includes("GH_WORKER_TOKEN"));
-    assert.ok(message.includes(id));
-    assert.ok(!message.includes("bad credentials"));
-  }
+  const message = classifyRenderError(new GitHubWorkerDispatchError(401, "Bad credentials"), id);
+  assert.ok(message.includes("GH_WORKER_TOKEN"));
+  assert.ok(message.includes("401"));
+  assert.ok(message.includes(id));
+  assert.ok(!message.includes("Bad credentials"));
+});
+
+test("classifyRenderError da un mensaje distinto y específico para 403 (token reconocido, sin autorización)", () => {
+  const id = "abc12345";
+  const message = classifyRenderError(
+    new GitHubWorkerDispatchError(403, "Resource not accessible by personal access token"),
+    id,
+  );
+  assert.ok(message.includes("GH_WORKER_TOKEN"));
+  assert.ok(message.includes("403"));
+  assert.ok(message.includes(id));
+  assert.ok(!message.includes("Resource not accessible by personal access token"));
+});
+
+test("classifyRenderError da textos distintos para 401 y 403 (no deben ser el mismo mensaje)", () => {
+  const id = "abc12345";
+  const message401 = classifyRenderError(new GitHubWorkerDispatchError(401, ""), id);
+  const message403 = classifyRenderError(new GitHubWorkerDispatchError(403, ""), id);
+  assert.notEqual(message401, message403);
 });
 
 test("classifyRenderError da un mensaje específico para GH_WORKER_REPO incorrecto (404)", () => {
   const id = "abc12345";
   const message = classifyRenderError(new GitHubWorkerDispatchError(404, "Not Found"), id);
   assert.ok(message.includes("GH_WORKER_REPO"));
+  assert.ok(message.includes("404"));
   assert.ok(message.includes(id));
   assert.ok(!message.includes("Not Found"));
 });
