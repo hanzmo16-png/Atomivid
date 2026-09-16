@@ -5,6 +5,8 @@ import { generateScriptForRequest } from "@/lib/video/generate-script";
 import { assertCanGenerate } from "@/lib/billing/quota";
 import { recordScriptCall } from "@/lib/billing/usage";
 import { classifyScriptError, logScriptError } from "@/lib/video/script-error";
+import { checkScriptQuality, ScriptQualityError } from "@/lib/video/script-quality";
+import { targetWordsFor } from "@/lib/video/script-pacing";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 
 // Sin esto, la función queda al límite por defecto de la plataforma (tan
@@ -86,7 +88,17 @@ export async function POST(
     const { service, videoRequest, response } = await loadOwnedRequest(id, user.id);
     if (!videoRequest) return response!;
 
-    if (videoRequest.status !== "pending" && videoRequest.status !== "failed") {
+    // "script_ready" se permite además de "pending"/"failed" para poder
+    // regenerar el guion completo (no solo escena por escena) cuando el
+    // resultado ya guardado no es aceptable — p. ej. si vino de un
+    // proveedor de respaldo o no pasó el control de calidad de abajo.
+    // No se permite desde "processing"/"completed": eso sí requeriría una
+    // solicitud nueva.
+    if (
+      videoRequest.status !== "pending" &&
+      videoRequest.status !== "failed" &&
+      videoRequest.status !== "script_ready"
+    ) {
       return NextResponse.json(
         { error: `La solicitud ya está en estado "${videoRequest.status}"` },
         { status: 409 },
@@ -100,19 +112,36 @@ export async function POST(
 
     let script: GeneratedScript;
     try {
-      script = await generateScriptForRequest({
+      const result = await generateScriptForRequest({
         topic: videoRequest.topic,
         style: videoRequest.style,
         durationSeconds: videoRequest.duration_seconds,
         language: videoRequest.language,
       });
+
+      const quality = checkScriptQuality(result.script, {
+        topic: videoRequest.topic,
+        targetWords: targetWordsFor(videoRequest.duration_seconds),
+        providerName: result.providerName,
+      });
+      if (!quality.ok) {
+        throw new ScriptQualityError(quality);
+      }
+
+      script = result.script;
     } catch (error) {
       logScriptError("POST /script", error);
       const message = classifyScriptError(error);
 
+      // script_json se limpia explícitamente: si esto fue una regeneración
+      // completa desde "script_ready" que falló, dejar el guion anterior
+      // haría que el botón "Reintentar" del historial (RequestCard) lo
+      // interprete como "el render falló, el guion sigue siendo válido" y
+      // ofrezca reintentar el render en vez del guion — justo el guion que
+      // acabamos de rechazar.
       const { error: updateError } = await service
         .from("video_requests")
-        .update({ status: "failed", error_message: message })
+        .update({ status: "failed", error_message: message, script_json: null })
         .eq("id", id);
       if (updateError) {
         console.warn(`No se pudo marcar como fallida la solicitud ${id}:`, updateError.code);

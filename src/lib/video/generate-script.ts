@@ -29,7 +29,8 @@ export async function generateScriptForRequest({
   style: string;
   durationSeconds: number;
   language?: ScriptLanguage;
-}): Promise<GeneratedScript> {
+}): Promise<{ script: GeneratedScript; providerName: string }> {
   const scriptProvider = getScriptProvider();
-  return scriptProvider.generateScript({ topic, style, durationSeconds, language });
+  const script = await scriptProvider.generateScript({ topic, style, durationSeconds, language });
+  return { script, providerName: scriptProvider.name };
 }

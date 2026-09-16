@@ -36,16 +36,17 @@ test("generate-script.ts nunca importa Remotion ni módulos exclusivos del rende
   );
 });
 
-test("generateScriptForRequest funciona con el proveedor fixture (sin red)", async () => {
+test("generateScriptForRequest funciona con el proveedor fixture (sin red) y reporta el proveedor usado", async () => {
   process.env.SCRIPT_PROVIDER = "fixture";
   try {
-    const script = await generateScriptForRequest({
+    const { script, providerName } = await generateScriptForRequest({
       topic: "el espacio",
       style: "Curiosidades",
       durationSeconds: 30,
       language: "es",
     });
 
+    assert.equal(providerName, "fixture");
     assert.ok(script.title.length > 0);
     assert.ok(script.segments.length > 0);
     for (const segment of script.segments) {

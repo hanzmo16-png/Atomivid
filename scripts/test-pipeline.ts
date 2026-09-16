@@ -84,8 +84,10 @@ async function main() {
 
   console.log("Generando guion de prueba con proveedores fixture...");
   const start = Date.now();
-  const script = await generateScriptForRequest({ topic, style, durationSeconds });
-  console.log(`Guion generado: "${script.title}" con ${script.segments.length} escenas`);
+  const { script, providerName } = await generateScriptForRequest({ topic, style, durationSeconds });
+  console.log(
+    `Guion generado (proveedor: ${providerName}): "${script.title}" con ${script.segments.length} escenas`,
+  );
 
   // Ejerce también el flujo de revisión: regenerar una escena antes de
   // renderizar, igual que haría un usuario desde /dashboard/review/[id].
