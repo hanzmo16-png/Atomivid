@@ -241,3 +241,56 @@ el usuario confirmó sin cambios: la primera con `corporate`,
   agregar un cron en Vercel sería infraestructura nueva para un caso raro.
 - **Auto-publicación a redes sociales**: explícitamente fuera de alcance
   por instrucción del usuario.
+
+## Rediseño de beta pública (rol combinado producto/diseño/frontend)
+
+Auditoría previa a este rediseño: el pipeline (guion/voz/clips/música/
+subtítulos/render/storage/costos/Stripe en modo prueba) ya estaba
+completo y verificado con una generación E2E real — lo que faltaba por
+completo era la capa visual. `src/app/page.tsx` era un placeholder
+literal (título + tagline + 2 botones sobre `bg-gray-50`), sin sistema de
+diseño (`globals.css` traía los tokens por defecto de `create-next-app`,
+sin usar). El resto de páginas (login/register/dashboard) funcionaban
+correctamente pero con el mismo Tailwind gris genérico sin tokens.
+
+**Decisión de alcance**: no se reescribió ninguna lógica de datos, RLS,
+Supabase, Stripe ni el pipeline de render — todo eso ya estaba validado.
+El trabajo fue exclusivamente: (1) un sistema de tokens propio (oscuro,
+un solo acento violeta controlado, sin degradados de pantalla completa)
+consumido vía el mecanismo `@theme inline` que Tailwind v4 ya usaba en
+este proyecto — no se agregó ninguna librería de componentes nueva; (2)
+una landing real (hero, flujo en 6 pasos, beneficios, casos de uso,
+calidad, FAQ, footer — sin métricas/testimonios inventados, sin sección
+de precios porque no hay un precio de Stripe verificable desde este
+entorno); (3) reskin de auth/dashboard/facturación sobre la misma lógica.
+
+**Bugs reales encontrados y corregidos durante la auditoría** (no
+inventados para justificar el rediseño — verificados leyendo el código):
+1. `signIn`/`signUp` pasaban `error.message` crudo de Supabase Auth
+   (inglés, técnico) directo a la UI. Nuevo `src/lib/auth/errors.ts`
+   (`humanizeAuthError`) con 11 pruebas.
+2. El middleware ya guardaba `?redirectedFrom` al bloquear una ruta
+   protegida, pero `login/actions.ts` lo ignoraba y siempre mandaba a
+   `/dashboard`. Corregido con `safeRedirectTarget` (rechaza URLs
+   externas/protocol-relative — evita un open redirect).
+3. `/dashboard/new` seguía diciendo "por ahora guardamos tu solicitud; la
+   generación automática se activará en la siguiente fase" — falso desde
+   hace varias sesiones.
+4. El formulario de `/dashboard/new` no tenía ninguna protección contra
+   doble envío (a diferencia de `GenerateButton`/`ScriptReview`, que sí
+   la tenían) — corregido con `useFormStatus`.
+
+**Pendiente, documentado explícitamente en vez de improvisado**:
+- No hay un video demostrativo público autorizado — la sección de flujo
+  de la landing es un diagrama de pasos, no un video embebido falso.
+- No hay onboarding interactivo dedicado (tutorial paso a paso
+  descartable) — el estado vacío del dashboard explica el primer paso,
+  pero no es el flujo de 5 pasos completo que describe la especificación.
+- No hay una pantalla de resultado dedicada de pantalla completa
+  (reproducir/descargar/crear otro) — hoy ese resultado vive inline en la
+  tarjeta del historial, que ya soporta reproducir y descargar.
+- Auditoría de Stripe: solo de código (webhook con verificación de firma,
+  `checkout.session.completed`/`customer.subscription.*`, upsert
+  idempotente por `user_id` — correcto) — no se consultó la API real de
+  Stripe (no hay `STRIPE_SECRET_KEY` en este entorno), así que no se pudo
+  confirmar el producto/precio real ni el estado del modo prueba en vivo.
