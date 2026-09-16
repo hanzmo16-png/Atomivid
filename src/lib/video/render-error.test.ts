@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MissingEnvVarError, InvalidEnvVarError } from "@/lib/env-errors";
 import { GitHubWorkerDispatchError, GitHubWorkerNetworkError } from "@/lib/worker/github-actions";
-import { classifyRenderError, generateDiagnosticId, logRenderError } from "./render-error";
+import { classifyRenderError, generateDiagnosticId, logRenderError, RenderStageError } from "./render-error";
 
 test("generateDiagnosticId da identificadores cortos y distintos en cada llamada", () => {
   const a = generateDiagnosticId();
@@ -138,4 +138,58 @@ test("classifyRenderError da un mensaje de red/timeout para GitHubWorkerNetworkE
   assert.ok(message.includes(id));
   assert.ok(!message.includes("ECONNREFUSED"));
   assert.ok(!message.includes("10.0.0.1"));
+});
+
+/**
+ * Regresión exacta del incidente en producción (Código: 7bd9fef1): un
+ * fallo de red/conexión de Supabase en cualquiera de las etapas del
+ * endpoint (leer la solicitud, verificar la suscripción, marcarla como
+ * "processing") no era ni Error de GitHub Actions ni MissingEnvVarError
+ * — caía en el mismo GENERIC_RENDER_ERROR que cualquier otra cosa,
+ * indistinguible de un problema del worker. RenderStageError da un
+ * mensaje distinto por etapa sin exponer el error crudo de Supabase.
+ */
+for (const stage of ["fetch_request", "check_subscription", "mark_processing"] as const) {
+  test(`classifyRenderError da un mensaje específico para la etapa "${stage}" sin exponer la causa cruda`, () => {
+    const id = "abc12345";
+    const rawCause = { message: "connect ETIMEDOUT 10.0.0.5:5432", code: "57P03" };
+    const message = classifyRenderError(new RenderStageError(stage, rawCause), id);
+    assert.ok(message.includes(id));
+    assert.ok(!message.includes("ETIMEDOUT"));
+    assert.ok(!message.includes("10.0.0.5"));
+    assert.ok(!message.includes("57P03"));
+  });
+}
+
+test("classifyRenderError da mensajes distintos para cada etapa de RenderStageError", () => {
+  const id = "abc12345";
+  const messages = new Set(
+    (["fetch_request", "check_subscription", "mark_processing"] as const).map((stage) =>
+      classifyRenderError(new RenderStageError(stage, new Error("boom")), id),
+    ),
+  );
+  assert.equal(messages.size, 3);
+});
+
+test("logRenderError registra la etapa y desenvuelve la causa real de RenderStageError", () => {
+  const calls: unknown[][] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => {
+    calls.push(args);
+  };
+  try {
+    logRenderError(
+      "test",
+      new RenderStageError("check_subscription", { message: "duplicate key", code: "23505" }),
+      "abc12345",
+    );
+  } finally {
+    console.error = original;
+  }
+  // Dos líneas: una anunciando la etapa, otra con el detalle de la causa
+  // real (reusa la rama existente para errores planos de Supabase).
+  assert.equal(calls.length, 2);
+  const serialized = JSON.stringify(calls);
+  assert.ok(serialized.includes("check_subscription"));
+  assert.ok(serialized.includes("23505"));
 });

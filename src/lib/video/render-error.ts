@@ -17,7 +17,41 @@ export function generateDiagnosticId(): string {
   return randomUUID().split("-")[0];
 }
 
+/**
+ * Etapa del endpoint /render en la que ocurrió una excepción no
+ * tipada (p. ej. un fallo de red de Supabase, que postgrest-js no
+ * atrapa internamente — se propaga como excepción cruda en vez de
+ * devolverse como `{ data, error }`). El identificador de diagnóstico
+ * (randomUUID) no es determinista ni codifica ningún dato sobre la
+ * excepción — su único propósito es correlacionar el reporte del
+ * usuario con la línea de log del servidor; sin RenderStageError, esa
+ * línea de log existía pero el mensaje que veía el cliente era
+ * indistinguible entre "falló leer la solicitud", "falló verificar la
+ * suscripción" o "falló marcarla como processing" — las tres caían en
+ * el mismo GENERIC_RENDER_ERROR.
+ */
+export type RenderStage = "fetch_request" | "check_subscription" | "mark_processing";
+
+export class RenderStageError extends Error {
+  constructor(
+    public readonly stage: RenderStage,
+    public readonly stageError: unknown,
+  ) {
+    super(`Fallo inesperado en la etapa "${stage}" del render`);
+    this.name = "RenderStageError";
+  }
+}
+
+const STAGE_MESSAGES: Record<RenderStage, string> = {
+  fetch_request: "No se pudo leer la solicitud (problema de conexión con la base de datos).",
+  check_subscription: "No se pudo verificar tu suscripción (problema de conexión con la base de datos).",
+  mark_processing: "No se pudo iniciar el render (problema de conexión con la base de datos).",
+};
+
 export function classifyRenderError(error: unknown, diagnosticId: string): string {
+  if (error instanceof RenderStageError) {
+    return `${STAGE_MESSAGES[error.stage]} Intenta de nuevo en un momento. (Código: ${diagnosticId})`;
+  }
   if (error instanceof MissingEnvVarError) {
     return `Falta configurar ${error.varName} en el servidor. Contacta al soporte. (Código: ${diagnosticId})`;
   }
@@ -86,6 +120,14 @@ export function classifyRenderError(error: unknown, diagnosticId: string): strin
  * son justo lo que hace falta para diagnosticar sin tener que reproducir.
  */
 export function logRenderError(context: string, error: unknown, diagnosticId: string): void {
+  if (error instanceof RenderStageError) {
+    console.error(`[render] ${context} [${diagnosticId}]: fallo en la etapa "${error.stage}"`);
+    // Reusa las ramas de abajo para la causa real envuelta (puede ser un
+    // Error nativo, un objeto plano de Supabase, o cualquier otra cosa) —
+    // mismo diagnosticId, para que ambas líneas de log se correlacionen.
+    logRenderError(context, error.stageError, diagnosticId);
+    return;
+  }
   if (error instanceof MissingEnvVarError) {
     console.error(`[render] ${context} [${diagnosticId}]: variable de entorno ausente`, {
       varName: error.varName,

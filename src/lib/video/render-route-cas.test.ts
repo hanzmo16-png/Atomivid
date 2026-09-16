@@ -51,3 +51,52 @@ test("render/route.ts protege la transición a processing con un UPDATE condicio
     "una carrera perdida (0 filas actualizadas) debe seguir tratándose como rechazo, no como éxito",
   );
 });
+
+/**
+ * Regresión exacta del incidente en producción (Código: 7bd9fef1): las
+ * llamadas a Supabase en render/route.ts pueden lanzar una excepción
+ * cruda (fallo de red/conexión que postgrest-js no atrapa) además de
+ * devolver `{ error }` normalmente. Sin envolver cada etapa, esa
+ * excepción caía directo en el catch-all y se clasificaba igual que
+ * cualquier otro fallo — imposible de distinguir sin logs del servidor.
+ */
+test("render/route.ts etiqueta con RenderStageError las tres etapas que pueden lanzar una excepción cruda de Supabase", () => {
+  const source = fs.readFileSync(ROUTE_PATH, "utf-8");
+
+  for (const stage of ["fetch_request", "check_subscription", "mark_processing"]) {
+    assert.match(
+      source,
+      new RegExp(`RenderStageError\\("${stage}"`),
+      `debe seguir envolviendo la etapa "${stage}" con RenderStageError`,
+    );
+  }
+});
+
+test('render/route.ts nunca pierde el mensaje ya clasificado del worker si la restauración a "failed" también falla', () => {
+  const source = fs.readFileSync(ROUTE_PATH, "utf-8");
+
+  // El bloque catch de worker.trigger() debe envolver su propio intento de
+  // marcar la solicitud como "failed" en un try/catch — y en cualquier
+  // caso (éxito, error devuelto, o excepción) debe seguir devolviendo el
+  // `message` ya calculado por classifyRenderError, nunca uno nuevo.
+  const workerCatchIndex = source.indexOf("logRenderError(`POST /render (worker:");
+  assert.ok(workerCatchIndex !== -1, "debe seguir existiendo el catch de worker.trigger()");
+
+  const restCatchIndex = source.indexOf(
+    "POST /render (restaurar estado a failed, excepción)",
+    workerCatchIndex,
+  );
+  assert.ok(
+    restCatchIndex !== -1,
+    "el intento de restaurar el estado a failed debe estar envuelto en su propio try/catch",
+  );
+
+  const returnIndex = source.indexOf(
+    "NextResponse.json({ error: message }, { status: 500 })",
+    restCatchIndex,
+  );
+  assert.ok(
+    returnIndex !== -1,
+    "debe seguir devolviendo el mensaje ya clasificado del worker, no uno nuevo, incluso si la restauración falla",
+  );
+});

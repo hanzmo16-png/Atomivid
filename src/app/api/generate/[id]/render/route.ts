@@ -4,7 +4,12 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { getRenderWorker } from "@/lib/worker";
 import { assertCanGenerate } from "@/lib/billing/quota";
 import { evaluateRenderStart } from "@/lib/video/render-guard";
-import { classifyRenderError, generateDiagnosticId, logRenderError } from "@/lib/video/render-error";
+import {
+  classifyRenderError,
+  generateDiagnosticId,
+  logRenderError,
+  RenderStageError,
+} from "@/lib/video/render-error";
 import type { GeneratedScript } from "@/lib/providers/types";
 
 // El worker por defecto (GitHub Actions) solo dispara un webhook y
@@ -48,14 +53,26 @@ export async function POST(
   try {
     const service = createServiceClient();
 
-    const { data: videoRequest, error: fetchError } = await service
-      .from("video_requests")
-      .select("id, user_id, status, script_json, render_attempts, render_started_at")
-      .eq("id", id)
-      .single<VideoRequestRow>();
+    // postgrest-js no atrapa un fallo de red/conexión propio — lo propaga
+    // como excepción cruda en vez de devolverla en `error` (a diferencia de
+    // un error HTTP normal de Postgrest, que sí llega como `{ error }`).
+    // Sin este try/catch, esa excepción caía en el catch-all de abajo y se
+    // clasificaba como el mismo mensaje genérico que cualquier otro fallo
+    // — indistinguible de un problema del worker de GitHub Actions.
+    let videoRequest: VideoRequestRow;
+    try {
+      const { data, error: fetchError } = await service
+        .from("video_requests")
+        .select("id, user_id, status, script_json, render_attempts, render_started_at")
+        .eq("id", id)
+        .single<VideoRequestRow>();
 
-    if (fetchError || !videoRequest) {
-      return NextResponse.json({ error: "Solicitud no encontrada" }, { status: 404 });
+      if (fetchError || !data) {
+        return NextResponse.json({ error: "Solicitud no encontrada" }, { status: 404 });
+      }
+      videoRequest = data;
+    } catch (error) {
+      throw new RenderStageError("fetch_request", error);
     }
     if (videoRequest.user_id !== user.id) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
@@ -77,7 +94,12 @@ export async function POST(
       return NextResponse.json({ error: decision.error }, { status: decision.status });
     }
 
-    const check = await assertCanGenerate(service, user.id);
+    let check: Awaited<ReturnType<typeof assertCanGenerate>>;
+    try {
+      check = await assertCanGenerate(service, user.id);
+    } catch (error) {
+      throw new RenderStageError("check_subscription", error);
+    }
     if (!check.allowed) {
       return NextResponse.json({ error: check.reason }, { status: 402 });
     }
@@ -88,19 +110,30 @@ export async function POST(
     // el estado sigue siendo el que acabamos de leer. Si otra request
     // ganó la carrera (doble clic, dos pestañas), `updated` viene vacío y
     // avisamos en vez de disparar un segundo render para el mismo video.
-    const { data: updated, error: updateError } = await service
-      .from("video_requests")
-      .update({
-        status: "processing",
-        error_message: null,
-        progress_stage: "queued",
-        render_started_at: new Date().toISOString(),
-        render_attempts: videoRequest.render_attempts + 1,
-        render_worker: worker.name,
-      })
-      .eq("id", id)
-      .eq("status", videoRequest.status)
-      .select("id");
+    // El propio await también puede lanzar (ver comentario en
+    // fetch_request más arriba) — igual se etiqueta como "mark_processing"
+    // para distinguirlo de un error devuelto normalmente en `updateError`.
+    let updated: { id: string }[] | null;
+    let updateError: { message: string; code?: string } | null;
+    try {
+      const result = await service
+        .from("video_requests")
+        .update({
+          status: "processing",
+          error_message: null,
+          progress_stage: "queued",
+          render_started_at: new Date().toISOString(),
+          render_attempts: videoRequest.render_attempts + 1,
+          render_worker: worker.name,
+        })
+        .eq("id", id)
+        .eq("status", videoRequest.status)
+        .select("id");
+      updated = result.data;
+      updateError = result.error;
+    } catch (error) {
+      throw new RenderStageError("mark_processing", error);
+    }
 
     if (updateError) {
       const diagnosticId = generateDiagnosticId();
@@ -124,12 +157,25 @@ export async function POST(
       logRenderError(`POST /render (worker: ${worker.name})`, error, diagnosticId);
       const message = classifyRenderError(error, diagnosticId);
 
-      const { error: failUpdateError } = await service
-        .from("video_requests")
-        .update({ status: "failed", error_message: message, progress_stage: null })
-        .eq("id", id);
-      if (failUpdateError) {
-        console.warn(`No se pudo marcar como fallida la solicitud ${id}:`, failUpdateError.code);
+      // El mensaje ya clasificado del fallo del worker es lo único que
+      // debe llegar al cliente — si esta actualización de estado (o la
+      // propia llamada) falla también, se registra como un problema
+      // aparte con el mismo diagnosticId, pero nunca debe reemplazar ni
+      // perder el mensaje original ya calculado.
+      try {
+        const { error: failUpdateError } = await service
+          .from("video_requests")
+          .update({ status: "failed", error_message: message, progress_stage: null })
+          .eq("id", id);
+        if (failUpdateError) {
+          logRenderError("POST /render (restaurar estado a failed)", failUpdateError, diagnosticId);
+        }
+      } catch (restoreError) {
+        logRenderError(
+          "POST /render (restaurar estado a failed, excepción)",
+          restoreError,
+          diagnosticId,
+        );
       }
 
       return NextResponse.json({ error: message }, { status: 500 });

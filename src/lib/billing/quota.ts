@@ -16,11 +16,17 @@ export async function assertCanGenerate(
   service: ServiceClient,
   userId: string,
 ): Promise<GenerationCheck> {
-  const { data } = await service
+  const { data, error: subError } = await service
     .from("subscriptions")
     .select("status")
     .eq("user_id", userId)
     .maybeSingle();
+  // Un error real de Supabase aquí (no "sin fila") no debe tratarse como
+  // "sin suscripción" — eso le mostraría al usuario un mensaje de compra
+  // engañoso cuando el problema real es de conexión con la base de datos.
+  // Se relanza para que el llamador (route.ts) lo clasifique como fallo de
+  // la etapa "check_subscription", no como una decisión de negocio válida.
+  if (subError) throw subError;
 
   const status = (data as { status: string } | null)?.status ?? "none";
 
@@ -35,12 +41,13 @@ export async function assertCanGenerate(
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
 
-  const { count } = await service
+  const { count, error: countError } = await service
     .from("video_requests")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .in("status", ["processing", "completed"])
     .gte("created_at", startOfMonth.toISOString());
+  if (countError) throw countError;
 
   if ((count ?? 0) >= MONTHLY_VIDEO_LIMIT) {
     return {
