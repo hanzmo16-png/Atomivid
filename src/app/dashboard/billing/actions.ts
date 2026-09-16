@@ -5,8 +5,17 @@ import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getStripe } from "@/lib/stripe/client";
+import { buildCheckoutUrl } from "@/lib/billing/checkout";
+import { SupabaseQueryError, classifyBillingError, logBillingError } from "@/lib/billing/checkout-error";
+import { MissingEnvVarError } from "@/lib/env-errors";
 
-const PRICE_ID = process.env.STRIPE_PRICE_ID;
+/**
+ * No es un error real — es una señal interna para salir del try/catch de
+ * createPortalSession sin arriesgar que redirect() (que funciona lanzando
+ * una excepción especial de Next.js) se ejecute DENTRO del try y termine
+ * capturada por nuestro propio catch de abajo.
+ */
+class NoSubscriptionError extends Error {}
 
 async function getSiteUrl(): Promise<string> {
   const envUrl = process.env.NEXT_PUBLIC_SITE_URL;
@@ -15,11 +24,31 @@ async function getSiteUrl(): Promise<string> {
   return origin ?? "http://localhost:3000";
 }
 
-export async function createCheckoutSession() {
-  if (!PRICE_ID) {
-    redirect("/dashboard/billing?error=Falta+configurar+STRIPE_PRICE_ID");
+/**
+ * El cliente de Supabase no lanza excepciones por errores de consulta —
+ * devuelve { data, error } — así que sin esta comprobación explícita un
+ * fallo aquí (p. ej. SUPABASE_SERVICE_ROLE_KEY inválida) se ignoraba en
+ * silencio y el flujo seguía como si el usuario no tuviera cliente de
+ * Stripe todavía, en vez de reportar el error real.
+ */
+async function getExistingCustomerId(
+  service: ReturnType<typeof createServiceClient>,
+  userId: string,
+): Promise<string | null> {
+  const { data, error } = await service
+    .from("subscriptions")
+    .select("stripe_customer_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new SupabaseQueryError(error.code);
   }
 
+  return (data as { stripe_customer_id: string | null } | null)?.stripe_customer_id ?? null;
+}
+
+export async function createCheckoutSession() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -29,36 +58,32 @@ export async function createCheckoutSession() {
     redirect("/login");
   }
 
-  const siteUrl = await getSiteUrl();
-  const service = createServiceClient();
+  let checkoutUrl: string;
+  try {
+    // STRIPE_PRICE_ID se lee aquí dentro, no a nivel de módulo: si se lee
+    // arriba (como antes), el valor queda capturado en el cierre del
+    // módulo la primera vez que se carga — el mismo riesgo que ya se evitó
+    // deliberadamente para STRIPE_SECRET_KEY en getStripe().
+    const priceId = process.env.STRIPE_PRICE_ID?.trim();
+    if (!priceId) {
+      throw new MissingEnvVarError("STRIPE_PRICE_ID");
+    }
 
-  const { data: existing } = await service
-    .from("subscriptions")
-    .select("stripe_customer_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
+    const siteUrl = await getSiteUrl();
+    const service = createServiceClient();
 
-  const existingCustomerId = (existing as { stripe_customer_id: string | null } | null)
-    ?.stripe_customer_id;
-
-  const session = await getStripe().checkout.sessions.create({
-    mode: "subscription",
-    line_items: [{ price: PRICE_ID, quantity: 1 }],
-    client_reference_id: user.id,
-    customer: existingCustomerId ?? undefined,
-    customer_email: existingCustomerId ? undefined : (user.email ?? undefined),
-    subscription_data: {
-      metadata: { supabase_user_id: user.id },
-    },
-    success_url: `${siteUrl}/dashboard/billing?checkout=success`,
-    cancel_url: `${siteUrl}/dashboard/billing?checkout=canceled`,
-  });
-
-  if (!session.url) {
-    throw new Error("Stripe no devolvió una URL de checkout");
+    checkoutUrl = await buildCheckoutUrl(user, {
+      createCheckoutSession: (params) => getStripe().checkout.sessions.create(params),
+      getExistingCustomerId: (userId) => getExistingCustomerId(service, userId),
+      priceId,
+      siteUrl,
+    });
+  } catch (err) {
+    logBillingError("createCheckoutSession", err);
+    redirect(`/dashboard/billing?error=${encodeURIComponent(classifyBillingError(err))}`);
   }
 
-  redirect(session.url);
+  redirect(checkoutUrl);
 }
 
 export async function createPortalSession() {
@@ -71,26 +96,28 @@ export async function createPortalSession() {
     redirect("/login");
   }
 
-  const siteUrl = await getSiteUrl();
-  const service = createServiceClient();
+  let portalUrl: string;
+  try {
+    const siteUrl = await getSiteUrl();
+    const service = createServiceClient();
+    const customerId = await getExistingCustomerId(service, user.id);
 
-  const { data: subscription } = await service
-    .from("subscriptions")
-    .select("stripe_customer_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
+    if (!customerId) {
+      throw new NoSubscriptionError();
+    }
 
-  const customerId = (subscription as { stripe_customer_id: string | null } | null)
-    ?.stripe_customer_id;
-
-  if (!customerId) {
-    redirect("/dashboard/billing?error=Todavía+no+tienes+una+suscripción");
+    const portalSession = await getStripe().billingPortal.sessions.create({
+      customer: customerId,
+      return_url: `${siteUrl}/dashboard/billing`,
+    });
+    portalUrl = portalSession.url;
+  } catch (err) {
+    if (err instanceof NoSubscriptionError) {
+      redirect("/dashboard/billing?error=Todavía+no+tienes+una+suscripción");
+    }
+    logBillingError("createPortalSession", err);
+    redirect(`/dashboard/billing?error=${encodeURIComponent(classifyBillingError(err))}`);
   }
 
-  const portalSession = await getStripe().billingPortal.sessions.create({
-    customer: customerId,
-    return_url: `${siteUrl}/dashboard/billing`,
-  });
-
-  redirect(portalSession.url);
+  redirect(portalUrl);
 }
