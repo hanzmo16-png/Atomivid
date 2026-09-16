@@ -4,7 +4,19 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { generateScriptForRequest } from "@/lib/video/generate";
 import { assertCanGenerate } from "@/lib/billing/quota";
 import { recordScriptCall } from "@/lib/billing/usage";
+import { classifyScriptError, logScriptError } from "@/lib/video/script-error";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
+
+// Sin esto, la función queda al límite por defecto de la plataforma (tan
+// bajo como 10s en algunos planes de Vercel) — una llamada real a Claude
+// para generar un guion completo, más los reintentos ante fallos
+// transitorios (ver withRetry en providers/script/real.ts), puede
+// superarlo. Cuando eso pasa, Vercel corta la función a medias: el cliente
+// recibe un cuerpo vacío/truncado ("Unexpected end of JSON input" al
+// intentar parsearlo) y la solicitud se queda sin marcar como fallida,
+// visible en el historial como "Pendiente" para siempre. 60s da margen
+// generoso para una llamada + reintentos sin ser excesivo.
+export const maxDuration = 60;
 
 type VideoRequestRow = {
   id: string;
@@ -66,33 +78,56 @@ export async function POST(
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 
-  const { service, videoRequest, response } = await loadOwnedRequest(id, user.id);
-  if (!videoRequest) return response!;
-
-  if (videoRequest.status !== "pending" && videoRequest.status !== "failed") {
-    return NextResponse.json(
-      { error: `La solicitud ya está en estado "${videoRequest.status}"` },
-      { status: 409 },
-    );
-  }
-
-  const check = await assertCanGenerate(service, user.id);
-  if (!check.allowed) {
-    return NextResponse.json({ error: check.reason }, { status: 402 });
-  }
-
+  // Red de seguridad: todo lo que sigue queda envuelto en un try/catch
+  // único — cualquier fallo inesperado (no solo el del proveedor de
+  // guion) debe devolver JSON válido, nunca un cuerpo vacío o una
+  // excepción sin manejar que el cliente no pueda parsear.
   try {
-    const script = await generateScriptForRequest({
-      topic: videoRequest.topic,
-      style: videoRequest.style,
-      durationSeconds: videoRequest.duration_seconds,
-      language: videoRequest.language,
-    });
+    const { service, videoRequest, response } = await loadOwnedRequest(id, user.id);
+    if (!videoRequest) return response!;
 
-    await service
+    if (videoRequest.status !== "pending" && videoRequest.status !== "failed") {
+      return NextResponse.json(
+        { error: `La solicitud ya está en estado "${videoRequest.status}"` },
+        { status: 409 },
+      );
+    }
+
+    const check = await assertCanGenerate(service, user.id);
+    if (!check.allowed) {
+      return NextResponse.json({ error: check.reason }, { status: 402 });
+    }
+
+    let script: GeneratedScript;
+    try {
+      script = await generateScriptForRequest({
+        topic: videoRequest.topic,
+        style: videoRequest.style,
+        durationSeconds: videoRequest.duration_seconds,
+        language: videoRequest.language,
+      });
+    } catch (error) {
+      logScriptError("POST /script", error);
+      const message = classifyScriptError(error);
+
+      const { error: updateError } = await service
+        .from("video_requests")
+        .update({ status: "failed", error_message: message })
+        .eq("id", id);
+      if (updateError) {
+        console.warn(`No se pudo marcar como fallida la solicitud ${id}:`, updateError.code);
+      }
+
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+
+    const { error: updateError } = await service
       .from("video_requests")
       .update({ status: "script_ready", script_json: script, error_message: null })
       .eq("id", id);
+    if (updateError) {
+      console.warn(`No se pudo actualizar la solicitud ${id} a script_ready:`, updateError.code);
+    }
 
     const inputChars = videoRequest.topic.length + videoRequest.style.length;
     const outputChars = JSON.stringify(script).length;
@@ -102,14 +137,8 @@ export async function POST(
 
     return NextResponse.json({ status: "script_ready", script });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Error desconocido";
-
-    await service
-      .from("video_requests")
-      .update({ status: "failed", error_message: message })
-      .eq("id", id);
-
-    return NextResponse.json({ error: message }, { status: 500 });
+    logScriptError("POST /script (inesperado)", error);
+    return NextResponse.json({ error: classifyScriptError(error) }, { status: 500 });
   }
 }
 
