@@ -43,7 +43,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-canvas text-ink">{children}</body>
+      <body className="flex min-h-full flex-col bg-canvas text-ink">
+        {/* min-w-0: sin esto, un flex item por defecto no encoge por debajo
+            del ancho mínimo de su contenido, lo que puede desbordar la
+            página en móvil si algún descendiente tiene contenido ancho. */}
+        <div className="min-w-0">{children}</div>
+      </body>
     </html>
   );
 }
