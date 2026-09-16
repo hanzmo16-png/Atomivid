@@ -21,9 +21,8 @@ process.env.REMOTION_BROWSER_EXECUTABLE =
 process.env.REMOTION_CHROME_MODE = process.env.REMOTION_CHROME_MODE || "headless-shell";
 
 async function main() {
-  const { generateScriptForRequest, generateVideoFromScript } = await import(
-    "../src/lib/video/generate"
-  );
+  const { generateScriptForRequest } = await import("../src/lib/video/generate-script");
+  const { generateVideoFromScript } = await import("../src/lib/video/generate-video");
   const { getScriptProvider } = await import("../src/lib/providers/script");
   const storageDir = await fs.mkdtemp(path.join(os.tmpdir(), "atomivid-storage-"));
 
@@ -69,7 +68,7 @@ async function main() {
           },
           async createSignedUrl(objectPath: string) {
             // El bucket real es privado y usa URLs firmadas (ver
-            // src/lib/video/generate.ts); aquí, sin Supabase real, basta
+            // src/lib/video/generate-video.ts); aquí, sin Supabase real, basta
             // con simular la firma devolviendo la misma URL local.
             return { data: { signedUrl: `${baseUrl}/${objectPath}` }, error: null };
           },

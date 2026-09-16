@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { generateScriptForRequest } from "@/lib/video/generate";
+import { generateScriptForRequest } from "@/lib/video/generate-script";
 import { assertCanGenerate } from "@/lib/billing/quota";
 import { recordScriptCall } from "@/lib/billing/usage";
 import { classifyScriptError, logScriptError } from "@/lib/video/script-error";

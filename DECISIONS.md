@@ -93,7 +93,7 @@ caras, no para reconciliar con la factura exacta.
 El registro de costo nunca puede tumbar un video que sí se generó bien: si
 falla (tabla no migrada, red, etc.), se captura y se registra como warning
 en logs — ver el `.catch()` alrededor de `recordVideoGeneration`/
-`recordScriptCall` en `src/lib/video/generate.ts` y las rutas de guion.
+`recordScriptCall` en `src/lib/video/generate-video.ts` y las rutas de guion.
 
 ## Idioma como elección explícita del usuario, no inferido del tema
 
@@ -169,7 +169,7 @@ primero sin aplicar (instrucción explícita de no tocar Supabase sin
 autorización) mientras la misma metadata se emitía solo en logs
 estructurados; el usuario la aplicó y verificó manualmente, y
 `recordVideoGeneration` (`src/lib/billing/usage.ts`) ya escribe esas
-columnas en cada render (ver `src/lib/video/generate.ts`).
+columnas en cada render (ver `src/lib/video/generate-video.ts`).
 
 ## Biblioteca de música: bucket privado + URL firmada bajo demanda, nunca una URL guardada
 
@@ -294,3 +294,29 @@ inventados para justificar el rediseño — verificados leyendo el código):
   idempotente por `user_id` — correcto) — no se consultó la API real de
   Stripe (no hay `STRIPE_SECRET_KEY` en este entorno), así que no se pudo
   confirmar el producto/precio real ni el estado del modo prueba en vivo.
+
+## Guion y render separados en dos archivos, no uno solo
+
+`src/lib/video/generate.ts` exportaba `generateScriptForRequest` (etapa 1,
+solo guion) y `generateVideoFromScript` (etapa 2, voz/footage/música/
+render con Remotion) desde el mismo módulo. En producción, `POST
+/api/generate/[id]/script` empezó a fallar con `500` al cargar la función
+— `"Failed to load external module @remotion/bundler"` en los logs de
+Vercel, antes de ejecutar el handler. Causa: `@remotion/bundler`/
+`@remotion/renderer` están en `serverExternalPackages`
+(`next.config.ts`) porque usan requires dinámicos por plataforma que el
+bundler no puede resolver estáticamente — Vercel necesita rastrear e
+incluir sus archivos en el bundle de cada función que los importa,
+directa o transitivamente. Como JS carga el módulo completo al importar
+cualquiera de sus exports, la ruta de guion arrastraba esos imports de
+Remotion (usados únicamente dentro de `generateVideoFromScript`) aunque
+nunca los ejecutara — y el tracing de la función de guion, que
+legítimamente nunca corre ese código, no incluía lo que esos requires
+dinámicos necesitan en tiempo de ejecución.
+
+Se separó en `generate-script.ts` (sin Remotion, sin `node:fs`/`path`/
+`os` — solo lo que `/api/generate/[id]/script` necesita) y
+`generate-video.ts` (todo lo demás, importado solo por el worker inline
+de render y por `scripts/test-pipeline.ts`). Ningún cambio de
+comportamiento — mismo código, reorganizado para que cada ruta cargue
+únicamente lo que usa.

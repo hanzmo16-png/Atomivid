@@ -5,7 +5,6 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getScriptProvider } from "@/lib/providers/script";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { getFootageProvider } from "@/lib/providers/footage";
 import { getMusicProvider } from "@/lib/providers/music";
@@ -14,6 +13,12 @@ import type { RenderStage } from "@/lib/video/stages";
 import type { Caption, Scene } from "../../../remotion/VerticalReel";
 import { computeNarrationGaps, type NarrationGap } from "../../../remotion/audio-mix";
 import { recordVideoGeneration } from "@/lib/billing/usage";
+
+// Deliberadamente separado de generate-script.ts — ver el comentario ahí
+// para la razón exacta (Remotion no debe cargarse en la ruta de guion).
+// Este módulo (voz/footage/música/render) solo lo importan el worker
+// inline (fallback de desarrollo, ver src/lib/video/run-job.ts) y el
+// script de prueba end-to-end con fixtures.
 
 const STORAGE_BUCKET = "videos";
 const MAX_CAPTION_WORDS = 7;
@@ -25,26 +30,6 @@ const COMPOSITION_ID = "VerticalReel";
 const ASSET_SIGNED_URL_TTL_SECONDS = 60 * 60;
 
 type OnProgress = (stage: RenderStage) => void | Promise<void>;
-
-/**
- * Etapa 1 del pipeline: solo el guion. Se guarda para que el usuario lo
- * revise/edite (y pueda regenerar una escena puntual) antes de gastar en
- * voz, footage, música y render.
- */
-export async function generateScriptForRequest({
-  topic,
-  style,
-  durationSeconds,
-  language = "es",
-}: {
-  topic: string;
-  style: string;
-  durationSeconds: number;
-  language?: ScriptLanguage;
-}): Promise<GeneratedScript> {
-  const scriptProvider = getScriptProvider();
-  return scriptProvider.generateScript({ topic, style, durationSeconds, language });
-}
 
 /**
  * Etapa 2 del pipeline: a partir de un guion ya aprobado (generado o

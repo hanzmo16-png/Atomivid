@@ -441,7 +441,7 @@ sin música o vino del modo "arranque rápido" sin manifest) y
 sí la hubo) — columnas de `supabase/migrations/0009_music_traceability.sql`,
 escritas por `recordVideoGeneration` (`src/lib/billing/usage.ts`). La misma
 metadata también se emite en logs estructurados
-(`[atomivid:music] pista seleccionada ...`, `src/lib/video/generate.ts`).
+(`[atomivid:music] pista seleccionada ...`, `src/lib/video/generate-video.ts`).
 
 **Verificado**: con un mock de Supabase (sin red), acumulación correcta de
 llamadas/regeneraciones/caracteres y cálculo de `estimated_cost_usd`

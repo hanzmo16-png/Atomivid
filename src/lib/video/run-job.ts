@@ -1,5 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/service";
-import { generateVideoFromScript } from "./generate";
+import { generateVideoFromScript } from "./generate-video";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import type { RenderStage } from "./stages";
 
