@@ -1,0 +1,32 @@
+name: Diagnóstico A/B ElevenLabs (plan, modelos, 2 voces — solo lectura)
+
+# Workflow de un solo uso, exclusivamente de LECTURA (solo GET): consulta
+# plan/cuota de la cuenta, modelos disponibles y la metadata de dos voces
+# específicas de la biblioteca compartida (Víctor, Mateo) para decidir si
+# es viable una prueba A/B, sin gastar créditos todavía — ver
+# scripts/elevenlabs-ab-diagnostics.ts. No agrega voces, no sintetiza audio,
+# no toca configuración de producción.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  ab-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Diagnóstico A/B (solo GET)
+        run: npx tsx scripts/elevenlabs-ab-diagnostics.ts
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
