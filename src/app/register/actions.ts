@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { humanizeAuthError } from "@/lib/auth/errors";
 
 export async function signUp(formData: FormData) {
   const email = String(formData.get("email") ?? "");
@@ -20,7 +21,7 @@ export async function signUp(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/register?error=${encodeURIComponent(error.message)}`);
+    redirect(`/register?error=${encodeURIComponent(humanizeAuthError(error.message))}`);
   }
 
   redirect("/login?message=Revisa+tu+correo+para+confirmar+tu+cuenta");
