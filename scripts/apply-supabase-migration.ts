@@ -22,6 +22,14 @@
  *  - Nunca ejecuta una migración cuyo nombre de archivo ya esté registrado
  *    en la tabla de control `public._migrations_applied` (se crea sola si
  *    no existe) — evita reaplicar por accidente (idempotencia).
+ *  - Antes de aplicar nada, RECONCILIA la tabla de control contra el
+ *    esquema real (información_schema/pg_catalog) — si una migración ya
+ *    está completamente presente (p. ej. aplicada históricamente a mano),
+ *    se registra sin volver a ejecutar su SQL. Confirmado en ejecución
+ *    real que esto es necesario: CREATE POLICY no es idempotente y falla
+ *    con "already exists" si se reintenta sobre un esquema que ya la
+ *    tiene. Si una migración queda "parcialmente" aplicada, se detiene y
+ *    pide revisión humana en vez de adivinar.
  *  - Cada migración corre en su propia transacción — si algo falla a
  *    mitad, se revierte entera; nunca deja el esquema a medias. Se detiene
  *    inmediatamente en el primer fallo, sin intentar las siguientes.
@@ -33,6 +41,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { resolveConnection, connectResolved, MISSING_CREDENTIAL_MESSAGE } from "./lib/supabase-db";
+import { computeSchemaSnapshot, type MigrationSummaryEntry } from "./lib/migration-schema-map";
 
 export {};
 
@@ -87,6 +96,7 @@ async function main() {
 
   const applied: string[] = [];
   const skipped: string[] = [];
+  const reconciled: string[] = [];
 
   try {
     await client.query(`
@@ -95,6 +105,46 @@ async function main() {
         applied_at timestamptz not null default now()
       );
     `);
+
+    // Reconciliación contra el esquema REAL antes de aplicar nada — la
+    // primera vez que este mecanismo corre contra un proyecto con
+    // historial previo (migraciones aplicadas a mano en el SQL Editor,
+    // como documentan 0001-0008), la tabla de control empieza vacía. Sin
+    // esto, el script intentaría re-ejecutar migraciones ya aplicadas
+    // (confirmado en ejecución real: CREATE POLICY no es idempotente y
+    // falla con "already exists" si se reintenta) en vez de reconocer que
+    // ya están presentes. Nunca vuelve a correr el SQL de una migración
+    // cuyo esquema ya coincide por completo — solo registra la fila de
+    // control. Si una migración queda "partial" (algunos objetos sí,
+    // otros no — nunca visto en este proyecto, pero posible en teoría),
+    // se detiene y pide revisión humana en vez de adivinar qué falta.
+    const snapshot = await computeSchemaSnapshot(client, "n/a", null);
+    const summaryByMigration = new Map<string, MigrationSummaryEntry>(snapshot.migrationSummary.map((s) => [s.migration, s]));
+
+    for (const migrationName of files) {
+      const migrationNumber = migrationName.slice(0, 4);
+      const summary = summaryByMigration.get(migrationNumber);
+      if (summary?.status === "partial") {
+        console.error(
+          `[apply-supabase-migration] DETENIDO: "${migrationName}" (${migrationNumber}) está PARCIALMENTE aplicada en el esquema real ` +
+            `(${summary.present}/${summary.total} objetos presentes) — estado ambiguo, requiere revisión humana antes de continuar. ` +
+            "No se intenta aplicar ni reconciliar automáticamente.",
+        );
+        process.exitCode = 5;
+        return;
+      }
+      if (summary?.status === "applied") {
+        const already = await client.query("select 1 from public._migrations_applied where name = $1", [migrationName]);
+        if ((already.rowCount ?? 0) === 0) {
+          await client.query("insert into public._migrations_applied (name) values ($1) on conflict (name) do nothing", [migrationName]);
+          console.log(
+            `[apply-supabase-migration] "${migrationName}" ya está completamente presente en el esquema real (${summary.present}/${summary.total} objetos) — ` +
+              "registrada en la tabla de control SIN volver a ejecutar su SQL (reconciliación, no reaplicación).",
+          );
+          reconciled.push(migrationName);
+        }
+      }
+    }
 
     for (const migrationName of files) {
       const already = await client.query("select 1 from public._migrations_applied where name = $1", [migrationName]);
@@ -134,7 +184,7 @@ async function main() {
   }
 
   console.log(
-    `\n[apply-supabase-migration] Resumen: ${applied.length} aplicada(s) [${applied.join(", ") || "-"}], ${skipped.length} ya presente(s) [${skipped.join(", ") || "-"}].`,
+    `\n[apply-supabase-migration] Resumen: ${applied.length} aplicada(s) [${applied.join(", ") || "-"}], ${reconciled.length} reconciliada(s) sin reejecutar SQL [${reconciled.join(", ") || "-"}], ${skipped.length} ya registrada(s) [${skipped.join(", ") || "-"}].`,
   );
 }
 
