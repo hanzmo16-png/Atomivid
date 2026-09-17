@@ -1,80 +1,84 @@
 /**
- * Aplica una migración de supabase/migrations/*.sql al proyecto real de
+ * Aplica TODAS las migraciones de supabase/migrations/*.sql que todavía no
+ * estén registradas como aplicadas, en orden numérico, al proyecto real de
  * Supabase — mecanismo AUTÓNOMO (sin copiar/pegar SQL a mano en el SQL
  * Editor) pensado para ejecutarse dentro de un workflow de GitHub Actions
  * con las credenciales ya configuradas como Secrets.
  *
  * NO usa la service role key para esto (PostgREST, que es lo único que la
- * service role key habilita, NO expone DDL — "ALTER TABLE" no es una
- * operación REST) — usa una conexión directa a Postgres vía `pg`, con la
- * cadena de conexión que exige explícitamente SUPABASE_DB_URL (o, en su
- * defecto, SUPABASE_ACCESS_TOKEN + SUPABASE_PROJECT_REF + SUPABASE_DB_PASSWORD
- * para construirla). Si NINGUNA de esas credenciales está configurada,
- * este script falla de forma clara y explícita — nunca intenta un atajo
- * inseguro ni asume una credencial que no está.
+ * service role key habilita, NO expone DDL) — usa una conexión directa a
+ * Postgres vía `pg` (ver scripts/lib/supabase-db.ts para cómo se resuelve
+ * la cadena de conexión). Si no hay ninguna credencial válida, este script
+ * falla de forma clara y explícita — nunca intenta un atajo inseguro ni
+ * asume una credencial que no está.
  *
- * Nunca ejecuta una migración cuyo nombre de archivo ya esté registrado
- * en la tabla de control `public._migrations_applied` (se crea sola si no
- * existe) — evita reaplicar por accidente. Corre TODO el archivo dentro
- * de una única transacción — si algo falla a mitad, se revierte entero,
- * nunca deja el esquema a medias.
+ * Salvaguardas:
+ *  - Antes de aplicar CUALQUIER migración pendiente, escanea su SQL en
+ *    busca de patrones destructivos (DROP TABLE/COLUMN, TRUNCATE, DELETE
+ *    FROM, UPDATE público masivo, ALTER COLUMN ... TYPE, RENAME). Si
+ *    encuentra alguno fuera de un comentario `--`, se detiene sin aplicar
+ *    NADA de esa migración en adelante — nunca ejecuta SQL potencialmente
+ *    destructivo de forma automática.
+ *  - Nunca ejecuta una migración cuyo nombre de archivo ya esté registrado
+ *    en la tabla de control `public._migrations_applied` (se crea sola si
+ *    no existe) — evita reaplicar por accidente (idempotencia).
+ *  - Cada migración corre en su propia transacción — si algo falla a
+ *    mitad, se revierte entera; nunca deja el esquema a medias. Se detiene
+ *    inmediatamente en el primer fallo, sin intentar las siguientes.
  *
- * Uso: npx tsx scripts/apply-supabase-migration.ts <archivo.sql>
+ * Uso: npx tsx scripts/apply-supabase-migration.ts
+ *      (opcional: pasa un nombre de archivo puntual como argv[2] para
+ *      aplicar solo esa migración, si ya está pendiente)
  */
 import fs from "node:fs/promises";
 import path from "node:path";
+import { resolveConnection, MISSING_CREDENTIAL_MESSAGE } from "./lib/supabase-db";
 
 export {};
 
-function buildConnectionString(): string | null {
-  if (process.env.SUPABASE_DB_URL) return process.env.SUPABASE_DB_URL;
+// Mismo patrón usado para el escaneo de seguridad manual de todo el
+// historial de migraciones — cualquier coincidencia fuera de una línea
+// comentada con `--` bloquea la aplicación automática de esa migración.
+const DESTRUCTIVE_PATTERN = /\b(drop\s+table|drop\s+column|truncate|delete\s+from|update\s+public\.|alter\s+column\s+\w+\s+type|rename\s+(table|column))\b/i;
 
-  const ref = process.env.SUPABASE_PROJECT_REF;
-  const password = process.env.SUPABASE_DB_PASSWORD;
-  if (ref && password) {
-    // Conexión DIRECTA (no el connection pooler, cuyo host depende de la
-    // región del proyecto y no se puede derivar solo del ref — adivinarla
-    // sería tan arriesgado como no tener la credencial). El host directo
-    // `db.<ref>.supabase.co` SÍ es un formato fijo y documentado por
-    // Supabase para cualquier proyecto, sin necesidad de conocer su región.
-    return `postgresql://postgres:${encodeURIComponent(password)}@db.${ref}.supabase.co:5432/postgres`;
-  }
-  return null;
+function findDestructiveLines(sql: string): string[] {
+  return sql
+    .split("\n")
+    .map((line, i) => ({ line, i: i + 1 }))
+    .filter(({ line }) => {
+      const withoutComment = line.split("--")[0];
+      return DESTRUCTIVE_PATTERN.test(withoutComment);
+    })
+    .map(({ line, i }) => `  línea ${i}: ${line.trim()}`);
 }
 
 async function main() {
-  const fileArg = process.argv[2];
-  if (!fileArg) {
-    throw new Error("Uso: npx tsx scripts/apply-supabase-migration.ts <archivo.sql> (relativo a supabase/migrations/)");
-  }
-
-  const connectionString = buildConnectionString();
-  if (!connectionString) {
-    console.error(
-      "[apply-supabase-migration] BLOQUEADO: falta una credencial de conexión directa a Postgres.\n" +
-        "La service role key (SUPABASE_SERVICE_ROLE_KEY) NO alcanza — solo habilita PostgREST (CRUD por REST), " +
-        "que no expone DDL (ALTER TABLE/CREATE TABLE).\n" +
-        "Configura UNA de estas opciones como GitHub Secret del repositorio:\n" +
-        "  - SUPABASE_DB_URL: la cadena de conexión completa (Project Settings → Database → Connection string → URI), o\n" +
-        "  - SUPABASE_PROJECT_REF + SUPABASE_DB_PASSWORD (la contraseña de la base de datos, no la service role key).\n" +
-        "Ninguna de las dos está configurada actualmente — no se ejecutó ninguna operación.",
-    );
+  const connection = resolveConnection();
+  if (!connection) {
+    console.error(`[apply-supabase-migration] ${MISSING_CREDENTIAL_MESSAGE}`);
     process.exitCode = 2;
     return;
   }
+  console.log(`[apply-supabase-migration] Conexión resuelta vía ${connection.source}${connection.ref ? ` (ref: ${connection.ref})` : ""} — host/credenciales nunca se imprimen.`);
 
   const migrationsDir = path.join(process.cwd(), "supabase", "migrations");
-  const filePath = path.join(migrationsDir, fileArg);
-  const sql = await fs.readFile(filePath, "utf8");
-  const migrationName = path.basename(fileArg);
+  const onlyFile = process.argv[2];
+  const allFiles = (await fs.readdir(migrationsDir)).filter((f) => f.endsWith(".sql")).sort();
+  const files = onlyFile ? allFiles.filter((f) => f === onlyFile) : allFiles;
+  if (onlyFile && files.length === 0) {
+    throw new Error(`No se encontró "${onlyFile}" en supabase/migrations/`);
+  }
 
-  // Import dinámico — `pg` es una dependencia opcional para este script
-  // puntual, no del resto de la app (que nunca conecta directo a Postgres,
-  // solo vía Supabase REST/Storage) — ver package.json.
+  // Import dinámico — `pg` es una dependencia puntual de este script, no
+  // del resto de la app (que nunca conecta directo a Postgres, solo vía
+  // Supabase REST/Storage) — ver package.json.
   const { Client } = await import("pg");
-  const client = new Client({ connectionString, connectionTimeoutMillis: 15000 });
-
+  const client = new Client({ connectionString: connection.connectionString, connectionTimeoutMillis: 15000 });
   await client.connect();
+
+  const applied: string[] = [];
+  const skipped: string[] = [];
+
   try {
     await client.query(`
       create table if not exists public._migrations_applied (
@@ -83,25 +87,46 @@ async function main() {
       );
     `);
 
-    const already = await client.query("select 1 from public._migrations_applied where name = $1", [migrationName]);
-    if ((already.rowCount ?? 0) > 0) {
-      console.log(`[apply-supabase-migration] "${migrationName}" ya está registrada como aplicada — no se repite.`);
-      return;
-    }
+    for (const migrationName of files) {
+      const already = await client.query("select 1 from public._migrations_applied where name = $1", [migrationName]);
+      if ((already.rowCount ?? 0) > 0) {
+        console.log(`[apply-supabase-migration] "${migrationName}" ya está registrada como aplicada — se omite.`);
+        skipped.push(migrationName);
+        continue;
+      }
 
-    await client.query("BEGIN");
-    try {
-      await client.query(sql);
-      await client.query("insert into public._migrations_applied (name) values ($1)", [migrationName]);
-      await client.query("COMMIT");
-      console.log(`[apply-supabase-migration] "${migrationName}" aplicada y confirmada correctamente.`);
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
+      const sql = await fs.readFile(path.join(migrationsDir, migrationName), "utf8");
+      const destructiveLines = findDestructiveLines(sql);
+      if (destructiveLines.length > 0) {
+        console.error(
+          `[apply-supabase-migration] DETENIDO antes de "${migrationName}": contiene SQL potencialmente destructivo fuera de comentarios:\n${destructiveLines.join("\n")}\n` +
+            "No se aplica automáticamente. Revísala manualmente y, si es intencional, aplícala por un mecanismo separado con revisión humana explícita.",
+        );
+        process.exitCode = 3;
+        return;
+      }
+
+      console.log(`[apply-supabase-migration] Aplicando "${migrationName}"...`);
+      await client.query("BEGIN");
+      try {
+        await client.query(sql);
+        await client.query("insert into public._migrations_applied (name) values ($1)", [migrationName]);
+        await client.query("COMMIT");
+        console.log(`[apply-supabase-migration] "${migrationName}" aplicada y confirmada correctamente.`);
+        applied.push(migrationName);
+      } catch (err) {
+        await client.query("ROLLBACK");
+        console.error(`[apply-supabase-migration] FALLÓ "${migrationName}" — revertida, no se intentan las siguientes.`);
+        throw err;
+      }
     }
   } finally {
     await client.end();
   }
+
+  console.log(
+    `\n[apply-supabase-migration] Resumen: ${applied.length} aplicada(s) [${applied.join(", ") || "-"}], ${skipped.length} ya presente(s) [${skipped.join(", ") || "-"}].`,
+  );
 }
 
 main().catch((err) => {
