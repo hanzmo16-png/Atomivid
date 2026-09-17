@@ -1,38 +1,51 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { getFeatureFlags } from "@/lib/video/feature-flags";
+import { getAvatarProvider, AvatarProviderError, type AvatarJobStatus } from "@/lib/providers/avatar";
+import { validatePhotoBuffer } from "@/lib/video/avatar/photo-validation";
+import {
+  avatarStatusFromProviderStatus,
+  isAvatarConsentGiven,
+  resolveMode,
+  validateCommonFields,
+  validateNewAvatarSubmission,
+} from "./validation";
 
-// Duraciones que ofrece el formulario — se valida contra esta misma lista
-// en el servidor (nunca confiar solo en el <select> del cliente) para no
-// dejar pasar una duración arbitraria que dispare un guion/voz/render
-// desproporcionado. Ver también el CHECK de la migración 0007.
-const ALLOWED_DURATIONS = [30, 60, 90];
-const ALLOWED_LANGUAGES = ["es", "en"] as const;
-const MAX_TOPIC_LENGTH = 500;
-const MAX_STYLE_LENGTH = 100;
+const AVATAR_UPLOADS_BUCKET = "avatar-uploads";
+/**
+ * Versión del texto de consentimiento vigente (src/app/terms/page.tsx,
+ * sección #avatar-consent) — se guarda junto con cada avatar para poder
+ * saber, si el texto cambia más adelante, bajo qué versión aceptó cada
+ * usuario. Actualizar este valor si ese texto cambia de forma sustantiva.
+ */
+const AVATAR_CONSENT_POLICY_VERSION = "2026-09-17";
 
 export async function createVideoRequest(formData: FormData) {
   const topic = String(formData.get("topic") ?? "").trim();
   const style = String(formData.get("style") ?? "").trim();
   const durationSeconds = Number(formData.get("duration_seconds"));
   const language = String(formData.get("language") ?? "es").trim();
+  const rawMode = String(formData.get("mode") ?? "visual").trim();
 
-  if (!topic || !style || !durationSeconds) {
-    redirect("/dashboard/new?error=Completa+todos+los+campos");
+  const commonError = validateCommonFields({ topic, style, durationSeconds, language });
+  if (commonError) {
+    redirect(`/dashboard/new?error=${encodeURIComponent(commonError)}`);
   }
-  if (!ALLOWED_LANGUAGES.includes(language as (typeof ALLOWED_LANGUAGES)[number])) {
-    redirect("/dashboard/new?error=Idioma+no+válido");
+
+  // Nunca confiar en el <select>/radio del cliente para decidir si el modo
+  // avatar está disponible — se re-verifica el flag en el servidor. Un
+  // POST manual con mode=avatar mientras el flag está apagado se trata
+  // igual que un modo inválido.
+  const flags = getFeatureFlags();
+  const modeResult = resolveMode(rawMode, flags.avatarModeEnabled);
+  if (!modeResult.ok) {
+    redirect(`/dashboard/new?error=${encodeURIComponent(modeResult.error)}`);
   }
-  if (topic.length > MAX_TOPIC_LENGTH) {
-    redirect(`/dashboard/new?error=El+tema+no+puede+superar+${MAX_TOPIC_LENGTH}+caracteres`);
-  }
-  if (style.length > MAX_STYLE_LENGTH) {
-    redirect(`/dashboard/new?error=El+estilo+no+puede+superar+${MAX_STYLE_LENGTH}+caracteres`);
-  }
-  if (!ALLOWED_DURATIONS.includes(durationSeconds)) {
-    redirect("/dashboard/new?error=Duración+no+válida");
-  }
+  const mode = modeResult.mode;
 
   const supabase = await createClient();
   const {
@@ -43,12 +56,157 @@ export async function createVideoRequest(formData: FormData) {
     redirect("/login");
   }
 
+  if (mode === "visual") {
+    const { error } = await supabase.from("video_requests").insert({
+      user_id: user.id,
+      topic,
+      style,
+      duration_seconds: durationSeconds,
+      language,
+      mode: "visual",
+      status: "pending",
+    });
+
+    if (error) {
+      redirect(`/dashboard/new?error=${encodeURIComponent(error.message)}`);
+    }
+
+    redirect("/dashboard?created=1");
+  }
+
+  // --- Modo avatar -------------------------------------------------------
+  // El consentimiento se re-verifica aquí — el atributo "required" del
+  // checkbox en el cliente es solo una ayuda de UX, nunca la fuente de
+  // verdad. Se exige tanto al reusar un avatar existente como al subir
+  // uno nuevo (la UI muestra el checkbox en ambos casos).
+  if (!isAvatarConsentGiven(formData.get("avatar_consent"))) {
+    redirect("/dashboard/new?error=Debes+aceptar+el+consentimiento+del+modo+avatar");
+  }
+
+  const existingAvatarId = String(formData.get("existing_avatar_id") ?? "").trim();
+  const avatarVoiceId = String(formData.get("avatar_voice_id") ?? "").trim() || undefined;
+
+  let avatarId: string;
+
+  if (existingAvatarId) {
+    // Se reusa un avatar ya creado — se verifica que exista y que
+    // pertenezca al usuario (la policy de RLS de "avatars" ya limita el
+    // select a las filas propias, pero se comprueba explícitamente en vez
+    // de asumirlo solo por la ausencia de error).
+    const { data: avatar } = await supabase
+      .from("avatars")
+      .select("id, status")
+      .eq("id", existingAvatarId)
+      .maybeSingle<{ id: string; status: string }>();
+
+    if (!avatar || avatar.status !== "ready") {
+      redirect("/dashboard/new?error=El+avatar+seleccionado+no+está+disponible");
+    }
+    avatarId = avatar.id;
+  } else {
+    // Se sube una fotografía nueva.
+    const photo = formData.get("avatar_photo");
+    const avatarName = String(formData.get("avatar_name") ?? "").trim();
+
+    const newAvatarError = validateNewAvatarSubmission({
+      hasPhotoFile: photo instanceof File,
+      photoSizeBytes: photo instanceof File ? photo.size : 0,
+      avatarName,
+    });
+    if (newAvatarError) {
+      redirect(`/dashboard/new?error=${encodeURIComponent(newAvatarError)}`);
+    }
+
+    const file = photo as File;
+    const photoBuffer = Buffer.from(await file.arrayBuffer());
+    const validation = validatePhotoBuffer(photoBuffer, file.type);
+    if (!validation.valid) {
+      redirect(`/dashboard/new?error=${encodeURIComponent(`Fotografía inválida: ${validation.reason}`)}`);
+    }
+    const { format } = validation;
+
+    // El bucket "avatar-uploads" es privado y sin policies de cliente (ver
+    // migración 0011) — la subida solo puede hacerse con la service role,
+    // nunca con el cliente autenticado por el usuario.
+    const service = createServiceClient();
+    const photoPath = `${user.id}/${randomUUID()}.${format}`;
+    const { error: uploadError } = await service.storage
+      .from(AVATAR_UPLOADS_BUCKET)
+      .upload(photoPath, photoBuffer, { contentType: file.type, upsert: false });
+    if (uploadError) {
+      redirect(`/dashboard/new?error=${encodeURIComponent(`No se pudo subir la fotografía: ${uploadError.message}`)}`);
+    }
+
+    let providerAvatarId: string;
+    let providerJobId: string | undefined;
+    let providerStatus: AvatarJobStatus;
+    let providerName: string;
+    try {
+      const provider = getAvatarProvider();
+      providerName = provider.name;
+      const result = await provider.createAvatar({ photoBuffer, mimeType: file.type, consentGiven: true });
+      providerAvatarId = result.providerAvatarId;
+      providerJobId = result.providerJobId;
+      providerStatus = result.status;
+    } catch (err) {
+      // La fotografía ya se subió — se limpia para no dejar un archivo
+      // huérfano si el proveedor rechaza la creación del avatar.
+      await service.storage.from(AVATAR_UPLOADS_BUCKET).remove([photoPath]).catch(() => {});
+      const message =
+        err instanceof AvatarProviderError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "No se pudo crear el avatar en el proveedor";
+      redirect(`/dashboard/new?error=${encodeURIComponent(message)}`);
+    }
+
+    const { data: inserted, error: insertError } = await supabase
+      .from("avatars")
+      .insert({
+        user_id: user.id,
+        name: avatarName,
+        provider: providerName,
+        provider_avatar_id: providerAvatarId,
+        provider_job_id: providerJobId ?? null,
+        source_photo_path: photoPath,
+        status: avatarStatusFromProviderStatus(providerStatus),
+        consent_given: true,
+        consent_given_at: new Date().toISOString(),
+        consent_policy_version: AVATAR_CONSENT_POLICY_VERSION,
+      })
+      .select("id, status")
+      .single<{ id: string; status: string }>();
+
+    if (insertError || !inserted) {
+      await service.storage.from(AVATAR_UPLOADS_BUCKET).remove([photoPath]).catch(() => {});
+      redirect(
+        `/dashboard/new?error=${encodeURIComponent(`No se pudo guardar el avatar: ${insertError?.message ?? "error desconocido"}`)}`,
+      );
+    }
+    if (inserted.status !== "ready") {
+      // Limitación conocida (documentada en docs/AVATAR_MODE.md): esta
+      // primera versión no encola un seguimiento en segundo plano del
+      // estado de creación del avatar en el proveedor — si no queda listo
+      // de inmediato (el fixture y, según lo confirmado, "photo avatar" de
+      // HeyGen sí responden de inmediato), no se puede usar todavía.
+      redirect(
+        "/dashboard/new?error=El+avatar+sigue+procesándose+en+el+proveedor%2C+inténtalo+de+nuevo+en+unos+minutos",
+      );
+    }
+    avatarId = inserted.id;
+  }
+
   const { error } = await supabase.from("video_requests").insert({
     user_id: user.id,
     topic,
     style,
     duration_seconds: durationSeconds,
     language,
+    mode: "avatar",
+    avatar_id: avatarId,
+    avatar_voice_id: avatarVoiceId ?? null,
+    idempotency_key: randomUUID(),
     status: "pending",
   });
 
