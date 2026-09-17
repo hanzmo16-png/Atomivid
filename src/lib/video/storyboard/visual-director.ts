@@ -70,11 +70,13 @@ Para cada escena, sigue exactamente el contrato pedido (significado literal, sub
 La escena 0 debe reflejar un gancho visual fuerte (hookDescription) que funcione en los primeros 1-2 segundos. La última escena debe reflejar un cierre memorable (closingDescription) con un concepto visual que NO se haya usado antes en el guion.`;
 }
 
+type ClaudeCallResult = { parsed: unknown; inputTokens: number; outputTokens: number };
+
 async function callClaude(
   script: GeneratedScript,
   language: ScriptLanguage,
   repairNote?: string,
-): Promise<unknown> {
+): Promise<ClaudeCallResult> {
   const userPrompt = buildUserPrompt(script, language) + (repairNote ? `\n\n${repairNote}` : "");
 
   const response = await getClient().messages.parse({
@@ -85,7 +87,23 @@ async function callClaude(
     output_config: { format: zodOutputFormat(StoryboardSchema) },
   });
 
-  return response.parsed_output;
+  // Trazabilidad de costo real (no estimado) de esta llamada — nunca se
+  // loguea el contenido del prompt/respuesta, solo conteo de tokens.
+  console.log(
+    "[atomivid:visual-director-usage]",
+    JSON.stringify({
+      model: VISUAL_DIRECTOR_MODEL,
+      inputTokens: response.usage?.input_tokens ?? 0,
+      outputTokens: response.usage?.output_tokens ?? 0,
+      isRepair: Boolean(repairNote),
+    }),
+  );
+
+  return {
+    parsed: response.parsed_output,
+    inputTokens: response.usage?.input_tokens ?? 0,
+    outputTokens: response.usage?.output_tokens ?? 0,
+  };
 }
 
 /**
@@ -99,7 +117,7 @@ export async function generateStoryboard(
   language: ScriptLanguage = "es",
 ): Promise<Storyboard> {
   const first = await callClaude(script, language);
-  const firstResult = StoryboardSchema.safeParse(first);
+  const firstResult = StoryboardSchema.safeParse(first.parsed);
   if (firstResult.success) return firstResult.data;
 
   const errorSummary = firstResult.error.issues
@@ -112,7 +130,7 @@ export async function generateStoryboard(
     language,
     `Tu respuesta anterior no cumplió el schema exactamente. Corrige SOLO estos problemas y devuelve el storyboard completo de nuevo: ${errorSummary}`,
   );
-  const repairedResult = StoryboardSchema.safeParse(repaired);
+  const repairedResult = StoryboardSchema.safeParse(repaired.parsed);
   if (repairedResult.success) return repairedResult.data;
 
   throw new StoryboardGenerationError(
