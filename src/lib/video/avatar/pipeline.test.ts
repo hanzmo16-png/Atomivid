@@ -95,6 +95,9 @@ function makeFakeSupabase(avatarRow: AvatarRow | null) {
             uploads.push({ path: objectPath, bytes: buffer.byteLength });
             return { error: null };
           },
+          async createSignedUrl(objectPath: string) {
+            return { data: { signedUrl: `https://fake.local/${objectPath}?signed=1` }, error: null };
+          },
         };
       },
     },
@@ -221,6 +224,10 @@ test("ciclo completo exitoso con el proveedor fixture: registra el job id y sube
 
     assert.equal(result.videoPath, "r1/final.mp4");
     assert.ok(uploads.some((u) => u.path === "r1/final.mp4" && u.bytes > 0));
+    // Confirma que se sintetizó y alojó narración propia (audioUrl) ANTES
+    // de llamar al proveedor — el flujo real de ATOMIVID, no la síntesis
+    // interna del proveedor (ver providers/types.ts → AvatarVideoRequest.audioUrl).
+    assert.ok(uploads.some((u) => u.path.startsWith("r1/avatar-narration.") && u.bytes > 0));
     assert.ok(updates.some((u) => "avatar_provider_video_job_id" in u));
   });
 });

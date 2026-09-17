@@ -34,14 +34,17 @@ import { CircuitBreaker } from "./circuit-breaker";
  * entrenamiento asíncrona conocida).
  *
  * Hallazgos y correcciones de esta revisión (2026-09-17):
- * - **CONFIRMADO — autenticación**: docs.d-id.com/reference/basic-authentication
- *   dice explícitamente que la API key se entrega en formato
- *   "API_USERNAME:API_PASSWORD" y que el header debe ser
+ * - **CONFIRMADO — autenticación, sin doble codificación**: docs.d-id.com/reference/basic-authentication
+ *   dice explícitamente que la API key se entrega en Account Settings en
+ *   formato TEXTO PLANO "API_USERNAME:API_PASSWORD" (NO ya en base64) y
+ *   que el header debe ser
  *   `Authorization: Basic <base64(API_USERNAME:API_PASSWORD)>` — la
- *   aplicación DEBE codificar en base64 esa cadena, no enviarla tal cual.
- *   **Bug real corregido aquí**: la versión anterior de este archivo
- *   enviaba `Basic ${apiKey}` sin codificar — nunca habría autenticado
- *   contra la API real.
+ *   aplicación DEBE codificar en base64 esa cadena UNA sola vez, ella
+ *   misma; DID_API_KEY debe guardarse en texto plano tal cual la entrega
+ *   D-ID, nunca pre-codificada, o `basicAuthHeader()` de abajo la
+ *   codificaría dos veces y la autenticación fallaría. **Bug real
+ *   corregido en la revisión anterior**: el archivo enviaba `Basic
+ *   ${apiKey}` sin codificar en absoluto — nunca habría autenticado.
  * - **CONFIRMADO — subida de imagen**: docs.d-id.com/reference/upload-an-image
  *   documenta `POST /images` como `multipart/form-data` (NO un JSON con
  *   `source_url`), con el archivo en un campo de formulario, nombre de
@@ -56,24 +59,37 @@ import { CircuitBreaker } from "./circuit-breaker";
  *   "created" (encolado) → "started" (procesando) → "done" (completo) |
  *   "error"/"rejected" (fallido). `result_url` solo aparece cuando
  *   status="done".
- * - **CONFIRMADO — el endpoint de borrado existe**: docs.d-id.com/reference/deletetalk
- *   ("Delete Video by ID") confirma que SÍ hay un `DELETE /talks/{id}`.
- *   NO CONFIRMADO: si borrar un talk TODAVÍA en proceso realmente detiene
- *   el render/cobro, o si el endpoint solo borra videos ya completados —
- *   cancelVideo() sigue reportando honestamente el resultado, nunca finge
- *   éxito, y este archivo dice explícitamente que la semántica de
- *   cancelación real (no solo borrado) no está confirmada.
- * - **CONFIRMADO — proveedor de voz externo (ElevenLabs)**: para
- *   `script.type: "text"`, D-ID exige un objeto `provider` con
- *   `{ type: "elevenlabs", voice_id, voice_config?: { stability,
- *   similarity_boost } }` (fuentes secundarias que citan
- *   docs.d-id.com/reference/tts-elevenlabs) — el plan debe soportar
- *   ElevenLabs como proveedor (documentado como función de pago). **Cambio
- *   real aquí**: como no hay evidencia de un proveedor por defecto sin
- *   `voice_id`, `generateVideo()` ahora EXIGE `voiceId` explícitamente y
- *   lanza `invalid_response` si falta, en vez de mandar `provider:
- *   undefined` (que casi con certeza habría fallado silenciosamente contra
- *   la API real).
+ * - **CONFIRMADO, IMPORTANTE — el endpoint `DELETE /talks/{id}` NO es una
+ *   cancelación ni un mecanismo de ahorro de costo**: docs.d-id.com/reference/deletetalk
+ *   lo describe como "Delete Video by ID" — es decir, BORRA un video (lo
+ *   quita de la lista de resultados), no lo cancela a mitad de proceso.
+ *   No hay ninguna fuente que documente que borrar un talk en curso
+ *   detenga su render o evite el cobro. `cancelVideo()` de abajo NUNCA
+ *   debe presentarse ni interpretarse como "cancela y no cobra" — solo
+ *   intenta el borrado best-effort y reporta honestamente si se confirmó
+ *   o no, sin ninguna suposición sobre el efecto en la facturación.
+ * - **CONFIRMADO — dos formas de guion, y ATOMIVID usa la primera**:
+ *   `script.type` puede ser:
+ *     (a) **"audio"** con `audio_url` — un archivo de audio YA GENERADO
+ *         que ATOMIVID aloja (fuentes: "the script accepts plain text or
+ *         an audio file you host"). **Este es el flujo real de
+ *         ATOMIVID**: el guion ya se sintetiza con NUESTRO ElevenLabs
+ *         (mismo proveedor de voz que el modo visual, para que la voz sea
+ *         consistente en todos los videos) — D-ID NUNCA sintetiza nada,
+ *         solo anima los labios contra el audio que le damos. NO necesita
+ *         `voice_id` en absoluto.
+ *     (b) **"text"** con `input` + `provider: { type: "elevenlabs",
+ *         voice_id, voice_config?: { stability, similarity_boost } }`
+ *         (fuentes secundarias que citan docs.d-id.com/reference/tts-elevenlabs)
+ *         — D-ID sintetiza la voz POR SU CUENTA vía SU PROPIA integración
+ *         con ElevenLabs (facturada aparte por D-ID, no por nosotros).
+ *         Requiere `voice_id`, documentado como función de pago.
+ *   `generateVideo()` usa (a) cuando `request.audioUrl` está presente
+ *   (el caso normal en ATOMIVID) y cae a (b) con `request.voiceId`
+ *   solo si NO hay `audioUrl` — nunca exige `voiceId` cuando ya hay un
+ *   audio propio, y lanza `invalid_response` solo si NINGUNO de los dos
+ *   está presente (ninguna fuente indica que D-ID sintetice sin ninguna
+ *   entrada de voz).
  * - **NO CONFIRMADO** (sigue igual que antes, no se encontró evidencia
  *   documental directa): el payload EXACTO del webhook (se sigue asumiendo
  *   `{ id, status }`, análogo a la respuesta de `GET /talks/{id}`); un
@@ -265,12 +281,16 @@ export const didAvatarProvider: AvatarVideoProvider = {
         "invalid_response",
       );
     }
-    // CONFIRMADO: para script.type "text" D-ID exige un proveedor de voz
-    // (p. ej. ElevenLabs) con voice_id — no hay evidencia de un proveedor
-    // por defecto. Sin voiceId, la llamada real fallaría — se rechaza acá
-    // antes de gastar la llamada, en vez de mandar un provider vacío.
-    if (!request.voiceId) {
-      throw new AvatarProviderError("D-ID requiere un voiceId (proveedor de voz externo, p. ej. ElevenLabs) — ninguno fue provisto", "did", "invalid_response");
+    // Se necesita UNA de las dos entradas de voz — audioUrl (nuestro
+    // propio audio ya sintetizado, el flujo real de ATOMIVID) o voiceId
+    // (D-ID sintetiza por su cuenta) — ver comentario de cabecera. Nunca
+    // se exige voiceId cuando ya hay audioUrl.
+    if (!request.audioUrl && !request.voiceId) {
+      throw new AvatarProviderError(
+        "D-ID requiere audioUrl (audio ya sintetizado por ATOMIVID) o voiceId (D-ID sintetiza la voz él mismo vía ElevenLabs) — ninguno fue provisto",
+        "did",
+        "invalid_response",
+      );
     }
 
     const { estimatedSeconds, estimatedCost } = estimateSecondsAndCost(request.script);
@@ -288,11 +308,12 @@ export const didAvatarProvider: AvatarVideoProvider = {
           method: "POST",
           body: JSON.stringify({
             source_url: request.providerAvatarId,
-            script: {
-              type: "text",
-              input: request.script,
-              provider: { type: "elevenlabs", voice_id: request.voiceId },
-            },
+            // audioUrl (nuestro audio ya sintetizado) tiene prioridad —
+            // es el flujo real de ATOMIVID y evita que D-ID sintetice
+            // (y facture) su propia llamada a ElevenLabs.
+            script: request.audioUrl
+              ? { type: "audio", audio_url: request.audioUrl }
+              : { type: "text", input: request.script, provider: { type: "elevenlabs", voice_id: request.voiceId } },
             config: { result_format: "mp4" },
           }),
         }),
@@ -382,19 +403,20 @@ export const didAvatarProvider: AvatarVideoProvider = {
   },
 
   async cancelVideo(providerJobId: string): Promise<{ cancelled: boolean; reason?: string }> {
-    // CONFIRMADO que el endpoint existe: docs.d-id.com/reference/deletetalk
-    // ("Delete Video by ID") documenta `DELETE /talks/{id}`. NO CONFIRMADO:
-    // si borrar un talk todavía en curso detiene el render/cobro en el
-    // proveedor, o si el endpoint solo borra videos ya completados — por
-    // eso esto se sigue tratando como "best effort, nunca finge éxito" en
-    // vez de asumir que cancela de verdad un render en curso.
+    // IMPORTANTE, ver comentario de cabecera: docs.d-id.com/reference/deletetalk
+    // documenta `DELETE /talks/{id}` como "Delete Video by ID" — un
+    // BORRADO, no una cancelación confirmada de un render en curso, y
+    // NINGUNA fuente indica que evite el cobro. Este método NUNCA debe
+    // interpretarse como "canceló y no se cobró" — solo intenta el
+    // borrado y reporta honestamente si el proveedor lo confirmó (HTTP
+    // 2xx) o no. El llamador no debe asumir ahorro de costo por esto.
     try {
       await didFetch(`/talks/${encodeURIComponent(providerJobId)}`, { method: "DELETE" });
-      return { cancelled: true };
+      return { cancelled: true, reason: "D-ID confirmó el borrado del recurso — no hay evidencia documental de que esto detenga un render en curso ni evite el cobro." };
     } catch (err) {
       return {
         cancelled: false,
-        reason: err instanceof Error ? err.message : "No se pudo confirmar la cancelación en D-ID",
+        reason: err instanceof Error ? err.message : "No se pudo confirmar el borrado en D-ID",
       };
     }
   },

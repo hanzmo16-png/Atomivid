@@ -321,6 +321,19 @@ export type AvatarVideoRequest = {
   providerAvatarId: string;
   /** Guion completo a narrar — HeyGen v3 limita esto a 5000 caracteres (ver docs/AVATAR_MODE.md). */
   script: string;
+  /**
+   * URL (ya alojada por ATOMIVID, p. ej. una URL firmada de Supabase
+   * Storage de corta duración) de un audio YA sintetizado con nuestro
+   * propio ElevenLabs — el flujo real del producto (voz consistente en
+   * todos los videos, no la voz interna de cada proveedor). Cuando está
+   * presente, el proveedor debe usarla en vez de sintetizar voz por su
+   * cuenta (confirmado para D-ID: `script.type: "audio"` — ver
+   * providers/avatar/did.ts). Si el proveedor no soporta audio externo
+   * (p. ej. HeyGen, sin `audio_url` confirmado), lo ignora y cae a
+   * `voiceId`.
+   */
+  audioUrl?: string;
+  /** ID de voz PROPIO del proveedor — solo se usa cuando NO hay `audioUrl` (el proveedor sintetiza la voz él mismo). */
   voiceId?: string;
   language?: ScriptLanguage;
   maxCostUsd: number;

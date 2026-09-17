@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { AvatarProviderError } from "@/lib/providers/types";
 import { getAvatarProvider } from "@/lib/providers/avatar";
+import { getVoiceProvider } from "@/lib/providers/voice";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { LOUDNESS_TARGET, masterAudioLoudness } from "@/lib/video/audio-master";
 import { recordVideoGeneration } from "@/lib/billing/usage";
@@ -11,6 +12,10 @@ import path from "node:path";
 import os from "node:os";
 
 const STORAGE_BUCKET = "videos";
+// Mismo TTL que el resto del pipeline (generate-video.ts) para assets
+// intermedios firmados — el audio de narración solo necesita vivir el
+// tiempo que el proveedor de avatar tarda en descargarlo, nunca público.
+const NARRATION_SIGNED_URL_TTL_SECONDS = 60 * 60;
 
 type AvatarRow = {
   id: string;
@@ -43,18 +48,24 @@ type OnProgress = (stage: RenderStage) => void | Promise<void>;
 
 /**
  * Etapa 2 del pipeline PARA EL MODO AVATAR — contraparte de
- * generateVideoFromScript() (modo visual). No busca footage ni sintetiza
- * voz por separado: HeyGen (o el fixture) genera voz+labios sincronizados
- * en un solo paso a partir del guion.
+ * generateVideoFromScript() (modo visual). No busca footage por separado:
+ * el proveedor de avatar genera video con labios sincronizados a partir
+ * del guion — sintetizando la voz él mismo, o animando los labios contra
+ * un audio que YA sintetizamos nosotros con nuestro propio ElevenLabs
+ * (ver `audioUrl` más abajo — confirmado soportado por D-ID, la voz queda
+ * consistente con el modo visual en vez de depender de la síntesis
+ * interna, distinta, de cada proveedor).
  *
  * LIMITACIÓN CONOCIDA (documentada, no oculta): a diferencia del modo
  * visual, esta primera versión NO superpone subtítulos ni mezcla música
- * de fondo sobre el video del proveedor de avatar — el video de HeyGen
- * viene con su propio audio ya sincronizado (voz + labios), y no
- * devuelve los timestamps por palabra que buildCaptions() necesita para
- * generar subtítulos reales sin inventarlos. Solo se aplica mastering de
- * loudness al audio que ya trae el video. Music/subtítulos para modo
- * avatar quedan para una iteración posterior.
+ * de fondo sobre el video del proveedor de avatar — el video final viene
+ * con su propio audio ya sincronizado (voz + labios) directamente del
+ * proveedor, y este no devuelve los timestamps por palabra que
+ * buildCaptions() necesita para generar subtítulos reales sin
+ * inventarlos. Esto es así sin importar si la voz vino de nuestro
+ * ElevenLabs (audioUrl) o de la síntesis interna del proveedor (voiceId)
+ * — solo se aplica mastering de loudness al audio que ya trae el video.
+ * Music/subtítulos para modo avatar quedan para una iteración posterior.
  *
  * Verificaciones, EN ORDEN, antes de llamar a cualquier proveedor —
  * cualquier fallo aquí nunca gasta un crédito:
@@ -143,6 +154,43 @@ export async function generateAvatarVideo({
 
   await onProgress?.("voice");
 
+  // Sintetiza la narración con NUESTRO propio proveedor de voz (mismo
+  // ElevenLabs que el modo visual, vía getVoiceProvider() — cae a fixture
+  // automáticamente sin ELEVENLABS_API_KEY, mismo criterio de seguridad
+  // que el resto del pipeline) y la aloja en Storage con una URL firmada
+  // de corta duración. Esto es lo que la interfaz llama `audioUrl` — el
+  // flujo REAL de ATOMIVID (voz consistente en todos los videos, nunca la
+  // síntesis interna de cada proveedor — ver AvatarVideoRequest.audioUrl
+  // en providers/types.ts). Si esto falla, se sigue adelante sin
+  // audioUrl: el proveedor cae a su propia síntesis (voiceId) si la
+  // soporta, en vez de tumbar todo el pipeline por un paso que mejora la
+  // consistencia de voz pero no es estrictamente indispensable.
+  const voiceProvider = getVoiceProvider();
+  let audioUrl: string | undefined;
+  try {
+    const voiceResult = await voiceProvider.synthesize(fullText, language);
+    const narrationPath = `${requestId}/avatar-narration.${voiceResult.extension}`;
+    const { error: narrationUploadError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(narrationPath, voiceResult.audioBuffer, { contentType: voiceResult.mimeType, upsert: true });
+    if (narrationUploadError) {
+      throw new Error(`No se pudo subir el audio de narración: ${narrationUploadError.message}`);
+    }
+    const { data: signedNarration, error: signError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .createSignedUrl(narrationPath, NARRATION_SIGNED_URL_TTL_SECONDS);
+    if (signError || !signedNarration) {
+      throw new Error(`No se pudo firmar la URL de la narración: ${signError?.message ?? "desconocido"}`);
+    }
+    audioUrl = signedNarration.signedUrl;
+    storageBytes += voiceResult.audioBuffer.byteLength;
+  } catch (err) {
+    console.warn(
+      `[atomivid:avatar-audio] ${requestId} — no se pudo sintetizar/alojar audio propio (${voiceProvider.name}), el proveedor de avatar usará su propia síntesis si la soporta:`,
+      err instanceof Error ? err.message : err,
+    );
+  }
+
   // Resolver el avatar en el proveedor (crear si es la primera vez que se usa).
   const providerAvatarId = avatar.provider_avatar_id;
   if (!providerAvatarId) {
@@ -180,6 +228,7 @@ export async function generateAvatarVideo({
     asset = await provider.generateVideo({
       providerAvatarId,
       script: fullText,
+      audioUrl,
       voiceId,
       language,
       maxCostUsd: flags.maxAvatarCostUsd,
