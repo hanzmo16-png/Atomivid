@@ -13,57 +13,92 @@ import { CircuitBreaker } from "./circuit-breaker";
 
 /**
  * Adaptador para D-ID ("Creative Reality Studio" — talks API: foto única +
- * guion/audio → video hablando). NO PRODUCTION-READY — investigado por
- * WebSearch únicamente (docs.d-id.com está bloqueado en este entorno, ver
- * docs/AVATAR_MODE.md → "Comparación de proveedores"), nunca contra la
- * documentación oficial primaria. No activar AVATAR_PROVIDER="did" con una
- * clave real sin confirmar antes tú mismo contra https://docs.d-id.com.
+ * guion/audio → video hablando). NO PRODUCTION-READY todavía, pero
+ * corregido el 2026-09-17 contra hallazgos de documentación oficial reales
+ * (WebSearch, citando directamente páginas de docs.d-id.com — el acceso
+ * DIRECTO a docs.d-id.com/www.d-id.com sigue bloqueado por la política de
+ * red de este entorno, confirmado de nuevo en este mismo intento: cualquier
+ * subdominio de d-id.com da EGRESS_BLOCKED, no solo /docs). Los puntos
+ * marcados "CONFIRMADO" abajo vienen de resultados de búsqueda que citan/
+ * resumen directamente el contenido de la página oficial correspondiente —
+ * no es lectura primaria directa, pero es una fuente bastante más fuerte
+ * que la aproximación "mejor suposición razonable" usada en la versión
+ * anterior de este archivo. Los puntos marcados "NO CONFIRMADO" siguen
+ * siendo la mejor aproximación disponible, nada más.
  *
  * A diferencia de HeyGen (que "entrena" un avatar reutilizable en un paso
  * separado), D-ID no tiene ese concepto: cada "talk" recibe la foto fuente
  * directamente (`source_url`). Por eso createAvatar() aquí NO entrena
- * nada — solo sube la foto al endpoint de imágenes de D-ID (para obtener
- * una `source_url` propia del proveedor, más estable que firmar de nuevo
- * nuestra URL en cada video) y devuelve ese identificador con estado
- * "completed" de inmediato (sin fase de entrenamiento asíncrona conocida).
+ * nada — solo sube la foto al endpoint de imágenes de D-ID y devuelve ese
+ * identificador con estado "completed" de inmediato (sin fase de
+ * entrenamiento asíncrona conocida).
  *
- * Datos usados aquí, con su nivel de confianza (todo vía fuentes
- * secundarias que resumen/citan la documentación oficial — nunca lectura
- * directa):
- * - REST/JSON. Auth: header "Authorization: Basic <credencial>" — D-ID
- *   entrega la API key ya en formato "usuario:contraseña" o similar según
- *   varias fuentes; aquí se envía tal cual en Basic sin recodificar,
- *   UNVERIFICADO — confirmar el formato exacto antes de usar una clave real.
- * - Crear video: POST /talks con { source_url, script: { type: "text",
- *   input, provider: { type: "elevenlabs", voice_id } }, webhook,
- *   config: { result_format: "mp4" } } — UNVERIFICADO el nombre exacto de
- *   cada campo, pero varias fuentes coinciden en que D-ID soporta
- *   "provider": "elevenlabs" para el texto Y un `audio_url` alternativo
- *   para audio ya generado (esta segunda vía encajaría mejor con que
- *   ATOMIVID ya sintetiza con ElevenLabs antes de llegar aquí — no se usa
- *   todavía porque el contrato AvatarVideoRequest.script de ATOMIVID pasa
- *   texto, no audio ya sintetizado; migrar a audio_url quedaría para
- *   cuando se confirme el contrato real).
- * - Estado asíncrono: GET /talks/{id} — valores reportados por fuentes
- *   secundarias: "created", "started", "done", "error", "rejected".
- * - Webhook: campo "webhook" en la creación — payload no confirmado, se
- *   asume { id, status, result_url } por analogía con la respuesta de
- *   GET /talks/{id}.
- * - Consentimiento: D-ID expone un objeto "Consent" propio (POST
- *   /consents) — NO se implementa aquí todavía (fuera de alcance de este
- *   sprint, que se limita a modo mock) — el consentimiento de producto de
- *   ATOMIVID (AvatarCreationRequest.consentGiven) sigue siendo la única
- *   verificación real por ahora, igual que con HeyGen.
- * - Precio: cifras inconsistentes entre fuentes (~$5.90/mes por 10 min de
- *   plan API, o ~$5.90/min pay-as-you-go según otra fuente) — se usa aquí
- *   el punto medio más conservador de la segunda cifra (~$0.10/s) como
- *   placeholder configurable, NUNCA verificado — no calcular presupuestos
- *   reales sobre este número sin confirmarlo primero.
+ * Hallazgos y correcciones de esta revisión (2026-09-17):
+ * - **CONFIRMADO — autenticación**: docs.d-id.com/reference/basic-authentication
+ *   dice explícitamente que la API key se entrega en formato
+ *   "API_USERNAME:API_PASSWORD" y que el header debe ser
+ *   `Authorization: Basic <base64(API_USERNAME:API_PASSWORD)>` — la
+ *   aplicación DEBE codificar en base64 esa cadena, no enviarla tal cual.
+ *   **Bug real corregido aquí**: la versión anterior de este archivo
+ *   enviaba `Basic ${apiKey}` sin codificar — nunca habría autenticado
+ *   contra la API real.
+ * - **CONFIRMADO — subida de imagen**: docs.d-id.com/reference/upload-an-image
+ *   documenta `POST /images` como `multipart/form-data` (NO un JSON con
+ *   `source_url`), con el archivo en un campo de formulario, nombre de
+ *   archivo opcional (máx. 50 caracteres, `a-zA-Z0-9._-`), y SOLO
+ *   `image/jpeg`/`image/png` soportados (guardado 24-48h). La respuesta
+ *   incluye `id` y `url`. **Bug real corregido aquí**: la versión anterior
+ *   mandaba un body JSON `{ source_url: undefined }` con
+ *   `Content-Type: <mimeType original>` — nunca habría funcionado contra
+ *   un endpoint que espera multipart. Ahora también se rechazan mimeTypes
+ *   distintos de jpeg/png ANTES de gastar la llamada.
+ * - **CONFIRMADO — estados de talk**: docs.d-id.com/reference/gettalk usa
+ *   "created" (encolado) → "started" (procesando) → "done" (completo) |
+ *   "error"/"rejected" (fallido). `result_url` solo aparece cuando
+ *   status="done".
+ * - **CONFIRMADO — el endpoint de borrado existe**: docs.d-id.com/reference/deletetalk
+ *   ("Delete Video by ID") confirma que SÍ hay un `DELETE /talks/{id}`.
+ *   NO CONFIRMADO: si borrar un talk TODAVÍA en proceso realmente detiene
+ *   el render/cobro, o si el endpoint solo borra videos ya completados —
+ *   cancelVideo() sigue reportando honestamente el resultado, nunca finge
+ *   éxito, y este archivo dice explícitamente que la semántica de
+ *   cancelación real (no solo borrado) no está confirmada.
+ * - **CONFIRMADO — proveedor de voz externo (ElevenLabs)**: para
+ *   `script.type: "text"`, D-ID exige un objeto `provider` con
+ *   `{ type: "elevenlabs", voice_id, voice_config?: { stability,
+ *   similarity_boost } }` (fuentes secundarias que citan
+ *   docs.d-id.com/reference/tts-elevenlabs) — el plan debe soportar
+ *   ElevenLabs como proveedor (documentado como función de pago). **Cambio
+ *   real aquí**: como no hay evidencia de un proveedor por defecto sin
+ *   `voice_id`, `generateVideo()` ahora EXIGE `voiceId` explícitamente y
+ *   lanza `invalid_response` si falta, en vez de mandar `provider:
+ *   undefined` (que casi con certeza habría fallado silenciosamente contra
+ *   la API real).
+ * - **NO CONFIRMADO** (sigue igual que antes, no se encontró evidencia
+ *   documental directa): el payload EXACTO del webhook (se sigue asumiendo
+ *   `{ id, status }`, análogo a la respuesta de `GET /talks/{id}`); un
+ *   límite de caracteres del guion documentado (se mantiene un techo
+ *   propio de 10000, defensa en profundidad, no un límite real de D-ID);
+ *   la forma exacta del objeto de error en una respuesta fallida.
+ * - **Precio**: varias fuentes de agregadores (no D-ID directamente)
+ *   coinciden en ~$5.90/min para el plan API de pago por uso ≈ $0.0983/s —
+ *   se usa como valor por defecto configurable, marcado explícitamente
+ *   como NO verificado contra D-ID directamente (agregadores de terceros).
+ * - **Consentimiento**: D-ID expone un objeto "Consent" propio (POST
+ *   /consents) — sigue sin implementarse aquí (fuera de alcance, modo
+ *   mock) — el consentimiento de producto de ATOMIVID
+ *   (AvatarCreationRequest.consentGiven) sigue siendo la única
+ *   verificación real, igual que con HeyGen.
+ *
+ * No activar AVATAR_PROVIDER="did" con una clave real en producción sin
+ * una prueba real controlada y de bajo costo primero (ver
+ * docs/AVATAR_MODE.md → sección de la próxima prueba pagada).
  */
 
 const DID_API_BASE = process.env.DID_API_BASE || "https://api.d-id.com";
-const MAX_SCRIPT_CHARS = 10000; // sin límite documentado confirmado — se usa un techo conservador de defensa en profundidad, mayor que el de HeyGen (D-ID no reportó un límite tan bajo en las fuentes consultadas).
-const COST_USD_PER_SECOND = Number(process.env.DID_COST_USD_PER_SECOND || "0.1"); // UNVERIFICADO, ver comentario de cabecera.
+const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png"]); // CONFIRMADO — docs.d-id.com/reference/upload-an-image.
+const MAX_SCRIPT_CHARS = 10000; // NO es un límite documentado de D-ID — techo propio de defensa en profundidad.
+const COST_USD_PER_SECOND = Number(process.env.DID_COST_USD_PER_SECOND || "0.0983"); // ~$5.90/min, fuentes de terceros (no D-ID directamente) — ver comentario de cabecera.
 const POLL_TIMEOUT_MS = Number(process.env.DID_POLL_TIMEOUT_MS || "300000");
 const POLL_INITIAL_DELAY_MS = 3000;
 const POLL_MAX_DELAY_MS = 20000;
@@ -76,23 +111,33 @@ function getApiKey(): string {
   return key;
 }
 
+/** CONFIRMADO (docs.d-id.com/reference/basic-authentication): la API key es "usuario:contraseña" y hay que codificarla en base64 — nunca enviarla tal cual. */
+function basicAuthHeader(): string {
+  return `Basic ${Buffer.from(getApiKey(), "utf8").toString("base64")}`;
+}
+
 const circuitBreaker = new CircuitBreaker(3);
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function didFetch(path: string, init: RequestInit): Promise<Response> {
+async function didFetch(path: string, init: RequestInit & { jsonBody?: boolean } = {}): Promise<Response> {
   try {
     circuitBreaker.assertClosed();
   } catch (err) {
     throw new AvatarProviderError(err instanceof Error ? err.message : "Circuito abierto tras fallos consecutivos", "did", "circuit_open", err);
   }
+  const { jsonBody = true, ...rest } = init;
   let response: Response;
   try {
     response = await fetch(`${DID_API_BASE}${path}`, {
-      ...init,
-      headers: { Authorization: `Basic ${getApiKey()}`, "Content-Type": "application/json", ...(init.headers ?? {}) },
+      ...rest,
+      headers: {
+        Authorization: basicAuthHeader(),
+        ...(jsonBody ? { "Content-Type": "application/json" } : {}),
+        ...(rest.headers ?? {}),
+      },
     });
   } catch (err) {
     circuitBreaker.recordFailure();
@@ -145,6 +190,8 @@ function mapDidStatus(raw: string | undefined): AvatarJobStatus {
     case "cancelled":
       return "cancelled";
     default:
+      // Incluye "error" y "rejected" (ambos confirmados como estados de
+      // fallo) y cualquier valor no reconocido.
       return "failed";
   }
 }
@@ -175,20 +222,21 @@ export const didAvatarProvider: AvatarVideoProvider = {
     if (request.photoBuffer.byteLength === 0) {
       throw new AvatarProviderError("La fotografía está vacía", "did", "invalid_response");
     }
+    // CONFIRMADO (docs.d-id.com/reference/upload-an-image): D-ID solo
+    // acepta image/jpeg e image/png en este endpoint.
+    if (!SUPPORTED_IMAGE_MIME_TYPES.has(request.mimeType)) {
+      throw new AvatarProviderError(`D-ID no soporta el tipo de imagen "${request.mimeType}" (solo image/jpeg e image/png)`, "did", "invalid_response");
+    }
 
-    // UNVERIFICADO: se asume un endpoint de subida de imágenes
-    // (POST /images) que devuelve una url propia de D-ID reutilizable como
-    // source_url en /talks — mismo criterio de "mejor aproximación
-    // razonable, no contrato confirmado" que heygen.ts.
-    const response = await withFiniteRetry(
-      () =>
-        didFetch("/images", {
-          method: "POST",
-          body: JSON.stringify({ source_url: undefined }),
-          headers: { "Content-Type": request.mimeType },
-        }),
-      2,
-    );
+    // CONFIRMADO: POST /images es multipart/form-data con el archivo en un
+    // campo de formulario — nunca JSON. La API global FormData/Blob de
+    // Node soporta esto sin librerías adicionales.
+    const response = await withFiniteRetry(() => {
+      const form = new FormData();
+      const extension = request.mimeType === "image/png" ? "png" : "jpg";
+      form.append("image", new Blob([new Uint8Array(request.photoBuffer)], { type: request.mimeType }), `photo.${extension}`);
+      return didFetch("/images", { method: "POST", body: form, jsonBody: false });
+    }, 2);
     const json = (await response.json()) as { id?: string; url?: string };
     if (!json.id && !json.url) {
       throw new AvatarProviderError("D-ID no devolvió un identificador de imagen", "did", "invalid_response");
@@ -197,7 +245,7 @@ export const didAvatarProvider: AvatarVideoProvider = {
     // D-ID no tiene una fase de "entrenamiento" asíncrona conocida para
     // este flujo (a diferencia de HeyGen) — el avatar queda listo apenas
     // se sube la foto.
-    return { providerAvatarId: json.id ?? json.url!, status: "completed" };
+    return { providerAvatarId: json.url ?? json.id!, status: "completed" };
   },
 
   async checkAvatarStatus(): Promise<AvatarJobStatus> {
@@ -216,6 +264,13 @@ export const didAvatarProvider: AvatarVideoProvider = {
         "did",
         "invalid_response",
       );
+    }
+    // CONFIRMADO: para script.type "text" D-ID exige un proveedor de voz
+    // (p. ej. ElevenLabs) con voice_id — no hay evidencia de un proveedor
+    // por defecto. Sin voiceId, la llamada real fallaría — se rechaza acá
+    // antes de gastar la llamada, en vez de mandar un provider vacío.
+    if (!request.voiceId) {
+      throw new AvatarProviderError("D-ID requiere un voiceId (proveedor de voz externo, p. ej. ElevenLabs) — ninguno fue provisto", "did", "invalid_response");
     }
 
     const { estimatedSeconds, estimatedCost } = estimateSecondsAndCost(request.script);
@@ -236,7 +291,7 @@ export const didAvatarProvider: AvatarVideoProvider = {
             script: {
               type: "text",
               input: request.script,
-              provider: request.voiceId ? { type: "elevenlabs", voice_id: request.voiceId } : undefined,
+              provider: { type: "elevenlabs", voice_id: request.voiceId },
             },
             config: { result_format: "mp4" },
           }),
@@ -307,16 +362,17 @@ export const didAvatarProvider: AvatarVideoProvider = {
   },
 
   async deleteAvatar(providerAvatarId: string): Promise<{ deleted: boolean; reason?: string }> {
+    // NO CONFIRMADO: no se encontró documentación de un endpoint DELETE
+    // específico para /images (el confirmado es para /talks — ver
+    // cancelVideo()). Se intenta best-effort y se reporta honestamente si
+    // falla, nunca se finge éxito.
     try {
       await didFetch(`/images/${encodeURIComponent(providerAvatarId)}`, { method: "DELETE" });
       return { deleted: true };
     } catch (err) {
-      // No se confirmó un endpoint DELETE documentado para /images — se
-      // reporta honestamente, nunca se finge éxito (mismo criterio que
-      // heygen.ts).
       return {
         deleted: false,
-        reason: err instanceof Error ? err.message : "No se pudo confirmar el borrado en D-ID (endpoint no verificado)",
+        reason: err instanceof Error ? err.message : "No se pudo confirmar el borrado en D-ID (endpoint no verificado para /images)",
       };
     }
   },
@@ -326,42 +382,42 @@ export const didAvatarProvider: AvatarVideoProvider = {
   },
 
   async cancelVideo(providerJobId: string): Promise<{ cancelled: boolean; reason?: string }> {
-    // UNVERIFICADO: no se confirmó un endpoint de cancelación documentado
-    // para /talks — se intenta un DELETE best-effort (mismo criterio
-    // honesto que deleteAvatar(), nunca finge éxito) hasta confirmarlo
-    // contra la documentación oficial primaria.
+    // CONFIRMADO que el endpoint existe: docs.d-id.com/reference/deletetalk
+    // ("Delete Video by ID") documenta `DELETE /talks/{id}`. NO CONFIRMADO:
+    // si borrar un talk todavía en curso detiene el render/cobro en el
+    // proveedor, o si el endpoint solo borra videos ya completados — por
+    // eso esto se sigue tratando como "best effort, nunca finge éxito" en
+    // vez de asumir que cancela de verdad un render en curso.
     try {
       await didFetch(`/talks/${encodeURIComponent(providerJobId)}`, { method: "DELETE" });
       return { cancelled: true };
     } catch (err) {
       return {
         cancelled: false,
-        reason: err instanceof Error ? err.message : "No se pudo confirmar la cancelación en D-ID (endpoint no verificado)",
+        reason: err instanceof Error ? err.message : "No se pudo confirmar la cancelación en D-ID",
       };
     }
   },
 
   processWebhookPayload(payload: unknown): AvatarWebhookResult | null {
-    // UNVERIFICADO: la forma exacta del payload de webhook de D-ID no se
-    // pudo confirmar contra la documentación oficial primaria (ver
-    // comentario de cabecera) — se asume la misma forma que la respuesta
-    // de GET /talks/{id} (id + status), la aproximación más plausible
-    // según las fuentes consultadas. Nunca lanza ante un payload
-    // inesperado — devuelve null.
+    // NO CONFIRMADO: la forma exacta del payload de webhook de D-ID no se
+    // pudo confirmar contra la documentación oficial primaria — se asume
+    // la misma forma que la respuesta de GET /talks/{id} (id + status), la
+    // aproximación más plausible según las fuentes consultadas. Nunca
+    // lanza ante un payload inesperado — devuelve null.
     if (!payload || typeof payload !== "object") return null;
     const p = payload as Record<string, unknown>;
     const id = p.id;
     if (typeof id !== "string") return null;
 
-    const status = mapDidStatus(typeof p.status === "string" ? p.status : undefined);
     // mapDidStatus cae a "failed" por defecto ante cualquier valor no
     // reconocido — aquí eso sería ambiguo (¿de verdad falló, o el status
     // vino vacío/desconocido?), así que solo se acepta un status presente
-    // y explícitamente mapeable, igual de estricto que heygen.ts con sus
-    // sufijos ".success"/".fail".
+    // y explícitamente mapeable (los 5 estados confirmados de GET /talks/{id}
+    // más "cancelled", que aplica al mismo recurso).
     const KNOWN_RAW_STATUSES = new Set(["created", "started", "done", "error", "rejected", "cancelled"]);
     if (typeof p.status !== "string" || !KNOWN_RAW_STATUSES.has(p.status)) return null;
 
-    return { providerJobId: id, status };
+    return { providerJobId: id, status: mapDidStatus(p.status) };
   },
 };
