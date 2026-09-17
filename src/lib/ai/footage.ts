@@ -9,9 +9,19 @@ type PexelsVideoFile = {
 };
 
 type PexelsVideo = {
+  id: number;
   duration: number;
   user?: { name?: string };
   video_files: PexelsVideoFile[];
+};
+
+export type FootageCandidateRaw = {
+  url: string;
+  sourceId: string;
+  photographer?: string;
+  width?: number;
+  height?: number;
+  durationSeconds?: number;
 };
 
 /**
@@ -37,10 +47,16 @@ export function selectPortraitVideoFile(files: PexelsVideoFile[]): PexelsVideoFi
   );
 }
 
-export async function fetchSceneVideo(
+/**
+ * Trae TODOS los candidatos de video que cumplen el mínimo de duración y
+ * tienen un archivo vertical aprovechable — no solo el primero. El
+ * selector (src/lib/video/footage-select.ts) es quien decide cuál usar,
+ * comparando entre varias consultas y contra lo ya usado en el video.
+ */
+export async function searchSceneVideos(
   query: string,
   minimumDurationSeconds = 0,
-): Promise<{ url: string; photographer?: string } | null> {
+): Promise<FootageCandidateRaw[]> {
   if (!PEXELS_API_KEY) {
     throw new Error("Falta configurar PEXELS_API_KEY");
   }
@@ -48,7 +64,7 @@ export async function fetchSceneVideo(
   const params = new URLSearchParams({
     query,
     orientation: "portrait",
-    per_page: "5",
+    per_page: "12",
     size: "medium",
   });
 
@@ -61,20 +77,36 @@ export async function fetchSceneVideo(
   }
 
   const data = (await res.json()) as { videos: PexelsVideo[] };
+  const candidates: FootageCandidateRaw[] = [];
+
   for (const video of data.videos) {
     if (video.duration < minimumDurationSeconds) continue;
     const file = selectPortraitVideoFile(video.video_files);
-    if (file) {
-      return { url: file.link, photographer: video.user?.name };
-    }
+    if (!file) continue;
+    candidates.push({
+      url: file.link,
+      sourceId: `pexels-video-${video.id}`,
+      photographer: video.user?.name,
+      width: file.width ?? undefined,
+      height: file.height ?? undefined,
+      durationSeconds: video.duration,
+    });
   }
 
-  return null;
+  return candidates;
 }
 
-export async function fetchSceneImage(
+export async function fetchSceneVideo(
   query: string,
-): Promise<{ url: string; photographer: string }> {
+  minimumDurationSeconds = 0,
+): Promise<{ url: string; photographer?: string } | null> {
+  const candidates = await searchSceneVideos(query, minimumDurationSeconds);
+  const first = candidates[0];
+  return first ? { url: first.url, photographer: first.photographer } : null;
+}
+
+/** Igual que searchSceneVideos pero para fotos — último recurso cuando ningún concepto encuentra video. */
+export async function searchScenePhotos(query: string): Promise<FootageCandidateRaw[]> {
   if (!PEXELS_API_KEY) {
     throw new Error("Falta configurar PEXELS_API_KEY");
   }
@@ -82,7 +114,7 @@ export async function fetchSceneImage(
   const params = new URLSearchParams({
     query,
     orientation: "portrait",
-    per_page: "1",
+    per_page: "8",
   });
 
   const res = await fetch(`https://api.pexels.com/v1/search?${params}`, {
@@ -94,15 +126,33 @@ export async function fetchSceneImage(
   }
 
   const data = (await res.json()) as {
-    photos: { src: { large2x: string }; photographer: string }[];
+    photos: {
+      id: number;
+      width: number;
+      height: number;
+      src: { large2x: string };
+      photographer: string;
+    }[];
   };
 
-  const photo = data.photos[0];
+  return data.photos.map((photo) => ({
+    url: photo.src.large2x,
+    sourceId: `pexels-photo-${photo.id}`,
+    photographer: photo.photographer,
+    width: photo.width,
+    height: photo.height,
+  }));
+}
+
+export async function fetchSceneImage(
+  query: string,
+): Promise<{ url: string; photographer: string }> {
+  const candidates = await searchScenePhotos(query);
+  const photo = candidates[0];
   if (!photo) {
     throw new Error(`Pexels no encontró resultados para "${query}"`);
   }
-
-  return { url: photo.src.large2x, photographer: photo.photographer };
+  return { url: photo.url, photographer: photo.photographer ?? "" };
 }
 
 export async function downloadImage(url: string): Promise<Buffer> {

@@ -45,6 +45,13 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      # Requerido por audio-master.ts (normalización de loudness del video
+      # final a -16 LUFS / -1.5 dBTP) — software libre, sin costo ni
+      # suscripción. No viene preinstalado en la imagen ubuntu-latest
+      # (verificado contra el inventario de software del runner).
+      - name: Instalar ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       - name: Renderizar video
         run: npx tsx scripts/render-worker.ts
         env:

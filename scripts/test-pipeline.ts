@@ -103,6 +103,7 @@ async function main() {
     requestId: "test-atomivid",
     script,
     style,
+    targetDurationSeconds: durationSeconds,
     onProgress: (stage) => console.log(`  → etapa: ${stage}`),
   });
 

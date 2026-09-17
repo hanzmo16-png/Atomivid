@@ -1,5 +1,11 @@
-import { downloadImage, fetchSceneImage, fetchSceneVideo } from "@/lib/ai/footage";
-import type { FootageProvider } from "../types";
+import {
+  downloadImage,
+  fetchSceneImage,
+  fetchSceneVideo,
+  searchSceneVideos,
+  searchScenePhotos,
+} from "@/lib/ai/footage";
+import type { FootageCandidate, FootageProvider } from "../types";
 
 export const realFootageProvider: FootageProvider = {
   name: "pexels-video-first",
@@ -28,4 +34,31 @@ export const realFootageProvider: FootageProvider = {
     };
   },
   downloadFootage: downloadImage,
+  async searchVideoCandidates(query, minimumDurationSeconds): Promise<FootageCandidate[]> {
+    const raw = await searchSceneVideos(query, minimumDurationSeconds);
+    return raw.map((c) => ({
+      url: c.url,
+      sourceId: c.sourceId,
+      photographer: c.photographer,
+      width: c.width,
+      height: c.height,
+      durationSeconds: c.durationSeconds,
+      mediaType: "video" as const,
+      mimeType: "video/mp4",
+      extension: "mp4",
+    }));
+  },
+  async searchImageCandidates(query): Promise<FootageCandidate[]> {
+    const raw = await searchScenePhotos(query);
+    return raw.map((c) => ({
+      url: c.url,
+      sourceId: c.sourceId,
+      photographer: c.photographer,
+      width: c.width,
+      height: c.height,
+      mediaType: "image" as const,
+      mimeType: "image/jpeg",
+      extension: "jpg",
+    }));
+  },
 };

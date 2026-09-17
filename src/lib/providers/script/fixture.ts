@@ -38,6 +38,8 @@ const TEMPLATES: Record<ScriptLanguage, Array<(topic: string) => string>> = {
   ],
 };
 
+const ENERGIES = ["medium", "high", "low"] as const;
+
 function buildScene(
   topic: string,
   language: ScriptLanguage,
@@ -53,9 +55,20 @@ function buildScene(
     text += ` ${template(topic)}`;
   }
 
+  const visualQuery = `${topic} motivation ${templateIndex + 1}`.slice(0, 60);
+
   return {
     text,
-    visualQuery: `${topic} motivation ${templateIndex + 1}`.slice(0, 60),
+    visualQuery,
+    // Conceptos deterministas y DISTINTOS entre sí (no solo el mismo
+    // sufijo numérico) — así el fixture también ejercita la deduplicación
+    // de footage-select.ts en pruebas/desarrollo sin depender de Claude.
+    visualConcepts: [
+      visualQuery,
+      `${topic} effort scene ${templateIndex + 1}`.slice(0, 60),
+      `${topic} progress moment ${templateIndex + 1}`.slice(0, 60),
+    ],
+    energy: ENERGIES[templateIndex % ENERGIES.length],
   };
 }
 

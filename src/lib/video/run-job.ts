@@ -9,6 +9,7 @@ type JobRow = {
   style: string | null;
   topic: string | null;
   language: ScriptLanguage | null;
+  duration_seconds: number | null;
 };
 
 /**
@@ -31,7 +32,7 @@ export async function runRenderJob(requestId: string): Promise<void> {
 
   const { data: row } = await service
     .from("video_requests")
-    .select("status, script_json, style, topic, language")
+    .select("status, script_json, style, topic, language, duration_seconds")
     .eq("id", requestId)
     .single<JobRow>();
 
@@ -70,6 +71,7 @@ export async function runRenderJob(requestId: string): Promise<void> {
       style: row.style ?? undefined,
       topic: row.topic ?? undefined,
       language: row.language ?? undefined,
+      targetDurationSeconds: row.duration_seconds ?? undefined,
       onProgress: async (stage: RenderStage) => {
         await service.from("video_requests").update({ progress_stage: stage }).eq("id", requestId);
       },
