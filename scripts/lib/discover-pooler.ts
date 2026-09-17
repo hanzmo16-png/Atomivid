@@ -1,44 +1,35 @@
 /**
- * Descubrimiento AUTÓNOMO del host del Connection Pooler de Supabase —
- * usado SOLO cuando la conexión DIRECTA (db.<ref>.supabase.co) falla con
- * un error de alcance de red (ENETUNREACH/ENOTFOUND/EHOSTUNREACH/ETIMEDOUT
- * — confirmado en ejecución real: ese host hoy resuelve solo a IPv6 y
- * GitHub Actions no tiene salida IPv6). Nunca se dispara ante un fallo de
- * autenticación (contraseña incorrecta) — eso se deja como error explícito,
- * nunca como excusa para "probar otro host".
+ * Deriva un host CANDIDATO del Connection Pooler de Supabase a partir de
+ * datos 100% públicos — nunca intenta autenticarse contra él.
  *
- * El pooler de Supabase (Supavisor) es un servicio COMPARTIDO por región de
- * AWS — su hostname sigue el patrón documentado `aws-0-<región>.pooler.supabase.com`,
- * pero solo enruta correctamente si <región> es la región REAL donde vive
- * el proyecto. Esta función NUNCA adivina la región a ciegas: la deriva de
- * datos públicos verificables (el prefijo IPv6 al que resuelve el host
- * directo del proyecto, cruzado contra el `ip-ranges.json` que AWS publica
- * oficialmente — no es información sensible, es routing público), y solo
- * considera un candidato "confirmado" tras una conexión Postgres real y
- * EXITOSA (SELECT 1, de solo lectura) con la contraseña real — una
- * autenticación exitosa es prueba criptográfica de que el proyecto/tenant
- * coincide, no una suposición. Un intento contra la región equivocada
- * falla limpio (Supavisor no reconoce el tenant `postgres.<ref>` fuera de
- * su propia región) — nunca conecta "por accidente" a otro proyecto.
+ * Usado SOLO como ayuda diagnóstica cuando la conexión DIRECTA
+ * (db.<ref>.supabase.co) falla con un error de alcance de red (confirmado
+ * en ejecución real: ese host hoy resuelve solo a IPv6, y GitHub Actions
+ * no tiene salida IPv6). El pooler de Supabase (Supavisor) es un servicio
+ * compartido por región de AWS — su hostname sigue el patrón documentado
+ * `aws-0-<región>.pooler.supabase.com`, pero solo enruta correctamente si
+ * <región> es la región REAL donde vive el proyecto.
  *
- * Nunca se aplica ninguna migración ni se modifica nada durante el
- * descubrimiento — todos los intentos son de solo lectura (SELECT 1).
+ * Esta función deriva esa región de forma verificable, SIN adivinar y SIN
+ * usar ninguna credencial: resuelve el prefijo IPv6 real al que apunta el
+ * host directo del proyecto (DNS, público) y lo cruza contra el
+ * `ip-ranges.json` que AWS publica oficialmente (routing público, no
+ * información sensible). El resultado es un CANDIDATO a revisar por un
+ * operador humano (o a usar vía SUPABASE_DB_HOST tras confirmarlo) — nunca
+ * se usa automáticamente para autenticar. Intentar una conexión real con
+ * la contraseña del proyecto contra un host derivado, sin ese paso de
+ * confirmación humana, es exactamente el patrón que este archivo evita a
+ * propósito.
  */
 import dns from "node:dns/promises";
 
-export type DiscoveryAttempt = {
-  host: string;
-  region: string;
-  outcome: "auth_ok" | "rejected_by_server" | "unreachable" | "pooler_dns_not_found";
-};
+export type PoolerCandidate = { host: string; region: string; allRegions: string[] };
 
-export type DiscoveryResult = {
-  confirmedHost: string | null;
-  confirmedRegion: string | null;
-  attempts: DiscoveryAttempt[];
-};
-
-// --- Utilidades IPv6 (sin dependencias externas) ---------------------
+// BigInt() en vez de literales "0n"/"16n" — el target de tsconfig (ES2017)
+// no admite la sintaxis de literal BigInt, solo el tipo/función en runtime.
+const ZERO = BigInt(0);
+const SIXTEEN = BigInt(16);
+const ONE_TWENTY_EIGHT = BigInt(128);
 
 function expandIPv6Groups(addr: string): string[] {
   const [head, tail] = addr.split("::");
@@ -51,12 +42,6 @@ function expandIPv6Groups(addr: string): string[] {
   return addr.split(":");
 }
 
-// BigInt() en vez de literales "0n"/"16n" — el target de tsconfig (ES2017)
-// no admite la sintaxis de literal BigInt, solo el tipo/función en runtime.
-const ZERO = BigInt(0);
-const SIXTEEN = BigInt(16);
-const ONE_TWENTY_EIGHT = BigInt(128);
-
 function ipv6ToBigInt(addr: string): bigint {
   const groups = expandIPv6Groups(addr);
   let result = ZERO;
@@ -67,7 +52,7 @@ function ipv6ToBigInt(addr: string): bigint {
   return result;
 }
 
-/** Exportada solo para test — la lógica de match de prefijo es la parte crítica de seguridad de este archivo (un bug aquí podría derivar una región equivocada). */
+/** Exportada solo para test — la lógica de match de prefijo es la parte crítica de seguridad de este archivo (un bug aquí podría sugerir una región equivocada). */
 export function ipv6InPrefix(addr: string, prefix: string): boolean {
   const [network, bitsStr] = prefix.split("/");
   const bits = BigInt(parseInt(bitsStr, 10));
@@ -96,42 +81,28 @@ async function resolveAwsRegionsForIpv6(addr: string): Promise<string[]> {
   return Array.from(regions);
 }
 
-/** Exportada solo para test. */
-export function classifyPgError(err: unknown): "rejected_by_server" | "unreachable" {
-  const code = (err as { code?: string } | undefined)?.code;
-  // Códigos SQLSTATE de Postgres (5 caracteres, p. ej. 28P01 = auth
-  // fallida) indican que SÍ se alcanzó un servidor Postgres/Supavisor real
-  // que respondió — informativo (probó el host, pero lo rechazó), muy
-  // distinto de nunca haber podido conectar (ENOTFOUND/ENETUNREACH/etc,
-  // códigos de `net`/`dns`, no de Postgres).
-  if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code)) return "rejected_by_server";
-  return "unreachable";
-}
-
 export function isNetworkReachabilityError(err: unknown): boolean {
   const code = (err as { code?: string } | undefined)?.code;
   return code === "ENETUNREACH" || code === "ENOTFOUND" || code === "EHOSTUNREACH" || code === "ETIMEDOUT" || code === "ECONNREFUSED";
 }
 
 /**
- * Intenta descubrir y CONFIRMAR (con una conexión real, exitosa y de solo
- * lectura) el host del Connection Pooler del proyecto `ref`, usando la
- * MISMA contraseña ya autorizada (SUPABASE_DB_PASSWORD). Nunca aplica SQL
- * de escritura. Devuelve el host confirmado solo si una autenticación real
- * tuvo éxito — si no, `confirmedHost` es null y `attempts` documenta,  de
- * forma saneada, cada candidato probado y por qué no sirvió.
+ * Deriva (sin conectar nunca, sin usar ninguna credencial) un candidato de
+ * host de Connection Pooler para `ref`, a partir de DNS público + el
+ * ip-ranges.json público de AWS. Devuelve null si no se pudo derivar nada
+ * (p. ej. el host directo no resuelve, o no hay salida de red hacia
+ * ip-ranges.amazonaws.com) — nunca lanza.
  */
-export async function discoverPoolerHost(ref: string, password: string): Promise<DiscoveryResult> {
-  const attempts: DiscoveryAttempt[] = [];
+export async function deriveCandidatePoolerHost(ref: string): Promise<PoolerCandidate | null> {
   const directHost = `db.${ref}.supabase.co`;
 
   let ipv6Addrs: string[];
   try {
     ipv6Addrs = await dns.resolve6(directHost);
   } catch {
-    return { confirmedHost: null, confirmedRegion: null, attempts };
+    return null;
   }
-  if (ipv6Addrs.length === 0) return { confirmedHost: null, confirmedRegion: null, attempts };
+  if (ipv6Addrs.length === 0) return null;
 
   let regions: string[];
   try {
@@ -139,39 +110,7 @@ export async function discoverPoolerHost(ref: string, password: string): Promise
   } catch {
     regions = [];
   }
-  if (regions.length === 0) return { confirmedHost: null, confirmedRegion: null, attempts };
+  if (regions.length === 0) return null;
 
-  const { Client } = await import("pg");
-
-  for (const region of regions) {
-    const host = `aws-0-${region}.pooler.supabase.com`;
-
-    try {
-      await dns.resolve4(host);
-    } catch {
-      attempts.push({ host, region, outcome: "pooler_dns_not_found" });
-      continue;
-    }
-
-    const client = new Client({
-      connectionString: `postgresql://postgres.${ref}:${encodeURIComponent(password)}@${host}:5432/postgres`,
-      connectionTimeoutMillis: 10000,
-    });
-    try {
-      await client.connect();
-      await client.query("select 1");
-      await client.end();
-      attempts.push({ host, region, outcome: "auth_ok" });
-      return { confirmedHost: host, confirmedRegion: region, attempts };
-    } catch (err) {
-      attempts.push({ host, region, outcome: classifyPgError(err) });
-      try {
-        await client.end();
-      } catch {
-        // ya estaba cerrada o nunca llegó a abrir — ignorar.
-      }
-    }
-  }
-
-  return { confirmedHost: null, confirmedRegion: null, attempts };
+  return { host: `aws-0-${regions[0]}.pooler.supabase.com`, region: regions[0], allRegions: regions };
 }

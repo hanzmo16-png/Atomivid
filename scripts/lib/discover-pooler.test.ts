@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ipv6InPrefix, classifyPgError, isNetworkReachabilityError } from "./discover-pooler";
+import { ipv6InPrefix, isNetworkReachabilityError } from "./discover-pooler";
 
 // La dirección real observada en ejecución (log sanitizado de la
 // migración de Supabase) al resolver db.<ref>.supabase.co — usada aquí
@@ -32,18 +32,7 @@ test("ipv6InPrefix: expande correctamente '::' en distintas posiciones", () => {
   assert.equal(ipv6InPrefix("2001:db8::", "2001:db8::/32"), true);
 });
 
-test("classifyPgError: un código SQLSTATE de 5 caracteres se clasifica como 'rejected_by_server'", () => {
-  assert.equal(classifyPgError({ code: "28P01" }), "rejected_by_server");
-  assert.equal(classifyPgError({ code: "3D000" }), "rejected_by_server");
-});
-
-test("classifyPgError: un código de red de node (ENOTFOUND, etc.) se clasifica como 'unreachable'", () => {
-  assert.equal(classifyPgError({ code: "ENOTFOUND" }), "unreachable");
-  assert.equal(classifyPgError({}), "unreachable");
-  assert.equal(classifyPgError(undefined), "unreachable");
-});
-
-test("isNetworkReachabilityError: reconoce los códigos de red que disparan el descubrimiento autónomo", () => {
+test("isNetworkReachabilityError: reconoce los códigos de red que ameritan sugerir un candidato de pooler", () => {
   for (const code of ["ENETUNREACH", "ENOTFOUND", "EHOSTUNREACH", "ETIMEDOUT", "ECONNREFUSED"]) {
     assert.equal(isNetworkReachabilityError({ code }), true, code);
   }
