@@ -39,3 +39,24 @@ test("el reintento tras truncamiento usa un presupuesto de tokens MAYOR, no el m
   assert.ok(source.includes("MAX_OUTPUT_TOKENS_RETRY"));
   assert.ok(/MAX_OUTPUT_TOKENS_RETRY\s*=\s*MAX_OUTPUT_TOKENS\s*\+/.test(source));
 });
+
+/**
+ * Regresión del residuo "<END>" observado en un campo real (run
+ * 35240163644, storyboard válido, stop_reason="end_turn" — no era
+ * truncamiento). La sanitización debe ocurrir DESPUÉS de JSON.parse
+ * (JSON ya confirmado válido) y ANTES de StoryboardSchema.safeParse —
+ * nunca antes del chequeo de stop_reason/JSON.parse, para no poder
+ * enmascarar un truncamiento o un JSON genuinamente inválido.
+ */
+test("sanitizeStoryboardStrings se aplica después de JSON.parse y antes de StoryboardSchema.safeParse", () => {
+  const source = readFileSync(path.join(__dirname, "visual-director.ts"), "utf8");
+  assert.ok(source.includes("sanitizeStoryboardStrings"), "debería importar y usar sanitizeStoryboardStrings");
+
+  const jsonParseIndex = source.indexOf("JSON.parse(textBlock.text)");
+  const sanitizeIndex = source.indexOf("sanitizeStoryboardStrings(parsed)");
+  const safeParseIndex = source.indexOf("StoryboardSchema.safeParse(sanitized)");
+
+  assert.ok(jsonParseIndex > -1 && sanitizeIndex > -1 && safeParseIndex > -1);
+  assert.ok(jsonParseIndex < sanitizeIndex, "JSON.parse debe ocurrir antes de sanitizar");
+  assert.ok(sanitizeIndex < safeParseIndex, "sanitizar debe ocurrir antes de validar con Zod");
+});
