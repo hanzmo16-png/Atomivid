@@ -1,6 +1,6 @@
 # Modo Avatar — HeyGen (arquitectura y estado real)
 
-**Última verificación de la investigación de HeyGen: 2026-09-17.**
+**Última verificación de la investigación de HeyGen: 2026-09-17. Comparación con otros proveedores (D-ID/Synthesia): 2026-09-17.**
 
 Estado: **arquitectura, proveedor, UI y wiring del pipeline implementados y probados (fixture/mocks); ninguna llamada real fue posible (sin `HEYGEN_API_KEY`).** El modo "visual" (existente) sigue siendo el único disponible para usuarios reales — `AVATAR_MODE_ENABLED=false` por defecto. **El adaptador HeyGen NO debe considerarse production-ready** — ver "Lo que no se pudo confirmar" abajo, es un bloqueo real, no cosmético.
 
@@ -43,6 +43,22 @@ Esta es la corrección más importante sobre la investigación anterior. Existen
 
 **Por esto el feature flag permanece apagado y el adaptador no se presenta como listo para producción** — exactamente como se pidió. Activar esto en serio requiere: (a) una cuenta HeyGen real con acceso a `docs.heygen.com` para leer el contrato exacto, y (b) una decisión de producto consciente sobre Photo Avatar (self-serve, identidad no garantizada) vs. Digital Twin (Enterprise, identidad real, requiere ventas — fuera de mi autorización).
 
+## Comparación de proveedores (para decidir si conviene sumar un segundo adaptador)
+
+Igual que con HeyGen, `docs.d-id.com` está bloqueado por la política de red de este entorno — lo de abajo viene de WebSearch (resultados que citan/resumen la documentación oficial), no de lectura directa. Comparación acotada a lo relevante para ATOMIVID (foto única → video hablando, compatible con audio externo de ElevenLabs):
+
+| | **HeyGen** (implementado) | **D-ID** (investigado, no implementado) | **Synthesia** (investigado, no implementado) |
+|---|---|---|---|
+| Ajuste al caso de uso exacto ("una sola foto → video hablando") | Ambiguo — ver arriba: "Photo Avatar" self-serve no garantiza identidad reconocible; el producto que sí la garantiza ("Digital Twin") exige tier Enterprise | **Es su producto central** ("Creative Reality Studio": foto → video hablando) — fuentes lo describen como la opción más fuerte específicamente para esto | Orientado a "avatares de stock"/plantillas para producción corporativa, no tanto a animar la foto propia del usuario |
+| Consentimiento a nivel de API | Video de consentimiento con detección de vivacidad, pero SOLO exigido para Digital Twin (Enterprise) — no confirmado para Photo Avatar | Tiene un **objeto "Consent" propio en la API** (`POST /consents`, `GET /consents/{id}`) — más alineado con lo que ATOMIVID necesita documentar/auditar, aunque no se confirmó si es obligatorio antes de animar | No se investigó a este nivel de detalle |
+| Audio externo (compatibilidad con ElevenLabs) | Sí — `voice.type: "text"` con `voice_id` propio; no se confirmó un modo "solo audio externo" (parece requerir generar la voz en el propio HeyGen) | Sí, confirmado — endpoint de subida de audio + `audio_url` apuntando a un audio ya generado (encaja mejor con "ATOMIVID ya sintetiza con ElevenLabs y solo necesita animar la cara") | No investigado |
+| Webhooks | Mencionado (`avatar_video.success`) pero forma exacta no confirmada | Confirmado — campo `webhook` en la creación del talk | No investigado |
+| SDK Node.js | REST directo (sin SDK oficial confirmado) | REST + SDK oficial de JavaScript confirmado | No investigado |
+| Precio de entrada | Pay-as-you-go, ~$0.02-0.07/s (fuentes secundarias) | Plan API desde ~$5.90/mes (10 min), o ~$5.90/min pay-as-you-go según la fuente — cifras inconsistentes entre fuentes, sin confirmar | Desde ~$22/mes, pero orientado a licencias de asiento, no a costo por generación vía API |
+| Riesgo de dependencia | El producto correcto (Digital Twin) requiere contrato Enterprise — riesgo de quedar atado a condiciones no autoservicio | Aparenta ser más autoservicio de punta a punta | Menos relevante para este caso de uso específico |
+
+**Recomendación:** para el caso de uso exacto de ATOMIVID ("mi propia foto, que hable mi guion, con mi propia voz de ElevenLabs"), **D-ID parece un mejor ajuste que HeyGen** — es su producto central (no un caso límite como "Photo Avatar" de HeyGen), soporta audio externo de forma confirmada, y tiene un objeto de consentimiento propio en la API. **No se implementó un adaptador D-ID en este sprint** (habría requerido más tiempo del disponible sin gastar nada, y el objetivo de la fase era fortalecer la abstracción y el adaptador ya existente, no añadir un segundo proveedor real) — queda documentado como el candidato más fuerte para una futura implementación. La arquitectura (`AvatarVideoProvider`) ya está diseñada para que sumar un adaptador D-ID sea aditivo (un archivo nuevo + una entrada en el selector), sin tocar el pipeline ni la UI.
+
 ## Arquitectura implementada
 
 - `providers/types.ts`: `AvatarVideoProvider`, `AvatarProviderError` tipado, alias de producto (`PremiumVideoProvider`/`ImageGenerationProvider`/`MusicGenerationProvider`).
@@ -51,6 +67,8 @@ Esta es la corrección más importante sobre la investigación anterior. Existen
 - `video/avatar/photo-validation.ts`: magic bytes reales, dimensiones, rechaza archivos disfrazados.
 - `video/avatar/pipeline.ts`: ramificación real por `video_requests.mode` (ver "Wiring del pipeline" abajo).
 - Migración `0011_video_modes_avatar.sql` (no aplicada, **verificada localmente contra Postgres real** — ver `supabase/migrations/verify/`).
+- Migración `0013_avatar_state_taxonomy.sql` (no aplicada, additiva — añade `'draft'` a los CHECK de estado).
+- `video/avatar/webhook.ts` + `app/api/webhooks/avatar/[provider]/route.ts`: recepción de webhook autenticada por secreto compartido.
 - `/dashboard/new`: selector visual/avatar, carga de foto, consentimiento, estimación de costo (ver "UI" abajo).
 
 ## Wiring del pipeline (implementado)
@@ -62,8 +80,25 @@ Esta es la corrección más importante sobre la investigación anterior. Existen
 3. `avatars.consent_given = true`.
 4. `avatars.status` no es `'failed'` ni `'deleted'`, y el avatar ya tiene un `provider_avatar_id` asignado (si no lo tiene, se bloquea con "todavía no terminó de crearse en el proveedor").
 5. El proveedor resuelto (`getAvatarProvider()`) está disponible (`isAvailable()`).
+6. La narración estimada (palabras/2.5s) no excede `MAX_AVATAR_DURATION_SECONDS` (default 120s) — límite explícito de duración, independiente del tope de caracteres que cada proveedor pueda imponer por su cuenta.
 
 Si algo falla, se registra un error sanitizado (nunca el contenido de la foto ni tokens) y la solicitud pasa a `failed` — igual que el modo visual ya hace hoy.
+
+## Capacidades del contrato `AvatarVideoProvider` (ampliado en esta fase)
+
+Además de crear/consultar/generar/borrar (ya documentado arriba), el contrato ahora exige:
+
+- `estimateVideoCostUsd(request)`: estimación PURA (sin red) — usa la MISMA fórmula que `generateVideo()` usa internamente para rechazar por presupuesto, nunca una aproximación distinta que podría subestimar el gasto real (verificado por prueba: `heygen.test.ts`, "usa la MISMA fórmula que generateVideo").
+- `cancelVideo(providerJobId)`: mismo criterio honesto que `deleteAvatar()` — intenta cancelar en el proveedor y reporta `{cancelled:false, reason}` si no se pudo confirmar, nunca finge éxito. **UNVERIFICADO para HeyGen** (sin endpoint de cancelación documentado).
+- `processWebhookPayload(payload)`: normaliza un payload YA AUTENTICADO (la autenticación ocurre en la ruta HTTP, ver abajo) a `{providerJobId, status}` — devuelve `null` (nunca lanza) ante un payload malformado o de un evento no reconocido.
+
+## Webhook (`POST /api/webhooks/avatar/[provider]`, implementado)
+
+Notifica cuando un video de avatar termina (o falla) sin depender solo del sondeo — perder un webhook nunca cuelga una solicitud, porque `checkVideoStatus()` (sondeo) sigue funcionando en paralelo.
+
+**Autenticación:** ningún mecanismo de firma de webhook de HeyGen pudo confirmarse contra la documentación oficial primaria — en vez de inventar una verificación que no se pudo confirmar, el endpoint exige un secreto compartido PROPIO (`AVATAR_WEBHOOK_SECRET`, que nosotros configuramos y le damos al proveedor al registrar la URL del webhook) en el header `X-Atomivid-Webhook-Secret`. Sin ese secreto configurado, o si no coincide, responde `401` **antes** de leer el cuerpo — nunca procesa un payload no autenticado. Si `AVATAR_MODE_ENABLED=false`, responde `404` sin revelar que la ruta existe.
+
+Lógica de negocio separada en `video/avatar/webhook.ts` (`verifyWebhookSecret()`, `handleAvatarWebhook()`) — probada sin Supabase ni servidor Next.js reales; la ruta HTTP (`route.ts`) es una envoltura delgada, probada aparte para los caminos que nunca llegan a la base de datos (`route.test.ts`).
 
 ## UI (`/dashboard/new`, implementada)
 
@@ -75,6 +110,12 @@ Con el flag encendido: selector para reusar un avatar ya `ready` o subir uno nue
 
 **Limitación conocida, documentada, no oculta:** al subir una foto nueva, `actions.ts` llama a `provider.createAvatar()` de forma síncrona dentro de la Server Action y exige que el resultado sea `status: "completed"` (mapeado a `avatars.status = 'ready'`) para poder usarlo de inmediato — si el proveedor devolviera un estado asíncrono (`queued`/`processing`), el usuario ve un error pidiendo reintentar más tarde, porque esta primera versión no implementa un seguimiento en segundo plano del avatar hasta que quede listo. El fixture y, según lo confirmado sobre "Photo Avatar", HeyGen responden de inmediato — pero esto no está garantizado si HeyGen cambia de comportamiento o si en el futuro se usa "Digital Twin" (genuinamente asíncrono).
 
+## Estados (taxonomía)
+
+`avatars.status`: `'draft'` (añadido en la migración 0013) `| 'uploaded' | 'processing' | 'ready' | 'failed' | 'deleted'`.
+`video_requests.avatar_render_status`: `'draft'` (añadido en la migración 0013) `| 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled'`.
+`AvatarJobStatus` (TypeScript, contrato del proveedor): `'queued' | 'processing' | 'completed' | 'failed' | 'cancelled'` — sin `'draft'`, porque ese estado es anterior a que exista cualquier job en el proveedor (nunca se le pregunta a HeyGen/D-ID por un job que ni siquiera se creó).
+
 ## Cómo activar (cuando tengas la clave Y hayas resuelto la ambigüedad Photo Avatar/Digital Twin)
 
 ```
@@ -82,6 +123,8 @@ AVATAR_MODE_ENABLED=true
 AVATAR_PROVIDER=heygen
 HEYGEN_API_KEY=...
 MAX_AVATAR_COST_USD=3
+MAX_AVATAR_DURATION_SECONDS=120
+AVATAR_WEBHOOK_SECRET=<genera un valor aleatorio largo, regístralo también en el proveedor>
 ```
 
 Ninguna de estas variables afecta el modo "visual" existente si no las configuras.
