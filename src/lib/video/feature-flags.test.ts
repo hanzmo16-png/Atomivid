@@ -14,6 +14,8 @@ const FLAG_VARS = [
   "MAX_PREMIUM_VIDEO_COST_USD",
   "MAX_MUSIC_COST_USD",
   "VISUAL_QA_ENABLED",
+  "OPENAI_IMAGE_GENERATION_ENABLED",
+  "MAX_GENERATED_IMAGES_PER_VIDEO",
 ];
 
 function withEnv(vars: Record<string, string | undefined>, fn: () => void) {
@@ -40,6 +42,25 @@ test("sin ninguna variable configurada, todas las integraciones nuevas quedan ap
     assert.equal(flags.videoProvider, "fixture");
     assert.equal(flags.premiumClipsEnabled, false);
     assert.equal(flags.visualQaEnabled, false);
+    assert.equal(flags.imageGenerationEnabled, false);
+    assert.equal(flags.maxImagesPerVideo, 3);
+  });
+});
+
+test("OPENAI_IMAGE_GENERATION_ENABLED acepta '1'/'true'/'yes' como encendido", () => {
+  for (const value of ["1", "true", "yes", "TRUE"]) {
+    withEnv({ OPENAI_IMAGE_GENERATION_ENABLED: value }, () => {
+      assert.equal(getFeatureFlags().imageGenerationEnabled, true, `valor "${value}" debería encender el flag`);
+    });
+  }
+});
+
+test("MAX_GENERATED_IMAGES_PER_VIDEO acepta un entero configurado y rechaza valores inválidos/negativos", () => {
+  withEnv({ MAX_GENERATED_IMAGES_PER_VIDEO: "5" }, () => {
+    assert.equal(getFeatureFlags().maxImagesPerVideo, 5);
+  });
+  withEnv({ MAX_GENERATED_IMAGES_PER_VIDEO: "-1" }, () => {
+    assert.ok(getFeatureFlags().maxImagesPerVideo >= 0);
   });
 });
 
