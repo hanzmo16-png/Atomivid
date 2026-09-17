@@ -1,8 +1,12 @@
-# Modo Avatar — HeyGen (arquitectura y estado real)
+# Modo Avatar — HeyGen + D-ID (arquitectura y estado real)
 
-**Última verificación de la investigación de HeyGen: 2026-09-17. Comparación con otros proveedores (D-ID/Synthesia): 2026-09-17.**
+**Última verificación de la investigación de HeyGen: 2026-09-17. Comparación con otros proveedores (D-ID/Synthesia): 2026-09-17. Adaptador D-ID implementado (mock/tests, cero llamadas reales): 2026-09-17.**
 
-Estado: **arquitectura, proveedor, UI y wiring del pipeline implementados y probados (fixture/mocks); ninguna llamada real fue posible (sin `HEYGEN_API_KEY`).** El modo "visual" (existente) sigue siendo el único disponible para usuarios reales — `AVATAR_MODE_ENABLED=false` por defecto. **El adaptador HeyGen NO debe considerarse production-ready** — ver "Lo que no se pudo confirmar" abajo, es un bloqueo real, no cosmético.
+Estado: **arquitectura, DOS proveedores (HeyGen y D-ID), UI y wiring del pipeline implementados y probados (fixture/mocks); ninguna llamada real fue posible con ninguno de los dos (sin `HEYGEN_API_KEY` ni `DID_API_KEY`).** El modo "visual" (existente) sigue siendo el único disponible para usuarios reales — `AVATAR_MODE_ENABLED=false` por defecto. **NI el adaptador HeyGen NI el adaptador D-ID deben considerarse production-ready** — ver "Lo que no se pudo confirmar" (HeyGen) y el comentario de cabecera de `providers/avatar/did.ts` (D-ID) — son bloqueos reales, no cosméticos.
+
+## D-ID (`providers/avatar/did.ts`) — implementado este sprint, NO verificado
+
+Mismo criterio de honestidad que HeyGen: implementado, con tests (`did.test.ts`, fetch mockeado, cero red real) y seleccionable vía `AVATAR_PROVIDER=did` + `DID_API_KEY`, pero el payload/response exacto de `/talks` y `/images`, el formato de autenticación Basic, y la forma del webhook **no se pudieron confirmar contra `docs.d-id.com`** (bloqueado en este entorno, igual que HeyGen) — son la mejor aproximación razonable a partir de las mismas fuentes secundarias citadas en la comparación de abajo. Diferencia arquitectónica clave frente a HeyGen: D-ID no tiene una fase de "entrenamiento" de avatar separada — `createAvatar()` solo sube la foto y devuelve `status: "completed"` de inmediato; `checkAvatarStatus()` es un no-op que siempre confirma "completed". No actives `DID_API_KEY` en producción sin confirmar tú mismo contra la documentación oficial primero.
 
 ## Limitación de investigación (léela antes de todo lo demás)
 
@@ -57,7 +61,7 @@ Igual que con HeyGen, `docs.d-id.com` está bloqueado por la política de red de
 | Precio de entrada | Pay-as-you-go, ~$0.02-0.07/s (fuentes secundarias) | Plan API desde ~$5.90/mes (10 min), o ~$5.90/min pay-as-you-go según la fuente — cifras inconsistentes entre fuentes, sin confirmar | Desde ~$22/mes, pero orientado a licencias de asiento, no a costo por generación vía API |
 | Riesgo de dependencia | El producto correcto (Digital Twin) requiere contrato Enterprise — riesgo de quedar atado a condiciones no autoservicio | Aparenta ser más autoservicio de punta a punta | Menos relevante para este caso de uso específico |
 
-**Recomendación:** para el caso de uso exacto de ATOMIVID ("mi propia foto, que hable mi guion, con mi propia voz de ElevenLabs"), **D-ID parece un mejor ajuste que HeyGen** — es su producto central (no un caso límite como "Photo Avatar" de HeyGen), soporta audio externo de forma confirmada, y tiene un objeto de consentimiento propio en la API. **No se implementó un adaptador D-ID en este sprint** (habría requerido más tiempo del disponible sin gastar nada, y el objetivo de la fase era fortalecer la abstracción y el adaptador ya existente, no añadir un segundo proveedor real) — queda documentado como el candidato más fuerte para una futura implementación. La arquitectura (`AvatarVideoProvider`) ya está diseñada para que sumar un adaptador D-ID sea aditivo (un archivo nuevo + una entrada en el selector), sin tocar el pipeline ni la UI.
+**Recomendación:** para el caso de uso exacto de ATOMIVID ("mi propia foto, que hable mi guion, con mi propia voz de ElevenLabs"), **D-ID parece un mejor ajuste que HeyGen** — es su producto central (no un caso límite como "Photo Avatar" de HeyGen), soporta audio externo de forma confirmada, y tiene un objeto de consentimiento propio en la API. **Se implementó un adaptador D-ID en un sprint posterior** (`providers/avatar/did.ts`, ver sección de arriba) exactamente como se anticipó: aditivo (un archivo nuevo + una entrada en el selector), sin tocar el pipeline ni la UI — pero, igual que HeyGen, sin verificar contra la documentación oficial primaria (sigue bloqueada en este entorno), así que tampoco es production-ready todavía.
 
 ## Arquitectura implementada
 

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { getAvatarProvider } from "./index";
 
-const KEYS = ["AVATAR_PROVIDER", "HEYGEN_API_KEY"];
+const KEYS = ["AVATAR_PROVIDER", "HEYGEN_API_KEY", "DID_API_KEY"];
 
 async function withEnv(vars: Record<string, string | undefined>, fn: () => void | Promise<void>) {
   const originals = KEYS.map((k) => [k, process.env[k]] as const);
@@ -35,5 +35,17 @@ test("AVATAR_PROVIDER=heygen sin HEYGEN_API_KEY cae a fixture", async () => {
 test("AVATAR_PROVIDER=heygen con clave presente sí selecciona heygen", async () => {
   await withEnv({ AVATAR_PROVIDER: "heygen", HEYGEN_API_KEY: "fake-key" }, () => {
     assert.equal(getAvatarProvider().name, "heygen");
+  });
+});
+
+test("AVATAR_PROVIDER=did sin DID_API_KEY cae a fixture", async () => {
+  await withEnv({ AVATAR_PROVIDER: "did" }, () => {
+    assert.equal(getAvatarProvider().name, "fixture");
+  });
+});
+
+test("AVATAR_PROVIDER=did con clave presente sí selecciona did", async () => {
+  await withEnv({ AVATAR_PROVIDER: "did", DID_API_KEY: "fake-key" }, () => {
+    assert.equal(getAvatarProvider().name, "did");
   });
 });
