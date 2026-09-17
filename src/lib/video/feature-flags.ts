@@ -52,6 +52,12 @@ export function getFeatureFlags() {
     maxMusicCostUsd: numberEnv("MAX_MUSIC_COST_USD", 1),
     /** Enciende el evaluador de calidad visual (reglas deterministas; el modo multimodal real requiere configurar un modelo aparte). */
     visualQaEnabled: flag("VISUAL_QA_ENABLED", false),
+    /** Habilita el modo "avatar" end-to-end. Apagado por defecto — el modo "visual" sigue siendo el único disponible sin esto. */
+    avatarModeEnabled: flag("AVATAR_MODE_ENABLED", false),
+    /** "fixture" | "heygen" — sin HEYGEN_API_KEY, cae a fixture aunque esté en "heygen". */
+    avatarProvider: (process.env.AVATAR_PROVIDER || "fixture").trim(),
+    /** USD máximos en generación de avatar (creación + video) por solicitud. */
+    maxAvatarCostUsd: numberEnv("MAX_AVATAR_COST_USD", 3),
   };
 }
 
