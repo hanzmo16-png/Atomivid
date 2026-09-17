@@ -328,6 +328,12 @@ export type AvatarVideoRequest = {
 
 export type AvatarVideoResult = GenerativeAsset & { providerJobId: string };
 
+/** Resultado de normalizar un payload de webhook del proveedor — null si el payload no tiene forma reconocible (nunca lanza por eso, ver heygen.ts). */
+export type AvatarWebhookResult = {
+  providerJobId: string;
+  status: AvatarJobStatus;
+};
+
 export interface AvatarVideoProvider {
   readonly name: string;
   readonly capabilities: GenerativeCapabilities;
@@ -338,4 +344,23 @@ export interface AvatarVideoProvider {
   checkVideoStatus(providerJobId: string): Promise<AvatarJobStatus>;
   /** Debe intentar borrar en el proveedor Y reportar honestamente si no se pudo confirmar (ver docs/AVATAR_MODE.md — DELETE no confirmado en fuentes disponibles). */
   deleteAvatar(providerAvatarId: string): Promise<{ deleted: boolean; reason?: string }>;
+  /**
+   * Estimación PURA (sin red) del costo antes de generar — para que la UI
+   * y el pipeline puedan mostrar/verificar un costo sin gastar nada. Debe
+   * ser la MISMA fórmula que generateVideo() usa internamente para
+   * rechazar por presupuesto, nunca una aproximación distinta que podría
+   * subestimar el gasto real.
+   */
+  estimateVideoCostUsd(request: Pick<AvatarVideoRequest, "script">): number;
+  /** Debe intentar cancelar en el proveedor Y reportar honestamente si no se pudo confirmar — mismo criterio que deleteAvatar(). Nunca factura por cancelar. */
+  cancelVideo(providerJobId: string): Promise<{ cancelled: boolean; reason?: string }>;
+  /**
+   * Normaliza un payload de webhook YA AUTENTICADO (la verificación de
+   * autenticidad ocurre antes, en la ruta HTTP — ver
+   * src/app/api/webhooks/avatar/[provider]/route.ts) a un resultado
+   * estándar. Devuelve null (nunca lanza) si el payload no tiene la forma
+   * esperada — un webhook malformado o de una versión distinta de la API
+   * no debe tumbar el endpoint.
+   */
+  processWebhookPayload(payload: unknown): AvatarWebhookResult | null;
 }

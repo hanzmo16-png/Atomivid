@@ -34,3 +34,27 @@ test("deleteAvatar siempre confirma éxito en el fixture (determinístico)", asy
   const result = await fixtureAvatarProvider.deleteAvatar("fixture-avatar-1");
   assert.equal(result.deleted, true);
 });
+
+test("estimateVideoCostUsd es una función pura (sin red) que crece con la longitud del guion", () => {
+  const short = fixtureAvatarProvider.estimateVideoCostUsd({ script: "hola" });
+  const long = fixtureAvatarProvider.estimateVideoCostUsd({ script: "hola ".repeat(200) });
+  assert.ok(short >= 0);
+  assert.ok(long > short);
+});
+
+test("cancelVideo siempre confirma éxito en el fixture (determinístico)", async () => {
+  const result = await fixtureAvatarProvider.cancelVideo("fixture-video-job-1");
+  assert.equal(result.cancelled, true);
+});
+
+test("processWebhookPayload normaliza un payload reconocible", () => {
+  const result = fixtureAvatarProvider.processWebhookPayload({ providerJobId: "fixture-video-job-1", status: "completed" });
+  assert.deepEqual(result, { providerJobId: "fixture-video-job-1", status: "completed" });
+});
+
+test("processWebhookPayload devuelve null (nunca lanza) ante un payload malformado", () => {
+  assert.equal(fixtureAvatarProvider.processWebhookPayload(null), null);
+  assert.equal(fixtureAvatarProvider.processWebhookPayload({}), null);
+  assert.equal(fixtureAvatarProvider.processWebhookPayload({ providerJobId: "x", status: "not-a-real-status" }), null);
+  assert.equal(fixtureAvatarProvider.processWebhookPayload("just a string"), null);
+});
