@@ -22,6 +22,10 @@ import { getAccentColor } from "@/lib/video/brand";
 import { evaluateQualityGate, QUALITY_GATE_MIN_SCORE } from "@/lib/video/quality-gate";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { buildStoryboard } from "@/lib/video/storyboard";
+import type { Storyboard } from "@/lib/video/storyboard/types";
+import { getImageProvider } from "@/lib/providers/image";
+import { decideResourceStrategy, buildScenePlanEntry, type ScenePlanEntry } from "@/lib/video/visual-resource-planner";
+import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resolver";
 
 // Deliberadamente separado de generate-script.ts — ver el comentario ahí
 // para la razón exacta (Remotion no debe cargarse en la ruta de guion).
@@ -77,24 +81,29 @@ export async function generateVideoFromScript({
   const voiceProvider = getVoiceProvider();
   const footageProvider = getFootageProvider();
   const musicProvider = getMusicProvider();
+  const imageProvider = getImageProvider();
   let storageBytes = 0;
 
-  // 0. Storyboard semántico (Visual Director) — SOLO diagnóstico por ahora:
-  // detrás de VISUAL_DIRECTOR_ENABLED (apagado por defecto, ver
-  // feature-flags.ts), nunca bloquea el render si falla, y todavía NO
-  // reemplaza las consultas de footage-select.ts (esa integración es el
-  // siguiente paso, documentado como pendiente — ver docs/VISUAL_DIRECTOR.md).
-  // Tampoco escribe en video_requests.storyboard_json/storyboard_source
-  // porque esas columnas dependen de la migración 0010, que no se aplica
+  // 0. Storyboard semántico (Visual Director) — detrás de
+  // VISUAL_DIRECTOR_ENABLED (apagado por defecto, ver feature-flags.ts),
+  // nunca bloquea el render si falla. Cuando SÍ se genera, alimenta al
+  // planificador visual de abajo (decideResourceStrategy) para decidir,
+  // escena por escena, si conviene una imagen generada en vez de stock —
+  // con el flag apagado, `storyboard` queda undefined y esa decisión
+  // siempre cae a stock (comportamiento idéntico al de antes de esta
+  // función existir). Tampoco escribe en video_requests.storyboard_json
+  // porque esa columna depende de la migración 0010, que no se aplica
   // sola (ver supabase/migrations/0010_visual_director.sql).
+  let storyboard: Storyboard | undefined;
   if (getFeatureFlags().visualDirectorEnabled) {
     try {
-      const { storyboard, source } = await buildStoryboard(script, language);
+      const built = await buildStoryboard(script, language);
+      storyboard = built.storyboard;
       console.log(
         "[atomivid:storyboard]",
         JSON.stringify({
           requestId,
-          source,
+          source: built.source,
           totalScenes: storyboard.scenes.length,
           hookDescription: storyboard.hookDescription,
           closingDescription: storyboard.closingDescription,
@@ -151,6 +160,20 @@ export async function generateVideoFromScript({
     candidatesConsidered: number;
     reason: string;
   }> = [];
+  // Planificador visual (imagen generada vs. stock) — ver
+  // visual-resource-planner.ts para la política completa. Con
+  // VISUAL_DIRECTOR_ENABLED=false (default) `storyboard` es undefined y
+  // decideResourceStrategy() siempre devuelve useGeneration:false en su
+  // primer chequeo, así que este bloque nunca cambia el comportamiento
+  // existente cuando el flag está apagado.
+  const visualPlan: ScenePlanEntry[] = [];
+  let imagesRequestedCount = 0;
+  let imagesGeneratedCount = 0;
+  let imagesReusedCount = 0;
+  let visualCostSpentUsd = 0;
+  let usedGeneratedImageProvider: string | null = null;
+  let usedGeneratedImageModel: string | null = null;
+  let usedGeneratedImageSize: string | null = null;
 
   for (let i = 0; i < script.segments.length; i++) {
     const segment = script.segments[i];
@@ -160,6 +183,7 @@ export async function generateVideoFromScript({
       segment.visualConcepts && segment.visualConcepts.length > 0
         ? segment.visualConcepts
         : [segment.visualQuery];
+    const storyboardScene = storyboard?.scenes[i];
 
     for (let b = 0; b < beats.length; b++) {
       const beat = beats[b];
@@ -169,6 +193,75 @@ export async function generateVideoFromScript({
       // vez de repetir la misma búsqueda dentro de la propia escena.
       const rotation = b % baseConcepts.length;
       const beatConcepts = [...baseConcepts.slice(rotation), ...baseConcepts.slice(0, rotation)];
+
+      // La generación pagada solo se considera para el PRIMER beat de
+      // cada escena — como mucho una imagen generada por escena del
+      // guion, nunca una por cada sub-plano, para mantener el costo
+      // acotado y predecible (documentado, no un límite oculto).
+      const decision =
+        b === 0
+          ? decideResourceStrategy(storyboardScene, imagesRequestedCount, visualCostSpentUsd)
+          : ({ useGeneration: false, reason: "solo el primer beat de cada escena es candidato a generación" } as const);
+
+      let resolvedViaGeneration = false;
+      if (decision.useGeneration) {
+        imagesRequestedCount += 1;
+        try {
+          const remainingBudgetUsd = Math.max(0, getFeatureFlags().maxVisualCostUsd - visualCostSpentUsd);
+          const generated = await resolveGeneratedImageForScene({
+            supabase,
+            bucket: STORAGE_BUCKET,
+            requestId,
+            sceneIndex: i,
+            scene: decision.scene,
+            imageProvider,
+            remainingBudgetUsd: Math.min(remainingBudgetUsd, decision.estimatedCostUsd),
+            signedUrlTtlSeconds: ASSET_SIGNED_URL_TTL_SECONDS,
+          });
+
+          storageBytes += generated.bufferBytes;
+          visualCostSpentUsd += generated.costUsd;
+          usedGeneratedImageProvider = generated.provider;
+          usedGeneratedImageModel = generated.model ?? usedGeneratedImageModel;
+          if (generated.width && generated.height) {
+            usedGeneratedImageSize = `${generated.width}x${generated.height}`;
+          }
+          if (generated.status === "generated") imagesGeneratedCount += 1;
+          else imagesReusedCount += 1;
+
+          scenes.push({
+            mediaUrl: generated.url,
+            mediaType: "image",
+            startSeconds: beat.start,
+            endSeconds: beat.end,
+          });
+          visualPlan.push({
+            ...buildScenePlanEntry(i, b, beatDuration, segment.text, beatConcepts[0], decision),
+            provider: generated.provider,
+            estimatedCostUsd: generated.costUsd,
+          });
+          console.log(
+            "[atomivid:visual]",
+            JSON.stringify({ requestId, sceneIndex: i, status: generated.status, provider: generated.provider, costUsd: generated.costUsd }),
+          );
+          resolvedViaGeneration = true;
+        } catch (err) {
+          // Nunca cae a otro proveedor de PAGO como sustituto silencioso —
+          // solo se registra el fallo y se sigue con stock (gratis) abajo.
+          console.warn(
+            `[atomivid:visual] ${requestId} — falló la generación de imagen para la escena ${i}, se usa stock:`,
+            err instanceof Error ? err.message : err,
+          );
+          visualPlan.push(buildScenePlanEntry(i, b, beatDuration, segment.text, beatConcepts[0], {
+            useGeneration: false,
+            reason: `fallo del proveedor de imagen, fallback a stock: ${err instanceof Error ? err.message : "error desconocido"}`,
+          }));
+        }
+      } else if (b === 0) {
+        visualPlan.push(buildScenePlanEntry(i, b, beatDuration, segment.text, beatConcepts[0], decision));
+      }
+
+      if (resolvedViaGeneration) continue;
 
       const outcome = await selectFootageForScene({
         provider: footageProvider,
@@ -202,6 +295,20 @@ export async function generateVideoFromScript({
         endSeconds: beat.end,
       });
     }
+  }
+
+  if (visualPlan.length > 0) {
+    console.log(
+      "[atomivid:visual-plan]",
+      JSON.stringify({
+        requestId,
+        imagesRequestedCount,
+        imagesGeneratedCount,
+        imagesReusedCount,
+        visualCostSpentUsd,
+        plan: visualPlan,
+      }),
+    );
   }
 
   console.log(
@@ -382,6 +489,19 @@ export async function generateVideoFromScript({
     videoDurationSeconds: finalDurationSeconds,
     renderMs,
     storageBytes,
+    creativeLayer:
+      imagesRequestedCount > 0
+        ? {
+            imageProvider: usedGeneratedImageProvider ?? undefined,
+            imageGenerationCount: imagesGeneratedCount,
+            imageCostUsd: visualCostSpentUsd,
+            imageRequestedCount: imagesRequestedCount,
+            imageReusedCount: imagesReusedCount,
+            imageDryRun: false,
+            imageModel: usedGeneratedImageModel ?? undefined,
+            imageSize: usedGeneratedImageSize ?? undefined,
+          }
+        : undefined,
   }).catch((err) => {
     console.warn(`No se pudo registrar el costo de ${requestId}:`, err);
   });
