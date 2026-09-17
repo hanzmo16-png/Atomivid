@@ -1,0 +1,153 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { heygenAvatarProvider } from "./heygen";
+import { AvatarProviderError } from "../types";
+
+function withEnv(vars: Record<string, string | undefined>, fn: () => void | Promise<void>) {
+  const keys = Object.keys(vars);
+  const originals = keys.map((k) => [k, process.env[k]] as const);
+  for (const [k, v] of Object.entries(vars)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+  return (async () => {
+    try {
+      await fn();
+    } finally {
+      for (const [k, v] of originals) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  })();
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+}
+
+test("createAvatar lanza not_configured sin HEYGEN_API_KEY", async () => {
+  await withEnv({ HEYGEN_API_KEY: undefined }, async () => {
+    await assert.rejects(
+      () => heygenAvatarProvider.createAvatar({ photoBuffer: Buffer.from("x"), mimeType: "image/jpeg", consentGiven: true }),
+      (err: unknown) => err instanceof AvatarProviderError && err.reason === "not_configured",
+    );
+  });
+});
+
+test("createAvatar lanza consent_missing si consentGiven es false, incluso con clave presente", async () => {
+  await withEnv({ HEYGEN_API_KEY: "fake-key" }, async () => {
+    await assert.rejects(
+      () => heygenAvatarProvider.createAvatar({ photoBuffer: Buffer.from("x"), mimeType: "image/jpeg", consentGiven: false }),
+      (err: unknown) => err instanceof AvatarProviderError && err.reason === "consent_missing",
+    );
+  });
+});
+
+test("createAvatar lanza invalid_response si la foto está vacía", async () => {
+  await withEnv({ HEYGEN_API_KEY: "fake-key" }, async () => {
+    await assert.rejects(
+      () => heygenAvatarProvider.createAvatar({ photoBuffer: Buffer.alloc(0), mimeType: "image/jpeg", consentGiven: true }),
+      (err: unknown) => err instanceof AvatarProviderError && err.reason === "invalid_response",
+    );
+  });
+});
+
+test("generateVideo lanza invalid_response si el guion excede el límite documentado (5000 caracteres)", async () => {
+  await withEnv({ HEYGEN_API_KEY: "fake-key" }, async () => {
+    await assert.rejects(
+      () =>
+        heygenAvatarProvider.generateVideo({
+          providerAvatarId: "avatar-1",
+          script: "a".repeat(5001),
+          maxCostUsd: 100,
+        }),
+      (err: unknown) => err instanceof AvatarProviderError && err.reason === "invalid_response",
+    );
+  });
+});
+
+test("generateVideo lanza budget_exceeded si el costo estimado excede maxCostUsd", async () => {
+  await withEnv({ HEYGEN_API_KEY: "fake-key", HEYGEN_COST_USD_PER_SECOND: "1" }, async () => {
+    await assert.rejects(
+      () =>
+        heygenAvatarProvider.generateVideo({
+          providerAvatarId: "avatar-1",
+          script: "hola mundo, esto es una prueba de presupuesto",
+          maxCostUsd: 0.01,
+        }),
+      (err: unknown) => err instanceof AvatarProviderError && err.reason === "budget_exceeded",
+    );
+  });
+});
+
+test("createAvatar exitoso con fetch mockeado (mock, no red real)", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = (async (url: string | URL | Request) => {
+    assert.ok(String(url).includes("/v3/avatars"));
+    return jsonResponse({ avatar_id: "avatar-123", status: "completed" });
+  }) as typeof fetch;
+
+  try {
+    await withEnv({ HEYGEN_API_KEY: "fake-key" }, async () => {
+      const result = await heygenAvatarProvider.createAvatar({
+        photoBuffer: Buffer.from("fake-photo-bytes"),
+        mimeType: "image/jpeg",
+        consentGiven: true,
+      });
+      assert.equal(result.providerAvatarId, "avatar-123");
+      assert.equal(result.status, "completed");
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("generateVideo exitoso: crea, sondea (processing → completed) y descarga con fetch mockeado", async () => {
+  const originalFetch = global.fetch;
+  let pollCount = 0;
+  global.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    const u = String(url);
+    if (u.includes("/v3/videos") && init?.method === "POST") {
+      return jsonResponse({ video_id: "video-abc" });
+    }
+    if (u.includes("/v3/videos/video-abc")) {
+      pollCount += 1;
+      if (pollCount === 1) return jsonResponse({ status: "processing" });
+      return jsonResponse({ status: "completed", video_url: "https://example.test/fake-video.mp4" });
+    }
+    if (u.includes("fake-video.mp4")) {
+      return new Response(new Uint8Array([1, 2, 3, 4]), { status: 200 });
+    }
+    throw new Error(`URL inesperada en el mock: ${u}`);
+  }) as typeof fetch;
+
+  try {
+    await withEnv({ HEYGEN_API_KEY: "fake-key", HEYGEN_POLL_TIMEOUT_MS: "5000" }, async () => {
+      const result = await heygenAvatarProvider.generateVideo({
+        providerAvatarId: "avatar-123",
+        script: "Hola, este es un guion de prueba corto.",
+        maxCostUsd: 100,
+      });
+      assert.equal(result.providerJobId, "video-abc");
+      assert.ok(result.buffer.byteLength > 0);
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("deleteAvatar nunca finge éxito si el proveedor falla — reporta deleted:false con motivo", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = (async () => new Response(null, { status: 404 })) as typeof fetch;
+
+  try {
+    await withEnv({ HEYGEN_API_KEY: "fake-key" }, async () => {
+      const result = await heygenAvatarProvider.deleteAvatar("avatar-123");
+      assert.equal(result.deleted, false);
+      assert.ok(result.reason);
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
