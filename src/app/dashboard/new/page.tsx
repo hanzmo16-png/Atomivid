@@ -1,24 +1,9 @@
 import { createVideoRequest } from "./actions";
 import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
-import { Field, INPUT_CLASS } from "@/components/ui/Field";
-import { SubmitButton } from "./SubmitButton";
-
-const STYLES = [
-  "Motivacional",
-  "Educativo",
-  "Humor",
-  "Historias de terror",
-  "Curiosidades",
-  "Noticias / actualidad",
-  "Storytelling personal",
-];
-
-const DURATIONS = [
-  { value: 30, label: "30 segundos" },
-  { value: 60, label: "60 segundos" },
-  { value: 90, label: "90 segundos" },
-];
+import { NewVideoForm } from "./NewVideoForm";
+import { getFeatureFlags } from "@/lib/video/feature-flags";
+import { createClient } from "@/lib/supabase/server";
 
 const INCLUDES = [
   "Guion escrito por IA a partir de tu tema",
@@ -35,6 +20,18 @@ export default async function NewVideoPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
+  const flags = getFeatureFlags();
+
+  let existingAvatars: { id: string; name: string }[] = [];
+  if (flags.avatarModeEnabled) {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("avatars")
+      .select("id, name")
+      .eq("status", "ready")
+      .order("created_at", { ascending: false });
+    existingAvatars = data ?? [];
+  }
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -51,57 +48,11 @@ export default async function NewVideoPage({
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <Card className="p-6">
-          <form action={createVideoRequest} className="space-y-5">
-            <Field id="topic" label="Tema del video">
-              <textarea
-                id="topic"
-                name="topic"
-                required
-                rows={3}
-                maxLength={500}
-                className={INPUT_CLASS}
-                placeholder="Ej: 5 datos curiosos sobre el espacio que no sabías"
-              />
-            </Field>
-
-            <Field id="language" label="Idioma de la narración">
-              <select id="language" name="language" required defaultValue="es" className={INPUT_CLASS}>
-                <option value="es">Español</option>
-                <option value="en">English</option>
-              </select>
-            </Field>
-
-            <Field id="style" label="Estilo / tono">
-              <select id="style" name="style" required defaultValue="" className={INPUT_CLASS}>
-                <option value="" disabled>
-                  Selecciona un estilo
-                </option>
-                {STYLES.map((style) => (
-                  <option key={style} value={style}>
-                    {style}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field id="duration_seconds" label="Duración deseada">
-              <select
-                id="duration_seconds"
-                name="duration_seconds"
-                required
-                defaultValue={30}
-                className={INPUT_CLASS}
-              >
-                {DURATIONS.map((d) => (
-                  <option key={d.value} value={d.value}>
-                    {d.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <SubmitButton />
-          </form>
+          <NewVideoForm
+            action={createVideoRequest}
+            avatarModeEnabled={flags.avatarModeEnabled}
+            existingAvatars={existingAvatars}
+          />
         </Card>
 
         <Card className="h-fit p-6">

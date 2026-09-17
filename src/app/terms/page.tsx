@@ -44,6 +44,49 @@ export default function TermsPage() {
         Atomivid se ofrece &quot;tal cual&quot; durante esta fase. No garantizamos que el
         servicio esté libre de errores en todo momento.
       </p>
+
+      <h2 id="avatar-consent">Modo avatar y consentimiento sobre tu fotografía</h2>
+      <p>
+        El modo avatar (cuando está disponible) genera un video en el que una fotografía
+        que tú proporcionas narra el guion con voz y labios sincronizados. Al subir una
+        fotografía y marcar la casilla de consentimiento, declaras y garantizas que:
+      </p>
+      <ul>
+        <li>
+          Eres la persona que aparece en la fotografía, o cuentas con autorización
+          expresa y verificable de esa persona para crear un avatar animado a partir de
+          su rostro.
+        </li>
+        <li>
+          La fotografía no corresponde a una persona menor de edad.
+        </li>
+        <li>
+          No usarás este modo para suplantar, engañar o difamar a nadie, ni para crear
+          contenido que sugiera que una persona real dijo o hizo algo que no dijo ni
+          hizo.
+        </li>
+        <li>
+          No subirás fotografías de terceros (incluidas figuras públicas) sin su
+          autorización expresa, aunque la fotografía sea de acceso público.
+        </li>
+      </ul>
+      <p>
+        Este consentimiento es una condición de producto de Atomivid, exigida siempre
+        que uses el modo avatar. Es independiente de cualquier mecanismo de
+        verificación de identidad que el proveedor externo que procesa el avatar
+        (actualmente HeyGen) exija por su cuenta — un avatar personalizado creado a
+        partir de una fotografía cargada por ti no sustituye ni satisface, por sí solo,
+        los requisitos de verificación de identidad que ese proveedor pueda exigir para
+        ciertos tipos de avatar antes de permitir su uso en producción. Consulta
+        <code>docs/AVATAR_MODE.md</code> en el repositorio para el detalle técnico
+        actualizado sobre qué está confirmado y qué no.
+      </p>
+      <p>
+        Puedes solicitar la eliminación de la fotografía fuente y del avatar creado a
+        partir de ella en cualquier momento; el borrado en nuestro almacenamiento se
+        confirma de forma inmediata, y el borrado en el proveedor externo se intenta
+        pero no siempre puede confirmarse (ver documentación técnica citada arriba).
+      </p>
     </LegalLayout>
   );
 }
