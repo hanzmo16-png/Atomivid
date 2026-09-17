@@ -68,18 +68,48 @@ test("generateVideo lanza budget_exceeded si el costo estimado excede maxCostUsd
   });
 });
 
-test("generateVideo lanza invalid_response si falta voiceId (D-ID exige un proveedor de voz externo, confirmado en docs)", async () => {
+test("generateVideo lanza invalid_response si faltan AMBOS audioUrl y voiceId", async () => {
   await withEnv({ DID_API_KEY: "fake-key" }, async () => {
     await assert.rejects(
       () =>
         didAvatarProvider.generateVideo({
           providerAvatarId: "img-1",
-          script: "hola mundo, sin voiceId",
+          script: "hola mundo, sin ninguna entrada de voz",
           maxCostUsd: 100,
         }),
       (err: unknown) => err instanceof AvatarProviderError && err.reason === "invalid_response",
     );
   });
+});
+
+test("generateVideo con audioUrl NUNCA exige voiceId y manda script.type=\"audio\" (flujo real de ATOMIVID: audio propio de ElevenLabs, nunca la síntesis propia de D-ID)", async () => {
+  const originalFetch = global.fetch;
+  let capturedBody: Record<string, unknown> | null = null;
+  global.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    const u = String(url);
+    if (u.includes("/talks") && init?.method === "POST") {
+      capturedBody = JSON.parse(init.body as string);
+      return jsonResponse({ id: "talk-audio" });
+    }
+    return jsonResponse({ status: "done", result_url: "https://example.test/fake-video.mp4" });
+  }) as typeof fetch;
+
+  try {
+    await withEnv({ DID_API_KEY: "fake-key" }, async () => {
+      await didAvatarProvider.generateVideo({
+        providerAvatarId: "img-1",
+        script: "hola mundo, con audio propio",
+        audioUrl: "https://storage.example.test/r1/narracion.mp3?token=firmado",
+        maxCostUsd: 100,
+      });
+      assert.deepEqual((capturedBody as { script?: unknown } | null)?.script, {
+        type: "audio",
+        audio_url: "https://storage.example.test/r1/narracion.mp3?token=firmado",
+      });
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
 });
 
 test("createAvatar lanza invalid_response si el mimeType no es image/jpeg ni image/png (confirmado en docs.d-id.com/reference/upload-an-image)", async () => {
