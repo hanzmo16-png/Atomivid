@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type {
   AvatarCreationRequest,
   AvatarCreationResult,
@@ -8,6 +10,24 @@ import type {
   AvatarWebhookResult,
 } from "../types";
 import { AvatarProviderError } from "../types";
+
+/**
+ * MP4 vertical (9:16) real y válido, generado con ffmpeg (testsrc2 + tono
+ * sine, sin ningún rostro real ni de stock) y con el texto "ATOMIVID -
+ * VIDEO SIMULADO / Fixture de prueba - NO es un avatar real" incrustado
+ * en el propio video — así cualquier evidencia (captura, MP4 descargado)
+ * queda identificada como simulada aunque se comparta fuera de este
+ * repositorio. Reemplaza el placeholder de texto plano anterior, que no
+ * era un contenedor MP4 válido (ffmpeg fallaba con "moov atom not
+ * found" al intentar masterizar el audio).
+ */
+let cachedPlaceholder: Buffer | null = null;
+function loadSimulatedVideoBuffer(): Buffer {
+  if (!cachedPlaceholder) {
+    cachedPlaceholder = readFileSync(join(__dirname, "fixtures", "simulated-avatar-video.mp4"));
+  }
+  return cachedPlaceholder;
+}
 
 // Referencia solo para que la UI/pruebas puedan mostrar un número
 // plausible en modo fixture — el fixture SIEMPRE cobra $0 de verdad
@@ -53,13 +73,10 @@ export const fixtureAvatarProvider: AvatarVideoProvider = {
     return "completed";
   },
   async generateVideo(request: AvatarVideoRequest): Promise<AvatarVideoResult> {
+    void request;
     videoCounter += 1;
-    const placeholder = Buffer.from(
-      `atomivid-fixture-avatar-video:${request.providerAvatarId}:${request.script.slice(0, 40)}`,
-      "utf8",
-    );
     return {
-      buffer: placeholder,
+      buffer: loadSimulatedVideoBuffer(),
       mimeType: "video/mp4",
       extension: "mp4",
       model: "fixture-avatar",
