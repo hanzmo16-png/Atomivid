@@ -60,11 +60,53 @@ test("generateVideo lanza budget_exceeded si el costo estimado excede maxCostUsd
         didAvatarProvider.generateVideo({
           providerAvatarId: "img-1",
           script: "hola mundo, esto es una prueba de presupuesto",
+          voiceId: "voice-1",
           maxCostUsd: 0.01,
         }),
       (err: unknown) => err instanceof AvatarProviderError && err.reason === "budget_exceeded",
     );
   });
+});
+
+test("generateVideo lanza invalid_response si falta voiceId (D-ID exige un proveedor de voz externo, confirmado en docs)", async () => {
+  await withEnv({ DID_API_KEY: "fake-key" }, async () => {
+    await assert.rejects(
+      () =>
+        didAvatarProvider.generateVideo({
+          providerAvatarId: "img-1",
+          script: "hola mundo, sin voiceId",
+          maxCostUsd: 100,
+        }),
+      (err: unknown) => err instanceof AvatarProviderError && err.reason === "invalid_response",
+    );
+  });
+});
+
+test("createAvatar lanza invalid_response si el mimeType no es image/jpeg ni image/png (confirmado en docs.d-id.com/reference/upload-an-image)", async () => {
+  await withEnv({ DID_API_KEY: "fake-key" }, async () => {
+    await assert.rejects(
+      () => didAvatarProvider.createAvatar({ photoBuffer: Buffer.from("x"), mimeType: "image/webp", consentGiven: true }),
+      (err: unknown) => err instanceof AvatarProviderError && err.reason === "invalid_response",
+    );
+  });
+});
+
+test("todas las llamadas usan Basic auth con la API key codificada en base64 (nunca la clave cruda)", async () => {
+  const originalFetch = global.fetch;
+  let capturedAuth: string | null = null;
+  global.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    capturedAuth = (init?.headers as Record<string, string> | undefined)?.Authorization ?? null;
+    return jsonResponse({ status: "done" });
+  }) as typeof fetch;
+
+  try {
+    await withEnv({ DID_API_KEY: "usuario123:contraseña456" }, async () => {
+      await didAvatarProvider.checkVideoStatus("talk-auth-check");
+      assert.equal(capturedAuth, `Basic ${Buffer.from("usuario123:contraseña456", "utf8").toString("base64")}`);
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
 });
 
 test("createAvatar exitoso con fetch mockeado (mock, no red real) — sin fase de entrenamiento, completa de inmediato", async () => {
@@ -156,7 +198,7 @@ test("estimateVideoCostUsd usa la MISMA fórmula que generateVideo (nunca diverg
       return jsonResponse({ status: "done", result_url: "https://example.test/fake-video.mp4" });
     }) as typeof fetch;
     try {
-      const asset = await didAvatarProvider.generateVideo({ providerAvatarId: "img-1", script, maxCostUsd: 100 });
+      const asset = await didAvatarProvider.generateVideo({ providerAvatarId: "img-1", script, voiceId: "voice-1", maxCostUsd: 100 });
       assert.equal(asset.costUsd, estimated);
     } finally {
       global.fetch = originalFetch;
