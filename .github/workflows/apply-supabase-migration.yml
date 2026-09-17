@@ -16,6 +16,17 @@ name: Aplicar migración de Supabase (autónomo, con verificación)
 #    a verificar en modo autoritativo después. Nunca reaplica una migración
 #    ya registrada en public._migrations_applied (idempotente por diseño —
 #    correr este workflow de nuevo sin migraciones nuevas no hace nada).
+#
+# Descubrimiento autónomo del Connection Pooler (2026-09-17): el host de
+# conexión DIRECTA (db.<ref>.supabase.co) resuelve hoy solo a IPv6, y este
+# runner no tiene salida IPv6 — si eso pasa, el mecanismo NO se detiene de
+# inmediato: primero intenta descubrir y CONFIRMAR el host del pooler por
+# su cuenta (deriva la región de AWS del prefijo IPv6 público al que
+# resuelve el host directo, cruzado contra el ip-ranges.json oficial de
+# AWS — dato público, no un secreto — y solo lo da por bueno tras una
+# conexión real y exitosa, nunca por una simple resolución DNS). Ver
+# scripts/lib/discover-pooler.ts. Solo si ese descubrimiento tampoco logra
+# confirmar ningún host hace falta configurar SUPABASE_DB_HOST manualmente.
 on:
   workflow_dispatch:
     inputs:
