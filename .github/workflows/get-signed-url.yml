@@ -44,6 +44,13 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
+      - name: Calcular estadísticas del guion ya generado
+        run: npx tsx scripts/export-script-stats.ts
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
       - name: Publicar video como artifact
         uses: actions/upload-artifact@v4
         with:
