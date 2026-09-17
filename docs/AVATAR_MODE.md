@@ -60,14 +60,20 @@ Esta es la corrección más importante sobre la investigación anterior. Existen
 1. `AVATAR_MODE_ENABLED=true` (flag apagado → error claro, nunca una llamada).
 2. El avatar referenciado (`avatar_id`) pertenece al mismo `user_id` de la solicitud (nunca confía en el id recibido).
 3. `avatars.consent_given = true`.
-4. `avatars.status = 'ready'` o `'uploaded'` (un avatar `'failed'`/`'deleted'` bloquea con mensaje claro).
+4. `avatars.status` no es `'failed'` ni `'deleted'`, y el avatar ya tiene un `provider_avatar_id` asignado (si no lo tiene, se bloquea con "todavía no terminó de crearse en el proveedor").
 5. El proveedor resuelto (`getAvatarProvider()`) está disponible (`isAvailable()`).
 
 Si algo falla, se registra un error sanitizado (nunca el contenido de la foto ni tokens) y la solicitud pasa a `failed` — igual que el modo visual ya hace hoy.
 
 ## UI (`/dashboard/new`, implementada)
 
-Selector "Video visual" / "Video con avatar" — la opción avatar solo se **renderiza** si el servidor confirma `AVATAR_MODE_ENABLED=true` (nunca depende de una variable de entorno leída en el cliente). Con el flag apagado (default), la página es idéntica a antes — cero regresión. Con el flag encendido: carga de foto con vista previa client-side, validación de tipo/tamaño antes de enviar (más la validación real server-side con `photo-validation.ts`), nombre interno, selector de idioma/voz (lista mínima documentada como provisional, no la lista real de HeyGen — ver limitación arriba), checkbox de consentimiento obligatorio con enlace a texto completo, estimación de costo antes de enviar, prevención de doble envío (mismo patrón `useFormStatus` que el formulario visual existente).
+Archivos: `page.tsx` (Server Component — lee `AVATAR_MODE_ENABLED` y, solo si está encendido, consulta los avatares `status='ready'` del usuario), `NewVideoForm.tsx` (Client Component — campos comunes + el selector de modo), `AvatarFields.tsx` (Client Component — campos exclusivos del modo avatar), `actions.ts` (Server Action — persistencia) y `validation.ts` (funciones puras de validación, compartidas por `actions.ts` y cubiertas por `validation.test.ts`).
+
+Selector "Video visual" / "Video con avatar" — la opción avatar solo se **renderiza** si el servidor confirma `AVATAR_MODE_ENABLED=true` (nunca depende de una variable de entorno leída en el cliente); el propio servidor vuelve a rechazar `mode=avatar` en `actions.ts` si el flag está apagado, aunque alguien construya el POST a mano. Con el flag apagado (default), la página renderiza exactamente los mismos campos que antes de que existiera el modo avatar — cero control nuevo, cero regresión.
+
+Con el flag encendido: selector para reusar un avatar ya `ready` o subir uno nuevo; carga de foto con vista previa client-side y validación de tipo/tamaño antes de enviar (la que de verdad decide es la validación server-side por magic bytes en `photo-validation.ts`); nombre interno del avatar; el idioma de la voz reusa el mismo `<select>` de idioma de narración del formulario (no hay un segundo selector de idioma redundante); selector de voz cuya lista está explícitamente marcada en la UI como "provisional" (no viene de `GET /v3/voices`, ver limitación arriba); estimación de costo de referencia antes de enviar; checkbox de consentimiento obligatorio (validado también en el servidor — `isAvatarConsentGiven()`) con enlace a `/terms#avatar-consent`, sección nueva con el texto completo; prevención de doble envío (mismo patrón `useFormStatus` que el formulario visual existente).
+
+**Limitación conocida, documentada, no oculta:** al subir una foto nueva, `actions.ts` llama a `provider.createAvatar()` de forma síncrona dentro de la Server Action y exige que el resultado sea `status: "completed"` (mapeado a `avatars.status = 'ready'`) para poder usarlo de inmediato — si el proveedor devolviera un estado asíncrono (`queued`/`processing`), el usuario ve un error pidiendo reintentar más tarde, porque esta primera versión no implementa un seguimiento en segundo plano del avatar hasta que quede listo. El fixture y, según lo confirmado sobre "Photo Avatar", HeyGen responden de inmediato — pero esto no está garantizado si HeyGen cambia de comportamiento o si en el futuro se usa "Digital Twin" (genuinamente asíncrono).
 
 ## Cómo activar (cuando tengas la clave Y hayas resuelto la ambigüedad Photo Avatar/Digital Twin)
 
