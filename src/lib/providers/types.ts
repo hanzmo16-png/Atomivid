@@ -260,3 +260,82 @@ export interface VideoProvider {
   isAvailable(): boolean;
   generateVideo(request: VideoGenerationRequest): Promise<GenerativeAsset>;
 }
+
+// Alias por nombre de producto — el "PremiumVideoProvider" pedido en la
+// especificación del modo Avatar es exactamente el VideoProvider (Runway)
+// ya implementado arriba. Mismo tipo, dos nombres, cero duplicación.
+export type PremiumVideoProvider = VideoProvider;
+// Igual para ImageProvider/MusicProvider bajo los nombres pedidos.
+export type ImageGenerationProvider = ImageProvider;
+export type MusicGenerationProvider = MusicProvider;
+
+/**
+ * Contrato del proveedor de video con AVATAR (HeyGen es la primera
+ * implementación, ver providers/avatar/heygen.ts) — separado de
+ * ImageProvider/VideoProvider porque su ciclo de vida tiene DOS etapas
+ * asíncronas independientes (crear/entrenar el avatar UNA vez, luego
+ * generar N videos reutilizando ese mismo avatar), no una sola llamada.
+ */
+export type AvatarJobStatus = "queued" | "processing" | "completed" | "failed" | "cancelled";
+
+export class AvatarProviderError extends Error {
+  constructor(
+    message: string,
+    public readonly providerId: string,
+    public readonly reason:
+      | "not_configured"
+      | "consent_missing"
+      | "budget_exceeded"
+      | "timeout"
+      | "moderation_rejected"
+      | "invalid_response"
+      | "upstream_error"
+      | "circuit_open",
+    public readonly cause?: unknown,
+  ) {
+    super(message);
+    this.name = "AvatarProviderError";
+  }
+}
+
+export type AvatarCreationRequest = {
+  photoBuffer: Buffer;
+  mimeType: string;
+  /**
+   * Verificado por la capa de producto ANTES de llegar aquí (ver
+   * providers/avatar/types en el módulo de avatar) — el proveedor
+   * también lo revisa como defensa en profundidad, nunca confía
+   * únicamente en el llamador.
+   */
+  consentGiven: boolean;
+};
+
+export type AvatarCreationResult = {
+  providerAvatarId: string;
+  /** Presente si la creación/entrenamiento del avatar es asíncrona. */
+  providerJobId?: string;
+  status: AvatarJobStatus;
+};
+
+export type AvatarVideoRequest = {
+  providerAvatarId: string;
+  /** Guion completo a narrar — HeyGen v3 limita esto a 5000 caracteres (ver docs/AVATAR_MODE.md). */
+  script: string;
+  voiceId?: string;
+  language?: ScriptLanguage;
+  maxCostUsd: number;
+};
+
+export type AvatarVideoResult = GenerativeAsset & { providerJobId: string };
+
+export interface AvatarVideoProvider {
+  readonly name: string;
+  readonly capabilities: GenerativeCapabilities;
+  isAvailable(): boolean;
+  createAvatar(request: AvatarCreationRequest): Promise<AvatarCreationResult>;
+  checkAvatarStatus(providerAvatarId: string): Promise<AvatarJobStatus>;
+  generateVideo(request: AvatarVideoRequest): Promise<AvatarVideoResult>;
+  checkVideoStatus(providerJobId: string): Promise<AvatarJobStatus>;
+  /** Debe intentar borrar en el proveedor Y reportar honestamente si no se pudo confirmar (ver docs/AVATAR_MODE.md — DELETE no confirmado en fuentes disponibles). */
+  deleteAvatar(providerAvatarId: string): Promise<{ deleted: boolean; reason?: string }>;
+}
