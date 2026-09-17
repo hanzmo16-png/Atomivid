@@ -39,6 +39,15 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
+      - name: Generar tipos de Next.js (requeridos por tsc — p. ej. LayoutProps)
+        # Un checkout limpio no trae .next/types (se genera con next build/
+        # next dev, nunca se commitea) — sin este paso, `tsc --noEmit` falla
+        # con "Cannot find name 'LayoutProps'" en src/app/layout.tsx, sin
+        # relación alguna con este proveedor. `next typegen` genera esos
+        # tipos sin correr un build completo. Reproducido y confirmado
+        # localmente antes de este fix (falla sin el paso, pasa con él).
+        run: npx next typegen
+
       - name: TypeScript
         run: npx tsc --noEmit
 
