@@ -46,6 +46,11 @@ type GenerationCostsRow = {
   premium_video_clip_count: number;
   premium_video_cost_usd: number;
   premium_video_fallback_reason: string | null;
+  // Modo avatar (migración 0011, no aplicada todavía) — null/0 en
+  // cualquier video del modo "visual" (el caso normal hoy).
+  avatar_provider: string | null;
+  avatar_provider_job_id: string | null;
+  avatar_cost_usd: number;
 };
 
 const EMPTY_USAGE: Omit<GenerationCostsRow, "request_id"> = {
@@ -75,6 +80,9 @@ const EMPTY_USAGE: Omit<GenerationCostsRow, "request_id"> = {
   premium_video_clip_count: 0,
   premium_video_cost_usd: 0,
   premium_video_fallback_reason: null,
+  avatar_provider: null,
+  avatar_provider_job_id: null,
+  avatar_cost_usd: 0,
 };
 
 async function loadRow(
@@ -157,6 +165,9 @@ export async function recordVideoGeneration(
       premiumVideoClipCount?: number;
       premiumVideoCostUsd?: number;
       premiumVideoFallbackReason?: string | null;
+      avatarProvider?: string;
+      avatarProviderJobId?: string;
+      avatarCostUsd?: number;
     };
   },
 ) {
@@ -183,6 +194,9 @@ export async function recordVideoGeneration(
   row.premium_video_clip_count = usage.creativeLayer?.premiumVideoClipCount ?? 0;
   row.premium_video_cost_usd = usage.creativeLayer?.premiumVideoCostUsd ?? 0;
   row.premium_video_fallback_reason = usage.creativeLayer?.premiumVideoFallbackReason ?? null;
+  row.avatar_provider = usage.creativeLayer?.avatarProvider ?? null;
+  row.avatar_provider_job_id = usage.creativeLayer?.avatarProviderJobId ?? null;
+  row.avatar_cost_usd = usage.creativeLayer?.avatarCostUsd ?? 0;
 
   await saveRow(service, row);
 }

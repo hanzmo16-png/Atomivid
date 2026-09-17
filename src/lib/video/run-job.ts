@@ -1,15 +1,21 @@
 import { createServiceClient } from "@/lib/supabase/service";
 import { generateVideoFromScript } from "./generate-video";
+import { generateAvatarVideo } from "./avatar/pipeline";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import type { RenderStage } from "./stages";
 
 type JobRow = {
   status: string;
+  user_id: string;
   script_json: GeneratedScript | null;
   style: string | null;
   topic: string | null;
   language: ScriptLanguage | null;
   duration_seconds: number | null;
+  mode: string | null;
+  avatar_id: string | null;
+  avatar_voice_id: string | null;
+  avatar_provider_video_job_id: string | null;
 };
 
 /**
@@ -32,7 +38,9 @@ export async function runRenderJob(requestId: string): Promise<void> {
 
   const { data: row } = await service
     .from("video_requests")
-    .select("status, script_json, style, topic, language, duration_seconds")
+    .select(
+      "status, user_id, script_json, style, topic, language, duration_seconds, mode, avatar_id, avatar_voice_id, avatar_provider_video_job_id",
+    )
     .eq("id", requestId)
     .single<JobRow>();
 
@@ -63,19 +71,43 @@ export async function runRenderJob(requestId: string): Promise<void> {
     return;
   }
 
+  const mode = row.mode ?? "visual";
+  if (mode === "avatar" && !row.avatar_id) {
+    await service
+      .from("video_requests")
+      .update({ status: "failed", error_message: "Solicitud en modo avatar sin avatar_id asociado.", progress_stage: null })
+      .eq("id", requestId);
+    return;
+  }
+
+  const onProgress = async (stage: RenderStage) => {
+    await service.from("video_requests").update({ progress_stage: stage }).eq("id", requestId);
+  };
+
   try {
-    const { videoPath } = await generateVideoFromScript({
-      supabase: service,
-      requestId,
-      script: row.script_json,
-      style: row.style ?? undefined,
-      topic: row.topic ?? undefined,
-      language: row.language ?? undefined,
-      targetDurationSeconds: row.duration_seconds ?? undefined,
-      onProgress: async (stage: RenderStage) => {
-        await service.from("video_requests").update({ progress_stage: stage }).eq("id", requestId);
-      },
-    });
+    const { videoPath } =
+      mode === "avatar"
+        ? await generateAvatarVideo({
+            supabase: service,
+            requestId,
+            userId: row.user_id,
+            script: row.script_json,
+            avatarId: row.avatar_id as string,
+            voiceId: row.avatar_voice_id ?? undefined,
+            language: row.language ?? undefined,
+            existingProviderVideoJobId: row.avatar_provider_video_job_id,
+            onProgress,
+          })
+        : await generateVideoFromScript({
+            supabase: service,
+            requestId,
+            script: row.script_json,
+            style: row.style ?? undefined,
+            topic: row.topic ?? undefined,
+            language: row.language ?? undefined,
+            targetDurationSeconds: row.duration_seconds ?? undefined,
+            onProgress,
+          });
 
     await service
       .from("video_requests")

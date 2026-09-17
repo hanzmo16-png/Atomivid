@@ -12,20 +12,31 @@ import { CircuitBreaker } from "./circuit-breaker";
 
 /**
  * Adaptador para HeyGen (avatares con foto + video sincronizado con voz).
- * IMPORTANTE: este entorno tiene bloqueado el acceso a docs.heygen.com y
- * developers.heygen.com por política de red (confirmado al intentar leer
- * la documentación oficial vía WebFetch) — lo de abajo viene de búsquedas
- * (fuentes secundarias que citan/resumen la documentación oficial, sep
- * 2026), NO de una lectura directa de la fuente primaria. Confirmado con
- * razonable confianza por al menos dos fuentes independientes:
+ * NO PRODUCTION-READY — ver docs/AVATAR_MODE.md (última verificación:
+ * 2026-09-17) para el detalle completo, en particular la distinción
+ * crítica entre dos productos DISTINTOS de HeyGen:
  *
+ * - "Photo Avatar" (POST /v3/avatars, avatar_type "photo"): disponible en
+ *   el plan self-serve normal, pero las fuentes dicen que "depict no real,
+ *   identifiable person" — no se pudo confirmar si de verdad preserva la
+ *   identidad reconocible del usuario o si es una reinterpretación.
+ * - "Digital Twin" (el producto que SÍ clona la identidad real de una
+ *   persona): requiere un VIDEO de consentimiento con detección de
+ *   vivacidad (no un checkbox) vía POST /v3/avatars/{group_id}/consent, Y
+ *   requiere el tier "Enterprise API" (contactar ventas, fuera de
+ *   "comprar créditos" — no contratado).
+ *
+ * Este adaptador implementa el flujo de "Photo Avatar" (self-serve) — el
+ * checkbox de consentimiento de Atomivid (AvatarCreationRequest.consentGiven)
+ * es una política de producto propia, NO equivale al video de
+ * consentimiento con detección de vivacidad que HeyGen exige para Digital
+ * Twin. No presentar este adaptador como capaz de clonar identidad real
+ * hasta resolver esa ambigüedad con una cuenta HeyGen real.
+ *
+ * Resto de datos confirmados por búsqueda (citas exactas en
+ * docs/AVATAR_MODE.md, este entorno tiene bloqueado el acceso directo a
+ * docs.heygen.com/developers.heygen.com):
  * - API v3, REST/JSON, auth vía header "X-Api-Key".
- * - Avatar desde una sola foto: POST /v3/avatars (avatar_type "photo") —
- *   HeyGen distingue "photo" avatar (sin exigir consentimiento por API)
- *   de "digital twin" avatar (SÍ exige POST /v3/avatars/{group_id}/consent).
- *   Atomivid exige consentimiento del usuario SIEMPRE, para los dos casos
- *   — ver AvatarCreationRequest.consentGiven, verificado independientemente
- *   de lo que HeyGen exija técnicamente.
  * - Crear video: POST /v3/videos con avatar_id + guion + voice_id.
  * - Asíncrono: sondeo de estado o webhook (evento avatar_video.success).
  * - Voces: GET /v3/voices (300+ voces, 40+ idiomas).
@@ -34,13 +45,14 @@ import { CircuitBreaker } from "./circuit-breaker";
  * - Precio: pay-as-you-go prepago, sin créditos gratis en el plan API
  *   desde feb-2026, ~$0.0167–$0.0667/segundo de video con avatar.
  * - Eliminación de avatar/foto fuente vía API: NO se pudo confirmar un
- *   endpoint DELETE documentado en las fuentes disponibles — deleteAvatar()
- *   intenta un DELETE best-effort y SIEMPRE reporta honestamente si no se
- *   pudo confirmar el borrado (nunca finge éxito).
+ *   endpoint DELETE documentado — deleteAvatar() intenta un DELETE
+ *   best-effort y SIEMPRE reporta honestamente si no se pudo confirmar el
+ *   borrado (nunca finge éxito).
  *
- * NO ha sido posible verificar esto contra la documentación oficial
- * primaria en este entorno — no actives HEYGEN_API_KEY en producción sin
- * confirmar tú mismo contra https://docs.heygen.com antes.
+ * NO ha sido posible verificar el payload/response exacto contra la
+ * documentación oficial primaria en este entorno — no actives
+ * HEYGEN_API_KEY en producción sin confirmar tú mismo contra
+ * https://docs.heygen.com antes.
  */
 
 const HEYGEN_API_BASE = process.env.HEYGEN_API_BASE || "https://api.heygen.com";
@@ -65,7 +77,16 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function heygenFetch(path: string, init: RequestInit): Promise<Response> {
-  circuitBreaker.assertClosed();
+  try {
+    circuitBreaker.assertClosed();
+  } catch (err) {
+    throw new AvatarProviderError(
+      err instanceof Error ? err.message : "Circuito abierto tras fallos consecutivos",
+      "heygen",
+      "circuit_open",
+      err,
+    );
+  }
   let response: Response;
   try {
     response = await fetch(`${HEYGEN_API_BASE}${path}`, {

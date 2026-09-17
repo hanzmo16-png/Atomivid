@@ -68,6 +68,7 @@ export function estimateCostUsd(usage: {
    */
   image_cost_usd?: number;
   premium_video_cost_usd?: number;
+  avatar_cost_usd?: number;
 }): number {
   const pricing = getPricingConfig();
 
@@ -83,6 +84,7 @@ export function estimateCostUsd(usage: {
   const musicCost = usage.has_music_track ? pricing.musicUsdPerTrack : 0;
   const imageCost = usage.image_cost_usd ?? 0;
   const premiumVideoCost = usage.premium_video_cost_usd ?? 0;
+  const avatarCost = usage.avatar_cost_usd ?? 0;
 
-  return Math.round((scriptCost + voiceCost + renderCost + musicCost + imageCost + premiumVideoCost) * 1e6) / 1e6;
+  return Math.round((scriptCost + voiceCost + renderCost + musicCost + imageCost + premiumVideoCost + avatarCost) * 1e6) / 1e6;
 }

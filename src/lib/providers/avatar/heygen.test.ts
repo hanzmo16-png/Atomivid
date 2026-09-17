@@ -151,3 +151,30 @@ test("deleteAvatar nunca finge éxito si el proveedor falla — reporta deleted:
     global.fetch = originalFetch;
   }
 });
+
+// ÚLTIMA prueba del archivo a propósito: el circuit breaker es un
+// singleton de módulo compartido entre pruebas — abrirlo aquí no debe
+// contaminar ninguna prueba anterior. Usa checkAvatarStatus() (no
+// deleteAvatar(), que atrapa sus propios errores y nunca rechaza) para
+// poder observar el AvatarProviderError propagado directamente.
+test("tras 3 fallos recuperables consecutivos, el circuito se abre y se reporta como circuit_open (no un upstream_error genérico)", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = (async () => new Response(null, { status: 503 })) as typeof fetch;
+
+  try {
+    await withEnv({ HEYGEN_API_KEY: "fake-key" }, async () => {
+      for (let i = 0; i < 3; i++) {
+        await assert.rejects(
+          () => heygenAvatarProvider.checkAvatarStatus(`avatar-circuit-${i}`),
+          (err: unknown) => err instanceof AvatarProviderError && err.reason === "upstream_error",
+        );
+      }
+      await assert.rejects(
+        () => heygenAvatarProvider.checkAvatarStatus("avatar-circuit-final"),
+        (err: unknown) => err instanceof AvatarProviderError && err.reason === "circuit_open",
+      );
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
