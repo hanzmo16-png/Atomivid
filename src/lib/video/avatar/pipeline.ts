@@ -31,6 +31,7 @@ export class AvatarPipelineError extends Error {
       | "consent_missing"
       | "avatar_not_ready"
       | "provider_unavailable"
+      | "duration_exceeded"
       | "provider_error",
   ) {
     super(message);
@@ -63,6 +64,7 @@ type OnProgress = (stage: RenderStage) => void | Promise<void>;
  *  3. avatars.consent_given = true.
  *  4. avatars.status no es 'failed' ni 'deleted'.
  *  5. El proveedor resuelto está disponible (isAvailable()).
+ *  6. La narración estimada no excede MAX_AVATAR_DURATION_SECONDS.
  *
  * Idempotencia: si la solicitud YA tiene un avatar_provider_video_job_id
  * de un intento anterior, se consulta su estado en vez de volver a pedir
@@ -124,6 +126,19 @@ export async function generateAvatarVideo({
   }
 
   const fullText = script.segments.map((s) => s.text).join(" ");
+
+  // Límite de duración explícito (independiente del tope de caracteres
+  // que cada proveedor pueda imponer por su cuenta) — mismo criterio de
+  // estimación (palabras/2.5s) que ya usa cada proveedor para el costo,
+  // para no gastar ni un segundo de proveedor en un guion desproporcionado.
+  const estimatedNarrationSeconds = Math.max(1, fullText.split(/\s+/).filter(Boolean).length / 2.5);
+  if (estimatedNarrationSeconds > flags.maxAvatarDurationSeconds) {
+    throw new AvatarPipelineError(
+      `La narración estimada (${estimatedNarrationSeconds.toFixed(1)}s) excede el máximo permitido (MAX_AVATAR_DURATION_SECONDS=${flags.maxAvatarDurationSeconds}s).`,
+      "duration_exceeded",
+    );
+  }
+
   let storageBytes = 0;
 
   await onProgress?.("voice");

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { generateAvatarVideo, AvatarPipelineError } from "./pipeline";
 import type { GeneratedScript } from "@/lib/providers/types";
 
-const KEYS = ["AVATAR_MODE_ENABLED", "AVATAR_PROVIDER", "HEYGEN_API_KEY"];
+const KEYS = ["AVATAR_MODE_ENABLED", "AVATAR_PROVIDER", "HEYGEN_API_KEY", "MAX_AVATAR_DURATION_SECONDS"];
 
 async function withEnv(vars: Record<string, string | undefined>, fn: () => void | Promise<void>) {
   const originals = KEYS.map((k) => [k, process.env[k]] as const);
@@ -175,6 +175,27 @@ test("lanza avatar_not_ready si el avatar está failed/deleted", async () => {
     await assert.rejects(
       () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1" }),
       (err: unknown) => err instanceof AvatarPipelineError && err.code === "avatar_not_ready",
+    );
+  });
+});
+
+test("lanza duration_exceeded si la narración estimada supera MAX_AVATAR_DURATION_SECONDS, sin llamar al proveedor", async () => {
+  await withEnv({ AVATAR_MODE_ENABLED: "true", MAX_AVATAR_DURATION_SECONDS: "2" }, async () => {
+    const { fake } = makeFakeSupabase({
+      id: "a1",
+      user_id: "u1",
+      status: "ready",
+      consent_given: true,
+      provider_avatar_id: "prov-1",
+      provider: "fixture",
+    });
+    const longScript: GeneratedScript = {
+      title: "t",
+      segments: [{ text: "una dos tres cuatro cinco seis siete ocho nueve diez once doce", visualQuery: "person" }],
+    };
+    await assert.rejects(
+      () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: longScript, avatarId: "a1" }),
+      (err: unknown) => err instanceof AvatarPipelineError && err.code === "duration_exceeded",
     );
   });
 });
