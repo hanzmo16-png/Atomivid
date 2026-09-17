@@ -1,11 +1,17 @@
-name: URL firmada de descarga (solo lectura)
+name: Exportar video existente (solo lectura)
 
-# Genera y verifica una URL firmada temporal para el `final.mp4` de una
-# solicitud YA renderizada, sin generar ni renderizar nada nuevo. No llama
-# a Claude, ElevenLabs, Pexels ni Remotion, y no toca la cuota de ningún
-# usuario — únicamente pide a Supabase Storage una URL de lectura temporal
-# para un objeto que ya existe en el bucket privado "videos" (ver
-# scripts/get-signed-url.ts).
+# Descarga el `final.mp4` de una solicitud YA renderizada y lo publica
+# como artifact del workflow, sin generar ni renderizar nada nuevo. No
+# llama a Claude, ElevenLabs, Pexels ni Remotion, y no toca la cuota de
+# ningún usuario — únicamente lee un objeto que ya existe en el bucket
+# privado "videos" (ver scripts/export-final-video.ts).
+#
+# No usa createSignedUrl(): imprimir esa URL en el log de Actions hace
+# que GitHub enmascare el token como "***" (el runner también enmascara
+# los segmentos internos de cualquier JWT que coincida con los de un
+# secret registrado, y no se puede confirmar si eso era una colisión de
+# formato o una coincidencia real con SUPABASE_SERVICE_ROLE_KEY) — se
+# descargan los bytes del archivo directamente en su lugar.
 on:
   workflow_dispatch:
     inputs:
@@ -13,14 +19,9 @@ on:
         description: "ID de la solicitud (video_requests.id) cuyo final.mp4 ya existe"
         required: true
         type: string
-      expires_in_seconds:
-        description: "Vigencia de la URL firmada, en segundos"
-        required: false
-        type: string
-        default: "7200"
 
 jobs:
-  sign:
+  export:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -36,10 +37,16 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
-      - name: Generar y verificar URL firmada
-        run: npx tsx scripts/get-signed-url.ts
+      - name: Descargar video existente
+        run: npx tsx scripts/export-final-video.ts
         env:
           REQUEST_ID: ${{ inputs.request_id }}
-          EXPIRES_IN_SECONDS: ${{ inputs.expires_in_seconds }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Publicar video como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-video-${{ inputs.request_id }}
+          path: final-${{ inputs.request_id }}.mp4
+          retention-days: 1
