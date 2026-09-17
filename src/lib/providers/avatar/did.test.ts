@@ -1,0 +1,223 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { didAvatarProvider } from "./did";
+import { AvatarProviderError } from "../types";
+
+function withEnv(vars: Record<string, string | undefined>, fn: () => void | Promise<void>) {
+  const keys = Object.keys(vars);
+  const originals = keys.map((k) => [k, process.env[k]] as const);
+  for (const [k, v] of Object.entries(vars)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+  return (async () => {
+    try {
+      await fn();
+    } finally {
+      for (const [k, v] of originals) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  })();
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+}
+
+test("createAvatar lanza not_configured sin DID_API_KEY", async () => {
+  await withEnv({ DID_API_KEY: undefined }, async () => {
+    await assert.rejects(
+      () => didAvatarProvider.createAvatar({ photoBuffer: Buffer.from("x"), mimeType: "image/jpeg", consentGiven: true }),
+      (err: unknown) => err instanceof AvatarProviderError && err.reason === "not_configured",
+    );
+  });
+});
+
+test("createAvatar lanza consent_missing si consentGiven es false, incluso con clave presente", async () => {
+  await withEnv({ DID_API_KEY: "fake-key" }, async () => {
+    await assert.rejects(
+      () => didAvatarProvider.createAvatar({ photoBuffer: Buffer.from("x"), mimeType: "image/jpeg", consentGiven: false }),
+      (err: unknown) => err instanceof AvatarProviderError && err.reason === "consent_missing",
+    );
+  });
+});
+
+test("createAvatar lanza invalid_response si la foto está vacía", async () => {
+  await withEnv({ DID_API_KEY: "fake-key" }, async () => {
+    await assert.rejects(
+      () => didAvatarProvider.createAvatar({ photoBuffer: Buffer.alloc(0), mimeType: "image/jpeg", consentGiven: true }),
+      (err: unknown) => err instanceof AvatarProviderError && err.reason === "invalid_response",
+    );
+  });
+});
+
+test("generateVideo lanza budget_exceeded si el costo estimado excede maxCostUsd", async () => {
+  await withEnv({ DID_API_KEY: "fake-key", DID_COST_USD_PER_SECOND: "1" }, async () => {
+    await assert.rejects(
+      () =>
+        didAvatarProvider.generateVideo({
+          providerAvatarId: "img-1",
+          script: "hola mundo, esto es una prueba de presupuesto",
+          maxCostUsd: 0.01,
+        }),
+      (err: unknown) => err instanceof AvatarProviderError && err.reason === "budget_exceeded",
+    );
+  });
+});
+
+test("createAvatar exitoso con fetch mockeado (mock, no red real) — sin fase de entrenamiento, completa de inmediato", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = (async (url: string | URL | Request) => {
+    assert.ok(String(url).includes("/images"));
+    return jsonResponse({ id: "img-123" });
+  }) as typeof fetch;
+
+  try {
+    await withEnv({ DID_API_KEY: "fake-key" }, async () => {
+      const result = await didAvatarProvider.createAvatar({
+        photoBuffer: Buffer.from("fake-photo-bytes"),
+        mimeType: "image/jpeg",
+        consentGiven: true,
+      });
+      assert.equal(result.providerAvatarId, "img-123");
+      assert.equal(result.status, "completed");
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("checkAvatarStatus siempre devuelve completed (D-ID no tiene fase de entrenamiento asíncrona conocida)", async () => {
+  const status = await didAvatarProvider.checkAvatarStatus("img-123");
+  assert.equal(status, "completed");
+});
+
+test("generateVideo exitoso: crea, sondea (started → done) y descarga con fetch mockeado", async () => {
+  const originalFetch = global.fetch;
+  let pollCount = 0;
+  global.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    const u = String(url);
+    if (u.includes("/talks") && init?.method === "POST") {
+      return jsonResponse({ id: "talk-abc" });
+    }
+    if (u.includes("/talks/talk-abc")) {
+      pollCount += 1;
+      if (pollCount === 1) return jsonResponse({ status: "started" });
+      return jsonResponse({ status: "done", result_url: "https://example.test/fake-video.mp4" });
+    }
+    if (u.includes("fake-video.mp4")) {
+      return new Response(new Uint8Array([1, 2, 3, 4]), { status: 200 });
+    }
+    throw new Error(`URL inesperada en el mock: ${u}`);
+  }) as typeof fetch;
+
+  try {
+    await withEnv({ DID_API_KEY: "fake-key", DID_POLL_TIMEOUT_MS: "5000" }, async () => {
+      const result = await didAvatarProvider.generateVideo({
+        providerAvatarId: "img-123",
+        script: "Hola, este es un guion de prueba corto.",
+        voiceId: "voice-1",
+        maxCostUsd: 100,
+      });
+      assert.equal(result.providerJobId, "talk-abc");
+      assert.ok(result.buffer.byteLength > 0);
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("deleteAvatar nunca finge éxito si el proveedor falla — reporta deleted:false con motivo", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = (async () => new Response(null, { status: 404 })) as typeof fetch;
+
+  try {
+    await withEnv({ DID_API_KEY: "fake-key" }, async () => {
+      const result = await didAvatarProvider.deleteAvatar("img-123");
+      assert.equal(result.deleted, false);
+      assert.ok(result.reason);
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("estimateVideoCostUsd usa la MISMA fórmula que generateVideo (nunca diverge)", async () => {
+  await withEnv({ DID_API_KEY: "fake-key", DID_COST_USD_PER_SECOND: "0.08" }, async () => {
+    const script = "hola mundo, esto es una prueba de estimación de costo";
+    const estimated = didAvatarProvider.estimateVideoCostUsd({ script });
+
+    const originalFetch = global.fetch;
+    global.fetch = (async (url: string | URL | Request) => {
+      const u = String(url);
+      if (u.includes("/talks") && !u.match(/\/talks\/[^/]+$/)) return jsonResponse({ id: "talk-cost" });
+      return jsonResponse({ status: "done", result_url: "https://example.test/fake-video.mp4" });
+    }) as typeof fetch;
+    try {
+      const asset = await didAvatarProvider.generateVideo({ providerAvatarId: "img-1", script, maxCostUsd: 100 });
+      assert.equal(asset.costUsd, estimated);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+});
+
+test("cancelVideo nunca finge éxito si el proveedor falla — reporta cancelled:false con motivo", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = (async () => new Response(null, { status: 404 })) as typeof fetch;
+
+  try {
+    await withEnv({ DID_API_KEY: "fake-key" }, async () => {
+      const result = await didAvatarProvider.cancelVideo("talk-123");
+      assert.equal(result.cancelled, false);
+      assert.ok(result.reason);
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("processWebhookPayload normaliza un status 'done' reconocido", () => {
+  const result = didAvatarProvider.processWebhookPayload({ id: "talk-abc", status: "done" });
+  assert.deepEqual(result, { providerJobId: "talk-abc", status: "completed" });
+});
+
+test("processWebhookPayload normaliza un status 'error'", () => {
+  const result = didAvatarProvider.processWebhookPayload({ id: "talk-abc", status: "error" });
+  assert.deepEqual(result, { providerJobId: "talk-abc", status: "failed" });
+});
+
+test("processWebhookPayload devuelve null (nunca lanza) ante un payload malformado o de status desconocido", () => {
+  assert.equal(didAvatarProvider.processWebhookPayload(null), null);
+  assert.equal(didAvatarProvider.processWebhookPayload({ status: "done" }), null);
+  assert.equal(didAvatarProvider.processWebhookPayload({ id: "talk-abc", status: "algo-inventado" }), null);
+});
+
+// ÚLTIMA prueba del archivo a propósito: el circuit breaker es un
+// singleton de módulo compartido entre pruebas — abrirlo aquí no debe
+// contaminar ninguna prueba anterior. Usa checkVideoStatus() (no
+// deleteAvatar()/cancelVideo(), que atrapan sus propios errores y nunca
+// rechazan) para poder observar el AvatarProviderError propagado directamente.
+test("tras 3 fallos recuperables consecutivos, el circuito se abre y se reporta como circuit_open (no un upstream_error genérico)", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = (async () => new Response(null, { status: 503 })) as typeof fetch;
+
+  try {
+    await withEnv({ DID_API_KEY: "fake-key" }, async () => {
+      for (let i = 0; i < 3; i++) {
+        await assert.rejects(
+          () => didAvatarProvider.checkVideoStatus(`talk-circuit-${i}`),
+          (err: unknown) => err instanceof AvatarProviderError && err.reason === "upstream_error",
+        );
+      }
+      await assert.rejects(
+        () => didAvatarProvider.checkVideoStatus("talk-circuit-final"),
+        (err: unknown) => err instanceof AvatarProviderError && err.reason === "circuit_open",
+      );
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
