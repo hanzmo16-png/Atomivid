@@ -1,0 +1,43 @@
+name: Dry-run del Visual Director (validación real acotada)
+
+# Valida la generación REAL de storyboard vía Claude (proveedor ya
+# configurado, secrets.ANTHROPIC_API_KEY) sin tocar Supabase, sin
+# renderizar nada y sin generar ningún video — usa el guion fixture
+# (gratis) y solo paga la llamada de storyboard en sí (ver
+# scripts/dry-run-storyboard.ts). No necesita ningún secret nuevo.
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Tema para el guion fixture de prueba"
+        required: false
+        type: string
+      visual_director_enabled:
+        description: "true = llamada REAL a Claude (cuesta unos centavos) | false = modo simulado (gratis)"
+        required: false
+        type: string
+        default: "true"
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Dry-run del storyboard
+        run: npx tsx scripts/dry-run-storyboard.ts
+        env:
+          VISUAL_DIRECTOR_ENABLED: ${{ inputs.visual_director_enabled }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DRY_RUN_TOPIC: ${{ inputs.topic }}
