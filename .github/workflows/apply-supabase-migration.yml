@@ -1,0 +1,71 @@
+name: Aplicar migración de Supabase (autónomo, con verificación)
+
+# Mecanismo autónomo para aplicar migraciones de supabase/migrations/*.sql
+# al proyecto real, sin copiar/pegar SQL a mano en el SQL Editor. Siempre:
+# 1) verifica en solo lectura el estado actual del esquema remoto (vía
+#    REST, con la service role key ya configurada), 2) intenta aplicar
+#    SOLO si existe una credencial de conexión directa a Postgres
+#    (SUPABASE_DB_URL, o SUPABASE_PROJECT_REF+SUPABASE_DB_PASSWORD) —
+#    la service role key NUNCA alcanza para DDL, solo para REST/Storage —
+#    y falla de forma clara y segura si no está, sin inventar un atajo,
+#    3) vuelve a verificar en solo lectura después. Nunca reaplica una
+#    migración ya registrada (ver scripts/apply-supabase-migration.ts).
+on:
+  workflow_dispatch:
+    inputs:
+      migration_file:
+        description: "Nombre del archivo en supabase/migrations/ (p. ej. 0012_visual_resource_planner.sql)"
+        required: true
+        type: string
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Verificar qué credenciales están disponibles (sin exponer valores)
+        run: |
+          echo "SUPABASE_URL: $([ -n "$SUPABASE_URL" ] && echo presente || echo AUSENTE)"
+          echo "SUPABASE_SERVICE_ROLE_KEY: $([ -n "$SUPABASE_SERVICE_ROLE_KEY" ] && echo presente || echo AUSENTE)"
+          echo "SUPABASE_DB_URL: $([ -n "$SUPABASE_DB_URL" ] && echo presente || echo AUSENTE)"
+          echo "SUPABASE_PROJECT_REF: $([ -n "$SUPABASE_PROJECT_REF" ] && echo presente || echo AUSENTE)"
+          echo "SUPABASE_DB_PASSWORD: $([ -n "$SUPABASE_DB_PASSWORD" ] && echo presente || echo AUSENTE)"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - name: Verificar esquema remoto ANTES (solo lectura, vía REST)
+        run: npx tsx scripts/verify-remote-schema.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Aplicar migración (requiere conexión directa a Postgres — nunca solo la service role key)
+        id: apply
+        run: npx tsx scripts/apply-supabase-migration.ts "${{ inputs.migration_file }}"
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - name: Verificar esquema remoto DESPUÉS (solo lectura, vía REST)
+        if: always()
+        run: npx tsx scripts/verify-remote-schema.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
