@@ -18,37 +18,36 @@ Mecanismo autónomo listo para migraciones futuras:
 Connection Pooler es un input no-secreto con valor confirmado por
 defecto: `aws-0-us-west-2.pooler.supabase.com`).
 
-## 2. Rama y despliegue — HALLAZGO IMPORTANTE, requiere tu confirmación
+## 2. Rama y despliegue
 
-- **No existe una rama `main`** en `hanzmo16-png/Atomivid`. Las únicas
-  ramas remotas son `claude/atomivid-mvp-setup-0079jv` (esta, con todo el
-  trabajo de ATOMIVID) y dos ramas `codex/growth-engine-*` (foundation +
-  dashboard) — **trabajo no relacionado** (un "planificador de campañas"/
-  "bandeja de aprobación"), con commits tuyos directos (`324517276+hanzmo16-png@users.noreply.github.com`)
-  encima de un punto histórico de esta misma rama. No los toqué.
-- **La rama DEFAULT del repositorio en GitHub ES
-  `claude/atomivid-mvp-setup-0079jv`** (confirmado: `list_commits` sin
-  especificar rama devuelve el mismo HEAD que esta rama).
-- **No tengo acceso a la API de Vercel en esta sesión** (sin
-  credencial/herramienta expuesta) — no encontré `vercel.json` en el repo
-  ni pude leer checks/deployments de Vercel vía GitHub. **No puedo
-  confirmar qué commit está desplegado en producción.**
-- Dado que no hay `main` y la rama default ES esta, es muy probable que
-  Vercel esté configurado para desplegar directamente desde
-  `claude/atomivid-mvp-setup-0079jv` — si es así, **los commits ya
-  pusheados esta sesión pueden haberse desplegado automáticamente**, sin
-  que yo lo supiera ni lo confirmara.
-- **Necesito que confirmes**: (a) ¿cuál es la rama de producción real en
-  Vercel?, (b) ¿qué son las ramas `codex/growth-engine-*` — trabajo en
-  curso a preservar, o descartable?, (c) ¿quieres que cree una rama `main`
-  formal para separar "producción" de esta rama de trabajo?
+- **No existe una rama `main`** en `hanzmo16-png/Atomivid`. Las ramas
+  remotas son `claude/atomivid-mvp-setup-0079jv` (esta, con todo el
+  trabajo de ATOMIVID — es la rama BASE de desarrollo, por instrucción
+  explícita, sin afirmar que sea "producción"), `claude/e2e-verification-scripts`
+  (rama nueva de este turno, ver punto 3), y dos ramas
+  `codex/growth-engine-*` (foundation + dashboard) — **trabajo no
+  relacionado a preservar, confirmado por el usuario**, no tocadas.
+- La rama DEFAULT del repositorio en GitHub ES
+  `claude/atomivid-mvp-setup-0079jv` (confirmado vía `list_commits` sin
+  especificar rama).
+- **Despliegue: NO VERIFICADO por falta de acceso a Vercel.** Se intentó
+  identificarlo vía GitHub (deployments/checks) — no hay herramienta
+  expuesta en esta sesión para listar check-runs de apps externas (Vercel)
+  ni la API de deployments de GitHub, y no hay `vercel.json` en el repo.
+  Registrado como bloqueo de acceso, no como una suposición.
 
-## 3. PR — NO preparado, depende del punto 2
+## 3. Cambios nuevos — en rama separada, PR abierto sin fusionar
 
-No hay una rama base sensata contra la cual abrir un PR (no hay `main`).
-Preparar un PR contra `codex/growth-engine-foundation` no tendría sentido
-(rama no relacionada). En cuanto confirmes la rama de producción real,
-preparo el PR con problema/cambios/pruebas/riesgos como se pidió.
+Por instrucción explícita: a partir de ahora, cambios nuevos van en una
+rama separada con PR hacia `claude/atomivid-mvp-setup-0079jv`, nunca
+fusionado automáticamente.
+
+- **PR #1** (`claude/e2e-verification-scripts` → `claude/atomivid-mvp-setup-0079jv`):
+  https://github.com/hanzmo16-png/Atomivid/pull/1 — dos scripts nuevos de
+  verificación E2E permanentes (avatar con foto real, mezcla imagen+stock
+  a nivel resolver), cero cambios a código de producción. tsc/eslint/441
+  tests/build verdes. **Abierto, sin fusionar** — pendiente de tu
+  revisión.
 
 ## 4. Adaptador D-ID — corregido contra documentación oficial (parcial)
 
