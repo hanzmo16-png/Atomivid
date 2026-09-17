@@ -27,7 +27,7 @@
  *      implementación. ***
  *
  *      Solución sin exponer ni adivinar nada sensible: si además se
- *      configura SUPABASE_DB_HOST (p. ej. "aws-0-us-east-1.pooler.supabase.com",
+ *      configura SUPABASE_DB_HOST (p. ej. "aws-0-us-west-2.pooler.supabase.com",
  *      visible en Project Settings → Database → Connection Pooler del
  *      proyecto real — NO es secreto, es solo un nombre de host), este
  *      helper arma la conexión contra ESE host en vez del directo, y
@@ -38,20 +38,21 @@
  *      dentro de una transacción, a diferencia del modo "transaction" en
  *      6543).
  *
- *      *** Descubrimiento autónomo (2026-09-17): si NO se configura
- *      SUPABASE_DB_HOST explícitamente y la conexión directa falla con un
- *      error de alcance de red, `connectResolved()` (abajo) intenta
- *      descubrir el pooler correcto por su cuenta — nunca adivinando a
- *      ciegas: deriva la región de AWS a partir del prefijo IPv6 real al
- *      que resuelve el host directo del proyecto (dato público, cruzado
- *      contra el ip-ranges.json oficial de AWS) y solo confirma un
- *      candidato tras autenticar con éxito (SELECT 1, de solo lectura) con
- *      la contraseña ya autorizada. Ver scripts/lib/discover-pooler.ts. ***
+ *      *** Diagnóstico (no automático) del candidato de pooler
+ *      (2026-09-17): si NO se configura SUPABASE_DB_HOST y la conexión
+ *      directa falla por red, `connectResolved()` (abajo) deriva —usando
+ *      SOLO datos públicos (DNS + ip-ranges.json de AWS), SIN usar ninguna
+ *      credencial ni intentar conectarse a él— un host candidato de
+ *      pooler, y lo incluye en el mensaje de error para que un operador lo
+ *      revise y lo configure explícitamente. Nunca se autentica de forma
+ *      automática contra un host derivado — ver scripts/lib/discover-pooler.ts
+ *      para el detalle y el razonamiento de por qué este paso requiere
+ *      confirmación humana. ***
  *
  * Nunca imprime ni expone la contraseña ni la cadena de conexión completa
  * — solo el ref/host (no son secretos) y la fuente usada para construirla.
  */
-import { discoverPoolerHost, isNetworkReachabilityError } from "./discover-pooler";
+import { deriveCandidatePoolerHost, isNetworkReachabilityError } from "./discover-pooler";
 
 export function deriveProjectRef(url: string | undefined | null): string | null {
   if (!url) return null;
@@ -103,74 +104,46 @@ export function resolveConnection(): ResolvedConnection | null {
   };
 }
 
-/** Se lanza cuando la conexión directa falla por red Y el descubrimiento autónomo del pooler tampoco pudo confirmar un host — lleva la evidencia saneada de cada candidato probado, para poder reportarla sin exponer nada sensible. */
-export class PoolerDiscoveryFailedError extends Error {
-  constructor(
-    public readonly originalError: unknown,
-    public readonly attempts: import("./discover-pooler").DiscoveryAttempt[],
-  ) {
-    super(
-      "La conexión directa falló por red y el descubrimiento autónomo del Connection Pooler no pudo confirmar ningún host " +
-        `(${attempts.length} candidato(s) probado(s): ${attempts.map((a) => `${a.host}→${a.outcome}`).join(", ") || "ninguno — no se pudo derivar la región desde el prefijo IPv6"}).`,
-    );
-    this.name = "PoolerDiscoveryFailedError";
-  }
-}
-
 /**
  * Resuelve la conexión y devuelve un cliente `pg` YA CONECTADO. Si la
  * conexión directa (derivada, sin SUPABASE_DB_HOST/SUPABASE_DB_URL
- * explícitos) falla con un error de alcance de red, intenta el
- * descubrimiento autónomo del pooler (ver cabecera del archivo) antes de
- * rendirse. Nunca reintenta ante un fallo de autenticación (contraseña
- * incorrecta) — eso se propaga tal cual, como error explícito.
+ * explícitos) falla con un error de alcance de red, NUNCA reintenta contra
+ * un host inferido automáticamente — en vez de eso, deriva un candidato
+ * usando solo datos públicos (sin ninguna credencial) y lo incluye en el
+ * error para que un operador lo confirme y lo configure explícitamente
+ * como SUPABASE_DB_HOST. Ante un fallo de autenticación (contraseña
+ * incorrecta) el error original se propaga tal cual, sin ningún intento
+ * adicional.
  */
-export async function connectResolved(): Promise<{
-  client: import("pg").Client;
-  connection: ResolvedConnection;
-  discovery?: { confirmedHost: string; confirmedRegion: string; attempts: import("./discover-pooler").DiscoveryAttempt[] };
-}> {
+export async function connectResolved(): Promise<{ client: import("pg").Client; connection: ResolvedConnection }> {
   const connection = resolveConnection();
   if (!connection) throw new Error(MISSING_CREDENTIAL_MESSAGE);
 
   const { Client } = await import("pg");
-
-  async function connect(conn: ResolvedConnection) {
-    const client = new Client({ connectionString: conn.connectionString, connectionTimeoutMillis: 15000 });
-    await client.connect();
-    return client;
-  }
+  const client = new Client({ connectionString: connection.connectionString, connectionTimeoutMillis: 15000 });
 
   try {
-    const client = await connect(connection);
+    await client.connect();
     return { client, connection };
   } catch (err) {
-    const password = process.env.SUPABASE_DB_PASSWORD;
-    const canAutoDiscover =
-      isNetworkReachabilityError(err) &&
-      !process.env.SUPABASE_DB_URL &&
-      !process.env.SUPABASE_DB_HOST?.trim() &&
-      Boolean(connection.ref) &&
-      Boolean(password);
-    if (!canAutoDiscover) throw err;
+    const canSuggestCandidate = isNetworkReachabilityError(err) && !process.env.SUPABASE_DB_URL && !process.env.SUPABASE_DB_HOST?.trim() && Boolean(connection.ref);
+    if (!canSuggestCandidate) throw err;
 
-    const discovery = await discoverPoolerHost(connection.ref!, password!);
-    if (!discovery.confirmedHost || !discovery.confirmedRegion) {
-      throw new PoolerDiscoveryFailedError(err, discovery.attempts);
+    const candidate = await deriveCandidatePoolerHost(connection.ref!);
+    const errorCode = (err as { code?: string } | undefined)?.code ?? "desconocido";
+    if (!candidate) {
+      throw new Error(
+        `Conexión directa falló por red (${errorCode}) y no se pudo derivar un candidato de Connection Pooler a partir de datos públicos ` +
+          "(DNS del host directo o ip-ranges.json de AWS no disponibles). Configura SUPABASE_DB_HOST manualmente para desbloquear.",
+      );
     }
-
-    const poolerConnection: ResolvedConnection = {
-      connectionString: `postgresql://postgres.${connection.ref}:${encodeURIComponent(password!)}@${discovery.confirmedHost}:5432/postgres`,
-      ref: connection.ref,
-      host: discovery.confirmedHost,
-      source: connection.source,
-    };
-    const client = await connect(poolerConnection);
-    return {
-      client,
-      connection: poolerConnection,
-      discovery: { confirmedHost: discovery.confirmedHost, confirmedRegion: discovery.confirmedRegion, attempts: discovery.attempts },
-    };
+    throw new Error(
+      `Conexión directa falló por red (${errorCode} — host directo solo IPv6, sin salida IPv6 en este runner). ` +
+        `Candidato de Connection Pooler derivado SOLO de datos públicos (prefijo IPv6 del host directo cruzado con ip-ranges.json de AWS — ` +
+        `NUNCA se intentó autenticar contra él, requiere confirmación humana): host="${candidate.host}" (región AWS "${candidate.region}"` +
+        `${candidate.allRegions.length > 1 ? `; otras regiones candidatas: ${candidate.allRegions.filter((r) => r !== candidate.region).join(", ")}` : ""}). ` +
+        "Confírmalo y configura SUPABASE_DB_HOST con ese valor (o el correcto, si difiere) para desbloquear.",
+    );
   }
 }
 
@@ -182,8 +155,6 @@ export const MISSING_CREDENTIAL_MESSAGE =
   "  - SUPABASE_DB_URL: la cadena de conexión completa (Project Settings → Database → Connection string → URI), o\n" +
   "  - SUPABASE_DB_PASSWORD (la contraseña de la base de datos, no la service role key) junto con SUPABASE_URL " +
   "(ya existente — el project ref se deriva de ahí automáticamente) o, si prefieres ser explícito, SUPABASE_PROJECT_REF.\n" +
-  "Con SUPABASE_DB_PASSWORD presente, si la conexión DIRECTA falla por red (host solo IPv6, sin salida IPv6 en este " +
-  "runner) el mecanismo intenta descubrir y confirmar el Connection Pooler correcto por su cuenta antes de rendirse " +
-  "(ver scripts/lib/discover-pooler.ts) — solo hace falta configurar SUPABASE_DB_HOST manualmente si ese " +
-  "descubrimiento autónomo no logra confirmar ningún host.\n" +
+  "Si la conexión DIRECTA falla por red (host solo IPv6, sin salida IPv6 en este runner): el error incluirá un candidato de " +
+  "Connection Pooler derivado de datos públicos para que lo confirmes y lo configures como SUPABASE_DB_HOST.\n" +
   "Ninguna combinación válida está configurada actualmente — no se ejecutó ninguna operación.";

@@ -17,7 +17,7 @@
  *
  * Uso: npx tsx scripts/verify-remote-schema.ts
  */
-import { resolveConnection, connectResolved, PoolerDiscoveryFailedError } from "./lib/supabase-db";
+import { resolveConnection, connectResolved } from "./lib/supabase-db";
 
 export {};
 
@@ -150,16 +150,7 @@ const CHECKS: ObjectCheck[] = [
 const MIGRATIONS_APPLIED_TABLE = { kind: "table" as const, table: "_migrations_applied", migration: "(control)" };
 
 async function verifyDirect() {
-  // connectResolved() intenta la conexión resuelta y, si falla por alcance
-  // de red (host directo IPv6-only), cae al descubrimiento autónomo del
-  // pooler (ver scripts/lib/discover-pooler.ts) antes de rendirse.
-  const { client, connection, discovery } = await connectResolved();
-  if (discovery) {
-    console.log(
-      `[verify-remote-schema] Conexión directa no disponible (red) — pooler descubierto y CONFIRMADO de forma autónoma: región "${discovery.confirmedRegion}" ` +
-        `(derivada del prefijo IPv6 público del host directo, cruzado contra ip-ranges.json de AWS; confirmada por autenticación real y exitosa, no adivinada).`,
-    );
-  }
+  const { client, connection } = await connectResolved();
 
   try {
     const [tables, columns, constraints, indexes, policies, rls] = await Promise.all([
@@ -303,13 +294,13 @@ async function main() {
   try {
     await verifyDirect();
   } catch (err) {
-    if (err instanceof PoolerDiscoveryFailedError) {
-      console.error(`[verify-remote-schema] ${err.message}`);
-      console.error("[verify-remote-schema] Cayendo a modo REST de mejor esfuerzo — el diagnóstico autoritativo de constraints/índices/RLS no está disponible.");
-      await verifyViaRest();
-      return;
-    }
-    throw err;
+    // La verificación es de solo lectura y "mejor esfuerzo" por diseño —
+    // si la conexión directa/pooler no está disponible (p. ej. red, o
+    // SUPABASE_DB_HOST aún no configurado), cae a REST en vez de fallar
+    // todo el script; el error ya queda registrado, sin exponer secretos.
+    console.error(`[verify-remote-schema] Conexión autoritativa no disponible: ${err instanceof Error ? err.message : err}`);
+    console.error("[verify-remote-schema] Cayendo a modo REST de mejor esfuerzo — el diagnóstico autoritativo de constraints/índices/RLS no está disponible.");
+    await verifyViaRest();
   }
 }
 

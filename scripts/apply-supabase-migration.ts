@@ -32,7 +32,7 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
-import { resolveConnection, connectResolved, MISSING_CREDENTIAL_MESSAGE, PoolerDiscoveryFailedError } from "./lib/supabase-db";
+import { resolveConnection, connectResolved, MISSING_CREDENTIAL_MESSAGE } from "./lib/supabase-db";
 
 export {};
 
@@ -67,10 +67,11 @@ async function main() {
     throw new Error(`No se encontró "${onlyFile}" en supabase/migrations/`);
   }
 
-  // connectResolved() intenta primero la conexión resuelta (directa o
-  // pooler explícito); si falla por alcance de red, intenta el
-  // descubrimiento autónomo del pooler (ver scripts/lib/discover-pooler.ts)
-  // antes de rendirse — nunca ante un fallo de autenticación.
+  // connectResolved() intenta la conexión resuelta (directa o pooler
+  // explícito vía SUPABASE_DB_HOST). Si falla por alcance de red, NUNCA
+  // intenta autenticarse contra un host inferido automáticamente — el
+  // error incluye un candidato derivado solo de datos públicos, para que
+  // un operador lo confirme y lo configure explícitamente.
   let client: import("pg").Client;
   try {
     const result = await connectResolved();
@@ -78,25 +79,10 @@ async function main() {
     console.log(
       `[apply-supabase-migration] Conexión resuelta vía ${result.connection.source}${result.connection.ref ? ` (ref: ${result.connection.ref})` : ""} — host/credenciales nunca se imprimen.`,
     );
-    if (result.discovery) {
-      console.log(
-        `[apply-supabase-migration] Conexión directa no disponible (red) — pooler descubierto y CONFIRMADO de forma autónoma: región "${result.discovery.confirmedRegion}" ` +
-          `(derivada del prefijo IPv6 público del host directo, cruzado contra ip-ranges.json de AWS; confirmada por autenticación real y exitosa, no adivinada). ` +
-          `Candidatos evaluados: ${result.discovery.attempts.map((a) => `${a.region}→${a.outcome}`).join(", ")}.`,
-      );
-    }
   } catch (err) {
-    if (err instanceof PoolerDiscoveryFailedError) {
-      console.error(`[apply-supabase-migration] BLOQUEADO: ${err.message}`);
-      console.error(
-        "El descubrimiento autónomo no pudo confirmar un host de pooler — puede que el proyecto no tenga Connection Pooler habilitado, " +
-          "o que la región derivada del prefijo IPv6 no sea la correcta. Configura SUPABASE_DB_HOST manualmente (Project Settings → Database → Connection Pooler) " +
-          "para desbloquear sin más intentos automáticos.",
-      );
-      process.exitCode = 4;
-      return;
-    }
-    throw err;
+    console.error(`[apply-supabase-migration] BLOQUEADO: ${err instanceof Error ? err.message : err}`);
+    process.exitCode = 4;
+    return;
   }
 
   const applied: string[] = [];
