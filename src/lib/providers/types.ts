@@ -5,9 +5,28 @@
  * misma interfaz — así el pipeline completo se puede probar sin claves.
  */
 
+export type SceneEnergy = "low" | "medium" | "high";
+
 export type ScriptScene = {
   text: string;
+  /** Concepto visual primario — 2-4 palabras en inglés, editable por el usuario en la revisión del guion. */
   visualQuery: string;
+  /**
+   * Interpretaciones visuales ALTERNATIVAS de la misma idea (no sinónimos
+   * del mismo objeto/escena) — p. ej. para "ahí es donde la mayoría
+   * abandona sus sueños": ["exhausted athlete stopping", "person quitting
+   * workout", "runner falling behind"], no variaciones de "dreams".
+   * Ausente en guiones antiguos o generados por el proveedor fixture — el
+   * selector de footage cae a usar solo [visualQuery] cuando falta (ver
+   * src/lib/video/footage-select.ts).
+   */
+  visualConcepts?: string[];
+  /** Términos que NO deben aparecer en el material visual de esta escena. */
+  excludedTerms?: string[];
+  /** Señal de ritmo/energía para el montaje (corte más rápido en escenas "high"). */
+  energy?: SceneEnergy;
+  /** Palabras de esta escena que deben recibir énfasis visual en los subtítulos (ver caption-emphasis.ts). */
+  emphasisWords?: string[];
 };
 
 export type GeneratedScript = {
@@ -62,11 +81,38 @@ export type FootageResult = {
   extension: string;
 };
 
+/**
+ * Un resultado candidato (no elegido todavía) — a diferencia de
+ * FootageResult, siempre trae un `sourceId` estable para poder
+ * deduplicar entre escenas del mismo video, y metadata técnica opcional
+ * para puntuar calidad (src/lib/video/footage-score.ts).
+ */
+export type FootageCandidate = FootageResult & {
+  /** Identificador estable del candidato en el proveedor (p. ej. el id numérico de Pexels) — nunca la URL firmada, que puede cambiar. */
+  sourceId: string;
+  width?: number;
+  height?: number;
+  durationSeconds?: number;
+};
+
 export interface FootageProvider {
   readonly name: string;
   /** Busca preferentemente video vertical; el proveedor puede caer a imagen. */
   fetchFootage(query: string, minimumDurationSeconds?: number): Promise<FootageResult>;
   downloadFootage(url: string): Promise<Buffer>;
+  /**
+   * Devuelve VARIOS candidatos de video para una consulta (no elige uno
+   * solo) — necesario para poder puntuar, diversificar y evitar
+   * duplicados entre escenas del mismo video. Opcional: un proveedor que
+   * no lo implemente (p. ej. el fixture) hace que el selector caiga a
+   * `fetchFootage` como candidato único, sin comparar alternativas.
+   */
+  searchVideoCandidates?(
+    query: string,
+    minimumDurationSeconds?: number,
+  ): Promise<FootageCandidate[]>;
+  /** Igual que `searchVideoCandidates` pero para fotos — último recurso cuando ningún concepto encuentra video. */
+  searchImageCandidates?(query: string): Promise<FootageCandidate[]>;
 }
 
 /** Categoría de tono musical normalizada — ver src/lib/providers/music/tone.ts. */

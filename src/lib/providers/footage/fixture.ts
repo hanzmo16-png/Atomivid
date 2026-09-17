@@ -1,4 +1,4 @@
-import type { FootageProvider } from "../types";
+import type { FootageCandidate, FootageProvider } from "../types";
 
 const COLORS = ["334155", "7c3aed", "b91c1c", "0f766e", "b45309", "1d4ed8"];
 
@@ -65,5 +65,35 @@ export const fixtureFootageProvider: FootageProvider = {
       throw new Error("downloadFootage del fixture solo acepta data URIs propias");
     }
     return Buffer.from(decodeURIComponent(match[1]), "utf8");
+  },
+  // El fixture nunca tiene video real disponible — devolver vacío (en vez
+  // de simular un candidato "video" que en realidad sería una imagen SVG)
+  // deja que footage-select.ts recorra su propio camino de fallback a
+  // imagen, ejercitando esa ruta en pruebas/desarrollo sin Pexels.
+  async searchVideoCandidates(): Promise<FootageCandidate[]> {
+    return [];
+  },
+  async searchImageCandidates(query): Promise<FootageCandidate[]> {
+    // Varios candidatos SINTÉTICOS PERO DISTINTOS por consulta — así
+    // footage-select.ts tiene entre qué elegir/deduplicar de verdad en
+    // vez de recibir siempre un único resultado. `photographer` también
+    // varía por candidato (antes era siempre "fixture" para todos — la
+    // penalización por diversidad de footage-score.ts escalaba sin límite
+    // en videos largos, dando scores muy negativos que no representan lo
+    // que pasaría con Pexels real, donde cada foto trae su propio autor).
+    return Array.from({ length: 3 }, (_, i) => {
+      counter += 1;
+      const label = `${query} #${i + 1}`;
+      return {
+        url: svgDataUri(label, counter),
+        sourceId: `fixture-${counter}`,
+        mediaType: "image" as const,
+        photographer: `fixture-photographer-${counter}`,
+        mimeType: "image/svg+xml",
+        extension: "svg",
+        width: 1080,
+        height: 1920,
+      };
+    });
   },
 };

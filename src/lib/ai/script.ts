@@ -26,6 +26,10 @@ function getClient(): Anthropic {
 // del modelo (ver notas de presupuesto del proyecto). Configurable por env.
 const SCRIPT_MODEL = process.env.ANTHROPIC_SCRIPT_MODEL || "claude-sonnet-5";
 
+// Enum de energía compartido con el resto del pipeline (montaje/ritmo) —
+// ver SceneEnergy en src/lib/providers/types.ts.
+const EnergySchema = z.enum(["low", "medium", "high"]);
+
 const ScriptSchema = z.object({
   title: z.string().describe("Título corto y llamativo para el video"),
   segments: z
@@ -35,7 +39,39 @@ const ScriptSchema = z.object({
         visualQuery: z
           .string()
           .describe(
-            "2-4 palabras en inglés para buscar una foto de stock que ilustre esta escena",
+            "2-4 palabras en inglés para buscar una foto de stock que ilustre esta escena — el concepto visual principal, igual a visualConcepts[0].",
+          ),
+        visualConcepts: z
+          .array(z.string())
+          .min(2)
+          .max(3)
+          .optional()
+          .describe(
+            "2-3 interpretaciones visuales DISTINTAS de la idea de esta escena, en inglés, cada una " +
+              "'sujeto + acción/situación concreta' de 3-6 palabras — NUNCA sinónimos de la misma imagen. " +
+              "Interpreta el SIGNIFICADO de la frase, no la traduzcas literalmente a palabras clave. " +
+              "Ejemplo: para 'y ahí es donde la mayoría abandona sus sueños', NO uses variantes de 'dreams' " +
+              "— usa: ['exhausted athlete stopping mid run', 'person quitting a workout', " +
+              "'runner falling behind and giving up']. El primer elemento es el concepto principal " +
+              "(debe coincidir con visualQuery).",
+          ),
+        excludedTerms: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Palabras en inglés que el material visual de esta escena NO debe mostrar (opcional) — p. ej. " +
+              "para evitar un cliché visual específico o contenido que contradiga el tono.",
+          ),
+        energy: EnergySchema.optional().describe(
+          "Energía/ritmo de esta escena para el montaje: 'high' para acción o urgencia (cortes más " +
+            "rápidos), 'low' para reflexión o pausa, 'medium' para el resto.",
+        ),
+        emphasisWords: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "1-3 palabras EXACTAS del texto de 'text' (en el mismo idioma de la narración) que deben " +
+              "destacarse visualmente en los subtítulos — las más importantes/impactantes de la frase.",
           ),
       }),
     )
@@ -98,10 +134,18 @@ Reglas estrictas:
 - Nunca copies el tema tal cual dentro de una frase de plantilla — el tema es el asunto del video, no texto literal a repetir en cada escena.
 - Cada escena avanza el arco narrativo; no repitas la misma idea con otras palabras entre escenas.
 - Narración natural y motivacional, sin frases de relleno ni acotaciones/emojis/marcas de tiempo.
+- La escena de apertura necesita un gancho visual fuerte — no un plano contemplativo ni introducción lenta.
+- La escena de cierre debe sentirse como una resolución, con conceptos visuales que NO se hayan usado antes en el guion.
 
-Para cada escena da:
+Para cada escena, interpreta el SIGNIFICADO de la narración, no la conviertas literalmente en palabras clave. Ejemplo: para "y ahí es donde la mayoría abandona sus sueños", NO busques variantes de "dreams" — interpreta la idea (alguien rindiéndose) y da conceptos como "exhausted athlete stopping mid run", "person quitting a workout", "runner falling behind and giving up".
+
+Da, para cada escena:
 - "text": el texto exacto que narrará la voz IA.
-- "visualQuery": 2-4 palabras EN INGLÉS, concretas (una acción, persona, lugar u objeto visible) para buscar una foto o video de stock que ilustre esa escena — nunca el tema completo ni la misma búsqueda repetida en otra escena.
+- "visualQuery": el concepto visual principal (2-4 palabras en inglés) — igual a visualConcepts[0].
+- "visualConcepts": 2-3 interpretaciones visuales DISTINTAS de la misma idea (nunca sinónimos de la misma imagen — ángulos, sujetos o situaciones distintas que comunican lo mismo).
+- "excludedTerms": opcional, palabras en inglés a evitar en el material visual de esta escena.
+- "energy": "low"/"medium"/"high" según el ritmo narrativo de esa escena.
+- "emphasisWords": 1-3 palabras EXACTAS de "text" (mismo idioma de la narración) que merecen destacarse visualmente.
 
 La suma de las palabras de todos los "text" debe acercarse a ${targetWords} palabras.`,
       },
@@ -156,7 +200,11 @@ ${previous ? `Escena anterior: "${previous}"\n` : ""}Escena actual (a reescribir
 ${next ? `Escena siguiente: "${next}"\n` : ""}
 Reescribe SOLO la escena actual. Da:
 - "text": nueva narración (~${targetWords} palabras, sin emojis ni acotaciones).
-- "visualQuery": 2-4 palabras EN INGLÉS para buscar una foto de stock que la ilustre.`,
+- "visualQuery": el concepto visual principal (2-4 palabras en inglés) — igual a visualConcepts[0].
+- "visualConcepts": 2-3 interpretaciones visuales DISTINTAS de la idea de la escena (nunca sinónimos de la misma imagen) — interpreta el significado, no traduzcas la frase literalmente a palabras clave.
+- "excludedTerms": opcional, palabras en inglés a evitar en el material visual.
+- "energy": "low"/"medium"/"high" según el ritmo de esta escena.
+- "emphasisWords": 1-3 palabras EXACTAS del nuevo "text" que merecen destacarse visualmente.`,
       },
     ],
     output_config: {

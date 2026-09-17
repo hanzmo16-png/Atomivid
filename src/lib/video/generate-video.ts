@@ -13,6 +13,13 @@ import type { RenderStage } from "@/lib/video/stages";
 import type { Caption, Scene } from "../../../remotion/VerticalReel";
 import { computeNarrationGaps, type NarrationGap } from "../../../remotion/audio-mix";
 import { recordVideoGeneration } from "@/lib/billing/usage";
+import { splitIntoBeats } from "@/lib/video/scene-beats";
+import { createFootageSelectionState, selectFootageForScene } from "@/lib/video/footage-select";
+import { checkDuration, formatDurationWarning } from "@/lib/video/duration-check";
+import { LOUDNESS_TARGET, masterAudioLoudness } from "@/lib/video/audio-master";
+import { buildEmphasisSet, isEmphasisWord } from "@/lib/video/caption-emphasis";
+import { getAccentColor } from "@/lib/video/brand";
+import { evaluateQualityGate, QUALITY_GATE_MIN_SCORE } from "@/lib/video/quality-gate";
 
 // Deliberadamente separado de generate-script.ts — ver el comentario ahí
 // para la razón exacta (Remotion no debe cargarse en la ruta de guion).
@@ -23,6 +30,13 @@ import { recordVideoGeneration } from "@/lib/billing/usage";
 const STORAGE_BUCKET = "videos";
 const MAX_CAPTION_WORDS = 7;
 const MIN_CAPTION_WORDS = 2;
+// Presupuesto de caracteres para que el bloque quepa en 2 líneas — causa
+// raíz confirmada de "subtítulos genéricos" que en la práctica podían
+// exceder 2 líneas en pantalla: antes solo se limitaba por CANTIDAD de
+// palabras (hasta 7), sin considerar su longitud real. ~28 caracteres por
+// línea a un tamaño legible en 1080px de ancho con márgenes (ver
+// VerticalReel.tsx) × 2 líneas, con margen de seguridad.
+const MAX_CAPTION_CHARS = 52;
 const COMPOSITION_ID = "VerticalReel";
 // El bucket es privado: los assets intermedios (voz/footage/música) se
 // firman por un rato corto, solo el tiempo que tarda este mismo proceso en
@@ -43,6 +57,7 @@ export async function generateVideoFromScript({
   style,
   topic,
   language = "es",
+  targetDurationSeconds,
   onProgress,
 }: {
   supabase: SupabaseClient;
@@ -53,6 +68,8 @@ export async function generateVideoFromScript({
   /** Tema original de la solicitud — señal adicional para el tono musical (ver providers/music/tone.ts). */
   topic?: string;
   language?: ScriptLanguage;
+  /** Duración objetivo original de la solicitud (video_requests.duration_seconds) — para advertir si la narración real se sale de tolerancia (±10%). Ausente = no se verifica. */
+  targetDurationSeconds?: number;
   onProgress?: OnProgress;
 }): Promise<{ videoPath: string }> {
   const voiceProvider = getVoiceProvider();
@@ -66,35 +83,130 @@ export async function generateVideoFromScript({
   const fullText = script.segments.map((s) => s.text).join(" ");
   const voice = await voiceProvider.synthesize(fullText, language);
 
+  // Verificación de duración REAL (no estimada) contra el objetivo de la
+  // solicitud — nunca estira ni recorta nada (eso sonaría artificial),
+  // solo advierte cuando el guion quedó fuera de tolerancia (±10%) para
+  // poder recalibrar WORDS_PER_SECOND (script-pacing.ts) con datos reales
+  // en vez de dejarlo pasar en silencio. Causa raíz confirmada del
+  // defecto "duración ~28% menor que la pedida" en el video auditado.
+  let durationWithinTolerance = true;
+  if (targetDurationSeconds !== undefined) {
+    const durationResult = checkDuration(targetDurationSeconds, voice.durationSeconds);
+    durationWithinTolerance = durationResult.withinTolerance;
+    if (!durationResult.withinTolerance) {
+      console.warn(`[atomivid:duration] ${requestId} — ${formatDurationWarning(durationResult)}`);
+    }
+  }
+
   // 2. Repartir el tiempo de la narración real entre las escenas del guion
   const sceneTimings = alignScenesToWords(script.segments, voice.words);
 
-  // 3. Footage: preferentemente un clip vertical por escena; el proveedor
-  // cae a imagen cuando Pexels no tiene un video adecuado.
+  // 3. Footage: varios candidatos por escena (y por "beat" visual dentro
+  // de escenas largas), puntuados y deduplicados contra todo lo ya usado
+  // en este video — reemplaza el patrón anterior (una sola búsqueda de
+  // 2-4 palabras, primer resultado, sin memoria entre escenas), causa
+  // raíz confirmada de "solo ~4 clips distintos" y "atardecer repetido"
+  // en el video auditado. Ver footage-select.ts para el detalle.
   await onProgress?.("footage");
+  const footageState = createFootageSelectionState();
   const scenes: Scene[] = [];
+  const footageSelections: Array<{
+    sceneIndex: number;
+    beatIndex: number;
+    queryUsed: string;
+    conceptTier: number;
+    usedFallbackQuery: boolean;
+    candidatesConsidered: number;
+    reason: string;
+  }> = [];
+
   for (let i = 0; i < script.segments.length; i++) {
     const segment = script.segments[i];
     const timing = sceneTimings[i];
-    const sceneDuration = Math.max(0, timing.end - timing.start);
-    const footage = await footageProvider.fetchFootage(
-      segment.visualQuery,
-      sceneDuration + 0.5,
+    const beats = splitIntoBeats(timing.start, timing.end);
+    const baseConcepts =
+      segment.visualConcepts && segment.visualConcepts.length > 0
+        ? segment.visualConcepts
+        : [segment.visualQuery];
+
+    for (let b = 0; b < beats.length; b++) {
+      const beat = beats[b];
+      const beatDuration = Math.max(0, beat.end - beat.start);
+      // Beats después del primero dentro de la misma escena empiezan por
+      // un concepto distinto (si hay más de uno) para variar el plano en
+      // vez de repetir la misma búsqueda dentro de la propia escena.
+      const rotation = b % baseConcepts.length;
+      const beatConcepts = [...baseConcepts.slice(rotation), ...baseConcepts.slice(0, rotation)];
+
+      const outcome = await selectFootageForScene({
+        provider: footageProvider,
+        concepts: beatConcepts,
+        minimumDurationSeconds: beatDuration + 0.5,
+        state: footageState,
+      });
+
+      footageSelections.push({
+        sceneIndex: i,
+        beatIndex: b,
+        queryUsed: outcome.queryUsed,
+        conceptTier: outcome.conceptTier,
+        usedFallbackQuery: outcome.usedFallbackQuery,
+        candidatesConsidered: outcome.candidatesConsidered,
+        reason: outcome.reason,
+      });
+
+      const footageBuffer = await footageProvider.downloadFootage(outcome.result.url);
+      storageBytes += footageBuffer.byteLength;
+      const { url: mediaUrl } = await uploadToStorage(
+        supabase,
+        `${requestId}/scene-${i}-${b}.${outcome.result.extension}`,
+        footageBuffer,
+        outcome.result.mimeType,
+      );
+      scenes.push({
+        mediaUrl,
+        mediaType: outcome.result.mediaType,
+        startSeconds: beat.start,
+        endSeconds: beat.end,
+      });
+    }
+  }
+
+  console.log(
+    "[atomivid:footage] selección de clips",
+    JSON.stringify({ requestId, totalBeats: scenes.length, selections: footageSelections }),
+  );
+
+  // Puerta de calidad preventiva (no bloqueante todavía — ver el
+  // comentario en quality-gate.ts) — se calcula ANTES del paso más caro
+  // en cómputo que queda (el render de Remotion), con los datos reales de
+  // la selección de footage ya hecha.
+  const qualityGate = evaluateQualityGate({
+    totalBeats: scenes.length,
+    // footage-select.ts garantiza por construcción que nunca se reutiliza
+    // un sourceId dentro del mismo video (ver su `state.usedSourceIds`) —
+    // por eso la cantidad de candidatos únicos es siempre igual al total
+    // de beats; se registra igual como valor real, no supuesto, por si
+    // esa garantía se rompiera algún día (el score de diversidad bajaría
+    // y quedaría en los logs de este propio gate, no en silencio).
+    uniqueSourceIds: footageState.usedSourceIds.size,
+    fallbackCount: footageSelections.filter((s) => s.usedFallbackQuery).length,
+    averageConceptTier:
+      footageSelections.length > 0
+        ? footageSelections.reduce((sum, s) => sum + s.conceptTier, 0) / footageSelections.length
+        : 0,
+    beatDurations: scenes.map((s) => s.endSeconds - s.startSeconds),
+    durationWithinTolerance,
+  });
+  console.log(
+    "[atomivid:quality-gate]",
+    JSON.stringify({ requestId, ...qualityGate }),
+  );
+  if (!qualityGate.passed) {
+    console.warn(
+      `[atomivid:quality-gate] ${requestId} — score ${qualityGate.score} por debajo del mínimo ` +
+        `sugerido (${QUALITY_GATE_MIN_SCORE}): ${qualityGate.reasons.join("; ")}`,
     );
-    const footageBuffer = await footageProvider.downloadFootage(footage.url);
-    storageBytes += footageBuffer.byteLength;
-    const { url: mediaUrl } = await uploadToStorage(
-      supabase,
-      `${requestId}/scene-${i}.${footage.extension}`,
-      footageBuffer,
-      footage.mimeType,
-    );
-    scenes.push({
-      mediaUrl,
-      mediaType: footage.mediaType,
-      startSeconds: timing.start,
-      endSeconds: timing.end,
-    });
   }
 
   // 4. Subir la narración generada
@@ -156,14 +268,17 @@ export async function generateVideoFromScript({
   }
 
   // 6. Subtítulos incrustados: frases naturales (corte en puntuación),
-  // nunca una sola palabra a la vez.
-  const captions = buildCaptions(voice.words);
+  // máximo 2 líneas, nunca una sola palabra a la vez, con palabras clave
+  // marcadas para énfasis visual (ver caption-emphasis.ts).
+  const scriptEmphasisWords = script.segments.flatMap((s) => s.emphasisWords ?? []);
+  const emphasisSet = buildEmphasisSet(scriptEmphasisWords);
+  const captions = buildCaptions(voice.words, emphasisSet);
   const narrationGaps = computeNarrationGaps(voice.words);
 
   // 7. Ensamblar el video final con Remotion
   await onProgress?.("render");
   const renderStartedAt = Date.now();
-  const outputPath = await renderVerticalReel({
+  const rawOutputPath = await renderVerticalReel({
     audioUrl,
     musicUrl,
     scenes,
@@ -172,6 +287,28 @@ export async function generateVideoFromScript({
     durationSeconds: finalDurationSeconds,
   });
   const renderMs = Date.now() - renderStartedAt;
+
+  // 7b. Masterizar el loudness del archivo final — causa raíz confirmada
+  // de "la mezcla general está demasiado baja para redes sociales"
+  // (audio-master.ts). Si ffmpeg no está disponible (p. ej. en desarrollo
+  // local sin instalarlo), se sube el archivo sin masterizar en vez de
+  // tumbar todo el render — se advierte claramente, nunca en silencio.
+  let outputPath = rawOutputPath;
+  try {
+    const masteredPath = rawOutputPath.replace(/\.mp4$/, ".mastered.mp4");
+    const mastering = await masterAudioLoudness(rawOutputPath, masteredPath);
+    outputPath = masteredPath;
+    console.log(
+      "[atomivid:audio] masterización de loudness",
+      JSON.stringify({ requestId, target: LOUDNESS_TARGET, ...mastering }),
+    );
+  } catch (err) {
+    console.warn(
+      `[atomivid:audio] ${requestId} — no se pudo masterizar el loudness (¿falta ffmpeg?), ` +
+        "se sube el video sin normalizar:",
+      err instanceof Error ? err.message : err,
+    );
+  }
 
   // 8. Subir el video renderizado (se referencia por su ruta; la URL para
   // verlo/descargarlo se firma bajo demanda, después de validar dueño).
@@ -185,6 +322,9 @@ export async function generateVideoFromScript({
     "video/mp4",
   );
   await fs.unlink(outputPath).catch(() => {});
+  if (outputPath !== rawOutputPath) {
+    await fs.unlink(rawOutputPath).catch(() => {});
+  }
 
   // Costo estimado de esta etapa — no bloquea el resultado si falla (es
   // instrumentación, no debe tumbar un video que sí se generó bien).
@@ -248,29 +388,44 @@ function alignScenesToWords(
 
 /**
  * Agrupa palabras en subtítulos por frase natural (corta en puntuación),
- * con un máximo de palabras por línea para que no queden demasiado largas.
- * Nunca deja una sola palabra visible a la vez (estilo karaoke).
+ * con un máximo de palabras Y de caracteres por bloque (para que quepa en
+ * 2 líneas — ver MAX_CAPTION_CHARS) y marca cuáles palabras deben
+ * enfatizarse (ver caption-emphasis.ts). Nunca deja una sola palabra
+ * visible a la vez (estilo karaoke) ni corta una palabra a la mitad.
  */
-function buildCaptions(words: WordTiming[]): Caption[] {
+function buildCaptions(words: WordTiming[], emphasisSet: ReadonlySet<string>): Caption[] {
   const captions: Caption[] = [];
   let group: WordTiming[] = [];
+  let groupChars = 0;
 
   const flush = () => {
     if (group.length === 0) return;
+    const emphasisWords = group.filter((w) => isEmphasisWord(w.text, emphasisSet)).map((w) => w.text);
     captions.push({
       text: group.map((w) => w.text).join(" "),
       startSeconds: group[0].startSeconds,
       endSeconds: group[group.length - 1].endSeconds,
+      ...(emphasisWords.length > 0 ? { emphasisWords } : {}),
     });
     group = [];
+    groupChars = 0;
   };
 
   for (const word of words) {
+    const nextChars = groupChars + (groupChars > 0 ? 1 : 0) + word.text.length;
+    // Si esta palabra excede el presupuesto de caracteres, cierra el
+    // bloque actual ANTES de agregarla (nunca corta una palabra a la
+    // mitad) — salvo que el bloque siga vacío (una palabra muy larga sola).
+    if (group.length > 0 && nextChars > MAX_CAPTION_CHARS) {
+      flush();
+    }
     group.push(word);
+    groupChars += (groupChars > 0 ? 1 : 0) + word.text.length;
+
     const endsPhrase = /[,.;:!?]$/.test(word.text);
     const longEnough = group.length >= MIN_CAPTION_WORDS;
 
-    if (group.length >= MAX_CAPTION_WORDS || (endsPhrase && longEnough)) {
+    if (group.length >= MAX_CAPTION_WORDS || groupChars >= MAX_CAPTION_CHARS || (endsPhrase && longEnough)) {
       flush();
     }
   }
@@ -284,6 +439,8 @@ function buildCaptions(words: WordTiming[]): Caption[] {
       const prev = captions[captions.length - 2];
       prev.text = `${prev.text} ${last.text}`;
       prev.endSeconds = last.endSeconds;
+      prev.emphasisWords = [...(prev.emphasisWords ?? []), ...(last.emphasisWords ?? [])];
+      if (prev.emphasisWords.length === 0) delete prev.emphasisWords;
       captions.pop();
     }
   }
@@ -350,7 +507,15 @@ async function renderVerticalReel({
 
   const serveUrl = await bundle({ entryPoint });
 
-  const inputProps = { audioUrl, musicUrl, scenes, captions, narrationGaps, durationSeconds };
+  const inputProps = {
+    audioUrl,
+    musicUrl,
+    scenes,
+    captions,
+    narrationGaps,
+    durationSeconds,
+    accentColor: getAccentColor(),
+  };
 
   const composition = await selectComposition({
     serveUrl,
