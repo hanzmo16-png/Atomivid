@@ -42,6 +42,14 @@ type GenerationCostsRow = {
   image_provider: string | null;
   image_generation_count: number;
   image_cost_usd: number;
+  // Desglose adicional del planificador visual (migración 0012, no
+  // aplicada todavía) — distingue "se consideró generar" de "se generó de
+  // verdad" de "se reutilizó un archivo ya existente" (idempotencia).
+  image_requested_count: number;
+  image_reused_count: number;
+  image_dry_run: boolean;
+  image_model: string | null;
+  image_size: string | null;
   premium_video_provider: string | null;
   premium_video_clip_count: number;
   premium_video_cost_usd: number;
@@ -76,6 +84,11 @@ const EMPTY_USAGE: Omit<GenerationCostsRow, "request_id"> = {
   image_provider: null,
   image_generation_count: 0,
   image_cost_usd: 0,
+  image_requested_count: 0,
+  image_reused_count: 0,
+  image_dry_run: false,
+  image_model: null,
+  image_size: null,
   premium_video_provider: null,
   premium_video_clip_count: 0,
   premium_video_cost_usd: 0,
@@ -161,6 +174,13 @@ export async function recordVideoGeneration(
       imageProvider?: string;
       imageGenerationCount?: number;
       imageCostUsd?: number;
+      /** Escenas que el planificador visual decidió intentar generar (independientemente del resultado) — ver visual-resource-planner.ts. */
+      imageRequestedCount?: number;
+      /** De las anteriores, cuántas se resolvieron reutilizando un archivo ya generado (idempotencia) en vez de una llamada nueva. */
+      imageReusedCount?: number;
+      imageDryRun?: boolean;
+      imageModel?: string;
+      imageSize?: string;
       premiumVideoProvider?: string;
       premiumVideoClipCount?: number;
       premiumVideoCostUsd?: number;
@@ -190,6 +210,11 @@ export async function recordVideoGeneration(
   row.image_provider = usage.creativeLayer?.imageProvider ?? null;
   row.image_generation_count = usage.creativeLayer?.imageGenerationCount ?? 0;
   row.image_cost_usd = usage.creativeLayer?.imageCostUsd ?? 0;
+  row.image_requested_count = usage.creativeLayer?.imageRequestedCount ?? 0;
+  row.image_reused_count = usage.creativeLayer?.imageReusedCount ?? 0;
+  row.image_dry_run = usage.creativeLayer?.imageDryRun ?? false;
+  row.image_model = usage.creativeLayer?.imageModel ?? null;
+  row.image_size = usage.creativeLayer?.imageSize ?? null;
   row.premium_video_provider = usage.creativeLayer?.premiumVideoProvider ?? null;
   row.premium_video_clip_count = usage.creativeLayer?.premiumVideoClipCount ?? 0;
   row.premium_video_cost_usd = usage.creativeLayer?.premiumVideoCostUsd ?? 0;
