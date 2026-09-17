@@ -52,6 +52,20 @@ export function getFeatureFlags() {
     maxMusicCostUsd: numberEnv("MAX_MUSIC_COST_USD", 1),
     /** Enciende el evaluador de calidad visual (reglas deterministas; el modo multimodal real requiere configurar un modelo aparte). */
     visualQaEnabled: flag("VISUAL_QA_ENABLED", false),
+    /**
+     * Interruptor GLOBAL y explícito para que el pipeline real intente
+     * generar imágenes con OpenAI para alguna escena — distinto de
+     * `visualDirectorEnabled` (que solo enciende la CLASIFICACIÓN
+     * semántica) e independiente de `imageProvider`/`IMAGE_PROVIDER`
+     * (que decide QUÉ proveedor, no SI se le permite gastar). Los tres
+     * deben estar alineados para que ocurra una llamada real: storyboard
+     * activo + esta bandera en true + IMAGE_PROVIDER=openai con
+     * OPENAI_API_KEY presente. Apagado por defecto — sin esto, el
+     * planificador visual SIEMPRE cae a stock, nunca genera.
+     */
+    imageGenerationEnabled: flag("OPENAI_IMAGE_GENERATION_ENABLED", false),
+    /** Tope duro de imágenes generadas por video, independiente de cuántas escenas el Visual Director marque como candidatas. */
+    maxImagesPerVideo: numberEnv("MAX_GENERATED_IMAGES_PER_VIDEO", 3),
     /** Habilita el modo "avatar" end-to-end. Apagado por defecto — el modo "visual" sigue siendo el único disponible sin esto. */
     avatarModeEnabled: flag("AVATAR_MODE_ENABLED", false),
     /** "fixture" | "heygen" — sin HEYGEN_API_KEY, cae a fixture aunque esté en "heygen". */
