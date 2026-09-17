@@ -1,0 +1,65 @@
+name: Validación real de OpenAIImageProvider (una imagen, costo acotado)
+
+# Genera EXACTAMENTE una imagen real con el proveedor de imágenes de
+# OpenAI (src/lib/providers/image/openai.ts, la abstracción real del
+# producto — este workflow nunca la evita) para validar el adaptador
+# contra la API real antes de activarlo en producción. No toca Supabase,
+# no renderiza ningún video, no llama a HeyGen/Runway/Beatoven ni a
+# ningún otro proveedor de pago. OPENAI_IMAGE_MAX_RETRIES=0 fuerza
+# exactamente una llamada HTTP por ejecución — un segundo intento, si
+# hace falta, es una segunda ejecución manual de este mismo workflow,
+# nunca un reintento automático dentro de un solo run.
+on:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Verificar que el secret OPENAI_API_KEY existe (sin exponer su valor)
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error::Falta el secret OPENAI_API_KEY en este repositorio — configúralo antes de reintentar."
+            exit 1
+          fi
+          echo "OPENAI_API_KEY presente (longitud oculta, nunca se imprime su valor)."
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: Lint
+        # scripts/** está excluido del lint del proyecto a propósito (ver eslint.config.mjs) — solo se lintea el código de producción.
+        run: npx eslint src/lib/providers/image/
+
+      - name: Pruebas específicas del proveedor de imágenes (mocks, cero costo)
+        run: node --import tsx --test src/lib/providers/image/openai.test.ts src/lib/providers/image/index.test.ts
+
+      - name: Validación REAL — una imagen con OpenAIImageProvider
+        run: npx tsx scripts/validate-openai-image.ts
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_IMAGE_MAX_RETRIES: "0"
+
+      - name: Subir la imagen generada como artifact privado
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openai-image-validation-output
+          path: openai-image-validation-output.png
+          if-no-files-found: warn
+          retention-days: 30
