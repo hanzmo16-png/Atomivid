@@ -15,6 +15,7 @@ const FILES = [
   "image/openai.ts",
   "video-gen/runway.ts",
   "music/beatoven.ts",
+  "avatar/heygen.ts",
 ];
 
 const DANGEROUS_TOKENS = [
@@ -24,6 +25,8 @@ const DANGEROUS_TOKENS = [
   "trackUrl",
   "outputUrl",
   "signedUrl",
+  "downloadUrl",
+  "photoBuffer",
 ];
 
 function consoleCallLines(source: string): string[] {
