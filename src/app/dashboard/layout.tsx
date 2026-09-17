@@ -40,6 +40,12 @@ export default async function DashboardLayout({
             >
               Facturación
             </Link>
+            <Link
+              href="/dashboard/growth"
+              className="hidden rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink sm:inline-block"
+            >
+              Growth
+            </Link>
             <LinkButton href="/dashboard/new" size="sm">
               Nuevo video
             </LinkButton>
@@ -62,6 +68,9 @@ export default async function DashboardLayout({
             </Link>
             <Link href="/dashboard/billing" className="text-ink-muted hover:text-ink">
               Facturación
+            </Link>
+            <Link href="/dashboard/growth" className="text-ink-muted hover:text-ink">
+              Growth
             </Link>
           </div>
         </div>
