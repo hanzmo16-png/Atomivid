@@ -5,8 +5,16 @@ import type {
   AvatarVideoProvider,
   AvatarVideoRequest,
   AvatarVideoResult,
+  AvatarWebhookResult,
 } from "../types";
 import { AvatarProviderError } from "../types";
+
+// Referencia solo para que la UI/pruebas puedan mostrar un número
+// plausible en modo fixture — el fixture SIEMPRE cobra $0 de verdad
+// (generateVideo() abajo), esto es puramente cosmético para no mostrar
+// "$0.00" en una previsualización de costo mientras se prueba sin
+// HEYGEN_API_KEY.
+const FIXTURE_REFERENCE_COST_USD_PER_CHAR = 0.0002;
 
 /**
  * Proveedor de avatar determinístico (sin red): simula el ciclo de vida
@@ -64,5 +72,20 @@ export const fixtureAvatarProvider: AvatarVideoProvider = {
   },
   async deleteAvatar(): Promise<{ deleted: boolean; reason?: string }> {
     return { deleted: true };
+  },
+  estimateVideoCostUsd(request: Pick<AvatarVideoRequest, "script">): number {
+    return Math.round(request.script.length * FIXTURE_REFERENCE_COST_USD_PER_CHAR * 100) / 100;
+  },
+  async cancelVideo(): Promise<{ cancelled: boolean; reason?: string }> {
+    return { cancelled: true };
+  },
+  processWebhookPayload(payload: unknown): AvatarWebhookResult | null {
+    if (!payload || typeof payload !== "object") return null;
+    const p = payload as Record<string, unknown>;
+    if (typeof p.providerJobId !== "string") return null;
+    const rawStatus = p.status;
+    const validStatuses: AvatarJobStatus[] = ["queued", "processing", "completed", "failed", "cancelled"];
+    if (typeof rawStatus !== "string" || !validStatuses.includes(rawStatus as AvatarJobStatus)) return null;
+    return { providerJobId: p.providerJobId, status: rawStatus as AvatarJobStatus };
   },
 };

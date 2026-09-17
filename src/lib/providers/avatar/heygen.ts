@@ -7,6 +7,7 @@ import {
   type AvatarVideoProvider,
   type AvatarVideoRequest,
   type AvatarVideoResult,
+  type AvatarWebhookResult,
 } from "../types";
 import { CircuitBreaker } from "./circuit-breaker";
 
@@ -127,6 +128,12 @@ async function withFiniteRetry<T>(fn: () => Promise<T>, maxRetries: number): Pro
   throw lastError;
 }
 
+/** Misma fórmula usada por generateVideo() para rechazar por presupuesto Y por estimateVideoCostUsd() — nunca deben divergir. */
+function estimateSecondsAndCost(script: string): { estimatedSeconds: number; estimatedCost: number } {
+  const estimatedSeconds = Math.max(1, script.split(/\s+/).filter(Boolean).length / 2.5);
+  return { estimatedSeconds, estimatedCost: estimatedSeconds * COST_USD_PER_SECOND };
+}
+
 function mapHeygenStatus(raw: string | undefined): AvatarJobStatus {
   switch (raw) {
     case "pending":
@@ -210,8 +217,7 @@ export const heygenAvatarProvider: AvatarVideoProvider = {
       );
     }
 
-    const estimatedSeconds = Math.max(1, request.script.split(/\s+/).filter(Boolean).length / 2.5);
-    const estimatedCost = estimatedSeconds * COST_USD_PER_SECOND;
+    const { estimatedSeconds, estimatedCost } = estimateSecondsAndCost(request.script);
     if (estimatedCost > request.maxCostUsd) {
       throw new AvatarProviderError(
         `Costo estimado ($${estimatedCost.toFixed(2)}) excede el máximo permitido ($${request.maxCostUsd})`,
@@ -314,5 +320,46 @@ export const heygenAvatarProvider: AvatarVideoProvider = {
         reason: err instanceof Error ? err.message : "No se pudo confirmar el borrado en HeyGen (endpoint no verificado)",
       };
     }
+  },
+
+  estimateVideoCostUsd(request: Pick<AvatarVideoRequest, "script">): number {
+    return estimateSecondsAndCost(request.script).estimatedCost;
+  },
+
+  async cancelVideo(providerJobId: string): Promise<{ cancelled: boolean; reason?: string }> {
+    // UNVERIFICADO: no se confirmó un endpoint de cancelación documentado
+    // para /v3/videos — se intenta un DELETE best-effort (mismo criterio
+    // honesto que deleteAvatar(), nunca finge éxito) hasta confirmarlo
+    // contra la documentación oficial primaria.
+    try {
+      await heygenFetch(`/v3/videos/${encodeURIComponent(providerJobId)}`, { method: "DELETE" });
+      return { cancelled: true };
+    } catch (err) {
+      return {
+        cancelled: false,
+        reason: err instanceof Error ? err.message : "No se pudo confirmar la cancelación en HeyGen (endpoint no verificado)",
+      };
+    }
+  },
+
+  processWebhookPayload(payload: unknown): AvatarWebhookResult | null {
+    // UNVERIFICADO: la forma exacta del webhook "avatar_video.success" de
+    // HeyGen no se pudo confirmar contra la documentación oficial primaria
+    // (ver comentario de cabecera) — esta es la forma MÁS PLAUSIBLE según
+    // fuentes secundarias (evento + event_data.video_id), no un contrato
+    // confirmado. Nunca lanza ante un payload inesperado — devuelve null.
+    if (!payload || typeof payload !== "object") return null;
+    const p = payload as Record<string, unknown>;
+    const eventData = p.event_data as Record<string, unknown> | undefined;
+    const videoId = eventData?.video_id;
+    if (typeof videoId !== "string") return null;
+
+    const event = typeof p.event === "string" ? p.event : "";
+    let status: AvatarJobStatus;
+    if (event.endsWith(".success")) status = "completed";
+    else if (event.endsWith(".fail") || event.endsWith(".failed")) status = "failed";
+    else return null;
+
+    return { providerJobId: videoId, status };
   },
 };

@@ -152,6 +152,57 @@ test("deleteAvatar nunca finge éxito si el proveedor falla — reporta deleted:
   }
 });
 
+test("estimateVideoCostUsd usa la MISMA fórmula que generateVideo (nunca diverge)", async () => {
+  await withEnv({ HEYGEN_API_KEY: "fake-key", HEYGEN_COST_USD_PER_SECOND: "0.05" }, async () => {
+    const script = "hola mundo, esto es una prueba de estimación de costo";
+    const estimated = heygenAvatarProvider.estimateVideoCostUsd({ script });
+
+    const originalFetch = global.fetch;
+    global.fetch = (async (url: string | URL | Request) => {
+      const u = String(url);
+      if (u.includes("/v3/videos") && !u.match(/\/v3\/videos\/[^/]+$/)) return jsonResponse({ video_id: "video-cost" });
+      return jsonResponse({ status: "completed", video_url: "https://example.test/fake-video.mp4" });
+    }) as typeof fetch;
+    try {
+      const asset = await heygenAvatarProvider.generateVideo({ providerAvatarId: "avatar-1", script, maxCostUsd: 100 });
+      assert.equal(asset.costUsd, estimated);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+});
+
+test("cancelVideo nunca finge éxito si el proveedor falla — reporta cancelled:false con motivo", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = (async () => new Response(null, { status: 404 })) as typeof fetch;
+
+  try {
+    await withEnv({ HEYGEN_API_KEY: "fake-key" }, async () => {
+      const result = await heygenAvatarProvider.cancelVideo("video-123");
+      assert.equal(result.cancelled, false);
+      assert.ok(result.reason);
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("processWebhookPayload normaliza el evento *.success documentado por fuentes secundarias", () => {
+  const result = heygenAvatarProvider.processWebhookPayload({ event: "avatar_video.success", event_data: { video_id: "video-abc" } });
+  assert.deepEqual(result, { providerJobId: "video-abc", status: "completed" });
+});
+
+test("processWebhookPayload normaliza el evento *.fail", () => {
+  const result = heygenAvatarProvider.processWebhookPayload({ event: "avatar_video.fail", event_data: { video_id: "video-abc" } });
+  assert.deepEqual(result, { providerJobId: "video-abc", status: "failed" });
+});
+
+test("processWebhookPayload devuelve null (nunca lanza) ante un payload malformado o de evento desconocido", () => {
+  assert.equal(heygenAvatarProvider.processWebhookPayload(null), null);
+  assert.equal(heygenAvatarProvider.processWebhookPayload({ event: "avatar_video.success" }), null);
+  assert.equal(heygenAvatarProvider.processWebhookPayload({ event: "some.other.event", event_data: { video_id: "x" } }), null);
+});
+
 // ÚLTIMA prueba del archivo a propósito: el circuit breaker es un
 // singleton de módulo compartido entre pruebas — abrirlo aquí no debe
 // contaminar ninguna prueba anterior. Usa checkAvatarStatus() (no

@@ -72,6 +72,8 @@ export function getFeatureFlags() {
     avatarProvider: (process.env.AVATAR_PROVIDER || "fixture").trim(),
     /** USD máximos en generación de avatar (creación + video) por solicitud. */
     maxAvatarCostUsd: numberEnv("MAX_AVATAR_COST_USD", 3),
+    /** Duración narrada máxima (segundos, estimada por palabras) para un guion de avatar — límite explícito, independiente del tope de caracteres del proveedor. */
+    maxAvatarDurationSeconds: numberEnv("MAX_AVATAR_DURATION_SECONDS", 120),
   };
 }
 
