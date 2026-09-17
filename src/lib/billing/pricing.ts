@@ -59,6 +59,15 @@ export function estimateCostUsd(usage: {
   render_ms: number | null;
   /** Si el video terminó usando una pista de música real (no el fallback "sin música"). */
   has_music_track?: boolean;
+  /**
+   * Costo ya calculado en dólares por la capa creativa nueva (imagen
+   * generada, clips premium) — a diferencia de script/voz/render, estos
+   * proveedores devuelven su propio costo por unidad (ver GenerativeAsset
+   * en providers/types.ts), no hace falta estimarlo aquí a partir de
+   * tokens/caracteres. 0 en cualquier video que no usó estas integraciones.
+   */
+  image_cost_usd?: number;
+  premium_video_cost_usd?: number;
 }): number {
   const pricing = getPricingConfig();
 
@@ -72,6 +81,8 @@ export function estimateCostUsd(usage: {
   const renderCost = renderMinutes * pricing.renderUsdPerMinute;
 
   const musicCost = usage.has_music_track ? pricing.musicUsdPerTrack : 0;
+  const imageCost = usage.image_cost_usd ?? 0;
+  const premiumVideoCost = usage.premium_video_cost_usd ?? 0;
 
-  return Math.round((scriptCost + voiceCost + renderCost + musicCost) * 1e6) / 1e6;
+  return Math.round((scriptCost + voiceCost + renderCost + musicCost + imageCost + premiumVideoCost) * 1e6) / 1e6;
 }

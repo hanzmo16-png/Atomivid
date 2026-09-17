@@ -36,6 +36,16 @@ type GenerationCostsRow = {
   storage_bytes: number;
   regenerations: number;
   estimated_cost_usd: number;
+  // Capa creativa nueva (migración 0010, no aplicada todavía) — 0/null en
+  // cualquier video que no usó imagen generada ni clips premium (el caso
+  // normal hoy: solo Pexels/Pixabay).
+  image_provider: string | null;
+  image_generation_count: number;
+  image_cost_usd: number;
+  premium_video_provider: string | null;
+  premium_video_clip_count: number;
+  premium_video_cost_usd: number;
+  premium_video_fallback_reason: string | null;
 };
 
 const EMPTY_USAGE: Omit<GenerationCostsRow, "request_id"> = {
@@ -58,6 +68,13 @@ const EMPTY_USAGE: Omit<GenerationCostsRow, "request_id"> = {
   storage_bytes: 0,
   regenerations: 0,
   estimated_cost_usd: 0,
+  image_provider: null,
+  image_generation_count: 0,
+  image_cost_usd: 0,
+  premium_video_provider: null,
+  premium_video_clip_count: 0,
+  premium_video_cost_usd: 0,
+  premium_video_fallback_reason: null,
 };
 
 async function loadRow(
@@ -131,6 +148,16 @@ export async function recordVideoGeneration(
     videoDurationSeconds: number;
     renderMs: number;
     storageBytes: number;
+    /** Capa creativa nueva — ausente en el flujo actual (Pexels/Pixabay), no rompe nada si se omite. */
+    creativeLayer?: {
+      imageProvider?: string;
+      imageGenerationCount?: number;
+      imageCostUsd?: number;
+      premiumVideoProvider?: string;
+      premiumVideoClipCount?: number;
+      premiumVideoCostUsd?: number;
+      premiumVideoFallbackReason?: string | null;
+    };
   },
 ) {
   const row = await loadRow(service, requestId);
@@ -149,6 +176,13 @@ export async function recordVideoGeneration(
   row.video_duration_seconds = usage.videoDurationSeconds;
   row.render_ms = usage.renderMs;
   row.storage_bytes = usage.storageBytes;
+  row.image_provider = usage.creativeLayer?.imageProvider ?? null;
+  row.image_generation_count = usage.creativeLayer?.imageGenerationCount ?? 0;
+  row.image_cost_usd = usage.creativeLayer?.imageCostUsd ?? 0;
+  row.premium_video_provider = usage.creativeLayer?.premiumVideoProvider ?? null;
+  row.premium_video_clip_count = usage.creativeLayer?.premiumVideoClipCount ?? 0;
+  row.premium_video_cost_usd = usage.creativeLayer?.premiumVideoCostUsd ?? 0;
+  row.premium_video_fallback_reason = usage.creativeLayer?.premiumVideoFallbackReason ?? null;
 
   await saveRow(service, row);
 }

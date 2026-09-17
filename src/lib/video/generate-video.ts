@@ -20,6 +20,8 @@ import { LOUDNESS_TARGET, masterAudioLoudness } from "@/lib/video/audio-master";
 import { buildEmphasisSet, isEmphasisWord } from "@/lib/video/caption-emphasis";
 import { getAccentColor } from "@/lib/video/brand";
 import { evaluateQualityGate, QUALITY_GATE_MIN_SCORE } from "@/lib/video/quality-gate";
+import { getFeatureFlags } from "@/lib/video/feature-flags";
+import { buildStoryboard } from "@/lib/video/storyboard";
 
 // Deliberadamente separado de generate-script.ts — ver el comentario ahí
 // para la razón exacta (Remotion no debe cargarse en la ruta de guion).
@@ -76,6 +78,36 @@ export async function generateVideoFromScript({
   const footageProvider = getFootageProvider();
   const musicProvider = getMusicProvider();
   let storageBytes = 0;
+
+  // 0. Storyboard semántico (Visual Director) — SOLO diagnóstico por ahora:
+  // detrás de VISUAL_DIRECTOR_ENABLED (apagado por defecto, ver
+  // feature-flags.ts), nunca bloquea el render si falla, y todavía NO
+  // reemplaza las consultas de footage-select.ts (esa integración es el
+  // siguiente paso, documentado como pendiente — ver docs/VISUAL_DIRECTOR.md).
+  // Tampoco escribe en video_requests.storyboard_json/storyboard_source
+  // porque esas columnas dependen de la migración 0010, que no se aplica
+  // sola (ver supabase/migrations/0010_visual_director.sql).
+  if (getFeatureFlags().visualDirectorEnabled) {
+    try {
+      const { storyboard, source } = await buildStoryboard(script, language);
+      console.log(
+        "[atomivid:storyboard]",
+        JSON.stringify({
+          requestId,
+          source,
+          totalScenes: storyboard.scenes.length,
+          hookDescription: storyboard.hookDescription,
+          closingDescription: storyboard.closingDescription,
+          resourceTypes: storyboard.scenes.map((s) => s.resourceType),
+        }),
+      );
+    } catch (err) {
+      console.warn(
+        `[atomivid:storyboard] ${requestId} — no se pudo generar el storyboard, se continúa con el flujo actual:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
 
   // 1. Voz narrada completa en una sola llamada, con timestamps por
   // palabra (así toda la narración usa la misma voz y ritmo).

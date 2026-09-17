@@ -169,3 +169,94 @@ export interface MusicProvider {
   readonly name: string;
   getTrack(context: MusicSelectionContext): Promise<MusicResult>;
 }
+
+/**
+ * Contratos compartidos por los proveedores GENERATIVOS nuevos (imagen,
+ * video premium) — separados de los proveedores de stock de arriba porque
+ * tienen un ciclo de vida distinto (piden, esperan, a veces pagan por
+ * intento fallido) y necesitan más metadata para controlar costo y
+ * observabilidad (ver Visual Director / feature-flags.ts).
+ */
+
+export type GenerativeCapabilities = {
+  /** Identificador estable del proveedor (p. ej. "openai", "runway", "fixture"). */
+  id: string;
+  /** Modelos concretos que este proveedor puede usar (p. ej. ["gpt-image-2"]). */
+  models: string[];
+  /** Formatos de archivo que puede devolver. */
+  formats: string[];
+  /** Relaciones de aspecto soportadas nativamente (no todas garantizan 9:16 exacto). */
+  aspectRatios: string[];
+  /** Tiempo máximo de espera por intento, en milisegundos. */
+  timeoutMs: number;
+  /** Reintentos máximos ante error transitorio (no ante rechazo de moderación). */
+  maxRetries: number;
+};
+
+/** Resultado normalizado de una generación de imagen o video — igual forma sin importar el proveedor. */
+export type GenerativeAsset = {
+  buffer: Buffer;
+  mimeType: string;
+  extension: string;
+  width?: number;
+  height?: number;
+  durationSeconds?: number;
+  /** Modelo exacto que produjo el resultado — para trazabilidad/costos. */
+  model: string;
+  /** Costo real si el proveedor lo expone, o la estimación calculada antes de pedir. */
+  costUsd: number;
+  /** Identificador de la tarea/job en el proveedor, si aplica (generación asíncrona). */
+  providerJobId?: string;
+  /** Licencia o términos aplicables al resultado generado, cuando el proveedor los declara. */
+  license?: string;
+};
+
+/** Error base para cualquier fallo de un proveedor generativo — siempre tipado, nunca un Error genérico. */
+export class GenerativeProviderError extends Error {
+  constructor(
+    message: string,
+    public readonly providerId: string,
+    public readonly reason:
+      | "not_configured"
+      | "budget_exceeded"
+      | "timeout"
+      | "moderation_rejected"
+      | "invalid_response"
+      | "upstream_error",
+    public readonly cause?: unknown,
+  ) {
+    super(message);
+    this.name = "GenerativeProviderError";
+  }
+}
+
+export type ImageGenerationRequest = {
+  prompt: string;
+  negativePrompt?: string;
+  /** Relación de aspecto deseada — el proveedor puede devolver la más cercana y dejar que se recorte después. */
+  aspectRatio: "9:16";
+  /** Presupuesto máximo para ESTE recurso — el proveedor debe rechazar (BUDGET_EXCEEDED) antes de pedir si lo excedería, no después. */
+  maxCostUsd: number;
+};
+
+export interface ImageProvider {
+  readonly name: string;
+  readonly capabilities: GenerativeCapabilities;
+  isAvailable(): boolean;
+  generateImage(request: ImageGenerationRequest): Promise<GenerativeAsset>;
+}
+
+export type VideoGenerationRequest = {
+  prompt: string;
+  negativePrompt?: string;
+  aspectRatio: "9:16";
+  durationSeconds: number;
+  maxCostUsd: number;
+};
+
+export interface VideoProvider {
+  readonly name: string;
+  readonly capabilities: GenerativeCapabilities;
+  isAvailable(): boolean;
+  generateVideo(request: VideoGenerationRequest): Promise<GenerativeAsset>;
+}
