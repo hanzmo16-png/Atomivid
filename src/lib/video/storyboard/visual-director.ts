@@ -21,6 +21,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { StoryboardSchema, type Storyboard } from "./types";
+import { sanitizeStoryboardStrings } from "./sanitize";
 
 let cachedClient: Anthropic | null = null;
 
@@ -150,7 +151,12 @@ async function callClaude(
     };
   }
 
-  const result = StoryboardSchema.safeParse(parsed);
+  // JSON ya válido en este punto (si no lo fuera, ya habríamos retornado
+  // "invalid_json" arriba) — solo se limpia un residuo cosmético
+  // conocido (p. ej. "<END>"), nunca se usa para disimular un fallo real.
+  const sanitized = sanitizeStoryboardStrings(parsed);
+
+  const result = StoryboardSchema.safeParse(sanitized);
   if (!result.success) {
     return {
       outcome: {
