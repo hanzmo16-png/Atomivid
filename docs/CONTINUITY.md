@@ -315,3 +315,15 @@ proveedores `fixture`, incluyendo el nuevo MP4 simulado del avatar
 La única red externa real usada: `ip-ranges.amazonaws.com` (dato
 público, sin autenticación, sin costo) y WebSearch para investigación de
 documentación D-ID (sin costo para ATOMIVID).
+
+
+## 2026-09-18 — reserva duradera de generación de avatar
+
+Rama `codex/avatar-single-attempt`, basada en `94de6f0` (la corrección anterior
+ya estaba publicada con SHA distinto de la copia local `ecbf950`, contenido idéntico).
+Nueva migración 0014 pendiente de aplicar: columna `avatar_generation_started_at`.
+Compare-and-set por request y propietario antes de voz, excluyendo jobs existentes.
+La reserva no se libera automáticamente ni por fallos de narración. Los POST de
+video D-ID/HeyGen no se reintentan; job persistido antes de polling mediante callback.
+Ver docs/AVATAR_REAL_TEST.md para autorización, límites y bloqueos de ejecución.
+Foto privada no incorporada al repositorio. Sin consumo pagado en esta sesión.
