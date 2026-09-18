@@ -1,5 +1,5 @@
 /**
- * Mapa completo y exhaustivo de TODO lo que las 13 migraciones crean o
+ * Mapa completo y exhaustivo de TODO lo que las 14 migraciones crean o
  * modifican (tablas/columnas/constraints/índices/policies/RLS) — construido
  * leyendo el contenido íntegro de cada archivo en supabase/migrations/ (no
  * de memoria). Compartido entre verify-remote-schema.ts (diagnóstico) y
@@ -12,6 +12,7 @@ import type { Client } from "pg";
 export type ObjectCheck = { kind: "table" | "column" | "constraint" | "index" | "policy" | "rls"; table: string; name?: string; migration: string };
 
 export const CHECKS: ObjectCheck[] = [
+  { kind: "column", table: "video_requests", name: "avatar_generation_started_at", migration: "0014" },
   // --- 0001_init.sql ---
   { kind: "table", table: "video_requests", migration: "0001" },
   { kind: "column", table: "video_requests", name: "id", migration: "0001" },
@@ -147,7 +148,7 @@ export type SchemaSnapshot = {
 
 /**
  * Consulta information_schema/pg_catalog UNA vez y calcula, para cada
- * migración conocida (0001-0013), si está completamente aplicada,
+ * migración conocida (0001-0014), si está completamente aplicada,
  * parcialmente aplicada, o ausente — la única fuente de verdad autoritativa
  * (PostgREST no puede ver constraints/índices/RLS en absoluto).
  */

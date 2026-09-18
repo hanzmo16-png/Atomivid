@@ -1,6 +1,6 @@
 /**
  * Verificación del esquema remoto de Supabase contra TODO el historial de
- * migraciones (0001-0013).
+ * migraciones (0001-0014).
  *
  * Modo AUTORITATIVO (preferido): si hay una credencial de conexión directa
  * a Postgres (ver scripts/lib/supabase-db.ts), consulta directamente
@@ -32,7 +32,7 @@ async function verifyDirect() {
     if (notApplied.length > 0) {
       console.log(`\n${notApplied.length} migración(es) NO completamente aplicada(s): ${notApplied.map((m) => `${m.migration} (${m.status})`).join(", ")}`);
     } else {
-      console.log("\nTodas las migraciones verificadas (0001-0013) están completamente aplicadas.");
+      console.log("\nTodas las migraciones verificadas (0001-0014) están completamente aplicadas.");
     }
   } finally {
     await client.end();
