@@ -7,24 +7,28 @@
  * modo fixture, e idempotencia (un job de proveedor ya completado nunca
  * se vuelve a generar — nunca cobra dos veces).
  *
- * Limitación conocida y documentada (no es un bug de este script):
- * fixtureAvatarProvider.generateVideo() devuelve bytes de texto plano,
- * no un MP4 válido — a diferencia del modo visual (scripts/test-pipeline.ts),
- * que sí produce un video real inspeccionable con ffprobe. El pipeline de
- * avatar intenta masterizar el loudness de esos bytes con ffmpeg, falla
- * limpiamente ("moov atom not found") y sube el archivo sin normalizar de
- * todas formas — comportamiento ya esperado, no un fallo de esta prueba.
- * Además, el modo avatar no superpone subtítulos ni música sobre el video
- * del proveedor (limitación documentada en video/avatar/pipeline.ts desde
- * su implementación original) — por eso esta prueba verifica la
- * ORQUESTACIÓN (quién puede generar qué, cuánto cuesta, si se repite),
- * no el contenido audiovisual del resultado.
+ * El fixture (src/lib/providers/avatar/fixture.ts) ahora devuelve un MP4
+ * REAL y válido (h264/aac, 9:16, con "VIDEO SIMULADO" incrustado en los
+ * fotogramas — ver fixtures/simulated-avatar-video.mp4), así que esta
+ * prueba escribe el resultado final a disco (--out-dir) para poder
+ * inspeccionarlo con ffprobe/reproducirlo: confirma audio presente,
+ * duración y formato vertical. NO es una prueba de calidad ni de
+ * sincronización labial de ningún proveedor real — el video de origen
+ * es un patrón de prueba sintético, sin ningún rostro real ni de stock.
+ *
+ * Limitación conocida y NO resuelta por este script (documentada en
+ * video/avatar/pipeline.ts desde su implementación original): el modo
+ * avatar NUNCA superpone subtítulos propios sobre el video del
+ * proveedor (el proveedor ya devuelve audio+labios sincronizados y no
+ * expone marcas de tiempo por palabra) — por eso esta prueba NO verifica
+ * subtítulos en el resultado del modo avatar; esa verificación sí aplica
+ * al modo visual (scripts/test-pipeline.ts), que sí los compone.
  *
  * Necesitas una foto de prueba real en disco (jpeg/png, >4KB, ≥200px por
  * lado — ver src/lib/video/avatar/photo-validation.ts). Genera una rápido
  * con: `ffmpeg -f lavfi -i testsrc=size=800x800:rate=1 -frames:v 1 -q:v 2 /tmp/test-photo.jpg`
  *
- * Uso: npx tsx scripts/test-pipeline-avatar.ts [ruta-a-foto.jpg]
+ * Uso: npx tsx scripts/test-pipeline-avatar.ts [ruta-a-foto.jpg] [--out-dir /ruta/salida]
  */
 export {}; // Fuerza scope de módulo — evita colisionar con `main()` de otros scripts.
 
@@ -37,7 +41,12 @@ async function main() {
   const { validatePhotoBuffer } = await import("../src/lib/video/avatar/photo-validation");
   const { generateAvatarVideo, AvatarPipelineError } = await import("../src/lib/video/avatar/pipeline");
 
-  const photoPath = process.argv[2] || path.join(process.cwd(), "scripts", "test-avatar-photo.jpg");
+  const rawArgs = process.argv.slice(2);
+  const outDirFlagIndex = rawArgs.indexOf("--out-dir");
+  const outDir = outDirFlagIndex >= 0 ? rawArgs[outDirFlagIndex + 1] : undefined;
+  const positional = rawArgs.filter((a, i) => a !== "--out-dir" && i !== outDirFlagIndex + 1);
+
+  const photoPath = positional[0] || path.join(process.cwd(), "scripts", "test-avatar-photo.jpg");
   let photoBuffer: Buffer;
   try {
     photoBuffer = await fs.readFile(photoPath);
@@ -89,7 +98,15 @@ async function main() {
           return {
             async upload(objectPath: string, buffer: Buffer) {
               uploads.push({ path: objectPath, bytes: buffer.byteLength });
+              if (outDir) {
+                const dest = path.join(outDir, objectPath.replace(/\//g, "_"));
+                await fs.mkdir(path.dirname(dest), { recursive: true });
+                await fs.writeFile(dest, buffer);
+              }
               return { error: null };
+            },
+            async createSignedUrl(objectPath: string) {
+              return { data: { signedUrl: `https://fake.local/${objectPath}?signed=1` }, error: null };
             },
           };
         },
@@ -144,6 +161,32 @@ async function main() {
     if (err instanceof AvatarPipelineError && err.code === "provider_error") {
       console.log("5) Idempotencia: un job de proveedor ya completado NO se vuelve a generar (nunca cobra dos veces)");
     } else throw err;
+  }
+
+  if (outDir) {
+    const finalPath = path.join(outDir, result.videoPath.replace(/\//g, "_"));
+    console.log(`\n6) Video final escrito en disco para inspección: ${finalPath}`);
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const execFileAsync = promisify(execFile);
+    try {
+      const { stdout } = await execFileAsync("ffprobe", [
+        "-v", "error",
+        "-show_entries", "stream=codec_type,codec_name,width,height,duration",
+        "-show_entries", "format=duration",
+        "-of", "json",
+        finalPath,
+      ]);
+      console.log("   ffprobe (audio presente / duración / formato vertical):", stdout.trim());
+      console.log(
+        "   NOTA: el video de origen es el fixture SIMULADO (patrón de prueba, sin rostro real ni de " +
+          "stock) — esto verifica la ORQUESTACIÓN del pipeline, no la calidad ni el lip-sync de un " +
+          "proveedor real. El modo avatar no superpone subtítulos propios (ver limitación en el " +
+          "encabezado de este script).",
+      );
+    } catch (err) {
+      console.warn("   No se pudo ejecutar ffprobe sobre el resultado (¿falta ffmpeg en PATH?):", err);
+    }
   }
 
   console.log("\nTODOS LOS CASOS PASARON — cero llamadas reales, cero costo (fixture, costUsd=0).");
