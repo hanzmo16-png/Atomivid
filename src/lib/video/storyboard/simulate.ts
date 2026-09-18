@@ -65,6 +65,25 @@ export function simulateStoryboard(script: GeneratedScript): Storyboard {
     };
   });
 
+  // Puerta SOLO de pruebas: el storyboard simulado siempre clasifica
+  // TODAS las escenas como "stock_video" (ver comentario del módulo) —
+  // sin esto, ningún E2E sin llamada real a Claude puede ejercer el
+  // camino de imagen generada del pipeline (decideResourceStrategy exige
+  // resourceType "generated_image"/"abstract" y confidence >= 0.6, ver
+  // visual-resource-planner.ts). Solo actúa si la variable está
+  // presente; por defecto (producción, tests existentes) no cambia nada.
+  const forcedIndexRaw = process.env.STORYBOARD_SIMULATE_FORCE_GENERATED_IMAGE_SCENE_INDEX;
+  if (forcedIndexRaw !== undefined) {
+    const forcedIndex = Number(forcedIndexRaw);
+    const scene = scenes[forcedIndex];
+    if (scene) {
+      scene.resourceType = "generated_image";
+      scene.confidence = 0.9;
+      scene.selectionRationale =
+        "forzado a generated_image por STORYBOARD_SIMULATE_FORCE_GENERATED_IMAGE_SCENE_INDEX (solo pruebas E2E, no refleja análisis semántico real)";
+    }
+  }
+
   return {
     visualIdentity: {
       characterAgeAndAppearance: "no analizado (modo simulación)",
