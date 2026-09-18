@@ -1,3 +1,4 @@
+import { ProviderConfigurationError } from "@/lib/providers/production";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { ScriptQualityError } from "@/lib/video/script-quality";
 
@@ -13,6 +14,7 @@ import { ScriptQualityError } from "@/lib/video/script-quality";
  * contenido rechazado como si fuera el resultado final.
  */
 export function classifyScriptError(error: unknown): string {
+  if (error instanceof ProviderConfigurationError) return error.message;
   if (error instanceof MissingEnvVarError) {
     return `Falta configurar ${error.varName} en el servidor. Contacta al soporte.`;
   }
@@ -20,6 +22,7 @@ export function classifyScriptError(error: unknown): string {
     if (error.result.issue === "fallback_provider") {
       return "No se pudo generar el guion con el proveedor de IA principal — se usó contenido de respaldo, que no es apto para publicar. Vuelve a intentarlo en unos minutos.";
     }
+    if (error.result.issue === "word_count_out_of_range") return "El guion no corresponde a la duración solicitada. Revísalo antes de generar la narración.";
     return "El guion generado no cumplió los estándares de calidad (repetición o contenido genérico). Pulsa reintentar — cada intento genera contenido distinto.";
   }
   return "No se pudo generar el guion en este momento. Intenta de nuevo.";

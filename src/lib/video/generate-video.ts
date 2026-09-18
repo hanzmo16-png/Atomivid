@@ -1,3 +1,5 @@
+import { VIDEO_TAIL_SECONDS } from "./script-pacing";
+import { ProviderConfigurationError } from "@/lib/providers/production";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs/promises";
@@ -15,7 +17,7 @@ import { computeNarrationGaps, type NarrationGap } from "../../../remotion/audio
 import { recordVideoGeneration } from "@/lib/billing/usage";
 import { splitIntoBeats } from "@/lib/video/scene-beats";
 import { createFootageSelectionState, selectFootageForScene } from "@/lib/video/footage-select";
-import { checkDuration, formatDurationWarning } from "@/lib/video/duration-check";
+import { checkDuration, assertNarrationDuration } from "@/lib/video/duration-check";
 import { LOUDNESS_TARGET, masterAudioLoudness } from "@/lib/video/audio-master";
 import { buildEmphasisSet, isEmphasisWord } from "@/lib/video/caption-emphasis";
 import { getAccentColor } from "@/lib/video/brand";
@@ -81,7 +83,7 @@ export async function generateVideoFromScript({
   const voiceProvider = getVoiceProvider();
   const footageProvider = getFootageProvider();
   const musicProvider = getMusicProvider();
-  const imageProvider = getImageProvider();
+  const imageProvider = getFeatureFlags().imageGenerationEnabled ? getImageProvider() : undefined;
   let storageBytes = 0;
 
   // 0. Storyboard semántico (Visual Director) — detrás de
@@ -111,6 +113,7 @@ export async function generateVideoFromScript({
         }),
       );
     } catch (err) {
+      if (err instanceof ProviderConfigurationError) throw err;
       console.warn(
         `[atomivid:storyboard] ${requestId} — no se pudo generar el storyboard, se continúa con el flujo actual:`,
         err instanceof Error ? err.message : err,
@@ -126,7 +129,7 @@ export async function generateVideoFromScript({
 
   // Verificación de duración REAL (no estimada) contra el objetivo de la
   // solicitud — nunca estira ni recorta nada (eso sonaría artificial),
-  // solo advierte cuando el guion quedó fuera de tolerancia (±10%) para
+  // rechaza cuando el guion quedó fuera de tolerancia (±10%) para
   // poder recalibrar WORDS_PER_SECOND (script-pacing.ts) con datos reales
   // en vez de dejarlo pasar en silencio. Causa raíz confirmada del
   // defecto "duración ~28% menor que la pedida" en el video auditado.
@@ -135,7 +138,7 @@ export async function generateVideoFromScript({
     const durationResult = checkDuration(targetDurationSeconds, voice.durationSeconds);
     durationWithinTolerance = durationResult.withinTolerance;
     if (!durationResult.withinTolerance) {
-      console.warn(`[atomivid:duration] ${requestId} — ${formatDurationWarning(durationResult)}`);
+      assertNarrationDuration(targetDurationSeconds, voice.durationSeconds);
     }
   }
 
@@ -204,7 +207,7 @@ export async function generateVideoFromScript({
           : ({ useGeneration: false, reason: "solo el primer beat de cada escena es candidato a generación" } as const);
 
       let resolvedViaGeneration = false;
-      if (decision.useGeneration) {
+      if (decision.useGeneration && imageProvider) {
         imagesRequestedCount += 1;
         try {
           const remainingBudgetUsd = Math.max(0, getFeatureFlags().maxVisualCostUsd - visualCostSpentUsd);
@@ -364,7 +367,7 @@ export async function generateVideoFromScript({
   // razón claramente en logs y en el registro de costo, nunca en silencio
   // absoluto (ver Fase 4/6 de la especificación de esta etapa).
   await onProgress?.("music");
-  const finalDurationSeconds = voice.durationSeconds + 0.5;
+  const finalDurationSeconds = voice.durationSeconds + VIDEO_TAIL_SECONDS;
   let music: MusicResult | null = null;
   let musicFallbackReason: string | null = null;
   try {

@@ -1,3 +1,4 @@
+import { requireRealProvider } from "../production";
 import type { MusicProvider } from "../types";
 import { curatedLibraryMusicProvider } from "./real";
 import { fixtureMusicProvider } from "./fixture";
@@ -5,6 +6,11 @@ import { beatovenMusicProvider } from "./beatoven";
 import { MUSIC_MANIFEST } from "./manifest";
 
 export function getMusicProvider(): MusicProvider {
+  const requested = process.env.MUSIC_PROVIDER?.trim();
+  const hasTracks = MUSIC_MANIFEST.length > 0 || Boolean(process.env.MUSIC_TRACK_URL?.trim() || process.env.MUSIC_TRACK_URLS?.trim());
+  requireRealProvider("música", requested === "beatoven"
+    ? Boolean(process.env.BEATOVEN_API_KEY?.trim())
+    : (!requested || ["custom", "curated-library"].includes(requested)) && hasTracks);
   if (process.env.MUSIC_PROVIDER === "fixture") return fixtureMusicProvider;
   // "custom" se mantiene como alias retrocompatible del nombre anterior
   // del proveedor curado (antes "custom-url").
