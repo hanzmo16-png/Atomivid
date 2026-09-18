@@ -26,3 +26,17 @@ Complete owner login via supported secure browser authentication/manual handoff,
 ## Beta account correction
 
 Owner clarified the working account is their existing +beta Gmail account, not the personal email originally supplied. Replaced Production AVATAR_PREPARATION_OWNER_EMAIL with the exact user-confirmed beta login, retaining single-account access. Personal email omitted from repository. Redeployment 4j6GeqaTqHkBKvxzmkEeL5a6ihi3 requested from the current production source with latest configuration. No generation or credit consumption; authenticated visibility/upload still requires verification.
+
+## Authorized retry and provider incident
+
+Owner explicitly authorized cancelling the pending deployment and relaunching it.
+Vercel confirmed cancellation of 4j6GeqaTqHkBKvxzmkEeL5a6ihi3. New production
+redeployment 9P6fVJ9XP88rHG3ofeymC53WuHTz started using current production source
+2d0e30e and latest beta owner configuration, without build cache. It remains
+Initializing; beta visibility is NOT yet confirmed. Do not claim activation.
+Official https://www.vercel-status.com/ reports an active incident, Elevated Errors
+Triggering Deployments, investigating since 2026-09-18 20:32 UTC; Builds and
+Build & Deploy show Partial Outage. This is consistent with the observed stall.
+No further deployment churn while this retry is pending. Existing production is
+unchanged. No D-ID generation, credit consumption, purchase or plan change.
+Resume by checking this deployment and promotion/current domain, then owner UI.
