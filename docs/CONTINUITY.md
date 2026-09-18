@@ -4,6 +4,23 @@ Documento vivo: qué está comprobado (no solo implementado), qué falta, y
 cuál es el siguiente paso de mayor impacto. Actualizar en cada sesión
 significativa en vez de crear un documento nuevo.
 
+## Continuación Codex — narración obligatoria (2026-09-18)
+
+- CI del commit anterior confirmado exitoso: run 35293882731, ambos
+  renders completos con fixtures y publicación de evidencia.
+- El pipeline detiene la generación si falla la síntesis, subida o firma
+  del audio propio; no activa TTS interno como fallback.
+- Un job existente se consulta antes de sintetizar voz nuevamente.
+- Un avatar sin ID de proveedor se rechaza antes de sintetizar voz.
+- Errores de narración no exponen mensajes del proveedor o URLs privadas.
+- Validación: cuatro pruebas nuevas de regresión (síntesis, subida, firma
+  y reintento sin repetir voz). Suite 446/446, TypeScript y ESLint correctos
+  tras generar tipos de rutas con next typegen.
+- Pendientes: reclamo persistente del intento antes del POST, recuperación
+  del resultado existente, duración medida, costo real y prueba con foto de Hans.
+  Estas correcciones NO garantizan todavía ejecución pagada única.
+- Sin llamadas pagadas, migraciones ni activación del modo avatar.
+
 ## Actualización Codex — 2026-09-18
 
 - Acceso al repositorio confirmado; punto de partida PR #1, `5d323cc`.

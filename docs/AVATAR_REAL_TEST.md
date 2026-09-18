@@ -59,9 +59,9 @@ No ejecutar el pipeline pagado actual sin cerrar estos puntos:
 4. Consultar solo el ID existente, descargar en almacenamiento privado,
    comprobar reproducción y revisar parecido/sincronización con Hans.
 
-**Limitación concreta encontrada:** el pipeline actual captura errores de
-síntesis/subida de narración y permite continuar con TTS interno si hay voiceId;
-la duración y costo se estiman por palabras. Eso no garantiza un límite monetario
+**Actualización 2026-09-18:** el pipeline ahora se detiene ante errores de
+síntesis/subida/firma de narración y verifica jobs existentes antes de volver
+a sintetizar. La duración y costo todavía se estiman por palabras. Eso no garantiza un límite monetario
 real. El mecanismo ejecutable de intento único sigue pendiente: estas condiciones
 son una especificación, no una implementación ya probada.
 
