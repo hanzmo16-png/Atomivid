@@ -23,6 +23,7 @@ export const maxDuration = 60;
 type VideoRequestRow = {
   id: string;
   user_id: string;
+  recorded_audio_path: string | null;
   topic: string;
   style: string;
   duration_seconds: number;
@@ -42,7 +43,7 @@ async function loadOwnedRequest(id: string, userId: string) {
 
   const { data: videoRequest, error } = await service
     .from("video_requests")
-    .select("id, user_id, topic, style, duration_seconds, status, language")
+    .select("id, user_id, topic, style, duration_seconds, status, language, recorded_audio_path")
     .eq("id", id)
     .single<VideoRequestRow>();
 
@@ -60,6 +61,7 @@ async function loadOwnedRequest(id: string, userId: string) {
     ) };
   }
 
+  if (videoRequest.recorded_audio_path) return { service, videoRequest: null, response: NextResponse.json({ error: "Esta solicitud utiliza una grabación; no necesita guion generado." }, { status: 409 }) };
   return { service, videoRequest, response: null };
 }
 

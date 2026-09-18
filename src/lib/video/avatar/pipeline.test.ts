@@ -1,3 +1,5 @@
+import { recordingFormat } from "./recording";
+import { generateToneWav } from "@/lib/providers/wav";
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { fixtureAvatarProvider } from "@/lib/providers/avatar/fixture";
@@ -42,7 +44,7 @@ type AvatarRow = {
  * suficiente para probar la lógica de generateAvatarVideo() en
  * aislamiento, sin red.
  */
-function makeFakeSupabase(avatarRow: AvatarRow | null, claimError = false, existingJob: string | null = null) {
+function makeFakeSupabase(avatarRow: AvatarRow | null, claimError = false, existingJob: string | null = null, recordedPath: string | null = null) {
   let claimed = false;
   const updates: Record<string, unknown>[] = [];
   const uploads: Array<{ path: string; bytes: number }> = [];
@@ -66,7 +68,7 @@ function makeFakeSupabase(avatarRow: AvatarRow | null, claimError = false, exist
         return {
           select() { return this; },
           eq() { return this; },
-          async maybeSingle() { return { data: { avatar_provider_video_job_id: existingJob }, error: null }; },
+          async maybeSingle() { return { data: { avatar_provider_video_job_id: existingJob, recorded_audio_path: recordedPath }, error: null }; },
           update(payload: Record<string, unknown>) {
             updates.push(payload);
             return {
@@ -364,4 +366,42 @@ test("provider mismatch blocks before voice or generation", async () => {
     assert.equal(uploads.length, 0);
     assert.equal(updates.length, 0);
   });
+});
+
+for (const scenario of ["valid", "missing", "cross-user", "unassociated", "invalid", "too-long"] as const) {
+  test(`recorded narration ${scenario}: no TTS fallback and validation before consumption`, async () => {
+    await withEnv({ AVATAR_MODE_ENABLED: "true", AVATAR_PROVIDER: "fixture", MAX_AVATAR_DURATION_SECONDS: "10" }, async () => {
+      const selected = scenario === "cross-user" ? "other/r1/recording.wav" : "u1/r1/recording.wav";
+      const { fake, updates } = makeFakeSupabase({ id: "a1", user_id: "u1", status: "ready", consent_given: true, provider_avatar_id: "fixture-avatar-existing", provider: "fixture" }, false, null, scenario === "unassociated" ? null : selected);
+      const recording = scenario === "invalid" ? Buffer.from("not audio") : generateToneWav({ durationSeconds: scenario === "too-long" ? 11 : 2, frequencyHz: 220, amplitude: .15 });
+      const originalFrom = fake.storage.from;
+      const stored: Buffer[] = [];
+      fake.storage.from = () => ({ ...originalFrom(),
+        download: async () => ({ data: scenario === "missing" ? null : new Blob([new Uint8Array(recording)]), error: null }),
+        upload: async (name: string, bytes: Buffer) => { if (name.includes("avatar-narration")) stored.push(bytes); return { error: null }; },
+      });
+      const tts = mock.method(fixtureVoiceProvider, "synthesize", async () => { throw new Error("TTS must never run"); });
+      const originalGenerate = fixtureAvatarProvider.generateVideo.bind(fixtureAvatarProvider);
+      const avatar = mock.method(fixtureAvatarProvider, "generateVideo", originalGenerate);
+      try {
+        const execute = () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", avatarId: "a1", script: makeScript(), recordedAudioPath: selected });
+        if (scenario === "valid") {
+          await execute();
+          assert.equal(avatar.mock.callCount(), 1);
+          assert.deepEqual(stored[0], recording);
+          assert.equal(avatar.mock.calls[0].arguments[0].audioDurationSeconds, 2);
+        } else {
+          await assert.rejects(execute, AvatarPipelineError);
+          assert.equal(avatar.mock.callCount(), 0);
+          assert.equal(updates.length, 0);
+        }
+        assert.equal(tts.mock.callCount(), 0);
+      } finally { tts.mock.restore(); avatar.mock.restore(); }
+    });
+  });
+}
+
+test("Samsung M4A with 3gp4 brand is accepted for worker decoding", () => {
+  const header = Buffer.from("0000001866747970336770340000000069736f6d33677034", "hex");
+  assert.equal(recordingFormat(header).extension, "m4a");
 });

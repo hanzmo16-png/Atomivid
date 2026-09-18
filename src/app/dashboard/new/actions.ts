@@ -1,5 +1,6 @@
 "use server";
 
+import { recordingFormat, recordingPath, RECORDING_BUCKET, MAX_AVATAR_FORM_BYTES } from "@/lib/video/avatar/recording";
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -83,6 +84,25 @@ export async function createVideoRequest(formData: FormData) {
     redirect("/dashboard/new?error=Debes+aceptar+el+consentimiento+del+modo+avatar");
   }
 
+  const narrationSource = String(formData.get("narration_source") ?? "tts");
+  if (!["tts", "recording"].includes(narrationSource)) redirect("/dashboard/new?error=Fuente+de+voz+inválida");
+  const audioFile = formData.get("recorded_audio");
+  let recording: { audioBuffer: Buffer; extension: string; mimeType: string } | undefined;
+  const files = [...formData.values()].filter((v): v is File => v instanceof File);
+  if (files.reduce((sum, file) => sum + file.size, 0) > MAX_AVATAR_FORM_BYTES) {
+    redirect("/dashboard/new?error=La+foto+y+el+audio+deben+pesar+como+máximo+3+MB+en+total.+Usa+audio+M4A+o+MP3.");
+  }
+  if (narrationSource === "recording") {
+    if (!["did", "fixture"].includes(flags.avatarProvider)) redirect("/dashboard/new?error=Este+proveedor+no+admite+grabaciones");
+    if (!(audioFile instanceof File) || !audioFile.size) redirect("/dashboard/new?error=Selecciona+tu+grabación");
+    try {
+      const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
+      recording = { audioBuffer, ...recordingFormat(audioBuffer) };
+    } catch {
+      redirect("/dashboard/new?error=Audio+inválido.+Usa+M4A,+MP3+o+WAV+de+hasta+3+MB.");
+    }
+  }
+
   const existingAvatarId = String(formData.get("existing_avatar_id") ?? "").trim();
   const avatarVoiceId = String(formData.get("avatar_voice_id") ?? "").trim() || undefined;
 
@@ -143,6 +163,7 @@ export async function createVideoRequest(formData: FormData) {
     let providerName: string;
     try {
       const provider = getAvatarProvider();
+      if (!provider.isAvailable() || provider.name !== flags.avatarProvider) throw new Error("El proveedor de avatar no está configurado.");
       providerName = provider.name;
       const result = await provider.createAvatar({ photoBuffer, mimeType: file.type, consentGiven: true });
       providerAvatarId = result.providerAvatarId;
@@ -197,7 +218,17 @@ export async function createVideoRequest(formData: FormData) {
     avatarId = inserted.id;
   }
 
+  const requestId = randomUUID();
+  const audioPath = recording ? recordingPath(user.id, requestId, recording.extension) : null;
+  if (recording && audioPath) {
+    const { error: audioError } = await createServiceClient().storage.from(RECORDING_BUCKET)
+      .upload(audioPath, recording.audioBuffer, { contentType: recording.mimeType, upsert: false });
+    if (audioError) redirect("/dashboard/new?error=No+se+pudo+guardar+la+grabación+privada");
+  }
   const { error } = await supabase.from("video_requests").insert({
+    id: requestId,
+    recorded_audio_path: audioPath,
+    script_json: recording ? { title: topic, segments: [{ text: "[Se utilizará tu grabación completa, sin sintetizar otra voz.]", visualQuery: "avatar" }] } : null,
     user_id: user.id,
     topic,
     style,
@@ -205,12 +236,13 @@ export async function createVideoRequest(formData: FormData) {
     language,
     mode: "avatar",
     avatar_id: avatarId,
-    avatar_voice_id: avatarVoiceId ?? null,
+    avatar_voice_id: recording ? null : avatarVoiceId ?? null,
     idempotency_key: randomUUID(),
-    status: "pending",
+    status: recording ? "script_ready" : "pending",
   });
 
   if (error) {
+    if (audioPath) await createServiceClient().storage.from(RECORDING_BUCKET).remove([audioPath]).catch(() => {});
     redirect(`/dashboard/new?error=${encodeURIComponent(error.message)}`);
   }
 
