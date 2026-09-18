@@ -349,3 +349,24 @@ for (const databaseFailure of [false, true]) {
     });
   });
 }
+
+for (const invalid of [false, true]) {
+  test(`actual audio blocks provider before upload (invalid=${invalid})`, async () => {
+    await withEnv({ AVATAR_MODE_ENABLED: "true", AVATAR_PROVIDER: "fixture", MAX_AVATAR_DURATION_SECONDS: "15" }, async () => {
+      const { fake, uploads } = makeFakeSupabase({ id: "a1", user_id: "u1", status: "ready", consent_given: true, provider_avatar_id: "fixture-avatar", provider: "fixture" });
+      const original = fixtureVoiceProvider.synthesize.bind(fixtureVoiceProvider);
+      const voice = mock.method(fixtureVoiceProvider, "synthesize", async () => {
+        const result = await original(Array(100).fill("hola").join(" "), "es");
+        return { ...result, durationSeconds: 1, audioBuffer: invalid ? Buffer.from("not audio") : result.audioBuffer };
+      });
+      const generate = mock.method(fixtureAvatarProvider, "generateVideo");
+      try {
+        const script = makeScript();
+        script.segments = [{ ...script.segments[0], text: "Hola" }];
+        await assert.rejects(() => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script, avatarId: "a1" }), (err: unknown) => err instanceof AvatarPipelineError && err.code === (invalid ? "narration_failed" : "duration_exceeded"));
+        assert.equal(generate.mock.callCount(), 0);
+        assert.equal(uploads.length, 0);
+      } finally { voice.mock.restore(); generate.mock.restore(); }
+    });
+  });
+}

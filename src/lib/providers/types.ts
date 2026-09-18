@@ -335,6 +335,8 @@ export type AvatarVideoRequest = {
    * `voiceId`.
    */
   audioUrl?: string;
+  /** Duration measured from the actual audio bytes before submission. */
+  audioDurationSeconds?: number;
   /** ID de voz PROPIO del proveedor — solo se usa cuando NO hay `audioUrl` (el proveedor sintetiza la voz él mismo). */
   voiceId?: string;
   language?: ScriptLanguage;

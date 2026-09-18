@@ -293,7 +293,11 @@ export const didAvatarProvider: AvatarVideoProvider = {
       );
     }
 
-    const { estimatedSeconds, estimatedCost } = estimateSecondsAndCost(request.script);
+    const estimatedSeconds = request.audioDurationSeconds ?? estimateSecondsAndCost(request.script).estimatedSeconds;
+    const estimatedCost = estimatedSeconds * COST_USD_PER_SECOND;
+    if (!Number.isFinite(estimatedSeconds) || estimatedSeconds <= 0 || !Number.isFinite(estimatedCost) || estimatedCost < 0 || !Number.isFinite(request.maxCostUsd) || request.maxCostUsd < 0) {
+      throw new AvatarProviderError("Duración o presupuesto inválido", "did", "budget_exceeded");
+    }
     if (estimatedCost > request.maxCostUsd) {
       throw new AvatarProviderError(
         `Costo estimado ($${estimatedCost.toFixed(2)}) excede el máximo permitido ($${request.maxCostUsd})`,

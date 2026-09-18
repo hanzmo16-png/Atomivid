@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { measureNarrationSeconds } from "./measure-narration";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { AvatarProviderError } from "@/lib/providers/types";
@@ -208,8 +209,13 @@ export async function generateAvatarVideo({
   // interno del proveedor ni cambiar la voz o el consumo silenciosamente.
   const voiceProvider = getVoiceProvider();
   let audioUrl: string | undefined;
+  let audioDurationSeconds: number;
   try {
     const voiceResult = await voiceProvider.synthesize(fullText, language);
+    audioDurationSeconds = await measureNarrationSeconds(voiceResult.audioBuffer);
+    if (audioDurationSeconds > flags.maxAvatarDurationSeconds) {
+      throw new AvatarPipelineError("El audio real excede la duración máxima permitida. No se solicitó el avatar.", "duration_exceeded");
+    }
     const narrationPath = `${requestId}/avatar-narration.${voiceResult.extension}`;
     const { error: narrationUploadError } = await supabase.storage
       .from(STORAGE_BUCKET)
@@ -225,7 +231,8 @@ export async function generateAvatarVideo({
     }
     audioUrl = signedNarration.signedUrl;
     storageBytes += voiceResult.audioBuffer.byteLength;
-  } catch {
+  } catch (err) {
+    if (err instanceof AvatarPipelineError) throw err;
     // No propagar errores que puedan contener URLs firmadas o credenciales.
     throw new AvatarPipelineError(
       "No se pudo preparar la narración propia. No se solicitó el video de avatar.",
@@ -242,6 +249,7 @@ export async function generateAvatarVideo({
       providerAvatarId,
       script: fullText,
       audioUrl,
+      audioDurationSeconds,
       voiceId,
       language,
       maxCostUsd: flags.maxAvatarCostUsd,
