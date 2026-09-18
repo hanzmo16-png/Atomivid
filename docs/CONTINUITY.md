@@ -4,6 +4,33 @@ Documento vivo: qué está comprobado (no solo implementado), qué falta, y
 cuál es el siguiente paso de mayor impacto. Actualizar en cada sesión
 significativa en vez de crear un documento nuevo.
 
+## Estado verificado — integración y migración 2026-09-18
+
+- PR #2 integrado en la rama de trabajo; PR #1 integrado en la rama principal.
+- Commit de integración: `158bff34d65279a8ce3c82cad6017e2c05bf7aa4`.
+- 454 pruebas unitarias, TypeScript y 6 pruebas adicionales del diagnóstico D-ID aprobadas.
+- CI E2E completo (avatar y mezcla con fixtures) exitoso: run `35302092477`.
+- Migración 0014 aplicada realmente y verificada por SQL (tipo timestamptz,
+  nulabilidad y registro en `_migrations_applied`): run `35302350933`, job `105467440720`.
+  Resultado: 1 aplicada, 0 reconciliadas, 0 reaplicadas.
+- Vercel devolvió `success` para el commit de integración:
+  https://vercel.com/atomivid/atomivid/7GNKwvBJRiTFsT14nA7HLYFYunWP
+  No se verificó el alias/dominio de producción porque el panel requiere inicio de sesión.
+- Diagnóstico D-ID en Actions: `configured:false`, `authenticated:false`, `reason:missing_key`.
+  No hay `DID_API_KEY` disponible para ese workflow; no se realizó una llamada al proveedor.
+- Inicio de sesión de D-ID por navegador bloqueado por credenciales rechazadas.
+  No registrar credenciales ni fotos en este repositorio. Sin avatar real ni consumo pagado.
+
+Siguientes dependencias: resolver acceso a D-ID y sus créditos/tarifa; configurar
+la clave mediante un canal seguro; alinear configuración de avatar en Vercel y
+el worker (render.yml aún no pasa variables de avatar); medir audio real antes del
+POST. La recuperación automática de resultados por ID sigue pendiente: nunca
+liberar una reserva ambigua ni regenerar para recuperar un resultado perdido.
+La autorización del propietario cubre integración, despliegue, migración y prueba
+con su foto; mantener el límite previo de USD 10 y no contratar suscripciones.
+
+Las secciones siguientes son historial; prevalece este estado verificado.
+
 ## Continuación Codex — narración obligatoria (2026-09-18)
 
 - CI del commit anterior confirmado exitoso: run 35293882731, ambos
