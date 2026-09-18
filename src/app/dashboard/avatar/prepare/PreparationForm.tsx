@@ -5,7 +5,7 @@ import { Button, LinkButton } from "@/components/ui/Button";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
 import { PREPARATION_MAX_SECONDS } from "@/lib/video/avatar/private-access";
 import { MAX_AVATAR_FORM_BYTES } from "@/lib/video/avatar/recording";
-import { saveAvatarPreparation } from "./actions";
+import { saveAvatarPreparation, connectSavedPreparation } from "./actions";
 
 function useFilePreview() {
   const [url, setUrl] = useState<string>();
@@ -24,14 +24,14 @@ export function PreparationForm() {
   const tooLarge = (photo?.size ?? 0) + (audio?.size ?? 0) > MAX_AVATAR_FORM_BYTES;
   const tooLong = duration !== undefined && duration > PREPARATION_MAX_SECONDS;
   if (state.saved) return <div role="status" className="space-y-4 rounded-lg border border-border-strong p-5">
-    <h2 className="font-semibold">Archivos guardados de forma privada</h2>
+    <h2 className="font-semibold">Solicitud privada preparada</h2>
     <p>No se ha generado ningún video. Tu audio se conserva completo, sin recortes ni otra voz.</p>
-    <p>Antes de la prueba real verificaremos la duración y el consumo previsto. La generación sigue bloqueada hasta tu autorización.</p>
+    <p>Duración verificada en el servidor: {state.seconds?.toFixed(3)} segundos. La generación sigue bloqueada hasta tu autorización.</p>
     <LinkButton href="/dashboard">Volver a mis videos</LinkButton>
   </div>;
   return <form action={action} className="space-y-5 rounded-lg border border-border-strong p-5">
-    <Field id="photo" label="Tu fotografía" hint="De frente, rostro visible. JPEG, PNG o WEBP; mínimo 200 × 200 píxeles.">
-      <input id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required className={INPUT_CLASS} onChange={e => { const file = e.target.files?.[0] ?? null; setPhoto(file); previewPhoto(file); }} />
+    <Field id="photo" label="Tu fotografía" hint="De frente, rostro visible. JPEG o PNG; mínimo 200 × 200 píxeles.">
+      <input id="photo" name="photo" type="file" accept="image/jpeg,image/png" required className={INPUT_CLASS} onChange={e => { const file = e.target.files?.[0] ?? null; setPhoto(file); previewPhoto(file); }} />
     </Field>
     {photoUrl && <div className="flex justify-center">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -45,5 +45,16 @@ export function PreparationForm() {
     <label className="flex gap-2 text-sm"><input type="checkbox" name="consent" required />Confirmo que la foto y la grabación son mías y autorizo guardarlas de forma privada para preparar esta prueba.</label>
     <p className="text-sm text-ink-muted">Consumo al guardar: 0 créditos D-ID. El consumo de generar el video está pendiente de confirmar; no hay generación automática.</p>
     <Button type="submit" loading={pending} disabled={!photo || !audio || !duration || tooLarge || tooLong || audioError}>Guardar preparación</Button>
+  </form>;
+}
+
+export function SavedPreparationForm({ id, label }: { id: string; label: string }) {
+  const [state, action, pending] = useActionState(connectSavedPreparation, {});
+  return <form action={action} className="space-y-2 rounded-lg border border-border-strong p-4">
+    <input type="hidden" name="preparationId" value={id} />
+    <p>{label}</p>
+    {state.saved ? <p role="status">Solicitud asociada. Audio verificado: {state.seconds?.toFixed(3)} s. No se ha generado ningún video.</p>
+      : <Button type="submit" loading={pending}>Verificar y asociar archivos guardados</Button>}
+    {state.error && <p role="alert">{state.error}</p>}
   </form>;
 }

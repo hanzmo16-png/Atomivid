@@ -1,3 +1,4 @@
+import { requireRealProvider } from "@/lib/providers/production";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { generateStoryboard as generateStoryboardReal } from "./visual-director";
@@ -24,6 +25,7 @@ export async function buildStoryboard(
     return { storyboard, source: "claude" };
   }
 
+  requireRealProvider("storyboard", false);
   return { storyboard: simulateStoryboard(script), source: "simulated" };
 }
 

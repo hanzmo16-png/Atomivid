@@ -120,7 +120,7 @@ export function checkScriptQuality(
       (sum, s) => sum + s.text.split(/\s+/).filter(Boolean).length,
       0,
     );
-    if (totalWords < targetWords * 0.4 || totalWords > targetWords * 2) {
+    if (totalWords < targetWords * 0.9 || totalWords > targetWords * 1.1) {
       return {
         ok: false,
         issue: "word_count_out_of_range",

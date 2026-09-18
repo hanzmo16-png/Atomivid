@@ -45,3 +45,10 @@ export function formatDurationWarning(result: DurationCheckResult): string {
     `Revisa WORDS_PER_SECOND en script-pacing.ts con datos reales acumulados.`
   );
 }
+
+/** Stops before footage/render; never stretches audio or silently regenerates TTS. */
+export function assertNarrationDuration(targetSeconds: number, actualSeconds: number): void {
+  if (!Number.isFinite(targetSeconds) || targetSeconds <= 0 || !Number.isFinite(actualSeconds) || actualSeconds <= 0) throw new Error("Duración de narración inválida.");
+  const result = checkDuration(targetSeconds, actualSeconds);
+  if (!result.withinTolerance) throw new Error(`La narración dura ${actualSeconds.toFixed(2)} s para un objetivo de ${targetSeconds} s. Ajusta el guion antes de otro intento; no se exportó un video fuera de duración.`);
+}
