@@ -4,6 +4,21 @@ Documento vivo: qué está comprobado (no solo implementado), qué falta, y
 cuál es el siguiente paso de mayor impacto. Actualizar en cada sesión
 significativa en vez de crear un documento nuevo.
 
+## Actualización — acceso D-ID y preparación de prueba
+
+D-ID autenticó HTTP 200 en run 35302350933, segundo intento, job
+105494145272 (2026-09-18). Clave guardada por el propietario en GitHub;
+no expuesta ni leída. Migración 0014 verificada nuevamente.
+
+La narración ahora se mide desde bytes con ffprobe, antes de subirla o
+solicitar el avatar. Audio inválido o demasiado largo bloquea la generación.
+D-ID recibe duración medida para estimar costo; la tarifa sigue siendo una
+estimación configurable, no una garantía de facturación.
+render.yml pasa configuración de avatar y la clave, deshabilitado por defecto.
+Pendiente: transferir foto por canal privado, verificar créditos/expiración,
+alinear Vercel, recuperación por ID y ejecutar una única prueba autorizada.
+No avatar real generado aún. No subir fotos a GitHub ni artifacts.
+
 ## Estado verificado — integración y migración 2026-09-18
 
 - PR #2 integrado en la rama de trabajo; PR #1 integrado en la rama principal.
