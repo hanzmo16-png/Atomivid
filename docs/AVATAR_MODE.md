@@ -1,3 +1,7 @@
+> Actualización Codex 2026-09-18: ver `docs/AVATAR_REAL_TEST.md` para requisitos de foto,
+> fuentes oficiales consultadas y pendientes de precio/cuenta. Las notas de bloqueo
+> de red y precios anteriores describen sesiones previas, no una tarifa vigente.
+
 # Modo Avatar — HeyGen + D-ID (arquitectura y estado real)
 
 **Última verificación de la investigación de HeyGen: 2026-09-17. Comparación con otros proveedores (D-ID/Synthesia): 2026-09-17. Adaptador D-ID implementado (mock/tests, cero llamadas reales): 2026-09-17. Adaptador D-ID CORREGIDO contra hallazgos de documentación oficial (WebSearch citando docs.d-id.com): 2026-09-17.**
@@ -10,8 +14,8 @@ Acceso directo a `docs.d-id.com` y `www.d-id.com` sigue bloqueado en este entorn
 
 1. **Autenticación**: la API key de D-ID es `usuario:contraseña` y el header debe ser `Authorization: Basic <base64(usuario:contraseña)>` — la versión anterior mandaba `Basic <clave-cruda>` sin codificar. Corregido.
 2. **Subida de foto (`POST /images`)**: es `multipart/form-data` con el archivo en un campo `image` (solo `image/jpeg`/`image/png`) — la versión anterior mandaba un body JSON `{source_url: undefined}`. Corregido, y ahora se rechaza cualquier mimeType que no sea jpeg/png ANTES de gastar la llamada.
-3. **Proveedor de voz obligatorio**: para guion en texto, D-ID exige `script.provider = {type: "elevenlabs", voice_id}` — no hay evidencia de un proveedor por defecto. `generateVideo()` ahora exige `voiceId` explícitamente (antes lo mandaba `undefined` si faltaba).
-4. **Cancelación/borrado**: SÍ se confirmó que existe `DELETE /talks/{id}` (`docs.d-id.com/reference/deletetalk`, "Delete Video by ID") — pero NO se confirmó si de verdad detiene un render en curso o solo borra videos ya completados; `cancelVideo()` lo sigue tratando como best-effort, nunca finge éxito.
+3. **Proveedor de voz obligatorio**: para guion en texto, D-ID exige `script.provider = {type: "elevenlabs", voice_id}` — no hay evidencia de un proveedor por defecto. `generateVideo()` exige `voiceId` solo cuando no recibe `audioUrl`. El flujo normal sintetiza y aloja primero el audio propio de ElevenLabs y usa `script.type="audio"`; no solicita TTS interno de D-ID.
+4. **Cancelación/borrado**: SÍ se confirmó que existe `DELETE /talks/{id}` (`docs.d-id.com/reference/deletetalk`, "Delete Video by ID") — pero NO se confirmó si de verdad detiene un render en curso o solo borra videos ya completados; No debe interpretarse DELETE como cancelación de procesamiento ni como ahorro de cargos; `cancelVideo()` no promete ninguna de las dos cosas.
 5. **Estados confirmados**: `created`→`started`→`done` | `error`/`rejected` (vía `docs.d-id.com/reference/gettalk`) — coincide con lo ya implementado.
 
 Lo que SIGUE sin confirmar (marcado explícitamente en el código, no se inventa una respuesta): la forma exacta del payload de webhook; un límite de caracteres de guion documentado (el techo de 10000 es defensa propia, no un límite real de D-ID); la forma exacta del objeto de error. Precio: ~$5.90/min según agregadores de terceros (no D-ID directamente) ≈ $0.0983/s, usado como valor por defecto.

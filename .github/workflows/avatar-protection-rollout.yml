@@ -1,0 +1,52 @@
+name: Avatar protection rollout (0014 and read-only D-ID check)
+
+on:
+  push:
+    branches: [claude/atomivid-mvp-setup-0079jv]
+    paths:
+      - supabase/migrations/0014_avatar_single_attempt.sql
+      - .github/workflows/avatar-protection-rollout.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: avatar-protection-rollout
+  cancel-in-progress: false
+
+jobs:
+  rollout:
+    if: github.ref == 'refs/heads/claude/atomivid-mvp-setup-0079jv'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply only migration 0014 (idempotent)
+        run: node --import tsx scripts/apply-supabase-migration.ts 0014_avatar_single_attempt.sql
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+          SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+      - name: Verify column and migration ledger directly
+        run: node --import tsx scripts/verify-avatar-protection.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+          SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+      - name: Check D-ID access without generation or private output
+        if: always()
+        run: node scripts/check-did-access.mjs
+        env:
+          DID_API_KEY: ${{ secrets.DID_API_KEY }}

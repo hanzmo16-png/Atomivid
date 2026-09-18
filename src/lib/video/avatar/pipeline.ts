@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { AvatarProviderError } from "@/lib/providers/types";
 import { getAvatarProvider } from "@/lib/providers/avatar";
+import { getVoiceProvider } from "@/lib/providers/voice";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { LOUDNESS_TARGET, masterAudioLoudness } from "@/lib/video/audio-master";
 import { recordVideoGeneration } from "@/lib/billing/usage";
@@ -11,6 +12,10 @@ import path from "node:path";
 import os from "node:os";
 
 const STORAGE_BUCKET = "videos";
+// Mismo TTL que el resto del pipeline (generate-video.ts) para assets
+// intermedios firmados — el audio de narración solo necesita vivir el
+// tiempo que el proveedor de avatar tarda en descargarlo, nunca público.
+const NARRATION_SIGNED_URL_TTL_SECONDS = 60 * 60;
 
 type AvatarRow = {
   id: string;
@@ -31,6 +36,8 @@ export class AvatarPipelineError extends Error {
       | "consent_missing"
       | "avatar_not_ready"
       | "provider_unavailable"
+      | "narration_failed"
+      | "attempt_blocked"
       | "duration_exceeded"
       | "provider_error",
   ) {
@@ -43,18 +50,24 @@ type OnProgress = (stage: RenderStage) => void | Promise<void>;
 
 /**
  * Etapa 2 del pipeline PARA EL MODO AVATAR — contraparte de
- * generateVideoFromScript() (modo visual). No busca footage ni sintetiza
- * voz por separado: HeyGen (o el fixture) genera voz+labios sincronizados
- * en un solo paso a partir del guion.
+ * generateVideoFromScript() (modo visual). No busca footage por separado:
+ * el proveedor de avatar genera video con labios sincronizados a partir
+ * del guion — sintetizando la voz él mismo, o animando los labios contra
+ * un audio que YA sintetizamos nosotros con nuestro propio ElevenLabs
+ * (ver `audioUrl` más abajo — confirmado soportado por D-ID, la voz queda
+ * consistente con el modo visual en vez de depender de la síntesis
+ * interna, distinta, de cada proveedor).
  *
  * LIMITACIÓN CONOCIDA (documentada, no oculta): a diferencia del modo
  * visual, esta primera versión NO superpone subtítulos ni mezcla música
- * de fondo sobre el video del proveedor de avatar — el video de HeyGen
- * viene con su propio audio ya sincronizado (voz + labios), y no
- * devuelve los timestamps por palabra que buildCaptions() necesita para
- * generar subtítulos reales sin inventarlos. Solo se aplica mastering de
- * loudness al audio que ya trae el video. Music/subtítulos para modo
- * avatar quedan para una iteración posterior.
+ * de fondo sobre el video del proveedor de avatar — el video final viene
+ * con su propio audio ya sincronizado (voz + labios) directamente del
+ * proveedor, y este no devuelve los timestamps por palabra que
+ * buildCaptions() necesita para generar subtítulos reales sin
+ * inventarlos. Esto es así sin importar si la voz vino de nuestro
+ * ElevenLabs (audioUrl) o de la síntesis interna del proveedor (voiceId)
+ * — solo se aplica mastering de loudness al audio que ya trae el video.
+ * Music/subtítulos para modo avatar quedan para una iteración posterior.
  *
  * Verificaciones, EN ORDEN, antes de llamar a cualquier proveedor —
  * cualquier fallo aquí nunca gasta un crédito:
@@ -139,11 +152,7 @@ export async function generateAvatarVideo({
     );
   }
 
-  let storageBytes = 0;
-
-  await onProgress?.("voice");
-
-  // Resolver el avatar en el proveedor (crear si es la primera vez que se usa).
+  // Exigir el avatar creado antes de consumir narración.
   const providerAvatarId = avatar.provider_avatar_id;
   if (!providerAvatarId) {
     throw new AvatarPipelineError(
@@ -152,37 +161,105 @@ export async function generateAvatarVideo({
     );
   }
 
+  if (existingProviderVideoJobId) {
+    // Idempotencia: ya se pidió un video en un intento anterior — se
+    // consulta su estado en vez de gastar otra vez.
+    const status = await provider.checkVideoStatus(existingProviderVideoJobId);
+    if (status !== "completed") {
+      throw new AvatarPipelineError(
+        `El video anterior (job ${existingProviderVideoJobId}) sigue en estado "${status}" — no se solicita uno nuevo para evitar cobrar dos veces.`,
+        "provider_error",
+      );
+    }
+    // El proveedor no expone "recuperar el resultado ya completado" de
+    // forma separada en esta interfaz — si llega aquí es porque ya se
+    // procesó (rama no alcanzable en el fixture/heygen actuales, dejada
+    // explícita para el siguiente proveedor que sí lo permita).
+    throw new AvatarPipelineError(
+      "El video ya se completó en un intento anterior pero no se pudo recuperar su resultado — revisa manualmente antes de reintentar.",
+      "provider_error",
+    );
+  }
+
+  // Durable compare-and-set: only one worker may consume providers for this
+  // request, including after crashes/timeouts. Never clear this automatically.
+  // Missing migration or database error fails closed before voice consumption.
+  const { data: claimed, error: claimError } = await supabase
+    .from("video_requests")
+    .update({ avatar_generation_started_at: new Date().toISOString() })
+    .eq("id", requestId)
+    .eq("user_id", userId)
+    .is("avatar_generation_started_at", null)
+    .is("avatar_provider_video_job_id", null)
+    .select("id")
+    .maybeSingle();
+  if (claimError || !claimed) {
+    throw new AvatarPipelineError(
+      "No se pudo reservar un intento único. Revisa el intento anterior antes de volver a generar.",
+      "attempt_blocked",
+    );
+  }
+
+  let storageBytes = 0;
+
+  await onProgress?.("voice");
+
+  // La narración propia es obligatoria: un fallo no debe activar TTS
+  // interno del proveedor ni cambiar la voz o el consumo silenciosamente.
+  const voiceProvider = getVoiceProvider();
+  let audioUrl: string | undefined;
+  try {
+    const voiceResult = await voiceProvider.synthesize(fullText, language);
+    const narrationPath = `${requestId}/avatar-narration.${voiceResult.extension}`;
+    const { error: narrationUploadError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(narrationPath, voiceResult.audioBuffer, { contentType: voiceResult.mimeType, upsert: true });
+    if (narrationUploadError) {
+      throw new Error(`No se pudo subir el audio de narración: ${narrationUploadError.message}`);
+    }
+    const { data: signedNarration, error: signError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .createSignedUrl(narrationPath, NARRATION_SIGNED_URL_TTL_SECONDS);
+    if (signError || !signedNarration) {
+      throw new Error(`No se pudo firmar la URL de la narración: ${signError?.message ?? "desconocido"}`);
+    }
+    audioUrl = signedNarration.signedUrl;
+    storageBytes += voiceResult.audioBuffer.byteLength;
+  } catch {
+    // No propagar errores que puedan contener URLs firmadas o credenciales.
+    throw new AvatarPipelineError(
+      "No se pudo preparar la narración propia. No se solicitó el video de avatar.",
+      "narration_failed",
+    );
+  }
+
   await onProgress?.("render");
   const renderStartedAt = Date.now();
 
   let asset: Awaited<ReturnType<typeof provider.generateVideo>>;
   try {
-    if (existingProviderVideoJobId) {
-      // Idempotencia: ya se pidió un video en un intento anterior — se
-      // consulta su estado en vez de gastar otra vez.
-      const status = await provider.checkVideoStatus(existingProviderVideoJobId);
-      if (status !== "completed") {
-        throw new AvatarPipelineError(
-          `El video anterior (job ${existingProviderVideoJobId}) sigue en estado "${status}" — no se solicita uno nuevo para evitar cobrar dos veces.`,
-          "provider_error",
-        );
-      }
-      // El proveedor no expone "recuperar el resultado ya completado" de
-      // forma separada en esta interfaz — si llega aquí es porque ya se
-      // procesó (rama no alcanzable en el fixture/heygen actuales, dejada
-      // explícita para el siguiente proveedor que sí lo permita).
-      throw new AvatarPipelineError(
-        "El video ya se completó en un intento anterior pero no se pudo recuperar su resultado — revisa manualmente antes de reintentar.",
-        "provider_error",
-      );
-    }
-
     asset = await provider.generateVideo({
       providerAvatarId,
       script: fullText,
+      audioUrl,
       voiceId,
       language,
       maxCostUsd: flags.maxAvatarCostUsd,
+      onJobCreated: async (providerJobId) => {
+        const { data, error } = await supabase
+          .from("video_requests")
+          .update({ avatar_provider_video_job_id: providerJobId, avatar_render_status: "processing" })
+          .eq("id", requestId)
+          .eq("user_id", userId)
+          .select("id")
+          .maybeSingle();
+        if (error || !data) {
+          throw new AvatarPipelineError(
+            "El proveedor aceptó el intento, pero no se pudo guardar su identificador. No vuelvas a generar.",
+            "attempt_blocked",
+          );
+        }
+      },
     });
   } catch (err) {
     if (err instanceof AvatarProviderError) {

@@ -68,18 +68,48 @@ test("generateVideo lanza budget_exceeded si el costo estimado excede maxCostUsd
   });
 });
 
-test("generateVideo lanza invalid_response si falta voiceId (D-ID exige un proveedor de voz externo, confirmado en docs)", async () => {
+test("generateVideo lanza invalid_response si faltan AMBOS audioUrl y voiceId", async () => {
   await withEnv({ DID_API_KEY: "fake-key" }, async () => {
     await assert.rejects(
       () =>
         didAvatarProvider.generateVideo({
           providerAvatarId: "img-1",
-          script: "hola mundo, sin voiceId",
+          script: "hola mundo, sin ninguna entrada de voz",
           maxCostUsd: 100,
         }),
       (err: unknown) => err instanceof AvatarProviderError && err.reason === "invalid_response",
     );
   });
+});
+
+test("generateVideo con audioUrl NUNCA exige voiceId y manda script.type=\"audio\" (flujo real de ATOMIVID: audio propio de ElevenLabs, nunca la síntesis propia de D-ID)", async () => {
+  const originalFetch = global.fetch;
+  let capturedBody: Record<string, unknown> | null = null;
+  global.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    const u = String(url);
+    if (u.includes("/talks") && init?.method === "POST") {
+      capturedBody = JSON.parse(init.body as string);
+      return jsonResponse({ id: "talk-audio" });
+    }
+    return jsonResponse({ status: "done", result_url: "https://example.test/fake-video.mp4" });
+  }) as typeof fetch;
+
+  try {
+    await withEnv({ DID_API_KEY: "fake-key" }, async () => {
+      await didAvatarProvider.generateVideo({
+        providerAvatarId: "img-1",
+        script: "hola mundo, con audio propio",
+        audioUrl: "https://storage.example.test/r1/narracion.mp3?token=firmado",
+        maxCostUsd: 100,
+      });
+      assert.deepEqual((capturedBody as { script?: unknown } | null)?.script, {
+        type: "audio",
+        audio_url: "https://storage.example.test/r1/narracion.mp3?token=firmado",
+      });
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
 });
 
 test("createAvatar lanza invalid_response si el mimeType no es image/jpeg ni image/png (confirmado en docs.d-id.com/reference/upload-an-image)", async () => {
@@ -242,6 +272,37 @@ test("processWebhookPayload devuelve null (nunca lanza) ante un payload malforma
 // contaminar ninguna prueba anterior. Usa checkVideoStatus() (no
 // deleteAvatar()/cancelVideo(), que atrapan sus propios errores y nunca
 // rechazan) para poder observar el AvatarProviderError propagado directamente.
+
+for (const failure of ["post", "persist", "poll"] as const) {
+  test(`single creation POST and early job persistence on ${failure} failure`, async () => {
+    const originalFetch = global.fetch;
+    const calls: string[] = [];
+    global.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        calls.push("post");
+        if (failure === "post") return new Response(null, { status: 503 });
+        return new Response(JSON.stringify({ id: "accepted-job" }), { status: 200 });
+      }
+      calls.push("poll");
+      return new Response(null, { status: 503 });
+    }) as typeof fetch;
+    try {
+      await withEnv({ DID_API_KEY: "test-key" }, async () => {
+        await assert.rejects(() => didAvatarProvider.generateVideo({
+          providerAvatarId: "avatar", script: "Hola", voiceId: "voice", maxCostUsd: 100,
+          onJobCreated: async (id) => {
+            assert.equal(id, "accepted-job"); calls.push("persist");
+            if (failure === "persist") throw new Error("database down");
+          },
+        }));
+        assert.deepEqual(calls, failure === "post" ? ["post"] : failure === "persist" ? ["post", "persist"] : ["post", "persist", "poll"]);
+        global.fetch = (async () => new Response(JSON.stringify({ status: "done" }), { status: 200 })) as typeof fetch;
+        await didAvatarProvider.checkVideoStatus("reset-after-test");
+      });
+    } finally { global.fetch = originalFetch; }
+  });
+}
+
 test("tras 3 fallos recuperables consecutivos, el circuito se abre y se reporta como circuit_open (no un upstream_error genérico)", async () => {
   const originalFetch = global.fetch;
   global.fetch = (async () => new Response(null, { status: 503 })) as typeof fetch;
