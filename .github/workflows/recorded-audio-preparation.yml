@@ -1,3 +1,4 @@
+# Prepare schema before merging the application changes; no provider credentials are used.
 name: Recorded audio preparation (0015)
 on:
   push:
