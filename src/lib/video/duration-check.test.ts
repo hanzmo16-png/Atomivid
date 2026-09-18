@@ -41,3 +41,9 @@ test("un video más largo de lo pedido se reporta como 'más largo', no 'más co
   const message = formatDurationWarning(result);
   assert.ok(/m[aá]s largo/.test(message));
 });
+
+test("production regression: both observed off-target narrations must stop before export", async () => {
+  const { assertNarrationDuration } = await import("./duration-check");
+  for (const seconds of [33.76, 21.589, NaN, Infinity, 0]) assert.throws(() => assertNarrationDuration(30, seconds));
+  assert.doesNotThrow(() => assertNarrationDuration(30, 30));
+});

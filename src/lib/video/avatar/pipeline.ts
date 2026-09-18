@@ -26,6 +26,7 @@ type AvatarRow = {
   consent_given: boolean;
   provider_avatar_id: string | null;
   provider: string;
+  source_photo_path?: string | null;
 };
 
 export class AvatarPipelineError extends Error {
@@ -118,7 +119,7 @@ export async function generateAvatarVideo({
 
   const { data: avatar } = await supabase
     .from("avatars")
-    .select("id, user_id, status, consent_given, provider_avatar_id, provider")
+    .select("id, user_id, status, consent_given, provider_avatar_id, provider, source_photo_path")
     .eq("id", avatarId)
     .maybeSingle<AvatarRow>();
 
@@ -157,7 +158,16 @@ export async function generateAvatarVideo({
   }
 
   // Exigir el avatar creado antes de consumir narración.
-  const providerAvatarId = avatar.provider_avatar_id;
+  let providerAvatarId = avatar.provider_avatar_id;
+  // D-ID accepts a private, short-lived source_url. Do not upload the photo
+  // to D-ID during preparation; sign it only inside an authorized render.
+  if (!providerAvatarId && provider.name === "did" && recordedAudioPath) {
+    const allowed = ["jpeg", "png"].some(ext => avatar.source_photo_path === `${userId}/${requestId}/photo.${ext}`);
+    if (!allowed) throw new AvatarPipelineError("Fotografía privada no asociada a esta solicitud.", "avatar_not_ready");
+    const { data, error } = await supabase.storage.from(RECORDING_BUCKET).createSignedUrl(avatar.source_photo_path!, NARRATION_SIGNED_URL_TTL_SECONDS);
+    if (error || !data) throw new AvatarPipelineError("No se pudo preparar la fotografía privada.", "avatar_not_ready");
+    providerAvatarId = data.signedUrl;
+  }
   if (!providerAvatarId) {
     throw new AvatarPipelineError(
       "El avatar todavía no terminó de crearse en el proveedor — vuelve a intentar cuando su estado sea 'ready'.",
@@ -229,11 +239,11 @@ export async function generateAvatarVideo({
 
     // La narración propia es obligatoria: un fallo no debe activar TTS
     // interno del proveedor ni cambiar la voz o el consumo silenciosamente.
-    const voiceProvider = getVoiceProvider();
+    const voiceProvider = recording ? undefined : getVoiceProvider();
     let audioUrl: string | undefined;
     let audioDurationSeconds: number;
     try {
-      const voiceResult = recording ?? await voiceProvider.synthesize(fullText, language);
+      const voiceResult = recording ?? await voiceProvider!.synthesize(fullText, language);
       audioDurationSeconds = await measureNarrationSeconds(voiceResult.audioBuffer);
       if (audioDurationSeconds > flags.maxAvatarDurationSeconds) {
         throw new AvatarPipelineError("El audio real excede la duración máxima permitida. No se solicitó el avatar.", "duration_exceeded");
