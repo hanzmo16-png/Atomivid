@@ -1,5 +1,9 @@
 # Avatar production — operating agreement (2026-09-18)
 
+> SUPERSEDED by the latest instruction: preparation only, NO credit consumption or
+> generation until expected consumption is reported and explicit approval is obtained.
+> See `PRIVATE_AVATAR_PREPARATION.md`. Worker max duration is now 45 seconds.
+
 The owner authorizes autonomous technical decisions, execution, and use of
 existing provider credits when needed. New monetary charges require explicit
 approval: credit purchases, top-ups, paid overages, subscriptions or renewals.
