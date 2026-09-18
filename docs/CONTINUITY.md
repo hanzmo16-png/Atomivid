@@ -412,3 +412,10 @@ La reserva no se libera automáticamente ni por fallos de narración. Los POST d
 video D-ID/HeyGen no se reintentan; job persistido antes de polling mediante callback.
 Ver docs/AVATAR_REAL_TEST.md para autorización, límites y bloqueos de ejecución.
 Foto privada no incorporada al repositorio. Sin consumo pagado en esta sesión.
+# Latest: private avatar preparation (2026-09-18)
+
+See `PRIVATE_AVATAR_PREPARATION.md` for current implementation and blockers.
+Current user instruction overrides older credit authorization: NO D-ID generation or
+credit consumption until expected consumption is reported and separately authorized.
+Preparation is account-gated; exact owner app login email must be confirmed and set
+in production configuration before it becomes visible. Keep generation disabled.

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getFeatureFlags } from "@/lib/video/feature-flags";
+import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getRenderWorker } from "@/lib/worker";
@@ -24,6 +26,7 @@ export const maxDuration = 300;
 
 type VideoRequestRow = {
   id: string;
+  mode: string;
   user_id: string;
   status: string;
   script_json: GeneratedScript | null;
@@ -66,7 +69,7 @@ export async function POST(
     try {
       const { data, error: fetchError } = await service
         .from("video_requests")
-        .select("id, user_id, status, script_json, render_attempts, render_started_at")
+        .select("id, mode, user_id, status, script_json, render_attempts, render_started_at")
         .eq("id", id)
         .single<VideoRequestRow>();
 
@@ -79,6 +82,9 @@ export async function POST(
     }
     if (videoRequest.user_id !== user.id) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+    if (videoRequest.mode === "avatar" && (!getFeatureFlags().avatarModeEnabled || !canPrepareAvatar(user))) {
+      return NextResponse.json({ error: "La generación de avatar está bloqueada. Primero se requiere revisar el consumo y autorizar la prueba." }, { status: 403 });
     }
     if (!videoRequest.script_json) {
       return NextResponse.json(
