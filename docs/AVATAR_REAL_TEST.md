@@ -1,4 +1,4 @@
-# Prueba con la fotografía del propietario — preparada, NO autorizada para ejecutar
+# Prueba con la fotografía del propietario — ejecución pendiente de acceso y costo
 
 Revisión: 2026-09-18. Ninguna llamada pagada ni contratación en esta fase.
 
@@ -62,8 +62,26 @@ No ejecutar el pipeline pagado actual sin cerrar estos puntos:
 **Actualización 2026-09-18:** el pipeline ahora se detiene ante errores de
 síntesis/subida/firma de narración y verifica jobs existentes antes de volver
 a sintetizar. La duración y costo todavía se estiman por palabras. Eso no garantiza un límite monetario
-real. El mecanismo ejecutable de intento único sigue pendiente: estas condiciones
-son una especificación, no una implementación ya probada.
+real. La reserva persistente de intento único está implementada en la migración 0014
+y el pipeline: requiere aplicar la migración antes de activar el modo.
+No se libera automáticamente ante fallos; el intento necesita revisión.
 
 Los fixtures verifican orquestación, no identidad, calidad o sincronización labial.
 El modo avatar aún no añade subtítulos ni música; el MP4 simulado no prueba eso.
+
+## Avance 2026-09-18 — autorización y protección de consumo
+
+Hans autorizó continuar tomando decisiones técnicas y proporcionó su fotografía.
+Se conserva el límite previo de USD 10 acumulados; no contratar planes ni recargar.
+La foto se validó localmente como JPEG 1536×1536, 336788 bytes. No se copió a git.
+La autorización no confirma una cuenta API, créditos o tarifas de D-ID.
+
+- Migración 0014: reserva duradera antes de sintetizar voz. Los workers concurrentes
+  y los reintentos sin job conocido se bloquean. Si falta la columna, falla sin consumo.
+- D-ID y HeyGen: cero reintentos del POST de creación de video; callback para guardar
+  el job inmediatamente al recibirlo, antes del sondeo o descarga.
+- Un timeout ambiguo queda bloqueado para revisión; no se garantiza recuperación
+  automática del resultado. Los intentos fallidos antes del POST también quedan bloqueados.
+- Pendientes para la prueba real: aplicar 0014, verificar despliegue y credencial D-ID,
+  confirmar costo/créditos, medir duración real del audio antes del POST y recuperar
+  resultados por ID sin regenerarlos. No se ejecutó ningún proveedor pagado.

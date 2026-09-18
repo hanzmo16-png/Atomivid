@@ -42,7 +42,8 @@ type AvatarRow = {
  * suficiente para probar la lógica de generateAvatarVideo() en
  * aislamiento, sin red.
  */
-function makeFakeSupabase(avatarRow: AvatarRow | null) {
+function makeFakeSupabase(avatarRow: AvatarRow | null, claimError = false) {
+  let claimed = false;
   const updates: Record<string, unknown>[] = [];
   const uploads: Array<{ path: string; bytes: number }> = [];
 
@@ -66,8 +67,16 @@ function makeFakeSupabase(avatarRow: AvatarRow | null) {
           update(payload: Record<string, unknown>) {
             updates.push(payload);
             return {
-              async eq() {
-                return { error: null };
+              eq() { return this; },
+              is() { return this; },
+              select() { return this; },
+              async maybeSingle() {
+                if ("avatar_generation_started_at" in payload) {
+                  if (claimError) return { data: null, error: { message: "database unavailable" } };
+                  if (claimed) return { data: null, error: null };
+                  claimed = true;
+                }
+                return { data: { id: "r1" }, error: null };
               },
             };
           },
@@ -317,3 +326,26 @@ test("existing avatar job does not synthesize narration again", async () => {
     }
   });
 });
+
+for (const databaseFailure of [false, true]) {
+  test(`durable claim blocks repeat/concurrent consumption (databaseFailure=${databaseFailure})`, async () => {
+    await withEnv({ AVATAR_MODE_ENABLED: "true", AVATAR_PROVIDER: "fixture" }, async () => {
+      const { fake } = makeFakeSupabase({
+        id: "a1", user_id: "u1", status: "ready", consent_given: true,
+        provider_avatar_id: "fixture-avatar-existing", provider: "fixture",
+      }, databaseFailure);
+      const voice = mock.method(fixtureVoiceProvider, "synthesize", async () => { throw new Error("ambiguous timeout"); });
+      const generate = mock.method(fixtureAvatarProvider, "generateVideo");
+      const run = () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1" });
+      try {
+        const results = await Promise.allSettled([run(), run()]);
+        assert.ok(results.every(r => r.status === "rejected"));
+        await assert.rejects(run, (e: unknown) => e instanceof AvatarPipelineError && e.code === "attempt_blocked");
+        assert.equal(voice.mock.callCount(), databaseFailure ? 0 : 1);
+        assert.equal(generate.mock.callCount(), 0);
+      } finally {
+        voice.mock.restore(); generate.mock.restore();
+      }
+    });
+  });
+}

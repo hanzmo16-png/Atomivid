@@ -302,6 +302,8 @@ export const didAvatarProvider: AvatarVideoProvider = {
       );
     }
 
+    // A creation POST may have been accepted even when its response fails.
+    // Never retry a billable creation automatically.
     const createResponse = await withFiniteRetry(
       () =>
         didFetch("/talks", {
@@ -317,12 +319,14 @@ export const didAvatarProvider: AvatarVideoProvider = {
             config: { result_format: "mp4" },
           }),
         }),
-      2,
+      0,
     );
     const createJson = (await createResponse.json()) as { id?: string };
     if (!createJson.id) {
       throw new AvatarProviderError("D-ID no devolvió id de talk", "did", "invalid_response");
     }
+
+    await request.onJobCreated?.(createJson.id);
 
     const deadline = Date.now() + POLL_TIMEOUT_MS;
     let delay = POLL_INITIAL_DELAY_MS;

@@ -226,6 +226,8 @@ export const heygenAvatarProvider: AvatarVideoProvider = {
       );
     }
 
+    // A creation POST may have been accepted even when its response fails.
+    // Never retry a billable creation automatically.
     const createResponse = await withFiniteRetry(
       () =>
         heygenFetch("/v3/videos", {
@@ -240,12 +242,14 @@ export const heygenAvatarProvider: AvatarVideoProvider = {
             dimension: { width: 1080, height: 1920 },
           }),
         }),
-      2,
+      0,
     );
     const createJson = (await createResponse.json()) as { video_id?: string };
     if (!createJson.video_id) {
       throw new AvatarProviderError("HeyGen no devolvió video_id", "heygen", "invalid_response");
     }
+
+    await request.onJobCreated?.(createJson.video_id);
 
     const deadline = Date.now() + POLL_TIMEOUT_MS;
     let delay = POLL_INITIAL_DELAY_MS;
