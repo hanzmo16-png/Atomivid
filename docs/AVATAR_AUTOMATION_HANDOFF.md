@@ -11,8 +11,9 @@ requirement to ask before every credit-consuming generation.
 
 - Rotated D-ID credential authenticated with HTTP 200 in Actions run
   35379635669, commit 351f88de3df96f099c45840e70c303578ca7bb40.
-- The D-ID adapter accepts an audio URL. The current avatar worker generates
-  that audio through TTS; user-recording upload is NOT connected end to end.
+- The D-ID adapter accepts an audio URL. Private recording upload and worker
+  consumption are now implemented and fixture-tested. Real D-ID generation
+  using that new path is not yet verified.
 - A demo was generated manually in Studio and supplied by the owner.
 - Its display aspect is 9:16 despite encoded dimensions 1920x1920: SAR is
   9:16. It is 42.8 seconds, 25 fps, H.264 with AAC. Do not label it square
@@ -30,12 +31,12 @@ and full decode, then writes an adjacent QA report. Neither technical QA nor
 sampled frames establish perceptual lip-sync quality or exact transcription.
 Do not commit personal assets, reports containing private locations, or videos.
 
-## Remaining remote integration
+## Implemented recording path and remaining activation
 
-1. Add authenticated private recording upload with ownership, size, format,
-   and measured duration validation. Keep credentials on the server.
-2. Persist the selected recording with the request. Explicitly skip TTS when
-   using a recording and never fall back to a synthetic voice on failure.
+1. IMPLEMENTED: authenticated private recording upload, combined 3 MB upload
+   limit, canonical ownership path, audio decoding and measured duration checks.
+2. IMPLEMENTED: request-associated recording, no TTS or script generation
+   for uploaded audio, no synthetic fallback; private audio playback in review.
 3. Produce a no-generation preflight: selected image/audio, duration, display
    ratio, available credits, and proposed consumption. Review the preview
    before generation. Existing credits are authorized; request approval only
@@ -48,6 +49,10 @@ Do not commit personal assets, reports containing private locations, or videos.
 6. Download and perform local QC, reframing, editing and export. Report any
    checks that require actual listening/playback separately.
 
-This integration remains pending; do not describe it as deployed or working.
+Activation and real provider validation remain pending; do not claim the
+new recording flow generated a real video. Migration 0015 was applied in
+Actions run 35384149440 after 25 avatar pipeline tests passed. Production
+AVATAR_MODE_ENABLED was false in the last observed configuration. Worker
+default duration remains 15 seconds and must be aligned before a 42.8 s demo.
 Existing-credit generations are authorized. Additional charges and
 subscriptions still require approval. Necessary login/MFA may require the owner.
