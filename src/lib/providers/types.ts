@@ -359,6 +359,8 @@ export interface AvatarVideoProvider {
   checkAvatarStatus(providerAvatarId: string): Promise<AvatarJobStatus>;
   generateVideo(request: AvatarVideoRequest): Promise<AvatarVideoResult>;
   checkVideoStatus(providerJobId: string): Promise<AvatarJobStatus>;
+  /** Retrieve an existing result using GET only. Never creates a new job. */
+  recoverVideo?(providerJobId: string): Promise<AvatarVideoResult>;
   /** Debe intentar borrar en el proveedor Y reportar honestamente si no se pudo confirmar (ver docs/AVATAR_MODE.md — DELETE no confirmado en fuentes disponibles). */
   deleteAvatar(providerAvatarId: string): Promise<{ deleted: boolean; reason?: string }>;
   /**

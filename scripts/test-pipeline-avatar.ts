@@ -67,6 +67,7 @@ async function main() {
   const updates: Record<string, unknown>[] = [];
 
   function makeFakeSupabase(avatarRow: Record<string, unknown> | null) {
+    let storedJob: string | null = null;
     return {
       from(table: string) {
         if (table === "avatars") {
@@ -78,8 +79,12 @@ async function main() {
         }
         if (table === "video_requests") {
           return {
+            select() { return this; },
+            eq() { return this; },
+            async maybeSingle() { return { data: { avatar_provider_video_job_id: storedJob }, error: null }; },
             update(payload: Record<string, unknown>) {
               updates.push(payload);
+              if (typeof payload.avatar_provider_video_job_id === "string") storedJob = payload.avatar_provider_video_job_id;
               return { eq() { return this; }, is() { return this; }, select() { return this; }, async maybeSingle() { return { data: { id: "test-request" }, error: null }; } };
             },
           };
@@ -154,15 +159,18 @@ async function main() {
   console.log("   Subida registrada:", JSON.stringify(uploads));
   console.log("   Actualización de video_requests:", JSON.stringify(updates));
 
-  // --- Caso 5: idempotencia ----------------------------------------------
-  try {
-    await generateAvatarVideo({ supabase: legit, requestId: "r-legit", userId: "u1", script, avatarId: "a3", existingProviderVideoJobId: "job-anterior-ya-completado" });
-    throw new Error("DEBIÓ detenerse por idempotencia");
-  } catch (err) {
-    if (err instanceof AvatarPipelineError && err.code === "provider_error") {
-      console.log("5) Idempotencia: un job de proveedor ya completado NO se vuelve a generar (nunca cobra dos veces)");
-    } else throw err;
+  // --- Caso 5: recuperar sin volver a generar voz ni reservar otro intento ---
+  const savedJob = updates.find(u => typeof u.avatar_provider_video_job_id === "string")?.avatar_provider_video_job_id;
+  if (typeof savedJob !== "string") throw new Error("No se guardó el job");
+  const voicesBefore = uploads.filter(u => u.path.includes("avatar-narration")).length;
+  const claimsBefore = updates.filter(u => "avatar_generation_started_at" in u).length;
+  const recovered = await generateAvatarVideo({ supabase: legit, requestId: "r-legit", userId: "u1", script, avatarId: "a3", existingProviderVideoJobId: savedJob });
+  if (recovered.videoPath !== result.videoPath ||
+      uploads.filter(u => u.path.includes("avatar-narration")).length !== voicesBefore ||
+      updates.filter(u => "avatar_generation_started_at" in u).length !== claimsBefore) {
+    throw new Error("La recuperación repitió consumo o cambió el destino");
   }
+  console.log("5) Recuperación exitosa del job existente, sin nueva narración ni reserva");
 
   if (outDir) {
     const finalPath = path.join(outDir, result.videoPath.replace(/\//g, "_"));

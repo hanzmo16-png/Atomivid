@@ -1,3 +1,8 @@
+> Actualización 2026-09-18: ya existen reserva persistente (0014), medición de audio
+> y recuperación D-ID por GET sin regeneración. Falta acceso a configuración
+> Vercel y confirmar créditos/tarifa antes de la prueba pagada (límite USD 10).
+> Ninguna foto privada está versionada.
+
 # Prueba con la fotografía del propietario — ejecución pendiente de acceso y costo
 
 Revisión: 2026-09-18. Ninguna llamada pagada ni contratación en esta fase.
