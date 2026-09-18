@@ -15,6 +15,7 @@ type JobRow = {
   mode: string | null;
   avatar_id: string | null;
   avatar_voice_id: string | null;
+  recorded_audio_path: string | null;
   avatar_provider_video_job_id: string | null;
 };
 
@@ -39,7 +40,7 @@ export async function runRenderJob(requestId: string): Promise<void> {
   const { data: row } = await service
     .from("video_requests")
     .select(
-      "status, user_id, script_json, style, topic, language, duration_seconds, mode, avatar_id, avatar_voice_id, avatar_provider_video_job_id",
+      "status, user_id, script_json, style, topic, language, duration_seconds, mode, avatar_id, avatar_voice_id, avatar_provider_video_job_id, recorded_audio_path",
     )
     .eq("id", requestId)
     .single<JobRow>();
@@ -94,6 +95,7 @@ export async function runRenderJob(requestId: string): Promise<void> {
             script: row.script_json,
             avatarId: row.avatar_id as string,
             voiceId: row.avatar_voice_id ?? undefined,
+            recordedAudioPath: row.recorded_audio_path,
             language: row.language ?? undefined,
             existingProviderVideoJobId: row.avatar_provider_video_job_id,
             onProgress,

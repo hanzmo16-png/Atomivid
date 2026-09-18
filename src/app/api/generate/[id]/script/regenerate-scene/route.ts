@@ -16,6 +16,7 @@ export const maxDuration = 60;
 type VideoRequestRow = {
   id: string;
   user_id: string;
+  recorded_audio_path: string | null;
   topic: string;
   style: string;
   status: string;
@@ -51,7 +52,7 @@ export async function POST(
 
     const { data: videoRequest, error } = await service
       .from("video_requests")
-      .select("id, user_id, topic, style, status, script_json")
+      .select("id, user_id, topic, style, status, script_json, recorded_audio_path")
       .eq("id", id)
       .single<VideoRequestRow>();
 
@@ -61,6 +62,7 @@ export async function POST(
     if (videoRequest.user_id !== user.id) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
+    if (videoRequest.recorded_audio_path) return NextResponse.json({ error: "La grabación no requiere regenerar escenas." }, { status: 409 });
     if (videoRequest.status !== "script_ready" || !videoRequest.script_json) {
       return NextResponse.json(
         { error: "El guion no está listo para editar" },

@@ -11,7 +11,7 @@ const PROVISIONAL_VOICES: Record<"es" | "en", { id: string; label: string }[]> =
   en: [{ id: "default-en", label: "Default voice (English) — provisional" }],
 };
 
-const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 // Estimación de referencia — misma tarifa de referencia que
@@ -29,6 +29,8 @@ export function AvatarFields({
   /** Mismo idioma elegido arriba para la narración — el modo avatar no pide uno aparte, ver nota junto al <select> de voz. */
   language: "es" | "en";
 }) {
+  const [narrationSource, setNarrationSource] = useState("tts");
+  const audioInputId = useId();
   const fileInputId = useId();
   const nameId = useId();
   const consentId = useId();
@@ -91,7 +93,7 @@ export function AvatarFields({
 
       {!useExisting && (
         <>
-          <Field id={fileInputId} label="Fotografía" hint="JPEG, PNG o WEBP, hasta 10 MB.">
+          <Field id={fileInputId} label="Fotografía" hint="JPEG, PNG o WEBP. Foto y audio: hasta 3 MB en total.">
             <input
               ref={fileRef}
               id={fileInputId}
@@ -126,7 +128,20 @@ export function AvatarFields({
         </>
       )}
 
-      <Field
+      <Field id="narration-source" label="Narración">
+        <select id="narration-source" name="narration_source" value={narrationSource}
+          onChange={e => setNarrationSource(e.target.value)} className={INPUT_CLASS}>
+          <option value="tts">Generar voz desde el guion</option>
+          <option value="recording">Usar mi grabación</option>
+        </select>
+      </Field>
+      {narrationSource === "recording" && (
+        <Field id={audioInputId} label="Tu grabación" hint="M4A, MP3 o WAV. Foto y audio: máximo 3 MB en total. Se usará el audio completo; la duración elegida arriba no lo recorta.">
+          <input id={audioInputId} name="recorded_audio" type="file" required accept="audio/mp4,audio/x-m4a,audio/mpeg,audio/wav,.m4a,.mp3,.wav" className={INPUT_CLASS} />
+          <p className="mt-2 text-xs text-ink-muted">No se generará otra voz. Revisaremos la duración del archivo antes de solicitar el video.</p>
+        </Field>
+      )}
+      {narrationSource === "tts" && <Field
         id="avatar-voice"
         label="Voz"
         hint="Usa el idioma elegido arriba. Lista provisional — la lista real depende de la cuenta de HeyGen, todavía no verificada."
@@ -146,7 +161,7 @@ export function AvatarFields({
             </option>
           ))}
         </select>
-      </Field>
+      </Field>}
 
       <div className="rounded-md bg-surface-raised p-3 text-xs text-ink-muted">
         <p className="font-medium text-ink">Estimación de consumo</p>
