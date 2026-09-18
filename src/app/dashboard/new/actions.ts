@@ -2,6 +2,7 @@
 
 import { recordingFormat, recordingPath, RECORDING_BUCKET, MAX_AVATAR_FORM_BYTES } from "@/lib/video/avatar/recording";
 import { randomUUID } from "node:crypto";
+import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -55,6 +56,9 @@ export async function createVideoRequest(formData: FormData) {
 
   if (!user) {
     redirect("/login");
+  }
+  if (mode === "avatar" && !canPrepareAvatar(user)) {
+    redirect("/dashboard/new?error=Esta+prueba+privada+no+está+disponible+para+tu+cuenta");
   }
 
   if (mode === "visual") {
