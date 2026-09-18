@@ -34,6 +34,7 @@ export {}; // Fuerza scope de módulo — evita colisionar con `main()` de otros
 
 process.env.AVATAR_MODE_ENABLED = "true";
 process.env.AVATAR_PROVIDER = "fixture";
+process.env.VOICE_PROVIDER = "fixture";
 
 async function main() {
   const fs = await import("node:fs/promises");
@@ -44,7 +45,7 @@ async function main() {
   const rawArgs = process.argv.slice(2);
   const outDirFlagIndex = rawArgs.indexOf("--out-dir");
   const outDir = outDirFlagIndex >= 0 ? rawArgs[outDirFlagIndex + 1] : undefined;
-  const positional = rawArgs.filter((a, i) => a !== "--out-dir" && i !== outDirFlagIndex + 1);
+  const positional = rawArgs.filter((a, i) => a !== "--out-dir" && (outDirFlagIndex < 0 || i !== outDirFlagIndex + 1));
 
   const photoPath = positional[0] || path.join(process.cwd(), "scripts", "test-avatar-photo.jpg");
   let photoBuffer: Buffer;
@@ -166,27 +167,9 @@ async function main() {
   if (outDir) {
     const finalPath = path.join(outDir, result.videoPath.replace(/\//g, "_"));
     console.log(`\n6) Video final escrito en disco para inspección: ${finalPath}`);
-    const { execFile } = await import("node:child_process");
-    const { promisify } = await import("node:util");
-    const execFileAsync = promisify(execFile);
-    try {
-      const { stdout } = await execFileAsync("ffprobe", [
-        "-v", "error",
-        "-show_entries", "stream=codec_type,codec_name,width,height,duration",
-        "-show_entries", "format=duration",
-        "-of", "json",
-        finalPath,
-      ]);
-      console.log("   ffprobe (audio presente / duración / formato vertical):", stdout.trim());
-      console.log(
-        "   NOTA: el video de origen es el fixture SIMULADO (patrón de prueba, sin rostro real ni de " +
-          "stock) — esto verifica la ORQUESTACIÓN del pipeline, no la calidad ni el lip-sync de un " +
-          "proveedor real. El modo avatar no superpone subtítulos propios (ver limitación en el " +
-          "encabezado de este script).",
-      );
-    } catch (err) {
-      console.warn("   No se pudo ejecutar ffprobe sobre el resultado (¿falta ffmpeg en PATH?):", err);
-    }
+    const { verifyVideoEvidence } = await import("./lib/verify-video-evidence");
+    await verifyVideoEvidence(finalPath);
+    console.log("Fixture SIMULADO: no valida calidad ni sincronización labial real.");
   }
 
   console.log("\nTODOS LOS CASOS PASARON — cero llamadas reales, cero costo (fixture, costUsd=0).");

@@ -4,6 +4,33 @@ Documento vivo: qué está comprobado (no solo implementado), qué falta, y
 cuál es el siguiente paso de mayor impacto. Actualizar en cada sesión
 significativa en vez de crear un documento nuevo.
 
+## Actualización Codex — 2026-09-18
+
+- Acceso al repositorio confirmado; punto de partida PR #1, `5d323cc`.
+- Nuevo workflow `.github/workflows/e2e-fixture-evidence.yml`: ejecuta avatar
+  y mezcla con fixtures, sin secrets, verifica decodificación/audio/9:16 y
+  publica artifacts durante 14 días. Se activa al actualizar código del PR.
+- Eliminada ruta de Chromium propia del entorno de Claude; Remotion obtiene
+  su navegador en CI. El sandbox local no pudo descargarlo (timeout del proxy),
+  por lo que el render visual de esta revisión debe verificarse en GitHub.
+- Corregidos tests: voz fixture explícita; argumento posicional de foto sin
+  `--out-dir`; presencia de stock comprobada por archivos subidos; ffprobe
+  ahora falla la prueba si el video no es válido y ffmpeg decodifica el archivo.
+- Validación local: 442/442 unitarias, TypeScript y ESLint correctos. Avatar E2E
+  ejecutado: 720x1280, audio presente, 6.014 s, decodificación completa exitosa.
+- `docs/AVATAR_MODE.md` actualizado; `docs/AVATAR_REAL_TEST.md` detalla foto,
+  carga privada y fuentes oficiales. Precio exacto y cuenta D-ID sin confirmar.
+- GitHub sí devuelve un check Vercel exitoso para el commit BASE `48c8b496`:
+  https://vercel.com/atomivid/atomivid/CJ8pmi4AENqMMVbUnven5r6Y9pkN
+  Esto no identifica de forma concluyente el commit del dominio de producción.
+- La prueba REAL sigue sin ejecutar y debe usar la foto de Hans. El mecanismo
+  pagado de intento único aún requiere implementación: hay fallback a TTS interno
+  y duración estimada por palabras; no equivalen a un tope monetario garantizado.
+- No reaplicadas migraciones, ni fusionado PR, ni contratado servicios.
+
+La sección de traspaso anterior se conserva como historial; para los pendientes
+actuales prevalece esta actualización y el resultado del workflow del nuevo commit.
+
 ## 0. Traspaso — léeme primero si continúas este trabajo (2026-09-18)
 
 **Rama de trabajo**: `claude/e2e-verification-scripts` (PR #1 hacia

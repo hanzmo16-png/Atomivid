@@ -38,10 +38,6 @@ process.env.IMAGE_PROVIDER = "fixture";
 process.env.VISUAL_DIRECTOR_ENABLED = "true";
 process.env.OPENAI_IMAGE_GENERATION_ENABLED = "true";
 process.env.STORYBOARD_SIMULATE_FORCE_GENERATED_IMAGE_SCENE_INDEX = "0";
-process.env.REMOTION_BROWSER_EXECUTABLE =
-  process.env.REMOTION_BROWSER_EXECUTABLE ||
-  "/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell";
-process.env.REMOTION_CHROME_MODE = process.env.REMOTION_CHROME_MODE || "headless-shell";
 
 async function main() {
   const rawArgs = process.argv.slice(2);
@@ -127,7 +123,7 @@ async function main() {
   const originalLog = console.log;
   console.log = (...args: unknown[]) => {
     const line = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
-    if (line.includes("[atomivid:visual]") || line.includes("[atomivid:storyboard]")) visualLog.push(line);
+    if (line.includes("[atomivid:visual]") || line.includes("[atomivid:storyboard]") || line.includes("[atomivid:visual-plan]")) visualLog.push(line);
     originalLog(...args);
   };
 
@@ -147,11 +143,11 @@ async function main() {
   console.log(`Video generado en ${elapsed}s: ${videoPath}`);
 
   const usedGeneratedImage = visualLog.some((l) => l.includes('"status":"generated"') || l.includes('"status":"reused"'));
-  const usedStock = visualLog.length > 0; // el propio log confirma al menos una decisión visual real evaluada
+  const usedStock = Array.from(uploadedPaths).some((p) => /\/scene-\d+-\d+\./.test(p)); // subida efectiva de footage, no mera existencia de un log
   console.log("\nEvidencia de la mezcla (líneas [atomivid:visual]/[atomivid:storyboard] capturadas):");
   for (const l of visualLog) console.log("  " + l);
 
-  if (!usedGeneratedImage) {
+  if (!usedGeneratedImage || !usedStock) {
     throw new Error(
       "La escena forzada NO usó el proveedor de imagen generada — revisa STORYBOARD_SIMULATE_FORCE_GENERATED_IMAGE_SCENE_INDEX, " +
         "VISUAL_DIRECTOR_ENABLED y OPENAI_IMAGE_GENERATION_ENABLED.",
@@ -169,21 +165,9 @@ async function main() {
   console.log(`Copiado a: ${outPath}`);
 
   if (outDir) {
-    const { execFile } = await import("node:child_process");
-    const { promisify } = await import("node:util");
-    const execFileAsync = promisify(execFile);
-    try {
-      const { stdout } = await execFileAsync("ffprobe", [
-        "-v", "error",
-        "-show_entries", "stream=codec_type,codec_name,width,height,duration",
-        "-show_entries", "format=duration",
-        "-of", "json",
-        outPath,
-      ]);
-      console.log("ffprobe (formato vertical / audio / duración):", stdout.trim());
-    } catch (err) {
-      console.warn("No se pudo ejecutar ffprobe sobre el resultado:", err);
-    }
+    const { verifyVideoEvidence } = await import("./lib/verify-video-evidence");
+    await verifyVideoEvidence(outPath);
+    await fs.writeFile(path.join(outDir, "visual-decisions.log"), visualLog.join("\n"));
   }
 
   server.close();
