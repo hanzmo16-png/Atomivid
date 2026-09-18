@@ -318,6 +318,8 @@ export type AvatarCreationResult = {
 };
 
 export type AvatarVideoRequest = {
+  /** Persist the accepted job before polling or downloading; failure stops this attempt. */
+  onJobCreated?: (providerJobId: string) => Promise<void>;
   providerAvatarId: string;
   /** Guion completo a narrar — HeyGen v3 limita esto a 5000 caracteres (ver docs/AVATAR_MODE.md). */
   script: string;
