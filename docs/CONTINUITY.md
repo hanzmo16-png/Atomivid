@@ -4,6 +4,27 @@ Documento vivo: qué está comprobado (no solo implementado), qué falta, y
 cuál es el siguiente paso de mayor impacto. Actualizar en cada sesión
 significativa en vez de crear un documento nuevo.
 
+## Continuación nocturna — recuperación de avatar (2026-09-18)
+
+- Recuperación implementada para D-ID: GET del ID existente y descarga,
+  sin POST nuevo, síntesis de voz ni nueva reserva. Fixture equivalente.
+- Antes de recuperar se comprueba la relación solicitud/usuario/avatar/job
+  en base de datos. Proveedor configurado, resuelto y del avatar deben coincidir;
+  un fallback accidental a fixture queda bloqueado.
+- Un resultado pendiente, fallido, vacío o sin URL HTTPS detiene la recuperación.
+  Un error no dispara generación. Se conserva el job para otro intento de descarga.
+- Recuperación conserva los registros de costo existentes; no los reemplaza con
+  cero. Si el intento original falló antes de registrar costos, sigue pendiente
+  reconciliar ese consumo con el proveedor (no se inventa un importe).
+- 464 pruebas unitarias aprobadas, TypeScript, ESLint y build de producción.
+  E2E local de generación y recuperación: MP4 válido, 720x1280, audio AAC,
+  decodificación completa; proveedores simulados, costo cero.
+  Pruebas nuevas cubren recuperación y rechazo, GET sin POST y coincidencia de
+  proveedor. CI completo se verifica en el PR de esta continuación.
+- Vercel requiere inicio de sesión en el navegador de esta sesión; no fue posible
+  revisar sus variables ni activar el modo avatar. Sigue pendiente confirmar
+  créditos/tarifa D-ID y realizar la prueba real privada. No hubo consumo pagado.
+
 ## Actualización — acceso D-ID y preparación de prueba
 
 D-ID autenticó HTTP 200 en run 35302350933, segundo intento, job
