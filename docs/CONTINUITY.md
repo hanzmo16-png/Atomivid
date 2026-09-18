@@ -4,6 +4,28 @@ Documento vivo: qué está comprobado (no solo implementado), qué falta, y
 cuál es el siguiente paso de mayor impacto. Actualizar en cada sesión
 significativa en vez de crear un documento nuevo.
 
+## Grabación propia — implementación 2026-09-18
+
+- Formulario con audio privado M4A/MP3/WAV (foto + audio hasta 3 MB).
+- Las solicitudes con grabación pasan directo a revisión, sin generar guion.
+- El worker comprueba propiedad, asociación, formato, decodificación y duración
+  antes de reservar el intento. No sintetiza otra voz ni activa fallback.
+- Reproducción privada del audio en revisión; bloqueada regeneración de guion.
+- PR #4 publicado. E2E simulado completo aprobado en run 35384153639,
+  head 2b46fd86ef29573b927387191b92e38835434382. Preview Vercel exitoso.
+- Fusión intentada y rechazada por revisión automática: exige autorización
+  explícita para fusionar PR #4 y sus posibles efectos de despliegue.
+  No se fusionó ni desplegó este cambio en producción.
+- Migración 0015 aplicada en run 35384149440, después de 25 pruebas de
+  avatar aprobadas en GitHub. Ninguna migración previa fue reaplicada.
+- Pruebas locales: 470 generales aprobadas, más regresión Samsung 3gp4.
+  TypeScript, ESLint de archivos modificados y build de producción aprobados.
+  Grabación real de 42.794 s leída/decodificada localmente, sin proveedor.
+- Generación remota con grabación aún NO verificada; modo avatar sigue apagado
+  en la última configuración conocida de producción. No presentar como activo.
+- El propietario autoriza créditos existentes. Compras, suscripciones, cargos
+  adicionales y renovaciones requieren autorización de importe concreto.
+
 ## Continuación nocturna — recuperación de avatar (2026-09-18)
 
 - Recuperación implementada para D-ID: GET del ID existente y descarga,

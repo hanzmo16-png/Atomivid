@@ -1,0 +1,32 @@
+name: D-ID read-only access verification
+on:
+  push:
+    branches: [codex/avatar-recovery]
+    paths: [.github/workflows/did-readonly-access.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Verify stored credential without generation
+        env:
+          DID_API_KEY: ${{ secrets.DID_API_KEY }}
+        run: |
+          node --input-type=module <<'JS'
+          const key = process.env.DID_API_KEY?.trim();
+          if (!key) { console.log("DID_ACCESS=missing_key"); process.exit(1); }
+          try {
+            const response = await fetch("https://api.d-id.com/credits", {
+              headers: { Authorization: "Basic " + Buffer.from(key).toString("base64") },
+              redirect: "error", signal: AbortSignal.timeout(20000)
+            });
+            console.log("DID_HTTP_STATUS=" + response.status);
+            await response.body?.cancel();
+            if (!response.ok) process.exitCode = 1;
+          } catch {
+            console.log("DID_ACCESS=connection_failed"); process.exitCode = 1;
+          }
+          JS

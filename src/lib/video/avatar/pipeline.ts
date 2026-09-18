@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { isOwnedRecordingPath, recordingFormat, RECORDING_BUCKET, MAX_RECORDING_BYTES } from "./recording";
 import { measureNarrationSeconds } from "./measure-narration";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
@@ -95,6 +96,7 @@ export async function generateAvatarVideo({
   voiceId,
   language = "es",
   existingProviderVideoJobId,
+  recordedAudioPath,
   onProgress,
 }: {
   supabase: SupabaseClient;
@@ -103,6 +105,7 @@ export async function generateAvatarVideo({
   script: GeneratedScript;
   avatarId: string;
   voiceId?: string;
+  recordedAudioPath?: string | null;
   language?: ScriptLanguage;
   /** Job del proveedor ya creado en un intento anterior (idempotencia) — ver comentario de arriba. */
   existingProviderVideoJobId?: string | null;
@@ -146,7 +149,7 @@ export async function generateAvatarVideo({
   // estimación (palabras/2.5s) que ya usa cada proveedor para el costo,
   // para no gastar ni un segundo de proveedor en un guion desproporcionado.
   const estimatedNarrationSeconds = Math.max(1, fullText.split(/\s+/).filter(Boolean).length / 2.5);
-  if (estimatedNarrationSeconds > flags.maxAvatarDurationSeconds) {
+  if (!recordedAudioPath && estimatedNarrationSeconds > flags.maxAvatarDurationSeconds) {
     throw new AvatarPipelineError(
       `La narración estimada (${estimatedNarrationSeconds.toFixed(1)}s) excede el máximo permitido (MAX_AVATAR_DURATION_SECONDS=${flags.maxAvatarDurationSeconds}s).`,
       "duration_exceeded",
@@ -184,6 +187,25 @@ export async function generateAvatarVideo({
       throw new AvatarPipelineError("No se pudo recuperar el video existente. No se generó otro intento.", "provider_error");
     }
   } else {
+    // Validate private recording before reserving or consuming any provider.
+    let recording: { audioBuffer: Buffer; extension: string; mimeType: string } | undefined;
+    if (recordedAudioPath) {
+      try {
+        if (!["did", "fixture"].includes(provider.name) || !isOwnedRecordingPath(recordedAudioPath, userId, requestId)) throw new Error("Invalid recording association");
+        const { data: request, error } = await supabase.from("video_requests")
+          .select("recorded_audio_path").eq("id", requestId).eq("user_id", userId).eq("avatar_id", avatarId).maybeSingle();
+        if (error || request?.recorded_audio_path !== recordedAudioPath) throw new Error("Recording not associated");
+        const { data, error: downloadError } = await supabase.storage.from(RECORDING_BUCKET).download(recordedAudioPath);
+        if (downloadError || !data || data.size > MAX_RECORDING_BYTES) throw new Error("Recording unavailable");
+        const audioBuffer = Buffer.from(await data.arrayBuffer());
+        recording = { audioBuffer, ...recordingFormat(audioBuffer) };
+        const seconds = await measureNarrationSeconds(audioBuffer);
+        if (seconds > flags.maxAvatarDurationSeconds) throw new AvatarPipelineError("La grabación excede la duración máxima. No se consumieron créditos.", "duration_exceeded");
+      } catch (err) {
+        if (err instanceof AvatarPipelineError) throw err;
+        throw new AvatarPipelineError("No se pudo validar la grabación privada. No se generó otra voz ni se solicitó el avatar.", "narration_failed");
+      }
+    }
     // Durable compare-and-set: only one worker may consume providers for this
     // request, including after crashes/timeouts. Never clear this automatically.
     // Missing migration or database error fails closed before voice consumption.
@@ -211,7 +233,7 @@ export async function generateAvatarVideo({
     let audioUrl: string | undefined;
     let audioDurationSeconds: number;
     try {
-      const voiceResult = await voiceProvider.synthesize(fullText, language);
+      const voiceResult = recording ?? await voiceProvider.synthesize(fullText, language);
       audioDurationSeconds = await measureNarrationSeconds(voiceResult.audioBuffer);
       if (audioDurationSeconds > flags.maxAvatarDurationSeconds) {
         throw new AvatarPipelineError("El audio real excede la duración máxima permitida. No se solicitó el avatar.", "duration_exceeded");
@@ -247,7 +269,7 @@ export async function generateAvatarVideo({
         script: fullText,
         audioUrl,
         audioDurationSeconds,
-        voiceId,
+        voiceId: recordedAudioPath ? undefined : voiceId,
         language,
         maxCostUsd: flags.maxAvatarCostUsd,
         onJobCreated: async (providerJobId) => {
@@ -317,8 +339,8 @@ export async function generateAvatarVideo({
   }
 
   if (!existingProviderVideoJobId) await recordVideoGeneration(supabase, requestId, {
-    voiceProvider: provider.name,
-    voiceCharacters: fullText.length,
+    voiceProvider: recordedAudioPath ? "uploaded" : getVoiceProvider().name,
+    voiceCharacters: recordedAudioPath ? 0 : fullText.length,
     footageProvider: "none",
     footageCount: 0,
     musicProvider: "none",

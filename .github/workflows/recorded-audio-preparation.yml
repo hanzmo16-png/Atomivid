@@ -1,0 +1,38 @@
+# Prepare schema before merging the application changes; no provider credentials are used.
+name: Recorded audio preparation (0015)
+on:
+  push:
+    branches: [codex/recorded-audio]
+    paths:
+      - supabase/migrations/0015_avatar_recorded_audio.sql
+      - .github/workflows/recorded-audio-preparation.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: recorded-audio-preparation
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install audio inspection tools
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Verify recording pipeline without paid providers
+        run: node --import tsx --test src/lib/video/avatar/pipeline.test.ts
+      - name: Apply only additive recording migration
+        run: node --import tsx scripts/apply-supabase-migration.ts 0015_avatar_recorded_audio.sql
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+          SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
