@@ -147,7 +147,7 @@ Da, para cada escena:
 - "energy": "low"/"medium"/"high" según el ritmo narrativo de esa escena.
 - "emphasisWords": 1-3 palabras EXACTAS de "text" (mismo idioma de la narración) que merecen destacarse visualmente.
 
-La suma de las palabras de todos los "text" debe acercarse a ${targetWords} palabras.`,
+La suma de las palabras de todos los "text" debe quedar entre ${Math.ceil(targetWords * 0.9)} y ${Math.floor(targetWords * 1.1)} palabras, con objetivo ${targetWords}. Cuenta las palabras antes de devolver el guion.`,
       },
     ],
     output_config: {

@@ -18,7 +18,7 @@ function goodScript() {
 test("checkScriptQuality rechaza el proveedor de respaldo (fixture) aunque el texto sea válido", () => {
   const result = checkScriptQuality(goodScript(), {
     topic: TOPIC,
-    targetWords: 40,
+    targetWords: 32,
     providerName: "fixture",
   });
   assert.equal(result.ok, false);
@@ -28,7 +28,7 @@ test("checkScriptQuality rechaza el proveedor de respaldo (fixture) aunque el te
 test("checkScriptQuality acepta un guion real con proveedor anthropic, variado y sin repetición", () => {
   const result = checkScriptQuality(goodScript(), {
     topic: TOPIC,
-    targetWords: 40,
+    targetWords: 32,
     providerName: "anthropic",
   });
   assert.deepEqual(result, { ok: true });
@@ -46,7 +46,7 @@ test("checkScriptQuality: regresión exacta — repetición literal de la misma 
       { text: `Esto es lo que nadie te cuenta sobre ${TOPIC}.`, visualQuery: `${TOPIC} motivation 2` },
     ],
   };
-  const result = checkScriptQuality(script, { topic: TOPIC, targetWords: 40, providerName: "anthropic" });
+  const result = checkScriptQuality(script, { topic: TOPIC, targetWords: 32, providerName: "anthropic" });
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.issue, "excessive_repetition");
 });
