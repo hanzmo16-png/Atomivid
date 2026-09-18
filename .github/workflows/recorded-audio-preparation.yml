@@ -23,6 +23,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Install audio inspection tools
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Verify recording pipeline without paid providers
         run: node --import tsx --test src/lib/video/avatar/pipeline.test.ts
       - name: Apply only additive recording migration
