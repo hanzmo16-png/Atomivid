@@ -36,12 +36,17 @@ Before one real generation: report expected consumption and obtain explicit appr
 - TypeScript, changed-file ESLint and production build passed locally.
 - No live upload, authenticated UI test or paid generation performed.
 
-## Remaining before owner can see the feature
+## Owner configuration — 2026-09-18
 
-Obtain exact app login email from owner (not password) and set server-only production
-AVATAR_PREPARATION_OWNER_EMAIL; redeploy. Identity is absent from recovered history.
-Until then preparation remains hidden for all accounts. Verify owner UI and another
-account's denial. Keep personal email in deployment configuration, never repository.
+Owner supplied the exact app login email in chat. Configured it as a server-only
+Production secret AVATAR_PREPARATION_OWNER_EMAIL in Vercel; no personal email is
+stored in this repository. Production redeployment requested with the new setting.
+Implementation merged in PR #5, ce921c4360afdf74e6e3cc1cfbe5a6105bd28797.
+Generation flags remain disabled; no provider calls or credit consumption.
+Authenticated owner UI/upload verification remains pending because the browser app
+session is logged out. Owner should refresh Crear video, choose Video con avatar,
+select personal photo and full recording, then Guardar preparación. Other accounts
+are denied by the server authorization check (unit-tested).
 
 ## After files are prepared
 
