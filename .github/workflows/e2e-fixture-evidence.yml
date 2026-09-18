@@ -1,0 +1,57 @@
+name: E2E fixture evidence (no paid providers)
+
+on:
+  pull_request:
+    branches: [claude/atomivid-mvp-setup-0079jv]
+    paths:
+      - 'scripts/**'
+      - 'src/lib/**'
+      - 'remotion/**'
+      - 'package*.json'
+      - '.github/workflows/e2e-fixture-evidence.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fixture-evidence-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SCRIPT_PROVIDER: fixture
+      VOICE_PROVIDER: fixture
+      FOOTAGE_PROVIDER: fixture
+      MUSIC_PROVIDER: fixture
+      IMAGE_PROVIDER: fixture
+      AVATAR_PROVIDER: fixture
+      PREMIUM_CLIPS_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: npx remotion browser ensure
+      - name: Prepare synthetic test image (no personal photo)
+        run: |
+          mkdir -p evidence/avatar evidence/visual-mix
+          ffmpeg -v error -f lavfi -i testsrc=size=800x800:rate=1 -frames:v 1 -q:v 2 /tmp/avatar-test.jpg
+          printf 'SIMULATED FIXTURES ONLY. No real face, lip-sync validation or paid provider calls.\nCommit: %s\n' "$GITHUB_SHA" > evidence/README.txt
+      - name: Render avatar fixture and validate MP4
+        run: npx tsx scripts/test-pipeline-avatar.ts /tmp/avatar-test.jpg --out-dir evidence/avatar
+      - name: Render generated-image and stock fixtures and validate MP4
+        run: npx tsx scripts/test-pipeline-visual-mix.ts --out-dir evidence/visual-mix
+      - name: Publish verified simulated videos
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulated-video-evidence-${{ github.run_id }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 14
