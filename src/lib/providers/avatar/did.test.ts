@@ -267,6 +267,37 @@ test("processWebhookPayload devuelve null (nunca lanza) ante un payload malforma
   assert.equal(didAvatarProvider.processWebhookPayload({ id: "talk-abc", status: "algo-inventado" }), null);
 });
 
+for (const scenario of ["done", "started", "error", "missing_url", "empty", "download_error"] as const) {
+  test(`recoverVideo ${scenario}: GET only, never resubmits`, async () => {
+    await withEnv({ DID_API_KEY: "test-key" }, async () => {
+      const originalFetch = global.fetch;
+      const calls: string[] = [];
+      global.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+        assert.equal(init?.method ?? "GET", "GET");
+        calls.push(String(url));
+        if (String(url).includes("/talks/")) {
+          return jsonResponse({
+            status: ["started", "error"].includes(scenario) ? scenario : "done",
+            result_url: scenario === "missing_url" ? undefined : "https://example.test/video.mp4",
+          });
+        }
+        return new Response(scenario === "empty" ? "" : "video-bytes", { status: scenario === "download_error" ? 403 : 200 });
+      }) as typeof fetch;
+      try {
+        if (scenario === "done") {
+          const result = await didAvatarProvider.recoverVideo!("talk-existing");
+          assert.equal(result.providerJobId, "talk-existing");
+          assert.equal(result.buffer.toString(), "video-bytes");
+          assert.equal(calls.length, 2);
+        } else {
+          await assert.rejects(() => didAvatarProvider.recoverVideo!("talk-existing"), AvatarProviderError);
+        }
+        assert.ok(calls[0].endsWith("/talks/talk-existing"));
+      } finally { global.fetch = originalFetch; }
+    });
+  });
+}
+
 // ÚLTIMA prueba del archivo a propósito: el circuit breaker es un
 // singleton de módulo compartido entre pruebas — abrirlo aquí no debe
 // contaminar ninguna prueba anterior. Usa checkVideoStatus() (no

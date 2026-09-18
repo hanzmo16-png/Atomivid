@@ -42,7 +42,7 @@ type AvatarRow = {
  * suficiente para probar la lógica de generateAvatarVideo() en
  * aislamiento, sin red.
  */
-function makeFakeSupabase(avatarRow: AvatarRow | null, claimError = false) {
+function makeFakeSupabase(avatarRow: AvatarRow | null, claimError = false, existingJob: string | null = null) {
   let claimed = false;
   const updates: Record<string, unknown>[] = [];
   const uploads: Array<{ path: string; bytes: number }> = [];
@@ -64,6 +64,9 @@ function makeFakeSupabase(avatarRow: AvatarRow | null, claimError = false) {
       }
       if (table === "video_requests") {
         return {
+          select() { return this; },
+          eq() { return this; },
+          async maybeSingle() { return { data: { avatar_provider_video_job_id: existingJob }, error: null }; },
           update(payload: Record<string, unknown>) {
             updates.push(payload);
             return {
@@ -244,35 +247,6 @@ test("ciclo completo exitoso con el proveedor fixture: registra el job id y sube
   });
 });
 
-test("idempotencia: con un providerVideoJobId ya completado no se vuelve a llamar generateVideo (nunca cobra dos veces)", async () => {
-  await withEnv({ AVATAR_MODE_ENABLED: "true" }, async () => {
-    const { fake } = makeFakeSupabase({
-      id: "a1",
-      user_id: "u1",
-      status: "ready",
-      consent_given: true,
-      provider_avatar_id: "fixture-avatar-existing",
-      provider: "fixture",
-    });
-
-    // El fixture SIEMPRE devuelve "completed" en checkVideoStatus — el
-    // camino de idempotencia debe detenerse ahí, sin volver a generar.
-    await assert.rejects(
-      () =>
-        generateAvatarVideo({
-          supabase: fake,
-          requestId: "r1",
-          userId: "u1",
-          script: makeScript(),
-          avatarId: "a1",
-          existingProviderVideoJobId: "job-anterior",
-        }),
-      (err: unknown) => err instanceof AvatarPipelineError && err.code === "provider_error",
-    );
-  });
-});
-
-
 for (const failure of ["synthesis", "upload", "sign"] as const) {
   test(`narration ${failure} failure never calls avatar provider or leaks private details`, async () => {
     await withEnv({ AVATAR_MODE_ENABLED: "true", AVATAR_PROVIDER: "fixture" }, async () => {
@@ -306,26 +280,6 @@ for (const failure of ["synthesis", "upload", "sign"] as const) {
     });
   });
 }
-
-test("existing avatar job does not synthesize narration again", async () => {
-  await withEnv({ AVATAR_MODE_ENABLED: "true", AVATAR_PROVIDER: "fixture" }, async () => {
-    const { fake, uploads } = makeFakeSupabase({
-      id: "a1", user_id: "u1", status: "ready", consent_given: true,
-      provider_avatar_id: "fixture-avatar-existing", provider: "fixture",
-    });
-    const synthesize = mock.method(fixtureVoiceProvider, "synthesize", async () => { throw new Error("must not synthesize"); });
-    try {
-      await assert.rejects(
-        () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1", existingProviderVideoJobId: "existing" }),
-        (err: unknown) => err instanceof AvatarPipelineError && err.code === "provider_error",
-      );
-      assert.equal(synthesize.mock.callCount(), 0);
-      assert.equal(uploads.length, 0);
-    } finally {
-      synthesize.mock.restore();
-    }
-  });
-});
 
 for (const databaseFailure of [false, true]) {
   test(`durable claim blocks repeat/concurrent consumption (databaseFailure=${databaseFailure})`, async () => {
@@ -370,3 +324,44 @@ for (const invalid of [false, true]) {
     });
   });
 }
+
+for (const storedJob of ["existing", "different", null]) {
+  test(`recovery uses only the job owned by this request (stored=${storedJob})`, async () => {
+    await withEnv({ AVATAR_MODE_ENABLED: "true", AVATAR_PROVIDER: "fixture" }, async () => {
+      const { fake, uploads, updates } = makeFakeSupabase({
+        id: "a1", user_id: "u1", status: "ready", consent_given: true,
+        provider_avatar_id: "fixture-avatar-existing", provider: "fixture",
+      }, false, storedJob);
+      const synthesize = mock.method(fixtureVoiceProvider, "synthesize", async () => { throw new Error("must not synthesize"); });
+      const generate = mock.method(fixtureAvatarProvider, "generateVideo", async () => { throw new Error("must not generate"); });
+      try {
+        const run = () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1", existingProviderVideoJobId: "existing" });
+        if (storedJob === "existing") {
+          assert.equal((await run()).videoPath, "r1/final.mp4");
+          assert.ok(uploads.some(u => u.path === "r1/final.mp4"));
+        } else {
+          await assert.rejects(run, (err: unknown) => err instanceof AvatarPipelineError && err.code === "attempt_blocked");
+          assert.equal(uploads.length, 0);
+        }
+        assert.equal(synthesize.mock.callCount(), 0);
+        assert.equal(generate.mock.callCount(), 0);
+        assert.ok(!updates.some(u => "avatar_generation_started_at" in u));
+      } finally { synthesize.mock.restore(); generate.mock.restore(); }
+    });
+  });
+}
+
+test("provider mismatch blocks before voice or generation", async () => {
+  await withEnv({ AVATAR_MODE_ENABLED: "true", AVATAR_PROVIDER: "fixture" }, async () => {
+    const { fake, uploads, updates } = makeFakeSupabase({
+      id: "a1", user_id: "u1", status: "ready", consent_given: true,
+      provider_avatar_id: "did-avatar", provider: "did",
+    });
+    await assert.rejects(
+      () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1" }),
+      (err: unknown) => err instanceof AvatarPipelineError && err.code === "provider_unavailable",
+    );
+    assert.equal(uploads.length, 0);
+    assert.equal(updates.length, 0);
+  });
+});

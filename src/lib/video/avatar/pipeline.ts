@@ -135,7 +135,7 @@ export async function generateAvatarVideo({
   }
 
   const provider = getAvatarProvider();
-  if (!provider.isAvailable()) {
+  if (!provider.isAvailable() || provider.name !== flags.avatarProvider || provider.name !== avatar.provider) {
     throw new AvatarPipelineError(`El proveedor de avatar "${provider.name}" no está disponible (¿falta la clave?).`, "provider_unavailable");
   }
 
@@ -162,118 +162,116 @@ export async function generateAvatarVideo({
     );
   }
 
+  let storageBytes = 0;
+  const renderStartedAt = Date.now();
+  let asset: Awaited<ReturnType<typeof provider.generateVideo>>;
+
   if (existingProviderVideoJobId) {
-    // Idempotencia: ya se pidió un video en un intento anterior — se
-    // consulta su estado en vez de gastar otra vez.
-    const status = await provider.checkVideoStatus(existingProviderVideoJobId);
-    if (status !== "completed") {
+    // Verify the stored request association before downloading an existing job.
+    const { data: previous, error } = await supabase.from("video_requests")
+      .select("avatar_provider_video_job_id")
+      .eq("id", requestId).eq("user_id", userId).eq("avatar_id", avatarId).maybeSingle();
+    if (error || previous?.avatar_provider_video_job_id !== existingProviderVideoJobId) {
+      throw new AvatarPipelineError("El intento no coincide con la solicitud del usuario.", "attempt_blocked");
+    }
+    if (!provider.recoverVideo) {
+      throw new AvatarPipelineError("Este proveedor aún no permite recuperar el resultado existente.", "provider_error");
+    }
+    await onProgress?.("render");
+    try {
+      asset = await provider.recoverVideo(existingProviderVideoJobId);
+    } catch {
+      throw new AvatarPipelineError("No se pudo recuperar el video existente. No se generó otro intento.", "provider_error");
+    }
+  } else {
+    // Durable compare-and-set: only one worker may consume providers for this
+    // request, including after crashes/timeouts. Never clear this automatically.
+    // Missing migration or database error fails closed before voice consumption.
+    const { data: claimed, error: claimError } = await supabase
+      .from("video_requests")
+      .update({ avatar_generation_started_at: new Date().toISOString() })
+      .eq("id", requestId)
+      .eq("user_id", userId)
+      .is("avatar_generation_started_at", null)
+      .is("avatar_provider_video_job_id", null)
+      .select("id")
+      .maybeSingle();
+    if (claimError || !claimed) {
       throw new AvatarPipelineError(
-        `El video anterior (job ${existingProviderVideoJobId}) sigue en estado "${status}" — no se solicita uno nuevo para evitar cobrar dos veces.`,
-        "provider_error",
+        "No se pudo reservar un intento único. Revisa el intento anterior antes de volver a generar.",
+        "attempt_blocked",
       );
     }
-    // El proveedor no expone "recuperar el resultado ya completado" de
-    // forma separada en esta interfaz — si llega aquí es porque ya se
-    // procesó (rama no alcanzable en el fixture/heygen actuales, dejada
-    // explícita para el siguiente proveedor que sí lo permita).
-    throw new AvatarPipelineError(
-      "El video ya se completó en un intento anterior pero no se pudo recuperar su resultado — revisa manualmente antes de reintentar.",
-      "provider_error",
-    );
-  }
 
-  // Durable compare-and-set: only one worker may consume providers for this
-  // request, including after crashes/timeouts. Never clear this automatically.
-  // Missing migration or database error fails closed before voice consumption.
-  const { data: claimed, error: claimError } = await supabase
-    .from("video_requests")
-    .update({ avatar_generation_started_at: new Date().toISOString() })
-    .eq("id", requestId)
-    .eq("user_id", userId)
-    .is("avatar_generation_started_at", null)
-    .is("avatar_provider_video_job_id", null)
-    .select("id")
-    .maybeSingle();
-  if (claimError || !claimed) {
-    throw new AvatarPipelineError(
-      "No se pudo reservar un intento único. Revisa el intento anterior antes de volver a generar.",
-      "attempt_blocked",
-    );
-  }
+    await onProgress?.("voice");
 
-  let storageBytes = 0;
-
-  await onProgress?.("voice");
-
-  // La narración propia es obligatoria: un fallo no debe activar TTS
-  // interno del proveedor ni cambiar la voz o el consumo silenciosamente.
-  const voiceProvider = getVoiceProvider();
-  let audioUrl: string | undefined;
-  let audioDurationSeconds: number;
-  try {
-    const voiceResult = await voiceProvider.synthesize(fullText, language);
-    audioDurationSeconds = await measureNarrationSeconds(voiceResult.audioBuffer);
-    if (audioDurationSeconds > flags.maxAvatarDurationSeconds) {
-      throw new AvatarPipelineError("El audio real excede la duración máxima permitida. No se solicitó el avatar.", "duration_exceeded");
+    // La narración propia es obligatoria: un fallo no debe activar TTS
+    // interno del proveedor ni cambiar la voz o el consumo silenciosamente.
+    const voiceProvider = getVoiceProvider();
+    let audioUrl: string | undefined;
+    let audioDurationSeconds: number;
+    try {
+      const voiceResult = await voiceProvider.synthesize(fullText, language);
+      audioDurationSeconds = await measureNarrationSeconds(voiceResult.audioBuffer);
+      if (audioDurationSeconds > flags.maxAvatarDurationSeconds) {
+        throw new AvatarPipelineError("El audio real excede la duración máxima permitida. No se solicitó el avatar.", "duration_exceeded");
+      }
+      const narrationPath = `${requestId}/avatar-narration.${voiceResult.extension}`;
+      const { error: narrationUploadError } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(narrationPath, voiceResult.audioBuffer, { contentType: voiceResult.mimeType, upsert: true });
+      if (narrationUploadError) {
+        throw new Error(`No se pudo subir el audio de narración: ${narrationUploadError.message}`);
+      }
+      const { data: signedNarration, error: signError } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .createSignedUrl(narrationPath, NARRATION_SIGNED_URL_TTL_SECONDS);
+      if (signError || !signedNarration) {
+        throw new Error(`No se pudo firmar la URL de la narración: ${signError?.message ?? "desconocido"}`);
+      }
+      audioUrl = signedNarration.signedUrl;
+      storageBytes += voiceResult.audioBuffer.byteLength;
+    } catch (err) {
+      if (err instanceof AvatarPipelineError) throw err;
+      // No propagar errores que puedan contener URLs firmadas o credenciales.
+      throw new AvatarPipelineError(
+        "No se pudo preparar la narración propia. No se solicitó el video de avatar.",
+        "narration_failed",
+      );
     }
-    const narrationPath = `${requestId}/avatar-narration.${voiceResult.extension}`;
-    const { error: narrationUploadError } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(narrationPath, voiceResult.audioBuffer, { contentType: voiceResult.mimeType, upsert: true });
-    if (narrationUploadError) {
-      throw new Error(`No se pudo subir el audio de narración: ${narrationUploadError.message}`);
-    }
-    const { data: signedNarration, error: signError } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .createSignedUrl(narrationPath, NARRATION_SIGNED_URL_TTL_SECONDS);
-    if (signError || !signedNarration) {
-      throw new Error(`No se pudo firmar la URL de la narración: ${signError?.message ?? "desconocido"}`);
-    }
-    audioUrl = signedNarration.signedUrl;
-    storageBytes += voiceResult.audioBuffer.byteLength;
-  } catch (err) {
-    if (err instanceof AvatarPipelineError) throw err;
-    // No propagar errores que puedan contener URLs firmadas o credenciales.
-    throw new AvatarPipelineError(
-      "No se pudo preparar la narración propia. No se solicitó el video de avatar.",
-      "narration_failed",
-    );
-  }
 
-  await onProgress?.("render");
-  const renderStartedAt = Date.now();
-
-  let asset: Awaited<ReturnType<typeof provider.generateVideo>>;
-  try {
-    asset = await provider.generateVideo({
-      providerAvatarId,
-      script: fullText,
-      audioUrl,
-      audioDurationSeconds,
-      voiceId,
-      language,
-      maxCostUsd: flags.maxAvatarCostUsd,
-      onJobCreated: async (providerJobId) => {
-        const { data, error } = await supabase
-          .from("video_requests")
-          .update({ avatar_provider_video_job_id: providerJobId, avatar_render_status: "processing" })
-          .eq("id", requestId)
-          .eq("user_id", userId)
-          .select("id")
-          .maybeSingle();
-        if (error || !data) {
-          throw new AvatarPipelineError(
-            "El proveedor aceptó el intento, pero no se pudo guardar su identificador. No vuelvas a generar.",
-            "attempt_blocked",
-          );
-        }
-      },
-    });
-  } catch (err) {
-    if (err instanceof AvatarProviderError) {
-      throw new AvatarPipelineError(`${provider.name}: ${err.message}`, "provider_error");
+    await onProgress?.("render");
+    try {
+      asset = await provider.generateVideo({
+        providerAvatarId,
+        script: fullText,
+        audioUrl,
+        audioDurationSeconds,
+        voiceId,
+        language,
+        maxCostUsd: flags.maxAvatarCostUsd,
+        onJobCreated: async (providerJobId) => {
+          const { data, error } = await supabase
+            .from("video_requests")
+            .update({ avatar_provider_video_job_id: providerJobId, avatar_render_status: "processing" })
+            .eq("id", requestId)
+            .eq("user_id", userId)
+            .select("id")
+            .maybeSingle();
+          if (error || !data) {
+            throw new AvatarPipelineError(
+              "El proveedor aceptó el intento, pero no se pudo guardar su identificador. No vuelvas a generar.",
+              "attempt_blocked",
+            );
+          }
+        },
+      });
+    } catch (err) {
+      if (err instanceof AvatarProviderError) {
+        throw new AvatarPipelineError(`${provider.name}: ${err.message}`, "provider_error");
+      }
+      throw err;
     }
-    throw err;
   }
   const renderMs = Date.now() - renderStartedAt;
 
@@ -318,7 +316,7 @@ export async function generateAvatarVideo({
     await fs.unlink(outputPath).catch(() => {});
   }
 
-  await recordVideoGeneration(supabase, requestId, {
+  if (!existingProviderVideoJobId) await recordVideoGeneration(supabase, requestId, {
     voiceProvider: provider.name,
     voiceCharacters: fullText.length,
     footageProvider: "none",
