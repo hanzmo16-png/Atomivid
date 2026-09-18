@@ -22,3 +22,7 @@ Latest user instruction: complete preflight only. Report exact D-ID consumption,
 ## Next step
 
 Complete owner login via supported secure browser authentication/manual handoff, verify private form and uploads, inspect actual D-ID credits privately, then present verified figures to owner and STOP for explicit approval. No real provider generation occurred.
+
+## Beta account correction
+
+Owner clarified the working account is their existing +beta Gmail account, not the personal email originally supplied. Replaced Production AVATAR_PREPARATION_OWNER_EMAIL with the exact user-confirmed beta login, retaining single-account access. Personal email omitted from repository. Redeployment 4j6GeqaTqHkBKvxzmkEeL5a6ihi3 requested from the current production source with latest configuration. No generation or credit consumption; authenticated visibility/upload still requires verification.
