@@ -36,6 +36,7 @@ export class AvatarPipelineError extends Error {
       | "consent_missing"
       | "avatar_not_ready"
       | "provider_unavailable"
+      | "narration_failed"
       | "duration_exceeded"
       | "provider_error",
   ) {
@@ -150,21 +151,41 @@ export async function generateAvatarVideo({
     );
   }
 
+  // Exigir el avatar creado antes de consumir narración.
+  const providerAvatarId = avatar.provider_avatar_id;
+  if (!providerAvatarId) {
+    throw new AvatarPipelineError(
+      "El avatar todavía no terminó de crearse en el proveedor — vuelve a intentar cuando su estado sea 'ready'.",
+      "avatar_not_ready",
+    );
+  }
+
+  if (existingProviderVideoJobId) {
+    // Idempotencia: ya se pidió un video en un intento anterior — se
+    // consulta su estado en vez de gastar otra vez.
+    const status = await provider.checkVideoStatus(existingProviderVideoJobId);
+    if (status !== "completed") {
+      throw new AvatarPipelineError(
+        `El video anterior (job ${existingProviderVideoJobId}) sigue en estado "${status}" — no se solicita uno nuevo para evitar cobrar dos veces.`,
+        "provider_error",
+      );
+    }
+    // El proveedor no expone "recuperar el resultado ya completado" de
+    // forma separada en esta interfaz — si llega aquí es porque ya se
+    // procesó (rama no alcanzable en el fixture/heygen actuales, dejada
+    // explícita para el siguiente proveedor que sí lo permita).
+    throw new AvatarPipelineError(
+      "El video ya se completó en un intento anterior pero no se pudo recuperar su resultado — revisa manualmente antes de reintentar.",
+      "provider_error",
+    );
+  }
+
   let storageBytes = 0;
 
   await onProgress?.("voice");
 
-  // Sintetiza la narración con NUESTRO propio proveedor de voz (mismo
-  // ElevenLabs que el modo visual, vía getVoiceProvider() — cae a fixture
-  // automáticamente sin ELEVENLABS_API_KEY, mismo criterio de seguridad
-  // que el resto del pipeline) y la aloja en Storage con una URL firmada
-  // de corta duración. Esto es lo que la interfaz llama `audioUrl` — el
-  // flujo REAL de ATOMIVID (voz consistente en todos los videos, nunca la
-  // síntesis interna de cada proveedor — ver AvatarVideoRequest.audioUrl
-  // en providers/types.ts). Si esto falla, se sigue adelante sin
-  // audioUrl: el proveedor cae a su propia síntesis (voiceId) si la
-  // soporta, en vez de tumbar todo el pipeline por un paso que mejora la
-  // consistencia de voz pero no es estrictamente indispensable.
+  // La narración propia es obligatoria: un fallo no debe activar TTS
+  // interno del proveedor ni cambiar la voz o el consumo silenciosamente.
   const voiceProvider = getVoiceProvider();
   let audioUrl: string | undefined;
   try {
@@ -184,19 +205,11 @@ export async function generateAvatarVideo({
     }
     audioUrl = signedNarration.signedUrl;
     storageBytes += voiceResult.audioBuffer.byteLength;
-  } catch (err) {
-    console.warn(
-      `[atomivid:avatar-audio] ${requestId} — no se pudo sintetizar/alojar audio propio (${voiceProvider.name}), el proveedor de avatar usará su propia síntesis si la soporta:`,
-      err instanceof Error ? err.message : err,
-    );
-  }
-
-  // Resolver el avatar en el proveedor (crear si es la primera vez que se usa).
-  const providerAvatarId = avatar.provider_avatar_id;
-  if (!providerAvatarId) {
+  } catch {
+    // No propagar errores que puedan contener URLs firmadas o credenciales.
     throw new AvatarPipelineError(
-      "El avatar todavía no terminó de crearse en el proveedor — vuelve a intentar cuando su estado sea 'ready'.",
-      "avatar_not_ready",
+      "No se pudo preparar la narración propia. No se solicitó el video de avatar.",
+      "narration_failed",
     );
   }
 
@@ -205,26 +218,6 @@ export async function generateAvatarVideo({
 
   let asset: Awaited<ReturnType<typeof provider.generateVideo>>;
   try {
-    if (existingProviderVideoJobId) {
-      // Idempotencia: ya se pidió un video en un intento anterior — se
-      // consulta su estado en vez de gastar otra vez.
-      const status = await provider.checkVideoStatus(existingProviderVideoJobId);
-      if (status !== "completed") {
-        throw new AvatarPipelineError(
-          `El video anterior (job ${existingProviderVideoJobId}) sigue en estado "${status}" — no se solicita uno nuevo para evitar cobrar dos veces.`,
-          "provider_error",
-        );
-      }
-      // El proveedor no expone "recuperar el resultado ya completado" de
-      // forma separada en esta interfaz — si llega aquí es porque ya se
-      // procesó (rama no alcanzable en el fixture/heygen actuales, dejada
-      // explícita para el siguiente proveedor que sí lo permita).
-      throw new AvatarPipelineError(
-        "El video ya se completó en un intento anterior pero no se pudo recuperar su resultado — revisa manualmente antes de reintentar.",
-        "provider_error",
-      );
-    }
-
     asset = await provider.generateVideo({
       providerAvatarId,
       script: fullText,

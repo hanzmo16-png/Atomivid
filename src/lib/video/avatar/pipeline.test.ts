@@ -1,9 +1,11 @@
-import { test } from "node:test";
+import { test, mock } from "node:test";
 import assert from "node:assert/strict";
+import { fixtureAvatarProvider } from "@/lib/providers/avatar/fixture";
+import { fixtureVoiceProvider } from "@/lib/providers/voice/fixture";
 import { generateAvatarVideo, AvatarPipelineError } from "./pipeline";
 import type { GeneratedScript } from "@/lib/providers/types";
 
-const KEYS = ["AVATAR_MODE_ENABLED", "AVATAR_PROVIDER", "HEYGEN_API_KEY", "MAX_AVATAR_DURATION_SECONDS"];
+const KEYS = ["AVATAR_MODE_ENABLED", "AVATAR_PROVIDER", "HEYGEN_API_KEY", "MAX_AVATAR_DURATION_SECONDS", "VOICE_PROVIDER", "ELEVENLABS_API_KEY"];
 
 async function withEnv(vars: Record<string, string | undefined>, fn: () => void | Promise<void>) {
   const originals = KEYS.map((k) => [k, process.env[k]] as const);
@@ -11,6 +13,7 @@ async function withEnv(vars: Record<string, string | undefined>, fn: () => void 
   for (const [k, v] of Object.entries(vars)) {
     if (v !== undefined) process.env[k] = v;
   }
+  process.env.VOICE_PROVIDER = "fixture";
   try {
     await fn();
   } finally {
@@ -257,5 +260,60 @@ test("idempotencia: con un providerVideoJobId ya completado no se vuelve a llama
         }),
       (err: unknown) => err instanceof AvatarPipelineError && err.code === "provider_error",
     );
+  });
+});
+
+
+for (const failure of ["synthesis", "upload", "sign"] as const) {
+  test(`narration ${failure} failure never calls avatar provider or leaks private details`, async () => {
+    await withEnv({ AVATAR_MODE_ENABLED: "true", AVATAR_PROVIDER: "fixture" }, async () => {
+      const { fake } = makeFakeSupabase({
+        id: "a1", user_id: "u1", status: "ready", consent_given: true,
+        provider_avatar_id: "fixture-avatar-existing", provider: "fixture",
+      });
+      const generate = mock.method(fixtureAvatarProvider, "generateVideo", async () => {
+        throw new Error("must not call avatar");
+      });
+      const synthesize = failure === "synthesis"
+        ? mock.method(fixtureVoiceProvider, "synthesize", async () => { throw new Error("private-token"); })
+        : null;
+      const originalFrom = fake.storage.from;
+      fake.storage.from = () => {
+        const storage = originalFrom();
+        if (failure === "upload") storage.upload = async () => ({ error: { message: "private-token" } });
+        if (failure === "sign") storage.createSignedUrl = async () => ({ data: null, error: { message: "private-token" } });
+        return storage;
+      };
+      try {
+        await assert.rejects(
+          () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1", voiceId: "fallback-voice" }),
+          (err: unknown) => err instanceof AvatarPipelineError && err.code === "narration_failed" && !err.message.includes("private-token"),
+        );
+        assert.equal(generate.mock.callCount(), 0);
+      } finally {
+        generate.mock.restore();
+        synthesize?.mock.restore();
+      }
+    });
+  });
+}
+
+test("existing avatar job does not synthesize narration again", async () => {
+  await withEnv({ AVATAR_MODE_ENABLED: "true", AVATAR_PROVIDER: "fixture" }, async () => {
+    const { fake, uploads } = makeFakeSupabase({
+      id: "a1", user_id: "u1", status: "ready", consent_given: true,
+      provider_avatar_id: "fixture-avatar-existing", provider: "fixture",
+    });
+    const synthesize = mock.method(fixtureVoiceProvider, "synthesize", async () => { throw new Error("must not synthesize"); });
+    try {
+      await assert.rejects(
+        () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1", existingProviderVideoJobId: "existing" }),
+        (err: unknown) => err instanceof AvatarPipelineError && err.code === "provider_error",
+      );
+      assert.equal(synthesize.mock.callCount(), 0);
+      assert.equal(uploads.length, 0);
+    } finally {
+      synthesize.mock.restore();
+    }
   });
 });
