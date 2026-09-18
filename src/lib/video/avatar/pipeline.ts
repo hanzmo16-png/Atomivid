@@ -37,6 +37,7 @@ export class AvatarPipelineError extends Error {
       | "avatar_not_ready"
       | "provider_unavailable"
       | "narration_failed"
+      | "attempt_blocked"
       | "duration_exceeded"
       | "provider_error",
   ) {
@@ -180,6 +181,25 @@ export async function generateAvatarVideo({
     );
   }
 
+  // Durable compare-and-set: only one worker may consume providers for this
+  // request, including after crashes/timeouts. Never clear this automatically.
+  // Missing migration or database error fails closed before voice consumption.
+  const { data: claimed, error: claimError } = await supabase
+    .from("video_requests")
+    .update({ avatar_generation_started_at: new Date().toISOString() })
+    .eq("id", requestId)
+    .eq("user_id", userId)
+    .is("avatar_generation_started_at", null)
+    .is("avatar_provider_video_job_id", null)
+    .select("id")
+    .maybeSingle();
+  if (claimError || !claimed) {
+    throw new AvatarPipelineError(
+      "No se pudo reservar un intento único. Revisa el intento anterior antes de volver a generar.",
+      "attempt_blocked",
+    );
+  }
+
   let storageBytes = 0;
 
   await onProgress?.("voice");
@@ -225,6 +245,21 @@ export async function generateAvatarVideo({
       voiceId,
       language,
       maxCostUsd: flags.maxAvatarCostUsd,
+      onJobCreated: async (providerJobId) => {
+        const { data, error } = await supabase
+          .from("video_requests")
+          .update({ avatar_provider_video_job_id: providerJobId, avatar_render_status: "processing" })
+          .eq("id", requestId)
+          .eq("user_id", userId)
+          .select("id")
+          .maybeSingle();
+        if (error || !data) {
+          throw new AvatarPipelineError(
+            "El proveedor aceptó el intento, pero no se pudo guardar su identificador. No vuelvas a generar.",
+            "attempt_blocked",
+          );
+        }
+      },
     });
   } catch (err) {
     if (err instanceof AvatarProviderError) {

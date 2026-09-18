@@ -80,7 +80,7 @@ async function main() {
           return {
             update(payload: Record<string, unknown>) {
               updates.push(payload);
-              return { async eq() { return { error: null }; } };
+              return { eq() { return this; }, is() { return this; }, select() { return this; }, async maybeSingle() { return { data: { id: "test-request" }, error: null }; } };
             },
           };
         }
