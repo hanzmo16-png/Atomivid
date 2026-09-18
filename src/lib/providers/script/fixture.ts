@@ -54,6 +54,8 @@ function buildScene(
   while (text.split(/\s+/).length < wordsPerScene) {
     text += ` ${template(topic)}`;
   }
+  // Synthetic timing must respect the requested word budget, even for long topics.
+  text = text.split(/\s+/).slice(0, wordsPerScene).join(" ");
 
   const visualQuery = `${topic} motivation ${templateIndex + 1}`.slice(0, 60);
 
