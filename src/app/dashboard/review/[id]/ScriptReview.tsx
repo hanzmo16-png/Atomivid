@@ -14,11 +14,13 @@ export function ScriptReview({
   status,
   initialScript,
   errorMessage,
+  usesRecording = false,
 }: {
   requestId: string;
   status: string;
   initialScript: GeneratedScript;
   errorMessage: string | null;
+  usesRecording?: boolean;
 }) {
   const router = useRouter();
   const [script, setScript] = useState(initialScript);
@@ -30,7 +32,8 @@ export function ScriptReview({
   const [error, setError] = useState<string | null>(null);
   const [needsSubscription, setNeedsSubscription] = useState(false);
 
-  const editable = status === "script_ready";
+  const canGenerate = status === "script_ready";
+  const editable = canGenerate && !usesRecording;
 
   function updateScene(index: number, field: "text" | "visualQuery", value: string) {
     setScript((prev) => ({
@@ -137,7 +140,7 @@ export function ScriptReview({
 
   return (
     <div className="mt-6">
-      {!editable && (
+      {!canGenerate && (
         <Alert tone={status === "failed" ? "danger" : "info"}>
           {status === "processing" &&
             "El video ya se está generando a partir de este guion. Esta vista es de solo lectura."}
@@ -163,7 +166,8 @@ export function ScriptReview({
         </div>
       )}
 
-      <div className="mt-4 space-y-4">
+      {usesRecording && <Alert tone="info">Se utilizará tu grabación completa. No se generará un guion ni otra voz. La duración se comprobará antes de solicitar el avatar.</Alert>}
+      {!usesRecording && <div className="mt-4 space-y-4">
         {script.segments.map((scene, i) => (
           <Card key={i} className="p-4">
             <div className="mb-2 flex items-center justify-between">
@@ -202,7 +206,7 @@ export function ScriptReview({
             />
           </Card>
         ))}
-      </div>
+      </div>}
 
       {error && (
         <div className="mt-4">
@@ -217,16 +221,16 @@ export function ScriptReview({
         </p>
       )}
 
-      {editable && (
+      {canGenerate && (
         <div className="sticky bottom-4 mt-6 flex flex-col gap-2 rounded-lg border border-border-strong bg-surface-raised p-4 shadow-lg sm:flex-row sm:items-center sm:justify-between">
-          <Button
+          {!usesRecording && <Button
             variant="secondary"
             onClick={saveChanges}
             disabled={!dirty || saving || generating || regeneratingAll}
             loading={saving}
           >
             {saving ? "Guardando…" : dirty ? "Guardar cambios" : "Sin cambios pendientes"}
-          </Button>
+          </Button>}
           <Button
             onClick={generateFinalVideo}
             disabled={generating || saving || regeneratingAll}
@@ -237,7 +241,7 @@ export function ScriptReview({
         </div>
       )}
 
-      {!editable && (
+      {!canGenerate && (
         <div className="mt-6">
           <LinkButton href="/dashboard">Volver al historial</LinkButton>
         </div>
