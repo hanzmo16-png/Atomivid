@@ -84,6 +84,10 @@ export const fixtureAvatarProvider: AvatarVideoProvider = {
       providerJobId: `fixture-video-job-${videoCounter}`,
     };
   },
+  async recoverVideo(providerJobId: string): Promise<AvatarVideoResult> {
+    return { buffer: loadSimulatedVideoBuffer(), mimeType: "video/mp4", extension: "mp4",
+      model: "fixture-avatar", costUsd: 0, providerJobId };
+  },
   async checkVideoStatus(): Promise<AvatarJobStatus> {
     return "completed";
   },

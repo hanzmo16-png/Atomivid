@@ -384,6 +384,28 @@ export const didAvatarProvider: AvatarVideoProvider = {
     };
   },
 
+  async recoverVideo(providerJobId: string): Promise<AvatarVideoResult> {
+    // https://docs.d-id.com/reference/gettalk — retrieval, never POST /talks.
+    const response = await didFetch(`/talks/${encodeURIComponent(providerJobId)}`, { method: "GET" });
+    const json = (await response.json()) as { status?: string; result_url?: string };
+    if (mapDidStatus(json.status) !== "completed") {
+      throw new AvatarProviderError("El video existente aún no está disponible. No se creó otro intento.", "did", "upstream_error");
+    }
+    if (typeof json.result_url !== "string" || !json.result_url.startsWith("https://")) {
+      throw new AvatarProviderError("D-ID no devolvió una URL HTTPS para el resultado existente.", "did", "invalid_response");
+    }
+    const video = await fetch(json.result_url, { signal: AbortSignal.timeout(60_000) });
+    if (!video.ok) {
+      throw new AvatarProviderError(`No se pudo recuperar el video existente (HTTP ${video.status}).`, "did", "upstream_error");
+    }
+    const buffer = Buffer.from(await video.arrayBuffer());
+    if (!buffer.length) {
+      throw new AvatarProviderError("El resultado existente está vacío.", "did", "invalid_response");
+    }
+    // Zero NEW generation cost; never overwrite historical billing with this value.
+    return { buffer, mimeType: "video/mp4", extension: "mp4", model: "talks-v1", costUsd: 0, providerJobId };
+  },
+
   async checkVideoStatus(providerJobId: string): Promise<AvatarJobStatus> {
     const response = await didFetch(`/talks/${encodeURIComponent(providerJobId)}`, { method: "GET" });
     const json = (await response.json()) as { status?: string };
