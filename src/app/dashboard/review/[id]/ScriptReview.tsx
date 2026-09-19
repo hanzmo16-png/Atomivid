@@ -15,14 +15,14 @@ export function ScriptReview({
   initialScript,
   errorMessage,
   usesRecording = false,
-  diagnosticRetry = false,
+  generationBlockedReason,
 }: {
   requestId: string;
   status: string;
   initialScript: GeneratedScript;
   errorMessage: string | null;
   usesRecording?: boolean;
-  diagnosticRetry?: boolean;
+  generationBlockedReason?: string;
 }) {
   const router = useRouter();
   const [script, setScript] = useState(initialScript);
@@ -34,7 +34,8 @@ export function ScriptReview({
   const [error, setError] = useState<string | null>(null);
   const [needsSubscription, setNeedsSubscription] = useState(false);
 
-  const canGenerate = status === "script_ready" || diagnosticRetry;
+  const canGenerate = status === "script_ready";
+  const busy = saving || generating || regeneratingAll || savingIndex !== null;
   const editable = canGenerate && !usesRecording;
 
   function updateScene(index: number, field: "text" | "visualQuery", value: string) {
@@ -67,6 +68,7 @@ export function ScriptReview({
   }
 
   async function regenerateScene(index: number) {
+    if (dirty && !(await saveChanges())) return;
     setSavingIndex(index);
     setError(null);
     try {
@@ -133,7 +135,7 @@ export function ScriptReview({
         if (result.status === 402) setNeedsSubscription(true);
         throw new Error(result.error);
       }
-      router.push("/dashboard");
+      router.push(`/dashboard/videos/${requestId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
       setGenerating(false);
@@ -191,7 +193,7 @@ export function ScriptReview({
             <textarea
               value={scene.text}
               onChange={(e) => updateScene(i, "text", e.target.value)}
-              disabled={!editable}
+              disabled={!editable || busy}
               rows={3}
               aria-label={`Narración de la escena ${i + 1}`}
               className="w-full rounded-md border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:opacity-60"
@@ -203,7 +205,7 @@ export function ScriptReview({
               id={`visual-${i}`}
               value={scene.visualQuery}
               onChange={(e) => updateScene(i, "visualQuery", e.target.value)}
-              disabled={!editable}
+              disabled={!editable || busy}
               className="mt-1 w-full rounded-md border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:opacity-60"
             />
           </Card>
@@ -223,22 +225,23 @@ export function ScriptReview({
         </p>
       )}
 
+      {generationBlockedReason && <Alert tone="info">{generationBlockedReason}</Alert>}
       {canGenerate && (
         <div className="sticky bottom-4 mt-6 flex flex-col gap-2 rounded-lg border border-border-strong bg-surface-raised p-4 shadow-lg sm:flex-row sm:items-center sm:justify-between">
           {!usesRecording && <Button
             variant="secondary"
             onClick={saveChanges}
-            disabled={!dirty || saving || generating || regeneratingAll}
+            disabled={!dirty || busy}
             loading={saving}
           >
             {saving ? "Guardando…" : dirty ? "Guardar cambios" : "Sin cambios pendientes"}
           </Button>}
           <Button
             onClick={generateFinalVideo}
-            disabled={generating || saving || regeneratingAll}
+            disabled={busy || Boolean(generationBlockedReason)}
             loading={generating}
           >
-            {generating ? "Generando video…" : "Generar video final"}
+            {generating ? "Enviando solicitud…" : "Generar video final"}
           </Button>
         </div>
       )}

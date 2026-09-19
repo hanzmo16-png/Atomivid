@@ -1,3 +1,6 @@
+import { isRenderStale } from "@/lib/video/render-guard";
+import { RequestActions } from "./RequestActions";
+import { VideoPlayback } from "./VideoPlayback";
 import { renderFailureMessage } from "@/lib/video/job-error";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -21,12 +24,16 @@ import {
 export function ResultView({
   request,
   videoUrl,
+  nowMs = 0,
 }: {
   request: VideoRequestSummary;
+  nowMs?: number;
   /** null si status=completed pero no se pudo firmar la URL (reportar el error, no ocultarlo). */
   videoUrl?: string | null;
 }) {
+  const stale = isRenderStale(request, nowMs);
   const meta = [
+    request.mode === "avatar" ? "Avatar" : "Video normal",
     request.language && LANGUAGE_LABEL[request.language],
     `${request.duration_seconds}s`,
     new Date(request.created_at).toLocaleString("es-MX"),
@@ -46,7 +53,7 @@ export function ResultView({
         {(request.status === "pending" || request.status === "script_ready") && (
           <EmptyStage
             title="Todavía no se generó el video"
-            body="Esta solicitud está esperando el guion o tu revisión antes de producir el video final."
+            body={request.mode === "avatar" ? "Tu grabación se conserva completa. La prueba privada requiere revisión antes de generar." : request.status === "pending" ? "Tu solicitud está guardada. Genera el guion para revisarlo antes de producir el video." : "Revisa el contenido antes de producir el video final."}
           />
         )}
 
@@ -58,9 +65,9 @@ export function ResultView({
             />
             <div>
               <p className="font-medium text-ink">
-                {request.progress_stage
+                {stale ? "La generación está tardando más de lo normal" : request.progress_stage
                   ? (RENDER_STAGE_LABEL[request.progress_stage as RenderStage] ??
-                      request.progress_stage) + "…"
+                      "Procesando tu video") + "…"
                   : "Preparando tu video…"}
               </p>
               <p className="mt-1 text-sm text-ink-muted">
@@ -80,19 +87,9 @@ export function ResultView({
 
         {request.status === "completed" && videoUrl && (
           <div className="flex flex-col items-center gap-4">
-            <video
-              src={videoUrl}
-              controls
-              preload="metadata"
-              className="aspect-9/16 w-full max-w-72 rounded-lg bg-black shadow-lg"
-            >
-              Tu navegador no puede reproducir este video.
-            </video>
+            <VideoPlayback src={videoUrl} />
             <a
-              href={videoUrl}
-              download
-              target="_blank"
-              rel="noopener noreferrer"
+              href={`/api/videos/${request.id}/download`}
               className="inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink hover:bg-accent-hover"
             >
               Descargar video
@@ -107,6 +104,7 @@ export function ResultView({
         )}
       </div>
 
+      <div className="mt-4"><RequestActions request={request} nowMs={nowMs} /></div>
       <div className="mt-8 flex flex-wrap gap-3 border-t border-border pt-6">
         <LinkButton href="/dashboard" variant="secondary">
           Volver al historial

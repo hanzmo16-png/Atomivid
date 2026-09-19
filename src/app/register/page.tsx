@@ -3,7 +3,7 @@ import { signUp } from "./actions";
 import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
-import { Button } from "@/components/ui/Button";
+import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { Logo } from "@/components/ui/Logo";
 
 export default async function RegisterPage({
@@ -49,9 +49,7 @@ export default async function RegisterPage({
               placeholder="••••••••"
             />
           </Field>
-          <Button type="submit" className="w-full">
-            Crear cuenta
-          </Button>
+          <FormSubmitButton label="Crear cuenta" pendingLabel="Creando cuenta…" />
         </form>
 
         <p className="mt-6 text-center text-sm text-ink-muted">

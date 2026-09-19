@@ -4,7 +4,7 @@ export type OnboardingStep = { title: string; body: string };
 export const ONBOARDING_STEPS: OnboardingStep[] = [
   { title: "Escribe tu idea", body: "Describe en una frase el tema del video que quieres crear." },
   { title: "Elige idioma y duración", body: "Selecciona español o inglés, y cuántos segundos quieres que dure." },
-  { title: "Atomivid prepara todo", body: "Se genera el guion, la narración, los clips y la música automáticamente." },
+  { title: "Revisa antes de generar", body: "Guarda tu solicitud, genera el guion y revísalo. Después pulsa Generar video final para producirlo." },
   { title: "Sigue el progreso", body: "Verás en qué etapa va tu video mientras se genera." },
   { title: "Reproduce y descarga", body: "Cuando esté listo, míralo directamente y descárgalo en tu teléfono o computadora." },
 ];

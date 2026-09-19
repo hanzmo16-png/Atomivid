@@ -1,3 +1,5 @@
+import { VideoModeNav } from "@/components/video/VideoModeNav";
+import { ScriptReview } from "@/app/dashboard/review/[id]/ScriptReview";
 import { notFound } from "next/navigation";
 import { RequestCard } from "@/components/video/RequestCard";
 import { ResultView } from "@/components/video/ResultView";
@@ -91,6 +93,11 @@ export default function DevStatesPage() {
       </header>
 
       <Onboarding />
+      <Section title="Selector privado del propietario"><VideoModeNav current="avatar" /></Section>
+      <Section title="Avatar listo para revisar"><RequestCard request={makeRequest({ id: "fixture-avatar", mode: "avatar", status: "script_ready" })} nowMs={FIXTURE_NOW_MS} /></Section>
+      <Section title="Avatar con error sin reintento"><ResultView request={makeRequest({ id: "fixture-avatar-failed", mode: "avatar", status: "failed", error_message: "provider timeout", render_attempts: 1 })} nowMs={FIXTURE_NOW_MS} /></Section>
+      <Section title="Generación privada desactivada"><ScriptReview requestId="fixture-avatar" status="script_ready" initialScript={{title: "Grabación de prueba", segments: []}} errorMessage={null} usesRecording generationBlockedReason="Tu grabación está preparada. La generación de avatar permanece desactivada para esta prueba privada." /></Section>
+
 
       <Section title="Dashboard vacío">
         <EmptyState

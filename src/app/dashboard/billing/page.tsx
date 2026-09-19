@@ -24,7 +24,7 @@ export default async function BillingPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data } = await supabase
+  const { data, error: queryError } = await supabase
     .from("subscriptions")
     .select("status, current_period_end, cancel_at_period_end")
     .eq("user_id", user?.id ?? "")
@@ -51,7 +51,7 @@ export default async function BillingPage({
         {error && <Alert tone="danger">{error}</Alert>}
       </div>
 
-      <Card className="mt-6 p-6">
+      {queryError ? <div className="mt-6"><Alert tone="danger">No se pudo consultar tu suscripción. Recarga la página antes de realizar cambios.</Alert></div> : <Card className="mt-6 p-6">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-ink-muted">Plan</p>
@@ -80,7 +80,7 @@ export default async function BillingPage({
             </form>
           )}
         </div>
-      </Card>
+      </Card>}
     </div>
   );
 }

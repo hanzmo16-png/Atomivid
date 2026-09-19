@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -13,6 +13,7 @@ type VideoRequestRow = {
   style: string;
   duration_seconds: number;
   status: string;
+  mode: string;
   render_attempts: number;
   avatar_provider_video_job_id: string | null;
   script_json: GeneratedScript | null;
@@ -36,16 +37,20 @@ export default async function ReviewPage({
     redirect("/login");
   }
 
-  const { data } = await supabase
+  const { data, error: queryError } = await supabase
     .from("video_requests")
-    .select("id, topic, style, duration_seconds, status, script_json, error_message, recorded_audio_path, render_attempts, avatar_provider_video_job_id")
+    .select("id, mode, topic, style, duration_seconds, status, script_json, error_message, recorded_audio_path, render_attempts, avatar_provider_video_job_id")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle<VideoRequestRow>();
 
+  if (queryError) throw new Error("No se pudo consultar la solicitud.");
+
   if (!data || !data.script_json) {
     redirect("/dashboard");
   }
+
+  if (["processing", "completed", "failed"].includes(data.status)) redirect(`/dashboard/videos/${data.id}`);
 
   let audioPreview: string | undefined;
   if (data.recorded_audio_path && isOwnedRecordingPath(data.recorded_audio_path, user.id, data.id)) {
@@ -62,11 +67,11 @@ export default async function ReviewPage({
       </p>
 
       {audioPreview && <audio controls preload="metadata" src={audioPreview} className="my-4 w-full" aria-label="Tu grabación original" />}
+      {data.recorded_audio_path && !audioPreview && <p role="alert" className="mt-4 text-danger">No se pudo cargar la grabación. Recarga la página para volver a obtener el enlace.</p>}
       <ScriptReview
-        diagnosticRetry={canPrepareAvatar(user) && Date.now() < Date.parse("2026-09-19T02:00:00Z")
-          && createHash("sha256").update(data.id).digest("hex") === "24ad45b839f41c3c20e23d3a1b85e5d4e946fd66d1bead27865e4dbd506239b5"
-          && data.status === "failed" && data.render_attempts === 1
-          && data.avatar_provider_video_job_id === null && data.error_message === "did: D-ID respondió HTTP 403"}
+        generationBlockedReason={data.mode === "avatar" && (!getFeatureFlags().avatarModeEnabled || !canPrepareAvatar(user))
+          ? "Tu grabación está preparada. La generación de avatar permanece desactivada para esta prueba privada; no se realizará ningún cargo desde esta pantalla."
+          : undefined}
         requestId={data.id}
         status={data.status}
         initialScript={data.script_json}

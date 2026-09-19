@@ -21,7 +21,7 @@ export default async function DashboardPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: requests } = await supabase
+  const { data: requests, error: requestsError } = await supabase
     .from("video_requests")
     .select(
       "id, mode, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at",
@@ -44,7 +44,7 @@ export default async function DashboardPage({
     completedRequests.map((r, i) => [r.video_path!, signedUrls[i]]),
   );
 
-  const { data: subscriptionData } = await supabase
+  const { data: subscriptionData, error: subscriptionError } = await supabase
     .from("subscriptions")
     .select("status")
     .eq("user_id", user?.id ?? "")
@@ -79,7 +79,7 @@ export default async function DashboardPage({
       </div>
 
       <div className="mt-4 space-y-3">
-        {!subscribed && (
+        {!subscribed && !subscriptionError && (
           <Alert tone="info">
             Necesitas una suscripción activa para generar videos.{" "}
             <Link href="/dashboard/billing" className="font-medium underline">
@@ -88,6 +88,7 @@ export default async function DashboardPage({
           </Alert>
         )}
 
+        {subscriptionError && <Alert tone="warning">No se pudo consultar tu suscripción. Recarga la página antes de generar.</Alert>}
         {created && (
           <Alert tone="success">
             Tu solicitud se guardó correctamente. Pulsa &quot;Generar guion&quot; para
@@ -96,7 +97,7 @@ export default async function DashboardPage({
         )}
       </div>
 
-      {!requests || requests.length === 0 ? (
+      {requestsError ? <div className="mt-6"><Alert tone="danger">No se pudo cargar tu historial. Tus videos no se han borrado. Recarga la página para volver a consultar.</Alert></div> : !requests || requests.length === 0 ? (
         <div className="mt-10">
           <EmptyState
             icon={
