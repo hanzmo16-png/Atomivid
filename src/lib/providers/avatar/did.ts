@@ -169,9 +169,10 @@ async function didFetch(path: string, init: RequestInit & { jsonBody?: boolean }
       "ImageModerationError", "CelebrityRecognizedError", "TextModerationError", "AudioModerationError"]);
     let providerCode = "unclassified";
     try {
-      const body = await response.json() as { kind?: unknown; name?: unknown; error?: { kind?: unknown; name?: unknown } };
-      const candidate = body?.kind ?? body?.name ?? body?.error?.kind ?? body?.error?.name;
-      if (typeof candidate === "string" && knownNames.has(candidate)) providerCode = candidate;
+      const body = await response.json() as { kind?: unknown; name?: unknown; code?: unknown; error?: { kind?: unknown; name?: unknown; code?: unknown } };
+      const candidates = [body?.kind, body?.name, body?.code, body?.error?.kind, body?.error?.name, body?.error?.code];
+      const candidate = candidates.find((value) => typeof value === "string" && knownNames.has(value));
+      if (typeof candidate === "string") providerCode = candidate;
     } catch { /* Non-JSON errors retain HTTP status without exposing response content. */ }
     const operation = path === "/talks" ? "create_talk" : path === "/images" ? "upload_image"
       : path.startsWith("/talks/") ? "talk_status" : "provider_request";
