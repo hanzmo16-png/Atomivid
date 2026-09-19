@@ -17,6 +17,7 @@ export type RenderStartRow = {
   status: string;
   render_attempts: number;
   render_started_at: string | null;
+  created_at?: string;
 };
 
 export type RenderStartDecision =
@@ -27,9 +28,7 @@ export function evaluateRenderStart(
   row: RenderStartRow,
   nowMs: number = Date.now(),
 ): RenderStartDecision {
-  const startedAt = row.render_started_at ? new Date(row.render_started_at).getTime() : null;
-  const isStale =
-    row.status === "processing" && startedAt !== null && nowMs - startedAt > RENDER_TIMEOUT_MS;
+  const isStale = isRenderStale(row, nowMs);
 
   if (row.status === "processing" && !isStale) {
     return { allowed: false, status: 409, error: "Este video ya se está generando." };
@@ -49,4 +48,12 @@ export function evaluateRenderStart(
     };
   }
   return { allowed: true };
+}
+
+/** Shared by API and UI so recovery is offered only when both agree. */
+export function isRenderStale(row: RenderStartRow, nowMs: number): boolean {
+  const timestamp = row.render_started_at ?? row.created_at;
+  if (row.status !== "processing" || !timestamp) return false;
+  const startedAt = Date.parse(timestamp);
+  return Number.isFinite(startedAt) && nowMs - startedAt > RENDER_TIMEOUT_MS;
 }

@@ -7,6 +7,7 @@ import type { BadgeTone } from "@/components/ui/Badge";
  */
 export type VideoRequestSummary = {
   id: string;
+  mode?: string;
   topic: string;
   style: string;
   duration_seconds: number;

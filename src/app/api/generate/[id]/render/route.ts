@@ -35,6 +35,7 @@ type VideoRequestRow = {
   avatar_provider_video_job_id: string | null;
   render_attempts: number;
   render_started_at: string | null;
+  created_at: string;
 };
 
 export async function POST(
@@ -72,7 +73,7 @@ export async function POST(
     try {
       const { data, error: fetchError } = await service
         .from("video_requests")
-        .select("id, mode, user_id, status, script_json, render_attempts, render_started_at, error_message, avatar_provider_video_job_id")
+        .select("id, mode, user_id, status, script_json, render_attempts, render_started_at, created_at, error_message, avatar_provider_video_job_id")
         .eq("id", id)
         .single<VideoRequestRow>();
 
@@ -177,7 +178,7 @@ export async function POST(
     }
 
     try {
-      await worker.trigger({ requestId: id });
+      await worker.trigger({ requestId: id, renderAttempt: videoRequest.render_attempts + 1 });
     } catch (error) {
       const diagnosticId = generateDiagnosticId();
       logRenderError(`POST /render (worker: ${worker.name})`, error, diagnosticId);
@@ -192,7 +193,10 @@ export async function POST(
         const { error: failUpdateError } = await service
           .from("video_requests")
           .update({ status: "failed", error_message: message, progress_stage: null })
-          .eq("id", id);
+          .eq("id", id)
+          .eq("status", "processing")
+          .eq("render_attempts", videoRequest.render_attempts + 1)
+          .eq("progress_stage", "queued");
         if (failUpdateError) {
           logRenderError("POST /render (restaurar estado a failed)", failUpdateError, diagnosticId);
         }

@@ -14,5 +14,5 @@ export interface RenderWorker {
    * "inline") o solo notifica a un sistema externo que lo hará (worker de
    * GitHub Actions, que dispara el workflow y retorna de inmediato).
    */
-  trigger(input: { requestId: string }): Promise<void>;
+  trigger(input: { requestId: string; renderAttempt?: number }): Promise<void>;
 }

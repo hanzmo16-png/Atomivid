@@ -53,6 +53,7 @@ type OnProgress = (stage: RenderStage) => void | Promise<void>;
 export async function generateVideoFromScript({
   supabase,
   requestId,
+  artifactPrefix = requestId,
   script,
   style,
   topic,
@@ -62,6 +63,7 @@ export async function generateVideoFromScript({
 }: {
   supabase: SupabaseClient;
   requestId: string;
+  artifactPrefix?: string;
   script: GeneratedScript;
   /** Estilo elegido por el usuario (p. ej. "Motivacional") — usado para elegir música acorde. */
   style?: string;
@@ -279,7 +281,7 @@ export async function generateVideoFromScript({
       storageBytes += footageBuffer.byteLength;
       const { url: mediaUrl } = await uploadToStorage(
         supabase,
-        `${requestId}/scene-${i}-${b}.${outcome.result.extension}`,
+        `${artifactPrefix}/scene-${i}-${b}.${outcome.result.extension}`,
         footageBuffer,
         outcome.result.mimeType,
       );
@@ -347,7 +349,7 @@ export async function generateVideoFromScript({
   storageBytes += voice.audioBuffer.byteLength;
   const { url: audioUrl } = await uploadToStorage(
     supabase,
-    `${requestId}/voice.${voice.extension}`,
+    `${artifactPrefix}/voice.${voice.extension}`,
     voice.audioBuffer,
     voice.mimeType,
   );
@@ -386,7 +388,7 @@ export async function generateVideoFromScript({
     storageBytes += music.audioBuffer.byteLength;
     const uploaded = await uploadToStorage(
       supabase,
-      `${requestId}/music.${music.extension}`,
+      `${artifactPrefix}/music.${music.extension}`,
       music.audioBuffer,
       music.mimeType,
     );
@@ -402,7 +404,7 @@ export async function generateVideoFromScript({
   }
 
   // 6. Subtítulos incrustados: frases naturales (corte en puntuación),
-  // máximo 2 líneas, nunca una sola palabra a la vez, con palabras clave
+  // máximo 2 líneas, respetando finales de oración, con palabras clave
   // marcadas para énfasis visual (ver caption-emphasis.ts).
   const scriptEmphasisWords = script.segments.flatMap((s) => s.emphasisWords ?? []);
   const emphasisSet = buildEmphasisSet(scriptEmphasisWords);
@@ -451,7 +453,7 @@ export async function generateVideoFromScript({
   storageBytes += videoBuffer.byteLength;
   const { path: videoPath } = await uploadToStorage(
     supabase,
-    `${requestId}/final.mp4`,
+    `${artifactPrefix}/final.mp4`,
     videoBuffer,
     "video/mp4",
   );
