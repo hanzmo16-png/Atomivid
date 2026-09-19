@@ -52,6 +52,18 @@ jobs:
       - name: Instalar ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
+      - name: Scope authorized avatar trial to one request
+        env:
+          CANDIDATE_REQUEST_ID: ${{ github.event.client_payload.requestId || inputs.request_id }}
+        run: |
+          node --input-type=module <<'JS'
+          import { createHash } from 'node:crypto';
+          import { appendFileSync } from 'node:fs';
+          const digest = createHash('sha256').update(process.env.CANDIDATE_REQUEST_ID || '').digest('hex');
+          const allowed = digest === '24ad45b839f41c3c20e23d3a1b85e5d4e946fd66d1bead27865e4dbd506239b5';
+          appendFileSync(process.env.GITHUB_ENV, 'AUTHORIZED_AVATAR_TRIAL=' + allowed + '\n');
+          JS
+
       - name: Renderizar video
         run: npx tsx scripts/render-worker.ts
         env:
@@ -62,12 +74,12 @@ jobs:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
           ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
-          # Release hold: keep disabled until the owner verifies production and authorizes a controlled test.
-          AVATAR_MODE_ENABLED: 'false'
-          AVATAR_PROVIDER: ${{ vars.AVATAR_PROVIDER || 'fixture' }}
+          # Only the explicitly authorized request can use avatar mode; persistent one-attempt lock remains enforced.
+          AVATAR_MODE_ENABLED: ${{ env.AUTHORIZED_AVATAR_TRIAL }}
+          AVATAR_PROVIDER: 'did'
           DID_API_KEY: ${{ secrets.DID_API_KEY }}
           MAX_AVATAR_DURATION_SECONDS: '45'
-          MAX_AVATAR_COST_USD: ${{ vars.MAX_AVATAR_COST_USD || '2' }}
+          MAX_AVATAR_COST_USD: '5'
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           MUSIC_TRACK_URLS: ${{ secrets.MUSIC_TRACK_URLS }}
           MUSIC_PROVIDER: ${{ secrets.MUSIC_PROVIDER }}
