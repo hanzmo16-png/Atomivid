@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual, createHash } from "node:crypto";
 
 export const RECOVERY_COOKIE = "atomivid-recovery";
 export const RECOVERY_SECONDS = 900;
-export const RECOVERY_MESSAGE = "Si existe una cuenta con ese correo, recibirás un enlace para cambiar tu contraseña. Revisa también spam. Abre el enlace en este mismo navegador; si no llega, espera un minuto antes de solicitar otro.";
+export const RECOVERY_MESSAGE = "Solicitud aceptada. Si existe una cuenta con ese correo y el envío está permitido, recibirás un enlace para cambiar tu contraseña. Esto no confirma la entrega del correo. Revisa también spam y abre el enlace más reciente en este mismo navegador. Evita solicitar varios enlaces seguidos.";
 
 export function recoveryOrigin(raw: string | undefined): string {
   if (!raw) throw new Error("Recovery origin missing");

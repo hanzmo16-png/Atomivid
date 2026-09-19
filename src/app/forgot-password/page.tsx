@@ -10,7 +10,7 @@ export default async function ForgotPassword({ searchParams }: { searchParams: P
   return <main className="mx-auto max-w-md px-4 py-12"><Card className="space-y-5 p-6">
     <h1 className="text-2xl font-bold">Recuperar contraseña</h1>
     <p>Te enviaremos un enlace de un solo uso para recuperar tu cuenta de ATOMIVID.</p>
-    {sent && <Alert tone="success">{RECOVERY_MESSAGE}</Alert>}
+    {sent === "1" && !error && <Alert tone="success">{RECOVERY_MESSAGE}</Alert>}
     {error && <Alert tone="danger">{error}</Alert>}
     <form action={requestPasswordReset} className="space-y-4">
       <Field id="email" label="Correo de tu cuenta"><input className={INPUT_CLASS} id="email" name="email" type="email" autoComplete="email" maxLength={254} required /></Field>
