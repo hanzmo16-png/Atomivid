@@ -8,7 +8,7 @@ export function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" loading={pending} className="w-full" size="lg">
-      {pending ? "Guardando solicitud…" : "Crear solicitud"}
+      {pending ? "Guardando solicitud…" : "Guardar y continuar"}
     </Button>
   );
 }

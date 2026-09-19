@@ -26,8 +26,9 @@ export function PreparationForm() {
   if (state.saved) return <div role="status" className="space-y-4 rounded-lg border border-border-strong p-5">
     <h2 className="font-semibold">Solicitud privada preparada</h2>
     <p>No se ha generado ningún video. Tu audio se conserva completo, sin recortes ni otra voz.</p>
-    <p>Duración verificada en el servidor: {state.seconds?.toFixed(3)} segundos. La generación sigue bloqueada hasta tu autorización.</p>
-    <LinkButton href="/dashboard">Volver a mis videos</LinkButton>
+    <p>Duración verificada en el servidor: {state.seconds?.toFixed(3)} segundos. Puedes revisar la grabación antes de generar.</p>
+    <LinkButton href={`/dashboard/review/${state.requestId}`}>Revisar grabación</LinkButton>
+    <LinkButton href="/dashboard" variant="secondary">Volver al historial</LinkButton>
   </div>;
   return <form action={action} className="space-y-5 rounded-lg border border-border-strong p-5">
     <Field id="photo" label="Tu fotografía" hint="De frente, rostro visible. JPEG o PNG; mínimo 200 × 200 píxeles.">
@@ -43,8 +44,8 @@ export function PreparationForm() {
     {duration !== undefined && <p>Duración de tu grabación: {duration.toFixed(2)} segundos. Se conservará completa.</p>}
     {(tooLarge || tooLong || audioError || state.error) && <p role="alert" className="text-sm text-danger">{tooLarge ? "Foto y audio superan 3 MB." : tooLong ? "La grabación supera 45 segundos. No se recortará automáticamente." : audioError ? "El navegador no pudo leer este audio. Prueba un archivo M4A o MP3." : state.error}</p>}
     <label className="flex gap-2 text-sm"><input type="checkbox" name="consent" required />Confirmo que la foto y la grabación son mías y autorizo guardarlas de forma privada para preparar esta prueba.</label>
-    <p className="text-sm text-ink-muted">Consumo al guardar: 0 créditos D-ID. El consumo de generar el video está pendiente de confirmar; no hay generación automática.</p>
-    <Button type="submit" loading={pending} disabled={!photo || !audio || !duration || tooLarge || tooLong || audioError}>Guardar preparación</Button>
+    <p className="text-sm text-ink-muted">Guardar y revisar no consume saldo del proveedor. La generación es un paso separado y permanece restringida a esta prueba privada.</p>
+    <Button type="submit" loading={pending} disabled={!photo || !audio || !duration || tooLarge || tooLong || audioError}>Guardar y continuar</Button>
   </form>;
 }
 
@@ -53,8 +54,8 @@ export function SavedPreparationForm({ id, label }: { id: string; label: string 
   return <form action={action} className="space-y-2 rounded-lg border border-border-strong p-4">
     <input type="hidden" name="preparationId" value={id} />
     <p>{label}</p>
-    {state.saved ? <p role="status">Solicitud asociada. Audio verificado: {state.seconds?.toFixed(3)} s. No se ha generado ningún video.</p>
-      : <Button type="submit" loading={pending}>Verificar y asociar archivos guardados</Button>}
+    {state.saved ? <div role="status"><p>Grabación preparada: {state.seconds?.toFixed(3)} s. No se ha generado ningún video.</p><LinkButton href={`/dashboard/review/${state.requestId}`}>Revisar grabación</LinkButton></div>
+      : <Button type="submit" loading={pending}>Continuar con estos archivos</Button>}
     {state.error && <p role="alert">{state.error}</p>}
   </form>;
 }

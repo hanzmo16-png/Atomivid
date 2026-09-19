@@ -3,7 +3,7 @@ import { signIn } from "./actions";
 import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
-import { Button } from "@/components/ui/Button";
+import { FormSubmitButton } from "@/components/ui/FormSubmitButton";
 import { Logo } from "@/components/ui/Logo";
 
 export default async function LoginPage({
@@ -53,9 +53,7 @@ export default async function LoginPage({
               placeholder="••••••••"
             />
           </Field>
-          <Button type="submit" className="w-full">
-            Iniciar sesión
-          </Button>
+          <FormSubmitButton label="Iniciar sesión" pendingLabel="Iniciando sesión…" />
         </form>
 
         <p className="mt-6 text-center text-sm text-ink-muted">

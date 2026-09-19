@@ -41,6 +41,7 @@ export function GenerateButton({
         router.push(redirectTo);
       } else {
         router.refresh();
+        setLoading(false);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
@@ -53,7 +54,7 @@ export function GenerateButton({
       <Button type="button" size="sm" onClick={handleClick} loading={loading}>
         {loading ? "Generando…" : label}
       </Button>
-      {error && <p className="max-w-[220px] text-right text-xs text-danger">{error}</p>}
+      {error && <p role="alert" className="max-w-[220px] text-right text-xs text-danger">{error}</p>}
       {needsSubscription && (
         <Link href="/dashboard/billing" className="text-right text-xs font-medium text-accent hover:text-accent-hover">
           Ver planes

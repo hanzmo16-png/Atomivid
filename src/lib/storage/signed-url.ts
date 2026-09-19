@@ -13,11 +13,12 @@ const STORAGE_BUCKET = "videos";
 export async function getSignedVideoUrl(
   path: string,
   expiresInSeconds = 3600,
+  download?: string,
 ): Promise<string | null> {
   const service = createServiceClient();
   const { data, error } = await service.storage
     .from(STORAGE_BUCKET)
-    .createSignedUrl(path, expiresInSeconds);
+    .createSignedUrl(path, expiresInSeconds, download ? { download } : undefined);
 
   if (error || !data) return null;
   return data.signedUrl;

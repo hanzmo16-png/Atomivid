@@ -2,10 +2,9 @@ import { createVideoRequest } from "./actions";
 import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
 import { NewVideoForm } from "./NewVideoForm";
-import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { createClient } from "@/lib/supabase/server";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
-import { LinkButton } from "@/components/ui/Button";
+import { VideoModeNav } from "@/components/video/VideoModeNav";
 
 const INCLUDES = [
   "Guion escrito por IA a partir de tu tema",
@@ -22,21 +21,9 @@ export default async function NewVideoPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
-  const flags = getFeatureFlags();
   const auth = await createClient();
   const { data: { user } } = await auth.auth.getUser();
   const privateAvatarAccess = canPrepareAvatar(user);
-
-  let existingAvatars: { id: string; name: string }[] = [];
-  if (flags.avatarModeEnabled && privateAvatarAccess) {
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from("avatars")
-      .select("id, name")
-      .eq("status", "ready")
-      .order("created_at", { ascending: false });
-    existingAvatars = data ?? [];
-  }
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -51,17 +38,10 @@ export default async function NewVideoPage({
         </Alert>
       )}
 
+      {privateAvatarAccess && <VideoModeNav current="visual" />}
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <Card className="p-6">
-          {privateAvatarAccess && <div className="mb-6 space-y-2">
-            <LinkButton href="/dashboard/avatar/prepare">Video con avatar</LinkButton>
-            <p className="text-xs text-ink-muted">Prepara tu foto y tu grabación. No consume créditos.</p>
-          </div>}
-          <NewVideoForm
-            action={createVideoRequest}
-            avatarModeEnabled={flags.avatarModeEnabled && privateAvatarAccess}
-            existingAvatars={existingAvatars}
-          />
+          <NewVideoForm action={createVideoRequest} />
         </Card>
 
         <Card className="h-fit p-6">
@@ -86,8 +66,8 @@ export default async function NewVideoPage({
             ))}
           </ul>
           <p className="mt-5 text-xs text-ink-faint">
-            Al enviar, primero se genera el guion — podrás revisarlo y ajustarlo antes de
-            producir el video final.
+            Al continuar se guarda tu solicitud. Después podrás generar y revisar el guion
+            antes de producir el video final.
           </p>
         </Card>
       </div>

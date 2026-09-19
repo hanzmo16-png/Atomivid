@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSignedVideoUrl } from "@/lib/storage/signed-url";
 import { selectIfOwned, type OwnedRequestRow } from "@/lib/video/access";
+import { AutoRefresh } from "@/app/dashboard/AutoRefresh";
 import { ResultView } from "@/components/video/ResultView";
 
 export default async function VideoResultPage({
@@ -26,7 +27,7 @@ export default async function VideoResultPage({
   // resultado que no pertenezca a este usuario se trata exactamente igual
   // que "no existe": notFound(), nunca un mensaje que confirme que la fila
   // sí existe pero es de otra persona.
-  const { data } = await supabase
+  const { data, error: queryError } = await supabase
     .from("video_requests")
     .select(
       "id, mode, user_id, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at",
@@ -34,6 +35,8 @@ export default async function VideoResultPage({
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle<OwnedRequestRow>();
+
+  if (queryError) throw new Error("No se pudo consultar la solicitud.");
 
   const request = selectIfOwned(data, user.id);
   if (!request) {
@@ -45,9 +48,13 @@ export default async function VideoResultPage({
       ? await getSignedVideoUrl(request.video_path)
       : null;
 
+  // Server request timestamp: fixed for this response, not a client render clock.
+  // eslint-disable-next-line react-hooks/purity
+  const nowMs = Date.now();
   return (
     <div className="mx-auto max-w-md">
-      <ResultView request={request} videoUrl={videoUrl} />
+      <AutoRefresh active={request.status === "processing"} />
+      <ResultView request={request} videoUrl={videoUrl} nowMs={nowMs} />
     </div>
   );
 }

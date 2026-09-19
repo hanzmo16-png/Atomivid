@@ -1,254 +1,29 @@
 "use server";
 
-import { recordingFormat, recordingPath, RECORDING_BUCKET, MAX_AVATAR_FORM_BYTES } from "@/lib/video/avatar/recording";
-import { randomUUID } from "node:crypto";
-import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createServiceClient } from "@/lib/supabase/service";
-import { getFeatureFlags } from "@/lib/video/feature-flags";
-import { getAvatarProvider, AvatarProviderError, type AvatarJobStatus } from "@/lib/providers/avatar";
-import { validatePhotoBuffer } from "@/lib/video/avatar/photo-validation";
-import {
-  avatarStatusFromProviderStatus,
-  isAvatarConsentGiven,
-  resolveMode,
-  validateCommonFields,
-  validateNewAvatarSubmission,
-} from "./validation";
-
-const AVATAR_UPLOADS_BUCKET = "avatar-uploads";
-/**
- * Versión del texto de consentimiento vigente (src/app/terms/page.tsx,
- * sección #avatar-consent) — se guarda junto con cada avatar para poder
- * saber, si el texto cambia más adelante, bajo qué versión aceptó cada
- * usuario. Actualizar este valor si ese texto cambia de forma sustantiva.
- */
-const AVATAR_CONSENT_POLICY_VERSION = "2026-09-17";
+import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
+import { validateCommonFields } from "./validation";
 
 export async function createVideoRequest(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const mode = String(formData.get("mode") ?? "visual");
+  // The old avatar form must never create provider assets during preparation.
+  // Reuse the owner-only validated photo + original-audio preparation route.
+  if (mode === "avatar" && canPrepareAvatar(user)) redirect("/dashboard/avatar/prepare");
+  if (mode !== "visual") redirect("/dashboard/new?error=Tipo+de+video+no+disponible");
   const topic = String(formData.get("topic") ?? "").trim();
   const style = String(formData.get("style") ?? "").trim();
   const durationSeconds = Number(formData.get("duration_seconds"));
   const language = String(formData.get("language") ?? "es").trim();
-  const rawMode = String(formData.get("mode") ?? "visual").trim();
-
-  const commonError = validateCommonFields({ topic, style, durationSeconds, language });
-  if (commonError) {
-    redirect(`/dashboard/new?error=${encodeURIComponent(commonError)}`);
-  }
-
-  // Nunca confiar en el <select>/radio del cliente para decidir si el modo
-  // avatar está disponible — se re-verifica el flag en el servidor. Un
-  // POST manual con mode=avatar mientras el flag está apagado se trata
-  // igual que un modo inválido.
-  const flags = getFeatureFlags();
-  const modeResult = resolveMode(rawMode, flags.avatarModeEnabled);
-  if (!modeResult.ok) {
-    redirect(`/dashboard/new?error=${encodeURIComponent(modeResult.error)}`);
-  }
-  const mode = modeResult.mode;
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-  if (mode === "avatar" && !canPrepareAvatar(user)) {
-    redirect("/dashboard/new?error=Esta+prueba+privada+no+está+disponible+para+tu+cuenta");
-  }
-
-  if (mode === "visual") {
-    const { error } = await supabase.from("video_requests").insert({
-      user_id: user.id,
-      topic,
-      style,
-      duration_seconds: durationSeconds,
-      language,
-      mode: "visual",
-      status: "pending",
-    });
-
-    if (error) {
-      redirect(`/dashboard/new?error=${encodeURIComponent(error.message)}`);
-    }
-
-    redirect("/dashboard?created=1");
-  }
-
-  // --- Modo avatar -------------------------------------------------------
-  // El consentimiento se re-verifica aquí — el atributo "required" del
-  // checkbox en el cliente es solo una ayuda de UX, nunca la fuente de
-  // verdad. Se exige tanto al reusar un avatar existente como al subir
-  // uno nuevo (la UI muestra el checkbox en ambos casos).
-  if (!isAvatarConsentGiven(formData.get("avatar_consent"))) {
-    redirect("/dashboard/new?error=Debes+aceptar+el+consentimiento+del+modo+avatar");
-  }
-
-  const narrationSource = String(formData.get("narration_source") ?? "tts");
-  if (!["tts", "recording"].includes(narrationSource)) redirect("/dashboard/new?error=Fuente+de+voz+inválida");
-  const audioFile = formData.get("recorded_audio");
-  let recording: { audioBuffer: Buffer; extension: string; mimeType: string } | undefined;
-  const files = [...formData.values()].filter((v): v is File => v instanceof File);
-  if (files.reduce((sum, file) => sum + file.size, 0) > MAX_AVATAR_FORM_BYTES) {
-    redirect("/dashboard/new?error=La+foto+y+el+audio+deben+pesar+como+máximo+3+MB+en+total.+Usa+audio+M4A+o+MP3.");
-  }
-  if (narrationSource === "recording") {
-    if (!["did", "fixture"].includes(flags.avatarProvider)) redirect("/dashboard/new?error=Este+proveedor+no+admite+grabaciones");
-    if (!(audioFile instanceof File) || !audioFile.size) redirect("/dashboard/new?error=Selecciona+tu+grabación");
-    try {
-      const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
-      recording = { audioBuffer, ...recordingFormat(audioBuffer) };
-    } catch {
-      redirect("/dashboard/new?error=Audio+inválido.+Usa+M4A,+MP3+o+WAV+de+hasta+3+MB.");
-    }
-  }
-
-  const existingAvatarId = String(formData.get("existing_avatar_id") ?? "").trim();
-  const avatarVoiceId = String(formData.get("avatar_voice_id") ?? "").trim() || undefined;
-
-  let avatarId: string;
-
-  if (existingAvatarId) {
-    // Se reusa un avatar ya creado — se verifica que exista y que
-    // pertenezca al usuario (la policy de RLS de "avatars" ya limita el
-    // select a las filas propias, pero se comprueba explícitamente en vez
-    // de asumirlo solo por la ausencia de error).
-    const { data: avatar } = await supabase
-      .from("avatars")
-      .select("id, status")
-      .eq("id", existingAvatarId)
-      .maybeSingle<{ id: string; status: string }>();
-
-    if (!avatar || avatar.status !== "ready") {
-      redirect("/dashboard/new?error=El+avatar+seleccionado+no+está+disponible");
-    }
-    avatarId = avatar.id;
-  } else {
-    // Se sube una fotografía nueva.
-    const photo = formData.get("avatar_photo");
-    const avatarName = String(formData.get("avatar_name") ?? "").trim();
-
-    const newAvatarError = validateNewAvatarSubmission({
-      hasPhotoFile: photo instanceof File,
-      photoSizeBytes: photo instanceof File ? photo.size : 0,
-      avatarName,
-    });
-    if (newAvatarError) {
-      redirect(`/dashboard/new?error=${encodeURIComponent(newAvatarError)}`);
-    }
-
-    const file = photo as File;
-    const photoBuffer = Buffer.from(await file.arrayBuffer());
-    const validation = validatePhotoBuffer(photoBuffer, file.type);
-    if (!validation.valid) {
-      redirect(`/dashboard/new?error=${encodeURIComponent(`Fotografía inválida: ${validation.reason}`)}`);
-    }
-    const { format } = validation;
-
-    // El bucket "avatar-uploads" es privado y sin policies de cliente (ver
-    // migración 0011) — la subida solo puede hacerse con la service role,
-    // nunca con el cliente autenticado por el usuario.
-    const service = createServiceClient();
-    const photoPath = `${user.id}/${randomUUID()}.${format}`;
-    const { error: uploadError } = await service.storage
-      .from(AVATAR_UPLOADS_BUCKET)
-      .upload(photoPath, photoBuffer, { contentType: file.type, upsert: false });
-    if (uploadError) {
-      redirect(`/dashboard/new?error=${encodeURIComponent(`No se pudo subir la fotografía: ${uploadError.message}`)}`);
-    }
-
-    let providerAvatarId: string;
-    let providerJobId: string | undefined;
-    let providerStatus: AvatarJobStatus;
-    let providerName: string;
-    try {
-      const provider = getAvatarProvider();
-      if (!provider.isAvailable() || provider.name !== flags.avatarProvider) throw new Error("El proveedor de avatar no está configurado.");
-      providerName = provider.name;
-      const result = await provider.createAvatar({ photoBuffer, mimeType: file.type, consentGiven: true });
-      providerAvatarId = result.providerAvatarId;
-      providerJobId = result.providerJobId;
-      providerStatus = result.status;
-    } catch (err) {
-      // La fotografía ya se subió — se limpia para no dejar un archivo
-      // huérfano si el proveedor rechaza la creación del avatar.
-      await service.storage.from(AVATAR_UPLOADS_BUCKET).remove([photoPath]).catch(() => {});
-      const message =
-        err instanceof AvatarProviderError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "No se pudo crear el avatar en el proveedor";
-      redirect(`/dashboard/new?error=${encodeURIComponent(message)}`);
-    }
-
-    const { data: inserted, error: insertError } = await supabase
-      .from("avatars")
-      .insert({
-        user_id: user.id,
-        name: avatarName,
-        provider: providerName,
-        provider_avatar_id: providerAvatarId,
-        provider_job_id: providerJobId ?? null,
-        source_photo_path: photoPath,
-        status: avatarStatusFromProviderStatus(providerStatus),
-        consent_given: true,
-        consent_given_at: new Date().toISOString(),
-        consent_policy_version: AVATAR_CONSENT_POLICY_VERSION,
-      })
-      .select("id, status")
-      .single<{ id: string; status: string }>();
-
-    if (insertError || !inserted) {
-      await service.storage.from(AVATAR_UPLOADS_BUCKET).remove([photoPath]).catch(() => {});
-      redirect(
-        `/dashboard/new?error=${encodeURIComponent(`No se pudo guardar el avatar: ${insertError?.message ?? "error desconocido"}`)}`,
-      );
-    }
-    if (inserted.status !== "ready") {
-      // Limitación conocida (documentada en docs/AVATAR_MODE.md): esta
-      // primera versión no encola un seguimiento en segundo plano del
-      // estado de creación del avatar en el proveedor — si no queda listo
-      // de inmediato (el fixture y, según lo confirmado, "photo avatar" de
-      // HeyGen sí responden de inmediato), no se puede usar todavía.
-      redirect(
-        "/dashboard/new?error=El+avatar+sigue+procesándose+en+el+proveedor%2C+inténtalo+de+nuevo+en+unos+minutos",
-      );
-    }
-    avatarId = inserted.id;
-  }
-
-  const requestId = randomUUID();
-  const audioPath = recording ? recordingPath(user.id, requestId, recording.extension) : null;
-  if (recording && audioPath) {
-    const { error: audioError } = await createServiceClient().storage.from(RECORDING_BUCKET)
-      .upload(audioPath, recording.audioBuffer, { contentType: recording.mimeType, upsert: false });
-    if (audioError) redirect("/dashboard/new?error=No+se+pudo+guardar+la+grabación+privada");
-  }
-  const { error } = await supabase.from("video_requests").insert({
-    id: requestId,
-    recorded_audio_path: audioPath,
-    script_json: recording ? { title: topic, segments: [{ text: "[Se utilizará tu grabación completa, sin sintetizar otra voz.]", visualQuery: "avatar" }] } : null,
-    user_id: user.id,
-    topic,
-    style,
-    duration_seconds: durationSeconds,
-    language,
-    mode: "avatar",
-    avatar_id: avatarId,
-    avatar_voice_id: recording ? null : avatarVoiceId ?? null,
-    idempotency_key: randomUUID(),
-    status: recording ? "script_ready" : "pending",
-  });
-
-  if (error) {
-    if (audioPath) await createServiceClient().storage.from(RECORDING_BUCKET).remove([audioPath]).catch(() => {});
-    redirect(`/dashboard/new?error=${encodeURIComponent(error.message)}`);
-  }
-
-  redirect("/dashboard?created=1");
+  const invalid = validateCommonFields({ topic, style, durationSeconds, language });
+  if (invalid) redirect(`/dashboard/new?error=${encodeURIComponent(invalid)}`);
+  const { data, error } = await supabase.from("video_requests").insert({
+    user_id: user.id, topic, style, duration_seconds: durationSeconds, language,
+    mode: "visual", status: "pending",
+  }).select("id").single<{ id: string }>();
+  if (error || !data) redirect("/dashboard/new?error=No+se+pudo+guardar+la+solicitud.+Intenta+de+nuevo.");
+  redirect(`/dashboard/videos/${data.id}`);
 }

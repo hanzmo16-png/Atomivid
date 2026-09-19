@@ -1,3 +1,4 @@
+import { VideoModeNav } from "@/components/video/VideoModeNav";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
@@ -15,10 +16,10 @@ export default async function AvatarPreparationPage() {
     .list(`${user!.id}/preparations`, { limit: 100, sortBy: { column: "name", order: "asc" } });
   return <div className="mx-auto max-w-2xl space-y-4">
     <h1 className="text-2xl font-bold text-ink">Video con avatar</h1>
-    <p className="text-sm text-ink-muted">Prueba privada: prepara tu fotografía y tu voz original. Guardar los archivos no genera un video ni consume créditos D-ID.</p>
+    <p className="text-sm text-ink-muted">Prueba privada: prepara tu fotografía y tu voz original. Guardar los archivos no genera un video ni consume saldo del proveedor.</p>
+    <VideoModeNav current="avatar" />
     {error && <p role="alert">No se pudieron consultar las preparaciones guardadas.</p>}
     {saved?.filter(item => /^[a-f0-9-]{36}$/i.test(item.name)).map((item, i) => <SavedPreparationForm key={item.name} id={item.name} label={`Preparación guardada ${i + 1}`} />)}
-    <a href="/api/avatar/credits" className="underline">Consultar saldo D-ID (sin generar video)</a>
     <PreparationForm />
   </div>;
 }

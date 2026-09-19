@@ -16,7 +16,7 @@ export async function signIn(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/login?error=${encodeURIComponent(humanizeAuthError(error.message))}`);
+    redirect(`/login?error=${encodeURIComponent(humanizeAuthError(error.message))}&redirectedFrom=${encodeURIComponent(redirectTarget)}`);
   }
 
   redirect(redirectTarget);

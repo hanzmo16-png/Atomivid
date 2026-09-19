@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
-import { AvatarFields } from "./AvatarFields";
 import { SubmitButton } from "./SubmitButton";
 
 const STYLES = [
@@ -21,25 +20,7 @@ const DURATIONS = [
   { value: 90, label: "90 segundos" },
 ];
 
-type VideoMode = "visual" | "avatar";
-
-/**
- * Formulario de /dashboard/new. El selector "Video visual" / "Video con
- * avatar" solo se muestra cuando `avatarModeEnabled` (leído en el
- * servidor, en page.tsx, a partir de AVATAR_MODE_ENABLED) es true — con
- * el flag apagado este componente renderiza exactamente los mismos campos
- * que antes de que existiera el modo avatar, sin ningún control nuevo.
- */
-export function NewVideoForm({
-  action,
-  avatarModeEnabled,
-  existingAvatars,
-}: {
-  action: (formData: FormData) => void;
-  avatarModeEnabled: boolean;
-  existingAvatars: { id: string; name: string }[];
-}) {
-  const [mode, setMode] = useState<VideoMode>("visual");
+export function NewVideoForm({ action }: { action: (formData: FormData) => void }) {
   const [language, setLanguage] = useState<"es" | "en">("es");
 
   return (
@@ -92,40 +73,6 @@ export function NewVideoForm({
           ))}
         </select>
       </Field>
-
-      {avatarModeEnabled && (
-        <fieldset className="space-y-2.5">
-          <legend className="text-sm font-medium text-ink">Tipo de video</legend>
-          <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
-            <label className="flex items-center gap-2 text-sm text-ink-muted">
-              <input
-                type="radio"
-                name="mode"
-                value="visual"
-                checked={mode === "visual"}
-                onChange={() => setMode("visual")}
-                className="size-4"
-              />
-              Video visual (clips e imágenes)
-            </label>
-            <label className="flex items-center gap-2 text-sm text-ink-muted">
-              <input
-                type="radio"
-                name="mode"
-                value="avatar"
-                checked={mode === "avatar"}
-                onChange={() => setMode("avatar")}
-                className="size-4"
-              />
-              Video con avatar (tu fotografía narra el guion)
-            </label>
-          </div>
-        </fieldset>
-      )}
-
-      {avatarModeEnabled && mode === "avatar" && (
-        <AvatarFields existingAvatars={existingAvatars} language={language} />
-      )}
 
       <SubmitButton />
     </form>

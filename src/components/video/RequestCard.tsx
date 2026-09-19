@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/Badge";
 import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
 import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
 import { STATUS_LABEL, STATUS_TONE, type VideoRequestSummary } from "@/lib/video/request-view";
-import { GenerateButton } from "@/app/dashboard/GenerateButton";
+import { RequestActions } from "./RequestActions";
+import { VideoPlayback } from "./VideoPlayback";
 
 /**
  * Tarjeta de una solicitud en el historial. Puramente presentacional —
@@ -30,7 +31,6 @@ export function RequestCard({
 }) {
   const isStaleProcessing = isRenderStale(request, nowMs);
   const attemptsExhausted = request.render_attempts >= MAX_RENDER_ATTEMPTS;
-  const canRetry = !attemptsExhausted && request.mode !== "avatar";
   const detailHref = `/dashboard/videos/${request.id}`;
 
   return (
@@ -41,7 +41,7 @@ export function RequestCard({
             {request.topic}
           </Link>
           <p className="mt-1 text-sm text-ink-muted">
-            {request.style} · {request.duration_seconds}s ·{" "}
+            {request.mode === "avatar" ? "Avatar" : "Video normal"} · {request.style} · {request.duration_seconds}s ·{" "}
             {new Date(request.created_at).toLocaleString("es-MX")}
           </p>
           {request.status === "failed" && request.error_message && (
@@ -50,7 +50,7 @@ export function RequestCard({
           {request.status === "processing" && !isStaleProcessing && request.progress_stage && (
             <p className="mt-2 flex items-center gap-1.5 text-sm text-ink-muted">
               <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-info motion-reduce:animate-none" aria-hidden="true" />
-              {RENDER_STAGE_LABEL[request.progress_stage as RenderStage] ?? request.progress_stage}…
+              {RENDER_STAGE_LABEL[request.progress_stage as RenderStage] ?? "Procesando tu video"}…
             </p>
           )}
           {request.status === "processing" && isStaleProcessing && (
@@ -68,55 +68,16 @@ export function RequestCard({
             {STATUS_LABEL[request.status] ?? request.status}
           </Badge>
 
-          {request.status === "pending" && (
-            <GenerateButton
-              endpoint={`/api/generate/${request.id}/script`}
-              label="Generar guion"
-              redirectTo={`/dashboard/review/${request.id}`}
-            />
-          )}
-          {request.status === "script_ready" && (
-            <Link
-              href={`/dashboard/review/${request.id}`}
-              className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover"
-            >
-              Revisar guion
-            </Link>
-          )}
-          {request.status === "processing" && isStaleProcessing && canRetry && (
-            <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Reintentar" />
-          )}
-          {request.status === "failed" && Boolean(request.script_json) && attemptsExhausted && (
-            <p className="max-w-[220px] text-left text-xs text-ink-faint sm:text-right">
-              Se alcanzó el máximo de intentos. Crea un video nuevo.
-            </p>
-          )}
-          {request.status === "failed" &&
-            (request.script_json ? (
-              canRetry && (
-                <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Reintentar" />
-              )
-            ) : (
-              <GenerateButton
-                endpoint={`/api/generate/${request.id}/script`}
-                label="Reintentar"
-                redirectTo={`/dashboard/review/${request.id}`}
-              />
-            ))}
+          <RequestActions request={request} nowMs={nowMs} />
         </div>
       </div>
 
       {request.status === "completed" && videoUrl && (
         <div className="mt-4 flex flex-col items-start gap-3 border-t border-border pt-4 sm:flex-row sm:items-center">
-          <video src={videoUrl} controls preload="metadata" className="aspect-9/16 w-36 rounded-md bg-black">
-            Tu navegador no puede reproducir este video.
-          </video>
+          <VideoPlayback src={videoUrl} compact />
           <div className="flex flex-col gap-2 sm:flex-row">
             <a
-              href={videoUrl}
-              download
-              target="_blank"
-              rel="noopener noreferrer"
+              href={`/api/videos/${request.id}/download`}
               className="inline-flex items-center gap-1.5 rounded-md border border-border-strong px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-accent-border hover:bg-surface-raised"
             >
               Descargar video

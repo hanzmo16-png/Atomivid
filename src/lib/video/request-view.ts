@@ -24,7 +24,7 @@ export type VideoRequestSummary = {
 
 export const STATUS_LABEL: Record<string, string> = {
   pending: "Pendiente",
-  script_ready: "Guion listo",
+  script_ready: "Listo para revisar",
   processing: "Generando",
   completed: "Listo",
   failed: "Error",
