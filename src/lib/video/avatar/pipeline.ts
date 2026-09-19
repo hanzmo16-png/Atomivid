@@ -1,3 +1,5 @@
+import { heygenAudio } from "./heygen-audio";
+import { validatePhotoBuffer } from "./photo-validation";
 import fs from "node:fs/promises";
 import { isOwnedRecordingPath, recordingFormat, RECORDING_BUCKET, MAX_RECORDING_BYTES } from "./recording";
 import { measureNarrationSeconds } from "./measure-narration";
@@ -168,7 +170,7 @@ export async function generateAvatarVideo({
     if (error || !data) throw new AvatarPipelineError("No se pudo preparar la fotografía privada.", "avatar_not_ready");
     providerAvatarId = data.signedUrl;
   }
-  if (!providerAvatarId) {
+  if (!providerAvatarId && !(provider.name === "heygen" && recordedAudioPath)) {
     throw new AvatarPipelineError(
       "El avatar todavía no terminó de crearse en el proveedor — vuelve a intentar cuando su estado sea 'ready'.",
       "avatar_not_ready",
@@ -201,7 +203,7 @@ export async function generateAvatarVideo({
     let recording: { audioBuffer: Buffer; extension: string; mimeType: string } | undefined;
     if (recordedAudioPath) {
       try {
-        if (!["did", "fixture"].includes(provider.name) || !isOwnedRecordingPath(recordedAudioPath, userId, requestId)) throw new Error("Invalid recording association");
+        if (!["did", "heygen", "fixture"].includes(provider.name) || !isOwnedRecordingPath(recordedAudioPath, userId, requestId)) throw new Error("Invalid recording association");
         const { data: request, error } = await supabase.from("video_requests")
           .select("recorded_audio_path").eq("id", requestId).eq("user_id", userId).eq("avatar_id", avatarId).maybeSingle();
         if (error || request?.recorded_audio_path !== recordedAudioPath) throw new Error("Recording not associated");
@@ -215,6 +217,18 @@ export async function generateAvatarVideo({
         if (err instanceof AvatarPipelineError) throw err;
         throw new AvatarPipelineError("No se pudo validar la grabación privada. No se generó otra voz ni se solicitó el avatar.", "narration_failed");
       }
+    }
+    // Validate the stored photo before claiming this single attempt.
+    let heygenPhoto: { photoBuffer: Buffer; mimeType: string; consentGiven: boolean } | undefined;
+    if (provider.name === "heygen" && !providerAvatarId) {
+      const photoPath = avatar.source_photo_path;
+      if (!["jpeg", "png"].some(ext => photoPath === `${userId}/${requestId}/photo.${ext}`)) throw new AvatarPipelineError("Fotografía no asociada a esta solicitud.", "avatar_not_ready");
+      const { data, error } = await supabase.storage.from(RECORDING_BUCKET).download(photoPath!);
+      if (error || !data) throw new AvatarPipelineError("No se pudo verificar la fotografía privada.", "avatar_not_ready");
+      const photoBuffer = Buffer.from(await data.arrayBuffer());
+      const mimeType = photoPath!.endsWith(".png") ? "image/png" : "image/jpeg";
+      if (!validatePhotoBuffer(photoBuffer, mimeType).valid) throw new AvatarPipelineError("Fotografía privada inválida.", "avatar_not_ready");
+      heygenPhoto = { photoBuffer, mimeType, consentGiven: avatar.consent_given };
     }
     // Durable compare-and-set: only one worker may consume providers for this
     // request, including after crashes/timeouts. Never clear this automatically.
@@ -235,6 +249,12 @@ export async function generateAvatarVideo({
       );
     }
 
+    if (heygenPhoto) {
+      const created = await provider.createAvatar(heygenPhoto);
+      providerAvatarId = created.providerAvatarId;
+      const { error } = await supabase.from("avatars").update({ provider_avatar_id: providerAvatarId, status: "ready" }).eq("id", avatarId).eq("user_id", userId);
+      if (error) throw new AvatarPipelineError("No se pudo guardar el recurso de fotografía.", "provider_error");
+    }
     await onProgress?.("voice");
 
     // La narración propia es obligatoria: un fallo no debe activar TTS
@@ -243,7 +263,8 @@ export async function generateAvatarVideo({
     let audioUrl: string | undefined;
     let audioDurationSeconds: number;
     try {
-      const voiceResult = recording ?? await voiceProvider!.synthesize(fullText, language);
+      let voiceResult = recording ?? await voiceProvider!.synthesize(fullText, language);
+      if (provider.name === "heygen") voiceResult = await heygenAudio(voiceResult.audioBuffer);
       audioDurationSeconds = await measureNarrationSeconds(voiceResult.audioBuffer);
       if (audioDurationSeconds > flags.maxAvatarDurationSeconds) {
         throw new AvatarPipelineError("El audio real excede la duración máxima permitida. No se solicitó el avatar.", "duration_exceeded");
@@ -275,7 +296,7 @@ export async function generateAvatarVideo({
     await onProgress?.("render");
     try {
       asset = await provider.generateVideo({
-        providerAvatarId,
+        providerAvatarId: providerAvatarId!,
         script: fullText,
         audioUrl,
         audioDurationSeconds,
@@ -300,6 +321,10 @@ export async function generateAvatarVideo({
       });
     } catch (err) {
       if (err instanceof AvatarProviderError) {
+        if (provider.name === "heygen" && err.cause) {
+          // Exact response stays in the private owner bucket, never public logs.
+          await supabase.storage.from(RECORDING_BUCKET).upload(`${userId}/${requestId}/heygen-error.json`, Buffer.from(JSON.stringify(err.cause)), { contentType: "application/json", upsert: true });
+        }
         throw new AvatarPipelineError(`${provider.name}: ${err.message}`, "provider_error");
       }
       throw err;
