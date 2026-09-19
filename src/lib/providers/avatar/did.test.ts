@@ -339,7 +339,7 @@ test("D-ID errors preserve safe category and operation without leaking provider 
   await withEnv({ DID_API_KEY: "test:secret" }, async () => {
     const original = globalThis.fetch;
     try {
-      for (const body of [{ kind: "PermissionError", description: "private signed URL secret" }, { kind: "private-secret" }, null]) {
+      for (const body of [{ kind: "PermissionError", description: "private signed URL secret" }, { kind: "private-secret" }, { error: { code: "PermissionError" } }, null]) {
         let calls = 0;
         globalThis.fetch = async () => { calls++; return jsonResponse(body, 403); };
         await assert.rejects(() => didAvatarProvider.generateVideo({
@@ -350,7 +350,7 @@ test("D-ID errors preserve safe category and operation without leaking provider 
           assert.match(error.message, /HTTP 403 \[create_talk;/);
           assert.ok(!error.message.includes("private"));
           assert.ok(!error.message.includes("secret"));
-          assert.ok(error.message.includes(body?.kind === "PermissionError" ? "PermissionError" : "unclassified"));
+          assert.ok(error.message.includes((body?.kind === "PermissionError" || body?.error?.code === "PermissionError") ? "PermissionError" : "unclassified"));
           return true;
         });
         assert.equal(calls, 1);
