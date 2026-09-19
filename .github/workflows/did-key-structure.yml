@@ -23,5 +23,5 @@ jobs:
             const d = Buffer.from(v, 'base64');
             encodedCredentials = d.toString('base64').replace(/=+$/, '') === v.replace(/=+$/, '') && d.toString('utf8').includes(':');
           }
-          console.log(JSON.stringify({present:!!s, basic_prefix:prefixed, contains_colon:v.includes(':'), base64_decodes_to_credentials:encodedCredentials}));
+          console.log(JSON.stringify({present:!!s, length:s.length, basic_prefix:prefixed, contains_colon:v.includes(':'), base64_decodes_to_credentials:encodedCredentials}));
           NODE
