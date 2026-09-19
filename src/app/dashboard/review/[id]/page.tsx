@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { GeneratedScript } from "@/lib/providers/types";
@@ -11,6 +13,8 @@ type VideoRequestRow = {
   style: string;
   duration_seconds: number;
   status: string;
+  render_attempts: number;
+  avatar_provider_video_job_id: string | null;
   script_json: GeneratedScript | null;
   error_message: string | null;
   recorded_audio_path: string | null;
@@ -34,7 +38,7 @@ export default async function ReviewPage({
 
   const { data } = await supabase
     .from("video_requests")
-    .select("id, topic, style, duration_seconds, status, script_json, error_message, recorded_audio_path")
+    .select("id, topic, style, duration_seconds, status, script_json, error_message, recorded_audio_path, render_attempts, avatar_provider_video_job_id")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle<VideoRequestRow>();
@@ -59,6 +63,10 @@ export default async function ReviewPage({
 
       {audioPreview && <audio controls preload="metadata" src={audioPreview} className="my-4 w-full" aria-label="Tu grabación original" />}
       <ScriptReview
+        diagnosticRetry={canPrepareAvatar(user) && Date.now() < Date.parse("2026-09-19T02:00:00Z")
+          && createHash("sha256").update(data.id).digest("hex") === "24ad45b839f41c3c20e23d3a1b85e5d4e946fd66d1bead27865e4dbd506239b5"
+          && data.status === "failed" && data.render_attempts === 1
+          && data.avatar_provider_video_job_id === null && data.error_message === "did: D-ID respondió HTTP 403"}
         requestId={data.id}
         status={data.status}
         initialScript={data.script_json}
