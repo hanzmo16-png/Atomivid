@@ -1,0 +1,66 @@
+name: One public-sample D-ID isolation test
+on:
+  push:
+    branches: [claude/atomivid-mvp-setup-0079jv]
+    paths: [.github/workflows/did-public-isolation.yml]
+permissions: {}
+concurrency:
+  group: did-public-isolation-20260919
+  cancel-in-progress: false
+jobs:
+  isolate:
+    if: github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Verify public samples and submit exactly once
+        env:
+          DID_API_KEY: ${{ secrets.DID_API_KEY }}
+        run: |
+          node --input-type=module <<'NODE'
+          import {writeFileSync,unlinkSync} from 'node:fs';
+          import {execFileSync} from 'node:child_process';
+          const photo='https://create-images-results.d-id.com/DefaultPresenters/Emma_f/v1_image.jpeg';
+          const audio='https://d-id-public-bucket.s3.us-west-2.amazonaws.com/webrtc.mp3';
+          const key=process.env.DID_API_KEY?.trim();
+          if(!key) throw Error('missing_key');
+          // Anonymous asset requests: no cookies, Authorization or custom headers.
+          for(const [kind,url] of [['photo',photo],['audio',audio]]){
+            const r=await fetch(url,{redirect:'error',signal:AbortSignal.timeout(20000)});
+            console.log('PUBLIC_ASSET '+kind+' HTTP '+r.status);
+            if(!r.ok) throw Error('public_asset_unavailable');
+            const bytes=Buffer.from(await r.arrayBuffer());
+            if(kind==='audio'){
+              const path='/tmp/did-public-sample.mp3';
+              writeFileSync(path,bytes);
+              const seconds=Number(execFileSync('ffprobe',['-v','error','-show_entries','format=duration','-of','default=nw=1:nk=1',path],{encoding:'utf8'}).trim());
+              unlinkSync(path);
+              if(!Number.isFinite(seconds)||seconds<=0||seconds>45) throw Error('sample_duration_exceeds_budget');
+              console.log('PUBLIC_AUDIO_SECONDS='+seconds);
+            }
+          }
+          const auth='Basic '+Buffer.from(key,'utf8').toString('base64');
+          // ONE POST. No retry, fallback, polling or redirect.
+          try{
+            const r=await fetch('https://api.d-id.com/talks',{
+              method:'POST',redirect:'error',signal:AbortSignal.timeout(60000),
+              headers:{Authorization:auth,'Content-Type':'application/json'},
+              body:JSON.stringify({source_url:photo,script:{type:'audio',audio_url:audio},config:{result_format:'mp4'}})
+            });
+            const body=await r.text();
+            console.log('DID_HTTP_STATUS='+r.status);
+            console.log('DID_ERROR_TYPE='+(r.headers.get('x-amzn-errortype')||''));
+            console.log('DID_REQUEST_ID='+(r.headers.get('x-amzn-requestid')||''));
+            if(r.ok){console.log('DID_REQUEST_ACCEPTED_NO_FURTHER_CALLS');}
+            else{
+              let v;try{v=JSON.parse(body);}catch{v=null;}
+              if(body==='{"message":"Forbidden"}') console.log('DID_EXACT_BODY='+body);
+              else if(v){
+                for(const field of ['kind','name','code','message']){
+                  if(typeof v[field]==='string' && /^[a-zA-Z0-9 _.,:;()/-]{1,250}$/.test(v[field]) && !v[field].includes(key) && !v[field].includes(auth.slice(6))) console.log('DID_'+field.toUpperCase()+'='+v[field]);
+                }
+              }else console.log('DID_NON_JSON_BODY_NOT_LOGGED');
+            }
+          }catch{console.log('DID_TRANSPORT_ERROR_OUTCOME_UNKNOWN_NO_RETRY');}
+          NODE
