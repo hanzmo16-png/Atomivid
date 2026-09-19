@@ -1,0 +1,27 @@
+name: D-ID credential structure only
+on:
+  push:
+    branches: [claude/atomivid-mvp-setup-0079jv]
+    paths: [.github/workflows/did-key-structure.yml]
+permissions: {}
+jobs:
+  structure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Inspect structure only; no network or generation
+        shell: bash
+        env:
+          DID_API_KEY: ${{ secrets.DID_API_KEY }}
+        run: |
+          node <<'NODE'
+          const s = (process.env.DID_API_KEY || '').trim();
+          const prefixed = /^Basic\s+/i.test(s);
+          const v = prefixed ? s.replace(/^Basic\s+/i, '') : s;
+          let encodedCredentials = false;
+          if (v && /^[A-Za-z0-9+/]+={0,2}$/.test(v)) {
+            const d = Buffer.from(v, 'base64');
+            encodedCredentials = d.toString('base64').replace(/=+$/, '') === v.replace(/=+$/, '') && d.toString('utf8').includes(':');
+          }
+          console.log(JSON.stringify({present:!!s, basic_prefix:prefixed, contains_colon:v.includes(':'), base64_decodes_to_credentials:encodedCredentials}));
+          NODE
