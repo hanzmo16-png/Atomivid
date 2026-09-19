@@ -3,10 +3,11 @@
  * páginas que solo necesitan las etiquetas —como el historial— no arrastren
  * @remotion/bundler ni @remotion/renderer a su bundle de servidor.
  */
-export const RENDER_STAGES = ["voice", "footage", "music", "render", "uploading"] as const;
+export const RENDER_STAGES = ["queued", "voice", "footage", "music", "render", "uploading"] as const;
 export type RenderStage = (typeof RENDER_STAGES)[number];
 
 export const RENDER_STAGE_LABEL: Record<RenderStage, string> = {
+  queued: "En cola, esperando un espacio para procesar",
   voice: "Generando voz narrada",
   footage: "Buscando imágenes por escena",
   music: "Agregando música de fondo",

@@ -11,7 +11,7 @@ export function AutoRefresh({ active }: { active: boolean }) {
     if (!active) return;
 
     const interval = setInterval(() => {
-      router.refresh();
+      if (document.visibilityState === "visible") router.refresh();
     }, 4000);
 
     return () => clearInterval(interval);

@@ -13,18 +13,11 @@ async function main() {
   const requestId = process.env.REQUEST_ID;
   if (!requestId) return;
 
+  const { readFile } = await import("node:fs/promises");
+  const saved = await readFile(".render-attempt.json", "utf8").then(JSON.parse).catch(() => null);
+  if (!saved || saved.requestId !== requestId || !Number.isInteger(saved.attempt)) return;
   const { createServiceClient } = await import("../src/lib/supabase/service");
   const service = createServiceClient();
-
-  const { data: row } = await service
-    .from("video_requests")
-    .select("status")
-    .eq("id", requestId)
-    .single<{ status: string }>();
-
-  // Si runRenderJob ya dejó un error más específico (completed o failed),
-  // no lo pises con un mensaje genérico.
-  if (!row || row.status !== "processing") return;
 
   await service
     .from("video_requests")
@@ -34,10 +27,12 @@ async function main() {
         "El render no terminó a tiempo o el worker falló inesperadamente. Puedes reintentar.",
       progress_stage: null,
     })
-    .eq("id", requestId);
+    .eq("id", requestId)
+    .eq("status", "processing")
+    .eq("render_attempts", saved.attempt);
 }
 
-main().catch((err) => {
-  console.error("No se pudo marcar la solicitud como fallida:", err);
+main().catch(() => {
+  console.error("RENDER_CLEANUP_FAILED");
   process.exit(1);
 });

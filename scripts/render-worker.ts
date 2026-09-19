@@ -16,6 +16,19 @@ async function main() {
     throw new Error("REQUEST_ID no está definido");
   }
 
+  const { createServiceClient } = await import("../src/lib/supabase/service");
+  const { writeFile } = await import("node:fs/promises");
+  const row = await createServiceClient().from("video_requests").select("status,render_attempts")
+    .eq("id",requestId).single();
+  if (row.error) throw new Error("request_read_failed");
+  if (!row.data || row.data.status !== "processing") return;
+  const supplied = process.env.RENDER_ATTEMPT;
+  if (supplied && Number(supplied) !== row.data.render_attempts) return;
+  const attempt = row.data.render_attempts as number;
+  // Local runner file only; not published as an artifact. Cleanup cannot
+  // guess the current attempt after a timeout or a delayed dispatch.
+  await writeFile(".render-attempt.json", JSON.stringify({requestId,attempt}), {mode:0o600});
+
   // Este worker existe para generar videos reales para usuarios reales —
   // si falta una API key y el pipeline caería a un proveedor fixture
   // (texto/tono/imagen de relleno), mejor fallar con un mensaje claro que
@@ -58,10 +71,14 @@ async function main() {
   }
 
   const { runRenderJob } = await import("../src/lib/video/run-job");
-  await runRenderJob(requestId);
+  const original = { log: console.log, warn: console.warn, error: console.error };
+  try {
+    console.log = console.warn = console.error = () => {};
+    await runRenderJob(requestId, attempt);
+  } finally { Object.assign(console, original); }
 }
 
-main().catch((err) => {
-  console.error("Fallo el render en el worker:", err);
+main().catch(() => {
+  console.error("RENDER_FAILED_DETAILS_IN_PRIVATE_REQUEST");
   process.exit(1);
 });

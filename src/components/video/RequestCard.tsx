@@ -1,8 +1,10 @@
+import { isRenderStale } from "@/lib/video/render-guard";
+import { renderFailureMessage } from "@/lib/video/job-error";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
-import { MAX_RENDER_ATTEMPTS, RENDER_TIMEOUT_MS } from "@/lib/video/limits";
+import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
 import { STATUS_LABEL, STATUS_TONE, type VideoRequestSummary } from "@/lib/video/request-view";
 import { GenerateButton } from "@/app/dashboard/GenerateButton";
 
@@ -26,11 +28,9 @@ export function RequestCard({
   videoUrl?: string | null;
   nowMs: number;
 }) {
-  const isStaleProcessing =
-    request.status === "processing" &&
-    request.render_started_at !== null &&
-    nowMs - new Date(request.render_started_at).getTime() > RENDER_TIMEOUT_MS;
+  const isStaleProcessing = isRenderStale(request, nowMs);
   const attemptsExhausted = request.render_attempts >= MAX_RENDER_ATTEMPTS;
+  const canRetry = !attemptsExhausted && request.mode !== "avatar";
   const detailHref = `/dashboard/videos/${request.id}`;
 
   return (
@@ -45,7 +45,7 @@ export function RequestCard({
             {new Date(request.created_at).toLocaleString("es-MX")}
           </p>
           {request.status === "failed" && request.error_message && (
-            <p className="mt-2 max-w-md text-sm text-danger">{request.error_message}</p>
+            <p className="mt-2 max-w-md text-sm text-danger">{renderFailureMessage(request.error_message)}</p>
           )}
           {request.status === "processing" && !isStaleProcessing && request.progress_stage && (
             <p className="mt-2 flex items-center gap-1.5 text-sm text-ink-muted">
@@ -56,9 +56,9 @@ export function RequestCard({
           {request.status === "processing" && isStaleProcessing && (
             <p className="mt-2 max-w-md text-sm text-warning">
               Esto está tardando más de lo normal.{" "}
-              {attemptsExhausted
+              {request.mode === "avatar" ? "La prueba privada requiere revisión antes de otro intento." : attemptsExhausted
                 ? "Se alcanzó el máximo de intentos para este video."
-                : "Puedes reintentar."}
+                : "El progreso quedó detenido. Puedes iniciar un nuevo intento desde aquí; no se reinicia automáticamente."}
             </p>
           )}
         </div>
@@ -83,7 +83,7 @@ export function RequestCard({
               Revisar guion
             </Link>
           )}
-          {request.status === "processing" && isStaleProcessing && !attemptsExhausted && (
+          {request.status === "processing" && isStaleProcessing && canRetry && (
             <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Reintentar" />
           )}
           {request.status === "failed" && Boolean(request.script_json) && attemptsExhausted && (
@@ -93,7 +93,7 @@ export function RequestCard({
           )}
           {request.status === "failed" &&
             (request.script_json ? (
-              !attemptsExhausted && (
+              canRetry && (
                 <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Reintentar" />
               )
             ) : (
