@@ -1,3 +1,6 @@
+import { loadTestPlanPrice } from "@/lib/billing/test-plan";
+import { PriceSummary } from "@/components/billing/PriceSummary";
+import { QuotaSummary } from "@/components/billing/QuotaSummary";
 import { createClient } from "@/lib/supabase/server";
 import { STATUS_LABEL, isSubscriptionActive } from "@/lib/billing/subscription";
 import { createCheckoutSession, createPortalSession } from "./actions";
@@ -33,6 +36,7 @@ export default async function BillingPage({
   const subscription = data as SubscriptionRow | null;
   const status = subscription?.status ?? "none";
   const active = isSubscriptionActive(status);
+  const price = await loadTestPlanPrice();
 
   return (
     <div className="mx-auto max-w-xl">
@@ -51,6 +55,8 @@ export default async function BillingPage({
         {error && <Alert tone="danger">{error}</Alert>}
       </div>
 
+      <PriceSummary price={price} />
+      <QuotaSummary />
       <Card className="mt-6 p-6">
         <div className="flex items-center justify-between">
           <div>
@@ -76,7 +82,7 @@ export default async function BillingPage({
             </form>
           ) : (
             <form action={createCheckoutSession}>
-              <Button type="submit">Suscribirme</Button>
+              <Button type="submit" disabled={!price}>Continuar al pago de prueba</Button>
             </form>
           )}
         </div>

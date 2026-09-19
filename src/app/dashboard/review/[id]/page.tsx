@@ -54,16 +54,20 @@ export default async function ReviewPage({
     audioPreview = signed?.signedUrl;
   }
 
+  // This Server Component evaluates the diagnostic deadline once per request.
+  // eslint-disable-next-line react-hooks/purity -- request-time server authorization deadline
+  const renderNow = Date.now();
+
   return (
     <div className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-bold text-ink">{data.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        {data.topic} · {data.style} · {data.recorded_audio_path ? "Duración del audio original" : `${data.duration_seconds}s`}
+        {data.topic} · {data.style} · {data.recorded_audio_path ? `Solicitada: ${data.duration_seconds} s (basada en la grabación)` : `Solicitada: ${data.duration_seconds} s (objetivo aproximado)`}
       </p>
 
       {audioPreview && <audio controls preload="metadata" src={audioPreview} className="my-4 w-full" aria-label="Tu grabación original" />}
       <ScriptReview
-        diagnosticRetry={canPrepareAvatar(user) && Date.now() < Date.parse("2026-09-19T02:00:00Z")
+        diagnosticRetry={canPrepareAvatar(user) && renderNow < Date.parse("2026-09-19T02:00:00Z")
           && createHash("sha256").update(data.id).digest("hex") === "24ad45b839f41c3c20e23d3a1b85e5d4e946fd66d1bead27865e4dbd506239b5"
           && data.status === "failed" && data.render_attempts === 1
           && data.avatar_provider_video_job_id === null && data.error_message === "did: D-ID respondió HTTP 403"}

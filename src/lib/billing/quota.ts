@@ -1,3 +1,4 @@
+import { monthlyVideoLimit, monthStartUtc } from "./quota-window";
 import { isSubscriptionActive } from "./subscription";
 import type { createServiceClient } from "@/lib/supabase/service";
 
@@ -6,7 +7,7 @@ type ServiceClient = ReturnType<typeof createServiceClient>;
 // Tope de videos por mes incluso para suscriptores activos: protege los
 // costos variables (LLM, voz, render) mientras se valida la demanda.
 // Configurable por env var — ver notas de presupuesto en el README.
-const MONTHLY_VIDEO_LIMIT = Number(process.env.MONTHLY_VIDEO_LIMIT || 30);
+
 
 export type GenerationCheck =
   | { allowed: true }
@@ -37,16 +38,14 @@ export async function assertCanGenerate(
     };
   }
 
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
+  const MONTHLY_VIDEO_LIMIT = monthlyVideoLimit();
 
   const { count, error: countError } = await service
     .from("video_requests")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .in("status", ["processing", "completed"])
-    .gte("created_at", startOfMonth.toISOString());
+    .gte("created_at", monthStartUtc());
   if (countError) throw countError;
 
   if ((count ?? 0) >= MONTHLY_VIDEO_LIMIT) {

@@ -1,5 +1,6 @@
 "use server";
 
+import { displayPrice } from "@/lib/billing/display-price";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
@@ -58,6 +59,7 @@ export async function createCheckoutSession() {
     redirect("/login");
   }
 
+  if (!process.env.STRIPE_SECRET_KEY?.trim().startsWith("sk_test_")) redirect("/dashboard/billing?error=Los+pagos+reales+están+desactivados.");
   let checkoutUrl: string;
   try {
     // STRIPE_PRICE_ID se lee aquí dentro, no a nivel de módulo: si se lee
@@ -69,6 +71,7 @@ export async function createCheckoutSession() {
       throw new MissingEnvVarError("STRIPE_PRICE_ID");
     }
 
+    if (!displayPrice(await getStripe().prices.retrieve(priceId))) throw new Error("Test price unavailable");
     const siteUrl = await getSiteUrl();
     const service = createServiceClient();
 
@@ -96,6 +99,7 @@ export async function createPortalSession() {
     redirect("/login");
   }
 
+  if (!process.env.STRIPE_SECRET_KEY?.trim().startsWith("sk_test_")) redirect("/dashboard/billing?error=Los+pagos+reales+están+desactivados.");
   let portalUrl: string;
   try {
     const siteUrl = await getSiteUrl();

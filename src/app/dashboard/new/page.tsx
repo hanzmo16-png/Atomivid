@@ -1,3 +1,4 @@
+import { QuotaSummary } from "@/components/billing/QuotaSummary";
 import { createVideoRequest } from "./actions";
 import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
@@ -45,6 +46,7 @@ export default async function NewVideoPage({
         Describe el tema y revisa el guion antes de que se produzca el video final.
       </p>
 
+      <QuotaSummary />
       {error && (
         <Alert tone="danger" role="alert">
           <span className="[&::first-letter]:uppercase">{error.replaceAll("+", " ")}</span>

@@ -28,7 +28,7 @@ export function humanizeAuthError(rawMessage: string | undefined | null): string
  */
 export function safeRedirectTarget(value: FormDataEntryValue | null): string | null {
   if (typeof value !== "string") return null;
-  if (!value.startsWith("/") || value.startsWith("//")) return null;
+  if (!value.startsWith("/") || value.startsWith("//") || /[\\\u0000-\u0020]/.test(value)) return null;
   if (value.startsWith("/login") || value.startsWith("/register")) return null;
   return value;
 }

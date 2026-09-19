@@ -1,3 +1,4 @@
+import { MeasuredVideo } from "./MeasuredVideo";
 import { renderFailureMessage } from "@/lib/video/job-error";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -28,7 +29,7 @@ export function ResultView({
 }) {
   const meta = [
     request.language && LANGUAGE_LABEL[request.language],
-    `${request.duration_seconds}s`,
+    `Solicitada: ${request.duration_seconds} s`,
     new Date(request.created_at).toLocaleString("es-MX"),
   ].filter(Boolean);
 
@@ -80,14 +81,7 @@ export function ResultView({
 
         {request.status === "completed" && videoUrl && (
           <div className="flex flex-col items-center gap-4">
-            <video
-              src={videoUrl}
-              controls
-              preload="metadata"
-              className="aspect-9/16 w-full max-w-72 rounded-lg bg-black shadow-lg"
-            >
-              Tu navegador no puede reproducir este video.
-            </video>
+            <MeasuredVideo src={videoUrl} requested={request.duration_seconds} mode={request.mode} className="aspect-9/16 w-full max-w-72 rounded-lg bg-black shadow-lg" />
             <a
               href={videoUrl}
               download

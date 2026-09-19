@@ -1,3 +1,4 @@
+import { QuotaSummary } from "@/components/billing/QuotaSummary";
 import { createClient } from "@/lib/supabase/server";
 import { isSubscriptionActive } from "@/lib/billing/subscription";
 import { getSignedVideoUrl } from "@/lib/storage/signed-url";
@@ -78,6 +79,7 @@ export default async function DashboardPage({
         </LinkButton>
       </div>
 
+      <QuotaSummary />
       <div className="mt-4 space-y-3">
         {!subscribed && (
           <Alert tone="info">

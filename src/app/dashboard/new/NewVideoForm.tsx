@@ -83,7 +83,7 @@ export function NewVideoForm({
         </select>
       </Field>
 
-      <Field id="duration_seconds" label="Duración deseada">
+      <Field id="duration_seconds" label="Duración solicitada (objetivo aproximado)">
         <select id="duration_seconds" name="duration_seconds" required defaultValue={30} className={INPUT_CLASS}>
           {DURATIONS.map((d) => (
             <option key={d.value} value={d.value}>
@@ -92,6 +92,7 @@ export function NewVideoForm({
           ))}
         </select>
       </Field>
+      <p className="text-sm text-ink-muted">La duración final puede variar con la narración y el cierre. Al terminar verás la duración solicitada y la entregada por separado. En avatar, la grabación determina la duración.</p>
 
       {avatarModeEnabled && (
         <fieldset className="space-y-2.5">

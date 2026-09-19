@@ -1,3 +1,4 @@
+import { MeasuredVideo } from "./MeasuredVideo";
 import { isRenderStale } from "@/lib/video/render-guard";
 import { renderFailureMessage } from "@/lib/video/job-error";
 import Link from "next/link";
@@ -41,7 +42,7 @@ export function RequestCard({
             {request.topic}
           </Link>
           <p className="mt-1 text-sm text-ink-muted">
-            {request.style} · {request.duration_seconds}s ·{" "}
+            {request.style} · Solicitada: {request.duration_seconds} s ·{" "}
             {new Date(request.created_at).toLocaleString("es-MX")}
           </p>
           {request.status === "failed" && request.error_message && (
@@ -108,9 +109,7 @@ export function RequestCard({
 
       {request.status === "completed" && videoUrl && (
         <div className="mt-4 flex flex-col items-start gap-3 border-t border-border pt-4 sm:flex-row sm:items-center">
-          <video src={videoUrl} controls preload="metadata" className="aspect-9/16 w-36 rounded-md bg-black">
-            Tu navegador no puede reproducir este video.
-          </video>
+          <MeasuredVideo src={videoUrl} requested={request.duration_seconds} mode={request.mode} className="aspect-9/16 w-36 rounded-md bg-black" />
           <div className="flex flex-col gap-2 sm:flex-row">
             <a
               href={videoUrl}
