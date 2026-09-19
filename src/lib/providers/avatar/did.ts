@@ -164,7 +164,18 @@ async function didFetch(path: string, init: RequestInit & { jsonBody?: boolean }
     if (RECOVERABLE_HTTP_STATUS.has(response.status)) {
       circuitBreaker.recordFailure();
     }
-    throw new AvatarProviderError(`D-ID respondió HTTP ${response.status}`, "did", "upstream_error");
+    // Never propagate free-form provider text: it may echo signed URLs or credentials.
+    const knownNames = new Set(["PermissionError", "AuthorizationError", "InsufficientCreditsError",
+      "ImageModerationError", "CelebrityRecognizedError", "TextModerationError", "AudioModerationError"]);
+    let providerCode = "unclassified";
+    try {
+      const body = await response.json() as { kind?: unknown; name?: unknown; error?: { kind?: unknown; name?: unknown } };
+      const candidate = body?.kind ?? body?.name ?? body?.error?.kind ?? body?.error?.name;
+      if (typeof candidate === "string" && knownNames.has(candidate)) providerCode = candidate;
+    } catch { /* Non-JSON errors retain HTTP status without exposing response content. */ }
+    const operation = path === "/talks" ? "create_talk" : path === "/images" ? "upload_image"
+      : path.startsWith("/talks/") ? "talk_status" : "provider_request";
+    throw new AvatarProviderError(`D-ID respondió HTTP ${response.status} [${operation}; ${providerCode}]`, "did", "upstream_error");
   }
 
   circuitBreaker.recordSuccess();
