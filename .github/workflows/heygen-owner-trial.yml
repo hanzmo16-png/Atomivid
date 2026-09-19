@@ -1,0 +1,40 @@
+name: Private owner HeyGen trial
+on:
+  push:
+    branches: [codex/heygen-primary]
+    paths: [scripts/heygen-owner-trial.ts, .github/workflows/heygen-owner-trial.yml]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Prepare only, or execute the single owner-authorized trial
+        type: choice
+        options: [prepare, generate]
+        default: prepare
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: atomivid-heygen-owner-trial
+  cancel-in-progress: false
+jobs:
+  trial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Guarded private owner operation
+        run: npx tsx scripts/heygen-owner-trial.ts
+        env:
+          TRIAL_ACTION: ${{ inputs.action || 'prepare' }}
+          ATOMIVID_RUNTIME: production
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
+          AVATAR_MODE_ENABLED: 'false'
+          AVATAR_PROVIDER: heygen

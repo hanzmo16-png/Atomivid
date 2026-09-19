@@ -330,9 +330,7 @@ export type AvatarVideoRequest = {
    * todos los videos, no la voz interna de cada proveedor). Cuando está
    * presente, el proveedor debe usarla en vez de sintetizar voz por su
    * cuenta (confirmado para D-ID: `script.type: "audio"` — ver
-   * providers/avatar/did.ts). Si el proveedor no soporta audio externo
-   * (p. ej. HeyGen, sin `audio_url` confirmado), lo ignora y cae a
-   * `voiceId`.
+   * providers/avatar/did.ts). HeyGen también requiere audio externo; nunca activa TTS de respaldo.
    */
   audioUrl?: string;
   /** Duration measured from the actual audio bytes before submission. */
@@ -370,7 +368,7 @@ export interface AvatarVideoProvider {
    * rechazar por presupuesto, nunca una aproximación distinta que podría
    * subestimar el gasto real.
    */
-  estimateVideoCostUsd(request: Pick<AvatarVideoRequest, "script">): number;
+  estimateVideoCostUsd(request: Pick<AvatarVideoRequest, "script" | "audioDurationSeconds">): number;
   /** Debe intentar cancelar en el proveedor Y reportar honestamente si no se pudo confirmar — mismo criterio que deleteAvatar(). Nunca factura por cancelar. */
   cancelVideo(providerJobId: string): Promise<{ cancelled: boolean; reason?: string }>;
   /**

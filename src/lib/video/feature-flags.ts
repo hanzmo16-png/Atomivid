@@ -68,8 +68,8 @@ export function getFeatureFlags() {
     maxImagesPerVideo: numberEnv("MAX_GENERATED_IMAGES_PER_VIDEO", 3),
     /** Habilita el modo "avatar" end-to-end. Apagado por defecto — el modo "visual" sigue siendo el único disponible sin esto. */
     avatarModeEnabled: flag("AVATAR_MODE_ENABLED", false),
-    /** "fixture" | "heygen" — sin HEYGEN_API_KEY, cae a fixture aunque esté en "heygen". */
-    avatarProvider: (process.env.AVATAR_PROVIDER || "fixture").trim(),
+    /** Primary provider is HeyGen. Production fails closed when credentials are missing. */
+    avatarProvider: (process.env.AVATAR_PROVIDER || "heygen").trim(),
     /** USD máximos en generación de avatar (creación + video) por solicitud. */
     maxAvatarCostUsd: numberEnv("MAX_AVATAR_COST_USD", 3),
     /** Duración narrada máxima (segundos, estimada por palabras) para un guion de avatar — límite explícito, independiente del tope de caracteres del proveedor. */
