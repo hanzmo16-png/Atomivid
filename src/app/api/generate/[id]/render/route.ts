@@ -31,6 +31,8 @@ type VideoRequestRow = {
   user_id: string;
   status: string;
   script_json: GeneratedScript | null;
+  error_message: string | null;
+  avatar_provider_video_job_id: string | null;
   render_attempts: number;
   render_started_at: string | null;
 };
@@ -70,7 +72,7 @@ export async function POST(
     try {
       const { data, error: fetchError } = await service
         .from("video_requests")
-        .select("id, mode, user_id, status, script_json, render_attempts, render_started_at")
+        .select("id, mode, user_id, status, script_json, render_attempts, render_started_at, error_message, avatar_provider_video_job_id")
         .eq("id", id)
         .single<VideoRequestRow>();
 
@@ -88,6 +90,14 @@ export async function POST(
     // Global avatar mode remains off; ownership and durable attempt lock stay enforced.
     const authorizedTrial = Date.now() < Date.parse("2026-09-19T02:00:00Z")
       && createHash("sha256").update(id).digest("hex") === "24ad45b839f41c3c20e23d3a1b85e5d4e946fd66d1bead27865e4dbd506239b5";
+    // Owner explicitly authorized ONE additional diagnostic attempt after the recorded 403.
+    const diagnosticRetry = authorizedTrial && videoRequest.mode === "avatar"
+      && videoRequest.status === "failed" && videoRequest.render_attempts === 1
+      && videoRequest.error_message === "did: D-ID respondió HTTP 403"
+      && videoRequest.avatar_provider_video_job_id === null;
+    if (videoRequest.mode === "avatar" && videoRequest.render_attempts > 0 && !diagnosticRetry) {
+      return NextResponse.json({ error: "El intento autorizado ya fue utilizado." }, { status: 409 });
+    }
     if (videoRequest.mode === "avatar" && ((!getFeatureFlags().avatarModeEnabled && !authorizedTrial) || !canPrepareAvatar(user))) {
       return NextResponse.json({ error: "La generación de avatar está bloqueada. Primero se requiere revisar el consumo y autorizar la prueba." }, { status: 403 });
     }
@@ -133,6 +143,7 @@ export async function POST(
       const result = await service
         .from("video_requests")
         .update({
+          ...(diagnosticRetry ? { avatar_generation_started_at: null } : {}),
           status: "processing",
           error_message: null,
           progress_stage: "queued",
@@ -142,6 +153,7 @@ export async function POST(
         })
         .eq("id", id)
         .eq("status", videoRequest.status)
+        .eq("render_attempts", videoRequest.render_attempts)
         .select("id");
       updated = result.data;
       updateError = result.error;
