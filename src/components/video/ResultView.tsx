@@ -1,3 +1,4 @@
+import { renderFailureMessage } from "@/lib/video/job-error";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
@@ -73,7 +74,7 @@ export function ResultView({
         {request.status === "failed" && (
           <Alert tone="danger" role="alert">
             <p className="font-medium">No se pudo generar este video.</p>
-            {request.error_message && <p className="mt-1">{request.error_message}</p>}
+            {request.error_message && <p className="mt-1">{renderFailureMessage(request.error_message)}</p>}
           </Alert>
         )}
 

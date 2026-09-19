@@ -58,3 +58,14 @@ test("recovery uses GET only, no new generation cost", async () => {
     const r=await provider.recoverVideo!("existing");assert.equal(r.costUsd,0);
   });
 });
+test('transient reads retry without a creation call',async()=>{
+ let reads=0;
+ await mocked(async(_url,init)=>{assert.notEqual(init?.method,'POST');reads++;return reads<3?json({error:{code:'temporary'}},503):json({data:{status:'processing'}});},async()=>{
+ assert.equal(await provider.checkVideoStatus('existing'),'processing');assert.equal(reads,3);
+ });
+});
+test('masked credential fails before network',async()=>{
+ await mocked(async()=>{throw Error('must not send');},async()=>{
+ process.env.HEYGEN_API_KEY='••••hidden';await assert.rejects(()=>provider.checkVideoStatus('existing'),e=>e instanceof AvatarProviderError&&e.reason==='not_configured');
+ });
+});

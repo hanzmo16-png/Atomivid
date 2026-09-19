@@ -8,12 +8,26 @@ const safeToken = (v: unknown) => typeof v === "string" && /^[a-zA-Z0-9_.-]{1,10
 
 async function api(path: string, init: RequestInit = {}) {
   const key = process.env.HEYGEN_API_KEY?.trim();
-  if (!key) throw fail("HEYGEN_API_KEY no está configurada", "not_configured");
-  let response: Response;
-  try {
-    response = await fetch(BASE + path, { ...init, redirect: "error", signal: AbortSignal.timeout(60000),
-      headers: { "X-Api-Key": key, ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }), ...init.headers } });
-  } catch { throw fail("Error de transporte de HeyGen; no se reintentó la creación.", "upstream_error"); }
+  if (!key || /[•●*\s]/.test(key)) throw fail("HEYGEN_API_KEY no está configurada", "not_configured");
+  let response: Response | undefined;
+  // Only idempotent reads may retry. Never replay a billable POST after ambiguity.
+  const attempts = !init.method || init.method === "GET" ? 3 : 1;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      response = await fetch(BASE + path, { ...init, redirect: "error", signal: AbortSignal.timeout(60000),
+        headers: { "X-Api-Key": key, ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }), ...init.headers } });
+    } catch {
+      if (attempt + 1 === attempts) throw fail("Error de transporte de HeyGen; la creación no se repite.", "upstream_error");
+    }
+    if (response && ![429, 500, 502, 503, 504].includes(response.status)) break;
+    if (attempt + 1 < attempts) {
+      const retryAfter = Number(response?.headers.get("retry-after"));
+      await response?.body?.cancel();
+      response = undefined;
+      await new Promise(resolve => setTimeout(resolve, Math.min(5000, Math.max(250 * 2 ** attempt, Number.isFinite(retryAfter) ? retryAfter * 1000 : 0))));
+    }
+  }
+  if (!response) throw fail("No se recibió respuesta de HeyGen.", "upstream_error");
   const body = await response.json().catch(() => null);
   if (!response.ok) {
     // Free-form provider errors may echo private media URLs. Never log them publicly.
@@ -111,7 +125,7 @@ export const heygenAvatarProvider: AvatarVideoProvider = {
       const data = await api(`/v3/videos/${encodeURIComponent(created.video_id)}`);
       const state = status(data.status);
       if (state === "completed") return result(created.video_id, data, seconds, cost);
-      if (state === "failed" || state === "cancelled") throw fail(`HeyGen generación ${state}; code=${safeToken(data.failure_code)}`, "upstream_error");
+      if (state === "failed" || state === "cancelled") throw new AvatarProviderError(`HeyGen generación ${state}; code=${safeToken(data.failure_code)}`, "heygen", "upstream_error", { body: data });
       await new Promise(resolve => setTimeout(resolve, 10000));
     }
     throw fail("HeyGen sigue procesando; no se creó otro intento.", "timeout");

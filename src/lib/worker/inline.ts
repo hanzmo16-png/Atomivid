@@ -38,8 +38,8 @@ import type { RenderWorker } from "./types";
  */
 export const inlineWorker: RenderWorker = {
   name: "inline",
-  async trigger({ requestId }) {
+  async trigger({ requestId, renderAttempt }) {
     const { runRenderJob } = await import("@/lib/video/run-job");
-    await runRenderJob(requestId);
+    await runRenderJob(requestId, renderAttempt);
   },
 };

@@ -28,10 +28,9 @@ concurrency:
 jobs:
   render:
     runs-on: ubuntu-latest
-    # Tope duro: si el render se cuelga, GitHub lo mata a los 12 minutos y
-    # el paso "Marcar como fallido" deja la solicitud en un estado
-    # reintentable en vez de "processing" para siempre.
-    timeout-minutes: 12
+    # El paso de render tiene 12 minutos. El job deja margen adicional
+    # para ejecutar la limpieza; un timeout del job entero no la ejecutaría.
+    timeout-minutes: 18
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,10 +52,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Renderizar video
+        timeout-minutes: 12
         run: npx tsx scripts/render-worker.ts
         env:
           ATOMIVID_RUNTIME: production
           REQUEST_ID: ${{ github.event.client_payload.requestId || inputs.request_id }}
+          RENDER_ATTEMPT: ${{ github.event.client_payload.renderAttempt }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
@@ -77,5 +78,6 @@ jobs:
         run: npx tsx scripts/mark-render-failed.ts
         env:
           REQUEST_ID: ${{ github.event.client_payload.requestId || inputs.request_id }}
+          RENDER_ATTEMPT: ${{ github.event.client_payload.renderAttempt }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

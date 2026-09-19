@@ -80,3 +80,10 @@ test("permite el intento justo antes de alcanzar el máximo", () => {
   );
   assert.deepEqual(decision, { allowed: true });
 });
+
+test("legacy processing without a start date can recover from creation date", () => {
+  assert.deepEqual(evaluateRenderStart(row({status:"processing",created_at:new Date(NOW-RENDER_TIMEOUT_MS-1).toISOString()}),NOW),{allowed:true});
+});
+test("invalid timestamps never authorize an automatic overlapping attempt", () => {
+  assert.equal(evaluateRenderStart(row({status:"processing",render_started_at:"invalid"}),NOW).allowed,false);
+});

@@ -1,3 +1,4 @@
+import { buildCaptions } from "./captions";
 import { VIDEO_TAIL_SECONDS } from "./script-pacing";
 import { ProviderConfigurationError } from "@/lib/providers/production";
 import path from "node:path";
@@ -19,7 +20,7 @@ import { splitIntoBeats } from "@/lib/video/scene-beats";
 import { createFootageSelectionState, selectFootageForScene } from "@/lib/video/footage-select";
 import { checkDuration, assertNarrationDuration } from "@/lib/video/duration-check";
 import { LOUDNESS_TARGET, masterAudioLoudness } from "@/lib/video/audio-master";
-import { buildEmphasisSet, isEmphasisWord } from "@/lib/video/caption-emphasis";
+import { buildEmphasisSet } from "@/lib/video/caption-emphasis";
 import { getAccentColor } from "@/lib/video/brand";
 import { evaluateQualityGate, QUALITY_GATE_MIN_SCORE } from "@/lib/video/quality-gate";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
@@ -36,15 +37,6 @@ import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resol
 // script de prueba end-to-end con fixtures.
 
 const STORAGE_BUCKET = "videos";
-const MAX_CAPTION_WORDS = 7;
-const MIN_CAPTION_WORDS = 2;
-// Presupuesto de caracteres para que el bloque quepa en 2 líneas — causa
-// raíz confirmada de "subtítulos genéricos" que en la práctica podían
-// exceder 2 líneas en pantalla: antes solo se limitaba por CANTIDAD de
-// palabras (hasta 7), sin considerar su longitud real. ~28 caracteres por
-// línea a un tamaño legible en 1080px de ancho con márgenes (ver
-// VerticalReel.tsx) × 2 líneas, con margen de seguridad.
-const MAX_CAPTION_CHARS = 52;
 const COMPOSITION_ID = "VerticalReel";
 // El bucket es privado: los assets intermedios (voz/footage/música) se
 // firman por un rato corto, solo el tiempo que tarda este mismo proceso en
@@ -61,6 +53,7 @@ type OnProgress = (stage: RenderStage) => void | Promise<void>;
 export async function generateVideoFromScript({
   supabase,
   requestId,
+  artifactPrefix = requestId,
   script,
   style,
   topic,
@@ -70,6 +63,7 @@ export async function generateVideoFromScript({
 }: {
   supabase: SupabaseClient;
   requestId: string;
+  artifactPrefix?: string;
   script: GeneratedScript;
   /** Estilo elegido por el usuario (p. ej. "Motivacional") — usado para elegir música acorde. */
   style?: string;
@@ -287,7 +281,7 @@ export async function generateVideoFromScript({
       storageBytes += footageBuffer.byteLength;
       const { url: mediaUrl } = await uploadToStorage(
         supabase,
-        `${requestId}/scene-${i}-${b}.${outcome.result.extension}`,
+        `${artifactPrefix}/scene-${i}-${b}.${outcome.result.extension}`,
         footageBuffer,
         outcome.result.mimeType,
       );
@@ -355,7 +349,7 @@ export async function generateVideoFromScript({
   storageBytes += voice.audioBuffer.byteLength;
   const { url: audioUrl } = await uploadToStorage(
     supabase,
-    `${requestId}/voice.${voice.extension}`,
+    `${artifactPrefix}/voice.${voice.extension}`,
     voice.audioBuffer,
     voice.mimeType,
   );
@@ -394,7 +388,7 @@ export async function generateVideoFromScript({
     storageBytes += music.audioBuffer.byteLength;
     const uploaded = await uploadToStorage(
       supabase,
-      `${requestId}/music.${music.extension}`,
+      `${artifactPrefix}/music.${music.extension}`,
       music.audioBuffer,
       music.mimeType,
     );
@@ -410,7 +404,7 @@ export async function generateVideoFromScript({
   }
 
   // 6. Subtítulos incrustados: frases naturales (corte en puntuación),
-  // máximo 2 líneas, nunca una sola palabra a la vez, con palabras clave
+  // máximo 2 líneas, respetando finales de oración, con palabras clave
   // marcadas para énfasis visual (ver caption-emphasis.ts).
   const scriptEmphasisWords = script.segments.flatMap((s) => s.emphasisWords ?? []);
   const emphasisSet = buildEmphasisSet(scriptEmphasisWords);
@@ -459,7 +453,7 @@ export async function generateVideoFromScript({
   storageBytes += videoBuffer.byteLength;
   const { path: videoPath } = await uploadToStorage(
     supabase,
-    `${requestId}/final.mp4`,
+    `${artifactPrefix}/final.mp4`,
     videoBuffer,
     "video/mp4",
   );
@@ -539,68 +533,6 @@ function alignScenesToWords(
   }
 
   return result;
-}
-
-/**
- * Agrupa palabras en subtítulos por frase natural (corta en puntuación),
- * con un máximo de palabras Y de caracteres por bloque (para que quepa en
- * 2 líneas — ver MAX_CAPTION_CHARS) y marca cuáles palabras deben
- * enfatizarse (ver caption-emphasis.ts). Nunca deja una sola palabra
- * visible a la vez (estilo karaoke) ni corta una palabra a la mitad.
- */
-function buildCaptions(words: WordTiming[], emphasisSet: ReadonlySet<string>): Caption[] {
-  const captions: Caption[] = [];
-  let group: WordTiming[] = [];
-  let groupChars = 0;
-
-  const flush = () => {
-    if (group.length === 0) return;
-    const emphasisWords = group.filter((w) => isEmphasisWord(w.text, emphasisSet)).map((w) => w.text);
-    captions.push({
-      text: group.map((w) => w.text).join(" "),
-      startSeconds: group[0].startSeconds,
-      endSeconds: group[group.length - 1].endSeconds,
-      ...(emphasisWords.length > 0 ? { emphasisWords } : {}),
-    });
-    group = [];
-    groupChars = 0;
-  };
-
-  for (const word of words) {
-    const nextChars = groupChars + (groupChars > 0 ? 1 : 0) + word.text.length;
-    // Si esta palabra excede el presupuesto de caracteres, cierra el
-    // bloque actual ANTES de agregarla (nunca corta una palabra a la
-    // mitad) — salvo que el bloque siga vacío (una palabra muy larga sola).
-    if (group.length > 0 && nextChars > MAX_CAPTION_CHARS) {
-      flush();
-    }
-    group.push(word);
-    groupChars += (groupChars > 0 ? 1 : 0) + word.text.length;
-
-    const endsPhrase = /[,.;:!?]$/.test(word.text);
-    const longEnough = group.length >= MIN_CAPTION_WORDS;
-
-    if (group.length >= MAX_CAPTION_WORDS || groupChars >= MAX_CAPTION_CHARS || (endsPhrase && longEnough)) {
-      flush();
-    }
-  }
-  flush();
-
-  // Si quedó un grupo final de una sola palabra, pégalo al anterior en vez
-  // de mostrarlo solo.
-  if (captions.length >= 2) {
-    const last = captions[captions.length - 1];
-    if (last.text.split(/\s+/).length < MIN_CAPTION_WORDS) {
-      const prev = captions[captions.length - 2];
-      prev.text = `${prev.text} ${last.text}`;
-      prev.endSeconds = last.endSeconds;
-      prev.emphasisWords = [...(prev.emphasisWords ?? []), ...(last.emphasisWords ?? [])];
-      if (prev.emphasisWords.length === 0) delete prev.emphasisWords;
-      captions.pop();
-    }
-  }
-
-  return captions;
 }
 
 /**
