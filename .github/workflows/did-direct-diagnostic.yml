@@ -1,0 +1,28 @@
+name: One owner-authorized direct D-ID diagnostic
+on:
+  push:
+    branches: [claude/atomivid-mvp-setup-0079jv]
+    paths: [.github/workflows/did-direct-diagnostic.yml]
+permissions:
+  contents: read
+concurrency:
+  group: owner-direct-did-diagnostic-20260919
+  cancel-in-progress: false
+jobs:
+  direct:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Single direct POST and private unfiltered response capture
+        run: node scripts/did-direct-diagnostic.mjs
+        env:
+          DID_API_KEY: ${{ secrets.DID_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
