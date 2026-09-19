@@ -334,6 +334,31 @@ for (const failure of ["post", "persist", "poll"] as const) {
   });
 }
 
+
+test("D-ID errors preserve safe category and operation without leaking provider content or retrying creation", async () => {
+  await withEnv({ DID_API_KEY: "test:secret" }, async () => {
+    const original = globalThis.fetch;
+    try {
+      for (const body of [{ kind: "PermissionError", description: "private signed URL secret" }, { kind: "private-secret" }, null]) {
+        let calls = 0;
+        globalThis.fetch = async () => { calls++; return jsonResponse(body, 403); };
+        await assert.rejects(() => didAvatarProvider.generateVideo({
+          providerAvatarId: "image", script: "", audioUrl: "https://example.test/audio.wav",
+          audioDurationSeconds: 1, maxCostUsd: 100,
+        }), (error: unknown) => {
+          assert.ok(error instanceof AvatarProviderError);
+          assert.match(error.message, /HTTP 403 \[create_talk;/);
+          assert.ok(!error.message.includes("private"));
+          assert.ok(!error.message.includes("secret"));
+          assert.ok(error.message.includes(body?.kind === "PermissionError" ? "PermissionError" : "unclassified"));
+          return true;
+        });
+        assert.equal(calls, 1);
+      }
+    } finally { globalThis.fetch = original; }
+  });
+});
+
 test("tras 3 fallos recuperables consecutivos, el circuito se abre y se reporta como circuit_open (no un upstream_error genérico)", async () => {
   const originalFetch = global.fetch;
   global.fetch = (async () => new Response(null, { status: 503 })) as typeof fetch;
