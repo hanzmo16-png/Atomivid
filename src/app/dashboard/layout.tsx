@@ -5,6 +5,7 @@ import { signOut } from "@/app/auth/actions";
 import { Logo } from "@/components/ui/Logo";
 import { LinkButton } from "@/components/ui/Button";
 import { Onboarding } from "@/components/onboarding/Onboarding";
+import { NavLink } from "./NavLink";
 
 export default async function DashboardLayout({
   children,
@@ -28,18 +29,19 @@ export default async function DashboardLayout({
             <Logo />
           </Link>
           <nav className="flex items-center gap-1 sm:gap-2">
-            <Link
+            <NavLink
               href="/dashboard"
-              className="hidden rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink sm:inline-block"
+              exact
+              className="hidden rounded-md px-3 py-2 text-sm font-medium transition-colors sm:inline-block"
             >
               Historial
-            </Link>
-            <Link
+            </NavLink>
+            <NavLink
               href="/dashboard/billing"
-              className="hidden rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink sm:inline-block"
+              className="hidden rounded-md px-3 py-2 text-sm font-medium transition-colors sm:inline-block"
             >
               Facturación
-            </Link>
+            </NavLink>
             <LinkButton href="/dashboard/new" size="sm">
               Nuevo video
             </LinkButton>
@@ -56,13 +58,11 @@ export default async function DashboardLayout({
           </nav>
         </div>
         <div className="border-t border-border px-4 py-2 sm:hidden">
-          <div className="flex gap-4 text-sm">
-            <Link href="/dashboard" className="text-ink-muted hover:text-ink">
+          <div className="flex gap-4 text-sm font-medium">
+            <NavLink href="/dashboard" exact>
               Historial
-            </Link>
-            <Link href="/dashboard/billing" className="text-ink-muted hover:text-ink">
-              Facturación
-            </Link>
+            </NavLink>
+            <NavLink href="/dashboard/billing">Facturación</NavLink>
           </div>
         </div>
       </header>
