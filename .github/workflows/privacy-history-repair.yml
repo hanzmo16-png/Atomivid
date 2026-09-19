@@ -1,0 +1,139 @@
+name: Owner-authorized filter-repo privacy repair
+on:
+  push:
+    branches: [codex/privacy-history-repair]
+    paths: [.github/workflows/privacy-history-repair.yml]
+permissions:
+  contents: write
+concurrency:
+  group: owner-email-privacy-repair
+  cancel-in-progress: false
+jobs:
+  repair:
+    if: github.run_attempt == 1 && github.actor == 'hanzmo16-png'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install approved filter-repo version
+        run: python -m pip install --disable-pip-version-check git-filter-repo==2.47.0
+      - name: Verify snapshot, filter and atomically publish
+        shell: bash
+        env:
+          REPAIR_TOKEN: ${{ github.token }}
+          EXPECTED_ORIGINAL_REFS: '{"refs/heads/claude/atomivid-mvp-setup-0079jv":"b60379c74f54dc7508f1b0bfc8a75a8c770e1132","refs/heads/claude/e2e-verification-scripts":"6f2c8d4fae3e88395e318b7e32a4b40074ed91b3","refs/heads/codex/avatar-preflight":"ae9b466883cca95c5da800b3b679196e7e863a5b","refs/heads/codex/avatar-recovery":"351f88de3df96f099c45840e70c303578ca7bb40","refs/heads/codex/avatar-single-attempt":"b389b6a6af45369da3502f14aa7c5830b402ec03","refs/heads/codex/fixture-word-budget":"c7799a89024364d5b814480b25b4e9a8d5e8aae3","refs/heads/codex/growth-engine-dashboard":"26e568c966128f5bedfd07fb1099e9314913adea","refs/heads/codex/growth-engine-foundation":"bf3b2175782ef2bdbee3da5044ea02a3c001cffe","refs/heads/codex/heygen-primary":"19954372adaa7b5fa899db47c1be8fce65c7519f","refs/heads/codex/heygen-readonly-diagnosis":"943b2e3f116065ff6414b27fa8b3d88c93055460","refs/heads/codex/night-normal-trial":"76bdc182bf0a634bb5c85061f3e8e2cdd6897b21","refs/heads/codex/overnight-beta":"e1c0e86fc38dc5268b029c9c55ff0252b80a9e3e","refs/heads/codex/privacy-history-repair":"b60379c74f54dc7508f1b0bfc8a75a8c770e1132","refs/heads/codex/private-avatar-preparation":"f4c9db3fd2e982a303168d36b136a8e426759206","refs/heads/codex/product-flow":"361ff0f15e175e1060b5999892bbb57824b916bc","refs/heads/codex/production-preflight-hardening":"468a1cf188946f376f4ae81f4c3738c592d77b86","refs/heads/codex/recorded-audio":"88d46511ec41589612e93e8f89878e5dcce63752","refs/pull/1/head":"6f2c8d4fae3e88395e318b7e32a4b40074ed91b3","refs/pull/10/head":"361ff0f15e175e1060b5999892bbb57824b916bc","refs/pull/10/merge":"a77df7bf3ebd660581cb39ca62dafe8a517ab47a","refs/pull/2/head":"b389b6a6af45369da3502f14aa7c5830b402ec03","refs/pull/3/head":"dd878cf7ecea7c931a158cd5517911b48c56a645","refs/pull/4/head":"88d46511ec41589612e93e8f89878e5dcce63752","refs/pull/5/head":"f4c9db3fd2e982a303168d36b136a8e426759206","refs/pull/6/head":"468a1cf188946f376f4ae81f4c3738c592d77b86","refs/pull/7/head":"c7799a89024364d5b814480b25b4e9a8d5e8aae3","refs/pull/8/head":"19954372adaa7b5fa899db47c1be8fce65c7519f","refs/pull/9/head":"e1c0e86fc38dc5268b029c9c55ff0252b80a9e3e"}'
+          EXPECTED_CLEAN_REFS: '{"refs/heads/claude/atomivid-mvp-setup-0079jv":"eabeb3bc0a6bccbc3a1afb007c1fb850ab9346d1","refs/heads/claude/e2e-verification-scripts":"b0629d19c1453e7e8cb507243d94a53a86a6f9a9","refs/heads/codex/avatar-preflight":"b54e7594e733e3e1e2353d9246bf613c821bd654","refs/heads/codex/avatar-recovery":"7341139a5fadd2a1daa48aa18d9f21947d5b6dd0","refs/heads/codex/avatar-single-attempt":"541b9ec68317c83db8b8d38cfc7194226eca0389","refs/heads/codex/fixture-word-budget":"1ef7ed1006ce990db255a855ee3ce4f4761521a8","refs/heads/codex/growth-engine-dashboard":"472f8d8502445b69eebca288e710c4b3f9c65e9b","refs/heads/codex/growth-engine-foundation":"36ba66f215ceb679a42111d9a1862e5fa694c057","refs/heads/codex/heygen-primary":"130351c5a89cde4d97ab0bfb001601cea4d1c52c","refs/heads/codex/heygen-readonly-diagnosis":"92ee5dd85922db1597ecdec6bafd7ed6c8b6eeb8","refs/heads/codex/night-normal-trial":"aab1463071a36f8a245bc1eb7446680abe44aaa3","refs/heads/codex/overnight-beta":"29d2e7d2172875b5fbd99ebef019a9bbab009971","refs/heads/codex/privacy-history-repair":"eabeb3bc0a6bccbc3a1afb007c1fb850ab9346d1","refs/heads/codex/private-avatar-preparation":"48640b3a09c719fe0998c366b54f605e78b3bf14","refs/heads/codex/product-flow":"09d3753ab5bf1e19bcdc62b3c8d74da8491d9dd9","refs/heads/codex/production-preflight-hardening":"d4316fc8d865f40092e8dbb372786a17a7c81a29","refs/heads/codex/recorded-audio":"5b9468975014bbf65b7b6170f3ff39d5eeee5bd8","refs/pull/1/head":"b0629d19c1453e7e8cb507243d94a53a86a6f9a9","refs/pull/10/head":"09d3753ab5bf1e19bcdc62b3c8d74da8491d9dd9","refs/pull/10/merge":"a6089a6f348fbf8042202ef64c83682a396ac2b8","refs/pull/2/head":"541b9ec68317c83db8b8d38cfc7194226eca0389","refs/pull/3/head":"1f2070277832a9730b5cecb90f3a2ed43f14dbfc","refs/pull/4/head":"5b9468975014bbf65b7b6170f3ff39d5eeee5bd8","refs/pull/5/head":"48640b3a09c719fe0998c366b54f605e78b3bf14","refs/pull/6/head":"d4316fc8d865f40092e8dbb372786a17a7c81a29","refs/pull/7/head":"1ef7ed1006ce990db255a855ee3ce4f4761521a8","refs/pull/8/head":"130351c5a89cde4d97ab0bfb001601cea4d1c52c","refs/pull/9/head":"29d2e7d2172875b5fbd99ebef019a9bbab009971"}'
+        run: |
+          python - <<'PY_REPAIR'
+          VERIFIER_SOURCE = "import argparse, collections, subprocess, sys\n\np = argparse.ArgumentParser()\np.add_argument('repo')\np.add_argument('email_file')\nargs = p.parse_args()\nneedle = open(args.email_file, 'rb').read().strip().lower()\nassert b'@' in needle\n\ndef git(*command):\n    result = subprocess.run(['git', '--git-dir=' + args.repo, *command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)\n    if result.returncode:\n        sys.stderr.write('ERROR: git ' + command[0] + ' failed, exit=' + str(result.returncode) + '\\n')\n        sys.exit(2)\n    return result.stdout\n\nrefs = git('for-each-ref', '--format=%(refname)').splitlines()\ncommits = git('rev-list', '--all').splitlines()\ncounts = collections.Counter()\nfor ref in refs:\n    if needle in ref.lower():\n        counts['REF_NAME_MATCHES'] += 1\n        print('MATCH ref-name')\nfor sha in commits:\n    raw = git('cat-file', 'commit', sha.decode())\n    headers, message = raw.split(b'\\n\\n', 1)\n    for key, prefix in [('AUTHOR_MATCHES', b'author '), ('COMMITTER_MATCHES', b'committer ')]:\n        if any(line.startswith(prefix) and needle in line.lower() for line in headers.splitlines()):\n            counts[key] += 1\n            print('MATCH ' + key + ' ' + sha.decode())\n    if needle in message.lower():\n        counts['MESSAGE_MATCHES'] += 1\n        print('MATCH MESSAGE ' + sha.decode())\n    if any(not line.startswith((b'author ', b'committer ')) and needle in line.lower() for line in headers.splitlines()):\n        counts['OTHER_COMMIT_HEADER_MATCHES'] += 1\n        print('MATCH OTHER_COMMIT_HEADER ' + sha.decode())\n\nobjects = git('rev-list', '--objects', '--all', '--no-object-names').splitlines()\nblobs, trees, tags = 0, 0, 0\nfor sha in objects:\n    obj = sha.decode()\n    kind = git('cat-file', '-t', obj).strip()\n    if kind == b'blob':\n        blobs += 1\n        if needle in git('cat-file', 'blob', obj).lower():\n            counts['BLOB_MATCHES'] += 1\n            print('MATCH BLOB ' + obj)\n    elif kind == b'tree':\n        trees += 1\n        entries = git('ls-tree', '-z', obj).split(b'\\0')\n        if any(needle in entry.partition(b'\\t')[2].lower() for entry in entries):\n            counts['FILE_NAME_MATCHES'] += 1\n            print('MATCH FILE_NAME ' + obj)\n    elif kind == b'tag':\n        tags += 1\n        if needle in git('cat-file', 'tag', obj).lower():\n            counts['TAG_MATCHES'] += 1\n            print('MATCH TAG ' + obj)\n\nprint('SCOPE=all_fetched_refs_and_reachable_git_objects')\nprint('REFS=' + str(len(refs)))\nprint('BRANCHES=' + str(sum(r.startswith(b'refs/heads/') for r in refs)))\nprint('PULL_REFS=' + str(sum(r.startswith(b'refs/pull/') for r in refs)))\nprint('COMMITS=' + str(len(commits)))\nprint('BLOBS=' + str(blobs))\nprint('TREES=' + str(trees))\nprint('TAG_OBJECTS=' + str(tags))\nfor key in ['AUTHOR_MATCHES', 'COMMITTER_MATCHES', 'MESSAGE_MATCHES', 'OTHER_COMMIT_HEADER_MATCHES', 'BLOB_MATCHES', 'FILE_NAME_MATCHES', 'TAG_MATCHES', 'REF_NAME_MATCHES']:\n    print(key + '=' + str(counts[key]))\nprint('TOTAL_MATCHES=' + str(sum(counts.values())))\nprint('RESULT=' + ('CLEAN' if not sum(counts.values()) else 'NOT_CLEAN'))\nsys.exit(0 if not sum(counts.values()) else 1)\n"
+          import base64, json, os, re, subprocess, tempfile
+          from pathlib import Path
+          
+          REPOSITORY = 'hanzmo16-png/Atomivid'
+          URL = 'https://github.com/' + REPOSITORY + '.git'
+          REPAIR_REF = 'refs/heads/codex/privacy-history-repair'
+          SEED = '361ff0f15e175e1060b5999892bbb57824b916bc'
+          NOREPLY = b'324517276+hanzmo16-png@users.noreply.github.com'
+          assert os.environ['GITHUB_REPOSITORY'] == REPOSITORY
+          assert os.environ['GITHUB_REF'] == REPAIR_REF
+          assert os.environ['GITHUB_RUN_ATTEMPT'] == '1'
+          assert os.environ['GITHUB_ACTOR'] == 'hanzmo16-png'
+          expected = json.loads(os.environ['EXPECTED_ORIGINAL_REFS'])
+          expected[REPAIR_REF] = os.environ['GITHUB_SHA']
+          expected_clean = json.loads(os.environ['EXPECTED_CLEAN_REFS'])
+          token = os.environ['REPAIR_TOKEN']
+          environment = dict(os.environ)
+          environment.update(GIT_CONFIG_COUNT='1', GIT_CONFIG_KEY_0='http.https://github.com/.extraheader', GIT_CONFIG_VALUE_0='AUTHORIZATION: basic ' + base64.b64encode(('x-access-token:' + token).encode()).decode(), GIT_TERMINAL_PROMPT='0')
+          
+          def run(args, cwd=None, visible=False):
+              result = subprocess.run(args, cwd=cwd, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+              if visible:
+                  print(result.stdout.decode(), end='', flush=True)
+                  print(result.stderr.decode(), end='', flush=True)
+              if result.returncode:
+                  if not visible:
+                      print(result.stderr.decode().replace(token, '[REDACTED]'), flush=True)
+                  raise RuntimeError(args[0] + ' failed with exit ' + str(result.returncode))
+              return result.stdout
+          
+          def remote_refs():
+              return {line.split()[1].decode():line.split()[0].decode() for line in run(['git','ls-remote','--refs',URL]).splitlines()}
+          
+          assert remote_refs() == expected, 'Remote snapshot changed; refusing to rewrite'
+          directory = Path(tempfile.mkdtemp(prefix='atomivid-filter-repo-'))
+          source = directory / 'source.git'
+          clean = directory / 'clean.git'
+          run(['git','clone','--mirror',URL,str(source)], visible=True)
+          source_refs = {line.split()[1].decode():line.split()[0].decode() for line in run(['git','for-each-ref','--format=%(objectname) %(refname)'],source).splitlines()}
+          assert source_refs == expected, 'Snapshot changed during clone'
+          run(['git','clone','--mirror','--no-local',str(source),str(clean)], visible=True)
+          seed = run(['git','cat-file','commit',SEED],source)
+          email = re.search(rb'^author .* <([^>]+)>',seed,re.M).group(1)
+          assert b'@' in email and email != NOREPLY
+          mapping = directory / 'mailmap'
+          expressions = directory / 'replace-text'
+          email_file = directory / 'email'
+          mapping.write_bytes(b'<' + NOREPLY + b'> <' + email + b'>\n')
+          expressions.write_bytes(b'regex:(?i)' + re.escape(email) + b'==>' + NOREPLY + b'\n')
+          email_file.write_bytes(email + b'\n')
+          for path in [mapping, expressions, email_file]:
+              path.chmod(0o600)
+          run(['git-filter-repo','--sensitive-data-removal','--no-fetch','--mailmap',str(mapping),'--replace-text',str(expressions),'--replace-message',str(expressions),'--preserve-commit-hashes','--preserve-commit-encoding','--prune-empty','never','--prune-degenerate','never','--replace-refs','delete-no-add'],clean,visible=True)
+          
+          verifier = directory / 'verify.py'
+          verifier.write_text(VERIFIER_SOURCE)
+          run(['python',str(verifier),str(clean),str(email_file)],visible=True)
+          
+          commit_map = {line.split()[0]:line.split()[1] for line in (clean/'filter-repo/commit-map').read_text().splitlines()[1:]}
+          clean_refs = {line.split()[1].decode():line.split()[0].decode() for line in run(['git','for-each-ref','--format=%(objectname) %(refname)'],clean).splitlines()}
+          assert set(clean_refs) == set(expected)
+          for ref, sha in expected_clean.items():
+              if ref != REPAIR_REF:
+                  assert clean_refs[ref] == sha, 'Result differs from approved isolated trial: ' + ref
+          
+          def git(repo,*args):
+              return run(['git',*args],repo)
+          
+          for old,new in commit_map.items():
+              assert new != '0'*40
+              oh,om=git(source,'cat-file','commit',old).split(b'\n\n',1)
+              nh,nm=git(clean,'cat-file','commit',new).split(b'\n\n',1)
+              assert om==nm, 'Commit message changed unexpectedly'
+              op=[line[7:].decode() for line in oh.splitlines() if line.startswith(b'parent ')]
+              np=[line[7:].decode() for line in nh.splitlines() if line.startswith(b'parent ')]
+              assert [commit_map[parent] for parent in op]==np
+              for prefix in [b'author ',b'committer ']:
+                  before=next(line for line in oh.splitlines() if line.startswith(prefix))
+                  after=next(line for line in nh.splitlines() if line.startswith(prefix))
+                  assert before.replace(email,NOREPLY)==after
+              def files(repo,sha):
+                  return {line.split(b'\t',1)[1]:line.split(b'\t',1)[0] for line in git(repo,'ls-tree','-rz',sha).split(b'\0') if line}
+              before,after=files(source,old),files(clean,new)
+              assert before.keys()==after.keys()
+              for path in before:
+                  if before[path]!=after[path]:
+                      assert path==b'docs/CONTINUITY.md'
+                      assert before[path].split()[:2]==after[path].split()[:2]
+                      old_blob=git(source,'cat-file','blob',before[path].split()[2].decode())
+                      new_blob=git(clean,'cat-file','blob',after[path].split()[2].decode())
+                      assert old_blob.replace(email,NOREPLY)==new_blob
+          base='refs/heads/claude/atomivid-mvp-setup-0079jv'
+          head='refs/heads/codex/product-flow'
+          assert git(source,'diff','--binary',expected[base],expected[head])==git(clean,'diff','--binary',clean_refs[base],clean_refs[head])
+          git(clean,'fsck','--full','--strict')
+          print('PRE_PUSH_INVARIANTS=PASS',flush=True)
+          assert remote_refs()==expected, 'Concurrent remote change; refusing push'
+          branches={ref:sha for ref,sha in expected.items() if ref.startswith('refs/heads/')}
+          assert len(branches)==17
+          command=['git','push','--atomic']
+          command += ['--force-with-lease='+ref+':'+old for ref,old in sorted(branches.items())]
+          command += [URL]
+          command += [clean_refs[ref]+':'+ref for ref in sorted(branches)]
+          run(command,clean,visible=True)
+          actual=remote_refs()
+          assert {ref:sha for ref,sha in actual.items() if ref.startswith('refs/heads/')}=={ref:clean_refs[ref] for ref in branches}
+          print('PUSHED_BRANCHES='+str(len(branches)),flush=True)
+          print('REMOTE_BRANCH_VERIFICATION=PASS',flush=True)
+          print('PR10_MERGED=false',flush=True)
+          print('CLEAN_BRANCH_REFS='+json.dumps({ref:clean_refs[ref] for ref in sorted(branches)}),flush=True)
+          print('FIRST_CHANGED_COMMITS='+(clean/'filter-repo/first-changed-commits').read_text().strip(),flush=True)
+          PY_REPAIR
