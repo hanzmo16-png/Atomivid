@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { humanizeAuthError } from "@/lib/auth/errors";
 
 export async function signUp(formData: FormData) {
+  if (process.env.VERCEL_ENV === "preview") redirect("/login?error=Esta+vista+previa+no+crea+cuentas+ni+solicitudes+de+video.");
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
 

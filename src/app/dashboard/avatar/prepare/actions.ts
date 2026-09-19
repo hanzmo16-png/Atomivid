@@ -9,6 +9,7 @@ import { digest, prepareAvatarRequest } from "@/lib/video/avatar/preparation";
 export type PreparationResult = { error?: string; saved?: boolean; requestId?: string; seconds?: number };
 
 export async function saveAvatarPreparation(_previous: PreparationResult, form: FormData): Promise<PreparationResult> {
+  if (process.env.VERCEL_ENV === "preview") return { error: "La vista previa no permite crear preparaciones ni generar videos." };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!canPrepareAvatar(user)) return { error: "Esta prueba privada no está disponible para tu cuenta." };
@@ -26,6 +27,7 @@ export async function saveAvatarPreparation(_previous: PreparationResult, form: 
 
 /** Connect an existing private preparation without re-uploading or calling providers. */
 export async function connectSavedPreparation(_previous: PreparationResult, form: FormData): Promise<PreparationResult> {
+  if (process.env.VERCEL_ENV === "preview") return { error: "La vista previa no permite crear preparaciones ni generar videos." };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!canPrepareAvatar(user)) return { error: "Esta prueba privada no está disponible para tu cuenta." };

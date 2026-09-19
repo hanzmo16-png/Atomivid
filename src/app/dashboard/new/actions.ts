@@ -27,6 +27,7 @@ const AVATAR_UPLOADS_BUCKET = "avatar-uploads";
 const AVATAR_CONSENT_POLICY_VERSION = "2026-09-17";
 
 export async function createVideoRequest(formData: FormData) {
+  if (process.env.VERCEL_ENV === "preview") redirect("/login?error=Esta+vista+previa+no+crea+cuentas+ni+solicitudes+de+video.");
   const topic = String(formData.get("topic") ?? "").trim();
   const style = String(formData.get("style") ?? "").trim();
   const durationSeconds = Number(formData.get("duration_seconds"));

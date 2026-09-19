@@ -47,7 +47,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* min-w-0: sin esto, un flex item por defecto no encoge por debajo
             del ancho mínimo de su contenido, lo que puede desbordar la
             página en móvil si algún descendiente tiene contenido ancho. */}
-        <div className="min-w-0">{children}</div>
+        <div className="min-w-0">{process.env.VERCEL_ENV === "preview" && <div className="border-b border-border bg-surface p-3 text-center text-sm">Vista previa protegida: recuperación de cuenta y consulta. Sin registros nuevos, cambios de suscripción ni generación de videos.</div>}{children}</div>
       </body>
     </html>
   );

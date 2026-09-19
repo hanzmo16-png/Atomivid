@@ -15,7 +15,7 @@ export async function requestPasswordReset(form: FormData) {
   store.delete(RECOVERY_COOKIE);
   let failed = false;
   try {
-    const origin = recoveryOrigin(process.env.NEXT_PUBLIC_SITE_URL);
+    const origin = recoveryOrigin(process.env.VERCEL_ENV === "preview" && process.env.VERCEL_BRANCH_URL ? `https://${process.env.VERCEL_BRANCH_URL}` : process.env.NEXT_PUBLIC_SITE_URL);
     const supabase = await createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${origin}/auth/callback?next=/reset-password`,

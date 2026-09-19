@@ -50,6 +50,7 @@ async function getExistingCustomerId(
 }
 
 export async function createCheckoutSession() {
+  if (process.env.VERCEL_ENV === "preview") redirect("/dashboard/billing?error=Vista+previa:+solo+consulta,+sin+modificar+suscripciones.");
   const supabase = await createClient();
   const {
     data: { user },
@@ -90,6 +91,7 @@ export async function createCheckoutSession() {
 }
 
 export async function createPortalSession() {
+  if (process.env.VERCEL_ENV === "preview") redirect("/dashboard/billing?error=Vista+previa:+solo+consulta,+sin+modificar+suscripciones.");
   const supabase = await createClient();
   const {
     data: { user },
