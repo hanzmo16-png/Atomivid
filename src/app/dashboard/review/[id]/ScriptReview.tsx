@@ -15,12 +15,14 @@ export function ScriptReview({
   initialScript,
   errorMessage,
   usesRecording = false,
+  diagnosticRetry = false,
 }: {
   requestId: string;
   status: string;
   initialScript: GeneratedScript;
   errorMessage: string | null;
   usesRecording?: boolean;
+  diagnosticRetry?: boolean;
 }) {
   const router = useRouter();
   const [script, setScript] = useState(initialScript);
@@ -32,7 +34,7 @@ export function ScriptReview({
   const [error, setError] = useState<string | null>(null);
   const [needsSubscription, setNeedsSubscription] = useState(false);
 
-  const canGenerate = status === "script_ready";
+  const canGenerate = status === "script_ready" || diagnosticRetry;
   const editable = canGenerate && !usesRecording;
 
   function updateScene(index: number, field: "text" | "visualQuery", value: string) {
