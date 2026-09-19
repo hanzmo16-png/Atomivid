@@ -109,6 +109,16 @@ body {
     var(--color-canvas);
 }
 
+/* Deriva muy lenta del degradado de fondo del mockup de reel en el hero —
+   sugiere "video en movimiento" sin necesitar un archivo de video real. */
+@keyframes hero-pan {
+  0%, 100% { background-position: 0% 20%; }
+  50% { background-position: 100% 80%; }
+}
+.animate-hero-pan {
+  animation: hero-pan 14s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

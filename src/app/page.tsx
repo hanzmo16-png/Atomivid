@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { LinkButton } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Logo } from "@/components/ui/Logo";
+import { HeroVisual } from "@/components/ui/HeroVisual";
 
 const FLOW_STEPS = [
   { label: "Idea", detail: "Escribes el tema en una frase" },
@@ -18,14 +19,17 @@ const BENEFITS = [
   {
     title: "De idea a video en minutos",
     body: "Sin cámara, sin edición manual, sin equipo de producción. Escribes el tema y el resto del proceso lo hace la IA.",
+    icon: IconBolt,
   },
   {
     title: "Narración con voz natural",
     body: "Voz en español latinoamericano con ritmo y calidez pensados para retener la atención, no una síntesis robótica.",
+    icon: IconWave,
   },
   {
     title: "Formato listo para redes",
     body: "Video vertical 9:16, subtítulos incrustados y recursos visuales reales — pensado para publicarse tal cual.",
+    icon: IconPhone,
   },
 ];
 
@@ -121,27 +125,30 @@ function SiteHeader() {
 function Hero() {
   return (
     <section className="bg-atomivid-glow border-b border-border px-5 py-16 sm:py-24">
-      <div className="mx-auto flex max-w-6xl flex-col items-center gap-10 text-center">
-        <span className="rounded-full border border-accent-border bg-accent-soft px-3 py-1 text-xs font-medium text-accent">
-          Beta pública
-        </span>
-        <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-ink sm:text-5xl md:text-6xl">
-          De una idea a un video vertical, sin cámara ni edición
-        </h1>
-        <p className="max-w-xl text-balance text-base text-ink-muted sm:text-lg">
-          Atomivid convierte un tema en un reel vertical completo — guion, narración,
-          clips, música y subtítulos — listo para publicar en minutos. Pensado para
-          creadores y marcas que necesitan contenido constante sin producción manual.
-        </p>
-        <div className="flex flex-col items-center gap-3 sm:flex-row">
-          <LinkButton href="/register" size="lg">
-            Crear mi primer video
-          </LinkButton>
-          <LinkButton href="/login" size="lg" variant="secondary">
-            Ya tengo cuenta
-          </LinkButton>
+      <div className="mx-auto grid max-w-6xl items-center gap-14 lg:grid-cols-[1.1fr_0.9fr] lg:gap-10">
+        <div className="flex flex-col items-center gap-7 text-center lg:items-start lg:text-left">
+          <span className="rounded-full border border-accent-border bg-accent-soft px-3 py-1 text-xs font-medium text-accent">
+            Beta pública
+          </span>
+          <h1 className="max-w-xl text-4xl font-bold tracking-tight text-ink sm:text-5xl lg:text-6xl">
+            De una idea a un video vertical, sin cámara ni edición
+          </h1>
+          <p className="max-w-lg text-balance text-base text-ink-muted sm:text-lg">
+            Atomivid convierte un tema en un reel vertical completo — guion, narración,
+            clips, música y subtítulos — listo para publicar en minutos. Pensado para
+            creadores y marcas que necesitan contenido constante sin producción manual.
+          </p>
+          <div className="flex flex-col items-center gap-3 sm:flex-row">
+            <LinkButton href="/register" size="lg">
+              Crear mi primer video
+            </LinkButton>
+            <LinkButton href="/login" size="lg" variant="secondary">
+              Ya tengo cuenta
+            </LinkButton>
+          </div>
+          <p className="text-xs text-ink-faint">Sin tarjeta para explorar la cuenta. Cancela cuando quieras.</p>
         </div>
-        <p className="text-xs text-ink-faint">Sin tarjeta para explorar la cuenta. Cancela cuando quieras.</p>
+        <HeroVisual />
       </div>
     </section>
   );
@@ -175,14 +182,49 @@ function Benefits() {
         <SectionHeading eyebrow="Por qué Atomivid" title="Construido para publicar rápido, sin verse improvisado" />
         <div className="mt-10 grid gap-5 sm:grid-cols-3">
           {BENEFITS.map((b) => (
-            <Card key={b.title} className="p-6">
-              <h3 className="text-base font-semibold text-ink">{b.title}</h3>
+            <Card key={b.title} className="p-6 transition-colors hover:border-accent-border">
+              <span className="flex size-10 items-center justify-center rounded-lg bg-accent-soft text-accent">
+                <b.icon />
+              </span>
+              <h3 className="mt-4 text-base font-semibold text-ink">{b.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-ink-muted">{b.body}</p>
             </Card>
           ))}
         </div>
       </div>
     </section>
+  );
+}
+
+function IconBolt() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+      <path d="M10 1.5 3 10.5h4.5L8 16.5l7-9.5h-4.5L10 1.5z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconWave() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+      <g stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+        <path d="M2 9h1.5" />
+        <path d="M5 5.5v7" />
+        <path d="M8 3v12" />
+        <path d="M11 6v6" />
+        <path d="M14 4.5v9" />
+        <path d="M16.5 9H17" />
+      </g>
+    </svg>
+  );
+}
+
+function IconPhone() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+      <rect x="4.5" y="1.5" width="9" height="15" rx="2" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M8 14.5h2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
   );
 }
 
