@@ -16,6 +16,7 @@ async function withEnv(vars: Record<string, string | undefined>, fn: () => void 
     if (v !== undefined) process.env[k] = v;
   }
   process.env.VOICE_PROVIDER = "fixture";
+  process.env.AVATAR_PROVIDER ??= "fixture";
   try {
     await fn();
   } finally {
@@ -404,4 +405,40 @@ for (const scenario of ["valid", "missing", "cross-user", "unassociated", "inval
 test("Samsung M4A with 3gp4 brand is accepted for worker decoding", () => {
   const header = Buffer.from("0000001866747970336770340000000069736f6d33677034", "hex");
   assert.equal(recordingFormat(header).extension, "m4a");
+});
+
+test("HeyGen recorded pipeline preserves owner association, uses full audio and only creates after claim", async () => {
+  const { heygenAvatarProvider } = await import("@/lib/providers/avatar/heygen");
+  const { readFileSync } = await import("node:fs");
+  const photo = readFileSync("scripts/test-avatar-photo.jpg");
+  const audio = generateToneWav({durationSeconds:2.25,frequencyHz:220,amplitude:.1});
+  const avatar = {id:"a1",user_id:"u1",status:"uploaded",consent_given:true,provider_avatar_id:null,provider:"heygen",source_photo_path:"u1/r1/photo.jpeg"};
+  const {fake,updates}=makeFakeSupabase(avatar,false,null,"u1/r1/recording.wav");
+  const baseFrom=fake.from.bind(fake);
+  fake.from=(table:string)=>{
+    const q=baseFrom(table);
+    if(table==="avatars")q.update=()=>({eq(){return this;},then(resolve:(v:unknown)=>unknown){return Promise.resolve(resolve({error:null}));}});
+    return q;
+  };
+  const baseStorage=fake.storage.from.bind(fake.storage);
+  fake.storage.from=(name:string)=>({...baseStorage(name),download:async(objectPath:string)=>({data:new Blob([new Uint8Array(objectPath.endsWith("jpeg")?photo:audio)]),error:null})});
+  const originalCreate=heygenAvatarProvider.createAvatar,originalGenerate=heygenAvatarProvider.generateVideo;
+  let creations=0;
+  heygenAvatarProvider.createAvatar=async request=>{
+    assert.ok(updates.some(u=>u.avatar_generation_started_at));
+    assert.deepEqual(request.photoBuffer,photo);assert.equal(request.consentGiven,true);
+    return {providerAvatarId:"asset:photo",status:"completed"};
+  };
+  heygenAvatarProvider.generateVideo=async request=>{
+    creations++;assert.equal(request.audioDurationSeconds,2.25);assert.equal(request.voiceId,undefined);
+    assert.equal(request.providerAvatarId,"asset:photo");assert.ok(request.audioUrl?.includes(".wav"));
+    await request.onJobCreated?.("heygen-job");
+    return {...await fixtureAvatarProvider.generateVideo({...request,providerAvatarId:"fixture"}),providerJobId:"heygen-job"};
+  };
+  try {
+    await withEnv({AVATAR_MODE_ENABLED:"true",AVATAR_PROVIDER:"heygen",HEYGEN_API_KEY:"fake"},async()=>{
+      await generateAvatarVideo({supabase:fake,requestId:"r1",userId:"u1",script:{title:"recorded",segments:[]},avatarId:"a1",recordedAudioPath:"u1/r1/recording.wav"});
+    });
+    assert.equal(creations,1);
+  } finally {heygenAvatarProvider.createAvatar=originalCreate;heygenAvatarProvider.generateVideo=originalGenerate;}
 });

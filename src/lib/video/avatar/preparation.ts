@@ -6,8 +6,8 @@ import { recordingFormat, recordingPath, RECORDING_BUCKET, MAX_AVATAR_FORM_BYTES
 import { PREPARATION_MAX_SECONDS } from "./private-access";
 
 export const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
-export function preparationId(userId: string, photo: Buffer, audio: Buffer): string {
-  const h = digest(Buffer.from(`avatar-preparation-v2:${userId}:${digest(photo)}:${digest(audio)}`));
+export function preparationId(userId: string, photo: Buffer, audio: Buffer, provider = "did"): string {
+  const h = digest(Buffer.from(`${provider === "did" ? "avatar-preparation-v2" : "avatar-preparation-heygen-v1"}:${userId}:${digest(photo)}:${digest(audio)}`));
   return `${h.slice(0,8)}-${h.slice(8,12)}-4${h.slice(13,16)}-a${h.slice(17,20)}-${h.slice(20,32)}`;
 }
 
@@ -16,11 +16,11 @@ export async function prepareAvatarRequest(service: SupabaseClient, userId: stri
   if (photo.length + audio.length > MAX_AVATAR_FORM_BYTES) throw new Error("Foto y audio superan 3 MB.");
   const check = validatePhotoBuffer(photo, mime);
   if (!check.valid) throw new Error("La fotografía no es válida.");
-  if (check.format === "webp") throw new Error("Para esta prueba de D-ID usa una foto JPEG o PNG.");
+  if (check.format === "webp") throw new Error("Para el avatar usa una foto JPEG o PNG.");
   const format = recordingFormat(audio);
   const seconds = await measureNarrationSeconds(audio);
   if (seconds > PREPARATION_MAX_SECONDS) throw new Error("La grabación supera 45 segundos; no se ha recortado.");
-  const id = preparationId(userId, photo, audio);
+  const id = preparationId(userId, photo, audio, "heygen");
   const photoPath = `${userId}/${id}/photo.${check.format}`;
   const audioPath = recordingPath(userId, id, format.extension);
   const bucket = service.storage.from(RECORDING_BUCKET);
@@ -38,7 +38,7 @@ export async function prepareAvatarRequest(service: SupabaseClient, userId: stri
   const storedSeconds = await measureNarrationSeconds(Buffer.from(await stored.arrayBuffer()));
   if (Math.abs(storedSeconds - seconds) > .001) throw new Error("La duración guardada no coincide.");
   const { error: avatarError } = await service.from("avatars").upsert({
-    id, user_id: userId, name: "Avatar privado", provider: "did", status: "uploaded",
+    id, user_id: userId, name: "Avatar privado", provider: "heygen", status: "uploaded",
     source_photo_path: photoPath, consent_given: true, consent_given_at: new Date().toISOString(), consent_policy_version: "private-preparation-v2",
   }, { onConflict: "id", ignoreDuplicates: true });
   if (avatarError) throw new Error("No se pudo asociar la fotografía privada.");

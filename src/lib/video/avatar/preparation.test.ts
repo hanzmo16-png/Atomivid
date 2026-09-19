@@ -37,6 +37,8 @@ test("preparation verifies stored bytes and creates one associated non-running r
   assert.equal(row.status, "script_ready"); assert.equal(row.avatar_id, a.requestId);
   assert.equal(row.recorded_audio_path, `owner/${a.requestId}/recording.wav`);
   assert.equal(row.avatar_generation_started_at, undefined);
+  assert.equal(tables.get("avatars")!.get(a.requestId)!.provider, "heygen");
+  assert.notEqual(a.requestId, preparationId("owner", photo, audio));
 });
 test("corrupt saved bytes and overlong audio cannot create a renderable request", async () => {
   const f = fake(true);
