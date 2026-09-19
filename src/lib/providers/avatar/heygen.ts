@@ -1,369 +1,125 @@
-import { MissingEnvVarError } from "@/lib/env-errors";
-import {
-  AvatarProviderError,
-  type AvatarCreationRequest,
-  type AvatarCreationResult,
-  type AvatarJobStatus,
-  type AvatarVideoProvider,
-  type AvatarVideoRequest,
-  type AvatarVideoResult,
-  type AvatarWebhookResult,
-} from "../types";
-import { CircuitBreaker } from "./circuit-breaker";
+import { AvatarProviderError, type AvatarVideoProvider, type AvatarVideoRequest, type AvatarVideoResult, type AvatarJobStatus } from "../types";
 
-/**
- * Adaptador para HeyGen (avatares con foto + video sincronizado con voz).
- * NO PRODUCTION-READY — ver docs/AVATAR_MODE.md (última verificación:
- * 2026-09-17) para el detalle completo, en particular la distinción
- * crítica entre dos productos DISTINTOS de HeyGen:
- *
- * - "Photo Avatar" (POST /v3/avatars, avatar_type "photo"): disponible en
- *   el plan self-serve normal, pero las fuentes dicen que "depict no real,
- *   identifiable person" — no se pudo confirmar si de verdad preserva la
- *   identidad reconocible del usuario o si es una reinterpretación.
- * - "Digital Twin" (el producto que SÍ clona la identidad real de una
- *   persona): requiere un VIDEO de consentimiento con detección de
- *   vivacidad (no un checkbox) vía POST /v3/avatars/{group_id}/consent, Y
- *   requiere el tier "Enterprise API" (contactar ventas, fuera de
- *   "comprar créditos" — no contratado).
- *
- * Este adaptador implementa el flujo de "Photo Avatar" (self-serve) — el
- * checkbox de consentimiento de Atomivid (AvatarCreationRequest.consentGiven)
- * es una política de producto propia, NO equivale al video de
- * consentimiento con detección de vivacidad que HeyGen exige para Digital
- * Twin. No presentar este adaptador como capaz de clonar identidad real
- * hasta resolver esa ambigüedad con una cuenta HeyGen real.
- *
- * Resto de datos confirmados por búsqueda (citas exactas en
- * docs/AVATAR_MODE.md, este entorno tiene bloqueado el acceso directo a
- * docs.heygen.com/developers.heygen.com):
- * - API v3, REST/JSON, auth vía header "X-Api-Key".
- * - Crear video: POST /v3/videos con avatar_id + guion + voice_id.
- * - Asíncrono: sondeo de estado o webhook (evento avatar_video.success).
- * - Voces: GET /v3/voices (300+ voces, 40+ idiomas).
- * - Límites: guion máx. 5000 caracteres, video máx. 30 min, resolución
- *   128–4096px, 1080p por defecto, 16:9 o 9:16 soportados.
- * - Precio: pay-as-you-go prepago, sin créditos gratis en el plan API
- *   desde feb-2026, ~$0.0167–$0.0667/segundo de video con avatar.
- * - Eliminación de avatar/foto fuente vía API: NO se pudo confirmar un
- *   endpoint DELETE documentado — deleteAvatar() intenta un DELETE
- *   best-effort y SIEMPRE reporta honestamente si no se pudo confirmar el
- *   borrado (nunca finge éxito).
- *
- * NO ha sido posible verificar el payload/response exacto contra la
- * documentación oficial primaria en este entorno — no actives
- * HEYGEN_API_KEY en producción sin confirmar tú mismo contra
- * https://docs.heygen.com antes.
- */
+// Photo + recorded audio, verified against /v3/videos. No engine field:
+// https://developers.heygen.com/audio-to-video
+const BASE = "https://api.heygen.com";
+const fail = (message: string, reason: AvatarProviderError["reason"] = "invalid_response") => new AvatarProviderError(message, "heygen", reason);
+const safeToken = (v: unknown) => typeof v === "string" && /^[a-zA-Z0-9_.-]{1,100}$/.test(v) ? v : "unclassified";
 
-const HEYGEN_API_BASE = process.env.HEYGEN_API_BASE || "https://api.heygen.com";
-const MAX_SCRIPT_CHARS = 5000; // límite documentado por fuentes secundarias — validado aquí antes de gastar una llamada.
-const COST_USD_PER_SECOND = Number(process.env.HEYGEN_COST_USD_PER_SECOND || "0.04"); // punto medio del rango reportado ($0.0167–$0.0667/s).
-const POLL_TIMEOUT_MS = Number(process.env.HEYGEN_POLL_TIMEOUT_MS || "300000");
-const POLL_INITIAL_DELAY_MS = 3000;
-const POLL_MAX_DELAY_MS = 20000;
-const MAX_POLL_ATTEMPTS = Number(process.env.HEYGEN_MAX_POLL_ATTEMPTS || "30");
-const RECOVERABLE_HTTP_STATUS = new Set([408, 429, 500, 502, 503, 504]);
-
-function getApiKey(): string {
+async function api(path: string, init: RequestInit = {}) {
   const key = process.env.HEYGEN_API_KEY?.trim();
-  if (!key) throw new MissingEnvVarError("HEYGEN_API_KEY");
-  return key;
-}
-
-const circuitBreaker = new CircuitBreaker(3);
-
-async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function heygenFetch(path: string, init: RequestInit): Promise<Response> {
-  try {
-    circuitBreaker.assertClosed();
-  } catch (err) {
-    throw new AvatarProviderError(
-      err instanceof Error ? err.message : "Circuito abierto tras fallos consecutivos",
-      "heygen",
-      "circuit_open",
-      err,
-    );
-  }
+  if (!key) throw fail("HEYGEN_API_KEY no está configurada", "not_configured");
   let response: Response;
   try {
-    response = await fetch(`${HEYGEN_API_BASE}${path}`, {
-      ...init,
-      headers: { "X-Api-Key": getApiKey(), "Content-Type": "application/json", ...(init.headers ?? {}) },
-    });
-  } catch (err) {
-    circuitBreaker.recordFailure();
-    throw new AvatarProviderError("Error de red llamando a HeyGen", "heygen", "upstream_error", err);
-  }
-
+    response = await fetch(BASE + path, { ...init, redirect: "error", signal: AbortSignal.timeout(60000),
+      headers: { "X-Api-Key": key, ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }), ...init.headers } });
+  } catch { throw fail("Error de transporte de HeyGen; no se reintentó la creación.", "upstream_error"); }
+  const body = await response.json().catch(() => null);
   if (!response.ok) {
-    if (RECOVERABLE_HTTP_STATUS.has(response.status)) {
-      circuitBreaker.recordFailure();
-    }
-    throw new AvatarProviderError(`HeyGen respondió HTTP ${response.status}`, "heygen", "upstream_error");
+    // Free-form provider errors may echo private media URLs. Never log them publicly.
+    const code = safeToken(body?.error?.code);
+    const param = safeToken(body?.error?.param);
+    const knownMessage = body?.error?.message === "Extra inputs are not permitted" ? ": Extra inputs are not permitted" : "";
+    throw new AvatarProviderError(`HeyGen HTTP ${response.status}; code=${code}; param=${param}${knownMessage}`, "heygen", "upstream_error", { http: response.status, body });
   }
-
-  circuitBreaker.recordSuccess();
-  return response;
+  if (!body?.data || typeof body.data !== "object") throw fail("HeyGen devolvió una respuesta sin data.");
+  return body.data;
 }
 
-/** Reintento acotado SOLO para errores recuperables (rate limit / 5xx) — nunca para errores de validación o moderación. */
-async function withFiniteRetry<T>(fn: () => Promise<T>, maxRetries: number): Promise<T> {
-  let lastError: unknown;
-  let delay = POLL_INITIAL_DELAY_MS;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastError = err;
-      const recoverable = err instanceof AvatarProviderError && err.reason === "upstream_error";
-      if (!recoverable || attempt === maxRetries) throw err;
-      await sleep(delay);
-      delay = Math.min(delay * 2, POLL_MAX_DELAY_MS);
-    }
-  }
-  throw lastError;
+export function estimateHeygenCost(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds <= 0) throw fail("Se requiere duración real del audio.");
+  // Conservative cent rounding for the observed Avatar IV photo tariff.
+  return Math.ceil(seconds * 0.0385 * 100) / 100;
 }
 
-/** Misma fórmula usada por generateVideo() para rechazar por presupuesto Y por estimateVideoCostUsd() — nunca deben divergir. */
-function estimateSecondsAndCost(script: string): { estimatedSeconds: number; estimatedCost: number } {
-  const estimatedSeconds = Math.max(1, script.split(/\s+/).filter(Boolean).length / 2.5);
-  return { estimatedSeconds, estimatedCost: estimatedSeconds * COST_USD_PER_SECOND };
+export async function getHeygenWallet(): Promise<number> {
+  const d = await api("/v3/users/me");
+  const amount = d.wallet?.remaining_balance;
+  if (d.wallet?.currency !== "usd" || typeof amount !== "number" || !Number.isFinite(amount)) throw fail("No se pudo verificar el saldo de HeyGen.");
+  return amount;
 }
 
-function mapHeygenStatus(raw: string | undefined): AvatarJobStatus {
-  switch (raw) {
-    case "pending":
-    case "waiting":
-      return "queued";
-    case "processing":
-      return "processing";
-    case "completed":
-    case "success":
-      return "completed";
-    case "cancelled":
-      return "cancelled";
-    default:
-      return "failed";
-  }
+async function upload(bytes: Buffer, mime: string, name: string): Promise<string> {
+  if (!bytes.length || bytes.length > 32 * 1024 * 1024) throw fail("Archivo vacío o demasiado grande.");
+  const form = new FormData();
+  form.append("file", new Blob([new Uint8Array(bytes)], { type: mime }), name);
+  const data = await api("/v3/assets", { method: "POST", body: form });
+  const id = data.asset_id ?? data.id;
+  if (typeof id !== "string" || !id) throw fail("HeyGen no devolvió asset_id.");
+  return id;
+}
+
+function httpsUrl(value: string) {
+  try { const u = new URL(value); return u.protocol === "https:" && !u.username && !u.password; } catch { return false; }
+}
+async function download(url: string): Promise<Buffer> {
+  if (!httpsUrl(url)) throw fail("Se requiere una URL HTTPS.");
+  let r: Response;
+  try { r = await fetch(url, { signal: AbortSignal.timeout(60000), redirect: "error" }); }
+  catch { throw fail("No se pudo descargar el archivo privado.", "upstream_error"); }
+  if (!r.ok) throw fail(`Descarga HTTP ${r.status}`, "upstream_error");
+  const bytes = Buffer.from(await r.arrayBuffer());
+  if (!bytes.length) throw fail("Archivo descargado vacío.");
+  return bytes;
+}
+function status(raw: unknown): AvatarJobStatus {
+  if (raw === "waiting" || raw === "pending") return "queued";
+  if (raw === "processing") return "processing";
+  if (raw === "completed") return "completed";
+  if (raw === "cancelled") return "cancelled";
+  if (raw === "failed") return "failed";
+  throw fail("Estado de HeyGen desconocido.");
+}
+async function result(id: string, data: Record<string, unknown>, duration?: number, cost = 0): Promise<AvatarVideoResult> {
+  if (status(data.status) !== "completed" || typeof data.video_url !== "string") throw fail("El resultado todavía no está disponible.");
+  return { buffer: await download(data.video_url), mimeType: "video/mp4", extension: "mp4", model: "avatar-iv-photo",
+    durationSeconds: duration, costUsd: cost, providerJobId: id };
 }
 
 export const heygenAvatarProvider: AvatarVideoProvider = {
   name: "heygen",
-  capabilities: {
-    id: "heygen",
-    models: ["photo-avatar-v3"],
-    formats: ["video/mp4"],
-    aspectRatios: ["9:16", "16:9"],
-    timeoutMs: POLL_TIMEOUT_MS,
-    maxRetries: 2,
+  capabilities: { id: "heygen", models: ["avatar-iv-photo"], formats: ["video/mp4"], aspectRatios: ["9:16", "16:9"], timeoutMs: 600000, maxRetries: 0 },
+  isAvailable: () => Boolean(process.env.HEYGEN_API_KEY?.trim()),
+  async createAvatar(request) {
+    if (!this.isAvailable()) throw fail("HEYGEN_API_KEY no está configurada", "not_configured");
+    if (!request.consentGiven) throw fail("Falta el consentimiento del propietario.", "consent_missing");
+    const id = await upload(request.photoBuffer, request.mimeType, request.mimeType === "image/png" ? "photo.png" : "photo.jpeg");
+    return { providerAvatarId: `asset:${id}`, status: "completed" };
   },
-  isAvailable() {
-    return Boolean(process.env.HEYGEN_API_KEY?.trim());
+  async checkAvatarStatus(id) {
+    if (!id.startsWith("asset:")) throw fail("Se requiere un recurso de foto de HeyGen.");
+    await api(`/v3/assets/${encodeURIComponent(id.slice(6))}`);
+    return "completed";
   },
-  async createAvatar(request: AvatarCreationRequest): Promise<AvatarCreationResult> {
-    if (!this.isAvailable()) {
-      throw new AvatarProviderError("HEYGEN_API_KEY no está configurada", "heygen", "not_configured");
+  async generateVideo(request) {
+    const seconds = request.audioDurationSeconds!;
+    const cost = estimateHeygenCost(seconds);
+    if (!request.audioUrl || !httpsUrl(request.audioUrl)) throw fail("Se requiere el audio original; no se permite TTS de respaldo.");
+    if (!Number.isFinite(request.maxCostUsd) || cost > request.maxCostUsd) throw fail("La estimación supera el presupuesto autorizado.", "budget_exceeded");
+    const image = request.providerAvatarId.startsWith("asset:")
+      ? { type: "asset_id", asset_id: request.providerAvatarId.slice(6) }
+      : httpsUrl(request.providerAvatarId) ? { type: "url", url: request.providerAvatarId } : null;
+    if (!image) throw fail("Se requiere la fotografía preparada.");
+    // Use the same uploaded-audio shape as the successful sample. No TTS.
+    const audioId = await upload(await download(request.audioUrl), "audio/wav", "recording.wav");
+    const created = await api("/v3/videos", { method: "POST", body: JSON.stringify({ type: "image", image,
+      audio_asset_id: audioId, aspect_ratio: "auto", resolution: "720p" }) });
+    if (typeof created.video_id !== "string" || !created.video_id) throw fail("HeyGen no devolvió video_id; no vuelvas a generar.");
+    await request.onJobCreated?.(created.video_id);
+    const deadline = Date.now() + 600000;
+    while (Date.now() < deadline) {
+      const data = await api(`/v3/videos/${encodeURIComponent(created.video_id)}`);
+      const state = status(data.status);
+      if (state === "completed") return result(created.video_id, data, seconds, cost);
+      if (state === "failed" || state === "cancelled") throw fail(`HeyGen generación ${state}; code=${safeToken(data.failure_code)}`, "upstream_error");
+      await new Promise(resolve => setTimeout(resolve, 10000));
     }
-    // Defensa en profundidad — el consentimiento ya se exige en la capa
-    // de producto (dashboard/new), pero el proveedor NUNCA debe confiar
-    // únicamente en el llamador.
-    if (!request.consentGiven) {
-      throw new AvatarProviderError("Falta el consentimiento del propietario de la fotografía", "heygen", "consent_missing");
-    }
-    if (request.photoBuffer.byteLength === 0) {
-      throw new AvatarProviderError("La fotografía está vacía", "heygen", "invalid_response");
-    }
-
-    // UNVERIFICADO: HeyGen v3 podría requerir subir la foto a un endpoint
-    // de assets primero y referenciarla por URL/id — se asume aquí una
-    // forma plausible (photo_url apuntando a una URL firmada de corta
-    // duración de nuestro propio Storage) pendiente de confirmar contra
-    // la documentación oficial. NUNCA se loguea esa URL.
-    const response = await withFiniteRetry(
-      () =>
-        heygenFetch("/v3/avatars", {
-          method: "POST",
-          body: JSON.stringify({ avatar_type: "photo" }),
-        }),
-      2,
-    );
-    const json = (await response.json()) as { avatar_id?: string; status?: string };
-    if (!json.avatar_id) {
-      throw new AvatarProviderError("HeyGen no devolvió avatar_id", "heygen", "invalid_response");
-    }
-
-    return { providerAvatarId: json.avatar_id, status: mapHeygenStatus(json.status) };
+    throw fail("HeyGen sigue procesando; no se creó otro intento.", "timeout");
   },
-
-  async checkAvatarStatus(providerAvatarId: string): Promise<AvatarJobStatus> {
-    const response = await heygenFetch(`/v3/avatars/${encodeURIComponent(providerAvatarId)}`, { method: "GET" });
-    const json = (await response.json()) as { status?: string };
-    return mapHeygenStatus(json.status);
-  },
-
-  async generateVideo(request: AvatarVideoRequest): Promise<AvatarVideoResult> {
-    if (!this.isAvailable()) {
-      throw new AvatarProviderError("HEYGEN_API_KEY no está configurada", "heygen", "not_configured");
-    }
-    if (request.script.length > MAX_SCRIPT_CHARS) {
-      throw new AvatarProviderError(
-        `El guion (${request.script.length} caracteres) excede el límite documentado de HeyGen (${MAX_SCRIPT_CHARS})`,
-        "heygen",
-        "invalid_response",
-      );
-    }
-
-    const { estimatedSeconds, estimatedCost } = estimateSecondsAndCost(request.script);
-    if (estimatedCost > request.maxCostUsd) {
-      throw new AvatarProviderError(
-        `Costo estimado ($${estimatedCost.toFixed(2)}) excede el máximo permitido ($${request.maxCostUsd})`,
-        "heygen",
-        "budget_exceeded",
-      );
-    }
-
-    // A creation POST may have been accepted even when its response fails.
-    // Never retry a billable creation automatically.
-    const createResponse = await withFiniteRetry(
-      () =>
-        heygenFetch("/v3/videos", {
-          method: "POST",
-          body: JSON.stringify({
-            video_inputs: [
-              {
-                character: { type: "avatar", avatar_id: request.providerAvatarId, avatar_style: "normal" },
-                voice: { type: "text", input_text: request.script, voice_id: request.voiceId },
-              },
-            ],
-            dimension: { width: 1080, height: 1920 },
-          }),
-        }),
-      0,
-    );
-    const createJson = (await createResponse.json()) as { video_id?: string };
-    if (!createJson.video_id) {
-      throw new AvatarProviderError("HeyGen no devolvió video_id", "heygen", "invalid_response");
-    }
-
-    await request.onJobCreated?.(createJson.video_id);
-
-    const deadline = Date.now() + POLL_TIMEOUT_MS;
-    let delay = POLL_INITIAL_DELAY_MS;
-    let downloadUrl: string | undefined;
-
-    for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
-      if (Date.now() > deadline) {
-        throw new AvatarProviderError(`Tiempo de espera agotado sondeando el video de HeyGen (${POLL_TIMEOUT_MS}ms)`, "heygen", "timeout");
-      }
-      const statusResponse = await heygenFetch(`/v3/videos/${encodeURIComponent(createJson.video_id)}`, { method: "GET" });
-      const statusJson = (await statusResponse.json()) as { status?: string; video_url?: string; error?: string };
-      const status = mapHeygenStatus(statusJson.status);
-
-      // Nunca se loguea video_url (URL de descarga) junto al video_id.
-      if (status === "completed" && statusJson.video_url) {
-        downloadUrl = statusJson.video_url;
-        break;
-      }
-      if (status === "failed") {
-        const isModeration = (statusJson.error ?? "").toLowerCase().includes("moderat");
-        throw new AvatarProviderError(
-          `El video de HeyGen falló${statusJson.error ? `: ${statusJson.error}` : ""}`,
-          "heygen",
-          isModeration ? "moderation_rejected" : "upstream_error",
-        );
-      }
-      await sleep(delay);
-      delay = Math.min(delay * 1.5, POLL_MAX_DELAY_MS);
-    }
-
-    if (!downloadUrl) {
-      throw new AvatarProviderError("Se agotaron los intentos de sondeo del video de HeyGen", "heygen", "timeout");
-    }
-
-    const videoRes = await fetch(downloadUrl);
-    if (!videoRes.ok) {
-      throw new AvatarProviderError(`No se pudo descargar el video de HeyGen (HTTP ${videoRes.status})`, "heygen", "upstream_error");
-    }
-    const buffer = Buffer.from(await videoRes.arrayBuffer());
-    if (buffer.byteLength === 0) {
-      throw new AvatarProviderError("Video de HeyGen descargado con tamaño 0 bytes", "heygen", "invalid_response");
-    }
-
-    return {
-      buffer,
-      mimeType: "video/mp4",
-      extension: "mp4",
-      width: 1080,
-      height: 1920,
-      durationSeconds: estimatedSeconds,
-      model: "photo-avatar-v3",
-      costUsd: estimatedCost,
-      providerJobId: createJson.video_id,
-    };
-  },
-
-  async checkVideoStatus(providerJobId: string): Promise<AvatarJobStatus> {
-    const response = await heygenFetch(`/v3/videos/${encodeURIComponent(providerJobId)}`, { method: "GET" });
-    const json = (await response.json()) as { status?: string };
-    return mapHeygenStatus(json.status);
-  },
-
-  async deleteAvatar(providerAvatarId: string): Promise<{ deleted: boolean; reason?: string }> {
-    try {
-      await heygenFetch(`/v3/avatars/${encodeURIComponent(providerAvatarId)}`, { method: "DELETE" });
-      return { deleted: true };
-    } catch (err) {
-      // No se confirmó un endpoint DELETE documentado (ver comentario del
-      // archivo) — se reporta honestamente, nunca se finge éxito.
-      return {
-        deleted: false,
-        reason: err instanceof Error ? err.message : "No se pudo confirmar el borrado en HeyGen (endpoint no verificado)",
-      };
-    }
-  },
-
-  estimateVideoCostUsd(request: Pick<AvatarVideoRequest, "script">): number {
-    return estimateSecondsAndCost(request.script).estimatedCost;
-  },
-
-  async cancelVideo(providerJobId: string): Promise<{ cancelled: boolean; reason?: string }> {
-    // UNVERIFICADO: no se confirmó un endpoint de cancelación documentado
-    // para /v3/videos — se intenta un DELETE best-effort (mismo criterio
-    // honesto que deleteAvatar(), nunca finge éxito) hasta confirmarlo
-    // contra la documentación oficial primaria.
-    try {
-      await heygenFetch(`/v3/videos/${encodeURIComponent(providerJobId)}`, { method: "DELETE" });
-      return { cancelled: true };
-    } catch (err) {
-      return {
-        cancelled: false,
-        reason: err instanceof Error ? err.message : "No se pudo confirmar la cancelación en HeyGen (endpoint no verificado)",
-      };
-    }
-  },
-
-  processWebhookPayload(payload: unknown): AvatarWebhookResult | null {
-    // UNVERIFICADO: la forma exacta del webhook "avatar_video.success" de
-    // HeyGen no se pudo confirmar contra la documentación oficial primaria
-    // (ver comentario de cabecera) — esta es la forma MÁS PLAUSIBLE según
-    // fuentes secundarias (evento + event_data.video_id), no un contrato
-    // confirmado. Nunca lanza ante un payload inesperado — devuelve null.
-    if (!payload || typeof payload !== "object") return null;
-    const p = payload as Record<string, unknown>;
-    const eventData = p.event_data as Record<string, unknown> | undefined;
-    const videoId = eventData?.video_id;
-    if (typeof videoId !== "string") return null;
-
-    const event = typeof p.event === "string" ? p.event : "";
-    let status: AvatarJobStatus;
-    if (event.endsWith(".success")) status = "completed";
-    else if (event.endsWith(".fail") || event.endsWith(".failed")) status = "failed";
-    else return null;
-
-    return { providerJobId: videoId, status };
-  },
+  async recoverVideo(id) { return result(id, await api(`/v3/videos/${encodeURIComponent(id)}`)); },
+  async checkVideoStatus(id) { return status((await api(`/v3/videos/${encodeURIComponent(id)}`)).status); },
+  async deleteAvatar() { return { deleted: false, reason: "La limpieza de recursos requiere una operación separada." }; },
+  async cancelVideo() { return { cancelled: false, reason: "No se ha confirmado una cancelación que evite el cobro." }; },
+  estimateVideoCostUsd(request: Pick<AvatarVideoRequest, "script" | "audioDurationSeconds">) { return estimateHeygenCost(request.audioDurationSeconds!); },
+  processWebhookPayload() { return null; },
 };
