@@ -1,0 +1,27 @@
+name: Diagnóstico de solo lectura — intento HeyGen
+
+# Investiga por qué heygen-owner-trial.ts (action=generate) rechazó el
+# intento con "trial_not_eligible" — SOLO LECTURA: no escribe nada, no
+# descarga fotos/audio, no llama a HeyGen, no toca el candado ni el saldo.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Diagnóstico de solo lectura
+        run: npx tsx scripts/diagnose-heygen-trial.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
