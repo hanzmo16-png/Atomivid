@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
@@ -83,7 +84,11 @@ export async function POST(
     if (videoRequest.user_id !== user.id) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
-    if (videoRequest.mode === "avatar" && (!getFeatureFlags().avatarModeEnabled || !canPrepareAvatar(user))) {
+    // Temporary owner-authorized trial: one request, expires automatically.
+    // Global avatar mode remains off; ownership and durable attempt lock stay enforced.
+    const authorizedTrial = Date.now() < Date.parse("2026-09-19T02:00:00Z")
+      && createHash("sha256").update(id).digest("hex") === "24ad45b839f41c3c20e23d3a1b85e5d4e946fd66d1bead27865e4dbd506239b5";
+    if (videoRequest.mode === "avatar" && ((!getFeatureFlags().avatarModeEnabled && !authorizedTrial) || !canPrepareAvatar(user))) {
       return NextResponse.json({ error: "La generación de avatar está bloqueada. Primero se requiere revisar el consumo y autorizar la prueba." }, { status: 403 });
     }
     if (!videoRequest.script_json) {
