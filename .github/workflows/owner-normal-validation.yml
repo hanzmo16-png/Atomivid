@@ -1,0 +1,38 @@
+name: Single owner normal video validation
+on:
+  push:
+    branches: [codex/night-normal-trial]
+    paths: [scripts/owner-normal-validation.ts, .github/workflows/owner-normal-validation.yml]
+permissions:
+  contents: read
+concurrency:
+  group: single-owner-normal-validation-2026-09-19
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: One authorized normal video
+        run: npx tsx scripts/owner-normal-validation.ts
+        env:
+          ATOMIVID_RUNTIME: production
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          MUSIC_TRACK_URLS: ${{ secrets.MUSIC_TRACK_URLS }}
+          MUSIC_PROVIDER: ${{ secrets.MUSIC_PROVIDER }}
+          AVATAR_MODE_ENABLED: 'false'
+          OPENAI_IMAGE_GENERATION_ENABLED: 'false'
+          PREMIUM_CLIPS_ENABLED: 'false'
