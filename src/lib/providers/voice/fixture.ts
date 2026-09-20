@@ -17,9 +17,11 @@ import { WORDS_PER_SECOND } from "@/lib/video/script-pacing";
 // hacía que las pruebas locales con fixtures no fueran representativas.
 export const fixtureVoiceProvider: VoiceProvider = {
   name: "fixture",
-  async synthesize(text) {
+  async synthesize(text, _language, speed = 1) {
     const wordsRaw = text.split(/\s+/).filter(Boolean);
-    const wordDuration = 1 / WORDS_PER_SECOND;
+    // Simula el efecto de `speed` (ver VoiceProvider.synthesize en
+    // providers/types.ts): más rápido → cada palabra dura menos.
+    const wordDuration = 1 / WORDS_PER_SECOND / speed;
 
     const words: WordTiming[] = wordsRaw.map((w, i) => ({
       text: w,

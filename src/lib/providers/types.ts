@@ -70,7 +70,14 @@ export type VoiceResult = {
 
 export interface VoiceProvider {
   readonly name: string;
-  synthesize(text: string, language?: ScriptLanguage): Promise<VoiceResult>;
+  /**
+   * `speed` (opcional, ~0.85-1.15): ajuste de ritmo de habla sin cambiar
+   * el texto — usado por generate-video.ts para corregir una narración
+   * real cuya duración medida cayó fuera de tolerancia, sin tener que
+   * regenerar el guion ya aprobado por el usuario en la revisión. Omitido
+   * = velocidad normal del proveedor.
+   */
+  synthesize(text: string, language?: ScriptLanguage, speed?: number): Promise<VoiceResult>;
 }
 
 export type FootageResult = {

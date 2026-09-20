@@ -119,17 +119,34 @@ export async function generateVideoFromScript({
   // palabra (así toda la narración usa la misma voz y ritmo).
   await onProgress?.("voice");
   const fullText = script.segments.map((s) => s.text).join(" ");
-  const voice = await voiceProvider.synthesize(fullText, language);
+  let voice = await voiceProvider.synthesize(fullText, language);
 
   // Verificación de duración REAL (no estimada) contra el objetivo de la
-  // solicitud — nunca estira ni recorta nada (eso sonaría artificial),
-  // rechaza cuando el guion quedó fuera de tolerancia (±10%) para
-  // poder recalibrar WORDS_PER_SECOND (script-pacing.ts) con datos reales
-  // en vez de dejarlo pasar en silencio. Causa raíz confirmada del
+  // solicitud — nunca estira ni recorta el audio ya grabado (eso sonaría
+  // artificial), rechaza cuando el guion quedó fuera de tolerancia (±10%)
+  // para poder recalibrar WORDS_PER_SECOND (script-pacing.ts) con datos
+  // reales en vez de dejarlo pasar en silencio. Causa raíz confirmada del
   // defecto "duración ~28% menor que la pedida" en el video auditado.
+  //
+  // Antes de rendirse: una sola corrección de RITMO (voiceProvider habla
+  // más rápido/lento, nunca reescribe el texto ya aprobado por el usuario
+  // en la revisión) proporcional a cuánto se pasó/quedó corto. Confirmado
+  // en producción (2026-09-20) que el conteo de palabras por sí solo no
+  // siempre predice bien la duración real hablada — esta corrección ataca
+  // la causa real (el ritmo de esta síntesis en particular) sin gastar en
+  // un guion nuevo ni pedirle al usuario que vuelva a revisar texto que no
+  // escribió. Si tras la corrección sigue fuera de tolerancia, se rinde
+  // igual que antes: assertNarrationDuration lanza y no se sigue.
   let durationWithinTolerance = true;
   if (targetDurationSeconds !== undefined) {
-    const durationResult = checkDuration(targetDurationSeconds, voice.durationSeconds);
+    let durationResult = checkDuration(targetDurationSeconds, voice.durationSeconds);
+    if (!durationResult.withinTolerance) {
+      const correctedSpeed = voice.durationSeconds / targetDurationSeconds;
+      const correctedVoice = await voiceProvider.synthesize(fullText, language, correctedSpeed);
+      const correctedResult = checkDuration(targetDurationSeconds, correctedVoice.durationSeconds);
+      voice = correctedVoice;
+      durationResult = correctedResult;
+    }
     durationWithinTolerance = durationResult.withinTolerance;
     if (!durationResult.withinTolerance) {
       assertNarrationDuration(targetDurationSeconds, voice.durationSeconds);

@@ -58,9 +58,20 @@ export type WordTiming = {
   endSeconds: number;
 };
 
+// Rango seguro documentado por ElevenLabs para `voice_settings.speed`:
+// 0.7-1.2, con la nota de que valores extremos degradan la calidad. Se
+// acota más angosto (0.85-1.15) porque aquí solo se usa para una
+// corrección fina (la narración real quedó apenas fuera de tolerancia),
+// nunca para compensar un guion muy mal dimensionado — eso lo sigue
+// atrapando assertNarrationDuration en duration-check.ts.
+const MIN_SPEED = 0.85;
+const MAX_SPEED = 1.15;
+
 export async function synthesizeVoice(
   text: string,
   language: "es" | "en" = "es",
+  /** Ajuste de ritmo de habla (ver VoiceProvider.synthesize en providers/types.ts). */
+  speed?: number,
 ): Promise<{
   audioBuffer: Buffer;
   durationSeconds: number;
@@ -71,6 +82,10 @@ export async function synthesizeVoice(
   }
 
   const voiceId = VOICE_ID_BY_LANGUAGE[language] || DEFAULT_VOICE_ID;
+  const voiceSettings =
+    speed === undefined
+      ? VOICE_SETTINGS
+      : { ...VOICE_SETTINGS, speed: Math.min(MAX_SPEED, Math.max(MIN_SPEED, speed)) };
 
   const res = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps`,
@@ -83,7 +98,7 @@ export async function synthesizeVoice(
       body: JSON.stringify({
         text,
         model_id: MODEL_ID,
-        voice_settings: VOICE_SETTINGS,
+        voice_settings: voiceSettings,
       }),
     },
   );
