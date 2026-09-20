@@ -4,11 +4,13 @@ Documento vivo: qué está comprobado (no solo implementado), qué falta, y
 cuál es el siguiente paso de mayor impacto. Actualizar en cada sesión
 significativa en vez de crear un documento nuevo.
 
-## Traspaso — pausa del trabajo visual/UI (2026-09-20)
+## Traspaso — pasada visual/UI COMPLETA, pausada (2026-09-20)
 
-**Estado: PAUSADO por instrucción explícita del usuario. Listo para que
-cualquier sesión lo retome — Claude o Codex/ChatGPT — sin depender del
-historial de chat de esta sesión.**
+**Estado: la pasada de mejora visual página por página terminó — se
+cubrió todo el flujo de usuario visible, landing hasta legal. Sesión
+PAUSADA por instrucción explícita del usuario. Listo para que cualquier
+sesión lo retome — Claude o Codex/ChatGPT — sin depender del historial de
+chat de esta sesión.**
 
 Contexto: por indicación del usuario, esta sesión de Claude Code hizo una
 pasada de mejora **puramente visual**, página por página, confirmando
@@ -41,6 +43,12 @@ acordado con el usuario en fases anteriores de esta pasada):
    `src/components/ui/AuthCard.tsx` (antes cada página duplicaba el mismo
    fondo/logo/tarjeta). `signIn`/`signUp` y validación de formularios sin
    cambios.
+7. `e983dc9` — Legal (`/privacy`, `/terms`): `LegalLayout` compartido
+   gana encabezado con glow, badge "Beta", índice de anclas para
+   `/terms` (más largo) y pie con enlaces cruzados + "Volver al inicio".
+   El ancla `#avatar-consent` (referenciada desde
+   `dashboard/new/AvatarFields.tsx`) se conservó igual. Sin cambios de
+   texto/copy legal, solo presentación.
 
 **Selección de logo**: se presentaron 6 variantes de átomo al usuario
 (HTML de comparación, no versionado en el repo); el usuario eligió la
@@ -56,17 +64,17 @@ antes de cada commit para no interferir con el trabajo paralelo de Codex.
 
 **Estado del árbol de trabajo al pausar**: limpio, sin cambios sin
 commitear ni sin pushear. `HEAD` local = `origin/claude/atomivid-mvp-setup-0079jv`
-= `854fe50` en el momento de escribir esta nota.
+= `e983dc9` en el momento de escribir esta nota.
 
-**Pendiente, no iniciado**: páginas legales (`/privacy`, `/terms`) —
-ofrecidas como siguiente paso al usuario, sin confirmación todavía de
-continuar. El resto del flujo visible de usuario ya pasó por esta
-revisión visual (landing, logo, dashboard/nav, formulario de creación,
-revisión de guion, facturación, login, registro).
+**Pendiente**: ninguna página del flujo visible de usuario quedó sin esta
+pasada visual (landing, logo, dashboard/nav, formulario de creación,
+revisión de guion, facturación, login, registro, legal). No hay un
+siguiente paso de UI ya decidido — la próxima pantalla/mejora depende de
+lo que indique el usuario al retomar.
 
 **Para retomar** (Claude o Codex/ChatGPT):
 - `git fetch origin claude/atomivid-mvp-setup-0079jv && git log -1` para
-  confirmar si sigue en `854fe50` o si avanzó (Codex trabaja en paralelo
+  confirmar si sigue en `e983dc9` o si avanzó (Codex trabaja en paralelo
   en la misma rama).
 - Metodología usada, repetible: construir → verificar `tsc`/`eslint` →
   capturar con Playwright (real si la página no requiere auth, o un HTML
