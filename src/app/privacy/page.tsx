@@ -5,7 +5,11 @@ export const metadata: Metadata = { title: "Privacidad" };
 
 export default function PrivacyPage() {
   return (
-    <LegalLayout title="Privacidad" updated="Última actualización: beta">
+    <LegalLayout
+      title="Privacidad"
+      updated="Beta"
+      crossLink={{ href: "/terms", label: "Términos de uso" }}
+    >
       <p>
         Atomivid está en fase beta. Este documento describe, de forma clara y sin
         tecnicismos, qué datos maneja el producto hoy.
