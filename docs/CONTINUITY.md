@@ -50,6 +50,27 @@ acordado con el usuario en fases anteriores de esta pasada):
    `dashboard/new/AvatarFields.tsx`) se conservó igual. Sin cambios de
    texto/copy legal, solo presentación.
 
+**Extra, tras confirmar deploy en Vercel — pulido de "listo para lanzar"
+(2026-09-20, mismo día, sesión continuada)**: el usuario confirmó en
+producción real (`atomivid.vercel.app`) que todos los commits de arriba
+ya están en vivo. A partir de ahí se agregaron 3 commits más, mismo
+alcance (solo presentación, sin lógica de negocio):
+8. `c1b0242` — `app/opengraph-image.tsx` + `twitter-image.tsx` (next/og,
+   1200×630): el layout raíz ya tenía metadata OG/Twitter completa pero
+   sin imagen real, así que compartir el link no mostraba preview.
+9. `0f9d905` — `app/not-found.tsx` + `app/error.tsx` con la marca del
+   sitio (antes caían en la página genérica de Next.js). Nota técnica:
+   en esta versión de Next el prop del boundary de `error.tsx` se llama
+   `retry`, no `reset` — confirmado contra
+   `node_modules/next/dist/docs/.../error.md` antes de escribir el
+   código, por la instrucción de AGENTS.md de no asumir APIs del
+   entrenamiento.
+
+`tsc --noEmit`/`eslint` limpios en ambos commits; verificado con
+capturas reales (og-image renderizada, 404 en navegador) y una pasada
+de Playwright a 390px sobre landing/login/register/terms/privacy sin
+overflow horizontal.
+
 **Selección de logo**: se presentaron 6 variantes de átomo al usuario
 (HTML de comparación, no versionado en el repo); el usuario eligió la
 opción "A" (átomo clásico de 3 órbitas), que es la ya implementada en
@@ -62,19 +83,34 @@ migraciones, ni ningún Server Action — verificado archivo por archivo
 antes de cada commit para no interferir con el trabajo paralelo de Codex.
 `tsc --noEmit` y `eslint` limpios en cada commit.
 
-**Estado del árbol de trabajo al pausar**: limpio, sin cambios sin
-commitear ni sin pushear. `HEAD` local = `origin/claude/atomivid-mvp-setup-0079jv`
-= `e983dc9` en el momento de escribir esta nota.
+**Estado del árbol de trabajo**: limpio, sin cambios sin commitear ni sin
+pushear. `HEAD` local = `origin/claude/atomivid-mvp-setup-0079jv` =
+`0f9d905` en el momento de escribir esta nota.
 
-**Pendiente**: ninguna página del flujo visible de usuario quedó sin esta
-pasada visual (landing, logo, dashboard/nav, formulario de creación,
-revisión de guion, facturación, login, registro, legal). No hay un
-siguiente paso de UI ya decidido — la próxima pantalla/mejora depende de
-lo que indique el usuario al retomar.
+**Pendiente visual/presentación**: nada bloqueante identificado. Ideas
+menores sin empezar, bajo impacto: limpiar los SVG de ejemplo que
+`create-next-app` dejó en `public/` (`next.svg`, `vercel.svg`, etc.,
+no referenciados por ninguna página) y una pasada de accesibilidad
+(alt/aria) más formal sobre los componentes nuevos de esta fase.
+
+**Lo que realmente falta para un lanzamiento real** (fuera del alcance
+de esta sesión, por decisión/costo/credenciales del usuario, no por
+falta de código):
+- **Stripe en modo live**: sigue en modo prueba únicamente (ver
+  `PROJECT_STATUS.md` sección 11); pasar a live requiere que el usuario
+  configure su cuenta real de Stripe (datos de negocio, cuenta
+  bancaria) — ninguna sesión de Claude/Codex puede hacer esto por él.
+- **HeyGen/avatar en producción real**: ver `HEYGEN_OWNER_TRIAL.md` —
+  el candado de un solo intento ya se activó por una generación real
+  previa; cualquier siguiente prueba paga requiere autorización
+  explícita de presupuesto del usuario.
+- **Dato de prueba en la base real**: sigue pendiente borrar la
+  solicitud/usuario de prueba mencionados en `PROJECT_STATUS.md`
+  sección 10 — requiere acción del usuario, no de esta sesión.
 
 **Para retomar** (Claude o Codex/ChatGPT):
 - `git fetch origin claude/atomivid-mvp-setup-0079jv && git log -1` para
-  confirmar si sigue en `e983dc9` o si avanzó (Codex trabaja en paralelo
+  confirmar si sigue en `0f9d905` o si avanzó (Codex trabaja en paralelo
   en la misma rama).
 - Metodología usada, repetible: construir → verificar `tsc`/`eslint` →
   capturar con Playwright (real si la página no requiere auth, o un HTML
