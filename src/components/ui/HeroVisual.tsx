@@ -2,9 +2,11 @@ import Image from "next/image";
 import { LogoMark } from "./Logo";
 
 /**
- * Mockup de un reel vertical. La foto es del propio fundador (autorizada
- * explícitamente para uso público en la landing) — sirve como ejemplo
- * honesto de "para qué es Atomivid", no se presenta como un video generado.
+ * Mockup de un reel vertical. La imagen es un fotograma real generado por
+ * HeyGen (modo avatar) a partir de una foto del propio fundador, quien
+ * autorizó explícitamente su uso público en la landing — no es una foto
+ * sin editar. HeyGen otorga al usuario los derechos sobre su User Output
+ * y permite uso comercial fuera del plan Free (heygen.com/terms).
  */
 export function HeroVisual() {
   return (
