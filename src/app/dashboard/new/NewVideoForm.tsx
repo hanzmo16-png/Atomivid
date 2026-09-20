@@ -16,9 +16,9 @@ const STYLES = [
 ];
 
 const DURATIONS = [
-  { value: 30, label: "30 segundos" },
-  { value: 60, label: "60 segundos" },
-  { value: 90, label: "90 segundos" },
+  { value: 30, label: "30s" },
+  { value: 60, label: "60s" },
+  { value: 90, label: "90s" },
 ];
 
 type VideoMode = "visual" | "avatar";
@@ -41,6 +41,7 @@ export function NewVideoForm({
 }) {
   const [mode, setMode] = useState<VideoMode>("visual");
   const [language, setLanguage] = useState<"es" | "en">("es");
+  const [duration, setDuration] = useState(30);
 
   return (
     <form action={action} className="space-y-5">
@@ -84,41 +85,57 @@ export function NewVideoForm({
       </Field>
 
       <Field id="duration_seconds" label="Duración deseada">
-        <select id="duration_seconds" name="duration_seconds" required defaultValue={30} className={INPUT_CLASS}>
+        <input type="hidden" id="duration_seconds" name="duration_seconds" value={duration} />
+        <div className="inline-flex rounded-md border border-border-strong bg-surface-raised p-1" role="radiogroup" aria-label="Duración deseada">
           {DURATIONS.map((d) => (
-            <option key={d.value} value={d.value}>
+            <button
+              key={d.value}
+              type="button"
+              role="radio"
+              aria-checked={duration === d.value}
+              onClick={() => setDuration(d.value)}
+              className={`rounded-sm px-4 py-1.5 text-sm font-medium transition-colors ${
+                duration === d.value ? "bg-accent text-accent-ink" : "text-ink-muted hover:text-ink"
+              }`}
+            >
               {d.label}
-            </option>
+            </button>
           ))}
-        </select>
+        </div>
       </Field>
 
       {avatarModeEnabled && (
         <fieldset className="space-y-2.5">
           <legend className="text-sm font-medium text-ink">Tipo de video</legend>
-          <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
-            <label className="flex items-center gap-2 text-sm text-ink-muted">
-              <input
-                type="radio"
-                name="mode"
-                value="visual"
-                checked={mode === "visual"}
-                onChange={() => setMode("visual")}
-                className="size-4"
-              />
-              Video visual (clips e imágenes)
-            </label>
-            <label className="flex items-center gap-2 text-sm text-ink-muted">
-              <input
-                type="radio"
-                name="mode"
-                value="avatar"
-                checked={mode === "avatar"}
-                onChange={() => setMode("avatar")}
-                className="size-4"
-              />
-              Video con avatar (tu fotografía narra el guion)
-            </label>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            {(
+              [
+                { value: "visual", title: "Video visual", desc: "Clips e imágenes reales por escena" },
+                { value: "avatar", title: "Video con avatar", desc: "Tu fotografía narra el guion" },
+              ] as const
+            ).map((option) => (
+              <label
+                key={option.value}
+                className={`flex cursor-pointer flex-col gap-0.5 rounded-md border px-4 py-3 text-sm transition-colors ${
+                  mode === option.value
+                    ? "border-accent-border bg-accent-soft"
+                    : "border-border-strong bg-surface-raised hover:border-border-strong/80"
+                }`}
+              >
+                <span className="flex items-center gap-2 font-medium text-ink">
+                  <input
+                    type="radio"
+                    name="mode"
+                    value={option.value}
+                    checked={mode === option.value}
+                    onChange={() => setMode(option.value)}
+                    className="size-4 accent-accent"
+                  />
+                  {option.title}
+                </span>
+                <span className="pl-6 text-xs text-ink-muted">{option.desc}</span>
+              </label>
+            ))}
           </div>
         </fieldset>
       )}
