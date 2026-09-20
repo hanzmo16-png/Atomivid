@@ -99,18 +99,21 @@ function countScriptWords(script: Pick<VideoScript, "segments">): number {
 // Un solo intento no siempre cae dentro del ±10% de tolerancia que exige
 // checkScriptQuality (script-quality.ts), aunque el prompt ya dé el
 // objetivo exacto de palabras — es una limitación conocida de pedirle a un
-// LLM que cuente con precisión. En vez de que ese guion mal dimensionado
-// llegue tal cual al usuario (quien tendría que recortarlo a mano en la
-// pantalla de revisión), se le da al modelo hasta un intento adicional
-// mostrándole su propio conteo y en qué dirección ajustar. Acotado a 2
-// intentos totales para no comprometer el límite de 60s de la ruta
-// (ver maxDuration en app/api/generate/[id]/script/route.ts) ni multiplicar
-// demasiado las llamadas cuando además se activa withRetry por fallos
-// transitorios (providers/script/real.ts). Si el segundo intento sigue
-// fuera de rango, se devuelve tal cual — checkScriptQuality en la ruta
-// sigue siendo quien decide si se acepta o no, esto solo reduce cuántas
-// veces llega a rechazarlo.
-const MAX_LENGTH_ATTEMPTS = 2;
+// LLM que cuente con precisión, más notoria en temas densos (varios
+// conceptos a mencionar) para una duración corta. En vez de que ese guion
+// mal dimensionado llegue tal cual al usuario (quien tendría que recortarlo
+// a mano en la pantalla de revisión), se le da al modelo hasta 2 intentos
+// adicionales mostrándole su propio conteo y en qué dirección ajustar.
+// Confirmado en producción (2026-09-20) que 1 sola corrección (2 intentos
+// totales) no siempre basta — subido a 3 intentos totales. Sigue acotado
+// para no comprometer el límite de 60s de la ruta (ver maxDuration en
+// app/api/generate/[id]/script/route.ts) ni multiplicar demasiado las
+// llamadas cuando además se activa withRetry por fallos transitorios
+// (providers/script/real.ts). Si el último intento sigue fuera de rango,
+// se devuelve tal cual — checkScriptQuality en la ruta sigue siendo quien
+// decide si se acepta o no, esto solo reduce cuántas veces llega a
+// rechazarlo.
+const MAX_LENGTH_ATTEMPTS = 3;
 
 export async function generateScript({
   topic,
