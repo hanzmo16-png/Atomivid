@@ -1,12 +1,13 @@
-import Image from "next/image";
 import { LogoMark } from "./Logo";
 
 /**
- * Mockup de un reel vertical. La imagen es un fotograma real generado por
- * HeyGen (modo avatar) a partir de una foto del propio fundador, quien
- * autorizó explícitamente su uso público en la landing — no es una foto
- * sin editar. HeyGen otorga al usuario los derechos sobre su User Output
- * y permite uso comercial fuera del plan Free (heygen.com/terms).
+ * Mockup de un reel vertical. El clip es un video real generado por HeyGen
+ * (modo avatar) a partir de una foto del propio fundador, quien autorizó
+ * explícitamente su uso público en la landing. En bucle, silenciado y sin
+ * controles (autoplay de navegador exige mute) — los subtítulos quemados
+ * comunican el mensaje sin necesitar audio. HeyGen otorga al usuario los
+ * derechos sobre su User Output y permite uso comercial fuera del plan
+ * Free (heygen.com/terms).
  */
 export function HeroVisual() {
   return (
@@ -15,14 +16,17 @@ export function HeroVisual() {
       <div className="absolute inset-0 -z-10 scale-125 rounded-full bg-accent/20 blur-3xl" />
 
       <div className="relative aspect-[9/16] w-full overflow-hidden rounded-[2rem] border border-border-strong bg-surface shadow-lg">
-        <Image
-          src="/images/founder-hero.jpg"
-          alt=""
-          fill
-          sizes="280px"
-          priority
-          className="object-cover"
-        />
+        <video
+          className="absolute inset-0 size-full object-cover"
+          poster="/images/founder-hero.jpg"
+          autoPlay
+          muted
+          loop
+          playsInline
+        >
+          <source src="/videos/founder-hero.webm" type="video/webm" />
+          <source src="/videos/founder-hero.mp4" type="video/mp4" />
+        </video>
 
         {/* Viñeta para legibilidad de los controles */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-transparent to-black/55" />
@@ -31,15 +35,6 @@ export function HeroVisual() {
         <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-3">
           <span className="h-1 w-8 rounded-full bg-white/25" />
           <span className="size-1.5 rounded-full bg-white/25" />
-        </div>
-
-        {/* Botón de reproducción central */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="flex size-14 items-center justify-center rounded-full border border-white/25 bg-white/10 backdrop-blur-sm">
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" className="translate-x-0.5">
-              <path d="M4 2.5v13l11-6.5-11-6.5z" fill="white" />
-            </svg>
-          </div>
         </div>
 
         {/* Marca de átomo flotando, sutil */}
