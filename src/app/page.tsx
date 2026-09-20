@@ -124,8 +124,12 @@ function SiteHeader() {
 
 function Hero() {
   return (
-    <section className="bg-atomivid-glow border-b border-border px-5 py-16 sm:py-24">
-      <div className="mx-auto grid max-w-6xl items-center gap-14 lg:grid-cols-[1.1fr_0.9fr] lg:gap-10">
+    <section className="bg-atomivid-glow relative overflow-hidden border-b border-border px-5 py-16 sm:py-24">
+      <div
+        className="pointer-events-none absolute -bottom-32 -right-24 size-[26rem] rounded-full bg-[#3b82f6] opacity-[0.16] blur-[90px]"
+        aria-hidden="true"
+      />
+      <div className="relative mx-auto grid max-w-6xl items-center gap-14 lg:grid-cols-[1.1fr_0.9fr] lg:gap-10">
         <div className="flex flex-col items-center gap-7 text-center lg:items-start lg:text-left">
           <span className="rounded-full border border-accent-border bg-accent-soft px-3 py-1 text-xs font-medium text-accent">
             Beta pública

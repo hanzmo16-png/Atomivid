@@ -1,9 +1,10 @@
+import Image from "next/image";
 import { LogoMark } from "./Logo";
 
 /**
- * Mockup de un reel vertical — sin imágenes externas, solo CSS/SVG, para no
- * depender de ningún asset ni de un video real en la landing. Da al hero
- * algo que "mirar" en vez de ser puro texto.
+ * Mockup de un reel vertical. La foto es del propio fundador (autorizada
+ * explícitamente para uso público en la landing) — sirve como ejemplo
+ * honesto de "para qué es Atomivid", no se presenta como un video generado.
  */
 export function HeroVisual() {
   return (
@@ -12,8 +13,14 @@ export function HeroVisual() {
       <div className="absolute inset-0 -z-10 scale-125 rounded-full bg-accent/20 blur-3xl" />
 
       <div className="relative aspect-[9/16] w-full overflow-hidden rounded-[2rem] border border-border-strong bg-surface shadow-lg">
-        {/* "Contenido" del video: degradado en movimiento lento */}
-        <div className="absolute inset-0 animate-hero-pan bg-[linear-gradient(160deg,#241f3d_0%,#171320_35%,#0d0c12_65%,#1c1730_100%)] bg-[length:180%_180%]" />
+        <Image
+          src="/images/founder-hero.jpg"
+          alt=""
+          fill
+          sizes="280px"
+          priority
+          className="object-cover"
+        />
 
         {/* Viñeta para legibilidad de los controles */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-transparent to-black/55" />
@@ -53,7 +60,7 @@ export function HeroVisual() {
       <span className="absolute -left-6 top-10 hidden rotate-[-6deg] items-center gap-1.5 rounded-full border border-border-strong bg-surface-raised px-3 py-1.5 text-xs font-medium text-ink shadow-md sm:flex">
         <span className="size-1.5 rounded-full bg-success" /> 9:16
       </span>
-      <span className="absolute -right-8 bottom-16 hidden rotate-[5deg] items-center gap-1.5 rounded-full border border-border-strong bg-surface-raised px-3 py-1.5 text-xs font-medium text-ink shadow-md sm:flex">
+      <span className="absolute -right-8 top-1/2 hidden -translate-y-1/2 rotate-[5deg] items-center gap-1.5 rounded-full border border-border-strong bg-surface-raised px-3 py-1.5 text-xs font-medium text-ink shadow-md sm:flex">
         Guion + voz + clips
       </span>
     </div>
