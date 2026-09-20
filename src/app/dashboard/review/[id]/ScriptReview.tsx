@@ -161,8 +161,9 @@ export function ScriptReview({
             type="button"
             onClick={regenerateFullScript}
             disabled={saving || generating || regeneratingAll || savingIndex !== null}
-            className="shrink-0 text-sm font-medium text-accent hover:text-accent-hover disabled:opacity-50"
+            className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-accent hover:text-accent-hover disabled:opacity-50"
           >
+            <RefreshIcon spinning={regeneratingAll} />
             {regeneratingAll ? "Regenerando guion…" : "Regenerar guion completo"}
           </button>
         </div>
@@ -173,16 +174,22 @@ export function ScriptReview({
         {script.segments.map((scene, i) => (
           <Card key={i} className="p-4">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                Escena {i + 1}
+              <span className="flex items-center gap-2">
+                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[11px] font-semibold text-accent">
+                  {i + 1}
+                </span>
+                <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                  Escena {i + 1}
+                </span>
               </span>
               {editable && (
                 <button
                   type="button"
                   onClick={() => regenerateScene(i)}
                   disabled={savingIndex !== null || saving || generating || regeneratingAll}
-                  className="text-xs font-medium text-accent hover:text-accent-hover disabled:opacity-50"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover disabled:opacity-50"
                 >
+                  <RefreshIcon spinning={savingIndex === i} />
                   {savingIndex === i ? "Regenerando…" : "Regenerar esta escena"}
                 </button>
               )}
@@ -249,5 +256,26 @@ export function ScriptReview({
         </div>
       )}
     </div>
+  );
+}
+
+function RefreshIcon({ spinning = false }: { spinning?: boolean }) {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+      className={`shrink-0 ${spinning ? "animate-spin motion-reduce:animate-none" : ""}`}
+    >
+      <path
+        d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v3h-3"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

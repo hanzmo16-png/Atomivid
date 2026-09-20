@@ -62,7 +62,12 @@ export default async function ReviewPage({
       </p>
 
       {audioPreview && <audio controls preload="metadata" src={audioPreview} className="my-4 w-full" aria-label="Tu grabación original" />}
+      {/* Server Component: se evalúa una sola vez por request en el servidor
+          (no hay re-render en el cliente que pueda desincronizarse), así que
+          Date.now() aquí es seguro pese a la regla de pureza de React — mismo
+          patrón ya usado en dashboard/page.tsx. */}
       <ScriptReview
+        // eslint-disable-next-line react-hooks/purity -- ver comentario arriba
         diagnosticRetry={canPrepareAvatar(user) && Date.now() < Date.parse("2026-09-19T02:00:00Z")
           && createHash("sha256").update(data.id).digest("hex") === "24ad45b839f41c3c20e23d3a1b85e5d4e946fd66d1bead27865e4dbd506239b5"
           && data.status === "failed" && data.render_attempts === 1
