@@ -45,6 +45,12 @@ export function GenerateButton({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
       setLoading(false);
+      // El servidor ya marcó la solicitud como fallida (ver rutas
+      // /api/generate/[id]/script y /render) — sin este refresh, la
+      // insignia de estado se quedaba en su valor anterior (p. ej.
+      // "Pendiente") aunque el mensaje de error de abajo sí fuera el real,
+      // dando la impresión contradictoria de que la solicitud seguía viva.
+      router.refresh();
     }
   }
 

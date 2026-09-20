@@ -89,6 +89,29 @@ const LANGUAGE_NAME: Record<"es" | "en", string> = {
   en: "inglés (English)",
 };
 
+function countScriptWords(script: Pick<VideoScript, "segments">): number {
+  return script.segments.reduce(
+    (sum, s) => sum + s.text.split(/\s+/).filter(Boolean).length,
+    0,
+  );
+}
+
+// Un solo intento no siempre cae dentro del ±10% de tolerancia que exige
+// checkScriptQuality (script-quality.ts), aunque el prompt ya dé el
+// objetivo exacto de palabras — es una limitación conocida de pedirle a un
+// LLM que cuente con precisión. En vez de que ese guion mal dimensionado
+// llegue tal cual al usuario (quien tendría que recortarlo a mano en la
+// pantalla de revisión), se le da al modelo hasta un intento adicional
+// mostrándole su propio conteo y en qué dirección ajustar. Acotado a 2
+// intentos totales para no comprometer el límite de 60s de la ruta
+// (ver maxDuration en app/api/generate/[id]/script/route.ts) ni multiplicar
+// demasiado las llamadas cuando además se activa withRetry por fallos
+// transitorios (providers/script/real.ts). Si el segundo intento sigue
+// fuera de rango, se devuelve tal cual — checkScriptQuality en la ruta
+// sigue siendo quien decide si se acepta o no, esto solo reduce cuántas
+// veces llega a rechazarlo.
+const MAX_LENGTH_ATTEMPTS = 2;
+
 export async function generateScript({
   topic,
   style,
@@ -103,26 +126,23 @@ export async function generateScript({
 }): Promise<VideoScript> {
   const targetWords = targetWordsFor(durationSeconds);
   const targetScenes = Math.max(3, Math.min(10, Math.round(durationSeconds / 5)));
+  const minWords = Math.ceil(targetWords * 0.9);
+  const maxWords = Math.floor(targetWords * 1.1);
 
-  const response = await getClient().messages.parse({
-    model: SCRIPT_MODEL,
-    max_tokens: 2000,
-    system:
-      "Eres guionista de reels 'faceless' (sin rostro) para redes sociales, " +
-      "en el estilo de canales virales de TikTok/Instagram Reels/YouTube " +
-      "Shorts. Escribes narraciones dinámicas y naturales, con un arco " +
-      "real: gancho fuerte en los primeros segundos, tensión o problema, " +
-      "desarrollo, conclusión y un cierre memorable — nunca una lista de " +
-      "frases sueltas que dicen lo mismo con otras palabras. El tema que " +
-      "te da el usuario es el ASUNTO del video, no una frase que deba " +
-      "aparecer copiada o casi copiada en la narración ('hoy hablamos de...', " +
-      "'esto es sobre...' y variantes similares están prohibidas). Responde " +
-      `SIEMPRE en ${LANGUAGE_NAME[language]}, sin importar en qué idioma ` +
-      "esté escrito el tema que te da el usuario.",
-    messages: [
-      {
-        role: "user",
-        content: `Escribe el guion de un reel faceless con un arco narrativo real: gancho → tensión/problema → desarrollo → conclusión → cierre.
+  const system =
+    "Eres guionista de reels 'faceless' (sin rostro) para redes sociales, " +
+    "en el estilo de canales virales de TikTok/Instagram Reels/YouTube " +
+    "Shorts. Escribes narraciones dinámicas y naturales, con un arco " +
+    "real: gancho fuerte en los primeros segundos, tensión o problema, " +
+    "desarrollo, conclusión y un cierre memorable — nunca una lista de " +
+    "frases sueltas que dicen lo mismo con otras palabras. El tema que " +
+    "te da el usuario es el ASUNTO del video, no una frase que deba " +
+    "aparecer copiada o casi copiada en la narración ('hoy hablamos de...', " +
+    "'esto es sobre...' y variantes similares están prohibidas). Responde " +
+    `SIEMPRE en ${LANGUAGE_NAME[language]}, sin importar en qué idioma ` +
+    "esté escrito el tema que te da el usuario.";
+
+  const basePrompt = `Escribe el guion de un reel faceless con un arco narrativo real: gancho → tensión/problema → desarrollo → conclusión → cierre.
 
 Idioma de la narración: ${LANGUAGE_NAME[language]} (obligatorio, sin excepción).
 Tema: ${topic}
@@ -147,19 +167,46 @@ Da, para cada escena:
 - "energy": "low"/"medium"/"high" según el ritmo narrativo de esa escena.
 - "emphasisWords": 1-3 palabras EXACTAS de "text" (mismo idioma de la narración) que merecen destacarse visualmente.
 
-La suma de las palabras de todos los "text" debe quedar entre ${Math.ceil(targetWords * 0.9)} y ${Math.floor(targetWords * 1.1)} palabras, con objetivo ${targetWords}. Cuenta las palabras antes de devolver el guion.`,
-      },
-    ],
-    output_config: {
-      format: zodOutputFormat(ScriptSchema),
-    },
-  });
+La suma de las palabras de todos los "text" debe quedar entre ${minWords} y ${maxWords} palabras, con objetivo ${targetWords}. Cuenta las palabras antes de devolver el guion.`;
 
-  if (!response.parsed_output) {
-    throw new Error("Claude no devolvió un guion válido");
+  let lastScript: VideoScript | null = null;
+  let lastWordCount = 0;
+
+  for (let attempt = 1; attempt <= MAX_LENGTH_ATTEMPTS; attempt++) {
+    const isRetry: boolean = attempt > 1;
+    const direction: "reduciendo" | "ampliando" = lastWordCount > maxWords ? "reduciendo" : "ampliando";
+    const content: string = !isRetry
+      ? basePrompt
+      : `${basePrompt}
+
+Tu intento anterior tuvo ${lastWordCount} palabras narradas en total, fuera del rango pedido (${minWords}-${maxWords}). Reescribe el guion completo — mismo tema, arco narrativo, idioma y estilo —, ${direction} el nivel de detalle de cada escena (sin relleno ni cortes artificiales) hasta que la suma de "text" caiga dentro del rango. Cuenta las palabras con cuidado antes de responder.`;
+
+    const response = await getClient().messages.parse({
+      model: SCRIPT_MODEL,
+      max_tokens: 2000,
+      system,
+      messages: [{ role: "user", content }],
+      output_config: {
+        format: zodOutputFormat(ScriptSchema),
+      },
+    });
+
+    const parsed = response.parsed_output;
+    if (!parsed) {
+      throw new Error("Claude no devolvió un guion válido");
+    }
+
+    lastScript = parsed;
+    lastWordCount = countScriptWords(parsed);
+    if (lastWordCount >= minWords && lastWordCount <= maxWords) {
+      return parsed;
+    }
   }
 
-  return response.parsed_output;
+  // Tras MAX_LENGTH_ATTEMPTS sigue fuera de rango: se devuelve el último
+  // intento tal cual — checkScriptQuality (llamado por la ruta) es quien
+  // decide si se rechaza, igual que antes de este cambio.
+  return lastScript!;
 }
 
 export async function regenerateScene({
