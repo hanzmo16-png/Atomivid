@@ -12,6 +12,13 @@ type SubscriptionRow = {
   cancel_at_period_end: boolean;
 };
 
+const PLAN_INCLUDES = [
+  "Genera videos verticales listos para publicar",
+  "Revisa y edita el guion antes del video final",
+  "Narración en español e inglés",
+  "Cancela cuando quieras desde el portal de facturación",
+];
+
 export default async function BillingPage({
   searchParams,
 }: {
@@ -51,36 +58,71 @@ export default async function BillingPage({
         {error && <Alert tone="danger">{error}</Alert>}
       </div>
 
-      <Card className="mt-6 p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-ink-muted">Plan</p>
-            <p className="text-lg font-semibold text-ink">Atomivid Pro</p>
+      <Card className="mt-6 overflow-hidden p-0">
+        <div className="bg-atomivid-glow border-b border-border px-6 py-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Plan</p>
+              <p className="text-xl font-bold text-ink">Atomivid Pro</p>
+            </div>
+            <Badge tone={active ? "success" : "neutral"}>{STATUS_LABEL[status] ?? status}</Badge>
           </div>
-          <Badge tone={active ? "success" : "neutral"}>{STATUS_LABEL[status] ?? status}</Badge>
+
+          {subscription?.current_period_end && (
+            <p className="mt-3 flex items-center gap-1.5 text-sm text-ink-muted">
+              <CalendarIcon />
+              {subscription.cancel_at_period_end ? "Se cancela el " : "Se renueva el "}
+              {new Date(subscription.current_period_end).toLocaleDateString("es-MX")}
+            </p>
+          )}
         </div>
 
-        {subscription?.current_period_end && (
-          <p className="mt-3 text-sm text-ink-muted">
-            {subscription.cancel_at_period_end ? "Se cancela el " : "Se renueva el "}
-            {new Date(subscription.current_period_end).toLocaleDateString("es-MX")}
-          </p>
-        )}
+        <div className="px-6 py-5">
+          <ul className="space-y-2.5">
+            {PLAN_INCLUDES.map((item) => (
+              <li key={item} className="flex items-start gap-2.5 text-sm text-ink-muted">
+                <CheckIcon />
+                {item}
+              </li>
+            ))}
+          </ul>
 
-        <div className="mt-6">
-          {active ? (
-            <form action={createPortalSession}>
-              <Button type="submit" variant="secondary">
-                Administrar suscripción
-              </Button>
-            </form>
-          ) : (
-            <form action={createCheckoutSession}>
-              <Button type="submit">Suscribirme</Button>
-            </form>
-          )}
+          <div className="mt-6">
+            {active ? (
+              <form action={createPortalSession}>
+                <Button type="submit" variant="secondary">
+                  Administrar suscripción
+                </Button>
+              </form>
+            ) : (
+              <form action={createCheckoutSession}>
+                <Button type="submit">Suscribirme</Button>
+              </form>
+            )}
+          </div>
         </div>
       </Card>
     </div>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg className="mt-0.5 size-4 shrink-0 text-accent" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path
+        fillRule="evenodd"
+        d="M16.7 5.3a1 1 0 010 1.4l-7.4 7.4a1 1 0 01-1.4 0L3.3 9.5a1 1 0 111.4-1.4l3.9 3.9 6.7-6.7a1 1 0 011.4 0z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0">
+      <rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M2 6.5h12M5 1.5v2M11 1.5v2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
   );
 }
