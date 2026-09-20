@@ -3,6 +3,7 @@ import { renderFailureMessage } from "@/lib/video/job-error";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { ModeBadge } from "./ModeBadge";
 import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
 import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
 import { STATUS_LABEL, STATUS_TONE, type VideoRequestSummary } from "@/lib/video/request-view";
@@ -41,11 +42,7 @@ export function RequestCard({
             <Link href={detailHref} className="block truncate font-medium text-ink hover:text-accent">
               {request.topic}
             </Link>
-            {request.mode === "avatar" && (
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent">
-                <AvatarIcon /> Avatar
-              </span>
-            )}
+            {request.mode === "avatar" && <ModeBadge />}
           </div>
           <p className="mt-1 text-sm text-ink-muted">
             {request.style} · {request.duration_seconds}s ·{" "}
@@ -148,17 +145,5 @@ export function RequestCard({
         </p>
       )}
     </Card>
-  );
-}
-
-function AvatarIcon() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-      <path
-        fillRule="evenodd"
-        d="M10 2a5 5 0 100 10 5 5 0 000-10zM3 18a7 7 0 0114 0 1 1 0 01-1 1H4a1 1 0 01-1-1z"
-        clipRule="evenodd"
-      />
-    </svg>
   );
 }

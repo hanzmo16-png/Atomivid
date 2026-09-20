@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
 import { LinkButton } from "@/components/ui/Button";
+import { ModeBadge } from "./ModeBadge";
 import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
 import {
   LANGUAGE_LABEL,
@@ -39,6 +40,7 @@ export function ResultView({
         <Badge tone={STATUS_TONE[request.status] ?? "neutral"}>
           {STATUS_LABEL[request.status] ?? request.status}
         </Badge>
+        {request.mode === "avatar" && <ModeBadge />}
       </div>
       <p className="mt-1 text-sm text-ink-muted">{meta.join(" · ")}</p>
 
@@ -84,7 +86,7 @@ export function ResultView({
               src={videoUrl}
               controls
               preload="metadata"
-              className="aspect-9/16 w-full max-w-72 rounded-lg bg-black shadow-lg"
+              className="aspect-9/16 w-full max-w-72 rounded-lg border border-border-strong bg-black shadow-lg"
             >
               Tu navegador no puede reproducir este video.
             </video>
