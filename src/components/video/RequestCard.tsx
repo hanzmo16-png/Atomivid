@@ -37,9 +37,16 @@ export function RequestCard({
     <Card className="p-4 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0">
-          <Link href={detailHref} className="block truncate font-medium text-ink hover:text-accent">
-            {request.topic}
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href={detailHref} className="block truncate font-medium text-ink hover:text-accent">
+              {request.topic}
+            </Link>
+            {request.mode === "avatar" && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent">
+                <AvatarIcon /> Avatar
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-ink-muted">
             {request.style} · {request.duration_seconds}s ·{" "}
             {new Date(request.created_at).toLocaleString("es-MX")}
@@ -108,7 +115,12 @@ export function RequestCard({
 
       {request.status === "completed" && videoUrl && (
         <div className="mt-4 flex flex-col items-start gap-3 border-t border-border pt-4 sm:flex-row sm:items-center">
-          <video src={videoUrl} controls preload="metadata" className="aspect-9/16 w-36 rounded-md bg-black">
+          <video
+            src={videoUrl}
+            controls
+            preload="metadata"
+            className="aspect-9/16 w-36 rounded-lg border border-border-strong bg-black shadow-md"
+          >
             Tu navegador no puede reproducir este video.
           </video>
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -136,5 +148,17 @@ export function RequestCard({
         </p>
       )}
     </Card>
+  );
+}
+
+function AvatarIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path
+        fillRule="evenodd"
+        d="M10 2a5 5 0 100 10 5 5 0 000-10zM3 18a7 7 0 0114 0 1 1 0 01-1 1H4a1 1 0 01-1-1z"
+        clipRule="evenodd"
+      />
+    </svg>
   );
 }
