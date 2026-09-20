@@ -4,6 +4,86 @@ Documento vivo: qué está comprobado (no solo implementado), qué falta, y
 cuál es el siguiente paso de mayor impacto. Actualizar en cada sesión
 significativa en vez de crear un documento nuevo.
 
+## Traspaso — pausa del trabajo visual/UI (2026-09-20)
+
+**Estado: PAUSADO por instrucción explícita del usuario. Listo para que
+cualquier sesión lo retome — Claude o Codex/ChatGPT — sin depender del
+historial de chat de esta sesión.**
+
+Contexto: por indicación del usuario, esta sesión de Claude Code hizo una
+pasada de mejora **puramente visual**, página por página, confirmando
+explícitamente con el usuario antes de avanzar a la siguiente ("sigue con
+X"), mientras Codex seguía trabajando en paralelo en lógica de
+avatar/HeyGen/facturación real en la misma rama.
+
+**Completado esta pasada** (commits en `claude/atomivid-mvp-setup-0079jv`,
+todos pusheados directo a la rama base, sin PR pendiente — patrón ya
+acordado con el usuario en fases anteriores de esta pasada):
+1. `8fb40a9` — Landing: logo/marca de átomo nueva (`Logo`/`LogoMark` en
+   `src/components/ui/Logo.tsx`), favicons generados con `next/og`
+   (`src/app/icon.tsx`/`apple-icon.tsx`), mockup de teléfono en el hero
+   (`HeroVisual.tsx`, CSS/SVG puro, sin assets externos), iconos en
+   tarjetas de beneficios.
+2. `d6f1fc2` — Dashboard: estado activo en la navegación (`NavLink.tsx`,
+   nuevo) + punto de color por estado en `Badge`.
+3. `23e9750` — `/dashboard/new`: selector de duración segmentado, tarjetas
+   seleccionables para el tipo de video (mismos `<input>` subyacentes, sin
+   cambio de contrato con `actions.ts`).
+4. `542b5c7` — Revisión de guion: badges numerados por escena, icono de
+   refresco animado (`RefreshIcon`). De paso corrigió un error de ESLint
+   preexistente (`react-hooks/purity`, mal ubicado el
+   `eslint-disable-next-line` de `diagnosticRetry` en
+   `dashboard/review/[id]/page.tsx`) — no se tocó la lógica de esa prop.
+5. `3eda2dd` — Facturación: tarjeta de plan rediseñada (encabezado con
+   glow + checklist de lo incluido, sin inventar precio ni cuota —
+   ninguno de esos números vive en este código).
+6. `854fe50` — Login/registro: componente compartido nuevo
+   `src/components/ui/AuthCard.tsx` (antes cada página duplicaba el mismo
+   fondo/logo/tarjeta). `signIn`/`signUp` y validación de formularios sin
+   cambios.
+
+**Selección de logo**: se presentaron 6 variantes de átomo al usuario
+(HTML de comparación, no versionado en el repo); el usuario eligió la
+opción "A" (átomo clásico de 3 órbitas), que es la ya implementada en
+`Logo.tsx` — sin trabajo pendiente en esto.
+
+**Alcance respetado en todos los commits de esta pasada**: SOLO
+presentación (componentes UI, CSS, markup, iconos). Ningún commit tocó
+`actions.ts`, la lógica de avatar/HeyGen/D-ID, Stripe, Supabase, RLS,
+migraciones, ni ningún Server Action — verificado archivo por archivo
+antes de cada commit para no interferir con el trabajo paralelo de Codex.
+`tsc --noEmit` y `eslint` limpios en cada commit.
+
+**Estado del árbol de trabajo al pausar**: limpio, sin cambios sin
+commitear ni sin pushear. `HEAD` local = `origin/claude/atomivid-mvp-setup-0079jv`
+= `854fe50` en el momento de escribir esta nota.
+
+**Pendiente, no iniciado**: páginas legales (`/privacy`, `/terms`) —
+ofrecidas como siguiente paso al usuario, sin confirmación todavía de
+continuar. El resto del flujo visible de usuario ya pasó por esta
+revisión visual (landing, logo, dashboard/nav, formulario de creación,
+revisión de guion, facturación, login, registro).
+
+**Para retomar** (Claude o Codex/ChatGPT):
+- `git fetch origin claude/atomivid-mvp-setup-0079jv && git log -1` para
+  confirmar si sigue en `854fe50` o si avanzó (Codex trabaja en paralelo
+  en la misma rama).
+- Metodología usada, repetible: construir → verificar `tsc`/`eslint` →
+  capturar con Playwright (real si la página no requiere auth, o un HTML
+  estático reproduciendo las mismas variables CSS de `globals.css` si es
+  una ruta protegida) → commit descriptivo → `git fetch` de nuevo para
+  confirmar que no hubo push concurrente antes de pushear → enviar
+  capturas al usuario → preguntar si continuar con la siguiente pantalla.
+- Sin bloqueos técnicos ni credenciales pendientes para continuar esta
+  pasada — es trabajo puramente de presentación, no depende de ninguna
+  clave de proveedor ni de la resolución del hilo de HeyGen/D-ID.
+
+No relacionado con esta pausa: el mecanismo de HeyGen owner-trial (ver
+`HEYGEN_OWNER_TRIAL.md`) queda en el estado ya diagnosticado antes de
+empezar esta pasada visual (candado de un solo intento ya activado por
+una generación real previa) — no se tocó en esta pasada; es un hilo
+aparte, no una tarea abierta de esta sesión.
+
 ## Grabación propia — implementación 2026-09-18
 
 - Formulario con audio privado M4A/MP3/WAV (foto + audio hasta 3 MB).
