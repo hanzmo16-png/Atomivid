@@ -1,3 +1,5 @@
+import { PLAN_ORDER, planPriceIdEnvVar, type PlanId } from "./plans";
+
 /**
  * Comprobación interna de configuración para el flujo de facturación —
  * nunca devuelve valores, solo presencia (booleano) y, para la clave de
@@ -12,7 +14,8 @@ export type StripeKeyMode = "test" | "live" | "unknown" | "missing";
 export type BillingConfigCheck = {
   hasStripeSecretKey: boolean;
   stripeSecretKeyMode: StripeKeyMode;
-  hasStripePriceId: boolean;
+  /** Un Price ID configurado por plan (starter/pro/business) — ver plans.ts. */
+  hasPlanPriceId: Record<PlanId, boolean>;
   hasSupabaseUrl: boolean;
   hasSupabaseAnonKey: boolean;
   hasSupabaseServiceRoleKey: boolean;
@@ -29,10 +32,14 @@ export function checkBillingConfig(
   env: Partial<Record<string, string | undefined>> = process.env,
 ): BillingConfigCheck {
   const secretKey = env.STRIPE_SECRET_KEY?.trim();
+  const hasPlanPriceId = Object.fromEntries(
+    PLAN_ORDER.map((id) => [id, !!env[planPriceIdEnvVar(id)]?.trim()]),
+  ) as Record<PlanId, boolean>;
+
   return {
     hasStripeSecretKey: !!secretKey,
     stripeSecretKeyMode: detectStripeKeyMode(secretKey),
-    hasStripePriceId: !!env.STRIPE_PRICE_ID?.trim(),
+    hasPlanPriceId,
     hasSupabaseUrl: !!env.NEXT_PUBLIC_SUPABASE_URL?.trim(),
     hasSupabaseAnonKey: !!env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim(),
     hasSupabaseServiceRoleKey: !!env.SUPABASE_SERVICE_ROLE_KEY?.trim(),

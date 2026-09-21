@@ -8,6 +8,7 @@ import { getStripe } from "@/lib/stripe/client";
 import { buildCheckoutUrl } from "@/lib/billing/checkout";
 import { SupabaseQueryError, classifyBillingError, logBillingError } from "@/lib/billing/checkout-error";
 import { MissingEnvVarError } from "@/lib/env-errors";
+import { getPlanPriceId, planPriceIdEnvVar, type PlanId } from "@/lib/billing/plans";
 
 /**
  * No es un error real — es una señal interna para salir del try/catch de
@@ -48,7 +49,7 @@ async function getExistingCustomerId(
   return (data as { stripe_customer_id: string | null } | null)?.stripe_customer_id ?? null;
 }
 
-export async function createCheckoutSession() {
+export async function createCheckoutSession(planId: PlanId) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -60,13 +61,13 @@ export async function createCheckoutSession() {
 
   let checkoutUrl: string;
   try {
-    // STRIPE_PRICE_ID se lee aquí dentro, no a nivel de módulo: si se lee
-    // arriba (como antes), el valor queda capturado en el cierre del
-    // módulo la primera vez que se carga — el mismo riesgo que ya se evitó
-    // deliberadamente para STRIPE_SECRET_KEY en getStripe().
-    const priceId = process.env.STRIPE_PRICE_ID?.trim();
+    // Se lee aquí dentro, no a nivel de módulo: si se lee arriba (como
+    // antes), el valor queda capturado en el cierre del módulo la primera
+    // vez que se carga — el mismo riesgo que ya se evitó deliberadamente
+    // para STRIPE_SECRET_KEY en getStripe().
+    const priceId = getPlanPriceId(planId);
     if (!priceId) {
-      throw new MissingEnvVarError("STRIPE_PRICE_ID");
+      throw new MissingEnvVarError(planPriceIdEnvVar(planId));
     }
 
     const siteUrl = await getSiteUrl();

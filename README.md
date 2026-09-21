@@ -140,9 +140,18 @@ automáticamente — el pipeline completo sigue funcionando.
 
 1. Crea una cuenta en [dashboard.stripe.com](https://dashboard.stripe.com)
    (usa el modo *Test* mientras desarrollas).
-2. En **Product catalog**, crea un producto (p. ej. "Atomivid Pro") con un
-   precio **recurrente mensual**. Copia el `Price ID` (`price_...`) a
-   `STRIPE_PRICE_ID`.
+2. En **Product catalog**, crea **3 productos** (uno por paquete), cada
+   uno con un precio **recurrente mensual** — ver `src/lib/billing/plans.ts`
+   para el precio y la cuota exactos de cada uno:
+   - "Atomivid Starter" — $19/mes
+   - "Atomivid Pro" — $49/mes
+   - "Atomivid Business" — $129/mes
+
+   Copia el `Price ID` (`price_...`) de cada uno a `STRIPE_PRICE_ID_STARTER`,
+   `STRIPE_PRICE_ID_PRO` y `STRIPE_PRICE_ID_BUSINESS` respectivamente.
+   Mientras alguna de las 3 no esté configurada, ese paquete se sigue
+   mostrando en `/dashboard/billing` pero falla con un error claro al
+   intentar suscribirse (no rompe la página ni los otros paquetes).
 3. En **Developers → API keys**, copia la `Secret key` a `STRIPE_SECRET_KEY`.
 4. Configura el webhook:
    - **En local**: instala la [Stripe CLI](https://stripe.com/docs/stripe-cli)
@@ -736,8 +745,9 @@ Ver `.env.example` para el detalle de cada variable.
   de la suscripción — la página de facturación solo lee lo que ya guardó el
   webhook. Si en local no corres `stripe listen`, el checkout se completa en
   Stripe pero la suscripción nunca se refleja en Atomivid.
-- La cuota mensual (`MONTHLY_VIDEO_LIMIT`) se cuenta por mes calendario, no
-  por ciclo de facturación de Stripe — más simple para el MVP.
+- La cuota mensual (por plan y por modo — normal/avatar, ver
+  `src/lib/billing/plans.ts`) se cuenta por mes calendario, no por ciclo de
+  facturación de Stripe — más simple para el MVP.
 
 ## Notas sobre el render de video
 

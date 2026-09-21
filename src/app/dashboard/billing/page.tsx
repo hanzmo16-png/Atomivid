@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { STATUS_LABEL, isSubscriptionActive } from "@/lib/billing/subscription";
+import { PLAN_CONFIGS, PLAN_ORDER, getPlanByPriceId, type PlanConfig } from "@/lib/billing/plans";
 import { createCheckoutSession, createPortalSession } from "./actions";
 import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
@@ -8,16 +9,10 @@ import { Button } from "@/components/ui/Button";
 
 type SubscriptionRow = {
   status: string;
+  price_id: string | null;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
 };
-
-const PLAN_INCLUDES = [
-  "Genera videos verticales listos para publicar",
-  "Revisa y edita el guion antes del video final",
-  "Narración en español e inglés",
-  "Cancela cuando quieras desde el portal de facturación",
-];
 
 export default async function BillingPage({
   searchParams,
@@ -33,16 +28,19 @@ export default async function BillingPage({
 
   const { data } = await supabase
     .from("subscriptions")
-    .select("status, current_period_end, cancel_at_period_end")
+    .select("status, price_id, current_period_end, cancel_at_period_end")
     .eq("user_id", user?.id ?? "")
     .maybeSingle();
 
   const subscription = data as SubscriptionRow | null;
   const status = subscription?.status ?? "none";
   const active = isSubscriptionActive(status);
+  // null cuando la suscripción es de un plan heredado o desconocido — ver
+  // el mismo fallback aplicado en quota.ts (assertCanGenerate).
+  const currentPlan = active ? getPlanByPriceId(subscription?.price_id) : null;
 
   return (
-    <div className="mx-auto max-w-xl">
+    <div className="mx-auto max-w-3xl">
       <h1 className="text-2xl font-bold text-ink">Facturación</h1>
       <p className="mt-1 text-sm text-ink-muted">
         Se necesita una suscripción activa para generar videos.
@@ -58,51 +56,92 @@ export default async function BillingPage({
         {error && <Alert tone="danger">{error}</Alert>}
       </div>
 
-      <Card className="mt-6 overflow-hidden p-0">
-        <div className="bg-atomivid-glow border-b border-border px-6 py-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Plan</p>
-              <p className="text-xl font-bold text-ink">Atomivid Pro</p>
+      {active && (
+        <Card className="mt-6 overflow-hidden p-0">
+          <div className="bg-atomivid-glow border-b border-border px-6 py-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Plan actual</p>
+                <p className="text-xl font-bold text-ink">
+                  {currentPlan ? `Atomivid ${currentPlan.name}` : "Atomivid"}
+                </p>
+              </div>
+              <Badge tone="success">{STATUS_LABEL[status] ?? status}</Badge>
             </div>
-            <Badge tone={active ? "success" : "neutral"}>{STATUS_LABEL[status] ?? status}</Badge>
+
+            {subscription?.current_period_end && (
+              <p className="mt-3 flex items-center gap-1.5 text-sm text-ink-muted">
+                <CalendarIcon />
+                {subscription.cancel_at_period_end ? "Se cancela el " : "Se renueva el "}
+                {new Date(subscription.current_period_end).toLocaleDateString("es-MX")}
+              </p>
+            )}
           </div>
 
-          {subscription?.current_period_end && (
-            <p className="mt-3 flex items-center gap-1.5 text-sm text-ink-muted">
-              <CalendarIcon />
-              {subscription.cancel_at_period_end ? "Se cancela el " : "Se renueva el "}
-              {new Date(subscription.current_period_end).toLocaleDateString("es-MX")}
-            </p>
-          )}
-        </div>
+          <div className="px-6 py-5">
+            {currentPlan && (
+              <ul className="space-y-2.5">
+                {currentPlan.includes.map((item) => (
+                  <li key={item} className="flex items-start gap-2.5 text-sm text-ink-muted">
+                    <CheckIcon />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            )}
 
-        <div className="px-6 py-5">
-          <ul className="space-y-2.5">
-            {PLAN_INCLUDES.map((item) => (
-              <li key={item} className="flex items-start gap-2.5 text-sm text-ink-muted">
-                <CheckIcon />
-                {item}
-              </li>
-            ))}
-          </ul>
-
-          <div className="mt-6">
-            {active ? (
+            <div className="mt-6">
               <form action={createPortalSession}>
                 <Button type="submit" variant="secondary">
                   Administrar suscripción
                 </Button>
               </form>
-            ) : (
-              <form action={createCheckoutSession}>
-                <Button type="submit">Suscribirme</Button>
-              </form>
-            )}
+            </div>
           </div>
+        </Card>
+      )}
+
+      {!active && (
+        <div className="mt-6 grid gap-4 sm:grid-cols-3">
+          {PLAN_ORDER.map((id) => (
+            <PlanCard key={id} plan={PLAN_CONFIGS[id]} />
+          ))}
         </div>
-      </Card>
+      )}
     </div>
+  );
+}
+
+function PlanCard({ plan }: { plan: PlanConfig }) {
+  const createCheckoutSessionForPlan = createCheckoutSession.bind(null, plan.id);
+
+  return (
+    <Card className="flex flex-col overflow-hidden p-0">
+      <div className="border-b border-border px-5 py-5">
+        <p className="text-sm font-semibold uppercase tracking-wide text-ink-faint">{plan.name}</p>
+        <p className="mt-1 text-3xl font-bold text-ink">
+          ${plan.priceUsdPerMonth}
+          <span className="text-sm font-normal text-ink-muted">/mes</span>
+        </p>
+      </div>
+
+      <div className="flex flex-1 flex-col px-5 py-5">
+        <ul className="flex-1 space-y-2.5">
+          {plan.includes.map((item) => (
+            <li key={item} className="flex items-start gap-2.5 text-sm text-ink-muted">
+              <CheckIcon />
+              {item}
+            </li>
+          ))}
+        </ul>
+
+        <form action={createCheckoutSessionForPlan} className="mt-6">
+          <Button type="submit" className="w-full">
+            Elegir {plan.name}
+          </Button>
+        </form>
+      </div>
+    </Card>
   );
 }
 

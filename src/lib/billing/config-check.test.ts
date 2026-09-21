@@ -10,6 +10,8 @@ import { checkBillingConfig } from "./config-check";
 const FAKE_TEST_KEY = "sk_test_x";
 const FAKE_LIVE_KEY = "sk_live_x";
 const FAKE_PRICE_ID = "price_FAKEVALUEFORTESTINGONLY";
+const FAKE_PRICE_ID_2 = "price_FAKEVALUEFORTESTINGONLYB";
+const FAKE_PRICE_ID_3 = "price_FAKEVALUEFORTESTINGONLYC";
 const FAKE_URL = "https://fake-project.supabase.co";
 const FAKE_ANON_KEY = "fake-anon-key-value";
 const FAKE_SERVICE_ROLE_KEY = "fake-service-role-key-value";
@@ -17,7 +19,9 @@ const FAKE_SERVICE_ROLE_KEY = "fake-service-role-key-value";
 test("checkBillingConfig reporta todo presente y modo test cuando la clave empieza con sk_test_", () => {
   const result = checkBillingConfig({
     STRIPE_SECRET_KEY: FAKE_TEST_KEY,
-    STRIPE_PRICE_ID: FAKE_PRICE_ID,
+    STRIPE_PRICE_ID_STARTER: FAKE_PRICE_ID,
+    STRIPE_PRICE_ID_PRO: FAKE_PRICE_ID_2,
+    STRIPE_PRICE_ID_BUSINESS: FAKE_PRICE_ID_3,
     NEXT_PUBLIC_SUPABASE_URL: FAKE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: FAKE_ANON_KEY,
     SUPABASE_SERVICE_ROLE_KEY: FAKE_SERVICE_ROLE_KEY,
@@ -26,7 +30,7 @@ test("checkBillingConfig reporta todo presente y modo test cuando la clave empie
   assert.deepEqual(result, {
     hasStripeSecretKey: true,
     stripeSecretKeyMode: "test",
-    hasStripePriceId: true,
+    hasPlanPriceId: { starter: true, pro: true, business: true },
     hasSupabaseUrl: true,
     hasSupabaseAnonKey: true,
     hasSupabaseServiceRoleKey: true,
@@ -51,7 +55,7 @@ test("checkBillingConfig reporta 'unknown' para un prefijo no reconocido", () =>
 
 test("checkBillingConfig reporta ausencia de cada variable por separado", () => {
   const result = checkBillingConfig({ STRIPE_SECRET_KEY: FAKE_TEST_KEY });
-  assert.equal(result.hasStripePriceId, false);
+  assert.deepEqual(result.hasPlanPriceId, { starter: false, pro: false, business: false });
   assert.equal(result.hasSupabaseUrl, false);
   assert.equal(result.hasSupabaseAnonKey, false);
   assert.equal(result.hasSupabaseServiceRoleKey, false);
@@ -60,7 +64,7 @@ test("checkBillingConfig reporta ausencia de cada variable por separado", () => 
 test("checkBillingConfig nunca devuelve las cadenas de valor inyectadas, solo booleanos/enum", () => {
   const result = checkBillingConfig({
     STRIPE_SECRET_KEY: FAKE_TEST_KEY,
-    STRIPE_PRICE_ID: FAKE_PRICE_ID,
+    STRIPE_PRICE_ID_STARTER: FAKE_PRICE_ID,
     NEXT_PUBLIC_SUPABASE_URL: FAKE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: FAKE_ANON_KEY,
     SUPABASE_SERVICE_ROLE_KEY: FAKE_SERVICE_ROLE_KEY,

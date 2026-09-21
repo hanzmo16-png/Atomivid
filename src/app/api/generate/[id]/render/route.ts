@@ -121,7 +121,7 @@ export async function POST(
 
     let check: Awaited<ReturnType<typeof assertCanGenerate>>;
     try {
-      check = await assertCanGenerate(service, user.id);
+      check = await assertCanGenerate(service, user.id, videoRequest.mode);
     } catch (error) {
       throw new RenderStageError("check_subscription", error);
     }

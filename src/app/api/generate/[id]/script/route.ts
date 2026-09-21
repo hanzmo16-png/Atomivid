@@ -23,6 +23,7 @@ export const maxDuration = 60;
 type VideoRequestRow = {
   id: string;
   user_id: string;
+  mode: string;
   recorded_audio_path: string | null;
   topic: string;
   style: string;
@@ -43,7 +44,7 @@ async function loadOwnedRequest(id: string, userId: string) {
 
   const { data: videoRequest, error } = await service
     .from("video_requests")
-    .select("id, user_id, topic, style, duration_seconds, status, language, recorded_audio_path")
+    .select("id, user_id, mode, topic, style, duration_seconds, status, language, recorded_audio_path")
     .eq("id", id)
     .single<VideoRequestRow>();
 
@@ -107,7 +108,7 @@ export async function POST(
       );
     }
 
-    const check = await assertCanGenerate(service, user.id);
+    const check = await assertCanGenerate(service, user.id, videoRequest.mode);
     if (!check.allowed) {
       return NextResponse.json({ error: check.reason }, { status: 402 });
     }
