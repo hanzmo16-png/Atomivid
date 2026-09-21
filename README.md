@@ -685,6 +685,29 @@ de pago (aunque el uso esperado del MVP caiga dentro de la capa gratuita).
   Atomivid"`, usuario con email bajo `atomivid-internal.test`) cuando ya
   no los necesites como referencia.
 
+## Monitoreo de errores (Sentry)
+
+Opcional pero recomendado antes de recibir clientes reales: sin esto, un
+fallo en producción solo se detecta si alguien lo reporta a mano. La
+integración (`@sentry/nextjs`, `src/instrumentation.ts`,
+`src/instrumentation-client.ts`, `src/sentry.server.config.ts`,
+`src/sentry.edge.config.ts`, `withSentryConfig` en `next.config.ts`) ya
+está en el código y es un no-op seguro sin configurar — solo se activa si
+defines las variables:
+
+1. Crea una cuenta/proyecto gratis en [sentry.io](https://sentry.io), tipo
+   "Next.js".
+2. Copia el DSN (Project Settings → Client Keys) a `SENTRY_DSN` y
+   `NEXT_PUBLIC_SENTRY_DSN` (mismo valor, dos variables porque una debe
+   llegar al navegador y la otra no).
+3. Opcional, solo para sourcemaps legibles en los errores: crea un token
+   en Settings → Auth Tokens (permiso `project:releases`) y agrega
+   `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`.
+4. Agrega las mismas variables en Vercel (Project → Settings →
+   Environment Variables) para que el monitoreo esté activo en producción.
+
+Ver `.env.example` para el detalle de cada variable.
+
 ## Despliegue
 
 1. Sube el repo a GitHub y conéctalo en [vercel.com](https://vercel.com)

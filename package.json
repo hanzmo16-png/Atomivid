@@ -18,6 +18,7 @@
     "@remotion/bundler": "^4.0.520",
     "@remotion/cli": "^4.0.520",
     "@remotion/renderer": "^4.0.520",
+    "@sentry/nextjs": "^10.75.1",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.114.0",
     "next": "16.3.4",
