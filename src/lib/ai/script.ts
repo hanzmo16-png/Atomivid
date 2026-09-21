@@ -30,6 +30,23 @@ const SCRIPT_MODEL = process.env.ANTHROPIC_SCRIPT_MODEL || "claude-sonnet-5";
 // ver SceneEnergy en src/lib/providers/types.ts.
 const EnergySchema = z.enum(["low", "medium", "high"]);
 
+// Causa raíz confirmada (usuario reportó "al final dice Jorri/Jorriah" —
+// resultó ser la palabra "Hooray!" quemada en inglés dentro de un clip de
+// stock de confeti que Pexels devolvió para el concepto visual de cierre):
+// los bancos de stock llenan búsquedas de conceptos "resolución"/abstractos
+// (celebración, éxito, ganador, aplausos) con plantillas genéricas que
+// traen texto o gráficos ya superpuestos en inglés — no hay forma de
+// filtrarlos después por API (ver footage-score.ts), así que hay que
+// evitar pedirlos desde el guion.
+const AVOID_STOCK_TEXT_CLICHES =
+  "Nunca des como concepto visual clichés de banco de imágenes como " +
+  "'celebration', 'success', 'winner', 'hooray', 'applause' o tarjetas/" +
+  "diplomas/checkmarks — esas búsquedas casi siempre devuelven plantillas " +
+  "de stock con texto o gráficos en inglés ya superpuestos en el clip, que " +
+  "quedan quemados en el video final sin relación con el guion. Describe " +
+  "en vez de eso una persona/objeto/acción concreta y real (ej. en vez de " +
+  "'success', usa 'entrepreneur smiling at laptop screen' o 'hands shaking after a deal').";
+
 const ScriptSchema = z.object({
   title: z.string().describe("Título corto y llamativo para el video"),
   segments: z
@@ -53,7 +70,8 @@ const ScriptSchema = z.object({
               "Ejemplo: para 'y ahí es donde la mayoría abandona sus sueños', NO uses variantes de 'dreams' " +
               "— usa: ['exhausted athlete stopping mid run', 'person quitting a workout', " +
               "'runner falling behind and giving up']. El primer elemento es el concepto principal " +
-              "(debe coincidir con visualQuery).",
+              "(debe coincidir con visualQuery). " +
+              AVOID_STOCK_TEXT_CLICHES,
           ),
         excludedTerms: z
           .array(z.string())
@@ -158,7 +176,7 @@ Reglas estrictas:
 - Cada escena avanza el arco narrativo; no repitas la misma idea con otras palabras entre escenas.
 - Narración natural y motivacional, sin frases de relleno ni acotaciones/emojis/marcas de tiempo.
 - La escena de apertura necesita un gancho visual fuerte — no un plano contemplativo ni introducción lenta.
-- La escena de cierre debe sentirse como una resolución, con conceptos visuales que NO se hayan usado antes en el guion.
+- La escena de cierre debe sentirse como una resolución, con conceptos visuales que NO se hayan usado antes en el guion. ${AVOID_STOCK_TEXT_CLICHES}
 
 Para cada escena, interpreta el SIGNIFICADO de la narración, no la conviertas literalmente en palabras clave. Ejemplo: para "y ahí es donde la mayoría abandona sus sueños", NO busques variantes de "dreams" — interpreta la idea (alguien rindiéndose) y da conceptos como "exhausted athlete stopping mid run", "person quitting a workout", "runner falling behind and giving up".
 
@@ -251,7 +269,7 @@ ${next ? `Escena siguiente: "${next}"\n` : ""}
 Reescribe SOLO la escena actual. Da:
 - "text": nueva narración (~${targetWords} palabras, sin emojis ni acotaciones).
 - "visualQuery": el concepto visual principal (2-4 palabras en inglés) — igual a visualConcepts[0].
-- "visualConcepts": 2-3 interpretaciones visuales DISTINTAS de la idea de la escena (nunca sinónimos de la misma imagen) — interpreta el significado, no traduzcas la frase literalmente a palabras clave.
+- "visualConcepts": 2-3 interpretaciones visuales DISTINTAS de la idea de la escena (nunca sinónimos de la misma imagen) — interpreta el significado, no traduzcas la frase literalmente a palabras clave. ${AVOID_STOCK_TEXT_CLICHES}
 - "excludedTerms": opcional, palabras en inglés a evitar en el material visual.
 - "energy": "low"/"medium"/"high" según el ritmo de esta escena.
 - "emphasisWords": 1-3 palabras EXACTAS del nuevo "text" que merecen destacarse visualmente.`,
