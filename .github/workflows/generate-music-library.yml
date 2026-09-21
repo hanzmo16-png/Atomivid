@@ -9,7 +9,12 @@ name: Generar biblioteca de música (Eleven Music)
 # $0.15/min). No modifica manifest.ts directamente: deja un JSON como
 # artifact con las entradas listas para revisar y pegar a mano.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      track_ids:
+        description: "Opcional: IDs separados por coma para regenerar solo esas pistas (p. ej. tras un 429 transitorio). Vacío = las 20 del plan completo."
+        required: false
+        default: ""
 
 jobs:
   generate-music:
@@ -34,6 +39,7 @@ jobs:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TRACK_IDS: ${{ github.event.inputs.track_ids }}
 
       - name: Subir entradas de manifest como artifact
         uses: actions/upload-artifact@v4

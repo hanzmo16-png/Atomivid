@@ -106,16 +106,22 @@ async function main() {
   const { createServiceClient } = await import("../src/lib/supabase/service");
   const service = createServiceClient();
 
-  const estimatedCostUsd = (TRACK_PLAN.length * (TRACK_LENGTH_MS / 60_000) * COST_PER_MINUTE_USD).toFixed(2);
+  // Filtro opcional para reintentar solo algunas pistas (p. ej. las que
+  // fallaron por un 429 "system_busy" transitorio de ElevenLabs en una
+  // corrida anterior) sin volver a pagar/generar las que ya salieron bien.
+  const onlyIds = (process.env.TRACK_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const plan = onlyIds.length > 0 ? TRACK_PLAN.filter((t) => onlyIds.includes(t.id)) : TRACK_PLAN;
+
+  const estimatedCostUsd = (plan.length * (TRACK_LENGTH_MS / 60_000) * COST_PER_MINUTE_USD).toFixed(2);
   console.log(
-    `Generando ${TRACK_PLAN.length} pistas de ${TRACK_LENGTH_MS / 1000}s cada una — costo estimado ~$${estimatedCostUsd} USD.`,
+    `Generando ${plan.length} pistas de ${TRACK_LENGTH_MS / 1000}s cada una — costo estimado ~$${estimatedCostUsd} USD.`,
   );
 
   const manifestEntries: unknown[] = [];
   const failures: { id: string; error: string }[] = [];
   const today = new Date().toISOString().slice(0, 10);
 
-  for (const track of TRACK_PLAN) {
+  for (const track of plan) {
     try {
       console.log(`→ ${track.id}: generando...`);
       const audioBuffer = await composeTrack(track.prompt);
@@ -154,7 +160,7 @@ async function main() {
   const outPath = path.join(process.cwd(), "music-library-manifest-additions.json");
   await fs.writeFile(outPath, JSON.stringify({ manifestEntries, failures }, null, 2));
 
-  console.log(`\nListo: ${manifestEntries.length}/${TRACK_PLAN.length} pistas generadas y subidas.`);
+  console.log(`\nListo: ${manifestEntries.length}/${plan.length} pistas generadas y subidas.`);
   if (failures.length > 0) {
     console.log(`${failures.length} fallaron (ver detalle arriba y en ${outPath}).`);
   }
