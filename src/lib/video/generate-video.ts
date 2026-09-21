@@ -21,7 +21,7 @@ import { createFootageSelectionState, selectFootageForScene } from "@/lib/video/
 import { checkDuration, assertNarrationDuration } from "@/lib/video/duration-check";
 import { LOUDNESS_TARGET, masterAudioLoudness } from "@/lib/video/audio-master";
 import { buildEmphasisSet } from "@/lib/video/caption-emphasis";
-import { getAccentColor } from "@/lib/video/brand";
+import { getAccentColor, shouldShowLogo } from "@/lib/video/brand";
 import { evaluateQualityGate, QUALITY_GATE_MIN_SCORE } from "@/lib/video/quality-gate";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { buildStoryboard } from "@/lib/video/storyboard";
@@ -619,6 +619,7 @@ async function renderVerticalReel({
     narrationGaps,
     durationSeconds,
     accentColor: getAccentColor(),
+    showLogo: shouldShowLogo(),
   };
 
   const composition = await selectComposition({

@@ -35,11 +35,13 @@ export type VerticalReelProps = {
   narrationGaps?: NarrationGap[];
   /** Color de acento para el énfasis de subtítulos — ver src/lib/video/brand.ts. */
   accentColor?: string;
+  /** Badge de logo opt-in en la esquina — nunca activo por defecto, ver src/lib/video/brand.ts. */
+  showLogo?: boolean;
 };
 
 // Duración del crossfade entre escenas. A 30fps, 15 frames = 0.5s.
 const FADE_FRAMES = 15;
-const DEFAULT_ACCENT_COLOR = "#FFC94D";
+const DEFAULT_ACCENT_COLOR = "#8f7ff5";
 
 export function VerticalReel({
   audioUrl,
@@ -49,6 +51,7 @@ export function VerticalReel({
   captions,
   narrationGaps = [],
   accentColor = DEFAULT_ACCENT_COLOR,
+  showLogo = false,
 }: VerticalReelProps) {
   const { fps, durationInFrames } = useVideoConfig();
 
@@ -85,6 +88,8 @@ export function VerticalReel({
       />
 
       <Captions captions={captions} accentColor={accentColor} />
+
+      {showLogo && <LogoBadge accentColor={accentColor} />}
 
       {audioUrl && (
         <Audio
@@ -215,7 +220,8 @@ function Captions({ captions, accentColor }: { captions: Caption[]; accentColor:
           maxWidth: CAPTION_MAX_WIDTH,
           padding: "14px 28px",
           borderRadius: 16,
-          backgroundColor: "rgba(0,0,0,0.32)",
+          backgroundColor: "rgba(10,10,14,0.72)",
+          border: "1px solid rgba(143,127,245,0.35)",
           opacity,
           transform: `translateY(${translateY}px)`,
         }}
@@ -245,6 +251,54 @@ function Captions({ captions, accentColor }: { captions: Caption[]; accentColor:
             );
           })}
         </div>
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// Zona segura superior: la esquina superior derecha es donde TikTok/Reels/
+// Shorts colocan menos elementos de UI fijos que la inferior (reservada
+// para captions/descripción/botones) — por eso el badge va arriba, nunca
+// abajo, y solo cuando showLogo=true (ver VerticalReelProps.showLogo).
+const LOGO_BADGE_TOP = 64;
+const LOGO_BADGE_RIGHT = 32;
+
+function LogoBadge({ accentColor }: { accentColor: string }) {
+  return (
+    <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "flex-end" }}>
+      <div
+        style={{
+          marginTop: LOGO_BADGE_TOP,
+          marginRight: LOGO_BADGE_RIGHT,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "8px 14px",
+          borderRadius: 999,
+          backgroundColor: "rgba(10,10,14,0.55)",
+          border: "1px solid rgba(255,255,255,0.14)",
+        }}
+      >
+        {/* Misma marca (núcleo + 3 órbitas) que src/components/ui/Logo.tsx, reimplementada aquí porque Remotion renderiza en un entorno de Chromium aislado sin acceso a los componentes de la app. */}
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <g stroke={accentColor} strokeWidth="1.5" strokeLinecap="round">
+            <ellipse cx="12" cy="12" rx="10" ry="4.1" />
+            <ellipse cx="12" cy="12" rx="10" ry="4.1" transform="rotate(60 12 12)" />
+            <ellipse cx="12" cy="12" rx="10" ry="4.1" transform="rotate(120 12 12)" />
+          </g>
+          <circle cx="12" cy="12" r="2.6" fill={accentColor} />
+        </svg>
+        <span
+          style={{
+            fontFamily: "Arial, Helvetica, sans-serif",
+            fontWeight: 700,
+            fontSize: 20,
+            color: "white",
+            textShadow: "0 1px 4px rgba(0,0,0,0.6)",
+          }}
+        >
+          Atomivid
+        </span>
       </div>
     </AbsoluteFill>
   );
