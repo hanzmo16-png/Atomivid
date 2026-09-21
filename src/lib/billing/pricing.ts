@@ -7,15 +7,31 @@
  * Cómo actualizarlas: define la env var correspondiente (ver `.env.example`)
  * con la tarifa vigente de tu plan real. Fuentes para verificarla:
  * - Guion (Claude/Anthropic): https://www.anthropic.com/pricing
- * - Voz (ElevenLabs): https://elevenlabs.io/pricing — depende de tu plan
+ * - Voz (ElevenLabs): https://elevenlabs.io/pricing/api — depende de tu plan
  * - Footage (Pexels): gratis, sin costo por request
  * - Render (GitHub Actions): https://docs.github.com/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions
  * - Storage (Supabase): https://supabase.com/pricing
- * - Música: la biblioteca curada (Pixabay Music/Mixkit, ver
- *   src/lib/providers/music/real.ts) es gratis bajo sus licencias de uso
+ * - Avatar (HeyGen): ver estimateHeygenCost() en providers/avatar/heygen.ts —
+ *   tarifa observada directamente de la cuenta real, no una lista de precios.
+ * - Música: la biblioteca curada (Pixabay Music/ElevenLabs Music, ver
+ *   src/lib/providers/music/manifest.ts) es gratis de usar en cada video
+ *   (el gasto ya se pagó una vez al generarla) bajo licencias de uso
  *   comercial — el default es $0. Solo tiene sentido configurar
- *   PRICING_MUSIC_USD_PER_TRACK si en el futuro se conecta un proveedor de
- *   pago (p. ej. Epidemic Sound); no lo actives sin una tarifa real.
+ *   PRICING_MUSIC_USD_PER_TRACK si en el futuro se conecta un proveedor que
+ *   cobre por reproducción (p. ej. Epidemic Sound); no lo actives sin una
+ *   tarifa real.
+ *
+ * Auditoría 2026-09-21: los 3 defaults de abajo (guion, voz, render) traían
+ * tarifas obsoletas — sobreestimaban el costo real ~30-80% cada uno.
+ * Guion: $3/$15 por 1M tokens era la tarifa de Claude Sonnet 4.6; el
+ * proyecto ya usa claude-sonnet-5 por defecto (ver SCRIPT_MODEL en
+ * src/lib/ai/script.ts), cuya tarifa real es $2/$10. Voz: $0.18/1k
+ * caracteres vs. los $0.10/1k documentados hoy para eleven_multilingual_v2
+ * (el modelo que usa este proyecto, ver MODEL_ID en src/lib/ai/voice.ts) —
+ * confirma tu tarifa exacta contra tu plan real de ElevenLabs, el overage
+ * puede variar por tier. Render: GitHub bajó el runner Linux de $0.008 a
+ * $0.006/min el 1 de enero de 2026. Corregidos abajo — bajan el costo
+ * estimado por video normal (sin avatar), no lo suben.
  */
 
 function rate(envVar: string, fallback: number): number {
@@ -27,14 +43,14 @@ function rate(envVar: string, fallback: number): number {
 
 export function getPricingConfig() {
   return {
-    /** USD por 1,000 caracteres enviados a síntesis de voz. */
-    elevenLabsUsdPer1kChars: rate("PRICING_ELEVENLABS_USD_PER_1K_CHARS", 0.18),
-    /** USD por 1,000,000 de tokens de entrada del modelo de guion. */
-    scriptInputUsdPer1MTokens: rate("PRICING_SCRIPT_INPUT_USD_PER_1M_TOKENS", 3),
-    /** USD por 1,000,000 de tokens de salida del modelo de guion. */
-    scriptOutputUsdPer1MTokens: rate("PRICING_SCRIPT_OUTPUT_USD_PER_1M_TOKENS", 15),
-    /** USD por minuto de runner usado para renderizar (GitHub Actions Linux). */
-    renderUsdPerMinute: rate("PRICING_RENDER_USD_PER_MINUTE", 0.008),
+    /** USD por 1,000 caracteres enviados a síntesis de voz (eleven_multilingual_v2). */
+    elevenLabsUsdPer1kChars: rate("PRICING_ELEVENLABS_USD_PER_1K_CHARS", 0.1),
+    /** USD por 1,000,000 de tokens de entrada del modelo de guion (claude-sonnet-5). */
+    scriptInputUsdPer1MTokens: rate("PRICING_SCRIPT_INPUT_USD_PER_1M_TOKENS", 2),
+    /** USD por 1,000,000 de tokens de salida del modelo de guion (claude-sonnet-5). */
+    scriptOutputUsdPer1MTokens: rate("PRICING_SCRIPT_OUTPUT_USD_PER_1M_TOKENS", 10),
+    /** USD por minuto de runner usado para renderizar (GitHub Actions Linux, desde 2026-01-01). */
+    renderUsdPerMinute: rate("PRICING_RENDER_USD_PER_MINUTE", 0.006),
     /** USD por pista de música usada. 0 por defecto — la biblioteca curada actual es gratis. */
     musicUsdPerTrack: rate("PRICING_MUSIC_USD_PER_TRACK", 0),
   };
