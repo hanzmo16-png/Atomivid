@@ -6,10 +6,16 @@
  * src/lib/video/long-form/mode.ts) — sin ambos, es imposible llegar a
  * llamar un proveedor pago desde este script, incluso por accidente.
  *
- * Uso (fixture, hoy):
+ * Uso (fixture):
  *   npx tsx scripts/produce-long-form-video.ts \
  *     --topic="Göbekli Tepe: el misterio de 11,000 años que cambió nuestra historia" \
  *     --duration-seconds=180 \
+ *     --output=/ruta/salida.mp4
+ *
+ * Uso (guion real ya finalizado, p. ej. VIDEO #001 — sigue en modo
+ * simulation por defecto, cero costo, solo cambia la FUENTE del guion):
+ *   npx tsx scripts/produce-long-form-video.ts \
+ *     --script=content/long-form/gobekli-tepe-001/gobekli-script-002-final.json \
  *     --output=/ruta/salida.mp4
  *
  * Arquitectura: guion (fixture hoy / Claude real en Fase B) → beats →
@@ -36,6 +42,8 @@ type CliArgs = {
   topic: string;
   durationSeconds: number;
   output: string;
+  /** Ruta a un guion real ya finalizado (p. ej. content/long-form/<video-id>/gobekli-script-002-final.json). Si se omite, se usa buildFixtureScript() como hasta ahora — comportamiento por defecto sin cambios. */
+  scriptFile?: string;
 };
 
 function parseArgs(argv: string[]): CliArgs {
@@ -55,6 +63,7 @@ function parseArgs(argv: string[]): CliArgs {
     topic: get("topic", "Tema de prueba (fixture) — Long Form P1") as string,
     durationSeconds: Number(get("duration-seconds", "180")),
     output: get("output", path.join(process.cwd(), "scripts", "atomivid-longform-test-output.mp4")) as string,
+    scriptFile: get("script"),
   };
 }
 
@@ -63,6 +72,7 @@ async function main() {
 
   const { resolveLongFormProviders, computePaidApisCalled } = await import("../src/lib/video/long-form/mode");
   const { buildFixtureScript } = await import("../src/lib/video/long-form/fixture-pipeline");
+  const { loadScriptFromFile } = await import("../src/lib/video/long-form/script-loader");
   const { buildLongFormTimeline } = await import("../src/lib/video/long-form/timeline");
   const { resolveShotAsset } = await import("../src/lib/video/long-form/asset-resolver");
   const { estimateLongFormCost, assertWithinBudget, getLongFormBudget } = await import(
@@ -90,20 +100,40 @@ async function main() {
     }),
   );
 
-  // 1. Guion — SOLO fixture en esta fase. buildFixtureScript() produce
-  // narración claramente genérica/plantilla (ver fixture-pipeline.ts:
-  // "claim marked unverified until research stage runs") — nunca debe
-  // confundirse con investigación real de Göbekli Tepe.
-  if (args.mode === "simulation") {
-    console.log("[atomivid:long-form] guion: FIXTURE (contenido de prueba, NO investigación real)");
+  // 1. Guion — por defecto, SOLO fixture (buildFixtureScript() produce
+  // narración claramente genérica/plantilla, ver fixture-pipeline.ts:
+  // "claim marked unverified until research stage runs" — nunca debe
+  // confundirse con investigación real). Si se pasa --script=<ruta>, se
+  // carga un guion REAL ya finalizado y auditado (script-loader.ts valida
+  // su forma) — el resto del pipeline no cambia, solo cambia la fuente.
+  let scriptBeats: Awaited<ReturnType<typeof loadScriptFromFile>>["beats"];
+  let scriptTopic: string;
+  let scriptIsFixtureContent: boolean;
+
+  if (args.scriptFile) {
+    const loaded = loadScriptFromFile(args.scriptFile);
+    scriptBeats = loaded.beats;
+    scriptTopic = loaded.topic;
+    scriptIsFixtureContent = loaded.isFixtureContent;
+    console.log(
+      `[atomivid:long-form] guion cargado desde archivo: "${args.scriptFile}" — ${scriptBeats.length} beats, ` +
+        `isFixtureContent=${scriptIsFixtureContent}`,
+    );
+  } else {
+    if (args.mode === "simulation") {
+      console.log("[atomivid:long-form] guion: FIXTURE (contenido de prueba, NO investigación real)");
+    }
+    const fixtureScript = buildFixtureScript({
+      topic: args.topic,
+      mode: "curiosity_documentary",
+      language: "es",
+      targetDurationSec: args.durationSeconds,
+    });
+    scriptBeats = fixtureScript.beats;
+    scriptTopic = args.topic;
+    scriptIsFixtureContent = true;
+    console.log(`[atomivid:long-form] guion fixture: "${fixtureScript.title}" — ${scriptBeats.length} beats`);
   }
-  const script = buildFixtureScript({
-    topic: args.topic,
-    mode: "curiosity_documentary",
-    language: "es",
-    targetDurationSec: args.durationSeconds,
-  });
-  console.log(`[atomivid:long-form] guion fixture: "${script.title}" — ${script.beats.length} beats`);
 
   // 2. Almacenamiento simulado — mismo patrón ya validado en
   // scripts/test-pipeline.ts (servidor HTTP local sobre un directorio
@@ -149,7 +179,7 @@ async function main() {
     // caracteres de ElevenLabs, une audio, re-offsetea timestamps) y
     // recalcula shots[] de cada beat contra su duración REAL narrada.
     console.log("[atomivid:long-form] sintetizando narración por beat y construyendo línea de tiempo real...");
-    const timeline = await buildLongFormTimeline(providers.voiceProvider, script.beats, "es");
+    const timeline = await buildLongFormTimeline(providers.voiceProvider, scriptBeats, "es");
     console.log(
       `[atomivid:long-form] línea de tiempo real: ${timeline.durationSeconds.toFixed(1)}s narrados, ` +
         `${timeline.beats.reduce((n, b) => n + b.shots.length, 0)} shots en total`,
@@ -215,8 +245,8 @@ async function main() {
     const music = await providers.musicProvider.getTrack({
       durationSeconds: finalDurationSeconds,
       style: "documental",
-      topic: args.topic,
-      scriptText: script.beats.map((b) => b.narration).join(" "),
+      topic: scriptTopic,
+      scriptText: scriptBeats.map((b) => b.narration).join(" "),
       language: "es",
       seed: "longform-pilot",
     });
@@ -253,8 +283,9 @@ async function main() {
     const paidApisCalled = computePaidApisCalled(providers) || imageCostSpentUsd > 0;
     const report = {
       mode: args.mode,
-      topic: args.topic,
-      isFixtureContent: args.mode === "simulation",
+      topic: scriptTopic,
+      isFixtureContent: scriptIsFixtureContent,
+      scriptSource: args.scriptFile ?? "buildFixtureScript() (fixture)",
       targetDurationSeconds: args.durationSeconds,
       actualDurationSeconds: finalDurationSeconds,
       beatCount: timeline.beats.length,
