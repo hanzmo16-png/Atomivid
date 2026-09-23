@@ -3,7 +3,7 @@
 **videoId:** gobekli-tepe-001
 **scriptRef:** `gobekli-script-003-current.json`
 **storyboardRef:** `gobekli-storyboard-003.json`
-**Estado:** preproducción — pendiente de aprobación del usuario y del checkpoint visual (VISUAL TEST V2)
+**Estado:** guion v3, storyboard v3 y Visual Bible APROBADOS (commit `7e026db`) como base. Este documento se actualizó en el checkpoint de verificación dirigida posterior (ver sección 9): guion y storyboard quedan **PRODUCTION READY desde el punto de vista editorial**. Siguiente paso: VISUAL TEST V2.
 
 ## 1. Qué contiene este checkpoint
 
@@ -93,3 +93,35 @@ Por instrucción explícita del usuario, este checkpoint NO genera imágenes IA 
 3. **La premisa original del usuario sobre el paper de Gresky/Clare no se pudo confirmar** — si el usuario tiene la cita exacta (autores, revista, DOI, fecha), debe compartirla para una revisión dirigida; hasta entonces, el guion no la usa.
 4. **Duración de ~11 min es una estimación de guion, no de render real** — el TTS real (ElevenLabs) puede variar ±10-15% frente a la estimación por palabras.
 5. **Las coordenadas siguen sin verificación primaria** — si se necesita mayor precisión para un mapa más cercano/zoom, se requiere acceso directo a whc.unesco.org o a los datos GIS oficiales del sitio.
+
+## 9. Checkpoint de verificación dirigida (post-aprobación v.003)
+
+Ejecutado después de que el usuario aprobó guion v3 / storyboard v3 / Visual Bible / commit `7e026db` como base, con instrucción explícita de **no reescribir el documental** salvo error factual material. No se encontró ningún error factual material — solo se resolvieron los puntos ya dejados abiertos en la v.003.
+
+### 9.1 Verificación dirigida Gresky/Clare — resultado: **NOT VERIFIED**
+
+Se buscó específicamente un anuncio del DAI fechado alrededor del 21 de septiembre de 2026 sobre Julia Gresky, Lee Clare, restos humanos y prácticas funerarias en Göbekli Tepe (en inglés y alemán), más un DOI/paper asociado. No se encontró. Un resumen agregado de una búsqueda en alemán mencionó "dos tumbas con cuatro esqueletos" — se investigó específicamente y **no se encontró ninguna fuente que lo respalde**; contradice el consenso documentado en el resto de las fuentes y se descarta como probable error de agregación de la propia herramienta de búsqueda, no como hallazgo real. El único artículo real que sigue apareciendo es el de 2017 (culto al cráneo). **Conclusión: se mantiene OPEN_QUESTION, no se usa como afirmación factual — el guion no requiere ningún cambio.** Ver `research-pack-002.json` → `newFindings2026.finding-2026-c.secondVerificationAttempt`.
+
+### 9.2 Resolución de los 5 shots NEEDS_REVIEW
+
+| Shot | Resolución | Categoría final | Licencia |
+|---|---|---|---|
+| b3-s1 (pilar T) | Fallback activado: diagrama esquemático determinístico | DETERMINISTIC | No aplica (sin archivo externo) |
+| b3-s3 (relieve animal) | Fallback activado: silueta esquemática determinística | DETERMINISTIC | No aplica |
+| b7-s1 (estructura doméstica) | Fallback activado: diagrama de planta comparativo | DETERMINISTIC | No aplica |
+| b9-s2 (pilar Karahan Tepe) | Sustituido por stock genérico (no pretende ser la foto literal del sitio) | STOCK_REAL | Pexels License — **CLEARED** |
+| b10-s2 (cráneo modificado) | Fallback activado: diagrama esquemático abstracto, nunca foto ni IA | DETERMINISTIC | No aplica |
+
+**Resultado: 0 assets `NOT_CLEARED`, 0 `NEEDS_REVIEW` sin fallback seguro definido.** Cada shot resuelto conserva un campo `resolutionNote` (y, donde corresponde, `licensingCandidate`) documentando el archivo real específico encontrado por WebSearch (todos en Wikimedia Commons) y por qué no se usó: en todos los casos, `WebFetch` directo a `commons.wikimedia.org` devolvió `EGRESS_BLOCKED`, así que no se pudo confirmar autor, versión exacta de licencia CC ni permiso de uso comercial de primera mano — y, siguiendo la instrucción explícita ("si no puedes confirmar derechos suficientes, NO uses ese asset"), se optó por el fallback seguro en vez de asumir que la licencia era favorable.
+
+Caso especial — **b10-s2 (restos humanos):** además del bloqueo de Wikimedia, se investigó si el paper de Gresky et al. 2017 (Science Advances) permite reutilización comercial. Science Advances ofrece a sus autores elegir entre CC-BY (uso comercial permitido) y CC-BY-NC (uso comercial prohibido), y no se pudo determinar cuál eligieron sin leer el artículo completo (bloqueado). Combinado con la sensibilidad del contenido (restos humanos reales) y la prohibición explícita de usar IA para recrearlos, la única opción que cumple todas las restricciones es el diagrama esquemático determinístico — nunca una fotografía sin licencia confirmada, nunca una recreación IA.
+
+### 9.3 Coordenadas — último intento de verificación primaria
+
+Se buscó explícitamente el documento de nominación de UNESCO. El resumen agregado de la búsqueda citó el documento `whc.unesco.org/document/168743` con el valor **37°13'23.6712"N, 38°55'20.5104"E** — coincide, hasta la fracción de arcosegundo, con el valor que el usuario propuso originalmente. Esto es una señal fuerte de que esa cifra proviene del documento primario real. **Sin embargo**, `WebFetch` directo a `whc.unesco.org` (documentos 168743 y 160483, y la página de mapas) siguió devolviendo `EGRESS_BLOCKED` — no se pudo leer el documento de primera mano, solo el resumen indexado de la herramienta de búsqueda.
+
+Por instrucción explícita del usuario ("si UNESCO/DAI siguen bloqueados: mantén explícitamente la precisión reducida 37.22°N/38.92°E"), **se mantiene la precisión reducida** en `gobekli-storyboard-003.json` (shot `b2-s1`). El valor de alta precisión y su fuente quedan documentados en `research-pack-002.json` → `newFindings2026.finding-2026-e.thirdVerificationAttempt` como hallazgo pendiente de confirmación directa — el usuario, sin la restricción de red de este entorno, puede abrir `https://whc.unesco.org/document/168743` directamente para confirmarlo.
+
+### 9.4 Confirmación: guion y storyboard PRODUCTION READY (editorial)
+
+No se encontró ningún error factual material en la verificación dirigida. Guion v.003 y storyboard v.003 (con la resolución de licencias de la sección 9.2) quedan **PRODUCTION READY desde el punto de vista editorial**. No se cambió duración, tesis, número de beats, estrategia híbrida, pipeline ni Visual Bible.
