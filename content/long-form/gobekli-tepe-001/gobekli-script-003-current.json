@@ -1,0 +1,190 @@
+{
+  "meta": {
+    "videoId": "gobekli-tepe-001",
+    "version": "003-current",
+    "topic": "Göbekli Tepe: el sitio que sigue obligándonos a corregir la historia",
+    "authoredBy": "Claude, directamente en esta conversación. ANTHROPIC_API_KEY no está configurada en este entorno; no se hizo ninguna llamada separada y facturable a la API de Anthropic para escribir ni revisar este guion.",
+    "language": "es",
+    "mode": "curiosity_documentary",
+    "status": "BORRADOR PARA REVISIÓN — actualización 2026, pendiente de aprobación del usuario",
+    "wordCount": 1847,
+    "characterCount": 11629,
+    "estimatedDurationSeconds": 659.6,
+    "estimatedTtsCostUsd": 1.163,
+    "isFixtureContent": false,
+    "previousVersion": "gobekli-script-002-final.json (aprobado con ajustes; se conserva sin cambios). Esta v.003 es una revisión editorial que incorpora hallazgos 2026, NO un reemplazo silencioso — ver 'editorialNotes' y gobekli-production-plan-003.md sección 1 para el detalle de qué cambió y por qué.",
+    "durationRationale": "El rango de 10-20 minutos es orientativo, no un objetivo fijo. Esta versión creció frente a la v.002 (de ~8.4 a ~11-12 min estimados) porque la historia lo exige: hay un hallazgo 2026 real que verificar y explicar con su matiz correcto (hedge de Karul), un contexto regional nuevo (Taş Tepeler/Karahan Tepe) que cambia la pregunta central, y un beat de transparencia metodológica sobre una fuente que NO se pudo verificar (el supuesto paper de Gresky/Clare de septiembre 2026). No se agregó relleno narrativo para alcanzar una duración objetivo."
+  },
+  "researchPackRef": "research-pack-002.json (extiende research-pack-001, conserva sus 3 fuentes originales)",
+  "thesisDecision": {
+    "proposedThesis": "LA HISTORIA QUE CREÍAMOS SABER SOBRE GÖBEKLI TEPE ESTÁ CAMBIANDO",
+    "adopted": "MODERADA: 'Göbekli Tepe es un sitio que sigue obligando a corregir, temporada tras temporada, la imagen que teníamos de él' — no 'todo lo que sabíamos es falso'.",
+    "reasoning": "La versión dramática de la tesis se apoyaba, en la instrucción original del usuario, en gran parte en un supuesto paper de Gresky/Clare de septiembre de 2026 sobre restos humanos/enterramientos. Ese paper NO se pudo verificar tras múltiples búsquedas dirigidas en inglés y turco (ver research-pack-002.json, finding-2026-c y unverifiedOrRejectedLeads). Sin esa pieza, la evidencia real disponible (estructuras rectangulares 2026 evaluadas como posiblemente residenciales, con hedge explícito de los propios arqueólogos; contexto regional de Taş Tepeler) respalda una actualización real pero incremental del modelo, no una reversión dramática. Se adopta la versión moderada por disciplina editorial: nunca se resuelve una tesis más allá de lo que la evidencia verificada sostiene."
+  },
+  "beats": [
+    {
+      "id": "beat-1",
+      "type": "hook",
+      "purpose": "Abrir con la corrección/hallazgo 2026, no con la escena del paisaje. Plantear que la historia del sitio sigue en revisión.",
+      "narration": "Durante años, la versión que se contó sobre Göbekli Tepe fue clara y ordenada: un santuario aislado, en la cima de una colina, construido por cazadores-recolectores que llegaban solo para ceremonias y después se marchaban, sin vivir nunca ahí. Esa versión ya no se sostiene del todo. En el verano de 2026, un equipo de excavación dirigido por el arqueólogo turco Necmi Karul abrió un área nueva al norte del núcleo protegido del sitio, y encontró algo que no encajaba con esa historia: estructuras rectangulares que podrían haber sido viviendas. No templos. No recintos monumentales. Posibles casas. Si eso se confirma, no sería la primera vez que Göbekli Tepe obliga a los arqueólogos a corregir lo que creían saber sobre él. Once mil años atrás, en las montañas Germuş, al sureste de la actual Turquía, un grupo sin escritura, sin ciudades, sin metal ni rueda, ya levantaba pilares de piedra de más de cinco metros. Esta es la historia de un sitio que, hoy mismo, sigue cambiando de forma.",
+      "claims": [
+        { "id": "b1-c1", "text": "En 2026, un área nueva de excavación al norte del núcleo protegido reveló estructuras rectangulares evaluadas por los arqueólogos como posiblemente residenciales", "support": "sourced", "sourceIds": ["karul-2026-excavation-news-aggregate"] },
+        { "id": "b1-c2", "text": "Excavación dirigida por Necmi Karul", "support": "sourced", "sourceIds": ["karul-2026-excavation-news-aggregate"] },
+        { "id": "b1-c3", "text": "Existió una 'versión popular' previa de Göbekli Tepe como santuario aislado sin vivienda permanente — se presenta como la creencia previa a matizar, no como hecho", "support": "unverified", "sourceIds": [] },
+        { "id": "b1-c4", "text": "Pilares de piedra de más de cinco metros; ausencia de escritura/ciudades/metal/rueda como contexto de época", "support": "sourced", "sourceIds": ["unesco-whc"] }
+      ],
+      "emotionalTone": "tension",
+      "patternInterrupt": true
+    },
+    {
+      "id": "beat-2",
+      "type": "setup",
+      "purpose": "Ubicar el sitio y su datación real; mostrar por qué la antigüedad exige revisar el modelo tradicional.",
+      "narration": "Este lugar se llama Göbekli Tepe. Está en el sureste de Anatolia, en las montañas Germuş, y sus estructuras monumentales más antiguas corresponden aproximadamente al periodo 9600 a 8200 antes de nuestra era: el Neolítico Precerámico, antes de la cerámica, antes de los primeros pueblos agrícolas consolidados que solemos imaginar cuando pensamos en los orígenes de la civilización. Cuando los arqueólogos confirmaron esa antigüedad, el sitio obligó a revisar una idea muy extendida: que la arquitectura monumental —templos, estructuras a gran escala, símbolos compartidos— era algo que solo aparecía después de la agricultura, después de que la gente se volviera sedentaria. Göbekli Tepe parecía llegar antes. Mucho antes. Y esa sola discrepancia ya era motivo suficiente para replantear la cronología que dábamos por hecho. Pero la fecha, por sí sola, no explica lo que realmente hay ahí arriba.",
+      "claims": [
+        { "id": "b2-c1", "text": "Estructuras monumentales datadas aproximadamente 9600–8200 a. C.", "support": "sourced", "sourceIds": ["unesco-whc"] },
+        { "id": "b2-c2", "text": "Levantadas durante el Neolítico Precerámico por comunidades de cazadores-recolectores", "support": "sourced", "sourceIds": ["unesco-whc"] },
+        { "id": "b2-c3", "text": "La antigüedad del sitio llevó a revisar el modelo de que la arquitectura monumental aparece solo después de la agricultura/sedentarización", "support": "inference", "sourceIds": ["unesco-whc"] }
+      ],
+      "emotionalTone": "curiosity"
+    },
+    {
+      "id": "beat-3",
+      "type": "discovery",
+      "purpose": "Presentar los pilares T, su escala y su iconografía; establecer el problema logístico.",
+      "narration": "Lo primero que impresiona son los pilares. Tienen forma de T, y algunos alcanzan cerca de cinco metros y medio de altura —más alto que una casa de dos pisos—, tallados en un solo bloque de piedra caliza. Están dispuestos en estructuras monumentales, redondas u ovaladas, y también rectangulares. Algunos pilares representan, de forma abstracta, la figura humana: se distinguen brazos y manos, y en algunos casos elementos como cinturones y taparrabos tallados en la piedra. No parecen retratos. Parecen símbolos. Otros pilares están cubiertos de relieves de animales salvajes: zorros, jabalíes, aves, serpientes. Un esfuerzo de esta escala no es casual: implica una intención sostenida, no un gesto improvisado. Estas estructuras probablemente estuvieron relacionadas con actividades sociales y rituales, aunque —y esto vale la pena decirlo con honestidad— no sabemos con precisión qué rituales eran, ni qué significaban exactamente esos animales para quienes los tallaron. Lo que sí es medible es la escala del esfuerzo. Y esa escala, por sí sola, ya plantea un problema logístico.",
+      "claims": [
+        { "id": "b3-c1", "text": "Pilares en forma de T, algunos de hasta ~5.5 metros, piedra caliza", "support": "sourced", "sourceIds": ["unesco-whc"] },
+        { "id": "b3-c2", "text": "Estructuras redondas/ovaladas y rectangulares", "support": "sourced", "sourceIds": ["unesco-whc"] },
+        { "id": "b3-c3", "text": "Pilares con figuras humanas abstractas y relieves de animales salvajes", "support": "sourced", "sourceIds": ["unesco-whc"] },
+        { "id": "b3-c4", "text": "Las estructuras probablemente se relacionaron con actividades sociales y rituales", "support": "sourced", "sourceIds": ["unesco-whc"] },
+        { "id": "b3-c5", "text": "La naturaleza específica de esos rituales/el significado exacto de los animales", "support": "unverified", "sourceIds": [] },
+        { "id": "b3-c6", "text": "'Un esfuerzo de esta escala no es casual: implica una intención sostenida' — inferencia propia del guion", "support": "inference", "sourceIds": [] }
+      ],
+      "emotionalTone": "curiosity",
+      "patternInterrupt": true
+    },
+    {
+      "id": "beat-4",
+      "type": "escalation",
+      "purpose": "Dimensionar el esfuerzo de construcción real sin inventar cifras ni métodos no documentados.",
+      "narration": "Piensa en lo que exige levantar algo así. Localizar la piedra caliza adecuada. Extraerla. Moverla, sin ruedas ni animales de carga domesticados como los que existirían siglos después. Tallarla con herramientas de piedra hasta darle forma y detalle. Levantarla, sin que se rompa, sin que se caiga. Y repetir el proceso, no una vez, sino en varios recintos. Cada uno de esos pasos requiere personas: personas que sepan qué hacer, que coordinen a las demás, y que, mientras tanto, tengan algo que comer. No sabemos cuántas personas participaron —cualquier cifra exacta sería una invención—, ni conocemos el método exacto de transporte que usaron. Pero la logística detrás de este proyecto tuvo que ser considerable. Y ahí es donde la arqueología reciente empieza a encontrar pistas concretas.",
+      "claims": [
+        { "id": "b4-c1", "text": "Levantar las estructuras requirió extracción, transporte, talla y erección repetida de piedra — inferencia física básica", "support": "inference", "sourceIds": [] },
+        { "id": "b4-c2", "text": "Número de trabajadores — explícitamente no afirmado, sin cifra", "support": "unverified", "sourceIds": [] },
+        { "id": "b4-c3", "text": "Método exacto de transporte de la piedra — explícitamente no afirmado", "support": "unverified", "sourceIds": [] }
+      ],
+      "emotionalTone": "tension"
+    },
+    {
+      "id": "beat-5",
+      "type": "escalation",
+      "purpose": "Introducir la evidencia de procesamiento de alimentos y la hipótesis de banquetes colectivos de trabajo.",
+      "narration": "En 2019, un equipo de investigadores publicó en la revista PLOS ONE un análisis de más de siete mil artefactos relacionados con el procesamiento de alimentos: piedras de molienda, cuencos, morteros, manos de moler. El estudio, liderado por Dietrich y colegas, encontró que gran parte de estas herramientas se usó para procesar cereales. Análisis de fitolitos —diminutos restos de plantas que sobreviven miles de años— respaldan la misma idea: hubo una presencia importante de cereales en el sitio. Y estas herramientas no están dispersas al azar: aparecen asociadas justamente a las estructuras rectangulares. A partir de ahí, los propios investigadores proponen una interpretación, no un hecho confirmado: ciertos patrones de actividad podrían ser compatibles con grandes reuniones de trabajo, una especie de banquetes colectivos asociados a la construcción. Comida organizada para sostener un proyecto colectivo. Pero la comida, por sí sola, tampoco explica cómo se planeó todo esto.",
+      "claims": [
+        { "id": "b5-c1", "text": "Más de 7,000 artefactos de procesamiento de alimentos analizados", "support": "sourced", "sourceIds": ["dietrich-2019-plos-one"] },
+        { "id": "b5-c2", "text": "Gran parte de los instrumentos se usaron para procesar cereales; fitolitos respaldan presencia importante de cereales", "support": "sourced", "sourceIds": ["dietrich-2019-plos-one"] },
+        { "id": "b5-c3", "text": "Asociación espacial entre herramientas de preparación de alimentos y estructuras rectangulares", "support": "sourced", "sourceIds": ["dietrich-2019-plos-one"] },
+        { "id": "b5-c4", "text": "Patrones compatibles con banquetes colectivos de trabajo — hipótesis de los propios autores", "support": "inference", "sourceIds": ["dietrich-2019-plos-one"] }
+      ],
+      "emotionalTone": "curiosity"
+    },
+    {
+      "id": "beat-6",
+      "type": "escalation",
+      "purpose": "Introducir el estudio de planificación geométrica de los recintos B, C y D, acotando la interpretación.",
+      "narration": "Hay otro estudio que complica todavía más la imagen de un proyecto improvisado. En 2020, en la revista Cambridge Archaeological Journal, Gil Haklay y Avi Gopher publicaron un análisis formal de la disposición arquitectónica de varios recintos monumentales. Encontraron un patrón geométrico subyacente entre tres de ellos —identificados como B, C y D— y proponen que pudieron haber sido planificados desde el inicio como parte de un mismo proyecto conjunto. Esto no significa que sus constructores manejaran geometría avanzada como la entendemos hoy, ni que Göbekli Tepe demuestre matemáticas modernas. Significa, según esta interpretación publicada, que hubo una intención de conjunto detrás de estas estructuras: varios recintos pensados como parte de un mismo plan, no como construcciones aisladas y sin relación entre sí. Comida organizada. Arquitectura planificada. La imagen se aleja cada vez más de la casualidad.",
+      "claims": [
+        { "id": "b6-c1", "text": "Análisis formal de la disposición arquitectónica de varios recintos monumentales", "support": "sourced", "sourceIds": ["haklay-gopher-2020-caj"] },
+        { "id": "b6-c2", "text": "Patrón geométrico subyacente entre los recintos B, C y D; posible planificación conjunta desde el inicio — NO 'geometría avanzada' ni 'matemáticas modernas'", "support": "inference", "sourceIds": ["haklay-gopher-2020-caj"] }
+      ],
+      "emotionalTone": "curiosity"
+    },
+    {
+      "id": "beat-7",
+      "type": "twist",
+      "purpose": "Reconocer que la corrección de la 'santuario aislado' ya venía en marcha antes de 2026, y dejar abierta la pregunta que el hallazgo 2026 retoma.",
+      "narration": "Aquí conviene hacer una pausa y admitir algo: la idea de un santuario aislado y abandonado nunca fue del todo exacta. Ya desde hace años, excavaciones habían identificado, junto a los recintos monumentales, construcciones no monumentales que parecían corresponder a edificios domésticos —espacios de vida cotidiana, no de ritual. Eso ya complicaba la vieja imagen de un lugar exclusivamente ceremonial, visitado y abandonado. Pero esa evidencia era todavía parcial, dispersa, difícil de fechar con precisión frente a los grandes recintos. La pregunta seguía abierta: ¿cuánta gente vivía realmente ahí, y desde cuándo?",
+      "claims": [
+        { "id": "b7-c1", "text": "Excavaciones previas a 2026 ya habían identificado estructuras no monumentales de tipo doméstico", "support": "sourced", "sourceIds": ["unesco-whc"] },
+        { "id": "b7-c2", "text": "Proporción de la población residente permanente — pregunta abierta antes de 2026", "support": "unverified", "sourceIds": [] }
+      ],
+      "emotionalTone": "clarity",
+      "patternInterrupt": true
+    },
+    {
+      "id": "beat-8",
+      "type": "escalation",
+      "purpose": "Detallar el hallazgo 2026 con precisión y con el hedge exacto de las fuentes — el pago de la promesa del hook.",
+      "narration": "Esa es, justamente, la pregunta que la temporada de excavación de 2026 empezó a responder, aunque todavía sin cerrar el caso. Necmi Karul, quien coordina el proyecto Taş Tepeler y dirige las excavaciones en Göbekli Tepe desde 2021 —en un trabajo conjunto entre la Universidad de Estambul, el Museo de Şanlıurfa y el Instituto Arqueológico Alemán—, abrió una nueva área de aproximadamente mil quinientos metros cuadrados al norte del núcleo protegido del sitio, después de retirar un olivar que ocupaba el terreno. Ahí aparecieron estructuras de planta rectangular, distintas de los grandes recintos circulares u ovalados: con menos pilares en T, y una distribución interna que, según los propios arqueólogos, se parece más a la de un espacio doméstico. Los reportes de la excavación son cuidadosos con el lenguaje: hablan de estructuras evaluadas como posiblemente residenciales, no de viviendas confirmadas. Falta todavía el análisis de las muestras de suelo que podría confirmar actividad doméstica de forma más definitiva. Pero si eso se confirma, la imagen que queda es la de un lugar donde la arquitectura ritual y la vida ordinaria convivieron, lado a lado —no la de un santuario visitado y luego abandonado.",
+      "claims": [
+        { "id": "b8-c1", "text": "Nueva área de excavación 2026, ~1.500 m², al norte del núcleo protegido, tras retirar un olivar", "support": "sourced", "sourceIds": ["karul-2026-excavation-news-aggregate"] },
+        { "id": "b8-c2", "text": "Necmi Karul coordina el proyecto Taş Tepeler y dirige Göbekli Tepe desde 2021, en trabajo conjunto Universidad de Estambul / Museo de Şanlıurfa / DAI", "support": "sourced", "sourceIds": ["karul-2026-excavation-news-aggregate"] },
+        { "id": "b8-c3", "text": "Estructuras rectangulares con menos pilares T y distribución más compatible con uso doméstico", "support": "sourced", "sourceIds": ["karul-2026-excavation-news-aggregate"] },
+        { "id": "b8-c4", "text": "Las fuentes usan lenguaje explícitamente condicional ('evaluadas como', 'podrían haber sido'), no confirmación; falta análisis de muestras de suelo", "support": "sourced", "sourceIds": ["karul-2026-excavation-news-aggregate"] },
+        { "id": "b8-c5", "text": "Si se confirma, sugiere coexistencia de arquitectura ritual y vida doméstica — inferencia condicional explícita", "support": "inference", "sourceIds": ["karul-2026-excavation-news-aggregate"] }
+      ],
+      "emotionalTone": "clarity"
+    },
+    {
+      "id": "beat-9",
+      "type": "escalation",
+      "purpose": "Zoom out regional: Taş Tepeler y Karahan Tepe cambian la pregunta central.",
+      "narration": "Y hay algo más que cambia la perspectiva: Göbekli Tepe no es un caso aislado. Es parte de una red más amplia de sitios del mismo periodo, repartidos por la región de Şanlıurfa, que el propio proyecto arqueológico turco agrupa bajo el nombre Taş Tepeler —las colinas de piedra. Uno de ellos, Karahan Tepe, comparte con Göbekli Tepe los mismos pilares en forma de T y espacios tallados directamente en la roca, y algunas fuentes lo describen como su sitio hermano. Esto importa porque cambia la pregunta que nos hacemos: ya no es únicamente qué pasó en esta colina, exactamente aquí, sino qué estaba pasando en toda una región, al mismo tiempo, en manos de comunidades que ni siquiera habían consolidado la agricultura. Göbekli Tepe deja de verse como una anomalía solitaria, y empieza a verse como parte de un fenómeno compartido.",
+      "claims": [
+        { "id": "b9-c1", "text": "Göbekli Tepe forma parte de la red Taş Tepeler, de sitios del mismo periodo en la región de Şanlıurfa", "support": "sourced", "sourceIds": ["tas-tepeler-overview-2026"] },
+        { "id": "b9-c2", "text": "Karahan Tepe comparte pilares en T y espacios tallados en roca; descrito como 'sitio hermano'", "support": "sourced", "sourceIds": ["tas-tepeler-overview-2026"] },
+        { "id": "b9-c3", "text": "Esto reencuadra la pregunta central de sitio-único a fenómeno regional — síntesis interpretativa propia", "support": "inference", "sourceIds": [] }
+      ],
+      "emotionalTone": "curiosity"
+    },
+    {
+      "id": "beat-10",
+      "type": "insight",
+      "purpose": "Beat de transparencia metodológica: reconocer explícitamente una fuente que no se pudo verificar, en vez de usarla igual.",
+      "narration": "Antes de seguir, vale la pena ser honestos sobre los límites de lo que se sabe hoy. Al preparar este video circulaba la idea de que, en septiembre de 2026, se habría publicado un nuevo estudio sobre restos humanos y posibles enterramientos en Göbekli Tepe. Se buscó esa publicación de forma directa, en varias fuentes y en dos idiomas, y no fue posible confirmarla: hasta donde pudimos verificar, no existe un estudio de ese tipo publicado en esa fecha. Lo único confirmado sobre restos humanos en el sitio sigue siendo un estudio de 2017, que documentó fragmentos de cráneos con marcas talladas deliberadamente: evidencia de lo que sus autores llamaron un posible culto al cráneo, no de tumbas formales. Preferimos decir esto con claridad, en lugar de presentar como confirmado algo que no pudimos comprobar.",
+      "claims": [
+        { "id": "b10-c1", "text": "No se pudo verificar la existencia de un estudio de septiembre de 2026 sobre restos humanos/enterramientos en Göbekli Tepe, pese a búsquedas dirigidas en inglés y turco", "support": "unverified", "sourceIds": [] },
+        { "id": "b10-c2", "text": "El estudio de 2017 documentó fragmentos de cráneos con incisiones intencionales, interpretados como posible culto al cráneo, sin enterramientos formales confirmados", "support": "sourced", "sourceIds": ["gresky-2017-scienceadvances-skullcult"] }
+      ],
+      "emotionalTone": "reflective"
+    },
+    {
+      "id": "beat-11",
+      "type": "insight",
+      "purpose": "Sintetizar la tesis moderada: corrección incremental sostenida, no revelación única.",
+      "narration": "Entonces, ¿qué cambió realmente? No es que Göbekli Tepe haya dejado de ser un lugar extraordinario, ni que de pronto sepamos mucho más de lo que sabíamos hace una década. Lo que cambió es más sutil, y más honesto: cada temporada de excavación sigue corrigiendo, un poco, la imagen que teníamos. Primero fue la datación, que rompió el orden esperado entre agricultura y arquitectura monumental. Después, la evidencia de banquetes de trabajo y de planificación geométrica entre recintos. Ahora, posibles casas, y un sitio que ya no se entiende solo, sino como parte de una red regional. El patrón no es que todo lo que sabíamos estuviera mal. El patrón es que la explicación sigue sin cerrarse del todo —y eso, en arqueología, suele ser una buena señal: significa que se sigue excavando, y que se sigue mirando con cuidado.",
+      "claims": [
+        { "id": "b11-c1", "text": "El sitio ha sido objeto de correcciones interpretativas sucesivas (datación, evidencia de banquetes/planificación, evidencia doméstica 2026, contexto regional) — síntesis apoyada en el conjunto de fuentes", "support": "inference", "sourceIds": ["unesco-whc", "dietrich-2019-plos-one", "haklay-gopher-2020-caj", "karul-2026-excavation-news-aggregate", "tas-tepeler-overview-2026"] }
+      ],
+      "emotionalTone": "clarity"
+    },
+    {
+      "id": "beat-12",
+      "type": "next_curiosity",
+      "purpose": "Nombrar honestamente las preguntas todavía sin resolver, incluidas las que abrió 2026.",
+      "narration": "Y aun así, quedan preguntas abiertas. No sabemos con certeza cuál era la función exacta de cada recinto monumental. No sabemos qué significaba realmente la iconografía animal para quienes la tallaron. No sabemos cómo se organizaba políticamente el grupo, o los grupos, detrás de este proyecto. No sabemos exactamente cómo se coordinaba el trabajo, ni qué proporción de la población vivía ahí de forma permanente. Tampoco sabemos, todavía, si las estructuras rectangulares encontradas en 2026 eran realmente viviendas: eso depende de análisis que, hasta donde pudimos verificar, siguen en curso. Y no sabemos, con la información disponible hoy, si existen enterramientos formales en el sitio. Estas no son preguntas menores. Son, de hecho, el tipo de preguntas que mantienen viva a la arqueología.",
+      "claims": [
+        { "id": "b12-c1", "text": "Función exacta de los recintos monumentales", "support": "unverified", "sourceIds": [] },
+        { "id": "b12-c2", "text": "Significado exacto de la iconografía animal", "support": "unverified", "sourceIds": [] },
+        { "id": "b12-c3", "text": "Organización política de los constructores", "support": "unverified", "sourceIds": [] },
+        { "id": "b12-c4", "text": "Cómo se coordinó exactamente la mano de obra", "support": "unverified", "sourceIds": [] },
+        { "id": "b12-c5", "text": "Proporción de la población residente permanente", "support": "unverified", "sourceIds": [] },
+        { "id": "b12-c6", "text": "Si las estructuras 2026 eran efectivamente viviendas — análisis de suelo pendiente según las fuentes de 2026", "support": "unverified", "sourceIds": ["karul-2026-excavation-news-aggregate"] },
+        { "id": "b12-c7", "text": "Existencia de enterramientos formales en el sitio", "support": "unverified", "sourceIds": [] }
+      ],
+      "emotionalTone": "reflective"
+    },
+    {
+      "id": "beat-13",
+      "type": "payoff",
+      "purpose": "Cerrar con la idea de cooperación humana y la invitación a seguir corrigiendo, coherente con la tesis moderada.",
+      "narration": "Tal vez lo más extraordinario de Göbekli Tepe no sea que sus constructores tuvieran un conocimiento imposible, algo que no encaja con lo que sabemos de esa época. Quizás sea exactamente lo contrario. Eran seres humanos —sin escritura, sin metal, sin ciudades— en uno de los momentos de transformación más profundos de nuestra historia, descubriendo, probablemente por primera vez a esta escala, nuevas maneras de reunirse, de organizarse y de construir juntos, y quizás también de vivir juntos en ese mismo lugar. No necesitaron tecnología perdida ni ayuda externa. Necesitaron algo mucho más difícil de explicar, y mucho más humano: la capacidad de cooperar. Y si un sitio que llevamos tres décadas excavando todavía nos obliga a corregir la historia cada pocas temporadas, cabe preguntarse: ¿cuántos otros lugares, igual de antiguos, están esperando todavía su propia corrección?",
+      "claims": [],
+      "editorialFraming": [
+        "Cierre emocional/editorial. Las negaciones explícitas ('no necesitaron tecnología perdida ni ayuda externa') son guardrails deliberados contra las prohibiciones editoriales."
+      ],
+      "emotionalTone": "clarity"
+    }
+  ]
+}

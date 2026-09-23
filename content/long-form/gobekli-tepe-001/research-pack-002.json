@@ -1,0 +1,129 @@
+{
+  "id": "research-pack-002",
+  "topic": "Göbekli Tepe — actualización 2026",
+  "supersedesNote": "Este pack NO reemplaza research-pack-001 (embebido en gobekli-script-002-final.json). Lo EXTIENDE: conserva sus 3 fuentes originales y agrega fuentes/hallazgos nuevos de 2026. gobekli-script-003-current.json usa este pack.",
+  "methodologyNote": "Todo lo recopilado aquí proviene de WebSearch (resultados agregados/resumidos por la propia herramienta) y no de lectura directa de las páginas primarias: el proxy de salida de red de este entorno bloqueó activamente (EGRESS_BLOCKED) WebFetch a whc.unesco.org, en.wikipedia.org, www.wikidata.org, www.dainst.org, www.dainst.blog, www.mdpi.com, www.hurriyetdailynews.com, arkeonews.net, www.ancient-origins.net, www.dailysabah.com, www.researchgate.net, www.aa.com.tr, arkeofili.com, theothertour.com, popular-archaeology.com y www.thearchaeologist.org. Esto significa: (a) ningún hallazgo de este pack se pudo verificar contra el texto completo de una fuente primaria, solo contra los extractos/resúmenes que WebSearch devolvió; (b) donde varias búsquedas independientes convergen en el mismo dato (p. ej. la existencia y fecha de las nuevas estructuras rectangulares), la confianza es más alta; (c) donde no hay convergencia o no se encontró nada, se marca explícitamente como NO VERIFICADO — nunca se completa el vacío con una suposición.",
+  "sources": [
+    {
+      "id": "unesco-whc",
+      "title": "Göbekli Tepe — UNESCO World Heritage Centre",
+      "kind": "reference",
+      "locator": "https://whc.unesco.org/en/list/1572",
+      "notes": "Heredada de research-pack-001, sin cambios."
+    },
+    {
+      "id": "dietrich-2019-plos-one",
+      "title": "Dietrich et al. (2019) — Cereal processing at Early Neolithic Göbekli Tepe, southeastern Turkey",
+      "kind": "primary",
+      "locator": "DOI 10.1371/journal.pone.0215214",
+      "notes": "Heredada de research-pack-001, sin cambios."
+    },
+    {
+      "id": "haklay-gopher-2020-caj",
+      "title": "Haklay & Gopher (2020) — Geometry and Architectural Planning at Göbekli Tepe, Turkey",
+      "kind": "primary",
+      "locator": "DOI 10.1017/S0959774319000660",
+      "notes": "Heredada de research-pack-001, sin cambios."
+    },
+    {
+      "id": "dai-project-page-2026",
+      "title": "DAI (Deutsches Archäologisches Institut) — página oficial del proyecto Göbekli Tepe / blog Tepe Telegrams",
+      "kind": "reference",
+      "locator": "https://www.dainst.org/en/research/projects/noslug/5746 ; https://www.dainst.blog/the-tepe-telegrams/",
+      "notes": "Institucional/primaria por naturaleza, pero SOLO accedida vía resúmenes de WebSearch — WebFetch directo bloqueado por el proxy de red (EGRESS_BLOCKED) en ambos dominios. El resumen agregado que devolvió la búsqueda indica que el DAI describe Göbekli Tepe como 'a settlement site with a (strong) ritual component' y menciona, entre la evidencia de asentamiento, instalaciones de fuego, restos de alimentos consumidos, estructuras interpretadas como cisternas de agua y la existencia de muchos edificios — y en un resumen incluye la palabra 'burials' junto a esa lista de evidencia general de asentamiento. IMPORTANTE: no se pudo leer el texto original para confirmar en qué contexto exacto el DAI usa 'burials' ahí (podría referirse a los fragmentos óseos/depósitos secundarios ya conocidos desde 2017, no a enterramientos formales nuevos) — se trata este punto con máxima cautela y NO se usa para afirmar el descubrimiento de una tumba nueva (ver 'unverifiedOrRejectedLeads')."
+    },
+    {
+      "id": "karul-2026-excavation-news-aggregate",
+      "title": "Cobertura periodística agregada sobre la temporada de excavación 2026 en Göbekli Tepe (nuevas estructuras rectangulares)",
+      "kind": "secondary",
+      "locator": "Agregado de: Hürriyet Daily News ('New excavations at Göbeklitepe unearth rectangular structures'), Arkeonews ('10,000-Year-Old Rectangular Buildings Unearthed at Göbeklitepe May Have Been Homes'), Ancient Origins ('New Göbekli Tepe Finds May Reveal Ancient Homes'), Anadolu Ajansı / AA.com.tr ('Göbeklitepe'de konut olduğu değerlendirilen yeni yapıların izleri tespit edildi'), Arkeofili ('Göbeklitepe'de Konut Olabilecek Dörtgen Yapılar Bulundu'), theothertour.com ('Göbeklitepe Was Also a Settlement: The 2026 Excavations')",
+      "notes": "Múltiples medios independientes (turcos e internacionales) coinciden en lo esencial: en la temporada 2026, en un área nueva al norte del núcleo protegido de Göbekli Tepe (~1.500 m², tras retirar un olivar), dirigida por el profesor Necmi Karul (coordinador del proyecto Taş Tepeler y director de las excavaciones en Göbekli Tepe desde que el proyecto pasó a ser una operación conjunta de Estambul Üniversitesi, el Museo de Şanlıurfa y el DAI en 2021), se hallaron estructuras de planta rectangular, atribuidas a la 'segunda fase' del sitio, con menos pilares en T que los recintos monumentales clásicos y una distribución interna más compatible con uso doméstico. Los propios titulares en turco usan lenguaje explícitamente acotado: 'konut olduğu değerlendirilen' (evaluadas/consideradas como residenciales, no confirmadas) y 'konut olabilecek' (que podrían ser residenciales). La fuente en inglés (Hürriyet) cita que, de confirmarse con muestras de suelo ('floor samples'), esto podría ayudar a mostrar que ritual y vida cotidiana convivieron en el sitio. NINGUNA fuente afirma que ya esté confirmado que fueran viviendas — todas usan condicional/hedge."
+    },
+    {
+      "id": "clare-2026-heritage-paleoclimate",
+      "title": "Clare, L. (2026) — 'Göbeklitepe in Palaeoclimate Context: Human Responses to Climate Change in the Upper Tigris and Euphrates Basins from the Younger Dryas to the Early Holocene'",
+      "kind": "primary",
+      "locator": "Heritage, 2026, vol. 9, artículo 179 (MDPI) — https://www.mdpi.com/2571-9408/9/5/179",
+      "notes": "Publicación académica 2026 real y verificable por autor/revista/volumen/número de artículo vía WebSearch (Lee Clare, DAI Estambul). IMPORTANTE: este paper trata sobre clima/paleoambiente (respuestas humanas al cambio climático entre el Younger Dryas y el Holoceno temprano en las cuencas del alto Tigris/Éufrates), NO sobre restos humanos ni enterramientos. Se incluye en este pack porque es la única publicación académica 2026 de Lee Clare que se pudo verificar con datos bibliográficos concretos — y para dejar constancia explícita de que NO es el paper de 'Gresky/Clare sobre restos humanos' que se buscaba (ver 'unverifiedOrRejectedLeads')."
+    },
+    {
+      "id": "gresky-2017-scienceadvances-skullcult",
+      "title": "Gresky, Haelm & Clare (2017) — Modified human crania from Göbekli Tepe provide evidence for a new form of Neolithic skull cult",
+      "kind": "primary",
+      "locator": "DOI 10.1126/sciadv.1700564 — Science Advances",
+      "notes": "Sigue siendo, hasta donde se pudo verificar, la referencia vigente y más reciente sobre restos humanos en Göbekli Tepe: ~700 fragmentos óseos humanos recuperados de rellenos de los edificios y áreas adyacentes, con 3 cráneos que muestran incisiones profundas intencionales talladas con herramientas líticas (uno con una perforación y restos de ocre rojo). El propio estudio señala explícitamente que NO se conocen enterramientos formales en el sitio — los restos provienen de depósitos secundarios, no de tumbas primarias."
+    },
+    {
+      "id": "tas-tepeler-overview-2026",
+      "title": "Panorama del proyecto Taş Tepeler (contexto regional de Göbekli Tepe)",
+      "kind": "secondary",
+      "locator": "Agregado de: Daily Sabah ('Dawn of civilization reborn: Türkiye's Taş Tepeler takes the lead'), Wikipedia 'Taş Tepeler' y 'Karahan Tepe' (vía resumen de WebSearch, no lectura directa)",
+      "notes": "'Taş Tepeler' es el nombre adoptado en 2021 por el Ministerio de Cultura y Turismo de Turquía para un proyecto que agrupa unos 12 sitios del Neolítico Precerámico en la región de Şanlıurfa, incluyendo Göbekli Tepe, Karahan Tepe, Sayburç, Ayanlar Höyük, Sefer Tepe, Kurt Tepesi, Yenimahalle, Yoğunburç y Çakmaktepe, entre otros. Karahan Tepe se describe como 'sitio hermano' de Göbekli Tepe, con pilares en T y espacios excavados en roca, y algunas fuentes secundarias sitúan su ocupación más temprana en un rango aproximado de 10,000–9,500 a.C. — esta datación específica de Karahan Tepe NO proviene de las 3 fuentes primarias originales del pack y se marca 'unverified' si se usa en el guion."
+    }
+  ],
+  "newFindings2026": [
+    {
+      "id": "finding-2026-a",
+      "label": "Interpretación institucional actual del DAI: asentamiento con fuerte componente ritual",
+      "certainty": "ESTABLISHED",
+      "summary": "La caracterización de Göbekli Tepe como 'settlement site with a (strong) ritual component' aparece en el resumen agregado de la página/blog oficial del DAI. Es consistente y no contradice la síntesis ya usada en gobekli-script-002-final.json (que ya incorporaba evidencia de estructuras domésticas vía unesco-whc), pero no se pudo leer el texto íntegro del DAI para citarlo textualmente con certeza — se trata como paráfrasis institucional de alta confianza, no como cita literal.",
+      "sourceIds": ["dai-project-page-2026"]
+    },
+    {
+      "id": "finding-2026-b",
+      "label": "Nuevas estructuras rectangulares (temporada 2026), evaluadas como posiblemente residenciales",
+      "certainty": "RECENT_FINDING",
+      "summary": "Área nueva (~1.500 m²) al norte del núcleo protegido, dirigida por Necmi Karul; estructuras rectangulares de la 'segunda fase', con menos pilares en T y planta más compatible con uso doméstico. El hallazgo está confirmado por múltiples medios independientes; SU INTERPRETACIÓN como vivienda está explícitamente hedged por todas las fuentes ('konut olduğu değerlendirilen' / 'may have been homes' / 'could have been used for residential purposes') — nunca se afirma como hecho consumado en ninguna fuente encontrada.",
+      "hedgeLevelPreserved": "podrían haber sido / se evalúa que — NUNCA 'eran' ni 'fueron confirmadas como'",
+      "sourceIds": ["karul-2026-excavation-news-aggregate"]
+    },
+    {
+      "id": "finding-2026-c",
+      "label": "Paper de Gresky/Clare sobre restos humanos/enterramientos (septiembre 2026)",
+      "certainty": "OPEN_QUESTION",
+      "summary": "NO SE PUDO VERIFICAR la existencia de este paper. Se hicieron múltiples búsquedas dirigidas (en inglés y en turco, variando autores, revista, mes, y términos como 'burial', 'grave', 'individual interment', 'mortuary reassessment') sin encontrar un artículo de Gresky y/o Clare de 2026 sobre restos humanos o enterramientos en Göbekli Tepe. Lo único confirmado es: (1) el paper de 2017 de Gresky, Haelm y Clare sobre el 'culto al cráneo' (Science Advances, DOI 10.1126/sciadv.1700564) — sigue siendo la referencia vigente sobre restos humanos en el sitio; (2) el paper 2026 de Lee Clare que SÍ existe es sobre paleoclima, no sobre restos humanos (ver clare-2026-heritage-paleoclimate); (3) un resumen agregado de contenido del DAI menciona la palabra 'burials' en una lista general de evidencia de asentamiento, sin que se haya podido leer el contexto original. CONCLUSIÓN EDITORIAL: este hallazgo NO se usa como base del guion ni de la tesis del video. No se inventan autores, revista, DOI, fecha ni hallazgos.",
+      "sourceIds": []
+    },
+    {
+      "id": "finding-2026-d",
+      "label": "Göbekli Tepe como parte de la red Taş Tepeler (contexto regional)",
+      "certainty": "ESTABLISHED",
+      "summary": "Göbekli Tepe no es un sitio aislado: forma parte de un proyecto/red de ~12 sitios del Neolítico Precerámico en la región de Şanlıurfa (Taş Tepeler), coordinado por el mismo Necmi Karul. Karahan Tepe, su 'sitio hermano', comparte pilares en T y arquitectura tallada en roca. Esto es contexto regional de alta confianza (convergencia de múltiples fuentes secundarias), aunque no proviene de las 3 fuentes primarias originales.",
+      "sourceIds": ["tas-tepeler-overview-2026"]
+    },
+    {
+      "id": "finding-2026-e",
+      "label": "Coordenadas exactas del sitio",
+      "certainty": "OPEN_QUESTION",
+      "summary": "El usuario propuso 37°13′23.671″N 38°55′20.51″E (37.223242°N, 38.922364°E) atribuido a UNESCO — no se adopta automáticamente por instrucción explícita. La fuente primaria de UNESCO (whc.unesco.org) está bloqueada por el proxy de red de este entorno (EGRESS_BLOCKED) y no se pudo leer directamente. Fuentes secundarias agregadas dan valores que NO coinciden exactamente entre sí: Wikipedia (37°13′25″N 38°55′18″E = 37.22361°N, 38.92167°E), coordinates-converter.com (37.2234629, 38.9226076 — el más cercano al valor propuesto por el usuario, diferencia ~20-25m), latitude.to (37.2205, 38.9201). Todos los valores caen dentro de un radio de ~250m entre sí, consistente con el mismo yacimiento pero sin una fuente primaria legible que permita fijar el valor exacto con confianza. DECISIÓN: se mantiene la precisión reducida ya adoptada en gobekli-storyboard-002-hybrid.json (37.22°N, 38.92°E, ~1km) para el mapa determinístico del storyboard-003, en vez de adoptar el valor de mayor precisión propuesto por el usuario o cualquiera de las variantes secundarias.",
+      "sourceIds": ["unesco-whc"]
+    }
+  ],
+  "unverifiedOrRejectedLeads": [
+    "No existe evidencia verificable de un paper publicado en septiembre de 2026 por Gresky y/o Clare sobre restos humanos/enterramientos en Göbekli Tepe. No se usa como fuente ni como base de la tesis del video.",
+    "No se encontró ningún hallazgo de una 'primera tumba individual formal' en Göbekli Tepe en 2026 — lo único confirmado sobre restos humanos sigue siendo el estudio de 2017 sobre cráneos modificados (fragmentos óseos en rellenos secundarios, no enterramientos primarios).",
+    "La datación de Karahan Tepe (~10,000–9,500 a.C.) proviene de fuentes secundarias agregadas, no de las 3 fuentes primarias del pack original — se marca 'unverified' si se cita una cifra exacta en el guion."
+  ],
+  "openQuestions": [
+    "La función exacta de todos los recintos monumentales.",
+    "El significado exacto de la iconografía animal.",
+    "La organización política de sus constructores.",
+    "Cómo se coordinó exactamente la mano de obra.",
+    "Qué proporción de la población residía permanentemente en el sitio.",
+    "Qué creencias concretas motivaron su construcción.",
+    "Si las estructuras rectangulares halladas en 2026 eran efectivamente viviendas — pendiente de análisis de muestras de suelo, según las propias fuentes de 2026.",
+    "Si existe o no un hallazgo reciente sobre enterramientos formales — no verificado en este checkpoint."
+  ],
+  "editorialProhibitions": [
+    "alienígenas",
+    "Atlántida",
+    "civilizaciones perdidas presentadas como hechos",
+    "tecnología imposible",
+    "conspiraciones arqueológicas",
+    "\"la ciencia no puede explicarlo\"",
+    "cualquier afirmación no respaldada por las fuentes",
+    "convertir 'podrían ser viviendas' en 'eran viviendas'",
+    "presentar el paper de Gresky/Clare de septiembre 2026 como real",
+    "adoptar las coordenadas de precisión de arcosegundo del usuario como verificadas"
+  ]
+}
