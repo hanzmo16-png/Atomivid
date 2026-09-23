@@ -1,0 +1,34 @@
+{
+  "ok": true,
+  "spec": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "aspect": "16:9"
+  },
+  "measured": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 29.95,
+    "duration": 24.06,
+    "codec": "h264"
+  },
+  "shotTypes": [
+    "text",
+    "generated_placeholder",
+    "ken_burns_image",
+    "diagram",
+    "map",
+    "stock_image"
+  ],
+  "distinctShotTypes": 6,
+  "segments": [
+    "segments/seg-01.mp4",
+    "segments/seg-02.mp4",
+    "segments/seg-03.mp4"
+  ],
+  "master": "fixtures/p0-master-demo.mp4",
+  "paidApisCalled": false,
+  "note": "Technical 24s fixture. Not evidence of 8-12 minute narrative quality. Assembly is ffmpeg, not Remotion.",
+  "probe": "ffprobe if present, else ffmpeg -i parse"
+}

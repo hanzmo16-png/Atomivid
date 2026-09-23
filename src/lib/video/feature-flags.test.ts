@@ -16,6 +16,7 @@ const FLAG_VARS = [
   "VISUAL_QA_ENABLED",
   "OPENAI_IMAGE_GENERATION_ENABLED",
   "MAX_GENERATED_IMAGES_PER_VIDEO",
+  "LONG_FORM_ENABLED",
 ];
 
 function withEnv(vars: Record<string, string | undefined>, fn: () => void) {
@@ -44,6 +45,7 @@ test("sin ninguna variable configurada, todas las integraciones nuevas quedan ap
     assert.equal(flags.visualQaEnabled, false);
     assert.equal(flags.imageGenerationEnabled, false);
     assert.equal(flags.maxImagesPerVideo, 3);
+    assert.equal(flags.longFormEnabled, false);
   });
 });
 

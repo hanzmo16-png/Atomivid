@@ -74,6 +74,11 @@ export function getFeatureFlags() {
     maxAvatarCostUsd: numberEnv("MAX_AVATAR_COST_USD", 3),
     /** Duración narrada máxima (segundos, estimada por palabras) para un guion de avatar — límite explícito, independiente del tope de caracteres del proveedor. */
     maxAvatarDurationSeconds: numberEnv("MAX_AVATAR_DURATION_SECONDS", 120),
+    /**
+     * Long Form internal pipeline. Default off. Independent of Shorts and Avatar.
+     * Product entrypoints must still call assertLongFormAccess (flag + allowlist).
+     */
+    longFormEnabled: flag("LONG_FORM_ENABLED", false),
   };
 }
 
