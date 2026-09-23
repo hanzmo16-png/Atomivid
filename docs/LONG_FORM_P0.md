@@ -21,8 +21,13 @@ This is **not** an 8–12 minute documentary.
 ## Reproduce
 
 ```
-LONG_FORM_P0_CLI=1 node scripts/render-long-form-p0.mjs ./p0-output
+LONG_FORM_P0_CLI=1 node --import tsx scripts/render-long-form-p0.mjs ./p0-output
 ```
+
+Run under the `tsx` loader so the harness can import `buildCuriosityDemoProject`
+from `src/lib/video/long-form/fixture-demo.ts` directly — shots, their types,
+and their segment grouping come from that real module, not from a list
+duplicated in the script.
 
 No paid APIs. Requires local `ffmpeg`. `ffprobe` is used when it is on `PATH`.
 

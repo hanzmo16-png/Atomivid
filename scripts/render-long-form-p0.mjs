@@ -3,12 +3,16 @@
  * Isolated P0 harness. Fixtures only. No paid APIs. No GitHub. No Stripe.
  * Proves: 1920x1080@30, shot types are visually distinct, segments concat, ffprobe.
  *
- * Shot order matches buildCuriosityDemoProject(): two shots per beat, typeOffset = beat*2.
- *   text, generated_placeholder, ken_burns_image, diagram, map, stock_image
+ * Shots, their types, and their segment grouping come directly from
+ * buildCuriosityDemoProject() in src/lib/video/long-form/fixture-demo.ts —
+ * no shot list or shot-type logic is duplicated here. Run under the tsx
+ * loader so this script can import that TypeScript module directly:
+ *   LONG_FORM_P0_CLI=1 node --import tsx scripts/render-long-form-p0.mjs ./p0-output
  */
 import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync, existsSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
+import { buildCuriosityDemoProject } from "../src/lib/video/long-form/fixture-demo.ts";
 
 if (process.env.LONG_FORM_P0_CLI !== "1") {
   console.error("Refusing: set LONG_FORM_P0_CLI=1. This does not enable Long Form for users.");
@@ -23,14 +27,8 @@ mkdirSync(ROOT, { recursive: true });
 mkdirSync(join(ROOT, "segments"), { recursive: true });
 mkdirSync(join(ROOT, "shots"), { recursive: true });
 
-const SHOTS = [
-  { type: "text", caption: "A lamp stays lit after the street has gone dark." },
-  { type: "generated_placeholder", caption: "A lamp stays lit after the street has gone dark." },
-  { type: "ken_burns_image", caption: "The useful unit is one room, one night, one leftover light." },
-  { type: "diagram", caption: "The useful unit is one room, one night, one leftover light." },
-  { type: "map", caption: "The leftover light is not atmosphere. It is a record of a decision." },
-  { type: "stock_image", caption: "The leftover light is not atmosphere. It is a record of a decision." },
-];
+const project = buildCuriosityDemoProject();
+const shots = project.beats.flatMap((b) => b.shots);
 
 function run(cmd, args) {
   const r = spawnSync(cmd, args, { encoding: "utf8" });
@@ -142,7 +140,7 @@ function renderShot(shot, index, duration, outPath) {
   const color = baseColor(shot.type);
   const size = shot.type === "stock_video" ? `${W + 160}x${H}` : `${W}x${H}`;
   const assPath = outPath.replace(/\.mp4$/, ".ass");
-  writeAss(assPath, shot.type, shot.caption, duration);
+  writeAss(assPath, shot.type, shot.captionText, duration);
   run("ffmpeg", [
     "-y",
     "-f",
@@ -191,24 +189,22 @@ function concat(listFile, outPath) {
   run("ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", listFile, "-c", "copy", outPath]);
 }
 
-const shotDuration = 4;
-const shotFiles = [];
-SHOTS.forEach((shot, i) => {
-  const p = join(ROOT, "shots", `shot-${String(i + 1).padStart(2, "0")}.mp4`);
-  renderShot(shot, i, shotDuration, p);
-  shotFiles.push(p);
+const shotFileById = new Map();
+shots.forEach((shot, i) => {
+  const p = join(ROOT, "shots", `shot-${String(i + 1).padStart(2, "0")}-${shot.id}.mp4`);
+  renderShot(shot, i, shot.durationSec, p);
+  shotFileById.set(shot.id, p);
 });
 
-const segments = [
-  { id: "seg-01", files: shotFiles.slice(0, 2) },
-  { id: "seg-02", files: shotFiles.slice(2, 4) },
-  { id: "seg-03", files: shotFiles.slice(4, 6) },
-];
-
 const segmentPaths = [];
-for (const seg of segments) {
+for (const seg of project.segments) {
+  const files = seg.shotIds.map((id) => {
+    const file = shotFileById.get(id);
+    if (!file) throw new Error(`Segment ${seg.id} references unknown shot id ${id}`);
+    return file;
+  });
   const list = join(ROOT, `${seg.id}.txt`);
-  writeFileSync(list, seg.files.map((f) => `file '${f}'`).join("\n"));
+  writeFileSync(list, files.map((f) => `file '${f}'`).join("\n"));
   const out = join(ROOT, "segments", `${seg.id}.mp4`);
   concat(list, out);
   segmentPaths.push(out);
@@ -224,7 +220,7 @@ const v = info.streams[0];
 const duration = Number(info.format.duration);
 const fpsParts = String(v.avg_frame_rate).split("/");
 const fps = fpsParts.length === 2 ? Number(fpsParts[0]) / Number(fpsParts[1]) : Number(v.avg_frame_rate);
-const shotTypes = SHOTS.map((s) => s.type);
+const shotTypes = shots.map((s) => s.type);
 
 const report = {
   ok:
@@ -232,8 +228,7 @@ const report = {
     v.width === W &&
     v.height === H &&
     Math.abs(fps - FPS) < 0.1 &&
-    duration >= 23 &&
-    duration <= 25 &&
+    Math.abs(duration - project.targetDurationSec) <= 1 &&
     new Set(shotTypes).size >= 3,
   spec: { width: W, height: H, fps: FPS, aspect: "16:9" },
   measured: { width: v.width, height: v.height, fps, duration, codec: v.codec_name },
