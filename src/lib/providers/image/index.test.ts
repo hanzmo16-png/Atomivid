@@ -43,5 +43,19 @@ test("el fixture genera una imagen determinística sin red y respeta el aspecto 
     const asset = await provider.generateImage({ prompt: "a tired person", aspectRatio: "9:16", maxCostUsd: 1 });
     assert.ok(asset.buffer.byteLength > 0);
     assert.equal(asset.costUsd, 0);
+    assert.equal(asset.width, 1080);
+    assert.equal(asset.height, 1920);
+  });
+});
+
+test("el fixture también genera 16:9 (Long Form) con el tamaño landscape correcto, sin afectar 9:16", async () => {
+  await withEnv({}, async () => {
+    const provider = getImageProvider();
+    const landscape = await provider.generateImage({ prompt: "ancient stone pillars", aspectRatio: "16:9", maxCostUsd: 1 });
+    assert.equal(landscape.width, 1920);
+    assert.equal(landscape.height, 1080);
+    const portrait = await provider.generateImage({ prompt: "a tired person", aspectRatio: "9:16", maxCostUsd: 1 });
+    assert.equal(portrait.width, 1080);
+    assert.equal(portrait.height, 1920);
   });
 });

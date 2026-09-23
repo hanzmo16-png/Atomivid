@@ -77,6 +77,34 @@ test("generateImage envía exactamente model/prompt/size/quality/n al endpoint c
   }
 });
 
+test("generateImage usa el tamaño landscape (16:9) sin afectar el tamaño portrait (9:16) por defecto", async () => {
+  const originalFetch = global.fetch;
+  const sizesSeen: string[] = [];
+  global.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body));
+    sizesSeen.push(body.size);
+    return jsonResponse({ data: [{ b64_json: FAKE_PNG_B64 }] });
+  }) as typeof fetch;
+
+  try {
+    await withEnv(
+      { OPENAI_API_KEY: "sk-fake-test-key", OPENAI_IMAGE_SIZE: undefined, OPENAI_IMAGE_SIZE_LANDSCAPE: undefined },
+      async () => {
+        const portrait = await openaiImageProvider.generateImage({ ...BASE_REQUEST, aspectRatio: "9:16" });
+        const landscape = await openaiImageProvider.generateImage({ ...BASE_REQUEST, aspectRatio: "16:9" });
+        assert.equal(sizesSeen[0], "1024x1536");
+        assert.equal(sizesSeen[1], "1536x1024");
+        assert.equal(portrait.width, 1024);
+        assert.equal(portrait.height, 1536);
+        assert.equal(landscape.width, 1536);
+        assert.equal(landscape.height, 1024);
+      },
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("generateImage decodifica correctamente una respuesta con b64_json", async () => {
   const originalFetch = global.fetch;
   global.fetch = (async () => jsonResponse({ data: [{ b64_json: FAKE_PNG_B64 }] })) as typeof fetch;

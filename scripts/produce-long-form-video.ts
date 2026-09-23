@@ -1,0 +1,289 @@
+/**
+ * Orquestador de Long Form — Fase A (ATOMIVID).
+ *
+ * Modo por defecto: SIMULATION (fixtures, cero costo). El modo REAL exige
+ * `--mode=real` Y `LONG_FORM_REAL_RUN_CONFIRM=YES_SPEND_REAL_MONEY` (ver
+ * src/lib/video/long-form/mode.ts) — sin ambos, es imposible llegar a
+ * llamar un proveedor pago desde este script, incluso por accidente.
+ *
+ * Uso (fixture, hoy):
+ *   npx tsx scripts/produce-long-form-video.ts \
+ *     --topic="Göbekli Tepe: el misterio de 11,000 años que cambió nuestra historia" \
+ *     --duration-seconds=180 \
+ *     --output=/ruta/salida.mp4
+ *
+ * Arquitectura: guion (fixture hoy / Claude real en Fase B) → beats →
+ * síntesis de voz POR BEAT + línea de tiempo real (timeline.ts) → shots
+ * reales (shots.ts, ya validado en el P0) → resolución de assets por
+ * shot.type (asset-resolver.ts: Pexels/OpenAI/gráficos determinísticos) →
+ * captions (captions.ts, reutilizado) → música (musicProvider) → render
+ * (LongFormDoc, 1920x1080) → masterización de loudness (audio-master.ts,
+ * reutilizado) → salida MP4 + reporte JSON.
+ */
+import fs from "node:fs/promises";
+import fsSync from "node:fs";
+import http from "node:http";
+import os from "node:os";
+import path from "node:path";
+
+process.env.REMOTION_BROWSER_EXECUTABLE =
+  process.env.REMOTION_BROWSER_EXECUTABLE ||
+  "/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell";
+process.env.REMOTION_CHROME_MODE = process.env.REMOTION_CHROME_MODE || "headless-shell";
+
+type CliArgs = {
+  mode: "simulation" | "real";
+  topic: string;
+  durationSeconds: number;
+  output: string;
+};
+
+function parseArgs(argv: string[]): CliArgs {
+  const get = (name: string, fallback?: string): string | undefined => {
+    const prefix = `--${name}=`;
+    const found = argv.find((a) => a.startsWith(prefix));
+    return found ? found.slice(prefix.length) : fallback;
+  };
+
+  const modeRaw = get("mode", "simulation");
+  if (modeRaw !== "simulation" && modeRaw !== "real") {
+    throw new Error(`--mode debe ser "simulation" o "real" (recibido: "${modeRaw}")`);
+  }
+
+  return {
+    mode: modeRaw,
+    topic: get("topic", "Tema de prueba (fixture) — Long Form P1") as string,
+    durationSeconds: Number(get("duration-seconds", "180")),
+    output: get("output", path.join(process.cwd(), "scripts", "atomivid-longform-test-output.mp4")) as string,
+  };
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+
+  const { resolveLongFormProviders, computePaidApisCalled } = await import("../src/lib/video/long-form/mode");
+  const { buildFixtureScript } = await import("../src/lib/video/long-form/fixture-pipeline");
+  const { buildLongFormTimeline } = await import("../src/lib/video/long-form/timeline");
+  const { resolveShotAsset } = await import("../src/lib/video/long-form/asset-resolver");
+  const { estimateLongFormCost, assertWithinBudget, getLongFormBudget } = await import(
+    "../src/lib/video/long-form/cost"
+  );
+  const { buildCaptions } = await import("../src/lib/video/captions");
+  const { buildEmphasisSet } = await import("../src/lib/video/caption-emphasis");
+  const { masterAudioLoudness, LOUDNESS_TARGET } = await import("../src/lib/video/audio-master");
+  const { renderLongFormDoc } = await import("../src/lib/video/long-form/render");
+  const { VIDEO_TAIL_SECONDS } = await import("../src/lib/video/script-pacing");
+  const { computeNarrationGaps } = await import("../remotion/audio-mix");
+
+  console.log(`[atomivid:long-form] modo=${args.mode} tema="${args.topic}" duración objetivo=${args.durationSeconds}s`);
+
+  const providers = resolveLongFormProviders(args.mode);
+  const paidApisCalledAtStart = computePaidApisCalled(providers);
+  console.log(
+    "[atomivid:long-form] proveedores resueltos:",
+    JSON.stringify({
+      voice: providers.voiceProvider.name,
+      footage: providers.footageProvider.name,
+      music: providers.musicProvider.name,
+      image: providers.imageProvider.name,
+      paidApisCalled: paidApisCalledAtStart,
+    }),
+  );
+
+  // 1. Guion — SOLO fixture en esta fase. buildFixtureScript() produce
+  // narración claramente genérica/plantilla (ver fixture-pipeline.ts:
+  // "claim marked unverified until research stage runs") — nunca debe
+  // confundirse con investigación real de Göbekli Tepe.
+  if (args.mode === "simulation") {
+    console.log("[atomivid:long-form] guion: FIXTURE (contenido de prueba, NO investigación real)");
+  }
+  const script = buildFixtureScript({
+    topic: args.topic,
+    mode: "curiosity_documentary",
+    language: "es",
+    targetDurationSec: args.durationSeconds,
+  });
+  console.log(`[atomivid:long-form] guion fixture: "${script.title}" — ${script.beats.length} beats`);
+
+  // 2. Almacenamiento simulado — mismo patrón ya validado en
+  // scripts/test-pipeline.ts (servidor HTTP local sobre un directorio
+  // temporal): le da a Remotion URLs http:// reales sin necesitar
+  // Supabase real. En modo "real" (Fase B) esto se reemplaza por un
+  // cliente de Supabase auténtico — no implementado aquí a propósito
+  // (fuera de alcance de Fase A, cero costo).
+  const storageDir = await fs.mkdtemp(path.join(os.tmpdir(), "atomivid-longform-storage-"));
+  const CONTENT_TYPES: Record<string, string> = {
+    ".svg": "image/svg+xml",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".mp4": "video/mp4",
+  };
+  const server = http.createServer((req, res) => {
+    const filePath = path.join(storageDir, decodeURIComponent(req.url ?? ""));
+    if (!filePath.startsWith(storageDir) || !fsSync.existsSync(filePath)) {
+      res.writeHead(404);
+      res.end("not found");
+      return;
+    }
+    const contentType = CONTENT_TYPES[path.extname(filePath)] ?? "application/octet-stream";
+    res.setHeader("Content-Type", contentType);
+    fsSync.createReadStream(filePath).pipe(res);
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  const port = typeof address === "object" && address ? address.port : 0;
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  const upload = async (objectPath: string, buffer: Buffer): Promise<{ url: string }> => {
+    const fullPath = path.join(storageDir, objectPath);
+    await fs.mkdir(path.dirname(fullPath), { recursive: true });
+    await fs.writeFile(fullPath, buffer);
+    return { url: `${baseUrl}/${objectPath}` };
+  };
+
+  try {
+    // 3. Línea de tiempo real: sintetiza voz POR BEAT (respeta el límite de
+    // caracteres de ElevenLabs, une audio, re-offsetea timestamps) y
+    // recalcula shots[] de cada beat contra su duración REAL narrada.
+    console.log("[atomivid:long-form] sintetizando narración por beat y construyendo línea de tiempo real...");
+    const timeline = await buildLongFormTimeline(providers.voiceProvider, script.beats, "es");
+    console.log(
+      `[atomivid:long-form] línea de tiempo real: ${timeline.durationSeconds.toFixed(1)}s narrados, ` +
+        `${timeline.beats.reduce((n, b) => n + b.shots.length, 0)} shots en total`,
+    );
+
+    // 4. Guarda de presupuesto PREVENTIVA — antes de resolver ningún asset
+    // generado, confirma que el plan cabe dentro de LONG_FORM_MAX_TOTAL_USD.
+    const budget = getLongFormBudget();
+    const estimate = estimateLongFormCost({ durationSec: timeline.durationSeconds, beats: timeline.beats });
+    assertWithinBudget(estimate, budget);
+    console.log("[atomivid:long-form] estimado de costo preventivo:", JSON.stringify(estimate));
+
+    // 5. Resolver el asset real de cada shot según su shot.type.
+    console.log("[atomivid:long-form] resolviendo assets por shot.type...");
+    const allShots = timeline.beats.flatMap((b) => b.shots);
+    const shotScenes: {
+      id: string;
+      startSeconds: number;
+      endSeconds: number;
+      asset: Awaited<ReturnType<typeof resolveShotAsset>>["asset"];
+      motion: (typeof allShots)[number]["motion"];
+    }[] = [];
+    let imageCostSpentUsd = 0;
+    let totalBufferBytes = 0;
+    const shotTypesUsed: string[] = [];
+    const providersUsedForAssets = new Set<string>();
+
+    for (const shot of allShots) {
+      const remaining = Math.max(0, budget.maxImageUsd - imageCostSpentUsd);
+      const result = await resolveShotAsset(shot, {
+        footageProvider: providers.footageProvider,
+        imageProvider: providers.imageProvider,
+        upload,
+        pathPrefix: "longform-pilot",
+        imageBudgetRemainingUsd: remaining,
+      });
+      imageCostSpentUsd += result.costUsd;
+      totalBufferBytes += result.bufferBytes;
+      shotTypesUsed.push(shot.type);
+      providersUsedForAssets.add(result.providerUsed);
+      shotScenes.push({
+        id: shot.id,
+        startSeconds: shot.startSec,
+        endSeconds: shot.endSec,
+        asset: result.asset,
+        motion: shot.motion,
+      });
+    }
+    console.log(
+      `[atomivid:long-form] assets resueltos: ${shotScenes.length} shots, ` +
+        `${new Set(shotTypesUsed).size} tipos distintos, costo imágenes=$${imageCostSpentUsd.toFixed(4)}`,
+    );
+
+    // 6. Captions — reutiliza buildCaptions() (video/captions.ts) tal
+    // cual, sobre los timestamps REALES de la narración unida.
+    const emphasisSet = buildEmphasisSet([]);
+    const captions = buildCaptions(timeline.words, emphasisSet);
+    const narrationGaps = computeNarrationGaps(timeline.words);
+
+    // 7. Música — mismo MusicProvider que Shorts, biblioteca curada o
+    // fixture según el modo ya resuelto arriba.
+    const finalDurationSeconds = timeline.durationSeconds + VIDEO_TAIL_SECONDS;
+    const music = await providers.musicProvider.getTrack({
+      durationSeconds: finalDurationSeconds,
+      style: "documental",
+      topic: args.topic,
+      scriptText: script.beats.map((b) => b.narration).join(" "),
+      language: "es",
+      seed: "longform-pilot",
+    });
+    const musicUpload = await upload(`longform-pilot/music.${music.extension}`, music.audioBuffer);
+
+    // 8. Subir narración unida y renderizar con la composición LongFormDoc (16:9).
+    const audioUpload = await upload("longform-pilot/voice.wav", timeline.audioBuffer);
+    console.log("[atomivid:long-form] renderizando con la composición LongFormDoc (1920x1080)...");
+    const renderStartedAt = Date.now();
+    const rawOutputPath = await renderLongFormDoc({
+      audioUrl: audioUpload.url,
+      musicUrl: musicUpload.url,
+      scenes: shotScenes,
+      captions,
+      narrationGaps,
+      durationSeconds: finalDurationSeconds,
+    });
+    const renderMs = Date.now() - renderStartedAt;
+
+    // 9. Masterización de loudness — reutiliza audio-master.ts tal cual.
+    let finalPath = rawOutputPath;
+    try {
+      const masteredPath = rawOutputPath.replace(/\.mp4$/, ".mastered.mp4");
+      const mastering = await masterAudioLoudness(rawOutputPath, masteredPath);
+      finalPath = masteredPath;
+      console.log("[atomivid:long-form] masterización de loudness:", JSON.stringify({ target: LOUDNESS_TARGET, ...mastering }));
+    } catch (err) {
+      console.warn("[atomivid:long-form] no se pudo masterizar loudness (¿falta ffmpeg?), se usa el render sin normalizar:", err);
+    }
+
+    await fs.mkdir(path.dirname(args.output), { recursive: true });
+    await fs.copyFile(finalPath, args.output);
+
+    const paidApisCalled = computePaidApisCalled(providers) || imageCostSpentUsd > 0;
+    const report = {
+      mode: args.mode,
+      topic: args.topic,
+      isFixtureContent: args.mode === "simulation",
+      targetDurationSeconds: args.durationSeconds,
+      actualDurationSeconds: finalDurationSeconds,
+      beatCount: timeline.beats.length,
+      shotCount: shotScenes.length,
+      distinctShotTypes: new Set(shotTypesUsed).size,
+      shotTypesUsed: [...new Set(shotTypesUsed)],
+      providersUsed: {
+        voice: providers.voiceProvider.name,
+        footage: providers.footageProvider.name,
+        music: providers.musicProvider.name,
+        image: providers.imageProvider.name,
+      },
+      paidApisCalled,
+      imageCostSpentUsd,
+      renderMs,
+      output: args.output,
+    };
+    await fs.writeFile(args.output.replace(/\.mp4$/, ".report.json"), JSON.stringify(report, null, 2));
+    console.log(JSON.stringify(report, null, 2));
+    if (paidApisCalled && args.mode === "simulation") {
+      throw new Error("INVARIANTE ROTA: paidApisCalled=true en modo simulation — esto nunca debe ocurrir.");
+    }
+  } finally {
+    server.close();
+    await fs.rm(storageDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+main().catch((err) => {
+  console.error("[atomivid:long-form] fallo:", err);
+  process.exit(1);
+});

@@ -240,8 +240,15 @@ export class GenerativeProviderError extends Error {
 export type ImageGenerationRequest = {
   prompt: string;
   negativePrompt?: string;
-  /** Relación de aspecto deseada — el proveedor puede devolver la más cercana y dejar que se recorte después. */
-  aspectRatio: "9:16";
+  /**
+   * Relación de aspecto deseada — el proveedor puede devolver la más
+   * cercana y dejar que se recorte después. "9:16" es el valor histórico
+   * (Shorts/Avatar, todos los llamadores existentes). "16:9" se agregó
+   * para Long Form (ver src/lib/video/long-form/) — un llamador que omite
+   * "16:9" nunca lo recibe, así que este campo no cambia el comportamiento
+   * de ningún proveedor existente para pedidos "9:16".
+   */
+  aspectRatio: "9:16" | "16:9";
   /** Presupuesto máximo para ESTE recurso — el proveedor debe rechazar (BUDGET_EXCEEDED) antes de pedir si lo excedería, no después. */
   maxCostUsd: number;
 };

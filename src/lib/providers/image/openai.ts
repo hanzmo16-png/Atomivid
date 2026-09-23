@@ -69,8 +69,13 @@ import { GenerativeProviderError, type GenerativeAsset, type ImageGenerationRequ
 const OPENAI_IMAGES_ENDPOINT = "https://api.openai.com/v1/images/generations";
 // Confirmado 2026-09-17 (ver comentario de cabecera) — "gpt-image-1" está deprecado (retiro 2026-10-23).
 const DEFAULT_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
-// Confirmado como uno de los 3 tamaños estándar documentados — el portrait más cercano a 9:16.
-const DEFAULT_SIZE = process.env.OPENAI_IMAGE_SIZE || "1024x1536";
+// Confirmado como uno de los 3 tamaños estándar documentados — el portrait más cercano a 9:16 (Shorts/Avatar).
+const PORTRAIT_SIZE = process.env.OPENAI_IMAGE_SIZE || "1024x1536";
+// El landscape más cercano a 16:9 entre los 3 tamaños documentados (ver comentario de
+// cabecera) — usado únicamente por Long Form (aspectRatio: "16:9", ver
+// src/lib/video/long-form/). Nunca se lee para un pedido "9:16" (Shorts/Avatar
+// siguen usando PORTRAIT_SIZE exactamente como antes de esta variable existir).
+const LANDSCAPE_SIZE = process.env.OPENAI_IMAGE_SIZE_LANDSCAPE || "1536x1024";
 const DEFAULT_QUALITY = process.env.OPENAI_IMAGE_QUALITY || "medium";
 // Estimación ESTÁTICA de respaldo (si la respuesta no trae `usage` legible) — fuente secundaria, no oficial.
 const ESTIMATED_COST_USD = Number(process.env.OPENAI_IMAGE_ESTIMATED_COST_USD || "0.05");
@@ -112,7 +117,12 @@ function getApiKey(): string {
   return key;
 }
 
+function sizeFor(aspectRatio: ImageGenerationRequest["aspectRatio"]): string {
+  return aspectRatio === "16:9" ? LANDSCAPE_SIZE : PORTRAIT_SIZE;
+}
+
 async function requestOnce(request: ImageGenerationRequest): Promise<GenerativeAsset> {
+  const size = sizeFor(request.aspectRatio);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -129,7 +139,7 @@ async function requestOnce(request: ImageGenerationRequest): Promise<GenerativeA
         prompt: request.negativePrompt
           ? `${request.prompt}\n\nAvoid: ${request.negativePrompt}`
           : request.prompt,
-        size: DEFAULT_SIZE,
+        size,
         quality: DEFAULT_QUALITY,
         n: 1,
       }),
@@ -192,7 +202,7 @@ async function requestOnce(request: ImageGenerationRequest): Promise<GenerativeA
     throw new GenerativeProviderError("Imagen generada con tamaño 0 bytes", "openai", "invalid_response");
   }
 
-  const [width, height] = DEFAULT_SIZE.split("x").map(Number);
+  const [width, height] = size.split("x").map(Number);
   const usageCostUsd = computeUsageCostUsd(json.usage);
   if (usageCostUsd !== null) {
     // Evidencia de costo real por token — nunca se registra el prompt ni la clave, solo cifras.
@@ -219,7 +229,7 @@ export const openaiImageProvider: ImageProvider = {
     id: "openai",
     models: [DEFAULT_MODEL],
     formats: ["image/png"],
-    aspectRatios: ["portrait 2:3 (recortado a 9:16 en Remotion)"],
+    aspectRatios: ["portrait 2:3 (recortado a 9:16 en Remotion)", "landscape 3:2 (usado tal cual en 16:9 por Long Form)"],
     timeoutMs: TIMEOUT_MS,
     maxRetries: MAX_RETRIES,
   },
