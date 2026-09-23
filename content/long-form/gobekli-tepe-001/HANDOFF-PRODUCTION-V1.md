@@ -1,0 +1,323 @@
+# ATOMIVID Long Form — HANDOFF DE CONTINUIDAD (VIDEO #001, Göbekli Tepe)
+
+**Fecha de este handoff:** 2026-09-23
+**Propósito:** que cualquier otro agente pueda retomar el proyecto inmediatamente, sin releer todo el historial de conversación, sin repetir investigación ya hecha, y sin arriesgar gasto duplicado o regresión del pipeline 9:16.
+**Este documento es solo consolidación. No contiene investigación nueva, código nuevo, ni resultados de generación.**
+
+---
+
+## 1. Rama actual
+
+```
+claude/atomivid-mvp-setup-0079jv
+```
+
+Todo el trabajo de Long Form (incluido este handoff) vive en esta rama. No hay PR abierto, no hay merge, no hay deployment.
+
+## 2. Último commit válido
+
+```
+bbde376  Verificación dirigida Gresky/Clare + resolución de licencias de 5 shots
+```
+
+Este es el HEAD de la rama en el momento de este handoff. El guion v.003, el storyboard v.003 (ya con las 5 licencias resueltas) y la Visual Bible v1 están **aprobados por el usuario** como base para producción.
+
+## 3. Commits relevantes anteriores y qué aporta cada uno
+
+| Commit | Aporte |
+|---|---|
+| `ebe56eb` | Paquete de preproducción V.002: `gobekli-script-002-final.{json,md}` (guion aprobado con ajustes, 1,404 palabras), `gobekli-storyboard-001.json` (44 shots, 0 IA), `gobekli-production-plan-001.md`. Primer research pack (#001, 3 fuentes). |
+| `275d290` | Reclasificación híbrida-premium: `gobekli-storyboard-002-hybrid.json` (mismo storyboard-001 pero con `hybridClassification`/`hybridReason` por shot), `gobekli-visual-test-001.md` (3 prompts de prueba diseñados, identidad visual compartida, NO generados — falta `OPENAI_API_KEY`). `-001` se conserva intacto. |
+| `7e026db` | Actualización 2026: `research-pack-002.json` (extiende, no reemplaza, research-pack-001), `gobekli-script-003-current.{json,md}` (guion v3, 13 beats, 1,847 palabras, tesis moderada), `gobekli-storyboard-003.json` (45 shots, estrategia híbrida), `gobekli-production-plan-003.md`, `atomivid-long-form-visual-bible-v1.md` (guía visual reutilizable para futuros videos). |
+| `bbde376` | Checkpoint de verificación dirigida post-aprobación: confirma Gresky/Clare **NOT VERIFIED** (segundo intento), resuelve los 5 shots `NEEDS_REVIEW` de licencias (0 quedan sin fallback), documenta un tercer intento de verificación de coordenadas (señal fuerte pero no confirmada de primera mano). Actualiza `research-pack-002.json`, `gobekli-storyboard-003.json`, `gobekli-production-plan-003.md`. |
+
+**Ningún commit de este historial modifica código de producción.** Todos son contenido (`content/long-form/`) salvo `ebe56eb`'s antecesores (`9130d24`, `3ff03d9`, `40893a4` — infraestructura del pipeline Long Form, ya validada y estable, no tocada desde entonces).
+
+## 4. Archivos Long Form relevantes y propósito
+
+### Contenido (`content/long-form/`)
+
+| Archivo | Propósito | Estado |
+|---|---|---|
+| `atomivid-long-form-visual-bible-v1.md` | Guía de identidad visual y reglas de clasificación de assets, reutilizable para cualquier video Long Form futuro (no solo Göbekli Tepe). | Vigente |
+| `gobekli-tepe-001/gobekli-script-002-final.{json,md}` | Guion v.002, aprobado con ajustes. Histórico — superado por v.003 pero **conservado, nunca borrado**. | Histórico, no usar para producción |
+| `gobekli-tepe-001/gobekli-storyboard-001.json` | Storyboard original, 44 shots, 0 IA. Histórico. | Histórico, no usar |
+| `gobekli-tepe-001/gobekli-storyboard-002-hybrid.json` | Storyboard-001 reclasificado a estrategia híbrida. Histórico. | Histórico, no usar |
+| `gobekli-tepe-001/gobekli-production-plan-001.md` | Plan de producción de la v.001/v.002. Histórico. | Histórico |
+| `gobekli-tepe-001/gobekli-visual-test-001.md` | 3 prompts de prueba visual de la v.002 (identidad visual compartida, nunca generados). Histórico — **superado por los 3 prompts de la sección 14 de este handoff**, que son los que se deben usar ahora. | Histórico, prompts ya no vigentes |
+| `gobekli-tepe-001/research-pack-002.json` | **Fuente de investigación vigente.** Extiende research-pack-001 (embebido en script-002) con hallazgos 2026, incluye los 2 intentos de verificación dirigida (Gresky/Clare y coordenadas). | **VIGENTE** |
+| `gobekli-tepe-001/gobekli-script-003-current.{json,md}` | **Guion vigente y aprobado.** 13 beats, 1,847 palabras. El `.json` es el que consume `script-loader.ts`. | **VIGENTE — PRODUCTION READY (editorial)** |
+| `gobekli-tepe-001/gobekli-storyboard-003.json` | **Storyboard vigente y aprobado**, con las 5 licencias ya resueltas (commit `bbde376`). | **VIGENTE — PRODUCTION READY (editorial)** |
+| `gobekli-tepe-001/gobekli-production-plan-003.md` | Plan de producción vigente: resumen de investigación, decisión de tesis, modelo de costos, checklist de validación, y (sección 9) el resultado del checkpoint de verificación dirigida. | **VIGENTE** |
+| `gobekli-tepe-001/HANDOFF-PRODUCTION-V1.md` | Este documento. | **VIGENTE** |
+
+### Código (sin cambios desde Fase A — no tocar sin razón nueva)
+
+| Archivo | Propósito |
+|---|---|
+| `src/lib/video/long-form/types.ts` | Tipos base: `NarrativeBeat`, `Shot`, `LongFormClaim`, `LongFormSource`, etc. |
+| `src/lib/video/long-form/script-loader.ts` | Carga y valida (Zod) un guion real ya finalizado (como `gobekli-script-003-current.json`) al formato que `buildLongFormTimeline()` espera. **Ya probado contra el guion v.003 real.** |
+| `src/lib/video/long-form/timeline.ts` | TTS por beat + stitching + timeline real (`MAX_TTS_CHARS_PER_CALL=9000`). |
+| `src/lib/video/long-form/diagram-map.ts` | Generador determinístico de mapas/diagramas/tarjetas de texto — sin IA. |
+| `src/lib/video/long-form/asset-resolver.ts` | Resuelve cada `shot.type` al proveedor correcto (Pexels/OpenAI/determinístico). |
+| `src/lib/video/long-form/mode.ts` | **Gate de seguridad.** `resolveLongFormProviders(mode)`: `simulation` (default) ignora credenciales reales incluso si existen; `real` exige `--mode=real` **Y** `LONG_FORM_REAL_RUN_CONFIRM=YES_SPEND_REAL_MONEY` exacto. |
+| `src/lib/video/long-form/documentary-script.ts` | Generador real de guion vía Claude — **no se usa en este video** (el guion ya está escrito y aprobado a mano); solo se invocaría para un VIDEO #002 futuro. |
+| `src/lib/video/long-form/shots.ts` | `shotsForSpan()` — el generador real de sub-shots (3-8s) que el render usa; el storyboard de planeación (45 shots) se subdivide automáticamente. |
+| `src/lib/video/long-form/render.ts` | Wrapper de render hacia `remotion/LongFormDoc.tsx`. |
+| `remotion/LongFormDoc.tsx` | Composición Remotion 16:9, independiente de `VerticalReel.tsx` (9:16). |
+| `remotion/Root.tsx` | Registra ambas composiciones (`VerticalReel` y `LongFormDoc`) — la de 9:16 no se tocó. |
+| `scripts/produce-long-form-video.ts` | **Orquestador.** Ver comandos exactos en la sección 16. |
+
+Todos estos archivos de código están cubiertos por tests (`*.test.ts` junto a cada módulo) y no cambiaron en los últimos 3 commits — solo se agregó/editó contenido.
+
+## 5. Estado actual de cada pieza
+
+| Pieza | Estado |
+|---|---|
+| Research pack | `research-pack-002.json` — 8 fuentes (3 heredadas + 5 nuevas), 5 hallazgos 2026 clasificados por certeza, 2 intentos de verificación dirigida documentados (Gresky/Clare, coordenadas). |
+| Guion v.003 | `gobekli-script-003-current.json` — 13 beats, 1,847 palabras, 11,629 caracteres, ~659.6s (~11.0 min) estimados. Tesis moderada. Valida contra `script-loader.ts` real (confirmado con `loadScriptFromFile()`). |
+| Storyboard v.003 | `gobekli-storyboard-003.json` — 45 shots. Distribución final (post-resolución de licencias): TEXT 17 · AI_RECREATION 11 · DETERMINISTIC 13 · STOCK_REAL 4 · REAL_DOCUMENTARY 0. |
+| Production plan | `gobekli-production-plan-003.md` — incluye sección 9 con el resultado del checkpoint de verificación dirigida. |
+| Visual Bible | `atomivid-long-form-visual-bible-v1.md` — taxonomía de 5 categorías, reglas duras (restos humanos nunca IA, geografía/cronología siempre determinístico, etc.), identidad visual compartida, formato del ledger de licencias. |
+| `script-loader.ts` | Sin cambios de código; probado en vivo contra el guion v.003 real en este checkpoint. |
+| Orquestador Long Form | Sin cambios de código desde Fase A. Listo para usarse con `--script=.../gobekli-script-003-current.json` en modo `simulation`. |
+
+## 6. Confirmaciones de calidad (al momento de `bbde376`)
+
+- ✅ **550/550 tests unitarios** (`npm run test:unit`).
+- ✅ **Typecheck** limpio (`npm run typecheck` → `tsc --noEmit`, sin errores).
+- ✅ **Lint** limpio (`npm run lint` → eslint, sin errores).
+- ✅ **Pipeline 9:16 (Shorts) intacto** — cero archivos de `VerticalReel.tsx`, `generate-video.ts`, o cualquier ruta del pipeline vertical fueron tocados en ninguno de los 4 commits de esta tabla. Toda esta rama de trabajo (`ebe56eb` → `bbde376`) es exclusivamente contenido de Long Form.
+
+## 7. Especificación del VIDEO #001 (estado vigente)
+
+- **Tesis (moderada, evidence-driven):** *"Göbekli Tepe es un sitio que sigue obligando a corregir, temporada tras temporada, la imagen que teníamos de él"* — explícitamente NO la versión dramática ("todo lo que sabíamos está cambiando"), porque su evidencia clave (paper Gresky/Clare) no se pudo verificar.
+- **Duración estimada:** 659.6 s (~11.0 min). Orientativa, dentro del rango 10-20 min pedido; no es un objetivo fijo.
+- **Palabras:** 1,847. **Caracteres:** 11,629.
+- **Beats:** 13 (hook, setup, discovery, escalation×4, twist, escalation-2026, escalation-regional, insight-transparencia, insight-síntesis, next_curiosity, payoff).
+- **Shots (storyboard de planeación):** 45 (el render real los subdivide automáticamente en sub-shots de 3-8s vía `shotsForSpan()`).
+- **Distribución final por asset class:**
+
+| Categoría | # | Notas |
+|---|---|---|
+| TEXT | 17 | Tarjetas determinísticas (citas, hedges, datos duros) |
+| AI_RECREATION | 11 | Atmósfera + escenas humanas no documentales + síntesis conceptual — ver sección 14 para las 3 a generar primero |
+| DETERMINISTIC | 13 | Mapas, diagramas, línea de tiempo — incluye los 4 shots resueltos vía fallback en `bbde376` (b3-s1, b3-s3, b7-s1, b10-s2) |
+| STOCK_REAL | 4 | Pexels, licencia `CLEARED` — incluye b9-s2 (resuelto en `bbde376`) |
+| REAL_DOCUMENTARY | 0 | Se resolvieron todos los `NEEDS_REVIEW` hacia fallbacks seguros (ver sección 10) — no hay ningún shot pendiente de una foto real específica sin licencia confirmada |
+
+## 8. Qué está RESUELTO — no volver a investigar
+
+- Interpretación institucional del DAI (asentamiento con fuerte componente ritual) — `ESTABLISHED`.
+- Hallazgo de estructuras rectangulares 2026 (Karul, ~1,500 m², norte del núcleo, evaluadas como *posiblemente* residenciales, análisis de suelo pendiente) — `RECENT_FINDING`, hedge preservado.
+- Göbekli Tepe como parte de la red Taş Tepeler / Karahan Tepe como "sitio hermano" — `ESTABLISHED`.
+- Los 5 shots `NEEDS_REVIEW` de licencias — **resueltos** (ver sección 10). No hay que volver a buscar licencias de Wikimedia Commons para estos 5 shots salvo que alguien confirme manualmente las 2 candidatas documentadas (ver `licensingCandidate` en b3-s1/b3-s3 del storyboard).
+- Coordenadas — 2 intentos de verificación agotados (ver sección 11). No seguir buscando salvo que cambie el bloqueo de red.
+- Paper de Gresky/Clare septiembre 2026 — 2 intentos dirigidos agotados (ver sección 9). No seguir buscando.
+
+## 9. Qué está explícitamente NO VERIFICADO — nunca convertir en hecho
+
+- **Paper de Gresky/Clare (DAI, ~21 sept 2026) sobre restos humanos/prácticas funerarias en Göbekli Tepe: NOT VERIFIED.** Dos intentos de búsqueda dirigida (inglés + alemán), sin resultado. Una afirmación de "dos tumbas con cuatro esqueletos" que apareció en un resumen agregado de búsqueda fue investigada y **descartada explícitamente** — no tiene respaldo en ninguna fuente real, contradice el consenso documentado ("no complete burials known at Göbekli Tepe"). El único estudio real y vigente sobre restos humanos sigue siendo Gresky, Haelm & Clare (2017), *Science Advances*, DOI 10.1126/sciadv.1700564 (culto al cráneo, sin enterramientos formales). **El guion v.003 ya trata esto correctamente (beat-10, transparencia metodológica) — no cambiar.**
+- **Coordenadas de alta precisión** (37°13'23.6712"N, 38°55'20.5104"E, atribuidas al documento de nominación UNESCO `whc.unesco.org/document/168743`): señal secundaria fuerte (coincide con el valor que el usuario propuso originalmente) pero **nunca leída de primera mano** — `whc.unesco.org` bloqueado por el proxy de red en los 3 intentos hechos. El storyboard usa 37.22°N/38.92°E (~1km) y así debe quedarse hasta que alguien sin este bloqueo de red confirme el documento directamente.
+- Cualquier otra cifra, cita o hallazgo 2026 que no aparezca explícitamente citado con `sourceId` en `research-pack-002.json` no debe tratarse como verificado.
+
+## 10. Estado de licencias/fallbacks (storyboard v.003)
+
+| Shot | Resolución activa | Categoría | Licencia |
+|---|---|---|---|
+| b1-s2, b5-s1, b8-s2 (STOCK_REAL originales) | Sin cambios desde v.003 | STOCK_REAL | Pexels License — `CLEARED` |
+| b3-s1 (pilar T) | Diagrama esquemático (fallback activo) | DETERMINISTIC | No aplica (sin archivo externo) |
+| b3-s3 (relieve animal) | Silueta esquemática (fallback activo) | DETERMINISTIC | No aplica |
+| b7-s1 (estructura doméstica) | Diagrama de planta comparativo (fallback activo) | DETERMINISTIC | No aplica |
+| b9-s2 (Karahan Tepe) | Stock genérico (no pretende ser la foto literal del sitio) | STOCK_REAL | Pexels License — `CLEARED` |
+| b10-s2 (restos humanos) | Diagrama esquemático abstracto (fallback activo, NUNCA foto ni IA) | DETERMINISTIC | No aplica |
+
+**0 assets `NOT_CLEARED`. 0 `NEEDS_REVIEW` bloqueantes.** Quedan documentadas 2 candidatas de Wikimedia Commons (`licensingCandidate` en b3-s1 y b3-s3) como posible actualización futura — **no son necesarias para producir el video**, son solo una nota para quien quiera mejorar esos 2 shots más adelante confirmando la licencia manualmente (`commons.wikimedia.org` está bloqueado en este entorno).
+
+## 11. Estado de coordenadas y limitación de precisión
+
+- **Valor activo en el storyboard (`b2-s1`):** `latitude: 37.22, longitude: 38.92` (~1 km de precisión).
+- **Por qué no hay más precisión:** `whc.unesco.org` (UNESCO), `commons.wikimedia.org`, `www.wikidata.org` y `en.wikipedia.org` están bloqueados (`EGRESS_BLOCKED`) por el proxy de red de este entorno sandbox — no es una limitación de la investigación, es una limitación de red de este entorno concreto.
+- **Candidato de alta precisión documentado, NO adoptado:** 37°13'23.6712"N, 38°55'20.5104"E — ver sección 9.
+- **Si otro agente tiene acceso de red sin este bloqueo:** puede intentar leer `https://whc.unesco.org/document/168743` directamente y, si confirma el valor, actualizar `b2-s1.verifiedCoordinates` en el storyboard (con nota de la fuente exacta) — eso SÍ sería una actualización legítima, no una re-investigación redundante.
+
+## 12. Cost model actual (proyección, cero gasto real hasta ahora)
+
+| Partida | Cálculo | Costo |
+|---|---|---|
+| TTS (ElevenLabs) | 11,629 caracteres × $0.10/1k | **$1.163** |
+| Imágenes IA (11 shots `AI_RECREATION`, calidad `medium`) | 11 × $0.05 | **$0.55** |
+| Imágenes IA (calidad `high`, estimado) | 11 × ~$0.09–0.11 | ~$0.99–1.21 |
+| Stock real (Pexels), determinístico, música, render | — | $0 |
+| **Total proyectado — calidad medium** | | **≈ $1.71** |
+| **Total proyectado — calidad high** | | **≈ $2.15–2.37** |
+
+Techo ya configurado en código: `LONG_FORM_MAX_TOTAL_USD = $12`. Ambos escenarios quedan muy por debajo. **Nada de esto se ha gastado — es proyección.**
+
+## 13. Bloqueos técnicos actuales (sin valores de credenciales)
+
+- `OPENAI_API_KEY` — **no configurada** en este sandbox. Bloquea la generación real de imágenes (necesaria para Visual Test V2 y para todos los shots `AI_RECREATION`).
+- `ELEVENLABS_API_KEY` — no configurada. Bloquea TTS real.
+- `PEXELS_API_KEY` — no configurada. Bloquea footage/imágenes de stock reales.
+- `ANTHROPIC_API_KEY` — no configurada. No es necesaria para este video (el guion ya está escrito a mano), pero bloquearía `documentary-script.ts` si se quisiera generar un guion real para un video futuro.
+- Credencial de Supabase service-role — no configurada (solo `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` presentes en `.env.local`). Necesaria para subir el output final a Storage en un run real (el orquestador ya trae un mock local de Storage vía HTTP para modo simulation).
+- **Gate de seguridad de código** (`mode.ts`): incluso con todas las credenciales presentes, el modo `real` exige explícitamente `--mode=real` **y** la variable `LONG_FORM_REAL_RUN_CONFIRM=YES_SPEND_REAL_MONEY` (string exacto). Sin ambos, es estructuralmente imposible llamar una API paga desde el orquestador.
+- **No pedir ninguna de estas claves en el chat** — instrucción explícita y reiterada del usuario a lo largo de todo este proyecto.
+
+## 14. VISUAL TEST V2 — qué generar primero
+
+Se seleccionaron **3 shots `AI_RECREATION`** de `gobekli-storyboard-003.json`, elegidos para cubrir los 3 retos técnicos/editoriales distintos del video (no 3 variaciones del mismo tipo de toma):
+
+1. **b1-s4** — establishing shot atmosférico (abre el hook, se ecoa en b13-s3 — valida el look base de todo el documental).
+2. **b4-s2** — escena humana en silueta (valida la regla más delicada de la Visual Bible: cooperación humana sin rostro/técnica/herramienta específica identificable).
+3. **b8-s5** — recreación condicional del hallazgo 2026 (el shot de mayor sensibilidad factual entre los `AI_RECREATION`: valida que una hipótesis con hedge se pueda ilustrar sin sugerir visualmente más certeza de la que hay).
+
+### Parámetros técnicos comunes (los 3)
+
+- `model: "gpt-image-2"`
+- `size: "1536x1024"` (landscape 16:9)
+- `quality: "medium"`
+- Proveedor real: `src/lib/providers/image/openai.ts` (ya integrado, soporte landscape ya construido en Fase A)
+
+### Identidad visual compartida (obligatoria en los 3 prompts)
+
+Realismo fotográfico documental (nunca "pintura" ni look genérico de IA) · iluminación natural únicamente (amanecer/atardecer/luz difusa) · tonos tierra cálidos con sombras frías desaturadas · grano de película sutil · composición anamórfica · cero elementos modernos · sin texto ni marca de agua. (Ver `atomivid-long-form-visual-bible-v1.md` sección 3 para el detalle completo.)
+
+### Prompt 1 — b1-s4 (establishing shot)
+
+```
+Wide cinematic establishing shot of the Anatolian highlands (Germuş
+mountains) at dawn, ~11,000 years ago (Pre-Pottery Neolithic). Rolling
+semi-arid hills under a vast pale gold sky, dry grasses and scattered
+stone outcrops, absolutely no modern structures, roads, or present-day
+vegetation patterns. Photographic documentary realism, natural light
+only, warm earth-tone color grading with desaturated cool shadows,
+subtle film grain, anamorphic widescreen composition, atmospheric haze
+suggesting deep time and vast scale. No people, no text, no watermark.
+```
+Negativo: *no modern buildings, no roads, no power lines, no contemporary clothing, no text overlays, no fantasy elements, no aliens, no futuristic technology*
+
+### Prompt 2 — b4-s2 (escena humana, silueta)
+
+```
+Cinematic wide shot at dusk: distant silhouettes of a small group of
+people working together on a hillside near massive half-buried stone
+shapes, scale emphasized by distance and low warm light. Figures are
+anonymous silhouettes — no visible clothing detail, tools, or specific
+activity that could be mistaken for a documented technique. Mood of
+quiet, effortful cooperation, not action. Photographic documentary
+realism, warm dusk color grading, subtle atmospheric haze, film grain,
+anamorphic widescreen. No text, no watermark.
+```
+Negativo: *no visible tools, no specific construction technique, no visible clothing details, no ropes or pulleys shown explicitly, no close-up faces, no modern elements*
+
+### Prompt 3 — b8-s5 (recreación condicional 2026)
+
+```
+Cinematic wide shot: a domestic scene in silhouette/middle distance —
+anonymous figures near small rectangular structures — with massive
+monumental stone enclosures visible in the background under warm light.
+Composition should read as speculative and atmospheric, not as
+documentary proof: soft focus on the rectangular structures, no specific
+architectural detail claimed. Photographic documentary realism, warm
+color grading, subtle film grain, anamorphic widescreen, contemplative
+mood. No text, no watermark.
+```
+Negativo: *no close-up architectural detail on the rectangular structures (evita implicar una planta confirmada), no visible faces, no modern elements, no text overlays implying certainty*
+
+**Regla obligatoria para b8-s5 en el render final:** este shot nunca va solo — siempre acompañado en pantalla por la tarjeta de texto del hedge (`b8-s4`, "evaluadas como posiblemente residenciales — no confirmadas"). Es una regla de montaje, no de generación de imagen.
+
+### Costo estimado
+
+3 imágenes × $0.05 (medium) = **$0.15**. Muy por debajo de cualquier tope ya autorizado en fases previas.
+
+### Criterios para aprobar/rechazar cada imagen
+
+**Aprobar si:**
+- Cumple la identidad visual compartida (realismo documental, luz natural, grading cálido/frío, grano sutil, anamórfico).
+- Cero elementos modernos o anacrónicos (caminos, cableado, ropa contemporánea, metal moderno, escritura).
+- Sin texto ni marca de agua incrustados.
+- (b4-s2, b8-s5) Figuras humanas en silueta/distancia, sin rostro identificable, sin técnica/herramienta específica no verificada.
+- (b8-s5) Se lee como escena atmosférica/especulativa, NO como fotografía de un hallazgo confirmado — sin detalle arquitectónico específico que sugiera una planta ya validada.
+- Las 3 imágenes se sienten parte de la misma serie (coherencia de estilo entre ellas).
+
+**Rechazar (y regenerar o revisar el prompt) si:**
+- Aparece cualquier elemento moderno/anacrónico.
+- Aparece texto o marca de agua.
+- Un rostro humano queda identificable en b4-s2 o b8-s5.
+- b8-s5 se lee como si documentara un hecho confirmado (p. ej. planta arquitectónica detallada y nítida).
+- El estilo de alguna de las 3 se aparta claramente de las otras dos (rompe la identidad de serie).
+
+## 15. Instrucciones exactas para continuar después de aprobar las 3 imágenes
+
+```
+Visual Test V2 aprobado por el usuario
+  → TTS (ElevenLabs, real, requiere ELEVENLABS_API_KEY + --mode=real +
+     LONG_FORM_REAL_RUN_CONFIRM=YES_SPEND_REAL_MONEY)
+  → Resolución de assets restantes (asset-resolver.ts: Pexels para los
+     4 STOCK_REAL, determinístico/código para los 13 DETERMINISTIC, y los
+     8 AI_RECREATION restantes — de los 11 totales, solo 3 se validan en
+     el Visual Test V2; los otros 8 se generan recién después de la
+     aprobación, con el mismo estilo ya validado)
+  → Render (LongFormDoc, 1920x1080, vía scripts/produce-long-form-video.ts
+     --mode=real --script=.../gobekli-script-003-current.json)
+  → QC con ffprobe (duración real, resolución, audio) + inspección visual
+     de frames, mismo patrón ya usado en Fase A para el fixture render
+  → Entrega del MP4 final al usuario
+  → NO publicar todavía — ninguna publicación, deploy, ni distribución
+     pública sin autorización explícita adicional del usuario
+```
+
+No saltarse ningún paso de esta secuencia. No generar el resto de imágenes IA antes de que el usuario apruebe explícitamente las 3 del Visual Test V2.
+
+## 16. Comandos exactos del proyecto
+
+```bash
+# Instalar dependencias
+npm install
+
+# Tests unitarios (550 tests esperados, todos deben pasar)
+npm run test:unit
+
+# Typecheck
+npm run typecheck
+
+# Lint
+npm run lint
+
+# Pipeline de prueba end-to-end (fixtures, Shorts 9:16 — no confundir con Long Form)
+npm run test:pipeline
+
+# Long Form — modo simulation (fixture, cero costo) con el guion real v.003
+npx tsx scripts/produce-long-form-video.ts \
+  --script=content/long-form/gobekli-tepe-001/gobekli-script-003-current.json \
+  --output=/ruta/salida.mp4
+
+# Long Form — modo real (SOLO tras autorización explícita del usuario y con
+# las credenciales configuradas; nunca ejecutar esto sin esa autorización)
+LONG_FORM_REAL_RUN_CONFIRM=YES_SPEND_REAL_MONEY npx tsx scripts/produce-long-form-video.ts \
+  --mode=real \
+  --script=content/long-form/gobekli-tepe-001/gobekli-script-003-current.json \
+  --output=/ruta/salida.mp4
+```
+
+## 17. Qué NO debe tocar el siguiente agente
+
+- **El pipeline 9:16 (Shorts):** `remotion/VerticalReel.tsx`, `src/lib/video/generate-video.ts`, y cualquier ruta bajo `src/app/api/generate/` — cero relación con Long Form, cero necesidad de tocarlos para este video.
+- **`src/lib/video/long-form/mode.ts`** — el gate de seguridad. No relajarlo, no añadir atajos, no hacer que `simulation` pueda leer credenciales reales.
+- **Los archivos históricos versionados** (`gobekli-script-002-final.*`, `gobekli-storyboard-001.json`, `gobekli-storyboard-002-hybrid.json`, `gobekli-production-plan-001.md`, `gobekli-visual-test-001.md`) — nunca sobreescribirlos ni borrarlos. Si algo cambia, se crea una nueva versión (`-004`, etc.), nunca se edita una versión ya aprobada in-place.
+- **No pedir ninguna API key en el chat.** Si falta una credencial, reportarlo como bloqueo, igual que se ha hecho hasta ahora.
+- **No generar imágenes, no hacer TTS, no renderizar, no llamar ninguna API paga** sin autorización explícita y sin el gate de `--mode=real` + `LONG_FORM_REAL_RUN_CONFIRM`.
+- **No crear PR, no hacer merge, no hacer deployment** sin que el usuario lo pida explícitamente.
+- **No reabrir la tesis, duración, número de beats, ni la estrategia híbrida** del guion/storyboard v.003 salvo que aparezca un error factual material nuevo (no uno ya investigado y cerrado en las secciones 8-9).
+
+## 18. Detalles que, si se pierden, causarían gasto duplicado, regresión, uso accidental de fixtures, o pérdida de trazabilidad
+
+- **El modo por defecto del orquestador es `simulation`.** Si se omite `--mode=real`, todo corre con fixtures y cero costo — esto es intencional y seguro, pero si alguien *cree* que corrió en real y en realidad corrió en simulation, podría pensar erróneamente que ya se gastó dinero cuando no fue así (o viceversa: nunca asumir que un run fue "real" sin ver `--mode=real` explícito en el comando Y el reporte JSON de salida, que incluye `paidApisCalled` calculado programáticamente — revisar siempre ese campo, no asumir).
+- **El guion correcto a usar es `gobekli-script-003-current.json`**, no `gobekli-script-002-final.json`. Usar el archivo equivocado produciría un video con la tesis/duración/beats antiguos (v.002), no el aprobado.
+- **El storyboard correcto es `gobekli-storyboard-003.json`** (con las licencias ya resueltas en `bbde376`), no `-001` ni `-002-hybrid`. Los shots de esas versiones antiguas no reflejan la resolución de licencias ni el contenido 2026.
+- **b8-s5 nunca se muestra sin su hedge textual (`b8-s4`) en el mismo tramo** — perder esta regla de montaje convertiría una hipótesis condicional en una afirmación visual no respaldada, exactamente lo que este proyecto ha evitado deliberadamente en cada checkpoint.
+- **La distinción REAL_DOCUMENTARY=0 en el storyboard v.003 es intencional, no un error** — los 5 shots que originalmente iban a ser fotos reales específicas se resolvieron hacia fallbacks seguros (DETERMINISTIC/STOCK_REAL) precisamente porque no se pudo confirmar licencia. No "arreglar" esto sustituyendo por fotos sin verificar la licencia primero.
+- **Cada claim del guion lleva `sourceIds` trazables a `research-pack-002.json`.** Si se edita el guion, mantener esa trazabilidad — es el mecanismo que ha permitido, en cada checkpoint, distinguir lo verificado de lo no verificado sin perder el hilo.
+- **El techo de costo ya configurado es `LONG_FORM_MAX_TOTAL_USD=12`** — la proyección actual (~$1.71-2.37) deja margen amplio; no es necesario ni se ha pedido subir ese techo.
+- **El proxy de red de este entorno bloquea ~15+ dominios** (whc.unesco.org, en.wikipedia.org, wikidata.org, commons.wikimedia.org, dainst.org, dainst.blog, mdpi.com, hurriyetdailynews.com, arkeonews.net, ancient-origins.net, dailysabah.com, researchgate.net, aa.com.tr, arkeofili.com, theothertour.com, popular-archaeology.com, thearchaeologist.org, idw-online.de, archaeologie-online.de) — esto es una limitación de ESTE entorno sandbox, no del proyecto. Un agente en otro entorno podría tener acceso directo y debería aprovecharlo para las 2 verificaciones pendientes (sección 9), pero no debe asumir que el bloqueo sigue vigente sin comprobarlo primero.
