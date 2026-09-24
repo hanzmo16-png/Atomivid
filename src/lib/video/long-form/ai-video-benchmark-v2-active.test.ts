@@ -20,12 +20,30 @@ test("todos los shots pertenecen al mismo benchmarkId activo", () => {
   }
 });
 
-test("cada shot tiene una referenceImageSpec con status 'not_generated' y al menos 4 requiredControls", () => {
+test("cada shot tiene una referenceImageSpec con al menos 4 requiredControls y 16:9 — el status varía según si ya fue aprobada (P2B preparation)", () => {
   for (const shot of ACTIVE_BENCHMARK_SHOTS) {
-    assert.equal(shot.referenceImageSpec.status, "not_generated");
+    assert.ok(["not_generated", "pending_review", "approved"].includes(shot.referenceImageSpec.status));
     assert.ok(shot.referenceImageSpec.requiredControls.length >= 4);
     assert.equal(shot.referenceImageSpec.aspectRatio, "16:9");
   }
+});
+
+test("Pillar Transport tiene su imagen de referencia APROBADA (P2B preparation) con metadata completa de aprobación", () => {
+  const shot = ACTIVE_BENCHMARK_SHOTS.find((s) => s.shotId === "bench-v2-a-pillar-transport")!;
+  assert.equal(shot.referenceImageSpec.status, "approved");
+  assert.ok(shot.referenceImageSpec.approval);
+  assert.equal(shot.referenceImageSpec.approval?.approvedBy, "Hans");
+  assert.equal(shot.referenceImageSpec.approval?.widthPx, 1672);
+  assert.equal(shot.referenceImageSpec.approval?.heightPx, 941);
+  assert.ok(shot.referenceImageSpec.approval?.checksumSha256.length === 64);
+  // historicalClassification NUNCA cambia a real_documented por tener una imagen aprobada — sigue siendo una reconstrucción.
+  assert.equal(shot.historicalClassification, "reconstruction");
+});
+
+test("Monument/Architecture at Dawn sigue SIN imagen de referencia (not_generated) — la aprobación de Pillar Transport no afecta otros shots", () => {
+  const shot = ACTIVE_BENCHMARK_SHOTS.find((s) => s.shotId === "bench-v2-b-monument-architecture-dawn")!;
+  assert.equal(shot.referenceImageSpec.status, "not_generated");
+  assert.equal(shot.referenceImageSpec.approval, undefined);
 });
 
 test("cada shot declara una historicalClassification válida, ninguna real_documented", () => {

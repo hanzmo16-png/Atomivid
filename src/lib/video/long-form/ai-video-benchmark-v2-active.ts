@@ -39,8 +39,24 @@ export type ReferenceImageSpec = {
   /** Controles que un humano debe verificar en la imagen ANTES de usarla como referencia image-to-video — ninguno se auto-verifica todavía. */
   requiredControls: string[];
   aspectRatio: "16:9";
-  /** "not_generated" en todos los shots de P2A.5 — generar esta imagen implica costo (proveedor de imagen IA) y no está autorizado en esta fase. */
   status: ReferenceImageStatus;
+  /**
+   * Metadata de aprobación (P2B preparation) — presente SOLO cuando
+   * status="approved". `sourceImagePath` es la ruta versionada en este
+   * repo (la fuente de verdad hasta que exista una subida real a Supabase
+   * Storage); `canonicalStoragePath` es la ruta que ai-video-reference-image.ts
+   * usaría/usó en Storage (ver ese módulo — puede ser "pending" si la
+   * subida real todavía no se ejecutó por falta de credenciales).
+   */
+  approval?: {
+    approvedBy: string;
+    approvedAtIso: string;
+    checksumSha256: string;
+    widthPx: number;
+    heightPx: number;
+    sourceImagePath: string;
+    canonicalStoragePath: string | "pending_real_upload";
+  };
 };
 
 export type ActiveBenchmarkShotSpec = {
@@ -100,7 +116,23 @@ export const ACTIVE_BENCHMARK_SHOTS: ActiveBenchmarkShotSpec[] = [
         "plausibilidad histórica: consistent with a Neolithic (pre-metal, pre-wheel) technological context",
       ],
       aspectRatio: "16:9",
-      status: "not_generated",
+      // Aprobada visualmente por Hans (P2B preparation, mensaje "P2B PREPARATION —
+      // REFERENCE IMAGE INGEST + FINAL PRE-FLIGHT") — imagen real recibida,
+      // validada (formato PNG real, 1672x941, desviación de 16:9 = 0.053%,
+      // dentro de tolerancia) y versionada en este repo. La subida REAL a
+      // Supabase Storage no se ejecutó todavía en esta sesión (sin
+      // SUPABASE_SERVICE_ROLE_KEY disponible aquí) — canonicalStoragePath
+      // documenta la ruta que tendría, ver scripts/ingest-benchmark-reference-image.ts.
+      status: "approved",
+      approval: {
+        approvedBy: "Hans",
+        approvedAtIso: "2026-09-24T18:36:00.000Z",
+        checksumSha256: "d7e0fd3f3507c21f752255330458ef8cf587d524bbe09a43c4f5e4de4e3821d7",
+        widthPx: 1672,
+        heightPx: 941,
+        sourceImagePath: "content/long-form/gobekli-tepe-001/reference-images/bench-v2-a-pillar-transport.png",
+        canonicalStoragePath: "long-form/gobekli-tepe-ai-video-benchmark-v2-active/reference-images/bench-v2-a-pillar-transport-d7e0fd3f3507c21f.png",
+      },
     },
     negativeConstraints: [...COMMON_ANACHRONISM_CONSTRAINTS, "draft animals", "metal rigging"],
     expectedEligibility: { recommendedAssetType: "ai_video", minScore: 0.7 },

@@ -108,14 +108,24 @@ test("dos generaciones Veo = $1.92, con 1 retry cada una = $3.84 (P2A.5 sección
   assert.equal(Math.round(veoTotal * 2 * 100) / 100, 3.84);
 });
 
-test("todo prep incluye un executionGate evaluado con el estado REAL actual — siempre allowed=false en P2A.5 (sin imagen aprobada, flag OFF, sin proveedor configurado)", () => {
+test("todo prep incluye un executionGate evaluado con el estado REAL actual — Pillar Transport ya tiene imagen aprobada (P2B preparation), pero sigue allowed=false por flag OFF / sin modo explícito / sin proveedor configurado en este proceso", () => {
   const shotA = ACTIVE_BENCHMARK_SHOTS.find((s) => s.title === "Pillar Transport")!;
   const prep = buildProviderShotPrep(shotA, "veo");
   assert.equal(prep.executionGate.allowed, false);
   if (!prep.executionGate.allowed) {
     assert.ok(prep.executionGate.reasons.length > 0);
-    assert.ok(prep.executionGate.reasons.some((r) => r.includes("referenceImageStatus")));
+    // Pillar Transport YA tiene referenceImageStatus="approved" (P2B preparation) — ese gate específico ya no bloquea.
+    assert.ok(!prep.executionGate.reasons.some((r) => r.includes("referenceImageStatus")));
     assert.ok(prep.executionGate.reasons.some((r) => r.includes("LONG_FORM_AI_VIDEO_ENABLED")));
+  }
+});
+
+test("Monument/Architecture at Dawn SÍ sigue bloqueado por referenceImageStatus (nunca tuvo imagen aprobada)", () => {
+  const shotB = ACTIVE_BENCHMARK_SHOTS.find((s) => s.title === "Monument / Architecture at Dawn")!;
+  const prep = buildProviderShotPrep(shotB, "veo");
+  assert.equal(prep.executionGate.allowed, false);
+  if (!prep.executionGate.allowed) {
+    assert.ok(prep.executionGate.reasons.some((r) => r.includes("referenceImageStatus")));
   }
 });
 

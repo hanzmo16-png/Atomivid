@@ -152,7 +152,8 @@ function sniffImageMimeType(buffer: Buffer): string | undefined {
  * de la respuesta; si es genérico o falta, se detecta por firma de bytes
  * (PNG/JPEG/WebP) antes de asumir "image/png" como último recurso.
  */
-async function fetchReferenceImageAsGeminiImageObject(referenceImageUrl: string): Promise<{ imageBytes: string; mimeType: string }> {
+/** Exportada (no solo interna) para que scripts de pre-flight (ver scripts/preflight-p2b-reference-image.ts) puedan ejercitar EXACTAMENTE este mismo código contra una imagen real sin pasar por generateVideo()/submitGeneration() completos. */
+export async function fetchReferenceImageAsGeminiImageObject(referenceImageUrl: string): Promise<{ imageBytes: string; mimeType: string }> {
   let response: Response;
   try {
     response = await fetch(referenceImageUrl);
