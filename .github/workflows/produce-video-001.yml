@@ -1,0 +1,145 @@
+name: "VIDEO #001 — Göbekli Tepe (producción real, dedicado)"
+
+# Workflow EXCLUSIVO para producir VIDEO #001 (Göbekli Tepe) end-to-end:
+# preflight gratuito FAIL CLOSED -> producción real (8 imágenes AI_RECREATION
+# restantes, 13 beats de narración TTS, 4 shots de stock, 30 gráficos
+# determinísticos, composición de 45 shots, render 16:9, QC) -> artifacts
+# descargables (MP4 final, reportes, contact sheet). Nunca genera ningún
+# otro video — todas las rutas de guion/storyboard/manifest de abajo están
+# fijas a content/long-form/gobekli-tepe-001/. Disparo EXCLUSIVAMENTE
+# manual (workflow_dispatch) con una confirmación escrita explícita, nunca
+# por push/schedule/otro evento — y nunca publica a YouTube ni hace ningún
+# deploy.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Escribe exactamente PRODUCE_VIDEO_001 para autorizar el gasto real (hasta el hard stop acumulado de $3.00 USD, ya incluye los $0.1681 del Visual Test V2)'
+        required: true
+        type: string
+
+# Un solo grupo de concurrencia para TODO VIDEO #001 (no por run) — nunca
+# deben coexistir dos ejecuciones reales de este video, aunque se disparen
+# por error casi al mismo tiempo. cancel-in-progress:false: un run real ya
+# en curso jamás se cancela automáticamente por un dispatch nuevo (podría
+# dejar un gasto a medio confirmar) — el segundo dispatch simplemente
+# espera en cola.
+concurrency:
+  group: atomivid-video-001-produccion-real
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------
+  # JOB 1 — Preflight GRATUITO, FAIL CLOSED. Cero llamadas pagas: solo
+  # verifica presencia de credenciales, accesibilidad de Supabase/bucket/
+  # ledger, y recomputa los conteos/costos esperados contra la base
+  # canónica y el ledger REAL. Si CUALQUIER verificación falla, el job 2
+  # (producción real) nunca arranca (ver `needs` + `if` abajo).
+  # ---------------------------------------------------------------------
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Preflight gratuito de VIDEO #001 (fail closed)
+        run: npx tsx scripts/preflight-video-001.ts
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          IMAGE_PROVIDER: openai
+
+  # ---------------------------------------------------------------------
+  # JOB 2 — Producción real. Solo arranca si el preflight pasó completo
+  # (needs: preflight, implícito success()) Y la persona disparó el
+  # workflow escribiendo exactamente la confirmación pedida — un
+  # workflow_dispatch con el valor por defecto/vacío/erróneo NUNCA
+  # produce gasto real.
+  # ---------------------------------------------------------------------
+  produce:
+    needs: preflight
+    if: ${{ github.event.inputs.confirm == 'PRODUCE_VIDEO_001' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # Requerido por audio-master.ts (normalización de loudness) y por
+      # el QC (ffprobe -af silencedetect) y el contact sheet (tile de
+      # frames) — mismo paquete ya usado en render.yml.
+      - name: Instalar ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Producción real — assets restantes + TTS + composición + render (45 shots)
+        run: |
+          npx tsx scripts/produce-long-form-video.ts \
+            --mode=real \
+            --script=content/long-form/gobekli-tepe-001/gobekli-script-003-current.json \
+            --storyboard=content/long-form/gobekli-tepe-001/gobekli-storyboard-003.json \
+            --output=content/long-form/gobekli-tepe-001/output/gobekli-tepe-video-001-final.mp4
+        env:
+          LONG_FORM_REAL_RUN_CONFIRM: YES_SPEND_REAL_MONEY
+          IMAGE_PROVIDER: openai
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Biblioteca de música curada (gratis) — mismo mecanismo que Shorts.
+          MUSIC_TRACK_URLS: ${{ secrets.MUSIC_TRACK_URLS }}
+          MUSIC_PROVIDER: ${{ secrets.MUSIC_PROVIDER }}
+
+      - name: QC obligatorio (ffprobe + metadata del pipeline + silencios)
+        if: always()
+        run: |
+          npx tsx scripts/qc-video-001.ts \
+            --mp4=content/long-form/gobekli-tepe-001/output/gobekli-tepe-video-001-final.mp4 \
+            --report=content/long-form/gobekli-tepe-001/output/gobekli-tepe-video-001-final.report.json \
+            --qc-output=content/long-form/gobekli-tepe-001/output/gobekli-tepe-video-001-final.qc-report.json
+
+      - name: Contact sheet (frames representativos para revisión visual)
+        if: always()
+        run: |
+          npx tsx scripts/contact-sheet-video-001.ts \
+            --mp4=content/long-form/gobekli-tepe-001/output/gobekli-tepe-video-001-final.mp4 \
+            --output=content/long-form/gobekli-tepe-001/output/gobekli-tepe-video-001-final.contact-sheet.png
+
+      - name: Subir artifacts (MP4 final, reportes, contact sheet)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gobekli-tepe-video-001
+          path: |
+            content/long-form/gobekli-tepe-001/output/gobekli-tepe-video-001-final.mp4
+            content/long-form/gobekli-tepe-001/output/gobekli-tepe-video-001-final.report.json
+            content/long-form/gobekli-tepe-001/output/gobekli-tepe-video-001-final.qc-report.json
+            content/long-form/gobekli-tepe-001/output/gobekli-tepe-video-001-final.contact-sheet.png
+          retention-days: 90
+          if-no-files-found: warn

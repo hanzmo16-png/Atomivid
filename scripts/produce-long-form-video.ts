@@ -41,10 +41,19 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 
-process.env.REMOTION_BROWSER_EXECUTABLE =
-  process.env.REMOTION_BROWSER_EXECUTABLE ||
-  "/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell";
-process.env.REMOTION_CHROME_MODE = process.env.REMOTION_CHROME_MODE || "headless-shell";
+// El binario de Chromium fijo de abajo SOLO existe en el sandbox de
+// desarrollo de este proyecto — un runner de GitHub Actions (u otro
+// entorno) no lo tiene, y Remotion sabe descargar/gestionar su propio
+// Chromium automáticamente cuando REMOTION_BROWSER_EXECUTABLE queda sin
+// definir (ver render.ts/generate-video.ts: `|| undefined`). Por eso este
+// override solo se aplica si el binario realmente existe en disco — nunca
+// se fuerza una ruta inexistente que rompería el render en cualquier otro
+// entorno.
+const SANDBOX_HEADLESS_SHELL = "/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell";
+if (!process.env.REMOTION_BROWSER_EXECUTABLE && fsSync.existsSync(SANDBOX_HEADLESS_SHELL)) {
+  process.env.REMOTION_BROWSER_EXECUTABLE = SANDBOX_HEADLESS_SHELL;
+  process.env.REMOTION_CHROME_MODE = process.env.REMOTION_CHROME_MODE || "headless-shell";
+}
 
 type CliArgs = {
   mode: "simulation" | "real";
@@ -371,6 +380,18 @@ async function main() {
     let totalBufferBytes = 0;
     const shotTypesUsed: string[] = [];
     const providersUsedForAssets = new Set<string>();
+    /** Registro por shot (proveedor/costo/licencia/fuente/reuso) — cumple el requisito de "registrar proveedor/asset/licencia/fuente/shotId" para STOCK_REAL y AI_RECREATION, y alimenta directamente el desglose del reporte final. */
+    const assetRegistry: {
+      shotId: string;
+      beatId: string;
+      shotType: (typeof allShots)[number]["type"];
+      source: (typeof allShots)[number]["source"];
+      provider: string;
+      costUsd: number;
+      reused: boolean;
+      license: string;
+      attribution: string;
+    }[] = [];
 
     for (const shot of allShots) {
       const preResolvedAi = productionAiImages?.get(shot.id);
@@ -402,6 +423,17 @@ async function main() {
       totalBufferBytes += result.bufferBytes;
       shotTypesUsed.push(shot.type);
       providersUsedForAssets.add(result.providerUsed);
+      assetRegistry.push({
+        shotId: shot.id,
+        beatId: shot.beatId,
+        shotType: shot.type,
+        source: shot.source,
+        provider: result.providerUsed,
+        costUsd: result.costUsd,
+        reused: preResolvedAi?.reused ?? false,
+        license: shot.license,
+        attribution: shot.attribution,
+      });
       shotScenes.push({
         id: shot.id,
         startSeconds: shot.startSec,
@@ -485,6 +517,7 @@ async function main() {
       imageCostSpentUsd,
       renderMs,
       output: args.output,
+      assetRegistry,
     };
     await fs.writeFile(args.output.replace(/\.mp4$/, ".report.json"), JSON.stringify(report, null, 2));
     console.log(JSON.stringify(report, null, 2));
