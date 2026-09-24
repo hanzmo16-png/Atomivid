@@ -52,6 +52,7 @@ export function RunP2BForm() {
           <p>
             {state.result.errorReason} ({state.result.errorProviderId}): {state.result.errorMessage}
           </p>
+          {state.result.providerJobId && <p>Operation ID (Google ya la creó): {state.result.providerJobId}</p>}
           <p>Acumulado de misión (conservador): ${state.result.missionCumulativeSpendUsd.toFixed(2)} / $10.00</p>
         </div>
       )}

@@ -259,6 +259,17 @@ export class GenerativeProviderError extends Error {
       /** La generación se completó en el proveedor pero la descarga del archivo resultante falló (URL expirada, HTTP no-200, cuerpo vacío). */
       | "download_failed",
     public readonly cause?: unknown,
+    /**
+     * El identificador de operación/job del proveedor (p. ej. "operations/abc123"
+     * de Veo), cuando el fallo ocurrió DESPUÉS de que el proveedor ya creó/aceptó
+     * la solicitud (p. ej. un fallo transitorio al consultar el estado, o al
+     * descargar el resultado ya generado) — permite que el llamador conserve el
+     * identificador para diagnóstico/recuperación manual en vez de perderlo si el
+     * error se propaga sin más contexto. Ausente cuando el fallo ocurrió ANTES de
+     * que existiera ninguna operación (p. ej. la propia solicitud de creación fue
+     * rechazada).
+     */
+    public readonly providerJobId?: string,
   ) {
     super(message);
     this.name = "GenerativeProviderError";

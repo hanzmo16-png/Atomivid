@@ -271,6 +271,65 @@ test("async lifecycle: reference image -> submit -> operation -> poll (varios in
   });
 });
 
+test("resiliencia (P2B, 2026-09-24): un fallo transitorio al CONSULTAR la operación (p. ej. HTTP 503) se reintenta dentro del mismo presupuesto de intentos — nunca aborta toda la generación ni crea una segunda operación", async () => {
+  await withEnv({ VEO_API_KEY: "fake-key", VEO_MAX_POLL_ATTEMPTS: "2", VEO_POLL_TIMEOUT_MS: "999999" }, async () => {
+    let pollCalls = 0;
+    let submitCalls = 0;
+    const restore = installFetchMock(
+      withReferenceImageMock(async (url) => {
+        if (url.includes(":predictLongRunning")) {
+          submitCalls++;
+          return jsonResponse({ name: "operations/op-resilient" });
+        }
+        if (url.includes("operations/op-resilient")) {
+          pollCalls++;
+          if (pollCalls === 1) return jsonResponse({ error: { message: "The service is currently unavailable." } }, 503);
+          return jsonResponse(COMPLETED_OPERATION("operations/op-resilient", "https://files.example.com/out-resilient.mp4"));
+        }
+        if (url.includes("files.example.com")) return new Response(Buffer.from("bytes"), { status: 200 });
+        throw new Error(`URL no esperada: ${url}`);
+      }),
+    );
+    try {
+      const asset = await veoVideoProvider.generateVideo(BASE_REQUEST);
+      assert.equal(pollCalls, 2, "el primer 503 debe reintentarse, no abortar");
+      assert.equal(submitCalls, 1, "NUNCA debe volver a llamar predictLongRunning tras un 503 de polling — misma operación");
+      assert.equal(asset.providerJobId, "operations/op-resilient");
+    } finally {
+      restore();
+    }
+  });
+});
+
+test("resiliencia (P2B, 2026-09-24): si el fallo transitorio de consulta persiste hasta agotar los intentos, el error final SIGUE llevando el operationId — nunca se pierde aunque termine fallando de verdad", async () => {
+  await withEnv({ VEO_API_KEY: "fake-key", VEO_MAX_POLL_ATTEMPTS: "1", VEO_POLL_TIMEOUT_MS: "999999" }, async () => {
+    let submitCalls = 0;
+    const restore = installFetchMock(
+      withReferenceImageMock(async (url) => {
+        if (url.includes(":predictLongRunning")) {
+          submitCalls++;
+          return jsonResponse({ name: "operations/op-lost" });
+        }
+        if (url.includes("operations/op-lost")) return new Response("service unavailable", { status: 503 });
+        throw new Error(`URL no esperada: ${url}`);
+      }),
+    );
+    try {
+      let caught: unknown;
+      try {
+        await veoVideoProvider.generateVideo(BASE_REQUEST);
+      } catch (err) {
+        caught = err;
+      }
+      assert.ok(caught instanceof GenerativeProviderError);
+      assert.equal((caught as GenerativeProviderError).providerJobId, "operations/op-lost");
+      assert.equal(submitCalls, 1, "un fallo de polling agotado NUNCA debe disparar una segunda submitGeneration");
+    } finally {
+      restore();
+    }
+  });
+});
+
 test("costo = $0.96 exactos para 8s a 1080p ($0.12/s)", () => {
   assert.equal(VEO_DURATION_SECONDS_1080P * getVeoCostUsdPerSecond(), 0.96);
 });
@@ -409,7 +468,7 @@ test("timeout: se agota el número máximo de intentos de sondeo sin done=true -
     try {
       await assert.rejects(
         () => veoVideoProvider.generateVideo(BASE_REQUEST),
-        (err: unknown) => err instanceof GenerativeProviderError && err.reason === "timeout",
+        (err: unknown) => err instanceof GenerativeProviderError && err.reason === "timeout" && err.providerJobId === "operations/op-slow",
       );
     } finally {
       restore();
@@ -417,7 +476,7 @@ test("timeout: se agota el número máximo de intentos de sondeo sin done=true -
   });
 });
 
-test("fallo de descarga (HTTP no-200 al bajar el video) se normaliza a download_failed", async () => {
+test("fallo de descarga (HTTP no-200 al bajar el video) se normaliza a download_failed y conserva el operationId (video ya generado, ya facturado)", async () => {
   await withEnv({ VEO_API_KEY: "fake-key" }, async () => {
     const restore = installFetchMock(
       withReferenceImageMock(async (url) => {
@@ -430,7 +489,7 @@ test("fallo de descarga (HTTP no-200 al bajar el video) se normaliza a download_
     try {
       await assert.rejects(
         () => veoVideoProvider.generateVideo(BASE_REQUEST),
-        (err: unknown) => err instanceof GenerativeProviderError && err.reason === "download_failed",
+        (err: unknown) => err instanceof GenerativeProviderError && err.reason === "download_failed" && err.providerJobId === "operations/op-dl",
       );
     } finally {
       restore();

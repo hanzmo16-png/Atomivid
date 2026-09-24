@@ -258,7 +258,7 @@ async function pollOperationOnce(operationName: string): Promise<GeminiOperation
       headers: { "x-goog-api-key": getApiKey() },
     });
   } catch (err) {
-    throw new GenerativeProviderError("Veo: fallo de red al consultar la operación", "veo", "upstream_error", err);
+    throw new GenerativeProviderError("Veo: fallo de red al consultar la operación", "veo", "upstream_error", err, operationName);
   }
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
@@ -266,6 +266,8 @@ async function pollOperationOnce(operationName: string): Promise<GeminiOperation
       `Veo respondió HTTP ${response.status} al consultar la operación${body.error?.message ? `: ${body.error.message}` : ""}`,
       "veo",
       classifyGoogleError(response.status, body.error?.message),
+      undefined,
+      operationName,
     );
   }
   return (await response.json()) as GeminiOperation;
@@ -279,22 +281,43 @@ async function waitForCompletion(operationName: string): Promise<{ uri: string; 
 
   for (let attempt = 0; attempt < maxPollAttempts; attempt++) {
     if (Date.now() > deadline) {
-      throw new GenerativeProviderError(`Tiempo de espera agotado sondeando la operación de Veo (${pollTimeoutMs}ms)`, "veo", "timeout");
+      throw new GenerativeProviderError(`Tiempo de espera agotado sondeando la operación de Veo (${pollTimeoutMs}ms)`, "veo", "timeout", undefined, operationName);
     }
     // Nunca se loguea la operación completa ni ninguna URI firmada — solo su estado, aquí y en cualquier console.log del llamador (mismo criterio que runway.ts).
-    const operation = await pollOperationOnce(operationName);
+    let operation: GeminiOperation;
+    try {
+      operation = await pollOperationOnce(operationName);
+    } catch (err) {
+      // pollOperationOnce SOLO lanza por un fallo de red o un HTTP no-ok al
+      // CONSULTAR el estado de la operación — nunca por un fallo real de la
+      // operación en sí (eso llega como `operation.error` dentro de una
+      // respuesta 200, manejado abajo). La operación de Veo YA EXISTE y YA
+      // se está facturando en este punto: un 503/fallo transitorio del
+      // endpoint de consulta (confirmado real, P2B 2026-09-24) NO significa
+      // que la generación haya fallado — se reintenta dentro del MISMO
+      // presupuesto de intentos/tiempo ya acordado, en vez de abortar toda
+      // la generación por un problema exclusivamente del endpoint de
+      // estado. Si se agotan los intentos/el tiempo, se propaga el error
+      // real (nunca se silencia un fallo genuino).
+      if (attempt === maxPollAttempts - 1 || Date.now() > deadline) throw err;
+      await sleep(delay);
+      delay = Math.min(delay * 1.5, POLL_MAX_DELAY_MS);
+      continue;
+    }
     if (operation.error) {
       throw new GenerativeProviderError(
         `La operación de Veo falló: ${operation.error.message ?? "sin detalle"}`,
         "veo",
         classifyGoogleError(operation.error.code, operation.error.message),
+        undefined,
+        operationName,
       );
     }
     if (operation.done) {
       const sample = operation.response?.generateVideoResponse?.generatedSamples?.[0];
       const uri = sample?.video?.uri;
       if (!uri) {
-        throw new GenerativeProviderError("Veo completó la operación pero no devolvió una URI de video", "veo", "invalid_response");
+        throw new GenerativeProviderError("Veo completó la operación pero no devolvió una URI de video", "veo", "invalid_response", undefined, operationName);
       }
       return { uri, mimeType: sample.video?.mimeType ?? "video/mp4" };
     }
@@ -302,7 +325,7 @@ async function waitForCompletion(operationName: string): Promise<{ uri: string; 
     delay = Math.min(delay * 1.5, POLL_MAX_DELAY_MS);
   }
 
-  throw new GenerativeProviderError("Se agotaron los intentos de sondeo de la operación de Veo", "veo", "timeout");
+  throw new GenerativeProviderError("Se agotaron los intentos de sondeo de la operación de Veo", "veo", "timeout", undefined, operationName);
 }
 
 async function downloadVideo(uri: string): Promise<Buffer> {
@@ -364,7 +387,20 @@ export const veoVideoProvider: VideoProvider = {
 
     const operationName = await submitGeneration({ ...request, durationSeconds });
     const { uri, mimeType } = await waitForCompletion(operationName);
-    const buffer = await downloadVideo(uri);
+    let buffer: Buffer;
+    try {
+      buffer = await downloadVideo(uri);
+    } catch (err) {
+      // downloadVideo no conoce operationName (solo recibe la URI ya
+      // resuelta) — se adjunta aquí, en el único lugar donde ambos datos
+      // coexisten, para que un fallo de descarga (video YA generado y YA
+      // facturado en el proveedor) nunca pierda el identificador de la
+      // operación que sí lo produjo.
+      if (err instanceof GenerativeProviderError && !err.providerJobId) {
+        throw new GenerativeProviderError(err.message, err.providerId, err.reason, err.cause, operationName);
+      }
+      throw err;
+    }
 
     return {
       buffer,

@@ -77,6 +77,8 @@ export type P2BExecutionResult =
       errorReason: string;
       errorProviderId: string;
       errorMessage: string;
+      /** Presente cuando el fallo ocurrió DESPUÉS de que Google ya creó la operación (p. ej. 503 transitorio al consultar, o descarga fallida) — permite ubicarla/inspeccionarla manualmente sin perderla, ver GenerativeProviderError.providerJobId. */
+      providerJobId?: string;
       missionCumulativeSpendUsd: number;
     };
 
@@ -339,6 +341,11 @@ export async function executeP2BPillarTransportVeoOnce(): Promise<P2BExecutionRe
   } catch (err) {
     const generationTimeMs = Date.now() - startedAtMs;
     const reason = err instanceof GenerativeProviderError ? err.reason : "upstream_error";
+    // Si Google ya creó la operación antes de fallar (p. ej. un 503
+    // transitorio al consultar, o un fallo de descarga), veo.ts adjunta su
+    // identificador aquí — nunca se pierde, ver GenerativeProviderError.
+    // providerJobId (types.ts) y el comentario de cabecera de waitForCompletion.
+    const providerJobId = err instanceof GenerativeProviderError ? err.providerJobId : undefined;
     if (supabase) {
       await appendLedgerEntry(supabase, {
         attempt: attemptNumber,
@@ -354,6 +361,7 @@ export async function executeP2BPillarTransportVeoOnce(): Promise<P2BExecutionRe
         actualCostUsd: estimatedCostUsd,
         result: "failure",
         errorReason: reason,
+        providerJobId,
       }).catch(() => undefined);
     }
     if (err instanceof GenerativeProviderError) {
@@ -365,6 +373,7 @@ export async function executeP2BPillarTransportVeoOnce(): Promise<P2BExecutionRe
         errorReason: err.reason,
         errorProviderId: err.providerId,
         errorMessage: err.message,
+        providerJobId: err.providerJobId,
         missionCumulativeSpendUsd: missionCumulativeSpendUsd + estimatedCostUsd,
       };
     }
