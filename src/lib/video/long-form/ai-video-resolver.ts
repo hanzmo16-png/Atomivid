@@ -62,6 +62,8 @@ export type ResolvedAiVideoClip = {
   model: string;
   costUsd: number;
   providerJobId?: string;
+  /** ver GenerativeAsset.sourceHasGeneratedAudio (providers/types.ts) — pasa a través sin interpretarse aquí; el renderer decide qué hacer con esto. */
+  sourceHasGeneratedAudio?: boolean;
 };
 
 export type AiVideoResolutionOutcome =
@@ -180,6 +182,7 @@ export async function resolveAiVideoForShot(params: ResolveAiVideoForShotParams)
       model: asset.model,
       costUsd: asset.costUsd,
       providerJobId: asset.providerJobId,
+      sourceHasGeneratedAudio: asset.sourceHasGeneratedAudio,
     },
   };
 }

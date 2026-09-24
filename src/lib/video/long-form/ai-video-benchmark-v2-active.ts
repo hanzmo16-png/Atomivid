@@ -21,14 +21,26 @@ import type { BenchmarkEvaluationCriterion, BenchmarkExpectedEligibility } from 
 
 export const ACTIVE_BENCHMARK_ID = "gobekli-tepe-ai-video-benchmark-v2-active";
 
+/**
+ * "not_generated": estado inicial, ningún costo incurrido (todos los shots
+ * de este benchmark están aquí en P2A.5). "pending_review": la imagen ya
+ * se generó (costo de proveedor de imagen incurrido) pero un humano
+ * todavía no la aprobó contra `requiredControls`. "approved": un humano
+ * confirmó explícitamente que la imagen cumple todos los controles —
+ * ÚNICO estado que el approval gate (ai-video-benchmark-execution-gate.ts)
+ * acepta para permitir una generación real image-to-video.
+ */
+export const REFERENCE_IMAGE_STATUSES = ["not_generated", "pending_review", "approved"] as const;
+export type ReferenceImageStatus = (typeof REFERENCE_IMAGE_STATUSES)[number];
+
 export type ReferenceImageSpec = {
   description: string;
   compositionNotes: string;
   /** Controles que un humano debe verificar en la imagen ANTES de usarla como referencia image-to-video — ninguno se auto-verifica todavía. */
   requiredControls: string[];
   aspectRatio: "16:9";
-  /** Siempre "not_generated" en P2A — generar esta imagen implica costo (proveedor de imagen IA) y no está autorizado en esta fase. */
-  status: "not_generated";
+  /** "not_generated" en todos los shots de P2A.5 — generar esta imagen implica costo (proveedor de imagen IA) y no está autorizado en esta fase. */
+  status: ReferenceImageStatus;
 };
 
 export type ActiveBenchmarkShotSpec = {

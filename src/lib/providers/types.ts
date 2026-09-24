@@ -216,6 +216,15 @@ export type GenerativeAsset = {
   providerJobId?: string;
   /** Licencia o términos aplicables al resultado generado, cuando el proveedor los declara. */
   license?: string;
+  /**
+   * true si el buffer devuelto ya incluye una pista de audio generada por
+   * el proveedor (p. ej. Veo, que siempre genera audio nativo, ver veo.ts)
+   * — ausente/false para proveedores mudos (fixture, runway, imagen). El
+   * renderer/pipeline de ATOMIVID usa su propia narración/música/ambience;
+   * este campo solo avisa que el clip trae audio embebido que debe
+   * ignorarse o descartarse al integrarlo, nunca lo elimina por sí mismo.
+   */
+  sourceHasGeneratedAudio?: boolean;
 };
 
 /** Error base para cualquier fallo de un proveedor generativo — siempre tipado, nunca un Error genérico. */
@@ -232,13 +241,23 @@ export class GenerativeProviderError extends Error {
       | "upstream_error"
       /**
        * El endpoint/payload/auth de este proveedor NO está verificado
-       * contra documentación primaria en este entorno (ver kling.ts/veo.ts,
+       * contra documentación primaria en este entorno (ver kling.ts,
        * AI Video Pipeline P2A) — nunca se intenta una llamada HTTP real con
        * un contrato adivinado; generateVideo() lanza esto SIEMPRE, sin
        * importar si hay credenciales configuradas, hasta que un humano
        * confirme el contrato real contra la doc oficial.
        */
-      | "contract_unverified",
+      | "contract_unverified"
+      /** Credenciales presentes pero rechazadas por el proveedor (401/403 o equivalente) — distinto de "not_configured" (credenciales ausentes). */
+      | "authentication_error"
+      /** Cuota total agotada (plan/billing) — distinto de "rate_limited" (límite de velocidad temporal). */
+      | "quota_exceeded"
+      /** Límite de velocidad temporal (HTTP 429 u equivalente) — reintentar más tarde podría funcionar, a diferencia de "quota_exceeded". */
+      | "rate_limited"
+      /** El proveedor rechazó la solicitud por estar mal formada (HTTP 400 u equivalente) — distinto de "invalid_response" (la RESPUESTA del proveedor es la que está mal formada). */
+      | "invalid_request"
+      /** La generación se completó en el proveedor pero la descarga del archivo resultante falló (URL expirada, HTTP no-200, cuerpo vacío). */
+      | "download_failed",
     public readonly cause?: unknown,
   ) {
     super(message);

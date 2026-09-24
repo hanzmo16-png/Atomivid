@@ -39,6 +39,8 @@ export type BenchmarkCostModel = {
   costPerSecondUsd: number;
   /** true si `costPerSecondUsd` viene de documentación primaria verificada — false si es UNVERIFICADO (fuente secundaria o valor configurado por defecto). Nunca se omite: un costo estimado sin marcar su procedencia es tan peligroso como no tenerlo. */
   verifiedAgainstPrimaryDocs: boolean;
+  /** Detalle de procedencia (quién confirmó el número, contra qué URL, cuándo) — opcional, para trazabilidad cuando `verifiedAgainstPrimaryDocs` no cuenta la historia completa (p. ej. confirmado por el usuario pero no re-verificable por el agente por bloqueo de red, ver veo.ts P2A.5). */
+  sourceNote?: string;
 };
 
 export type BenchmarkShotCostEstimate = {

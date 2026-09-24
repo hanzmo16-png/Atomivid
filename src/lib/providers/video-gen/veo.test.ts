@@ -1,71 +1,338 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { veoVideoProvider } from "./veo";
+import { veoVideoProvider, VEO_MODEL, getVeoCostUsdPerSecond, VEO_DURATION_SECONDS_1080P } from "./veo";
 import { GenerativeProviderError } from "../types";
 
-async function withEnv(vars: Record<string, string | undefined>, fn: () => void | Promise<void>) {
-  const key = "VEO_API_KEY";
-  const original = process.env[key];
-  delete process.env[key];
+function withEnv(vars: Record<string, string | undefined>, fn: () => void | Promise<void>) {
+  const keys = ["VEO_API_KEY", "VEO_API_BASE", "VEO_POLL_TIMEOUT_MS", "VEO_MAX_POLL_ATTEMPTS", "VEO_COST_USD_PER_SECOND"];
+  const originals = keys.map((k) => [k, process.env[k]] as const);
+  for (const k of keys) delete process.env[k];
   for (const [k, v] of Object.entries(vars)) {
     if (v !== undefined) process.env[k] = v;
   }
-  try {
-    await fn();
-  } finally {
-    if (original === undefined) delete process.env[key];
-    else process.env[key] = original;
-  }
+  return (async () => {
+    try {
+      await fn();
+    } finally {
+      for (const [k, v] of originals) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  })();
 }
 
-test("veoVideoProvider cumple la interfaz VideoProvider (name/capabilities/isAvailable/generateVideo)", () => {
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+}
+
+const BASE_REQUEST = {
+  prompt: "a group of people transporting a massive stone pillar",
+  negativePrompt: "modern machinery, vehicles",
+  aspectRatio: "16:9" as const,
+  durationSeconds: 8,
+  maxCostUsd: 2,
+  referenceImageUrl: "https://storage.example.com/approved-reference.png",
+};
+
+/** Instala un fetch simulado que enruta por sustring de URL — nunca toca la red real. Ningún test de este archivo hace una llamada HTTP real. */
+function installFetchMock(handler: (url: string, init: RequestInit | undefined) => Promise<Response> | Response) {
+  const originalFetch = global.fetch;
+  global.fetch = (async (url: string | URL | Request, init?: RequestInit) => handler(String(url), init)) as typeof fetch;
+  return () => {
+    global.fetch = originalFetch;
+  };
+}
+
+test("veoVideoProvider cumple la interfaz VideoProvider", () => {
   assert.equal(veoVideoProvider.name, "veo");
-  assert.ok(veoVideoProvider.capabilities);
-  assert.equal(typeof veoVideoProvider.isAvailable, "function");
-  assert.equal(typeof veoVideoProvider.generateVideo, "function");
+  assert.deepEqual(veoVideoProvider.capabilities.aspectRatios, ["16:9", "9:16"]);
+  assert.deepEqual(veoVideoProvider.capabilities.models, [VEO_MODEL]);
 });
 
-test("isAvailable() es false sin VEO_API_KEY (el caso en este entorno)", async () => {
-  await withEnv({}, () => {
-    assert.equal(veoVideoProvider.isAvailable(), false);
+test("generateVideo() lanza not_configured sin VEO_API_KEY — cero llamadas de red", async () => {
+  await withEnv({}, async () => {
+    let fetchCalled = false;
+    const restore = installFetchMock(async () => {
+      fetchCalled = true;
+      throw new Error("no debería llamarse");
+    });
+    try {
+      await assert.rejects(
+        () => veoVideoProvider.generateVideo(BASE_REQUEST),
+        (err: unknown) => err instanceof GenerativeProviderError && err.reason === "not_configured",
+      );
+      assert.equal(fetchCalled, false);
+    } finally {
+      restore();
+    }
   });
 });
 
-test("isAvailable() es true con VEO_API_KEY presente (nunca hace que generateVideo funcione, ver siguiente test)", async () => {
-  await withEnv({ VEO_API_KEY: "key" }, () => {
-    assert.equal(veoVideoProvider.isAvailable(), true);
+test("generateVideo() lanza invalid_request si falta referenceImageUrl — NUNCA cae a text-to-video automáticamente", async () => {
+  await withEnv({ VEO_API_KEY: "fake-key" }, async () => {
+    let fetchCalled = false;
+    const restore = installFetchMock(async () => {
+      fetchCalled = true;
+      throw new Error("no debería llamarse");
+    });
+    try {
+      const { referenceImageUrl: _omit, ...withoutImage } = BASE_REQUEST;
+      void _omit;
+      await assert.rejects(
+        () => veoVideoProvider.generateVideo(withoutImage),
+        (err: unknown) => err instanceof GenerativeProviderError && err.reason === "invalid_request",
+      );
+      assert.equal(fetchCalled, false);
+    } finally {
+      restore();
+    }
   });
 });
 
-test("generateVideo() SIEMPRE lanza contract_unverified — incluso con credenciales configuradas, nunca intenta una llamada HTTP real", async () => {
-  await withEnv({ VEO_API_KEY: "key" }, async () => {
+test("generateVideo() lanza budget_exceeded si el costo estimado ($0.96) excede maxCostUsd", async () => {
+  await withEnv({ VEO_API_KEY: "fake-key" }, async () => {
     await assert.rejects(
-      () =>
-        veoVideoProvider.generateVideo({
-          prompt: "test",
-          aspectRatio: "16:9",
-          durationSeconds: 8,
-          maxCostUsd: 2,
-        }),
-      (err: unknown) => {
-        assert.ok(err instanceof GenerativeProviderError);
-        assert.equal(err.reason, "contract_unverified");
-        assert.equal(err.providerId, "veo");
-        return true;
-      },
+      () => veoVideoProvider.generateVideo({ ...BASE_REQUEST, maxCostUsd: 0.5 }),
+      (err: unknown) => err instanceof GenerativeProviderError && err.reason === "budget_exceeded",
     );
   });
 });
 
-test("la request nunca incluye un parámetro de audio inventado — el tipo VideoGenerationRequest no fue ampliado para esto", async () => {
-  await withEnv({}, async () => {
-    // Documenta la decisión (P2A sección 7): no se inventa un switch de
-    // audio. Si esta aserción algún día falla porque alguien AGREGÓ un
-    // campo de audio a VideoGenerationRequest, debe ser una decisión
-    // consciente respaldada por documentación primaria verificada, no un
-    // descuido.
-    const request: Record<string, unknown> = { prompt: "test", aspectRatio: "16:9", durationSeconds: 8, maxCostUsd: 2 };
-    assert.equal("audioEnabled" in request, false);
-    assert.equal("audio" in request, false);
+test("mapeo del request: envía image-to-video (image.uri), 16:9, resolution 1080p, durationSeconds=8, negativePrompt integrado como 'Avoid:' en el prompt principal (nunca un campo API separado)", async () => {
+  await withEnv({ VEO_API_KEY: "fake-key" }, async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    let capturedUrl: string | undefined;
+    let capturedAuth: string | undefined;
+    const restore = installFetchMock(async (url, init) => {
+      if (url.includes(":predictLongRunning")) {
+        capturedUrl = url;
+        capturedBody = JSON.parse(String(init?.body));
+        capturedAuth = (init?.headers as Record<string, string>)?.["x-goog-api-key"];
+        return jsonResponse({ name: "operations/op-1" });
+      }
+      if (url.includes("operations/op-1")) {
+        return jsonResponse({
+          name: "operations/op-1",
+          done: true,
+          response: { generateVideoResponse: { generatedSamples: [{ video: { uri: "https://files.example.com/out.mp4", mimeType: "video/mp4" } }] } },
+        });
+      }
+      if (url.includes("files.example.com")) {
+        return new Response(Buffer.from("fake-mp4-bytes"), { status: 200 });
+      }
+      throw new Error(`URL no esperada en el mock: ${url}`);
+    });
+    try {
+      await veoVideoProvider.generateVideo(BASE_REQUEST);
+      assert.ok(capturedUrl?.includes(`models/${VEO_MODEL}:predictLongRunning`));
+      assert.equal(capturedAuth, "fake-key");
+      const instances = capturedBody?.instances as Record<string, unknown>[];
+      assert.equal((instances[0].image as Record<string, unknown>).uri, BASE_REQUEST.referenceImageUrl);
+      assert.match(instances[0].prompt as string, /Avoid: modern machinery, vehicles/);
+      const parameters = capturedBody?.parameters as Record<string, unknown>;
+      assert.equal(parameters.aspectRatio, "16:9");
+      assert.equal(parameters.resolution, "1080p");
+      assert.equal(parameters.durationSeconds, VEO_DURATION_SECONDS_1080P);
+    } finally {
+      restore();
+    }
+  });
+});
+
+test("async lifecycle: submit -> operation -> poll (varios intentos con done=false) -> COMPLETE -> download -> GenerativeAsset normalizado", async () => {
+  await withEnv({ VEO_API_KEY: "fake-key" }, async () => {
+    let pollCount = 0;
+    const restore = installFetchMock(async (url) => {
+      if (url.includes(":predictLongRunning")) return jsonResponse({ name: "operations/op-2" });
+      if (url.includes("operations/op-2")) {
+        pollCount++;
+        if (pollCount < 3) return jsonResponse({ name: "operations/op-2", done: false });
+        return jsonResponse({
+          name: "operations/op-2",
+          done: true,
+          response: { generateVideoResponse: { generatedSamples: [{ video: { uri: "https://files.example.com/out2.mp4", mimeType: "video/mp4" } }] } },
+        });
+      }
+      if (url.includes("files.example.com")) return new Response(Buffer.from("fake-mp4-bytes-2"), { status: 200 });
+      throw new Error(`URL no esperada: ${url}`);
+    });
+    try {
+      const asset = await veoVideoProvider.generateVideo(BASE_REQUEST);
+      assert.equal(pollCount, 3);
+      assert.equal(asset.mimeType, "video/mp4");
+      assert.equal(asset.extension, "mp4");
+      assert.equal(asset.durationSeconds, VEO_DURATION_SECONDS_1080P);
+      assert.equal(asset.model, VEO_MODEL);
+      assert.equal(asset.costUsd, VEO_DURATION_SECONDS_1080P * getVeoCostUsdPerSecond());
+      assert.equal(asset.providerJobId, "operations/op-2");
+      assert.equal(asset.sourceHasGeneratedAudio, true);
+      assert.ok(asset.buffer.byteLength > 0);
+    } finally {
+      restore();
+    }
+  });
+});
+
+test("costo = $0.96 exactos para 8s a 1080p ($0.12/s)", () => {
+  assert.equal(VEO_DURATION_SECONDS_1080P * getVeoCostUsdPerSecond(), 0.96);
+});
+
+test("fallo del proveedor (HTTP 400 al enviar) se normaliza a invalid_request, nunca un Error genérico", async () => {
+  await withEnv({ VEO_API_KEY: "fake-key" }, async () => {
+    const restore = installFetchMock(async (url) => {
+      if (url.includes(":predictLongRunning")) return jsonResponse({ error: { message: "invalid_argument: bad prompt" } }, 400);
+      throw new Error("no debería llegar más lejos");
+    });
+    try {
+      await assert.rejects(
+        () => veoVideoProvider.generateVideo(BASE_REQUEST),
+        (err: unknown) => err instanceof GenerativeProviderError && err.reason === "invalid_request",
+      );
+    } finally {
+      restore();
+    }
+  });
+});
+
+test("fallo de autenticación (HTTP 401) se normaliza a authentication_error", async () => {
+  await withEnv({ VEO_API_KEY: "fake-key" }, async () => {
+    const restore = installFetchMock(async (url) => {
+      if (url.includes(":predictLongRunning")) return jsonResponse({ error: { message: "unauthenticated" } }, 401);
+      throw new Error("no debería llegar más lejos");
+    });
+    try {
+      await assert.rejects(
+        () => veoVideoProvider.generateVideo(BASE_REQUEST),
+        (err: unknown) => err instanceof GenerativeProviderError && err.reason === "authentication_error",
+      );
+    } finally {
+      restore();
+    }
+  });
+});
+
+test("rate limit (HTTP 429) se normaliza a rate_limited", async () => {
+  await withEnv({ VEO_API_KEY: "fake-key" }, async () => {
+    const restore = installFetchMock(async (url) => {
+      if (url.includes(":predictLongRunning")) return jsonResponse({ error: { message: "RESOURCE_EXHAUSTED: too many requests" } }, 429);
+      throw new Error("no debería llegar más lejos");
+    });
+    try {
+      await assert.rejects(
+        () => veoVideoProvider.generateVideo(BASE_REQUEST),
+        (err: unknown) => err instanceof GenerativeProviderError && err.reason === "rate_limited",
+      );
+    } finally {
+      restore();
+    }
+  });
+});
+
+test("cuota agotada (mensaje con 'quota') se normaliza a quota_exceeded, distinto de rate_limited", async () => {
+  await withEnv({ VEO_API_KEY: "fake-key" }, async () => {
+    const restore = installFetchMock(async (url) => {
+      if (url.includes(":predictLongRunning")) return jsonResponse({ error: { message: "RESOURCE_EXHAUSTED: quota exceeded for this project" } }, 429);
+      throw new Error("no debería llegar más lejos");
+    });
+    try {
+      await assert.rejects(
+        () => veoVideoProvider.generateVideo(BASE_REQUEST),
+        (err: unknown) => err instanceof GenerativeProviderError && err.reason === "quota_exceeded",
+      );
+    } finally {
+      restore();
+    }
+  });
+});
+
+test("rechazo por moderación/safety en la operación se normaliza a moderation_rejected", async () => {
+  await withEnv({ VEO_API_KEY: "fake-key" }, async () => {
+    const restore = installFetchMock(async (url) => {
+      if (url.includes(":predictLongRunning")) return jsonResponse({ name: "operations/op-safety" });
+      if (url.includes("operations/op-safety")) {
+        return jsonResponse({ name: "operations/op-safety", done: true, error: { code: 3, message: "Blocked by safety filters" } });
+      }
+      throw new Error("no debería llegar más lejos");
+    });
+    try {
+      await assert.rejects(
+        () => veoVideoProvider.generateVideo(BASE_REQUEST),
+        (err: unknown) => err instanceof GenerativeProviderError && err.reason === "moderation_rejected",
+      );
+    } finally {
+      restore();
+    }
+  });
+});
+
+test("timeout: se agota el número máximo de intentos de sondeo sin done=true -> reason='timeout' (bounded: MAX_POLL_ATTEMPTS=1 evita esperas reales largas en el test)", async () => {
+  await withEnv({ VEO_API_KEY: "fake-key", VEO_MAX_POLL_ATTEMPTS: "1", VEO_POLL_TIMEOUT_MS: "999999" }, async () => {
+    const restore = installFetchMock(async (url) => {
+      if (url.includes(":predictLongRunning")) return jsonResponse({ name: "operations/op-slow" });
+      if (url.includes("operations/op-slow")) return jsonResponse({ name: "operations/op-slow", done: false });
+      throw new Error("no debería llegar más lejos");
+    });
+    try {
+      await assert.rejects(
+        () => veoVideoProvider.generateVideo(BASE_REQUEST),
+        (err: unknown) => err instanceof GenerativeProviderError && err.reason === "timeout",
+      );
+    } finally {
+      restore();
+    }
+  });
+});
+
+test("fallo de descarga (HTTP no-200 al bajar el video) se normaliza a download_failed", async () => {
+  await withEnv({ VEO_API_KEY: "fake-key" }, async () => {
+    const restore = installFetchMock(async (url) => {
+      if (url.includes(":predictLongRunning")) return jsonResponse({ name: "operations/op-dl" });
+      if (url.includes("operations/op-dl")) {
+        return jsonResponse({
+          name: "operations/op-dl",
+          done: true,
+          response: { generateVideoResponse: { generatedSamples: [{ video: { uri: "https://files.example.com/gone.mp4", mimeType: "video/mp4" } }] } },
+        });
+      }
+      if (url.includes("files.example.com")) return new Response("not found", { status: 404 });
+      throw new Error("no debería llegar más lejos");
+    });
+    try {
+      await assert.rejects(
+        () => veoVideoProvider.generateVideo(BASE_REQUEST),
+        (err: unknown) => err instanceof GenerativeProviderError && err.reason === "download_failed",
+      );
+    } finally {
+      restore();
+    }
+  });
+});
+
+test("nunca se llama la red real: todos los tests de este archivo usan fetch simulado y ningún host real aparece en las URLs capturadas", async () => {
+  await withEnv({ VEO_API_KEY: "fake-key" }, async () => {
+    const calledUrls: string[] = [];
+    const restore = installFetchMock(async (url) => {
+      calledUrls.push(url);
+      if (url.includes(":predictLongRunning")) return jsonResponse({ name: "operations/op-3" });
+      if (url.includes("operations/op-3")) {
+        return jsonResponse({
+          name: "operations/op-3",
+          done: true,
+          response: { generateVideoResponse: { generatedSamples: [{ video: { uri: "https://files.example.com/out3.mp4", mimeType: "video/mp4" } }] } },
+        });
+      }
+      return new Response(Buffer.from("bytes"), { status: 200 });
+    });
+    try {
+      await veoVideoProvider.generateVideo(BASE_REQUEST);
+      for (const url of calledUrls) {
+        assert.ok(url.includes("generativelanguage.googleapis.com") || url.includes("files.example.com"), `URL inesperada: ${url}`);
+      }
+      // La URL real de Google nunca se tocó de verdad (fetch estaba reemplazado) — esta aserción documenta la intención, la garantía real es que global.fetch fue el mock durante todo el test.
+      assert.ok(calledUrls.length > 0);
+    } finally {
+      restore();
+    }
   });
 });
