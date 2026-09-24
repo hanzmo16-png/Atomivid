@@ -48,8 +48,6 @@ async function main() {
   const REQUIRED_ENV_VARS = [
     "OPENAI_API_KEY",
     "ELEVENLABS_API_KEY",
-    "ELEVENLABS_VOICE_ID",
-    "ELEVENLABS_MODEL_ID",
     "PEXELS_API_KEY",
     "SUPABASE_SERVICE_ROLE_KEY",
     "NEXT_PUBLIC_SUPABASE_URL",
@@ -57,6 +55,16 @@ async function main() {
   for (const name of REQUIRED_ENV_VARS) {
     const present = !!process.env[name]?.trim();
     record(`credencial presente: ${name}`, present, present ? "presente (valor no verificado ni impreso)" : "AUSENTE");
+  }
+
+  // ELEVENLABS_VOICE_ID/ELEVENLABS_MODEL_ID son overrides OPCIONALES — si
+  // faltan, src/lib/ai/voice.ts ya cae a su voiceId/modelId por defecto
+  // (los mismos ya usados por el resto de la app, Shorts incluido), así
+  // que su ausencia nunca debe bloquear el preflight — solo se informa
+  // cuál identidad de voz se usará.
+  for (const name of ["ELEVENLABS_VOICE_ID", "ELEVENLABS_MODEL_ID"] as const) {
+    const present = !!process.env[name]?.trim();
+    console.log(`[preflight] INFO — ${name}: ${present ? "presente (override activo, valor no impreso)" : "ausente (se usará el default de src/lib/ai/voice.ts)"}`);
   }
 
   const missingCreds = results.filter((r) => !r.ok);
