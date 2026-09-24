@@ -67,6 +67,24 @@ const LONG_TOPIC = makeRequest({
   topic:
     "Un tema deliberadamente muy largo para comprobar que el texto no desborda la tarjeta ni el layout en pantallas angostas, incluyendo móvil",
 });
+const LONG_FORM_PROCESSING = makeRequest({
+  id: "fixture-long-form-processing",
+  mode: "long_form",
+  aspect_ratio: "16:9",
+  status: "processing",
+  progress_stage: "voice",
+  long_form_stage: "ai_video",
+  render_started_at: new Date(FIXTURE_NOW_MS - 60_000).toISOString(),
+  topic: "Göbekli Tepe: el misterio de 11,000 años que cambió nuestra historia",
+});
+const LONG_FORM_COMPLETED = makeRequest({
+  id: "fixture-long-form-completed",
+  mode: "long_form",
+  aspect_ratio: "16:9",
+  status: "completed",
+  video_path: "fixture/longform-final.mp4",
+  topic: "Göbekli Tepe: el misterio de 11,000 años que cambió nuestra historia",
+});
 
 // video_path falso a propósito: esta ruta no llama a Storage, así que no
 // hay una URL firmada real — es solo para comprobar dimensiones/recorte
@@ -118,6 +136,20 @@ export default function DevStatesPage() {
 
       <Section title="Tema largo (prueba de desbordamiento)">
         <RequestCard request={LONG_TOPIC} nowMs={FIXTURE_NOW_MS} />
+      </Section>
+
+      <Section title="Long Form (16:9) — procesando">
+        <RequestCard request={LONG_FORM_PROCESSING} nowMs={FIXTURE_NOW_MS} />
+      </Section>
+
+      <Section title="Long Form (16:9) — completado">
+        <RequestCard request={LONG_FORM_COMPLETED} videoUrl={FAKE_VIDEO_URL} nowMs={FIXTURE_NOW_MS} />
+      </Section>
+
+      <Section title="Resultado dedicado — Long Form (16:9) completado">
+        <div className="mx-auto max-w-md rounded-lg border border-border p-6">
+          <ResultView request={LONG_FORM_COMPLETED} videoUrl={FAKE_VIDEO_URL} />
+        </div>
       </Section>
 
       <Section title="Resultado dedicado — completado">

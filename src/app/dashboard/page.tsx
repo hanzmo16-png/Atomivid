@@ -24,7 +24,7 @@ export default async function DashboardPage({
   const { data: requests } = await supabase
     .from("video_requests")
     .select(
-      "id, mode, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at",
+      "id, mode, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage",
     )
     .eq("user_id", user?.id ?? "")
     .order("created_at", { ascending: false })

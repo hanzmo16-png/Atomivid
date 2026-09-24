@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isLongFormScriptJson, LONG_FORM_STAGES, LONG_FORM_STAGE_LABEL } from "./produce";
+import { isLongFormScriptJson } from "./produce";
 
 // El pipeline completo (generateLongFormVideoFromScript) requiere un
 // render real de Remotion (bundle + renderMedia) — igual que
@@ -35,14 +35,4 @@ test("isLongFormScriptJson rechaza beats[] vacío", () => {
 test("isLongFormScriptJson rechaza un beat sin narration o sin id", () => {
   assert.equal(isLongFormScriptJson({ topic: "x", beats: [{ id: "b1" }] }), false);
   assert.equal(isLongFormScriptJson({ topic: "x", beats: [{ narration: "texto" }] }), false);
-});
-
-test("LONG_FORM_STAGES coincide EXACTAMENTE con el vocabulario de la migración 0016 (video_requests_long_form_stage_check)", () => {
-  assert.deepEqual([...LONG_FORM_STAGES], ["scripting", "storyboard", "assets", "ai_video", "rendering"]);
-});
-
-test("LONG_FORM_STAGE_LABEL tiene una etiqueta para cada etapa, ninguna vacía", () => {
-  for (const stage of LONG_FORM_STAGES) {
-    assert.ok(LONG_FORM_STAGE_LABEL[stage] && LONG_FORM_STAGE_LABEL[stage].length > 0, `falta etiqueta para "${stage}"`);
-  }
 });

@@ -40,21 +40,10 @@ import { renderLongFormDoc } from "./render";
 import { wrapDurableVideoProvider } from "./ai-video-durable-provider";
 import { emptyAiVideoLedgerState, recordAiVideoSpend, type AiVideoLedgerState } from "./ai-video-cost-guard";
 import type { NarrativeBeat } from "./types";
+import { type LongFormStage } from "./stages";
 
 const STORAGE_BUCKET = "videos";
 const ASSET_SIGNED_URL_TTL_SECONDS = 60 * 60;
-
-/** Vocabulario de progreso propio de Long Form — ver migración 0016 (video_requests_long_form_stage_check), distinto del RENDER_STAGES de Reel/Avatar (progress_stage) porque este pipeline tiene etapas que las otras modalidades no tienen (assets/ai_video). */
-export const LONG_FORM_STAGES = ["scripting", "storyboard", "assets", "ai_video", "rendering"] as const;
-export type LongFormStage = (typeof LONG_FORM_STAGES)[number];
-
-export const LONG_FORM_STAGE_LABEL: Record<LongFormStage, string> = {
-  scripting: "Preparando el guion",
-  storyboard: "Sintetizando narración y calculando los planos",
-  assets: "Resolviendo imágenes y video por plano",
-  ai_video: "Generando clips con IA (Veo)",
-  rendering: "Ensamblando el documental",
-};
 
 type OnProgress = (stage: LongFormStage) => void | Promise<void>;
 

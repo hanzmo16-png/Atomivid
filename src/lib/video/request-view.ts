@@ -20,6 +20,19 @@ export type VideoRequestSummary = {
   render_attempts: number;
   render_started_at: string | null;
   created_at: string;
+  /**
+   * "9:16" (default histórico, Reel/Avatar) o "16:9" (Long Form) — columna
+   * aditiva de la migración 0016. Opcional porque las páginas de desarrollo
+   * (/dev/states) y filas más viejas pueden omitirla; ausente se trata
+   * igual que "9:16" (comportamiento anterior sin cambios).
+   */
+  aspect_ratio?: string | null;
+  /**
+   * Progreso propio de Long Form (migración 0016) — nunca se lee
+   * progress_stage para mode="long_form" (esa columna solo actúa como
+   * cerrojo interno de concurrencia para esa modalidad, ver run-job.ts).
+   */
+  long_form_stage?: string | null;
 };
 
 export const STATUS_LABEL: Record<string, string> = {

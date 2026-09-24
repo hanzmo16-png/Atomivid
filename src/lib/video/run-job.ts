@@ -5,8 +5,8 @@ import {
   generateLongFormVideoFromScript,
   isLongFormScriptJson,
   type LongFormScriptBeatInput,
-  type LongFormStage,
 } from "./long-form/produce";
+import type { LongFormStage } from "./long-form/stages";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { attemptState } from "./attempt-state";
 import type { RenderStage } from "./stages";

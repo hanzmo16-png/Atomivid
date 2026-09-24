@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { ModeBadge } from "./ModeBadge";
 import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
+import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
 import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
 import { STATUS_LABEL, STATUS_TONE, type VideoRequestSummary } from "@/lib/video/request-view";
 import { GenerateButton } from "@/app/dashboard/GenerateButton";
@@ -33,6 +34,13 @@ export function RequestCard({
   const attemptsExhausted = request.render_attempts >= MAX_RENDER_ATTEMPTS;
   const canRetry = !attemptsExhausted && request.mode !== "avatar";
   const detailHref = `/dashboard/videos/${request.id}`;
+  const isLongForm = request.mode === "long_form";
+  const isLandscape = request.aspect_ratio === "16:9";
+  const stageLabel = isLongForm
+    ? request.long_form_stage &&
+      (LONG_FORM_STAGE_LABEL[request.long_form_stage as LongFormStage] ?? request.long_form_stage)
+    : request.progress_stage &&
+      (RENDER_STAGE_LABEL[request.progress_stage as RenderStage] ?? request.progress_stage);
 
   return (
     <Card className="p-4 sm:p-5">
@@ -42,7 +50,7 @@ export function RequestCard({
             <Link href={detailHref} className="block truncate font-medium text-ink hover:text-accent">
               {request.topic}
             </Link>
-            {request.mode === "avatar" && <ModeBadge />}
+            {(request.mode === "avatar" || isLongForm) && <ModeBadge mode={request.mode as "avatar" | "long_form"} />}
           </div>
           <p className="mt-1 text-sm text-ink-muted">
             {request.style} · {request.duration_seconds}s ·{" "}
@@ -51,10 +59,10 @@ export function RequestCard({
           {request.status === "failed" && request.error_message && (
             <p className="mt-2 max-w-md text-sm text-danger">{renderFailureMessage(request.error_message)}</p>
           )}
-          {request.status === "processing" && !isStaleProcessing && request.progress_stage && (
+          {request.status === "processing" && !isStaleProcessing && stageLabel && (
             <p className="mt-2 flex items-center gap-1.5 text-sm text-ink-muted">
               <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-info motion-reduce:animate-none" aria-hidden="true" />
-              {RENDER_STAGE_LABEL[request.progress_stage as RenderStage] ?? request.progress_stage}…
+              {stageLabel}…
             </p>
           )}
           {request.status === "processing" && isStaleProcessing && (
@@ -116,7 +124,11 @@ export function RequestCard({
             src={videoUrl}
             controls
             preload="metadata"
-            className="aspect-9/16 w-36 rounded-lg border border-border-strong bg-black shadow-md"
+            className={
+              isLandscape
+                ? "aspect-16/9 w-64 rounded-lg border border-border-strong bg-black shadow-md"
+                : "aspect-9/16 w-36 rounded-lg border border-border-strong bg-black shadow-md"
+            }
           >
             Tu navegador no puede reproducir este video.
           </video>

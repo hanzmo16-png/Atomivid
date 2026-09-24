@@ -5,6 +5,7 @@ import { Alert } from "@/components/ui/Alert";
 import { LinkButton } from "@/components/ui/Button";
 import { ModeBadge } from "./ModeBadge";
 import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
+import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
 import {
   LANGUAGE_LABEL,
   STATUS_LABEL,
@@ -32,6 +33,13 @@ export function ResultView({
     `${request.duration_seconds}s`,
     new Date(request.created_at).toLocaleString("es-MX"),
   ].filter(Boolean);
+  const isLongForm = request.mode === "long_form";
+  const isLandscape = request.aspect_ratio === "16:9";
+  const stageLabel = isLongForm
+    ? request.long_form_stage &&
+      (LONG_FORM_STAGE_LABEL[request.long_form_stage as LongFormStage] ?? request.long_form_stage)
+    : request.progress_stage &&
+      (RENDER_STAGE_LABEL[request.progress_stage as RenderStage] ?? request.progress_stage);
 
   return (
     <div>
@@ -40,7 +48,7 @@ export function ResultView({
         <Badge tone={STATUS_TONE[request.status] ?? "neutral"}>
           {STATUS_LABEL[request.status] ?? request.status}
         </Badge>
-        {request.mode === "avatar" && <ModeBadge />}
+        {(request.mode === "avatar" || isLongForm) && <ModeBadge mode={request.mode as "avatar" | "long_form"} />}
       </div>
       <p className="mt-1 text-sm text-ink-muted">{meta.join(" · ")}</p>
 
@@ -60,10 +68,7 @@ export function ResultView({
             />
             <div>
               <p className="font-medium text-ink">
-                {request.progress_stage
-                  ? (RENDER_STAGE_LABEL[request.progress_stage as RenderStage] ??
-                      request.progress_stage) + "…"
-                  : "Preparando tu video…"}
+                {stageLabel ? stageLabel + "…" : "Preparando tu video…"}
               </p>
               <p className="mt-1 text-sm text-ink-muted">
                 Esto puede tardar unos minutos. Puedes cerrar esta página — el progreso se
@@ -86,7 +91,11 @@ export function ResultView({
               src={videoUrl}
               controls
               preload="metadata"
-              className="aspect-9/16 w-full max-w-72 rounded-lg border border-border-strong bg-black shadow-lg"
+              className={
+                isLandscape
+                  ? "aspect-16/9 w-full max-w-md rounded-lg border border-border-strong bg-black shadow-lg"
+                  : "aspect-9/16 w-full max-w-72 rounded-lg border border-border-strong bg-black shadow-lg"
+              }
             >
               Tu navegador no puede reproducir este video.
             </video>
