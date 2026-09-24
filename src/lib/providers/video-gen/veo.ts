@@ -6,42 +6,47 @@ import { GenerativeProviderError, type GenerativeAsset, type VideoGenerationRequ
  * primer proveedor de video-IA de ATOMIVID desbloqueado con contrato
  * implementado (no ya un skeleton contract_unverified como kling.ts).
  *
- * FUENTE DE LOS DATOS: citación directa de Hans (P2A.5) contra
- * documentación primaria —
+ * FUENTE DE LOS DATOS: P2A.5 usó una citación de Hans; en P2A.6 Hans
+ * verificó DIRECTAMENTE la documentación oficial actual —
  *   https://ai.google.dev/gemini-api/docs/veo
  *   https://ai.google.dev/gemini-api/docs/pricing
- * Este entorno TODAVÍA tiene bloqueado el acceso directo a ai.google.dev
- * (EGRESS_BLOCKED, confirmado de nuevo al intentar leerlo en P2A.5) — así
- * que Claude NO pudo re-verificar estos valores de forma independiente;
- * se implementan tal como Hans los confirmó, tratados como datos de
- * planeación/implementación fiables (a diferencia del rango UNVERIFICADO
- * de fuentes secundarias usado para Kling), pero si alguna vez difieren de
- * la doc en vivo, debe corregirse aquí, nunca sobrescribirse en silencio.
+ * Este entorno sigue sin poder leer ai.google.dev directamente
+ * (EGRESS_BLOCKED, reconfirmado en P2A.6) — Claude implementa exactamente
+ * lo que Hans confirmó campo por campo, sin re-verificación propia. Si
+ * algo difiere de la doc en vivo en el futuro, corregir aquí, nunca
+ * sobrescribir en silencio.
  *
- * Capacidades confirmadas por Hans:
+ * Contrato confirmado por Hans (P2A.6):
  *   - Modelo API: "veo-3.1-fast-generate-preview".
- *   - text-to-video e image-to-video soportados; first/last frame y hasta
- *     3 reference images soportados por el contrato pero NO USADOS todavía
- *     (ATOMIVID solo necesita 1 imagen de referencia por ahora, ver
- *     ai-video-benchmark-v2-active.ts).
- *   - aspectRatios: 16:9, 9:16. resolutions: 720p/1080p/4k.
- *   - 1080p -> 8 segundos (única duración usada aquí). 24fps.
- *   - Audio: SIEMPRE generado, no hay parámetro documentado para
+ *   - REST base: https://generativelanguage.googleapis.com/v1beta
+ *   - Submit: POST /models/veo-3.1-fast-generate-preview:predictLongRunning
+ *   - Auth: header "x-goog-api-key".
+ *   - Async: submit -> operation name -> GET operation -> done -> URI de
+ *     video generado -> download.
+ *   - image-to-video soportado; el parámetro `image` es un objeto Image,
+ *     NO una URI arbitraria — el ejemplo oficial en JavaScript usa
+ *     `imageBytes` (bytes en base64) + `mimeType`. Este adapter NUNCA
+ *     envía `{ image: { uri } }` (P2A.5 lo hacía, corregido en P2A.6):
+ *     descarga la imagen de referencia aprobada de ATOMIVID del lado del
+ *     servidor, la convierte a base64, y construye el objeto Image
+ *     documentado. La imagen NUNCA se expone al cliente ni la clave se usa
+ *     fuera de este adapter server-side.
+ *   - aspectRatios: 16:9, 9:16. resolutions: 720p/1080p/4k. 1080p -> 8s
+ *     (única duración usada aquí). 24fps.
+ *   - Audio: SIEMPRE generado, sin parámetro documentado para
  *     desactivarlo — nunca se inventa uno (ver GenerativeAsset.
  *     sourceHasGeneratedAudio, providers/types.ts).
- *   - seed disponible, sin determinismo garantizado.
  *   - Precio 1080p: $0.12/segundo -> 8s = $0.96/clip.
- *   - Async: la solicitud devuelve una Operation que se sondea hasta
- *     done=true (patrón estándar de "long-running operations" de la
- *     Gemini API — predictLongRunning + GET del nombre de la operación).
+ *   - Descarga: response.generateVideoResponse.generatedSamples[0].video.uri.
  *
- * La forma EXACTA de los campos JSON de abajo (nombres de propiedad del
- * payload/respuesta) sigue el patrón públicamente documentado de la Gemini
- * API para operaciones de larga duración (mismo patrón que Imagen/Veo en
- * esa API) — no pudo confirmarse campo por campo contra la página en vivo
- * en este entorno. Un humano con acceso normal a internet debería
- * contrastar esto contra ai.google.dev antes de la primera llamada real
- * (ver informe final P2A.5, sección O).
+ * Se prefirió mantener REST (no el SDK oficial de Google) para esta
+ * corrección: agregar una dependencia nueva (@google/genai o equivalente)
+ * introduce su propia superficie de ambigüedad (nombres de método,
+ * versión, compatibilidad con el runtime serverless de Vercel) sin
+ * eliminar la necesidad de verificar el contrato subyacente — y el resto
+ * de proveedores generativos de este repo (runway.ts, openai.ts) ya usan
+ * REST puro sin SDK, así que esto mantiene el patrón establecido en vez de
+ * introducir uno nuevo solo para Veo.
  *
  * Ninguna llamada HTTP real ocurre en los tests de este archivo — todos
  * usan un fetch simulado (ver veo.test.ts), igual que openai.test.ts.
@@ -129,23 +134,58 @@ function classifyGoogleError(httpStatus: number | undefined, message: string | u
   return "upstream_error";
 }
 
+function sniffImageMimeType(buffer: Buffer): string | undefined {
+  if (buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return "image/png";
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return "image/jpeg";
+  if (buffer.length >= 12 && buffer.toString("ascii", 8, 12) === "WEBP") return "image/webp";
+  return undefined;
+}
+
+/**
+ * Descarga la imagen de referencia APROBADA de ATOMIVID (nunca una URL
+ * arbitraria sin pasar por el gate de aprobación, ver
+ * ai-video-benchmark-execution-gate.ts) del lado del servidor y la
+ * convierte al objeto Image documentado por Google (`imageBytes` en
+ * base64 + `mimeType`) — la Gemini API NO acepta una URI/referencia
+ * externa arbitraria para image-to-video (corrección P2A.6, ver
+ * comentario de cabecera). El tipo MIME se toma del header `content-type`
+ * de la respuesta; si es genérico o falta, se detecta por firma de bytes
+ * (PNG/JPEG/WebP) antes de asumir "image/png" como último recurso.
+ */
+async function fetchReferenceImageAsGeminiImageObject(referenceImageUrl: string): Promise<{ imageBytes: string; mimeType: string }> {
+  let response: Response;
+  try {
+    response = await fetch(referenceImageUrl);
+  } catch (err) {
+    throw new GenerativeProviderError("Veo: fallo de red al leer la imagen de referencia aprobada", "veo", "invalid_request", err);
+  }
+  if (!response.ok) {
+    throw new GenerativeProviderError(`No se pudo leer la imagen de referencia aprobada (HTTP ${response.status})`, "veo", "invalid_request");
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.byteLength === 0) {
+    throw new GenerativeProviderError("La imagen de referencia aprobada está vacía (0 bytes)", "veo", "invalid_request");
+  }
+  const headerMime = response.headers.get("content-type")?.split(";")[0]?.trim();
+  const mimeType = headerMime && headerMime.startsWith("image/") ? headerMime : (sniffImageMimeType(buffer) ?? "image/png");
+  return { imageBytes: buffer.toString("base64"), mimeType };
+}
+
 /**
  * Mapea un `VideoGenerationRequest` normalizado (provider-agnóstico) al
  * payload de `predictLongRunning` — el negativePrompt NUNCA se envía como
  * campo API separado (no está confirmado que la Gemini API lo soporte
- * para video, ver P2A.5 sección 13): se integra en el prompt principal
- * como texto "Avoid: ...", mismo patrón ya usado por runway.ts.
+ * para video): se integra en el prompt principal como texto "Avoid: ...",
+ * mismo patrón ya usado por runway.ts. `image` SIEMPRE es el objeto
+ * documentado (`imageBytes`/`mimeType`, ver
+ * fetchReferenceImageAsGeminiImageObject) — nunca una URI, corrección
+ * P2A.6.
  */
-function buildRequestPayload(request: VideoGenerationRequest): Record<string, unknown> {
+async function buildRequestPayload(request: VideoGenerationRequest): Promise<Record<string, unknown>> {
   const prompt = request.negativePrompt ? `${request.prompt}\n\nAvoid: ${request.negativePrompt}` : request.prompt;
   const instance: Record<string, unknown> = { prompt };
   if (request.referenceImageUrl) {
-    // Referencia por URI (no bytes inline) — evita tener que descargar la
-    // imagen de referencia dos veces (una para Google, otra para nuestro
-    // propio Storage); el contrato exacto de cómo la Gemini API acepta una
-    // imagen por referencia (bytes base64 vs URI firmada) no se confirmó
-    // en este entorno — ver comentario de cabecera.
-    instance.image = { uri: request.referenceImageUrl };
+    instance.image = await fetchReferenceImageAsGeminiImageObject(request.referenceImageUrl);
   }
   const parameters: Record<string, unknown> = {
     aspectRatio: request.aspectRatio,
@@ -157,7 +197,7 @@ function buildRequestPayload(request: VideoGenerationRequest): Record<string, un
 }
 
 async function submitGeneration(request: VideoGenerationRequest): Promise<string> {
-  const payload = buildRequestPayload(request);
+  const payload = await buildRequestPayload(request);
   let response: Response;
   try {
     response = await fetch(`${getGeminiApiBase()}/models/${VEO_MODEL}:predictLongRunning`, {
