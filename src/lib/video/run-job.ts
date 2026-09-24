@@ -1,6 +1,12 @@
 import { createServiceClient } from "@/lib/supabase/service";
 import { generateVideoFromScript } from "./generate-video";
 import { generateAvatarVideo } from "./avatar/pipeline";
+import {
+  generateLongFormVideoFromScript,
+  isLongFormScriptJson,
+  type LongFormScriptBeatInput,
+  type LongFormStage,
+} from "./long-form/produce";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { attemptState } from "./attempt-state";
 import type { RenderStage } from "./stages";
@@ -73,17 +79,30 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
     const result = await update({ progress_stage: stage }).select("id").maybeSingle();
     if (result.error || !result.data) throw new Error("El trabajo ya no tiene una reserva activa. No se repetirá automáticamente.");
   };
+  // Long Form tiene su propio vocabulario de etapas (columna long_form_stage,
+  // migración 0016) — nunca se reutiliza progress_stage para esto, ver el
+  // comentario de esa migración. progress_stage sigue recibiendo "voice" vía
+  // claim()/attemptState de abajo: eso solo actúa como el cerrojo de
+  // concurrencia interno del intento, nunca se muestra al usuario para
+  // mode="long_form" (Historial lee long_form_stage para esta modalidad).
+  const onLongFormProgress = async (stage: LongFormStage) => {
+    const result = await update({ long_form_stage: stage }).select("id").maybeSingle();
+    if (result.error || !result.data) throw new Error("El trabajo ya no tiene una reserva activa. No se repetirá automáticamente.");
+  };
 
   try {
-    if (!row.script_json) throw new Error("No hay guion guardado para renderizar.");
     if (mode === "avatar" && !row.avatar_id) throw new Error("Falta el avatar asociado a esta solicitud.");
+    if (mode !== "long_form" && !row.script_json) throw new Error("No hay guion guardado para renderizar.");
+    if (mode === "long_form" && !isLongFormScriptJson(row.script_json)) {
+      throw new Error("El guion guardado no tiene la forma esperada para Long Form (topic + beats[] con narración).");
+    }
     const { videoPath } =
       mode === "avatar"
         ? await generateAvatarVideo({
             supabase: service,
             requestId,
             userId: row.user_id,
-            script: row.script_json,
+            script: row.script_json as GeneratedScript,
             avatarId: row.avatar_id as string,
             voiceId: row.avatar_voice_id ?? undefined,
             recordedAudioPath: row.recorded_audio_path,
@@ -91,26 +110,36 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
             existingProviderVideoJobId: row.avatar_provider_video_job_id,
             onProgress,
           })
-        : await generateVideoFromScript({
-            supabase: service,
-            requestId,
-            artifactPrefix: `${requestId}/attempt-${row.render_attempts}`,
-            script: row.script_json,
-            style: row.style ?? undefined,
-            topic: row.topic ?? undefined,
-            language: row.language ?? undefined,
-            targetDurationSeconds: row.duration_seconds ?? undefined,
-            onProgress,
-          });
+        : mode === "long_form"
+          ? await generateLongFormVideoFromScript({
+              supabase: service,
+              requestId,
+              artifactPrefix: `${requestId}/attempt-${row.render_attempts}`,
+              topic: (row.script_json as unknown as { topic: string; beats: LongFormScriptBeatInput[] }).topic,
+              beats: (row.script_json as unknown as { topic: string; beats: LongFormScriptBeatInput[] }).beats,
+              language: row.language ?? undefined,
+              onProgress: onLongFormProgress,
+            })
+          : await generateVideoFromScript({
+              supabase: service,
+              requestId,
+              artifactPrefix: `${requestId}/attempt-${row.render_attempts}`,
+              script: row.script_json as GeneratedScript,
+              style: row.style ?? undefined,
+              topic: row.topic ?? undefined,
+              language: row.language ?? undefined,
+              targetDurationSeconds: row.duration_seconds ?? undefined,
+              onProgress,
+            });
 
     const completed = await update({
-      status: "completed", video_path: videoPath, progress_stage: null, error_message: null,
+      status: "completed", video_path: videoPath, progress_stage: null, long_form_stage: null, error_message: null,
     }).select("id").maybeSingle();
     if (completed.error || !completed.data) throw new Error("No se pudo confirmar el resultado de este intento. No vuelvas a generar sin revisar su estado.");
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error desconocido";
 
-    await update({ status: "failed", error_message: message, progress_stage: null });
+    await update({ status: "failed", error_message: message, progress_stage: null, long_form_stage: null });
 
     throw error;
   }
