@@ -45,6 +45,13 @@ async function sleep(ms: number): Promise<void> {
 
 type RunwayTaskStatus = "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "THROTTLED";
 
+// UNVERIFICADO contra doc oficial — placeholders 9:16/16:9, confirmar los
+// valores exactos aceptados por la API real antes de usar con una clave.
+const RATIO_BY_ASPECT: Record<VideoGenerationRequest["aspectRatio"], string> = {
+  "9:16": "768:1280",
+  "16:9": "1280:768",
+};
+
 async function createTask(request: VideoGenerationRequest, durationSeconds: number): Promise<string> {
   const response = await fetch(`${RUNWAY_API_BASE}/text_to_video`, {
     method: "POST",
@@ -57,7 +64,7 @@ async function createTask(request: VideoGenerationRequest, durationSeconds: numb
       promptText: request.negativePrompt
         ? `${request.prompt}\n\nAvoid: ${request.negativePrompt}`
         : request.prompt,
-      ratio: "768:1280", // UNVERIFICADO — placeholder 9:16, confirmar valor exacto aceptado por la API real.
+      ratio: RATIO_BY_ASPECT[request.aspectRatio],
       duration: durationSeconds,
     }),
   });
@@ -127,7 +134,7 @@ export const runwayVideoProvider: VideoProvider = {
     id: "runway",
     models: [DEFAULT_MODEL],
     formats: ["video/mp4"],
-    aspectRatios: ["9:16"],
+    aspectRatios: ["9:16", "16:9"],
     timeoutMs: POLL_TIMEOUT_MS,
     maxRetries: 0, // Una tarea de Runway ya cuesta dinero al crearse — nunca se reintenta automáticamente, ver runway.isAvailable()/generateVideo.
   },

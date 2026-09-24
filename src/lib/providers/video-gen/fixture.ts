@@ -13,7 +13,7 @@ export const fixtureVideoProvider: VideoProvider = {
     id: "fixture",
     models: ["fixture-placeholder-clip"],
     formats: ["video/mp4"],
-    aspectRatios: ["9:16"],
+    aspectRatios: ["9:16", "16:9"],
     timeoutMs: 0,
     maxRetries: 0,
   },

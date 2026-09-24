@@ -79,6 +79,21 @@ export function getFeatureFlags() {
      * Product entrypoints must still call assertLongFormAccess (flag + allowlist).
      */
     longFormEnabled: flag("LONG_FORM_ENABLED", false),
+    /**
+     * AI Video Pipeline P1 (video/long-form/ai-video-*.ts) — interruptor
+     * GLOBAL y explícito para que el resolver intente generar CLIPS DE
+     * VIDEO con IA para algún shot de Long Form. Independiente de
+     * `longFormEnabled` (que solo habilita el pipeline en sí) y de
+     * `videoProvider`/`VIDEO_PROVIDER` (que decide QUÉ proveedor, no SI se
+     * le permite gastar) — mismo criterio ya usado por
+     * `imageGenerationEnabled`. Apagado por defecto: con esto en false,
+     * `ai-video-resolver.ts` SIEMPRE cae a fixture/fallback determinístico,
+     * nunca intenta una llamada real, sin importar qué diga el eligibility
+     * engine para un shot concreto.
+     */
+    longFormAiVideoEnabled: flag("LONG_FORM_AI_VIDEO_ENABLED", false),
+    /** "economic" | "balanced" | "premium" — ver ai-video-cost-guard.ts. Preset por defecto si no se pasa uno explícito al resolver. */
+    longFormAiVideoCostPreset: (process.env.LONG_FORM_AI_VIDEO_COST_PRESET || "balanced").trim(),
   };
 }
 

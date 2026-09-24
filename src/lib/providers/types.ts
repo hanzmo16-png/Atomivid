@@ -263,9 +263,29 @@ export interface ImageProvider {
 export type VideoGenerationRequest = {
   prompt: string;
   negativePrompt?: string;
-  aspectRatio: "9:16";
+  /**
+   * "9:16" es el valor histórico (Shorts/Avatar, todos los llamadores
+   * existentes). "16:9" se agregó para el AI Video Pipeline de Long Form
+   * (ver src/lib/video/long-form/ai-video-*.ts) — mismo criterio aditivo
+   * ya usado en ImageGenerationRequest.aspectRatio: un llamador que omite
+   * "16:9" nunca lo recibe, así que esto no cambia el comportamiento de
+   * ningún proveedor existente para pedidos "9:16".
+   */
+  aspectRatio: "9:16" | "16:9";
   durationSeconds: number;
   maxCostUsd: number;
+  /**
+   * Referencia opcional a una imagen ya generada/aprobada (p. ej. la URL o
+   * buffer de un shot AI_RECREATION) para animación image-to-video —
+   * ausente = generación text-to-video pura. Ningún proveedor existente
+   * (fixture/runway) la usa todavía; queda reservada para no bloquear un
+   * adaptador futuro que sí soporte image-to-video.
+   */
+  referenceImageUrl?: string;
+  /** Semilla opcional para reproducibilidad, cuando el proveedor la soporte — ausente = no determinístico. */
+  seed?: string;
+  /** Metadata de trazabilidad libre (p. ej. shotId, videoId) — nunca interpretada por el proveedor, solo para observabilidad del llamador. */
+  metadata?: Record<string, string>;
 };
 
 export interface VideoProvider {
