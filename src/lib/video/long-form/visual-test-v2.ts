@@ -135,8 +135,15 @@ const SHOTS: VisualTestV2ShotSpec[] = [
   },
 ];
 
-/** Compone el prompt final: escena + bloque de estilo compartido (VIDEO_001_VISUAL_STYLE) — nunca se manda solo el texto de escena, para que las 3 imágenes se sientan una misma serie. */
-function composePrompt(scenePrompt: string): string {
+/**
+ * Compone el prompt final: escena + bloque de estilo compartido
+ * (VIDEO_001_VISUAL_STYLE) — nunca se manda solo el texto de escena, para
+ * que las imágenes se sientan una misma serie. Exportada (además de para
+ * las 3 del Visual Test V2) para que producción real reutilice EXACTAMENTE
+ * el mismo "style composer" en las 8 imágenes AI_RECREATION restantes del
+ * storyboard — ver production-ai-recreation.ts.
+ */
+export function composePrompt(scenePrompt: string): string {
   const s = VIDEO_001_VISUAL_STYLE;
   return (
     `${scenePrompt} ${s.cinematography}, ${s.lighting}, ${s.colorTreatment}, ${s.texture}, ${s.composition}. ` +
@@ -144,7 +151,7 @@ function composePrompt(scenePrompt: string): string {
   );
 }
 
-function composeNegativePrompt(sceneNegativePrompt: string): string {
+export function composeNegativePrompt(sceneNegativePrompt: string): string {
   return `${sceneNegativePrompt}, ${VIDEO_001_VISUAL_STYLE.sharedNegative}`;
 }
 

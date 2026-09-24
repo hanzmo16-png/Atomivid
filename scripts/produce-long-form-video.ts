@@ -96,7 +96,7 @@ async function main() {
   const { buildLongFormTimeline } = await import("../src/lib/video/long-form/timeline");
   const { synthesizeBeatNarrationCached } = await import("../src/lib/video/long-form/tts-cache");
   const { getVoiceIdentity } = await import("../src/lib/ai/voice");
-  const { assertCanSpend, readCostLedgerFromDisk, recordSpendToDisk, VIDEO_001_HARD_STOP_USD } = await import(
+  const { assertCanSpend, recordSpend, readCostLedgerFromDisk, recordSpendToDisk, VIDEO_001_HARD_STOP_USD } = await import(
     "../src/lib/video/long-form/video-cost-guard"
   );
   const { getPricingConfig } = await import("../src/lib/billing/pricing");
@@ -169,6 +169,8 @@ async function main() {
   let shotsBuilder: Parameters<typeof buildLongFormTimeline>[3] | undefined;
   let graphicSpecFor: Parameters<typeof resolveShotAsset>[1]["graphicSpecFor"];
   let synthesizeBeat: Parameters<typeof buildLongFormTimeline>[4] | undefined;
+  /** true solo para una ejecución REAL del storyboard de VIDEO #001 — usado más abajo (paso 5a) para resolver los shots AI_RECREATION con el mecanismo durable de Supabase en vez del ciclo genérico de asset-resolver.ts. */
+  let isVideo001RealRun = false;
   if (args.storyboardFile) {
     const storyboard = loadStoryboardFromFile(args.storyboardFile);
     const missingBeatIds = scriptBeats
@@ -193,37 +195,78 @@ async function main() {
       `[atomivid:long-form] storyboard cargado desde archivo: "${args.storyboardFile}" — ${storyboard.totalShots} shots curados, ${storyboard.shotsByBeatId.size} beats`,
     );
 
-    // Idempotencia TTS por beat (tts-cache.ts) — usa el videoId del
-    // storyboard como identidad. El proveedor fixture (modo simulation)
-    // hace bypass total del caché dentro de synthesizeBeatNarrationCached,
-    // así que es seguro pasar esto siempre que haya un storyboard, sin
-    // importar el modo. El cost guard específico de VIDEO #001 solo se
-    // conecta cuando el videoId coincide — para otro video futuro, el
-    // caché sigue funcionando (idempotencia), solo sin ese guard extra.
+    // Idempotencia TTS por beat — usa el videoId del storyboard como
+    // identidad. El proveedor fixture (modo simulation) hace bypass total
+    // del caché en ambos casos de abajo, así que es seguro pasar esto
+    // siempre que haya un storyboard, sin importar el modo.
     const voiceIdentity = getVoiceIdentity("es");
     const isVideo001 = storyboard.videoId === "gobekli-tepe-001";
+    isVideo001RealRun = isVideo001 && args.mode === "real";
     const pricing = getPricingConfig();
-    synthesizeBeat = (voiceProvider, beat, language) =>
-      synthesizeBeatNarrationCached(voiceProvider, beat, language, {
-        videoId: storyboard.videoId,
-        voiceIdentity,
-        costGuard: isVideo001
-          ? {
-              estimateCostUsd: (text) => (text.length / 1000) * pricing.elevenLabsUsdPer1kChars,
-              assertCanSpend: (amountUsd) => {
-                const ledger = readCostLedgerFromDisk(storyboard.videoId);
-                assertCanSpend(ledger, "production", amountUsd);
-              },
-              recordSpend: (amountUsd, note) => {
-                recordSpendToDisk(storyboard.videoId, "production", amountUsd, note);
-              },
-            }
-          : undefined,
-      });
-    console.log(
-      `[atomivid:long-form] caché TTS por beat activo (videoId="${storyboard.videoId}")` +
-        (isVideo001 ? ` — cost guard de VIDEO #001 conectado (hard stop $${VIDEO_001_HARD_STOP_USD})` : ""),
-    );
+
+    if (isVideo001RealRun) {
+      // Producción REAL de VIDEO #001 (p. ej. GitHub Actions): el ledger y
+      // la caché TTS deben ser DURABLES entre ejecuciones SEPARADAS — un
+      // runner de GitHub Actions es efímero (workspace nuevo cada vez), así
+      // que el ledger/caché en disco local (.atomivid-state/..., tts-cache.ts)
+      // solo protegen contra un crash DENTRO de una misma ejecución, nunca
+      // entre dos ejecuciones distintas del workflow. Se usa el MISMO ledger
+      // de Supabase Storage donde ya está el gasto real confirmado del
+      // Visual Test V2 — el hard stop de $3.00 se valida siempre sobre el
+      // TOTAL acumulado real, nunca desde $0 (ver production-tts-cache.ts /
+      // visual-test-v2-storage.ts).
+      const { createServiceClient } = await import("../src/lib/supabase/service");
+      const { synthesizeBeatNarrationProductionCached } = await import(
+        "../src/lib/video/long-form/production-tts-cache"
+      );
+      const { readVisualTestV2Ledger, writeVisualTestV2Ledger } = await import(
+        "../src/lib/video/long-form/visual-test-v2-storage"
+      );
+      const supabaseForTts = createServiceClient();
+      synthesizeBeat = (voiceProvider, beat, language) =>
+        synthesizeBeatNarrationProductionCached(supabaseForTts, voiceProvider, beat, language, {
+          videoId: storyboard.videoId,
+          voiceIdentity,
+          costGuard: {
+            estimateCostUsd: (text) => (text.length / 1000) * pricing.elevenLabsUsdPer1kChars,
+            assertCanSpend: async (amountUsd) => {
+              const ledger = await readVisualTestV2Ledger(supabaseForTts, "videos", storyboard.videoId);
+              assertCanSpend(ledger, "production", amountUsd);
+            },
+            recordSpend: async (amountUsd, note) => {
+              const ledger = await readVisualTestV2Ledger(supabaseForTts, "videos", storyboard.videoId);
+              const updated = recordSpend(ledger, "production", amountUsd, note);
+              await writeVisualTestV2Ledger(supabaseForTts, "videos", updated);
+            },
+          },
+        });
+      console.log(
+        `[atomivid:long-form] PRODUCCIÓN REAL VIDEO #001: caché TTS + ledger DURABLES en Supabase Storage ` +
+          `(hard stop total $${VIDEO_001_HARD_STOP_USD}, incluye gasto ya confirmado del Visual Test V2).`,
+      );
+    } else {
+      synthesizeBeat = (voiceProvider, beat, language) =>
+        synthesizeBeatNarrationCached(voiceProvider, beat, language, {
+          videoId: storyboard.videoId,
+          voiceIdentity,
+          costGuard: isVideo001
+            ? {
+                estimateCostUsd: (text) => (text.length / 1000) * pricing.elevenLabsUsdPer1kChars,
+                assertCanSpend: (amountUsd) => {
+                  const ledger = readCostLedgerFromDisk(storyboard.videoId);
+                  assertCanSpend(ledger, "production", amountUsd);
+                },
+                recordSpend: (amountUsd, note) => {
+                  recordSpendToDisk(storyboard.videoId, "production", amountUsd, note);
+                },
+              }
+            : undefined,
+        });
+      console.log(
+        `[atomivid:long-form] caché TTS por beat activo (videoId="${storyboard.videoId}")` +
+          (isVideo001 ? ` — cost guard de VIDEO #001 conectado (hard stop $${VIDEO_001_HARD_STOP_USD}, ledger local — solo simulation)` : ""),
+      );
+    }
   } else {
     console.log("[atomivid:long-form] sin --storyboard: usando shotsForSpan() (ciclo genérico) y gráficos fixture, como antes.");
   }
@@ -290,6 +333,33 @@ async function main() {
     // 5. Resolver el asset real de cada shot según su shot.type.
     console.log("[atomivid:long-form] resolviendo assets por shot.type...");
     const allShots = timeline.beats.flatMap((b) => b.shots);
+
+    // 5a. PRODUCCIÓN REAL de VIDEO #001 únicamente: resuelve TODOS los
+    // shots AI_RECREATION (shot.source === "generated") ANTES del ciclo
+    // genérico de abajo — los 3 ya aprobados se REUTILIZAN (nunca se
+    // regeneran) y los 8 restantes se generan o reutilizan con el mismo
+    // estilo/idempotencia/cost-guard del Visual Test V2 (ver
+    // production-ai-recreation.ts). El ciclo genérico de asset-resolver.ts
+    // (abajo) NUNCA ve estos shots — se bypassa por completo para ellos,
+    // porque hoy mapea "ken_burns_image" a stock/Pexels, no a OpenAI.
+    let productionAiImages:
+      | Map<string, import("../src/lib/video/long-form/production-ai-recreation").ResolvedAiRecreationImage>
+      | undefined;
+    if (isVideo001RealRun) {
+      const { createServiceClient } = await import("../src/lib/supabase/service");
+      const { resolveProductionAiRecreationImages } = await import(
+        "../src/lib/video/long-form/production-ai-recreation"
+      );
+      const supabaseForImages = createServiceClient();
+      productionAiImages = await resolveProductionAiRecreationImages(supabaseForImages, allShots, providers.imageProvider);
+      const newCostUsd = [...productionAiImages.values()].filter((v) => !v.reused).reduce((sum, v) => sum + v.costUsd, 0);
+      console.log(
+        `[atomivid:long-form] PRODUCCIÓN REAL VIDEO #001: ${productionAiImages.size} shots AI_RECREATION resueltos ` +
+          `(${[...productionAiImages.values()].filter((v) => v.reused).length} reutilizados, ` +
+          `${[...productionAiImages.values()].filter((v) => !v.reused).length} generados nuevos, costo nuevo=$${newCostUsd.toFixed(4)}).`,
+      );
+    }
+
     const shotScenes: {
       id: string;
       startSeconds: number;
@@ -303,15 +373,31 @@ async function main() {
     const providersUsedForAssets = new Set<string>();
 
     for (const shot of allShots) {
-      const remaining = Math.max(0, budget.maxImageUsd - imageCostSpentUsd);
-      const result = await resolveShotAsset(shot, {
-        footageProvider: providers.footageProvider,
-        imageProvider: providers.imageProvider,
-        upload,
-        pathPrefix: "longform-pilot",
-        imageBudgetRemainingUsd: remaining,
-        graphicSpecFor,
-      });
+      const preResolvedAi = productionAiImages?.get(shot.id);
+      let result: Awaited<ReturnType<typeof resolveShotAsset>>;
+      if (preResolvedAi) {
+        // Shot AI_RECREATION de producción REAL de VIDEO #001, ya resuelto
+        // en el paso 5a (reutilizado o generado con Supabase/cost-guard) —
+        // NUNCA pasa por resolveShotAsset/footageProvider para este shot.
+        const uploaded = await upload(`longform-pilot/${shot.id}.${preResolvedAi.extension}`, preResolvedAi.buffer);
+        result = {
+          shotId: shot.id,
+          asset: { kind: "media", mediaType: "image", url: uploaded.url },
+          costUsd: preResolvedAi.costUsd,
+          bufferBytes: preResolvedAi.buffer.byteLength,
+          providerUsed: preResolvedAi.reused ? "openai (reused, producción real)" : "openai (producción real)",
+        };
+      } else {
+        const remaining = Math.max(0, budget.maxImageUsd - imageCostSpentUsd);
+        result = await resolveShotAsset(shot, {
+          footageProvider: providers.footageProvider,
+          imageProvider: providers.imageProvider,
+          upload,
+          pathPrefix: "longform-pilot",
+          imageBudgetRemainingUsd: remaining,
+          graphicSpecFor,
+        });
+      }
       imageCostSpentUsd += result.costUsd;
       totalBufferBytes += result.bufferBytes;
       shotTypesUsed.push(shot.type);
