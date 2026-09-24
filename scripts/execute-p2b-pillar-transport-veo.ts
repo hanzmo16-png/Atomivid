@@ -37,11 +37,17 @@ async function main() {
   if (result.success) {
     console.log(`\n[P2B] Google respondió con éxito. providerJobId=${result.providerJobId}, generationTimeMs=${result.generationTimeMs}`);
     console.log(`[P2B] Validación del clip: ${JSON.stringify(result.validation)}`);
-    console.log(`[P2B] Clip guardado localmente en: ${result.storedLocallyAt} (Supabase Storage real no disponible en este proceso — ver informe P2B, sección Storage).`);
+    if (result.canonicalStoragePath) {
+      console.log(`[P2B] Clip subido a Supabase Storage (canonical): ${result.canonicalStoragePath}`);
+    }
+    if (result.storedLocallyAt) {
+      console.log(`[P2B] Clip preservado localmente en: ${result.storedLocallyAt}${result.storageWarning ? ` (${result.storageWarning})` : ""}`);
+    }
     console.log("\n" + "=".repeat(72));
     console.log("[P2B] REAL VIDEO GENERATIONS ATTEMPTED: 1/1");
     console.log(`[P2B] SUCCESSFUL REAL VIDEO GENERATIONS: ${result.validation.valid ? "1/1" : "0/1 (generó, pero no pasó validación)"}`);
     console.log(`[P2B] ACTUAL COST: $${result.actualCostUsd}`);
+    console.log(`[P2B] GASTO ACUMULADO DE LA MISIÓN: $${result.missionCumulativeSpendUsd.toFixed(2)} / $10.00 autorizados`);
     console.log("=".repeat(72));
   } else {
     console.log("\n" + "=".repeat(72));
@@ -52,6 +58,7 @@ async function main() {
     console.log(`  generationTimeMs: ${result.generationTimeMs}`);
     console.log("[P2B] REAL VIDEO GENERATIONS ATTEMPTED: 1/1");
     console.log("[P2B] SUCCESSFUL REAL VIDEO GENERATIONS: 0/1");
+    console.log(`[P2B] GASTO ACUMULADO DE LA MISIÓN (conservador): $${result.missionCumulativeSpendUsd.toFixed(2)} / $10.00 autorizados`);
     console.log("=".repeat(72));
     process.exit(1);
   }
