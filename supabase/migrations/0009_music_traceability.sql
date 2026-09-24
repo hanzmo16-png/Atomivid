@@ -1,10 +1,12 @@
 -- Atomivid — trazabilidad de la pista de música usada en cada video.
 --
--- *** NO APLICADA TODAVÍA EN EL PROYECTO REAL DE SUPABASE ***
--- Este archivo se deja preparado y documentado, pero NO se ejecuta sin
--- autorización explícita (instrucción del usuario). Aplicarla cuando se
--- autorice: pegar este contenido en el SQL Editor de Supabase, igual que
--- las migraciones anteriores.
+-- *** APLICADA EN EL PROYECTO REAL DE SUPABASE *** (confirmado vía
+-- apply-supabase-migration.yml, ejecución autoritativa contra
+-- information_schema/pg_catalog el 2026-09-17: "0001-0013 completamente
+-- aplicadas"; verificado de nuevo el 2026-09-24). Este comentario decía
+-- "NO APLICADA" hasta esta corrección — quedó desactualizado tras la
+-- aplicación real; no editar el resto del archivo con base en la nota
+-- vieja.
 --
 -- Por qué existe: hoy `generation_costs.music_provider` (migración 0008)
 -- solo guarda el nombre del MECANISMO de selección ("curated-library",

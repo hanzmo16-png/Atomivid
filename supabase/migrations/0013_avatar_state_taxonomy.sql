@@ -3,11 +3,14 @@
 -- para el producto (draft, queued, processing, completed, failed,
 -- cancelled).
 --
--- *** NO APLICADA TODAVÍA EN EL PROYECTO REAL DE SUPABASE ***
--- Igual que las migraciones anteriores (0009-0012): se deja preparada y
--- documentada, no se ejecuta sin autorización explícita.
+-- *** APLICADA EN EL PROYECTO REAL DE SUPABASE *** (confirmado vía
+-- apply-supabase-migration.yml, ejecución autoritativa contra
+-- information_schema/pg_catalog el 2026-09-17: "0001-0013 completamente
+-- aplicadas"; verificado de nuevo el 2026-09-24). Este comentario decía
+-- "NO APLICADA" hasta esta corrección — quedó desactualizado tras la
+-- aplicación real.
 --
--- Por qué existe: la migración 0011 (tampoco aplicada) definió
+-- Por qué existe: la migración 0011 (también aplicada) definió
 -- avatars.status con ('uploaded', 'processing', 'ready', 'failed',
 -- 'deleted') y video_requests.avatar_render_status con ('queued',
 -- 'processing', 'completed', 'failed', 'cancelled') — ninguna de las dos

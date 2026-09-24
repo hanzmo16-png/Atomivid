@@ -26,6 +26,19 @@ export const SHOT_TYPES = [
   "diagram",
   "map",
   "ken_burns_image",
+  /**
+   * Reconciliación RC Phase 1 (release candidate): hasta esta corrección,
+   * `VisualAssetTier` (abajo) ya tenía un valor "ai_video" alimentando un
+   * resolver completo (ai-video-resolver.ts/veo.ts, probado) que
+   * `resolveShotAsset()` en asset-resolver.ts nunca podía alcanzar — su
+   * switch sobre `ShotType` no tenía ningún caso para video generado.
+   * Añadir este valor aquí (y su case en resolveShotAsset) es lo que
+   * conecta ambos — ver comentario de resolveShotAsset para el
+   * comportamiento exacto (requiere ctx.aiVideo, degrada a stock_image
+   * real si la elegibilidad/presupuesto/proveedor lo descartan, nunca cae
+   * a un fixture en silencio).
+   */
+  "ai_video",
 ] as const;
 export type ShotType = (typeof SHOT_TYPES)[number];
 

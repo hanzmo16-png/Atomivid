@@ -1,12 +1,14 @@
 -- Atomivid — desglose adicional del planificador visual (imagen generada
 -- vs. stock) en generation_costs.
 --
--- *** NO APLICADA TODAVÍA EN EL PROYECTO REAL DE SUPABASE ***
--- Igual que las migraciones anteriores (0009-0011): se deja preparada y
--- documentada, no se ejecuta sin autorización explícita — pegar en el SQL
--- Editor de Supabase cuando se autorice.
+-- *** APLICADA EN EL PROYECTO REAL DE SUPABASE *** (confirmado vía
+-- apply-supabase-migration.yml, ejecución autoritativa contra
+-- information_schema/pg_catalog el 2026-09-17: "0001-0013 completamente
+-- aplicadas"; verificado de nuevo el 2026-09-24). Este comentario decía
+-- "NO APLICADA" hasta esta corrección — quedó desactualizado tras la
+-- aplicación real.
 --
--- Por qué existe: la migración 0010 (tampoco aplicada) ya agregó
+-- Por qué existe: la migración 0010 (también aplicada) ya agregó
 -- image_provider/image_generation_count/image_cost_usd a generation_costs,
 -- pero solo alcanza para "cuántas imágenes se generaron realmente". El
 -- planificador visual (src/lib/video/visual-resource-planner.ts +

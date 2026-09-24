@@ -1,11 +1,12 @@
 -- Atomivid — columnas de la capa creativa "Visual Director" (storyboard
 -- semántico + proveedores de imagen/video generado/música premium).
 --
--- *** NO APLICADA TODAVÍA EN EL PROYECTO REAL DE SUPABASE ***
--- Este archivo se deja preparado y documentado, pero NO se ejecuta sin
--- autorización explícita, igual que las migraciones anteriores (ver
--- 0009_music_traceability.sql) — pegar este contenido en el SQL Editor de
--- Supabase cuando se autorice.
+-- *** APLICADA EN EL PROYECTO REAL DE SUPABASE *** (confirmado vía
+-- apply-supabase-migration.yml, ejecución autoritativa contra
+-- information_schema/pg_catalog el 2026-09-17: "0001-0013 completamente
+-- aplicadas"; verificado de nuevo el 2026-09-24). Este comentario decía
+-- "NO APLICADA" hasta esta corrección — quedó desactualizado tras la
+-- aplicación real.
 --
 -- Por qué existe: src/lib/video/feature-flags.ts, src/lib/video/storyboard/
 -- y los nuevos proveedores (src/lib/providers/image/, .../video-gen/,

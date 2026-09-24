@@ -27,6 +27,16 @@ test("forbidden model 7 beats = 7 images is not used in P0 demo", () => {
 });
 
 test("shot cycle covers every fixture type including stock video", () => {
-  const seen = new Set(SHOT_TYPES.map((_, i) => cycleShotType(i)));
-  assert.equal(seen.size, SHOT_TYPES.length);
+  // RC Phase 1: SHOT_TYPES ganó "ai_video" (para que resolveShotAsset
+  // pueda manejarlo, ver asset-resolver.ts), pero cycleShotType() NUNCA
+  // debe producirlo — un shot solo debe ser "ai_video" por asignación
+  // EXPLÍCITA (requiere ctx.aiVideo con providerVideo/ledger reales en
+  // resolveShotAsset), nunca por el round-robin determinístico que arma
+  // storyboards de demo/fixture. Por eso este test ya no compara contra
+  // SHOT_TYPES.length (8) sino contra los tipos que el ciclo SÍ cubre.
+  const nonCycleTypes: ReturnType<typeof cycleShotType>[] = ["ai_video"];
+  const cyclableTypes = SHOT_TYPES.filter((t) => !nonCycleTypes.includes(t));
+  const seen = new Set(cyclableTypes.map((_, i) => cycleShotType(i)));
+  assert.equal(seen.size, cyclableTypes.length);
+  assert.ok(!seen.has("ai_video"), "cycleShotType nunca debe producir ai_video automáticamente");
 });

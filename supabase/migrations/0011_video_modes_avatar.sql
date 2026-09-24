@@ -1,10 +1,12 @@
 -- Atomivid — modalidades de video (visual/avatar/futuro hybrid) + entidades
 -- de avatar con consentimiento y trazabilidad.
 --
--- *** NO APLICADA TODAVÍA EN EL PROYECTO REAL DE SUPABASE ***
--- Igual que las migraciones anteriores (0009, 0010): se deja preparada y
--- documentada, no se ejecuta sin autorización explícita — pegar en el SQL
--- Editor de Supabase cuando se autorice.
+-- *** APLICADA EN EL PROYECTO REAL DE SUPABASE *** (confirmado vía
+-- apply-supabase-migration.yml, ejecución autoritativa contra
+-- information_schema/pg_catalog el 2026-09-17: "0001-0013 completamente
+-- aplicadas"; verificado de nuevo el 2026-09-24). Este comentario decía
+-- "NO APLICADA" hasta esta corrección — quedó desactualizado tras la
+-- aplicación real.
 --
 -- SÍ VERIFICADA localmente contra un Postgres 16 real (no solo revisada a
 -- ojo): se aplicaron las 11 migraciones en orden desde una base vacía, con

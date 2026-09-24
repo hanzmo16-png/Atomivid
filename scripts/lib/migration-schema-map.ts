@@ -130,6 +130,20 @@ export const CHECKS: ObjectCheck[] = [
 
   // --- 0013_avatar_state_taxonomy.sql (verificado por CONTENIDO del constraint, no solo su nombre — ver migration0013ConstraintIncludesDraft) ---
   { kind: "constraint", table: "avatars", name: "avatars_status_check", migration: "0013" },
+
+  // --- 0015_avatar_recorded_audio.sql (faltaba en este mapa — nunca se agregó cuando se escribió la migración) ---
+  { kind: "column", table: "video_requests", name: "recorded_audio_path", migration: "0015" },
+  { kind: "constraint", table: "video_requests", name: "video_requests_recorded_audio_path_check", migration: "0015" },
+
+  // --- 0016_long_form_mode.sql ---
+  // NOTA: video_requests_mode_check NO se lista aquí — su nombre ya existe
+  // desde 0011 (0016 lo dropea y recrea con 'long_form' agregado), mismo
+  // caso que avatars_status_check/0013 — "existe" no basta para saber si
+  // 0016 se aplicó. Ver migration0016ConstraintIncludesLongForm abajo.
+  { kind: "column", table: "video_requests", name: "aspect_ratio", migration: "0016" },
+  { kind: "constraint", table: "video_requests", name: "video_requests_aspect_ratio_check", migration: "0016" },
+  { kind: "column", table: "video_requests", name: "long_form_stage", migration: "0016" },
+  { kind: "constraint", table: "video_requests", name: "video_requests_long_form_stage_check", migration: "0016" },
 ];
 
 export const MIGRATIONS_APPLIED_TABLE = "_migrations_applied";
@@ -142,6 +156,7 @@ export type SchemaSnapshot = {
   projectRef: string | null;
   controlTableExists: boolean;
   migration0013ConstraintIncludesDraft: boolean;
+  migration0016ConstraintIncludesLongForm: boolean;
   migrationSummary: MigrationSummaryEntry[];
   details: Array<ObjectCheck & { exists: boolean }>;
 };
@@ -201,6 +216,18 @@ export async function computeSchemaSnapshot(client: Client, connectionSource: st
   const avatarsStatusCheckDef = constraintByName.get("avatars.avatars_status_check") ?? null;
   const migration0013ConstraintIncludesDraft = avatarsStatusCheckDef !== null && avatarsStatusCheckDef.includes("draft");
 
+  // Mismo caso que 0013, para video_requests_mode_check (nombre compartido
+  // entre 0011 y 0016 — 0016 lo dropea y recrea agregando 'long_form').
+  const modeCheckDef = constraintByName.get("video_requests.video_requests_mode_check") ?? null;
+  const migration0016ConstraintIncludesLongForm = modeCheckDef !== null && modeCheckDef.includes("long_form");
+  details.push({
+    kind: "constraint",
+    table: "video_requests",
+    name: "video_requests_mode_check",
+    migration: "0016",
+    exists: migration0016ConstraintIncludesLongForm,
+  });
+
   const byMigration = new Map<string, { total: number; present: number }>();
   for (const r of details) {
     const bucket = byMigration.get(r.migration) ?? { total: 0, present: 0 };
@@ -220,5 +247,5 @@ export async function computeSchemaSnapshot(client: Client, connectionSource: st
       return { migration, total, present, status };
     });
 
-  return { connectionSource, projectRef, controlTableExists, migration0013ConstraintIncludesDraft, migrationSummary, details };
+  return { connectionSource, projectRef, controlTableExists, migration0013ConstraintIncludesDraft, migration0016ConstraintIncludesLongForm, migrationSummary, details };
 }
