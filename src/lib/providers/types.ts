@@ -229,7 +229,16 @@ export class GenerativeProviderError extends Error {
       | "timeout"
       | "moderation_rejected"
       | "invalid_response"
-      | "upstream_error",
+      | "upstream_error"
+      /**
+       * El endpoint/payload/auth de este proveedor NO está verificado
+       * contra documentación primaria en este entorno (ver kling.ts/veo.ts,
+       * AI Video Pipeline P2A) — nunca se intenta una llamada HTTP real con
+       * un contrato adivinado; generateVideo() lanza esto SIEMPRE, sin
+       * importar si hay credenciales configuradas, hasta que un humano
+       * confirme el contrato real contra la doc oficial.
+       */
+      | "contract_unverified",
     public readonly cause?: unknown,
   ) {
     super(message);
