@@ -17,6 +17,10 @@ on:
         description: 'Escribe exactamente PRODUCE_VIDEO_001 para autorizar el gasto real (hasta el hard stop acumulado de $3.00 USD, ya incluye los $0.1681 del Visual Test V2)'
         required: true
         type: string
+      clear_uncertain_shot_id:
+        description: 'OPCIONAL — shotId de un registro STARTED huérfano ya confirmado por fuera (log de un run anterior) como costo $0 (p. ej. rechazo de moderación de OpenAI antes de generar nada). Nunca acepta los 3 shots ya aprobados. Dejar vacío en el uso normal.'
+        required: false
+        type: string
 
 # Un solo grupo de concurrencia para TODO VIDEO #001 (no por run) — nunca
 # deben coexistir dos ejecuciones reales de este video, aunque se disparen
@@ -51,6 +55,18 @@ jobs:
 
       - name: Instalar dependencias
         run: npm ci
+
+      # Paso OPCIONAL, gratuito (no genera ninguna imagen) — solo corre si
+      # se pasó clear_uncertain_shot_id explícitamente. Borra el registro
+      # STARTED huérfano de un shot concreto YA confirmado por fuera (log
+      # de un run anterior) como costo $0 — nunca opera sobre los 3 shots
+      # aprobados ni sobre un registro COMPLETED (ver clear-uncertain-shot-record.ts).
+      - name: Limpiar registro STARTED huérfano confirmado (opcional)
+        if: ${{ github.event.inputs.clear_uncertain_shot_id != '' }}
+        run: npx tsx scripts/clear-uncertain-shot-record.ts --shot-id="${{ github.event.inputs.clear_uncertain_shot_id }}"
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Preflight gratuito de VIDEO #001 (fail closed)
         run: npx tsx scripts/preflight-video-001.ts
