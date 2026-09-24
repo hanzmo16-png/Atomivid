@@ -1,0 +1,55 @@
+{
+  "videoId": "gobekli-tepe-001",
+  "maxTotalUsd": 0.5,
+  "estimatedTotalUsd": 0.15,
+  "shots": [
+    {
+      "shotId": "b1-s4",
+      "beatId": "beat-1",
+      "rationale": "Establishing shot atmosférico del hook — valida el look base de todo el documental (se ecoa además en b13-s3, el cierre).",
+      "scenePrompt": "Wide cinematic establishing shot of the Anatolian highlands (Germuş mountains) at dawn. Rolling semi-arid hills under a vast pale gold sky, dry grasses and scattered stone outcrops, atmospheric haze suggesting deep time and vast scale. No people, no text.",
+      "sceneNegativePrompt": "no present-day vegetation patterns",
+      "prompt": "Wide cinematic establishing shot of the Anatolian highlands (Germuş mountains) at dawn. Rolling semi-arid hills under a vast pale gold sky, dry grasses and scattered stone outcrops, atmospheric haze suggesting deep time and vast scale. No people, no text. Photographic documentary realism, never painterly or generic-AI-looking, Natural light only (dawn/dusk/diffuse) — never artificial studio lighting, Warm earth-tone grading (ochre, sienna, dusty gold) with desaturated cool shadows — premium documentary look, Subtle film grain, Anamorphic widescreen composition. Setting: Pre-Pottery Neolithic, ~11,000 years ago — absolutely no modern elements (roads, power lines, contemporary clothing, modern metal, writing). No watermark.",
+      "negativePrompt": "no present-day vegetation patterns, no modern buildings, no roads, no power lines, no contemporary clothing, no text overlays, no watermark, no fantasy elements, no aliens, no futuristic technology",
+      "model": "gpt-image-2",
+      "size": "1536x1024",
+      "quality": "medium",
+      "aspectRatio": "16:9",
+      "estimatedCostUsd": 0.05,
+      "idempotencyKey": "e8ca5cd3a3271a81",
+      "outputPath": "content/long-form/gobekli-tepe-001/visual-test-v2/b1-s4-e8ca5cd3a3271a81.png"
+    },
+    {
+      "shotId": "b4-s2",
+      "beatId": "beat-4",
+      "rationale": "Escena humana en silueta — valida la regla más delicada de la Visual Bible: cooperación humana sin rostro/técnica/herramienta específica identificable.",
+      "scenePrompt": "Cinematic wide shot at dusk: distant silhouettes of a small group of people working together on a hillside near massive half-buried stone shapes, scale emphasized by distance and low warm light. Figures are anonymous silhouettes — no visible clothing detail, tools, or specific activity that could be mistaken for a documented technique. Mood of quiet, effortful cooperation, not action.",
+      "sceneNegativePrompt": "no visible tools, no specific construction technique, no visible clothing details, no ropes or pulleys shown explicitly, no close-up faces",
+      "prompt": "Cinematic wide shot at dusk: distant silhouettes of a small group of people working together on a hillside near massive half-buried stone shapes, scale emphasized by distance and low warm light. Figures are anonymous silhouettes — no visible clothing detail, tools, or specific activity that could be mistaken for a documented technique. Mood of quiet, effortful cooperation, not action. Photographic documentary realism, never painterly or generic-AI-looking, Natural light only (dawn/dusk/diffuse) — never artificial studio lighting, Warm earth-tone grading (ochre, sienna, dusty gold) with desaturated cool shadows — premium documentary look, Subtle film grain, Anamorphic widescreen composition. Setting: Pre-Pottery Neolithic, ~11,000 years ago — absolutely no modern elements (roads, power lines, contemporary clothing, modern metal, writing). No watermark.",
+      "negativePrompt": "no visible tools, no specific construction technique, no visible clothing details, no ropes or pulleys shown explicitly, no close-up faces, no modern buildings, no roads, no power lines, no contemporary clothing, no text overlays, no watermark, no fantasy elements, no aliens, no futuristic technology",
+      "model": "gpt-image-2",
+      "size": "1536x1024",
+      "quality": "medium",
+      "aspectRatio": "16:9",
+      "estimatedCostUsd": 0.05,
+      "idempotencyKey": "94b68522ff9dbc5c",
+      "outputPath": "content/long-form/gobekli-tepe-001/visual-test-v2/b4-s2-94b68522ff9dbc5c.png"
+    },
+    {
+      "shotId": "b8-s5",
+      "beatId": "beat-8",
+      "rationale": "Recreación condicional del hallazgo 2026 — el shot de mayor sensibilidad factual entre los AI_RECREATION: valida que una hipótesis con hedge se pueda ilustrar sin sugerir más certeza visual de la que hay. Regla de montaje: nunca se muestra sin la tarjeta de texto del hedge (b8-s4) en el mismo tramo.",
+      "scenePrompt": "Cinematic wide shot: a domestic scene in silhouette/middle distance — anonymous figures near small rectangular structures — with massive monumental stone enclosures visible in the background under warm light. Composition should read as speculative and atmospheric, not as documentary proof: soft focus on the rectangular structures, no specific architectural detail claimed. Contemplative mood.",
+      "sceneNegativePrompt": "no close-up architectural detail on the rectangular structures (evita implicar una planta confirmada), no visible faces, no text overlays implying certainty",
+      "prompt": "Cinematic wide shot: a domestic scene in silhouette/middle distance — anonymous figures near small rectangular structures — with massive monumental stone enclosures visible in the background under warm light. Composition should read as speculative and atmospheric, not as documentary proof: soft focus on the rectangular structures, no specific architectural detail claimed. Contemplative mood. Photographic documentary realism, never painterly or generic-AI-looking, Natural light only (dawn/dusk/diffuse) — never artificial studio lighting, Warm earth-tone grading (ochre, sienna, dusty gold) with desaturated cool shadows — premium documentary look, Subtle film grain, Anamorphic widescreen composition. Setting: Pre-Pottery Neolithic, ~11,000 years ago — absolutely no modern elements (roads, power lines, contemporary clothing, modern metal, writing). No watermark.",
+      "negativePrompt": "no close-up architectural detail on the rectangular structures (evita implicar una planta confirmada), no visible faces, no text overlays implying certainty, no modern buildings, no roads, no power lines, no contemporary clothing, no text overlays, no watermark, no fantasy elements, no aliens, no futuristic technology",
+      "model": "gpt-image-2",
+      "size": "1536x1024",
+      "quality": "medium",
+      "aspectRatio": "16:9",
+      "estimatedCostUsd": 0.05,
+      "idempotencyKey": "89cfedff8fd6a4c0",
+      "outputPath": "content/long-form/gobekli-tepe-001/visual-test-v2/b8-s5-89cfedff8fd6a4c0.png"
+    }
+  ]
+}

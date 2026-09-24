@@ -50,25 +50,43 @@ Este es el HEAD de la rama en el momento de este handoff. El guion v.003, el sto
 | `gobekli-tepe-001/gobekli-storyboard-003.json` | **Storyboard vigente y aprobado**, con las 5 licencias ya resueltas (commit `bbde376`). | **VIGENTE — PRODUCTION READY (editorial)** |
 | `gobekli-tepe-001/gobekli-production-plan-003.md` | Plan de producción vigente: resumen de investigación, decisión de tesis, modelo de costos, checklist de validación, y (sección 9) el resultado del checkpoint de verificación dirigida. | **VIGENTE** |
 | `gobekli-tepe-001/HANDOFF-PRODUCTION-V1.md` | Este documento. | **VIGENTE** |
+| `gobekli-tepe-001/visual-test-v2-manifest.json` | Manifest materializado (generado desde `src/lib/video/long-form/visual-test-v2.ts`) de las 3 imágenes del Visual Test V2: prompts finales ya compuestos, `idempotencyKey`, `outputPath`, costo estimado. Regenerar con el script en la sección 16 si cambia algo en `visual-test-v2.ts`. | **VIGENTE** |
+| `gobekli-tepe-001/gobekli-asset-manifest-003.json` | Manifest completo de los 45 shots (timing escalado a la duración real estimada, `assetClass`, `provider`, `queryOrPrompt`, `expectedOutput`, `fallback`, `licenseStatus`, `factualSensitivity`) — generado desde `storyboard-shots.ts` + `gobekli-storyboard-003.json` + `gobekli-script-003-current.json`. Se recalculará con timing REAL tras la síntesis TTS real. | **VIGENTE** |
 
-### Código (sin cambios desde Fase A — no tocar sin razón nueva)
+### Código — base de Fase A (sin cambios de comportamiento salvo lo indicado)
 
 | Archivo | Propósito |
 |---|---|
-| `src/lib/video/long-form/types.ts` | Tipos base: `NarrativeBeat`, `Shot`, `LongFormClaim`, `LongFormSource`, etc. |
-| `src/lib/video/long-form/script-loader.ts` | Carga y valida (Zod) un guion real ya finalizado (como `gobekli-script-003-current.json`) al formato que `buildLongFormTimeline()` espera. **Ya probado contra el guion v.003 real.** |
-| `src/lib/video/long-form/timeline.ts` | TTS por beat + stitching + timeline real (`MAX_TTS_CHARS_PER_CALL=9000`). |
-| `src/lib/video/long-form/diagram-map.ts` | Generador determinístico de mapas/diagramas/tarjetas de texto — sin IA. |
-| `src/lib/video/long-form/asset-resolver.ts` | Resuelve cada `shot.type` al proveedor correcto (Pexels/OpenAI/determinístico). |
-| `src/lib/video/long-form/mode.ts` | **Gate de seguridad.** `resolveLongFormProviders(mode)`: `simulation` (default) ignora credenciales reales incluso si existen; `real` exige `--mode=real` **Y** `LONG_FORM_REAL_RUN_CONFIRM=YES_SPEND_REAL_MONEY` exacto. |
-| `src/lib/video/long-form/documentary-script.ts` | Generador real de guion vía Claude — **no se usa en este video** (el guion ya está escrito y aprobado a mano); solo se invocaría para un VIDEO #002 futuro. |
-| `src/lib/video/long-form/shots.ts` | `shotsForSpan()` — el generador real de sub-shots (3-8s) que el render usa; el storyboard de planeación (45 shots) se subdivide automáticamente. |
-| `src/lib/video/long-form/render.ts` | Wrapper de render hacia `remotion/LongFormDoc.tsx`. |
-| `remotion/LongFormDoc.tsx` | Composición Remotion 16:9, independiente de `VerticalReel.tsx` (9:16). |
-| `remotion/Root.tsx` | Registra ambas composiciones (`VerticalReel` y `LongFormDoc`) — la de 9:16 no se tocó. |
-| `scripts/produce-long-form-video.ts` | **Orquestador.** Ver comandos exactos en la sección 16. |
+| `src/lib/video/long-form/types.ts` | Tipos base: `NarrativeBeat`, `Shot`, `LongFormClaim`, `LongFormSource`, etc. Sin cambios. |
+| `src/lib/video/long-form/script-loader.ts` | Carga y valida (Zod) un guion real ya finalizado (como `gobekli-script-003-current.json`) al formato que `buildLongFormTimeline()` espera. Sin cambios. |
+| `src/lib/video/long-form/timeline.ts` | TTS por beat + stitching + timeline real (`MAX_TTS_CHARS_PER_CALL=9000`). **Cambio este checkpoint:** `buildLongFormTimeline()` ahora acepta un 4º parámetro opcional `shotsBuilder` (default: `shotsForSpan`, comportamiento previo intacto) — permite inyectar `buildShotsFromStoryboard` para usar un storyboard curado real en vez del ciclo genérico. |
+| `src/lib/video/long-form/diagram-map.ts` | Generador determinístico FIXTURE de mapas/diagramas/tarjetas de texto (datos de ejemplo). Sin cambios — sigue siendo el default si no se pasa `--storyboard`. |
+| `src/lib/video/long-form/asset-resolver.ts` | Resuelve cada `shot.type` al proveedor correcto (Pexels/OpenAI/determinístico). Sin cambios de comportamiento (ya aceptaba `graphicSpecFor` inyectable desde Fase A). |
+| `src/lib/video/long-form/mode.ts` | **Gate de seguridad.** `resolveLongFormProviders(mode)`. **Bug real encontrado y corregido este checkpoint:** en modo `real`, si faltaba una credencial, los getters compartidos con Shorts (`getVoiceProvider()` etc.) caían EN SILENCIO a `fixture` — porque su guardia (`requireRealProvider`) solo actúa cuando `isProductionRuntime()` es true (Vercel), nunca cuando el orquestador corre como script CLI local. Ahora `resolveLongFormProviders("real", ...)` lanza `LongFormRealProviderMissingError` si CUALQUIER proveedor resuelto es `"fixture"` — modo real nunca puede terminar en contenido de fixture sin decirlo. |
+| `src/lib/video/long-form/documentary-script.ts` | Generador real de guion vía Claude — no se usa en este video. Sin cambios. |
+| `src/lib/video/long-form/shots.ts` | `shotsForSpan()` — el generador GENÉRICO de sub-shots (ciclo de tipos, ignora cualquier storyboard). Sigue siendo el default. Sin cambios. |
+| `src/lib/video/long-form/render.ts` | Wrapper de render hacia `remotion/LongFormDoc.tsx`. **Cambio este checkpoint:** ahora llama `assertRenderInputValid()` (render-preflight.ts) ANTES de bundle/renderMedia — detiene con un error claro si hay huecos entre escenas, subtítulos fuera de rango, audio faltante, etc., en vez de renderizar (y gastar tiempo, y en real mode assets ya pagados) un video roto. |
+| `remotion/LongFormDoc.tsx` | Composición Remotion 16:9, independiente de `VerticalReel.tsx` (9:16). Sin cambios — verificado con test estático nuevo (`remotion/long-form-independence.test.ts`). |
+| `remotion/Root.tsx` | Registra ambas composiciones. Sin cambios. |
+| `scripts/produce-long-form-video.ts` | **Orquestador.** **Cambio este checkpoint:** nuevo flag `--storyboard=<ruta>` (exige `--script`). Ver comandos exactos en la sección 16. |
 
-Todos estos archivos de código están cubiertos por tests (`*.test.ts` junto a cada módulo) y no cambiaron en los últimos 3 commits — solo se agregó/editó contenido.
+### Código NUEVO este checkpoint (hallazgo mayor + preparación técnica para producción)
+
+**Hallazgo mayor:** el storyboard curado (45 shots con `hybridClassification`/licencias/prompts ya decididos en preproducción) **nunca llegaba al render** — `shotsForSpan()` generaba su propio ciclo genérico de tipos de asset sin relación con ningún storyboard, y los gráficos de texto/diagrama/mapa eran siempre datos de ejemplo (`isFixture:true`). Los siguientes módulos resuelven esto de forma aditiva (el comportamiento SIN `--storyboard` queda exactamente igual que antes):
+
+| Archivo | Propósito | Tests |
+|---|---|---|
+| `src/lib/video/long-form/storyboard-shots.ts` | `buildShotsFromStoryboard()` — convierte los shots de planeación de un storyboard real (con su `durationApprox`) en `Shot[]` reales, escalando proporcionalmente cada uno al span REAL narrado del beat (que solo se conoce tras la síntesis TTS). Preserva `assetType`→`ShotType`, `hybridClassification`→`source`, `visualIntent`/licencia. Nunca inventa un shot que el storyboard no tenga. | 7/7 ✅ |
+| `src/lib/video/long-form/storyboard-loader.ts` | `loadStoryboardFromFile()` — carga y valida (Zod) un storyboard real, agrupado por `beatId`. Mismo patrón que `script-loader.ts`. Probado contra `gobekli-storyboard-003.json` real (45 shots, 13 beats). | 4/4 ✅ |
+| `src/lib/video/long-form/real-graphics.ts` | `realGraphicSpecProvider()` — construye specs de texto/diagrama/mapa REALES (`isFixture:false`) a partir del texto ya redactado en el storyboard (`shot.captionText`, que lleva el `visualIntent` original) — nunca de datos de ejemplo. Parsea citas literales (`'texto' — contexto`), cadenas `paso1 -> paso2 -> paso3` en diagramas, y usa coordenadas verificadas conocidas para los 2 shots de mapa. Probado contra los 30 shots reales de texto/diagrama/mapa del storyboard-003 (ninguno lanza, todos producen contenido real). | 9/9 ✅ |
+| `src/lib/video/long-form/render-preflight.ts` | `assertRenderInputValid()` — valida ESTÁTICAMENTE (sin renderizar) que las escenas cubren el rango completo sin huecos/superposiciones, que hay audio, que los subtítulos caen dentro de rango. Wireado en `render.ts`. | 12/12 ✅ |
+| `src/lib/video/long-form/long-form-qc.ts` | QC POST-render: `probeVideoFile`/`evaluateVideoProbe` (ffprobe real: resolución/fps/duración/audio/"no corrupto"), `evaluateProductionReportForRealRun` (detecta un report.json marcado como real que en realidad es fixture/simulation, o con shotCount que no coincide con el storyboard), `detectAnomalousSilences` (ffmpeg `silencedetect`). Probado contra archivos .mp4 reales generados con ffmpeg (no mocks). | 12/12 ✅ |
+| `src/lib/video/long-form/video-cost-guard.ts` | Barrera de costo ESPECÍFICA de VIDEO #001 (no del sistema genérico Long Form): `VISUAL_TEST_V2_MAX_USD=$0.50`, `VIDEO_001_HARD_STOP_USD=$3.00`. Ledger persistente en `.atomivid-state/` (gitignored) — un gasto real confirmado se anota sincrónicamente en disco, así que un reintento en un proceso NUEVO ve el gasto acumulado y no puede superar el hard stop. | 10/10 ✅ |
+| `src/lib/video/long-form/visual-test-v2.ts` | Manifest tipado de las 3 imágenes del Visual Test V2: `VIDEO_001_VISUAL_STYLE` (bloque de estilo compartido, compuesto en cada prompt, no duplicado), `computeIdempotencyKey()` (hash determinístico de shotId+modelo+tamaño+calidad+prompt+negativo → `outputPath` único), `shouldGenerate()` (false si el archivo ya existe — nunca regenera/re-cobra el mismo shot). | 10/10 ✅ |
+| `scripts/generate-visual-test-v2.ts` | Ejecutor listo pero **NO ejecutado** — genera las 3 imágenes reales cuando exista `OPENAI_API_KEY` y se confirme `--confirm=YES_SPEND_REAL_MONEY`. Por cada shot: `shouldGenerate()` antes de llamar (idempotencia), `assertCanSpend()` antes de llamar (cost guard), `recordSpendToDisk()` inmediatamente después de una llamada exitosa (persistencia ante crash). | — (script de ejecución, no una librería con tests unitarios) |
+| `remotion/long-form-independence.test.ts` | Test estático (lee código fuente, no ejecuta nada) que confirma que `LongFormDoc.tsx` y `render.ts` nunca importan de `VerticalReel.tsx` ni `generate-video.ts`. | 3/3 ✅ |
+
+Todos los archivos de código nuevos están cubiertos por tests, registrados en `package.json`'s `test:unit`. Ver sección 6 para el conteo total.
 
 ## 5. Estado actual de cada pieza
 
@@ -79,15 +97,21 @@ Todos estos archivos de código están cubiertos por tests (`*.test.ts` junto a 
 | Storyboard v.003 | `gobekli-storyboard-003.json` — 45 shots. Distribución final (post-resolución de licencias): TEXT 17 · AI_RECREATION 11 · DETERMINISTIC 13 · STOCK_REAL 4 · REAL_DOCUMENTARY 0. |
 | Production plan | `gobekli-production-plan-003.md` — incluye sección 9 con el resultado del checkpoint de verificación dirigida. |
 | Visual Bible | `atomivid-long-form-visual-bible-v1.md` — taxonomía de 5 categorías, reglas duras (restos humanos nunca IA, geografía/cronología siempre determinístico, etc.), identidad visual compartida, formato del ledger de licencias. |
-| `script-loader.ts` | Sin cambios de código; probado en vivo contra el guion v.003 real en este checkpoint. |
-| Orquestador Long Form | Sin cambios de código desde Fase A. Listo para usarse con `--script=.../gobekli-script-003-current.json` en modo `simulation`. |
+| `script-loader.ts` | Sin cambios de código. |
+| Orquestador Long Form | **Nuevo flag `--storyboard=<ruta>`** (exige `--script`) — usa los 45 shots curados reales en vez del ciclo genérico, y gráficos reales en vez de fixture. Probado end-to-end en modo `simulation` contra `gobekli-script-003-current.json` + `gobekli-storyboard-003.json` (ver sección 6 para el resultado). |
+| Gate de modo real (`mode.ts`) | **Bug corregido:** ya no puede degradar en silencio a fixture en modo real — ver tabla de código en sección 4. |
+| Render preflight | **Nuevo** — `render.ts` valida estructura de escenas/captions/audio antes de renderizar (`render-preflight.ts`). |
+| QC post-render | **Nuevo, preparado pero no ejecutado sobre un render real** — `long-form-qc.ts` (ffprobe real + detección de silencios + validación del report.json). |
+| Cost guard VIDEO #001 | **Nuevo** — `video-cost-guard.ts` ($0.50 Visual Test V2 / $3.00 hard stop), ledger persistente en `.atomivid-state/` (gitignored). |
+| Visual Test V2 | **Nuevo, preparado pero NO ejecutado** — manifest tipado + idempotencia (`visual-test-v2.ts`) + ejecutor listo (`scripts/generate-visual-test-v2.ts`, nunca corrido). |
 
-## 6. Confirmaciones de calidad (al momento de `bbde376`)
+## 6. Confirmaciones de calidad
 
-- ✅ **550/550 tests unitarios** (`npm run test:unit`).
+- ✅ **621/621 tests unitarios** (`npm run test:unit`) — 550 heredados + 71 nuevos de este checkpoint (2 fixes de bugs reales con sus tests + 9 módulos nuevos, todos con tests contra datos/archivos reales, no solo mocks — incluye .mp4 reales generados con ffmpeg para `long-form-qc.test.ts`).
 - ✅ **Typecheck** limpio (`npm run typecheck` → `tsc --noEmit`, sin errores).
 - ✅ **Lint** limpio (`npm run lint` → eslint, sin errores).
-- ✅ **Pipeline 9:16 (Shorts) intacto** — cero archivos de `VerticalReel.tsx`, `generate-video.ts`, o cualquier ruta del pipeline vertical fueron tocados en ninguno de los 4 commits de esta tabla. Toda esta rama de trabajo (`ebe56eb` → `bbde376`) es exclusivamente contenido de Long Form.
+- ✅ **Pipeline 9:16 (Shorts) intacto** — cero archivos de `VerticalReel.tsx`, `generate-video.ts`, o cualquier ruta del pipeline vertical fueron tocados. Verificado además con un test estático nuevo (`remotion/long-form-independence.test.ts`) que falla si algún día se agrega un import cruzado.
+- ✅ **Dry-run end-to-end** en modo `simulation` con `--script` + `--storyboard` (guion y storyboard reales v.003, los 45 shots curados) — confirma que los 45 shots llegan correctamente hasta la composición y que el .mp4 resultante pasa QC (ffprobe: 1920x1080/30fps, audio presente, duración dentro de tolerancia). Resultado completo (`report.json` + QC) documentado al pie de este archivo, sección "Resultado del dry-run" — si esa sección todavía dice "en curso", el dry-run no había terminado al momento de escribir esta versión del handoff; volver a correr el comando de la sección 16 si hace falta confirmarlo de nuevo.
 
 ## 7. Especificación del VIDEO #001 (estado vigente)
 
@@ -166,6 +190,8 @@ Techo ya configurado en código: `LONG_FORM_MAX_TOTAL_USD = $12`. Ambos escenari
 
 ## 14. VISUAL TEST V2 — qué generar primero
 
+**Toda esta sección ahora vive también como código real y ejecutable, no solo como texto:** `src/lib/video/long-form/visual-test-v2.ts` (manifest tipado + idempotencia) y `content/long-form/gobekli-tepe-001/visual-test-v2-manifest.json` (el manifest ya materializado con los prompts finales exactos). El texto de abajo describe lo mismo que ese código — si difieren, **el código y el JSON generado mandan** (regenerar el JSON con el comando de la sección 16 si se edita `visual-test-v2.ts`).
+
 Se seleccionaron **3 shots `AI_RECREATION`** de `gobekli-storyboard-003.json`, elegidos para cubrir los 3 retos técnicos/editoriales distintos del video (no 3 variaciones del mismo tipo de toma):
 
 1. **b1-s4** — establishing shot atmosférico (abre el hook, se ecoa en b13-s3 — valida el look base de todo el documental).
@@ -227,9 +253,15 @@ Negativo: *no close-up architectural detail on the rectangular structures (evita
 
 **Regla obligatoria para b8-s5 en el render final:** este shot nunca va solo — siempre acompañado en pantalla por la tarjeta de texto del hedge (`b8-s4`, "evaluadas como posiblemente residenciales — no confirmadas"). Es una regla de montaje, no de generación de imagen.
 
+### Idempotencia y cost guard (ya implementados, no solo prometidos)
+
+- Cada shot tiene un `idempotencyKey` = hash SHA-256 de (shotId, modelo, tamaño, calidad, prompt, prompt negativo). El `outputPath` incluye esa clave. Si se llama dos veces con los mismos parámetros, `shouldGenerate()` ve que el archivo ya existe y **se salta la llamada** — no hay forma de generar (ni cobrar) la misma imagen dos veces por accidente.
+- `video-cost-guard.ts` bloquea CUALQUIER gasto que llevaría la categoría `visual_test_v2` por encima de $0.50, o el total acumulado de VIDEO #001 por encima de $3.00 — el ledger es persistente en disco (`.atomivid-state/long-form/gobekli-tepe-001-cost-ledger.json`, gitignored), así que esto se cumple incluso si el proceso se reinicia entre llamadas.
+- **Ejecutor listo, NO corrido:** `scripts/generate-visual-test-v2.ts` — implementa exactamente este flujo (shouldGenerate → assertCanSpend → generar → recordSpendToDisk). Ver comando exacto en sección 16.
+
 ### Costo estimado
 
-3 imágenes × $0.05 (medium) = **$0.15**. Muy por debajo de cualquier tope ya autorizado en fases previas.
+3 imágenes × $0.05 (medium) = **$0.15** (calculado por el propio manifest — ver `estimatedTotalUsd` en `visual-test-v2-manifest.json`). Muy por debajo del tope de $0.50 autorizado para este checkpoint.
 
 ### Criterios para aprobar/rechazar cada imagen
 
@@ -252,17 +284,23 @@ Negativo: *no close-up architectural detail on the rectangular structures (evita
 
 ```
 Visual Test V2 aprobado por el usuario
+  → npx tsx scripts/generate-visual-test-v2.ts --confirm=YES_SPEND_REAL_MONEY
+     (genera las 3 imágenes reales — idempotente, respeta el cost guard)
   → TTS (ElevenLabs, real, requiere ELEVENLABS_API_KEY + --mode=real +
      LONG_FORM_REAL_RUN_CONFIRM=YES_SPEND_REAL_MONEY)
-  → Resolución de assets restantes (asset-resolver.ts: Pexels para los
-     4 STOCK_REAL, determinístico/código para los 13 DETERMINISTIC, y los
-     8 AI_RECREATION restantes — de los 11 totales, solo 3 se validan en
-     el Visual Test V2; los otros 8 se generan recién después de la
-     aprobación, con el mismo estilo ya validado)
-  → Render (LongFormDoc, 1920x1080, vía scripts/produce-long-form-video.ts
-     --mode=real --script=.../gobekli-script-003-current.json)
-  → QC con ffprobe (duración real, resolución, audio) + inspección visual
-     de frames, mismo patrón ya usado en Fase A para el fixture render
+  → Resolución de assets restantes vía
+     produce-long-form-video.ts --mode=real --script=... --storyboard=...
+     (asset-resolver.ts + storyboard-shots.ts + real-graphics.ts: Pexels
+     para los 4 STOCK_REAL, gráficos reales para los 13 DETERMINISTIC, y
+     los 8 AI_RECREATION restantes — de los 11 totales, solo 3 se validan
+     en el Visual Test V2; los otros 8 se generan recién después de la
+     aprobación, con el mismo estilo VIDEO_001_VISUAL_STYLE ya validado)
+  → Render (LongFormDoc, 1920x1080 — render.ts ya corre
+     assertRenderInputValid() antes de renderizar, detiene con error claro
+     si algo no cuadra en vez de producir un video roto)
+  → QC: assertVideoQc() + detectAnomalousSilences() + 
+     assertProductionReportForRealRun() (long-form-qc.ts, contra el .mp4
+     y el report.json reales) + inspección visual de frames
   → Entrega del MP4 final al usuario
   → NO publicar todavía — ninguna publicación, deploy, ni distribución
      pública sin autorización explícita adicional del usuario
@@ -288,17 +326,45 @@ npm run lint
 # Pipeline de prueba end-to-end (fixtures, Shorts 9:16 — no confundir con Long Form)
 npm run test:pipeline
 
-# Long Form — modo simulation (fixture, cero costo) con el guion real v.003
+# Long Form — modo simulation, guion fixture genérico (comportamiento original, sin --storyboard)
 npx tsx scripts/produce-long-form-video.ts \
   --script=content/long-form/gobekli-tepe-001/gobekli-script-003-current.json \
   --output=/ruta/salida.mp4
 
+# Long Form — modo simulation CON el storyboard curado real (45 shots reales,
+# gráficos reales) — RECOMENDADO para validar el pipeline completo antes de
+# gastar dinero. Cero costo, sigue en modo simulation.
+npx tsx scripts/produce-long-form-video.ts \
+  --script=content/long-form/gobekli-tepe-001/gobekli-script-003-current.json \
+  --storyboard=content/long-form/gobekli-tepe-001/gobekli-storyboard-003.json \
+  --output=/ruta/salida.mp4
+
 # Long Form — modo real (SOLO tras autorización explícita del usuario y con
-# las credenciales configuradas; nunca ejecutar esto sin esa autorización)
+# las credenciales configuradas; nunca ejecutar esto sin esa autorización).
+# --storyboard es lo que hace que el render use los 45 shots curados reales
+# en vez del ciclo genérico — para la producción real de VIDEO #001 SIEMPRE
+# se debe pasar junto con --script.
 LONG_FORM_REAL_RUN_CONFIRM=YES_SPEND_REAL_MONEY npx tsx scripts/produce-long-form-video.ts \
   --mode=real \
   --script=content/long-form/gobekli-tepe-001/gobekli-script-003-current.json \
+  --storyboard=content/long-form/gobekli-tepe-001/gobekli-storyboard-003.json \
   --output=/ruta/salida.mp4
+
+# Visual Test V2 — genera las 3 imágenes reales de prueba (SOLO tras
+# autorización explícita del usuario y con OPENAI_API_KEY configurada;
+# nunca ejecutar esto sin esa autorización). Idempotente y con cost guard.
+npx tsx scripts/generate-visual-test-v2.ts --confirm=YES_SPEND_REAL_MONEY
+
+# Regenerar el manifest JSON del Visual Test V2 si se edita visual-test-v2.ts
+# (gratis, no llama a ninguna API — solo materializa el manifest a disco)
+node --import tsx -e "
+import { buildVisualTestV2Manifest } from './src/lib/video/long-form/visual-test-v2.ts';
+import fs from 'node:fs';
+fs.writeFileSync(
+  'content/long-form/gobekli-tepe-001/visual-test-v2-manifest.json',
+  JSON.stringify(buildVisualTestV2Manifest(), null, 2) + '\n',
+);
+" 2>/dev/null || echo "si el eval falla por resolución de módulos, escribir un archivo .mjs temporal que importe y llame la función, y correrlo con node --import tsx <archivo>"
 ```
 
 ## 17. Qué NO debe tocar el siguiente agente
@@ -310,6 +376,9 @@ LONG_FORM_REAL_RUN_CONFIRM=YES_SPEND_REAL_MONEY npx tsx scripts/produce-long-for
 - **No generar imágenes, no hacer TTS, no renderizar, no llamar ninguna API paga** sin autorización explícita y sin el gate de `--mode=real` + `LONG_FORM_REAL_RUN_CONFIRM`.
 - **No crear PR, no hacer merge, no hacer deployment** sin que el usuario lo pida explícitamente.
 - **No reabrir la tesis, duración, número de beats, ni la estrategia híbrida** del guion/storyboard v.003 salvo que aparezca un error factual material nuevo (no uno ya investigado y cerrado en las secciones 8-9).
+- **No subir los topes de `video-cost-guard.ts`** (`VISUAL_TEST_V2_MAX_USD=$0.50`, `VIDEO_001_HARD_STOP_USD=$3.00`) sin una autorización explícita nueva del usuario — son específicos de VIDEO #001, no del sistema genérico de Long Form.
+- **No editar a mano el ledger de costo** (`.atomivid-state/long-form/gobekli-tepe-001-cost-ledger.json`, si llega a existir) — es el registro real de gasto, solo debe modificarse vía `recordSpendToDisk()` después de una llamada paga real confirmada.
+- **No ejecutar `scripts/generate-visual-test-v2.ts` ni ningún run con `--mode=real`** sin la autorización explícita del checkpoint correspondiente (ver sección 15) — ambos exigen `--confirm=YES_SPEND_REAL_MONEY` / `LONG_FORM_REAL_RUN_CONFIRM` precisamente para que no se disparen sin querer, pero la intención de no correrlos sigue siendo una decisión humana, no solo técnica.
 
 ## 18. Detalles que, si se pierden, causarían gasto duplicado, regresión, uso accidental de fixtures, o pérdida de trazabilidad
 
@@ -320,4 +389,55 @@ LONG_FORM_REAL_RUN_CONFIRM=YES_SPEND_REAL_MONEY npx tsx scripts/produce-long-for
 - **La distinción REAL_DOCUMENTARY=0 en el storyboard v.003 es intencional, no un error** — los 5 shots que originalmente iban a ser fotos reales específicas se resolvieron hacia fallbacks seguros (DETERMINISTIC/STOCK_REAL) precisamente porque no se pudo confirmar licencia. No "arreglar" esto sustituyendo por fotos sin verificar la licencia primero.
 - **Cada claim del guion lleva `sourceIds` trazables a `research-pack-002.json`.** Si se edita el guion, mantener esa trazabilidad — es el mecanismo que ha permitido, en cada checkpoint, distinguir lo verificado de lo no verificado sin perder el hilo.
 - **El techo de costo ya configurado es `LONG_FORM_MAX_TOTAL_USD=12`** — la proyección actual (~$1.71-2.37) deja margen amplio; no es necesario ni se ha pedido subir ese techo.
+- **La síntesis TTS (`buildLongFormTimeline()`) NO tiene caché/idempotencia entre procesos** — a diferencia de las imágenes (que sí tienen `shouldGenerate()` con path derivado de un hash), si el orquestador se cae a mitad de sintetizar los 13 beats en modo real y se vuelve a correr, sintetiza (y cobra) TODOS los beats de nuevo, no solo los que faltaban. Esto es un gap real, conocido, no resuelto en este checkpoint — antes de un run real largo, considerar correrlo de una sola vez sin interrupciones, o construir un caché por beat (mismo patrón de `visual-test-v2.ts`: hash de texto+voz+idioma → path de audio cacheado) antes de un run real de producción.
 - **El proxy de red de este entorno bloquea ~15+ dominios** (whc.unesco.org, en.wikipedia.org, wikidata.org, commons.wikimedia.org, dainst.org, dainst.blog, mdpi.com, hurriyetdailynews.com, arkeonews.net, ancient-origins.net, dailysabah.com, researchgate.net, aa.com.tr, arkeofili.com, theothertour.com, popular-archaeology.com, thearchaeologist.org, idw-online.de, archaeologie-online.de) — esto es una limitación de ESTE entorno sandbox, no del proyecto. Un agente en otro entorno podría tener acceso directo y debería aprovecharlo para las 2 verificaciones pendientes (sección 9), pero no debe asumir que el bloqueo sigue vigente sin comprobarlo primero.
+
+## 19. Resultado del dry-run end-to-end (--script + --storyboard, modo simulation)
+
+**Estado: COMPLETADO Y VERIFICADO.** Corrió ~17.7 minutos (`renderMs: 1,062,384`) en modo `simulation` — cero costo. Confirma que la integración `--storyboard` funciona de punta a punta, incluida la composición Remotion real.
+
+Comando ejecutado:
+```
+npx tsx scripts/produce-long-form-video.ts \
+  --script=content/long-form/gobekli-tepe-001/gobekli-script-003-current.json \
+  --storyboard=content/long-form/gobekli-tepe-001/gobekli-storyboard-003.json \
+  --output=<ruta temporal>
+```
+
+**Reporte del orquestador (`report.json`):**
+```json
+{
+  "mode": "simulation",
+  "topic": "Göbekli Tepe: el sitio que sigue obligándonos a corregir la historia",
+  "isFixtureContent": false,
+  "scriptSource": "content/long-form/gobekli-tepe-001/gobekli-script-003-current.json",
+  "storyboardSource": "content/long-form/gobekli-tepe-001/gobekli-storyboard-003.json",
+  "actualDurationSeconds": 660.14,
+  "beatCount": 13,
+  "shotCount": 45,
+  "distinctShotTypes": 6,
+  "shotTypesUsed": ["text", "stock_video", "ken_burns_image", "map", "diagram", "stock_image"],
+  "providersUsed": { "voice": "fixture", "footage": "fixture", "music": "fixture", "image": "fixture" },
+  "paidApisCalled": false,
+  "imageCostSpentUsd": 0
+}
+```
+
+**Lo que esto confirma, punto por punto (ver sección 8 del pedido original de este checkpoint):**
+- ✅ **Los 45 shots del storyboard llegaron correctamente hasta la composición** — `shotCount: 45` (antes de este checkpoint, sin `--storyboard`, el pipeline generaba su propio conteo genérico sin relación con el storyboard curado — ver el "hallazgo mayor" en la sección 4).
+- ✅ `beatCount: 13` — coincide exactamente con el guion v.003.
+- ✅ `paidApisCalled: false` — la invariante interna del propio script (`if (paidApisCalled && args.mode === "simulation") throw ...`) no se disparó, y el propio reporte lo confirma.
+- ✅ Duración real narrada (660.14s) prácticamente idéntica a la estimada en el guion (659.6s) — la síntesis fixture y el escalado del storyboard a la duración real funcionan correctamente juntos.
+- ✅ Masterización de loudness corrió sin errores (`-16 LUFS` objetivo alcanzado: de -20.96 a -16.05 LUFS).
+
+**QC post-render REAL sobre el .mp4 resultante (`long-form-qc.ts`, contra el archivo real, no simulado):**
+```
+probeVideoFile: { hasVideoStream: true, hasAudioStream: true, width: 1920, height: 1080, fps: 30, durationSeconds: 660.2 }
+evaluateVideoProbe(...): NINGÚN problema — pasa QC (16:9, 1920x1080, 30fps, audio presente, duración dentro de tolerancia)
+detectAnomalousSilences(..., 5): 0 silencios de más de 5s detectados
+evaluateProductionReportForRealRun(...): detecta correctamente "not_real_mode" y "no_paid_apis_called" — CORRECTO, porque
+  este dry-run es de modo simulation, no una entrega real; confirma que el chequeo funciona como diseñado
+  (atraparía exactamente este caso si alguien intentara entregar un run de simulation como si fuera producción real).
+```
+
+**Archivo de salida:** se generó en el directorio temporal de esta sesión y se descartó al terminar (no es un artefacto de repositorio) — el comando de arriba es reproducible por cualquiera en cualquier momento, sin gasto, para volver a verificarlo.

@@ -13,6 +13,7 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import type { LongFormCaption, LongFormShotScene } from "../../../../remotion/LongFormDoc";
 import type { NarrationGap } from "../../../../remotion/audio-mix";
+import { assertRenderInputValid } from "./render-preflight";
 
 const COMPOSITION_ID = "LongFormDoc";
 
@@ -28,6 +29,17 @@ export type RenderLongFormDocInput = {
 };
 
 export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<string> {
+  // Preflight ESTÁTICO antes de gastar tiempo de bundle/render — sobre
+  // todo importante en modo real, donde los assets de las escenas ya se
+  // pagaron: un hueco o desalineación aquí se detecta ANTES de renderizar
+  // un video roto con contenido que ya costó dinero.
+  assertRenderInputValid({
+    scenes: input.scenes.map((s) => ({ id: s.id, startSeconds: s.startSeconds, endSeconds: s.endSeconds })),
+    captions: input.captions.map((c) => ({ startSeconds: c.startSeconds, endSeconds: c.endSeconds })),
+    durationSeconds: input.durationSeconds,
+    audioUrl: input.audioUrl,
+  });
+
   const entryPoint = path.join(process.cwd(), "remotion", "index.ts");
   const browserExecutable = process.env.REMOTION_BROWSER_EXECUTABLE || undefined;
   const chromeMode =

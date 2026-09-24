@@ -201,6 +201,50 @@ test("generateImage lanza invalid_response si la imagen decodificada pesa 0 byte
   }
 });
 
+test("generateImage NO reintenta ante un timeout — consumo incierto, podría haberse cobrado del lado de OpenAI", async () => {
+  const originalFetch = global.fetch;
+  let callCount = 0;
+  global.fetch = (async () => {
+    callCount += 1;
+    const err = new Error("aborted");
+    err.name = "AbortError";
+    throw err;
+  }) as typeof fetch;
+
+  try {
+    await withEnv({ OPENAI_API_KEY: "fake-key" }, async () => {
+      await assert.rejects(
+        () => openaiImageProvider.generateImage(BASE_REQUEST),
+        (err: unknown) => err instanceof GenerativeProviderError && err.reason === "timeout",
+      );
+      assert.equal(callCount, 1, "un timeout nunca debe reintentarse automáticamente");
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("generateImage NO reintenta ante invalid_response (HTTP 200 con cuerpo corrupto) — un 200 OK típicamente ya implica cobro", async () => {
+  const originalFetch = global.fetch;
+  let callCount = 0;
+  global.fetch = (async () => {
+    callCount += 1;
+    return jsonResponse({ data: [{ b64_json: "" }] });
+  }) as typeof fetch;
+
+  try {
+    await withEnv({ OPENAI_API_KEY: "fake-key" }, async () => {
+      await assert.rejects(
+        () => openaiImageProvider.generateImage(BASE_REQUEST),
+        (err: unknown) => err instanceof GenerativeProviderError && err.reason === "invalid_response",
+      );
+      assert.equal(callCount, 1, "invalid_response nunca debe reintentarse automáticamente");
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("generateImage reintenta hasta MAX_RETRIES (default=1, congelado al importar el módulo) ante un error recuperable, y no más", async () => {
   // Igual que ESTIMATED_COST_USD, OPENAI_IMAGE_MAX_RETRIES se lee una sola
   // vez al importar — por eso esta prueba verifica el comportamiento con

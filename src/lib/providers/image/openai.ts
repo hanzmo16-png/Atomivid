@@ -254,8 +254,22 @@ export const openaiImageProvider: ImageProvider = {
         return await requestOnce(request);
       } catch (err) {
         lastError = err;
-        if (err instanceof GenerativeProviderError && err.reason === "moderation_rejected") {
-          throw err; // Nunca reintentar un rechazo de moderación.
+        // Solo se reintenta automáticamente cuando estamos SEGUROS de que
+        // OpenAI no llegó a generar (ni cobrar) nada: "upstream_error"
+        // cubre tanto un fallo de red antes de recibir respuesta como un
+        // status HTTP de error explícito (4xx/5xx) — en ambos casos no
+        // hubo generación exitosa. Cualquier otro motivo se detiene aquí,
+        // sin reintentar:
+        //  - "timeout": abortamos del lado del cliente, pero no sabemos si
+        //    OpenAI completó (y cobró) la generación del lado del servidor.
+        //  - "invalid_response": la respuesta HTTP fue 200 OK (exitosa) —
+        //    eso ya implica, casi siempre, que la generación se cobró —
+        //    aunque el cuerpo viniera corrupto/vacío/sin imagen.
+        //  - "moderation_rejected": nunca se reintenta (comportamiento previo).
+        // Reintentar en cualquiera de esos casos arriesgaría un doble cobro
+        // por la misma imagen.
+        if (!(err instanceof GenerativeProviderError) || err.reason !== "upstream_error") {
+          throw err;
         }
       }
     }

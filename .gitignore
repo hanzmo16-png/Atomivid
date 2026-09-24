@@ -40,6 +40,11 @@ yarn-error.log*
 # salida local del script de prueba del pipeline (scripts/test-pipeline.ts)
 /scripts/atomivid-test-output.mp4
 
+# estado de runtime del cost guard de Long Form (registro real de gasto por
+# video — nunca contenido editorial, nunca debe versionarse) — ver
+# src/lib/video/long-form/video-cost-guard.ts
+/.atomivid-state/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -5,6 +5,7 @@ import {
   computePaidApisCalled,
   isRealModeConfirmed,
   LongFormRealModeNotConfirmedError,
+  LongFormRealProviderMissingError,
   resolveLongFormProviders,
 } from "./mode";
 
@@ -50,16 +51,74 @@ test("resolveLongFormProviders('real') lanza sin confirmación, sin importar qu�
   );
 });
 
-test("resolveLongFormProviders('real') con confirmación explícita SÍ delega en los getters reales (sin credenciales pagas, caen a fixture/gratis igual que Shorts)", () => {
-  const providers = resolveLongFormProviders("real", { LONG_FORM_REAL_RUN_CONFIRM: "YES_SPEND_REAL_MONEY" });
-  // Sin ELEVENLABS_API_KEY/OPENAI_API_KEY/PEXELS_API_KEY configuradas, los
-  // getters compartidos con Shorts caen a fixture — comportamiento
-  // heredado, no nuevo. La música curada no necesita clave (es gratis) y
-  // sí puede resolver a "curated-library" en vez de "fixture".
-  assert.equal(providers.voiceProvider.name, "fixture");
-  assert.equal(providers.footageProvider.name, "fixture");
-  assert.equal(providers.imageProvider.name, "fixture");
-  assert.equal(computePaidApisCalled(providers), false);
+test("resolveLongFormProviders('real') con confirmación explícita pero SIN credenciales lanza LongFormRealProviderMissingError — nunca degrada en silencio a fixture", () => {
+  const savedEnv = {
+    VOICE_PROVIDER: process.env.VOICE_PROVIDER,
+    ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY,
+  };
+  delete process.env.VOICE_PROVIDER;
+  delete process.env.ELEVENLABS_API_KEY;
+  try {
+    // Sin ELEVENLABS_API_KEY, getVoiceProvider() resuelve a fixture — el
+    // modo real de Long Form debe detectar esto y lanzar, nunca continuar
+    // en silencio con contenido de fixture disfrazado de "real".
+    assert.throws(
+      () => resolveLongFormProviders("real", { LONG_FORM_REAL_RUN_CONFIRM: "YES_SPEND_REAL_MONEY" }),
+      LongFormRealProviderMissingError,
+    );
+  } finally {
+    if (savedEnv.VOICE_PROVIDER === undefined) delete process.env.VOICE_PROVIDER;
+    else process.env.VOICE_PROVIDER = savedEnv.VOICE_PROVIDER;
+    if (savedEnv.ELEVENLABS_API_KEY === undefined) delete process.env.ELEVENLABS_API_KEY;
+    else process.env.ELEVENLABS_API_KEY = savedEnv.ELEVENLABS_API_KEY;
+  }
+});
+
+test("LongFormRealProviderMissingError nombra la etapa y la variable de entorno faltante en el mensaje", () => {
+  const savedEnv = {
+    VOICE_PROVIDER: process.env.VOICE_PROVIDER,
+    ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY,
+  };
+  delete process.env.VOICE_PROVIDER;
+  delete process.env.ELEVENLABS_API_KEY;
+  try {
+    try {
+      resolveLongFormProviders("real", { LONG_FORM_REAL_RUN_CONFIRM: "YES_SPEND_REAL_MONEY" });
+      assert.fail("debería haber lanzado");
+    } catch (err) {
+      assert.ok(err instanceof LongFormRealProviderMissingError);
+      assert.match((err as Error).message, /voz/);
+      assert.match((err as Error).message, /ELEVENLABS_API_KEY/);
+    }
+  } finally {
+    if (savedEnv.VOICE_PROVIDER === undefined) delete process.env.VOICE_PROVIDER;
+    else process.env.VOICE_PROVIDER = savedEnv.VOICE_PROVIDER;
+    if (savedEnv.ELEVENLABS_API_KEY === undefined) delete process.env.ELEVENLABS_API_KEY;
+    else process.env.ELEVENLABS_API_KEY = savedEnv.ELEVENLABS_API_KEY;
+  }
+});
+
+test("resolveLongFormProviders('real') con TODAS las credenciales reales presentes SÍ delega en los proveedores reales, sin lanzar", () => {
+  const keys = ["VOICE_PROVIDER", "ELEVENLABS_API_KEY", "FOOTAGE_PROVIDER", "PEXELS_API_KEY", "IMAGE_PROVIDER", "OPENAI_API_KEY"] as const;
+  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  process.env.VOICE_PROVIDER = "elevenlabs";
+  process.env.ELEVENLABS_API_KEY = "fake-key-solo-para-resolver-el-proveedor";
+  process.env.FOOTAGE_PROVIDER = "pexels";
+  process.env.PEXELS_API_KEY = "fake-key-solo-para-resolver-el-proveedor";
+  process.env.IMAGE_PROVIDER = "openai";
+  process.env.OPENAI_API_KEY = "fake-key-solo-para-resolver-el-proveedor";
+  try {
+    const providers = resolveLongFormProviders("real", { LONG_FORM_REAL_RUN_CONFIRM: "YES_SPEND_REAL_MONEY" });
+    assert.equal(providers.voiceProvider.name, "elevenlabs");
+    assert.equal(providers.footageProvider.name, "pexels-video-first");
+    assert.equal(providers.imageProvider.name, "openai");
+    assert.equal(computePaidApisCalled(providers), true);
+  } finally {
+    for (const k of keys) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  }
 });
 
 test("computePaidApisCalled trata Pexels y la biblioteca curada como gratis, pero cualquier otro nombre como pagado", () => {

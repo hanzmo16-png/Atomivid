@@ -38,6 +38,30 @@ export class LongFormRealModeNotConfirmedError extends Error {
   }
 }
 
+/**
+ * A diferencia de Shorts (donde getVoiceProvider()/getImageProvider()/etc.
+ * solo exigen credenciales reales cuando isProductionRuntime() es true —
+ * correcto para una app web, donde "dev local sin clave" debe poder usar
+ * fixtures), el orquestador de Long Form se ejecuta típicamente como script
+ * CLI local, NUNCA con NODE_ENV=production/VERCEL=1. Sin este chequeo
+ * adicional, `--mode=real` + LONG_FORM_REAL_RUN_CONFIRM podría resolver en
+ * silencio a proveedores fixture si falta una credencial — produciendo un
+ * "video real" que en realidad es contenido de fixture, sin ningún error.
+ * Esta clase de error hace que ESO sea estructuralmente imposible: en modo
+ * real, cualquier proveedor que resuelva a fixture (por credencial
+ * faltante) detiene la ejecución con un mensaje explícito.
+ */
+export class LongFormRealProviderMissingError extends Error {
+  constructor(stage: string, envVarHint: string) {
+    super(
+      `Modo real de Long Form: el proveedor de ${stage} resolvió a "fixture" en vez de a un ` +
+        `proveedor real. Falta configurar ${envVarHint}. En modo real, Long Form nunca debe usar ` +
+        `contenido de fixture en silencio — o se resuelve el proveedor real, o la ejecución se detiene aquí.`,
+    );
+    this.name = "LongFormRealProviderMissingError";
+  }
+}
+
 export function isRealModeConfirmed(env: Record<string, string | undefined> = process.env): boolean {
   return env.LONG_FORM_REAL_RUN_CONFIRM === REAL_RUN_CONFIRM_VALUE;
 }
@@ -76,12 +100,30 @@ export function resolveLongFormProviders(
   }
 
   assertRealModeConfirmed(env);
-  return {
+  const providers: LongFormProviderSet = {
     voiceProvider: getVoiceProvider(),
     footageProvider: getFootageProvider(),
     musicProvider: getMusicProvider(),
     imageProvider: getImageProvider(),
   };
+
+  if (providers.voiceProvider.name === "fixture") {
+    throw new LongFormRealProviderMissingError("voz", "ELEVENLABS_API_KEY");
+  }
+  if (providers.footageProvider.name === "fixture") {
+    throw new LongFormRealProviderMissingError("footage", "PEXELS_API_KEY");
+  }
+  if (providers.imageProvider.name === "fixture") {
+    throw new LongFormRealProviderMissingError("imagen", "OPENAI_API_KEY (o IMAGE_PROVIDER=openai)");
+  }
+  if (providers.musicProvider.name === "fixture") {
+    throw new LongFormRealProviderMissingError(
+      "música",
+      "MUSIC_TRACK_URL / MUSIC_TRACK_URLS (biblioteca curada, gratis) o BEATOVEN_API_KEY",
+    );
+  }
+
+  return providers;
 }
 
 /**

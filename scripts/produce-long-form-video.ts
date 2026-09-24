@@ -15,7 +15,16 @@
  * Uso (guion real ya finalizado, p. ej. VIDEO #001 — sigue en modo
  * simulation por defecto, cero costo, solo cambia la FUENTE del guion):
  *   npx tsx scripts/produce-long-form-video.ts \
- *     --script=content/long-form/gobekli-tepe-001/gobekli-script-002-final.json \
+ *     --script=content/long-form/gobekli-tepe-001/gobekli-script-003-current.json \
+ *     --output=/ruta/salida.mp4
+ *
+ * Uso (guion + storyboard real ya aprobados, p. ej. VIDEO #001 completo —
+ * usa los 45 shots ya curados y sus gráficos reales en vez del ciclo
+ * genérico de shotsForSpan()/fixtures; --storyboard exige --script, los
+ * beatId de ambos archivos deben coincidir):
+ *   npx tsx scripts/produce-long-form-video.ts \
+ *     --script=content/long-form/gobekli-tepe-001/gobekli-script-003-current.json \
+ *     --storyboard=content/long-form/gobekli-tepe-001/gobekli-storyboard-003.json \
  *     --output=/ruta/salida.mp4
  *
  * Arquitectura: guion (fixture hoy / Claude real en Fase B) → beats →
@@ -42,8 +51,10 @@ type CliArgs = {
   topic: string;
   durationSeconds: number;
   output: string;
-  /** Ruta a un guion real ya finalizado (p. ej. content/long-form/<video-id>/gobekli-script-002-final.json). Si se omite, se usa buildFixtureScript() como hasta ahora — comportamiento por defecto sin cambios. */
+  /** Ruta a un guion real ya finalizado (p. ej. content/long-form/<video-id>/gobekli-script-003-current.json). Si se omite, se usa buildFixtureScript() como hasta ahora — comportamiento por defecto sin cambios. */
   scriptFile?: string;
+  /** Ruta a un storyboard real ya aprobado (p. ej. gobekli-storyboard-003.json). Exige scriptFile — sin él no hay forma de mapear beatId a beatType. Si se omite, se usa shotsForSpan() (ciclo genérico) como hasta ahora. */
+  storyboardFile?: string;
 };
 
 function parseArgs(argv: string[]): CliArgs {
@@ -64,15 +75,24 @@ function parseArgs(argv: string[]): CliArgs {
     durationSeconds: Number(get("duration-seconds", "180")),
     output: get("output", path.join(process.cwd(), "scripts", "atomivid-longform-test-output.mp4")) as string,
     scriptFile: get("script"),
+    storyboardFile: get("storyboard"),
   };
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.storyboardFile && !args.scriptFile) {
+    throw new Error(
+      "--storyboard exige --script: sin un guion real no hay forma de mapear beatId a beatType para reescalar el storyboard.",
+    );
+  }
 
   const { resolveLongFormProviders, computePaidApisCalled } = await import("../src/lib/video/long-form/mode");
   const { buildFixtureScript } = await import("../src/lib/video/long-form/fixture-pipeline");
   const { loadScriptFromFile } = await import("../src/lib/video/long-form/script-loader");
+  const { loadStoryboardFromFile } = await import("../src/lib/video/long-form/storyboard-loader");
+  const { buildShotsFromStoryboard } = await import("../src/lib/video/long-form/storyboard-shots");
+  const { realGraphicSpecProvider } = await import("../src/lib/video/long-form/real-graphics");
   const { buildLongFormTimeline } = await import("../src/lib/video/long-form/timeline");
   const { resolveShotAsset } = await import("../src/lib/video/long-form/asset-resolver");
   const { estimateLongFormCost, assertWithinBudget, getLongFormBudget } = await import(
@@ -135,6 +155,40 @@ async function main() {
     console.log(`[atomivid:long-form] guion fixture: "${fixtureScript.title}" — ${scriptBeats.length} beats`);
   }
 
+  // 1b. Storyboard real (opcional) — si se pasa --storyboard, cada beat
+  // usa sus shots CURADOS (assetType/visualIntent/licencia ya decididos en
+  // preproducción) en vez del ciclo genérico de shotsForSpan(), y los
+  // gráficos de texto/diagrama/mapa se generan con contenido REAL
+  // (real-graphics.ts) en vez de datos de ejemplo (isFixture:true).
+  let shotsBuilder: Parameters<typeof buildLongFormTimeline>[3] | undefined;
+  let graphicSpecFor: Parameters<typeof resolveShotAsset>[1]["graphicSpecFor"];
+  if (args.storyboardFile) {
+    const storyboard = loadStoryboardFromFile(args.storyboardFile);
+    const missingBeatIds = scriptBeats
+      .map((b) => b.id)
+      .filter((id) => !storyboard.shotsByBeatId.has(id));
+    if (missingBeatIds.length > 0) {
+      throw new Error(
+        `--storyboard "${args.storyboardFile}" no tiene shots para estos beatId del guion: ${missingBeatIds.join(", ")}. ` +
+          `Los beatId de guion y storyboard deben coincidir exactamente — nunca se renderiza un beat sin storyboard en silencio.`,
+      );
+    }
+    shotsBuilder = ({ beatId, beatType, startSec, endSec }) =>
+      buildShotsFromStoryboard({
+        beatId,
+        beatType,
+        startSec,
+        endSec,
+        storyboardShots: storyboard.shotsByBeatId.get(beatId) ?? [],
+      });
+    graphicSpecFor = realGraphicSpecProvider;
+    console.log(
+      `[atomivid:long-form] storyboard cargado desde archivo: "${args.storyboardFile}" — ${storyboard.totalShots} shots curados, ${storyboard.shotsByBeatId.size} beats`,
+    );
+  } else {
+    console.log("[atomivid:long-form] sin --storyboard: usando shotsForSpan() (ciclo genérico) y gráficos fixture, como antes.");
+  }
+
   // 2. Almacenamiento simulado — mismo patrón ya validado en
   // scripts/test-pipeline.ts (servidor HTTP local sobre un directorio
   // temporal): le da a Remotion URLs http:// reales sin necesitar
@@ -179,7 +233,9 @@ async function main() {
     // caracteres de ElevenLabs, une audio, re-offsetea timestamps) y
     // recalcula shots[] de cada beat contra su duración REAL narrada.
     console.log("[atomivid:long-form] sintetizando narración por beat y construyendo línea de tiempo real...");
-    const timeline = await buildLongFormTimeline(providers.voiceProvider, scriptBeats, "es");
+    const timeline = shotsBuilder
+      ? await buildLongFormTimeline(providers.voiceProvider, scriptBeats, "es", shotsBuilder)
+      : await buildLongFormTimeline(providers.voiceProvider, scriptBeats, "es");
     console.log(
       `[atomivid:long-form] línea de tiempo real: ${timeline.durationSeconds.toFixed(1)}s narrados, ` +
         `${timeline.beats.reduce((n, b) => n + b.shots.length, 0)} shots en total`,
@@ -215,6 +271,7 @@ async function main() {
         upload,
         pathPrefix: "longform-pilot",
         imageBudgetRemainingUsd: remaining,
+        graphicSpecFor,
       });
       imageCostSpentUsd += result.costUsd;
       totalBufferBytes += result.bufferBytes;
@@ -286,6 +343,7 @@ async function main() {
       topic: scriptTopic,
       isFixtureContent: scriptIsFixtureContent,
       scriptSource: args.scriptFile ?? "buildFixtureScript() (fixture)",
+      storyboardSource: args.storyboardFile ?? "shotsForSpan() (ciclo genérico, sin storyboard)",
       targetDurationSeconds: args.durationSeconds,
       actualDurationSeconds: finalDurationSeconds,
       beatCount: timeline.beats.length,

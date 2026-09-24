@@ -101,15 +101,32 @@ type TimelineBeatInput = Pick<
 >;
 
 /**
+ * Genera los Shot[] de UN beat contra su span REAL narrado. Por defecto es
+ * shotsForSpan() (ciclo genérico de tipos, ver shots.ts) — pásese
+ * `shotsBuilder` para usar en su lugar un storyboard curado real (ver
+ * buildShotsFromStoryboard en storyboard-shots.ts), sin duplicar esta
+ * función ni el resto del pipeline.
+ */
+export type ShotsBuilder = (input: {
+  beatId: string;
+  beatType: NarrativeBeat["type"];
+  startSec: number;
+  endSec: number;
+  narration: string;
+  typeOffset?: number;
+}) => ReturnType<typeof shotsForSpan>;
+
+/**
  * Construye la línea de tiempo real completa: sintetiza cada beat, une el
  * audio en un solo archivo, y recalcula shots[] de cada beat contra su
  * duración REAL narrada (no la duración objetivo aproximada del guion) —
- * mismo shotsForSpan() ya validado en el P0, nunca una copia.
+ * mismo shotsForSpan() ya validado en el P0 por defecto, nunca una copia.
  */
 export async function buildLongFormTimeline(
   voiceProvider: VoiceProvider,
   beats: TimelineBeatInput[],
   language: ScriptLanguage = "es",
+  shotsBuilder: ShotsBuilder = shotsForSpan,
 ): Promise<LongFormTimeline> {
   if (beats.length === 0) throw new Error("buildLongFormTimeline: se necesita al menos un beat");
 
@@ -126,11 +143,12 @@ export async function buildLongFormTimeline(
     const startTargetSec = cursor;
     const endTargetSec = cursor + narrated.durationSeconds;
 
-    // shotsForSpan() lanza si el span es demasiado corto para un solo shot
-    // válido (< 3s) — deliberado: preferimos un error claro a distorsionar
-    // la línea de tiempo real con un piso artificial (ver duration-check.ts
-    // para el mismo criterio de "nunca estirar/recortar en silencio").
-    const shots = shotsForSpan({
+    // shotsForSpan() (o el shotsBuilder inyectado) lanza si el span no se
+    // puede convertir en shots válidos — deliberado: preferimos un error
+    // claro a distorsionar la línea de tiempo real con un piso artificial
+    // (ver duration-check.ts para el mismo criterio de "nunca
+    // estirar/recortar en silencio").
+    const shots = shotsBuilder({
       beatId: beat.id,
       beatType: beat.type,
       startSec: startTargetSec,
