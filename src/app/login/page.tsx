@@ -44,6 +44,11 @@ export default async function LoginPage({
             placeholder="••••••••"
           />
         </Field>
+        <p className="text-right text-sm">
+          <Link href="/forgot-password" className="font-medium text-accent hover:text-accent-hover">
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </p>
         <Button type="submit" className="w-full">
           Iniciar sesión
         </Button>
