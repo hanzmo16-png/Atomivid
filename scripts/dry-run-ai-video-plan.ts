@@ -24,6 +24,7 @@
  * (mezcla deliberada de shots de alta/baja necesidad de movimiento y un
  * shot determinístico) para poder correr el script sin ningún archivo.
  */
+export {}; // Fuerza scope de módulo — evita colisionar con `main()` de otros scripts.
 process.env.LONG_FORM_AI_VIDEO_ENABLED = "true";
 
 type DemoShotInput = {

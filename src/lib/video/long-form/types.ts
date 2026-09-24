@@ -42,6 +42,22 @@ export type ShotMotion = "static" | "ken_burns" | "pan" | "cut";
 export const VISUAL_ASSET_TIERS = ["real_video", "real_image", "ai_image", "ai_image_motion", "ai_video"] as const;
 export type VisualAssetTier = (typeof VISUAL_ASSET_TIERS)[number];
 
+/**
+ * Clasificación de PROVENIENCIA HISTÓRICA de lo que un shot muestra — no
+ * confundir con `source`/`hybridClassification` (que describen CÓMO se
+ * obtuvo el asset: stock/generado/local), esto describe si lo mostrado es
+ * un hecho documentado, una reconstrucción plausible, o una reconstrucción
+ * especulativa. Ver AI Video Pipeline P2A: un clip generado por IA de,
+ * p. ej., "gente construyendo Göbekli Tepe" NUNCA debe poder presentarse ni
+ * tratarse internamente como evidencia arqueológica real solo porque el
+ * render final "se ve real" — esta clasificación viaja con el shot para que
+ * cualquier etapa posterior (guion, subtítulos, QC editorial) pueda
+ * distinguirlo. Mismo espíritu que `LongFormClaim.support` (sourced/
+ * inference/unverified) pero para lo VISUAL en vez de lo textual/narrado.
+ */
+export const HISTORICAL_CLASSIFICATIONS = ["real_documented", "reconstruction", "speculative_reconstruction"] as const;
+export type HistoricalClassification = (typeof HISTORICAL_CLASSIFICATIONS)[number];
+
 export type Shot = {
   id: string;
   beatId: string;
@@ -82,6 +98,8 @@ export type Shot = {
   maxVisualCostUsd?: number;
   /** 1 = máxima prioridad (p. ej. el shot de apertura), mayor = menor prioridad — desempate cuando el cost guard no puede conceder todos los shots elegibles dentro del presupuesto. */
   generationPriority?: number;
+  /** Proveniencia histórica de lo mostrado (ver HistoricalClassification arriba) — ausente = sin clasificar todavía, nunca asumir "real_documented" por defecto. */
+  historicalClassification?: HistoricalClassification;
 
   // --- Campos RESERVADOS para la futura capa musical (no implementada
   // todavía, ver sección 5 del encargo P1) — ningún código los lee o
