@@ -17,7 +17,7 @@ Todo el trabajo de Long Form (incluido este handoff) vive en esta rama. No hay P
 ## 2. Último commit válido
 
 ```
-bbba17d  feat(long-form): add minimal temporary admin UI for Visual Test V2 dry-run
+03e1344  feat(long-form): add nav shortcut to Visual Test V2 dry-run page
 ```
 
 Este es el HEAD de la rama en el momento de este handoff. El guion v.003, el storyboard v.003 (con las 5 licencias resueltas) y la Visual Bible v1 siguen **aprobados por el usuario** como base editorial. Este commit es técnico/preparatorio (sin cambios editoriales) — ver sección 3.
@@ -37,7 +37,9 @@ Este es el HEAD de la rama en el momento de este handoff. El guion v.003, el sto
 | `e250b9f` | Actualización del handoff (referencias de commit) tras el checkpoint anterior — sin cambios de código. |
 | `a5ce005` | Puente seguro de producción en Vercel: endpoint `POST /api/long-form/visual-test-v2` (DRY_RUN/PREFLIGHT únicamente — REAL mode bloqueado por una constante de código, no por env var). Reutiliza `assertLongFormAccess`, `visual-test-v2.ts` y `video-cost-guard.ts` sin duplicar nada. Sin cambios editoriales ni de guion/storyboard/Visual Bible. Ver sección 21. Validado con 667/667 tests. No hay deployment. |
 | `fdf6680` | Actualización del handoff (referencias de commit) tras el checkpoint anterior — sin cambios de código. |
-| `bbba17d` | **Este checkpoint.** UI administrativa mínima y temporal: página `/dashboard/long-form/visual-test-v2` con un único botón ("Ejecutar Dry Run Long Form") que hace EXCLUSIVAMENTE el POST de DRY_RUN ya existente — mismo gate Long Form/allowlist, sin campos de formulario, sin control de REAL generation. Sin cambios editoriales ni de guion/storyboard/Visual Bible. Ver sección 22. Validado con 682/682 tests. Sin deployment manual — queda para la integración automática de Vercel al hacer push. |
+| `bbba17d` | UI administrativa mínima y temporal: página `/dashboard/long-form/visual-test-v2` con un único botón ("Ejecutar Dry Run Long Form") que hace EXCLUSIVAMENTE el POST de DRY_RUN ya existente — mismo gate Long Form/allowlist, sin campos de formulario, sin control de REAL generation. Sin cambios editoriales ni de guion/storyboard/Visual Bible. Ver sección 22. Validado con 682/682 tests. Sin deployment manual — queda para la integración automática de Vercel al hacer push. |
+| `85d7141` | Actualización del handoff (referencias de commit) tras el checkpoint anterior — sin cambios de código. |
+| `03e1344` | **Este checkpoint.** Acceso directo en el nav del dashboard ("Dry Run Long Form") hacia la página de DRY_RUN — mismo gate Long Form/allowlist, solo navegación (`<Link>`, sin fetch propio). Sin cambios al pipeline 9:16 ni a facturación/suscripciones. Ver sección 23. Validado con 687/687 tests. Sin deployment manual — queda para la integración automática de Vercel al hacer push. |
 
 **Ningún commit de este historial modifica el pipeline 9:16 (Shorts).** `7064285` sí modifica código de producción de Long Form (ver sección 4) — es el primer commit de este historial que lo hace; todos los anteriores desde `ebe56eb` eran solo contenido (`content/long-form/`). Antecesores más antiguos (`9130d24`, `3ff03d9`, `40893a4`) construyeron la infraestructura Long Form original de Fase A.
 
