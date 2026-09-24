@@ -125,7 +125,7 @@ test("generateVideo() lanza budget_exceeded si el costo estimado ($0.96) excede 
   });
 });
 
-test("mapeo del request (P2A.6): la imagen de referencia se descarga server-side y se envía como objeto Image {imageBytes, mimeType} — NUNCA como {uri}", async () => {
+test("mapeo del request (P2A.6 + corrección post-incidente real): la imagen de referencia se descarga server-side y se envía como objeto Image {bytesBase64Encoded, mimeType} — NUNCA como {uri} ni {imageBytes}", async () => {
   await withEnv({ VEO_API_KEY: "fake-key" }, async () => {
     let capturedBody: Record<string, unknown> | undefined;
     let capturedUrl: string | undefined;
@@ -154,8 +154,10 @@ test("mapeo del request (P2A.6): la imagen de referencia se descarga server-side
       const instances = capturedBody?.instances as Record<string, unknown>[];
       const image = instances[0].image as Record<string, unknown>;
       assert.equal("uri" in image, false, "el objeto image NUNCA debe llevar 'uri' — corrección P2A.6");
-      assert.equal(typeof image.imageBytes, "string");
-      assert.equal(image.imageBytes, FAKE_PNG_BYTES.toString("base64"));
+      assert.equal("imageBytes" in image, false, "el objeto image NUNCA debe llevar 'imageBytes' — es el nombre del SDK, no del JSON de wire; Google respondió HTTP 400 real con este campo (P2B, 2026-09-24)");
+      assert.deepEqual(Object.keys(image).sort(), ["bytesBase64Encoded", "mimeType"], "el objeto image debe tener EXACTAMENTE estas dos claves, nada más");
+      assert.equal(typeof image.bytesBase64Encoded, "string");
+      assert.equal(image.bytesBase64Encoded, FAKE_PNG_BYTES.toString("base64"));
       assert.equal(image.mimeType, "image/png");
       assert.match(instances[0].prompt as string, /Avoid: modern machinery, vehicles/);
       const parameters = capturedBody?.parameters as Record<string, unknown>;
@@ -278,6 +280,30 @@ test("fallo del proveedor (HTTP 400 al enviar) se normaliza a invalid_request, n
     const restore = installFetchMock(
       withReferenceImageMock(async (url) => {
         if (url.includes(":predictLongRunning")) return jsonResponse({ error: { message: "invalid_argument: bad prompt" } }, 400);
+        throw new Error("no debería llegar más lejos");
+      }),
+    );
+    try {
+      await assert.rejects(
+        () => veoVideoProvider.generateVideo(BASE_REQUEST),
+        (err: unknown) => err instanceof GenerativeProviderError && err.reason === "invalid_request",
+      );
+    } finally {
+      restore();
+    }
+  });
+});
+
+test("regresión (P2B, 2026-09-24): si Google alguna vez volviera a rechazar el campo de imagen con el mensaje real observado, se sigue normalizando a invalid_request — nunca un Error genérico sin clasificar", async () => {
+  await withEnv({ VEO_API_KEY: "fake-key" }, async () => {
+    const restore = installFetchMock(
+      withReferenceImageMock(async (url) => {
+        if (url.includes(":predictLongRunning")) {
+          return jsonResponse(
+            { error: { message: "`imageBytes` isn't supported by this model. Please remove it or refer to the Gemini API documentation for supported usage." } },
+            400,
+          );
+        }
         throw new Error("no debería llegar más lejos");
       }),
     );

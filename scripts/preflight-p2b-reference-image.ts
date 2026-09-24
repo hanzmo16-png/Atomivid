@@ -84,13 +84,13 @@ async function main() {
   const port = typeof address === "object" && address ? address.port : 0;
   const localUrl = `http://127.0.0.1:${port}/bench-v2-a-pillar-transport.png`;
 
-  let veoImageObject: { imageBytes: string; mimeType: string };
+  let veoImageObject: { bytesBase64Encoded: string; mimeType: string };
   try {
     console.log("\n[3/6] Ejercitando el código REAL de veo.ts (fetchReferenceImageAsGeminiImageObject) contra la imagen aprobada, vía servidor local:");
     veoImageObject = await fetchReferenceImageAsGeminiImageObject(localUrl);
     console.log(`  mimeType detectado: ${veoImageObject.mimeType}`);
-    console.log(`  imageBytes (base64) longitud: ${veoImageObject.imageBytes.length} caracteres`);
-    console.log(`  imageBytes coincide con el buffer original: ${veoImageObject.imageBytes === buffer.toString("base64")}`);
+    console.log(`  bytesBase64Encoded longitud: ${veoImageObject.bytesBase64Encoded.length} caracteres`);
+    console.log(`  bytesBase64Encoded coincide con el buffer original: ${veoImageObject.bytesBase64Encoded === buffer.toString("base64")}`);
   } finally {
     server.close();
   }

@@ -11,12 +11,32 @@ import { GenerativeProviderError, type GenerativeAsset, type VideoGenerationRequ
  *   https://ai.google.dev/gemini-api/docs/veo
  *   https://ai.google.dev/gemini-api/docs/pricing
  * Este entorno sigue sin poder leer ai.google.dev directamente
- * (EGRESS_BLOCKED, reconfirmado en P2A.6) — Claude implementa exactamente
- * lo que Hans confirmó campo por campo, sin re-verificación propia. Si
- * algo difiere de la doc en vivo en el futuro, corregir aquí, nunca
- * sobrescribir en silencio.
+ * (EGRESS_BLOCKED, reconfirmado en P2A.6 y de nuevo en la corrección de
+ * abajo). Claude implementa exactamente lo que Hans confirmó campo por
+ * campo, sin re-verificación propia. Si algo difiere de la doc en vivo en
+ * el futuro, corregir aquí, nunca sobrescribir en silencio.
  *
- * Contrato confirmado por Hans (P2A.6):
+ * CORRECCIÓN REAL POST-EJECUCIÓN (P2B, primera llamada real a Google,
+ * 2026-09-24): el campo `imageBytes` (citado en P2A.6 desde el ejemplo del
+ * SDK oficial de JavaScript/Python) NO es válido en el cuerpo REST crudo
+ * de `predictLongRunning` — Google respondió con un HTTP 400 real y
+ * explícito: "`imageBytes` isn't supported by this model. Please remove it
+ * or refer to the Gemini API documentation for supported usage." El SDK
+ * oficial usa `imageBytes` como nombre de campo en su propia interfaz
+ * TypeScript/Python y lo traduce internamente al nombre real de wire; este
+ * adapter llama al REST crudo directamente (ver comentario más abajo sobre
+ * por qué no se usa el SDK), así que necesita el nombre de campo REAL del
+ * JSON, no el de la abstracción del SDK. Confirmado de forma independiente
+ * (triangulado, ya que ai.google.dev sigue bloqueado) contra: (1) la
+ * documentación de Vertex AI para el mismo endpoint `predictLongRunning`
+ * (`instances[].image.bytesBase64Encoded` + `mimeType`), y (2) un fix real
+ * de otro proyecto open-source (QuantumNous/new-api PR #7428) que corrigió
+ * exactamente este mismo HTTP 400 contra la API real de Google cambiando
+ * de un campo incorrecto a `bytesBase64Encoded`. El campo correcto es
+ * `bytesBase64Encoded` (string base64, hermano de `mimeType`, sin anidar
+ * bajo ninguna otra clave) — ver `fetchReferenceImageAsGeminiImageObject`.
+ *
+ * Contrato confirmado por Hans (P2A.6) + corrección de arriba:
  *   - Modelo API: "veo-3.1-fast-generate-preview".
  *   - REST base: https://generativelanguage.googleapis.com/v1beta
  *   - Submit: POST /models/veo-3.1-fast-generate-preview:predictLongRunning
@@ -24,13 +44,14 @@ import { GenerativeProviderError, type GenerativeAsset, type VideoGenerationRequ
  *   - Async: submit -> operation name -> GET operation -> done -> URI de
  *     video generado -> download.
  *   - image-to-video soportado; el parámetro `image` es un objeto Image,
- *     NO una URI arbitraria — el ejemplo oficial en JavaScript usa
- *     `imageBytes` (bytes en base64) + `mimeType`. Este adapter NUNCA
- *     envía `{ image: { uri } }` (P2A.5 lo hacía, corregido en P2A.6):
- *     descarga la imagen de referencia aprobada de ATOMIVID del lado del
- *     servidor, la convierte a base64, y construye el objeto Image
- *     documentado. La imagen NUNCA se expone al cliente ni la clave se usa
- *     fuera de este adapter server-side.
+ *     NO una URI arbitraria — el campo de bytes en el JSON REST real es
+ *     `bytesBase64Encoded` (bytes en base64), NUNCA `imageBytes` (nombre
+ *     del SDK, no del wire — ver corrección de arriba) ni `{ uri }`
+ *     (P2A.5 lo hacía, corregido en P2A.6). Este adapter descarga la
+ *     imagen de referencia aprobada de ATOMIVID del lado del servidor, la
+ *     convierte a base64, y construye el objeto Image documentado. La
+ *     imagen NUNCA se expone al cliente ni la clave se usa fuera de este
+ *     adapter server-side.
  *   - aspectRatios: 16:9, 9:16. resolutions: 720p/1080p/4k. 1080p -> 8s
  *     (única duración usada aquí). 24fps.
  *   - Audio: SIEMPRE generado, sin parámetro documentado para
@@ -145,15 +166,17 @@ function sniffImageMimeType(buffer: Buffer): string | undefined {
  * Descarga la imagen de referencia APROBADA de ATOMIVID (nunca una URL
  * arbitraria sin pasar por el gate de aprobación, ver
  * ai-video-benchmark-execution-gate.ts) del lado del servidor y la
- * convierte al objeto Image documentado por Google (`imageBytes` en
- * base64 + `mimeType`) — la Gemini API NO acepta una URI/referencia
- * externa arbitraria para image-to-video (corrección P2A.6, ver
- * comentario de cabecera). El tipo MIME se toma del header `content-type`
- * de la respuesta; si es genérico o falta, se detecta por firma de bytes
+ * convierte al objeto Image documentado por Google (`bytesBase64Encoded`
+ * en base64 + `mimeType` — corrección post-incidente real, ver comentario
+ * de cabecera; NUNCA `imageBytes`, que es solo el nombre del SDK, no del
+ * JSON de wire) — la Gemini API NO acepta una URI/referencia externa
+ * arbitraria para image-to-video (corrección P2A.6, ver comentario de
+ * cabecera). El tipo MIME se toma del header `content-type` de la
+ * respuesta; si es genérico o falta, se detecta por firma de bytes
  * (PNG/JPEG/WebP) antes de asumir "image/png" como último recurso.
  */
 /** Exportada (no solo interna) para que scripts de pre-flight (ver scripts/preflight-p2b-reference-image.ts) puedan ejercitar EXACTAMENTE este mismo código contra una imagen real sin pasar por generateVideo()/submitGeneration() completos. */
-export async function fetchReferenceImageAsGeminiImageObject(referenceImageUrl: string): Promise<{ imageBytes: string; mimeType: string }> {
+export async function fetchReferenceImageAsGeminiImageObject(referenceImageUrl: string): Promise<{ bytesBase64Encoded: string; mimeType: string }> {
   let response: Response;
   try {
     response = await fetch(referenceImageUrl);
@@ -169,7 +192,7 @@ export async function fetchReferenceImageAsGeminiImageObject(referenceImageUrl: 
   }
   const headerMime = response.headers.get("content-type")?.split(";")[0]?.trim();
   const mimeType = headerMime && headerMime.startsWith("image/") ? headerMime : (sniffImageMimeType(buffer) ?? "image/png");
-  return { imageBytes: buffer.toString("base64"), mimeType };
+  return { bytesBase64Encoded: buffer.toString("base64"), mimeType };
 }
 
 /**
@@ -178,9 +201,9 @@ export async function fetchReferenceImageAsGeminiImageObject(referenceImageUrl: 
  * campo API separado (no está confirmado que la Gemini API lo soporte
  * para video): se integra en el prompt principal como texto "Avoid: ...",
  * mismo patrón ya usado por runway.ts. `image` SIEMPRE es el objeto
- * documentado (`imageBytes`/`mimeType`, ver
- * fetchReferenceImageAsGeminiImageObject) — nunca una URI, corrección
- * P2A.6.
+ * documentado (`bytesBase64Encoded`/`mimeType`, ver
+ * fetchReferenceImageAsGeminiImageObject — corrección post-incidente
+ * real, nunca `imageBytes`) — nunca una URI, corrección P2A.6.
  */
 async function buildRequestPayload(request: VideoGenerationRequest): Promise<Record<string, unknown>> {
   const prompt = request.negativePrompt ? `${request.prompt}\n\nAvoid: ${request.negativePrompt}` : request.prompt;
