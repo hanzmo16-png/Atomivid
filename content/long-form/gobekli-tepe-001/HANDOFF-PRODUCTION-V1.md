@@ -17,10 +17,10 @@ Todo el trabajo de Long Form (incluido este handoff) vive en esta rama. No hay P
 ## 2. Último commit válido
 
 ```
-bbde376  Verificación dirigida Gresky/Clare + resolución de licencias de 5 shots
+7064285  feat(long-form): wire storyboard to render, cost/QC guards for VIDEO #001
 ```
 
-Este es el HEAD de la rama en el momento de este handoff. El guion v.003, el storyboard v.003 (ya con las 5 licencias resueltas) y la Visual Bible v1 están **aprobados por el usuario** como base para producción.
+Este es el HEAD de la rama en el momento de este handoff. El guion v.003, el storyboard v.003 (con las 5 licencias resueltas) y la Visual Bible v1 siguen **aprobados por el usuario** como base editorial. Este commit es técnico/preparatorio (sin cambios editoriales) — ver sección 3.
 
 ## 3. Commits relevantes anteriores y qué aporta cada uno
 
@@ -30,8 +30,10 @@ Este es el HEAD de la rama en el momento de este handoff. El guion v.003, el sto
 | `275d290` | Reclasificación híbrida-premium: `gobekli-storyboard-002-hybrid.json` (mismo storyboard-001 pero con `hybridClassification`/`hybridReason` por shot), `gobekli-visual-test-001.md` (3 prompts de prueba diseñados, identidad visual compartida, NO generados — falta `OPENAI_API_KEY`). `-001` se conserva intacto. |
 | `7e026db` | Actualización 2026: `research-pack-002.json` (extiende, no reemplaza, research-pack-001), `gobekli-script-003-current.{json,md}` (guion v3, 13 beats, 1,847 palabras, tesis moderada), `gobekli-storyboard-003.json` (45 shots, estrategia híbrida), `gobekli-production-plan-003.md`, `atomivid-long-form-visual-bible-v1.md` (guía visual reutilizable para futuros videos). |
 | `bbde376` | Checkpoint de verificación dirigida post-aprobación: confirma Gresky/Clare **NOT VERIFIED** (segundo intento), resuelve los 5 shots `NEEDS_REVIEW` de licencias (0 quedan sin fallback), documenta un tercer intento de verificación de coordenadas (señal fuerte pero no confirmada de primera mano). Actualiza `research-pack-002.json`, `gobekli-storyboard-003.json`, `gobekli-production-plan-003.md`. |
+| `af6b846` | Primera versión de este mismo HANDOFF-PRODUCTION-V1.md (consolidación, cero código). |
+| `7064285` | **Este checkpoint.** Preparación técnica de producción, sin cambios editoriales: conecta el storyboard curado (45 shots) al render real (antes usaba un ciclo genérico — hallazgo mayor, ver sección 4), corrige 2 bugs reales de seguridad de costo (fallback silencioso a fixture en modo real; reintento automático de OpenAI Images ante consumo incierto), y prepara (sin ejecutar) el Visual Test V2, el cost guard de VIDEO #001, y QC post-render. Validado con un dry-run real end-to-end (sección 19) y 621/621 tests. |
 
-**Ningún commit de este historial modifica código de producción.** Todos son contenido (`content/long-form/`) salvo `ebe56eb`'s antecesores (`9130d24`, `3ff03d9`, `40893a4` — infraestructura del pipeline Long Form, ya validada y estable, no tocada desde entonces).
+**Ningún commit de este historial modifica el pipeline 9:16 (Shorts).** `7064285` sí modifica código de producción de Long Form (ver sección 4) — es el primer commit de este historial que lo hace; todos los anteriores desde `ebe56eb` eran solo contenido (`content/long-form/`). Antecesores más antiguos (`9130d24`, `3ff03d9`, `40893a4`) construyeron la infraestructura Long Form original de Fase A.
 
 ## 4. Archivos Long Form relevantes y propósito
 
