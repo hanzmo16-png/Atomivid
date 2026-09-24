@@ -17,7 +17,7 @@ Todo el trabajo de Long Form (incluido este handoff) vive en esta rama. No hay P
 ## 2. Último commit válido
 
 ```
-7357c75  fix(long-form): persistent cross-process TTS idempotency per beat
+a5ce005  feat(long-form): add Vercel-side DRY_RUN preflight endpoint for Visual Test V2
 ```
 
 Este es el HEAD de la rama en el momento de este handoff. El guion v.003, el storyboard v.003 (con las 5 licencias resueltas) y la Visual Bible v1 siguen **aprobados por el usuario** como base editorial. Este commit es técnico/preparatorio (sin cambios editoriales) — ver sección 3.
@@ -33,7 +33,9 @@ Este es el HEAD de la rama en el momento de este handoff. El guion v.003, el sto
 | `af6b846` | Primera versión de este mismo HANDOFF-PRODUCTION-V1.md (consolidación, cero código). |
 | `7064285` | Preparación técnica de producción, sin cambios editoriales: conecta el storyboard curado (45 shots) al render real (antes usaba un ciclo genérico — hallazgo mayor, ver sección 4), corrige 2 bugs reales de seguridad de costo (fallback silencioso a fixture en modo real; reintento automático de OpenAI Images ante consumo incierto), y prepara (sin ejecutar) el Visual Test V2, el cost guard de VIDEO #001, y QC post-render. Validado con un dry-run real end-to-end (sección 19) y 621/621 tests. |
 | `911f8ba` | Actualización del handoff tras el checkpoint anterior (sin cambios de código). |
-| `7357c75` | **Este checkpoint.** Resuelve el único gap de producción que quedaba documentado: idempotencia TTS entre procesos. Añade `src/lib/video/long-form/tts-cache.ts` (caché persistente por beat con identidad determinística e integración con el cost guard de VIDEO #001) y `getVoiceIdentity()` en `src/lib/ai/voice.ts`. Sin cambios editoriales ni de guion/storyboard/Visual Bible. Ver sección 20. Validado con 645/645 tests. |
+| `7357c75` | Resuelve el único gap de producción que quedaba documentado: idempotencia TTS entre procesos. Añade `src/lib/video/long-form/tts-cache.ts` (caché persistente por beat con identidad determinística e integración con el cost guard de VIDEO #001) y `getVoiceIdentity()` en `src/lib/ai/voice.ts`. Sin cambios editoriales ni de guion/storyboard/Visual Bible. Ver sección 20. Validado con 645/645 tests. |
+| `e250b9f` | Actualización del handoff (referencias de commit) tras el checkpoint anterior — sin cambios de código. |
+| `a5ce005` | **Este checkpoint.** Puente seguro de producción en Vercel: endpoint `POST /api/long-form/visual-test-v2` (DRY_RUN/PREFLIGHT únicamente — REAL mode bloqueado por una constante de código, no por env var). Reutiliza `assertLongFormAccess`, `visual-test-v2.ts` y `video-cost-guard.ts` sin duplicar nada. Sin cambios editoriales ni de guion/storyboard/Visual Bible. Ver sección 21. Validado con 667/667 tests. No hay deployment. |
 
 **Ningún commit de este historial modifica el pipeline 9:16 (Shorts).** `7064285` sí modifica código de producción de Long Form (ver sección 4) — es el primer commit de este historial que lo hace; todos los anteriores desde `ebe56eb` eran solo contenido (`content/long-form/`). Antecesores más antiguos (`9130d24`, `3ff03d9`, `40893a4`) construyeron la infraestructura Long Form original de Fase A.
 
