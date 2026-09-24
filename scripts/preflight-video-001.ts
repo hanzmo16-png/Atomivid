@@ -30,7 +30,14 @@ const EXPECTED_TTS_BEATS = 13;
 const EXPECTED_AI_RECREATION_TOTAL = 11;
 const EXPECTED_AI_RECREATION_REMAINING = 8;
 const EXPECTED_STOCK_REAL = 4;
-const EXPECTED_ALREADY_SPENT_USD = 0.1681;
+// Piso del gasto acumulado ya confirmado por el usuario antes de que
+// existiera este workflow (las 3 imágenes del Visual Test V2) — el
+// ledger real SOLO puede crecer desde acá a medida que corren fases
+// reales sucesivas (TTS, imágenes nuevas) entre ejecuciones del
+// workflow, nunca bajar ni reiniciarse. Comparar contra un monto EXACTO
+// fijo (en vez de un piso) rompería el preflight en la primera ejecución
+// real exitosa parcial — que es precisamente lo esperado y deseable.
+const CONFIRMED_SPENT_FLOOR_USD = 0.1681;
 const SPENT_TOLERANCE_USD = 0.0001;
 
 type CheckResult = { name: string; ok: boolean; detail: string };
@@ -115,19 +122,19 @@ async function main() {
     ledgerSpent = spent;
     record("ledger durable accesible", true, `${ledger.entries.length} entradas, gasto acumulado leído=$${spent.toFixed(4)}`);
 
-    const spentMatches = Math.abs(spent - EXPECTED_ALREADY_SPENT_USD) <= SPENT_TOLERANCE_USD;
+    const spentAtLeastFloor = spent >= CONFIRMED_SPENT_FLOOR_USD - SPENT_TOLERANCE_USD;
     record(
-      `gasto acumulado = $${EXPECTED_ALREADY_SPENT_USD.toFixed(4)} confirmado`,
-      spentMatches,
-      `leído=$${spent.toFixed(4)}, esperado=$${EXPECTED_ALREADY_SPENT_USD.toFixed(4)} (tolerancia $${SPENT_TOLERANCE_USD})`,
+      `gasto acumulado >= piso confirmado ($${CONFIRMED_SPENT_FLOOR_USD.toFixed(4)}, Visual Test V2)`,
+      spentAtLeastFloor,
+      `leído=$${spent.toFixed(4)} — el ledger nunca debe mostrar MENOS que el gasto ya confirmado antes de este workflow (indicaría un ledger corrupto/reiniciado)`,
     );
 
     const remaining = round4(VIDEO_001_HARD_STOP_USD - spent);
-    const expectedRemaining = round4(VIDEO_001_HARD_STOP_USD - EXPECTED_ALREADY_SPENT_USD);
+    const withinHardStopAlready = spent <= VIDEO_001_HARD_STOP_USD;
     record(
-      `presupuesto restante = $${expectedRemaining.toFixed(4)} confirmado (hard stop $${VIDEO_001_HARD_STOP_USD.toFixed(2)})`,
-      Math.abs(remaining - expectedRemaining) <= SPENT_TOLERANCE_USD,
-      `restante calculado=$${remaining.toFixed(4)}`,
+      `gasto acumulado dentro del hard stop (presupuesto restante real=$${remaining.toFixed(4)} de $${VIDEO_001_HARD_STOP_USD.toFixed(2)})`,
+      withinHardStopAlready,
+      `gasto acumulado=$${spent.toFixed(4)}, restante=$${remaining.toFixed(4)}`,
     );
   } catch (err) {
     record("Supabase Storage / bucket / ledger accesibles", false, String(err));
@@ -257,7 +264,7 @@ async function main() {
     const projectedImagesUsd = EXPECTED_AI_RECREATION_REMAINING * VISUAL_TEST_V2_ESTIMATED_COST_PER_IMAGE_USD;
     const projectedTotalNewUsd = round4(projectedTtsUsd + projectedImagesUsd);
 
-    const spentSoFar = ledgerSpent ?? EXPECTED_ALREADY_SPENT_USD;
+    const spentSoFar = ledgerSpent ?? CONFIRMED_SPENT_FLOOR_USD;
     const projectedGrandTotal = round4(spentSoFar + projectedTotalNewUsd);
     const withinHardStop = projectedGrandTotal <= VIDEO_001_HARD_STOP_USD;
     record(
