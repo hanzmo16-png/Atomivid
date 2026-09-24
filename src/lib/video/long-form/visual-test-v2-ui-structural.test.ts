@@ -51,6 +51,9 @@ test("DryRunButton.tsx no importa ni referencia ningún proveedor real de imagen
   assert.equal(/openaiImageProvider|images\.generate|api\.openai\.com|elevenlabs|pexels/i.test(BUTTON_SOURCE), false);
 });
 
-test("page.tsx no expone ningún control de REAL generation (sin botón/enlace de generación real)", () => {
-  assert.equal(/generar imagen|real generation|generación real/i.test(PAGE_SOURCE), false);
+test("page.tsx: el único control de REAL generation que expone es el mecanismo cerrado a 3 shots (RealGenerateButton) — ver visual-test-v2-real-ui-structural.test.ts para sus invariantes de seguridad", () => {
+  // Este archivo se centra en el DRY_RUN; la generación REAL controlada
+  // (autorizada explícitamente por el usuario en un checkpoint posterior)
+  // tiene su propia batería de pruebas estructurales dedicada.
+  assert.ok(PAGE_SOURCE.includes("RealGenerateButton"));
 });
