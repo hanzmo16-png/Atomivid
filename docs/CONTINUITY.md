@@ -543,3 +543,55 @@ Current user instruction overrides older credit authorization: NO D-ID generatio
 credit consumption until expected consumption is reported and separately authorized.
 Preparation is account-gated; exact owner app login email must be confirmed and set
 in production configuration before it becomes visible. Keep generation disabled.
+
+## HANDOFF — P2B AI Video (Veo), 2026-09-24, commit `a877f32`
+
+**Objetivo de la misión**: obtener el primer MP4 real de Google Veo dentro de
+ATOMIVID (shot "Pillar Transport", image-to-video, 16:9, 1080p, 8s).
+Presupuesto autorizado por Hans: $10 USD total (no por intento).
+
+**Qué funciona (947/947 tests, tsc/lint/build limpios)**:
+- `src/lib/providers/video-gen/veo.ts` — adapter REAL (submit/poll/download),
+  HTTP-mockeado en tests, nunca llamado de verdad en esta sesión (sin
+  `VEO_API_KEY` aquí).
+- `src/lib/video/long-form/p2b-pillar-transport-execution.ts` — lógica
+  compartida de la única generación real: gates (imagen aprobada+checksum,
+  Cost Guard por clip $1, Cost Guard de MISIÓN $10 vía ledger durable,
+  `P2B_PILLAR_TRANSPORT_VEO_EXECUTE=true`, provider configurado), pasa la
+  imagen de referencia como `data:` URL (sin servidor de loopback), sube el
+  resultado a Supabase Storage canónico (bucket `videos`) con fallback local.
+- `src/lib/video/long-form/p2b-mission-ledger.ts` — ledger de gasto durable
+  en el mismo bucket de Storage, hard stop en $10 acumulado, fail-closed si
+  Supabase no está disponible.
+- **Dos formas de disparo, misma lógica, nunca duplicada**:
+  1. `POST /api/admin/p2b-execute-pillar-transport-veo` con header
+     `x-p2b-admin-token` + body `{"confirm":"EXECUTE_PILLAR_TRANSPORT_VEO_ONCE"}`
+     (requiere `P2B_ADMIN_EXECUTE_TOKEN`, configurado en Vercel).
+  2. **`/dashboard/admin/p2b-veo`** (nuevo, recomendado) — página protegida
+     que reutiliza el mismo gate de cuenta única ya usado por
+     `/dashboard/avatar/prepare` (`canPrepareAvatar`/
+     `AVATAR_PREPARATION_OWNER_EMAIL`, sin configuración nueva). Hans solo
+     necesita loguearse normalmente y pulsar "Ejecutar prueba Veo" — sin
+     token, sin curl, sin secretos en chat.
+
+**Qué falta / bloqueador único**: esta sesión de Claude Code nunca ha tenido
+`VEO_API_KEY`, `P2B_ADMIN_EXECUTE_TOKEN` ni credenciales de Supabase (por
+diseño) — nunca se ha hecho ninguna llamada real a Google desde aquí. El
+único paso pendiente es que Hans abra `/dashboard/admin/p2b-veo` en
+`https://atomivid.vercel.app` (logueado con su cuenta) y pulse el botón.
+
+**Gasto acumulado real hasta ahora: $0.00 / $10.00.**
+
+**Operation IDs generados hasta ahora: ninguno.**
+
+**Verificación en Vercel**: no se pudo comprobar el resultado del deploy
+automático desde esta sesión (sin acceso a logs/API de Vercel) — el build
+local (`next build`) del mismo commit terminó limpio, que es la señal más
+fuerte disponible de que el deploy en Vercel también compilará.
+
+**Próximo comando/acción**: Hans abre `/dashboard/admin/p2b-veo`, pulsa
+"Ejecutar prueba Veo", y pega el resultado (SUCCESS/FAILED + JSON si lo
+copia) para su interpretación. Si es SUCCESS, evaluar Plan K (calidad
+visual) antes de gastar más del presupuesto, y solo después considerar
+Monument/Architecture at Dawn (bloqueado hoy por falta de imagen de
+referencia aprobada por Hans).
