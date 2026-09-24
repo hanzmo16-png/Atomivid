@@ -6,6 +6,7 @@ import { Logo } from "@/components/ui/Logo";
 import { LinkButton } from "@/components/ui/Button";
 import { Onboarding } from "@/components/onboarding/Onboarding";
 import { NavLink } from "./NavLink";
+import { isLongFormEnabled, isLongFormAllowlisted } from "@/lib/video/long-form/access";
 
 export default async function DashboardLayout({
   children,
@@ -20,6 +21,11 @@ export default async function DashboardLayout({
   if (!user) {
     redirect("/login");
   }
+
+  // Mismo gate Long Form/allowlist que ya usa /dashboard/long-form/visual-test-v2
+  // (isLongFormEnabled + isLongFormAllowlisted, access.ts) — este acceso
+  // directo es solo navegación, nunca hace ninguna llamada por su cuenta.
+  const showLongFormDryRun = isLongFormEnabled() && isLongFormAllowlisted(user);
 
   return (
     <div className="min-h-screen">
@@ -42,6 +48,14 @@ export default async function DashboardLayout({
             >
               Facturación
             </NavLink>
+            {showLongFormDryRun && (
+              <NavLink
+                href="/dashboard/long-form/visual-test-v2"
+                className="hidden rounded-md px-3 py-2 text-sm font-medium transition-colors sm:inline-block"
+              >
+                Dry Run Long Form
+              </NavLink>
+            )}
             <LinkButton href="/dashboard/new" size="sm">
               Nuevo video
             </LinkButton>
@@ -63,6 +77,9 @@ export default async function DashboardLayout({
               Historial
             </NavLink>
             <NavLink href="/dashboard/billing">Facturación</NavLink>
+            {showLongFormDryRun && (
+              <NavLink href="/dashboard/long-form/visual-test-v2">Dry Run Long Form</NavLink>
+            )}
           </div>
         </div>
       </header>
