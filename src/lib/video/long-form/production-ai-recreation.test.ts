@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { ImageProvider, ImageGenerationRequest, GenerativeAsset } from "@/lib/providers/types";
+import { GenerativeProviderError, type ImageProvider, type ImageGenerationRequest, type GenerativeAsset } from "@/lib/providers/types";
 import type { Shot } from "./types";
 import {
   buildProductionAiRecreationEntry,
@@ -8,6 +8,7 @@ import {
   resolveProductionAiRecreationImages,
   ProductionApprovedAssetInvalidError,
   ProductionAiRecreationUncertainCostStateError,
+  ProductionAiRecreationModerationRejectedError,
 } from "./production-ai-recreation";
 import { buildVisualTestV2Manifest } from "./visual-test-v2";
 import { writeVisualTestV2ShotRecord, uploadVisualTestV2Image, visualTestV2ImagePath, writeVisualTestV2Ledger, computeChecksumSha256 } from "./visual-test-v2-storage";
@@ -39,6 +40,10 @@ function makeFakeSupabase() {
           },
           async upload(path: string, body: Buffer) {
             files.set(path, Buffer.from(body));
+            return { error: null };
+          },
+          async remove(paths: string[]) {
+            for (const p of paths) files.delete(p);
             return { error: null };
           },
         };
@@ -78,6 +83,22 @@ function makeCountingImageProvider(options?: { available?: boolean; costUsd?: nu
         model: "gpt-image-2",
         costUsd: options?.costUsd ?? 0.05,
       };
+    },
+  };
+  return { provider, getCallCount: () => callCount };
+}
+
+function makeModerationRejectingImageProvider() {
+  let callCount = 0;
+  const provider: ImageProvider = {
+    name: "openai",
+    capabilities: { id: "openai", models: ["gpt-image-2"], formats: ["image/png"], aspectRatios: ["landscape 3:2"], timeoutMs: 1000, maxRetries: 0 },
+    isAvailable() {
+      return true;
+    },
+    async generateImage(): Promise<GenerativeAsset> {
+      callCount++;
+      throw new GenerativeProviderError("Prompt rechazado por moderación de OpenAI", "openai", "moderation_rejected");
     },
   };
   return { provider, getCallCount: () => callCount };
@@ -226,6 +247,27 @@ test("5. un shot nuevo con registro STARTED (consumo incierto) → aborta todo e
     (err: unknown) => err instanceof ProductionAiRecreationUncertainCostStateError && err.shotIds.includes("b2-s3"),
   );
   assert.equal(getCallCount(), 0);
+});
+
+test("5b. un shot nuevo rechazado por moderación de OpenAI → ProductionAiRecreationModerationRejectedError con shotId+prompt, el STARTED huérfano se borra (un reintento posterior NO ve consumo incierto)", async () => {
+  const { fake } = makeFakeSupabase();
+  await seedAllThreeApproved(fake);
+  const shot = makeShot("b5-s3", "beat-5", "cinematic communal meal — ESTILO COMPARTIDO");
+  const rejecting = makeModerationRejectingImageProvider();
+  await assert.rejects(
+    () => resolveProductionAiRecreationImages(fake, [shot], rejecting.provider, BUCKET),
+    (err: unknown) => err instanceof ProductionAiRecreationModerationRejectedError && err.shotId === "b5-s3" && err.prompt.length > 0,
+  );
+  assert.equal(rejecting.getCallCount(), 1);
+
+  // Reintento con un proveedor sano tras reescribir el prompt: NUNCA debe
+  // lanzar ProductionAiRecreationUncertainCostStateError — el STARTED
+  // huérfano de la moderación ya se limpió, así que esto es una
+  // generación nueva y consciente, no un bloqueo por consumo incierto.
+  const healthy = makeCountingImageProvider();
+  const results = await resolveProductionAiRecreationImages(fake, [shot], healthy.provider, BUCKET);
+  assert.equal(healthy.getCallCount(), 1);
+  assert.equal(results.get("b5-s3")!.reused, false);
 });
 
 test("6. el costo proyectado de los shots nuevos respeta el hard stop TOTAL ya incluyendo el gasto previo (ledger compartido, no arranca en $0)", async () => {

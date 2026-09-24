@@ -111,6 +111,27 @@ export async function writeVisualTestV2ShotRecord(
 }
 
 /**
+ * Borra el registro STARTED/COMPLETED de un shot — usado SOLO cuando se
+ * sabe con certeza que no hubo gasto real (p. ej. un STARTED escrito
+ * antes de una llamada que la propia API rechazó por moderación antes de
+ * generar nada, nunca para limpiar un STARTED de origen incierto como un
+ * crash de red). Sin esto, un STARTED huérfano bloquearía cualquier
+ * reintento futuro con el mismo idempotencyKey para siempre, aunque el
+ * costo real haya sido cero.
+ */
+export async function deleteVisualTestV2ShotRecord(
+  supabase: SupabaseClient,
+  bucket: string,
+  videoId: string,
+  idempotencyKey: string,
+): Promise<void> {
+  const { error } = await supabase.storage.from(bucket).remove([shotRecordPath(videoId, idempotencyKey)]);
+  if (error) {
+    throw new Error(`No se pudo borrar el registro de Storage ("${shotRecordPath(videoId, idempotencyKey)}"): ${error.message}`);
+  }
+}
+
+/**
  * Descarga el archivo del record y valida que exista, no esté vacío, y su
  * checksum en vivo coincida con el registrado — nunca confía ciegamente
  * en un status COMPLETED (mismo criterio que validateCachedAudioFile en

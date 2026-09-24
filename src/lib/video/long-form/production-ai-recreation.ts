@@ -29,7 +29,7 @@
  * pidiendo aplicar el Visual Bible, no el texto de estilo en sí).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ImageProvider } from "@/lib/providers/types";
+import { GenerativeProviderError, type ImageProvider } from "@/lib/providers/types";
 import { validateVisualAssetBuffer } from "../visual-asset-validation";
 import type { Shot } from "./types";
 import {
@@ -46,6 +46,7 @@ import { VISUAL_TEST_V2_REAL_SHOT_IDS } from "./visual-test-v2-real";
 import {
   readVisualTestV2ShotRecord,
   writeVisualTestV2ShotRecord,
+  deleteVisualTestV2ShotRecord,
   validateExistingVisualTestV2Image,
   uploadVisualTestV2Image,
   visualTestV2ImagePath,
@@ -135,6 +136,31 @@ export class ProductionAiRecreationUncertainCostStateError extends Error {
         `confirmas que NO se cobró, borra manualmente ese registro en Storage antes de reintentar.`,
     );
     this.name = "ProductionAiRecreationUncertainCostStateError";
+  }
+}
+
+/**
+ * OpenAI rechazó el prompt por moderación ANTES de generar nada — costo
+ * conocido con certeza ($0, nunca hay cargo por una solicitud rechazada
+ * por moderación). A diferencia de ProductionAiRecreationUncertainCostStateError
+ * (consumo DESCONOCIDO, nunca se limpia solo), acá el registro STARTED ya
+ * se borró (ver resolveProductionAiRecreationImages) porque no hace falta
+ * revisión de dashboard — lo único pendiente es reescribir el prompt de
+ * este shot (nunca el contenido/tema, solo la redacción) antes de reintentar.
+ */
+export class ProductionAiRecreationModerationRejectedError extends Error {
+  constructor(
+    public readonly shotId: string,
+    public readonly prompt: string,
+    public readonly cause: unknown,
+  ) {
+    super(
+      `Producción real de VIDEO #001: OpenAI rechazó por moderación el prompt del shot "${shotId}" — costo $0 ` +
+        `confirmado (rechazo previo a la generación), el registro STARTED ya se limpió en Storage. Requiere ` +
+        `reescribir SOLO la redacción del prompt de este shot (nunca el contenido/tema) antes de reintentar. ` +
+        `Prompt rechazado: "${prompt}"`,
+    );
+    this.name = "ProductionAiRecreationModerationRejectedError";
   }
 }
 
@@ -274,12 +300,28 @@ export async function resolveProductionAiRecreationImages(
     };
     await writeVisualTestV2ShotRecord(supabase, bucket, videoId, startedRecord);
 
-    const asset = await imageProvider.generateImage({
-      prompt: entry.prompt,
-      negativePrompt: entry.negativePrompt,
-      aspectRatio: entry.aspectRatio,
-      maxCostUsd: VIDEO_001_HARD_STOP_USD - totalSpentUsd(ledger),
-    });
+    let asset: Awaited<ReturnType<ImageProvider["generateImage"]>>;
+    try {
+      asset = await imageProvider.generateImage({
+        prompt: entry.prompt,
+        negativePrompt: entry.negativePrompt,
+        aspectRatio: entry.aspectRatio,
+        maxCostUsd: VIDEO_001_HARD_STOP_USD - totalSpentUsd(ledger),
+      });
+    } catch (err) {
+      if (err instanceof GenerativeProviderError && err.reason === "moderation_rejected") {
+        // OpenAI rechazó el prompt ANTES de generar nada — costo real
+        // conocido con certeza ($0, nunca se cobra una solicitud
+        // rechazada por moderación). A diferencia de un crash de red
+        // (consumo INCIERTO, nunca se limpia solo), acá sí es seguro
+        // borrar el STARTED huérfano: de lo contrario bloquearía
+        // cualquier reintento futuro de este mismo shot para siempre con
+        // un falso "consumo incierto", aunque el prompt se reescriba.
+        await deleteVisualTestV2ShotRecord(supabase, bucket, videoId, entry.idempotencyKey);
+        throw new ProductionAiRecreationModerationRejectedError(entry.shotId, entry.prompt, err);
+      }
+      throw new Error(`Producción real de VIDEO #001: falló la generación de imagen para el shot "${entry.shotId}": ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+    }
 
     const validation = validateVisualAssetBuffer(asset.buffer, asset.mimeType);
     if (!validation.valid) {
