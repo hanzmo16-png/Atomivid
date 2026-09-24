@@ -94,6 +94,12 @@ async function main() {
   const { buildShotsFromStoryboard } = await import("../src/lib/video/long-form/storyboard-shots");
   const { realGraphicSpecProvider } = await import("../src/lib/video/long-form/real-graphics");
   const { buildLongFormTimeline } = await import("../src/lib/video/long-form/timeline");
+  const { synthesizeBeatNarrationCached } = await import("../src/lib/video/long-form/tts-cache");
+  const { getVoiceIdentity } = await import("../src/lib/ai/voice");
+  const { assertCanSpend, readCostLedgerFromDisk, recordSpendToDisk, VIDEO_001_HARD_STOP_USD } = await import(
+    "../src/lib/video/long-form/video-cost-guard"
+  );
+  const { getPricingConfig } = await import("../src/lib/billing/pricing");
   const { resolveShotAsset } = await import("../src/lib/video/long-form/asset-resolver");
   const { estimateLongFormCost, assertWithinBudget, getLongFormBudget } = await import(
     "../src/lib/video/long-form/cost"
@@ -162,6 +168,7 @@ async function main() {
   // (real-graphics.ts) en vez de datos de ejemplo (isFixture:true).
   let shotsBuilder: Parameters<typeof buildLongFormTimeline>[3] | undefined;
   let graphicSpecFor: Parameters<typeof resolveShotAsset>[1]["graphicSpecFor"];
+  let synthesizeBeat: Parameters<typeof buildLongFormTimeline>[4] | undefined;
   if (args.storyboardFile) {
     const storyboard = loadStoryboardFromFile(args.storyboardFile);
     const missingBeatIds = scriptBeats
@@ -184,6 +191,38 @@ async function main() {
     graphicSpecFor = realGraphicSpecProvider;
     console.log(
       `[atomivid:long-form] storyboard cargado desde archivo: "${args.storyboardFile}" — ${storyboard.totalShots} shots curados, ${storyboard.shotsByBeatId.size} beats`,
+    );
+
+    // Idempotencia TTS por beat (tts-cache.ts) — usa el videoId del
+    // storyboard como identidad. El proveedor fixture (modo simulation)
+    // hace bypass total del caché dentro de synthesizeBeatNarrationCached,
+    // así que es seguro pasar esto siempre que haya un storyboard, sin
+    // importar el modo. El cost guard específico de VIDEO #001 solo se
+    // conecta cuando el videoId coincide — para otro video futuro, el
+    // caché sigue funcionando (idempotencia), solo sin ese guard extra.
+    const voiceIdentity = getVoiceIdentity("es");
+    const isVideo001 = storyboard.videoId === "gobekli-tepe-001";
+    const pricing = getPricingConfig();
+    synthesizeBeat = (voiceProvider, beat, language) =>
+      synthesizeBeatNarrationCached(voiceProvider, beat, language, {
+        videoId: storyboard.videoId,
+        voiceIdentity,
+        costGuard: isVideo001
+          ? {
+              estimateCostUsd: (text) => (text.length / 1000) * pricing.elevenLabsUsdPer1kChars,
+              assertCanSpend: (amountUsd) => {
+                const ledger = readCostLedgerFromDisk(storyboard.videoId);
+                assertCanSpend(ledger, "production", amountUsd);
+              },
+              recordSpend: (amountUsd, note) => {
+                recordSpendToDisk(storyboard.videoId, "production", amountUsd, note);
+              },
+            }
+          : undefined,
+      });
+    console.log(
+      `[atomivid:long-form] caché TTS por beat activo (videoId="${storyboard.videoId}")` +
+        (isVideo001 ? ` — cost guard de VIDEO #001 conectado (hard stop $${VIDEO_001_HARD_STOP_USD})` : ""),
     );
   } else {
     console.log("[atomivid:long-form] sin --storyboard: usando shotsForSpan() (ciclo genérico) y gráficos fixture, como antes.");
@@ -234,7 +273,7 @@ async function main() {
     // recalcula shots[] de cada beat contra su duración REAL narrada.
     console.log("[atomivid:long-form] sintetizando narración por beat y construyendo línea de tiempo real...");
     const timeline = shotsBuilder
-      ? await buildLongFormTimeline(providers.voiceProvider, scriptBeats, "es", shotsBuilder)
+      ? await buildLongFormTimeline(providers.voiceProvider, scriptBeats, "es", shotsBuilder, synthesizeBeat)
       : await buildLongFormTimeline(providers.voiceProvider, scriptBeats, "es");
     console.log(
       `[atomivid:long-form] línea de tiempo real: ${timeline.durationSeconds.toFixed(1)}s narrados, ` +

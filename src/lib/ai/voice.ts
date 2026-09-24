@@ -41,6 +41,29 @@ const VOICE_SETTINGS = {
   speed: 1.0,
 };
 
+/**
+ * Identidad determinística del proveedor real de voz para un idioma dado
+ * — voiceId + modelId + los parámetros de voz relevantes (nunca incluye
+ * `speed`, que es un ajuste POR LLAMADA, no de identidad de voz; ver
+ * synthesizeVoice). Usada por tts-cache.ts para construir la clave de
+ * caché por beat: si cambia cualquiera de estos valores, debe tratarse
+ * como una síntesis nueva, nunca reutilizar audio de una voz distinta.
+ */
+export function getVoiceIdentity(language: "es" | "en" = "es"): {
+  voiceId: string;
+  modelId: string;
+  voiceSettingsJson: string;
+} {
+  const voiceId = VOICE_ID_BY_LANGUAGE[language] || DEFAULT_VOICE_ID;
+  const identitySettings = {
+    stability: VOICE_SETTINGS.stability,
+    similarity_boost: VOICE_SETTINGS.similarity_boost,
+    style: VOICE_SETTINGS.style,
+    use_speaker_boost: VOICE_SETTINGS.use_speaker_boost,
+  };
+  return { voiceId, modelId: MODEL_ID, voiceSettingsJson: JSON.stringify(identitySettings) };
+}
+
 type ElevenLabsAlignment = {
   characters: string[];
   character_start_times_seconds: number[];

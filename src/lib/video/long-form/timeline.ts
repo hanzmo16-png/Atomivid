@@ -117,6 +117,19 @@ export type ShotsBuilder = (input: {
 }) => ReturnType<typeof shotsForSpan>;
 
 /**
+ * Sintetiza UN beat. Por defecto es synthesizeBeatNarration() (sin
+ * caché — comportamiento histórico). Pásese `synthesizeBeat` para usar en
+ * su lugar synthesizeBeatNarrationCached() (ver tts-cache.ts) y así
+ * reutilizar audio ya sintetizado de una ejecución anterior en vez de
+ * volver a pagar por el mismo beat.
+ */
+export type BeatSynthesizer = (
+  voiceProvider: VoiceProvider,
+  beat: Pick<NarrativeBeat, "id" | "narration">,
+  language: ScriptLanguage,
+) => Promise<BeatNarrationResult>;
+
+/**
  * Construye la línea de tiempo real completa: sintetiza cada beat, une el
  * audio en un solo archivo, y recalcula shots[] de cada beat contra su
  * duración REAL narrada (no la duración objetivo aproximada del guion) —
@@ -127,12 +140,13 @@ export async function buildLongFormTimeline(
   beats: TimelineBeatInput[],
   language: ScriptLanguage = "es",
   shotsBuilder: ShotsBuilder = shotsForSpan,
+  synthesizeBeat: BeatSynthesizer = synthesizeBeatNarration,
 ): Promise<LongFormTimeline> {
   if (beats.length === 0) throw new Error("buildLongFormTimeline: se necesita al menos un beat");
 
   const perBeat: BeatNarrationResult[] = [];
   for (const beat of beats) {
-    perBeat.push(await synthesizeBeatNarration(voiceProvider, beat, language));
+    perBeat.push(await synthesizeBeat(voiceProvider, beat, language));
   }
 
   const finalBeats: NarrativeBeat[] = [];
