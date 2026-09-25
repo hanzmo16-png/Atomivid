@@ -43,6 +43,13 @@ export default async function NewVideoPage({
     const { data } = await supabase
       .from("avatars")
       .select("id, name")
+      // QA real (2026-09-25): sin este filtro, la lista mezclaba avatares
+      // creados por proveedores distintos al configurado hoy (p. ej. "did",
+      // de cuando esa era la prueba privada) — reusar uno de esos hacía
+      // fallar la generación en pipeline.ts mucho más tarde (proveedor no
+      // coincide), después de ya haber creado la solicitud. Solo se
+      // ofrecen avatares del proveedor real y actual.
+      .eq("provider", flags.avatarProvider)
       .eq("status", "ready")
       .order("created_at", { ascending: false });
     existingAvatars = data ?? [];

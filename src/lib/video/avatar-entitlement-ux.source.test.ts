@@ -36,6 +36,7 @@ const REVIEW_PAGE_PATH = path.join(
 );
 const REQUEST_CARD_PATH = path.join(__dirname, "..", "..", "components", "video", "RequestCard.tsx");
 const REQUEST_VIEW_PATH = path.join(__dirname, "request-view.ts");
+const RENDER_WORKFLOW_PATH = path.join(__dirname, "..", "..", "..", ".github", "workflows", "render.yml");
 
 test('[8] review/[id]/page.tsx comprueba el entitlement de avatar server-side (avatarEntitlementPreview) ANTES de renderizar el botón', () => {
   const source = fs.readFileSync(REVIEW_PAGE_PATH, "utf-8");
@@ -85,4 +86,22 @@ test('[9] Historial: avatar con audio grabado/subido/TTS-desde-texto muestra "Re
     /recorded_audio_path\?:\s*string \| null/,
     "VideoRequestSummary debe exponer recorded_audio_path para que RequestCard pueda decidir el copy correcto",
   );
+});
+
+/**
+ * Regresión exacta del QA real (2026-09-25, "AVATAR REAL HEYGEN ATTEMPT
+ * FAILED"): confirmado leyendo la fila real de producción vía
+ * scripts/diagnose-avatar-request.ts — error_message =
+ * "El modo avatar no está habilitado (AVATAR_MODE_ENABLED=false)." — el
+ * worker general (render.yml, el que procesa CUALQUIER "Generar video
+ * final" real, incluido avatar desde que es self-service) tenía esto
+ * hardcodeado en 'false' con el comentario "el worker general nunca
+ * habilita avatar", una premisa cierta antes de este RC mission y falsa
+ * después. avatar_provider_video_job_id nunca se creó — HeyGen nunca fue
+ * contactado, costo real: $0.
+ */
+test('.github/workflows/render.yml: AVATAR_MODE_ENABLED ya NO está hardcodeado en \'false\' — el worker general SÍ procesa avatar de verdad', () => {
+  const source = fs.readFileSync(RENDER_WORKFLOW_PATH, "utf-8");
+  assert.match(source, /AVATAR_MODE_ENABLED:\s*'true'/, "debe estar en 'true' — el allowlist/entitlement ya se aplicó antes de llegar aquí (actions.ts/render/route.ts)");
+  assert.ok(!/AVATAR_MODE_ENABLED:\s*'false'/.test(source), "no debe volver a quedar en 'false'");
 });

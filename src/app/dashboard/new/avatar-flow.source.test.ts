@@ -177,3 +177,38 @@ test("actions.ts: el consentimiento explícito sigue siendo obligatorio para CUA
     "el checkbox de consentimiento debe seguir verificándose en el servidor antes de cualquier otro paso del modo avatar",
   );
 });
+
+/**
+ * Regresión del QA real (2026-09-25, "AVATAR REAL HEYGEN ATTEMPT
+ * FAILED"): la solicitud real de Hans reusó un avatar_id creado por el
+ * proveedor "did" (una prueba anterior) para una generación con HeyGen —
+ * confirmado leyendo la fila real de producción (avatars.provider_avatar_id
+ * era una ruta S3 de D-ID). pipeline.ts rechaza ese desajuste, pero recién
+ * DESPUÉS de crear la solicitud — el usuario nunca se entera hasta que el
+ * render ya falló. Se corrige en dos capas: la lista de "avatares ya
+ * creados" solo debe ofrecer los del proveedor real actual, y el servidor
+ * debe rechazar explícitamente un desajuste incluso si de algún modo
+ * llegara un existing_avatar_id de otro proveedor.
+ */
+test('page.tsx: la lista de "avatares ya creados" solo incluye los del proveedor real actual (flags.avatarProvider)', () => {
+  const source = fs.readFileSync(PAGE_PATH, "utf-8");
+  assert.match(
+    source,
+    /\.eq\("provider",\s*flags\.avatarProvider\)/,
+    "el SELECT de avatares reutilizables debe filtrar por proveedor, no solo por status",
+  );
+});
+
+test("actions.ts: reusar un avatar_id de OTRO proveedor (p. ej. \"did\" heredado) se rechaza explícitamente antes de crear la solicitud", () => {
+  const source = fs.readFileSync(ACTIONS_PATH, "utf-8");
+  assert.match(
+    source,
+    /\.select\("id, status, provider"\)/,
+    "debe leer también el proveedor del avatar reusado, no solo su status",
+  );
+  assert.match(
+    source,
+    /if \(avatar\.provider !== flags\.avatarProvider\) \{\s*redirect\(/,
+    "un avatar de otro proveedor debe rechazarse explícitamente, con un mensaje claro, en vez de dejar que pipeline.ts falle mucho más tarde",
+  );
+});

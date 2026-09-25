@@ -201,12 +201,20 @@ export async function createVideoRequest(formData: FormData) {
     // de asumirlo solo por la ausencia de error).
     const { data: avatar } = await supabase
       .from("avatars")
-      .select("id, status")
+      .select("id, status, provider")
       .eq("id", existingAvatarId)
-      .maybeSingle<{ id: string; status: string }>();
+      .maybeSingle<{ id: string; status: string; provider: string }>();
 
     if (!avatar || avatar.status !== "ready") {
       redirect("/dashboard/new?error=El+avatar+seleccionado+no+está+disponible");
+    }
+    // Defensa en profundidad (QA real, 2026-09-25): page.tsx ya solo lista
+    // avatares del proveedor actual, pero esto evita el mismo fallo —
+    // descubierto muy tarde, dentro de pipeline.ts, ya con la solicitud
+    // creada — ante un POST directo o una pestaña vieja con la lista sin
+    // filtrar todavía cargada.
+    if (avatar.provider !== flags.avatarProvider) {
+      redirect("/dashboard/new?error=Ese+avatar+fue+creado+con+otro+proveedor.+Elige+otro+o+sube+una+fotografía+nueva.");
     }
     avatarId = avatar.id;
   } else {

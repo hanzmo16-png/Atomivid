@@ -63,8 +63,19 @@ jobs:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
           ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
-          # General worker never enables avatar. Owner trial uses its separate guarded workflow.
-          AVATAR_MODE_ENABLED: 'false'
+          # QA real (2026-09-25, "AVATAR REAL HEYGEN ATTEMPT FAILED"): esto
+          # decía 'false' con el comentario "el worker general nunca
+          # habilita avatar" — cierto ANTES del RC mission de Avatar, cuando
+          # el único flujo con avatar era la prueba privada D-ID/owner
+          # trial (su propio workflow guardado, heygen-owner-trial.yml).
+          # Desde que Avatar es un feature self-service real (allowlist
+          # canPrepareAvatar aplicado en actions.ts/render/route.ts, antes
+          # de que una solicitud llegue aquí), este worker general SÍ es el
+          # que procesa avatar de verdad — con esto en 'false',
+          # generateAvatarVideo() (pipeline.ts) rechazaba toda generación
+          # real en su primerísima línea, antes de contactar a HeyGen, sin
+          # costo pero también sin nunca poder completar un video.
+          AVATAR_MODE_ENABLED: 'true'
           AVATAR_PROVIDER: 'heygen'
           HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
           MAX_AVATAR_DURATION_SECONDS: '45'

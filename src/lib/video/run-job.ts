@@ -10,6 +10,7 @@ import type { LongFormStage } from "./long-form/stages";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { attemptState } from "./attempt-state";
 import type { RenderStage } from "./stages";
+import { generateDiagnosticId } from "./render-error";
 
 type JobRow = {
   status: string;
@@ -139,7 +140,22 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
     }).select("id").maybeSingle();
     if (completed.error || !completed.data) throw new Error("No se pudo confirmar el resultado de este intento. No vuelvas a generar sin revisar su estado.");
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Error desconocido";
+    // QA real (2026-09-25): un fallo real de avatar (aquí, pipeline.ts
+    // rechazando por AVATAR_MODE_ENABLED=false, un desajuste de proveedor,
+    // etc.) llegaba a error_message sin ningún código de diagnóstico —
+    // renderFailureMessage() (job-error.ts) trata cualquier texto SIN el
+    // sufijo "(Código: XXXXXXXX)" como crudo/sin clasificar y lo degrada al
+    // genérico "No se pudo completar este intento...", perdiendo la causa
+    // real específica que sí estaba guardada en la base de datos — mismo
+    // patrón que classifyScriptError/classifyRenderError ya resuelven en
+    // otras etapas. Se añade aquí el mismo sufijo para que ese mensaje,
+    // que run-job.ts YA compone con cuidado (avatar_not_ready, provider_error,
+    // duration_exceeded, etc. en pipeline.ts, o el error real del proveedor
+    // de voz/footage/música en generate-video.ts), llegue intacto al
+    // usuario/admin en vez de perderse en el bucket genérico.
+    const diagnosticId = generateDiagnosticId();
+    const rawMessage = error instanceof Error ? error.message : "Error desconocido";
+    const message = `${rawMessage} (Código: ${diagnosticId})`;
 
     await update({ status: "failed", error_message: message, progress_stage: null, long_form_stage: null });
 

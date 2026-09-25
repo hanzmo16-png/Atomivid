@@ -30,6 +30,22 @@ test("un mensaje que ya trae nuestro código de diagnóstico (classifyScriptErro
   assert.equal(renderFailureMessage(already), already);
 });
 
+/**
+ * Regresión exacta del QA real (2026-09-25, "AVATAR REAL HEYGEN ATTEMPT
+ * FAILED"): el error_message real de la solicitud fallida de Hans era
+ * literalmente "El modo avatar no está habilitado (AVATAR_MODE_ENABLED=false)."
+ * — sin código de diagnóstico (run-job.ts no lo añadía todavía) — y se
+ * mostró como el genérico "No se pudo completar este intento...". Con
+ * run-job.ts ahora añadiendo el sufijo, el mismo mensaje real debe pasar
+ * intacto, tal como lo prueba ya el test genérico de arriba — aquí se fija
+ * con el texto EXACTO de ese incidente para no perder esta regresión
+ * concreta si el mecanismo genérico cambiara de forma.
+ */
+test('el error_message real del incidente (AVATAR_MODE_ENABLED=false), con código de diagnóstico, se muestra intacto', () => {
+  const real = "El modo avatar no está habilitado (AVATAR_MODE_ENABLED=false). (Código: a1b2c3d4)";
+  assert.equal(renderFailureMessage(real), real);
+});
+
 test("un mensaje SIN el código de diagnóstico (texto crudo real de run-job.ts) se sigue reclasificando como antes", () => {
   const raw = "ElevenLabs respondió 500: error temporal del proveedor de voz.";
   const message = renderFailureMessage(raw);
