@@ -97,7 +97,12 @@ export function RequestCard({
                 href={`/dashboard/review/${request.id}`}
                 className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover"
               >
-                Revisar guion
+                {/* Copy fix (RC QA 2026-09-25): un avatar con narración
+                    propia/grabada o TTS-desde-texto (recorded_audio_path
+                    presente) abre "Revisar grabación" (review/[id]/page.tsx),
+                    no un guion editable — el CTA decía "Revisar guion" para
+                    ambos casos por igual. */}
+                {request.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}
               </Link>
             ))}
           {request.status === "processing" && isStaleProcessing && canRetry && (

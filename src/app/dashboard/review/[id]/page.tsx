@@ -5,10 +5,12 @@ import { createClient } from "@/lib/supabase/server";
 import type { GeneratedScript } from "@/lib/providers/types";
 import { createServiceClient } from "@/lib/supabase/service";
 import { RECORDING_BUCKET, isOwnedRecordingPath } from "@/lib/video/avatar/recording";
+import { avatarEntitlementPreview } from "@/lib/billing/quota";
 import { ScriptReview } from "./ScriptReview";
 
 type VideoRequestRow = {
   id: string;
+  mode: string;
   topic: string;
   style: string;
   duration_seconds: number;
@@ -38,7 +40,7 @@ export default async function ReviewPage({
 
   const { data } = await supabase
     .from("video_requests")
-    .select("id, topic, style, duration_seconds, status, script_json, error_message, recorded_audio_path, render_attempts, avatar_provider_video_job_id")
+    .select("id, mode, topic, style, duration_seconds, status, script_json, error_message, recorded_audio_path, render_attempts, avatar_provider_video_job_id")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle<VideoRequestRow>();
@@ -52,6 +54,19 @@ export default async function ReviewPage({
     const { data: signed } = await createServiceClient().storage.from(RECORDING_BUCKET)
       .createSignedUrl(data.recorded_audio_path, 600);
     audioPreview = signed?.signedUrl;
+  }
+
+  // QA blocker real (2026-09-25): "Generar video final" quedaba
+  // visualmente habilitado para avatar aunque el plan del usuario no
+  // incluyera avatar — el POST fallaba recién al pulsar. Se comprueba el
+  // entitlement AQUÍ (comprobación ligera, sin la consulta de conteo
+  // mensual — ver avatarEntitlementPreview) para deshabilitar el botón de
+  // antemano; assertCanGenerate en render/route.ts sigue siendo la única
+  // fuente de verdad que de verdad bloquea el envío server-side.
+  let avatarEntitlementBlockedReason: string | undefined;
+  if (data.mode === "avatar") {
+    const preview = await avatarEntitlementPreview(createServiceClient(), user.id, user);
+    if (preview.blocked) avatarEntitlementBlockedReason = preview.reason;
   }
 
   return (
@@ -91,6 +106,7 @@ export default async function ReviewPage({
         initialScript={data.script_json}
         errorMessage={data.error_message}
         usesRecording={Boolean(data.recorded_audio_path)}
+        entitlementBlockedReason={avatarEntitlementBlockedReason}
       />
     </div>
   );

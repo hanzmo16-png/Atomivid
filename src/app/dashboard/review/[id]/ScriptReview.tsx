@@ -16,6 +16,7 @@ export function ScriptReview({
   errorMessage,
   usesRecording = false,
   diagnosticRetry = false,
+  entitlementBlockedReason,
 }: {
   requestId: string;
   status: string;
@@ -23,6 +24,18 @@ export function ScriptReview({
   errorMessage: string | null;
   usesRecording?: boolean;
   diagnosticRetry?: boolean;
+  /**
+   * QA blocker real (2026-09-25): "Generar video final" quedaba
+   * visualmente habilitado para avatar aunque el plan del usuario no
+   * incluyera avatar — el POST fallaba recién al pulsar. Cuando viene
+   * definido (comprobado server-side en page.tsx, avatarEntitlementPreview),
+   * el botón se deshabilita y muestra este motivo de antemano en vez de
+   * dejar que el usuario descubra el bloqueo después de esperar el envío.
+   * Nunca es la fuente de verdad que impide generar — esa sigue siendo
+   * assertCanGenerate en render/route.ts, server-side, no bypasseable
+   * desde aquí.
+   */
+  entitlementBlockedReason?: string;
 }) {
   const router = useRouter();
   const [script, setScript] = useState(initialScript);
@@ -36,6 +49,7 @@ export function ScriptReview({
 
   const canGenerate = status === "script_ready" || diagnosticRetry;
   const editable = canGenerate && !usesRecording;
+  const entitlementBlocked = Boolean(entitlementBlockedReason);
 
   function updateScene(index: number, field: "text" | "visualQuery", value: string) {
     setScript((prev) => ({
@@ -114,6 +128,7 @@ export function ScriptReview({
   }
 
   async function generateFinalVideo() {
+    if (entitlementBlocked) return;
     setGenerating(true);
     setError(null);
     setNeedsSubscription(false);
@@ -230,6 +245,17 @@ export function ScriptReview({
         </p>
       )}
 
+      {canGenerate && entitlementBlocked && (
+        <div className="mt-4">
+          <Alert tone="warning">{entitlementBlockedReason}</Alert>
+          <p className="mt-2 text-sm">
+            <Link href="/dashboard/billing" className="font-medium text-accent hover:text-accent-hover">
+              Ver planes
+            </Link>
+          </p>
+        </div>
+      )}
+
       {canGenerate && (
         <div className="sticky bottom-4 mt-6 flex flex-col gap-2 rounded-lg border border-border-strong bg-surface-raised p-4 shadow-lg sm:flex-row sm:items-center sm:justify-between">
           {!usesRecording && <Button
@@ -242,8 +268,9 @@ export function ScriptReview({
           </Button>}
           <Button
             onClick={generateFinalVideo}
-            disabled={generating || saving || regeneratingAll}
+            disabled={entitlementBlocked || generating || saving || regeneratingAll}
             loading={generating}
+            title={entitlementBlocked ? entitlementBlockedReason : undefined}
           >
             {generating ? "Generando video…" : "Generar video final"}
           </Button>

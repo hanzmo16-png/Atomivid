@@ -164,3 +164,24 @@ test("render/route.ts llama a getRenderWorker() antes del UPDATE que transiciona
       "si faltan las credenciales de GitHub Actions en Vercel, debe detenerse antes de tocar el estado",
   );
 });
+
+/**
+ * Regresión del QA blocker real (2026-09-25, "BETA ACCOUNT BLOCKED BY
+ * STARTER ENTITLEMENT"): el bypass de entitlement (assertCanGenerate,
+ * quota.ts) debe ser imposible de activar desde el cliente — se prueba
+ * aquí que el `user` que se le pasa es SIEMPRE el que devuelve
+ * supabase.auth.getUser() en este mismo request (identidad verificada
+ * server-side por el JWT de la sesión), nunca un valor leído de la
+ * request (body/query/headers) que un cliente pudiera falsificar.
+ */
+test("render/route.ts pasa a assertCanGenerate el `user` server-side (supabase.auth.getUser()), no un valor del cliente", () => {
+  const source = fs.readFileSync(ROUTE_PATH, "utf-8");
+  assert.match(
+    source,
+    /assertCanGenerate\(service,\s*user\.id,\s*videoRequest\.mode,\s*user\)/,
+    "el 4to argumento debe ser exactamente `user` — el objeto ya autenticado por supabase.auth.getUser(), no un campo derivado de la request",
+  );
+  const getUserIndex = source.indexOf("supabase.auth.getUser()");
+  const assertCanGenerateIndex = source.indexOf("assertCanGenerate(service, user.id, videoRequest.mode, user)");
+  assert.ok(getUserIndex !== -1 && getUserIndex < assertCanGenerateIndex, "`user` debe originarse en supabase.auth.getUser(), antes de usarse en el bypass");
+});

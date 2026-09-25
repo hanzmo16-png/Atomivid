@@ -33,6 +33,15 @@ export type VideoRequestSummary = {
    * cerrojo interno de concurrencia para esa modalidad, ver run-job.ts).
    */
   long_form_stage?: string | null;
+  /**
+   * Presente solo para avatar con narración propia/grabada (own_audio) o
+   * "Voz IA desde texto" (tts) — ver dashboard/new/actions.ts. Copy fix
+   * (RC QA 2026-09-25): el CTA de Historial decía "Revisar guion" incluso
+   * cuando la solicitud en realidad abre "Revisar grabación"
+   * (review/[id]/page.tsx ya distinguía esto por este mismo campo) — ver
+   * RequestCard.tsx.
+   */
+  recorded_audio_path?: string | null;
 };
 
 export const STATUS_LABEL: Record<string, string> = {

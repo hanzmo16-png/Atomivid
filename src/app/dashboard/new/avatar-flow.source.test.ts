@@ -161,3 +161,19 @@ test('review/[id]/page.tsx muestra la duración REAL medida (duration_seconds) e
     'debe mostrar "Duración: Xs" con el valor real guardado, no un texto vago sin número',
   );
 });
+
+/**
+ * Regresión del QA blocker real (2026-09-25, "BETA ACCOUNT BLOCKED BY
+ * STARTER ENTITLEMENT"): el bypass de entitlement (quota.ts) no tocó
+ * actions.ts en absoluto — se fija aquí que el consentimiento explícito
+ * sigue siendo obligatorio e incondicional antes de procesar cualquier
+ * envío en modo avatar, exactamente igual que antes de este cambio.
+ */
+test("actions.ts: el consentimiento explícito sigue siendo obligatorio para CUALQUIER envío de avatar, sin excepción para la cuenta beta", () => {
+  const source = fs.readFileSync(ACTIONS_PATH, "utf-8");
+  assert.match(
+    source,
+    /if \(!isAvatarConsentGiven\(formData\.get\("avatar_consent"\)\)\) \{\s*redirect\(/,
+    "el checkbox de consentimiento debe seguir verificándose en el servidor antes de cualquier otro paso del modo avatar",
+  );
+});

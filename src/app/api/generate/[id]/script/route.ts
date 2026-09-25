@@ -109,7 +109,7 @@ export async function POST(
       );
     }
 
-    const check = await assertCanGenerate(service, user.id, videoRequest.mode);
+    const check = await assertCanGenerate(service, user.id, videoRequest.mode, user);
     if (!check.allowed) {
       return NextResponse.json({ error: check.reason }, { status: 402 });
     }
