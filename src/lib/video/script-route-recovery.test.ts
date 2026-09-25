@@ -48,6 +48,25 @@ test("script/route.ts sigue marcando la solicitud como failed (con mensaje clasi
   );
 });
 
+/**
+ * Regresión del Blocker #3 de QA (2026-09-25): Hans reintentó una vez, la
+ * generación llegó al servidor y falló de verdad, pero el mensaje
+ * persistido (via renderFailureMessage en RequestCard) era el más
+ * genérico posible sin ninguna pista de causa. Ambos catch de esta ruta
+ * deben generar un diagnosticId propio y pasarlo consistentemente a
+ * logScriptError/classifyScriptError — así el "(Código: X)" que ve el
+ * usuario coincide exactamente con la línea de log que sí tiene la causa
+ * técnica completa (status/type de Anthropic, ver script-error.test.ts).
+ */
+test("script/route.ts genera un diagnosticId propio por intento y lo pasa a la vez a logScriptError y classifyScriptError (nunca solo a uno de los dos)", () => {
+  const source = fs.readFileSync(ROUTE_PATH, "utf-8");
+  assert.match(
+    source,
+    /const diagnosticId = generateDiagnosticId\(\);\s*logScriptError\("POST \/script", error, diagnosticId\);\s*const message = classifyScriptError\(error, diagnosticId\);/,
+    'el catch de generación real debe generar UN diagnosticId y reutilizarlo en log + mensaje, para que el "(Código: X)" que ve el usuario sea buscable en los logs',
+  );
+});
+
 test("script/route.ts define maxDuration explícito, para que Vercel no corte la función a medias durante una llamada real al proveedor de guion", () => {
   const source = fs.readFileSync(ROUTE_PATH, "utf-8");
   assert.match(
@@ -61,7 +80,7 @@ test("script/route.ts envuelve toda la ruta en un try/catch que siempre devuelve
   const source = fs.readFileSync(ROUTE_PATH, "utf-8");
   assert.match(
     source,
-    /catch \(error\) \{\s*logScriptError\("POST \/script \(inesperado\)", error\);\s*return NextResponse\.json\(\{ error: classifyScriptError\(error\) \}, \{ status: 500 \}\);\s*\}/,
-    "cualquier fallo inesperado (no solo del proveedor de guion) debe seguir devolviendo JSON clasificado, nunca una excepción sin manejar",
+    /catch \(error\) \{\s*const diagnosticId = generateDiagnosticId\(\);\s*logScriptError\("POST \/script \(inesperado\)", error, diagnosticId\);\s*return NextResponse\.json\(\{ error: classifyScriptError\(error, diagnosticId\) \}, \{ status: 500 \}\);\s*\}/,
+    "cualquier fallo inesperado (no solo del proveedor de guion) debe seguir devolviendo JSON clasificado con su código de diagnóstico, nunca una excepción sin manejar",
   );
 });

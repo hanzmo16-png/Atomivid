@@ -5,6 +5,7 @@ import { generateScriptForRequest } from "@/lib/video/generate-script";
 import { assertCanGenerate } from "@/lib/billing/quota";
 import { recordScriptCall } from "@/lib/billing/usage";
 import { classifyScriptError, logScriptError } from "@/lib/video/script-error";
+import { generateDiagnosticId } from "@/lib/video/render-error";
 import { checkScriptQuality, ScriptQualityError } from "@/lib/video/script-quality";
 import { targetWordsFor } from "@/lib/video/script-pacing";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
@@ -133,8 +134,9 @@ export async function POST(
 
       script = result.script;
     } catch (error) {
-      logScriptError("POST /script", error);
-      const message = classifyScriptError(error);
+      const diagnosticId = generateDiagnosticId();
+      logScriptError("POST /script", error, diagnosticId);
+      const message = classifyScriptError(error, diagnosticId);
 
       // script_json se limpia explícitamente: si esto fue una regeneración
       // completa desde "script_ready" que falló, dejar el guion anterior
@@ -169,8 +171,9 @@ export async function POST(
 
     return NextResponse.json({ status: "script_ready", script });
   } catch (error) {
-    logScriptError("POST /script (inesperado)", error);
-    return NextResponse.json({ error: classifyScriptError(error) }, { status: 500 });
+    const diagnosticId = generateDiagnosticId();
+    logScriptError("POST /script (inesperado)", error, diagnosticId);
+    return NextResponse.json({ error: classifyScriptError(error, diagnosticId) }, { status: 500 });
   }
 }
 

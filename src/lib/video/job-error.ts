@@ -1,5 +1,18 @@
 /** Provider details stay in the owner's private request, never rendered as raw HTML/text. */
 export function renderFailureMessage(detail: string): string {
+  // Blocker real de QA (2026-09-25): esta función se aplica sin
+  // distinción a error_message venga de donde venga, pero solo el fallo
+  // crudo que persiste el worker de render (run-job.ts, texto directo de
+  // ElevenLabs/Pexels/etc., sin clasificar) necesita esta reclasificación
+  // por patrones. Los mensajes de classifyScriptError/classifyRenderError
+  // ya son finales y seguros por construcción — llevan su propio código
+  // de diagnóstico "(Código: XXXXXXXX)" (generateDiagnosticId, 8 hex) al
+  // final — y reclasificarlos aquí de nuevo solo podía perder la
+  // especificidad que ya tenían, cayendo en el genérico de abajo (lo que
+  // le pasó a un usuario real: vio "No se pudo completar este intento..."
+  // en vez del mensaje específico que el servidor ya había producido).
+  if (/\(Código: [0-9a-f]{8}\)$/.test(detail)) return detail;
+
   if (/timeout|timed? out|no terminó a tiempo|tiempo de espera/i.test(detail)) {
     return "El video no terminó dentro del tiempo disponible. Tu solicitud y guion siguen guardados. Revisa el estado antes de iniciar otro intento.";
   }
