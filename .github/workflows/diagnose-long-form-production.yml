@@ -1,0 +1,41 @@
+name: Diagnóstico de solo lectura de producción Long Form
+
+# QA real (2026-09-25, "LONG FORM RC FINAL HARDENING"). Ejecuta
+# scripts/diagnose-long-form-production.ts: SOLO LECTURA de video_requests/
+# generation_costs — nunca escribe nada, nunca llama a ningún proveedor
+# (ni siquiera un GET de estado). Sirve para diagnosticar la solicitud
+# real del Canal de Panamá antes de decidir qué hacer con ella.
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: "Opcional: ID exacto de video_requests a diagnosticar. Vacío = la solicitud long_form más reciente."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Diagnosticar (solo lectura)
+        run: npx tsx scripts/diagnose-long-form-production.ts
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
