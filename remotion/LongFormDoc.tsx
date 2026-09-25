@@ -10,6 +10,7 @@ import {
 } from "remotion";
 import { cameraTransform, soundCueVolume, transitionFrames, validateDirection, type SceneDirection, type SoundCue } from "./long-form-direction";
 import { type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from "./audio-mix";
+import { LARGE_CARD, provenanceLabel, type SceneProvenance } from "./long-form-card-fit";
 
 /**
  * Composición 16:9 para Long Form — independiente de VerticalReel.tsx
@@ -23,7 +24,17 @@ import { type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from ".
  * mismos datos ya resueltos como props serializables.
  */
 
-export type LongFormMediaAsset = { kind: "media"; mediaType: "image" | "video"; url: string };
+export type LongFormMediaAsset = {
+  kind: "media";
+  mediaType: "image" | "video";
+  url: string;
+  /**
+   * "contain": imagen completa (fotos de archivo con otra proporción) sobre
+   * un fondo de la misma imagen desenfocado y oscurecido — sin recortar el
+   * contenido ni dejar barras negras. Por defecto "cover" (comportamiento anterior).
+   */
+  fit?: "cover" | "contain";
+};
 
 export type LongFormDiagramNode = { id: string; label: string; x: number; y: number };
 export type LongFormDiagramEdge = { from: string; to: string; label?: string };
@@ -50,6 +61,8 @@ export type LongFormTextGraphic = {
   body: string;
   citation?: string;
   isFixture: boolean;
+  /** "large": tarjeta legible (título ≥ 72 px, cuerpo ≥ 44 px; ver long-form-card-fit.ts). Sin valor: tamaños anteriores. */
+  size?: "large";
 };
 
 export type LongFormGraphicAsset = {
@@ -64,6 +77,12 @@ export type LongFormShotScene = {
   asset: LongFormMediaAsset | LongFormGraphicAsset;
   motion: "static" | "ken_burns" | "pan" | "cut";
   direction?: SceneDirection;
+  /** Procedencia del recurso; "ai_recreation" muestra siempre el rótulo "Recreación IA". */
+  provenance?: SceneProvenance;
+  /** Crédito breve visible (p. ej. "Archivo: Library of Congress, 1913"). */
+  creditText?: string;
+  /** Escena NO terminada (carencia o revisión pendiente): se marca visiblemente, nunca pasa por terminada. */
+  pending?: string;
 };
 
 export type LongFormCaption = {
@@ -218,12 +237,49 @@ function SceneRenderer({
       {scene.asset.kind === "media" ? (
         scene.asset.mediaType === "video" ? (
           <OffthreadVideo src={scene.asset.url} trimBefore={Math.round((scene.direction?.mediaStartSeconds ?? 0) * fps)} muted style={mediaStyle} />
+        ) : scene.asset.fit === "contain" ? (
+          <>
+            <Img
+              src={scene.asset.url}
+              style={{ width: "100%", height: "100%", objectFit: "cover", filter: "blur(40px) brightness(0.4)", transform: "scale(1.15)" }}
+            />
+            <AbsoluteFill>
+              <Img src={scene.asset.url} style={{ ...mediaStyle, objectFit: "contain" }} />
+            </AbsoluteFill>
+          </>
         ) : (
           <Img src={scene.asset.url} style={mediaStyle} />
         )
       ) : (
         <GraphicRenderer graphic={scene.asset.graphic} />
       )}
+      <SceneLabels scene={scene} />
+    </AbsoluteFill>
+  );
+}
+
+function SceneLabels({ scene }: { scene: LongFormShotScene }) {
+  const label = provenanceLabel(scene.provenance);
+  if (!label && !scene.creditText && !scene.pending) return null;
+  return (
+    <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "flex-start", padding: "44px 56px" }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, fontFamily: "Arial, Helvetica, sans-serif" }}>
+        {scene.pending && (
+          <div style={{ padding: "8px 16px", borderRadius: 8, backgroundColor: "rgba(200,40,40,0.9)", color: "white", fontSize: 30, fontWeight: 800 }}>
+            Material pendiente
+          </div>
+        )}
+        {label && (
+          <div style={{ padding: "6px 14px", borderRadius: 999, backgroundColor: "rgba(10,10,14,0.62)", border: "1px solid rgba(255,255,255,0.35)", color: "white", fontSize: 28, fontWeight: 700, textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
+            {label}
+          </div>
+        )}
+        {scene.creditText && (
+          <div style={{ padding: "4px 12px", borderRadius: 6, backgroundColor: "rgba(10,10,14,0.5)", color: "rgba(255,255,255,0.9)", fontSize: 24, textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>
+            {scene.creditText}
+          </div>
+        )}
+      </div>
     </AbsoluteFill>
   );
 }
@@ -260,6 +316,20 @@ function GraphicBackground({ children }: { children: React.ReactNode }) {
 }
 
 function TextCard({ graphic }: { graphic: LongFormTextGraphic }) {
+  if (graphic.size === "large") {
+    // Por encima de la franja de subtítulos; el preflight (fitLargeCard) garantiza que cabe sin encoger.
+    return (
+      <GraphicBackground>
+        <div style={{ maxWidth: LARGE_CARD.MAX_WIDTH_PX, textAlign: "center", fontFamily: "Arial, Helvetica, sans-serif", marginBottom: 200 }}>
+          <div style={{ fontSize: LARGE_CARD.TITLE_PX, lineHeight: LARGE_CARD.TITLE_LINE_HEIGHT, fontWeight: 800, color: "#f2f0ff" }}>{graphic.title}</div>
+          {graphic.body && (
+            <div style={{ marginTop: LARGE_CARD.GAP_PX, fontSize: LARGE_CARD.BODY_PX, lineHeight: LARGE_CARD.BODY_LINE_HEIGHT, color: "white" }}>{graphic.body}</div>
+          )}
+          {graphic.citation && <div style={{ marginTop: 24, fontSize: 28, color: "#b9b3e6" }}>{graphic.citation}</div>}
+        </div>
+      </GraphicBackground>
+    );
+  }
   return (
     <GraphicBackground>
       <div style={{ maxWidth: 1400, textAlign: "center", fontFamily: "Arial, Helvetica, sans-serif" }}>

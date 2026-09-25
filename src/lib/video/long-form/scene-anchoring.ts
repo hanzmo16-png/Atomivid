@@ -187,3 +187,34 @@ export function clip(text: string, max: number): string {
   const cut = clean.slice(0, max - 1);
   return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), Math.floor(max * 0.6))).trimEnd()}…`;
 }
+
+/**
+ * Lleva un corte de escena al silencio entre palabras más cercano (tiempos
+ * reales de la síntesis), `lead` segundos antes de que empiece la palabra
+ * siguiente y nunca dentro de una palabra. Si no hay silencio a menos de
+ * `maxShift` s, devuelve el punto medio del hueco entre palabras más
+ * cercano (o `t` sin cambios si no hay palabras).
+ */
+export function snapBoundaryToSpeech(
+  t: number,
+  words: { startSeconds: number; endSeconds: number }[],
+  opts: { lead?: number; maxShift?: number } = {},
+): number {
+  const lead = opts.lead ?? 0.12;
+  const maxShift = opts.maxShift ?? 0.8;
+  if (words.length < 2) return t;
+  let best: number | null = null;
+  for (let i = 0; i < words.length - 1; i++) {
+    const gapStart = words[i].endSeconds;
+    const gapEnd = words[i + 1].startSeconds;
+    if (gapEnd < gapStart) continue;
+    const cut = Math.max(gapStart, gapEnd - lead);
+    if (Math.abs(cut - t) <= maxShift && (best === null || Math.abs(cut - t) < Math.abs(best - t))) best = cut;
+  }
+  return best === null ? t : +best.toFixed(3);
+}
+
+/** true si el instante cae DENTRO de una palabra narrada (un corte ahí la partiría). */
+export function cutsThroughWord(t: number, words: { startSeconds: number; endSeconds: number }[], toleranceSec = 0.01): boolean {
+  return words.some((w) => t > w.startSeconds + toleranceSec && t < w.endSeconds - toleranceSec);
+}

@@ -15,6 +15,7 @@ import { renderMedia, selectComposition } from "@remotion/renderer";
 import type { LongFormCaption, LongFormShotScene } from "../../../../remotion/LongFormDoc";
 import type { NarrationGap } from "../../../../remotion/audio-mix";
 import { assertRenderInputValid } from "./render-preflight";
+import { assertApprovalReady, assertCardsFit } from "./render-approval";
 import { LEGACY_LONG_FORM_ENCODING, LONG_FORM_ENCODING_PROFILE } from "./output-policy";
 
 const COMPOSITION_ID = "LongFormDoc";
@@ -37,6 +38,12 @@ export type RenderLongFormDocInput = {
    * anterior al P0 — solo para medir el equivalente del original.
    */
   encoding?: "long_form_h264_v1" | "legacy_crf26";
+  /**
+   * "approval": render para aprobación editorial — se niega si alguna escena
+   * sigue pendiente (carencia o revisión). "technical" (por defecto): se
+   * renderiza, con las escenas pendientes marcadas de forma visible.
+   */
+  purpose?: "technical" | "approval";
 };
 
 export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<string> {
@@ -52,6 +59,12 @@ export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<
   });
 
   validateDirection(input.scenes, input.soundCues, input.durationSeconds);
+  assertCardsFit(input.scenes);
+  if (input.purpose === "approval") assertApprovalReady(input.scenes);
+  if (input.soundCues !== undefined && input.musicUrl) {
+    // Las pistas explícitas REEMPLAZAN la música anterior (contrato de Work): pasar ambas es un error del llamador.
+    throw new Error("render: soundCues y musicUrl a la vez — la música se duplicaría");
+  }
 
   const entryPoint = path.join(process.cwd(), "remotion", "index.ts");
   const browserExecutable = process.env.REMOTION_BROWSER_EXECUTABLE || undefined;
