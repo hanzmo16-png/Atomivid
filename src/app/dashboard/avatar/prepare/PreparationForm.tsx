@@ -4,8 +4,10 @@ import { useActionState, useEffect, useState } from "react";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
 import { PREPARATION_MAX_SECONDS } from "@/lib/video/avatar/private-access";
-import { MAX_AVATAR_FORM_BYTES } from "@/lib/video/avatar/recording";
 import { saveAvatarPreparation, connectSavedPreparation } from "./actions";
+
+/** Ruta legacy D-ID, ya no enlazada desde el flujo normal — ver preparation.ts. */
+const LEGACY_AVATAR_TRIAL_MAX_COMBINED_BYTES = 3 * 1024 * 1024;
 
 function useFilePreview() {
   const [url, setUrl] = useState<string>();
@@ -21,7 +23,7 @@ export function PreparationForm() {
   const [audioError, setAudioError] = useState(false);
   const [photoUrl, previewPhoto] = useFilePreview();
   const [audioUrl, previewAudio] = useFilePreview();
-  const tooLarge = (photo?.size ?? 0) + (audio?.size ?? 0) > MAX_AVATAR_FORM_BYTES;
+  const tooLarge = (photo?.size ?? 0) + (audio?.size ?? 0) > LEGACY_AVATAR_TRIAL_MAX_COMBINED_BYTES;
   const tooLong = duration !== undefined && duration > PREPARATION_MAX_SECONDS;
   if (state.saved) return <div role="status" className="space-y-4 rounded-lg border border-border-strong p-5">
     <h2 className="font-semibold">Solicitud privada preparada</h2>

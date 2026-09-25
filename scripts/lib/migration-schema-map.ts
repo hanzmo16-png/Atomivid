@@ -135,6 +135,10 @@ export const CHECKS: ObjectCheck[] = [
   { kind: "column", table: "video_requests", name: "recorded_audio_path", migration: "0015" },
   { kind: "constraint", table: "video_requests", name: "video_requests_recorded_audio_path_check", migration: "0015" },
 
+  // --- 0017_avatar_narration_source.sql ---
+  { kind: "column", table: "video_requests", name: "avatar_narration_source", migration: "0017" },
+  { kind: "constraint", table: "video_requests", name: "video_requests_avatar_narration_source_check", migration: "0017" },
+
   // --- 0016_long_form_mode.sql ---
   // NOTA: video_requests_mode_check NO se lista aquí — su nombre ya existe
   // desde 0011 (0016 lo dropea y recrea con 'long_form' agregado), mismo

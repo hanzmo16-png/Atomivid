@@ -3,10 +3,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
-import { MAX_AVATAR_FORM_BYTES, RECORDING_BUCKET } from "@/lib/video/avatar/recording";
+import { RECORDING_BUCKET } from "@/lib/video/avatar/recording";
 import { digest, prepareAvatarRequest } from "@/lib/video/avatar/preparation";
 
 export type PreparationResult = { error?: string; saved?: boolean; requestId?: string; seconds?: number };
+
+/** Ruta legacy D-ID, ya no enlazada desde el flujo normal — ver preparation.ts. */
+const LEGACY_AVATAR_TRIAL_MAX_COMBINED_BYTES = 3 * 1024 * 1024;
 
 export async function saveAvatarPreparation(_previous: PreparationResult, form: FormData): Promise<PreparationResult> {
   const supabase = await createClient();
@@ -14,7 +17,7 @@ export async function saveAvatarPreparation(_previous: PreparationResult, form: 
   if (!canPrepareAvatar(user)) return { error: "Esta prueba privada no está disponible para tu cuenta." };
   const photo = form.get("photo"), audio = form.get("audio");
   if (!(photo instanceof File) || !(audio instanceof File) || !photo.size || !audio.size) return { error: "Selecciona tu fotografía y tu grabación." };
-  if (photo.size + audio.size > MAX_AVATAR_FORM_BYTES) return { error: "Foto y audio deben pesar como máximo 3 MB en total." };
+  if (photo.size + audio.size > LEGACY_AVATAR_TRIAL_MAX_COMBINED_BYTES) return { error: "Foto y audio deben pesar como máximo 3 MB en total." };
   if (form.get("consent") !== "on") return { error: "Confirma que la fotografía y la grabación son tuyas." };
   try {
     const result = await prepareAvatarRequest(createServiceClient(), user!.id, Buffer.from(await photo.arrayBuffer()), photo.type, Buffer.from(await audio.arrayBuffer()));
@@ -39,7 +42,7 @@ export async function connectSavedPreparation(_previous: PreparationResult, form
     const m = JSON.parse(await data.text());
     if (m.ownerId !== user!.id || m.consent !== true || !["jpeg", "png"].some(ext => m.photoPath === `${prefix}/photo.${ext}`) || !["m4a", "mp3", "wav"].some(ext => m.audioPath === `${prefix}/recording.${ext}`)) throw new Error();
     const [p, a] = await Promise.all([bucket.download(m.photoPath), bucket.download(m.audioPath)]);
-    if (p.error || a.error || !p.data || !a.data || p.data.size + a.data.size > MAX_AVATAR_FORM_BYTES) throw new Error();
+    if (p.error || a.error || !p.data || !a.data || p.data.size + a.data.size > LEGACY_AVATAR_TRIAL_MAX_COMBINED_BYTES) throw new Error();
     const photo = Buffer.from(await p.data.arrayBuffer()), audio = Buffer.from(await a.data.arrayBuffer());
     if (digest(photo) !== m.photoSha256 || digest(audio) !== m.audioSha256) throw new Error();
     return { saved: true, ...await prepareAvatarRequest(service, user!.id, photo, m.photoPath.endsWith(".png") ? "image/png" : "image/jpeg", audio) };

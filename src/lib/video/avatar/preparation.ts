@@ -2,8 +2,18 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { validatePhotoBuffer } from "./photo-validation";
 import { measureNarrationSeconds } from "./measure-narration";
-import { recordingFormat, recordingPath, RECORDING_BUCKET, MAX_AVATAR_FORM_BYTES } from "./recording";
+import { recordingFormat, recordingPath, RECORDING_BUCKET } from "./recording";
 import { PREPARATION_MAX_SECONDS } from "./private-access";
+
+/**
+ * Límite legacy exclusivo de la prueba privada D-ID (/dashboard/avatar/
+ * prepare) — ya no forma parte del flujo normal (RC mission Avatar,
+ * 2026-09-25: ver ContentTypeStep, que ya no enlaza a esa página). Se
+ * deja igual a como era para no cambiar el comportamiento de una ruta
+ * que ningún usuario normal puede alcanzar; el flujo real usa
+ * MAX_AVATAR_PHOTO_BYTES/MAX_RECORDING_BYTES en recording.ts.
+ */
+const LEGACY_AVATAR_TRIAL_MAX_COMBINED_BYTES = 3 * 1024 * 1024;
 
 export const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 export function preparationId(userId: string, photo: Buffer, audio: Buffer, provider = "did"): string {
@@ -13,7 +23,7 @@ export function preparationId(userId: string, photo: Buffer, audio: Buffer, prov
 
 /** No provider imports, dispatch or generation. Repeated uploads reuse one request. */
 export async function prepareAvatarRequest(service: SupabaseClient, userId: string, photo: Buffer, mime: string, audio: Buffer) {
-  if (photo.length + audio.length > MAX_AVATAR_FORM_BYTES) throw new Error("Foto y audio superan 3 MB.");
+  if (photo.length + audio.length > LEGACY_AVATAR_TRIAL_MAX_COMBINED_BYTES) throw new Error("Foto y audio superan 3 MB.");
   const check = validatePhotoBuffer(photo, mime);
   if (!check.valid) throw new Error("La fotografía no es válida.");
   if (check.format === "webp") throw new Error("Para el avatar usa una foto JPEG o PNG.");

@@ -1,6 +1,6 @@
 "use server";
 
-import { recordingFormat, recordingPath, RECORDING_BUCKET, MAX_AVATAR_FORM_BYTES } from "@/lib/video/avatar/recording";
+import { recordingFormat, recordingPath, RECORDING_BUCKET, MAX_AVATAR_PHOTO_BYTES, MAX_RECORDING_BYTES } from "@/lib/video/avatar/recording";
 import { randomUUID } from "node:crypto";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
@@ -8,7 +8,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { getAvatarProvider, AvatarProviderError, type AvatarJobStatus } from "@/lib/providers/avatar";
+import { getVoiceProvider } from "@/lib/providers/voice";
 import { validatePhotoBuffer } from "@/lib/video/avatar/photo-validation";
+import { recordAvatarNarrationTts } from "@/lib/billing/usage";
 import {
   avatarStatusFromProviderStatus,
   isAvatarConsentGiven,
@@ -18,6 +20,10 @@ import {
 } from "./validation";
 
 const AVATAR_UPLOADS_BUCKET = "avatar-uploads";
+// Cuenta de caracteres razonable para un guion de narración leído por un
+// avatar — mismo orden de magnitud que MAX_TOPIC_LENGTH del resto del
+// formulario, generoso para varios minutos hablados sin ser ilimitado.
+const MAX_AVATAR_TTS_TEXT_LENGTH = 2000;
 /**
  * Versión del texto de consentimiento vigente (src/app/terms/page.tsx,
  * sección #avatar-consent) — se guarda junto con cada avatar para poder
@@ -88,23 +94,68 @@ export async function createVideoRequest(formData: FormData) {
     redirect("/dashboard/new?error=Debes+aceptar+el+consentimiento+del+modo+avatar");
   }
 
+  // Generado aquí (no al final) para poder asociar el costo real de una
+  // síntesis TTS (si aplica, ver más abajo) con la MISMA solicitud que se
+  // inserta al final de esta función — nunca un id descartable.
+  const requestId = randomUUID();
+
+  // QA blocker real (2026-09-25, Android/Samsung): un límite combinado
+  // foto+audio <= 3 MB (heredado de la prueba privada D-ID) rechazaba una
+  // grabación real de ~45s recién terminada. Foto y audio ahora se validan
+  // por separado, cada uno con su propio límite realista (recording.ts) —
+  // nunca se suman entre sí.
   const narrationSource = String(formData.get("narration_source") ?? "tts");
-  if (!["tts", "recording"].includes(narrationSource)) redirect("/dashboard/new?error=Fuente+de+voz+inválida");
+  if (!["tts", "recording", "tts_text"].includes(narrationSource)) redirect("/dashboard/new?error=Fuente+de+voz+inválida");
   const audioFile = formData.get("recorded_audio");
   let recording: { audioBuffer: Buffer; extension: string; mimeType: string } | undefined;
-  const files = [...formData.values()].filter((v): v is File => v instanceof File);
-  if (files.reduce((sum, file) => sum + file.size, 0) > MAX_AVATAR_FORM_BYTES) {
-    redirect("/dashboard/new?error=La+foto+y+el+audio+deben+pesar+como+máximo+3+MB+en+total.+Usa+audio+M4A+o+MP3.");
-  }
+  // "own_audio" cubre tanto grabar como subir un archivo (mismo mecanismo,
+  // sin costo de síntesis para nosotros); "tts" es la única fuente con
+  // costo real de ElevenLabs — ver avatar_narration_source en generation_costs.
+  let narrationSourceForDb: "own_audio" | "tts" | null = null;
   if (narrationSource === "recording") {
-    if (!["did", "fixture"].includes(flags.avatarProvider)) redirect("/dashboard/new?error=Este+proveedor+no+admite+grabaciones");
+    // Antes esto solo se permitía para "did"/"fixture" — un resabio de
+    // cuando HeyGen todavía no soportaba audio propio. pipeline.ts YA
+    // admite recordedAudioPath con HeyGen (ver generateAvatarVideo); esa
+    // restricción bloqueaba "Grabar mi voz"/"Subir audio" para el
+    // proveedor que es el default real (AVATAR_PROVIDER=heygen).
     if (!(audioFile instanceof File) || !audioFile.size) redirect("/dashboard/new?error=Selecciona+tu+grabación");
+    if (audioFile.size > MAX_RECORDING_BYTES) {
+      redirect(`/dashboard/new?error=${encodeURIComponent(`El audio supera el límite permitido (${Math.round(MAX_RECORDING_BYTES / 1024 / 1024)} MB). Puedes volver a grabarlo o subir otro.`)}`);
+    }
     try {
       const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
       recording = { audioBuffer, ...recordingFormat(audioBuffer) };
+      narrationSourceForDb = "own_audio";
     } catch {
-      redirect("/dashboard/new?error=Audio+inválido.+Usa+M4A,+MP3+o+WAV+de+hasta+3+MB.");
+      redirect("/dashboard/new?error=No+se+pudo+leer+el+audio.+Usa+M4A,+MP3+o+WAV.");
     }
+  } else if (narrationSource === "tts_text") {
+    const ttsText = String(formData.get("avatar_tts_text") ?? "").trim();
+    if (!ttsText) redirect("/dashboard/new?error=Escribe+el+texto+que+quieres+narrar");
+    if (ttsText.length > MAX_AVATAR_TTS_TEXT_LENGTH) {
+      redirect(`/dashboard/new?error=${encodeURIComponent(`El texto no puede superar ${MAX_AVATAR_TTS_TEXT_LENGTH} caracteres`)}`);
+    }
+    try {
+      // Reutiliza el mismo provider ElevenLabs que ya usa Reel para
+      // narración — nunca un cliente/pipeline TTS paralelo.
+      const voiceResult = await getVoiceProvider().synthesize(ttsText, language as "es" | "en");
+      recording = { audioBuffer: voiceResult.audioBuffer, extension: voiceResult.extension, mimeType: voiceResult.mimeType };
+      narrationSourceForDb = "tts";
+      // Costo real registrado AHORA (momento de la síntesis) — pipeline.ts
+      // nunca vuelve a llamar a ElevenLabs para una solicitud con
+      // recorded_audio_path ya presente (idempotente), así que este es el
+      // único lugar donde se genera y se cobra este audio.
+      await recordAvatarNarrationTts(createServiceClient(), requestId, {
+        voiceProvider: getVoiceProvider().name,
+        characters: ttsText.length,
+      }).catch(() => {});
+    } catch {
+      redirect("/dashboard/new?error=No+se+pudo+generar+la+voz+a+partir+del+texto.+Intenta+de+nuevo.");
+    }
+  }
+  const photoFileForSizeCheck = formData.get("avatar_photo");
+  if (!String(formData.get("existing_avatar_id") ?? "").trim() && photoFileForSizeCheck instanceof File && photoFileForSizeCheck.size > MAX_AVATAR_PHOTO_BYTES) {
+    redirect(`/dashboard/new?error=${encodeURIComponent(`La fotografía supera el límite permitido (${Math.round(MAX_AVATAR_PHOTO_BYTES / 1024 / 1024)} MB).`)}`);
   }
 
   const existingAvatarId = String(formData.get("existing_avatar_id") ?? "").trim();
@@ -222,7 +273,6 @@ export async function createVideoRequest(formData: FormData) {
     avatarId = inserted.id;
   }
 
-  const requestId = randomUUID();
   const audioPath = recording ? recordingPath(user.id, requestId, recording.extension) : null;
   if (recording && audioPath) {
     const { error: audioError } = await createServiceClient().storage.from(RECORDING_BUCKET)
@@ -232,7 +282,18 @@ export async function createVideoRequest(formData: FormData) {
   const { error } = await supabase.from("video_requests").insert({
     id: requestId,
     recorded_audio_path: audioPath,
-    script_json: recording ? { title: topic, segments: [{ text: "[Se utilizará tu grabación completa, sin sintetizar otra voz.]", visualQuery: "avatar" }] } : null,
+    avatar_narration_source: narrationSourceForDb,
+    script_json: recording
+      ? {
+          title: topic,
+          segments: [{
+            text: narrationSourceForDb === "tts"
+              ? "[Se utilizará el audio generado con IA a partir del texto que escribiste, sin sintetizar otra voz.]"
+              : "[Se utilizará tu grabación completa, sin sintetizar otra voz.]",
+            visualQuery: "avatar",
+          }],
+        }
+      : null,
     user_id: user.id,
     topic,
     style,

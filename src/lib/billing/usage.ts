@@ -146,13 +146,42 @@ export async function recordScriptCall(
   await saveRow(service, row);
 }
 
+/**
+ * Registra el costo de sintetizar la narración de un avatar a partir de
+ * texto libre ("Voz IA desde texto") — se llama en el momento real de la
+ * síntesis (dashboard/new/actions.ts), antes de que exista el resto del
+ * pipeline de avatar para esa solicitud. pipeline.ts (avatar/pipeline.ts)
+ * NUNCA vuelve a llamar a ElevenLabs para una solicitud con
+ * recorded_audio_path ya presente (ver avatar_narration_source,
+ * migración 0017) — esta es la única vez que este costo se registra,
+ * exactamente igual que recordScriptCall para el guion.
+ */
+export async function recordAvatarNarrationTts(
+  service: SupabaseClient,
+  requestId: string,
+  params: { voiceProvider: string; characters: number },
+) {
+  const row = await loadRow(service, requestId);
+  row.voice_provider = params.voiceProvider;
+  row.voice_characters += params.characters;
+  await saveRow(service, row);
+}
+
 /** Registra el uso de la etapa cara (voz/footage/música/render/storage). */
 export async function recordVideoGeneration(
   service: SupabaseClient,
   requestId: string,
   usage: {
-    voiceProvider: string;
-    voiceCharacters: number;
+    /**
+     * Ausentes cuando el costo de voz ya se registró por separado ANTES de
+     * esta llamada (avatar con narración "tts": recordAvatarNarrationTts ya
+     * corrió en el momento real de la síntesis, en dashboard/new/actions.ts
+     * — ver avatar/pipeline.ts) — omitirlos preserva ese valor en vez de
+     * sobrescribirlo con "uploaded"/0, que perdería el proveedor y el
+     * conteo de caracteres reales ya cobrados.
+     */
+    voiceProvider?: string;
+    voiceCharacters?: number;
     footageProvider: string;
     footageCount: number;
     musicProvider: string;
@@ -193,8 +222,8 @@ export async function recordVideoGeneration(
 ) {
   const row = await loadRow(service, requestId);
 
-  row.voice_provider = usage.voiceProvider;
-  row.voice_characters = usage.voiceCharacters;
+  if (usage.voiceProvider !== undefined) row.voice_provider = usage.voiceProvider;
+  if (usage.voiceCharacters !== undefined) row.voice_characters = usage.voiceCharacters;
   row.footage_provider = usage.footageProvider;
   row.footage_count = usage.footageCount;
   row.music_provider = usage.musicProvider;

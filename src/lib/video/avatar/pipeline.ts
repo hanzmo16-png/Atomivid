@@ -100,6 +100,7 @@ export async function generateAvatarVideo({
   language = "es",
   existingProviderVideoJobId,
   recordedAudioPath,
+  narrationSource,
   onProgress,
 }: {
   supabase: SupabaseClient;
@@ -109,6 +110,15 @@ export async function generateAvatarVideo({
   avatarId: string;
   voiceId?: string;
   recordedAudioPath?: string | null;
+  /**
+   * "own_audio" (grabado o subido, sin costo de síntesis) | "tts" (ya
+   * cobrado a ElevenLabs en el momento de la síntesis — ver
+   * recordAvatarNarrationTts, dashboard/new/actions.ts) | null/undefined
+   * (solicitudes previas a la migración 0017, o sin recordedAudioPath).
+   * Solo afecta CÓMO se registra el costo de voz al final de esta función
+   * — nunca decide si se sintetiza audio aquí.
+   */
+  narrationSource?: "own_audio" | "tts" | null;
   language?: ScriptLanguage;
   /** Job del proveedor ya creado en un intento anterior (idempotencia) — ver comentario de arriba. */
   existingProviderVideoJobId?: string | null;
@@ -374,8 +384,16 @@ export async function generateAvatarVideo({
   }
 
   if (!existingProviderVideoJobId) await recordVideoGeneration(supabase, requestId, {
-    voiceProvider: recordedAudioPath ? "uploaded" : getVoiceProvider().name,
-    voiceCharacters: recordedAudioPath ? 0 : fullText.length,
+    // narrationSource === "tts": el costo real de ElevenLabs ya se
+    // registró en el momento de la síntesis (recordAvatarNarrationTts,
+    // dashboard/new/actions.ts) — omitir aquí preserva ese valor en vez
+    // de sobrescribirlo con "uploaded"/0.
+    ...(narrationSource === "tts"
+      ? {}
+      : {
+          voiceProvider: recordedAudioPath ? "uploaded" : getVoiceProvider().name,
+          voiceCharacters: recordedAudioPath ? 0 : fullText.length,
+        }),
     footageProvider: "none",
     footageCount: 0,
     musicProvider: "none",

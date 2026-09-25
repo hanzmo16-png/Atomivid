@@ -25,6 +25,7 @@ type JobRow = {
   avatar_id: string | null;
   avatar_voice_id: string | null;
   recorded_audio_path: string | null;
+  avatar_narration_source: string | null;
   avatar_provider_video_job_id: string | null;
 };
 
@@ -49,7 +50,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
   const { data: row, error: readError } = await service
     .from("video_requests")
     .select(
-      "status, render_attempts, progress_stage, user_id, script_json, style, topic, language, duration_seconds, mode, avatar_id, avatar_voice_id, avatar_provider_video_job_id, recorded_audio_path",
+      "status, render_attempts, progress_stage, user_id, script_json, style, topic, language, duration_seconds, mode, avatar_id, avatar_voice_id, avatar_provider_video_job_id, recorded_audio_path, avatar_narration_source",
     )
     .eq("id", requestId)
     .single<JobRow>();
@@ -106,6 +107,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
             avatarId: row.avatar_id as string,
             voiceId: row.avatar_voice_id ?? undefined,
             recordedAudioPath: row.recorded_audio_path,
+            narrationSource: row.avatar_narration_source as "own_audio" | "tts" | null,
             language: row.language ?? undefined,
             existingProviderVideoJobId: row.avatar_provider_video_job_id,
             onProgress,

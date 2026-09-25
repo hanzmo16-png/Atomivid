@@ -49,6 +49,7 @@ function makeFakeSupabase(avatarRow: AvatarRow | null, claimError = false, exist
   let claimed = false;
   const updates: Record<string, unknown>[] = [];
   const uploads: Array<{ path: string; bytes: number }> = [];
+  const generationCostsUpserts: Record<string, unknown>[] = [];
 
   const fake = {
     from(table: string) {
@@ -99,7 +100,8 @@ function makeFakeSupabase(avatarRow: AvatarRow | null, claimError = false, exist
           async maybeSingle() {
             return { data: null };
           },
-          async upsert() {
+          async upsert(row: Record<string, unknown>) {
+            generationCostsUpserts.push(row);
             return { error: null };
           },
         };
@@ -122,7 +124,7 @@ function makeFakeSupabase(avatarRow: AvatarRow | null, claimError = false, exist
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 
-  return { fake, updates, uploads };
+  return { fake, updates, uploads, generationCostsUpserts };
 }
 
 function makeScript(): GeneratedScript {
@@ -440,5 +442,85 @@ test("HeyGen recorded pipeline preserves owner association, uses full audio and 
       await generateAvatarVideo({supabase:fake,requestId:"r1",userId:"u1",script:{title:"recorded",segments:[]},avatarId:"a1",recordedAudioPath:"u1/r1/recording.wav"});
     });
     assert.equal(creations,1);
+  } finally {heygenAvatarProvider.createAvatar=originalCreate;heygenAvatarProvider.generateVideo=originalGenerate;}
+});
+
+/**
+ * Regresión del RC mission Avatar (2026-09-25): antes de pasar
+ * narrationSource, generateAvatarVideo SIEMPRE registraba
+ * voiceProvider:"uploaded"/voiceCharacters:0 para cualquier
+ * recordedAudioPath — incluido el audio generado con ElevenLabs a partir
+ * de texto libre ("Voz IA desde texto"), que SÍ tiene un costo real ya
+ * registrado (por recordAvatarNarrationTts, en el momento de la síntesis,
+ * antes de que exista esta llamada). Con narrationSource:"tts", esta
+ * función debe OMITIR esos dos campos del upsert final, para no pisar el
+ * proveedor/caracteres reales con valores falsos.
+ */
+test("con narrationSource='tts', el upsert final a generation_costs NO incluye voice_provider/voice_characters (no pisa el costo real ya registrado)", async () => {
+  const { heygenAvatarProvider } = await import("@/lib/providers/avatar/heygen");
+  const { readFileSync } = await import("node:fs");
+  const photo = readFileSync("scripts/test-avatar-photo.jpg");
+  const audio = generateToneWav({durationSeconds:2.25,frequencyHz:220,amplitude:.1});
+  const avatar = {id:"a1",user_id:"u1",status:"uploaded",consent_given:true,provider_avatar_id:null,provider:"heygen",source_photo_path:"u1/r1/photo.jpeg"};
+  const {fake,generationCostsUpserts}=makeFakeSupabase(avatar,false,null,"u1/r1/recording.wav");
+  const baseFrom=fake.from.bind(fake);
+  fake.from=(table:string)=>{
+    const q=baseFrom(table);
+    if(table==="avatars")q.update=()=>({eq(){return this;},then(resolve:(v:unknown)=>unknown){return Promise.resolve(resolve({error:null}));}});
+    return q;
+  };
+  const baseStorage=fake.storage.from.bind(fake.storage);
+  fake.storage.from=(name:string)=>({...baseStorage(name),download:async(objectPath:string)=>({data:new Blob([new Uint8Array(objectPath.endsWith("jpeg")?photo:audio)]),error:null})});
+  const originalCreate=heygenAvatarProvider.createAvatar,originalGenerate=heygenAvatarProvider.generateVideo;
+  heygenAvatarProvider.createAvatar=async()=>({providerAvatarId:"asset:photo",status:"completed"});
+  heygenAvatarProvider.generateVideo=async request=>{
+    await request.onJobCreated?.("heygen-job");
+    return {...await fixtureAvatarProvider.generateVideo({...request,providerAvatarId:"fixture"}),providerJobId:"heygen-job"};
+  };
+  try {
+    await withEnv({AVATAR_MODE_ENABLED:"true",AVATAR_PROVIDER:"heygen",HEYGEN_API_KEY:"fake"},async()=>{
+      await generateAvatarVideo({supabase:fake,requestId:"r1",userId:"u1",script:{title:"tts",segments:[]},avatarId:"a1",recordedAudioPath:"u1/r1/recording.wav",narrationSource:"tts"});
+    });
+    assert.equal(generationCostsUpserts.length, 1);
+    // El upsert final SIEMPRE incluye la fila completa cargada (loadRow),
+    // así que voice_provider/voice_characters seguirán presentes en el
+    // payload — lo que importa es que NO se sobrescriban con el valor
+    // fijo "uploaded"/0 que sí se usa cuando narrationSource NO es "tts"
+    // (ver el test de abajo). Este fake no simula una llamada previa a
+    // recordAvatarNarrationTts, así que el valor esperado aquí es el
+    // default sin tocar (null/0) — la preservación del valor REAL ya
+    // establecido se prueba en usage.test.ts con un fake con estado.
+    assert.notEqual(generationCostsUpserts[0].voice_provider, "uploaded", "no debe fijar 'uploaded' cuando la fuente real fue TTS");
+    assert.equal(generationCostsUpserts[0].avatar_provider, "heygen", "el resto de la capa creativa sigue registrándose normalmente");
+  } finally {heygenAvatarProvider.createAvatar=originalCreate;heygenAvatarProvider.generateVideo=originalGenerate;}
+});
+
+test("con narrationSource='own_audio' (o sin especificar), el upsert SÍ marca voice_provider='uploaded'/voice_characters=0 — comportamiento sin cambios", async () => {
+  const { heygenAvatarProvider } = await import("@/lib/providers/avatar/heygen");
+  const { readFileSync } = await import("node:fs");
+  const photo = readFileSync("scripts/test-avatar-photo.jpg");
+  const audio = generateToneWav({durationSeconds:2.25,frequencyHz:220,amplitude:.1});
+  const avatar = {id:"a1",user_id:"u1",status:"uploaded",consent_given:true,provider_avatar_id:null,provider:"heygen",source_photo_path:"u1/r1/photo.jpeg"};
+  const {fake,generationCostsUpserts}=makeFakeSupabase(avatar,false,null,"u1/r1/recording.wav");
+  const baseFrom=fake.from.bind(fake);
+  fake.from=(table:string)=>{
+    const q=baseFrom(table);
+    if(table==="avatars")q.update=()=>({eq(){return this;},then(resolve:(v:unknown)=>unknown){return Promise.resolve(resolve({error:null}));}});
+    return q;
+  };
+  const baseStorage=fake.storage.from.bind(fake.storage);
+  fake.storage.from=(name:string)=>({...baseStorage(name),download:async(objectPath:string)=>({data:new Blob([new Uint8Array(objectPath.endsWith("jpeg")?photo:audio)]),error:null})});
+  const originalCreate=heygenAvatarProvider.createAvatar,originalGenerate=heygenAvatarProvider.generateVideo;
+  heygenAvatarProvider.createAvatar=async()=>({providerAvatarId:"asset:photo",status:"completed"});
+  heygenAvatarProvider.generateVideo=async request=>{
+    await request.onJobCreated?.("heygen-job");
+    return {...await fixtureAvatarProvider.generateVideo({...request,providerAvatarId:"fixture"}),providerJobId:"heygen-job"};
+  };
+  try {
+    await withEnv({AVATAR_MODE_ENABLED:"true",AVATAR_PROVIDER:"heygen",HEYGEN_API_KEY:"fake"},async()=>{
+      await generateAvatarVideo({supabase:fake,requestId:"r1",userId:"u1",script:{title:"own",segments:[]},avatarId:"a1",recordedAudioPath:"u1/r1/recording.wav",narrationSource:"own_audio"});
+    });
+    assert.equal(generationCostsUpserts[0].voice_provider, "uploaded");
+    assert.equal(generationCostsUpserts[0].voice_characters, 0);
   } finally {heygenAvatarProvider.createAvatar=originalCreate;heygenAvatarProvider.generateVideo=originalGenerate;}
 });
