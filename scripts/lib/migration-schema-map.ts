@@ -155,6 +155,14 @@ export const CHECKS: ObjectCheck[] = [
   // modo) — mismo caso que avatars_status_check/0013 y
   // video_requests_mode_check/0016. Ver
   // migration0018ConstraintCoversLongForm abajo.
+
+  // --- 0019_long_form_production_plan.sql ---
+  // Las 3 columnas son nuevas (nombres nunca usados antes) — a diferencia
+  // de 0013/0016/0018, no hace falta verificación de CONTENIDO aquí:
+  // basta con que existan.
+  { kind: "column", table: "video_requests", name: "long_form_production_plan", migration: "0019" },
+  { kind: "column", table: "video_requests", name: "long_form_confirmed_at", migration: "0019" },
+  { kind: "column", table: "video_requests", name: "long_form_progress", migration: "0019" },
 ];
 
 export const MIGRATIONS_APPLIED_TABLE = "_migrations_applied";

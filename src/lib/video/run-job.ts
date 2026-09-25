@@ -7,6 +7,7 @@ import {
   type LongFormScriptBeatInput,
 } from "./long-form/produce";
 import type { LongFormStage } from "./long-form/stages";
+import { isProductionPlan, type ProductionPlan } from "./long-form/production-plan";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { attemptState } from "./attempt-state";
 import type { RenderStage } from "./stages";
@@ -29,6 +30,8 @@ type JobRow = {
   recorded_audio_path: string | null;
   avatar_narration_source: string | null;
   avatar_provider_video_job_id: string | null;
+  long_form_production_plan: ProductionPlan | null;
+  long_form_confirmed_at: string | null;
 };
 
 /**
@@ -52,7 +55,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
   const { data: row, error: readError } = await service
     .from("video_requests")
     .select(
-      "status, render_attempts, progress_stage, user_id, script_json, style, topic, language, duration_seconds, mode, avatar_id, avatar_voice_id, avatar_provider_video_job_id, recorded_audio_path, avatar_narration_source",
+      "status, render_attempts, progress_stage, user_id, script_json, style, topic, language, duration_seconds, mode, avatar_id, avatar_voice_id, avatar_provider_video_job_id, recorded_audio_path, avatar_narration_source, long_form_production_plan, long_form_confirmed_at",
     )
     .eq("id", requestId)
     .single<JobRow>();
@@ -88,8 +91,17 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
   // claim()/attemptState de abajo: eso solo actúa como el cerrojo de
   // concurrencia interno del intento, nunca se muestra al usuario para
   // mode="long_form" (Historial lee long_form_stage para esta modalidad).
-  const onLongFormProgress = async (stage: LongFormStage) => {
-    const result = await update({ long_form_stage: stage }).select("id").maybeSingle();
+  const onLongFormProgress = async (stage: LongFormStage, units?: { completed: number; total: number }) => {
+    const long_form_progress = units
+      ? {
+          stage,
+          unitsCompleted: units.completed,
+          unitsTotal: units.total,
+          unitLabel: "escenas",
+          updatedAt: new Date().toISOString(),
+        }
+      : null;
+    const result = await update({ long_form_stage: stage, long_form_progress }).select("id").maybeSingle();
     if (result.error || !result.data) throw new Error("El trabajo ya no tiene una reserva activa. No se repetirá automáticamente.");
   };
 
@@ -99,6 +111,14 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
     if (mode === "long_form" && !isLongFormScriptJson(row.script_json)) {
       throw new Error("El guion guardado no tiene la forma esperada para Long Form (topic + beats[] con narración).");
     }
+    // Defensa en profundidad (además de la puerta que exige render/route.ts
+    // antes de la transición a "processing"): nunca ejecutar una producción
+    // audiovisual paga de Long Form sin una confirmación humana persistida.
+    if (mode === "long_form" && !row.long_form_confirmed_at) {
+      throw new Error("Esta producción de Long Form no tiene una confirmación humana registrada. No se ejecutará.");
+    }
+    const longFormPlan = isProductionPlan(row.long_form_production_plan) ? row.long_form_production_plan : null;
+    const longFormStrategy = longFormPlan?.strategy ?? "balanced";
     const { videoPath } =
       mode === "avatar"
         ? await generateAvatarVideo({
@@ -122,6 +142,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
               topic: (row.script_json as unknown as { topic: string; beats: LongFormScriptBeatInput[] }).topic,
               beats: (row.script_json as unknown as { topic: string; beats: LongFormScriptBeatInput[] }).beats,
               language: row.language ?? undefined,
+              strategy: longFormStrategy,
               onProgress: onLongFormProgress,
             })
           : await generateVideoFromScript({
@@ -137,7 +158,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
             });
 
     const completed = await update({
-      status: "completed", video_path: videoPath, progress_stage: null, long_form_stage: null, error_message: null,
+      status: "completed", video_path: videoPath, progress_stage: null, long_form_stage: null, long_form_progress: null, error_message: null,
     }).select("id").maybeSingle();
     if (completed.error || !completed.data) throw new Error("No se pudo confirmar el resultado de este intento. No vuelvas a generar sin revisar su estado.");
   } catch (error) {
@@ -170,7 +191,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
       );
     }
 
-    await update({ status: "failed", error_message: message, progress_stage: null, long_form_stage: null });
+    await update({ status: "failed", error_message: message, progress_stage: null, long_form_stage: null, long_form_progress: null });
 
     throw error;
   }

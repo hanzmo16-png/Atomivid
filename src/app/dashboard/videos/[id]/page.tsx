@@ -31,7 +31,7 @@ export default async function VideoResultPage({
   const { data, error } = await supabase
     .from("video_requests")
     .select(
-      "id, mode, user_id, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage",
+      "id, mode, user_id, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage, long_form_progress",
     )
     .eq("id", id)
     .eq("user_id", user.id)

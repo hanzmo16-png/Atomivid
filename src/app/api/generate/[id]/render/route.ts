@@ -35,6 +35,7 @@ type VideoRequestRow = {
   render_attempts: number;
   render_started_at: string | null;
   created_at: string;
+  long_form_confirmed_at: string | null;
 };
 
 export async function POST(
@@ -72,7 +73,7 @@ export async function POST(
     try {
       const { data, error: fetchError } = await service
         .from("video_requests")
-        .select("id, mode, user_id, status, script_json, render_attempts, render_started_at, created_at, error_message, avatar_provider_video_job_id")
+        .select("id, mode, user_id, status, script_json, render_attempts, render_started_at, created_at, error_message, avatar_provider_video_job_id, long_form_confirmed_at")
         .eq("id", id)
         .single<VideoRequestRow>();
 
@@ -110,6 +111,20 @@ export async function POST(
     if (!videoRequest.script_json) {
       return NextResponse.json(
         { error: "Todavía no hay un guion generado para esta solicitud" },
+        { status: 409 },
+      );
+    }
+    // RC mission "LONG FORM RC FINAL HARDENING" (sección 8/36): Long Form
+    // ya no puede arrancar producción audiovisual paga directo desde
+    // "script_ready" — primero exige una confirmación humana explícita
+    // (POST /confirm-production, que fija long_form_confirmed_at de forma
+    // atómica). Esto es ADICIONAL al gate global preexistente de
+    // LONG_FORM_REAL_RUN_CONFIRM en mode.ts (ese sigue intacto, nunca se
+    // reemplaza) — dos capas independientes, cualquiera de las dos basta
+    // para bloquear un gasto no autorizado.
+    if (videoRequest.mode === "long_form" && !videoRequest.long_form_confirmed_at) {
+      return NextResponse.json(
+        { error: "Todavía no se confirmó el plan de producción para este video." },
         { status: 409 },
       );
     }

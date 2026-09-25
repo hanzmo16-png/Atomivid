@@ -78,7 +78,10 @@ const PORTRAIT_SIZE = process.env.OPENAI_IMAGE_SIZE || "1024x1536";
 const LANDSCAPE_SIZE = process.env.OPENAI_IMAGE_SIZE_LANDSCAPE || "1536x1024";
 const DEFAULT_QUALITY = process.env.OPENAI_IMAGE_QUALITY || "medium";
 // Estimación ESTÁTICA de respaldo (si la respuesta no trae `usage` legible) — fuente secundaria, no oficial.
-const ESTIMATED_COST_USD = Number(process.env.OPENAI_IMAGE_ESTIMATED_COST_USD || "0.05");
+// Exportado para que un estimador de costo PRE-generación (ver
+// production-plan.ts) pueda reusar la misma tarifa real, nunca inventar
+// una propia.
+export const ESTIMATED_COST_USD = Number(process.env.OPENAI_IMAGE_ESTIMATED_COST_USD || "0.05");
 const TIMEOUT_MS = Number(process.env.OPENAI_IMAGE_TIMEOUT_MS || "60000");
 const MAX_RETRIES = Number(process.env.OPENAI_IMAGE_MAX_RETRIES || "1");
 

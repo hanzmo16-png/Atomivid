@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
 import { LinkButton } from "@/components/ui/Button";
 import { ModeBadge } from "./ModeBadge";
+import { ProductionProgressCard } from "./ProductionProgressCard";
 import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
 import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
 import {
@@ -60,7 +61,14 @@ export function ResultView({
           />
         )}
 
-        {request.status === "processing" && (
+        {request.status === "processing" && isLongForm && (
+          <ProductionProgressCard
+            longFormStage={request.long_form_stage ?? null}
+            longFormProgress={request.long_form_progress}
+          />
+        )}
+
+        {request.status === "processing" && !isLongForm && (
           <Card className="flex flex-col items-center gap-4 p-10 text-center">
             <span
               className="size-8 animate-spin rounded-full border-2 border-accent border-t-transparent motion-reduce:animate-none"

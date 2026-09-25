@@ -34,6 +34,14 @@ export type VideoRequestSummary = {
    */
   long_form_stage?: string | null;
   /**
+   * Progreso real por-unidades dentro de la etapa actual (migración
+   * 0019) — JSONB crudo, validado con isLongFormProgress() antes de
+   * usarse (ver ProductionProgressCard.tsx). Ausente/null en filas
+   * anteriores a esta migración o antes de la primera actualización de
+   * progreso — se trata como "sin evidencia todavía", nunca como 0% falso.
+   */
+  long_form_progress?: unknown;
+  /**
    * Presente solo para avatar con narración propia/grabada (own_audio) o
    * "Voz IA desde texto" (tts) — ver dashboard/new/actions.ts. Copy fix
    * (RC QA 2026-09-25): el CTA de Historial decía "Revisar guion" incluso

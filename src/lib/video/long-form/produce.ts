@@ -34,6 +34,7 @@ import { getVideoProvider } from "@/lib/providers/video-gen";
 import type { MusicResult, ScriptLanguage, VideoGenerationRequest } from "@/lib/providers/types";
 import { resolveLongFormProviders, type LongFormProviderSet } from "./mode";
 import { buildLongFormTimeline } from "./timeline";
+import type { VisualStrategy } from "./shots";
 import { assertWithinBudget, estimateLongFormCost, getLongFormBudget } from "./cost";
 import { resolveShotAsset, type AssetUploader } from "./asset-resolver";
 import { renderLongFormDoc } from "./render";
@@ -46,7 +47,14 @@ import { recordVideoGeneration } from "@/lib/billing/usage";
 const STORAGE_BUCKET = "videos";
 const ASSET_SIGNED_URL_TTL_SECONDS = 60 * 60;
 
-type OnProgress = (stage: LongFormStage) => void | Promise<void>;
+/**
+ * `units` (opcional) lleva progreso REAL por unidad de trabajo dentro de
+ * la etapa — hoy solo "assets" (un shot resuelto = una unidad, la etapa
+ * más larga y la única con trabajo por-shot real que vale contar, ver
+ * progress.ts). Sin `units`, el caller (run-job.ts) sigue guardando solo
+ * la etapa, exactamente igual que antes de esta pieza.
+ */
+type OnProgress = (stage: LongFormStage, units?: { completed: number; total: number }) => void | Promise<void>;
 
 /** Forma persistida en video_requests.script_json para mode="long_form" — un guion ya aprobado (beats con narración), sin shots todavía: buildLongFormTimeline() los calcula contra la duración REAL narrada, igual que el CLI. */
 export type LongFormScriptBeatInput = Pick<
@@ -81,6 +89,7 @@ export async function generateLongFormVideoFromScript({
   language = "es",
   onProgress,
   providers,
+  strategy = "balanced",
 }: {
   supabase: SupabaseClient;
   requestId: string;
@@ -91,6 +100,8 @@ export async function generateLongFormVideoFromScript({
   onProgress?: OnProgress;
   /** Inyección para pruebas — en producción siempre se omite y se resuelve resolveLongFormProviders("real")/getVideoProvider() (nunca fixture en silencio, ver mode.ts). */
   providers?: LongFormProviderSet;
+  /** Estrategia visual CONFIRMADA por el usuario (ver production-plan.ts/actions.ts) — nunca recalculada aquí, solo aplicada al mismo shotsForSpan() ya usado. Default "balanced" preserva el comportamiento histórico para cualquier llamador que no la pase (CLI, tests). */
+  strategy?: VisualStrategy;
 }): Promise<{ videoPath: string }> {
   const resolvedProviders = providers ?? resolveLongFormProviders("real");
   const durableVideoProvider = wrapDurableVideoProvider(getVideoProvider(), {
@@ -107,7 +118,7 @@ export async function generateLongFormVideoFromScript({
   // scriptFile en el CLI.
 
   await onProgress?.("storyboard");
-  const timeline = await buildLongFormTimeline(resolvedProviders.voiceProvider, beats, language);
+  const timeline = await buildLongFormTimeline(resolvedProviders.voiceProvider, beats, language, undefined, undefined, strategy);
 
   const budget = getLongFormBudget();
   const estimate = estimateLongFormCost({ durationSec: timeline.durationSeconds, beats: timeline.beats });
@@ -133,7 +144,7 @@ export async function generateLongFormVideoFromScript({
     motion: (typeof allShots)[number]["motion"];
   }[] = [];
 
-  for (const shot of allShots) {
+  for (const [shotIndex, shot] of allShots.entries()) {
     const remainingImageBudget = Math.max(0, budget.maxImageUsd - imageCostSpentUsd);
     const result = await resolveShotAsset(shot, {
       footageProvider: resolvedProviders.footageProvider,
@@ -164,6 +175,12 @@ export async function generateLongFormVideoFromScript({
       asset: result.asset,
       motion: shot.motion,
     });
+    // QA real (2026-09-25, "LONG FORM RC FINAL HARDENING"): antes de esto,
+    // toda la etapa "assets" (la más larga — puede tardar varios minutos
+    // en un documental de 3+ min) solo mostraba "Resolviendo imágenes y
+    // video por plano" fijo, sin ningún indicio de avance real. Progreso
+    // por unidad (shot resuelto) real, nunca inventado — ver progress.ts.
+    await onProgress?.("assets", { completed: shotIndex + 1, total: allShots.length });
   }
 
   const emphasisSet = buildEmphasisSet([]);

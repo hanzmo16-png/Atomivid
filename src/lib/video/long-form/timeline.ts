@@ -12,7 +12,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ScriptLanguage, VoiceProvider, WordTiming } from "@/lib/providers/types";
-import { shotsForSpan } from "./shots";
+import { shotsForSpan, type VisualStrategy } from "./shots";
 import type { BeatType, NarrativeBeat } from "./types";
 
 /**
@@ -114,6 +114,7 @@ export type ShotsBuilder = (input: {
   endSec: number;
   narration: string;
   typeOffset?: number;
+  strategy?: VisualStrategy;
 }) => ReturnType<typeof shotsForSpan>;
 
 /**
@@ -141,6 +142,7 @@ export async function buildLongFormTimeline(
   language: ScriptLanguage = "es",
   shotsBuilder: ShotsBuilder = shotsForSpan,
   synthesizeBeat: BeatSynthesizer = synthesizeBeatNarration,
+  strategy: VisualStrategy = "balanced",
 ): Promise<LongFormTimeline> {
   if (beats.length === 0) throw new Error("buildLongFormTimeline: se necesita al menos un beat");
 
@@ -169,6 +171,7 @@ export async function buildLongFormTimeline(
       endSec: endTargetSec,
       narration: beat.narration,
       typeOffset: i * 2,
+      strategy,
     });
 
     finalBeats.push({ ...beat, startTargetSec, endTargetSec, shots });

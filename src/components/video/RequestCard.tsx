@@ -83,15 +83,18 @@ export function RequestCard({
           {request.status === "pending" && <GenerateButton {...pendingRequestCta(request.id)} />}
           {request.status === "script_ready" &&
             (isLongForm ? (
-              // Long Form no tiene todavía una pantalla de revisión del
-              // guion por beats (ver RC mission Fase 4) — el guion ya se
+              // RC mission "LONG FORM RC FINAL HARDENING": ya no dispara el
+              // render directo — primero pasa por "Configurar producción"
+              // (estrategia visual + costo estimado + confirmación
+              // explícita, ver configure/[id]/page.tsx). El guion ya se
               // generó con fuentes verificadas al crear la solicitud, así
-              // que aquí solo dispara el render, igual que "Reintentar".
-              <GenerateButton
-                endpoint={`/api/generate/${request.id}/render`}
-                label="Generar video"
-                redirectTo={`/dashboard/videos/${request.id}`}
-              />
+              // que Long Form sigue sin una pantalla de revisión por beats.
+              <Link
+                href={`/dashboard/long-form/configure/${request.id}`}
+                className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover"
+              >
+                Configurar producción
+              </Link>
             ) : (
               <Link
                 href={`/dashboard/review/${request.id}`}
