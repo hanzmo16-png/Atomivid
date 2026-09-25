@@ -17,7 +17,10 @@ import { GenerativeProviderError } from "@/lib/providers/types";
 import type { ResolvedShotAsset } from "./asset-resolver";
 import { resolveAiVideoForShot } from "./ai-video-resolver";
 import { recordAiVideoSpend, type AiVideoCostConfig, type AiVideoLedgerState } from "./ai-video-cost-guard";
-import type { ShotAssetKind, ShotAssetStore } from "./durable-shot-assets";
+import type { AssetProvenance, AssetSelectionTrace, ShotAssetKind, ShotAssetStore } from "./durable-shot-assets";
+import { contentIdentity, type AssetIdentity, type DocumentAssetRegistry } from "./asset-identity";
+import { selectStockForShot } from "./stock-selection";
+import { clip, salientFact } from "./scene-anchoring";
 import type { ProductionBudget } from "./production-budget";
 import type { AllocatedShot, GenerativeUnitCosts } from "./production-plan";
 import { documentaryImagePrompt, textCardForShot } from "./visual-intents";
@@ -55,7 +58,30 @@ export type ShotExecutionDeps = {
    * de degradar en silencio a otro material.
    */
   replayOnly?: boolean;
+  /**
+   * Planes v3+: selección por pertinencia + identidad de contenido en todo
+   * el documental (stock-selection.ts, asset-identity.ts), procedencia en
+   * cada registro y tarjetas ancladas a la narración. Ausente = v1/v2 sin
+   * cambios.
+   */
+  visualPipeline?: "anchored_v1";
+  /** Registro de identidad del documental — obligatorio con visualPipeline. */
+  registry?: DocumentAssetRegistry;
+  /** Inyectable en pruebas (evita ffmpeg/sharp). */
+  identify?: (buffer: Buffer, mediaType: "image" | "video") => Promise<Pick<AssetIdentity, "sha256" | "dhash" | "dhashUnavailable">>;
 };
+
+/** Qué recurso ocupa la escena y por qué (insumo del informe previo al render). */
+export type ShotAssetMeta = {
+  objectPath?: string;
+  identity?: AssetIdentity;
+  provenance?: AssetProvenance;
+  selection?: AssetSelectionTrace;
+  /** Carencia registrada: no había material pertinente y único (la escena quedó como tarjeta). */
+  gap?: { reason: string; queries?: string[]; rejected?: AssetSelectionTrace["rejected"] };
+};
+
+const PEXELS_LICENSE = "Pexels License (uso libre, atribución no obligatoria) — https://www.pexels.com/license/";
 
 export class ShotReplayError extends Error {
   constructor(readonly shotId: string, reason: string) {
@@ -77,16 +103,38 @@ export type ShotExecution = {
   /** Presente si el shot terminó con un tipo distinto del asignado. */
   deviation?: { planned: ShotType; executed: ShotType; reason: string };
   aiVideoLedger: AiVideoLedgerState;
+  assetMeta?: ShotAssetMeta;
 };
 
-type MediaOutcome = { url: string; mediaType: "image" | "video"; costUsd: number; bytes: number; provider: string; reused: boolean; priorCostUsd?: number };
+type MediaOutcome = {
+  url: string;
+  mediaType: "image" | "video";
+  costUsd: number;
+  bytes: number;
+  provider: string;
+  reused: boolean;
+  priorCostUsd?: number;
+  meta?: ShotAssetMeta;
+};
+
+type GapOutcome = { gap: NonNullable<ShotAssetMeta["gap"]> };
 
 async function reuseCompleted(deps: ShotExecutionDeps, shotId: string, kind: ShotAssetKind): Promise<MediaOutcome | null> {
   const record = await deps.store.read(shotId, kind);
   if (record?.status !== "COMPLETED" || !record.objectPath) return null;
   try {
     const url = await deps.store.signedUrl(record.objectPath);
-    return { url, mediaType: record.mediaType ?? "image", costUsd: 0, bytes: 0, provider: record.provider ?? "cache", reused: true, priorCostUsd: record.costUsd ?? 0 };
+    if (record.identity) deps.registry?.register(shotId, record.identity);
+    return {
+      url,
+      mediaType: record.mediaType ?? "image",
+      costUsd: 0,
+      bytes: 0,
+      provider: record.provider ?? "cache",
+      reused: true,
+      priorCostUsd: record.costUsd ?? 0,
+      meta: { objectPath: record.objectPath, identity: record.identity, provenance: record.provenance, selection: record.selection },
+    };
   } catch (err) {
     if (deps.replayOnly) throw new ShotReplayError(shotId, `el asset ${kind} COMPLETED no se pudo leer (${err instanceof Error ? err.message : String(err)})`);
     return null;
@@ -103,6 +151,7 @@ async function persistMedia(
   mediaType: "image" | "video",
   provider: string,
   costUsd: number,
+  extra: { identity?: AssetIdentity; provenance?: AssetProvenance; selection?: AssetSelectionTrace } = {},
 ): Promise<string> {
   const objectPath = deps.store.objectPathFor(shotId, kind, extension);
   await deps.store.putObject(objectPath, buffer, contentType);
@@ -117,12 +166,73 @@ async function persistMedia(
     provider,
     bytes: buffer.byteLength,
     updatedAtIso: new Date().toISOString(),
+    ...extra,
   });
+  if (extra.identity) deps.registry?.register(shotId, extra.identity);
   return deps.store.signedUrl(objectPath);
 }
 
-/** Archivo real (Pexels, 16:9): consulta del shot y luego el tema — nunca paga. */
-async function resolveStock(shot: AllocatedShot, deps: ShotExecutionDeps, preferVideo: boolean): Promise<MediaOutcome | null> {
+/**
+ * v3: archivo por pertinencia + identidad de contenido en todo el
+ * documental. Sin candidato pertinente y único → carencia explícita.
+ */
+async function resolveStockAnchored(shot: AllocatedShot, deps: ShotExecutionDeps, preferVideo: boolean): Promise<MediaOutcome | GapOutcome | null> {
+  const cached = await reuseCompleted(deps, shot.id, "stock");
+  if (cached) return cached;
+  if (deps.replayOnly) return null;
+  if (!deps.registry) throw new Error("visualPipeline anchored_v1 requiere un DocumentAssetRegistry");
+  const visual = shot.anchoredVisual ?? { description: shot.visualIntent, motion: false };
+  const outcome = await selectStockForShot(
+    { shotId: shot.id, visual, preferVideo, minDurationSec: shot.durationSec },
+    { footageProvider: deps.footageProvider, registry: deps.registry, identify: deps.identify },
+  );
+  if (outcome.status === "gap") {
+    return { gap: { reason: outcome.reason, queries: outcome.queries, rejected: outcome.rejected.slice(0, 12) } };
+  }
+  const { candidate } = outcome;
+  const provenance: AssetProvenance = {
+    kind: "stock_illustrative",
+    provider: deps.footageProvider.name,
+    license: PEXELS_LICENSE,
+    author: candidate.photographer,
+    pageUrl: candidate.pageUrl,
+  };
+  const selection: AssetSelectionTrace = {
+    query: outcome.query,
+    tier: outcome.tier,
+    relevance: outcome.assessment.relevance === "keyword_match" ? "keyword_match" : "unverified",
+    score: outcome.assessment.score,
+    matchedTerms: outcome.assessment.matchedTerms,
+    candidateDescription: candidate.description,
+    candidatesConsidered: outcome.candidatesConsidered,
+    rejected: outcome.rejected.slice(0, 12),
+  };
+  const url = await persistMedia(deps, shot.id, "stock", outcome.buffer, candidate.mimeType, candidate.extension, candidate.mediaType, deps.footageProvider.name, 0, {
+    identity: outcome.identity,
+    provenance,
+    selection,
+  });
+  return {
+    url,
+    mediaType: candidate.mediaType,
+    costUsd: 0,
+    bytes: outcome.buffer.byteLength,
+    provider: deps.footageProvider.name,
+    reused: false,
+    meta: { objectPath: deps.store.objectPathFor(shot.id, "stock", candidate.extension), identity: outcome.identity, provenance, selection },
+  };
+}
+
+/** Prompt de imagen IA con el contexto de lugar/época de la intención anclada (recreación, nunca "foto histórica"). */
+function aiImagePromptFor(shot: AllocatedShot): string {
+  const v = shot.anchoredVisual;
+  const context = v ? [v.place && `in ${v.place}`, v.era && `during ${v.era}`].filter(Boolean).join(", ") : "";
+  return documentaryImagePrompt(context ? `${shot.visualIntent} (${context}; historically plausible recreation)` : shot.visualIntent);
+}
+
+/** Archivo real (Pexels, 16:9). v1/v2: consulta del shot y luego el tema (histórico); v3: resolveStockAnchored. */
+async function resolveStock(shot: AllocatedShot, deps: ShotExecutionDeps, preferVideo: boolean): Promise<MediaOutcome | GapOutcome | null> {
+  if (deps.visualPipeline === "anchored_v1") return resolveStockAnchored(shot, deps, preferVideo);
   const cached = await reuseCompleted(deps, shot.id, "stock");
   if (cached) return cached;
   if (deps.replayOnly) return null;
@@ -171,7 +281,7 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
   let asset;
   try {
     asset = await deps.imageProvider.generateImage({
-      prompt: documentaryImagePrompt(shot.visualIntent),
+      prompt: deps.visualPipeline === "anchored_v1" ? aiImagePromptFor(shot) : documentaryImagePrompt(shot.visualIntent),
       aspectRatio: "16:9",
       maxCostUsd: deps.units.imageUsd,
     });
@@ -186,6 +296,26 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
   }
   if (deps.requireReal && deps.imageProvider.name === "fixture") {
     throw new Error(`Shot ${shot.id}: el proveedor de imagen resolvió a fixture en una producción real.`);
+  }
+  if (deps.visualPipeline === "anchored_v1") {
+    // Recreación IA: identidad de contenido (para el registro del documental) y procedencia explícita.
+    const identity: AssetIdentity = { provider: deps.imageProvider.name, ...(await (deps.identify ?? contentIdentity)(asset.buffer, "image")) };
+    const provenance: AssetProvenance = { kind: "ai_recreation", provider: deps.imageProvider.name, license: "Generada por IA para este documental — recreación, no registro histórico" };
+    const selection: AssetSelectionTrace = { relevance: "generated_from_intent", query: shot.visualIntent };
+    const url = await persistMedia(deps, shot.id, "ai_image", asset.buffer, asset.mimeType, asset.extension, "image", deps.imageProvider.name, asset.costUsd, {
+      identity,
+      provenance,
+      selection,
+    });
+    return {
+      url,
+      mediaType: "image",
+      costUsd: asset.costUsd,
+      bytes: asset.buffer.byteLength,
+      provider: deps.imageProvider.name,
+      reused: false,
+      meta: { objectPath: deps.store.objectPathFor(shot.id, "ai_image", asset.extension), identity, provenance, selection },
+    };
   }
   const url = await persistMedia(deps, shot.id, "ai_image", asset.buffer, asset.mimeType, asset.extension, "image", deps.imageProvider.name, asset.costUsd);
   return { url, mediaType: "image", costUsd: asset.costUsd, bytes: asset.buffer.byteLength, provider: deps.imageProvider.name, reused: false };
@@ -203,13 +333,26 @@ function mediaResult(shot: AllocatedShot, media: MediaOutcome, executedType: Sho
     attributedCostUsd: media.reused ? (media.priorCostUsd ?? 0) : media.costUsd,
     deviation: deviationReason ? { planned: shot.type, executed: executedType, reason: deviationReason } : undefined,
     aiVideoLedger: ledger,
+    assetMeta: media.meta,
   };
 }
 
-function textResult(shot: AllocatedShot, deps: ShotExecutionDeps, ledger: AiVideoLedgerState, reason?: string): ShotExecution {
+/**
+ * Tarjeta anclada (v3): el dato destacable del pasaje como título y el
+ * propio pasaje, breve, como cuerpo — nunca el título del documental.
+ * Sin dato (tarjeta por CARENCIA): solo el pasaje, como título grande.
+ */
+export function anchoredTextCard(shot: { narrationFragment?: string; captionText: string }): { kind: "text"; title: string; body: string; isFixture: false } {
+  const fragment = shot.narrationFragment ?? shot.captionText;
+  const fact = salientFact(fragment);
+  return fact ? { kind: "text", title: fact, body: clip(fragment, 110), isFixture: false } : { kind: "text", title: clip(fragment, 90), body: "", isFixture: false };
+}
+
+function textResult(shot: AllocatedShot, deps: ShotExecutionDeps, ledger: AiVideoLedgerState, reason?: string, gap?: ShotAssetMeta["gap"]): ShotExecution {
+  const anchored = deps.visualPipeline === "anchored_v1" && shot.narrationFragment !== undefined;
   return {
     shotId: shot.id,
-    asset: { kind: "graphic", graphic: textCardForShot(shot, deps.topic) },
+    asset: { kind: "graphic", graphic: anchored ? anchoredTextCard(shot) : textCardForShot(shot, deps.topic) },
     executedType: "text",
     costUsd: 0,
     bufferBytes: 0,
@@ -218,11 +361,27 @@ function textResult(shot: AllocatedShot, deps: ShotExecutionDeps, ledger: AiVide
     attributedCostUsd: 0,
     deviation: reason ? { planned: shot.type, executed: "text", reason } : undefined,
     aiVideoLedger: ledger,
+    assetMeta: gap ? { gap } : undefined,
   };
 }
 
 async function stockOrText(shot: AllocatedShot, deps: ShotExecutionDeps, ledger: AiVideoLedgerState, preferVideo: boolean, reason?: string): Promise<ShotExecution> {
-  const stock = (preferVideo ? await resolveStock(shot, deps, true) : null) ?? (await resolveStock(shot, deps, false));
+  if (deps.visualPipeline === "anchored_v1") {
+    // Una sola selección (video primero y luego fotos, dentro de stock-selection.ts).
+    const outcome = await resolveStock(shot, deps, preferVideo);
+    if (outcome && "gap" in outcome) {
+      return textResult(shot, deps, ledger, `${reason ? `${reason}; ` : ""}carencia de material pertinente: ${outcome.gap.reason}`, outcome.gap);
+    }
+    if (outcome) {
+      const executed: ShotType = outcome.mediaType === "video" ? "stock_video" : "ken_burns_image";
+      const sameFamily = shot.type === "stock_video" || shot.type === "stock_image" || shot.type === "ken_burns_image";
+      return mediaResult(shot, outcome, executed, ledger, reason ?? (sameFamily ? undefined : "fallback a archivo real"));
+    }
+    return textResult(shot, deps, ledger, reason ? `${reason}; archivo real no disponible` : "archivo real no disponible");
+  }
+  const first = preferVideo ? await resolveStock(shot, deps, true) : null;
+  const stock = (first && !("gap" in first) ? first : null) ?? (await resolveStock(shot, deps, false));
+  if (stock && "gap" in stock) return textResult(shot, deps, ledger, reason ? `${reason}; archivo real no disponible` : "archivo real no disponible");
   if (stock) {
     const executed: ShotType = stock.mediaType === "video" ? "stock_video" : "ken_burns_image";
     const sameFamily = shot.type === "stock_video" || shot.type === "stock_image" || shot.type === "ken_burns_image";

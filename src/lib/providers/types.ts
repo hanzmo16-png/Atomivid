@@ -100,6 +100,10 @@ export type FootageCandidate = FootageResult & {
   width?: number;
   height?: number;
   durationSeconds?: number;
+  /** Texto descriptivo del proveedor (alt / slug de la página) — pertinencia por palabras clave, NO validación semántica. Aditivo, opcional. */
+  description?: string;
+  /** Página pública del recurso (procedencia/atribución). Aditivo, opcional. */
+  pageUrl?: string;
 };
 
 export interface FootageProvider {

@@ -48,8 +48,11 @@ import {
   isLongFormAiVideoConfigured,
   limitsWithinAllocation,
   strategyLimits,
+  usesAnchoredVisuals,
   type ProductionPlan,
 } from "./production-plan";
+import { DocumentAssetRegistry, type AssetIdentity } from "./asset-identity";
+import { assertVisualQuality, buildVisualReport, type VisualReport } from "./visual-report";
 import { ProductionBudget, supabaseBudgetStore, type BudgetStore } from "./production-budget";
 import { supabaseShotAssetStore, type ShotAssetStore } from "./durable-shot-assets";
 import { executeShot, type ShotExecution } from "./shot-executor";
@@ -102,6 +105,10 @@ export type LongFormRuntime = {
   encoding?: RenderLongFormDocInput["encoding"];
   /** Intento (render_attempts) — solo para el estado durable de la salida. */
   attempt?: number | null;
+  /** Destino del informe visual previo al render (por defecto `${requestId}/state/visual-report.json`). */
+  saveVisualReport?: (report: VisualReport) => Promise<void>;
+  /** Inyectable en pruebas: identidad de contenido sin ffmpeg/sharp. */
+  identify?: (buffer: Buffer, mediaType: "image" | "video") => Promise<Pick<AssetIdentity, "sha256" | "dhash" | "dhashUnavailable">>;
 };
 
 export class LongFormReplayError extends Error {
@@ -208,8 +215,15 @@ export async function generateLongFormVideoFromScript({
   // real narrada lo permite). Planes sin beatShotCounts (anteriores) usan
   // el reparto por defecto, idéntico al de su ejecución original.
   const plannedShotCounts = plan.beatShotCounts;
-  const shotsForPlannedSpan: typeof shotsForSpan = (spanInput) =>
-    shotsForSpan({ ...spanInput, targetCount: plannedShotCounts?.[spanInput.beatId] });
+  // Planes v3+: cada escena se ancla al pasaje narrado DURANTE ella con los
+  // tiempos reales por palabra (scene-anchoring.ts). v1/v2: sin cambios.
+  const anchored = usesAnchoredVisuals(plan);
+  const shotsForPlannedSpan = (spanInput: Parameters<typeof shotsForSpan>[0] & { words?: import("@/lib/providers/types").WordTiming[] }) =>
+    shotsForSpan({
+      ...spanInput,
+      targetCount: plannedShotCounts?.[spanInput.beatId],
+      anchoring: anchored ? { words: spanInput.words } : undefined,
+    });
   const timeline = await buildLongFormTimeline(
     resolvedProviders.voiceProvider,
     beats,
@@ -276,6 +290,24 @@ export async function generateLongFormVideoFromScript({
         })
       : undefined;
 
+  // Registro de identidad del documental (v3): se siembra con TODO lo ya
+  // resuelto en intentos anteriores ANTES de elegir nada nuevo, para que un
+  // reintento nunca reutilice en otra escena un recurso ya usado.
+  const priorTextDeviations = new Set(budget.snapshot().deviations.filter((d) => d.executed === "text").map((d) => d.shotId));
+  const registry = anchored ? new DocumentAssetRegistry() : undefined;
+  if (registry) {
+    for (let i = 0; i < allocated.shots.length; i += 10) {
+      await Promise.all(
+        allocated.shots.slice(i, i + 10).map(async (shot) => {
+          for (const kind of ["stock", "ai_image", "ai_video"] as const) {
+            const record = await store.read(shot.id, kind);
+            if (record?.status === "COMPLETED" && record.identity) registry.register(shot.id, record.identity);
+          }
+        }),
+      );
+    }
+  }
+
   await onProgress?.("assets", { completed: 0, total: allocated.shots.length, label: "escenas" });
   let aiVideoLedger = emptyAiVideoLedgerState();
   let spentUsd = 0;
@@ -303,10 +335,16 @@ export async function generateLongFormVideoFromScript({
         requireReal,
         metadata: { requestId },
         replayOnly,
+        visualPipeline: anchored ? "anchored_v1" : undefined,
+        registry,
+        identify: runtime.identify,
       },
       aiVideoLedger,
     );
-    if (replayOnly && (execution.deviation || !(execution.reused || execution.executedType === "text"))) {
+    // Una escena que ya fue tarjeta (carencia/degradación) en la ejecución
+    // original — registrada en el presupuesto durable — se reproduce igual.
+    const priorTextFallback = execution.executedType === "text" && priorTextDeviations.has(shot.id);
+    if (replayOnly && !priorTextFallback && (execution.deviation || !(execution.reused || execution.executedType === "text"))) {
       throw new LongFormReplayError(
         `la escena ${shot.id} no se reproduce igual que en la ejecución original (${execution.deviation ? `${execution.deviation.planned} → ${execution.deviation.executed}: ${execution.deviation.reason}` : "asset no reutilizado"})`,
       );
@@ -330,6 +368,21 @@ export async function generateLongFormVideoFromScript({
     }
     await onProgress?.("assets", { completed: index + 1, total: allocated.shots.length, label: "escenas" });
   }
+  // Informe visual PREVIO al render (se guarda siempre, antes de cualquier
+  // control que pueda detener la producción: las carencias quedan visibles).
+  const visualReport = buildVisualReport({ requestId, planVersion: plan.version, topic, shots: allocated.shots, executions });
+  const saveReport =
+    runtime.saveVisualReport ??
+    (async (report: VisualReport) => {
+      await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(`${requestId}/state/visual-report.json`, Buffer.from(JSON.stringify(report, null, 2)), { contentType: "application/json", upsert: true });
+    });
+  await saveReport(visualReport).catch((err) => {
+    console.warn(`[atomivid:long-form:produce] ${requestId} — no se pudo guardar el informe visual:`, err instanceof Error ? err.message : err);
+  });
+  assertVisualQuality(visualReport);
+
   if (allocated.shots.length > 0 && degradedToText / allocated.shots.length > MAX_TEXT_FALLBACK_RATIO) {
     throw new LongFormQualityError(degradedToText, allocated.shots.length);
   }

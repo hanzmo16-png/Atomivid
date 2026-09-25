@@ -253,7 +253,13 @@ export function allocateShotTypes(shots: Shot[], totalDurationSec: number, limit
 }
 
 /** Shots de producto de un guion con duraciones ESTIMADAS (misma forma que produce timeline.ts con duraciones reales). */
-export function planShotsFromScript(beats: ProductionPlanBeatInput[], topic: string, strategy: VisualStrategy): { shots: Shot[]; narrationSeconds: number } {
+export function planShotsFromScript(
+  beats: ProductionPlanBeatInput[],
+  topic: string,
+  strategy: VisualStrategy,
+  /** true (planes v3+) = escenas ancladas a su pasaje narrado; false = reparto histórico (v1/v2). */
+  anchored = true,
+): { shots: Shot[]; narrationSeconds: number } {
   let cursor = 0;
   const shots: Shot[] = [];
   beats.forEach((beat, i) => {
@@ -270,6 +276,7 @@ export function planShotsFromScript(beats: ProductionPlanBeatInput[], topic: str
         typeOffset: i * 2,
         strategy,
         visuals: visualsForBeat(beat, topic),
+        anchoring: anchored ? {} : undefined,
       }),
     );
   });

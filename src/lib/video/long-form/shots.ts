@@ -1,5 +1,7 @@
+import type { WordTiming } from "@/lib/providers/types";
 import type { BeatType, Shot, ShotMotion, ShotType } from "./types";
 import type { BeatVisual } from "./visual-intents";
+import { anchorIntents, fragmentForRange, narrationWords, salientFact, wordRangesForShots } from "./scene-anchoring";
 
 export const MIN_HOLD = 3;
 export const MAX_HOLD = 8;
@@ -120,6 +122,13 @@ export function shotsForSpan(input: {
    * se usa el reparto por defecto (y el worker registra la desviación).
    */
   targetCount?: number;
+  /**
+   * Planes v3+: cada escena se ancla al pasaje narrado durante ella (ver
+   * scene-anchoring.ts) en vez de reciclar `visuals[i % n]`. `words` =
+   * tiempos reales por palabra RELATIVOS al inicio del beat (sin ellos, el
+   * reparto se estima por posición). Ausente = comportamiento histórico.
+   */
+  anchoring?: { words?: WordTiming[] };
 }): Shot[] {
   const span = input.endSec - input.startSec;
   if (!(span > 0)) throw new Error(`Beat ${input.beatId} has non-positive span`);
@@ -133,6 +142,9 @@ export function shotsForSpan(input: {
   const hold = span / count;
   if (hold < MIN_HOLD - 0.05 || hold > MAX_HOLD + 0.05) {
     throw new Error(`Beat ${input.beatId} span ${span}s cannot be split into ${MIN_HOLD}-${MAX_HOLD}s shots`);
+  }
+  if (input.anchoring && input.visuals && input.visuals.length > 0) {
+    return anchoredShots(input as Required<Pick<typeof input, "visuals" | "anchoring">> & typeof input, count, hold);
   }
   const shots: Shot[] = [];
   for (let i = 0; i < count; i++) {
@@ -186,6 +198,59 @@ export function shotsForSpan(input: {
     });
   }
   return shots;
+}
+
+/**
+ * Escenas ancladas a la narración: intención por pasaje (nunca por módulo),
+ * fragmento narrado propio, y tarjeta de texto SOLO donde el pasaje trae un
+ * dato destacable (año/cifra); en otro caso esa ranura pasa a imagen.
+ */
+function anchoredShots(
+  input: Parameters<typeof shotsForSpan>[0] & { visuals: BeatVisual[]; anchoring: { words?: WordTiming[] } },
+  count: number,
+  hold: number,
+): Shot[] {
+  const spans = Array.from({ length: count }, (_, i) => ({
+    startSec: input.startSec + i * hold,
+    endSec: i === count - 1 ? input.endSec : input.startSec + (i + 1) * hold,
+  }));
+  const words = input.anchoring.words;
+  const ranges = wordRangesForShots(spans, input.startSec, input.endSec, input.narration, words);
+  // Los tiempos por palabra del TTS pueden tokenizar distinto que la
+  // narración: los índices se llevan al espacio de palabras de la narración.
+  const narrationCount = narrationWords(input.narration).length;
+  const tokenCount = words && words.length > 0 ? words.length : narrationCount;
+  const scale = tokenCount > 0 ? narrationCount / tokenCount : 1;
+  const narrationRanges = ranges.map((r) => ({ first: Math.floor(r.first * scale), last: Math.floor(r.last * scale) }));
+  const intents = anchorIntents(narrationRanges, input.narration, input.visuals);
+  return spans.map((span, i) => {
+    const fragment = fragmentForRange(input.narration, ranges[i], words) || input.narration;
+    const intent = intents[i];
+    let shotType = cycleShotType(i + (input.typeOffset ?? 0), input.strategy);
+    if ((shotType === "text" || shotType === "diagram" || shotType === "map") && !salientFact(fragment)) shotType = "ken_burns_image";
+    return {
+      id: `${input.beatId}-shot-${i + 1}`,
+      beatId: input.beatId,
+      startSec: round3(span.startSec),
+      endSec: round3(span.endSec),
+      durationSec: round3(span.endSec - span.startSec),
+      type: shotType,
+      source: shotType === "text" ? "local" : shotType === "generated_placeholder" || shotType === "ai_video" ? "generated" : "stock",
+      assetId: `${input.beatId}-${i}`,
+      visualIntent: intent.visual.description,
+      motionRequired: intent.visual.motion || undefined,
+      motion: productMotion(shotType),
+      captionText: fragment,
+      narrationFragment: fragment,
+      anchoredVisual: intent.visual,
+      intentAnchor: { visualIndex: intent.visualIndex, reuseIndex: intent.reuseIndex, anchoredBy: intent.anchoredBy },
+      license: "resolved-at-execution",
+      attribution: "",
+      dedupKey: `${input.beatId}:${shotType}:${i}`,
+      status: "planned",
+      validationStatus: "pending",
+    } satisfies Shot;
+  });
 }
 
 function round3(n: number): number {

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { generateLongFormVideoFromScript, LongFormScriptChangedError, type LongFormRuntime } from "./produce";
@@ -57,18 +58,27 @@ function providers(c: ReturnType<typeof counters>): LongFormProviderSet {
       return fixtureVoiceProvider.synthesize(text, language, speed);
     },
   };
+  // Catálogo simulado REALISTA: cada consulta devuelve varios candidatos
+  // distintos (id estable, descripción = la consulta, bytes únicos por URL).
   const footageProvider: FootageProvider = {
     name: "fake-pexels",
-    async fetchFootage() {
+    async fetchFootage(query) {
       c.stock += 1;
-      return { url: "https://stock/v.mp4", mediaType: "video", mimeType: "video/mp4", extension: "mp4" };
+      return { url: `https://stock/v/${encodeURIComponent(query)}.mp4`, mediaType: "video", mimeType: "video/mp4", extension: "mp4" };
     },
-    async searchImageCandidates() {
+    async searchImageCandidates(query) {
       c.stock += 1;
-      return [{ url: "https://stock/i.jpg", sourceId: "1", mediaType: "image", mimeType: "image/jpeg", extension: "jpg" }];
+      return Array.from({ length: 12 }, (_, i) => ({
+        url: `https://stock/i/${encodeURIComponent(query)}/${i}.jpg?sig=abc`,
+        sourceId: `img-${query}-${i}`,
+        description: query,
+        mediaType: "image" as const,
+        mimeType: "image/jpeg",
+        extension: "jpg",
+      }));
     },
-    async downloadFootage() {
-      return Buffer.from("stock-bytes");
+    async downloadFootage(url) {
+      return Buffer.from(`stock-bytes:${url.split("?")[0]}`);
     },
   };
   const imageProvider: ImageProvider = {
@@ -77,7 +87,7 @@ function providers(c: ReturnType<typeof counters>): LongFormProviderSet {
     isAvailable: () => true,
     async generateImage() {
       c.image += 1;
-      return { buffer: Buffer.from("png"), mimeType: "image/png", extension: "png", model: "m", costUsd: 0.05 };
+      return { buffer: Buffer.from(`png-${c.image}`), mimeType: "image/png", extension: "png", model: "m", costUsd: 0.05 };
     },
   };
   return { voiceProvider, footageProvider, imageProvider, musicProvider: fixtureMusicProvider };
@@ -103,9 +113,10 @@ type Env = {
   mem: ReturnType<typeof memoryShotAssetStore>;
   budgetStore: ReturnType<typeof memoryBudgetStore>;
   out: ReturnType<typeof memoryOutputDeps>;
+  reports: import("./visual-report").VisualReport[];
 };
 function freshEnv(outputOpts: Parameters<typeof memoryOutputDeps>[0] = {}): Env {
-  return { supabase: makeStorage(), mem: memoryShotAssetStore(), budgetStore: memoryBudgetStore(), out: memoryOutputDeps(outputOpts) };
+  return { supabase: makeStorage(), mem: memoryShotAssetStore(), budgetStore: memoryBudgetStore(), out: memoryOutputDeps(outputOpts), reports: [] };
 }
 
 function planFor(strategy: VisualStrategy): ProductionPlan {
@@ -132,6 +143,11 @@ async function run(
     uploadArtifact: async (p) => ({ path: p, url: `memory://${p}` }),
     output: env.out.deps,
     replayOnly: opts.replayOnly,
+    // Identidad sin ffmpeg/sharp en pruebas (SHA-256 real; sin hash perceptual).
+    identify: async (buffer) => ({ sha256: createHash("sha256").update(buffer).digest("hex"), dhashUnavailable: "test" }),
+    saveVisualReport: async (report) => {
+      env.reports.push(report);
+    },
     render: async (input) => {
       renderInput = input;
       if (opts.renders) opts.renders.count += 1;
@@ -312,4 +328,31 @@ test("P0: replayOnly con UN asset durable faltante aborta (nunca lo reemplaza en
   await assert.rejects(() => run(env, c, plan, { replayOnly: true, renders }), (err: unknown) => err instanceof Error && err.name === "LongFormReplayError");
   assert.deepEqual(c, before);
   assert.equal(renders.count, 0);
+});
+
+// --- Calidad visual M1: compatibilidad con planes anteriores ---
+
+test("plan v2 (anterior a M1): se ejecuta con el reparto histórico y el informe se marca 'legacy' sin bloquear", async () => {
+  const c = counters();
+  const v2 = { ...planFor("balanced"), version: 2, beatShotCounts: undefined };
+  const env = freshEnv({ durationSeconds: 180 });
+  const { renderInput } = await run(env, c, v2);
+  assert.ok(renderInput);
+  const report = env.reports.at(-1);
+  assert.equal(report?.pipeline, "legacy");
+  assert.ok(report?.scenes.every((s) => s.narrationFragment === null), "v2 no ancla escenas");
+  assert.ok(report?.limitations.some((l) => l.includes("anterior a v3")));
+});
+
+test("plan v3: informe con cada escena anclada, 0 repeticiones y procedencia en cada recurso", async () => {
+  const c = counters();
+  const env = freshEnv({ durationSeconds: 180 });
+  await run(env, c, planFor("balanced"));
+  const report = env.reports.at(-1);
+  assert.equal(report?.pipeline, "anchored_v1");
+  assert.equal(report?.summary.repeatedAssets.length, 0);
+  assert.equal(report?.summary.titleCards.length, 0);
+  assert.ok(report?.scenes.every((s) => s.narrationFragment && s.narrationFragment.length > 0));
+  assert.ok(report?.scenes.filter((s) => s.display !== "card").every((s) => s.provenance === "stock_illustrative" || s.provenance === "ai_recreation"));
+  assert.ok(report?.scenes.filter((s) => s.provenance === "ai_recreation").every((s) => s.relevance === "generated_from_intent"));
 });

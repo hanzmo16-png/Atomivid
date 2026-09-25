@@ -1,0 +1,49 @@
+name: Auditoría visual Long Form (solo lectura, sin proveedores)
+
+# Calidad visual M1: informe de diversidad/coherencia de una producción ya
+# hecha (scripts/long-form-visual-audit.ts). Réplica desde lo persistido,
+# identidad de contenido de cada recurso y simulación de la muestra inicial
+# (≤ 60 s) con el pipeline v3 usando SOLO recursos existentes. No escribe
+# nada; no recibe claves de ElevenLabs/OpenAI/Pexels/Veo/Anthropic.
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: "ID exacto de video_requests"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Instalar ffmpeg (fotograma para el hash perceptual de video)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Auditar (solo lectura)
+        run: npx tsx scripts/long-form-visual-audit.ts
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          AUDIT_ARTIFACT_DIR: ${{ runner.temp }}/visual-audit
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+      - name: Publicar informe (artifact privado)
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: long-form-visual-audit-${{ inputs.request_id }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/visual-audit/
+          if-no-files-found: ignore
+          retention-days: 14

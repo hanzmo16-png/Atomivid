@@ -117,6 +117,8 @@ export type ShotsBuilder = (input: {
   typeOffset?: number;
   strategy?: VisualStrategy;
   visuals?: BeatVisual[];
+  /** Tiempos reales por palabra del beat, RELATIVOS a su inicio (para anclar escenas a la narración; opcional). */
+  words?: WordTiming[];
 }) => ReturnType<typeof shotsForSpan>;
 
 /**
@@ -178,6 +180,7 @@ export async function buildLongFormTimeline(
       typeOffset: i * 2,
       strategy,
       visuals: visualsFor?.(beat),
+      words: narrated.words,
     });
 
     finalBeats.push({ ...beat, startTargetSec, endTargetSec, shots });

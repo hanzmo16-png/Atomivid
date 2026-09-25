@@ -77,6 +77,20 @@ const VisualSchema = z.object({
   motion: z
     .boolean()
     .describe("true SOLO si la escena depende de una acción/movimiento visible (gente trabajando, barcos cruzando, multitudes caminando) que una imagen fija perdería."),
+  // Calidad visual M1: cada escena se ANCLA al pasaje exacto que ilustra y
+  // declara sujeto/acción/lugar/época para filtrar material ajeno.
+  quote: z
+    .string()
+    .describe("Cita LITERAL (5-12 palabras, copiadas tal cual de la narración de este beat) del pasaje que esta escena ilustra."),
+  subject: z.string().describe("EN INGLÉS, 1-3 palabras: el sujeto principal visible (p. ej. 'steam shovel', 'mosquito', 'cargo ship')."),
+  action: z.string().optional().describe("EN INGLÉS, 1-2 palabras: la acción visible, si la hay (p. ej. 'digging')."),
+  place: z.string().optional().describe("EN INGLÉS: lugar geográfico concreto si importa (p. ej. 'Panama'); vacío si es genérico."),
+  era: z.string().optional().describe("Época que la imagen NO debe contradecir (p. ej. '1910s', '1880s'); vacío si es actual o atemporal."),
+  alternates: z
+    .array(z.string())
+    .max(2)
+    .optional()
+    .describe("Hasta 2 búsquedas alternativas EN INGLÉS del MISMO contenido (sinónimos del sujeto/acción), nunca de otro tema."),
 });
 
 const BeatSchema = z.object({
@@ -91,8 +105,11 @@ const BeatSchema = z.object({
   visuals: z
     .array(VisualSchema)
     .min(2)
-    .max(4)
-    .describe("2-4 escenas visuales distintas que ilustran este beat, en el orden en que se narran."),
+    .max(12)
+    .describe(
+      "Una escena visual DISTINTA por cada oración o idea del beat (aprox. una cada 8-10 segundos de narración), en el orden en que se narran; " +
+        "nunca dos escenas con el mismo sujeto y acción.",
+    ),
 });
 
 const DocumentaryScriptSchema = z.object({
@@ -179,7 +196,10 @@ ${input.researchPack.openQuestions.length > 0 ? input.researchPack.openQuestions
 
 Escribe el guion completo: título, hook, y ${targetBeats} beats con arco narrativo real
 (hook → setup → discovery → escalation → twist/insight → payoff → next_curiosity).
-Ningún saludo de canal, ninguna frase de apertura genérica.`;
+Ningún saludo de canal, ninguna frase de apertura genérica.
+
+Escenas visuales: cada una ilustra un pasaje CONCRETO (cita literal en "quote") con sujeto, lugar y época coherentes
+con lo narrado — si la narración habla de 1904 en Panamá, la escena no puede ser una ciudad moderna ni otro país.`;
 
   const parse: ScriptParse =
     input.parse ??

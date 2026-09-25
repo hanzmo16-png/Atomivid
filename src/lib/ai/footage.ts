@@ -11,6 +11,8 @@ type PexelsVideoFile = {
 type PexelsVideo = {
   id: number;
   duration: number;
+  /** Página pública del video; su slug describe el contenido (p. ej. ".../video/aerial-view-of-a-ship-3571264/"). */
+  url?: string;
   user?: { name?: string };
   video_files: PexelsVideoFile[];
 };
@@ -25,7 +27,19 @@ export type FootageCandidateRaw = {
   width?: number;
   height?: number;
   durationSeconds?: number;
+  /** Texto descriptivo del proveedor (alt de la foto / slug de la página del video) — insumo de pertinencia por palabras clave, no una validación semántica. */
+  description?: string;
+  /** Página pública del recurso (atribución/procedencia). */
+  pageUrl?: string;
 };
+
+/** "aerial-view-of-a-ship-3571264" → "aerial view of a ship". */
+export function describeFromPexelsPageUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  const slug = url.replace(/\/+$/, "").split("/").pop() ?? "";
+  const words = slug.split("-").filter((w) => w && !/^\d+$/.test(w));
+  return words.length > 0 ? words.join(" ") : undefined;
+}
 
 /**
  * Elige un MP4 vertical suficientemente nítido sin descargar el original
@@ -107,6 +121,8 @@ export async function searchSceneVideos(
       width: file.width ?? undefined,
       height: file.height ?? undefined,
       durationSeconds: video.duration,
+      description: describeFromPexelsPageUrl(video.url),
+      pageUrl: video.url,
     });
   }
 
@@ -150,6 +166,8 @@ export async function searchScenePhotos(query: string, orientation: FootageOrien
       height: number;
       src: { large2x: string };
       photographer: string;
+      alt?: string;
+      url?: string;
     }[];
   };
 
@@ -159,6 +177,8 @@ export async function searchScenePhotos(query: string, orientation: FootageOrien
     photographer: photo.photographer,
     width: photo.width,
     height: photo.height,
+    description: photo.alt?.trim() || describeFromPexelsPageUrl(photo.url),
+    pageUrl: photo.url,
   }));
 }
 
