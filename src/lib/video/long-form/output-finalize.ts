@@ -153,9 +153,10 @@ async function keepCopy(filePath: string, keepDir: string | null | undefined, re
  * se pudo entregar; el archivo local se conserva para recuperarlo.
  */
 export async function finalizeLongFormOutput(
-  input: { requestId: string; attempt: number | null; filePath: string },
+  input: { requestId: string; attempt: number | null; filePath: string; profile?: string },
   deps: OutputFinalizeDeps,
 ): Promise<{ videoPath: string; state: LongFormOutputState }> {
+  const profile = input.profile ?? LONG_FORM_ENCODING_PROFILE.id;
   const now = deps.now ?? Date.now;
   const objectPath = canonicalOutputPath(input.requestId);
   const diagnosticId = generateDiagnosticId();
@@ -176,7 +177,7 @@ export async function finalizeLongFormOutput(
       status: "FAILED",
       objectPath,
       attempt: input.attempt,
-      profile: LONG_FORM_ENCODING_PROFILE.id,
+      profile,
       rendered,
       delivered,
       ceilingBytes,
@@ -280,7 +281,7 @@ export async function finalizeLongFormOutput(
     status: "UPLOADED",
     objectPath,
     attempt: input.attempt,
-    profile: LONG_FORM_ENCODING_PROFILE.id,
+    profile,
     delivery: uploadPath === input.filePath ? "as_rendered" : "size_fit",
     rendered,
     delivered,

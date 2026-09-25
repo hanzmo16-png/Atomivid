@@ -426,7 +426,7 @@ export async function generateLongFormVideoFromScript({
   // conserva (LONG_FORM_OUTPUT_KEEP_DIR) y el cliente ve un mensaje seguro.
   if (outputPath !== rawOutputPath) await fs.unlink(rawOutputPath).catch(() => {});
   const { videoPath, state: outputState } = await finalizeLongFormOutput(
-    { requestId, attempt: runtime.attempt ?? null, filePath: outputPath },
+    { requestId, attempt: runtime.attempt ?? null, filePath: outputPath, profile: runtime.encoding },
     outputDeps,
   );
   storageBytes += outputState.delivered?.bytes ?? 0;
