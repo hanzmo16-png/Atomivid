@@ -26,6 +26,8 @@ export type RenderLongFormDocInput = {
   durationSeconds: number;
   accentColor?: string;
   showLogo?: boolean;
+  /** Progreso REAL del render (fotogramas renderizados / total de la composición) — nunca estimado. */
+  onFrameProgress?: (progress: { renderedFrames: number; totalFrames: number }) => void;
 };
 
 export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<string> {
@@ -82,6 +84,9 @@ export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<
     // Mismo CRF que Shorts (ver comentario en generate-video.ts) — suficiente
     // para YouTube, que igual re-comprime el video al subirlo.
     crf: 26,
+    onProgress: input.onFrameProgress
+      ? ({ renderedFrames }) => input.onFrameProgress?.({ renderedFrames, totalFrames: composition.durationInFrames })
+      : undefined,
   });
 
   return outputLocation;

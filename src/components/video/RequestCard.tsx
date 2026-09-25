@@ -8,6 +8,7 @@ import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
 import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
 import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
 import { STATUS_LABEL, STATUS_TONE, pendingRequestCta, type VideoRequestSummary } from "@/lib/video/request-view";
+import { computeProductionProgress, isLongFormProgress, type ProgressStageKey } from "@/lib/video/long-form/progress";
 import { GenerateButton } from "@/app/dashboard/GenerateButton";
 
 /**
@@ -32,7 +33,12 @@ export function RequestCard({
 }) {
   const isStaleProcessing = isRenderStale(request, nowMs);
   const attemptsExhausted = request.render_attempts >= MAX_RENDER_ATTEMPTS;
-  const canRetry = !attemptsExhausted && request.mode !== "avatar";
+  // Long Form solo puede reintentarse con un plan ya confirmado (render/route.ts
+  // lo exige). Una solicitud anterior al plan de producción (p. ej. la
+  // primera prueba real) no tiene confirmación y su guion ya no está en
+  // "script_ready": ofrecer "Reintentar" ahí solo devolvería un error.
+  const longFormUnconfirmed = request.mode === "long_form" && !request.long_form_confirmed_at;
+  const canRetry = !attemptsExhausted && request.mode !== "avatar" && !longFormUnconfirmed;
   const detailHref = `/dashboard/videos/${request.id}`;
   const isLongForm = request.mode === "long_form";
   const isLandscape = request.aspect_ratio === "16:9";
@@ -41,6 +47,18 @@ export function RequestCard({
       (LONG_FORM_STAGE_LABEL[request.long_form_stage as LongFormStage] ?? request.long_form_stage)
     : request.progress_stage &&
       (RENDER_STAGE_LABEL[request.progress_stage as RenderStage] ?? request.progress_stage);
+  const longFormProgress =
+    isLongForm && isLongFormProgress(request.long_form_progress) && request.long_form_progress.stage === request.long_form_stage
+      ? request.long_form_progress
+      : null;
+  const longFormPercent =
+    isLongForm && request.long_form_stage
+      ? computeProductionProgress({
+          stage: request.long_form_stage as ProgressStageKey,
+          unitsCompleted: longFormProgress?.unitsCompleted ?? 0,
+          unitsTotal: longFormProgress?.unitsTotal ?? 0,
+        })
+      : null;
 
   return (
     <Card className="p-4 sm:p-5">
@@ -62,7 +80,16 @@ export function RequestCard({
           {request.status === "processing" && !isStaleProcessing && stageLabel && (
             <p className="mt-2 flex items-center gap-1.5 text-sm text-ink-muted">
               <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-info motion-reduce:animate-none" aria-hidden="true" />
-              {stageLabel}…
+              <span className="min-w-0">
+                {stageLabel}…
+                {longFormProgress && longFormProgress.unitsTotal > 0 && (
+                  <span className="tabular-nums">
+                    {" "}
+                    ({longFormProgress.unitsCompleted}/{longFormProgress.unitsTotal} {longFormProgress.unitLabel})
+                  </span>
+                )}
+                {longFormPercent !== null && <span className="tabular-nums"> · {longFormPercent}%</span>}
+              </span>
             </p>
           )}
           {request.status === "processing" && isStaleProcessing && (
@@ -111,12 +138,18 @@ export function RequestCard({
           {request.status === "processing" && isStaleProcessing && canRetry && (
             <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Reintentar" />
           )}
+          {request.status === "failed" && longFormUnconfirmed && (
+            <p className="max-w-[220px] text-left text-xs text-ink-faint sm:text-right">
+              Esta solicitud es anterior al plan de producción. Crea un documental nuevo para producirlo.
+            </p>
+          )}
           {request.status === "failed" && Boolean(request.script_json) && attemptsExhausted && (
             <p className="max-w-[220px] text-left text-xs text-ink-faint sm:text-right">
               Se alcanzó el máximo de intentos. Crea un video nuevo.
             </p>
           )}
           {request.status === "failed" &&
+            !longFormUnconfirmed &&
             (request.script_json ? (
               canRetry && (
                 <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Reintentar" />

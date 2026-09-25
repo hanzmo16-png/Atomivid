@@ -17,6 +17,10 @@ on:
         description: "ID de la solicitud (video_requests.id) a renderizar"
         required: true
         type: string
+      mode:
+        description: "Modalidad de la solicitud (vacío = Reel/Avatar). 'long_form' da el timeout y las credenciales de Long Form."
+        required: false
+        type: string
 
 # Evita que dos renders de la MISMA solicitud corran en paralelo si por lo
 # que sea llegara un dispatch duplicado; distintas solicitudes sí corren en
@@ -28,9 +32,13 @@ concurrency:
 jobs:
   render:
     runs-on: ubuntu-latest
-    # El paso de render tiene 12 minutos. El job deja margen adicional
-    # para ejecutar la limpieza; un timeout del job entero no la ejecutaría.
-    timeout-minutes: 18
+    # Reel/Avatar: el paso de render tiene 12 minutos y el job deja margen
+    # para la limpieza. Long Form (documental 3-15 min, 16:9): evidencia
+    # real de VIDEO #001 (~11 min de video) = 32 min solo en el paso de
+    # producción — 120 min de paso cubren 15 min de documental con margen.
+    # Un timeout del job entero no ejecutaría la limpieza, por eso el job
+    # siempre deja ~15 min más que el paso.
+    timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 135 || 18 }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,7 +60,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Renderizar video
-        timeout-minutes: 12
+        timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 120 || 12 }}
         run: npx tsx scripts/render-worker.ts
         env:
           ATOMIVID_RUNTIME: production
@@ -83,6 +91,23 @@ jobs:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           MUSIC_TRACK_URLS: ${{ secrets.MUSIC_TRACK_URLS }}
           MUSIC_PROVIDER: ${{ secrets.MUSIC_PROVIDER }}
+          # --- Solo Long Form (vacío para cualquier otra modalidad: Reel/Avatar
+          # siguen exactamente igual, nunca reciben estas credenciales) ---
+          # Interruptor GLOBAL de gasto real (mode.ts). Hans lo activa creando
+          # el secret LONG_FORM_REAL_RUN_CONFIRM=YES_SPEND_REAL_MONEY — nunca
+          # se escribe aquí en claro. Además, cada producción exige su propia
+          # confirmación humana (long_form_confirmed_at).
+          LONG_FORM_REAL_RUN_CONFIRM: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && secrets.LONG_FORM_REAL_RUN_CONFIRM || '' }}
+          IMAGE_PROVIDER: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 'openai' || '' }}
+          OPENAI_API_KEY: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && secrets.OPENAI_API_KEY || '' }}
+          # Video IA: en el worker se encienden para Long Form y el ÚNICO
+          # control es la allocation del plan confirmado (calculada en Vercel
+          # con sus propias flags y mostrada al usuario antes de confirmar):
+          # con 0 clips confirmados, el worker nunca envía nada a Veo.
+          VIDEO_PROVIDER: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 'veo' || '' }}
+          PREMIUM_CLIPS_ENABLED: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 'true' || '' }}
+          LONG_FORM_AI_VIDEO_ENABLED: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 'true' || '' }}
+          VEO_API_KEY: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && secrets.VEO_API_KEY || '' }}
 
       - name: Marcar como fallido si el render no terminó
         if: failure()

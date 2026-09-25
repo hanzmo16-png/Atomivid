@@ -24,10 +24,13 @@ import {
 export function ResultView({
   request,
   videoUrl,
+  nowMs,
 }: {
   request: VideoRequestSummary;
   /** null si status=completed pero no se pudo firmar la URL (reportar el error, no ocultarlo). */
   videoUrl?: string | null;
+  /** Reloj inyectado por el caller (solo lo usa el ETA de Long Form). */
+  nowMs: number;
 }) {
   const meta = [
     request.language && LANGUAGE_LABEL[request.language],
@@ -65,6 +68,7 @@ export function ResultView({
           <ProductionProgressCard
             longFormStage={request.long_form_stage ?? null}
             longFormProgress={request.long_form_progress}
+            nowMs={nowMs}
           />
         )}
 

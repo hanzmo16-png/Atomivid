@@ -41,6 +41,8 @@ export type VideoRequestSummary = {
    * progreso — se trata como "sin evidencia todavía", nunca como 0% falso.
    */
   long_form_progress?: unknown;
+  /** Confirmación humana del plan de producción (migración 0019) — sin ella, Long Form nunca produce. */
+  long_form_confirmed_at?: string | null;
   /**
    * Presente solo para avatar con narración propia/grabada (own_audio) o
    * "Voz IA desde texto" (tts) — ver dashboard/new/actions.ts. Copy fix

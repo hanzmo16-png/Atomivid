@@ -7,7 +7,7 @@ import {
   type LongFormScriptBeatInput,
 } from "./long-form/produce";
 import type { LongFormStage } from "./long-form/stages";
-import { isProductionPlan, type ProductionPlan } from "./long-form/production-plan";
+import { resolveExecutablePlan, type ProductionPlan } from "./long-form/production-plan";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { attemptState } from "./attempt-state";
 import type { RenderStage } from "./stages";
@@ -91,16 +91,26 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
   // claim()/attemptState de abajo: eso solo actúa como el cerrojo de
   // concurrencia interno del intento, nunca se muestra al usuario para
   // mode="long_form" (Historial lee long_form_stage para esta modalidad).
-  const onLongFormProgress = async (stage: LongFormStage, units?: { completed: number; total: number }) => {
-    const long_form_progress = units
-      ? {
-          stage,
-          unitsCompleted: units.completed,
-          unitsTotal: units.total,
-          unitLabel: "escenas",
-          updatedAt: new Date().toISOString(),
-        }
-      : null;
+  // Cada escritura es también un latido (updatedAt): render-guard.ts solo
+  // considera colgado un Long Form sin latidos recientes, nunca uno que
+  // simplemente tarda. stageStartedAt permite un ETA derivado SOLO del
+  // ritmo observado en esta etapa (ver progress.ts).
+  let progressStage: LongFormStage | null = null;
+  let stageStartedAt = "";
+  const onLongFormProgress = async (stage: LongFormStage, units?: { completed: number; total: number; label: string }) => {
+    const now = new Date().toISOString();
+    if (stage !== progressStage) {
+      progressStage = stage;
+      stageStartedAt = now;
+    }
+    const long_form_progress = {
+      stage,
+      unitsCompleted: units?.completed ?? 0,
+      unitsTotal: units?.total ?? 0,
+      unitLabel: units?.label ?? "",
+      updatedAt: now,
+      stageStartedAt,
+    };
     const result = await update({ long_form_stage: stage, long_form_progress }).select("id").maybeSingle();
     if (result.error || !result.data) throw new Error("El trabajo ya no tiene una reserva activa. No se repetirá automáticamente.");
   };
@@ -111,14 +121,17 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
     if (mode === "long_form" && !isLongFormScriptJson(row.script_json)) {
       throw new Error("El guion guardado no tiene la forma esperada para Long Form (topic + beats[] con narración).");
     }
-    // Defensa en profundidad (además de la puerta que exige render/route.ts
-    // antes de la transición a "processing"): nunca ejecutar una producción
-    // audiovisual paga de Long Form sin una confirmación humana persistida.
-    if (mode === "long_form" && !row.long_form_confirmed_at) {
-      throw new Error("Esta producción de Long Form no tiene una confirmación humana registrada. No se ejecutará.");
-    }
-    const longFormPlan = isProductionPlan(row.long_form_production_plan) ? row.long_form_production_plan : null;
-    const longFormStrategy = longFormPlan?.strategy ?? "balanced";
+    // Defensa en profundidad (además de la puerta de render/route.ts): sin
+    // confirmación humana, con un plan inválido/de versión desconocida, o
+    // con un guion distinto al confirmado, no se ejecuta NADA pagado.
+    const longFormPlan: ProductionPlan | null =
+      mode === "long_form"
+        ? resolveExecutablePlan({
+            confirmedAt: row.long_form_confirmed_at,
+            plan: row.long_form_production_plan,
+            beats: (row.script_json as unknown as { beats: LongFormScriptBeatInput[] }).beats,
+          })
+        : null;
     const { videoPath } =
       mode === "avatar"
         ? await generateAvatarVideo({
@@ -142,7 +155,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
               topic: (row.script_json as unknown as { topic: string; beats: LongFormScriptBeatInput[] }).topic,
               beats: (row.script_json as unknown as { topic: string; beats: LongFormScriptBeatInput[] }).beats,
               language: row.language ?? undefined,
-              strategy: longFormStrategy,
+              plan: longFormPlan as ProductionPlan,
               onProgress: onLongFormProgress,
             })
           : await generateVideoFromScript({

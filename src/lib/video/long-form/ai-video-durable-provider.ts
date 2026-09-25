@@ -51,11 +51,94 @@ import {
 } from "./ai-video-storage";
 import type { ResolvedAiVideoClip } from "./ai-video-resolver";
 
-export function wrapDurableVideoProvider(
-  inner: VideoProvider,
-  opts: { supabase: SupabaseClient; scopeId: string; executionMode?: "simulation" | "real" },
-): VideoProvider {
+/** Fallos con los que reanudar la MISMA operación tiene sentido (el proveedor sigue teniendo el trabajo pagado). */
+const RESUMABLE_REASONS = new Set<GenerativeProviderError["reason"]>(["timeout", "upstream_error", "download_failed", "rate_limited"]);
+/** Fallos terminales de la operación: reanudar/reenviar nunca va a cambiar el resultado. */
+const TERMINAL_REASONS = new Set<GenerativeProviderError["reason"]>(["moderation_rejected", "invalid_request", "invalid_response"]);
+
+export type DurableVideoProviderOptions = {
+  supabase: SupabaseClient;
+  scopeId: string;
+  executionMode?: "simulation" | "real";
+  /**
+   * Reserva (write-ahead) del presupuesto confirmado ANTES de un envío
+   * NUEVO — nunca se llama para reutilizar un COMPLETED ni para reanudar un
+   * STARTED. `false` → no se envía (budget_exceeded), el llamador cae al
+   * fallback.
+   */
+  beforeSubmit?: (request: VideoGenerationRequest) => Promise<boolean>;
+  /** Reanudaciones de la MISMA operación dentro de este intento ante un fallo transitorio con providerJobId. Default 0 (comportamiento histórico). */
+  maxInAttemptResumes?: number;
+  resumeBackoffMs?: number;
+};
+
+export function wrapDurableVideoProvider(inner: VideoProvider, opts: DurableVideoProviderOptions): VideoProvider {
   const executionMode = opts.executionMode ?? "real";
+  const maxInAttemptResumes = opts.maxInAttemptResumes ?? 0;
+  const resumeBackoffMs = opts.resumeBackoffMs ?? 5000;
+
+  async function persistStartedWithJobId(shotId: string, providerJobId: string): Promise<void> {
+    const nowIso = new Date().toISOString();
+    const existing = await readAiVideoClipRecord(opts.supabase, AI_VIDEO_STORAGE_BUCKET, opts.scopeId, shotId);
+    if (existing?.status === "COMPLETED") return;
+    await writeAiVideoClipRecord(opts.supabase, AI_VIDEO_STORAGE_BUCKET, {
+      idempotencyKey: shotId,
+      scopeId: opts.scopeId,
+      shotId,
+      status: "STARTED",
+      provider: inner.name,
+      providerJobId,
+      executionMode,
+      createdAtIso: existing?.createdAtIso ?? nowIso,
+      updatedAtIso: nowIso,
+    });
+  }
+
+  async function persistTerminalFailure(shotId: string, err: GenerativeProviderError): Promise<void> {
+    const nowIso = new Date().toISOString();
+    const existing = await readAiVideoClipRecord(opts.supabase, AI_VIDEO_STORAGE_BUCKET, opts.scopeId, shotId);
+    if (existing?.status === "COMPLETED") return;
+    await writeAiVideoClipRecord(opts.supabase, AI_VIDEO_STORAGE_BUCKET, {
+      idempotencyKey: shotId,
+      scopeId: opts.scopeId,
+      shotId,
+      status: "FAILED",
+      provider: inner.name,
+      providerJobId: err.providerJobId ?? existing?.providerJobId,
+      executionMode,
+      createdAtIso: existing?.createdAtIso ?? nowIso,
+      updatedAtIso: nowIso,
+    });
+  }
+
+  /**
+   * Reanuda la misma operación ante fallos transitorios (acotado); marca
+   * FAILED ante un fallo terminal. Nunca reenvía.
+   */
+  async function resumeWithRetries(shotId: string, providerJobId: string, request: VideoGenerationRequest, attemptsLeft: number): Promise<GenerativeAsset> {
+    if (!inner.resumeGeneration) {
+      throw new Error(
+        `wrapDurableVideoProvider: el shot "${shotId}" ya tiene una operación STARTED en "${inner.name}" ` +
+          `(providerJobId "${providerJobId}") de un intento anterior, pero este proveedor no admite ` +
+          `reanudar sondeo (resumeGeneration). Nunca se envía una segunda generación en su lugar — revisa ` +
+          `manualmente el estado de esa operación en el proveedor antes de reintentar.`,
+      );
+    }
+    try {
+      return await inner.resumeGeneration(providerJobId, request);
+    } catch (err) {
+      if (err instanceof GenerativeProviderError && TERMINAL_REASONS.has(err.reason)) {
+        await persistTerminalFailure(shotId, err);
+        throw err;
+      }
+      if (attemptsLeft > 0 && err instanceof GenerativeProviderError && RESUMABLE_REASONS.has(err.reason)) {
+        if (resumeBackoffMs > 0) await new Promise((r) => setTimeout(r, resumeBackoffMs));
+        return resumeWithRetries(shotId, providerJobId, request, attemptsLeft - 1);
+      }
+      await persistStartedIfRecoverable(shotId, err);
+      throw err;
+    }
+  }
 
   async function persistCompleted(shotId: string, asset: GenerativeAsset): Promise<void> {
     const clip: ResolvedAiVideoClip = {
@@ -100,7 +183,14 @@ export function wrapDurableVideoProvider(
     isAvailable: () => inner.isAvailable(),
     async generateVideo(request: VideoGenerationRequest): Promise<GenerativeAsset> {
       const shotId = request.metadata?.shotId;
-      if (!shotId) return inner.generateVideo(request);
+      if (!shotId) {
+        // Sin clave de idempotencia no hay reuso posible, pero el presupuesto
+        // confirmado se respeta igual: nunca un envío sin reserva.
+        if (opts.beforeSubmit && !(await opts.beforeSubmit(request))) {
+          throw new GenerativeProviderError("El presupuesto confirmado de video IA no permite otro envío.", inner.name, "budget_exceeded");
+        }
+        return inner.generateVideo(request);
+      }
 
       const existing = await readAiVideoClipRecord(opts.supabase, AI_VIDEO_STORAGE_BUCKET, opts.scopeId, shotId);
 
@@ -134,33 +224,78 @@ export function wrapDurableVideoProvider(
         };
       }
 
-      if (existing?.status === "STARTED" && existing.providerJobId) {
-        if (!inner.resumeGeneration) {
-          throw new Error(
-            `wrapDurableVideoProvider: el shot "${shotId}" ya tiene una operación STARTED en "${inner.name}" ` +
-              `(providerJobId "${existing.providerJobId}") de un intento anterior, pero este proveedor no admite ` +
-              `reanudar sondeo (resumeGeneration). Nunca se envía una segunda generación en su lugar — revisa ` +
-              `manualmente el estado de esa operación en el proveedor antes de reintentar.`,
-          );
-        }
-        try {
-          const asset = await inner.resumeGeneration(existing.providerJobId, request);
-          await persistCompleted(shotId, asset);
-          return asset;
-        } catch (err) {
-          await persistStartedIfRecoverable(shotId, err);
-          throw err;
-        }
+      if (existing?.status === "FAILED") {
+        throw new GenerativeProviderError(
+          `El shot "${shotId}" ya tuvo un fallo terminal en "${inner.name}" — no se reenvía; se usa el fallback.`,
+          inner.name,
+          "invalid_request",
+          undefined,
+          existing.providerJobId,
+        );
       }
 
+      if (existing?.status === "STARTED" && existing.providerJobId) {
+        const asset = await resumeWithRetries(shotId, existing.providerJobId, request, maxInAttemptResumes);
+        await persistCompletedTolerant(shotId, asset);
+        return asset;
+      }
+
+      if (opts.beforeSubmit && !(await opts.beforeSubmit(request))) {
+        throw new GenerativeProviderError(
+          `El presupuesto confirmado de video IA no permite otro envío para el shot "${shotId}".`,
+          inner.name,
+          "budget_exceeded",
+        );
+      }
+
+      let acceptedJobId: string | undefined;
+      const submitted: VideoGenerationRequest = {
+        ...request,
+        onProviderJobAccepted: async (providerJobId) => {
+          acceptedJobId = providerJobId;
+          await persistStartedWithJobId(shotId, providerJobId);
+          await request.onProviderJobAccepted?.(providerJobId);
+        },
+      };
       try {
-        const asset = await inner.generateVideo(request);
-        await persistCompleted(shotId, asset);
+        const asset = await inner.generateVideo(submitted);
+        await persistCompletedTolerant(shotId, asset);
         return asset;
       } catch (err) {
+        const jobId = (err instanceof GenerativeProviderError && err.providerJobId) || acceptedJobId;
+        if (err instanceof GenerativeProviderError && TERMINAL_REASONS.has(err.reason) && jobId) {
+          await persistTerminalFailure(shotId, new GenerativeProviderError(err.message, err.providerId, err.reason, err.cause, jobId));
+          throw err;
+        }
+        if (jobId && maxInAttemptResumes > 0 && err instanceof GenerativeProviderError && RESUMABLE_REASONS.has(err.reason)) {
+          if (resumeBackoffMs > 0) await new Promise((r) => setTimeout(r, resumeBackoffMs));
+          const asset = await resumeWithRetries(shotId, jobId, request, maxInAttemptResumes - 1);
+          await persistCompletedTolerant(shotId, asset);
+          return asset;
+        }
         await persistStartedIfRecoverable(shotId, err);
         throw err;
       }
     },
   };
+
+  /**
+   * Un fallo al PERSISTIR un clip ya generado nunca se convierte en otro
+   * envío: el STARTED ya guarda el providerJobId, así que el siguiente
+   * intento reanuda/descarga esa misma operación. En este intento se usa
+   * el buffer que ya tenemos en memoria.
+   */
+  async function persistCompletedTolerant(shotId: string, asset: GenerativeAsset): Promise<void> {
+    try {
+      await persistCompleted(shotId, asset);
+    } catch (err) {
+      console.warn(
+        `[atomivid:ai-video-durable] no se pudo persistir el clip COMPLETED de "${shotId}" — se usa el buffer en memoria; un reintento reanudará la operación ${asset.providerJobId ?? "(sin id)"} sin reenviar:`,
+        err instanceof Error ? err.message : err,
+      );
+      if (asset.providerJobId) {
+        await persistStartedWithJobId(shotId, asset.providerJobId).catch(() => {});
+      }
+    }
+  }
 }

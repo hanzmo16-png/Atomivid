@@ -5,6 +5,7 @@ import { getSignedVideoUrl } from "@/lib/storage/signed-url";
 import { selectIfOwned, type OwnedRequestRow } from "@/lib/video/access";
 import { ResultView } from "@/components/video/ResultView";
 import { Alert } from "@/components/ui/Alert";
+import { AutoRefresh } from "@/app/dashboard/AutoRefresh";
 
 export default async function VideoResultPage({
   params,
@@ -65,9 +66,16 @@ export default async function VideoResultPage({
       ? await getSignedVideoUrl(request.video_path)
       : null;
 
+  // Server Component evaluado una vez por request (mismo patrón que
+  // dashboard/page.tsx). AutoRefresh vuelve a pedir ESTA página al backend
+  // de Atomivid mientras siga "processing" — el progreso siempre sale de la
+  // base de datos, nunca de estado del navegador.
+  // eslint-disable-next-line react-hooks/purity -- ver comentario arriba
+  const nowMs = Date.now();
   return (
     <div className="mx-auto max-w-md">
-      <ResultView request={request} videoUrl={videoUrl} />
+      <AutoRefresh active={request.status === "processing"} />
+      <ResultView request={request} videoUrl={videoUrl} nowMs={nowMs} />
     </div>
   );
 }

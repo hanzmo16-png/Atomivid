@@ -73,7 +73,7 @@ export class GitHubWorkerNetworkError extends Error {
  */
 export const githubActionsWorker: RenderWorker = {
   name: "github-actions",
-  async trigger({ requestId, renderAttempt }) {
+  async trigger({ requestId, renderAttempt, mode }) {
     const token = process.env.GH_WORKER_TOKEN;
     const repo = process.env.GH_WORKER_REPO;
 
@@ -101,7 +101,14 @@ export const githubActionsWorker: RenderWorker = {
         },
         body: JSON.stringify({
           event_type: DISPATCH_EVENT_TYPE,
-          client_payload: { requestId, ...(renderAttempt === undefined ? {} : { renderAttempt }) },
+          // `mode` permite a render.yml dar a Long Form su propio timeout y
+          // sus credenciales (OpenAI/Veo/confirmación de gasto) sin
+          // exponerlas ni cambiar nada para Reel/Avatar.
+          client_payload: {
+            requestId,
+            ...(renderAttempt === undefined ? {} : { renderAttempt }),
+            ...(mode ? { mode } : {}),
+          },
         }),
         signal: controller.signal,
       });

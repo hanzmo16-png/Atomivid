@@ -175,25 +175,25 @@ export default function DevStatesPage() {
 
       <Section title="Resultado dedicado — Long Form (16:9) completado">
         <div className="mx-auto max-w-md rounded-lg border border-border p-6">
-          <ResultView request={LONG_FORM_COMPLETED} videoUrl={FAKE_VIDEO_URL} />
+          <ResultView request={LONG_FORM_COMPLETED} videoUrl={FAKE_VIDEO_URL} nowMs={FIXTURE_NOW_MS} />
         </div>
       </Section>
 
       <Section title="Resultado dedicado — completado">
         <div className="mx-auto max-w-md rounded-lg border border-border p-6">
-          <ResultView request={COMPLETED} videoUrl={FAKE_VIDEO_URL} />
+          <ResultView request={COMPLETED} videoUrl={FAKE_VIDEO_URL} nowMs={FIXTURE_NOW_MS} />
         </div>
       </Section>
 
       <Section title="Resultado dedicado — procesando">
         <div className="mx-auto max-w-md rounded-lg border border-border p-6">
-          <ResultView request={PROCESSING} />
+          <ResultView request={PROCESSING} nowMs={FIXTURE_NOW_MS} />
         </div>
       </Section>
 
       <Section title="Resultado dedicado — error">
         <div className="mx-auto max-w-md rounded-lg border border-border p-6">
-          <ResultView request={FAILED} />
+          <ResultView request={FAILED} nowMs={FIXTURE_NOW_MS} />
         </div>
       </Section>
     </div>

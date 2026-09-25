@@ -104,8 +104,8 @@ export type FootageCandidate = FootageResult & {
 
 export interface FootageProvider {
   readonly name: string;
-  /** Busca preferentemente video vertical; el proveedor puede caer a imagen. */
-  fetchFootage(query: string, minimumDurationSeconds?: number): Promise<FootageResult>;
+  /** Busca preferentemente video (vertical por defecto; "landscape" para Long Form 16:9); el proveedor puede caer a imagen. */
+  fetchFootage(query: string, minimumDurationSeconds?: number, orientation?: "portrait" | "landscape"): Promise<FootageResult>;
   downloadFootage(url: string): Promise<Buffer>;
   /**
    * Devuelve VARIOS candidatos de video para una consulta (no elige uno
@@ -117,9 +117,10 @@ export interface FootageProvider {
   searchVideoCandidates?(
     query: string,
     minimumDurationSeconds?: number,
+    orientation?: "portrait" | "landscape",
   ): Promise<FootageCandidate[]>;
   /** Igual que `searchVideoCandidates` pero para fotos — último recurso cuando ningún concepto encuentra video. */
-  searchImageCandidates?(query: string): Promise<FootageCandidate[]>;
+  searchImageCandidates?(query: string, orientation?: "portrait" | "landscape"): Promise<FootageCandidate[]>;
 }
 
 /** Categoría de tono musical normalizada — ver src/lib/providers/music/tone.ts. */
@@ -325,6 +326,13 @@ export type VideoGenerationRequest = {
   seed?: string;
   /** Metadata de trazabilidad libre (p. ej. shotId, videoId) — nunca interpretada por el proveedor, solo para observabilidad del llamador. */
   metadata?: Record<string, string>;
+  /**
+   * Llamado por el proveedor en cuanto la operación pagada fue ACEPTADA
+   * (tiene id), antes de sondear — permite persistir el providerJobId para
+   * que un crash durante el sondeo se reanude en vez de reenviar. Un fallo
+   * de este callback nunca aborta una operación ya pagada.
+   */
+  onProviderJobAccepted?: (providerJobId: string) => Promise<void> | void;
 };
 
 export interface VideoProvider {

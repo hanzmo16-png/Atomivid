@@ -1,4 +1,5 @@
-import type { BeatType, Shot, ShotType } from "./types";
+import type { BeatType, Shot, ShotMotion, ShotType } from "./types";
+import type { BeatVisual } from "./visual-intents";
 
 export const MIN_HOLD = 3;
 export const MAX_HOLD = 8;
@@ -14,43 +15,49 @@ const CYCLE: ShotType[] = [
 ];
 
 /**
- * RC mission "LONG FORM RC FINAL HARDENING" — antes de esto, TODO
- * documental (sin importar tema/duración/elección del usuario) usaba el
- * mismo ciclo fijo de arriba: no existía ninguna forma de que un usuario
- * decidiera cuánto contenido generativo quería, pese a que eso cambia
- * radicalmente el costo (ver production-plan.ts). `VISUAL_STRATEGIES`
- * define 3 mezclas reales, cada una un ciclo distinto de ShotType, nunca
- * un ajuste cosmético:
+ * Estrategias visuales de la ruta de PRODUCTO (ver production-plan.ts).
+ * Ningún ciclo de producto incluye "diagram"/"map": sin datos verificados
+ * esos shots solo podían rellenarse con specs de fixture ("Mapa de
+ * ejemplo (fixture)") — contenido falso en un video real. "text" es una
+ * tarjeta REAL (tema + oración de la narración, ver visual-intents.ts).
  *
- * - "economical": SOLO archivo/deterministico (stock/mapa/diagrama/texto/
- *   Ken Burns) — cero llamadas pagadas de imagen o video IA.
- * - "balanced": el ciclo histórico (con generated_placeholder = imagen IA,
- *   sin video IA) — comportamiento por defecto sin cambios para no romper
- *   nada que ya funcionaba.
- * - "cinematic": más proporción de imagen IA + video IA genuino en la
- *   rotación — nunca "100% IA todo el tiempo" (ver sección 11 de la
- *   misión: eso sería una opción premium aparte, no implementada todavía).
- *   Sigue siendo seguro por construcción: cada shot "ai_video" pasa igual
- *   por elegibilidad/cost-guard/fallback ya existentes en
- *   asset-resolver.ts — si se descartan, degrada a stock/imagen real,
- *   nunca genera gasto sin ese guardrail.
+ * - "economical": solo archivo real (stock video/imagen) + tarjeta de
+ *   texto — cero llamadas pagadas de imagen o video IA.
+ * - "balanced": archivo real + ~1 de cada 4 shots como imagen IA; sin
+ *   video IA.
+ * - "cinematic": más imagen IA + ranuras de video IA (Veo image-to-video)
+ *   — cada ranura pasa por elegibilidad de contenido + cost guard + el
+ *   presupuesto confirmado; si no califica se degrada a imagen IA con
+ *   movimiento, o a archivo. Nunca "100% video IA".
+ *
+ * Sin `strategy` explícita (CLI/fixtures históricos) se usa CYCLE, sin
+ * cambios.
  */
 export const VISUAL_STRATEGIES = ["economical", "balanced", "cinematic"] as const;
 export type VisualStrategy = (typeof VISUAL_STRATEGIES)[number];
 
-const STRATEGY_CYCLES: Record<VisualStrategy, ShotType[]> = {
-  economical: ["stock_video", "stock_image", "ken_burns_image", "diagram", "map", "text"],
-  balanced: CYCLE,
+export const STRATEGY_CYCLES: Record<VisualStrategy, readonly ShotType[]> = {
+  economical: ["stock_video", "stock_image", "ken_burns_image", "stock_video", "text", "ken_burns_image"],
+  balanced: [
+    "stock_video",
+    "ken_burns_image",
+    "generated_placeholder",
+    "stock_image",
+    "stock_video",
+    "text",
+    "generated_placeholder",
+    "ken_burns_image",
+  ],
   cinematic: [
     "generated_placeholder",
     "stock_video",
     "ai_video",
     "generated_placeholder",
     "ken_burns_image",
-    "stock_image",
+    "text",
+    "generated_placeholder",
+    "stock_video",
     "ai_video",
-    "diagram",
-    "map",
   ],
 };
 
@@ -81,12 +88,22 @@ export function dedupKeys(shots: Shot[]): string[] {
   return shots.map((s) => s.dedupKey);
 }
 
-export function cycleShotType(index: number, strategy: VisualStrategy = "balanced"): ShotType {
-  const cycle = STRATEGY_CYCLES[strategy];
+export function cycleShotType(index: number, strategy?: VisualStrategy): ShotType {
+  const cycle = strategy ? STRATEGY_CYCLES[strategy] : CYCLE;
   return cycle[index % cycle.length];
 }
 
-/** Split a beat into 3–8s shots. Never returns a single image for the beat. Default strategy ("balanced") preserves the exact behavior this had before VisualStrategy existed. */
+function productMotion(type: ShotType): ShotMotion {
+  if (type === "stock_video") return "pan";
+  if (type === "ken_burns_image" || type === "generated_placeholder" || type === "stock_image") return "ken_burns";
+  return "static";
+}
+
+/**
+ * Split a beat into 3–8s shots. Never returns a single image for the beat.
+ * Sin `visuals`/`strategy` (CLI/fixtures) conserva exactamente el
+ * comportamiento histórico; la ruta de producto siempre pasa ambos.
+ */
 export function shotsForSpan(input: {
   beatId: string;
   beatType: BeatType;
@@ -95,6 +112,8 @@ export function shotsForSpan(input: {
   narration: string;
   typeOffset?: number;
   strategy?: VisualStrategy;
+  /** Intenciones visuales REALES del beat (ver visual-intents.ts) — rotan entre sus shots. */
+  visuals?: BeatVisual[];
 }): Shot[] {
   const span = input.endSec - input.startSec;
   if (!(span > 0)) throw new Error(`Beat ${input.beatId} has non-positive span`);
@@ -109,7 +128,30 @@ export function shotsForSpan(input: {
   for (let i = 0; i < count; i++) {
     const start = input.startSec + i * hold;
     const end = i === count - 1 ? input.endSec : input.startSec + (i + 1) * hold;
-    const shotType = cycleShotType(i + (input.typeOffset ?? 0), input.strategy ?? "balanced");
+    const shotType = cycleShotType(i + (input.typeOffset ?? 0), input.strategy);
+    const visual = input.visuals && input.visuals.length > 0 ? input.visuals[i % input.visuals.length] : undefined;
+    if (visual) {
+      shots.push({
+        id: `${input.beatId}-shot-${i + 1}`,
+        beatId: input.beatId,
+        startSec: round3(start),
+        endSec: round3(end),
+        durationSec: round3(end - start),
+        type: shotType,
+        source: shotType === "text" ? "local" : shotType === "generated_placeholder" || shotType === "ai_video" ? "generated" : "stock",
+        assetId: `${input.beatId}-${i}`,
+        visualIntent: visual.description,
+        motionRequired: visual.motion || undefined,
+        motion: productMotion(shotType),
+        captionText: input.narration,
+        license: "resolved-at-execution",
+        attribution: "",
+        dedupKey: `${input.beatId}:${shotType}:${i}`,
+        status: "planned",
+        validationStatus: "pending",
+      });
+      continue;
+    }
     shots.push({
       id: `${input.beatId}-shot-${i + 1}`,
       beatId: input.beatId,

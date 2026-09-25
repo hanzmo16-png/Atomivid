@@ -15,6 +15,9 @@ type PexelsVideo = {
   video_files: PexelsVideoFile[];
 };
 
+/** "portrait" (default histórico, Reel/Avatar 9:16) | "landscape" (Long Form 16:9). */
+export type FootageOrientation = "portrait" | "landscape";
+
 export type FootageCandidateRaw = {
   url: string;
   sourceId: string;
@@ -47,6 +50,19 @@ export function selectPortraitVideoFile(files: PexelsVideoFile[]): PexelsVideoFi
   );
 }
 
+/** Igual que selectPortraitVideoFile pero para 16:9 — favorece 1920x1080 y después 1280x720. */
+export function selectLandscapeVideoFile(files: PexelsVideoFile[]): PexelsVideoFile | null {
+  const candidates = files.filter(
+    (file) =>
+      file.file_type === "video/mp4" &&
+      typeof file.width === "number" &&
+      typeof file.height === "number" &&
+      file.width > file.height &&
+      file.width >= 1280,
+  );
+  return candidates.sort((a, b) => Math.abs((a.width ?? 0) - 1920) - Math.abs((b.width ?? 0) - 1920))[0] ?? null;
+}
+
 /**
  * Trae TODOS los candidatos de video que cumplen el mínimo de duración y
  * tienen un archivo vertical aprovechable — no solo el primero. El
@@ -56,6 +72,7 @@ export function selectPortraitVideoFile(files: PexelsVideoFile[]): PexelsVideoFi
 export async function searchSceneVideos(
   query: string,
   minimumDurationSeconds = 0,
+  orientation: FootageOrientation = "portrait",
 ): Promise<FootageCandidateRaw[]> {
   if (!PEXELS_API_KEY) {
     throw new Error("Falta configurar PEXELS_API_KEY");
@@ -63,7 +80,7 @@ export async function searchSceneVideos(
 
   const params = new URLSearchParams({
     query,
-    orientation: "portrait",
+    orientation,
     per_page: "12",
     size: "medium",
   });
@@ -81,7 +98,7 @@ export async function searchSceneVideos(
 
   for (const video of data.videos) {
     if (video.duration < minimumDurationSeconds) continue;
-    const file = selectPortraitVideoFile(video.video_files);
+    const file = orientation === "landscape" ? selectLandscapeVideoFile(video.video_files) : selectPortraitVideoFile(video.video_files);
     if (!file) continue;
     candidates.push({
       url: file.link,
@@ -99,21 +116,22 @@ export async function searchSceneVideos(
 export async function fetchSceneVideo(
   query: string,
   minimumDurationSeconds = 0,
+  orientation: FootageOrientation = "portrait",
 ): Promise<{ url: string; photographer?: string } | null> {
-  const candidates = await searchSceneVideos(query, minimumDurationSeconds);
+  const candidates = await searchSceneVideos(query, minimumDurationSeconds, orientation);
   const first = candidates[0];
   return first ? { url: first.url, photographer: first.photographer } : null;
 }
 
 /** Igual que searchSceneVideos pero para fotos — último recurso cuando ningún concepto encuentra video. */
-export async function searchScenePhotos(query: string): Promise<FootageCandidateRaw[]> {
+export async function searchScenePhotos(query: string, orientation: FootageOrientation = "portrait"): Promise<FootageCandidateRaw[]> {
   if (!PEXELS_API_KEY) {
     throw new Error("Falta configurar PEXELS_API_KEY");
   }
 
   const params = new URLSearchParams({
     query,
-    orientation: "portrait",
+    orientation,
     per_page: "8",
   });
 
@@ -146,8 +164,9 @@ export async function searchScenePhotos(query: string): Promise<FootageCandidate
 
 export async function fetchSceneImage(
   query: string,
+  orientation: FootageOrientation = "portrait",
 ): Promise<{ url: string; photographer: string }> {
-  const candidates = await searchScenePhotos(query);
+  const candidates = await searchScenePhotos(query, orientation);
   const photo = candidates[0];
   if (!photo) {
     throw new Error(`Pexels no encontró resultados para "${query}"`);

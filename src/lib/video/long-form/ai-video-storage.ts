@@ -39,7 +39,8 @@ export function aiVideoClipStoragePath(scopeId: string, shotId: string, idempote
   return `long-form/${scopeId}/ai-video/${shotId}-${idempotencyKey}.${extension}`;
 }
 
-export type AiVideoClipRecordStatus = "STARTED" | "COMPLETED";
+/** FAILED = fallo TERMINAL del proveedor para ese shot (p. ej. moderación): un reintento nunca reenvía, cae directo al fallback. */
+export type AiVideoClipRecordStatus = "STARTED" | "COMPLETED" | "FAILED";
 
 export type AiVideoClipRecord = {
   idempotencyKey: string;
@@ -145,11 +146,17 @@ export async function resolveAiVideoStorageAsset(
   }
 
   const nowIso = new Date().toISOString();
+  // Conserva provider/providerJobId en el STARTED: si la subida de abajo
+  // falla, el siguiente intento debe REANUDAR esa operación ya pagada, no
+  // ver un STARTED sin id y reenviar una generación nueva.
   await writeAiVideoClipRecord(supabase, bucket, {
     idempotencyKey: params.idempotencyKey,
     scopeId: params.scopeId,
     shotId: clip.shotId,
     status: "STARTED",
+    provider: clip.provider,
+    providerJobId: clip.providerJobId ?? existing?.providerJobId,
+    executionMode: params.executionMode,
     createdAtIso: existing?.createdAtIso ?? nowIso,
     updatedAtIso: nowIso,
   });

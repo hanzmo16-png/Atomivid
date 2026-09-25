@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ScriptLanguage, VoiceProvider, WordTiming } from "@/lib/providers/types";
 import { shotsForSpan, type VisualStrategy } from "./shots";
+import type { BeatVisual } from "./visual-intents";
 import type { BeatType, NarrativeBeat } from "./types";
 
 /**
@@ -115,6 +116,7 @@ export type ShotsBuilder = (input: {
   narration: string;
   typeOffset?: number;
   strategy?: VisualStrategy;
+  visuals?: BeatVisual[];
 }) => ReturnType<typeof shotsForSpan>;
 
 /**
@@ -142,7 +144,10 @@ export async function buildLongFormTimeline(
   language: ScriptLanguage = "es",
   shotsBuilder: ShotsBuilder = shotsForSpan,
   synthesizeBeat: BeatSynthesizer = synthesizeBeatNarration,
-  strategy: VisualStrategy = "balanced",
+  /** Sin estrategia (CLI/fixtures) se conserva el ciclo histórico de shots.ts. */
+  strategy?: VisualStrategy,
+  /** Intenciones visuales reales por beat (ruta de producto, ver visual-intents.ts). */
+  visualsFor?: (beat: TimelineBeatInput) => BeatVisual[],
 ): Promise<LongFormTimeline> {
   if (beats.length === 0) throw new Error("buildLongFormTimeline: se necesita al menos un beat");
 
@@ -172,6 +177,7 @@ export async function buildLongFormTimeline(
       narration: beat.narration,
       typeOffset: i * 2,
       strategy,
+      visuals: visualsFor?.(beat),
     });
 
     finalBeats.push({ ...beat, startTargetSec, endTargetSec, shots });

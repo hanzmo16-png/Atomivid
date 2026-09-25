@@ -36,6 +36,7 @@ type VideoRequestRow = {
   render_started_at: string | null;
   created_at: string;
   long_form_confirmed_at: string | null;
+  long_form_progress: unknown;
 };
 
 export async function POST(
@@ -73,7 +74,7 @@ export async function POST(
     try {
       const { data, error: fetchError } = await service
         .from("video_requests")
-        .select("id, mode, user_id, status, script_json, render_attempts, render_started_at, created_at, error_message, avatar_provider_video_job_id, long_form_confirmed_at")
+        .select("id, mode, user_id, status, script_json, render_attempts, render_started_at, created_at, error_message, avatar_provider_video_job_id, long_form_confirmed_at, long_form_progress")
         .eq("id", id)
         .single<VideoRequestRow>();
 
@@ -197,7 +198,7 @@ export async function POST(
     }
 
     try {
-      await worker.trigger({ requestId: id, renderAttempt: videoRequest.render_attempts + 1 });
+      await worker.trigger({ requestId: id, renderAttempt: videoRequest.render_attempts + 1, mode: videoRequest.mode });
     } catch (error) {
       const diagnosticId = generateDiagnosticId();
       logRenderError(`POST /render (worker: ${worker.name})`, error, diagnosticId);

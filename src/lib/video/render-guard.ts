@@ -1,4 +1,4 @@
-import { MAX_RENDER_ATTEMPTS, RENDER_TIMEOUT_MS } from "./limits";
+import { LONG_FORM_HEARTBEAT_STALE_MS, MAX_RENDER_ATTEMPTS, RENDER_TIMEOUT_MS } from "./limits";
 
 /**
  * Decisión pura de si una solicitud puede empezar a renderizarse ahora —
@@ -18,6 +18,9 @@ export type RenderStartRow = {
   render_attempts: number;
   render_started_at: string | null;
   created_at?: string;
+  mode?: string | null;
+  /** JSONB de progreso de Long Form — su `updatedAt` es el latido del worker. */
+  long_form_progress?: unknown;
 };
 
 export type RenderStartDecision =
@@ -50,10 +53,32 @@ export function evaluateRenderStart(
   return { allowed: true };
 }
 
-/** Shared by API and UI so recovery is offered only when both agree. */
+function heartbeatOf(progress: unknown): number | null {
+  if (!progress || typeof progress !== "object") return null;
+  const updatedAt = (progress as { updatedAt?: unknown }).updatedAt;
+  if (typeof updatedAt !== "string") return null;
+  const ms = Date.parse(updatedAt);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/**
+ * Shared by API and UI so recovery is offered only when both agree.
+ *
+ * Long Form dura mucho más que un Reel (un documental de 3-15 min puede
+ * tardar decenas de minutos en producirse) — con el umbral fijo de 15 min
+ * se ofrecía "Reintentar" a una producción que seguía trabajando, y un
+ * segundo intento en paralelo habría repetido gasto. Para Long Form solo
+ * cuenta como colgado si el worker dejó de latir (sin actualizaciones de
+ * progreso) durante LONG_FORM_HEARTBEAT_STALE_MS.
+ */
 export function isRenderStale(row: RenderStartRow, nowMs: number): boolean {
   const timestamp = row.render_started_at ?? row.created_at;
   if (row.status !== "processing" || !timestamp) return false;
   const startedAt = Date.parse(timestamp);
-  return Number.isFinite(startedAt) && nowMs - startedAt > RENDER_TIMEOUT_MS;
+  if (!Number.isFinite(startedAt)) return false;
+  if (row.mode === "long_form") {
+    const lastSignal = Math.max(startedAt, heartbeatOf(row.long_form_progress) ?? startedAt);
+    return nowMs - lastSignal > LONG_FORM_HEARTBEAT_STALE_MS;
+  }
+  return nowMs - startedAt > RENDER_TIMEOUT_MS;
 }

@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui/Card";
 import { LONG_FORM_STAGES, LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
 import {
+  VISIBLE_PROGRESS_STAGES,
   computeProductionProgress,
   estimateRemainingRangeSeconds,
   formatRemainingRange,
@@ -9,55 +10,66 @@ import {
 } from "@/lib/video/long-form/progress";
 
 /**
- * RC mission "LONG FORM RC FINAL HARDENING" (secciones 22-34) — reemplaza
- * la tarjeta genérica "Preparando tu video..." (que en producción se
- * quedó fija >15 minutos sin más información, ver diagnóstico de la
- * solicitud de Panamá) por progreso REAL derivado de long_form_stage +
- * long_form_progress. Nunca inventa un porcentaje: si la fila no tiene
- * long_form_progress todavía (fila anterior a esta migración, o apenas
- * empezando), unitsTotal queda en 0 y computeProductionProgress()
- * devuelve el INICIO del rango de la etapa actual — un número real
- * (basado en la etapa), nunca una cuenta regresiva ni un 0% falso para un
- * trabajo que sí está avanzando.
+ * Progreso REAL de una producción Long Form, reconstruido 100% desde la
+ * base de datos (long_form_stage + long_form_progress) — un refresh, otro
+ * dispositivo o volver desde Historial muestran exactamente lo mismo.
+ * Sin long_form_progress (fila anterior a la migración 0019 o recién
+ * encolada) se muestra solo la etapa real: nunca un porcentaje inventado.
+ * Solo se renderiza mientras status === "processing": nunca muestra 100%
+ * (eso lo muestra el estado "completed") ni un fallo (lo muestra "failed").
  */
 export function ProductionProgressCard({
   longFormStage,
   longFormProgress,
+  nowMs,
 }: {
   longFormStage: string | null;
   longFormProgress: unknown;
+  /** Reloj inyectado por el caller (Server Component) — nunca Date.now() dentro del render. */
+  nowMs: number;
 }) {
-  const stage: ProgressStageKey = (longFormStage as LongFormStage | null) ?? "queued";
-  const progress = isLongFormProgress(longFormProgress) ? longFormProgress : null;
+  const stage: ProgressStageKey =
+    longFormStage && (LONG_FORM_STAGES as readonly string[]).includes(longFormStage) ? (longFormStage as LongFormStage) : "queued";
+  const progress = isLongFormProgress(longFormProgress) && longFormProgress.stage === stage ? longFormProgress : null;
   const unitsCompleted = progress?.unitsCompleted ?? 0;
   const unitsTotal = progress?.unitsTotal ?? 0;
+  const hasEvidence = progress !== null || stage !== "queued";
   const percent = computeProductionProgress({ stage, unitsCompleted, unitsTotal });
-  const etaRange = estimateRemainingRangeSeconds({ stage, unitsCompleted, unitsTotal });
-  const etaText = formatRemainingRange(etaRange);
+  const eta = formatRemainingRange(
+    progress ? estimateRemainingRangeSeconds({ ...progress, stage }, nowMs) : null,
+  );
+  const currentIndex = VISIBLE_PROGRESS_STAGES.indexOf(stage as LongFormStage);
 
   return (
-    <Card className="p-6 text-center">
+    <Card className="p-5 sm:p-6">
       <p className="font-medium text-ink">
-        {LONG_FORM_STAGE_LABEL[stage as LongFormStage] ?? "Preparando tu documental"}…
+        {stage === "queued" ? "En cola — el trabajo empezará en unos instantes" : `${LONG_FORM_STAGE_LABEL[stage as LongFormStage]}…`}
       </p>
       {progress && unitsTotal > 0 && (
         <p className="mt-1 text-sm text-ink-muted">
-          {progress.unitLabel}: {unitsCompleted}/{unitsTotal}
+          {unitsCompleted}/{unitsTotal} {progress.unitLabel}
         </p>
       )}
 
-      <div className="mt-4">
-        <div className="h-2 w-full overflow-hidden rounded-full bg-surface-raised" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
-          <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${percent}%` }} />
+      {hasEvidence && (
+        <div className="mt-4">
+          <div
+            className="h-2 w-full overflow-hidden rounded-full bg-surface-raised"
+            role="progressbar"
+            aria-label="Progreso de la producción"
+            aria-valuenow={percent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div className="h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${percent}%` }} />
+          </div>
+          <p className="mt-1.5 text-xs text-ink-faint">{percent}%</p>
         </div>
-        <p className="mt-1.5 text-xs text-ink-faint">{percent}%</p>
-      </div>
+      )}
 
-      <ul className="mt-5 flex flex-col items-start gap-1.5 text-left text-sm">
-        {LONG_FORM_STAGES.map((s) => {
-          const stageIndex = LONG_FORM_STAGES.indexOf(s);
-          const currentIndex = LONG_FORM_STAGES.indexOf(stage as LongFormStage);
-          const done = currentIndex !== -1 && stageIndex < currentIndex;
+      <ul className="mt-5 flex flex-col gap-1.5 text-sm">
+        {VISIBLE_PROGRESS_STAGES.map((s, i) => {
+          const done = currentIndex !== -1 && i < currentIndex;
           const active = s === stage;
           return (
             <li key={s} className="flex items-center gap-2">
@@ -70,9 +82,9 @@ export function ProductionProgressCard({
         })}
       </ul>
 
-      <p className="mt-5 text-sm text-ink-muted">{etaText}</p>
+      <p className="mt-5 text-sm text-ink-muted">{eta}</p>
       <p className="mt-1 text-xs text-ink-faint">
-        Puedes cerrar esta página — el progreso se guarda y lo verás reflejado aquí al volver.
+        Puedes cerrar esta página — el progreso se guarda y lo verás aquí o en tu historial al volver.
       </p>
     </Card>
   );

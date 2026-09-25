@@ -11,8 +11,8 @@ export type LongFormStage = (typeof LONG_FORM_STAGES)[number];
 
 export const LONG_FORM_STAGE_LABEL: Record<LongFormStage, string> = {
   scripting: "Preparando el guion",
-  storyboard: "Sintetizando narración y calculando los planos",
-  assets: "Resolviendo imágenes y video por plano",
-  ai_video: "Generando clips con IA (Veo)",
-  rendering: "Ensamblando el documental",
+  storyboard: "Narrando el guion",
+  assets: "Preparando imágenes y video por escena",
+  ai_video: "Generando clips con IA",
+  rendering: "Renderizando el documental",
 };

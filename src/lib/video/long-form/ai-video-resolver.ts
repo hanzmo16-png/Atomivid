@@ -83,6 +83,13 @@ export type ResolveAiVideoForShotParams = {
   contextNotes?: string[];
   negativeSignals?: string[];
   metadata?: Record<string, string>;
+  /**
+   * Segundos FACTURADOS por el proveedor para este clip cuando difieren de
+   * la duración en pantalla del shot (p. ej. Veo siempre genera 8s aunque
+   * el shot dure 5s) — el costo estimado, el tope por clip y el presupuesto
+   * se calculan sobre esto, nunca sobre la duración del shot.
+   */
+  billedDurationSec?: number;
 };
 
 /** Resuelve UN shot. Pura excepto por la única llamada real a `videoProvider.generateVideo()`. */
@@ -95,10 +102,15 @@ export async function resolveAiVideoForShot(params: ResolveAiVideoForShotParams)
     return { status: "skipped", shotId, reason: eligibility.reason, recommendedFallback: eligibility.recommendedAssetType };
   }
 
+  const estimatedCostUsd =
+    params.billedDurationSec !== undefined
+      ? Math.round(costConfig.aiVideoCostPerSecondUsd * params.billedDurationSec * 10000) / 10000
+      : eligibility.estimatedCostUsd;
+
   const budgetDecision = assertAiVideoBudget(
     params.ledger,
     params.shot.durationSec,
-    eligibility.estimatedCostUsd,
+    estimatedCostUsd,
     params.totalDocumentaryDurationSec,
     costConfig,
   );
@@ -123,7 +135,7 @@ export async function resolveAiVideoForShot(params: ResolveAiVideoForShotParams)
     referenceImageUrl: params.shot.referenceAsset,
     durationSeconds: params.shot.durationSec,
     aspectRatio: params.aspectRatio,
-    maxCostUsd: eligibility.estimatedCostUsd,
+    maxCostUsd: estimatedCostUsd,
     metadata: { shotId, ...params.metadata },
   });
 

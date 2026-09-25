@@ -425,6 +425,13 @@ export const veoVideoProvider: VideoProvider = {
     }
 
     const operationName = await submitGeneration({ ...request, durationSeconds });
+    try {
+      await request.onProviderJobAccepted?.(operationName);
+    } catch (err) {
+      // La operación ya existe y ya se factura: abandonarla por un fallo al
+      // persistir su id costaría más que continuar el sondeo.
+      console.warn("[atomivid:veo] no se pudo persistir el providerJobId, se continúa el sondeo:", err instanceof Error ? err.message : err);
+    }
     return finishGeneration(operationName, durationSeconds, estimatedCost);
   },
   /**

@@ -9,10 +9,10 @@ import type { FootageCandidate, FootageProvider } from "../types";
 
 export const realFootageProvider: FootageProvider = {
   name: "pexels-video-first",
-  async fetchFootage(query, minimumDurationSeconds) {
+  async fetchFootage(query, minimumDurationSeconds, orientation = "portrait") {
     // Si el catálogo de video falla temporalmente, una fotografía sigue
     // permitiendo terminar el reel en vez de perder todo el render.
-    const video = await fetchSceneVideo(query, minimumDurationSeconds).catch((error) => {
+    const video = await fetchSceneVideo(query, minimumDurationSeconds, orientation).catch((error) => {
       console.warn(`Pexels Videos falló para "${query}"; se usará una foto:`, error);
       return null;
     });
@@ -25,7 +25,7 @@ export const realFootageProvider: FootageProvider = {
       };
     }
 
-    const result = await fetchSceneImage(query);
+    const result = await fetchSceneImage(query, orientation);
     return {
       ...result,
       mediaType: "image" as const,
@@ -34,8 +34,8 @@ export const realFootageProvider: FootageProvider = {
     };
   },
   downloadFootage: downloadImage,
-  async searchVideoCandidates(query, minimumDurationSeconds): Promise<FootageCandidate[]> {
-    const raw = await searchSceneVideos(query, minimumDurationSeconds);
+  async searchVideoCandidates(query, minimumDurationSeconds, orientation = "portrait"): Promise<FootageCandidate[]> {
+    const raw = await searchSceneVideos(query, minimumDurationSeconds, orientation);
     return raw.map((c) => ({
       url: c.url,
       sourceId: c.sourceId,
@@ -48,8 +48,8 @@ export const realFootageProvider: FootageProvider = {
       extension: "mp4",
     }));
   },
-  async searchImageCandidates(query): Promise<FootageCandidate[]> {
-    const raw = await searchScenePhotos(query);
+  async searchImageCandidates(query, orientation = "portrait"): Promise<FootageCandidate[]> {
+    const raw = await searchScenePhotos(query, orientation);
     return raw.map((c) => ({
       url: c.url,
       sourceId: c.sourceId,

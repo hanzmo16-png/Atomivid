@@ -64,12 +64,31 @@ const ClaimSchema = z.object({
   sourceIds: z.array(z.string()).describe("IDs de las fuentes del research pack que respaldan esta afirmación (vacío si support='unverified')."),
 });
 
+const VisualSchema = z.object({
+  description: z
+    .string()
+    .describe(
+      "EN INGLÉS, máximo ~15 palabras. Una escena concreta y filmable para este beat (sujeto + lugar + acción visible), apta para buscar " +
+        "video de archivo o generar una imagen documental — nunca texto en pantalla, logos ni personas reales identificables. " +
+        "Si hay acción, nómbrala con verbos concretos (p. ej. walking, building, digging, carrying, working, gathering, " +
+        "crowd, procession, construction, moving through); si es estática, descríbela como tal (ruins, map, portrait...).",
+    ),
+  motion: z
+    .boolean()
+    .describe("true SOLO si la escena depende de una acción/movimiento visible (gente trabajando, barcos cruzando, multitudes caminando) que una imagen fija perdería."),
+});
+
 const BeatSchema = z.object({
   type: z.enum(BEAT_TYPES),
   purpose: z.string().describe("Qué logra este beat en el arco narrativo."),
   narration: z.string().describe("Narración en voz alta de este beat — ~150-250 palabras."),
   claims: z.array(ClaimSchema).describe("Cada afirmación factual del beat, sin excepción — incluye las 'unverified'."),
   emotionalTone: z.string().optional(),
+  visuals: z
+    .array(VisualSchema)
+    .min(2)
+    .max(4)
+    .describe("2-4 escenas visuales distintas que ilustran este beat, en el orden en que se narran."),
 });
 
 const DocumentaryScriptSchema = z.object({
@@ -102,7 +121,7 @@ export async function generateDocumentaryScript(input: {
   mode: LongFormMode;
   language?: "es" | "en";
   targetDurationSeconds: number;
-}): Promise<Pick<NarrativeBeat, "type" | "purpose" | "narration" | "claims" | "emotionalTone">[]> {
+}): Promise<(Pick<NarrativeBeat, "type" | "purpose" | "narration" | "claims" | "emotionalTone"> & { visuals?: { description: string; motion: boolean }[] })[]> {
   if (input.researchPack.sources.length === 0) {
     throw new Error(
       "generateDocumentaryScript: el research pack no tiene fuentes. No se genera guion factual sin fuentes verificadas.",
