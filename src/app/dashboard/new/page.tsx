@@ -1,7 +1,6 @@
 import { createVideoRequest } from "./actions";
 import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
-import { NewVideoForm } from "./NewVideoForm";
 import { ContentTypeStep } from "./ContentTypeStep";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { createClient } from "@/lib/supabase/server";
@@ -56,15 +55,16 @@ export default async function NewVideoPage({
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <Card className="p-6">
           <ContentTypeStep
-            avatarAccess={privateAvatarAccess}
+            createVideoRequestAction={createVideoRequest}
+            avatarModeEnabled={flags.avatarModeEnabled && privateAvatarAccess}
+            existingAvatars={existingAvatars}
+            // La tarjeta "Video con avatar" solo debe ofrecerse cuando el
+            // toggle interno de NewVideoForm (avatarModeEnabled) de verdad
+            // va a aparecer al seleccionarla — nunca solo por tener acceso
+            // a la cuenta, si AVATAR_MODE_ENABLED está apagado el toggle no
+            // se renderiza y la tarjeta llevaría a un formulario sin avatar.
+            avatarAccess={flags.avatarModeEnabled && privateAvatarAccess}
             longFormAccess={longFormBetaAccess}
-            reelForm={
-              <NewVideoForm
-                action={createVideoRequest}
-                avatarModeEnabled={flags.avatarModeEnabled && privateAvatarAccess}
-                existingAvatars={existingAvatars}
-              />
-            }
           />
         </Card>
 

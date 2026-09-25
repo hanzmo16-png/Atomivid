@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState } from "react";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
+import { MAX_AVATAR_PHOTO_BYTES, MAX_RECORDING_BYTES } from "@/lib/video/avatar/recording";
 
 // Lista PROVISIONAL — no viene de GET /v3/voices de HeyGen (no se pudo
 // verificar sin cuenta real, ver docs/AVATAR_MODE.md). Se muestra como
@@ -11,7 +12,10 @@ const PROVISIONAL_VOICES: Record<"es" | "en", { id: string; label: string }[]> =
   en: [{ id: "default-en", label: "Default voice (English) — provisional" }],
 };
 
-const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
+// Debe coincidir con MAX_AVATAR_TTS_TEXT_LENGTH en dashboard/new/actions.ts
+// (la validación real, del lado del servidor) — este valor es solo para
+// el contador de caracteres en pantalla.
+const MAX_TTS_TEXT_LENGTH = 2000;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 // Estimación de referencia — misma tarifa de referencia que
@@ -57,8 +61,8 @@ export function AvatarFields({
       e.target.value = "";
       return;
     }
-    if (file.size > MAX_PHOTO_BYTES) {
-      setFileError(`El archivo pesa demasiado (máximo ${Math.round(MAX_PHOTO_BYTES / 1024 / 1024)} MB).`);
+    if (file.size > MAX_AVATAR_PHOTO_BYTES) {
+      setFileError(`El archivo pesa demasiado (máximo ${Math.round(MAX_AVATAR_PHOTO_BYTES / 1024 / 1024)} MB).`);
       e.target.value = "";
       return;
     }
@@ -93,7 +97,7 @@ export function AvatarFields({
 
       {!useExisting && (
         <>
-          <Field id={fileInputId} label="Fotografía" hint="JPEG, PNG o WEBP. Foto y audio: hasta 3 MB en total.">
+          <Field id={fileInputId} label="Fotografía" hint={`JPEG, PNG o WEBP. Hasta ${Math.round(MAX_AVATAR_PHOTO_BYTES / 1024 / 1024)} MB.`}>
             <input
               ref={fileRef}
               id={fileInputId}
@@ -132,15 +136,28 @@ export function AvatarFields({
         <select id="narration-source" name="narration_source" value={narrationSource}
           onChange={e => setNarrationSource(e.target.value)} className={INPUT_CLASS}>
           <option value="tts">Generar voz desde el guion</option>
-          <option value="recording">Usar mi grabación</option>
+          <option value="recording">Grabar o subir mi voz</option>
+          <option value="tts_text">Voz IA desde texto</option>
         </select>
       </Field>
       {narrationSource === "recording" && (
-        <Field id={audioInputId} label="Tu grabación" hint="M4A, MP3 o WAV. Foto y audio: máximo 3 MB en total. Se usará el audio completo; la duración elegida arriba no lo recorta.">
+        <Field
+          id={audioInputId}
+          label="Tu audio"
+          hint={`M4A, MP3 o WAV, hasta ${Math.round(MAX_RECORDING_BYTES / 1024 / 1024)} MB. En el móvil, tocar este campo también ofrece grabar directamente.`}
+        >
+          {/* Sin `capture`: en Android/iOS, un <input type=file accept=
+             "audio/*"> ya ofrece "Grabar audio" Y "Elegir archivo" como
+             opciones del mismo picker nativo (confirmado en QA real,
+             2026-09-25) — `capture` forzaría solo grabar, quitando la
+             opción de subir un archivo ya existente. Sin infraestructura
+             nueva de grabación: el picker nativo del sistema ya cubre
+             ambos casos con este único input. */}
           <input id={audioInputId} name="recorded_audio" type="file" required accept="audio/mp4,audio/x-m4a,audio/mpeg,audio/wav,.m4a,.mp3,.wav" className={INPUT_CLASS} />
           <p className="mt-2 text-xs text-ink-muted">No se generará otra voz. Revisaremos la duración del archivo antes de solicitar el video.</p>
         </Field>
       )}
+      {narrationSource === "tts_text" && <TtsTextField />}
       {narrationSource === "tts" && <Field
         id="avatar-voice"
         label="Voz"
@@ -186,5 +203,44 @@ export function AvatarFields({
         </label>
       </div>
     </div>
+  );
+}
+
+/**
+ * Tercera fuente de audio ("Voz IA desde texto") — reutiliza el mismo
+ * provider ElevenLabs ya usado por Reel para narración (ver
+ * dashboard/new/actions.ts, rama narrationSource==="tts_text"), nunca un
+ * pipeline TTS paralelo. Sin preview en el cliente: la síntesis real
+ * ocurre en el servidor al enviar el formulario (cuesta dinero real, así
+ * que nunca se dispara desde el navegador antes de eso). La selección de
+ * voz de ElevenLabs no está parametrizada todavía en
+ * VoiceProvider.synthesize() (ver src/lib/providers/types.ts) — se deja
+ * fuera de este campo en vez de prometer una opción que no hace nada
+ * (misma disciplina que "Lista provisional" para la voz de HeyGen).
+ */
+function TtsTextField() {
+  const id = useId();
+  const [text, setText] = useState("");
+  return (
+    <Field
+      id={id}
+      label="Texto a narrar"
+      hint={`Se generará la voz con IA a partir de este texto. ${MAX_TTS_TEXT_LENGTH} caracteres como máximo.`}
+    >
+      <textarea
+        id={id}
+        name="avatar_tts_text"
+        required
+        rows={5}
+        maxLength={MAX_TTS_TEXT_LENGTH}
+        className={INPUT_CLASS}
+        placeholder="Escribe o pega aquí el texto que quieres que narre tu avatar…"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <p className="mt-1 text-right text-xs text-ink-muted">
+        {text.length} / {MAX_TTS_TEXT_LENGTH}
+      </p>
+    </Field>
   );
 }

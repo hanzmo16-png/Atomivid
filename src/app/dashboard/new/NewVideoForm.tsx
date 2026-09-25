@@ -34,12 +34,15 @@ export function NewVideoForm({
   action,
   avatarModeEnabled,
   existingAvatars,
+  initialMode = "visual",
 }: {
   action: (formData: FormData) => void;
   avatarModeEnabled: boolean;
   existingAvatars: { id: string; name: string }[];
+  /** Preselecciona "Video con avatar" cuando se llega desde ese tipo en el selector "¿Qué quieres crear?" (ContentTypeStep) — solo tiene efecto si avatarModeEnabled también es true. */
+  initialMode?: VideoMode;
 }) {
-  const [mode, setMode] = useState<VideoMode>("visual");
+  const [mode, setMode] = useState<VideoMode>(avatarModeEnabled ? initialMode : "visual");
   const [language, setLanguage] = useState<"es" | "en">("es");
   const [duration, setDuration] = useState(30);
 

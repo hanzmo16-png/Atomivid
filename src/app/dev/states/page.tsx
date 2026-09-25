@@ -6,7 +6,6 @@ import { Card } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 import { Onboarding } from "@/components/onboarding/Onboarding";
 import { ContentTypeStep } from "@/app/dashboard/new/ContentTypeStep";
-import { NewVideoForm } from "@/app/dashboard/new/NewVideoForm";
 import { noopAction } from "./noop-action";
 import type { VideoRequestSummary } from "@/lib/video/request-view";
 
@@ -125,11 +124,11 @@ export default function DevStatesPage() {
       <Section title="Selector 'Nuevo video' — con acceso a Avatar y Long Form (cuenta beta)">
         <Card className="p-6">
           <ContentTypeStep
+            createVideoRequestAction={noopAction}
+            avatarModeEnabled
+            existingAvatars={[]}
             avatarAccess
             longFormAccess
-            reelForm={
-              <NewVideoForm action={noopAction} avatarModeEnabled={false} existingAvatars={[]} />
-            }
           />
         </Card>
       </Section>
@@ -137,11 +136,11 @@ export default function DevStatesPage() {
       <Section title="Selector 'Nuevo video' — cuenta normal (sin Avatar/Long Form): va directo al formulario">
         <Card className="p-6">
           <ContentTypeStep
+            createVideoRequestAction={noopAction}
+            avatarModeEnabled={false}
+            existingAvatars={[]}
             avatarAccess={false}
             longFormAccess={false}
-            reelForm={
-              <NewVideoForm action={noopAction} avatarModeEnabled={false} existingAvatars={[]} />
-            }
           />
         </Card>
       </Section>

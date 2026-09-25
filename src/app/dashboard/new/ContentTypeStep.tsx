@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { NewVideoForm } from "./NewVideoForm";
 
 type ContentType = "reel" | "avatar" | "long_form";
 
@@ -52,36 +53,50 @@ function DocumentaryIcon() {
 }
 
 /**
- * Selector inicial "¿Qué quieres crear?" (RC QA polish, prioridad #2A).
- * NO duplica ningún formulario ni lógica: Reel revela el mismo
- * <NewVideoForm> que ya existía (pasado como children/prop desde
- * page.tsx, sin cambios), y Avatar/Documental navegan exactamente a las
- * mismas rutas (/dashboard/avatar/prepare, /dashboard/long-form/new) que
- * ya existían como LinkButton antes de este cambio — solo cambia cómo se
- * presentan (tarjetas parejas, sin solaparse en móvil) y que Reel ahora
- * también es una opción explícita del mismo selector, en vez de
- * mostrarse siempre por defecto debajo de unos botones descolgados.
+ * Selector inicial "¿Qué quieres crear?" (RC QA polish, prioridad #2A;
+ * extendido en RC mission Avatar 2026-09-25). NO duplica ningún
+ * formulario ni lógica: Reel Y Avatar revelan el MISMO <NewVideoForm> que
+ * ya existía — Avatar solo le pasa initialMode="avatar" para preseleccionar
+ * el toggle "Video con avatar" que ya vivía DENTRO de NewVideoForm, en vez
+ * de navegar a /dashboard/avatar/prepare (la prueba privada legacy de
+ * D-ID, con copy "no genera video", "créditos D-ID", "autorización
+ * manual" — ya no forma parte del flujo normal; blocker real de QA
+ * reportado 2026-09-25). Documental navega a /dashboard/long-form/new, la
+ * misma ruta de siempre, sin cambios.
  *
  * Si el usuario no tiene acceso ni a Avatar ni a Long Form (caso normal,
  * no-beta), no hay nada que elegir: se renderiza el formulario de Reel
  * directamente, exactamente igual que antes de este cambio.
  */
 export function ContentTypeStep({
-  reelForm,
+  createVideoRequestAction,
+  avatarModeEnabled,
+  existingAvatars,
   avatarAccess,
   longFormAccess,
 }: {
-  reelForm: ReactNode;
+  createVideoRequestAction: (formData: FormData) => void;
+  avatarModeEnabled: boolean;
+  existingAvatars: { id: string; name: string }[];
   avatarAccess: boolean;
   longFormAccess: boolean;
 }) {
   const [selected, setSelected] = useState<ContentType | null>(null);
 
+  const renderForm = (mode: "reel" | "avatar") => (
+    <NewVideoForm
+      action={createVideoRequestAction}
+      avatarModeEnabled={avatarModeEnabled}
+      existingAvatars={existingAvatars}
+      initialMode={mode === "avatar" ? "avatar" : "visual"}
+    />
+  );
+
   if (!avatarAccess && !longFormAccess) {
-    return <>{reelForm}</>;
+    return renderForm("reel");
   }
 
-  if (selected === "reel") {
+  if (selected === "reel" || selected === "avatar") {
     return (
       <div>
         <button
@@ -98,7 +113,7 @@ export function ContentTypeStep({
           </svg>
           Elegir otro tipo de contenido
         </button>
-        {reelForm}
+        {renderForm(selected)}
       </div>
     );
   }
@@ -115,9 +130,8 @@ export function ContentTypeStep({
           {
             type: "avatar" as const,
             title: "Video con avatar",
-            description: "Un presentador con IA narra tu guion. No consume créditos al preparar.",
+            description: "Un presentador con IA narra tu guion.",
             icon: <AvatarIcon />,
-            href: "/dashboard/avatar/prepare",
           },
         ]
       : []),
