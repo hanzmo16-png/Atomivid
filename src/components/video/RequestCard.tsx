@@ -87,14 +87,25 @@ export function RequestCard({
               redirectTo={`/dashboard/review/${request.id}`}
             />
           )}
-          {request.status === "script_ready" && (
-            <Link
-              href={`/dashboard/review/${request.id}`}
-              className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover"
-            >
-              Revisar guion
-            </Link>
-          )}
+          {request.status === "script_ready" &&
+            (isLongForm ? (
+              // Long Form no tiene todavía una pantalla de revisión del
+              // guion por beats (ver RC mission Fase 4) — el guion ya se
+              // generó con fuentes verificadas al crear la solicitud, así
+              // que aquí solo dispara el render, igual que "Reintentar".
+              <GenerateButton
+                endpoint={`/api/generate/${request.id}/render`}
+                label="Generar video"
+                redirectTo={`/dashboard/videos/${request.id}`}
+              />
+            ) : (
+              <Link
+                href={`/dashboard/review/${request.id}`}
+                className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover"
+              >
+                Revisar guion
+              </Link>
+            ))}
           {request.status === "processing" && isStaleProcessing && canRetry && (
             <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Reintentar" />
           )}
