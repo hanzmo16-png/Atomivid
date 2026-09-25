@@ -14,7 +14,12 @@ export function getAvatarProvider(): AvatarVideoProvider {
   if (flags.avatarProvider === "did" && didAvatarProvider.isAvailable()) {
     return didAvatarProvider;
   }
-  requireRealProvider("avatar", false);
+  // El AVATAR_PROVIDER configurado decide qué variable falta de verdad —
+  // nunca se adivina, nunca se muestra al usuario (ver ProviderConfigurationError),
+  // solo queda disponible server-side para correlacionar con el diagnosticId.
+  const missingEnvVars =
+    flags.avatarProvider === "did" ? ["DID_API_KEY"] : flags.avatarProvider === "heygen" ? ["HEYGEN_API_KEY"] : [];
+  requireRealProvider("avatar", false, missingEnvVars);
   return fixtureAvatarProvider;
 }
 

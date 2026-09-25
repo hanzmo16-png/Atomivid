@@ -11,6 +11,7 @@ import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { attemptState } from "./attempt-state";
 import type { RenderStage } from "./stages";
 import { generateDiagnosticId } from "./render-error";
+import { ProviderConfigurationError } from "@/lib/providers/production";
 
 type JobRow = {
   status: string;
@@ -156,6 +157,18 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
     const diagnosticId = generateDiagnosticId();
     const rawMessage = error instanceof Error ? error.message : "Error desconocido";
     const message = `${rawMessage} (Código: ${diagnosticId})`;
+
+    // QA real (2026-09-25, "HEYGEN PROVIDER CONFIG INCOMPLETE"): el
+    // mensaje genérico de ProviderConfigurationError nunca dice qué
+    // variable falta (a propósito, nunca llega al usuario) — sin esto, ni
+    // siquiera soporte podía saber si faltaba HEYGEN_API_KEY, DID_API_KEY,
+    // etc. sin adivinar. Se registra SOLO el/los nombres (nunca valores),
+    // correlacionado con el mismo diagnosticId ya añadido a error_message.
+    if (error instanceof ProviderConfigurationError && error.missingEnvVars.length > 0) {
+      console.error(
+        `[atomivid:provider-config] (Código: ${diagnosticId}) variables faltantes: ${error.missingEnvVars.join(", ")}`,
+      );
+    }
 
     await update({ status: "failed", error_message: message, progress_stage: null, long_form_stage: null });
 

@@ -109,6 +109,21 @@ async function main() {
     }
   }
 
+  // Comprobación de configuración (QA real, 2026-09-25: "HEYGEN PROVIDER
+  // CONFIG INCOMPLETE") — SOLO booleanos/nombres, nunca valores ni
+  // llamadas de red. Dice exactamente qué falta EN ESTE RUNNER (el mismo
+  // entorno donde corre generateAvatarVideo() de verdad, vía render.yml)
+  // sin adivinar y sin exponer ningún secreto.
+  const { getFeatureFlags } = await import("../src/lib/video/feature-flags");
+  const { heygenAvatarProvider } = await import("../src/lib/providers/avatar/heygen");
+  const { didAvatarProvider } = await import("../src/lib/providers/avatar/did");
+  const flags = getFeatureFlags();
+  const providerConfig = {
+    avatar_provider_flag: flags.avatarProvider,
+    heygen_api_key_present: heygenAvatarProvider.isAvailable(),
+    did_api_key_present: didAvatarProvider.isAvailable(),
+  };
+
   console.log(
     JSON.stringify(
       {
@@ -117,6 +132,7 @@ async function main() {
         avatar: avatarRow,
         user_avatars: allAvatars ?? [],
         generation_costs: costRow ?? null,
+        provider_config: providerConfig,
         heygen_status_check: {
           attempted: Boolean(row.avatar_provider_video_job_id),
           status: heygenStatus,

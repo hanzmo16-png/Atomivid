@@ -35,3 +35,32 @@ test("run-job.ts: el catch final añade un código de diagnóstico a error_messa
     'error_message debe llevar el sufijo "(Código: XXXXXXXX)" para que renderFailureMessage() lo muestre tal cual, sin degradarlo al genérico',
   );
 });
+
+/**
+ * Regresión del QA real (2026-09-25, "HEYGEN PROVIDER CONFIG INCOMPLETE"):
+ * ProviderConfigurationError nunca nombra la variable que falta en su
+ * .message (a propósito — nunca debe llegar al usuario), así que sin este
+ * log soporte no podía saber si faltaba HEYGEN_API_KEY, DID_API_KEY, etc.
+ * sin adivinar. Se fija aquí, por contenido de la fuente (mismo motivo
+ * estructural que la prueba anterior), que el catch registra los nombres
+ * de las variables faltantes correlacionados con el mismo diagnosticId, y
+ * nunca sus valores.
+ */
+test("run-job.ts: el catch final registra las variables de entorno faltantes de ProviderConfigurationError junto al mismo diagnosticId", () => {
+  const source = fs.readFileSync(RUN_JOB_PATH, "utf-8");
+  assert.match(
+    source,
+    /import\s*\{\s*ProviderConfigurationError\s*\}\s*from\s*"@\/lib\/providers\/production"/,
+    "debe importar ProviderConfigurationError para poder distinguirlo de cualquier otro error",
+  );
+  assert.match(
+    source,
+    /error instanceof ProviderConfigurationError && error\.missingEnvVars\.length > 0/,
+    "debe comprobar específicamente ProviderConfigurationError.missingEnvVars antes de registrar nada",
+  );
+  assert.match(
+    source,
+    /variables faltantes: \$\{error\.missingEnvVars\.join\(", "\)\}/,
+    "debe registrar los NOMBRES de las variables faltantes (nunca sus valores) correlacionados con el diagnosticId",
+  );
+});
