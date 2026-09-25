@@ -27,9 +27,18 @@ export default async function NewVideoPage({
   const { data: { user } } = await auth.auth.getUser();
   const privateAvatarAccess = canPrepareAvatar(user);
   const longFormBetaAccess = canAccessLongFormBeta(user);
+  // AVATAR_MODE_ENABLED es el interruptor GLOBAL de rollout (apagado en
+  // producción a la fecha de este comentario — QA blocker real 2026-09-25:
+  // la tarjeta "Video con avatar" desapareció del selector porque este
+  // valor dependía de ESE flag Y del acceso privado a la vez). La cuenta
+  // beta (canPrepareAvatar) debe poder ver y usar el modo avatar aunque el
+  // flag global siga apagado — igual que la prueba D-ID legacy nunca
+  // dependió de ese flag. Cuando AVATAR_MODE_ENABLED se encienda para
+  // todos, esta misma expresión sigue siendo true para cualquier cuenta.
+  const avatarModeUiEnabled = flags.avatarModeEnabled || privateAvatarAccess;
 
   let existingAvatars: { id: string; name: string }[] = [];
-  if (flags.avatarModeEnabled && privateAvatarAccess) {
+  if (privateAvatarAccess) {
     const supabase = await createClient();
     const { data } = await supabase
       .from("avatars")
@@ -56,14 +65,15 @@ export default async function NewVideoPage({
         <Card className="p-6">
           <ContentTypeStep
             createVideoRequestAction={createVideoRequest}
-            avatarModeEnabled={flags.avatarModeEnabled && privateAvatarAccess}
+            avatarModeEnabled={avatarModeUiEnabled}
             existingAvatars={existingAvatars}
-            // La tarjeta "Video con avatar" solo debe ofrecerse cuando el
-            // toggle interno de NewVideoForm (avatarModeEnabled) de verdad
-            // va a aparecer al seleccionarla — nunca solo por tener acceso
-            // a la cuenta, si AVATAR_MODE_ENABLED está apagado el toggle no
-            // se renderiza y la tarjeta llevaría a un formulario sin avatar.
-            avatarAccess={flags.avatarModeEnabled && privateAvatarAccess}
+            // La tarjeta "Video con avatar" se ofrece a la cuenta beta
+            // (privateAvatarAccess) sola — igual que siempre funcionó para
+            // la prueba D-ID legacy — y avatarModeUiEnabled (arriba)
+            // garantiza que, al abrirla, el toggle interno de NewVideoForm
+            // SIEMPRE se renderiza para esa misma cuenta, sin depender del
+            // flag global AVATAR_MODE_ENABLED.
+            avatarAccess={privateAvatarAccess}
             longFormAccess={longFormBetaAccess}
           />
         </Card>

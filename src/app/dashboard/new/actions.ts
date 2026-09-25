@@ -44,17 +44,6 @@ export async function createVideoRequest(formData: FormData) {
     redirect(`/dashboard/new?error=${encodeURIComponent(commonError)}`);
   }
 
-  // Nunca confiar en el <select>/radio del cliente para decidir si el modo
-  // avatar está disponible — se re-verifica el flag en el servidor. Un
-  // POST manual con mode=avatar mientras el flag está apagado se trata
-  // igual que un modo inválido.
-  const flags = getFeatureFlags();
-  const modeResult = resolveMode(rawMode, flags.avatarModeEnabled);
-  if (!modeResult.ok) {
-    redirect(`/dashboard/new?error=${encodeURIComponent(modeResult.error)}`);
-  }
-  const mode = modeResult.mode;
-
   const supabase = await createClient();
   const {
     data: { user },
@@ -63,6 +52,25 @@ export async function createVideoRequest(formData: FormData) {
   if (!user) {
     redirect("/login");
   }
+
+  // Nunca confiar en el <select>/radio del cliente para decidir si el modo
+  // avatar está disponible — se re-verifica en el servidor. AVATAR_MODE_ENABLED
+  // es el interruptor GLOBAL de rollout (apagado en producción a la fecha de
+  // este comentario); canPrepareAvatar(user) es la cuenta beta privada — igual
+  // que la prueba D-ID legacy, esa cuenta nunca dependió de ese flag global
+  // para poder probar el modo avatar. Blocker real de QA (2026-09-25): con
+  // AVATAR_MODE_ENABLED apagado, esta cuenta se quedó sin poder enviar
+  // mode=avatar aunque sí tuviera acceso privado — un POST manual de
+  // cualquier otra cuenta con mode=avatar se sigue tratando como modo
+  // inválido exactamente igual que antes.
+  const flags = getFeatureFlags();
+  const avatarModeUiEnabled = flags.avatarModeEnabled || canPrepareAvatar(user);
+  const modeResult = resolveMode(rawMode, avatarModeUiEnabled);
+  if (!modeResult.ok) {
+    redirect(`/dashboard/new?error=${encodeURIComponent(modeResult.error)}`);
+  }
+  const mode = modeResult.mode;
+
   if (mode === "avatar" && !canPrepareAvatar(user)) {
     redirect("/dashboard/new?error=Esta+prueba+privada+no+está+disponible+para+tu+cuenta");
   }
