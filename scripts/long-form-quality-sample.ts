@@ -290,6 +290,19 @@ async function main() {
   console.log(`@@BLACK ${JSON.stringify(blackRuns)}`);
   const finalLoudness = await measureLoudness(mastered);
   console.log(`@@LOUDNESS ${JSON.stringify(finalLoudness)}`);
+  // Perfil de la mezcla (sin escucha): sonoridad momentánea cada 0.5 s y nivel en los silencios de
+  // narración (ahí solo suena la música) — detecta saltos en los cambios de pista y huecos sin sonido.
+  const eb = await run("ffmpeg", ["-v", "info", "-i", mastered, "-af", "ebur128=framelog=verbose", "-f", "null", "-"]).catch((e) => String(e));
+  const frames = [...eb.matchAll(/t:\s*([\d.]+)\s+TARGET:[^M]*M:\s*(-?[\d.]+|-inf)/g)].map((m) => [Number(m[1]), m[2] === "-inf" ? -120 : Number(m[2])] as [number, number]);
+  const profile = frames.filter(([t]) => Math.abs(t * 2 - Math.round(t * 2)) < 0.051).map(([t, m]) => [+t.toFixed(1), m]);
+  console.log(`@@MIXPROFILE ${JSON.stringify(profile)}`);
+  const gapLevels = narrationGaps
+    .filter((g) => g.endSeconds <= windowSec)
+    .map((g) => {
+      const inside = frames.filter(([t]) => t >= g.startSeconds + 0.4 && t <= g.endSeconds);
+      return { ...g, momentaryLufs: inside.length ? +(inside.reduce((a, [, m]) => a + m, 0) / inside.length).toFixed(1) : null };
+    });
+  console.log(`@@GAPLEVELS ${JSON.stringify(gapLevels)}`);
   // Nivel del bus sin voz no se puede aislar tras la mezcla: se mide el nivel por ventana para detectar saltos.
   const tiles: { image: Buffer; label: string }[] = [];
   for (const [i, scene] of scenes.entries()) {

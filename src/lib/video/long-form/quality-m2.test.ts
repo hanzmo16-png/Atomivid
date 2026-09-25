@@ -136,3 +136,12 @@ test("subtítulos por escena: ninguno cruza un corte", async () => {
   for (const c of caps) assert.ok(scenes.some((s) => c.startSeconds >= s.startSeconds && c.endSeconds <= s.endSeconds), c.text);
   assert.deepEqual(caps.map((c) => c.text), ["Imagina cavar,", "rodeado de mosquitos."]);
 });
+
+test("subtítulos equilibrados: sin palabras huérfanas dentro de la escena", async () => {
+  const { balancedGroups } = await import("./scene-captions");
+  const t = (text: string, i: number) => ({ text, startSeconds: i, endSeconds: i + 0.5 });
+  const scene = "otro país terminó lo que Francia no pudo.".split(" ").map(t);
+  const groups = balancedGroups(scene);
+  assert.equal(groups.length, 2);
+  assert.ok(groups.every((g) => g.length >= 3), groups.map((g) => g.map((w) => w.text).join(" ")).join(" | "));
+});
