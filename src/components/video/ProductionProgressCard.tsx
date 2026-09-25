@@ -43,7 +43,7 @@ export function ProductionProgressCard({
   return (
     <Card className="p-5 sm:p-6">
       <p className="font-medium text-ink">
-        {stage === "queued" ? "En cola — el trabajo empezará en unos instantes" : `${LONG_FORM_STAGE_LABEL[stage as LongFormStage]}…`}
+        {stage === "queued" ? "En cola — esperando que comience la producción" : `${LONG_FORM_STAGE_LABEL[stage as LongFormStage]}…`}
       </p>
       {progress && unitsTotal > 0 && (
         <p className="mt-1 text-sm text-ink-muted">
@@ -63,7 +63,7 @@ export function ProductionProgressCard({
           >
             <div className="h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${percent}%` }} />
           </div>
-          <p className="mt-1.5 text-xs text-ink-faint">{percent}%</p>
+          <p className="mt-1.5 text-xs text-ink-faint">{percent}% · avance estimado por etapas</p>
         </div>
       )}
 

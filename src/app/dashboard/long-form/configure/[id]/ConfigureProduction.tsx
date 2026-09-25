@@ -9,17 +9,23 @@ import { classifyClientFetchError } from "@/lib/http/client-error";
 import {
   VISUAL_STRATEGIES,
   VISUAL_STRATEGY_LABEL,
-  VISUAL_STRATEGY_DESCRIPTION,
   type ProductionPlan,
   type VisualStrategy,
 } from "@/lib/video/long-form/production-plan-types";
 import { LONG_FORM_DURATION_TOLERANCE } from "@/lib/video/long-form/duration-budget";
 
+const STRATEGY_DESCRIPTION: Record<VisualStrategy, string> = {
+  economical: "Videos e imágenes de stock y tarjetas informativas. No incluye imágenes ni clips generados por IA.",
+  balanced: "Combina recursos de stock con imágenes generadas por IA. No incluye clips de video IA.",
+  cinematic: "Combina imágenes IA y clips de video IA según las cantidades del plan. No es un video generado íntegramente con IA.",
+};
+
 const USD = new Intl.NumberFormat("es-MX", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
+  const rounded = Math.max(0, Math.round(seconds));
+  const m = Math.floor(rounded / 60);
+  const s = rounded % 60;
   return m > 0 ? `${m} min ${s.toString().padStart(2, "0")} s` : `${s} s`;
 }
 
@@ -40,7 +46,7 @@ export function PlanSummary({ plan }: { plan: ProductionPlan }) {
         {plan.requestedDurationSeconds !== undefined && <Row label="Duración pedida" value={formatDuration(plan.requestedDurationSeconds)} />}
         <Row label="Duración estimada" value={`~${formatDuration(plan.durationSeconds)}`} />
         <Row label="Escenas" value={String(plan.shotCount)} />
-        <Row label="Video e imagen de archivo" value={String(plan.stockVideoCount + plan.stockImageCount)} />
+        <Row label="Video e imagen de stock" value={String(plan.stockVideoCount + plan.stockImageCount)} />
         <Row label="Imágenes generadas por IA" value={String(plan.aiImageCount)} />
         <Row label="Clips de video IA" value={String(plan.aiVideoClipCount)} />
         <Row label="Segundos de video IA" value={plan.aiVideoClipCount > 0 ? `${Math.round(plan.aiVideoSeconds)} s` : "0 s"} />
@@ -109,6 +115,7 @@ export function ConfigureProduction({ requestId, plans }: { requestId: string; p
 
   return (
     <div className="mt-6">
+      <p className="mb-4 text-sm text-ink-muted">Formato horizontal 16:9 · 1920 × 1080. Revisa el guion y la composición del plan antes de confirmar.</p>
       <fieldset className="grid gap-3" disabled={loading}>
         <legend className="mb-1 text-sm font-medium text-ink">Estrategia visual</legend>
         {VISUAL_STRATEGIES.map((option) => {
@@ -128,10 +135,10 @@ export function ConfigureProduction({ requestId, plans }: { requestId: string; p
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                      <p className="font-medium text-ink">{VISUAL_STRATEGY_LABEL[option]}</p>
+                      <p className="font-medium text-ink">{option === "cinematic" && plan.aiVideoClipCount === 0 ? "Cinemático · imágenes IA" : VISUAL_STRATEGY_LABEL[option]}</p>
                       <p className="text-sm tabular-nums text-ink-muted">~{USD.format(plan.estimatedProviderCostUsd)}</p>
                     </div>
-                    <p className="mt-0.5 text-sm text-ink-muted">{VISUAL_STRATEGY_DESCRIPTION[option]}</p>
+                    <p className="mt-0.5 text-sm text-ink-muted">{(option === "cinematic" && plan.aiVideoClipCount === 0 ? "Más imágenes generadas por IA con movimiento de cámara. Este plan no incluye clips de video generados por IA." : STRATEGY_DESCRIPTION[option])}</p>
                   </div>
                 </div>
               </Card>
@@ -149,7 +156,7 @@ export function ConfigureProduction({ requestId, plans }: { requestId: string; p
         <Button type="button" onClick={handleConfirm} loading={loading} className="w-full sm:w-auto">
           {loading ? "Confirmando…" : "Confirmar y generar video"}
         </Button>
-        <p className="text-xs text-ink-faint">Nada se genera ni se cobra hasta que confirmes.</p>
+        <p className="text-xs text-ink-faint">Al confirmar se inicia la producción audiovisual de este plan. El guion ya fue generado.</p>
         {error && (
           <p className="text-sm text-danger" role="alert">
             {error}

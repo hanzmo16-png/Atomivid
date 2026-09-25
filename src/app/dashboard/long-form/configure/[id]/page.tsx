@@ -35,7 +35,7 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/login");
+  if (!user) redirect(`/login?redirectedFrom=${encodeURIComponent(`/dashboard/long-form/configure/${id}`)}`);
   if (!canAccessLongFormBeta(user)) notFound();
 
   const { data } = await supabase

@@ -1,3 +1,5 @@
+import { VideoDelivery } from "./VideoDelivery";
+import { RefreshStatusButton } from "./RefreshStatusButton";
 import { isRenderStale } from "@/lib/video/render-guard";
 import { renderFailureMessage } from "@/lib/video/job-error";
 import Link from "next/link";
@@ -21,6 +23,7 @@ import { GenerateButton } from "@/app/dashboard/GenerateButton";
 export function RequestCard({
   request,
   videoUrl,
+  downloadUrl,
   /** Reloj usado para "¿lleva colgada demasiado tiempo?" — siempre lo pasa
    * el caller (Date.now() no puede ser un default aquí: es una llamada
    * impura evaluada en cada render). En producción el caller pasa la hora
@@ -29,6 +32,7 @@ export function RequestCard({
 }: {
   request: VideoRequestSummary;
   videoUrl?: string | null;
+  downloadUrl?: string | null;
   nowMs: number;
 }) {
   const isStaleProcessing = isRenderStale(request, nowMs);
@@ -41,7 +45,7 @@ export function RequestCard({
   const canRetry = !attemptsExhausted && request.mode !== "avatar" && !longFormUnconfirmed;
   const detailHref = `/dashboard/videos/${request.id}`;
   const isLongForm = request.mode === "long_form";
-  const isLandscape = request.aspect_ratio === "16:9";
+  const isLandscape = request.aspect_ratio === "16:9" || isLongForm;
   const stageLabel = isLongForm
     ? request.long_form_stage &&
       (LONG_FORM_STAGE_LABEL[request.long_form_stage as LongFormStage] ?? request.long_form_stage)
@@ -71,7 +75,7 @@ export function RequestCard({
             {(request.mode === "avatar" || isLongForm) && <ModeBadge mode={request.mode as "avatar" | "long_form"} />}
           </div>
           <p className="mt-1 text-sm text-ink-muted">
-            {request.style} · {request.duration_seconds}s ·{" "}
+            {request.style} · Duración solicitada: {request.duration_seconds}s ·{" "}
             {new Date(request.created_at).toLocaleString("es-MX")}
           </p>
           {request.status === "failed" && request.error_message && (
@@ -97,7 +101,7 @@ export function RequestCard({
               Esto está tardando más de lo normal.{" "}
               {request.mode === "avatar" ? "La prueba privada requiere revisión antes de otro intento." : attemptsExhausted
                 ? "Se alcanzó el máximo de intentos para este video."
-                : "El progreso quedó detenido. Puedes iniciar un nuevo intento desde aquí; no se reinicia automáticamente."}
+                : "No tenemos una actualización reciente. Actualiza el estado antes de decidir si necesitas otro intento."}
             </p>
           )}
         </div>
@@ -109,7 +113,9 @@ export function RequestCard({
 
           {request.status === "pending" && <GenerateButton {...pendingRequestCta(request.id)} />}
           {request.status === "script_ready" &&
-            (isLongForm ? (
+            (isLongForm && request.long_form_confirmed_at ? (
+              <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Iniciar producción confirmada" />
+            ) : isLongForm ? (
               // RC mission "LONG FORM RC FINAL HARDENING": ya no dispara el
               // render directo — primero pasa por "Configurar producción"
               // (estrategia visual + costo estimado + confirmación
@@ -135,6 +141,7 @@ export function RequestCard({
                 {request.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}
               </Link>
             ))}
+          {request.status === "processing" && isStaleProcessing && <RefreshStatusButton />}
           {request.status === "processing" && isStaleProcessing && canRetry && (
             <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Reintentar" />
           )}
@@ -145,7 +152,7 @@ export function RequestCard({
           )}
           {request.status === "failed" && Boolean(request.script_json) && attemptsExhausted && (
             <p className="max-w-[220px] text-left text-xs text-ink-faint sm:text-right">
-              Se alcanzó el máximo de intentos. Crea un video nuevo.
+              Se alcanzó el máximo de intentos. Conserva esta solicitud y contacta al soporte para revisar su recuperación.
             </p>
           )}
           {request.status === "failed" &&
@@ -166,28 +173,8 @@ export function RequestCard({
 
       {request.status === "completed" && videoUrl && (
         <div className="mt-4 flex flex-col items-start gap-3 border-t border-border pt-4 sm:flex-row sm:items-center">
-          <video
-            src={videoUrl}
-            controls
-            preload="metadata"
-            className={
-              isLandscape
-                ? "aspect-16/9 w-64 rounded-lg border border-border-strong bg-black shadow-md"
-                : "aspect-9/16 w-36 rounded-lg border border-border-strong bg-black shadow-md"
-            }
-          >
-            Tu navegador no puede reproducir este video.
-          </video>
+          <VideoDelivery key={videoUrl} videoUrl={videoUrl} downloadUrl={downloadUrl} landscape={isLandscape} compact />
           <div className="flex flex-col gap-2 sm:flex-row">
-            <a
-              href={videoUrl}
-              download
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border-strong px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-accent-border hover:bg-surface-raised"
-            >
-              Descargar video
-            </a>
             <Link
               href={detailHref}
               className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
@@ -199,7 +186,8 @@ export function RequestCard({
       )}
       {request.status === "completed" && !videoUrl && (
         <p className="mt-4 border-t border-border pt-4 text-sm text-danger">
-          No se pudo generar el enlace del video. Intenta recargar la página.
+          No se pudo generar el enlace del video. Actualiza los enlaces.
+          <RefreshStatusButton label="Actualizar enlaces" />
         </p>
       )}
     </Card>

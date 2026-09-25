@@ -62,8 +62,8 @@ export default async function NewLongFormVideoPage({
     <div className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-bold text-ink">Nuevo documental (beta)</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        Long Form/YouTube — video 1920×1080 con narración, imágenes/video de archivo y clips
-        generados con IA solo donde aportan valor. Función beta, visible únicamente para tu
+        Long Form/YouTube — video horizontal 1920×1080 con narración y recursos visuales.
+        Después del guion podrás revisar qué imágenes y clips de IA incluye cada plan. Función beta, visible únicamente para tu
         cuenta.
       </p>
 
@@ -90,7 +90,7 @@ export default async function NewLongFormVideoPage({
             />
           </Field>
 
-          <Field id="duration_minutes" label="Duración objetivo (minutos)" hint="Entre 3 y 15 minutos — 8-12 es lo recomendado.">
+          <Field id="duration_minutes" label="Duración objetivo (minutos)" hint="Entre 3 y 15 minutos. Para la primera prueba, elige 3 minutos; la duración y entrega se revisan en el plan.">
             <input
               id="duration_minutes"
               name="duration_minutes"

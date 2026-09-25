@@ -52,11 +52,13 @@ export default async function DashboardPage({
     (r) => r.status === "completed" && r.video_path,
   );
   const signedUrls = await Promise.all(
-    completedRequests.map((r) => getSignedVideoUrl(r.video_path!)),
+    completedRequests.map((r) => Promise.all([getSignedVideoUrl(r.video_path!), getSignedVideoUrl(r.video_path!, 3600, `atomivid-${r.id}.mp4`)])),
   );
   const videoUrlByPath = new Map(
-    completedRequests.map((r, i) => [r.video_path!, signedUrls[i]]),
+    completedRequests.map((r, i) => [r.video_path!, signedUrls[i][0]]),
   );
+
+  const downloadUrlByPath = new Map(completedRequests.map((r, i) => [r.video_path!, signedUrls[i][1]]));
 
   const { data: subscriptionData } = await supabase
     .from("subscriptions")
@@ -104,8 +106,8 @@ export default async function DashboardPage({
 
         {created && (
           <Alert tone="success">
-            Tu solicitud se guardó correctamente. Pulsa &quot;Generar guion&quot; para
-            crear el guion — podrás revisarlo y editarlo antes de generar el video final.
+            Tu solicitud se guardó correctamente. En su tarjeta encontrarás el siguiente paso:
+            generar el guion, revisarlo o configurar la producción.
           </Alert>
         )}
       </div>
@@ -137,6 +139,7 @@ export default async function DashboardPage({
               <RequestCard
                 request={req}
                 videoUrl={req.video_path ? videoUrlByPath.get(req.video_path) : null}
+                downloadUrl={req.video_path ? downloadUrlByPath.get(req.video_path) : null}
                 nowMs={nowMs}
               />
             </li>

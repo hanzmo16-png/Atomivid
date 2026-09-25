@@ -1,3 +1,6 @@
+import { GenerateButton } from "@/app/dashboard/GenerateButton";
+import { VideoDelivery } from "./VideoDelivery";
+import { RefreshStatusButton } from "./RefreshStatusButton";
 import { renderFailureMessage } from "@/lib/video/job-error";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -24,21 +27,23 @@ import {
 export function ResultView({
   request,
   videoUrl,
+  downloadUrl,
   nowMs,
 }: {
   request: VideoRequestSummary;
   /** null si status=completed pero no se pudo firmar la URL (reportar el error, no ocultarlo). */
   videoUrl?: string | null;
+  downloadUrl?: string | null;
   /** Reloj inyectado por el caller (solo lo usa el ETA de Long Form). */
   nowMs: number;
 }) {
   const meta = [
     request.language && LANGUAGE_LABEL[request.language],
-    `${request.duration_seconds}s`,
+    `Duración solicitada: ${request.duration_seconds}s`,
     new Date(request.created_at).toLocaleString("es-MX"),
   ].filter(Boolean);
   const isLongForm = request.mode === "long_form";
-  const isLandscape = request.aspect_ratio === "16:9";
+  const isLandscape = request.aspect_ratio === "16:9" || isLongForm;
   const stageLabel = isLongForm
     ? request.long_form_stage &&
       (LONG_FORM_STAGE_LABEL[request.long_form_stage as LongFormStage] ?? request.long_form_stage)
@@ -63,6 +68,17 @@ export function ResultView({
             body="Esta solicitud está esperando el guion o tu revisión antes de producir el video final."
           />
         )}
+        {request.status === "script_ready" && !(isLongForm && request.long_form_confirmed_at) && (
+          <div className="mt-3"><LinkButton href={isLongForm ? `/dashboard/long-form/configure/${request.id}` : `/dashboard/review/${request.id}`}>
+            {isLongForm ? "Configurar producción" : request.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}
+          </LinkButton></div>
+        )}
+        {request.status === "script_ready" && isLongForm && request.long_form_confirmed_at && (
+          <div className="mt-3"><p className="mb-2 text-sm text-ink-muted">Tu plan está confirmado. Puedes iniciar la producción pendiente.</p>
+            <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Iniciar producción confirmada" />
+          </div>
+        )}
+        {request.status === "pending" && <div className="mt-3"><LinkButton href="/dashboard">Continuar desde el historial</LinkButton></div>}
 
         {request.status === "processing" && isLongForm && (
           <ProductionProgressCard
@@ -92,40 +108,24 @@ export function ResultView({
 
         {request.status === "failed" && (
           <Alert tone="danger" role="alert">
-            <p className="font-medium">No se pudo generar este video.</p>
+            <p className="font-medium">Este intento no se completó.</p>
             {request.error_message && <p className="mt-1">{renderFailureMessage(request.error_message)}</p>}
           </Alert>
         )}
 
+        {request.status === "failed" && <div className="mt-3"><LinkButton href="/dashboard" variant="secondary">Ver opciones de recuperación</LinkButton></div>}
+        {request.status === "processing" && <div className="mt-3"><RefreshStatusButton /></div>}
+
         {request.status === "completed" && videoUrl && (
           <div className="flex flex-col items-center gap-4">
-            <video
-              src={videoUrl}
-              controls
-              preload="metadata"
-              className={
-                isLandscape
-                  ? "aspect-16/9 w-full max-w-md rounded-lg border border-border-strong bg-black shadow-lg"
-                  : "aspect-9/16 w-full max-w-72 rounded-lg border border-border-strong bg-black shadow-lg"
-              }
-            >
-              Tu navegador no puede reproducir este video.
-            </video>
-            <a
-              href={videoUrl}
-              download
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink hover:bg-accent-hover"
-            >
-              Descargar video
-            </a>
+            <VideoDelivery key={videoUrl} videoUrl={videoUrl} downloadUrl={downloadUrl} landscape={isLandscape} />
           </div>
         )}
         {request.status === "completed" && !videoUrl && (
           <Alert tone="danger" role="alert">
             No se pudo generar el enlace de descarga. Recarga la página para intentarlo de
             nuevo.
+            <div className="mt-3"><RefreshStatusButton label="Actualizar enlaces" /></div>
           </Alert>
         )}
       </div>

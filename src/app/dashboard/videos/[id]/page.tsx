@@ -32,7 +32,7 @@ export default async function VideoResultPage({
   const { data, error } = await supabase
     .from("video_requests")
     .select(
-      "id, mode, user_id, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage, long_form_progress",
+      "id, mode, user_id, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage, long_form_progress, long_form_confirmed_at, recorded_audio_path",
     )
     .eq("id", id)
     .eq("user_id", user.id)
@@ -61,10 +61,11 @@ export default async function VideoResultPage({
     notFound();
   }
 
-  const videoUrl =
-    request.status === "completed" && request.video_path
-      ? await getSignedVideoUrl(request.video_path)
-      : null;
+  const [videoUrl, downloadUrl] = request.status === "completed" && request.video_path
+    ? await Promise.all([
+        getSignedVideoUrl(request.video_path),
+        getSignedVideoUrl(request.video_path, 3600, `atomivid-${request.id}.mp4`),
+      ]) : [null, null];
 
   // Server Component evaluado una vez por request (mismo patrón que
   // dashboard/page.tsx). AutoRefresh vuelve a pedir ESTA página al backend
@@ -73,9 +74,9 @@ export default async function VideoResultPage({
   // eslint-disable-next-line react-hooks/purity -- ver comentario arriba
   const nowMs = Date.now();
   return (
-    <div className="mx-auto max-w-md">
+    <div className={`mx-auto ${request.mode === "long_form" || request.aspect_ratio === "16:9" ? "max-w-5xl" : "max-w-md"}`}>
       <AutoRefresh active={request.status === "processing"} />
-      <ResultView request={request} videoUrl={videoUrl} nowMs={nowMs} />
+      <ResultView request={request} videoUrl={videoUrl} downloadUrl={downloadUrl} nowMs={nowMs} />
     </div>
   );
 }
