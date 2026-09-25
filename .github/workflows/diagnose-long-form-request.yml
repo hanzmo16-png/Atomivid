@@ -1,0 +1,46 @@
+name: Diagnóstico de solo lectura de solicitudes Long Form
+
+# QA real (2026-09-25, "GENERAR GUION NO HACE NADA EN PRODUCTION"). Ejecuta
+# scripts/diagnose-long-form-request.ts: SOLO LECTURA de video_requests
+# (mode='long_form') — nunca escribe nada, nunca llama a Anthropic ni a
+# ningún proveedor. Sirve para comprobar, antes de tocar código o de volver
+# a probar desde la UI, si los clicks de Hans crearon 0, 1 o 2 solicitudes.
+on:
+  workflow_dispatch:
+    inputs:
+      topic_contains:
+        description: "Opcional: substring del topic a buscar (ILIKE). Vacío = las long_form más recientes."
+        required: false
+        type: string
+      limit:
+        description: "Opcional: número máximo de filas a devolver (por defecto 10)."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Diagnosticar (solo lectura)
+        run: npx tsx scripts/diagnose-long-form-request.ts
+        env:
+          TOPIC_CONTAINS: ${{ inputs.topic_contains }}
+          LIMIT: ${{ inputs.limit }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
