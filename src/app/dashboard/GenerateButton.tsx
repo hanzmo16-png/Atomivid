@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { safeParseJsonResponse } from "@/lib/http/safe-json";
+import { classifyClientFetchError } from "@/lib/http/client-error";
 
 export function GenerateButton({
   endpoint,
@@ -43,13 +44,16 @@ export function GenerateButton({
         router.refresh();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error inesperado");
+      setError(classifyClientFetchError(err));
       setLoading(false);
-      // El servidor ya marcó la solicitud como fallida (ver rutas
-      // /api/generate/[id]/script y /render) — sin este refresh, la
-      // insignia de estado se quedaba en su valor anterior (p. ej.
-      // "Pendiente") aunque el mensaje de error de abajo sí fuera el real,
-      // dando la impresión contradictoria de que la solicitud seguía viva.
+      // Refresca en cualquier caso: si la petición sí llegó al servidor,
+      // este ya marcó la solicitud como fallida (rutas /api/generate/[id]/
+      // script y /render) y sin este refresh la insignia de estado se
+      // quedaba en su valor anterior, contradiciendo el mensaje de error
+      // de abajo. Si nunca llegó (fallo de red — el caso que distingue
+      // classifyClientFetchError), la fila no cambió y este refresh solo
+      // vuelve a mostrar el mismo estado de siempre: inofensivo en ambos
+      // casos, nunca se crea ni se toca una segunda solicitud desde aquí.
       router.refresh();
     }
   }
