@@ -1,0 +1,76 @@
+name: Recuperar salida Long Form (sin proveedores)
+
+# P0 2026-09-25 (final.mp4 del Canal de Panamá rechazado por tamaño).
+# Ejecuta scripts/recover-long-form-output.ts: reconstruye el documental
+# SOLO desde lo ya persistido (caché TTS, assets por escena, música del
+# intento original) — CERO llamadas a proveedores por construcción: este
+# workflow NO recibe ninguna clave de ElevenLabs/OpenAI/Pexels/Veo/Anthropic
+# y el script aborta si encontrara una.
+#
+# mode:
+#   verify          → solo verifica que todo está en caché (no renderiza, no escribe)
+#   measure_legacy  → render con el perfil anterior (CRF 26) para medir el original; no entrega
+#   render          → render perfil v1 + entrega canónica + fila a "completed" (CAS desde "failed")
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: "ID exacto de video_requests"
+        required: true
+        type: string
+      mode:
+        description: "verify | measure_legacy | render"
+        required: true
+        type: string
+        default: verify
+      probe_exact_limit:
+        description: "true = (solo verify) medir el límite exacto de Storage con 50 MiB y 50 MiB+1 byte (se borran)"
+        required: false
+        type: string
+        default: "false"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atomivid-recover-${{ inputs.request_id }}-${{ inputs.mode }}
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Instalar ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Recuperar (cero proveedores)
+        timeout-minutes: 60
+        run: npx tsx scripts/recover-long-form-output.ts
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          MODE: ${{ inputs.mode }}
+          PROBE_EXACT_LIMIT: ${{ inputs.probe_exact_limit }}
+          RECOVERY_ARTIFACT_DIR: ${{ runner.temp }}/recovery-artifacts
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Identidad de voz (NO son credenciales): la clave del caché TTS
+          # depende de ellas; deben ser las mismas que usó el worker.
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          LONG_FORM_STORAGE_MAX_OBJECT_BYTES: ${{ vars.LONG_FORM_STORAGE_MAX_OBJECT_BYTES }}
+      - name: Publicar MP4 recuperado/medido (artifact privado del repositorio)
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: long-form-recovery-${{ inputs.request_id }}-${{ inputs.mode }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/recovery-artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0

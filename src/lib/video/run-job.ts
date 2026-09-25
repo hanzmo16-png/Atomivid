@@ -13,6 +13,12 @@ import { attemptState } from "./attempt-state";
 import type { RenderStage } from "./stages";
 import { generateDiagnosticId } from "./render-error";
 import { ProviderConfigurationError } from "@/lib/providers/production";
+import { isCustomerSafeError } from "./long-form/output-policy";
+
+/** Rutas internas de Storage (`<uuid>/...`) nunca llegan al mensaje visible de Long Form. */
+export function scrubInternalPaths(message: string): string {
+  return message.replace(/\b(?:long-form\/)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\/[^\s:,;)]*)?/gi, "(archivo interno)");
+}
 
 type JobRow = {
   status: string;
@@ -157,6 +163,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
               language: row.language ?? undefined,
               plan: longFormPlan as ProductionPlan,
               onProgress: onLongFormProgress,
+              runtime: { attempt: row.render_attempts },
             })
           : await generateVideoFromScript({
               supabase: service,
@@ -188,8 +195,16 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
     // duration_exceeded, etc. en pipeline.ts, o el error real del proveedor
     // de voz/footage/música en generate-video.ts), llegue intacto al
     // usuario/admin en vez de perderse en el bucket genérico.
-    const diagnosticId = generateDiagnosticId();
-    const rawMessage = error instanceof Error ? error.message : "Error desconocido";
+    // P0 2026-09-25: un fallo de ENTREGA de Long Form (render ya hecho)
+    // mostraba "No se pudo subir <uuid>/attempt-1/final.mp4: The object
+    // exceeded..." al cliente. Los errores con mensaje seguro
+    // (LongFormOutputError) usan ese mensaje y su propio diagnosticId (el
+    // mismo que queda en el estado durable de salida, para el admin); y
+    // ninguna ruta interna de Storage llega al texto visible de Long Form.
+    const safe = isCustomerSafeError(error) ? error : null;
+    const diagnosticId = safe?.diagnosticId ?? generateDiagnosticId();
+    const detail = safe ? safe.customerMessage : error instanceof Error ? error.message : "Error desconocido";
+    const rawMessage = mode === "long_form" ? scrubInternalPaths(detail) : detail;
     const message = `${rawMessage} (Código: ${diagnosticId})`;
 
     // QA real (2026-09-25, "HEYGEN PROVIDER CONFIG INCOMPLETE"): el

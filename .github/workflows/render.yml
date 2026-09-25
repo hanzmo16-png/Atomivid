@@ -108,6 +108,15 @@ jobs:
           PREMIUM_CLIPS_ENABLED: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 'true' || '' }}
           LONG_FORM_AI_VIDEO_ENABLED: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 'true' || '' }}
           VEO_API_KEY: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && secrets.VEO_API_KEY || '' }}
+          # P0 2026-09-25 (final.mp4 rechazado por tamaño): si la ENTREGA
+          # falla, el archivo ya renderizado se copia aquí y el paso de abajo
+          # lo publica como artifact — antes vivía solo en el tmpdir del
+          # runner y se perdía con él.
+          LONG_FORM_OUTPUT_KEEP_DIR: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && format('{0}/long-form-output', runner.temp) || '' }}
+          # Techo real de Storage en bytes (variable del repositorio, opcional).
+          # Vacío = se intenta subir tal cual y, si Storage rechaza por
+          # tamaño, se ajusta desde el mismo archivo al límite demostrado.
+          LONG_FORM_STORAGE_MAX_OBJECT_BYTES: ${{ vars.LONG_FORM_STORAGE_MAX_OBJECT_BYTES }}
 
       - name: Marcar como fallido si el render no terminó
         if: failure()
@@ -117,3 +126,14 @@ jobs:
           RENDER_ATTEMPT: ${{ github.event.client_payload.renderAttempt }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Conservar la salida de Long Form si la entrega falló
+        if: failure() && (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form')
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: long-form-output-${{ github.event.client_payload.requestId || inputs.request_id }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/long-form-output/
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0

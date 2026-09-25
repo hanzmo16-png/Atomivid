@@ -213,3 +213,53 @@ export async function synthesizeBeatNarrationProductionCached(
 
   return { ...result, reused: false, costUsd: estimatedCostUsd };
 }
+
+/** Recuperación sin proveedores: el beat no tiene audio COMPLETED válido en el caché. */
+export class TtsReplayCacheMissError extends Error {
+  constructor(readonly beatId: string, readonly key: string, readonly reason: string) {
+    super(`Recuperación abortada: la narración del beat ${beatId} no está en el caché durable (${reason}) — no se vuelve a sintetizar.`);
+    this.name = "TtsReplayCacheMissError";
+  }
+}
+
+/**
+ * Solo LEE el caché durable (misma identidad/clave que
+ * synthesizeBeatNarrationProductionCached): devuelve el audio COMPLETED
+ * con checksum válido o lanza TtsReplayCacheMissError. Nunca llama al
+ * proveedor de voz ni escribe registros — base de la recuperación con
+ * CERO llamadas pagadas.
+ */
+export async function loadProductionCachedBeatNarration(
+  supabase: SupabaseClient,
+  voiceProviderName: string,
+  beat: Pick<NarrativeBeat, "id" | "narration">,
+  language: ScriptLanguage,
+  ctx: { videoId: string; bucket?: string; voiceIdentity: { voiceId: string; modelId: string; voiceSettingsJson: string } },
+): Promise<ProductionSynthesizeBeatCachedResult> {
+  const bucket = ctx.bucket ?? VISUAL_TEST_V2_STORAGE_BUCKET;
+  const identity: TtsCacheIdentity = {
+    videoId: ctx.videoId,
+    beatId: beat.id,
+    text: beat.narration,
+    voiceId: ctx.voiceIdentity.voiceId,
+    modelId: ctx.voiceIdentity.modelId,
+    voiceSettingsJson: ctx.voiceIdentity.voiceSettingsJson,
+    language,
+    providerName: voiceProviderName,
+  };
+  const key = computeTtsCacheKey(identity);
+  const existing = await readProductionTtsCacheRecord(supabase, bucket, ctx.videoId, key);
+  if (existing?.status !== "COMPLETED") throw new TtsReplayCacheMissError(beat.id, key, existing ? `estado ${existing.status}` : "sin registro");
+  const audioBuffer = await validateAndDownloadProductionCachedAudio(supabase, bucket, existing);
+  if (!audioBuffer) throw new TtsReplayCacheMissError(beat.id, key, "audio faltante o checksum inválido");
+  return {
+    beatId: beat.id,
+    audioBuffer,
+    mimeType: existing.mimeType!,
+    extension: existing.extension!,
+    durationSeconds: existing.durationSeconds!,
+    words: existing.words!,
+    reused: true,
+    costUsd: 0,
+  };
+}

@@ -93,6 +93,8 @@ export type MasteringResult = {
 export async function masterAudioLoudness(
   inputPath: string,
   outputPath: string,
+  /** `faststart` (solo Long Form): moov al inicio para que un archivo grande empiece a reproducirse sin descargarse entero. */
+  opts: { faststart?: boolean } = {},
 ): Promise<MasteringResult> {
   const before = await measureLoudness(inputPath);
 
@@ -113,6 +115,7 @@ export async function masterAudioLoudness(
     "aac",
     "-b:a",
     "192k",
+    ...(opts.faststart ? ["-movflags", "+faststart"] : []),
     outputPath,
   ]);
 

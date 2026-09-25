@@ -39,7 +39,7 @@ import { shotsForSpan } from "./shots";
 import { renderLongFormDoc, type RenderLongFormDocInput } from "./render";
 import { wrapDurableVideoProvider } from "./ai-video-durable-provider";
 import { emptyAiVideoLedgerState } from "./ai-video-cost-guard";
-import { synthesizeBeatNarrationProductionCached } from "./production-tts-cache";
+import { loadProductionCachedBeatNarration, synthesizeBeatNarrationProductionCached } from "./production-tts-cache";
 import { visualsForBeat } from "./visual-intents";
 import {
   allocateShotTypes,
@@ -54,6 +54,14 @@ import { ProductionBudget, supabaseBudgetStore, type BudgetStore } from "./produ
 import { supabaseShotAssetStore, type ShotAssetStore } from "./durable-shot-assets";
 import { executeShot, type ShotExecution } from "./shot-executor";
 import { type LongFormStage } from "./stages";
+import {
+  finalizeLongFormOutput,
+  markOutputCostsRecorded,
+  reconcileExistingOutput,
+  supabaseOutputDeps,
+  type LongFormOutputState,
+  type OutputFinalizeDeps,
+} from "./output-finalize";
 import { recordVideoGeneration } from "@/lib/billing/usage";
 
 const STORAGE_BUCKET = "videos";
@@ -81,7 +89,27 @@ export type LongFormRuntime = {
   aiVideoEnabled?: boolean;
   recordCosts?: boolean;
   resumeBackoffMs?: number;
+  /** Entrega del MP4 final (output-finalize.ts). Por defecto: Supabase + ffprobe/ffmpeg reales. */
+  output?: OutputFinalizeDeps;
+  /**
+   * Recuperación (P0 2026-09-25): CERO llamadas a proveedores. Narración
+   * solo desde el caché TTS durable y escenas solo desde registros
+   * COMPLETED; cualquier faltante o desviación respecto de lo ya ejecutado
+   * aborta (LongFormReplayError) antes de renderizar.
+   */
+  replayOnly?: boolean;
+  /** Perfil de codificación del render (ver render.ts). */
+  encoding?: RenderLongFormDocInput["encoding"];
+  /** Intento (render_attempts) — solo para el estado durable de la salida. */
+  attempt?: number | null;
 };
+
+export class LongFormReplayError extends Error {
+  constructor(reason: string) {
+    super(`Recuperación abortada sin llamar a ningún proveedor: ${reason}`);
+    this.name = "LongFormReplayError";
+  }
+}
 
 export class LongFormScriptChangedError extends Error {
   constructor() {
@@ -127,9 +155,19 @@ export async function generateLongFormVideoFromScript({
   /** Snapshot CONFIRMADO (long_form_production_plan) — el worker ejecuta exactamente su estrategia y nunca excede su allocation. */
   plan: ProductionPlan;
   runtime?: LongFormRuntime;
-}): Promise<{ videoPath: string; deviations: number; spentUsd: number }> {
+}): Promise<{ videoPath: string; deviations: number; spentUsd: number; reconciled: boolean; output: LongFormOutputState | null }> {
   const voiceCharacters = beats.reduce((sum, b) => sum + b.narration.length, 0);
   if (voiceCharacters !== plan.voiceCharacters) throw new LongFormScriptChangedError();
+
+  // Reconciliación ANTES de cualquier trabajo: si un intento anterior ya
+  // entregó la salida canónica (p. ej. la subida funcionó y falló la
+  // actualización de la fila), se reutiliza — 0 render, 0 proveedores.
+  const outputDeps = runtime.output ?? supabaseOutputDeps(supabase);
+  const existingOutput = await reconcileExistingOutput(requestId, outputDeps);
+  if (existingOutput) {
+    return { videoPath: existingOutput.videoPath, deviations: 0, spentUsd: 0, reconciled: true, output: existingOutput.state };
+  }
+  const replayOnly = runtime.replayOnly === true;
 
   const resolvedProviders = providers ?? resolveLongFormProviders("real");
   const requireReal = !providers;
@@ -146,6 +184,13 @@ export async function generateLongFormVideoFromScript({
 
   const baseSynth: BeatSynthesizer =
     runtime.synthesizeBeat ??
+    (replayOnly
+      ? (voiceProvider, beat, lang) =>
+          loadProductionCachedBeatNarration(supabase, voiceProvider.name, beat, lang, {
+            videoId: requestId,
+            voiceIdentity: getVoiceIdentity(lang === "en" ? "en" : "es"),
+          })
+      : null) ??
     ((voiceProvider, beat, lang) =>
       synthesizeBeatNarrationProductionCached(supabase, voiceProvider, beat, lang, {
         videoId: requestId,
@@ -173,7 +218,9 @@ export async function generateLongFormVideoFromScript({
   // IA se desactiva ANTES de asignar: esas ranuras se degradan a imagen IA
   // dentro de la allocation, nunca a un clip de fixture en producción.
   let baseVideoProvider: VideoProvider | null = null;
-  if (runtime.videoProvider !== undefined) {
+  if (replayOnly) {
+    baseVideoProvider = null;
+  } else if (runtime.videoProvider !== undefined) {
     baseVideoProvider = runtime.videoProvider;
   } else if (allocation.maxAiVideoClips > 0 && (runtime.aiVideoEnabled ?? isLongFormAiVideoConfigured())) {
     const candidate = getVideoProvider();
@@ -187,6 +234,11 @@ export async function generateLongFormVideoFromScript({
   const allShots = timeline.beats.flatMap((b) => b.shots);
   const allocated = allocateShotTypes(allShots, timeline.durationSeconds, limits);
   if (allocated.aiImageCount !== plan.aiImageCount || allocated.aiVideoClipCount !== plan.aiVideoClipCount) {
+    if (replayOnly) {
+      throw new LongFormReplayError(
+        `la asignación reconstruida (${allocated.aiImageCount} imágenes IA, ${allocated.aiVideoClipCount} clips) difiere del plan (${plan.aiImageCount}, ${plan.aiVideoClipCount})`,
+      );
+    }
     await budget.recordDeviation({
       shotId: "*",
       planned: `${plan.aiImageCount} imágenes IA, ${plan.aiVideoClipCount} clips de video IA`,
@@ -212,8 +264,8 @@ export async function generateLongFormVideoFromScript({
   let spentUsd = 0;
   let storageBytes = 0;
   let footageCount = 0;
-  let aiImageSpentUsd = 0;
-  let aiVideoSpentUsd = 0;
+  let aiImageCostUsd = 0;
+  let aiVideoCostUsd = 0;
   let aiVideoClipsUsed = 0;
   let deviations = 0;
   let degradedToText = 0;
@@ -233,18 +285,26 @@ export async function generateLongFormVideoFromScript({
         totalDurationSec: timeline.durationSeconds,
         requireReal,
         metadata: { requestId },
+        replayOnly,
       },
       aiVideoLedger,
     );
+    if (replayOnly && (execution.deviation || !(execution.reused || execution.executedType === "text"))) {
+      throw new LongFormReplayError(
+        `la escena ${shot.id} no se reproduce igual que en la ejecución original (${execution.deviation ? `${execution.deviation.planned} → ${execution.deviation.executed}: ${execution.deviation.reason}` : "asset no reutilizado"})`,
+      );
+    }
     aiVideoLedger = execution.aiVideoLedger;
     executions.push(execution);
     storageBytes += execution.bufferBytes;
     if (!execution.reused) spentUsd += execution.costUsd;
     if (execution.executedType === "stock_video" || execution.executedType === "ken_burns_image") footageCount += 1;
-    if (execution.executedType === "generated_placeholder" && !execution.reused) aiImageSpentUsd += execution.costUsd;
+    if (execution.executedType === "generated_placeholder") {
+      aiImageCostUsd += execution.attributedCostUsd;
+    }
     if (execution.executedType === "ai_video") {
       aiVideoClipsUsed += 1;
-      if (!execution.reused) aiVideoSpentUsd += execution.costUsd;
+      aiVideoCostUsd += execution.attributedCostUsd;
     }
     if (execution.deviation) {
       deviations += 1;
@@ -311,6 +371,7 @@ export async function generateLongFormVideoFromScript({
     captions,
     narrationGaps,
     durationSeconds: finalDurationSeconds,
+    encoding: runtime.encoding,
     onFrameProgress: ({ renderedFrames, totalFrames }) => {
       const now = Date.now();
       const step = Math.max(1, Math.floor(totalFrames / 50));
@@ -331,7 +392,7 @@ export async function generateLongFormVideoFromScript({
   let outputPath = rawOutputPath;
   try {
     const masteredPath = rawOutputPath.replace(/\.mp4$/, ".mastered.mp4");
-    const mastering = await masterAudioLoudness(rawOutputPath, masteredPath);
+    const mastering = await masterAudioLoudness(rawOutputPath, masteredPath, { faststart: true });
     outputPath = masteredPath;
     console.log("[atomivid:long-form:produce] masterización de loudness", JSON.stringify({ requestId, target: LOUDNESS_TARGET, ...mastering }));
   } catch (err) {
@@ -341,11 +402,18 @@ export async function generateLongFormVideoFromScript({
     );
   }
 
-  const videoBuffer = await fs.readFile(outputPath);
-  storageBytes += videoBuffer.byteLength;
-  const { path: videoPath } = await uploadArtifact(`${artifactPrefix}/final.mp4`, videoBuffer, "video/mp4");
-  await fs.unlink(outputPath).catch(() => {});
+  // Entrega idempotente (output-finalize.ts): preflight de tamaño con el
+  // archivo YA renderizado, subida reanudable con reintentos del MISMO
+  // archivo, salida canónica por solicitud y estado durable. Un fallo aquí
+  // nunca vuelve a renderizar ni llama a proveedores; el archivo se
+  // conserva (LONG_FORM_OUTPUT_KEEP_DIR) y el cliente ve un mensaje seguro.
   if (outputPath !== rawOutputPath) await fs.unlink(rawOutputPath).catch(() => {});
+  const { videoPath, state: outputState } = await finalizeLongFormOutput(
+    { requestId, attempt: runtime.attempt ?? null, filePath: outputPath },
+    outputDeps,
+  );
+  storageBytes += outputState.delivered?.bytes ?? 0;
+  await fs.unlink(outputPath).catch(() => {});
 
   console.log(
     "[atomivid:long-form:produce] terminado",
@@ -368,19 +436,23 @@ export async function generateLongFormVideoFromScript({
       videoDurationSeconds: finalDurationSeconds,
       renderMs,
       storageBytes,
+      // Costo REAL del video: incluye lo pagado en un intento anterior y
+      // reutilizado aquí (antes solo contaba el gasto nuevo de este intento).
       creativeLayer: {
-        imageProvider: aiImageSpentUsd > 0 ? resolvedProviders.imageProvider.name : undefined,
-        imageCostUsd: aiImageSpentUsd,
+        imageProvider: aiImageCostUsd > 0 ? resolvedProviders.imageProvider.name : undefined,
+        imageCostUsd: aiImageCostUsd,
         premiumVideoProvider: aiVideoClipsUsed > 0 ? (videoProvider?.name ?? "veo") : undefined,
         premiumVideoClipCount: aiVideoClipsUsed,
-        premiumVideoCostUsd: aiVideoSpentUsd,
+        premiumVideoCostUsd: aiVideoCostUsd,
       },
-    }).catch((err) => {
-      console.warn(`[atomivid:long-form:produce] No se pudo registrar el costo de ${requestId}:`, err);
-    });
+    })
+      .then(() => markOutputCostsRecorded(outputState, outputDeps))
+      .catch((err) => {
+        console.warn(`[atomivid:long-form:produce] No se pudo registrar el costo de ${requestId}:`, err);
+      });
   }
 
-  return { videoPath, deviations, spentUsd };
+  return { videoPath, deviations, spentUsd, reconciled: false, output: outputState };
 }
 
 /** Mismo patrón que generate-video.ts (Shorts): sube al bucket privado y firma una URL de corta duración para que este mismo proceso (Remotion) pueda leerla. */

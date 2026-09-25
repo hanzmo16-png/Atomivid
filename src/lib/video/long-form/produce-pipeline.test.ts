@@ -14,6 +14,7 @@ import { fixtureMusicProvider } from "@/lib/providers/music/fixture";
 import type { FootageProvider, ImageProvider, VideoProvider, VoiceProvider } from "@/lib/providers/types";
 import type { LongFormProviderSet } from "./mode";
 import type { RenderLongFormDocInput } from "./render";
+import { memoryOutputDeps } from "./output-finalize";
 
 /**
  * Prueba de integración del pipeline REAL de producción de Long Form
@@ -97,9 +98,14 @@ function fakeVeo(c: ReturnType<typeof counters>): VideoProvider {
   };
 }
 
-type Env = { supabase: ReturnType<typeof makeStorage>; mem: ReturnType<typeof memoryShotAssetStore>; budgetStore: ReturnType<typeof memoryBudgetStore> };
-function freshEnv(): Env {
-  return { supabase: makeStorage(), mem: memoryShotAssetStore(), budgetStore: memoryBudgetStore() };
+type Env = {
+  supabase: ReturnType<typeof makeStorage>;
+  mem: ReturnType<typeof memoryShotAssetStore>;
+  budgetStore: ReturnType<typeof memoryBudgetStore>;
+  out: ReturnType<typeof memoryOutputDeps>;
+};
+function freshEnv(outputOpts: Parameters<typeof memoryOutputDeps>[0] = {}): Env {
+  return { supabase: makeStorage(), mem: memoryShotAssetStore(), budgetStore: memoryBudgetStore(), out: memoryOutputDeps(outputOpts) };
 }
 
 function planFor(strategy: VisualStrategy): ProductionPlan {
@@ -107,7 +113,12 @@ function planFor(strategy: VisualStrategy): ProductionPlan {
   return computeProductionPlan({ beats: script.beats, topic: script.topic, strategy, providers: REAL_LONG_FORM_PROVIDER_NAMES, aiVideoEnabled: true });
 }
 
-async function run(env: Env, c: ReturnType<typeof counters>, plan: ProductionPlan, opts: { videoProvider?: VideoProvider | null; beats?: ReturnType<typeof documentary180sFixture>["beats"] } = {}) {
+async function run(
+  env: Env,
+  c: ReturnType<typeof counters>,
+  plan: ProductionPlan,
+  opts: { videoProvider?: VideoProvider | null; beats?: ReturnType<typeof documentary180sFixture>["beats"]; renders?: { count: number }; replayOnly?: boolean } = {},
+) {
   const script = documentary180sFixture();
   const events: { stage: ProgressStageKey; completed?: number; total?: number; label?: string }[] = [];
   let renderInput: RenderLongFormDocInput | null = null;
@@ -119,8 +130,11 @@ async function run(env: Env, c: ReturnType<typeof counters>, plan: ProductionPla
     recordCosts: false,
     resumeBackoffMs: 0,
     uploadArtifact: async (p) => ({ path: p, url: `memory://${p}` }),
+    output: env.out.deps,
+    replayOnly: opts.replayOnly,
     render: async (input) => {
       renderInput = input;
+      if (opts.renders) opts.renders.count += 1;
       for (let f = 0; f <= 5400; f += 540) input.onFrameProgress?.({ renderedFrames: f, totalFrames: 5400 });
       const out = path.join(os.tmpdir(), `lf-test-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`);
       fs.writeFileSync(out, "fake-mp4");

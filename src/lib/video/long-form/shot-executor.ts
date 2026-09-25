@@ -48,7 +48,21 @@ export type ShotExecutionDeps = {
   totalDurationSec: number;
   requireReal: boolean;
   metadata?: Record<string, string>;
+  /**
+   * Recuperación (P0 2026-09-25): CERO llamadas a proveedores — solo se
+   * reutilizan registros COMPLETED durables. Nunca reserva presupuesto ni
+   * escribe STARTED; un COMPLETED ilegible aborta (ShotReplayError) en vez
+   * de degradar en silencio a otro material.
+   */
+  replayOnly?: boolean;
 };
+
+export class ShotReplayError extends Error {
+  constructor(readonly shotId: string, reason: string) {
+    super(`Recuperación abortada en ${shotId}: ${reason} — no se llama a ningún proveedor.`);
+    this.name = "ShotReplayError";
+  }
+}
 
 export type ShotExecution = {
   shotId: string;
@@ -58,20 +72,23 @@ export type ShotExecution = {
   bufferBytes: number;
   providerUsed: string;
   reused: boolean;
+  /** Costo real atribuible al video (incluye lo pagado en un intento anterior y reutilizado). */
+  attributedCostUsd: number;
   /** Presente si el shot terminó con un tipo distinto del asignado. */
   deviation?: { planned: ShotType; executed: ShotType; reason: string };
   aiVideoLedger: AiVideoLedgerState;
 };
 
-type MediaOutcome = { url: string; mediaType: "image" | "video"; costUsd: number; bytes: number; provider: string; reused: boolean };
+type MediaOutcome = { url: string; mediaType: "image" | "video"; costUsd: number; bytes: number; provider: string; reused: boolean; priorCostUsd?: number };
 
 async function reuseCompleted(deps: ShotExecutionDeps, shotId: string, kind: ShotAssetKind): Promise<MediaOutcome | null> {
   const record = await deps.store.read(shotId, kind);
   if (record?.status !== "COMPLETED" || !record.objectPath) return null;
   try {
     const url = await deps.store.signedUrl(record.objectPath);
-    return { url, mediaType: record.mediaType ?? "image", costUsd: 0, bytes: 0, provider: record.provider ?? "cache", reused: true };
-  } catch {
+    return { url, mediaType: record.mediaType ?? "image", costUsd: 0, bytes: 0, provider: record.provider ?? "cache", reused: true, priorCostUsd: record.costUsd ?? 0 };
+  } catch (err) {
+    if (deps.replayOnly) throw new ShotReplayError(shotId, `el asset ${kind} COMPLETED no se pudo leer (${err instanceof Error ? err.message : String(err)})`);
     return null;
   }
 }
@@ -108,6 +125,7 @@ async function persistMedia(
 async function resolveStock(shot: AllocatedShot, deps: ShotExecutionDeps, preferVideo: boolean): Promise<MediaOutcome | null> {
   const cached = await reuseCompleted(deps, shot.id, "stock");
   if (cached) return cached;
+  if (deps.replayOnly) return null;
   const queries = [...new Set([shot.visualIntent, deps.topic].map((q) => q.trim()).filter(Boolean))];
   for (const query of queries) {
     try {
@@ -137,6 +155,7 @@ type AiImageOutcome = MediaOutcome | { unavailable: string };
 async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Promise<AiImageOutcome> {
   const cached = await reuseCompleted(deps, shot.id, "ai_image");
   if (cached) return cached;
+  if (deps.replayOnly) return { unavailable: "recuperación: sin imagen IA durable (no se genera)" };
   const existing = await deps.store.read(shot.id, "ai_image");
   if (existing?.status === "STARTED") {
     return { unavailable: "una generación anterior de esta imagen quedó sin confirmar (costo incierto) — no se regenera" };
@@ -181,6 +200,7 @@ function mediaResult(shot: AllocatedShot, media: MediaOutcome, executedType: Sho
     bufferBytes: media.bytes,
     providerUsed: media.provider,
     reused: media.reused,
+    attributedCostUsd: media.reused ? (media.priorCostUsd ?? 0) : media.costUsd,
     deviation: deviationReason ? { planned: shot.type, executed: executedType, reason: deviationReason } : undefined,
     aiVideoLedger: ledger,
   };
@@ -195,6 +215,7 @@ function textResult(shot: AllocatedShot, deps: ShotExecutionDeps, ledger: AiVide
     bufferBytes: 0,
     providerUsed: "deterministic",
     reused: false,
+    attributedCostUsd: 0,
     deviation: reason ? { planned: shot.type, executed: "text", reason } : undefined,
     aiVideoLedger: ledger,
   };
@@ -233,7 +254,7 @@ export async function executeShot(shot: AllocatedShot, deps: ShotExecutionDeps, 
       }
       const reference = await resolveAiImage(shot, deps);
       if ("unavailable" in reference) return stockOrText(shot, deps, ledger, false, `sin imagen de referencia para video IA: ${reference.unavailable}`);
-      if (!deps.videoProvider) return mediaResult(shot, reference, "generated_placeholder", ledger, "proveedor de video IA no configurado");
+      if (!deps.videoProvider || deps.replayOnly) return mediaResult(shot, reference, "generated_placeholder", ledger, "proveedor de video IA no configurado");
 
       const outcome = await resolveAiVideoForShot({
         shot: { ...shot, referenceAsset: reference.url },

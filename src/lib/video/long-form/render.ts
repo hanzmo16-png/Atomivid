@@ -14,6 +14,7 @@ import { renderMedia, selectComposition } from "@remotion/renderer";
 import type { LongFormCaption, LongFormShotScene } from "../../../../remotion/LongFormDoc";
 import type { NarrationGap } from "../../../../remotion/audio-mix";
 import { assertRenderInputValid } from "./render-preflight";
+import { LEGACY_LONG_FORM_ENCODING, LONG_FORM_ENCODING_PROFILE } from "./output-policy";
 
 const COMPOSITION_ID = "LongFormDoc";
 
@@ -28,6 +29,12 @@ export type RenderLongFormDocInput = {
   showLogo?: boolean;
   /** Progreso REAL del render (fotogramas renderizados / total de la composición) — nunca estimado. */
   onFrameProgress?: (progress: { renderedFrames: number; totalFrames: number }) => void;
+  /**
+   * Perfil de codificación (output-policy.ts). Por defecto el de Long Form
+   * v1 (CRF 23 con tope de bitrate); "legacy_crf26" reproduce el render
+   * anterior al P0 — solo para medir el equivalente del original.
+   */
+  encoding?: "long_form_h264_v1" | "legacy_crf26";
 };
 
 export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<string> {
@@ -81,9 +88,18 @@ export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<
     inputProps,
     browserExecutable,
     chromeMode,
-    // Mismo CRF que Shorts (ver comentario en generate-video.ts) — suficiente
-    // para YouTube, que igual re-comprime el video al subirlo.
-    crf: 26,
+    // P0 2026-09-25: el CRF 26 SIN tope (el de Shorts) produjo un final.mp4
+    // de ~300 s que Storage rechazó por tamaño. Long Form usa su propio
+    // perfil: CRF 23 (más calidad a 1080p) con tope de bitrate, de modo que
+    // el tamaño queda acotado por duración (ver estimateOutputBytes).
+    ...(input.encoding === "legacy_crf26"
+      ? { crf: LEGACY_LONG_FORM_ENCODING.crf }
+      : {
+          crf: LONG_FORM_ENCODING_PROFILE.crf,
+          encodingMaxRate: `${LONG_FORM_ENCODING_PROFILE.maxVideoKbps}k`,
+          encodingBufferSize: `${LONG_FORM_ENCODING_PROFILE.bufferKbps}k`,
+          x264Preset: LONG_FORM_ENCODING_PROFILE.x264Preset,
+        }),
     onProgress: input.onFrameProgress
       ? ({ renderedFrames }) => input.onFrameProgress?.({ renderedFrames, totalFrames: composition.durationInFrames })
       : undefined,
