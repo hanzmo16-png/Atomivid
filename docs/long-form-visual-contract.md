@@ -57,3 +57,29 @@ general, carencias explícitas (tarjeta con el pasaje + desviación registrada).
 Cambios a interfaces compartidas con Remotion: ninguno en M1. Si Work
 necesita `provenance` dentro de `LongFormShotScene`, propuesta de campo
 aditivo: `scenes[i].provenance?: "stock_illustrative" | "ai_recreation" | "archival_documentary"`.
+
+## 4. Estado tras M2 (integración de montaje/render por Claude)
+
+Integrado `work/long-form-montage-audio` (c7f9fdb). Implementado en la
+composición y el render (antes pedido a Work en §3):
+
+- `scenes[i].provenance` (`stock_illustrative` | `ai_recreation` |
+  `archival_documentary` | `data_graphic`): `ai_recreation` muestra SIEMPRE
+  «Recreación IA». `creditText` opcional (p. ej. «Archivo · Corte Culebra, 1913»).
+- `scenes[i].pending`: escena no terminada (carencia o revisión pendiente) con
+  marca visible «Material pendiente». `renderLongFormDoc({ purpose: "approval" })`
+  se niega mientras exista alguna.
+- Tarjetas `size: "large"`: título 72 px, cuerpo 44 px, sobre la franja de
+  subtítulos; `fitLargeCard` rechaza (no encoge) lo que no cabe.
+- `asset.fit: "contain"`: foto de archivo completa sobre la misma imagen
+  desenfocada (sin recortar el documento ni barras negras).
+- v3 en producción (`directAnchoredScenes`): cortes alineados a la voz real,
+  dirección por defecto (corte; fundido solo en salto de época
+  archivo↔actual; cámara solo en imágenes fijas) y `runtime.soundCues`
+  (reemplaza la música única; `soundCues` + `musicUrl` a la vez es un error).
+
+Validación técnica del render de Work en este entorno (Chromium local, sin el
+fallo de `os.networkInterfaces`): cortes limpios, fundido sin caída a negro
+(blackdetect: 0 tramos), `mediaStartSeconds` correcto (timecode fuente 04.067
+a 0.05 s de la escena con desfase 4 s), envolvente del bucle continua a través
+de los reinicios de la fuente (nivel del fondo estable ±0.3 dB en 3/6/9 s).
