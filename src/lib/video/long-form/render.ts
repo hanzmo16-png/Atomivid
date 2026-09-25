@@ -7,6 +7,7 @@
  * accidental, sino la misma técnica ya validada para Shorts, aplicada a
  * una composición distinta.
  */
+import { validateDirection, type SoundCue } from "../../../../remotion/long-form-direction";
 import path from "node:path";
 import os from "node:os";
 import { bundle } from "@remotion/bundler";
@@ -21,6 +22,7 @@ const COMPOSITION_ID = "LongFormDoc";
 export type RenderLongFormDocInput = {
   audioUrl: string;
   musicUrl?: string;
+  soundCues?: SoundCue[];
   scenes: LongFormShotScene[];
   captions: LongFormCaption[];
   narrationGaps: NarrationGap[];
@@ -49,6 +51,8 @@ export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<
     audioUrl: input.audioUrl,
   });
 
+  validateDirection(input.scenes, input.soundCues, input.durationSeconds);
+
   const entryPoint = path.join(process.cwd(), "remotion", "index.ts");
   const browserExecutable = process.env.REMOTION_BROWSER_EXECUTABLE || undefined;
   const chromeMode =
@@ -59,6 +63,7 @@ export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<
   const inputProps = {
     audioUrl: input.audioUrl,
     musicUrl: input.musicUrl,
+    soundCues: input.soundCues,
     scenes: input.scenes,
     captions: input.captions,
     narrationGaps: input.narrationGaps,

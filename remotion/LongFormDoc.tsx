@@ -8,6 +8,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
+import { cameraTransform, soundCueVolume, transitionFrames, validateDirection, type SceneDirection, type SoundCue } from "./long-form-direction";
 import { type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from "./audio-mix";
 
 /**
@@ -62,6 +63,7 @@ export type LongFormShotScene = {
   endSeconds: number;
   asset: LongFormMediaAsset | LongFormGraphicAsset;
   motion: "static" | "ken_burns" | "pan" | "cut";
+  direction?: SceneDirection;
 };
 
 export type LongFormCaption = {
@@ -74,6 +76,8 @@ export type LongFormCaption = {
 export type LongFormDocProps = {
   audioUrl: string;
   musicUrl?: string;
+  /** Undefined preserves legacy music; [] explicitly requests silence. */
+  soundCues?: SoundCue[];
   durationSeconds: number;
   scenes: LongFormShotScene[];
   captions: LongFormCaption[];
@@ -82,12 +86,12 @@ export type LongFormDocProps = {
   showLogo?: boolean;
 };
 
-const FADE_FRAMES = 15;
 const DEFAULT_ACCENT_COLOR = "#8f7ff5";
 
 export function LongFormDoc({
   audioUrl,
   musicUrl,
+  soundCues,
   durationSeconds,
   scenes,
   captions,
@@ -96,6 +100,7 @@ export function LongFormDoc({
   showLogo = false,
 }: LongFormDocProps) {
   const { fps, durationInFrames } = useVideoConfig();
+  validateDirection(scenes, soundCues, durationSeconds);
 
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
@@ -104,7 +109,13 @@ export function LongFormDoc({
         const isLast = i === scenes.length - 1;
         const from = Math.round(scene.startSeconds * fps);
         const rawTo = isLast ? durationInFrames : Math.round(scene.endSeconds * fps);
-        const extendedTo = Math.min(durationInFrames, rawTo + (isLast ? 0 : FADE_FRAMES));
+        const next = scenes[i + 1];
+        const incoming = transitionFrames(scene.direction, fps, scene.endSeconds - scene.startSeconds);
+        const outgoing = next ? Math.min(
+          transitionFrames(next.direction, fps, next.endSeconds - next.startSeconds),
+          Math.floor((scene.endSeconds - scene.startSeconds) * fps / 2),
+        ) : 0;
+        const extendedTo = Math.min(durationInFrames, rawTo + outgoing);
         const sequenceDuration = Math.max(1, extendedTo - from);
 
         return (
@@ -112,8 +123,8 @@ export function LongFormDoc({
             <SceneRenderer
               scene={scene}
               durationInFrames={sequenceDuration}
-              fadeInFrames={isFirst ? 0 : FADE_FRAMES}
-              fadeOutFrames={isLast ? 0 : FADE_FRAMES}
+              fadeInFrames={isFirst ? 0 : Math.min(incoming, Math.floor((scenes[i - 1].endSeconds - scenes[i - 1].startSeconds) * fps / 2))}
+              fadeOutFrames={next?.direction ? 0 : outgoing}
               isHook={isFirst}
             />
           </Sequence>
@@ -131,13 +142,20 @@ export function LongFormDoc({
       {audioUrl && (
         <Audio src={audioUrl} volume={(frame) => voiceVolumeAtSeconds(frame / fps, durationSeconds)} />
       )}
-      {musicUrl && (
+      {soundCues === undefined && musicUrl && (
         <Audio
           src={musicUrl}
           loop
           volume={(frame) => musicVolumeAtSeconds(frame / fps, durationSeconds, narrationGaps)}
         />
       )}
+      {soundCues?.map((cue) => {
+        const from = Math.round(cue.startSeconds * fps);
+        return <Sequence key={cue.id} from={from} durationInFrames={Math.max(1, Math.round(cue.endSeconds * fps) - from)}>
+          <Audio src={cue.src} loopVolumeCurveBehavior="extend" loop={cue.loop ?? false} trimBefore={Math.round((cue.sourceStartSeconds ?? 0) * fps)}
+            volume={(frame) => soundCueVolume(cue, (from + frame) / fps, soundCues, narrationGaps)} />
+        </Sequence>;
+      })}
     </AbsoluteFill>
   );
 }
@@ -156,6 +174,7 @@ function SceneRenderer({
   isHook: boolean;
 }) {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
   const progress = durationInFrames > 1 ? frame / (durationInFrames - 1) : 0;
 
   // Ken Burns/fade independientes de VerticalReel.tsx a propósito (ver
@@ -191,14 +210,14 @@ function SceneRenderer({
     width: "100%",
     height: "100%",
     objectFit: "cover" as const,
-    transform: `scale(${scale}) translateX(${translateX}px)`,
+    transform: scene.direction?.camera ? cameraTransform(scene.direction.camera, progress) : `scale(${scale}) translateX(${translateX}px)`,
   };
 
   return (
     <AbsoluteFill style={{ overflow: "hidden", opacity }}>
       {scene.asset.kind === "media" ? (
         scene.asset.mediaType === "video" ? (
-          <OffthreadVideo src={scene.asset.url} muted style={mediaStyle} />
+          <OffthreadVideo src={scene.asset.url} trimBefore={Math.round((scene.direction?.mediaStartSeconds ?? 0) * fps)} muted style={mediaStyle} />
         ) : (
           <Img src={scene.asset.url} style={mediaStyle} />
         )
