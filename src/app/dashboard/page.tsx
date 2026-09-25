@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { isSubscriptionActive } from "@/lib/billing/subscription";
 import { getSignedVideoUrl } from "@/lib/storage/signed-url";
 import type { VideoRequestSummary } from "@/lib/video/request-view";
+import { resolveHistoryViewState } from "@/lib/video/history-view";
 import { AutoRefresh } from "./AutoRefresh";
 import { RequestCard } from "@/components/video/RequestCard";
 import { Alert } from "@/components/ui/Alert";
@@ -21,7 +23,7 @@ export default async function DashboardPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: requests } = await supabase
+  const { data: requests, error: requestsError } = await supabase
     .from("video_requests")
     .select(
       "id, mode, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage",
@@ -29,6 +31,18 @@ export default async function DashboardPage({
     .eq("user_id", user?.id ?? "")
     .order("created_at", { ascending: false })
     .returns<VideoRequestSummary[]>();
+
+  // QA blocker real (2026-09-25): un fallo de esta consulta (p. ej. una
+  // migración aditiva todavía no aplicada en producción, como pasó con
+  // aspect_ratio/long_form_stage) NUNCA debe tratarse igual que "cero
+  // solicitudes" — eso le mintió a un usuario con una solicitud real recién
+  // creada. resolveHistoryViewState() hace esa distinción obligatoria; ver
+  // history-view.test.ts para la regresión exacta.
+  const historyState = resolveHistoryViewState(requests, requestsError);
+  if (requestsError) {
+    const diagnosticId = randomUUID().split("-")[0];
+    console.error(`[historial] [${diagnosticId}] no se pudo cargar video_requests:`, requestsError);
+  }
 
   // Las URLs de reproducción/descarga se firman aquí, después de que la
   // consulta de arriba ya filtró por RLS a las solicitudes del usuario
@@ -96,7 +110,14 @@ export default async function DashboardPage({
         )}
       </div>
 
-      {!requests || requests.length === 0 ? (
+      {historyState.kind === "error" ? (
+        <div className="mt-4">
+          <Alert tone="danger" role="alert">
+            No se pudo cargar tu historial. Si acabas de crear una solicitud, no se perdió —
+            recarga la página en un momento. Si el problema sigue, contacta al soporte.
+          </Alert>
+        </div>
+      ) : historyState.kind === "empty" ? (
         <div className="mt-10">
           <EmptyState
             icon={
@@ -104,14 +125,14 @@ export default async function DashboardPage({
                 <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
               </svg>
             }
-            title="Todavía no has generado ningún video"
-            description="Crea tu primera solicitud — describe un tema y en minutos tendrás un video vertical listo para descargar."
-            action={<LinkButton href="/dashboard/new">Crear tu primer video</LinkButton>}
+            title="Todavía no has creado ningún contenido"
+            description="Crea tu primera solicitud y podrás seguir su progreso desde aquí."
+            action={<LinkButton href="/dashboard/new">Crear contenido</LinkButton>}
           />
         </div>
       ) : (
         <ul className="mt-6 space-y-3">
-          {requests.map((req) => (
+          {historyState.requests.map((req) => (
             <li key={req.id}>
               <RequestCard
                 request={req}
