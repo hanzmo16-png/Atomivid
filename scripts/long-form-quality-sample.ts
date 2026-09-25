@@ -231,7 +231,9 @@ async function main() {
   const purpose = (process.env.RENDER_PURPOSE ?? "technical") as "technical" | "approval";
   const { data: stateBlob } = await service.storage.from(bucket).download(`${prefix}/state/prepared.json`);
   if (!stateBlob) throw new Error("falta prepared.json — ejecutar PHASE=prepare primero");
-  const state = JSON.parse(await stateBlob.text()) as {
+  const stateText = await stateBlob.text();
+  console.log(`@@STATE ${JSON.stringify(JSON.parse(stateText))}`);
+  const state = JSON.parse(stateText) as {
     voicePath: string; scenes: { sceneId: string; objectPath: string; mediaType: "image" | "video" }[];
     sounds: { id: string; storagePath: string; role: "music" | "ambience" | "effect"; startSeconds: number; endSeconds: number; sourceStartSeconds?: number; gain?: number; fadeInSeconds?: number; fadeOutSeconds?: number; loop?: boolean }[];
   };
