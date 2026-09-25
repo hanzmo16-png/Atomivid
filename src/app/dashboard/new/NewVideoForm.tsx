@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
 import { AvatarFields } from "./AvatarFields";
 import { SubmitButton } from "./SubmitButton";
+import { avatarDurationSelectorApplies } from "./validation";
 
 const STYLES = [
   "Motivacional",
@@ -45,6 +46,13 @@ export function NewVideoForm({
   const [mode, setMode] = useState<VideoMode>(avatarModeEnabled ? initialMode : "visual");
   const [language, setLanguage] = useState<"es" | "en">("es");
   const [duration, setDuration] = useState(30);
+  // Elevado desde AvatarFields (ver ese archivo) para poder ocultar el
+  // selector 30/60/90 de aquí abajo cuando corresponda — contrato de
+  // duración (RC QA 2026-09-25): "recording"/"tts_text" usan la duración
+  // real del audio, nunca este objetivo; "tts" (guion generado) sí lo usa
+  // como objetivo, sin cambios.
+  const [avatarNarrationSource, setAvatarNarrationSource] = useState("tts");
+  const durationSelectorApplies = avatarDurationSelectorApplies(mode, avatarNarrationSource);
 
   return (
     <form action={action} className="space-y-5">
@@ -87,25 +95,39 @@ export function NewVideoForm({
         </select>
       </Field>
 
-      <Field id="duration_seconds" label="Duración deseada">
-        <input type="hidden" id="duration_seconds" name="duration_seconds" value={duration} />
-        <div className="inline-flex rounded-md border border-border-strong bg-surface-raised p-1" role="radiogroup" aria-label="Duración deseada">
-          {DURATIONS.map((d) => (
-            <button
-              key={d.value}
-              type="button"
-              role="radio"
-              aria-checked={duration === d.value}
-              onClick={() => setDuration(d.value)}
-              className={`rounded-sm px-4 py-1.5 text-sm font-medium transition-colors ${
-                duration === d.value ? "bg-accent text-accent-ink" : "text-ink-muted hover:text-ink"
-              }`}
-            >
-              {d.label}
-            </button>
-          ))}
-        </div>
-      </Field>
+      {/* El hidden siempre se envía (fallback si la medición real del audio
+          falla en el servidor — ver dashboard/new/actions.ts), pero el
+          selector visible solo tiene sentido cuando SÍ representa la
+          duración objetivo real: Reel (mode visual) y Avatar con "Generar
+          voz desde el guion". Con "Grabar o subir mi voz"/"Voz IA desde
+          texto" el video dura lo que dure el audio real, nunca este valor
+          — mostrarlo ahí invitaría a pensar que se puede truncar/rellenar
+          a 30/60/90, que es exactamente el bug que este contrato corrige. */}
+      <input type="hidden" id="duration_seconds" name="duration_seconds" value={duration} />
+      {durationSelectorApplies ? (
+        <Field id="duration_seconds_picker" label="Duración deseada">
+          <div className="inline-flex rounded-md border border-border-strong bg-surface-raised p-1" role="radiogroup" aria-label="Duración deseada">
+            {DURATIONS.map((d) => (
+              <button
+                key={d.value}
+                type="button"
+                role="radio"
+                aria-checked={duration === d.value}
+                onClick={() => setDuration(d.value)}
+                className={`rounded-sm px-4 py-1.5 text-sm font-medium transition-colors ${
+                  duration === d.value ? "bg-accent text-accent-ink" : "text-ink-muted hover:text-ink"
+                }`}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+      ) : (
+        <p className="text-sm text-ink-muted">
+          Con esta fuente de voz, el video dura lo mismo que tu audio — no hay una duración objetivo que elegir.
+        </p>
+      )}
 
       {avatarModeEnabled && (
         <fieldset className="space-y-2.5">
@@ -144,7 +166,12 @@ export function NewVideoForm({
       )}
 
       {avatarModeEnabled && mode === "avatar" && (
-        <AvatarFields existingAvatars={existingAvatars} language={language} />
+        <AvatarFields
+          existingAvatars={existingAvatars}
+          language={language}
+          narrationSource={avatarNarrationSource}
+          onNarrationSourceChange={setAvatarNarrationSource}
+        />
       )}
 
       <SubmitButton />

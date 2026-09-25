@@ -86,11 +86,26 @@ export async function POST(
     if (videoRequest.user_id !== user.id) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
-    if (videoRequest.mode === "avatar" && videoRequest.render_attempts > 0) {
-      return NextResponse.json({ error: "El intento autorizado ya fue utilizado." }, { status: 409 });
-    }
-    if (videoRequest.mode === "avatar" && (!getFeatureFlags().avatarModeEnabled || !canPrepareAvatar(user))) {
-      return NextResponse.json({ error: "La generación de avatar está bloqueada. Primero se requiere revisar el consumo y autorizar la prueba." }, { status: 403 });
+    // QA blocker real (2026-09-25): esta ruta bloqueaba avatar con dos
+    // gates heredados de la prueba privada P2/D-ID, ninguno de los dos
+    // parte del producto self-service final:
+    //  1. Un mensaje de "intento autorizado" ya usado — un límite de UN
+    //     solo intento por solicitud, distinto (y más estricto) del límite
+    //     genérico de reintentos que ya aplica a Reel/Avatar por igual
+    //     (evaluateRenderStart, MAX_RENDER_ATTEMPTS=3, más abajo). Un
+    //     usuario autorizado debe poder reintentar un render fallido
+    //     exactamente igual que en Reel — eliminado, sin reemplazo: la
+    //     protección real sigue siendo evaluateRenderStart() + el UPDATE
+    //     condicional de más abajo.
+    //  2. `!avatarModeEnabled || !canPrepareAvatar(user)` — el mismo bug
+    //     de flag global que se corrigió en dashboard/new/actions.ts y
+    //     page.tsx: con AVATAR_MODE_ENABLED apagado en producción, esa
+    //     condición bloqueaba a CUALQUIER cuenta, incluida la beta
+    //     autorizada. Se corrige al mismo patrón de acceso efectivo (flag
+    //     global O acceso privado) — el acceso beta/allowlist (canPrepareAvatar)
+    //     se preserva, solo deja de depender también del flag global.
+    if (videoRequest.mode === "avatar" && !(getFeatureFlags().avatarModeEnabled || canPrepareAvatar(user))) {
+      return NextResponse.json({ error: "El modo avatar no está disponible para tu cuenta." }, { status: 403 });
     }
     if (!videoRequest.script_json) {
       return NextResponse.json(

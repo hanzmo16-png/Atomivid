@@ -111,6 +111,44 @@ test('render/route.ts nunca pierde el mensaje ya clasificado del worker si la re
  * se invirtiera algún día, la solicitud quedaría marcada "processing"
  * sin que ningún worker la esté procesando de verdad.
  */
+/**
+ * Regresión del QA blocker real (2026-09-25): "Revisar grabación" mostraba
+ * "La generación de avatar está bloqueada. Primero se requiere revisar el
+ * consumo y autorizar la prueba." — un gate heredado de la prueba privada
+ * P2/D-ID que exigía autorización manual por generación, incompatible con
+ * el contrato self-service (usuario autorizado + foto/audio válidos +
+ * consentimiento + cost guard válido → puede generar, sin aprobación
+ * administrativa adicional).
+ */
+test('render/route.ts ya NO bloquea avatar con "El intento autorizado ya fue utilizado" (un solo intento por solicitud)', () => {
+  const source = fs.readFileSync(ROUTE_PATH, "utf-8");
+  assert.ok(
+    !source.includes("El intento autorizado ya fue utilizado"),
+    "el límite de un solo intento (P2/D-ID legacy) no debe seguir en el código — el reintento debe seguir la misma regla genérica que Reel (evaluateRenderStart/MAX_RENDER_ATTEMPTS)",
+  );
+  assert.ok(
+    !/videoRequest\.mode === "avatar" && videoRequest\.render_attempts > 0/.test(source),
+    "no debe existir ningún check especial de render_attempts para avatar por fuera de evaluateRenderStart",
+  );
+});
+
+test('render/route.ts ya NO exige el flag global AVATAR_MODE_ENABLED además del acceso beta ("La generación de avatar está bloqueada... autorizar la prueba")', () => {
+  const source = fs.readFileSync(ROUTE_PATH, "utf-8");
+  assert.ok(
+    !source.includes("Primero se requiere revisar el consumo y autorizar la prueba"),
+    "el mensaje de autorización manual (paradigma de prueba privada) no debe seguir en el código",
+  );
+  assert.ok(
+    !/!getFeatureFlags\(\)\.avatarModeEnabled \|\| !canPrepareAvatar\(user\)/.test(source),
+    "el flag global no debe volver a requerirse ADEMÁS del acceso beta — mismo bug que en dashboard/new/actions.ts y page.tsx",
+  );
+  assert.match(
+    source,
+    /!\(getFeatureFlags\(\)\.avatarModeEnabled \|\| canPrepareAvatar\(user\)\)/,
+    "el acceso a avatar debe depender del flag global O del acceso beta (acceso efectivo), preservando el allowlist",
+  );
+});
+
 test("render/route.ts llama a getRenderWorker() antes del UPDATE que transiciona a processing", () => {
   const source = fs.readFileSync(ROUTE_PATH, "utf-8");
 

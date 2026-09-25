@@ -89,6 +89,21 @@ export function validateNewAvatarSubmission(fields: {
   return null;
 }
 
+/**
+ * Contrato de duración (RC QA 2026-09-25): el selector 30/60/90 de
+ * NewVideoForm.tsx solo representa una duración OBJETIVO real para Reel
+ * (mode "visual") y para Avatar con "Generar voz desde el guion"
+ * (narrationSource "tts", el único caso donde el guion/voz se generan a
+ * partir de ese objetivo). Con "Grabar o subir mi voz" ("recording") o
+ * "Voz IA desde texto" ("tts_text") la duración efectiva del video es la
+ * duración REAL del audio (medida en el servidor, ver
+ * dashboard/new/actions.ts) — mostrar el selector ahí sugeriría, falsamente,
+ * que el audio puede truncarse/rellenarse para encajar en 30/60/90.
+ */
+export function avatarDurationSelectorApplies(mode: VideoMode, narrationSource: string): boolean {
+  return mode === "visual" || narrationSource === "tts";
+}
+
 /** Traduce el estado del proveedor (HeyGen/fixture) al estado que guarda public.avatars. */
 export function avatarStatusFromProviderStatus(status: AvatarJobStatus): "processing" | "ready" | "failed" {
   if (status === "completed") return "ready";

@@ -22,6 +22,8 @@ import path from "node:path";
  */
 const ACTIONS_PATH = path.join(__dirname, "actions.ts");
 const CONTENT_TYPE_STEP_PATH = path.join(__dirname, "ContentTypeStep.tsx");
+const NEW_VIDEO_FORM_PATH = path.join(__dirname, "NewVideoForm.tsx");
+const REVIEW_PAGE_PATH = path.join(__dirname, "..", "review", "[id]", "page.tsx");
 
 test("createVideoRequest ya NO restringe narrationSource=recording a solo did/fixture", () => {
   const source = fs.readFileSync(ACTIONS_PATH, "utf-8");
@@ -102,4 +104,60 @@ test("actions.ts: createVideoRequest acepta mode=avatar para la cuenta beta aunq
   // todos algún día, una cuenta SIN acceso privado siga sin poder usar
   // mode=avatar.
   assert.match(source, /mode === "avatar" && !canPrepareAvatar\(user\)/);
+});
+
+/**
+ * Regresión del QA blocker real (2026-09-25, "AVATAR BLOCKER FINAL"):
+ * "Revisar grabación" bloqueaba con un mensaje de autorización manual
+ * heredado de la prueba privada P2/D-ID — ver render-route-cas.test.ts
+ * para las pruebas del gate en sí (render/route.ts). Aquí se fija que
+ * ninguna de las dos rutas reales que TAMBIÉN podrían reintroducir ese
+ * paradigma (actions.ts al crear la solicitud, page.tsx del selector) lo
+ * hagan tampoco.
+ */
+test("actions.ts nunca vuelve a exigir una autorización/revisión manual por generación para crear la solicitud de avatar", () => {
+  const source = fs.readFileSync(ACTIONS_PATH, "utf-8");
+  assert.ok(
+    !source.includes("autorizar la prueba") && !source.includes("intento autorizado"),
+    "no debe reaparecer lenguaje de autorización manual (paradigma de prueba privada) en la creación de la solicitud",
+  );
+});
+
+/**
+ * Contrato de duración (RC QA 2026-09-25, Blocker #2 y #3): la duración
+ * real del audio ("recording"/"tts_text") se mide en el servidor con
+ * measureNarrationSeconds (ffprobe) — el mismo mecanismo ya probado en
+ * producción por preparation.ts (prueba privada D-ID) — y se guarda en
+ * duration_seconds, en vez del valor del selector 30/60/90 (que para esas
+ * dos fuentes ni siquiera se muestra, ver NewVideoForm.tsx).
+ */
+test("createVideoRequest mide la duración real del audio (measureNarrationSeconds) para recording/tts_text y la usa como duration_seconds", () => {
+  const source = fs.readFileSync(ACTIONS_PATH, "utf-8");
+  assert.match(source, /import\s*\{\s*measureNarrationSeconds\s*\}\s*from\s*"@\/lib\/video\/avatar\/measure-narration"/);
+  assert.match(source, /measureNarrationSeconds\(recording\.audioBuffer\)/, "debe medir la grabación/audio subido");
+  assert.match(source, /measureNarrationSeconds\(voiceResult\.audioBuffer\)/, "debe medir el audio TTS-desde-texto real, no estimarlo");
+  assert.match(
+    source,
+    /duration_seconds:\s*measuredDurationSeconds !== undefined \? Math\.ceil\(measuredDurationSeconds\) : durationSeconds/,
+    "duration_seconds debe usar la duración REAL medida cuando existe, y solo caer al selector 30\\/60\\/90 si la medición no está disponible (guion generado, o fallo de medición puramente informativo)",
+  );
+});
+
+test('NewVideoForm.tsx oculta el selector 30/60/90 para "Grabar/subir mi voz" y "Voz IA desde texto" (avatarDurationSelectorApplies)', () => {
+  const source = fs.readFileSync(NEW_VIDEO_FORM_PATH, "utf-8");
+  assert.match(
+    source,
+    /import\s*\{\s*avatarDurationSelectorApplies\s*\}\s*from\s*"\.\/validation"/,
+    "debe reutilizar la lógica pura de validation.ts, no una copia inline que pueda desincronizarse",
+  );
+  assert.match(source, /avatarDurationSelectorApplies\(mode,\s*avatarNarrationSource\)/);
+});
+
+test('review/[id]/page.tsx muestra la duración REAL medida (duration_seconds) en vez de confiar en la metadata del <audio> del navegador', () => {
+  const source = fs.readFileSync(REVIEW_PAGE_PATH, "utf-8");
+  assert.match(
+    source,
+    /Duración:\s*\$\{data\.duration_seconds\}s/,
+    'debe mostrar "Duración: Xs" con el valor real guardado, no un texto vago sin número',
+  );
 });

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  avatarDurationSelectorApplies,
   avatarStatusFromProviderStatus,
   isAvatarConsentGiven,
   resolveMode,
@@ -101,4 +102,26 @@ test("avatarStatusFromProviderStatus mapea failed/cancelled -> failed", () => {
 test("avatarStatusFromProviderStatus mapea queued/processing -> processing", () => {
   assert.equal(avatarStatusFromProviderStatus("queued"), "processing");
   assert.equal(avatarStatusFromProviderStatus("processing"), "processing");
+});
+
+/**
+ * Contrato de duración (RC QA 2026-09-25, Blocker #3): el selector 30/60/90
+ * solo tiene sentido para Reel y para Avatar con "Generar voz desde el
+ * guion" — con "Grabar o subir mi voz"/"Voz IA desde texto" el video dura
+ * lo que dure el audio real, nunca el objetivo elegido.
+ */
+test("avatarDurationSelectorApplies: Reel (mode visual) siempre lo usa, sin importar narrationSource", () => {
+  assert.equal(avatarDurationSelectorApplies("visual", "tts"), true);
+  assert.equal(avatarDurationSelectorApplies("visual", "recording"), true);
+  assert.equal(avatarDurationSelectorApplies("visual", "tts_text"), true);
+  assert.equal(avatarDurationSelectorApplies("visual", "anything"), true);
+});
+
+test('avatarDurationSelectorApplies: Avatar + "Generar voz desde el guion" (tts) sí lo usa como objetivo', () => {
+  assert.equal(avatarDurationSelectorApplies("avatar", "tts"), true);
+});
+
+test('avatarDurationSelectorApplies: Avatar + "Grabar/subir mi voz" o "Voz IA desde texto" NO lo usa — duración real del audio', () => {
+  assert.equal(avatarDurationSelectorApplies("avatar", "recording"), false);
+  assert.equal(avatarDurationSelectorApplies("avatar", "tts_text"), false);
 });

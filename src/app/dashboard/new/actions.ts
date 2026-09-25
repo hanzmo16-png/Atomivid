@@ -1,6 +1,7 @@
 "use server";
 
 import { recordingFormat, recordingPath, RECORDING_BUCKET, MAX_AVATAR_PHOTO_BYTES, MAX_RECORDING_BYTES } from "@/lib/video/avatar/recording";
+import { measureNarrationSeconds } from "@/lib/video/avatar/measure-narration";
 import { randomUUID } from "node:crypto";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
@@ -120,6 +121,17 @@ export async function createVideoRequest(formData: FormData) {
   // sin costo de síntesis para nosotros); "tts" es la única fuente con
   // costo real de ElevenLabs — ver avatar_narration_source en generation_costs.
   let narrationSourceForDb: "own_audio" | "tts" | null = null;
+  // Contrato de duración (RC QA 2026-09-25): para "recording"/"tts_text" la
+  // duración efectiva del video es la duración REAL del audio, nunca el
+  // objetivo 30/60/90 del selector (que para estas dos fuentes ni siquiera
+  // se muestra en el formulario — ver NewVideoForm.tsx). Se mide aquí con
+  // el mismo mecanismo ya probado en producción por preparation.ts (la
+  // prueba privada D-ID, que ya guarda `duration_seconds: Math.ceil(seconds)`
+  // con esta función) — puramente informativo (Historial, "Revisar
+  // grabación"); la validación que sí bloquea la generación si excede
+  // MAX_AVATAR_DURATION_SECONDS ocurre de forma autoritativa en
+  // pipeline.ts, que vuelve a medir el archivo ya guardado.
+  let measuredDurationSeconds: number | undefined;
   if (narrationSource === "recording") {
     // Antes esto solo se permitía para "did"/"fixture" — un resabio de
     // cuando HeyGen todavía no soportaba audio propio. pipeline.ts YA
@@ -136,6 +148,12 @@ export async function createVideoRequest(formData: FormData) {
       narrationSourceForDb = "own_audio";
     } catch {
       redirect("/dashboard/new?error=No+se+pudo+leer+el+audio.+Usa+M4A,+MP3+o+WAV.");
+    }
+    try {
+      measuredDurationSeconds = await measureNarrationSeconds(recording.audioBuffer);
+    } catch {
+      // No bloquea la creación — solo se pierde el número informativo
+      // preciso y se cae al valor del selector como aproximación.
     }
   } else if (narrationSource === "tts_text") {
     const ttsText = String(formData.get("avatar_tts_text") ?? "").trim();
@@ -157,6 +175,11 @@ export async function createVideoRequest(formData: FormData) {
         voiceProvider: getVoiceProvider().name,
         characters: ttsText.length,
       }).catch(() => {});
+      try {
+        measuredDurationSeconds = await measureNarrationSeconds(voiceResult.audioBuffer);
+      } catch {
+        // Igual que en "recording": no bloquea, solo se pierde el número informativo preciso.
+      }
     } catch {
       redirect("/dashboard/new?error=No+se+pudo+generar+la+voz+a+partir+del+texto.+Intenta+de+nuevo.");
     }
@@ -305,7 +328,10 @@ export async function createVideoRequest(formData: FormData) {
     user_id: user.id,
     topic,
     style,
-    duration_seconds: durationSeconds,
+    // "recording"/"tts_text": duración REAL medida del audio (ver arriba).
+    // "tts" (guion generado): el objetivo 30/60/90 elegido, sin cambios —
+    // ese selector sí representa la duración objetivo del guion en ese caso.
+    duration_seconds: measuredDurationSeconds !== undefined ? Math.ceil(measuredDurationSeconds) : durationSeconds,
     language,
     mode: "avatar",
     avatar_id: avatarId,

@@ -58,8 +58,22 @@ export default async function ReviewPage({
     <div className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-bold text-ink">{data.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        {data.topic} · {data.style} · {data.recorded_audio_path ? "Duración del audio original" : `${data.duration_seconds}s`}
+        {data.topic} · {data.style} ·{" "}
+        {data.recorded_audio_path
+          ? `Duración: ${data.duration_seconds}s`
+          : `${data.duration_seconds}s`}
       </p>
+      {/* Contrato de duración (RC QA 2026-09-25): para "recording"/"tts_text"
+          duration_seconds ya NO es el objetivo 30/60/90 del selector, sino la
+          duración REAL del audio medida con ffprobe al crear la solicitud
+          (measureNarrationSeconds, ver dashboard/new/actions.ts) — el mismo
+          mecanismo, ya probado en producción, que preparation.ts (prueba
+          privada D-ID) usa desde antes. Se muestra ese número aquí en vez de
+          confiar en la duración que reporta el <audio> del navegador para el
+          archivo crudo — reportes de QA reales mostraron un jugador HTML5
+          marcando "0:20" para una grabación de ~45s; esta cifra es la
+          verdad medida en servidor, no la metadata del contenedor de audio
+          que el navegador interpreta. */}
 
       {audioPreview && <audio controls preload="metadata" src={audioPreview} className="my-4 w-full" aria-label="Tu grabación original" />}
       {/* Server Component: se evalúa una sola vez por request en el servidor

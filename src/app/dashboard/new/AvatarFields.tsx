@@ -28,12 +28,22 @@ const REFERENCE_WORDS_PER_SECOND = 2.5;
 export function AvatarFields({
   existingAvatars,
   language,
+  narrationSource,
+  onNarrationSourceChange,
 }: {
   existingAvatars: { id: string; name: string }[];
   /** Mismo idioma elegido arriba para la narración — el modo avatar no pide uno aparte, ver nota junto al <select> de voz. */
   language: "es" | "en";
+  /**
+   * Elevado a NewVideoForm (en vez de estado local) para que el selector
+   * de duración 30/60/90 pueda ocultarse cuando la fuente es "recording" o
+   * "tts_text" — contrato de duración (RC QA 2026-09-25): para esas dos
+   * fuentes la duración efectiva es la del audio real, nunca el objetivo
+   * del selector, así que mostrarlo ahí sería engañoso.
+   */
+  narrationSource: string;
+  onNarrationSourceChange: (value: string) => void;
 }) {
-  const [narrationSource, setNarrationSource] = useState("tts");
   const audioInputId = useId();
   const fileInputId = useId();
   const nameId = useId();
@@ -134,7 +144,7 @@ export function AvatarFields({
 
       <Field id="narration-source" label="Narración">
         <select id="narration-source" name="narration_source" value={narrationSource}
-          onChange={e => setNarrationSource(e.target.value)} className={INPUT_CLASS}>
+          onChange={e => onNarrationSourceChange(e.target.value)} className={INPUT_CLASS}>
           <option value="tts">Generar voz desde el guion</option>
           <option value="recording">Grabar o subir mi voz</option>
           <option value="tts_text">Voz IA desde texto</option>
