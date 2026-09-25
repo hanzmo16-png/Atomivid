@@ -99,3 +99,31 @@ test("mapa de datos: la cifra narrada solo se rotula si el trazado medido concue
   assert.equal(off.labeledKm, false);
   assert.ok(!off.svg.includes("200 km"));
 });
+
+test("dirección por defecto v3: corte salvo salto de época; cámara solo en imágenes fijas y alternada", async () => {
+  const { defaultDirections, ERA_DISSOLVE_SEC } = await import("./montage-direction");
+  const d = defaultDirections([
+    { kind: "video", provenance: "stock_illustrative" },
+    { kind: "video", provenance: "stock_illustrative" },
+    { kind: "image", provenance: "archival_documentary" },
+    { kind: "image", provenance: "archival_documentary" },
+    { kind: "graphic" },
+  ]);
+  assert.deepEqual(d.map((x) => x.transition?.type), ["cut", "cut", "dissolve", "cut", "dissolve"]);
+  assert.equal(d[2].transition?.seconds, ERA_DISSOLVE_SEC);
+  assert.deepEqual(d.map((x) => x.camera), ["still", "still", "push", "left", "still"]);
+});
+
+test("escenas v3 dirigidas: límites a la voz, procedencia visible y carencia marcada como pendiente", async () => {
+  const { directAnchoredScenes } = await import("./produce");
+  const scenes: LongFormShotScene[] = [
+    media("a", { startSeconds: 0, endSeconds: 1.2 }),
+    { ...media("b", { startSeconds: 1.2, endSeconds: 3 }), asset: { kind: "graphic", graphic: { kind: "text", title: "t", body: "", isFixture: false, size: "large" } } },
+  ];
+  const out = directAnchoredScenes(scenes, [{ assetMeta: { provenance: { kind: "ai_recreation" } as never } }, { assetMeta: { gap: { reason: "sin candidato pertinente" } } }], words);
+  assert.equal(out[0].endSeconds, out[1].startSeconds);
+  assert.equal(out[0].endSeconds, +(1.3 - 0.12).toFixed(3));
+  assert.equal(out[0].provenance, "ai_recreation");
+  assert.match(out[1].pending ?? "", /carencia de material pertinente/);
+  assert.equal(out[1].direction?.camera, "still");
+});

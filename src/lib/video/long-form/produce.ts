@@ -37,6 +37,8 @@ import { resolveLongFormProviders, type LongFormProviderSet } from "./mode";
 import { buildLongFormTimeline, type BeatSynthesizer } from "./timeline";
 import { shotsForSpan } from "./shots";
 import { renderLongFormDoc, type RenderLongFormDocInput } from "./render";
+import { defaultDirections, snapSceneBoundaries } from "./montage-direction";
+import type { LongFormShotScene } from "../../../../remotion/LongFormDoc";
 import { wrapDurableVideoProvider } from "./ai-video-durable-provider";
 import { emptyAiVideoLedgerState } from "./ai-video-cost-guard";
 import { loadProductionCachedBeatNarration, synthesizeBeatNarrationProductionCached } from "./production-tts-cache";
@@ -109,6 +111,11 @@ export type LongFormRuntime = {
   saveVisualReport?: (report: VisualReport) => Promise<void>;
   /** Inyectable en pruebas: identidad de contenido sin ffmpeg/sharp. */
   identify?: (buffer: Buffer, mediaType: "image" | "video") => Promise<Pick<AssetIdentity, "sha256" | "dhash" | "dhashUnavailable">>;
+  /**
+   * Hoja de sonido explícita (contrato de Work, remotion/long-form-direction.ts).
+   * Si se pasa, REEMPLAZA la música de fondo única (nunca se suman: música doble).
+   */
+  soundCues?: RenderLongFormDocInput["soundCues"];
 };
 
 export class LongFormReplayError extends Error {
@@ -387,13 +394,17 @@ export async function generateLongFormVideoFromScript({
     throw new LongFormQualityError(degradedToText, allocated.shots.length);
   }
 
-  const shotScenes = allocated.shots.map((shot, i) => ({
+  const baseScenes = allocated.shots.map((shot, i) => ({
     id: shot.id,
     startSeconds: shot.startSec,
     endSeconds: shot.endSec,
     asset: executions[i].asset,
     motion: shot.motion,
   }));
+  // v3: cortes alineados a la voz real, dirección de montaje editorial,
+  // procedencia visible y carencias marcadas (nunca pasan por terminadas).
+  // v1/v2 y la recuperación de planes anteriores: sin cambios.
+  const shotScenes = anchored ? directAnchoredScenes(baseScenes, executions, timeline.words) : baseScenes;
 
   const emphasisSet = buildEmphasisSet([]);
   const captions = buildCaptions(timeline.words, emphasisSet);
@@ -436,7 +447,8 @@ export async function generateLongFormVideoFromScript({
   const renderStartedAt = Date.now();
   const rawOutputPath = await (runtime.render ?? renderLongFormDoc)({
     audioUrl: audioUpload.url,
-    musicUrl,
+    musicUrl: runtime.soundCues ? undefined : musicUrl,
+    soundCues: runtime.soundCues,
     scenes: shotScenes,
     captions,
     narrationGaps,
@@ -541,4 +553,31 @@ async function uploadToStorage(
   if (signError || !data) throw new Error(`No se pudo firmar la URL de ${objectPath}: ${signError?.message ?? "desconocido"}`);
 
   return { path: objectPath, url: data.signedUrl };
+}
+
+/** Escenas v3 listas para renderizar: límites alineados a la voz, dirección, procedencia y carencias visibles. */
+export function directAnchoredScenes(
+  scenes: LongFormShotScene[],
+  executions: Pick<ShotExecution, "assetMeta">[],
+  words: { startSeconds: number; endSeconds: number }[],
+): LongFormShotScene[] {
+  if (scenes.length === 0) return scenes;
+  const bounds = snapSceneBoundaries([...scenes.map((s) => s.startSeconds), scenes[scenes.length - 1].endSeconds], words);
+  const directions = defaultDirections(
+    scenes.map((s, i) => ({
+      kind: s.asset.kind === "media" ? s.asset.mediaType : "graphic",
+      provenance: executions[i]?.assetMeta?.provenance?.kind,
+    })),
+  );
+  return scenes.map((scene, i) => {
+    const gap = executions[i]?.assetMeta?.gap;
+    return {
+      ...scene,
+      startSeconds: bounds[i],
+      endSeconds: bounds[i + 1],
+      direction: directions[i],
+      provenance: executions[i]?.assetMeta?.provenance?.kind,
+      pending: gap ? `carencia de material pertinente: ${gap.reason}` : undefined,
+    };
+  });
 }

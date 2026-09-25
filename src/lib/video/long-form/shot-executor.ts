@@ -81,6 +81,9 @@ export type ShotAssetMeta = {
   gap?: { reason: string; queries?: string[]; rejected?: AssetSelectionTrace["rejected"] };
 };
 
+/** Duración extra que debe tener un clip de archivo sobre su escena (alineación a la voz + cola de fundido). */
+export const STOCK_CLIP_MARGIN_SEC = 1.2;
+
 const PEXELS_LICENSE = "Pexels License (uso libre, atribución no obligatoria) — https://www.pexels.com/license/";
 
 export class ShotReplayError extends Error {
@@ -183,7 +186,8 @@ async function resolveStockAnchored(shot: AllocatedShot, deps: ShotExecutionDeps
   if (!deps.registry) throw new Error("visualPipeline anchored_v1 requiere un DocumentAssetRegistry");
   const visual = shot.anchoredVisual ?? { description: shot.visualIntent, motion: false };
   const outcome = await selectStockForShot(
-    { shotId: shot.id, visual, preferVideo, minDurationSec: shot.durationSec },
+    // Margen: el corte puede desplazarse hasta ±0.6 s al alinearse con la voz y un fundido añade cola.
+    { shotId: shot.id, visual, preferVideo, minDurationSec: shot.durationSec + STOCK_CLIP_MARGIN_SEC },
     { footageProvider: deps.footageProvider, registry: deps.registry, identify: deps.identify },
   );
   if (outcome.status === "gap") {
@@ -342,10 +346,13 @@ function mediaResult(shot: AllocatedShot, media: MediaOutcome, executedType: Sho
  * propio pasaje, breve, como cuerpo — nunca el título del documental.
  * Sin dato (tarjeta por CARENCIA): solo el pasaje, como título grande.
  */
-export function anchoredTextCard(shot: { narrationFragment?: string; captionText: string }): { kind: "text"; title: string; body: string; isFixture: false } {
+export function anchoredTextCard(shot: { narrationFragment?: string; captionText: string }): { kind: "text"; title: string; body: string; isFixture: false; size: "large" } {
   const fragment = shot.narrationFragment ?? shot.captionText;
   const fact = salientFact(fragment);
-  return fact ? { kind: "text", title: fact, body: clip(fragment, 110), isFixture: false } : { kind: "text", title: clip(fragment, 90), body: "", isFixture: false };
+  // "large": título ≥ 72 px / cuerpo ≥ 44 px; los límites de caracteres garantizan que cabe (render-approval.ts lo comprueba).
+  return fact
+    ? { kind: "text", title: fact, body: clip(fragment, 110), isFixture: false, size: "large" }
+    : { kind: "text", title: clip(fragment, 90), body: "", isFixture: false, size: "large" };
 }
 
 function textResult(shot: AllocatedShot, deps: ShotExecutionDeps, ledger: AiVideoLedgerState, reason?: string, gap?: ShotAssetMeta["gap"]): ShotExecution {
