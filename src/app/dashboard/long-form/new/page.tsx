@@ -4,8 +4,24 @@ import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
 import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
-import { Button } from "@/components/ui/Button";
 import { createLongFormVideoRequest } from "./actions";
+import { SubmitButton } from "./SubmitButton";
+
+// QA real (2026-09-25, "GENERAR GUION NO HACE NADA EN PRODUCTION"): sin
+// esto, el Server Action de este formulario quedaba al límite por defecto
+// de la plataforma — exactamente la misma causa raíz, con el mismo
+// comentario, que ya se documentó y corrigió para el guion de Reel (ver
+// export const maxDuration en src/app/api/generate/[id]/script/route.ts).
+// generateDocumentaryScript() pide hasta 8000 tokens de salida (4x el
+// guion de Reel) en una sola llamada real a Claude — sin este límite
+// explícito, Vercel cortaba la función a medias antes de que
+// createLongFormVideoRequest llegara a insertar la fila o a su propio
+// catch/redirect de error, así que Hans no veía ni éxito ni error: el
+// submit se veía como si "no hiciera nada" (confirmado leyendo
+// producción: cero filas mode='long_form' existen). Los Server Actions
+// heredan el maxDuration de la página que los invoca (ver docs de Next.js
+// para "Server Actions" bajo maxDuration), no el de actions.ts.
+export const maxDuration = 120;
 
 /**
  * RC mission Fase 4 — entrada self-service de Long Form (documental
@@ -96,12 +112,11 @@ export default async function NewLongFormVideoPage({
             <textarea id="open_questions" name="open_questions" rows={3} className={`${INPUT_CLASS} font-mono text-xs`} />
           </Field>
 
-          <Button type="submit" className="w-full">
-            Generar guion
-          </Button>
+          <SubmitButton />
           <p className="text-xs text-ink-faint">
             Esto genera el guion con IA ahora mismo (costo real, mismo criterio que el guion de
-            Reel). El video final se genera después, desde tu historial, y solo cuando lo
+            Reel). Puede tardar hasta un minuto — no cierres esta pantalla ni pulses el botón más
+            de una vez. El video final se genera después, desde tu historial, y solo cuando lo
             confirmes.
           </p>
         </form>
