@@ -345,6 +345,45 @@ async function downloadVideo(uri: string): Promise<Buffer> {
   return buffer;
 }
 
+/**
+ * Cola compartida entre generateVideo() (tras submitGeneration) y
+ * resumeGeneration() (que arranca directo desde una operación YA enviada
+ * por un intento anterior) — sondea, descarga y arma el GenerativeAsset.
+ * Nunca vuelve a llamar predictLongRunning: eso es exactamente lo que
+ * resumeGeneration() existe para evitar (ver wrapDurableVideoProvider,
+ * ai-video-durable-provider.ts — RC mission Fase 5).
+ */
+async function finishGeneration(
+  operationName: string,
+  durationSeconds: number,
+  estimatedCost: number,
+): Promise<GenerativeAsset> {
+  const { uri, mimeType } = await waitForCompletion(operationName);
+  let buffer: Buffer;
+  try {
+    buffer = await downloadVideo(uri);
+  } catch (err) {
+    if (err instanceof GenerativeProviderError && !err.providerJobId) {
+      throw new GenerativeProviderError(err.message, err.providerId, err.reason, err.cause, operationName);
+    }
+    throw err;
+  }
+
+  return {
+    buffer,
+    mimeType,
+    extension: "mp4",
+    durationSeconds,
+    model: VEO_MODEL,
+    costUsd: estimatedCost,
+    providerJobId: operationName,
+    // Veo SIEMPRE genera audio nativo (confirmado por Hans) — nunca se
+    // inventa un switch para apagarlo (P2A.5 sección 6); este flag deja
+    // constancia para que el renderer/pipeline lo descarte/reemplace.
+    sourceHasGeneratedAudio: true,
+  };
+}
+
 export const veoVideoProvider: VideoProvider = {
   name: "veo",
   capabilities: {
@@ -386,34 +425,31 @@ export const veoVideoProvider: VideoProvider = {
     }
 
     const operationName = await submitGeneration({ ...request, durationSeconds });
-    const { uri, mimeType } = await waitForCompletion(operationName);
-    let buffer: Buffer;
-    try {
-      buffer = await downloadVideo(uri);
-    } catch (err) {
-      // downloadVideo no conoce operationName (solo recibe la URI ya
-      // resuelta) — se adjunta aquí, en el único lugar donde ambos datos
-      // coexisten, para que un fallo de descarga (video YA generado y YA
-      // facturado en el proveedor) nunca pierda el identificador de la
-      // operación que sí lo produjo.
-      if (err instanceof GenerativeProviderError && !err.providerJobId) {
-        throw new GenerativeProviderError(err.message, err.providerId, err.reason, err.cause, operationName);
-      }
-      throw err;
+    return finishGeneration(operationName, durationSeconds, estimatedCost);
+  },
+  /**
+   * Reanuda el sondeo de una operación de Veo YA enviada por un intento
+   * anterior (p. ej. el worker murió entre submitGeneration() y que la
+   * COMPLETED se persistiera en ai-video-storage.ts) — NUNCA vuelve a
+   * llamar predictLongRunning para el mismo shot. `request` solo se usa
+   * para recalcular el costo estimado (misma tarifa/duración que el
+   * intento original, nunca se confía en un costo distinto).
+   */
+  async resumeGeneration(operationName: string, request: VideoGenerationRequest): Promise<GenerativeAsset> {
+    if (!this.isAvailable()) {
+      throw new GenerativeProviderError("VEO_API_KEY no está configurada", "veo", "not_configured");
     }
-
-    return {
-      buffer,
-      mimeType,
-      extension: "mp4",
-      durationSeconds,
-      model: VEO_MODEL,
-      costUsd: estimatedCost,
-      providerJobId: operationName,
-      // Veo SIEMPRE genera audio nativo (confirmado por Hans) — nunca se
-      // inventa un switch para apagarlo (P2A.5 sección 6); este flag deja
-      // constancia para que el renderer/pipeline lo descarte/reemplace.
-      sourceHasGeneratedAudio: true,
-    };
+    const durationSeconds = VEO_DURATION_SECONDS_1080P;
+    const estimatedCost = durationSeconds * getVeoCostUsdPerSecond();
+    if (estimatedCost > request.maxCostUsd) {
+      throw new GenerativeProviderError(
+        `Costo estimado ($${estimatedCost}) excede el máximo permitido para este clip ($${request.maxCostUsd})`,
+        "veo",
+        "budget_exceeded",
+        undefined,
+        operationName,
+      );
+    }
+    return finishGeneration(operationName, durationSeconds, estimatedCost);
   },
 };

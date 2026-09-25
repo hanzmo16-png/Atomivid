@@ -271,6 +271,52 @@ test("async lifecycle: reference image -> submit -> operation -> poll (varios in
   });
 });
 
+test("resumeGeneration() (RC mission Fase 5): reanuda el sondeo de una operación YA enviada — CERO llamadas a predictLongRunning", async () => {
+  await withEnv({ VEO_API_KEY: "fake-key" }, async () => {
+    let submitCalls = 0;
+    let pollCount = 0;
+    const restore = installFetchMock((url) => {
+      if (url.includes(":predictLongRunning")) {
+        submitCalls++;
+        return jsonResponse({ name: "operations/should-never-be-created" });
+      }
+      if (url.includes("operations/op-resume")) {
+        pollCount++;
+        if (pollCount < 2) return jsonResponse({ name: "operations/op-resume", done: false });
+        return jsonResponse(COMPLETED_OPERATION("operations/op-resume", "https://files.example.com/out-resume.mp4"));
+      }
+      if (url.includes("files.example.com")) return new Response(Buffer.from("resumed-bytes"), { status: 200 });
+      throw new Error(`URL no esperada: ${url}`);
+    });
+    try {
+      const asset = await veoVideoProvider.resumeGeneration!("operations/op-resume", BASE_REQUEST);
+      assert.equal(submitCalls, 0, "resumeGeneration NUNCA debe enviar una nueva solicitud predictLongRunning");
+      assert.equal(pollCount, 2);
+      assert.equal(asset.providerJobId, "operations/op-resume");
+      assert.equal(asset.costUsd, VEO_DURATION_SECONDS_1080P * getVeoCostUsdPerSecond());
+      assert.ok(asset.buffer.byteLength > 0);
+    } finally {
+      restore();
+    }
+  });
+});
+
+test("resumeGeneration() lanza not_configured sin VEO_API_KEY — cero llamadas de red", async () => {
+  await withEnv({}, async () => {
+    const restore = installFetchMock(() => {
+      throw new Error("no debería llamarse a fetch");
+    });
+    try {
+      await assert.rejects(
+        () => veoVideoProvider.resumeGeneration!("operations/op-x", BASE_REQUEST),
+        (err: unknown) => err instanceof GenerativeProviderError && err.reason === "not_configured",
+      );
+    } finally {
+      restore();
+    }
+  });
+});
+
 test("resiliencia (P2B, 2026-09-24): un fallo transitorio al CONSULTAR la operación (p. ej. HTTP 503) se reintenta dentro del mismo presupuesto de intentos — nunca aborta toda la generación ni crea una segunda operación", async () => {
   await withEnv({ VEO_API_KEY: "fake-key", VEO_MAX_POLL_ATTEMPTS: "2", VEO_POLL_TIMEOUT_MS: "999999" }, async () => {
     let pollCalls = 0;

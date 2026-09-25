@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { wrapDurableVideoProvider } from "./ai-video-durable-provider";
-import type { GenerativeAsset, VideoGenerationRequest, VideoProvider } from "@/lib/providers/types";
+import { GenerativeProviderError, type GenerativeAsset, type VideoGenerationRequest, type VideoProvider } from "@/lib/providers/types";
 
 /** Mismo patrón que ai-video-storage.test.ts — fake mínimo de SupabaseClient en memoria. */
 function makeFakeSupabase() {
@@ -63,6 +63,57 @@ function makeCountingProvider(): { provider: VideoProvider; getCallCount: () => 
     },
   };
   return { provider, getCallCount: () => callCount };
+}
+
+/**
+ * Simula el escenario real de P2B: generateVideo() envía la operación
+ * (submitCallCount++) pero el sondeo termina en un error que YA trae
+ * providerJobId (timeout/fallo transitorio agotado, ver veo.ts) — nunca
+ * llega a completar. resumeGeneration() reanuda esa MISMA operación
+ * (resumeCallCount++) y sí termina con éxito.
+ */
+function makeFailThenResumeProvider(): {
+  provider: VideoProvider;
+  getSubmitCallCount: () => number;
+  getResumeCallCount: () => number;
+} {
+  let submitCallCount = 0;
+  let resumeCallCount = 0;
+  const OPERATION_ID = "operations/op-fail-then-resume";
+  function makeAsset(request: VideoGenerationRequest): GenerativeAsset {
+    const buf = Buffer.alloc(32);
+    buf.write("ftyp", 4, "ascii");
+    return {
+      buffer: buf,
+      mimeType: "video/mp4",
+      extension: "mp4",
+      durationSeconds: request.durationSeconds,
+      model: "veo-3.1-fast",
+      costUsd: 0.96,
+      providerJobId: OPERATION_ID,
+    };
+  }
+  const provider: VideoProvider = {
+    name: "veo-fake",
+    capabilities: { id: "veo-fake", models: ["veo"], formats: ["video/mp4"], aspectRatios: ["16:9"], timeoutMs: 1000, maxRetries: 0 },
+    isAvailable: () => true,
+    async generateVideo(): Promise<GenerativeAsset> {
+      submitCallCount++;
+      throw new GenerativeProviderError(
+        "Se agotaron los intentos de sondeo",
+        "veo-fake",
+        "timeout",
+        undefined,
+        OPERATION_ID,
+      );
+    },
+    async resumeGeneration(operationName: string, request: VideoGenerationRequest): Promise<GenerativeAsset> {
+      resumeCallCount++;
+      assert.equal(operationName, OPERATION_ID);
+      return makeAsset(request);
+    },
+  };
+  return { provider, getSubmitCallCount: () => submitCallCount, getResumeCallCount: () => resumeCallCount };
 }
 
 const baseRequest: VideoGenerationRequest = {
@@ -136,6 +187,66 @@ test("wrapDurableVideoProvider: sin metadata.shotId, delega sin envoltura (nunca
   await wrapped.generateVideo({ ...baseRequest, metadata: undefined });
 
   assert.equal(getCallCount(), 2, "sin shotId no hay durabilidad posible, así que cada llamada pasa directo");
+});
+
+test("wrapDurableVideoProvider (RC mission Fase 5): un fallo tras el envío persiste un registro STARTED con el providerJobId, sin fingir éxito", async () => {
+  const { fake } = makeFakeSupabase();
+  const { provider, getSubmitCallCount } = makeFailThenResumeProvider();
+  const wrapped = wrapDurableVideoProvider(provider, { supabase: fake, scopeId: "req-1" });
+
+  await assert.rejects(() => wrapped.generateVideo(baseRequest), GenerativeProviderError);
+  assert.equal(getSubmitCallCount(), 1);
+});
+
+test("wrapDurableVideoProvider (RC mission Fase 5): un intento posterior REANUDA la operación STARTED en vez de enviar una segunda", async () => {
+  const { fake } = makeFakeSupabase();
+  const { provider, getSubmitCallCount, getResumeCallCount } = makeFailThenResumeProvider();
+
+  const first = wrapDurableVideoProvider(provider, { supabase: fake, scopeId: "req-1" });
+  await assert.rejects(() => first.generateVideo(baseRequest));
+  assert.equal(getSubmitCallCount(), 1);
+  assert.equal(getResumeCallCount(), 0);
+
+  // Nuevo wrapper (nuevo render_attempt/worker) sobre el MISMO scopeId.
+  const retry = wrapDurableVideoProvider(provider, { supabase: fake, scopeId: "req-1" });
+  const asset = await retry.generateVideo(baseRequest);
+
+  assert.equal(getSubmitCallCount(), 1, "NUNCA debe volver a enviar submitGeneration para el mismo shot");
+  assert.equal(getResumeCallCount(), 1);
+  assert.equal(asset.providerJobId, "operations/op-fail-then-resume");
+
+  // Y un tercer intento reutiliza el clip ya COMPLETED (sin reanudar de nuevo).
+  const third = wrapDurableVideoProvider(provider, { supabase: fake, scopeId: "req-1" });
+  const asset3 = await third.generateVideo(baseRequest);
+  assert.equal(getResumeCallCount(), 1, "una vez COMPLETED, ya no hace falta reanudar");
+  assert.equal(asset3.costUsd, 0);
+});
+
+test("wrapDurableVideoProvider (RC mission Fase 5): sin resumeGeneration en el proveedor, un registro STARTED con providerJobId lanza en vez de reintentar a ciegas", async () => {
+  const { fake } = makeFakeSupabase();
+  const OPERATION_ID = "operations/op-no-resume-support";
+  let submitCallCount = 0;
+  const noResumeProvider: VideoProvider = {
+    name: "veo-fake",
+    capabilities: { id: "veo-fake", models: ["veo"], formats: ["video/mp4"], aspectRatios: ["16:9"], timeoutMs: 1000, maxRetries: 0 },
+    isAvailable: () => true,
+    async generateVideo(): Promise<GenerativeAsset> {
+      submitCallCount++;
+      throw new GenerativeProviderError("timeout de sondeo", "veo-fake", "timeout", undefined, OPERATION_ID);
+    },
+    // Sin resumeGeneration — como Runway/Kling hoy.
+  };
+
+  const first = wrapDurableVideoProvider(noResumeProvider, { supabase: fake, scopeId: "req-1" });
+  await assert.rejects(() => first.generateVideo(baseRequest));
+  assert.equal(submitCallCount, 1);
+
+  const retry = wrapDurableVideoProvider(noResumeProvider, { supabase: fake, scopeId: "req-1" });
+  await assert.rejects(
+    () => retry.generateVideo(baseRequest),
+    (err: unknown) => err instanceof Error && err.message.includes("no admite reanudar sondeo"),
+  );
+  assert.equal(submitCallCount, 1, "sin soporte de reanudación, NUNCA se envía una segunda generación en su lugar");
 });
 
 test("wrapDurableVideoProvider: preserva name/capabilities/isAvailable del proveedor interno", () => {

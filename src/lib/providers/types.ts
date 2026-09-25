@@ -332,6 +332,19 @@ export interface VideoProvider {
   readonly capabilities: GenerativeCapabilities;
   isAvailable(): boolean;
   generateVideo(request: VideoGenerationRequest): Promise<GenerativeAsset>;
+  /**
+   * Reanuda el sondeo de una generación asíncrona YA enviada al proveedor
+   * (identificada por `operationName`/`providerJobId`) sin volver a
+   * enviar la solicitud original — RC mission Fase 5 ("providerJobId
+   * recovery"): si un worker muere entre que el proveedor aceptó la
+   * solicitud (ya facturable) y que el resultado se persistió, un retry
+   * debe poder recuperar ESA misma operación en vez de crear una segunda.
+   * Opcional: solo los proveedores con generación asíncrona de larga
+   * duración y sondeo propio (Veo) lo implementan; ausente = ese proveedor
+   * no admite reanudar (el llamador decide qué hacer, nunca reintenta a
+   * ciegas en su lugar).
+   */
+  resumeGeneration?(operationName: string, request: VideoGenerationRequest): Promise<GenerativeAsset>;
 }
 
 // Alias por nombre de producto — el "PremiumVideoProvider" pedido en la
