@@ -66,11 +66,24 @@ async function main() {
     return;
   }
 
-  let avatarRow: { provider: string; status: string } | null = null;
+  let avatarRow: { provider: string; status: string; provider_avatar_id: string | null; source_photo_path: string | null } | null = null;
   if (row.avatar_id) {
-    const { data } = await service.from("avatars").select("provider, status").eq("id", row.avatar_id).maybeSingle();
+    const { data } = await service
+      .from("avatars")
+      .select("provider, status, provider_avatar_id, source_photo_path")
+      .eq("id", row.avatar_id)
+      .maybeSingle();
     avatarRow = data ?? null;
   }
+
+  // Otros avatares del mismo usuario — para saber si ya existe uno
+  // creado por el proveedor real (heygen) que pueda reusarse en una
+  // solicitud futura, sin necesidad de subir la foto de nuevo.
+  const { data: allAvatars } = await service
+    .from("avatars")
+    .select("id, provider, status, created_at")
+    .eq("user_id", row.user_id)
+    .order("created_at", { ascending: false });
 
   const { data: costRow } = await service
     .from("generation_costs")
@@ -102,6 +115,7 @@ async function main() {
         found: true,
         request: row,
         avatar: avatarRow,
+        user_avatars: allAvatars ?? [],
         generation_costs: costRow ?? null,
         heygen_status_check: {
           attempted: Boolean(row.avatar_provider_video_job_id),
