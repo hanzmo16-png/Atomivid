@@ -209,8 +209,8 @@ async function main() {
   }
 
   if (part === "detail") {
-    // DETAIL_REFS: "pexels-video:123;pexels-photo:456;commons:File:X.jpg;existing:<path>" (separados por ';')
-    const refs = (process.env.DETAIL_REFS ?? "").split(";").map((s) => s.trim()).filter(Boolean);
+    // DETAIL_REFS: "pexels-video:123|pexels-photo:456|commons:File:X.jpg|existing:<path>" (separados por "|")
+    const refs = (process.env.DETAIL_REFS ?? "").split("|").map((s) => s.trim()).filter(Boolean);
     const key = process.env.PEXELS_API_KEY;
     for (const [i, ref] of refs.entries()) {
       const tiles: { image: Buffer; label: string }[] = [];

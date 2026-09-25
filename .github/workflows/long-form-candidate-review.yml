@@ -24,7 +24,7 @@ on:
         default: "docs/quality/m2-panama-opening/search-spec.json"
         type: string
       detail_refs:
-        description: "Candidatos a ampliar (separados por ';'), p. ej. pexels-video:123;commons:File:X.jpg"
+        description: "Candidatos a ampliar (separados por '|'), p. ej. pexels-video:123|commons:File:X.jpg"
         required: false
         default: ""
         type: string
