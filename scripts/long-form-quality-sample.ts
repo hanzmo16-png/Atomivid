@@ -292,7 +292,7 @@ async function main() {
   console.log(`@@LOUDNESS ${JSON.stringify(finalLoudness)}`);
   // Perfil de la mezcla (sin escucha): sonoridad momentánea cada 0.5 s y nivel en los silencios de
   // narración (ahí solo suena la música) — detecta saltos en los cambios de pista y huecos sin sonido.
-  const eb = await run("ffmpeg", ["-v", "info", "-i", mastered, "-af", "ebur128=framelog=verbose", "-f", "null", "-"]).catch((e) => String(e));
+  const eb = await run("ffmpeg", ["-nostats", "-v", "info", "-i", mastered, "-af", "ebur128=framelog=info", "-f", "null", "-"]).catch((e) => String(e));
   const frames = [...eb.matchAll(/t:\s*([\d.]+)\s+TARGET:[^M]*M:\s*(-?[\d.]+|-inf)/g)].map((m) => [Number(m[1]), m[2] === "-inf" ? -120 : Number(m[2])] as [number, number]);
   const profile = frames.filter(([t]) => Math.abs(t * 2 - Math.round(t * 2)) < 0.051).map(([t, m]) => [+t.toFixed(1), m]);
   console.log(`@@MIXPROFILE ${JSON.stringify(profile)}`);
