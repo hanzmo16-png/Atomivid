@@ -1,0 +1,73 @@
+name: Muestra de calidad Long Form (narración guardada, recursos gratuitos)
+
+# Calidad M2 (scripts/long-form-quality-sample.ts): prepara y renderiza una
+# muestra a partir de un manifiesto revisado. Narración desde la caché TTS
+# (sin síntesis), recursos gratuitos (Pexels con la clave existente,
+# Wikimedia Commons de dominio público, mapa de datos Natural Earth) y
+# música del banco con procedencia registrada. Salida y estado SEPARADOS
+# (<requestId>/samples/...); nunca toca output/final.mp4. No recibe claves
+# de ElevenLabs/OpenAI/Veo/Anthropic.
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: "prepare | render"
+        required: true
+        default: prepare
+        type: choice
+        options: [prepare, render]
+      purpose:
+        description: "technical (ventana corta) | approval (muestra completa; bloquea con escenas pendientes)"
+        required: false
+        default: technical
+        type: choice
+        options: [technical, approval]
+      manifest:
+        description: "Manifiesto de la muestra"
+        required: false
+        default: "docs/quality/m2-panama-opening/sample-manifest.json"
+        type: string
+      window_sec:
+        description: "Duración del render técnico (s)"
+        required: false
+        default: "12"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Instalar ffmpeg y fuentes
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - name: Muestra (${{ inputs.phase }} / ${{ inputs.purpose }})
+        run: npx tsx scripts/long-form-quality-sample.ts
+        env:
+          PHASE: ${{ inputs.phase }}
+          RENDER_PURPOSE: ${{ inputs.purpose }}
+          RENDER_WINDOW_SEC: ${{ inputs.window_sec }}
+          SAMPLE_MANIFEST: ${{ inputs.manifest }}
+          SAMPLE_OUT_DIR: ${{ runner.temp }}/quality-sample
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      - name: Publicar muestra (artifact privado)
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: long-form-quality-sample-${{ inputs.phase }}-${{ inputs.purpose }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/quality-sample/
+          if-no-files-found: ignore
+          retention-days: 14
