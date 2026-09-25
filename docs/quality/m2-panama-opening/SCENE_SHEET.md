@@ -31,3 +31,12 @@ Generada desde `sample-manifest.json` y el estado preparado (`<requestId>/sample
 | m3-tension (music) | 20.6–49.976 | elevenlabs-tension-1.mp3 (desde 14 s de 45.0 s) | Tension Dark / ElevenLabs (Eleven Music) | Eleven Music — entrenado con datos con licencia, autorizado para uso comercial (https://elevenlabs.io/eleven-music-api) | entrada 1.2 s, salida 2.2 s |
 
 Recursos sonoros que faltan (no sustituidos por tonos de prueba): ambiente de selva húmeda (s03), zumbido de mosquito (s02), golpe de pico (s01), ambiente portuario/bocina (s05–s06). Las pistas se eligieron por metadatos de tono y NO se escucharon: la aprobación auditiva queda pendiente.
+
+## QC del render de aprobación (run 36192486749)
+
+- MP4: `2f35d750-…/samples/m2-opening/sample-approval.mp4` (24.0 MB, 1920×1080, 49.98 s) y artifact 10889231207 del run (14 días). `output/final.mp4` intacto.
+- Destellos negros: 0 tramos (blackdetect d=0.02 s, umbral 0.90). Fundidos (s04, s07, s15) sin caída a negro; cortes limpios (fotogramas a ±0.08 s de cada corte revisados).
+- Subtítulos: por escena y equilibrados; ninguno cruza un corte ni deja palabras sueltas.
+- Rótulos: créditos de archivo legibles; 0 «Recreación IA» (no hay IA); 0 «Material pendiente» (render de aprobación bloqueado si existiera alguno).
+- Mezcla (sin escucha): −15.65 LUFS integrados; **true peak −1.21 dBTP (0.29 dB por encima del objetivo −1.5)** con la masterización compartida. Voz −14 a −17 LUFS momentáneos; en las pausas entre frases (solo música) −27 a −33 LUFS (~15 dB bajo la voz); sin saltos en los cambios de pista (12.6–14 s, 20.6–21.8 s). La pista de tensión no se repite (fuente 0–14 s y luego 14–43.4 s); sin bucles.
+- Llamadas de pago: 0.
