@@ -2,11 +2,11 @@ import { createVideoRequest } from "./actions";
 import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
 import { NewVideoForm } from "./NewVideoForm";
+import { ContentTypeStep } from "./ContentTypeStep";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { createClient } from "@/lib/supabase/server";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
-import { LinkButton } from "@/components/ui/Button";
 
 const INCLUDES = [
   "Guion escrito por IA a partir de tu tema",
@@ -55,30 +55,16 @@ export default async function NewVideoPage({
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <Card className="p-6">
-          {(privateAvatarAccess || longFormBetaAccess) && (
-            <div className="mb-6 flex flex-wrap gap-2">
-              {privateAvatarAccess && (
-                <div className="space-y-2">
-                  <LinkButton href="/dashboard/avatar/prepare" variant="secondary">
-                    Video con avatar
-                  </LinkButton>
-                  <p className="text-xs text-ink-muted">Prepara tu foto y tu grabación. No consume créditos.</p>
-                </div>
-              )}
-              {longFormBetaAccess && (
-                <div className="space-y-2">
-                  <LinkButton href="/dashboard/long-form/new" variant="secondary">
-                    Documental (YouTube, beta)
-                  </LinkButton>
-                  <p className="text-xs text-ink-muted">Video 16:9 largo con fuentes verificadas.</p>
-                </div>
-              )}
-            </div>
-          )}
-          <NewVideoForm
-            action={createVideoRequest}
-            avatarModeEnabled={flags.avatarModeEnabled && privateAvatarAccess}
-            existingAvatars={existingAvatars}
+          <ContentTypeStep
+            avatarAccess={privateAvatarAccess}
+            longFormAccess={longFormBetaAccess}
+            reelForm={
+              <NewVideoForm
+                action={createVideoRequest}
+                avatarModeEnabled={flags.avatarModeEnabled && privateAvatarAccess}
+                existingAvatars={existingAvatars}
+              />
+            }
           />
         </Card>
 
