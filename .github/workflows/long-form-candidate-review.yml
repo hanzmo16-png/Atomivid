@@ -1,0 +1,74 @@
+name: Revisión de candidatos visuales Long Form (gratuita, solo lectura)
+
+# Calidad M2 (scripts/long-form-candidate-review.ts): tiempos reales de la
+# narración guardada, miniaturas de los recursos ya guardados y búsquedas
+# GRATUITAS (Pexels con la clave existente; Wikimedia Commons sin
+# credenciales, solo dominio público). Emite hojas de contacto en el log
+# para revisión visual. No escribe nada; no recibe claves de proveedores de
+# pago (ElevenLabs/OpenAI/Veo/Anthropic).
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: "ID exacto de video_requests"
+        required: true
+        type: string
+      parts:
+        description: "Partes separadas por coma: words,existing,pexels,commons"
+        required: false
+        default: "words,existing,pexels,commons"
+        type: string
+      search_spec:
+        description: "Archivo de búsquedas por pasaje"
+        required: false
+        default: "docs/quality/m2-panama-opening/search-spec.json"
+        type: string
+      detail_refs:
+        description: "Candidatos a ampliar (separados por ';'), p. ej. pexels-video:123;commons:File:X.jpg"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [words, existing, pexels, commons, detail]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Omitir parte no pedida
+        id: gate
+        run: |
+          if [ "${{ matrix.part }}" = "detail" ]; then
+            if [ -n "${{ inputs.detail_refs }}" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "run=false" >> "$GITHUB_OUTPUT"; fi
+          elif echo ",${{ inputs.parts }}," | grep -q ",${{ matrix.part }},"; then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "run=false" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: steps.gate.outputs.run == 'true'
+      - name: Instalar ffmpeg y fuentes
+        if: steps.gate.outputs.run == 'true'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - name: Revisar (${{ matrix.part }})
+        if: steps.gate.outputs.run == 'true'
+        run: npx tsx scripts/long-form-candidate-review.ts
+        env:
+          PART: ${{ matrix.part }}
+          REQUEST_ID: ${{ inputs.request_id }}
+          SEARCH_SPEC: ${{ inputs.search_spec }}
+          DETAIL_REFS: ${{ inputs.detail_refs }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}

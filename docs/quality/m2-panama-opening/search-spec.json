@@ -1,0 +1,21 @@
+{
+  "requestId": "2f35d750-8023-456d-810e-d805cba7859c",
+  "note": "Búsquedas de CANDIDATOS por pasaje narrado de la apertura (beat-1, 0-48.6 s). Encontrar no es aprobar: cada candidato se revisa visualmente antes de entrar en la muestra.",
+  "scenes": [
+    { "id": "s01", "passage": "Imagina cavar una montaña con picos y palas,", "pexels": ["pickaxe digging rock", "shovel digging soil close up"], "commons": ["Culebra Cut workers pick shovel 1907"] },
+    { "id": "s02", "passage": "rodeado de mosquitos que transmiten enfermedades mortales,", "pexels": ["mosquito macro", "mosquito on skin"], "commons": [] },
+    { "id": "s03", "passage": "en un calor húmedo que no da tregua.", "pexels": ["tropical rainforest mist", "jungle heavy rain"], "commons": [] },
+    { "id": "s04", "passage": "Así empezó, para miles de trabajadores, la historia del Canal de Panamá.", "pexels": [], "commons": ["Panama Canal construction workers 1910", "Culebra Cut laborers"] },
+    { "id": "s05", "passage": "Hoy lo vemos como una autopista de agua entre dos océanos,", "pexels": ["panama canal", "panama canal aerial"], "commons": [] },
+    { "id": "s06", "passage": "un logro técnico que cambió el comercio mundial para siempre.", "pexels": ["panama canal ship lock", "container ship canal locks"], "commons": [] },
+    { "id": "s07", "passage": "Pero antes de que el primer barco cruzara sus esclusas,", "pexels": ["canal lock gates"], "commons": ["Gatun Locks construction 1912", "Miraflores Locks construction 1913"] },
+    { "id": "s08", "passage": "el proyecto ya había fracasado una vez,", "pexels": [], "commons": ["French excavator abandoned Panama canal", "Compagnie universelle du canal interocéanique de Panama machinery"] },
+    { "id": "s09", "passage": "y se había cobrado un costo humano brutal.", "pexels": [], "commons": ["Panama canal French cemetery", "Ancon hospital Panama 1910"] },
+    { "id": "s10", "passage": "Esta es la historia de cómo una franja de tierra de apenas ochenta kilómetros", "pexels": [], "commons": ["Map Panama Canal Zone 1913"] },
+    { "id": "s11", "passage": "se convirtió en el punto donde chocaron la ambición imperial,", "pexels": [], "commons": ["Theodore Roosevelt steam shovel Culebra 1906", "Ferdinand de Lesseps Panama"] },
+    { "id": "s12", "passage": "la ingeniería de vanguardia", "pexels": [], "commons": ["Gatun Locks under construction", "Culebra Cut steam shovels 1913"] },
+    { "id": "s13", "passage": "y los límites del cuerpo humano.", "pexels": [], "commons": ["West Indian laborers Panama Canal", "Panama canal workers drilling"] },
+    { "id": "s14", "passage": "Y de cómo, después de un colapso casi total,", "pexels": [], "commons": ["abandoned French locomotive Panama canal", "old French dredge Panama"] },
+    { "id": "s15", "passage": "otro país terminó lo que Francia no pudo.", "pexels": [], "commons": ["SS Ancon first transit Panama Canal 1914", "Panama canal opening 1914"] }
+  ]
+}
