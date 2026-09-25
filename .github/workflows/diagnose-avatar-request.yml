@@ -1,0 +1,43 @@
+name: Diagnóstico de solo lectura de una solicitud de avatar
+
+# QA real (2026-09-25, "AVATAR REAL HEYGEN ATTEMPT FAILED"). Ejecuta
+# scripts/diagnose-avatar-request.ts: SOLO LECTURA de video_requests/
+# avatars/generation_costs, más un único GET de estado (no billable) a
+# HeyGen si la solicitud ya tiene un providerJobId. Nunca crea, reintenta
+# ni modifica nada — ver el propio script para el detalle exacto de qué
+# hace y qué nunca hace.
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: "Opcional: ID exacto de video_requests a diagnosticar. Vacío = la solicitud avatar+failed más reciente."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Diagnosticar (solo lectura)
+        run: npx tsx scripts/diagnose-avatar-request.ts
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
