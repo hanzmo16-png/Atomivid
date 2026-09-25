@@ -41,6 +41,7 @@ import { wrapDurableVideoProvider } from "./ai-video-durable-provider";
 import { emptyAiVideoLedgerState, recordAiVideoSpend, type AiVideoLedgerState } from "./ai-video-cost-guard";
 import type { NarrativeBeat } from "./types";
 import { type LongFormStage } from "./stages";
+import { recordVideoGeneration } from "@/lib/billing/usage";
 
 const STORAGE_BUCKET = "videos";
 const ASSET_SIGNED_URL_TTL_SECONDS = 60 * 60;
@@ -122,6 +123,8 @@ export async function generateLongFormVideoFromScript({
 
   let aiVideoLedger: AiVideoLedgerState = emptyAiVideoLedgerState();
   let imageCostSpentUsd = 0;
+  let footageCount = 0;
+  let storageBytes = 0;
   const shotScenes: {
     id: string;
     startSeconds: number;
@@ -148,8 +151,11 @@ export async function generateLongFormVideoFromScript({
       },
     });
     imageCostSpentUsd += result.costUsd;
+    storageBytes += result.bufferBytes;
     if (shot.type === "ai_video" && result.asset.kind === "media" && result.asset.mediaType === "video") {
       aiVideoLedger = recordAiVideoSpend(aiVideoLedger, shot.durationSec, result.costUsd);
+    } else if (result.providerUsed === resolvedProviders.footageProvider.name) {
+      footageCount += 1;
     }
     shotScenes.push({
       id: shot.id,
@@ -164,32 +170,38 @@ export async function generateLongFormVideoFromScript({
   const captions = buildCaptions(timeline.words, emphasisSet);
   const narrationGaps = computeNarrationGaps(timeline.words);
 
+  const fullNarrationText = beats.map((b) => b.narration).join(" ");
   const finalDurationSeconds = timeline.durationSeconds + VIDEO_TAIL_SECONDS;
   let music: MusicResult | null = null;
+  let musicFallbackReason: string | null = null;
   try {
     music = await resolvedProviders.musicProvider.getTrack({
       durationSeconds: finalDurationSeconds,
       style: "documental",
       topic,
-      scriptText: beats.map((b) => b.narration).join(" "),
+      scriptText: fullNarrationText,
       language,
       seed: requestId,
     });
   } catch (err) {
+    musicFallbackReason = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
     console.warn(
       `[atomivid:long-form:produce] ${requestId} — no se pudo obtener música, el documental se genera sin ella:`,
-      err instanceof Error ? err.message : err,
+      musicFallbackReason,
     );
   }
   let musicUrl: string | undefined;
   if (music) {
+    storageBytes += music.audioBuffer.byteLength;
     const uploaded = await upload("music." + music.extension, music.audioBuffer, music.mimeType);
     musicUrl = uploaded.url;
   }
 
+  storageBytes += timeline.audioBuffer.byteLength;
   const audioUpload = await upload("voice.wav", timeline.audioBuffer, "audio/wav");
 
   await onProgress?.("rendering");
+  const renderStartedAt = Date.now();
   const rawOutputPath = await renderLongFormDoc({
     audioUrl: audioUpload.url,
     musicUrl,
@@ -198,6 +210,7 @@ export async function generateLongFormVideoFromScript({
     narrationGaps,
     durationSeconds: finalDurationSeconds,
   });
+  const renderMs = Date.now() - renderStartedAt;
 
   let outputPath = rawOutputPath;
   try {
@@ -216,6 +229,7 @@ export async function generateLongFormVideoFromScript({
   }
 
   const videoBuffer = await fs.readFile(outputPath);
+  storageBytes += videoBuffer.byteLength;
   const { path: videoPath } = await uploadToStorage(supabase, `${artifactPrefix}/final.mp4`, videoBuffer, "video/mp4");
   await fs.unlink(outputPath).catch(() => {});
   if (outputPath !== rawOutputPath) await fs.unlink(rawOutputPath).catch(() => {});
@@ -230,6 +244,43 @@ export async function generateLongFormVideoFromScript({
       aiVideo: { clips: aiVideoLedger.usedClips, seconds: aiVideoLedger.usedSeconds, costUsd: aiVideoLedger.spentUsd },
     }),
   );
+
+  // RC mission Fase 6 (cost engine): centraliza el costo real en la MISMA
+  // tabla generation_costs que ya usan Reel/Avatar (recordVideoGeneration,
+  // billing/usage.ts) — nunca un registro aparte solo para Long Form. El
+  // tier "video premium" (premium_video_*) ya existía para clips tipo
+  // Runway; Veo/ai_video encaja ahí sin ningún cambio de schema. Igual que
+  // en generate-video.ts, un fallo al registrar el costo NUNCA tumba un
+  // video que sí se generó bien — solo se advierte.
+  await recordVideoGeneration(supabase, requestId, {
+    voiceProvider: resolvedProviders.voiceProvider.name,
+    voiceCharacters: fullNarrationText.length,
+    footageProvider: resolvedProviders.footageProvider.name,
+    footageCount,
+    musicProvider: music ? resolvedProviders.musicProvider.name : "none",
+    musicTrack: music?.track
+      ? {
+          id: music.track.trackId,
+          title: music.track.title,
+          author: music.track.author,
+          license: music.track.license,
+          sourceUrl: music.track.sourceUrl,
+        }
+      : null,
+    musicFallbackReason,
+    videoDurationSeconds: finalDurationSeconds,
+    renderMs,
+    storageBytes,
+    creativeLayer: {
+      imageProvider: imageCostSpentUsd > 0 ? resolvedProviders.imageProvider.name : undefined,
+      imageCostUsd: imageCostSpentUsd,
+      premiumVideoProvider: aiVideoLedger.usedClips > 0 ? durableVideoProvider.name : undefined,
+      premiumVideoClipCount: aiVideoLedger.usedClips,
+      premiumVideoCostUsd: aiVideoLedger.spentUsd,
+    },
+  }).catch((err) => {
+    console.warn(`[atomivid:long-form:produce] No se pudo registrar el costo de ${requestId}:`, err);
+  });
 
   return { videoPath };
 }
