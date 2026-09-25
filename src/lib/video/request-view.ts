@@ -55,3 +55,24 @@ export const LANGUAGE_LABEL: Record<string, string> = {
   es: "Español",
   en: "English",
 };
+
+/**
+ * CTA de "Generar guion" para una solicitud en estado pending — el mismo
+ * texto/endpoint/redirect que ve el usuario en RequestCard, centralizado
+ * aquí para poder fijarlo con un test de regresión puro (este proyecto no
+ * tiene framework de testing de componentes). Es exactamente la
+ * comprobación que faltaba en el blocker real de QA (2026-09-25): una
+ * solicitud recién creada en pending debe llegar al Historial Y mostrar
+ * este CTA, no solo "aparecer en la lista".
+ */
+export function pendingRequestCta(requestId: string): {
+  label: string;
+  endpoint: string;
+  redirectTo: string;
+} {
+  return {
+    label: "Generar guion",
+    endpoint: `/api/generate/${requestId}/script`,
+    redirectTo: `/dashboard/review/${requestId}`,
+  };
+}

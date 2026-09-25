@@ -7,7 +7,7 @@ import { ModeBadge } from "./ModeBadge";
 import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
 import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
 import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
-import { STATUS_LABEL, STATUS_TONE, type VideoRequestSummary } from "@/lib/video/request-view";
+import { STATUS_LABEL, STATUS_TONE, pendingRequestCta, type VideoRequestSummary } from "@/lib/video/request-view";
 import { GenerateButton } from "@/app/dashboard/GenerateButton";
 
 /**
@@ -80,13 +80,7 @@ export function RequestCard({
             {STATUS_LABEL[request.status] ?? request.status}
           </Badge>
 
-          {request.status === "pending" && (
-            <GenerateButton
-              endpoint={`/api/generate/${request.id}/script`}
-              label="Generar guion"
-              redirectTo={`/dashboard/review/${request.id}`}
-            />
-          )}
+          {request.status === "pending" && <GenerateButton {...pendingRequestCta(request.id)} />}
           {request.status === "script_ready" &&
             (isLongForm ? (
               // Long Form no tiene todavía una pantalla de revisión del

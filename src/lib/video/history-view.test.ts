@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { resolveHistoryViewState } from "./history-view";
+import { pendingRequestCta } from "./request-view";
 
 /**
  * Regresión directa del blocker real de QA (2026-09-25, Android/producción):
@@ -40,6 +41,27 @@ test("una solicitud recién creada en estado 'pending' (Reel, sin guion todavía
     assert.equal(state.requests.length, 1);
     assert.equal(state.requests[0].status, "pending");
   }
+});
+
+test("regresión completa del blocker: crear solicitud -> historial query -> pending visible -> CTA correcto", () => {
+  const newlyCreatedReel = {
+    id: "req-blocker-repro",
+    mode: "visual",
+    status: "pending",
+    video_path: null,
+  };
+
+  const state = resolveHistoryViewState([newlyCreatedReel], null);
+  assert.equal(state.kind, "list", "la solicitud recién creada debe llegar al historial, no al estado vacío");
+  if (state.kind !== "list") return;
+
+  const [visibleRequest] = state.requests;
+  assert.equal(visibleRequest.status, "pending");
+
+  const cta = pendingRequestCta(visibleRequest.id);
+  assert.equal(cta.label, "Generar guion");
+  assert.equal(cta.endpoint, "/api/generate/req-blocker-repro/script");
+  assert.equal(cta.redirectTo, "/dashboard/review/req-blocker-repro");
 });
 
 test("una mezcla de estados (pending/script_ready/processing/completed/failed) preserva TODAS las filas, sin filtrar por status", () => {
