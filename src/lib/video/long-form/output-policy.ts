@@ -71,12 +71,19 @@ export function configuredStorageMaxBytes(env: Record<string, string | undefined
 export type OutputSizeEstimate = { minutes: number; typicalBytes: number; worstCaseBytes: number };
 
 /**
+ * Bitrate de video MEDIDO con el perfil v1 en producción (Canal de Panamá,
+ * run 36174718168: 161,900,862 B en 300.4 s → 4,107 kbps de video; mezcla
+ * balanced de archivo de video Pexels + imágenes con Ken Burns). Una sola
+ * medición: se reemplaza con la media cuando haya más.
+ */
+export const MEASURED_V1_VIDEO_KBPS = 4107;
+
+/**
  * Envolvente de tamaño del perfil v1. "worstCase" = tope de bitrate sostenido
  * todo el video (no puede excederse salvo desviación del VBV). "typical" usa
- * el bitrate medio observado (`typicalVideoKbps`), por defecto 60% del tope
- * hasta tener más mediciones reales.
+ * el bitrate medio observado (`typicalVideoKbps`).
  */
-export function estimateOutputBytes(durationSeconds: number, typicalVideoKbps: number = LONG_FORM_ENCODING_PROFILE.maxVideoKbps * 0.6): OutputSizeEstimate {
+export function estimateOutputBytes(durationSeconds: number, typicalVideoKbps: number = MEASURED_V1_VIDEO_KBPS): OutputSizeEstimate {
   const audio = LONG_FORM_ENCODING_PROFILE.audioKbps;
   const bytes = (kbps: number) => Math.round((kbps * 1000 * durationSeconds) / 8);
   return {
