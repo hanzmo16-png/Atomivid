@@ -1,0 +1,41 @@
+name: Diagnóstico de salida/almacenamiento Long Form (solo lectura)
+
+# P0 2026-09-25 (final.mp4 rechazado por tamaño). Ejecuta
+# scripts/diagnose-long-form-output.ts: lee la fila, costos, bucket e
+# inventario de Storage de UNA solicitud. Nunca llama a proveedores ni
+# escribe en la base de datos. probe_size_limit=true sube y borra objetos
+# de prueba temporales para demostrar el tamaño máximo aceptado hoy.
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: "ID exacto de video_requests"
+        required: true
+        type: string
+      probe_size_limit:
+        description: "true = demostrar el límite real de tamaño de objeto con archivos temporales (se borran)"
+        required: false
+        type: string
+        default: "false"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Diagnosticar (solo lectura)
+        run: npx tsx scripts/diagnose-long-form-output.ts
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          PROBE_SIZE_LIMIT: ${{ inputs.probe_size_limit }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
