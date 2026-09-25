@@ -88,17 +88,30 @@ export async function dhashImage(buffer: Buffer): Promise<string> {
   return hex;
 }
 
-/** Un fotograma PNG del video (≈1 s) vía ffmpeg desde stdin. */
-function videoFrame(buffer: Buffer): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn("ffmpeg", ["-v", "error", "-ss", "1", "-i", "pipe:0", "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "pipe:1"]);
-    const chunks: Buffer[] = [];
-    proc.stdout.on("data", (c: Buffer) => chunks.push(c));
-    proc.on("error", reject);
-    proc.stdin.on("error", () => {});
-    proc.on("close", (code) => (code === 0 && chunks.length > 0 ? resolve(Buffer.concat(chunks)) : reject(new Error(`ffmpeg_frame_${code}`))));
-    proc.stdin.end(buffer);
-  });
+/**
+ * Un fotograma PNG del video (≈1 s) vía ffmpeg. Desde ARCHIVO temporal, no
+ * desde stdin: los MP4 de Pexels traen el índice (moov) al final y ffmpeg no
+ * puede buscarlo en un pipe (la auditoría de Panamá lo demostró: 19/19
+ * videos sin hash perceptual con la versión por pipe).
+ */
+async function videoFrame(buffer: Buffer): Promise<Buffer> {
+  const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = await mkdtemp(join(tmpdir(), "atomivid-frame-"));
+  const input = join(dir, "clip.mp4");
+  try {
+    await writeFile(input, buffer);
+    return await new Promise<Buffer>((resolve, reject) => {
+      const proc = spawn("ffmpeg", ["-v", "error", "-ss", "1", "-i", input, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "pipe:1"]);
+      const chunks: Buffer[] = [];
+      proc.stdout.on("data", (c: Buffer) => chunks.push(c));
+      proc.on("error", reject);
+      proc.on("close", (code) => (code === 0 && chunks.length > 0 ? resolve(Buffer.concat(chunks)) : reject(new Error(`ffmpeg_frame_${code}`))));
+    });
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 /** Identidad de contenido de un buffer descargado (el dHash es best-effort y se reporta si falta). */

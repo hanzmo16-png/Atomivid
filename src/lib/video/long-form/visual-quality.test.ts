@@ -340,3 +340,33 @@ test("control previo al render (v3): una repetición sin justificación detiene 
   assert.doesNotThrow(() => assertVisualQuality(legacy));
   assert.ok(legacy.limitations.some((l) => l.includes("anterior a v3")));
 });
+
+test("hash perceptual de VIDEO con el índice (moov) al final — como los MP4 de Pexels: mismo clip reescalado = duplicado", async (t) => {
+  const { spawnSync } = await import("node:child_process");
+  if (spawnSync("ffmpeg", ["-version"]).status !== 0) {
+    t.skip("ffmpeg no disponible");
+    return;
+  }
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lf-vid-"));
+  const make = (name: string, args: string[]) => {
+    const out = path.join(dir, name);
+    const r = spawnSync("ffmpeg", ["-v", "error", "-y", ...args, out]);
+    assert.equal(r.status, 0, String(r.stderr));
+    return fs.readFileSync(out);
+  };
+  const a = make("a.mp4", ["-f", "lavfi", "-i", "testsrc=size=320x240:rate=25", "-t", "3", "-c:v", "libx264", "-pix_fmt", "yuv420p"]);
+  assert.ok(a.indexOf("moov") > a.indexOf("mdat"), "moov al final (no faststart)");
+  fs.writeFileSync(path.join(dir, "src.mp4"), a);
+  const b = make("b.mp4", ["-i", path.join(dir, "src.mp4"), "-vf", "scale=160:120", "-c:v", "libx264"]);
+  const c = make("c.mp4", ["-f", "lavfi", "-i", "mandelbrot=size=320x240:rate=25", "-t", "3", "-c:v", "libx264", "-pix_fmt", "yuv420p"]);
+  const { contentIdentity } = await import("./asset-identity");
+  const [ia, ib, ic] = await Promise.all([contentIdentity(a, "video"), contentIdentity(b, "video"), contentIdentity(c, "video")]);
+  assert.ok(ia.dhash && ib.dhash && ic.dhash, `sin hash: ${ia.dhashUnavailable ?? ib.dhashUnavailable ?? ic.dhashUnavailable}`);
+  assert.ok(hammingHex(ia.dhash, ib.dhash) <= PERCEPTUAL_DUPLICATE_MAX_DISTANCE);
+  assert.ok(hammingHex(ia.dhash, ic.dhash) > PERCEPTUAL_DUPLICATE_MAX_DISTANCE);
+  assert.notEqual(ia.sha256, ib.sha256, "archivos distintos: solo el hash perceptual los une");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
