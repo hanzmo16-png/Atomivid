@@ -1,0 +1,96 @@
+{
+  "note": "Trazado APROXIMADO del canal (puntos de paso de referencia: entrada atlántica, esclusas de Gatún, lago Gatún, Gamboa, corte Culebra, Pedro Miguel, Miraflores, Balboa, entrada del Pacífico). Se rotula la cifra narrada solo si el trazado medido concuerda (±8 km).",
+  "route": [
+    [
+      -79.915,
+      9.385
+    ],
+    [
+      -79.921,
+      9.272
+    ],
+    [
+      -79.88,
+      9.225
+    ],
+    [
+      -79.83,
+      9.175
+    ],
+    [
+      -79.76,
+      9.14
+    ],
+    [
+      -79.695,
+      9.117
+    ],
+    [
+      -79.665,
+      9.08
+    ],
+    [
+      -79.635,
+      9.045
+    ],
+    [
+      -79.612,
+      9.018
+    ],
+    [
+      -79.593,
+      8.998
+    ],
+    [
+      -79.566,
+      8.955
+    ],
+    [
+      -79.548,
+      8.925
+    ],
+    [
+      -79.52,
+      8.885
+    ]
+  ],
+  "routeLabel": "≈ 80 km",
+  "narratedKm": 80,
+  "markers": [
+    {
+      "at": [
+        -79.9,
+        9.355
+      ],
+      "label": "Colón",
+      "dx": 26,
+      "dy": -10
+    },
+    {
+      "at": [
+        -79.52,
+        8.98
+      ],
+      "label": "Ciudad de Panamá",
+      "dx": 26,
+      "dy": 14
+    }
+  ],
+  "waterLabels": [
+    {
+      "at": [
+        -80.25,
+        9.62
+      ],
+      "label": "Mar Caribe (Atlántico)"
+    },
+    {
+      "at": [
+        -79.2,
+        8.82
+      ],
+      "label": "Océano Pacífico"
+    }
+  ],
+  "source": "Datos: Natural Earth (dominio público)"
+}
