@@ -148,6 +148,13 @@ export const CHECKS: ObjectCheck[] = [
   { kind: "constraint", table: "video_requests", name: "video_requests_aspect_ratio_check", migration: "0016" },
   { kind: "column", table: "video_requests", name: "long_form_stage", migration: "0016" },
   { kind: "constraint", table: "video_requests", name: "video_requests_long_form_stage_check", migration: "0016" },
+
+  // --- 0018_long_form_duration_check.sql ---
+  // NOTA: video_requests_duration_seconds_check NO se lista aquí — su
+  // nombre ya existe desde 0007 (0018 lo dropea y recrea con un rango por
+  // modo) — mismo caso que avatars_status_check/0013 y
+  // video_requests_mode_check/0016. Ver
+  // migration0018ConstraintCoversLongForm abajo.
 ];
 
 export const MIGRATIONS_APPLIED_TABLE = "_migrations_applied";
@@ -161,6 +168,7 @@ export type SchemaSnapshot = {
   controlTableExists: boolean;
   migration0013ConstraintIncludesDraft: boolean;
   migration0016ConstraintIncludesLongForm: boolean;
+  migration0018ConstraintCoversLongForm: boolean;
   migrationSummary: MigrationSummaryEntry[];
   details: Array<ObjectCheck & { exists: boolean }>;
 };
@@ -232,6 +240,19 @@ export async function computeSchemaSnapshot(client: Client, connectionSource: st
     exists: migration0016ConstraintIncludesLongForm,
   });
 
+  // Mismo caso que 0013/0016, para video_requests_duration_seconds_check
+  // (nombre compartido con 0007 — 0018 lo dropea y recrea con un rango
+  // por modo en vez del único rango <=120 heredado de Reel).
+  const durationCheckDef = constraintByName.get("video_requests.video_requests_duration_seconds_check") ?? null;
+  const migration0018ConstraintCoversLongForm = durationCheckDef !== null && durationCheckDef.includes("long_form");
+  details.push({
+    kind: "constraint",
+    table: "video_requests",
+    name: "video_requests_duration_seconds_check",
+    migration: "0018",
+    exists: migration0018ConstraintCoversLongForm,
+  });
+
   const byMigration = new Map<string, { total: number; present: number }>();
   for (const r of details) {
     const bucket = byMigration.get(r.migration) ?? { total: 0, present: 0 };
@@ -251,5 +272,14 @@ export async function computeSchemaSnapshot(client: Client, connectionSource: st
       return { migration, total, present, status };
     });
 
-  return { connectionSource, projectRef, controlTableExists, migration0013ConstraintIncludesDraft, migration0016ConstraintIncludesLongForm, migrationSummary, details };
+  return {
+    connectionSource,
+    projectRef,
+    controlTableExists,
+    migration0013ConstraintIncludesDraft,
+    migration0016ConstraintIncludesLongForm,
+    migration0018ConstraintCoversLongForm,
+    migrationSummary,
+    details,
+  };
 }

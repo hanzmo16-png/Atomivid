@@ -34,9 +34,21 @@ export const maxDuration = 120;
 export default async function NewLongFormVideoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    topic?: string;
+    duration_minutes?: string;
+    sources?: string;
+    open_questions?: string;
+  }>;
 }) {
-  const { error } = await searchParams;
+  // QA real (2026-09-25, "FORM STATE LOST ON ERROR"): tras un error
+  // recuperable (validación, proveedor o DB), actions.ts reenvía los
+  // mismos valores que el usuario ya escribió como query params — se usan
+  // aquí como defaultValue para que nunca tenga que volver a escribir
+  // tema/fuentes/preguntas. Sin submit previo, estos params no existen y
+  // los campos quedan vacíos/con su default de siempre (10 minutos).
+  const { error, topic, duration_minutes: durationMinutes, sources, open_questions: openQuestions } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -72,6 +84,7 @@ export default async function NewLongFormVideoPage({
               type="text"
               required
               maxLength={200}
+              defaultValue={topic ?? ""}
               className={INPUT_CLASS}
               placeholder="Ej. Göbekli Tepe: el misterio de 11,000 años que cambió nuestra historia"
             />
@@ -85,7 +98,7 @@ export default async function NewLongFormVideoPage({
               required
               min={3}
               max={15}
-              defaultValue={10}
+              defaultValue={durationMinutes ?? "10"}
               className={INPUT_CLASS}
             />
           </Field>
@@ -100,6 +113,7 @@ export default async function NewLongFormVideoPage({
               name="sources"
               required
               rows={6}
+              defaultValue={sources ?? ""}
               className={`${INPUT_CLASS} font-mono text-xs`}
               placeholder={
                 "Göbekli Tepe UNESCO World Heritage listing | https://whc.unesco.org/en/list/1572\n" +
@@ -109,7 +123,13 @@ export default async function NewLongFormVideoPage({
           </Field>
 
           <Field id="open_questions" label="Preguntas abiertas o debatidas (opcional)" hint="Una por línea — se presentan como abiertas, nunca como hecho.">
-            <textarea id="open_questions" name="open_questions" rows={3} className={`${INPUT_CLASS} font-mono text-xs`} />
+            <textarea
+              id="open_questions"
+              name="open_questions"
+              rows={3}
+              defaultValue={openQuestions ?? ""}
+              className={`${INPUT_CLASS} font-mono text-xs`}
+            />
           </Field>
 
           <SubmitButton />
