@@ -275,7 +275,7 @@ function SceneLabels({ scene }: { scene: LongFormShotScene }) {
           </div>
         )}
         {scene.creditText && (
-          <div style={{ padding: "4px 12px", borderRadius: 6, backgroundColor: "rgba(10,10,14,0.5)", color: "rgba(255,255,255,0.9)", fontSize: 24, textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>
+          <div style={{ padding: "4px 12px", borderRadius: 6, backgroundColor: "rgba(10,10,14,0.5)", color: "rgba(255,255,255,0.92)", fontSize: 28, textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>
             {scene.creditText}
           </div>
         )}

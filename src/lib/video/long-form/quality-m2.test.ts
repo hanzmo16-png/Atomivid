@@ -127,3 +127,12 @@ test("escenas v3 dirigidas: límites a la voz, procedencia visible y carencia ma
   assert.match(out[1].pending ?? "", /carencia de material pertinente/);
   assert.equal(out[1].direction?.camera, "still");
 });
+
+test("subtítulos por escena: ninguno cruza un corte", async () => {
+  const { captionsWithinScenes } = await import("./scene-captions");
+  const { buildCaptions } = await import("../captions");
+  const scenes = [{ startSeconds: 0, endSeconds: 1.18 }, { startSeconds: 1.18, endSeconds: 2.7 }];
+  const caps = captionsWithinScenes(words, scenes, (w) => buildCaptions(w, new Set()));
+  for (const c of caps) assert.ok(scenes.some((s) => c.startSeconds >= s.startSeconds && c.endSeconds <= s.endSeconds), c.text);
+  assert.deepEqual(caps.map((c) => c.text), ["Imagina cavar,", "rodeado de mosquitos."]);
+});

@@ -38,6 +38,7 @@ import { buildLongFormTimeline, type BeatSynthesizer } from "./timeline";
 import { shotsForSpan } from "./shots";
 import { renderLongFormDoc, type RenderLongFormDocInput } from "./render";
 import { defaultDirections, snapSceneBoundaries } from "./montage-direction";
+import { captionsWithinScenes } from "./scene-captions";
 import type { LongFormShotScene } from "../../../../remotion/LongFormDoc";
 import { wrapDurableVideoProvider } from "./ai-video-durable-provider";
 import { emptyAiVideoLedgerState } from "./ai-video-cost-guard";
@@ -407,7 +408,10 @@ export async function generateLongFormVideoFromScript({
   const shotScenes = anchored ? directAnchoredScenes(baseScenes, executions, timeline.words) : baseScenes;
 
   const emphasisSet = buildEmphasisSet([]);
-  const captions = buildCaptions(timeline.words, emphasisSet);
+  // v3: ningún subtítulo cruza un corte de escena; v1/v2 sin cambios.
+  const captions = anchored
+    ? captionsWithinScenes(timeline.words, shotScenes, (w) => buildCaptions(w, emphasisSet))
+    : buildCaptions(timeline.words, emphasisSet);
   const narrationGaps = computeNarrationGaps(timeline.words);
 
   const fullNarrationText = beats.map((b) => b.narration).join(" ");

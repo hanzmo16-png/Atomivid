@@ -266,7 +266,9 @@ async function main() {
       gain: s.gain, fadeInSeconds: s.fadeInSeconds, fadeOutSeconds: s.endSeconds > windowSec ? 0.6 : s.fadeOutSeconds, loop: s.loop,
     });
   }
-  const captions = buildCaptions(words, buildEmphasisSet([])).filter((c) => c.startSeconds < windowSec).map((c) => ({ ...c, endSeconds: Math.min(c.endSeconds, windowSec) }));
+  const { captionsWithinScenes } = await import("../src/lib/video/long-form/scene-captions");
+  const emphasis = buildEmphasisSet([]);
+  const captions = captionsWithinScenes(words, scenes, (w) => buildCaptions(w, emphasis));
   const narrationGaps = computeNarrationGaps(words);
 
   const raw = await renderLongFormDoc({
