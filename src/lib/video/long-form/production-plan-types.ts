@@ -56,6 +56,15 @@ export type ProductionPlan = {
   scriptHash?: string;
   /** Si el video IA está habilitado en este entorno al momento del plan. */
   aiVideoAvailable?: boolean;
+  /**
+   * Escenas planeadas por beat (P0 2026-09-25: plan 69 vs ejecución 74). El
+   * worker reparte cada beat en EXACTAMENTE este número de escenas cuando la
+   * duración real narrada lo permite (3-8 s por escena), así lo mostrado al
+   * confirmar es lo que se ejecuta. Ausente en planes anteriores.
+   */
+  beatShotCounts?: Record<string, number>;
+  /** Duración pedida por el usuario (s) — para mostrar la desviación de la estimación. */
+  requestedDurationSeconds?: number;
   providers: { voice: string; footage: string; image: string; aiVideo: string; music: string };
   estimatedVoiceCostUsd?: number;
   estimatedImageCostUsd?: number;

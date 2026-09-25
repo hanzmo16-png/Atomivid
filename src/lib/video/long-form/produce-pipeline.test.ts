@@ -245,3 +245,71 @@ test("sin confirmación humana: el mismo orden que run-job.ts nunca llega a llam
   }, /confirmación humana/);
   assert.deepEqual(c, { voice: 0, stock: 0, image: 0, veoSubmits: 0 });
 });
+
+// --- P0 2026-09-25: entrega del final.mp4 (Canal de Panamá) ---
+
+test("P0: la subida del final.mp4 falla → error seguro; el reintento hace SOLO render+subida: 0 llamadas pagadas nuevas", async () => {
+  const c = counters();
+  const plan = planFor("balanced");
+  const env = freshEnv({ durationSeconds: 180, transientUploadFailures: 1 });
+  const renders = { count: 0 };
+  await assert.rejects(() => run(env, c, plan, { renders }), (err: unknown) => err instanceof Error && err.name === "LongFormOutputError");
+  assert.equal(renders.count, 1);
+  const afterFail = { ...c };
+  const { result } = await run(env, c, plan, { renders });
+  assert.deepEqual(c, afterFail, "ElevenLabs/OpenAI/Pexels/Veo: 0 llamadas nuevas en el reintento");
+  assert.equal(renders.count, 2, "solo se vuelve a renderizar desde los assets ya persistidos");
+  assert.equal(result.videoPath, "req-panama-qa/output/final.mp4", "salida canónica por solicitud, no por intento");
+});
+
+test("P0: subida OK pero falló actualizar la fila → el reintento reconcilia la salida existente (0 render, 0 proveedores)", async () => {
+  const c = counters();
+  const plan = planFor("balanced");
+  const env = freshEnv({ durationSeconds: 180 });
+  const renders = { count: 0 };
+  const first = await run(env, c, plan, { renders });
+  assert.equal(first.result.reconciled, false);
+  const before = { ...c };
+  const again = await run(env, c, plan, { renders });
+  assert.equal(again.result.reconciled, true);
+  assert.equal(again.result.videoPath, first.result.videoPath);
+  assert.equal(renders.count, 1, "no se vuelve a renderizar");
+  assert.deepEqual(c, before);
+});
+
+test("P0: recuperación replayOnly desde lo persistido → misma composición, 0 llamadas a proveedores", async () => {
+  const c = counters();
+  const plan = planFor("balanced");
+  const env = freshEnv({ durationSeconds: 180, transientUploadFailures: 1 });
+  const original = await run(env, c, plan).catch(() => null);
+  assert.equal(original, null, "la ejecución original falló en la entrega");
+  const before = { ...c };
+  const replay = await run(env, c, plan, { replayOnly: true });
+  assert.deepEqual(c, before, "replayOnly: ni voz, ni imágenes, ni archivo, ni Veo");
+  assert.equal(replay.renderInput?.scenes.length, plan.shotCount);
+  assert.equal(replay.result.videoPath, "req-panama-qa/output/final.mp4");
+});
+
+test("P0: replayOnly sin caché (nada persistido) aborta ANTES de renderizar, sin llamar a ningún proveedor", async () => {
+  const c = counters();
+  const plan = planFor("balanced");
+  const renders = { count: 0 };
+  await assert.rejects(() => run(freshEnv(), c, plan, { replayOnly: true, renders }), (err: unknown) => err instanceof Error && err.name === "TtsReplayCacheMissError");
+  assert.deepEqual(c, counters());
+  assert.equal(renders.count, 0);
+});
+
+test("P0: replayOnly con UN asset durable faltante aborta (nunca lo reemplaza en silencio por una tarjeta de texto)", async () => {
+  const c = counters();
+  const plan = planFor("balanced");
+  const env = freshEnv({ durationSeconds: 180, transientUploadFailures: 1 });
+  await run(env, c, plan).catch(() => null);
+  const stockKey = [...env.mem.records.keys()].find((k) => k.endsWith(".stock"));
+  assert.ok(stockKey);
+  env.mem.records.delete(stockKey);
+  const before = { ...c };
+  const renders = { count: 0 };
+  await assert.rejects(() => run(env, c, plan, { replayOnly: true, renders }), (err: unknown) => err instanceof Error && err.name === "LongFormReplayError");
+  assert.deepEqual(c, before);
+  assert.equal(renders.count, 0);
+});

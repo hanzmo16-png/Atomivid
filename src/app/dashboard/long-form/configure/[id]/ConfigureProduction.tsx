@@ -13,6 +13,7 @@ import {
   type ProductionPlan,
   type VisualStrategy,
 } from "@/lib/video/long-form/production-plan-types";
+import { LONG_FORM_DURATION_TOLERANCE } from "@/lib/video/long-form/duration-budget";
 
 const USD = new Intl.NumberFormat("es-MX", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -36,6 +37,7 @@ export function PlanSummary({ plan }: { plan: ProductionPlan }) {
     <div className="mt-3 text-sm">
       <dl>
         <Row label="Estrategia" value={VISUAL_STRATEGY_LABEL[plan.strategy]} />
+        {plan.requestedDurationSeconds !== undefined && <Row label="Duración pedida" value={formatDuration(plan.requestedDurationSeconds)} />}
         <Row label="Duración estimada" value={`~${formatDuration(plan.durationSeconds)}`} />
         <Row label="Escenas" value={String(plan.shotCount)} />
         <Row label="Video e imagen de archivo" value={String(plan.stockVideoCount + plan.stockImageCount)} />
@@ -54,6 +56,13 @@ export function PlanSummary({ plan }: { plan: ProductionPlan }) {
         Estimación de costo de proveedores (no incluye el guion ya generado). Todavía no hay un sistema de créditos: no se
         descuenta ningún saldo. La producción nunca supera las cantidades de este plan.
       </p>
+      {plan.requestedDurationSeconds !== undefined &&
+        Math.abs(plan.durationSeconds / plan.requestedDurationSeconds - 1) > LONG_FORM_DURATION_TOLERANCE && (
+          <p className="mt-2 text-xs text-warning">
+            La narración de este guion dura ~{formatDuration(plan.durationSeconds)}, distinto de los {formatDuration(plan.requestedDurationSeconds)} pedidos. El
+            costo y el tiempo de producción corresponden a la duración estimada.
+          </p>
+        )}
       {plan.strategy === "cinematic" && plan.aiVideoAvailable === false && (
         <p className="mt-2 text-xs text-warning">El video generado por IA no está habilitado todavía: este plan usa imágenes IA en su lugar.</p>
       )}

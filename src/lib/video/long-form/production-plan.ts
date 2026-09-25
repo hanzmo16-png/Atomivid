@@ -15,7 +15,8 @@
  * (providers/video-gen/veo.ts, que factura clips de duración fija).
  */
 import { createHash } from "node:crypto";
-import { WORDS_PER_SECOND, VIDEO_TAIL_SECONDS } from "../script-pacing";
+import { VIDEO_TAIL_SECONDS } from "../script-pacing";
+import { LONG_FORM_NARRATION_WORDS_PER_SECOND } from "./duration-budget";
 import { getFeatureFlags, type FeatureFlags } from "../feature-flags";
 import { shotsForSpan, type VisualStrategy } from "./shots";
 import {
@@ -72,7 +73,9 @@ export type ProductionPlanBeatInput = {
 
 export function estimateNarrationSeconds(narration: string): number {
   const words = narration.trim().split(/\s+/).filter(Boolean).length;
-  return Math.max(1, words / WORDS_PER_SECOND);
+  // Ritmo CALIBRADO de Long Form (2.5 palabras/s, medido en producción) —
+  // no el 2.8 de Reel, que subestimó ~10% la duración del Canal de Panamá.
+  return Math.max(1, words / LONG_FORM_NARRATION_WORDS_PER_SECOND);
 }
 
 /** Hash estable del guion confirmado (id + narración + visuales por beat). */
@@ -280,6 +283,8 @@ export function computeProductionPlan(input: {
   providers: { voice: string; footage: string; image: string; aiVideo: string; music: string };
   /** Solo para pruebas/demo: fuerza la disponibilidad de video IA en vez de leer las flags del entorno. */
   aiVideoEnabled?: boolean;
+  /** Duración pedida por el usuario (video_requests.duration_seconds). */
+  requestedDurationSeconds?: number;
 }): ProductionPlan {
   const topic = input.topic ?? "";
   const { shots, narrationSeconds } = planShotsFromScript(input.beats, topic, input.strategy);
@@ -304,6 +309,11 @@ export function computeProductionPlan(input: {
     deterministicCount: allocation.textCount,
     voiceCharacters,
     scriptHash: computeScriptHash(input.beats),
+    beatShotCounts: allocation.shots.reduce<Record<string, number>>((acc, shot) => {
+      acc[shot.beatId] = (acc[shot.beatId] ?? 0) + 1;
+      return acc;
+    }, {}),
+    requestedDurationSeconds: input.requestedDurationSeconds,
     aiVideoAvailable: input.strategy === "cinematic" ? aiVideoAvailable : undefined,
     providers: input.providers,
     estimatedVoiceCostUsd: voiceCostUsd,

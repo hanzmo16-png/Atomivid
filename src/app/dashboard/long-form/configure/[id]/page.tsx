@@ -16,6 +16,7 @@ type VideoRequestRow = {
   mode: string;
   topic: string;
   status: string;
+  duration_seconds: number | null;
   script_json: unknown;
   long_form_confirmed_at: string | null;
 };
@@ -39,7 +40,7 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
 
   const { data } = await supabase
     .from("video_requests")
-    .select("id, mode, topic, status, script_json, long_form_confirmed_at")
+    .select("id, mode, topic, status, duration_seconds, script_json, long_form_confirmed_at")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle<VideoRequestRow>();
@@ -53,7 +54,13 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
   const plans = Object.fromEntries(
     VISUAL_STRATEGIES.map((strategy) => [
       strategy,
-      computeProductionPlan({ beats, topic: script.topic || data.topic, strategy, providers: REAL_LONG_FORM_PROVIDER_NAMES }),
+      computeProductionPlan({
+        beats,
+        topic: script.topic || data.topic,
+        strategy,
+        providers: REAL_LONG_FORM_PROVIDER_NAMES,
+        requestedDurationSeconds: data.duration_seconds ?? undefined,
+      }),
     ]),
   ) as Record<VisualStrategy, ProductionPlan>;
 

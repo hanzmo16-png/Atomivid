@@ -114,12 +114,22 @@ export function shotsForSpan(input: {
   strategy?: VisualStrategy;
   /** Intenciones visuales REALES del beat (ver visual-intents.ts) — rotan entre sus shots. */
   visuals?: BeatVisual[];
+  /**
+   * Número de escenas CONFIRMADO en el plan para este beat. Se respeta si la
+   * duración real lo permite (cada escena entre MIN_HOLD y MAX_HOLD); si no,
+   * se usa el reparto por defecto (y el worker registra la desviación).
+   */
+  targetCount?: number;
 }): Shot[] {
   const span = input.endSec - input.startSec;
   if (!(span > 0)) throw new Error(`Beat ${input.beatId} has non-positive span`);
   let count = Math.max(2, Math.round(span / 4));
   while (span / count > MAX_HOLD) count += 1;
   while (count > 2 && span / count < MIN_HOLD) count -= 1;
+  const target = input.targetCount;
+  if (target !== undefined && Number.isInteger(target) && target >= 2 && span / target >= MIN_HOLD && span / target <= MAX_HOLD) {
+    count = target;
+  }
   const hold = span / count;
   if (hold < MIN_HOLD - 0.05 || hold > MAX_HOLD + 0.05) {
     throw new Error(`Beat ${input.beatId} span ${span}s cannot be split into ${MIN_HOLD}-${MAX_HOLD}s shots`);

@@ -185,7 +185,9 @@ async function main() {
     result = await generateLongFormVideoFromScript({
       supabase: service,
       requestId,
-      artifactPrefix: `${requestId}/recovery`,
+      // Objetos de trabajo (voz/música para Remotion) en carpetas separadas por
+      // modo: nunca sobrescriben el intento original ni entre corridas paralelas.
+      artifactPrefix: `${requestId}/recovery${mode === "measure_legacy" ? "-measure" : ""}`,
       topic: script.topic,
       beats: script.beats as never,
       language: (row.language as "es" | "en" | null) ?? undefined,

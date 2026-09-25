@@ -203,11 +203,18 @@ export async function generateLongFormVideoFromScript({
     await onProgress?.("storyboard", { completed: synthesized, total: beats.length, label: "narraciones" });
     return result;
   };
+  // Plan = contrato de ejecución también en número de escenas: cada beat se
+  // reparte en las escenas que se mostraron al confirmar (si la duración
+  // real narrada lo permite). Planes sin beatShotCounts (anteriores) usan
+  // el reparto por defecto, idéntico al de su ejecución original.
+  const plannedShotCounts = plan.beatShotCounts;
+  const shotsForPlannedSpan: typeof shotsForSpan = (spanInput) =>
+    shotsForSpan({ ...spanInput, targetCount: plannedShotCounts?.[spanInput.beatId] });
   const timeline = await buildLongFormTimeline(
     resolvedProviders.voiceProvider,
     beats,
     language,
-    shotsForSpan,
+    shotsForPlannedSpan,
     synthesizeWithProgress,
     plan.strategy,
     (beat) => visualsForBeat(beat as { narration: string; visuals?: unknown }, topic),
@@ -233,6 +240,16 @@ export async function generateLongFormVideoFromScript({
   );
   const allShots = timeline.beats.flatMap((b) => b.shots);
   const allocated = allocateShotTypes(allShots, timeline.durationSeconds, limits);
+  if (plannedShotCounts && allShots.length !== plan.shotCount && !replayOnly) {
+    // Nunca en silencio: la duración real narrada no permitió respetar el
+    // número de escenas confirmado (queda registrado en el presupuesto).
+    await budget.recordDeviation({
+      shotId: "*",
+      planned: `${plan.shotCount} escenas`,
+      executed: `${allShots.length} escenas`,
+      reason: `duración real narrada ${Math.round(timeline.durationSeconds)} s vs ${plan.durationSeconds} s estimados — fuera del rango de 3-8 s por escena`,
+    });
+  }
   if (allocated.aiImageCount !== plan.aiImageCount || allocated.aiVideoClipCount !== plan.aiVideoClipCount) {
     if (replayOnly) {
       throw new LongFormReplayError(

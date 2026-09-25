@@ -32,6 +32,7 @@ type Row = {
   user_id: string;
   status: string;
   topic: string | null;
+  duration_seconds?: number | null;
   script_json: unknown;
   long_form_production_plan: unknown;
   long_form_confirmed_at: string | null;
@@ -50,7 +51,7 @@ export async function confirmLongFormProduction(
 
   const { data, error: fetchError } = await service
     .from("video_requests")
-    .select("id, mode, user_id, status, topic, script_json, long_form_production_plan, long_form_confirmed_at")
+    .select("id, mode, user_id, status, topic, duration_seconds, script_json, long_form_production_plan, long_form_confirmed_at")
     .eq("id", input.requestId)
     .maybeSingle<Row>();
   if (fetchError || !data) return { ok: false, status: 404, error: "Solicitud no encontrada" };
@@ -77,6 +78,7 @@ export async function confirmLongFormProduction(
     topic: data.script_json.topic || data.topic || "",
     strategy,
     providers: REAL_LONG_FORM_PROVIDER_NAMES,
+    requestedDurationSeconds: data.duration_seconds ?? undefined,
   });
   const budget = getLongFormBudget();
   if (plan.estimatedProviderCostUsd > budget.maxTotalUsd) {
