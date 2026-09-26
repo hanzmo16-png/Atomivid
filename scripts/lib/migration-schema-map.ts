@@ -177,6 +177,13 @@ export const CHECKS: ObjectCheck[] = [
   { kind: "column", table: "tts_jobs", name: "max_chars_per_month", migration: "0021" },
   { kind: "rls", table: "tts_jobs", migration: "0021" },
   { kind: "policy", table: "tts_jobs", name: "Users can view their own text-to-speech jobs", migration: "0021" },
+  // --- 0022_tts_podcast.sql (el CHECK ampliado del guion y el índice parcial no tienen tipo de comprobación aquí) ---
+  { kind: "column", table: "tts_jobs", name: "max_chars_per_piece", migration: "0022" },
+  { kind: "column", table: "tts_jobs", name: "long_pilot", migration: "0022" },
+  { kind: "column", table: "tts_jobs", name: "music_choice", migration: "0022" },
+  { kind: "column", table: "tts_jobs", name: "mix_status", migration: "0022" },
+  { kind: "column", table: "tts_jobs", name: "mix_path", migration: "0022" },
+  { kind: "column", table: "tts_jobs", name: "mix_loudness", migration: "0022" },
 ];
 
 export const MIGRATIONS_APPLIED_TABLE = "_migrations_applied";

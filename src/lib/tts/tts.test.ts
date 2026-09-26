@@ -16,7 +16,8 @@ import {
   segmentScript,
   validateTtsInput,
 } from "./segment";
-import { concatArgs, concatToMp3 } from "./concat";
+import { concatToMp3 } from "./concat";
+import { narrationConcatArgs } from "./podcast-audio";
 import { createTtsRequest, retryTtsRequest, TTS_DISPATCH_FAILED_MESSAGE } from "./requests";
 import { runTtsJob, ttsAudioPath, ttsStoragePrefix, type TtsDeps } from "./run-tts-job";
 import { memoryDb } from "./test-db";
@@ -65,10 +66,10 @@ test("segmentScript: una oración más larga que el máximo se corta en una coma
   for (const s of segments) assert.ok(s.text.length <= 300);
 });
 
-test("estimaciones: caracteres cobrables = texto narrado; duración incluye las pausas", () => {
+test("estimaciones: caracteres cobrables = texto narrado; duración central a 130 palabras por minuto", () => {
   const segments = segmentScript("Hola mundo.\n\nAdiós.");
   assert.equal(billableCharacters(segments), "Hola mundo.".length + "Adiós.".length);
-  assert.equal(estimateSeconds(segments), Math.round(((17 / 15) + PARAGRAPH_PAUSE_MS / 1000) * 10) / 10);
+  assert.equal(estimateSeconds(segments), Math.round((3 / 130) * 600) / 10);
 });
 
 test("validateTtsInput: título, idioma, texto, máximo por pieza y saldo del mes", () => {
@@ -102,14 +103,15 @@ test("downloadFileName: nombre seguro sin tildes ni símbolos", () => {
 
 // ---------- Unión con ffmpeg ----------
 
-test("concatArgs: cada fragmento seguido de su silencio y un único concat a MP3", () => {
-  const args = concatArgs(["a.mp3", "b.mp3", "c.mp3"], [650, 180, 0], "out.mp3");
+test("narrationConcatArgs: cada fragmento con su nivelado, fundidos de borde y su silencio; un único concat sin pérdida", () => {
+  const args = narrationConcatArgs(["a.mp3", "b.mp3", "c.mp3"], [650, 180, 0], [0, 2.5, -1], "out.wav");
   const graph = args[args.indexOf("-filter_complex") + 1];
-  assert.match(graph, /atrim=duration=0\.650\[s0\]/);
-  assert.match(graph, /atrim=duration=0\.180\[s1\]/);
+  assert.match(graph, /atrim=duration=0\.650,aformat=sample_fmts=flt\[s0\]/);
+  assert.match(graph, /atrim=duration=0\.180,aformat=sample_fmts=flt\[s1\]/);
   assert.doesNotMatch(graph, /\[s2\]/);
+  assert.match(graph, /\[1:a\][^;]*volume=2\.50dB,afade=t=in:d=0\.008,areverse,afade=t=in:d=0\.015,areverse\[a1\]/);
   assert.match(graph, /\[a0\]\[s0\]\[a1\]\[s1\]\[a2\]concat=n=5:v=0:a=1\[out\]/);
-  assert.deepEqual(args.slice(-5), ["-c:a", "libmp3lame", "-b:a", "128k", "out.mp3"]);
+  assert.deepEqual(args.slice(-3), ["-c:a", "pcm_f32le", "out.wav"]);
 });
 
 test("concatToMp3 (ffmpeg real): la duración final es la suma de fragmentos y pausas", async () => {
@@ -121,6 +123,8 @@ test("concatToMp3 (ffmpeg real): la duración final es la suma de fragmentos y p
   ]);
   assert.ok(Math.abs(result.durationSeconds - 3) < 0.15, `duración ${result.durationSeconds}`);
   assert.equal(result.audio.subarray(0, 3).toString("latin1") === "ID3" || result.audio[0] === 0xff, true, "es MP3");
+  assert.ok(result.loudness.truePeakDbtp <= -1.5, `pico real ${result.loudness.truePeakDbtp}`);
+  assert.ok(Math.abs(result.loudness.integratedLufs - -19) <= 0.5, `sonoridad ${result.loudness.integratedLufs}`);
 });
 
 // ---------- Crear y reintentar piezas ----------
@@ -245,6 +249,12 @@ function jobRow(over: Record<string, unknown> = {}) {
     status: "queued",
     attempts: 0,
     segments_done: 0,
+    long_pilot: false,
+    music_choice: "none",
+    music_track_id: null,
+    mix_status: null,
+    mix_attempts: 0,
+    audio_path: null,
     ...over,
   };
 }
@@ -370,7 +380,7 @@ test("la sección existe detrás de su flag, con enlace en el menú y acciones q
   const page = read("dashboard", "tts", "page.tsx");
   assert.match(page, /if \(!flags\.textToSpeechEnabled\) notFound\(\)/);
   assert.match(page, /clientRequestId=\{randomUUID\(\)\}/);
-  assert.match(page, /createSignedUrl\(j\.audio_path!, 3600, \{ download: downloadFileName\(j\.title\) \}\)/);
+  assert.match(page, /signedLinks\(bucket, j\.audio_path, downloadFileName\(j\.title, "narracion"\)\)/);
   const actions = read("dashboard", "tts", "actions.ts");
   assert.match(actions, /textToSpeechEnabled\) redirect/);
   assert.match(actions, /createTtsRequest\(\{/);

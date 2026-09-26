@@ -133,7 +133,7 @@ const voiceForm = (page, id, button) => page.locator(`form:has(input[name="voice
 async function checkDownload(page, title) {
   const card = page.locator("li", { hasText: title });
   assert.equal(await card.count(), 1, `una sola tarjeta «${title}»`);
-  const href = await card.getByRole("link", { name: "Descargar MP3" }).getAttribute("href");
+  const href = await card.getByRole("link", { name: /^Descargar (MP3|narración)$/ }).getAttribute("href");
   assert.ok(href, "hay enlace de descarga");
   const res = await fetch(href);
   assert.equal(res.status, 200, "descarga 200");
@@ -292,7 +292,7 @@ try {
       const before = await ledgerEntries(`tts/${firstPiece.id}`);
       await service.from("tts_jobs").update({ status: "failed", error_message: "Fallo simulado por la validación." }).eq("id", firstPiece.id);
       await a.page.goto(`${BASE}/dashboard/tts`);
-      await a.page.locator(`form:has(input[name="job_id"][value="${firstPiece.id}"])`).getByRole("button", { name: "Reintentar" }).click();
+      await a.page.locator(`form:has(input[name="job_id"][value="${firstPiece.id}"])`).getByRole("button", { name: /^(Reintentar|Reanudar)$/ }).click();
       await waitFor(async () => (await jobStatus(firstPiece.id))?.status === "completed", "reintento completado");
       assert.equal((await ledgerEntries(`tts/${firstPiece.id}`)).length, before.length, "sin nuevas operaciones pagadas: fragmentos reutilizados");
     });
