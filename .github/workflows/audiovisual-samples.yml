@@ -1,0 +1,98 @@
+name: Muestras reales — dirección audiovisual (Reels)
+
+# Registro autorizado por Hans el 2026-09-26. Genera muestras REALES de los perfiles
+# audiovisuales con el pipeline de producto (scripts/audiovisual-samples.ts).
+#
+# - mode=plan (por defecto): NO llama a ningún proveedor. Muestra el plan,
+#   la estimación y lo ya comprometido (lectura del registro durable).
+# - mode=run: gasto real. Exige además confirm=GASTAR. Las claves de pago
+#   solo se inyectan en ese caso.
+# Topes DUROS en código: US$3,50 total y US$0,75 por muestra; estas entradas
+# solo pueden bajarlos. El acumulado se lee de los registros durables de
+# todas las muestras (reintentos incluidos), así que re-ejecutar no
+# reinicia el presupuesto. Se detiene ante el primer fallo.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "plan (sin gasto) o run (gasto real)"
+        type: choice
+        options: [plan, run]
+        default: plan
+      samples:
+        description: "Muestras separadas por coma (docs/quality/audiovisual-samples/manifest.json)"
+        type: string
+        default: "horror,comic-mystery"
+      total_budget_usd:
+        description: "Tope total acumulado (máx. 3.50)"
+        type: string
+        default: "1.00"
+      per_sample_budget_usd:
+        description: "Tope por muestra (máx. 0.75)"
+        type: string
+        default: "0.75"
+      acknowledge:
+        description: "Recuperar operaciones inciertas ya revisadas (comprueba presupuesto; libera marcador de imagen o registro de voz y reconoce la entrada; el gasto previo sigue contando): muestra:clave|nota, separadas por coma"
+        type: string
+        default: ""
+      confirm:
+        description: "Escribe GASTAR para autorizar mode=run"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audiovisual-samples
+  cancel-in-progress: false
+
+jobs:
+  samples:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Verificar autorización
+        if: inputs.mode == 'run' && inputs.confirm != 'GASTAR'
+        run: |
+          echo "mode=run requiere confirm=GASTAR. No se llamó a ningún proveedor."
+          exit 1
+      - uses: actions/checkout@v4
+        with:
+          ref: acd91767d61bbbe346a08f143c1fe8c44145f60d
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - name: Navegador de render (solo en run)
+        if: inputs.mode == 'run'
+        run: npx remotion browser ensure
+      - name: Muestras (${{ inputs.mode }})
+        run: npx tsx scripts/audiovisual-samples.ts
+        env:
+          MODE: ${{ inputs.mode }}
+          SAMPLES: ${{ inputs.samples }}
+          SAMPLE_TOTAL_USD: ${{ inputs.total_budget_usd }}
+          SAMPLE_PER_SAMPLE_USD: ${{ inputs.per_sample_budget_usd }}
+          SAMPLE_ACKNOWLEDGE: ${{ inputs.acknowledge }}
+          SAMPLE_OUT_DIR: ${{ runner.temp }}/audiovisual-samples
+          SAMPLE_ALLOW_PAID: ${{ inputs.mode == 'run' && inputs.confirm == 'GASTAR' && 'true' || 'false' }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          # Claves de PAGO: solo con mode=run + confirm=GASTAR.
+          ANTHROPIC_API_KEY: ${{ inputs.mode == 'run' && inputs.confirm == 'GASTAR' && secrets.ANTHROPIC_API_KEY || '' }}
+          ELEVENLABS_API_KEY: ${{ inputs.mode == 'run' && inputs.confirm == 'GASTAR' && secrets.ELEVENLABS_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ inputs.mode == 'run' && inputs.confirm == 'GASTAR' && secrets.OPENAI_API_KEY || '' }}
+      - name: Publicar resultados (MP4, fotogramas, hojas, informes)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audiovisual-samples-${{ github.run_id }}
+          path: ${{ runner.temp }}/audiovisual-samples
+          if-no-files-found: warn
+          retention-days: 30
