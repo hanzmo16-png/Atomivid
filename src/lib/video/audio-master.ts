@@ -81,7 +81,30 @@ export async function measureLoudness(filePath: string): Promise<LoudnessMeasure
 export type MasteringResult = {
   before: LoudnessMeasurement;
   after: LoudnessMeasurement;
+  /** Solo con `truePeakMarginDb`: ganancia (dB, negativa) de la pasada correctiva aplicada si el pico real medido tras codificar seguía por encima del objetivo. */
+  truePeakCorrectionDb?: number;
 };
+
+/**
+ * Filtro loudnorm de la segunda pasada (lineal, con la medición previa).
+ * `ceilingDbtp` es el techo de pico real que se pide al filtro — por
+ * defecto el objetivo; con margen, algo por debajo, porque la codificación
+ * AAC posterior (y el remuestreo desde los 192 kHz internos de loudnorm)
+ * sube el pico real unas décimas de dB.
+ */
+export function masteringFilter(before: LoudnessMeasurement, ceilingDbtp: number = LOUDNESS_TARGET.TRUE_PEAK_DBTP): string {
+  return (
+    `loudnorm=I=${LOUDNESS_TARGET.INTEGRATED_LUFS}:TP=${ceilingDbtp}:` +
+    `LRA=${LOUDNESS_TARGET.LRA}:measured_I=${before.integratedLufs}:measured_TP=${before.truePeakDbtp}:` +
+    `measured_LRA=${before.lra}:measured_thresh=${before.threshold}:linear=true:print_format=summary`
+  );
+}
+
+/** Ganancia correctiva (dB ≤ 0) para dejar el pico real medido `guardDb` por debajo del objetivo; 0 si ya cumple. */
+export function truePeakCorrectionDb(measuredTruePeakDbtp: number, guardDb = 0.2): number {
+  const excess = measuredTruePeakDbtp - (LOUDNESS_TARGET.TRUE_PEAK_DBTP - guardDb);
+  return measuredTruePeakDbtp > LOUDNESS_TARGET.TRUE_PEAK_DBTP ? -Math.round(excess * 100) / 100 : 0;
+}
 
 /**
  * Normaliza el audio del video final a LOUDNESS_TARGET y lo escribe en
@@ -94,31 +117,48 @@ export async function masterAudioLoudness(
   inputPath: string,
   outputPath: string,
   /** `faststart` (solo Long Form): moov al inicio para que un archivo grande empiece a reproducirse sin descargarse entero. */
-  opts: { faststart?: boolean } = {},
+  opts: {
+    faststart?: boolean;
+    /**
+     * Opt-in (Long Form, calidad M3): techo pedido a loudnorm `margin` dB por
+     * debajo del objetivo, salida explícita a 48 kHz y, si el pico real medido
+     * TRAS codificar aún supera el objetivo, una pasada correctiva de ganancia.
+     * Sin esta opción el comportamiento es exactamente el anterior (Shorts/Avatar).
+     */
+    truePeakMarginDb?: number;
+  } = {},
 ): Promise<MasteringResult> {
   const before = await measureLoudness(inputPath);
+  const guarded = opts.truePeakMarginDb !== undefined;
+  const filter = masteringFilter(before, guarded ? LOUDNESS_TARGET.TRUE_PEAK_DBTP - (opts.truePeakMarginDb as number) : LOUDNESS_TARGET.TRUE_PEAK_DBTP);
+  const encode = (input: string, af: string, output: string) =>
+    runFfmpeg([
+      "-y",
+      "-i",
+      input,
+      "-af",
+      af,
+      "-c:v",
+      "copy",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "192k",
+      ...(guarded ? ["-ar", "48000"] : []),
+      ...(opts.faststart ? ["-movflags", "+faststart"] : []),
+      output,
+    ]);
 
-  const filter =
-    `loudnorm=I=${LOUDNESS_TARGET.INTEGRATED_LUFS}:TP=${LOUDNESS_TARGET.TRUE_PEAK_DBTP}:` +
-    `LRA=${LOUDNESS_TARGET.LRA}:measured_I=${before.integratedLufs}:measured_TP=${before.truePeakDbtp}:` +
-    `measured_LRA=${before.lra}:measured_thresh=${before.threshold}:linear=true:print_format=summary`;
+  await encode(inputPath, filter, outputPath);
+  let after = await measureLoudness(outputPath);
+  if (!guarded) return { before, after };
 
-  await runFfmpeg([
-    "-y",
-    "-i",
-    inputPath,
-    "-af",
-    filter,
-    "-c:v",
-    "copy",
-    "-c:a",
-    "aac",
-    "-b:a",
-    "192k",
-    ...(opts.faststart ? ["-movflags", "+faststart"] : []),
-    outputPath,
-  ]);
-
-  const after = await measureLoudness(outputPath);
-  return { before, after };
+  const correction = truePeakCorrectionDb(after.truePeakDbtp);
+  if (correction === 0) return { before, after, truePeakCorrectionDb: 0 };
+  const corrected = outputPath.replace(/(\.[^.]+)?$/, ".tp$1");
+  await encode(outputPath, `volume=${correction}dB`, corrected);
+  const { rename } = await import("node:fs/promises");
+  await rename(corrected, outputPath);
+  after = await measureLoudness(outputPath);
+  return { before, after, truePeakCorrectionDb: correction };
 }

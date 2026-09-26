@@ -281,7 +281,7 @@ async function main() {
     purpose,
   });
   const mastered = raw.replace(/\.mp4$/, ".mastered.mp4");
-  const mastering = await masterAudioLoudness(raw, mastered, { faststart: true });
+  const mastering = await masterAudioLoudness(raw, mastered, { faststart: true, truePeakMarginDb: 1.0 });
   console.log(`@@MASTERING ${JSON.stringify(mastering)}`);
 
   // --- QC: negro, cortes, rótulos, subtítulos, mezcla ---
