@@ -1,0 +1,96 @@
+name: Muestra Medieval oscuro — caballero a caballo (8 s)
+
+# Un solo clip vertical de 8 s (scripts/reel-animation-clips.ts, clip
+# medieval-horse) con su PROPIO registro de gasto (samples/animation-medieval):
+# no usa ni cuenta el saldo de las muestras de cómic/anime. Solo disparo
+# manual; plan sin gasto por defecto; run exige confirm=GASTAR.
+# Al registrarlo en la rama por defecto, fijar PINNED_REF al commit revisado.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "plan sin gasto; run genera el clip"
+        type: choice
+        options: [plan, run]
+        default: plan
+      confirm:
+        description: "Escribe GASTAR para ejecutar run"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: medieval-horse-sample
+  cancel-in-progress: false
+
+env:
+  PINNED_REF: REEMPLAZAR_POR_SHA_REVISADO
+
+jobs:
+  clip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Verificar autorización y commit fijado
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$PINNED_REF" = REEMPLAZAR_POR_SHA_REVISADO ]; then echo 'Falta fijar el commit revisado'; exit 1; fi
+          if [ "$MODE" = run ] && [ "$CONFIRM" != GASTAR ]; then echo 'Falta confirmacion de gasto'; exit 1; fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PINNED_REF }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Generar el clip con registro propio
+        env:
+          MODE: ${{ inputs.mode }}
+          ANIMATION_CLIPS: medieval-horse
+          ANIMATION_LEDGER_SCOPE: samples/animation-medieval
+          ANIMATION_ALLOW_PAID: ${{ inputs.mode == 'run' && inputs.confirm == 'GASTAR' && 'true' || 'false' }}
+          ANIMATION_TOTAL_USD: '2.06'
+          VEO_COST_USD_PER_SECOND: '0.12'
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VEO_API_KEY: ${{ inputs.mode == 'run' && inputs.confirm == 'GASTAR' && secrets.VEO_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ inputs.mode == 'run' && inputs.confirm == 'GASTAR' && secrets.OPENAI_API_KEY || '' }}
+        run: |
+          mkdir -p evidence/medieval
+          node --import tsx scripts/reel-animation-clips.ts | tee evidence/medieval/run.log
+      - name: Descargar clip, imagen de entrada y registro (solo lectura)
+        if: always() && inputs.mode == 'run' && inputs.confirm == 'GASTAR'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs/promises';
+          import { createClient } from '@supabase/supabase-js';
+          const bucket = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY).storage.from('videos');
+          const out = 'evidence/medieval';
+          const prefix = 'samples/animation-medieval/medieval-horse';
+          for (const [folder, suffix] of [[prefix, ''], [`${prefix}/anim-input`, '-input']]) {
+            const list = await bucket.list(folder, { limit: 100 });
+            for (const f of list.data ?? []) {
+              if (!/\.(mp4|png|jpg|jpeg)$/.test(f.name)) continue;
+              const file = await bucket.download(`${folder}/${f.name}`);
+              if (file.data) await fs.writeFile(`${out}/medieval-horse${suffix}-${f.name}`, Buffer.from(await file.data.arrayBuffer()));
+            }
+          }
+          const ledger = await bucket.download('samples/animation-medieval/state/paid-ledger.json');
+          if (ledger.data) await fs.writeFile(`${out}/paid-ledger.json`, Buffer.from(await ledger.data.arrayBuffer()));
+          JS
+      - name: Publicar
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: medieval-horse-${{ github.run_id }}
+          path: evidence/medieval
+          if-no-files-found: warn
+          retention-days: 30

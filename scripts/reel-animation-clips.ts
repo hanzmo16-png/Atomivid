@@ -9,7 +9,8 @@
  *  - run: exige ANIMATION_ALLOW_PAID=true, credenciales de Supabase y
  *    ANIMATION_TOTAL_USD (tope autorizado). Cada ilustración nueva y cada
  *    clip se reservan en un registro durable
- *    (samples/animation/<id>/state/paid-ledger.json) ANTES de llamar; un
+ *    (<ANIMATION_LEDGER_SCOPE>/state/paid-ledger.json; por defecto
+ *    samples/animation-medieval, separado del de las muestras de Work) ANTES de llamar; un
  *    reintento reutiliza lo guardado, reanuda una operación ya enviada y se
  *    detiene ante cualquier cobro incierto.
  *
@@ -152,7 +153,11 @@ async function main() {
   const { veoVideoProvider } = await import("../src/lib/providers/video-gen/veo");
   const service = createServiceClient();
   const BUCKET = "videos";
-  const scope = "samples/animation";
+  // Registro propio por autorización: las cuatro muestras de Work usan «samples/animation» (tope USD 5.15);
+  // una prueba nueva NO debe contar ni gastar ese saldo, así que por defecto va a su propio registro.
+  const scope = (process.env.ANIMATION_LEDGER_SCOPE ?? "samples/animation-medieval").trim();
+  if (!/^samples\/[a-z0-9-]+$/.test(scope)) throw new Error(`ANIMATION_LEDGER_SCOPE inválido: ${scope}`);
+  console.log(`[registro] ${scope}/state/paid-ledger.json, tope USD ${totalUsd}`);
   // Un solo registro para toda la prueba: el tope se aplica al acumulado de todos los clips y reintentos.
   const ledger = await openStorageLedger(service, BUCKET, scope, { capUsd: totalUsd });
   for (const c of selected) {

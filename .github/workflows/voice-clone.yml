@@ -25,7 +25,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
+      # repository_dispatch ejecuta SIEMPRE la rama por defecto. Para probar antes de fusionar, la
+      # variable del repositorio VOICE_WORKERS_REF fija un commit revisado; vacía = rama por defecto.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ vars.VOICE_WORKERS_REF }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
