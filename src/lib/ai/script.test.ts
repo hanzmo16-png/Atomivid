@@ -62,6 +62,10 @@ async function withScript<T>(steps: Step[], fn: (ctx: { calls: () => number; log
     calls += 1;
     const body = JSON.parse(String(init?.body));
     assert.deepEqual(body.thinking, { type: "disabled" }, "el presupuesto de salida se reserva para el guion, sin razonamiento implícito");
+    if (String(body.messages?.[0]?.content).includes("Borrador a editar:")) {
+      const draft = JSON.parse(String(body.messages[0].content).split("Borrador a editar:\n")[1]);
+      assert.ok(draft.segments.length > 0, "la corrección recibe el texto anterior, no solo su conteo");
+    }
     const next = queue.shift();
     if (!next) throw new Error("llamada inesperada");
     if (next instanceof Error) throw next;
