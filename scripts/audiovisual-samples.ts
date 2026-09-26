@@ -162,6 +162,10 @@ async function main() {
           runCall: ledgeredScriptRunner(ledger, scope, key, attempt),
         });
         const quality = checkScriptQuality(generated.script, { topic: sample.topic, targetWords: targetWordsFor(SAMPLE_DURATION_SECONDS), providerName: generated.providerName });
+        // Conservar lo ya pagado para revisión aunque lo rechace el control.
+        // No es script.json: un borrador rechazado nunca se produce por accidente.
+        await writeJsonState(service, BUCKET, `${prefix}/script-draft.json`, { script: generated.script, quality });
+        await fs.writeFile(path.join(outDir, `${sample.id}-script-draft.json`), JSON.stringify({ script: generated.script, quality }, null, 2));
         if (!quality.ok) throw new Error(`Guion de ${sample.id} no pasó el control de calidad (${quality.issue}). Detenido sin regenerar.`);
         script = generated.script;
         await writeJsonState(service, BUCKET, scriptPath, script);

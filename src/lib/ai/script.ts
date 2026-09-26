@@ -271,6 +271,9 @@ async function callScriptModel<T>({
         getClient().messages.create({
           model: SCRIPT_MODEL,
           max_tokens: maxTokens,
+          // Sonnet 5 activa razonamiento por defecto; puede agotar todo el
+          // límite antes del JSON. Estos guiones cortos necesitan texto directo.
+          thinking: { type: "disabled" },
           system,
           messages: [{ role: "user", content }],
           output_config: { format: { type: "json_schema", schema: format.schema } },
@@ -395,7 +398,10 @@ ${guidance} El "energy" de cada escena debe reflejar esa intención (p. ej. en s
       ? basePrompt
       : `${basePrompt}
 
-Tu intento anterior tuvo ${lastWordCount} palabras narradas en total, fuera del rango pedido (${minWords}-${maxWords}). Reescribe el guion completo — mismo tema, arco narrativo, idioma y estilo —, ${direction} el nivel de detalle de cada escena (sin relleno ni cortes artificiales) hasta que la suma de "text" caiga dentro del rango. Cuenta las palabras con cuidado antes de responder.`;
+El siguiente borrador tiene ${lastWordCount} palabras narradas, contadas por el servidor. Edita ESTE borrador, conservando sus escenas y conceptos visuales. No escribas una historia nueva. Debes ${direction === "reduciendo" ? "eliminar" : "añadir"} aproximadamente ${Math.abs(lastWordCount - targetWords)} palabras entre sus campos "text", para llegar a ${targetWords} (rango aceptado: ${minWords}-${maxWords}). Mantén frases completas, el sentido y la intención. Ajusta emphasisWords si cambias esas palabras. Cuenta solo las palabras de "text", separadas por espacios; no cuentes título ni metadatos.
+
+Borrador a editar:
+${JSON.stringify(lastScript)}`;
 
     const { value: parsed } = await callScriptModel({
       operation: "script",
