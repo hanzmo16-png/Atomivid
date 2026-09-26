@@ -163,6 +163,20 @@ export const CHECKS: ObjectCheck[] = [
   { kind: "column", table: "video_requests", name: "long_form_production_plan", migration: "0019" },
   { kind: "column", table: "video_requests", name: "long_form_confirmed_at", migration: "0019" },
   { kind: "column", table: "video_requests", name: "long_form_progress", migration: "0019" },
+
+  // --- 0021_voices_and_text_to_speech.sql (los disparadores de límites no
+  // tienen tipo de comprobación aquí; las columnas max_* que usan sí) ---
+  { kind: "column", table: "video_requests", name: "voice_choice", migration: "0021" },
+  { kind: "table", table: "user_voices", migration: "0021" },
+  { kind: "column", table: "user_voices", name: "client_request_id", migration: "0021" },
+  { kind: "column", table: "user_voices", name: "needs_review", migration: "0021" },
+  { kind: "column", table: "user_voices", name: "max_voices_total", migration: "0021" },
+  { kind: "rls", table: "user_voices", migration: "0021" },
+  { kind: "policy", table: "user_voices", name: "Users can view their own voices", migration: "0021" },
+  { kind: "table", table: "tts_jobs", migration: "0021" },
+  { kind: "column", table: "tts_jobs", name: "max_chars_per_month", migration: "0021" },
+  { kind: "rls", table: "tts_jobs", migration: "0021" },
+  { kind: "policy", table: "tts_jobs", name: "Users can view their own text-to-speech jobs", migration: "0021" },
 ];
 
 export const MIGRATIONS_APPLIED_TABLE = "_migrations_applied";

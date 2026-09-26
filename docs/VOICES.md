@@ -151,7 +151,43 @@ privada seleccionable.
   pieza larga lanzada a la vez que un Long Form puede encontrar la cuota
   agotada a mitad (se detiene; lo generado se conserva).
 
-## 6. Activación (nada hecho; requiere autorización)
+## 6. Aislamiento: lo que comparte la prueba con producción
+
+**La prueba NO está aislada de producción.** Que los flags se enciendan solo
+en Preview limita quién ve las secciones, no dónde quedan los datos ni qué
+se gasta.
+
+- **Base de datos y Storage**: todos los workflows del repositorio (render,
+  migraciones y los nuevos tts, voice-clone, session-validation) usan un
+  único juego de secrets (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+  credenciales de Postgres): el mismo proyecto con el que `render.yml`
+  procesa las solicitudes de usuarios reales. No hay un proyecto de staging
+  en el repositorio. Qué proyecto usa Preview en Vercel no es visible desde
+  aquí (pendiente de confirmar en el panel de Vercel); pero como los
+  workers corren en GitHub Actions con esos secrets, el flujo solo funciona
+  si Preview apunta a ese mismo proyecto. Filas (`tts_jobs`, `user_voices`),
+  audios y registros de gasto de la prueba quedan en él (bucket `videos`,
+  prefijos `tts/` y `voices/`), bajo cuentas de prueba.
+- **Proveedores**: misma cuenta de ElevenLabs (misma cuota de 38.002
+  caracteres y mismos 10 espacios de clonación), mismas claves de Veo y
+  OpenAI, mismo `GH_WORKER_TOKEN`. En Preview (`VERCEL=1`) los proveedores
+  son los reales, nunca fixtures.
+- **Migración 0021**: destino = ese mismo proyecto (el de producción).
+  Dependencias: `auth.users` y `public.video_requests` (0001),
+  `gen_random_uuid()` (nativo desde Postgres 13), plpgsql y
+  `pg_advisory_xact_lock` (nativos). No depende de 0016-0020. Sobre datos
+  existentes solo agrega una columna nullable sin valor por defecto a
+  `video_requests` (cambio de metadatos, bloqueo breve, sin reescribir la
+  tabla); lo demás son tablas y disparadores nuevos. El código actual no la
+  necesita: sin la columna, todo sigue con la voz de siempre.
+  `migration-schema-map.ts` ya incluye 0021 para que el workflow confirme
+  el esquema antes y después (0020, del PR #13, tampoco figura en ese mapa).
+- **Aislamiento real**, si se prefiere: un proyecto Supabase aparte, con
+  secrets propios para los workflows de prueba y Preview apuntando a él, y
+  una cuenta de ElevenLabs separada. No está configurado; requiere
+  decisión y trabajo de infraestructura.
+
+## 7. Activación (nada hecho; requiere autorización)
 
 **Hecho clave**: `repository_dispatch` y `workflow_dispatch` solo disparan
 workflows cuyo archivo exista en la **rama por defecto**
@@ -179,8 +215,16 @@ código de esa rama. Hoy no están ahí `tts.yml`, `voice-clone.yml`,
    ya existentes. Producción sigue apagada.
 5. **Validación con sesión** (`session-validation.yml`): etapa `free`
    primero; `tts` y `myvoice` solo con `confirm=GASTAR` y el paquete
-   autorizado. Requiere dos cuentas de prueba (secrets
-   `SESSION_USER_A_*`, `SESSION_USER_B_*`).
+   autorizado. Requiere dos cuentas de PRUEBA sin voces propias (secrets
+   `SESSION_USER_A_*`, `SESSION_USER_B_*`), ambas en
+   `MY_VOICE_ALLOWLIST_EMAILS` y la variable
+   `SESSION_USER_B_ALLOWLISTED=true`. Cada pieza y voz se correlaciona por
+   su `client_request_id`; la voz clonada es temporal («Prueba temporal
+   …») y se elimina solo por su id exacto. Si una cuenta de prueba tiene
+   alguna voz propia, la etapa se detiene antes de gastar y no la toca. La
+   voz personal que Hans quiera conservar se crea después, desde su propia
+   cuenta, fuera de esta prueba. Un paso no comprobable queda pendiente y
+   la ejecución no termina en verde.
 6. **Orden de integración** (sin fusionar todavía): #13 → #14 (Work) → #15
    → #16, cada uno con merge commit (no squash, para no duplicar cambios en
    los PR apilados), cambiando la base del siguiente a la rama por defecto

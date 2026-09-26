@@ -308,3 +308,15 @@ test("la sección existe detrás de su flag y sus acciones usan el usuario de la
   assert.match(workflow, /types: \[clone-voice\]/);
   assert.match(workflow, /mark-voice-clone-failed\.ts/);
 });
+
+test("validación con sesión: correlación exacta por client_request_id y eliminación solo por id exacto", () => {
+  const script = readFileSync(path.join(__dirname, "..", "..", "..", "scripts", "session-validation.mjs"), "utf8");
+  assert.doesNotMatch(script, /\.limit\(1\)|order\("created_at"/, "nunca «la voz o pieza más reciente»");
+  assert.match(script, /\.eq\("client_request_id", clientRequestId\)/);
+  assert.match(script, /form:has\(input\[name="voice_id"\]\[value="\$\{id\}"\]\)/);
+  assert.doesNotMatch(script, /(?<!form\.)getByRole\("button", \{ name: "Eliminar voz y grabaciones" \}\)\.click\(\)/, "sin botón de eliminación genérico");
+  assert.equal((script.match(/form\.getByRole\("button", \{ name: "Eliminar voz y grabaciones" \}\)\.click\(\)/g) ?? []).length, 2, "solo desde el formulario del id exacto");
+  assert.match(script, /A tiene voces propias/, "no toca voces existentes de la cuenta");
+  assert.match(script, /if \(!exitCode && count\("pending"\) > 0\) exitCode = 2/, "un pendiente no termina en verde");
+  assert.doesNotMatch(script, /B_SHORT_SAMPLE_PATH\) \{/, "la prueba de eliminación ajena no es condicional");
+});
