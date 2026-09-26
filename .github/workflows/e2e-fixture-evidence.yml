@@ -3,7 +3,7 @@ name: E2E fixture evidence (no paid providers)
 on:
   pull_request:
     # También PRs apilados sobre ramas de trabajo (p. ej. work/script-thinking-fix).
-    branches: [claude/atomivid-mvp-setup-0079jv, 'work/**']
+    branches: [claude/atomivid-mvp-setup-0079jv, 'work/**', 'claude/**']
     paths:
       - 'scripts/**'
       - 'src/lib/**'
