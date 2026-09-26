@@ -91,6 +91,15 @@ async function main() {
           uploaded.add(p);
           return { error: null };
         },
+        async download(p: string) {
+          const full = path.join(storageDir, p);
+          if (!fsSync.existsSync(full)) return { data: null, error: { message: "Object not found", statusCode: "404" } };
+          return { data: new Blob([new Uint8Array(await fs.readFile(full))]), error: null };
+        },
+        async remove(paths: string[]) {
+          for (const p of paths) await fs.rm(path.join(storageDir, p), { force: true });
+          return { data: [], error: null };
+        },
         async createSignedUrl(p: string) {
           return { data: { signedUrl: `http://127.0.0.1:${port}/${p}` }, error: null };
         },

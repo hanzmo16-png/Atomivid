@@ -40,7 +40,7 @@ test("worker: verifica que la dirección guardada corresponde al guion antes de 
   const src = readFileSync(path.join(__dirname, "..", "run-job.ts"), "utf8");
   const check = src.indexOf("assertDirectionMatches(");
   assert.ok(check > 0 && check < src.indexOf("await generateVideoFromScript("));
-  assert.match(src, /\.\.\.\(direction \? \{ direction \} : \{\}\)/);
+  assert.match(src, /\.\.\.\(direction \? \{ direction, attempt: row\.render_attempts \} : \{\}\)/);
 });
 
 test("creación: la selección se valida en servidor y solo con el flag; nunca se crea sin la dirección elegida", () => {

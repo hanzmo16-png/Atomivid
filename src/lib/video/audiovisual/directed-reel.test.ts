@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { memoryStorage } from "./test-storage";
 import type { GeneratedScript } from "@/lib/providers/types";
 import { resolveDirection } from "./direction";
 import type { AudiovisualSelection } from "./catalog";
@@ -24,22 +24,8 @@ const script: GeneratedScript = {
 };
 
 function fakeSupabase(opts: { failUploadsMatching?: RegExp } = {}) {
-  const uploads: string[] = [];
-  const client = {
-    storage: {
-      from: () => ({
-        list: async () => ({ data: [], error: null }),
-        upload: async (p: string) => {
-          if (opts.failUploadsMatching?.test(p)) return { error: { message: "simulado: bucket no disponible" } };
-          uploads.push(p);
-          return { error: null };
-        },
-        createSignedUrl: async (p: string) => ({ data: { signedUrl: `http://127.0.0.1/${p}` }, error: null }),
-      }),
-    },
-    from: () => ({ insert: async () => ({ error: null }), upsert: async () => ({ error: null }) }),
-  };
-  return { client: client as unknown as SupabaseClient, uploads };
+  const storage = memoryStorage(opts.failUploadsMatching ? { upload: [{ match: opts.failUploadsMatching, times: Infinity }] } : {});
+  return { client: storage.client, uploads: storage.uploadLog, storage };
 }
 
 function withEnv<T>(env: Record<string, string | undefined>, fn: () => Promise<T>): Promise<T> {
@@ -102,7 +88,7 @@ test("música dirigida no disponible: se detiene antes de la voz, sin otra pista
 
 test("orden del pipeline dirigido: música e imágenes antes de la voz; el flujo anterior solo delega si hay dirección", () => {
   const source = readFileSync(path.join(__dirname, "directed-reel.ts"), "utf8");
-  const voice = source.indexOf("await voiceProvider.synthesize(");
+  const voice = source.indexOf("let voice = await narrate(");
   assert.ok(source.indexOf("musicProvider.getTrack(") < voice);
   assert.ok(source.indexOf("await resolveGeneratedImageForScene(") < voice);
   assert.ok(source.indexOf("evaluateDirectionReadiness(") < source.indexOf("musicProvider.getTrack("));
@@ -114,4 +100,34 @@ test("orden del pipeline dirigido: música e imágenes antes de la voz; el flujo
 
   const legacy = readFileSync(path.join(__dirname, "..", "generate-video.ts"), "utf8");
   assert.match(legacy, /if \(direction\) \{\n\s+return generateDirectedVideoFromScript\(/);
+});
+
+test("reintentos: el gasto del intento fallido se conserva (voz + corrección) y el segundo intento reutiliza ambas voces", async () => {
+  process.env.AUDIOVISUAL_STORAGE_RETRY_MS = "0";
+  const { generateDirectedVideoFromScript } = await import("./directed-reel");
+  const { fixtureVoiceProvider } = await import("@/lib/providers/voice/fixture");
+  const fullText = script.segments.map((s) => s.text).join(" ");
+  const natural = (await fixtureVoiceProvider.synthesize(fullText, "es")).durationSeconds;
+  // Objetivo 40 % más largo → la primera síntesis queda fuera de tolerancia y hay corrección de duración.
+  const target = natural * 1.4;
+  const storage = memoryStorage({ upload: [{ match: /\/scene-\d+-\d+\./, times: Infinity }] });
+  const direction = directionFor({ profile: "horror_mystery" });
+  const attemptOnce = (attempt: number) =>
+    generateDirectedVideoFromScript({ supabase: storage.client, requestId: "req-r", artifactPrefix: `req-r/attempt-${attempt}`, script, direction, targetDurationSeconds: target, attempt });
+
+  await withEnv(FIXTURES, async () => {
+    await assert.rejects(attemptOnce(1), /subida simulada caída|No se pudo subir/);
+    const afterFirst = storage.json<{ entries: { kind: string; status: string; units?: { characters?: number }; attempt?: number }[] }>("req-r/state/paid-ledger.json")!;
+    assert.deepEqual(afterFirst.entries.map((e) => [e.kind, e.status, e.attempt]), [["voice", "spent", 1], ["voice_retime", "spent", 1]]);
+    assert.equal(afterFirst.entries.reduce((n, e) => n + (e.units?.characters ?? 0), 0), fullText.length * 2, "se contabilizan ambas síntesis");
+
+    await assert.rejects(attemptOnce(2), /subida simulada caída|No se pudo subir/);
+    const afterSecond = storage.json<{ entries: unknown[] }>("req-r/state/paid-ledger.json")!;
+    assert.equal(afterSecond.entries.length, 2, "el segundo intento reutilizó la voz y la corrección: ninguna operación nueva");
+  });
+});
+
+test("el presupuesto de imágenes por video se calcula sobre el gasto acumulado del registro, no solo del intento", () => {
+  const source = readFileSync(path.join(__dirname, "directed-reel.ts"), "utf8");
+  assert.match(source, /flags\.maxVisualCostUsd - \(ledger\.summary\(\)\.byKind\.image\?\.usd \?\? 0\)/);
 });

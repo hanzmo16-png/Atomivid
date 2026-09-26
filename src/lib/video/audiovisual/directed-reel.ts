@@ -34,12 +34,16 @@ import { buildEmphasisSet } from "@/lib/video/caption-emphasis";
 import { buildCaptions } from "@/lib/video/captions";
 import { VIDEO_TAIL_SECONDS } from "@/lib/video/script-pacing";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
-import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resolver";
+import { GeneratedImageUncertainError, resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resolver";
 import { ASSET_SIGNED_URL_TTL_SECONDS, STORAGE_BUCKET, alignScenesToWords, renderVerticalReel, uploadToStorage } from "@/lib/video/reel-shared";
 import { PROFILES } from "./catalog";
 import type { AudiovisualDirection } from "./direction";
 import { evaluateDirectionReadiness, readinessErrorMessage } from "./readiness";
 import { buildStyledImagePrompt, reelLookFor, stockConceptsFor, styledImageObjectPrefix } from "./visuals";
+import { PaidBudgetExceededError, UncertainPaidOperationError, type PaidLedger } from "./paid-ledger";
+import { openStorageLedger } from "./paid-costs";
+import { synthesizeNarrationCached } from "./voice-cache";
+import { StorageStateUnknownError } from "./storage-state";
 import { framingForBeat, minimumClipSeconds, mixLevelsFor, planReelMontage, validateTimeline } from "./montage";
 
 type OnProgress = (stage: RenderStage) => void | Promise<void>;
@@ -62,6 +66,8 @@ export async function generateDirectedVideoFromScript({
   targetDurationSeconds,
   onProgress,
   direction,
+  attempt,
+  paid,
 }: {
   supabase: SupabaseClient;
   requestId: string;
@@ -73,7 +79,15 @@ export async function generateDirectedVideoFromScript({
   targetDurationSeconds?: number;
   onProgress?: OnProgress;
   direction: AudiovisualDirection;
-}): Promise<{ videoPath: string }> {
+  /** Número de intento (render_attempts) — solo para trazar el registro de gasto. */
+  attempt?: number;
+  /**
+   * Control de gasto: tope del registro durable de esta solicitud
+   * (acumulado entre intentos) y si se escriben los costos en
+   * generation_costs (las muestras no tienen fila en video_requests).
+   */
+  paid?: { capUsd?: number; otherCommittedUsd?: number; recordCosts?: boolean; ledger?: PaidLedger };
+}): Promise<{ videoPath: string; ledger: PaidLedger }> {
   const flags = getFeatureFlags();
   const profile = PROFILES[direction.profile];
   const segments = script.segments;
@@ -88,6 +102,18 @@ export async function generateDirectedVideoFromScript({
     JSON.stringify({ requestId, fingerprint: direction.fingerprint.slice(0, 12), summary: direction.summary, profile: direction.profile, intent: direction.intent, music: direction.music, pace: direction.pace }),
   );
 
+  // Registro de gasto durable (uno por solicitud, acumulado entre intentos):
+  // cada operación pagada se reserva ANTES de llamar y se liquida después,
+  // aunque el video no llegue a terminar.
+  const ledger = paid?.ledger ?? (await openStorageLedger(supabase, STORAGE_BUCKET, requestId, { capUsd: paid?.capUsd, otherCommittedUsd: paid?.otherCommittedUsd }));
+  const logLedger = (when: string) => console.log("[atomivid:paid-ledger]", JSON.stringify({ requestId, when, ...ledger.summary() }));
+  try {
+    return await produce();
+  } finally {
+    logLedger("fin del intento");
+  }
+
+  async function produce(): Promise<{ videoPath: string; ledger: PaidLedger }> {
   // 2. Música compatible (nunca Beatoven ni otra pista cualquiera en modo dirigido).
   await onProgress?.("music");
   let music: MusicResult | null = null;
@@ -112,7 +138,6 @@ export async function generateDirectedVideoFromScript({
 
   // 3. Imágenes con el estilo del perfil (solo perfiles ilustrados).
   const styledImages = new Map<number, { url: string; costUsd: number; status: "generated" | "reused" }>();
-  let imageCostUsd = 0;
   let imageProviderName: string | undefined;
   let imageModel: string | undefined;
   if (profile.visualSource === "generated_image") {
@@ -127,7 +152,8 @@ export async function generateDirectedVideoFromScript({
         concept: segment.visualConcepts?.[0] ?? segment.visualQuery,
         narration: segment.text,
       });
-      const remaining = Math.max(0, flags.maxVisualCostUsd - imageCostUsd);
+      // Presupuesto de imágenes ACUMULADO entre intentos (registro durable), no solo este intento.
+      const remaining = Math.max(0, flags.maxVisualCostUsd - (ledger.summary().byKind.image?.usd ?? 0));
       try {
         const outcome = await resolveGeneratedImageForScene({
           supabase,
@@ -139,15 +165,21 @@ export async function generateDirectedVideoFromScript({
           remainingBudgetUsd: remaining,
           signedUrlTtlSeconds: ASSET_SIGNED_URL_TTL_SECONDS,
           objectPrefix: styledImageObjectPrefix(i, styled.key),
+          ledger,
+          attempt,
         });
-        imageCostUsd += outcome.costUsd;
         storageBytes += outcome.bufferBytes;
         imageModel = outcome.model ?? imageModel;
         styledImages.set(i, { url: outcome.url, costUsd: outcome.costUsd, status: outcome.status });
       } catch (err) {
+        const blocked =
+          err instanceof GeneratedImageUncertainError || err instanceof UncertainPaidOperationError || err instanceof PaidBudgetExceededError || err instanceof StorageStateUnknownError;
         throw new DirectedProductionError(
           `No se pudo generar la imagen de la escena ${i + 1} con el estilo «${profile.label}»: ${err instanceof Error ? err.message : String(err)}. ` +
-            "No se sustituyó por stock realista. Puedes reintentar (las imágenes ya generadas se reutilizan sin volver a pagarlas) o elegir otra dirección.",
+            "No se sustituyó por stock realista. " +
+            (blocked
+              ? "Requiere revisión antes de volver a intentar (no se repite un gasto incierto)."
+              : "Puedes reintentar (las imágenes ya guardadas se reutilizan sin volver a pagarlas) o elegir otra dirección."),
         );
       }
     }
@@ -157,12 +189,17 @@ export async function generateDirectedVideoFromScript({
   await onProgress?.("voice");
   const voiceProvider = getVoiceProvider();
   const fullText = segments.map((s) => s.text).join(" ");
-  let voice = await voiceProvider.synthesize(fullText, language);
+  // Caché por texto+voz+idioma+velocidad: un reintento reutiliza la voz y
+  // sus tiempos ya pagados; la corrección de duración es otra entrada (y
+  // otra operación del registro, «voice_retime»).
+  const narrate = (speed?: number) =>
+    synthesizeNarrationCached({ supabase, bucket: STORAGE_BUCKET, requestId, voiceProvider, text: fullText, language, speed, ledger, attempt });
+  let voice = await narrate();
   if (targetDurationSeconds !== undefined) {
     let durationResult = checkDuration(targetDurationSeconds, voice.durationSeconds);
     if (!durationResult.withinTolerance) {
       const correctedSpeed = voice.durationSeconds / targetDurationSeconds;
-      voice = await voiceProvider.synthesize(fullText, language, correctedSpeed);
+      voice = await narrate(correctedSpeed);
       durationResult = checkDuration(targetDurationSeconds, voice.durationSeconds);
     }
     if (!durationResult.withinTolerance) assertNarrationDuration(targetDurationSeconds, voice.durationSeconds);
@@ -269,35 +306,43 @@ export async function generateDirectedVideoFromScript({
   await fs.unlink(outputPath).catch(() => {});
   if (outputPath !== rawOutputPath) await fs.unlink(rawOutputPath).catch(() => {});
 
+  // Costos desde el registro durable: acumulados de TODOS los intentos de
+  // esta solicitud (voz inicial + corrección de duración, imágenes pagadas
+  // en intentos que fallaron), no solo lo que usó este intento.
+  const totals = ledger.summary().byKind;
+  const voiceChars = (totals.voice?.characters ?? 0) + (totals.voice_retime?.characters ?? 0);
   const generated = [...styledImages.values()];
-  await recordVideoGeneration(supabase, requestId, {
-    voiceProvider: voiceProvider.name,
-    voiceCharacters: fullText.length,
-    footageProvider: footageProvider.name,
-    footageCount: scenes.length,
-    musicProvider: music ? (getMusicProvider().name === "beatoven" ? curatedLibraryMusicProvider.name : getMusicProvider().name) : "none",
-    musicTrack: music?.track
-      ? { id: music.track.trackId, title: music.track.title, author: music.track.author, license: music.track.license, sourceUrl: music.track.sourceUrl }
-      : null,
-    musicFallbackReason: direction.music.id === "none" ? "sin música (elegido en la dirección audiovisual)" : null,
-    videoDurationSeconds: finalDurationSeconds,
-    renderMs,
-    storageBytes,
-    creativeLayer:
-      generated.length > 0
-        ? {
-            imageProvider: imageProviderName,
-            imageGenerationCount: generated.filter((g) => g.status === "generated").length,
-            imageCostUsd,
-            imageRequestedCount: generated.length,
-            imageReusedCount: generated.filter((g) => g.status === "reused").length,
-            imageDryRun: false,
-            imageModel,
-          }
-        : undefined,
-  }).catch((err) => {
-    console.warn(`No se pudo registrar el costo de ${requestId}:`, err);
-  });
+  if (paid?.recordCosts !== false) {
+    await recordVideoGeneration(supabase, requestId, {
+      voiceProvider: voiceProvider.name,
+      voiceCharacters: voiceChars,
+      footageProvider: footageProvider.name,
+      footageCount: scenes.length,
+      musicProvider: music ? (getMusicProvider().name === "beatoven" ? curatedLibraryMusicProvider.name : getMusicProvider().name) : "none",
+      musicTrack: music?.track
+        ? { id: music.track.trackId, title: music.track.title, author: music.track.author, license: music.track.license, sourceUrl: music.track.sourceUrl }
+        : null,
+      musicFallbackReason: direction.music.id === "none" ? "sin música (elegido en la dirección audiovisual)" : null,
+      videoDurationSeconds: finalDurationSeconds,
+      renderMs,
+      storageBytes,
+      creativeLayer:
+        generated.length > 0 || totals.image
+          ? {
+              imageProvider: imageProviderName,
+              imageGenerationCount: totals.image?.count ?? 0,
+              imageCostUsd: totals.image?.usd ?? 0,
+              imageRequestedCount: generated.length,
+              imageReusedCount: generated.filter((g) => g.status === "reused").length,
+              imageDryRun: false,
+              imageModel,
+            }
+          : undefined,
+    }).catch((err) => {
+      console.warn(`No se pudo registrar el costo de ${requestId}:`, err);
+    });
+  }
 
-  return { videoPath };
+  return { videoPath, ledger };
+  }
 }

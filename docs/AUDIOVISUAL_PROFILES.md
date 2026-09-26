@@ -91,36 +91,86 @@ No hubo llamadas de pago, migraciones productivas, despliegues ni fusiones.
 | **Comprobado con código** | Pruebas de coherencia (aceptación 1 y 2), persistencia, reintentos, invalidación, validación de servidor, compatibilidad con solicitudes antiguas y migración ausente, cobertura del montaje, bloqueos sin gasto (aceptación 3) y orden del pipeline. |
 | **Visto** | Selector en 390 px y 1280 px sin desbordes; panel de revisión (listo y bloqueado). Renders fixture de tres direcciones (`scripts/test-pipeline-audiovisual.ts`): horror con grado oscuro, viñeta y búsqueda «dark»; cómic de misterio (5 planos, anticipación y revelación con corte seco); cómic de humor (10 planos, fundidos de 4 fotogramas); subtítulos legibles. Son colores sólidos de prueba, no imágenes reales. |
 | **Escuchado** | Nada. La música fixture es un tono sintético; las 22 pistas reales no se han escuchado en esta misión. |
-| **Pendiente** | Disponibilidad real de los 22 archivos (workflow de solo lectura `verify-music-library.yml`, corre al abrir el PR); muestras reales (abajo); revisión de Work. |
+| **Medido (no escuchado)** | `verify-music-library.yml` (solo lectura, run 36240727326): **22/22 pistas disponibles**, MP3 válidos de ~45 s, loudness entre −20,3 y −10,8 LUFS. Pistas compatibles por dirección: tensión 2, ligera 2, inspiradora 8, neutra 6, emotiva 7, enérgica 4. |
+| **Pendiente** | Muestras reales (abajo) y revisión de Work. |
 
-## Propuesta presupuestada de muestras reales (no autorizada, no ejecutada)
+## Gasto durable y operaciones inciertas (revisión de Work)
 
-- **Objetivo:** reemplazar «Muestra real pendiente» por resultados reales revisados, y validar con imagen y audio las aceptaciones 1, 2 y 4.
-- **Proveedores (todos ya integrados, ninguno nuevo):**
-  - Claude (guion);
-  - ElevenLabs (voz, la misma del cliente);
-  - Pexels/Pixabay (stock, gratis);
-  - biblioteca de música curada (gratis);
-  - OpenAI imágenes (`gpt-image-2`, 1024×1536 medium);
-  - GitHub Actions (render).
-- **Tarifas de referencia:** registradas en `billing/pricing.ts` y, para imagen, el costo real medido en M3 (US$0,0558 por imagen).
+Se aplica a todo el Reel dirigido. El flujo anterior (sin dirección) solo recibe los marcadores de imagen.
 
-| # | Muestra (30 s, español) | Generaciones de pago | Estimado |
+- **Registro de gasto por solicitud** (`paid-ledger.ts`, en Storage `<solicitud>/state/paid-ledger.json`):
+  - cada operación pagada se **reserva y guarda antes de llamar** al proveedor; si no se puede guardar, no se llama;
+  - se **liquida** al terminar: `spent` (costo real o estimado), `released` (costo cero conocido) o `uncertain` (pudo cobrarse);
+  - es uno por solicitud, no por intento: el gasto de intentos fallidos se conserva y el tope se aplica al acumulado, que nunca se amplía en un reintento;
+  - `generation_costs` recibe al final los **totales acumulados**: caracteres de voz inicial más la corrección de duración, e imágenes pagadas en todos los intentos.
+- **Imágenes** (`visual-resource-resolver.ts`):
+  - un error de `Storage.list` o de lectura del marcador **detiene** la producción; nunca se interpreta como «no existe»;
+  - el marcador `state/generated/<prefijo>.json` pasa por `started` → `stored`;
+  - si la subida falla tras cobrar (con 3 reintentos), queda `generated_unstored`; una respuesta inválida queda `generated_invalid`;
+  - con `started`, `generated_unstored` o `generated_invalid` la imagen **no se regenera automáticamente**.
+- **Voz** (`voice-cache.ts`):
+  - la clave cubre texto + proveedor + voz/modelo/ajustes + idioma + velocidad; un reintento reutiliza audio y tiempos por palabra;
+  - la corrección de duración es otra entrada y otra operación (`voice_retime`), y ambas se contabilizan;
+  - los mismos estados que en imágenes impiden resintetizar algo cobrado sin resultado guardado.
+
+### Qué costos son medidos y cuáles estimados
+
+| Operación | Reserva previa | Liquidación | Base |
 | --- | --- | --- | --- |
-| 1 | Horror y misterio con guion que menciona éxito y negocios (aceptación 1) | 1 guion + 1 voz | US$0,12 |
-| 2 | Cómic + misterio (aceptación 2) | 1 guion + 1 voz + 6 imágenes | US$0,46 |
-| 3 | Cómic + humor (aceptación 2) | 1 guion + 1 voz + 6 imágenes | US$0,46 |
-| 4 | Cine realista, divulgativo | 1 guion + 1 voz | US$0,12 |
-| 5 | Anime | 1 guion + 1 voz + 6 imágenes | US$0,46 |
-| 6 | Ilustración 3D | 1 guion + 1 voz + 6 imágenes | US$0,46 |
-| | **Total estimado** | 6 guiones, 6 voces, 24 imágenes | **US$2,08** |
+| Imagen (OpenAI `gpt-image-2`) | US$0,07 (conservadora; M3 midió US$0,0558) | costo del `usage` de la respuesta | **medido** si la respuesta trae `usage`; si no, **estimado** |
+| Voz (ElevenLabs) | caracteres × tarifa × 1,2 | caracteres × US$0,10/1.000 (`billing/pricing.ts`) | **estimado**: caracteres exactos, tarifa según plan |
+| Corrección de voz | igual que voz | igual que voz | **estimado** |
+| Guion (Claude, muestras) | US$0,08 (peor caso de 3 intentos) | se liquida por la reserva | **estimado conservador**: tokens no medidos |
+| Stock, música curada, render | — | — | sin costo por llamada |
 
-- **Máximo solicitado:** **US$3,50**, incluidos reintentos.
-- **Orden:** primero las muestras 1 y 2 (~US$0,58), revisión de imagen y audio, y solo entonces el resto.
+### Operaciones de costo incierto
+
+- **Qué cuenta como incierto:** timeout, respuesta rota, error de red sin respuesta, o proceso caído entre reservar y liquidar.
+- **Qué cuenta como costo cero conocido:** errores HTTP del proveedor, moderación, falta de clave o fallo antes de enviar. Se liberan y se pueden reintentar.
+- **Cómo se tratan las inciertas:**
+  - cuentan por su reserva dentro del tope;
+  - **bloquean** repetir la misma operación;
+  - aparecen en `openUncertainKeys`.
+- **Cómo se desbloquean:** solo por reconocimiento explícito de un operador (`acknowledge`; en el workflow, la entrada `acknowledge`) después de revisar el panel del proveedor. El costo sigue contando y la operación se puede volver a intentar. Nunca se desbloquea automáticamente.
+- **En Reels de clientes** una incierta detiene el intento con un mensaje que pide revisión. Todavía no hay una pantalla de soporte para reconocerla: es una acción manual pendiente de producto.
+
+## Workflow de muestras reales (preparado, NO ejecutado)
+
+Archivos: `.github/workflows/audiovisual-samples.yml`, `scripts/audiovisual-samples.ts` y `docs/quality/audiovisual-samples/manifest.json`.
+
+- **Modos:**
+  - `plan` (por defecto) no llama a proveedores: solo lee los registros y muestra plan, estimación y comprometido. Probado localmente.
+  - `run` exige `confirm=GASTAR`. Las claves de pago solo se inyectan en ese caso.
+- **Topes duros en código:**
+  - **US$3,50 total** y **US$0,75 por muestra**; las entradas solo pueden bajarlos;
+  - el acumulado se lee de los registros durables de las seis muestras, con reintentos, fallos e inciertas;
+  - cada muestra usa como tope min(US$0,75, US$3,50 − comprometido por las demás) y solo arranca si su peor caso cabe.
+- **Cada muestra:**
+  - el guion (Claude) se genera una sola vez, pasa el control de calidad y se reutiliza;
+  - se produce con el mismo pipeline de producto;
+  - se entrega MP4, primer fotograma, hoja de contacto, loudness e informe con el registro.
+- **Se detiene ante el primer fallo.**
+- **Muestras por defecto:** `horror` y `comic-mystery` (primera tanda); las demás se eligen tras revisar imagen y audio.
+- **Requisito para ejecutarlo:** `workflow_dispatch` solo aparece cuando el YAML existe en la rama por defecto. Hay que registrarlo ahí, como ya se hizo con otros workflows de muestra.
+
+### Presupuesto (no autorizado)
+
+| Muestra | Peor caso reservado | Estimación típica |
+| --- | --- | --- |
+| horror, cinematic (clips reales) | US$0,20 c/u | US$0,08 c/u |
+| comic-mystery, comic-humor, anime, illustration-3d (6 imágenes) | US$0,62 c/u | US$0,42 c/u |
+| **Las seis** | **US$2,90** | **≈ US$1,83** |
+
+- **Máximo solicitado:** US$3,50 total y US$0,75 por muestra.
+- **Orden:** primero `horror` + `comic-mystery` (peor caso US$0,83, típico ≈ US$0,50), luego revisión de imagen y audio antes de seguir.
 - **Criterios para detener:**
-  - el gasto acumulado llega a US$3,50;
-  - una muestra supera US$0,75;
-  - dos fallos de imagen seguidos en el mismo perfil;
-  - la primera muestra ilustrada no mantiene el estilo entre escenas;
-  - la música elegida contradice la dirección al escucharla.
-- **Requisito operativo:** un workflow de muestra con libro de gasto (como `long-form-quality-sample.yml`), que se preparará solo después de la autorización.
+  - tope alcanzado (lo impone el código);
+  - cualquier fallo (el runner se detiene);
+  - operación incierta (se bloquea hasta reconocerla);
+  - estilo inconsistente entre escenas o música que contradiga la dirección al escucharla (revisión humana antes de la siguiente tanda).
+
+## Segunda fase: YouTube Long Form
+
+- Los cinco perfiles llegarán a Long Form después, con ritmos de documental propios; no se reutiliza la tabla de ritmos de Reels.
+- Son reutilizables sin cambios: `catalog.ts`, `direction.ts` (`format` preparado), `music.ts`, `paid-ledger.ts`, `voice-cache.ts` y los marcadores de imagen.
+- Fuera del alcance de este PR.

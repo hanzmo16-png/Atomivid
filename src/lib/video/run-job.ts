@@ -193,7 +193,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
               language: row.language ?? undefined,
               targetDurationSeconds: row.duration_seconds ?? undefined,
               onProgress,
-              ...(direction ? { direction } : {}),
+              ...(direction ? { direction, attempt: row.render_attempts } : {}),
             });
 
     const completed = await update({

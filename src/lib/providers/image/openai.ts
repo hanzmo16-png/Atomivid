@@ -223,6 +223,7 @@ async function requestOnce(request: ImageGenerationRequest): Promise<GenerativeA
     height: Number.isFinite(height) ? height : undefined,
     model: DEFAULT_MODEL,
     costUsd: usageCostUsd ?? ESTIMATED_COST_USD,
+    costBasis: usageCostUsd !== null ? "provider_usage" : "estimated",
   };
 }
 

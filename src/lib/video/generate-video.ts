@@ -56,6 +56,7 @@ export async function generateVideoFromScript({
   targetDurationSeconds,
   onProgress,
   direction,
+  attempt,
 }: {
   supabase: SupabaseClient;
   requestId: string;
@@ -71,9 +72,11 @@ export async function generateVideoFromScript({
   onProgress?: OnProgress;
   /** Dirección audiovisual aprobada (solo Reels creados con el selector). Ausente = flujo anterior intacto. */
   direction?: AudiovisualDirection;
+  /** Intento (render_attempts) — solo lo usa el flujo dirigido para trazar su registro de gasto. */
+  attempt?: number;
 }): Promise<{ videoPath: string }> {
   if (direction) {
-    return generateDirectedVideoFromScript({ supabase, requestId, artifactPrefix, script, style, topic, language, targetDurationSeconds, onProgress, direction });
+    return generateDirectedVideoFromScript({ supabase, requestId, artifactPrefix, script, style, topic, language, targetDurationSeconds, onProgress, direction, attempt });
   }
   const voiceProvider = getVoiceProvider();
   const footageProvider = getFootageProvider();

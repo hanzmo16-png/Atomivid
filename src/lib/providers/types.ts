@@ -227,6 +227,8 @@ export type GenerativeAsset = {
   model: string;
   /** Costo real si el proveedor lo expone, o la estimación calculada antes de pedir. */
   costUsd: number;
+  /** De dónde sale `costUsd` (registro de gasto): usage medido del proveedor o estimación. Ausente = estimación. */
+  costBasis?: "provider_usage" | "estimated";
   /** Identificador de la tarea/job en el proveedor, si aplica (generación asíncrona). */
   providerJobId?: string;
   /** Licencia o términos aplicables al resultado generado, cuando el proveedor los declara. */
