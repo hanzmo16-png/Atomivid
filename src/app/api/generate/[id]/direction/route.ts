@@ -5,7 +5,7 @@ import type { GeneratedScript } from "@/lib/providers/types";
 import { parseSelection } from "@/lib/video/audiovisual/catalog";
 import { resolveDirection } from "@/lib/video/audiovisual/direction";
 import { loadAudiovisualState } from "@/lib/video/audiovisual/persistence";
-import { evaluateDirectionReadiness } from "@/lib/video/audiovisual/readiness";
+import { readinessForScript } from "@/lib/video/audiovisual/readiness";
 
 type Row = { id: string; user_id: string; mode: string; status: string; topic: string; style: string; script_json: GeneratedScript | null };
 
@@ -44,7 +44,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-    const parsed = parseSelection({ profile: body?.profile, intent: body?.intent, music: body?.music, pace: body?.pace });
+    const parsed = parseSelection({ profile: body?.profile, intent: body?.intent, music: body?.music, pace: body?.pace, motion: body?.motion });
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
     const { error: updateError } = await service
@@ -56,7 +56,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const scenes = row.script_json?.segments ?? [];
     const preview = resolveDirection({ selection: parsed.selection, style: row.style, topic: row.topic, scenes });
-    const readiness = evaluateDirectionReadiness({ profile: preview.profile, music: preview.music.id, sceneCount: scenes.length });
+    const readiness = readinessForScript(preview, scenes);
     return NextResponse.json({ selection: parsed.selection, summary: preview.summary, issues: readiness.issues });
   } catch (err) {
     console.error("[atomivid:direction] PATCH", err instanceof Error ? err.message : err);

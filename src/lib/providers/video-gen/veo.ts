@@ -1,5 +1,6 @@
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { GenerativeProviderError, type GenerativeAsset, type VideoGenerationRequest, type VideoProvider } from "../types";
+import { fetchFailureOutcome, httpStatusOutcome } from "../charge-outcome";
 
 /**
  * Adaptador REAL (P2A.5) para Google Veo 3.1 Fast vía la Gemini API —
@@ -181,14 +182,15 @@ export async function fetchReferenceImageAsGeminiImageObject(referenceImageUrl: 
   try {
     response = await fetch(referenceImageUrl);
   } catch (err) {
-    throw new GenerativeProviderError("Veo: fallo de red al leer la imagen de referencia aprobada", "veo", "invalid_request", err);
+    // Lectura de NUESTRA imagen, antes de contactar a Google: costo cero.
+    throw new GenerativeProviderError("Veo: fallo de red al leer la imagen de referencia aprobada", "veo", "invalid_request", err, undefined, "not_sent");
   }
   if (!response.ok) {
-    throw new GenerativeProviderError(`No se pudo leer la imagen de referencia aprobada (HTTP ${response.status})`, "veo", "invalid_request");
+    throw new GenerativeProviderError(`No se pudo leer la imagen de referencia aprobada (HTTP ${response.status})`, "veo", "invalid_request", undefined, undefined, "not_sent");
   }
   const buffer = Buffer.from(await response.arrayBuffer());
   if (buffer.byteLength === 0) {
-    throw new GenerativeProviderError("La imagen de referencia aprobada está vacía (0 bytes)", "veo", "invalid_request");
+    throw new GenerativeProviderError("La imagen de referencia aprobada está vacía (0 bytes)", "veo", "invalid_request", undefined, undefined, "not_sent");
   }
   const headerMime = response.headers.get("content-type")?.split(";")[0]?.trim();
   const mimeType = headerMime && headerMime.startsWith("image/") ? headerMime : (sniffImageMimeType(buffer) ?? "image/png");
@@ -233,7 +235,8 @@ async function submitGeneration(request: VideoGenerationRequest): Promise<string
       body: JSON.stringify(payload),
     });
   } catch (err) {
-    throw new GenerativeProviderError("Veo: fallo de red al enviar la solicitud de generación", "veo", "upstream_error", err);
+    // Solo un fallo inequívocamente previo al envío prueba costo cero (providers/charge-outcome.ts).
+    throw new GenerativeProviderError("Veo: fallo de red al enviar la solicitud de generación", "veo", "upstream_error", err, undefined, fetchFailureOutcome(err));
   }
 
   if (!response.ok) {
@@ -242,11 +245,15 @@ async function submitGeneration(request: VideoGenerationRequest): Promise<string
       `Veo respondió HTTP ${response.status} al enviar la generación${body.error?.message ? `: ${body.error.message}` : ""}`,
       "veo",
       classifyGoogleError(response.status, body.error?.message),
+      undefined,
+      undefined,
+      httpStatusOutcome(response.status),
     );
   }
   const json = (await response.json()) as GeminiOperation;
   if (!json.name) {
-    throw new GenerativeProviderError("Veo no devolvió un nombre de operación", "veo", "invalid_response");
+    // 200 sin operación: no se sabe si se creó una generación facturable.
+    throw new GenerativeProviderError("Veo no devolvió un nombre de operación", "veo", "invalid_response", undefined, undefined, "uncertain");
   }
   return json.name;
 }
@@ -399,7 +406,7 @@ export const veoVideoProvider: VideoProvider = {
   },
   async generateVideo(request: VideoGenerationRequest): Promise<GenerativeAsset> {
     if (!this.isAvailable()) {
-      throw new GenerativeProviderError("VEO_API_KEY no está configurada", "veo", "not_configured");
+      throw new GenerativeProviderError("VEO_API_KEY no está configurada", "veo", "not_configured", undefined, undefined, "not_sent");
     }
     // Primer uso real de ATOMIVID es image-to-video (P2A.5 sección 5) —
     // este adapter NUNCA cae a text-to-video automáticamente si falta la
@@ -411,6 +418,9 @@ export const veoVideoProvider: VideoProvider = {
         "Veo: este adapter requiere referenceImageUrl (imagen de referencia aprobada, image-to-video) — nunca genera text-to-video automáticamente.",
         "veo",
         "invalid_request",
+        undefined,
+        undefined,
+        "not_sent",
       );
     }
 
@@ -421,6 +431,9 @@ export const veoVideoProvider: VideoProvider = {
         `Costo estimado ($${estimatedCost}) excede el máximo permitido para este clip ($${request.maxCostUsd})`,
         "veo",
         "budget_exceeded",
+        undefined,
+        undefined,
+        "not_sent",
       );
     }
 

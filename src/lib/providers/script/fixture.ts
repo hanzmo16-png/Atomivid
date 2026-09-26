@@ -71,6 +71,8 @@ function buildScene(
       `${topic} progress moment ${templateIndex + 1}`.slice(0, 60),
     ],
     energy: ENERGIES[templateIndex % ENERGIES.length],
+    // Acción visible determinista (solo fixture), para ejercitar «Animación IA» sin red.
+    visibleAction: `a figure slowly raises one hand in scene ${templateIndex + 1}`,
   };
 }
 

@@ -2,7 +2,8 @@ name: E2E fixture evidence (no paid providers)
 
 on:
   pull_request:
-    branches: [claude/atomivid-mvp-setup-0079jv]
+    # También PRs apilados sobre ramas de trabajo (p. ej. work/script-thinking-fix).
+    branches: [claude/atomivid-mvp-setup-0079jv, 'work/**']
     paths:
       - 'scripts/**'
       - 'src/lib/**'
@@ -30,6 +31,7 @@ jobs:
       IMAGE_PROVIDER: fixture
       AVATAR_PROVIDER: fixture
       PREMIUM_CLIPS_ENABLED: 'false'
+      REEL_ANIMATION_PROVIDER: fixture
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -39,6 +41,21 @@ jobs:
       - run: npm ci
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: npx remotion browser ensure
+      - name: Guard — no paid-provider credentials in this job
+        run: |
+          for k in VEO_API_KEY OPENAI_API_KEY ANTHROPIC_API_KEY ELEVENLABS_API_KEY HEYGEN_API_KEY RUNWAY_API_KEY SUPABASE_SERVICE_ROLE_KEY; do
+            if [ -n "${!k:-}" ]; then echo "::error::$k está definido; esta evidencia debe ser gratuita"; exit 1; fi
+          done
+          echo "Sin credenciales de proveedores de pago."
+      - name: Typecheck, lint and unit tests
+        run: |
+          # Tipos globales de Next (LayoutProps, rutas) que se generan en .next/types; en un checkout limpio no existen.
+          npx next typegen
+          npx tsc --noEmit -p .
+          npm run lint
+          # Las pruebas unitarias fijan sus propios proveedores; se ejecutan sin las variables de proveedor del job
+          # (igual que en local). Ninguna prueba se omite.
+          env -u SCRIPT_PROVIDER -u VOICE_PROVIDER -u FOOTAGE_PROVIDER -u MUSIC_PROVIDER -u IMAGE_PROVIDER -u AVATAR_PROVIDER -u PREMIUM_CLIPS_ENABLED -u REEL_ANIMATION_PROVIDER npm run test:unit
       - name: Prepare synthetic test image (no personal photo)
         run: |
           mkdir -p evidence/avatar evidence/visual-mix
@@ -48,7 +65,7 @@ jobs:
         run: npx tsx scripts/test-pipeline-avatar.ts /tmp/avatar-test.jpg --out-dir evidence/avatar
       - name: Render generated-image and stock fixtures and validate MP4
         run: npx tsx scripts/test-pipeline-visual-mix.ts --out-dir evidence/visual-mix
-      - name: Render audiovisual direction fixtures (horror, comic mystery, comic humor) and validate MP4
+      - name: Render audiovisual direction fixtures (horror, comic mystery, comic humor, comic-anim with simulated animation) and validate MP4 + in-scene motion + negative control
         run: npx tsx scripts/test-pipeline-audiovisual.ts --out-dir evidence/audiovisual --verify
       - name: Publish verified simulated videos
         uses: actions/upload-artifact@v4

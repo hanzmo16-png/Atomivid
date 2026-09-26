@@ -20,7 +20,7 @@
  * por solicitud (attemptState/concurrency group del worker).
  */
 
-export type PaidOperationKind = "script" | "voice" | "voice_retime" | "image";
+export type PaidOperationKind = "script" | "voice" | "voice_retime" | "image" | "video";
 /** De dónde sale el importe liquidado. */
 export type CostBasis = "provider_usage" | "estimated";
 
@@ -32,7 +32,7 @@ export type PaidOperation = {
   /** Reserva conservadora antes de llamar (USD). */
   reserveUsd: number;
   label?: string;
-  units?: { characters?: number; images?: number; inputChars?: number; outputChars?: number };
+  units?: { characters?: number; images?: number; inputChars?: number; outputChars?: number; videoSeconds?: number };
 };
 
 export type PaidEntry = PaidOperation & {
@@ -220,6 +220,36 @@ export class PaidLedger {
       const kind = err instanceof NotSentError ? "not_sent" : classifyFailure(err);
       const note = err instanceof Error ? err.message.slice(0, 300) : String(err).slice(0, 300);
       await settle(kind === "not_sent" ? { status: "released", note } : { status: "uncertain", note });
+      throw err;
+    }
+    await settle({ status: "spent", actualUsd: result.settle.actualUsd, costBasis: result.settle.costBasis, ...(result.settle.note ? { note: result.settle.note } : {}) });
+    return result.value;
+  }
+
+  /**
+   * Reanuda una operación YA reservada cuyo trabajo sigue vivo en el
+   * proveedor (p. ej. una operación de video aceptada cuyo sondeo se cortó):
+   * NO crea una reserva nueva ni vuelve a enviar nada — liquida la MISMA
+   * entrada. Solo admite una entrada reservada o incierta sin reconocer; el
+   * costo ya está contado desde la reserva original.
+   */
+  async resumeReserved<T>(key: string, call: () => Promise<{ value: T; settle: SettleOutcome }>): Promise<T> {
+    const prev = this.latest(key);
+    if (!prev || (prev.status !== "reserved" && prev.status !== "uncertain") || prev.acknowledgedAtIso) {
+      throw new UncertainPaidOperationError(key, "no hay una reserva abierta que reanudar");
+    }
+    const index = this.state.entries.lastIndexOf(prev);
+    const settle = async (patch: Partial<PaidEntry>) => {
+      const entries = this.state.entries.map((e, i) => (i === index ? { ...e, ...patch, settledAtIso: this.now().toISOString() } : e));
+      await this.persist({ ...this.state, entries });
+    };
+    let result: { value: T; settle: SettleOutcome };
+    try {
+      result = await call();
+    } catch (err) {
+      const note = err instanceof Error ? err.message.slice(0, 300) : String(err).slice(0, 300);
+      // Una reanudación nunca libera: la operación ya existía en el proveedor.
+      await settle({ status: "uncertain", note: `reanudación: ${note}` });
       throw err;
     }
     await settle({ status: "spent", actualUsd: result.settle.actualUsd, costBasis: result.settle.costBasis, ...(result.settle.note ? { note: result.settle.note } : {}) });

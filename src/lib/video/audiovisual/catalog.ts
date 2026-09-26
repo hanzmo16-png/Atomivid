@@ -25,6 +25,22 @@ export type PaceId = "slow" | "balanced" | "dynamic";
 /** Origen de las imágenes de un perfil: stock real (Pexels/Pixabay) o imagen generada con el estilo del perfil. */
 export type VisualSource = "stock" | "generated_image";
 
+/**
+ * Modo de MOVIMIENTO, independiente del estilo (perfil):
+ *  - "images": imágenes o clips del perfil; las ilustraciones son fijas y
+ *    solo tienen movimiento de cámara (paneo/zoom/fundido). Es el modo de
+ *    siempre y el que tienen todas las solicitudes anteriores.
+ *  - "ai_animation": cada escena parte de una ilustración con el estilo del
+ *    perfil y se convierte en un clip con movimiento real dentro de la
+ *    escena (image-to-video). Zoom, paneo o fundidos NO son animación IA.
+ */
+export type MotionMode = "images" | "ai_animation";
+export const MOTION_MODES: Record<MotionMode, { label: string; description: string }> = {
+  images: { label: "Imágenes", description: "Imágenes con movimiento de cámara (acercamientos y paneos)." },
+  ai_animation: { label: "Animación IA", description: "Cada escena se anima con movimiento real a partir de su ilustración." },
+};
+export const MOTION_MODE_IDS = Object.keys(MOTION_MODES) as MotionMode[];
+
 export type Grade = {
   /** Filtro CSS aplicado al plano (brillo/contraste/saturación). */
   filter: string;
@@ -47,6 +63,13 @@ export type ProfileDefinition = {
   allowedMusic?: MusicChoice[];
   /** Tratamiento del generador de imágenes (solo visualSource "generated_image"). En inglés, sin marcas ni artistas. */
   imageStyle?: string;
+  /**
+   * Perfiles de stock en modo «Animación IA»: estilo de la ilustración base
+   * que se anima (no hay clip de stock que animar). Ausente en los perfiles
+   * ilustrados, que usan `imageStyle`.
+   */
+  animationBaseStyle?: string;
+  animationBaseNegative?: string;
   imageNegative?: string;
   /** Modificador de búsqueda de stock para el primer intento (p. ej. "dark"). */
   stockQueryModifier?: string;
@@ -59,6 +82,8 @@ export const PROFILES: Record<ProfileId, ProfileDefinition> = {
     label: "Cine realista",
     description: "Clips e imágenes reales. La emoción la marca tu historia.",
     visualSource: "stock",
+    animationBaseStyle: "photorealistic cinematic film still, natural lighting, realistic textures, shallow depth of field, 35mm lens",
+    animationBaseNegative: "cartoon, illustration, 3D render, text, letters, watermark, logo",
     grade: { filter: "none", vignette: 0 },
   },
   illustration_3d: {
@@ -100,6 +125,8 @@ export const PROFILES: Record<ProfileId, ProfileDefinition> = {
     allowedIntents: ["suspense"],
     allowedMusic: ["tension", "none"],
     stockQueryModifier: "dark",
+    animationBaseStyle: "dark photorealistic cinematic film still, low-key lighting, deep shadows, cold desaturated palette, fog and haze",
+    animationBaseNegative: "cartoon, bright colors, gore, text, letters, watermark, logo",
     grade: {
       filter: "brightness(0.78) contrast(1.18) saturate(0.55)",
       vignette: 0.6,
@@ -202,7 +229,13 @@ export type AudiovisualSelection = {
   intent?: IntentId;
   music?: MusicChoice;
   pace?: PaceId;
+  /** Modo de movimiento. Ausente = "images" (solicitudes anteriores); solo se guarda "ai_animation". */
+  motion?: "ai_animation";
 };
+
+export function motionModeOf(selection: Pick<AudiovisualSelection, "motion">): MotionMode {
+  return selection.motion === "ai_animation" ? "ai_animation" : "images";
+}
 
 /**
  * Muestras visuales por perfil. SOLO resultados reales del sistema (una
@@ -229,7 +262,7 @@ export type SelectionParse = { ok: true; selection: AudiovisualSelection } | { o
  * cliente). Campos vacíos o "auto" = automático. Rechaza combinaciones que
  * contradicen un perfil completo (p. ej. Horror y misterio + humor).
  */
-export function parseSelection(raw: { profile?: unknown; intent?: unknown; music?: unknown; pace?: unknown }): SelectionParse {
+export function parseSelection(raw: { profile?: unknown; intent?: unknown; music?: unknown; pace?: unknown; motion?: unknown }): SelectionParse {
   const auto = (v: unknown) => v === undefined || v === null || v === "" || v === "auto";
   if (!oneOf(PROFILE_IDS, raw.profile)) return { ok: false, error: "Elige una dirección visual válida" };
   const profile = PROFILES[raw.profile];
@@ -252,6 +285,10 @@ export function parseSelection(raw: { profile?: unknown; intent?: unknown; music
   if (!auto(raw.pace)) {
     if (!oneOf(PACE_IDS, raw.pace)) return { ok: false, error: "Ritmo no válido" };
     selection.pace = raw.pace;
+  }
+  if (!auto(raw.motion) && raw.motion !== "images") {
+    if (raw.motion !== "ai_animation") return { ok: false, error: "Modo de movimiento no válido" };
+    selection.motion = "ai_animation";
   }
   return { ok: true, selection };
 }
@@ -286,11 +323,12 @@ export function summarizeDirection(parts: { intent: IntentId | null; music: Musi
 
 export function previewSummary(selection: AudiovisualSelection, style: string | undefined): string {
   const intent = anticipatedIntent(selection, style);
-  return summarizeDirection({
+  const summary = summarizeDirection({
     intent,
     music: selection.music ?? (intent ? INTENTS[intent].defaultMusic : null),
     pace: selection.pace ?? (intent ? INTENTS[intent].defaultPace : null),
   });
+  return motionModeOf(selection) === "ai_animation" ? `${summary} · animación IA` : summary;
 }
 
 /** Guía de redacción para el guion (idioma/voz del cliente intactos; nunca cambia el tema). */

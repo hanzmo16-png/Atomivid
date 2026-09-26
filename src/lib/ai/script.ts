@@ -109,6 +109,14 @@ const ScriptSchema = z.object({
             "1-3 palabras EXACTAS del texto de 'text' (en el mismo idioma de la narración) que deben " +
               "destacarse visualmente en los subtítulos — las más importantes/impactantes de la frase.",
           ),
+        visibleAction: z
+          .string()
+          .optional()
+          .describe(
+            "UNA acción visible concreta de la escena, en inglés (sujeto + verbo + objeto, máx. 12 palabras), " +
+              "que se pueda mostrar completa en un solo plano continuo de 2 a 5 segundos, sin cortes ni cambio de lugar " +
+              "(p. ej. 'the keeper slams the iron door shut'). Se usa solo si el video se anima.",
+          ),
       }),
     )
     .min(1)
@@ -381,6 +389,7 @@ Da, para cada escena:
 - "excludedTerms": opcional, palabras en inglés a evitar en el material visual de esta escena.
 - "energy": "low"/"medium"/"high" según el ritmo narrativo de esa escena.
 - "emphasisWords": 1-3 palabras EXACTAS de "text" (mismo idioma de la narración) que merecen destacarse visualmente.
+- "visibleAction": UNA acción visible concreta en inglés (sujeto + verbo + objeto, máx. 12 palabras) que se pueda mostrar completa en un plano continuo de 2 a 5 segundos.
 
 La suma de las palabras de todos los "text" debe quedar entre ${minWords} y ${maxWords} palabras, con objetivo ${targetWords}. Cuenta las palabras antes de devolver el guion.${guidance ? `
 
@@ -468,7 +477,8 @@ Reescribe SOLO la escena actual. Da:
 - "visualConcepts": 2-3 interpretaciones visuales DISTINTAS de la idea de la escena (nunca sinónimos de la misma imagen) — interpreta el significado, no traduzcas la frase literalmente a palabras clave. ${AVOID_STOCK_TEXT_CLICHES}
 - "excludedTerms": opcional, palabras en inglés a evitar en el material visual.
 - "energy": "low"/"medium"/"high" según el ritmo de esta escena.
-- "emphasisWords": 1-3 palabras EXACTAS del nuevo "text" que merecen destacarse visualmente.`;
+- "emphasisWords": 1-3 palabras EXACTAS del nuevo "text" que merecen destacarse visualmente.
+- "visibleAction": UNA acción visible concreta en inglés (sujeto + verbo + objeto, máx. 12 palabras) que se pueda mostrar completa en un plano continuo de 2 a 5 segundos.`;
 
   const { value } = await callScriptModel({
     operation: "scene",

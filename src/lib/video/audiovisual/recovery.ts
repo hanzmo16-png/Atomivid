@@ -27,6 +27,7 @@ import { findExistingGeneratedImage, generatedImageMarkerPath, type GeneratedIma
 import type { VoiceCacheRecord } from "./voice-cache";
 import { scriptGenerationReserveUsd } from "./paid-costs";
 import { blockingScriptEntries } from "./script-ledger";
+import { animationMarkerPath, type AnimationMarker } from "./animated-clip";
 import { createHash } from "node:crypto";
 
 export class RecoveryRefusedError extends Error {
@@ -125,6 +126,32 @@ export async function recoverPaidOperation({
         note: `recuperación manual: ${note}`.slice(0, 300),
       } satisfies VoiceCacheRecord);
       released = { path, previousStatus: record.data.status };
+    }
+  } else if (entry.kind === "video") {
+    // Clip de «Animación IA» (animated-clip.ts). Una operación aceptada cuyo
+    // sondeo se cortó NO se recupera: el próximo intento la reanuda sin crear
+    // otra ni volver a pagarla.
+    const { requestId, id: prefix } = splitScopedKey(key);
+    const path = animationMarkerPath(requestId, prefix);
+    const marker = await readJsonState<AnimationMarker>(supabase, bucket, path, `el marcador de «${prefix}»`);
+    if (marker.kind === "found" && marker.data.status === "submitted") {
+      throw new RecoveryRefusedError(key, `la operación ${marker.data.operationName ?? ""} puede reanudarse; reintenta la producción (no se crea otra ni se paga dos veces)`);
+    }
+    const listed = await supabase.storage.from(bucket).list(requestId, { search: prefix });
+    if (listed.error || !listed.data) throw new StorageStateUnknownError(`la animación «${prefix}»`, listed.error?.message ?? "listado vacío");
+    if (listed.data.some((f) => f.name.startsWith(prefix) && f.name.endsWith(".mp4"))) {
+      throw new RecoveryRefusedError(key, "el clip ya está guardado; el próximo intento lo reutiliza sin pagar");
+    }
+    if (marker.kind === "found" && marker.data.status !== "released") {
+      await writeJsonState(supabase, bucket, path, {
+        ...marker.data,
+        status: "released",
+        previousStatus: marker.data.status,
+        recoveredAtIso: nowIso,
+        updatedAtIso: nowIso,
+        note: `recuperación manual: ${note}`.slice(0, 300),
+      } satisfies AnimationMarker);
+      released = { path, previousStatus: marker.data.status };
     }
   }
 

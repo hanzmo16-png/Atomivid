@@ -21,7 +21,7 @@ import {
 } from "./validation";
 import { parseSelection } from "@/lib/video/audiovisual/catalog";
 import { isMissingColumnError } from "@/lib/video/audiovisual/persistence";
-import { profileAvailabilityByDuration } from "@/lib/video/audiovisual/readiness";
+import { animationAvailabilityByDuration, profileAvailabilityByDuration } from "@/lib/video/audiovisual/readiness";
 
 const AVATAR_UPLOADS_BUCKET = "avatar-uploads";
 // Cuenta de caracteres razonable para un guion de narración leído por un
@@ -90,6 +90,7 @@ export async function createVideoRequest(formData: FormData) {
         intent: formData.get("av_intent"),
         music: formData.get("av_music"),
         pace: formData.get("av_pace"),
+        motion: formData.get("av_motion"),
       });
       if (!parsed.ok) {
         redirect(`/dashboard/new?error=${encodeURIComponent(parsed.error)}`);
@@ -99,6 +100,14 @@ export async function createVideoRequest(formData: FormData) {
       const availability = profileAvailabilityByDuration([durationSeconds])[durationSeconds]?.[parsed.selection.profile];
       if (availability && !availability.ok) {
         redirect(`/dashboard/new?error=${encodeURIComponent("Esa dirección visual no está disponible para este video. Elige otra.")}`);
+      }
+      // «Animación IA» sin disponibilidad (flag, proveedor o tope de gasto)
+      // se rechaza con el motivo; nunca se crea en silencio como «Imágenes».
+      if (parsed.selection.motion === "ai_animation") {
+        const animation = animationAvailabilityByDuration([durationSeconds])[durationSeconds];
+        if (!animation?.ok) {
+          redirect(`/dashboard/new?error=${encodeURIComponent(`La animación IA no está disponible: ${animation?.note ?? "no habilitada"}. Elige «Imágenes».`)}`);
+        }
       }
       audiovisualSelection = parsed.selection;
     }

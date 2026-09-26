@@ -10,7 +10,7 @@ import { ScriptReview } from "./ScriptReview";
 import { DirectionPanel } from "./DirectionPanel";
 import { loadAudiovisualState } from "@/lib/video/audiovisual/persistence";
 import { directionForApprovedScript } from "@/lib/video/audiovisual/direction";
-import { evaluateDirectionReadiness } from "@/lib/video/audiovisual/readiness";
+import { animationAvailabilityByDuration, readinessForScript } from "@/lib/video/audiovisual/readiness";
 
 type VideoRequestRow = {
   id: string;
@@ -75,12 +75,12 @@ export default async function ReviewPage({
 
   // Dirección audiovisual (solo Reels creados con el selector): lo que se
   // producirá con ESTE guion y cualquier problema detectable antes de gastar.
-  let directionPanel: { selection: NonNullable<Awaited<ReturnType<typeof loadAudiovisualState>>["selection"]>; summary: string; issues: ReturnType<typeof evaluateDirectionReadiness>["issues"] } | null = null;
+  let directionPanel: { selection: NonNullable<Awaited<ReturnType<typeof loadAudiovisualState>>["selection"]>; summary: string; issues: ReturnType<typeof readinessForScript>["issues"] } | null = null;
   if (data.mode === "visual") {
     const av = await loadAudiovisualState(createServiceClient(), data.id).catch(() => null);
     if (av?.selection) {
       const { direction } = directionForApprovedScript({ stored: av.direction, selection: av.selection, style: data.style, topic: data.topic, scenes: data.script_json.segments });
-      const readiness = evaluateDirectionReadiness({ profile: direction.profile, music: direction.music.id, sceneCount: data.script_json.segments.length });
+      const readiness = readinessForScript(direction, data.script_json.segments);
       directionPanel = { selection: av.selection, summary: direction.summary, issues: readiness.issues };
     }
   }
@@ -114,6 +114,7 @@ export default async function ReviewPage({
           summary={directionPanel.summary}
           issues={directionPanel.issues}
           editable={data.status === "script_ready" || data.status === "failed"}
+          animation={animationAvailabilityByDuration([data.duration_seconds])[data.duration_seconds]}
         />
       )}
 
@@ -131,6 +132,7 @@ export default async function ReviewPage({
         requestId={data.id}
         status={data.status}
         initialScript={data.script_json}
+        animated={directionPanel?.selection.motion === "ai_animation"}
         errorMessage={data.error_message}
         usesRecording={Boolean(data.recorded_audio_path)}
         entitlementBlockedReason={avatarEntitlementBlockedReason}

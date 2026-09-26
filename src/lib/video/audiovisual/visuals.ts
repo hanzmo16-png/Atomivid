@@ -15,7 +15,7 @@
 import { createHash } from "node:crypto";
 import { PROFILES, type IntentId, type ProfileId } from "./catalog";
 
-const INTENT_LIGHTING: Record<IntentId, string> = {
+export const INTENT_LIGHTING: Record<IntentId, string> = {
   suspense: "low-key lighting, deep shadows, cold muted palette, ominous atmosphere",
   humor: "bright even lighting, vivid cheerful palette, expressive exaggerated poses",
   uplifting: "warm golden light, hopeful mood, open composition",
@@ -75,9 +75,11 @@ export function checkVisualAvailability(input: {
   estimatedCostPerImageUsd: number;
   maxVisualCostUsd: number;
   maxStyledImages: number;
+  /** «Animación IA»: todos los perfiles (también los de stock) necesitan una ilustración base por escena. */
+  needsBaseImages?: boolean;
 }): VisualAvailability {
   const profile = PROFILES[input.profile];
-  if (profile.visualSource === "stock") return { ok: true, source: "stock" };
+  if (profile.visualSource === "stock" && !input.needsBaseImages) return { ok: true, source: "stock" };
   const recovery = "Elige «Cine realista» o «Horror y misterio» (usan clips reales), o pide que se habilite la generación de imágenes.";
   if (!input.imageGenerationEnabled) {
     return { ok: false, code: "generation_disabled", message: `«${profile.label}» necesita imágenes generadas y la generación de imágenes no está habilitada.`, recovery };

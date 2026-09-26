@@ -15,7 +15,7 @@ import {
 import type { GeneratedScript } from "@/lib/providers/types";
 import { loadAudiovisualState } from "@/lib/video/audiovisual/persistence";
 import { directionForApprovedScript } from "@/lib/video/audiovisual/direction";
-import { evaluateDirectionReadiness } from "@/lib/video/audiovisual/readiness";
+import { readinessForScript } from "@/lib/video/audiovisual/readiness";
 
 // El worker por defecto (GitHub Actions) solo dispara un webhook y
 // retorna — esta función ya no espera el render completo. maxDuration se
@@ -161,11 +161,7 @@ export async function POST(
           topic: videoRequest.topic ?? undefined,
           scenes: videoRequest.script_json.segments,
         });
-        const readiness = evaluateDirectionReadiness({
-          profile: direction.profile,
-          music: direction.music.id,
-          sceneCount: videoRequest.script_json.segments.length,
-        });
+        const readiness = readinessForScript(direction, videoRequest.script_json.segments);
         if (!readiness.ok) {
           return NextResponse.json(
             { error: readiness.issues.map((i) => `${i.message} ${i.recovery}`).join(" "), issues: readiness.issues, direction: direction.summary },

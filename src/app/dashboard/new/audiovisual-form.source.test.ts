@@ -9,7 +9,7 @@ test("el selector solo aparece en Reel (mode visual) y con el flag; Avatar conse
   const form = read("NewVideoForm.tsx");
   assert.match(form, /\{audiovisual && mode === "visual" && \(\n\s+<AudiovisualSelector/);
   const page = read("page.tsx");
-  assert.match(page, /flags\.audiovisualProfilesEnabled \? \{ availabilityByDuration: profileAvailabilityByDuration\(ALLOWED_DURATIONS\) \} : undefined/);
+  assert.match(page, /flags\.audiovisualProfilesEnabled\s+\? \{ availabilityByDuration: profileAvailabilityByDuration\(ALLOWED_DURATIONS\), animationByDuration: animationAvailabilityByDuration\(ALLOWED_DURATIONS\) \}\s+: undefined/);
 });
 
 test("selector: cinco opciones con nombres de formulario validados en servidor, ajustes cerrados y muestras solo reales", () => {

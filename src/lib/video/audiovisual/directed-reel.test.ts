@@ -92,7 +92,7 @@ test("orden del pipeline dirigido: música e imágenes antes de la voz; el flujo
   assert.ok(source.indexOf("musicProvider.getTrack(") < voice);
   assert.ok(source.indexOf("await resolveGeneratedImageForScene(") < voice);
   assert.ok(source.indexOf("evaluateDirectionReadiness(") < source.indexOf("musicProvider.getTrack("));
-  assert.ok(source.indexOf("validateTimeline(") < source.indexOf("await renderVerticalReel("));
+  assert.ok(source.indexOf("validateTimeline(") < source.indexOf("await (deps?.renderReel ?? renderVerticalReel)("));
   // El catch de la imagen generada nunca llama a stock.
   const catchStart = source.indexOf("} catch (err) {", source.indexOf("await resolveGeneratedImageForScene("));
   const catchEnd = source.indexOf("}\n    }\n  }", catchStart);

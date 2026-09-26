@@ -7,6 +7,7 @@
  *   1. horror      — Horror y misterio (stock oscuro, grado y viñeta, suspenso)
  *   2. comic-mist  — Cómic + guion de misterio (imágenes por escena, suspenso)
  *   3. comic-humor — Cómic + tono Humor (mismas imágenes de estilo, ritmo dinámico)
+ *   4. comic-anim  — Cómic + «Animación IA» con proveedor simulado (clip por escena)
  *
  * Lo que DEMUESTRA: dirección resuelta, planos que cubren exactamente la
  * narración, fundidos/cortes y movimiento por intención, grado aplicado,
@@ -31,6 +32,9 @@ process.env.FOOTAGE_PROVIDER = "fixture";
 process.env.MUSIC_PROVIDER = "fixture";
 process.env.IMAGE_PROVIDER = "fixture";
 process.env.OPENAI_IMAGE_GENERATION_ENABLED = "true";
+process.env.REEL_ANIMATION_PROVIDER = "fixture";
+process.env.REEL_AI_ANIMATION_ENABLED = "true";
+process.env.MAX_AI_ANIMATION_COST_USD = "5";
 
 const MYSTERY: GeneratedScript = {
   title: "El faro",
@@ -40,6 +44,20 @@ const MYSTERY: GeneratedScript = {
     { text: "Las sombras en la escalera no coincidían con ninguna persona del pueblo.", visualQuery: "shadow on wall", visualConcepts: ["shadow on wall", "flickering lamp"], energy: "medium" },
     { text: "Entonces encontraron la puerta cerrada por dentro. El misterio sigue abierto.", visualQuery: "locked wooden door", visualConcepts: ["locked wooden door", "rusty key"], energy: "high" },
   ],
+};
+
+// Mismo guion con la acción visible que cada clip debe completar (obligatoria en «Animación IA»).
+const MYSTERY_ANIM: GeneratedScript = {
+  ...MYSTERY,
+  segments: MYSTERY.segments.map((s, i) => ({
+    ...s,
+    visibleAction: [
+      "the lighthouse beam sweeps once across the sea",
+      "a tape recorder reel slowly stops turning",
+      "a shadow slides along the stairway wall",
+      "the door handle rattles hard and stops",
+    ][i],
+  })),
 };
 
 const HUMOR: GeneratedScript = {
@@ -52,10 +70,16 @@ const HUMOR: GeneratedScript = {
   ],
 };
 
+type AnimatedShotLike = { sceneIndex: number; startSeconds: number; endSeconds: number; transitionInFrames: number; source: string };
+
 const CASES = {
   horror: { script: MYSTERY, style: "Curiosidades", topic: "El faro", selection: { version: 1 as const, profile: "horror_mystery" as const } },
   "comic-mist": { script: MYSTERY, style: "Curiosidades", topic: "El faro", selection: { version: 1 as const, profile: "comic" as const } },
   "comic-humor": { script: HUMOR, style: "Humor", topic: "Mi gato programador", selection: { version: 1 as const, profile: "comic" as const } },
+  // «Animación IA» con el proveedor SIMULADO (fixture-animation: MP4 real a partir
+  // de la ilustración con un elemento en movimiento). Demuestra el recorrido
+  // técnico imagen → clip → render, no la calidad de una animación real.
+  "comic-anim": { script: MYSTERY_ANIM, style: "Curiosidades", topic: "El faro", selection: { version: 1 as const, profile: "comic" as const, motion: "ai_animation" as const } },
 };
 
 async function main() {
@@ -67,7 +91,7 @@ async function main() {
   const { generateVideoFromScript } = await import("../src/lib/video/generate-video");
   const { resolveDirection } = await import("../src/lib/video/audiovisual/direction");
   const storageDir = await fs.mkdtemp(path.join(os.tmpdir(), "atomivid-av-"));
-  const TYPES: Record<string, string> = { ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".png": "image/png", ".mp3": "audio/mpeg", ".wav": "audio/wav", ".mp4": "video/mp4" };
+  const TYPES: Record<string, string> = { ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".png": "image/png", ".mp3": "audio/mpeg", ".wav": "audio/wav", ".mp4": "video/mp4", ".json": "application/json" };
   const server = http.createServer((req, res) => {
     const file = path.join(storageDir, decodeURIComponent(req.url ?? ""));
     if (!file.startsWith(storageDir) || !fsSync.existsSync(file)) {
@@ -121,7 +145,7 @@ async function main() {
     const original = console.log;
     console.log = (...a: unknown[]) => {
       const line = a.map((x) => (typeof x === "string" ? x : JSON.stringify(x))).join(" ");
-      if (line.includes("[atomivid:direction")) logs.push(line);
+      if (line.includes("[atomivid:direction") || line.includes("[atomivid:animation-plan]")) logs.push(line);
       original(...a);
     };
     const started = Date.now();
@@ -130,12 +154,43 @@ async function main() {
     const out = path.join(outDir, `audiovisual-${name}.mp4`);
     await fs.copyFile(path.join(storageDir, videoPath), out);
     const montage = logs.find((l) => l.startsWith("[atomivid:direction-montage]"));
-    report[name] = { summary: direction.summary, profile: direction.profile, intent: direction.intent, music: direction.music, pace: direction.pace, seconds: (Date.now() - started) / 1000, montage: montage ? JSON.parse(montage.slice(montage.indexOf("{"))) : null };
+    const montageJson = montage ? JSON.parse(montage.slice(montage.indexOf("{"))) : null;
+    const animationPlan = logs.filter((l) => l.startsWith("[atomivid:animation-plan]")).map((l) => JSON.parse(l.slice(l.indexOf("{"))));
+    report[name] = {
+      summary: direction.summary,
+      profile: direction.profile,
+      intent: direction.intent,
+      music: direction.music,
+      pace: direction.pace,
+      seconds: (Date.now() - started) / 1000,
+      montage: montageJson,
+      ...(animationPlan.length > 0 ? { animationPlan } : {}),
+    };
     console.log(`✔ ${name}: ${direction.summary} → ${out}`);
     if (process.env.CI || args.includes("--verify")) {
       const { verifyVideoEvidence } = await import("./lib/verify-video-evidence");
       await verifyVideoEvidence(out);
+      if ("motion" in c.selection && c.selection.motion === "ai_animation") {
+        const { verifyAnimatedMotion } = await import("./lib/verify-animated-motion");
+        (report[name] as Record<string, unknown>).motion = await verifyAnimatedMotion(out, montageJson?.shots ?? []);
+      } else if (montageJson?.shots?.some((sh: { source: string }) => sh.source === "ai_animation")) {
+        throw new Error(`Evidencia inválida: «${name}» es «Imágenes» y usó clips animados.`);
+      }
     }
+  }
+  // Control negativo: el mismo detector aplicado a «Imágenes» (comic-mist, mismo guion) debe rechazarlo;
+  // así el paso de comic-anim no puede deberse a un detector que acepta cualquier cosa.
+  const mist = report["comic-mist"] as { montage?: { shots?: AnimatedShotLike[] } } | undefined;
+  if ((process.env.CI || args.includes("--verify")) && report["comic-anim"] && mist?.montage?.shots) {
+    const { verifyAnimatedMotion } = await import("./lib/verify-animated-motion");
+    const relabelled = mist.montage.shots.map((sh) => ({ ...sh, source: "ai_animation" }));
+    const rejected = await verifyAnimatedMotion(path.join(outDir, "audiovisual-comic-mist.mp4"), relabelled).then(
+      () => null,
+      (err: unknown) => (err instanceof Error ? err.message : String(err)),
+    );
+    if (!rejected) throw new Error("Control inválido: el detector de movimiento aceptó el Reel de imágenes fijas.");
+    report.motionControl = { case: "comic-mist", rejected };
+    console.log(`✔ control: el detector rechaza «Imágenes» (${rejected})`);
   }
   await fs.writeFile(path.join(outDir, "audiovisual-report.json"), JSON.stringify(report, null, 2));
   server.close();

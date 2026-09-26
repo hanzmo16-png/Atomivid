@@ -27,6 +27,7 @@ import {
   STRONG_STYLE_INTENT,
   WEAK_STYLE_INTENT,
   isAudiovisualSelection,
+  motionModeOf,
   summarizeDirection,
   type AudiovisualSelection,
   type IntentId,
@@ -201,7 +202,14 @@ export function directionFingerprint(input: {
   const payload = JSON.stringify({
     v: AUDIOVISUAL_DIRECTION_VERSION,
     format: input.format ?? "reel",
-    selection: { profile: input.selection.profile, intent: input.selection.intent ?? null, music: input.selection.music ?? null, pace: input.selection.pace ?? null },
+    selection: {
+      profile: input.selection.profile,
+      intent: input.selection.intent ?? null,
+      music: input.selection.music ?? null,
+      pace: input.selection.pace ?? null,
+      // Solo si se eligió animación: las huellas de solicitudes anteriores (modo imágenes) no cambian.
+      ...(input.selection.motion === "ai_animation" ? { motion: "ai_animation" } : {}),
+    },
     style: input.style?.trim() ?? "",
     topic: input.topic?.trim() ?? "",
     scenes: input.scenes.map((s) => [s.text, s.energy ?? null]),
@@ -235,7 +243,8 @@ export function resolveDirection(input: {
     music,
     pace,
     sceneEnergy: input.scenes.map((s) => sceneEnergyOf(s.energy)),
-    summary: summarizeDirection({ intent: intent.id, music: music.id, pace: pace.id }),
+    summary:
+      summarizeDirection({ intent: intent.id, music: music.id, pace: pace.id }) + (motionModeOf(input.selection) === "ai_animation" ? " · animación IA" : ""),
   };
 }
 

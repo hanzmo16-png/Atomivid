@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { NewVideoForm } from "./NewVideoForm";
-import type { ProfileAvailability } from "@/components/video/AudiovisualSelector";
+import type { AnimationAvailability, ProfileAvailability } from "@/components/video/AudiovisualSelector";
 
 type ContentType = "reel" | "avatar" | "long_form";
 
@@ -83,7 +83,7 @@ export function ContentTypeStep({
   avatarAccess: boolean;
   longFormAccess: boolean;
   /** Dirección audiovisual para Reel (ver NewVideoForm). Ausente = sin selector. */
-  audiovisual?: { availabilityByDuration: Record<number, ProfileAvailability> };
+  audiovisual?: { availabilityByDuration: Record<number, ProfileAvailability>; animationByDuration?: Record<number, AnimationAvailability> };
 }) {
   const [selected, setSelected] = useState<ContentType | null>(null);
 
