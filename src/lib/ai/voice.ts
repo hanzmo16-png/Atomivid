@@ -187,3 +187,26 @@ function buildWordTimings(alignment: ElevenLabsAlignment): WordTiming[] {
 
   return words;
 }
+
+/**
+ * Caracteres que le quedan a la cuenta de ElevenLabs en el período actual
+ * (GET /v1/user/subscription: solo lectura, sin costo). Se usa antes de
+ * sintetizar textos largos para no empezar una pieza que no puede
+ * terminar. null = no se pudo consultar (quien llama decide).
+ */
+export async function getVoiceCharacterQuota(): Promise<{ remaining: number; limit: number; resetsAtUnix: number | null } | null> {
+  if (!ELEVENLABS_API_KEY) return null;
+  try {
+    const res = await fetch("https://api.elevenlabs.io/v1/user/subscription", { headers: { "xi-api-key": ELEVENLABS_API_KEY } });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { character_count?: number; character_limit?: number; next_character_count_reset_unix?: number };
+    if (typeof data.character_count !== "number" || typeof data.character_limit !== "number") return null;
+    return {
+      remaining: Math.max(0, data.character_limit - data.character_count),
+      limit: data.character_limit,
+      resetsAtUnix: typeof data.next_character_count_reset_unix === "number" ? data.next_character_count_reset_unix : null,
+    };
+  } catch {
+    return null;
+  }
+}
