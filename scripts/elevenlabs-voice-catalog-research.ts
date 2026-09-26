@@ -115,7 +115,13 @@ function verifiedLanguages(v: Json): { language: string; locale: string; accent:
   }));
 }
 
-/** Recargos o condiciones especiales: cualquier tarifa distinta de la normal, periodo de aviso o moderación en vivo. */
+/**
+ * Recargos reales: tarifa distinta de la normal (rate/credit_multiplier > 1 o
+ * fiat_rate). notice_period NO es un recargo: son los días que el dueño debe
+ * avisar antes de retirar la voz (garantía de disponibilidad para quien ya la
+ * agregó); live_moderation_enabled y free_users_allowed=false son condiciones
+ * a declarar, no costos.
+ */
 function surcharges(v: Json): string[] {
   const out: string[] = [];
   for (const k of ["rate", "credit_multiplier"]) {
@@ -123,10 +129,15 @@ function surcharges(v: Json): string[] {
     if (n !== null && n > 1) out.push(`${k}=${n}`);
   }
   if (v.fiat_rate !== undefined && v.fiat_rate !== null) out.push(`fiat_rate=${JSON.stringify(v.fiat_rate)}`);
+  return out;
+}
+
+function conditions(v: Json): string[] {
+  const out: string[] = [];
   const notice = num(v.notice_period);
-  if (notice !== null && notice > 0) out.push(`notice_period=${notice} días`);
-  if (v.live_moderation_enabled === true) out.push("live_moderation_enabled");
-  if (v.free_users_allowed === false) out.push("requiere plan de pago (free_users_allowed=false)");
+  if (notice !== null && notice > 0) out.push(`aviso de retiro ${notice} días (garantía)`);
+  if (v.live_moderation_enabled === true) out.push("moderación en vivo del dueño");
+  if (v.free_users_allowed === false) out.push("requiere plan de pago");
   return out;
 }
 
@@ -308,6 +319,11 @@ async function main() {
       cloned_by_count: num(v.cloned_by_count),
       ranks: v.ranks,
       surcharges: surcharges(v),
+      conditions: conditions(v),
+      rate: v.rate ?? null,
+      fiat_rate: v.fiat_rate ?? null,
+      notice_period: v.notice_period ?? null,
+      live_moderation_enabled: v.live_moderation_enabled ?? null,
       free_users_allowed: v.free_users_allowed ?? null,
       verified_languages: verifiedLanguages(v),
       preview_url: v.preview_url ?? null,
@@ -328,7 +344,7 @@ async function main() {
       const langs = r.verified_languages.map((l) => `${l.language}-${l.locale || l.accent}`).join(",");
       const rk = [`${gender}:usage_character_count_1y`, `${gender}:trending`, `${gender}:cloned_by_count`].map((k) => r.ranks[k] ?? "-").join("/");
       console.log(
-        `[row ${gender}] ${r.voice_id} | ${r.name} | ${r.usage_character_count_1y ?? "?"} | ${r.usage_character_count_7d ?? "?"} | ${r.cloned_by_count ?? "?"} | ${rk} | ${r.accent ?? "?"}/${r.locale ?? "?"} | ${r.descriptive ?? "?"} | ${r.use_case ?? "?"} | ${langs} | ${r.surcharges.join("; ") || "sin recargos"}`,
+        `[row ${gender}] ${r.voice_id} | ${r.name} | ${r.usage_character_count_1y ?? "?"} | ${r.usage_character_count_7d ?? "?"} | ${r.cloned_by_count ?? "?"} | ${rk} | ${r.accent ?? "?"}/${r.locale ?? "?"} | ${r.descriptive ?? "?"} | ${r.use_case ?? "?"} | ${langs} | ${r.surcharges.join("; ") || "sin recargos"} | ${r.conditions.join("; ") || "-"}`,
       );
     }
   }
@@ -403,6 +419,45 @@ async function main() {
       acousticRows.push({ profile: "reference", voice_id: MATEO_ID, name: mateo.name, file: path.basename(file), ...(await acoustic(file)) });
     }
   }
+  // Finalistas elegidas a partir de la tabla medida: métricas crudas, inglés verificado, acceso desde esta cuenta (GET) y acústica.
+  const FINALISTS = (process.env.VOICE_FINALISTS ??
+    "k8cFOyAg7B9qwBlDDNTC,l1zE9xgNpUTaQCZzpNJa,sKgg4MPUDBy69X7iv3fA,8mBRP99B2Ng2QwsJMFQl,FrrTxu4nrplZwLlMy2kD,94zOad0g7T7K4oa7zhDq,htFfPSZGJwjBv1CL0aMD,iDEmt5MnqUotdwCIVplo,dlGxemPxFMTY7iXagmOj,kcQkGnn0HAT2JRDQ4Ljp,CaJslL1xziwefCeTNzHv,qHkrJuifPpn95wK3rm2A,2rigMbVWLdqtBSCahJFX,x5IDPSl4ZUbhosMmVFTk,GJid0jgRsqjUy21Avuex,p7AwDmKvTdoHTBuueGvP,2Lb1en5ujrODDIqmp7F3,m7yTemJqdIqrcNleANfX")
+    .split(",").map((x) => x.trim()).filter(Boolean);
+  const finalists: Json[] = [];
+  for (const id of FINALISTS) {
+    const r = rows.find((x) => x.voice_id === id);
+    const access = await get(`/v1/voices/${id}`, apiKey);
+    const row: Json = {
+      voice_id: id,
+      name: r?.name ?? null,
+      in_library_results: Boolean(r),
+      account_get_status: access.status,
+      in_my_voices: myVoices.some((v) => v.voice_id === id),
+      gender: r?.gender, accent: r?.accent, locale: r?.locale, descriptive: r?.descriptive, use_case: r?.use_case,
+      usage_1y: r?.usage_character_count_1y, usage_7d: r?.usage_character_count_7d, cloned_by: r?.cloned_by_count, ranks: r?.ranks,
+      rate: r?.rate, fiat_rate: r?.fiat_rate, notice_period: r?.notice_period, live_moderation_enabled: r?.live_moderation_enabled, free_users_allowed: r?.free_users_allowed,
+      verified_en: r ? r.verified_languages.filter((l) => l.language === "en").map((l) => `${l.locale || l.accent}/${l.model}`) : [],
+      verified_es: r ? r.verified_languages.filter((l) => l.language === "es").map((l) => `${l.locale || l.accent}/${l.model}`) : [],
+    };
+    const urls: { tag: string; url: string }[] = [];
+    if (r && typeof r.preview_url === "string" && r.preview_url) urls.push({ tag: "default", url: r.preview_url });
+    const en = r?.verified_languages.find((l) => l.language === "en" && l.preview);
+    if (en) urls.push({ tag: "en", url: en.preview });
+    for (const u of urls) {
+      const file = path.join(OUT, "previews", `finalist__${String(r?.name ?? id).replace(/[^a-z0-9]+/gi, "_").slice(0, 30)}__${id}__${u.tag}.mp3`);
+      try {
+        const res = await fetch(u.url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await fs.writeFile(file, Buffer.from(await res.arrayBuffer()));
+        row[`acoustic_${u.tag}`] = await acoustic(file);
+      } catch (err) {
+        row[`acoustic_${u.tag}`] = { error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+    finalists.push(row);
+    console.log(`[finalist] ${JSON.stringify(row)}`);
+  }
+  await writeJson("finalists.json", finalists);
   await writeJson("shortlist.json", shortlist);
   await writeJson("acoustic.json", acousticRows);
   console.log(`[shortlist] ${JSON.stringify(shortlist)}`);
