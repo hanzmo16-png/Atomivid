@@ -39,7 +39,9 @@ import type { MusicResult, ScriptLanguage, VideoProvider } from "@/lib/providers
 import { resolveLongFormProviders, type LongFormProviderSet } from "./mode";
 import { buildLongFormTimeline, type BeatSynthesizer } from "./timeline";
 import { shotsForSpan } from "./shots";
-import { renderLongFormDoc, type RenderLongFormDocInput } from "./render";
+import { assertOpeningValid, CoverValidationError, renderLongFormDoc, renderLongFormThumbnail, type RenderLongFormDocInput } from "./render";
+import { canonicalThumbnailPath, toCoverSpec } from "./packaging";
+import { provenanceLabel } from "../../../../remotion/long-form-card-fit";
 import { defaultDirections, snapSceneBoundaries } from "./montage-direction";
 import { captionsWithinScenes } from "./scene-captions";
 import type { LongFormShotScene } from "../../../../remotion/LongFormDoc";
@@ -95,6 +97,8 @@ export type LongFormRuntime = {
   synthesizeBeat?: BeatSynthesizer;
   uploadArtifact?: (objectPath: string, buffer: Buffer, contentType: string) => Promise<{ path: string; url: string }>;
   render?: (input: RenderLongFormDocInput) => Promise<string>;
+  /** Render de la miniatura (por defecto renderLongFormThumbnail); inyectable en pruebas. */
+  renderThumbnail?: (input: import("../../../../remotion/LongFormThumbnail").LongFormThumbnailProps) => Promise<string>;
   aiVideoEnabled?: boolean;
   recordCosts?: boolean;
   resumeBackoffMs?: number;
@@ -173,7 +177,7 @@ export async function generateLongFormVideoFromScript({
   /** Snapshot CONFIRMADO (long_form_production_plan) — el worker ejecuta exactamente su estrategia y nunca excede su allocation. */
   plan: ProductionPlan;
   runtime?: LongFormRuntime;
-}): Promise<{ videoPath: string; deviations: number; spentUsd: number; reconciled: boolean; output: LongFormOutputState | null }> {
+}): Promise<{ videoPath: string; deviations: number; spentUsd: number; reconciled: boolean; output: LongFormOutputState | null; thumbnailPath?: string }> {
   const voiceCharacters = beats.reduce((sum, b) => sum + b.narration.length, 0);
   if (voiceCharacters !== plan.voiceCharacters) throw new LongFormScriptChangedError();
 
@@ -452,7 +456,21 @@ export async function generateLongFormVideoFromScript({
   let lastReportedFrames = -1;
   let lastReportedAt = 0;
   const renderStartedAt = Date.now();
+  // Presentación para YouTube (portada/miniatura): SOLO planes v3 y solo si se eligió al confirmar.
+  // Un problema de la portada nunca tumba una producción ya pagada: se renderiza sin ella y se registra.
+  const packaging = anchored ? plan.packaging : undefined;
+  let opening = packaging?.cover.enabled ? toCoverSpec(packaging.cover) : undefined;
+  if (opening) {
+    try {
+      assertOpeningValid(opening, shotScenes[0]);
+    } catch (err) {
+      if (!(err instanceof CoverValidationError)) throw err;
+      console.warn(`[atomivid:long-form:produce] ${requestId} — portada omitida: ${err.message}`);
+      opening = undefined;
+    }
+  }
   const rawOutputPath = await (runtime.render ?? renderLongFormDoc)({
+    ...(opening ? { opening } : {}),
     audioUrl: audioUpload.url,
     musicUrl: runtime.soundCues ? undefined : musicUrl,
     soundCues: runtime.soundCues,
@@ -504,6 +522,26 @@ export async function generateLongFormVideoFromScript({
   storageBytes += outputState.delivered?.bytes ?? 0;
   await fs.unlink(outputPath).catch(() => {});
 
+  // Miniatura de YouTube (opcional, independiente de la portada): la imagen de la primera escena con su
+  // reencuadre + el título. Un fallo aquí nunca afecta al video ya entregado.
+  let thumbnailPath: string | undefined;
+  const first = shotScenes[0] as import("../../../../remotion/LongFormDoc").LongFormShotScene | undefined;
+  if (packaging?.thumbnail.enabled && first?.asset.kind === "media") {
+    try {
+      const jpg = await (runtime.renderThumbnail ?? renderLongFormThumbnail)({
+        background: { mediaType: first.asset.mediaType, url: first.asset.url, look: first.direction?.look, mediaStartSeconds: first.direction?.mediaStartSeconds },
+        cover: toCoverSpec(packaging.thumbnail),
+        provenanceLabel: provenanceLabel(first.provenance),
+      });
+      const buffer = await fs.readFile(jpg);
+      thumbnailPath = (await uploadArtifact(canonicalThumbnailPath(requestId), buffer, "image/jpeg")).path;
+      storageBytes += buffer.byteLength;
+      await fs.unlink(jpg).catch(() => {});
+    } catch (err) {
+      console.warn(`[atomivid:long-form:produce] ${requestId} — no se pudo generar la miniatura:`, err instanceof Error ? err.message : err);
+    }
+  }
+
   console.log(
     "[atomivid:long-form:produce] terminado",
     JSON.stringify({ requestId, strategy: plan.strategy, shotCount: shotScenes.length, durationSeconds: finalDurationSeconds, spentUsd, deviations, budget: budget.snapshot().used }),
@@ -541,7 +579,7 @@ export async function generateLongFormVideoFromScript({
       });
   }
 
-  return { videoPath, deviations, spentUsd, reconciled: false, output: outputState };
+  return { videoPath, deviations, spentUsd, reconciled: false, output: outputState, thumbnailPath };
 }
 
 /** Mismo patrón que generate-video.ts (Shorts): sube al bucket privado y firma una URL de corta duración para que este mismo proceso (Remotion) pueda leerla. */

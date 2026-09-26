@@ -82,6 +82,8 @@ export type ProductionPlan = {
   estimatedAiVideoCostUsd?: number;
   estimatedProviderCostUsd: number;
   allocation?: ProductionPlanAllocation;
+  /** Presentación para YouTube elegida al confirmar (portada/miniatura). Solo la aplican los planes v3. */
+  packaging?: import("./packaging").LongFormPackaging;
   /** Todavía no existe un sistema de créditos real — nunca se inventa un saldo. */
   estimatedCredits: number | null;
   confirmedAt: string | null;

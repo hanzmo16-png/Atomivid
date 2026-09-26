@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { canonicalThumbnailPath } from "@/lib/video/long-form/packaging";
 import { getSignedVideoUrl } from "@/lib/storage/signed-url";
 import { selectIfOwned, type OwnedRequestRow } from "@/lib/video/access";
 import { ResultView } from "@/components/video/ResultView";
@@ -65,6 +66,9 @@ export default async function VideoResultPage({
     request.status === "completed" && request.video_path
       ? await getSignedVideoUrl(request.video_path)
       : null;
+  // Miniatura de YouTube de Long Form (opcional): solo existe si se pidió al confirmar la producción.
+  const thumbnailUrl =
+    request.mode === "long_form" && request.status === "completed" ? await getSignedVideoUrl(canonicalThumbnailPath(request.id)) : null;
 
   // Server Component evaluado una vez por request (mismo patrón que
   // dashboard/page.tsx). AutoRefresh vuelve a pedir ESTA página al backend
@@ -75,7 +79,7 @@ export default async function VideoResultPage({
   return (
     <div className="mx-auto max-w-md">
       <AutoRefresh active={request.status === "processing"} />
-      <ResultView request={request} videoUrl={videoUrl} nowMs={nowMs} />
+      <ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} nowMs={nowMs} />
     </div>
   );
 }

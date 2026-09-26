@@ -10,6 +10,8 @@ import {
   type VisualStrategy,
 } from "@/lib/video/long-form/production-plan";
 import { ConfigureProduction } from "./ConfigureProduction";
+import { defaultPackaging, isOwnChannelAccount } from "@/lib/video/long-form/packaging";
+import { PRODUCTION_PLAN_VERSION, usesAnchoredVisuals } from "@/lib/video/long-form/production-plan-types";
 
 type VideoRequestRow = {
   id: string;
@@ -50,6 +52,8 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
   if (data.status !== "script_ready" || !isLongFormScriptJson(data.script_json)) redirect("/dashboard");
 
   const script = data.script_json;
+  // Portada y miniatura: activadas por defecto solo en los canales propios de Hans (ver packaging.ts).
+  const ownChannel = isOwnChannelAccount(user);
   const beats = script.beats.map((b) => ({ id: b.id, type: b.type, narration: b.narration, visuals: b.visuals }));
   const plans = Object.fromEntries(
     VISUAL_STRATEGIES.map((strategy) => [
@@ -80,7 +84,12 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
         </ol>
       </details>
 
-      <ConfigureProduction requestId={id} plans={plans} />
+      <ConfigureProduction
+        requestId={id}
+        plans={plans}
+        ownChannel={ownChannel}
+        defaultPackaging={usesAnchoredVisuals({ version: PRODUCTION_PLAN_VERSION }) ? defaultPackaging({ topic: script.topic || data.topic, ownChannel }) : undefined}
+      />
     </div>
   );
 }

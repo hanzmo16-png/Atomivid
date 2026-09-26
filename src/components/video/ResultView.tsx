@@ -24,11 +24,14 @@ import {
 export function ResultView({
   request,
   videoUrl,
+  thumbnailUrl,
   nowMs,
 }: {
   request: VideoRequestSummary;
   /** null si status=completed pero no se pudo firmar la URL (reportar el error, no ocultarlo). */
   videoUrl?: string | null;
+  /** Miniatura de YouTube (solo Long Form, solo si se pidió). Ausente/null: no se muestra nada. */
+  thumbnailUrl?: string | null;
   /** Reloj inyectado por el caller (solo lo usa el ETA de Long Form). */
   nowMs: number;
 }) {
@@ -120,6 +123,21 @@ export function ResultView({
             >
               Descargar video
             </a>
+            {thumbnailUrl && (
+              <div className="flex w-full max-w-md flex-col items-center gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element -- URL firmada y temporal de Storage */}
+                <img src={thumbnailUrl} alt="Miniatura de YouTube" className="aspect-16/9 w-full rounded-lg border border-border-strong object-cover" />
+                <a
+                  href={thumbnailUrl}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-medium text-ink hover:bg-surface-raised"
+                >
+                  Descargar miniatura
+                </a>
+              </div>
+            )}
           </div>
         )}
         {request.status === "completed" && !videoUrl && (

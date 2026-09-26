@@ -154,3 +154,26 @@ test("un plan que supera LONG_FORM_MAX_TOTAL_USD no se puede confirmar", async (
     else process.env.LONG_FORM_MAX_TOTAL_USD = previous;
   }
 });
+
+test("presentación: se revalida en el servidor y se guarda en el plan confirmado; ilegible → 400 sin confirmar", async () => {
+  const option = (enabled: boolean, title = "Cavar una *montaña*") => ({ enabled, style: "impacto", title });
+  const ok = fakeService(baseRow());
+  const r = await confirmLongFormProduction(ok.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", packaging: { cover: option(true), thumbnail: option(false) } });
+  assert.ok(r.ok);
+  if (r.ok) {
+    assert.equal(r.plan.packaging?.cover.enabled, true);
+    assert.equal(r.plan.packaging?.thumbnail.enabled, false);
+  }
+  const none = fakeService(baseRow());
+  const n = await confirmLongFormProduction(none.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", packaging: { cover: option(false), thumbnail: option(false) } });
+  assert.ok(n.ok && n.plan.packaging === undefined, "ninguna opción: el plan no cambia");
+
+  const bad = fakeService(baseRow());
+  const b = await confirmLongFormProduction(bad.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", packaging: { cover: option(true, "Un título larguísimo que jamás cabría en la portada del video"), thumbnail: option(false) } });
+  assert.equal(b.ok, false);
+  if (!b.ok) assert.equal(b.status, 400);
+  assert.equal(bad.appliedUpdates(), 0, "nada se confirma con una portada ilegible");
+  const forged = fakeService(baseRow());
+  const f = await confirmLongFormProduction(forged.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", packaging: { cover: { enabled: true, style: "neón", title: "Hola mundo" }, thumbnail: option(false) } });
+  assert.equal(f.ok, false);
+});

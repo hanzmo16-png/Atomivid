@@ -206,3 +206,25 @@ Captura: `first-frame.jpg`, y cómo se ve en celular: `first-frame-phone.jpg`.
   - −15.69 LUFS, −2.41 dBTP, 0 tramos negros;
   - el montaje desde 2.62 s es idéntico al anterior.
 - Sin gasto nuevo.
+
+## Portada de apertura y miniatura de YouTube
+
+Capturas: `first-frame-portada.jpg` (t = 0 s con portada) y `thumbnail.jpg` (miniatura 1280×720, vista reducida).
+
+- **Portada** (estilo «impacto»), arriba a la derecha:
+  - antetítulo «CANAL DE PANAMÁ · 1881–1914» sobre barra amarilla;
+  - título «CAVAR UNA / MONTAÑA» a 150 px, con MONTAÑA en amarillo;
+  - caja {x 1198, y 64, w 626, h 424}: no tapa al obrero del pico ni el rótulo «Recreación IA», y queda por encima de la zona de subtítulos (y ≥ 780);
+  - visible desde el fotograma 0 y se desvanece al final de la primera escena (2.62 s).
+- **Hechos:** las obras francesas empezaron en 1881 y el canal se inauguró en 1914. El título repite la frase de la narración («Imagina cavar una montaña»).
+- **Miniatura:** misma identidad visual:
+  - título a 176 px y antetítulo «CANAL DE PANAMÁ»;
+  - fondo = fotograma 0 del clip con el mismo reencuadre;
+  - píldora «Recreación IA» abajo a la izquierda, fuera de la zona de duración de YouTube;
+  - el segundo obrero queda parcialmente detrás del título, pero el sujeto principal está completo.
+- **Validación** (`remotion/cover-rules.ts`): 0 incidencias en portada y miniatura. Cubre márgenes seguros, longitud, ajuste, subtítulos, rótulos, duración, sujeto y contraste ≥ 4.5:1.
+- **Render** (run 36215365537, commit 10c1a16):
+  - `sample-approval-portada.mp4`: −15.69 LUFS, −2.41 dBTP, 0 tramos negros;
+  - audio y montaje idénticos a la muestra aprobada, que se conserva como `sample-approval.mp4`.
+- Tipografía: Anton (SIL OFL, `public/fonts/`).
+- Sin gasto nuevo.

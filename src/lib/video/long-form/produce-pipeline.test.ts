@@ -128,7 +128,13 @@ async function run(
   env: Env,
   c: ReturnType<typeof counters>,
   plan: ProductionPlan,
-  opts: { videoProvider?: VideoProvider | null; beats?: ReturnType<typeof documentary180sFixture>["beats"]; renders?: { count: number }; replayOnly?: boolean } = {},
+  opts: {
+    videoProvider?: VideoProvider | null;
+    beats?: ReturnType<typeof documentary180sFixture>["beats"];
+    renders?: { count: number };
+    replayOnly?: boolean;
+    thumbnails?: { calls: unknown[]; uploads: string[] };
+  } = {},
 ) {
   const script = documentary180sFixture();
   const events: { stage: ProgressStageKey; completed?: number; total?: number; label?: string }[] = [];
@@ -140,7 +146,16 @@ async function run(
     aiVideoEnabled: opts.videoProvider ? true : false,
     recordCosts: false,
     resumeBackoffMs: 0,
-    uploadArtifact: async (p) => ({ path: p, url: `memory://${p}` }),
+    uploadArtifact: async (p) => {
+      opts.thumbnails?.uploads.push(p);
+      return { path: p, url: `memory://${p}` };
+    },
+    renderThumbnail: async (input) => {
+      opts.thumbnails?.calls.push(input);
+      const out = path.join(os.tmpdir(), `lf-thumb-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`);
+      fs.writeFileSync(out, "fake-jpg");
+      return out;
+    },
     output: env.out.deps,
     replayOnly: opts.replayOnly,
     // Identidad sin ffmpeg/sharp en pruebas (SHA-256 real; sin hash perceptual).
@@ -355,4 +370,45 @@ test("plan v3: informe con cada escena anclada, 0 repeticiones y procedencia en 
   assert.ok(report?.scenes.every((s) => s.narrationFragment && s.narrationFragment.length > 0));
   assert.ok(report?.scenes.filter((s) => s.display !== "card").every((s) => s.provenance === "stock_illustrative" || s.provenance === "ai_recreation"));
   assert.ok(report?.scenes.filter((s) => s.provenance === "ai_recreation").every((s) => s.relevance === "generated_from_intent"));
+});
+
+const packagingBoth = {
+  cover: { enabled: true, style: "impacto" as const, title: "Cavar una *montaña*", kicker: "Canal de Panamá" },
+  thumbnail: { enabled: true, style: "alerta" as const, title: "Cavar una *montaña*" },
+};
+
+test("presentación v3: portada en el render y miniatura subida junto al video (ruta canónica)", async () => {
+  const c = counters();
+  const env = freshEnv({ durationSeconds: 180 });
+  const thumbnails = { calls: [] as unknown[], uploads: [] as string[] };
+  const { result, renderInput } = await run(env, c, { ...planFor("balanced"), packaging: packagingBoth }, { thumbnails });
+  assert.equal(renderInput?.opening?.title, "Cavar una *montaña*");
+  assert.equal(thumbnails.calls.length, 1);
+  const call = thumbnails.calls[0] as { cover: { style: string }; background: { url: string } };
+  assert.equal(call.cover.style, "alerta");
+  assert.ok(call.background.url);
+  assert.ok(thumbnails.uploads.includes("req-panama-qa/output/thumbnail.jpg"));
+  assert.equal(result.thumbnailPath, "req-panama-qa/output/thumbnail.jpg");
+});
+
+test("presentación independiente: solo miniatura → sin portada en el video", async () => {
+  const c = counters();
+  const env = freshEnv({ durationSeconds: 180 });
+  const thumbnails = { calls: [] as unknown[], uploads: [] as string[] };
+  const onlyThumb = { ...packagingBoth, cover: { ...packagingBoth.cover, enabled: false } };
+  const { renderInput } = await run(env, c, { ...planFor("balanced"), packaging: onlyThumb }, { thumbnails });
+  assert.equal(renderInput?.opening, undefined);
+  assert.equal(thumbnails.calls.length, 1);
+});
+
+test("v1/v2 no cambian: un plan v2 con presentación no añade portada ni miniatura; v3 sin presentación tampoco", async () => {
+  const c = counters();
+  const thumbnails = { calls: [] as unknown[], uploads: [] as string[] };
+  const v2 = { ...planFor("balanced"), version: 2, beatShotCounts: undefined, packaging: packagingBoth };
+  const { renderInput } = await run(freshEnv({ durationSeconds: 180 }), c, v2, { thumbnails });
+  assert.equal(renderInput?.opening, undefined);
+  assert.equal(thumbnails.calls.length, 0);
+  const plain = await run(freshEnv({ durationSeconds: 180 }), counters(), planFor("balanced"), { thumbnails });
+  assert.equal(plain.renderInput?.opening, undefined);
+  assert.equal(thumbnails.calls.length, 0);
 });
