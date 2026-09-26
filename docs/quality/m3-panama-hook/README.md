@@ -103,3 +103,20 @@ explícitamente. Sin ella no hay gasto: la muestra M2 tiene un plan de gasto
 vacío, y hay un test que lo comprueba. En producción, el video IA sigue
 limitado por la asignación existente (`maxAiVideoClips`,
 `isLongFormAiVideoConfigured`).
+
+## Vista previa gratuita (sin gasto)
+
+- **A** — apertura actual: `samples/m2-opening/sample-approval-21s.mp4`, run 36204032458.
+  - Resultado: −15.95 LUFS, **−2.47 dBTP**, 0 tramos negros.
+- **B** — montaje del hook con sustitutos: `samples/m3-hook/sample-technical-21s.mp4`, run 36204420906.
+  - Resultado: −15.95 LUFS, −2.47 dBTP, 0 tramos negros.
+  - «Material pendiente» aparece en s01 y s04a.
+  - Los subtítulos no cruzan cortes.
+  - La referencia 16:9 de H2 se revisó en la hoja de preparación (run 36204030936). Conserva la pala de vapor, la cuadrilla y los rieles.
+
+El pico real de −1.21 dBTP de M2 queda corregido por el margen de
+masterización (`LONG_FORM_TRUE_PEAK_MARGIN_DB`).
+
+**Limitación:** en B, el sustituto de s04a hereda el encuadre `cover` del
+clip IA, por lo que la foto aparece recortada. El clip real ya es 16:9, así
+que en el render aprobado esto no ocurre.
