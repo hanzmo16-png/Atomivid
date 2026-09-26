@@ -36,9 +36,9 @@
         "camera": "still",
         "mediaStartSeconds": 0,
         "look": {
-          "scale": 1.06,
-          "originX": 0.45,
-          "originY": 0.05,
+          "scale": 1.28,
+          "originX": 0.0,
+          "originY": 0.0,
           "contrast": 1.15,
           "saturation": 1.1,
           "vignette": 0.45
