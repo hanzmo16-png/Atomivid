@@ -172,7 +172,8 @@ se gasta.
   caracteres y mismos 10 espacios de clonación), mismas claves de Veo y
   OpenAI, mismo `GH_WORKER_TOKEN`. En Preview (`VERCEL=1`) los proveedores
   son los reales, nunca fixtures.
-- **Migración 0021**: destino = ese mismo proyecto (el de producción).
+- **Migración 0021**: destino = ese mismo proyecto (el de producción);
+  ya aplicada (run `36267136646`), no repetir.
   Dependencias: `auth.users` y `public.video_requests` (0001),
   `gen_random_uuid()` (nativo desde Postgres 13), plpgsql y
   `pg_advisory_xact_lock` (nativos). No depende de 0016-0020. Sobre datos
@@ -187,45 +188,70 @@ se gasta.
   una cuenta de ElevenLabs separada. No está configurado; requiere
   decisión y trabajo de infraestructura.
 
-## 7. Activación (nada hecho; requiere autorización)
+## 7. Activación: estado real (2026-09-26)
 
 **Hecho clave**: `repository_dispatch` y `workflow_dispatch` solo disparan
 workflows cuyo archivo exista en la **rama por defecto**
 (`claude/atomivid-mvp-setup-0079jv`), y `repository_dispatch` ejecuta el
-código de esa rama. Hoy no están ahí `tts.yml`, `voice-clone.yml`,
-`voice-catalog-add.yml`, `session-validation.yml` ni
-`medieval-horse-sample.yml`: tenerlos en el PR no basta.
+código de esa rama: tenerlos en el PR no basta.
 
-1. **Registrar los workflows** en la rama por defecto (un commit solo con
-   esos archivos, igual que Work registró `reel-animation-samples.yml`).
-   Para probar antes de fusionar: variable del repositorio
-   `VOICE_WORKERS_REF=<commit revisado del PR #16>` (tts.yml y
-   voice-clone.yml lo usan en el checkout) y `PINNED_REF` en
-   `medieval-horse-sample.yml`. Tras fusionar, vaciar `VOICE_WORKERS_REF`.
-2. **Migración 0021**: `apply-supabase-migration.yml` con
-   `ref=claude/voices-medieval-tts` y `migration_file=0021_voices_and_text_to_speech.sql`
-   (solo esa: sin el nombre aplicaría también las pendientes de #13/#15).
-   Aditiva; rollback en el archivo.
-3. **My Voices**: `voice-catalog-add.yml` con `mode=add`, `confirm=true`
-   (gratis, sin espacios; se detiene ante recargo o voice_id distinto; no
-   borra voces; no cambia el plan).
-4. **Flags solo en Preview** (Vercel): `VOICE_CATALOG_ENABLED`,
-   `TEXT_TO_SPEECH_ENABLED`, `MY_VOICE_ENABLED` + `MY_VOICE_ALLOWLIST_EMAILS`
-   (cuenta de Hans y cuenta de prueba A), `GH_WORKER_TOKEN`/`GH_WORKER_REPO`
-   ya existentes. Producción sigue apagada.
-5. **Validación con sesión** (`session-validation.yml`): etapa `free`
-   primero; `tts` y `myvoice` solo con `confirm=GASTAR` y el paquete
-   autorizado. Requiere dos cuentas de PRUEBA sin voces propias (secrets
-   `SESSION_USER_A_*`, `SESSION_USER_B_*`), ambas en
-   `MY_VOICE_ALLOWLIST_EMAILS` y la variable
-   `SESSION_USER_B_ALLOWLISTED=true`. Cada pieza y voz se correlaciona por
-   su `client_request_id`; la voz clonada es temporal («Prueba temporal
-   …») y se elimina solo por su id exacto. Si una cuenta de prueba tiene
-   alguna voz propia, la etapa se detiene antes de gastar y no la toca. La
-   voz personal que Hans quiera conservar se crea después, desde su propia
-   cuenta, fuera de esta prueba. Un paso no comprobable queda pendiente y
-   la ejecución no termina en verde.
-6. **Orden de integración** (sin fusionar todavía): #13 → #14 (Work) → #15
-   → #16, cada uno con merge commit (no squash, para no duplicar cambios en
-   los PR apilados), cambiando la base del siguiente a la rama por defecto
-   tras cada fusión. #10 (codex/product-flow) es independiente.
+Hecho (por Work, verificado desde aquí):
+
+1. **Migración 0021 aplicada** al Supabase compartido con producción (run
+   `36267136646`; los objetos de 0021 figuran con `exists: true`). **No
+   volver a ejecutarla.** (La última línea del log dice «0001-0014»: es un
+   mensaje desactualizado de `verify-remote-schema`, no el alcance real.)
+2. **Workers registrados** en la rama por defecto (commit `0a8deb3`):
+   `tts.yml` y `voice-clone.yml`, con el checkout fijado al commit revisado
+   del PR #16 `0a53459`. Al fusionar el PR #16 hay que restaurar el flujo
+   normal (quitar el `ref` fijo). Ningún PR fusionado.
+3. **Preview parcial**: `GH_WORKER_REPO` y `NEXT_PUBLIC_SITE_URL` solo para
+   la rama `claude/voices-medieval-tts`.
+
+Pendiente para la prueba de «Mi voz» de Hans (autorizada: clonación
+personal + una prueba breve, **tope US$0.10**; no aprueba el paquete de
+US$2.26):
+
+4. **Preview** (solo rama `claude/voices-medieval-tts`):
+   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` y
+   `SUPABASE_SERVICE_ROLE_KEY` **del mismo proyecto donde se aplicó 0021**
+   (los workers usan ese; si Preview apunta a otro, el worker no encuentra
+   la voz ni la pieza), `GH_WORKER_TOKEN`, `MY_VOICE_ENABLED=true`,
+   `MY_VOICE_ALLOWLIST_EMAILS=<correo de la cuenta de Hans>`; opcionales
+   `VOICE_CATALOG_ENABLED`, `TEXT_TO_SPEECH_ENABLED`. Luego redesplegar la
+   rama. Producción sigue apagada.
+5. **Muestra**: Hans la sube él mismo en `/dashboard/voices` de Preview,
+   con su cuenta, aceptando el consentimiento (30-180 s, ≤ 10 MB,
+   wav/mp3/m4a/webm/ogg, una sola voz). Un clic, un `client_request_id`:
+   no se duplica. Costo: la clonación instantánea no consume caracteres;
+   la prueba breve usa la frase de prueba (~80 caracteres, ≈ US$0.008).
+   La voz queda **guardada** para usos posteriores (solo la borra Hans con
+   «Eliminar»); la grabación original se borra al terminar, salvo que
+   marque «Conservar mi grabación original».
+6. La voz personal de Hans **no participa** en `session-validation`: ese
+   flujo exige cuentas de PRUEBA sin voces propias, se detiene sin gastar
+   si encuentra alguna y solo elimina la voz temporal creada en su corrida,
+   por id exacto.
+
+Sin autorizar todavía:
+
+7. **My Voices**: registrar `voice-catalog-add.yml` y correr `mode=add`,
+   `confirm=true` (gratis, sin espacios; se detiene ante recargo o
+   voice_id distinto; no borra voces; no cambia el plan).
+8. **Validación con sesión** (`session-validation.yml`, sin registrar):
+   etapa `free` primero; `tts` y `myvoice` solo con `confirm=GASTAR` y el
+   paquete autorizado. Dos cuentas de PRUEBA sin voces propias (secrets
+   `SESSION_USER_A_*`, `SESSION_USER_B_*`), ambas en la allowlist y
+   `SESSION_USER_B_ALLOWLISTED=true`. Un paso no comprobable queda
+   pendiente y la ejecución no termina en verde.
+9. **Clip Medieval** (`medieval-horse-sample.yml`, sin registrar; fijar
+   `PINNED_REF` al registrarlo).
+10. **Orden de integración** (sin fusionar todavía): #13 → #14 (Work) → #15
+    → #16, cada uno con merge commit (no squash), cambiando la base del
+    siguiente a la rama por defecto tras cada fusión. #10
+    (codex/product-flow) es independiente.
+
+**Masterización**: el fallo intermitente de «masterización con margen…»
+(`audio-master.test.ts`, ruido sin semilla) sigue **pendiente de
+diagnóstico propio**; que el CI esté verde no demuestra que esté resuelto,
+y no forma parte de esta prueba de voz.
