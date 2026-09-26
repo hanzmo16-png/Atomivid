@@ -48,6 +48,10 @@ export function TtsForm({
   musicEnabled: boolean;
   customVoices: CustomVoiceOption[];
 }) {
+  // Se fija al montar: los refrescos automáticos del historial (cada 4 s con piezas en curso) traen un id nuevo
+  // del servidor, pero el formulario abierto conserva el suyo; así un reenvío devuelve la misma pieza. La página
+  // vuelve a montar el formulario (key) solo tras crear una pieza.
+  const [requestId] = useState(clientRequestId);
   const [language, setLanguage] = useState<"es" | "en">("es");
   const [script, setScript] = useState("");
   const [music, setMusic] = useState<MusicChoice>("none");
@@ -63,7 +67,7 @@ export function TtsForm({
 
   return (
     <form action={action} className="space-y-5">
-      <input type="hidden" name="client_request_id" value={clientRequestId} />
+      <input type="hidden" name="client_request_id" value={requestId} />
       <Field id="tts-title" label="Título">
         <input id="tts-title" name="title" required maxLength={TTS_TITLE_MAX} className={INPUT_CLASS} placeholder="Ej.: Introducción del episodio 12" />
       </Field>

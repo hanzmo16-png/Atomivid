@@ -8,7 +8,7 @@ import type { VoiceProvider } from "@/lib/providers/types";
 import { memoryDb } from "./test-db";
 import { monoWav16, sliceSpeech, speechBank, speechLikeSamples } from "./test-audio";
 import { isLongPiece, providerHasRoom, resolveTtsLimits, TTS_TECHNICAL_MAX_CHARS } from "./limits";
-import { countWords, estimateDurationRange, fitsTtsLimits, formatDurationRange, segmentScript, billableCharacters, downloadFileName } from "./segment";
+import { countWords, estimateDurationRange, fitsTtsLimits, formatCount, formatDurationRange, segmentScript, billableCharacters, downloadFileName } from "./segment";
 import { MUSIC_BEDS, MUSIC_CHOICES, findMusicBed, parseMusicChoice, pickMusicBed, renderMusicBedWav } from "./music-beds";
 import {
   MIX,
@@ -23,7 +23,7 @@ import {
 } from "./podcast-audio";
 import { concatToMp3, mixToMp3 } from "./concat";
 import { createTtsRequest, LONG_PILOT_BUSY_MESSAGE, requestTtsMix, retryTtsRequest } from "./requests";
-import { LONG_QUOTA_RECHECK_EVERY, MIX_FAILED_MESSAGE, MIX_NO_TIME_MESSAGE, runTtsJob, ttsAudioPath, ttsMixPath, type TtsDeps } from "./run-tts-job";
+import { LONG_QUOTA_RECHECK_EVERY, MIX_FAILED_MESSAGE, MIX_NO_TIME_MESSAGE, runTtsJob, ttsAudioPath, ttsFailureMessage, ttsMixPath, type TtsDeps } from "./run-tts-job";
 
 process.env.AUDIOVISUAL_STORAGE_RETRY_MS = "0";
 
@@ -225,7 +225,32 @@ test("episodio largo: exige saldo para lo que falta + la reserva para el resto d
   const { provider, calls } = speechProvider();
   assert.equal(await runTtsJob(job().id, workerDeps(db, provider, { quota: async () => ({ remaining: chars + 3000 + 1999 }) })), "failed");
   assert.equal(calls.length, 0);
-  assert.match(String(db.rows("tts_jobs")[0].error_message), /no tiene caracteres suficientes/);
+  const message = String(db.rows("tts_jobs")[0].error_message);
+  assert.match(message, /no tiene caracteres suficientes para terminar esta pieza/);
+  // El mensaje dice cuánto falta, cuánto hay y por qué (reserva y otras piezas en curso).
+  assert.ok(message.includes(`Faltan ${formatCount(chars)} caracteres y hay ${formatCount(chars - 1)} disponibles`), message);
+  assert.match(message, /menos 3\.000 reservados para el resto de Atomivid y 2\.000 de otras piezas en curso/);
+  assert.match(message, /No se cobró nada de lo que falta/);
+});
+
+test("saldo agotado a mitad (401 quota_exceeded): mensaje de saldo, no de credencial; nada se cobra dos veces al reanudar", async () => {
+  assert.match(ttsFailureMessage(new Error('ElevenLabs respondió 401: {"detail":{"status":"quota_exceeded"}}')), /se quedó sin caracteres/);
+  assert.match(ttsFailureMessage(new Error('ElevenLabs respondió 401: {"detail":{"status":"invalid_api_key"}}')), /rechazó la credencial/);
+  const db = memoryDb({ tts_jobs: [job({ long_pilot: false })] });
+  let exhausted = true;
+  const { provider, calls } = speechProvider({ before: (i) => (i === 3 && exhausted ? new Error('ElevenLabs respondió 401: {"detail":{"status":"quota_exceeded"}}') : null) });
+  assert.equal(await runTtsJob(job().id, workerDeps(db, provider)), "failed");
+  const [row] = db.rows("tts_jobs");
+  assert.equal(row.segments_done, 3);
+  assert.match(String(row.error_message), /se quedó sin caracteres/);
+  exhausted = false;
+  assert.ok((await retryTtsRequest({ service: db.client, userId: HANS, jobId: row.id, dispatch: async () => {} })).ok);
+  assert.equal(await runTtsJob(row.id as string, workerDeps(db, provider)), "completed");
+  const segments = segmentScript(job().script);
+  // La llamada rechazada no se cobró (401 = rechazo explícito): se repite solo esa; los 3 fragmentos ya pagados no.
+  assert.equal(calls.length, segments.length + 1);
+  const ledger = db.storage.json<{ entries: { status: string }[] }>(`tts/${row.id}/state/paid-ledger.json`);
+  assert.equal(ledger?.entries.filter((e) => e.status === "spent").length, segments.length, "cada fragmento cobrado una sola vez");
 });
 
 test("episodio largo: si el saldo baja a mitad (otros productos gastan), se detiene antes de agotarlo y al reanudar no repite nada", async () => {
@@ -383,11 +408,12 @@ test("curva de la música: abierta en la entrada, baja 14 dB antes de la voz, se
   assert.ok(maxStep <= (Math.abs(duck) / MIX.duckSeconds) * 0.02 + 1e-9, `paso máximo ${maxStep} dB cada 20 ms`);
 });
 
-test("biblioteca musical: dos fondos por estado de ánimo, con procedencia y licencia, deterministas y en bucle sin costura", () => {
+test("biblioteca musical: dos fondos por estado de ánimo, con procedencia registrada, deterministas y con discontinuidad medida mínima en la vuelta del bucle", () => {
   assert.deepEqual(new Set(MUSIC_BEDS.map((b) => b.mood)), new Set(["suspense", "documentary"]));
   for (const bed of MUSIC_BEDS) {
     assert.ok(bed.source && bed.license, `${bed.id} sin procedencia`);
-    assert.match(bed.license, /Obra propia de Atomivid/);
+    assert.match(bed.source, /sin muestras ni grabaciones de terceros/);
+    assert.match(bed.license, /No constituye una garantía jurídica/);
   }
   assert.equal(pickMusicBed("suspense", "abc").mood, "suspense");
   assert.equal(pickMusicBed("documentary", "abc").id, pickMusicBed("documentary", "abc").id);

@@ -2,20 +2,34 @@
  * Biblioteca de acompañamiento musical de «Texto a voz» (podcast).
  *
  * Solo tres opciones: Sin música, Suspenso y Documental. Cada estado de
- * ánimo tiene dos fondos instrumentales COMPUESTOS POR ESTE CÓDIGO (síntesis
- * determinista: mismas notas, misma semilla, mismo audio). Son obra propia
- * de Atomivid: no provienen de un banco ni de un servicio, no requieren
- * atribución y su uso —incluida la publicación comercial del podcast— no
- * depende de la licencia de un tercero. Las pistas de Eleven Music del
- * banco de Reels NO se usan aquí: sus términos para el plan de la cuenta
- * restringen algunos usos comerciales y no se pudieron verificar en la
- * fuente primaria para publicar podcasts (ver docs/VOICES.md).
+ * ánimo tiene dos fondos instrumentales SINTETIZADOS por este código en el
+ * worker (síntesis determinista: mismas notas y misma semilla dan el mismo
+ * audio).
  *
- * Cada fondo es un bucle perfecto: se sintetiza en un búfer circular (las
- * colas de cada nota continúan al principio), los osciladores continuos
- * tienen un número entero de ciclos por vuelta y los filtros/reverberación
- * se «calientan» con una vuelta previa. Así se prolonga cualquier duración
- * repitiéndolo sin cortes ni costuras.
+ * Procedencia (qué se puede afirmar y qué no):
+ * - El código de síntesis y las progresiones los escribió el asistente de
+ *   programación (Claude Code) en este repositorio para Atomivid. No usa
+ *   muestras, grabaciones, pistas ni bancos de sonido de terceros.
+ * - No se usa ninguna dependencia de audio de terceros para componer:
+ *   osciladores, envolventes, filtros y reverberación están aquí. ffmpeg
+ *   solo mezcla y codifica después.
+ * - Las progresiones de acordes son fórmulas comunes (p. ej. i–VI–III–VII),
+ *   no transcripciones de obras concretas.
+ * - Esto NO es una garantía jurídica: no hubo revisión legal, la protección
+ *   por derechos de autor de material generado con asistencia de IA varía
+ *   según el país y una coincidencia casual con una obra existente no se
+ *   puede descartar por completo. Ver docs/PODCAST.md.
+ *
+ * Las pistas de Eleven Music del banco de Reels NO se usan aquí: sus
+ * términos para el plan de la cuenta restringen algunos usos comerciales y
+ * no se pudieron comprobar en la fuente primaria para publicar podcasts.
+ *
+ * Cada fondo está diseñado para repetirse sin corte: se sintetiza en un
+ * búfer circular (las colas de cada nota continúan al principio), los
+ * osciladores continuos completan un número entero de ciclos por vuelta y
+ * filtros y reverberación se «calientan» con una vuelta previa. La
+ * discontinuidad en la vuelta se MIDE (pruebas y validación); que no se
+ * perciba al oído queda pendiente de escucha.
  *
  * Lógica pura (sin I/O): devuelve un WAV en memoria.
  */
@@ -44,8 +58,8 @@ export type MusicBed = {
 };
 
 const OWN_WORK = {
-  source: "Composición algorítmica de Atomivid (src/lib/tts/music-beds.ts), sintetizada en el worker",
-  license: "Obra propia de Atomivid; sin terceros. Uso comercial, publicación y redistribución dentro de los podcasts generados permitidos.",
+  source: "Síntesis algorítmica en el código de Atomivid (src/lib/tts/music-beds.ts), escrita con asistencia de IA; sin muestras ni grabaciones de terceros",
+  license: "Material creado para Atomivid sin licencias de terceros. No constituye una garantía jurídica (ver docs/PODCAST.md, «Procedencia de la música»).",
   attribution: null,
 } as const;
 
@@ -188,7 +202,7 @@ function thump(c: Canvas, o: { start: number; amp: number; fromHz: number; toHz:
   }
 }
 
-/** Dron continuo con respiración lenta (ciclos enteros por vuelta: bucle sin costura). */
+/** Dron continuo con respiración lenta (ciclos enteros por vuelta: sin salto en la vuelta del bucle). */
 function drone(c: Canvas, table: Float32Array, o: { midi: number; amp: number; pan: number; breathCycles: number; depth: number }) {
   const f = c.loopHz(hz(o.midi));
   for (let i = 0; i < c.n; i++) {
@@ -356,7 +370,7 @@ export function encodeWav16(left: Float32Array, right: Float32Array, peak = 0.5)
   return buf;
 }
 
-/** El fondo como WAV en bucle perfecto (misma entrada → mismos bytes). */
+/** El fondo como WAV pensado para repetirse en bucle (misma entrada → mismos bytes). */
 export function renderMusicBedWav(bed: MusicBed): Buffer {
   const { left, right } = renderBed(bed);
   return encodeWav16(left, right);

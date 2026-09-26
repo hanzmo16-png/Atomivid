@@ -64,7 +64,7 @@ export default async function TextToSpeechPage({ searchParams }: { searchParams:
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) notFound();
-  const { error } = await searchParams;
+  const { error, job: createdJob } = await searchParams;
 
   // RLS: solo las piezas propias.
   const { data } = await supabase
@@ -115,6 +115,7 @@ export default async function TextToSpeechPage({ searchParams }: { searchParams:
       {error && <Alert tone="danger">{error}</Alert>}
       <Card className="p-5 sm:p-6">
         <TtsForm
+          key={createdJob ?? "nuevo"}
           action={createTextToSpeech}
           maxCharsPerPiece={limits.maxCharsPerPiece}
           maxCharsPerUserMonth={limits.maxCharsPerUserMonth}

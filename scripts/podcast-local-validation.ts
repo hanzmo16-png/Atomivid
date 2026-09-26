@@ -14,7 +14,13 @@
  * - voz al frente (relación voz/música por tramos) y costuras del bucle;
  * - tiempos reales de unir, masterizar y mezclar (dimensionan el worker).
  *
- * Uso: npx tsx scripts/podcast-local-validation.ts --out-dir evidence/podcast [--minutes 45]
+ * Uso: npx tsx scripts/podcast-local-validation.ts --out-dir evidence/podcast [--minutes 45] [--speech-wpm 130] [--music documentary|suspense]
+ *
+ * La duración MEDIDA de la narración debe alcanzar al menos --minutes
+ * (45 → 2.700 s); si no, la validación falla. La voz simulada habla a
+ * --speech-wpm palabras por minuto (sin contar las pausas entre
+ * fragmentos, que añade la unión); el texto se alarga hasta que la
+ * duración esperada supere el mínimo con margen.
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
@@ -25,6 +31,14 @@ process.env.AUDIOVISUAL_STORAGE_RETRY_MS = "0";
 const args = process.argv.slice(2);
 const outDir = args.includes("--out-dir") ? args[args.indexOf("--out-dir") + 1] : "evidence/podcast";
 const minutes = args.includes("--minutes") ? Number(args[args.indexOf("--minutes") + 1]) : 45;
+const speechWpm = args.includes("--speech-wpm") ? Number(args[args.indexOf("--speech-wpm") + 1]) : 130;
+const music = args.includes("--music") ? args[args.indexOf("--music") + 1] : "documentary";
+if (music !== "documentary" && music !== "suspense") throw new Error("--music debe ser documentary o suspense");
+const minSeconds = minutes * 60;
+/** Tarifa del registro de la app (PRICING_ELEVENLABS_USD_PER_1K_CHARS) y capacidad de la cuenta verificada (Starter). */
+const USD_PER_1K_CHARS = 0.1;
+const PERIOD_CHARS = 38002;
+const RESERVE_CHARS = 3000;
 
 const WORDS = (
   "la historia del valle empezó mucho antes de que llegaran los primeros viajeros con sus carretas cargadas de sal y de telas " +
@@ -67,7 +81,15 @@ async function main() {
   const { MIX, mixNarrationWithBed, mixTotalSeconds, measureLoudness, DEFAULT_MAX_OBJECT_BYTES } = await import("../src/lib/tts/podcast-audio");
 
   await mkdir(outDir, { recursive: true });
-  const script = buildScript(Math.round(minutes * 130));
+  // Se alarga el texto hasta que la duración esperada con la voz simulada supere el mínimo + 45 s de margen.
+  const expectedFor = (text: string) =>
+    segmentScript(text).reduce((sum, s) => sum + (countWords(s.text) / speechWpm) * 60 + s.pauseAfterMs / 1000, 0);
+  let targetWords = Math.round((minSeconds / 60) * speechWpm);
+  let script = buildScript(targetWords);
+  while (expectedFor(script) < minSeconds + 45) {
+    targetWords = Math.round(targetWords * 1.01) + 5;
+    script = buildScript(targetWords);
+  }
   const segments = segmentScript(script);
   const words = countWords(script);
   const characters = billableCharacters(segments);
@@ -80,13 +102,15 @@ async function main() {
     tts_jobs: [
       {
         id: jobId, user_id: owner, title: "Episodio de prueba", language: "es", voice_choice: "miguel", script, characters,
-        status: "queued", attempts: 0, segments_done: 0, long_pilot: true, music_choice: "documentary", music_track_id: null,
+        status: "queued", attempts: 0, segments_done: 0, long_pilot: true, music_choice: music, music_track_id: null,
         mix_status: "pending", mix_attempts: 0, audio_path: null,
       },
     ],
   });
 
-  // Proveedor simulado: habla sintética a ~150 palabras/min de habla (las pausas las pone la unión). Un fallo «rechazado» (sin cobro) en la llamada 31.
+  // Proveedor simulado: habla sintética a `speechWpm` palabras/min de habla (las pausas las pone la unión). Un fallo «rechazado» (sin cobro)
+  // en la llamada 31 (a mitad de la pieza si es más corta).
+  const failAt = Math.min(30, Math.floor(segments.length / 2));
   const bank = speechBank(120, 11);
   const calls: string[] = [];
   const segmentSeconds = new Map<string, number>();
@@ -98,11 +122,11 @@ async function main() {
       const index = calls.length;
       calls.push(text);
       clock += 9_000; // ~9 s simulados por llamada (latencia típica de un fragmento de ~900 caracteres)
-      if (index === 30 && !failedOnce) {
+      if (index === failAt && !failedOnce) {
         failedOnce = true;
         throw new Error("ElevenLabs respondió 400: texto rechazado (simulado)");
       }
-      const seconds = (countWords(text) / 150) * 60;
+      const seconds = (countWords(text) / speechWpm) * 60;
       segmentSeconds.set(text, seconds);
       return { audioBuffer: monoWav16(sliceSpeech(bank, index * 7.3, seconds)), durationSeconds: seconds, words: [], mimeType: "audio/wav", extension: "wav" };
     },
@@ -130,8 +154,8 @@ async function main() {
 
   const runs: { run: number; result: string; segmentsDone: number; calls: number; message: string | null }[] = [];
   const row = db.rows("tts_jobs")[0];
-  // Ejecución 1: presupuesto de ~20 fragmentos simulados (fuerza la pausa); la 2 encuentra el fallo rechazado; la 3 termina.
-  const budgets = [20 * 9_000, 10 * 3600_000, 10 * 3600_000, 10 * 3600_000];
+  // Ejecución 1: presupuesto de ~20 fragmentos simulados (menos en piezas cortas; fuerza la pausa); la 2 encuentra el fallo rechazado; la 3 termina.
+  const budgets = [Math.min(20, Math.ceil(segments.length / 3) + 2) * 9_000, 10 * 3600_000, 10 * 3600_000, 10 * 3600_000];
   for (let run = 1; run <= budgets.length && row.status !== "completed"; run++) {
     if (run > 1) {
       const retry = await retryTtsRequest({ service: db.client, userId: owner, jobId, dispatch: async () => {} });
@@ -209,27 +233,39 @@ async function main() {
   // Extractos para escuchar (entrada y baja de la música, una vuelta del bucle, salida) y los cuatro fondos.
   const excerpt = (from: number, dur: number, name: string) =>
     spawnSync("ffmpeg", ["-y", "-v", "error", "-ss", String(from), "-t", String(dur), "-i", path.join(outDir, "podcast-con-musica.mp3"), "-c", "copy", path.join(outDir, name)]);
-  excerpt(0, 30, "extracto-entrada.mp3");
-  excerpt(bed.loopSeconds * 3 - 10, 20, "extracto-vuelta-del-bucle.mp3");
-  excerpt(Math.max(0, mixSeconds - 25), 25, "extracto-salida.mp3");
+  const moodLabel = bed.mood === "suspense" ? "suspenso" : "documental";
+  excerpt(0, 30, `extracto-${moodLabel}-entrada.mp3`);
+  excerpt(bed.loopSeconds * 3 - 10, 20, `extracto-${moodLabel}-vuelta-del-bucle.mp3`);
+  excerpt(Math.max(0, mixSeconds - 25), 25, `extracto-${moodLabel}-salida.mp3`);
   for (const b of MUSIC_BEDS) {
     const wav = path.join(outDir, `${b.id}.wav`);
     await writeFile(wav, renderMusicBedWav(b));
-    spawnSync("ffmpeg", ["-y", "-v", "error", "-i", wav, "-c:a", "libmp3lame", "-b:a", "160k", path.join(outDir, `fondo-${b.id}.mp3`)]);
+    spawnSync("ffmpeg", ["-y", "-v", "error", "-i", wav, "-c:a", "libmp3lame", "-b:a", "160k", path.join(outDir, `fondo-${b.mood === "suspense" ? "suspenso" : "documental"}-${b.id.endsWith("a-v1") ? "A" : "B"}-${b.title.toLowerCase().normalize("NFD").replace(/[^a-z]+/g, "-")}.mp3`)]);
   }
 
   // Los stems y WAV intermedios pesan cientos de MB: fuera de la evidencia.
   const { rm } = await import("node:fs/promises");
   for (const f of ["stem-voz.wav", "stem-musica.wav", "fondo.wav", ...MUSIC_BEDS.map((b) => `${b.id}.wav`)]) await rm(path.join(outDir, f), { force: true });
 
+  const mmss = (sec: number) => `${Math.floor(sec / 60)} min ${String(Math.round(sec % 60)).padStart(2, "0")} s`;
   const summary = {
     nota: "Proveedor de voz SIMULADO (habla sintética, no voz real). Sin red ni gasto.",
+    voz_simulada_palabras_por_minuto: speechWpm,
+    minimo_exigido_segundos: minSeconds,
     guion: { palabras: words, caracteres: characters, fragmentos: segments.length, estimacion: formatDurationRange(range), estimacion_segundos: range },
     ejecuciones: runs,
     sintesis: { llamadas: calls.length, fragmentos: segments.length, textos_unicos: uniqueTexts.size, repetidas_por_reintento_de_fallo_rechazado: repeated },
-    narracion: { segundos: narrSeconds, esperado_segundos: Math.round(expectedNarr * 10) / 10, sonoridad: narrLoud, bytes: narration.length },
+    consumo_simulado: {
+      caracteres_cobrables: characters,
+      nota: "La llamada rechazada (400) no se cobra; cada fragmento se cobró una sola vez.",
+      costo_segun_registro_usd: Math.round((characters / 1000) * USD_PER_1K_CHARS * 100) / 100,
+      porcentaje_del_periodo_starter: Math.round((characters / PERIOD_CHARS) * 1000) / 10,
+      cabe_en_un_periodo_completo_con_reserva: characters <= PERIOD_CHARS - RESERVE_CHARS,
+    },
+    narracion: { segundos: narrSeconds, legible: mmss(narrSeconds), esperado_segundos: Math.round(expectedNarr * 10) / 10, sonoridad: narrLoud, bytes: narration.length },
     mezcla: {
       segundos: mixSeconds,
+      legible: mmss(mixSeconds),
       esperado_segundos: Math.round(mixTotalSeconds(narrSeconds) * 10) / 10,
       sonoridad: mixLoud,
       bytes: mix.length,
@@ -248,6 +284,7 @@ async function main() {
   console.log(JSON.stringify(summary, null, 2));
 
   const problems: string[] = [];
+  if (!runs.some((r) => r.result === "paused")) problems.push("la ejecución 1 no se pausó por tiempo (la prueba de reanudación no se ejerció)");
   if (calls.length !== segments.length + 1 || repeated !== 1) problems.push(`síntesis repetidas: ${calls.length} llamadas para ${segments.length} fragmentos (se esperaba solo la del fallo rechazado)`);
   if (Math.abs(narrSeconds - expectedNarr) > 1.5) problems.push(`duración de narración ${narrSeconds} vs ${expectedNarr}`);
   if (Math.abs(mixSeconds - mixTotalSeconds(narrSeconds)) > 0.5) problems.push(`duración de mezcla ${mixSeconds}`);
@@ -256,7 +293,8 @@ async function main() {
   if (full.clipped > 0) problems.push(`${full.clipped} muestras recortadas`);
   if (narration.length > DEFAULT_MAX_OBJECT_BYTES || mix.length > DEFAULT_MAX_OBJECT_BYTES) problems.push("archivo sobre el techo de Storage");
   if (ratios.some((r) => r < 15)) problems.push(`voz/música bajo 15 dB en algún minuto: ${ratios.join(", ")}`);
-  if (seamJumps.some((j) => j > Math.max(p99, 1.5))) problems.push(`costura del bucle audible: ${seamJumps.join(", ")} (p99 ${p99})`);
+  if (seamJumps.some((j) => j > Math.max(p99, 1.5))) problems.push(`discontinuidad en la vuelta del bucle mayor que la variación normal: ${seamJumps.join(", ")} (p99 ${p99})`);
+  if (narrSeconds < minSeconds) problems.push(`la narración medida dura ${narrSeconds.toFixed(1)} s, menos que el mínimo de ${minSeconds} s`);
   if (summary.mezcla.silencio_final_db > -45) problems.push("la salida no termina en silencio");
   if (problems.length) {
     console.error(`[podcast] PROBLEMAS:\n- ${problems.join("\n- ")}`);

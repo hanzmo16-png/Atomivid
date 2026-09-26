@@ -36,7 +36,7 @@ import { synthesizeNarrationCached, VoiceCacheUncertainError } from "@/lib/video
 import { uploadWithRetry } from "@/lib/video/audiovisual/storage-state";
 import { parseVoiceChoice } from "@/lib/voices/catalog";
 import { resolveVoiceChoice, VoiceUnavailableError } from "@/lib/voices/resolve";
-import { billableCharacters, segmentScript } from "./segment";
+import { billableCharacters, formatCount, segmentScript } from "./segment";
 import { DEFAULT_PROVIDER_RESERVE_CHARS, providerHasRoom, reservedByOthers } from "./limits";
 import { findMusicBed, pickMusicBed, type MusicBed, type MusicChoice } from "./music-beds";
 import type { ConcatPart, LoudnessSummary } from "./concat";
@@ -120,9 +120,12 @@ export function ttsFailureMessage(err: unknown, uncertainOpen = false): string {
   }
   if (err instanceof PaidBudgetExceededError) return "La pieza superó el gasto previsto y se detuvo. Escríbenos para revisarlo.";
   const message = err instanceof Error ? err.message : "";
+  // El saldo agotado llega como 401 con «quota_exceeded» (o 402): se reconoce ANTES que la credencial para no confundirlos.
+  if (/quota|ElevenLabs respondió 402/i.test(message)) {
+    return "El servicio de voz se quedó sin caracteres mientras se generaba (la cuenta es compartida con el resto de Atomivid). Lo ya generado se conserva y «Reanudar» no lo vuelve a cobrar cuando haya saldo.";
+  }
   if (/ElevenLabs respondió 401/.test(message)) return "El servicio de voz rechazó la credencial. Escríbenos: no es un problema de tu texto.";
   if (/ElevenLabs respondió 429/.test(message)) return "El servicio de voz está saturado. Reintenta en unos minutos; lo ya generado se conserva.";
-  if (/quota|ElevenLabs respondió 402/i.test(message)) return "El servicio de voz no tiene saldo suficiente en este momento. Escríbenos.";
   return "No se pudo completar el audio. Los fragmentos ya generados se conservan: puedes reintentar sin volver a pagarlos.";
 }
 
@@ -200,11 +203,16 @@ async function runNarrationPhase(row: TtsJobRow, deps: TtsDeps): Promise<{ resul
       const quota = await deps.quota();
       if (!quota) throw new TtsJobError("No se pudo comprobar la capacidad del servicio de voz. Reintenta en unos minutos; no se cobró nada de lo que falta.");
       // Otras piezas en curso ya pudieron comprobar el mismo saldo: se descuentan (conservador).
-      if (!providerHasRoom({ remaining: quota.remaining, needed, othersReserved: await othersInFlight(), reserve })) {
+      const othersReserved = await othersInFlight();
+      if (!providerHasRoom({ remaining: quota.remaining, needed, othersReserved, reserve })) {
+        const available = Math.max(0, quota.remaining - othersReserved - reserve);
+        const detail = `Faltan ${formatCount(needed)} caracteres y hay ${formatCount(available)} disponibles${
+          reserve ? ` (saldo ${formatCount(quota.remaining)}, menos ${formatCount(reserve)} reservados para el resto de Atomivid${othersReserved ? ` y ${formatCount(othersReserved)} de otras piezas en curso` : ""})` : ""
+        }.`;
         throw new TtsJobError(
           midway
-            ? "El saldo del servicio de voz bajó mientras se generaba (otras funciones usan la misma cuenta). Se detuvo antes de agotarlo: lo generado se conserva y «Reanudar» no lo vuelve a cobrar."
-            : "El servicio de voz no tiene caracteres suficientes este mes para terminar esta pieza. No se cobró nada de lo que falta; escríbenos.",
+            ? `El saldo del servicio de voz bajó mientras se generaba (otras funciones usan la misma cuenta). ${detail} Se detuvo antes de agotarlo: lo generado se conserva y «Reanudar» no lo vuelve a cobrar.`
+            : `El servicio de voz no tiene caracteres suficientes para terminar esta pieza. ${detail} No se cobró nada de lo que falta; puedes reanudarla cuando haya saldo.`,
         );
       }
     };
