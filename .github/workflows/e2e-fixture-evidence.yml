@@ -70,7 +70,7 @@ jobs:
         run: npx tsx scripts/test-pipeline-visual-mix.ts --out-dir evidence/visual-mix
       - name: Render audiovisual direction fixtures (horror, comic mystery, comic humor, comic-anim with simulated animation) and validate MP4 + in-scene motion + negative control
         run: npx tsx scripts/test-pipeline-audiovisual.ts --out-dir evidence/audiovisual --verify
-      - name: Text-to-speech podcast, 45 min equivalent (simulated voice, real ffmpeg): pause/resume without repeated synthesis, loudness, true peak, voice over music, loop seams
+      - name: "Text-to-speech podcast, 45 min equivalent (simulated voice, real ffmpeg): pause/resume without repeated synthesis, loudness, true peak, voice over music, loop seams"
         run: |
           npx tsx scripts/podcast-local-validation.ts --out-dir evidence/podcast --minutes 45
           # Los dos MP3 completos (~38 MB cada uno) no se publican: bastan el resumen y los extractos.
