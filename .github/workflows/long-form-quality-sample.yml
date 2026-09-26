@@ -87,6 +87,7 @@ jobs:
           SAMPLE_ALLOW_PAID: ${{ inputs.allow_paid && inputs.phase == 'prepare' && 'true' || 'false' }}
           SAMPLE_PAID_BUDGET_USD: ${{ inputs.paid_budget_usd }}
           SAMPLE_LEDGER_RELEASE: ${{ inputs.ledger_release }}
+          SAMPLE_SIGN_OUTPUT_HOURS: "168"
           SAMPLE_PAID_PREFLIGHT_ONLY: ${{ inputs.paid_preflight_only && 'true' || 'false' }}
           OPENAI_API_KEY: ${{ inputs.allow_paid && inputs.phase == 'prepare' && secrets.OPENAI_API_KEY || '' }}
           VEO_API_KEY: ${{ inputs.allow_paid && inputs.phase == 'prepare' && secrets.VEO_API_KEY || '' }}

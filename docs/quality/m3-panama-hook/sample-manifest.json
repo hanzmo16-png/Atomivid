@@ -152,25 +152,25 @@
         "kind": "commons",
         "title": "File:FMIB 38668 Steam Shovels Meeting at Bottom of Culebra Cut; L K Rourke.jpg",
         "crop": {
-          "x0": 0.03,
-          "y0": 0.07,
-          "x1": 0.66,
-          "y1": 0.85
+          "x0": 0.019,
+          "y0": 0.303,
+          "x1": 0.592,
+          "y1": 0.78
         }
       },
       "provenance": "archival_documentary",
-      "fit": "contain",
+      "fit": "cover",
       "direction": {
         "transition": {
           "type": "dissolve",
-          "seconds": 0.8
+          "seconds": 1.0
         },
         "camera": "push"
       },
       "review": {
         "status": "approved",
         "relevance": "directa",
-        "note": "La misma fotografía de 1913 que s04a anima: el movimiento se asienta en el documento original (repetición deliberada). Recorte que excluye el retrato de L. K. Rourke."
+        "note": "La misma fotografía de 1913 que s04a anima, recortada a 16:9 con el encuadre que alcanza el clip al final de su acercamiento (más cerrado y algo más arriba que la referencia), a pantalla completa y con acercamiento lento que continúa el del clip: el movimiento se asienta en el documento original sin salto de encuadre (repetición deliberada). Excluye el retrato de L. K. Rourke."
       },
       "creditText": "Archivo · Corte Culebra, 1913",
       "repeatOf": "s04a"

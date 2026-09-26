@@ -561,6 +561,12 @@ async function main() {
   const buf = await fs.readFile(mastered);
   await upload(`${prefix}/${outName}`, buf, "video/mp4");
   await fs.copyFile(mastered, path.join(outDir, outName));
+  // Enlace directo al MP4 para revisión (firmado, caduca; nunca público).
+  const signHours = Number(process.env.SAMPLE_SIGN_OUTPUT_HOURS ?? "0");
+  if (signHours > 0) {
+    const { data: signed } = await service.storage.from(bucket).createSignedUrl(`${prefix}/${outName}`, Math.round(Math.min(signHours, 168) * 3600));
+    if (signed) console.log(`@@OUTPUT_URL ${JSON.stringify({ objectPath: `${prefix}/${outName}`, expiresInHours: Math.min(signHours, 168), url: signed.signedUrl })}`);
+  }
   const report = { purpose, windowSeconds: windowSec, bytes, objectPath: `${prefix}/${outName}`, blackRuns, loudness: finalLoudness, mastering, scenes: scenes.length, soundCues: soundCues.map((c) => c.id), providerCalls: { paid: 0 } };
   await upload(`${prefix}/state/render-${purpose}${outSuffix}.json`, Buffer.from(JSON.stringify(report, null, 2)), "application/json");
   await fs.writeFile(path.join(outDir, `render-${purpose}${outSuffix}.json`), JSON.stringify(report, null, 2));
