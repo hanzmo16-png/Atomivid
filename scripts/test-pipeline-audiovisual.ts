@@ -7,6 +7,7 @@
  *   1. horror      — Horror y misterio (stock oscuro, grado y viñeta, suspenso)
  *   2. comic-mist  — Cómic + guion de misterio (imágenes por escena, suspenso)
  *   3. comic-humor — Cómic + tono Humor (mismas imágenes de estilo, ritmo dinámico)
+ *   4. comic-anim  — Cómic + «Animación IA» con proveedor simulado (clip por escena)
  *
  * Lo que DEMUESTRA: dirección resuelta, planos que cubren exactamente la
  * narración, fundidos/cortes y movimiento por intención, grado aplicado,
@@ -31,6 +32,9 @@ process.env.FOOTAGE_PROVIDER = "fixture";
 process.env.MUSIC_PROVIDER = "fixture";
 process.env.IMAGE_PROVIDER = "fixture";
 process.env.OPENAI_IMAGE_GENERATION_ENABLED = "true";
+process.env.REEL_ANIMATION_PROVIDER = "fixture";
+process.env.REEL_AI_ANIMATION_ENABLED = "true";
+process.env.MAX_AI_ANIMATION_COST_USD = "5";
 
 const MYSTERY: GeneratedScript = {
   title: "El faro",
@@ -56,6 +60,10 @@ const CASES = {
   horror: { script: MYSTERY, style: "Curiosidades", topic: "El faro", selection: { version: 1 as const, profile: "horror_mystery" as const } },
   "comic-mist": { script: MYSTERY, style: "Curiosidades", topic: "El faro", selection: { version: 1 as const, profile: "comic" as const } },
   "comic-humor": { script: HUMOR, style: "Humor", topic: "Mi gato programador", selection: { version: 1 as const, profile: "comic" as const } },
+  // «Animación IA» con el proveedor SIMULADO (fixture-animation: MP4 real a partir
+  // de la ilustración con un elemento en movimiento). Demuestra el recorrido
+  // técnico imagen → clip → render, no la calidad de una animación real.
+  "comic-anim": { script: MYSTERY, style: "Curiosidades", topic: "El faro", selection: { version: 1 as const, profile: "comic" as const, motion: "ai_animation" as const } },
 };
 
 async function main() {
@@ -67,7 +75,7 @@ async function main() {
   const { generateVideoFromScript } = await import("../src/lib/video/generate-video");
   const { resolveDirection } = await import("../src/lib/video/audiovisual/direction");
   const storageDir = await fs.mkdtemp(path.join(os.tmpdir(), "atomivid-av-"));
-  const TYPES: Record<string, string> = { ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".png": "image/png", ".mp3": "audio/mpeg", ".wav": "audio/wav", ".mp4": "video/mp4" };
+  const TYPES: Record<string, string> = { ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".png": "image/png", ".mp3": "audio/mpeg", ".wav": "audio/wav", ".mp4": "video/mp4", ".json": "application/json" };
   const server = http.createServer((req, res) => {
     const file = path.join(storageDir, decodeURIComponent(req.url ?? ""));
     if (!file.startsWith(storageDir) || !fsSync.existsSync(file)) {

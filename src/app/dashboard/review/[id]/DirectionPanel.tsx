@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { AudiovisualSelector } from "@/components/video/AudiovisualSelector";
+import { AudiovisualSelector, type AnimationAvailability } from "@/components/video/AudiovisualSelector";
 import type { AudiovisualSelection } from "@/lib/video/audiovisual/catalog";
 
 type Issue = { area: string; code: string; message: string; recovery: string };
@@ -20,6 +20,7 @@ export function DirectionPanel({
   summary,
   issues,
   editable,
+  animation,
 }: {
   requestId: string;
   style: string;
@@ -27,6 +28,7 @@ export function DirectionPanel({
   summary: string;
   issues: Issue[];
   editable: boolean;
+  animation?: AnimationAvailability;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -42,7 +44,7 @@ export function DirectionPanel({
       const res = await fetch(`/api/generate/${requestId}/direction`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile: data.get("av_profile"), intent: data.get("av_intent"), music: data.get("av_music"), pace: data.get("av_pace") }),
+        body: JSON.stringify({ profile: data.get("av_profile"), intent: data.get("av_intent"), music: data.get("av_music"), pace: data.get("av_pace"), motion: data.get("av_motion") }),
       });
       const json = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(json.error ?? "No se pudo guardar la dirección.");
@@ -81,7 +83,7 @@ export function DirectionPanel({
       )}
       {editing && (
         <form onSubmit={save} className="mt-4 space-y-3">
-          <AudiovisualSelector style={style} initial={selection} disabled={saving} />
+          <AudiovisualSelector style={style} initial={selection} animation={animation} disabled={saving} />
           {error && <p className="text-sm text-danger">{error}</p>}
           <div className="flex gap-2">
             <Button type="submit" disabled={saving}>

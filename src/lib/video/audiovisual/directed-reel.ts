@@ -22,7 +22,7 @@ import { getFootageProvider } from "@/lib/providers/footage";
 import { getMusicProvider } from "@/lib/providers/music";
 import { curatedLibraryMusicProvider } from "@/lib/providers/music/real";
 import { getImageProvider } from "@/lib/providers/image";
-import type { GeneratedScript, MusicResult, ScriptLanguage } from "@/lib/providers/types";
+import type { GeneratedScript, MusicResult, ScriptLanguage, VideoProvider } from "@/lib/providers/types";
 import type { RenderStage } from "@/lib/video/stages";
 import type { Scene } from "../../../../remotion/VerticalReel";
 import { computeNarrationGaps } from "../../../../remotion/audio-mix";
@@ -36,15 +36,24 @@ import { VIDEO_TAIL_SECONDS } from "@/lib/video/script-pacing";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { GeneratedImageUncertainError, resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resolver";
 import { ASSET_SIGNED_URL_TTL_SECONDS, STORAGE_BUCKET, alignScenesToWords, renderVerticalReel, uploadToStorage } from "@/lib/video/reel-shared";
-import { PROFILES } from "./catalog";
+import { PROFILES, motionModeOf } from "./catalog";
 import type { AudiovisualDirection } from "./direction";
-import { evaluateDirectionReadiness, readinessErrorMessage } from "./readiness";
+import { evaluateDirectionReadiness, getReelAnimationProvider, readinessErrorMessage } from "./readiness";
+import {
+  REEL_ANIMATION,
+  animationClipCostUsd,
+  buildAnimationBaseImagePrompt,
+  buildContinuityBible,
+  planAnimatedShots,
+  planSceneAnimation,
+} from "./animation";
+import { AnimatedClipUncertainError, prepareAnimationInputImage, resolveAnimatedClipForScene } from "./animated-clip";
 import { buildStyledImagePrompt, reelLookFor, stockConceptsFor, styledImageObjectPrefix } from "./visuals";
 import { PaidBudgetExceededError, UncertainPaidOperationError, type PaidLedger } from "./paid-ledger";
 import { openStorageLedger } from "./paid-costs";
 import { synthesizeNarrationCached } from "./voice-cache";
 import { StorageStateUnknownError } from "./storage-state";
-import { framingForBeat, minimumClipSeconds, mixLevelsFor, planReelMontage, validateTimeline } from "./montage";
+import { REEL_FPS, TRANSITION_FRAMES, coverScenes, framingForBeat, minimumClipSeconds, mixLevelsFor, planReelMontage, validateTimeline, type PlannedShot } from "./montage";
 
 type OnProgress = (stage: RenderStage) => void | Promise<void>;
 
@@ -68,6 +77,7 @@ export async function generateDirectedVideoFromScript({
   direction,
   attempt,
   paid,
+  deps,
 }: {
   supabase: SupabaseClient;
   requestId: string;
@@ -87,6 +97,8 @@ export async function generateDirectedVideoFromScript({
    * generation_costs (las muestras no tienen fila en video_requests).
    */
   paid?: { capUsd?: number; otherCommittedUsd?: number; recordCosts?: boolean; ledger?: PaidLedger };
+  /** Solo pruebas: proveedor de animación y render inyectables (por defecto, los reales). */
+  deps?: { animationProvider?: VideoProvider | null; renderReel?: typeof renderVerticalReel };
 }): Promise<{ videoPath: string; ledger: PaidLedger }> {
   const flags = getFeatureFlags();
   const profile = PROFILES[direction.profile];
@@ -94,7 +106,16 @@ export async function generateDirectedVideoFromScript({
   let storageBytes = 0;
 
   // 1. Disponibilidad antes de cualquier gasto.
-  const readiness = evaluateDirectionReadiness({ profile: direction.profile, music: direction.music.id, sceneCount: segments.length, flags });
+  const animated = motionModeOf(direction.selection) === "ai_animation";
+  const readiness = evaluateDirectionReadiness({
+    profile: direction.profile,
+    music: direction.music.id,
+    sceneCount: segments.length,
+    flags,
+    motion: animated ? "ai_animation" : "images",
+    sceneTexts: segments.map((s) => s.text),
+    ...(deps?.animationProvider !== undefined ? { animationProvider: deps.animationProvider?.name ?? null } : {}),
+  });
   if (!readiness.ok) throw new DirectedProductionError(readinessErrorMessage(readiness));
 
   console.log(
@@ -136,22 +157,26 @@ export async function generateDirectedVideoFromScript({
     }
   }
 
-  // 3. Imágenes con el estilo del perfil (solo perfiles ilustrados).
-  const styledImages = new Map<number, { url: string; costUsd: number; status: "generated" | "reused" }>();
+  // 3. Imágenes con el estilo del perfil (perfiles ilustrados) o, en
+  //    «Animación IA», la ilustración base de cada escena (todos los perfiles).
+  const styledImages = new Map<number, { url: string; path: string; key: string; costUsd: number; status: "generated" | "reused" }>();
   let imageProviderName: string | undefined;
   let imageModel: string | undefined;
-  if (profile.visualSource === "generated_image") {
+  const bible = animated ? buildContinuityBible({ profile: direction.profile, intent: direction.intent.id, topic, scenes: segments }) : null;
+  const animationProvider = animated ? (deps?.animationProvider !== undefined ? deps.animationProvider : getReelAnimationProvider()) : null;
+  if (animated && !animationProvider) {
+    throw new DirectedProductionError("La animación IA no tiene proveedor disponible. Elige «Imágenes» en la revisión del guion. No se gastó nada.");
+  }
+  if (profile.visualSource === "generated_image" || animated) {
     await onProgress?.("footage");
     const imageProvider = getImageProvider();
     imageProviderName = imageProvider.name;
     for (let i = 0; i < segments.length; i++) {
       const segment = segments[i];
-      const styled = buildStyledImagePrompt({
-        profile: direction.profile,
-        intent: direction.intent.id,
-        concept: segment.visualConcepts?.[0] ?? segment.visualQuery,
-        narration: segment.text,
-      });
+      const concept = segment.visualConcepts?.[0] ?? segment.visualQuery;
+      const styled = bible
+        ? buildAnimationBaseImagePrompt({ profile: direction.profile, bible, concept, narration: segment.text })
+        : buildStyledImagePrompt({ profile: direction.profile, intent: direction.intent.id, concept, narration: segment.text });
       // Presupuesto de imágenes ACUMULADO entre intentos (registro durable), no solo este intento.
       const remaining = Math.max(0, flags.maxVisualCostUsd - (ledger.summary().byKind.image?.usd ?? 0));
       try {
@@ -164,13 +189,13 @@ export async function generateDirectedVideoFromScript({
           imageProvider,
           remainingBudgetUsd: remaining,
           signedUrlTtlSeconds: ASSET_SIGNED_URL_TTL_SECONDS,
-          objectPrefix: styledImageObjectPrefix(i, styled.key),
+          objectPrefix: bible ? `scene-${i}-animbase-${styled.key}` : styledImageObjectPrefix(i, styled.key),
           ledger,
           attempt,
         });
         storageBytes += outcome.bufferBytes;
         imageModel = outcome.model ?? imageModel;
-        styledImages.set(i, { url: outcome.url, costUsd: outcome.costUsd, status: outcome.status });
+        styledImages.set(i, { url: outcome.url, path: outcome.path, key: styled.key, costUsd: outcome.costUsd, status: outcome.status });
       } catch (err) {
         const blocked =
           err instanceof GeneratedImageUncertainError || err instanceof UncertainPaidOperationError || err instanceof PaidBudgetExceededError || err instanceof StorageStateUnknownError;
@@ -208,14 +233,29 @@ export async function generateDirectedVideoFromScript({
   // 5. Montaje sobre los tiempos reales.
   const finalDurationSeconds = voice.durationSeconds + VIDEO_TAIL_SECONDS;
   const sceneTimings = alignScenesToWords(segments, voice.words);
-  const shots = planReelMontage({
-    intent: direction.intent.id,
-    pace: direction.pace.id,
-    sceneEnergy: direction.sceneEnergy,
-    sceneTimings,
-    words: voice.words,
-    totalSeconds: finalDurationSeconds,
-  });
+  let shots: PlannedShot[];
+  if (animated) {
+    // Un plano continuo por escena (el clip animado). Si una escena necesita
+    // más que un clip, se detiene ANTES de pagar la animación: nunca se
+    // congela el último fotograma ni se ralentiza para rellenar.
+    const plan = planAnimatedShots({ sceneSpans: coverScenes(sceneTimings, finalDurationSeconds), transitionInFrames: TRANSITION_FRAMES[direction.intent.id], fps: REEL_FPS });
+    if (plan.tooLong.length > 0) {
+      throw new DirectedProductionError(
+        `La narración de la escena ${plan.tooLong.map((t) => `${t.sceneIndex + 1} (${t.neededSeconds.toFixed(1)} s)`).join(", ")} supera un clip animado de ${REEL_ANIMATION.clipSeconds} s. ` +
+          "Divide esa escena en la revisión del guion. No se generó ninguna animación.",
+      );
+    }
+    shots = plan.shots.map((shot) => ({ ...shot, role: shot.sceneIndex === 0 ? "hook" : "normal" }));
+  } else {
+    shots = planReelMontage({
+      intent: direction.intent.id,
+      pace: direction.pace.id,
+      sceneEnergy: direction.sceneEnergy,
+      sceneTimings,
+      words: voice.words,
+      totalSeconds: finalDurationSeconds,
+    });
+  }
   const timelineIssues = validateTimeline(shots, finalDurationSeconds);
   if (timelineIssues.length > 0) {
     throw new DirectedProductionError(`El montaje no cubre exactamente la narración: ${timelineIssues.map((i) => i.detail).join("; ")}`);
@@ -227,11 +267,83 @@ export async function generateDirectedVideoFromScript({
   const footageState = createFootageSelectionState();
   const scenes: Scene[] = [];
   const shotLog: Array<Record<string, unknown>> = [];
+  // 6a. «Animación IA»: un clip image-to-video por escena, a partir de su ilustración.
+  const clips = new Map<number, { url: string; status: string; costUsd: number }>();
+  if (animated && animationProvider && bible) {
+    const clipCost = animationClipCostUsd();
+    for (let i = 0; i < segments.length; i++) {
+      const base = styledImages.get(i);
+      if (!base) throw new DirectedProductionError(`Falta la ilustración base de la escena ${i + 1}; no se anima sin imagen de entrada.`);
+      const spec = planSceneAnimation({
+        sceneIndex: i,
+        segment: segments[i],
+        energy: direction.sceneEnergy[i] ?? "medium",
+        intent: direction.intent.id,
+        bible,
+        referenceImagePath: base.path,
+        referenceImageKey: base.key,
+      });
+      console.log(
+        "[atomivid:animation-plan]",
+        JSON.stringify({ requestId, scene: i, subject: spec.subject, action: spec.action, startState: spec.startState, endState: spec.endState, reference: spec.referenceImagePath, constants: spec.constants, framing: spec.framing, camera: spec.camera, key: spec.key }),
+      );
+      // Tope de animación ACUMULADO entre intentos (registro durable).
+      const spentOnVideo = ledger.summary().byKind.video?.usd ?? 0;
+      if (spentOnVideo + clipCost > flags.maxAiAnimationCostUsd + 1e-9) {
+        throw new DirectedProductionError(
+          `La animación de la escena ${i + 1} (~US$${clipCost.toFixed(2)}) superaría el tope de animación de este video (US$${flags.maxAiAnimationCostUsd.toFixed(2)}; comprometido US$${spentOnVideo.toFixed(2)}). No se llamó al proveedor.`,
+        );
+      }
+      try {
+        const input = await prepareAnimationInputImage({
+          supabase,
+          bucket: STORAGE_BUCKET,
+          requestId,
+          baseImagePath: base.path,
+          objectPrefix: `scene-${i}-anim-${spec.key}`,
+          signedUrlTtlSeconds: ASSET_SIGNED_URL_TTL_SECONDS,
+        });
+        const clip = await resolveAnimatedClipForScene({
+          supabase,
+          bucket: STORAGE_BUCKET,
+          requestId,
+          spec,
+          inputImage: input,
+          videoProvider: animationProvider,
+          maxCostUsd: clipCost,
+          signedUrlTtlSeconds: ASSET_SIGNED_URL_TTL_SECONDS,
+          ledger,
+          attempt,
+        });
+        storageBytes += clip.bufferBytes;
+        clips.set(i, { url: clip.url, status: clip.status, costUsd: clip.costUsd });
+      } catch (err) {
+        const blocked =
+          err instanceof AnimatedClipUncertainError || err instanceof UncertainPaidOperationError || err instanceof PaidBudgetExceededError || err instanceof StorageStateUnknownError;
+        throw new DirectedProductionError(
+          `No se pudo animar la escena ${i + 1}: ${err instanceof Error ? err.message : String(err)}. ` +
+            "No se sustituyó por una imagen fija con zoom. " +
+            (blocked
+              ? "Requiere revisión antes de volver a intentar (no se repite un gasto incierto)."
+              : "Puedes reintentar: las ilustraciones y los clips ya guardados se reutilizan, y una operación ya enviada se reanuda sin crear otra."),
+        );
+      }
+    }
+  }
+
   for (let s = 0; s < shots.length; s++) {
     const shot = shots[s];
     const segment = segments[shot.sceneIndex];
     const base = { startSeconds: shot.startSeconds, endSeconds: shot.endSeconds, motion: shot.motion, transitionInFrames: shot.transitionInFrames };
-    const styled = styledImages.get(shot.sceneIndex);
+    const clip = clips.get(shot.sceneIndex);
+    if (clip) {
+      // Clip animado (movimiento real dentro de la escena); su audio generado se descarta (render silenciado).
+      scenes.push({ ...base, mediaUrl: clip.url, mediaType: "video", motion: "hold" });
+      shotLog.push({ ...shot, source: "ai_animation", clip: clip.status });
+      continue;
+    }
+    const styled = animated ? undefined : styledImages.get(shot.sceneIndex);
+    if (animated) throw new DirectedProductionError(`Falta el clip animado de la escena ${shot.sceneIndex + 1}.`);
     if (styled) {
       // Imagen fija con movimiento de cámara (paneo/zoom), no animación generada.
       const framing = framingForBeat(shot.beatIndex);
@@ -277,7 +389,7 @@ export async function generateDirectedVideoFromScript({
   const renderStartedAt = Date.now();
   const look = reelLookFor(direction.profile, direction.intent.id);
   const mix = mixLevelsFor(direction.intent.id);
-  const rawOutputPath = await renderVerticalReel({
+  const rawOutputPath = await (deps?.renderReel ?? renderVerticalReel)({
     audioUrl,
     musicUrl,
     scenes,
@@ -336,6 +448,9 @@ export async function generateDirectedVideoFromScript({
               imageReusedCount: generated.filter((g) => g.status === "reused").length,
               imageDryRun: false,
               imageModel,
+              ...(totals.video
+                ? { premiumVideoProvider: animationProvider?.name, premiumVideoClipCount: totals.video.count, premiumVideoCostUsd: totals.video.usd }
+                : {}),
             }
           : undefined,
     }).catch((err) => {

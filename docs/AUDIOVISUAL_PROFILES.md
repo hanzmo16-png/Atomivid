@@ -205,6 +205,92 @@ Archivos: `.github/workflows/audiovisual-samples.yml`, `scripts/audiovisual-samp
   - operación incierta (se bloquea hasta recuperarla explícitamente);
   - estilo inconsistente entre escenas o música que contradiga la dirección al escucharla (revisión humana antes de la siguiente tanda).
 
+## Animación IA (image-to-video con Veo) — implementada, sin muestra real
+
+El estilo (los cinco perfiles) y el **modo de movimiento** son ejes separados:
+
+- **Imágenes:** es el modo de siempre y el que tienen todas las solicitudes anteriores. Las ilustraciones son fijas y solo llevan movimiento de cámara (zoom, paneo, fundidos).
+- **Animación IA:** cada escena parte de una ilustración con el estilo del perfil y se convierte en un clip con **movimiento real dentro de la escena**. Zoom, paneo o fundidos no cuentan como animación.
+
+### Modelo y modalidad
+
+Se reutiliza el adaptador `src/lib/providers/video-gen/veo.ts`, el mismo del clip real de Panamá (P2B).
+
+- **Modelo:** Google Veo 3.1 Fast (`veo-3.1-fast-generate-preview`), Gemini API REST `predictLongRunning`.
+- **Modalidad:** solo **image-to-video**.
+  - La ilustración de la escena, recortada a 9:16 (1080×1920), viaja como imagen de entrada real en `instances[0].image.bytesBase64Encoded`.
+  - El adaptador rechaza cualquier pedido sin imagen: nunca cae a text-to-video.
+- **Parámetros:** 9:16, 1080p y 8 s por clip, a US$0,12/s, es decir **US$0,96 por clip**.
+- **Verificación:**
+  - La documentación oficial (ai.google.dev, docs.cloud.google.com) está bloqueada desde este entorno.
+  - Los datos vienen de la verificación de Hans (P2A.6), la corrección del campo `bytesBase64Encoded` confirmada por el HTTP 400 real de P2B, y búsquedas que citan la página de precios (Veo 3.1 Fast: US$0,10/s a 720p, US$0,12/s a 1080p).
+  - 720p (más barato) y las duraciones de 4 o 6 s **no están verificadas** para este modelo; no se cambiaron.
+  - Las «imágenes de referencia» (hasta 3) aparecen documentadas para `veo-3.1-generate-preview`, no para la variante Fast; no se usan.
+- **Audio:** Veo siempre genera audio. El render lo silencia (`OffthreadVideo muted`) y el prompt pide que no haya diálogo ni música. La narración y la música de ATOMIVID son el único audio.
+
+### Recorrido (`animation.ts`, `animated-clip.ts`, `directed-reel.ts`)
+
+1. **Antes de gastar:** se comprueban el flag, el proveedor, el tope de animación y las escenas demasiado largas, en el formulario, al aprobar el guion (409) y en el worker.
+2. **Ilustraciones base:** una por escena, también en los perfiles de stock (Cine realista y Horror tienen un estilo base propio). Usan una **biblia de continuidad** compartida: estilo, paleta, lugar y sujeto recurrente.
+3. **Voz:** la de siempre, con su caché.
+4. **Montaje:** un plano continuo por escena, sin zoom añadido. Si una escena necesita más de 8 s, se detiene antes de pagar Veo: nunca se congela ni se ralentiza.
+5. **Clip por escena:**
+   - la especificación declara narración, sujeto, acción visible, estado inicial y final, referencia, constantes, encuadre (tercio inferior libre para subtítulos) y cámara;
+   - hay una reserva durable antes de enviar y un marcador con el id de la operación en cuanto Veo la acepta.
+6. **Render:** recibe los clips (`mediaType: "video"`), que se recortan a la duración de cada escena.
+
+### Errores, reintentos y costos
+
+- **Reutilización:** las ilustraciones y los clips ya guardados se reutilizan sin pagar.
+- **Caché:** su clave distingue la imagen de entrada, las instrucciones, el modelo, la resolución, el formato y la duración.
+- **Sondeo cortado:** el reintento **reanuda la misma operación** (`resumeGeneration`) y liquida la misma reserva. No se crea otra.
+- **Fallos que bloquean:**
+  - operación fallida, por ejemplo por seguridad;
+  - archivo inválido;
+  - cobro sin guardar;
+  - reserva sin id de operación.
+
+  Todos exigen recuperación explícita (`recoverPaidOperation`): presupuesto primero, gasto conservado. Una operación reanudable no se «recupera»: se reanuda.
+- **Sin sustitución:** un fallo nunca se reemplaza por una imagen fija con zoom. El mensaje lo dice y el estado queda recuperable.
+- **Sin reintentos ocultos:** solo se repite automáticamente una solicitud que no salió.
+- **Registro:** el tipo `video` del registro de gasto, con tope acumulado entre intentos. `generation_costs` recibe los clips como video premium. No se tocó Stripe ni el cobro al cliente.
+
+### Activación (apagada por defecto)
+
+- `REEL_AI_ANIMATION_ENABLED=true`.
+- `MAX_AI_ANIMATION_COST_USD`, el tope de animación por video. Vale 0 por defecto, lo que significa «no disponible».
+- `VEO_API_KEY`.
+- Además, la generación de imágenes habilitada.
+- `REEL_ANIMATION_PROVIDER=fixture` solo funciona fuera de producción: es el proveedor simulado de las pruebas gratuitas.
+
+### Evidencia
+
+| Tipo | Qué |
+| --- | --- |
+| **Comprobado con código** | Pruebas con proveedores simulados (`animation.test.ts`):<br>• «Imágenes» no llama a Veo;<br>• «Animación IA» envía la ilustración como imagen de entrada; con el adaptador real de Veo y `fetch` simulado, los bytes llegan en `bytesBase64Encoded`;<br>• el render recibe los clips;<br>• la selección persiste;<br>• un reintento reutiliza o reanuda sin crear otra operación;<br>• el tope bloquea antes de gastar;<br>• un fallo no se disimula con una imagen;<br>• las solicitudes antiguas conservan su huella. |
+| **Render gratuito** | `scripts/test-pipeline-audiovisual.ts --only comic-anim`: proveedor simulado (MP4 real a partir de la ilustración, con un elemento en movimiento) y render Remotion 1080×1920. Demuestra el recorrido técnico, **no calidad visual**. |
+| **Visto / escuchado** | Ninguna animación real. Ningún estilo está validado con una muestra real revisada. |
+
+### Pendiente de revisión visual
+
+- **Identidad entre escenas:** que el dibujo del clip conserve el de la ilustración y que personajes y lugares se mantengan entre escenas. Compartir un prompt no lo garantiza, y la muestra Cómic ya mostró un faro que cambia de diseño.
+- **Acción:** que la acción sea legible en 8 s y no invada la zona de subtítulos.
+- **Personas:** el comportamiento de Veo con personas reales en «Cine realista» u «Horror» (restricciones de generación de personas).
+
+### Primera prueba real propuesta (no autorizada)
+
+`scripts/reel-animation-clips.ts`: solo clips cortos, sin reel completo. El modo `plan` no llama a nada.
+
+| Opción | Clips | Segundos facturables | Video | Ilustraciones nuevas | Máximo con reintentos |
+| --- | --- | --- | --- | --- | --- |
+| Mínima | cómic sutil + anime sutil | 16 | US$1,92 | 2 (reserva US$0,14) | **US$3,09** |
+| Recomendada | cómic sutil + cómic acción + anime sutil + anime acción | 32 | US$3,84 | 2–4 (reserva US$0,14–0,28) | **US$5,01–5,15** |
+
+- **Reutilización de ilustraciones:** reutilizar las del Cómic de la muestra real (`ANIMATION_INPUT_COMIC_*`) ahorra 2 ilustraciones.
+- **Otros costos:** no hay guion, voz, música ni render pagado.
+- **Tope de la prueba:** lo impone el registro durable (`ANIMATION_TOTAL_USD`).
+- **No se regenera el reel completo del faro** hasta revisar estos clips.
+
 ## Segunda fase: YouTube Long Form
 
 - Los cinco perfiles llegarán a Long Form después, con ritmos de documental propios; no se reutiliza la tabla de ritmos de Reels.

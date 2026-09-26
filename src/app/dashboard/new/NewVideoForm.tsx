@@ -5,7 +5,7 @@ import { Field, INPUT_CLASS } from "@/components/ui/Field";
 import { AvatarFields } from "./AvatarFields";
 import { SubmitButton } from "./SubmitButton";
 import { avatarDurationSelectorApplies } from "./validation";
-import { AudiovisualSelector, type ProfileAvailability } from "@/components/video/AudiovisualSelector";
+import { AudiovisualSelector, type AnimationAvailability, type ProfileAvailability } from "@/components/video/AudiovisualSelector";
 
 const STYLES = [
   "Motivacional",
@@ -45,7 +45,7 @@ export function NewVideoForm({
   /** Preselecciona "Video con avatar" cuando se llega desde ese tipo en el selector "¿Qué quieres crear?" (ContentTypeStep) — solo tiene efecto si avatarModeEnabled también es true. */
   initialMode?: VideoMode;
   /** Dirección audiovisual (AUDIOVISUAL_PROFILES_ENABLED). Ausente = formulario de siempre. Solo aplica a Reel (mode visual). */
-  audiovisual?: { availabilityByDuration: Record<number, ProfileAvailability> };
+  audiovisual?: { availabilityByDuration: Record<number, ProfileAvailability>; animationByDuration?: Record<number, AnimationAvailability> };
 }) {
   const [mode, setMode] = useState<VideoMode>(avatarModeEnabled ? initialMode : "visual");
   const [language, setLanguage] = useState<"es" | "en">("es");
@@ -101,7 +101,11 @@ export function NewVideoForm({
       </Field>
 
       {audiovisual && mode === "visual" && (
-        <AudiovisualSelector style={style || undefined} availability={audiovisual.availabilityByDuration[duration]} />
+        <AudiovisualSelector
+          style={style || undefined}
+          availability={audiovisual.availabilityByDuration[duration]}
+          animation={audiovisual.animationByDuration?.[duration]}
+        />
       )}
 
       {/* El hidden siempre se envía (fallback si la medición real del audio

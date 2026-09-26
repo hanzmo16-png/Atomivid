@@ -17,7 +17,7 @@ const read = (...p: string[]) => readFileSync(path.join(APP, ...p), "utf8");
 test("render: resuelve/reutiliza la dirección y comprueba disponibilidad ANTES de marcar processing, y la guarda en el mismo UPDATE atómico", () => {
   const src = read("api", "generate", "[id]", "render", "route.ts");
   const resolve = src.indexOf("directionForApprovedScript(");
-  const readiness = src.indexOf("evaluateDirectionReadiness(");
+  const readiness = src.indexOf("readinessForScript(direction, videoRequest.script_json.segments)");
   const cas = src.indexOf('status: "processing"');
   assert.ok(resolve > 0 && readiness > resolve && cas > readiness);
   assert.match(src, /status: 409/);
@@ -80,4 +80,18 @@ test("persistencia: solicitudes antiguas (NULL) siguen sin dirección; una selec
   assert.deepEqual(updates, [], "nunca escribe en filas sin selección");
   await invalidateDirection(fakeService({}, updates), "r", { available: true, selection: { version: 1, profile: "anime" }, direction: { x: 1 } });
   assert.deepEqual(updates, [{ audiovisual_direction: null }]);
+});
+
+test("animación: el modo de movimiento viaja del formulario a la creación, a la revisión y al PATCH de dirección", () => {
+  const selector = read("..", "components", "video", "AudiovisualSelector.tsx");
+  assert.ok(selector.includes('name="av_motion"'));
+  const actions = read("dashboard", "new", "actions.ts");
+  assert.match(actions, /motion: formData\.get\("av_motion"\)/);
+  assert.match(actions, /animationAvailabilityByDuration\(\[durationSeconds\]\)/, "la animación no disponible se rechaza al crear, nunca se ignora");
+  const panel = read("dashboard", "review", "[id]", "DirectionPanel.tsx");
+  assert.match(panel, /motion: data\.get\("av_motion"\)/);
+  const patch = read("api", "generate", "[id]", "direction", "route.ts");
+  assert.match(patch, /motion: body\?\.motion/);
+  const render = read("api", "generate", "[id]", "render", "route.ts");
+  assert.match(render, /readinessForScript\(direction, videoRequest\.script_json\.segments\)/, "al aprobar se comprueba la animación antes de gastar");
 });

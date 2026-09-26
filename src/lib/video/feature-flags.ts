@@ -103,6 +103,15 @@ export function getFeatureFlags() {
     audiovisualProfilesEnabled: flag("AUDIOVISUAL_PROFILES_ENABLED", false),
     /** Tope de imágenes generadas por video en perfiles ilustrados (una por escena). El gasto sigue limitado por MAX_VISUAL_COST_USD. */
     maxStyledImagesPerVideo: numberEnv("MAX_STYLED_IMAGES_PER_VIDEO", 10),
+    /**
+     * «Animación IA» en Reels (image-to-video con Veo, ver
+     * src/lib/video/audiovisual/animation.ts). Apagado por defecto: ninguna
+     * cuenta ni solicitud existente la recibe. Además exige un tope explícito
+     * de gasto de animación por video (MAX_AI_ANIMATION_COST_USD, 0 por
+     * defecto = no disponible).
+     */
+    reelAiAnimationEnabled: flag("REEL_AI_ANIMATION_ENABLED", false),
+    maxAiAnimationCostUsd: numberEnv("MAX_AI_ANIMATION_COST_USD", 0),
   };
 }
 
