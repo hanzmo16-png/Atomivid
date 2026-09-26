@@ -1,5 +1,5 @@
 import { getScriptProvider } from "@/lib/providers/script";
-import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
+import type { GeneratedScript, ScriptCallRunner, ScriptLanguage } from "@/lib/providers/types";
 
 /**
  * Etapa 1 del pipeline: solo el guion. Se guarda para que el usuario lo
@@ -25,6 +25,7 @@ export async function generateScriptForRequest({
   durationSeconds,
   language = "es",
   guidance,
+  runCall,
 }: {
   topic: string;
   style: string;
@@ -32,8 +33,10 @@ export async function generateScriptForRequest({
   language?: ScriptLanguage;
   /** Guía de redacción de la dirección audiovisual (ver audiovisual/catalog.ts, scriptGuidanceFor). */
   guidance?: string;
+  /** Envoltorio de cada llamada real al proveedor (registro de gasto de las muestras). */
+  runCall?: ScriptCallRunner;
 }): Promise<{ script: GeneratedScript; providerName: string }> {
   const scriptProvider = getScriptProvider();
-  const script = await scriptProvider.generateScript({ topic, style, durationSeconds, language, ...(guidance ? { guidance } : {}) });
+  const script = await scriptProvider.generateScript({ topic, style, durationSeconds, language, ...(guidance ? { guidance } : {}), ...(runCall ? { runCall } : {}) });
   return { script, providerName: scriptProvider.name };
 }

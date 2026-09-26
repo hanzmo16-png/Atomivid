@@ -25,6 +25,8 @@ import { PaidBudgetExceededError, type PaidEntry, type PaidLedger } from "./paid
 import { isStorageNotFound, readJsonState, writeJsonState, StorageStateUnknownError } from "./storage-state";
 import { findExistingGeneratedImage, generatedImageMarkerPath, type GeneratedImageMarker } from "../visual-resource-resolver";
 import type { VoiceCacheRecord } from "./voice-cache";
+import { scriptGenerationReserveUsd } from "./paid-costs";
+import { blockingScriptEntries } from "./script-ledger";
 import { createHash } from "node:crypto";
 
 export class RecoveryRefusedError extends Error {
@@ -70,6 +72,7 @@ export async function recoverPaidOperation({
   capUsd?: number;
 }): Promise<RecoveryResult> {
   if (!note.trim()) throw new RecoveryRefusedError(key, "falta la nota del operador");
+  if (key.startsWith("script:")) return recoverScriptGroup({ ledger, key, note, capUsd });
   const entry = ledger.latest(key);
   if (!entry) throw new RecoveryRefusedError(key, "no existe en el registro de gasto");
   if (entry.status === "released") throw new RecoveryRefusedError(key, "se liberó con costo cero; no está bloqueada");
@@ -137,4 +140,30 @@ async function completedAudioIntact(supabase: SupabaseClient, bucket: string, re
     throw new StorageStateUnknownError("el audio de la narración guardada", error?.message ?? "vacío");
   }
   return createHash("sha256").update(Buffer.from(await data.arrayBuffer())).digest("hex") === record.audioSha256;
+}
+
+/**
+ * Guion: una generación son VARIAS llamadas (borrador, correcciones de
+ * longitud, reintentos), cada una con su entrada. `key` es el grupo (p. ej.
+ * «script:samples/audiovisual/horror») o una llamada concreta; se reconocen
+ * todas las entradas del grupo que siguen bloqueando. No hay estado en
+ * Storage que liberar: el guion solo se guarda si la generación terminó.
+ * Presupuesto: comprometido + el peor caso de una generación nueva.
+ */
+async function recoverScriptGroup({ ledger, key, note, capUsd }: { ledger: PaidLedger; key: string; note: string; capUsd?: number }): Promise<RecoveryResult> {
+  const blocking = blockingScriptEntries(ledger, key);
+  if (blocking.length === 0) throw new RecoveryRefusedError(key, "no hay llamadas de guion bloqueadas en ese grupo");
+  const caps = [ledger.snapshot().capUsd, capUsd].filter((c): c is number => c !== undefined);
+  if (caps.length === 0) throw new RecoveryRefusedError(key, "el registro no tiene tope; sin tope no se autoriza otro intento pagado");
+  const cap = Math.min(...caps);
+  const committedUsd = ledger.summary().committedUsd;
+  const retryReserveUsd = scriptGenerationReserveUsd();
+  if (committedUsd + retryReserveUsd > cap + 1e-9) {
+    throw new PaidBudgetExceededError(
+      `No se recuperó «${key}»: una generación nueva reservaría hasta US$${retryReserveUsd.toFixed(4)} y el comprometido (incluidos los intentos anteriores) es US$${committedUsd.toFixed(4)} de un tope de US$${cap.toFixed(2)}. No se cambió nada.`,
+    );
+  }
+  let acknowledged = false;
+  for (const e of blocking) acknowledged = (await ledger.acknowledge(e.key, note)) || acknowledged;
+  return { key, kind: "script", released: null, acknowledged, committedUsd: ledger.summary().committedUsd, retryReserveUsd, capUsd: cap };
 }

@@ -7,7 +7,7 @@ name: Muestras reales — dirección audiovisual (Reels)
 #   la estimación y lo ya comprometido (lectura del registro durable).
 # - mode=run: gasto real. Exige además confirm=GASTAR. Las claves de pago
 #   solo se inyectan en ese caso.
-# Topes DUROS en código: US$3,50 total y US$0,75 por muestra; estas entradas
+# Topes DUROS en código: US$1 total (autorizado) y US$0,75 por muestra; estas entradas
 # solo pueden bajarlos. El acumulado se lee de los registros durables de
 # todas las muestras (reintentos incluidos), así que re-ejecutar no
 # reinicia el presupuesto. Se detiene ante el primer fallo.
@@ -24,9 +24,9 @@ on:
         type: string
         default: "horror,comic-mystery"
       total_budget_usd:
-        description: "Tope total acumulado (máx. 3.50)"
+        description: "Tope total acumulado (máx. 1.00, monto autorizado)"
         type: string
-        default: "3.50"
+        default: "1.00"
       per_sample_budget_usd:
         description: "Tope por muestra (máx. 0.75)"
         type: string

@@ -11,8 +11,12 @@
  *    caracteres × tarifa registrada (billing/pricing.ts) → estimated. Los
  *    caracteres son exactos; la tarifa real depende del plan contratado.
  *    Reserva con +20 % de margen.
- *  - Guion (Claude): tokens estimados desde caracteres (pricing.ts) →
- *    estimated. Reserva por el peor caso de 3 intentos de longitud.
+ *  - Guion (Claude): CADA llamada real (primer borrador, correcciones de
+ *    longitud y reintentos permitidos) es una operación propia del
+ *    registro. Se reserva por llamada con el peor caso (tokens de entrada
+ *    estimados con margen + max_tokens de salida) y se liquida con los
+ *    tokens MEDIDOS del `usage` de la respuesta × tarifa registrada
+ *    (pricing.ts) → provider_usage; sin `usage`, por la reserva (estimated).
  *  - Stock (Pexels/Pixabay), música curada y render: sin costo por llamada;
  *    no pasan por el registro.
  */
@@ -25,7 +29,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const IMAGE_RESERVE_USD = 0.07;
 export const VOICE_RESERVE_MARGIN = 1.2;
-export const SCRIPT_RESERVE_USD = 0.08;
+/** Iguales a MAX_LENGTH_ATTEMPTS y SCRIPT_MAX_TOKENS de src/lib/ai/script.ts (una prueba lo verifica). */
+export const SCRIPT_LENGTH_ATTEMPTS = 3;
+export const SCRIPT_MAX_TOKENS_PER_CALL = 2000;
+/** Caracteres de system + prompt de un guion de muestra con margen (el real ronda 3.500-4.500). */
+export const SCRIPT_PROMPT_CHARS_ESTIMATE = 7000;
 
 export function voiceCostUsd(characters: number): number {
   return (characters / 1000) * getPricingConfig().elevenLabsUsdPer1kChars;
@@ -33,6 +41,34 @@ export function voiceCostUsd(characters: number): number {
 
 export function voiceReserveUsd(characters: number): number {
   return voiceCostUsd(characters) * VOICE_RESERVE_MARGIN;
+}
+
+/**
+ * Reserva de UNA llamada de guion antes de hacerla: la salida está acotada
+ * por max_tokens; la entrada se sobreestima (1 token cada 2 caracteres, más
+ * 3.000 tokens de margen para el esquema de salida estructurada y el
+ * formato del mensaje).
+ */
+export function scriptCallReserveUsd(promptChars: number, maxTokens: number): number {
+  const rates = getPricingConfig();
+  const inputTokens = Math.ceil(promptChars / 2) + 3000;
+  return (inputTokens / 1e6) * rates.scriptInputUsdPer1MTokens + (maxTokens / 1e6) * rates.scriptOutputUsdPer1MTokens;
+}
+
+/** Peor caso de una generación completa: tres llamadas (borrador + dos correcciones de longitud). */
+export function scriptGenerationReserveUsd(): number {
+  return SCRIPT_LENGTH_ATTEMPTS * scriptCallReserveUsd(SCRIPT_PROMPT_CHARS_ESTIMATE, SCRIPT_MAX_TOKENS_PER_CALL);
+}
+
+/**
+ * Costo de una llamada desde los tokens MEDIDOS de la respuesta. Los tokens
+ * de caché se cobran de forma conservadora (creación ×1,25; lectura a tarifa
+ * completa de entrada).
+ */
+export function scriptUsageCostUsd(usage: { input_tokens: number; output_tokens: number; cache_creation_input_tokens?: number | null; cache_read_input_tokens?: number | null }): number {
+  const rates = getPricingConfig();
+  const inputTokens = usage.input_tokens + 1.25 * (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
+  return (inputTokens / 1e6) * rates.scriptInputUsdPer1MTokens + (usage.output_tokens / 1e6) * rates.scriptOutputUsdPer1MTokens;
 }
 
 export function scriptCostUsd(inputChars: number, outputChars: number): number {

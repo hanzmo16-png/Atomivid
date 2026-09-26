@@ -14,8 +14,8 @@ import { anticipatedIntent, scriptGuidanceFor } from "@/lib/video/audiovisual/ca
 
 // Sin esto, la función queda al límite por defecto de la plataforma (tan
 // bajo como 10s en algunos planes de Vercel) — una llamada real a Claude
-// para generar un guion completo, más los reintentos ante fallos
-// transitorios (ver withRetry en providers/script/real.ts), puede
+// para generar un guion completo, más las correcciones de longitud y los
+// pocos reintentos seguros (ver callScriptModel en src/lib/ai/script.ts), puede
 // superarlo. Cuando eso pasa, Vercel corta la función a medias: el cliente
 // recibe un cuerpo vacío/truncado ("Unexpected end of JSON input" al
 // intentar parsearlo) y la solicitud se queda sin marcar como fallida,

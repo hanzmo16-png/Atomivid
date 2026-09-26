@@ -9,19 +9,23 @@ const ROOT = path.join(__dirname, "..", "..", "..", "..");
 const manifest = parseSampleManifest(JSON.parse(readFileSync(path.join(ROOT, "docs/quality/audiovisual-samples/manifest.json"), "utf8")));
 const rates = { imageTypicalUsd: 0.0558, voiceTypicalUsd: voiceCostUsd, scriptTypicalUsd: 0.03 };
 
-test("muestras: topes duros US$3,50 total y US$0,75 por muestra; las entradas solo pueden bajarlos", () => {
-  assert.deepEqual(resolveCaps({}), { totalUsd: 3.5, perSampleUsd: 0.75 });
-  assert.deepEqual(resolveCaps({ totalUsd: "1.00", perSampleUsd: "0.5" }), { totalUsd: 1, perSampleUsd: 0.5 });
-  assert.throws(() => resolveCaps({ totalUsd: "3.51" }), /supera el máximo/);
+test("muestras: topes duros US$1 total (autorizado) y US$0,75 por muestra; las entradas solo pueden bajarlos", () => {
+  assert.deepEqual(resolveCaps({}), { totalUsd: 1, perSampleUsd: 0.75 });
+  assert.deepEqual(resolveCaps({ totalUsd: "0.90", perSampleUsd: "0.5" }), { totalUsd: 0.9, perSampleUsd: 0.5 });
+  assert.throws(() => resolveCaps({ totalUsd: "1.01" }), /supera el máximo/);
+  assert.throws(() => resolveCaps({ totalUsd: "3.50" }), /supera el máximo/, "la propuesta original no está autorizada");
   assert.throws(() => resolveCaps({ perSampleUsd: "0.80" }), /supera el máximo/);
   assert.throws(() => resolveCaps({ totalUsd: "-1" }), /inválido/);
 });
 
-test("muestras: el peor caso reservado de cada muestra cabe en su tope y el de las seis en el total", () => {
+test("muestras: el peor caso de cada muestra cabe en su tope y la primera tanda cabe en el total autorizado aun con los US$0,08 inciertos", () => {
   assert.equal(manifest.samples.length, 6);
   const estimates = manifest.samples.map((s) => estimateSample(s, rates));
   for (const e of estimates) assert.ok(e.reserveUsd <= SAMPLE_HARD_PER_SAMPLE_USD, `${e.id}: ${e.reserveUsd}`);
-  assert.ok(estimates.reduce((a, e) => a + e.reserveUsd, 0) <= SAMPLE_HARD_TOTAL_USD);
+  const firstBatch = estimates.filter((e) => e.id === "horror" || e.id === "comic-mystery").reduce((a, e) => a + e.reserveUsd, 0);
+  assert.ok(0.08 + firstBatch <= SAMPLE_HARD_TOTAL_USD, `0,08 + ${firstBatch}`);
+  // Las seis NO caben en US$1: requieren una nueva autorización.
+  assert.ok(estimates.reduce((a, e) => a + e.reserveUsd, 0) > SAMPLE_HARD_TOTAL_USD);
   assert.equal(estimates.find((e) => e.id === "comic-mystery")!.images, 6);
   assert.equal(estimates.find((e) => e.id === "horror")!.images, 0);
 });

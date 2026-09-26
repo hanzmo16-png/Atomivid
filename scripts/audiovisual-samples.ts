@@ -15,14 +15,16 @@
  *         impreso al inicio es solo informativo);
  *      2. abre su registro de gasto durable (samples/audiovisual/<id>/state/paid-ledger.json)
  *         con ese tope;
- *      3. guion (Claude) una sola vez, reservado y liquidado en el registro,
- *         guardado y reutilizado en reintentos;
+ *      3. guion (Claude) una sola vez, guardado y reutilizado en reintentos;
+ *         CADA llamada real (borrador, correcciones de longitud, reintentos
+ *         permitidos) se reserva y liquida en el registro con sus tokens
+ *         medidos (script-ledger.ts), con diagnóstico seguro por llamada;
  *      4. producción con el MISMO pipeline de producto (directed-reel.ts):
  *         música compatible, imágenes con marcadores, voz con caché,
  *         cada operación pagada reservada antes de llamar;
  *      5. descarga el MP4 y extrae fotograma, hoja de contacto y loudness.
  *
- * Topes duros en código: US$3,50 total y US$0,75 por muestra (las entradas
+ * Topes duros en código: US$1 total (monto autorizado) y US$0,75 por muestra (las entradas
  * solo pueden bajarlos). Operaciones inciertas: cuentan por su reserva y
  * bloquean su repetición; SAMPLE_ACKNOWLEDGE="<muestra>:<clave>|<nota>,…"
  * las recupera explícitamente (recovery.ts: comprueba presupuesto, libera el
@@ -41,7 +43,7 @@ const PREFIX = "samples/audiovisual";
 
 async function main() {
   const { parseSampleManifest, resolveCaps, estimateSample, sampleBudgetDecision, SAMPLE_DURATION_SECONDS } = await import("../src/lib/video/audiovisual/sample-plan");
-  const { voiceCostUsd, openStorageLedger, SCRIPT_RESERVE_USD } = await import("../src/lib/video/audiovisual/paid-costs");
+  const { voiceCostUsd, openStorageLedger } = await import("../src/lib/video/audiovisual/paid-costs");
   const { summarizeLedger } = await import("../src/lib/video/audiovisual/paid-ledger");
   const { readJsonState, writeJsonState } = await import("../src/lib/video/audiovisual/storage-state");
 
@@ -112,6 +114,7 @@ async function main() {
   const { checkScriptQuality } = await import("../src/lib/video/script-quality");
   const { targetWordsFor } = await import("../src/lib/video/script-pacing");
   const { generateDirectedVideoFromScript } = await import("../src/lib/video/audiovisual/directed-reel");
+  const { scriptScope, assertScriptGenerationClear, ledgeredScriptRunner } = await import("../src/lib/video/audiovisual/script-ledger");
   // Identificador del intento para trazar el registro (el run de GitHub Actions; local: marca de tiempo).
   const attempt = Number((process.env.GITHUB_RUN_ID ?? String(Date.now())).slice(-9));
 
@@ -144,16 +147,20 @@ async function main() {
       if (!script) {
         const guidance = scriptGuidanceFor(anticipatedIntent(sample.selection, sample.style));
         const key = createHash("sha256").update(JSON.stringify([sample.topic, sample.style, SAMPLE_DURATION_SECONDS, guidance ?? ""])).digest("hex").slice(0, 16);
-        const generated = await ledger.run(
-          { key: `script:${prefix}/${key}`, kind: "script", provider: "anthropic", reserveUsd: SCRIPT_RESERVE_USD, label: `guion ${sample.id}` },
-          async () => {
-            const r = await generateScriptForRequest({ topic: sample.topic, style: sample.style, durationSeconds: SAMPLE_DURATION_SECONDS, language: "es", ...(guidance ? { guidance } : {}) });
-            // Tokens no medidos: se liquida por la reserva (conservador) y se documenta como estimado.
-            return { value: r, settle: { actualUsd: SCRIPT_RESERVE_USD, costBasis: "estimated" as const, note: "tokens no medidos; liquidado por la reserva" } };
-          },
-          (err) => (/ANTHROPIC_API_KEY/.test(err instanceof Error ? err.message : "") ? "not_sent" : "uncertain"),
-          attempt,
-        );
+        // Cada llamada real a Claude (borrador, correcciones de longitud,
+        // reintentos permitidos) es su propia entrada del registro, liquidada
+        // con los tokens medidos. Una generación anterior con llamadas
+        // inciertas o pagadas sin guion guardado bloquea hasta recuperarla.
+        const scope = scriptScope(prefix);
+        assertScriptGenerationClear(ledger, scope);
+        const generated = await generateScriptForRequest({
+          topic: sample.topic,
+          style: sample.style,
+          durationSeconds: SAMPLE_DURATION_SECONDS,
+          language: "es",
+          ...(guidance ? { guidance } : {}),
+          runCall: ledgeredScriptRunner(ledger, scope, key, attempt),
+        });
         const quality = checkScriptQuality(generated.script, { topic: sample.topic, targetWords: targetWordsFor(SAMPLE_DURATION_SECONDS), providerName: generated.providerName });
         if (!quality.ok) throw new Error(`Guion de ${sample.id} no pasó el control de calidad (${quality.issue}). Detenido sin regenerar.`);
         script = generated.script;

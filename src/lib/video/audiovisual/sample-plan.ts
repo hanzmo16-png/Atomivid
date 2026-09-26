@@ -2,18 +2,19 @@
  * Plan y control de gasto de las MUESTRAS REALES de la dirección
  * audiovisual (scripts/audiovisual-samples.ts). Puro: sin red.
  *
- * Topes duros (en código, no solo en el workflow): US$3,50 en total y
- * US$0,75 por muestra. Las entradas del workflow solo pueden BAJARLOS.
+ * Topes duros (en código, no solo en el workflow): US$1 en total (monto
+ * AUTORIZADO por Hans; la propuesta original pedía US$3,50) y US$0,75 por
+ * muestra. Las entradas del workflow solo pueden BAJARLOS.
  * El acumulado se calcula desde los registros durables de TODAS las
  * muestras (incluidos intentos fallidos y operaciones inciertas), así que
  * un reintento del workflow nunca reinicia el presupuesto.
  */
 import { PROFILES, parseSelection, type AudiovisualSelection } from "./catalog";
-import { IMAGE_RESERVE_USD, SCRIPT_RESERVE_USD, voiceReserveUsd } from "./paid-costs";
+import { IMAGE_RESERVE_USD, scriptGenerationReserveUsd, voiceReserveUsd } from "./paid-costs";
 import { expectedSceneCount } from "./readiness";
 import { targetWordsFor } from "../script-pacing";
 
-export const SAMPLE_HARD_TOTAL_USD = 3.5;
+export const SAMPLE_HARD_TOTAL_USD = 1;
 export const SAMPLE_HARD_PER_SAMPLE_USD = 0.75;
 export const SAMPLE_DURATION_SECONDS = 30;
 /** Caracteres por palabra narrada en español (promedio con espacios), para reservar voz antes de tener el guion. */
@@ -66,7 +67,7 @@ export function estimateSample(sample: SampleSpec, rates: { imageTypicalUsd: num
   const chars = Math.round(targetWordsFor(SAMPLE_DURATION_SECONDS) * CHARS_PER_WORD);
   const images = PROFILES[sample.selection.profile].visualSource === "generated_image" ? expectedSceneCount(SAMPLE_DURATION_SECONDS) : 0;
   const lines = [
-    { item: "guion (Claude)", reserveUsd: SCRIPT_RESERVE_USD, typicalUsd: rates.scriptTypicalUsd, basis: "estimado (tokens desde caracteres)" },
+    { item: "guion (Claude, hasta 3 llamadas)", reserveUsd: scriptGenerationReserveUsd(), typicalUsd: rates.scriptTypicalUsd, basis: "medido por usage en cada llamada; reserva por el peor caso" },
     { item: `voz (ElevenLabs, ~${chars} caracteres)`, reserveUsd: voiceReserveUsd(chars), typicalUsd: rates.voiceTypicalUsd(chars), basis: "estimado (caracteres × tarifa registrada)" },
     { item: "corrección de duración de voz (solo si hace falta)", reserveUsd: voiceReserveUsd(chars), typicalUsd: 0, basis: "estimado; ocurre solo si la voz queda fuera de ±10 %" },
     ...(images > 0

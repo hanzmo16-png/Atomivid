@@ -37,6 +37,33 @@ export type GeneratedScript = {
 
 export type ScriptLanguage = "es" | "en";
 
+/** Una llamada REAL al modelo de guion (cada corrección de longitud y cada reintento es otra). */
+export type ScriptCallMeta = {
+  operation: "script" | "scene";
+  /** Número de llamada dentro de esta generación (1, 2, …), contando reintentos. */
+  call: number;
+  /** Intento de longitud (1 = primer borrador; 2-3 = correcciones). */
+  lengthAttempt: number;
+  model: string;
+  maxTokens: number;
+  /** Caracteres de system + mensaje enviados (para reservar antes de llamar). */
+  promptChars: number;
+};
+
+/** Tokens medidos que devuelve el proveedor en la respuesta. */
+export type ScriptCallUsage = {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens?: number | null;
+  cache_read_input_tokens?: number | null;
+};
+
+/**
+ * Envoltorio opcional de CADA llamada real (p. ej. registro de gasto de las
+ * muestras). Debe invocar `call` como máximo una vez y devolver su resultado.
+ */
+export type ScriptCallRunner = <T extends { usage?: ScriptCallUsage | null }>(meta: ScriptCallMeta, call: () => Promise<T>) => Promise<T>;
+
 export interface ScriptProvider {
   readonly name: string;
   generateScript(input: {
@@ -47,6 +74,8 @@ export interface ScriptProvider {
     language?: ScriptLanguage;
     /** Guía de redacción de la dirección audiovisual (intención narrativa). Ausente = prompt anterior sin cambios. */
     guidance?: string;
+    /** Envoltorio de cada llamada real (ver ScriptCallRunner). Ausente = llamada directa. */
+    runCall?: ScriptCallRunner;
   }): Promise<GeneratedScript>;
   /** Reescribe una sola escena (revisión/edición desde la UI). */
   regenerateScene(input: {
@@ -55,6 +84,7 @@ export interface ScriptProvider {
     script: GeneratedScript;
     sceneIndex: number;
     guidance?: string;
+    runCall?: ScriptCallRunner;
   }): Promise<ScriptScene>;
 }
 

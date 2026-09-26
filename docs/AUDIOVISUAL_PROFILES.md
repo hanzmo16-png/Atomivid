@@ -120,7 +120,7 @@ Se aplica a todo el Reel dirigido. El flujo anterior (sin dirección) solo recib
 | Imagen (OpenAI `gpt-image-2`) | US$0,07 (conservadora; M3 midió US$0,0558) | costo del `usage` de la respuesta | **medido** si la respuesta trae `usage`; si no, **estimado** |
 | Voz (ElevenLabs) | caracteres × tarifa × 1,2 | caracteres × US$0,10/1.000 (`billing/pricing.ts`) | **estimado**: caracteres exactos, tarifa según plan |
 | Corrección de voz | igual que voz | igual que voz | **estimado** |
-| Guion (Claude, muestras) | US$0,08 (peor caso de 3 intentos) | se liquida por la reserva | **estimado conservador**: tokens no medidos |
+| Guion (Claude, muestras) | **por llamada**: tokens de entrada estimados con margen + `max_tokens` de salida (≈ US$0,033; hasta 3 llamadas ≈ US$0,099) | tokens **medidos** del `usage` de cada respuesta × tarifa registrada | **medido** (tokens) × tarifa registrada; sin `usage`, por la reserva |
 | Stock, música curada, render | — | — | sin costo por llamada |
 
 ### Operaciones de costo incierto
@@ -136,6 +136,12 @@ La regla es que solo se concede costo cero con evidencia (`src/lib/providers/cha
   - una respuesta 200 rota;
   - una descarga fallida tras un 200;
   - un proceso caído entre reservar y liquidar.
+- **Guion (Claude):**
+  - el SDK se crea con `maxRetries: 0`; antes reintentaba por dentro conexiones, 408/409/429 y 5xx sin que se viera;
+  - `withRetry` (que repetía cualquier error hasta 3 veces, incluida una respuesta ya recibida sin guion) se eliminó;
+  - ahora solo se repite una solicitud que no salió o un 429;
+  - una respuesta sin guion utilizable (sin bloque de texto, JSON inválido o fuera del esquema) lanza `ScriptOutputError` tras **una** llamada, con diagnóstico;
+  - cada llamada deja una línea `[atomivid:script-call]` con `stop_reason`, tipos de bloque, `usage` (tokens de entrada, salida y caché), id del mensaje y resultado del parseo (rutas de campos, nunca valores). Nunca registra texto, razonamiento interno, prompt ni claves.
 - **Sin reintento automático de lo incierto, tampoco dentro del proveedor.**
   - `openai.ts` solo repite (`OPENAI_IMAGE_MAX_RETRIES`) cuando la solicitud no salió.
   - Un 500 o una conexión cortada se lanzan tras una sola llamada.
@@ -163,30 +169,33 @@ Archivos: `.github/workflows/audiovisual-samples.yml`, `scripts/audiovisual-samp
   - `plan` (por defecto) no llama a proveedores: solo lee los registros y muestra plan, estimación y comprometido. Probado localmente.
   - `run` exige `confirm=GASTAR`. Las claves de pago solo se inyectan en ese caso.
 - **Topes duros en código:**
-  - **US$3,50 total** y **US$0,75 por muestra**; las entradas solo pueden bajarlos;
+  - **US$1 total (monto autorizado)** y **US$0,75 por muestra**; las entradas solo pueden bajarlos. Un total mayor (p. ej. el US$3,50 propuesto) se rechaza antes de llamar a nada;
   - el acumulado se lee de los registros durables de las seis muestras, con reintentos, fallos e inciertas;
-  - cada muestra usa como tope min(US$0,75, US$3,50 − comprometido por las demás) y solo arranca si su peor caso cabe;
+  - cada muestra usa como tope min(US$0,75, US$1 − comprometido por las demás) y solo arranca si su peor caso cabe;
   - la decisión y el tope se **recalculan inmediatamente antes de cada muestra** (`sample-runner.ts`), releyendo los registros durables con lo que acaba de comprometer la anterior. El plan impreso al inicio es solo informativo.
   - Las muestras se ejecutan en serie.
   - Ejemplo probado: con un total de US$1, si la primera compromete US$0,62, la segunda recibe un tope de US$0,38. No arranca si su peor caso es US$0,62, y si su estimación se quedara corta, su registro bloquea antes de llamar.
 - **Cada muestra:**
   - el guion (Claude) se genera una sola vez, pasa el control de calidad y se reutiliza;
+  - **cada llamada real a Claude** (borrador, cada corrección de longitud, cada reintento permitido) es una entrada propia del registro (`script-ledger.ts`), reservada antes y liquidada con sus tokens medidos;
+  - si alguna llamada de guion anterior quedó incierta o pagada sin guion guardado, no se empieza otra generación hasta recuperar el grupo (`recoverPaidOperation` con la clave `script:samples/audiovisual/<muestra>`);
   - se produce con el mismo pipeline de producto;
   - se entrega MP4, primer fotograma, hoja de contacto, loudness e informe con el registro.
 - **Se detiene ante el primer fallo.**
 - **Muestras por defecto:** `horror` y `comic-mystery` (primera tanda); las demás se eligen tras revisar imagen y audio.
 - **Requisito para ejecutarlo:** `workflow_dispatch` solo aparece cuando el YAML existe en la rama por defecto. Hay que registrarlo ahí, como ya se hizo con otros workflows de muestra.
 
-### Presupuesto (no autorizado)
+### Presupuesto
 
 | Muestra | Peor caso reservado | Estimación típica |
 | --- | --- | --- |
-| horror, cinematic (clips reales) | US$0,20 c/u | US$0,08 c/u |
-| comic-mystery, comic-humor, anime, illustration-3d (6 imágenes) | US$0,62 c/u | US$0,42 c/u |
-| **Las seis** | **US$2,90** | **≈ US$1,83** |
+| horror, cinematic (clips reales) | US$0,22 c/u | US$0,08 c/u |
+| comic-mystery, comic-humor, anime, illustration-3d (6 imágenes) | US$0,64 c/u | US$0,42 c/u |
+| **Las seis** | **US$2,99** | **≈ US$1,83** |
 
-- **Máximo solicitado:** US$3,50 total y US$0,75 por muestra.
-- **Orden:** primero `horror` + `comic-mystery` (peor caso US$0,83, típico ≈ US$0,50), luego revisión de imagen y audio antes de seguir.
+- **Autorizado:** US$1 total (tope duro en código) y US$0,75 por muestra. Las seis no caben: requieren otra autorización.
+- **Ya comprometido:** US$0,08 **inciertos** del guion de `horror` (run 36245126551). Siguen contando y bloquean otro guion de `horror` hasta una recuperación explícita, que todavía no se hizo.
+- **Orden:** primero `horror` + `comic-mystery` (peor caso US$0,87 + los US$0,08 inciertos = US$0,95 ≤ US$1), luego revisión de imagen y audio antes de seguir.
 - **Criterios para detener:**
   - tope alcanzado (lo impone el código);
   - cualquier fallo (el runner se detiene);
