@@ -94,6 +94,15 @@ export function getFeatureFlags() {
     longFormAiVideoEnabled: flag("LONG_FORM_AI_VIDEO_ENABLED", false),
     /** "economic" | "balanced" | "premium" — ver ai-video-cost-guard.ts. Preset por defecto si no se pasa uno explícito al resolver. */
     longFormAiVideoCostPreset: (process.env.LONG_FORM_AI_VIDEO_COST_PRESET || "balanced").trim(),
+    /**
+     * Dirección audiovisual en Reels (docs/AUDIOVISUAL_DIRECTION.md): muestra
+     * el selector de cinco perfiles y guarda la selección. Apagado por
+     * defecto; requiere la migración 0020 aplicada ANTES de encenderlo. Las
+     * solicitudes creadas sin selección siguen el flujo anterior intacto.
+     */
+    audiovisualProfilesEnabled: flag("AUDIOVISUAL_PROFILES_ENABLED", false),
+    /** Tope de imágenes generadas por video en perfiles ilustrados (una por escena). El gasto sigue limitado por MAX_VISUAL_COST_USD. */
+    maxStyledImagesPerVideo: numberEnv("MAX_STYLED_IMAGES_PER_VIDEO", 10),
   };
 }
 

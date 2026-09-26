@@ -62,8 +62,8 @@ export function computeNarrationGaps(
  * exactamente 1 desde los dos lados), así que la música nunca salta de
  * golpe al cruzar el límite de un silencio.
  */
-function duckFactorAt(t: number, gaps: NarrationGap[]): number {
-  const transition = AUDIO_MIX.MUSIC_DUCK_TRANSITION_SECONDS;
+function duckFactorAt(t: number, gaps: NarrationGap[], transitionSeconds?: number): number {
+  const transition = transitionSeconds ?? AUDIO_MIX.MUSIC_DUCK_TRANSITION_SECONDS;
   let peak = 0;
 
   for (const gap of gaps) {
@@ -81,16 +81,28 @@ function duckFactorAt(t: number, gaps: NarrationGap[]): number {
   return peak;
 }
 
+/**
+ * Niveles de música ajustables por la dirección audiovisual (p. ej. el
+ * suspenso sube menos la música en los silencios para evitar «sustos» de
+ * volumen). Ausentes = AUDIO_MIX, exactamente como antes.
+ */
+export type MusicMixLevels = {
+  underVoice?: number;
+  duringSilence?: number;
+  duckTransitionSeconds?: number;
+};
+
 /** Volumen de la música en el segundo `t` del video: ducking bajo voz/silencios + fade-in/out global. */
 export function musicVolumeAtSeconds(
   t: number,
   durationSeconds: number,
   gaps: NarrationGap[],
+  levels?: MusicMixLevels,
 ): number {
-  const duck = duckFactorAt(t, gaps);
-  const base =
-    AUDIO_MIX.MUSIC_VOLUME_UNDER_VOICE +
-    duck * (AUDIO_MIX.MUSIC_VOLUME_DURING_SILENCE - AUDIO_MIX.MUSIC_VOLUME_UNDER_VOICE);
+  const duck = duckFactorAt(t, gaps, levels?.duckTransitionSeconds);
+  const underVoice = Math.min(levels?.underVoice ?? AUDIO_MIX.MUSIC_VOLUME_UNDER_VOICE, AUDIO_MIX.MUSIC_VOLUME_UNDER_VOICE);
+  const duringSilence = Math.min(levels?.duringSilence ?? AUDIO_MIX.MUSIC_VOLUME_DURING_SILENCE, AUDIO_MIX.MUSIC_VOLUME_DURING_SILENCE);
+  const base = underVoice + duck * (duringSilence - underVoice);
 
   const fadeIn = clamp01(t / AUDIO_MIX.MUSIC_FADE_SECONDS);
   const fadeOut = clamp01((durationSeconds - t) / AUDIO_MIX.MUSIC_FADE_SECONDS);

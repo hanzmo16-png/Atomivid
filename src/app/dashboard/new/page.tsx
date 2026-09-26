@@ -6,6 +6,8 @@ import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { createClient } from "@/lib/supabase/server";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
+import { profileAvailabilityByDuration } from "@/lib/video/audiovisual/readiness";
+import { ALLOWED_DURATIONS } from "./validation";
 
 const INCLUDES = [
   "Guion escrito por IA a partir de tu tema",
@@ -82,6 +84,7 @@ export default async function NewVideoPage({
             // flag global AVATAR_MODE_ENABLED.
             avatarAccess={privateAvatarAccess}
             longFormAccess={longFormBetaAccess}
+            audiovisual={flags.audiovisualProfilesEnabled ? { availabilityByDuration: profileAvailabilityByDuration(ALLOWED_DURATIONS) } : undefined}
           />
         </Card>
 

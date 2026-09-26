@@ -7,6 +7,10 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { RECORDING_BUCKET, isOwnedRecordingPath } from "@/lib/video/avatar/recording";
 import { avatarEntitlementPreview } from "@/lib/billing/quota";
 import { ScriptReview } from "./ScriptReview";
+import { DirectionPanel } from "./DirectionPanel";
+import { loadAudiovisualState } from "@/lib/video/audiovisual/persistence";
+import { directionForApprovedScript } from "@/lib/video/audiovisual/direction";
+import { evaluateDirectionReadiness } from "@/lib/video/audiovisual/readiness";
 
 type VideoRequestRow = {
   id: string;
@@ -69,6 +73,18 @@ export default async function ReviewPage({
     if (preview.blocked) avatarEntitlementBlockedReason = preview.reason;
   }
 
+  // Dirección audiovisual (solo Reels creados con el selector): lo que se
+  // producirá con ESTE guion y cualquier problema detectable antes de gastar.
+  let directionPanel: { selection: NonNullable<Awaited<ReturnType<typeof loadAudiovisualState>>["selection"]>; summary: string; issues: ReturnType<typeof evaluateDirectionReadiness>["issues"] } | null = null;
+  if (data.mode === "visual") {
+    const av = await loadAudiovisualState(createServiceClient(), data.id).catch(() => null);
+    if (av?.selection) {
+      const { direction } = directionForApprovedScript({ stored: av.direction, selection: av.selection, style: data.style, topic: data.topic, scenes: data.script_json.segments });
+      const readiness = evaluateDirectionReadiness({ profile: direction.profile, music: direction.music.id, sceneCount: data.script_json.segments.length });
+      directionPanel = { selection: av.selection, summary: direction.summary, issues: readiness.issues };
+    }
+  }
+
   return (
     <div className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-bold text-ink">{data.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}</h1>
@@ -89,6 +105,17 @@ export default async function ReviewPage({
           marcando "0:20" para una grabación de ~45s; esta cifra es la
           verdad medida en servidor, no la metadata del contenedor de audio
           que el navegador interpreta. */}
+
+      {directionPanel && (
+        <DirectionPanel
+          requestId={data.id}
+          style={data.style}
+          selection={directionPanel.selection}
+          summary={directionPanel.summary}
+          issues={directionPanel.issues}
+          editable={data.status === "script_ready" || data.status === "failed"}
+        />
+      )}
 
       {audioPreview && <audio controls preload="metadata" src={audioPreview} className="my-4 w-full" aria-label="Tu grabación original" />}
       {/* Server Component: se evalúa una sola vez por request en el servidor

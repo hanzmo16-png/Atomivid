@@ -48,6 +48,11 @@ async function main() {
               .map((k) => ({ name: k.split("/").pop()! }));
             return { data: matches, error: null };
           },
+          // Marcadores/registros durables (visual-resource-resolver.ts): lectura con «no encontrado» explícito.
+          async download(objectPath: string) {
+            const b = files.get(objectPath);
+            return b ? { data: new Blob([new Uint8Array(b)]), error: null } : { data: null, error: { message: "Object not found", statusCode: "404" } };
+          },
           async upload(objectPath: string, buffer: Buffer) {
             files.set(objectPath, buffer);
             return { error: null };

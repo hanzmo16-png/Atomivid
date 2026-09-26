@@ -9,11 +9,13 @@ import { generateDiagnosticId } from "@/lib/video/render-error";
 import { checkScriptQuality, ScriptQualityError } from "@/lib/video/script-quality";
 import { targetWordsFor } from "@/lib/video/script-pacing";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
+import { loadAudiovisualState } from "@/lib/video/audiovisual/persistence";
+import { anticipatedIntent, scriptGuidanceFor } from "@/lib/video/audiovisual/catalog";
 
 // Sin esto, la función queda al límite por defecto de la plataforma (tan
 // bajo como 10s en algunos planes de Vercel) — una llamada real a Claude
-// para generar un guion completo, más los reintentos ante fallos
-// transitorios (ver withRetry en providers/script/real.ts), puede
+// para generar un guion completo, más las correcciones de longitud y los
+// pocos reintentos seguros (ver callScriptModel en src/lib/ai/script.ts), puede
 // superarlo. Cuando eso pasa, Vercel corta la función a medias: el cliente
 // recibe un cuerpo vacío/truncado ("Unexpected end of JSON input" al
 // intentar parsearlo) y la solicitud se queda sin marcar como fallida,
@@ -114,6 +116,13 @@ export async function POST(
       return NextResponse.json({ error: check.reason }, { status: 402 });
     }
 
+    // Dirección audiovisual (solo Reels creados con selector): guía la
+    // redacción según la intención ya conocida. Sin selección, prompt intacto.
+    const av = videoRequest.mode === "visual" ? await loadAudiovisualState(service, id) : null;
+    const guidance = av?.selection ? scriptGuidanceFor(anticipatedIntent(av.selection, videoRequest.style)) : undefined;
+    // Un guion nuevo invalida la dirección resuelta con el anterior.
+    const invalidateDirection = av?.selection ? { audiovisual_direction: null } : {};
+
     let script: GeneratedScript;
     try {
       const result = await generateScriptForRequest({
@@ -121,6 +130,7 @@ export async function POST(
         style: videoRequest.style,
         durationSeconds: videoRequest.duration_seconds,
         language: videoRequest.language,
+        ...(guidance ? { guidance } : {}),
       });
 
       const quality = checkScriptQuality(result.script, {
@@ -146,7 +156,7 @@ export async function POST(
       // acabamos de rechazar.
       const { error: updateError } = await service
         .from("video_requests")
-        .update({ status: "failed", error_message: message, script_json: null })
+        .update({ status: "failed", error_message: message, script_json: null, ...invalidateDirection })
         .eq("id", id);
       if (updateError) {
         console.warn(`No se pudo marcar como fallida la solicitud ${id}:`, updateError.code);
@@ -157,7 +167,7 @@ export async function POST(
 
     const { error: updateError } = await service
       .from("video_requests")
-      .update({ status: "script_ready", script_json: script, error_message: null })
+      .update({ status: "script_ready", script_json: script, error_message: null, ...invalidateDirection })
       .eq("id", id);
     if (updateError) {
       console.warn(`No se pudo actualizar la solicitud ${id} a script_ready:`, updateError.code);
@@ -237,7 +247,13 @@ export async function PATCH(
   }
 
   const service = createServiceClient();
-  await service.from("video_requests").update({ script_json: body }).eq("id", id);
+  // Editar el guion invalida la dirección audiovisual resuelta con el anterior:
+  // se vuelve a resolver (y a revisar disponibilidad) al aprobar.
+  const av = videoRequest.mode === "visual" ? await loadAudiovisualState(service, id) : null;
+  await service
+    .from("video_requests")
+    .update({ script_json: body, ...(av?.selection ? { audiovisual_direction: null } : {}) })
+    .eq("id", id);
 
   return NextResponse.json({ status: "script_ready", script: body });
 }

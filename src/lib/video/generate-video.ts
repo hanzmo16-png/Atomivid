@@ -1,27 +1,22 @@
 import { buildCaptions } from "./captions";
 import { VIDEO_TAIL_SECONDS } from "./script-pacing";
 import { ProviderConfigurationError } from "@/lib/providers/production";
-import path from "node:path";
-import os from "node:os";
 import fs from "node:fs/promises";
-import { bundle } from "@remotion/bundler";
-import { renderMedia, selectComposition } from "@remotion/renderer";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { getFootageProvider } from "@/lib/providers/footage";
 import { getMusicProvider } from "@/lib/providers/music";
-import type { GeneratedScript, MusicResult, ScriptLanguage, WordTiming } from "@/lib/providers/types";
+import type { GeneratedScript, MusicResult, ScriptLanguage } from "@/lib/providers/types";
 import type { RenderStage } from "@/lib/video/stages";
-import type { Caption, Scene } from "../../../remotion/VerticalReel";
-import { computeNarrationGaps, type NarrationGap } from "../../../remotion/audio-mix";
+import type { Scene } from "../../../remotion/VerticalReel";
+import { computeNarrationGaps } from "../../../remotion/audio-mix";
 import { recordVideoGeneration } from "@/lib/billing/usage";
 import { splitIntoBeats } from "@/lib/video/scene-beats";
 import { createFootageSelectionState, selectFootageForScene } from "@/lib/video/footage-select";
 import { checkDuration, assertNarrationDuration } from "@/lib/video/duration-check";
 import { LOUDNESS_TARGET, masterAudioLoudness } from "@/lib/video/audio-master";
 import { buildEmphasisSet } from "@/lib/video/caption-emphasis";
-import { getAccentColor, shouldShowLogo } from "@/lib/video/brand";
 import { evaluateQualityGate, QUALITY_GATE_MIN_SCORE } from "@/lib/video/quality-gate";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { buildStoryboard } from "@/lib/video/storyboard";
@@ -29,6 +24,9 @@ import type { Storyboard } from "@/lib/video/storyboard/types";
 import { getImageProvider } from "@/lib/providers/image";
 import { decideResourceStrategy, buildScenePlanEntry, type ScenePlanEntry } from "@/lib/video/visual-resource-planner";
 import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resolver";
+import { ASSET_SIGNED_URL_TTL_SECONDS, STORAGE_BUCKET, alignScenesToWords, renderVerticalReel, uploadToStorage } from "@/lib/video/reel-shared";
+import type { AudiovisualDirection } from "@/lib/video/audiovisual/direction";
+import { generateDirectedVideoFromScript } from "@/lib/video/audiovisual/directed-reel";
 
 // Deliberadamente separado de generate-script.ts — ver el comentario ahí
 // para la razón exacta (Remotion no debe cargarse en la ruta de guion).
@@ -36,12 +34,9 @@ import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resol
 // inline (fallback de desarrollo, ver src/lib/video/run-job.ts) y el
 // script de prueba end-to-end con fixtures.
 
-const STORAGE_BUCKET = "videos";
-const COMPOSITION_ID = "VerticalReel";
-// El bucket es privado: los assets intermedios (voz/footage/música) se
-// firman por un rato corto, solo el tiempo que tarda este mismo proceso en
-// leerlos para el render — no necesitan durar más que eso.
-const ASSET_SIGNED_URL_TTL_SECONDS = 60 * 60;
+// STORAGE_BUCKET, ASSET_SIGNED_URL_TTL_SECONDS, alignScenesToWords,
+// uploadToStorage y renderVerticalReel viven en reel-shared.ts (compartidos
+// con el flujo dirigido de audiovisual/directed-reel.ts).
 
 type OnProgress = (stage: RenderStage) => void | Promise<void>;
 
@@ -60,6 +55,8 @@ export async function generateVideoFromScript({
   language = "es",
   targetDurationSeconds,
   onProgress,
+  direction,
+  attempt,
 }: {
   supabase: SupabaseClient;
   requestId: string;
@@ -73,7 +70,14 @@ export async function generateVideoFromScript({
   /** Duración objetivo original de la solicitud (video_requests.duration_seconds) — para advertir si la narración real se sale de tolerancia (±10%). Ausente = no se verifica. */
   targetDurationSeconds?: number;
   onProgress?: OnProgress;
+  /** Dirección audiovisual aprobada (solo Reels creados con el selector). Ausente = flujo anterior intacto. */
+  direction?: AudiovisualDirection;
+  /** Intento (render_attempts) — solo lo usa el flujo dirigido para trazar su registro de gasto. */
+  attempt?: number;
 }): Promise<{ videoPath: string }> {
+  if (direction) {
+    return generateDirectedVideoFromScript({ supabase, requestId, artifactPrefix, script, style, topic, language, targetDurationSeconds, onProgress, direction, attempt });
+  }
   const voiceProvider = getVoiceProvider();
   const footageProvider = getFootageProvider();
   const musicProvider = getMusicProvider();
@@ -521,136 +525,4 @@ export async function generateVideoFromScript({
   });
 
   return { videoPath };
-}
-
-function alignScenesToWords(
-  segments: { text: string }[],
-  words: WordTiming[],
-): { start: number; end: number }[] {
-  const result: { start: number; end: number }[] = [];
-  let wordIndex = 0;
-
-  for (const segment of segments) {
-    const wordCount = Math.max(
-      segment.text.split(/\s+/).filter(Boolean).length,
-      1,
-    );
-    const startIdx = Math.max(0, Math.min(wordIndex, words.length - 1));
-    const endIdx = Math.max(
-      0,
-      Math.min(wordIndex + wordCount - 1, words.length - 1),
-    );
-
-    result.push({
-      start: words[startIdx]?.startSeconds ?? 0,
-      end: words[endIdx]?.endSeconds ?? words[startIdx]?.startSeconds ?? 0,
-    });
-
-    wordIndex += wordCount;
-  }
-
-  return result;
-}
-
-/**
- * Sube un archivo al bucket privado y devuelve tanto su ruta (para
- * guardarla y firmar una URL nueva más adelante) como una URL firmada de
- * corta duración (para que este mismo proceso de render pueda leerlo de
- * inmediato, p. ej. Remotion descargando una imagen o un audio).
- */
-async function uploadToStorage(
-  supabase: SupabaseClient,
-  objectPath: string,
-  buffer: Buffer,
-  contentType: string,
-): Promise<{ path: string; url: string }> {
-  const { error } = await supabase.storage
-    .from(STORAGE_BUCKET)
-    .upload(objectPath, buffer, { contentType, upsert: true });
-
-  if (error) {
-    throw new Error(`No se pudo subir ${objectPath}: ${error.message}`);
-  }
-
-  const { data, error: signError } = await supabase.storage
-    .from(STORAGE_BUCKET)
-    .createSignedUrl(objectPath, ASSET_SIGNED_URL_TTL_SECONDS);
-
-  if (signError || !data) {
-    throw new Error(
-      `No se pudo firmar la URL de ${objectPath}: ${signError?.message ?? "desconocido"}`,
-    );
-  }
-
-  return { path: objectPath, url: data.signedUrl };
-}
-
-async function renderVerticalReel({
-  audioUrl,
-  musicUrl,
-  scenes,
-  captions,
-  narrationGaps,
-  durationSeconds,
-}: {
-  audioUrl: string;
-  musicUrl?: string;
-  scenes: Scene[];
-  captions: Caption[];
-  narrationGaps: NarrationGap[];
-  durationSeconds: number;
-}): Promise<string> {
-  const entryPoint = path.join(process.cwd(), "remotion", "index.ts");
-  const browserExecutable = process.env.REMOTION_BROWSER_EXECUTABLE || undefined;
-  // Chrome >= 132 quitó el "old headless mode" que Remotion usa por
-  // defecto. Si apuntas REMOTION_BROWSER_EXECUTABLE a un chrome-headless-shell
-  // (recomendado), configura también REMOTION_CHROME_MODE=headless-shell.
-  const chromeMode =
-    (process.env.REMOTION_CHROME_MODE as "chrome-for-testing" | "headless-shell" | undefined) ||
-    undefined;
-
-  const serveUrl = await bundle({ entryPoint });
-
-  const inputProps = {
-    audioUrl,
-    musicUrl,
-    scenes,
-    captions,
-    narrationGaps,
-    durationSeconds,
-    accentColor: getAccentColor(),
-    showLogo: shouldShowLogo(),
-  };
-
-  const composition = await selectComposition({
-    serveUrl,
-    id: COMPOSITION_ID,
-    inputProps,
-    browserExecutable,
-    chromeMode,
-  });
-
-  const outputLocation = path.join(
-    os.tmpdir(),
-    `atomivid-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`,
-  );
-
-  await renderMedia({
-    composition,
-    serveUrl,
-    codec: "h264",
-    outputLocation,
-    inputProps,
-    browserExecutable,
-    chromeMode,
-    // Sin esto, Remotion usa un CRF cercano a sin-pérdida por defecto — con
-    // fotos reales (no los placeholders planos del fixture) y Ken Burns,
-    // eso produce archivos varias veces más grandes de lo necesario para
-    // un reel vertical (llegó a exceder el límite de tamaño de Supabase
-    // Storage). CRF 26 es suficiente para TikTok/Reels/Shorts, que de
-    // todas formas re-comprimen el video al subirlo.
-    crf: 26,
-  });
-
-  return outputLocation;
 }
