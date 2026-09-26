@@ -11,6 +11,7 @@ export const VOICE_BUCKET = TTS_BUCKET;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Estados que ocupan el cupo de voces de la usuaria (una fallida o eliminada no). */
 export const ACTIVE_VOICE_STATUSES = ["uploaded", "cloning", "testing", "ready", "deleting"] as const;
+export const PILOT_FULL_MESSAGE = "«Mi voz» está en piloto y la capacidad de voces propias está completa por ahora. No se envió tu muestra; vuelve a intentarlo más adelante.";
 export const VOICE_DISPATCH_FAILED_MESSAGE = "No se pudo poner en cola la clonación. No se envió nada: puedes reintentar.";
 
 export type UserVoiceRecord = {
@@ -30,6 +31,8 @@ export async function createUserVoice(input: {
   userId: string;
   form: { name: unknown; consentOwnVoice: unknown; consentProcessing: unknown; keepSample: unknown; clientRequestId: unknown; clientSeconds: unknown; file: File | null };
   maxVoicesPerUser: number;
+  /** Voces privadas en toda la cuenta (los espacios de clonación son de la cuenta, no por usuaria). */
+  maxVoicesTotal: number;
   dispatch: (voiceId: string) => Promise<void>;
 }): Promise<{ ok: true; voiceId: string; duplicate: boolean } | { ok: false; error: string }> {
   const { service, userId, form } = input;
@@ -60,6 +63,11 @@ export async function createUserVoice(input: {
     return { ok: false, error: input.maxVoicesPerUser === 1 ? "Ya tienes una voz propia. Elimínala para crear otra." : `Ya tienes ${input.maxVoicesPerUser} voces propias. Elimina una para crear otra.` };
   }
 
+  // Aviso temprano; el límite real lo aplica la base de datos al insertar (con bloqueo), también ante envíos simultáneos.
+  const occupied = await service.from("user_voices").select("id").in("status", [...ACTIVE_VOICE_STATUSES]);
+  if (occupied.error) return { ok: false, error: "No se pudo comprobar la capacidad. Intenta de nuevo." };
+  if ((occupied.data ?? []).length >= input.maxVoicesTotal) return { ok: false, error: PILOT_FULL_MESSAGE };
+
   const inserted = await service
     .from("user_voices")
     .insert({
@@ -71,10 +79,15 @@ export async function createUserVoice(input: {
       sample_bytes: bytes.length,
       consent_version: VOICE_CONSENT_VERSION,
       consent_at: new Date().toISOString(),
+      max_voices_per_user: input.maxVoicesPerUser,
+      max_voices_total: input.maxVoicesTotal,
     })
     .select("id")
     .single<{ id: string }>();
   if (inserted.error) {
+    const message = inserted.error.message ?? "";
+    if (/user_voice_limit/.test(message)) return { ok: false, error: "Ya tienes el máximo de voces propias. Elimina una para crear otra." };
+    if (/user_voice_capacity/.test(message)) return { ok: false, error: PILOT_FULL_MESSAGE };
     if (inserted.error.code === "23505") {
       const again = await service.from("user_voices").select("id").eq("user_id", userId).eq("client_request_id", clientRequestId).maybeSingle<{ id: string }>();
       if (again.data) return { ok: true, voiceId: again.data.id, duplicate: true };

@@ -86,10 +86,13 @@ export async function createTtsRequest(input: {
       status: "queued",
       estimated_seconds: estimateSeconds(valid.segments),
       estimated_usd: Math.round(voiceCostUsd(valid.characters) * 10000) / 10000,
+      // La base de datos vuelve a aplicar el límite mensual con un bloqueo por usuaria (dos envíos a la vez no lo superan).
+      max_chars_per_month: input.limits.maxCharsPerUserMonth,
     })
     .select("id")
     .single<{ id: string }>();
   if (inserted.error) {
+    if (/tts_monthly_limit/.test(inserted.error.message ?? "")) return { ok: false, error: "Con esta pieza superarías tus caracteres de Texto a voz de este mes." };
     // Carrera entre dos envíos simultáneos del mismo formulario: gana uno, el otro recibe la misma pieza.
     if (inserted.error.code === "23505") {
       const again = await service.from("tts_jobs").select("id").eq("user_id", userId).eq("client_request_id", clientRequestId).maybeSingle<{ id: string }>();

@@ -15,6 +15,7 @@ import { charactersUsedThisMonth } from "@/lib/tts/requests";
 import { TTS_BUCKET } from "@/lib/tts/run-tts-job";
 import { TtsForm } from "./TtsForm";
 import { createTextToSpeech, retryTextToSpeech } from "./actions";
+import { canUseMyVoice } from "@/lib/voices/access";
 
 type JobRow = {
   id: string;
@@ -59,7 +60,7 @@ export default async function TextToSpeechPage({ searchParams }: { searchParams:
   // Mismo cálculo que valida el servidor al crear (con RLS, solo las piezas propias).
   const used = await charactersUsedThisMonth(supabase, user.id).catch(() => 0);
   const remaining = Math.max(0, flags.ttsMaxCharsPerUserMonth - used);
-  const customVoices = flags.myVoiceEnabled ? await listReadyUserVoices(supabase, user.id).catch(() => []) : [];
+  const customVoices = canUseMyVoice(user) ? await listReadyUserVoices(supabase, user.id).catch(() => []) : [];
 
   // URLs firmadas solo para piezas que la consulta con RLS ya confirmó como propias.
   const service = createServiceClient();

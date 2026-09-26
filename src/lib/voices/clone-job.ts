@@ -100,7 +100,10 @@ export async function runVoiceCloneJob(voiceId: string, deps: CloneDeps): Promis
       if (deps.voiceProvider.name !== "fixture") {
         const slots = await deps.slots();
         if (!slots) throw new VoiceCloneError("No se pudo comprobar la capacidad del servicio de voz. Reintenta en unos minutos.");
-        if (slots.used >= slots.limit) throw new VoiceCloneError("El servicio de voz no tiene espacios de clonación libres en este momento. No se envió tu muestra; escríbenos.");
+        // Otras clonaciones en curso aún no figuran en voice_slots_used: se cuentan para no superar juntas la capacidad.
+        const others = await service.from("user_voices").select("id").eq("status", "cloning").neq("id", voiceId);
+        if (others.error) throw new VoiceCloneError("No se pudo comprobar la capacidad del servicio de voz. Reintenta en unos minutos.");
+        if (slots.used + (others.data ?? []).length >= slots.limit) throw new VoiceCloneError("El servicio de voz no tiene espacios de clonación libres en este momento. No se envió tu muestra; escríbenos.");
       }
 
       try {

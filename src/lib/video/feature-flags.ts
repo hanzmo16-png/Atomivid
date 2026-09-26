@@ -132,6 +132,12 @@ export function getFeatureFlags() {
     myVoiceEnabled: flag("MY_VOICE_ENABLED", false),
     /** Voces privadas por usuario (cada una ocupa uno de los 10 espacios de clonación de la cuenta Starter). */
     maxUserVoicesPerUser: numberEnv("MAX_USER_VOICES_PER_USER", 1),
+    /**
+     * Voces privadas en TODA la cuenta durante el piloto. Los 10 espacios de
+     * clonación de ElevenLabs Starter son de la cuenta, no por usuaria; 3
+     * deja margen para revisar voces inciertas sin agotar la capacidad.
+     */
+    maxTotalUserVoices: numberEnv("MAX_TOTAL_USER_VOICES", 3),
   };
 }
 

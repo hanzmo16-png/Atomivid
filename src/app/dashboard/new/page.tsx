@@ -9,6 +9,7 @@ import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
 import { animationAvailabilityByDuration, profileAvailabilityByDuration } from "@/lib/video/audiovisual/readiness";
 import { ALLOWED_DURATIONS } from "./validation";
 import { listReadyUserVoices } from "@/lib/voices/user-voices";
+import { canUseMyVoice } from "@/lib/voices/access";
 
 const INCLUDES = [
   "Guion escrito por IA a partir de tu tema",
@@ -60,7 +61,7 @@ export default async function NewVideoPage({
 
   // Selector de voz (catálogo + «Mi voz» propia). Apagado = voz de siempre, sin selector.
   const voices = flags.voiceCatalogEnabled && user
-    ? { customVoices: flags.myVoiceEnabled ? await listReadyUserVoices(auth, user.id).catch(() => []) : [] }
+    ? { customVoices: canUseMyVoice(user) ? await listReadyUserVoices(auth, user.id).catch(() => []) : [] }
     : undefined;
 
   return (

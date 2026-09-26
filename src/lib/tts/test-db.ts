@@ -14,7 +14,10 @@ type Filter = (row: Row) => boolean;
 
 const UNIQUE: Record<string, string[][]> = { tts_jobs: [["user_id", "client_request_id"]], user_voices: [["provider_voice_id"]] };
 
-export function memoryDb(seed: Record<string, Row[]> = {}, faults: StorageFaults = {}) {
+/** Emula un disparador BEFORE INSERT: devuelve un mensaje de error para rechazar la fila (como `raise exception`). */
+export type BeforeInsert = (table: string, row: Row, rows: Row[]) => string | null;
+
+export function memoryDb(seed: Record<string, Row[]> = {}, faults: StorageFaults = {}, beforeInsert?: BeforeInsert) {
   const tables = new Map<string, Row[]>(Object.entries(seed).map(([k, v]) => [k, v.map((r) => ({ ...r }))]));
   const storage = memoryStorage(faults);
   const log: { table: string; op: string; values?: Row }[] = [];
@@ -32,6 +35,8 @@ export function memoryDb(seed: Record<string, Row[]> = {}, faults: StorageFaults
       const all = rows(table);
       if (op.kind === "insert") {
         const row: Row = { id: randomUUID(), created_at: new Date().toISOString(), segments_done: 0, attempts: 0, ...op.values };
+        const rejected = beforeInsert?.(table, row, all);
+        if (rejected) return { data: null, error: { code: "P0001", message: rejected } };
         for (const cols of UNIQUE[table] ?? []) {
           if (cols.every((c) => row[c] != null) && all.some((r) => cols.every((c) => r[c] === row[c]))) {
             return { data: null, error: { code: "23505", message: "duplicate key value violates unique constraint" } };

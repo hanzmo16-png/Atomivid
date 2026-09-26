@@ -121,8 +121,14 @@ export async function runTtsJob(jobId: string, deps: TtsDeps): Promise<"complete
     const pending = segments.slice(row.segments_done ?? 0);
     if (deps.voiceProvider.name !== "fixture") {
       const quota = await deps.quota();
-      const needed = billableCharacters(pending);
-      if (quota && quota.remaining < needed) {
+      // Otras piezas en curso ya pudieron comprobar el mismo saldo: se descuentan (conservador) para que
+      // dos trabajos simultáneos no superen juntos la cuota comprobándola por separado.
+      const others = await service.from("tts_jobs").select("id, characters").eq("status", "processing").neq("id", jobId);
+      if (others.error) throw new TtsJobError("No se pudo comprobar la capacidad del servicio de voz. Reintenta en unos minutos; no se cobró nada.");
+      const reservedByOthers = ((others.data ?? []) as { characters: number }[]).reduce((sum, r) => sum + r.characters, 0);
+      const needed = billableCharacters(pending) + reservedByOthers;
+      if (!quota) throw new TtsJobError("No se pudo comprobar la capacidad del servicio de voz. Reintenta en unos minutos; no se cobró nada.");
+      if (quota.remaining < needed) {
         throw new TtsJobError("El servicio de voz no tiene caracteres suficientes este mes para terminar esta pieza. No se cobró nada de lo que falta; escríbenos.");
       }
     }

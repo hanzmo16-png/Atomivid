@@ -8,6 +8,7 @@ import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { deleteProviderVoice } from "@/lib/ai/voice";
 import { dispatchVoiceClone } from "@/lib/voices/dispatch";
 import { createUserVoice, deleteUserVoice, retryUserVoice } from "@/lib/voices/requests";
+import { canUseMyVoice } from "@/lib/voices/access";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -15,7 +16,7 @@ async function requireUser() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  if (!getFeatureFlags().myVoiceEnabled) redirect("/dashboard");
+  if (!canUseMyVoice(user)) redirect("/dashboard");
   return user;
 }
 
@@ -37,6 +38,7 @@ export async function createMyVoice(formData: FormData) {
       file: file instanceof File ? file : null,
     },
     maxVoicesPerUser: getFeatureFlags().maxUserVoicesPerUser,
+    maxVoicesTotal: getFeatureFlags().maxTotalUserVoices,
     dispatch: dispatchVoiceClone,
   });
   revalidatePath("/dashboard/voices");

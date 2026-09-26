@@ -69,7 +69,7 @@ test("crear: guarda consentimiento y muestra en la carpeta de la usuaria y encol
   const db = memoryDb();
   const dispatched: string[] = [];
   const dispatch = async (id: string) => void dispatched.push(id);
-  const first = await createUserVoice({ service: db.client, userId: OWNER, form: form(), maxVoicesPerUser: 1, dispatch });
+  const first = await createUserVoice({ service: db.client, userId: OWNER, form: form(), maxVoicesPerUser: 1, maxVoicesTotal: 3, dispatch });
   assert.ok(first.ok && !first.duplicate);
   const [row] = db.rows("user_voices");
   assert.equal(row.status, "uploaded");
@@ -79,7 +79,7 @@ test("crear: guarda consentimiento y muestra en la carpeta de la usuaria y encol
   assert.equal(row.sample_path, samplePath(OWNER, row.id as string, "wav"));
   assert.ok(db.storage.files.has(row.sample_path as string));
   assert.deepEqual(dispatched, [row.id]);
-  const again = await createUserVoice({ service: db.client, userId: OWNER, form: form(), maxVoicesPerUser: 1, dispatch });
+  const again = await createUserVoice({ service: db.client, userId: OWNER, form: form(), maxVoicesPerUser: 1, maxVoicesTotal: 3, dispatch });
   assert.ok(again.ok && again.duplicate && again.voiceId === first.voiceId);
   assert.equal(db.rows("user_voices").length, 1);
   assert.equal(dispatched.length, 1);
@@ -99,7 +99,7 @@ test("crear: sin consentimiento, sin muestra, muy grande, formato desconocido, d
     [{ clientRequestId: "abc" }, /Recarga/],
   ];
   for (const [over, error] of cases) {
-    const result = await createUserVoice({ service: db.client, userId: OWNER, form: form(over), maxVoicesPerUser: 1, dispatch });
+    const result = await createUserVoice({ service: db.client, userId: OWNER, form: form(over), maxVoicesPerUser: 1, maxVoicesTotal: 3, dispatch });
     assert.equal(result.ok, false);
     assert.match(result.ok ? "" : result.error, error);
   }
@@ -107,16 +107,16 @@ test("crear: sin consentimiento, sin muestra, muy grande, formato desconocido, d
   assert.equal(db.storage.files.size, 0);
 
   const full = memoryDb({ user_voices: [{ id: "v1", user_id: OWNER, client_request_id: "x", status: "ready" }] });
-  const limit = await createUserVoice({ service: full.client, userId: OWNER, form: form(), maxVoicesPerUser: 1, dispatch });
+  const limit = await createUserVoice({ service: full.client, userId: OWNER, form: form(), maxVoicesPerUser: 1, maxVoicesTotal: 3, dispatch });
   assert.deepEqual(limit, { ok: false, error: "Ya tienes una voz propia. Elimínala para crear otra." });
   // Una voz fallida o eliminada no ocupa el cupo; otra usuaria tampoco cuenta.
   const freed = memoryDb({ user_voices: [{ id: "v1", user_id: OWNER, client_request_id: "x", status: "deleted" }, { id: "v2", user_id: OTHER, client_request_id: "y", status: "ready" }] });
-  assert.ok((await createUserVoice({ service: freed.client, userId: OWNER, form: form(), maxVoicesPerUser: 1, dispatch: async () => {} })).ok);
+  assert.ok((await createUserVoice({ service: freed.client, userId: OWNER, form: form(), maxVoicesPerUser: 1, maxVoicesTotal: 3, dispatch: async () => {} })).ok);
 });
 
 test("crear: si no se puede encolar queda fallida y se puede reintentar (solo su dueña)", async () => {
   const db = memoryDb();
-  assert.ok((await createUserVoice({ service: db.client, userId: OWNER, form: form(), maxVoicesPerUser: 1, dispatch: async () => { throw new Error("GH caído"); } })).ok);
+  assert.ok((await createUserVoice({ service: db.client, userId: OWNER, form: form(), maxVoicesPerUser: 1, maxVoicesTotal: 3, dispatch: async () => { throw new Error("GH caído"); } })).ok);
   const [row] = db.rows("user_voices");
   assert.equal(row.status, "failed");
   assert.equal(row.error_message, VOICE_DISPATCH_FAILED_MESSAGE);
@@ -143,7 +143,7 @@ function recordingVoiceProvider() {
 
 async function uploadedVoice(over: Record<string, unknown> = {}) {
   const db = memoryDb();
-  assert.ok((await createUserVoice({ service: db.client, userId: OWNER, form: form(over), maxVoicesPerUser: 1, dispatch: async () => {} })).ok);
+  assert.ok((await createUserVoice({ service: db.client, userId: OWNER, form: form(over), maxVoicesPerUser: 1, maxVoicesTotal: 3, dispatch: async () => {} })).ok);
   return { db, row: db.rows("user_voices")[0] };
 }
 
@@ -294,13 +294,13 @@ test("la sección existe detrás de su flag y sus acciones usan el usuario de la
   const app = path.join(__dirname, "..", "..", "app");
   const read = (...p: string[]) => readFileSync(path.join(app, ...p), "utf8");
   const page = read("dashboard", "voices", "page.tsx");
-  assert.match(page, /if \(!flags\.myVoiceEnabled\) notFound\(\)/);
+  assert.match(page, /if \(!user \|\| !canUseMyVoice\(user\)\) notFound\(\)/);
   assert.match(page, /\.neq\("status", "deleted"\)/);
   const actions = read("dashboard", "voices", "actions.ts");
-  assert.match(actions, /myVoiceEnabled\) redirect/);
+  assert.match(actions, /if \(!canUseMyVoice\(user\)\) redirect/);
   assert.equal((actions.match(/userId: user\.id/g) ?? []).length, 3, "crear, reintentar y eliminar con el id de la sesión");
   const layout = read("dashboard", "layout.tsx");
-  assert.equal((layout.match(/flags\.myVoiceEnabled &&/g) ?? []).length, 2);
+  assert.equal((layout.match(/canUseMyVoice\(user\) &&/g) ?? []).length, 2);
   const form = read("dashboard", "voices", "VoiceForm.tsx");
   assert.match(form, /name="consent_own_voice" required/);
   assert.match(form, /name="consent_processing" required/);

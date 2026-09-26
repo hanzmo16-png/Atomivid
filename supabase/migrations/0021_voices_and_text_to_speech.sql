@@ -19,6 +19,8 @@
 --    un doble envío (mismo formulario enviado dos veces = la misma pieza).
 --
 -- ROLLBACK (seguro — nada existente depende de esto):
+--   drop function if exists public.enforce_tts_monthly_limit() cascade;
+--   drop function if exists public.enforce_user_voice_limits() cascade;
 --   drop table if exists public.tts_jobs;
 --   drop table if exists public.user_voices;
 --   alter table public.video_requests drop column if exists voice_choice;
@@ -50,6 +52,10 @@ create table if not exists public.user_voices (
   -- true = la llamada de clonación pudo completarse sin confirmación
   -- (timeout, respuesta rota): no se reintenta sola; se revisa a mano.
   needs_review boolean not null default false,
+  -- Límites vigentes al crear (los pone el servidor desde su configuración);
+  -- el disparador de abajo los hace cumplir aunque lleguen dos envíos a la vez.
+  max_voices_per_user integer not null,
+  max_voices_total integer not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz,
@@ -85,6 +91,8 @@ create table if not exists public.tts_jobs (
   duration_seconds numeric,
   estimated_seconds numeric,
   estimated_usd numeric,
+  -- Límite mensual vigente al crear (caracteres); lo hace cumplir el disparador de abajo.
+  max_chars_per_month integer not null,
   error_message text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -99,3 +107,56 @@ alter table public.tts_jobs enable row level security;
 create policy "Users can view their own text-to-speech jobs"
   on public.tts_jobs for select
   using (auth.uid() = user_id);
+
+-- Límites que no pueden depender de comprobaciones independientes: dos
+-- envíos simultáneos se serializan con un bloqueo por usuaria (o global
+-- para las voces de toda la cuenta) dentro de la misma transacción del
+-- INSERT, y el recuento incluye las filas ya insertadas.
+
+create or replace function public.enforce_tts_monthly_limit() returns trigger
+language plpgsql as $$
+declare
+  used integer;
+begin
+  perform pg_advisory_xact_lock(hashtext('tts_jobs:' || new.user_id::text));
+  select coalesce(sum(characters), 0) into used
+    from public.tts_jobs
+    where user_id = new.user_id
+      and created_at >= date_trunc('month', now() at time zone 'utc') at time zone 'utc'
+      and not (status = 'failed' and segments_done = 0);
+  if used + new.characters > new.max_chars_per_month then
+    raise exception 'tts_monthly_limit: % + % > %', used, new.characters, new.max_chars_per_month
+      using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists tts_jobs_monthly_limit on public.tts_jobs;
+create trigger tts_jobs_monthly_limit before insert on public.tts_jobs
+  for each row execute function public.enforce_tts_monthly_limit();
+
+create or replace function public.enforce_user_voice_limits() returns trigger
+language plpgsql as $$
+declare
+  mine integer;
+  everyone integer;
+begin
+  -- Un solo bloqueo global: la capacidad de clonación es de toda la cuenta.
+  perform pg_advisory_xact_lock(hashtext('user_voices:account'));
+  select count(*) into mine from public.user_voices
+    where user_id = new.user_id and status in ('uploaded', 'cloning', 'testing', 'ready', 'deleting');
+  if mine >= new.max_voices_per_user then
+    raise exception 'user_voice_limit: %', mine using errcode = 'P0001';
+  end if;
+  select count(*) into everyone from public.user_voices
+    where status in ('uploaded', 'cloning', 'testing', 'ready', 'deleting')
+       or (status = 'failed' and needs_review);
+  if everyone >= new.max_voices_total then
+    raise exception 'user_voice_capacity: %', everyone using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists user_voices_limits on public.user_voices;
+create trigger user_voices_limits before insert on public.user_voices
+  for each row execute function public.enforce_user_voice_limits();

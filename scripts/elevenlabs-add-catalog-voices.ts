@@ -65,6 +65,32 @@ async function findInLibrary(voiceId: string, name: string, gender: string, apiK
   return null;
 }
 
+const MODEL = process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2";
+
+/**
+ * Idiomas verificados por ElevenLabs con el modelo que usamos y URLs de las
+ * previews PÚBLICAS (audio ya existente: descargarlo no sintetiza ni cobra).
+ * Líneas «[preview] <id> <etiqueta> <url>» para recuperarlas del log.
+ */
+function reportVoice(id: string, v: Json, catalogLanguages: string[]): string[] {
+  const problems: string[] = [];
+  const verified = Array.isArray(v.verified_languages) ? (v.verified_languages as Json[]) : [];
+  const withModel = verified.filter((l) => l.model_id === MODEL);
+  const langs = [...new Set(withModel.map((l) => String(l.language)))];
+  console.log(`[${id}] modelo ${MODEL}: idiomas verificados ${langs.join(", ") || "(ninguno)"}; catálogo: ${catalogLanguages.join(", ")}`);
+  if (Array.isArray(v.high_quality_base_model_ids)) console.log(`[${id}] high_quality_base_model_ids: ${(v.high_quality_base_model_ids as string[]).join(", ")}`);
+  for (const lang of catalogLanguages) {
+    if (!langs.includes(lang) && !(id === "mateo" && lang === "en")) problems.push(`${id}: el catálogo ofrece «${lang}» pero ElevenLabs no lo verifica con ${MODEL}`);
+  }
+  if (typeof v.preview_url === "string" && v.preview_url) console.log(`[preview] ${id} default ${v.preview_url}`);
+  for (const l of verified) {
+    if ((l.language === "es" || l.language === "en") && typeof l.preview_url === "string" && l.preview_url) {
+      console.log(`[preview] ${id} ${l.language}-${l.locale || l.accent || "x"}-${l.model_id} ${l.preview_url}`);
+    }
+  }
+  return problems;
+}
+
 async function slots(apiKey: string): Promise<string> {
   const r = await call("GET", "/v1/user/subscription", apiKey);
   const b = r.body;
@@ -85,6 +111,7 @@ async function main() {
     const own = await call("GET", `/v1/voices/${voice.providerVoiceId}`, apiKey);
     if (own.status === 200) {
       console.log(`[${id}] ${voice.providerVoiceId} ya está en My Voices (categoría ${own.body.category}, nombre «${own.body.name}»)`);
+      problems.push(...reportVoice(id, own.body, voice.languages));
       continue;
     }
     console.log(`[${id}] ${voice.providerVoiceId} no está en My Voices (GET ${own.status})`);
@@ -93,6 +120,7 @@ async function main() {
       problems.push(`${id}: no se encontró en la biblioteca`);
       continue;
     }
+    problems.push(...reportVoice(id, lib, voice.languages));
     const extra = surcharge(lib);
     console.log(
       `[${id}] biblioteca: «${lib.name}» public_owner_id=${lib.public_owner_id} rate=${lib.rate ?? "-"} fiat_rate=${JSON.stringify(lib.fiat_rate ?? null)} notice_period=${lib.notice_period ?? "-"} free_users_allowed=${lib.free_users_allowed ?? "-"}`,

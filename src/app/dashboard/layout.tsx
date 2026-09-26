@@ -8,6 +8,7 @@ import { Onboarding } from "@/components/onboarding/Onboarding";
 import { NavLink } from "./NavLink";
 import { isLongFormEnabled, isLongFormAllowlisted } from "@/lib/video/long-form/access";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
+import { canUseMyVoice } from "@/lib/voices/access";
 
 export default async function DashboardLayout({
   children,
@@ -52,7 +53,7 @@ export default async function DashboardLayout({
                 Texto a voz
               </NavLink>
             )}
-            {flags.myVoiceEnabled && (
+            {canUseMyVoice(user) && (
               <NavLink
                 href="/dashboard/voices"
                 className="hidden rounded-md px-3 py-2 text-sm font-medium transition-colors sm:inline-block"
@@ -95,7 +96,7 @@ export default async function DashboardLayout({
               Historial
             </NavLink>
             {flags.textToSpeechEnabled && <NavLink href="/dashboard/tts">Texto a voz</NavLink>}
-            {flags.myVoiceEnabled && <NavLink href="/dashboard/voices">Mi voz</NavLink>}
+            {canUseMyVoice(user) && <NavLink href="/dashboard/voices">Mi voz</NavLink>}
             <NavLink href="/dashboard/billing">Facturación</NavLink>
             {showLongFormDryRun && (
               <NavLink href="/dashboard/long-form/visual-test-v2">Dry Run Long Form</NavLink>

@@ -11,6 +11,7 @@ import { AutoRefresh } from "../AutoRefresh";
 import { ACTIVE_VOICE_STATUSES, VOICE_BUCKET } from "@/lib/voices/requests";
 import { VoiceForm } from "./VoiceForm";
 import { createMyVoice, deleteMyVoice, retryMyVoice } from "./actions";
+import { canUseMyVoice } from "@/lib/voices/access";
 
 type VoiceRow = {
   id: string;
@@ -36,12 +37,12 @@ const STATUS: Record<string, { label: string; tone: BadgeTone }> = {
 
 export default async function MyVoicePage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const flags = getFeatureFlags();
-  if (!flags.myVoiceEnabled) notFound();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) notFound();
+  // Piloto de acceso controlado: flag + lista de cuentas (src/lib/voices/access.ts).
+  if (!user || !canUseMyVoice(user)) notFound();
   const { error } = await searchParams;
 
   // RLS: solo las voces propias; las eliminadas no se muestran.
