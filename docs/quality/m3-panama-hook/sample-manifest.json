@@ -37,9 +37,9 @@
         "mediaStartSeconds": 1.5
       },
       "review": {
-        "status": "pending",
+        "status": "approved",
         "relevance": "directa",
-        "note": "Clip IA por generar y revisar: vestimenta y herramientas de época, sin maquinaria, sin artefactos (manos, caras, herramientas)."
+        "note": "Revisión técnica (fotogramas 0.2–7.8 s, 640 px): tres obreros afrocaribeños de época, camisa de algodón y sombrero; pico y pala; tierra y polvo con movimiento real; caras, ropa y herramientas estables; sin maquinaria ni elementos modernos; sin manos o extremidades deformadas visibles. La aprobación final es de Hans."
       }
     },
     {
@@ -138,9 +138,9 @@
         "mediaStartSeconds": 0
       },
       "review": {
-        "status": "pending",
+        "status": "approved",
         "relevance": "directa",
-        "note": "Clip IA por generar y revisar: debe conservar la foto (B/N, grano, composición); sin personas ni máquinas nuevas, sin caras deformadas."
+        "note": "Revisión técnica (0.2–7.8 s, 640 px; se usan 0–3.05 s): conserva B/N, la pala 230, las vías y la cuadrilla. Desviaciones: la forma oscura de arriba a la izquierda de la foto se vuelve una locomotora, el penacho de vapor cambia de forma, el encuadre sube levemente y el grano se suaviza. Aceptado sin reintento (plausible: trenes de tierra en la Culebra), señalado a Hans. La aprobación final es de Hans."
       }
     },
     {
