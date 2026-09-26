@@ -136,3 +136,39 @@ que en el render aprobado esto no ocurre.
   - El recorte a 16:9 conserva a los tres obreros y las herramientas.
 - **Bloqueo:** para generar los dos clips, el repositorio necesita el secreto de Actions `VEO_API_KEY`, con el mismo valor que en Vercel.
   - Esto afecta también al worker de producción: `render.yml` (Long Form) lee el mismo secreto. Hoy, un clip Veo de producción que se ejecute en GitHub Actions caería al respaldo.
+
+## Generación de los clips (2026-09-26, tras añadir `VEO_API_KEY` a Actions)
+
+1. **Verificación gratuita** (run 36209435502, `paid_preflight_only`):
+   - el workflow recibe las dos claves;
+   - Google responde **200** a la lectura de metadatos de `veo-3.1-fast-generate-preview`;
+   - no hace falta OpenAI (la imagen de época se reutiliza).
+2. **Generación** (run 36209546007):
+   - dos clips de 8 s a 1080p;
+   - operaciones `…/operations/sf12ueidl2de` y `…/operations/zx4hzluvsemf`;
+   - procedencia guardada en `ai/<clave>.provenance.json`.
+3. **Revisión** (run 36209958820, fotogramas de 640 px):
+   - **H1:** aceptado sin reintento.
+   - **H2:** aceptado sin reintento, con desviaciones (ver la nota de s04a en el manifiesto):
+     - una forma oscura de la foto se convierte en locomotora;
+     - el vapor cambia de forma;
+     - el encuadre sube levemente.
+   - Un reintento de H2 costaría $0.96 (clave `m3-h2-culebra-v2`) y **solo se hará si Hans lo pide**.
+4. **Render B** (run 36210113940): `samples/m3-hook/sample-approval-21s.mp4`.
+   - Resultado: −15.95 LUFS, −2.47 dBTP, 0 tramos negros.
+   - Los rótulos «Recreación IA» aparecen en s01 y s04a.
+   - Los subtítulos no cruzan cortes.
+   - «approval» es el modo de render sin marcas de pendiente. **No** equivale a la aprobación de Hans.
+
+### Costo real
+
+| Recurso | Proveedor | Costo |
+|---|---|---|
+| Imagen de época (H1) | OpenAI Images, calculado desde `usage` | $0.0558 |
+| Clip H1 | Veo 3.1 Fast, 8 s × $0.12/s | $0.96 |
+| Clip H2 | Veo 3.1 Fast, 8 s × $0.12/s | $0.96 |
+| Reserva liberada (Veo, nunca enviada) | — | $0.00 |
+| **Total** | | **$1.9758 de $4.00** |
+
+El costo de Veo es la tarifa publicada multiplicada por la duración: la API no
+devuelve el importe de cada llamada. La factura de Google es la fuente definitiva.
