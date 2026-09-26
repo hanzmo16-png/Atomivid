@@ -34,6 +34,10 @@ export type ScriptScene = {
    * en el guion; obligatoria para animar (readiness.ts la exige).
    */
   visibleAction?: string;
+  /** «Animación IA»: pose inicial ANTERIOR a la acción (primer fotograma; la acción aún no empezó). */
+  actionStart?: string;
+  /** «Animación IA»: estado final que se mantiene hasta el corte (destino de la acción; no se revierte). */
+  actionEnd?: string;
 };
 
 export type GeneratedScript = {

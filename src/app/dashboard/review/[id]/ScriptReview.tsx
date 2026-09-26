@@ -54,7 +54,7 @@ export function ScriptReview({
   const editable = canGenerate && !usesRecording;
   const entitlementBlocked = Boolean(entitlementBlockedReason);
 
-  function updateScene(index: number, field: "text" | "visualQuery" | "visibleAction", value: string) {
+  function updateScene(index: number, field: "text" | "visualQuery" | "visibleAction" | "actionStart" | "actionEnd", value: string) {
     setScript((prev) => ({
       ...prev,
       segments: prev.segments.map((s, i) => (i === index ? { ...s, [field]: value } : s)),
@@ -243,6 +243,30 @@ export function ScriptReview({
                   onChange={(e) => updateScene(i, "visibleAction", e.target.value)}
                   disabled={!editable}
                   placeholder="the keeper slams the iron door shut"
+                  className="mt-1 w-full rounded-md border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:opacity-60"
+                />
+                <label htmlFor={`action-start-${i}`} className="mt-2 block text-xs text-ink-faint">
+                  Pose inicial, antes de la acción (opcional)
+                </label>
+                <input
+                  id={`action-start-${i}`}
+                  value={scene.actionStart ?? ""}
+                  maxLength={160}
+                  onChange={(e) => updateScene(i, "actionStart", e.target.value)}
+                  disabled={!editable}
+                  placeholder="the keeper stands with his back to the door"
+                  className="mt-1 w-full rounded-md border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:opacity-60"
+                />
+                <label htmlFor={`action-end-${i}`} className="mt-2 block text-xs text-ink-faint">
+                  Estado final que se mantiene hasta el corte (opcional)
+                </label>
+                <input
+                  id={`action-end-${i}`}
+                  value={scene.actionEnd ?? ""}
+                  maxLength={160}
+                  onChange={(e) => updateScene(i, "actionEnd", e.target.value)}
+                  disabled={!editable}
+                  placeholder="the iron door stays fully shut"
                   className="mt-1 w-full rounded-md border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:opacity-60"
                 />
               </>

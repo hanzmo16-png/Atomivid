@@ -60,6 +60,17 @@ const MYSTERY_ANIM: GeneratedScript = {
   })),
 };
 
+// «Medieval oscuro»: acción declarada con pose inicial y estado final sostenido.
+const MEDIEVAL: GeneratedScript = {
+  title: "La torre del norte",
+  segments: [
+    { text: "Nadie volvió de la torre del norte desde aquel invierno que el pueblo prefiere no nombrar.", visualQuery: "ruined stone tower", visualConcepts: ["ruined stone tower on a hill", "empty battlements"], energy: "low", visibleAction: "a crow lands on the broken battlement", actionStart: "the empty battlement, a crow gliding toward it", actionEnd: "the crow stays perched, still" },
+    { text: "El caballero dejó el caballo en la entrada y empujó despacio la vieja puerta de roble.", visualQuery: "knight opening oak door", visualConcepts: ["knight pushing an oak door", "iron hinges"], energy: "medium", visibleAction: "the knight pushes the oak door open", actionStart: "the knight stands before the closed oak door", actionEnd: "the door stays open, the knight on the threshold" },
+    { text: "Dentro, sobre la mesa de piedra, alguien había dejado una espada limpia y una carta sellada.", visualQuery: "sword on stone table", visualConcepts: ["sword and sealed letter on a stone table", "candlelit hall"], energy: "medium", visibleAction: "the knight picks up the sealed letter", actionStart: "the knight's hand hovers above the table", actionEnd: "the knight holds the letter, still" },
+    { text: "La carta llevaba su propio nombre, escrito con una letra que nunca había visto antes.", visualQuery: "knight reading letter", visualConcepts: ["knight reading a letter", "wax seal"], energy: "high", visibleAction: "the knight breaks the wax seal", actionStart: "the knight holds the sealed letter in both hands", actionEnd: "the seal lies broken, the letter open" },
+  ],
+};
+
 const HUMOR: GeneratedScript = {
   title: "Mi gato programador",
   segments: [
@@ -79,6 +90,9 @@ const CASES = {
   // «Animación IA» con el proveedor SIMULADO (fixture-animation: MP4 real a partir
   // de la ilustración con un elemento en movimiento). Demuestra el recorrido
   // técnico imagen → clip → render, no la calidad de una animación real.
+  // «Medieval oscuro» en imágenes y en «Animación IA» (proveedor simulado).
+  medieval: { script: MEDIEVAL, style: "Curiosidades", topic: "La torre del norte", selection: { version: 1 as const, profile: "medieval_dark" as const } },
+  "medieval-anim": { script: MEDIEVAL, style: "Curiosidades", topic: "La torre del norte", selection: { version: 1 as const, profile: "medieval_dark" as const, motion: "ai_animation" as const } },
   "comic-anim": { script: MYSTERY_ANIM, style: "Curiosidades", topic: "El faro", selection: { version: 1 as const, profile: "comic" as const, motion: "ai_animation" as const } },
 };
 

@@ -100,19 +100,83 @@ export function buildContinuityBible(input: { profile: ProfileId; intent: Intent
   return { style, palette, setting, recurringSubject, constants, text };
 }
 
-/** Prompt de la ilustración base de una escena en modo animación (estilo + continuidad + contenido). */
+/**
+ * Coreografía de la acción de una escena, compartida por la ilustración
+ * base (primer fotograma) y el clip:
+ *  - start: pose INICIAL, anterior a la acción y compatible con ella (la
+ *    acción aún no empezó). Muestra real: un guardián que ya miraba la
+ *    ventana no tenía giro que hacer.
+ *  - action: la acción principal declarada (una sola).
+ *  - end: destino y estado final, que se MANTIENE hasta el corte. Muestra
+ *    real: una puerta cerraba a tiempo y después volvía a abrirse.
+ *  - constraints: restricciones de la escena. Efectos, clima y elementos
+ *    que la escena no menciona quedan prohibidos. Muestra real: un faro
+ *    añadió llamas y destellos que nadie pidió.
+ * Si el guion no trae start/end, se usa una formulación explícita genérica
+ * (declaredStart/declaredEnd = false) — nunca se inventa una pose concreta.
+ */
+export type ActionPlan = { start: string; action: string; end: string; constraints: string[]; declaredStart: boolean; declaredEnd: boolean };
+
+const SCENE_EFFECTS: { constraint: string; negative: string; mentions: string[] }[] = [
+  { constraint: "no fire or flames", negative: "fire, flames", mentions: ["fire", "flame", "burn", "torch", "candle", "blaze", "fuego", "llama", "antorcha", "vela", "incendi", "arde", "ardi", "hoguera"] },
+  { constraint: "no flashes, sparks or lightning", negative: "flashes, sparks, lightning", mentions: ["flash", "spark", "lightning", "thunder", "destello", "chispa", "relámpago", "relampago", "rayo", "trueno"] },
+  { constraint: "no smoke", negative: "smoke", mentions: ["smoke", "humo", "smolder"] },
+  { constraint: "no fog or mist", negative: "fog, mist", mentions: ["fog", "mist", "haze", "niebla", "bruma", "neblina"] },
+  { constraint: "no rain", negative: "rain", mentions: ["rain", "storm", "downpour", "lluvia", "llov", "tormenta", "aguacero"] },
+  { constraint: "no snow", negative: "snow", mentions: ["snow", "blizzard", "nieve", "nevad", "nevan"] },
+  { constraint: "no wind-blown motion", negative: "strong wind", mentions: ["wind", "gust", "breeze", "viento", "ráfaga", "rafaga", "brisa", "vendaval"] },
+  { constraint: "no dust or flying debris", negative: "dust clouds, flying debris", mentions: ["dust", "debris", "pebble", "stones", "gravel", "dirt", "polvo", "escombro", "piedra", "grava", "tierra"] },
+  { constraint: "no explosions", negative: "explosions", mentions: ["explo", "blast", "estall"] },
+];
+
+/** Restricciones de la escena: lo que no menciona, no aparece. */
+export function sceneConstraints(texts: (string | undefined)[]): { constraints: string[]; negatives: string[] } {
+  const haystack = texts.filter(Boolean).join(" ").toLowerCase();
+  const absent = SCENE_EFFECTS.filter((e) => !e.mentions.some((m) => haystack.includes(m)));
+  return {
+    constraints: [...absent.map((e) => e.constraint), "no new characters, animals, objects or light sources that the scene does not mention"],
+    negatives: absent.map((e) => e.negative),
+  };
+}
+
+export function planSceneAction(segment: Pick<ScriptScene, "text" | "visualQuery" | "visualConcepts" | "visibleAction" | "actionStart" | "actionEnd">): ActionPlan {
+  const declared = segment.visibleAction?.trim();
+  if (!declared || declared.length < 3) throw new AnimationPlanError("La escena no declara una acción visible concreta; no se anima sin ella.");
+  const action = clean(declared, 160);
+  const start = segment.actionStart?.trim();
+  const end = segment.actionEnd?.trim();
+  const { constraints } = sceneConstraints([segment.text, segment.visualQuery, ...(segment.visualConcepts ?? []), action, start, end]);
+  return {
+    action,
+    start: start ? clean(start, 160) : `the moment just before "${action}": that action has not started yet`,
+    end: end ? clean(end, 160) : `the result of "${action}" is reached and stays still`,
+    constraints,
+    declaredStart: Boolean(start),
+    declaredEnd: Boolean(end),
+  };
+}
+
+/** Prompt de la ilustración base de una escena en modo animación (estilo + continuidad + contenido + pose inicial). */
 export function buildAnimationBaseImagePrompt(input: {
   profile: ProfileId;
   bible: ContinuityBible;
   concept: string;
   narration: string;
+  /** Coreografía de la escena: el primer fotograma muestra la pose ANTERIOR a la acción. */
+  action?: ActionPlan;
 }): { prompt: string; negativePrompt: string; key: string } {
   const { negative } = animationBaseStyle(input.profile);
+  const act = input.action;
+  const firstFrame = act
+    ? `This image is the FIRST frame of a short animated shot. Show exactly this starting pose: ${act.start}. ` +
+      `The action "${act.action}" has NOT started: do not show it in progress or completed, and leave clear room in the frame for it and for its destination (${act.end}). ` +
+      `Scene constraints: ${act.constraints.join("; ")}.`
+    : "This frame is the FIRST frame of a short animated shot: pose the subject just before its action.";
   const prompt =
     `${input.bible.style}. Scene: ${clean(input.concept, 160)}. ${input.bible.text} ` +
     `Story context (do not render as text): "${clean(input.narration, 280)}". ` +
     "Vertical 9:16 composition, main subject fully visible in the upper two thirds, bottom third calm and free of key details, no text or lettering. " +
-    "This frame is the FIRST frame of a short animated shot: pose the subject just before its action.";
+    firstFrame;
   const key = createHash("sha256").update(`anim-base\n${prompt}\n${negative}`).digest("hex").slice(0, 12);
   return { prompt, negativePrompt: negative, key };
 }
@@ -199,6 +263,7 @@ export type SceneAnimationSpec = {
   negativePrompt: string;
   /** Huella de todo lo que determina el clip (imagen de entrada, instrucciones, modelo y parámetros). */
   key: string;
+  choreography: ActionPlan;
 };
 
 export const ANIMATION_NEGATIVE =
@@ -214,7 +279,7 @@ export class AnimationPlanError extends Error {
 
 export function planSceneAnimation(input: {
   sceneIndex: number;
-  segment: Pick<ScriptScene, "text" | "visualQuery" | "visualConcepts" | "visibleAction">;
+  segment: Pick<ScriptScene, "text" | "visualQuery" | "visualConcepts" | "visibleAction" | "actionStart" | "actionEnd">;
   energy: SceneEnergy;
   intent: IntentId;
   bible: ContinuityBible;
@@ -243,11 +308,14 @@ export function planSceneAnimation(input: {
   }
   const narration = clean(input.segment.text, 280);
   const subject = clean(input.segment.visualConcepts?.[0] ?? input.segment.visualQuery, 120);
-  const action = clean(declared, 160);
+  const choreography = planSceneAction(input.segment);
+  const action = choreography.action;
   // Siempre ≥ minimum (garantizado por actionFitsVisible) y siempre 0,3 s antes del corte declarado.
   const completeBy = (Math.round(visibleSeconds * 10) - Math.round(ACTION_CLOSING_MARGIN_SECONDS * 10)) / 10;
-  const startState = "exactly the input image: same composition, same subject, same style";
-  const endState = `the action "${action}" fully completed by second ${completeBy.toFixed(1)}; same composition, no new characters or objects`;
+  const startState = `exactly the input image (${choreography.start}); the action has not started`;
+  const endState = `${choreography.end}, reached by second ${completeBy.toFixed(1)} and held unchanged until the cut`;
+  const { negatives } = sceneConstraints([input.segment.text, input.segment.visualQuery, ...(input.segment.visualConcepts ?? []), action, input.segment.actionStart, input.segment.actionEnd]);
+  const negativePrompt = [ANIMATION_NEGATIVE, "reversing the action, undoing the action, repeating the action, looping motion", ...negatives].join(", ");
   const framing =
     "the illustration is centered; blurred bands above and below it are background and must stay still; keep the whole subject inside the illustration area, in its upper two thirds; keep the bottom third free for subtitles";
   const camera = CAMERA_BY_INTENT[input.intent];
@@ -255,7 +323,8 @@ export function planSceneAnimation(input: {
     `Animate this illustration with real motion inside the scene. Subject: ${subject}. ` +
     `The ONLY visible action: ${action} (${PACE_BY_ENERGY[input.energy]}). Story moment (do not render as text): "${narration}". ` +
     `Timing: the action starts immediately and is fully completed by second ${completeBy.toFixed(1)}; the shot is cut at second ${visibleSeconds.toFixed(1)}, so nothing important may happen after that. ` +
-    `After completing it keep only subtle ambient motion. Sequence: starts as ${startState}; ends with ${endState}. ` +
+    `Sequence: starts as ${startState}; ends with ${endState}. Once the final state is reached it stays exactly so: nothing reverses, reopens, repeats or loops; only subtle ambient motion remains. ` +
+    `Scene constraints: ${choreography.constraints.join("; ")}. ` +
     `Camera: ${camera}. Single continuous shot, no cuts. Framing: ${framing}. ` +
     `${input.bible.text} Do not change the drawing style of the input image. No speech, no dialogue, no music.`;
   const key = createHash("sha256")
@@ -267,7 +336,7 @@ export function planSceneAnimation(input: {
         seconds: REEL_ANIMATION.clipSeconds,
         image: input.referenceImageKey,
         prompt,
-        negative: ANIMATION_NEGATIVE,
+        negative: negativePrompt,
       }),
     )
     .digest("hex")
@@ -285,8 +354,9 @@ export function planSceneAnimation(input: {
     framing,
     camera,
     prompt,
-    negativePrompt: ANIMATION_NEGATIVE,
+    negativePrompt,
     key,
+    choreography,
   };
 }
 

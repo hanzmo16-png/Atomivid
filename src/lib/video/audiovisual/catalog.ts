@@ -16,7 +16,7 @@
 
 export const AUDIOVISUAL_SELECTION_VERSION = 1;
 
-export type ProfileId = "cinematic_realistic" | "illustration_3d" | "anime" | "comic" | "horror_mystery";
+export type ProfileId = "cinematic_realistic" | "illustration_3d" | "anime" | "comic" | "horror_mystery" | "medieval_dark";
 export type IntentId = "suspense" | "humor" | "uplifting" | "informative" | "reflective" | "action";
 export type MusicDirectionId = "tension" | "playful" | "uplifting" | "neutral" | "emotional" | "driving";
 export type MusicChoice = MusicDirectionId | "none";
@@ -132,6 +132,24 @@ export const PROFILES: Record<ProfileId, ProfileDefinition> = {
       vignette: 0.6,
       tint: "rgba(18, 34, 52, 0.22)",
     },
+  },
+  // Fantasía medieval cinematográfica y realista. Los personajes y lugares los
+  // pone el guion: el estilo no impone caballos, batallas ni clima; la niebla,
+  // la lluvia, el viento o el polvo aparecen solo si la escena los menciona
+  // (ver sceneConstraints en animation.ts). Emoción e intención: las de la
+  // historia (sin intención fija).
+  medieval_dark: {
+    id: "medieval_dark",
+    label: "Medieval oscuro",
+    description: "Fantasía medieval cinematográfica y realista, generada para cada escena.",
+    visualSource: "generated_image",
+    imageStyle:
+      "realistic cinematic dark medieval fantasy film still, black, steel grey, sepia and desaturated colors, " +
+      "aged weathered metal, rough stone, worn leather and detailed woven fabrics, natural low-key light, photographic detail",
+    imageNegative:
+      "text, letters, captions, subtitles, watermark, logo, film frame, film border, letterbox bars, cartoon, anime, " +
+      "comic, 3D render, modern objects, bright saturated colors",
+    grade: { filter: "saturate(0.9) contrast(1.05)", vignette: 0.3 },
   },
 };
 
@@ -250,6 +268,7 @@ export const PROFILE_SAMPLES: Record<ProfileId, ProfileSample | null> = {
   anime: null,
   comic: null,
   horror_mystery: null,
+  medieval_dark: null,
 };
 
 const oneOf = <T extends string>(values: readonly T[], raw: unknown): raw is T =>

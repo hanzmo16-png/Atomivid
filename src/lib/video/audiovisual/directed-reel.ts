@@ -46,6 +46,7 @@ import {
   buildContinuityBible,
   AnimationPlanError,
   planAnimatedShots,
+  planSceneAction,
   planSceneAnimation,
   type SceneAnimationSpec,
 } from "./animation";
@@ -179,7 +180,7 @@ export async function generateDirectedVideoFromScript({
       const segment = segments[i];
       const concept = segment.visualConcepts?.[0] ?? segment.visualQuery;
       const styled = bible
-        ? buildAnimationBaseImagePrompt({ profile: direction.profile, bible, concept, narration: segment.text })
+        ? buildAnimationBaseImagePrompt({ profile: direction.profile, bible, concept, narration: segment.text, action: planSceneAction(segment) })
         : buildStyledImagePrompt({ profile: direction.profile, intent: direction.intent.id, concept, narration: segment.text });
       // Presupuesto de imágenes ACUMULADO entre intentos (registro durable), no solo este intento.
       const remaining = Math.max(0, flags.maxVisualCostUsd - (ledger.summary().byKind.image?.usd ?? 0));
@@ -319,7 +320,7 @@ export async function generateDirectedVideoFromScript({
       const spec = specs[i];
       console.log(
         "[atomivid:animation-plan]",
-        JSON.stringify({ requestId, scene: i, subject: spec.subject, action: spec.action, visibleSeconds: spec.visibleSeconds, startState: spec.startState, endState: spec.endState, reference: spec.referenceImagePath, constants: spec.constants, framing: spec.framing, camera: spec.camera, key: spec.key }),
+        JSON.stringify({ requestId, scene: i, subject: spec.subject, action: spec.action, choreography: spec.choreography, visibleSeconds: spec.visibleSeconds, startState: spec.startState, endState: spec.endState, reference: spec.referenceImagePath, constants: spec.constants, framing: spec.framing, camera: spec.camera, key: spec.key }),
       );
       try {
         const input = await prepareAnimationInputImage({

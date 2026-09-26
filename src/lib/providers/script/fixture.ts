@@ -73,6 +73,8 @@ function buildScene(
     energy: ENERGIES[templateIndex % ENERGIES.length],
     // Acción visible determinista (solo fixture), para ejercitar «Animación IA» sin red.
     visibleAction: `a figure slowly raises one hand in scene ${templateIndex + 1}`,
+    actionStart: "a figure stands still with both hands lowered",
+    actionEnd: "the raised hand stays up and still",
   };
 }
 

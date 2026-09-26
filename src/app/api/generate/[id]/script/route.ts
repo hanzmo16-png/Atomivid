@@ -246,11 +246,14 @@ export async function PATCH(
         { status: 400 },
       );
     }
-    if (segment.visibleAction !== undefined && (typeof segment.visibleAction !== "string" || segment.visibleAction.length > MAX_VISIBLE_ACTION_LENGTH)) {
-      return NextResponse.json(
-        { error: `La acción visible de una escena debe ser texto de hasta ${MAX_VISIBLE_ACTION_LENGTH} caracteres` },
-        { status: 400 },
-      );
+    for (const field of ["visibleAction", "actionStart", "actionEnd"] as const) {
+      const value = segment[field];
+      if (value !== undefined && (typeof value !== "string" || value.length > MAX_VISIBLE_ACTION_LENGTH)) {
+        return NextResponse.json(
+          { error: `La acción de una escena (${field}) debe ser texto de hasta ${MAX_VISIBLE_ACTION_LENGTH} caracteres` },
+          { status: 400 },
+        );
+      }
     }
   }
 

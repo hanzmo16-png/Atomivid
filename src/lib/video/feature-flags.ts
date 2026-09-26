@@ -96,7 +96,7 @@ export function getFeatureFlags() {
     longFormAiVideoCostPreset: (process.env.LONG_FORM_AI_VIDEO_COST_PRESET || "balanced").trim(),
     /**
      * Dirección audiovisual en Reels (docs/AUDIOVISUAL_DIRECTION.md): muestra
-     * el selector de cinco perfiles y guarda la selección. Apagado por
+     * el selector de perfiles y guarda la selección. Apagado por
      * defecto; requiere la migración 0020 aplicada ANTES de encenderlo. Las
      * solicitudes creadas sin selección siguen el flujo anterior intacto.
      */

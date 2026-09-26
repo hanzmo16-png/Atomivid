@@ -31,7 +31,7 @@ export type ProfileAvailability = Partial<Record<ProfileId, { ok: boolean; note?
 export type AnimationAvailability = { ok: boolean; note?: string; estimatedUsd: number; clips: number };
 
 /**
- * Selector de dirección audiovisual: cinco tarjetas, un resumen de una
+ * Selector de dirección audiovisual: seis tarjetas, un resumen de una
  * línea y «Ajustes» opcionales cerrados. Envía av_profile/av_intent/
  * av_music/av_pace dentro del <form> que lo contiene; el servidor
  * (catalog.ts, parseSelection) es quien valida de verdad.
