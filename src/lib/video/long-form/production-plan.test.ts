@@ -184,10 +184,10 @@ test("resolveExecutablePlan: un plan v1 (anterior) se ejecuta de forma compatibl
   assert.deepEqual(executionAllocation(plan), { maxAiImageGenerations: 9, maxAiVideoClips: 0, maxGenerativeUsd: 2.4 });
 });
 
-test("PRODUCTION_PLAN_VERSION es 2 e isProductionPlan valida la forma", () => {
+test("PRODUCTION_PLAN_VERSION es 3 (escenas ancladas) e isProductionPlan valida la forma", () => {
   const plan = planFor("balanced");
   assert.equal(plan.version, PRODUCTION_PLAN_VERSION);
-  assert.equal(PRODUCTION_PLAN_VERSION, 2);
+  assert.equal(PRODUCTION_PLAN_VERSION, 3);
   assert.equal(isProductionPlan(plan), true);
   assert.equal(isProductionPlan({ ...plan, strategy: "otro" }), false);
   assert.equal(isProductionPlan(null), false);

@@ -28,6 +28,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildCaptions } from "../captions";
 import { buildEmphasisSet } from "../caption-emphasis";
 import { LOUDNESS_TARGET, masterAudioLoudness } from "../audio-master";
+
+/** Margen de pico real de Long Form: la codificación AAC subía el pico ~0.3 dB sobre −1.5 dBTP (muestra M2: −1.21). */
+export const LONG_FORM_TRUE_PEAK_MARGIN_DB = 1.0;
 import { VIDEO_TAIL_SECONDS } from "../script-pacing";
 import { computeNarrationGaps } from "../../../../remotion/audio-mix";
 import { getVideoProvider } from "@/lib/providers/video-gen";
@@ -36,7 +39,12 @@ import type { MusicResult, ScriptLanguage, VideoProvider } from "@/lib/providers
 import { resolveLongFormProviders, type LongFormProviderSet } from "./mode";
 import { buildLongFormTimeline, type BeatSynthesizer } from "./timeline";
 import { shotsForSpan } from "./shots";
-import { renderLongFormDoc, type RenderLongFormDocInput } from "./render";
+import { assertOpeningValid, CoverValidationError, renderLongFormDoc, renderLongFormThumbnail, type RenderLongFormDocInput } from "./render";
+import { canonicalThumbnailPath, toCoverSpec } from "./packaging";
+import { provenanceLabel } from "../../../../remotion/long-form-card-fit";
+import { defaultDirections, snapSceneBoundaries } from "./montage-direction";
+import { captionsWithinScenes } from "./scene-captions";
+import type { LongFormShotScene } from "../../../../remotion/LongFormDoc";
 import { wrapDurableVideoProvider } from "./ai-video-durable-provider";
 import { emptyAiVideoLedgerState } from "./ai-video-cost-guard";
 import { loadProductionCachedBeatNarration, synthesizeBeatNarrationProductionCached } from "./production-tts-cache";
@@ -48,8 +56,11 @@ import {
   isLongFormAiVideoConfigured,
   limitsWithinAllocation,
   strategyLimits,
+  usesAnchoredVisuals,
   type ProductionPlan,
 } from "./production-plan";
+import { DocumentAssetRegistry, type AssetIdentity } from "./asset-identity";
+import { assertVisualQuality, buildVisualReport, type VisualReport } from "./visual-report";
 import { ProductionBudget, supabaseBudgetStore, type BudgetStore } from "./production-budget";
 import { supabaseShotAssetStore, type ShotAssetStore } from "./durable-shot-assets";
 import { executeShot, type ShotExecution } from "./shot-executor";
@@ -86,6 +97,8 @@ export type LongFormRuntime = {
   synthesizeBeat?: BeatSynthesizer;
   uploadArtifact?: (objectPath: string, buffer: Buffer, contentType: string) => Promise<{ path: string; url: string }>;
   render?: (input: RenderLongFormDocInput) => Promise<string>;
+  /** Render de la miniatura (por defecto renderLongFormThumbnail); inyectable en pruebas. */
+  renderThumbnail?: (input: import("../../../../remotion/LongFormThumbnail").LongFormThumbnailProps) => Promise<string>;
   aiVideoEnabled?: boolean;
   recordCosts?: boolean;
   resumeBackoffMs?: number;
@@ -102,6 +115,15 @@ export type LongFormRuntime = {
   encoding?: RenderLongFormDocInput["encoding"];
   /** Intento (render_attempts) — solo para el estado durable de la salida. */
   attempt?: number | null;
+  /** Destino del informe visual previo al render (por defecto `${requestId}/state/visual-report.json`). */
+  saveVisualReport?: (report: VisualReport) => Promise<void>;
+  /** Inyectable en pruebas: identidad de contenido sin ffmpeg/sharp. */
+  identify?: (buffer: Buffer, mediaType: "image" | "video") => Promise<Pick<AssetIdentity, "sha256" | "dhash" | "dhashUnavailable">>;
+  /**
+   * Hoja de sonido explícita (contrato de Work, remotion/long-form-direction.ts).
+   * Si se pasa, REEMPLAZA la música de fondo única (nunca se suman: música doble).
+   */
+  soundCues?: RenderLongFormDocInput["soundCues"];
 };
 
 export class LongFormReplayError extends Error {
@@ -155,7 +177,7 @@ export async function generateLongFormVideoFromScript({
   /** Snapshot CONFIRMADO (long_form_production_plan) — el worker ejecuta exactamente su estrategia y nunca excede su allocation. */
   plan: ProductionPlan;
   runtime?: LongFormRuntime;
-}): Promise<{ videoPath: string; deviations: number; spentUsd: number; reconciled: boolean; output: LongFormOutputState | null }> {
+}): Promise<{ videoPath: string; deviations: number; spentUsd: number; reconciled: boolean; output: LongFormOutputState | null; thumbnailPath?: string }> {
   const voiceCharacters = beats.reduce((sum, b) => sum + b.narration.length, 0);
   if (voiceCharacters !== plan.voiceCharacters) throw new LongFormScriptChangedError();
 
@@ -208,8 +230,15 @@ export async function generateLongFormVideoFromScript({
   // real narrada lo permite). Planes sin beatShotCounts (anteriores) usan
   // el reparto por defecto, idéntico al de su ejecución original.
   const plannedShotCounts = plan.beatShotCounts;
-  const shotsForPlannedSpan: typeof shotsForSpan = (spanInput) =>
-    shotsForSpan({ ...spanInput, targetCount: plannedShotCounts?.[spanInput.beatId] });
+  // Planes v3+: cada escena se ancla al pasaje narrado DURANTE ella con los
+  // tiempos reales por palabra (scene-anchoring.ts). v1/v2: sin cambios.
+  const anchored = usesAnchoredVisuals(plan);
+  const shotsForPlannedSpan = (spanInput: Parameters<typeof shotsForSpan>[0] & { words?: import("@/lib/providers/types").WordTiming[] }) =>
+    shotsForSpan({
+      ...spanInput,
+      targetCount: plannedShotCounts?.[spanInput.beatId],
+      anchoring: anchored ? { words: spanInput.words } : undefined,
+    });
   const timeline = await buildLongFormTimeline(
     resolvedProviders.voiceProvider,
     beats,
@@ -276,6 +305,24 @@ export async function generateLongFormVideoFromScript({
         })
       : undefined;
 
+  // Registro de identidad del documental (v3): se siembra con TODO lo ya
+  // resuelto en intentos anteriores ANTES de elegir nada nuevo, para que un
+  // reintento nunca reutilice en otra escena un recurso ya usado.
+  const priorTextDeviations = new Set(budget.snapshot().deviations.filter((d) => d.executed === "text").map((d) => d.shotId));
+  const registry = anchored ? new DocumentAssetRegistry() : undefined;
+  if (registry) {
+    for (let i = 0; i < allocated.shots.length; i += 10) {
+      await Promise.all(
+        allocated.shots.slice(i, i + 10).map(async (shot) => {
+          for (const kind of ["stock", "ai_image", "ai_video"] as const) {
+            const record = await store.read(shot.id, kind);
+            if (record?.status === "COMPLETED" && record.identity) registry.register(shot.id, record.identity);
+          }
+        }),
+      );
+    }
+  }
+
   await onProgress?.("assets", { completed: 0, total: allocated.shots.length, label: "escenas" });
   let aiVideoLedger = emptyAiVideoLedgerState();
   let spentUsd = 0;
@@ -303,10 +350,16 @@ export async function generateLongFormVideoFromScript({
         requireReal,
         metadata: { requestId },
         replayOnly,
+        visualPipeline: anchored ? "anchored_v1" : undefined,
+        registry,
+        identify: runtime.identify,
       },
       aiVideoLedger,
     );
-    if (replayOnly && (execution.deviation || !(execution.reused || execution.executedType === "text"))) {
+    // Una escena que ya fue tarjeta (carencia/degradación) en la ejecución
+    // original — registrada en el presupuesto durable — se reproduce igual.
+    const priorTextFallback = execution.executedType === "text" && priorTextDeviations.has(shot.id);
+    if (replayOnly && !priorTextFallback && (execution.deviation || !(execution.reused || execution.executedType === "text"))) {
       throw new LongFormReplayError(
         `la escena ${shot.id} no se reproduce igual que en la ejecución original (${execution.deviation ? `${execution.deviation.planned} → ${execution.deviation.executed}: ${execution.deviation.reason}` : "asset no reutilizado"})`,
       );
@@ -330,20 +383,42 @@ export async function generateLongFormVideoFromScript({
     }
     await onProgress?.("assets", { completed: index + 1, total: allocated.shots.length, label: "escenas" });
   }
+  // Informe visual PREVIO al render (se guarda siempre, antes de cualquier
+  // control que pueda detener la producción: las carencias quedan visibles).
+  const visualReport = buildVisualReport({ requestId, planVersion: plan.version, topic, shots: allocated.shots, executions });
+  const saveReport =
+    runtime.saveVisualReport ??
+    (async (report: VisualReport) => {
+      await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(`${requestId}/state/visual-report.json`, Buffer.from(JSON.stringify(report, null, 2)), { contentType: "application/json", upsert: true });
+    });
+  await saveReport(visualReport).catch((err) => {
+    console.warn(`[atomivid:long-form:produce] ${requestId} — no se pudo guardar el informe visual:`, err instanceof Error ? err.message : err);
+  });
+  assertVisualQuality(visualReport);
+
   if (allocated.shots.length > 0 && degradedToText / allocated.shots.length > MAX_TEXT_FALLBACK_RATIO) {
     throw new LongFormQualityError(degradedToText, allocated.shots.length);
   }
 
-  const shotScenes = allocated.shots.map((shot, i) => ({
+  const baseScenes = allocated.shots.map((shot, i) => ({
     id: shot.id,
     startSeconds: shot.startSec,
     endSeconds: shot.endSec,
     asset: executions[i].asset,
     motion: shot.motion,
   }));
+  // v3: cortes alineados a la voz real, dirección de montaje editorial,
+  // procedencia visible y carencias marcadas (nunca pasan por terminadas).
+  // v1/v2 y la recuperación de planes anteriores: sin cambios.
+  const shotScenes = anchored ? directAnchoredScenes(baseScenes, executions, timeline.words) : baseScenes;
 
   const emphasisSet = buildEmphasisSet([]);
-  const captions = buildCaptions(timeline.words, emphasisSet);
+  // v3: ningún subtítulo cruza un corte de escena; v1/v2 sin cambios.
+  const captions = anchored
+    ? captionsWithinScenes(timeline.words, shotScenes, (w) => buildCaptions(w, emphasisSet))
+    : buildCaptions(timeline.words, emphasisSet);
   const narrationGaps = computeNarrationGaps(timeline.words);
 
   const fullNarrationText = beats.map((b) => b.narration).join(" ");
@@ -381,9 +456,24 @@ export async function generateLongFormVideoFromScript({
   let lastReportedFrames = -1;
   let lastReportedAt = 0;
   const renderStartedAt = Date.now();
+  // Presentación para YouTube (portada/miniatura): SOLO planes v3 y solo si se eligió al confirmar.
+  // Un problema de la portada nunca tumba una producción ya pagada: se renderiza sin ella y se registra.
+  const packaging = anchored ? plan.packaging : undefined;
+  let opening = packaging?.cover.enabled ? toCoverSpec(packaging.cover) : undefined;
+  if (opening) {
+    try {
+      assertOpeningValid(opening, shotScenes[0]);
+    } catch (err) {
+      if (!(err instanceof CoverValidationError)) throw err;
+      console.warn(`[atomivid:long-form:produce] ${requestId} — portada omitida: ${err.message}`);
+      opening = undefined;
+    }
+  }
   const rawOutputPath = await (runtime.render ?? renderLongFormDoc)({
+    ...(opening ? { opening } : {}),
     audioUrl: audioUpload.url,
-    musicUrl,
+    musicUrl: runtime.soundCues ? undefined : musicUrl,
+    soundCues: runtime.soundCues,
     scenes: shotScenes,
     captions,
     narrationGaps,
@@ -409,7 +499,7 @@ export async function generateLongFormVideoFromScript({
   let outputPath = rawOutputPath;
   try {
     const masteredPath = rawOutputPath.replace(/\.mp4$/, ".mastered.mp4");
-    const mastering = await masterAudioLoudness(rawOutputPath, masteredPath, { faststart: true });
+    const mastering = await masterAudioLoudness(rawOutputPath, masteredPath, { faststart: true, truePeakMarginDb: LONG_FORM_TRUE_PEAK_MARGIN_DB });
     outputPath = masteredPath;
     console.log("[atomivid:long-form:produce] masterización de loudness", JSON.stringify({ requestId, target: LOUDNESS_TARGET, ...mastering }));
   } catch (err) {
@@ -431,6 +521,26 @@ export async function generateLongFormVideoFromScript({
   );
   storageBytes += outputState.delivered?.bytes ?? 0;
   await fs.unlink(outputPath).catch(() => {});
+
+  // Miniatura de YouTube (opcional, independiente de la portada): la imagen de la primera escena con su
+  // reencuadre + el título. Un fallo aquí nunca afecta al video ya entregado.
+  let thumbnailPath: string | undefined;
+  const first = shotScenes[0] as import("../../../../remotion/LongFormDoc").LongFormShotScene | undefined;
+  if (packaging?.thumbnail.enabled && first?.asset.kind === "media") {
+    try {
+      const jpg = await (runtime.renderThumbnail ?? renderLongFormThumbnail)({
+        background: { mediaType: first.asset.mediaType, url: first.asset.url, look: first.direction?.look, mediaStartSeconds: first.direction?.mediaStartSeconds },
+        cover: toCoverSpec(packaging.thumbnail),
+        provenanceLabel: provenanceLabel(first.provenance),
+      });
+      const buffer = await fs.readFile(jpg);
+      thumbnailPath = (await uploadArtifact(canonicalThumbnailPath(requestId), buffer, "image/jpeg")).path;
+      storageBytes += buffer.byteLength;
+      await fs.unlink(jpg).catch(() => {});
+    } catch (err) {
+      console.warn(`[atomivid:long-form:produce] ${requestId} — no se pudo generar la miniatura:`, err instanceof Error ? err.message : err);
+    }
+  }
 
   console.log(
     "[atomivid:long-form:produce] terminado",
@@ -469,7 +579,7 @@ export async function generateLongFormVideoFromScript({
       });
   }
 
-  return { videoPath, deviations, spentUsd, reconciled: false, output: outputState };
+  return { videoPath, deviations, spentUsd, reconciled: false, output: outputState, thumbnailPath };
 }
 
 /** Mismo patrón que generate-video.ts (Shorts): sube al bucket privado y firma una URL de corta duración para que este mismo proceso (Remotion) pueda leerla. */
@@ -488,4 +598,31 @@ async function uploadToStorage(
   if (signError || !data) throw new Error(`No se pudo firmar la URL de ${objectPath}: ${signError?.message ?? "desconocido"}`);
 
   return { path: objectPath, url: data.signedUrl };
+}
+
+/** Escenas v3 listas para renderizar: límites alineados a la voz, dirección, procedencia y carencias visibles. */
+export function directAnchoredScenes(
+  scenes: LongFormShotScene[],
+  executions: Pick<ShotExecution, "assetMeta">[],
+  words: { startSeconds: number; endSeconds: number }[],
+): LongFormShotScene[] {
+  if (scenes.length === 0) return scenes;
+  const bounds = snapSceneBoundaries([...scenes.map((s) => s.startSeconds), scenes[scenes.length - 1].endSeconds], words);
+  const directions = defaultDirections(
+    scenes.map((s, i) => ({
+      kind: s.asset.kind === "media" ? s.asset.mediaType : "graphic",
+      provenance: executions[i]?.assetMeta?.provenance?.kind,
+    })),
+  );
+  return scenes.map((scene, i) => {
+    const gap = executions[i]?.assetMeta?.gap;
+    return {
+      ...scene,
+      startSeconds: bounds[i],
+      endSeconds: bounds[i + 1],
+      direction: directions[i],
+      provenance: executions[i]?.assetMeta?.provenance?.kind,
+      pending: gap ? `carencia de material pertinente: ${gap.reason}` : undefined,
+    };
+  });
 }

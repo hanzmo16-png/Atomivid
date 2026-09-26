@@ -21,6 +21,7 @@ import {
   type VisualStrategy,
 } from "./production-plan";
 import { getLongFormBudget } from "./cost";
+import { validatePackagingInput } from "./packaging";
 
 export function isVisualStrategyValue(value: unknown): value is VisualStrategy {
   return typeof value === "string" && (VISUAL_STRATEGIES as readonly string[]).includes(value);
@@ -44,10 +45,13 @@ export type ConfirmProductionResult =
 
 export async function confirmLongFormProduction(
   service: SupabaseClient,
-  input: { requestId: string; userId: string; strategy: unknown; nowIso?: string },
+  input: { requestId: string; userId: string; strategy: unknown; packaging?: unknown; nowIso?: string },
 ): Promise<ConfirmProductionResult> {
   if (!isVisualStrategyValue(input.strategy)) return { ok: false, status: 400, error: "Estrategia visual inválida" };
   const strategy = input.strategy;
+  // Presentación (portada/miniatura): revalidada aquí; el navegador nunca decide si es legible.
+  const packagingCheck = validatePackagingInput(input.packaging);
+  if (!packagingCheck.ok) return { ok: false, status: 400, error: packagingCheck.error };
 
   const { data, error: fetchError } = await service
     .from("video_requests")
@@ -80,6 +84,7 @@ export async function confirmLongFormProduction(
     providers: REAL_LONG_FORM_PROVIDER_NAMES,
     requestedDurationSeconds: data.duration_seconds ?? undefined,
   });
+  if (packagingCheck.packaging) plan.packaging = packagingCheck.packaging;
   const budget = getLongFormBudget();
   if (plan.estimatedProviderCostUsd > budget.maxTotalUsd) {
     return {

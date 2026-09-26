@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -14,6 +14,8 @@ import {
   type VisualStrategy,
 } from "@/lib/video/long-form/production-plan-types";
 import { LONG_FORM_DURATION_TOLERANCE } from "@/lib/video/long-form/duration-budget";
+import type { LongFormPackaging } from "@/lib/video/long-form/packaging";
+import { PackagingOptions } from "./PackagingOptions";
 
 const USD = new Intl.NumberFormat("es-MX", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -76,11 +78,25 @@ export function PlanSummary({ plan }: { plan: ProductionPlan }) {
  * 200 dispara el render. Deshabilitado mientras trabaja — y aunque llegaran
  * dos clics, el servidor confirma y encola una sola producción.
  */
-export function ConfigureProduction({ requestId, plans }: { requestId: string; plans: Record<VisualStrategy, ProductionPlan> }) {
+export function ConfigureProduction({
+  requestId,
+  plans,
+  defaultPackaging,
+  ownChannel = false,
+}: {
+  requestId: string;
+  plans: Record<VisualStrategy, ProductionPlan>;
+  /** Presentación para YouTube inicial (activada por defecto solo en los canales propios). */
+  defaultPackaging?: LongFormPackaging;
+  ownChannel?: boolean;
+}) {
   const router = useRouter();
   const [strategy, setStrategy] = useState<VisualStrategy>("balanced");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [packaging, setPackaging] = useState<LongFormPackaging | undefined>(defaultPackaging);
+  const [packagingValid, setPackagingValid] = useState(true);
+  const onValidityChange = useCallback((valid: boolean) => setPackagingValid(valid), []);
 
   async function handleConfirm() {
     if (loading) return;
@@ -90,7 +106,7 @@ export function ConfigureProduction({ requestId, plans }: { requestId: string; p
       const confirmRes = await fetch(`/api/generate/${requestId}/confirm-production`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ strategy }),
+        body: JSON.stringify(packaging ? { strategy, packaging } : { strategy }),
       });
       const confirmResult = await safeParseJsonResponse(confirmRes);
       if (!confirmResult.ok) throw new Error(confirmResult.error);
@@ -145,11 +161,20 @@ export function ConfigureProduction({ requestId, plans }: { requestId: string; p
         <PlanSummary plan={plans[strategy]} />
       </Card>
 
+      {packaging && (
+        <PackagingOptions value={packaging} onChange={setPackaging} onValidityChange={onValidityChange} disabled={loading} ownChannel={ownChannel} />
+      )}
+
       <div className="mt-6 flex flex-col gap-2 pb-8 sm:items-start">
-        <Button type="button" onClick={handleConfirm} loading={loading} className="w-full sm:w-auto">
+        <Button type="button" onClick={handleConfirm} loading={loading} disabled={!packagingValid} className="w-full sm:w-auto">
           {loading ? "Confirmando…" : "Confirmar y generar video"}
         </Button>
         <p className="text-xs text-ink-faint">Nada se genera ni se cobra hasta que confirmes.</p>
+        {!packagingValid && (
+          <p className="text-sm text-danger" role="alert">
+            Corrige la portada o la miniatura (o desactívala) para continuar.
+          </p>
+        )}
         {error && (
           <p className="text-sm text-danger" role="alert">
             {error}

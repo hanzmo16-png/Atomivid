@@ -46,8 +46,8 @@ function fakeScript(wordsPerBeat: number, beats = 5): DocumentaryScript {
       narration,
       claims: [],
       visuals: [
-        { description: "ship moving through canal locks", motion: true },
-        { description: "jungle", motion: false },
+        { description: "ship moving through canal locks", motion: true, quote: "Panamá palabra", subject: "ship" },
+        { description: "jungle", motion: false, quote: "palabra palabra", subject: "jungle" },
       ],
     })),
   };

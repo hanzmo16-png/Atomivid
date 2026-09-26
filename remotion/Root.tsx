@@ -1,6 +1,7 @@
 import { Composition } from "remotion";
 import { VerticalReel, type VerticalReelProps } from "./VerticalReel";
 import { LongFormDoc, type LongFormDocProps } from "./LongFormDoc";
+import { LongFormThumbnail, type LongFormThumbnailProps } from "./LongFormThumbnail";
 
 export const FPS = 30;
 export const WIDTH = 1080;
@@ -26,6 +27,14 @@ const longFormDefaultProps: LongFormDocProps = {
   scenes: [],
   captions: [],
   narrationGaps: [],
+};
+
+// Miniatura de YouTube de Long Form (fotograma fijo 1280×720).
+export const THUMBNAIL_WIDTH = 1280;
+export const THUMBNAIL_HEIGHT = 720;
+const thumbnailDefaultProps: LongFormThumbnailProps = {
+  background: { mediaType: "image", url: "" },
+  cover: { style: "impacto", title: "Título" },
 };
 
 export function RemotionRoot() {
@@ -54,6 +63,15 @@ export function RemotionRoot() {
         calculateMetadata={async ({ props }) => ({
           durationInFrames: Math.max(1, Math.round(props.durationSeconds * LONG_FORM_FPS)),
         })}
+      />
+      <Composition
+        id="LongFormThumbnail"
+        component={LongFormThumbnail}
+        fps={LONG_FORM_FPS}
+        width={THUMBNAIL_WIDTH}
+        height={THUMBNAIL_HEIGHT}
+        durationInFrames={1}
+        defaultProps={thumbnailDefaultProps}
       />
     </>
   );

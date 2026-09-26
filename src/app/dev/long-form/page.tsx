@@ -65,7 +65,15 @@ export default function DevLongFormPage() {
 
       <section id="configure">
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-accent">Configurar producción</h2>
-        <ConfigureProduction requestId="dev-lf" plans={plans} />
+        <ConfigureProduction
+          requestId="dev-lf"
+          plans={plans}
+          ownChannel
+          defaultPackaging={{
+            cover: { enabled: true, style: "impacto", title: "Canal de *Panamá*", kicker: "Cavando una montaña" },
+            thumbnail: { enabled: true, style: "alerta", title: "Canal de *Panamá*", kicker: "Cavando una montaña" },
+          }}
+        />
       </section>
 
       <section id="progress">

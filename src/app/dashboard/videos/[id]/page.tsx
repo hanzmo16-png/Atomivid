@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { canonicalThumbnailPath } from "@/lib/video/long-form/packaging";
+import { isProductionPlan } from "@/lib/video/long-form/production-plan-types";
 import { getSignedVideoUrl } from "@/lib/storage/signed-url";
 import { selectIfOwned, type OwnedRequestRow } from "@/lib/video/access";
 import { ResultView } from "@/components/video/ResultView";
@@ -32,11 +34,11 @@ export default async function VideoResultPage({
   const { data, error } = await supabase
     .from("video_requests")
     .select(
-      "id, mode, user_id, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage, long_form_progress",
+      "id, mode, user_id, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage, long_form_progress, long_form_production_plan",
     )
     .eq("id", id)
     .eq("user_id", user.id)
-    .maybeSingle<OwnedRequestRow>();
+    .maybeSingle<OwnedRequestRow & { long_form_production_plan: unknown }>();
 
   // Mismo blocker real del Historial (ver history-view.ts): un fallo de
   // consulta (p. ej. una migración aditiva todavía no aplicada) nunca debe
@@ -65,6 +67,11 @@ export default async function VideoResultPage({
     request.status === "completed" && request.video_path
       ? await getSignedVideoUrl(request.video_path)
       : null;
+  // Miniatura de YouTube de Long Form (opcional): solo existe si se pidió al confirmar la producción.
+  const plan = data?.long_form_production_plan;
+  const thumbnailRequested = request.mode === "long_form" && isProductionPlan(plan) && plan.version >= 3 && plan.packaging?.thumbnail?.enabled === true;
+  const thumbnailUrl =
+    thumbnailRequested && request.status === "completed" ? await getSignedVideoUrl(canonicalThumbnailPath(request.id)) : null;
 
   // Server Component evaluado una vez por request (mismo patrón que
   // dashboard/page.tsx). AutoRefresh vuelve a pedir ESTA página al backend
@@ -75,7 +82,7 @@ export default async function VideoResultPage({
   return (
     <div className="mx-auto max-w-md">
       <AutoRefresh active={request.status === "processing"} />
-      <ResultView request={request} videoUrl={videoUrl} nowMs={nowMs} />
+      <ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} thumbnailRequested={thumbnailRequested} nowMs={nowMs} />
     </div>
   );
 }

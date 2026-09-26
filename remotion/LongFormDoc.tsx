@@ -8,7 +8,12 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
+import { cameraTransform, lookStyle, soundCueVolume, transitionFrames, validateDirection, type SceneDirection, type SoundCue } from "./long-form-direction";
 import { type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from "./audio-mix";
+import { LARGE_CARD, provenanceLabel, type SceneProvenance } from "./long-form-card-fit";
+import { coverWindowSeconds, fitCover, type CoverSpec } from "./cover-rules";
+import { OpeningTitle } from "./OpeningTitle";
+import { useCoverFont } from "./cover-font";
 
 /**
  * Composición 16:9 para Long Form — independiente de VerticalReel.tsx
@@ -22,7 +27,17 @@ import { type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from ".
  * mismos datos ya resueltos como props serializables.
  */
 
-export type LongFormMediaAsset = { kind: "media"; mediaType: "image" | "video"; url: string };
+export type LongFormMediaAsset = {
+  kind: "media";
+  mediaType: "image" | "video";
+  url: string;
+  /**
+   * "contain": imagen completa (fotos de archivo con otra proporción) sobre
+   * un fondo de la misma imagen desenfocado y oscurecido — sin recortar el
+   * contenido ni dejar barras negras. Por defecto "cover" (comportamiento anterior).
+   */
+  fit?: "cover" | "contain";
+};
 
 export type LongFormDiagramNode = { id: string; label: string; x: number; y: number };
 export type LongFormDiagramEdge = { from: string; to: string; label?: string };
@@ -49,6 +64,8 @@ export type LongFormTextGraphic = {
   body: string;
   citation?: string;
   isFixture: boolean;
+  /** "large": tarjeta legible (título ≥ 72 px, cuerpo ≥ 44 px; ver long-form-card-fit.ts). Sin valor: tamaños anteriores. */
+  size?: "large";
 };
 
 export type LongFormGraphicAsset = {
@@ -62,6 +79,13 @@ export type LongFormShotScene = {
   endSeconds: number;
   asset: LongFormMediaAsset | LongFormGraphicAsset;
   motion: "static" | "ken_burns" | "pan" | "cut";
+  direction?: SceneDirection;
+  /** Procedencia del recurso; "ai_recreation" muestra siempre el rótulo "Recreación IA". */
+  provenance?: SceneProvenance;
+  /** Crédito breve visible (p. ej. "Archivo: Library of Congress, 1913"). */
+  creditText?: string;
+  /** Escena NO terminada (carencia o revisión pendiente): se marca visiblemente, nunca pasa por terminada. */
+  pending?: string;
 };
 
 export type LongFormCaption = {
@@ -74,28 +98,39 @@ export type LongFormCaption = {
 export type LongFormDocProps = {
   audioUrl: string;
   musicUrl?: string;
+  /** Undefined preserves legacy music; [] explicitly requests silence. */
+  soundCues?: SoundCue[];
   durationSeconds: number;
   scenes: LongFormShotScene[];
   captions: LongFormCaption[];
   narrationGaps?: NarrationGap[];
   accentColor?: string;
   showLogo?: boolean;
+  /**
+   * Portada de apertura (opcional): título grande sobre los primeros
+   * segundos, dentro de la primera escena. Ausente = el video no cambia.
+   * El llamador la valida antes (render.ts → validateCover).
+   */
+  opening?: CoverSpec;
 };
 
-const FADE_FRAMES = 15;
 const DEFAULT_ACCENT_COLOR = "#8f7ff5";
 
 export function LongFormDoc({
   audioUrl,
   musicUrl,
+  soundCues,
   durationSeconds,
   scenes,
   captions,
   narrationGaps = [],
   accentColor = DEFAULT_ACCENT_COLOR,
   showLogo = false,
+  opening,
 }: LongFormDocProps) {
   const { fps, durationInFrames } = useVideoConfig();
+  validateDirection(scenes, soundCues, durationSeconds);
+  useCoverFont(Boolean(opening));
 
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
@@ -104,7 +139,13 @@ export function LongFormDoc({
         const isLast = i === scenes.length - 1;
         const from = Math.round(scene.startSeconds * fps);
         const rawTo = isLast ? durationInFrames : Math.round(scene.endSeconds * fps);
-        const extendedTo = Math.min(durationInFrames, rawTo + (isLast ? 0 : FADE_FRAMES));
+        const next = scenes[i + 1];
+        const incoming = transitionFrames(scene.direction, fps, scene.endSeconds - scene.startSeconds);
+        const outgoing = next ? Math.min(
+          transitionFrames(next.direction, fps, next.endSeconds - next.startSeconds),
+          Math.floor((scene.endSeconds - scene.startSeconds) * fps / 2),
+        ) : 0;
+        const extendedTo = Math.min(durationInFrames, rawTo + outgoing);
         const sequenceDuration = Math.max(1, extendedTo - from);
 
         return (
@@ -112,8 +153,8 @@ export function LongFormDoc({
             <SceneRenderer
               scene={scene}
               durationInFrames={sequenceDuration}
-              fadeInFrames={isFirst ? 0 : FADE_FRAMES}
-              fadeOutFrames={isLast ? 0 : FADE_FRAMES}
+              fadeInFrames={isFirst ? 0 : Math.min(incoming, Math.floor((scenes[i - 1].endSeconds - scenes[i - 1].startSeconds) * fps / 2))}
+              fadeOutFrames={next?.direction ? 0 : outgoing}
               isHook={isFirst}
             />
           </Sequence>
@@ -124,6 +165,7 @@ export function LongFormDoc({
         style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0) 62%, rgba(0,0,0,0.55) 100%)" }}
       />
 
+      {opening && scenes.length > 0 && <OpeningCover spec={opening} firstSceneEndSeconds={scenes[0].endSeconds} labelsTopLeft={Boolean(provenanceLabel(scenes[0].provenance) || scenes[0].creditText || scenes[0].pending)} />}
       <Captions captions={captions} accentColor={accentColor} />
 
       {showLogo && <LogoBadge accentColor={accentColor} />}
@@ -131,13 +173,20 @@ export function LongFormDoc({
       {audioUrl && (
         <Audio src={audioUrl} volume={(frame) => voiceVolumeAtSeconds(frame / fps, durationSeconds)} />
       )}
-      {musicUrl && (
+      {soundCues === undefined && musicUrl && (
         <Audio
           src={musicUrl}
           loop
           volume={(frame) => musicVolumeAtSeconds(frame / fps, durationSeconds, narrationGaps)}
         />
       )}
+      {soundCues?.map((cue) => {
+        const from = Math.round(cue.startSeconds * fps);
+        return <Sequence key={cue.id} from={from} durationInFrames={Math.max(1, Math.round(cue.endSeconds * fps) - from)}>
+          <Audio src={cue.src} loopVolumeCurveBehavior="extend" loop={cue.loop ?? false} trimBefore={Math.round((cue.sourceStartSeconds ?? 0) * fps)}
+            volume={(frame) => soundCueVolume(cue, (from + frame) / fps, soundCues, narrationGaps)} />
+        </Sequence>;
+      })}
     </AbsoluteFill>
   );
 }
@@ -156,6 +205,7 @@ function SceneRenderer({
   isHook: boolean;
 }) {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
   const progress = durationInFrames > 1 ? frame / (durationInFrames - 1) : 0;
 
   // Ken Burns/fade independientes de VerticalReel.tsx a propósito (ver
@@ -187,24 +237,70 @@ function SceneRenderer({
     );
   }
 
+  const look = lookStyle(
+    scene.direction?.look,
+    scene.direction?.camera ? cameraTransform(scene.direction.camera, progress) : `scale(${scale}) translateX(${translateX}px)`,
+  );
   const mediaStyle = {
     width: "100%",
     height: "100%",
     objectFit: "cover" as const,
-    transform: `scale(${scale}) translateX(${translateX}px)`,
+    transform: look.transform,
+    ...(look.transformOrigin ? { transformOrigin: look.transformOrigin } : {}),
+    ...(look.filter ? { filter: look.filter } : {}),
   };
 
   return (
     <AbsoluteFill style={{ overflow: "hidden", opacity }}>
       {scene.asset.kind === "media" ? (
         scene.asset.mediaType === "video" ? (
-          <OffthreadVideo src={scene.asset.url} muted style={mediaStyle} />
+          <OffthreadVideo src={scene.asset.url} trimBefore={Math.round((scene.direction?.mediaStartSeconds ?? 0) * fps)} muted style={mediaStyle} />
+        ) : scene.asset.fit === "contain" ? (
+          <>
+            <Img
+              src={scene.asset.url}
+              style={{ width: "100%", height: "100%", objectFit: "cover", filter: "blur(40px) brightness(0.4)", transform: "scale(1.15)" }}
+            />
+            <AbsoluteFill>
+              <Img src={scene.asset.url} style={{ ...mediaStyle, objectFit: "contain" }} />
+            </AbsoluteFill>
+          </>
         ) : (
           <Img src={scene.asset.url} style={mediaStyle} />
         )
       ) : (
         <GraphicRenderer graphic={scene.asset.graphic} />
       )}
+      {look.vignette > 0 && (
+        <AbsoluteFill style={{ background: `radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,${look.vignette}) 100%)` }} />
+      )}
+      <SceneLabels scene={scene} />
+    </AbsoluteFill>
+  );
+}
+
+function SceneLabels({ scene }: { scene: LongFormShotScene }) {
+  const label = provenanceLabel(scene.provenance);
+  if (!label && !scene.creditText && !scene.pending) return null;
+  return (
+    <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "flex-start", padding: "44px 56px" }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, fontFamily: "Arial, Helvetica, sans-serif" }}>
+        {scene.pending && (
+          <div style={{ padding: "8px 16px", borderRadius: 8, backgroundColor: "rgba(200,40,40,0.9)", color: "white", fontSize: 30, fontWeight: 800 }}>
+            Material pendiente
+          </div>
+        )}
+        {label && (
+          <div style={{ padding: "6px 14px", borderRadius: 999, backgroundColor: "rgba(10,10,14,0.62)", border: "1px solid rgba(255,255,255,0.35)", color: "white", fontSize: 28, fontWeight: 700, textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
+            {label}
+          </div>
+        )}
+        {scene.creditText && (
+          <div style={{ padding: "4px 12px", borderRadius: 6, backgroundColor: "rgba(10,10,14,0.5)", color: "rgba(255,255,255,0.92)", fontSize: 28, textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>
+            {scene.creditText}
+          </div>
+        )}
+      </div>
     </AbsoluteFill>
   );
 }
@@ -241,6 +337,20 @@ function GraphicBackground({ children }: { children: React.ReactNode }) {
 }
 
 function TextCard({ graphic }: { graphic: LongFormTextGraphic }) {
+  if (graphic.size === "large") {
+    // Por encima de la franja de subtítulos; el preflight (fitLargeCard) garantiza que cabe sin encoger.
+    return (
+      <GraphicBackground>
+        <div style={{ maxWidth: LARGE_CARD.MAX_WIDTH_PX, textAlign: "center", fontFamily: "Arial, Helvetica, sans-serif", marginBottom: 200 }}>
+          <div style={{ fontSize: LARGE_CARD.TITLE_PX, lineHeight: LARGE_CARD.TITLE_LINE_HEIGHT, fontWeight: 800, color: "#f2f0ff" }}>{graphic.title}</div>
+          {graphic.body && (
+            <div style={{ marginTop: LARGE_CARD.GAP_PX, fontSize: LARGE_CARD.BODY_PX, lineHeight: LARGE_CARD.BODY_LINE_HEIGHT, color: "white" }}>{graphic.body}</div>
+          )}
+          {graphic.citation && <div style={{ marginTop: 24, fontSize: 28, color: "#b9b3e6" }}>{graphic.citation}</div>}
+        </div>
+      </GraphicBackground>
+    );
+  }
   return (
     <GraphicBackground>
       <div style={{ maxWidth: 1400, textAlign: "center", fontFamily: "Arial, Helvetica, sans-serif" }}>
@@ -342,6 +452,21 @@ function MapCard({ graphic }: { graphic: LongFormMapGraphic }) {
         </svg>
       </div>
     </GraphicBackground>
+  );
+}
+
+/** Portada de apertura: visible desde el primer fotograma (sin fundido de entrada) y se desvanece al final de su ventana. */
+function OpeningCover({ spec, firstSceneEndSeconds, labelsTopLeft }: { spec: CoverSpec; firstSceneEndSeconds: number; labelsTopLeft: boolean }) {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const { untilSeconds, fadeOutSeconds } = coverWindowSeconds(firstSceneEndSeconds);
+  const t = frame / fps;
+  if (t >= untilSeconds) return null;
+  const opacity = interpolate(t, [untilSeconds - fadeOutSeconds, untilSeconds], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  return (
+    <AbsoluteFill>
+      <OpeningTitle spec={spec} layout={fitCover(spec, "video", { labelsTopLeft })} opacity={opacity} />
+    </AbsoluteFill>
   );
 }
 

@@ -8,10 +8,21 @@ import { VISUAL_STRATEGIES, type VisualStrategy } from "./shots";
 export { VISUAL_STRATEGIES };
 export type { VisualStrategy };
 
-/** v2: allocation + desglose de costos + scriptHash + asignación real (elegibilidad/cost guard) por shot. */
-export const PRODUCTION_PLAN_VERSION = 2;
+/**
+ * v2: allocation + desglose de costos + scriptHash + asignación real (elegibilidad/cost guard) por shot.
+ * v3 (calidad visual M1): escenas ANCLADAS a su pasaje narrado, tarjetas solo con dato destacable,
+ * selección de archivo por pertinencia + deduplicación de contenido en todo el documental, y
+ * procedencia/informe previo al render. v1/v2 se siguen ejecutando EXACTAMENTE como antes
+ * (recuperación cache-only intacta).
+ */
+export const PRODUCTION_PLAN_VERSION = 3;
 /** Versiones que el worker sabe ejecutar (v1 con allocation conservadora derivada, ver executionAllocation). */
-export const EXECUTABLE_PLAN_VERSIONS = [1, 2] as const;
+export const EXECUTABLE_PLAN_VERSIONS = [1, 2, 3] as const;
+
+/** Planes que usan escenas ancladas + selección con identidad de contenido (v3+). */
+export function usesAnchoredVisuals(plan: { version: number }): boolean {
+  return plan.version >= 3;
+}
 
 export const VISUAL_STRATEGY_LABEL: Record<VisualStrategy, string> = {
   economical: "Económico / archivo",
@@ -71,6 +82,8 @@ export type ProductionPlan = {
   estimatedAiVideoCostUsd?: number;
   estimatedProviderCostUsd: number;
   allocation?: ProductionPlanAllocation;
+  /** Presentación para YouTube elegida al confirmar (portada/miniatura). Solo la aplican los planes v3. */
+  packaging?: import("./packaging").LongFormPackaging;
   /** Todavía no existe un sistema de créditos real — nunca se inventa un saldo. */
   estimatedCredits: number | null;
   confirmedAt: string | null;

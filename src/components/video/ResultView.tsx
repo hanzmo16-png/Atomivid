@@ -1,4 +1,5 @@
 import { renderFailureMessage } from "@/lib/video/job-error";
+import { asDownloadUrl } from "@/lib/storage/download-url";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
@@ -24,11 +25,16 @@ import {
 export function ResultView({
   request,
   videoUrl,
+  thumbnailUrl,
+  thumbnailRequested = false,
   nowMs,
 }: {
   request: VideoRequestSummary;
   /** null si status=completed pero no se pudo firmar la URL (reportar el error, no ocultarlo). */
   videoUrl?: string | null;
+  /** Miniatura de YouTube (solo Long Form, solo si se pidió). Ausente/null: no se muestra nada. */
+  thumbnailUrl?: string | null;
+  thumbnailRequested?: boolean;
   /** Reloj inyectado por el caller (solo lo usa el ETA de Long Form). */
   nowMs: number;
 }) {
@@ -112,7 +118,7 @@ export function ResultView({
               Tu navegador no puede reproducir este video.
             </video>
             <a
-              href={videoUrl}
+              href={asDownloadUrl(videoUrl, "atomivid-video.mp4")}
               download
               target="_blank"
               rel="noopener noreferrer"
@@ -120,6 +126,26 @@ export function ResultView({
             >
               Descargar video
             </a>
+            {thumbnailUrl && (
+              <div className="flex w-full max-w-md flex-col items-center gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element -- URL firmada y temporal de Storage */}
+                <img src={thumbnailUrl} alt="Miniatura de YouTube" className="aspect-16/9 w-full rounded-lg border border-border-strong object-cover" />
+                <a
+                  href={asDownloadUrl(thumbnailUrl, "atomivid-miniatura.jpg")}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-medium text-ink hover:bg-surface-raised"
+                >
+                  Descargar miniatura
+                </a>
+              </div>
+            )}
+            {thumbnailRequested && !thumbnailUrl && (
+              <Alert tone="warning" role="status">
+                Tu video está listo, pero la miniatura solicitada no está disponible. Recarga la página para comprobarlo; si sigue faltando, contacta al soporte. No necesitas volver a generar el video.
+              </Alert>
+            )}
           </div>
         )}
         {request.status === "completed" && !videoUrl && (
@@ -134,7 +160,7 @@ export function ResultView({
         <LinkButton href="/dashboard" variant="secondary">
           Volver al historial
         </LinkButton>
-        <LinkButton href="/dashboard/new">Crear otro video</LinkButton>
+        <LinkButton href={isLongForm ? "/dashboard/long-form/new" : "/dashboard/new"}>Crear otro video</LinkButton>
       </div>
     </div>
   );

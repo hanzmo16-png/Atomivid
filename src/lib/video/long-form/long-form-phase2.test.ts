@@ -68,7 +68,9 @@ test("guion sin visuales: descripciones derivadas del tema + palabras de la narr
   assert.equal(derived.length, 2);
   assert.ok(derived.every((v) => v.description.startsWith("El Canal de Panamá") && !v.motion));
   assert.match(derived[0].description, /esclusas/);
-  assert.deepEqual(visualsForBeat({ narration: "..." }, "Tema"), [{ description: "Tema", motion: false }]);
+  // `derived: true`: su pertinencia no se puede comprobar contra el texto del proveedor (queda "incierta" en el informe).
+  assert.ok(derived.every((v) => v.derived === true));
+  assert.deepEqual(visualsForBeat({ narration: "..." }, "Tema"), [{ description: "Tema", motion: false, derived: true }]);
 });
 
 test("prompt de imagen documental: incluye la intención real y prohíbe texto/logos", () => {

@@ -5,8 +5,10 @@ name: Muestra de calidad Long Form (narración guardada, recursos gratuitos)
 # (sin síntesis), recursos gratuitos (Pexels con la clave existente,
 # Wikimedia Commons de dominio público, mapa de datos Natural Earth) y
 # música del banco con procedencia registrada. Salida y estado SEPARADOS
-# (<requestId>/samples/...); nunca toca output/final.mp4. No recibe claves
-# de ElevenLabs/OpenAI/Veo/Anthropic.
+# (<requestId>/samples/...); nunca toca output/final.mp4. Nunca recibe claves
+# de ElevenLabs/Anthropic. Las de OpenAI/Veo SOLO llegan con allow_paid=true
+# en PHASE=prepare y con el presupuesto aprobado (paid_budget_usd), para las
+# escenas `veo-clip` que el manifiesto declara (M3); por defecto no llegan.
 on:
   workflow_dispatch:
     inputs:
@@ -28,9 +30,29 @@ on:
         default: "docs/quality/m2-panama-opening/sample-manifest.json"
         type: string
       window_sec:
-        description: "Duración del render técnico (s)"
+        description: "Duración del render (s): técnico por defecto 12; en aprobación, vacío = muestra completa"
         required: false
-        default: "12"
+        default: ""
+        type: string
+      allow_paid:
+        description: "Autorizar generación de pago (clips IA del manifiesto) — solo con gasto aprobado"
+        required: false
+        default: false
+        type: boolean
+      paid_preflight_only:
+        description: "Solo verificar claves y plan de gasto (sin llamadas de pago)"
+        required: false
+        default: false
+        type: boolean
+      ledger_release:
+        description: "Liberar reservas fallidas que nunca se enviaron (claves separadas por comas; se verifica)"
+        required: false
+        default: ""
+        type: string
+      paid_budget_usd:
+        description: "Presupuesto aprobado en USD (acumulado entre ejecuciones de la misma muestra)"
+        required: false
+        default: "0"
         type: string
 
 permissions:
@@ -62,6 +84,13 @@ jobs:
           ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
           ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          SAMPLE_ALLOW_PAID: ${{ inputs.allow_paid && inputs.phase == 'prepare' && 'true' || 'false' }}
+          SAMPLE_PAID_BUDGET_USD: ${{ inputs.paid_budget_usd }}
+          SAMPLE_LEDGER_RELEASE: ${{ inputs.ledger_release }}
+          SAMPLE_SIGN_OUTPUT_HOURS: "168"
+          SAMPLE_PAID_PREFLIGHT_ONLY: ${{ inputs.paid_preflight_only && 'true' || 'false' }}
+          OPENAI_API_KEY: ${{ inputs.allow_paid && inputs.phase == 'prepare' && secrets.OPENAI_API_KEY || '' }}
+          VEO_API_KEY: ${{ inputs.allow_paid && inputs.phase == 'prepare' && secrets.VEO_API_KEY || '' }}
       - name: Publicar muestra (artifact privado)
         if: always()
         continue-on-error: true
@@ -69,5 +98,30 @@ jobs:
         with:
           name: long-form-quality-sample-${{ inputs.phase }}-${{ inputs.purpose }}-${{ github.run_id }}
           path: ${{ runner.temp }}/quality-sample/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Publicar el MP4 directo (sin zip) para revisión
+        if: success() && inputs.phase == 'render'
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/quality-sample/sample-*.mp4
+          archive: false
+          retention-days: 14
+      - name: Publicar el fotograma inicial directo (sin zip)
+        if: success() && inputs.phase == 'render'
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/quality-sample/first-frame*.png
+          archive: false
+          retention-days: 14
+      - name: Publicar la miniatura directa (sin zip)
+        if: success() && inputs.phase == 'render'
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/quality-sample/thumbnail.jpg
+          archive: false
           if-no-files-found: ignore
           retention-days: 14

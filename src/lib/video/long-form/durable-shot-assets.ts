@@ -12,8 +12,39 @@
  * - FAILED_NO_CHARGE: el proveedor rechazó con costo conocido cero.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AssetIdentity } from "./asset-identity";
 
 export type ShotAssetKind = "stock" | "ai_image" | "ai_video";
+
+/**
+ * Qué ES el recurso mostrado (calidad visual M1). Nunca se presenta una
+ * recreación como documento histórico:
+ * - archival_documentary: documento/archivo histórico auténtico (ningún proveedor actual lo entrega todavía).
+ * - stock_illustrative: material de archivo moderno (Pexels) que ILUSTRA, no documenta.
+ * - ai_recreation: imagen/video generado por IA — recreación, no registro histórico.
+ */
+export type AssetProvenanceKind = "archival_documentary" | "stock_illustrative" | "ai_recreation";
+
+export type AssetProvenance = {
+  kind: AssetProvenanceKind;
+  provider: string;
+  /** Licencia disponible declarada por el proveedor (no una revisión legal). */
+  license?: string;
+  author?: string;
+  pageUrl?: string;
+};
+
+/** Por qué se eligió (o no) este recurso — la pertinencia es LÉXICA, nunca se afirma validación semántica. */
+export type AssetSelectionTrace = {
+  query?: string;
+  tier?: number;
+  relevance: "keyword_match" | "unverified" | "generated_from_intent";
+  score?: number;
+  matchedTerms?: string[];
+  candidateDescription?: string;
+  candidatesConsidered?: number;
+  rejected?: { sourceId?: string; query: string; reason: string }[];
+};
 
 export type ShotAssetRecord = {
   shotId: string;
@@ -26,6 +57,10 @@ export type ShotAssetRecord = {
   provider?: string;
   bytes?: number;
   updatedAtIso: string;
+  // --- Aditivos (planes v3+); registros anteriores no los traen ---
+  identity?: AssetIdentity;
+  provenance?: AssetProvenance;
+  selection?: AssetSelectionTrace;
 };
 
 export interface ShotAssetStore {

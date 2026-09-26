@@ -33,6 +33,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       requestId: id,
       userId: user.id,
       strategy: (body as { strategy?: unknown } | null)?.strategy,
+      packaging: (body as { packaging?: unknown } | null)?.packaging,
     });
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
     return NextResponse.json({ plan: result.plan, confirmedAt: result.confirmedAt, alreadyConfirmed: result.alreadyConfirmed });

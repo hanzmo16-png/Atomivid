@@ -114,6 +114,14 @@ export type Shot = {
   /** Proveniencia histórica de lo mostrado (ver HistoricalClassification arriba) — ausente = sin clasificar todavía, nunca asumir "real_documented" por defecto. */
   historicalClassification?: HistoricalClassification;
 
+  // --- Anclaje escena ↔ narración (calidad visual M1, planes v3+) ---
+  /** Lo que se narra DURANTE esta escena (tiempos reales por palabra en ejecución; estimado en el plan). */
+  narrationFragment?: string;
+  /** Intención visual anclada a ese pasaje (sujeto/acción/lugar/época si el guion los declara). */
+  anchoredVisual?: import("./visual-intents").BeatVisual;
+  /** Cómo se ancló: índice de la intención en el beat, escenas previas con la misma intención, y por qué criterio. */
+  intentAnchor?: { visualIndex: number; reuseIndex: number; anchoredBy: "quote" | "order" };
+
   // --- Campos RESERVADOS para la futura capa musical (no implementada
   // todavía, ver sección 5 del encargo P1) — ningún código los lee o
   // escribe en este checkpoint; solo evitan que el schema necesite un

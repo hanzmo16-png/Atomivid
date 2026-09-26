@@ -1,0 +1,11 @@
+{
+  "requestId": "2f35d750-8023-456d-810e-d805cba7859c",
+  "note": "Segunda ronda (Commons, dominio público) para los pasajes sin candidato archivístico en la primera.",
+  "scenes": [
+    { "id": "s04", "passage": "Así empezó, para miles de trabajadores, la historia del Canal de Panamá.", "pexels": [], "commons": ["Panama Canal laborers", "Culebra Cut workmen", "Panama canal workers 1913"] },
+    { "id": "s08", "passage": "el proyecto ya había fracasado una vez,", "pexels": [], "commons": ["French excavator Panama", "old French machinery Panama canal", "French canal company Panama 1885"] },
+    { "id": "s09", "passage": "y se había cobrado un costo humano brutal.", "pexels": [], "commons": ["Ancon hospital Panama", "Panama canal hospital ward", "Gorgas sanitation Panama", "Mount Hope cemetery Panama"] },
+    { "id": "s11", "passage": "se convirtió en el punto donde chocaron la ambición imperial,", "pexels": [], "commons": ["Roosevelt steam shovel Panama", "Roosevelt Culebra Cut 1906"] },
+    { "id": "s13", "passage": "y los límites del cuerpo humano.", "pexels": [], "commons": ["Panama canal rock drill workers", "Panama canal steam drill", "West Indian laborers Panama canal"] }
+  ]
+}

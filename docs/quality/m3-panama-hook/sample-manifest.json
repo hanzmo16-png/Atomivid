@@ -1,0 +1,523 @@
+{
+  "requestId": "2f35d750-8023-456d-810e-d805cba7859c",
+  "beats": [
+    "beat-1"
+  ],
+  "tailSeconds": 1.4,
+  "outputPrefix": "2f35d750-8023-456d-810e-d805cba7859c/samples/m3-hook",
+  "scenes": [
+    {
+      "id": "s01",
+      "startSeconds": 0,
+      "endSeconds": 2.62,
+      "narration": "Imagina cavar una montaña con picos y palas,",
+      "source": {
+        "kind": "veo-clip",
+        "key": "m3-h1-picks-v1",
+        "reference": {
+          "kind": "ai-still",
+          "prompt": "Photorealistic documentary still, historical recreation of the Panama Canal excavation, circa 1885–1910. Medium-wide shot at eye level: three Afro-Caribbean laborers in sweat-stained loose light cotton shirts with rolled sleeves, dark work trousers and worn straw or felt hats, swinging iron pickaxes and digging with long-handled shovels into a steep slope of reddish-brown clay and broken rock. Dense green tropical rainforest on the ridge behind, humid haze, overcast diffused light, muted natural colors with slight film grain, 35mm lens. Keep the action centered with generous space above and below, wide framing.",
+          "negativePrompt": "modern clothing, printed T-shirts, baseball caps, helmets, hard hats, high-visibility vests, rubber boots, sunglasses, wristwatches, plastic, machinery, vehicles, power lines, text, captions, logos, watermark, extra limbs, distorted hands, distorted faces"
+        },
+        "prompt": "Historical documentary recreation, Panama, late 19th century. The laborers keep swinging their pickaxes into the reddish clay and shoveling loose earth; clods and dust fall down the slope; their shirts move slightly; humid haze drifts over the jungle behind them. Slow, steady camera push-in. Natural real-time motion, realistic, muted film-like colors, one continuous shot.",
+        "negativePrompt": "modern clothing, helmets, safety vests, machinery, vehicles, text, subtitles, watermark, extra limbs, distorted faces, morphing bodies, tools merging with hands, sudden camera moves, slow motion, cuts",
+        "placeholder": {
+          "source": {
+            "kind": "pexels-photo",
+            "id": 26082584
+          },
+          "provenance": "stock_illustrative",
+          "camera": "push"
+        }
+      },
+      "provenance": "ai_recreation",
+      "fit": "cover",
+      "direction": {
+        "camera": "still",
+        "mediaStartSeconds": 0,
+        "look": {
+          "scale": 1.3,
+          "originX": 0.0,
+          "originY": 0.0,
+          "contrast": 1.15,
+          "saturation": 1.1,
+          "vignette": 0.45
+        }
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Revisión técnica (fotogramas 0.2–7.8 s, 640 px): tres obreros afrocaribeños de época, camisa de algodón y sombrero; pico y pala; tierra y polvo con movimiento real; caras, ropa y herramientas estables; sin maquinaria ni elementos modernos; sin manos o extremidades deformadas visibles. La aprobación final es de Hans."
+      }
+    },
+    {
+      "id": "s02",
+      "startSeconds": 2.62,
+      "endSeconds": 5.538,
+      "narration": "rodeado de mosquitos que transmiten enfermedades mortales,",
+      "source": {
+        "kind": "pexels-video",
+        "id": 15598425
+      },
+      "provenance": "stock_illustrative",
+      "fit": "cover",
+      "direction": {
+        "transition": {
+          "type": "cut"
+        },
+        "camera": "still",
+        "mediaStartSeconds": 1.0
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Mosquito picando piel en primer plano (Pexels, 10.6 s). Movimiento real del clip; ilustrativo."
+      }
+    },
+    {
+      "id": "s03",
+      "startSeconds": 5.538,
+      "endSeconds": 8.646,
+      "narration": "en un calor húmedo que no da tregua.",
+      "source": {
+        "kind": "pexels-video",
+        "id": 19366762
+      },
+      "provenance": "stock_illustrative",
+      "fit": "cover",
+      "direction": {
+        "transition": {
+          "type": "cut"
+        },
+        "camera": "still",
+        "mediaStartSeconds": 2.0
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Selva tropical con niebla, «fog tropic jungle latin america» (Pexels). Ilustrativa: trópico latinoamericano, NO identificado como Panamá."
+      }
+    },
+    {
+      "id": "s04a",
+      "startSeconds": 8.646,
+      "endSeconds": 10.9,
+      "narration": "Así empezó, para miles de trabajadores,",
+      "source": {
+        "kind": "veo-clip",
+        "key": "m3-h2-culebra-v1",
+        "reference": {
+          "kind": "commons",
+          "title": "File:FMIB 38668 Steam Shovels Meeting at Bottom of Culebra Cut; L K Rourke.jpg",
+          "crop": {
+            "x0": 0.03,
+            "y0": 0.32,
+            "x1": 0.66,
+            "y1": 0.845
+          }
+        },
+        "prompt": "Animate this black-and-white 1913 photograph of the Culebra Cut during the construction of the Panama Canal. Keep it black and white with the original grain and contrast. Subtle, realistic motion only: steam and smoke rise and drift from the steam shovel, the workers in the foreground move and work with their tools, a faint haze drifts across the cut. Very slow camera push-in. Preserve the composition, the people, the machines and the terrain; one continuous shot.",
+        "negativePrompt": "color, colorization, modern objects, text, captions, watermark, new people or machines appearing, faces morphing, warped bodies, extra limbs, fast motion, camera shake, cuts",
+        "placeholder": {
+          "source": {
+            "kind": "commons",
+            "title": "File:FMIB 38668 Steam Shovels Meeting at Bottom of Culebra Cut; L K Rourke.jpg",
+            "crop": {
+              "x0": 0.03,
+              "y0": 0.07,
+              "x1": 0.66,
+              "y1": 0.85
+            }
+          },
+          "provenance": "archival_documentary",
+          "creditText": "Archivo · Corte Culebra, 1913",
+          "camera": "push"
+        }
+      },
+      "provenance": "ai_recreation",
+      "fit": "cover",
+      "creditText": "Animación IA de una fotografía de 1913",
+      "direction": {
+        "transition": {
+          "type": "dissolve",
+          "seconds": 0.6
+        },
+        "camera": "still",
+        "mediaStartSeconds": 0
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Revisión técnica (0.2–7.8 s, 640 px; se usan 0–3.05 s): conserva B/N, la pala 230, las vías y la cuadrilla. Desviaciones: la forma oscura de arriba a la izquierda de la foto se vuelve una locomotora, el penacho de vapor cambia de forma, el encuadre sube levemente y el grano se suaviza. Aceptado sin reintento (plausible: trenes de tierra en la Culebra), señalado a Hans. La aprobación final es de Hans."
+      }
+    },
+    {
+      "id": "s04b",
+      "startSeconds": 10.9,
+      "endSeconds": 13.115,
+      "narration": "la historia del Canal de Panamá.",
+      "source": {
+        "kind": "commons",
+        "title": "File:FMIB 38668 Steam Shovels Meeting at Bottom of Culebra Cut; L K Rourke.jpg",
+        "crop": {
+          "x0": 0.019,
+          "y0": 0.303,
+          "x1": 0.592,
+          "y1": 0.78
+        }
+      },
+      "provenance": "archival_documentary",
+      "fit": "cover",
+      "direction": {
+        "transition": {
+          "type": "dissolve",
+          "seconds": 1.0
+        },
+        "camera": "push"
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "La misma fotografía de 1913 que s04a anima, recortada a 16:9 con el encuadre que alcanza el clip al final de su acercamiento (más cerrado y algo más arriba que la referencia), a pantalla completa y con acercamiento lento que continúa el del clip: el movimiento se asienta en el documento original sin salto de encuadre (repetición deliberada). Excluye el retrato de L. K. Rourke."
+      },
+      "creditText": "Archivo · Corte Culebra, 1913",
+      "repeatOf": "s04a"
+    },
+    {
+      "id": "s05",
+      "startSeconds": 13.115,
+      "endSeconds": 17.202,
+      "narration": "Hoy lo vemos como una autopista de agua entre dos océanos,",
+      "source": {
+        "kind": "pexels-video",
+        "id": 17897477
+      },
+      "provenance": "stock_illustrative",
+      "fit": "cover",
+      "direction": {
+        "transition": {
+          "type": "cut"
+        },
+        "camera": "still",
+        "mediaStartSeconds": 2.0
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Puente de las Américas con buque entrando (entrada del Pacífico del canal, actual). Lugar verificado por la estructura; «Hoy»."
+      }
+    },
+    {
+      "id": "s06",
+      "startSeconds": 17.202,
+      "endSeconds": 20.604,
+      "narration": "un logro técnico que cambió el comercio mundial para siempre.",
+      "source": {
+        "kind": "pexels-video",
+        "id": 32210910
+      },
+      "provenance": "stock_illustrative",
+      "fit": "cover",
+      "direction": {
+        "transition": {
+          "type": "cut"
+        },
+        "camera": "still",
+        "mediaStartSeconds": 8.0
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Portacontenedores en las esclusas de Miraflores (actual, Panamá). Movimiento real del buque."
+      }
+    },
+    {
+      "id": "s07",
+      "startSeconds": 20.604,
+      "endSeconds": 23.634,
+      "narration": "Pero antes de que el primer barco cruzara sus esclusas,",
+      "source": {
+        "kind": "commons",
+        "title": "File:Concrete construction at Gatun Lock site, Panama Canal LCCN96522034.jpg"
+      },
+      "provenance": "archival_documentary",
+      "fit": "contain",
+      "direction": {
+        "transition": {
+          "type": "dissolve",
+          "seconds": 0.8
+        },
+        "camera": "push"
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Obras de hormigón de las esclusas de Gatún, 1910 (Library of Congress). Fundido: salto del presente al pasado («Pero antes…»)."
+      },
+      "creditText": "Archivo · Esclusas de Gatún en construcción, 1910"
+    },
+    {
+      "id": "s08",
+      "startSeconds": 23.634,
+      "endSeconds": 26.293,
+      "narration": "el proyecto ya había fracasado una vez,",
+      "source": {
+        "kind": "commons",
+        "title": "File:An old French bone yard LCCN99471651.jpg"
+      },
+      "provenance": "archival_documentary",
+      "fit": "contain",
+      "direction": {
+        "transition": {
+          "type": "cut"
+        },
+        "camera": "left"
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "«An old French bone yard»: maquinaria de la compañía francesa abandonada entre la vegetación (Library of Congress, 1908)."
+      },
+      "creditText": "Archivo · Maquinaria francesa abandonada, 1908"
+    },
+    {
+      "id": "s09",
+      "startSeconds": 26.293,
+      "endSeconds": 30.611,
+      "narration": "y se había cobrado un costo humano brutal.",
+      "source": {
+        "kind": "commons",
+        "title": "File:125-French method of excavation in Culebra Cut.jpg"
+      },
+      "provenance": "archival_documentary",
+      "fit": "contain",
+      "direction": {
+        "transition": {
+          "type": "cut"
+        },
+        "camera": "push"
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "indirecta",
+        "note": "Trabajadores de la etapa francesa excavando junto a una excavadora (1896). Relación INDIRECTA con «costo humano»: muestra a quienes pagaron ese costo, no las muertes. Tres rondas de búsqueda sin fotografía de dominio público de cementerios/enfermos de la época."
+      },
+      "creditText": "Archivo · Obras francesas en el corte Culebra, 1896"
+    },
+    {
+      "id": "s10",
+      "startSeconds": 30.611,
+      "endSeconds": 35.441,
+      "narration": "Esta es la historia de cómo una franja de tierra de apenas ochenta kilómetros",
+      "source": {
+        "kind": "data-map",
+        "spec": "docs/quality/m2-panama-opening/isthmus-map.json",
+        "geo": "docs/quality/m2-panama-opening/isthmus-natural-earth.json"
+      },
+      "provenance": "data_graphic",
+      "fit": "cover",
+      "direction": {
+        "transition": {
+          "type": "cut"
+        },
+        "camera": "still"
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Mapa de datos: costa y lago Gatún de Natural Earth (dominio público); trazado del canal aproximado, medido ~76 km; rotula «≈ 80 km» (cifra narrada) solo porque concuerda (±8 km)."
+      }
+    },
+    {
+      "id": "s11",
+      "startSeconds": 35.441,
+      "endSeconds": 38.796,
+      "narration": "se convirtió en el punto donde chocaron la ambición imperial,",
+      "source": {
+        "kind": "commons",
+        "title": "File:Pres. Theodore Roosevelt on steam-powered digging machine during construction of the Panama Canal LCCN2002714444.jpg"
+      },
+      "provenance": "archival_documentary",
+      "fit": "contain",
+      "direction": {
+        "transition": {
+          "type": "cut"
+        },
+        "camera": "push"
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Theodore Roosevelt sobre una pala de vapor durante su visita (nov. 1906; la Library of Congress fecha la copia en 1908). Encarna la ambición imperial estadounidense."
+      },
+      "creditText": "Archivo · Theodore Roosevelt en el canal, 1906"
+    },
+    {
+      "id": "s12",
+      "startSeconds": 38.796,
+      "endSeconds": 40.391,
+      "narration": "la ingeniería de vanguardia",
+      "source": {
+        "kind": "commons",
+        "title": "File:Bird's-eye view of Gatun Locks, Panama Canal LCCN95515719.jpg",
+        "crop": {
+          "x0": 0.07,
+          "y0": 0.3,
+          "x1": 0.915,
+          "y1": 0.71
+        }
+      },
+      "provenance": "archival_documentary",
+      "fit": "contain",
+      "direction": {
+        "transition": {
+          "type": "cut"
+        },
+        "camera": "right"
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Vista aérea de las esclusas de Gatún, 1913 (Library of Congress). Recorte del paspartú."
+      },
+      "creditText": "Archivo · Esclusas de Gatún, 1913"
+    },
+    {
+      "id": "s13",
+      "startSeconds": 40.391,
+      "endSeconds": 42.825,
+      "narration": "y los límites del cuerpo humano.",
+      "source": {
+        "kind": "commons",
+        "title": "File:Culebra Cut. View at base of Gold Hill, showing basaltic columns developed by steam shovel. Cut in Mch. 1913 LCCN2016870856.jpg"
+      },
+      "provenance": "archival_documentary",
+      "fit": "contain",
+      "direction": {
+        "transition": {
+          "type": "cut"
+        },
+        "camera": "push"
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Trabajadores empequeñecidos entre columnas de basalto en la base de Gold Hill (Harris & Ewing, 1913)."
+      },
+      "creditText": "Archivo · Corte Culebra, 1913"
+    },
+    {
+      "id": "s14",
+      "startSeconds": 42.825,
+      "endSeconds": 46.157,
+      "narration": "Y de cómo, después de un colapso casi total,",
+      "source": {
+        "kind": "commons",
+        "title": "File:NSRW Panama Canal French Excavator.jpg"
+      },
+      "provenance": "archival_documentary",
+      "fit": "contain",
+      "direction": {
+        "transition": {
+          "type": "cut"
+        },
+        "camera": "pull"
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Excavadora francesa devorada por la selva (The New Student's Reference Work, 1914). Ilustra el colapso francés."
+      },
+      "creditText": "Archivo · Excavadora francesa abandonada"
+    },
+    {
+      "id": "s15",
+      "startSeconds": 46.157,
+      "endSeconds": 49.976,
+      "narration": "otro país terminó lo que Francia no pudo.",
+      "source": {
+        "kind": "commons",
+        "title": "File:SS Ancon (1902 ship) NARA 185-G-0886 cropped.jpg"
+      },
+      "provenance": "archival_documentary",
+      "fit": "contain",
+      "direction": {
+        "transition": {
+          "type": "dissolve",
+          "seconds": 0.5
+        },
+        "camera": "push"
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "El SS Ancon en el primer tránsito oficial, 15 de agosto de 1914 (NARA 185-G-0886). Cierre: otro país terminó la obra."
+      },
+      "creditText": "Archivo · SS Ancon, apertura del canal, 15 ago. 1914"
+    }
+  ],
+  "soundCues": [
+    {
+      "id": "m1-tension",
+      "track": "elevenlabs-tension-1",
+      "role": "music",
+      "startSeconds": 0,
+      "endSeconds": 14.0,
+      "fadeInSeconds": 0.8,
+      "fadeOutSeconds": 1.4
+    },
+    {
+      "id": "m2-rise",
+      "track": "elevenlabs-cinematic-1",
+      "role": "music",
+      "startSeconds": 12.6,
+      "endSeconds": 21.8,
+      "fadeInSeconds": 1.4,
+      "fadeOutSeconds": 1.2
+    },
+    {
+      "id": "m3-tension",
+      "track": "elevenlabs-tension-1",
+      "role": "music",
+      "startSeconds": 20.6,
+      "endSeconds": 49.976,
+      "sourceStartSeconds": 14.0,
+      "fadeInSeconds": 1.2,
+      "fadeOutSeconds": 2.2
+    }
+  ],
+  "missingSound": [
+    "Ambiente de selva húmeda (s03, 5.5–8.6 s): no hay biblioteca de ambientes con licencia registrada.",
+    "Zumbido de mosquito (s02): no hay efectos con licencia registrada.",
+    "Golpe de pico sobre roca (s01): no hay efectos con licencia registrada.",
+    "Ambiente portuario / bocina de barco (s05–s06): no hay efectos con licencia registrada."
+  ],
+  "packaging": {
+    "cover": {
+      "style": "impacto",
+      "title": "Canal de *Panamá*",
+      "kicker": "Cavando una montaña",
+      "placement": "top-right"
+    },
+    "thumbnail": {
+      "style": "impacto",
+      "title": "Canal de *Panamá*",
+      "kicker": "Cavando una montaña",
+      "placement": "top-right"
+    },
+    "subject": {
+      "video": {
+        "x": 150,
+        "y": 40,
+        "w": 650,
+        "h": 1040
+      },
+      "thumbnail": {
+        "x": 100,
+        "y": 20,
+        "w": 390,
+        "h": 700
+      }
+    }
+  }
+}
