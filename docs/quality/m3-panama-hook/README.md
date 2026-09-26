@@ -188,3 +188,21 @@ devuelve el importe de cada llamada. La factura de Google es la fuente definitiv
   - pausas solo con música entre −23 y −33 LUFS momentáneos.
 - El workflow publica ahora el MP4 como descarga directa (`upload-artifact@v7`, `archive: false`), además del ZIP con los informes.
 - **Costo total de la Misión 3:** $1.9758 (imagen $0.0558 + 2 clips Veo × $0.96). Ninguna llamada de pago después de la aprobación de B.
+
+## Fotograma inicial (t = 0 s)
+
+Captura: `first-frame.jpg`, y cómo se ve en celular: `first-frame-phone.jpg`.
+
+- **Hecho del relato:** obreros cavando con pico y pala, que es lo que narra la voz («Imagina cavar una montaña con picos y palas»). Mantiene el rótulo «Recreación IA».
+- **Sujeto principal:** el clip arranca en su fotograma 0, con el obrero del pico en alto justo antes del golpe. Es la pose de máxima tensión y enseguida viene el golpe.
+- **Composición:** reencuadre fijo de 1.30× anclado arriba a la izquierda.
+  - El obrero del pico ocupa el tercio izquierdo con una diagonal fuerte; el segundo obrero queda en el tercio derecho.
+  - La cara es reconocible a tamaño de celular.
+  - El pico queda dentro del cuadro.
+- **Gradación:** contraste 1.15, saturación 1.10 y viñeta 0.45. Es un ajuste opcional por escena (`SceneDirection.look`); las demás escenas no cambian.
+- **Sin texto añadido:** en t = 0 todavía no hay subtítulo; el primero aparece con la primera palabra.
+- **Nitidez:** el reencuadre amplía un clip de 1080p, así que el fotograma pierde algo de nitidez (visible en la captura a tamaño completo).
+- **Render** (run 36213646814):
+  - −15.69 LUFS, −2.41 dBTP, 0 tramos negros;
+  - el montaje desde 2.62 s es idéntico al anterior.
+- Sin gasto nuevo.
