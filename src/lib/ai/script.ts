@@ -271,6 +271,9 @@ async function callScriptModel<T>({
         getClient().messages.create({
           model: SCRIPT_MODEL,
           max_tokens: maxTokens,
+          // Sonnet 5 activa razonamiento por defecto; puede agotar todo el
+          // límite antes del JSON. Estos guiones cortos necesitan texto directo.
+          thinking: { type: "disabled" },
           system,
           messages: [{ role: "user", content }],
           output_config: { format: { type: "json_schema", schema: format.schema } },
