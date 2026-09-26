@@ -69,7 +69,7 @@ const PROFILES: Record<Profile, { gender: "male" | "female"; label: string; want
   },
 };
 
-const LATAM = ["latin", "latam", "latino", "mexic", "colombi", "argentin", "chile", "peru", "venezuel", "es-419", "es-mx", "es-co", "es-ar", "es-cl", "es-pe", "neutral"];
+const LATAM = ["latin", "latam", "latino", "mexic", "colombi", "argentin", "chile", "peru", "venezuel", "es-419", "es-mx", "es-co", "es-ar", "es-cl", "es-pe", "es-us"];
 const SPAIN = ["castilian", "spain", "peninsular", "es-es", "european"];
 
 function str(v: unknown): string {
@@ -265,6 +265,26 @@ async function main() {
       });
     }
   }
+  // Búsquedas complementarias (perfiles que la descripción no siempre nombra). Un parámetro no admitido queda registrado con su estado HTTP.
+  const extra = [
+    ...["narrador", "documental", "locutor", "grave", "deep", "podcast", "cálida", "storyteller"].map((t) => `search=${encodeURIComponent(t)}`),
+    ...["narrative_story", "conversational", "informative_educational"].map((u) => `use_cases=${u}`),
+  ];
+  for (const gender of GENDERS) {
+    for (const e of extra) {
+      const q = `/v1/shared-voices?language=es&gender=${gender}&${e}&sort=usage_character_count_1y&page_size=50`;
+      const r = await get(q, apiKey);
+      const voices = Array.isArray((r.body as Json)?.voices) ? ((r.body as Json).voices as Json[]) : [];
+      queries.push({ query: q, status: r.status, count: voices.length, error: r.status === 200 ? null : r.body });
+      console.log(`[query] ${r.status} ${voices.length} voces — ${q}`);
+      voices.forEach((v) => {
+        const id = str(v.voice_id);
+        const entry = seen.get(id) ?? { ...v, ranks: {} };
+        entry.ranks[`${gender}:${e}`] = (entry.ranks[`${gender}:${e}`] ?? 0) || voices.indexOf(v) + 1;
+        seen.set(id, entry);
+      });
+    }
+  }
   await writeJson("queries.json", queries);
 
   // 6. Candidatas con métricas, condiciones e idiomas verificados.
@@ -297,6 +317,49 @@ async function main() {
   });
   await writeJson("candidates.json", rows);
 
+  // Tabla medida (no heurística): las 25 más usadas en el último año por género, con sus métricas tal como las da la API.
+  for (const gender of GENDERS) {
+    const top = rows
+      .filter((r) => r.gender === gender && !r.is_mateo)
+      .sort((a, b) => (b.usage_character_count_1y ?? -1) - (a.usage_character_count_1y ?? -1))
+      .slice(0, 25);
+    console.log(`\n[top-uso-1y ${gender}] voice_id | nombre | uso 1a | uso 7d | clonada por | pos. uso/tendencia/clonación | acento/locale | descriptivo | caso de uso | idiomas verificados | condiciones`);
+    for (const r of top) {
+      const langs = r.verified_languages.map((l) => `${l.language}-${l.locale || l.accent}`).join(",");
+      const rk = [`${gender}:usage_character_count_1y`, `${gender}:trending`, `${gender}:cloned_by_count`].map((k) => r.ranks[k] ?? "-").join("/");
+      console.log(
+        `[row ${gender}] ${r.voice_id} | ${r.name} | ${r.usage_character_count_1y ?? "?"} | ${r.usage_character_count_7d ?? "?"} | ${r.cloned_by_count ?? "?"} | ${rk} | ${r.accent ?? "?"}/${r.locale ?? "?"} | ${r.descriptive ?? "?"} | ${r.use_case ?? "?"} | ${langs} | ${r.surcharges.join("; ") || "sin recargos"}`,
+      );
+    }
+  }
+
+  // Previews de las 12 más usadas por género (además de la preselección por perfil), con métricas acústicas.
+  const byUsage: typeof rows = [];
+  for (const gender of GENDERS) {
+    byUsage.push(
+      ...rows
+        .filter((r) => r.gender === gender && !r.is_mateo && r.surcharges.length === 0)
+        .sort((a, b) => (b.usage_character_count_1y ?? -1) - (a.usage_character_count_1y ?? -1))
+        .slice(0, 12),
+    );
+  }
+  const usageAcoustic: Json[] = [];
+  for (const r of byUsage) {
+    if (typeof r.preview_url !== "string" || !r.preview_url) continue;
+    const file = path.join(OUT, "previews", `top_${r.gender}__${String(r.name).replace(/[^a-z0-9]+/gi, "_").slice(0, 30)}__${r.voice_id}.mp3`);
+    try {
+      const res = await fetch(r.preview_url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await fs.writeFile(file, Buffer.from(await res.arrayBuffer()));
+      const m = await acoustic(file);
+      usageAcoustic.push({ voice_id: r.voice_id, name: r.name, gender: r.gender, ...m });
+      console.log(`[acoustic-top] ${r.gender} ${r.voice_id} ${r.name}: ${JSON.stringify(m)}`);
+    } catch (err) {
+      console.log(`[acoustic-top] ${r.voice_id} error ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  await writeJson("acoustic-top-usage.json", usageAcoustic);
+
   // 7. Preselección por perfil (heurística declarada) + previews.
   const shortlist: Json = {};
   const acousticRows: Json[] = [];
@@ -310,7 +373,8 @@ async function main() {
       const previews: { lang: string; url: string }[] = [];
       if (typeof r.preview_url === "string" && r.preview_url) previews.push({ lang: "default", url: r.preview_url });
       for (const l of r.verified_languages) if ((l.language === "es" || l.language === "en") && l.preview) previews.push({ lang: `${l.language}-${l.locale || l.accent || "x"}`, url: l.preview });
-      for (const p of previews.slice(0, 3)) {
+      const uniq = previews.filter((p, i) => previews.findIndex((q) => q.url === p.url) === i);
+      for (const p of uniq.slice(0, 3)) {
         const safe = `${profile}__${String(r.name).replace(/[^a-z0-9]+/gi, "_").slice(0, 30)}__${r.voice_id}__${p.lang}`.replace(/_+/g, "_");
         const file = path.join(OUT, "previews", `${safe}.mp3`);
         try {
