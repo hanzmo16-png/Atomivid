@@ -94,7 +94,8 @@ function reportVoice(id: string, v: Json, catalogLanguages: string[]): string[] 
 async function slots(apiKey: string): Promise<string> {
   const r = await call("GET", "/v1/user/subscription", apiKey);
   const b = r.body;
-  return `tier=${b.tier} voice_slots_used=${b.voice_slots_used} voice_limit=${b.voice_limit} professional_voice_slots_used=${b.professional_voice_slots_used} voice_add_edit_counter=${b.voice_add_edit_counter}`;
+  const reset = typeof b.next_character_count_reset_unix === "number" ? new Date(b.next_character_count_reset_unix * 1000).toISOString() : "-";
+  return `tier=${b.tier} status=${b.status} character_count=${b.character_count} character_limit=${b.character_limit} next_reset=${reset} can_extend_character_limit=${b.can_extend_character_limit} allowed_to_extend_character_limit=${b.allowed_to_extend_character_limit} voice_slots_used=${b.voice_slots_used} voice_limit=${b.voice_limit} professional_voice_slots_used=${b.professional_voice_slots_used} voice_add_edit_counter=${b.voice_add_edit_counter}`;
 }
 
 async function main() {
