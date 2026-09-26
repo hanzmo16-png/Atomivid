@@ -11,6 +11,9 @@ import {
 import { cameraTransform, lookStyle, soundCueVolume, transitionFrames, validateDirection, type SceneDirection, type SoundCue } from "./long-form-direction";
 import { type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from "./audio-mix";
 import { LARGE_CARD, provenanceLabel, type SceneProvenance } from "./long-form-card-fit";
+import { coverWindowSeconds, fitCover, type CoverSpec } from "./cover-rules";
+import { OpeningTitle } from "./OpeningTitle";
+import { useCoverFont } from "./cover-font";
 
 /**
  * Composición 16:9 para Long Form — independiente de VerticalReel.tsx
@@ -103,6 +106,12 @@ export type LongFormDocProps = {
   narrationGaps?: NarrationGap[];
   accentColor?: string;
   showLogo?: boolean;
+  /**
+   * Portada de apertura (opcional): título grande sobre los primeros
+   * segundos, dentro de la primera escena. Ausente = el video no cambia.
+   * El llamador la valida antes (render.ts → validateCover).
+   */
+  opening?: CoverSpec;
 };
 
 const DEFAULT_ACCENT_COLOR = "#8f7ff5";
@@ -117,9 +126,11 @@ export function LongFormDoc({
   narrationGaps = [],
   accentColor = DEFAULT_ACCENT_COLOR,
   showLogo = false,
+  opening,
 }: LongFormDocProps) {
   const { fps, durationInFrames } = useVideoConfig();
   validateDirection(scenes, soundCues, durationSeconds);
+  useCoverFont(Boolean(opening));
 
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
@@ -154,6 +165,7 @@ export function LongFormDoc({
         style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0) 62%, rgba(0,0,0,0.55) 100%)" }}
       />
 
+      {opening && scenes.length > 0 && <OpeningCover spec={opening} firstSceneEndSeconds={scenes[0].endSeconds} labelsTopLeft={Boolean(provenanceLabel(scenes[0].provenance) || scenes[0].creditText || scenes[0].pending)} />}
       <Captions captions={captions} accentColor={accentColor} />
 
       {showLogo && <LogoBadge accentColor={accentColor} />}
@@ -440,6 +452,21 @@ function MapCard({ graphic }: { graphic: LongFormMapGraphic }) {
         </svg>
       </div>
     </GraphicBackground>
+  );
+}
+
+/** Portada de apertura: visible desde el primer fotograma (sin fundido de entrada) y se desvanece al final de su ventana. */
+function OpeningCover({ spec, firstSceneEndSeconds, labelsTopLeft }: { spec: CoverSpec; firstSceneEndSeconds: number; labelsTopLeft: boolean }) {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const { untilSeconds, fadeOutSeconds } = coverWindowSeconds(firstSceneEndSeconds);
+  const t = frame / fps;
+  if (t >= untilSeconds) return null;
+  const opacity = interpolate(t, [untilSeconds - fadeOutSeconds, untilSeconds], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  return (
+    <AbsoluteFill>
+      <OpeningTitle spec={spec} layout={fitCover(spec, "video", { labelsTopLeft })} opacity={opacity} />
+    </AbsoluteFill>
   );
 }
 

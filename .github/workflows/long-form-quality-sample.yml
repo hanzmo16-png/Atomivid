@@ -116,3 +116,12 @@ jobs:
           path: ${{ runner.temp }}/quality-sample/first-frame*.png
           archive: false
           retention-days: 14
+      - name: Publicar la miniatura directa (sin zip)
+        if: success() && inputs.phase == 'render'
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/quality-sample/thumbnail.jpg
+          archive: false
+          if-no-files-found: ignore
+          retention-days: 14

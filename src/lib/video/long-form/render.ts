@@ -11,7 +11,10 @@ import { validateDirection, type SoundCue } from "../../../../remotion/long-form
 import path from "node:path";
 import os from "node:os";
 import { bundle } from "@remotion/bundler";
-import { renderMedia, selectComposition } from "@remotion/renderer";
+import { renderMedia, renderStill, selectComposition } from "@remotion/renderer";
+import { coverErrors, validateCover, type CoverSpec } from "../../../../remotion/cover-rules";
+import { provenanceLabel } from "../../../../remotion/long-form-card-fit";
+import type { LongFormThumbnailProps } from "../../../../remotion/LongFormThumbnail";
 import type { LongFormCaption, LongFormShotScene } from "../../../../remotion/LongFormDoc";
 import type { NarrationGap } from "../../../../remotion/audio-mix";
 import { assertRenderInputValid } from "./render-preflight";
@@ -44,7 +47,23 @@ export type RenderLongFormDocInput = {
    * renderiza, con las escenas pendientes marcadas de forma visible.
    */
   purpose?: "technical" | "approval";
+  /** Portada de apertura opcional (validada aquí: legibilidad, márgenes, subtítulos y rótulos). */
+  opening?: CoverSpec;
 };
+
+export class CoverValidationError extends Error {
+  constructor(readonly target: "portada" | "miniatura", readonly issues: { code: string; message: string }[]) {
+    super(`${target} inválida: ${issues.map((i) => i.message).join(" ")}`);
+    this.name = "CoverValidationError";
+  }
+}
+
+/** La portada se valida contra la primera escena: con rótulos arriba a la izquierda, el título no puede taparlos. */
+export function assertOpeningValid(opening: CoverSpec, firstScene: LongFormShotScene | undefined): void {
+  const labelsTopLeft = Boolean(firstScene && (provenanceLabel(firstScene.provenance) || firstScene.creditText || firstScene.pending));
+  const errors = coverErrors(validateCover(opening, "video", { labelsTopLeft }));
+  if (errors.length > 0) throw new CoverValidationError("portada", errors);
+}
 
 export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<string> {
   // Preflight ESTÁTICO antes de gastar tiempo de bundle/render — sobre
@@ -61,6 +80,7 @@ export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<
   validateDirection(input.scenes, input.soundCues, input.durationSeconds);
   assertCardsFit(input.scenes);
   if (input.purpose === "approval") assertApprovalReady(input.scenes);
+  if (input.opening) assertOpeningValid(input.opening, input.scenes[0]);
   if (input.soundCues !== undefined && input.musicUrl) {
     // Las pistas explícitas REEMPLAZAN la música anterior (contrato de Work): pasar ambas es un error del llamador.
     throw new Error("render: soundCues y musicUrl a la vez — la música se duplicaría");
@@ -83,6 +103,7 @@ export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<
     durationSeconds: input.durationSeconds,
     accentColor: input.accentColor,
     showLogo: input.showLogo ?? false,
+    ...(input.opening ? { opening: input.opening } : {}),
   };
 
   const composition = await selectComposition({
@@ -124,4 +145,23 @@ export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<
   });
 
   return outputLocation;
+}
+
+/**
+ * Miniatura de YouTube (JPEG 1280×720) con la misma identidad que la
+ * portada. Validada antes de abrir el navegador; nunca llama a proveedores.
+ */
+export async function renderLongFormThumbnail(input: LongFormThumbnailProps): Promise<string> {
+  const errors = coverErrors(validateCover(input.cover, "thumbnail"));
+  if (errors.length > 0) throw new CoverValidationError("miniatura", errors);
+  const entryPoint = path.join(process.cwd(), "remotion", "index.ts");
+  const browserExecutable = process.env.REMOTION_BROWSER_EXECUTABLE || undefined;
+  const chromeMode =
+    (process.env.REMOTION_CHROME_MODE as "chrome-for-testing" | "headless-shell" | undefined) || undefined;
+  const serveUrl = await bundle({ entryPoint });
+  const inputProps = { ...input } as Record<string, unknown>;
+  const composition = await selectComposition({ serveUrl, id: "LongFormThumbnail", inputProps, browserExecutable, chromeMode });
+  const output = path.join(os.tmpdir(), `atomivid-thumbnail-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`);
+  await renderStill({ composition, serveUrl, output, inputProps, imageFormat: "jpeg", jpegQuality: 92, frame: 0, browserExecutable, chromeMode });
+  return output;
 }

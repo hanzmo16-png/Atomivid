@@ -510,6 +510,23 @@ async function main() {
   const captions = captionsWithinScenes(words, scenes, (w) => buildCaptions(w, emphasis));
   const narrationGaps = computeNarrationGaps(words);
 
+  // Presentación (portada de apertura + miniatura): validada ANTES de renderizar, incluida la zona del sujeto.
+  const packaging = manifest.packaging;
+  const { validateCover } = await import("../remotion/cover-rules");
+  const { provenanceLabel } = await import("../remotion/long-form-card-fit");
+  if (packaging?.cover) {
+    const first = scenes[0];
+    const r = validateCover(packaging.cover, "video", { labelsTopLeft: Boolean(first && (provenanceLabel(first.provenance) || first.creditText || first.pending)), subject: packaging.subject?.video });
+    console.log(`@@COVER ${JSON.stringify({ layout: r.layout, issues: r.issues })}`);
+    if (r.issues.length > 0) throw new Error(`portada: ${r.issues.map((i) => i.message).join(" ")}`);
+  }
+  if (packaging?.thumbnail) {
+    const r = validateCover(packaging.thumbnail, "thumbnail", { subject: packaging.subject?.thumbnail });
+    console.log(`@@THUMBNAIL_LAYOUT ${JSON.stringify({ layout: r.layout, issues: r.issues })}`);
+    if (r.issues.length > 0) throw new Error(`miniatura: ${r.issues.map((i) => i.message).join(" ")}`);
+  }
+  const packSuffix = packaging?.cover ? "-portada" : "";
+
   const raw = await renderLongFormDoc({
     audioUrl: await sign(bucket, state.voicePath),
     soundCues,
@@ -518,6 +535,7 @@ async function main() {
     narrationGaps,
     durationSeconds: windowSec,
     purpose,
+    ...(packaging?.cover ? { opening: packaging.cover } : {}),
   });
   const mastered = raw.replace(/\.mp4$/, ".mastered.mp4");
   const { LONG_FORM_TRUE_PEAK_MARGIN_DB } = await import("../src/lib/video/long-form/produce");
@@ -558,13 +576,13 @@ async function main() {
   }
   // Fotograma inicial (lo primero que se ve, y candidato a miniatura): a tamaño completo y a tamaño de celular.
   const firstFrame = await frameAt(mastered, 0, 1920);
-  const firstFrameName = `first-frame${outSuffix}.png`;
+  const firstFrameName = `first-frame${outSuffix}${packSuffix}.png`;
   await fs.writeFile(path.join(outDir, firstFrameName), firstFrame);
   await upload(`${prefix}/${firstFrameName}`, firstFrame, "image/png");
   emitSheet("first-frame-large", await buildContactSheet([{ image: firstFrame, label: "t = 0 s (a pantalla completa)" }], { columns: 1, tileWidth: 1280, tileHeight: 720, title: "Fotograma inicial" }));
   emitSheet("first-frame-phone", await buildContactSheet([{ image: firstFrame, label: "t = 0 s (tamaño de celular)" }], { columns: 1, tileWidth: 360, tileHeight: 203, title: "Celular" }));
   const bytes = (await fs.stat(mastered)).size;
-  const outName = `sample-${purpose}${outSuffix}.mp4`;
+  const outName = `sample-${purpose}${outSuffix}${packSuffix}.mp4`;
   const buf = await fs.readFile(mastered);
   await upload(`${prefix}/${outName}`, buf, "video/mp4");
   await fs.copyFile(mastered, path.join(outDir, outName));
@@ -574,7 +592,25 @@ async function main() {
     const { data: signed } = await service.storage.from(bucket).createSignedUrl(`${prefix}/${outName}`, Math.round(Math.min(signHours, 168) * 3600));
     if (signed) console.log(`@@OUTPUT_URL ${JSON.stringify({ objectPath: `${prefix}/${outName}`, expiresInHours: Math.min(signHours, 168), url: signed.signedUrl })}`);
   }
-  const report = { purpose, windowSeconds: windowSec, bytes, objectPath: `${prefix}/${outName}`, blackRuns, loudness: finalLoudness, mastering, scenes: scenes.length, soundCues: soundCues.map((c) => c.id), providerCalls: { paid: 0 } };
+  // Miniatura de YouTube: misma imagen que la primera escena (mismo reencuadre/gradación) + título.
+  let thumbnailPath: string | undefined;
+  if (packaging?.thumbnail && scenes[0]?.asset.kind === "media") {
+    const { renderLongFormThumbnail } = await import("../src/lib/video/long-form/render");
+    const first = scenes[0];
+    const asset = first.asset as { kind: "media"; mediaType: "image" | "video"; url: string };
+    const jpg = await renderLongFormThumbnail({
+      background: { mediaType: asset.mediaType, url: asset.url, look: first.direction?.look, mediaStartSeconds: first.direction?.mediaStartSeconds },
+      cover: packaging.thumbnail,
+      provenanceLabel: provenanceLabel(first.provenance),
+    });
+    const thumb = await fs.readFile(jpg);
+    thumbnailPath = `${prefix}/thumbnail.jpg`;
+    await upload(thumbnailPath, thumb, "image/jpeg");
+    await fs.writeFile(path.join(outDir, "thumbnail.jpg"), thumb);
+    emitSheet("thumbnail-large", await buildContactSheet([{ image: thumb, label: "Miniatura 1280×720" }], { columns: 1, tileWidth: 1280, tileHeight: 720, title: "Miniatura de YouTube" }));
+    emitSheet("thumbnail-phone", await buildContactSheet([{ image: thumb, label: "Miniatura en celular" }], { columns: 1, tileWidth: 320, tileHeight: 180, title: "Celular" }));
+  }
+  const report = { purpose, thumbnailPath, windowSeconds: windowSec, bytes, objectPath: `${prefix}/${outName}`, blackRuns, loudness: finalLoudness, mastering, scenes: scenes.length, soundCues: soundCues.map((c) => c.id), providerCalls: { paid: 0 } };
   await upload(`${prefix}/state/render-${purpose}${outSuffix}.json`, Buffer.from(JSON.stringify(report, null, 2)), "application/json");
   await fs.writeFile(path.join(outDir, `render-${purpose}${outSuffix}.json`), JSON.stringify(report, null, 2));
   console.log(`@@RENDER ${JSON.stringify(report)}`);

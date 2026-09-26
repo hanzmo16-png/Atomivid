@@ -491,5 +491,33 @@
     "Zumbido de mosquito (s02): no hay efectos con licencia registrada.",
     "Golpe de pico sobre roca (s01): no hay efectos con licencia registrada.",
     "Ambiente portuario / bocina de barco (s05–s06): no hay efectos con licencia registrada."
-  ]
+  ],
+  "packaging": {
+    "cover": {
+      "style": "impacto",
+      "title": "Cavar una *montaña*",
+      "kicker": "Canal de Panamá · 1881–1914",
+      "placement": "top-right"
+    },
+    "thumbnail": {
+      "style": "impacto",
+      "title": "Cavar una *montaña*",
+      "kicker": "Canal de Panamá",
+      "placement": "top-right"
+    },
+    "subject": {
+      "video": {
+        "x": 150,
+        "y": 40,
+        "w": 650,
+        "h": 1040
+      },
+      "thumbnail": {
+        "x": 100,
+        "y": 20,
+        "w": 390,
+        "h": 700
+      }
+    }
+  }
 }

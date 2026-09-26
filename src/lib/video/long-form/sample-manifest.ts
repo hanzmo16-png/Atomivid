@@ -79,6 +79,14 @@ export type SampleSoundCue = {
   loop?: boolean;
 };
 
+/** Presentación opcional de la muestra: portada de apertura y miniatura (remotion/cover-rules.ts). */
+export type SamplePackaging = {
+  cover?: import("../../../../remotion/cover-rules").CoverSpec;
+  thumbnail?: import("../../../../remotion/cover-rules").CoverSpec;
+  /** Zona del sujeto principal en el primer fotograma (px 1920×1080) y en la miniatura (px 1280×720): la portada no debe taparla. */
+  subject?: { video?: import("../../../../remotion/cover-rules").Rect; thumbnail?: import("../../../../remotion/cover-rules").Rect };
+};
+
 export type SampleManifest = {
   requestId: string;
   beats: string[];
@@ -88,6 +96,7 @@ export type SampleManifest = {
   soundCues: SampleSoundCue[];
   /** Recursos sonoros que faltan (se reportan; nunca se sustituyen por tonos de prueba). */
   missingSound: string[];
+  packaging?: SamplePackaging;
 };
 
 export type ManifestIssue = { sceneId: string; code: string; message: string };
