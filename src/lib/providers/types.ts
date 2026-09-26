@@ -4,6 +4,7 @@
  * y una implementación "fixture" (determinística, sin red) que cumple la
  * misma interfaz — así el pipeline completo se puede probar sin claves.
  */
+import type { ChargeOutcome } from "./charge-outcome";
 
 export type SceneEnergy = "low" | "medium" | "high";
 
@@ -287,6 +288,12 @@ export class GenerativeProviderError extends Error {
      * rechazada).
      */
     public readonly providerJobId?: string,
+    /**
+     * Si la llamada fallida pudo cobrarse (ver providers/charge-outcome.ts).
+     * Ausente en proveedores que aún no lo declaran: el llamador debe
+     * tratarlo como incierto salvo que `reason` pruebe que no se llamó.
+     */
+    public readonly chargeOutcome?: ChargeOutcome,
   ) {
     super(message);
     this.name = "GenerativeProviderError";

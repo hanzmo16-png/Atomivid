@@ -239,6 +239,11 @@ export class PaidLedger {
    * Reconocimiento MANUAL (operador) de una operación incierta o pagada sin
    * resultado: su costo sigue contando y la operación puede intentarse de
    * nuevo (una nueva reserva). Nunca se usa de forma automática.
+   *
+   * Primitiva de bajo nivel: por sí sola NO desbloquea el marcador de imagen
+   * ni el registro de voz. Para recuperar una operación usa
+   * recovery.ts (recoverPaidOperation), que comprueba presupuesto y libera
+   * ambos estados de forma coherente.
    */
   async acknowledge(key: string, note: string): Promise<boolean> {
     const prev = this.latest(key);

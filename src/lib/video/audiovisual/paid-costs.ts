@@ -18,6 +18,7 @@
  */
 import { getPricingConfig, estimateTokensFromChars } from "@/lib/billing/pricing";
 import { GenerativeProviderError } from "@/lib/providers/types";
+import { fetchFailureOutcome, httpStatusOutcome } from "@/lib/providers/charge-outcome";
 import { PaidLedger, type FailureClass, type PaidLedgerState, type PaidLedgerStore } from "./paid-ledger";
 import { readJsonState, writeJsonState } from "./storage-state";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -41,21 +42,33 @@ export function scriptCostUsd(inputChars: number, outputChars: number): number {
 }
 
 /**
- * Imagen: costo cero conocido solo cuando la llamada no salió o el
- * proveedor respondió un error HTTP/moderación (openai.ts documenta que ahí
- * no se genera ni cobra). Timeout, respuesta rota u otro error → incierto.
+ * Imagen: costo cero conocido SOLO con evidencia (providers/charge-outcome.ts):
+ * el proveedor declara `chargeOutcome` "not_sent" (no salió) o "rejected"
+ * (rechazo explícito de la lista cerrada). Sin esa declaración, únicamente
+ * los motivos que por construcción ocurren antes de llamar (no configurado,
+ * presupuesto) son costo cero. Un error de red genérico, un 5xx, un timeout o
+ * una respuesta rota → incierto.
  */
 export function classifyImageFailure(err: unknown): FailureClass {
   if (err instanceof GenerativeProviderError) {
-    return ["not_configured", "budget_exceeded", "upstream_error", "moderation_rejected"].includes(err.reason) ? "not_sent" : "uncertain";
+    if (err.chargeOutcome) return err.chargeOutcome === "uncertain" ? "uncertain" : "not_sent";
+    return err.reason === "not_configured" || err.reason === "budget_exceeded" ? "not_sent" : "uncertain";
   }
   return "uncertain";
 }
 
-/** Voz: «ElevenLabs respondió <status>» (error HTTP) o falta de clave → costo cero; lo demás (red, timeout, respuesta rota) → incierto. */
+/**
+ * Voz (ElevenLabs, lib/ai/voice.ts): falta de clave → no se llamó; «ElevenLabs
+ * respondió <status>» → según la lista cerrada de rechazos (un 5xx o 408 es
+ * incierto); excepción de fetch → solo costo cero si es inequívocamente previa
+ * al envío (DNS, conexión rechazada, TLS). Lo demás → incierto.
+ */
 export function classifyVoiceFailure(err: unknown): FailureClass {
   const message = err instanceof Error ? err.message : String(err);
-  return /^ElevenLabs respondió \d{3}/.test(message) || /Falta configurar ELEVENLABS_API_KEY/.test(message) ? "not_sent" : "uncertain";
+  if (/^Falta configurar ELEVENLABS_API_KEY/.test(message)) return "not_sent";
+  const status = /^ElevenLabs respondió (\d{3})\b/.exec(message);
+  if (status) return httpStatusOutcome(Number(status[1])) === "rejected" ? "not_sent" : "uncertain";
+  return fetchFailureOutcome(err) === "not_sent" ? "not_sent" : "uncertain";
 }
 
 export function ledgerPath(scopePrefix: string): string {

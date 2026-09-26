@@ -32,7 +32,7 @@ on:
         type: string
         default: "0.75"
       acknowledge:
-        description: "Reconocer operaciones inciertas revisadas: muestra:clave|nota, separadas por coma (siguen contando)"
+        description: "Recuperar operaciones inciertas ya revisadas (comprueba presupuesto; libera marcador de imagen o registro de voz y reconoce la entrada; el gasto previo sigue contando): muestra:clave|nota, separadas por coma"
         type: string
         default: ""
       confirm:

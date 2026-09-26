@@ -11,6 +11,10 @@
  *  - generated_unstored: se cobró y el audio no quedó guardado → no se repite sola.
  *  - completed: se reutiliza si el checksum coincide; si el audio falta o
  *    no coincide, se detiene (ya se pagó; repetir requiere revisión).
+ *  - released: un operador recuperó explícitamente la operación
+ *    (recovery.ts, junto con el reconocimiento en el registro de gasto) →
+ *    se trata como ausente y puede sintetizarse de nuevo; el gasto anterior
+ *    sigue contando en el registro.
  */
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -31,7 +35,7 @@ export type VoiceCacheIdentity = {
 
 export type VoiceCacheRecord = {
   key: string;
-  status: "started" | "generated_unstored" | "completed";
+  status: "started" | "generated_unstored" | "completed" | "released";
   identity: Omit<VoiceCacheIdentity, "text"> & { textSha256: string; characters: number };
   audioPath?: string;
   audioSha256?: string;
@@ -41,6 +45,9 @@ export type VoiceCacheRecord = {
   words?: WordTiming[];
   updatedAtIso: string;
   note?: string;
+  /** Recuperación manual (recovery.ts): estado previo y momento. */
+  previousStatus?: VoiceCacheRecord["status"];
+  recoveredAtIso?: string;
 };
 
 export class VoiceCacheUncertainError extends Error {
@@ -92,7 +99,7 @@ export async function synthesizeNarrationCached({
   const recordPath = `${requestId}/state/voice/${key}.json`;
   const existing = await readJsonState<VoiceCacheRecord>(supabase, bucket, recordPath, "la narración guardada");
 
-  if (existing.kind === "found") {
+  if (existing.kind === "found" && existing.data.status !== "released") {
     const record = existing.data;
     if (record.status !== "completed") throw new VoiceCacheUncertainError(key, record.status);
     const { data, error } = await supabase.storage.from(bucket).download(record.audioPath!);

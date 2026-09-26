@@ -53,6 +53,9 @@ export type GeneratedImageMarker = {
   updatedAtIso: string;
   costUsd?: number;
   note?: string;
+  /** Recuperación manual (audiovisual/recovery.ts): estado previo y momento. */
+  previousStatus?: GeneratedImageMarker["status"];
+  recoveredAtIso?: string;
 };
 
 /** Hay una generación anterior cobrada (o quizá cobrada) sin resultado utilizable: no se regenera automáticamente. */

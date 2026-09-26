@@ -1,5 +1,6 @@
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { GenerativeProviderError, type GenerativeAsset, type ImageGenerationRequest, type ImageProvider } from "../types";
+import { fetchFailureOutcome, httpStatusOutcome } from "../charge-outcome";
 
 /**
  * Adaptador para la API de generación de imágenes de OpenAI.
@@ -124,8 +125,19 @@ function sizeFor(aspectRatio: ImageGenerationRequest["aspectRatio"]): string {
   return aspectRatio === "16:9" ? LANDSCAPE_SIZE : PORTRAIT_SIZE;
 }
 
+/** Error con su evidencia de cobro (ver providers/charge-outcome.ts). */
+function fail(
+  message: string,
+  reason: GenerativeProviderError["reason"],
+  chargeOutcome: NonNullable<GenerativeProviderError["chargeOutcome"]>,
+  cause?: unknown,
+): GenerativeProviderError {
+  return new GenerativeProviderError(message, "openai", reason, cause, undefined, chargeOutcome);
+}
+
 async function requestOnce(request: ImageGenerationRequest): Promise<GenerativeAsset> {
   const size = sizeFor(request.aspectRatio);
+  const apiKey = getApiKey();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -134,7 +146,7 @@ async function requestOnce(request: ImageGenerationRequest): Promise<GenerativeA
     response = await fetch(OPENAI_IMAGES_ENDPOINT, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${getApiKey()}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -150,29 +162,31 @@ async function requestOnce(request: ImageGenerationRequest): Promise<GenerativeA
     });
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
-      throw new GenerativeProviderError(
-        `Tiempo de espera agotado (${TIMEOUT_MS}ms) llamando a OpenAI Images`,
-        "openai",
-        "timeout",
-        err,
-      );
+      // El servidor pudo haber recibido la solicitud y seguir generando: incierto.
+      throw fail(`Tiempo de espera agotado (${TIMEOUT_MS}ms) llamando a OpenAI Images`, "timeout", "uncertain", err);
     }
-    throw new GenerativeProviderError("Error de red llamando a OpenAI Images", "openai", "upstream_error", err);
+    // Solo un fallo inequívocamente previo al envío (DNS, conexión rechazada,
+    // TLS) prueba costo cero. Una conexión cortada con la solicitud en vuelo
+    // (ECONNRESET, socket cerrado) no prueba que OpenAI no la procesó.
+    const outcome = fetchFailureOutcome(err);
+    throw fail(
+      outcome === "not_sent" ? "OpenAI Images no recibió la solicitud (fallo de red antes del envío)" : "Se perdió la conexión con OpenAI Images; no se sabe si la imagen se generó",
+      "upstream_error",
+      outcome,
+      err,
+    );
   } finally {
     clearTimeout(timeout);
   }
 
   if (response.status === 400 && (await response.clone().text()).toLowerCase().includes("moderation")) {
-    throw new GenerativeProviderError("Prompt rechazado por moderación de OpenAI", "openai", "moderation_rejected");
+    throw fail("Prompt rechazado por moderación de OpenAI", "moderation_rejected", "rejected");
   }
   if (!response.ok) {
     // Nunca se registra el body completo (podría reflejar el prompt con datos del usuario o detalles de la cuenta) — solo status.
-    // Un status de error (4xx/5xx) en este punto significa que OpenAI NUNCA generó/cobró una imagen — seguro de reintentar.
-    throw new GenerativeProviderError(
-      `OpenAI Images respondió HTTP ${response.status}`,
-      "openai",
-      "upstream_error",
-    );
+    // Solo los rechazos de validación/autenticación/límite (lista cerrada en
+    // charge-outcome.ts) prueban costo cero; un 5xx, 408 u otro → incierto.
+    throw fail(`OpenAI Images respondió HTTP ${response.status}`, "upstream_error", httpStatusOutcome(response.status));
   }
 
   const json = (await response.json()) as {
@@ -181,28 +195,30 @@ async function requestOnce(request: ImageGenerationRequest): Promise<GenerativeA
   };
   const item = json.data?.[0];
   if (!item) {
-    throw new GenerativeProviderError("Respuesta de OpenAI Images sin datos de imagen", "openai", "invalid_response");
+    throw fail("Respuesta de OpenAI Images sin datos de imagen", "invalid_response", "uncertain");
   }
 
   let buffer: Buffer;
   if (item.b64_json) {
     buffer = Buffer.from(item.b64_json, "base64");
   } else if (item.url) {
-    const imageRes = await fetch(item.url, { signal: controller.signal });
+    // La generación ya respondió 200 (cobrada): cualquier fallo de la descarga es incierto.
+    let imageRes: Response;
+    try {
+      imageRes = await fetch(item.url, { signal: controller.signal });
+    } catch (err) {
+      throw fail("No se pudo descargar la imagen ya generada", "download_failed", "uncertain", err);
+    }
     if (!imageRes.ok) {
-      throw new GenerativeProviderError(
-        `No se pudo descargar la imagen generada (HTTP ${imageRes.status})`,
-        "openai",
-        "upstream_error",
-      );
+      throw fail(`No se pudo descargar la imagen generada (HTTP ${imageRes.status})`, "download_failed", "uncertain");
     }
     buffer = Buffer.from(await imageRes.arrayBuffer());
   } else {
-    throw new GenerativeProviderError("Respuesta de OpenAI Images sin b64_json ni url", "openai", "invalid_response");
+    throw fail("Respuesta de OpenAI Images sin b64_json ni url", "invalid_response", "uncertain");
   }
 
   if (buffer.byteLength === 0) {
-    throw new GenerativeProviderError("Imagen generada con tamaño 0 bytes", "openai", "invalid_response");
+    throw fail("Imagen generada con tamaño 0 bytes", "invalid_response", "uncertain");
   }
 
   const [width, height] = size.split("x").map(Number);
@@ -242,13 +258,13 @@ export const openaiImageProvider: ImageProvider = {
   },
   async generateImage(request: ImageGenerationRequest): Promise<GenerativeAsset> {
     if (!this.isAvailable()) {
-      throw new GenerativeProviderError("OPENAI_API_KEY no está configurada", "openai", "not_configured");
+      throw fail("OPENAI_API_KEY no está configurada", "not_configured", "not_sent");
     }
     if (ESTIMATED_COST_USD > request.maxCostUsd) {
-      throw new GenerativeProviderError(
+      throw fail(
         `Costo estimado ($${ESTIMATED_COST_USD}) excede el máximo permitido para esta escena ($${request.maxCostUsd})`,
-        "openai",
         "budget_exceeded",
+        "not_sent",
       );
     }
 
@@ -258,27 +274,19 @@ export const openaiImageProvider: ImageProvider = {
         return await requestOnce(request);
       } catch (err) {
         lastError = err;
-        // Solo se reintenta automáticamente cuando estamos SEGUROS de que
-        // OpenAI no llegó a generar (ni cobrar) nada: "upstream_error"
-        // cubre tanto un fallo de red antes de recibir respuesta como un
-        // status HTTP de error explícito (4xx/5xx) — en ambos casos no
-        // hubo generación exitosa. Cualquier otro motivo se detiene aquí,
-        // sin reintentar:
-        //  - "timeout": abortamos del lado del cliente, pero no sabemos si
-        //    OpenAI completó (y cobró) la generación del lado del servidor.
-        //  - "invalid_response": la respuesta HTTP fue 200 OK (exitosa) —
-        //    eso ya implica, casi siempre, que la generación se cobró —
-        //    aunque el cuerpo viniera corrupto/vacío/sin imagen.
-        //  - "moderation_rejected": nunca se reintenta (comportamiento previo).
-        // Reintentar en cualquiera de esos casos arriesgaría un doble cobro
-        // por la misma imagen.
-        if (!(err instanceof GenerativeProviderError) || err.reason !== "upstream_error") {
+        // Solo se reintenta automáticamente cuando la solicitud
+        // INEQUÍVOCAMENTE no llegó a OpenAI (chargeOutcome "not_sent": DNS,
+        // conexión rechazada, TLS). Nunca se repite un resultado incierto
+        // (conexión cortada en vuelo, timeout, 5xx, 200 con cuerpo roto): el
+        // servidor pudo generar y cobrar. Un rechazo explícito (4xx de la
+        // lista cerrada, moderación) tampoco se repite: fallaría igual.
+        if (!(err instanceof GenerativeProviderError) || err.chargeOutcome !== "not_sent") {
           throw err;
         }
       }
     }
     throw lastError instanceof GenerativeProviderError
       ? lastError
-      : new GenerativeProviderError("Fallo desconocido generando imagen con OpenAI", "openai", "upstream_error", lastError);
+      : fail("Fallo desconocido generando imagen con OpenAI", "upstream_error", "uncertain", lastError);
   },
 };

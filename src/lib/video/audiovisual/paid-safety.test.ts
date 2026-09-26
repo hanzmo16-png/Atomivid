@@ -82,7 +82,7 @@ test("gasto: un fallo con costo cero conocido se libera (no cuenta) y puede repe
 
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0, 0x49, 0x48, 0x44, 0x52]), Buffer.from([0, 0, 4, 0, 0, 0, 6, 0]), Buffer.alloc(200, 0x20)]);
 
-function fakeImages(behaviors: Array<"ok" | "timeout" | "http" | "broken">) {
+function fakeImages(behaviors: Array<"ok" | "timeout" | "http" | "http500" | "broken">) {
   let calls = 0;
   const provider: ImageProvider = {
     name: "fake-openai",
@@ -92,7 +92,8 @@ function fakeImages(behaviors: Array<"ok" | "timeout" | "http" | "broken">) {
       const b = behaviors[Math.min(calls, behaviors.length - 1)];
       calls += 1;
       if (b === "timeout") throw new GenerativeProviderError("timeout", "fake", "timeout");
-      if (b === "http") throw new GenerativeProviderError("HTTP 500", "fake", "upstream_error");
+      if (b === "http") throw new GenerativeProviderError("HTTP 400", "fake", "upstream_error", undefined, undefined, "rejected");
+      if (b === "http500") throw new GenerativeProviderError("HTTP 500", "fake", "upstream_error", undefined, undefined, "uncertain");
       if (b === "broken") throw new Error("socket hang up");
       return { buffer: PNG, mimeType: "image/png", extension: "png", model: "m", costUsd: 0.0558, costBasis: "provider_usage" };
     },
@@ -154,11 +155,11 @@ test("imágenes: timeout (pudo cobrarse) → incierto, contado por la reserva y 
   assert.equal(img.calls(), 1);
 });
 
-test("imágenes: error HTTP (costo cero conocido) → se libera y el reintento sí genera", async () => {
+test("imágenes: rechazo HTTP explícito (400, costo cero conocido) → se libera y el reintento sí genera", async () => {
   const s = memoryStorage();
   const img = fakeImages(["http", "ok"]);
   const ledger = await openStorageLedger(s.client, "videos", "req");
-  await assert.rejects(resolve(s.client, img.provider, ledger), /HTTP 500/);
+  await assert.rejects(resolve(s.client, img.provider, ledger), /HTTP 400/);
   assert.equal(ledger.summary().committedUsd, 0);
   const out = await resolve(s.client, img.provider, await openStorageLedger(s.client, "videos", "req"));
   assert.equal(out.status, "generated");
@@ -177,14 +178,15 @@ test("imágenes: subida con un fallo transitorio se reintenta; un reintento post
 
 // ---------- Voz ----------
 
-function fakeVoice(behaviors: Array<"ok" | "http" | "network"> = ["ok"]) {
+function fakeVoice(behaviors: Array<"ok" | "http" | "http500" | "network"> = ["ok"]) {
   let calls = 0;
   const provider: VoiceProvider = {
     name: "elevenlabs",
     async synthesize(text, _lang, speed = 1) {
       const b = behaviors[Math.min(calls, behaviors.length - 1)];
       calls += 1;
-      if (b === "http") throw new Error("ElevenLabs respondió 500: error");
+      if (b === "http") throw new Error("ElevenLabs respondió 422: texto inválido");
+      if (b === "http500") throw new Error("ElevenLabs respondió 500: error");
       if (b === "network") throw new Error("fetch failed");
       const words = text.split(" ").map((w, i) => ({ text: w, startSeconds: i / (2.5 * speed), endSeconds: (i + 0.8) / (2.5 * speed) }));
       return { audioBuffer: Buffer.from(`audio:${speed}:${text}`), durationSeconds: words.at(-1)!.endSeconds, words, mimeType: "audio/mpeg", extension: "mp3" };
@@ -237,10 +239,10 @@ test("voz: cobrada y no guardada → contada y sin resíntesis automática", asy
   assert.equal(v.calls(), 1);
 });
 
-test("voz: error HTTP (costo cero) permite reintentar; error de red (incierto) detiene el reintento", async () => {
+test("voz: rechazo HTTP explícito (costo cero) permite reintentar; error de red (incierto) detiene el reintento", async () => {
   const s1 = memoryStorage();
   const http = fakeVoice(["http", "ok"]);
-  await assert.rejects(narrate(s1, http.provider, await openStorageLedger(s1.client, "videos", "req")), /respondió 500/);
+  await assert.rejects(narrate(s1, http.provider, await openStorageLedger(s1.client, "videos", "req")), /respondió 422/);
   assert.equal((await narrate(s1, http.provider, await openStorageLedger(s1.client, "videos", "req"))).reused, false);
   assert.equal(http.calls(), 2);
 
@@ -249,4 +251,206 @@ test("voz: error HTTP (costo cero) permite reintentar; error de red (incierto) d
   await assert.rejects(narrate(s2, net.provider, await openStorageLedger(s2.client, "videos", "req")), /fetch failed/);
   await assert.rejects(narrate(s2, net.provider, await openStorageLedger(s2.client, "videos", "req")), VoiceCacheUncertainError);
   assert.equal(net.calls(), 1);
+});
+
+// ---------- Fallos de red y cobro incierto (segunda revisión de Work) ----------
+
+const netError = (code: string) => new TypeError("fetch failed", { cause: Object.assign(new Error(code), { code }) });
+
+async function withStubbedFetch<T>(handler: () => Promise<Response>, fn: (calls: () => number) => Promise<T>): Promise<T> {
+  const originalFetch = globalThis.fetch;
+  const originalKey = process.env.OPENAI_API_KEY;
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return handler();
+  }) as typeof fetch;
+  process.env.OPENAI_API_KEY = "sk-test-sin-red";
+  try {
+    return await fn(() => calls);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = originalKey;
+  }
+}
+
+test("red: OpenAI pierde la conexión con la solicitud en vuelo → una sola llamada, reserva conservada y reintento bloqueado", async () => {
+  const { openaiImageProvider } = await import("@/lib/providers/image/openai");
+  await withStubbedFetch(async () => { throw netError("ECONNRESET"); }, async (calls) => {
+    const s = memoryStorage();
+    const ledger = await openStorageLedger(s.client, "videos", "req");
+    await assert.rejects(resolve(s.client, openaiImageProvider, ledger), (err: unknown) => err instanceof GenerativeProviderError && err.chargeOutcome === "uncertain");
+    assert.equal(calls(), 1, "ni el proveedor ni el registro repiten una llamada que pudo cobrarse");
+    const entry = ledger.snapshot().entries.at(-1)!;
+    assert.equal(entry.status, "uncertain");
+    assert.equal(ledger.summary().committedUsd, IMAGE_RESERVE_USD, "la reserva queda comprometida");
+    assert.equal(s.json<{ status: string }>(generatedImageMarkerPath("req", "scene-0-styled-abc"))?.status, "started");
+
+    await assert.rejects(resolve(s.client, openaiImageProvider, await openStorageLedger(s.client, "videos", "req")), GeneratedImageUncertainError);
+    assert.equal(calls(), 1, "el siguiente intento se detiene antes de llamar");
+  });
+});
+
+test("red: HTTP 500 de OpenAI no prueba costo cero → incierto, sin reintento interno", async () => {
+  const { openaiImageProvider } = await import("@/lib/providers/image/openai");
+  await withStubbedFetch(async () => new Response(null, { status: 500 }), async (calls) => {
+    const s = memoryStorage();
+    const ledger = await openStorageLedger(s.client, "videos", "req");
+    await assert.rejects(resolve(s.client, openaiImageProvider, ledger), /HTTP 500/);
+    assert.equal(calls(), 1);
+    assert.equal(ledger.summary().uncertainUsd, IMAGE_RESERVE_USD);
+  });
+});
+
+test("red: conexión rechazada (inequívocamente antes del envío) → se libera; el proveedor puede repetir y el siguiente intento también", async () => {
+  const { openaiImageProvider } = await import("@/lib/providers/image/openai");
+  let refuse = true;
+  await withStubbedFetch(async () => {
+    if (refuse) throw netError("ECONNREFUSED");
+    return new Response(JSON.stringify({ data: [{ b64_json: PNG.toString("base64") }] }), { status: 200, headers: { "content-type": "application/json" } });
+  }, async (calls) => {
+    const s = memoryStorage();
+    const ledger = await openStorageLedger(s.client, "videos", "req");
+    await assert.rejects(resolve(s.client, openaiImageProvider, ledger), (err: unknown) => err instanceof GenerativeProviderError && err.chargeOutcome === "not_sent");
+    assert.equal(calls(), 2, "OPENAI_IMAGE_MAX_RETRIES=1 por defecto: solo se repite lo que no salió");
+    assert.equal(ledger.summary().committedUsd, 0);
+    assert.equal(s.json<{ status: string }>(generatedImageMarkerPath("req", "scene-0-styled-abc"))?.status, "released");
+    refuse = false;
+    assert.equal((await resolve(s.client, openaiImageProvider, await openStorageLedger(s.client, "videos", "req"))).status, "generated");
+  });
+});
+
+test("red: clasificación de voz — 500 incierto, 429 rechazo, conexión cortada incierta, DNS antes del envío", async () => {
+  const { classifyVoiceFailure } = await import("./paid-costs");
+  assert.equal(classifyVoiceFailure(new Error("ElevenLabs respondió 500: x")), "uncertain");
+  assert.equal(classifyVoiceFailure(new Error("ElevenLabs respondió 408: x")), "uncertain");
+  assert.equal(classifyVoiceFailure(new Error("ElevenLabs respondió 429: x")), "not_sent");
+  assert.equal(classifyVoiceFailure(netError("ECONNRESET")), "uncertain");
+  assert.equal(classifyVoiceFailure(netError("UND_ERR_SOCKET")), "uncertain");
+  assert.equal(classifyVoiceFailure(netError("ENOTFOUND")), "not_sent");
+  assert.equal(classifyVoiceFailure(new Error("fetch failed")), "uncertain");
+});
+
+test("red: fetchFailureOutcome exige que TODOS los destinos fallen antes del envío", async () => {
+  const { fetchFailureOutcome, httpStatusOutcome } = await import("@/lib/providers/charge-outcome");
+  const refused = () => Object.assign(new Error("x"), { code: "ECONNREFUSED" });
+  const reset = Object.assign(new Error("y"), { code: "ECONNRESET" });
+  assert.equal(fetchFailureOutcome(new TypeError("fetch failed", { cause: new AggregateError([refused(), refused()]) })), "not_sent");
+  assert.equal(fetchFailureOutcome(new TypeError("fetch failed", { cause: new AggregateError([refused(), reset]) })), "uncertain");
+  assert.equal(fetchFailureOutcome(new Error("sin código")), "uncertain");
+  assert.deepEqual([400, 401, 429, 500, 502, 408, 409].map(httpStatusOutcome), ["rejected", "rejected", "rejected", "uncertain", "uncertain", "uncertain", "uncertain"]);
+});
+
+// ---------- Recuperación manual coherente (registro + marcador/caché) ----------
+
+test("recuperación de imagen: incierto → bloqueado → reconocimiento explícito → reintento permitido, con ambos intentos contados", async () => {
+  const { recoverPaidOperation } = await import("./recovery");
+  const s = memoryStorage();
+  const img = fakeImages(["timeout", "ok"]);
+  const key = "image:req/scene-0-styled-abc";
+  await assert.rejects(resolve(s.client, img.provider, await openStorageLedger(s.client, "videos", "req", { capUsd: 0.75 })), /timeout/);
+
+  // Bloqueado en el siguiente intento.
+  const blocked = await openStorageLedger(s.client, "videos", "req", { capUsd: 0.75 });
+  await assert.rejects(resolve(s.client, img.provider, blocked), GeneratedImageUncertainError);
+  assert.equal(img.calls(), 1);
+
+  const operator = await openStorageLedger(s.client, "videos", "req", { capUsd: 0.75 });
+  const result = await recoverPaidOperation({ supabase: s.client, bucket: "videos", ledger: operator, key, note: "revisado en el panel de OpenAI: sin imagen utilizable" });
+  assert.deepEqual(result.released, { path: generatedImageMarkerPath("req", "scene-0-styled-abc"), previousStatus: "started" });
+  assert.equal(result.acknowledged, true);
+  assert.equal(s.json<{ status: string; previousStatus: string }>(generatedImageMarkerPath("req", "scene-0-styled-abc"))?.previousStatus, "started");
+
+  const retry = await openStorageLedger(s.client, "videos", "req", { capUsd: 0.75 });
+  assert.equal((await resolve(s.client, img.provider, retry)).status, "generated");
+  assert.equal(img.calls(), 2);
+  const entries = retry.snapshot().entries.filter((e) => e.key === key);
+  assert.deepEqual(entries.map((e) => [e.status, Boolean(e.acknowledgedAtIso)]), [["uncertain", true], ["spent", false]]);
+  assert.ok(Math.abs(retry.summary().committedUsd - (IMAGE_RESERVE_USD + 0.0558)) < 1e-9, "el intento incierto sigue contando junto al nuevo");
+});
+
+test("recuperación de voz: incierto → bloqueado → reconocimiento explícito → reintento permitido, con ambos intentos contados", async () => {
+  const { recoverPaidOperation } = await import("./recovery");
+  const { voiceReserveUsd } = await import("./paid-costs");
+  const s = memoryStorage();
+  let calls = 0;
+  const provider: VoiceProvider = {
+    name: "elevenlabs",
+    async synthesize(text) {
+      calls += 1;
+      if (calls === 1) throw new TypeError("fetch failed", { cause: Object.assign(new Error("reset"), { code: "ECONNRESET" }) });
+      return fakeVoice().provider.synthesize(text, "es");
+    },
+  };
+  await assert.rejects(narrate(s, provider, await openStorageLedger(s.client, "videos", "req", { capUsd: 0.75 })), /fetch failed/);
+  await assert.rejects(narrate(s, provider, await openStorageLedger(s.client, "videos", "req", { capUsd: 0.75 })), VoiceCacheUncertainError);
+  assert.equal(calls, 1);
+
+  const operator = await openStorageLedger(s.client, "videos", "req", { capUsd: 0.75 });
+  const key = operator.summary().openUncertainKeys[0];
+  assert.match(key, /^voice:req\//);
+  const result = await recoverPaidOperation({ supabase: s.client, bucket: "videos", ledger: operator, key, note: "ElevenLabs: sin cargo en el historial" });
+  assert.equal(result.released?.previousStatus, "started");
+
+  const retry = await openStorageLedger(s.client, "videos", "req", { capUsd: 0.75 });
+  const out = await narrate(s, provider, retry);
+  assert.equal(out.reused, false);
+  assert.equal(calls, 2);
+  assert.ok(Math.abs(retry.summary().committedUsd - (voiceReserveUsd(TEXT.length) + voiceCostUsd(TEXT.length))) < 1e-9);
+  assert.equal(retry.summary().byKind.voice.count, 2);
+  // Y a partir de aquí el audio guardado se reutiliza.
+  assert.equal((await narrate(s, provider, await openStorageLedger(s.client, "videos", "req", { capUsd: 0.75 }))).reused, true);
+});
+
+test("recuperación: sin presupuesto para otro intento se rechaza SIN cambiar marcador ni registro", async () => {
+  const { recoverPaidOperation } = await import("./recovery");
+  const s = memoryStorage();
+  const img = fakeImages(["timeout", "ok"]);
+  await assert.rejects(resolve(s.client, img.provider, await openStorageLedger(s.client, "videos", "req", { capUsd: 0.1 })), /timeout/);
+  const operator = await openStorageLedger(s.client, "videos", "req", { capUsd: 0.1 });
+  await assert.rejects(
+    recoverPaidOperation({ supabase: s.client, bucket: "videos", ledger: operator, key: "image:req/scene-0-styled-abc", note: "revisado" }),
+    PaidBudgetExceededError,
+  );
+  assert.equal(s.json<{ status: string }>(generatedImageMarkerPath("req", "scene-0-styled-abc"))?.status, "started");
+  assert.equal(operator.latest("image:req/scene-0-styled-abc")?.acknowledgedAtIso, undefined);
+  await assert.rejects(resolve(s.client, img.provider, await openStorageLedger(s.client, "videos", "req", { capUsd: 0.1 })), GeneratedImageUncertainError);
+  assert.equal(img.calls(), 1);
+});
+
+test("recuperación: se rechaza sin tope, sin nota o si el resultado ya está guardado", async () => {
+  const { recoverPaidOperation, RecoveryRefusedError } = await import("./recovery");
+  const s = memoryStorage();
+  const img = fakeImages(["timeout"]);
+  await assert.rejects(resolve(s.client, img.provider, await openStorageLedger(s.client, "videos", "req")), /timeout/);
+  const noCap = await openStorageLedger(s.client, "videos", "req");
+  await assert.rejects(recoverPaidOperation({ supabase: s.client, bucket: "videos", ledger: noCap, key: "image:req/scene-0-styled-abc", note: "x" }), RecoveryRefusedError);
+  await assert.rejects(recoverPaidOperation({ supabase: s.client, bucket: "videos", ledger: noCap, key: "image:req/scene-0-styled-abc", note: " ", capUsd: 1 }), RecoveryRefusedError);
+
+  const stored = memoryStorage();
+  const good = fakeImages(["ok"]);
+  const ledger = await openStorageLedger(stored.client, "videos", "req", { capUsd: 0.75 });
+  await resolve(stored.client, good.provider, ledger);
+  await assert.rejects(
+    recoverPaidOperation({ supabase: stored.client, bucket: "videos", ledger, key: "image:req/scene-0-styled-abc", note: "x" }),
+    /ya está guardada/,
+  );
+});
+
+test("recuperación: reconocer SOLO el registro no desbloquea (el marcador manda); la recuperación completa lo sincroniza", async () => {
+  const { recoverPaidOperation } = await import("./recovery");
+  const s = memoryStorage();
+  const img = fakeImages(["timeout", "ok"]);
+  const key = "image:req/scene-0-styled-abc";
+  await assert.rejects(resolve(s.client, img.provider, await openStorageLedger(s.client, "videos", "req", { capUsd: 0.75 })), /timeout/);
+  const partial = await openStorageLedger(s.client, "videos", "req", { capUsd: 0.75 });
+  assert.equal(await partial.acknowledge(key, "solo el registro"), true);
+  await assert.rejects(resolve(s.client, img.provider, await openStorageLedger(s.client, "videos", "req", { capUsd: 0.75 })), GeneratedImageUncertainError);
+  // Repetir la recuperación completa termina lo que faltó (idempotente).
+  const result = await recoverPaidOperation({ supabase: s.client, bucket: "videos", ledger: await openStorageLedger(s.client, "videos", "req", { capUsd: 0.75 }), key, note: "revisado" });
+  assert.equal(result.acknowledged, false, "ya estaba reconocido");
+  assert.equal(result.released?.previousStatus, "started");
+  assert.equal((await resolve(s.client, img.provider, await openStorageLedger(s.client, "videos", "req", { capUsd: 0.75 }))).status, "generated");
+  assert.equal(img.calls(), 2);
 });

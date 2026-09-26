@@ -125,14 +125,35 @@ Se aplica a todo el Reel dirigido. El flujo anterior (sin dirección) solo recib
 
 ### Operaciones de costo incierto
 
-- **Qué cuenta como incierto:** timeout, respuesta rota, error de red sin respuesta, o proceso caído entre reservar y liquidar.
-- **Qué cuenta como costo cero conocido:** errores HTTP del proveedor, moderación, falta de clave o fallo antes de enviar. Se liberan y se pueden reintentar.
+La regla es que solo se concede costo cero con evidencia (`src/lib/providers/charge-outcome.ts`). Ante la duda, la operación es incierta.
+
+- **Costo cero: no se envió.** Solo fallos inequívocamente anteriores al envío: DNS (`ENOTFOUND`, `EAI_AGAIN`), conexión rechazada o inalcanzable (`ECONNREFUSED`, `ENETUNREACH`, `EHOSTUNREACH`, `UND_ERR_CONNECT_TIMEOUT`), TLS, URL inválida, falta de clave o presupuesto insuficiente antes de llamar. Si hay varios destinos, todos deben haber fallado así.
+- **Costo cero: rechazo explícito.** Solo una lista cerrada de status: 400, 401, 403, 404, 413, 415 y 422 (más la moderación de OpenAI), y 429. Se liberan; un reintento posterior es posible.
+- **Incierto:**
+  - una conexión perdida con la solicitud en vuelo (`ECONNRESET`, socket cerrado, `fetch failed` sin código);
+  - timeout;
+  - 5xx, 408, 409 u otro status;
+  - una respuesta 200 rota;
+  - una descarga fallida tras un 200;
+  - un proceso caído entre reservar y liquidar.
+- **Sin reintento automático de lo incierto, tampoco dentro del proveedor.**
+  - `openai.ts` solo repite (`OPENAI_IMAGE_MAX_RETRIES`) cuando la solicitud no salió.
+  - Un 500 o una conexión cortada se lanzan tras una sola llamada.
+  - ElevenLabs no reintenta.
 - **Cómo se tratan las inciertas:**
   - cuentan por su reserva dentro del tope;
-  - **bloquean** repetir la misma operación;
+  - **bloquean** repetir la misma operación, en el registro y también en el marcador de imagen o el registro de voz;
   - aparecen en `openUncertainKeys`.
-- **Cómo se desbloquean:** solo por reconocimiento explícito de un operador (`acknowledge`; en el workflow, la entrada `acknowledge`) después de revisar el panel del proveedor. El costo sigue contando y la operación se puede volver a intentar. Nunca se desbloquea automáticamente.
-- **En Reels de clientes** una incierta detiene el intento con un mensaje que pide revisión. Todavía no hay una pantalla de soporte para reconocerla: es una acción manual pendiente de producto.
+- **Cómo se desbloquean: recuperación manual explícita** (`recovery.ts`, `recoverPaidOperation`), después de revisar el panel del proveedor:
+  1. Exige una nota del operador y un tope.
+  2. Rechaza la recuperación si el resultado ya está guardado, porque el próximo intento lo reutiliza sin pagar.
+  3. **Comprueba el presupuesto primero:** el comprometido, que incluye el intento anterior, más la reserva de otro intento debe caber en el tope. Si no cabe, no cambia nada.
+  4. Libera **juntos** el marcador de imagen o el registro de voz (a `released`, guardando el estado previo y la nota) y reconoce la entrada del registro.
+  5. El gasto anterior sigue contando. El reintento hace una reserva nueva, así que ambos intentos quedan sumados.
+  6. Es idempotente: repetirla completa lo que haya faltado.
+
+  `ledger.acknowledge` por sí solo no desbloquea el marcador; es una primitiva interna. En el workflow de muestras, la entrada `acknowledge` usa esta recuperación.
+- **En Reels de clientes**, una operación incierta detiene el intento con un mensaje que pide revisión. Todavía no hay una pantalla de soporte que llame a la recuperación: es una acción manual pendiente de producto.
 
 ## Workflow de muestras reales (preparado, NO ejecutado)
 
@@ -144,7 +165,10 @@ Archivos: `.github/workflows/audiovisual-samples.yml`, `scripts/audiovisual-samp
 - **Topes duros en código:**
   - **US$3,50 total** y **US$0,75 por muestra**; las entradas solo pueden bajarlos;
   - el acumulado se lee de los registros durables de las seis muestras, con reintentos, fallos e inciertas;
-  - cada muestra usa como tope min(US$0,75, US$3,50 − comprometido por las demás) y solo arranca si su peor caso cabe.
+  - cada muestra usa como tope min(US$0,75, US$3,50 − comprometido por las demás) y solo arranca si su peor caso cabe;
+  - la decisión y el tope se **recalculan inmediatamente antes de cada muestra** (`sample-runner.ts`), releyendo los registros durables con lo que acaba de comprometer la anterior. El plan impreso al inicio es solo informativo.
+  - Las muestras se ejecutan en serie.
+  - Ejemplo probado: con un total de US$1, si la primera compromete US$0,62, la segunda recibe un tope de US$0,38. No arranca si su peor caso es US$0,62, y si su estimación se quedara corta, su registro bloquea antes de llamar.
 - **Cada muestra:**
   - el guion (Claude) se genera una sola vez, pasa el control de calidad y se reutiliza;
   - se produce con el mismo pipeline de producto;
@@ -166,7 +190,7 @@ Archivos: `.github/workflows/audiovisual-samples.yml`, `scripts/audiovisual-samp
 - **Criterios para detener:**
   - tope alcanzado (lo impone el código);
   - cualquier fallo (el runner se detiene);
-  - operación incierta (se bloquea hasta reconocerla);
+  - operación incierta (se bloquea hasta recuperarla explícitamente);
   - estilo inconsistente entre escenas o música que contradiga la dirección al escucharla (revisión humana antes de la siguiente tanda).
 
 ## Segunda fase: YouTube Long Form
