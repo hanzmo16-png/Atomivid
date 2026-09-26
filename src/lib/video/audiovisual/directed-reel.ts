@@ -22,7 +22,7 @@ import { getFootageProvider } from "@/lib/providers/footage";
 import { getMusicProvider } from "@/lib/providers/music";
 import { curatedLibraryMusicProvider } from "@/lib/providers/music/real";
 import { getImageProvider } from "@/lib/providers/image";
-import type { GeneratedScript, MusicResult, ScriptLanguage, VideoProvider } from "@/lib/providers/types";
+import type { GeneratedScript, MusicResult, ResolvedVoice, ScriptLanguage, VideoProvider } from "@/lib/providers/types";
 import type { RenderStage } from "@/lib/video/stages";
 import type { Scene } from "../../../../remotion/VerticalReel";
 import { computeNarrationGaps } from "../../../../remotion/audio-mix";
@@ -81,6 +81,7 @@ export async function generateDirectedVideoFromScript({
   attempt,
   paid,
   deps,
+  voice: narrationVoice,
 }: {
   supabase: SupabaseClient;
   requestId: string;
@@ -102,6 +103,8 @@ export async function generateDirectedVideoFromScript({
   paid?: { capUsd?: number; otherCommittedUsd?: number; recordCosts?: boolean; ledger?: PaidLedger };
   /** Solo pruebas: proveedor de animación y render inyectables (por defecto, los reales). */
   deps?: { animationProvider?: VideoProvider | null; renderReel?: typeof renderVerticalReel };
+  /** Voz elegida y resuelta (catálogo o «Mi voz» propia). Ausente = la voz de siempre (misma clave de caché que antes). */
+  voice?: ResolvedVoice;
 }): Promise<{ videoPath: string; ledger: PaidLedger }> {
   const flags = getFeatureFlags();
   const profile = PROFILES[direction.profile];
@@ -223,7 +226,7 @@ export async function generateDirectedVideoFromScript({
   // sus tiempos ya pagados; la corrección de duración es otra entrada (y
   // otra operación del registro, «voice_retime»).
   const narrate = (speed?: number) =>
-    synthesizeNarrationCached({ supabase, bucket: STORAGE_BUCKET, requestId, voiceProvider, text: fullText, language, speed, ledger, attempt });
+    synthesizeNarrationCached({ supabase, bucket: STORAGE_BUCKET, requestId, voiceProvider, text: fullText, language, speed, ledger, attempt, voice: narrationVoice });
   let voice = await narrate();
   if (targetDurationSeconds !== undefined) {
     let durationResult = checkDuration(targetDurationSeconds, voice.durationSeconds);

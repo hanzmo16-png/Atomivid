@@ -1,5 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/service";
 import { generateVideoFromScript } from "./generate-video";
+import { loadRequestVoice } from "@/lib/voices/resolve";
 import { generateAvatarVideo } from "./avatar/pipeline";
 import {
   generateLongFormVideoFromScript,
@@ -129,6 +130,8 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
     if (mode === "long_form" && !isLongFormScriptJson(row.script_json)) {
       throw new Error("El guion guardado no tiene la forma esperada para Long Form (topic + beats[] con narración).");
     }
+    // Voz elegida (catálogo o «Mi voz» propia, propiedad comprobada de nuevo aquí). Sin elección = la de siempre.
+    const voice = mode === "long_form" ? undefined : await loadRequestVoice(service, requestId, row.user_id, row.language === "en" ? "en" : "es");
     // Defensa en profundidad (además de la puerta de render/route.ts): sin
     // confirmación humana, con un plan inválido/de versión desconocida, o
     // con un guion distinto al confirmado, no se ejecuta NADA pagado.
@@ -170,6 +173,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
             language: row.language ?? undefined,
             existingProviderVideoJobId: row.avatar_provider_video_job_id,
             onProgress,
+            voice,
           })
         : mode === "long_form"
           ? await generateLongFormVideoFromScript({
@@ -193,6 +197,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
               language: row.language ?? undefined,
               targetDurationSeconds: row.duration_seconds ?? undefined,
               onProgress,
+              voice,
               ...(direction ? { direction, attempt: row.render_attempts } : {}),
             });
 

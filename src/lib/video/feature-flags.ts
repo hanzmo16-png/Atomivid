@@ -112,6 +112,26 @@ export function getFeatureFlags() {
      */
     reelAiAnimationEnabled: flag("REEL_AI_ANIMATION_ENABLED", false),
     maxAiAnimationCostUsd: numberEnv("MAX_AI_ANIMATION_COST_USD", 0),
+    /**
+     * Selector de voz (catálogo de cinco voces, src/lib/voices/catalog.ts) en
+     * los formularios de narración. Apagado = no se muestra y toda solicitud
+     * usa la voz de siempre (Mateo). Requiere la migración 0021.
+     */
+    voiceCatalogEnabled: flag("VOICE_CATALOG_ENABLED", false),
+    /** Sección «Texto a voz». Requiere la migración 0021 y el worker. */
+    textToSpeechEnabled: flag("TEXT_TO_SPEECH_ENABLED", false),
+    /**
+     * Límite inicial por pieza (caracteres). La cuenta de ElevenLabs verificada
+     * el 2026-09-26 es Starter: 38.002 caracteres/mes compartidos con toda la
+     * narración del producto; 3.000 ≈ 3-4 min de audio.
+     */
+    ttsMaxCharsPerPiece: numberEnv("TTS_MAX_CHARS_PER_PIECE", 3000),
+    /** Límite por usuario y mes calendario (caracteres de «Texto a voz»), para proteger la cuota compartida. */
+    ttsMaxCharsPerUserMonth: numberEnv("TTS_MAX_CHARS_PER_USER_MONTH", 6000),
+    /** «Mi voz» (clonación instantánea privada). Requiere la migración 0021 y el worker. */
+    myVoiceEnabled: flag("MY_VOICE_ENABLED", false),
+    /** Voces privadas por usuario (cada una ocupa uno de los 10 espacios de clonación de la cuenta Starter). */
+    maxUserVoicesPerUser: numberEnv("MAX_USER_VOICES_PER_USER", 1),
   };
 }
 

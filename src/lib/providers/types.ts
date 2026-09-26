@@ -121,8 +121,31 @@ export interface VoiceProvider {
    * regenerar el guion ya aprobado por el usuario en la revisión. Omitido
    * = velocidad normal del proveedor.
    */
-  synthesize(text: string, language?: ScriptLanguage, speed?: number): Promise<VoiceResult>;
+  synthesize(text: string, language?: ScriptLanguage, speed?: number, options?: VoiceSynthesisOptions): Promise<VoiceResult>;
 }
+
+/**
+ * Voz ya RESUELTA en el servidor (catálogo o «Mi voz» del propio usuario,
+ * con la propiedad comprobada — ver src/lib/voices/resolve.ts). Llega tal
+ * cual al proveedor real: si falla, falla; nunca se sustituye por otra.
+ */
+export type ResolvedVoice = {
+  /** «mateo», «miguel»… o «custom:<uuid>». */
+  choice: string;
+  label: string;
+  /** voice_id del proveedor. */
+  providerVoiceId: string;
+  /** Propietaria de una voz privada (null en el catálogo): forma parte de la clave de caché. */
+  ownerId: string | null;
+};
+
+export type VoiceSynthesisOptions = {
+  /** Ausente = la voz por defecto de siempre (Mateo o su variable de entorno). */
+  voice?: ResolvedVoice;
+  /** Continuidad de prosodia entre fragmentos (texto a voz por segmentos). */
+  previousText?: string;
+  nextText?: string;
+};
 
 export type FootageResult = {
   url: string;

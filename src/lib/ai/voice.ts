@@ -49,12 +49,12 @@ const VOICE_SETTINGS = {
  * caché por beat: si cambia cualquiera de estos valores, debe tratarse
  * como una síntesis nueva, nunca reutilizar audio de una voz distinta.
  */
-export function getVoiceIdentity(language: "es" | "en" = "es"): {
+export function getVoiceIdentity(language: "es" | "en" = "es", explicitVoiceId?: string): {
   voiceId: string;
   modelId: string;
   voiceSettingsJson: string;
 } {
-  const voiceId = VOICE_ID_BY_LANGUAGE[language] || DEFAULT_VOICE_ID;
+  const voiceId = explicitVoiceId || VOICE_ID_BY_LANGUAGE[language] || DEFAULT_VOICE_ID;
   const identitySettings = {
     stability: VOICE_SETTINGS.stability,
     similarity_boost: VOICE_SETTINGS.similarity_boost,
@@ -95,6 +95,13 @@ export async function synthesizeVoice(
   language: "es" | "en" = "es",
   /** Ajuste de ritmo de habla (ver VoiceProvider.synthesize en providers/types.ts). */
   speed?: number,
+  /**
+   * voiceId: voz elegida y ya validada (catálogo o voz privada del propio
+   * usuario). Ausente = la voz por defecto de siempre. previous/nextText:
+   * contexto de los fragmentos vecinos para que la entonación continúe
+   * (texto a voz largo por segmentos); no se narran.
+   */
+  options: { voiceId?: string; previousText?: string; nextText?: string } = {},
 ): Promise<{
   audioBuffer: Buffer;
   durationSeconds: number;
@@ -104,7 +111,7 @@ export async function synthesizeVoice(
     throw new Error("Falta configurar ELEVENLABS_API_KEY");
   }
 
-  const voiceId = VOICE_ID_BY_LANGUAGE[language] || DEFAULT_VOICE_ID;
+  const voiceId = options.voiceId || VOICE_ID_BY_LANGUAGE[language] || DEFAULT_VOICE_ID;
   const voiceSettings =
     speed === undefined
       ? VOICE_SETTINGS
@@ -122,6 +129,8 @@ export async function synthesizeVoice(
         text,
         model_id: MODEL_ID,
         voice_settings: voiceSettings,
+        ...(options.previousText ? { previous_text: options.previousText } : {}),
+        ...(options.nextText ? { next_text: options.nextText } : {}),
       }),
     },
   );

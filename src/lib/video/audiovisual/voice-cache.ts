@@ -18,8 +18,9 @@
  */
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ScriptLanguage, VoiceProvider, VoiceResult, WordTiming } from "@/lib/providers/types";
+import type { ResolvedVoice, ScriptLanguage, VoiceProvider, VoiceResult, WordTiming } from "@/lib/providers/types";
 import { getVoiceIdentity } from "@/lib/ai/voice";
+import { DEFAULT_VOICE_ID } from "@/lib/voices/catalog";
 import { NotSentError, type PaidLedger } from "./paid-ledger";
 import { classifyVoiceFailure, voiceCostUsd, voiceReserveUsd } from "./paid-costs";
 import { readJsonState, uploadWithRetry, writeJsonState, StorageStateUnknownError } from "./storage-state";
@@ -31,6 +32,10 @@ export type VoiceCacheIdentity = {
   /** Velocidad pedida redondeada (null = la del proveedor por defecto). */
   speed: number | null;
   text: string;
+  /** Propietaria de una voz privada («Mi voz»); ausente en el catálogo (así la clave de siempre no cambia). */
+  owner?: string;
+  /** Huella del contexto de fragmentos vecinos (texto a voz por segmentos); ausente si no hay. */
+  context?: string;
 };
 
 export type VoiceCacheRecord = {
@@ -59,14 +64,27 @@ export class VoiceCacheUncertainError extends Error {
 
 const sha256 = (data: string | Buffer) => createHash("sha256").update(data).digest("hex");
 
-export function voiceIdentityFor(provider: VoiceProvider, text: string, language: ScriptLanguage, speed?: number): VoiceCacheIdentity {
-  return {
+export type VoiceCacheOptions = { voice?: ResolvedVoice; previousText?: string; nextText?: string };
+
+/**
+ * Identidad del caché. Sin voz elegida (o con la voz por defecto) produce
+ * EXACTAMENTE la misma identidad que antes, así los reintentos de
+ * solicitudes existentes reutilizan su audio ya pagado. Otra voz → otro
+ * voiceId → otra clave; una voz privada añade su propietaria.
+ */
+export function voiceIdentityFor(provider: VoiceProvider, text: string, language: ScriptLanguage, speed?: number, options: VoiceCacheOptions = {}): VoiceCacheIdentity {
+  const identity: VoiceCacheIdentity = {
     provider: provider.name,
-    voice: provider.name === "elevenlabs" ? getVoiceIdentity(language) : null,
+    voice: provider.name === "elevenlabs" ? getVoiceIdentity(language, options.voice?.providerVoiceId) : null,
     language,
     speed: speed === undefined ? null : Math.round(speed * 10000) / 10000,
     text,
   };
+  if (options.voice?.ownerId) identity.owner = options.voice.ownerId;
+  if (options.previousText || options.nextText) identity.context = sha256(`${options.previousText ?? ""}\u0000${options.nextText ?? ""}`);
+  // Sin proveedor real (fixture) la voz no cambia el audio, pero sí debe distinguir la clave.
+  if (provider.name !== "elevenlabs" && options.voice && options.voice.choice !== DEFAULT_VOICE_ID) identity.voice = { voiceId: options.voice.providerVoiceId, modelId: "fixture", voiceSettingsJson: "{}" };
+  return identity;
 }
 
 export function voiceCacheKey(identity: VoiceCacheIdentity): string {
@@ -83,6 +101,9 @@ export async function synthesizeNarrationCached({
   speed,
   ledger,
   attempt,
+  voice: chosenVoice,
+  previousText,
+  nextText,
 }: {
   supabase: SupabaseClient;
   bucket: string;
@@ -93,8 +114,8 @@ export async function synthesizeNarrationCached({
   speed?: number;
   ledger?: PaidLedger;
   attempt?: number;
-}): Promise<VoiceResult & { reused: boolean; key: string }> {
-  const identity = voiceIdentityFor(voiceProvider, text, language, speed);
+} & VoiceCacheOptions): Promise<VoiceResult & { reused: boolean; key: string }> {
+  const identity = voiceIdentityFor(voiceProvider, text, language, speed, { voice: chosenVoice, previousText, nextText });
   const key = voiceCacheKey(identity);
   const recordPath = `${requestId}/state/voice/${key}.json`;
   const existing = await readJsonState<VoiceCacheRecord>(supabase, bucket, recordPath, "la narración guardada");
@@ -119,7 +140,16 @@ export async function synthesizeNarrationCached({
 
   const baseRecord = {
     key,
-    identity: { provider: identity.provider, voice: identity.voice, language: identity.language, speed: identity.speed, textSha256: sha256(text), characters: text.length },
+    identity: {
+      provider: identity.provider,
+      voice: identity.voice,
+      language: identity.language,
+      speed: identity.speed,
+      textSha256: sha256(text),
+      characters: text.length,
+      ...(identity.owner ? { owner: identity.owner } : {}),
+      ...(identity.context ? { context: identity.context } : {}),
+    },
   };
   const write = (status: VoiceCacheRecord["status"], extra: Partial<VoiceCacheRecord> = {}) =>
     writeJsonState(supabase, bucket, recordPath, { ...baseRecord, status, updatedAtIso: new Date().toISOString(), ...extra } satisfies VoiceCacheRecord);
@@ -130,7 +160,7 @@ export async function synthesizeNarrationCached({
     } catch (err) {
       throw new NotSentError(`No se pudo guardar el registro previo de la narración: ${err instanceof Error ? err.message : err}`);
     }
-    return voiceProvider.synthesize(text, language, speed);
+    return voiceProvider.synthesize(text, language, speed, { voice: chosenVoice, previousText, nextText });
   };
 
   let voice: VoiceResult;
