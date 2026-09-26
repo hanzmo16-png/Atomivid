@@ -1,0 +1,56 @@
+name: Mi voz (clonación privada)
+
+# Disparado por la app (src/lib/voices/dispatch.ts) con repository_dispatch
+# "clone-voice". Separado de render.yml y tts.yml. workflow_dispatch solo
+# para reintentar a mano una voz existente.
+on:
+  repository_dispatch:
+    types: [clone-voice]
+  workflow_dispatch:
+    inputs:
+      voice_id:
+        description: "ID de la voz (user_voices.id)"
+        required: true
+        type: string
+
+concurrency:
+  group: atomivid-voice-${{ github.event.client_payload.voiceId || inputs.voice_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  clone:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      # Registro para la prueba autorizada en Preview; checkout fijado al commit revisado de PR #16.
+      # Restaurar el flujo normal al fusionar PR #16.
+      - uses: actions/checkout@v4
+        with:
+          ref: 0a53459fce464233220ff3003f03714b501dc195
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Instalar ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Clonar y probar la voz
+        timeout-minutes: 8
+        run: npx tsx scripts/voice-clone-worker.ts
+        env:
+          ATOMIVID_RUNTIME: production
+          VOICE_ID: ${{ github.event.client_payload.voiceId || inputs.voice_id }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+      - name: Marcar como fallida si no terminó
+        if: failure() || cancelled()
+        run: npx tsx scripts/mark-voice-clone-failed.ts
+        env:
+          VOICE_ID: ${{ github.event.client_payload.voiceId || inputs.voice_id }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
