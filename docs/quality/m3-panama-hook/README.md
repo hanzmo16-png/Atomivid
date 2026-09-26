@@ -172,3 +172,19 @@ que en el render aprobado esto no ocurre.
 
 El costo de Veo es la tarifa publicada multiplicada por la duración: la API no
 devuelve el importe de cada llamada. La factura de Google es la fuente definitiva.
+
+## Versión final (dirección aprobada por Hans: B)
+
+- **Sin reintentos pagados.** La transición H2 → foto original se ajustó solo con recursos existentes:
+  - s04b usa la misma fotografía FMIB 38668, recortada a 16:9 (x 0.019–0.592, y 0.303–0.780) con el encuadre al que llega el clip al final de su acercamiento, a pantalla completa y sin bandas difuminadas;
+  - mantiene el acercamiento lento, que continúa el del clip;
+  - el fundido pasa de 0.8 s a 1.0 s;
+  - en el render la pala «230» queda casi en la misma posición y escala a ambos lados del fundido;
+  - la foto se ve algo más blanda: es un recorte ampliado de un fotograbado de 1913.
+- La voz, la música, los subtítulos, los créditos y el montaje desde s05 no cambian (idénticos a M2).
+- **Muestra completa** (render de aprobación, 49.98 s), `samples/m3-hook/sample-approval.mp4`:
+  - −15.69 LUFS, **−2.41 dBTP**, LRA 1.8;
+  - 0 tramos negros;
+  - pausas solo con música entre −23 y −33 LUFS momentáneos.
+- El workflow publica ahora el MP4 como descarga directa (`upload-artifact@v7`, `archive: false`), además del ZIP con los informes.
+- **Costo total de la Misión 3:** $1.9758 (imagen $0.0558 + 2 clips Veo × $0.96). Ninguna llamada de pago después de la aprobación de B.
