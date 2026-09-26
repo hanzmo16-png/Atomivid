@@ -58,8 +58,10 @@ type Step = Response | Error | (() => Response);
 async function withScript<T>(steps: Step[], fn: (ctx: { calls: () => number; logs: string[] }) => Promise<T>): Promise<T> {
   let calls = 0;
   const queue = [...steps];
-  const fetchStub = (async () => {
+  const fetchStub = (async (_url, init) => {
     calls += 1;
+    const body = JSON.parse(String(init?.body));
+    assert.deepEqual(body.thinking, { type: "disabled" }, "el presupuesto de salida se reserva para el guion, sin razonamiento implícito");
     const next = queue.shift();
     if (!next) throw new Error("llamada inesperada");
     if (next instanceof Error) throw next;
