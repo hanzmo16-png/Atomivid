@@ -34,7 +34,15 @@
       "fit": "cover",
       "direction": {
         "camera": "still",
-        "mediaStartSeconds": 1.5
+        "mediaStartSeconds": 0,
+        "look": {
+          "scale": 1.06,
+          "originX": 0.45,
+          "originY": 0.05,
+          "contrast": 1.15,
+          "saturation": 1.1,
+          "vignette": 0.45
+        }
       },
       "review": {
         "status": "approved",

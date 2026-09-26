@@ -8,7 +8,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { cameraTransform, soundCueVolume, transitionFrames, validateDirection, type SceneDirection, type SoundCue } from "./long-form-direction";
+import { cameraTransform, lookStyle, soundCueVolume, transitionFrames, validateDirection, type SceneDirection, type SoundCue } from "./long-form-direction";
 import { type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from "./audio-mix";
 import { LARGE_CARD, provenanceLabel, type SceneProvenance } from "./long-form-card-fit";
 
@@ -225,11 +225,17 @@ function SceneRenderer({
     );
   }
 
+  const look = lookStyle(
+    scene.direction?.look,
+    scene.direction?.camera ? cameraTransform(scene.direction.camera, progress) : `scale(${scale}) translateX(${translateX}px)`,
+  );
   const mediaStyle = {
     width: "100%",
     height: "100%",
     objectFit: "cover" as const,
-    transform: scene.direction?.camera ? cameraTransform(scene.direction.camera, progress) : `scale(${scale}) translateX(${translateX}px)`,
+    transform: look.transform,
+    ...(look.transformOrigin ? { transformOrigin: look.transformOrigin } : {}),
+    ...(look.filter ? { filter: look.filter } : {}),
   };
 
   return (
@@ -252,6 +258,9 @@ function SceneRenderer({
         )
       ) : (
         <GraphicRenderer graphic={scene.asset.graphic} />
+      )}
+      {look.vignette > 0 && (
+        <AbsoluteFill style={{ background: `radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,${look.vignette}) 100%)` }} />
       )}
       <SceneLabels scene={scene} />
     </AbsoluteFill>

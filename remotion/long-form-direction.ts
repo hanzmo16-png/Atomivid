@@ -4,6 +4,20 @@ export type SceneDirection = {
   camera?: "still" | "push" | "pull" | "left" | "right";
   /** Source offset for video, not a timeline offset. Caller verifies source duration. */
   mediaStartSeconds?: number;
+  /**
+   * Optional still reframe + grade for one scene (e.g. the opening frame):
+   * scale around an origin, contrast/saturation and an edge vignette.
+   * Absent = the scene renders exactly as before.
+   */
+  look?: SceneLook;
+};
+export type SceneLook = {
+  scale?: number;
+  originX?: number;
+  originY?: number;
+  contrast?: number;
+  saturation?: number;
+  vignette?: number;
 };
 export type SoundCue = {
   id: string;
@@ -29,6 +43,18 @@ export function cameraTransform(camera: NonNullable<SceneDirection["camera"]>, p
     case "left": return `translateX(${2 - 4 * p}%) scale(1.08)`;
     case "right": return `translateX(${-2 + 4 * p}%) scale(1.08)`;
   }
+}
+/** CSS for a SceneLook, composed after the camera move so both apply. Pure. */
+export function lookStyle(look: SceneLook | undefined, cameraCss: string): { transform: string; transformOrigin?: string; filter?: string; vignette: number } {
+  if (!look) return { transform: cameraCss, vignette: 0 };
+  const parts = [cameraCss === "none" ? "" : cameraCss, look.scale && look.scale !== 1 ? `scale(${look.scale})` : ""].filter(Boolean);
+  const filters = [look.contrast !== undefined ? `contrast(${look.contrast})` : "", look.saturation !== undefined ? `saturate(${look.saturation})` : ""].filter(Boolean);
+  return {
+    transform: parts.length ? parts.join(" ") : "none",
+    transformOrigin: look.originX !== undefined || look.originY !== undefined ? `${(look.originX ?? 0.5) * 100}% ${(look.originY ?? 0.5) * 100}%` : undefined,
+    filter: filters.length ? filters.join(" ") : undefined,
+    vignette: look.vignette ?? 0,
+  };
 }
 export function transitionFrames(direction: SceneDirection | undefined, fps: number, duration: number): number {
   if (!direction) return Math.min(15, Math.floor(duration * fps / 2));
@@ -65,6 +91,14 @@ export function validateDirection(
     if (d.transition && !["cut", "dissolve"].includes(d.transition.type)) throw new Error(`Invalid transition: ${s.id}`);
     if (d.transition?.seconds !== undefined && (!finite(d.transition.seconds) || d.transition.seconds < 0 || d.transition.seconds > 1)) throw new Error(`Invalid transition duration: ${s.id}`);
     if (d.mediaStartSeconds !== undefined && (!finite(d.mediaStartSeconds) || d.mediaStartSeconds < 0)) throw new Error(`Invalid media offset: ${s.id}`);
+    if (d.look) {
+      const within = (v: number | undefined, lo: number, hi: number) => v === undefined || (finite(v) && v >= lo && v <= hi);
+      const l = d.look;
+      // Conservative bounds: a reframe/grade, never a different picture.
+      if (!within(l.scale, 1, 1.5) || !within(l.originX, 0, 1) || !within(l.originY, 0, 1) || !within(l.contrast, 0.8, 1.4) || !within(l.saturation, 0.6, 1.5) || !within(l.vignette, 0, 0.8)) {
+        throw new Error(`Invalid look: ${s.id}`);
+      }
+    }
   }
   const ids = new Set<string>();
   for (const c of cues ?? []) {

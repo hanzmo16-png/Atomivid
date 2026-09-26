@@ -556,6 +556,13 @@ async function main() {
   for (let i = 0; i < tiles.length; i += 15) {
     emitSheet(`render-${purpose}-${i / 15 + 1}`, await buildContactSheet(tiles.slice(i, i + 15), { columns: 3, tileWidth: 480, tileHeight: 270, title: `Render ${purpose} — cortes y centro de escena` }));
   }
+  // Fotograma inicial (lo primero que se ve, y candidato a miniatura): a tamaño completo y a tamaño de celular.
+  const firstFrame = await frameAt(mastered, 0, 1920);
+  const firstFrameName = `first-frame${outSuffix}.png`;
+  await fs.writeFile(path.join(outDir, firstFrameName), firstFrame);
+  await upload(`${prefix}/${firstFrameName}`, firstFrame, "image/png");
+  emitSheet("first-frame-large", await buildContactSheet([{ image: firstFrame, label: "t = 0 s (a pantalla completa)" }], { columns: 1, tileWidth: 1280, tileHeight: 720, title: "Fotograma inicial" }));
+  emitSheet("first-frame-phone", await buildContactSheet([{ image: firstFrame, label: "t = 0 s (tamaño de celular)" }], { columns: 1, tileWidth: 360, tileHeight: 203, title: "Celular" }));
   const bytes = (await fs.stat(mastered)).size;
   const outName = `sample-${purpose}${outSuffix}.mp4`;
   const buf = await fs.readFile(mastered);
