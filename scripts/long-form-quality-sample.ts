@@ -44,11 +44,15 @@ async function main() {
   const { MUSIC_MANIFEST } = await import("../src/lib/providers/music/manifest");
   const { MUSIC_LIBRARY_BUCKET, normalizeObjectPath } = await import("../src/lib/providers/music/storage");
   const { buildContactSheet, emitSheet, frameAt, probeDuration } = await import("./lib/contact-sheet");
-  const { paidPlan, reservePaid, settlePaid, committedUsd, VEO_CLIP_SECONDS } = await import("../src/lib/video/long-form/sample-manifest");
+  const { paidPlan, reservePaid, settlePaid, releasePaid, committedUsd, VEO_CLIP_SECONDS } = await import("../src/lib/video/long-form/sample-manifest");
   const { AI_VIDEO_STORAGE_BUCKET, readAiVideoClipRecord, validateExistingAiVideoClip } = await import("../src/lib/video/long-form/ai-video-storage");
   const { wrapDurableVideoProvider } = await import("../src/lib/video/long-form/ai-video-durable-provider");
   const { validateReferenceImageBuffer } = await import("../src/lib/video/long-form/ai-video-reference-image");
   const { veoVideoProvider, getVeoCostUsdPerSecond } = await import("../src/lib/providers/video-gen/veo");
+  const { GenerativeProviderError } = await import("../src/lib/providers/types");
+  /** Fallos que el adaptador lanza ANTES de cualquier petición HTTP al proveedor: nada pudo cobrarse. */
+  const failedBeforeSubmit = (err: unknown) =>
+    err instanceof GenerativeProviderError && !err.providerJobId && (err.reason === "not_configured" || err.reason === "budget_exceeded");
   const { openaiImageProvider } = await import("../src/lib/providers/image/openai");
   type SampleManifest = import("../src/lib/video/long-form/sample-manifest").SampleManifest;
   type FreeSampleSource = import("../src/lib/video/long-form/sample-manifest").FreeSampleSource;
@@ -205,11 +209,31 @@ async function main() {
     const ledgerPath = `${prefix}/state/paid-ledger.json`;
     let ledger: PaidLedger = (await readJson<PaidLedger>(ledgerPath)) ?? { entries: [] };
     const saveLedger = () => upload(ledgerPath, Buffer.from(JSON.stringify(ledger, null, 2)), "application/json");
+    // Reparación explícita (SAMPLE_LEDGER_RELEASE=clave,…): solo reservas fallidas sin id de operación y,
+    // para Veo, sin registro durable (el registro STARTED se escribe en cuanto el proveedor acepta la operación).
+    for (const key of (process.env.SAMPLE_LEDGER_RELEASE ?? "").split(",").map((k) => k.trim()).filter(Boolean)) {
+      const entry = ledger.entries.find((e) => e.key === key && e.status === "failed");
+      if (!entry) throw new Error(`${key}: no hay una reserva fallida que liberar`);
+      if (entry.provider === "veo" && (await readAiVideoClipRecord(service, AI_VIDEO_STORAGE_BUCKET, scopeId, key.replace(/:veo$/, "")))) {
+        throw new Error(`${key}: existe un registro durable de la operación — pudo enviarse, no se libera`);
+      }
+      ledger = releasePaid(ledger, key, `liberada: nunca se envió (${entry.note ?? "sin detalle"})`, new Date().toISOString());
+      await saveLedger();
+      console.log(`@@LEDGER_RELEASE ${JSON.stringify({ key, previousNote: entry.note })}`);
+    }
     const committedAtStart = committedUsd(ledger);
-    console.log(`@@PAIDPLAN ${JSON.stringify({ allowPaid, budgetUsd, rates, items: plan, totalEstimateUsd: +plan.reduce((a, i) => a + i.estimateUsd, 0).toFixed(4), committedUsd: committedAtStart })}`);
+    console.log(`@@PAIDPLAN ${JSON.stringify({ allowPaid, budgetUsd, rates, items: plan, totalEstimateUsd: +plan.reduce((a, i) => a + i.estimateUsd, 0).toFixed(4), committedUsd: committedAtStart, ledger: ledger.entries })}`);
     const settleOpen = async (key: string, outcome: Parameters<typeof settlePaid>[2]) => {
       if (!ledger.entries.some((e) => e.key === key && e.status === "reserved")) return;
       ledger = settlePaid(ledger, key, outcome, new Date().toISOString());
+      await saveLedger();
+    };
+    const closeFailed = async (key: string, err: unknown) => {
+      if (!ledger.entries.some((e) => e.key === key && e.status === "reserved")) return;
+      const note = err instanceof Error ? err.message.slice(0, 200) : "error";
+      ledger = failedBeforeSubmit(err)
+        ? releasePaid(ledger, key, `liberada: nunca se envió (${note})`, new Date().toISOString())
+        : settlePaid(ledger, key, { status: "failed", providerJobId: (err as { providerJobId?: string }).providerJobId, note }, new Date().toISOString());
       await saveLedger();
     };
     const reserve = async (key: string) => {
@@ -260,7 +284,7 @@ async function main() {
           try {
             asset = await openaiImageProvider.generateImage({ prompt: src.reference.prompt, negativePrompt: src.reference.negativePrompt, aspectRatio: "16:9", maxCostUsd: rates.imageUsd });
           } catch (err) {
-            await settleOpen(key, { status: "failed", note: err instanceof Error ? err.message.slice(0, 200) : "error" });
+            await closeFailed(key, err);
             throw err;
           }
           paidCalls.push({ key, provider: "openai-image", costUsd: asset.costUsd });
@@ -310,7 +334,7 @@ async function main() {
           metadata: { shotId: src.key, sceneId },
         });
       } catch (err) {
-        await settleOpen(veoKey, { status: "failed", providerJobId: (err as { providerJobId?: string }).providerJobId, note: err instanceof Error ? err.message.slice(0, 200) : "error" });
+        await closeFailed(veoKey, err);
         throw err;
       }
       paidCalls.push({ key: veoKey, provider: "veo", costUsd: asset.costUsd });

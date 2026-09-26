@@ -216,8 +216,12 @@ export type PaidLedgerEntry = {
   key: string;
   sceneId: string;
   provider: PaidItem["provider"];
-  /** reserved: reservado antes de llamar (cuenta como gastado hasta liquidar); spent: costo real; failed: sin resultado, pero puede haberse cobrado. */
-  status: "reserved" | "spent" | "failed";
+  /**
+   * reserved: reservado antes de llamar (cuenta como gastado hasta liquidar); spent: costo real;
+   * failed: sin resultado, pero puede haberse cobrado; released: la llamada NUNCA salió
+   * (fallo previo al envío, sin id de operación) — no cuenta y la clave puede volver a reservarse.
+   */
+  status: "reserved" | "spent" | "failed" | "released";
   estimateUsd: number;
   actualUsd?: number;
   providerJobId?: string;
@@ -237,7 +241,9 @@ export class PaidBudgetError extends Error {
 
 /** Comprometido: lo gastado real + lo reservado o fallido por su estimación (un fallo tras enviar puede haberse cobrado). */
 export function committedUsd(ledger: PaidLedger): number {
-  return +ledger.entries.reduce((sum, e) => sum + (e.status === "spent" ? (e.actualUsd ?? e.estimateUsd) : e.estimateUsd), 0).toFixed(4);
+  return +ledger.entries
+    .reduce((sum, e) => sum + (e.status === "released" ? 0 : e.status === "spent" ? (e.actualUsd ?? e.estimateUsd) : e.estimateUsd), 0)
+    .toFixed(4);
 }
 
 /**
@@ -246,7 +252,7 @@ export function committedUsd(ledger: PaidLedger): number {
  * presupuesto aprobado acumulado entre ejecuciones.
  */
 export function reservePaid(ledger: PaidLedger, item: PaidItem, budgetUsd: number, nowIso: string): PaidLedger {
-  if (ledger.entries.some((e) => e.key === item.key)) {
+  if (ledger.entries.some((e) => e.key === item.key && e.status !== "released")) {
     throw new PaidBudgetError(`«${item.key}» ya tiene una reserva: nunca se reenvía la misma generación (usa una clave nueva para un reintento aprobado)`);
   }
   const after = committedUsd(ledger) + item.estimateUsd;
@@ -267,5 +273,19 @@ export function settlePaid(
   if (!ledger.entries.some((e) => e.key === key && e.status === "reserved")) throw new PaidBudgetError(`«${key}» no tiene una reserva abierta`);
   return {
     entries: ledger.entries.map((e) => (e.key === key && e.status === "reserved" ? { ...e, ...outcome, settledAtIso: nowIso } : e)),
+  };
+}
+
+/**
+ * Libera una reserva cuya llamada NUNCA llegó al proveedor (p. ej. falta la
+ * clave, o el tope por clip la rechazó antes de enviar). Nunca libera algo
+ * con id de operación ni algo ya gastado: eso sí pudo cobrarse.
+ */
+export function releasePaid(ledger: PaidLedger, key: string, note: string, nowIso: string): PaidLedger {
+  const open = ledger.entries.find((e) => e.key === key && (e.status === "reserved" || e.status === "failed"));
+  if (!open) throw new PaidBudgetError(`«${key}» no tiene una reserva abierta o fallida que liberar`);
+  if (open.providerJobId) throw new PaidBudgetError(`«${key}» tiene id de operación (${open.providerJobId}): pudo cobrarse, no se libera`);
+  return {
+    entries: ledger.entries.map((e) => (e === open ? { ...e, status: "released" as const, note, settledAtIso: nowIso } : e)),
   };
 }

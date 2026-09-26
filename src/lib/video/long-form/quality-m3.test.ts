@@ -5,6 +5,7 @@ import {
   committedUsd,
   paidPlan,
   PaidBudgetError,
+  releasePaid,
   reservePaid,
   settlePaid,
   validateSampleManifest,
@@ -118,4 +119,21 @@ test("muestra M3 (Panamá): apertura en movimiento con clips IA solo donde se de
   assert.deepEqual(m3.soundCues, m2.soundCues);
   assert.deepEqual(m3.scenes.slice(5), m2.scenes.slice(4));
   assert.notEqual(m3.outputPrefix, m2.outputPrefix);
+});
+
+test("libro de gasto: una reserva que nunca llegó al proveedor se libera; con id de operación, jamás", () => {
+  const item = { key: "a:veo", sceneId: "s1", provider: "veo" as const, estimateUsd: 0.96, prompt: "p" };
+  let ledger: PaidLedger = reservePaid({ entries: [] }, item, 4, "t0");
+  ledger = settlePaid(ledger, "a:veo", { status: "failed", note: "VEO_API_KEY no está configurada" }, "t1");
+  assert.equal(committedUsd(ledger), 0.96);
+  ledger = releasePaid(ledger, "a:veo", "nunca se envió", "t2");
+  assert.equal(committedUsd(ledger), 0, "lo liberado no cuenta");
+  ledger = reservePaid(ledger, item, 4, "t3");
+  assert.equal(committedUsd(ledger), 0.96, "la misma clave puede reservarse de nuevo tras liberarse");
+
+  let submitted: PaidLedger = reservePaid({ entries: [] }, item, 4, "t0");
+  submitted = settlePaid(submitted, "a:veo", { status: "failed", providerJobId: "op/1", note: "timeout" }, "t1");
+  assert.throws(() => releasePaid(submitted, "a:veo", "x", "t2"), PaidBudgetError, "con id de operación pudo cobrarse");
+  const spent = settlePaid(reservePaid({ entries: [] }, item, 4, "t0"), "a:veo", { status: "spent", actualUsd: 0.96 }, "t1");
+  assert.throws(() => releasePaid(spent, "a:veo", "x", "t2"), PaidBudgetError);
 });

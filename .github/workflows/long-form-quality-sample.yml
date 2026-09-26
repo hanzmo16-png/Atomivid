@@ -39,6 +39,11 @@ on:
         required: false
         default: false
         type: boolean
+      ledger_release:
+        description: "Liberar reservas fallidas que nunca se enviaron (claves separadas por comas; se verifica)"
+        required: false
+        default: ""
+        type: string
       paid_budget_usd:
         description: "Presupuesto aprobado en USD (acumulado entre ejecuciones de la misma muestra)"
         required: false
@@ -76,6 +81,7 @@ jobs:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           SAMPLE_ALLOW_PAID: ${{ inputs.allow_paid && inputs.phase == 'prepare' && 'true' || 'false' }}
           SAMPLE_PAID_BUDGET_USD: ${{ inputs.paid_budget_usd }}
+          SAMPLE_LEDGER_RELEASE: ${{ inputs.ledger_release }}
           OPENAI_API_KEY: ${{ inputs.allow_paid && inputs.phase == 'prepare' && secrets.OPENAI_API_KEY || '' }}
           VEO_API_KEY: ${{ inputs.allow_paid && inputs.phase == 'prepare' && secrets.VEO_API_KEY || '' }}
       - name: Publicar muestra (artifact privado)
