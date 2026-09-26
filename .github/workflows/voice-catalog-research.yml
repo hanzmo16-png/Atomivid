@@ -1,0 +1,39 @@
+name: Investigación de voces ElevenLabs (solo lectura)
+
+# Solo GET contra ElevenLabs y descarga de previews públicas: sin síntesis,
+# sin créditos, sin agregar ni eliminar voces. Se ejecuta en el PR que
+# modifica el script (o a mano) y publica la evidencia como artefacto.
+on:
+  pull_request:
+    paths:
+      - 'scripts/elevenlabs-voice-catalog-research.ts'
+      - '.github/workflows/voice-catalog-research.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Consultar cuenta, My Voices y biblioteca (solo lectura)
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        run: npx tsx scripts/elevenlabs-voice-catalog-research.ts
+      - name: Publicar evidencia
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-research-${{ github.run_id }}
+          path: evidence/voices
+          if-no-files-found: warn
+          retention-days: 30
