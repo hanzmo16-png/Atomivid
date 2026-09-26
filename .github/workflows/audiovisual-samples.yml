@@ -59,7 +59,7 @@ jobs:
           exit 1
       - uses: actions/checkout@v4
         with:
-          ref: a48247ed0ccac3bb269b6e88a5ead49e7e004476
+          ref: 81ea364b86e2f311bd49d1bc84ebbb13ef23fa6a
       - uses: actions/setup-node@v4
         with:
           node-version: 22
