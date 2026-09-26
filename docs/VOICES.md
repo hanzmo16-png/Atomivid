@@ -205,27 +205,28 @@ Hecho (por Work, verificado desde aquí):
    `tts.yml` y `voice-clone.yml`, con el checkout fijado al commit revisado
    del PR #16 `0a53459`. Al fusionar el PR #16 hay que restaurar el flujo
    normal (quitar el `ref` fijo). Ningún PR fusionado.
-3. **Preview parcial**: `GH_WORKER_REPO` y `NEXT_PUBLIC_SITE_URL` solo para
-   la rama `claude/voices-medieval-tts`.
+3. **Preview** (solo rama `claude/voices-medieval-tts`): `MY_VOICE_ENABLED=true`,
+   `MY_VOICE_ALLOWLIST_EMAILS` con la cuenta de Hans, `GH_WORKER_REPO` y
+   `NEXT_PUBLIC_SITE_URL`. `SUPABASE_SERVICE_ROLE_KEY` ya existía para
+   Production y Preview (no se modificó).
 
-Pendiente para la prueba de «Mi voz» de Hans (autorizada: clonación
-personal + una prueba breve, **tope US$0.10**; no aprueba el paquete de
-US$2.26):
+Prueba de «Mi voz» de Hans (autorizada: clonación personal + una prueba
+breve, **tope total US$0.10**; no aprueba el paquete de US$2.26):
 
-4. **Preview** (solo rama `claude/voices-medieval-tts`):
-   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` y
-   `SUPABASE_SERVICE_ROLE_KEY` **del mismo proyecto donde se aplicó 0021**
-   (los workers usan ese; si Preview apunta a otro, el worker no encuentra
-   la voz ni la pieza), `GH_WORKER_TOKEN`, `MY_VOICE_ENABLED=true`,
-   `MY_VOICE_ALLOWLIST_EMAILS=<correo de la cuenta de Hans>`; opcionales
-   `VOICE_CATALOG_ENABLED`, `TEXT_TO_SPEECH_ENABLED`. Luego redesplegar la
-   rama. Producción sigue apagada.
+4. **Por confirmar en Vercel** (no visible desde este entorno): que Preview
+   tenga `GH_WORKER_TOKEN` y que `SUPABASE_SERVICE_ROLE_KEY`,
+   `NEXT_PUBLIC_SUPABASE_URL` y
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY` sean del mismo proyecto donde se aplicó
+   0021 (el de los secrets de GitHub). Si falta `GH_WORKER_TOKEN`, la voz queda en «falló» antes de
+   llamar al proveedor (sin gasto) y se reintenta desde la misma tarjeta
+   tras configurarlo; no hace falta volver a subir la muestra.
 5. **Muestra**: Hans la sube él mismo en `/dashboard/voices` de Preview,
    con su cuenta, aceptando el consentimiento (30-180 s, ≤ 10 MB,
    wav/mp3/m4a/webm/ogg, una sola voz). Un clic, un `client_request_id`:
-   no se duplica. Costo: la clonación instantánea no consume caracteres;
-   la prueba breve usa la frase de prueba (~80 caracteres, ≈ US$0.008).
-   La voz queda **guardada** para usos posteriores (solo la borra Hans con
+   no se duplica. La clonación instantánea no consume caracteres; la
+   prueba breve usa la frase de prueba (81 caracteres, ≈ US$0.008; el
+   registro de gasto del worker la limita a menos de US$0.03). La voz
+   queda **guardada** para usos posteriores (solo la borra Hans con
    «Eliminar»); la grabación original se borra al terminar, salvo que
    marque «Conservar mi grabación original».
 6. La voz personal de Hans **no participa** en `session-validation`: ese
