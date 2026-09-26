@@ -48,7 +48,7 @@ async function main() {
   const { AI_VIDEO_STORAGE_BUCKET, readAiVideoClipRecord, validateExistingAiVideoClip } = await import("../src/lib/video/long-form/ai-video-storage");
   const { wrapDurableVideoProvider } = await import("../src/lib/video/long-form/ai-video-durable-provider");
   const { validateReferenceImageBuffer } = await import("../src/lib/video/long-form/ai-video-reference-image");
-  const { veoVideoProvider, getVeoCostUsdPerSecond } = await import("../src/lib/providers/video-gen/veo");
+  const { veoVideoProvider, getVeoCostUsdPerSecond, VEO_MODEL } = await import("../src/lib/providers/video-gen/veo");
   const { GenerativeProviderError } = await import("../src/lib/providers/types");
   /** Fallos que el adaptador lanza ANTES de cualquier petición HTTP al proveedor: nada pudo cobrarse. */
   const failedBeforeSubmit = (err: unknown) =>
@@ -223,6 +223,37 @@ async function main() {
     }
     const committedAtStart = committedUsd(ledger);
     console.log(`@@PAIDPLAN ${JSON.stringify({ allowPaid, budgetUsd, rates, items: plan, totalEstimateUsd: +plan.reduce((a, i) => a + i.estimateUsd, 0).toFixed(4), committedUsd: committedAtStart, ledger: ledger.entries })}`);
+    if (allowPaid) {
+      // Antes de CUALQUIER gasto: qué falta realmente por pagar (lo ya generado se reutiliza gratis) y si
+      // el workflow recibe las claves necesarias. Falla cerrado: nunca se paga una parte si otra no puede ejecutarse.
+      const needs = { openai: false, veo: false };
+      for (const scene of manifest.scenes) {
+        if (scene.source.kind !== "veo-clip") continue;
+        const src = scene.source;
+        const record = await readAiVideoClipRecord(service, AI_VIDEO_STORAGE_BUCKET, scopeId, src.key);
+        if (record?.status === "COMPLETED" || record?.status === "FAILED") continue;
+        needs.veo = true;
+        if (src.reference.kind === "ai-still" && !(await service.storage.from(bucket).download(`${prefix}/ai/${src.key}-still.png`)).data) needs.openai = true;
+      }
+      const has = { openai: Boolean(process.env.OPENAI_API_KEY?.trim()), veo: Boolean(process.env.VEO_API_KEY?.trim()) };
+      // Comprobación GRATUITA de la clave de Veo: lectura de metadatos del modelo (no genera nada).
+      let veoKeyStatus: number | null = null;
+      if (has.veo) {
+        const res = await fetch(`${process.env.VEO_API_BASE || "https://generativelanguage.googleapis.com/v1beta"}/models/${VEO_MODEL}`, {
+          headers: { "x-goog-api-key": process.env.VEO_API_KEY!.trim() },
+        }).catch(() => null);
+        veoKeyStatus = res?.status ?? 0;
+      }
+      const veoKeyRejected = veoKeyStatus !== null && [0, 400, 401, 403].includes(veoKeyStatus);
+      console.log(`@@KEYCHECK ${JSON.stringify({ needs, has, veoModel: VEO_MODEL, veoKeyStatus, veoKeyRejected })}`);
+      if ((needs.veo && (!has.veo || veoKeyRejected)) || (needs.openai && !has.openai)) {
+        throw new Error("preflight de gasto: falta una clave necesaria o el proveedor la rechaza — no se hace ninguna llamada de pago");
+      }
+      if (process.env.SAMPLE_PAID_PREFLIGHT_ONLY === "true") {
+        console.log("PAID_PREFLIGHT_OK (sin llamadas de pago)");
+        return;
+      }
+    }
     const settleOpen = async (key: string, outcome: Parameters<typeof settlePaid>[2]) => {
       if (!ledger.entries.some((e) => e.key === key && e.status === "reserved")) return;
       ledger = settlePaid(ledger, key, outcome, new Date().toISOString());
