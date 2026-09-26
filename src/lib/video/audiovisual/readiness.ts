@@ -77,3 +77,39 @@ export function evaluateDirectionReadiness(input: {
 export function readinessErrorMessage(readiness: DirectionReadiness): string {
   return readiness.issues.map((i) => `${i.message} ${i.recovery}`).join(" ");
 }
+
+/** Escenas que pedirá el guion para cada duración (mismo cálculo que src/lib/ai/script.ts). */
+export function expectedSceneCount(durationSeconds: number): number {
+  return Math.max(3, Math.min(10, Math.round(durationSeconds / 5)));
+}
+
+/**
+ * Disponibilidad por perfil para el formulario (antes de que exista el
+ * guion), con el número de escenas esperado para cada duración. La
+ * comprobación definitiva ocurre al aprobar el guion con sus escenas reales.
+ */
+export function profileAvailabilityByDuration(
+  durations: number[],
+  opts: { flags?: FeatureFlags; imageProvider?: string | null } = {},
+): Record<number, Partial<Record<ProfileId, { ok: boolean; note?: string }>>> {
+  const flags = opts.flags ?? getFeatureFlags();
+  const imageProvider = opts.imageProvider === undefined ? usableImageProvider() : opts.imageProvider;
+  const out: Record<number, Partial<Record<ProfileId, { ok: boolean; note?: string }>>> = {};
+  for (const duration of durations) {
+    const entry: Partial<Record<ProfileId, { ok: boolean; note?: string }>> = {};
+    for (const profile of ["illustration_3d", "anime", "comic"] as const) {
+      const v = checkVisualAvailability({
+        profile,
+        sceneCount: expectedSceneCount(duration),
+        imageGenerationEnabled: flags.imageGenerationEnabled,
+        imageProvider,
+        estimatedCostPerImageUsd: ESTIMATED_COST_USD,
+        maxVisualCostUsd: flags.maxVisualCostUsd,
+        maxStyledImages: flags.maxStyledImagesPerVideo,
+      });
+      entry[profile] = v.ok ? { ok: true } : { ok: false, note: v.code === "generation_disabled" || v.code === "provider_unavailable" ? "Aún no disponible" : "Supera el tope de este video" };
+    }
+    out[duration] = entry;
+  }
+  return out;
+}

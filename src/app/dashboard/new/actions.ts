@@ -21,6 +21,7 @@ import {
 } from "./validation";
 import { parseSelection } from "@/lib/video/audiovisual/catalog";
 import { isMissingColumnError } from "@/lib/video/audiovisual/persistence";
+import { profileAvailabilityByDuration } from "@/lib/video/audiovisual/readiness";
 
 const AVATAR_UPLOADS_BUCKET = "avatar-uploads";
 // Cuenta de caracteres razonable para un guion de narración leído por un
@@ -92,6 +93,12 @@ export async function createVideoRequest(formData: FormData) {
       });
       if (!parsed.ok) {
         redirect(`/dashboard/new?error=${encodeURIComponent(parsed.error)}`);
+      }
+      // Un perfil ilustrado sin generación/presupuesto no se acepta: se
+      // avisa ahora en vez de fallar al producir.
+      const availability = profileAvailabilityByDuration([durationSeconds])[durationSeconds]?.[parsed.selection.profile];
+      if (availability && !availability.ok) {
+        redirect(`/dashboard/new?error=${encodeURIComponent("Esa dirección visual no está disponible para este video. Elige otra.")}`);
       }
       audiovisualSelection = parsed.selection;
     }

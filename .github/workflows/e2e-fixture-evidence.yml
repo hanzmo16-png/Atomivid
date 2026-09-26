@@ -48,6 +48,8 @@ jobs:
         run: npx tsx scripts/test-pipeline-avatar.ts /tmp/avatar-test.jpg --out-dir evidence/avatar
       - name: Render generated-image and stock fixtures and validate MP4
         run: npx tsx scripts/test-pipeline-visual-mix.ts --out-dir evidence/visual-mix
+      - name: Render audiovisual direction fixtures (horror, comic mystery, comic humor) and validate MP4
+        run: npx tsx scripts/test-pipeline-audiovisual.ts --out-dir evidence/audiovisual --verify
       - name: Publish verified simulated videos
         uses: actions/upload-artifact@v4
         with:

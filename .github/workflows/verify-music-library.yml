@@ -1,0 +1,42 @@
+name: Verificar biblioteca de música (solo lectura)
+
+# Descarga y mide las pistas registradas en manifest.ts desde el bucket
+# privado `music-library`. SOLO LECTURA: no sube, borra ni genera nada y no
+# llama a proveedores de pago. Una medición no sustituye la escucha.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/lib/providers/music/**'
+      - 'src/lib/video/audiovisual/music.ts'
+      - 'scripts/verify-music-library.ts'
+      - '.github/workflows/verify-music-library.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Descargar y medir pistas (solo lectura)
+        run: npx tsx scripts/verify-music-library.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Publicar informe
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: music-library-report-${{ github.run_id }}
+          path: music-library-report.json
+          if-no-files-found: warn
+          retention-days: 30
