@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import { isOwnedRecordingPath, recordingFormat, RECORDING_BUCKET, MAX_RECORDING_BYTES } from "./recording";
 import { measureNarrationSeconds } from "./measure-narration";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
+import type { GeneratedScript, ResolvedVoice, ScriptLanguage } from "@/lib/providers/types";
 import { AvatarProviderError } from "@/lib/providers/types";
 import { getAvatarProvider } from "@/lib/providers/avatar";
 import { getVoiceProvider } from "@/lib/providers/voice";
@@ -102,6 +102,7 @@ export async function generateAvatarVideo({
   recordedAudioPath,
   narrationSource,
   onProgress,
+  voice,
 }: {
   supabase: SupabaseClient;
   requestId: string;
@@ -123,6 +124,8 @@ export async function generateAvatarVideo({
   /** Job del proveedor ya creado en un intento anterior (idempotencia) — ver comentario de arriba. */
   existingProviderVideoJobId?: string | null;
   onProgress?: OnProgress;
+  /** Voz ElevenLabs elegida (catálogo o «Mi voz» propia) para la narración sintetizada. Ausente = la de siempre. */
+  voice?: ResolvedVoice;
 }): Promise<{ videoPath: string }> {
   const flags = getFeatureFlags();
   if (!flags.avatarModeEnabled) {
@@ -273,7 +276,7 @@ export async function generateAvatarVideo({
     let audioUrl: string | undefined;
     let audioDurationSeconds: number;
     try {
-      let voiceResult = recording ?? await voiceProvider!.synthesize(fullText, language);
+      let voiceResult = recording ?? await voiceProvider!.synthesize(fullText, language, undefined, { voice });
       if (provider.name === "heygen") voiceResult = await heygenAudio(voiceResult.audioBuffer);
       audioDurationSeconds = await measureNarrationSeconds(voiceResult.audioBuffer);
       if (audioDurationSeconds > flags.maxAvatarDurationSeconds) {

@@ -22,6 +22,7 @@ import {
 import { parseSelection } from "@/lib/video/audiovisual/catalog";
 import { isMissingColumnError } from "@/lib/video/audiovisual/persistence";
 import { animationAvailabilityByDuration, profileAvailabilityByDuration } from "@/lib/video/audiovisual/readiness";
+import { voiceChoiceFromForm } from "@/lib/voices/form";
 
 const AVATAR_UPLOADS_BUCKET = "avatar-uploads";
 // Cuenta de caracteres razonable para un guion de narración leído por un
@@ -79,6 +80,20 @@ export async function createVideoRequest(formData: FormData) {
     redirect("/dashboard/new?error=Esta+prueba+privada+no+está+disponible+para+tu+cuenta");
   }
 
+  // Voz de narración (catálogo o «Mi voz» propia). Con el selector apagado
+  // o la voz por defecto no se guarda nada: la solicitud queda como antes.
+  // Una voz privada ajena, eliminada o no lista se rechaza aquí con el motivo.
+  const voice = await voiceChoiceFromForm({
+    raw: formData.get("voice_choice"),
+    enabled: flags.voiceCatalogEnabled,
+    userId: user.id,
+    language: language === "en" ? "en" : "es",
+    service: createServiceClient,
+  });
+  if (!voice.ok) {
+    redirect(`/dashboard/new?error=${encodeURIComponent(voice.error)}`);
+  }
+
   if (mode === "visual") {
     // Dirección audiovisual (solo Reels, solo con el flag encendido): se
     // valida aquí, nunca se confía en las tarjetas del cliente. Con el flag
@@ -121,6 +136,7 @@ export async function createVideoRequest(formData: FormData) {
       mode: "visual",
       status: "pending",
       ...(audiovisualSelection ? { audiovisual_selection: audiovisualSelection } : {}),
+      ...(voice.stored ? { voice_choice: voice.stored } : {}),
     });
 
     if (error) {
@@ -205,7 +221,7 @@ export async function createVideoRequest(formData: FormData) {
     try {
       // Reutiliza el mismo provider ElevenLabs que ya usa Reel para
       // narración — nunca un cliente/pipeline TTS paralelo.
-      const voiceResult = await getVoiceProvider().synthesize(ttsText, language as "es" | "en");
+      const voiceResult = await getVoiceProvider().synthesize(ttsText, language as "es" | "en", undefined, { voice: voice.resolved });
       recording = { audioBuffer: voiceResult.audioBuffer, extension: voiceResult.extension, mimeType: voiceResult.mimeType };
       narrationSourceForDb = "tts";
       // Costo real registrado AHORA (momento de la síntesis) — pipeline.ts
@@ -385,6 +401,8 @@ export async function createVideoRequest(formData: FormData) {
     mode: "avatar",
     avatar_id: avatarId,
     avatar_voice_id: recording ? null : avatarVoiceId ?? null,
+    // Solo cuando la narración la sintetiza ElevenLabs (texto o guion); una grabación propia no usa voz del catálogo.
+    ...(voice.stored && narrationSourceForDb !== "own_audio" ? { voice_choice: voice.stored } : {}),
     idempotency_key: randomUUID(),
     status: recording ? "script_ready" : "pending",
   });

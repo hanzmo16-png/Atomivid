@@ -9,12 +9,13 @@
  *  - run: exige ANIMATION_ALLOW_PAID=true, credenciales de Supabase y
  *    ANIMATION_TOTAL_USD (tope autorizado). Cada ilustración nueva y cada
  *    clip se reservan en un registro durable
- *    (samples/animation/<id>/state/paid-ledger.json) ANTES de llamar; un
+ *    (<ANIMATION_LEDGER_SCOPE>/state/paid-ledger.json; por defecto
+ *    samples/animation-medieval, separado del de las muestras de Work) ANTES de llamar; un
  *    reintento reutiliza lo guardado, reanuda una operación ya enviada y se
  *    detiene ante cualquier cobro incierto.
  *
- * Clips por defecto (ANIMATION_CLIPS): comic-subtle, comic-action,
- * anime-subtle, anime-action. Una ilustración existente puede reutilizarse
+ * Clip por defecto (ANIMATION_CLIPS): medieval-horse. Las cuatro muestras
+ * ya generadas (comic-*, anime-*) no se repiten salvo ANIMATION_REPEAT_GENERATED=true. Una ilustración existente puede reutilizarse
  * con ANIMATION_INPUT_<ID>=<ruta en Storage> (p. ej. las del Cómic de la
  * muestra real); si no, se genera una nueva con el estilo del perfil.
  */
@@ -22,14 +23,19 @@ import { createHash } from "node:crypto";
 
 type ClipCase = {
   id: string;
-  profile: "comic" | "anime";
-  intent: "suspense";
-  energy: "low" | "high";
+  profile: "comic" | "anime" | "medieval_dark";
+  intent: "suspense" | "action";
+  energy: "low" | "medium" | "high";
   topic: string;
-  segment: { text: string; visualQuery: string; visualConcepts?: string[]; visibleAction: string };
+  segment: { text: string; visualQuery: string; visualConcepts?: string[]; visibleAction: string; actionStart?: string; actionEnd?: string };
   /** Segundos del clip que se verían en el Reel: la acción debe completarse dentro de ellos. */
   visibleSeconds: number;
 };
+
+// Las cuatro primeras ya se generaron (runs 36256727335 y 36257549360 sobre
+// 3b5716b); se conservan como referencia, no se repiten. «medieval-horse» es
+// la prueba de coordinación de Medieval oscuro (patas, jinete y suelo).
+const GENERATED = new Set(["comic-subtle", "comic-action", "anime-subtle", "anime-action"]);
 
 const CASES: ClipCase[] = [
   {
@@ -68,13 +74,37 @@ const CASES: ClipCase[] = [
     segment: { text: "El guardián giró de golpe hacia la ventana rota.", visualQuery: "keeper turning to broken window", visualConcepts: ["keeper turning to broken window", "shattered lighthouse window"], visibleAction: "the keeper turns his head sharply toward the window" },
     visibleSeconds: 4,
   },
+  {
+    id: "medieval-horse",
+    profile: "medieval_dark",
+    intent: "action",
+    energy: "medium",
+    topic: "El caballero del camino",
+    segment: {
+      text: "El caballero avanzó por el camino de tierra, levantando polvo y pequeñas piedras.",
+      visualQuery: "armored knight riding horse on dirt road",
+      visualConcepts: [
+        "original armored knight riding a dark warhorse along a stony dirt road, side three-quarter view, the whole horse with all four legs and hooves, the rider and the ground in frame",
+        "knight on horseback on a dirt road, dust at the hooves",
+      ],
+      visibleAction: "the knight rides his horse forward at a steady trot",
+      actionStart: "the horse stands on the road with one front hoof lifted, ready to step",
+      actionEnd: "horse and knight keep trotting forward, fully in frame, hooves kicking up dust and small stones",
+    },
+    visibleSeconds: 8,
+  },
 ];
 
 async function main() {
-  const { REEL_ANIMATION, animationClipCostUsd, buildAnimationBaseImagePrompt, buildContinuityBible, planSceneAnimation } = await import("../src/lib/video/audiovisual/animation");
+  const { REEL_ANIMATION, animationClipCostUsd, buildAnimationBaseImagePrompt, buildContinuityBible, planSceneAction, planSceneAnimation } = await import("../src/lib/video/audiovisual/animation");
   const { IMAGE_RESERVE_USD } = await import("../src/lib/video/audiovisual/paid-costs");
   const mode = (process.env.MODE ?? "plan").trim();
-  const ids = (process.env.ANIMATION_CLIPS ?? CASES.map((c) => c.id).join(",")).split(",").map((s) => s.trim()).filter(Boolean);
+  // Por defecto solo la prueba pendiente; las ya generadas nunca se repiten sin pedirlo explícitamente.
+  const ids = (process.env.ANIMATION_CLIPS ?? "medieval-horse").split(",").map((s) => s.trim()).filter(Boolean);
+  const alreadyGenerated = ids.filter((id) => GENERATED.has(id));
+  if (alreadyGenerated.length > 0 && (process.env.MODE ?? "plan").trim() === "run" && process.env.ANIMATION_REPEAT_GENERATED !== "true") {
+    throw new Error(`Ya generadas (no se repiten): ${alreadyGenerated.join(", ")}. No se llamó a ningún proveedor.`);
+  }
   const selected = ids.map((id) => {
     const c = CASES.find((x) => x.id === id);
     if (!c) throw new Error(`Clip desconocido: ${id}`);
@@ -123,7 +153,11 @@ async function main() {
   const { veoVideoProvider } = await import("../src/lib/providers/video-gen/veo");
   const service = createServiceClient();
   const BUCKET = "videos";
-  const scope = "samples/animation";
+  // Registro propio por autorización: las cuatro muestras de Work usan «samples/animation» (tope USD 5.15);
+  // una prueba nueva NO debe contar ni gastar ese saldo, así que por defecto va a su propio registro.
+  const scope = (process.env.ANIMATION_LEDGER_SCOPE ?? "samples/animation-medieval").trim();
+  if (!/^samples\/[a-z0-9-]+$/.test(scope)) throw new Error(`ANIMATION_LEDGER_SCOPE inválido: ${scope}`);
+  console.log(`[registro] ${scope}/state/paid-ledger.json, tope USD ${totalUsd}`);
   // Un solo registro para toda la prueba: el tope se aplica al acumulado de todos los clips y reintentos.
   const ledger = await openStorageLedger(service, BUCKET, scope, { capUsd: totalUsd });
   for (const c of selected) {
@@ -133,7 +167,7 @@ async function main() {
     if (reused) {
       base = { path: reused, key: createHash("sha256").update(`reused:${reused}`).digest("hex").slice(0, 12) };
     } else {
-      const prompt = buildAnimationBaseImagePrompt({ profile: c.profile, bible, concept: c.segment.visualConcepts?.[0] ?? c.segment.visualQuery, narration: c.segment.text });
+      const prompt = buildAnimationBaseImagePrompt({ profile: c.profile, bible, concept: c.segment.visualConcepts?.[0] ?? c.segment.visualQuery, narration: c.segment.text, action: planSceneAction(c.segment) });
       const image = await resolveGeneratedImageForScene({
         supabase: service,
         bucket: BUCKET,

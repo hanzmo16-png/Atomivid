@@ -3,7 +3,7 @@ name: E2E fixture evidence (no paid providers)
 on:
   pull_request:
     # También PRs apilados sobre ramas de trabajo (p. ej. work/script-thinking-fix).
-    branches: [claude/atomivid-mvp-setup-0079jv, 'work/**']
+    branches: [claude/atomivid-mvp-setup-0079jv, 'work/**', 'claude/**']
     paths:
       - 'scripts/**'
       - 'src/lib/**'
@@ -55,7 +55,10 @@ jobs:
           npm run lint
           # Las pruebas unitarias fijan sus propios proveedores; se ejecutan sin las variables de proveedor del job
           # (igual que en local). Ninguna prueba se omite.
-          env -u SCRIPT_PROVIDER -u VOICE_PROVIDER -u FOOTAGE_PROVIDER -u MUSIC_PROVIDER -u IMAGE_PROVIDER -u AVATAR_PROVIDER -u PREMIUM_CLIPS_ENABLED -u REEL_ANIMATION_PROVIDER npm run test:unit
+          # Si algo falla, el detalle se repite al final del log (la salida TAP completa es muy larga).
+          set -o pipefail
+          env -u SCRIPT_PROVIDER -u VOICE_PROVIDER -u FOOTAGE_PROVIDER -u MUSIC_PROVIDER -u IMAGE_PROVIDER -u AVATAR_PROVIDER -u PREMIUM_CLIPS_ENABLED -u REEL_ANIMATION_PROVIDER npm run test:unit 2>&1 | tee /tmp/unit-tests.log \
+            || { echo "::group::Pruebas fallidas"; grep -n -A60 "^not ok" /tmp/unit-tests.log; echo "::endgroup::"; exit 1; }
       - name: Prepare synthetic test image (no personal photo)
         run: |
           mkdir -p evidence/avatar evidence/visual-mix

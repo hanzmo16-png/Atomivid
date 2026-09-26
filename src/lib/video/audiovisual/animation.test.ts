@@ -143,7 +143,7 @@ test("frontera: la acción exige su mínimo MÁS 0,3 s de margen antes del corte
   assert.throws(() => plan("low", 2.79), AnimationPlanError, "2,79 s se declara como 2,7: insuficiente");
   const exact = plan("low", 2.8);
   assert.match(exact.prompt, /fully completed by second 2\.5; the shot is cut at second 2\.8/);
-  assert.match(exact.endState, /fully completed by second 2\.5;/);
+  assert.match(exact.endState, /reached by second 2\.5 and held unchanged until the cut/);
   // Nunca se anuncia un corte posterior al real (2,86 → 2,8, no 2,9).
   assert.match(plan("low", 2.86).prompt, /the shot is cut at second 2\.8/);
 

@@ -1,0 +1,57 @@
+name: Texto a voz (worker de Atomivid)
+
+# Disparado por la app (src/lib/tts/dispatch.ts) con repository_dispatch
+# "text-to-speech". Separado de render.yml: Reel, Avatar y Long Form no
+# cambian. workflow_dispatch solo para reintentar a mano una pieza existente.
+on:
+  repository_dispatch:
+    types: [text-to-speech]
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: "ID de la pieza (tts_jobs.id)"
+        required: true
+        type: string
+
+concurrency:
+  group: atomivid-tts-${{ github.event.client_payload.jobId || inputs.job_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # repository_dispatch ejecuta SIEMPRE la rama por defecto. Para probar antes de fusionar, la
+      # variable del repositorio VOICE_WORKERS_REF fija un commit revisado; vacía = rama por defecto.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ vars.VOICE_WORKERS_REF }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Instalar ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Generar audio
+        timeout-minutes: 15
+        run: npx tsx scripts/tts-worker.ts
+        env:
+          ATOMIVID_RUNTIME: production
+          TTS_JOB_ID: ${{ github.event.client_payload.jobId || inputs.job_id }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+      - name: Marcar como fallida si no terminó
+        if: failure() || cancelled()
+        run: npx tsx scripts/mark-tts-failed.ts
+        env:
+          TTS_JOB_ID: ${{ github.event.client_payload.jobId || inputs.job_id }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

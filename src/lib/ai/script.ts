@@ -117,6 +117,20 @@ const ScriptSchema = z.object({
               "que se pueda mostrar completa en un solo plano continuo de 2 a 5 segundos, sin cortes ni cambio de lugar " +
               "(p. ej. 'the keeper slams the iron door shut'). Se usa solo si el video se anima.",
           ),
+        actionStart: z
+          .string()
+          .optional()
+          .describe(
+            "Pose INICIAL en inglés (máx. 14 palabras), ANTERIOR a la acción y compatible con ella: la acción todavía no " +
+              "empezó (p. ej. 'the keeper stands with his back to the window'). Se usa solo si el video se anima.",
+          ),
+        actionEnd: z
+          .string()
+          .optional()
+          .describe(
+            "Estado FINAL en inglés (máx. 14 palabras) que se mantiene quieto hasta el corte: destino de la acción y cómo " +
+              "queda (p. ej. 'the iron door stays fully shut'). Se usa solo si el video se anima.",
+          ),
       }),
     )
     .min(1)
@@ -390,6 +404,8 @@ Da, para cada escena:
 - "energy": "low"/"medium"/"high" según el ritmo narrativo de esa escena.
 - "emphasisWords": 1-3 palabras EXACTAS de "text" (mismo idioma de la narración) que merecen destacarse visualmente.
 - "visibleAction": UNA acción visible concreta en inglés (sujeto + verbo + objeto, máx. 12 palabras) que se pueda mostrar completa en un plano continuo de 2 a 5 segundos.
+- "actionStart": la pose inicial en inglés, ANTES de la acción y compatible con ella (la acción aún no empezó).
+- "actionEnd": el estado final en inglés que se mantiene hasta el corte (destino de la acción; nada vuelve atrás).
 
 La suma de las palabras de todos los "text" debe quedar entre ${minWords} y ${maxWords} palabras, con objetivo ${targetWords}. Cuenta las palabras antes de devolver el guion.${guidance ? `
 
@@ -478,7 +494,9 @@ Reescribe SOLO la escena actual. Da:
 - "excludedTerms": opcional, palabras en inglés a evitar en el material visual.
 - "energy": "low"/"medium"/"high" según el ritmo de esta escena.
 - "emphasisWords": 1-3 palabras EXACTAS del nuevo "text" que merecen destacarse visualmente.
-- "visibleAction": UNA acción visible concreta en inglés (sujeto + verbo + objeto, máx. 12 palabras) que se pueda mostrar completa en un plano continuo de 2 a 5 segundos.`;
+- "visibleAction": UNA acción visible concreta en inglés (sujeto + verbo + objeto, máx. 12 palabras) que se pueda mostrar completa en un plano continuo de 2 a 5 segundos.
+- "actionStart": la pose inicial en inglés, ANTES de la acción y compatible con ella (la acción aún no empezó).
+- "actionEnd": el estado final en inglés que se mantiene hasta el corte (destino de la acción; nada vuelve atrás).`;
 
   const { value } = await callScriptModel({
     operation: "scene",

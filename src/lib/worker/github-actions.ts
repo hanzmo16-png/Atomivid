@@ -74,58 +74,65 @@ export class GitHubWorkerNetworkError extends Error {
 export const githubActionsWorker: RenderWorker = {
   name: "github-actions",
   async trigger({ requestId, renderAttempt, mode }) {
-    const token = process.env.GH_WORKER_TOKEN;
-    const repo = process.env.GH_WORKER_REPO;
-
-    // Tipados (no un Error genérico) para que classifyRenderError pueda
-    // decirle al cliente exactamente qué variable falta, en vez de un
-    // mensaje que suena transitorio ("intenta de nuevo") para un problema
-    // de configuración permanente.
-    if (!token) throw new MissingEnvVarError("GH_WORKER_TOKEN");
-    if (!repo) throw new MissingEnvVarError("GH_WORKER_REPO");
-    if (!OWNER_REPO_PATTERN.test(repo)) {
-      throw new InvalidEnvVarError("GH_WORKER_REPO", '"owner/repo", p. ej. "hanzmo16-png/Atomivid"');
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), DISPATCH_TIMEOUT_MS);
-
-    let res: Response;
-    try {
-      res = await fetch(`${GITHUB_API}/repos/${repo}/dispatches`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-        body: JSON.stringify({
-          event_type: DISPATCH_EVENT_TYPE,
-          // `mode` permite a render.yml dar a Long Form su propio timeout y
-          // sus credenciales (OpenAI/Veo/confirmación de gasto) sin
-          // exponerlas ni cambiar nada para Reel/Avatar.
-          client_payload: {
-            requestId,
-            ...(renderAttempt === undefined ? {} : { renderAttempt }),
-            ...(mode ? { mode } : {}),
-          },
-        }),
-        signal: controller.signal,
-      });
-    } catch (error) {
-      // fetch() rechaza (no responde con un status) ante DNS/conexión
-      // rechazada, y AbortController produce un DOMException "AbortError"
-      // al vencer el timeout — ambos son fallos de red, no de config.
-      throw new GitHubWorkerNetworkError(error);
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    if (!res.ok) {
-      // No incluir el token ni headers en el mensaje de error — solo el
-      // código de estado y el cuerpo de la respuesta de GitHub.
-      const body = await res.text().catch(() => "");
-      throw new GitHubWorkerDispatchError(res.status, body);
-    }
+    await dispatchRepositoryEvent(DISPATCH_EVENT_TYPE, {
+      requestId,
+      // `mode` permite a render.yml dar a Long Form su propio timeout y
+      // sus credenciales (OpenAI/Veo/confirmación de gasto) sin
+      // exponerlas ni cambiar nada para Reel/Avatar.
+      ...(renderAttempt === undefined ? {} : { renderAttempt }),
+      ...(mode ? { mode } : {}),
+    });
   },
 };
+
+/**
+ * Dispara un workflow por `repository_dispatch` con el `event_type` dado y
+ * retorna de inmediato. Lo usan el render (render.yml, "render-video") y
+ * «Texto a voz» (tts.yml, "text-to-speech"), con las mismas credenciales y
+ * los mismos errores tipados.
+ */
+export async function dispatchRepositoryEvent(eventType: string, clientPayload: Record<string, unknown>): Promise<void> {
+  const token = process.env.GH_WORKER_TOKEN;
+  const repo = process.env.GH_WORKER_REPO;
+
+  // Tipados (no un Error genérico) para que classifyRenderError pueda
+  // decirle al cliente exactamente qué variable falta, en vez de un
+  // mensaje que suena transitorio ("intenta de nuevo") para un problema
+  // de configuración permanente.
+  if (!token) throw new MissingEnvVarError("GH_WORKER_TOKEN");
+  if (!repo) throw new MissingEnvVarError("GH_WORKER_REPO");
+  if (!OWNER_REPO_PATTERN.test(repo)) {
+    throw new InvalidEnvVarError("GH_WORKER_REPO", '"owner/repo", p. ej. "hanzmo16-png/Atomivid"');
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DISPATCH_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(`${GITHUB_API}/repos/${repo}/dispatches`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      body: JSON.stringify({ event_type: eventType, client_payload: clientPayload }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    // fetch() rechaza (no responde con un status) ante DNS/conexión
+    // rechazada, y AbortController produce un DOMException "AbortError"
+    // al vencer el timeout — ambos son fallos de red, no de config.
+    throw new GitHubWorkerNetworkError(error);
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!res.ok) {
+    // No incluir el token ni headers en el mensaje de error — solo el
+    // código de estado y el cuerpo de la respuesta de GitHub.
+    const body = await res.text().catch(() => "");
+    throw new GitHubWorkerDispatchError(res.status, body);
+  }
+}

@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { getFootageProvider } from "@/lib/providers/footage";
 import { getMusicProvider } from "@/lib/providers/music";
-import type { GeneratedScript, MusicResult, ScriptLanguage } from "@/lib/providers/types";
+import type { GeneratedScript, MusicResult, ResolvedVoice, ScriptLanguage } from "@/lib/providers/types";
 import type { RenderStage } from "@/lib/video/stages";
 import type { Scene } from "../../../remotion/VerticalReel";
 import { computeNarrationGaps } from "../../../remotion/audio-mix";
@@ -57,6 +57,7 @@ export async function generateVideoFromScript({
   onProgress,
   direction,
   attempt,
+  voice,
 }: {
   supabase: SupabaseClient;
   requestId: string;
@@ -74,9 +75,11 @@ export async function generateVideoFromScript({
   direction?: AudiovisualDirection;
   /** Intento (render_attempts) — solo lo usa el flujo dirigido para trazar su registro de gasto. */
   attempt?: number;
+  /** Voz elegida y resuelta (catálogo o «Mi voz» propia). Ausente = la voz de siempre. */
+  voice?: ResolvedVoice;
 }): Promise<{ videoPath: string }> {
   if (direction) {
-    return generateDirectedVideoFromScript({ supabase, requestId, artifactPrefix, script, style, topic, language, targetDurationSeconds, onProgress, direction, attempt });
+    return generateDirectedVideoFromScript({ supabase, requestId, artifactPrefix, script, style, topic, language, targetDurationSeconds, onProgress, direction, attempt, voice });
   }
   const voiceProvider = getVoiceProvider();
   const footageProvider = getFootageProvider();
@@ -123,7 +126,7 @@ export async function generateVideoFromScript({
   // palabra (así toda la narración usa la misma voz y ritmo).
   await onProgress?.("voice");
   const fullText = script.segments.map((s) => s.text).join(" ");
-  let voice = await voiceProvider.synthesize(fullText, language);
+  let narration = await voiceProvider.synthesize(fullText, language, undefined, { voice });
 
   // Verificación de duración REAL (no estimada) contra el objetivo de la
   // solicitud — nunca estira ni recorta el audio ya grabado (eso sonaría
@@ -143,22 +146,22 @@ export async function generateVideoFromScript({
   // igual que antes: assertNarrationDuration lanza y no se sigue.
   let durationWithinTolerance = true;
   if (targetDurationSeconds !== undefined) {
-    let durationResult = checkDuration(targetDurationSeconds, voice.durationSeconds);
+    let durationResult = checkDuration(targetDurationSeconds, narration.durationSeconds);
     if (!durationResult.withinTolerance) {
-      const correctedSpeed = voice.durationSeconds / targetDurationSeconds;
-      const correctedVoice = await voiceProvider.synthesize(fullText, language, correctedSpeed);
+      const correctedSpeed = narration.durationSeconds / targetDurationSeconds;
+      const correctedVoice = await voiceProvider.synthesize(fullText, language, correctedSpeed, { voice });
       const correctedResult = checkDuration(targetDurationSeconds, correctedVoice.durationSeconds);
-      voice = correctedVoice;
+      narration = correctedVoice;
       durationResult = correctedResult;
     }
     durationWithinTolerance = durationResult.withinTolerance;
     if (!durationResult.withinTolerance) {
-      assertNarrationDuration(targetDurationSeconds, voice.durationSeconds);
+      assertNarrationDuration(targetDurationSeconds, narration.durationSeconds);
     }
   }
 
   // 2. Repartir el tiempo de la narración real entre las escenas del guion
-  const sceneTimings = alignScenesToWords(script.segments, voice.words);
+  const sceneTimings = alignScenesToWords(script.segments, narration.words);
 
   // 3. Footage: varios candidatos por escena (y por "beat" visual dentro
   // de escenas largas), puntuados y deduplicados contra todo lo ya usado
@@ -367,12 +370,12 @@ export async function generateVideoFromScript({
   }
 
   // 4. Subir la narración generada
-  storageBytes += voice.audioBuffer.byteLength;
+  storageBytes += narration.audioBuffer.byteLength;
   const { url: audioUrl } = await uploadToStorage(
     supabase,
-    `${artifactPrefix}/voice.${voice.extension}`,
-    voice.audioBuffer,
-    voice.mimeType,
+    `${artifactPrefix}/voice.${narration.extension}`,
+    narration.audioBuffer,
+    narration.mimeType,
   );
 
   // 5. Música de fondo, seleccionada por tono (tema + estilo + guion) y
@@ -382,7 +385,7 @@ export async function generateVideoFromScript({
   // razón claramente en logs y en el registro de costo, nunca en silencio
   // absoluto (ver Fase 4/6 de la especificación de esta etapa).
   await onProgress?.("music");
-  const finalDurationSeconds = voice.durationSeconds + VIDEO_TAIL_SECONDS;
+  const finalDurationSeconds = narration.durationSeconds + VIDEO_TAIL_SECONDS;
   let music: MusicResult | null = null;
   let musicFallbackReason: string | null = null;
   try {
@@ -429,8 +432,8 @@ export async function generateVideoFromScript({
   // marcadas para énfasis visual (ver caption-emphasis.ts).
   const scriptEmphasisWords = script.segments.flatMap((s) => s.emphasisWords ?? []);
   const emphasisSet = buildEmphasisSet(scriptEmphasisWords);
-  const captions = buildCaptions(voice.words, emphasisSet);
-  const narrationGaps = computeNarrationGaps(voice.words);
+  const captions = buildCaptions(narration.words, emphasisSet);
+  const narrationGaps = computeNarrationGaps(narration.words);
 
   // 7. Ensamblar el video final con Remotion
   await onProgress?.("render");

@@ -22,7 +22,7 @@ import { getFootageProvider } from "@/lib/providers/footage";
 import { getMusicProvider } from "@/lib/providers/music";
 import { curatedLibraryMusicProvider } from "@/lib/providers/music/real";
 import { getImageProvider } from "@/lib/providers/image";
-import type { GeneratedScript, MusicResult, ScriptLanguage, VideoProvider } from "@/lib/providers/types";
+import type { GeneratedScript, MusicResult, ResolvedVoice, ScriptLanguage, VideoProvider } from "@/lib/providers/types";
 import type { RenderStage } from "@/lib/video/stages";
 import type { Scene } from "../../../../remotion/VerticalReel";
 import { computeNarrationGaps } from "../../../../remotion/audio-mix";
@@ -46,6 +46,7 @@ import {
   buildContinuityBible,
   AnimationPlanError,
   planAnimatedShots,
+  planSceneAction,
   planSceneAnimation,
   type SceneAnimationSpec,
 } from "./animation";
@@ -80,6 +81,7 @@ export async function generateDirectedVideoFromScript({
   attempt,
   paid,
   deps,
+  voice: narrationVoice,
 }: {
   supabase: SupabaseClient;
   requestId: string;
@@ -101,6 +103,8 @@ export async function generateDirectedVideoFromScript({
   paid?: { capUsd?: number; otherCommittedUsd?: number; recordCosts?: boolean; ledger?: PaidLedger };
   /** Solo pruebas: proveedor de animación y render inyectables (por defecto, los reales). */
   deps?: { animationProvider?: VideoProvider | null; renderReel?: typeof renderVerticalReel };
+  /** Voz elegida y resuelta (catálogo o «Mi voz» propia). Ausente = la voz de siempre (misma clave de caché que antes). */
+  voice?: ResolvedVoice;
 }): Promise<{ videoPath: string; ledger: PaidLedger }> {
   const flags = getFeatureFlags();
   const profile = PROFILES[direction.profile];
@@ -179,7 +183,7 @@ export async function generateDirectedVideoFromScript({
       const segment = segments[i];
       const concept = segment.visualConcepts?.[0] ?? segment.visualQuery;
       const styled = bible
-        ? buildAnimationBaseImagePrompt({ profile: direction.profile, bible, concept, narration: segment.text })
+        ? buildAnimationBaseImagePrompt({ profile: direction.profile, bible, concept, narration: segment.text, action: planSceneAction(segment) })
         : buildStyledImagePrompt({ profile: direction.profile, intent: direction.intent.id, concept, narration: segment.text });
       // Presupuesto de imágenes ACUMULADO entre intentos (registro durable), no solo este intento.
       const remaining = Math.max(0, flags.maxVisualCostUsd - (ledger.summary().byKind.image?.usd ?? 0));
@@ -222,7 +226,7 @@ export async function generateDirectedVideoFromScript({
   // sus tiempos ya pagados; la corrección de duración es otra entrada (y
   // otra operación del registro, «voice_retime»).
   const narrate = (speed?: number) =>
-    synthesizeNarrationCached({ supabase, bucket: STORAGE_BUCKET, requestId, voiceProvider, text: fullText, language, speed, ledger, attempt });
+    synthesizeNarrationCached({ supabase, bucket: STORAGE_BUCKET, requestId, voiceProvider, text: fullText, language, speed, ledger, attempt, voice: narrationVoice });
   let voice = await narrate();
   if (targetDurationSeconds !== undefined) {
     let durationResult = checkDuration(targetDurationSeconds, voice.durationSeconds);
@@ -319,7 +323,7 @@ export async function generateDirectedVideoFromScript({
       const spec = specs[i];
       console.log(
         "[atomivid:animation-plan]",
-        JSON.stringify({ requestId, scene: i, subject: spec.subject, action: spec.action, visibleSeconds: spec.visibleSeconds, startState: spec.startState, endState: spec.endState, reference: spec.referenceImagePath, constants: spec.constants, framing: spec.framing, camera: spec.camera, key: spec.key }),
+        JSON.stringify({ requestId, scene: i, subject: spec.subject, action: spec.action, choreography: spec.choreography, visibleSeconds: spec.visibleSeconds, startState: spec.startState, endState: spec.endState, reference: spec.referenceImagePath, constants: spec.constants, framing: spec.framing, camera: spec.camera, key: spec.key }),
       );
       try {
         const input = await prepareAnimationInputImage({

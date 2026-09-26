@@ -6,6 +6,7 @@ import { AvatarFields } from "./AvatarFields";
 import { SubmitButton } from "./SubmitButton";
 import { avatarDurationSelectorApplies } from "./validation";
 import { AudiovisualSelector, type AnimationAvailability, type ProfileAvailability } from "@/components/video/AudiovisualSelector";
+import { VoiceSelector, type CustomVoiceOption } from "@/components/voice/VoiceSelector";
 
 const STYLES = [
   "Motivacional",
@@ -38,6 +39,7 @@ export function NewVideoForm({
   existingAvatars,
   initialMode = "visual",
   audiovisual,
+  voices,
 }: {
   action: (formData: FormData) => void;
   avatarModeEnabled: boolean;
@@ -46,6 +48,8 @@ export function NewVideoForm({
   initialMode?: VideoMode;
   /** Dirección audiovisual (AUDIOVISUAL_PROFILES_ENABLED). Ausente = formulario de siempre. Solo aplica a Reel (mode visual). */
   audiovisual?: { availabilityByDuration: Record<number, ProfileAvailability>; animationByDuration?: Record<number, AnimationAvailability> };
+  /** Selector de voz (VOICE_CATALOG_ENABLED). Ausente = voz de siempre, sin selector. */
+  voices?: { customVoices: CustomVoiceOption[] };
 }) {
   const [mode, setMode] = useState<VideoMode>(avatarModeEnabled ? initialMode : "visual");
   const [language, setLanguage] = useState<"es" | "en">("es");
@@ -185,6 +189,11 @@ export function NewVideoForm({
           narrationSource={avatarNarrationSource}
           onNarrationSourceChange={setAvatarNarrationSource}
         />
+      )}
+
+      {/* Voz de la narración: Reel y Avatar con voz sintetizada (una grabación propia no usa voz del catálogo). */}
+      {voices && (mode === "visual" || avatarNarrationSource !== "recording") && (
+        <VoiceSelector language={language} customVoices={voices.customVoices} />
       )}
 
       <SubmitButton />

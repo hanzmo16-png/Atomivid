@@ -7,6 +7,8 @@ import { LinkButton } from "@/components/ui/Button";
 import { Onboarding } from "@/components/onboarding/Onboarding";
 import { NavLink } from "./NavLink";
 import { isLongFormEnabled, isLongFormAllowlisted } from "@/lib/video/long-form/access";
+import { getFeatureFlags } from "@/lib/video/feature-flags";
+import { canUseMyVoice } from "@/lib/voices/access";
 
 export default async function DashboardLayout({
   children,
@@ -26,6 +28,7 @@ export default async function DashboardLayout({
   // (isLongFormEnabled + isLongFormAllowlisted, access.ts) — este acceso
   // directo es solo navegación, nunca hace ninguna llamada por su cuenta.
   const showLongFormDryRun = isLongFormEnabled() && isLongFormAllowlisted(user);
+  const flags = getFeatureFlags();
 
   return (
     <div className="min-h-screen">
@@ -42,6 +45,22 @@ export default async function DashboardLayout({
             >
               Historial
             </NavLink>
+            {flags.textToSpeechEnabled && (
+              <NavLink
+                href="/dashboard/tts"
+                className="hidden rounded-md px-3 py-2 text-sm font-medium transition-colors sm:inline-block"
+              >
+                Texto a voz
+              </NavLink>
+            )}
+            {canUseMyVoice(user) && (
+              <NavLink
+                href="/dashboard/voices"
+                className="hidden rounded-md px-3 py-2 text-sm font-medium transition-colors sm:inline-block"
+              >
+                Mi voz
+              </NavLink>
+            )}
             <NavLink
               href="/dashboard/billing"
               className="hidden rounded-md px-3 py-2 text-sm font-medium transition-colors sm:inline-block"
@@ -72,10 +91,12 @@ export default async function DashboardLayout({
           </nav>
         </div>
         <div className="border-t border-border px-4 py-2 sm:hidden">
-          <div className="flex gap-4 text-sm font-medium">
+          <div className="flex gap-4 overflow-x-auto whitespace-nowrap text-sm font-medium">
             <NavLink href="/dashboard" exact>
               Historial
             </NavLink>
+            {flags.textToSpeechEnabled && <NavLink href="/dashboard/tts">Texto a voz</NavLink>}
+            {canUseMyVoice(user) && <NavLink href="/dashboard/voices">Mi voz</NavLink>}
             <NavLink href="/dashboard/billing">Facturación</NavLink>
             {showLongFormDryRun && (
               <NavLink href="/dashboard/long-form/visual-test-v2">Dry Run Long Form</NavLink>

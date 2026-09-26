@@ -295,6 +295,37 @@ Se reutiliza el adaptador `src/lib/providers/video-gen/veo.ts`, el mismo del cli
 - **Tope de la prueba:** lo impone el registro durable (`ANIMATION_TOTAL_USD`).
 - **No se regenera el reel completo del faro** hasta revisar estos clips.
 
+## Medieval oscuro (sexto perfil) y coreografía de acciones
+
+Estado: implementado y probado con proveedores simulados; sin muestra real.
+
+- Perfil `medieval_dark` («Medieval oscuro»): fantasía medieval realista y
+  cinematográfica con imagen generada; negro, gris acero, sepia y colores
+  desaturados; metal envejecido, piedra, cuero y telas. No impone caballos,
+  batallas ni clima; sin texto, subtítulos ni marcos de película (negativos
+  del prompt). Estilo y movimiento siguen siendo ejes independientes.
+- Coreografía por escena (`planSceneAction`, `animation.ts`), compartida por
+  la ilustración base y el clip:
+  - pose inicial ANTERIOR a la acción (`actionStart`); la imagen base la
+    muestra sin que la acción haya empezado y deja espacio al destino;
+  - acción principal (`visibleAction`);
+  - estado final sostenido hasta el corte (`actionEnd`): nada se revierte,
+    reabre, repite ni vuelve en bucle (hallazgos: la puerta que se
+    reabría, el guardián que ya miraba por la ventana);
+  - restricciones de escena: fuego, destellos, humo, niebla, lluvia, nieve,
+    viento, polvo o explosiones solo si la escena los menciona (hallazgo:
+    el faro con llamas y destellos no pedidos), y ningún personaje, animal,
+    objeto o luz nuevos.
+  - El margen de cierre de 0,3 s y los mínimos de PR #15 no cambian.
+- El guion y la revisión admiten `actionStart`/`actionEnd` (validados, ≤160
+  caracteres); sin ellos se deriva una pose previa y un final estable.
+- Evidencia gratuita: casos `medieval` y `medieval-anim` en
+  `scripts/test-pipeline-audiovisual.ts` (el segundo con clips simulados).
+- Prueba real preparada, **no ejecutada**: caballero a caballo, 8 s
+  vertical, polvo y piedras pequeñas, patas, jinete y suelo visibles
+  (`scripts/reel-animation-clips.ts`, clip por defecto `medieval-horse`).
+  Las cuatro muestras ya generadas por Work no se repiten sin pedirlo.
+
 ## Segunda fase: YouTube Long Form
 
 - Los cinco perfiles llegarán a Long Form después, con ritmos de documental propios; no se reutiliza la tabla de ritmos de Reels.

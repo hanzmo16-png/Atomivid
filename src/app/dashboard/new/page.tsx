@@ -8,6 +8,8 @@ import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
 import { animationAvailabilityByDuration, profileAvailabilityByDuration } from "@/lib/video/audiovisual/readiness";
 import { ALLOWED_DURATIONS } from "./validation";
+import { listReadyUserVoices } from "@/lib/voices/user-voices";
+import { canUseMyVoice } from "@/lib/voices/access";
 
 const INCLUDES = [
   "Guion escrito por IA a partir de tu tema",
@@ -57,6 +59,11 @@ export default async function NewVideoPage({
     existingAvatars = data ?? [];
   }
 
+  // Selector de voz (catálogo + «Mi voz» propia). Apagado = voz de siempre, sin selector.
+  const voices = flags.voiceCatalogEnabled && user
+    ? { customVoices: canUseMyVoice(user) ? await listReadyUserVoices(auth, user.id).catch(() => []) : [] }
+    : undefined;
+
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="text-2xl font-bold text-ink">Generar nuevo video</h1>
@@ -89,6 +96,7 @@ export default async function NewVideoPage({
                 ? { availabilityByDuration: profileAvailabilityByDuration(ALLOWED_DURATIONS), animationByDuration: animationAvailabilityByDuration(ALLOWED_DURATIONS) }
                 : undefined
             }
+            voices={voices}
           />
         </Card>
 

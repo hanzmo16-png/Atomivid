@@ -1,0 +1,44 @@
+name: Voces del catálogo en My Voices
+
+# Plan (solo lectura) en cada PR que cambia el catálogo o el script.
+# Agregar voces solo a mano: workflow_dispatch con mode=add y confirm=true.
+# Agregar no sintetiza audio ni consume caracteres, y nunca elimina voces.
+on:
+  pull_request:
+    paths:
+      - 'scripts/elevenlabs-add-catalog-voices.ts'
+      - 'src/lib/voices/catalog.ts'
+      - '.github/workflows/voice-catalog-add.yml'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'plan (solo lectura) o add'
+        required: true
+        default: plan
+        type: choice
+        options: [plan, add]
+      confirm:
+        description: 'true para permitir agregar'
+        required: true
+        default: 'false'
+
+permissions:
+  contents: read
+
+jobs:
+  voices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Comprobar (y, si se pidió, agregar) las voces del catálogo
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'plan' }}
+          ADD_VOICES_CONFIRM: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm || 'false' }}
+        run: npx tsx scripts/elevenlabs-add-catalog-voices.ts

@@ -96,7 +96,7 @@ export function getFeatureFlags() {
     longFormAiVideoCostPreset: (process.env.LONG_FORM_AI_VIDEO_COST_PRESET || "balanced").trim(),
     /**
      * Dirección audiovisual en Reels (docs/AUDIOVISUAL_DIRECTION.md): muestra
-     * el selector de cinco perfiles y guarda la selección. Apagado por
+     * el selector de perfiles y guarda la selección. Apagado por
      * defecto; requiere la migración 0020 aplicada ANTES de encenderlo. Las
      * solicitudes creadas sin selección siguen el flujo anterior intacto.
      */
@@ -112,6 +112,32 @@ export function getFeatureFlags() {
      */
     reelAiAnimationEnabled: flag("REEL_AI_ANIMATION_ENABLED", false),
     maxAiAnimationCostUsd: numberEnv("MAX_AI_ANIMATION_COST_USD", 0),
+    /**
+     * Selector de voz (catálogo de cinco voces, src/lib/voices/catalog.ts) en
+     * los formularios de narración. Apagado = no se muestra y toda solicitud
+     * usa la voz de siempre (Mateo). Requiere la migración 0021.
+     */
+    voiceCatalogEnabled: flag("VOICE_CATALOG_ENABLED", false),
+    /** Sección «Texto a voz». Requiere la migración 0021 y el worker. */
+    textToSpeechEnabled: flag("TEXT_TO_SPEECH_ENABLED", false),
+    /**
+     * Límite inicial por pieza (caracteres). La cuenta de ElevenLabs verificada
+     * el 2026-09-26 es Starter: 38.002 caracteres/mes compartidos con toda la
+     * narración del producto; 3.000 ≈ 3-4 min de audio.
+     */
+    ttsMaxCharsPerPiece: numberEnv("TTS_MAX_CHARS_PER_PIECE", 3000),
+    /** Límite por usuario y mes calendario (caracteres de «Texto a voz»), para proteger la cuota compartida. */
+    ttsMaxCharsPerUserMonth: numberEnv("TTS_MAX_CHARS_PER_USER_MONTH", 6000),
+    /** «Mi voz» (clonación instantánea privada). Requiere la migración 0021 y el worker. */
+    myVoiceEnabled: flag("MY_VOICE_ENABLED", false),
+    /** Voces privadas por usuario (cada una ocupa uno de los 10 espacios de clonación de la cuenta Starter). */
+    maxUserVoicesPerUser: numberEnv("MAX_USER_VOICES_PER_USER", 1),
+    /**
+     * Voces privadas en TODA la cuenta durante el piloto. Los 10 espacios de
+     * clonación de ElevenLabs Starter son de la cuenta, no por usuaria; 3
+     * deja margen para revisar voces inciertas sin agotar la capacidad.
+     */
+    maxTotalUserVoices: numberEnv("MAX_TOTAL_USER_VOICES", 3),
   };
 }
 

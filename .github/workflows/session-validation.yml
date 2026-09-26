@@ -1,0 +1,94 @@
+name: Validación con sesión real (voces, Texto a voz, Mi voz)
+
+# Recorre un despliegue de prueba como una usuaria (scripts/session-validation.mjs).
+# Solo disparo manual; para poder dispararlo, este archivo debe existir en la
+# rama por defecto (ver docs/VOICES.md, «Activación»). Etapas pagas solo con
+# confirm=GASTAR; nunca reintenta sola.
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "URL del despliegue de prueba (Preview con migración 0021 y flags de prueba)"
+        required: true
+        type: string
+      stages:
+        description: "free | free,tts | free,tts,myvoice"
+        required: true
+        default: free
+        type: string
+      confirm:
+        description: "Escribe GASTAR para las etapas tts/myvoice"
+        required: false
+        default: ""
+        type: string
+      sample_storage_path:
+        description: "Ruta en Storage (bucket videos) de la muestra entregada y autorizada por su dueño (solo myvoice)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: session-validation
+  cancel-in-progress: false
+
+jobs:
+  session:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Verificar autorización
+        env:
+          STAGES: ${{ inputs.stages }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          case ",$STAGES," in *,tts,*|*,myvoice,*) [ "$CONFIRM" = GASTAR ] || { echo "Etapas pagas sin confirmación"; exit 1; };; esac
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm i --no-save playwright@1.56.1 && npx playwright install --with-deps chromium
+      - name: Muestras (solo myvoice)
+        if: contains(inputs.stages, 'myvoice')
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SAMPLE: ${{ inputs.sample_storage_path }}
+        run: |
+          test -n "$SAMPLE" || { echo "Falta sample_storage_path"; exit 1; }
+          node --input-type=module -e "
+            import fs from 'node:fs/promises';
+            import { createClient } from '@supabase/supabase-js';
+            const s = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+            const f = await s.storage.from('videos').download(process.env.SAMPLE);
+            if (f.error) throw new Error('No se pudo leer la muestra');
+            await fs.writeFile('/tmp/voice-sample', Buffer.from(await f.data.arrayBuffer()));"
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          ffmpeg -v error -f lavfi -i "sine=frequency=220:duration=5" -ac 1 /tmp/b-short.wav
+      - name: Recorrer la app
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          SESSION_STAGES: ${{ inputs.stages }}
+          SESSION_ALLOW_PAID: ${{ inputs.confirm == 'GASTAR' && 'true' || 'false' }}
+          USER_A_EMAIL: ${{ secrets.SESSION_USER_A_EMAIL }}
+          USER_A_PASSWORD: ${{ secrets.SESSION_USER_A_PASSWORD }}
+          USER_B_EMAIL: ${{ secrets.SESSION_USER_B_EMAIL }}
+          USER_B_PASSWORD: ${{ secrets.SESSION_USER_B_PASSWORD }}
+          USER_B_ALLOWLISTED: ${{ vars.SESSION_USER_B_ALLOWLISTED }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VOICE_SAMPLE_PATH: ${{ contains(inputs.stages, 'myvoice') && '/tmp/voice-sample' || '' }}
+          B_SHORT_SAMPLE_PATH: ${{ contains(inputs.stages, 'myvoice') && '/tmp/b-short.wav' || '' }}
+        run: node scripts/session-validation.mjs
+      - name: Publicar resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: session-validation-${{ github.run_id }}
+          path: evidence/session
+          if-no-files-found: warn
+          retention-days: 30
