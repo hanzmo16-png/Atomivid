@@ -210,3 +210,52 @@ export async function getVoiceCharacterQuota(): Promise<{ remaining: number; lim
     return null;
   }
 }
+
+/** Espacios de clonación de la cuenta (GET /v1/user/subscription, sin costo). null = no se pudo consultar. */
+export async function getVoiceCloneSlots(): Promise<{ used: number; limit: number } | null> {
+  if (!ELEVENLABS_API_KEY) return null;
+  try {
+    const res = await fetch("https://api.elevenlabs.io/v1/user/subscription", { headers: { "xi-api-key": ELEVENLABS_API_KEY } });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { voice_slots_used?: number; voice_limit?: number };
+    if (typeof data.voice_slots_used !== "number" || typeof data.voice_limit !== "number") return null;
+    return { used: data.voice_slots_used, limit: data.voice_limit };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Clonación instantánea (POST /v1/voices/add, multipart). Devuelve el
+ * voice_id nuevo. Los errores llevan el prefijo «ElevenLabs respondió
+ * <status>» (mismo formato que la síntesis) para clasificarlos: una
+ * respuesta HTTP de error = no se creó nada; un fallo de red o una
+ * respuesta sin voice_id = incierto.
+ */
+export async function addInstantVoiceClone(input: { name: string; description: string; audio: Buffer; filename: string; mimeType: string }): Promise<string> {
+  if (!ELEVENLABS_API_KEY) throw new Error("Falta configurar ELEVENLABS_API_KEY");
+  const form = new FormData();
+  form.append("name", input.name);
+  form.append("description", input.description);
+  form.append("remove_background_noise", "false");
+  form.append("files", new Blob([new Uint8Array(input.audio)], { type: input.mimeType }), input.filename);
+  const res = await fetch("https://api.elevenlabs.io/v1/voices/add", { method: "POST", headers: { "xi-api-key": ELEVENLABS_API_KEY }, body: form });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`ElevenLabs respondió ${res.status}: ${body.slice(0, 300)}`);
+  }
+  const data = (await res.json().catch(() => null)) as { voice_id?: string; requires_verification?: boolean } | null;
+  if (!data?.voice_id) throw new Error("Respuesta de clonación sin voice_id");
+  return data.voice_id;
+}
+
+/** Elimina una voz de la cuenta (DELETE /v1/voices/{id}). «not_found» si ya no existía. */
+export async function deleteProviderVoice(voiceId: string): Promise<"deleted" | "not_found"> {
+  if (!ELEVENLABS_API_KEY) throw new Error("Falta configurar ELEVENLABS_API_KEY");
+  const res = await fetch(`https://api.elevenlabs.io/v1/voices/${encodeURIComponent(voiceId)}`, { method: "DELETE", headers: { "xi-api-key": ELEVENLABS_API_KEY } });
+  if (res.ok) return "deleted";
+  const body = await res.text().catch(() => "");
+  // Solo «no existe» explícito; cualquier otro 400 (p. ej. no se puede borrar) es un error y la voz sigue en la cuenta.
+  if (res.status === 404 || (res.status === 400 && /not[_ ]found/i.test(body))) return "not_found";
+  throw new Error(`ElevenLabs respondió ${res.status}: ${body.slice(0, 300)}`);
+}

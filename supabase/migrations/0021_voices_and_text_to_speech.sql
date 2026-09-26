@@ -29,6 +29,8 @@ alter table public.video_requests
 create table if not exists public.user_voices (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
+  -- Doble envío del formulario = la misma voz (único por usuaria).
+  client_request_id uuid not null,
   name text not null check (char_length(name) between 1 and 40),
   status text not null default 'uploaded'
     check (status in ('uploaded', 'cloning', 'testing', 'ready', 'failed', 'deleting', 'deleted')),
@@ -45,9 +47,13 @@ create table if not exists public.user_voices (
   test_audio_path text,
   error_message text,
   attempts integer not null default 0,
+  -- true = la llamada de clonación pudo completarse sin confirmación
+  -- (timeout, respuesta rota): no se reintenta sola; se revisa a mano.
+  needs_review boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  deleted_at timestamptz
+  deleted_at timestamptz,
+  unique (user_id, client_request_id)
 );
 
 create unique index if not exists user_voices_provider_voice_id_key
