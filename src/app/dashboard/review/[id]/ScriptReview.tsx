@@ -17,6 +17,7 @@ export function ScriptReview({
   usesRecording = false,
   diagnosticRetry = false,
   entitlementBlockedReason,
+  animated = false,
 }: {
   requestId: string;
   status: string;
@@ -24,6 +25,8 @@ export function ScriptReview({
   errorMessage: string | null;
   usesRecording?: boolean;
   diagnosticRetry?: boolean;
+  /** «Animación IA»: muestra y permite editar la acción visible de cada escena. */
+  animated?: boolean;
   /**
    * QA blocker real (2026-09-25): "Generar video final" quedaba
    * visualmente habilitado para avatar aunque el plan del usuario no
@@ -51,7 +54,7 @@ export function ScriptReview({
   const editable = canGenerate && !usesRecording;
   const entitlementBlocked = Boolean(entitlementBlockedReason);
 
-  function updateScene(index: number, field: "text" | "visualQuery", value: string) {
+  function updateScene(index: number, field: "text" | "visualQuery" | "visibleAction", value: string) {
     setScript((prev) => ({
       ...prev,
       segments: prev.segments.map((s, i) => (i === index ? { ...s, [field]: value } : s)),
@@ -228,6 +231,22 @@ export function ScriptReview({
               disabled={!editable}
               className="mt-1 w-full rounded-md border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:opacity-60"
             />
+            {animated && (
+              <>
+                <label htmlFor={`action-${i}`} className="mt-2 block text-xs text-ink-faint">
+                  Acción visible de la animación (una sola, breve, en inglés)
+                </label>
+                <input
+                  id={`action-${i}`}
+                  value={scene.visibleAction ?? ""}
+                  maxLength={160}
+                  onChange={(e) => updateScene(i, "visibleAction", e.target.value)}
+                  disabled={!editable}
+                  placeholder="the keeper slams the iron door shut"
+                  className="mt-1 w-full rounded-md border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:opacity-60"
+                />
+              </>
+            )}
           </Card>
         ))}
       </div>}

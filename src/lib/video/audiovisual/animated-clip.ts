@@ -25,7 +25,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import sharp from "sharp";
 import { GenerativeProviderError, type GenerativeAsset, type VideoGenerationRequest, type VideoProvider } from "@/lib/providers/types";
-import { NotSentError, type FailureClass, type PaidLedger, type SettleOutcome } from "./paid-ledger";
+import { NotSentError, PaidBudgetExceededError, type FailureClass, type PaidLedger, type SettleOutcome } from "./paid-ledger";
 import { StorageStateUnknownError, readJsonState, uploadWithRetry, writeJsonState } from "./storage-state";
 import { REEL_ANIMATION, animatedClipObjectPrefix, animationClipCostUsd, type SceneAnimationSpec } from "./animation";
 
@@ -105,10 +105,29 @@ export function looksLikeMp4(buffer: Buffer): boolean {
 }
 
 /**
- * Imagen de entrada del clip: la ilustración base de la escena recortada a
- * 9:16 (1080×1920, centro) para que coincida con el formato pedido a Veo.
- * Gratis y determinista: se guarda una vez y se reutiliza.
+ * Imagen de entrada del clip en 9:16 (1080×1920) SIN perder contenido: la
+ * ilustración completa se escala para caber («contain») y se centra sobre un
+ * fondo hecho con la misma imagen ampliada y desenfocada (sin recortar
+ * nada de la ilustración). Gratis y determinista: se guarda una vez y se
+ * reutiliza. Devuelve también el rectángulo donde quedó la ilustración.
  */
+export const ANIMATION_INPUT_SIZE = { width: 1080, height: 1920 };
+
+export async function frameAnimationInput(source: Buffer): Promise<{ png: Buffer; content: { left: number; top: number; width: number; height: number } }> {
+  const { width: W, height: H } = ANIMATION_INPUT_SIZE;
+  const meta = await sharp(source).metadata();
+  if (!meta.width || !meta.height) throw new Error("La ilustración base no tiene dimensiones legibles");
+  const scale = Math.min(W / meta.width, H / meta.height);
+  const width = Math.round(meta.width * scale);
+  const height = Math.round(meta.height * scale);
+  const left = Math.floor((W - width) / 2);
+  const top = Math.floor((H - height) / 2);
+  const fg = await sharp(source).resize(width, height, { fit: "fill" }).png().toBuffer();
+  const bg = await sharp(source).resize(W, H, { fit: "cover" }).blur(40).modulate({ brightness: 0.7 }).png().toBuffer();
+  const png = await sharp(bg).composite([{ input: fg, left, top }]).png().toBuffer();
+  return { png, content: { left, top, width, height } };
+}
+
 export async function prepareAnimationInputImage(input: {
   supabase: SupabaseClient;
   bucket: string;
@@ -126,7 +145,7 @@ export async function prepareAnimationInputImage(input: {
   } else {
     const base = await storage.download(input.baseImagePath);
     if (base.error || !base.data) throw new StorageStateUnknownError("la ilustración base de la escena", base.error?.message ?? "vacía");
-    png = await sharp(Buffer.from(await base.data.arrayBuffer())).resize(1080, 1920, { fit: "cover", position: "centre" }).png().toBuffer();
+    png = (await frameAnimationInput(Buffer.from(await base.data.arrayBuffer()))).png;
     await uploadWithRetry(input.supabase, input.bucket, path, png, "image/png");
   }
   const { data, error } = await storage.createSignedUrl(path, input.signedUrlTtlSeconds);
@@ -154,6 +173,7 @@ export async function resolveAnimatedClipForScene({
   signedUrlTtlSeconds,
   ledger,
   attempt,
+  newOperationBudget,
 }: {
   supabase: SupabaseClient;
   bucket: string;
@@ -166,6 +186,12 @@ export async function resolveAnimatedClipForScene({
   signedUrlTtlSeconds: number;
   ledger?: PaidLedger;
   attempt?: number;
+  /**
+   * Tope propio de animación (acumulado entre intentos). Se exige SOLO al
+   * iniciar una operación pagada nueva: reutilizar un clip guardado o
+   * reanudar una operación ya enviada no gasta más y nunca se bloquea por él.
+   */
+  newOperationBudget?: { capUsd: number; committedUsd: () => number };
 }): Promise<AnimatedClipOutcome> {
   const prefix = animatedClipObjectPrefix(spec.sceneIndex, spec.key);
   const markerPath = animationMarkerPath(requestId, prefix);
@@ -228,6 +254,16 @@ export async function resolveAnimatedClipForScene({
   } else {
     if (marker.kind === "found" && marker.data.status !== "released") {
       throw new AnimatedClipUncertainError(prefix, marker.data.status, marker.data.note ?? "pudo cobrarse sin resultado guardado");
+    }
+    if (newOperationBudget) {
+      const committed = newOperationBudget.committedUsd();
+      const cost = animationClipCostUsd();
+      if (committed + cost > newOperationBudget.capUsd + 1e-9) {
+        throw new PaidBudgetExceededError(
+          `La animación de la escena ${spec.sceneIndex + 1} (~US$${cost.toFixed(2)}) superaría el tope de animación de este video ` +
+            `(US$${newOperationBudget.capUsd.toFixed(2)}; comprometido US$${committed.toFixed(2)}). No se llamó al proveedor.`,
+        );
+      }
     }
     let acceptedOperation: string | undefined;
     const call = async () => {

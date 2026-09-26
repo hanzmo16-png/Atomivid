@@ -26,7 +26,9 @@ type ClipCase = {
   intent: "suspense";
   energy: "low" | "high";
   topic: string;
-  segment: { text: string; visualQuery: string; visualConcepts?: string[] };
+  segment: { text: string; visualQuery: string; visualConcepts?: string[]; visibleAction: string };
+  /** Segundos del clip que se verían en el Reel: la acción debe completarse dentro de ellos. */
+  visibleSeconds: number;
 };
 
 const CASES: ClipCase[] = [
@@ -36,7 +38,8 @@ const CASES: ClipCase[] = [
     intent: "suspense",
     energy: "low",
     topic: "El faro",
-    segment: { text: "La luz del faro parpadeó una última vez sobre el mar en calma.", visualQuery: "old lighthouse at night", visualConcepts: ["old lighthouse at night", "lighthouse beam over dark sea"] },
+    segment: { text: "La luz del faro parpadeó una última vez sobre el mar en calma.", visualQuery: "old lighthouse at night", visualConcepts: ["old lighthouse at night", "lighthouse beam over dark sea"], visibleAction: "the lighthouse beam sweeps once across the sea and fades out" },
+    visibleSeconds: 5,
   },
   {
     id: "comic-action",
@@ -44,7 +47,8 @@ const CASES: ClipCase[] = [
     intent: "suspense",
     energy: "high",
     topic: "El faro",
-    segment: { text: "De pronto, la puerta de hierro se cerró de un golpe.", visualQuery: "iron door slamming shut", visualConcepts: ["iron door slamming shut", "lighthouse keeper startled"] },
+    segment: { text: "De pronto, la puerta de hierro se cerró de un golpe.", visualQuery: "iron door slamming shut", visualConcepts: ["iron door slamming shut", "lighthouse keeper startled"], visibleAction: "the heavy iron door swings and slams shut" },
+    visibleSeconds: 4,
   },
   {
     id: "anime-subtle",
@@ -52,7 +56,8 @@ const CASES: ClipCase[] = [
     intent: "suspense",
     energy: "low",
     topic: "El faro",
-    segment: { text: "La niebla avanzó lentamente por la escalera de caracol.", visualQuery: "fog on spiral stairway", visualConcepts: ["fog on spiral stairway", "dim lantern on stairs"] },
+    segment: { text: "La niebla avanzó lentamente por la escalera de caracol.", visualQuery: "fog on spiral stairway", visualConcepts: ["fog on spiral stairway", "dim lantern on stairs"], visibleAction: "fog creeps down three steps of the stairway" },
+    visibleSeconds: 5,
   },
   {
     id: "anime-action",
@@ -60,7 +65,8 @@ const CASES: ClipCase[] = [
     intent: "suspense",
     energy: "high",
     topic: "El faro",
-    segment: { text: "El guardián giró de golpe hacia la ventana rota.", visualQuery: "keeper turning to broken window", visualConcepts: ["keeper turning to broken window", "shattered lighthouse window"] },
+    segment: { text: "El guardián giró de golpe hacia la ventana rota.", visualQuery: "keeper turning to broken window", visualConcepts: ["keeper turning to broken window", "shattered lighthouse window"], visibleAction: "the keeper turns his head sharply toward the window" },
+    visibleSeconds: 4,
   },
 ];
 
@@ -76,13 +82,18 @@ async function main() {
   });
   const reuse = (id: string) => process.env[`ANIMATION_INPUT_${id.toUpperCase().replace(/-/g, "_")}`]?.trim() || null;
   const clipCost = animationClipCostUsd();
+  // Cada acción debe caber en lo que se ve del clip: se comprueba aquí, antes de cualquier gasto.
+  for (const c of selected) {
+    const bible = buildContinuityBible({ profile: c.profile, intent: c.intent, topic: c.topic, scenes: [c.segment] });
+    planSceneAnimation({ sceneIndex: 0, segment: c.segment, energy: c.energy, intent: c.intent, bible, referenceImagePath: "plan-check", referenceImageKey: "plan-check", visibleSeconds: c.visibleSeconds });
+  }
   const newImages = selected.filter((c) => !reuse(c.id)).length;
   const plan = {
     model: REEL_ANIMATION.model,
     modality: "image-to-video (imagen de entrada real)",
     resolution: REEL_ANIMATION.resolution,
     aspectRatio: REEL_ANIMATION.aspectRatio,
-    clips: selected.map((c) => ({ id: c.id, profile: c.profile, energy: c.energy, inputImage: reuse(c.id) ?? "nueva" })),
+    clips: selected.map((c) => ({ id: c.id, profile: c.profile, energy: c.energy, action: c.segment.visibleAction, visibleSeconds: c.visibleSeconds, inputImage: reuse(c.id) ?? "nueva" })),
     billableVideoSeconds: selected.length * REEL_ANIMATION.clipSeconds,
     videoUsd: Math.round(selected.length * clipCost * 100) / 100,
     newImages,
@@ -137,8 +148,8 @@ async function main() {
       });
       base = { path: image.path, key: prompt.key };
     }
-    const spec = planSceneAnimation({ sceneIndex: 0, segment: c.segment, energy: c.energy, intent: c.intent, bible, referenceImagePath: base.path, referenceImageKey: base.key });
-    console.log(`@@SPEC ${JSON.stringify({ id: c.id, subject: spec.subject, action: spec.action, camera: spec.camera, key: spec.key })}`);
+    const spec = planSceneAnimation({ sceneIndex: 0, segment: c.segment, energy: c.energy, intent: c.intent, bible, referenceImagePath: base.path, referenceImageKey: base.key, visibleSeconds: c.visibleSeconds });
+    console.log(`@@SPEC ${JSON.stringify({ id: c.id, subject: spec.subject, action: spec.action, visibleSeconds: spec.visibleSeconds, camera: spec.camera, key: spec.key })}`);
     const input = await prepareAnimationInputImage({ supabase: service, bucket: BUCKET, requestId: `${scope}/${c.id}`, baseImagePath: base.path, objectPrefix: `scene-0-anim-${spec.key}`, signedUrlTtlSeconds: 3600 });
     const clip = await resolveAnimatedClipForScene({
       supabase: service,

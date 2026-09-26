@@ -132,6 +132,7 @@ export default async function ReviewPage({
         requestId={data.id}
         status={data.status}
         initialScript={data.script_json}
+        animated={directionPanel?.selection.motion === "ai_animation"}
         errorMessage={data.error_message}
         usesRecording={Boolean(data.recorded_audio_path)}
         entitlementBlockedReason={avatarEntitlementBlockedReason}

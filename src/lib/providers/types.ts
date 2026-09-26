@@ -28,6 +28,12 @@ export type ScriptScene = {
   energy?: SceneEnergy;
   /** Palabras de esta escena que deben recibir énfasis visual en los subtítulos (ver caption-emphasis.ts). */
   emphasisWords?: string[];
+  /**
+   * «Animación IA»: la acción visible concreta de la escena (en inglés), que
+   * el clip debe completar dentro de la duración visible del plano. Opcional
+   * en el guion; obligatoria para animar (readiness.ts la exige).
+   */
+  visibleAction?: string;
 };
 
 export type GeneratedScript = {

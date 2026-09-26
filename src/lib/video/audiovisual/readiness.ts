@@ -13,7 +13,8 @@ import { MUSIC_DIRECTIONS, PROFILES, motionModeOf, type MotionMode, type MusicCh
 import { veoVideoProvider } from "@/lib/providers/video-gen/veo";
 import { fixtureAnimationProvider } from "@/lib/providers/video-gen/fixture-animation";
 import type { VideoProvider } from "@/lib/providers/types";
-import { REEL_ANIMATION, animationClipCostUsd, scenesTooLongForClip } from "./animation";
+import { MIN_ACTION_SECONDS, REEL_ANIMATION, animationClipCostUsd, scenesMissingAction, scenesTooLongForClip, scenesTooShortForAction } from "./animation";
+import type { SceneEnergy } from "./direction";
 import { compatibleTrackCount } from "./music";
 import { checkVisualAvailability, type VisualAvailability } from "./visuals";
 
@@ -38,7 +39,7 @@ export function usableAnimationProvider(env: NodeJS.ProcessEnv = process.env): s
 
 export type AnimationAvailability =
   | { ok: true; clips: number; clipSeconds: number; clipCostUsd: number; estimatedUsd: number; maxCostUsd: number; provider: string; model: string }
-  | { ok: false; code: "animation_disabled" | "provider_unavailable" | "no_budget" | "over_budget" | "scene_too_long"; message: string; recovery: string; estimatedUsd?: number };
+  | { ok: false; code: "animation_disabled" | "provider_unavailable" | "no_budget" | "over_budget" | "scene_too_long" | "scene_too_short" | "action_missing"; message: string; recovery: string; estimatedUsd?: number };
 
 /**
  * ¿Se puede animar este Reel? Se evalúa en el formulario (estimación),
@@ -48,6 +49,10 @@ export type AnimationAvailability =
 export function checkAnimationAvailability(input: {
   sceneCount: number;
   sceneTexts?: string[];
+  /** Acción visible declarada por escena (obligatoria para animar). */
+  sceneActions?: (string | undefined)[];
+  /** Energía por escena: fija los segundos mínimos para completar su acción. */
+  sceneEnergy?: (SceneEnergy | undefined)[];
   enabled: boolean;
   provider: string | null;
   maxCostUsd: number;
@@ -78,6 +83,26 @@ export function checkAnimationAvailability(input: {
       estimatedUsd,
     };
   }
+  const short = input.sceneTexts ? scenesTooShortForAction(input.sceneTexts.map((text) => ({ text })), input.sceneEnergy) : [];
+  if (short.length > 0) {
+    return {
+      ok: false,
+      code: "scene_too_short",
+      message: `La escena ${short.map((i) => `${i + 1} (necesita ~${MIN_ACTION_SECONDS[input.sceneEnergy?.[i] ?? "medium"].toFixed(1)} s)`).join(", ")} es demasiado corta para completar su acción animada.`,
+      recovery: "Alarga o une esa escena en la revisión del guion. Un clip nunca se acelera ni se congela para disimularlo.",
+      estimatedUsd,
+    };
+  }
+  const missing = input.sceneActions ? scenesMissingAction(input.sceneActions.map((visibleAction) => ({ visibleAction }))) : [];
+  if (missing.length > 0) {
+    return {
+      ok: false,
+      code: "action_missing",
+      message: `La escena ${missing.map((i) => i + 1).join(", ")} no declara la acción visible que debe animarse.`,
+      recovery: "Escribe en la revisión del guion una acción concreta y breve por escena (qué se mueve y cómo), o elige «Imágenes».",
+      estimatedUsd,
+    };
+  }
   return { ok: true, clips: input.sceneCount, clipSeconds: REEL_ANIMATION.clipSeconds, clipCostUsd, estimatedUsd, maxCostUsd: input.maxCostUsd, provider: input.provider, model: REEL_ANIMATION.model };
 }
 
@@ -100,6 +125,9 @@ export function evaluateDirectionReadiness(input: {
   motion?: MotionMode;
   /** Narración de cada escena (duración estimada de los clips animados). */
   sceneTexts?: string[];
+  /** Acción visible declarada por escena (solo «Animación IA»). */
+  sceneActions?: (string | undefined)[];
+  sceneEnergy?: (SceneEnergy | undefined)[];
   animationProvider?: string | null;
 }): DirectionReadiness {
   const flags = input.flags ?? getFeatureFlags();
@@ -124,6 +152,8 @@ export function evaluateDirectionReadiness(input: {
     animation = checkAnimationAvailability({
       sceneCount: input.sceneCount,
       sceneTexts: input.sceneTexts,
+      sceneActions: input.sceneActions,
+      sceneEnergy: input.sceneEnergy,
       enabled: flags.reelAiAnimationEnabled,
       provider: input.animationProvider === undefined ? usableAnimationProvider() : input.animationProvider,
       maxCostUsd: flags.maxAiAnimationCostUsd,
@@ -245,8 +275,8 @@ export function getReelAnimationProvider(): VideoProvider | null {
 
 /** Disponibilidad de una dirección resuelta con las escenas reales del guion (incluye «Animación IA» si se eligió). */
 export function readinessForScript(
-  direction: { profile: ProfileId; music: { id: MusicChoice }; selection: { motion?: "ai_animation" } },
-  segments: { text: string }[],
+  direction: { profile: ProfileId; music: { id: MusicChoice }; selection: { motion?: "ai_animation" }; sceneEnergy?: SceneEnergy[] },
+  segments: { text: string; visibleAction?: string }[],
 ): DirectionReadiness {
   return evaluateDirectionReadiness({
     profile: direction.profile,
@@ -254,5 +284,7 @@ export function readinessForScript(
     sceneCount: segments.length,
     motion: motionModeOf(direction.selection),
     sceneTexts: segments.map((s) => s.text),
+    sceneActions: segments.map((s) => s.visibleAction),
+    sceneEnergy: direction.sceneEnergy,
   });
 }

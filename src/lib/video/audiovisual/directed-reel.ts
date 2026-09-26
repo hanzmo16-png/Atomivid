@@ -44,8 +44,10 @@ import {
   animationClipCostUsd,
   buildAnimationBaseImagePrompt,
   buildContinuityBible,
+  AnimationPlanError,
   planAnimatedShots,
   planSceneAnimation,
+  type SceneAnimationSpec,
 } from "./animation";
 import { AnimatedClipUncertainError, prepareAnimationInputImage, resolveAnimatedClipForScene } from "./animated-clip";
 import { buildStyledImagePrompt, reelLookFor, stockConceptsFor, styledImageObjectPrefix } from "./visuals";
@@ -114,6 +116,8 @@ export async function generateDirectedVideoFromScript({
     flags,
     motion: animated ? "ai_animation" : "images",
     sceneTexts: segments.map((s) => s.text),
+    sceneActions: segments.map((s) => s.visibleAction),
+    sceneEnergy: direction.sceneEnergy,
     ...(deps?.animationProvider !== undefined ? { animationProvider: deps.animationProvider?.name ?? null } : {}),
   });
   if (!readiness.ok) throw new DirectedProductionError(readinessErrorMessage(readiness));
@@ -238,11 +242,24 @@ export async function generateDirectedVideoFromScript({
     // Un plano continuo por escena (el clip animado). Si una escena necesita
     // más que un clip, se detiene ANTES de pagar la animación: nunca se
     // congela el último fotograma ni se ralentiza para rellenar.
-    const plan = planAnimatedShots({ sceneSpans: coverScenes(sceneTimings, finalDurationSeconds), transitionInFrames: TRANSITION_FRAMES[direction.intent.id], fps: REEL_FPS });
+    const plan = planAnimatedShots({
+      sceneSpans: coverScenes(sceneTimings, finalDurationSeconds),
+      transitionInFrames: TRANSITION_FRAMES[direction.intent.id],
+      fps: REEL_FPS,
+      sceneEnergy: direction.sceneEnergy,
+    });
     if (plan.tooLong.length > 0) {
       throw new DirectedProductionError(
         `La narración de la escena ${plan.tooLong.map((t) => `${t.sceneIndex + 1} (${t.neededSeconds.toFixed(1)} s)`).join(", ")} supera un clip animado de ${REEL_ANIMATION.clipSeconds} s. ` +
           "Divide esa escena en la revisión del guion. No se generó ninguna animación.",
+      );
+    }
+    // Una acción que no cabe en lo que se ve del plano se bloquea aquí, antes
+    // de pagar: no se acelera ni se congela el clip para disimularlo.
+    if (plan.tooShort.length > 0) {
+      throw new DirectedProductionError(
+        `La escena ${plan.tooShort.map((t) => `${t.sceneIndex + 1} (se ve ${t.visibleSeconds.toFixed(1)} s; su acción necesita ${t.minimumSeconds.toFixed(1)} s)`).join(", ")} es demasiado corta para completar su acción. ` +
+          "Alarga o une esa escena en la revisión del guion. No se generó ninguna animación.",
       );
     }
     shots = plan.shots.map((shot) => ({ ...shot, role: shot.sceneIndex === 0 ? "hook" : "normal" }));
@@ -271,29 +288,39 @@ export async function generateDirectedVideoFromScript({
   const clips = new Map<number, { url: string; status: string; costUsd: number }>();
   if (animated && animationProvider && bible) {
     const clipCost = animationClipCostUsd();
+    // Todos los planes ANTES del primer clip: una escena inválida no deja
+    // clips anteriores pagados a medias.
+    const specs: SceneAnimationSpec[] = [];
     for (let i = 0; i < segments.length; i++) {
       const base = styledImages.get(i);
       if (!base) throw new DirectedProductionError(`Falta la ilustración base de la escena ${i + 1}; no se anima sin imagen de entrada.`);
-      const spec = planSceneAnimation({
-        sceneIndex: i,
-        segment: segments[i],
-        energy: direction.sceneEnergy[i] ?? "medium",
-        intent: direction.intent.id,
-        bible,
-        referenceImagePath: base.path,
-        referenceImageKey: base.key,
-      });
+      const shot = shots.find((s) => s.sceneIndex === i);
+      if (!shot) throw new DirectedProductionError(`La escena ${i + 1} no tiene plano en el montaje; no se anima.`);
+      try {
+        specs.push(
+          planSceneAnimation({
+            sceneIndex: i,
+            segment: segments[i],
+            energy: direction.sceneEnergy[i] ?? "medium",
+            intent: direction.intent.id,
+            bible,
+            referenceImagePath: base.path,
+            referenceImageKey: base.key,
+            visibleSeconds: shot.endSeconds - shot.startSeconds,
+          }),
+        );
+      } catch (err) {
+        if (err instanceof AnimationPlanError) throw new DirectedProductionError(`${err.message} No se generó ninguna animación.`);
+        throw err;
+      }
+    }
+    for (let i = 0; i < segments.length; i++) {
+      const base = styledImages.get(i)!;
+      const spec = specs[i];
       console.log(
         "[atomivid:animation-plan]",
-        JSON.stringify({ requestId, scene: i, subject: spec.subject, action: spec.action, startState: spec.startState, endState: spec.endState, reference: spec.referenceImagePath, constants: spec.constants, framing: spec.framing, camera: spec.camera, key: spec.key }),
+        JSON.stringify({ requestId, scene: i, subject: spec.subject, action: spec.action, visibleSeconds: spec.visibleSeconds, startState: spec.startState, endState: spec.endState, reference: spec.referenceImagePath, constants: spec.constants, framing: spec.framing, camera: spec.camera, key: spec.key }),
       );
-      // Tope de animación ACUMULADO entre intentos (registro durable).
-      const spentOnVideo = ledger.summary().byKind.video?.usd ?? 0;
-      if (spentOnVideo + clipCost > flags.maxAiAnimationCostUsd + 1e-9) {
-        throw new DirectedProductionError(
-          `La animación de la escena ${i + 1} (~US$${clipCost.toFixed(2)}) superaría el tope de animación de este video (US$${flags.maxAiAnimationCostUsd.toFixed(2)}; comprometido US$${spentOnVideo.toFixed(2)}). No se llamó al proveedor.`,
-        );
-      }
       try {
         const input = await prepareAnimationInputImage({
           supabase,
@@ -314,6 +341,9 @@ export async function generateDirectedVideoFromScript({
           signedUrlTtlSeconds: ASSET_SIGNED_URL_TTL_SECONDS,
           ledger,
           attempt,
+          // Tope de animación ACUMULADO entre intentos, exigido solo al iniciar
+          // una operación nueva (reutilizar o reanudar no gasta más).
+          newOperationBudget: { capUsd: flags.maxAiAnimationCostUsd, committedUsd: () => ledger.summary().byKind.video?.usd ?? 0 },
         });
         storageBytes += clip.bufferBytes;
         clips.set(i, { url: clip.url, status: clip.status, costUsd: clip.costUsd });

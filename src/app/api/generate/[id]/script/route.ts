@@ -41,6 +41,8 @@ type VideoRequestRow = {
 const MAX_SEGMENTS = 20;
 const MAX_SCENE_TEXT_LENGTH = 800;
 const MAX_VISUAL_QUERY_LENGTH = 200;
+// «Animación IA»: una acción concreta y breve por escena (ver ScriptScene.visibleAction).
+const MAX_VISIBLE_ACTION_LENGTH = 160;
 
 async function loadOwnedRequest(id: string, userId: string) {
   const service = createServiceClient();
@@ -241,6 +243,12 @@ export async function PATCH(
     if (segment.visualQuery.length > MAX_VISUAL_QUERY_LENGTH) {
       return NextResponse.json(
         { error: `La búsqueda visual no puede superar ${MAX_VISUAL_QUERY_LENGTH} caracteres` },
+        { status: 400 },
+      );
+    }
+    if (segment.visibleAction !== undefined && (typeof segment.visibleAction !== "string" || segment.visibleAction.length > MAX_VISIBLE_ACTION_LENGTH)) {
+      return NextResponse.json(
+        { error: `La acción visible de una escena debe ser texto de hasta ${MAX_VISIBLE_ACTION_LENGTH} caracteres` },
         { status: 400 },
       );
     }

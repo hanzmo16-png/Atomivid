@@ -21,6 +21,7 @@
 import { createHash } from "node:crypto";
 import { VEO_DURATION_SECONDS_1080P, VEO_MODEL, VEO_TARGET_RESOLUTION, getVeoCostUsdPerSecond } from "@/lib/providers/video-gen/veo";
 import type { ScriptScene } from "@/lib/providers/types";
+import { WORDS_PER_SECOND } from "@/lib/video/script-pacing";
 import { PROFILES, type IntentId, type ProfileId } from "./catalog";
 import type { SceneEnergy } from "./direction";
 import { INTENT_LIGHTING } from "./visuals";
@@ -116,11 +117,36 @@ export function buildAnimationBaseImagePrompt(input: {
   return { prompt, negativePrompt: negative, key };
 }
 
-const ACTION_BY_ENERGY: Record<SceneEnergy, string> = {
-  low: "one slow, subtle movement (for example drifting fog, a flickering light, a slow turn of the head, water or cloth moving)",
-  medium: "one clear natural action at a moderate pace",
-  high: "one decisive, fast action that reaches its peak before the end",
+/** Ritmo de la acción según la energía de la escena (la acción en sí la declara el guion). */
+const PACE_BY_ENERGY: Record<SceneEnergy, string> = {
+  low: "slow and subtle",
+  medium: "natural, moderate pace",
+  high: "fast and decisive",
 };
+
+/**
+ * Segundos visibles mínimos para que una acción se entienda completa (una
+ * acción lenta necesita más). Si el plano visible es más corto, se bloquea
+ * antes de pagar el clip: nunca se acelera ni se congela para disimularlo.
+ */
+export const MIN_ACTION_SECONDS: Record<SceneEnergy, number> = { low: 2.5, medium: 2.0, high: 1.5 };
+
+/**
+ * Escenas cuya narración, al ritmo habitual de la voz, se vería menos que
+ * el mínimo de su acción. Es una ESTIMACIÓN antes de pagar nada; la
+ * comprobación exacta ocurre con los tiempos reales de la voz, antes del
+ * primer clip.
+ */
+export function scenesTooShortForAction(scenes: { text: string }[], sceneEnergy: (SceneEnergy | undefined)[] = []): number[] {
+  return scenes
+    .map((s, i) => (s.text.split(/\s+/).filter(Boolean).length / WORDS_PER_SECOND + 1e-6 < MIN_ACTION_SECONDS[sceneEnergy[i] ?? "medium"] ? i : -1))
+    .filter((i) => i >= 0);
+}
+
+/** Escenas sin acción visible declarada (obligatoria para animar). */
+export function scenesMissingAction(scenes: { visibleAction?: string }[]): number[] {
+  return scenes.map((s, i) => (s.visibleAction && s.visibleAction.trim().length >= 3 ? -1 : i)).filter((i) => i >= 0);
+}
 
 const CAMERA_BY_INTENT: Record<IntentId, string> = {
   suspense: "static camera or a very slow push-in",
@@ -136,7 +162,10 @@ export type SceneAnimationSpec = {
   sceneIndex: number;
   narration: string;
   subject: string;
+  /** Acción visible concreta declarada para la escena (guion o revisión). */
   action: string;
+  /** Segundos del clip que se ven en el montaje: la acción debe completarse dentro de ellos. */
+  visibleSeconds: number;
   startState: string;
   endState: string;
   /** Ilustración base de ESTA escena (ruta en Storage): la imagen de entrada real del clip. */
@@ -154,27 +183,54 @@ export const ANIMATION_NEGATIVE =
   "text, captions, subtitles, letters, logos, watermark, speech, talking, dialogue, lip sync, singing, music, scene cuts, " +
   "change of art style, photorealism change, morphing, melting shapes, extra limbs, distorted faces, new characters appearing";
 
+export class AnimationPlanError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AnimationPlanError";
+  }
+}
+
 export function planSceneAnimation(input: {
   sceneIndex: number;
-  segment: Pick<ScriptScene, "text" | "visualQuery" | "visualConcepts">;
+  segment: Pick<ScriptScene, "text" | "visualQuery" | "visualConcepts" | "visibleAction">;
   energy: SceneEnergy;
   intent: IntentId;
   bible: ContinuityBible;
   referenceImagePath: string;
   /** Huella de la ilustración base (su clave de caché): un cambio de imagen produce otro clip. */
   referenceImageKey: string;
+  /** Segundos del plano que se ven en el montaje (el resto del clip se recorta). */
+  visibleSeconds: number;
 }): SceneAnimationSpec {
+  const declared = input.segment.visibleAction?.trim();
+  if (!declared || declared.length < 3) {
+    throw new AnimationPlanError(`La escena ${input.sceneIndex + 1} no declara una acción visible concreta; no se anima sin ella.`);
+  }
+  const visibleSeconds = Math.round(input.visibleSeconds * 10) / 10;
+  const minimum = MIN_ACTION_SECONDS[input.energy];
+  if (visibleSeconds < minimum) {
+    throw new AnimationPlanError(
+      `La escena ${input.sceneIndex + 1} solo se ve ${visibleSeconds.toFixed(1)} s y su acción necesita al menos ${minimum.toFixed(1)} s. ` +
+        "Alarga o une la escena en la revisión del guion; no se acelera ni se congela para disimularlo.",
+    );
+  }
+  if (visibleSeconds > REEL_ANIMATION.clipSeconds) {
+    throw new AnimationPlanError(`La escena ${input.sceneIndex + 1} se ve ${visibleSeconds.toFixed(1)} s, más que un clip de ${REEL_ANIMATION.clipSeconds} s.`);
+  }
   const narration = clean(input.segment.text, 280);
   const subject = clean(input.segment.visualConcepts?.[0] ?? input.segment.visualQuery, 120);
-  const action = `${ACTION_BY_ENERGY[input.energy]}, matching the narration`;
+  const action = clean(declared, 160);
+  const completeBy = Math.max(minimum, Math.round((visibleSeconds - 0.3) * 10) / 10);
   const startState = "exactly the input image: same composition, same subject, same style";
-  const endState = "the same composition with that single action completed; no new characters or objects enter";
-  const framing = "keep the whole subject inside the frame and in the upper two thirds; keep the bottom third free for subtitles";
+  const endState = `the action "${action}" fully completed by second ${completeBy.toFixed(1)}; same composition, no new characters or objects`;
+  const framing =
+    "the illustration is centered; blurred bands above and below it are background and must stay still; keep the whole subject inside the illustration area, in its upper two thirds; keep the bottom third free for subtitles";
   const camera = CAMERA_BY_INTENT[input.intent];
   const prompt =
     `Animate this illustration with real motion inside the scene. Subject: ${subject}. ` +
-    `Visible action: ${action}: "${narration}". ` +
-    `Sequence: starts as ${startState}; ends with ${endState}. ` +
+    `The ONLY visible action: ${action} (${PACE_BY_ENERGY[input.energy]}). Story moment (do not render as text): "${narration}". ` +
+    `Timing: the action starts immediately and is fully completed by second ${completeBy.toFixed(1)}; the shot is cut at second ${visibleSeconds.toFixed(1)}, so nothing important may happen after that. ` +
+    `After completing it keep only subtle ambient motion. Sequence: starts as ${startState}; ends with ${endState}. ` +
     `Camera: ${camera}. Single continuous shot, no cuts. Framing: ${framing}. ` +
     `${input.bible.text} Do not change the drawing style of the input image. No speech, no dialogue, no music.`;
   const key = createHash("sha256")
@@ -196,6 +252,7 @@ export function planSceneAnimation(input: {
     narration,
     subject,
     action,
+    visibleSeconds,
     startState,
     endState,
     referenceImagePath: input.referenceImagePath,
@@ -223,7 +280,13 @@ export function planAnimatedShots(input: {
   transitionInFrames: number;
   fps: number;
   clipSeconds?: number;
-}): { shots: { sceneIndex: number; beatIndex: number; startSeconds: number; endSeconds: number; motion: "hold"; transitionInFrames: number }[]; tooLong: { sceneIndex: number; neededSeconds: number }[] } {
+  /** Energía por escena: fija los segundos visibles mínimos para que su acción se complete. */
+  sceneEnergy?: SceneEnergy[];
+}): {
+  shots: { sceneIndex: number; beatIndex: number; startSeconds: number; endSeconds: number; motion: "hold"; transitionInFrames: number }[];
+  tooLong: { sceneIndex: number; neededSeconds: number }[];
+  tooShort: { sceneIndex: number; visibleSeconds: number; minimumSeconds: number }[];
+} {
   const clipSeconds = input.clipSeconds ?? REEL_ANIMATION.clipSeconds;
   const shots = input.sceneSpans.map((span, i) => {
     const prev = input.sceneSpans[i - 1];
@@ -240,5 +303,8 @@ export function planAnimatedShots(input: {
   const tooLong = shots
     .map((s, i) => ({ sceneIndex: s.sceneIndex, neededSeconds: s.endSeconds - s.startSeconds + (shots[i + 1]?.transitionInFrames ?? 0) / input.fps }))
     .filter((x) => x.neededSeconds > clipSeconds + 1e-6);
-  return { shots, tooLong };
+  const tooShort = shots
+    .map((s) => ({ sceneIndex: s.sceneIndex, visibleSeconds: s.endSeconds - s.startSeconds, minimumSeconds: MIN_ACTION_SECONDS[input.sceneEnergy?.[s.sceneIndex] ?? "medium"] }))
+    .filter((x) => x.visibleSeconds + 1e-6 < x.minimumSeconds);
+  return { shots, tooLong, tooShort };
 }
