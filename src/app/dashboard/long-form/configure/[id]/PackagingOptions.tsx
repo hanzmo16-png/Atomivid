@@ -80,7 +80,7 @@ function OptionEditor({
 
           <div>
             <label htmlFor={`${id}-title`} className="text-sm font-medium text-ink">
-              Título <span className="font-normal text-ink-faint">({option.title.replace(/\*/g, "").length}/{rules.maxTitleChars})</span>
+              Título principal (grande) <span className="font-normal text-ink-faint">({option.title.replace(/\*/g, "").length}/{rules.maxTitleChars})</span>
             </label>
             <input
               id={`${id}-title`}
@@ -91,12 +91,12 @@ function OptionEditor({
               onChange={(e) => onChange({ ...option, title: e.target.value })}
               className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink"
             />
-            <p className="mt-1 text-xs text-ink-faint">Rodea con * la palabra clave para resaltarla (p. ej. «Cavar una *montaña*»). Solo afirmaciones que el video sostenga.</p>
+            <p className="mt-1 text-xs text-ink-faint">Pon aquí el tema que debe leerse primero, por ejemplo «Canal de *Panamá*». Rodea con * la palabra que quieras resaltar.</p>
           </div>
 
           <div>
             <label htmlFor={`${id}-kicker`} className="text-sm font-medium text-ink">
-              Antetítulo (opcional)
+              Frase secundaria (pequeña, opcional)
             </label>
             <input
               id={`${id}-kicker`}
@@ -106,8 +106,9 @@ function OptionEditor({
               disabled={disabled}
               onChange={(e) => onChange({ ...option, kicker: e.target.value })}
               className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink"
-              placeholder="Tema o fechas, p. ej. «Canal de Panamá · 1881–1914»"
+              placeholder="Por ejemplo: Cavando una montaña"
             />
+            <p className="mt-1 text-xs text-ink-faint">Complementa el título con una frase breve que el video sostenga. Aparece en la franja sobre el título principal.</p>
           </div>
 
           <CoverPreview spec={toCoverSpec(option)} canvas={copy.canvas} onIssues={handleIssues} />

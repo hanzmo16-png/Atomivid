@@ -21,6 +21,9 @@ test("por defecto: ambas activadas en canales propios, ambas desactivadas para o
   assert.equal(other.cover.enabled || other.thumbnail.enabled, false);
   assert.ok(own.cover.title.length <= COVER_CANVAS.video.maxTitleChars);
   assert.ok(own.thumbnail.title.length <= COVER_CANVAS.thumbnail.maxTitleChars);
+  assert.equal(own.cover.title, "Canal de Panamá");
+  assert.equal(own.thumbnail.title, "Canal de Panamá", "no se corta el nombre del tema");
+  assert.equal(validatePackagingInput(own).ok, true);
 });
 
 test("título sugerido: antes de «:» y recortado en límite de palabra", () => {

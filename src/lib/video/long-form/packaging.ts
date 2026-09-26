@@ -38,7 +38,10 @@ export function isOwnChannelAccount(user: { email?: string | null } | null, env:
 export function suggestTitle(topic: string, maxChars: number): string {
   const clean = topic.replace(/\s+/g, " ").replace(/[*]/g, "").trim();
   const beforeColon = clean.split(/[:—–|]/)[0].trim();
-  const base = beforeColon.length >= 3 ? beforeColon : clean;
+  const candidate = beforeColon.length >= 3 ? beforeColon : clean;
+  // Preserve the subject instead of cutting its name after a generic intro.
+  const subject = candidate.replace(/^c[oó]mo se (?:construy[oó]|cre[oó]|fund[oó])\s+(?:(?:el|la|los|las)\s+)?/i, "");
+  const base = subject.length >= 3 ? subject.charAt(0).toLocaleUpperCase("es") + subject.slice(1) : candidate;
   if (base.length <= maxChars) return base;
   const words = base.split(" ");
   let out = "";
