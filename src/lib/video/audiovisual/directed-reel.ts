@@ -258,7 +258,7 @@ export async function generateDirectedVideoFromScript({
     // de pagar: no se acelera ni se congela el clip para disimularlo.
     if (plan.tooShort.length > 0) {
       throw new DirectedProductionError(
-        `La escena ${plan.tooShort.map((t) => `${t.sceneIndex + 1} (se ve ${t.visibleSeconds.toFixed(1)} s; su acción necesita ${t.minimumSeconds.toFixed(1)} s)`).join(", ")} es demasiado corta para completar su acción. ` +
+        `La escena ${plan.tooShort.map((t) => `${t.sceneIndex + 1} (se ve ${t.visibleSeconds.toFixed(1)} s; su acción necesita ${t.requiredSeconds.toFixed(1)} s con el margen de cierre)`).join(", ")} es demasiado corta para completar su acción. ` +
           "Alarga o une esa escena en la revisión del guion. No se generó ninguna animación.",
       );
     }

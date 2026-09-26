@@ -13,7 +13,7 @@ import { MUSIC_DIRECTIONS, PROFILES, motionModeOf, type MotionMode, type MusicCh
 import { veoVideoProvider } from "@/lib/providers/video-gen/veo";
 import { fixtureAnimationProvider } from "@/lib/providers/video-gen/fixture-animation";
 import type { VideoProvider } from "@/lib/providers/types";
-import { MIN_ACTION_SECONDS, REEL_ANIMATION, animationClipCostUsd, scenesMissingAction, scenesTooLongForClip, scenesTooShortForAction } from "./animation";
+import { REEL_ANIMATION, requiredVisibleSeconds, animationClipCostUsd, scenesMissingAction, scenesTooLongForClip, scenesTooShortForAction } from "./animation";
 import type { SceneEnergy } from "./direction";
 import { compatibleTrackCount } from "./music";
 import { checkVisualAvailability, type VisualAvailability } from "./visuals";
@@ -88,7 +88,7 @@ export function checkAnimationAvailability(input: {
     return {
       ok: false,
       code: "scene_too_short",
-      message: `La escena ${short.map((i) => `${i + 1} (necesita ~${MIN_ACTION_SECONDS[input.sceneEnergy?.[i] ?? "medium"].toFixed(1)} s)`).join(", ")} es demasiado corta para completar su acción animada.`,
+      message: `La escena ${short.map((i) => `${i + 1} (necesita ~${requiredVisibleSeconds(input.sceneEnergy?.[i] ?? "medium").toFixed(1)} s visibles: acción + margen de cierre)`).join(", ")} es demasiado corta para completar su acción animada.`,
       recovery: "Alarga o une esa escena en la revisión del guion. Un clip nunca se acelera ni se congela para disimularlo.",
       estimatedUsd,
     };

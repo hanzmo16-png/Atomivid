@@ -15,7 +15,7 @@ import sharp from "sharp";
 import { GenerativeProviderError, type GeneratedScript, type GenerativeAsset, type VideoGenerationRequest, type VideoProvider } from "@/lib/providers/types";
 import { isAudiovisualSelection, motionModeOf, parseSelection, previewSummary } from "./catalog";
 import { directionFingerprint, resolveDirection } from "./direction";
-import { AnimationPlanError, MIN_ACTION_SECONDS, REEL_ANIMATION, animationClipCostUsd, buildContinuityBible, planAnimatedShots, planSceneAnimation, scenesMissingAction, scenesTooLongForClip } from "./animation";
+import { ACTION_CLOSING_MARGIN_SECONDS, AnimationPlanError, MIN_ACTION_SECONDS, REEL_ANIMATION, actionFitsVisible, requiredVisibleSeconds, scenesTooShortForAction, animationClipCostUsd, buildContinuityBible, planAnimatedShots, planSceneAnimation, scenesMissingAction, scenesTooLongForClip } from "./animation";
 import { checkAnimationAvailability, evaluateDirectionReadiness } from "./readiness";
 import { ANIMATION_INPUT_SIZE, AnimatedClipUncertainError, animationLedgerKey, animationMarkerPath, frameAnimationInput, looksLikeMp4, prepareAnimationInputImage, resolveAnimatedClipForScene } from "./animated-clip";
 import { PaidBudgetExceededError, PaidLedger, memoryLedgerStore } from "./paid-ledger";
@@ -88,7 +88,7 @@ const SCRIPT: GeneratedScript = {
   title: "El faro",
   segments: [
     { text: "Nadie sabe qué pasó aquella noche en el faro.", visualQuery: "old lighthouse at night", visualConcepts: ["old lighthouse at night", "stormy coast"], energy: "low", visibleAction: "the lighthouse beam sweeps slowly across the sea" },
-    { text: "El guardián desapareció sin dejar rastro.", visualQuery: "empty stairway", energy: "medium", visibleAction: "a lantern on the stairs flickers and goes out" },
+    { text: "El guardián desapareció aquella misma noche sin dejar ningún rastro.", visualQuery: "empty stairway", energy: "medium", visibleAction: "a lantern on the stairs flickers and goes out" },
     { text: "Entonces encontraron la puerta cerrada por dentro.", visualQuery: "locked wooden door", energy: "high", visibleAction: "the door handle rattles hard and stops" },
   ],
 };
@@ -125,10 +125,64 @@ test("plan: sin acción declarada, o si no cabe en lo que se ve del plano, se bl
     (e: unknown) => e instanceof AnimationPlanError && /solo se ve 1\.8 s/.test((e as Error).message) && /no se acelera ni se congela/.test((e as Error).message),
   );
   assert.throws(() => planSceneAnimation({ ...base, segment: SCRIPT.segments[1], visibleSeconds: 8.5 }), AnimationPlanError);
-  assert.doesNotThrow(() => planSceneAnimation({ ...base, segment: SCRIPT.segments[1], visibleSeconds: MIN_ACTION_SECONDS.medium }));
+  assert.doesNotThrow(() => planSceneAnimation({ ...base, segment: SCRIPT.segments[1], visibleSeconds: requiredVisibleSeconds("medium") }));
   assert.deepEqual(scenesMissingAction([{ visibleAction: "a door opens" }, {}, { visibleAction: "" }]), [1, 2]);
   const shots = planAnimatedShots({ sceneSpans: [{ start: 0, end: 3 }, { start: 3, end: 4.2 }, { start: 4.2, end: 7 }], transitionInFrames: 18, fps: 30, sceneEnergy: ["low", "medium", "high"] });
-  assert.deepEqual(shots.tooShort.map((t) => [t.sceneIndex, t.minimumSeconds]), [[1, MIN_ACTION_SECONDS.medium]]);
+  assert.deepEqual(shots.tooShort.map((t) => [t.sceneIndex, t.minimumSeconds, t.requiredSeconds]), [[1, MIN_ACTION_SECONDS.medium, requiredVisibleSeconds("medium")]]);
+});
+
+test("frontera: la acción exige su mínimo MÁS 0,3 s de margen antes del corte, con el mismo criterio en el plan, la estimación previa y los tiempos reales", () => {
+  const bible = buildContinuityBible({ profile: "comic", intent: "suspense", topic: "El faro", scenes: SCRIPT.segments });
+  const plan = (energy: "low" | "medium" | "high", visibleSeconds: number) =>
+    planSceneAnimation({ sceneIndex: 0, segment: SCRIPT.segments[0], energy, intent: "suspense", bible, referenceImagePath: "req/a.png", referenceImageKey: "a", visibleSeconds });
+  assert.equal(ACTION_CLOSING_MARGIN_SECONDS, 0.3);
+  assert.deepEqual([requiredVisibleSeconds("low"), requiredVisibleSeconds("medium"), requiredVisibleSeconds("high")], [2.8, 2.3, 1.8]);
+
+  // El caso de Work: energía baja visible 2,5 s ya no se acepta (terminaría justo en el corte).
+  assert.throws(() => plan("low", 2.5), (e: unknown) => e instanceof AnimationPlanError && /necesita 2\.8 s \(2\.5 s de acción \+ 0\.3 s de margen/.test((e as Error).message));
+  assert.throws(() => plan("low", 2.79), AnimationPlanError, "2,79 s se declara como 2,7: insuficiente");
+  const exact = plan("low", 2.8);
+  assert.match(exact.prompt, /fully completed by second 2\.5; the shot is cut at second 2\.8/);
+  assert.match(exact.endState, /fully completed by second 2\.5;/);
+  // Nunca se anuncia un corte posterior al real (2,86 → 2,8, no 2,9).
+  assert.match(plan("low", 2.86).prompt, /the shot is cut at second 2\.8/);
+
+  // Barrido: en todo el rango válido la acción cabe entera y conserva 0,3 s antes del corte declarado, que nunca supera al real.
+  for (const energy of ["low", "medium", "high"] as const) {
+    assert.throws(() => plan(energy, requiredVisibleSeconds(energy) - 0.01), AnimationPlanError, `${energy}: justo por debajo`);
+    for (let v = requiredVisibleSeconds(energy); v <= REEL_ANIMATION.clipSeconds + 1e-9; v = Math.round((v + 0.01) * 100) / 100) {
+      const spec = plan(energy, v);
+      const completeBy = Number(/fully completed by second (\d+\.\d)/.exec(spec.prompt)![1]);
+      const cut = Number(/the shot is cut at second (\d+\.\d)/.exec(spec.prompt)![1]);
+      assert.ok(completeBy + 1e-9 >= MIN_ACTION_SECONDS[energy], `${energy} ${v}: la acción dispone de su mínimo`);
+      assert.ok(cut - completeBy + 1e-9 >= ACTION_CLOSING_MARGIN_SECONDS, `${energy} ${v}: margen de cierre`);
+      assert.ok(cut <= v + 1e-9, `${energy} ${v}: corte declarado ≤ real`);
+      assert.equal(spec.visibleSeconds, cut);
+    }
+  }
+
+  // Tiempos reales (montaje): el mismo criterio que el plan.
+  const shots = planAnimatedShots({ sceneSpans: [{ start: 0, end: 2.79 }, { start: 2.79, end: 5.59 }], transitionInFrames: 0, fps: 30, sceneEnergy: ["low", "low"] });
+  assert.deepEqual(shots.tooShort.map((t) => [t.sceneIndex, t.requiredSeconds]), [[0, 2.8]], "2,79 s bloquea; 2,80 s pasa");
+  for (const x of [2.5, 2.79, 2.8, 2.86, 3]) {
+    const planOk = (() => {
+      try {
+        plan("low", x);
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+    const shotOk = planAnimatedShots({ sceneSpans: [{ start: 0, end: x }], transitionInFrames: 0, fps: 30, sceneEnergy: ["low"] }).tooShort.length === 0;
+    assert.equal(shotOk, planOk, `${x} s: montaje y plan coinciden`);
+    assert.equal(actionFitsVisible(x, "low"), planOk);
+  }
+
+  // Estimación previa (ritmo habitual de la voz): 7 palabras ≈ 2,5 s no bastan con energía baja; 8 ≈ 2,86 s sí.
+  const words = (n: number) => Array.from({ length: n }, (_, i) => `palabra${i}`).join(" ");
+  assert.deepEqual(scenesTooShortForAction([{ text: words(7) }, { text: words(8) }], ["low", "low"]), [0]);
+  const pre = checkAnimationAvailability({ sceneCount: 1, sceneTexts: [words(7)], sceneActions: ["a beam sweeps"], sceneEnergy: ["low"], enabled: true, provider: "veo", maxCostUsd: 10 });
+  assert.ok(!pre.ok && pre.code === "scene_too_short" && /necesita ~2\.8 s visibles/.test(pre.message));
 });
 
 test("disponibilidad: sin acción declarada o con escenas estimadas demasiado cortas, la animación se bloquea antes de pagar nada", () => {

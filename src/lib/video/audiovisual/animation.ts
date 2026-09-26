@@ -131,15 +131,37 @@ const PACE_BY_ENERGY: Record<SceneEnergy, string> = {
  */
 export const MIN_ACTION_SECONDS: Record<SceneEnergy, number> = { low: 2.5, medium: 2.0, high: 1.5 };
 
+/** Margen entre el término de la acción y el corte del plano: la acción nunca termina justo en el corte. */
+export const ACTION_CLOSING_MARGIN_SECONDS = 0.3;
+
+/**
+ * Segundos visibles que exige una escena: el mínimo de su acción MÁS el
+ * margen de cierre. Es el único criterio, usado en la estimación previa,
+ * con los tiempos reales de la voz y en el plan del clip.
+ */
+export function requiredVisibleSeconds(energy: SceneEnergy): number {
+  return (Math.round(MIN_ACTION_SECONDS[energy] * 10) + Math.round(ACTION_CLOSING_MARGIN_SECONDS * 10)) / 10;
+}
+
+/** Segundos visibles declarables: truncados a décimas, para no anunciar nunca un corte posterior al real. */
+export function declarableVisibleSeconds(seconds: number): number {
+  return Math.floor(seconds * 10 + 1e-6) / 10;
+}
+
+/** ¿Cabe la acción (mínimo + margen de cierre) en lo que se ve del plano? */
+export function actionFitsVisible(visibleSeconds: number, energy: SceneEnergy): boolean {
+  return declarableVisibleSeconds(visibleSeconds) + 1e-9 >= requiredVisibleSeconds(energy);
+}
+
 /**
  * Escenas cuya narración, al ritmo habitual de la voz, se vería menos que
- * el mínimo de su acción. Es una ESTIMACIÓN antes de pagar nada; la
- * comprobación exacta ocurre con los tiempos reales de la voz, antes del
- * primer clip.
+ * el mínimo de su acción más el margen de cierre. Es una ESTIMACIÓN antes
+ * de pagar nada; la comprobación exacta ocurre con los tiempos reales de la
+ * voz, antes del primer clip, con el mismo criterio (actionFitsVisible).
  */
 export function scenesTooShortForAction(scenes: { text: string }[], sceneEnergy: (SceneEnergy | undefined)[] = []): number[] {
   return scenes
-    .map((s, i) => (s.text.split(/\s+/).filter(Boolean).length / WORDS_PER_SECOND + 1e-6 < MIN_ACTION_SECONDS[sceneEnergy[i] ?? "medium"] ? i : -1))
+    .map((s, i) => (actionFitsVisible(s.text.split(/\s+/).filter(Boolean).length / WORDS_PER_SECOND, sceneEnergy[i] ?? "medium") ? -1 : i))
     .filter((i) => i >= 0);
 }
 
@@ -206,21 +228,24 @@ export function planSceneAnimation(input: {
   if (!declared || declared.length < 3) {
     throw new AnimationPlanError(`La escena ${input.sceneIndex + 1} no declara una acción visible concreta; no se anima sin ella.`);
   }
-  const visibleSeconds = Math.round(input.visibleSeconds * 10) / 10;
+  const visibleSeconds = declarableVisibleSeconds(input.visibleSeconds);
   const minimum = MIN_ACTION_SECONDS[input.energy];
-  if (visibleSeconds < minimum) {
+  const required = requiredVisibleSeconds(input.energy);
+  if (!actionFitsVisible(input.visibleSeconds, input.energy)) {
     throw new AnimationPlanError(
-      `La escena ${input.sceneIndex + 1} solo se ve ${visibleSeconds.toFixed(1)} s y su acción necesita al menos ${minimum.toFixed(1)} s. ` +
+      `La escena ${input.sceneIndex + 1} solo se ve ${visibleSeconds.toFixed(1)} s y su acción necesita ${required.toFixed(1)} s ` +
+        `(${minimum.toFixed(1)} s de acción + ${ACTION_CLOSING_MARGIN_SECONDS.toFixed(1)} s de margen antes del corte). ` +
         "Alarga o une la escena en la revisión del guion; no se acelera ni se congela para disimularlo.",
     );
   }
-  if (visibleSeconds > REEL_ANIMATION.clipSeconds) {
-    throw new AnimationPlanError(`La escena ${input.sceneIndex + 1} se ve ${visibleSeconds.toFixed(1)} s, más que un clip de ${REEL_ANIMATION.clipSeconds} s.`);
+  if (input.visibleSeconds > REEL_ANIMATION.clipSeconds + 1e-6) {
+    throw new AnimationPlanError(`La escena ${input.sceneIndex + 1} se ve ${input.visibleSeconds.toFixed(1)} s, más que un clip de ${REEL_ANIMATION.clipSeconds} s.`);
   }
   const narration = clean(input.segment.text, 280);
   const subject = clean(input.segment.visualConcepts?.[0] ?? input.segment.visualQuery, 120);
   const action = clean(declared, 160);
-  const completeBy = Math.max(minimum, Math.round((visibleSeconds - 0.3) * 10) / 10);
+  // Siempre ≥ minimum (garantizado por actionFitsVisible) y siempre 0,3 s antes del corte declarado.
+  const completeBy = (Math.round(visibleSeconds * 10) - Math.round(ACTION_CLOSING_MARGIN_SECONDS * 10)) / 10;
   const startState = "exactly the input image: same composition, same subject, same style";
   const endState = `the action "${action}" fully completed by second ${completeBy.toFixed(1)}; same composition, no new characters or objects`;
   const framing =
@@ -285,7 +310,8 @@ export function planAnimatedShots(input: {
 }): {
   shots: { sceneIndex: number; beatIndex: number; startSeconds: number; endSeconds: number; motion: "hold"; transitionInFrames: number }[];
   tooLong: { sceneIndex: number; neededSeconds: number }[];
-  tooShort: { sceneIndex: number; visibleSeconds: number; minimumSeconds: number }[];
+  /** requiredSeconds = mínimo de la acción + margen de cierre. */
+  tooShort: { sceneIndex: number; visibleSeconds: number; minimumSeconds: number; requiredSeconds: number }[];
 } {
   const clipSeconds = input.clipSeconds ?? REEL_ANIMATION.clipSeconds;
   const shots = input.sceneSpans.map((span, i) => {
@@ -304,7 +330,10 @@ export function planAnimatedShots(input: {
     .map((s, i) => ({ sceneIndex: s.sceneIndex, neededSeconds: s.endSeconds - s.startSeconds + (shots[i + 1]?.transitionInFrames ?? 0) / input.fps }))
     .filter((x) => x.neededSeconds > clipSeconds + 1e-6);
   const tooShort = shots
-    .map((s) => ({ sceneIndex: s.sceneIndex, visibleSeconds: s.endSeconds - s.startSeconds, minimumSeconds: MIN_ACTION_SECONDS[input.sceneEnergy?.[s.sceneIndex] ?? "medium"] }))
-    .filter((x) => x.visibleSeconds + 1e-6 < x.minimumSeconds);
+    .filter((s) => !actionFitsVisible(s.endSeconds - s.startSeconds, input.sceneEnergy?.[s.sceneIndex] ?? "medium"))
+    .map((s) => {
+      const energy = input.sceneEnergy?.[s.sceneIndex] ?? "medium";
+      return { sceneIndex: s.sceneIndex, visibleSeconds: s.endSeconds - s.startSeconds, minimumSeconds: MIN_ACTION_SECONDS[energy], requiredSeconds: requiredVisibleSeconds(energy) };
+    });
   return { shots, tooLong, tooShort };
 }
