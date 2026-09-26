@@ -120,3 +120,19 @@ masterización (`LONG_FORM_TRUE_PEAK_MARGIN_DB`).
 **Limitación:** en B, el sustituto de s04a hereda el encuadre `cover` del
 clip IA, por lo que la foto aparece recortada. El clip real ya es 16:9, así
 que en el render aprobado esto no ocurre.
+
+## Ejecución autorizada (tope $4.00, incluidos todos los intentos)
+
+| Fecha (UTC) | Clave | Resultado | Costo real |
+|---|---|---|---|
+| 2026-09-26 00:31 | `m3-h1-picks-v1:still` (OpenAI Images, 1536×1024, calidad media) | Generada y guardada en `samples/m3-hook/ai/m3-h1-picks-v1-still.png`. Metadatos en `-still.json` | **$0.0558** (192 tokens de entrada y 1372 de salida) |
+| 2026-09-26 00:31 | `m3-h1-picks-v1:veo` | **No enviada.** `VEO_API_KEY` no existe como secreto de GitHub Actions: solo está en Vercel, donde corrió P2B. Reserva liberada de forma verificada (sin id de operación ni registro durable) | $0.00 |
+
+- **Comprometido:** $0.0558 de $4.00.
+- **Revisión de la imagen (run 36205569162, hoja de preparación):**
+  - Aceptada **sin reintento**.
+  - Muestra tres obreros afrocaribeños con camisa de algodón clara y sombrero de paja o fieltro, con pico y pala en una ladera de arcilla rojiza; selva y bruma detrás.
+  - Sin casco, chaleco, gorra, botas de goma ni maquinaria.
+  - El recorte a 16:9 conserva a los tres obreros y las herramientas.
+- **Bloqueo:** para generar los dos clips, el repositorio necesita el secreto de Actions `VEO_API_KEY`, con el mismo valor que en Vercel.
+  - Esto afecta también al worker de producción: `render.yml` (Long Form) lee el mismo secreto. Hoy, un clip Veo de producción que se ejecute en GitHub Actions caería al respaldo.
