@@ -183,7 +183,10 @@ Archivos: `.github/workflows/audiovisual-samples.yml`, `scripts/audiovisual-samp
   - se entrega MP4, primer fotograma, hoja de contacto, loudness e informe con el registro.
 - **Se detiene ante el primer fallo.**
 - **Muestras por defecto:** `horror` y `comic-mystery` (primera tanda); las demás se eligen tras revisar imagen y audio.
-- **Requisito para ejecutarlo:** `workflow_dispatch` solo aparece cuando el YAML existe en la rama por defecto. Hay que registrarlo ahí, como ya se hizo con otros workflows de muestra.
+- **Registro:**
+  - Work lo registró en la rama por defecto (199f174), **fijado al código revisado acd9176**.
+  - Ese código todavía tiene el `withRetry` del guion. Las correcciones de este PR (reintentos, registro por llamada, tope de US$1) solo se aplican cuando Work mueva esa fijación tras revisarlas.
+  - La primera ejecución real (run 36245126551) falló en el guion de `horror` con «Claude no devolvió un guion válido» y dejó US$0,08 **inciertos**. No hubo voz ni imágenes.
 
 ### Presupuesto
 
