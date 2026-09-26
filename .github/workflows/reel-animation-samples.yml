@@ -1,0 +1,103 @@
+name: Muestras Veo — animacion autorizada
+
+# Hans autorizo el 2026-09-26 hasta USD 5.15 ADICIONALES para cuatro clips.
+# Registro compartido samples/animation; no reinicia el gasto entre tandas.
+# Solo disparo manual. Codigo revisado y CI verde, fijado por SHA.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "plan sin gasto; run genera la tanda"
+        type: choice
+        options: [plan, run]
+        default: plan
+      batch:
+        description: "Primero comic; anime despues de revisar comic"
+        type: choice
+        options: [comic, anime]
+        default: comic
+      confirm:
+        description: "Escribe GASTAR para ejecutar run"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reel-animation-samples
+  cancel-in-progress: false
+
+jobs:
+  clips:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Verificar autorizacion
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$MODE" = run ] && [ "$CONFIRM" != GASTAR ]; then
+            echo 'Falta confirmacion de gasto'; exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: 3b5716b800b2d25df951433badf9f305693a598a
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Generar clips con registro acumulado
+        env:
+          MODE: ${{ inputs.mode }}
+          ANIMATION_CLIPS: ${{ inputs.batch == 'comic' && 'comic-subtle,comic-action' || 'anime-subtle,anime-action' }}
+          ANIMATION_ALLOW_PAID: ${{ inputs.mode == 'run' && inputs.confirm == 'GASTAR' && 'true' || 'false' }}
+          ANIMATION_TOTAL_USD: '5.15'
+          VEO_COST_USD_PER_SECOND: '0.12'
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VEO_API_KEY: ${{ inputs.mode == 'run' && inputs.confirm == 'GASTAR' && secrets.VEO_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ inputs.mode == 'run' && inputs.confirm == 'GASTAR' && secrets.OPENAI_API_KEY || '' }}
+        run: |
+          mkdir -p evidence/animation
+          node --import tsx scripts/reel-animation-clips.ts | tee evidence/animation/run.log
+      - name: Descargar entregables y gasto (solo lectura)
+        if: always() && inputs.mode == 'run' && inputs.confirm == 'GASTAR'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs/promises';
+          import { createClient } from '@supabase/supabase-js';
+          const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+          const bucket = client.storage.from('videos');
+          const out = 'evidence/animation';
+          await fs.mkdir(out, {recursive:true});
+          for (const id of ['comic-subtle','comic-action','anime-subtle','anime-action']) {
+            const prefix = `samples/animation/${id}`;
+            for (const [folder,suffix] of [[prefix,''],[`${prefix}/anim-input`,'-input']]) {
+              const list = await bucket.list(folder, {limit:100});
+              if (list.error) throw new Error(`No se pudo listar ${id}`);
+              for (const f of list.data ?? []) {
+                if (!/\.(mp4|png|jpg|jpeg)$/.test(f.name)) continue;
+                const file = await bucket.download(`${folder}/${f.name}`);
+                if (file.error || !file.data) throw new Error(`No se pudo descargar ${id}/${f.name}`);
+                await fs.writeFile(`${out}/${id}${suffix}-${f.name}`, Buffer.from(await file.data.arrayBuffer()));
+              }
+            }
+          }
+          const ledger = await bucket.download('samples/animation/state/paid-ledger.json');
+          if (ledger.error || !ledger.data) throw new Error('No se pudo leer el registro de gasto');
+          await fs.writeFile(`${out}/paid-ledger.json`, Buffer.from(await ledger.data.arrayBuffer()));
+          JS
+      - name: Publicar clips e informe
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-animation-${{ inputs.batch }}-${{ github.run_id }}
+          path: evidence/animation
+          if-no-files-found: warn
+          retention-days: 30
