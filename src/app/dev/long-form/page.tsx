@@ -70,8 +70,8 @@ export default function DevLongFormPage() {
           plans={plans}
           ownChannel
           defaultPackaging={{
-            cover: { enabled: true, style: "impacto", title: "Cavar una *montaña*", kicker: "Canal de Panamá · 1881–1914" },
-            thumbnail: { enabled: true, style: "alerta", title: "Cavar una *montaña*", kicker: "Canal de Panamá" },
+            cover: { enabled: true, style: "impacto", title: "Canal de *Panamá*", kicker: "Cavando una montaña" },
+            thumbnail: { enabled: true, style: "alerta", title: "Canal de *Panamá*", kicker: "Cavando una montaña" },
           }}
         />
       </section>

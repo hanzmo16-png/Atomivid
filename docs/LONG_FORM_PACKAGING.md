@@ -12,7 +12,8 @@ Dos opciones **independientes** en «Configurar producción» (`/dashboard/long-
 - **Opciones por defecto:**
   - en los canales propios de Hans (`AVATAR_PREPARATION_OWNER_EMAIL` o la lista `LONG_FORM_OWN_CHANNEL_EMAILS`) ambas vienen activadas;
   - para cualquier otra cuenta, ambas vienen desactivadas.
-- **Título sugerido:** sale del tema del video (lo que va antes de «:») y el cliente lo edita. `*palabra*` resalta una palabra.
+- **Título principal (grande):** identifica el tema del video. La sugerencia usa lo que va antes de «:» y elimina introducciones como «Cómo se construyó el» para conservar el nombre completo (por ejemplo, «Canal de Panamá»). El cliente puede editarlo; `*palabra*` resalta una palabra.
+- **Frase secundaria (pequeña):** complemento opcional sobre el título, por ejemplo «Cavando una montaña». El nombre del tema no se relega a esta franja.
 - **Estilos:** «Impacto» (amarillo), «Alerta» (rojo, con placa) y «Sobrio» (blanco).
 - **Vista previa** del primer fotograma o de la miniatura:
   - usa el mismo componente y las mismas reglas que el render (`remotion/OpeningTitle.tsx`, `remotion/cover-rules.ts`);
@@ -52,3 +53,5 @@ Además, en ambos lienzos:
 - La vista previa no usa la primera escena real (aún no existe al configurar).
 - No hay entidad «canal» en la base de datos: la cuenta equivale al canal.
 - La miniatura solo se genera si la primera escena es un medio (imagen o video), no una tarjeta.
+- Si se solicitó la miniatura y falta, el resultado muestra un aviso sin quitar el video ni recomendar regenerarlo. La recuperación independiente de miniatura sigue pendiente.
+- Las descargas usan la opción `download` de Storage, separada de la URL de reproducción, para que el servidor entregue el archivo como adjunto incluso desde otro dominio.
