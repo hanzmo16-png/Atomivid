@@ -24,13 +24,16 @@ export async function generateScriptForRequest({
   style,
   durationSeconds,
   language = "es",
+  guidance,
 }: {
   topic: string;
   style: string;
   durationSeconds: number;
   language?: ScriptLanguage;
+  /** Guía de redacción de la dirección audiovisual (ver audiovisual/catalog.ts, scriptGuidanceFor). */
+  guidance?: string;
 }): Promise<{ script: GeneratedScript; providerName: string }> {
   const scriptProvider = getScriptProvider();
-  const script = await scriptProvider.generateScript({ topic, style, durationSeconds, language });
+  const script = await scriptProvider.generateScript({ topic, style, durationSeconds, language, ...(guidance ? { guidance } : {}) });
   return { script, providerName: scriptProvider.name };
 }

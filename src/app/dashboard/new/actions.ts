@@ -19,6 +19,8 @@ import {
   validateCommonFields,
   validateNewAvatarSubmission,
 } from "./validation";
+import { parseSelection } from "@/lib/video/audiovisual/catalog";
+import { isMissingColumnError } from "@/lib/video/audiovisual/persistence";
 
 const AVATAR_UPLOADS_BUCKET = "avatar-uploads";
 // Cuenta de caracteres razonable para un guion de narración leído por un
@@ -77,6 +79,23 @@ export async function createVideoRequest(formData: FormData) {
   }
 
   if (mode === "visual") {
+    // Dirección audiovisual (solo Reels, solo con el flag encendido): se
+    // valida aquí, nunca se confía en las tarjetas del cliente. Con el flag
+    // apagado la solicitud se crea exactamente como antes.
+    let audiovisualSelection: Record<string, unknown> | undefined;
+    if (flags.audiovisualProfilesEnabled) {
+      const parsed = parseSelection({
+        profile: formData.get("av_profile"),
+        intent: formData.get("av_intent"),
+        music: formData.get("av_music"),
+        pace: formData.get("av_pace"),
+      });
+      if (!parsed.ok) {
+        redirect(`/dashboard/new?error=${encodeURIComponent(parsed.error)}`);
+      }
+      audiovisualSelection = parsed.selection;
+    }
+
     const { error } = await supabase.from("video_requests").insert({
       user_id: user.id,
       topic,
@@ -85,10 +104,16 @@ export async function createVideoRequest(formData: FormData) {
       language,
       mode: "visual",
       status: "pending",
+      ...(audiovisualSelection ? { audiovisual_selection: audiovisualSelection } : {}),
     });
 
     if (error) {
-      redirect(`/dashboard/new?error=${encodeURIComponent(error.message)}`);
+      // Nunca crear la solicitud sin la dirección elegida (eso cambiaría en
+      // silencio lo que el cliente pidió): si falta la migración 0020, se dice.
+      const message = isMissingColumnError(error)
+        ? "La dirección audiovisual todavía no está disponible. Intenta más tarde."
+        : error.message;
+      redirect(`/dashboard/new?error=${encodeURIComponent(message)}`);
     }
 
     redirect("/dashboard?created=1");

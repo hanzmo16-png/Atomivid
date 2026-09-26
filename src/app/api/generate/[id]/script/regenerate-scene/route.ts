@@ -6,6 +6,8 @@ import { recordScriptCall } from "@/lib/billing/usage";
 import { classifyScriptError, logScriptError } from "@/lib/video/script-error";
 import { ScriptQualityError } from "@/lib/video/script-quality";
 import type { GeneratedScript } from "@/lib/providers/types";
+import { loadAudiovisualState } from "@/lib/video/audiovisual/persistence";
+import { anticipatedIntent, scriptGuidanceFor } from "@/lib/video/audiovisual/catalog";
 
 // Ver el mismo comentario en ../route.ts: sin esto, una llamada real a
 // Claude para regenerar una escena puede superar el límite por defecto de
@@ -16,6 +18,7 @@ export const maxDuration = 60;
 type VideoRequestRow = {
   id: string;
   user_id: string;
+  mode: string;
   recorded_audio_path: string | null;
   topic: string;
   style: string;
@@ -52,7 +55,7 @@ export async function POST(
 
     const { data: videoRequest, error } = await service
       .from("video_requests")
-      .select("id, user_id, topic, style, status, script_json, recorded_audio_path")
+      .select("id, user_id, mode, topic, style, status, script_json, recorded_audio_path")
       .eq("id", id)
       .single<VideoRequestRow>();
 
@@ -74,6 +77,9 @@ export async function POST(
       return NextResponse.json({ error: "Esa escena no existe" }, { status: 400 });
     }
 
+    const av = videoRequest.mode === "visual" ? await loadAudiovisualState(service, id) : null;
+    const guidance = av?.selection ? scriptGuidanceFor(anticipatedIntent(av.selection, videoRequest.style)) : undefined;
+
     let newScene;
     try {
       const scriptProvider = getScriptProvider();
@@ -92,6 +98,7 @@ export async function POST(
         style: videoRequest.style,
         script: videoRequest.script_json,
         sceneIndex,
+        ...(guidance ? { guidance } : {}),
       });
 
       const otherVisualQueries = videoRequest.script_json.segments
@@ -115,7 +122,7 @@ export async function POST(
 
     const { error: updateError } = await service
       .from("video_requests")
-      .update({ script_json: script })
+      .update({ script_json: script, ...(av?.selection ? { audiovisual_direction: null } : {}) })
       .eq("id", id);
     if (updateError) {
       console.warn(`No se pudo guardar la escena regenerada de ${id}:`, updateError.code);

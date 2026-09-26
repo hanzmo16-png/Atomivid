@@ -40,8 +40,9 @@ export async function findExistingGeneratedImage(
   bucket: string,
   requestId: string,
   sceneIndex: number,
+  objectPrefix?: string,
 ): Promise<{ path: string } | null> {
-  const prefix = generatedImageObjectPrefix(sceneIndex);
+  const prefix = objectPrefix ?? generatedImageObjectPrefix(sceneIndex);
   const { data, error } = await supabase.storage.from(bucket).list(requestId, { search: prefix });
   if (error || !data) return null;
   const match = data.find((f) => f.name.startsWith(prefix));
@@ -57,17 +58,25 @@ export async function resolveGeneratedImageForScene({
   imageProvider,
   remainingBudgetUsd,
   signedUrlTtlSeconds,
+  objectPrefix,
 }: {
   supabase: SupabaseClient;
   bucket: string;
   requestId: string;
   sceneIndex: number;
-  scene: StoryboardScene;
+  scene: Pick<StoryboardScene, "imagePrompt" | "negativePrompt">;
   imageProvider: ImageProvider;
   remainingBudgetUsd: number;
   signedUrlTtlSeconds: number;
+  /**
+   * Prefijo propio en Storage (dirección audiovisual: incluye un hash del
+   * prompt, así un cambio de guion/estilo nunca reutiliza una imagen
+   * anterior). Ausente = `scene-{n}-generated`, como siempre.
+   */
+  objectPrefix?: string;
 }): Promise<GeneratedImageOutcome> {
-  const existing = await findExistingGeneratedImage(supabase, bucket, requestId, sceneIndex);
+  const prefix = objectPrefix ?? generatedImageObjectPrefix(sceneIndex);
+  const existing = await findExistingGeneratedImage(supabase, bucket, requestId, sceneIndex, prefix);
   if (existing) {
     const { data, error } = await supabase.storage.from(bucket).createSignedUrl(existing.path, signedUrlTtlSeconds);
     if (error || !data) {
@@ -97,7 +106,7 @@ export async function resolveGeneratedImageForScene({
     throw new Error(`El proveedor de imagen "${imageProvider.name}" devolvió un archivo inválido: ${validation.reason}`);
   }
 
-  const path = `${requestId}/${generatedImageObjectPrefix(sceneIndex)}.${asset.extension}`;
+  const path = `${requestId}/${prefix}.${asset.extension}`;
   const { error: uploadError } = await supabase.storage
     .from(bucket)
     .upload(path, asset.buffer, { contentType: asset.mimeType, upsert: true });

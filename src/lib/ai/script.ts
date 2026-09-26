@@ -138,12 +138,15 @@ export async function generateScript({
   style,
   durationSeconds,
   language = "es",
+  guidance,
 }: {
   topic: string;
   style: string;
   durationSeconds: number;
   /** Idioma elegido por el usuario — no se infiere del texto del tema. */
   language?: "es" | "en";
+  /** Intención narrativa de la dirección audiovisual; sustituye el tono «motivacional» fijo. */
+  guidance?: string;
 }): Promise<VideoScript> {
   const targetWords = targetWordsFor(durationSeconds);
   const targetScenes = Math.max(3, Math.min(10, Math.round(durationSeconds / 5)));
@@ -174,7 +177,7 @@ Número de escenas sugerido: ${targetScenes}
 Reglas estrictas:
 - Nunca copies el tema tal cual dentro de una frase de plantilla — el tema es el asunto del video, no texto literal a repetir en cada escena.
 - Cada escena avanza el arco narrativo; no repitas la misma idea con otras palabras entre escenas.
-- Narración natural y motivacional, sin frases de relleno ni acotaciones/emojis/marcas de tiempo.
+- ${guidance ? "Narración natural, sin frases de relleno ni acotaciones/emojis/marcas de tiempo." : "Narración natural y motivacional, sin frases de relleno ni acotaciones/emojis/marcas de tiempo."}
 - La escena de apertura necesita un gancho visual fuerte — no un plano contemplativo ni introducción lenta.
 - La escena de cierre debe sentirse como una resolución, con conceptos visuales que NO se hayan usado antes en el guion. ${AVOID_STOCK_TEXT_CLICHES}
 
@@ -188,7 +191,9 @@ Da, para cada escena:
 - "energy": "low"/"medium"/"high" según el ritmo narrativo de esa escena.
 - "emphasisWords": 1-3 palabras EXACTAS de "text" (mismo idioma de la narración) que merecen destacarse visualmente.
 
-La suma de las palabras de todos los "text" debe quedar entre ${minWords} y ${maxWords} palabras, con objetivo ${targetWords}. Cuenta las palabras antes de devolver el guion.`;
+La suma de las palabras de todos los "text" debe quedar entre ${minWords} y ${maxWords} palabras, con objetivo ${targetWords}. Cuenta las palabras antes de devolver el guion.${guidance ? `
+
+${guidance} El "energy" de cada escena debe reflejar esa intención (p. ej. en suspenso: escenas de espera en "low" y la revelación en "high").` : ""}`;
 
   let lastScript: VideoScript | null = null;
   let lastWordCount = 0;
@@ -235,11 +240,13 @@ export async function regenerateScene({
   style,
   script,
   sceneIndex,
+  guidance,
 }: {
   topic: string;
   style: string;
   script: VideoScript;
   sceneIndex: number;
+  guidance?: string;
 }): Promise<VideoScriptScene> {
   const current = script.segments[sceneIndex];
   if (!current) {
@@ -262,7 +269,7 @@ export async function regenerateScene({
     messages: [
       {
         role: "user",
-        content: `Guion completo — tema: "${topic}", estilo/tono: "${style}".
+        content: `Guion completo — tema: "${topic}", estilo/tono: "${style}".${guidance ? `\n${guidance}` : ""}
 
 ${previous ? `Escena anterior: "${previous}"\n` : ""}Escena actual (a reescribir): "${current.text}"
 ${next ? `Escena siguiente: "${next}"\n` : ""}

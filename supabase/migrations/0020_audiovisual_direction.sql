@@ -1,0 +1,31 @@
+-- Atomivid — Dirección audiovisual (docs/AUDIOVISUAL_DIRECTION.md).
+--
+-- NO APLICADA automáticamente. Aplicar ANTES de encender
+-- AUDIOVISUAL_PROFILES_ENABLED, con el workflow existente
+-- apply-supabase-migration.yml (mismo procedimiento que 0012/0016).
+-- El código tolera que estas columnas no existan (se comporta como antes),
+-- pero el selector solo debe mostrarse con la migración aplicada.
+--
+-- Dos columnas nuevas, ambas nullable, ambas aditivas:
+--
+-- audiovisual_selection (jsonb): lo que el cliente eligió al crear el Reel
+--   (perfil + ajustes opcionales), versionado ({"version":1,...}). NULL en
+--   todas las filas existentes y en Avatar/Long Form: esas solicitudes
+--   siguen el flujo anterior sin cambios.
+-- audiovisual_direction (jsonb): la dirección RESUELTA al aprobar el guion
+--   (intención, música, ritmo, energía por escena, huella del guion). Se
+--   conserva durante los reintentos mientras la huella coincida; editar el
+--   guion o la selección la pone en NULL para que se revise antes de
+--   generar recursos.
+--
+-- Sin índices: solo se leen por id. Sin CHECK sobre el contenido JSON: la
+-- validación vive en el servidor (catalog.ts / direction.ts), igual que
+-- long_form_production_plan (0019).
+--
+-- ROLLBACK (seguro — ninguna otra columna depende de estas):
+--   alter table public.video_requests
+--     drop column if exists audiovisual_selection,
+--     drop column if exists audiovisual_direction;
+alter table public.video_requests
+  add column if not exists audiovisual_selection jsonb,
+  add column if not exists audiovisual_direction jsonb;

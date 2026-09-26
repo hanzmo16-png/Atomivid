@@ -44,6 +44,8 @@ export interface ScriptProvider {
     durationSeconds: number;
     /** Idioma elegido por el usuario en /dashboard/new. Por defecto "es". */
     language?: ScriptLanguage;
+    /** Guía de redacción de la dirección audiovisual (intención narrativa). Ausente = prompt anterior sin cambios. */
+    guidance?: string;
   }): Promise<GeneratedScript>;
   /** Reescribe una sola escena (revisión/edición desde la UI). */
   regenerateScene(input: {
@@ -51,6 +53,7 @@ export interface ScriptProvider {
     style: string;
     script: GeneratedScript;
     sceneIndex: number;
+    guidance?: string;
   }): Promise<ScriptScene>;
 }
 
@@ -175,6 +178,13 @@ export type MusicSelectionContext = {
    * elección entre pistas empatadas es aleatoria.
    */
   seed?: string;
+  /**
+   * Dirección musical aprobada (src/lib/video/audiovisual/). Presente =
+   * modo dirigido: solo pistas compatibles, sin fallback a otra cualquiera
+   * y sin inferir tono por palabras sueltas. Ausente = comportamiento
+   * anterior (solicitudes sin dirección audiovisual).
+   */
+  direction?: import("@/lib/video/audiovisual/catalog").MusicDirectionId;
 };
 
 export interface MusicProvider {
