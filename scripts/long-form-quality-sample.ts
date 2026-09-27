@@ -441,6 +441,13 @@ async function main() {
         resolved = await resolveFree(scene.id, src);
       }
       const { buffer, ext, mediaType, meta } = resolved;
+      if (src.kind === "veo-clip" && !override.placeholder) {
+        // Keep generated output reviewable even if a later quality check
+        // stops the run. The durable provider record still prevents retries.
+        const reviewDir = path.join(outDir, "generated-clips");
+        await fs.mkdir(reviewDir, { recursive: true });
+        await fs.writeFile(path.join(reviewDir, `${scene.id}.${ext}`), buffer);
+      }
       // Identidad de contenido: ningún recurso repetido dentro de la muestra (hash exacto o perceptual).
       const identity = { ...(await contentIdentity(buffer, mediaType)), provider: String(meta.provider ?? ""), sourceId: meta.sourceId as string | undefined };
       const byRef = registry.findByReference(identity, scene.repeatOf);

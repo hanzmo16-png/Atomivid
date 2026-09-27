@@ -577,7 +577,25 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "motion-s05",
+            "note": "Visual review of the complete prepared contact sheets and the four trimmed excerpts confirms different subjects or camera angles, despite the low-detail dark-water dHash match."
+          },
+          {
+            "sceneId": "episode-b2-02",
+            "note": "Visual review of the complete prepared contact sheets and the four trimmed excerpts confirms different subjects or camera angles, despite the low-detail dark-water dHash match."
+          },
+          {
+            "sceneId": "episode-b2-04",
+            "note": "Visual review of the complete prepared contact sheets and the four trimmed excerpts confirms different subjects or camera angles, despite the low-detail dark-water dHash match."
+          },
+          {
+            "sceneId": "episode-b2-07",
+            "note": "Visual review of the complete prepared contact sheets and the four trimmed excerpts confirms different subjects or camera angles, despite the low-detail dark-water dHash match."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -585,8 +603,8 @@
         "pageUrl": "https://oceanexplorer.noaa.gov/multimedia/video-playlist-column-waltz/",
         "credit": "NOAA Ocean Exploration, Windows to the Deep 2018",
         "clip": {
-          "startSeconds": 3,
-          "endSeconds": 9.353
+          "startSeconds": 7,
+          "endSeconds": 13.353
         },
         "licenseReview": {
           "date": "2026-09-27",
@@ -1510,8 +1528,8 @@
         "pageUrl": "https://oceanexplorer.noaa.gov/multimedia/okeanos-explorations-seascape-alaska-ex2306-gallery-media-dive15-zoom/",
         "credit": "NOAA Ocean Exploration",
         "clip": {
-          "startSeconds": 2,
-          "endSeconds": 8.277
+          "startSeconds": 8,
+          "endSeconds": 14.277
         },
         "licenseReview": {
           "date": "2026-09-27",
@@ -1581,6 +1599,10 @@
           {
             "sceneId": "episode-b2-07",
             "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-08",
+            "note": "Visual review of the complete prepared contact sheets and the four trimmed excerpts confirms different subjects or camera angles, despite the low-detail dark-water dHash match."
           }
         ]
       },
@@ -1641,6 +1663,10 @@
           {
             "sceneId": "motion-s01",
             "note": "Both identity frames visually reviewed: the opening AI vehicle and the later real subject/camera position are distinct; coarse similarity is caused by the dark underwater background."
+          },
+          {
+            "sceneId": "episode-b2-08",
+            "note": "Visual review of the complete prepared contact sheets and the four trimmed excerpts confirms different subjects or camera angles, despite the low-detail dark-water dHash match."
           }
         ]
       },
@@ -3024,6 +3050,10 @@
           {
             "sceneId": "episode-b2-04",
             "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-08",
+            "note": "Visual review of the complete prepared contact sheets and the four trimmed excerpts confirms different subjects or camera angles, despite the low-detail dark-water dHash match."
           }
         ]
       },
@@ -3134,6 +3164,10 @@
           {
             "sceneId": "motion-s01",
             "note": "Both identity frames visually reviewed: the opening AI vehicle and the later real subject/camera position are distinct; coarse similarity is caused by the dark underwater background."
+          },
+          {
+            "sceneId": "episode-b2-08",
+            "note": "Visual review of the complete prepared contact sheets and the four trimmed excerpts confirms different subjects or camera angles, despite the low-detail dark-water dHash match."
           }
         ]
       },
@@ -3214,6 +3248,10 @@
           {
             "sceneId": "motion-s01",
             "note": "Both identity frames visually reviewed: the opening AI vehicle and the later real subject/camera position are distinct; coarse similarity is caused by the dark underwater background."
+          },
+          {
+            "sceneId": "episode-b2-08",
+            "note": "Visual review of the complete prepared contact sheets and the four trimmed excerpts confirms different subjects or camera angles, despite the low-detail dark-water dHash match."
           }
         ]
       },
@@ -3302,6 +3340,10 @@
           {
             "sceneId": "motion-s01",
             "note": "Both identity frames visually reviewed: the opening AI vehicle and the later real subject/camera position are distinct; coarse similarity is caused by the dark underwater background."
+          },
+          {
+            "sceneId": "episode-b2-08",
+            "note": "Visual review of the complete prepared contact sheets and the four trimmed excerpts confirms different subjects or camera angles, despite the low-detail dark-water dHash match."
           }
         ]
       },
@@ -3382,6 +3424,10 @@
           {
             "sceneId": "episode-b5-20",
             "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-08",
+            "note": "Visual review of the complete prepared contact sheets and the four trimmed excerpts confirms different subjects or camera angles, despite the low-detail dark-water dHash match."
           }
         ]
       },
@@ -3632,6 +3678,10 @@
           {
             "sceneId": "episode-b5-21",
             "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-08",
+            "note": "Visual review of the complete prepared contact sheets and the four trimmed excerpts confirms different subjects or camera angles, despite the low-detail dark-water dHash match."
           }
         ]
       },
@@ -3724,6 +3774,10 @@
           {
             "sceneId": "episode-b5-26",
             "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-08",
+            "note": "Visual review of the complete prepared contact sheets and the four trimmed excerpts confirms different subjects or camera angles, despite the low-detail dark-water dHash match."
           }
         ]
       },
@@ -3892,6 +3946,10 @@
           {
             "sceneId": "motion-s01",
             "note": "Both identity frames visually reviewed: the opening AI vehicle and the later real subject/camera position are distinct; coarse similarity is caused by the dark underwater background."
+          },
+          {
+            "sceneId": "episode-b2-08",
+            "note": "Visual review of the complete prepared contact sheets and the four trimmed excerpts confirms different subjects or camera angles, despite the low-detail dark-water dHash match."
           }
         ]
       },
@@ -3952,6 +4010,10 @@
           {
             "sceneId": "episode-b6-03",
             "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-08",
+            "note": "Visual review of the complete prepared contact sheets and the four trimmed excerpts confirms different subjects or camera angles, despite the low-detail dark-water dHash match."
           }
         ]
       },
@@ -3999,8 +4061,8 @@
         "pageUrl": "https://oceanexplorer.noaa.gov/multimedia/edu-themes-seafloor-mapping-media-video-multimedia-seamounts/",
         "credit": "NOAA Ocean Exploration, Mountains in the Deep: Exploring the Central Pacific Basin",
         "clip": {
-          "startSeconds": 202,
-          "endSeconds": 207.784
+          "startSeconds": 205,
+          "endSeconds": 210.784
         },
         "licenseReview": {
           "date": "2026-09-27",
@@ -4269,8 +4331,8 @@
         "pageUrl": "https://oceanexplorer.noaa.gov/multimedia/okeanos-explorations-seascape-alaska-ex2304-gallery-media-dive08-fish/",
         "credit": "NOAA Ocean Exploration, Seascape Alaska",
         "clip": {
-          "startSeconds": 4,
-          "endSeconds": 12.245
+          "startSeconds": 14,
+          "endSeconds": 22.245
         },
         "licenseReview": {
           "date": "2026-09-27",
@@ -4336,6 +4398,10 @@
           {
             "sceneId": "episode-b6-03",
             "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-08",
+            "note": "Visual review of the complete prepared contact sheets and the four trimmed excerpts confirms different subjects or camera angles, despite the low-detail dark-water dHash match."
           }
         ]
       },

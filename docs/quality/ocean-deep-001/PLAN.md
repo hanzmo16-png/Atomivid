@@ -501,3 +501,11 @@ Tarifas: Veo 3.1 Fast a 1080p, US$0,96 por clip de 8 s; imagen IA, reserva de US
 - Manifiesto reproducible con `build_episode_manifest.py` y `episode-inputs/`. Pendiente: prepare gratuito completo, preparación IA autorizada una vez, revisión y render final. Último gasto confirmado permanece USD5,1814 contable / USD1,9753 en dinero.
 
 - Prepare gratuito `36340733785` se detuvo por falso positivo dHash: un ROV y un organismo gelatinoso distintos compartían casi todo el fondo oscuro. Se revisaron 24 fotogramas implicados; las adjudicaciones quedan ligadas a los recursos/intervalos exactos. Solo permiten descartar coincidencias perceptuales revisadas; hashes exactos, identidades de origen y solapes siguen bloqueados. Los sustitutos pendientes no contaminan el registro de medios finales ni permiten entrega de aprobación. Sin gasto nuevo.
+
+
+### 13.4 Preparación completa validada
+
+- Run gratuito `36341647739`, job `108682784013`: PREPARE_OK; 111 planos, cero errores, cero llamadas de pago, USD5,1814 contables acumulados. Artefacto `10938963975` descargado y 18 hojas de contacto (267 fotogramas) revisadas.
+- Se ajustaron cuatro fragmentos dentro de las mismas fuentes verificadas: inicio de waltz 7 s (elimina título), zoom 8 s (elimina ZOOM IN), seamounts 205 s (elimina entrevista) y grenadier 14 s (evita una ficha de otra profundidad). Inicios, centros y finales de los cuatro nuevos intervalos revisados localmente; duración y manifiesto válidos. Ninguna fuente/licencia nueva.
+- Los sustitutos de las nueve recreaciones pendientes solo sirvieron para preparación gratuita y no pueden pasar la aprobación. Se generarán nueve referencias y nueve clips una sola vez, dentro del techo acumulado aprobado. Los MP4 generados se conservarán en el artefacto para revisión incluso si un control de calidad posterior detiene la ejecución.
+- El máster final se guarda en el artefacto antes de intentar su subida a Storage. Si el límite por objeto impide subirlo, el informe lo indicará y el máster seguirá recuperable; no se declara un objeto inexistente como entregado.
