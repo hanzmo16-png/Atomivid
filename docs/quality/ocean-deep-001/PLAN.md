@@ -333,3 +333,104 @@ Revisión de fotogramas (no se escuchó el audio):
 - Falta el sonido de sonar o ROV (`missingSound`).
 
 **Pendiente: Hans aprueba o rechaza el primer minuto.** La etapa B sigue sin autorizar.
+
+## 12. Versión 002 — «Earthward Chronicles», episodio 1 (27-09-2026)
+
+**Estado: preparado. Ninguna llamada de pago desde la sección 11.1. Nuevo techo de gasto pendiente de aprobación.**
+
+Hans aprobó del primer minuto la voz de Brian (pronunciación y calidad) y la dirección visual general. Este episodio será el primer video del canal **Earthward Chronicles**: en inglés, de unos 10 minutos y aislado del lanzamiento de Atomivid. No se publica en YouTube. El segundo video del canal (la ficción sobre Thomas Castello y Dulce) queda fuera de este trabajo.
+
+### 12.1 Duración y guion v002
+
+- **Ritmo real de Brian (b1):** 128 palabras en 41,053 s, es decir 3,12 palabras/s.
+  - El guion 001 (1.398 palabras) habría durado unos **7:40**.
+- **Guion v002: 1.870 palabras y 10.687 caracteres**, con unos **10:00–10:05** estimados:
+  - narración de ~600 s;
+  - los silencios deliberados (1,5 s en b4, cola de 1,2 s);
+  - el cambio de beat.
+- Se amplía con contenido, no con imágenes largas ni con la voz ralentizada.
+
+| Beat | Palabras (001 → 002) | Qué se añadió | Fuentes nuevas |
+|---|---|---|---|
+| b1 | 128 → 128 | **Sin cambios**: su narración está en la caché (`COMPLETED`, run 36329362082) y se reutiliza | — |
+| b2 | 134 → 134 | — | — |
+| b3 | 288 → 445 | Historia de la medición: la línea con peso del HMS Challenger (<500 sondeos en 3,5 años; 8.184 m en 1875), los ~67.000 ecosondeos del Meteor (1925–27) y el valle del rift que identificó Marie Tharp | Cornell/NOC/RMG; NOAA OE y Penn State; AIP, LDEO y Library of Congress |
+| b4 | 316 → 316 | Solo se añade la fuente de la profundidad media (3.682 m) | NOAA Ocean Service |
+| b5 | 215 → 419 | Peces pescadores abisales (~160 especies, señuelo con bacterias simbióticas, fusión de los machos y pérdida de genes inmunitarios); la capa de dispersión profunda (sonar de la II Guerra Mundial, migración diaria, biomasa de 2 a 16 mil millones de t, **presentada como rango incierto**) | Pietsch 2009; Hendry et al. 2018 (*mBio*); Swann et al. 2020 (*Science*); NOAA OE/DOSITS; Irigoien 2014; Proud 2019 |
+| b6 | 180 → 291 | Fuentes hidrotermales de Galápagos (1977, Alvin, ~2.500 m, sin biólogos a bordo, quimiosíntesis); descenso del Trieste (casi 5 h de bajada, ~20 min en el fondo) | WHOI; U.S. Navy NHHC |
+| b7 | 137 → 137 | — | — |
+
+- **Evitado a propósito:**
+  - «el Challenger encontró ~11 km» (sondeó 8,2 km);
+  - «más gente en la Luna que en el Challenger Deep» (desactualizado);
+  - un número exacto de visitantes del Challenger Deep (las fuentes difieren);
+  - la cifra de 4.717 especies.
+- **Limitación:** el proxy bloqueó las páginas (WHOI, NOAA, AIP, Commons). Estas cifras se confirmaron con al menos dos fuentes por búsqueda; cada fuente lo anota en `researchPack.sources[].notes`.
+- Archivos: `ocean-script-001.json` (v002, que genera `build_script.py`) y `SCRIPT.md`. La prueba exige 1.750–1.950 palabras.
+
+### 12.2 Ajustes de Hans → plan de escenas v002 (`ocean-storyboard-001.json`, 84 planos, ~604 s)
+
+| Ajuste | Cómo se aplica |
+|---|---|
+| Tarjetas negras más cortas | Pasan de 18 tarjetas a **7, de ≤ 5 s**, solo donde el texto es la imagen. **Regla de lectura:** duración ≥ 1,5 s + palabras ÷ 3,5. Por eso la tarjeta «Two kinds of knowing» de b1 (4,47 s) se reduce a unas 8 palabras («Mapped: measured from afar. Seen: observed up close.») |
+| Cifras sobre imágenes en movimiento | **17 planos «figure-over-motion»**: la cifra y su fuente sobre metraje real o animación. En b1, «One lit patch at a time» pasa a ir sobre metraje real de un ROV |
+| Más fauna abisal y el pez pescador | Dos recreaciones IA animadas del pez pescador (nado con señuelo luminoso y primer plano del señuelo), rotuladas «AI recreation». No se encontró metraje de dominio público de un ceratioideo vivo; el de MBARI tiene copyright. El dragón de luz roja pasa de imagen fija a animación. Se suman fuentes hidrotermales y fauna del crepúsculo reales (NOAA, dominio público) |
+| Priorizar animación real | Orden: metraje real > animación IA de una foto real > animación IA de una imagen IA > gráfico animado > foto con acercamiento (solo archivo histórico). **Reparto:** 24 planos de metraje real, 9 de animación IA, 19 de gráfico animado, 17 de cifra sobre movimiento, 7 de tarjeta corta y solo 8 de foto con acercamiento (3 de archivo del siglo XIX, Trieste y SWOT). Cada plano lleva su campo `motion` |
+| Claridad del audio; música y ambiente por escena | Voz sin cambios (aprobada). **Música por sección:** b1 «Niebla baja»; b2–b3 «Archivo»; b4 «Pasillo», con silencio de 1,5 s tras el 0,001 %; b5 entra en silencio y «Horizonte» llega con la primera luz; b6 «Horizonte»; b7 vuelve a «Niebla baja» y se funde a negro. **Ambiente:** capa grave submarina y ping de sonar sintetizados por código (propios, sin terceros) en las escenas de ROV y mapeo, siempre bajo la voz |
+| Subtítulos con resaltado por palabra | **Hecho (gratis).** El estilo `captionStyle: "word-highlight"` solo cambia el color de la palabra que se dice: mismo tamaño y peso, sin desplazamiento ni reacomodo. Es opcional por manifiesto y por defecto no cambia nada. Muestra de b1 renderizada en local: `scratchpad/capsample/caption-sample-word-highlight.mp4` |
+
+**Reutilizado del primer minuto** (sin volver a pagar):
+- la voz de b1;
+- los clips Veo `ocean-b1-s01-lights-v1` (se mantiene con las partículas, como pidió Hans) y `ocean-b1-s04-recede-v1`;
+- la imagen IA de s04;
+- los recursos gratuitos s02, s03, s06 y s08, y la música.
+
+**Cambios de código necesarios antes de las llamadas de pago** (gratis; hay que volver a registrar el workflow con el nuevo `PINNED_REF`):
+1. Subtítulos con resaltado por palabra (commit `be7374e`, ya en la rama).
+2. Cifra sobre el metraje (`overlay` en la escena: título, cifra y fuente, con velo de legibilidad).
+3. Vídeo real de dominio público: Commons `.webm` o NOAA OE `.mp4`, transcodificado a H.264, con la licencia leída en la página del archivo. Hoy la herramienta de muestras solo acepta imágenes de Commons.
+4. Capas de ambiente propias y cues de música por sección.
+5. Tope de la herramienta de muestras: `SAMPLE_PAID_HARD_CAP_USD` es **US$10** y el tope acumulado propuesto lo supera. Se sube a un valor explícito (p. ej. 18) solo para este registro.
+
+### 12.3 Voz: saldo verificado (run 36329362082, lectura sin consumo)
+
+| | Caracteres |
+|---|---|
+| Saldo de ElevenLabs hoy (Starter, sin excedente posible) | **14.093** de 38.002 |
+| b1 (ya en la caché, reutilizado) | 0 nuevos (678 ya consumidos) |
+| b2–b7 del guion v002 | **10.009** |
+| Queda tras narrar | 4.084 |
+| Reserva que exige el script | 3.000 |
+| **Margen para retomas** | **≤ 1.084 caracteres** (p. ej. b2 completo, o frases sueltas de otros beats). Una retoma mayor esperaría a la renovación mensual del plan |
+
+### 12.4 Presupuesto revisado v002 (acumulado del episodio)
+
+Tarifas: Veo 3.1 Fast a 1080p, US$0,96 por clip de 8 s; imagen IA, reserva de US$0,06 (costo real observado US$0,0553); voz, valorada en el registro a US$0,30 por 1.000 caracteres, aunque su costo en dinero es $0 porque sale de la cuota.
+
+| Concepto | Dinero (USD) | Cuota ElevenLabs | Valor en el registro (USD) |
+|---|---|---|---|
+| **Ya gastado (etapa A)** | 1,9753 (2 Veo + 1 imagen) | 678 caracteres | 2,1787 |
+| **Reutilizado sin volver a pagar** | clips s01 y s04, imagen de s04, voz de b1, recursos gratuitos y música: 0 | 0 | 0 |
+| **Firme v002**: 7 clips Veo + 7 imágenes IA (luz en el agua, bioluminiscencia, contrailuminación, pez dragón, pez pescador ×2, cierre) | 7,14 | — | 7,14 |
+| **Voz b2–b7** | 0 | 10.009 caracteres | 3,0027 |
+| **Contingencia por falta de metraje real** de dominio público: bioluminescencia (b5-s2, imagen + clip), nieve marina (b5-s14) y fuentes hidrotermales (b6-s7) | 2,94 | — | 2,94 |
+| **Margen de correcciones**: 2 clips + 2 imágenes (retoma manual con clave nueva) | 2,04 | — | 2,04 |
+| **Margen de retoma de voz** | 0 | ≤ 1.084 caracteres | 0,3252 |
+| **Máximo acumulado** | **14,10** | **≤ 11.771 caracteres** | **17,63** |
+
+- **Tope total acumulado propuesto: US$17,65 en el registro del episodio** (incluye los US$2,1787 ya contabilizados). De eso, **como máximo US$14,10 son dinero**; el resto es la valoración de la cuota de voz.
+- **Gasto típico sin incidencias:** dinero ≈ US$1,98 + 7,14 = **US$9,12**; cuota ≈ 10.687 caracteres en total.
+- **Fuera del tope** (necesita otra aprobación): si el vídeo real de NOAA no se pudiera importar, 8 planos pasarían a animación Veo de una foto real (b2-s6, b2-s7, b3-s12, b3-s17, b3-s21, b4-s13, b6-s4 y b6-s5), por US$7,68 más. La alternativa gratuita es una foto con acercamiento, que Hans pidió evitar.
+- Sigue sin haber reintentos automáticos: se reserva antes de cada llamada, un fallo cuenta dentro del tope y detiene la ejecución, y una recuperación se lanza a mano con una clave nueva.
+
+### 12.5 Secuencia propuesta (nada de pago sin el nuevo techo)
+
+| # | Paso | Gasto |
+|---|---|---|
+| 1 | Hans aprueba el guion v002, el plan de escenas y el tope | — |
+| 2 | Código de la sección 12.2 (overlay, vídeo de dominio público, ambiente, tope) con pruebas y un ensayo local | gratis |
+| 3 | Registrar el workflow con el nuevo `PINNED_REF` (autorización de registro) | — |
+| 4 | `narrate-run` beats=all: b1 sale de la caché y se sintetizan b2–b7 (10.009 caracteres) | cuota |
+| 5 | `candidates` (words, pexels, commons y vídeo) y revisión visual y de licencias | gratis |
+| 6 | Manifiesto del episodio con los tiempos reales; `prepare` sin pago; `prepare` con pago | ≤ tope |
+| 7 | `render` de aprobación y entrega del MP4 (sin publicar en YouTube) | gratis |
