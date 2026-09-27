@@ -46,8 +46,10 @@ const KNOWN_MAP_COORDINATES: Record<string, KnownMap> = {
   // ocean-deep-001 (content/long-form/ocean-deep-001/ocean-storyboard-001.json): costas de Natural Earth.
   // El Pacífico usa longitudes 0–360 (−150° = 210°) para no partirse en el antimeridiano.
   "b4-s8": { latitude: 41.6, longitude: -71.5, label: "Rhode Island", landKey: "rhode-island" },
-  "b5-s10": { latitude: 36.8, longitude: -121.9, label: "Monterey Bay", landKey: "monterey" },
-  "b6-s6": { latitude: 11.37, longitude: 142.59, label: "Challenger Deep (approx.)", landKey: "mariana" },
+  // storyboard v002 (guion ampliado): los planos se renumeraron.
+  "b3-s5": { latitude: 11.4, longitude: 143.27, label: "HMS Challenger, 1875: 8,184 m", landKey: "mariana" },
+  "b5-s16": { latitude: 36.8, longitude: -121.9, label: "Monterey Bay", landKey: "monterey" },
+  "b6-s10": { latitude: 11.37, longitude: 142.59, label: "Challenger Deep (approx.)", landKey: "mariana" },
   "b2-s4": { latitude: 0, longitude: 210, label: "Pacific Ocean", landKey: "pacific" },
   "b4-s10": {
     latitude: 36, longitude: 138.5, label: "Japan", landKey: "pacific",

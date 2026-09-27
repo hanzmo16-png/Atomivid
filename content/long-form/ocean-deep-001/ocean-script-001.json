@@ -1,16 +1,17 @@
 {
   "meta": {
     "videoId": "ocean-deep-001",
-    "version": "001",
+    "version": "002",
     "topic": "The Deep Ocean: What We've Seen—and What We Still Don't Know",
     "workingTitle": "The Deep Ocean: What We've Seen—and What We Still Don't Know",
     "narrativeQuestion": "How do we know what is in the deep ocean, and what is the difference between having a map of a place and having actually observed it?",
     "language": "en",
     "mode": "curiosity_documentary",
-    "status": "DRAFT FOR APPROVAL — not narrated, no paid calls",
+    "status": "v002 FOR APPROVAL — b1 narrated (Brian, cached) and approved; b2–b7 expanded for ~10 min, not narrated",
+    "channel": "Earthward Chronicles (first episode; separate from the Atomivid product launch)",
     "authoredBy": "Written directly in English in this session from independent sources (no translation or paraphrase of any existing video script).",
-    "wordCount": 1398,
-    "characterCount": 7945,
+    "wordCount": 1870,
+    "characterCount": 10687,
     "perBeat": [
       {
         "id": "b1",
@@ -24,8 +25,8 @@
       },
       {
         "id": "b3",
-        "words": 288,
-        "characters": 1614
+        "words": 445,
+        "characters": 2552
       },
       {
         "id": "b4",
@@ -34,13 +35,13 @@
       },
       {
         "id": "b5",
-        "words": 215,
-        "characters": 1241
+        "words": 419,
+        "characters": 2392
       },
       {
         "id": "b6",
-        "words": 180,
-        "characters": 1078
+        "words": 291,
+        "characters": 1731
       },
       {
         "id": "b7",
@@ -153,11 +154,60 @@
         "notes": "10,935 m ±6 m (95% CI). Another 2021 estimate differs by ~48 m; a 2026 Scientific Data paper (R/V Hakuho-maru EM124) tests depth-estimate sensitivity."
       },
       {
+        "id": "challenger-1872",
+        "title": "HMS Challenger expedition 1872–1876 — Cornell University Library 'Challenging the Deep'; National Oceanography Centre; Royal Museums Greenwich",
+        "kind": "secondary",
+        "locator": "https://www.noc.ac.uk/who-we-are/our-history/the-challenger-expedition ; https://www.rmg.co.uk/stories/topics/hms-challenger-expedition-oceanography-trailblazer ; https://exhibits.library.cornell.edu/challenging-the-deep/feature/a-voyage-of-discovery",
+        "notes": "Depth by weighted hemp line; 492 deep soundings; 23 Mar 1875, Station 225 (11°24'N 143°16'E): 4,475 fathoms = 8,184 m, confirmed by a second sounding; ~4,700 new species in the 50-volume Report (1880–1895). Fetches blocked here; confirmed across ≥2 sources via search snippets. Avoid: 'Challenger found ~11 km' (it sounded 8.2 km)."
+      },
+      {
+        "id": "meteor-1925",
+        "title": "German Atlantic (Meteor) Expedition 1925–1927 — NOAA Ocean Exploration history timeline; Penn State 'Scientific Ocean Drilling'; GEOMAR",
+        "kind": "secondary",
+        "locator": "https://oceanexplorer.noaa.gov/history/timeline-the-age-or-electronics-1-1923-1945/ ; https://psu.pb.unizin.org/sciod/chapter/early-ocean-exploration/",
+        "notes": "First systematic scientific use of the echo sounder; ~67,000 soundings on east–west transects of the South Atlantic; showed the ridge's rugged extent. Not 'the first echo soundings ever' (US Navy sonic depth finders from ~1922)."
+      },
+      {
+        "id": "tharp-1952",
+        "title": "AIP Niels Bohr Library — Marie Tharp's discovery of the mid-ocean ridge rift valley (1952); Columbia LDEO (2020); Library of Congress (2026)",
+        "kind": "secondary",
+        "locator": "https://www.aip.org/history-programs/niels-bohr-library/ex-libris-universum/marie-tharps-discovery-mid-ocean-ridge-rift ; https://lamont.columbia.edu/news/8-surprising-facts-about-marie-tharp-mapmaker-extraordinaire ; https://blogs.loc.gov/loc/2026/03/marie-tharp-the-scientist-who-mapped-the-ocean-floor/",
+        "notes": "1952 (some sources 1952–53), Lamont Geological Observatory (Columbia): six trans-Atlantic echo-sounding profiles each showed a V-shaped notch at the ridge crest → rift valley; Heezen & Tharp 1957 Physiographic Diagram of the North Atlantic, drawn as if the water were drained away; 1977 World Ocean Floor (painted by H. Berann)."
+      },
+      {
+        "id": "vents-1977",
+        "title": "WHOI — Galápagos Rift 25th anniversary release; WHOI 'History of hydrothermal vent discovery' (1977, 1979)",
+        "kind": "primary",
+        "locator": "https://www.whoi.edu/press-room/news-release/major-cruise-to-galapagos-rift-marks-25th-anniversary-of-deep-sea-hydrothermal-vent-discovery/ ; https://www.whoi.edu/feature/history-hydrothermal-vents/discovery/1979-2.html",
+        "notes": "17 Feb 1977, Galápagos Rift, DSV Alvin to ~2,500 m (pilot Jack Donnelly; geologists Jack Corliss and Tjeerd van Andel), guided by temperature anomalies from the towed camera sled ANGUS; no biologists aboard; clams, mussels, crabs, tubeworms; first known food web based on chemosynthesis (microbes oxidising hydrogen sulfide). Black smokers 1979, East Pacific Rise (~350°C)."
+      },
+      {
+        "id": "anglerfish",
+        "title": "Pietsch, T.W. (2009) Oceanic Anglerfishes, Univ. of California Press; Hendry, T.A. et al. (2018) mBio 9:e01033-18, doi:10.1128/mBio.01033-18; Swann, J.B. et al. (2020) Science 369:1608, doi:10.1126/science.aaz9445",
+        "kind": "primary",
+        "locator": "https://doi.org/10.1128/mBio.01033-18 ; https://doi.org/10.1126/science.aaz9445 ; https://pubmed.ncbi.nlm.nih.gov/32732279/",
+        "notes": "Ceratioid anglerfishes: 11 families, ~160 species (Pietsch); the esca glows with symbiotic luminous bacteria whose genomes are reduced (Hendry 2018); in species with permanent male attachment, key adaptive-immunity genes are lost or reduced (Swann 2020). MBARI's 2014 black seadevil video (~600 m) was the first of that species alive — MBARI footage is copyrighted and NOT used."
+      },
+      {
+        "id": "dsl-dvm",
+        "title": "NOAA Ocean Exploration — What is the deep scattering layer?; DOSITS — Sound scattering layers; Irigoien, X. et al. (2014) Nature Communications 5:3271, doi:10.1038/ncomms4271; Proud, R. et al. (2019) ICES J. Mar. Sci. 76:718",
+        "kind": "primary",
+        "locator": "https://oceanexplorer.noaa.gov/ocean-fact/dsl/ ; https://dosits.org/science/movement/sound-scattering-layers/ ; https://doi.org/10.1038/ncomms4271",
+        "notes": "1942, USS Jasper off San Diego: wartime sonar showed a 'false bottom' ~300–500 m by day that rose at night; explained as migrating animals (Johnson, ~1945). Widely called the largest (daily) migration on Earth. Mesopelagic fish biomass: ~1 bn t (trawls) → ~10 bn t or more (Irigoien 2014); range ~2–16 bn t (Proud 2019) — stated as a range, disputed."
+      },
+      {
+        "id": "noaa-depth",
+        "title": "NOAA Ocean Service — How deep is the ocean?",
+        "kind": "primary",
+        "locator": "https://oceanservice.noaa.gov/facts/oceandepth.html",
+        "notes": "Average ocean depth ≈ 3,682 m (NOAA/WHOI 2010 satellite-based estimate)."
+      },
+      {
         "id": "trieste-1960",
         "title": "U.S. Navy History and Heritage Command — H-041-6: Bathyscaphe Trieste's Deep Dive",
         "kind": "primary",
         "locator": "https://www.history.navy.mil/about-us/leadership/director/directors-corner/h-grams/h-gram-041/h-041-6.html",
-        "notes": "23 January 1960, Jacques Piccard and Don Walsh reach the Challenger Deep."
+        "notes": "23 January 1960, Jacques Piccard and Don Walsh reach the Challenger Deep; descent ≈ 4 h 47–48 min, ≈ 20 minutes on the bottom. Head-counts of later visitors vary by source and date — not stated as a number."
       }
     ]
   },
@@ -244,10 +294,42 @@
       "type": "discovery",
       "sectionTitle": "What a map reveals — and what it does not",
       "purpose": "Explain ship multibeam sonar, satellite-derived bathymetry, the 28.7% figure and what 'mapped' means.",
-      "narration": "Take the maps first. Most modern seafloor maps begin with sound. A ship carries a multibeam sonar, which sends a fan of sound pulses toward the bottom and listens for their echoes. The time each echo takes to return becomes a depth. As the ship moves, it sweeps a strip of seafloor a few times wider than the water is deep, and line by line, a landscape appears: ridges, canyons, and volcanoes that never reach the surface. It is slow work. Mapping a single region can keep a ship busy for weeks. There is also a map of the entire ocean floor, and it comes from space. Satellites measure tiny bumps in the height of the sea surface, caused by the pull of mountains and trenches far below. From those bumps, researchers can estimate the shape of the seafloor everywhere at once. The newest satellite data can pick out features around eight kilometres across. That is a remarkable achievement. It is also far too coarse to show a shipwreck, a cold seep, or many smaller hills. So when an international effort called Seabed twenty thirty reports its progress, it counts the more detailed kind of map. In April twenty twenty-six, it reported that twenty-eight point seven percent of the global seafloor had been mapped to that standard, after a record of almost five million square kilometres was added in a single year. Even here, the word mapped has a precise meaning. The seafloor is divided into grid cells, and a cell counts once it contains at least one measured depth. In deep water, those cells are hundreds of metres wide. A map tells us where the ground rises and falls. It does not tell us what lives there.",
+      "narration": "Take the maps first. For most of history, the only way to measure the deep was to lower a weight on a rope. During the voyage of HMS Challenger, from eighteen seventy-two to eighteen seventy-six, the crew paid out a weighted hemp line again and again, and in three and a half years made fewer than five hundred deep soundings. One of them, in the western Pacific in eighteen seventy-five, found bottom at more than eight thousand metres, near what we now call the Mariana Trench. Half a century later, the German research ship Meteor crossed and recrossed the South Atlantic sending pulses of sound downward instead, and returned with about sixty-seven thousand echo soundings. In the early nineteen fifties, at Columbia University, the geologist Marie Tharp lined up six of those Atlantic echo profiles and noticed a deep notch along the crest of the Mid-Atlantic Ridge: a rift valley, where the seafloor is being pulled apart. Her maps, drawn with Bruce Heezen, showed the ocean floor as if the water had been drained away. Today, most seafloor maps still begin with sound. A ship carries a multibeam sonar, which sends a fan of sound pulses toward the bottom and listens for their echoes. The time each echo takes to return becomes a depth. As the ship moves, it sweeps a strip of seafloor a few times wider than the water is deep, and line by line, a landscape appears: ridges, canyons, and volcanoes that never reach the surface. There is also a map of the entire ocean floor, and it comes from space. Satellites measure tiny bumps in the height of the sea surface, caused by the pull of mountains and trenches far below. From those bumps, researchers can estimate the shape of the seafloor everywhere at once. The newest satellite data can pick out features around eight kilometres across. That is a remarkable achievement. It is also far too coarse to show a shipwreck, a cold seep, or many smaller hills. So when an international effort called Seabed twenty thirty reports its progress, it counts the more detailed kind of map. In April twenty twenty-six, it reported that twenty-eight point seven percent of the global seafloor had been mapped to that standard, after a record of almost five million square kilometres was added in a single year. Even here, the word mapped has a precise meaning. The seafloor is divided into grid cells, and a cell counts once it contains at least one measured depth. In deep water, those cells are hundreds of metres wide. A map tells us where the ground rises and falls. It does not tell us what lives there.",
       "claims": [
         {
           "id": "b3-c1",
+          "text": "HMS Challenger 1872–76 sounded with a weighted hemp line; 492 deep soundings",
+          "support": "sourced",
+          "sourceIds": [
+            "challenger-1872"
+          ]
+        },
+        {
+          "id": "b3-c2",
+          "text": "1875 sounding in the western Pacific: 4,475 fathoms = 8,184 m, near the Mariana Trench",
+          "support": "sourced",
+          "sourceIds": [
+            "challenger-1872"
+          ]
+        },
+        {
+          "id": "b3-c3",
+          "text": "Meteor 1925–27: ~67,000 echo soundings across the South Atlantic",
+          "support": "sourced",
+          "sourceIds": [
+            "meteor-1925"
+          ]
+        },
+        {
+          "id": "b3-c4",
+          "text": "Marie Tharp (Lamont/Columbia, early 1950s) identified the Mid-Atlantic Ridge rift valley from six echo profiles; maps with Heezen drawn as if the water were drained",
+          "support": "sourced",
+          "sourceIds": [
+            "tharp-1952"
+          ]
+        },
+        {
+          "id": "b3-c5",
           "text": "Multibeam sonar sends a fan of sound pulses and measures echo travel time",
           "support": "sourced",
           "sourceIds": [
@@ -255,7 +337,7 @@
           ]
         },
         {
-          "id": "b3-c2",
+          "id": "b3-c6",
           "text": "Swath is a few times wider than the water depth (≈1.3–6× depending on system)",
           "support": "sourced",
           "sourceIds": [
@@ -263,15 +345,7 @@
           ]
         },
         {
-          "id": "b3-c3",
-          "text": "Mapping a region can take a ship weeks",
-          "support": "inference",
-          "sourceIds": [
-            "noaa-mapping"
-          ]
-        },
-        {
-          "id": "b3-c4",
+          "id": "b3-c7",
           "text": "Satellites infer seafloor shape from sea-surface height caused by gravity",
           "support": "sourced",
           "sourceIds": [
@@ -279,7 +353,7 @@
           ]
         },
         {
-          "id": "b3-c5",
+          "id": "b3-c8",
           "text": "Newest satellite (SWOT) data resolve features at ~8 km",
           "support": "sourced",
           "sourceIds": [
@@ -287,7 +361,7 @@
           ]
         },
         {
-          "id": "b3-c6",
+          "id": "b3-c9",
           "text": "28.7% mapped by April 2026; almost 5 million km² added in a year (record)",
           "support": "sourced",
           "sourceIds": [
@@ -296,7 +370,7 @@
           ]
         },
         {
-          "id": "b3-c7",
+          "id": "b3-c10",
           "text": "A grid cell counts as mapped with at least one sounding; deep cells are 400–800 m",
           "support": "sourced",
           "sourceIds": [
@@ -331,6 +405,14 @@
         },
         {
           "id": "b4-c3",
+          "text": "4,000 m is not far from the ocean's average depth (~3,682 m)",
+          "support": "sourced",
+          "sourceIds": [
+            "noaa-depth"
+          ]
+        },
+        {
+          "id": "b4-c4",
           "text": "Deep Discoverer rated to 6,000 m; telepresence to scientists ashore",
           "support": "sourced",
           "sourceIds": [
@@ -338,7 +420,7 @@
           ]
         },
         {
-          "id": "b4-c4",
+          "id": "b4-c5",
           "text": "~44,000 (43,681) dive records 1958–2024; ~3,823 km²; <0.001% of deep seafloor",
           "support": "sourced",
           "sourceIds": [
@@ -346,7 +428,7 @@
           ]
         },
         {
-          "id": "b4-c5",
+          "id": "b4-c6",
           "text": "Comparable to the size of Rhode Island (NOAA's framing)",
           "support": "sourced",
           "sourceIds": [
@@ -354,7 +436,7 @@
           ]
         },
         {
-          "id": "b4-c6",
+          "id": "b4-c7",
           "text": "Estimate with incomplete records — authors' caveat",
           "support": "sourced",
           "sourceIds": [
@@ -362,7 +444,7 @@
           ]
         },
         {
-          "id": "b4-c7",
+          "id": "b4-c8",
           "text": "65% of observations within 200 nm of the US, Japan, New Zealand; 19.1% of dives on the high seas",
           "support": "sourced",
           "sourceIds": [
@@ -377,7 +459,7 @@
       "type": "twist",
       "sectionTitle": "Life and light in the dark",
       "purpose": "Bioluminescence (76% in Monterey), why blue, what it is used for, red-light dragonfishes, marine snow; limits of the evidence.",
-      "narration": "And yet the darkness is not empty, and it is not entirely dark. Far below the reach of sunlight, many animals make their own light. At the Monterey Bay Aquarium Research Institute in California, scientists reviewed video from two hundred and forty robotic dives, from the surface down to almost four thousand metres, and counted more than three hundred and fifty thousand animals. About three quarters of them were capable of producing light. Most of that light is blue, the colour that travels farthest through seawater. Animals use it in different ways: to startle a predator, to lure prey, to find a mate, or to erase their own silhouette against the faint glow from above. A few deep-sea dragonfishes even make red light, which most animals around them cannot see. Much of this life depends on a slow rain from above: fragments of dead plankton, waste and dust, sinking for days or even weeks. Scientists call it marine snow. In a camera's lights it looks like a blizzard, and for many animals in the deep, it is food. These observations come from particular places, recorded with particular tools. The Monterey figure describes the animals that were filmed there. It is a strong clue about the deep ocean as a whole, not a census of it.",
+      "narration": "And yet the darkness is not empty, and it is not entirely dark. Far below the reach of sunlight, many animals make their own light. At the Monterey Bay Aquarium Research Institute in California, scientists reviewed video from two hundred and forty robotic dives, from the surface down to almost four thousand metres, and counted more than three hundred and fifty thousand animals. About three quarters of them were capable of producing light. Most of that light is blue, the colour that travels farthest through seawater. Animals use it in different ways: to startle a predator, to lure prey, to find a mate, or to erase their own silhouette against the faint glow from above. A few deep-sea dragonfishes even make red light, which most animals around them cannot see. The most famous light in the deep belongs to the anglerfishes. In the deep-sea anglerfishes, a group of about one hundred and sixty species, a modified fin on the head carries a glowing lure. The fish does not make that glow itself. It comes from bacteria living inside the lure, and genetic studies show that these bacteria have lost many of the genes they would need to live on their own. In some species, the tiny males fuse permanently to a female's body. In twenty twenty, researchers found that those species have lost parts of the immune system that would normally reject another animal's tissue. Some of the life down there travels every day. During the Second World War, navy sonar operators kept finding a false bottom a few hundred metres down, one that rose toward the surface at night. It was not the seafloor. It was a layer of small fish, shrimp and other animals, climbing at dusk to feed in the upper ocean and sinking again before dawn. It is often called the largest daily migration on Earth, and no one knows its size precisely. Estimates for the fish in that twilight layer range from about two billion to sixteen billion tonnes. Much of this life depends on a slow rain from above: fragments of dead plankton, waste and dust, sinking for days or even weeks. Scientists call it marine snow. In a camera's lights it looks like a blizzard, and for many animals in the deep, it is food. These observations come from particular places, recorded with particular tools. The Monterey figure describes the animals that were filmed there. It is a strong clue about the deep ocean as a whole, not a census of it.",
       "claims": [
         {
           "id": "b5-c1",
@@ -413,6 +495,54 @@
         },
         {
           "id": "b5-c5",
+          "text": "Deep-sea (ceratioid) anglerfishes: ~160 species; lure on a modified fin ray",
+          "support": "sourced",
+          "sourceIds": [
+            "anglerfish"
+          ]
+        },
+        {
+          "id": "b5-c6",
+          "text": "The lure's glow comes from symbiotic bacteria with reduced genomes",
+          "support": "sourced",
+          "sourceIds": [
+            "anglerfish"
+          ]
+        },
+        {
+          "id": "b5-c7",
+          "text": "In species where males fuse permanently, parts of adaptive immunity are lost (Swann et al. 2020)",
+          "support": "sourced",
+          "sourceIds": [
+            "anglerfish"
+          ]
+        },
+        {
+          "id": "b5-c8",
+          "text": "WWII sonar found a 'false bottom' that rose at night: the deep scattering layer of migrating animals",
+          "support": "sourced",
+          "sourceIds": [
+            "dsl-dvm"
+          ]
+        },
+        {
+          "id": "b5-c9",
+          "text": "Often called the largest daily migration on Earth",
+          "support": "sourced",
+          "sourceIds": [
+            "dsl-dvm"
+          ]
+        },
+        {
+          "id": "b5-c10",
+          "text": "Mesopelagic fish biomass estimates range ~2–16 billion tonnes",
+          "support": "sourced",
+          "sourceIds": [
+            "dsl-dvm"
+          ]
+        },
+        {
+          "id": "b5-c11",
           "text": "Marine snow: sinking organic debris, can take weeks; food for deep-sea animals",
           "support": "sourced",
           "sourceIds": [
@@ -420,7 +550,7 @@
           ]
         },
         {
-          "id": "b5-c6",
+          "id": "b5-c12",
           "text": "Monterey result is regional, not a global census",
           "support": "inference",
           "sourceIds": [
@@ -436,7 +566,7 @@
       "type": "insight",
       "sectionTitle": "What researchers are still looking for",
       "purpose": "Undescribed species (Ocean Census), what maps point to but cannot confirm, and uncertainty even in the deepest depth.",
-      "narration": "So what are researchers still looking for? First, the animals themselves. New marine species are still being described at a steady pace. One global programme, the Ocean Census, reported more than eleven hundred species new to science in a single year, some collected more than six thousand metres down. How many remain undescribed is genuinely uncertain, and published estimates vary widely. Second, the places in between. A detailed map can point to a steep slope, a seamount or a cold seep worth visiting. But only a camera or a sample can show whether corals, microbes or whole communities are living there. And third, precision itself. Even the deepest known point in the ocean, the Challenger Deep in the Mariana Trench, does not have one agreed depth. A careful study published in twenty twenty-one put it at ten thousand nine hundred and thirty-five metres, give or take about six metres, while other surveys have produced figures that differ by tens of metres. The first people reached it in nineteen sixty. More than six decades later, we are still refining the number.",
+      "narration": "So what are researchers still looking for? First, the animals themselves. New marine species are still being described at a steady pace. One global programme, the Ocean Census, reported more than eleven hundred species new to science in a single year, some collected more than six thousand metres down. How many remain undescribed is genuinely uncertain, and published estimates vary widely. Second, the places in between. A detailed map can point to a steep slope, a seamount or a cold seep worth visiting. But only a camera or a sample can show whether corals, microbes or whole communities are living there. That is how one of the great surprises of modern science was found. In nineteen seventy-seven, a camera sled towed over a volcanic rift near the Galápagos Islands picked up patches of unusually warm water. When the submersible Alvin dived there, about two and a half kilometres down, the geologists aboard found hot springs crowded with clams, crabs and tube worms. No biologists were on those dives, because nobody expected to find much life. Those communities do not depend on sunlight. They are fed by microbes that draw energy from chemicals in the vent water. And third, precision itself. Even the deepest known point in the ocean, the Challenger Deep in the Mariana Trench, does not have one agreed depth. A careful study published in twenty twenty-one put it at ten thousand nine hundred and thirty-five metres, give or take about six metres, while other surveys have produced figures that differ by tens of metres. The first two people reached it in nineteen sixty, after a descent of nearly five hours, and spent about twenty minutes on the bottom. More than six decades later, we are still refining the number.",
       "claims": [
         {
           "id": "b6-c1",
@@ -473,7 +603,23 @@
         },
         {
           "id": "b6-c5",
-          "text": "First descent 1960 (Piccard & Walsh, Trieste)",
+          "text": "Galápagos Rift 1977: warm-water anomalies from a towed camera sled; Alvin at ~2,500 m found vent communities; no biologists aboard",
+          "support": "sourced",
+          "sourceIds": [
+            "vents-1977"
+          ]
+        },
+        {
+          "id": "b6-c6",
+          "text": "Vent communities are based on chemosynthesis, not sunlight",
+          "support": "sourced",
+          "sourceIds": [
+            "vents-1977"
+          ]
+        },
+        {
+          "id": "b6-c7",
+          "text": "First descent 1960 (Piccard & Walsh, Trieste): ~4 h 48 min descent, ~20 min on the bottom",
           "support": "sourced",
           "sourceIds": [
             "trieste-1960"

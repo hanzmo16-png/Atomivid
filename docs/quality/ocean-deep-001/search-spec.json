@@ -1,51 +1,15 @@
 {
   "requestId": "ocean-deep-001",
-  "note": "Candidate searches per shot (free: Pexels API + Wikimedia Commons, public domain only). Finding is not approving: every candidate is reviewed visually and its licence re-read on the file page (reject captions saying 'copyright', CC BY-SA, MBARI). Passage = shot intent; exact cut times come from the real narration (PART=words).",
+  "note": "v002 — Commons search only returns bitmaps: real NOAA dive VIDEO needs the commons-video support planned in PLAN.md §12 (until then these queries find stills for review). Candidate searches per shot (free: Pexels API + Wikimedia Commons, public domain only). Finding is not approving: every candidate is reviewed visually and its licence re-read on the file page (reject captions saying 'copyright', CC BY-SA, MBARI). Passage = shot intent; exact cut times come from the real narration (PART=words).",
   "scenes": [
     {
-      "id": "b1-s1",
-      "passage": "A light switches on over pale sediment 3,000 m down",
+      "id": "b1-s5",
+      "passage": "'One lit patch at a time' — over real ROV footage",
       "pexels": [],
       "commons": [
-        "Deep Discoverer (51816198671)",
-        "Deep Discoverer ROV seafloor lights NOAA"
+        "Deep Discoverer ROV seafloor NOAA Okeanos",
+        "NOAA Okeanos Explorer ROV dive seafloor"
       ]
-    },
-    {
-      "id": "b1-s2",
-      "passage": "'pale sediment, a few scattered stones'",
-      "pexels": [],
-      "commons": [
-        "Okeanos Explorer seafloor sediment NOAA",
-        "NOAA Ocean Exploration abyssal plain"
-      ]
-    },
-    {
-      "id": "b1-s3",
-      "passage": "'a small animal drifting through the beam'",
-      "pexels": [],
-      "commons": [
-        "Okeanos Explorer Psychedelic Medusa webm",
-        "NOAA Okeanos jellyfish video"
-      ]
-    },
-    {
-      "id": "b1-s6",
-      "passage": "'More than a quarter of the seafloor has been mapped' — Seabed 2030, April 2026",
-      "pexels": [],
-      "commons": [
-        "ETOPO global relief",
-        "GEBCO world bathymetry"
-      ]
-    },
-    {
-      "id": "b1-s7",
-      "passage": "'How do we actually know what is down there?'",
-      "pexels": [
-        "aerial ocean surface dusk dark water",
-        "open ocean aerial evening"
-      ],
-      "commons": []
     },
     {
       "id": "b2-s1",
@@ -53,6 +17,15 @@
       "pexels": [
         "underwater sun rays deep blue",
         "light rays underwater descending"
+      ],
+      "commons": []
+    },
+    {
+      "id": "b2-s3",
+      "passage": "'More than 90% of the ocean's volume is deep ocean' (NOAA)",
+      "pexels": [
+        "descending into deep blue water",
+        "deep blue water underwater dark"
       ],
       "commons": []
     },
@@ -70,7 +43,7 @@
       "passage": "'seen, with a camera or with their own eyes'",
       "pexels": [],
       "commons": [
-        "Deep Discoverer seafloor NOAA",
+        "Deep Discoverer dive NOAA seafloor",
         "NOAA ROV Deep Discoverer dive"
       ]
     },
@@ -78,14 +51,59 @@
       "id": "b3-s1",
       "passage": "'Take the maps first.'",
       "pexels": [
-        "research vessel at sea",
+        "ship bow open sea",
         "ship open ocean aerial"
       ],
       "commons": []
     },
     {
+      "id": "b3-s2",
+      "passage": "'lower a weight on a rope' — HMS Challenger",
+      "pexels": [],
+      "commons": [
+        "HMS Challenger 1872",
+        "HMS Challenger ship engraving"
+      ]
+    },
+    {
       "id": "b3-s3",
-      "passage": "'A ship carries a multibeam sonar'",
+      "passage": "'a weighted hemp line again and again'",
+      "pexels": [],
+      "commons": [
+        "Challenger Report sounding apparatus",
+        "HMS Challenger sounding machine"
+      ]
+    },
+    {
+      "id": "b3-s4",
+      "passage": "'Fewer than 500 deep soundings in 3½ years'",
+      "pexels": [
+        "rope underwater",
+        "rope sinking in water"
+      ],
+      "commons": []
+    },
+    {
+      "id": "b3-s7",
+      "passage": "'Meteor, 1925–27: about 67,000 echo soundings'",
+      "pexels": [
+        "ship crossing ocean aerial",
+        "cargo ship open ocean drone"
+      ],
+      "commons": []
+    },
+    {
+      "id": "b3-s9",
+      "passage": "'as if the water had been drained away'",
+      "pexels": [],
+      "commons": [
+        "NOAA ETOPO Atlantic relief",
+        "Atlantic Ocean bathymetry NOAA relief"
+      ]
+    },
+    {
+      "id": "b3-s10",
+      "passage": "'Today, most seafloor maps still begin with sound'",
       "pexels": [],
       "commons": [
         "NOAA R337 Okeanos Explorer",
@@ -93,7 +111,7 @@
       ]
     },
     {
-      "id": "b3-s4",
+      "id": "b3-s12",
       "passage": "'ridges, canyons, and volcanoes that never reach the surface'",
       "pexels": [],
       "commons": [
@@ -102,16 +120,7 @@
       ]
     },
     {
-      "id": "b3-s6",
-      "passage": "'Mapping a single region can keep a ship busy for weeks.'",
-      "pexels": [
-        "ship wake aerial open sea",
-        "vessel wake ocean drone"
-      ],
-      "commons": []
-    },
-    {
-      "id": "b3-s7",
+      "id": "b3-s14",
       "passage": "'a map of the entire ocean floor… from space'",
       "pexels": [],
       "commons": [
@@ -120,7 +129,16 @@
       ]
     },
     {
-      "id": "b3-s10",
+      "id": "b3-s16",
+      "passage": "'Satellites: features around 8 km across'",
+      "pexels": [
+        "open ocean swell",
+        "ocean swell aerial"
+      ],
+      "commons": []
+    },
+    {
+      "id": "b3-s17",
       "passage": "'a shipwreck, a cold seep, or many smaller hills'",
       "pexels": [],
       "commons": [
@@ -129,7 +147,16 @@
       ]
     },
     {
-      "id": "b3-s13",
+      "id": "b3-s18",
+      "passage": "'28.7% of the global seafloor mapped to modern standards' — Seabed 2030, April 2026",
+      "pexels": [],
+      "commons": [
+        "global bathymetry globe NOAA",
+        "ocean floor relief globe NASA"
+      ]
+    },
+    {
+      "id": "b3-s21",
       "passage": "'It does not tell us what lives there.'",
       "pexels": [],
       "commons": [
@@ -165,6 +192,24 @@
       ]
     },
     {
+      "id": "b4-s6",
+      "passage": "'About 44,000 dive records · 1958–2024' — Bell et al. 2025",
+      "pexels": [],
+      "commons": [
+        "NOAA ROV descending water column",
+        "Okeanos Explorer ROV descent"
+      ]
+    },
+    {
+      "id": "b4-s11",
+      "passage": "'High seas: most of the ocean — less than a fifth of the dives'",
+      "pexels": [
+        "open ocean night",
+        "dark sea night aerial"
+      ],
+      "commons": []
+    },
+    {
       "id": "b4-s12",
       "passage": "'We have mapped more than a quarter…'",
       "pexels": [
@@ -192,7 +237,43 @@
       ]
     },
     {
-      "id": "b5-s8",
+      "id": "b5-s3",
+      "passage": "'240 dives · surface to ~3,900 m · 350,000+ animals' — Martini & Haddock 2017",
+      "pexels": [],
+      "commons": [
+        "NOAA midwater ROV jellyfish",
+        "Okeanos Explorer midwater siphonophore"
+      ]
+    },
+    {
+      "id": "b5-s4",
+      "passage": "'About three quarters could produce light (76%)'",
+      "pexels": [],
+      "commons": [
+        "NOAA Okeanos midwater animals",
+        "NOAA ctenophore deep sea"
+      ]
+    },
+    {
+      "id": "b5-s12",
+      "passage": "'climbing at dusk to feed… sinking again before dawn'",
+      "pexels": [
+        "ocean dusk to night timelapse",
+        "sea sunset to night"
+      ],
+      "commons": []
+    },
+    {
+      "id": "b5-s13",
+      "passage": "'Twilight-zone fish: about 2 to 16 billion tonnes' — estimates vary",
+      "pexels": [],
+      "commons": [
+        "NOAA lanternfish",
+        "NOAA midwater fish Okeanos"
+      ]
+    },
+    {
+      "id": "b5-s14",
       "passage": "'a slow rain from above… marine snow'",
       "pexels": [],
       "commons": [
@@ -201,7 +282,7 @@
       ]
     },
     {
-      "id": "b5-s9",
+      "id": "b5-s15",
       "passage": "'for many animals in the deep, it is food'",
       "pexels": [],
       "commons": [
@@ -219,12 +300,21 @@
       ]
     },
     {
-      "id": "b6-s4",
-      "passage": "'a steep slope, a seamount or a cold seep worth visiting'",
+      "id": "b6-s2",
+      "passage": "'1,121 species new to science in one year' — Ocean Census, Apr 2025–Mar 2026",
       "pexels": [],
       "commons": [
         "NOAA Okeanos sponge deep sea",
         "NOAA Ocean Exploration octopus deep"
+      ]
+    },
+    {
+      "id": "b6-s4",
+      "passage": "'a steep slope, a seamount or a cold seep worth visiting'",
+      "pexels": [],
+      "commons": [
+        "NOAA seamount multibeam cold seep",
+        "NOAA Okeanos seep ROV"
       ]
     },
     {
@@ -237,8 +327,44 @@
       ]
     },
     {
+      "id": "b6-s6",
+      "passage": "'a camera sled towed over a volcanic rift near the Galápagos'",
+      "pexels": [],
+      "commons": [
+        "ANGUS camera sled",
+        "Galapagos Rift 1977 hydrothermal"
+      ]
+    },
+    {
+      "id": "b6-s7",
+      "passage": "'hot springs crowded with clams, crabs and tube worms'",
+      "pexels": [],
+      "commons": [
+        "hydrothermal vent tubeworms NOAA",
+        "Riftia pachyptila NOAA"
+      ]
+    },
+    {
       "id": "b6-s8",
-      "passage": "'The first people reached it in 1960.'",
+      "passage": "'1977 · about 2,500 m · no biologists aboard'",
+      "pexels": [],
+      "commons": [
+        "hydrothermal vent clams NOAA",
+        "Galapagos Rift vent NOAA"
+      ]
+    },
+    {
+      "id": "b6-s11",
+      "passage": "'10,935 m ± 6 m (2021)' — other surveys differ by tens of metres",
+      "pexels": [
+        "descending into dark water",
+        "deep dark water underwater"
+      ],
+      "commons": []
+    },
+    {
+      "id": "b6-s12",
+      "passage": "'The first two people reached it in 1960'",
       "pexels": [],
       "commons": [
         "Bathyscaphe Trieste US Navy",
@@ -246,12 +372,21 @@
       ]
     },
     {
+      "id": "b6-s13",
+      "passage": "'Descent: nearly 5 hours · about 20 minutes on the bottom'",
+      "pexels": [],
+      "commons": [
+        "Trieste bathyscaphe 1959",
+        "Trieste Piccard Walsh 1960"
+      ]
+    },
+    {
       "id": "b7-s1",
       "passage": "'sound and satellites have measured it'",
       "pexels": [],
       "commons": [
-        "NOAA Okeanos ROV seafloor survey",
-        "NOAA Ocean Exploration seafloor"
+        "NOAA Okeanos multibeam map",
+        "NOAA Ocean Exploration bathymetry map"
       ]
     },
     {
@@ -259,8 +394,17 @@
       "passage": "'cameras and samples have visited small, scattered patches'",
       "pexels": [],
       "commons": [
-        "NOAA Okeanos Explorer at sea sunset",
-        "NOAA Ocean Exploration ship deck"
+        "NOAA Okeanos ROV seafloor survey",
+        "NOAA Ocean Exploration seafloor"
+      ]
+    },
+    {
+      "id": "b7-s3",
+      "passage": "'Mapped: 28.7% · Seen: about 0.001%' — two kinds of knowing",
+      "pexels": [],
+      "commons": [
+        "NOAA Okeanos ROV sediment",
+        "Deep Discoverer seafloor lights"
       ]
     }
   ]

@@ -9,7 +9,7 @@ sb = json.loads((here / "ocean-storyboard-001.json").read_text())
 src = {x["id"]: x for x in s["researchPack"]["sources"]}
 
 # Afirmaciones que el guion presenta explícitamente como inciertas o acotadas.
-UNCERTAIN = {"b4-c6", "b5-c6", "b6-c2", "b6-c4"}
+UNCERTAIN = {"b4-c7", "b5-c10", "b5-c12", "b6-c2", "b6-c4"}
 
 out = [f"# {s['meta']['topic']}", "",
        f"Script for approval: {s['meta']['wordCount']} words, {s['meta']['characterCount']} characters, English (voice-over).",

@@ -32,14 +32,14 @@ test("muestra de varios beats: solo los primeros del guion, en orden y sin hueco
   assert.throws(() => leadingBeats(beats, []), /no declara/);
 });
 
-test("guion del océano: inglés, 1.300–1.500 palabras, cada afirmación con fuente o marcada como inferencia", () => {
+test("guion del océano: inglés, 1.750–1.950 palabras (≈10 min al ritmo medido de Brian), cada afirmación con fuente o marcada como inferencia", () => {
   const raw = JSON.parse(readFileSync(SCRIPT, "utf8")) as {
     meta: { language: string; wordCount: number };
     researchPack: { sources: { id: string }[] };
     beats: { claims: { support: string; sourceIds: string[] }[] }[];
   };
   assert.equal(raw.meta.language, "en");
-  assert.ok(raw.meta.wordCount >= 1300 && raw.meta.wordCount <= 1500, `palabras: ${raw.meta.wordCount}`);
+  assert.ok(raw.meta.wordCount >= 1750 && raw.meta.wordCount <= 1950, `palabras: ${raw.meta.wordCount}`);
   const ids = new Set(raw.researchPack.sources.map((s) => s.id));
   for (const claim of raw.beats.flatMap((b) => b.claims)) {
     assert.notEqual(claim.support, "unverified");
@@ -82,7 +82,7 @@ test("mapas del océano: costas reales, proporción correcta y marcadores dentro
   assert.match(MAP_LAND_SOURCE, /Natural Earth/);
   const raw = JSON.parse(readFileSync(STORYBOARD, "utf8")) as { shots: { shotId: string; assetType: string; visualIntent: string }[] };
   const maps = raw.shots.filter((s) => s.assetType === "map");
-  assert.equal(maps.length, 5);
+  assert.equal(maps.length, 6);
   for (const shot of maps) {
     const spec = realGraphicSpecProvider({ id: shot.shotId, type: "map", captionText: shot.visualIntent } as never);
     assert.ok(spec && spec.kind === "map" && spec.landKey, shot.shotId);
