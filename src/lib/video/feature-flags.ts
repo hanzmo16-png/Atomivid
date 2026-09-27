@@ -128,6 +128,12 @@ export function getFeatureFlags() {
     ttsMaxCharsPerPiece: numberEnv("TTS_MAX_CHARS_PER_PIECE", 3000),
     /** Límite por usuario y mes calendario (caracteres de «Texto a voz»), para proteger la cuota compartida. */
     ttsMaxCharsPerUserMonth: numberEnv("TTS_MAX_CHARS_PER_USER_MONTH", 6000),
+    /**
+     * Acompañamiento musical opcional en «Texto a voz» (Sin música, Suspenso,
+     * Documental; src/lib/tts/music-beds.ts). Requiere la migración 0022.
+     * Los episodios largos son un piloto aparte (src/lib/tts/limits.ts).
+     */
+    ttsMusicEnabled: flag("TTS_MUSIC_ENABLED", false),
     /** «Mi voz» (clonación instantánea privada). Requiere la migración 0021 y el worker. */
     myVoiceEnabled: flag("MY_VOICE_ENABLED", false),
     /** Voces privadas por usuario (cada una ocupa uno de los 10 espacios de clonación de la cuenta Starter). */

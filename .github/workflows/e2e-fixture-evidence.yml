@@ -22,7 +22,8 @@ concurrency:
 jobs:
   evidence:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Episodio de 46 min simulado (~8 min), episodio corto con Suspenso e interfaz en móvil y escritorio (~5 min) además de los videos.
+    timeout-minutes: 35
     env:
       SCRIPT_PROVIDER: fixture
       VOICE_PROVIDER: fixture
@@ -70,6 +71,20 @@ jobs:
         run: npx tsx scripts/test-pipeline-visual-mix.ts --out-dir evidence/visual-mix
       - name: Render audiovisual direction fixtures (horror, comic mystery, comic humor, comic-anim with simulated animation) and validate MP4 + in-scene motion + negative control
         run: npx tsx scripts/test-pipeline-audiovisual.ts --out-dir evidence/audiovisual --verify
+      - name: "Text-to-speech podcast, 45 min equivalent (simulated voice, real ffmpeg): pause/resume without repeated synthesis, loudness, true peak, voice over music, loop seams"
+        run: |
+          npx tsx scripts/podcast-local-validation.ts --out-dir evidence/podcast --minutes 45
+          # Los dos MP3 completos (~44 MB cada uno) no se publican: bastan el resumen y los extractos.
+          rm -f evidence/podcast/narracion.mp3 evidence/podcast/podcast-con-musica.mp3
+          # Episodio corto con Suspenso: extractos de entrada, vuelta del bucle y salida del otro estado de ánimo.
+          npx tsx scripts/podcast-local-validation.ts --out-dir evidence/podcast-suspenso --minutes 5 --music suspense
+          rm -f evidence/podcast-suspenso/narracion.mp3 evidence/podcast-suspenso/podcast-con-musica.mp3 evidence/podcast-suspenso/fondo-*.mp3
+      - name: "Text-to-speech UI on mobile and desktop (real app with next dev, simulated Supabase in memory, free test voice)"
+        run: |
+          npm i --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          npx tsx scripts/ui-verification/podcast-ui.ts --out-dir evidence/podcast-ui
+          rm -f evidence/podcast-ui/*.mp3
       - name: Publish verified simulated videos
         uses: actions/upload-artifact@v4
         with:

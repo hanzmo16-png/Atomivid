@@ -13,6 +13,11 @@ type Row = Record<string, unknown>;
 type Filter = (row: Row) => boolean;
 
 const UNIQUE: Record<string, string[][]> = { tts_jobs: [["user_id", "client_request_id"]], user_voices: [["provider_voice_id"]] };
+/** Índices únicos parciales (como tts_jobs_one_active_long_pilot, 0022): como mucho una fila cumple cada predicado. */
+const PARTIAL_UNIQUE: Record<string, ((row: Row) => boolean)[]> = {
+  tts_jobs: [(r) => r.long_pilot === true && (r.status === "queued" || r.status === "processing")],
+};
+const violatesPartial = (table: string, all: Row[]) => (PARTIAL_UNIQUE[table] ?? []).some((pred) => all.filter(pred).length > 1);
 
 /** Emula un disparador BEFORE INSERT: devuelve un mensaje de error para rechazar la fila (como `raise exception`). */
 export type BeforeInsert = (table: string, row: Row, rows: Row[]) => string | null;
@@ -43,12 +48,24 @@ export function memoryDb(seed: Record<string, Row[]> = {}, faults: StorageFaults
           }
         }
         all.push(row);
+        if (violatesPartial(table, all)) {
+          all.pop();
+          return { data: null, error: { code: "23505", message: "duplicate key value violates unique constraint (partial)" } };
+        }
         log.push({ table, op: "insert", values: row });
         return { data: [row], error: null };
       }
       const matched = all.filter((r) => filters.every((f) => f(r)));
       if (op.kind === "update") {
+        const before = matched.map((r) => ({ ...r }));
         for (const r of matched) Object.assign(r, op.values);
+        if (violatesPartial(table, all)) {
+          matched.forEach((r, i) => {
+            for (const k of Object.keys(r)) delete r[k];
+            Object.assign(r, before[i]);
+          });
+          return { data: null, error: { code: "23505", message: "duplicate key value violates unique constraint (partial)" } };
+        }
         log.push({ table, op: "update", values: op.values });
       }
       if (op.kind === "delete") {

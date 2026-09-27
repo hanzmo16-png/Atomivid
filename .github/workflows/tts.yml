@@ -23,7 +23,10 @@ permissions:
 jobs:
   tts:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Episodios largos (piloto): ~40-70 fragmentos + unir, masterizar y mezclar. El worker se
+    # detiene solo entre fragmentos al agotar TTS_WORKER_BUDGET_SECONDS (lo generado se conserva
+    # y «Reanudar» sigue desde ahí), antes de los timeouts duros de abajo.
+    timeout-minutes: 60
     steps:
       # repository_dispatch ejecuta SIEMPRE la rama por defecto. Para probar antes de fusionar, la
       # variable del repositorio VOICE_WORKERS_REF fija un commit revisado; vacía = rama por defecto.
@@ -38,10 +41,11 @@ jobs:
       - name: Instalar ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Generar audio
-        timeout-minutes: 15
+        timeout-minutes: 52
         run: npx tsx scripts/tts-worker.ts
         env:
           ATOMIVID_RUNTIME: production
+          TTS_WORKER_BUDGET_SECONDS: "2700"
           TTS_JOB_ID: ${{ github.event.client_payload.jobId || inputs.job_id }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

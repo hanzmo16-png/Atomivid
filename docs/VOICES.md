@@ -139,6 +139,9 @@ privada seleccionable.
   claro y no se envía la muestra. Una clonación incierta sigue ocupando
   capacidad hasta revisarla.
 
+- **Episodios largos y música (podcast)**: ver `docs/PODCAST.md` (rama
+  `claude/tts-podcast`). Los límites generales de arriba no cambian.
+
 ## 5. Concurrencia
 
 - Límite mensual de Texto a voz y cupos de voces propias: los aplica la base

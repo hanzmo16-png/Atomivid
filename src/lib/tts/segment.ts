@@ -11,6 +11,8 @@
  * (previous_text / next_text; ese contexto no se narra).
  */
 
+import { TTS_TECHNICAL_MAX_CHARS } from "./limits";
+
 export type TtsLanguage = "es" | "en";
 
 export type TtsSegment = {
@@ -28,12 +30,17 @@ export const PARAGRAPH_PAUSE_MS = 650;
 export const SENTENCE_PAUSE_MS = 180;
 /** Contexto vecino que se envía (caracteres). */
 export const CONTEXT_CHARS = 280;
-/** Ritmo de lectura medio con eleven_multilingual_v2 a velocidad 1.0 (estimación; la duración real se mide al terminar). */
-export const TTS_CHARS_PER_SECOND = 15;
+/**
+ * Ritmo de narración para ORIENTAR a la usuaria: 120-140 palabras por
+ * minuto, incluidas las pausas breves. Es una estimación; la duración real
+ * se mide al terminar y nunca se corta, acelera ni rellena el audio para
+ * alcanzar una duración.
+ */
+export const WORDS_PER_MINUTE = { min: 120, typical: 130, max: 140 } as const;
 
 export const TTS_TITLE_MAX = 120;
-/** Límite técnico de la tabla (tts_jobs.script); el límite de producto es ttsMaxCharsPerPiece. */
-export const TTS_SCRIPT_HARD_MAX = 20000;
+/** Límite técnico de la tabla (tts_jobs.script, migración 0022); los límites de producto están en limits.ts. */
+export const TTS_SCRIPT_HARD_MAX = TTS_TECHNICAL_MAX_CHARS;
 
 /** Miles con punto, igual en servidor y navegador (toLocaleString("es") no agrupa números de 4 cifras). */
 export function formatCount(n: number): string {
@@ -113,10 +120,28 @@ export function billableCharacters(segments: TtsSegment[]): number {
   return segments.reduce((sum, s) => sum + s.text.length, 0);
 }
 
+/** Palabras narradas (cuenta lo que tiene al menos una letra o número). */
+export function countWords(text: string): number {
+  return text.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+}
+
+/** Duración estimada (segundos) a 120-140 palabras por minuto; `typical` = 130. */
+export function estimateDurationRange(words: number): { minSeconds: number; typicalSeconds: number; maxSeconds: number } {
+  const at = (wpm: number) => Math.round((words / wpm) * 600) / 10;
+  return { minSeconds: at(WORDS_PER_MINUTE.max), typicalSeconds: at(WORDS_PER_MINUTE.typical), maxSeconds: at(WORDS_PER_MINUTE.min) };
+}
+
+/** Estimación central (130 palabras por minuto) que se guarda con la pieza. */
 export function estimateSeconds(segments: TtsSegment[]): number {
-  const speech = billableCharacters(segments) / TTS_CHARS_PER_SECOND;
-  const pauses = segments.reduce((sum, s) => sum + s.pauseAfterMs, 0) / 1000;
-  return Math.round((speech + pauses) * 10) / 10;
+  return estimateDurationRange(segments.reduce((sum, s) => sum + countWords(s.text), 0)).typicalSeconds;
+}
+
+/** «≈ 28–33 min» o «≈ 40–50 s»: rango redondeado, siempre como estimación. */
+export function formatDurationRange(range: { minSeconds: number; maxSeconds: number }): string {
+  if (range.maxSeconds < 90) return `≈ ${Math.round(range.minSeconds)}–${Math.round(range.maxSeconds)} s`;
+  const lo = Math.max(1, Math.floor(range.minSeconds / 60));
+  const hi = Math.max(lo, Math.ceil(range.maxSeconds / 60));
+  return lo === hi ? `≈ ${lo} min` : `≈ ${lo}–${hi} min`;
 }
 
 export function formatDuration(seconds: number): string {
@@ -127,6 +152,15 @@ export function formatDuration(seconds: number): string {
 }
 
 export type TtsLimits = { maxCharsPerPiece: number; maxCharsPerUserMonth: number; usedThisMonth: number };
+
+/** ¿Cabe el texto? Mismo cálculo en el formulario y en el servidor. */
+export function fitsTtsLimits(characters: number, limits: TtsLimits): { ok: true } | { ok: false; reason: "piece" | "month"; max: number } {
+  const max = Math.min(limits.maxCharsPerPiece, TTS_SCRIPT_HARD_MAX);
+  if (characters > max) return { ok: false, reason: "piece", max };
+  const remaining = Math.max(0, limits.maxCharsPerUserMonth - limits.usedThisMonth);
+  if (characters > remaining) return { ok: false, reason: "month", max: remaining };
+  return { ok: true };
+}
 
 export type TtsInput = { title: string; script: string; language: TtsLanguage };
 
@@ -143,12 +177,9 @@ export function validateTtsInput(
   if (!script) return { ok: false, error: "Escribe el texto que quieres narrar." };
   const segments = segmentScript(script);
   const characters = billableCharacters(segments);
-  const max = Math.min(limits.maxCharsPerPiece, TTS_SCRIPT_HARD_MAX);
-  if (characters > max) return { ok: false, error: `El texto tiene ${formatCount(characters)} caracteres; el máximo por pieza es ${formatCount(max)}.` };
-  const remaining = Math.max(0, limits.maxCharsPerUserMonth - limits.usedThisMonth);
-  if (characters > remaining) {
-    return { ok: false, error: `Este mes te quedan ${formatCount(remaining)} caracteres de Texto a voz y el texto tiene ${formatCount(characters)}.` };
-  }
+  const fit = fitsTtsLimits(characters, limits);
+  if (!fit.ok && fit.reason === "piece") return { ok: false, error: `El texto tiene ${formatCount(characters)} caracteres; el máximo por pieza es ${formatCount(fit.max)}.` };
+  if (!fit.ok) return { ok: false, error: `Este mes te quedan ${formatCount(fit.max)} caracteres de Texto a voz y el texto tiene ${formatCount(characters)}.` };
   return { ok: true, input: { title, script, language: raw.language }, segments, characters };
 }
 
@@ -162,8 +193,8 @@ export function monthlyCharactersUsed(rows: { characters: number; status: string
   return rows.reduce((sum, r) => (r.status === "failed" && !r.segments_done ? sum : sum + r.characters), 0);
 }
 
-/** Nombre de archivo seguro para la descarga del MP3. */
-export function downloadFileName(title: string): string {
+/** Nombre de archivo seguro para la descarga del MP3 (`suffix`: «narracion», «podcast-con-musica»). */
+export function downloadFileName(title: string, suffix?: string): string {
   const base = title
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
@@ -171,5 +202,6 @@ export function downloadFileName(title: string): string {
     .replace(/^-+|-+$/g, "")
     .toLowerCase()
     .slice(0, 60);
-  return `${base || "texto-a-voz"}.mp3`;
+  const name = base || "texto-a-voz";
+  return suffix ? `${name}-${suffix}.mp3` : `${name}.mp3`;
 }
