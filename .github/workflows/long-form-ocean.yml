@@ -7,7 +7,7 @@ name: Documental del océano (EN) — narración, candidatos, preparación y ren
 # gratuita) y long-form-quality-sample.ts (preparación y render). Un único
 # registro de gasto por episodio (ocean-deep-001/samples/episode): el primer
 # minuto y el episodio completo lo comparten, así que lo ya pagado se reutiliza.
-# Registrado para la etapa A (tope US$3,45). Solo disparo manual; todo
+# Episodio autorizado: tope acumulado US$17,65 (incluye etapa A). Solo disparo manual; todo
 # paso de pago exige confirm=GASTAR y el tope aprobado (cap_usd).
 # El CÓDIGO queda fijado en PINNED_REF. Los DATOS del episodio (guion, manifiestos,
 # búsquedas: solo content/long-form/ocean-deep-001 y docs/quality/ocean-deep-001)
@@ -28,7 +28,7 @@ on:
       manifest:
         description: "Manifiesto (primer minuto o episodio)"
         type: string
-        default: "docs/quality/ocean-deep-001/minute1-manifest.json"
+        default: "docs/quality/ocean-deep-001/motion-opening-manifest.json"
       search_spec:
         description: "Búsquedas gratuitas por pasaje (paso candidates)"
         type: string
@@ -63,11 +63,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PINNED_REF: 9b532486eee9fc1502d0022d1668fdbf4f0dc576
+  PINNED_REF: c0ac04e8145eb72f6a182dcdd92cee811eca108e
   VIDEO_ID: ocean-deep-001
   LEDGER_PREFIX: ocean-deep-001/samples/episode
   SCRIPT_FILE: content/long-form/ocean-deep-001/ocean-script-001.json
-  DATA_BRANCH: claude/ocean-documentary-stage-a-2gmp97
+  DATA_BRANCH: codex/ocean-opening-review
   # Brian (voz predeterminada de ElevenLabs, ya disponible en la cuenta; no se agrega ni se clona ninguna voz).
   VOICE_ID: nPczCjzI2devNBz1zQrb
 
@@ -118,7 +118,10 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           # El plan solo lee el saldo (GET); la síntesis ocurre únicamente en narrate-run con GASTAR.
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-        run: npx tsx scripts/long-form-narrate.ts
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/ocean"
+          npx tsx scripts/long-form-narrate.ts | tee "$RUNNER_TEMP/ocean/narration.log"
       - name: Candidatos gratuitos (tiempos por palabra, Pexels, Commons dominio público)
         if: inputs.step == 'candidates'
         env:
