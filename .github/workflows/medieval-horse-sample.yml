@@ -41,6 +41,20 @@ jobs:
         run: |
           if [ "$PINNED_REF" = REEMPLAZAR_POR_SHA_REVISADO ]; then echo 'Falta fijar el commit revisado'; exit 1; fi
           if [ "$MODE" = run ] && [ "$CONFIRM" != GASTAR ]; then echo 'Falta confirmacion de gasto'; exit 1; fi
+      - name: Comprobar secretos (solo presente/ausente; nunca el valor)
+        env:
+          MODE: ${{ inputs.mode }}
+          S_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          S_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          S_VEO_API_KEY: ${{ secrets.VEO_API_KEY }}
+          S_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          missing=0
+          for k in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY VEO_API_KEY OPENAI_API_KEY; do
+            v="S_$k"
+            if [ -n "${!v}" ]; then echo "$k: presente"; else echo "$k: AUSENTE"; missing=1; fi
+          done
+          if [ "$missing" = 1 ]; then echo 'Falta un secreto: no se genera nada.'; exit 1; fi
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.PINNED_REF }}
