@@ -1,0 +1,279 @@
+{
+  "requestId": "ocean-deep-001",
+  "script": {
+    "file": "content/long-form/ocean-deep-001/ocean-script-001.json",
+    "language": "en"
+  },
+  "voiceId": "nPczCjzI2devNBz1zQrb",
+  "beats": [
+    "b1"
+  ],
+  "outputLabel": "minute1",
+  "tailSeconds": 1.2,
+  "outputPrefix": "ocean-deep-001/samples/episode",
+  "scenes": [
+    {
+      "id": "s01",
+      "startSeconds": 0.0,
+      "endSeconds": 5.03,
+      "narration": "A light switches on, three thousand metres below the surface. For a few seconds,",
+      "source": {
+        "kind": "veo-clip",
+        "key": "ocean-b1-s01-lights-v1",
+        "reference": {
+          "kind": "commons",
+          "title": "File:Deep Discoverer seabed Puerto Rico 11 April 2025.png"
+        },
+        "prompt": "Deep-sea documentary shot. The remotely operated vehicle's lights sweep slowly across pale sediment on the dark seafloor; fine particles drift through the beams; the camera glides forward very slowly. Keep everything that is in the photo; add no animals, no people, no text. Natural real-time motion, one continuous shot.",
+        "negativePrompt": "new creatures, fish, people, divers, text, logos, watermark, bright daylight, bubbles, cuts, fast camera moves, morphing",
+        "placeholder": {
+          "source": {
+            "kind": "commons",
+            "title": "File:Deep Discoverer seabed Puerto Rico 11 April 2025.png"
+          },
+          "provenance": "archival_documentary",
+          "creditText": "NOAA Ocean Exploration",
+          "camera": "push"
+        }
+      },
+      "provenance": "ai_recreation",
+      "direction": {
+        "camera": "still",
+        "look": {
+          "saturation": 0.85,
+          "contrast": 1.05
+        }
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Veo image-to-video from the NOAA public-domain photo; labelled AI recreation; nothing added to the scene"
+      },
+      "creditText": "Animated from a NOAA photo"
+    },
+    {
+      "id": "s02",
+      "startSeconds": 5.03,
+      "endSeconds": 11.7,
+      "narration": "it shows a patch of seafloor about the size of a living room: pale sediment, a few scattered stones,",
+      "source": {
+        "kind": "commons",
+        "title": "File:Expn0686 (14526221693).jpg"
+      },
+      "provenance": "archival_documentary",
+      "direction": {
+        "camera": "push",
+        "look": {
+          "saturation": 0.85,
+          "contrast": 1.05
+        },
+        "transition": {
+          "type": "dissolve",
+          "seconds": 0.6
+        }
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "NOAA Photo Library, public domain, 1920x1080: pale sediment and scattered rock in ROV lights (a cold seep; the bubbles are not narrated)"
+      },
+      "creditText": "NOAA Ocean Exploration (public domain)"
+    },
+    {
+      "id": "s03",
+      "startSeconds": 11.7,
+      "endSeconds": 14.19,
+      "narration": "a small animal drifting through the beam.",
+      "source": {
+        "kind": "commons",
+        "title": "File:Coronate of the genus Atolla Puerto Rico 28 April 2015.png"
+      },
+      "provenance": "archival_documentary",
+      "direction": {
+        "camera": "still",
+        "look": {
+          "saturation": 0.85,
+          "contrast": 1.05
+        }
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "NOAA OER 2015, public domain, 1724x967: a small medusa drifting in the ROV lights at ~800 m (lit by the vehicle; not described as bioluminescent). Preferred over the 400x300 Crossota photo"
+      },
+      "creditText": "NOAA Ocean Exploration (public domain)"
+    },
+    {
+      "id": "s04",
+      "startSeconds": 14.19,
+      "endSeconds": 18.05,
+      "narration": "Then the vehicle moves on, and the darkness closes behind it.",
+      "source": {
+        "kind": "veo-clip",
+        "key": "ocean-b1-s04-recede-v1",
+        "reference": {
+          "kind": "ai-still",
+          "prompt": "Realistic deep-sea documentary still, wide 16:9: the twin white lights of a remotely operated vehicle over dark, pale-grey sediment, beams catching fine drifting particles, black water beyond; no creatures, no people, no text, subtle film grain, low-key lighting.",
+          "negativePrompt": "fish, creatures, divers, people, text, logos, watermark, daylight, bubbles, cartoon, illustration style"
+        },
+        "prompt": "The vehicle's lights slowly move away and dim; the patch of seafloor falls back into darkness; particles keep drifting. Slow, steady, one continuous shot, realistic.",
+        "negativePrompt": "new creatures, people, text, cuts, fast moves, flashes",
+        "placeholder": {
+          "source": {
+            "kind": "pexels-video",
+            "id": 11025402
+          },
+          "provenance": "stock_illustrative",
+          "camera": "still"
+        }
+      },
+      "provenance": "ai_recreation",
+      "direction": {
+        "camera": "still",
+        "look": {
+          "saturation": 0.85,
+          "contrast": 1.05
+        },
+        "transition": {
+          "type": "dissolve",
+          "seconds": 0.6
+        }
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Veo image-to-video from an AI still; labelled AI recreation"
+      }
+    },
+    {
+      "id": "s05",
+      "startSeconds": 18.05,
+      "endSeconds": 24.13,
+      "narration": "Almost everything we have ever seen of the deep sea was seen like this, one lit patch at a time.",
+      "source": {
+        "kind": "graphic",
+        "spec": {
+          "kind": "text",
+          "title": "One lit patch at a time",
+          "body": "Almost everything seen in the deep sea was seen within reach of a vehicle's lights",
+          "citation": "Observed seafloor: Bell et al. 2025, Science Advances",
+          "isFixture": false,
+          "size": "large"
+        }
+      },
+      "provenance": "data_graphic",
+      "direction": {
+        "camera": "still"
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Large text card (Atomivid code)"
+      }
+    },
+    {
+      "id": "s06",
+      "startSeconds": 24.13,
+      "endSeconds": 29.07,
+      "narration": "And yet we also say that more than a quarter of the seafloor has now been mapped.",
+      "source": {
+        "kind": "commons",
+        "title": "File:NOAA ETOPO Global Relief map.jpg"
+      },
+      "provenance": "data_graphic",
+      "direction": {
+        "camera": "left",
+        "look": {
+          "saturation": 0.85,
+          "contrast": 1.05
+        },
+        "transition": {
+          "type": "dissolve",
+          "seconds": 0.6
+        }
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "NOAA NCEI, public domain, 5400x2700: real coastlines and seafloor relief"
+      },
+      "creditText": "NOAA NCEI ETOPO global relief (public domain) · Seabed 2030: 28.7% of the seafloor mapped (Apr 2026)"
+    },
+    {
+      "id": "s07",
+      "startSeconds": 29.07,
+      "endSeconds": 33.54,
+      "narration": "Both statements are true. They describe two very different kinds of knowing.",
+      "source": {
+        "kind": "graphic",
+        "spec": {
+          "kind": "text",
+          "title": "Two kinds of knowing",
+          "body": "Mapped: measured from a distance, mostly by sonar. Seen: observed directly, by camera or eye.",
+          "isFixture": false,
+          "size": "large"
+        }
+      },
+      "provenance": "data_graphic",
+      "direction": {
+        "camera": "still"
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Large text card (Atomivid code)"
+      }
+    },
+    {
+      "id": "s08",
+      "startSeconds": 33.54,
+      "endSeconds": 42.253,
+      "narration": "So how do we actually know what is down there? And what is the difference between having a map of a place and having truly looked at it?",
+      "source": {
+        "kind": "pexels-video",
+        "id": 30248500
+      },
+      "provenance": "stock_illustrative",
+      "direction": {
+        "camera": "still",
+        "look": {
+          "saturation": 0.85,
+          "contrast": 1.05
+        },
+        "transition": {
+          "type": "dissolve",
+          "seconds": 0.6
+        }
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "indirecta",
+        "note": "Pexels License (Stefanie Jockschat, 3840x2160, 18 s): calm dark ocean at dusk; present-day surface, not deep-sea footage"
+      }
+    }
+  ],
+  "soundCues": [
+    {
+      "id": "m1-bed",
+      "track": "atomivid-suspense-a-v1",
+      "role": "music",
+      "startSeconds": 0,
+      "endSeconds": 42.253,
+      "fadeInSeconds": 2.0,
+      "fadeOutSeconds": 1.2,
+      "loop": true,
+      "gain": 0.8
+    }
+  ],
+  "missingSound": [
+    "Sonar ping / ROV hum (s01–s04): no licensed effects library — not substituted with test tones."
+  ],
+  "packaging": {
+    "cover": {
+      "style": "sobrio",
+      "title": "The *Deep* Ocean",
+      "kicker": "What we've seen, what we haven't",
+      "placement": "top-left"
+    }
+  }
+}
