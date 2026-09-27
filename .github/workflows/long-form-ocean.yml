@@ -33,6 +33,10 @@ on:
         description: "Búsquedas gratuitas por pasaje (paso candidates)"
         type: string
         default: "docs/quality/ocean-deep-001/search-spec.json"
+      parts:
+        description: "Partes del paso candidates (words, pexels, commons)"
+        type: string
+        default: "words pexels commons"
       purpose:
         description: "technical | approval (render)"
         type: choice
@@ -127,8 +131,15 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          PARTS: ${{ inputs.parts }}
         run: |
-          for part in words pexels commons; do PART=$part npx tsx scripts/long-form-candidate-review.ts; done
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/ocean"
+          for part in $PARTS; do
+            case "$part" in words|pexels|commons) ;; *) echo "parte desconocida: $part"; exit 1;; esac
+            # La salida (candidatos y hojas de contacto) también va al artefacto para revisarla fuera de GitHub.
+            PART=$part npx tsx scripts/long-form-candidate-review.ts | tee "$RUNNER_TEMP/ocean/candidates-$part.log"
+          done
       - name: Preparar o renderizar (herramienta de muestras)
         if: inputs.step == 'prepare' || inputs.step == 'render'
         env:
@@ -145,7 +156,10 @@ jobs:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           OPENAI_API_KEY: ${{ inputs.step == 'prepare' && inputs.allow_paid && inputs.confirm == 'GASTAR' && secrets.OPENAI_API_KEY || '' }}
           VEO_API_KEY: ${{ inputs.step == 'prepare' && inputs.allow_paid && inputs.confirm == 'GASTAR' && secrets.VEO_API_KEY || '' }}
-        run: npx tsx scripts/long-form-quality-sample.ts
+        run: |
+          set -o pipefail
+          mkdir -p "$SAMPLE_OUT_DIR"
+          npx tsx scripts/long-form-quality-sample.ts | tee "$SAMPLE_OUT_DIR/sample-$PHASE.log"
       - name: Publicar
         if: always()
         uses: actions/upload-artifact@v4
