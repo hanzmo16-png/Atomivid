@@ -67,6 +67,8 @@ export type TextCardSpec = {
   /** Fuente citada, si aplica — refuerza en pantalla la distinción hecho/interpretación. */
   citation?: string;
   isFixture: boolean;
+  /** "large": tarjeta legible de LongFormDoc (ver remotion/long-form-card-fit.ts). */
+  size?: "large";
 };
 
 export type DocumentaryGraphicSpec = DiagramSpec | MapSpec | TextCardSpec;

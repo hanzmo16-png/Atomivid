@@ -29,9 +29,16 @@ import {
 } from "./diagram-map";
 
 /** Coordenadas verificadas por shotId — mismas que gobekli-storyboard-003.json `verifiedCoordinates` (ver research-pack-002.json para el detalle de la verificación y su limitación de precisión). Mantener sincronizado si el storyboard cambia. */
-const KNOWN_MAP_COORDINATES: Record<string, { latitude: number; longitude: number; label: string }> = {
+const KNOWN_MAP_COORDINATES: Record<string, { latitude: number; longitude: number; label: string; spanDeg?: number }> = {
   "b2-s1": { latitude: 37.22, longitude: 38.92, label: "Göbekli Tepe" },
   "b9-s1": { latitude: 37.22, longitude: 38.92, label: "Göbekli Tepe (red Taş Tepeler)" },
+  // ocean-deep-001 (content/long-form/ocean-deep-001/ocean-storyboard-001.json). Precisión reducida a propósito;
+  // los mapas mundiales del episodio se producen como data-map de Natural Earth — aquí solo el ensayo técnico.
+  "b4-s8": { latitude: 41.7, longitude: -71.5, label: "Rhode Island (scale)", spanDeg: 3 },
+  "b5-s10": { latitude: 36.8, longitude: -121.9, label: "Monterey Bay, California", spanDeg: 3 },
+  "b6-s6": { latitude: 11.37, longitude: 142.59, label: "Challenger Deep (approx.)", spanDeg: 8 },
+  "b2-s4": { latitude: 0, longitude: -150, label: "Pacific Ocean", spanDeg: 40 },
+  "b4-s10": { latitude: 20, longitude: -170, label: "U.S. · Japan · New Zealand", spanDeg: 50 },
 };
 
 /**
@@ -52,7 +59,7 @@ export function parseQuotedIntent(visualIntent: string): { body: string; context
 function buildTextSpec(shot: Shot): TextCardSpec {
   const { body, context } = parseQuotedIntent(shot.captionText);
   const citation =
-    shot.license && shot.license !== "ver storyboard" && !shot.license.toLowerCase().startsWith("ninguno")
+    shot.license && shot.license !== "ver storyboard" && !/^(ninguno|none)\b/i.test(shot.license)
       ? shot.license
       : undefined;
   return {
@@ -125,10 +132,10 @@ function buildMapSpec(shot: Shot): MapSpec {
     kind: "map",
     title: shot.captionText.split(":")[0]?.trim() || known.label,
     bounds: {
-      minLat: known.latitude - 2.5,
-      maxLat: known.latitude + 2.5,
-      minLon: known.longitude - 2.5,
-      maxLon: known.longitude + 2.5,
+      minLat: known.latitude - (known.spanDeg ?? 2.5),
+      maxLat: known.latitude + (known.spanDeg ?? 2.5),
+      minLon: known.longitude - (known.spanDeg ?? 2.5),
+      maxLon: known.longitude + (known.spanDeg ?? 2.5),
     },
     markers: [{ id: shot.id, label: known.label, latitude: known.latitude, longitude: known.longitude }],
     isFixture: false,

@@ -30,7 +30,41 @@ export type SoundCue = {
   fadeInSeconds?: number;
   fadeOutSeconds?: number;
   loop?: boolean;
+  /** Duración real de la fuente: con `loop`, permite repetirla sin depender del bucle del reproductor. */
+  sourceDurationSeconds?: number;
 };
+
+/**
+ * El `loop` de <Audio> no repite de forma fiable una fuente remota en el
+ * render (medido: un fondo de 48 s calla a partir del segundo 48). Una cue
+ * en bucle con duración de fuente conocida se reparte en tramos consecutivos
+ * sin bucle, cada uno desde el inicio de la fuente. Los fundidos solo
+ * quedan en los extremos, así que el volumen es continuo entre tramos. Pura.
+ */
+export function expandLoopingCues(cues: SoundCue[]): SoundCue[] {
+  return cues.flatMap((cue) => {
+    const period = cue.sourceDurationSeconds;
+    if (!cue.loop || period === undefined || !(period > 0.5)) return [cue];
+    const first = Math.max(0.5, period - (cue.sourceStartSeconds ?? 0));
+    if (cue.endSeconds - cue.startSeconds <= first) return [{ ...cue, loop: false }];
+    const parts: SoundCue[] = [];
+    for (let start = cue.startSeconds, i = 0; start < cue.endSeconds - 1e-6; i++) {
+      const end = Math.min(cue.endSeconds, start + (i === 0 ? first : period));
+      parts.push({
+        ...cue,
+        id: `${cue.id}#${i}`,
+        startSeconds: start,
+        endSeconds: end,
+        sourceStartSeconds: i === 0 ? cue.sourceStartSeconds : 0,
+        fadeInSeconds: i === 0 ? cue.fadeInSeconds : 0,
+        fadeOutSeconds: end >= cue.endSeconds - 1e-6 ? cue.fadeOutSeconds : 0,
+        loop: false,
+      });
+      start = end;
+    }
+    return parts;
+  });
+}
 
 const clamp = (n: number) => Math.min(1, Math.max(0, n));
 export function cameraTransform(camera: NonNullable<SceneDirection["camera"]>, progress: number): string {
@@ -106,7 +140,7 @@ export function validateDirection(
     ids.add(c.id);
     if (!["music", "ambience", "effect"].includes(c.role)) throw new Error(`Invalid sound role: ${c.id}`);
     if (![c.startSeconds, c.endSeconds].every(finite) || c.startSeconds < 0 || c.endSeconds <= c.startSeconds || c.endSeconds > duration) throw new Error(`Invalid sound timing: ${c.id}`);
-    for (const value of [c.sourceStartSeconds, c.fadeInSeconds, c.fadeOutSeconds]) if (value !== undefined && (!finite(value) || value < 0)) throw new Error(`Invalid sound offset/fade: ${c.id}`);
+    for (const value of [c.sourceStartSeconds, c.fadeInSeconds, c.fadeOutSeconds, c.sourceDurationSeconds]) if (value !== undefined && (!finite(value) || value < 0)) throw new Error(`Invalid sound offset/fade: ${c.id}`);
     if (c.gain !== undefined && (!finite(c.gain) || c.gain < 0 || c.gain > 2)) throw new Error(`Invalid sound gain: ${c.id}`);
     if (c.loop !== undefined && typeof c.loop !== "boolean") throw new Error(`Invalid sound loop: ${c.id}`);
   }

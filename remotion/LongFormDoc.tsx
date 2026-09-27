@@ -8,9 +8,9 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { cameraTransform, lookStyle, soundCueVolume, transitionFrames, validateDirection, type SceneDirection, type SoundCue } from "./long-form-direction";
+import { cameraTransform, expandLoopingCues, lookStyle, soundCueVolume, transitionFrames, validateDirection, type SceneDirection, type SoundCue } from "./long-form-direction";
 import { type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from "./audio-mix";
-import { LARGE_CARD, provenanceLabel, type SceneProvenance } from "./long-form-card-fit";
+import { LARGE_CARD, pendingLabel, provenanceLabel, type LabelLanguage, type SceneProvenance } from "./long-form-card-fit";
 import { coverWindowSeconds, fitCover, type CoverSpec } from "./cover-rules";
 import { OpeningTitle } from "./OpeningTitle";
 import { useCoverFont } from "./cover-font";
@@ -112,6 +112,8 @@ export type LongFormDocProps = {
    * El llamador la valida antes (render.ts → validateCover).
    */
   opening?: CoverSpec;
+  /** Idioma de los rótulos en pantalla («AI recreation» / «Recreación IA»). Ausente = español, como siempre. */
+  language?: LabelLanguage;
 };
 
 const DEFAULT_ACCENT_COLOR = "#8f7ff5";
@@ -127,9 +129,11 @@ export function LongFormDoc({
   accentColor = DEFAULT_ACCENT_COLOR,
   showLogo = false,
   opening,
+  language = "es",
 }: LongFormDocProps) {
   const { fps, durationInFrames } = useVideoConfig();
   validateDirection(scenes, soundCues, durationSeconds);
+  const expandedCues = soundCues ? expandLoopingCues(soundCues) : undefined;
   useCoverFont(Boolean(opening));
 
   return (
@@ -156,6 +160,7 @@ export function LongFormDoc({
               fadeInFrames={isFirst ? 0 : Math.min(incoming, Math.floor((scenes[i - 1].endSeconds - scenes[i - 1].startSeconds) * fps / 2))}
               fadeOutFrames={next?.direction ? 0 : outgoing}
               isHook={isFirst}
+              language={language}
             />
           </Sequence>
         );
@@ -165,7 +170,7 @@ export function LongFormDoc({
         style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0) 62%, rgba(0,0,0,0.55) 100%)" }}
       />
 
-      {opening && scenes.length > 0 && <OpeningCover spec={opening} firstSceneEndSeconds={scenes[0].endSeconds} labelsTopLeft={Boolean(provenanceLabel(scenes[0].provenance) || scenes[0].creditText || scenes[0].pending)} />}
+      {opening && scenes.length > 0 && <OpeningCover spec={opening} firstSceneEndSeconds={scenes[0].endSeconds} labelsTopLeft={Boolean(provenanceLabel(scenes[0].provenance, language) || scenes[0].creditText || scenes[0].pending)} />}
       <Captions captions={captions} accentColor={accentColor} />
 
       {showLogo && <LogoBadge accentColor={accentColor} />}
@@ -180,11 +185,11 @@ export function LongFormDoc({
           volume={(frame) => musicVolumeAtSeconds(frame / fps, durationSeconds, narrationGaps)}
         />
       )}
-      {soundCues?.map((cue) => {
+      {expandedCues?.map((cue) => {
         const from = Math.round(cue.startSeconds * fps);
         return <Sequence key={cue.id} from={from} durationInFrames={Math.max(1, Math.round(cue.endSeconds * fps) - from)}>
           <Audio src={cue.src} loopVolumeCurveBehavior="extend" loop={cue.loop ?? false} trimBefore={Math.round((cue.sourceStartSeconds ?? 0) * fps)}
-            volume={(frame) => soundCueVolume(cue, (from + frame) / fps, soundCues, narrationGaps)} />
+            volume={(frame) => soundCueVolume(cue, (from + frame) / fps, expandedCues, narrationGaps)} />
         </Sequence>;
       })}
     </AbsoluteFill>
@@ -197,12 +202,14 @@ function SceneRenderer({
   fadeInFrames,
   fadeOutFrames,
   isHook,
+  language,
 }: {
   scene: LongFormShotScene;
   durationInFrames: number;
   fadeInFrames: number;
   fadeOutFrames: number;
   isHook: boolean;
+  language: LabelLanguage;
 }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -274,20 +281,20 @@ function SceneRenderer({
       {look.vignette > 0 && (
         <AbsoluteFill style={{ background: `radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,${look.vignette}) 100%)` }} />
       )}
-      <SceneLabels scene={scene} />
+      <SceneLabels scene={scene} language={language} />
     </AbsoluteFill>
   );
 }
 
-function SceneLabels({ scene }: { scene: LongFormShotScene }) {
-  const label = provenanceLabel(scene.provenance);
+function SceneLabels({ scene, language }: { scene: LongFormShotScene; language: LabelLanguage }) {
+  const label = provenanceLabel(scene.provenance, language);
   if (!label && !scene.creditText && !scene.pending) return null;
   return (
     <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "flex-start", padding: "44px 56px" }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, fontFamily: "Arial, Helvetica, sans-serif" }}>
         {scene.pending && (
           <div style={{ padding: "8px 16px", borderRadius: 8, backgroundColor: "rgba(200,40,40,0.9)", color: "white", fontSize: 30, fontWeight: 800 }}>
-            Material pendiente
+            {pendingLabel(language)}
           </div>
         )}
         {label && (

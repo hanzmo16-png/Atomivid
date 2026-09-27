@@ -1,0 +1,245 @@
+{
+  "requestId": "ocean-deep-001",
+  "script": {
+    "file": "content/long-form/ocean-deep-001/ocean-script-001.json",
+    "language": "en"
+  },
+  "voiceId": "nPczCjzI2devNBz1zQrb",
+  "beats": [
+    "b1"
+  ],
+  "outputLabel": "minute1",
+  "tailSeconds": 1.2,
+  "outputPrefix": "ocean-deep-001/samples/episode",
+  "scenes": [
+    {
+      "id": "s01",
+      "startSeconds": 0.0,
+      "endSeconds": 4.0,
+      "narration": "A light switches on, three thousand metres below the surface.",
+      "source": {
+        "kind": "veo-clip",
+        "key": "ocean-b1-s01-lights-v1",
+        "reference": {
+          "kind": "commons",
+          "title": "File:Deep Discoverer (51816198671).jpg"
+        },
+        "prompt": "Deep-sea documentary shot. The remotely operated vehicle's lights sweep slowly across pale sediment on the dark seafloor; fine particles drift through the beams; the camera glides forward very slowly. Keep everything that is in the photo; add no animals, no people, no text. Natural real-time motion, one continuous shot.",
+        "negativePrompt": "new creatures, fish, people, divers, text, logos, watermark, bright daylight, bubbles, cuts, fast camera moves, morphing",
+        "placeholder": {
+          "source": {
+            "kind": "commons",
+            "title": "File:Deep Discoverer (51816198671).jpg"
+          },
+          "provenance": "archival_documentary",
+          "creditText": "NOAA Ocean Exploration",
+          "camera": "push"
+        }
+      },
+      "provenance": "ai_recreation",
+      "creditText": "Animated from a NOAA photo",
+      "direction": {
+        "camera": "still",
+        "look": {
+          "saturation": 0.85,
+          "contrast": 1.05
+        }
+      },
+      "review": {
+        "status": "pending",
+        "relevance": "directa",
+        "note": "DRAFT — times estimated at 2.5 words/s; re-cut to the recorded narration's word timings, asset chosen at candidate review"
+      }
+    },
+    {
+      "id": "s02",
+      "startSeconds": 4.0,
+      "endSeconds": 13.2,
+      "narration": "For a few seconds, it shows a patch of seafloor about the size of a living room: pale sediment, a few scattered stones,",
+      "source": {
+        "kind": "commons",
+        "title": "TBD at candidate review — NOAA OE seafloor photo, sediment and scattered stones in ROV lights (PD only)"
+      },
+      "provenance": "archival_documentary",
+      "creditText": "NOAA Ocean Exploration",
+      "direction": {
+        "camera": "push",
+        "look": {
+          "saturation": 0.85,
+          "contrast": 1.05
+        }
+      },
+      "review": {
+        "status": "pending",
+        "relevance": "directa",
+        "note": "DRAFT — times estimated at 2.5 words/s; re-cut to the recorded narration's word timings, asset chosen at candidate review"
+      }
+    },
+    {
+      "id": "s03",
+      "startSeconds": 13.2,
+      "endSeconds": 16.0,
+      "narration": "a small animal drifting through the beam.",
+      "source": {
+        "kind": "commons",
+        "title": "File:Okeanos Explorer PR and USVI Dive 8- Psychedelic Medusa-NOAA-1280x720.webm"
+      },
+      "provenance": "archival_documentary",
+      "creditText": "NOAA Ocean Exploration",
+      "direction": {
+        "camera": "still",
+        "look": {
+          "saturation": 0.85,
+          "contrast": 1.05
+        }
+      },
+      "review": {
+        "status": "pending",
+        "relevance": "directa",
+        "note": "DRAFT — times estimated at 2.5 words/s; re-cut to the recorded narration's word timings, asset chosen at candidate review"
+      }
+    },
+    {
+      "id": "s04",
+      "startSeconds": 16.0,
+      "endSeconds": 20.4,
+      "narration": "Then the vehicle moves on, and the darkness closes behind it.",
+      "source": {
+        "kind": "veo-clip",
+        "key": "ocean-b1-s04-recede-v1",
+        "reference": {
+          "kind": "ai-still",
+          "prompt": "Realistic deep-sea documentary still, wide 16:9: the twin white lights of a remotely operated vehicle over dark, pale-grey sediment, beams catching fine drifting particles, black water beyond; no creatures, no people, no text, subtle film grain, low-key lighting.",
+          "negativePrompt": "fish, creatures, divers, people, text, logos, watermark, daylight, bubbles, cartoon, illustration style"
+        },
+        "prompt": "The vehicle's lights slowly move away and dim; the patch of seafloor falls back into darkness; particles keep drifting. Slow, steady, one continuous shot, realistic.",
+        "negativePrompt": "new creatures, people, text, cuts, fast moves, flashes",
+        "placeholder": {
+          "source": {
+            "kind": "pexels-video",
+            "id": 0
+          },
+          "provenance": "stock_illustrative",
+          "camera": "still"
+        }
+      },
+      "provenance": "ai_recreation",
+      "direction": {
+        "camera": "still",
+        "look": {
+          "saturation": 0.85,
+          "contrast": 1.05
+        },
+        "transition": {
+          "type": "dissolve",
+          "seconds": 0.6
+        }
+      },
+      "review": {
+        "status": "pending",
+        "relevance": "directa",
+        "note": "DRAFT — times estimated at 2.5 words/s; re-cut to the recorded narration's word timings, asset chosen at candidate review"
+      }
+    },
+    {
+      "id": "s05",
+      "startSeconds": 20.4,
+      "endSeconds": 28.4,
+      "narration": "Almost everything we have ever seen of the deep sea was seen like this, one lit patch at a time.",
+      "source": {
+        "kind": "graphic",
+        "spec": {
+          "kind": "text",
+          "title": "One lit patch at a time",
+          "body": "How almost everything in the deep sea has been seen",
+          "isFixture": false,
+          "size": "large"
+        }
+      },
+      "provenance": "data_graphic",
+      "direction": {
+        "camera": "still"
+      },
+      "review": {
+        "status": "pending",
+        "relevance": "directa",
+        "note": "DRAFT — times estimated at 2.5 words/s; re-cut to the recorded narration's word timings, asset chosen at candidate review"
+      }
+    },
+    {
+      "id": "s06",
+      "startSeconds": 28.4,
+      "endSeconds": 40.0,
+      "narration": "And yet we also say that more than a quarter of the seafloor has now been mapped. Both statements are true. They describe two very different kinds of knowing.",
+      "source": {
+        "kind": "commons",
+        "title": "TBD at candidate review — NOAA NCEI ETOPO global relief (public domain)"
+      },
+      "provenance": "data_graphic",
+      "creditText": "NOAA NCEI global relief · Seabed 2030: 28.7% mapped (Apr 2026)",
+      "direction": {
+        "camera": "left",
+        "look": {
+          "saturation": 0.85,
+          "contrast": 1.05
+        }
+      },
+      "review": {
+        "status": "pending",
+        "relevance": "directa",
+        "note": "DRAFT — times estimated at 2.5 words/s; re-cut to the recorded narration's word timings, asset chosen at candidate review"
+      }
+    },
+    {
+      "id": "s07",
+      "startSeconds": 40.0,
+      "endSeconds": 51.2,
+      "narration": "So how do we actually know what is down there? And what is the difference between having a map of a place and having truly looked at it?",
+      "source": {
+        "kind": "pexels-video",
+        "id": 0
+      },
+      "provenance": "stock_illustrative",
+      "direction": {
+        "camera": "still",
+        "look": {
+          "saturation": 0.85,
+          "contrast": 1.05
+        },
+        "transition": {
+          "type": "dissolve",
+          "seconds": 0.6
+        }
+      },
+      "review": {
+        "status": "pending",
+        "relevance": "directa",
+        "note": "DRAFT — times estimated at 2.5 words/s; re-cut to the recorded narration's word timings, asset chosen at candidate review"
+      }
+    }
+  ],
+  "soundCues": [
+    {
+      "id": "m1-bed",
+      "track": "atomivid-suspense-a-v1",
+      "role": "music",
+      "startSeconds": 0,
+      "endSeconds": 52.4,
+      "fadeInSeconds": 2.0,
+      "fadeOutSeconds": 1.2,
+      "loop": true,
+      "gain": 0.8
+    }
+  ],
+  "missingSound": [
+    "Sonar ping / ROV hum (s01–s04): no licensed effects library — not substituted with test tones."
+  ],
+  "packaging": {
+    "cover": {
+      "style": "sobrio",
+      "title": "The *Deep* Ocean",
+      "kicker": "What we've seen — and what we still don't know",
+      "placement": "top-left"
+    }
+  }
+}

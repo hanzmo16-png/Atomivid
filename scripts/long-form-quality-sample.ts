@@ -44,7 +44,9 @@ async function main() {
   const { MUSIC_MANIFEST } = await import("../src/lib/providers/music/manifest");
   const { MUSIC_LIBRARY_BUCKET, normalizeObjectPath } = await import("../src/lib/providers/music/storage");
   const { buildContactSheet, emitSheet, frameAt, probeDuration } = await import("./lib/contact-sheet");
-  const { paidPlan, reservePaid, settlePaid, releasePaid, committedUsd, VEO_CLIP_SECONDS } = await import("../src/lib/video/long-form/sample-manifest");
+  const { paidPlan, reservePaid, settlePaid, releasePaid, committedUsd, VEO_CLIP_SECONDS, leadingBeats } = await import("../src/lib/video/long-form/sample-manifest");
+  const { stitchNarrationParts } = await import("../src/lib/video/long-form/timeline");
+  const { findMusicBed, renderMusicBedWav } = await import("../src/lib/tts/music-beds");
   const { AI_VIDEO_STORAGE_BUCKET, readAiVideoClipRecord, validateExistingAiVideoClip } = await import("../src/lib/video/long-form/ai-video-storage");
   const { wrapDurableVideoProvider } = await import("../src/lib/video/long-form/ai-video-durable-provider");
   const { validateReferenceImageBuffer } = await import("../src/lib/video/long-form/ai-video-reference-image");
@@ -109,15 +111,27 @@ async function main() {
     });
 
   // --- Narración guardada (solo lectura; sin síntesis) ---
-  const { data: row, error: rowError } = await service.from("video_requests").select("language,script_json").eq("id", manifest.requestId).single();
-  if (rowError || !row) throw new Error(`request_read_failed: ${rowError?.message}`);
-  const script = row.script_json as { beats: { id: string; narration: string }[] };
-  const language = ((row.language as "es" | "en" | null) ?? "es") as "es" | "en";
-  if (manifest.beats.length !== 1 || script.beats[0]?.id !== manifest.beats[0]) {
-    throw new Error("esta herramienta renderiza un único beat inicial (la narración empieza en 0)");
+  // Guion: del archivo del manifiesto (documental preparado fuera del producto) o de la fila de video_requests.
+  let script: { beats: { id: string; narration: string }[] };
+  let language: "es" | "en";
+  if (manifest.script) {
+    script = JSON.parse(await fs.readFile(manifest.script.file, "utf8")) as typeof script;
+    language = manifest.script.language;
+  } else {
+    const { data: row, error: rowError } = await service.from("video_requests").select("language,script_json").eq("id", manifest.requestId).single();
+    if (rowError || !row) throw new Error(`request_read_failed: ${rowError?.message}`);
+    script = row.script_json as typeof script;
+    language = ((row.language as "es" | "en" | null) ?? "es") as "es" | "en";
   }
-  const beat = script.beats[0];
-  const narrated = await loadProductionCachedBeatNarration(service, "elevenlabs", beat, language, { videoId: manifest.requestId, voiceIdentity: getVoiceIdentity(language) });
+  // Uno o varios beats iniciales consecutivos: cada uno sale de la caché durable (nunca se sintetiza aquí) y se unen en orden.
+  const beats = leadingBeats(script.beats, manifest.beats);
+  const voiceIdentity = getVoiceIdentity(language, manifest.voiceId);
+  const parts = [];
+  for (const beat of beats) {
+    parts.push(await loadProductionCachedBeatNarration(service, "elevenlabs", beat, language, { videoId: manifest.requestId, voiceIdentity }));
+  }
+  const narrated = stitchNarrationParts(parts);
+  console.log(`@@NARRATION ${JSON.stringify({ beats: beats.map((b) => b.id), language, voiceId: voiceIdentity.voiceId, seconds: +narrated.durationSeconds.toFixed(3) })}`);
   const words = narrated.words;
 
   const issues = validateSampleManifest(manifest, words, narrated.durationSeconds);
@@ -191,6 +205,8 @@ async function main() {
         buffer = await sharp(Buffer.from(map.svg)).png().toBuffer();
         ext = "png";
         meta = { provider: "natural-earth", license: "Dominio público (Natural Earth)", dataSource: geo.source, measuredKm: map.measuredKm, labeledKm: map.labeledKm };
+      } else if (src.kind === "graphic") {
+        throw new Error(`${sceneId}: un gráfico no es un recurso descargable (se dibuja en el render)`);
       } else {
         const { data } = await service.storage.from(bucket).download(src.path);
         if (!data) throw new Error(`${sceneId}: no existe ${src.path}`);
@@ -382,6 +398,12 @@ async function main() {
 
     for (const [index, scene] of manifest.scenes.entries()) {
       const src = scene.source;
+      if (src.kind === "graphic") {
+        // Gráfico determinista: lo dibuja LongFormDoc en el render; nada que descargar, subir ni pagar.
+        prepared.push({ sceneId: scene.id, mediaType: "graphic", graphic: src.spec });
+        console.log(`@@PREPARED ${JSON.stringify({ sceneId: scene.id, mediaType: "graphic", kind: src.spec.kind })}`);
+        continue;
+      }
       let resolved: Resolved;
       let override: Record<string, unknown> = {};
       if (src.kind === "veo-clip") {
@@ -425,6 +447,17 @@ async function main() {
     // Pistas: biblioteca con procedencia registrada; duración verificada (sin bucles salvo que se pidan).
     const sounds: Record<string, unknown>[] = [];
     for (const cue of manifest.soundCues) {
+      // Fondo propio (src/lib/tts/music-beds.ts): síntesis determinista, sin material de terceros; se sube como WAV.
+      const bed = findMusicBed(cue.track);
+      if (bed) {
+        const storagePath = `${prefix}/music/${bed.id}.wav`;
+        await upload(storagePath, renderMusicBedWav(bed), "audio/wav");
+        const needed = (cue.sourceStartSeconds ?? 0) + (cue.endSeconds - cue.startSeconds);
+        if (!cue.loop && bed.loopSeconds + 1e-3 < needed) throw new Error(`${cue.id}: fondo de ${bed.loopSeconds} s < ${needed.toFixed(1)} s necesarios (usa loop)`);
+        sounds.push({ ...cue, bucket, storagePath, title: bed.title, author: "Atomivid (síntesis propia)", license: bed.license, sourceUrl: bed.source, provider: "atomivid-music-bed", trackDurationSeconds: bed.loopSeconds });
+        console.log(`@@SOUND ${JSON.stringify(sounds[sounds.length - 1])}`);
+        continue;
+      }
       const entry = MUSIC_MANIFEST.find((t) => t.id === cue.track);
       if (!entry) throw new Error(`${cue.id}: pista ${cue.track} no está en el banco con procedencia registrada`);
       const { data } = await service.storage.from(MUSIC_LIBRARY_BUCKET).download(normalizeObjectPath(entry.storagePath));
@@ -466,11 +499,12 @@ async function main() {
   const state = JSON.parse(stateText) as {
     voicePath: string;
     scenes: {
-      sceneId: string; objectPath: string; mediaType: "image" | "video";
+      sceneId: string; objectPath: string; mediaType: "image" | "video" | "graphic";
+      graphic?: import("../src/lib/video/long-form/diagram-map").DocumentaryGraphicSpec;
       placeholder?: boolean; provenance?: import("../remotion/long-form-card-fit").SceneProvenance; creditText?: string;
       camera?: import("../remotion/long-form-direction").SceneDirection["camera"]; pending?: string;
     }[];
-    sounds: { id: string; storagePath: string; role: "music" | "ambience" | "effect"; startSeconds: number; endSeconds: number; sourceStartSeconds?: number; gain?: number; fadeInSeconds?: number; fadeOutSeconds?: number; loop?: boolean }[];
+    sounds: { id: string; bucket?: string; storagePath: string; role: "music" | "ambience" | "effect"; startSeconds: number; endSeconds: number; sourceStartSeconds?: number; gain?: number; fadeInSeconds?: number; fadeOutSeconds?: number; loop?: boolean; trackDurationSeconds?: number }[];
   };
   const fullDuration = narrated.durationSeconds + manifest.tailSeconds;
   // Ventana: el técnico es corto por defecto; una ventana explícita permite comparar aperturas (A/B) también en aprobación.
@@ -487,7 +521,10 @@ async function main() {
       id: scene.id,
       startSeconds: scene.startSeconds,
       endSeconds: Math.min(scene.endSeconds, windowSec),
-      asset: { kind: "media" as const, mediaType: prep.mediaType, url: await sign(bucket, prep.objectPath), fit: scene.fit },
+      asset:
+        prep.mediaType === "graphic"
+          ? { kind: "graphic" as const, graphic: prep.graphic! }
+          : { kind: "media" as const, mediaType: prep.mediaType, url: await sign(bucket, prep.objectPath), fit: scene.fit },
       motion: "static" as const,
       // Un sustituto se muestra con SU procedencia real (nunca «Recreación IA» sobre una foto de stock) y queda pendiente.
       direction: prep.camera ? { ...scene.direction, camera: prep.camera } : scene.direction,
@@ -500,9 +537,10 @@ async function main() {
   for (const s of state.sounds) {
     if (s.startSeconds >= windowSec) continue;
     soundCues.push({
-      id: s.id, src: await sign(MUSIC_LIBRARY_BUCKET, normalizeObjectPath(s.storagePath)), role: s.role,
+      id: s.id, src: s.bucket ? await sign(s.bucket, s.storagePath) : await sign(MUSIC_LIBRARY_BUCKET, normalizeObjectPath(s.storagePath)), role: s.role,
       startSeconds: s.startSeconds, endSeconds: Math.min(s.endSeconds, windowSec), sourceStartSeconds: s.sourceStartSeconds,
       gain: s.gain, fadeInSeconds: s.fadeInSeconds, fadeOutSeconds: s.endSeconds > windowSec ? 0.6 : s.fadeOutSeconds, loop: s.loop,
+      sourceDurationSeconds: s.trackDurationSeconds,
     });
   }
   const { captionsWithinScenes } = await import("../src/lib/video/long-form/scene-captions");
@@ -516,7 +554,7 @@ async function main() {
   const { provenanceLabel } = await import("../remotion/long-form-card-fit");
   if (packaging?.cover) {
     const first = scenes[0];
-    const r = validateCover(packaging.cover, "video", { labelsTopLeft: Boolean(first && (provenanceLabel(first.provenance) || first.creditText || first.pending)), subject: packaging.subject?.video });
+    const r = validateCover(packaging.cover, "video", { labelsTopLeft: Boolean(first && (provenanceLabel(first.provenance, language) || first.creditText || first.pending)), subject: packaging.subject?.video });
     console.log(`@@COVER ${JSON.stringify({ layout: r.layout, issues: r.issues })}`);
     if (r.issues.length > 0) throw new Error(`portada: ${r.issues.map((i) => i.message).join(" ")}`);
   }
@@ -536,6 +574,7 @@ async function main() {
     durationSeconds: windowSec,
     purpose,
     ...(packaging?.cover ? { opening: packaging.cover } : {}),
+    language,
   });
   const mastered = raw.replace(/\.mp4$/, ".mastered.mp4");
   const { LONG_FORM_TRUE_PEAK_MARGIN_DB } = await import("../src/lib/video/long-form/produce");
@@ -582,7 +621,8 @@ async function main() {
   emitSheet("first-frame-large", await buildContactSheet([{ image: firstFrame, label: "t = 0 s (a pantalla completa)" }], { columns: 1, tileWidth: 1280, tileHeight: 720, title: "Fotograma inicial" }));
   emitSheet("first-frame-phone", await buildContactSheet([{ image: firstFrame, label: "t = 0 s (tamaño de celular)" }], { columns: 1, tileWidth: 360, tileHeight: 203, title: "Celular" }));
   const bytes = (await fs.stat(mastered)).size;
-  const outName = `sample-${purpose}${outSuffix}${packSuffix}.mp4`;
+  const labelSuffix = manifest.outputLabel ? `-${manifest.outputLabel.replace(/[^a-z0-9-]+/gi, "-")}` : "";
+  const outName = `sample-${purpose}${labelSuffix}${outSuffix}${packSuffix}.mp4`;
   const buf = await fs.readFile(mastered);
   await upload(`${prefix}/${outName}`, buf, "video/mp4");
   await fs.copyFile(mastered, path.join(outDir, outName));
@@ -601,7 +641,7 @@ async function main() {
     const jpg = await renderLongFormThumbnail({
       background: { mediaType: asset.mediaType, url: asset.url, look: first.direction?.look, mediaStartSeconds: first.direction?.mediaStartSeconds },
       cover: packaging.thumbnail,
-      provenanceLabel: provenanceLabel(first.provenance),
+      provenanceLabel: provenanceLabel(first.provenance, language),
     });
     const thumb = await fs.readFile(jpg);
     thumbnailPath = `${prefix}/thumbnail.jpg`;

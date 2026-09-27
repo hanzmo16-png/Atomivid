@@ -1,0 +1,156 @@
+name: Documental del océano (EN) — narración, candidatos, preparación y render
+
+# Documental «The Deep Ocean: What We've Seen—and What We Still Don't Know»
+# (content/long-form/ocean-deep-001, plan en docs/quality/ocean-deep-001/PLAN.md).
+# Reutiliza las herramientas existentes: scripts/long-form-narrate.ts (única
+# síntesis, caché durable por beat), long-form-candidate-review.ts (búsqueda
+# gratuita) y long-form-quality-sample.ts (preparación y render). Un único
+# registro de gasto por episodio (ocean-deep-001/samples/episode): el primer
+# minuto y el episodio completo lo comparten, así que lo ya pagado se reutiliza.
+# Sin registrar hasta la aprobación de producción. Solo disparo manual; todo
+# paso de pago exige confirm=GASTAR y el tope aprobado (cap_usd).
+# El CÓDIGO queda fijado en PINNED_REF. Los DATOS del episodio (guion, manifiestos,
+# búsquedas: solo content/long-form/ocean-deep-001 y docs/quality/ocean-deep-001)
+# se leen de DATA_BRANCH, para fijar tiempos y recursos reales tras la narración
+# sin volver a registrar el workflow. El SHA de datos usado queda en el log.
+on:
+  workflow_dispatch:
+    inputs:
+      step:
+        description: "narrate-plan | narrate-run | candidates | prepare | render"
+        type: choice
+        options: [narrate-plan, narrate-run, candidates, prepare, render]
+        default: narrate-plan
+      beats:
+        description: "Beats a narrar (b1 para el primer minuto; all para el episodio)"
+        type: string
+        default: "b1"
+      manifest:
+        description: "Manifiesto (primer minuto o episodio)"
+        type: string
+        default: "docs/quality/ocean-deep-001/minute1-manifest.json"
+      search_spec:
+        description: "Búsquedas gratuitas por pasaje (paso candidates)"
+        type: string
+        default: "docs/quality/ocean-deep-001/search-spec.json"
+      purpose:
+        description: "technical | approval (render)"
+        type: choice
+        options: [technical, approval]
+        default: technical
+      allow_paid:
+        description: "Generar imágenes/clips IA en prepare (solo con gasto aprobado)"
+        type: boolean
+        default: false
+      confirm:
+        description: "Escribe GASTAR para cualquier paso de pago"
+        type: string
+        default: ""
+      cap_usd:
+        description: "Tope ACUMULADO aprobado del episodio (USD), mismo registro para voz, imágenes y clips"
+        type: string
+        default: "0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: long-form-ocean
+  cancel-in-progress: false
+
+env:
+  PINNED_REF: REEMPLAZAR_POR_SHA_REVISADO
+  VIDEO_ID: ocean-deep-001
+  LEDGER_PREFIX: ocean-deep-001/samples/episode
+  SCRIPT_FILE: content/long-form/ocean-deep-001/ocean-script-001.json
+  DATA_BRANCH: claude/ocean-documentary
+  # Brian (voz predeterminada de ElevenLabs, ya disponible en la cuenta; no se agrega ni se clona ninguna voz).
+  VOICE_ID: nPczCjzI2devNBz1zQrb
+
+jobs:
+  ocean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Verificar commit fijado y autorización de gasto
+        env:
+          STEP: ${{ inputs.step }}
+          ALLOW_PAID: ${{ inputs.allow_paid }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$PINNED_REF" = REEMPLAZAR_POR_SHA_REVISADO ]; then echo 'Falta fijar el commit revisado'; exit 1; fi
+          paid=0
+          if [ "$STEP" = narrate-run ]; then paid=1; fi
+          if [ "$STEP" = prepare ] && [ "$ALLOW_PAID" = true ]; then paid=1; fi
+          if [ "$paid" = 1 ] && [ "$CONFIRM" != GASTAR ]; then echo 'Paso de pago sin confirm=GASTAR'; exit 1; fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PINNED_REF }}
+      - name: Datos del episodio (solo JSON/MD del documental, desde DATA_BRANCH)
+        run: |
+          git fetch --depth=1 origin "$DATA_BRANCH"
+          echo "datos: $(git rev-parse FETCH_HEAD)"
+          git checkout FETCH_HEAD -- content/long-form/ocean-deep-001 docs/quality/ocean-deep-001
+          bad=$(git diff --cached --name-only HEAD | grep -Ev '^(content/long-form|docs/quality)/ocean-deep-001/.*\.(json|md|py|png)$' || true)
+          if [ -n "$bad" ]; then echo "archivos fuera de los datos del episodio: $bad"; exit 1; fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - name: Narración (plan o síntesis a la caché durable)
+        if: inputs.step == 'narrate-plan' || inputs.step == 'narrate-run'
+        env:
+          MODE: ${{ inputs.step == 'narrate-run' && 'run' || 'plan' }}
+          NARRATE_SCRIPT: ${{ env.SCRIPT_FILE }}
+          NARRATE_BEATS: ${{ inputs.beats }}
+          NARRATE_VIDEO_ID: ${{ env.VIDEO_ID }}
+          NARRATE_LEDGER_PREFIX: ${{ env.LEDGER_PREFIX }}
+          NARRATE_VOICE_ID: ${{ env.VOICE_ID }}
+          NARRATE_ALLOW_PAID: ${{ inputs.step == 'narrate-run' && inputs.confirm == 'GASTAR' && 'true' || 'false' }}
+          NARRATE_BUDGET_USD: ${{ inputs.cap_usd }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # El plan solo lee el saldo (GET); la síntesis ocurre únicamente en narrate-run con GASTAR.
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        run: npx tsx scripts/long-form-narrate.ts
+      - name: Candidatos gratuitos (tiempos por palabra, Pexels, Commons dominio público)
+        if: inputs.step == 'candidates'
+        env:
+          REQUEST_ID: ${{ env.VIDEO_ID }}
+          SCRIPT_FILE: ${{ env.SCRIPT_FILE }}
+          SCRIPT_LANGUAGE: en
+          VOICE_ID: ${{ env.VOICE_ID }}
+          SEARCH_SPEC: ${{ inputs.search_spec }}
+          WINDOW_SEC: "900"
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: |
+          for part in words pexels commons; do PART=$part npx tsx scripts/long-form-candidate-review.ts; done
+      - name: Preparar o renderizar (herramienta de muestras)
+        if: inputs.step == 'prepare' || inputs.step == 'render'
+        env:
+          PHASE: ${{ inputs.step }}
+          RENDER_PURPOSE: ${{ inputs.purpose }}
+          SAMPLE_MANIFEST: ${{ inputs.manifest }}
+          SAMPLE_OUT_DIR: ${{ runner.temp }}/ocean
+          SAMPLE_ALLOW_PAID: ${{ inputs.step == 'prepare' && inputs.allow_paid && inputs.confirm == 'GASTAR' && 'true' || 'false' }}
+          SAMPLE_PAID_BUDGET_USD: ${{ inputs.cap_usd }}
+          SAMPLE_SIGN_OUTPUT_HOURS: "168"
+          VEO_COST_USD_PER_SECOND: "0.12"
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          OPENAI_API_KEY: ${{ inputs.step == 'prepare' && inputs.allow_paid && inputs.confirm == 'GASTAR' && secrets.OPENAI_API_KEY || '' }}
+          VEO_API_KEY: ${{ inputs.step == 'prepare' && inputs.allow_paid && inputs.confirm == 'GASTAR' && secrets.VEO_API_KEY || '' }}
+        run: npx tsx scripts/long-form-quality-sample.ts
+      - name: Publicar
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: long-form-ocean-${{ inputs.step }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/ocean/
+          if-no-files-found: ignore
+          retention-days: 30

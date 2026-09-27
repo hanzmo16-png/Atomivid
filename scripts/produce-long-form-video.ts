@@ -64,6 +64,12 @@ type CliArgs = {
   scriptFile?: string;
   /** Ruta a un storyboard real ya aprobado (p. ej. gobekli-storyboard-003.json). Exige scriptFile — sin él no hay forma de mapear beatId a beatType. Si se omite, se usa shotsForSpan() (ciclo genérico) como hasta ahora. */
   storyboardFile?: string;
+  /** Idioma de la narración, los subtítulos y los rótulos en pantalla (por defecto "es", como siempre). */
+  language: "es" | "en";
+  /** Fondo musical propio (src/lib/tts/music-beds.ts, síntesis determinista sin material de terceros) en lugar del proveedor de música. */
+  musicBedId?: string;
+  /** Muestra el rótulo de procedencia («AI recreation»/«Recreación IA») en los shots AI_RECREATION del storyboard. Apagado por defecto (sin cambios). */
+  provenanceLabels: boolean;
 };
 
 function parseArgs(argv: string[]): CliArgs {
@@ -85,6 +91,13 @@ function parseArgs(argv: string[]): CliArgs {
     output: get("output", path.join(process.cwd(), "scripts", "atomivid-longform-test-output.mp4")) as string,
     scriptFile: get("script"),
     storyboardFile: get("storyboard"),
+    language: (() => {
+      const lang = get("language", "es");
+      if (lang !== "es" && lang !== "en") throw new Error(`--language debe ser "es" o "en" (recibido: "${lang}")`);
+      return lang;
+    })(),
+    musicBedId: get("music-bed"),
+    provenanceLabels: argv.includes("--provenance-labels"),
   };
 }
 
@@ -161,7 +174,7 @@ async function main() {
     const fixtureScript = buildFixtureScript({
       topic: args.topic,
       mode: "curiosity_documentary",
-      language: "es",
+      language: args.language,
       targetDurationSec: args.durationSeconds,
     });
     scriptBeats = fixtureScript.beats;
@@ -208,7 +221,7 @@ async function main() {
     // identidad. El proveedor fixture (modo simulation) hace bypass total
     // del caché en ambos casos de abajo, así que es seguro pasar esto
     // siempre que haya un storyboard, sin importar el modo.
-    const voiceIdentity = getVoiceIdentity("es");
+    const voiceIdentity = getVoiceIdentity(args.language);
     const isVideo001 = storyboard.videoId === "gobekli-tepe-001";
     isVideo001RealRun = isVideo001 && args.mode === "real";
     const pricing = getPricingConfig();
@@ -325,8 +338,8 @@ async function main() {
     // recalcula shots[] de cada beat contra su duración REAL narrada.
     console.log("[atomivid:long-form] sintetizando narración por beat y construyendo línea de tiempo real...");
     const timeline = shotsBuilder
-      ? await buildLongFormTimeline(providers.voiceProvider, scriptBeats, "es", shotsBuilder, synthesizeBeat)
-      : await buildLongFormTimeline(providers.voiceProvider, scriptBeats, "es");
+      ? await buildLongFormTimeline(providers.voiceProvider, scriptBeats, args.language, shotsBuilder, synthesizeBeat)
+      : await buildLongFormTimeline(providers.voiceProvider, scriptBeats, args.language);
     console.log(
       `[atomivid:long-form] línea de tiempo real: ${timeline.durationSeconds.toFixed(1)}s narrados, ` +
         `${timeline.beats.reduce((n, b) => n + b.shots.length, 0)} shots en total`,
@@ -440,6 +453,7 @@ async function main() {
         endSeconds: shot.endSec,
         asset: result.asset,
         motion: shot.motion,
+        ...(args.provenanceLabels && shot.source === "generated" ? { provenance: "ai_recreation" as const } : {}),
       });
     }
     console.log(
@@ -456,15 +470,30 @@ async function main() {
     // 7. Música — mismo MusicProvider que Shorts, biblioteca curada o
     // fixture según el modo ya resuelto arriba.
     const finalDurationSeconds = timeline.durationSeconds + VIDEO_TAIL_SECONDS;
-    const music = await providers.musicProvider.getTrack({
-      durationSeconds: finalDurationSeconds,
-      style: "documental",
-      topic: scriptTopic,
-      scriptText: scriptBeats.map((b) => b.narration).join(" "),
-      language: "es",
-      seed: "longform-pilot",
-    });
-    const musicUpload = await upload(`longform-pilot/music.${music.extension}`, music.audioBuffer);
+    let musicUpload: { url: string };
+    let musicReport: Record<string, unknown>;
+    let bedCues: import("../remotion/long-form-direction").SoundCue[] | undefined;
+    if (args.musicBedId) {
+      // Fondo propio: WAV determinista (misma semilla = mismo audio), en bucle bajo la voz (LongFormDoc).
+      const { findMusicBed, renderMusicBedWav } = await import("../src/lib/tts/music-beds");
+      const bed = findMusicBed(args.musicBedId);
+      if (!bed) throw new Error(`--music-bed desconocido: "${args.musicBedId}" (ver MUSIC_BEDS en src/lib/tts/music-beds.ts)`);
+      musicUpload = await upload(`longform-pilot/music-${bed.id}.wav`, renderMusicBedWav(bed));
+      musicReport = { bed: bed.id, title: bed.title, mood: bed.mood, loopSeconds: bed.loopSeconds, source: bed.source, license: bed.license };
+      // Cue con la duración de la fuente: LongFormDoc la repite por tramos (el bucle del reproductor callaba tras el primer ciclo).
+      bedCues = [{ id: `bed-${bed.id}`, src: musicUpload.url, role: "music", startSeconds: 0, endSeconds: finalDurationSeconds, loop: true, sourceDurationSeconds: bed.loopSeconds, fadeInSeconds: 1.5, fadeOutSeconds: 2 }];
+    } else {
+      const music = await providers.musicProvider.getTrack({
+        durationSeconds: finalDurationSeconds,
+        style: "documental",
+        topic: scriptTopic,
+        scriptText: scriptBeats.map((b) => b.narration).join(" "),
+        language: args.language,
+        seed: "longform-pilot",
+      });
+      musicUpload = await upload(`longform-pilot/music.${music.extension}`, music.audioBuffer);
+      musicReport = { provider: providers.musicProvider.name, ...(music.track ?? {}) };
+    }
 
     // 8. Subir narración unida y renderizar con la composición LongFormDoc (16:9).
     const audioUpload = await upload("longform-pilot/voice.wav", timeline.audioBuffer);
@@ -472,11 +501,13 @@ async function main() {
     const renderStartedAt = Date.now();
     const rawOutputPath = await renderLongFormDoc({
       audioUrl: audioUpload.url,
-      musicUrl: musicUpload.url,
+      musicUrl: bedCues ? undefined : musicUpload.url,
+      soundCues: bedCues,
       scenes: shotScenes,
       captions,
       narrationGaps,
       durationSeconds: finalDurationSeconds,
+      language: args.language,
     });
     const renderMs = Date.now() - renderStartedAt;
 
@@ -513,6 +544,8 @@ async function main() {
         music: providers.musicProvider.name,
         image: providers.imageProvider.name,
       },
+      language: args.language,
+      music: musicReport,
       paidApisCalled,
       imageCostSpentUsd,
       renderMs,

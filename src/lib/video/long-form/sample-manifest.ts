@@ -17,6 +17,7 @@
 import type { SceneDirection } from "../../../../remotion/long-form-direction";
 import type { SceneProvenance } from "../../../../remotion/long-form-card-fit";
 import { cutsThroughWord } from "./scene-anchoring";
+import type { DocumentaryGraphicSpec } from "./diagram-map";
 
 export type SampleCrop = { x0: number; y0: number; x1: number; y1: number };
 
@@ -25,7 +26,9 @@ export type FreeSampleSource =
   | { kind: "pexels-photo"; id: number }
   | { kind: "commons"; title: string; crop?: SampleCrop }
   | { kind: "data-map"; spec: string; geo: string }
-  | { kind: "existing"; path: string };
+  | { kind: "existing"; path: string }
+  /** Gráfico determinista (tarjeta de texto, diagrama o mapa) dibujado por LongFormDoc: sin archivo ni costo. */
+  | { kind: "graphic"; spec: DocumentaryGraphicSpec };
 
 /** Imagen de partida del clip IA: una fotografía de archivo (gratis) o una imagen IA nueva (de pago). */
 export type VeoReference =
@@ -89,7 +92,21 @@ export type SamplePackaging = {
 
 export type SampleManifest = {
   requestId: string;
+  /**
+   * Guion fuera de video_requests (p. ej. un documental preparado en content/long-form/<id>/): archivo del
+   * repositorio con `beats[{id, narration}]` e idioma. Ausente = se lee la fila de video_requests, como siempre.
+   */
+  script?: { file: string; language: "es" | "en" };
+  /** voice_id de ElevenLabs con que se narró (parte de la clave de la caché de voz). Ausente = la voz por defecto del idioma. */
+  voiceId?: string;
+  /** Beats iniciales CONSECUTIVOS del guion que cubre la muestra (el primero empieza en 0 s). */
   beats: string[];
+  /**
+   * Etiqueta del archivo de salida (sample-<purpose>-<label>.mp4). Permite que el primer minuto aprobado y el
+   * episodio completo compartan `outputPrefix` (mismo registro de gasto y mismos clips/imágenes reutilizados)
+   * sin sobrescribirse. Ausente = nombre de siempre.
+   */
+  outputLabel?: string;
   tailSeconds: number;
   outputPrefix: string;
   scenes: SampleScene[];
@@ -102,7 +119,7 @@ export type SampleManifest = {
 export type ManifestIssue = { sceneId: string; code: string; message: string };
 
 const freeKey = (s: FreeSampleSource): string =>
-  s.kind === "pexels-video" || s.kind === "pexels-photo" ? `${s.kind}:${s.id}` : s.kind === "commons" ? `commons:${s.title}` : s.kind === "data-map" ? `map:${s.spec}` : `existing:${s.path}`;
+  s.kind === "pexels-video" || s.kind === "pexels-photo" ? `${s.kind}:${s.id}` : s.kind === "commons" ? `commons:${s.title}` : s.kind === "data-map" ? `map:${s.spec}` : s.kind === "graphic" ? `graphic:${JSON.stringify(s.spec)}` : `existing:${s.path}`;
 
 /** Recursos que una escena pone en pantalla (un clip IA cuenta también la foto de archivo que anima). */
 const sourceKeys = (s: SampleSource): string[] =>
@@ -199,10 +216,10 @@ export function blockingIssues(issues: ManifestIssue[]): ManifestIssue[] {
 export type PaidRates = { imageUsd: number; veoClipUsd: number };
 
 export type PaidItem = {
-  /** Clave de idempotencia del gasto (`<veoKey>:still` / `<veoKey>:veo`). */
+  /** Clave de idempotencia del gasto (`<veoKey>:still` / `<veoKey>:veo` / `tts:<videoId>:<beatId>:<clave de caché>`). */
   key: string;
   sceneId: string;
-  provider: "openai-image" | "veo";
+  provider: "openai-image" | "veo" | "elevenlabs-tts";
   estimateUsd: number;
   prompt: string;
 };
@@ -297,4 +314,18 @@ export function releasePaid(ledger: PaidLedger, key: string, note: string, nowIs
   return {
     entries: ledger.entries.map((e) => (e === open ? { ...e, status: "released" as const, note, settledAtIso: nowIso } : e)),
   };
+}
+
+/**
+ * Beats que narra la muestra: deben ser los PRIMEROS del guion, en orden y sin huecos (la narración unida
+ * empieza en 0 s y los tiempos de las escenas se miden sobre ella). Lanza con el motivo si no.
+ */
+export function leadingBeats<T extends { id: string }>(scriptBeats: T[], manifestBeats: string[]): T[] {
+  if (manifestBeats.length === 0) throw new Error("el manifiesto no declara beats");
+  const picked = scriptBeats.slice(0, manifestBeats.length);
+  const expected = picked.map((b) => b.id);
+  if (picked.length !== manifestBeats.length || expected.some((id, i) => id !== manifestBeats[i])) {
+    throw new Error(`los beats de la muestra deben ser los primeros del guion y en orden: se esperaba [${expected.join(", ")}], el manifiesto dice [${manifestBeats.join(", ")}]`);
+  }
+  return picked;
 }

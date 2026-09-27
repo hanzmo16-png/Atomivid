@@ -80,17 +80,26 @@ async function main() {
     const { loadProductionCachedBeatNarration } = await import("../src/lib/video/long-form/production-tts-cache");
     const { getVoiceIdentity } = await import("../src/lib/ai/voice");
     const service = createServiceClient();
-    const { data: row, error } = await service.from("video_requests").select("language,script_json").eq("id", requestId).single();
-    if (error || !row) throw new Error(`request_read_failed: ${error?.message}`);
-    const script = row.script_json as { beats: { id: string; narration: string }[] };
-    const language = ((row.language as "es" | "en" | null) ?? "es") as "es" | "en";
+    // Guion: archivo del repositorio (SCRIPT_FILE + SCRIPT_LANGUAGE, documental preparado fuera del producto) o fila de video_requests.
+    let script: { beats: { id: string; narration: string }[] };
+    let language: "es" | "en";
+    if (process.env.SCRIPT_FILE) {
+      const fsp = await import("node:fs/promises");
+      script = JSON.parse(await fsp.readFile(process.env.SCRIPT_FILE, "utf8")) as typeof script;
+      language = process.env.SCRIPT_LANGUAGE === "en" ? "en" : "es";
+    } else {
+      const { data: row, error } = await service.from("video_requests").select("language,script_json").eq("id", requestId).single();
+      if (error || !row) throw new Error(`request_read_failed: ${error?.message}`);
+      script = row.script_json as typeof script;
+      language = ((row.language as "es" | "en" | null) ?? "es") as "es" | "en";
+    }
     const windowSec = Number(process.env.WINDOW_SEC ?? 60);
     let cursor = 0;
     for (const beat of script.beats) {
       if (cursor >= windowSec) break;
       const narrated = await loadProductionCachedBeatNarration(service, "elevenlabs", beat, language, {
         videoId: requestId,
-        voiceIdentity: getVoiceIdentity(language),
+        voiceIdentity: getVoiceIdentity(language, process.env.VOICE_ID || undefined),
       });
       console.log(`@@BEAT ${JSON.stringify({ id: beat.id, startSec: cursor, durationSeconds: narrated.durationSeconds, narration: beat.narration })}`);
       console.log(

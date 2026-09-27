@@ -51,7 +51,16 @@ export function fitLargeCard(title: string, body: string): CardFit {
 
 export type SceneProvenance = "stock_illustrative" | "ai_recreation" | "archival_documentary" | "data_graphic";
 
+/** Idioma de los rótulos en pantalla (el del video). Por defecto, español como siempre. */
+export type LabelLanguage = "es" | "en";
+
 /** Rótulo obligatorio por procedencia (nunca se presenta una recreación como imagen auténtica). */
-export function provenanceLabel(provenance: SceneProvenance | undefined): string | null {
-  return provenance === "ai_recreation" ? "Recreación IA" : null;
+export function provenanceLabel(provenance: SceneProvenance | undefined, language: LabelLanguage = "es"): string | null {
+  if (provenance !== "ai_recreation") return null;
+  return language === "en" ? "AI recreation" : "Recreación IA";
+}
+
+/** Marca visible de una escena sin terminar, en el idioma del video. */
+export function pendingLabel(language: LabelLanguage = "es"): string {
+  return language === "en" ? "Pending material" : "Material pendiente";
 }

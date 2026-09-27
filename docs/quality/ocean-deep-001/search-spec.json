@@ -1,0 +1,312 @@
+{
+  "requestId": "ocean-deep-001",
+  "note": "Candidate searches per shot (free: Pexels API + Wikimedia Commons, public domain only). Finding is not approving: every candidate is reviewed visually and its licence re-read on the file page (reject captions saying 'copyright', CC BY-SA, MBARI). Passage = shot intent; exact cut times come from the real narration (PART=words).",
+  "scenes": [
+    {
+      "id": "b1-s1",
+      "passage": "A light switches on over pale sediment 3,000 m down",
+      "pexels": [],
+      "commons": [
+        "Deep Discoverer (51816198671)",
+        "Deep Discoverer ROV seafloor lights NOAA"
+      ]
+    },
+    {
+      "id": "b1-s2",
+      "passage": "'pale sediment, a few scattered stones'",
+      "pexels": [],
+      "commons": [
+        "Okeanos Explorer seafloor sediment NOAA",
+        "NOAA Ocean Exploration abyssal plain"
+      ]
+    },
+    {
+      "id": "b1-s3",
+      "passage": "'a small animal drifting through the beam'",
+      "pexels": [],
+      "commons": [
+        "Okeanos Explorer Psychedelic Medusa webm",
+        "NOAA Okeanos jellyfish video"
+      ]
+    },
+    {
+      "id": "b1-s6",
+      "passage": "'More than a quarter of the seafloor has been mapped' — Seabed 2030, April 2026",
+      "pexels": [],
+      "commons": [
+        "ETOPO global relief",
+        "GEBCO world bathymetry"
+      ]
+    },
+    {
+      "id": "b1-s7",
+      "passage": "'How do we actually know what is down there?'",
+      "pexels": [
+        "aerial ocean surface dusk dark water",
+        "open ocean aerial evening"
+      ],
+      "commons": []
+    },
+    {
+      "id": "b2-s1",
+      "passage": "'Below about two hundred metres, sunlight fades away'",
+      "pexels": [
+        "underwater sun rays deep blue",
+        "light rays underwater descending"
+      ],
+      "commons": []
+    },
+    {
+      "id": "b2-s4",
+      "passage": "'About two thirds of Earth's surface' — the deep seafloor",
+      "pexels": [],
+      "commons": [
+        "Pacific Ocean relief map NOAA ETOPO",
+        "Pacific Ocean bathymetry map"
+      ]
+    },
+    {
+      "id": "b2-s6",
+      "passage": "'mapped with modern sonar'",
+      "pexels": [],
+      "commons": [
+        "multibeam bathymetry NOAA Okeanos seamount",
+        "NOAA multibeam sonar seafloor map"
+      ]
+    },
+    {
+      "id": "b2-s7",
+      "passage": "'seen, with a camera or with their own eyes'",
+      "pexels": [],
+      "commons": [
+        "Deep Discoverer seafloor NOAA",
+        "NOAA ROV Deep Discoverer dive"
+      ]
+    },
+    {
+      "id": "b3-s1",
+      "passage": "'Take the maps first.'",
+      "pexels": [
+        "research vessel at sea",
+        "ship open ocean aerial"
+      ],
+      "commons": []
+    },
+    {
+      "id": "b3-s3",
+      "passage": "'A ship carries a multibeam sonar'",
+      "pexels": [],
+      "commons": [
+        "NOAA R337 Okeanos Explorer",
+        "NOAA Ship Okeanos Explorer"
+      ]
+    },
+    {
+      "id": "b3-s4",
+      "passage": "'ridges, canyons, and volcanoes that never reach the surface'",
+      "pexels": [],
+      "commons": [
+        "seamount multibeam 3D NOAA",
+        "NOAA bathymetry seamount 3D"
+      ]
+    },
+    {
+      "id": "b3-s6",
+      "passage": "'Mapping a single region can keep a ship busy for weeks.'",
+      "pexels": [
+        "ship wake aerial open sea",
+        "vessel wake ocean drone"
+      ],
+      "commons": []
+    },
+    {
+      "id": "b3-s7",
+      "passage": "'a map of the entire ocean floor… from space'",
+      "pexels": [],
+      "commons": [
+        "SWOT satellite",
+        "Surface Water and Ocean Topography satellite NASA"
+      ]
+    },
+    {
+      "id": "b3-s10",
+      "passage": "'a shipwreck, a cold seep, or many smaller hills'",
+      "pexels": [],
+      "commons": [
+        "cold seep mussels NOAA Okeanos",
+        "NOAA methane seep mussels"
+      ]
+    },
+    {
+      "id": "b3-s13",
+      "passage": "'It does not tell us what lives there.'",
+      "pexels": [],
+      "commons": [
+        "deep-sea coral seamount NOAA",
+        "NOAA deep sea coral Okeanos"
+      ]
+    },
+    {
+      "id": "b4-s3",
+      "passage": "'remotely operated vehicles, tethered to a ship'",
+      "pexels": [],
+      "commons": [
+        "Deep Discoverer launch NOAA",
+        "ROV Deep Discoverer recovery Okeanos"
+      ]
+    },
+    {
+      "id": "b4-s4",
+      "passage": "'scientists on shore can watch its cameras in real time'",
+      "pexels": [],
+      "commons": [
+        "Control Room of the Okeanos Explorer R337",
+        "NOAA Okeanos Explorer control room"
+      ]
+    },
+    {
+      "id": "b4-s5",
+      "passage": "'crewed submersibles, and autonomous vehicles'",
+      "pexels": [],
+      "commons": [
+        "autonomous underwater vehicle NOAA",
+        "DSV Alvin US Navy"
+      ]
+    },
+    {
+      "id": "b4-s8",
+      "passage": "'about the size of the U.S. state of Rhode Island'",
+      "pexels": [],
+      "commons": [
+        "Rhode Island map USGS",
+        "Rhode Island locator map"
+      ]
+    },
+    {
+      "id": "b4-s10",
+      "passage": "'About two thirds of observations within 200 nautical miles of the U.S., Japan and New Zealand'",
+      "pexels": [],
+      "commons": [
+        "world map ocean bathymetry NOAA",
+        "exclusive economic zones map"
+      ]
+    },
+    {
+      "id": "b4-s12",
+      "passage": "'We have mapped more than a quarter…'",
+      "pexels": [
+        "ocean at night dark waves",
+        "dark sea night"
+      ],
+      "commons": []
+    },
+    {
+      "id": "b4-s13",
+      "passage": "'…We have seen a vanishingly small part of it.'",
+      "pexels": [],
+      "commons": [
+        "ROV lights darkness seafloor NOAA",
+        "NOAA ROV lights deep sea"
+      ]
+    },
+    {
+      "id": "b5-s2",
+      "passage": "'many animals make their own light'",
+      "pexels": [],
+      "commons": [
+        "bioluminescence NOAA Ocean Exploration",
+        "bioluminescent NOAA deep sea"
+      ]
+    },
+    {
+      "id": "b5-s8",
+      "passage": "'a slow rain from above… marine snow'",
+      "pexels": [],
+      "commons": [
+        "marine snow Okeanos",
+        "marine snow NOAA deep sea"
+      ]
+    },
+    {
+      "id": "b5-s9",
+      "passage": "'for many animals in the deep, it is food'",
+      "pexels": [],
+      "commons": [
+        "crinoid NOAA Okeanos",
+        "sea lily NOAA deep sea"
+      ]
+    },
+    {
+      "id": "b5-s10",
+      "passage": "'The Monterey figure describes the animals that were filmed there'",
+      "pexels": [],
+      "commons": [
+        "Monterey Bay bathymetry USGS",
+        "Monterey Canyon map"
+      ]
+    },
+    {
+      "id": "b6-s1",
+      "passage": "'the animals themselves'",
+      "pexels": [],
+      "commons": [
+        "NOAA Okeanos deep-sea animal 2025",
+        "NOAA Ocean Exploration new species"
+      ]
+    },
+    {
+      "id": "b6-s4",
+      "passage": "'a steep slope, a seamount or a cold seep worth visiting'",
+      "pexels": [],
+      "commons": [
+        "NOAA Okeanos sponge deep sea",
+        "NOAA Ocean Exploration octopus deep"
+      ]
+    },
+    {
+      "id": "b6-s5",
+      "passage": "'corals, microbes or whole communities'",
+      "pexels": [],
+      "commons": [
+        "ROV and coral - Retriever Seamount",
+        "NOAA ROV coral seamount"
+      ]
+    },
+    {
+      "id": "b6-s6",
+      "passage": "'the Challenger Deep in the Mariana Trench'",
+      "pexels": [],
+      "commons": [
+        "Mariana Trench map NOAA",
+        "Challenger Deep location map"
+      ]
+    },
+    {
+      "id": "b6-s8",
+      "passage": "'The first people reached it in 1960.'",
+      "pexels": [],
+      "commons": [
+        "Bathyscaphe Trieste US Navy",
+        "Trieste bathyscaphe 1960 Challenger Deep"
+      ]
+    },
+    {
+      "id": "b7-s1",
+      "passage": "'sound and satellites have measured it'",
+      "pexels": [],
+      "commons": [
+        "NOAA Okeanos ROV seafloor survey",
+        "NOAA Ocean Exploration seafloor"
+      ]
+    },
+    {
+      "id": "b7-s2",
+      "passage": "'cameras and samples have visited small, scattered patches'",
+      "pexels": [],
+      "commons": [
+        "NOAA Okeanos Explorer at sea sunset",
+        "NOAA Ocean Exploration ship deck"
+      ]
+    }
+  ]
+}
