@@ -40,6 +40,7 @@ async function main() {
   const { getVoiceIdentity } = await import("../src/lib/ai/voice");
   const { validateSampleManifest, blockingIssues, requiredClipSeconds, reviewedPerceptualDifference } = await import("../src/lib/video/long-form/sample-manifest");
   const { contentIdentity, DocumentAssetRegistry } = await import("../src/lib/video/long-form/asset-identity");
+  const { comparePerceptualFrames } = await import("../src/lib/video/long-form/perceptual-confirmation");
   const { buildDataMapSvg } = await import("../src/lib/video/long-form/data-map");
   const { MUSIC_MANIFEST } = await import("../src/lib/providers/music/manifest");
   const { MUSIC_LIBRARY_BUCKET, normalizeObjectPath } = await import("../src/lib/providers/music/storage");
@@ -146,6 +147,7 @@ async function main() {
     const registry = new DocumentAssetRegistry();
     const prepared: Record<string, unknown>[] = [];
     const preparationErrors: { sceneId: string; message: string }[] = [];
+    const identityFiles = new Map<string, { local: string; mediaType: string }>();
     const tiles: { image: Buffer; label: string }[] = [];
     const noaaDownloads = new Map<string, { file: string; sha256: string }>();
     type Resolved = { buffer: Buffer; ext: string; mediaType: "image" | "video"; meta: Record<string, unknown> };
@@ -441,6 +443,8 @@ async function main() {
         resolved = await resolveFree(scene.id, src);
       }
       const { buffer, ext, mediaType, meta } = resolved;
+      const local = path.join(tmp, `${scene.id}.${ext}`);
+      await fs.writeFile(local, buffer);
       if (src.kind === "veo-clip" && !override.placeholder) {
         // Keep generated output reviewable even if a later quality check
         // stops the run. The durable provider record still prevents retries.
@@ -456,11 +460,23 @@ async function main() {
       const byContent = override.placeholder ? null : registry.findByContent(identity, scene.repeatOf);
       const reviewedDifference = reviewedPerceptualDifference(scene, byContent);
       if (reviewedDifference) console.log(`@@PERCEPTUAL_REVIEW ${JSON.stringify({ sceneId: scene.id, match: byContent, review: scene.review.perceptualDistinctFrom })}`);
-      if (byRef || (byContent && !reviewedDifference)) throw new Error(`${scene.id}: recurso repetido (igual a ${(byRef ?? byContent)?.shotId}; ${(byRef ?? byContent)?.key})`);
-      if (!override.placeholder) registry.register(scene.id, identity);
+      let confirmedDifference = false;
+      const previous = byContent ? identityFiles.get(byContent.shotId) : undefined;
+      if (byContent?.key === "dhash" && !reviewedDifference && mediaType === "video" && previous?.mediaType === "video") {
+        const scores = [];
+        for (const t of [0.3, 1]) {
+          const [a, b] = await Promise.all([frameAt(local, t, 320), frameAt(previous.local, t, 320)]);
+          scores.push(await comparePerceptualFrames(a, b));
+        }
+        confirmedDifference = scores.some(s => !s.duplicate);
+        console.log(`@@PERCEPTUAL_CONFIRMATION ${JSON.stringify({ sceneId: scene.id, match: byContent, scores, distinct: confirmedDifference })}`);
+      }
+      if (byRef || (byContent && !reviewedDifference && !confirmedDifference)) throw new Error(`${scene.id}: recurso repetido (igual a ${(byRef ?? byContent)?.shotId}; ${(byRef ?? byContent)?.key})`);
+      if (!override.placeholder) {
+        registry.register(scene.id, identity);
+        identityFiles.set(scene.id, { local, mediaType });
+      }
 
-      const local = path.join(tmp, `${scene.id}.${ext}`);
-      await fs.writeFile(local, buffer);
       let durationSeconds: number | undefined;
       if (mediaType === "video") {
         durationSeconds = await probeDuration(local);

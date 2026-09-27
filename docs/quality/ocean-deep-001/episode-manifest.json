@@ -2314,7 +2314,7 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Approved concept and production budget; generated output still requires visual inspection before delivery."
+        "note": "Generated clip visually reviewed at five times: stable luminous fish instead of the requested pinpoints/no-fish scene. Accepted as a generic AI illustration of bioluminescence, not an identified species or recorded behaviour. Reuse the cached clip; no regeneration."
       },
       "source": {
         "kind": "veo-clip",

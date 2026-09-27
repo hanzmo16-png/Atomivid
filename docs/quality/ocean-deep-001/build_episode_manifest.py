@@ -75,6 +75,7 @@ for b,entries in plan.items():
    ai_count+=1;_,key,prompt=res
    ph=('goosefish',(ai_count-1)*8) if ai_count<=6 else ('coffinfish',(ai_count-7)*8)
    s['source']={'kind':'veo-clip','key':key,'reference':{'kind':'ai-still','prompt':'16:9 photorealistic scientific reconstruction. '+prompt+'. No text.','negativePrompt':NEG},'prompt':'One continuous restrained naturalistic underwater shot, 8 seconds. '+prompt+'. Slow smooth movement, minimal camera drift, anatomically stable throughout. Do not introduce objects or additional animals. No titles or lettering.','negativePrompt':NEG,'placeholder':{'source':noaa_source(ph[0],ph[1],8),'provenance':'archival_documentary','creditText':'Temporary preview only · unrelated NOAA benthic fish','camera':'still'}};s['provenance']='ai_recreation';s['creditText']='Scientific reconstruction · not recorded animal behaviour';s['review']['note']='Approved concept and production budget; generated output still requires visual inspection before delivery.'
+   if key=='ocean-b5-sparks-v1':s['review']['note']='Generated clip visually reviewed at five times: stable luminous fish instead of the requested pinpoints/no-fish scene. Accepted as a generic AI illustration of bioluminescence, not an identified species or recorded behaviour. Reuse the cached clip; no regeneration.'
    if dur>8:raise ValueError((s['id'],dur,'AI exceeds 8 s'))
   if overlay:s['overlay']={'text':overlay,'startSeconds':min(.3,dur/4),'endSeconds':round(min(dur,max(2.5,min(5,dur))),3)}
   scenes.append(s)

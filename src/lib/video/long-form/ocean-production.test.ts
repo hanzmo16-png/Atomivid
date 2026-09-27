@@ -4,8 +4,21 @@ import { assertNoaaEvidence, assertNoaaUrl, fetchNoaaBytes, type NoaaVideoSource
 import { findOceanSound, renderOceanSound } from "./ocean-sounds";
 import { overlayIssue } from "../../../../remotion/scene-overlay";
 import { validateSampleManifest, reviewedPerceptualDifference, type SampleManifest, type SampleScene } from "./sample-manifest";
+import { comparePerceptualFrames } from "./perceptual-confirmation";
+import { dhashImage } from "./asset-identity";
+import sharp from "sharp";
 
 const source: NoaaVideoSource = { kind: "noaa-video", url: "https://oceanexplorer.noaa.gov/media/fish.mp4", pageUrl: "https://oceanexplorer.noaa.gov/fish/", credit: "NOAA Ocean Exploration", licenseReview: { date: "2026-09-27", note: "Reviewed this specific credit and media; no third-party exception on the page." } };
+
+test("frame confirmation separates uniform-water hash collisions from recompressed copies", async () => {
+  const a = await sharp({ create: { width: 192, height: 108, channels: 3, background: "#03152b" } }).png().toBuffer();
+  const b = await sharp({ create: { width: 192, height: 108, channels: 3, background: "#092a57" } }).png().toBuffer();
+  assert.equal(await dhashImage(a), await dhashImage(b));
+  assert.equal((await comparePerceptualFrames(a, b)).duplicate, false);
+  const picture = await sharp(Buffer.from('<svg width="192" height="108"><rect width="192" height="108" fill="#061c32"/><ellipse cx="88" cy="61" rx="37" ry="22" fill="#3c8fa8"/><circle cx="104" cy="54" r="4" fill="white"/></svg>')).png().toBuffer();
+  const recoded = await sharp(picture).resize(384, 216).jpeg({ quality: 90 }).toBuffer();
+  assert.equal((await comparePerceptualFrames(picture, recoded)).duplicate, true);
+});
 
 test("reviewed dark-water false positives cannot exempt exact or unreviewed duplicates", () => {
   const scene: SampleScene = { id: "fish", startSeconds: 0, endSeconds: 5, narration: "", source, provenance: "archival_documentary", direction: {}, review: { status: "approved", relevance: "directa", note: "Reviewed", perceptualDistinctFrom: [{ sceneId: "rov", note: "Visible fish silhouette differs from the vehicle; only the dark background matches." }] } };
