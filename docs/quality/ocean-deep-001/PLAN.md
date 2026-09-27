@@ -306,3 +306,30 @@ Tope A autorizado: US$3,45 (acumulado en `ocean-deep-001/samples/episode/state/p
 **Detenido antes de las llamadas de pago** (imagen IA y clips Veo): GitHub reparte los artefactos entre varias cuentas `productionresultssa*.blob.core.windows.net`; solo `sa4` está permitida en el entorno. Sin acceso no se pueden revisar los candidatos ni entregar el MP4 del render. Hace falta permitir `*.blob.core.windows.net` (o al menos `productionresultssa10`) en *Network access*.
 
 Cortes de b1 con los tiempos reales (en silencios entre palabras): 0–5,03 · 5,03–11,70 · 11,70–14,19 · 14,19–18,05 · 18,05–24,13 · 24,13–29,07 · 29,07–33,54 · 33,54–36,10 · 36,10–42,253 (narración 41,053 s + cola 1,2 s).
+
+### 11.1 Continuación (27-09-2026): primer minuto terminado
+
+Con `*.blob.core.windows.net` permitido, los artefactos ya se descargan desde aquí (probado con `sa1`, `sa3`, `sa6`, `sa7`, `sa10` y `sa16`). La voz b1 se reutilizó de la caché: no se volvió a sintetizar ni se repitieron las búsquedas anteriores.
+
+| Paso | Ejecución | Resultado | Gasto |
+|---|---|---|---|
+| Revisión de candidatos | artefactos de 36319717981 y 36319901385 | s02 `Expn0686`, s06 ETOPO (NOAA, DP) y s08 Pexels. Sin foto DP para la referencia de s01; para s03 solo una foto de 400×300 | gratis |
+| 3 `candidates` commons (2.ª pasada, solo s1 y s3) | run 36322675471 (`search-spec-b1-r2.json`) | s01: `Deep Discoverer seabed Puerto Rico 11 April 2025.png` (DP). s03: `Coronate of the genus Atolla…` (DP, 1724×967) | gratis |
+| 4 manifiesto | `minute1-manifest.json` (lo genera `build_minute1_manifest.py` con los tiempos por palabra) | 8 escenas cortadas en silencios, de 0 a 42,253 s; antetítulo de portada acortado a 32 caracteres (`kicker_too_long` bloqueaba el render) | gratis |
+| 5 `prepare` sin pago | runs 36322811375 (el MP4 4K de Pexels superó el límite de Storage; se cambió a 38178142, 1080p) y 36322972116 | `PREPARE_OK`, licencias releídas | gratis |
+| 5 `prepare` con pago | run 36323113770 (`GASTAR`, cap 3,45) | Veo s01 y s04, 8 s cada uno, e imagen IA s04. Sin fallos ni reintentos | **US$1,9753** (Veo 2 × 0,96 + imagen 0,055315) |
+| 6 `render` aprobación | run 36323674245 | `sample-approval-minute1-portada.mp4`: H.264 1920×1080 a 30 fps, AAC 48 kHz, 42,25 s, −16,2 LUFS, true peak −2,3 dBTP; portada sin conflictos | gratis |
+
+**Gasto acumulado en el registro: US$2,1787 de 3,45.**
+- Dinero: US$1,9753 (clips e imagen).
+- Cuota de ElevenLabs: 678 caracteres, anotados en el registro como US$0,2034; su costo marginal real es $0.
+- Margen restante: US$1,2713.
+
+Revisión de fotogramas (no se escuchó el audio):
+- Aparecen subtítulos en inglés, rótulos «AI recreation» en s01 y s04, créditos NOAA/NCEI y Seabed 2030, y tarjetas grandes con cita.
+- `blackdetect` marca de 11,7 a 14,27 s: es s03, una medusa sobre agua muy oscura que sí se ve. No hay negro real.
+- En el clip de s01, Veo añadió hacia los 2–3 s una columna de partículas o burbujas sobre el vehículo. Va rotulado como recreación IA, pero el prompt pedía no añadir burbujas. Hans decide si lo acepta o se regenera con una clave nueva (US$0,96, cabe en el margen).
+- b1 no tiene mapa determinista: los mapas con costas de `map-land.json` están en b2–b7. Aquí el mapa es el relieve ETOPO real.
+- Falta el sonido de sonar o ROV (`missingSound`).
+
+**Pendiente: Hans aprueba o rechaza el primer minuto.** La etapa B sigue sin autorizar.
