@@ -26,6 +26,10 @@ function makeFakeStorage(filesByPrefix: Record<string, { name: string }[]> = {})
             signedPaths.push(objectPath);
             return { data: { signedUrl: `https://signed.example.test/${objectPath}` }, error: null };
           },
+          // Marcadores durables (state/generated/*.json): en estas pruebas nunca existen previamente.
+          async download() {
+            return { data: null, error: { message: "Object not found", statusCode: "404" } };
+          },
         };
       },
     },
@@ -149,8 +153,11 @@ test("resolveGeneratedImageForScene genera y sube una imagen nueva cuando no exi
   assert.equal(result.width, 1024);
   assert.equal(result.height, 1536);
   assert.equal(callCount(), 1);
-  assert.equal(uploads.length, 1);
-  assert.equal(uploads[0].contentType, "image/png");
+  const images = uploads.filter((u) => !u.path.endsWith(".json"));
+  assert.equal(images.length, 1);
+  assert.equal(images[0].contentType, "image/png");
+  // Marcador durable: «started» antes de pagar y «stored» al terminar.
+  assert.deepEqual(uploads.filter((u) => u.path.endsWith(".json")).map((u) => u.path), ["req-2/state/generated/scene-0-generated.json", "req-2/state/generated/scene-0-generated.json"]);
 });
 
 test("resolveGeneratedImageForScene rechaza (sin subir nada) si el proveedor devuelve un archivo inválido", async () => {
@@ -175,7 +182,7 @@ test("resolveGeneratedImageForScene rechaza (sin subir nada) si el proveedor dev
       }),
     /archivo inválido/,
   );
-  assert.equal(uploads.length, 0);
+  assert.equal(uploads.filter((u) => !u.path.endsWith(".json")).length, 0, "ninguna imagen subida (solo el marcador durable)");
 });
 
 test("resolveGeneratedImageForScene propaga el error del proveedor tal cual (nunca cae a otro proveedor de pago por su cuenta)", async () => {

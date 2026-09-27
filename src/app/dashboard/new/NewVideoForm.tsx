@@ -5,6 +5,7 @@ import { Field, INPUT_CLASS } from "@/components/ui/Field";
 import { AvatarFields } from "./AvatarFields";
 import { SubmitButton } from "./SubmitButton";
 import { avatarDurationSelectorApplies } from "./validation";
+import { AudiovisualSelector, type ProfileAvailability } from "@/components/video/AudiovisualSelector";
 
 const STYLES = [
   "Motivacional",
@@ -36,16 +37,20 @@ export function NewVideoForm({
   avatarModeEnabled,
   existingAvatars,
   initialMode = "visual",
+  audiovisual,
 }: {
   action: (formData: FormData) => void;
   avatarModeEnabled: boolean;
   existingAvatars: { id: string; name: string }[];
   /** Preselecciona "Video con avatar" cuando se llega desde ese tipo en el selector "¿Qué quieres crear?" (ContentTypeStep) — solo tiene efecto si avatarModeEnabled también es true. */
   initialMode?: VideoMode;
+  /** Dirección audiovisual (AUDIOVISUAL_PROFILES_ENABLED). Ausente = formulario de siempre. Solo aplica a Reel (mode visual). */
+  audiovisual?: { availabilityByDuration: Record<number, ProfileAvailability> };
 }) {
   const [mode, setMode] = useState<VideoMode>(avatarModeEnabled ? initialMode : "visual");
   const [language, setLanguage] = useState<"es" | "en">("es");
   const [duration, setDuration] = useState(30);
+  const [style, setStyle] = useState("");
   // Elevado desde AvatarFields (ver ese archivo) para poder ocultar el
   // selector 30/60/90 de aquí abajo cuando corresponda — contrato de
   // duración (RC QA 2026-09-25): "recording"/"tts_text" usan la duración
@@ -82,8 +87,8 @@ export function NewVideoForm({
         </select>
       </Field>
 
-      <Field id="style" label="Estilo / tono">
-        <select id="style" name="style" required defaultValue="" className={INPUT_CLASS}>
+      <Field id="style" label={audiovisual && mode === "visual" ? "Tono del contenido" : "Estilo / tono"}>
+        <select id="style" name="style" required value={style} onChange={(e) => setStyle(e.target.value)} className={INPUT_CLASS}>
           <option value="" disabled>
             Selecciona un estilo
           </option>
@@ -94,6 +99,10 @@ export function NewVideoForm({
           ))}
         </select>
       </Field>
+
+      {audiovisual && mode === "visual" && (
+        <AudiovisualSelector style={style || undefined} availability={audiovisual.availabilityByDuration[duration]} />
+      )}
 
       {/* El hidden siempre se envía (fallback si la medición real del audio
           falla en el servidor — ver dashboard/new/actions.ts), pero el

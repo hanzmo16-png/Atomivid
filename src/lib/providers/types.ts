@@ -4,6 +4,7 @@
  * y una implementación "fixture" (determinística, sin red) que cumple la
  * misma interfaz — así el pipeline completo se puede probar sin claves.
  */
+import type { ChargeOutcome } from "./charge-outcome";
 
 export type SceneEnergy = "low" | "medium" | "high";
 
@@ -36,6 +37,33 @@ export type GeneratedScript = {
 
 export type ScriptLanguage = "es" | "en";
 
+/** Una llamada REAL al modelo de guion (cada corrección de longitud y cada reintento es otra). */
+export type ScriptCallMeta = {
+  operation: "script" | "scene";
+  /** Número de llamada dentro de esta generación (1, 2, …), contando reintentos. */
+  call: number;
+  /** Intento de longitud (1 = primer borrador; 2-3 = correcciones). */
+  lengthAttempt: number;
+  model: string;
+  maxTokens: number;
+  /** Caracteres de system + mensaje enviados (para reservar antes de llamar). */
+  promptChars: number;
+};
+
+/** Tokens medidos que devuelve el proveedor en la respuesta. */
+export type ScriptCallUsage = {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens?: number | null;
+  cache_read_input_tokens?: number | null;
+};
+
+/**
+ * Envoltorio opcional de CADA llamada real (p. ej. registro de gasto de las
+ * muestras). Debe invocar `call` como máximo una vez y devolver su resultado.
+ */
+export type ScriptCallRunner = <T extends { usage?: ScriptCallUsage | null }>(meta: ScriptCallMeta, call: () => Promise<T>) => Promise<T>;
+
 export interface ScriptProvider {
   readonly name: string;
   generateScript(input: {
@@ -44,6 +72,10 @@ export interface ScriptProvider {
     durationSeconds: number;
     /** Idioma elegido por el usuario en /dashboard/new. Por defecto "es". */
     language?: ScriptLanguage;
+    /** Guía de redacción de la dirección audiovisual (intención narrativa). Ausente = prompt anterior sin cambios. */
+    guidance?: string;
+    /** Envoltorio de cada llamada real (ver ScriptCallRunner). Ausente = llamada directa. */
+    runCall?: ScriptCallRunner;
   }): Promise<GeneratedScript>;
   /** Reescribe una sola escena (revisión/edición desde la UI). */
   regenerateScene(input: {
@@ -51,6 +83,8 @@ export interface ScriptProvider {
     style: string;
     script: GeneratedScript;
     sceneIndex: number;
+    guidance?: string;
+    runCall?: ScriptCallRunner;
   }): Promise<ScriptScene>;
 }
 
@@ -175,6 +209,13 @@ export type MusicSelectionContext = {
    * elección entre pistas empatadas es aleatoria.
    */
   seed?: string;
+  /**
+   * Dirección musical aprobada (src/lib/video/audiovisual/). Presente =
+   * modo dirigido: solo pistas compatibles, sin fallback a otra cualquiera
+   * y sin inferir tono por palabras sueltas. Ausente = comportamiento
+   * anterior (solicitudes sin dirección audiovisual).
+   */
+  direction?: import("@/lib/video/audiovisual/catalog").MusicDirectionId;
 };
 
 export interface MusicProvider {
@@ -217,6 +258,8 @@ export type GenerativeAsset = {
   model: string;
   /** Costo real si el proveedor lo expone, o la estimación calculada antes de pedir. */
   costUsd: number;
+  /** De dónde sale `costUsd` (registro de gasto): usage medido del proveedor o estimación. Ausente = estimación. */
+  costBasis?: "provider_usage" | "estimated";
   /** Identificador de la tarea/job en el proveedor, si aplica (generación asíncrona). */
   providerJobId?: string;
   /** Licencia o términos aplicables al resultado generado, cuando el proveedor los declara. */
@@ -275,6 +318,12 @@ export class GenerativeProviderError extends Error {
      * rechazada).
      */
     public readonly providerJobId?: string,
+    /**
+     * Si la llamada fallida pudo cobrarse (ver providers/charge-outcome.ts).
+     * Ausente en proveedores que aún no lo declaran: el llamador debe
+     * tratarlo como incierto salvo que `reason` pruebe que no se llamó.
+     */
+    public readonly chargeOutcome?: ChargeOutcome,
   ) {
     super(message);
     this.name = "GenerativeProviderError";

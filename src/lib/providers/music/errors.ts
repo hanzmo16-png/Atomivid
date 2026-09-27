@@ -51,3 +51,16 @@ export class MusicInvalidFileError extends Error {
     this.name = "MusicInvalidFileError";
   }
 }
+
+/**
+ * Modo dirigido (dirección audiovisual): ninguna pista COMPATIBLE con la
+ * dirección musical aprobada está disponible. Nunca se sustituye por otra
+ * pista cualquiera ni por música generada de pago — el llamador detiene la
+ * producción con una ruta de recuperación visible.
+ */
+export class MusicNoCompatibleTrackError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MusicNoCompatibleTrackError";
+  }
+}

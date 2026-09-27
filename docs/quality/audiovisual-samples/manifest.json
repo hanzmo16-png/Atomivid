@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "note": "Muestras reales de la dirección audiovisual (Reels, 30 s, español). Presupuesto propuesto: US$3,50 total, US$0,75 por muestra. No ejecutar sin monto autorizado.",
+  "samples": [
+    {
+      "id": "horror",
+      "purpose": "Aceptación 1: Horror y misterio mantiene la tensión aunque el guion hable de éxito y negocios.",
+      "topic": "La empresa más exitosa del pueblo cerró de la noche a la mañana y nadie volvió a ver a su dueño",
+      "style": "Curiosidades",
+      "selection": { "profile": "horror_mystery" }
+    },
+    {
+      "id": "comic-mystery",
+      "purpose": "Aceptación 2 (1/2): cómic con historia de misterio conserva el dibujo y el suspenso.",
+      "topic": "El faro que se apagaba cada noche a la misma hora sin que nadie lo tocara",
+      "style": "Curiosidades",
+      "selection": { "profile": "comic" }
+    },
+    {
+      "id": "comic-humor",
+      "purpose": "Aceptación 2 (2/2): mismo lenguaje visual de cómic con dirección musical y montaje de humor.",
+      "topic": "Mi gato decidió que mi teclado era su cama durante una semana de trabajo",
+      "style": "Humor",
+      "selection": { "profile": "comic" }
+    },
+    {
+      "id": "cinematic",
+      "purpose": "Cine realista divulgativo (clips reales).",
+      "topic": "Por qué el cielo se ve rojo al atardecer",
+      "style": "Educativo",
+      "selection": { "profile": "cinematic_realistic" }
+    },
+    {
+      "id": "anime",
+      "purpose": "Perfil Anime con una historia emotiva.",
+      "topic": "La última carta que un abuelo escribió a su nieta antes de mudarse",
+      "style": "Storytelling personal",
+      "selection": { "profile": "anime" }
+    },
+    {
+      "id": "illustration-3d",
+      "purpose": "Perfil Ilustración 3D con una historia inspiradora.",
+      "topic": "Cómo un pequeño taller de bicicletas se convirtió en el orgullo de su barrio",
+      "style": "Motivacional",
+      "selection": { "profile": "illustration_3d" }
+    }
+  ]
+}

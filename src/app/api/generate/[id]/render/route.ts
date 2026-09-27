@@ -13,6 +13,9 @@ import {
   RenderStageError,
 } from "@/lib/video/render-error";
 import type { GeneratedScript } from "@/lib/providers/types";
+import { loadAudiovisualState } from "@/lib/video/audiovisual/persistence";
+import { directionForApprovedScript } from "@/lib/video/audiovisual/direction";
+import { evaluateDirectionReadiness } from "@/lib/video/audiovisual/readiness";
 
 // El worker por defecto (GitHub Actions) solo dispara un webhook y
 // retorna — esta función ya no espera el render completo. maxDuration se
@@ -29,6 +32,8 @@ type VideoRequestRow = {
   mode: string;
   user_id: string;
   status: string;
+  topic: string | null;
+  style: string | null;
   script_json: GeneratedScript | null;
   error_message: string | null;
   avatar_provider_video_job_id: string | null;
@@ -74,7 +79,7 @@ export async function POST(
     try {
       const { data, error: fetchError } = await service
         .from("video_requests")
-        .select("id, mode, user_id, status, script_json, render_attempts, render_started_at, created_at, error_message, avatar_provider_video_job_id, long_form_confirmed_at, long_form_progress")
+        .select("id, mode, user_id, status, topic, style, script_json, render_attempts, render_started_at, created_at, error_message, avatar_provider_video_job_id, long_form_confirmed_at, long_form_progress")
         .eq("id", id)
         .single<VideoRequestRow>();
 
@@ -140,6 +145,38 @@ export async function POST(
       return NextResponse.json({ error: decision.error }, { status: decision.status });
     }
 
+    // Dirección audiovisual (Reels creados con el selector): se resuelve al
+    // aprobar el guion — o se REUTILIZA la ya guardada si guion, tono, tema y
+    // selección no cambiaron (reintentos) — y se comprueba que se puede
+    // producir sin contradicciones ni gasto inesperado ANTES de marcar
+    // "processing". Solicitudes sin selección: nada cambia.
+    let directionUpdate: { audiovisual_direction: unknown } | Record<string, never> = {};
+    if (videoRequest.mode === "visual") {
+      const av = await loadAudiovisualState(service, id);
+      if (av.selection) {
+        const { direction, reused } = directionForApprovedScript({
+          stored: av.direction,
+          selection: av.selection,
+          style: videoRequest.style ?? undefined,
+          topic: videoRequest.topic ?? undefined,
+          scenes: videoRequest.script_json.segments,
+        });
+        const readiness = evaluateDirectionReadiness({
+          profile: direction.profile,
+          music: direction.music.id,
+          sceneCount: videoRequest.script_json.segments.length,
+        });
+        if (!readiness.ok) {
+          return NextResponse.json(
+            { error: readiness.issues.map((i) => `${i.message} ${i.recovery}`).join(" "), issues: readiness.issues, direction: direction.summary },
+            { status: 409 },
+          );
+        }
+        console.log("[atomivid:direction] aprobada", JSON.stringify({ requestId: id, reused, summary: direction.summary, fingerprint: direction.fingerprint.slice(0, 12) }));
+        directionUpdate = { audiovisual_direction: direction };
+      }
+    }
+
     let check: Awaited<ReturnType<typeof assertCanGenerate>>;
     try {
       check = await assertCanGenerate(service, user.id, videoRequest.mode, user);
@@ -171,6 +208,9 @@ export async function POST(
           render_started_at: new Date().toISOString(),
           render_attempts: videoRequest.render_attempts + 1,
           render_worker: worker.name,
+          // Misma escritura atómica que la transición a "processing": el
+          // worker solo ve la dirección que corresponde a este intento.
+          ...directionUpdate,
         })
         .eq("id", id)
         .eq("status", videoRequest.status)

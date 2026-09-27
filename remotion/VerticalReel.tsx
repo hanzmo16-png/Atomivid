@@ -8,13 +8,22 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from "./audio-mix";
+import { type MusicMixLevels, type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from "./audio-mix";
+import { framingStyle, reelMotionTransform, vignetteBackground, type ReelFraming, type ReelLook, type ReelMotion } from "./reel-motion";
 
 export type Scene = {
   mediaUrl: string;
   mediaType: "image" | "video";
   startSeconds: number;
   endSeconds: number;
+  /**
+   * Solo Reels con dirección audiovisual (src/lib/video/audiovisual/). Con
+   * `motion` ausente el plano usa el Ken Burns de siempre; con
+   * `transitionInFrames` ausente, el fundido de siempre (FADE_FRAMES).
+   */
+  motion?: ReelMotion;
+  transitionInFrames?: number;
+  framing?: ReelFraming;
 };
 
 export type Caption = {
@@ -37,6 +46,10 @@ export type VerticalReelProps = {
   accentColor?: string;
   /** Badge de logo opt-in en la esquina — nunca activo por defecto, ver src/lib/video/brand.ts. */
   showLogo?: boolean;
+  /** Grado visual de la dirección audiovisual (filtro, viñeta, tinte). Ausente = sin cambios. */
+  look?: ReelLook;
+  /** Niveles de música de la dirección audiovisual (nunca por encima de AUDIO_MIX). Ausente = AUDIO_MIX. */
+  mix?: MusicMixLevels;
 };
 
 // Duración del crossfade entre escenas. A 30fps, 15 frames = 0.5s.
@@ -52,11 +65,15 @@ export function VerticalReel({
   narrationGaps = [],
   accentColor = DEFAULT_ACCENT_COLOR,
   showLogo = false,
+  look,
+  mix,
 }: VerticalReelProps) {
   const { fps, durationInFrames } = useVideoConfig();
+  const vignette = look ? vignetteBackground(look.vignette) : undefined;
 
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
+      <AbsoluteFill style={look && look.filter !== "none" ? { filter: look.filter } : undefined}>
       {scenes.map((scene, i) => {
         const isFirst = i === 0;
         const isLast = i === scenes.length - 1;
@@ -64,7 +81,11 @@ export function VerticalReel({
         const rawTo = isLast ? durationInFrames : Math.round(scene.endSeconds * fps);
         // Cada escena (salvo la última) se extiende un poco más allá de su
         // fin para solaparse con la siguiente y poder cruzar (crossfade).
-        const extendedTo = Math.min(durationInFrames, rawTo + (isLast ? 0 : FADE_FRAMES));
+        // Con dirección audiovisual el solape lo fija el fundido de entrada
+        // del plano siguiente (0 = corte seco); sin ella, FADE_FRAMES.
+        const fadeIn = isFirst ? 0 : (scene.transitionInFrames ?? FADE_FRAMES);
+        const nextFade = isLast ? 0 : (scenes[i + 1].transitionInFrames ?? FADE_FRAMES);
+        const extendedTo = Math.min(durationInFrames, rawTo + nextFade);
         const sequenceDuration = Math.max(1, extendedTo - from);
 
         return (
@@ -72,13 +93,17 @@ export function VerticalReel({
             <SceneMedia
               scene={scene}
               durationInFrames={sequenceDuration}
-              fadeInFrames={isFirst ? 0 : FADE_FRAMES}
-              fadeOutFrames={isLast ? 0 : FADE_FRAMES}
+              fadeInFrames={fadeIn}
+              fadeOutFrames={nextFade}
               isHook={isFirst}
             />
           </Sequence>
         );
       })}
+      </AbsoluteFill>
+
+      {look?.tint && <AbsoluteFill style={{ backgroundColor: look.tint, mixBlendMode: "multiply" }} />}
+      {vignette && <AbsoluteFill style={{ background: vignette }} />}
 
       <AbsoluteFill
         style={{
@@ -101,7 +126,7 @@ export function VerticalReel({
         <Audio
           src={musicUrl}
           loop
-          volume={(frame) => musicVolumeAtSeconds(frame / fps, durationSeconds, narrationGaps)}
+          volume={(frame) => musicVolumeAtSeconds(frame / fps, durationSeconds, narrationGaps, mix)}
         />
       )}
     </AbsoluteFill>
@@ -133,12 +158,18 @@ function SceneMedia({
   // todo su rango) para captar atención de inmediato en vez de un
   // zoom uniforme e imperceptible.
   const hookProgress = Math.min(1, progress / 0.4);
-  const scale = isHook
-    ? interpolate(hookProgress, [0, 1], [1, 1.22], { extrapolateRight: "clamp" })
-    : interpolate(progress, [0, 1], [1, 1.12]);
-  const translateX = isHook
-    ? 0
-    : interpolate(progress, [0, 1], [0, -18]);
+  const directed = scene.motion ? reelMotionTransform(scene.motion, progress) : null;
+  const framing = framingStyle(scene.framing);
+  const scale = directed
+    ? directed.scale * framing.baseScale
+    : isHook
+      ? interpolate(hookProgress, [0, 1], [1, 1.22], { extrapolateRight: "clamp" })
+      : interpolate(progress, [0, 1], [1, 1.12]);
+  const translateX = directed
+    ? directed.translateX
+    : isHook
+      ? 0
+      : interpolate(progress, [0, 1], [0, -18]);
 
   let opacity = 1;
   if (fadeInFrames > 0) {
@@ -164,6 +195,7 @@ function SceneMedia({
     height: "100%",
     objectFit: "cover" as const,
     transform: `scale(${scale}) translateX(${translateX}px)`,
+    ...(framing.transformOrigin ? { transformOrigin: framing.transformOrigin } : {}),
   };
 
   return (

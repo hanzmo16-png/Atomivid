@@ -14,6 +14,8 @@ import type { RenderStage } from "./stages";
 import { generateDiagnosticId } from "./render-error";
 import { ProviderConfigurationError } from "@/lib/providers/production";
 import { isCustomerSafeError } from "./long-form/output-policy";
+import { loadAudiovisualState } from "./audiovisual/persistence";
+import { assertDirectionMatches, type AudiovisualDirection } from "./audiovisual/direction";
 
 /** Rutas internas de Storage (`<uuid>/...`) nunca llegan al mensaje visible de Long Form. */
 export function scrubInternalPaths(message: string): string {
@@ -130,6 +132,22 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
     // Defensa en profundidad (además de la puerta de render/route.ts): sin
     // confirmación humana, con un plan inválido/de versión desconocida, o
     // con un guion distinto al confirmado, no se ejecuta NADA pagado.
+    // Dirección audiovisual (Reels con selector): defensa en profundidad —
+    // la dirección guardada al aprobar debe corresponder EXACTAMENTE al guion
+    // que se va a producir; si no, no se gasta nada.
+    let direction: AudiovisualDirection | undefined;
+    if (mode === "visual") {
+      const av = await loadAudiovisualState(service, requestId);
+      if (av.selection) {
+        direction = assertDirectionMatches({
+          stored: av.direction,
+          selection: av.selection,
+          style: row.style ?? undefined,
+          topic: row.topic ?? undefined,
+          scenes: (row.script_json as GeneratedScript).segments,
+        });
+      }
+    }
     const longFormPlan: ProductionPlan | null =
       mode === "long_form"
         ? resolveExecutablePlan({
@@ -175,6 +193,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
               language: row.language ?? undefined,
               targetDurationSeconds: row.duration_seconds ?? undefined,
               onProgress,
+              ...(direction ? { direction, attempt: row.render_attempts } : {}),
             });
 
     const completed = await update({

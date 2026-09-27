@@ -87,6 +87,16 @@ async function main() {
             uploadedPaths.add(objectPath);
             return { error: null };
           },
+          // Marcadores/registros durables (visual-resource-resolver.ts, voice-cache.ts).
+          async download(objectPath: string) {
+            const full = path.join(storageDir, objectPath);
+            if (!fsSync.existsSync(full)) return { data: null, error: { message: "Object not found", statusCode: "404" } };
+            return { data: new Blob([new Uint8Array(await fs.readFile(full))]), error: null };
+          },
+          async remove(paths: string[]) {
+            for (const p of paths) await fs.rm(path.join(storageDir, p), { force: true });
+            return { data: [], error: null };
+          },
           getPublicUrl(objectPath: string) {
             return { data: { publicUrl: `${baseUrl}/${objectPath}` } };
           },

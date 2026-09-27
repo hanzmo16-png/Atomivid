@@ -8,8 +8,11 @@ import { signMusicLibraryUrl } from "./storage";
 import {
   MusicDownloadError,
   MusicInvalidFileError,
+  MusicNoCompatibleTrackError,
   MusicNoMatchError,
 } from "./errors";
+import { selectDirectedTracks } from "@/lib/video/audiovisual/music";
+import type { MusicTrackEntry } from "./manifest";
 
 // Ni Pixabay Music ni Freesound ofrecen hoy una API pública lista para uso
 // comercial sin pasos extra: la API pública de Pixabay (pixabay.com/api/docs)
@@ -77,8 +80,10 @@ async function downloadAndValidate(
 
 export const curatedLibraryMusicProvider: MusicProvider = {
   name: "curated-library",
-  async getTrack({ durationSeconds, style, topic, scriptText, seed }): Promise<MusicResult> {
+  async getTrack({ durationSeconds, style, topic, scriptText, seed, direction }): Promise<MusicResult> {
     const selectionSeed = seed ?? `${style ?? ""}:${topic ?? ""}`;
+
+    if (direction) return getDirectedTrack(direction, selectionSeed, durationSeconds);
 
     if (MUSIC_MANIFEST.length > 0) {
       const tones = inferTone({ style, topic, scriptText });
@@ -130,3 +135,44 @@ export const curatedLibraryMusicProvider: MusicProvider = {
     return { audioBuffer, durationSeconds, mimeType, extension };
   },
 };
+
+function trackMetadata(track: MusicTrackEntry): NonNullable<MusicResult["track"]> {
+  return {
+    provider: track.provider,
+    trackId: track.id,
+    title: track.title,
+    author: track.author,
+    sourceUrl: track.sourceUrl,
+    license: track.license,
+    tones: track.tones,
+  };
+}
+
+/**
+ * Modo dirigido: recorre SOLO pistas compatibles con la dirección (en el
+ * orden determinístico de selectDirectedTracks). Si una falta en el bucket
+ * o está corrupta, prueba la siguiente compatible; si ninguna sirve, lanza
+ * MusicNoCompatibleTrackError con el detalle — nunca otra pista cualquiera.
+ */
+async function getDirectedTrack(
+  direction: import("@/lib/video/audiovisual/catalog").MusicDirectionId,
+  seed: string,
+  durationSeconds: number,
+): Promise<MusicResult> {
+  const selection = selectDirectedTracks({ manifest: MUSIC_MANIFEST, direction, seed });
+  if (selection.status === "no_compatible") throw new MusicNoCompatibleTrackError(selection.reason);
+  const service = createServiceClient();
+  const failures: string[] = [];
+  for (const track of selection.candidates) {
+    try {
+      const signedUrl = await signMusicLibraryUrl(service, track.storagePath);
+      const { audioBuffer, mimeType, extension } = await downloadAndValidate(signedUrl, track.title);
+      return { audioBuffer, durationSeconds, mimeType, extension, track: trackMetadata(track) };
+    } catch (err) {
+      failures.push(`${track.id}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  throw new MusicNoCompatibleTrackError(
+    `Ninguna de las ${selection.candidates.length} pistas compatibles con «${direction}» está disponible (${failures.join("; ")}).`,
+  );
+}

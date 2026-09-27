@@ -245,7 +245,49 @@ test("generateImage NO reintenta ante invalid_response (HTTP 200 con cuerpo corr
   }
 });
 
-test("generateImage reintenta hasta MAX_RETRIES (default=1, congelado al importar el módulo) ante un error recuperable, y no más", async () => {
+test("generateImage NO reintenta un HTTP 500 — no prueba que OpenAI no generó (incierto)", async () => {
+  const originalFetch = global.fetch;
+  let callCount = 0;
+  global.fetch = (async () => {
+    callCount += 1;
+    return new Response(null, { status: 500 });
+  }) as typeof fetch;
+
+  try {
+    await withEnv({ OPENAI_API_KEY: "fake-key" }, async () => {
+      await assert.rejects(
+        () => openaiImageProvider.generateImage(BASE_REQUEST),
+        (err: unknown) => err instanceof GenerativeProviderError && err.chargeOutcome === "uncertain",
+      );
+      assert.equal(callCount, 1);
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("generateImage NO reintenta una conexión cortada con la solicitud en vuelo (ECONNRESET)", async () => {
+  const originalFetch = global.fetch;
+  let callCount = 0;
+  global.fetch = (async () => {
+    callCount += 1;
+    throw new TypeError("fetch failed", { cause: Object.assign(new Error("reset"), { code: "ECONNRESET" }) });
+  }) as typeof fetch;
+
+  try {
+    await withEnv({ OPENAI_API_KEY: "fake-key" }, async () => {
+      await assert.rejects(
+        () => openaiImageProvider.generateImage(BASE_REQUEST),
+        (err: unknown) => err instanceof GenerativeProviderError && err.chargeOutcome === "uncertain",
+      );
+      assert.equal(callCount, 1);
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("generateImage reintenta hasta MAX_RETRIES (default=1, congelado al importar el módulo) solo si la solicitud no salió, y no más", async () => {
   // Igual que ESTIMATED_COST_USD, OPENAI_IMAGE_MAX_RETRIES se lee una sola
   // vez al importar — por eso esta prueba verifica el comportamiento con
   // el valor por defecto (1 reintento = 2 llamadas en total) en vez de
@@ -257,12 +299,15 @@ test("generateImage reintenta hasta MAX_RETRIES (default=1, congelado al importa
   let callCount = 0;
   global.fetch = (async () => {
     callCount += 1;
-    return new Response(null, { status: 500 });
+    throw new TypeError("fetch failed", { cause: Object.assign(new Error("refused"), { code: "ECONNREFUSED" }) });
   }) as typeof fetch;
 
   try {
     await withEnv({ OPENAI_API_KEY: "fake-key" }, async () => {
-      await assert.rejects(() => openaiImageProvider.generateImage(BASE_REQUEST));
+      await assert.rejects(
+        () => openaiImageProvider.generateImage(BASE_REQUEST),
+        (err: unknown) => err instanceof GenerativeProviderError && err.chargeOutcome === "not_sent",
+      );
       assert.equal(callCount, 2);
     });
   } finally {
