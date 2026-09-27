@@ -1,0 +1,51 @@
+{
+  "requestId": "ocean-deep-001",
+  "note": "Candidate searches per shot (free: Pexels API + Wikimedia Commons, public domain only). Finding is not approving: every candidate is reviewed visually and its licence re-read on the file page (reject captions saying 'copyright', CC BY-SA, MBARI). Passage = shot intent; exact cut times come from the real narration (PART=words).",
+  "scenes": [
+    {
+      "id": "b1-s1",
+      "passage": "A light switches on over pale sediment 3,000 m down",
+      "pexels": [],
+      "commons": [
+        "Deep Discoverer (51816198671)",
+        "Deep Discoverer ROV seafloor lights NOAA"
+      ]
+    },
+    {
+      "id": "b1-s2",
+      "passage": "'pale sediment, a few scattered stones'",
+      "pexels": [],
+      "commons": [
+        "Okeanos Explorer seafloor sediment NOAA",
+        "NOAA Ocean Exploration abyssal plain"
+      ]
+    },
+    {
+      "id": "b1-s3",
+      "passage": "'a small animal drifting through the beam'",
+      "pexels": [],
+      "commons": [
+        "Okeanos Explorer Psychedelic Medusa webm",
+        "NOAA Okeanos jellyfish video"
+      ]
+    },
+    {
+      "id": "b1-s6",
+      "passage": "'More than a quarter of the seafloor has been mapped' — Seabed 2030, April 2026",
+      "pexels": [],
+      "commons": [
+        "ETOPO global relief",
+        "GEBCO world bathymetry"
+      ]
+    },
+    {
+      "id": "b1-s7",
+      "passage": "'How do we actually know what is down there?'",
+      "pexels": [
+        "aerial ocean surface dusk dark water",
+        "open ocean aerial evening"
+      ],
+      "commons": []
+    }
+  ]
+}
