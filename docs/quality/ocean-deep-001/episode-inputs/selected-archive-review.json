@@ -1,0 +1,379 @@
+{
+  "reviewDate": "2026-09-27",
+  "notes": "Visual contact sheets reviewed. Intervals are candidate edit windows; exact excerpts require the final scene duration. Exclude source end cards, interviews and unrelated contexts. NOAA attribution retained; USGS clips credited separately. All source audio will be discarded. Final selected-scene contact sheet review removed NOAA sonar end credits and source title cards; sonar, satellite and grid passages use original animated schematics. Opening-source later excerpts and Trieste photo also visually checked.",
+  "sources": {
+    "seamounts": {
+      "slug": "edu-themes-seafloor-mapping-media-video-multimedia-seamounts",
+      "windows": [
+        [
+          30,
+          45
+        ],
+        [
+          145,
+          162
+        ],
+        [
+          202,
+          220
+        ],
+        [
+          165,
+          169
+        ]
+      ],
+      "subjects": [
+        "branching coral",
+        "ROV rocky bottom",
+        "robot collecting rocks"
+      ]
+    },
+    "sampling": {
+      "slug": "sampling-showcase",
+      "windows": [
+        [
+          7,
+          22
+        ],
+        [
+          27,
+          43
+        ],
+        [
+          48,
+          63
+        ],
+        [
+          69,
+          83
+        ],
+        [
+          88,
+          100
+        ]
+      ],
+      "subjects": [
+        "coral",
+        "ROV sampling",
+        "rock and sediment",
+        "sample basket",
+        "vehicle recovery"
+      ]
+    },
+    "seeps": {
+      "slug": "video-playlist-seeps-seepscapes",
+      "windows": [
+        [
+          30,
+          44
+        ],
+        [
+          82,
+          100
+        ],
+        [
+          187,
+          210
+        ],
+        [
+          232,
+          250
+        ],
+        [
+          265,
+          286
+        ]
+      ],
+      "subjects": [
+        "cold seep bubbles",
+        "mussels",
+        "tubeworms",
+        "mussels close up",
+        "seep community"
+      ],
+      "limitation": "Cold seep, not a hydrothermal vent or 1977 Galapagos footage"
+    },
+    "grenadier": {
+      "slug": "okeanos-explorations-seascape-alaska-ex2304-gallery-media-dive08-fish",
+      "windows": [
+        [
+          4,
+          22
+        ],
+        [
+          28,
+          47
+        ]
+      ],
+      "subjects": [
+        "Albatrossia pectoralis swimming",
+        "marine snow"
+      ],
+      "limitation": "No glowing lure"
+    },
+    "coffinfish": {
+      "slug": "okeanos-explorations-ex1905-dailyupdates-aug30-media-one-of-my-favorites",
+      "windows": [
+        [
+          18,
+          38
+        ],
+        [
+          43,
+          60
+        ]
+      ],
+      "subjects": [
+        "Chaunacops close up",
+        "Chaunacops swimming"
+      ],
+      "limitation": "Not a ceratioid with a glowing lure"
+    },
+    "vent": {
+      "slug": "edu-themes-vents-and-volcanoes-media-video-multimedia-hydrothermal",
+      "windows": [
+        [
+          11,
+          23
+        ],
+        [
+          26,
+          39
+        ],
+        [
+          44,
+          54
+        ]
+      ],
+      "subjects": [
+        "vent chimney",
+        "vent shrimp",
+        "vent community"
+      ],
+      "limitation": "Marianas 2016, illustrative for Galapagos discovery"
+    },
+    "narcomedusa": {
+      "slug": "okeanos-explorations-ex2107-gallery-media-dive03-jellyfish",
+      "windows": [
+        [
+          8,
+          32
+        ]
+      ],
+      "subjects": [
+        "Narcomedusae swimming"
+      ],
+      "limitation": "Lit by ROV, not proof of bioluminescence"
+    },
+    "water": {
+      "slug": "video-playlist-extras-water",
+      "windows": [
+        [
+          39,
+          50
+        ],
+        [
+          63,
+          77
+        ],
+        [
+          91,
+          103
+        ],
+        [
+          111,
+          123
+        ]
+      ],
+      "subjects": [
+        "sunlit upper ocean",
+        "ROV midwater",
+        "fish and corals",
+        "ctenophore"
+      ],
+      "limitation": "Avoid introductory captions and outro logo"
+    },
+    "smoker": {
+      "slug": "okeanos-explorations-22voyage-to-the-ridge-gallery-media-ex2205-dive02-smoker",
+      "windows": [
+        [
+          3,
+          30
+        ]
+      ],
+      "subjects": [
+        "small vent with shrimp"
+      ],
+      "limitation": "Mid Atlantic Ridge 2022, not 1977 archival footage"
+    },
+    "snowjelly": {
+      "slug": "okeanos-explorations-express-ex2301-gallery-media-ex2301-dive07-redjelly",
+      "windows": [
+        [
+          4,
+          24
+        ],
+        [
+          28,
+          49
+        ]
+      ],
+      "subjects": [
+        "Poralia in abundant marine snow"
+      ]
+    },
+    "waltz": {
+      "slug": "video-playlist-column-waltz",
+      "windows": [
+        [
+          3,
+          19
+        ],
+        [
+          23,
+          37
+        ]
+      ],
+      "subjects": [
+        "shrimp",
+        "ROV and medusa"
+      ]
+    },
+    "wow": {
+      "slug": "video-playlist-ex1708-wow",
+      "windows": [
+        [
+          6,
+          18
+        ],
+        [
+          24,
+          36
+        ],
+        [
+          59,
+          70
+        ],
+        [
+          85,
+          96
+        ]
+      ],
+      "subjects": [
+        "jellyfish",
+        "ctenophore",
+        "midwater animal",
+        "jellyfish"
+      ]
+    },
+    "dark": {
+      "slug": "video-playlist-ex1708-hiding-dark",
+      "windows": [
+        [
+          6,
+          18
+        ],
+        [
+          23,
+          35
+        ],
+        [
+          56,
+          70
+        ],
+        [
+          72,
+          83
+        ]
+      ],
+      "subjects": [
+        "ROV observing midwater",
+        "squid",
+        "shrimp",
+        "ctenophore"
+      ]
+    },
+    "twitch": {
+      "slug": "okeanos-explorations-ex1907-dailyupdates-nov7-media-dive07-jellyfish",
+      "windows": [
+        [
+          12,
+          20
+        ],
+        [
+          25,
+          48
+        ]
+      ],
+      "subjects": [
+        "Crossota millsae swimming",
+        "medusa close up"
+      ]
+    },
+    "usgsrobots": {
+      "slug": "explorations-22escanaba-gallery-media-escanaba-part2",
+      "windows": [
+        [
+          8,
+          19
+        ],
+        [
+          25,
+          36
+        ],
+        [
+          43,
+          57
+        ],
+        [
+          61,
+          74
+        ],
+        [
+          77,
+          86
+        ]
+      ],
+      "subjects": [
+        "Jason",
+        "mapping monitor",
+        "vehicle launch",
+        "sampling tools",
+        "deck crane"
+      ],
+      "limitation": "Not NOAA Deep Discoverer; use illustrative or autonomous-vehicle passage"
+    },
+    "usgslab": {
+      "slug": "explorations-22escanaba-gallery-media-escanaba-part3",
+      "windows": [
+        [
+          7,
+          18
+        ],
+        [
+          21,
+          32
+        ],
+        [
+          35,
+          48
+        ],
+        [
+          53,
+          63
+        ],
+        [
+          66,
+          75
+        ]
+      ],
+      "subjects": [
+        "researcher",
+        "laboratory",
+        "sediment core",
+        "biological sample",
+        "rock sample"
+      ]
+    }
+  }
+}

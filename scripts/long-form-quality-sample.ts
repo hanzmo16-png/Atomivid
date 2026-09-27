@@ -146,6 +146,7 @@ async function main() {
     const registry = new DocumentAssetRegistry();
     const prepared: Record<string, unknown>[] = [];
     const tiles: { image: Buffer; label: string }[] = [];
+    const noaaDownloads = new Map<string, { file: string; sha256: string }>();
     type Resolved = { buffer: Buffer; ext: string; mediaType: "image" | "video"; meta: Record<string, unknown> };
     const resolveFree = async (sceneId: string, src: FreeSampleSource): Promise<Resolved> => {
       let buffer: Buffer;
@@ -155,16 +156,23 @@ async function main() {
       if (src.kind === "noaa-video") {
         const page = await fetchNoaaBytes(src.pageUrl, 8 * 1024 * 1024);
         assertNoaaEvidence(src, page.toString("utf8"));
-        const raw = await fetchNoaaBytes(src.url, 200 * 1024 * 1024);
-        const input = path.join(tmp, `${sceneId}-noaa-input`);
+        let downloaded = noaaDownloads.get(src.url);
+        if (!downloaded) {
+          // Keep the long source on disk once; only short reviewed excerpts
+          // are encoded/uploaded. Raw HD sources may exceed bucket limits.
+          const raw = await fetchNoaaBytes(src.url, 400 * 1024 * 1024);
+          downloaded = { file: path.join(tmp, `${sceneId}-noaa-input`), sha256: sourceSha256(raw) };
+          await fs.writeFile(downloaded.file, raw);
+          noaaDownloads.set(src.url, downloaded);
+        }
+        const input = downloaded.file;
         const output = path.join(tmp, `${sceneId}-noaa.mp4`);
-        await fs.writeFile(input, raw);
         await run("ffmpeg", ["-y", "-v", "error", ...(src.clip ? ["-ss", String(src.clip.startSeconds)] : []), "-i", input, ...(src.clip ? ["-t", String(src.clip.endSeconds - src.clip.startSeconds)] : []), "-an", "-vf", "scale=w='min(1920,iw)':h=-2", "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-maxrate", "3M", "-bufsize", "6M", "-pix_fmt", "yuv420p", "-movflags", "+faststart", output]);
         buffer = await fs.readFile(output);
         if (buffer.length > 49 * 1024 * 1024) throw new Error(`${sceneId}: NOAA transcode exceeds storage limit; select a shorter source`);
         ext = "mp4";
         mediaType = "video";
-        meta = { provider: "noaa-ocean-exploration", sourceId: `${src.url}${src.clip ? `#${src.clip.startSeconds}-${src.clip.endSeconds}` : ""}`, pageUrl: src.pageUrl, author: src.credit, license: "Public domain (NOAA; per-file review)", licenseReview: src.licenseReview, sourceClip: src.clip, sourceSha256: sourceSha256(raw), evidenceSha256: sourceSha256(page), sourceUrl: src.url };
+        meta = { provider: "noaa-ocean-exploration", sourceId: `${src.url}${src.clip ? `#${src.clip.startSeconds}-${src.clip.endSeconds}` : ""}`, pageUrl: src.pageUrl, author: src.credit, license: "Public domain (NOAA; per-file review)", licenseReview: src.licenseReview, sourceClip: src.clip, sourceSha256: downloaded.sha256, evidenceSha256: sourceSha256(page), sourceUrl: src.url };
       } else if (src.kind === "pexels-video") {
         const key = process.env.PEXELS_API_KEY;
         if (!key) throw new Error("PEXELS_API_KEY requerido");

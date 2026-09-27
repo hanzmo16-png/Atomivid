@@ -33,6 +33,7 @@ export type DiagramEdge = {
 };
 
 export type DiagramSpec = {
+  oceanModel?: "sonar" | "satellite" | "grid" | "rift";
   kind: "diagram";
   title: string;
   nodes: DiagramNode[];

@@ -488,3 +488,14 @@ Tarifas: Veo 3.1 Fast a 1080p, US$0,96 por clip de 8 s; imagen IA, reserva de US
 - Importador NOAA permite seleccionar hasta 30 s de una fuente larga y conserva su procedencia. Selecciones del mismo vídeo deben ser disjuntas; se rechazan solapes y se conserva la comprobación de duplicados por contenido.
 - Catálogo de candidatos NOAA: fuentes y créditos identificados, aprobación final por fragmento pendiente. No confundir peces pescadores bentónicos con ceratioideos de señuelo bioluminiscente.
 - Pendiente: recuperar tiempos por palabra del episodio, completar y revisar el manifiesto de recursos gratuitos, generar las recreaciones autorizadas una vez, montar y revisar el episodio completo.
+
+
+### 13.3 Montaje completo y revisión de archivo
+
+- Tiempos reales recuperados sin regenerar voz: 111 planos, 659,343 s incluida cola (10:59,343). Tres fotos históricas suman 20,886 s con acercamiento. No hay tarjetas de texto negras; cifras y explicaciones sobre vídeo o esquemas animados.
+- Revisadas hojas de contacto de los fragmentos seleccionados, incluida la apertura NOAA reutilizada y Trieste. Se eliminaron cierres negros, una entrevista y planos ajenos a la explicación. Las fuentes hidrotermales modernas se rotulan expresamente como ilustración, no archivo de 1977. Los organismos iluminados por el ROV no se presentan como una filmación de bioluminiscencia.
+- Esquemas propios animados de sonar, altimetría, dorsal y cuadrícula; llevan indicación de esquema sin escala, no simulan datos medidos. Cuatro fotogramas del componente real revisados mediante SVG; pendiente la comprobación de toda la composición Remotion.
+- Redistribución dentro del mismo presupuesto: nueve clips nuevos y sus nueve referencias IA para bioluminiscencia y peces pescadores; se sustituyen las recreaciones generales de vehículos por archivo real. Estimación conservadora nueva: USD9,18. Con registro previo USD5,1814, previsión acumulada USD14,3614 / USD17,65. Dinero acumulado previsto USD11,1553, bajo el máximo de USD14,10. No reintentos automáticos.
+- La fusión sexual se recrea con un ceratioideo tipo Ceratias, no con Melanocetus. Cada clip generado exige revisión visual posterior; la aprobación del concepto no certifica el resultado.
+- Preparación reutiliza una descarga local por URL NOAA para fragmentos distintos. Descarga original hasta 400 MiB; cada fragmento transcodificado sigue limitado a 49 MiB. Licencia y crédito específicos, intervalos disjuntos y hashes conservados.
+- Manifiesto reproducible con `build_episode_manifest.py` y `episode-inputs/`. Pendiente: prepare gratuito completo, preparación IA autorizada una vez, revisión y render final. Último gasto confirmado permanece USD5,1814 contable / USD1,9753 en dinero.

@@ -1,3 +1,4 @@
+import { OceanScientificDiagram, type OceanModel } from "./OceanScientificDiagram";
 import {
   AbsoluteFill,
   Audio,
@@ -44,6 +45,7 @@ export type LongFormMediaAsset = {
 export type LongFormDiagramNode = { id: string; label: string; x: number; y: number };
 export type LongFormDiagramEdge = { from: string; to: string; label?: string };
 export type LongFormDiagramGraphic = {
+  oceanModel?: OceanModel;
   kind: "diagram";
   title: string;
   nodes: LongFormDiagramNode[];
@@ -404,6 +406,7 @@ function TextCard({ graphic }: { graphic: LongFormTextGraphic }) {
 }
 
 function DiagramCard({ graphic }: { graphic: LongFormDiagramGraphic }) {
+  if (graphic.oceanModel) return <OceanScientificDiagram model={graphic.oceanModel} title={graphic.title} />;
   const W = 1600;
   const H = 800;
   const nodeById = new Map(graphic.nodes.map((n) => [n.id, n]));
