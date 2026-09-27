@@ -321,10 +321,47 @@ Estado: implementado y probado con proveedores simulados; sin muestra real.
   caracteres); sin ellos se deriva una pose previa y un final estable.
 - Evidencia gratuita: casos `medieval` y `medieval-anim` en
   `scripts/test-pipeline-audiovisual.ts` (el segundo con clips simulados).
-- Prueba real preparada, **no ejecutada**: caballero a caballo, 8 s
-  vertical, polvo y piedras pequeñas, patas, jinete y suelo visibles
-  (`scripts/reel-animation-clips.ts`, clip por defecto `medieval-horse`).
-  Las cuatro muestras ya generadas por Work no se repiten sin pedirlo.
+- Las cuatro muestras ya generadas por Work no se repiten sin pedirlo.
+
+### Prueba real «Atomivid-Medieval-Prueba-01» (caballero a caballo, 8 s)
+
+- **Ejecución**: run 36286091634, workflow `medieval-horse-sample.yml`
+  fijado a `cda35ae`. Un solo intento.
+- **Resultado**: MP4 H.264 de 1080×1920, 24 fps, 8,0 s, con pista de audio
+  AAC que genera Veo.
+- **Gasto**: registro propio `samples/animation-medieval`, tope US$2,06.
+  - Imagen gpt-image-2 (1024×1536, calidad media): US$0,0574, según el
+    `usage` que devuelve el proveedor.
+  - Clip Veo 3.1 Fast de 8 s a 1080p: US$0,96, estimado como segundos ×
+    tarifa, porque Google no devuelve el importe.
+  - Total US$1,017; sin gasto incierto.
+- **Revisado en fotogramas**:
+  - las cuatro patas del caballo cambian de posición en un ciclo de marcha
+    real;
+  - el jinete, la armadura y el arnés se mantienen coherentes;
+  - hay polvo en los cascos desde ≈ 2 s y piedras pequeñas en el camino;
+  - la cámara acompaña al jinete; no es una imagen fija con zoom.
+- **Defectos observados**:
+  - al inicio se ven murallas enteras y a los 2-4 s murallas en ruinas, así
+    que el entorno no es del todo coherente;
+  - la banda borrosa superior se mueve desde ≈ 4 s;
+  - el contenido del audio no se ha escuchado.
+- **Pendiente**: la aprobación visual de Hans. No se genera otro intento
+  hasta que la revise.
+
+**Sobre las bandas borrosas de arriba y abajo**: pertenecen al encuadre de
+**esta prueba**. **No son un requisito del formato 9:16.**
+
+- De dónde salen: la ilustración base se generó en 2:3 (1024×1536, el
+  tamaño vertical que pide `openai.ts`). `frameAnimationInput`
+  (`animated-clip.ts`) la coloca entera y sin recortar en un lienzo de
+  1080×1920 y rellena los ≈ 150 px sobrantes arriba y abajo con una copia
+  ampliada, desenfocada y oscurecida de la misma imagen.
+- Por qué se hizo así: es la preparación que usa el Reel, pensada para no
+  perder nada de la ilustración cuando va debajo de los subtítulos.
+- Un clip 9:16 puede ocupar el cuadro completo si la imagen inicial ya es
+  9:16, o si se recorta a 9:16, sin bandas. Cambiar ese encuadre sería una
+  decisión aparte y no se hizo en esta prueba.
 
 ## Segunda fase: YouTube Long Form
 
