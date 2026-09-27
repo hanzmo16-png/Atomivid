@@ -131,8 +131,8 @@ curso). No se probó con la cuenta real.
   60).
 - **Tiempos medidos** (validación gratuita, sección 8): para 2.763 s de
   narración (46 min 03 s), unir y masterizar tardó 123 s y mezclar y
-  masterizar 239 s en este entorno, con la CPU compartida; en CI, para
-  2.417 s (40 min 17 s), fueron 86 s y 175 s. La síntesis real no se midió
+  masterizar 239 s en este entorno, con la CPU compartida, y 99 s y 201 s
+  en el runner de CI (run 36280351086). La síntesis real no se midió
   (sin gasto): con ~58 fragmentos a 6–10 s cada uno serían ≈ 6–10 min. Con
   el `tts.yml` registrado hoy (11 min de presupuesto), un episodio de 45 min
   se pausaría al menos una vez y habría que pulsar «Reanudar»; con el de
@@ -303,7 +303,7 @@ Resultado de la nueva validación (Documental, fondo B «Horizonte»):
   (6 s de entrada y 11,3 s de salida);
 - recuperación, en 3 ejecuciones:
   1. pausa por tiempo tras 18 de 58 fragmentos (18 llamadas);
-  2. fallo rechazado sin cobro (400) en la llamada 31, con 30 fragmentos
+  2. fallo rechazado sin cobro (400) en la llamada 30, con 29 fragmentos
      guardados;
   3. termina (59 llamadas en total);
 - **ninguna síntesis repetida**: 59 llamadas para 58 fragmentos; la única
@@ -319,8 +319,10 @@ Resultado de la nueva validación (Documental, fondo B «Horizonte»):
   (medido, no escuchado);
 - tamaño: 44,2 MB la narración y 44,5 MB la mezcla (128 kbps, bajo el techo
   de 47 MiB);
-- tiempos en este entorno (CPU compartida): unir y masterizar 123 s;
-  mezclar y masterizar 239 s. El `resumen.json` de CI trae los de CI.
+- tiempos en el runner de CI (run 36280351086): unir y masterizar 99 s;
+  mezclar y masterizar 201 s (en este entorno, con la CPU compartida, 123 s
+  y 239 s). CI midió las mismas duraciones, niveles y relaciones: el
+  proceso es determinista.
 
 Validación corta con **Suspenso** (`--minutes 5 --music suspense`, fondo B
 «Pasillo»): narración 346,4 s, mezcla 363,8 s; −19,0 / −3,5 y −16,0 /

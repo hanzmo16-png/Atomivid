@@ -109,7 +109,7 @@ async function main() {
   });
 
   // Proveedor simulado: habla sintética a `speechWpm` palabras/min de habla (las pausas las pone la unión). Un fallo «rechazado» (sin cobro)
-  // en la llamada 31 (a mitad de la pieza si es más corta).
+  // a mitad de la pieza, como tarde en la llamada 31 (con 58 fragmentos, la 30).
   const failAt = Math.min(30, Math.floor(segments.length / 2));
   const bank = speechBank(120, 11);
   const calls: string[] = [];
