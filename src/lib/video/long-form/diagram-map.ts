@@ -16,6 +16,8 @@
  * research pack verificado, no de estos generadores de prueba.
  */
 
+import { mapLandIssue } from "../../../../remotion/map-land";
+
 export type DiagramNode = {
   id: string;
   label: string;
@@ -58,6 +60,8 @@ export type MapSpec = {
   bounds: MapBounds;
   markers: MapMarker[];
   isFixture: boolean;
+  /** Región con tierra real (remotion/map-land.json); sus límites deben coincidir con `bounds`. */
+  landKey?: string;
 };
 
 export type TextCardSpec = {
@@ -102,6 +106,10 @@ export function validateDiagramSpec(spec: DiagramSpec): void {
 
 export function validateMapSpec(spec: MapSpec): void {
   if (spec.markers.length === 0) throw new Error("MapSpec necesita al menos un marcador");
+  if (spec.landKey !== undefined) {
+    const issue = mapLandIssue(spec.landKey, spec.bounds);
+    if (issue) throw new Error(`MapSpec: ${issue}`);
+  }
   for (const marker of spec.markers) {
     projectMarker(marker, spec.bounds); // lanza si el marcador queda fuera de un bounds mal formado
   }

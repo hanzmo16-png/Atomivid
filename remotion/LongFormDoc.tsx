@@ -13,6 +13,7 @@ import { type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from ".
 import { LARGE_CARD, pendingLabel, provenanceLabel, type LabelLanguage, type SceneProvenance } from "./long-form-card-fit";
 import { coverWindowSeconds, fitCover, type CoverSpec } from "./cover-rules";
 import { OpeningTitle } from "./OpeningTitle";
+import { MAP_LAND, landPath, projectLonLat, type MapLandRegion } from "./map-land";
 import { useCoverFont } from "./cover-font";
 
 /**
@@ -56,6 +57,8 @@ export type LongFormMapGraphic = {
   bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   markers: LongFormMapMarker[];
   isFixture: boolean;
+  /** Región con tierra real (map-land.json). Sin valor: retícula y marcadores, como antes. */
+  landKey?: string;
 };
 
 export type LongFormTextGraphic = {
@@ -430,6 +433,7 @@ function projectMarkerLocal(marker: LongFormMapMarker, bounds: LongFormMapGraphi
 function MapCard({ graphic }: { graphic: LongFormMapGraphic }) {
   const W = 1600;
   const H = 800;
+  if (graphic.landKey && MAP_LAND[graphic.landKey]) return <LandMapCard graphic={graphic} region={MAP_LAND[graphic.landKey]} />;
 
   return (
     <GraphicBackground>
@@ -456,6 +460,50 @@ function MapCard({ graphic }: { graphic: LongFormMapGraphic }) {
               </g>
             );
           })}
+        </svg>
+      </div>
+    </GraphicBackground>
+  );
+}
+
+/** Mapa con costas reales: océano, tierra, contorno resaltado opcional, marcadores legibles y fuente. */
+function LandMapCard({ graphic, region }: { graphic: LongFormMapGraphic; region: MapLandRegion }) {
+  const W = 1600;
+  const H = 800;
+  const b = region.bounds;
+  return (
+    <GraphicBackground>
+      <div style={{ width: "100%", textAlign: "center", marginBottom: 230 }}>
+        <div style={{ fontSize: 44, fontWeight: 800, color: "#f2f0ff", marginBottom: 18, fontFamily: "Arial, Helvetica, sans-serif" }}>
+          {graphic.title}
+        </div>
+        {/* 1200×600 en pantalla: por encima de la franja de subtítulos. */}
+        <svg width={1200} height={600} viewBox={`0 0 ${W} ${H}`}>
+          <defs>
+            <clipPath id="map-clip"><rect x={0} y={0} width={W} height={H} /></clipPath>
+          </defs>
+          <rect x={0} y={0} width={W} height={H} fill="#0b2340" />
+          <g clipPath="url(#map-clip)">
+            <path d={landPath(region.land, b, W, H)} fill="#3a4a5c" stroke="#8fa3b8" strokeWidth={1.5} fillRule="evenodd" />
+            {region.highlight && <path d={landPath(region.highlight, b, W, H)} fill="#d9a441" fillOpacity={0.85} stroke="#fbe3a8" strokeWidth={2} fillRule="evenodd" />}
+          </g>
+          <rect x={0} y={0} width={W} height={H} fill="none" stroke="#2a3a55" strokeWidth={2} />
+          {graphic.markers.map((marker) => {
+            const { x, y } = projectLonLat(marker.longitude, marker.latitude, b);
+            const cx = Math.min(1, Math.max(0, x)) * W;
+            const cy = Math.min(1, Math.max(0, y)) * H;
+            const above = cy > 90;
+            return (
+              <g key={marker.id}>
+                <circle cx={cx} cy={cy} r={15} fill="#e24b4b" stroke="white" strokeWidth={3} />
+                <text x={cx} y={above ? cy - 26 : cy + 50} fill="white" fontSize={42} fontWeight={700} textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif"
+                  stroke="#06101f" strokeWidth={6} paintOrder="stroke">{marker.label}</text>
+              </g>
+            );
+          })}
+          <text x={W - 14} y={H - 14} fill="#c6d2e0" fontSize={24} textAnchor="end" fontFamily="Arial, Helvetica, sans-serif" stroke="#06101f" strokeWidth={4} paintOrder="stroke">
+            {region.highlight ? "Natural Earth · U.S. Census Bureau (public domain)" : "Natural Earth (public domain)"}
+          </text>
         </svg>
       </div>
     </GraphicBackground>

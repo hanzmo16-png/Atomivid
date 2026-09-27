@@ -129,7 +129,7 @@ Son 64 planos. Cada uno lleva duración aproximada, fuente o método, costo, lic
 |---|---|---|---|
 | Tarjetas de cifra o cita (texto grande con la fuente en la tarjeta) | 18 |
 | Diagramas secuenciales (zonas de profundidad, sonar, altimetría, presión, luz, «one lit patch») | 6 | Código de Atomivid, sin material de terceros | $0 |
-| Mapas | 5 | Base cartográfica de dominio público (NOAA/ETOPO, USGS) elegida en la revisión; si no hay, mapa determinista (retícula y marcador) | $0 |
+| Mapas | 5 | Costas reales de Natural Earth (dominio público) y contorno de Rhode Island del U.S. Census Bureau (dominio público), dibujados por código con proporción real y la fuente en el mapa | $0 |
 | Imagen (21) o vídeo (2) documental real | 23 | NOAA Ocean Exploration y Commons **solo de dominio público**; NASA/JPL con crédito, según sus normas | $0 |
 | Vídeo de stock | 5 | Pexels (licencia Pexels; sin logotipos ni marcas) | $0 |
 | **Recreación IA animada** | 6 | Veo 3.1 Fast, imagen a vídeo, 8 s a 1080p, audio descartado | 6 × $0,96 |
@@ -148,7 +148,13 @@ Son 64 planos. Cada uno lleva duración aproximada, fuente o método, costo, lic
   - GEBCO es de dominio público con atribución.
   - Las imágenes de MBARI están **excluidas** (derechos reservados); una prueba lo impide.
   - «Control Room of the Okeanos Explorer R337» y «ROV and coral – Retriever Seamount» quedan como «licencia a confirmar» en la revisión.
-- **Mapas: hallazgo del ensayo.** El mapa determinista del pipeline solo dibuja una retícula y un marcador, sin costas. Sirve de reserva, pero no basta como mapa. Por eso `search-spec.json` busca bases de dominio público para los 5 mapas (Pacífico, Rhode Island, zonas económicas, bahía de Monterey, fosa de las Marianas), que se usan con un rótulo y un movimiento lento de cámara. Coste: $0.
+- **Mapas: resuelto.** El mapa determinista solo dibujaba una retícula y un marcador. Ahora `remotion/map-land.json` guarda la tierra real recortada y simplificada por región: Pacífico (dos mapas), Rhode Island resaltado, bahía de Monterey, y Marianas con Filipinas, Taiwán y el sur de Japón como contexto.
+  - Lo genera `content/long-form/ocean-deep-001/build_map_land.mjs`, a partir de `world-atlas@2` (Natural Earth 4.1.0) y `us-atlas@3` (U.S. Census Bureau), ambos con licencia ISC. Se instalan aparte y no son dependencias del proyecto.
+  - Cada mapa es una caja 2:1 con proporción real y lleva la fuente en pantalla. El Pacífico se centra en el antimeridiano.
+  - Fotogramas del render de producción: `docs/quality/ocean-deep-001/maps-and-cards.png`.
+  - Una prueba comprueba la tierra, la proporción, que los marcadores queden dentro y que no haya tramos que crucen el mapa.
+  - Los mapas de otros videos (sin `landKey`) no cambian.
+- **Tarjetas grandes obligatorias en producción.** El manifiesto de muestra rechaza una tarjeta de texto sin `size: "large"` (código `card_size`, con prueba), y el render comprueba que cabe con `assertCardsFit`. Los fotogramas del render de producción están en `maps-and-cards.png`.
 - **Tarjetas: hallazgo del ensayo, corregido.** En el primer ensayo las cifras salían como un «diagrama de un nodo» con letra pequeña. Ahora son tarjetas de texto grandes con la cita y el contexto. De paso se unificó la cifra de la tarjeta final a «Seen: about 0.001%», igual que en la narración.
 - **Estética:** no se reutiliza el estilo medieval.
   - Paleta fría, desaturación 0,85 y contraste 1,05.

@@ -188,7 +188,12 @@ export function validateSampleManifest(
         issues.push({ sceneId: scene.id, code: "clip_too_short", message: `el clip IA dura ${VEO_CLIP_SECONDS} s y la escena necesita ${needed.toFixed(2)} s` });
       }
     }
-    // El fragmento declarado debe coincidir con lo que realmente se narra en la escena.
+    // Una tarjeta de texto en una muestra siempre es la tarjeta grande (legible y
+    // comprobada por assertCardsFit); nunca el formato pequeño anterior.
+    if (scene.source.kind === "graphic" && scene.source.spec.kind === "text" && scene.source.spec.size !== "large") {
+      issues.push({ sceneId: scene.id, code: "card_size", message: "tarjeta de texto sin size «large» (saldría con letra pequeña)" });
+    }
+        // El fragmento declarado debe coincidir con lo que realmente se narra en la escena.
     const spoken = words
       .filter((w) => (w.startSeconds + w.endSeconds) / 2 >= scene.startSeconds && (w.startSeconds + w.endSeconds) / 2 < scene.endSeconds)
       .map((w) => w.text)

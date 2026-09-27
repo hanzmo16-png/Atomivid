@@ -38,14 +38,6 @@ Q = {
   "b6-s8": ([], ["Bathyscaphe Trieste US Navy", "Trieste bathyscaphe 1960 Challenger Deep"]),
   "b7-s1": ([], ["NOAA Okeanos ROV seafloor survey", "NOAA Ocean Exploration seafloor"]),
   "b7-s2": ([], ["NOAA Okeanos Explorer at sea sunset", "NOAA Ocean Exploration ship deck"]),
-  # Mapas: base cartográfica de dominio público (el renderizador determinista
-  # solo dibuja retícula y marcador, sin costas). Si no hay candidata válida,
-  # queda el mapa determinista.
-  "b2-s4": ([], ["Pacific Ocean relief map NOAA ETOPO", "Pacific Ocean bathymetry map"]),
-  "b4-s8": ([], ["Rhode Island map USGS", "Rhode Island locator map"]),
-  "b4-s10": ([], ["world map ocean bathymetry NOAA", "exclusive economic zones map"]),
-  "b5-s10": ([], ["Monterey Bay bathymetry USGS", "Monterey Canyon map"]),
-  "b6-s6": ([], ["Mariana Trench map NOAA", "Challenger Deep location map"]),
 }
 
 scenes = []
@@ -55,7 +47,7 @@ for shot in sb["shots"]:
     pexels, commons = Q[shot["shotId"]]
     scenes.append({"id": shot["shotId"], "passage": shot["visualIntent"], "pexels": pexels, "commons": commons})
 
-missing = [s["shotId"] for s in sb["shots"] if (s["hybridClassification"] in ("REAL_DOCUMENTARY", "STOCK_REAL") or s["assetType"] == "map") and s["shotId"] not in Q]
+missing = [s["shotId"] for s in sb["shots"] if s["hybridClassification"] in ("REAL_DOCUMENTARY", "STOCK_REAL") and s["shotId"] not in Q]
 assert not missing, missing
 
 spec = {

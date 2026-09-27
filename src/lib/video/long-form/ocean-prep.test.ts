@@ -75,3 +75,48 @@ test("música del documental: fondos propios existentes (sin pistas de terceros)
     assert.equal(bed.attribution, null);
   }
 });
+
+test("mapas del océano: costas reales, proporción correcta y marcadores dentro", async () => {
+  const { MAP_LAND, MAP_LAND_SOURCE, mapLandIssue } = await import("../../../../remotion/map-land");
+  const { realGraphicSpecProvider } = await import("./real-graphics");
+  assert.match(MAP_LAND_SOURCE, /Natural Earth/);
+  const raw = JSON.parse(readFileSync(STORYBOARD, "utf8")) as { shots: { shotId: string; assetType: string; visualIntent: string }[] };
+  const maps = raw.shots.filter((s) => s.assetType === "map");
+  assert.equal(maps.length, 5);
+  for (const shot of maps) {
+    const spec = realGraphicSpecProvider({ id: shot.shotId, type: "map", captionText: shot.visualIntent } as never);
+    assert.ok(spec && spec.kind === "map" && spec.landKey, shot.shotId);
+    const region = MAP_LAND[spec.landKey];
+    assert.equal(mapLandIssue(spec.landKey, spec.bounds), null);
+    assert.ok(region.land.length > 0, `${shot.shotId}: sin tierra`);
+    // Caja 2:1 con proporción real (equirectangular local): lonSpan·cos(lat) ≈ 2·latSpan.
+    const b = region.bounds;
+    const midLat = ((b.minLat + b.maxLat) / 2) * (Math.PI / 180);
+    const ratio = ((b.maxLon - b.minLon) * Math.cos(midLat)) / (b.maxLat - b.minLat);
+    assert.ok(ratio > 1.6 && ratio < 2.4, `${shot.shotId}: proporción ${ratio.toFixed(2)}`);
+    for (const m of spec.markers) {
+      assert.ok(m.longitude > b.minLon && m.longitude < b.maxLon && m.latitude > b.minLat && m.latitude < b.maxLat, `${shot.shotId}: ${m.label} fuera`);
+    }
+    // Ningún tramo de costa cruza el mapa de lado a lado (defecto del antimeridiano).
+    const width = b.maxLon - b.minLon;
+    for (const ring of region.land.flat()) {
+      for (let i = 1; i < ring.length; i++) {
+        const dx = Math.abs(ring[i][0] - ring[i - 1][0]);
+        const onEdge = [b.minLon, b.maxLon].some((e) => Math.abs(ring[i][0] - e) < width * 0.03 && Math.abs(ring[i - 1][0] - e) < width * 0.03);
+        const alongBorder = [b.minLat, b.maxLat].some((e) => Math.abs(ring[i][1] - e) < (b.maxLat - b.minLat) * 0.03 && Math.abs(ring[i - 1][1] - e) < (b.maxLat - b.minLat) * 0.03);
+        assert.ok(dx < width * 0.5 || onEdge || alongBorder, `${shot.shotId}: segmento de ${dx.toFixed(1)}° a ${ring[i][1]}°`);
+      }
+    }
+  }
+});
+
+test("muestra: una tarjeta de texto sin size «large» se rechaza", async () => {
+  const { validateSampleManifest } = await import("./sample-manifest");
+  const manifest = JSON.parse(readFileSync("docs/quality/ocean-deep-001/minute1-manifest.draft.json", "utf8"));
+  const codes = (m: unknown) => validateSampleManifest(m as never, [], 0).map((i) => i.code);
+  assert.ok(!codes(manifest).includes("card_size"));
+  const small = structuredClone(manifest);
+  const card = small.scenes.find((s: { source: { kind: string } }) => s.source.kind === "graphic");
+  delete card.source.spec.size;
+  assert.ok(codes(small).includes("card_size"));
+});

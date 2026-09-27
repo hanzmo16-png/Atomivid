@@ -27,18 +27,32 @@ import {
   type MapSpec,
   type TextCardSpec,
 } from "./diagram-map";
+import { MAP_LAND } from "../../../../remotion/map-land";
 
 /** Coordenadas verificadas por shotId — mismas que gobekli-storyboard-003.json `verifiedCoordinates` (ver research-pack-002.json para el detalle de la verificación y su limitación de precisión). Mantener sincronizado si el storyboard cambia. */
-const KNOWN_MAP_COORDINATES: Record<string, { latitude: number; longitude: number; label: string; spanDeg?: number }> = {
+type KnownMap = {
+  latitude: number;
+  longitude: number;
+  label: string;
+  spanDeg?: number;
+  /** Región con costas reales (remotion/map-land.json): fija los límites con proporción real. */
+  landKey?: string;
+  /** Marcadores adicionales (misma convención de longitudes que la región). */
+  extraMarkers?: { label: string; latitude: number; longitude: number }[];
+};
+const KNOWN_MAP_COORDINATES: Record<string, KnownMap> = {
   "b2-s1": { latitude: 37.22, longitude: 38.92, label: "Göbekli Tepe" },
   "b9-s1": { latitude: 37.22, longitude: 38.92, label: "Göbekli Tepe (red Taş Tepeler)" },
-  // ocean-deep-001 (content/long-form/ocean-deep-001/ocean-storyboard-001.json). Precisión reducida a propósito;
-  // los mapas mundiales del episodio se producen como data-map de Natural Earth — aquí solo el ensayo técnico.
-  "b4-s8": { latitude: 41.7, longitude: -71.5, label: "Rhode Island (scale)", spanDeg: 3 },
-  "b5-s10": { latitude: 36.8, longitude: -121.9, label: "Monterey Bay, California", spanDeg: 3 },
-  "b6-s6": { latitude: 11.37, longitude: 142.59, label: "Challenger Deep (approx.)", spanDeg: 8 },
-  "b2-s4": { latitude: 0, longitude: -150, label: "Pacific Ocean", spanDeg: 40 },
-  "b4-s10": { latitude: 20, longitude: -170, label: "U.S. · Japan · New Zealand", spanDeg: 50 },
+  // ocean-deep-001 (content/long-form/ocean-deep-001/ocean-storyboard-001.json): costas de Natural Earth.
+  // El Pacífico usa longitudes 0–360 (−150° = 210°) para no partirse en el antimeridiano.
+  "b4-s8": { latitude: 41.6, longitude: -71.5, label: "Rhode Island", landKey: "rhode-island" },
+  "b5-s10": { latitude: 36.8, longitude: -121.9, label: "Monterey Bay", landKey: "monterey" },
+  "b6-s6": { latitude: 11.37, longitude: 142.59, label: "Challenger Deep (approx.)", landKey: "mariana" },
+  "b2-s4": { latitude: 0, longitude: 210, label: "Pacific Ocean", landKey: "pacific" },
+  "b4-s10": {
+    latitude: 36, longitude: 138.5, label: "Japan", landKey: "pacific",
+    extraMarkers: [{ label: "New Zealand", latitude: -41, longitude: 174 }, { label: "United States", latitude: 37, longitude: 237.5 }],
+  },
 };
 
 /**
@@ -125,6 +139,23 @@ function buildMapSpec(shot: Shot): MapSpec {
       `buildMapSpec: el shot ${shot.id} es de tipo "map" pero no tiene coordenadas verificadas registradas en ` +
         `KNOWN_MAP_COORDINATES — agregar la coordenada (o su ausencia documentada) antes de producir este shot.`,
     );
+  }
+  if (known.landKey) {
+    const region = MAP_LAND[known.landKey];
+    if (!region) throw new Error(`buildMapSpec: región de tierra desconocida «${known.landKey}» (${shot.id})`);
+    const spec: MapSpec = {
+      kind: "map",
+      title: shot.captionText.split(":")[0]?.trim() || known.label,
+      bounds: region.bounds,
+      markers: [
+        { id: shot.id, label: known.label, latitude: known.latitude, longitude: known.longitude },
+        ...(known.extraMarkers ?? []).map((m, i) => ({ id: `${shot.id}-${i + 1}`, ...m })),
+      ],
+      isFixture: false,
+      landKey: known.landKey,
+    };
+    validateMapSpec(spec);
+    return spec;
   }
   // Bounding box holgado (~2.5° alrededor del punto) para mostrar contexto
   // regional sin implicar precisión de zoom que no se tiene.
