@@ -1,9 +1,10 @@
 # Private channel media archive — first operational version
 
-Status: implementation and local tests ready; NOT activated against production Storage.
+Status: implementation and local tests ready; see the private operator report for activation status.
 This is an operator CLI for Hans's own channel. It is not a customer gallery, automatic
 asset recommender, tenant authorization system, or a new dependency of the video pipeline.
-No workflow is registered and no subscription is changed by these files.
+Subscription changes are managed separately from these scripts. Keep account-specific
+activation reports, inventory totals and billing information outside this public repository.
 
 ## What it does
 
@@ -124,5 +125,6 @@ Local tests cover scoped selection, source retention, checksum readback, duplica
 immutable source versions, rerun recovery after metadata failure, corrupt destinations,
 private-bucket enforcement, byte limits before transfers, listing pagination, denied access,
 missing size metadata, path traversal, owner isolation and the SDK's `upsert: false` behavior.
-Live plan, inventory, upload, retrieval and independent-backup verification remain pending
-authenticated access. Do not describe this branch as deployed or the files as already archived.
+Record live plan, inventory, upload, retrieval and independent-backup results in the private
+operator report. Distinguish each verified step from any remaining work. A successful archive
+is not proof of an independent backup or automatic archival of future productions.
