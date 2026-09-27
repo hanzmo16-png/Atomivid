@@ -80,9 +80,10 @@ scenes = [
         "isFixture": False, "size": "large"}}, "data_graphic", None,
      {"camera": "still"},
      approved("Large text card (Atomivid code)")),
-    ("s08", 33.54, end_all, {"kind": "pexels-video", "id": 30248500}, "stock_illustrative", None,
+    ("s08", 33.54, end_all, {"kind": "pexels-video", "id": 38178142}, "stock_illustrative", None,
      {"camera": "still", "look": LOOK, "transition": {"type": "dissolve", "seconds": 0.6}},
-     approved("Pexels License (Stefanie Jockschat, 3840x2160, 18 s): calm dark ocean at dusk; present-day surface, not deep-sea footage", "indirecta")),
+     # 30248500 (4K, 18 s) exceeded the Storage object size limit in the free prepare (run 36322811375).
+     approved("Pexels License (Çağrı KANMAZ, 1920x1080, 10 s): calm ocean surface at dusk; present-day surface, not deep-sea footage", "indirecta")),
 ]
 
 out = []
