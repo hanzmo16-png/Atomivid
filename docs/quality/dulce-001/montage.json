@@ -1,0 +1,64 @@
+{
+  "requestId": "dulce-001",
+  "outputPrefix": "dulce-001/samples/pilot",
+  "model": "gpt-image-2",
+  "scenes": [
+    {
+      "id": "d02",
+      "key": "dulce-d02-v1",
+      "references": [],
+      "prompt": "Cinematic photorealism, grounded industrial science-fiction suspense, natural 35mm film look, restrained cool practical lighting, readable shadow detail, physically plausible materials. Fictional dramatization, not archival evidence. No anime, cartoon, videogame rendering, gore, lettering, subtitles, watermarks, collage or split screen. Compose in the central 16:9 safe area of a landscape frame. The SAME fictional adult maintenance worker: 45-year-old man, lean angular face, short dark brown hair with grey temples, light stubble, charcoal grey zipped coverall with two breast pockets and a blank rectangular badge on left chest, small flashlight in his right hand. The SAME narrow industrial corridor: worn concrete and steel, exposed conduits along left wall, rectangular steel door at far end, repeating cold fluorescent ceiling lights, damp floor with subtle reflections. Medium three-quarter side profile showing face clearly, looking toward the door, flashlight lowered. Quiet concerned expression.",
+      "animationPrompt": "A restrained side-profile close shot of the same adult worker. He slows, breathes and turns his eyes toward the open door. Minimal head motion, subtle camera push, preserve exact hair, face and charcoal coverall. Realistic skin and hands, physically plausible light. No dialogue, no text, no cuts, no identity changes.",
+      "referenceId": "d02"
+    },
+    {
+      "id": "d01",
+      "key": "dulce-d01-v1",
+      "references": [
+        "d02"
+      ],
+      "prompt": "Cinematic photorealism, grounded industrial science-fiction suspense, natural 35mm film look, restrained cool practical lighting, readable shadow detail, physically plausible materials. Fictional dramatization, not archival evidence. No anime, cartoon, videogame rendering, gore, lettering, subtitles, watermarks, collage or split screen. Compose in the central 16:9 safe area of a landscape frame. The SAME fictional adult maintenance worker: 45-year-old man, lean angular face, short dark brown hair with grey temples, light stubble, charcoal grey zipped coverall with two breast pockets and a blank rectangular badge on left chest, small flashlight in his right hand. The SAME narrow industrial corridor: worn concrete and steel, exposed conduits along left wall, rectangular steel door at far end, repeating cold fluorescent ceiling lights, damp floor with subtle reflections. Use attached frame as exact character and environment reference. New wide shot behind the same worker, full body walking away toward the door, door beginning to open. Preserve hair and clothes.",
+      "animationPrompt": "Photoreal cinematic suspense. The adult maintenance worker walks naturally away from camera down the established industrial corridor. The far rectangular door slowly opens. Gentle tracking shot, stable corridor geometry, restrained practical lighting. Preserve the source image character, outfit and environment. No dialogue, no text, no logos, no cuts, no morphing.",
+      "referenceId": "d01"
+    },
+    {
+      "id": "d03",
+      "key": "dulce-d03-v1",
+      "references": [
+        "d02"
+      ],
+      "prompt": "Cinematic photorealism, grounded industrial science-fiction suspense, natural 35mm film look, restrained cool practical lighting, readable shadow detail, physically plausible materials. Fictional dramatization, not archival evidence. No anime, cartoon, videogame rendering, gore, lettering, subtitles, watermarks, collage or split screen. Compose in the central 16:9 safe area of a landscape frame. The SAME fictional adult maintenance worker: 45-year-old man, lean angular face, short dark brown hair with grey temples, light stubble, charcoal grey zipped coverall with two breast pockets and a blank rectangular badge on left chest, small flashlight in his right hand. The SAME narrow industrial corridor: worn concrete and steel, exposed conduits along left wall, rectangular steel door at far end, repeating cold fluorescent ceiling lights, damp floor with subtle reflections. Use attached frame for exact worker and corridor identity. New over-shoulder shot: worker left foreground with back to camera, at far end two distinct adult beings: a slender 1.5-metre grey humanoid with elongated head and dark eyes, and a tall 2-metre olive-scaled reptilian humanoid in plain dark work clothing. Beings clearly readable but distant, no attack.",
+      "animationPrompt": "Over the same worker's shoulder, an adult small grey humanoid and a tall olive-scaled reptilian humanoid stand at the far end of the same corridor. The grey figure turns its head slightly; the tall figure remains still. Slow camera approach, coherent scale and anatomy. Keep the worker's shoulder in foreground. No dialogue, no text, no cuts.",
+      "referenceId": "d03"
+    },
+    {
+      "id": "d04",
+      "key": "dulce-d04-v1",
+      "references": [],
+      "prompt": "Cinematic photorealism, grounded industrial science-fiction suspense, natural 35mm film look, restrained cool practical lighting, readable shadow detail, physically plausible materials. Fictional dramatization, not archival evidence. No anime, cartoon, videogame rendering, gore, lettering, subtitles, watermarks, collage or split screen. Compose in the central 16:9 safe area of a landscape frame. The SAME clinical industrial laboratory behind observation glass: two vertical cylindrical glass chambers three metres apart, connected by an overhead steel equipment bridge with thin cables. Adult human man fully clothed in grey medical coverall resting in left chamber, adult pale humanoid receiver in right chamber, subtle pale cyan illumination. No restraints, injuries or gore. Wide view through the observation glass, both chambers and connecting apparatus clearly visible, a believable practical movie set. The two occupants are separate and anatomically distinct.",
+      "animationPrompt": "Photoreal fictional underground laboratory seen through observation glass. A slow lateral camera slide reveals two vertical chambers connected by industrial equipment. An adult person rests in one; an adult humanoid receiver occupies the other. Subtle breathing and machinery motion. Clinical, unsettling, readable lighting. No wounds, gore, text, dialogue or cuts.",
+      "referenceId": "d04"
+    },
+    {
+      "id": "d05",
+      "key": "dulce-d05-reuse-v1",
+      "references": [
+        "d04"
+      ],
+      "prompt": "Cinematic photorealism, grounded industrial science-fiction suspense, natural 35mm film look, restrained cool practical lighting, readable shadow detail, physically plausible materials. Fictional dramatization, not archival evidence. No anime, cartoon, videogame rendering, gore, lettering, subtitles, watermarks, collage or split screen. Compose in the central 16:9 safe area of a landscape frame. The SAME clinical industrial laboratory behind observation glass: two vertical cylindrical glass chambers three metres apart, connected by an overhead steel equipment bridge with thin cables. Adult human man fully clothed in grey medical coverall resting in left chamber, adult pale humanoid receiver in right chamber, subtle pale cyan illumination. No restraints, injuries or gore. Wide view through the observation glass, both chambers and connecting apparatus clearly visible, a believable practical movie set. The two occupants are separate and anatomically distinct.",
+      "animationPrompt": "Photoreal cinematic fictional laboratory. Slowly move closer toward the connecting equipment between the two established chambers. A faint pale cyan pulse travels along the transparent conduit from the left chamber to the right chamber. Preserve both occupants, anatomy and all machinery. Subtle practical effect, coherent geometry. No camera cuts, no dialogue, no text.",
+      "referenceId": "d04"
+    },
+    {
+      "id": "d06",
+      "key": "dulce-d06-reuse-v1",
+      "references": [
+        "d02",
+        "d04"
+      ],
+      "prompt": "Cinematic photorealism, grounded industrial science-fiction suspense, natural 35mm film look, restrained cool practical lighting, readable shadow detail, physically plausible materials. Fictional dramatization, not archival evidence. No anime, cartoon, videogame rendering, gore, lettering, subtitles, watermarks, collage or split screen. Compose in the central 16:9 safe area of a landscape frame. The SAME fictional adult maintenance worker: 45-year-old man, lean angular face, short dark brown hair with grey temples, light stubble, charcoal grey zipped coverall with two breast pockets and a blank rectangular badge on left chest, small flashlight in his right hand. The SAME narrow industrial corridor: worn concrete and steel, exposed conduits along left wall, rectangular steel door at far end, repeating cold fluorescent ceiling lights, damp floor with subtle reflections. Medium three-quarter side profile showing face clearly, looking toward the door, flashlight lowered. Quiet concerned expression.",
+      "animationPrompt": "Close three-quarter view of the same maintenance worker in the established corridor. He looks toward something off screen, his expression changing from concern to quiet shock. Very slow push toward his face, minimal head movement, subtle breathing. Preserve exact identity, clothes and practical lighting. No dialogue, no cuts, no new figures, no text.",
+      "referenceId": "d02"
+    }
+  ]
+}

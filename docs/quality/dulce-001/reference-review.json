@@ -1,0 +1,32 @@
+{
+  "d01": {
+    "sha256": "5ecf93ba4381fd3518bffd507f8e4e9d98061ab3f5a4529094ade48bf87e6a18",
+    "status": "approved",
+    "animationApproved": false,
+    "note": "Inspected full resolution: coherent character, environment and anatomy; fictional cinematic treatment."
+  },
+  "d02": {
+    "sha256": "8287e3c619c083d1032de301f48d46ac17434adf7dc56435374e8c6e293a14a7",
+    "status": "approved",
+    "animationApproved": false,
+    "note": "Inspected full resolution: coherent character, environment and anatomy; fictional cinematic treatment."
+  },
+  "d03": {
+    "sha256": "053ed1b5e42a505c97327bf9d4f826e4c6b11832458093b1e2411b1c4f84c5e3",
+    "status": "approved",
+    "animationApproved": false,
+    "note": "Inspected full resolution: coherent character, environment and anatomy; fictional cinematic treatment."
+  },
+  "d04": {
+    "sha256": "578f5dfa0e40fda6cb7264456dfecdc71da46017a6314b193906ff46d71ae308",
+    "status": "approved",
+    "animationApproved": false,
+    "note": "Inspected full resolution: coherent character, environment and anatomy; fictional cinematic treatment."
+  },
+  "d05": {
+    "animationApproved": false
+  },
+  "d06": {
+    "animationApproved": false
+  }
+}

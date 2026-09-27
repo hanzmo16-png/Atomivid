@@ -133,7 +133,9 @@ jobs:
           if [ "$SAMPLE_MANIFEST" = docs/quality/dulce-001/stills.json ]; then
             npx tsx scripts/dulce-reference-stills.ts
           else
+            npx tsx scripts/dulce-build-manifest.ts
             npx tsx scripts/long-form-quality-sample.ts
+            if [ "$PHASE" = prepare ]; then npx tsx scripts/dulce-export-clips.ts; fi
           fi
       - name: Publicar
         if: always()
