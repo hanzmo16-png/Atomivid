@@ -46,8 +46,18 @@ async function main(){
     const id=`d0${i+1}`,s=spec.scenes.find((s:{id:string})=>s.id===id),start=boundaries[i],end=boundaries[i+1];
     m.scenes.push({id,startSeconds:start,endSeconds:end,narration:n.words.filter(w=>(w.startSeconds+w.endSeconds)/2>=start&&(w.startSeconds+w.endSeconds)/2<end).map(w=>w.text).join(' '),source:{kind:'veo-clip',key:s.key,reference:{kind:'ai-still',prompt:s.prompt},prompt:s.animationPrompt,placeholder:{source:{kind:'graphic',spec:{kind:'text',title:'Visual pending',body:'Not a finished shot',isFixture:true,size:'large'}},provenance:'data_graphic'}},provenance:'ai_recreation',creditText:'Fictional dramatization — not archival evidence',direction:{camera:'still',transition:{type:'cut'}},review:{status:reviews[id].animationApproved?'approved':'pending',relevance:'directa',note:reviews[id].animationApproved?'Reference and generated motion inspected for identity, anatomy and continuity':'Reference inspected; animated result awaits visual review'},...(i===0?{overlay:{text:'DULCE · A fictional retelling',startSeconds:0.2,endSeconds:Math.min(4,end)}}:{})});
   }
+  if(process.env.SAMPLE_MANIFEST?.endsWith('/animatic-manifest.json')){
+    // A separately labelled free animatic, never represented as generated-motion output.
+    const marks=['Thomas','At','Beyond'];
+    const cuts=[0,...marks.map(text=>{const k=n.words.findIndex(w=>w.text===text);if(k<1)throw Error('Animatic phrase absent');return(n.words[k-1].endSeconds+n.words[k].startSeconds)/2;}),total];
+    m.outputLabel='dulce-animatic';
+    m.scenes=['d01','d02','d03','d04'].map((id,i)=>{
+      const s=spec.scenes.find((s:{id:string})=>s.id===id),start=cuts[i],end=cuts[i+1];
+      return {id,startSeconds:start,endSeconds:end,narration:n.words.filter(w=>(w.startSeconds+w.endSeconds)/2>=start&&(w.startSeconds+w.endSeconds)/2<end).map(w=>w.text).join(' '),source:{kind:'existing' as const,path:`${spec.outputPrefix}/ai/${s.key}-still.png`},provenance:'ai_recreation' as const,creditText:'AI stills · Cinematic style test',direction:{camera:'push' as const,transition:{type:'cut' as const}},review:{status:'approved' as const,relevance:'directa' as const,note:'Original AI still visually inspected; editorial camera movement only, not generated motion.'},...(i===0?{overlay:{text:'DULCE · Visual concept',startSeconds:0.2,endSeconds:Math.min(4,end)}}:{})};
+    });
+  }
   const issues=validateSampleManifest(m,n.words,n.durationSeconds).filter(i=>i.code!=='pending_review');if(issues.length)throw Error(JSON.stringify(issues));
-  await fs.writeFile('docs/quality/dulce-001/pilot-manifest.json',JSON.stringify(m,null,2));
+  await fs.writeFile(process.env.SAMPLE_MANIFEST??'docs/quality/dulce-001/pilot-manifest.json',JSON.stringify(m,null,2));
   if(process.env.SAMPLE_OUT_DIR){await fs.mkdir(process.env.SAMPLE_OUT_DIR,{recursive:true});await fs.writeFile(`${process.env.SAMPLE_OUT_DIR}/pilot-manifest.json`,JSON.stringify(m,null,2));await fs.writeFile(`${process.env.SAMPLE_OUT_DIR}/narration-words.json`,JSON.stringify(n.words));}
   console.log(`@@DULCE_TIMING ${JSON.stringify({narrationSeconds:n.durationSeconds,total,boundaries})}`);
 }

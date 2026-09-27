@@ -134,6 +134,8 @@ jobs:
             npx tsx scripts/dulce-reference-stills.ts
           else
             npx tsx scripts/dulce-build-manifest.ts
+            # Refresh the reviewed montage from cached clips before rendering; no paid keys.
+            if [ "$PHASE" = render ]; then PHASE=prepare npx tsx scripts/long-form-quality-sample.ts; fi
             npx tsx scripts/long-form-quality-sample.ts
             if [ "$PHASE" = prepare ]; then npx tsx scripts/dulce-export-clips.ts; fi
           fi
