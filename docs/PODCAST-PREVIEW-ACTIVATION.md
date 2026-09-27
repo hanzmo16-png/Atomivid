@@ -22,7 +22,9 @@ y se puede revertir por separado.
 ## Paso 1 — Migración 0022
 
 - Workflow: `apply-supabase-migration.yml`, ya registrado.
-  - «Use workflow from»: rama `claude/tts-podcast` (hoy en `db4d200`);
+  - «Use workflow from»: rama `claude/tts-podcast`. Hoy apunta a
+    `9dd5760`, que es `db4d200` más una herramienta de verificación; el
+    archivo 0022 es idéntico;
   - `migration_file`: `0022_tts_podcast.sql`.
 - Con `migration_file` se aplica **solo** 0022. Nunca vacío: aplicaría
   cualquier otra migración pendiente.
