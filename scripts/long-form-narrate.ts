@@ -24,7 +24,7 @@
  */
 export {};
 
-const HARD_CAP_USD = 15;
+import { assertEpisodeBudget } from "../src/lib/video/long-form/episode-spend-policy";
 
 async function main() {
   const fs = await import("node:fs/promises");
@@ -97,7 +97,7 @@ async function main() {
 
   if (process.env.NARRATE_ALLOW_PAID !== "true") throw new Error("MODE=run exige NARRATE_ALLOW_PAID=true (autorización explícita de gasto)");
   const budgetUsd = Number(process.env.NARRATE_BUDGET_USD ?? "0");
-  if (!(budgetUsd > 0 && budgetUsd <= HARD_CAP_USD)) throw new Error(`NARRATE_BUDGET_USD debe ser el tope aprobado (0 < x ≤ ${HARD_CAP_USD})`);
+  assertEpisodeBudget(budgetUsd, videoId, ledgerPrefix, "narration");
   const uncertain = rows.filter((r) => r.status === "STARTED");
   if (uncertain.length > 0) throw new Error(`narración en estado incierto (${uncertain.map((r) => r.beat.id).join(", ")}): revisar antes de gastar; no se repite`);
   if (!balance) throw new Error("no se pudo leer el saldo de ElevenLabs: no se gasta sin comprobarlo");

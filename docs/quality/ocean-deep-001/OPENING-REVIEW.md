@@ -77,5 +77,12 @@ After editorial review, port these scene decisions and source provenance into th
 production manifest/importer and the existing Remotion composition. Integrate
 caption highlighting with the web readiness changes in PR #19, then run the actual
 web renderer. Do not treat this preview as evidence that those integrations or
-the complete documentary are finished. The revised full-episode budget remains
-unapproved.
+the complete documentary are finished.
+
+## Approval (2026-09-27)
+
+Hans approved this moving opening ("Me encantó") as the editorial reference and
+then explicitly approved the proposed cumulative episode budget of USD 17.65.
+The cap includes stage A and valued narration quota; it is not an additional
+USD 17.65. See PLAN.md section 13 for execution status. This approval does not
+mean the remaining production integrations have been rendered or verified.

@@ -336,7 +336,7 @@ Revisión de fotogramas (no se escuchó el audio):
 
 ## 12. Versión 002 — «Earthward Chronicles», episodio 1 (27-09-2026)
 
-**Estado: preparado. Ninguna llamada de pago desde la sección 11.1. Nuevo techo de gasto pendiente de aprobación.**
+**Estado histórico de la preparación v002. El presupuesto y la apertura se aprobaron después: ver sección 13. Ninguna llamada de pago nueva durante esa aprobación.**
 
 Hans aprobó del primer minuto la voz de Brian (pronunciación y calidad) y la dirección visual general. Este episodio será el primer video del canal **Earthward Chronicles**: en inglés, de unos 10 minutos y aislado del lanzamiento de Atomivid. No se publica en YouTube. El segundo video del canal (la ficción sobre Thomas Castello y Dulce) queda fuera de este trabajo.
 
@@ -434,3 +434,29 @@ Tarifas: Veo 3.1 Fast a 1080p, US$0,96 por clip de 8 s; imagen IA, reserva de US
 | 5 | `candidates` (words, pexels, commons y vídeo) y revisión visual y de licencias | gratis |
 | 6 | Manifiesto del episodio con los tiempos reales; `prepare` sin pago; `prepare` con pago | ≤ tope |
 | 7 | `render` de aprobación y entrega del MP4 (sin publicar en YouTube) | gratis |
+
+## 13. Aprobación y continuación (27-09-2026)
+
+- Hans aprobó la apertura con movimiento de 29,2 s y después el presupuesto:
+  **US$17,65 acumulados**, incluyendo etapa A y valoración de cuota de voz.
+  Se mantiene la previsión máxima de US$14,10 en dinero y no hay reintentos
+  automáticos. No autoriza otro episodio ni publicar en YouTube.
+- La referencia aprobada se documenta en `OPENING-REVIEW.md` y
+  `opening-review.json`: movimiento desde el inicio, subtítulos por palabra,
+  cifras sobre vídeo. Esta decisión **sustituye** las tarjetas de hasta 5 s de
+  la sección 12.2: negro con texto solo para frases muy breves de 1–1,5 s;
+  el texto largo debe ir sobre metraje. La apertura aprobada no tiene tarjetas.
+- Se preparó una política de tope compartida para narración y recursos:
+  US$17,65 solo para `ocean-deep-001/samples/episode`. Los demás proyectos
+  conservan sus límites. Los controles de autorización, reserva acumulada,
+  caché y ausencia de reintentos siguen vigentes.
+- El workflow registrado aún fija el código en `9b53248`; no se ha actualizado
+  ni lanzado producción nueva. La conexión disponible de GitHub permite guardar
+  código pero no iniciar workflows. La sesión del navegador no está autenticada;
+  el intento de acceso fue rechazado. **Gasto nuevo: cero.**
+- Pendiente técnico antes de producir: importador de vídeo real con procedencia,
+  overlays, ambiente, manifiesto con los tiempos de narración reales y la nueva
+  regla visual; validar con el render de producción y actualizar el commit fijado.
+  La aprobación editorial de FFmpeg no sustituye esa comprobación.
+- La aprobación del presupuesto permanece vigente mientras se resuelve el
+  acceso; no hace falta solicitarla de nuevo.

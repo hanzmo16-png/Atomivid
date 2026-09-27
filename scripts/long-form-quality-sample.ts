@@ -22,10 +22,10 @@
  */
 export {};
 
+import { assertEpisodeBudget } from "../src/lib/video/long-form/episode-spend-policy";
+
 /** Reserva por imagen IA: estimación publicada ($0.05) redondeada al alza con el costo real observado (~$0.055). */
 const SAMPLE_IMAGE_RESERVE_USD = 0.06;
-/** Tope absoluto por ejecución, aunque se pida más: una muestra nunca justifica un gasto mayor. */
-const SAMPLE_PAID_HARD_CAP_USD = 10;
 
 const UA = "AtomividQualitySample/1.0 (https://github.com/hanzmo16-png/Atomivid; hanzmo16-png)";
 
@@ -70,11 +70,11 @@ async function main() {
   }
   if (allowPaid) {
     if (phase !== "prepare") throw new Error("SAMPLE_ALLOW_PAID solo se admite en PHASE=prepare");
-    if (!(budgetUsd > 0 && budgetUsd <= SAMPLE_PAID_HARD_CAP_USD)) throw new Error(`SAMPLE_PAID_BUDGET_USD debe ser el presupuesto aprobado (0 < x ≤ ${SAMPLE_PAID_HARD_CAP_USD})`);
   }
   const paidCalls: { key: string; provider: string; costUsd: number }[] = [];
   const manifestPath = process.env.SAMPLE_MANIFEST ?? "docs/quality/m2-panama-opening/sample-manifest.json";
   const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8")) as SampleManifest;
+  if (allowPaid) assertEpisodeBudget(budgetUsd, manifest.requestId, manifest.outputPrefix, "assets");
   const outDir = process.env.SAMPLE_OUT_DIR ?? path.join(process.cwd(), "quality-sample");
   await fs.mkdir(outDir, { recursive: true });
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "atomivid-sample-"));

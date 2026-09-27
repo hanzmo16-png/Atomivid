@@ -11,6 +11,27 @@ import { leadingBeats } from "./sample-manifest";
 import { loadScriptFromFile } from "./script-loader";
 import { loadStoryboardFromFile } from "./storyboard-loader";
 import { findMusicBed } from "../../tts/music-beds";
+import { assertEpisodeBudget, episodeSpendCeiling } from "./episode-spend-policy";
+import { committedUsd, reservePaid } from "./sample-manifest";
+
+test("ocean approval is cumulative, finite and restricted to the existing episode ledger", () => {
+  const id = "ocean-deep-001";
+  const prefix = `${id}/samples/episode`;
+  for (const phase of ["assets", "narration"] as const) {
+    assert.doesNotThrow(() => assertEpisodeBudget(17.65, id, prefix, phase));
+    for (const invalid of [0, -1, NaN, Infinity, 17.6501, 18]) {
+      assert.throws(() => assertEpisodeBudget(invalid, id, prefix, phase));
+    }
+    assert.throws(() => assertEpisodeBudget(17.65, id, `${id}/samples/other`, phase));
+    assert.throws(() => assertEpisodeBudget(17.65, "other", prefix, phase));
+  }
+  assert.equal(episodeSpendCeiling("other", "other/samples/episode", "assets"), 10);
+  assert.equal(episodeSpendCeiling("other", "other/samples/episode", "narration"), 15);
+  const old = reservePaid({ entries: [] }, { key: "stage-a", sceneId: "b1", provider: "veo", estimateUsd: 2.1787, prompt: "prior expenditure fixture" }, 17.65, "2026-09-27T17:06:13Z");
+  const pending = reservePaid(old, { key: "stage-b", sceneId: "b2", provider: "veo", estimateUsd: 15.47, prompt: "remaining reservation fixture" }, 17.65, "2026-09-27T17:06:13Z");
+  assert.ok(committedUsd(pending) <= 17.65);
+  assert.throws(() => reservePaid(pending, { key: "extra", sceneId: "b3", provider: "veo", estimateUsd: 0.01, prompt: "over budget" }, 17.65, "2026-09-27T17:06:13Z"));
+});
 
 const SCRIPT = "content/long-form/ocean-deep-001/ocean-script-001.json";
 const STORYBOARD = "content/long-form/ocean-deep-001/ocean-storyboard-001.json";
