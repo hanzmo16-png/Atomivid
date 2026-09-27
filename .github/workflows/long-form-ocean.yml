@@ -63,7 +63,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PINNED_REF: 1fba7134e9d6c779d68d8c3396ea1674fda39d4f
+  PINNED_REF: 29252bf1ac6cbc83f9710d845f9bf2d57c057ee1
   VIDEO_ID: ocean-deep-001
   LEDGER_PREFIX: ocean-deep-001/samples/episode
   SCRIPT_FILE: content/long-form/ocean-deep-001/ocean-script-001.json
