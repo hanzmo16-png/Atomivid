@@ -277,13 +277,22 @@ async function produce(input: { service: SupabaseClient; script: GeneratedScript
   const first = await narrate();
   const firstFit = fitOf(first);
   log("VOICE_FIT", { speed: null, reused: first.reused, narrationSeconds: first.durationSeconds, ...firstFit });
-  const speed = fitSpeedAdjustment(firstFit, { minTotalSeconds: TOTAL.minSeconds, targetTotalSeconds: TOTAL.targetSeconds });
+  let speed = fitSpeedAdjustment(firstFit, { minTotalSeconds: TOTAL.minSeconds, targetTotalSeconds: TOTAL.targetSeconds });
   let fit = firstFit;
   if (speed !== null) {
     const second = await narrate(speed);
-    fit = fitOf(second);
-    log("VOICE_FIT", { speed, reused: second.reused, narrationSeconds: second.durationSeconds, ...fit });
-    if (!fit.fits) throw new Error(`Con velocidad ×${speed} las escenas siguen sin caber (${JSON.stringify(fit)}). Detenido antes de pagar imágenes y clips.`);
+    const secondFit = fitOf(second);
+    log("VOICE_FIT", { speed, reused: second.reused, narrationSeconds: second.durationSeconds, ...secondFit });
+    if (secondFit.fits) {
+      fit = secondFit;
+    } else if (speed < 1 && firstFit.fits) {
+      // Desacelerar solo buscaba alargar; la velocidad de ElevenLabs no escala de forma lineal (alarga
+      // pausas) y una escena dejó de caber. Se usa la voz natural ya pagada, que sí cabe.
+      log("VOICE_FALLBACK", { rejectedSpeed: speed, reason: "la voz desacelerada no cabe en los clips; se usa la velocidad natural" });
+      speed = null;
+    } else {
+      throw new Error(`Con velocidad ×${speed} las escenas siguen sin caber (${JSON.stringify(secondFit)}). Detenido antes de pagar imágenes y clips.`);
+    }
   } else if (!fit.fits) {
     throw new Error(`Las escenas no caben (${JSON.stringify(fit)}). Detenido antes de pagar imágenes y clips.`);
   }
