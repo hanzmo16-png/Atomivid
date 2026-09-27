@@ -79,6 +79,12 @@ for b,entries in plan.items():
    if dur>8:raise ValueError((s['id'],dur,'AI exceeds 8 s'))
   if overlay:s['overlay']={'text':overlay,'startSeconds':min(.3,dur/4),'endSeconds':round(min(dur,max(2.5,min(5,dur))),3)}
   scenes.append(s)
+# Last clip was rejected by Veo quota (HTTP 429); reuse its paid still, no retry.
+for s in scenes:
+ if s['id']=='episode-b5-15':
+  s['source']={'kind':'existing','path':'ocean-deep-001/samples/episode/ai/ocean-b5-pair-detail-v1-ref.jpg'}
+  s['direction']['camera']='push'
+  s['review']['note']='Paid reference image reused with a slow camera push after Veo rejected the clip submission with HTTP 429 quota exhaustion. No video retry. AI recreation; image requires contact-sheet review before render.'
 for s in scenes:s['narration']=' '.join(w[0] for w in allwords if s['startSeconds'] <= (w[1]+w[2])/2 < s['endSeconds'])
 # Explicit visual adjudications remain valid only for these exact source selections.
 scene_by_id={s['id']:s for s in scenes}

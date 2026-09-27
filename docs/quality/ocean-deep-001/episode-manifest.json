@@ -2982,7 +2982,7 @@
       "endSeconds": 439.11,
       "narration": "those species have lost parts of the immune system that would normally reject another animal's tissue.",
       "direction": {
-        "camera": "still",
+        "camera": "push",
         "transition": {
           "type": "cut"
         }
@@ -2991,37 +2991,11 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Approved concept and production budget; generated output still requires visual inspection before delivery."
+        "note": "Paid reference image reused with a slow camera push after Veo rejected the clip submission with HTTP 429 quota exhaustion. No video retry. AI recreation; image requires contact-sheet review before render."
       },
       "source": {
-        "kind": "veo-clip",
-        "key": "ocean-b5-pair-detail-v1",
-        "reference": {
-          "kind": "ai-still",
-          "prompt": "16:9 photorealistic scientific reconstruction. Scientific reconstruction, closer oblique side view of a sexually parasitic ceratioid anglerfish pair, Ceratias-like female with tiny attached male, continuous intact skin at attachment, no surgery or exposed organs, subtle fins, black deep water.. No text.",
-          "negativePrompt": "text, subtitles, logos, monsters, fantasy anatomy, humans, blood, extra eyes, extra fins, exaggerated teeth, bubbles from the fish, camera shaking, scene cuts"
-        },
-        "prompt": "One continuous restrained naturalistic underwater shot, 8 seconds. Scientific reconstruction, closer oblique side view of a sexually parasitic ceratioid anglerfish pair, Ceratias-like female with tiny attached male, continuous intact skin at attachment, no surgery or exposed organs, subtle fins, black deep water.. Slow smooth movement, minimal camera drift, anatomically stable throughout. Do not introduce objects or additional animals. No titles or lettering.",
-        "negativePrompt": "text, subtitles, logos, monsters, fantasy anatomy, humans, blood, extra eyes, extra fins, exaggerated teeth, bubbles from the fish, camera shaking, scene cuts",
-        "placeholder": {
-          "source": {
-            "kind": "noaa-video",
-            "url": "https://oceanexplorer.noaa.gov/wp-content/uploads/2025/05/one-of-my-favorites-1920x1080-2.mp4",
-            "pageUrl": "https://oceanexplorer.noaa.gov/multimedia/okeanos-explorations-ex1905-dailyupdates-aug30-media-one-of-my-favorites/",
-            "credit": "Video courtesy of the NOAA Office of Ocean Exploration and Research, Deep Connections 2019.",
-            "clip": {
-              "startSeconds": 16,
-              "endSeconds": 24.06
-            },
-            "licenseReview": {
-              "date": "2026-09-27",
-              "note": "Specific media page and source credit reviewed; NOAA or USGS government work with no third-party exception stated for this video. Source audio discarded. Selected visual excerpt reviewed in the contact sheet."
-            }
-          },
-          "provenance": "archival_documentary",
-          "creditText": "Temporary preview only · unrelated NOAA benthic fish",
-          "camera": "still"
-        }
+        "kind": "existing",
+        "path": "ocean-deep-001/samples/episode/ai/ocean-b5-pair-detail-v1-ref.jpg"
       },
       "creditText": "Scientific reconstruction · not recorded animal behaviour",
       "overlay": {
