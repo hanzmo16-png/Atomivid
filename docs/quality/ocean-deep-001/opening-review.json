@@ -1,0 +1,23 @@
+{
+  "durationSeconds": 29.2,
+  "fps": 30,
+  "captionStyle": "word-highlight",
+  "audioFile": "sample-approval-minute1-portada.mp4",
+  "paidGenerationCalls": 0,
+  "notes": "Editorial review only, assembled locally with FFmpeg; not a validation of the web renderer. Original approved Brian/music mix, trimmed after mapped. No new narration or paid visuals.",
+  "scenes": [
+    {"id":"r01","startSeconds":0,"endSeconds":5.0333333333,"file":"s01.mp4","sourceStartSeconds":0,"kind":"ai_video","label":"AI recreation","credit":"Animated from a NOAA photo"},
+    {"id":"r02","startSeconds":5.0333333333,"endSeconds":11.7,"file":"noaa-seabed.mp4","sourceStartSeconds":6,"kind":"real_video","label":"NOAA Ocean Exploration","credit":"Voyage to the Ridge 2022 · illustrative footage","sourcePage":"https://oceanexplorer.noaa.gov/ocean-fact/what-does-the-seabed-or-seafloor-feel-like/","downloadUrl":"https://oceanexplorer.noaa.gov/wp-content/uploads/2026/05/Seabed-fact-clip-720p.mp4"},
+    {"id":"r03","startSeconds":11.7,"endSeconds":14.2,"file":"noaa-atolla.mp4","sourceStartSeconds":8.5,"kind":"real_video","label":"NOAA Ocean Exploration","credit":"Atolla · 880 m · Windows to the Deep 2018","sourcePage":"https://oceanexplorer.noaa.gov/multimedia/video-shorts-ex1806-jelly/","downloadUrl":"https://oceanexplorer.noaa.gov/wp-content/uploads/2022/04/ex1806-jelly.mp4"},
+    {"id":"r04","startSeconds":14.2,"endSeconds":18.0666666667,"file":"s04.mp4","sourceStartSeconds":1.3,"kind":"ai_video","label":"AI recreation","credit":""},
+    {"id":"r05","startSeconds":18.0666666667,"endSeconds":24.1333333333,"file":"noaa-zoom.mp4","sourceStartSeconds":31.3,"kind":"real_video","label":"NOAA Ocean Exploration","credit":"Seascape Alaska 2023 · illustrative footage","sourcePage":"https://oceanexplorer.noaa.gov/multimedia/okeanos-explorations-seascape-alaska-ex2306-gallery-media-dive15-zoom/","downloadUrl":"https://oceanexplorer.noaa.gov/wp-content/uploads/2023/10/dive15-zoom-1280x720-1.mp4"},
+    {"id":"r06","startSeconds":24.1333333333,"endSeconds":29.2,"file":"noaa-sonar.mp4","sourceStartSeconds":11,"kind":"scientific_animation","label":"NOAA Ocean Exploration · sonar animation","credit":"Animation of Multibeam Echosounder","sourcePage":"https://oceanexplorer.noaa.gov/multimedia/edu-themes-seafloor-mapping-media-video-multimedia-animation/","downloadUrl":"https://oceanexplorer.noaa.gov/wp-content/uploads/2025/05/multimedia-animation-640x360-1.mp4"}
+  ],
+  "overlays": [
+    {"startSeconds":0.7,"endSeconds":2,"text":"3,000 m below"},
+    {"startSeconds":18.4,"endSeconds":19.9,"text":"One lit patch at a time"},
+    {"startSeconds":25.4,"endSeconds":28.8,"text":"More than ¼ mapped"}
+  ],
+  "licensePolicy":"https://oceanexplorer.noaa.gov/faqs/",
+  "licenseNote":"NOAA states website media are public domain unless otherwise noted. Each selected source credits NOAA Ocean Exploration and has no copyright exception shown. Preserve the on-screen credit; source audio is discarded. Sonar animation is a 640x360 source enlarged in this 720p review."
+}
