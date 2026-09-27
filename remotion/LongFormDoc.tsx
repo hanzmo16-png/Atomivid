@@ -96,7 +96,17 @@ export type LongFormCaption = {
   startSeconds: number;
   endSeconds: number;
   emphasisWords?: string[];
+  /** Tiempos por palabra del bloque (mismo orden que `text`); solo los usa el estilo "word-highlight". */
+  words?: { text: string; startSeconds: number; endSeconds: number }[];
 };
+
+/**
+ * "phrase" (por defecto): el bloque entra con un leve desplazamiento, como siempre.
+ * "word-highlight": el bloque aparece sin moverse y solo cambia el COLOR de la
+ * palabra que se está diciendo (mismo tamaño y peso: el texto nunca se reacomoda).
+ */
+export type CaptionStyle = "phrase" | "word-highlight";
+export const WORD_HIGHLIGHT_COLOR = "#ffd166";
 
 export type LongFormDocProps = {
   audioUrl: string;
@@ -117,6 +127,8 @@ export type LongFormDocProps = {
   opening?: CoverSpec;
   /** Idioma de los rótulos en pantalla («AI recreation» / «Recreación IA»). Ausente = español, como siempre. */
   language?: LabelLanguage;
+  /** Estilo de subtítulos. Ausente = "phrase" (sin cambios). */
+  captionStyle?: CaptionStyle;
 };
 
 const DEFAULT_ACCENT_COLOR = "#8f7ff5";
@@ -133,6 +145,7 @@ export function LongFormDoc({
   showLogo = false,
   opening,
   language = "es",
+  captionStyle = "phrase",
 }: LongFormDocProps) {
   const { fps, durationInFrames } = useVideoConfig();
   validateDirection(scenes, soundCues, durationSeconds);
@@ -174,7 +187,7 @@ export function LongFormDoc({
       />
 
       {opening && scenes.length > 0 && <OpeningCover spec={opening} firstSceneEndSeconds={scenes[0].endSeconds} labelsTopLeft={Boolean(provenanceLabel(scenes[0].provenance, language) || scenes[0].creditText || scenes[0].pending)} />}
-      <Captions captions={captions} accentColor={accentColor} />
+      <Captions captions={captions} accentColor={accentColor} captionStyle={captionStyle} />
 
       {showLogo && <LogoBadge accentColor={accentColor} />}
 
@@ -531,7 +544,14 @@ const SAFE_BOTTOM_PADDING = 120;
 const CAPTION_MAX_WIDTH = 1400;
 const CAPTION_APPEAR_FRAMES = 5;
 
-function Captions({ captions, accentColor }: { captions: LongFormCaption[]; accentColor: string }) {
+/** Índice de la palabra que se está diciendo en t (la última ya empezada; entre palabras se mantiene la anterior). */
+export function activeWordIndex(words: { startSeconds: number }[], t: number): number {
+  let idx = -1;
+  for (const [i, w] of words.entries()) if (w.startSeconds <= t) idx = i;
+  return idx;
+}
+
+function Captions({ captions, accentColor, captionStyle }: { captions: LongFormCaption[]; accentColor: string; captionStyle: CaptionStyle }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const t = frame / fps;
@@ -543,10 +563,12 @@ function Captions({ captions, accentColor }: { captions: LongFormCaption[]; acce
   const framesSinceStart = frame - activeStartFrame;
   const appearProgress = Math.min(1, Math.max(0, framesSinceStart / CAPTION_APPEAR_FRAMES));
   const opacity = interpolate(appearProgress, [0, 1], [0, 1]);
-  const translateY = interpolate(appearProgress, [0, 1], [10, 0]);
+  const highlight = captionStyle === "word-highlight" && active.words !== undefined;
+  const translateY = highlight ? 0 : interpolate(appearProgress, [0, 1], [10, 0]);
 
   const emphasisSet = new Set((active.emphasisWords ?? []).map((w) => w.toLowerCase()));
   const words = active.text.split(/\s+/);
+  const current = highlight && active.words!.length === words.length ? activeWordIndex(active.words!, t) : -1;
 
   return (
     <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: SAFE_BOTTOM_PADDING }}>
@@ -576,8 +598,9 @@ function Captions({ captions, accentColor }: { captions: LongFormCaption[]; acce
           {words.map((word, i) => {
             const stripped = word.replace(/[^\p{L}\p{N}]/gu, "").toLowerCase();
             const isEmphasis = emphasisSet.has(stripped);
+            const color = i === current ? WORD_HIGHLIGHT_COLOR : !highlight && isEmphasis ? accentColor : undefined;
             return (
-              <span key={i} style={isEmphasis ? { color: accentColor } : undefined}>
+              <span key={i} style={color ? { color } : undefined}>
                 {word}
                 {i < words.length - 1 ? " " : ""}
               </span>

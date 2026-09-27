@@ -114,6 +114,8 @@ export type SampleManifest = {
   /** Recursos sonoros que faltan (se reportan; nunca se sustituyen por tonos de prueba). */
   missingSound: string[];
   packaging?: SamplePackaging;
+  /** Estilo de subtítulos del render (LongFormDoc). Ausente = "phrase", como siempre. */
+  captionStyle?: "phrase" | "word-highlight";
 };
 
 export type ManifestIssue = { sceneId: string; code: string; message: string };

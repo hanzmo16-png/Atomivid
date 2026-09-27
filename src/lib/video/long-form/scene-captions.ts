@@ -57,3 +57,21 @@ export function captionsWithinScenes(
   }
   return out;
 }
+
+/** Añade a cada subtítulo los tiempos de SUS palabras (para el resaltado por palabra); no cambia texto ni tiempos del bloque. */
+export function withCaptionWords<C extends { text: string; startSeconds: number; endSeconds: number }>(
+  captions: C[],
+  words: WordTiming[],
+): (C & { words?: { text: string; startSeconds: number; endSeconds: number }[] })[] {
+  let cursor = 0;
+  return captions.map((c) => {
+    const count = c.text.split(/\s+/).filter(Boolean).length;
+    // Las palabras de los bloques van en orden y sin huecos: se toman las `count` siguientes desde la primera que empieza en el bloque.
+    while (cursor < words.length && (words[cursor].startSeconds + words[cursor].endSeconds) / 2 < c.startSeconds - 1e-3) cursor++;
+    const slice = words.slice(cursor, cursor + count);
+    const matches = slice.length === count && slice.map((w) => w.text).join(" ") === c.text;
+    if (!matches) return c;
+    cursor += count;
+    return { ...c, words: slice.map((w) => ({ text: w.text, startSeconds: w.startSeconds, endSeconds: w.endSeconds })) };
+  });
+}

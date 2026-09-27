@@ -120,3 +120,26 @@ test("muestra: una tarjeta de texto sin size «large» se rechaza", async () => 
   delete card.source.spec.size;
   assert.ok(codes(small).includes("card_size"));
 });
+
+test("subtítulos con resaltado por palabra: tiempos propios por bloque y palabra activa sin saltos", async () => {
+  const { withCaptionWords } = await import("./scene-captions");
+  const { activeWordIndex } = await import("../../../../remotion/LongFormDoc");
+  const words = [
+    { text: "A", startSeconds: 0, endSeconds: 0.1 },
+    { text: "light", startSeconds: 0.2, endSeconds: 0.4 },
+    { text: "switches", startSeconds: 0.5, endSeconds: 0.8 },
+    { text: "on,", startSeconds: 0.9, endSeconds: 1.3 },
+  ];
+  const captions = [
+    { text: "A light", startSeconds: 0, endSeconds: 0.4 },
+    { text: "switches on,", startSeconds: 0.5, endSeconds: 1.3 },
+  ];
+  const out = withCaptionWords(captions, words);
+  assert.deepEqual(out[0].words?.map((w) => w.text), ["A", "light"]);
+  assert.deepEqual(out[1].words?.map((w) => w.text), ["switches", "on,"]);
+  // Un bloque cuyo texto no coincide con las palabras se deja tal cual (sin resaltado, nunca desalineado).
+  assert.equal(withCaptionWords([{ text: "other text", startSeconds: 0, endSeconds: 1 }], words)[0].words, undefined);
+  assert.equal(activeWordIndex(out[1].words!, 0.45), -1);
+  assert.equal(activeWordIndex(out[1].words!, 0.85), 0); // entre palabras se mantiene la anterior
+  assert.equal(activeWordIndex(out[1].words!, 1.0), 1);
+});

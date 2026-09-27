@@ -51,6 +51,8 @@ export type RenderLongFormDocInput = {
   opening?: CoverSpec;
   /** Idioma de los rótulos en pantalla. Ausente = español, como siempre. */
   language?: "es" | "en";
+  /** Estilo de subtítulos (LongFormDoc). Ausente = "phrase", como siempre. */
+  captionStyle?: "phrase" | "word-highlight";
 };
 
 export class CoverValidationError extends Error {
@@ -107,6 +109,7 @@ export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<
     showLogo: input.showLogo ?? false,
     ...(input.opening ? { opening: input.opening } : {}),
     ...(input.language ? { language: input.language } : {}),
+    ...(input.captionStyle ? { captionStyle: input.captionStyle } : {}),
   };
 
   const composition = await selectComposition({

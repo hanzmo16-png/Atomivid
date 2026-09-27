@@ -545,7 +545,10 @@ async function main() {
   }
   const { captionsWithinScenes } = await import("../src/lib/video/long-form/scene-captions");
   const emphasis = buildEmphasisSet([]);
-  const captions = captionsWithinScenes(words, scenes, (w) => buildCaptions(w, emphasis));
+  const { withCaptionWords } = await import("../src/lib/video/long-form/scene-captions");
+  const blocks = captionsWithinScenes(words, scenes, (w) => buildCaptions(w, emphasis));
+  // Resaltado por palabra solo si el manifiesto lo pide; sin él, los subtítulos no cambian.
+  const captions = manifest.captionStyle === "word-highlight" ? withCaptionWords(blocks, words) : blocks;
   const narrationGaps = computeNarrationGaps(words);
 
   // Presentación (portada de apertura + miniatura): validada ANTES de renderizar, incluida la zona del sujeto.
@@ -575,6 +578,7 @@ async function main() {
     purpose,
     ...(packaging?.cover ? { opening: packaging.cover } : {}),
     language,
+    ...(manifest.captionStyle ? { captionStyle: manifest.captionStyle } : {}),
   });
   const mastered = raw.replace(/\.mp4$/, ".mastered.mp4");
   const { LONG_FORM_TRUE_PEAK_MARGIN_DB } = await import("../src/lib/video/long-form/produce");
