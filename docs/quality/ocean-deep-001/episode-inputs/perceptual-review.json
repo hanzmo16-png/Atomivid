@@ -4068,5 +4068,167 @@
       }
     ],
     "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+  },
+  {
+    "current": "episode-b4-04",
+    "previous": "motion-s01",
+    "distance": 8,
+    "placeholder": false,
+    "sources": [
+      {
+        "kind": "noaa-video",
+        "url": "https://oceanexplorer.noaa.gov/wp-content/uploads/2020/05/water-column-1280x720-1.mp4",
+        "pageUrl": "https://oceanexplorer.noaa.gov/multimedia/video-playlist-extras-water/",
+        "credit": "NOAA Ocean Exploration",
+        "clip": {
+          "startSeconds": 63,
+          "endSeconds": 68.156
+        },
+        "licenseReview": {
+          "date": "2026-09-27",
+          "note": "Specific media page and source credit reviewed; NOAA or USGS government work with no third-party exception stated for this video. Source audio discarded. Selected visual excerpt reviewed in the contact sheet."
+        }
+      },
+      {
+        "kind": "existing",
+        "path": "ocean-deep-001/samples/episode/assets/s01.mp4"
+      }
+    ],
+    "note": "Both identity frames visually reviewed: the opening AI vehicle and the later real subject/camera position are distinct; coarse similarity is caused by the dark underwater background."
+  },
+  {
+    "current": "episode-b4-17",
+    "previous": "motion-s01",
+    "distance": 7,
+    "placeholder": false,
+    "sources": [
+      {
+        "kind": "noaa-video",
+        "url": "https://oceanexplorer.noaa.gov/wp-content/uploads/2018/05/wow-1280x720-1.mp4",
+        "pageUrl": "https://oceanexplorer.noaa.gov/multimedia/video-playlist-ex1708-wow/",
+        "credit": "NOAA Ocean Exploration, Deep-Sea Symphony: Exploring the Musicians Seamounts",
+        "clip": {
+          "startSeconds": 59,
+          "endSeconds": 61.893
+        },
+        "licenseReview": {
+          "date": "2026-09-27",
+          "note": "Specific media page and source credit reviewed; NOAA or USGS government work with no third-party exception stated for this video. Source audio discarded. Selected visual excerpt reviewed in the contact sheet."
+        }
+      },
+      {
+        "kind": "existing",
+        "path": "ocean-deep-001/samples/episode/assets/s01.mp4"
+      }
+    ],
+    "note": "Both identity frames visually reviewed: the opening AI vehicle and the later real subject/camera position are distinct; coarse similarity is caused by the dark underwater background."
+  },
+  {
+    "current": "episode-b5-18",
+    "previous": "motion-s01",
+    "distance": 6,
+    "placeholder": false,
+    "sources": [
+      {
+        "kind": "noaa-video",
+        "url": "https://oceanexplorer.noaa.gov/wp-content/uploads/2018/05/wow-1280x720-1.mp4",
+        "pageUrl": "https://oceanexplorer.noaa.gov/multimedia/video-playlist-ex1708-wow/",
+        "credit": "NOAA Ocean Exploration, Deep-Sea Symphony: Exploring the Musicians Seamounts",
+        "clip": {
+          "startSeconds": 38,
+          "endSeconds": 42.449
+        },
+        "licenseReview": {
+          "date": "2026-09-27",
+          "note": "Specific media page and source credit reviewed; NOAA or USGS government work with no third-party exception stated for this video. Source audio discarded. Selected visual excerpt reviewed in the contact sheet."
+        }
+      },
+      {
+        "kind": "existing",
+        "path": "ocean-deep-001/samples/episode/assets/s01.mp4"
+      }
+    ],
+    "note": "Both identity frames visually reviewed: the opening AI vehicle and the later real subject/camera position are distinct; coarse similarity is caused by the dark underwater background."
+  },
+  {
+    "current": "episode-b5-19",
+    "previous": "motion-s01",
+    "distance": 8,
+    "placeholder": false,
+    "sources": [
+      {
+        "kind": "noaa-video",
+        "url": "https://oceanexplorer.noaa.gov/wp-content/uploads/2018/06/waltz-1280x720-1.mp4",
+        "pageUrl": "https://oceanexplorer.noaa.gov/multimedia/video-playlist-column-waltz/",
+        "credit": "NOAA Ocean Exploration, Windows to the Deep 2018",
+        "clip": {
+          "startSeconds": 15,
+          "endSeconds": 18.995
+        },
+        "licenseReview": {
+          "date": "2026-09-27",
+          "note": "Specific media page and source credit reviewed; NOAA or USGS government work with no third-party exception stated for this video. Source audio discarded. Selected visual excerpt reviewed in the contact sheet."
+        }
+      },
+      {
+        "kind": "existing",
+        "path": "ocean-deep-001/samples/episode/assets/s01.mp4"
+      }
+    ],
+    "note": "Both identity frames visually reviewed: the opening AI vehicle and the later real subject/camera position are distinct; coarse similarity is caused by the dark underwater background."
+  },
+  {
+    "current": "episode-b5-20",
+    "previous": "motion-s01",
+    "distance": 9,
+    "placeholder": false,
+    "sources": [
+      {
+        "kind": "noaa-video",
+        "url": "https://oceanexplorer.noaa.gov/wp-content/uploads/2018/05/dark-1280x720-1.mp4",
+        "pageUrl": "https://oceanexplorer.noaa.gov/multimedia/video-playlist-ex1708-hiding-dark/",
+        "credit": "NOAA Ocean Exploration, Deep-Sea Symphony: Exploring the Musicians Seamounts",
+        "clip": {
+          "startSeconds": 72,
+          "endSeconds": 77.168
+        },
+        "licenseReview": {
+          "date": "2026-09-27",
+          "note": "Specific media page and source credit reviewed; NOAA or USGS government work with no third-party exception stated for this video. Source audio discarded. Selected visual excerpt reviewed in the contact sheet."
+        }
+      },
+      {
+        "kind": "existing",
+        "path": "ocean-deep-001/samples/episode/assets/s01.mp4"
+      }
+    ],
+    "note": "Both identity frames visually reviewed: the opening AI vehicle and the later real subject/camera position are distinct; coarse similarity is caused by the dark underwater background."
+  },
+  {
+    "current": "episode-b6-03",
+    "previous": "motion-s01",
+    "distance": 7,
+    "placeholder": false,
+    "sources": [
+      {
+        "kind": "noaa-video",
+        "url": "https://oceanexplorer.noaa.gov/wp-content/uploads/2018/05/wow-1280x720-1.mp4",
+        "pageUrl": "https://oceanexplorer.noaa.gov/multimedia/video-playlist-ex1708-wow/",
+        "credit": "NOAA Ocean Exploration, Deep-Sea Symphony: Exploring the Musicians Seamounts",
+        "clip": {
+          "startSeconds": 48,
+          "endSeconds": 54.143
+        },
+        "licenseReview": {
+          "date": "2026-09-27",
+          "note": "Specific media page and source credit reviewed; NOAA or USGS government work with no third-party exception stated for this video. Source audio discarded. Selected visual excerpt reviewed in the contact sheet."
+        }
+      },
+      {
+        "kind": "existing",
+        "path": "ocean-deep-001/samples/episode/assets/s01.mp4"
+      }
+    ],
+    "note": "Both identity frames visually reviewed: the opening AI vehicle and the later real subject/camera position are distinct; coarse similarity is caused by the dark underwater background."
   }
 ]

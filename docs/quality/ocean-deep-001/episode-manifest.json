@@ -1637,6 +1637,10 @@
           {
             "sceneId": "episode-b4-03",
             "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "motion-s01",
+            "note": "Both identity frames visually reviewed: the opening AI vehicle and the later real subject/camera position are distinct; coarse similarity is caused by the dark underwater background."
           }
         ]
       },
@@ -2165,6 +2169,10 @@
           {
             "sceneId": "episode-b4-04",
             "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "motion-s01",
+            "note": "Both identity frames visually reviewed: the opening AI vehicle and the later real subject/camera position are distinct; coarse similarity is caused by the dark underwater background."
           }
         ]
       },
@@ -3122,6 +3130,10 @@
           {
             "sceneId": "episode-b5-16",
             "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "motion-s01",
+            "note": "Both identity frames visually reviewed: the opening AI vehicle and the later real subject/camera position are distinct; coarse similarity is caused by the dark underwater background."
           }
         ]
       },
@@ -3198,6 +3210,10 @@
           {
             "sceneId": "episode-b5-18",
             "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "motion-s01",
+            "note": "Both identity frames visually reviewed: the opening AI vehicle and the later real subject/camera position are distinct; coarse similarity is caused by the dark underwater background."
           }
         ]
       },
@@ -3282,6 +3298,10 @@
           {
             "sceneId": "episode-b5-19",
             "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "motion-s01",
+            "note": "Both identity frames visually reviewed: the opening AI vehicle and the later real subject/camera position are distinct; coarse similarity is caused by the dark underwater background."
           }
         ]
       },
@@ -3868,6 +3888,10 @@
           {
             "sceneId": "episode-b5-27",
             "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "motion-s01",
+            "note": "Both identity frames visually reviewed: the opening AI vehicle and the later real subject/camera position are distinct; coarse similarity is caused by the dark underwater background."
           }
         ]
       },

@@ -145,6 +145,7 @@ async function main() {
   if (phase === "prepare") {
     const registry = new DocumentAssetRegistry();
     const prepared: Record<string, unknown>[] = [];
+    const preparationErrors: { sceneId: string; message: string }[] = [];
     const tiles: { image: Buffer; label: string }[] = [];
     const noaaDownloads = new Map<string, { file: string; sha256: string }>();
     type Resolved = { buffer: Buffer; ext: string; mediaType: "image" | "video"; meta: Record<string, unknown> };
@@ -421,6 +422,7 @@ async function main() {
     };
 
     for (const [index, scene] of manifest.scenes.entries()) {
+      try {
       const src = scene.source;
       if (src.kind === "graphic") {
         // Gráfico determinista: lo dibuja LongFormDoc en el render; nada que descargar, subir ni pagar.
@@ -470,6 +472,14 @@ async function main() {
       await upload(objectPath, buffer, mediaType === "video" ? "video/mp4" : ext === "png" ? "image/png" : "image/jpeg");
       prepared.push({ sceneId: scene.id, objectPath, mediaType, durationSeconds, identity, ...meta, ...override });
       console.log(`@@PREPARED ${JSON.stringify({ sceneId: scene.id, objectPath, mediaType, durationSeconds, sha: identity.sha256?.slice(0, 12), license: meta.license, ...override })}`);
+      } catch (error) {
+        // A free review reports every bad asset in one pass. Paid execution
+        // always stops on the first error; no provider operation is retried.
+        if (allowPaid) throw error;
+        const issue = { sceneId: scene.id, message: error instanceof Error ? error.message : String(error) };
+        preparationErrors.push(issue);
+        console.log(`@@PREPARATION_ERROR ${JSON.stringify(issue)}`);
+      }
     }
 
     // Pistas: biblioteca con procedencia registrada; duración verificada (sin bucles salvo que se pidan).
@@ -511,12 +521,13 @@ async function main() {
     const voicePath = `${prefix}/voice.${narrated.extension}`;
     await upload(voicePath, narrated.audioBuffer, narrated.mimeType);
 
-    const state = { manifest: manifestPath, manifestSha256, preparedAt: new Date().toISOString(), narrationSeconds: narrated.durationSeconds, voicePath, voiceMime: narrated.mimeType, scenes: prepared, sounds, issues, missingSound: manifest.missingSound, providerCalls: { paid: paidCalls.length, calls: paidCalls, spentThisRunUsd: +paidCalls.reduce((a, c) => a + c.costUsd, 0).toFixed(4), committedUsd: committedUsd(ledger) } };
+    const state = { manifest: manifestPath, manifestSha256, preparedAt: new Date().toISOString(), narrationSeconds: narrated.durationSeconds, voicePath, voiceMime: narrated.mimeType, scenes: prepared, sounds, issues, preparationErrors, missingSound: manifest.missingSound, providerCalls: { paid: paidCalls.length, calls: paidCalls, spentThisRunUsd: +paidCalls.reduce((a, c) => a + c.costUsd, 0).toFixed(4), committedUsd: committedUsd(ledger) } };
     await upload(`${prefix}/state/prepared.json`, Buffer.from(JSON.stringify(state, null, 2)), "application/json");
     await fs.writeFile(path.join(outDir, "prepared.json"), JSON.stringify(state, null, 2));
     for (let i = 0; i < tiles.length; i += 15) {
       emitSheet(`prepared-${i / 15 + 1}`, await buildContactSheet(tiles.slice(i, i + 15), { columns: 3, tileWidth: 480, tileHeight: 270, title: `Recursos preparados (${i + 1}-${Math.min(i + 15, tiles.length)})` }));
     }
+    if (preparationErrors.length) throw new Error(`Free preparation incomplete: ${preparationErrors.map(e => e.sceneId).join(", ")}; see preparationErrors in prepared.json`);
     console.log("PREPARE_OK");
     return;
   }
