@@ -6,7 +6,7 @@ name: Reel Medieval oscuro — Mantener el rumbo (~27 s)
 # de las muestras de cómic/anime. Solo disparo manual. plan y rehearsal no
 # gastan; run exige confirm=GASTAR y un tope ≤ US$5,30 (el script lo impone).
 # Sin reintentos automáticos: un fallo detiene la ejecución.
-# PINNED_REF = commit revisado e8c27c5 (rama claude/medieval-reel).
+# PINNED_REF = 6aac0ee (e8c27c5 + usar la voz natural si la desacelerada no cabe). Se lanza desde esta rama; la rama por defecto sigue fijada a e8c27c5.
 on:
   workflow_dispatch:
     inputs:
@@ -36,7 +36,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PINNED_REF: e8c27c5b0f4b10619e9b5949e8e15f57beec40b9
+  PINNED_REF: 6aac0ee990f8a272064189727c85a8a3bee64af4
 
 jobs:
   reel:
