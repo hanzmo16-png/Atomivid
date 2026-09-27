@@ -69,8 +69,16 @@ export type SampleScene = {
     status: "approved" | "pending";
     relevance: "directa" | "indirecta";
     note: string;
+    /** Explicit visual adjudication of a low-resolution dHash false positive.
+     * Does not permit identical bytes, the same source, or overlapping excerpts. */
+    perceptualDistinctFrom?: { sceneId: string; note: string }[];
   };
 };
+
+export function reviewedPerceptualDifference(scene: SampleScene, match: { key: string; shotId: string } | null): boolean {
+  return match?.key === "dhash" && scene.review.status === "approved" &&
+    Boolean(scene.review.perceptualDistinctFrom?.some(r => r.sceneId === match.shotId && r.note.trim().length >= 30));
+}
 
 export type SampleSoundCue = {
   id: string;

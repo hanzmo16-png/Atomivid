@@ -38,7 +38,7 @@ async function main() {
   const { createServiceClient } = await import("../src/lib/supabase/service");
   const { loadProductionCachedBeatNarration } = await import("../src/lib/video/long-form/production-tts-cache");
   const { getVoiceIdentity } = await import("../src/lib/ai/voice");
-  const { validateSampleManifest, blockingIssues, requiredClipSeconds } = await import("../src/lib/video/long-form/sample-manifest");
+  const { validateSampleManifest, blockingIssues, requiredClipSeconds, reviewedPerceptualDifference } = await import("../src/lib/video/long-form/sample-manifest");
   const { contentIdentity, DocumentAssetRegistry } = await import("../src/lib/video/long-form/asset-identity");
   const { buildDataMapSvg } = await import("../src/lib/video/long-form/data-map");
   const { MUSIC_MANIFEST } = await import("../src/lib/providers/music/manifest");
@@ -442,9 +442,13 @@ async function main() {
       // Identidad de contenido: ningún recurso repetido dentro de la muestra (hash exacto o perceptual).
       const identity = { ...(await contentIdentity(buffer, mediaType)), provider: String(meta.provider ?? ""), sourceId: meta.sourceId as string | undefined };
       const byRef = registry.findByReference(identity, scene.repeatOf);
-      const byContent = registry.findByContent(identity, scene.repeatOf);
-      if (byRef || byContent) throw new Error(`${scene.id}: recurso repetido (igual a ${(byRef ?? byContent)?.shotId})`);
-      registry.register(scene.id, identity);
+      // Temporary substitutes are always pending and cannot be delivered as
+      // approval output. They must not poison final-media identity checks.
+      const byContent = override.placeholder ? null : registry.findByContent(identity, scene.repeatOf);
+      const reviewedDifference = reviewedPerceptualDifference(scene, byContent);
+      if (reviewedDifference) console.log(`@@PERCEPTUAL_REVIEW ${JSON.stringify({ sceneId: scene.id, match: byContent, review: scene.review.perceptualDistinctFrom })}`);
+      if (byRef || (byContent && !reviewedDifference)) throw new Error(`${scene.id}: recurso repetido (igual a ${(byRef ?? byContent)?.shotId}; ${(byRef ?? byContent)?.key})`);
+      if (!override.placeholder) registry.register(scene.id, identity);
 
       const local = path.join(tmp, `${scene.id}.${ext}`);
       await fs.writeFile(local, buffer);

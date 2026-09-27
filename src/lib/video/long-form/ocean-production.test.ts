@@ -3,9 +3,17 @@ import assert from "node:assert/strict";
 import { assertNoaaEvidence, assertNoaaUrl, fetchNoaaBytes, type NoaaVideoSource } from "./noaa-video";
 import { findOceanSound, renderOceanSound } from "./ocean-sounds";
 import { overlayIssue } from "../../../../remotion/scene-overlay";
-import { validateSampleManifest, type SampleManifest } from "./sample-manifest";
+import { validateSampleManifest, reviewedPerceptualDifference, type SampleManifest, type SampleScene } from "./sample-manifest";
 
 const source: NoaaVideoSource = { kind: "noaa-video", url: "https://oceanexplorer.noaa.gov/media/fish.mp4", pageUrl: "https://oceanexplorer.noaa.gov/fish/", credit: "NOAA Ocean Exploration", licenseReview: { date: "2026-09-27", note: "Reviewed this specific credit and media; no third-party exception on the page." } };
+
+test("reviewed dark-water false positives cannot exempt exact or unreviewed duplicates", () => {
+  const scene: SampleScene = { id: "fish", startSeconds: 0, endSeconds: 5, narration: "", source, provenance: "archival_documentary", direction: {}, review: { status: "approved", relevance: "directa", note: "Reviewed", perceptualDistinctFrom: [{ sceneId: "rov", note: "Visible fish silhouette differs from the vehicle; only the dark background matches." }] } };
+  assert.equal(reviewedPerceptualDifference(scene, { key: "dhash", shotId: "rov" }), true);
+  for (const key of ["sha256", "sourceId", "canonicalUrl"]) assert.equal(reviewedPerceptualDifference(scene, { key, shotId: "rov" }), false);
+  assert.equal(reviewedPerceptualDifference(scene, { key: "dhash", shotId: "other" }), false);
+  assert.equal(reviewedPerceptualDifference({ ...scene, review: { ...scene.review, status: "pending" } }, { key: "dhash", shotId: "rov" }), false);
+});
 
 test("NOAA importer requires a per-file review, matching credit and linked media", () => {
   const html = '<p>Courtesy NOAA Ocean Exploration</p><a href="/media/fish.mp4">Download</a>';

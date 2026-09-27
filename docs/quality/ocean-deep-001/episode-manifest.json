@@ -315,7 +315,17 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "motion-s05",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "motion-s07",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -395,7 +405,13 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "episode-b2-02",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -509,7 +525,21 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "motion-s05",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-02",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-04",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -1538,7 +1568,21 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "motion-s05",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-02",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-07",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -1576,7 +1620,25 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "motion-s05",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-02",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-07",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-03",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -2090,7 +2152,21 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "motion-s05",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-07",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-04",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -2333,7 +2409,13 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "episode-b2-07",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -2409,7 +2491,13 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "episode-b2-04",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -2447,7 +2535,13 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "episode-b5-04",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -2917,7 +3011,13 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "episode-b2-04",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -2993,7 +3093,37 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "motion-s05",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-02",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-07",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-03",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-04",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-17",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-16",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -3031,7 +3161,45 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "episode-b2-02",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-04",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-07",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-03",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-06",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-17",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-06",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-16",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-18",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -3069,7 +3237,53 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "motion-s05",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-02",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-04",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-07",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-03",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-04",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-17",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-04",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-16",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-18",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-19",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -3107,7 +3321,49 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "motion-s05",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-02",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-07",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-03",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-04",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-17",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-04",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-18",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-19",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-20",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -3145,7 +3401,17 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "episode-b5-02",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-06",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -3297,7 +3563,57 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "motion-s05",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-02",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-04",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-07",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-03",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-04",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-17",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-16",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-18",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-19",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-20",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-21",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -3335,7 +3651,61 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "episode-b2-02",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-04",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-07",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-03",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-06",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-17",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-06",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-16",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-18",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-19",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-20",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-21",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-26",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -3449,7 +3819,57 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "motion-s05",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-02",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-07",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-03",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-04",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-17",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-18",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-19",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-20",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-21",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-26",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-27",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -3487,7 +3907,29 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "episode-b2-02",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-07",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-20",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-21",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b6-03",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
@@ -3833,7 +4275,45 @@
       "review": {
         "status": "approved",
         "relevance": "indirecta",
-        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained."
+        "note": "Selected from reviewed NOAA/USGS contact sheets; present-day illustrative footage, not archival evidence of the narrated historical event. Source credits and biological limitations retained.",
+        "perceptualDistinctFrom": [
+          {
+            "sceneId": "motion-s05",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b2-07",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-04",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b4-17",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-18",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-20",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-21",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b5-26",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          },
+          {
+            "sceneId": "episode-b6-03",
+            "note": "Visual comparison of the identity-frame contact sheets: distinct subject, camera position or disjoint action interval; low-resolution dHash similarity is dominated by dark blue water. Not identical footage."
+          }
+        ]
       },
       "source": {
         "kind": "noaa-video",
