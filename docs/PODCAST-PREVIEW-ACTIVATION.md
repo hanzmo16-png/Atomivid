@@ -1,8 +1,76 @@
 # Activación de podcast en Preview — paquete revisable
 
-**Estado: preparado, NO ejecutado.** Nada de esto se ha aplicado: ni la
-migración, ni el registro del worker, ni las variables. No hay llamadas
-pagadas. No se fusiona ningún PR ni se toca producción.
+**Estado (2026-09-27): aplicado solo en parte; activación pendiente.**
+
+| Paso | Estado | Evidencia |
+|---|---|---|
+| 1. Migración 0022 | **Aplicada** | run 36286808790 |
+| 2. Worker `tts.yml` fijado a `db4d200` | **No registrado**: el push fue rechazado | la rama por defecto sigue en `7772943` con `ref: 0a53459…` |
+| 3. Variables del Preview de podcast | **No aplicadas** | sin acceso a Vercel desde la sesión |
+
+No hay llamadas pagadas. No se fusionó ningún PR.
+
+### Desviación: 0022 se aplicó con la activación pendiente
+
+**Qué pasó.** Con la orden de aplicar el paquete, se ejecutó el paso 1 antes
+de comprobar que los pasos 2 y 3 podían completarse:
+- el registro del worker requiere modificar la rama por defecto;
+- las variables requieren acceso a Vercel.
+
+Ninguno de los dos pudo hacerse. El paquete quedó a medias: esquema nuevo,
+worker anterior y Preview de podcast sin configurar. Lo correcto habría sido
+confirmar antes que los tres pasos eran realizables, o avisar de que solo el
+primero lo era.
+
+**No se repite ni se revierte automáticamente.** Revertir exige decisión
+propia: el bloque `ROLLBACK` del encabezado de 0022, solo si ninguna pieza
+usa los campos nuevos.
+
+**Resultado exacto** (run 36286808790, `apply-supabase-migration.yml` desde
+`claude/tts-podcast` en `9dd5760`, `migration_file=0022_tts_podcast.sql`):
+- antes: «1 migración(es) NO completamente aplicada(s): 0022 (not_applied)»,
+  con 6 objetos de 0022 ausentes;
+- durante:
+  - «"0022_tts_podcast.sql" aplicada y confirmada correctamente»;
+  - «Resumen: 1 aplicada(s) [0022_tts_podcast.sql], 0 reconciliada(s)
+    sin reejecutar SQL [-], 0 ya registrada(s) [-]»;
+- después: 123 comprobaciones con `exists: true` y 0 con `false`. Incluye
+  las columnas `max_chars_per_piece`, `long_pilot`, `music_choice`,
+  `mix_status`, `mix_path` y `mix_loudness`. 0021 sigue intacta.
+- **No verificado individualmente**: el mapa de esquema no comprueba el
+  CHECK ampliado del guion (1..60.000), los CHECK nuevos ni el índice
+  parcial `tts_jobs_one_active_long_pilot`. Figuran como aplicados solo
+  porque el script confirmó la migración completa.
+
+**Compatibilidad con el worker que está registrado de verdad** (`0a53459`),
+confirmada leyendo el código; no se ejecutó contra la base real:
+- el worker y la app de voces (mismo código de «Texto a voz» en `1a0272d`)
+  solo leen y escriben columnas anteriores a 0022: `id`, `user_id`,
+  `title`, `language`, `voice_choice`, `script`, `characters`, `status`,
+  `attempts`, `segments_done`, `segments_total`, `audio_path`,
+  `duration_seconds`, `completed_at`, `error_message`, `updated_at`;
+- las filas nuevas que crea la app de voces toman los valores por defecto
+  de 0022: `music_choice 'none'`, `long_pilot false`, `mix_attempts 0` y
+  el resto null. Cumplen los CHECK nuevos;
+- el índice parcial solo afecta a filas con `long_pilot = true`, que ese
+  código nunca escribe;
+- el CHECK del guion pasa de 20.000 a 60.000 caracteres: amplía, y la app
+  de voces sigue limitando a 20.000.
+- Consecuencia: el Preview de voces debería seguir igual. Se confirmará con
+  la próxima pieza real que se genere.
+
+### Paso 2 rechazado por el control de permisos
+
+- Se intentó llevar a la rama por defecto los dos commits de esta rama
+  (`2a347a1`, `ed266c4`).
+- El control de permisos de la sesión lo rechazó como **modificación de un
+  recurso compartido**: la rama por defecto ejecuta el worker de todas las
+  piezas de «Texto a voz», también las del Preview de voces.
+- Una lectura posterior del estado también fue rechazada, sin motivo
+  indicado.
+- No se reintentó por otra vía. El cambio queda como diff revisable en esta
+  rama; lo aplica quien tenga la decisión.
+
 
 Código revisado: PR #17, rama `claude/tts-podcast`, commit
 **`db4d20020eb1f76c4824235d653b1df484948097`** (incluye PR #16). CI:
