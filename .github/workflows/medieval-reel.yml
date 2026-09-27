@@ -1,0 +1,119 @@
+name: Reel Medieval oscuro — Mantener el rumbo (~27 s)
+
+# Reel de 4 escenas con «Animación IA» (scripts/medieval-reel.ts, plan en
+# docs/quality/medieval-reel/PLAN.md). Registro de gasto PROPIO
+# (samples/medieval-reel): no usa el de US$2,06 de la muestra anterior ni el
+# de las muestras de cómic/anime. Solo disparo manual. plan y rehearsal no
+# gastan; run exige confirm=GASTAR y un tope ≤ US$5,30 (el script lo impone).
+# Sin reintentos automáticos: un fallo detiene la ejecución.
+# PINNED_REF = commit revisado e8c27c5 (rama claude/medieval-reel).
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "plan (sin gasto) · rehearsal (ensayo simulado, sin gasto) · run (gasto real)"
+        type: choice
+        options: [plan, rehearsal, run]
+        default: plan
+      confirm:
+        description: "Escribe GASTAR para ejecutar run"
+        type: string
+        default: ""
+      cap_usd:
+        description: "Tope total del registro en USD (máximo 5.30)"
+        type: string
+        default: "5.30"
+      acknowledge:
+        description: "Solo recuperación revisada: <clave>|<nota> (vacío normalmente)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: medieval-reel
+  cancel-in-progress: false
+
+env:
+  PINNED_REF: e8c27c5b0f4b10619e9b5949e8e15f57beec40b9
+
+jobs:
+  reel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Verificar autorización y commit fijado
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$PINNED_REF" = REEMPLAZAR_POR_SHA_REVISADO ]; then echo 'Falta fijar el commit revisado'; exit 1; fi
+          if [ "$MODE" = run ] && [ "$CONFIRM" != GASTAR ]; then echo 'Falta confirmacion de gasto'; exit 1; fi
+      - name: Comprobar secretos (solo presente/ausente; nunca el valor)
+        if: inputs.mode != 'rehearsal'
+        env:
+          S_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          S_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          S_ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          S_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          S_VEO_API_KEY: ${{ secrets.VEO_API_KEY }}
+          S_PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: |
+          missing=0
+          for k in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY ELEVENLABS_API_KEY OPENAI_API_KEY VEO_API_KEY PEXELS_API_KEY; do
+            v="S_$k"
+            if [ -n "${!v}" ]; then echo "$k: presente"; else echo "$k: AUSENTE"; missing=1; fi
+          done
+          if [ "$missing" = 1 ]; then echo 'Falta un secreto: no se genera nada.'; exit 1; fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PINNED_REF }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - name: Navegador de Remotion
+        if: inputs.mode != 'plan'
+        run: npx remotion browser ensure
+      - name: Reel
+        env:
+          MODE: ${{ inputs.mode }}
+          REEL_OUT_DIR: evidence/medieval-reel
+          REEL_ALLOW_PAID: ${{ inputs.mode == 'run' && inputs.confirm == 'GASTAR' && 'true' || 'false' }}
+          REEL_CAP_USD: ${{ inputs.cap_usd }}
+          REEL_ACKNOWLEDGE: ${{ inputs.acknowledge }}
+          VEO_COST_USD_PER_SECOND: '0.12'
+          NEXT_PUBLIC_SUPABASE_URL: ${{ inputs.mode != 'rehearsal' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ inputs.mode != 'rehearsal' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
+          ELEVENLABS_API_KEY: ${{ inputs.mode == 'run' && inputs.confirm == 'GASTAR' && secrets.ELEVENLABS_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ inputs.mode == 'run' && inputs.confirm == 'GASTAR' && secrets.OPENAI_API_KEY || '' }}
+          VEO_API_KEY: ${{ inputs.mode == 'run' && inputs.confirm == 'GASTAR' && secrets.VEO_API_KEY || '' }}
+          PEXELS_API_KEY: ${{ inputs.mode == 'run' && inputs.confirm == 'GASTAR' && secrets.PEXELS_API_KEY || '' }}
+        run: |
+          mkdir -p evidence/medieval-reel
+          set -o pipefail
+          node --import tsx scripts/medieval-reel.ts | tee evidence/medieval-reel/run.log
+      - name: Registro de gasto (solo lectura)
+        if: always() && inputs.mode == 'run' && inputs.confirm == 'GASTAR'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs/promises';
+          import { createClient } from '@supabase/supabase-js';
+          const bucket = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY).storage.from('videos');
+          const ledger = await bucket.download('samples/medieval-reel/state/paid-ledger.json');
+          if (ledger.data) await fs.writeFile('evidence/medieval-reel/paid-ledger.json', Buffer.from(await ledger.data.arrayBuffer()));
+          JS
+      - name: Publicar
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: medieval-reel-${{ inputs.mode }}-${{ github.run_id }}
+          path: evidence/medieval-reel
+          if-no-files-found: warn
+          retention-days: 30
