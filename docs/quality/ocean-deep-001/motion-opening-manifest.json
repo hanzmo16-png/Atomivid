@@ -1,0 +1,288 @@
+{
+  "requestId": "ocean-deep-001",
+  "script": {
+    "file": "content/long-form/ocean-deep-001/ocean-script-001.json",
+    "language": "en"
+  },
+  "voiceId": "nPczCjzI2devNBz1zQrb",
+  "beats": [
+    "b1"
+  ],
+  "outputLabel": "motion-production-check",
+  "tailSeconds": 1.2,
+  "outputPrefix": "ocean-deep-001/samples/episode",
+  "scenes": [
+    {
+      "id": "motion-s01",
+      "startSeconds": 0.0,
+      "endSeconds": 5.03,
+      "narration": "A light switches on, three thousand metres below the surface. For a few seconds,",
+      "source": {
+        "kind": "existing",
+        "path": "ocean-deep-001/samples/episode/assets/s01.mp4"
+      },
+      "provenance": "ai_recreation",
+      "direction": {
+        "camera": "still",
+        "transition": {
+          "type": "cut"
+        }
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Veo image-to-video from the NOAA public-domain photo; labelled AI recreation; nothing added to the scene"
+      },
+      "creditText": "Animated from a NOAA photo",
+      "overlay": {
+        "text": "3,000 m below",
+        "startSeconds": 0.7,
+        "endSeconds": 2
+      }
+    },
+    {
+      "id": "motion-s02",
+      "startSeconds": 5.03,
+      "endSeconds": 11.7,
+      "narration": "it shows a patch of seafloor about the size of a living room: pale sediment, a few scattered stones,",
+      "source": {
+        "kind": "noaa-video",
+        "url": "https://oceanexplorer.noaa.gov/wp-content/uploads/2026/05/Seabed-fact-clip-720p.mp4",
+        "pageUrl": "https://oceanexplorer.noaa.gov/ocean-fact/what-does-the-seabed-or-seafloor-feel-like/",
+        "credit": "NOAA Ocean Exploration",
+        "licenseReview": {
+          "date": "2026-09-27",
+          "note": "Specific media page reviewed for the approved moving opening: credited to NOAA Ocean Exploration, no third-party copyright exception shown. NOAA FAQ public-domain policy applies."
+        }
+      },
+      "provenance": "archival_documentary",
+      "direction": {
+        "camera": "still",
+        "transition": {
+          "type": "cut"
+        },
+        "mediaStartSeconds": 6
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "indirecta",
+        "note": "Visual content inspected and approved in the moving opening; illustrative footage, not a single continuous dive."
+      },
+      "creditText": "NOAA Ocean Exploration \u00b7 Voyage to the Ridge 2022 \u00b7 illustrative footage"
+    },
+    {
+      "id": "motion-s03",
+      "startSeconds": 11.7,
+      "endSeconds": 14.19,
+      "narration": "a small animal drifting through the beam.",
+      "source": {
+        "kind": "noaa-video",
+        "url": "https://oceanexplorer.noaa.gov/wp-content/uploads/2022/04/ex1806-jelly.mp4",
+        "pageUrl": "https://oceanexplorer.noaa.gov/multimedia/video-shorts-ex1806-jelly/",
+        "credit": "NOAA Ocean Exploration",
+        "licenseReview": {
+          "date": "2026-09-27",
+          "note": "Specific media page reviewed for the approved moving opening: credited to NOAA Ocean Exploration, no third-party copyright exception shown. NOAA FAQ public-domain policy applies."
+        }
+      },
+      "provenance": "archival_documentary",
+      "direction": {
+        "camera": "still",
+        "transition": {
+          "type": "cut"
+        },
+        "mediaStartSeconds": 8.5
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "indirecta",
+        "note": "Visual content inspected and approved in the moving opening; illustrative footage, not a single continuous dive."
+      },
+      "creditText": "NOAA Ocean Exploration \u00b7 Atolla \u00b7 880 m \u00b7 Windows to the Deep 2018"
+    },
+    {
+      "id": "motion-s04",
+      "startSeconds": 14.19,
+      "endSeconds": 18.05,
+      "narration": "Then the vehicle moves on, and the darkness closes behind it.",
+      "source": {
+        "kind": "existing",
+        "path": "ocean-deep-001/samples/episode/assets/s04.mp4"
+      },
+      "provenance": "ai_recreation",
+      "direction": {
+        "camera": "still",
+        "transition": {
+          "type": "cut"
+        },
+        "mediaStartSeconds": 1.3
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Veo image-to-video from an AI still; labelled AI recreation"
+      }
+    },
+    {
+      "id": "motion-s05",
+      "startSeconds": 18.05,
+      "endSeconds": 24.13,
+      "narration": "Almost everything we have ever seen of the deep sea was seen like this, one lit patch at a time.",
+      "source": {
+        "kind": "noaa-video",
+        "url": "https://oceanexplorer.noaa.gov/wp-content/uploads/2023/10/dive15-zoom-1280x720-1.mp4",
+        "pageUrl": "https://oceanexplorer.noaa.gov/multimedia/okeanos-explorations-seascape-alaska-ex2306-gallery-media-dive15-zoom/",
+        "credit": "NOAA Ocean Exploration",
+        "licenseReview": {
+          "date": "2026-09-27",
+          "note": "Specific media page reviewed for the approved moving opening: credited to NOAA Ocean Exploration, no third-party copyright exception shown. NOAA FAQ public-domain policy applies."
+        }
+      },
+      "provenance": "archival_documentary",
+      "direction": {
+        "camera": "still",
+        "transition": {
+          "type": "cut"
+        },
+        "mediaStartSeconds": 31.3
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "indirecta",
+        "note": "Visual content inspected and approved in the moving opening; illustrative footage, not a single continuous dive."
+      },
+      "creditText": "NOAA Ocean Exploration \u00b7 Seascape Alaska 2023 \u00b7 illustrative footage",
+      "overlay": {
+        "text": "One lit patch at a time",
+        "startSeconds": 0.35,
+        "endSeconds": 1.85
+      }
+    },
+    {
+      "id": "motion-s06",
+      "startSeconds": 24.13,
+      "endSeconds": 29.07,
+      "narration": "And yet we also say that more than a quarter of the seafloor has now been mapped.",
+      "source": {
+        "kind": "noaa-video",
+        "url": "https://oceanexplorer.noaa.gov/wp-content/uploads/2025/05/multimedia-animation-640x360-1.mp4",
+        "pageUrl": "https://oceanexplorer.noaa.gov/multimedia/edu-themes-seafloor-mapping-media-video-multimedia-animation/",
+        "credit": "NOAA Ocean Exploration",
+        "licenseReview": {
+          "date": "2026-09-27",
+          "note": "Specific media page reviewed for the approved moving opening: credited to NOAA Ocean Exploration, no third-party copyright exception shown. NOAA FAQ public-domain policy applies."
+        }
+      },
+      "provenance": "archival_documentary",
+      "direction": {
+        "camera": "still",
+        "transition": {
+          "type": "cut"
+        },
+        "mediaStartSeconds": 11
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "indirecta",
+        "note": "Visual content inspected and approved in the moving opening; illustrative footage, not a single continuous dive."
+      },
+      "creditText": "NOAA Ocean Exploration \u00b7 sonar animation \u00b7 Animation of Multibeam Echosounder",
+      "overlay": {
+        "text": "More than \u00bc mapped",
+        "startSeconds": 1.25,
+        "endSeconds": 4.65
+      }
+    },
+    {
+      "id": "motion-s07",
+      "startSeconds": 29.07,
+      "endSeconds": 33.54,
+      "narration": "Both statements are true. They describe two very different kinds of knowing.",
+      "source": {
+        "kind": "noaa-video",
+        "url": "https://oceanexplorer.noaa.gov/wp-content/uploads/2025/05/multimedia-animation-640x360-1.mp4",
+        "pageUrl": "https://oceanexplorer.noaa.gov/multimedia/edu-themes-seafloor-mapping-media-video-multimedia-animation/",
+        "credit": "NOAA Ocean Exploration",
+        "licenseReview": {
+          "date": "2026-09-27",
+          "note": "Specific media page reviewed for the approved moving opening: credited to NOAA Ocean Exploration, no third-party copyright exception shown. NOAA FAQ public-domain policy applies."
+        }
+      },
+      "provenance": "archival_documentary",
+      "direction": {
+        "camera": "still",
+        "transition": {
+          "type": "cut"
+        },
+        "mediaStartSeconds": 16
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "directa",
+        "note": "Continues the preceding sonar animation to explain remote mapping; no black text card."
+      },
+      "repeatOf": "motion-s06",
+      "creditText": "NOAA Ocean Exploration \u00b7 sonar animation",
+      "overlay": {
+        "text": "Mapped from afar \u00b7 Seen up close",
+        "source": "Two different kinds of knowledge"
+      }
+    },
+    {
+      "id": "motion-s08",
+      "startSeconds": 33.54,
+      "endSeconds": 42.253,
+      "narration": "So how do we actually know what is down there? And what is the difference between having a map of a place and having truly looked at it?",
+      "source": {
+        "kind": "existing",
+        "path": "ocean-deep-001/samples/episode/assets/s08.mp4"
+      },
+      "provenance": "stock_illustrative",
+      "direction": {
+        "camera": "still",
+        "transition": {
+          "type": "cut"
+        }
+      },
+      "review": {
+        "status": "approved",
+        "relevance": "indirecta",
+        "note": "Pexels License (\u00c7a\u011fr\u0131 KANMAZ, 1920x1080, 10 s): calm ocean surface at dusk; present-day surface, not deep-sea footage"
+      }
+    }
+  ],
+  "soundCues": [
+    {
+      "id": "m1-bed",
+      "track": "atomivid-suspense-a-v1",
+      "role": "music",
+      "startSeconds": 0,
+      "endSeconds": 42.253,
+      "fadeInSeconds": 2.0,
+      "fadeOutSeconds": 1.2,
+      "loop": true,
+      "gain": 0.8
+    },
+    {
+      "id": "ocean-ambience",
+      "track": "atomivid-ocean-ambience-v1",
+      "role": "ambience",
+      "startSeconds": 0,
+      "endSeconds": 24.13,
+      "gain": 0.3,
+      "fadeInSeconds": 1,
+      "fadeOutSeconds": 1,
+      "loop": false
+    },
+    {
+      "id": "sonar",
+      "track": "atomivid-ocean-sonar-v1",
+      "role": "effect",
+      "startSeconds": 25,
+      "endSeconds": 28,
+      "gain": 0.25
+    }
+  ],
+  "missingSound": [],
+  "captionStyle": "word-highlight"
+}

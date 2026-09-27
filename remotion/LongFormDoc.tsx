@@ -15,6 +15,7 @@ import { coverWindowSeconds, fitCover, type CoverSpec } from "./cover-rules";
 import { OpeningTitle } from "./OpeningTitle";
 import { MAP_LAND, landPath, projectLonLat, type MapLandRegion } from "./map-land";
 import { useCoverFont } from "./cover-font";
+import { overlayIssue, type SceneOverlay } from "./scene-overlay";
 
 /**
  * Composición 16:9 para Long Form — independiente de VerticalReel.tsx
@@ -77,6 +78,7 @@ export type LongFormGraphicAsset = {
 };
 
 export type LongFormShotScene = {
+  overlay?: SceneOverlay;
   id: string;
   startSeconds: number;
   endSeconds: number;
@@ -149,6 +151,12 @@ export function LongFormDoc({
 }: LongFormDocProps) {
   const { fps, durationInFrames } = useVideoConfig();
   validateDirection(scenes, soundCues, durationSeconds);
+  for (const scene of scenes) {
+    if (scene.overlay) {
+      const issue = overlayIssue(scene.overlay, scene.endSeconds - scene.startSeconds);
+      if (issue) throw new Error(`${scene.id}: ${issue}`);
+    }
+  }
   const expandedCues = soundCues ? expandLoopingCues(soundCues) : undefined;
   useCoverFont(Boolean(opening));
 
@@ -298,6 +306,14 @@ function SceneRenderer({
         <AbsoluteFill style={{ background: `radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,${look.vignette}) 100%)` }} />
       )}
       <SceneLabels scene={scene} language={language} />
+      {scene.overlay && frame / fps >= (scene.overlay.startSeconds ?? 0) && frame / fps < (scene.overlay.endSeconds ?? scene.endSeconds - scene.startSeconds) && (
+        <div style={{ position: "absolute", left: 72, right: 180, bottom: 300, fontFamily: "Arial, Helvetica, sans-serif", color: "white", textShadow: "0 2px 8px black" }}>
+          <div style={{ display: "inline-block", maxWidth: "100%", padding: "18px 28px", background: "rgba(7,15,25,0.70)", borderLeft: "5px solid #ffd166", borderRadius: 8 }}>
+            <div style={{ fontSize: 64, fontWeight: 700, lineHeight: 1.18 }}>{scene.overlay.text}</div>
+            {scene.overlay.source && <div style={{ fontSize: 28, lineHeight: 1.3, marginTop: 12, color: "#e0e7ee" }}>{scene.overlay.source}</div>}
+          </div>
+        </div>
+      )}
     </AbsoluteFill>
   );
 }

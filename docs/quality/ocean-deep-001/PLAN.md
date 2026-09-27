@@ -460,3 +460,18 @@ Tarifas: Veo 3.1 Fast a 1080p, US$0,96 por clip de 8 s; imagen IA, reserva de US
   La aprobación editorial de FFmpeg no sustituye esa comprobación.
 - La aprobación del presupuesto permanece vigente mientras se resuelve el
   acceso; no hace falta solicitarla de nuevo.
+
+### 13.1 Acceso y preparación del render de producción
+
+- Consulta gratuita verificada: run `36337720591`, job `108671673493`. b1
+  `COMPLETED`, b2–b7 pendientes; 10.009 caracteres necesarios, 14.093 disponibles
+  y registro acumulado US$2,1787. Ningún consumo nuevo en esta consulta.
+- Preparados: importación NOAA con revisión por archivo y límites de descarga,
+  overlays sobre medios, sonidos propios de ambiente y sonar, rechazo de tarjetas
+  del océano de más de 1,5 s. El estado preparado queda ligado al hash del
+  manifiesto para impedir renders con recursos de otra versión.
+- `motion-opening-manifest.json`: 42,253 s de comprobación de producción, voz y
+  clips existentes reutilizados, metraje NOAA y subtítulos con palabra resaltada.
+  No requiere proveedores de pago. Aún pendiente de ejecutar y revisar en Remotion.
+- 40 pruebas relevantes pasan; typecheck pasa tras generar los tipos de Next.
+  La verificación real de la página NOAA de Atolla pasó desde este entorno.

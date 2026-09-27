@@ -47,6 +47,8 @@ async function main() {
   const { paidPlan, reservePaid, settlePaid, releasePaid, committedUsd, VEO_CLIP_SECONDS, leadingBeats } = await import("../src/lib/video/long-form/sample-manifest");
   const { stitchNarrationParts } = await import("../src/lib/video/long-form/timeline");
   const { findMusicBed, renderMusicBedWav } = await import("../src/lib/tts/music-beds");
+  const { findOceanSound, renderOceanSound } = await import("../src/lib/video/long-form/ocean-sounds");
+  const { assertNoaaEvidence, fetchNoaaBytes, sourceSha256 } = await import("../src/lib/video/long-form/noaa-video");
   const { AI_VIDEO_STORAGE_BUCKET, readAiVideoClipRecord, validateExistingAiVideoClip } = await import("../src/lib/video/long-form/ai-video-storage");
   const { wrapDurableVideoProvider } = await import("../src/lib/video/long-form/ai-video-durable-provider");
   const { validateReferenceImageBuffer } = await import("../src/lib/video/long-form/ai-video-reference-image");
@@ -74,6 +76,7 @@ async function main() {
   const paidCalls: { key: string; provider: string; costUsd: number }[] = [];
   const manifestPath = process.env.SAMPLE_MANIFEST ?? "docs/quality/m2-panama-opening/sample-manifest.json";
   const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8")) as SampleManifest;
+  const manifestSha256 = sourceSha256(Buffer.from(JSON.stringify(manifest)));
   if (allowPaid) assertEpisodeBudget(budgetUsd, manifest.requestId, manifest.outputPrefix, "assets");
   const outDir = process.env.SAMPLE_OUT_DIR ?? path.join(process.cwd(), "quality-sample");
   await fs.mkdir(outDir, { recursive: true });
@@ -149,7 +152,20 @@ async function main() {
       let ext: string;
       let mediaType: "image" | "video" = "image";
       let meta: Record<string, unknown> = {};
-      if (src.kind === "pexels-video") {
+      if (src.kind === "noaa-video") {
+        const page = await fetchNoaaBytes(src.pageUrl, 8 * 1024 * 1024);
+        assertNoaaEvidence(src, page.toString("utf8"));
+        const raw = await fetchNoaaBytes(src.url, 200 * 1024 * 1024);
+        const input = path.join(tmp, `${sceneId}-noaa-input`);
+        const output = path.join(tmp, `${sceneId}-noaa.mp4`);
+        await fs.writeFile(input, raw);
+        await run("ffmpeg", ["-y", "-v", "error", "-i", input, "-an", "-vf", "scale=w='min(1920,iw)':h=-2", "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-maxrate", "3M", "-bufsize", "6M", "-pix_fmt", "yuv420p", "-movflags", "+faststart", output]);
+        buffer = await fs.readFile(output);
+        if (buffer.length > 49 * 1024 * 1024) throw new Error(`${sceneId}: NOAA transcode exceeds storage limit; select a shorter source`);
+        ext = "mp4";
+        mediaType = "video";
+        meta = { provider: "noaa-ocean-exploration", sourceId: src.url, pageUrl: src.pageUrl, author: src.credit, license: "Public domain (NOAA; per-file review)", licenseReview: src.licenseReview, sourceSha256: sourceSha256(raw), evidenceSha256: sourceSha256(page), sourceUrl: src.url };
+      } else if (src.kind === "pexels-video") {
         const key = process.env.PEXELS_API_KEY;
         if (!key) throw new Error("PEXELS_API_KEY requerido");
         const video = (await (await fetch(`https://api.pexels.com/videos/videos/${src.id}`, { headers: { Authorization: key } })).json()) as {
@@ -447,6 +463,14 @@ async function main() {
     // Pistas: biblioteca con procedencia registrada; duración verificada (sin bucles salvo que se pidan).
     const sounds: Record<string, unknown>[] = [];
     for (const cue of manifest.soundCues) {
+      const ownSound = findOceanSound(cue.track);
+      if (ownSound) {
+        const storagePath = `${prefix}/music/${ownSound.id}.wav`;
+        await upload(storagePath, renderOceanSound(ownSound), "audio/wav");
+        if (!cue.loop && (cue.sourceStartSeconds ?? 0) + cue.endSeconds - cue.startSeconds > ownSound.seconds + 1e-3) throw new Error(`${cue.id}: sound source too short`);
+        sounds.push({ ...cue, bucket, storagePath, title: ownSound.id, author: "Atomivid (síntesis propia)", license: "Original algorithmic sound; no third-party recordings", provider: "atomivid-ocean-sound", trackDurationSeconds: ownSound.seconds });
+        continue;
+      }
       // Fondo propio (src/lib/tts/music-beds.ts): síntesis determinista, sin material de terceros; se sube como WAV.
       const bed = findMusicBed(cue.track);
       if (bed) {
@@ -475,7 +499,7 @@ async function main() {
     const voicePath = `${prefix}/voice.${narrated.extension}`;
     await upload(voicePath, narrated.audioBuffer, narrated.mimeType);
 
-    const state = { manifest: manifestPath, preparedAt: new Date().toISOString(), narrationSeconds: narrated.durationSeconds, voicePath, voiceMime: narrated.mimeType, scenes: prepared, sounds, issues, missingSound: manifest.missingSound, providerCalls: { paid: paidCalls.length, calls: paidCalls, spentThisRunUsd: +paidCalls.reduce((a, c) => a + c.costUsd, 0).toFixed(4), committedUsd: committedUsd(ledger) } };
+    const state = { manifest: manifestPath, manifestSha256, preparedAt: new Date().toISOString(), narrationSeconds: narrated.durationSeconds, voicePath, voiceMime: narrated.mimeType, scenes: prepared, sounds, issues, missingSound: manifest.missingSound, providerCalls: { paid: paidCalls.length, calls: paidCalls, spentThisRunUsd: +paidCalls.reduce((a, c) => a + c.costUsd, 0).toFixed(4), committedUsd: committedUsd(ledger) } };
     await upload(`${prefix}/state/prepared.json`, Buffer.from(JSON.stringify(state, null, 2)), "application/json");
     await fs.writeFile(path.join(outDir, "prepared.json"), JSON.stringify(state, null, 2));
     for (let i = 0; i < tiles.length; i += 15) {
@@ -497,6 +521,7 @@ async function main() {
   const stateText = await stateBlob.text();
   console.log(`@@STATE ${JSON.stringify(JSON.parse(stateText))}`);
   const state = JSON.parse(stateText) as {
+    manifestSha256?: string;
     voicePath: string;
     scenes: {
       sceneId: string; objectPath: string; mediaType: "image" | "video" | "graphic";
@@ -506,6 +531,7 @@ async function main() {
     }[];
     sounds: { id: string; bucket?: string; storagePath: string; role: "music" | "ambience" | "effect"; startSeconds: number; endSeconds: number; sourceStartSeconds?: number; gain?: number; fadeInSeconds?: number; fadeOutSeconds?: number; loop?: boolean; trackDurationSeconds?: number }[];
   };
+  if (state.manifestSha256 !== manifestSha256) throw new Error("El manifiesto cambió desde prepare; preparar gratuitamente los recursos antes de renderizar");
   const fullDuration = narrated.durationSeconds + manifest.tailSeconds;
   // Ventana: el técnico es corto por defecto; una ventana explícita permite comparar aperturas (A/B) también en aprobación.
   const requestedWindow = Number(process.env.RENDER_WINDOW_SEC || (purpose === "technical" ? 12 : fullDuration));
@@ -530,6 +556,7 @@ async function main() {
       direction: prep.camera ? { ...scene.direction, camera: prep.camera } : scene.direction,
       provenance: prep.provenance ?? scene.provenance,
       creditText: prep.placeholder ? prep.creditText : scene.creditText,
+      overlay: scene.overlay,
       pending: [scene.review.status === "approved" ? undefined : scene.review.note || "revisión pendiente", prep.pending].filter(Boolean).join(" · ") || undefined,
     });
   }

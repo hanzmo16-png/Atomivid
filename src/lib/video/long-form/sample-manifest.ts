@@ -18,10 +18,13 @@ import type { SceneDirection } from "../../../../remotion/long-form-direction";
 import type { SceneProvenance } from "../../../../remotion/long-form-card-fit";
 import { cutsThroughWord } from "./scene-anchoring";
 import type { DocumentaryGraphicSpec } from "./diagram-map";
+import { overlayIssue, type SceneOverlay } from "../../../../remotion/scene-overlay";
+import type { NoaaVideoSource } from "./noaa-video";
 
 export type SampleCrop = { x0: number; y0: number; x1: number; y1: number };
 
 export type FreeSampleSource =
+  | NoaaVideoSource
   | { kind: "pexels-video"; id: number }
   | { kind: "pexels-photo"; id: number }
   | { kind: "commons"; title: string; crop?: SampleCrop }
@@ -49,6 +52,7 @@ export type VeoClipSource = {
 export type SampleSource = FreeSampleSource | VeoClipSource;
 
 export type SampleScene = {
+  overlay?: SceneOverlay;
   id: string;
   startSeconds: number;
   endSeconds: number;
@@ -121,7 +125,7 @@ export type SampleManifest = {
 export type ManifestIssue = { sceneId: string; code: string; message: string };
 
 const freeKey = (s: FreeSampleSource): string =>
-  s.kind === "pexels-video" || s.kind === "pexels-photo" ? `${s.kind}:${s.id}` : s.kind === "commons" ? `commons:${s.title}` : s.kind === "data-map" ? `map:${s.spec}` : s.kind === "graphic" ? `graphic:${JSON.stringify(s.spec)}` : `existing:${s.path}`;
+  s.kind === "noaa-video" ? `noaa:${s.url}` : s.kind === "pexels-video" || s.kind === "pexels-photo" ? `${s.kind}:${s.id}` : s.kind === "commons" ? `commons:${s.title}` : s.kind === "data-map" ? `map:${s.spec}` : s.kind === "graphic" ? `graphic:${JSON.stringify(s.spec)}` : `existing:${s.path}`;
 
 /** Recursos que una escena pone en pantalla (un clip IA cuenta también la foto de archivo que anima). */
 const sourceKeys = (s: SampleSource): string[] =>
@@ -154,6 +158,14 @@ export function validateSampleManifest(
   }
   const seen = new Map<string, string>();
   for (const [i, scene] of scenes.entries()) {
+    if (scene.overlay) {
+      const issue = overlayIssue(scene.overlay, scene.endSeconds - scene.startSeconds);
+      if (issue) issues.push({ sceneId: scene.id, code: "overlay", message: issue });
+      if (scene.source.kind === "graphic") issues.push({ sceneId: scene.id, code: "overlay_background", message: "overlay needs media, not a graphic card" });
+    }
+    if (manifest.requestId === "ocean-deep-001" && scene.source.kind === "graphic" && scene.source.spec.kind === "text" && scene.endSeconds - scene.startSeconds > 1.5 + 1e-6) {
+      issues.push({ sceneId: scene.id, code: "ocean_card_duration", message: "ocean text-only cards must be at most 1.5 seconds; use text over moving video" });
+    }
     if (scene.endSeconds <= scene.startSeconds) issues.push({ sceneId: scene.id, code: "duration", message: "duración no positiva" });
     if (i > 0 && Math.abs(scenes[i - 1].endSeconds - scene.startSeconds) > 1e-6) {
       issues.push({ sceneId: scene.id, code: "contiguity", message: `hueco o solape con ${scenes[i - 1].id}` });
