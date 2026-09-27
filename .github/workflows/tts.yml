@@ -23,13 +23,17 @@ permissions:
 jobs:
   tts:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Episodios largos (piloto): el worker se detiene solo entre fragmentos al agotar
+    # TTS_WORKER_BUDGET_SECONDS (lo generado se conserva y «Reanudar» sigue), antes de estos topes.
+    timeout-minutes: 60
     steps:
-      # Registro para la prueba autorizada en Preview; checkout fijado al commit revisado de PR #16.
-      # Restaurar el flujo normal al fusionar PR #16.
+      # Registro para la prueba autorizada de podcast en Preview: checkout fijado al commit revisado
+      # de PR #17 (db4d200, incluye PR #16). Atiende también las piezas del Preview de voces
+      # (compatibilidad verificada: docs/PODCAST-PREVIEW-ACTIVATION.md). voice-clone.yml no cambia
+      # (sigue en 0a53459). Restaurar el flujo normal al fusionar PR #16 y PR #17.
       - uses: actions/checkout@v4
         with:
-          ref: 0a53459fce464233220ff3003f03714b501dc195
+          ref: db4d20020eb1f76c4824235d653b1df484948097
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -38,10 +42,11 @@ jobs:
       - name: Instalar ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Generar audio
-        timeout-minutes: 15
+        timeout-minutes: 52
         run: npx tsx scripts/tts-worker.ts
         env:
           ATOMIVID_RUNTIME: production
+          TTS_WORKER_BUDGET_SECONDS: "2700"
           TTS_JOB_ID: ${{ github.event.client_payload.jobId || inputs.job_id }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
