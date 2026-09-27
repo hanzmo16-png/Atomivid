@@ -1,0 +1,25 @@
+{
+  "requestId": "ocean-deep-001",
+  "note": "Second, narrower Commons pass for b1 only (free). Round 1 (runs 36319717981/36319901385) returned no public-domain result for the s1 reference photo and only a 400x300 jellyfish for s3; everything else from round 1 is kept and not searched again.",
+  "scenes": [
+    {
+      "id": "b1-s1",
+      "passage": "Veo reference: ROV lights over pale sediment (public-domain NOAA photo)",
+      "pexels": [],
+      "commons": [
+        "Deep Discoverer NOAA Okeanos Explorer",
+        "Deep Discoverer ROV lights seafloor sediment"
+      ]
+    },
+    {
+      "id": "b1-s3",
+      "passage": "'a small animal drifting through the beam'",
+      "pexels": [],
+      "commons": [
+        "Okeanos Explorer jellyfish",
+        "Okeanos Explorer medusa deep sea",
+        "NOAA deep sea siphonophore ROV"
+      ]
+    }
+  ]
+}
