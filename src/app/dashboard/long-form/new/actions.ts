@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
 import { generateDocumentaryScript } from "@/lib/video/long-form/documentary-script";
 import type { LongFormScriptJson } from "@/lib/video/long-form/produce";
-import { parseOpenQuestions, parseSources } from "./parse";
+import { parseLongFormLanguage, parseOpenQuestions, parseSources } from "./parse";
 import { generateDiagnosticId } from "@/lib/video/render-error";
 
 const MIN_DURATION_MINUTES = 3;
@@ -23,7 +23,7 @@ const MAX_DURATION_MINUTES = 15;
  */
 function longFormFormRedirect(
   error: string,
-  fields: { topic: string; durationMinutes: string; sources: string; openQuestions: string },
+  fields: { topic: string; durationMinutes: string; sources: string; openQuestions: string; language: string },
 ): never {
   const params = new URLSearchParams({
     error,
@@ -31,6 +31,7 @@ function longFormFormRedirect(
     duration_minutes: fields.durationMinutes,
     sources: fields.sources,
     open_questions: fields.openQuestions,
+    language: fields.language,
   });
   redirect(`/dashboard/long-form/new?${params.toString()}`);
 }
@@ -74,7 +75,12 @@ export async function createLongFormVideoRequest(formData: FormData) {
   const durationMinutes = Number(durationMinutesRaw);
   const sourcesRaw = String(formData.get("sources") ?? "");
   const openQuestionsRaw = String(formData.get("open_questions") ?? "");
-  const submittedFields = { topic, durationMinutes: durationMinutesRaw, sources: sourcesRaw, openQuestions: openQuestionsRaw };
+  const language = parseLongFormLanguage(formData.get("language"));
+  const submittedFields = { topic, durationMinutes: durationMinutesRaw, sources: sourcesRaw, openQuestions: openQuestionsRaw, language: language ?? "es" };
+
+  if (!language) {
+    longFormFormRedirect("Selecciona español o inglés para la narración.", submittedFields);
+  }
 
   if (topic.length < 3 || topic.length > 200) {
     longFormFormRedirect("El tema debe tener entre 3 y 200 caracteres.", submittedFields);
@@ -105,7 +111,7 @@ export async function createLongFormVideoRequest(formData: FormData) {
     beats = await generateDocumentaryScript({
       researchPack: { topic, sources, openQuestions },
       mode: "curiosity_documentary",
-      language: "es",
+      language,
       targetDurationSeconds: durationMinutes * 60,
     });
   } catch (err) {
@@ -124,7 +130,7 @@ export async function createLongFormVideoRequest(formData: FormData) {
     topic,
     style: "Documental",
     duration_seconds: durationMinutes * 60,
-    language: "es",
+    language,
     mode: "long_form",
     aspect_ratio: "16:9",
     script_json: scriptJson,

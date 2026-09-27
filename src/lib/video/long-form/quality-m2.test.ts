@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fitLargeCard, provenanceLabel, LARGE_CARD } from "../../../../remotion/long-form-card-fit";
+import { fitLargeCard, pendingLabel, provenanceLabel, LARGE_CARD } from "../../../../remotion/long-form-card-fit";
 import { assertApprovalReady, cardFitIssues, RenderApprovalError } from "./render-approval";
 import { cutsThroughWord, snapBoundaryToSpeech } from "./scene-anchoring";
 import { requiredClipSeconds, validateSampleManifest, blockingIssues, type SampleManifest, type SampleScene } from "./sample-manifest";
@@ -25,6 +25,9 @@ test("tarjeta grande: tamaños mínimos legibles y rechazo por desbordamiento (n
 
 test("rótulo de procedencia: solo la recreación IA se rotula, y siempre", () => {
   assert.equal(provenanceLabel("ai_recreation"), "Recreación IA");
+  assert.equal(provenanceLabel("ai_recreation", "en"), "AI recreation");
+  assert.equal(pendingLabel("en"), "Pending material");
+  assert.equal(pendingLabel(), "Material pendiente");
   assert.equal(provenanceLabel("archival_documentary"), null);
   assert.equal(provenanceLabel(undefined), null);
 });

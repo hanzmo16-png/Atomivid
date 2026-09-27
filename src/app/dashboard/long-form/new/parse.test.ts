@@ -1,6 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAX_OPEN_QUESTIONS, MAX_SOURCES, parseOpenQuestions, parseSources } from "./parse";
+import { MAX_OPEN_QUESTIONS, MAX_SOURCES, parseLongFormLanguage, parseOpenQuestions, parseSources } from "./parse";
+
+test("documentary language preserves old forms and rejects unsupported or file input", () => {
+  assert.equal(parseLongFormLanguage(null), "es");
+  assert.equal(parseLongFormLanguage(undefined), "es");
+  assert.equal(parseLongFormLanguage("en"), "en");
+  assert.equal(parseLongFormLanguage("es"), "es");
+  for (const value of ["", "fr", "EN", " en ", new Blob(["en"])]) {
+    assert.equal(parseLongFormLanguage(value), null);
+  }
+});
 
 test("parseSources ignora líneas vacías y separa título/locator/nota por '|'", () => {
   const sources = parseSources("Título A | https://a.example | nota A\nTítulo B\n\n  ");

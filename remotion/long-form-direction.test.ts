@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { soundCueVolume, validateDirection, transitionFrames, cameraTransform, lookStyle, type SoundCue } from './long-form-direction';
+import { expandLoopingCues, soundCueVolume, validateDirection, transitionFrames, cameraTransform, lookStyle, type SoundCue } from './long-form-direction';
 const cue: SoundCue = {id:'bed',src:'local.wav',role:'music',startSeconds:5,endSeconds:15,fadeInSeconds:1,fadeOutSeconds:1};
 test('cue respects its absolute start/end and ramps smoothly', () => {
   assert.equal(soundCueVolume(cue,4,[cue],[]),0);
@@ -52,4 +52,22 @@ test('look: absent changes nothing; reframe composes with the camera move; grade
   for (const bad of [{ scale: 2 }, { scale: 0.9 }, { contrast: 3 }, { saturation: 0 }, { vignette: 1 }, { originX: -0.1 }, { scale: Number.NaN }]) {
     assert.throws(() => validateDirection(scene(bad), [], 2), /Invalid look/, JSON.stringify(bad));
   }
+});
+test('a looping cue with a known source length is split into back-to-back segments (no player loop)', () => {
+  const bed: SoundCue = {id:'bed',src:'bed.wav',role:'music',startSeconds:0,endSeconds:130,loop:true,sourceDurationSeconds:48,fadeInSeconds:1.5,fadeOutSeconds:2};
+  const parts = expandLoopingCues([bed]);
+  assert.deepEqual(parts.map((p)=>[p.startSeconds,p.endSeconds]), [[0,48],[48,96],[96,130]]);
+  assert.ok(parts.every((p)=>p.loop===false && (p.sourceStartSeconds ?? 0)===0));
+  assert.deepEqual(parts.map((p)=>[p.fadeInSeconds,p.fadeOutSeconds]), [[1.5,0],[0,0],[0,2]]);
+  // Continuous level across a boundary: same volume just before and at the seam.
+  const before = soundCueVolume(parts[0], 47.99, parts, []), at = soundCueVolume(parts[1], 48, parts, []);
+  assert.ok(Math.abs(before - at) < 1e-9 && at > 0);
+  // Offset source: the first segment only plays what is left of the source.
+  const off = expandLoopingCues([{...bed, sourceStartSeconds: 8}]);
+  assert.deepEqual(off.slice(0,2).map((p)=>[p.startSeconds,p.endSeconds,p.sourceStartSeconds]), [[0,40,8],[40,88,0]]);
+  // Unknown length, no loop, or short enough: unchanged except loop off when it fits.
+  assert.deepEqual(expandLoopingCues([{...bed, sourceDurationSeconds: undefined}]), [{...bed, sourceDurationSeconds: undefined}]);
+  assert.equal(expandLoopingCues([{...bed, endSeconds: 40}])[0].loop, false);
+  const plain = {...bed, loop: false};
+  assert.deepEqual(expandLoopingCues([plain]), [plain]);
 });

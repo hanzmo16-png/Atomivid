@@ -40,6 +40,7 @@ export default async function NewLongFormVideoPage({
     duration_minutes?: string;
     sources?: string;
     open_questions?: string;
+    language?: string;
   }>;
 }) {
   // QA real (2026-09-25, "FORM STATE LOST ON ERROR"): tras un error
@@ -48,7 +49,7 @@ export default async function NewLongFormVideoPage({
   // aquí como defaultValue para que nunca tenga que volver a escribir
   // tema/fuentes/preguntas. Sin submit previo, estos params no existen y
   // los campos quedan vacíos/con su default de siempre (10 minutos).
-  const { error, topic, duration_minutes: durationMinutes, sources, open_questions: openQuestions } = await searchParams;
+  const { error, topic, duration_minutes: durationMinutes, sources, open_questions: openQuestions, language } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -88,6 +89,13 @@ export default async function NewLongFormVideoPage({
               className={INPUT_CLASS}
               placeholder="Ej. Göbekli Tepe: el misterio de 11,000 años que cambió nuestra historia"
             />
+          </Field>
+
+          <Field id="language" label="Idioma de la narración" hint="El guion y la narración se generarán en el idioma elegido.">
+            <select id="language" name="language" required defaultValue={language === "en" ? "en" : "es"} className={INPUT_CLASS}>
+              <option value="es">Español</option>
+              <option value="en">English</option>
+            </select>
           </Field>
 
           <Field id="duration_minutes" label="Duración objetivo (minutos)" hint="Entre 3 y 15 minutos — 8-12 es lo recomendado.">

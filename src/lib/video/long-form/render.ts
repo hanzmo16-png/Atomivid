@@ -26,6 +26,8 @@ const COMPOSITION_ID = "LongFormDoc";
 export type RenderLongFormDocInput = {
   audioUrl: string;
   musicUrl?: string;
+  /** Actual audio source length, for continuous music without player looping. */
+  musicDurationSeconds?: number;
   soundCues?: SoundCue[];
   scenes: LongFormShotScene[];
   captions: LongFormCaption[];
@@ -49,6 +51,8 @@ export type RenderLongFormDocInput = {
   purpose?: "technical" | "approval";
   /** Portada de apertura opcional (validada aquí: legibilidad, márgenes, subtítulos y rótulos). */
   opening?: CoverSpec;
+  /** Idioma de los rótulos en pantalla. Ausente = español, como siempre. */
+  language?: "es" | "en";
 };
 
 export class CoverValidationError extends Error {
@@ -59,8 +63,8 @@ export class CoverValidationError extends Error {
 }
 
 /** La portada se valida contra la primera escena: con rótulos arriba a la izquierda, el título no puede taparlos. */
-export function assertOpeningValid(opening: CoverSpec, firstScene: LongFormShotScene | undefined): void {
-  const labelsTopLeft = Boolean(firstScene && (provenanceLabel(firstScene.provenance) || firstScene.creditText || firstScene.pending));
+export function assertOpeningValid(opening: CoverSpec, firstScene: LongFormShotScene | undefined, language: "es" | "en" = "es"): void {
+  const labelsTopLeft = Boolean(firstScene && (provenanceLabel(firstScene.provenance, language) || firstScene.creditText || firstScene.pending));
   const errors = coverErrors(validateCover(opening, "video", { labelsTopLeft }));
   if (errors.length > 0) throw new CoverValidationError("portada", errors);
 }
@@ -80,7 +84,7 @@ export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<
   validateDirection(input.scenes, input.soundCues, input.durationSeconds);
   assertCardsFit(input.scenes);
   if (input.purpose === "approval") assertApprovalReady(input.scenes);
-  if (input.opening) assertOpeningValid(input.opening, input.scenes[0]);
+  if (input.opening) assertOpeningValid(input.opening, input.scenes[0], input.language);
   if (input.soundCues !== undefined && input.musicUrl) {
     // Las pistas explícitas REEMPLAZAN la música anterior (contrato de Work): pasar ambas es un error del llamador.
     throw new Error("render: soundCues y musicUrl a la vez — la música se duplicaría");
@@ -96,6 +100,7 @@ export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<
   const inputProps = {
     audioUrl: input.audioUrl,
     musicUrl: input.musicUrl,
+    musicDurationSeconds: input.musicDurationSeconds,
     soundCues: input.soundCues,
     scenes: input.scenes,
     captions: input.captions,
@@ -104,6 +109,7 @@ export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<
     accentColor: input.accentColor,
     showLogo: input.showLogo ?? false,
     ...(input.opening ? { opening: input.opening } : {}),
+    ...(input.language ? { language: input.language } : {}),
   };
 
   const composition = await selectComposition({
