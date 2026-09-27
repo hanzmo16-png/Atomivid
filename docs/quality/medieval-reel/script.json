@@ -1,0 +1,65 @@
+{
+  "title": "Mantener el rumbo",
+  "segments": [
+    {
+      "text": "Nadie le prometió un camino fácil. Aun así, tomó las riendas y avanzó sin dudar.",
+      "visualQuery": "knight riding warhorse on road",
+      "visualConcepts": [
+        "knight in weathered steel plate armor, great helm and dark cloak, with his black warhorse",
+        "armored knight on horseback on a stony road among ruined walls"
+      ],
+      "energy": "medium",
+      "emphasisWords": [
+        "riendas"
+      ],
+      "visibleAction": "the knight urges the black warhorse from a standstill into a steady walk forward along the stony road",
+      "actionStart": "the knight sits in the saddle of the still black warhorse on the stony road, reins in his hands, one front hoof slightly lifted",
+      "actionEnd": "horse and knight walk forward, fully in frame, hooves scattering dust and small stones"
+    },
+    {
+      "text": "El viento golpeaba de frente y la cuesta no acababa, pero siguió, paso a paso.",
+      "visualQuery": "knight leading horse up slope",
+      "visualConcepts": [
+        "the same knight on foot leading his black warhorse by the reins up a steep rocky slope",
+        "armored knight climbing a windswept mountain slope with his horse"
+      ],
+      "energy": "medium",
+      "emphasisWords": [
+        "paso"
+      ],
+      "visibleAction": "the knight climbs one step up the rocky slope, pulling the horse by the reins against the wind",
+      "actionStart": "the knight stands on the slope leaning into the wind, reins in his hand, the horse just below him",
+      "actionEnd": "the knight is one step higher, the horse following him up, his cloak blown by the wind, both fully in frame"
+    },
+    {
+      "text": "Cuando el cansancio lo derribó, clavó la espada en la tierra y volvió a levantarse.",
+      "visualQuery": "knight rising with sword",
+      "visualConcepts": [
+        "the same knight kneeling on one knee on the dirt road, hands on his planted sword, his horse behind",
+        "exhausted armored knight leaning on his sword on a muddy road"
+      ],
+      "energy": "low",
+      "emphasisWords": [
+        "levantarse"
+      ],
+      "visibleAction": "the knight pushes himself up from one knee, leaning on his sword, and stands upright",
+      "actionStart": "the knight kneels on one knee on the dirt road, both hands on the hilt of his sword planted in the ground, head bowed",
+      "actionEnd": "the knight stands upright, sword held at his side, facing forward, the horse still behind him"
+    },
+    {
+      "text": "Mantener el rumbo no es no caer nunca. Es levantarse cada vez y seguir adelante.",
+      "visualQuery": "knight riding toward castle",
+      "visualConcepts": [
+        "the same knight riding the black warhorse along a high ridge toward a distant dark castle",
+        "lone armored rider on a ridge at dusk facing a distant castle"
+      ],
+      "energy": "medium",
+      "emphasisWords": [
+        "rumbo"
+      ],
+      "visibleAction": "the knight rides the black warhorse forward along the ridge toward the distant castle",
+      "actionStart": "the knight sits still on the black warhorse at the edge of the ridge, facing the distant castle on the horizon",
+      "actionEnd": "horse and rider walk forward along the ridge toward the castle, still fully in frame, hooves raising a little dust"
+    }
+  ]
+}

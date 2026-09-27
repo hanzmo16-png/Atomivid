@@ -27,7 +27,7 @@ import sharp from "sharp";
 import { GenerativeProviderError, type GenerativeAsset, type VideoGenerationRequest, type VideoProvider } from "@/lib/providers/types";
 import { NotSentError, PaidBudgetExceededError, type FailureClass, type PaidLedger, type SettleOutcome } from "./paid-ledger";
 import { StorageStateUnknownError, readJsonState, uploadWithRetry, writeJsonState } from "./storage-state";
-import { REEL_ANIMATION, animatedClipObjectPrefix, animationClipCostUsd, type SceneAnimationSpec } from "./animation";
+import { REEL_ANIMATION, animatedClipObjectPrefix, animationClipCostUsd, type AnimationFraming, type SceneAnimationSpec } from "./animation";
 
 export type AnimationMarker = {
   status: "started" | "submitted" | "released" | "generated_invalid" | "generated_unstored" | "stored" | "failed_operation";
@@ -105,18 +105,29 @@ export function looksLikeMp4(buffer: Buffer): boolean {
 }
 
 /**
- * Imagen de entrada del clip en 9:16 (1080×1920) SIN perder contenido: la
- * ilustración completa se escala para caber («contain») y se centra sobre un
- * fondo hecho con la misma imagen ampliada y desenfocada (sin recortar
- * nada de la ilustración). Gratis y determinista: se guarda una vez y se
- * reutiliza. Devuelve también el rectángulo donde quedó la ilustración.
+ * Imagen de entrada del clip en 9:16 (1080×1920). Gratis y determinista: se
+ * guarda una vez y se reutiliza. Devuelve también el rectángulo donde quedó
+ * la ilustración.
+ *  - «fit» (por defecto): SIN perder contenido; la ilustración completa se
+ *    escala para caber («contain») y se centra sobre un fondo hecho con la
+ *    misma imagen ampliada y desenfocada (bandas arriba y abajo).
+ *  - «fill»: llena el cuadro («cover», centrado), sin bandas; de una
+ *    ilustración 2:3 se recorta ≈ 7,8 % del ancho de cada lado (el prompt de
+ *    la ilustración ya pide dejar ese margen libre).
  */
 export const ANIMATION_INPUT_SIZE = { width: 1080, height: 1920 };
 
-export async function frameAnimationInput(source: Buffer): Promise<{ png: Buffer; content: { left: number; top: number; width: number; height: number } }> {
+export async function frameAnimationInput(
+  source: Buffer,
+  framing: AnimationFraming = "fit",
+): Promise<{ png: Buffer; content: { left: number; top: number; width: number; height: number } }> {
   const { width: W, height: H } = ANIMATION_INPUT_SIZE;
   const meta = await sharp(source).metadata();
   if (!meta.width || !meta.height) throw new Error("La ilustración base no tiene dimensiones legibles");
+  if (framing === "fill") {
+    const png = await sharp(source).resize(W, H, { fit: "cover", position: "centre" }).png().toBuffer();
+    return { png, content: { left: 0, top: 0, width: W, height: H } };
+  }
   const scale = Math.min(W / meta.width, H / meta.height);
   const width = Math.round(meta.width * scale);
   const height = Math.round(meta.height * scale);
@@ -135,6 +146,8 @@ export async function prepareAnimationInputImage(input: {
   baseImagePath: string;
   objectPrefix: string;
   signedUrlTtlSeconds: number;
+  /** Por defecto «fit». La ruta la distingue el objectPrefix (su clave incluye el encuadre pedido al clip). */
+  framing?: AnimationFraming;
 }): Promise<{ path: string; url: string; sha256: string }> {
   const path = `${input.requestId}/anim-input/${input.objectPrefix}.png`;
   const storage = input.supabase.storage.from(input.bucket);
@@ -145,7 +158,7 @@ export async function prepareAnimationInputImage(input: {
   } else {
     const base = await storage.download(input.baseImagePath);
     if (base.error || !base.data) throw new StorageStateUnknownError("la ilustración base de la escena", base.error?.message ?? "vacía");
-    png = (await frameAnimationInput(Buffer.from(await base.data.arrayBuffer()))).png;
+    png = (await frameAnimationInput(Buffer.from(await base.data.arrayBuffer()), input.framing ?? "fit")).png;
     await uploadWithRetry(input.supabase, input.bucket, path, png, "image/png");
   }
   const { data, error } = await storage.createSignedUrl(path, input.signedUrlTtlSeconds);

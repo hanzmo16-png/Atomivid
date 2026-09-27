@@ -48,6 +48,7 @@ import {
   planAnimatedShots,
   planSceneAction,
   planSceneAnimation,
+  type AnimationFraming,
   type SceneAnimationSpec,
 } from "./animation";
 import { AnimatedClipUncertainError, prepareAnimationInputImage, resolveAnimatedClipForScene } from "./animated-clip";
@@ -82,6 +83,8 @@ export async function generateDirectedVideoFromScript({
   paid,
   deps,
   voice: narrationVoice,
+  animationFraming = "fit",
+  narrationSpeed,
 }: {
   supabase: SupabaseClient;
   requestId: string;
@@ -105,6 +108,13 @@ export async function generateDirectedVideoFromScript({
   deps?: { animationProvider?: VideoProvider | null; renderReel?: typeof renderVerticalReel };
   /** Voz elegida y resuelta (catálogo o «Mi voz» propia). Ausente = la voz de siempre (misma clave de caché que antes). */
   voice?: ResolvedVoice;
+  /** «Animación IA»: encuadre 9:16 de las imágenes de entrada. Por defecto «fit» (con bandas, como siempre); «fill» sin bandas. */
+  animationFraming?: AnimationFraming;
+  /**
+   * Velocidad inicial de la voz (ausente = la del proveedor, misma clave de caché que antes). Permite fijarla
+   * antes de pagar imágenes y clips (p. ej. tras comprobar con la voz ya cacheada que cada escena cabe en un clip).
+   */
+  narrationSpeed?: number;
 }): Promise<{ videoPath: string; ledger: PaidLedger }> {
   const flags = getFeatureFlags();
   const profile = PROFILES[direction.profile];
@@ -183,7 +193,7 @@ export async function generateDirectedVideoFromScript({
       const segment = segments[i];
       const concept = segment.visualConcepts?.[0] ?? segment.visualQuery;
       const styled = bible
-        ? buildAnimationBaseImagePrompt({ profile: direction.profile, bible, concept, narration: segment.text, action: planSceneAction(segment) })
+        ? buildAnimationBaseImagePrompt({ profile: direction.profile, bible, concept, narration: segment.text, action: planSceneAction(segment), framing: animationFraming })
         : buildStyledImagePrompt({ profile: direction.profile, intent: direction.intent.id, concept, narration: segment.text });
       // Presupuesto de imágenes ACUMULADO entre intentos (registro durable), no solo este intento.
       const remaining = Math.max(0, flags.maxVisualCostUsd - (ledger.summary().byKind.image?.usd ?? 0));
@@ -225,7 +235,7 @@ export async function generateDirectedVideoFromScript({
   // Caché por texto+voz+idioma+velocidad: un reintento reutiliza la voz y
   // sus tiempos ya pagados; la corrección de duración es otra entrada (y
   // otra operación del registro, «voice_retime»).
-  const narrate = (speed?: number) =>
+  const narrate = (speed: number | undefined = narrationSpeed) =>
     synthesizeNarrationCached({ supabase, bucket: STORAGE_BUCKET, requestId, voiceProvider, text: fullText, language, speed, ledger, attempt, voice: narrationVoice });
   let voice = await narrate();
   if (targetDurationSeconds !== undefined) {
@@ -311,6 +321,7 @@ export async function generateDirectedVideoFromScript({
             referenceImagePath: base.path,
             referenceImageKey: base.key,
             visibleSeconds: shot.endSeconds - shot.startSeconds,
+            framing: animationFraming,
           }),
         );
       } catch (err) {
@@ -333,6 +344,7 @@ export async function generateDirectedVideoFromScript({
           baseImagePath: base.path,
           objectPrefix: `scene-${i}-anim-${spec.key}`,
           signedUrlTtlSeconds: ASSET_SIGNED_URL_TTL_SECONDS,
+          framing: animationFraming,
         });
         const clip = await resolveAnimatedClipForScene({
           supabase,

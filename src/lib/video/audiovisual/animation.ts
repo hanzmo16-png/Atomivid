@@ -78,6 +78,28 @@ export function animationBaseStyle(profile: ProfileId): { style: string; negativ
 const clean = (s: string, max: number) => s.replace(/\s+/g, " ").trim().slice(0, max);
 
 /**
+ * Encuadre 9:16 de la imagen de entrada del clip:
+ *  - «fit» (por defecto, el de siempre): la ilustración 2:3 entera, centrada
+ *    sobre bandas desenfocadas arriba y abajo;
+ *  - «fill»: la ilustración llena el cuadro 9:16 recortando por igual los
+ *    dos lados (≈ 8 % del ancho de cada uno), sin bandas. La composición se
+ *    pide ya pensando en ese recorte: nada importante fuera del 80 % central.
+ */
+export type AnimationFraming = "fit" | "fill";
+
+const FIT_COMPOSITION = "Vertical 9:16 composition, main subject fully visible in the upper two thirds, bottom third calm and free of key details, no text or lettering. ";
+const FILL_COMPOSITION =
+  "Vertical composition that will be center-cropped to 9:16: about 8% of the width is cut off on each side. " +
+  "Keep every important element (heads and helmets, faces, hands, arms, legs and feet, animals' heads, legs and hooves, weapons and held objects) " +
+  "entirely inside the central 80% of the width, with clear space around it; nothing important touches or crosses any edge. " +
+  "Main subject fully visible in the upper three quarters; the bottom quarter calm (ground only) and free of key details, reserved for subtitles; no text or lettering. ";
+const FIT_FRAMING =
+  "the illustration is centered; blurred bands above and below it are background and must stay still; keep the whole subject inside the illustration area, in its upper two thirds; keep the bottom third free for subtitles";
+const FILL_FRAMING =
+  "the image fills the whole vertical 9:16 frame edge to edge; there are no bands or borders and none may appear; " +
+  "keep every head, hand, limb and hoof inside the frame for the entire shot; keep the bottom quarter free of key details for subtitles";
+
+/**
  * Descripción compartida por todas las escenas. Se deriva de datos que ya
  * existen (perfil, intención, tema y el concepto visual de la escena 1);
  * no es una comprensión semántica del guion.
@@ -164,6 +186,8 @@ export function buildAnimationBaseImagePrompt(input: {
   narration: string;
   /** Coreografía de la escena: el primer fotograma muestra la pose ANTERIOR a la acción. */
   action?: ActionPlan;
+  /** «fill»: la imagen se recortará a 9:16 sin bandas (ver AnimationFraming). Por defecto «fit». */
+  framing?: AnimationFraming;
 }): { prompt: string; negativePrompt: string; key: string } {
   const { negative } = animationBaseStyle(input.profile);
   const act = input.action;
@@ -175,7 +199,7 @@ export function buildAnimationBaseImagePrompt(input: {
   const prompt =
     `${input.bible.style}. Scene: ${clean(input.concept, 160)}. ${input.bible.text} ` +
     `Story context (do not render as text): "${clean(input.narration, 280)}". ` +
-    "Vertical 9:16 composition, main subject fully visible in the upper two thirds, bottom third calm and free of key details, no text or lettering. " +
+    (input.framing === "fill" ? FILL_COMPOSITION : FIT_COMPOSITION) +
     firstFrame;
   const key = createHash("sha256").update(`anim-base\n${prompt}\n${negative}`).digest("hex").slice(0, 12);
   return { prompt, negativePrompt: negative, key };
@@ -288,6 +312,8 @@ export function planSceneAnimation(input: {
   referenceImageKey: string;
   /** Segundos del plano que se ven en el montaje (el resto del clip se recorta). */
   visibleSeconds: number;
+  /** Encuadre de la imagen de entrada (ver AnimationFraming). Por defecto «fit». */
+  framing?: AnimationFraming;
 }): SceneAnimationSpec {
   const declared = input.segment.visibleAction?.trim();
   if (!declared || declared.length < 3) {
@@ -316,8 +342,7 @@ export function planSceneAnimation(input: {
   const endState = `${choreography.end}, reached by second ${completeBy.toFixed(1)} and held unchanged until the cut`;
   const { negatives } = sceneConstraints([input.segment.text, input.segment.visualQuery, ...(input.segment.visualConcepts ?? []), action, input.segment.actionStart, input.segment.actionEnd]);
   const negativePrompt = [ANIMATION_NEGATIVE, "reversing the action, undoing the action, repeating the action, looping motion", ...negatives].join(", ");
-  const framing =
-    "the illustration is centered; blurred bands above and below it are background and must stay still; keep the whole subject inside the illustration area, in its upper two thirds; keep the bottom third free for subtitles";
+  const framing = input.framing === "fill" ? FILL_FRAMING : FIT_FRAMING;
   const camera = CAMERA_BY_INTENT[input.intent];
   const prompt =
     `Animate this illustration with real motion inside the scene. Subject: ${subject}. ` +

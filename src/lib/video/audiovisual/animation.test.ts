@@ -15,7 +15,7 @@ import sharp from "sharp";
 import { GenerativeProviderError, type GeneratedScript, type GenerativeAsset, type VideoGenerationRequest, type VideoProvider } from "@/lib/providers/types";
 import { isAudiovisualSelection, motionModeOf, parseSelection, previewSummary } from "./catalog";
 import { directionFingerprint, resolveDirection } from "./direction";
-import { ACTION_CLOSING_MARGIN_SECONDS, AnimationPlanError, MIN_ACTION_SECONDS, REEL_ANIMATION, actionFitsVisible, requiredVisibleSeconds, scenesTooShortForAction, animationClipCostUsd, buildContinuityBible, planAnimatedShots, planSceneAnimation, scenesMissingAction, scenesTooLongForClip } from "./animation";
+import { ACTION_CLOSING_MARGIN_SECONDS, AnimationPlanError, MIN_ACTION_SECONDS, REEL_ANIMATION, actionFitsVisible, buildAnimationBaseImagePrompt, planSceneAction, requiredVisibleSeconds, scenesTooShortForAction, animationClipCostUsd, buildContinuityBible, planAnimatedShots, planSceneAnimation, scenesMissingAction, scenesTooLongForClip } from "./animation";
 import { checkAnimationAvailability, evaluateDirectionReadiness } from "./readiness";
 import { ANIMATION_INPUT_SIZE, AnimatedClipUncertainError, animationLedgerKey, animationMarkerPath, frameAnimationInput, looksLikeMp4, prepareAnimationInputImage, resolveAnimatedClipForScene } from "./animated-clip";
 import { PaidBudgetExceededError, PaidLedger, memoryLedgerStore } from "./paid-ledger";
@@ -651,4 +651,61 @@ test("pipeline (estructura): con los tiempos reales, todos los planes se validan
   assert.ok(tooShort > 0 && specs > tooShort && firstClip > specs, "tooShort → planes de todas las escenas → primer clip");
   assert.match(src, /visibleSeconds: shot\.endSeconds - shot\.startSeconds/);
   assert.match(src, /sceneEnergy: direction\.sceneEnergy,\n\s*\}\);\n\s*if \(plan\.tooLong/);
+});
+
+test("encuadre «fill»: 9:16 a sangre, sin bandas; el recorte lateral es el que el prompt deja libre; «fit» sigue igual", async () => {
+  // Ilustración 2:3 (la que devuelve el proveedor): franjas laterales rojas del 7 % del ancho y un sujeto verde en el 80 % central.
+  const W = 1024;
+  const H = 1536;
+  const side = Math.round(W * 0.07);
+  const source = await sharp({ create: { width: W, height: H, channels: 3, background: { r: 128, g: 128, b: 128 } } })
+    .composite([
+      { input: { create: { width: side, height: H, channels: 3 as const, background: { r: 255, g: 0, b: 0 } } }, left: 0, top: 0 },
+      { input: { create: { width: side, height: H, channels: 3 as const, background: { r: 255, g: 0, b: 0 } } }, left: W - side, top: 0 },
+      { input: { create: { width: Math.round(W * 0.8), height: 200, channels: 3 as const, background: { r: 0, g: 255, b: 0 } } }, left: Math.round(W * 0.1), top: 400 },
+    ])
+    .png()
+    .toBuffer();
+  const fill = await frameAnimationInput(source, "fill");
+  const meta = await sharp(fill.png).metadata();
+  assert.deepEqual([meta.width, meta.height], [ANIMATION_INPUT_SIZE.width, ANIMATION_INPUT_SIZE.height]);
+  assert.deepEqual(fill.content, { left: 0, top: 0, width: ANIMATION_INPUT_SIZE.width, height: ANIMATION_INPUT_SIZE.height }, "la ilustración ocupa todo el cuadro");
+  const { data, info } = await sharp(fill.png).raw().toBuffer({ resolveWithObject: true });
+  const at = (x: number, y: number) => {
+    const i = (y * info.width + x) * info.channels;
+    return { r: data[i], g: data[i + 1], b: data[i + 2] };
+  };
+  // Sin bandas: arriba y abajo se ve la ilustración (gris), no un fondo desenfocado distinto.
+  for (const y of [2, info.height - 3]) {
+    const px = at(Math.round(info.width / 2), y);
+    assert.ok(Math.abs(px.r - 128) < 12 && Math.abs(px.g - 128) < 12 && Math.abs(px.b - 128) < 12, `sin banda en y=${y}: ${JSON.stringify(px)}`);
+  }
+  // Las franjas rojas del 7 % caen fuera del cuadro (≈ 7,8 % recortado por lado): los bordes laterales ya no son rojos.
+  for (const x of [1, info.width - 2]) assert.ok(at(x, 960).r < 200, `x=${x}: el borde recortado no llega al cuadro`);
+  // El sujeto del 80 % central llega entero: verde en ambos extremos de su fila.
+  const y = Math.round((400 + 100) * (info.height / H));
+  for (const x of [Math.round(info.width * 0.04), Math.round(info.width * 0.96)]) assert.ok(at(x, y).g > 200 && at(x, y).r < 60, `x=${x}: sujeto central conservado`);
+  // «fit» (por defecto) no cambia: conserva la ilustración entera con bandas.
+  const fit = await frameAnimationInput(source);
+  assert.ok(fit.content.top > 0 && fit.content.height < ANIMATION_INPUT_SIZE.height, "fit mantiene las bandas");
+});
+
+test("encuadre «fill» en los prompts: pide margen para cabezas, extremidades y cascos; sin bandas; la clave cambia; «fit» intacto", () => {
+  const segment = SCRIPT.segments[0];
+  const base = { profile: "medieval_dark" as const, bible, concept: "armored knight on a black warhorse", narration: segment.text, action: planSceneAction(segment) };
+  const fitImage = buildAnimationBaseImagePrompt(base);
+  const fillImage = buildAnimationBaseImagePrompt({ ...base, framing: "fill" });
+  assert.match(fitImage.prompt, /Vertical 9:16 composition, main subject fully visible in the upper two thirds/);
+  assert.match(fillImage.prompt, /center-cropped to 9:16/);
+  assert.match(fillImage.prompt, /central 80% of the width/);
+  assert.match(fillImage.prompt, /legs and hooves/);
+  assert.notEqual(fitImage.key, fillImage.key);
+  const common = { sceneIndex: 0, segment, energy: "low" as const, intent: "suspense" as const, bible, referenceImagePath: "req/x.png", referenceImageKey: "a", visibleSeconds: 4 };
+  const fitClip = planSceneAnimation(common);
+  const fillClip = planSceneAnimation({ ...common, framing: "fill" });
+  assert.equal(fitClip.key, spec.key, "el encuadre por defecto conserva la clave de siempre");
+  assert.match(fitClip.framing, /blurred bands above and below/);
+  assert.doesNotMatch(fillClip.prompt, /blurred bands/);
+  assert.match(fillClip.framing, /fills the whole vertical 9:16 frame edge to edge; there are no bands/);
+  assert.notEqual(fitClip.key, fillClip.key);
 });
