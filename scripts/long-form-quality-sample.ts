@@ -159,12 +159,12 @@ async function main() {
         const input = path.join(tmp, `${sceneId}-noaa-input`);
         const output = path.join(tmp, `${sceneId}-noaa.mp4`);
         await fs.writeFile(input, raw);
-        await run("ffmpeg", ["-y", "-v", "error", "-i", input, "-an", "-vf", "scale=w='min(1920,iw)':h=-2", "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-maxrate", "3M", "-bufsize", "6M", "-pix_fmt", "yuv420p", "-movflags", "+faststart", output]);
+        await run("ffmpeg", ["-y", "-v", "error", ...(src.clip ? ["-ss", String(src.clip.startSeconds)] : []), "-i", input, ...(src.clip ? ["-t", String(src.clip.endSeconds - src.clip.startSeconds)] : []), "-an", "-vf", "scale=w='min(1920,iw)':h=-2", "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-maxrate", "3M", "-bufsize", "6M", "-pix_fmt", "yuv420p", "-movflags", "+faststart", output]);
         buffer = await fs.readFile(output);
         if (buffer.length > 49 * 1024 * 1024) throw new Error(`${sceneId}: NOAA transcode exceeds storage limit; select a shorter source`);
         ext = "mp4";
         mediaType = "video";
-        meta = { provider: "noaa-ocean-exploration", sourceId: src.url, pageUrl: src.pageUrl, author: src.credit, license: "Public domain (NOAA; per-file review)", licenseReview: src.licenseReview, sourceSha256: sourceSha256(raw), evidenceSha256: sourceSha256(page), sourceUrl: src.url };
+        meta = { provider: "noaa-ocean-exploration", sourceId: `${src.url}${src.clip ? `#${src.clip.startSeconds}-${src.clip.endSeconds}` : ""}`, pageUrl: src.pageUrl, author: src.credit, license: "Public domain (NOAA; per-file review)", licenseReview: src.licenseReview, sourceClip: src.clip, sourceSha256: sourceSha256(raw), evidenceSha256: sourceSha256(page), sourceUrl: src.url };
       } else if (src.kind === "pexels-video") {
         const key = process.env.PEXELS_API_KEY;
         if (!key) throw new Error("PEXELS_API_KEY requerido");

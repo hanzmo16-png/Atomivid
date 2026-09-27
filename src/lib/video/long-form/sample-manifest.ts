@@ -125,7 +125,7 @@ export type SampleManifest = {
 export type ManifestIssue = { sceneId: string; code: string; message: string };
 
 const freeKey = (s: FreeSampleSource): string =>
-  s.kind === "noaa-video" ? `noaa:${s.url}` : s.kind === "pexels-video" || s.kind === "pexels-photo" ? `${s.kind}:${s.id}` : s.kind === "commons" ? `commons:${s.title}` : s.kind === "data-map" ? `map:${s.spec}` : s.kind === "graphic" ? `graphic:${JSON.stringify(s.spec)}` : `existing:${s.path}`;
+  s.kind === "noaa-video" ? `noaa:${s.url}${s.clip ? `#${s.clip.startSeconds}-${s.clip.endSeconds}` : ""}` : s.kind === "pexels-video" || s.kind === "pexels-photo" ? `${s.kind}:${s.id}` : s.kind === "commons" ? `commons:${s.title}` : s.kind === "data-map" ? `map:${s.spec}` : s.kind === "graphic" ? `graphic:${JSON.stringify(s.spec)}` : `existing:${s.path}`;
 
 /** Recursos que una escena pone en pantalla (un clip IA cuenta también la foto de archivo que anima). */
 const sourceKeys = (s: SampleSource): string[] =>
@@ -158,6 +158,20 @@ export function validateSampleManifest(
   }
   const seen = new Map<string, string>();
   for (const [i, scene] of scenes.entries()) {
+    // Different excerpts from a long archive film are distinct assets, but
+    // overlapping or unbounded selections still count as repeated footage.
+    const noaa = scene.source.kind === "noaa-video" ? scene.source : undefined;
+    if (noaa) {
+      for (const prior of scenes.slice(0, i)) {
+        if (prior.source.kind !== "noaa-video" || prior.source.url !== noaa.url) continue;
+        if (prior.id === scene.repeatOf && scenes[i - 1]?.id === prior.id) continue;
+        const a = prior.source.clip;
+        const b = noaa.clip;
+        if (!a || !b || Math.max(a.startSeconds, b.startSeconds) < Math.min(a.endSeconds, b.endSeconds)) {
+          issues.push({ sceneId: scene.id, code: "overlapping_footage", message: `NOAA excerpt overlaps ${prior.id}; choose a different passage` });
+        }
+      }
+    }
     if (scene.overlay) {
       const issue = overlayIssue(scene.overlay, scene.endSeconds - scene.startSeconds);
       if (issue) issues.push({ sceneId: scene.id, code: "overlay", message: issue });

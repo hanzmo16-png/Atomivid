@@ -1,7 +1,7 @@
 {
   "meta": {
     "videoId": "ocean-deep-001",
-    "version": "002",
+    "version": "003",
     "totalShots": 84,
     "format": "1920x1080 (16:9)",
     "language": "en",
@@ -29,14 +29,21 @@
     "motionMix": {
       "ai-animation": 8,
       "ai-animation-of-real-photo": 1,
-      "animated-graphic": 19,
-      "figure-over-motion": 17,
-      "real-footage": 24,
-      "static-text": 7,
-      "still-push": 5,
+      "figure-over-motion": 37,
+      "map-graphic": 6,
+      "real-footage": 29,
       "still-push (archival)": 3
     },
-    "cardSecondsMax": 5
+    "cardSecondsMax": 1.5,
+    "editorialBasis": "Approved moving opening and subsequent budget approval. Target real video/animation for all non-map, non-historical shots. This is a source-selection plan, not evidence that assets are already selected or rendered. Maps are reported as graphics, not actual moving footage.",
+    "estimatedSecondsByMotion": {
+      "ai-animation": 52.9,
+      "ai-animation-of-real-photo": 5.0,
+      "figure-over-motion": 260.4,
+      "map-graphic": 49.4,
+      "real-footage": 212.6,
+      "still-push (archival)": 23.8
+    }
   },
   "shots": [
     {
@@ -64,11 +71,11 @@
       "beatId": "b1",
       "shotId": "b1-s2",
       "durationApprox": 6.7,
-      "assetType": "documentary_image",
+      "assetType": "stock_video",
       "visualIntent": "'pale sediment, a few scattered stones'",
-      "description": "NOAA public-domain photo Expn0686 (cold seep seafloor), slow push",
+      "description": "Replace planned still with relevant reviewed video. NOAA public-domain photo Expn0686 (cold seep seafloor), slow push",
       "queryOrPrompt": "REUSED from the approved first minute (already paid / already cleared) — no new cost",
-      "sourceRequirement": "commons (public domain)",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock)",
       "hybridClassification": "REAL_DOCUMENTARY",
       "licensing": {
         "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
@@ -76,7 +83,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "still-push",
+      "motion": "real-footage",
       "reused": true,
       "firstMinute": true
     },
@@ -84,11 +91,11 @@
       "beatId": "b1",
       "shotId": "b1-s3",
       "durationApprox": 2.5,
-      "assetType": "documentary_image",
+      "assetType": "stock_video",
       "visualIntent": "'a small animal drifting through the beam'",
-      "description": "NOAA public-domain photo of an Atolla medusa in the ROV lights",
+      "description": "Replace planned still with relevant reviewed video. NOAA public-domain photo of an Atolla medusa in the ROV lights",
       "queryOrPrompt": "REUSED from the approved first minute (already paid / already cleared) — no new cost",
-      "sourceRequirement": "commons (public domain)",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock)",
       "hybridClassification": "REAL_DOCUMENTARY",
       "licensing": {
         "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
@@ -96,7 +103,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "still-push",
+      "motion": "real-footage",
       "reused": true,
       "firstMinute": true
     },
@@ -163,11 +170,11 @@
       "beatId": "b1",
       "shotId": "b1-s7",
       "durationApprox": 4.5,
-      "assetType": "text",
+      "assetType": "stock_video",
       "visualIntent": "'Two kinds of knowing' — Mapped · Seen",
-      "description": "Short card (4.5 s, 16 words): the words are the picture here",
+      "description": "Short readable figure or statement over relevant moving footage. No full-screen black text card. Short card (4.5 s, 16 words): the words are the picture here",
       "queryOrPrompt": "REUSED from the approved first minute (already paid / already cleared) — no new cost",
-      "sourceRequirement": "short text card (≤ 5 s)",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock) with timed overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -175,7 +182,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "static-text",
+      "motion": "figure-over-motion",
       "reused": true,
       "firstMinute": true
     },
@@ -221,11 +228,11 @@
       "beatId": "b2",
       "shotId": "b2-s2",
       "durationApprox": 7.0,
-      "assetType": "diagram",
+      "assetType": "stock_video",
       "visualIntent": "Depth zones: Sunlight 0–200 m -> Twilight 200–1,000 m -> Midnight 1,000–4,000 m -> Abyss 4,000–6,000 m -> Hadal 6,000–11,000 m",
-      "description": "Animated descent through the zone limits (NOAA), camera moving down",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated descent through the zone limits (NOAA), camera moving down",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "deterministic graphic",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -233,7 +240,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b2",
@@ -269,17 +276,17 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "map-graphic"
     },
     {
       "beatId": "b2",
       "shotId": "b2-s5",
       "durationApprox": 5,
-      "assetType": "text",
+      "assetType": "stock_video",
       "visualIntent": "'Three different measurements' — Mapped · Seen · Volume",
-      "description": "Short three-column key (returns in b7)",
+      "description": "Short readable figure or statement over relevant moving footage. No full-screen black text card. Short three-column key (returns in b7)",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "short text card (≤ 5 s)",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock) with timed overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -287,7 +294,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "static-text"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b2",
@@ -415,17 +422,17 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "map-graphic"
     },
     {
       "beatId": "b3",
       "shotId": "b3-s6",
       "durationApprox": 7.3,
-      "assetType": "diagram",
+      "assetType": "stock_video",
       "visualIntent": "Echo sounding: Pulse goes down -> Echo returns -> Time becomes depth",
-      "description": "Animated diagram (Meteor-era single beam)",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated diagram (Meteor-era single beam)",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "deterministic graphic",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -433,7 +440,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b3",
@@ -457,11 +464,11 @@
       "beatId": "b3",
       "shotId": "b3-s8",
       "durationApprox": 8.3,
-      "assetType": "diagram",
+      "assetType": "stock_video",
       "visualIntent": "Six echo profiles line up -> A notch at the ridge crest -> A rift valley",
-      "description": "Animated diagram built from our own profile drawing (not a copy of the Heezen–Tharp map)",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated diagram built from our own profile drawing (not a copy of the Heezen–Tharp map)",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "deterministic graphic",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -469,17 +476,17 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b3",
       "shotId": "b3-s9",
       "durationApprox": 6.3,
-      "assetType": "documentary_image",
+      "assetType": "stock_video",
       "visualIntent": "'as if the water had been drained away'",
-      "description": "NOAA NCEI ETOPO relief of the Atlantic (public domain) with a slow tilt — a modern equivalent, labelled as such",
+      "description": "Replace planned still with relevant reviewed video. NOAA NCEI ETOPO relief of the Atlantic (public domain) with a slow tilt — a modern equivalent, labelled as such",
       "queryOrPrompt": "commons: 'NOAA ETOPO Atlantic relief' (PD)",
-      "sourceRequirement": "commons / agency (public domain)",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock)",
       "hybridClassification": "REAL_DOCUMENTARY",
       "licensing": {
         "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
@@ -487,7 +494,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "still-push"
+      "motion": "real-footage"
     },
     {
       "beatId": "b3",
@@ -512,11 +519,11 @@
       "beatId": "b3",
       "shotId": "b3-s11",
       "durationApprox": 8.3,
-      "assetType": "diagram",
+      "assetType": "stock_video",
       "visualIntent": "Multibeam sonar: Ship sends a fan of sound -> Echoes return -> Travel time becomes depth",
-      "description": "Animated fan-shaped swath diagram",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated fan-shaped swath diagram",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "deterministic graphic",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -524,7 +531,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b3",
@@ -549,11 +556,11 @@
       "beatId": "b3",
       "shotId": "b3-s13",
       "durationApprox": 6.3,
-      "assetType": "animated_graphic",
+      "assetType": "stock_video",
       "visualIntent": "'a strip a few times wider than the water is deep' — swath ≈ 1.3–6× depth",
-      "description": "Animated diagram: water depth vs swath width",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated diagram: water depth vs swath width",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "deterministic animated graphic",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -561,17 +568,17 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b3",
       "shotId": "b3-s14",
       "durationApprox": 7.3,
-      "assetType": "documentary_image",
+      "assetType": "stock_video",
       "visualIntent": "'a map of the entire ocean floor… from space'",
-      "description": "NASA/CNES SWOT artist's concept (credit 'NASA/JPL-Caltech'), labelled as illustration",
+      "description": "Replace planned still with relevant reviewed video. NASA/CNES SWOT artist's concept (credit 'NASA/JPL-Caltech'), labelled as illustration",
       "queryOrPrompt": "NASA JPL: 'SWOT satellite illustration'",
-      "sourceRequirement": "commons / agency (public domain)",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock)",
       "hybridClassification": "REAL_DOCUMENTARY",
       "licensing": {
         "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
@@ -579,17 +586,17 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "still-push"
+      "motion": "real-footage"
     },
     {
       "beatId": "b3",
       "shotId": "b3-s15",
       "durationApprox": 9.4,
-      "assetType": "diagram",
+      "assetType": "stock_video",
       "visualIntent": "Satellite altimetry: Seamount's gravity pulls water -> Sea surface bulges slightly -> Satellite measures the bump -> Seafloor shape is estimated",
-      "description": "Animated diagram",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated diagram",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "deterministic graphic",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -597,7 +604,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b3",
@@ -658,11 +665,11 @@
       "beatId": "b3",
       "shotId": "b3-s19",
       "durationApprox": 5,
-      "assetType": "text",
+      "assetType": "stock_video",
       "visualIntent": "'Mapped = at least one measured depth per grid cell'",
-      "description": "Short card; the grid follows",
+      "description": "Short readable figure or statement over relevant moving footage. No full-screen black text card. Short card; the grid follows",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "short text card (≤ 5 s)",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock) with timed overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -670,17 +677,17 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "static-text"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b3",
       "shotId": "b3-s20",
       "durationApprox": 7.3,
-      "assetType": "diagram",
+      "assetType": "stock_video",
       "visualIntent": "Grid cells: 100 m (0–1,500 m) -> 200 m -> 400 m -> 800 m (>5,750 m)",
-      "description": "Animated grid-cell diagram (GEBCO/Seabed 2030 definition)",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated grid-cell diagram (GEBCO/Seabed 2030 definition)",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "deterministic graphic",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -688,7 +695,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b3",
@@ -731,11 +738,11 @@
       "beatId": "b4",
       "shotId": "b4-s2",
       "durationApprox": 9.4,
-      "assetType": "diagram",
+      "assetType": "stock_video",
       "visualIntent": "Pressure: surface 1 atm -> 1,000 m ≈ 100 atm -> 4,000 m ≈ 400 atm -> 11,000 m ≈ 1,100 atm",
-      "description": "Animated descent with the pressure counter",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated descent with the pressure counter",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "deterministic graphic",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -743,7 +750,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b4",
@@ -824,11 +831,11 @@
       "beatId": "b4",
       "shotId": "b4-s7",
       "durationApprox": 10.6,
-      "assetType": "animated_graphic",
+      "assetType": "stock_video",
       "visualIntent": "'About 3,800 km² seen — roughly 0.001% of the deep seafloor'",
-      "description": "Animated scale graphic: a vast dark field and a barely visible speck; 1.5 s of silence after the line",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated scale graphic: a vast dark field and a barely visible speck; 1.5 s of silence after the line",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "deterministic animated graphic",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -836,7 +843,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b4",
@@ -854,17 +861,17 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "map-graphic"
     },
     {
       "beatId": "b4",
       "shotId": "b4-s9",
       "durationApprox": 4,
-      "assetType": "text",
+      "assetType": "stock_video",
       "visualIntent": "'An estimate' — records are incomplete; some imagery was never shared",
-      "description": "Short caveat card",
+      "description": "Short readable figure or statement over relevant moving footage. No full-screen black text card. Short caveat card",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "short text card (≤ 5 s)",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock) with timed overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -872,7 +879,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "static-text"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b4",
@@ -890,7 +897,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "map-graphic"
     },
     {
       "beatId": "b4",
@@ -1024,11 +1031,11 @@
       "beatId": "b5",
       "shotId": "b5-s5",
       "durationApprox": 9.4,
-      "assetType": "diagram",
+      "assetType": "stock_video",
       "visualIntent": "Light in seawater: red is absorbed first -> then yellow and green -> blue travels farthest",
-      "description": "Animated spectrum/attenuation diagram",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated spectrum/attenuation diagram",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "deterministic graphic",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -1036,7 +1043,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b5",
@@ -1117,11 +1124,11 @@
       "beatId": "b5",
       "shotId": "b5-s10",
       "durationApprox": 10.7,
-      "assetType": "diagram",
+      "assetType": "stock_video",
       "visualIntent": "Tiny male -> fuses to the female -> immune genes lost (Swann et al. 2020)",
-      "description": "Animated scientific diagram (no gore, silhouettes)",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated scientific diagram (no gore, silhouettes)",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "deterministic graphic",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -1129,17 +1136,17 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b5",
       "shotId": "b5-s11",
       "durationApprox": 9.4,
-      "assetType": "diagram",
+      "assetType": "stock_video",
       "visualIntent": "Sonar screen: a 'false bottom' at 300–500 m by day -> rises at night",
-      "description": "Animated echogram of the deep scattering layer",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated echogram of the deep scattering layer",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "deterministic graphic",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -1147,7 +1154,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b5",
@@ -1239,7 +1246,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "map-graphic"
     },
     {
       "beatId": "b6",
@@ -1282,11 +1289,11 @@
       "beatId": "b6",
       "shotId": "b6-s3",
       "durationApprox": 4,
-      "assetType": "text",
+      "assetType": "stock_video",
       "visualIntent": "'How many remain undescribed? Estimates vary widely.'",
-      "description": "Short uncertainty card (no single number)",
+      "description": "Short readable figure or statement over relevant moving footage. No full-screen black text card. Short uncertainty card (no single number)",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "short text card (≤ 5 s)",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock) with timed overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -1294,7 +1301,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "static-text"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b6",
@@ -1338,11 +1345,11 @@
       "beatId": "b6",
       "shotId": "b6-s6",
       "durationApprox": 7.9,
-      "assetType": "documentary_image",
+      "assetType": "stock_video",
       "visualIntent": "'a camera sled towed over a volcanic rift near the Galápagos'",
-      "description": "Public-domain NOAA/WHOI-cleared photo of a towed camera sled or the Galápagos Rift (licence checked per file)",
+      "description": "Replace planned still with relevant reviewed video. Public-domain NOAA/WHOI-cleared photo of a towed camera sled or the Galápagos Rift (licence checked per file)",
       "queryOrPrompt": "commons: 'ANGUS camera sled' / 'Galapagos Rift 1977' (PD only)",
-      "sourceRequirement": "commons / agency (public domain)",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock)",
       "hybridClassification": "REAL_DOCUMENTARY",
       "licensing": {
         "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
@@ -1350,7 +1357,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "still-push",
+      "motion": "real-footage",
       "fallback": "graphic"
     },
     {
@@ -1394,11 +1401,11 @@
       "beatId": "b6",
       "shotId": "b6-s9",
       "durationApprox": 7.9,
-      "assetType": "diagram",
+      "assetType": "stock_video",
       "visualIntent": "Energy without sunlight: Vent chemicals -> Microbes -> Tube worms, clams, crabs",
-      "description": "Animated food-web diagram (chemosynthesis)",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated food-web diagram (chemosynthesis)",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "deterministic graphic",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -1406,7 +1413,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b6",
@@ -1424,7 +1431,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "animated-graphic"
+      "motion": "map-graphic"
     },
     {
       "beatId": "b6",
@@ -1540,11 +1547,11 @@
       "beatId": "b7",
       "shotId": "b7-s4",
       "durationApprox": 5,
-      "assetType": "text",
+      "assetType": "stock_video",
       "visualIntent": "'A map tells you that a place exists. An observation is a visit.'",
-      "description": "Short card; the one line that is the picture",
+      "description": "Short readable figure or statement over relevant moving footage. No full-screen black text card. Short card; the one line that is the picture",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "short text card (≤ 5 s)",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock) with timed overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -1552,7 +1559,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "static-text"
+      "motion": "figure-over-motion"
     },
     {
       "beatId": "b7",
@@ -1576,11 +1583,11 @@
       "beatId": "b7",
       "shotId": "b7-s6",
       "durationApprox": 5,
-      "assetType": "text",
+      "assetType": "stock_video",
       "visualIntent": "'Sources: NOAA Ocean Exploration · Seabed 2030 / GEBCO · Bell et al. 2025 · Martini & Haddock 2017 · Ocean Census 2026 · WHOI · Pietsch 2009' — end card",
-      "description": "End card with references; channel name 'Earthward Chronicles'",
+      "description": "Short readable figure or statement over relevant moving footage. No full-screen black text card. End card with references; channel name 'Earthward Chronicles'",
       "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
-      "sourceRequirement": "short text card (≤ 5 s)",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock) with timed overlay",
       "hybridClassification": "DETERMINISTIC",
       "licensing": {
         "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
@@ -1588,7 +1595,7 @@
       "estimatedCostUsd": 0,
       "aiGenerated": false,
       "billableVideoSeconds": 0,
-      "motion": "static-text"
+      "motion": "figure-over-motion"
     }
   ]
 }

@@ -6,6 +6,8 @@ export type NoaaVideoSource = {
   pageUrl: string;
   /** Exact credit fragment checked by a human/agent on this media page. */
   credit: string;
+  /** Optional excerpt from a longer source; scene offsets then refer to this excerpt. */
+  clip?: { startSeconds: number; endSeconds: number };
   licenseReview: { date: string; note: string };
 };
 
@@ -20,6 +22,7 @@ export function assertNoaaEvidence(src: NoaaVideoSource, html: string): void {
   const media = assertNoaaUrl(src.url);
   if (!/\.(mp4|webm)$/i.test(media.pathname)) throw new Error("NOAA media must be MP4 or WebM");
   if (!src.credit.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(src.licenseReview.date) || src.licenseReview.note.trim().length < 30) throw new Error("NOAA media needs a dated per-file public-domain review");
+  if (src.clip && (!Number.isFinite(src.clip.startSeconds) || !Number.isFinite(src.clip.endSeconds) || src.clip.startSeconds < 0 || src.clip.endSeconds <= src.clip.startSeconds || src.clip.endSeconds - src.clip.startSeconds > 30)) throw new Error("NOAA excerpt must be a valid interval of at most 30 seconds");
   const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").toLowerCase();
   if (!text.includes(src.credit.toLowerCase())) throw new Error("NOAA page no longer contains the reviewed credit");
   if (!html.includes(media.pathname)) throw new Error("NOAA page does not link the selected video");

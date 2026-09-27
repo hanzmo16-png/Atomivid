@@ -13,6 +13,8 @@ test("NOAA importer requires a per-file review, matching credit and linked media
   assert.throws(() => assertNoaaEvidence(source, html.replace("NOAA Ocean Exploration", "Other owner")));
   assert.throws(() => assertNoaaEvidence(source, html.replace("fish.mp4", "other.mp4")));
   assert.throws(() => assertNoaaEvidence({ ...source, licenseReview: { date: "", note: "" } }, html));
+  assert.doesNotThrow(() => assertNoaaEvidence({ ...source, clip: { startSeconds: 40, endSeconds: 50 } }, html));
+  for (const clip of [{ startSeconds: -1, endSeconds: 2 }, { startSeconds: 4, endSeconds: 3 }, { startSeconds: 0, endSeconds: 31 }, { startSeconds: NaN, endSeconds: 2 }]) assert.throws(() => assertNoaaEvidence({ ...source, clip }, html));
   for (const url of ["http://oceanexplorer.noaa.gov/f.mp4", "https://oceanexplorer.noaa.gov.evil.test/f.mp4", "https://oceanexplorer.noaa.gov@evil.test/", "https://127.0.0.1/", "https://oceanexplorer.noaa.gov:444/f.mp4"]) assert.throws(() => assertNoaaUrl(url));
 });
 
@@ -56,4 +58,13 @@ test("own ambient sound is deterministic PCM without clipping and loops continuo
     assert.ok(peak > 100 && peak < 16000);
     assert.ok(Math.abs(wav.readInt16LE(44) - wav.readInt16LE(wav.length - 2)) < 100);
   }
+});
+
+test("archive excerpts can differ while overlapping footage remains rejected", () => {
+  const manifest: SampleManifest = { requestId: "ocean-deep-001", beats: ["b1"], tailSeconds: 0, outputPrefix: "ocean-deep-001/samples/episode", soundCues: [], missingSound: [], scenes: [0, 1].map(i => ({ id: `s${i}`, startSeconds: i * 5, endSeconds: (i + 1) * 5, narration: "", provenance: "archival_documentary", source: { ...source, clip: { startSeconds: i * 20, endSeconds: i * 20 + 10 } }, direction: {}, review: { status: "approved", relevance: "directa", note: "Independently reviewed non-overlapping archive excerpts" } })) };
+  assert.deepEqual(validateSampleManifest(manifest, [], 10), []);
+  manifest.scenes[1].source = { ...source, clip: { startSeconds: 9, endSeconds: 15 } };
+  assert.ok(validateSampleManifest(manifest, [], 10).some(i => i.code === "overlapping_footage"));
+  manifest.scenes[1].source = source;
+  assert.ok(validateSampleManifest(manifest, [], 10).some(i => i.code === "overlapping_footage"));
 });

@@ -475,3 +475,16 @@ Tarifas: Veo 3.1 Fast a 1080p, US$0,96 por clip de 8 s; imagen IA, reserva de US
   No requiere proveedores de pago. Aún pendiente de ejecutar y revisar en Remotion.
 - 40 pruebas relevantes pasan; typecheck pasa tras generar los tipos de Next.
   La verificación real de la página NOAA de Atolla pasó desde este entorno.
+
+
+### 13.2 Producción con movimiento y narración completa (2026-09-27)
+
+- Acceso GitHub resuelto. Workflow existente actualizado en `295fc770c2b502a6777b65a2825e39b0847170d9`, código fijado en `c0ac04e8145eb72f6a182dcdd92cee811eca108e` y datos de `codex/ocean-opening-review`.
+- Preparación gratuita `36337961093`: ocho escenas de vídeo, licencias NOAA verificadas por página/archivo, cero llamadas de pago.
+- Render real `36338180636`: éxito, 42.253 s, 1920×1080, −16.23 LUFS, −2 dBTP, 25,448,568 bytes. Fotogramas revisados: cifras sobre vídeo, subtítulos con resaltado, rótulos IA y créditos sin colisiones. Sin tarjetas negras. Las detecciones de negro corresponden a escenas submarinas oscuras, no a tarjetas. Medición técnica del audio, no revisión auditiva humana. Archivo: `sample-approval-motion-production-check.mp4`.
+- Narración autorizada `36338708481`: éxito, una ejecución, sin reintentos. b1 reutilizado; b2=47.276 s, b3=156.593 s, b4=104.722 s, b5=159.520 s, b6=104.397 s, b7=44.582 s. Suma con b1 (41.053): 658.143 s, unos 10:58 antes de cola. La estimación de diez minutos era corta; no se acelera ni se rellena artificialmente.
+- Cuota nueva usada: 10,009 caracteres, valor contable USD3.0027. Registro acumulado confirmado: USD5.1814 / USD17.65. Dinero acumulado permanece USD1.9753. No nuevas imágenes ni clips IA pagados todavía.
+- Storyboard v003: ningún texto largo a pantalla negra; texto sobre movimiento y fotografías limitadas a archivo histórico. Las cifras de movimiento son objetivos de selección, no material final ya montado.
+- Importador NOAA permite seleccionar hasta 30 s de una fuente larga y conserva su procedencia. Selecciones del mismo vídeo deben ser disjuntas; se rechazan solapes y se conserva la comprobación de duplicados por contenido.
+- Catálogo de candidatos NOAA: fuentes y créditos identificados, aprobación final por fragmento pendiente. No confundir peces pescadores bentónicos con ceratioideos de señuelo bioluminiscente.
+- Pendiente: recuperar tiempos por palabra del episodio, completar y revisar el manifiesto de recursos gratuitos, generar las recreaciones autorizadas una vez, montar y revisar el episodio completo.

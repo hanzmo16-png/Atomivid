@@ -153,10 +153,25 @@ for s in S:
     if s.get("cover"): shot["cover"]=s["cover"]
     if s.get("contingentUsd"): shot["contingentUsd"]=s["contingentUsd"]
     shots.append(shot)
+# Approved motion-first revision; final sources require independent review.
+for shot in shots:
+    motion = shot["motion"]
+    if motion == "static-text":
+        shot.update(assetType="stock_video", motion="figure-over-motion", sourceRequirement="Reviewed real footage (NOAA public domain or licensed stock) with timed overlay")
+        shot["description"] = "Short readable figure or statement over relevant moving footage. No full-screen black text card. " + shot["description"]
+    elif motion == "still-push":
+        shot.update(assetType="stock_video", motion="real-footage", sourceRequirement="Reviewed real footage (NOAA public domain or licensed stock)")
+        shot["description"] = "Replace planned still with relevant reviewed video. " + shot["description"]
+    elif motion == "animated-graphic":
+        if shot["assetType"] == "map":
+            shot["motion"] = "map-graphic"
+        else:
+            shot.update(assetType="stock_video", motion="figure-over-motion", sourceRequirement="Reviewed real footage or scientific animation with short explanatory overlay")
+            shot["description"] = "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. " + shot["description"]
 tot=round(sum(x["estimatedCostUsd"] for x in shots),2)
 fm=round(sum(x["estimatedCostUsd"] for x in shots if x.get("firstMinute")),2)
 dur={b:sum(x["durationApprox"] for x in shots if x["beatId"]==b) for b in counters}
-doc={"meta":{"videoId":"ocean-deep-001","version":"002","totalShots":len(shots),"format":"1920x1080 (16:9)","language":"en",
+doc={"meta":{"videoId":"ocean-deep-001","version":"003","totalShots":len(shots),"format":"1920x1080 (16:9)","language":"en",
  "durationsBasis":"Estimated at Brian's measured pace (b1: 128 words in 41.05 s ≈ 3.1 words/s); b1 uses its real cut times; real scene boundaries are re-cut to the recorded narration's word timings before any paid generation (sample-manifest.ts: cuts only in silences between words).",
  "estimatedSecondsByBeat":dur,"estimatedTotalSeconds":sum(dur.values()),
  "paidItemsUsd":{"total":tot,"firstMinute":fm,"contingent":round(sum(x.get("contingentUsd",0) for x in shots),2)},
@@ -167,6 +182,8 @@ doc={"meta":{"videoId":"ocean-deep-001","version":"002","totalShots":len(shots),
  "shots":shots}
 json.dump(doc,open("ocean-storyboard-001.json","w"),ensure_ascii=False,indent=2)
 doc["meta"]["motionMix"]={m:sum(1 for x in shots if x["motion"]==m) for m in sorted({x["motion"] for x in shots})}
-doc["meta"]["cardSecondsMax"]=max(x["durationApprox"] for x in shots if x["assetType"]=="text")
+doc["meta"]["cardSecondsMax"]=1.5
+doc["meta"]["editorialBasis"]="Approved moving opening and subsequent budget approval. Target real video/animation for all non-map, non-historical shots. This is a source-selection plan, not evidence that assets are already selected or rendered. Maps are reported as graphics, not actual moving footage."
+doc["meta"]["estimatedSecondsByMotion"]={m:round(sum(x["durationApprox"] for x in shots if x["motion"]==m),1) for m in doc["meta"]["motionMix"]}
 json.dump(doc,open("ocean-storyboard-001.json","w"),ensure_ascii=False,indent=2)
 print(len(shots),dur,round(sum(dur.values()),1),tot,fm,doc["meta"]["veoClips"],doc["meta"]["veoBillableSeconds"],doc["meta"]["motionMix"])
