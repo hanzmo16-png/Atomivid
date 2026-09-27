@@ -74,6 +74,7 @@ import {
   type OutputFinalizeDeps,
 } from "./output-finalize";
 import { recordVideoGeneration } from "@/lib/billing/usage";
+import { measureMusicSourceSeconds } from "./music-duration";
 
 const STORAGE_BUCKET = "videos";
 const ASSET_SIGNED_URL_TTL_SECONDS = 60 * 60;
@@ -424,6 +425,7 @@ export async function generateLongFormVideoFromScript({
   const fullNarrationText = beats.map((b) => b.narration).join(" ");
   const finalDurationSeconds = timeline.durationSeconds + VIDEO_TAIL_SECONDS;
   let music: MusicResult | null = null;
+  let musicSourceSeconds: number | undefined;
   let musicFallbackReason: string | null = null;
   try {
     music = await resolvedProviders.musicProvider.getTrack({
@@ -434,7 +436,9 @@ export async function generateLongFormVideoFromScript({
       language,
       seed: requestId,
     });
+    musicSourceSeconds = await measureMusicSourceSeconds(music.audioBuffer);
   } catch (err) {
+    music = null;
     musicFallbackReason = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
     console.warn(`[atomivid:long-form:produce] ${requestId} — no se pudo obtener música, el documental se genera sin ella:`, musicFallbackReason);
   }
@@ -462,7 +466,7 @@ export async function generateLongFormVideoFromScript({
   let opening = packaging?.cover.enabled ? toCoverSpec(packaging.cover) : undefined;
   if (opening) {
     try {
-      assertOpeningValid(opening, shotScenes[0]);
+      assertOpeningValid(opening, shotScenes[0], language);
     } catch (err) {
       if (!(err instanceof CoverValidationError)) throw err;
       console.warn(`[atomivid:long-form:produce] ${requestId} — portada omitida: ${err.message}`);
@@ -472,7 +476,9 @@ export async function generateLongFormVideoFromScript({
   const rawOutputPath = await (runtime.render ?? renderLongFormDoc)({
     ...(opening ? { opening } : {}),
     audioUrl: audioUpload.url,
+    language,
     musicUrl: runtime.soundCues ? undefined : musicUrl,
+    musicDurationSeconds: runtime.soundCues ? undefined : musicSourceSeconds,
     soundCues: runtime.soundCues,
     scenes: shotScenes,
     captions,

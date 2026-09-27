@@ -3,6 +3,12 @@ import type { LongFormSource } from "@/lib/video/long-form/types";
 export const MAX_SOURCES = 20;
 export const MAX_OPEN_QUESTIONS = 10;
 
+/** Old forms omit language; reject unsupported submitted values before generation. */
+export function parseLongFormLanguage(value: unknown): "es" | "en" | null {
+  if (value === null || value === undefined) return "es";
+  return value === "es" || value === "en" ? value : null;
+}
+
 /** Una fuente por línea: "Título | URL o referencia (opcional) | nota (opcional)". */
 export function parseSources(raw: string): LongFormSource[] {
   return raw

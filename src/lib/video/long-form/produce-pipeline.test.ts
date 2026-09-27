@@ -47,7 +47,7 @@ function makeStorage() {
 }
 
 function counters() {
-  return { voice: 0, stock: 0, image: 0, veoSubmits: 0 };
+  return { voice: 0, voiceLanguages: [] as string[], stock: 0, image: 0, veoSubmits: 0 };
 }
 
 function providers(c: ReturnType<typeof counters>): LongFormProviderSet {
@@ -55,6 +55,7 @@ function providers(c: ReturnType<typeof counters>): LongFormProviderSet {
     name: "fake-elevenlabs",
     async synthesize(text, language, speed) {
       c.voice += 1;
+      c.voiceLanguages.push(language ?? "es");
       return fixtureVoiceProvider.synthesize(text, language, speed);
     },
   };
@@ -134,6 +135,8 @@ async function run(
     renders?: { count: number };
     replayOnly?: boolean;
     thumbnails?: { calls: unknown[]; uploads: string[] };
+    language?: "es" | "en";
+    musicSourceDuration?: number;
   } = {},
 ) {
   const script = documentary180sFixture();
@@ -172,6 +175,17 @@ async function run(
       return out;
     },
   };
+  const selectedProviders = providers(c);
+  if (opts.musicSourceDuration) {
+    selectedProviders.musicProvider = {
+      name: "short-music-fixture",
+      getTrack: async ({ durationSeconds }) => ({
+        ...await fixtureMusicProvider.getTrack({ durationSeconds: opts.musicSourceDuration! }),
+        // Match the curated provider: metadata contains requested video length.
+        durationSeconds,
+      }),
+    };
+  }
   const result = await generateLongFormVideoFromScript({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     supabase: env.supabase as any,
@@ -179,9 +193,9 @@ async function run(
     artifactPrefix: "req-panama-qa/attempt-1",
     topic: script.topic,
     beats: opts.beats ?? script.beats,
-    language: "es",
+    language: opts.language ?? "es",
     plan,
-    providers: providers(c),
+    providers: selectedProviders,
     runtime,
     onProgress: (stage, units) => {
       events.push({ stage, completed: units?.completed, total: units?.total, label: units?.label });
@@ -189,6 +203,18 @@ async function run(
   });
   return { result, events, renderInput: renderInput as RenderLongFormDocInput | null };
 }
+
+test("English reaches every narration beat and on-screen labels; short music retains its actual source length", async () => {
+  const c = counters();
+  const { renderInput } = await run(freshEnv(), c, planFor("economical"), { language: "en", musicSourceDuration: 45 });
+  assert.ok(c.voiceLanguages.length > 0);
+  assert.ok(c.voiceLanguages.every(language => language === "en"));
+  assert.equal(renderInput?.language, "en");
+  assert.equal(renderInput?.musicDurationSeconds, 45);
+  assert.ok(renderInput!.durationSeconds > 45);
+  assert.equal(c.veoSubmits, 0);
+  assert.equal(c.image, 0);
+});
 
 test("economical confirmado: 0 imágenes IA, 0 video IA — el worker ejecuta la estrategia del snapshot", async () => {
   const c = counters();
@@ -263,7 +289,7 @@ test("guion modificado después de confirmar: falla ANTES de cualquier llamada p
   const plan = planFor("balanced");
   const edited = documentary180sFixture().beats.map((b, i) => (i === 0 ? { ...b, narration: b.narration + " Texto agregado." } : b));
   await assert.rejects(run(freshEnv(), c, plan, { beats: edited }), LongFormScriptChangedError);
-  assert.deepEqual(c, { voice: 0, stock: 0, image: 0, veoSubmits: 0 });
+  assert.deepEqual(c, { voice: 0, voiceLanguages: [], stock: 0, image: 0, veoSubmits: 0 });
 });
 
 test("sin confirmación humana: el mismo orden que run-job.ts nunca llega a llamar un proveedor pagado", async () => {
@@ -274,7 +300,7 @@ test("sin confirmación humana: el mismo orden que run-job.ts nunca llega a llam
     const confirmed = resolveExecutablePlan({ confirmedAt: null, plan, beats: script.beats });
     await run(freshEnv(), c, confirmed, { videoProvider: fakeVeo(c) });
   }, /confirmación humana/);
-  assert.deepEqual(c, { voice: 0, stock: 0, image: 0, veoSubmits: 0 });
+  assert.deepEqual(c, { voice: 0, voiceLanguages: [], stock: 0, image: 0, veoSubmits: 0 });
 });
 
 // --- P0 2026-09-25: entrega del final.mp4 (Canal de Panamá) ---

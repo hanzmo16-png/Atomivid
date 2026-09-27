@@ -70,6 +70,9 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          # Brian: approved English documentary voice. Scoped to Long Form;
+          # existing Reel/Avatar and Spanish voice selection is unchanged.
+          ELEVENLABS_VOICE_ID_EN: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 'nPczCjzI2devNBz1zQrb' || '' }}
           ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
           # QA real (2026-09-25, "AVATAR REAL HEYGEN ATTEMPT FAILED"): esto
           # decía 'false' con el comentario "el worker general nunca
