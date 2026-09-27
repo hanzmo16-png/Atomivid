@@ -163,6 +163,349 @@ jobs:
           set -o pipefail
           mkdir -p "$SAMPLE_OUT_DIR"
           npx tsx scripts/long-form-quality-sample.ts | tee "$SAMPLE_OUT_DIR/sample-$PHASE.log"
+      - name: Dividir entrega en partes sin pérdida
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, zipfile, hashlib, json
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'ocean'
+          output=pathlib.Path(os.environ['RUNNER_TEMP'])/'ocean-parts'
+          files=sorted(p for p in root.rglob('*') if p.is_file()) if root.exists() else []
+          if files:
+              output.mkdir(exist_ok=True)
+              bundle=output/'delivery.zip'
+              with zipfile.ZipFile(bundle,'w',zipfile.ZIP_STORED,allowZip64=True) as z:
+                  for p in files: z.write(p,p.relative_to(root))
+              count=(bundle.stat().st_size+28*1024*1024-1)//(28*1024*1024)
+              if count>32: raise RuntimeError('Delivery needs more than 32 parts')
+              digest=hashlib.sha256()
+              with bundle.open('rb') as src:
+                  for i in range(count):
+                      data=src.read(28*1024*1024); digest.update(data)
+                      (output/f'part-{i:02d}.bin').write_bytes(data)
+              (output/'delivery.json').write_text(json.dumps({'parts':count,'bytes':bundle.stat().st_size,'sha256':digest.hexdigest()}))
+              bundle.unlink()
+          PY
+      - name: Entrega parte 00
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-00
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-00.bin
+            ${{ runner.temp }}/ocean-parts/delivery.json
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 01
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-01
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-01.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 02
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-02
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-02.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 03
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-03
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-03.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 04
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-04
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-04.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 05
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-05
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-05.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 06
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-06
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-06.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 07
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-07
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-07.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 08
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-08
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-08.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 09
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-09
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-09.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 10
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-10
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-10.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 11
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-11
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-11.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 12
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-12
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-12.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 13
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-13
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-13.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 14
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-14
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-14.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 15
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-15
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-15.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 16
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-16
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-16.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 17
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-17
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-17.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 18
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-18
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-18.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 19
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-19
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-19.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 20
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-20
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-20.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 21
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-21
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-21.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 22
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-22
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-22.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 23
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-23
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-23.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 24
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-24
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-24.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 25
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-25
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-25.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 26
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-26
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-26.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 27
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-27
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-27.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 28
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-28
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-28.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 29
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-29
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-29.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 30
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-30
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-30.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Entrega parte 31
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocean-delivery-${{ github.run_id }}-31
+          path: |
+            ${{ runner.temp }}/ocean-parts/part-31.bin
+            ${{ runner.temp }}/ocean-parts/not-created
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Publicar
         if: always()
         uses: actions/upload-artifact@v4
