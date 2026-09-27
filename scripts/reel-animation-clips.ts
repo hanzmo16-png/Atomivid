@@ -84,7 +84,8 @@ const CASES: ClipCase[] = [
       text: "El caballero avanzó por el camino de tierra, levantando polvo y pequeñas piedras.",
       visualQuery: "armored knight riding horse on dirt road",
       visualConcepts: [
-        "original armored knight riding a dark warhorse along a stony dirt road, side three-quarter view, the whole horse with all four legs and hooves, the rider and the ground in frame",
+        // ≤ 100 caracteres: los prompts recortan el sujeto a 100-160; así llega entero (patas, cascos, jinete y suelo).
+        "armored knight on a dark warhorse, stony dirt road, side view; four legs, hooves, rider in frame",
         "knight on horseback on a dirt road, dust at the hooves",
       ],
       visibleAction: "the knight rides his horse forward at a steady trot",
