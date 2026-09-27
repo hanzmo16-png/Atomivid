@@ -290,3 +290,19 @@ Archivos del ensayo (no se suben al repositorio): `scratchpad/ocean-rehearsal2/o
 **Bloqueos conocidos** (no se eluden):
 - Desde este entorno, el proxy bloquea NOAA, Commons, Pexels y la descarga de artefactos de Actions (`productionresultssa4.blob.core.windows.net`). La búsqueda de candidatos corre en el runner de GitHub. Para revisar resultados desde aquí hay que permitir ese dominio en *Network access* del entorno; Hans también puede abrir directamente la URL firmada.
 - Registrar el workflow en la rama por defecto requiere la autorización 1.
+
+## 11. Etapa A — estado (27-09-2026)
+
+Tope A autorizado: US$3,45 (acumulado en `ocean-deep-001/samples/episode/state/paid-ledger.json`).
+
+| Paso | Ejecución | Resultado | Gasto |
+|---|---|---|---|
+| Registro | `c27fd5a` y `b8db203` en la rama por defecto (solo `long-form-ocean.yml`) | `PINNED_REF=9b53248…`; datos desde `claude/ocean-documentary-stage-a-2gmp97`; entrada `parts` y registros del paso en el artefacto | — |
+| 1 `narrate-plan` | run 36319404819 | b1 sin caché, 678 caracteres, saldo 14.432, registro en $0 | gratis |
+| 2 `narrate-run` b1 | run 36319526478 | Brian, `eleven_multilingual_v2`: 41,053 s, 128 palabras, en la caché durable | 678 caracteres de cuota; en el registro US$0,2034; **dinero: $0** |
+| 3 `candidates` words | run 36319594264 | tiempos por palabra de b1 leídos; el paso cayó al pedir b2 (ventana de 900 s), sin costo | gratis |
+| 3 `candidates` pexels+commons | runs 36319717981 y 36319901385 | correctos, pero el artefacto quedó en `productionresultssa10.blob.core.windows.net`, **bloqueado por el proxy** | gratis |
+
+**Detenido antes de las llamadas de pago** (imagen IA y clips Veo): GitHub reparte los artefactos entre varias cuentas `productionresultssa*.blob.core.windows.net`; solo `sa4` está permitida en el entorno. Sin acceso no se pueden revisar los candidatos ni entregar el MP4 del render. Hace falta permitir `*.blob.core.windows.net` (o al menos `productionresultssa10`) en *Network access*.
+
+Cortes de b1 con los tiempos reales (en silencios entre palabras): 0–5,03 · 5,03–11,70 · 11,70–14,19 · 14,19–18,05 · 18,05–24,13 · 24,13–29,07 · 29,07–33,54 · 33,54–36,10 · 36,10–42,253 (narración 41,053 s + cola 1,2 s).
