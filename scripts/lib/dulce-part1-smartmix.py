@@ -96,8 +96,8 @@ acceptedB = round(sum(r.get("acceptedSecondsB", 0) for r in rows), 1)
 v1_runway = round(sum(s["sec"] for s in shots if s["origin"] == "V1"), 1)
 still_motion_B = sum(1 for s in shots if (s["src"] in C and C[s["src"]][5] == 0) or (s["src"] in NEW and NEW[s["src"]]["kind"] == "img+ff"))
 still_motion_A = sum(1 for s in shots if s["src"] in NEW and NEW[s["src"]]["kind"] == "img+ff")
-# Optional upgrade pack: the six B shots where real motion would add the most.
-UPGRADE = ["N05", "N43", "N21", "N01", "N13", "N44"]
+# Plan B+: seven low-risk i2v_economy upgrades chosen to break runs of consecutive stills.
+UPGRADE = ["N01", "N04", "N05", "N26", "N33", "N43", "N48"]  # breaks the still runs: hook P1-001..004, p08-p09 P1-081..087, p14 teaser
 up_cost = round(len(UPGRADE) * 5 * SEC, 2); up_retry = round(up_cost * 0.5, 2)
 summary = {
  "counts": {c: sum(1 for r in rows if r["classification"] == c) for c in ("MOTION_ESSENTIAL", "MOTION_BENEFICIAL", "MOTION_UNNECESSARY")},
