@@ -195,7 +195,10 @@ export async function render(ctx: Ctx) {
   const reviewed = attempts.filter(x => ['PASS', 'FAIL'].includes(x.qa?.result));
   const byClass: Record<string, {pass: number; total: number}> = {}; for (const x of reviewed.filter(y => y.stage === 'animation')) { const c = (byClass[x.shotClass] ||= {pass: 0, total: 0}); c.total++; if (x.qa.result === 'PASS') c.pass++; }
   const uniqueAssets = new Set(attempts.filter(x => x.stage !== 'voice').map(x => x.assetId + x.stage)).size;
-  const metrics = {totalCostUsd: spent, exposureUsd: ledgerExposure, capUsd: HARD_CAP_USD, generationCostUsd: genCost,
+  const cogsByKind: Record<string, number> = {}; for (const e of ctx.ledger.entries.filter(x => x.status === 'committed')) cogsByKind[e.kind] = (cogsByKind[e.kind] || 0) + (e.actualUsd ?? e.maxUsd);
+  const retryUsd = attempts.filter(x => x.qa?.result === 'FAIL' || /-v[2-9]$/.test((x as {attemptId?: string}).attemptId || '')).reduce((q, y) => q + y.costUsd, 0);
+  const providerTopups = JSON.parse(await fs.readFile('content/long-form/dulce-part1/provider-balance.json', 'utf8').catch(() => 'null'));
+  const metrics = {cogsUsd: spent, cogsByKind, retryAndFailedAttemptsUsd: retryUsd, providerTopupsNotCogs: providerTopups, totalCostUsd: spent, exposureUsd: ledgerExposure, capUsd: HARD_CAP_USD, generationCostUsd: genCost,
     costPerApprovedShot: newAssetSlots ? genCost / newAssetSlots : null, costPerApprovedGenerativeSecond: genSec ? attempts.filter(x => x.stage === 'animation').reduce((q, y) => q + y.costUsd, 0) / genSec : null,
     costPerFinishedMinute: spent / (duration / 60), regenerationRate: uniqueAssets ? (attempts.filter(x => x.stage !== 'voice').length - uniqueAssets) / uniqueAssets : 0,
     qaFailureRate: reviewed.length ? reviewed.filter(x => x.qa.result === 'FAIL').length / reviewed.length : 0,

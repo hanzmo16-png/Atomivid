@@ -41,12 +41,12 @@ jobs:
           DP1_ASSETS: ${{ steps.request.outputs.assets }}
           DP1_ANIMATE_ASSETS: ${{ steps.request.outputs.clips }}
           DP1_DRAFT: ${{ steps.request.outputs.draft }}
-          DP1_ALLOW_PAID: ${{ (contains(steps.request.outputs.stage, 'images') || contains(steps.request.outputs.stage, 'animate')) && 'true' || 'false' }}
+          DP1_ALLOW_PAID: ${{ (contains(steps.request.outputs.stage, 'images') || contains(steps.request.outputs.stage, 'animate') || contains(steps.request.outputs.stage, 'narrate')) && 'true' || 'false' }}
           DP1_OUT: ${{ runner.temp }}/dulce-part1
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ELEVENLABS_API_KEY: ${{ (contains(steps.request.outputs.stage, 'status') || contains(steps.request.outputs.stage, 'setup') || contains(steps.request.outputs.stage, 'voice-test') || contains(steps.request.outputs.stage, 'narrate')) && secrets.ELEVENLABS_API_KEY || '' }}
-          OPENAI_API_KEY: ${{ contains(steps.request.outputs.stage, 'images') && secrets.OPENAI_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ (contains(steps.request.outputs.stage, 'images') || contains(steps.request.outputs.stage, 'status')) && secrets.OPENAI_API_KEY || '' }}
           RUNWAY_API_KEY: ${{ contains(steps.request.outputs.stage, 'animate') && secrets.RUNWAY_API_KEY || '' }}
           VIDEO_PROVIDER: runway
           PREMIUM_CLIPS_ENABLED: 'true'

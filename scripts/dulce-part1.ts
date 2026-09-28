@@ -28,7 +28,6 @@ const DAVID = {voiceId: 'cCYjmrGZaI86GUJ7F2Nn', publicOwnerId: 'fd99b11504e8c1aa
 const MODEL = 'eleven_multilingual_v2';
 const VOICE_SETTINGS = {stability: 0.5, similarity_boost: 0.75, style: 0, use_speaker_boost: true, speed: 0.92};
 const ALIASES = [['Dulce', 'Dool-say'], ['Castello', 'Cass-tell-oh'], ['Bennewitz', 'Ben-uh-wits']];
-const CREATOR_RESERVE = 11;
 const IMAGE_MAX = 0.30, SEC_USD = 0.05;
 const out = process.env.DP1_OUT || '/tmp/dulce-part1';
 const stage = process.env.DP1_STAGE || 'status';
@@ -55,10 +54,10 @@ let queue: Promise<unknown> = Promise.resolve();
 const serial = <T>(fn: () => Promise<T>) => { const n = queue.then(fn); queue = n.catch(() => undefined); return n; };
 async function loadLedger() {
   const b = await read(`${P}/ledger.json`); if (b) ledger = JSON.parse(b.toString());
-  if (!ledger.entries.some(e => e.key === 'elevenlabs-creator')) { ledger.entries.push({key: 'elevenlabs-creator', kind: 'subscription', maxUsd: CREATOR_RESERVE, actualUsd: null, status: 'reserved'}); await putJson(`${P}/ledger.json`, ledger); }
-  const req = await readJson<{creatorActualUsd?: number | null}>('content/long-form/dulce-part1/production-request.json');
-  const creator = ledger.entries.find(e => e.key === 'elevenlabs-creator')!;
-  if (typeof req.creatorActualUsd === 'number' && creator.status !== 'committed') { creator.status = 'committed'; creator.actualUsd = req.creatorActualUsd; await putJson(`${P}/ledger.json`, ledger); }
+  // Creator was never bought (the owner topped up pay-as-you-go credits instead): the old reservation is void.
+  // Provider top-ups are cash added to a balance, not episode COGS; only real consumption enters this ledger.
+  const creator = ledger.entries.find(e => e.key === 'elevenlabs-creator');
+  if (creator && creator.status !== 'released') { creator.status = 'released'; creator.actualUsd = 0; await putJson(`${P}/ledger.json`, ledger); }
 }
 /** Reserve BEFORE the paid call; refuses (no call) when the cap would be exceeded. */
 function reserve(key: string, kind: string, maxUsd: number) {
@@ -105,7 +104,9 @@ async function xi<T>(p: string, init?: RequestInit): Promise<T> {
   if (!r.ok) throw Error(`ElevenLabs ${p.split('?')[0]} HTTP ${r.status}: ${(await r.text()).slice(0, 400)}`);
   return r.json() as Promise<T>;
 }
-async function quotaRemaining() { const s = await xi<{character_count: number; character_limit: number; tier: string}>('/v1/user/subscription'); return {remaining: s.character_limit - s.character_count, tier: s.tier}; }
+async function quotaRemaining() { const s = await xi<{character_count: number; character_limit: number; tier: string}>('/v1/user/subscription'); return {remaining: s.character_limit - s.character_count, used: s.character_count, limit: s.character_limit, tier: s.tier}; }
+/** COGS of ElevenLabs characters: the marginal price of the owner's top-up (USD 5 for 25,000 credits). */
+const XI_USD_PER_CHAR = 5 / 25000;
 type VoiceSetup = {voiceId: string; dictionary: {id: string; versionId: string}; at: string};
 async function voiceSetup(): Promise<VoiceSetup> { const b = await read(`${P}/voice/setup.json`); if (!b) throw Error('Run the setup stage first'); return JSON.parse(b.toString()); }
 type Tts = {audio: Buffer; words: WordTiming[]; seconds: number; latency: number};
@@ -167,23 +168,33 @@ async function narrate() {
   for (const b of script.beats) if (!(await read(`${P}/narration/${b.id}.json`))) todo.push(b);
   const need = todo.reduce((a, b) => a + b.narration.length, 0); const q = await quotaRemaining();
   log('NARRATE_PLAN', {beatsToGenerate: todo.length, chars: need, quota: q});
-  if (need > q.remaining) throw Error(`ElevenLabs quota ${q.remaining} < ${need} characters needed: upgrade (Creator) required before narration`);
+  if (need > q.remaining) throw Error(`ElevenLabs quota ${q.remaining} < ${need} characters needed: add credits before narration`);
+  if (!todo.length) return;
+  const key = `tts-narration-${Date.now()}`; await reserve(key, 'tts', Math.round(need * XI_USD_PER_CHAR * 1.1 * 1e4) / 1e4);
   const all = script.beats;
+  try {
   for (const b of todo) {
     const i = all.findIndex(x => x.id === b.id);
     const t = await tts(b.narration, vs, all[i - 1]?.narration, all[i + 1]?.narration);
     await put(`${P}/narration/${b.id}.mp3`, t.audio, 'audio/mpeg');
     const rec = {beatId: b.id, seconds: t.seconds, sha256: sha(t.audio), words: subtitleWords(b.narration, t.words), alignedWords: t.words.length, scriptWords: b.narration.split(/\s+/).filter(Boolean).length, voiceId: vs.voiceId, model: MODEL, settings: VOICE_SETTINGS, dictionary: vs.dictionary, at: new Date().toISOString()};
     await putJson(`${P}/narration/${b.id}.json`, rec);
-    await tele({attemptId: `voice-${b.id}`, assetId: `narration-${b.id}`, usedInShots: [], stage: 'voice', provider: 'elevenlabs', model: MODEL, productionMethod: 'tts', shotClass: 'audio', characters: ['David'], motionComplexity: 'n/a', generatedSeconds: t.seconds, costUsd: 0, costBasis: `quota-characters:${b.narration.length}`, latencySeconds: t.latency, attempt: 1, qa: {result: 'PENDING'}, fallbackUsed: 'none', finalApproved: true, outputSha256: rec.sha256, createdAt: rec.at});
+    await tele({attemptId: `voice-${b.id}`, assetId: `narration-${b.id}`, usedInShots: [], stage: 'voice', provider: 'elevenlabs', model: MODEL, productionMethod: 'tts', shotClass: 'audio', characters: ['David'], motionComplexity: 'n/a', generatedSeconds: t.seconds, costUsd: Math.round(b.narration.length * XI_USD_PER_CHAR * 1e5) / 1e5, costBasis: `characters:${b.narration.length}@${XI_USD_PER_CHAR}`, latencySeconds: t.latency, attempt: 1, qa: {result: 'PENDING'}, fallbackUsed: 'none', finalApproved: true, outputSha256: rec.sha256, createdAt: rec.at});
     log('VOICE', {beat: b.id, seconds: t.seconds, aligned: rec.alignedWords, script: rec.scriptWords});
+  }
+  } finally {
+    // Settle on the characters the account actually consumed (measured), never on the top-up amount.
+    const after = await quotaRemaining().catch(() => null); const chars = after ? after.used - q.used : need;
+    const usd = Math.round(Math.max(0, chars) * XI_USD_PER_CHAR * 1e5) / 1e5;
+    await settle(key, usd, 'committed'); log('NARRATE_COST', {characters: chars, usd});
+    await fs.writeFile(path.join(out, 'narration-cost.json'), JSON.stringify({characters: chars, usdPerCharacter: XI_USD_PER_CHAR, usd, before: q, after}, null, 2));
   }
 }
 
 async function images() {
   const doc = await readJson<AssetsDoc>('content/long-form/dulce-part1/assets.json'); const sb = await readJson<Storyboard>('content/long-form/dulce-part1/storyboard.json');
   if (!wanted.length || wanted.length > 18) throw Error('Select 1-18 assets');
-  const tiles: {image: Buffer; label: string}[] = []; let next = 0; const errors: unknown[] = [];
+  const tiles: {image: Buffer; label: string}[] = []; let next = 0; const errors: unknown[] = []; let halted = false;
   const make = async (id: string) => {
     const a = doc.assets[id]; if (!a) throw Error('Unknown asset ' + id);
     const dest = stillPath(id, a); let bytes = await read(dest);
@@ -209,7 +220,9 @@ async function images() {
     tiles.push({image: bytes, label: `${id} ${imgRev(a)} ${sha(bytes).slice(0, 8)}`});
     log('IMAGE', {id, sha256: sha(bytes)});
   };
-  await Promise.all(Array.from({length: Math.min(3, wanted.length)}, async () => { while (next < wanted.length) { const id = wanted[next++]; try { await make(id); } catch (e) { errors.push(e); log('IMAGE_ERROR', {id, error: e instanceof Error ? e.message : String(e)}); } } }));
+  // The first image runs alone: if the account has no quota, the batch stops after one rejected (unbilled) call.
+  { const id = wanted[next++]; try { await make(id); } catch (e) { errors.push(e); halted = true; log('IMAGE_ERROR', {id, error: e instanceof Error ? e.message : String(e)}); } }
+  await Promise.all(Array.from({length: Math.min(3, wanted.length)}, async () => { while (next < wanted.length && !halted) { const id = wanted[next++]; try { await make(id); } catch (e) { errors.push(e); const m = e instanceof Error ? e.message : String(e); if (/insufficient_quota|billing/i.test(m)) halted = true; log('IMAGE_ERROR', {id, error: m}); } } }));
   tiles.sort((x, y) => x.label.localeCompare(y.label));
   if (tiles.length) await fs.writeFile(path.join(out, 'stills-review.jpg'), await buildContactSheet(tiles, {columns: 3, tileWidth: 512, tileHeight: 341, title: 'Dulce Part I - stills awaiting review'}));
   await fs.writeFile(path.join(out, 'ledger.json'), JSON.stringify({exposureUsd: exposureUsd(ledger.entries), ledger}, null, 2));
@@ -291,8 +304,11 @@ async function clipReview() {
 
 async function status() {
   const q = XI ? await quotaRemaining().catch(e => ({error: String(e)})) : null;
-  await fs.writeFile(path.join(out, 'status.json'), JSON.stringify({exposureUsd: exposureUsd(ledger.entries), capUsd: HARD_CAP_USD, quota: q, ledger}, null, 2));
-  log('STATUS', {exposureUsd: exposureUsd(ledger.entries), quota: q});
+  // Free: listing models proves the key is valid; billing quota is only proven by the first (unbilled if rejected) image call.
+  const oa = process.env.OPENAI_API_KEY ? await fetch('https://api.openai.com/v1/models/gpt-image-2', {headers: {Authorization: `Bearer ${process.env.OPENAI_API_KEY}`}}).then(async r => ({status: r.status, body: r.ok ? 'ok' : (await r.text()).slice(0, 300)})).catch(e => ({error: String(e)})) : null;
+  const topups = await readJson('content/long-form/dulce-part1/provider-balance.json').catch(() => null);
+  await fs.writeFile(path.join(out, 'status.json'), JSON.stringify({cogsExposureUsd: exposureUsd(ledger.entries), capUsd: HARD_CAP_USD, elevenlabs: q, openaiKey: oa, providerTopups: topups, ledger}, null, 2));
+  log('STATUS', {cogsExposureUsd: exposureUsd(ledger.entries), elevenlabs: q, openaiKey: oa});
 }
 
 async function main() {

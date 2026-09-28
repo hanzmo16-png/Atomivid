@@ -1,0 +1,8 @@
+{
+  "note": "Cash added to provider balances (A). NOT DULCE COGS: the episode ledger records only measured API consumption (B).",
+  "topups": [
+    {"provider": "elevenlabs", "usd": 5, "credits": 25000, "reportedBy": "owner", "date": "2026-09-28", "uiAfter": "29,504 of 63,002 credits available"},
+    {"provider": "openai", "usd": 10, "reportedBy": "owner", "date": "2026-09-28"}
+  ],
+  "notPurchased": ["elevenlabs-creator (the earlier USD 11 entry is voided in the ledger)"]
+}

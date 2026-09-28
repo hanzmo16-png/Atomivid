@@ -1,10 +1,9 @@
 {
   "videoId": "dulce-part1",
-  "requestId": "status-after-creator-1",
+  "requestId": "verify-topups-1",
   "stage": "status",
   "assets": [],
   "draft": false,
   "capUsd": 40,
-  "creatorActualUsd": 11,
   "animateAssets": []
 }
