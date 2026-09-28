@@ -67,6 +67,12 @@ async function main(){
     const pl=`${WATCH}/hls/index.m3u8`;const {error:e}=await bucket.upload(pl,Buffer.from(signed.join('\n')),{contentType:'application/vnd.apple.mpegurl',upsert:true});if(e)throw Error('Playlist upload: '+e.message);
     Object.assign(result,{mode:'hls',watchUrl:await sign(pl),note:'Whole-file upload refused by the object size limit; HLS plays natively in Safari/iOS.'});
   }
+  // 4) Play the signed link anonymously, as a phone would: full duration and decodable picture and sound.
+  const probe=await new Promise<string>((res,rej)=>{const p=spawn('ffprobe',['-v','error','-show_entries','format=duration:stream=codec_type,width,height','-of','json',result.watchUrl as string]);let s='',e='';p.stdout.on('data',c=>s+=c);p.stderr.on('data',c=>e+=c);p.on('close',c=>c===0?res(s):rej(Error('Anonymous playback probe failed: '+e.slice(-500))));});
+  const pj=JSON.parse(probe);const duration=Number(pj.format.duration);
+  for(const t of ['5','280','565'])await run('ffmpeg',['-v','error','-ss',t,'-i',result.watchUrl as string,'-t','2','-f','null','-']);
+  result.playbackCheck={anonymous:true,durationSeconds:duration,streams:pj.streams,decodedAt:[5,280,565]};
+  if(Math.abs(duration-570)>1)throw Error('Signed link duration '+duration);
   await fs.writeFile(path.join(out,'watch-link.json'),JSON.stringify(result,null,2));
   await fs.rm(path.join(out,NAME),{force:true});await fs.rm(path.join(out,'hls'),{recursive:true,force:true});
   log('WATCH',{mode:result.mode,expiresAt:result.expiresAt});
