@@ -1,28 +1,10 @@
 {
   "videoId": "dulce-part1",
-  "requestId": "clipreview3-stills3",
-  "stage": "clip-review,images",
-  "assets": [
-    "N27",
-    "N28",
-    "N29",
-    "N30",
-    "N31",
-    "N32",
-    "N34",
-    "N37",
-    "N38",
-    "N39",
-    "N40",
-    "N42",
-    "N44",
-    "N45",
-    "N47",
-    "N49",
-    "N50"
-  ],
+  "requestId": "narrate-david-full",
+  "stage": "narrate",
+  "assets": [],
   "draft": false,
   "capUsd": 40,
-  "creatorActualUsd": null,
+  "creatorActualUsd": 11,
   "animateAssets": []
 }
