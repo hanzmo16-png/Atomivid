@@ -25,3 +25,22 @@ mientras sigue permitiendo múltiples `NULL`.
 Esto NO reemplaza aplicar la migración en el proyecto real de Supabase —
 solo confirma que el SQL es válido, idempotente y que las policies hacen
 lo que dicen hacer, antes de pedir esa autorización.
+
+## Production Intelligence / Distribution / Delivery (0023–0025)
+
+Proposed order (NOT applied to production; needs explicit authorization):
+`0023_production_intelligence.sql` → `0024_distribution_youtube.sql` → `0025_delivery_assets.sql`.
+They start at 0023 because 0020–0022 exist on unmerged branches (`claude/audiovisual-profiles`
+0020, `claude/medieval-horse-sample` 0021, `claude/ocean-documentary` 0022); none of the new
+migrations depends on them, so either merge order works. All three are re-runnable.
+
+```bash
+psql -d atomivid_migration_test -f supabase/migrations/verify/03_production_intelligence_test.sql
+```
+
+Checks (each raises on failure): unique idempotency keys, forward-only and final paid operations,
+append-only telemetry/policy history, immutable memory snapshots and project pins, a single ACTIVE
+policy, secret NAMES only in the provider registry, UNKNOWN capacity never stored as GREEN, no signed
+URLs as storage paths, masters never expiring, encrypted-only OAuth envelopes, no invented metrics,
+and RLS: an owner sees only their channel; clients cannot read tokens, ledger or delivery records.
+Supabase security/performance advisors can only run after the migrations are applied to a real project.
