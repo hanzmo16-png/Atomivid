@@ -30,13 +30,16 @@ jobs:
           const stages = ['status','setup','voice-test','narrate','images','approve','animate','clip-review','render'];
           if (r.videoId !== 'dulce-part1' || r.capUsd !== 40 || !r.requestId || !String(r.stage).split(',').every(s => stages.includes(s))) throw Error('Invalid or unscoped request');
           if (!Array.isArray(r.assets) || r.assets.length > 18 || r.assets.some(x => !/^N\d{2}$/.test(x))) throw Error('Invalid asset list');
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `stage=${r.stage}\nassets=${r.assets.join(',')}\ndraft=${r.draft === true}\n`);
+          const clips = r.animateAssets || [];
+          if (!Array.isArray(clips) || clips.length > 13 || clips.some(x => !/^N\d{2}$/.test(x))) throw Error('Invalid animate list');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `stage=${r.stage}\nassets=${r.assets.join(',')}\nclips=${clips.join(',')}\ndraft=${r.draft === true}\n`);
           NODE
       - name: Run stage
         run: npx tsx scripts/dulce-part1.ts
         env:
           DP1_STAGE: ${{ steps.request.outputs.stage }}
           DP1_ASSETS: ${{ steps.request.outputs.assets }}
+          DP1_ANIMATE_ASSETS: ${{ steps.request.outputs.clips }}
           DP1_DRAFT: ${{ steps.request.outputs.draft }}
           DP1_ALLOW_PAID: ${{ (contains(steps.request.outputs.stage, 'images') || contains(steps.request.outputs.stage, 'animate')) && 'true' || 'false' }}
           DP1_OUT: ${{ runner.temp }}/dulce-part1

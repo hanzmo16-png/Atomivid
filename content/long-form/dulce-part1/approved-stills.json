@@ -73,5 +73,95 @@
     "asset": "N10",
     "sha256": "fc9ff38820dbb711b9dda69eb11d26f3a86e4ed7e60a84a435bfde093b0528ef",
     "note": "Shaft with rails and ladder receding into darkness."
+  },
+  {
+    "asset": "N02",
+    "sha256": "ff61303412a27bc7dcaf25e198821b321fb69cd9b999dc56b45eca24d3b9e30e",
+    "note": "v2: distant town lights, no people."
+  },
+  {
+    "asset": "N04",
+    "sha256": "4f4abaf4084739d40e930f25d4ca086d0c5056cc67afe9a6178338bcc850a3a0",
+    "note": "v2: empty tunnel."
+  },
+  {
+    "asset": "N01",
+    "sha256": "d0fbf5400723d27265ebbea436e37ee8ffd09c7699d3587331ec76766ebb21d3",
+    "note": "v2: empty mesa at dusk, no people."
+  },
+  {
+    "asset": "N36",
+    "sha256": "38635febc3f2126919f82bbe87115aac8e313114eb823421a6ecf032bc9af560",
+    "note": "George close-up matches N35."
+  },
+  {
+    "asset": "N33",
+    "sha256": "cc1d039554fae62caa6d4465fd42461772d095521d07035435b368864c5bc751",
+    "note": "George matches N35 (beard, flannel) seen through wired window; alone."
+  },
+  {
+    "asset": "N08",
+    "sha256": "4dc86343daf758d8fe1a9715d0bf4352abf6e01e28e8030a8fbd16350900accc",
+    "note": "Barrier with one distant guard, still."
+  },
+  {
+    "asset": "N13",
+    "sha256": "e31524edcef230804f0d601735ad3aee2a00ea8056899cf158655866a2bf405d",
+    "note": "Grey seated at console from behind; hands hidden."
+  },
+  {
+    "asset": "N14",
+    "sha256": "cd7b9348c55522a902e966f89313ef8bc898527049332bf522ac2bb21d732342",
+    "note": "Technician and grey far apart at the bench; no contact."
+  },
+  {
+    "asset": "N15",
+    "sha256": "213d04690430395caabf14b0203b54a28292e781d2069590c3411fa08b0e2d6b",
+    "note": "Reptilian silhouette before monitors."
+  },
+  {
+    "asset": "N16",
+    "sha256": "b40aa703afc9e39511dd6949a470d4a31b72fe95e6adc495f07872436ff039eb",
+    "note": "Distant grey at corridor end."
+  },
+  {
+    "asset": "N17",
+    "sha256": "477329061c33568565a7ed17f402786d92c16bc3c1c1a822b1cc57db9a50bc41",
+    "note": "Time clock and blank cards; no text."
+  },
+  {
+    "asset": "N18",
+    "sha256": "45a9b7a71c318f4cfc869afede04ff91c96548c283a18c03771d615a8be0476a",
+    "note": "Three workers from behind, still, turnstiles."
+  },
+  {
+    "asset": "N19",
+    "sha256": "122c82e36e2058f30651845096cce19d3aa0d21001aea400f6129eca38ee6727",
+    "note": "Grey silhouette standing behind frosted glass; empty desk."
+  },
+  {
+    "asset": "N21",
+    "sha256": "e126975a611ba1d5cc572d35eda743f3a5347614ca1b2e9d08120c512434bfed",
+    "note": "Truck at dawn beside the house; no people."
+  },
+  {
+    "asset": "N22",
+    "sha256": "5a7f6dad6501a5e960f952ac1f5439490c5f9a981ebb70f7fcd9c2b25c207afb",
+    "note": "Thomas consistent in corridor."
+  },
+  {
+    "asset": "N24",
+    "sha256": "0f4a9f7560118f71f593d82089b7e143292f0d871de27f95cb21339f0782e4ef",
+    "note": "CCTV monitors, empty corridors."
+  },
+  {
+    "asset": "N23",
+    "sha256": "e511753f9ae5186682e24162d8694c174acb76d9c735cc8fb2e87f7d0a293d2c",
+    "note": "Two staff behind partition, grey far side; no crossing."
+  },
+  {
+    "asset": "N25",
+    "sha256": "2d89e0902970ff10213bbf4f0722404fec759b9e40c3216a8700e90a0f58ffb9",
+    "note": "Thomas at observation window, lab reflected; minor: two flat monitors in dark lower right (period detail), accepted."
   }
 ]

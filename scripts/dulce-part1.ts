@@ -33,6 +33,7 @@ const IMAGE_MAX = 0.30, SEC_USD = 0.05;
 const out = process.env.DP1_OUT || '/tmp/dulce-part1';
 const stage = process.env.DP1_STAGE || 'status';
 const wanted = (process.env.DP1_ASSETS || '').split(',').filter(Boolean);
+const wantedClips = (process.env.DP1_ANIMATE_ASSETS || process.env.DP1_ASSETS || '').split(',').filter(Boolean);
 const service = createServiceClient(), bucket = service.storage.from('videos');
 const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
 const log = (tag: string, v: unknown) => console.log(`@@DP1_${tag} ` + JSON.stringify(v));
@@ -231,7 +232,7 @@ async function approve() {
 
 async function animate() {
   const doc = await readJson<AssetsDoc>('content/long-form/dulce-part1/assets.json'); const sb = await readJson<Storyboard>('content/long-form/dulce-part1/storyboard.json');
-  if (!wanted.length || wanted.length > 13) throw Error('Select 1-13 B+ assets');
+  if (!wantedClips.length || wantedClips.length > 13) throw Error('Select 1-13 B+ assets');
   const provider = getVideoProvider('runway'); if (provider.name !== 'runway') throw Error('Runway unavailable');
   const durable = wrapDurableVideoProvider(provider, {supabase: service, scopeId: SCOPE, executionMode: 'real', maxInAttemptResumes: 2, beforeSubmit: async req => { await reserve(req.metadata!.claimKey as string, 'video', req.maxCostUsd); return true; }});
   const sheets: {image: Buffer; label: string}[] = []; let next = 0; const errors: unknown[] = [];
@@ -254,7 +255,7 @@ async function animate() {
     await fs.writeFile(path.join(out, `${id}.json`), JSON.stringify({id, rev, sha256: sha(asset.buffer), seconds, providerJobId: asset.providerJobId, l1}, null, 2));
     log('CLIP', {id, rev, seconds, l1});
   };
-  await Promise.all(Array.from({length: Math.min(3, wanted.length)}, async () => { while (next < wanted.length) { const id = wanted[next++]; try { await make(id); } catch (e) { errors.push(e); log('CLIP_ERROR', {id, error: e instanceof Error ? e.message : String(e)}); } } }));
+  await Promise.all(Array.from({length: Math.min(3, wantedClips.length)}, async () => { while (next < wantedClips.length) { const id = wantedClips[next++]; try { await make(id); } catch (e) { errors.push(e); log('CLIP_ERROR', {id, error: e instanceof Error ? e.message : String(e)}); } } }));
   await fs.writeFile(path.join(out, 'ledger.json'), JSON.stringify({exposureUsd: exposureUsd(ledger.entries), ledger}, null, 2));
   if (errors.length) throw errors[0];
 }
