@@ -1,7 +1,10 @@
 {
   "videoId": "dulce-001",
-  "requestId": "render-final-20260928",
-  "stage": "render",
-  "shots": [],
+  "requestId": "animation-10-hook-20260928",
+  "stage": "animate",
+  "shots": [
+    "D01-01",
+    "D01-03"
+  ],
   "authorizedCeilingUsd": 55
 }

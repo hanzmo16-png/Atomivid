@@ -29,7 +29,8 @@ function serial<T>(fn:()=>Promise<T>):Promise<T>{const next=mutationQueue.then(f
 const committed=()=>ledger.entries.reduce((a,e)=>a+e.amount,0);
 async function claim(key:string,amount:number,kind:string){return serial(async()=>{
  if(process.env.DULCE_ALLOW_PAID!=='true')throw Error('Paid authorization missing');
- if(!Number.isFinite(amount)||amount<=0||committed()+amount>CEILING-1)throw Error('Episode budget exceeded');
+ // Image claims are conservative estimates, so they keep a USD 1 reserve; Runway video is a fixed USD 0.50 price.
+ if(!Number.isFinite(amount)||amount<=0||committed()+amount>CEILING-(kind==='video'?0:1))throw Error('Episode budget exceeded');
  if(ledger.entries.some(e=>e.key===key))throw Error('Existing paid claim: reconcile rather than resend '+key);
  await writeJson(`${PREFIX}/claims/${key}.json`,{key,amount,kind,time:new Date().toISOString()},false);
  ledger.entries.push({key,amount,status:'committed',kind});await writeJson(`${PREFIX}/ledger.json`,ledger);

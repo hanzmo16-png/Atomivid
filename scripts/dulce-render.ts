@@ -131,9 +131,16 @@ async function main(){
   for(const [j,m] of music.entries()){
     const {data,error}=await service.storage.from('music-library').download(m.trackId+'.mp3');if(error||!data)throw Error('Missing licensed music '+m.trackId);
     const mf=path.join(work,m.trackId+'.mp3');await fs.writeFile(mf,Buffer.from(await data.arrayBuffer()));
-    const idx=narration.length+j,len=m.endSeconds-m.startSeconds,d=Math.round(m.startSeconds*1000);
-    inputs.push('-stream_loop','-1','-i',mf);
-    f.push(`[${idx}]aresample=48000,aformat=channel_layouts=stereo,atrim=0:${len.toFixed(3)},asetpts=N/SR/TB,afade=t=in:d=${m.fadeInSeconds},afade=t=out:st=${(len-m.fadeOutSeconds).toFixed(3)}:d=${m.fadeOutSeconds},adelay=${d}|${d}[m${j}]`);
+    const len=m.endSeconds-m.startSeconds,d=Math.round(m.startSeconds*1000);
+    // Trim the cue's silent head/tail, then join loops with 3 s crossfades so a loop point never drops out.
+    const trimmed=path.join(work,m.trackId+'-trimmed.wav');
+    await run('ffmpeg',['-y','-i',mf,'-af','aresample=48000,aformat=channel_layouts=stereo,silenceremove=start_periods=1:start_threshold=-50dB,areverse,silenceremove=start_periods=1:start_threshold=-50dB,areverse',trimmed]);
+    const copies=Math.ceil(len/Math.max(10,(await probeDuration(trimmed))-3))+1;
+    const first=inputs.filter(x=>x==='-i').length;
+    for(let k=0;k<copies;k++)inputs.push('-i',trimmed);
+    let chain=`[${first}]`;
+    for(let k=1;k<copies;k++){f.push(`${chain}[${first+k}]acrossfade=d=3[m${j}x${k}]`);chain=`[m${j}x${k}]`;}
+    f.push(`${chain}atrim=0:${len.toFixed(3)},asetpts=N/SR/TB,afade=t=in:d=${m.fadeInSeconds},afade=t=out:st=${(len-m.fadeOutSeconds).toFixed(3)}:d=${m.fadeOutSeconds},adelay=${d}|${d}[m${j}]`);
   }
   f.push(`${music.map((_,j)=>`[m${j}]`).join('')}amix=inputs=${music.length}:normalize=0:duration=longest,apad,atrim=0:${total},volume=0.32[bed]`);
   f.push(`[bed][key]sidechaincompress=threshold=0.015:ratio=4:attack=30:release=600[ducked]`);

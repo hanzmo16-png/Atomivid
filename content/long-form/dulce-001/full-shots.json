@@ -43,8 +43,8 @@
       "descriptionEs": "Pasillo de espaldas; reutilizar clip aprobado",
       "visibleAction": "The worker walks away down the corridor; his flashlight moves with his steps.",
       "camera": "restrained tracking or lateral camera movement",
-      "sourceType": "existing_clip",
-      "requestSeconds": 0,
+      "sourceType": "runway_image_to_video",
+      "requestSeconds": 10,
       "model": "gen4_turbo",
       "ratio": "1280:720",
       "newImageRequired": false,
@@ -52,18 +52,13 @@
         "d02",
         "d01"
       ],
-      "existingStillPath": null,
-      "reuse": {
-        "libraryFileName": "Dulce-Runway-01-Pasillo.mp4",
-        "sourceSeconds": 5,
-        "inSeconds": 0.25,
-        "outSeconds": 4.25
-      },
+      "existingStillPath": "dulce-001/samples/pilot/ai/dulce-d01-v1-still.png",
+      "reuse": null,
       "imagePrompt": null,
-      "animationPrompt": null,
-      "animationUsd": 0,
+      "animationPrompt": "Photoreal cinematic suspense. The adult maintenance worker walks naturally away from camera down the established industrial corridor. The far rectangular door slowly opens. Gentle tracking shot, stable corridor geometry, restrained practical lighting. Preserve the source image character, outfit and environment. No dialogue, no text, no logos, no cuts, no morphing.",
+      "animationUsd": 0.5,
       "referenceReserveUsd": 0,
-      "reviewStatus": "approved_source_trim_pending",
+      "reviewStatus": "approved_reference_animation_pending",
       "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
       "editFrames": 120,
       "startFrame": 0,
@@ -74,7 +69,8 @@
         "C1",
         "P1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": "",
+      "revisionReason": "Library clip Dulce-Runway-01-Pasillo.mp4 is not in Storage; animate the approved pilot still d01 instead of a still push-in so the hook moves from frame one."
     },
     {
       "shotId": "D01-02",
@@ -122,8 +118,8 @@
       "descriptionEs": "Encuentro; reutilizar clip aprobado",
       "visibleAction": "The grey figure subtly turns its head while the worker advances.",
       "camera": "locked camera or very slow push; subject action remains primary",
-      "sourceType": "existing_clip",
-      "requestSeconds": 0,
+      "sourceType": "runway_image_to_video",
+      "requestSeconds": 10,
       "model": "gen4_turbo",
       "ratio": "1280:720",
       "newImageRequired": false,
@@ -131,18 +127,13 @@
         "d02",
         "d01"
       ],
-      "existingStillPath": null,
-      "reuse": {
-        "libraryFileName": "Dulce-Runway-02-Encuentro.mp4",
-        "sourceSeconds": 5,
-        "inSeconds": 0.25,
-        "outSeconds": 4.25
-      },
+      "existingStillPath": "dulce-001/samples/pilot/ai/dulce-d03-v1-still.png",
+      "reuse": null,
       "imagePrompt": null,
-      "animationPrompt": null,
-      "animationUsd": 0,
+      "animationPrompt": "Over the same worker's shoulder, an adult small grey humanoid and a tall olive-scaled reptilian humanoid stand at the far end of the same corridor. The grey figure turns its head slightly; the tall figure remains still. Slow camera approach, coherent scale and anatomy. Keep the worker's shoulder in foreground. No dialogue, no text, no cuts.",
+      "animationUsd": 0.5,
       "referenceReserveUsd": 0,
-      "reviewStatus": "approved_source_trim_pending",
+      "reviewStatus": "approved_reference_animation_pending",
       "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
       "editFrames": 120,
       "startFrame": 271,
@@ -153,7 +144,8 @@
         "C1",
         "P1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": "",
+      "revisionReason": "Library clip Dulce-Runway-02-Encuentro.mp4 is not in Storage; animate the approved pilot still d03 instead of a still push-in so the hook moves from frame one."
     },
     {
       "shotId": "D01-04",
