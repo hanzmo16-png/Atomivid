@@ -338,5 +338,10 @@
     "shotId": "D12-06",
     "sha256": "25cbc05bf4993bbf263a7beeee7634cb33236c7b46bf23d809101d2288804b2d",
     "note": "Reviewed corrected final references: isolated objects, matching drawing, empty exterior and family seated indoors through window; framing coherent."
+  },
+  {
+    "shotId": "D12-03",
+    "sha256": "42518540307dfa51968ef5880b94e8e26dad82d5e35d0256a460c6b6106532c3",
+    "note": "Reviewed final over-shoulder composition: same seated adult couple, no added objects, consistent warm kitchen and wardrobe."
   }
 ]

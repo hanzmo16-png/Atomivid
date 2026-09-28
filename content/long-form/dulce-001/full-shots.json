@@ -2027,7 +2027,7 @@
       "existingStillPath": null,
       "reuse": null,
       "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The second hand of an ordinary kitchen clock moves steadily; the camera stays fixed. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
-      "animationPrompt": "Locked camera watches a normal wall clock and a man standing quietly. The clock FACE, HOUR HAND and MINUTE HAND stay in their exact starting positions throughout. Only the thin SECOND HAND advances through a small arc, one tick per second, nine small ticks total. Normal real-time speed. No time lapse, no spinning hands, no fast-forward. The man breathes subtly without moving his position. Stable objects, continuous shot.",
+      "animationPrompt": "Tight close-up of a worried man alone in his kitchen. He watches something outside the left edge of frame and breathes slowly. His eyes shift once toward the offscreen wall clock. He stays in the same position. No hands or objects enter frame. Camera fixed, subtle realistic human motion, continuous shot.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -2044,7 +2044,14 @@
         "H1"
       ],
       "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition. Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action.",
-      "animationRevision": "v2"
+      "animationRevision": "v3",
+      "animationReferenceId": "D09-03",
+      "animationReferenceCrop": {
+        "left": 560,
+        "top": 45,
+        "width": 832,
+        "height": 468
+      }
     },
     {
       "shotId": "D09-05",
@@ -2406,7 +2413,7 @@
       "existingStillPath": null,
       "reuse": null,
       "imagePrompt": "Photorealistic realistic movie still. Extreme close-up exterior of the old unlit porch light fixture mounted on a small chain under the timber porch roof of the modest house at night. ONLY the fixture, stucco wall and timber in frame. No people, no doorway, no interior. Fixture hangs loosely, ready to sway in wind. Essential action in central 16:9 crop.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The unlit porch fixture swings gently in the night wind. Use locked camera or very slow push; subject action remains primary.",
+      "animationPrompt": "The broken porch lamp swings gently in the night breeze. Its bulb is completely DARK, opaque and unlit from first to last frame. The lamp has no electricity and never illuminates. Constant dim ambient night light. The only motion is a slight pendulum sway of the hanging fixture. Camera stays fixed, one continuous shot.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -2419,7 +2426,8 @@
       "contextKeys": [],
       "imagePromptExtra": "Follow the requested close-up or wide framing precisely. Do not reproduce unwanted background people from the reference.",
       "imageRevision": "v2",
-      "replaceReferenceSha256": "5fdd18396ae568a69db7731dd12e2d0e4ce51616e8e33ed27d25de6d86e4d884"
+      "replaceReferenceSha256": "5fdd18396ae568a69db7731dd12e2d0e4ce51616e8e33ed27d25de6d86e4d884",
+      "animationRevision": "v2"
     },
     {
       "shotId": "D11-03",

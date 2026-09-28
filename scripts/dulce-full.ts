@@ -166,14 +166,16 @@ async function main(){
    const make=async(id:string)=>{
      const shot=spec.shots.find((s:{shotId:string})=>s.shotId===id);
      if(!shot||shot.reuse||shot.requestSeconds!==10)throw Error('Invalid animation '+id);
-     const ref=await read(shot.newImageRequired?`${PREFIX}/refs/${id}.png`:shot.existingStillPath);if(!ref)throw Error('Missing image '+id);
-     if(shot.newImageRequired){const review=await read(`${PREFIX}/reviews/${id}.json`);if(!review||JSON.parse(review.toString()).sha256!==sha(ref)||JSON.parse(review.toString()).status!=='approved')throw Error('Image not visually approved '+id);}
-     const jpeg=await sharp(ref).resize(1280,720,{fit:'cover',position:'centre'}).jpeg({quality:92}).toBuffer();
+     const referenceId=shot.animationReferenceId||id;
+     const ref=await read(shot.newImageRequired?`${PREFIX}/refs/${referenceId}.png`:shot.existingStillPath);if(!ref)throw Error('Missing image '+id);
+     if(shot.newImageRequired){const review=await read(`${PREFIX}/reviews/${referenceId}.json`);if(!review||JSON.parse(review.toString()).sha256!==sha(ref)||JSON.parse(review.toString()).status!=='approved')throw Error('Image not visually approved '+referenceId);}
+     let input=sharp(ref);if(shot.animationReferenceCrop)input=input.extract(shot.animationReferenceCrop);
+     const jpeg=await input.resize(1280,720,{fit:'cover',position:'centre'}).jpeg({quality:92}).toBuffer();
      const rev=shot.animationRevision||'v1',claimKey='video-'+id+'-'+rev;
      const asset=await durable.generateVideo({prompt:shot.animationPrompt,aspectRatio:'16:9',durationSeconds:10,maxCostUsd:.5,referenceImageUrl:'data:image/jpeg;base64,'+jpeg.toString('base64'),metadata:{shotId:rev==='v1'?id:id+'-'+rev,videoId:ID,claimKey}});
      const file=path.join(out,id+'.mp4');await fs.writeFile(file,asset.buffer);
      const duration=await probeDuration(file);if(duration<shot.editSeconds+.2)throw Error('Clip too short '+id);
-     const meta={shotId:id,sha256:sha(asset.buffer),providerJobId:asset.providerJobId,durationSeconds:duration,referenceSha256:sha(ref),model:asset.model,review:'pending'};
+     const meta={shotId:id,sha256:sha(asset.buffer),providerJobId:asset.providerJobId,durationSeconds:duration,referenceSha256:sha(ref),referenceShotId:referenceId,referenceCrop:shot.animationReferenceCrop||null,model:asset.model,review:'pending'};
      await writeJson(`${PREFIX}/clips/${id}.json`,meta);await fs.writeFile(path.join(out,id+'.json'),JSON.stringify(meta,null,2));
      await serial(async()=>{const entry=ledger.entries.find(e=>e.key===claimKey);if(entry)entry.status='completed';await writeJson(`${PREFIX}/ledger.json`,ledger);});
      for(const t of [0.5,4.5,8.5])tiles.push({image:await frameAt(file,t,640),label:id+' @ '+t+'s'});
