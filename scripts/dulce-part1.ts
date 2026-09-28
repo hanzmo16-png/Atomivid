@@ -66,12 +66,14 @@ function reserve(key: string, kind: string, maxUsd: number) {
     if (ledger.entries.some(e => e.key === key && e.status !== 'released')) throw Error('Existing paid claim; reconcile rather than resend ' + key);
     const gate = canSpend(ledger.entries, maxUsd);
     if (!gate.ok) throw Error(`HARD CAP: exposure ${gate.exposure.toFixed(2)} + ${maxUsd.toFixed(2)} > ${HARD_CAP_USD}; stopped before the call`);
-    await putJson(`${P}/claims/${key}.json`, {key, kind, maxUsd, at: new Date().toISOString()}, false);
+    // A released claim (rejected, unbilled call) may be retried; each retry gets its own unique claim file.
+    const retries = ledger.entries.filter(e => e.key === key && e.status === 'released').length;
+    await putJson(`${P}/claims/${key}${retries ? `-r${retries}` : ''}.json`, {key, kind, maxUsd, at: new Date().toISOString()}, false);
     ledger.entries.push({key, kind, maxUsd, actualUsd: null, status: 'reserved'});
     await putJson(`${P}/ledger.json`, ledger);
   });
 }
-const settle = (key: string, actualUsd: number | null, status: 'committed' | 'released') => serial(async () => { const e = ledger.entries.find(x => x.key === key); if (e) { e.actualUsd = actualUsd; e.status = status; await putJson(`${P}/ledger.json`, ledger); } });
+const settle = (key: string, actualUsd: number | null, status: 'committed' | 'released') => serial(async () => { const e = ledger.entries.find(x => x.key === key && x.status === 'reserved'); if (e) { e.actualUsd = actualUsd; e.status = status; await putJson(`${P}/ledger.json`, ledger); } });
 
 // ---------------- telemetry ----------------
 type Attempt = {attemptId: string; assetId: string; usedInShots: string[]; stage: string; provider: string; model: string; productionMethod: string; shotClass: string; characters: string[]; motionComplexity: string; generatedSeconds: number; requestedSeconds?: number; costUsd: number; costBasis: string; latencySeconds: number; attempt: number; qa: {result: 'PASS' | 'FAIL' | 'PENDING'; layer?: string; failureReasons?: string[]; notes?: string}; failureKind?: string; fallbackUsed: string; finalApproved: boolean; outputSha256?: string; createdAt: string};
