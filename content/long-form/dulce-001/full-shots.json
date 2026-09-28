@@ -345,7 +345,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": "Medium wide side view inside a modest 1980s kitchen. Wife at a wall light switch, wooden rectangular dining table with three wooden chairs, small cream cabinetry, warm overhead lamp, curtain at window. Clearly establish this kitchen layout for all later dinner scenes."
     },
     {
       "shotId": "D02-02",
@@ -384,7 +384,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
     },
     {
       "shotId": "D02-03",
@@ -460,7 +460,7 @@
         "C1",
         "P1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
     },
     {
       "shotId": "D02-05",
@@ -497,7 +497,7 @@
         "C1",
         "P1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
     },
     {
       "shotId": "D02-06",
@@ -505,7 +505,7 @@
       "startSecondsApprox": 91,
       "endSecondsApprox": 100,
       "durationSecondsApprox": 9,
-      "descriptionEs": "Orden en terminal; texto en posproducción",
+      "descriptionEs": "Orden en terminal; texto en posproducci\u00f3n",
       "visibleAction": "The worker leans toward a blank terminal screen and stops typing; a cursor blinks.",
       "camera": "restrained tracking or lateral camera movement",
       "sourceType": "runway_image_to_video",
@@ -534,7 +534,7 @@
         "C1",
         "P1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
     },
     {
       "shotId": "D03-01",
@@ -719,7 +719,7 @@
         "C1",
         "P1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
     },
     {
       "shotId": "D03-06",
@@ -756,7 +756,7 @@
         "C1",
         "P1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
     },
     {
       "shotId": "D04-01",
@@ -947,7 +947,7 @@
       "contextKeys": [
         "L1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Close shot from inside the laboratory, isolating only the specified adult occupant and the relevant hand or face. Match the chamber materials but change camera position and crop significantly from the wide reference. Do not show Castello."
     },
     {
       "shotId": "D04-06",
@@ -982,7 +982,7 @@
       "contextKeys": [
         "L1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Close shot from inside the laboratory, isolating only the specified adult occupant and the relevant hand or face. Match the chamber materials but change camera position and crop significantly from the wide reference. Do not show Castello."
     },
     {
       "shotId": "D05-01",
@@ -990,7 +990,7 @@
       "startSecondsApprox": 200,
       "endSecondsApprox": 208,
       "durationSecondsApprox": 8,
-      "descriptionEs": "Dos cámaras; inicio secuencia",
+      "descriptionEs": "Dos c\u00e1maras; inicio secuencia",
       "visibleAction": "The lights over the two established chambers dim in sequence; the adult occupants breathe.",
       "camera": "restrained tracking or lateral camera movement",
       "sourceType": "runway_image_to_video",
@@ -1064,7 +1064,7 @@
       "startSecondsApprox": 216,
       "endSecondsApprox": 225,
       "durationSecondsApprox": 9,
-      "descriptionEs": "Respiración humana",
+      "descriptionEs": "Respiraci\u00f3n humana",
       "visibleAction": "The fully clothed adult man in the left chamber breathes slowly; condensation drifts on the glass.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
@@ -1093,7 +1093,7 @@
         "C1",
         "L1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Close shot from inside the laboratory, isolating only the specified adult occupant and the relevant hand or face. Match the chamber materials but change camera position and crop significantly from the wide reference. Do not show Castello."
     },
     {
       "shotId": "D05-04",
@@ -1130,7 +1130,7 @@
         "C1",
         "L1"
       ],
-      "imagePromptExtra": "The human occupant and smooth pale adult receiver are the two people inside the d04 reference chambers. Neither is Castello. Match their faces and clothing. Receiver is a featureless mannequin-like adult humanoid, no sexual anatomy."
+      "imagePromptExtra": "The human occupant and smooth pale adult receiver are the two people inside the d04 reference chambers. Neither is Castello. Match their faces and clothing. Receiver is a featureless mannequin-like adult humanoid, no sexual anatomy. Close shot from inside the laboratory, isolating only the specified adult occupant and the relevant hand or face. Match the chamber materials but change camera position and crop significantly from the wide reference. Do not show Castello."
     },
     {
       "shotId": "D05-05",
@@ -1167,7 +1167,7 @@
         "C1",
         "L1"
       ],
-      "imagePromptExtra": "The human occupant and smooth pale adult receiver are the two people inside the d04 reference chambers. Neither is Castello. Match their faces and clothing. Receiver is a featureless mannequin-like adult humanoid, no sexual anatomy."
+      "imagePromptExtra": "The human occupant and smooth pale adult receiver are the two people inside the d04 reference chambers. Neither is Castello. Match their faces and clothing. Receiver is a featureless mannequin-like adult humanoid, no sexual anatomy. Close shot from inside the laboratory, isolating only the specified adult occupant and the relevant hand or face. Match the chamber materials but change camera position and crop significantly from the wide reference. Do not show Castello."
     },
     {
       "shotId": "D05-06",
@@ -1175,7 +1175,7 @@
       "startSecondsApprox": 241,
       "endSecondsApprox": 250,
       "durationSecondsApprox": 9,
-      "descriptionEs": "Reacción Castello",
+      "descriptionEs": "Reacci\u00f3n Castello",
       "visibleAction": "The worker draws back from the glass, swallowing and tightening his grip on the flashlight.",
       "camera": "restrained tracking or lateral camera movement",
       "sourceType": "runway_image_to_video",
@@ -1212,7 +1212,7 @@
       "startSecondsApprox": 250,
       "endSecondsApprox": 258,
       "durationSecondsApprox": 8,
-      "descriptionEs": "Técnico entra",
+      "descriptionEs": "T\u00e9cnico entra",
       "visibleAction": "A middle aged human technician enters the laboratory through a side door.",
       "camera": "restrained tracking or lateral camera movement",
       "sourceType": "runway_image_to_video",
@@ -1221,7 +1221,7 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "d04",
+        "d01",
         "d02"
       ],
       "existingStillPath": null,
@@ -1239,10 +1239,11 @@
       "timingStatus": "measured_audio_conform_pending_picture_review",
       "contextKeys": [
         "T1",
-        "C1",
-        "L1"
+        "P1"
       ],
-      "imagePromptExtra": "Show the technician clearly, waist-up, entering the established laboratory; do not duplicate Castello. His distinct face will establish technician continuity."
+      "imagePromptExtra": "Medium shot of a fully clothed male technician, 55, thinning gray hair, rectangular glasses, gray laboratory coat over dark shirt and trousers, opening a metal side door. He is a distinct person from Castello. Background: ordinary industrial concrete service doorway beside the laboratory, matching the corridor materials. No chambers or occupants are visible in this shot.",
+      "imageRevision": "v2",
+      "revisionReason": "First reference request returned HTTP 400 with no image; retain original cost reserve. Revised distinct technician portrait in an ordinary side doorway."
     },
     {
       "shotId": "D06-02",
@@ -1281,7 +1282,7 @@
         "C1",
         "L1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
     },
     {
       "shotId": "D06-03",
@@ -1289,7 +1290,7 @@
       "startSecondsApprox": 266,
       "endSecondsApprox": 275,
       "durationSecondsApprox": 9,
-      "descriptionEs": "Portapapeles; apellido en composición",
+      "descriptionEs": "Portapapeles; apellido en composici\u00f3n",
       "visibleAction": "The technician writes a short entry on a clipboard, then pauses.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
@@ -1320,7 +1321,7 @@
         "C1",
         "L1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
     },
     {
       "shotId": "D06-04",
@@ -1367,7 +1368,7 @@
       "startSecondsApprox": 283,
       "endSecondsApprox": 291,
       "durationSecondsApprox": 8,
-      "descriptionEs": "Técnico tapa expediente",
+      "descriptionEs": "T\u00e9cnico tapa expediente",
       "visibleAction": "The technician turns toward the window and places his forearm over the clipboard.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
@@ -1435,7 +1436,7 @@
         "T1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
     },
     {
       "shotId": "D07-01",
@@ -1517,7 +1518,7 @@
       "startSecondsApprox": 316,
       "endSecondsApprox": 325,
       "durationSecondsApprox": 9,
-      "descriptionEs": "Mirada hacia cámara",
+      "descriptionEs": "Mirada hacia c\u00e1mara",
       "visibleAction": "The worker slowly lifts his eyes toward a corner of the ceiling.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
@@ -1554,7 +1555,7 @@
       "startSecondsApprox": 325,
       "endSecondsApprox": 333,
       "durationSecondsApprox": 8,
-      "descriptionEs": "Cámara seguimiento",
+      "descriptionEs": "C\u00e1mara seguimiento",
       "visibleAction": "An industrial security camera pivots smoothly to follow someone outside the frame.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
@@ -1583,7 +1584,7 @@
         "C1",
         "P1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
     },
     {
       "shotId": "D07-05",
@@ -1731,7 +1732,7 @@
         "C1",
         "P1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
     },
     {
       "shotId": "D08-03",
@@ -1768,7 +1769,7 @@
         "C1",
         "P1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
     },
     {
       "shotId": "D08-04",
@@ -1887,7 +1888,7 @@
       "startSecondsApprox": 400,
       "endSecondsApprox": 408,
       "durationSecondsApprox": 8,
-      "descriptionEs": "Mesa vacía",
+      "descriptionEs": "Mesa vac\u00eda",
       "visibleAction": "A curtain moves in a draft beside a table set for three; one chair is pulled back.",
       "camera": "restrained tracking or lateral camera movement",
       "sourceType": "runway_image_to_video",
@@ -1965,7 +1966,7 @@
       "startSecondsApprox": 416,
       "endSecondsApprox": 425,
       "durationSecondsApprox": 9,
-      "descriptionEs": "Búsqueda habitación",
+      "descriptionEs": "B\u00fasqueda habitaci\u00f3n",
       "visibleAction": "The worker pushes open a bedroom door and leans into the empty room.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
@@ -2035,7 +2036,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
     },
     {
       "shotId": "D09-05",
@@ -2315,7 +2316,7 @@
       "startSecondsApprox": 491,
       "endSecondsApprox": 500,
       "durationSecondsApprox": 9,
-      "descriptionEs": "Gesto de ambos; dos inserts en edición",
+      "descriptionEs": "Gesto de ambos; dos inserts en edici\u00f3n",
       "visibleAction": "In a close shot of hands resting on the table, the wife and son each press fingertips against their thumbs once.",
       "camera": "restrained tracking or lateral camera movement",
       "sourceType": "runway_image_to_video",
@@ -2346,7 +2347,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
     },
     {
       "shotId": "D11-01",
@@ -2424,7 +2425,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
     },
     {
       "shotId": "D11-03",
@@ -2511,7 +2512,7 @@
       "endSecondsApprox": 541,
       "durationSecondsApprox": 8,
       "descriptionEs": "Mano se detiene",
-      "visibleAction": "The worker reaches toward his wife’s hand across the table but stops just before touching it.",
+      "visibleAction": "The worker reaches toward his wife\u2019s hand across the table but stops just before touching it.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
       "requestSeconds": 10,
@@ -2524,8 +2525,8 @@
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The worker reaches toward his wife’s hand across the table but stops just before touching it. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The worker reaches toward his wife’s hand across the table but stops just before touching it. Use locked camera or very slow push; subject action remains primary.",
+      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The worker reaches toward his wife\u2019s hand across the table but stops just before touching it. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
+      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The worker reaches toward his wife\u2019s hand across the table but stops just before touching it. Use locked camera or very slow push; subject action remains primary.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -2549,8 +2550,8 @@
       "startSecondsApprox": 541,
       "endSecondsApprox": 550,
       "durationSecondsApprox": 9,
-      "descriptionEs": "Cambio expresión",
-      "visibleAction": "The wife’s restrained smile fades into a still expression of recognition as the kitchen light briefly flickers.",
+      "descriptionEs": "Cambio expresi\u00f3n",
+      "visibleAction": "The wife\u2019s restrained smile fades into a still expression of recognition as the kitchen light briefly flickers.",
       "camera": "restrained tracking or lateral camera movement",
       "sourceType": "runway_image_to_video",
       "requestSeconds": 10,
@@ -2563,8 +2564,8 @@
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The wife’s restrained smile fades into a still expression of recognition as the kitchen light briefly flickers. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The wife’s restrained smile fades into a still expression of recognition as the kitchen light briefly flickers. Use restrained tracking or lateral camera movement.",
+      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The wife\u2019s restrained smile fades into a still expression of recognition as the kitchen light briefly flickers. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
+      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The wife\u2019s restrained smile fades into a still expression of recognition as the kitchen light briefly flickers. Use restrained tracking or lateral camera movement.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -2705,8 +2706,8 @@
       "startSecondsApprox": 575,
       "endSecondsApprox": 583,
       "durationSecondsApprox": 8,
-      "descriptionEs": "Dibujo doméstico",
-      "visibleAction": "A light breeze shifts the edge of the child’s drawing beside the keys.",
+      "descriptionEs": "Dibujo dom\u00e9stico",
+      "visibleAction": "A light breeze shifts the edge of the child\u2019s drawing beside the keys.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
       "requestSeconds": 10,
@@ -2719,8 +2720,8 @@
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: A light breeze shifts the edge of the child’s drawing beside the keys. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. A light breeze shifts the edge of the child’s drawing beside the keys. Use locked camera or very slow push; subject action remains primary.",
+      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: A light breeze shifts the edge of the child\u2019s drawing beside the keys. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
+      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. A light breeze shifts the edge of the child\u2019s drawing beside the keys. Use locked camera or very slow push; subject action remains primary.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -2736,7 +2737,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
     },
     {
       "shotId": "D12-05",
@@ -2744,7 +2745,7 @@
       "startSecondsApprox": 583,
       "endSecondsApprox": 591,
       "durationSecondsApprox": 8,
-      "descriptionEs": "Exterior casa; créditos sobre movimiento",
+      "descriptionEs": "Exterior casa; cr\u00e9ditos sobre movimiento",
       "visibleAction": "A slow lateral camera move passes the established house while curtains shift behind a lit window.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
@@ -2783,7 +2784,7 @@
       "startSecondsApprox": 591,
       "endSecondsApprox": 600,
       "durationSecondsApprox": 9,
-      "descriptionEs": "Última mirada; pregunta final",
+      "descriptionEs": "\u00daltima mirada; pregunta final",
       "visibleAction": "From outside the window, the worker turns his eyes toward the camera while his family remain at the table.",
       "camera": "restrained tracking or lateral camera movement",
       "sourceType": "runway_image_to_video",

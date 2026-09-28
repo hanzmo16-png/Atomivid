@@ -3,13 +3,13 @@ on:
   workflow_dispatch:
     inputs:
       stage:
-        description: preflight, narrate, images or approve
+        description: Production stage
         type: choice
-        options: [preflight, narrate, images, approve]
+        options: [preflight, narrate, images, approve, animate, music]
         default: preflight
         required: true
       shots:
-        description: Image shot IDs, comma-separated (at most 12)
+        description: Shot IDs, comma-separated (at most 12)
         type: string
         default: ''
 permissions:
@@ -42,6 +42,9 @@ jobs:
           ELEVENLABS_VOICE_ID_EN: nPczCjzI2devNBz1zQrb
           ELEVENLABS_MODEL_ID: eleven_multilingual_v2
           VOICE_PROVIDER: elevenlabs
+          RUNWAY_API_KEY: ${{ inputs.stage == 'animate' && secrets.RUNWAY_API_KEY || '' }}
+          VIDEO_PROVIDER: runway
+          PREMIUM_CLIPS_ENABLED: 'true'
           OPENAI_API_KEY: ${{ inputs.stage == 'images' && secrets.OPENAI_API_KEY || '' }}
       - uses: actions/upload-artifact@v4
         if: always()

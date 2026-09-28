@@ -11,7 +11,7 @@ import {computeTtsCacheKey} from '../src/lib/video/long-form/tts-cache';
 import {loadProductionCachedBeatNarration,synthesizeBeatNarrationProductionCached} from '../src/lib/video/long-form/production-tts-cache';
 import {getVideoProvider} from '../src/lib/providers/video-gen';
 import {wrapDurableVideoProvider} from '../src/lib/video/long-form/ai-video-durable-provider';
-import {buildContactSheet} from './lib/contact-sheet';
+import {buildContactSheet,frameAt,probeDuration} from './lib/contact-sheet';
 import sharp from 'sharp';
 
 const ID='dulce-001', PREFIX='dulce-001/full-v1', CEILING=55;
@@ -71,10 +71,10 @@ async function main(){
    await fs.writeFile(path.join(out,'narration.json'),JSON.stringify(results,null,2));
    console.log('@@DULCE_DURATION '+results.reduce((a,n)=>a+n.durationSeconds,0));return;
  }
- if(stage==='approve'){
+ if(['approve','images','animate'].includes(stage)){
    const approvals=JSON.parse(await fs.readFile('content/long-form/dulce-001/approved-references.json','utf8')) as {shotId:string;sha256:string;note:string}[];
    for(const a of approvals){const b=await read(`${PREFIX}/refs/${a.shotId}.png`);if(!b||sha(b)!==a.sha256)throw Error('Review checksum mismatch '+a.shotId);await writeJson(`${PREFIX}/reviews/${a.shotId}.json`,{...a,status:'approved',reviewer:'assistant visual inspection',at:new Date().toISOString()});}
-   console.log('@@DULCE_APPROVED '+approvals.length);return;
+   console.log('@@DULCE_APPROVED '+approvals.length);if(stage==='approve')return;
  }
  if(stage==='images'){
    const wanted=(process.env.DULCE_SHOTS||'').split(',').filter(Boolean);
@@ -100,14 +100,14 @@ async function main(){
          }
        }
        const prompt=shot.imagePrompt+'\nRELEVANT CHARACTERS AND SETS:\n'+(shot.contextKeys as string[]).map(k=>k+': '+spec.visualBible[k]).join('\n')+'\n'+shot.imagePromptExtra+'\nAttached references in order: '+keys.join(', ')+'. Use each only for the relevant identity or setting. Depict only the requested people and objects. Single cinematic starting frame, not a collage. No text, no watermark. Natural anatomy.';
-       const key='image-'+id+'-v1';await claim(key,.30,'image');
+       const key='image-'+id+'-'+(shot.imageRevision||'v1');await claim(key,.30,'image');
        const form=new FormData();form.set('model','gpt-image-2');form.set('prompt',prompt);form.set('size','1536x1024');form.set('quality','medium');form.set('n','1');
        refs.forEach((b,i)=>form.append('image[]',new Blob([new Uint8Array(b)],{type:'image/png'}),`reference-${i}.png`));
        const endpoint=refs.length?'edits':'generations';
        const headers:Record<string,string>={Authorization:`Bearer ${process.env.OPENAI_API_KEY}`};
        const body=refs.length?form:JSON.stringify({model:'gpt-image-2',prompt,size:'1536x1024',quality:'medium',n:1});if(!refs.length)headers['Content-Type']='application/json';
        const response=await fetch('https://api.openai.com/v1/images/'+endpoint,{method:'POST',headers,body,signal:AbortSignal.timeout(180000)});
-       if(!response.ok)throw Error('Image request HTTP '+response.status+'; preserve claim, no automatic resend');
+       if(!response.ok){const detail=await response.text();await writeJson(`${PREFIX}/errors/${key}.json`,{status:response.status,detail,requestId:response.headers.get('x-request-id')});await fs.writeFile(path.join(out,key+'-error.json'),JSON.stringify({status:response.status,detail}));throw Error('Image request '+id+' HTTP '+response.status+'; preserve claim, no automatic resend');}
        const result=await response.json() as {data?:{b64_json?:string}[];usage?:{input_tokens?:number;output_tokens?:number;input_tokens_details?:{text_tokens?:number;image_tokens?:number}}};if(!result.data?.[0]?.b64_json)throw Error('Image response missing bytes; cost uncertain');
        bytes=Buffer.from(result.data[0].b64_json,'base64');const dims=await sharp(bytes).metadata();if(!dims.width||!dims.height)throw Error('Invalid image');
        await fs.writeFile(path.join(out,id+'.png'),bytes);
@@ -126,7 +126,38 @@ async function main(){
    const completed=await Promise.allSettled(workers);
    tiles.sort((a,b)=>a.label.localeCompare(b.label));
    await fs.writeFile(path.join(out,'references-review.jpg'),await buildContactSheet(tiles,{columns:2,tileWidth:640,tileHeight:360,title:'Dulce - references awaiting visual review'}));
+   await fs.writeFile(path.join(out,'ledger.json'),JSON.stringify(ledger,null,2));
    for(const r of completed)if(r.status==='rejected')throw r.reason;return;
+ }
+
+ if(stage==='animate'){
+   const wanted=(process.env.DULCE_SHOTS||'').split(',').filter(Boolean);
+   if(!wanted.length||wanted.length>12||new Set(wanted).size!==wanted.length)throw Error('Select 1-12 unique clips');
+   const provider=getVideoProvider('runway');if(provider.name!=='runway')throw Error('Runway provider unavailable');
+   const durable=wrapDurableVideoProvider(provider,{supabase:service,scopeId:'dulce-001-full-v1',executionMode:'real',maxInAttemptResumes:2,beforeSubmit:async(req)=>{await claim('video-'+req.metadata!.shotId+'-v1',.5,'video');return true;}});
+   const tiles:{image:Buffer;label:string}[]=[];let nextIndex=0;
+   const make=async(id:string)=>{
+     const shot=spec.shots.find((s:{shotId:string})=>s.shotId===id);
+     if(!shot||shot.reuse||shot.requestSeconds!==10)throw Error('Invalid animation '+id);
+     const ref=await read(shot.newImageRequired?`${PREFIX}/refs/${id}.png`:shot.existingStillPath);if(!ref)throw Error('Missing image '+id);
+     if(shot.newImageRequired){const review=await read(`${PREFIX}/reviews/${id}.json`);if(!review||JSON.parse(review.toString()).sha256!==sha(ref)||JSON.parse(review.toString()).status!=='approved')throw Error('Image not visually approved '+id);}
+     const jpeg=await sharp(ref).resize(1280,720,{fit:'cover',position:'centre'}).jpeg({quality:92}).toBuffer();
+     const asset=await durable.generateVideo({prompt:shot.animationPrompt,aspectRatio:'16:9',durationSeconds:10,maxCostUsd:.5,referenceImageUrl:'data:image/jpeg;base64,'+jpeg.toString('base64'),metadata:{shotId:id,videoId:ID}});
+     const file=path.join(out,id+'.mp4');await fs.writeFile(file,asset.buffer);
+     const duration=await probeDuration(file);if(duration<shot.editSeconds+.2)throw Error('Clip too short '+id);
+     const meta={shotId:id,sha256:sha(asset.buffer),providerJobId:asset.providerJobId,durationSeconds:duration,referenceSha256:sha(ref),model:asset.model,review:'pending'};
+     await writeJson(`${PREFIX}/clips/${id}.json`,meta);await fs.writeFile(path.join(out,id+'.json'),JSON.stringify(meta,null,2));
+     await serial(async()=>{const entry=ledger.entries.find(e=>e.key==='video-'+id+'-v1');if(entry)entry.status='completed';await writeJson(`${PREFIX}/ledger.json`,ledger);});
+     for(const t of [0.5,4.5,8.5])tiles.push({image:await frameAt(file,t,640),label:id+' @ '+t+'s'});
+     console.log('@@DULCE_CLIP '+JSON.stringify(meta));
+   };
+   const completed=await Promise.allSettled(Array.from({length:Math.min(3,wanted.length)},async()=>{while(nextIndex<wanted.length)await make(wanted[nextIndex++]);}));
+   tiles.sort((a,b)=>a.label.localeCompare(b.label));await fs.writeFile(path.join(out,'clips-review.jpg'),await buildContactSheet(tiles,{columns:3,tileWidth:480,tileHeight:270,title:'Dulce - generated motion review'}));
+   await fs.writeFile(path.join(out,'ledger.json'),JSON.stringify(ledger,null,2));
+   for(const r of completed)if(r.status==='rejected')throw r.reason;return;
+ }
+ if(stage==='music'){
+   for(const id of ['elevenlabs-tension-1','elevenlabs-tension-2','elevenlabs-reflective-1']){const {data,error}=await service.storage.from('music-library').download(id+'.mp3');if(error||!data)throw Error('Missing licensed music '+id);await fs.writeFile(path.join(out,id+'.mp3'),Buffer.from(await data.arrayBuffer()));}return;
  }
  throw Error('Unimplemented stage '+stage);
 }

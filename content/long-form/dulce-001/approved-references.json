@@ -1,1 +1,17 @@
-[]
+[
+  {
+    "shotId": "D01-05",
+    "sha256": "68a11e1419c7a2b1ee1fd0909cc9daa9e7c96e438081be151fa4b4aeaabced82",
+    "note": "Visually inspected full resolution: stable established setting and adult chamber occupants; family reference shows clear consistent faces, correct wardrobe and domestic porch. Approved for animation."
+  },
+  {
+    "shotId": "D01-06",
+    "sha256": "3913886db04ed2db56f8729552879700c296e3bc13aa27c9eee489eb4a4382ff",
+    "note": "Visually inspected full resolution: stable established setting and adult chamber occupants; family reference shows clear consistent faces, correct wardrobe and domestic porch. Approved for animation."
+  },
+  {
+    "shotId": "D09-06",
+    "sha256": "12b0021f39cb36f9f3ee85aa791c48d501e1490d8eb784c0305bd35584a09049",
+    "note": "Visually inspected full resolution: stable established setting and adult chamber occupants; family reference shows clear consistent faces, correct wardrobe and domestic porch. Approved for animation."
+  }
+]
