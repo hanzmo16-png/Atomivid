@@ -1,0 +1,762 @@
+{
+ "dataset": "pi-dulce-mix",
+ "version": 1,
+ "source": "content/long-form/dulce-part1/smart-mix.json",
+ "finishedSeconds": 582.7,
+ "planA": {
+  "generativeClips": 44,
+  "generativeSeconds": 330
+ },
+ "shippedBPlus": {
+  "generativeClipsApproved": 11,
+  "newGenerativeSeconds": 70.9
+ },
+ "contracts": [
+  {
+   "shotId": "N01",
+   "shotClass": "landscape",
+   "narrationIntent": "Durante décadas… Nuevo México",
+   "visualIntent": "Exterior Nuevo México: mesa y cañones al atardecer, dron lento hacia delante",
+   "characters": [],
+   "motionRequirement": "simple",
+   "motionLeverage": "MEDIUM",
+   "riskClass": "LOW",
+   "riskFlags": [],
+   "desiredDuration": 2.6,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N02",
+   "shotClass": "landscape",
+   "narrationIntent": "…una historia extraordinaria",
+   "visualIntent": "Luces de un pueblo pequeño en la llanura, noche, paneo lento",
+   "characters": [],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "LOW",
+   "riskFlags": [],
+   "desiredDuration": 2.4,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N03",
+   "shotClass": "landscape",
+   "narrationIntent": "…oficialmente no existe",
+   "visualIntent": "Entrada de instalación excavada en la roca: valla, reflectores, puesto de guardia vacío",
+   "characters": [],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "LOW",
+   "riskFlags": [],
+   "desiredDuration": 2.6,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N04",
+   "shotClass": "corridor",
+   "narrationIntent": "Kilómetros de túneles",
+   "visualIntent": "Túnel de vehículos interminable, luces que se pierden; dolly adelante",
+   "characters": [],
+   "motionRequirement": "simple",
+   "motionLeverage": "MEDIUM",
+   "riskClass": "LOW",
+   "riskFlags": [],
+   "desiredDuration": 2.2,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N05",
+   "shotClass": "single_human",
+   "narrationIntent": "Castello decía haber sido especialista en seguridad / Volvía a los controles. / …mantener precisamente ese sistema",
+   "visualIntent": "Sala de control de seguridad: Thomas (C1, uniforme oscuro) ante monitores CCTV; solo respira y mira",
+   "characters": [
+    "Thomas"
+   ],
+   "motionRequirement": "simple",
+   "motionLeverage": "MEDIUM",
+   "riskClass": "MEDIUM",
+   "riskFlags": [
+    "identity_critical"
+   ],
+   "desiredDuration": 13.5,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N06",
+   "shotClass": "object",
+   "narrationIntent": "Sistemas de identificación",
+   "visualIntent": "Lector de credencial en pared de hormigón, LED verde (sustituye D02-05); push-in, sin manos",
+   "characters": [],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "LOW",
+   "riskFlags": [],
+   "desiredDuration": 2.7,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N07",
+   "shotClass": "object",
+   "narrationIntent": "Cada zona requería autorizaciones diferentes",
+   "visualIntent": "Puerta blindada con franja de color de zona y teclado; LED rojo parpadea",
+   "characters": [],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "LOW",
+   "riskFlags": [],
+   "desiredDuration": 4.6,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N08",
+   "shotClass": "multi_human",
+   "narrationIntent": "…tenían prohibido conocer",
+   "visualIntent": "Barrera: línea pintada en el suelo y torniquete; guardia inmóvil al fondo desenfocado",
+   "characters": [
+    "guardia"
+   ],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "MEDIUM",
+   "riskFlags": [],
+   "desiredDuration": 5.1,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N09",
+   "shotClass": "other",
+   "narrationIntent": "…áreas técnicas",
+   "visualIntent": "Área técnica: tuberías, generadores, pasarela, vapor; sin personas",
+   "characters": [],
+   "motionRequirement": "simple",
+   "motionLeverage": "MEDIUM",
+   "riskClass": "LOW",
+   "riskFlags": [],
+   "desiredDuration": 4.1,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N10",
+   "shotClass": "other",
+   "narrationIntent": "…lo más importante estaba abajo",
+   "visualIntent": "Hueco de ascensor de carga mirando hacia abajo, luces que descienden en la oscuridad",
+   "characters": [],
+   "motionRequirement": "simple",
+   "motionLeverage": "MEDIUM",
+   "riskClass": "LOW",
+   "riskFlags": [],
+   "desiredDuration": 6.4,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N11",
+   "shotClass": "creature",
+   "narrationIntent": "…pequeños seres grises",
+   "visualIntent": "Gris (G1) plano medio en sala técnica, leve giro de cabeza",
+   "characters": [
+    "gris"
+   ],
+   "motionRequirement": "complex",
+   "motionLeverage": "HIGH",
+   "riskClass": "MEDIUM",
+   "riskFlags": [],
+   "desiredDuration": 4.3,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N12",
+   "shotClass": "creature",
+   "narrationIntent": "…apariencia reptiliana / Seres que no podía identificar.",
+   "visualIntent": "Reptiliano (R1) plano medio de perfil en corredor, respira, gira apenas",
+   "characters": [
+    "reptiliano"
+   ],
+   "motionRequirement": "complex",
+   "motionLeverage": "HIGH",
+   "riskClass": "MEDIUM",
+   "riskFlags": [],
+   "desiredDuration": 5.7,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N13",
+   "shotClass": "creature",
+   "narrationIntent": "…algunos trabajaban dentro",
+   "visualIntent": "Gris sentado ante consola, visto de lado/espaldas, pantallas parpadean (manos ocultas)",
+   "characters": [
+    "gris"
+   ],
+   "motionRequirement": "simple",
+   "motionLeverage": "MEDIUM",
+   "riskClass": "MEDIUM",
+   "riskFlags": [],
+   "desiredDuration": 5.2,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N14",
+   "shotClass": "human_creature",
+   "narrationIntent": "Compartían áreas con personal humano",
+   "visualIntent": "Técnico humano (T1) y gris en extremos de una mesa de laboratorio; ninguno se mueve de sitio",
+   "characters": [
+    "técnico",
+    "gris"
+   ],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "HIGH",
+   "riskFlags": [
+    "identity_critical"
+   ],
+   "desiredDuration": 5.2,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N15",
+   "shotClass": "creature",
+   "narrationIntent": "…operación cotidiana… lo imposible, rutina",
+   "visualIntent": "Reptiliano tras cristal de sala de control, silueta ante monitores",
+   "characters": [
+    "reptiliano"
+   ],
+   "motionRequirement": "simple",
+   "motionLeverage": "MEDIUM",
+   "riskClass": "MEDIUM",
+   "riskFlags": [],
+   "desiredDuration": 3.7,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N16",
+   "shotClass": "creature",
+   "narrationIntent": "El primer día…",
+   "visualIntent": "POV de Thomas: corredor, un gris quieto lejos en una intersección",
+   "characters": [
+    "gris"
+   ],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "MEDIUM",
+   "riskFlags": [],
+   "desiredDuration": 4.4,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N18",
+   "shotClass": "multi_human",
+   "narrationIntent": "Personal entrando y saliendo",
+   "visualIntent": "Torniquetes de turno: personal de espaldas desenfocado, sin cruces",
+   "characters": [
+    "personal"
+   ],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "HIGH",
+   "riskFlags": [],
+   "desiredDuration": 3.9,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N19",
+   "shotClass": "human_creature",
+   "narrationIntent": "…seres que simplemente formaban parte del lugar",
+   "visualIntent": "Oficina: humano teclea en primer plano; tras cristal esmerilado pasa la silueta de un gris",
+   "characters": [
+    "gris",
+    "personal"
+   ],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "HIGH",
+   "riskFlags": [],
+   "desiredDuration": 5.3,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N20",
+   "shotClass": "single_human",
+   "narrationIntent": "…otra realidad que no puedes compartir",
+   "visualIntent": "Thomas (C1) primer plano en la mesa de la cena, callado; push-in muy lento",
+   "characters": [
+    "Thomas"
+   ],
+   "motionRequirement": "complex",
+   "motionLeverage": "HIGH",
+   "riskClass": "MEDIUM",
+   "riskFlags": [
+    "identity_critical"
+   ],
+   "desiredDuration": 6.3,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N21",
+   "shotClass": "landscape",
+   "narrationIntent": "A la mañana siguiente volvía a Dulce",
+   "visualIntent": "Amanecer: la misma camioneta marrón sale de la casa hacia el desierto",
+   "characters": [],
+   "motionRequirement": "simple",
+   "motionLeverage": "MEDIUM",
+   "riskClass": "LOW",
+   "riskFlags": [],
+   "desiredDuration": 4.2,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N22",
+   "shotClass": "single_human",
+   "narrationIntent": "Y volvía a guardar silencio.",
+   "visualIntent": "Thomas (C1) primer plano en corredor, silencio; push-in",
+   "characters": [
+    "Thomas"
+   ],
+   "motionRequirement": "simple",
+   "motionLeverage": "LOW",
+   "riskClass": "MEDIUM",
+   "riskFlags": [
+    "identity_critical"
+   ],
+   "desiredDuration": 4.3,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N23",
+   "shotClass": "human_creature",
+   "narrationIntent": "Existían reglas. Conversaciones restringidas",
+   "visualIntent": "Mampara de cristal: dos técnicos humanos a un lado, un gris lejos al otro; estático",
+   "characters": [
+    "personal",
+    "gris"
+   ],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "HIGH",
+   "riskFlags": [],
+   "desiredDuration": 6.0,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N25",
+   "shotClass": "single_human",
+   "narrationIntent": "Hasta que empezó a ver cosas…",
+   "visualIntent": "Thomas (C1) ante ventana de observación, reflejo del laboratorio en el cristal",
+   "characters": [
+    "Thomas"
+   ],
+   "motionRequirement": "simple",
+   "motionLeverage": "MEDIUM",
+   "riskClass": "MEDIUM",
+   "riskFlags": [
+    "identity_critical"
+   ],
+   "desiredDuration": 7.9,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N26",
+   "shotClass": "laboratory",
+   "narrationIntent": "…investigación biológica y médica / Medicina experimental.",
+   "visualIntent": "Sala médica clínica (distinta del laboratorio de cámaras): camilla vacía, instrumental, luz blanca-verde",
+   "characters": [],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "LOW",
+   "riskFlags": [],
+   "desiredDuration": 6.9,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N27",
+   "shotClass": "object",
+   "narrationIntent": "Equipamiento que no comprendía",
+   "visualIntent": "Equipamiento extraño: recipientes de vidrio, cables, luces que laten",
+   "characters": [],
+   "motionRequirement": "simple",
+   "motionLeverage": "MEDIUM",
+   "riskClass": "LOW",
+   "riskFlags": [],
+   "desiredDuration": 3.5,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N28",
+   "shotClass": "human_creature",
+   "narrationIntent": "Personal humano cerca de entidades no humanas",
+   "visualIntent": "Técnico humano al microscopio; un gris observa a su lado sin tocar nada",
+   "characters": [
+    "técnico",
+    "gris"
+   ],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "HIGH",
+   "riskFlags": [
+    "identity_critical"
+   ],
+   "desiredDuration": 4.3,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N29",
+   "shotClass": "laboratory",
+   "narrationIntent": "…alguien arriba sabía",
+   "visualIntent": "Galería de observación desde arriba: laboratorio con figuras pequeñas",
+   "characters": [
+    "personal"
+   ],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "MEDIUM",
+   "riskFlags": [],
+   "desiredDuration": 4.3,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N30",
+   "shotClass": "single_human",
+   "narrationIntent": "…no había visto los niveles inferiores",
+   "visualIntent": "Puerta de ascensor sin botón de llamada, nivel inferior; Thomas la mira de espaldas",
+   "characters": [
+    "Thomas"
+   ],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "LOW",
+   "riskFlags": [
+    "identity_critical"
+   ],
+   "desiredDuration": 4.7,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N31",
+   "shotClass": "multi_human",
+   "narrationIntent": "…otros trabajadores. Comentarios. Rumores.",
+   "visualIntent": "Sala de descanso: dos trabajadores sentados con café hablando en voz baja (plano medio, casi quietos)",
+   "characters": [
+    "trabajadores"
+   ],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "HIGH",
+   "riskFlags": [],
+   "desiredDuration": 5.4,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N32",
+   "shotClass": "single_human",
+   "narrationIntent": "Advertencias.",
+   "visualIntent": "Trabajador (uno) mira de reojo, advierte en silencio; primer plano",
+   "characters": [
+    "trabajador"
+   ],
+   "motionRequirement": "simple",
+   "motionLeverage": "MEDIUM",
+   "riskClass": "MEDIUM",
+   "riskFlags": [],
+   "desiredDuration": 3.6,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N33",
+   "shotClass": "single_human",
+   "narrationIntent": "…no formaban parte del personal / …no estaban allí voluntariamente / Personas retenidas.",
+   "visualIntent": "Por la ventanilla de una puerta: hombre civil sentado en un catre de una sala de retención",
+   "characters": [
+    "George"
+   ],
+   "motionRequirement": "simple",
+   "motionLeverage": "LOW",
+   "riskClass": "MEDIUM",
+   "riskFlags": [
+    "identity_critical"
+   ],
+   "desiredDuration": 10.1,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N34",
+   "shotClass": "single_human",
+   "narrationIntent": "…especialmente importante",
+   "visualIntent": "Thomas (C1) mira por la ventanilla de la puerta; primer plano de perfil",
+   "characters": [
+    "Thomas"
+   ],
+   "motionRequirement": "simple",
+   "motionLeverage": "LOW",
+   "riskClass": "MEDIUM",
+   "riskFlags": [
+    "identity_critical"
+   ],
+   "desiredDuration": 3.6,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N35",
+   "shotClass": "single_human",
+   "narrationIntent": "…un hombre al que identificó como George / …una persona retenida contra su voluntad",
+   "visualIntent": "GEORGE retrato: ~55 años, delgado, barba canosa, camisa de franela civil; levanta la vista",
+   "characters": [
+    "George"
+   ],
+   "motionRequirement": "complex",
+   "motionLeverage": "HIGH",
+   "riskClass": "MEDIUM",
+   "riskFlags": [
+    "identity_critical"
+   ],
+   "desiredDuration": 11.1,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N36",
+   "shotClass": "single_human",
+   "narrationIntent": "…llevado allí. Contra su voluntad. / …las personas retenidas",
+   "visualIntent": "George primer plano, ojos cansados; respira",
+   "characters": [
+    "George"
+   ],
+   "motionRequirement": "simple",
+   "motionLeverage": "LOW",
+   "riskClass": "MEDIUM",
+   "riskFlags": [
+    "identity_critical"
+   ],
+   "desiredDuration": 8.4,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N37",
+   "shotClass": "single_human",
+   "narrationIntent": "…podía justificar muchas cosas",
+   "visualIntent": "Thomas (C1) camina despacio por corredor, pensativo; dolly hacia atrás",
+   "characters": [
+    "Thomas"
+   ],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "HIGH",
+   "riskFlags": [
+    "identity_critical"
+   ],
+   "desiredDuration": 6.9,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N38",
+   "shotClass": "single_human",
+   "narrationIntent": "Era una cuestión moral.",
+   "visualIntent": "Thomas (C1) primer plano en luz baja, conflicto; push-in",
+   "characters": [
+    "Thomas"
+   ],
+   "motionRequirement": "simple",
+   "motionLeverage": "MEDIUM",
+   "riskClass": "MEDIUM",
+   "riskFlags": [
+    "identity_critical"
+   ],
+   "desiredDuration": 6.9,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N41",
+   "shotClass": "corridor",
+   "narrationIntent": "…apareció una palabra… NIGHTMARE HALL / Seres. / …Nightmare Hall / …entraremos en Nightmare Hall",
+   "visualIntent": "Corredor inferior con niebla y luces de emergencia rojas; el fondo nunca se ve (Nightmare Hall, sin revelar)",
+   "characters": [],
+   "motionRequirement": "complex",
+   "motionLeverage": "HIGH",
+   "riskClass": "LOW",
+   "riskFlags": [],
+   "desiredDuration": 21.0,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "hero",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N43",
+   "shotClass": "single_human",
+   "narrationIntent": "…eligió bajar",
+   "visualIntent": "Thomas (C1) dentro del ascensor bajando; luz roja sube por su cara",
+   "characters": [
+    "Thomas"
+   ],
+   "motionRequirement": "simple",
+   "motionLeverage": "MEDIUM",
+   "riskClass": "MEDIUM",
+   "riskFlags": [
+    "identity_critical"
+   ],
+   "desiredDuration": 5.7,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N44",
+   "shotClass": "object",
+   "narrationIntent": "Experimentación. / …transformó completamente su historia",
+   "visualIntent": "Compuerta blindada del nivel inferior entreabierta, niebla, luz roja (la puerta no se mueve)",
+   "characters": [],
+   "motionRequirement": "simple",
+   "motionLeverage": "MEDIUM",
+   "riskClass": "LOW",
+   "riskFlags": [],
+   "desiredDuration": 6.4,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N46",
+   "shotClass": "object",
+   "narrationIntent": "…el conflicto dentro de Dulce",
+   "visualIntent": "Luz giratoria de emergencia roja en corredor vacío",
+   "characters": [],
+   "motionRequirement": "complex",
+   "motionLeverage": "HIGH",
+   "riskClass": "LOW",
+   "riskFlags": [],
+   "desiredDuration": 3.8,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N47",
+   "shotClass": "landscape",
+   "narrationIntent": "…el origen real de la leyenda",
+   "visualIntent": "Cielo nocturno sobre la mesa de Nuevo México, estrellas, paneo",
+   "characters": [],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "LOW",
+   "riskFlags": [],
+   "desiredDuration": 5.7,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N48",
+   "shotClass": "object",
+   "narrationIntent": "…Paul Bennewitz",
+   "visualIntent": "Equipo de radio de los 70-80 con osciloscopio encendido en un despacho (sin persona)",
+   "characters": [],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "LOW",
+   "riskFlags": [],
+   "desiredDuration": 5.7,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "N49",
+   "shotClass": "object",
+   "narrationIntent": "…una posibilidad completamente diferente",
+   "visualIntent": "Antenas en un tejado contra el cielo nocturno",
+   "characters": [],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "LOW",
+   "riskClass": "LOW",
+   "riskFlags": [],
+   "desiredDuration": 4.7,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  },
+  {
+   "shotId": "D04-01",
+   "shotClass": "creature",
+   "narrationIntent": "(sigue) / Contención.",
+   "visualIntent": "Gris en el haz de la linterna (still aprobado V1)",
+   "characters": [
+    "gris"
+   ],
+   "motionRequirement": "camera_only",
+   "motionLeverage": "MEDIUM",
+   "riskClass": "MEDIUM",
+   "riskFlags": [],
+   "desiredDuration": 3.6,
+   "maxGeneratedDuration": 10,
+   "qualityTier": "economy",
+   "humanIntervention": "human"
+  }
+ ]
+}
