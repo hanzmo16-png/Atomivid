@@ -28,7 +28,7 @@ export async function render(ctx: Ctx) {
   const script = await J<{beats: {id: string; narration: string}[]; onScreenNotice: string; endCard: string}>('content/long-form/dulce-part1/script-en.json');
   const assets = (await J<{assets: Record<string, Asset>}>('content/long-form/dulce-part1/assets.json')).assets;
   const v1spec = await J<{shots: (PlanShot & {renderCrop?: Src['crop']})[]}>('content/long-form/dulce-001/full-shots.json');
-  const v1qa = await J<{items: {clipId: string; usableUntilSeconds: number | null}[]}>('content/qa-datasets/dulce-v1-visual-labels.json');
+  const v1qa = await J<{items: {clipId: string; usableUntilSeconds: number | null; appliesToRevision?: string}[]}>('content/qa-datasets/dulce-v1-visual-labels.json');
   const issues: string[] = [];
 
   // 1) Narration (cached David audio) or draft silence.
@@ -53,14 +53,21 @@ export async function render(ctx: Ctx) {
     let src: Src;
     if (s.src === 'G7') src = {kind: 'black', file: '', origin: 'graphic'};
     else if (s.src.startsWith('G')) { const f = path.join(work, `${key}.png`); await sharp(Buffer.from(svg(['all', 'zones', 'bottom'][gIndex] || 'all'))).png().toFile(f); src = {kind: 'graphic', file: f, origin: 'graphic:' + key}; }
-    else if (s.origin === 'V1') {
+    else if (s.origin === 'V1' && ['ken_burns', 'parallax'].includes(s.productionMethod)) {
+      // Smart Mix: use the approved V1 still instead of its (defective) animation.
+      const b = await read(`${V1}/refs/${s.src}.png`); if (!b) throw Error('Approved V1 still missing ' + s.src);
+      const f = path.join(work, `v1still-${s.src}.png`); await fs.writeFile(f, b); src = {kind: 'still', file: f, sha256: sha(b), origin: `videos/${V1}/refs/${s.src}.png`};
+    } else if (s.origin === 'V1') {
       const spec = v1spec.shots.find(x => x.shotId === s.src); if (!spec) throw Error('V1 spec missing ' + s.src);
       let bytes: Buffer | null = null, origin = '';
       if (spec.reuse?.storagePath) { bytes = await read(spec.reuse.storagePath); origin = 'videos/' + spec.reuse.storagePath; }
       else { const rec = await readAiVideoClipRecord(ctx.service, 'videos', V1_SCOPE, clipRecordKey(spec)); if (rec?.status === 'COMPLETED' && rec.storagePath) { bytes = await read(rec.storagePath); if (bytes && sha(bytes) !== rec.checksumSha256) throw Error('V1 checksum ' + s.src); origin = 'videos/' + rec.storagePath; } }
       if (!bytes) throw Error('V1 clip unavailable ' + s.src);
       const f = path.join(work, `v1-${s.src}.mp4`); await fs.writeFile(f, bytes);
-      src = {kind: 'v1', file: f, crop: spec.renderCrop, usableUntil: v1qa.items.find(i => i.clipId === s.src)?.usableUntilSeconds ?? null, sha256: sha(bytes), origin};
+      const lab = v1qa.items.find(i => i.clipId === s.src);
+      // A defect recorded for the original v1 animation does not apply to a corrected revision.
+      const usable = lab?.appliesToRevision && (spec.animationRevision || 'v1') !== lab.appliesToRevision ? null : lab?.usableUntilSeconds ?? null;
+      src = {kind: 'v1', file: f, crop: spec.renderCrop, usableUntil: usable, sha256: sha(bytes), origin};
     } else {
       const a = assets[s.src]; const still = await approvedStill(s.src);
       if (['i2v_economy', 'i2v_hero'].includes(s.productionMethod) && a?.clipSeconds) {
@@ -85,7 +92,7 @@ export async function render(ctx: Ctx) {
     const tail = ',setsar=1,format=yuv420p' + (s.id === slots.find(x => x.beat === 'p13' && x.src === 'D07-03')?.id ? ',hue=s=0.25' : '') + (s.src === 'N27' ? `,eq=brightness='0.035*sin(2*PI*t/1.6)':eval=frame` : '');
     let args: string[]; let inPoint = 0, speed = 1, frozen = 0;
     if (src.kind === 'black') args = ['-f', 'lavfi', '-i', `color=c=black:s=1920x1080:r=${FPS}`, '-vf', 'format=yuv420p'];
-    else if (src.kind === 'still' || src.kind === 'graphic' || src.kind === 'placeholder') { const mv = s.productionMethod === 'parallax' ? (i % 2 ? 'pan-left' : 'pan-right') : moveFor(i, s.shotClass); args = ['-loop', '1', '-framerate', String(FPS), '-i', src.file, '-vf', stillMotionFilter(mv, s.frames) + ',noise=alls=4:allf=t' + tail]; report.push({slot: s.id, move: mv}); }
+    else if (src.kind === 'still' || src.kind === 'graphic' || src.kind === 'placeholder') { const mv = src.kind === 'graphic' ? 'push-in' : s.productionMethod === 'parallax' ? (i % 2 ? 'pan-left' : 'pan-right') : moveFor(i, s.shotClass); args = ['-loop', '1', '-framerate', String(FPS), '-i', src.file, '-vf', stillMotionFilter(mv, s.frames) + tail]; report.push({slot: s.id, move: mv}); }
     else {
       const clipSeconds = await probeDuration(src.file);
       inPoint = src.kind === 'v1' ? v1InPoint(clipSeconds, src.usableUntil ?? null, edit, u) : v1InPoint(clipSeconds, null, edit, u);

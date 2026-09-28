@@ -1,9 +1,9 @@
 {
   "videoId": "dulce-part1",
-  "requestId": "draft-render-pipeline-check-1",
-  "stage": "render",
+  "requestId": "setup-david-and-aliases-1",
+  "stage": "setup",
   "assets": [],
-  "draft": true,
+  "draft": false,
   "capUsd": 40,
   "creatorActualUsd": null
 }

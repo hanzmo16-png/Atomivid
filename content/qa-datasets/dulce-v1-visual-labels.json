@@ -733,7 +733,8 @@
       "editSeconds": 7.2,
       "note": "Original v1 animation: man in white cap and blue shirt enters from the right (fixed in master v2 by re-animation + crop).",
       "evidence": "docs/quality/dulce-001/audit/beat-b10.jpg",
-      "description": "The adult wife pauses before turning her eyes toward the worker, then gives a small smile."
+      "description": "The adult wife pauses before turning her eyes toward the worker, then gives a small smile.",
+      "appliesToRevision": "v1"
     },
     {
       "clipId": "D10-05",
@@ -793,7 +794,8 @@
       "editSeconds": 9.17,
       "note": "Original v1 animation: blond boy in blue enters from the right (fixed in master v2).",
       "evidence": "docs/quality/dulce-001/audit/beat-b11.jpg",
-      "description": "The wife speaks quietly without exaggerated mouth movement and glances toward the boy."
+      "description": "The wife speaks quietly without exaggerated mouth movement and glances toward the boy.",
+      "appliesToRevision": "v1"
     },
     {
       "clipId": "D11-04",
