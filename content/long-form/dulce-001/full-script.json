@@ -1,0 +1,169 @@
+{
+  "meta": {
+    "videoId": "dulce-001",
+    "version": "full-v1",
+    "language": "en",
+    "title": "DULCE: What Came Home",
+    "genre": "fictional suspense inspired by folklore",
+    "status": "authorized_full_production",
+    "targetDurationSeconds": 600,
+    "estimatedDurationBasis": "Pilot: 102 words / 38.962 seconds. Full narration must be measured before clip submissions.",
+    "voice": {
+      "provider": "elevenlabs",
+      "voiceName": "Brian",
+      "voiceId": "nPczCjzI2devNBz1zQrb",
+      "model": "eleven_multilingual_v2",
+      "language": "en",
+      "personalVoice": false
+    },
+    "disclaimer": "Fiction inspired by the Dulce legend. Events and characters as depicted are not verified.",
+    "wordCount": 1542,
+    "newNarrationCharacters": 8446
+  },
+  "beats": [
+    {
+      "id": "b1",
+      "title": "The open door",
+      "titleEs": "La puerta abierta",
+      "narration": "The corridor was supposed to end at a locked door. In this fictional retelling of the Dulce legend, Thomas Castello sees it open. At the far end, two figures wait beneath the lights: one small and grey, the other tall and motionless. Beyond them, a laboratory glows behind glass. A man stands inside a chamber. Beside him stands something that resembles a body, waiting. A pale light moves between the machines. Castello cannot tell what he is watching. A medical procedure? A transfer of memory? Or the impossible idea that something human could be taken from one body and placed inside another?",
+      "wordCount": 102,
+      "characters": 596,
+      "targetSeconds": 50,
+      "editorialStatus": "locked",
+      "provenance": "original_fiction",
+      "reuseNarration": true
+    },
+    {
+      "id": "b2",
+      "title": "The rules",
+      "titleEs": "Las reglas",
+      "narration": "Two hours earlier, Thomas had been thinking about a broken kitchen light. His wife had asked him to fix it before another night shift. Their son had left a drawing beside his keys: three people beneath a yellow sun. Ordinary things. Things that seemed impossible to lose. In this story, the facility beneath Dulce paid him to maintain doors, ventilation, and electrical systems. He was not paid to ask what happened beyond them. Every corridor had a rule. Every rule had a signature. Most doors opened when he presented his badge. A few stayed closed. The lowest service passage was different. Its reader had no light, and the door never appeared on his maintenance schedule. That evening, his terminal listed a fault behind it. No technician's name. Only his own identification number.",
+      "wordCount": 132,
+      "characters": 786,
+      "targetSeconds": 50,
+      "editorialStatus": "locked",
+      "provenance": "original_fiction",
+      "reuseNarration": false
+    },
+    {
+      "id": "b3",
+      "title": "The descent",
+      "titleEs": "El descenso",
+      "narration": "He assumed someone had made a mistake. At the service elevator, he called the control room. The radio answered with a breath of static, then silence. He could have walked away. Instead, he thought about the overtime on his next paycheck and stepped inside. The elevator descended beyond the floor where it usually stopped. Nothing violent happened. No alarm, no sudden drop. Just enough time passing for Thomas to begin counting his own breaths. When the doors separated, the air felt warmer. A loose strip of tape moved against a ventilation grille. Somewhere beyond the walls, a machine struck the same three notes, paused, and started again. He checked his badge. The plastic was still warm from his hand. Then a light at the far end of the passage changed from red to white.",
+      "wordCount": 134,
+      "characters": 778,
+      "targetSeconds": 50,
+      "editorialStatus": "locked",
+      "provenance": "original_fiction",
+      "reuseNarration": false
+    },
+    {
+      "id": "b4",
+      "title": "The watchers",
+      "titleEs": "Los observadores",
+      "narration": "Now the figures stood between him and the open laboratory. The smaller one watched his flashlight. The taller one watched his face. Neither looked surprised. That disturbed him more than their appearance. Thomas raised his badge as if an explanation could be printed on a piece of plastic. The grey figure stepped aside. Beyond it, the machinery continued its patient rhythm. The reptilian figure turned toward the observation window, giving Thomas a clear view. It was not an invitation he understood. It was simply the removal of an obstacle. On the other side of the glass, the man in the chamber opened his eyes. Thomas leaned closer. The man's lips moved, but the glass carried no words. One hand rose slowly, stopped against the curved surface, and remained there.",
+      "wordCount": 129,
+      "characters": 770,
+      "targetSeconds": 50,
+      "editorialStatus": "locked",
+      "provenance": "original_fiction",
+      "reuseNarration": false
+    },
+    {
+      "id": "b5",
+      "title": "The first transfer",
+      "titleEs": "La primera transferencia",
+      "narration": "The lights above the chambers dimmed. A narrow pulse crossed the bridge between them, moving from the human enclosure toward the waiting receiver. Thomas followed it with his eyes. A light could be electricity. A twitch could be a reflex. He told himself those things while the man inside the first chamber began to breathe more slowly. Across the room, the receiver's hand moved. Not randomly. Its fingers pressed against its thumb in a small, deliberate pattern. The man repeated the same movement a moment later. Thomas could no longer tell which body had started it. Nothing visible rose from the human chest. No shining soul floated through the air. Whatever the machines were doing, they left him with something worse than an explanation: two separate bodies performing the same private gesture.",
+      "wordCount": 132,
+      "characters": 801,
+      "targetSeconds": 50,
+      "editorialStatus": "locked",
+      "provenance": "original_fiction",
+      "reuseNarration": false
+    },
+    {
+      "id": "b6",
+      "title": "The name",
+      "titleEs": "El nombre",
+      "narration": "A technician entered through a side door. Human, middle aged, wearing the exhausted expression Thomas recognized from every night shift. For a moment, that familiar face made the room more frightening. The technician checked a gauge, adjusted a control, and wrote something on a clipboard. Thomas knocked on the window. The technician looked up. Then he covered the clipboard with his arm. Thomas had seen only one line, but it was enough: his own surname. Perhaps there were other Castellos. Perhaps the entry referred to his maintenance assignment. He held those possibilities for as long as he could. Then the technician reached for a second folder. A photograph slipped partway out. It showed the front of Thomas's house, with the crooked porch light he had promised to repair.",
+      "wordCount": 128,
+      "characters": 781,
+      "targetSeconds": 50,
+      "editorialStatus": "locked",
+      "provenance": "original_fiction",
+      "reuseNarration": false
+    },
+    {
+      "id": "b7",
+      "title": "The warning",
+      "titleEs": "La advertencia",
+      "narration": "Thomas backed away from the glass. The tall figure did not move to stop him. That was when his radio came alive. A man's voice told him to return to the elevator. Quietly. No explanation followed. Thomas asked who was speaking. The voice repeated the instruction, then added that he should leave the photograph where it was. He had not told anyone about the photograph. He looked toward the ceiling and found a small camera turning with him. A moment earlier, he had believed he was witnessing a secret. Now he understood that someone was watching him discover it. The service door began to close. He slipped through before it reached the frame. Behind him, the three notes sounded again, as calm and regular as a signal from an ordinary machine.",
+      "wordCount": 131,
+      "characters": 746,
+      "targetSeconds": 50,
+      "editorialStatus": "locked",
+      "provenance": "original_fiction",
+      "reuseNarration": false
+    },
+    {
+      "id": "b8",
+      "title": "The surface",
+      "titleEs": "La superficie",
+      "narration": "The elevator opened onto the familiar maintenance floor. Someone had left a paper cup beside the control desk. A radio played softly from an empty office. Thomas wanted those ordinary sounds to erase the room below. At the exit, he placed his badge against the reader. This time it failed. He tried again, holding it flatter, then higher. A guard behind the window studied a screen and finally released the gate without looking at him. Outside, the desert wind pushed dust across the parking lot. Thomas reached his truck and called home. No answer. He called again while driving, listening to the rings through the dashboard speaker. When the house appeared beyond the bend, every window was dark. The porch light swung slightly in the wind. The front door was unlocked.",
+      "wordCount": 131,
+      "characters": 771,
+      "targetSeconds": 50,
+      "editorialStatus": "locked",
+      "provenance": "original_fiction",
+      "reuseNarration": false
+    },
+    {
+      "id": "b9",
+      "title": "The empty house",
+      "titleEs": "La casa vac\u00eda",
+      "narration": "Inside, dinner had been set for three. One chair stood away from the table. His son's drawing was still beside the keys, but a glass lay on its side near the sink. There was no broken furniture, no message, no sound from the bedrooms. Thomas walked through the house calling their names. Each room gave him another ordinary object and no answer. He returned to the kitchen and noticed the clock. Its second hand kept moving. He watched it because he needed something in the house to behave normally. Then headlights crossed the curtains. A car stopped outside. Two doors closed. He ran to the entrance before anyone knocked. His wife and son stood on the porch, their faces tired, their clothes clean. His wife asked why he was looking at them that way.",
+      "wordCount": 134,
+      "characters": 753,
+      "targetSeconds": 50,
+      "editorialStatus": "locked",
+      "provenance": "original_fiction",
+      "reuseNarration": false
+    },
+    {
+      "id": "b10",
+      "title": "The return",
+      "titleEs": "El regreso",
+      "narration": "They said they had gone out for a drive. His wife said she had forgotten her phone. His son went directly to his chair and asked what was for dinner. Thomas wanted to accept every word. He put plates on the table. He warmed the food. He listened while his wife described a road they all knew. Nothing she said was impossible. It was the pauses that felt wrong. She waited before answering questions she would usually interrupt. Their son watched her before he smiled. Thomas told himself they were tired. He was the one who had seen something terrible. Perhaps he was carrying that fear into the room. Then his son tapped his fingers against his thumb. A small, deliberate pattern. Across the table, his wife made the same movement.",
+      "wordCount": 131,
+      "characters": 732,
+      "targetSeconds": 50,
+      "editorialStatus": "locked",
+      "provenance": "original_fiction",
+      "reuseNarration": false
+    },
+    {
+      "id": "b11",
+      "title": "The test",
+      "titleEs": "La prueba",
+      "narration": "Thomas looked down at his plate. He did not ask about the gesture. Instead, he mentioned the broken light. His wife said he had already repaired it. Outside, the porch remained dark. He tried a different question, something harmless about an old family trip. She gave him the correct answer. His son finished the story. Every detail was there, but neither laughed where they always laughed. Thomas realized that memory might not settle anything. If the machines could copy a gesture, what else might they carry across? A childhood, a voice, the explanation for a scar? He reached for his wife's hand and stopped before touching it. She noticed. For the first time that evening, her expression changed. Not anger. Not confusion. Something closer to recognition. Then the kitchen light went out.",
+      "wordCount": 132,
+      "characters": 793,
+      "targetSeconds": 50,
+      "editorialStatus": "locked",
+      "provenance": "original_fiction",
+      "reuseNarration": false
+    },
+    {
+      "id": "b12",
+      "title": "What came home",
+      "titleEs": "Lo que volvi\u00f3 a casa",
+      "narration": "When it came back, his family was still sitting opposite him. His wife reached across the table. Thomas did not move. We leave him there, caught between the people he loves and the fear that love is exactly what someone has learned to reproduce. This is a fictional ending inspired by the Dulce legend, not a verified account of Thomas Castello or his family. Our story offers no confirmed destination for him after that night. It offers no proof that anyone disappeared, returned, or was replaced. The chambers, the gestures, and this dinner are inventions. But the question belongs to the story we have just watched. If someone came home with every memory intact, what would convince you that the person you loved had truly returned?",
+      "wordCount": 126,
+      "characters": 735,
+      "targetSeconds": 50,
+      "editorialStatus": "locked",
+      "provenance": "original_fiction",
+      "reuseNarration": false
+    }
+  ]
+}

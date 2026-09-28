@@ -1,65 +1,20 @@
-name: Muestra de calidad Long Form (narración guardada, recursos gratuitos)
-
-# Calidad M2 (scripts/long-form-quality-sample.ts): prepara y renderiza una
-# muestra a partir de un manifiesto revisado. Narración desde la caché TTS
-# (sin síntesis), recursos gratuitos (Pexels con la clave existente,
-# Wikimedia Commons de dominio público, mapa de datos Natural Earth) y
-# música del banco con procedencia registrada. Salida y estado SEPARADOS
-# (<requestId>/samples/...); nunca toca output/final.mp4. Nunca recibe claves
-# de ElevenLabs/Anthropic. Las de OpenAI/Veo SOLO llegan con allow_paid=true
-# en PHASE=prepare y con el presupuesto aprobado (paid_budget_usd), para las
-# escenas `veo-clip` que el manifiesto declara (M3); por defecto no llegan.
+name: Dulce full episode - isolated authorized production
 on:
   workflow_dispatch:
     inputs:
-      phase:
-        description: "prepare | render"
+      stage:
+        description: preflight or narrate
+        type: choice
+        options: [preflight, narrate]
+        default: preflight
         required: true
-        default: prepare
-        type: choice
-        options: [prepare, render]
-      purpose:
-        description: "technical (ventana corta) | approval (muestra completa; bloquea con escenas pendientes)"
-        required: false
-        default: technical
-        type: choice
-        options: [technical, approval]
-      manifest:
-        description: "Manifiesto de la muestra"
-        required: false
-        default: "docs/quality/m2-panama-opening/sample-manifest.json"
-        type: string
-      window_sec:
-        description: "Duración del render (s): técnico por defecto 12; en aprobación, vacío = muestra completa"
-        required: false
-        default: ""
-        type: string
-      allow_paid:
-        description: "Autorizar generación de pago (clips IA del manifiesto) — solo con gasto aprobado"
-        required: false
-        default: false
-        type: boolean
-      paid_preflight_only:
-        description: "Solo verificar claves y plan de gasto (sin llamadas de pago)"
-        required: false
-        default: false
-        type: boolean
-      ledger_release:
-        description: "Liberar reservas fallidas que nunca se enviaron (claves separadas por comas; se verifica)"
-        required: false
-        default: ""
-        type: string
-      paid_budget_usd:
-        description: "Presupuesto aprobado en USD (acumulado entre ejecuciones de la misma muestra)"
-        required: false
-        default: "0"
-        type: string
-
 permissions:
   contents: read
-
+concurrency:
+  group: dulce-full-v1
+  cancel-in-progress: false
 jobs:
-  sample:
+  production:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -69,59 +24,23 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Instalar ffmpeg y fuentes
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
-      - name: Muestra (${{ inputs.phase }} / ${{ inputs.purpose }})
-        run: npx tsx scripts/long-form-quality-sample.ts
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - name: Execute isolated stage
+        run: npx tsx scripts/dulce-full.ts
         env:
-          PHASE: ${{ inputs.phase }}
-          RENDER_PURPOSE: ${{ inputs.purpose }}
-          RENDER_WINDOW_SEC: ${{ inputs.window_sec }}
-          SAMPLE_MANIFEST: ${{ inputs.manifest }}
-          SAMPLE_OUT_DIR: ${{ runner.temp }}/quality-sample
+          DULCE_STAGE: ${{ inputs.stage }}
+          DULCE_ALLOW_PAID: ${{ inputs.stage == 'narrate' && 'true' || 'false' }}
+          DULCE_OUT: ${{ runner.temp }}/dulce-full
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
-          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
-          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-          SAMPLE_ALLOW_PAID: ${{ inputs.allow_paid && inputs.phase == 'prepare' && 'true' || 'false' }}
-          SAMPLE_PAID_BUDGET_USD: ${{ inputs.paid_budget_usd }}
-          SAMPLE_LEDGER_RELEASE: ${{ inputs.ledger_release }}
-          SAMPLE_SIGN_OUTPUT_HOURS: "168"
-          SAMPLE_PAID_PREFLIGHT_ONLY: ${{ inputs.paid_preflight_only && 'true' || 'false' }}
-          OPENAI_API_KEY: ${{ inputs.allow_paid && inputs.phase == 'prepare' && secrets.OPENAI_API_KEY || '' }}
-          VEO_API_KEY: ${{ inputs.allow_paid && inputs.phase == 'prepare' && secrets.VEO_API_KEY || '' }}
-      - name: Publicar muestra (artifact privado)
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID_EN: nPczCjzI2devNBz1zQrb
+          ELEVENLABS_MODEL_ID: eleven_multilingual_v2
+          VOICE_PROVIDER: elevenlabs
+      - uses: actions/upload-artifact@v4
         if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
         with:
-          name: long-form-quality-sample-${{ inputs.phase }}-${{ inputs.purpose }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/quality-sample/
+          name: dulce-full-${{ inputs.stage }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/dulce-full/
+          retention-days: 14
           if-no-files-found: ignore
-          retention-days: 14
-      - name: Publicar el MP4 directo (sin zip) para revisión
-        if: success() && inputs.phase == 'render'
-        continue-on-error: true
-        uses: actions/upload-artifact@v7
-        with:
-          path: ${{ runner.temp }}/quality-sample/sample-*.mp4
-          archive: false
-          retention-days: 14
-      - name: Publicar el fotograma inicial directo (sin zip)
-        if: success() && inputs.phase == 'render'
-        continue-on-error: true
-        uses: actions/upload-artifact@v7
-        with:
-          path: ${{ runner.temp }}/quality-sample/first-frame*.png
-          archive: false
-          retention-days: 14
-      - name: Publicar la miniatura directa (sin zip)
-        if: success() && inputs.phase == 'render'
-        continue-on-error: true
-        uses: actions/upload-artifact@v7
-        with:
-          path: ${{ runner.temp }}/quality-sample/thumbnail.jpg
-          archive: false
-          if-no-files-found: ignore
-          retention-days: 14

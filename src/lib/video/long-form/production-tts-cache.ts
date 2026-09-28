@@ -16,6 +16,7 @@
  * nuevo y paralelo, no una modificación de aquel.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
 import type { ScriptLanguage, VoiceProvider, WordTiming } from "@/lib/providers/types";
 import type { NarrativeBeat } from "./types";
 import { synthesizeBeatNarration, type BeatNarrationResult } from "./timeline";
@@ -55,7 +56,7 @@ export async function readProductionTtsCacheRecord(
   videoId: string,
   key: string,
 ): Promise<ProductionTtsCacheRecord | undefined> {
-  const { data, error } = await supabase.storage.from(bucket).download(recordPath(videoId, key));
+  const { data, error } = await supabase.storage.from(bucket).download(recordPath(videoId, key), { cacheNonce: randomUUID() }, { cache: "no-store" });
   if (error || !data) return undefined;
   const text = await data.text();
   if (!text) return undefined;
@@ -70,7 +71,7 @@ export async function writeProductionTtsCacheRecord(
 ): Promise<void> {
   const body = Buffer.from(JSON.stringify(record, null, 2));
   const path = recordPath(videoId, record.key);
-  const { error } = await supabase.storage.from(bucket).upload(path, body, { contentType: "application/json", upsert: true });
+  const { error } = await supabase.storage.from(bucket).upload(path, body, { contentType: "application/json", cacheControl: "0", upsert: true });
   if (error) {
     throw new Error(`No se pudo guardar el registro TTS de producción en Storage ("${path}"): ${error.message}`);
   }
