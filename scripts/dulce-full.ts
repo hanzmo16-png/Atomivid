@@ -145,6 +145,14 @@ async function main(){
    const completed=await Promise.allSettled(workers);
    tiles.sort((a,b)=>a.label.localeCompare(b.label));
    await fs.writeFile(path.join(out,'references-review.jpg'),await buildContactSheet(tiles,{columns:2,tileWidth:640,tileHeight:360,title:'Dulce - references awaiting visual review'}));
+   // Originals are durably stored above; compact review exports keep downloads small.
+   const inspected=[];
+   for(const tile of tiles){
+     await fs.writeFile(path.join(out,tile.label+'.jpg'),await sharp(tile.image).jpeg({quality:95}).toBuffer());
+     inspected.push({shotId:tile.label,sha256:sha(tile.image)});
+     await fs.unlink(path.join(out,tile.label+'.png'));
+   }
+   await fs.writeFile(path.join(out,'inspected-references.json'),JSON.stringify(inspected,null,2));
    await fs.writeFile(path.join(out,'ledger.json'),JSON.stringify(ledger,null,2));
    for(const r of completed)if(r.status==='rejected')throw r.reason;return;
  }
