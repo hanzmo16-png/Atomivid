@@ -388,8 +388,9 @@
       ],
       "imagePromptExtra": "Extreme close-up of ONLY one adult hand reaching toward a small set of keys on a wooden surface beside the established drawing. Face, torso, other hand and flashlight are all OUTSIDE the frame. The drawing of a mother, father and boy with a sun remains visible. The keys are resting on the table at the start.",
       "replaceReferenceSha256": "2c496c263db316550ce36d0e67f38159995b95087b748d295602276362fe6d9d",
-      "imageRevision": "v2",
-      "animationRevision": "v2"
+      "imageRevision": "v3",
+      "animationRevision": "v2",
+      "revisionReason": "v2 was explicitly rejected before generation with credit_balance_exhausted; next request requires restored provider balance, same corrected prompt, preserved old claims."
     },
     {
       "shotId": "D02-03",
@@ -430,8 +431,9 @@
       ],
       "imagePromptExtra": "Exterior side view at driver window height. Castello is already SEATED inside the established brown 1980s pickup, both hands on the steering wheel, door shut. The truck points away from the small house. Wife and child are NOT visible. Show a single man inside the vehicle, ready to drive away.",
       "replaceReferenceSha256": "ee2a601ed9420e6f6f839680020adcd0e6cbded76e24ac0c52d159dd6d9c3f37",
-      "imageRevision": "v2",
-      "animationRevision": "v2"
+      "imageRevision": "v3",
+      "animationRevision": "v2",
+      "revisionReason": "v2 was explicitly rejected before generation with credit_balance_exhausted; next request requires restored provider balance, same corrected prompt, preserved old claims."
     },
     {
       "shotId": "D02-04",
@@ -1104,7 +1106,8 @@
       ],
       "imagePromptExtra": "Close view of the same clean-shaven human chamber occupant shown in D04-05, with the exact dark slicked hair and gray shirt. He stands inside the LEFT cylinder. Frame his head and chest, soft condensation on curved glass. Castello is not present. Do not invent a new person.",
       "replaceReferenceSha256": "dbbab2ad502a21cd13e2988b250001be81e825b776c27f72a4a930f4a314b944",
-      "imageRevision": "v2"
+      "imageRevision": "v3",
+      "revisionReason": "v2 was explicitly rejected before generation with credit_balance_exhausted; next request requires restored provider balance, same corrected prompt, preserved old claims."
     },
     {
       "shotId": "D05-04",

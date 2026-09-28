@@ -39,6 +39,16 @@ async function main(){
  const script=JSON.parse(await fs.readFile('content/long-form/dulce-001/full-script.json','utf8')) as {meta:unknown;beats:{id:string;narration:string}[]};
  const spec=JSON.parse(await fs.readFile('content/long-form/dulce-001/full-shots.json','utf8'));
  const lb=await read(`${PREFIX}/ledger.json`);if(lb)ledger=JSON.parse(lb.toString());
+ // A recorded explicit credit-balance rejection produced no asset and incurred no generation charge.
+ let reconciledQuota=false;
+ for(const e of ledger.entries.filter(e=>e.kind==='image'&&e.status==='committed')){
+   const raw=await read(`${PREFIX}/errors/${e.key}.json`);if(!raw)continue;
+   const failure=JSON.parse(raw.toString());let detail;try{detail=JSON.parse(failure.detail);}catch{continue;}
+   if(failure.status===429&&detail?.error?.code==='credit_balance_exhausted'){
+     e.amount=0;e.status='rejected_credit_balance_no_generation';reconciledQuota=true;
+   }
+ }
+ if(reconciledQuota)await writeJson(`${PREFIX}/ledger.json`,ledger);
  const identity=getVoiceIdentity('en');if(identity.voiceId!=='nPczCjzI2devNBz1zQrb')throw Error('Brian identity mismatch');
  const reqs=script.beats.map(b=>({beat:b,key:computeTtsCacheKey({videoId:ID,beatId:b.id,text:b.narration,...identity,language:'en',providerName:'elevenlabs'})}));
  const narration=[];
