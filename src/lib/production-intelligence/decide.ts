@@ -8,7 +8,7 @@ import { hasFlag, CONTRACT_VERSION, type ShotContract } from "./contract";
 import { isGenerativeVideo, type Method } from "./ladder";
 import { methodAllowed, type ProductionProfile } from "./profiles";
 import type { Policy } from "./policy";
-import { providersFor, type RateCard } from "./rate-card";
+import type { RateCard } from "./rate-card";
 import { costOf } from "./cost";
 import { stableHash } from "./canonical";
 import { assertPinned, type ProjectPin } from "./pin";
@@ -93,6 +93,11 @@ function generativeBlockers(i: DecideInput, m: Method): string[] {
   return out;
 }
 
+/** Providers of the paid steps still needed for `m` (an approved still is not bought again). */
+function neededProviders(card: RateCard, m: Method, stillExists: boolean): string[] {
+  return [...new Set(costOf(card, m, { stillExists }).lines.map((l) => card.entries[l.entry].provider).filter((pr) => pr !== "internal"))];
+}
+
 export function decide(i: DecideInput): Decision {
   const { contract: c, profile: p, policy, rateCard } = i;
   assertPinned(i.pin, { policyVersion: policy.policyVersion, profileVersion: p.profileVersion, contractVersion: c.contractVersion, rateCardVersion: rateCard.rateCardVersion, memorySnapshotId: i.memorySnapshotId });
@@ -144,7 +149,7 @@ export function decide(i: DecideInput): Decision {
     if (secs > i.budget.generativeSecondsRemaining) lower(floor.method, `global generative budget: ${secs} s needed, ${i.budget.generativeSecondsRemaining} s left`);
   }
   if (!blocked && isGenerativeVideo(method) && i.capacity) {
-    const red = providersFor(rateCard, method).filter((pr) => i.capacity?.[pr] === "RED");
+    const red = neededProviders(rateCard, method, i.stillQa === "PASS").filter((pr) => i.capacity?.[pr] === "RED");
     if (red.length) lower(floor.method, `provider capacity RED for ${red.join(", ")}`);
   }
 
@@ -161,9 +166,9 @@ export function decide(i: DecideInput): Decision {
     reasons.push(`blocked: even the cheapest method (USD ${cost.worstCaseUsd}) exceeds the remaining reserved budget`);
   }
   if (!blocked && i.capacity) {
-    const red = providersFor(rateCard, method).filter((pr) => i.capacity?.[pr] === "RED");
+    const red = neededProviders(rateCard, method, stillExists).filter((pr) => i.capacity?.[pr] === "RED");
     if (red.length) { blocked = true; attemptKind = "none"; reasons.push(`blocked: provider capacity RED for ${red.join(", ")}`); }
-    const unknown = providersFor(rateCard, method).filter((pr) => i.capacity?.[pr] === "UNKNOWN");
+    const unknown = neededProviders(rateCard, method, stillExists).filter((pr) => i.capacity?.[pr] === "UNKNOWN");
     if (unknown.length) reasons.push(`capacity UNKNOWN for ${unknown.join(", ")}: not verified, never treated as GREEN`);
   }
   reasons.push(`memory ${i.memorySnapshotId} is informative only in V1`);
@@ -171,10 +176,11 @@ export function decide(i: DecideInput): Decision {
   const versions = { policyVersion: policy.policyVersion, profileVersion: p.profileVersion, contractVersion: c.contractVersion ?? CONTRACT_VERSION, rateCardVersion: rateCard.rateCardVersion, memorySnapshotId: i.memorySnapshotId };
   const body = {
     shotId: c.shotId, method, variant, attemptKind, blocked,
-    eligibleProviders: blocked ? [] : providersFor(rateCard, method),
+    // Only the paid steps still needed (an approved still is not bought again).
+    eligibleProviders: blocked ? [] : [...new Set(cost.lines.map((l) => rateCard.entries[l.entry].provider).filter((pr) => pr !== "internal"))],
     expectedCostUsd: blocked ? 0 : cost.expectedUsd,
     maxCostUsd: blocked ? 0 : cost.worstCaseUsd,
-    authorizedAttempts: blocked ? 0 : isGenerativeVideo(method) ? (attemptKind === "infrastructure_retry" ? 1 : Math.max(1, p.maxMotionAttempts)) : attemptKind === "still_regeneration" ? 1 : p.maxStillAttempts,
+    authorizedAttempts: blocked || cost.lines.every((l) => l.worstUsd === 0) ? 0 : isGenerativeVideo(method) ? (attemptKind === "infrastructure_retry" ? 1 : Math.max(1, p.maxMotionAttempts)) : attemptKind === "still_regeneration" ? 1 : p.maxStillAttempts,
     generativeSeconds: !blocked && isGenerativeVideo(method) ? cost.billedSeconds : 0,
     downgrade, reasons, versions,
   };

@@ -288,3 +288,11 @@ test("QA gate keeps technical pass, visual pass, kept and exported separate; fix
   const keys = Object.keys(attempt({}));
   for (const k of ["technicalPass", "visualQaPass"]) assert.ok(keys.includes(k));
 });
+
+test("capacity only gates the paid steps still needed", () => {
+  const ok = decide(input({ requestedMethod: undefined, capacity: { openai: "RED" } }));
+  assert.equal(ok.blocked, false, "an approved still is not bought again, so OpenAI RED does not block camera motion");
+  assert.equal(ok.authorizedAttempts, 0); assert.deepEqual(ok.eligibleProviders, []);
+  const needStill = decide(input({ requestedMethod: undefined, stillQa: undefined, capacity: { openai: "RED" } }));
+  assert.equal(needStill.blocked, true);
+});
