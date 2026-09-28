@@ -14,7 +14,7 @@ test('committed Dulce plan is a gap-free 73-shot timeline with narration inside 
 
 test('every animated shot maps to its current durable revision key', () => {
   const animated = spec.shots.filter((s: { reuse: unknown }) => !s.reuse);
-  assert.equal(animated.length, 70);
+  assert.equal(animated.length, 72);
   assert.equal(clipRecordKey(spec.shots.find((s: { shotId: string }) => s.shotId === 'D02-03')), 'D02-03-v3');
   assert.equal(clipRecordKey(spec.shots.find((s: { shotId: string }) => s.shotId === 'D03-01')), 'D03-01');
 });
