@@ -1,12 +1,8 @@
 {
   "videoId": "dulce-part1",
-  "requestId": "canary-animate-1",
-  "stage": "animate",
-  "assets": [
-    "N11",
-    "N35",
-    "N41"
-  ],
+  "requestId": "clip-review-canary",
+  "stage": "clip-review",
+  "assets": [],
   "draft": false,
   "capUsd": 40,
   "creatorActualUsd": null

@@ -20,7 +20,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core && pip install --quiet opencv-python-headless
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core && pip install --quiet "opencv-python-headless<5"
       - name: Resolve production request
         id: request
         run: |

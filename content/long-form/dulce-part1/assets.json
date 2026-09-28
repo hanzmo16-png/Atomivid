@@ -114,7 +114,7 @@
       "characters": [
         "grey"
       ],
-      "animationPrompt": "The grey being breathes slowly, blinks and turns its head a few degrees toward the camera. Locked-off camera. It stays alone in the frame; nothing else moves.",
+      "animationPrompt": "The grey being breathes slowly, blinks and turns its head a few degrees toward the camera. Locked-off camera. It stays alone in the frame; nothing else moves. Its arms stay still at its sides.",
       "clipSeconds": 5
     },
     "N12": {
@@ -126,7 +126,7 @@
       "characters": [
         "reptilian"
       ],
-      "animationPrompt": "The reptilian being breathes slowly and turns its head slightly. Locked-off camera with a very slight push-in. It stays alone in the frame.",
+      "animationPrompt": "The reptilian being breathes slowly and turns its head slightly. Its arms stay still at its sides. Locked-off camera with a very slight push-in. It stays alone in the frame.",
       "clipSeconds": 5
     },
     "N13": {

@@ -1,1 +1,24 @@
-[]
+[
+  {
+    "asset": "N11",
+    "sha256": "8ed9424768323679a204fbbb80e869f57e7fdb3d004aae892aeaa16152098dd5",
+    "result": "PASS",
+    "usableUntil": 3.4,
+    "reasons": [
+      "impossible-action"
+    ],
+    "note": "0-3.5 s clean (breath, head turn). After 3.5 s an unrequested arm raise and hand-to-mouth gesture: trimmed to the clean window, no regeneration."
+  },
+  {
+    "asset": "N35",
+    "sha256": "ac0aef677ac4e7c13295c57abf8487f3212fd2381ad33f6795507ba72a333d54",
+    "result": "PASS",
+    "note": "George identical across 12 frames; breathes, eyes on lens; alone; no hand motion."
+  },
+  {
+    "asset": "N41",
+    "sha256": "444bc3f7f926bf4cefc2d80fd61cab6b975aea9990ff32aea12dfe9af2d2a58c",
+    "result": "PASS",
+    "note": "Fog drifts, lights steady, corridor empty for 10 s; no figures."
+  }
+]

@@ -73,7 +73,7 @@ export async function render(ctx: Ctx) {
       if (['i2v_economy', 'i2v_hero'].includes(s.productionMethod) && a?.clipSeconds) {
         const rev = a.animationRevision || 'v1'; const rec = await readAiVideoClipRecord(ctx.service, 'videos', P, `${s.src}-${rev}`); const rv = await read(`${P}/reviews/clip-${s.src}-${rev}.json`);
         const ok = rec?.status === 'COMPLETED' && rv && JSON.parse(rv.toString()).result === 'PASS' && JSON.parse(rv.toString()).sha256 === rec.checksumSha256;
-        if (ok) { const bytes = await read(rec!.storagePath!); if (!bytes || sha(bytes) !== rec!.checksumSha256) throw Error('Clip checksum ' + s.src); const f = path.join(work, `clip-${s.src}.mp4`); await fs.writeFile(f, bytes); src = {kind: 'clip', file: f, sha256: sha(bytes), origin: 'videos/' + rec!.storagePath}; cache.set(key, src); return src; }
+        if (ok) { const bytes = await read(rec!.storagePath!); if (!bytes || sha(bytes) !== rec!.checksumSha256) throw Error('Clip checksum ' + s.src); const f = path.join(work, `clip-${s.src}.mp4`); await fs.writeFile(f, bytes); src = {kind: 'clip', file: f, sha256: sha(bytes), usableUntil: JSON.parse(rv!.toString()).usableUntil ?? null, origin: 'videos/' + rec!.storagePath}; cache.set(key, src); return src; }
         issues.push(`${s.src}: no approved clip, fell back to approved still + camera motion`);
       }
       if (still) { const f = path.join(work, `still-${s.src}.png`); await fs.writeFile(f, still); src = {kind: 'still', file: f, sha256: sha(still), origin: `videos/${P}/stills/${s.src}`}; }
@@ -95,7 +95,7 @@ export async function render(ctx: Ctx) {
     else if (src.kind === 'still' || src.kind === 'graphic' || src.kind === 'placeholder') { const mv = src.kind === 'graphic' ? 'push-in' : s.productionMethod === 'parallax' ? (i % 2 ? 'pan-left' : 'pan-right') : moveFor(i, s.shotClass); args = ['-loop', '1', '-framerate', String(FPS), '-i', src.file, '-vf', stillMotionFilter(mv, s.frames) + tail]; report.push({slot: s.id, move: mv}); }
     else {
       const clipSeconds = await probeDuration(src.file);
-      inPoint = src.kind === 'v1' ? v1InPoint(clipSeconds, src.usableUntil ?? null, edit, u) : v1InPoint(clipSeconds, null, edit, u);
+      inPoint = v1InPoint(clipSeconds, src.usableUntil ?? null, edit, u);
       const window = Math.min(clipSeconds, src.usableUntil ?? clipSeconds) - inPoint;
       if (window < edit) { speed = Math.min(1.3, edit / window); frozen = Math.max(0, edit - window * speed); if (frozen > 0.05) issues.push(`${s.id} ${s.src}: ${frozen.toFixed(2)} s held beyond clean window`); }
       const crop = src.crop ? `crop=${src.crop.width}:${src.crop.height}:${src.crop.x}:${src.crop.y},` : '';

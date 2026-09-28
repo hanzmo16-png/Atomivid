@@ -271,7 +271,7 @@ async function l1Qa(file: string) {
 }
 
 async function clipReview() {
-  const list = await readJson<{asset: string; sha256: string; result: 'PASS' | 'FAIL'; reasons?: string[]; note: string; revision?: string}[]>('content/long-form/dulce-part1/approved-clips.json');
+  const list = await readJson<{asset: string; sha256: string; result: 'PASS' | 'FAIL'; reasons?: string[]; note: string; revision?: string; usableUntil?: number}[]>('content/long-form/dulce-part1/approved-clips.json');
   for (const x of list) {
     const rev = x.revision || 'v1'; const rec = await readAiVideoClipRecord(service, 'videos', SCOPE, `${x.asset}-${rev}`);
     if (rec?.status !== 'COMPLETED' || rec.checksumSha256 !== x.sha256) throw Error('Clip checksum mismatch ' + x.asset);
