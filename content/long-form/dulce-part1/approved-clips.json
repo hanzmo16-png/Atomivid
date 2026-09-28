@@ -59,5 +59,45 @@
     "sha256": "fcbea86f39acafc06259c7462d33bb2af3228ba63d2ed8f2a00ad39bf06242ec",
     "result": "PASS",
     "note": "Subtle trace/light motion; no people."
+  },
+  {
+    "asset": "N01",
+    "sha256": "0e0d3fd65db73910ea872aa95e14df7ac74730fc1f464e1d8af4ab79522c5e14",
+    "result": "PASS",
+    "note": "Slow aerial push, empty landscape."
+  },
+  {
+    "asset": "N04",
+    "sha256": "bbad0d4f66b3d7441723659299dde053b6cf461f022f367ae10e3d2276d77f5e",
+    "result": "PASS",
+    "note": "Slow dolly, empty tunnel."
+  },
+  {
+    "asset": "N33",
+    "sha256": "9352f2d80fcb708ab555f0b877017b0cb9cbc7d4941b3dcc0eeaa5b092c80b34",
+    "result": "PASS",
+    "note": "George consistent; raises his head instead of lowering it (fits the narration); L1 face spikes = wire mesh (false positive)."
+  },
+  {
+    "asset": "N20",
+    "sha256": "",
+    "revision": "v1",
+    "result": "FAIL",
+    "reasons": [
+      "provider-no-output"
+    ],
+    "note": "Runway ended the task without a video.",
+    "fallback": "retry"
+  },
+  {
+    "asset": "N20",
+    "sha256": "",
+    "revision": "v2",
+    "result": "FAIL",
+    "reasons": [
+      "provider-no-output"
+    ],
+    "note": "Second failure with a simpler prompt: fall back to the approved still + camera motion.",
+    "fallback": "approved-still-camera-motion"
   }
 ]

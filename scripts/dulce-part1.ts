@@ -272,9 +272,16 @@ async function l1Qa(file: string) {
 }
 
 async function clipReview() {
-  const list = await readJson<{asset: string; sha256: string; result: 'PASS' | 'FAIL'; reasons?: string[]; note: string; revision?: string; usableUntil?: number}[]>('content/long-form/dulce-part1/approved-clips.json');
+  const list = await readJson<{asset: string; sha256: string; result: 'PASS' | 'FAIL'; reasons?: string[]; note: string; revision?: string; usableUntil?: number; fallback?: string}[]>('content/long-form/dulce-part1/approved-clips.json');
   for (const x of list) {
-    const rev = x.revision || 'v1'; const rec = await readAiVideoClipRecord(service, 'videos', SCOPE, `${x.asset}-${rev}`);
+    const rev = x.revision || 'v1';
+    if (x.reasons?.includes('provider-no-output')) {
+      // The provider ended the task without a video: no output to review. Count the attempt as spent (conservative).
+      const key = `video-${x.asset}-${rev}`; const e = ledger.entries.find(y => y.key === key); if (e && e.status === 'reserved') await settle(key, e.maxUsd, 'committed');
+      await tele({attemptId: key, assetId: x.asset, usedInShots: [], stage: 'animation', provider: 'runway', model: 'gen4_turbo', productionMethod: 'i2v_economy', shotClass: 'single_human', characters: ['Thomas'], motionComplexity: 'micro-gesture', generatedSeconds: 0, costUsd: e?.maxUsd ?? 0.25, costBasis: 'reservation-max (refund unknown)', latencySeconds: 0, attempt: Number(rev.slice(1)) || 1, qa: {result: 'FAIL', failureReasons: x.reasons, notes: x.note}, failureKind: 'transport', fallbackUsed: x.fallback || 'approved-still-camera-motion', finalApproved: false, createdAt: new Date().toISOString()});
+      continue;
+    }
+    const rec = await readAiVideoClipRecord(service, 'videos', SCOPE, `${x.asset}-${rev}`);
     if (rec?.status !== 'COMPLETED' || rec.checksumSha256 !== x.sha256) throw Error('Clip checksum mismatch ' + x.asset);
     await putJson(`${P}/reviews/clip-${x.asset}-${rev}.json`, {...x, revision: rev, at: new Date().toISOString(), reviewer: 'assistant temporal inspection'});
     const t = await read(`${P}/telemetry/video-${x.asset}-${rev}.json`); if (t) { const r = JSON.parse(t.toString()); r.qa = {...r.qa, result: x.result, failureReasons: x.reasons, notes: x.note}; r.failureKind = x.result === 'FAIL' ? 'semantic' : 'none'; r.finalApproved = x.result === 'PASS'; await putJson(`${P}/telemetry/${r.attemptId}.json`, r); }

@@ -1,7 +1,7 @@
 {
   "videoId": "dulce-part1",
-  "requestId": "approve2-animate3-stills3",
-  "stage": "approve,animate,images",
+  "requestId": "clipreview3-stills3",
+  "stage": "clip-review,images",
   "assets": [
     "N27",
     "N28",
@@ -24,10 +24,5 @@
   "draft": false,
   "capUsd": 40,
   "creatorActualUsd": null,
-  "animateAssets": [
-    "N20",
-    "N01",
-    "N04",
-    "N33"
-  ]
+  "animateAssets": []
 }
