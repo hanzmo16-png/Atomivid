@@ -145,28 +145,13 @@
     "note": "Visual review: elevator correction, reptilian behind Castello, technician and chamber-human continuity, no significant anatomy defect."
   },
   {
-    "shotId": "D07-03",
-    "sha256": "fa8bfb55d253baba0ca1213922710b6719eafc647ad9a8446c5ed67144ed9b1c",
-    "note": "Visual review: elevator correction, reptilian behind Castello, technician and chamber-human continuity, no significant anatomy defect."
-  },
-  {
     "shotId": "D02-02",
     "sha256": "fde59ac7d7fed1a0dc21721e7dedec74bdbb6d6c2de7b53dae9ac32e492af18e",
     "note": "Reviewed reference at full contact-sheet resolution: correct character, location and intended action; central 16:9 composition usable."
   },
   {
-    "shotId": "D02-03",
-    "sha256": "d96d702ac265a4c93ede75a6861d03f60f7a24f3fd1e16af0694546073bd921d",
-    "note": "Reviewed reference at full contact-sheet resolution: correct character, location and intended action; central 16:9 composition usable."
-  },
-  {
     "shotId": "D05-03",
     "sha256": "ac466251e53dfc96f9914662758933b4317435fe119f55629225dd1f991673e3",
-    "note": "Reviewed reference at full contact-sheet resolution: correct character, location and intended action; central 16:9 composition usable."
-  },
-  {
-    "shotId": "D05-06",
-    "sha256": "303d8c714020e74cb39dcd5690095634408479875bbe30acd045243886f2e475",
     "note": "Reviewed reference at full contact-sheet resolution: correct character, location and intended action; central 16:9 composition usable."
   },
   {
@@ -228,5 +213,20 @@
     "shotId": "D10-03",
     "sha256": "9a132cd5fcc093ce6cada21690e2711a57ead220f2e63776bf9ee927ecb974de",
     "note": "Visual review passed: intended action and identities, domestic continuity or industrial card reader; usable central 16:9 frame."
+  },
+  {
+    "shotId": "D05-04",
+    "sha256": "31e7c22caf5fb9661d1218c3ca0adbde7d8ba7bebac1568f57ab3b6a18782795",
+    "note": "Reviewed at full contact-sheet resolution: correct subject and action, anatomically coherent; hand detail or seated family composition."
+  },
+  {
+    "shotId": "D10-06",
+    "sha256": "19225589d37723b69e69f18a016ebeb77b537f8016dd5b5e1ea4e63e81a358bf",
+    "note": "Reviewed at full contact-sheet resolution: correct subject and action, anatomically coherent; hand detail or seated family composition."
+  },
+  {
+    "shotId": "D11-05",
+    "sha256": "619914904968e1d2a3c72abd26c8adc16b5c4d26a22846204d353fcb80629128",
+    "note": "Reviewed at full contact-sheet resolution: correct subject and action, anatomically coherent; hand detail or seated family composition."
   }
 ]
