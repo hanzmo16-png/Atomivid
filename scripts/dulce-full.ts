@@ -143,7 +143,7 @@ async function main(){
    const wanted=(process.env.DULCE_SHOTS||'').split(',').filter(Boolean);
    if(!wanted.length||wanted.length>12||new Set(wanted).size!==wanted.length)throw Error('Select 1-12 unique clips');
    const provider=getVideoProvider('runway');if(provider.name!=='runway')throw Error('Runway provider unavailable');
-   const durable=wrapDurableVideoProvider(provider,{supabase:service,scopeId:'dulce-001-full-v1',executionMode:'real',maxInAttemptResumes:2,beforeSubmit:async(req)=>{await claim('video-'+req.metadata!.shotId+'-v1',.5,'video');return true;}});
+   const durable=wrapDurableVideoProvider(provider,{supabase:service,scopeId:'dulce-001-full-v1',executionMode:'real',maxInAttemptResumes:2,beforeSubmit:async(req)=>{await claim(req.metadata!.claimKey,.5,'video');return true;}});
    const tiles:{image:Buffer;label:string}[]=[];let nextIndex=0;
    const make=async(id:string)=>{
      const shot=spec.shots.find((s:{shotId:string})=>s.shotId===id);
@@ -151,12 +151,13 @@ async function main(){
      const ref=await read(shot.newImageRequired?`${PREFIX}/refs/${id}.png`:shot.existingStillPath);if(!ref)throw Error('Missing image '+id);
      if(shot.newImageRequired){const review=await read(`${PREFIX}/reviews/${id}.json`);if(!review||JSON.parse(review.toString()).sha256!==sha(ref)||JSON.parse(review.toString()).status!=='approved')throw Error('Image not visually approved '+id);}
      const jpeg=await sharp(ref).resize(1280,720,{fit:'cover',position:'centre'}).jpeg({quality:92}).toBuffer();
-     const asset=await durable.generateVideo({prompt:shot.animationPrompt,aspectRatio:'16:9',durationSeconds:10,maxCostUsd:.5,referenceImageUrl:'data:image/jpeg;base64,'+jpeg.toString('base64'),metadata:{shotId:id,videoId:ID}});
+     const rev=shot.animationRevision||'v1',claimKey='video-'+id+'-'+rev;
+     const asset=await durable.generateVideo({prompt:shot.animationPrompt,aspectRatio:'16:9',durationSeconds:10,maxCostUsd:.5,referenceImageUrl:'data:image/jpeg;base64,'+jpeg.toString('base64'),metadata:{shotId:rev==='v1'?id:id+'-'+rev,videoId:ID,claimKey}});
      const file=path.join(out,id+'.mp4');await fs.writeFile(file,asset.buffer);
      const duration=await probeDuration(file);if(duration<shot.editSeconds+.2)throw Error('Clip too short '+id);
      const meta={shotId:id,sha256:sha(asset.buffer),providerJobId:asset.providerJobId,durationSeconds:duration,referenceSha256:sha(ref),model:asset.model,review:'pending'};
      await writeJson(`${PREFIX}/clips/${id}.json`,meta);await fs.writeFile(path.join(out,id+'.json'),JSON.stringify(meta,null,2));
-     await serial(async()=>{const entry=ledger.entries.find(e=>e.key==='video-'+id+'-v1');if(entry)entry.status='completed';await writeJson(`${PREFIX}/ledger.json`,ledger);});
+     await serial(async()=>{const entry=ledger.entries.find(e=>e.key===claimKey);if(entry)entry.status='completed';await writeJson(`${PREFIX}/ledger.json`,ledger);});
      for(const t of [0.5,4.5,8.5])tiles.push({image:await frameAt(file,t,640),label:id+' @ '+t+'s'});
      console.log('@@DULCE_CLIP '+JSON.stringify(meta));
    };

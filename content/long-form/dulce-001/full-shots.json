@@ -356,7 +356,7 @@
       "endSecondsApprox": 66,
       "durationSecondsApprox": 8,
       "descriptionEs": "Dibujo y llaves; inserto",
-      "visibleAction": "The worker picks up his keys beside a childlike drawing of three people under a sun.",
+      "visibleAction": "One hand picks up the small set of keys from the wooden table beside the drawing.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
       "requestSeconds": 10,
@@ -369,8 +369,8 @@
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The worker picks up his keys beside a childlike drawing of three people under a sun. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The worker picks up his keys beside a childlike drawing of three people under a sun. Use locked camera or very slow push; subject action remains primary.",
+      "imagePrompt": "Photorealistic cinematic still, same character and domestic location. Extreme close-up of ONLY one adult hand reaching toward a small set of keys on a wooden surface beside the established drawing. Face, torso, other hand and flashlight are all OUTSIDE the frame. The drawing of a mother, father and boy with a sun remains visible. The keys are resting on the table at the start. Keep the important action in the central 16:9 crop.",
+      "animationPrompt": "One continuous realistic cinematic shot. One hand picks up the small set of keys from the wooden table beside the drawing. Stable character identity and anatomy. Natural restrained movement. Camera stays fixed. No cuts.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -386,7 +386,10 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
+      "imagePromptExtra": "Extreme close-up of ONLY one adult hand reaching toward a small set of keys on a wooden surface beside the established drawing. Face, torso, other hand and flashlight are all OUTSIDE the frame. The drawing of a mother, father and boy with a sun remains visible. The keys are resting on the table at the start.",
+      "replaceReferenceSha256": "2c496c263db316550ce36d0e67f38159995b95087b748d295602276362fe6d9d",
+      "imageRevision": "v2",
+      "animationRevision": "v2"
     },
     {
       "shotId": "D02-03",
@@ -395,7 +398,7 @@
       "endSecondsApprox": 75,
       "durationSecondsApprox": 9,
       "descriptionEs": "Salida hacia trabajo",
-      "visibleAction": "The worker closes his truck door and the truck slowly pulls away from the house.",
+      "visibleAction": "Side view of the worker seated inside the brown pickup as it slowly drives away from the house.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
       "requestSeconds": 10,
@@ -408,8 +411,8 @@
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The worker closes his truck door and the truck slowly pulls away from the house. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The worker closes his truck door and the truck slowly pulls away from the house. Use locked camera or very slow push; subject action remains primary.",
+      "imagePrompt": "Photorealistic cinematic still, same character and domestic location. Exterior side view at driver window height. Castello is already SEATED inside the established brown 1980s pickup, both hands on the steering wheel, door shut. The truck points away from the small house. Wife and child are NOT visible. Show a single man inside the vehicle, ready to drive away. Keep the important action in the central 16:9 crop.",
+      "animationPrompt": "One continuous realistic cinematic shot. Side view of the worker seated inside the brown pickup as it slowly drives away from the house. Stable character identity and anatomy. Natural restrained movement. Camera stays fixed. No cuts.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -425,7 +428,10 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": "Exterior side view at driver window height. Castello is already SEATED inside the established brown 1980s pickup, both hands on the steering wheel, door shut. The truck points away from the small house. Wife and child are NOT visible. Show a single man inside the vehicle, ready to drive away.",
+      "replaceReferenceSha256": "ee2a601ed9420e6f6f839680020adcd0e6cbded76e24ac0c52d159dd6d9c3f37",
+      "imageRevision": "v2",
+      "animationRevision": "v2"
     },
     {
       "shotId": "D02-04",
@@ -1077,12 +1083,12 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "d04",
-        "d02"
+        "D04-05",
+        "d04"
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The fully clothed adult man in the left chamber breathes slowly; condensation drifts on the glass. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
+      "imagePrompt": "Photorealistic cinematic close-up inside the established laboratory. Close view of the same clean-shaven human chamber occupant shown in D04-05, with the exact dark slicked hair and gray shirt. He stands inside the LEFT cylinder. Frame his head and chest, soft condensation on curved glass. Castello is not present. Do not invent a new person. Keep the face and relevant hand fully inside central 16:9 frame.",
       "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The fully clothed adult man in the left chamber breathes slowly; condensation drifts on the glass. Use locked camera or very slow push; subject action remains primary.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
@@ -1094,10 +1100,11 @@
       "editSeconds": 8.8,
       "timingStatus": "measured_audio_conform_pending_picture_review",
       "contextKeys": [
-        "C1",
         "L1"
       ],
-      "imagePromptExtra": " Close shot from inside the laboratory, isolating only the specified adult occupant and the relevant hand or face. Match the chamber materials but change camera position and crop significantly from the wide reference. Do not show Castello."
+      "imagePromptExtra": "Close view of the same clean-shaven human chamber occupant shown in D04-05, with the exact dark slicked hair and gray shirt. He stands inside the LEFT cylinder. Frame his head and chest, soft condensation on curved glass. Castello is not present. Do not invent a new person.",
+      "replaceReferenceSha256": "dbbab2ad502a21cd13e2988b250001be81e825b776c27f72a4a930f4a314b944",
+      "imageRevision": "v2"
     },
     {
       "shotId": "D05-04",
@@ -1114,12 +1121,12 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "d04",
-        "d02"
+        "D01-06",
+        "d04"
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The adult receiver presses each fingertip against its thumb in one deliberate slow sequence. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
+      "imagePrompt": "Photorealistic cinematic close-up inside the established laboratory. Close shot of ONLY the bald pale adult mannequin-like receiver inside the RIGHT cylinder, head to waist, one raised hand with separated fingertips ready to touch its thumb. Same receiver face and smooth material as D01-06. No human chamber occupant or Castello in this shot. No sexual anatomy visible; frame ends at waist. Keep the face and relevant hand fully inside central 16:9 frame.",
       "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The adult receiver presses each fingertip against its thumb in one deliberate slow sequence. Use locked camera or very slow push; subject action remains primary.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
@@ -1131,10 +1138,11 @@
       "editSeconds": 7.833333333333333,
       "timingStatus": "measured_audio_conform_pending_picture_review",
       "contextKeys": [
-        "C1",
         "L1"
       ],
-      "imagePromptExtra": "The human occupant and smooth pale adult receiver are the two people inside the d04 reference chambers. Neither is Castello. Match their faces and clothing. Receiver is a featureless mannequin-like adult humanoid, no sexual anatomy. Close shot from inside the laboratory, isolating only the specified adult occupant and the relevant hand or face. Match the chamber materials but change camera position and crop significantly from the wide reference. Do not show Castello."
+      "imagePromptExtra": "Close shot of ONLY the bald pale adult mannequin-like receiver inside the RIGHT cylinder, head to waist, one raised hand with separated fingertips ready to touch its thumb. Same receiver face and smooth material as D01-06. No human chamber occupant or Castello in this shot. No sexual anatomy visible; frame ends at waist.",
+      "replaceReferenceSha256": "34aab7ab798222a3f45c95b85a36d4fd262503a3b69ff51de2b4b1d81b853301",
+      "imageRevision": "v2"
     },
     {
       "shotId": "D05-05",
