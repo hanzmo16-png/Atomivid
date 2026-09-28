@@ -148,5 +148,60 @@
     "shotId": "D07-03",
     "sha256": "fa8bfb55d253baba0ca1213922710b6719eafc647ad9a8446c5ed67144ed9b1c",
     "note": "Visual review: elevator correction, reptilian behind Castello, technician and chamber-human continuity, no significant anatomy defect."
+  },
+  {
+    "shotId": "D02-02",
+    "sha256": "fde59ac7d7fed1a0dc21721e7dedec74bdbb6d6c2de7b53dae9ac32e492af18e",
+    "note": "Reviewed reference at full contact-sheet resolution: correct character, location and intended action; central 16:9 composition usable."
+  },
+  {
+    "shotId": "D02-03",
+    "sha256": "d96d702ac265a4c93ede75a6861d03f60f7a24f3fd1e16af0694546073bd921d",
+    "note": "Reviewed reference at full contact-sheet resolution: correct character, location and intended action; central 16:9 composition usable."
+  },
+  {
+    "shotId": "D05-03",
+    "sha256": "ac466251e53dfc96f9914662758933b4317435fe119f55629225dd1f991673e3",
+    "note": "Reviewed reference at full contact-sheet resolution: correct character, location and intended action; central 16:9 composition usable."
+  },
+  {
+    "shotId": "D05-06",
+    "sha256": "303d8c714020e74cb39dcd5690095634408479875bbe30acd045243886f2e475",
+    "note": "Reviewed reference at full contact-sheet resolution: correct character, location and intended action; central 16:9 composition usable."
+  },
+  {
+    "shotId": "D06-05",
+    "sha256": "03daae481e8c9022caa5ad5db4626de2e92c5279565b701ebc9074b2d75eb986",
+    "note": "Reviewed reference at full contact-sheet resolution: correct character, location and intended action; central 16:9 composition usable."
+  },
+  {
+    "shotId": "D06-06",
+    "sha256": "5dd84c733b9acc954d31db6dac22355f8b6fd820189c57f943657a4a4b9414a9",
+    "note": "Reviewed reference at full contact-sheet resolution: correct character, location and intended action; central 16:9 composition usable."
+  },
+  {
+    "shotId": "D07-04",
+    "sha256": "8f324b88b24b2dea1e270cd43196e79a23f9951aa9bda5355a09450f5aabeeac",
+    "note": "Reviewed reference at full contact-sheet resolution: correct character, location and intended action; central 16:9 composition usable."
+  },
+  {
+    "shotId": "D07-05",
+    "sha256": "55d2fa9f9218e2677cf73f28885988f5fb2d274cf8ec9e98e06887030f394557",
+    "note": "Reviewed reference at full contact-sheet resolution: correct character, location and intended action; central 16:9 composition usable."
+  },
+  {
+    "shotId": "D07-06",
+    "sha256": "040cd9d45b864914845e84dec6383cf8629651aee3b6f82021939474bbce0837",
+    "note": "Reviewed reference at full contact-sheet resolution: correct character, location and intended action; central 16:9 composition usable."
+  },
+  {
+    "shotId": "D08-01",
+    "sha256": "cf6b7cf49d93b05b577efec118361fe79a64ca8d7ef69f8f627b793fe178cb43",
+    "note": "Reviewed reference at full contact-sheet resolution: correct character, location and intended action; central 16:9 composition usable."
+  },
+  {
+    "shotId": "D08-02",
+    "sha256": "147bb9401e036d58a9488c4546cb0c740f6e4fa9816aa272b32921ed814a3c8f",
+    "note": "Reviewed reference at full contact-sheet resolution: correct character, location and intended action; central 16:9 composition usable."
   }
 ]

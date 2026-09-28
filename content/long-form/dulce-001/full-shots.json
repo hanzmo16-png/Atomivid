@@ -1123,14 +1123,11 @@
       "model": "gen4_turbo",
       "ratio": "1280:720",
       "newImageRequired": true,
-      "referenceKeys": [
-        "D01-06",
-        "d04"
-      ],
+      "referenceKeys": [],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic close-up inside the established laboratory. Close shot of ONLY the bald pale adult mannequin-like receiver inside the RIGHT cylinder, head to waist, one raised hand with separated fingertips ready to touch its thumb. Same receiver face and smooth material as D01-06. No human chamber occupant or Castello in this shot. No sexual anatomy visible; frame ends at waist. Keep the face and relevant hand fully inside central 16:9 frame.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The adult receiver presses each fingertip against its thumb in one deliberate slow sequence. Use locked camera or very slow push; subject action remains primary.",
+      "imagePrompt": "Photorealistic cinematic macro shot of one pale synthetic mannequin hand with five natural-shaped fingers, upright behind curved glass. Only the hand and wrist are visible; no head, torso or body. A dark gray long sleeve covers the entire forearm and ends at the wrist. Cold green-blue industrial laboratory lighting, shallow depth of field, dark blurred background. Fingertips are separated and thumb held open, ready for one small movement. Frame the hand centrally inside the middle 16:9 area.",
+      "animationPrompt": "One continuous macro shot of the single pale hand behind glass. The thumb and index finger slowly touch once and separate. Other fingers remain naturally curved. Camera stays fixed. Stable glass, wrist and sleeve. No new objects, no text, no cuts.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -1140,12 +1137,10 @@
       "endFrame": 6502,
       "editSeconds": 7.833333333333333,
       "timingStatus": "measured_audio_conform_pending_picture_review",
-      "contextKeys": [
-        "L1"
-      ],
-      "imagePromptExtra": "Close shot of ONLY the bald pale adult mannequin-like receiver inside the RIGHT cylinder, head to waist, one raised hand with separated fingertips ready to touch its thumb. Same receiver face and smooth material as D01-06. No human chamber occupant or Castello in this shot. No sexual anatomy visible; frame ends at waist.",
+      "contextKeys": [],
+      "imagePromptExtra": "A nonsexual prop detail only. No people or bodies in the frame.",
       "replaceReferenceSha256": "34aab7ab798222a3f45c95b85a36d4fd262503a3b69ff51de2b4b1d81b853301",
-      "imageRevision": "v2"
+      "imageRevision": "v3"
     },
     {
       "shotId": "D05-05",
