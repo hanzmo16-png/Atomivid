@@ -1,0 +1,90 @@
+{
+  "videoId": "dulce-part1",
+  "title": "DULCE — PART I",
+  "subtitle": "Thomas Castello and the man who claimed he worked inside the base",
+  "language": "en-US",
+  "editorialSource": "content/long-form/dulce-part1/script-es.json (approved Spanish master)",
+  "status": "english_master_pending_approval",
+  "voice": {
+    "provider": "elevenlabs",
+    "voiceName": "Brian",
+    "voiceId": "nPczCjzI2devNBz1zQrb",
+    "model": "eleven_multilingual_v2",
+    "personalVoice": false
+  },
+  "editorialNote": "A cinematic reconstruction of an account attributed to Thomas Edwin Castello. Extraordinary claims are presented as his claims, not as established fact.",
+  "onScreenNotice": "Dramatized reconstruction of claims attributed to Thomas Castello. Not verified.",
+  "beats": [
+    {
+      "id": "p01",
+      "label": "Hook",
+      "narration": "For decades, a story has circulated around a small town in northern New Mexico. A military facility that, officially, does not exist. Miles of tunnels underground. Seven levels. Laboratories. Restricted zones. And, according to some accounts, something that should never have been there at all. But much of what we now call the Dulce Base legend traces back to a single man's testimony. The name attached to it is Thomas Edwin Castello. And he claimed he worked inside."
+    },
+    {
+      "id": "p02",
+      "label": "Security specialist",
+      "narration": "Castello said he was a security specialist. In the account attributed to him, that career eventually brought him to an underground installation near Dulce, New Mexico. At first, none of it had to look alien. Classified facilities. Staff with different levels of clearance. Controlled doors. Cameras. Identification systems. Secrets. All of it fits comfortably inside the world of military security. But Dulce, Castello said, was different. Because the deeper you went… the less human the facility seemed."
+    },
+    {
+      "id": "p03",
+      "label": "Levels and clearances",
+      "narration": "He described a structure divided into several underground levels. Getting in wasn't just a matter of carrying the right badge. Every zone required its own clearance. Some employees could enter certain areas. Others, even while working inside the same facility, were never supposed to know those areas existed. Elevators linked one section to the next. Corridors that seemed to go on forever connected laboratories, offices, technical spaces and security posts. And some levels were guarded far more heavily than others. To someone whose job was security, that meant one thing: whatever mattered most was further down."
+    },
+    {
+      "id": "p04",
+      "label": "The occupants",
+      "narration": "But the strangest part of his story wasn't the doors. It was who walked behind them. According to the interview attributed to Castello, humans were not the only ones inside. He spoke of small grey beings. And of others he described as reptilian. He didn't describe them as prisoners. In his telling, some of them worked there. They shared certain areas with human staff. They took part in technical work. Their presence, he claimed, was simply part of how Dulce ran from one day to the next. For Castello, the impossible had become routine."
+    },
+    {
+      "id": "p05",
+      "label": "Routine",
+      "narration": "Try to imagine working somewhere like that. On the first day, it would be impossible to ignore. But after weeks… after months… even the extraordinary can start to feel ordinary. That may be the most unsettling part of his account. Castello doesn't describe every shift as a horror film. He describes a job. Shifts. Procedures. Restrictions. People coming and going. Systems that had to keep running. And beings that, as he told it, were simply part of the place."
+    },
+    {
+      "id": "p06",
+      "label": "Family and secrecy",
+      "narration": "But perhaps the hardest part didn't happen inside Dulce. It happened when Thomas went home. According to his account, he was required to stay silent about everything he saw there. Picture sitting down to dinner across from your wife, after a day in a place that, if your story were true, would change everything she believes about the world. Watching her talk about ordinary things. The family. Work. Tomorrow. And knowing that a few miles away, there is another reality you can never share with her. Not because you don't want to. Because revealing classified information could carry consequences. For your job. For you. And, at least from the point of view of someone living under that kind of secrecy, perhaps for the people you love most. So Thomas did something that, by his own account, grew harder every day. He came home… and pretended he knew nothing. The next morning, he drove back to Dulce. Back to the checkpoints. Back to the corridors. Back to the beings he claimed to have seen. And back to silence."
+    },
+    {
+      "id": "p07",
+      "label": "Rules",
+      "narration": "There were rules. In certain areas, conversations between different groups were restricted. Some information was never to be shared. Some questions were better left unasked. And some places could not be entered without the right clearance. Castello was there to help keep that system in place. And for a while, it seems, he did. Until he began to see things he could no longer explain away as military secrets."
+    },
+    {
+      "id": "p08",
+      "label": "Laboratories",
+      "narration": "Laboratories take up a large part of his story. Castello spoke of biological and medical research. Equipment he didn't fully understand. Chambers. Observation areas. Human staff working close to non-human beings. At first, by his account, there were explanations. Classified research. Experimental medicine. Projects sensitive enough to justify extreme security. It was possible to work there and still believe that, however strange it all looked, someone higher up knew exactly what they were doing. But there was a problem. Castello hadn't yet seen the lower levels."
+    },
+    {
+      "id": "p09",
+      "label": "George",
+      "narration": "Over time, other workers began to tell him things. Comments. Rumors. Warnings. Stories about people inside the facility who didn't seem to be part of the staff. According to the account, one encounter mattered more than the rest. Castello spoke of a man he identified only as George. George didn't say he worked there. He said he had been taken there. Against his will."
+    },
+    {
+      "id": "p10",
+      "label": "A moral question",
+      "narration": "Until then, Castello could justify a great deal. Military secrets. Research. Classified technology. Even the presence of beings that, if his story were true, would upend our understanding of the world. But a person held against his will was different. That was no longer a question of security clearance. It was a moral question. And he began to wonder what was really happening in the parts of the facility he still couldn't reach."
+    },
+    {
+      "id": "p11",
+      "label": "Documents / Nightmare Hall",
+      "narration": "According to his account, other employees started showing him information. Documents. Names. References to people who had gone missing. Fragments of a story much larger than the facility he walked through every day. Castello began to suspect that some of the subjects used in certain research were not there by choice. And then, a name started to come up. What a few of the workers called one of the lower areas. Nightmare Hall."
+    },
+    {
+      "id": "p12",
+      "label": "The decision",
+      "narration": "According to the story, it lay on one of the most restricted levels of Dulce. Castello still didn't fully understand what was down there. But the warnings were enough. People. Beings. Containment. Experimentation. Projects that supposedly went far beyond any research he had seen so far. At some point, he had to make a decision. He could keep doing his job. Keep his head down. Respect the clearances. And go home every night. Or he could find out what was really below."
+    },
+    {
+      "id": "p13",
+      "label": "He chose to go down",
+      "narration": "According to the account attributed to Thomas Castello… he chose to go down. And what he claimed to find on the lower levels changed his story completely. Containment chambers. People being held. Experiments. Beings he couldn't identify. And the place some workers had learned to call Nightmare Hall. But that is only part of the problem. Because when we try to find out who Thomas Edwin Castello really was, an even more uncomfortable question appears. Can we prove this man ever existed?"
+    },
+    {
+      "id": "p14",
+      "label": "Part Two teaser",
+      "narration": "In Part Two, we go inside Nightmare Hall. We'll reconstruct what Castello said he saw there. What he claimed was happening to the people being held. And what, in his version of events, set off the conflict inside Dulce. Then we'll step outside his story, to investigate something that may be even stranger: where the Dulce legend actually came from. Because Thomas Castello wasn't the beginning. Follow the story back far enough, and another name appears. Paul Bennewitz. And with him, a very different possibility. That part of the Dulce story didn't begin with aliens… but with disinformation."
+    }
+  ],
+  "endCard": "DULCE — PART II: NIGHTMARE HALL"
+}

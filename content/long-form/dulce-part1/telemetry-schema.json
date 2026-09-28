@@ -1,0 +1,45 @@
+{
+  "purpose": "One record per paid or free generation attempt in Dulce Part I, appended to Storage videos/dulce-part1/telemetry/attempts.jsonl and mirrored in the run artifact. Dataset for the Multi-Provider Router.",
+  "attemptRecord": {
+    "attemptId": "string, unique: <shotId>-<asset>-<provider>-a<n>",
+    "shotId": "storyboard slot id, e.g. P1-014 (an asset reused in several slots lists every slot in usedInShots)",
+    "assetId": "N05 | D04-01 | ...",
+    "usedInShots": ["P1-014", "P1-061"],
+    "stage": "image | animation | voice | still-motion | graphic",
+    "provider": "openai | runway | elevenlabs | ffmpeg | none",
+    "model": "gpt-image-2 | gen4_turbo | eleven_multilingual_v2 | ffmpeg-zoompan",
+    "sceneType": "establishing | tunnel | corridor | control-room | portrait | human+non-human | lab | family | insert | document | graphic",
+    "characters": ["Thomas", "grey"],
+    "motionComplexity": "camera-only | micro-gesture | single-action | multi-action",
+    "requestedSeconds": 5,
+    "costUsd": 0.25,
+    "costBasis": "fixed-price | usage-estimate | quota-characters | free",
+    "latencySeconds": 74.2,
+    "attempt": 1,
+    "qa": {
+      "result": "PASS | FAIL | PENDING",
+      "method": "temporal-sheet-12-frames + face-count + frame-diff",
+      "failureReasons": ["duplicated-person", "appearing-person", "identity-drift", "extra-limb", "malformed-hand", "body-deformation", "morphing-object", "impossible-action", "clothing-change", "temporal-instability", "narrative-mismatch"],
+      "reviewer": "assistant visual inspection | owner",
+      "notes": "string"
+    },
+    "fallbackUsed": "none | retry | approved-still-camera-motion | v1-recut",
+    "finalApproved": "true when this attempt's output is the one the master uses",
+    "outputSha256": "checksum of the produced file",
+    "createdAt": "ISO timestamp"
+  },
+  "metrics": {
+    "costPerApprovedShot": "sum(costUsd of every attempt for an asset, including failed ones and fallbacks) / number of storyboard slots that asset fills in the final master; reported per asset, per sceneType and per provider",
+    "totalGenerationCost": "sum(costUsd) over all attempts",
+    "totalApprovedShots": "count of storyboard slots in the final master whose asset has finalApproved=true (reuses of V1 counted separately as zero-cost)",
+    "regenerationRate": "(attempts - unique assets attempted) / unique assets attempted",
+    "qaFailureRate": "attempts with qa.result=FAIL / attempts reviewed",
+    "fallbackRate": "assets whose final output is fallbackUsed=approved-still-camera-motion / assets attempted with video",
+    "costPerFinishedMinute": "totalGenerationCost / (final master seconds / 60)",
+    "costPerFinishedVideo": "totalGenerationCost for the episode, plus voice characters valued at the plan's per-character rate"
+  },
+  "policy": {
+    "retry": "At most one justified retry per generative video after a QA FAIL; a second FAIL falls back to the approved still with controlled camera motion (push-in, pan, parallax). No regeneration loops.",
+    "gate": "The render only accepts assets whose final approval is recorded by checksum; a FAIL never reaches the master."
+  }
+}

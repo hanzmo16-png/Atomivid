@@ -2,9 +2,14 @@
 Writes content/long-form/dulce-part1/storyboard.json and docs/quality/dulce-part1/STORYBOARD.md."""
 import json, math, os
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-script = json.load(open(f"{ROOT}/content/long-form/dulce-part1/script-es.json"))
-WPS, TAIL = 2.2, 1.0  # Spanish documentary pace incl. pauses; breath between beats
-beat_secs = {b["id"]: round(len(b["narration"].split()) / WPS + TAIL, 1) for b in script["beats"]}
+import re
+script = json.load(open(f"{ROOT}/content/long-form/dulce-part1/script-en.json"))
+# Brian's rate calibrated on the measured V1 narration (1,542 words in 544.3 s, 0.40 s per sentence
+# stop), delivered at speed 0.92 for a slower documentary read, plus 1.5 s of breath between beats.
+WORD_RATE, STOP, SPEED, TAIL = 3.265, 0.40, 0.92, 1.5
+def speech(t): return (len(t.split()) / WORD_RATE + STOP * len(re.findall(r"[.!?…:]+(?=\s|$)", t))) / SPEED
+beat_secs = {b["id"]: round(speech(b["narration"]) + TAIL, 1) for b in script["beats"]}
+beat_secs["end"] = 6.0
 
 # ---- V1 audit (temporal: 6 frames across each shot's edit window in master v2) ----
 AUDIT = {
@@ -320,6 +325,19 @@ for i, s in enumerate(S):
         if src == "N06": s["action"] = "REPLACE"
         s["provider"] = {"img+rw5": "gpt-image-2 + Runway 5 s", "img+rw10": "gpt-image-2 + Runway 10 s", "img+ff": "gpt-image-2 + FFmpeg (movimiento de cámara)", "gfx": "Motion graphics (FFmpeg/ASS, sin IA)"}[kind]
     s["reuse"] = not first
+# English runs ~10% shorter: drop 7 non-flash repeats of already-seen footage (no cost change).
+DROP = {("p03","D03-04"), ("p07","N07"), ("p10","N09"), ("p10","N10"), ("p11","N38"), ("p12","N25"), ("p12","N10")}
+seen = set(); keep = []
+for s in S:
+    k = (s["beat"], s["src"])
+    if k in DROP and s["reuse"]: continue
+    keep.append(s)
+dropped = len(S) - len(keep); S[:] = keep
+es_slots = {}
+for s in S: es_slots[s["beat"]] = es_slots.get(s["beat"], 0) + s["sec"]
+for s in S:
+    f = beat_secs[s["beat"]] / es_slots[s["beat"]]
+    s["secEs"] = s["sec"]; s["sec"] = round(max(1.2 if s["sec"] < 2 else 2.0, s["sec"] * f), 1)
 t = 0.0
 for i, s in enumerate(S):
     s["id"] = f"P1-{i+1:03d}"; s["start"] = round(t, 1); t += s["sec"]
@@ -338,7 +356,7 @@ rw5 = [k for k, v in gen.items() if v.endswith("rw5")]
 rw10 = [k for k, v in gen.items() if v.endswith("rw10")]
 A = round(len(images) * IMG_EXP, 2); Amax = round(len(images) * IMG_MAX, 2)
 B = round(len(rw5) * .25 + len(rw10) * .5, 2)
-voice_chars = sum(len(b["narration"]) for b in script["beats"]) + len(script["endCard"])
+voice_chars = sum(len(b["narration"]) for b in script["beats"])  # end card is on-screen text, not narrated
 C = round(voice_chars * 0.0003 * 1.25, 2)  # repo rate estimate + 25% retakes
 D = round(len(images) * .5 * IMG_EXP + B * .35, 2)
 E = round(A + B + C + D, 2)
@@ -352,8 +370,8 @@ from collections import Counter
 v1_used = sorted({s["src"] for s in S if s["origin"] == "V1"})
 v1_act = Counter(AUDIT[k][0] for k in v1_used)
 summary = {
- "estimatedNarrationSeconds": round(sum(beat_secs.values()), 1), "timelineSeconds": round(total, 1),
- "slots": len(S), "uniqueV1Used": len(v1_used), "v1UsedByAction": dict(v1_act),
+ "estimatedNarrationSeconds": round(sum(v for k, v in beat_secs.items() if k != "end"), 1), "language": script["language"], "speed": SPEED, "timelineSeconds": round(total, 1),
+ "slots": len(S), "droppedRepeats": dropped, "uniqueV1Used": len(v1_used), "v1UsedByAction": dict(v1_act),
  "slotActions": dict(Counter(s["action"] for s in S)),
  "newGenerations": {"images": len(images), "runway5s": len(rw5), "runway10s": len(rw10), "ffmpegStillMoves": len([k for k,v in gen.items() if v=="img+ff"]), "graphics": len([k for k in NEW if NEW[k][0]=="gfx"])},
  "reanimate": sorted(RW4), "abandoned": sorted(k for k,(a,_) in AUDIT.items() if a=="ABANDON"),
@@ -371,7 +389,7 @@ print(json.dumps(summary, ensure_ascii=False, indent=1))
 def fm(x): return f"{int(x//60)}:{x%60:04.1f}"
 L = [f"# DULCE — PARTE I (V2): storyboard y plan de producción", "",
      "Estado: **pendiente de aprobación. Sin llamadas de pago.** Generado por `scripts/lib/dulce-part1-plan.py` desde `content/long-form/dulce-part1/script-es.json`.", "",
-     f"- Narración estimada: {summary['estimatedNarrationSeconds']/60:.1f} min ({WPS} palabras/s + pausas); timeline {summary['timelineSeconds']/60:.1f} min. Se recalcula con el audio medido.",
+     f"- Narración estimada (inglés, Brian a speed {SPEED}): {summary['estimatedNarrationSeconds']/60:.1f} min; timeline {summary['timelineSeconds']/60:.1f} min. Se recalcula con el audio medido.",
      f"- Planos en el montaje: {summary['slots']} (media {summary['timelineSeconds']/summary['slots']:.1f} s).", "",
      "## Storyboard", "", "| ID | Inicio | s | Bloque | Narración (intención) | Imagen (intención) | Fuente | Acción | Personajes | Proveedor | Riesgo | USD | Nota |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
 for s in S:
