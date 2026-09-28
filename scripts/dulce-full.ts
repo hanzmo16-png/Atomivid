@@ -52,7 +52,14 @@ async function main(){
  for(const id of ['d01','d02','d03','d04']){const p=`dulce-001/samples/pilot/ai/dulce-${id}-v1-still.png`;const b=await read(p);if(!b)throw Error('Reference missing '+id);await fs.writeFile(path.join(out,`${id}.png`),b);references.push({id,path:p,sha256:sha(b)});}
  const report={stage,voice:identity.voiceId,narration:narration.map(r=>({id:r.beat.id,status:r.status,chars:r.chars})),neededCharacters:needed,voiceCharactersRemaining:remain,committedUsd:committed(),newCeiling:CEILING,references,shots:spec.shots.length};
  await fs.writeFile(path.join(out,'preflight.json'),JSON.stringify(report,null,2));console.log('@@DULCE_PREFLIGHT '+JSON.stringify({stage,pilotCached:true,neededCharacters:needed,quotaSufficient:remain>=needed,references:references.length,shots:spec.shots.length}));
- if(stage==='preflight')return;
+ if(stage==='preflight'){
+   const ids=(process.env.DULCE_SHOTS||'').split(',').filter(Boolean);const inspection=[];
+   if(ids.length>12)throw Error('At most 12 existing references');
+   for(const id of ids){if(!spec.shots.some((s:{shotId:string})=>s.shotId===id))throw Error('Unknown reference');const b=await read(`${PREFIX}/refs/${id}.png`);if(!b)throw Error('Reference not yet generated '+id);await fs.writeFile(path.join(out,id+'.jpg'),await sharp(b).jpeg({quality:95}).toBuffer());inspection.push({shotId:id,sha256:sha(b)});}
+   await fs.writeFile(path.join(out,'inspected-references.json'),JSON.stringify(inspection,null,2));
+   if(ids.length)for(const id of ['elevenlabs-tension-1','elevenlabs-tension-2','elevenlabs-reflective-1']){const {data,error}=await service.storage.from('music-library').download(id+'.mp3');if(error||!data)throw Error('Music missing '+id);await fs.writeFile(path.join(out,id+'.mp3'),Buffer.from(await data.arrayBuffer()));}
+   return;
+ }
  if(['images','animate','music','approve'].includes(stage))for(const r of references)await fs.unlink(path.join(out,r.id+'.png'));
  if(stage==='narrate'){
    // The approved full episode may use its included quota. No automatic retries.
