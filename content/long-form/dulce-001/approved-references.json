@@ -20,16 +20,6 @@
     "note": "Contact-sheet visual review: consistent Castello, family and industrial environment; technician distinct and clear. Kitchen master approved for later interior scenes."
   },
   {
-    "shotId": "D02-02",
-    "sha256": "2c496c263db316550ce36d0e67f38159995b95087b748d295602276362fe6d9d",
-    "note": "Contact-sheet visual review: consistent Castello, family and industrial environment; technician distinct and clear. Kitchen master approved for later interior scenes."
-  },
-  {
-    "shotId": "D02-03",
-    "sha256": "ee2a601ed9420e6f6f839680020adcd0e6cbded76e24ac0c52d159dd6d9c3f37",
-    "note": "Contact-sheet visual review: consistent Castello, family and industrial environment; technician distinct and clear. Kitchen master approved for later interior scenes."
-  },
-  {
     "shotId": "D02-04",
     "sha256": "233fec403ea82187a1a7f5925a5ec9a6e0df5db8f035a9c2c84ba08627703923",
     "note": "Contact-sheet visual review: consistent Castello, family and industrial environment; technician distinct and clear. Kitchen master approved for later interior scenes."
@@ -113,5 +103,55 @@
     "shotId": "D05-02",
     "sha256": "ff426913e007f17fef402921c2589412d30e67d07c514c4a1528a3cc0474ecb4",
     "note": "Reviewed full-resolution JPEG inspection copy: consistent adult characters and industrial setting, clear intended subject and viable animation starting pose."
+  },
+  {
+    "shotId": "D01-07",
+    "sha256": "80f73883a149681b142468cabc39b7722363aa4e504d19a9f579268ccb4cd0d4",
+    "note": "Visual review: elevator correction, reptilian behind Castello, technician and chamber-human continuity, no significant anatomy defect."
+  },
+  {
+    "shotId": "D03-03",
+    "sha256": "64ce6e8208b541925664b8420a0c9f4fb696097192efc8af88caf6acd0227df5",
+    "note": "Visual review: elevator correction, reptilian behind Castello, technician and chamber-human continuity, no significant anatomy defect."
+  },
+  {
+    "shotId": "D05-05",
+    "sha256": "704aaf06d8f67008a928ab2cf9d750d431dc36c58490aacddad5187e872e14e1",
+    "note": "Visual review: elevator correction, reptilian behind Castello, technician and chamber-human continuity, no significant anatomy defect."
+  },
+  {
+    "shotId": "D06-02",
+    "sha256": "712002f565bdb13503d41b78e247bbb3255301325fadc865a88d9d046677c107",
+    "note": "Visual review: elevator correction, reptilian behind Castello, technician and chamber-human continuity, no significant anatomy defect."
+  },
+  {
+    "shotId": "D06-03",
+    "sha256": "defc37638e6d5a3b491bc49900fd0265a976231b65cd35890371386fec0dc1b8",
+    "note": "Visual review: elevator correction, reptilian behind Castello, technician and chamber-human continuity, no significant anatomy defect."
+  },
+  {
+    "shotId": "D06-04",
+    "sha256": "c0d9b39f36ec3969ecdf09cea125083c637b2ac8ab4ab94435daa0e70a0da3a4",
+    "note": "Visual review: elevator correction, reptilian behind Castello, technician and chamber-human continuity, no significant anatomy defect."
+  },
+  {
+    "shotId": "D06-05",
+    "sha256": "9213d888b2224483cb2873bb42406800232b7b24bb91a408df54e32000c1819e",
+    "note": "Visual review: elevator correction, reptilian behind Castello, technician and chamber-human continuity, no significant anatomy defect."
+  },
+  {
+    "shotId": "D07-01",
+    "sha256": "e5460fdba321d65772ed5a31f37c412abcb6951ebcd5d1178473c7649e686cc0",
+    "note": "Visual review: elevator correction, reptilian behind Castello, technician and chamber-human continuity, no significant anatomy defect."
+  },
+  {
+    "shotId": "D07-02",
+    "sha256": "6546660fc08471ebc10ab81d4606fb3ab0fabe55227de3c0d9597336987554d3",
+    "note": "Visual review: elevator correction, reptilian behind Castello, technician and chamber-human continuity, no significant anatomy defect."
+  },
+  {
+    "shotId": "D07-03",
+    "sha256": "fa8bfb55d253baba0ca1213922710b6719eafc647ad9a8446c5ed67144ed9b1c",
+    "note": "Visual review: elevator correction, reptilian behind Castello, technician and chamber-human continuity, no significant anatomy defect."
   }
 ]

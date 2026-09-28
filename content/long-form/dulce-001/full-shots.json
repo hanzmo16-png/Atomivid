@@ -1196,12 +1196,11 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "d04",
         "d02"
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The worker draws back from the glass, swallowing and tightening his grip on the flashlight. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
+      "imagePrompt": "Photorealistic cinematic medium portrait of Castello, a fully clothed maintenance worker in charcoal coveralls, stepping back beside an ordinary concrete wall and dark observation window. Match the attached face. Only Castello is visible, waist up. His shoulders are tense and he holds his flashlight low. No chambers or other occupants are visible.",
       "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The worker draws back from the glass, swallowing and tightening his grip on the flashlight. Use restrained tracking or lateral camera movement.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
@@ -1214,9 +1213,10 @@
       "timingStatus": "measured_audio_conform_pending_picture_review",
       "contextKeys": [
         "C1",
-        "L1"
+        "P1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": "A safe, ordinary clothed character reaction shot; all background laboratory subjects are outside the frame.",
+      "imageRevision": "v2"
     },
     {
       "shotId": "D06-01",
@@ -1428,12 +1428,11 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "D06-01",
-        "D09-06"
+        "D06-03"
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: A photograph of the established house slips partway out as the technician lifts a folder. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
+      "imagePrompt": "Cinematic close-up insert: only the gray-coated technician\u2019s hands and a manila folder on an INDUSTRIAL LABORATORY DESK. A small paper photograph showing the modest New Mexico stucco house with timber porch is halfway inside the folder. Cold practical industrial lighting, blurred metal gauge equipment behind the folder. Nobody else is visible. This scene takes place in the underground laboratory, NOT at the house. The house appears ONLY in the small printed photograph.",
       "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. A photograph of the established house slips partway out as the technician lifts a folder. Use restrained tracking or lateral camera movement.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
@@ -1446,9 +1445,12 @@
       "timingStatus": "measured_audio_conform_pending_picture_review",
       "contextKeys": [
         "T1",
+        "L1",
         "H1"
       ],
-      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
+      "imagePromptExtra": "No woman, child, family or domestic room in the background. Tight macro composition of folder, photo and technician hands.",
+      "replaceReferenceSha256": "95bf950d536b92797c8e38a1ae20b8b4665eb5d38122adc513002306523bb9d8",
+      "imageRevision": "v2"
     },
     {
       "shotId": "D07-01",
