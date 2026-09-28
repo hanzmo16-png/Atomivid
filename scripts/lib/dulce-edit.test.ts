@@ -44,3 +44,14 @@ test('cues break on punctuation and length, never overlap, and highlight each wo
   assert.equal((ass.match(/Dialogue: 0,/g) || []).length, words.length);
   assert.match(ass, /Dialogue: 1,0:00:01\.00,0:00:03\.00,Title/);
 });
+
+test('only the two corrected dinner close-ups are reframed, inside the 1280x720 clip at 16:9', () => {
+  const cropped = spec.shots.filter((s: { renderCrop?: unknown }) => s.renderCrop);
+  assert.deepEqual(cropped.map((s: { shotId: string }) => s.shotId), ['D10-04', 'D11-03']);
+  for (const s of cropped) {
+    const c = s.renderCrop;
+    assert.ok(c.x >= 0 && c.y >= 0 && c.x + c.width <= 1280 && c.y + c.height <= 720);
+    assert.ok(Math.abs(c.width / c.height - 16 / 9) < 0.01);
+    assert.equal(clipRecordKey(s), `${s.shotId}-v2`);
+  }
+});

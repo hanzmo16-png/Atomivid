@@ -2274,7 +2274,13 @@
       "imagePromptExtra": "Follow the requested close-up or wide framing precisely. Do not reproduce unwanted background people from the reference.",
       "imageRevision": "v2",
       "replaceReferenceSha256": "5c14a5b5d990ef84f51489e1b72b2ce46bff84041a4ccc073f35eb0c0872c9aa",
-      "animationRevision": "v2"
+      "animationRevision": "v2",
+      "renderCrop": {
+        "x": 0,
+        "y": 50,
+        "width": 960,
+        "height": 540
+      }
     },
     {
       "shotId": "D10-05",
@@ -2456,7 +2462,13 @@
       "imagePromptExtra": "Follow the requested close-up or wide framing precisely. Do not reproduce unwanted background people from the reference.",
       "imageRevision": "v2",
       "replaceReferenceSha256": "7b1c6755c041d07d0b7282fa7db50474e6a3f7789ad2a8ef2fadd85b5d675749",
-      "animationRevision": "v2"
+      "animationRevision": "v2",
+      "renderCrop": {
+        "x": 40,
+        "y": 50,
+        "width": 960,
+        "height": 540
+      }
     },
     {
       "shotId": "D11-04",

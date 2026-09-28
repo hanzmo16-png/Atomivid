@@ -10,6 +10,8 @@ export type PlanShot = {
   newImageRequired: boolean; requestSeconds: number; animationRevision?: string;
   reuse?: { libraryFileName: string; inSeconds: number; outSeconds: number; storagePath?: string; sha256?: string } | null;
   existingStillPath?: string | null;
+  /** Reframe of the 1280x720 generated clip (pixels) applied before scaling to 1080p. */
+  renderCrop?: { x: number; y: number; width: number; height: number };
 };
 export type MeasuredBeat = { beatId: string; startFrame: number; endFrame: number; voiceOffsetSeconds: number; audioDurationSeconds: number };
 

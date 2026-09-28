@@ -112,7 +112,9 @@ async function main(){
       clipSeconds=await probeDuration(s.file);
       s.inSeconds=s.kind==='library'?Math.min(s.inSeconds,Math.max(0,clipSeconds-edit-0.05)):clipInPoint(clipSeconds,edit);
       const pad=clipSeconds-s.inSeconds<edit?`,tpad=stop_mode=clone:stop_duration=${(edit-(clipSeconds-s.inSeconds)+0.1).toFixed(3)}`:'';
-      args=['-y','-ss',s.inSeconds.toFixed(3),'-i',s.file,'-vf',`scale=1920:1080:flags=lanczos:force_original_aspect_ratio=increase,crop=1920:1080,fps=${FPS},setsar=1,format=yuv420p${pad}`];
+      // A reframe keeps Runway-invented intruders at the frame edge out of picture (D10-04, D11-03).
+      const crop=shot.renderCrop?`crop=${shot.renderCrop.width}:${shot.renderCrop.height}:${shot.renderCrop.x}:${shot.renderCrop.y},`:'';
+      args=['-y','-ss',s.inSeconds.toFixed(3),'-i',s.file,'-vf',`${crop}scale=1920:1080:flags=lanczos:force_original_aspect_ratio=increase,crop=1920:1080,fps=${FPS},setsar=1,format=yuv420p${pad}`];
     }
     await run('ffmpeg',[...args,'-frames:v',String(shot.editFrames),'-an','-c:v','libx264','-preset','veryfast','-crf','14','-r',String(FPS),seg]);
     segs.push(seg);
