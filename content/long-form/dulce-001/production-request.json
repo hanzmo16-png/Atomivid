@@ -1,7 +1,7 @@
 {
   "videoId": "dulce-001",
-  "requestId": "render-final-v2-20260928",
-  "stage": "render",
-  "shots": [],
-  "authorizedCeilingUsd": 55
+  "requestId": "fix-dinner-intruders-animate-20260928",
+  "stage": "animate",
+  "shots": ["D10-04", "D11-03"],
+  "authorizedCeilingUsd": 56.65
 }

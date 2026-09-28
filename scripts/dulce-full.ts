@@ -14,7 +14,8 @@ import {wrapDurableVideoProvider} from '../src/lib/video/long-form/ai-video-dura
 import {buildContactSheet,frameAt,probeDuration} from './lib/contact-sheet';
 import sharp from 'sharp';
 
-const ID='dulce-001', PREFIX='dulce-001/full-v1', CEILING=55;
+// USD 55 episode ceiling plus up to USD 2 the owner authorized for the two master corrections (ledger was USD 54.64).
+const ID='dulce-001', PREFIX='dulce-001/full-v1', CEILING=56.65;
 const out=process.env.DULCE_OUT||'/tmp/dulce-full';
 const stage=process.env.DULCE_STAGE||'preflight';
 const service=createServiceClient(),bucket=service.storage.from('videos');

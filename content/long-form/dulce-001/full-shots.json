@@ -2260,7 +2260,7 @@
       "existingStillPath": null,
       "reuse": null,
       "imagePrompt": "Photorealistic realistic movie still. Tight cinematic close-up of ONLY the adult wife, same dark wavy shoulder-length hair and burgundy sweater as reference. She is seated at the kitchen table. Frame her head and shoulders only, eyes turned slightly right toward her husband outside frame. Warm soft kitchen light, cabinets blurred. No other people, hands, table or full bodies visible. Essential action in central 16:9 crop.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The adult wife pauses before turning her eyes toward the worker, then gives a small smile. Use locked camera or very slow push; subject action remains primary.",
+      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The adult wife pauses, then turns her eyes slightly toward someone off frame right and gives a small smile. Locked-off camera: no pan, no push, no reframing. She is the only person in the shot for its entire length; no other person, head, shoulder, cap or hand ever enters the frame. Keep the same burgundy sweater, dark wavy hair and warm kitchen background.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -2273,7 +2273,8 @@
       "contextKeys": [],
       "imagePromptExtra": "Follow the requested close-up or wide framing precisely. Do not reproduce unwanted background people from the reference.",
       "imageRevision": "v2",
-      "replaceReferenceSha256": "5c14a5b5d990ef84f51489e1b72b2ce46bff84041a4ccc073f35eb0c0872c9aa"
+      "replaceReferenceSha256": "5c14a5b5d990ef84f51489e1b72b2ce46bff84041a4ccc073f35eb0c0872c9aa",
+      "animationRevision": "v2"
     },
     {
       "shotId": "D10-05",
@@ -2441,7 +2442,7 @@
       "existingStillPath": null,
       "reuse": null,
       "imagePrompt": "Photorealistic realistic movie still. Tight cinematic portrait of ONLY the adult wife in burgundy sweater, seated at the dinner table. Same face and hair as attached reference. Her lips slightly parted as if speaking quietly, eyes toward someone just off frame right. Face and shoulders only, kitchen background out of focus. No other people, no full body or table. Essential action in central 16:9 crop.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The wife speaks quietly without exaggerated mouth movement and glances toward the boy. Use locked camera or very slow push; subject action remains primary.",
+      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The wife speaks quietly without exaggerated mouth movement and glances briefly toward someone off frame right. Locked-off camera: no pan, no push, no reframing. She is the only person in the shot for its entire length; no other person, head, shoulder, cap or hand ever enters the frame. Keep the same burgundy sweater, dark wavy hair and warm kitchen background.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -2454,7 +2455,8 @@
       "contextKeys": [],
       "imagePromptExtra": "Follow the requested close-up or wide framing precisely. Do not reproduce unwanted background people from the reference.",
       "imageRevision": "v2",
-      "replaceReferenceSha256": "7b1c6755c041d07d0b7282fa7db50474e6a3f7789ad2a8ef2fadd85b5d675749"
+      "replaceReferenceSha256": "7b1c6755c041d07d0b7282fa7db50474e6a3f7789ad2a8ef2fadd85b5d675749",
+      "animationRevision": "v2"
     },
     {
       "shotId": "D11-04",
