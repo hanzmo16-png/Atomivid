@@ -93,7 +93,7 @@ const assTime = (s: number) => {
   return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}.${String(c).padStart(2, '0')}`;
 };
 
-export type TitleOverlay = { start: number; end: number; lines: string[]; style: 'Title' | 'Note' };
+export type TitleOverlay = { start: number; end: number; lines: string[]; style: 'Title' | 'Note'; corner?: boolean };
 
 /** ASS script: one event per spoken word, current word highlighted in amber (colour only, no motion). */
 export function buildAss(cues: Cue[], overlays: TitleOverlay[]): string {
@@ -126,7 +126,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   for (const o of overlays) {
     // Title: first line large, following lines smaller with wide tracking.
     const text = o.style === 'Title' ? o.lines.map((l, i) => (i ? `{\\fs52\\fsp8}${clean(l)}` : clean(l))).join('\\N') : o.lines.map(clean).join('\\N');
-    lines.push(`Dialogue: 1,${assTime(o.start)},${assTime(o.end)},${o.style},,0,0,0,,{\\fad(500,600)}${text}`);
+    // corner: top-left caption (e.g. a name), kept clear of the bottom subtitles.
+    lines.push(`Dialogue: 1,${assTime(o.start)},${assTime(o.end)},${o.style},,0,0,0,,{\\fad(500,600)${o.corner ? '\\an7\\pos(90,80)' : ''}}${text}`);
   }
   return head + lines.join('\n') + '\n';
 }

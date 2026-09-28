@@ -97,7 +97,7 @@ export async function render(ctx: Ctx) {
       const clipSeconds = await probeDuration(src.file);
       inPoint = v1InPoint(clipSeconds, src.usableUntil ?? null, edit, u);
       const window = Math.min(clipSeconds, src.usableUntil ?? clipSeconds) - inPoint;
-      if (window < edit) { speed = Math.min(1.3, edit / window); frozen = Math.max(0, edit - window * speed); if (frozen > 0.05) issues.push(`${s.id} ${s.src}: ${frozen.toFixed(2)} s held beyond clean window`); }
+      if (window < edit) { speed = Math.min(1.5, edit / window); frozen = Math.max(0, edit - window * speed); if (frozen > 0.05) issues.push(`${s.id} ${s.src}: ${frozen.toFixed(2)} s held beyond clean window`); }
       const crop = src.crop ? `crop=${src.crop.width}:${src.crop.height}:${src.crop.x}:${src.crop.y},` : '';
       args = ['-ss', inPoint.toFixed(3), '-i', src.file, '-vf', `${crop}setpts=${speed.toFixed(4)}*PTS,scale=1920:1080:flags=lanczos:force_original_aspect_ratio=increase,crop=1920:1080,fps=${FPS}${frozen > 0.05 ? `,tpad=stop_mode=clone:stop_duration=${(frozen + 0.1).toFixed(3)}` : ''}` + tail];
     }
@@ -132,12 +132,12 @@ export async function render(ctx: Ctx) {
   // 5) English subtitles from the master script + on-screen text.
   const words: WordTiming[] = []; for (const n of narration) { const o = beatStart(n.beatId) + LEAD_IN; for (const w of n.words) words.push({text: w.text, startSeconds: w.startSeconds + o, endSeconds: w.endSeconds + o}); }
   const at = (beat: string, src: string) => slots.find(s => s.beat === beat && s.src === src);
-  const ov: TitleOverlay[] = []; const add = (s: Shot | undefined, lines: string[], style: 'Title' | 'Note', from = 0.3, len?: number) => { if (!s) { issues.push('overlay slot missing ' + lines[0]); return; } const t0 = s.startFrame / FPS + from; ov.push({start: t0, end: len ? t0 + len : s.startFrame / FPS + s.frames / FPS - 0.2, lines, style}); };
-  add(at('p01', 'D07-03'), ['Thomas Edwin Castello · dramatized reconstruction'], 'Note');
+  const ov: TitleOverlay[] = []; const add = (s: Shot | undefined, lines: string[], style: 'Title' | 'Note', from = 0.3, len?: number, corner = false) => { if (!s) { issues.push('overlay slot missing ' + lines[0]); return; } const t0 = s.startFrame / FPS + from; ov.push({start: t0, end: len ? t0 + len : s.startFrame / FPS + s.frames / FPS - 0.2, lines, style, corner}); };
+  add(at('p01', 'D07-03'), ['Thomas Edwin Castello · dramatized reconstruction'], 'Note', 0.3, undefined, true);
   add(at('p01', 'D03-04'), ['DULCE', 'PART I'], 'Title', 0.4);
   add(at('p11', 'N41'), ['NIGHTMARE HALL'], 'Title', 2.0, 3.5);
-  add(at('p13', 'D07-03'), ['Thomas Edwin Castello · existence unverified'], 'Note');
-  add(at('p14', 'N48'), ['Paul Bennewitz'], 'Note');
+  add(at('p13', 'D07-03'), ['Thomas Edwin Castello · existence unverified'], 'Note', 0.3, undefined, true);
+  add(at('p14', 'N48'), ['Paul Bennewitz'], 'Note', 0.3, undefined, true);
   const endSlot = slots.at(-1)!; ov.push({start: endSlot.startFrame / FPS + 0.3, end: total - 0.3, lines: ['DULCE', 'PART II: NIGHTMARE HALL'], style: 'Title'}, {start: endSlot.startFrame / FPS + 0.3, end: total - 0.3, lines: [script.onScreenNotice], style: 'Note'});
   const cues = buildCues(words); const ass = path.join(work, 'part1.ass'); await fs.writeFile(ass, buildAss(cues, ov)); await fs.copyFile(ass, path.join(out, 'dulce-part1-subtitles.ass'));
   const srtT = (s: number) => { const ms = Math.round(s * 1000); return `${String(Math.floor(ms / 3600000)).padStart(2, '0')}:${String(Math.floor(ms / 60000) % 60).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')},${String(ms % 1000).padStart(3, '0')}`; };
@@ -227,7 +227,7 @@ export async function render(ctx: Ctx) {
 
 /** Cross-section of the facility "according to the account": seven levels under a mesa. Our own graphic, no data claimed. */
 function graphicSvg(variant: string): string {
-  const W = 2304, H = 1296, top = 330, lh = 112;
+  const W = 2304, H = 1296, top = 330, lh = 100;
   const levels = Array.from({length: 7}, (_, i) => { const y = top + i * lh; const hot = variant === 'bottom' ? i >= 5 : variant === 'zones' ? i % 2 === 1 : false;
     const fill = hot ? '#7a1f1a' : variant === 'zones' ? ['#26343a', '#2e3f45'][i % 2] : '#26343a';
     return `<rect x="560" y="${y}" width="1180" height="${lh - 18}" fill="${fill}" stroke="#9fb3b8" stroke-width="3"/><text x="520" y="${y + 60}" font-family="DejaVu Sans" font-size="40" fill="#cfd8da" text-anchor="end">LEVEL ${i + 1}</text>`; }).join('');
@@ -235,5 +235,5 @@ function graphicSvg(variant: string): string {
   <path d="M0 300 L700 300 L820 150 L1480 150 L1600 300 L${W} 300 L${W} ${H} L0 ${H} Z" fill="#1a1f21"/>
   <path d="M0 300 L700 300 L820 150 L1480 150 L1600 300 L${W} 300" stroke="#c9a46a" stroke-width="5" fill="none"/>
   <line x1="1650" y1="300" x2="1650" y2="${top + 7 * lh}" stroke="#9fb3b8" stroke-width="6" stroke-dasharray="18 12"/>${levels}
-  <text x="${W / 2}" y="${H - 60}" font-family="DejaVu Sans" font-size="34" fill="#8a9a9e" text-anchor="middle">ACCORDING TO THE ACCOUNT ATTRIBUTED TO THOMAS CASTELLO · NOT VERIFIED</text></svg>`;
+  <text x="${W / 2}" y="80" font-family="DejaVu Sans" font-size="34" fill="#8a9a9e" text-anchor="middle">ACCORDING TO THE ACCOUNT ATTRIBUTED TO THOMAS CASTELLO · NOT VERIFIED</text></svg>`;
 }
