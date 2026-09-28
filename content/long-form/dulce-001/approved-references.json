@@ -313,5 +313,30 @@
     "shotId": "D12-01",
     "sha256": "6c128d8e9a0602df9c1abf61a2d8806b0a9372bd07034ec1913dde28640c9e2c",
     "note": "Reviewed corrected close-up or seated master: consistent faces and wardrobe, appropriate framing, no unwanted objects or people."
+  },
+  {
+    "shotId": "D08-02",
+    "sha256": "337e345dd427c6c15670880926869b613ca5c7d680570c5be54604cee8e9a887",
+    "note": "Reviewed corrected final references: isolated objects, matching drawing, empty exterior and family seated indoors through window; framing coherent."
+  },
+  {
+    "shotId": "D12-02",
+    "sha256": "e5d748a49bea040f3cf5c052c79b0f29e12653249c5e6f143625e765307fa754",
+    "note": "Reviewed corrected final references: isolated objects, matching drawing, empty exterior and family seated indoors through window; framing coherent."
+  },
+  {
+    "shotId": "D12-04",
+    "sha256": "708208a06e2cde91c8a4021d1efa94c6e9ec4c1973e8979136928e07eeafacc7",
+    "note": "Reviewed corrected final references: isolated objects, matching drawing, empty exterior and family seated indoors through window; framing coherent."
+  },
+  {
+    "shotId": "D12-05",
+    "sha256": "549281a5dc9d6e45d504068c9f38193c611334b0221f3bc6cd28651c883974cb",
+    "note": "Reviewed corrected final references: isolated objects, matching drawing, empty exterior and family seated indoors through window; framing coherent."
+  },
+  {
+    "shotId": "D12-06",
+    "sha256": "25cbc05bf4993bbf263a7beeee7634cb33236c7b46bf23d809101d2288804b2d",
+    "note": "Reviewed corrected final references: isolated objects, matching drawing, empty exterior and family seated indoors through window; framing coherent."
   }
 ]

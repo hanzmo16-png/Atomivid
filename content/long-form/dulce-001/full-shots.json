@@ -2621,7 +2621,7 @@
       "existingStillPath": null,
       "reuse": null,
       "imagePrompt": "Photorealistic cinematic still. Close-up of ONLY the burgundy-sleeved adult wife arm extending one relaxed open hand across the dinner table toward her husband. The dark sleeve of the husband visible at opposite edge, his hand not touching hers yet. Both people SEATED outside the crop. No faces, standing people or child visible. Warm kitchen light, same wooden table. Central 16:9 composition.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The wife slowly extends her hand across the table toward the motionless worker. Use locked camera or very slow push; subject action remains primary.",
+      "animationPrompt": "Close-up of hands above a table. The hand from the burgundy sleeve on the LEFT slowly approaches the stationary hand on the RIGHT. It stops with a small visible gap between them. The hands never touch or interlace. The right hand stays completely still. Stable natural anatomy, fixed camera, one continuous shot.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -2651,12 +2651,12 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "d02"
+        "D12-01"
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic still. Tight head-and-shoulders portrait of ONLY Castello seated in the warm kitchen, same stubble, face, hair and charcoal collar as reference. He looks down toward a hand below and outside frame, thoughtful and tense. Face and shoulders only. No hands, flashlight, other people or full bodies visible. Cream cabinets blurred behind him.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The worker breathes, looks at the offered hand and then at his wife. Use locked camera or very slow push; subject action remains primary.",
+      "imagePrompt": "Photorealistic ordinary family dinner scene. Tight over-the-shoulder composition from BEHIND the seated adult man in charcoal work shirt. Only the back of his short-haired head, ear and shoulder fill foreground right. His face and hands are not visible. The adult woman in a burgundy sweater sits opposite him softly out of focus in background left. Warm cream lamp light, same kitchen and seated positions as reference. Child and every other person are outside this close frame. Fully clothed adults in an everyday domestic scene.",
+      "animationPrompt": "Over the seated man\u2019s shoulder. He takes one subtle breath and shifts his head slightly toward the woman opposite him. The woman remains seated softly out of focus. Restrained ordinary human motion. Fixed camera, no hands enter frame, continuous shot.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -2667,8 +2667,8 @@
       "editSeconds": 8.5,
       "timingStatus": "measured_audio_conform_pending_picture_review",
       "contextKeys": [],
-      "imagePromptExtra": "Use reference only for requested identity and place. Obey close framing and exclude every unrequested person.",
-      "imageRevision": "v2",
+      "imagePromptExtra": "A quiet shoulder shot with no frontal male face, no hands or objects in foreground. Central 16:9 crop.",
+      "imageRevision": "v3",
       "replaceReferenceSha256": "8b56e5503c80d24dbf30bb8cc34c12ff82f3a317fb943482d6b4051f1fe8dc72"
     },
     {
