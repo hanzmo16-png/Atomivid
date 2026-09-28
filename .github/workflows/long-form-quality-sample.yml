@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: fb9977d74c54f252e8d7d780884132c7da741ff9
+          ref: 0f421efa96d172b3a84037d4dd0f54f5d676c199
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -69,9 +69,14 @@ jobs:
               metadata:{shotId}
             };
             buildRunwayPayload(request);
-            let submissions = 0;
+            const ordinary = await bucket.download('long-form/'+scopeId+'/state/ai-video/'+shotId+'.json');
+          const ordinaryRecord = ordinary.data ? JSON.parse(await ordinary.data.text()) : null;
+          const fresh = await readAiVideoClipRecord(supabase,'videos',scopeId,shotId);
+          console.log(JSON.stringify({ordinaryStatus:ordinaryRecord?.status,freshStatus:fresh?.status,freshUpdatedAt:fresh?.updatedAtIso}));
+          assert.equal(fresh?.status,'COMPLETED','Recovery check must reuse a completed clip; new generation forbidden');
+          let submissions = 0;
             const beforeSubmit = async () => {
-              if (++submissions > 1) throw Error('One submission maximum');
+              throw Error('Read-only recovery: paid submissions forbidden');
               const claim = await bucket.upload('long-form/'+scopeId+'/submission-claim.json',Buffer.from(JSON.stringify({shotId,maxCostUsd:0.5,createdAt:new Date().toISOString()})),{contentType:'application/json',upsert:false});
               if(claim.error) throw Error('Existing or inaccessible submission claim: reconcile before retry');
               return true;
@@ -93,7 +98,7 @@ jobs:
             assert.equal(video.width,1280); assert.equal(video.height,720);
             assert.ok(Number(probe.format.duration)>=9.8 && Number(probe.format.duration)<=10.5);
             execFileSync('ffmpeg',['-v','error','-i',output,'-f','null','-']);
-            const report = {sourceCommit:'fb9977d74c54f252e8d7d780884132c7da741ff9',provider:provider.name,model:asset.model,scopeId,shotId,submissionsThisRun:submissions,estimatedCostUsd:asset.costUsd,outputSha256:sha(asset.buffer),providerJobId:asset.providerJobId,storagePath:record?.storagePath,reuseVerified:true,decodeVerified:true,probe};
+            const report = {sourceCommit:'0f421efa96d172b3a84037d4dd0f54f5d676c199',provider:provider.name,model:asset.model,scopeId,shotId,submissionsThisRun:submissions,estimatedCostUsd:asset.costUsd,outputSha256:sha(asset.buffer),providerJobId:asset.providerJobId,storagePath:record?.storagePath,reuseVerified:true,decodeVerified:true,probe};
             await fs.writeFile('evidence/runway/report.json',JSON.stringify(report,null,2));
             console.log(JSON.stringify(report));
           }
