@@ -1,0 +1,66 @@
+name: Dulce Part I - production (hard cap USD 40)
+on:
+  push:
+    branches: [claude/dulce-final-mp4-6jqvxn]
+    paths: [content/long-form/dulce-part1/production-request.json]
+permissions:
+  contents: read
+concurrency:
+  group: dulce-part1
+  cancel-in-progress: false
+jobs:
+  production:
+    if: github.ref == 'refs/heads/claude/dulce-final-mp4-6jqvxn'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core && pip install --quiet opencv-python-headless
+      - name: Resolve production request
+        id: request
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const r = JSON.parse(fs.readFileSync('content/long-form/dulce-part1/production-request.json', 'utf8'));
+          const stages = ['status','setup','voice-test','narrate','images','approve','animate','clip-review','render'];
+          if (r.videoId !== 'dulce-part1' || r.capUsd !== 40 || !r.requestId || !stages.includes(r.stage)) throw Error('Invalid or unscoped request');
+          if (!Array.isArray(r.assets) || r.assets.length > 18 || r.assets.some(x => !/^N\d{2}$/.test(x))) throw Error('Invalid asset list');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `stage=${r.stage}\nassets=${r.assets.join(',')}\ndraft=${r.draft === true}\n`);
+          NODE
+      - name: Run stage
+        run: npx tsx scripts/dulce-part1.ts
+        env:
+          DP1_STAGE: ${{ steps.request.outputs.stage }}
+          DP1_ASSETS: ${{ steps.request.outputs.assets }}
+          DP1_DRAFT: ${{ steps.request.outputs.draft }}
+          DP1_ALLOW_PAID: ${{ (steps.request.outputs.stage == 'images' || steps.request.outputs.stage == 'animate') && 'true' || 'false' }}
+          DP1_OUT: ${{ runner.temp }}/dulce-part1
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ contains(fromJSON('["status","setup","voice-test","narrate"]'), steps.request.outputs.stage) && secrets.ELEVENLABS_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ steps.request.outputs.stage == 'images' && secrets.OPENAI_API_KEY || '' }}
+          RUNWAY_API_KEY: ${{ steps.request.outputs.stage == 'animate' && secrets.RUNWAY_API_KEY || '' }}
+          VIDEO_PROVIDER: runway
+          PREMIUM_CLIPS_ENABLED: 'true'
+      - name: Publish master MP4 directly
+        if: always() && steps.request.outputs.stage == 'render'
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/dulce-part1/DULCE-Part-I-master.mp4
+          archive: false
+          retention-days: 30
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dulce-part1-${{ steps.request.outputs.stage }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/dulce-part1/
+            !${{ runner.temp }}/dulce-part1/DULCE-Part-I-master.mp4
+          retention-days: 30
+          if-no-files-found: ignore

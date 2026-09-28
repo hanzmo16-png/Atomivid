@@ -1,0 +1,510 @@
+{
+  "style": "Photorealistic cinematic film still, 35mm, restrained practical lighting, muted desaturated palette, subtle film grain, 1980s New Mexico. No text, no letters, no numbers, no logos, no signs with writing, no watermark. Natural anatomy. Keep every essential subject inside the central 80% of the frame (it will be cropped to 16:9 with a safety margin).",
+  "bible": {
+    "Thomas": "THOMAS: man about 45, angular face, short brown hair grey at the temples, light stubble, charcoal zipped work coverall with a small blank rectangular badge. Match the attached Thomas references exactly (face, hair, coverall).",
+    "grey": "GREY BEING: adult grey humanoid about 1.5 m tall, slender, large elongated head, large dark almond eyes, smooth grey skin. Match the attached reference.",
+    "reptilian": "REPTILIAN BEING: adult reptilian humanoid about 2 m tall, dark olive scales, plain dark workwear. Match the attached reference.",
+    "technician": "TECHNICIAN: human man about 55, thinning grey hair, rectangular glasses, muted grey lab coat over dark clothes. Match the attached reference.",
+    "George": "GEORGE: civilian man about 55, thin face, short grey beard, tired eyes, faded brown flannel shirt, clearly not facility staff; looks nothing like Thomas."
+  },
+  "referencePaths": {
+    "pilot:d01": "dulce-001/samples/pilot/ai/dulce-d01-v1-still.png",
+    "pilot:d02": "dulce-001/samples/pilot/ai/dulce-d02-v1-still.png",
+    "pilot:d03": "dulce-001/samples/pilot/ai/dulce-d03-v1-still.png",
+    "pilot:d04": "dulce-001/samples/pilot/ai/dulce-d04-v1-still.png",
+    "v1:*": "dulce-001/full-v1/refs/<shot>.png",
+    "asset:*": "dulce-part1/stills/<asset>.png (approved)"
+  },
+  "canary": [
+    "N11",
+    "N35",
+    "N41"
+  ],
+  "assets": {
+    "N01": {
+      "imagePrompt": "Wide aerial view at dusk over a flat-topped mesa and canyons in northern New Mexico, sagebrush plain, long shadows, cold blue sky with the last amber light on the rim. No roads, no vehicles, no buildings.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": "Slow aerial drone push forward over the mesa at dusk; high clouds drift slowly. No vehicles, no people, nothing appears.",
+      "clipSeconds": 5
+    },
+    "N02": {
+      "imagePrompt": "A small rural town far away across a dark high-desert plain at night, a few scattered warm window lights and one water tower silhouette, deep blue sky. Seen from a low hill.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N03": {
+      "imagePrompt": "Night. A secured entrance cut into the base of a rock cliff: tall chain-link fence with barbed wire, two floodlights on poles, a closed heavy steel gate, an empty small guard hut with a lit window. No people.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N04": {
+      "imagePrompt": "An endless straight underground vehicle tunnel with a curved concrete ceiling, a line of cold overhead lights receding to a vanishing point, wet reflective floor. Empty.",
+      "references": [
+        "pilot:d01"
+      ],
+      "characters": [],
+      "animationPrompt": "Slow steady dolly forward down the empty tunnel; overhead lights pass above. The tunnel stays empty for the entire shot.",
+      "clipSeconds": 5
+    },
+    "N05": {
+      "imagePrompt": "Security control room: Thomas sits at a console facing a wall of small CRT monitors showing grey corridor views, lit by their glow. Medium shot from his side, three-quarter profile, hands resting still on the desk edge.",
+      "references": [
+        "pilot:d02",
+        "v1:D07-03"
+      ],
+      "characters": [
+        "Thomas"
+      ],
+      "animationPrompt": "Thomas watches the monitors, breathes slowly and blinks once; the monitor screens flicker softly. Locked-off camera with a very slow push-in. He is the only person in the room and his hands stay still.",
+      "clipSeconds": 5
+    },
+    "N06": {
+      "imagePrompt": "Close-up of a wall-mounted card reader on a bare concrete wall beside a steel door frame, one small green indicator lit. No hands, no people.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N07": {
+      "imagePrompt": "A heavy steel blast door in a concrete corridor with a painted colored zone stripe across it and a keypad beside it with one small red light. No writing anywhere. No people.",
+      "references": [
+        "pilot:d01"
+      ],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N08": {
+      "imagePrompt": "A concrete corridor divided by a painted line on the floor and a metal turnstile barrier; far behind it, out of focus, one uniformed guard stands still. No other people.",
+      "references": [],
+      "characters": [
+        "guard"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N09": {
+      "imagePrompt": "A large underground technical hall: pipes, pumps and generators, a steel catwalk above, faint vapor under cold lights. No people.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N10": {
+      "imagePrompt": "Looking straight down a deep industrial elevator shaft from above: steel rails and a ladder, small work lights receding into darkness far below. No people.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N11": {
+      "imagePrompt": "Medium shot of the grey being standing in a dim technical room with consoles behind it, facing slightly off-camera, calm, neutral posture, arms at its sides.",
+      "references": [
+        "pilot:d03",
+        "v1:D04-02"
+      ],
+      "characters": [
+        "grey"
+      ],
+      "animationPrompt": "The grey being breathes slowly, blinks and turns its head a few degrees toward the camera. Locked-off camera. It stays alone in the frame; nothing else moves.",
+      "clipSeconds": 5
+    },
+    "N12": {
+      "imagePrompt": "Medium shot of the reptilian being in profile standing in a dim concrete corridor, calm, arms at its sides, cold overhead light.",
+      "references": [
+        "pilot:d03",
+        "v1:D04-02"
+      ],
+      "characters": [
+        "reptilian"
+      ],
+      "animationPrompt": "The reptilian being breathes slowly and turns its head slightly. Locked-off camera with a very slight push-in. It stays alone in the frame.",
+      "clipSeconds": 5
+    },
+    "N13": {
+      "imagePrompt": "The grey being seated at a technical console seen from the side and slightly behind, lit by small screens; its hands are not visible.",
+      "references": [
+        "pilot:d03",
+        "v1:D04-02"
+      ],
+      "characters": [
+        "grey"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N14": {
+      "imagePrompt": "Wide shot of a laboratory bench: the human technician stands at the left end and the grey being stands at the right end, each still, far apart, looking at instruments on the bench. Nobody touches anything.",
+      "references": [
+        "v1:D06-01",
+        "pilot:d03",
+        "v1:D04-02"
+      ],
+      "characters": [
+        "technician",
+        "grey"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N15": {
+      "imagePrompt": "Seen through a large glass window into a dim control room: the silhouette of the reptilian being standing before a bank of glowing monitors, back to camera.",
+      "references": [
+        "pilot:d03",
+        "v1:D04-02"
+      ],
+      "characters": [
+        "reptilian"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N16": {
+      "imagePrompt": "Point of view down a long concrete corridor; far away at an intersection a single grey being stands motionless under a light.",
+      "references": [
+        "pilot:d01",
+        "pilot:d03",
+        "v1:D04-02"
+      ],
+      "characters": [
+        "grey"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N17": {
+      "imagePrompt": "Close-up of an old mechanical time clock on a wall with a rack of blank punch cards beside it, cold fluorescent light. No hands, no writing.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N18": {
+      "imagePrompt": "Shift change at underground turnstiles, seen from behind: three workers in dark workwear stand in a single line waiting, out of focus, backs to camera, not moving.",
+      "references": [],
+      "characters": [
+        "workers"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N19": {
+      "imagePrompt": "An office with a desk and a computer terminal in the foreground (nobody at it); behind a frosted glass wall stands the blurred silhouette of a grey being, motionless.",
+      "references": [
+        "pilot:d03",
+        "v1:D04-02"
+      ],
+      "characters": [
+        "grey"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N20": {
+      "imagePrompt": "Close-up of Thomas seated at his kitchen dinner table in the evening, silent, eyes slightly lowered, warm lamp light, soft kitchen background out of focus. Only Thomas in frame; no hands, no food in focus.",
+      "references": [
+        "pilot:d02",
+        "v1:D07-03",
+        "v1:D12-01"
+      ],
+      "characters": [
+        "Thomas"
+      ],
+      "animationPrompt": "Thomas sits still at the table, breathes slowly and blinks once, then lowers his eyes slightly. Very slow push-in. He is the only person in the frame and his hands do not move.",
+      "clipSeconds": 5
+    },
+    "N21": {
+      "imagePrompt": "Dawn in the high desert: the same muted brown pickup truck parked on a dirt road beside the modest house, pale morning light, long shadows, empty landscape ahead.",
+      "references": [
+        "v1:D08-06"
+      ],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N22": {
+      "imagePrompt": "Close-up of Thomas standing in a concrete corridor under cold light, silent, looking down the corridor.",
+      "references": [
+        "pilot:d02",
+        "v1:D07-03",
+        "pilot:d01"
+      ],
+      "characters": [
+        "Thomas"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N23": {
+      "imagePrompt": "Wide shot of a glass partition dividing a laboratory: on the near side two human technicians stand still looking at clipboards; on the far side a single grey being stands still. Nobody moves, nobody crosses.",
+      "references": [
+        "v1:D06-01",
+        "pilot:d03",
+        "v1:D04-02"
+      ],
+      "characters": [
+        "technicians",
+        "grey"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N24": {
+      "imagePrompt": "A bank of small black and white CRT security monitors showing empty corridors and doors, close-up, glow and scan lines. No people on screen.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N25": {
+      "imagePrompt": "Thomas stands before a large observation window, seen from the side; the dim laboratory with two cylindrical chambers is reflected faintly in the glass.",
+      "references": [
+        "pilot:d02",
+        "v1:D07-03",
+        "pilot:d04"
+      ],
+      "characters": [
+        "Thomas"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N26": {
+      "imagePrompt": "A clean clinical medical bay: an empty examination table, instrument trays, white-green light, tiled walls. No people. Different from the chamber laboratory.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": "Slow dolly forward through the empty medical bay; a ceiling light flickers faintly. The room stays empty.",
+      "clipSeconds": 5
+    },
+    "N27": {
+      "imagePrompt": "Close-up of strange laboratory equipment: glass vessels, coiled cables and small pulsing indicator lights on a steel cabinet. No people.",
+      "references": [
+        "pilot:d04"
+      ],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N28": {
+      "imagePrompt": "A human technician looks into a microscope at a lab bench while a grey being stands beside him, observing, not touching anything.",
+      "references": [
+        "v1:D06-01",
+        "pilot:d03",
+        "v1:D04-02"
+      ],
+      "characters": [
+        "technician",
+        "grey"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N29": {
+      "imagePrompt": "High angle from an observation gallery looking down into a large laboratory where a few small figures in lab coats stand still at stations.",
+      "references": [
+        "pilot:d04"
+      ],
+      "characters": [
+        "staff"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N30": {
+      "imagePrompt": "Thomas seen from behind standing before a closed steel elevator door that has no call button, in a bare concrete lobby.",
+      "references": [
+        "pilot:d02",
+        "v1:D07-03"
+      ],
+      "characters": [
+        "Thomas"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N31": {
+      "imagePrompt": "A small underground break room: two workers in dark workwear sit at a table with coffee cups, leaning in, speaking quietly; medium wide shot, both still.",
+      "references": [],
+      "characters": [
+        "workers"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N32": {
+      "imagePrompt": "Close-up of one worker in dark workwear glancing sideways with a cautious, warning expression, dim corridor behind him.",
+      "references": [],
+      "characters": [
+        "worker"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N33": {
+      "imagePrompt": "Seen through the small wired-glass window of a heavy door: George sits on a simple cot in a bare holding room, head slightly down.",
+      "references": [
+        "asset:N35"
+      ],
+      "characters": [
+        "George"
+      ],
+      "animationPrompt": "George breathes slowly and lowers his head slightly. Locked-off camera through the door window. He is the only person; nothing else moves.",
+      "clipSeconds": 5
+    },
+    "N34": {
+      "imagePrompt": "Profile close-up of Thomas looking through the small window of a heavy door, cold light on his face.",
+      "references": [
+        "pilot:d02",
+        "v1:D07-03"
+      ],
+      "characters": [
+        "Thomas"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N35": {
+      "imagePrompt": "Portrait of George seated in a bare holding room, looking up toward the camera with tired eyes, cold light.",
+      "references": [],
+      "characters": [
+        "George"
+      ],
+      "animationPrompt": "George slowly lifts his eyes to the lens. Very slow push-in. He stays seated, his hands do not move, and he is the only person in the frame.",
+      "clipSeconds": 5
+    },
+    "N36": {
+      "imagePrompt": "Close-up of George's face, tired eyes, cold light, bare wall behind.",
+      "references": [
+        "asset:N35"
+      ],
+      "characters": [
+        "George"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N37": {
+      "imagePrompt": "Thomas stands still in a long concrete corridor, head lowered, lost in thought, medium shot.",
+      "references": [
+        "pilot:d02",
+        "v1:D07-03",
+        "pilot:d01"
+      ],
+      "characters": [
+        "Thomas"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N38": {
+      "imagePrompt": "Close-up of Thomas in low hard light, conflicted, eyes looking off to the side, dark background.",
+      "references": [
+        "pilot:d02",
+        "v1:D07-03"
+      ],
+      "characters": [
+        "Thomas"
+      ],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N39": {
+      "imagePrompt": "A dim office desk under a single lamp with a closed manila folder lying on it. No hands, no people, no writing.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N40": {
+      "imagePrompt": "Top-down view of open files spread on a desk: faceless photo silhouettes, blank index cards and redacted blank pages. No readable text anywhere.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N41": {
+      "imagePrompt": "A lower-level concrete corridor filled with low fog, red emergency lights along the walls, the far end disappearing into darkness. Empty.",
+      "references": [
+        "pilot:d01"
+      ],
+      "characters": [],
+      "animationPrompt": "Fog drifts slowly along the floor and the red emergency lights pulse softly. Slow dolly forward. The corridor stays empty for the entire shot.",
+      "clipSeconds": 10
+    },
+    "N42": {
+      "imagePrompt": "Close-up of an old elevator control panel with a column of round unlabeled buttons; only the lowest button is lit red. No hands, no numbers.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N43": {
+      "imagePrompt": "Thomas alone inside a small steel elevator, facing the doors, a red light glowing on his face from below.",
+      "references": [
+        "pilot:d02",
+        "v1:D07-03"
+      ],
+      "characters": [
+        "Thomas"
+      ],
+      "animationPrompt": "Red light slowly rises across Thomas's face as the elevator descends; he stays still and breathes. Locked-off camera. He is alone in the elevator.",
+      "clipSeconds": 5
+    },
+    "N44": {
+      "imagePrompt": "A heavy blast door on the lowest level standing slightly ajar, fog seeping through the gap, red light beyond. No people.",
+      "references": [
+        "pilot:d01"
+      ],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N45": {
+      "imagePrompt": "An old metal filing cabinet with one drawer pulled open showing empty folders, dim light. No writing.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N46": {
+      "imagePrompt": "A rotating red emergency beacon mounted on a concrete corridor wall, casting red light, empty corridor.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": "The red emergency beacon rotates, sweeping red light across the empty corridor walls. Locked-off camera. The corridor stays empty.",
+      "clipSeconds": 5
+    },
+    "N47": {
+      "imagePrompt": "Night sky full of stars over the dark silhouette of a New Mexico mesa, faint Milky Way. No lights on the ground.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N48": {
+      "imagePrompt": "A home office at night with 1970s-80s radio receiving equipment, an oscilloscope with a green trace, reel-to-reel recorder, warm desk lamp. No people.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": "The green oscilloscope trace moves and small indicator lights flicker on the radio equipment. Locked-off camera with a very slow push-in. No people appear.",
+      "clipSeconds": 5
+    },
+    "N49": {
+      "imagePrompt": "Several radio antennas on a house rooftop silhouetted against a dark night sky.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    },
+    "N50": {
+      "imagePrompt": "An old typewriter on a desk under a lamp beside a stack of pages with every line blacked out. No readable text.",
+      "references": [],
+      "characters": [],
+      "animationPrompt": null,
+      "clipSeconds": 0
+    }
+  }
+}
