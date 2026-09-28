@@ -1360,7 +1360,7 @@
       "existingStillPath": null,
       "reuse": null,
       "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The worker knocks twice on the observation glass with the back of his fingers. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The worker knocks twice on the observation glass with the back of his fingers. Use locked camera or very slow push; subject action remains primary.",
+      "animationPrompt": "Fixed camera. The worker makes one small tap against the observation glass with his closed hand at chest height, then holds his hand still. His elbow and hand stay below his shoulder. The laboratory remains stable. One continuous realistic shot.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -1375,7 +1375,9 @@
         "C1",
         "L1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": "",
+      "animationRevision": "v2",
+      "revisionReason": "Knocking action becomes an unrelated raised-hand gesture."
     },
     {
       "shotId": "D06-05",
@@ -1392,14 +1394,12 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "d04",
-        "d02",
-        "D06-01"
+        "D06-03"
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The technician turns toward the window and places his forearm over the clipboard. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The technician turns toward the window and places his forearm over the clipboard. Use locked camera or very slow push; subject action remains primary.",
+      "imagePrompt": "Photorealistic medium close-up of ONLY the established gray-coated, glasses-wearing technician inside the laboratory. He holds a clipboard at his chest and looks toward an observation window outside the frame. Same face, glasses, gray coat as the attached reference. Castello is outside the frame. Blurred industrial laboratory background. No chambers or other occupants visible.",
+      "animationPrompt": "The gray-coated technician slowly turns his face toward camera and places his forearm across the clipboard at his chest. Only this man is visible. Small restrained movement, fixed camera, one continuous realistic shot.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -1411,10 +1411,13 @@
       "timingStatus": "measured_audio_conform_pending_picture_review",
       "contextKeys": [
         "T1",
-        "C1",
         "L1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": "Isolate the technician so the clipboard and forearm gesture is unambiguous.",
+      "animationRevision": "v2",
+      "revisionReason": "Wrong person performs the clipboard action; needs technician-focused framing.",
+      "replaceReferenceSha256": "9213d888b2224483cb2873bb42406800232b7b24bb91a408df54e32000c1819e",
+      "imageRevision": "v2"
     },
     {
       "shotId": "D06-06",
@@ -1550,7 +1553,7 @@
       "existingStillPath": null,
       "reuse": null,
       "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The worker slowly lifts his eyes toward a corner of the ceiling. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The worker slowly lifts his eyes toward a corner of the ceiling. Use locked camera or very slow push; subject action remains primary.",
+      "animationPrompt": "Fixed camera. The man slowly tilts his chin upward and moves his eyes toward the ceiling, breathing shallowly. His hands stay still at waist height throughout. His single flashlight remains low, held in the same hand. No other objects enter the shot. One continuous realistic shot.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -1564,7 +1567,9 @@
         "C1",
         "P1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": "",
+      "animationRevision": "v2",
+      "revisionReason": "A second flashlight appears during the upward gesture."
     },
     {
       "shotId": "D07-04",
