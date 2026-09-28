@@ -306,7 +306,9 @@
         "R1",
         "L1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": "Close medium shot of Castello beside the dark observation window, looking into it. A dim reflection on the foreground window shows the tall reptilian standing in the corridor behind Castello. The reptilian is visible ONLY as a reflection, not walking inside the chamber room. Reframe tightly on Castello and the reflection; the chambers are only a blurred background beyond the window.",
+      "replaceReferenceSha256": "7197b4f50c628ef7794576b9944a15dac0681a6726f457ed4556d421ad59e133",
+      "imageRevision": "v2"
     },
     {
       "shotId": "D02-01",
@@ -645,7 +647,9 @@
         "C1",
         "P1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": "Camera is INSIDE a small enclosed industrial service elevator cabin. Castello stands within the steel box facing the CLOSED brushed-metal elevator doors, looking tense. Tight medium side profile, ceiling close overhead, enclosed walls visible. Do not reproduce the long corridor from the reference: change the environment to the elevator interior.",
+      "replaceReferenceSha256": "7dee6f67f979bb1423837e4c01f16b2cceebe05f64bfde0e9b4beb3c5aea1750",
+      "imageRevision": "v2"
     },
     {
       "shotId": "D03-04",
@@ -1898,7 +1902,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1919,7 +1924,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D09-02",
@@ -1937,7 +1942,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1958,7 +1964,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D09-03",
@@ -1976,7 +1982,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1997,7 +2004,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D09-04",
@@ -2015,7 +2022,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2036,7 +2044,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition. Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D09-05",
@@ -2054,7 +2062,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2075,7 +2084,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D09-06",
@@ -2131,7 +2140,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2152,7 +2162,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D10-02",
@@ -2170,7 +2180,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2191,7 +2202,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D10-03",
@@ -2209,7 +2220,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2230,7 +2242,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D10-04",
@@ -2248,7 +2260,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2269,7 +2282,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D10-05",
@@ -2287,7 +2300,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2308,7 +2322,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D10-06",
@@ -2326,7 +2340,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2347,7 +2362,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition. Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D11-01",
@@ -2365,7 +2380,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2386,7 +2402,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D11-02",
@@ -2443,7 +2459,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2464,7 +2481,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D11-04",
@@ -2482,7 +2499,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2503,7 +2521,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D11-05",
@@ -2521,7 +2539,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2542,7 +2561,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D11-06",
@@ -2560,7 +2579,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2581,7 +2601,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D12-01",
@@ -2599,7 +2619,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2620,7 +2641,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D12-02",
@@ -2638,7 +2659,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2659,7 +2681,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D12-03",
@@ -2677,7 +2699,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2698,7 +2721,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     },
     {
       "shotId": "D12-04",
@@ -2794,7 +2817,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D09-06",
+        "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2815,7 +2839,7 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
     }
   ],
   "measuredBeats": [

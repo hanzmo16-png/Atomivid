@@ -53,6 +53,7 @@ async function main(){
  const report={stage,voice:identity.voiceId,narration:narration.map(r=>({id:r.beat.id,status:r.status,chars:r.chars})),neededCharacters:needed,voiceCharactersRemaining:remain,committedUsd:committed(),newCeiling:CEILING,references,shots:spec.shots.length};
  await fs.writeFile(path.join(out,'preflight.json'),JSON.stringify(report,null,2));console.log('@@DULCE_PREFLIGHT '+JSON.stringify({stage,pilotCached:true,neededCharacters:needed,quotaSufficient:remain>=needed,references:references.length,shots:spec.shots.length}));
  if(stage==='preflight')return;
+ if(['images','animate','music','approve'].includes(stage))for(const r of references)await fs.unlink(path.join(out,r.id+'.png'));
  if(stage==='narrate'){
    // The approved full episode may use its included quota. No automatic retries.
    if(remain<needed)throw Error('Insufficient quota for approved narration');
@@ -86,6 +87,7 @@ async function main(){
      if(!shot?.newImageRequired)throw Error('Invalid new reference '+id);
      const dest=`${PREFIX}/refs/${id}.png`,metaPath=`${PREFIX}/refs/${id}.json`;
      let bytes=await read(dest);
+     if(bytes&&shot.replaceReferenceSha256===sha(bytes)){await put(`${PREFIX}/refs/superseded/${id}-${sha(bytes)}.png`,bytes,'image/png');bytes=null;}
      if(!bytes){
        const refs:Buffer[]=[];
        const keys:string[]=[];
