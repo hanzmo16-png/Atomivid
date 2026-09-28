@@ -48,7 +48,8 @@ export async function render(ctx: Ctx) {
   const cache = new Map<string, Src>();
   const svg = (variant: string) => graphicSvg(variant);
   async function resolve(s: Shot, gIndex: number): Promise<Src> {
-    const key = s.src + (s.src === 'G1' ? gIndex : '');
+    // A slot planned as a clip and a still-motion slot of the same asset resolve separately (no repeated clip).
+    const key = s.src + (s.src === 'G1' ? gIndex : '') + (['i2v_economy', 'i2v_hero'].includes(s.productionMethod) ? ':clip' : '');
     if (cache.has(key)) return cache.get(key)!;
     let src: Src;
     if (s.src === 'G7') src = {kind: 'black', file: '', origin: 'graphic'};
