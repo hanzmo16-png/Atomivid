@@ -20,5 +20,44 @@
     "sha256": "444bc3f7f926bf4cefc2d80fd61cab6b975aea9990ff32aea12dfe9af2d2a58c",
     "result": "PASS",
     "note": "Fog drifts, lights steady, corridor empty for 10 s; no figures."
+  },
+  {
+    "asset": "N05",
+    "sha256": "e59814551d696f574b6844b0d6d7a4b755e2e637eccf9e071d566a5f3a5f7c6f",
+    "result": "PASS",
+    "note": "Thomas identity stable over 12 frames; breathes; hands still; L1 face spike = monitors (false positive)."
+  },
+  {
+    "asset": "N12",
+    "sha256": "b4671f66593d0cd4c0730f80022121bca0fddcf95d83d275176b7f4557c06d89",
+    "result": "PASS",
+    "note": "Reptilian stable, arms still, alone."
+  },
+  {
+    "asset": "N26",
+    "sha256": "aaf34b457146e88f66d1ba13762baac629bec40bb3a8e361abf54752d05fb518",
+    "result": "PASS",
+    "note": "Slow dolly, empty room, table stable."
+  },
+  {
+    "asset": "N43",
+    "sha256": "cf27f835716e48dc5c9165344c0f030ebd38378f5d1f7e08affd57aa37ab0f4b",
+    "result": "FAIL",
+    "reasons": [
+      "identity-drift"
+    ],
+    "note": "Thomas's face changes after ~2.3 s as the red light rises. Fallback down the ladder: approved still + camera motion (no retry: identity has priority)."
+  },
+  {
+    "asset": "N46",
+    "sha256": "9df6a4d44b0ae1f3e8420d89b92e2d8dc03a085ccf5f3f58d1f7cde7eef0a0f6",
+    "result": "PASS",
+    "note": "Beacon rotates and sweeps the wall; corridor empty."
+  },
+  {
+    "asset": "N48",
+    "sha256": "fcbea86f39acafc06259c7462d33bb2af3228ba63d2ed8f2a00ad39bf06242ec",
+    "result": "PASS",
+    "note": "Subtle trace/light motion; no people."
   }
 ]

@@ -218,8 +218,9 @@
       "characters": [
         "Thomas"
       ],
-      "animationPrompt": "Thomas sits still at the table, breathes slowly and blinks once, then lowers his eyes slightly. Very slow push-in. He is the only person in the frame and his hands do not move.",
-      "clipSeconds": 5
+      "animationPrompt": "Thomas sits completely still at the table and breathes slowly. Very slow push-in. He is the only person in the frame; his hands and head stay still.",
+      "clipSeconds": 5,
+      "animationRevision": "v2"
     },
     "N21": {
       "imagePrompt": "Dawn in the high desert: the same muted brown pickup truck parked on a dirt road beside the modest house, pale morning light, long shadows, empty landscape ahead. No people anywhere in the frame, not even small or distant figures.",

@@ -290,15 +290,19 @@ async function status() {
 async function main() {
   await fs.mkdir(out, {recursive: true});
   await loadLedger();
-  if (stage === 'setup') return setup();
-  if (stage === 'voice-test') return voiceTest();
-  if (stage === 'narrate') return narrate();
-  if (stage === 'images') return images();
-  if (stage === 'approve') return approve();
-  if (stage === 'animate') return animate();
-  if (stage === 'clip-review') return clipReview();
-  if (stage === 'render') { const {render} = await import('./dulce-part1-render'); return render({service, bucket, read, put, putJson, sign, run, out, ledger}); }
-  return status();
+  // Stages run in the order given (e.g. "clip-review,images"); the first failure stops the rest.
+  for (const s of stage.split(',')) {
+    log('STAGE', {stage: s});
+    if (s === 'setup') await setup();
+    else if (s === 'voice-test') await voiceTest();
+    else if (s === 'narrate') await narrate();
+    else if (s === 'images') await images();
+    else if (s === 'approve') await approve();
+    else if (s === 'animate') await animate();
+    else if (s === 'clip-review') await clipReview();
+    else if (s === 'render') { const {render} = await import('./dulce-part1-render'); await render({service, bucket, read, put, putJson, sign, run, out, ledger}); }
+    else await status();
+  }
 }
 main().catch(e => { console.error(e instanceof Error ? e.message : 'Dulce Part I stopped'); process.exitCode = 1; });
 export type Ctx = {service: typeof service; bucket: typeof bucket; read: typeof read; put: typeof put; putJson: typeof putJson; sign: typeof sign; run: typeof run; out: string; ledger: {entries: LedgerEntry[]}};
