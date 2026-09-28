@@ -228,5 +228,40 @@
     "shotId": "D11-05",
     "sha256": "619914904968e1d2a3c72abd26c8adc16b5c4d26a22846204d353fcb80629128",
     "note": "Reviewed at full contact-sheet resolution: correct subject and action, anatomically coherent; hand detail or seated family composition."
+  },
+  {
+    "shotId": "D08-04",
+    "sha256": "d16e9a6d821947885ff4e9dd1dbe6d0276610fdc53adfddedd8b424642b8a084",
+    "note": "Reviewed: corrected guard identity or empty-house continuity; subjects match story and composition is usable."
+  },
+  {
+    "shotId": "D08-05",
+    "sha256": "75c8d077236c8a8cb0a52777385eab6bdc317358c0a2ff9dfbf8a8f657bf88e7",
+    "note": "Reviewed: corrected guard identity or empty-house continuity; subjects match story and composition is usable."
+  },
+  {
+    "shotId": "D08-06",
+    "sha256": "570f526fd4bc78330de1b3c9132bfe0050523606cc4d20932a4004e33dbaacf8",
+    "note": "Reviewed: corrected guard identity or empty-house continuity; subjects match story and composition is usable."
+  },
+  {
+    "shotId": "D09-01",
+    "sha256": "31b0b56baa146c7d4d182be21323cd777b4abb1b727792dc8ecd0c02cfea8e83",
+    "note": "Reviewed: corrected guard identity or empty-house continuity; subjects match story and composition is usable."
+  },
+  {
+    "shotId": "D09-02",
+    "sha256": "d485765f941207e2732d961db34530538add714e0dbb618619c8e0fc59773dfd",
+    "note": "Reviewed: corrected guard identity or empty-house continuity; subjects match story and composition is usable."
+  },
+  {
+    "shotId": "D09-03",
+    "sha256": "c0bfa69342d7f4ed937d0b8bddbd2f4ef10b0917327b7da9b8008a87fd5c9aa9",
+    "note": "Reviewed: corrected guard identity or empty-house continuity; subjects match story and composition is usable."
+  },
+  {
+    "shotId": "D09-05",
+    "sha256": "254bf03b046cf705ece09c665b3bb7db5d0135ac2376bbd38e7a5c0919128004",
+    "note": "Reviewed: corrected guard identity or empty-house continuity; subjects match story and composition is usable."
   }
 ]
