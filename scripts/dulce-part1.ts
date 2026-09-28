@@ -58,6 +58,12 @@ async function loadLedger() {
   // Provider top-ups are cash added to a balance, not episode COGS; only real consumption enters this ledger.
   const creator = ledger.entries.find(e => e.key === 'elevenlabs-creator');
   if (creator && creator.status !== 'released') { creator.status = 'released'; creator.actualUsd = 0; await putJson(`${P}/ledger.json`, ledger); }
+  // Idempotent owner-visible corrections (e.g. a usage counter that lagged at settle time).
+  const req = await readJson<{ledgerAdjustments?: {key: string; kind: string; actualUsd: number; note: string}[]}>('content/long-form/dulce-part1/production-request.json');
+  for (const a of req.ledgerAdjustments || []) if (!ledger.entries.some(e => e.key === a.key)) {
+    const gate = canSpend(ledger.entries, a.actualUsd); if (!gate.ok) throw Error('HARD CAP: adjustment ' + a.key + ' does not fit');
+    ledger.entries.push({key: a.key, kind: a.kind, maxUsd: a.actualUsd, actualUsd: a.actualUsd, status: 'committed'}); await putJson(`${P}/ledger.json`, ledger);
+  }
 }
 /** Reserve BEFORE the paid call; refuses (no call) when the cap would be exceeded. */
 function reserve(key: string, kind: string, maxUsd: number) {
@@ -186,7 +192,8 @@ async function narrate() {
   }
   } finally {
     // Settle on the characters the account actually consumed (measured), never on the top-up amount.
-    const after = await quotaRemaining().catch(() => null); const chars = after ? after.used - q.used : need;
+    // The provider's usage counter lags; never book less than the characters actually sent.
+    const after = await quotaRemaining().catch(() => null); const chars = Math.max(need, after ? after.used - q.used : 0);
     const usd = Math.round(Math.max(0, chars) * XI_USD_PER_CHAR * 1e5) / 1e5;
     await settle(key, usd, 'committed'); log('NARRATE_COST', {characters: chars, usd});
     await fs.writeFile(path.join(out, 'narration-cost.json'), JSON.stringify({characters: chars, usdPerCharacter: XI_USD_PER_CHAR, usd, before: q, after}, null, 2));

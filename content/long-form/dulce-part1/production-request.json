@@ -1,9 +1,17 @@
 {
   "videoId": "dulce-part1",
-  "requestId": "render-master-1",
-  "stage": "status,render",
+  "requestId": "ledger-adjust-1",
+  "stage": "status",
   "assets": [],
   "draft": false,
   "capUsd": 40,
-  "animateAssets": []
+  "animateAssets": [],
+  "ledgerAdjustments": [
+    {
+      "key": "tts-narration-counter-lag",
+      "kind": "tts",
+      "actualUsd": 1.0732,
+      "note": "7,369 characters sent; the usage counter showed 2,003 at settle time. (7369-2003) x USD 0.0002."
+    }
+  ]
 }
