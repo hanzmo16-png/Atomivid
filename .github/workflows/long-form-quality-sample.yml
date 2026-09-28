@@ -1,14 +1,14 @@
 name: Dulce full episode - isolated authorized production
 on:
   push:
-    branches: [codex/dulce-full-v1]
+    branches: [codex/dulce-full-v1, claude/dulce-final-mp4-6jqvxn]
     paths: [content/long-form/dulce-001/production-request.json]
   workflow_dispatch:
     inputs:
       stage:
         description: Production stage
         type: choice
-        options: [preflight, narrate, images, approve, animate, music]
+        options: [preflight, narrate, images, approve, animate, music, render]
         default: preflight
         required: true
       shots:
@@ -22,9 +22,9 @@ concurrency:
   cancel-in-progress: false
 jobs:
   production:
-    if: github.ref == 'refs/heads/codex/dulce-full-v1'
+    if: github.ref == 'refs/heads/codex/dulce-full-v1' || github.ref == 'refs/heads/claude/dulce-final-mp4-6jqvxn'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -45,12 +45,13 @@ jobs:
           const request = process.env.EVENT_NAME === 'push'
             ? JSON.parse(fs.readFileSync('content/long-form/dulce-001/production-request.json', 'utf8'))
             : {stage: process.env.INPUT_STAGE, shots: (process.env.INPUT_SHOTS || '').split(',').filter(Boolean)};
-          if (!['preflight','narrate','images','approve','animate','music'].includes(request.stage)) throw Error('Invalid stage');
+          if (!['preflight','narrate','images','approve','animate','music','render'].includes(request.stage)) throw Error('Invalid stage');
           if (!Array.isArray(request.shots) || request.shots.length > 12 || request.shots.some(x => !/^D\d{2}-\d{2}$/.test(x)) || new Set(request.shots).size !== request.shots.length) throw Error('Invalid shot list');
           if (process.env.EVENT_NAME === 'push' && (request.videoId !== 'dulce-001' || request.authorizedCeilingUsd !== 55 || !request.requestId)) throw Error('Missing scoped authorization');
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `stage=${request.stage}\nshots=${request.shots.join(',')}\n`);
           NODE
       - name: Execute isolated stage
+        if: steps.request.outputs.stage != 'render'
         run: npx tsx scripts/dulce-full.ts
         env:
           DULCE_STAGE: ${{ steps.request.outputs.stage }}
@@ -67,10 +68,30 @@ jobs:
           VIDEO_PROVIDER: runway
           PREMIUM_CLIPS_ENABLED: 'true'
           OPENAI_API_KEY: ${{ steps.request.outputs.stage == 'images' && secrets.OPENAI_API_KEY || '' }}
+      # Final assembly and QC: zero paid calls, so it receives Storage credentials only.
+      - name: Render final episode and run QC
+        if: steps.request.outputs.stage == 'render'
+        run: npx tsx scripts/dulce-render.ts
+        env:
+          DULCE_OUT: ${{ runner.temp }}/dulce-full
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_VOICE_ID_EN: nPczCjzI2devNBz1zQrb
+          ELEVENLABS_MODEL_ID: eleven_multilingual_v2
+      - name: Publish final MP4 directly (no zip)
+        if: always() && steps.request.outputs.stage == 'render'
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/dulce-full/DULCE-What-Came-Home-final.mp4
+          archive: false
+          retention-days: 30
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: dulce-full-${{ steps.request.outputs.stage }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/dulce-full/
-          retention-days: 14
+          path: |
+            ${{ runner.temp }}/dulce-full/
+            !${{ runner.temp }}/dulce-full/DULCE-What-Came-Home-final.mp4
+          retention-days: 30
           if-no-files-found: ignore
