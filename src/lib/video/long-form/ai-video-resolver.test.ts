@@ -272,3 +272,23 @@ test("10. costConfig explícito (preset 'economic') se respeta en vez del defaul
     assert.equal(outcome.status, "generated");
   });
 });
+
+test("Runway submits the reserved 10s duration for a fractional editorial shot", async () => {
+  await withEnv({ LONG_FORM_AI_VIDEO_ENABLED: "true" }, async () => {
+    const { provider } = makeCountingProvider("runway", "succeed");
+    const generate = provider.generateVideo;
+    let duration = 0;
+    provider.generateVideo = async request => {
+      duration = request.durationSeconds;
+      assert.equal(request.maxCostUsd, 0.5);
+      return generate(request);
+    };
+    const outcome = await resolveAiVideoForShot({
+      shot: { ...HIGH_MOTION_SHOT, durationSec: 6.3, referenceAsset: "https://example.com/reference.jpg" },
+      totalDocumentaryDurationSec: 1000, ledger: emptyAiVideoLedgerState(),
+      videoProvider: provider, aspectRatio: "16:9", billedDurationSec: 10,
+    });
+    assert.equal(outcome.status, "generated");
+    assert.equal(duration, 10);
+  });
+});

@@ -207,3 +207,15 @@ test("estimateNarrationSeconds / strategyToAiVideoCostPreset", () => {
   assert.equal(strategyToAiVideoCostPreset("balanced"), "balanced");
   assert.equal(strategyToAiVideoCostPreset("cinematic"), "premium");
 });
+
+test("Runway plan prices and reserves 10s clips, preserving Veo plan pricing", () => {
+  withEnv({ LONG_FORM_AI_VIDEO_ENABLED: "true" }, () => {
+    const input = { ...documentary180sFixture(), strategy: "cinematic" as const, aiVideoEnabled: true };
+    const runway = computeProductionPlan({ ...input, providers: { ...REAL_LONG_FORM_PROVIDER_NAMES, aiVideo: "runway" } });
+    const veo = computeProductionPlan({ ...input, providers: REAL_LONG_FORM_PROVIDER_NAMES });
+    assert.ok(runway.aiVideoClipCount > 0);
+    assert.equal(runway.aiVideoBilledSeconds, runway.aiVideoClipCount * 10);
+    assert.equal(runway.estimatedAiVideoCostUsd, runway.aiVideoClipCount * 0.5);
+    assert.equal(veo.aiVideoBilledSeconds, veo.aiVideoClipCount * 8);
+  });
+});

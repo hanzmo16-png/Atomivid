@@ -258,3 +258,18 @@ test("wrapDurableVideoProvider: preserva name/capabilities/isAvailable del prove
   assert.equal(wrapped.capabilities, provider.capabilities);
   assert.equal(wrapped.isAvailable(), true);
 });
+
+test("Runway ambiguous submission is not submitted again after recovery", async () => {
+  const { fake } = makeFakeSupabase();
+  const provider: VideoProvider = { ...makeCountingProvider().provider, name: "runway" };
+  let posts = 0;
+  provider.generateVideo = async () => {
+    posts++;
+    throw new GenerativeProviderError("connection lost", "runway", "upstream_error", undefined, undefined, "uncertain");
+  };
+  const request: VideoGenerationRequest = { prompt: "walking", aspectRatio: "16:9", durationSeconds: 10, maxCostUsd: 0.5, metadata: { shotId: "runway-s1" } };
+  const wrapped = () => wrapDurableVideoProvider(provider, { supabase: fake, scopeId: "runway-recovery" });
+  await assert.rejects(wrapped().generateVideo(request), /connection lost/);
+  await assert.rejects(wrapped().generateVideo(request), /envío incierto/);
+  assert.equal(posts, 1);
+});

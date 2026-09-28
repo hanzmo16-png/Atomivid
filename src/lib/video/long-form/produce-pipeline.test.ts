@@ -412,3 +412,32 @@ test("v1/v2 no cambian: un plan v2 con presentación no añade portada ni miniat
   assert.equal(plain.renderInput?.opening, undefined);
   assert.equal(thumbnails.calls.length, 0);
 });
+
+test("Runway plan executes 10s clips at its own cost and reuses completed output", async () => {
+  const previous = process.env.LONG_FORM_AI_VIDEO_ENABLED;
+  process.env.LONG_FORM_AI_VIDEO_ENABLED = "true";
+  try {
+    const c = counters();
+    const plan = computeProductionPlan({ ...documentary180sFixture(), strategy: "cinematic", providers: { ...REAL_LONG_FORM_PROVIDER_NAMES, aiVideo: "runway" }, aiVideoEnabled: true });
+    assert.ok(plan.aiVideoClipCount > 0);
+    const env = freshEnv();
+    const fake = fakeVeo(c);
+    const runway: VideoProvider = { ...fake, name: "runway", async generateVideo(req) {
+      assert.equal(req.durationSeconds, 10);
+      assert.equal(req.maxCostUsd, 0.5);
+      return { ...await fake.generateVideo(req), durationSeconds: 10, costUsd: 0.5, model: "gen4_turbo" };
+    } };
+    await run(env, c, plan, { videoProvider: runway });
+    assert.ok(c.veoSubmits > 0 && c.veoSubmits <= plan.aiVideoClipCount);
+    const after = { ...c };
+    await run(env, c, plan, { videoProvider: runway });
+    assert.deepEqual(c, after);
+    const missing = counters();
+    await assert.rejects(run(freshEnv(), missing, plan), /requiere Runway/);
+    assert.equal(missing.voice, 0);
+    assert.equal(missing.image, 0);
+  } finally {
+    if (previous === undefined) delete process.env.LONG_FORM_AI_VIDEO_ENABLED;
+    else process.env.LONG_FORM_AI_VIDEO_ENABLED = previous;
+  }
+});

@@ -16,9 +16,10 @@ import { veoVideoProvider } from "./veo";
  * contrato no verificado contra doc primaria), seleccionarlos aquí no
  * cambia ningún default de producción ni habilita gasto real.
  */
-export function getVideoProvider(): VideoProvider {
+export function getVideoProvider(confirmedProvider?: string): VideoProvider {
   const flags = getFeatureFlags();
-  const requested = flags.videoProvider;
+  // A confirmed Long Form plan pins its provider, even if the default changes.
+  const requested = confirmedProvider ?? flags.videoProvider;
   if (requested === "runway" && flags.premiumClipsEnabled && runwayVideoProvider.isAvailable()) {
     return runwayVideoProvider;
   }

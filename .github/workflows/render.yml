@@ -107,6 +107,7 @@ jobs:
           VIDEO_PROVIDER: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 'veo' || '' }}
           PREMIUM_CLIPS_ENABLED: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 'true' || '' }}
           LONG_FORM_AI_VIDEO_ENABLED: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 'true' || '' }}
+          RUNWAY_API_KEY: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && secrets.RUNWAY_API_KEY || '' }}
           VEO_API_KEY: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && secrets.VEO_API_KEY || '' }}
           # P0 2026-09-25 (final.mp4 rechazado por tamaño): si la ENTREGA
           # falla, el archivo ya renderizado se copia aquí y el paso de abajo

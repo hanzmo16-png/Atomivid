@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { getVideoProvider } from "./index";
 
-const KEYS = ["VIDEO_PROVIDER", "PREMIUM_CLIPS_ENABLED", "RUNWAY_API_KEY"];
+const KEYS = ["VIDEO_PROVIDER", "PREMIUM_CLIPS_ENABLED", "RUNWAY_API_KEY", "RUNWAYML_API_SECRET"];
 
 async function withEnv(vars: Record<string, string | undefined>, fn: () => void | Promise<void>) {
   const originals = KEYS.map((k) => [k, process.env[k]] as const);
@@ -50,5 +50,11 @@ test("el fixture genera un clip determinístico sin red", async () => {
     const asset = await provider.generateVideo({ prompt: "a person running", aspectRatio: "9:16", durationSeconds: 5, maxCostUsd: 1 });
     assert.ok(asset.buffer.byteLength > 0);
     assert.equal(asset.costUsd, 0);
+  });
+});
+
+test("confirmed Runway selection survives a changed default provider", async () => {
+  await withEnv({ VIDEO_PROVIDER: "veo", PREMIUM_CLIPS_ENABLED: "true", RUNWAY_API_KEY: "fake-key" }, () => {
+    assert.equal(getVideoProvider("runway").name, "runway");
   });
 });

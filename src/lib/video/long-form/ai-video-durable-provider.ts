@@ -194,6 +194,13 @@ export function wrapDurableVideoProvider(inner: VideoProvider, opts: DurableVide
 
       const existing = await readAiVideoClipRecord(opts.supabase, AI_VIDEO_STORAGE_BUCKET, opts.scopeId, shotId);
 
+      if (existing?.status === "STARTED" && existing.provider && existing.provider !== inner.name) {
+        throw new Error(`La operación de ${shotId} pertenece a ${existing.provider}; no se cambia de proveedor durante una recuperación.`);
+      }
+      if (inner.name === "runway" && existing?.status === "STARTED" && !existing.providerJobId) {
+        throw new Error(`Runway: envío incierto de ${shotId}; conciliar la solicitud antes de otro envío.`);
+      }
+
       if (
         existing?.status === "COMPLETED" &&
         (await validateExistingAiVideoClip(opts.supabase, AI_VIDEO_STORAGE_BUCKET, existing))
@@ -249,6 +256,14 @@ export function wrapDurableVideoProvider(inner: VideoProvider, opts: DurableVide
       }
 
       let acceptedJobId: string | undefined;
+      if (inner.name === "runway") {
+        // Write ahead: an interrupted/ambiguous POST must not become another paid POST.
+        const nowIso = new Date().toISOString();
+        await writeAiVideoClipRecord(opts.supabase, AI_VIDEO_STORAGE_BUCKET, {
+          idempotencyKey: shotId, scopeId: opts.scopeId, shotId, status: "STARTED",
+          provider: inner.name, executionMode, createdAtIso: nowIso, updatedAtIso: nowIso,
+        });
+      }
       const submitted: VideoGenerationRequest = {
         ...request,
         onProviderJobAccepted: async (providerJobId) => {
