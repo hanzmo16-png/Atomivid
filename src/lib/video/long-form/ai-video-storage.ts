@@ -24,7 +24,7 @@
  * referencia canónica, sobre un buffer que YA se validó.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { ResolvedAiVideoClip } from "./ai-video-resolver";
 
 /** Mismo bucket que ya usa el resto de Long Form (visual-test-v2-storage.ts, generate-video.ts) — nunca un bucket nuevo. */
@@ -68,7 +68,9 @@ function recordPath(scopeId: string, idempotencyKey: string): string {
 }
 
 async function downloadJson<T>(supabase: SupabaseClient, bucket: string, path: string): Promise<T | undefined> {
-  const { data, error } = await supabase.storage.from(bucket).download(path);
+  // State is mutable: a CDN-cached STARTED record can hide the accepted job
+  // or a completed clip. Never reuse a cache entry when deciding recovery.
+  const { data, error } = await supabase.storage.from(bucket).download(path, { cacheNonce: randomUUID() }, { cache: "no-store" });
   if (error || !data) return undefined;
   const text = await data.text();
   if (!text) return undefined;
@@ -77,7 +79,7 @@ async function downloadJson<T>(supabase: SupabaseClient, bucket: string, path: s
 
 async function uploadJson(supabase: SupabaseClient, bucket: string, path: string, value: unknown): Promise<void> {
   const body = Buffer.from(JSON.stringify(value, null, 2));
-  const { error } = await supabase.storage.from(bucket).upload(path, body, { contentType: "application/json", upsert: true });
+  const { error } = await supabase.storage.from(bucket).upload(path, body, { contentType: "application/json", cacheControl: "0", upsert: true });
   if (error) throw new Error(`No se pudo guardar el registro de clip de video-IA en Storage ("${path}"): ${error.message}`);
 }
 

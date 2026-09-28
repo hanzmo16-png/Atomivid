@@ -94,6 +94,26 @@ test("writeAiVideoClipRecord + readAiVideoClipRecord: round-trip exacto", async 
   assert.deepEqual(read, record);
 });
 
+test("recovery sees COMPLETED after STARTED even when storage caches each download URL", async () => {
+  const cache = new Map<string, string>();
+  let current = JSON.stringify({ status: "STARTED", providerJobId: "accepted-task" });
+  const fake = {
+    storage: { from: () => ({
+      async download(path: string, options?: { cacheNonce?: string }) {
+        const url = path + "?cacheNonce=" + (options?.cacheNonce ?? "");
+        if (!cache.has(url)) cache.set(url, current);
+        return { data: { text: async () => cache.get(url)! }, error: null };
+      },
+    }) },
+  } as unknown as Parameters<typeof readAiVideoClipRecord>[0];
+  const started = await readAiVideoClipRecord(fake, "videos", "scope", "shot");
+  assert.equal(started?.status, "STARTED");
+  current = JSON.stringify({ status: "COMPLETED", providerJobId: "accepted-task", storagePath: "clip.mp4" });
+  const completed = await readAiVideoClipRecord(fake, "videos", "scope", "shot");
+  assert.equal(completed?.status, "COMPLETED");
+  assert.equal(completed?.storagePath, "clip.mp4");
+});
+
 test("validateExistingAiVideoClip devuelve false si falta storagePath/checksum", async () => {
   const { fake } = makeFakeSupabase();
   const record: AiVideoClipRecord = {
