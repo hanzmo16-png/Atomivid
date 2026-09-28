@@ -4,7 +4,7 @@ import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
 import { isLongFormScriptJson } from "@/lib/video/long-form/script-json";
 import {
   computeProductionPlan,
-  REAL_LONG_FORM_PROVIDER_NAMES,
+  getRealLongFormProviderNames,
   VISUAL_STRATEGIES,
   type ProductionPlan,
   type VisualStrategy,
@@ -62,7 +62,7 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
         beats,
         topic: script.topic || data.topic,
         strategy,
-        providers: REAL_LONG_FORM_PROVIDER_NAMES,
+        providers: getRealLongFormProviderNames(),
         requestedDurationSeconds: data.duration_seconds ?? undefined,
       }),
     ]),

@@ -198,7 +198,14 @@ export async function generateLongFormVideoFromScript({
   // Abrir el presupuesto (gratis) ANTES de cualquier llamada pagada: si el
   // storage no responde, el trabajo falla aquí con $0 gastado.
   const budget = await ProductionBudget.open(runtime.budgetStore ?? supabaseBudgetStore(supabase, requestId, STORAGE_BUCKET), allocation);
-  const units = getGenerativeUnitCosts();
+  const units = getGenerativeUnitCosts(plan.providers.aiVideo);
+  // Fail before speech/image spend if a Runway plan cannot actually animate.
+  if (!replayOnly && allocation.maxAiVideoClips > 0 && plan.providers.aiVideo === "runway") {
+    const candidate = runtime.videoProvider !== undefined ? runtime.videoProvider : getVideoProvider("runway");
+    if (!candidate || candidate.name !== "runway" || !candidate.isAvailable() || !(runtime.aiVideoEnabled ?? isLongFormAiVideoConfigured())) {
+      throw new Error("El plan confirmado requiere Runway, pero su conexión no está disponible. No se ha iniciado la generación.");
+    }
+  }
   const uploadArtifact = runtime.uploadArtifact ?? ((path: string, buffer: Buffer, ct: string) => uploadToStorage(supabase, path, buffer, ct));
 
   await onProgress?.("scripting");
@@ -259,7 +266,7 @@ export async function generateLongFormVideoFromScript({
   } else if (runtime.videoProvider !== undefined) {
     baseVideoProvider = runtime.videoProvider;
   } else if (allocation.maxAiVideoClips > 0 && (runtime.aiVideoEnabled ?? isLongFormAiVideoConfigured())) {
-    const candidate = getVideoProvider();
+    const candidate = getVideoProvider(plan.providers.aiVideo);
     baseVideoProvider = candidate.name === "fixture" && requireReal ? null : candidate;
   }
   const aiVideoEnabled = baseVideoProvider !== null && (runtime.aiVideoEnabled ?? true);

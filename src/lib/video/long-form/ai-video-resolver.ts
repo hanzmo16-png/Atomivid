@@ -133,7 +133,8 @@ export async function resolveAiVideoForShot(params: ResolveAiVideoForShotParams)
     contextNotes: params.contextNotes,
     negativeSignals: params.negativeSignals,
     referenceImageUrl: params.shot.referenceAsset,
-    durationSeconds: params.shot.durationSec,
+    // Runway accepts exactly 5 or 10s, while editorial shots have fractional lengths.
+    durationSeconds: params.videoProvider.name === "runway" ? (params.billedDurationSec ?? params.shot.durationSec) : params.shot.durationSec,
     aspectRatio: params.aspectRatio,
     maxCostUsd: estimatedCostUsd,
     metadata: { shotId, ...params.metadata },

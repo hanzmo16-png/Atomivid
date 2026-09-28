@@ -33,6 +33,7 @@ import { visualsForBeat } from "./visual-intents";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import { ESTIMATED_COST_USD as OPENAI_IMAGE_ESTIMATED_COST_USD } from "@/lib/providers/image/openai";
 import { VEO_DURATION_SECONDS_1080P, getVeoCostUsdPerSecond } from "@/lib/providers/video-gen/veo";
+import { RUNWAY_COST_USD_PER_SECOND } from "@/lib/providers/video-gen/runway";
 import type { BeatType, Shot, ShotType } from "./types";
 import {
   PRODUCTION_PLAN_VERSION,
@@ -56,6 +57,10 @@ export const REAL_LONG_FORM_PROVIDER_NAMES = {
   aiVideo: "veo",
   music: "curated-library",
 } as const;
+
+export function getRealLongFormProviderNames() {
+  return { ...REAL_LONG_FORM_PROVIDER_NAMES, aiVideo: getFeatureFlags().videoProvider === "runway" ? "runway" : "veo" };
+}
 
 export function strategyToAiVideoCostPreset(strategy: VisualStrategy): AiVideoCostPreset {
   if (strategy === "economical") return "economic";
@@ -86,11 +91,18 @@ export function computeScriptHash(beats: ProductionPlanBeatInput[]): string {
 
 export type GenerativeUnitCosts = {
   imageUsd: number;
+  /** Legacy property names; values belong to the provider pinned by the plan. */
   veoClipUsd: number;
   veoBilledSeconds: number;
 };
 
-export function getGenerativeUnitCosts(): GenerativeUnitCosts {
+export function getGenerativeUnitCosts(provider = "veo"): GenerativeUnitCosts {
+  // Product shots last up to 8s. Reserve a 10s Runway clip to cover motion/cut margins.
+  if (provider === "runway") return {
+    imageUsd: OPENAI_IMAGE_ESTIMATED_COST_USD,
+    veoClipUsd: round4(10 * RUNWAY_COST_USD_PER_SECOND),
+    veoBilledSeconds: 10,
+  };
   return {
     imageUsd: OPENAI_IMAGE_ESTIMATED_COST_USD,
     veoClipUsd: round4(VEO_DURATION_SECONDS_1080P * getVeoCostUsdPerSecond()),
@@ -100,7 +112,7 @@ export function getGenerativeUnitCosts(): GenerativeUnitCosts {
 
 /** Video IA solo es alcanzable si los tres interruptores existentes están alineados (ver feature-flags.ts / video-gen/index.ts). */
 export function isLongFormAiVideoConfigured(flags: FeatureFlags = getFeatureFlags()): boolean {
-  return flags.longFormAiVideoEnabled && flags.premiumClipsEnabled && flags.videoProvider === "veo";
+  return flags.longFormAiVideoEnabled && flags.premiumClipsEnabled && ["veo", "runway"].includes(flags.videoProvider);
 }
 
 export type AllocationLimits = {
@@ -298,7 +310,7 @@ export function computeProductionPlan(input: {
   const voiceCharacters = input.beats.reduce((sum, b) => sum + b.narration.length, 0);
   const voiceCostUsd = round4((voiceCharacters / 1000) * getPricingConfig().elevenLabsUsdPer1kChars);
   const aiVideoAvailable = input.aiVideoEnabled ?? isLongFormAiVideoConfigured();
-  const limits = strategyLimits(input.strategy, voiceCostUsd, { aiVideoEnabled: aiVideoAvailable });
+  const limits = strategyLimits(input.strategy, voiceCostUsd, { aiVideoEnabled: aiVideoAvailable, units: getGenerativeUnitCosts(input.providers.aiVideo) });
   const allocation = allocateShotTypes(shots, narrationSeconds, limits);
   const generativeUsd = round4(allocation.imageUsd + allocation.aiVideoUsd);
 

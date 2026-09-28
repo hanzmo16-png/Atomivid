@@ -15,7 +15,7 @@ import { isLongFormScriptJson } from "./script-json";
 import {
   computeProductionPlan,
   isProductionPlan,
-  REAL_LONG_FORM_PROVIDER_NAMES,
+  getRealLongFormProviderNames,
   VISUAL_STRATEGIES,
   type ProductionPlan,
   type VisualStrategy,
@@ -81,7 +81,7 @@ export async function confirmLongFormProduction(
     })),
     topic: data.script_json.topic || data.topic || "",
     strategy,
-    providers: REAL_LONG_FORM_PROVIDER_NAMES,
+    providers: getRealLongFormProviderNames(),
     requestedDurationSeconds: data.duration_seconds ?? undefined,
   });
   if (packagingCheck.packaging) plan.packaging = packagingCheck.packaging;

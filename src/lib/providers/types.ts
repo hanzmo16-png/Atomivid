@@ -1,3 +1,4 @@
+import type { ChargeOutcome } from "./charge-outcome";
 /**
  * Interfaces comunes de proveedor. Cada etapa del pipeline (guion, voz,
  * footage, música) tiene una implementación "real" (llama a la API externa)
@@ -217,6 +218,7 @@ export type GenerativeAsset = {
   model: string;
   /** Costo real si el proveedor lo expone, o la estimación calculada antes de pedir. */
   costUsd: number;
+  costBasis?: "provider_usage" | "estimated";
   /** Identificador de la tarea/job en el proveedor, si aplica (generación asíncrona). */
   providerJobId?: string;
   /** Licencia o términos aplicables al resultado generado, cuando el proveedor los declara. */
@@ -275,6 +277,7 @@ export class GenerativeProviderError extends Error {
      * rechazada).
      */
     public readonly providerJobId?: string,
+    public readonly chargeOutcome?: ChargeOutcome,
   ) {
     super(message);
     this.name = "GenerativeProviderError";
@@ -321,9 +324,7 @@ export type VideoGenerationRequest = {
   /**
    * Referencia opcional a una imagen ya generada/aprobada (p. ej. la URL o
    * buffer de un shot AI_RECREATION) para animación image-to-video —
-   * ausente = generación text-to-video pura. Ningún proveedor existente
-   * (fixture/runway) la usa todavía; queda reservada para no bloquear un
-   * adaptador futuro que sí soporte image-to-video.
+   * ausente = generación text-to-video pura. Veo y Runway Gen-4 Turbo requieren esta referencia para image-to-video.
    */
   referenceImageUrl?: string;
   /** Semilla opcional para reproducibilidad, cuando el proveedor la soporte — ausente = no determinístico. */
@@ -352,7 +353,7 @@ export interface VideoProvider {
    * solicitud (ya facturable) y que el resultado se persistió, un retry
    * debe poder recuperar ESA misma operación en vez de crear una segunda.
    * Opcional: solo los proveedores con generación asíncrona de larga
-   * duración y sondeo propio (Veo) lo implementan; ausente = ese proveedor
+   * duración y sondeo propio (Veo, Runway) lo implementan; ausente = ese proveedor
    * no admite reanudar (el llamador decide qué hacer, nunca reintenta a
    * ciegas en su lugar).
    */
