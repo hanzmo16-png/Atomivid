@@ -325,6 +325,40 @@ async function watchCheck() {
   await fs.writeFile(path.join(out, 'watch-link.json'), JSON.stringify(rec, null, 2));
   log('WATCH', rec.anonymous);
 }
+/** Free: rebuild the approved master from its verified Storage parts as ONE progressive MP4 and test it anonymously. */
+const MASTER_SHA = '28c0e1b662d1b9c9299996bdc68abf9bafa40813b79caf1b5b9a2aab4229841f';
+async function singleMp4() {
+  const dir = `${P}/final`, name = 'DULCE-Part-I-master.mp4';
+  const {data: files, error: le} = await bucket.list(dir, {limit: 100}); if (le || !files) throw Error('List failed ' + le?.message);
+  const parts = files.map(f => f.name).filter(n => /^DULCE-Part-I-master\.mp4\.part\d{2}$/.test(n)).sort();
+  const bufs: Buffer[] = []; for (const n of parts) { const b = await read(`${dir}/${n}`); if (!b) throw Error('Missing part ' + n); bufs.push(b); }
+  const master = Buffer.concat(bufs);
+  if (sha(master) !== MASTER_SHA) throw Error(`Rebuilt master sha ${sha(master)} is not the approved master; nothing uploaded`);
+  const {data: bk} = await service.storage.getBucket('videos');
+  log('SINGLE_PLAN', {parts: parts.length, bytes: master.length, bucketFileSizeLimit: bk?.file_size_limit ?? null});
+  const dest = `${dir}/${name}`;
+  const {error: ue} = await bucket.upload(dest, master, {contentType: 'video/mp4', upsert: true, cacheControl: '3600'});
+  if (ue) throw Error('Single-file upload rejected: ' + ue.message);
+  const days = 30;
+  const watch = (await bucket.createSignedUrl(dest, days * 86400)).data?.signedUrl;
+  const download = (await bucket.createSignedUrl(dest, days * 86400, {download: name})).data?.signedUrl;
+  if (!watch || !download) throw Error('Sign failed');
+  // Anonymous checks, as a phone would request it.
+  const head = await fetch(watch, {headers: {Range: 'bytes=0-1023'}}); const hb = Buffer.from(await head.arrayBuffer());
+  const tail = await fetch(watch, {headers: {Range: `bytes=${master.length - 1024}-${master.length - 1}`}}); const tb = Buffer.from(await tail.arrayBuffer());
+  const full = await fetch(watch, {method: 'HEAD'});
+  const dl = await fetch(download, {method: 'HEAD'});
+  const seconds = await probeDuration(watch);
+  const checks = {
+    status: [head.status, tail.status, full.status], contentType: head.headers.get('content-type'), contentRange: head.headers.get('content-range'), acceptRanges: full.headers.get('accept-ranges'), contentLength: full.headers.get('content-length'),
+    firstBytesMatch: hb.equals(master.subarray(0, 1024)), lastBytesMatch: tb.equals(master.subarray(master.length - 1024)), moovBeforeMdat: hb.subarray(36, 40).toString() === 'moov',
+    ffprobeSeconds: seconds, downloadStatus: dl.status, downloadDisposition: dl.headers.get('content-disposition'),
+  };
+  const ok = head.status === 206 && tail.status === 206 && [200, 206].includes(full.status) && checks.contentType === 'video/mp4' && checks.firstBytesMatch && checks.lastBytesMatch && checks.moovBeforeMdat && Math.abs(seconds - 582.7) < 0.2 && dl.status === 200;
+  await fs.writeFile(path.join(out, 'single-mp4.json'), JSON.stringify({ok, path: `videos/${dest}`, sha256: MASTER_SHA, bytes: master.length, expiresAt: new Date(Date.now() + days * 86400000).toISOString(), watchUrl: watch, downloadUrl: download, checks}, null, 2));
+  log('SINGLE_CHECK', {ok, ...checks});
+  if (!ok) throw Error('Anonymous MP4 checks failed');
+}
 async function status() {
   const q = XI ? await quotaRemaining().catch(e => ({error: String(e)})) : null;
   // Free: listing models proves the key is valid; billing quota is only proven by the first (unbilled if rejected) image call.
@@ -348,6 +382,7 @@ async function main() {
     else if (s === 'animate') await animate();
     else if (s === 'clip-review') await clipReview();
     else if (s === 'watch-check') await watchCheck();
+    else if (s === 'single-mp4') await singleMp4();
     else if (s === 'render') { const {render} = await import('./dulce-part1-render'); await render({service, bucket, read, put, putJson, sign, run, out, ledger}); }
     else await status();
   }

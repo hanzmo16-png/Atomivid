@@ -1,7 +1,7 @@
 {
   "videoId": "dulce-part1",
-  "requestId": "watch-check-1",
-  "stage": "status,watch-check",
+  "requestId": "single-mp4-1",
+  "stage": "single-mp4",
   "assets": [],
   "draft": false,
   "capUsd": 40,

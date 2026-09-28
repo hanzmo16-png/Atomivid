@@ -27,7 +27,7 @@ jobs:
           node <<'NODE'
           const fs = require('node:fs');
           const r = JSON.parse(fs.readFileSync('content/long-form/dulce-part1/production-request.json', 'utf8'));
-          const stages = ['status','setup','voice-test','narrate','images','approve','animate','clip-review','render','watch-check'];
+          const stages = ['status','setup','voice-test','narrate','images','approve','animate','clip-review','render','watch-check','single-mp4'];
           if (r.videoId !== 'dulce-part1' || r.capUsd !== 40 || !r.requestId || !String(r.stage).split(',').every(s => stages.includes(s))) throw Error('Invalid or unscoped request');
           if (!Array.isArray(r.assets) || r.assets.length > 18 || r.assets.some(x => !/^N\d{2}$/.test(x))) throw Error('Invalid asset list');
           const clips = r.animateAssets || [];
