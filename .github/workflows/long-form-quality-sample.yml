@@ -1,127 +1,110 @@
-name: Muestra de calidad Long Form (narración guardada, recursos gratuitos)
-
-# Calidad M2 (scripts/long-form-quality-sample.ts): prepara y renderiza una
-# muestra a partir de un manifiesto revisado. Narración desde la caché TTS
-# (sin síntesis), recursos gratuitos (Pexels con la clave existente,
-# Wikimedia Commons de dominio público, mapa de datos Natural Earth) y
-# música del banco con procedencia registrada. Salida y estado SEPARADOS
-# (<requestId>/samples/...); nunca toca output/final.mp4. Nunca recibe claves
-# de ElevenLabs/Anthropic. Las de OpenAI/Veo SOLO llegan con allow_paid=true
-# en PHASE=prepare y con el presupuesto aprobado (paid_budget_usd), para las
-# escenas `veo-clip` que el manifiesto declara (M3); por defecto no llegan.
+name: Runway connection verification (one 10s clip)
 on:
   workflow_dispatch:
     inputs:
-      phase:
-        description: "prepare | render"
+      confirm:
+        description: "GASTAR: one 10s clip, maximum USD0.50; no credit purchase"
         required: true
-        default: prepare
-        type: choice
-        options: [prepare, render]
-      purpose:
-        description: "technical (ventana corta) | approval (muestra completa; bloquea con escenas pendientes)"
-        required: false
-        default: technical
-        type: choice
-        options: [technical, approval]
-      manifest:
-        description: "Manifiesto de la muestra"
-        required: false
-        default: "docs/quality/m2-panama-opening/sample-manifest.json"
         type: string
-      window_sec:
-        description: "Duración del render (s): técnico por defecto 12; en aprobación, vacío = muestra completa"
-        required: false
-        default: ""
-        type: string
-      allow_paid:
-        description: "Autorizar generación de pago (clips IA del manifiesto) — solo con gasto aprobado"
-        required: false
-        default: false
-        type: boolean
-      paid_preflight_only:
-        description: "Solo verificar claves y plan de gasto (sin llamadas de pago)"
-        required: false
-        default: false
-        type: boolean
-      ledger_release:
-        description: "Liberar reservas fallidas que nunca se enviaron (claves separadas por comas; se verifica)"
-        required: false
-        default: ""
-        type: string
-      paid_budget_usd:
-        description: "Presupuesto aprobado en USD (acumulado entre ejecuciones de la misma muestra)"
-        required: false
-        default: "0"
-        type: string
-
 permissions:
   contents: read
-
+concurrency:
+  group: runway-connection-20260928
+  cancel-in-progress: false
 jobs:
-  sample:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: fb9977d74c54f252e8d7d780884132c7da741ff9
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Instalar ffmpeg y fuentes
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
-      - name: Muestra (${{ inputs.phase }} / ${{ inputs.purpose }})
-        run: npx tsx scripts/long-form-quality-sample.ts
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Verify one Runway clip with production adapter and durable storage
         env:
-          PHASE: ${{ inputs.phase }}
-          RENDER_PURPOSE: ${{ inputs.purpose }}
-          RENDER_WINDOW_SEC: ${{ inputs.window_sec }}
-          SAMPLE_MANIFEST: ${{ inputs.manifest }}
-          SAMPLE_OUT_DIR: ${{ runner.temp }}/quality-sample
+          CONFIRM: ${{ inputs.confirm }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
-          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
-          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-          SAMPLE_ALLOW_PAID: ${{ inputs.allow_paid && inputs.phase == 'prepare' && 'true' || 'false' }}
-          SAMPLE_PAID_BUDGET_USD: ${{ inputs.paid_budget_usd }}
-          SAMPLE_LEDGER_RELEASE: ${{ inputs.ledger_release }}
-          SAMPLE_SIGN_OUTPUT_HOURS: "168"
-          SAMPLE_PAID_PREFLIGHT_ONLY: ${{ inputs.paid_preflight_only && 'true' || 'false' }}
-          OPENAI_API_KEY: ${{ inputs.allow_paid && inputs.phase == 'prepare' && secrets.OPENAI_API_KEY || '' }}
-          VEO_API_KEY: ${{ inputs.allow_paid && inputs.phase == 'prepare' && secrets.VEO_API_KEY || '' }}
-      - name: Publicar muestra (artifact privado)
+          RUNWAY_API_KEY: ${{ secrets.RUNWAY_API_KEY }}
+          VIDEO_PROVIDER: runway
+          PREMIUM_CLIPS_ENABLED: 'true'
+          LONG_FORM_AI_VIDEO_ENABLED: 'true'
+        run: |
+          cat > .runway-live-smoke.ts <<'TS'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs/promises';
+          import { createHash } from 'node:crypto';
+          import { execFileSync } from 'node:child_process';
+          import { createClient } from '@supabase/supabase-js';
+          import sharp from 'sharp';
+          import { getVideoProvider } from './src/lib/providers/video-gen';
+          import { buildRunwayPayload } from './src/lib/providers/video-gen/runway';
+          import { wrapDurableVideoProvider } from './src/lib/video/long-form/ai-video-durable-provider';
+          import { readAiVideoClipRecord, validateExistingAiVideoClip } from './src/lib/video/long-form/ai-video-storage';
+          import { validateVideoAssetBuffer } from './src/lib/video/long-form/ai-video-validation';
+          async function main() {
+            assert.equal(process.env.CONFIRM, 'GASTAR');
+            const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.SUPABASE_SERVICE_ROLE_KEY!,{auth:{persistSession:false}});
+            const bucket = supabase.storage.from('videos');
+            const scopeId = 'runway-connection-20260928';
+            const shotId = 'dulce-laboratorio-10s-v1';
+            const sha = (b:Buffer) => createHash('sha256').update(b).digest('hex');
+            const ref = await bucket.download('dulce-001/samples/pilot/ai/dulce-d04-v1-still.png');
+            if (ref.error || !ref.data) throw Error('Reference download failed');
+            const source = Buffer.from(await ref.data.arrayBuffer());
+            assert.equal(sha(source),'578f5dfa0e40fda6cb7264456dfecdc71da46017a6314b193906ff46d71ae308');
+            const jpeg = await sharp(source).resize(1280,720,{fit:'cover'}).jpeg({quality:92}).toBuffer();
+            const provider = getVideoProvider('runway');
+            assert.equal(provider.name,'runway');
+            assert.equal(provider.isAvailable(),true);
+            const request = {
+              prompt: 'Photoreal cinematic science-fiction laboratory, one continuous shot. A visible pulse of pale cyan light travels from the left glass chamber along the overhead connecting apparatus to the right chamber. Small indicator lamps blink in sequence. Fine vapor curls around the chamber bases. The adult humanoid in the right chamber slowly raises one hand and flexes its fingers. The clothed adult person in the left chamber breathes and turns his head slightly. Slow lateral dolly reveals parallax between the two chambers. Preserve both separate occupants, chamber geometry and industrial lighting. No cuts, no text, no gore.',
+              referenceImageUrl:'data:image/jpeg;base64,'+jpeg.toString('base64'),
+              aspectRatio:'16:9' as const, durationSeconds:10,maxCostUsd:0.5,
+              metadata:{shotId}
+            };
+            buildRunwayPayload(request);
+            let submissions = 0;
+            const beforeSubmit = async () => {
+              if (++submissions > 1) throw Error('One submission maximum');
+              const claim = await bucket.upload('long-form/'+scopeId+'/submission-claim.json',Buffer.from(JSON.stringify({shotId,maxCostUsd:0.5,createdAt:new Date().toISOString()})),{contentType:'application/json',upsert:false});
+              if(claim.error) throw Error('Existing or inaccessible submission claim: reconcile before retry');
+              return true;
+            };
+            const durable = wrapDurableVideoProvider(provider,{supabase,scopeId,beforeSubmit,maxInAttemptResumes:2});
+            const asset = await durable.generateVideo(request);
+            assert.deepEqual(validateVideoAssetBuffer(asset.buffer,asset.mimeType),{valid:true,format:'mp4'});
+            await fs.mkdir('evidence/runway',{recursive:true});
+            const output = 'evidence/runway/Atomivid-Runway-Laboratorio-Verificado.mp4';
+            await fs.writeFile(output,asset.buffer);
+            const record = await readAiVideoClipRecord(supabase,'videos',scopeId,shotId);
+            assert.equal(record?.status,'COMPLETED');
+            assert.equal(record?.provider,'runway');
+            assert.ok(await validateExistingAiVideoClip(supabase,'videos',record!));
+            const reused = await wrapDurableVideoProvider(provider,{supabase,scopeId,beforeSubmit:async()=>{throw Error('Unexpected second charge');}}).generateVideo(request);
+            assert.equal(sha(reused.buffer),sha(asset.buffer));
+            const probe = JSON.parse(execFileSync('ffprobe',['-v','error','-show_entries','stream=codec_type,codec_name,width,height,avg_frame_rate:format=duration,size','-of','json',output],{encoding:'utf8'}));
+            const video = probe.streams.find((s:any)=>s.codec_type==='video');
+            assert.equal(video.width,1280); assert.equal(video.height,720);
+            assert.ok(Number(probe.format.duration)>=9.8 && Number(probe.format.duration)<=10.5);
+            execFileSync('ffmpeg',['-v','error','-i',output,'-f','null','-']);
+            const report = {sourceCommit:'fb9977d74c54f252e8d7d780884132c7da741ff9',provider:provider.name,model:asset.model,scopeId,shotId,submissionsThisRun:submissions,estimatedCostUsd:asset.costUsd,outputSha256:sha(asset.buffer),providerJobId:asset.providerJobId,storagePath:record?.storagePath,reuseVerified:true,decodeVerified:true,probe};
+            await fs.writeFile('evidence/runway/report.json',JSON.stringify(report,null,2));
+            console.log(JSON.stringify(report));
+          }
+          main().catch(e=>{console.error(e instanceof Error?e.message:'Verification failed');process.exitCode=1;});
+          
+          TS
+          npx tsx .runway-live-smoke.ts
+      - uses: actions/upload-artifact@v4
         if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
         with:
-          name: long-form-quality-sample-${{ inputs.phase }}-${{ inputs.purpose }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/quality-sample/
-          if-no-files-found: ignore
-          retention-days: 14
-      - name: Publicar el MP4 directo (sin zip) para revisión
-        if: success() && inputs.phase == 'render'
-        continue-on-error: true
-        uses: actions/upload-artifact@v7
-        with:
-          path: ${{ runner.temp }}/quality-sample/sample-*.mp4
-          archive: false
-          retention-days: 14
-      - name: Publicar el fotograma inicial directo (sin zip)
-        if: success() && inputs.phase == 'render'
-        continue-on-error: true
-        uses: actions/upload-artifact@v7
-        with:
-          path: ${{ runner.temp }}/quality-sample/first-frame*.png
-          archive: false
-          retention-days: 14
-      - name: Publicar la miniatura directa (sin zip)
-        if: success() && inputs.phase == 'render'
-        continue-on-error: true
-        uses: actions/upload-artifact@v7
-        with:
-          path: ${{ runner.temp }}/quality-sample/thumbnail.jpg
-          archive: false
+          name: runway-connection-verification
+          path: evidence/runway/
           if-no-files-found: ignore
           retention-days: 14
