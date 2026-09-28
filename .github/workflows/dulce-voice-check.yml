@@ -21,6 +21,8 @@ jobs:
         env:
           VOICE_OUT: ${{ runner.temp }}/voice-check
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
