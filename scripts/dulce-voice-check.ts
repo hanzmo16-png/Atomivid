@@ -51,6 +51,13 @@ async function main() {
     return [...seen.values()].sort((a, b) => (b.cloned_by_count ?? 0) - (a.cloned_by_count ?? 0)).slice(0, 25)
       .map(v => ({voice_id: v.voice_id, public_owner_id: v.public_owner_id, name: v.name, accent: v.accent, age: v.age, descriptive: v.descriptive, use_case: v.use_case, category: v.category, description: (v.description || '').slice(0, 240), preview_url: v.preview_url, cloned_by_count: v.cloned_by_count, usage_character_count_1y: v.usage_character_count_1y, credit_multiplier: v.credit_multiplier ?? null, free_users_allowed: v.free_users_allowed, notice_period: v.notice_period ?? null}));
   });
+  // Full library record of the approved narrator (David, Audiobook & Documentary): verified languages and models.
+  await safe('david', async () => {
+    const r = await get<{voices: (Shared & Record<string, unknown>)[]}>(`/v1/shared-voices?page_size=100&language=en&gender=male&search=${encodeURIComponent('Audiobook & Documentary')}`);
+    const v = r.voices.find(x => x.voice_id === 'cCYjmrGZaI86GUJ7F2Nn');
+    if (!v) return {error: 'not found in shared library search'};
+    const {preview_url: _p, ...rest} = v; return rest;
+  });
   // Free listening copies: download each shortlisted voice's own ElevenLabs preview (no synthesis)
   // and sign a 7-day Storage URL, since preview links can expire or need the ElevenLabs site.
   await safe('listen', async () => {
