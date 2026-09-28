@@ -1,1 +1,26 @@
-[]
+[
+  {
+    "asset": "N01",
+    "sha256": "fdaf9e0e4be8ff3b560c50d688f0a1c38142f39b111d6b8ab91efbc7039bb113",
+    "reasons": [
+      "appearing-person"
+    ],
+    "note": "A man and a boy were added in the foreground; the shot must be empty landscape."
+  },
+  {
+    "asset": "N02",
+    "sha256": "7784e4ec201745e7104bea84eb7121cbb9441391dd484724c577b3e61326e7dd",
+    "reasons": [
+      "appearing-person"
+    ],
+    "note": "A seated figure was added in the foreground."
+  },
+  {
+    "asset": "N04",
+    "sha256": "bda442d8fffb04b1bc75ba165898fbeab79f2700ac3716cc368defc9581c37a8",
+    "reasons": [
+      "appearing-person"
+    ],
+    "note": "A man walking was added; the tunnel must be empty."
+  }
+]

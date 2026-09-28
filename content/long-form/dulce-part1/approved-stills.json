@@ -1,1 +1,77 @@
-[]
+[
+  {
+    "asset": "N05",
+    "sha256": "17d13586d753e3342412aed5392e847847cfea4a410fb97edd5995ae34e3ab88",
+    "note": "Thomas matches references (face, grey temples, coverall, blank badge); monitors show corridors; hands still."
+  },
+  {
+    "asset": "N20",
+    "sha256": "db4d612acef7c8f08b7b8ccfa8ef7fd13e5b30c569958752104b28b18348a353",
+    "note": "Thomas consistent; alone at kitchen table; no hands in action."
+  },
+  {
+    "asset": "N43",
+    "sha256": "887534eb5e95ddfbce715e28ec27b734df355b0019289a3219163193d9b3f21e",
+    "note": "Thomas consistent; alone in elevator; red light from below."
+  },
+  {
+    "asset": "N11",
+    "sha256": "55c4937eea906a668ac3470dbeb66e48e88b0bab22d0799c3610fad1d62287f9",
+    "note": "Single grey being matching d03; consoles behind; no extra figures."
+  },
+  {
+    "asset": "N12",
+    "sha256": "8010d5ca58b3b3001a2a6d232d362c284aaf4ff6ac8b5c0f71e06e2dcf5f8af4",
+    "note": "Single reptilian in dark workwear, profile, empty corridor."
+  },
+  {
+    "asset": "N35",
+    "sha256": "bed5691ea8aaba709bee314abe7ac5f580e2b53badb604ef398345c45b6e54e0",
+    "note": "George: distinct civilian (grey beard, flannel), clearly not Thomas; alone."
+  },
+  {
+    "asset": "N41",
+    "sha256": "f7325629e8d9d30fd65f297a8ca58a37675c0083df4be53d6ae60f3bf4c5dcf6",
+    "note": "Empty fog corridor, red emergency lights, far end dark."
+  },
+  {
+    "asset": "N46",
+    "sha256": "8d39a57c5caa416aea1b0e760b8eee7f640309f3a124a38772de2a29c8915097",
+    "note": "Beacon on wall, empty corridor."
+  },
+  {
+    "asset": "N26",
+    "sha256": "9d809f1cb7b87e96daf4daa94fc4b4e70d54df798a5a22c88f0a0028133b9a40",
+    "note": "Empty clinical bay, distinct from chamber lab."
+  },
+  {
+    "asset": "N48",
+    "sha256": "e5d5cb67cbaa3fb2775d783d3e20cd0b3db63bb956c919a5ee48d03073fe9144",
+    "note": "Radio equipment and oscilloscope, no people."
+  },
+  {
+    "asset": "N03",
+    "sha256": "0d8e70eef10d446a6f428032df99de11375d5e75ba350b64426258a668442a1a",
+    "note": "Fenced rock entrance, floodlights, empty guard hut."
+  },
+  {
+    "asset": "N06",
+    "sha256": "1b54dcdb366af0641c07c21774b0bdebb29215def3342997c0f1cbef08b0143c",
+    "note": "Card reader, green LED, no hands."
+  },
+  {
+    "asset": "N07",
+    "sha256": "4d0a3eb5d7ebb80c3d034449d969152fe6cdd5e914ab64dcd41ed8cffcd91849",
+    "note": "Blast door with zone stripe and keypad, no writing."
+  },
+  {
+    "asset": "N09",
+    "sha256": "c3916a33261a732a437f809dc84e35ea044eea08a510a699b179eac02fe0abe8",
+    "note": "Technical hall, catwalk, vapor, no people."
+  },
+  {
+    "asset": "N10",
+    "sha256": "fc9ff38820dbb711b9dda69eb11d26f3a86e4ed7e60a84a435bfde093b0528ef",
+    "note": "Shaft with rails and ladder receding into darkness."
+  }
+]

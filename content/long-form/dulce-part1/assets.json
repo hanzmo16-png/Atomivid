@@ -22,34 +22,37 @@
   ],
   "assets": {
     "N01": {
-      "imagePrompt": "Wide aerial view at dusk over a flat-topped mesa and canyons in northern New Mexico, sagebrush plain, long shadows, cold blue sky with the last amber light on the rim. No roads, no vehicles, no buildings.",
+      "imagePrompt": "Wide aerial view at dusk over a flat-topped mesa and canyons in northern New Mexico, sagebrush plain, long shadows, cold blue sky with the last amber light on the rim. No roads, no vehicles, no buildings. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": "Slow aerial drone push forward over the mesa at dusk; high clouds drift slowly. No vehicles, no people, nothing appears.",
-      "clipSeconds": 5
+      "clipSeconds": 5,
+      "imageRevision": "v2"
     },
     "N02": {
-      "imagePrompt": "A small rural town far away across a dark high-desert plain at night, a few scattered warm window lights and one water tower silhouette, deep blue sky. Seen from a low hill.",
+      "imagePrompt": "A small rural town far away across a dark high-desert plain at night, a few scattered warm window lights and one water tower silhouette, deep blue sky. Seen from a low hill. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": null,
-      "clipSeconds": 0
+      "clipSeconds": 0,
+      "imageRevision": "v2"
     },
     "N03": {
-      "imagePrompt": "Night. A secured entrance cut into the base of a rock cliff: tall chain-link fence with barbed wire, two floodlights on poles, a closed heavy steel gate, an empty small guard hut with a lit window. No people.",
+      "imagePrompt": "Night. A secured entrance cut into the base of a rock cliff: tall chain-link fence with barbed wire, two floodlights on poles, a closed heavy steel gate, an empty small guard hut with a lit window. No people. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": null,
       "clipSeconds": 0
     },
     "N04": {
-      "imagePrompt": "An endless straight underground vehicle tunnel with a curved concrete ceiling, a line of cold overhead lights receding to a vanishing point, wet reflective floor. Empty.",
+      "imagePrompt": "An endless straight underground vehicle tunnel with a curved concrete ceiling, a line of cold overhead lights receding to a vanishing point, wet reflective floor. Empty. No people anywhere in the frame, not even small or distant figures.",
       "references": [
         "pilot:d01"
       ],
       "characters": [],
       "animationPrompt": "Slow steady dolly forward down the empty tunnel; overhead lights pass above. The tunnel stays empty for the entire shot.",
-      "clipSeconds": 5
+      "clipSeconds": 5,
+      "imageRevision": "v2"
     },
     "N05": {
       "imagePrompt": "Security control room: Thomas sits at a console facing a wall of small CRT monitors showing grey corridor views, lit by their glow. Medium shot from his side, three-quarter profile, hands resting still on the desk edge.",
@@ -64,14 +67,14 @@
       "clipSeconds": 5
     },
     "N06": {
-      "imagePrompt": "Close-up of a wall-mounted card reader on a bare concrete wall beside a steel door frame, one small green indicator lit. No hands, no people.",
+      "imagePrompt": "Close-up of a wall-mounted card reader on a bare concrete wall beside a steel door frame, one small green indicator lit. No hands, no people. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": null,
       "clipSeconds": 0
     },
     "N07": {
-      "imagePrompt": "A heavy steel blast door in a concrete corridor with a painted colored zone stripe across it and a keypad beside it with one small red light. No writing anywhere. No people.",
+      "imagePrompt": "A heavy steel blast door in a concrete corridor with a painted colored zone stripe across it and a keypad beside it with one small red light. No writing anywhere. No people. No people anywhere in the frame, not even small or distant figures.",
       "references": [
         "pilot:d01"
       ],
@@ -89,14 +92,14 @@
       "clipSeconds": 0
     },
     "N09": {
-      "imagePrompt": "A large underground technical hall: pipes, pumps and generators, a steel catwalk above, faint vapor under cold lights. No people.",
+      "imagePrompt": "A large underground technical hall: pipes, pumps and generators, a steel catwalk above, faint vapor under cold lights. No people. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": null,
       "clipSeconds": 0
     },
     "N10": {
-      "imagePrompt": "Looking straight down a deep industrial elevator shaft from above: steel rails and a ladder, small work lights receding into darkness far below. No people.",
+      "imagePrompt": "Looking straight down a deep industrial elevator shaft from above: steel rails and a ladder, small work lights receding into darkness far below. No people. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": null,
@@ -178,7 +181,7 @@
       "clipSeconds": 0
     },
     "N17": {
-      "imagePrompt": "Close-up of an old mechanical time clock on a wall with a rack of blank punch cards beside it, cold fluorescent light. No hands, no writing.",
+      "imagePrompt": "Close-up of an old mechanical time clock on a wall with a rack of blank punch cards beside it, cold fluorescent light. No hands, no writing. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": null,
@@ -219,7 +222,7 @@
       "clipSeconds": 5
     },
     "N21": {
-      "imagePrompt": "Dawn in the high desert: the same muted brown pickup truck parked on a dirt road beside the modest house, pale morning light, long shadows, empty landscape ahead.",
+      "imagePrompt": "Dawn in the high desert: the same muted brown pickup truck parked on a dirt road beside the modest house, pale morning light, long shadows, empty landscape ahead. No people anywhere in the frame, not even small or distant figures.",
       "references": [
         "v1:D08-06"
       ],
@@ -255,7 +258,7 @@
       "clipSeconds": 0
     },
     "N24": {
-      "imagePrompt": "A bank of small black and white CRT security monitors showing empty corridors and doors, close-up, glow and scan lines. No people on screen.",
+      "imagePrompt": "A bank of small black and white CRT security monitors showing empty corridors and doors, close-up, glow and scan lines. No people on screen. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": null,
@@ -275,14 +278,14 @@
       "clipSeconds": 0
     },
     "N26": {
-      "imagePrompt": "A clean clinical medical bay: an empty examination table, instrument trays, white-green light, tiled walls. No people. Different from the chamber laboratory.",
+      "imagePrompt": "A clean clinical medical bay: an empty examination table, instrument trays, white-green light, tiled walls. No people. Different from the chamber laboratory. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": "Slow dolly forward through the empty medical bay; a ceiling light flickers faintly. The room stays empty.",
       "clipSeconds": 5
     },
     "N27": {
-      "imagePrompt": "Close-up of strange laboratory equipment: glass vessels, coiled cables and small pulsing indicator lights on a steel cabinet. No people.",
+      "imagePrompt": "Close-up of strange laboratory equipment: glass vessels, coiled cables and small pulsing indicator lights on a steel cabinet. No people. No people anywhere in the frame, not even small or distant figures.",
       "references": [
         "pilot:d04"
       ],
@@ -414,21 +417,21 @@
       "clipSeconds": 0
     },
     "N39": {
-      "imagePrompt": "A dim office desk under a single lamp with a closed manila folder lying on it. No hands, no people, no writing.",
+      "imagePrompt": "A dim office desk under a single lamp with a closed manila folder lying on it. No hands, no people, no writing. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": null,
       "clipSeconds": 0
     },
     "N40": {
-      "imagePrompt": "Top-down view of open files spread on a desk: faceless photo silhouettes, blank index cards and redacted blank pages. No readable text anywhere.",
+      "imagePrompt": "Top-down view of open files spread on a desk: faceless photo silhouettes, blank index cards and redacted blank pages. No readable text anywhere. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": null,
       "clipSeconds": 0
     },
     "N41": {
-      "imagePrompt": "A lower-level concrete corridor filled with low fog, red emergency lights along the walls, the far end disappearing into darkness. Empty.",
+      "imagePrompt": "A lower-level concrete corridor filled with low fog, red emergency lights along the walls, the far end disappearing into darkness. Empty. No people anywhere in the frame, not even small or distant figures.",
       "references": [
         "pilot:d01"
       ],
@@ -437,7 +440,7 @@
       "clipSeconds": 10
     },
     "N42": {
-      "imagePrompt": "Close-up of an old elevator control panel with a column of round unlabeled buttons; only the lowest button is lit red. No hands, no numbers.",
+      "imagePrompt": "Close-up of an old elevator control panel with a column of round unlabeled buttons; only the lowest button is lit red. No hands, no numbers. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": null,
@@ -456,7 +459,7 @@
       "clipSeconds": 5
     },
     "N44": {
-      "imagePrompt": "A heavy blast door on the lowest level standing slightly ajar, fog seeping through the gap, red light beyond. No people.",
+      "imagePrompt": "A heavy blast door on the lowest level standing slightly ajar, fog seeping through the gap, red light beyond. No people. No people anywhere in the frame, not even small or distant figures.",
       "references": [
         "pilot:d01"
       ],
@@ -465,42 +468,42 @@
       "clipSeconds": 0
     },
     "N45": {
-      "imagePrompt": "An old metal filing cabinet with one drawer pulled open showing empty folders, dim light. No writing.",
+      "imagePrompt": "An old metal filing cabinet with one drawer pulled open showing empty folders, dim light. No writing. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": null,
       "clipSeconds": 0
     },
     "N46": {
-      "imagePrompt": "A rotating red emergency beacon mounted on a concrete corridor wall, casting red light, empty corridor.",
+      "imagePrompt": "A rotating red emergency beacon mounted on a concrete corridor wall, casting red light, empty corridor. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": "The red emergency beacon rotates, sweeping red light across the empty corridor walls. Locked-off camera. The corridor stays empty.",
       "clipSeconds": 5
     },
     "N47": {
-      "imagePrompt": "Night sky full of stars over the dark silhouette of a New Mexico mesa, faint Milky Way. No lights on the ground.",
+      "imagePrompt": "Night sky full of stars over the dark silhouette of a New Mexico mesa, faint Milky Way. No lights on the ground. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": null,
       "clipSeconds": 0
     },
     "N48": {
-      "imagePrompt": "A home office at night with 1970s-80s radio receiving equipment, an oscilloscope with a green trace, reel-to-reel recorder, warm desk lamp. No people.",
+      "imagePrompt": "A home office at night with 1970s-80s radio receiving equipment, an oscilloscope with a green trace, reel-to-reel recorder, warm desk lamp. No people. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": "The green oscilloscope trace moves and small indicator lights flicker on the radio equipment. Locked-off camera with a very slow push-in. No people appear.",
       "clipSeconds": 5
     },
     "N49": {
-      "imagePrompt": "Several radio antennas on a house rooftop silhouetted against a dark night sky.",
+      "imagePrompt": "Several radio antennas on a house rooftop silhouetted against a dark night sky. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": null,
       "clipSeconds": 0
     },
     "N50": {
-      "imagePrompt": "An old typewriter on a desk under a lamp beside a stack of pages with every line blacked out. No readable text.",
+      "imagePrompt": "An old typewriter on a desk under a lamp beside a stack of pages with every line blacked out. No readable text. No people anywhere in the frame, not even small or distant figures.",
       "references": [],
       "characters": [],
       "animationPrompt": null,
