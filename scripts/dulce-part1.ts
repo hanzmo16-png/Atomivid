@@ -311,6 +311,20 @@ async function clipReview() {
   log('CLIP_REVIEW', {clips: list.length});
 }
 
+/** Free: sign the master's HLS playlist and fetch it the way a phone would (no credentials). */
+async function watchCheck() {
+  const watchUrl = await sign(`${P}/watch/hls/index.m3u8`);
+  const m3u8 = await fetch(watchUrl); const text = await m3u8.text();
+  const segs = text.split('\n').filter(l => l.startsWith('http'));
+  if (!m3u8.ok || !text.startsWith('#EXTM3U') || !segs.length) throw Error(`Watch playlist not playable anonymously: HTTP ${m3u8.status}`);
+  const probe = async (u: string) => { const r = await fetch(u); const b = Buffer.from(await r.arrayBuffer()); return {status: r.status, bytes: b.length, mpegTs: b[0] === 0x47}; };
+  const first = await probe(segs[0]), last = await probe(segs[segs.length - 1]);
+  if (first.status !== 200 || last.status !== 200 || !first.mpegTs || !last.mpegTs) throw Error('Watch segments not playable anonymously');
+  const seconds = text.split('\n').filter(l => l.startsWith('#EXTINF:')).reduce((a, l) => a + parseFloat(l.slice(8)), 0);
+  const rec = {watchUrl, expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(), anonymous: {playlist: m3u8.status, segments: segs.length, first, last, seconds}};
+  await fs.writeFile(path.join(out, 'watch-link.json'), JSON.stringify(rec, null, 2));
+  log('WATCH', rec.anonymous);
+}
 async function status() {
   const q = XI ? await quotaRemaining().catch(e => ({error: String(e)})) : null;
   // Free: listing models proves the key is valid; billing quota is only proven by the first (unbilled if rejected) image call.
@@ -333,6 +347,7 @@ async function main() {
     else if (s === 'approve') await approve();
     else if (s === 'animate') await animate();
     else if (s === 'clip-review') await clipReview();
+    else if (s === 'watch-check') await watchCheck();
     else if (s === 'render') { const {render} = await import('./dulce-part1-render'); await render({service, bucket, read, put, putJson, sign, run, out, ledger}); }
     else await status();
   }

@@ -1,7 +1,7 @@
 {
   "videoId": "dulce-part1",
-  "requestId": "render-master-3-bplus-clips",
-  "stage": "render",
+  "requestId": "watch-check-1",
+  "stage": "status,watch-check",
   "assets": [],
   "draft": false,
   "capUsd": 40,
