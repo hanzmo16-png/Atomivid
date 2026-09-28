@@ -2,9 +2,9 @@
   "meta": {
     "videoId": "dulce-001",
     "version": "full-v1",
-    "status": "editorial_plan_not_runtime_manifest",
+    "status": "authorized_audio_measured_picture_pending",
     "targetSeconds": 600,
-    "timingStatus": "provisional_until_real_narration",
+    "timingStatus": "audio_measured_picture_cuts_pending_review",
     "totalShots": 73,
     "newVideoRequests": 70,
     "newReferenceImages": 69,
@@ -18,7 +18,9 @@
       "model": "eleven_multilingual_v2",
       "language": "en",
       "personalVoice": false
-    }
+    },
+    "measuredPictureSeconds": 570.0,
+    "fps": 30
   },
   "visualBible": {
     "C1": "Fictional Thomas Castello: adult man about 45, angular face, short brown hair grey at temples, light stubble, charcoal zipped coverall, blank badge, small flashlight in right hand. Match approved d02.",
@@ -28,7 +30,8 @@
     "S1": "Fictional school age boy around 10, short dark hair, plain muted blue shirt; family scenes only; never in laboratory.",
     "P1": "Same concrete and steel corridor, conduits left, cold overhead practical lights, rectangular door. Match d01.",
     "L1": "Same two cylindrical vertical chambers, human left, adult receiver right, overhead bridge. Match d04. No gore.",
-    "H1": "Modest fictional house with crooked porch light, small kitchen, three dining chairs. Maintain house, truck, drawing and props across shots."
+    "H1": "Modest 1980s New Mexico house, pale stucco, dark timber doorway and porch posts, crooked unlit porch fixture; small warm kitchen, three wooden dining chairs and rectangular wooden table. A muted brown pickup truck. Preserve the architecture and props shown in approved family and kitchen references.",
+    "T1": "Adult human technician about 55, thinning grey hair, rectangular eyeglasses, muted grey lab coat over dark clothes. Match D06-01 after its review."
   },
   "shots": [
     {
@@ -61,7 +64,17 @@
       "animationUsd": 0,
       "referenceReserveUsd": 0,
       "reviewStatus": "approved_source_trim_pending",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 120,
+      "startFrame": 0,
+      "endFrame": 120,
+      "editSeconds": 4.0,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D01-02",
@@ -88,7 +101,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 151,
+      "startFrame": 120,
+      "endFrame": 271,
+      "editSeconds": 5.033333333333333,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D01-03",
@@ -120,7 +143,17 @@
       "animationUsd": 0,
       "referenceReserveUsd": 0,
       "reviewStatus": "approved_source_trim_pending",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 120,
+      "startFrame": 271,
+      "endFrame": 391,
+      "editSeconds": 4.0,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D01-04",
@@ -154,7 +187,17 @@
       "animationUsd": 0,
       "referenceReserveUsd": 0,
       "reviewStatus": "approved_source_trim_pending",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 270,
+      "startFrame": 391,
+      "endFrame": 661,
+      "editSeconds": 9.0,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D01-05",
@@ -171,8 +214,7 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "d02",
-        "d01"
+        "d04"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -181,7 +223,16 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 173,
+      "startFrame": 661,
+      "endFrame": 834,
+      "editSeconds": 5.766666666666667,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "L1"
+      ],
+      "imagePromptExtra": "The human occupant and smooth pale adult receiver are the two people inside the d04 reference chambers. Neither is Castello. Match their faces and clothing. Receiver is a featureless mannequin-like adult humanoid, no sexual anatomy."
     },
     {
       "shotId": "D01-06",
@@ -198,8 +249,7 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "d02",
-        "d01"
+        "d04"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -208,7 +258,16 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 194,
+      "startFrame": 834,
+      "endFrame": 1028,
+      "editSeconds": 6.466666666666667,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "L1"
+      ],
+      "imagePromptExtra": "The human occupant and smooth pale adult receiver are the two people inside the d04 reference chambers. Neither is Castello. Match their faces and clothing. Receiver is a featureless mannequin-like adult humanoid, no sexual anatomy."
     },
     {
       "shotId": "D01-07",
@@ -226,7 +285,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "d01"
+        "d03",
+        "d04"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -235,7 +295,18 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 195,
+      "startFrame": 1028,
+      "endFrame": 1223,
+      "editSeconds": 6.5,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "R1",
+        "L1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D02-01",
@@ -253,8 +324,7 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "H1",
-        "W1"
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -263,7 +333,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 231,
+      "startFrame": 1223,
+      "endFrame": 1454,
+      "editSeconds": 7.7,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D02-02",
@@ -281,8 +363,7 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "H1",
-        "W1"
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -291,7 +372,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 231,
+      "startFrame": 1454,
+      "endFrame": 1685,
+      "editSeconds": 7.7,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D02-03",
@@ -309,8 +402,7 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "H1",
-        "W1"
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -319,7 +411,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 259,
+      "startFrame": 1685,
+      "endFrame": 1944,
+      "editSeconds": 8.633333333333333,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D02-04",
@@ -337,8 +441,7 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "H1",
-        "W1"
+        "d01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -347,7 +450,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 231,
+      "startFrame": 1944,
+      "endFrame": 2175,
+      "editSeconds": 7.7,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D02-05",
@@ -365,8 +478,7 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "H1",
-        "W1"
+        "d01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -375,7 +487,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 231,
+      "startFrame": 2175,
+      "endFrame": 2406,
+      "editSeconds": 7.7,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D02-06",
@@ -383,7 +505,7 @@
       "startSecondsApprox": 91,
       "endSecondsApprox": 100,
       "durationSecondsApprox": 9,
-      "descriptionEs": "Orden en terminal; texto en posproducci\u00f3n",
+      "descriptionEs": "Orden en terminal; texto en posproducción",
       "visibleAction": "The worker leans toward a blank terminal screen and stops typing; a cursor blinks.",
       "camera": "restrained tracking or lateral camera movement",
       "sourceType": "runway_image_to_video",
@@ -393,8 +515,7 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "H1",
-        "W1"
+        "d01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -403,7 +524,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 258,
+      "startFrame": 2406,
+      "endFrame": 2664,
+      "editSeconds": 8.6,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D03-01",
@@ -430,7 +561,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 221,
+      "startFrame": 2664,
+      "endFrame": 2885,
+      "editSeconds": 7.366666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D03-02",
@@ -457,7 +598,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 221,
+      "startFrame": 2885,
+      "endFrame": 3106,
+      "editSeconds": 7.366666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D03-03",
@@ -484,7 +635,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 249,
+      "startFrame": 3106,
+      "endFrame": 3355,
+      "editSeconds": 8.3,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D03-04",
@@ -511,7 +672,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 221,
+      "startFrame": 3355,
+      "endFrame": 3576,
+      "editSeconds": 7.366666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D03-05",
@@ -538,7 +709,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 221,
+      "startFrame": 3576,
+      "endFrame": 3797,
+      "editSeconds": 7.366666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D03-06",
@@ -565,7 +746,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 249,
+      "startFrame": 3797,
+      "endFrame": 4046,
+      "editSeconds": 8.3,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D04-01",
@@ -583,8 +774,7 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "d03",
-        "d04"
+        "d03"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -593,7 +783,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 238,
+      "startFrame": 4046,
+      "endFrame": 4284,
+      "editSeconds": 7.933333333333334,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "G1",
+        "R1",
+        "P1"
+      ],
+      "imagePromptExtra": "The human occupant and smooth pale adult receiver are the two people inside the d04 reference chambers. Neither is Castello. Match their faces and clothing. Receiver is a featureless mannequin-like adult humanoid, no sexual anatomy."
     },
     {
       "shotId": "D04-02",
@@ -611,8 +813,7 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "d03",
-        "d04"
+        "d03"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -621,7 +822,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 238,
+      "startFrame": 4284,
+      "endFrame": 4522,
+      "editSeconds": 7.933333333333334,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "G1",
+        "R1",
+        "P1"
+      ],
+      "imagePromptExtra": "The human occupant and smooth pale adult receiver are the two people inside the d04 reference chambers. Neither is Castello. Match their faces and clothing. Receiver is a featureless mannequin-like adult humanoid, no sexual anatomy."
     },
     {
       "shotId": "D04-03",
@@ -639,8 +852,7 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "d03",
-        "d04"
+        "d03"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -649,7 +861,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 268,
+      "startFrame": 4522,
+      "endFrame": 4790,
+      "editSeconds": 8.933333333333334,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "G1",
+        "R1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D04-04",
@@ -667,8 +891,7 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "d03",
-        "d04"
+        "d03"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -677,7 +900,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 238,
+      "startFrame": 4790,
+      "endFrame": 5028,
+      "editSeconds": 7.933333333333334,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "G1",
+        "R1",
+        "P1"
+      ],
+      "imagePromptExtra": "The human occupant and smooth pale adult receiver are the two people inside the d04 reference chambers. Neither is Castello. Match their faces and clothing. Receiver is a featureless mannequin-like adult humanoid, no sexual anatomy."
     },
     {
       "shotId": "D04-05",
@@ -694,8 +929,6 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "d02",
-        "d03",
         "d04"
       ],
       "existingStillPath": null,
@@ -705,7 +938,16 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 238,
+      "startFrame": 5028,
+      "endFrame": 5266,
+      "editSeconds": 7.933333333333334,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "L1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D04-06",
@@ -722,8 +964,6 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "d02",
-        "d03",
         "d04"
       ],
       "existingStillPath": null,
@@ -733,7 +973,16 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 267,
+      "startFrame": 5266,
+      "endFrame": 5533,
+      "editSeconds": 8.9,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "L1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D05-01",
@@ -741,7 +990,7 @@
       "startSecondsApprox": 200,
       "endSecondsApprox": 208,
       "durationSecondsApprox": 8,
-      "descriptionEs": "Dos c\u00e1maras; inicio secuencia",
+      "descriptionEs": "Dos cámaras; inicio secuencia",
       "visibleAction": "The lights over the two established chambers dim in sequence; the adult occupants breathe.",
       "camera": "restrained tracking or lateral camera movement",
       "sourceType": "runway_image_to_video",
@@ -760,7 +1009,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 235,
+      "startFrame": 5533,
+      "endFrame": 5768,
+      "editSeconds": 7.833333333333333,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "L1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D05-02",
@@ -787,7 +1046,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 235,
+      "startFrame": 5768,
+      "endFrame": 6003,
+      "editSeconds": 7.833333333333333,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "L1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D05-03",
@@ -795,7 +1064,7 @@
       "startSecondsApprox": 216,
       "endSecondsApprox": 225,
       "durationSecondsApprox": 9,
-      "descriptionEs": "Respiraci\u00f3n humana",
+      "descriptionEs": "Respiración humana",
       "visibleAction": "The fully clothed adult man in the left chamber breathes slowly; condensation drifts on the glass.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
@@ -814,7 +1083,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 264,
+      "startFrame": 6003,
+      "endFrame": 6267,
+      "editSeconds": 8.8,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "L1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D05-04",
@@ -841,7 +1120,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 235,
+      "startFrame": 6267,
+      "endFrame": 6502,
+      "editSeconds": 7.833333333333333,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "L1"
+      ],
+      "imagePromptExtra": "The human occupant and smooth pale adult receiver are the two people inside the d04 reference chambers. Neither is Castello. Match their faces and clothing. Receiver is a featureless mannequin-like adult humanoid, no sexual anatomy."
     },
     {
       "shotId": "D05-05",
@@ -868,7 +1157,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 235,
+      "startFrame": 6502,
+      "endFrame": 6737,
+      "editSeconds": 7.833333333333333,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "L1"
+      ],
+      "imagePromptExtra": "The human occupant and smooth pale adult receiver are the two people inside the d04 reference chambers. Neither is Castello. Match their faces and clothing. Receiver is a featureless mannequin-like adult humanoid, no sexual anatomy."
     },
     {
       "shotId": "D05-06",
@@ -876,7 +1175,7 @@
       "startSecondsApprox": 241,
       "endSecondsApprox": 250,
       "durationSecondsApprox": 9,
-      "descriptionEs": "Reacci\u00f3n Castello",
+      "descriptionEs": "Reacción Castello",
       "visibleAction": "The worker draws back from the glass, swallowing and tightening his grip on the flashlight.",
       "camera": "restrained tracking or lateral camera movement",
       "sourceType": "runway_image_to_video",
@@ -895,7 +1194,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 264,
+      "startFrame": 6737,
+      "endFrame": 7001,
+      "editSeconds": 8.8,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "L1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D06-01",
@@ -903,7 +1212,7 @@
       "startSecondsApprox": 250,
       "endSecondsApprox": 258,
       "durationSecondsApprox": 8,
-      "descriptionEs": "T\u00e9cnico entra",
+      "descriptionEs": "Técnico entra",
       "visibleAction": "A middle aged human technician enters the laboratory through a side door.",
       "camera": "restrained tracking or lateral camera movement",
       "sourceType": "runway_image_to_video",
@@ -922,7 +1231,18 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 225,
+      "startFrame": 7001,
+      "endFrame": 7226,
+      "editSeconds": 7.5,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "T1",
+        "C1",
+        "L1"
+      ],
+      "imagePromptExtra": "Show the technician clearly, waist-up, entering the established laboratory; do not duplicate Castello. His distinct face will establish technician continuity."
     },
     {
       "shotId": "D06-02",
@@ -940,7 +1260,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d04",
-        "d02"
+        "d02",
+        "D06-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -949,7 +1270,18 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 225,
+      "startFrame": 7226,
+      "endFrame": 7451,
+      "editSeconds": 7.5,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "T1",
+        "C1",
+        "L1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D06-03",
@@ -957,7 +1289,7 @@
       "startSecondsApprox": 266,
       "endSecondsApprox": 275,
       "durationSecondsApprox": 9,
-      "descriptionEs": "Portapapeles; apellido en composici\u00f3n",
+      "descriptionEs": "Portapapeles; apellido en composición",
       "visibleAction": "The technician writes a short entry on a clipboard, then pauses.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
@@ -967,7 +1299,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d04",
-        "d02"
+        "d02",
+        "D06-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -976,7 +1309,18 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 253,
+      "startFrame": 7451,
+      "endFrame": 7704,
+      "editSeconds": 8.433333333333334,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "T1",
+        "C1",
+        "L1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D06-04",
@@ -994,7 +1338,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d04",
-        "d02"
+        "d02",
+        "D06-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1003,7 +1348,18 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 225,
+      "startFrame": 7704,
+      "endFrame": 7929,
+      "editSeconds": 7.5,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "T1",
+        "C1",
+        "L1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D06-05",
@@ -1011,7 +1367,7 @@
       "startSecondsApprox": 283,
       "endSecondsApprox": 291,
       "durationSecondsApprox": 8,
-      "descriptionEs": "T\u00e9cnico tapa expediente",
+      "descriptionEs": "Técnico tapa expediente",
       "visibleAction": "The technician turns toward the window and places his forearm over the clipboard.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
@@ -1021,7 +1377,8 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d04",
-        "d02"
+        "d02",
+        "D06-01"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1030,7 +1387,18 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 225,
+      "startFrame": 7929,
+      "endFrame": 8154,
+      "editSeconds": 7.5,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "T1",
+        "C1",
+        "L1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D06-06",
@@ -1047,8 +1415,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "d04",
-        "d02"
+        "D06-01",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1057,7 +1425,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 254,
+      "startFrame": 8154,
+      "endFrame": 8408,
+      "editSeconds": 8.466666666666667,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "T1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D07-01",
@@ -1084,7 +1462,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 236,
+      "startFrame": 8408,
+      "endFrame": 8644,
+      "editSeconds": 7.866666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D07-02",
@@ -1111,7 +1499,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 236,
+      "startFrame": 8644,
+      "endFrame": 8880,
+      "editSeconds": 7.866666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D07-03",
@@ -1119,7 +1517,7 @@
       "startSecondsApprox": 316,
       "endSecondsApprox": 325,
       "durationSecondsApprox": 9,
-      "descriptionEs": "Mirada hacia c\u00e1mara",
+      "descriptionEs": "Mirada hacia cámara",
       "visibleAction": "The worker slowly lifts his eyes toward a corner of the ceiling.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
@@ -1138,7 +1536,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 266,
+      "startFrame": 8880,
+      "endFrame": 9146,
+      "editSeconds": 8.866666666666667,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D07-04",
@@ -1146,7 +1554,7 @@
       "startSecondsApprox": 325,
       "endSecondsApprox": 333,
       "durationSecondsApprox": 8,
-      "descriptionEs": "C\u00e1mara seguimiento",
+      "descriptionEs": "Cámara seguimiento",
       "visibleAction": "An industrial security camera pivots smoothly to follow someone outside the frame.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
@@ -1165,7 +1573,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 236,
+      "startFrame": 9146,
+      "endFrame": 9382,
+      "editSeconds": 7.866666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D07-05",
@@ -1192,7 +1610,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 236,
+      "startFrame": 9382,
+      "endFrame": 9618,
+      "editSeconds": 7.866666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D07-06",
@@ -1219,7 +1647,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 266,
+      "startFrame": 9618,
+      "endFrame": 9884,
+      "editSeconds": 8.866666666666667,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D08-01",
@@ -1246,7 +1684,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 231,
+      "startFrame": 9884,
+      "endFrame": 10115,
+      "editSeconds": 7.7,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D08-02",
@@ -1273,7 +1721,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 231,
+      "startFrame": 10115,
+      "endFrame": 10346,
+      "editSeconds": 7.7,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D08-03",
@@ -1300,7 +1758,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 260,
+      "startFrame": 10346,
+      "endFrame": 10606,
+      "editSeconds": 8.666666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D08-04",
@@ -1327,7 +1795,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 231,
+      "startFrame": 10606,
+      "endFrame": 10837,
+      "editSeconds": 7.7,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "P1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D08-05",
@@ -1345,7 +1823,7 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "d01"
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1354,7 +1832,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 231,
+      "startFrame": 10837,
+      "endFrame": 11068,
+      "editSeconds": 7.7,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D08-06",
@@ -1372,7 +1860,7 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "d01"
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1381,7 +1869,17 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 261,
+      "startFrame": 11068,
+      "endFrame": 11329,
+      "editSeconds": 8.7,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D09-01",
@@ -1389,7 +1887,7 @@
       "startSecondsApprox": 400,
       "endSecondsApprox": 408,
       "durationSecondsApprox": 8,
-      "descriptionEs": "Mesa vac\u00eda",
+      "descriptionEs": "Mesa vacía",
       "visibleAction": "A curtain moves in a draft beside a table set for three; one chair is pulled back.",
       "camera": "restrained tracking or lateral camera movement",
       "sourceType": "runway_image_to_video",
@@ -1398,10 +1896,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1410,7 +1906,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 236,
+      "startFrame": 11329,
+      "endFrame": 11565,
+      "editSeconds": 7.866666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D09-02",
@@ -1427,10 +1935,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1439,7 +1945,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 236,
+      "startFrame": 11565,
+      "endFrame": 11801,
+      "editSeconds": 7.866666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D09-03",
@@ -1447,7 +1965,7 @@
       "startSecondsApprox": 416,
       "endSecondsApprox": 425,
       "durationSecondsApprox": 9,
-      "descriptionEs": "B\u00fasqueda habitaci\u00f3n",
+      "descriptionEs": "Búsqueda habitación",
       "visibleAction": "The worker pushes open a bedroom door and leans into the empty room.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
@@ -1456,10 +1974,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1468,7 +1984,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 266,
+      "startFrame": 11801,
+      "endFrame": 12067,
+      "editSeconds": 8.866666666666667,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D09-04",
@@ -1485,10 +2013,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1497,7 +2023,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 236,
+      "startFrame": 12067,
+      "endFrame": 12303,
+      "editSeconds": 7.866666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D09-05",
@@ -1514,10 +2052,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1526,7 +2062,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 236,
+      "startFrame": 12303,
+      "endFrame": 12539,
+      "editSeconds": 7.866666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D09-06",
@@ -1543,9 +2091,6 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
         "d02"
       ],
       "existingStillPath": null,
@@ -1555,7 +2100,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 268,
+      "startFrame": 12539,
+      "endFrame": 12807,
+      "editSeconds": 8.933333333333334,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": "Medium wide view at night from inside the front door looking out onto porch. Wife and boy have clearly visible faces, fully clothed, calm and unharmed. Castello is at frame edge opening the door. Entirely domestic setting; no laboratory, aliens or futuristic equipment."
     },
     {
       "shotId": "D10-01",
@@ -1572,10 +2129,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1584,7 +2139,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 216,
+      "startFrame": 12807,
+      "endFrame": 13023,
+      "editSeconds": 7.2,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D10-02",
@@ -1601,10 +2168,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1613,7 +2178,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 216,
+      "startFrame": 13023,
+      "endFrame": 13239,
+      "editSeconds": 7.2,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D10-03",
@@ -1630,10 +2207,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1642,7 +2217,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 243,
+      "startFrame": 13239,
+      "endFrame": 13482,
+      "editSeconds": 8.1,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D10-04",
@@ -1659,10 +2246,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1671,7 +2256,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 216,
+      "startFrame": 13482,
+      "endFrame": 13698,
+      "editSeconds": 7.2,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D10-05",
@@ -1688,10 +2285,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1700,7 +2295,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 216,
+      "startFrame": 13698,
+      "endFrame": 13914,
+      "editSeconds": 7.2,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D10-06",
@@ -1708,7 +2315,7 @@
       "startSecondsApprox": 491,
       "endSecondsApprox": 500,
       "durationSecondsApprox": 9,
-      "descriptionEs": "Gesto de ambos; dos inserts en edici\u00f3n",
+      "descriptionEs": "Gesto de ambos; dos inserts en edición",
       "visibleAction": "In a close shot of hands resting on the table, the wife and son each press fingertips against their thumbs once.",
       "camera": "restrained tracking or lateral camera movement",
       "sourceType": "runway_image_to_video",
@@ -1717,10 +2324,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1729,7 +2334,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 242,
+      "startFrame": 13914,
+      "endFrame": 14156,
+      "editSeconds": 8.066666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D11-01",
@@ -1746,10 +2363,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1758,7 +2373,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 244,
+      "startFrame": 14156,
+      "endFrame": 14400,
+      "editSeconds": 8.133333333333333,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D11-02",
@@ -1775,10 +2402,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1787,7 +2412,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 244,
+      "startFrame": 14400,
+      "endFrame": 14644,
+      "editSeconds": 8.133333333333333,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D11-03",
@@ -1804,10 +2441,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1816,7 +2451,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 275,
+      "startFrame": 14644,
+      "endFrame": 14919,
+      "editSeconds": 9.166666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D11-04",
@@ -1833,10 +2480,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1845,7 +2490,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 244,
+      "startFrame": 14919,
+      "endFrame": 15163,
+      "editSeconds": 8.133333333333333,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D11-05",
@@ -1854,7 +2511,7 @@
       "endSecondsApprox": 541,
       "durationSecondsApprox": 8,
       "descriptionEs": "Mano se detiene",
-      "visibleAction": "The worker reaches toward his wife\u2019s hand across the table but stops just before touching it.",
+      "visibleAction": "The worker reaches toward his wife’s hand across the table but stops just before touching it.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
       "requestSeconds": 10,
@@ -1862,19 +2519,29 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The worker reaches toward his wife\u2019s hand across the table but stops just before touching it. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The worker reaches toward his wife\u2019s hand across the table but stops just before touching it. Use locked camera or very slow push; subject action remains primary.",
+      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The worker reaches toward his wife’s hand across the table but stops just before touching it. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
+      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The worker reaches toward his wife’s hand across the table but stops just before touching it. Use locked camera or very slow push; subject action remains primary.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 244,
+      "startFrame": 15163,
+      "endFrame": 15407,
+      "editSeconds": 8.133333333333333,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D11-06",
@@ -1882,8 +2549,8 @@
       "startSecondsApprox": 541,
       "endSecondsApprox": 550,
       "durationSecondsApprox": 9,
-      "descriptionEs": "Cambio expresi\u00f3n",
-      "visibleAction": "The wife\u2019s restrained smile fades into a still expression of recognition as the kitchen light briefly flickers.",
+      "descriptionEs": "Cambio expresión",
+      "visibleAction": "The wife’s restrained smile fades into a still expression of recognition as the kitchen light briefly flickers.",
       "camera": "restrained tracking or lateral camera movement",
       "sourceType": "runway_image_to_video",
       "requestSeconds": 10,
@@ -1891,19 +2558,29 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The wife\u2019s restrained smile fades into a still expression of recognition as the kitchen light briefly flickers. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The wife\u2019s restrained smile fades into a still expression of recognition as the kitchen light briefly flickers. Use restrained tracking or lateral camera movement.",
+      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The wife’s restrained smile fades into a still expression of recognition as the kitchen light briefly flickers. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
+      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The wife’s restrained smile fades into a still expression of recognition as the kitchen light briefly flickers. Use restrained tracking or lateral camera movement.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 275,
+      "startFrame": 15407,
+      "endFrame": 15682,
+      "editSeconds": 9.166666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D12-01",
@@ -1920,10 +2597,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1932,7 +2607,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 227,
+      "startFrame": 15682,
+      "endFrame": 15909,
+      "editSeconds": 7.566666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D12-02",
@@ -1949,10 +2636,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1961,7 +2646,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 227,
+      "startFrame": 15909,
+      "endFrame": 16136,
+      "editSeconds": 7.566666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D12-03",
@@ -1978,10 +2675,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -1990,7 +2685,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 255,
+      "startFrame": 16136,
+      "endFrame": 16391,
+      "editSeconds": 8.5,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D12-04",
@@ -1998,8 +2705,8 @@
       "startSecondsApprox": 575,
       "endSecondsApprox": 583,
       "durationSecondsApprox": 8,
-      "descriptionEs": "Dibujo dom\u00e9stico",
-      "visibleAction": "A light breeze shifts the edge of the child\u2019s drawing beside the keys.",
+      "descriptionEs": "Dibujo doméstico",
+      "visibleAction": "A light breeze shifts the edge of the child’s drawing beside the keys.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
       "requestSeconds": 10,
@@ -2007,19 +2714,29 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: A light breeze shifts the edge of the child\u2019s drawing beside the keys. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. A light breeze shifts the edge of the child\u2019s drawing beside the keys. Use locked camera or very slow push; subject action remains primary.",
+      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: A light breeze shifts the edge of the child’s drawing beside the keys. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
+      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. A light breeze shifts the edge of the child’s drawing beside the keys. Use locked camera or very slow push; subject action remains primary.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 227,
+      "startFrame": 16391,
+      "endFrame": 16618,
+      "editSeconds": 7.566666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D12-05",
@@ -2027,7 +2744,7 @@
       "startSecondsApprox": 583,
       "endSecondsApprox": 591,
       "durationSecondsApprox": 8,
-      "descriptionEs": "Exterior casa; cr\u00e9ditos sobre movimiento",
+      "descriptionEs": "Exterior casa; créditos sobre movimiento",
       "visibleAction": "A slow lateral camera move passes the established house while curtains shift behind a lit window.",
       "camera": "locked camera or very slow push; subject action remains primary",
       "sourceType": "runway_image_to_video",
@@ -2036,10 +2753,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2048,7 +2763,19 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 227,
+      "startFrame": 16618,
+      "endFrame": 16845,
+      "editSeconds": 7.566666666666666,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
     },
     {
       "shotId": "D12-06",
@@ -2056,7 +2783,7 @@
       "startSecondsApprox": 591,
       "endSecondsApprox": 600,
       "durationSecondsApprox": 9,
-      "descriptionEs": "\u00daltima mirada; pregunta final",
+      "descriptionEs": "Última mirada; pregunta final",
       "visibleAction": "From outside the window, the worker turns his eyes toward the camera while his family remain at the table.",
       "camera": "restrained tracking or lateral camera movement",
       "sourceType": "runway_image_to_video",
@@ -2065,10 +2792,8 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "H1",
-        "W1",
-        "S1",
-        "d02"
+        "d02",
+        "D09-06"
       ],
       "existingStillPath": null,
       "reuse": null,
@@ -2077,7 +2802,153 @@
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
-      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech."
+      "acceptance": "Visible described action, stable anatomy and identity, no frozen fill; cuts retimed to actual speech.",
+      "editFrames": 255,
+      "startFrame": 16845,
+      "endFrame": 17100,
+      "editSeconds": 8.5,
+      "timingStatus": "measured_audio_conform_pending_picture_review",
+      "contextKeys": [
+        "C1",
+        "W1",
+        "S1",
+        "H1"
+      ],
+      "imagePromptExtra": ""
+    }
+  ],
+  "measuredBeats": [
+    {
+      "beatId": "b1",
+      "audioDurationSeconds": 39.000816,
+      "alignmentDurationSeconds": 38.962,
+      "startFrame": 0,
+      "endFrame": 1223,
+      "voiceOffsetSeconds": 0.25,
+      "trailingPauseSeconds": 1.5158506666666653,
+      "editSeconds": 40.766666666666666,
+      "sha256": "539483ea49cb138064fa2fd2b72b3bbc48cd06233c89600b06100bfff94eb8ac"
+    },
+    {
+      "beatId": "b2",
+      "audioDurationSeconds": 46.28898,
+      "alignmentDurationSeconds": 46.254,
+      "startFrame": 1223,
+      "endFrame": 2664,
+      "voiceOffsetSeconds": 0.25,
+      "trailingPauseSeconds": 1.4943533333333292,
+      "editSeconds": 48.03333333333333,
+      "sha256": "0e88c8e376186d183df3c04284c6a821bac33c1057a4a0e749e2f08c979278e5"
+    },
+    {
+      "beatId": "b3",
+      "audioDurationSeconds": 44.303673,
+      "alignmentDurationSeconds": 44.257,
+      "startFrame": 2664,
+      "endFrame": 4046,
+      "voiceOffsetSeconds": 0.25,
+      "trailingPauseSeconds": 1.5129936666666666,
+      "editSeconds": 46.06666666666667,
+      "sha256": "a247700be07a06123ce6e1fef97a8f9295ebc39eeb430c7574a7c282f4a5e540"
+    },
+    {
+      "beatId": "b4",
+      "audioDurationSeconds": 47.830204,
+      "alignmentDurationSeconds": 47.786,
+      "startFrame": 4046,
+      "endFrame": 5533,
+      "voiceOffsetSeconds": 0.25,
+      "trailingPauseSeconds": 1.486462666666668,
+      "editSeconds": 49.56666666666667,
+      "sha256": "4d5a276518a7352b74651939c78abc1b84096951484a7b940ee47597aa2acc82"
+    },
+    {
+      "beatId": "b5",
+      "audioDurationSeconds": 46.393469,
+      "alignmentDurationSeconds": 46.347,
+      "startFrame": 5533,
+      "endFrame": 7001,
+      "voiceOffsetSeconds": 0.25,
+      "trailingPauseSeconds": 2.289864333333327,
+      "editSeconds": 48.93333333333333,
+      "sha256": "a3929c2bd30310534ca6732857da97befdf016c76b28f504eebbcb2de1d79556"
+    },
+    {
+      "beatId": "b6",
+      "audioDurationSeconds": 45.139592,
+      "alignmentDurationSeconds": 45.092,
+      "startFrame": 7001,
+      "endFrame": 8408,
+      "voiceOffsetSeconds": 0.25,
+      "trailingPauseSeconds": 1.5104079999999982,
+      "editSeconds": 46.9,
+      "sha256": "fabb98931a62c0e75bb1257bb391824f6b3ef313dc43e51807eb00f826aefc92"
+    },
+    {
+      "beatId": "b7",
+      "audioDurationSeconds": 46.654694,
+      "alignmentDurationSeconds": 46.626,
+      "startFrame": 8408,
+      "endFrame": 9884,
+      "voiceOffsetSeconds": 0.25,
+      "trailingPauseSeconds": 2.2953060000000036,
+      "editSeconds": 49.2,
+      "sha256": "0c2948c028e503d26a4ca08fdb337178a5c994fa90ab3314019568156a6218c9"
+    },
+    {
+      "beatId": "b8",
+      "audioDurationSeconds": 46.419592,
+      "alignmentDurationSeconds": 46.393,
+      "startFrame": 9884,
+      "endFrame": 11329,
+      "voiceOffsetSeconds": 0.25,
+      "trailingPauseSeconds": 1.4970746666666628,
+      "editSeconds": 48.166666666666664,
+      "sha256": "3423ecc3569fe99628a99b3f01df7b8ed5ef41b7f40200cee0fb81003df54a40"
+    },
+    {
+      "beatId": "b9",
+      "audioDurationSeconds": 46.706939,
+      "alignmentDurationSeconds": 46.672,
+      "startFrame": 11329,
+      "endFrame": 12807,
+      "voiceOffsetSeconds": 0.25,
+      "trailingPauseSeconds": 2.3097276666666673,
+      "editSeconds": 49.266666666666666,
+      "sha256": "060be6d6b5d6227384d914d63b3e86cfb115f10812a777e75e6519c20e59f62d"
+    },
+    {
+      "beatId": "b10",
+      "audioDurationSeconds": 43.232653,
+      "alignmentDurationSeconds": 43.189,
+      "startFrame": 12807,
+      "endFrame": 14156,
+      "voiceOffsetSeconds": 0.25,
+      "trailingPauseSeconds": 1.4840136666666695,
+      "editSeconds": 44.96666666666667,
+      "sha256": "2c7e14f0fcc6b79f665572ca89be5c8e0f464069744721f2a4b433aec0ee9b73"
+    },
+    {
+      "beatId": "b11",
+      "audioDurationSeconds": 48.326531,
+      "alignmentDurationSeconds": 48.298,
+      "startFrame": 14156,
+      "endFrame": 15682,
+      "voiceOffsetSeconds": 0.25,
+      "trailingPauseSeconds": 2.2901356666666643,
+      "editSeconds": 50.86666666666667,
+      "sha256": "b04fb414f70153bee8c045c1ce647968b1cea937e4249d606e564cfb08de494a"
+    },
+    {
+      "beatId": "b12",
+      "audioDurationSeconds": 43.964082,
+      "alignmentDurationSeconds": 43.932,
+      "startFrame": 15682,
+      "endFrame": 17100,
+      "voiceOffsetSeconds": 0.25,
+      "trailingPauseSeconds": 3.052584666666668,
+      "editSeconds": 47.266666666666666,
+      "sha256": "46e5767f5464d075dd0028924598a632586eea30d2f7d6e94526b55a5f70312d"
     }
   ]
 }

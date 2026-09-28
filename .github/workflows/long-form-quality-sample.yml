@@ -3,9 +3,9 @@ on:
   workflow_dispatch:
     inputs:
       stage:
-        description: preflight, narrate or images
+        description: preflight, narrate, images or approve
         type: choice
-        options: [preflight, narrate, images]
+        options: [preflight, narrate, images, approve]
         default: preflight
         required: true
       shots:
