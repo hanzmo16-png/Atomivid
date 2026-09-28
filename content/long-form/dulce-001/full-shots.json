@@ -1720,13 +1720,12 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "d02",
         "d01"
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: A paper cup trembles subtly beside a small radio on an unattended desk. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. A paper cup trembles subtly beside a small radio on an unattended desk. Use locked camera or very slow push; subject action remains primary.",
+      "imagePrompt": "Photorealistic cinematic close-up of ONLY one beige paper cup and one small black 1980s portable radio on a wooden maintenance desk. Dark concrete industrial wall blurred behind them, cold overhead practical light. NO people, hands, flashlights or bodies in the frame. Cup upright, radio beside it. Both objects fully visible and centered in 16:9 area.",
+      "animationPrompt": "Slow subtle camera push toward a paper cup and black portable radio on a desk. Both solid objects remain fixed in place and keep exactly the same shape throughout. Gentle lighting flicker on the concrete wall. Continuous shot, no object movement, no cuts.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -1737,10 +1736,12 @@
       "editSeconds": 7.7,
       "timingStatus": "measured_audio_conform_pending_picture_review",
       "contextKeys": [
-        "C1",
         "P1"
       ],
-      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition."
+      "imagePromptExtra": "Two ordinary inanimate desk props only. Simple clean composition.",
+      "imageRevision": "v2",
+      "animationRevision": "v2",
+      "replaceReferenceSha256": "147bb9401e036d58a9488c4546cb0c740f6e4fa9816aa272b32921ed814a3c8f"
     },
     {
       "shotId": "D08-03",

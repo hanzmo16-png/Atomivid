@@ -1,19 +1,15 @@
 {
   "videoId": "dulce-001",
-  "requestId": "refs-10-20260928",
-  "stage": "images",
+  "requestId": "animation-07-20260928",
+  "stage": "animate",
   "shots": [
-    "D02-03",
-    "D05-06",
-    "D07-03",
-    "D10-04",
-    "D10-05",
-    "D11-01",
-    "D11-02",
-    "D11-03",
-    "D11-04",
-    "D11-06",
-    "D12-01"
+    "D08-04",
+    "D08-05",
+    "D08-06",
+    "D09-01",
+    "D09-02",
+    "D09-03",
+    "D09-05"
   ],
   "authorizedCeilingUsd": 55
 }
