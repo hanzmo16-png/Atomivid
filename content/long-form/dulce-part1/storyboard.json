@@ -807,7 +807,22 @@
       "start": 0.0,
       "from": "(abre el episodio)",
       "to": "Pueblo de noche a lo lejos",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "parallax",
+      "shotClass": "landscape",
+      "narrationIntent": "Durante décadas… Nuevo México",
+      "visualIntent": "Mesa al atardecer, dron entrando",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "vehicles appearing"
+      ],
+      "continuityGroup": "exterior",
+      "previousState": "(episode opens)",
+      "nextState": "Pueblo de noche a lo lejos"
     },
     {
       "beat": "p01",
@@ -827,7 +842,22 @@
       "start": 2.6,
       "from": "Mesa al atardecer, dron entrando",
       "to": "Entrada en la roca, reflectores",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "ken_burns",
+      "shotClass": "landscape",
+      "narrationIntent": "…una historia extraordinaria",
+      "visualIntent": "Pueblo de noche a lo lejos",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "vehicles appearing"
+      ],
+      "continuityGroup": "exterior",
+      "previousState": "Mesa al atardecer, dron entrando",
+      "nextState": "Entrada en la roca, reflectores"
     },
     {
       "beat": "p01",
@@ -847,7 +877,22 @@
       "start": 5.0,
       "from": "Pueblo de noche a lo lejos",
       "to": "Túnel interminable",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "ken_burns",
+      "shotClass": "landscape",
+      "narrationIntent": "…oficialmente no existe",
+      "visualIntent": "Entrada en la roca, reflectores",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "vehicles appearing"
+      ],
+      "continuityGroup": "exterior",
+      "previousState": "Pueblo de noche a lo lejos",
+      "nextState": "Túnel interminable"
     },
     {
       "beat": "p01",
@@ -867,7 +912,22 @@
       "start": 7.6,
       "from": "Entrada en la roca, reflectores",
       "to": "Corte transversal: 7 niveles se encienden",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "corridor",
+      "narrationIntent": "Kilómetros de túneles",
+      "visualIntent": "Túnel interminable",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "figures emerging from the dark"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Entrada en la roca, reflectores",
+      "nextState": "Corte transversal: 7 niveles se encienden"
     },
     {
       "beat": "p01",
@@ -887,7 +947,21 @@
       "start": 9.8,
       "from": "Túnel interminable",
       "to": "Laboratorio con pulso cian",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "graphic",
+      "shotClass": "graphic",
+      "narrationIntent": "Siete niveles",
+      "visualIntent": "Corte transversal: 7 niveles se encienden",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "graphics",
+      "previousState": "Túnel interminable",
+      "nextState": "Laboratorio con pulso cian"
     },
     {
       "beat": "p01",
@@ -907,7 +981,21 @@
       "start": 11.9,
       "from": "Corte transversal: 7 niveles se encienden",
       "to": "Puerta con luz roja",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Laboratorios",
+      "visualIntent": "Laboratorio con pulso cian",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "laboratory",
+      "previousState": "Corte transversal: 7 niveles se encienden",
+      "nextState": "Puerta con luz roja"
     },
     {
       "beat": "p01",
@@ -927,7 +1015,21 @@
       "start": 13.9,
       "from": "Laboratorio con pulso cian",
       "to": "Reptiliano en el reflejo tras Thomas",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Áreas restringidas",
+      "visualIntent": "Puerta con luz roja",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Laboratorio con pulso cian",
+      "nextState": "Reptiliano en el reflejo tras Thomas"
     },
     {
       "beat": "p01",
@@ -947,7 +1049,21 @@
       "start": 15.9,
       "from": "Puerta con luz roja",
       "to": "Gris en el haz de la linterna, push-in",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "…algo que nunca debió estar allí",
+      "visualIntent": "Reptiliano en el reflejo tras Thomas",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Puerta con luz roja",
+      "nextState": "Gris en el haz de la linterna, push-in"
     },
     {
       "beat": "p01",
@@ -967,7 +1083,24 @@
       "start": 18.5,
       "from": "Reptiliano en el reflejo tras Thomas",
       "to": "Thomas se aleja por el corredor",
-      "cost": 0.25
+      "cost": 0.25,
+      "productionMethod": "ken_burns",
+      "shotClass": "creature",
+      "narrationIntent": "(sigue)",
+      "visualIntent": "Gris en el haz de la linterna, push-in",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "transformation",
+        "extra limbs",
+        "change of species"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Reptiliano en el reflejo tras Thomas",
+      "nextState": "Thomas se aleja por el corredor"
     },
     {
       "beat": "p01",
@@ -987,7 +1120,21 @@
       "start": 20.6,
       "from": "Gris en el haz de la linterna, push-in",
       "to": "Thomas frente a las dos figuras",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "…la leyenda de la Base Dulce",
+      "visualIntent": "Thomas se aleja por el corredor",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Gris en el haz de la linterna, push-in",
+      "nextState": "Thomas frente a las dos figuras"
     },
     {
       "beat": "p01",
@@ -1007,7 +1154,21 @@
       "start": 23.5,
       "from": "Thomas se aleja por el corredor",
       "to": "Retrato de Thomas + rótulo G2 'recreación'",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "…atribuido a un solo hombre",
+      "visualIntent": "Thomas frente a las dos figuras",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Thomas se aleja por el corredor",
+      "nextState": "Retrato de Thomas + rótulo G2 'recreación'"
     },
     {
       "beat": "p01",
@@ -1027,7 +1188,21 @@
       "start": 26.4,
       "from": "Thomas frente a las dos figuras",
       "to": "Puertas del ascensor se abren + título G3 DULCE — PARTE I",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Su nombre era Thomas Edwin Castello",
+      "visualIntent": "Retrato de Thomas + rótulo G2 'recreación'",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Thomas frente a las dos figuras",
+      "nextState": "Puertas del ascensor se abren + título G3 DULCE — PARTE I"
     },
     {
       "beat": "p01",
@@ -1047,7 +1222,21 @@
       "start": 29.3,
       "from": "Retrato de Thomas + rótulo G2 'recreación'",
       "to": "Thomas en la sala de control CCTV",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Y aseguró haber trabajado dentro.",
+      "visualIntent": "Puertas del ascensor se abren + título G3 DULCE — PARTE I",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "elevator-shaft",
+      "previousState": "Retrato de Thomas + rótulo G2 'recreación'",
+      "nextState": "Thomas en la sala de control CCTV"
     },
     {
       "beat": "p02",
@@ -1067,7 +1256,27 @@
       "start": 32.4,
       "from": "Puertas del ascensor se abren + título G3 DULCE — PARTE I",
       "to": "Camioneta hacia la noche",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "single_human",
+      "narrationIntent": "Castello decía haber sido especialista en seguridad",
+      "visualIntent": "Thomas en la sala de control CCTV",
+      "requiredEntities": [
+        "Thomas"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "security",
+      "previousState": "Puertas del ascensor se abren + título G3 DULCE — PARTE I",
+      "nextState": "Camioneta hacia la noche"
     },
     {
       "beat": "p02",
@@ -1087,7 +1296,21 @@
       "start": 37.9,
       "from": "Thomas en la sala de control CCTV",
       "to": "Guardia en ventanilla, alguien pasa",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "…lo llevó a una instalación… próxima a Dulce",
+      "visualIntent": "Camioneta hacia la noche",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "exterior",
+      "previousState": "Thomas en la sala de control CCTV",
+      "nextState": "Guardia en ventanilla, alguien pasa"
     },
     {
       "beat": "p02",
@@ -1107,7 +1330,21 @@
       "start": 42.0,
       "from": "Camioneta hacia la noche",
       "to": "Thomas junto a la puerta de servicio",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Personal con diferentes niveles de autorización",
+      "visualIntent": "Guardia en ventanilla, alguien pasa",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "security",
+      "previousState": "Camioneta hacia la noche",
+      "nextState": "Thomas junto a la puerta de servicio"
     },
     {
       "beat": "p02",
@@ -1127,7 +1364,21 @@
       "start": 46.1,
       "from": "Guardia en ventanilla, alguien pasa",
       "to": "Cámara de seguridad gira",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Puertas controladas",
+      "visualIntent": "Thomas junto a la puerta de servicio",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "security",
+      "previousState": "Guardia en ventanilla, alguien pasa",
+      "nextState": "Cámara de seguridad gira"
     },
     {
       "beat": "p02",
@@ -1147,7 +1398,21 @@
       "start": 48.8,
       "from": "Thomas junto a la puerta de servicio",
       "to": "Lector de credencial, LED verde",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Cámaras",
+      "visualIntent": "Cámara de seguridad gira",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "security",
+      "previousState": "Thomas junto a la puerta de servicio",
+      "nextState": "Lector de credencial, LED verde"
     },
     {
       "beat": "p02",
@@ -1167,7 +1432,21 @@
       "start": 51.5,
       "from": "Cámara de seguridad gira",
       "to": "Terminal con cursor",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "ken_burns",
+      "shotClass": "object",
+      "narrationIntent": "Sistemas de identificación",
+      "visualIntent": "Lector de credencial, LED verde",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "security",
+      "previousState": "Cámara de seguridad gira",
+      "nextState": "Terminal con cursor"
     },
     {
       "beat": "p02",
@@ -1187,7 +1466,21 @@
       "start": 54.2,
       "from": "Lector de credencial, LED verde",
       "to": "Thomas avanza hacia cámara",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Secretos.",
+      "visualIntent": "Terminal con cursor",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "security",
+      "previousState": "Lector de credencial, LED verde",
+      "nextState": "Thomas avanza hacia cámara"
     },
     {
       "beat": "p02",
@@ -1207,7 +1500,21 @@
       "start": 56.5,
       "from": "Terminal con cursor",
       "to": "Ascensor bajando, Thomas mira la puerta",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Pero Dulce… era diferente",
+      "visualIntent": "Thomas avanza hacia cámara",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Terminal con cursor",
+      "nextState": "Ascensor bajando, Thomas mira la puerta"
     },
     {
       "beat": "p02",
@@ -1227,7 +1534,21 @@
       "start": 60.2,
       "from": "Thomas avanza hacia cámara",
       "to": "Corte transversal detallado, zonas por color",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "…cuanto más descendías… menos humana",
+      "visualIntent": "Ascensor bajando, Thomas mira la puerta",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "elevator-shaft",
+      "previousState": "Thomas avanza hacia cámara",
+      "nextState": "Corte transversal detallado, zonas por color"
     },
     {
       "beat": "p03",
@@ -1247,7 +1568,21 @@
       "start": 65.1,
       "from": "Ascensor bajando, Thomas mira la puerta",
       "to": "Credencial en lector (0–2 s)",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "graphic",
+      "shotClass": "graphic",
+      "narrationIntent": "…varios niveles subterráneos",
+      "visualIntent": "Corte transversal detallado, zonas por color",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "graphics",
+      "previousState": "Ascensor bajando, Thomas mira la puerta",
+      "nextState": "Credencial en lector (0–2 s)"
     },
     {
       "beat": "p03",
@@ -1267,7 +1602,21 @@
       "start": 71.3,
       "from": "Corte transversal detallado, zonas por color",
       "to": "Puerta blindada con franja de zona",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "…no era cuestión de tener una credencial",
+      "visualIntent": "Credencial en lector (0–2 s)",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "security",
+      "previousState": "Corte transversal detallado, zonas por color",
+      "nextState": "Puerta blindada con franja de zona"
     },
     {
       "beat": "p03",
@@ -1287,7 +1636,21 @@
       "start": 73.4,
       "from": "Credencial en lector (0–2 s)",
       "to": "Thomas camina por corredor",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "object",
+      "narrationIntent": "Cada zona requería autorizaciones diferentes",
+      "visualIntent": "Puerta blindada con franja de zona",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "security",
+      "previousState": "Credencial en lector (0–2 s)",
+      "nextState": "Thomas camina por corredor"
     },
     {
       "beat": "p03",
@@ -1307,7 +1670,21 @@
       "start": 78.0,
       "from": "Puerta blindada con franja de zona",
       "to": "Línea en el suelo y torniquete",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Había lugares…",
+      "visualIntent": "Thomas camina por corredor",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Puerta blindada con franja de zona",
+      "nextState": "Línea en el suelo y torniquete"
     },
     {
       "beat": "p03",
@@ -1327,7 +1704,26 @@
       "start": 82.6,
       "from": "Thomas camina por corredor",
       "to": "Corredor largo, figura lejana",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "ken_burns",
+      "shotClass": "multi_human",
+      "narrationIntent": "…tenían prohibido conocer",
+      "visualIntent": "Línea en el suelo y torniquete",
+      "requiredEntities": [
+        "guardia"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "people crossing",
+        "position swaps",
+        "lip-sync talking"
+      ],
+      "continuityGroup": "security",
+      "previousState": "Thomas camina por corredor",
+      "nextState": "Corredor largo, figura lejana"
     },
     {
       "beat": "p03",
@@ -1347,7 +1743,21 @@
       "start": 87.7,
       "from": "Línea en el suelo y torniquete",
       "to": "Tuberías y pasarelas",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Corredores aparentemente interminables",
+      "visualIntent": "Corredor largo, figura lejana",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Línea en el suelo y torniquete",
+      "nextState": "Tuberías y pasarelas"
     },
     {
       "beat": "p03",
@@ -1367,7 +1777,21 @@
       "start": 92.3,
       "from": "Corredor largo, figura lejana",
       "to": "Hueco de ascensor hacia la oscuridad",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "other",
+      "narrationIntent": "…áreas técnicas",
+      "visualIntent": "Tuberías y pasarelas",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Corredor largo, figura lejana",
+      "nextState": "Hueco de ascensor hacia la oscuridad"
     },
     {
       "beat": "p03",
@@ -1387,7 +1811,21 @@
       "start": 96.4,
       "from": "Tuberías y pasarelas",
       "to": "Thomas alza la credencial hacia las figuras",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "other",
+      "narrationIntent": "…lo más importante estaba abajo",
+      "visualIntent": "Hueco de ascensor hacia la oscuridad",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "elevator-shaft",
+      "previousState": "Tuberías y pasarelas",
+      "nextState": "Thomas alza la credencial hacia las figuras"
     },
     {
       "beat": "p04",
@@ -1407,7 +1845,21 @@
       "start": 102.8,
       "from": "Hueco de ascensor hacia la oscuridad",
       "to": "Gris y reptiliano en el corredor",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "No eran las puertas. Eran quienes caminaban detrás",
+      "visualIntent": "Thomas alza la credencial hacia las figuras",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Hueco de ascensor hacia la oscuridad",
+      "nextState": "Gris y reptiliano en el corredor"
     },
     {
       "beat": "p04",
@@ -1427,7 +1879,21 @@
       "start": 107.1,
       "from": "Thomas alza la credencial hacia las figuras",
       "to": "Gris, plano medio",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "…los humanos no eran los únicos ocupantes",
+      "visualIntent": "Gris y reptiliano en el corredor",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Thomas alza la credencial hacia las figuras",
+      "nextState": "Gris, plano medio"
     },
     {
       "beat": "p04",
@@ -1447,7 +1913,26 @@
       "start": 111.4,
       "from": "Gris y reptiliano en el corredor",
       "to": "Reptiliano de perfil",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "i2v_economy",
+      "shotClass": "creature",
+      "narrationIntent": "…pequeños seres grises",
+      "visualIntent": "Gris, plano medio",
+      "requiredEntities": [
+        "gris"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "transformation",
+        "extra limbs",
+        "change of species"
+      ],
+      "continuityGroup": "beings-at-work",
+      "previousState": "Gris y reptiliano en el corredor",
+      "nextState": "Reptiliano de perfil"
     },
     {
       "beat": "p04",
@@ -1467,7 +1952,26 @@
       "start": 115.7,
       "from": "Gris, plano medio",
       "to": "El gris se hace a un lado (0–3 s)",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "i2v_economy",
+      "shotClass": "creature",
+      "narrationIntent": "…apariencia reptiliana",
+      "visualIntent": "Reptiliano de perfil",
+      "requiredEntities": [
+        "reptiliano"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "transformation",
+        "extra limbs",
+        "change of species"
+      ],
+      "continuityGroup": "beings-at-work",
+      "previousState": "Gris, plano medio",
+      "nextState": "El gris se hace a un lado (0–3 s)"
     },
     {
       "beat": "p04",
@@ -1487,7 +1991,21 @@
       "start": 120.0,
       "from": "Reptiliano de perfil",
       "to": "Gris ante consola",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "No los describía como prisioneros",
+      "visualIntent": "El gris se hace a un lado (0–3 s)",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Reptiliano de perfil",
+      "nextState": "Gris ante consola"
     },
     {
       "beat": "p04",
@@ -1507,7 +2025,26 @@
       "start": 122.6,
       "from": "El gris se hace a un lado (0–3 s)",
       "to": "Técnico y gris en la misma mesa",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "creature",
+      "narrationIntent": "…algunos trabajaban dentro",
+      "visualIntent": "Gris ante consola",
+      "requiredEntities": [
+        "gris"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "transformation",
+        "extra limbs",
+        "change of species"
+      ],
+      "continuityGroup": "beings-at-work",
+      "previousState": "El gris se hace a un lado (0–3 s)",
+      "nextState": "Técnico y gris en la misma mesa"
     },
     {
       "beat": "p04",
@@ -1527,7 +2064,26 @@
       "start": 127.8,
       "from": "Gris ante consola",
       "to": "Técnico ajusta mando junto a Thomas",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "human_creature",
+      "narrationIntent": "Compartían áreas con personal humano",
+      "visualIntent": "Técnico y gris en la misma mesa",
+      "requiredEntities": [
+        "técnico",
+        "gris"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "touching or handing objects",
+        "anyone changing places"
+      ],
+      "continuityGroup": "beings-at-work",
+      "previousState": "Gris ante consola",
+      "nextState": "Técnico ajusta mando junto a Thomas"
     },
     {
       "beat": "p04",
@@ -1547,7 +2103,21 @@
       "start": 133.0,
       "from": "Técnico y gris en la misma mesa",
       "to": "Reptiliano tras cristal de control",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Participaban en actividades técnicas",
+      "visualIntent": "Técnico ajusta mando junto a Thomas",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "laboratory",
+      "previousState": "Técnico y gris en la misma mesa",
+      "nextState": "Reptiliano tras cristal de control"
     },
     {
       "beat": "p04",
@@ -1567,7 +2137,26 @@
       "start": 136.5,
       "from": "Técnico ajusta mando junto a Thomas",
       "to": "Thomas primer plano (0–2.5 s)",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "ken_burns",
+      "shotClass": "creature",
+      "narrationIntent": "…operación cotidiana… lo imposible, rutina",
+      "visualIntent": "Reptiliano tras cristal de control",
+      "requiredEntities": [
+        "reptiliano"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "transformation",
+        "extra limbs",
+        "change of species"
+      ],
+      "continuityGroup": "beings-at-work",
+      "previousState": "Técnico ajusta mando junto a Thomas",
+      "nextState": "Thomas primer plano (0–2.5 s)"
     },
     {
       "beat": "p05",
@@ -1587,7 +2176,21 @@
       "start": 140.2,
       "from": "Reptiliano tras cristal de control",
       "to": "POV: gris quieto al fondo",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Imagina trabajar en un lugar así",
+      "visualIntent": "Thomas primer plano (0–2.5 s)",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Reptiliano tras cristal de control",
+      "nextState": "POV: gris quieto al fondo"
     },
     {
       "beat": "p05",
@@ -1607,7 +2210,26 @@
       "start": 142.6,
       "from": "Thomas primer plano (0–2.5 s)",
       "to": "Corredor en time-lapse (reencuadre + velocidad)",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "ken_burns",
+      "shotClass": "creature",
+      "narrationIntent": "El primer día…",
+      "visualIntent": "POV: gris quieto al fondo",
+      "requiredEntities": [
+        "gris"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "transformation",
+        "extra limbs",
+        "change of species"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Thomas primer plano (0–2.5 s)",
+      "nextState": "Corredor en time-lapse (reencuadre + velocidad)"
     },
     {
       "beat": "p05",
@@ -1627,7 +2249,21 @@
       "start": 147.0,
       "from": "POV: gris quieto al fondo",
       "to": "Reloj de fichar",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "…semanas… meses",
+      "visualIntent": "Corredor en time-lapse (reencuadre + velocidad)",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "POV: gris quieto al fondo",
+      "nextState": "Reloj de fichar"
     },
     {
       "beat": "p05",
@@ -1647,7 +2283,21 @@
       "start": 150.4,
       "from": "Corredor en time-lapse (reencuadre + velocidad)",
       "to": "Thomas ajusta bisagra (0–4 s)",
-      "cost": 0.1
+      "cost": 0.1,
+      "productionMethod": "ken_burns",
+      "shotClass": "other",
+      "narrationIntent": "Describe un trabajo. Turnos.",
+      "visualIntent": "Reloj de fichar",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "security",
+      "previousState": "Corredor en time-lapse (reencuadre + velocidad)",
+      "nextState": "Thomas ajusta bisagra (0–4 s)"
     },
     {
       "beat": "p05",
@@ -1667,7 +2317,21 @@
       "start": 154.3,
       "from": "Reloj de fichar",
       "to": "Técnico anota en portapapeles",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Procedimientos.",
+      "visualIntent": "Thomas ajusta bisagra (0–4 s)",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Reloj de fichar",
+      "nextState": "Técnico anota en portapapeles"
     },
     {
       "beat": "p05",
@@ -1687,7 +2351,21 @@
       "start": 158.2,
       "from": "Thomas ajusta bisagra (0–4 s)",
       "to": "Torniquetes de turno",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Restricciones.",
+      "visualIntent": "Técnico anota en portapapeles",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "laboratory",
+      "previousState": "Thomas ajusta bisagra (0–4 s)",
+      "nextState": "Torniquetes de turno"
     },
     {
       "beat": "p05",
@@ -1707,7 +2385,26 @@
       "start": 162.1,
       "from": "Técnico anota en portapapeles",
       "to": "Rejilla de ventilación",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "ken_burns",
+      "shotClass": "multi_human",
+      "narrationIntent": "Personal entrando y saliendo",
+      "visualIntent": "Torniquetes de turno",
+      "requiredEntities": [
+        "personal"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "people crossing",
+        "position swaps",
+        "lip-sync talking"
+      ],
+      "continuityGroup": "security",
+      "previousState": "Técnico anota en portapapeles",
+      "nextState": "Rejilla de ventilación"
     },
     {
       "beat": "p05",
@@ -1727,7 +2424,21 @@
       "start": 166.0,
       "from": "Torniquetes de turno",
       "to": "Gris tras cristal esmerilado",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Sistemas que debían mantenerse",
+      "visualIntent": "Rejilla de ventilación",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Torniquetes de turno",
+      "nextState": "Gris tras cristal esmerilado"
     },
     {
       "beat": "p05",
@@ -1747,7 +2458,27 @@
       "start": 168.9,
       "from": "Rejilla de ventilación",
       "to": "Camioneta llega a casa",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "human_creature",
+      "narrationIntent": "…seres que simplemente formaban parte del lugar",
+      "visualIntent": "Gris tras cristal esmerilado",
+      "requiredEntities": [
+        "gris",
+        "personal"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "touching or handing objects",
+        "anyone changing places"
+      ],
+      "continuityGroup": "beings-at-work",
+      "previousState": "Rejilla de ventilación",
+      "nextState": "Camioneta llega a casa",
+      "storyboardChange": "Grey silhouette STANDS behind the frosted glass (no crossing); hands out of frame."
     },
     {
       "beat": "p06",
@@ -1767,7 +2498,23 @@
       "start": 174.2,
       "from": "Gris tras cristal esmerilado",
       "to": "Familia a la mesa, vista por la ventana",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "family",
+      "narrationIntent": "…cuando Thomas regresaba a casa",
+      "visualIntent": "Camioneta llega a casa",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "door opening/closing",
+        "family members moving"
+      ],
+      "continuityGroup": "family",
+      "previousState": "Gris tras cristal esmerilado",
+      "nextState": "Familia a la mesa, vista por la ventana"
     },
     {
       "beat": "p06",
@@ -1787,7 +2534,23 @@
       "start": 178.4,
       "from": "Camioneta llega a casa",
       "to": "Familia sentada, plano maestro",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "family",
+      "narrationIntent": "…obligado a guardar silencio",
+      "visualIntent": "Familia a la mesa, vista por la ventana",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "door opening/closing",
+        "family members moving"
+      ],
+      "continuityGroup": "family",
+      "previousState": "Camioneta llega a casa",
+      "nextState": "Familia sentada, plano maestro"
     },
     {
       "beat": "p06",
@@ -1807,7 +2570,23 @@
       "start": 182.6,
       "from": "Familia a la mesa, vista por la ventana",
       "to": "Flash: corredor de Dulce",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "family",
+      "narrationIntent": "Imagina sentarte a cenar frente a tu esposa",
+      "visualIntent": "Familia sentada, plano maestro",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "door opening/closing",
+        "family members moving"
+      ],
+      "continuityGroup": "family",
+      "previousState": "Familia a la mesa, vista por la ventana",
+      "nextState": "Flash: corredor de Dulce"
     },
     {
       "beat": "p06",
@@ -1827,7 +2606,21 @@
       "start": 187.7,
       "from": "Familia sentada, plano maestro",
       "to": "Esposa sobre el hombro de Thomas",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "(flash) …pasar el día en un lugar",
+      "visualIntent": "Flash: corredor de Dulce",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Familia sentada, plano maestro",
+      "nextState": "Esposa sobre el hombro de Thomas"
     },
     {
       "beat": "p06",
@@ -1847,7 +2640,23 @@
       "start": 188.9,
       "from": "Flash: corredor de Dulce",
       "to": "Esposa sonríe",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "family",
+      "narrationIntent": "…cambiaría todo lo que ella cree saber",
+      "visualIntent": "Esposa sobre el hombro de Thomas",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "door opening/closing",
+        "family members moving"
+      ],
+      "continuityGroup": "family",
+      "previousState": "Flash: corredor de Dulce",
+      "nextState": "Esposa sonríe"
     },
     {
       "beat": "p06",
@@ -1867,7 +2676,23 @@
       "start": 194.0,
       "from": "Esposa sobre el hombro de Thomas",
       "to": "Hijo mira a su madre",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "family",
+      "narrationIntent": "Mirarla hablar… De la familia. Del trabajo.",
+      "visualIntent": "Esposa sonríe",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "door opening/closing",
+        "family members moving"
+      ],
+      "continuityGroup": "family",
+      "previousState": "Esposa sobre el hombro de Thomas",
+      "nextState": "Hijo mira a su madre"
     },
     {
       "beat": "p06",
@@ -1887,7 +2712,23 @@
       "start": 197.4,
       "from": "Esposa sonríe",
       "to": "Thomas callado a la mesa, push-in",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "family",
+      "narrationIntent": "Del día siguiente.",
+      "visualIntent": "Hijo mira a su madre",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "door opening/closing",
+        "family members moving"
+      ],
+      "continuityGroup": "family",
+      "previousState": "Esposa sonríe",
+      "nextState": "Thomas callado a la mesa, push-in"
     },
     {
       "beat": "p06",
@@ -1907,7 +2748,30 @@
       "start": 200.8,
       "from": "Hijo mira a su madre",
       "to": "Flash: gris y reptiliano",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "i2v_economy",
+      "shotClass": "single_human",
+      "narrationIntent": "…otra realidad que no puedes compartir",
+      "visualIntent": "Thomas callado a la mesa, push-in",
+      "requiredEntities": [
+        "Thomas"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks",
+        "door opening/closing",
+        "family members moving"
+      ],
+      "continuityGroup": "family",
+      "previousState": "Hijo mira a su madre",
+      "nextState": "Flash: gris y reptiliano",
+      "storyboardChange": "Slot trimmed to 5.0 s; the extra 1.3 s goes to D10-04."
     },
     {
       "beat": "p06",
@@ -1927,7 +2791,21 @@
       "start": 207.1,
       "from": "Thomas callado a la mesa, push-in",
       "to": "Esposa, primer plano",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "(flash) otra realidad",
+      "visualIntent": "Flash: gris y reptiliano",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Thomas callado a la mesa, push-in",
+      "nextState": "Esposa, primer plano"
     },
     {
       "beat": "p06",
@@ -1947,7 +2825,23 @@
       "start": 208.3,
       "from": "Flash: gris y reptiliano",
       "to": "Thomas en la cocina, pensativo",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "family",
+      "narrationIntent": "No porque no quieras.",
+      "visualIntent": "Esposa, primer plano",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "door opening/closing",
+        "family members moving"
+      ],
+      "continuityGroup": "family",
+      "previousState": "Flash: gris y reptiliano",
+      "nextState": "Thomas en la cocina, pensativo"
     },
     {
       "beat": "p06",
@@ -1967,7 +2861,23 @@
       "start": 211.7,
       "from": "Esposa, primer plano",
       "to": "Hijo habla",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "family",
+      "narrationIntent": "…consecuencias. Para tu trabajo. Para ti.",
+      "visualIntent": "Thomas en la cocina, pensativo",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "door opening/closing",
+        "family members moving"
+      ],
+      "continuityGroup": "family",
+      "previousState": "Esposa, primer plano",
+      "nextState": "Hijo habla"
     },
     {
       "beat": "p06",
@@ -1987,7 +2897,23 @@
       "start": 215.9,
       "from": "Thomas en la cocina, pensativo",
       "to": "Esposa habla",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "family",
+      "narrationIntent": "…las personas que más quieres",
+      "visualIntent": "Hijo habla",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "door opening/closing",
+        "family members moving"
+      ],
+      "continuityGroup": "family",
+      "previousState": "Thomas en la cocina, pensativo",
+      "nextState": "Esposa habla"
     },
     {
       "beat": "p06",
@@ -2007,7 +2933,23 @@
       "start": 219.3,
       "from": "Hijo habla",
       "to": "Flash: laboratorio con la silueta de Thomas",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "family",
+      "narrationIntent": "(sigue)",
+      "visualIntent": "Esposa habla",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "door opening/closing",
+        "family members moving"
+      ],
+      "continuityGroup": "family",
+      "previousState": "Hijo habla",
+      "nextState": "Flash: laboratorio con la silueta de Thomas"
     },
     {
       "beat": "p06",
@@ -2027,7 +2969,21 @@
       "start": 222.7,
       "from": "Esposa habla",
       "to": "Dibujo familiar y llaves",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "(flash)",
+      "visualIntent": "Flash: laboratorio con la silueta de Thomas",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "laboratory",
+      "previousState": "Esposa habla",
+      "nextState": "Dibujo familiar y llaves"
     },
     {
       "beat": "p06",
@@ -2047,7 +3003,23 @@
       "start": 223.9,
       "from": "Flash: laboratorio con la silueta de Thomas",
       "to": "Camioneta sale al amanecer",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "family",
+      "narrationIntent": "…y fingía que no sabía nada",
+      "visualIntent": "Dibujo familiar y llaves",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "door opening/closing",
+        "family members moving"
+      ],
+      "continuityGroup": "family",
+      "previousState": "Flash: laboratorio con la silueta de Thomas",
+      "nextState": "Camioneta sale al amanecer"
     },
     {
       "beat": "p06",
@@ -2067,7 +3039,24 @@
       "start": 228.1,
       "from": "Dibujo familiar y llaves",
       "to": "(otro tramo) sala de control",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "parallax",
+      "shotClass": "landscape",
+      "narrationIntent": "A la mañana siguiente volvía a Dulce",
+      "visualIntent": "Camioneta sale al amanecer",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "vehicles appearing",
+        "door opening/closing",
+        "family members moving"
+      ],
+      "continuityGroup": "family",
+      "previousState": "Dibujo familiar y llaves",
+      "nextState": "(otro tramo) sala de control"
     },
     {
       "beat": "p06",
@@ -2087,7 +3076,27 @@
       "start": 232.3,
       "from": "Camioneta sale al amanecer",
       "to": "(otro tramo) corredor",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "ken_burns",
+      "shotClass": "single_human",
+      "narrationIntent": "Volvía a los controles.",
+      "visualIntent": "(otro tramo) sala de control",
+      "requiredEntities": [
+        "Thomas"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "security",
+      "previousState": "Camioneta sale al amanecer",
+      "nextState": "(otro tramo) corredor"
     },
     {
       "beat": "p06",
@@ -2107,7 +3116,21 @@
       "start": 235.3,
       "from": "(otro tramo) sala de control",
       "to": "(otro tramo) figuras",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "A los corredores.",
+      "visualIntent": "(otro tramo) corredor",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "(otro tramo) sala de control",
+      "nextState": "(otro tramo) figuras"
     },
     {
       "beat": "p06",
@@ -2127,7 +3150,21 @@
       "start": 237.8,
       "from": "(otro tramo) corredor",
       "to": "Thomas en corredor, push-in",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "A los seres…",
+      "visualIntent": "(otro tramo) figuras",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "(otro tramo) corredor",
+      "nextState": "Thomas en corredor, push-in"
     },
     {
       "beat": "p06",
@@ -2147,7 +3184,27 @@
       "start": 240.3,
       "from": "(otro tramo) figuras",
       "to": "Mampara: humanos a un lado, gris al otro",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "single_human",
+      "narrationIntent": "Y volvía a guardar silencio.",
+      "visualIntent": "Thomas en corredor, push-in",
+      "requiredEntities": [
+        "Thomas"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "(otro tramo) figuras",
+      "nextState": "Mampara: humanos a un lado, gris al otro"
     },
     {
       "beat": "p07",
@@ -2167,7 +3224,26 @@
       "start": 244.6,
       "from": "Thomas en corredor, push-in",
       "to": "Técnico tapa el portapapeles (0–2 s)",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "human_creature",
+      "narrationIntent": "Existían reglas. Conversaciones restringidas",
+      "visualIntent": "Mampara: humanos a un lado, gris al otro",
+      "requiredEntities": [
+        "personal",
+        "gris"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "touching or handing objects",
+        "anyone changing places"
+      ],
+      "continuityGroup": "beings-at-work",
+      "previousState": "Thomas en corredor, push-in",
+      "nextState": "Técnico tapa el portapapeles (0–2 s)"
     },
     {
       "beat": "p07",
@@ -2187,7 +3263,21 @@
       "start": 250.6,
       "from": "Mampara: humanos a un lado, gris al otro",
       "to": "Thomas con la radio (0–3 s)",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "…no debía compartirse",
+      "visualIntent": "Técnico tapa el portapapeles (0–2 s)",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "laboratory",
+      "previousState": "Mampara: humanos a un lado, gris al otro",
+      "nextState": "Thomas con la radio (0–3 s)"
     },
     {
       "beat": "p07",
@@ -2207,7 +3297,21 @@
       "start": 252.6,
       "from": "Técnico tapa el portapapeles (0–2 s)",
       "to": "(otro tramo) Thomas vigila monitores",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Preguntas que era mejor no hacer",
+      "visualIntent": "Thomas con la radio (0–3 s)",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "security",
+      "previousState": "Técnico tapa el portapapeles (0–2 s)",
+      "nextState": "(otro tramo) Thomas vigila monitores"
     },
     {
       "beat": "p07",
@@ -2227,7 +3331,27 @@
       "start": 255.6,
       "from": "Thomas con la radio (0–3 s)",
       "to": "Monitores CCTV",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "ken_burns",
+      "shotClass": "single_human",
+      "narrationIntent": "…mantener precisamente ese sistema",
+      "visualIntent": "(otro tramo) Thomas vigila monitores",
+      "requiredEntities": [
+        "Thomas"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "security",
+      "previousState": "Thomas con la radio (0–3 s)",
+      "nextState": "Monitores CCTV"
     },
     {
       "beat": "p07",
@@ -2247,7 +3371,21 @@
       "start": 260.6,
       "from": "(otro tramo) Thomas vigila monitores",
       "to": "Thomas ante ventana de observación",
-      "cost": 0.1
+      "cost": 0.1,
+      "productionMethod": "ken_burns",
+      "shotClass": "other",
+      "narrationIntent": "…durante algún tiempo, lo hizo",
+      "visualIntent": "Monitores CCTV",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "security",
+      "previousState": "(otro tramo) Thomas vigila monitores",
+      "nextState": "Thomas ante ventana de observación"
     },
     {
       "beat": "p07",
@@ -2267,7 +3405,27 @@
       "start": 264.6,
       "from": "Monitores CCTV",
       "to": "(otro tramo) laboratorio de cámaras",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "single_human",
+      "narrationIntent": "Hasta que empezó a ver cosas…",
+      "visualIntent": "Thomas ante ventana de observación",
+      "requiredEntities": [
+        "Thomas"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "laboratory",
+      "previousState": "Monitores CCTV",
+      "nextState": "(otro tramo) laboratorio de cámaras"
     },
     {
       "beat": "p08",
@@ -2287,7 +3445,21 @@
       "start": 272.5,
       "from": "Thomas ante ventana de observación",
       "to": "Sala médica clínica",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Los laboratorios…",
+      "visualIntent": "(otro tramo) laboratorio de cámaras",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "laboratory",
+      "previousState": "Thomas ante ventana de observación",
+      "nextState": "Sala médica clínica"
     },
     {
       "beat": "p08",
@@ -2307,7 +3479,23 @@
       "start": 276.8,
       "from": "(otro tramo) laboratorio de cámaras",
       "to": "Recipientes y luces",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "laboratory",
+      "narrationIntent": "…investigación biológica y médica",
+      "visualIntent": "Sala médica clínica",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "gore",
+        "bodies being handled"
+      ],
+      "continuityGroup": "laboratory",
+      "previousState": "(otro tramo) laboratorio de cámaras",
+      "nextState": "Recipientes y luces"
     },
     {
       "beat": "p08",
@@ -2327,7 +3515,21 @@
       "start": 281.1,
       "from": "Sala médica clínica",
       "to": "Thomas observa las cámaras",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "ken_burns",
+      "shotClass": "object",
+      "narrationIntent": "Equipamiento que no comprendía",
+      "visualIntent": "Recipientes y luces",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "laboratory",
+      "previousState": "Sala médica clínica",
+      "nextState": "Thomas observa las cámaras"
     },
     {
       "beat": "p08",
@@ -2347,7 +3549,21 @@
       "start": 284.6,
       "from": "Recipientes y luces",
       "to": "Técnico al microscopio, gris al lado",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Cámaras y áreas de observación",
+      "visualIntent": "Thomas observa las cámaras",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "laboratory",
+      "previousState": "Recipientes y luces",
+      "nextState": "Técnico al microscopio, gris al lado"
     },
     {
       "beat": "p08",
@@ -2367,7 +3583,26 @@
       "start": 288.9,
       "from": "Thomas observa las cámaras",
       "to": "Técnico entra (0–4 s)",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "ken_burns",
+      "shotClass": "human_creature",
+      "narrationIntent": "Personal humano cerca de entidades no humanas",
+      "visualIntent": "Técnico al microscopio, gris al lado",
+      "requiredEntities": [
+        "técnico",
+        "gris"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "touching or handing objects",
+        "anyone changing places"
+      ],
+      "continuityGroup": "beings-at-work",
+      "previousState": "Thomas observa las cámaras",
+      "nextState": "Técnico entra (0–4 s)"
     },
     {
       "beat": "p08",
@@ -2387,7 +3622,21 @@
       "start": 293.2,
       "from": "Técnico al microscopio, gris al lado",
       "to": "(otro tramo) sala médica",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "…existían explicaciones",
+      "visualIntent": "Técnico entra (0–4 s)",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "laboratory",
+      "previousState": "Técnico al microscopio, gris al lado",
+      "nextState": "(otro tramo) sala médica"
     },
     {
       "beat": "p08",
@@ -2407,7 +3656,23 @@
       "start": 296.7,
       "from": "Técnico entra (0–4 s)",
       "to": "Galería de observación",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "ken_burns",
+      "shotClass": "laboratory",
+      "narrationIntent": "Medicina experimental.",
+      "visualIntent": "(otro tramo) sala médica",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "gore",
+        "bodies being handled"
+      ],
+      "continuityGroup": "laboratory",
+      "previousState": "Técnico entra (0–4 s)",
+      "nextState": "Galería de observación"
     },
     {
       "beat": "p08",
@@ -2427,7 +3692,25 @@
       "start": 299.3,
       "from": "(otro tramo) sala médica",
       "to": "Puerta de ascensor sin botón",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "ken_burns",
+      "shotClass": "laboratory",
+      "narrationIntent": "…alguien arriba sabía",
+      "visualIntent": "Galería de observación",
+      "requiredEntities": [
+        "personal"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "gore",
+        "bodies being handled"
+      ],
+      "continuityGroup": "laboratory",
+      "previousState": "(otro tramo) sala médica",
+      "nextState": "Puerta de ascensor sin botón"
     },
     {
       "beat": "p08",
@@ -2447,7 +3730,27 @@
       "start": 303.6,
       "from": "Galería de observación",
       "to": "Sala de descanso",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "ken_burns",
+      "shotClass": "single_human",
+      "narrationIntent": "…no había visto los niveles inferiores",
+      "visualIntent": "Puerta de ascensor sin botón",
+      "requiredEntities": [
+        "Thomas"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "elevator-shaft",
+      "previousState": "Galería de observación",
+      "nextState": "Sala de descanso"
     },
     {
       "beat": "p09",
@@ -2467,7 +3770,26 @@
       "start": 308.3,
       "from": "Puerta de ascensor sin botón",
       "to": "Trabajador mira de reojo",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "multi_human",
+      "narrationIntent": "…otros trabajadores. Comentarios. Rumores.",
+      "visualIntent": "Sala de descanso",
+      "requiredEntities": [
+        "trabajadores"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "people crossing",
+        "position swaps",
+        "lip-sync talking"
+      ],
+      "continuityGroup": "workers-george",
+      "previousState": "Puerta de ascensor sin botón",
+      "nextState": "Trabajador mira de reojo"
     },
     {
       "beat": "p09",
@@ -2487,7 +3809,27 @@
       "start": 313.7,
       "from": "Sala de descanso",
       "to": "Hombre civil en sala de retención",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "ken_burns",
+      "shotClass": "single_human",
+      "narrationIntent": "Advertencias.",
+      "visualIntent": "Trabajador mira de reojo",
+      "requiredEntities": [
+        "trabajador"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "workers-george",
+      "previousState": "Sala de descanso",
+      "nextState": "Hombre civil en sala de retención"
     },
     {
       "beat": "p09",
@@ -2507,7 +3849,27 @@
       "start": 317.3,
       "from": "Trabajador mira de reojo",
       "to": "Thomas mira por la ventanilla",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "single_human",
+      "narrationIntent": "…no formaban parte del personal",
+      "visualIntent": "Hombre civil en sala de retención",
+      "requiredEntities": [
+        "George"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "workers-george",
+      "previousState": "Trabajador mira de reojo",
+      "nextState": "Thomas mira por la ventanilla"
     },
     {
       "beat": "p09",
@@ -2527,7 +3889,27 @@
       "start": 321.8,
       "from": "Hombre civil en sala de retención",
       "to": "Retrato de George",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "ken_burns",
+      "shotClass": "single_human",
+      "narrationIntent": "…especialmente importante",
+      "visualIntent": "Thomas mira por la ventanilla",
+      "requiredEntities": [
+        "Thomas"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "workers-george",
+      "previousState": "Hombre civil en sala de retención",
+      "nextState": "Retrato de George"
     },
     {
       "beat": "p09",
@@ -2547,7 +3929,28 @@
       "start": 325.4,
       "from": "Thomas mira por la ventanilla",
       "to": "George primer plano",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "i2v_economy",
+      "shotClass": "single_human",
+      "narrationIntent": "…un hombre al que identificó como George",
+      "visualIntent": "Retrato de George",
+      "requiredEntities": [
+        "George"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "workers-george",
+      "previousState": "Thomas mira por la ventanilla",
+      "nextState": "George primer plano",
+      "storyboardChange": "Slot P1-088 trimmed to 5.0 s; p10 reuse (P1-092) uses the approved still with a push-in."
     },
     {
       "beat": "p09",
@@ -2567,7 +3970,27 @@
       "start": 330.8,
       "from": "Retrato de George",
       "to": "Thomas camina pensativo",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "ken_burns",
+      "shotClass": "single_human",
+      "narrationIntent": "…llevado allí. Contra su voluntad.",
+      "visualIntent": "George primer plano",
+      "requiredEntities": [
+        "George"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "workers-george",
+      "previousState": "Retrato de George",
+      "nextState": "Thomas camina pensativo"
     },
     {
       "beat": "p10",
@@ -2587,7 +4010,28 @@
       "start": 335.4,
       "from": "George primer plano",
       "to": "(otro tramo) figuras en corredor",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "single_human",
+      "narrationIntent": "…podía justificar muchas cosas",
+      "visualIntent": "Thomas camina pensativo",
+      "requiredEntities": [
+        "Thomas"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "George primer plano",
+      "nextState": "(otro tramo) figuras en corredor",
+      "storyboardChange": "Thomas STANDS in the corridor, head lowered; camera dolly-back on the still."
     },
     {
       "beat": "p10",
@@ -2607,7 +4051,21 @@
       "start": 342.3,
       "from": "Thomas camina pensativo",
       "to": "(otro tramo) George",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "…la presencia de seres…",
+      "visualIntent": "(otro tramo) figuras en corredor",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Thomas camina pensativo",
+      "nextState": "(otro tramo) George"
     },
     {
       "beat": "p10",
@@ -2627,7 +4085,28 @@
       "start": 346.9,
       "from": "(otro tramo) figuras en corredor",
       "to": "Thomas en luz baja, push-in",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "ken_burns",
+      "shotClass": "single_human",
+      "narrationIntent": "…una persona retenida contra su voluntad",
+      "visualIntent": "(otro tramo) George",
+      "requiredEntities": [
+        "George"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "workers-george",
+      "previousState": "(otro tramo) figuras en corredor",
+      "nextState": "Thomas en luz baja, push-in",
+      "storyboardChange": "Slot P1-088 trimmed to 5.0 s; p10 reuse (P1-092) uses the approved still with a push-in."
     },
     {
       "beat": "p10",
@@ -2647,7 +4126,27 @@
       "start": 352.6,
       "from": "(otro tramo) George",
       "to": "(otro tramo) puerta roja",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "single_human",
+      "narrationIntent": "Era una cuestión moral.",
+      "visualIntent": "Thomas en luz baja, push-in",
+      "requiredEntities": [
+        "Thomas"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "(otro tramo) George",
+      "nextState": "(otro tramo) puerta roja"
     },
     {
       "beat": "p10",
@@ -2667,7 +4166,21 @@
       "start": 359.5,
       "from": "Thomas en luz baja, push-in",
       "to": "Carpeta bajo la lámpara",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "…zonas a las que no tenía acceso",
+      "visualIntent": "(otro tramo) puerta roja",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Thomas en luz baja, push-in",
+      "nextState": "Carpeta bajo la lámpara"
     },
     {
       "beat": "p11",
@@ -2687,7 +4200,21 @@
       "start": 365.2,
       "from": "(otro tramo) puerta roja",
       "to": "Ficheros sin rostro, sin texto",
-      "cost": 0.1
+      "cost": 0.1,
+      "productionMethod": "ken_burns",
+      "shotClass": "other",
+      "narrationIntent": "…empezaron a mostrarle información. Documentos.",
+      "visualIntent": "Carpeta bajo la lámpara",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "documents-archive",
+      "previousState": "(otro tramo) puerta roja",
+      "nextState": "Ficheros sin rostro, sin texto"
     },
     {
       "beat": "p11",
@@ -2707,7 +4234,21 @@
       "start": 370.4,
       "from": "Carpeta bajo la lámpara",
       "to": "Carpeta con foto (0–4 s)",
-      "cost": 0.1
+      "cost": 0.1,
+      "productionMethod": "ken_burns",
+      "shotClass": "other",
+      "narrationIntent": "Nombres. Personas desaparecidas.",
+      "visualIntent": "Ficheros sin rostro, sin texto",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "documents-archive",
+      "previousState": "Carpeta bajo la lámpara",
+      "nextState": "Carpeta con foto (0–4 s)"
     },
     {
       "beat": "p11",
@@ -2727,7 +4268,21 @@
       "start": 375.6,
       "from": "Ficheros sin rostro, sin texto",
       "to": "(otro tramo) sala de retención",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Fragmentos de una historia…",
+      "visualIntent": "Carpeta con foto (0–4 s)",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "documents-archive",
+      "previousState": "Ficheros sin rostro, sin texto",
+      "nextState": "(otro tramo) sala de retención"
     },
     {
       "beat": "p11",
@@ -2747,7 +4302,27 @@
       "start": 379.8,
       "from": "Carpeta con foto (0–4 s)",
       "to": "Corredor rojo con niebla + rótulo G4",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "ken_burns",
+      "shotClass": "single_human",
+      "narrationIntent": "…no estaban allí voluntariamente",
+      "visualIntent": "(otro tramo) sala de retención",
+      "requiredEntities": [
+        "George"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "workers-george",
+      "previousState": "Carpeta con foto (0–4 s)",
+      "nextState": "Corredor rojo con niebla + rótulo G4"
     },
     {
       "beat": "p11",
@@ -2767,7 +4342,22 @@
       "start": 384.0,
       "from": "(otro tramo) sala de retención",
       "to": "Corte transversal: se ilumina el nivel inferior",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "i2v_hero",
+      "shotClass": "corridor",
+      "narrationIntent": "…apareció una palabra… NIGHTMARE HALL",
+      "visualIntent": "Corredor rojo con niebla + rótulo G4",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "figures emerging from the dark"
+      ],
+      "continuityGroup": "nightmare-hall",
+      "previousState": "(otro tramo) sala de retención",
+      "nextState": "Corte transversal: se ilumina el nivel inferior"
     },
     {
       "beat": "p12",
@@ -2787,7 +4377,21 @@
       "start": 395.0,
       "from": "Corredor rojo con niebla + rótulo G4",
       "to": "Flash: pulso en el puente",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "graphic",
+      "shotClass": "graphic",
+      "narrationIntent": "…niveles más restringidos",
+      "visualIntent": "Corte transversal: se ilumina el nivel inferior",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "graphics",
+      "previousState": "Corredor rojo con niebla + rótulo G4",
+      "nextState": "Flash: pulso en el puente"
     },
     {
       "beat": "p12",
@@ -2807,7 +4411,21 @@
       "start": 400.9,
       "from": "Corte transversal: se ilumina el nivel inferior",
       "to": "Flash: corredor rojo",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Personas.",
+      "visualIntent": "Flash: pulso en el puente",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "laboratory",
+      "previousState": "Corte transversal: se ilumina el nivel inferior",
+      "nextState": "Flash: corredor rojo"
     },
     {
       "beat": "p12",
@@ -2827,7 +4445,22 @@
       "start": 402.4,
       "from": "Flash: pulso en el puente",
       "to": "Flash: gris en el haz",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "i2v_hero",
+      "shotClass": "corridor",
+      "narrationIntent": "Seres.",
+      "visualIntent": "Flash: corredor rojo",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "figures emerging from the dark"
+      ],
+      "continuityGroup": "nightmare-hall",
+      "previousState": "Flash: pulso en el puente",
+      "nextState": "Flash: gris en el haz"
     },
     {
       "beat": "p12",
@@ -2847,7 +4480,24 @@
       "start": 403.9,
       "from": "Flash: corredor rojo",
       "to": "Flash: compuerta con niebla",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "ken_burns",
+      "shotClass": "creature",
+      "narrationIntent": "Contención.",
+      "visualIntent": "Flash: gris en el haz",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "transformation",
+        "extra limbs",
+        "change of species"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Flash: corredor rojo",
+      "nextState": "Flash: compuerta con niebla"
     },
     {
       "beat": "p12",
@@ -2867,7 +4517,21 @@
       "start": 405.4,
       "from": "Flash: gris en el haz",
       "to": "(otro tramo) Thomas en el ascensor",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "ken_burns",
+      "shotClass": "object",
+      "narrationIntent": "Experimentación.",
+      "visualIntent": "Flash: compuerta con niebla",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "elevator-shaft",
+      "previousState": "Flash: gris en el haz",
+      "nextState": "(otro tramo) Thomas en el ascensor"
     },
     {
       "beat": "p12",
@@ -2887,7 +4551,21 @@
       "start": 407.0,
       "from": "Flash: compuerta con niebla",
       "to": "(otro tramo) familia por la ventana",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "…tuvo que tomar una decisión",
+      "visualIntent": "(otro tramo) Thomas en el ascensor",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "elevator-shaft",
+      "previousState": "Flash: compuerta con niebla",
+      "nextState": "(otro tramo) familia por la ventana"
     },
     {
       "beat": "p12",
@@ -2907,7 +4585,23 @@
       "start": 412.9,
       "from": "(otro tramo) Thomas en el ascensor",
       "to": "Botón del nivel más bajo se ilumina",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "family",
+      "narrationIntent": "…regresar a casa cada noche",
+      "visualIntent": "(otro tramo) familia por la ventana",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "door opening/closing",
+        "family members moving"
+      ],
+      "continuityGroup": "family",
+      "previousState": "(otro tramo) Thomas en el ascensor",
+      "nextState": "Botón del nivel más bajo se ilumina"
     },
     {
       "beat": "p12",
@@ -2927,7 +4621,21 @@
       "start": 418.8,
       "from": "(otro tramo) familia por la ventana",
       "to": "(otro tramo) puertas se abren",
-      "cost": 0.1
+      "cost": 0.1,
+      "productionMethod": "ken_burns",
+      "shotClass": "other",
+      "narrationIntent": "O podía averiguar…",
+      "visualIntent": "Botón del nivel más bajo se ilumina",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "elevator-shaft",
+      "previousState": "(otro tramo) familia por la ventana",
+      "nextState": "(otro tramo) puertas se abren"
     },
     {
       "beat": "p12",
@@ -2947,7 +4655,21 @@
       "start": 424.7,
       "from": "Botón del nivel más bajo se ilumina",
       "to": "Thomas desciende, luz roja",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "…qué había realmente debajo",
+      "visualIntent": "(otro tramo) puertas se abren",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "elevator-shaft",
+      "previousState": "Botón del nivel más bajo se ilumina",
+      "nextState": "Thomas desciende, luz roja"
     },
     {
       "beat": "p13",
@@ -2967,7 +4689,27 @@
       "start": 430.0,
       "from": "(otro tramo) puertas se abren",
       "to": "Compuerta entreabierta",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "single_human",
+      "narrationIntent": "…eligió bajar",
+      "visualIntent": "Thomas desciende, luz roja",
+      "requiredEntities": [
+        "Thomas"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "elevator-shaft",
+      "previousState": "(otro tramo) puertas se abren",
+      "nextState": "Compuerta entreabierta"
     },
     {
       "beat": "p13",
@@ -2987,7 +4729,21 @@
       "start": 435.7,
       "from": "Thomas desciende, luz roja",
       "to": "Flash: cámaras (Parte II, solo insinuado)",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "ken_burns",
+      "shotClass": "object",
+      "narrationIntent": "…transformó completamente su historia",
+      "visualIntent": "Compuerta entreabierta",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "elevator-shaft",
+      "previousState": "Thomas desciende, luz roja",
+      "nextState": "Flash: cámaras (Parte II, solo insinuado)"
     },
     {
       "beat": "p13",
@@ -3007,7 +4763,21 @@
       "start": 440.5,
       "from": "Compuerta entreabierta",
       "to": "Flash: sala de retención",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Cámaras de contención.",
+      "visualIntent": "Flash: cámaras (Parte II, solo insinuado)",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "laboratory",
+      "previousState": "Compuerta entreabierta",
+      "nextState": "Flash: sala de retención"
     },
     {
       "beat": "p13",
@@ -3027,7 +4797,27 @@
       "start": 441.9,
       "from": "Flash: cámaras (Parte II, solo insinuado)",
       "to": "Flash: cámaras en penumbra",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "ken_burns",
+      "shotClass": "single_human",
+      "narrationIntent": "Personas retenidas.",
+      "visualIntent": "Flash: sala de retención",
+      "requiredEntities": [
+        "George"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "workers-george",
+      "previousState": "Flash: cámaras (Parte II, solo insinuado)",
+      "nextState": "Flash: cámaras en penumbra"
     },
     {
       "beat": "p13",
@@ -3047,7 +4837,21 @@
       "start": 443.3,
       "from": "Flash: sala de retención",
       "to": "Flash: reptiliano",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "Experimentos.",
+      "visualIntent": "Flash: cámaras en penumbra",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "laboratory",
+      "previousState": "Flash: sala de retención",
+      "nextState": "Flash: reptiliano"
     },
     {
       "beat": "p13",
@@ -3067,7 +4871,26 @@
       "start": 444.7,
       "from": "Flash: cámaras en penumbra",
       "to": "(otro tramo) corredor rojo",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "i2v_economy",
+      "shotClass": "creature",
+      "narrationIntent": "Seres que no podía identificar.",
+      "visualIntent": "Flash: reptiliano",
+      "requiredEntities": [
+        "reptiliano"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "transformation",
+        "extra limbs",
+        "change of species"
+      ],
+      "continuityGroup": "beings-at-work",
+      "previousState": "Flash: cámaras en penumbra",
+      "nextState": "(otro tramo) corredor rojo"
     },
     {
       "beat": "p13",
@@ -3087,7 +4910,22 @@
       "start": 446.1,
       "from": "Flash: reptiliano",
       "to": "Archivador con carpetas vacías",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "i2v_hero",
+      "shotClass": "corridor",
+      "narrationIntent": "…Nightmare Hall",
+      "visualIntent": "(otro tramo) corredor rojo",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "figures emerging from the dark"
+      ],
+      "continuityGroup": "nightmare-hall",
+      "previousState": "Flash: reptiliano",
+      "nextState": "Archivador con carpetas vacías"
     },
     {
       "beat": "p13",
@@ -3107,7 +4945,21 @@
       "start": 449.9,
       "from": "(otro tramo) corredor rojo",
       "to": "Retrato de Thomas desaturado + G5",
-      "cost": 0.1
+      "cost": 0.1,
+      "productionMethod": "ken_burns",
+      "shotClass": "other",
+      "narrationIntent": "…quién era realmente Thomas Edwin Castello",
+      "visualIntent": "Archivador con carpetas vacías",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "documents-archive",
+      "previousState": "(otro tramo) corredor rojo",
+      "nextState": "Retrato de Thomas desaturado + G5"
     },
     {
       "beat": "p13",
@@ -3127,7 +4979,21 @@
       "start": 455.6,
       "from": "Archivador con carpetas vacías",
       "to": "Negro breve",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "¿podemos demostrar que este hombre existió?",
+      "visualIntent": "Retrato de Thomas desaturado + G5",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "corridor-levels",
+      "previousState": "Archivador con carpetas vacías",
+      "nextState": "Negro breve"
     },
     {
       "beat": "p13",
@@ -3147,7 +5013,21 @@
       "start": 461.3,
       "from": "Retrato de Thomas desaturado + G5",
       "to": "(otro tramo) corredor, más profundo",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "graphic",
+      "shotClass": "graphic",
+      "narrationIntent": "(pausa)",
+      "visualIntent": "Negro breve",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "graphics",
+      "previousState": "Retrato de Thomas desaturado + G5",
+      "nextState": "(otro tramo) corredor, más profundo"
     },
     {
       "beat": "p14",
@@ -3167,7 +5047,22 @@
       "start": 463.3,
       "from": "Negro breve",
       "to": "(otro tramo) cámaras",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "i2v_hero",
+      "shotClass": "corridor",
+      "narrationIntent": "…entraremos en Nightmare Hall",
+      "visualIntent": "(otro tramo) corredor, más profundo",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "figures emerging from the dark"
+      ],
+      "continuityGroup": "nightmare-hall",
+      "previousState": "Negro breve",
+      "nextState": "(otro tramo) cámaras"
     },
     {
       "beat": "p14",
@@ -3187,7 +5082,21 @@
       "start": 468.0,
       "from": "(otro tramo) corredor, más profundo",
       "to": "(otro tramo) George",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "v1_recut",
+      "shotClass": "other",
+      "narrationIntent": "…qué aseguró que había visto",
+      "visualIntent": "(otro tramo) cámaras",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "laboratory",
+      "previousState": "(otro tramo) corredor, más profundo",
+      "nextState": "(otro tramo) George"
     },
     {
       "beat": "p14",
@@ -3207,7 +5116,27 @@
       "start": 471.8,
       "from": "(otro tramo) cámaras",
       "to": "Luz de emergencia giratoria",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "ken_burns",
+      "shotClass": "single_human",
+      "narrationIntent": "…las personas retenidas",
+      "visualIntent": "(otro tramo) George",
+      "requiredEntities": [
+        "George"
+      ],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "face or hair change",
+        "cap or hat",
+        "blue shirt on Thomas",
+        "hands performing tasks"
+      ],
+      "continuityGroup": "workers-george",
+      "previousState": "(otro tramo) cámaras",
+      "nextState": "Luz de emergencia giratoria"
     },
     {
       "beat": "p14",
@@ -3227,7 +5156,21 @@
       "start": 475.6,
       "from": "(otro tramo) George",
       "to": "Cielo nocturno sobre la mesa",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "i2v_economy",
+      "shotClass": "object",
+      "narrationIntent": "…el conflicto dentro de Dulce",
+      "visualIntent": "Luz de emergencia giratoria",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "nightmare-hall",
+      "previousState": "(otro tramo) George",
+      "nextState": "Cielo nocturno sobre la mesa"
     },
     {
       "beat": "p14",
@@ -3247,7 +5190,22 @@
       "start": 479.4,
       "from": "Luz de emergencia giratoria",
       "to": "Equipo de radio + rótulo G6",
-      "cost": 0.6
+      "cost": 0.6,
+      "productionMethod": "ken_burns",
+      "shotClass": "landscape",
+      "narrationIntent": "…el origen real de la leyenda",
+      "visualIntent": "Cielo nocturno sobre la mesa",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects",
+        "vehicles appearing"
+      ],
+      "continuityGroup": "exterior",
+      "previousState": "Luz de emergencia giratoria",
+      "nextState": "Equipo de radio + rótulo G6"
     },
     {
       "beat": "p14",
@@ -3267,7 +5225,21 @@
       "start": 485.1,
       "from": "Cielo nocturno sobre la mesa",
       "to": "Antenas contra el cielo",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "ken_burns",
+      "shotClass": "object",
+      "narrationIntent": "…Paul Bennewitz",
+      "visualIntent": "Equipo de radio + rótulo G6",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "documents-archive",
+      "previousState": "Cielo nocturno sobre la mesa",
+      "nextState": "Antenas contra el cielo"
     },
     {
       "beat": "p14",
@@ -3287,7 +5259,21 @@
       "start": 490.8,
       "from": "Equipo de radio + rótulo G6",
       "to": "Máquina de escribir, documentos tachados",
-      "cost": 0.35
+      "cost": 0.35,
+      "productionMethod": "ken_burns",
+      "shotClass": "object",
+      "narrationIntent": "…una posibilidad completamente diferente",
+      "visualIntent": "Antenas contra el cielo",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "exterior",
+      "previousState": "Equipo de radio + rótulo G6",
+      "nextState": "Máquina de escribir, documentos tachados"
     },
     {
       "beat": "p14",
@@ -3307,7 +5293,21 @@
       "start": 495.5,
       "from": "Antenas contra el cielo",
       "to": "DULCE — PARTE II: NIGHTMARE HALL",
-      "cost": 0.1
+      "cost": 0.1,
+      "productionMethod": "ken_burns",
+      "shotClass": "other",
+      "narrationIntent": "…sino con desinformación.",
+      "visualIntent": "Máquina de escribir, documentos tachados",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "documents-archive",
+      "previousState": "Antenas contra el cielo",
+      "nextState": "DULCE — PARTE II: NIGHTMARE HALL"
     },
     {
       "beat": "end",
@@ -3327,7 +5327,21 @@
       "start": 502.6,
       "from": "Máquina de escribir, documentos tachados",
       "to": "(fin)",
-      "cost": 0.0
+      "cost": 0.0,
+      "productionMethod": "graphic",
+      "shotClass": "graphic",
+      "narrationIntent": "CORTE A NEGRO",
+      "visualIntent": "DULCE — PARTE II: NIGHTMARE HALL",
+      "requiredEntities": [],
+      "forbiddenElements": [
+        "readable text or logos",
+        "people entering or leaving frame",
+        "extra or duplicated people",
+        "morphing objects"
+      ],
+      "continuityGroup": "graphics",
+      "previousState": "Máquina de escribir, documentos tachados",
+      "nextState": "(end)"
     }
   ]
 }

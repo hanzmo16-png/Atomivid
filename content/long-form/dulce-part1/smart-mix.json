@@ -1,0 +1,1378 @@
+{
+  "summary": {
+    "counts": {
+      "MOTION_ESSENTIAL": 6,
+      "MOTION_BENEFICIAL": 18,
+      "MOTION_UNNECESSARY": 20
+    },
+    "finishedSeconds": 508.6,
+    "planA": {
+      "generativeClips": 44,
+      "generativeSeconds": 330,
+      "acceptedGenerativeSeconds": 248.9,
+      "stillMotionSlots": 7,
+      "imageCost": 5.0,
+      "videoCost": 16.5,
+      "retryReserve": 8.27,
+      "creator": 11.0,
+      "expected": 40.77,
+      "worstCase": 70.7,
+      "genSecondsPerFinishedMinute": 38.9,
+      "newGenerativeShareOfTimeline": 0.489
+    },
+    "planB": {
+      "generativeClips": 6,
+      "generativeSeconds": 35,
+      "acceptedGenerativeSeconds": 43.8,
+      "stillMotionSlots": 53,
+      "imageCost": 5.0,
+      "videoCost": 1.75,
+      "retryReserve": 3.38,
+      "creator": 11.0,
+      "expected": 21.13,
+      "worstCase": 44.5,
+      "genSecondsPerFinishedMinute": 4.1,
+      "newGenerativeShareOfTimeline": 0.086
+    },
+    "v1RunwayFootageSeconds": 204.1,
+    "savingsExpected": 19.64,
+    "savingsWorst": 26.2,
+    "upgradePack": {
+      "assets": [
+        "N05",
+        "N43",
+        "N21",
+        "N01",
+        "N13",
+        "N44"
+      ],
+      "videoCost": 1.5,
+      "retryReserve": 0.75,
+      "expectedWithB": 23.38
+    }
+  },
+  "clips": [
+    {
+      "asset": "N01",
+      "slots": [
+        "P1-001"
+      ],
+      "narrationIntent": "Durante décadas… Nuevo México",
+      "visualIntent": "Exterior Nuevo México: mesa y cañones al atardecer, dron lento hacia delante",
+      "characters": [],
+      "shotClass": "landscape",
+      "slotSeconds": [
+        2.6
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "LOW",
+      "motionValue": "MEDIUM",
+      "recommendedMethod": "parallax",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Hook drone read works as a slow push over the mesa at 2.6 s.",
+      "storyboardChange": "",
+      "acceptedSeconds": 2.6
+    },
+    {
+      "asset": "N02",
+      "slots": [
+        "P1-002"
+      ],
+      "narrationIntent": "…una historia extraordinaria",
+      "visualIntent": "Luces de un pueblo pequeño en la llanura, noche, paneo lento",
+      "characters": [],
+      "shotClass": "landscape",
+      "slotSeconds": [
+        2.4
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "LOW",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "Distant town lights: a slow pan is indistinguishable at 2.4 s.",
+      "storyboardChange": "",
+      "acceptedSeconds": 2.4
+    },
+    {
+      "asset": "N03",
+      "slots": [
+        "P1-003"
+      ],
+      "narrationIntent": "…oficialmente no existe",
+      "visualIntent": "Entrada de instalación excavada en la roca: valla, reflectores, puesto de guardia vacío",
+      "characters": [],
+      "shotClass": "landscape",
+      "slotSeconds": [
+        2.6
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "LOW",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "Static entrance and floodlights; push-in carries it.",
+      "storyboardChange": "",
+      "acceptedSeconds": 2.6
+    },
+    {
+      "asset": "N04",
+      "slots": [
+        "P1-004"
+      ],
+      "narrationIntent": "Kilómetros de túneles",
+      "visualIntent": "Túnel de vehículos interminable, luces que se pierden; dolly adelante",
+      "characters": [],
+      "shotClass": "corridor",
+      "slotSeconds": [
+        2.2
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "LOW",
+      "motionValue": "MEDIUM",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "A centred push-in on a vanishing-point tunnel reads as a dolly.",
+      "storyboardChange": "",
+      "acceptedSeconds": 2.2
+    },
+    {
+      "asset": "N05",
+      "slots": [
+        "P1-014",
+        "P1-065",
+        "P1-072"
+      ],
+      "narrationIntent": "Castello decía haber sido especialista en seguridad / Volvía a los controles. / …mantener precisamente ese sistema",
+      "visualIntent": "Sala de control de seguridad: Thomas (C1, uniforme oscuro) ante monitores CCTV; solo respira y mira",
+      "characters": [
+        "Thomas"
+      ],
+      "shotClass": "single_human",
+      "slotSeconds": [
+        5.5,
+        3.0,
+        5.0
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "MEDIUM",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Thomas identity outranks screen flicker; one still gives three framings (wide, medium, monitors).",
+      "storyboardChange": "",
+      "acceptedSeconds": 13.5
+    },
+    {
+      "asset": "N06",
+      "slots": [
+        "P1-019"
+      ],
+      "narrationIntent": "Sistemas de identificación",
+      "visualIntent": "Lector de credencial en pared de hormigón, LED verde (sustituye D02-05); push-in, sin manos",
+      "characters": [],
+      "shotClass": "object",
+      "slotSeconds": [
+        2.7
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "LOW",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "Insert: badge reader with lit LED.",
+      "storyboardChange": "",
+      "acceptedSeconds": 2.7
+    },
+    {
+      "asset": "N07",
+      "slots": [
+        "P1-025"
+      ],
+      "narrationIntent": "Cada zona requería autorizaciones diferentes",
+      "visualIntent": "Puerta blindada con franja de color de zona y teclado; LED rojo parpadea",
+      "characters": [],
+      "shotClass": "object",
+      "slotSeconds": [
+        4.6
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "LOW",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Insert: vault door and keypad.",
+      "storyboardChange": "",
+      "acceptedSeconds": 4.6
+    },
+    {
+      "asset": "N08",
+      "slots": [
+        "P1-027"
+      ],
+      "narrationIntent": "…tenían prohibido conocer",
+      "visualIntent": "Barrera: línea pintada en el suelo y torniquete; guardia inmóvil al fondo desenfocado",
+      "characters": [
+        "guardia"
+      ],
+      "shotClass": "multi_human",
+      "slotSeconds": [
+        5.1
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "Barrier with a guard: people should not move here.",
+      "storyboardChange": "",
+      "acceptedSeconds": 5.1
+    },
+    {
+      "asset": "N09",
+      "slots": [
+        "P1-029"
+      ],
+      "narrationIntent": "…áreas técnicas",
+      "visualIntent": "Área técnica: tuberías, generadores, pasarela, vapor; sin personas",
+      "characters": [],
+      "shotClass": "other",
+      "slotSeconds": [
+        4.1
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "LOW",
+      "motionValue": "MEDIUM",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Technical area: vapor would help, a slow pan is enough.",
+      "storyboardChange": "",
+      "acceptedSeconds": 4.1
+    },
+    {
+      "asset": "N10",
+      "slots": [
+        "P1-030"
+      ],
+      "narrationIntent": "…lo más importante estaba abajo",
+      "visualIntent": "Hueco de ascensor de carga mirando hacia abajo, luces que descienden en la oscuridad",
+      "characters": [],
+      "shotClass": "other",
+      "slotSeconds": [
+        6.4
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "LOW",
+      "motionValue": "MEDIUM",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Shaft looking down: a push-in downward gives the vertigo.",
+      "storyboardChange": "",
+      "acceptedSeconds": 6.4
+    },
+    {
+      "asset": "N11",
+      "slots": [
+        "P1-033"
+      ],
+      "narrationIntent": "…pequeños seres grises",
+      "visualIntent": "Gris (G1) plano medio en sala técnica, leve giro de cabeza",
+      "characters": [
+        "gris"
+      ],
+      "shotClass": "creature",
+      "slotSeconds": [
+        4.3
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_ESSENTIAL",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "HIGH",
+      "recommendedMethod": "i2v_economy",
+      "clipSeconds": 5,
+      "expectedCostUsd": 0.25,
+      "savingsUsd": 0.0,
+      "reason": "First clear grey: a slight head turn and breath make it a living being, not concept art.",
+      "storyboardChange": "",
+      "acceptedSeconds": 4.3,
+      "acceptedSecondsB": 4.3
+    },
+    {
+      "asset": "N12",
+      "slots": [
+        "P1-034",
+        "P1-114"
+      ],
+      "narrationIntent": "…apariencia reptiliana / Seres que no podía identificar.",
+      "visualIntent": "Reptiliano (R1) plano medio de perfil en corredor, respira, gira apenas",
+      "characters": [
+        "reptiliano"
+      ],
+      "shotClass": "creature",
+      "slotSeconds": [
+        4.3,
+        1.4
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_ESSENTIAL",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "HIGH",
+      "recommendedMethod": "i2v_economy",
+      "clipSeconds": 5,
+      "expectedCostUsd": 0.25,
+      "savingsUsd": 0.0,
+      "reason": "First reptilian: breathing and a slight turn; also used as a 1.4 s flash in p13.",
+      "storyboardChange": "",
+      "acceptedSeconds": 5.7,
+      "acceptedSecondsB": 5.7
+    },
+    {
+      "asset": "N13",
+      "slots": [
+        "P1-036"
+      ],
+      "narrationIntent": "…algunos trabajaban dentro",
+      "visualIntent": "Gris sentado ante consola, visto de lado/espaldas, pantallas parpadean (manos ocultas)",
+      "characters": [
+        "gris"
+      ],
+      "shotClass": "creature",
+      "slotSeconds": [
+        5.2
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "MEDIUM",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Grey at a console seen from the side; N11 already establishes the beings as alive.",
+      "storyboardChange": "",
+      "acceptedSeconds": 5.2
+    },
+    {
+      "asset": "N14",
+      "slots": [
+        "P1-037"
+      ],
+      "narrationIntent": "Compartían áreas con personal humano",
+      "visualIntent": "Técnico humano (T1) y gris en extremos de una mesa de laboratorio; ninguno se mueve de sitio",
+      "characters": [
+        "técnico",
+        "gris"
+      ],
+      "shotClass": "human_creature",
+      "slotSeconds": [
+        5.2
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "HIGH",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Human + grey at the same bench: interaction class, still by rule.",
+      "storyboardChange": "",
+      "acceptedSeconds": 5.2
+    },
+    {
+      "asset": "N15",
+      "slots": [
+        "P1-039"
+      ],
+      "narrationIntent": "…operación cotidiana… lo imposible, rutina",
+      "visualIntent": "Reptiliano tras cristal de sala de control, silueta ante monitores",
+      "characters": [
+        "reptiliano"
+      ],
+      "shotClass": "creature",
+      "slotSeconds": [
+        3.7
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "MEDIUM",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "Silhouette behind glass: stillness is part of the menace.",
+      "storyboardChange": "",
+      "acceptedSeconds": 3.7
+    },
+    {
+      "asset": "N16",
+      "slots": [
+        "P1-041"
+      ],
+      "narrationIntent": "El primer día…",
+      "visualIntent": "POV de Thomas: corredor, un gris quieto lejos en una intersección",
+      "characters": [
+        "gris"
+      ],
+      "shotClass": "creature",
+      "slotSeconds": [
+        4.4
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "POV with a distant, motionless grey.",
+      "storyboardChange": "",
+      "acceptedSeconds": 4.4
+    },
+    {
+      "asset": "N18",
+      "slots": [
+        "P1-046"
+      ],
+      "narrationIntent": "Personal entrando y saliendo",
+      "visualIntent": "Torniquetes de turno: personal de espaldas desenfocado, sin cruces",
+      "characters": [
+        "personal"
+      ],
+      "shotClass": "multi_human",
+      "slotSeconds": [
+        3.9
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "HIGH",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "Turnstiles with staff: multi-human by rule.",
+      "storyboardChange": "",
+      "acceptedSeconds": 3.9
+    },
+    {
+      "asset": "N19",
+      "slots": [
+        "P1-048"
+      ],
+      "narrationIntent": "…seres que simplemente formaban parte del lugar",
+      "visualIntent": "Oficina: humano teclea en primer plano; tras cristal esmerilado pasa la silueta de un gris",
+      "characters": [
+        "gris",
+        "personal"
+      ],
+      "shotClass": "human_creature",
+      "slotSeconds": [
+        5.3
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "HIGH",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Typing hands + a figure crossing: two banned motions.",
+      "storyboardChange": "Grey silhouette STANDS behind the frosted glass (no crossing); hands out of frame.",
+      "acceptedSeconds": 5.3
+    },
+    {
+      "asset": "N20",
+      "slots": [
+        "P1-056"
+      ],
+      "narrationIntent": "…otra realidad que no puedes compartir",
+      "visualIntent": "Thomas (C1) primer plano en la mesa de la cena, callado; push-in muy lento",
+      "characters": [
+        "Thomas"
+      ],
+      "shotClass": "single_human",
+      "slotSeconds": [
+        6.3
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_ESSENTIAL",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "HIGH",
+      "recommendedMethod": "i2v_economy",
+      "clipSeconds": 5,
+      "expectedCostUsd": 0.25,
+      "savingsUsd": 0.25,
+      "reason": "Emotional core: Thomas silent at dinner. Breath and a blink keep a 5 s close-up alive; one micro-gesture only.",
+      "storyboardChange": "Slot trimmed to 5.0 s; the extra 1.3 s goes to D10-04.",
+      "acceptedSeconds": 6.3,
+      "acceptedSecondsB": 5
+    },
+    {
+      "asset": "N21",
+      "slots": [
+        "P1-064"
+      ],
+      "narrationIntent": "A la mañana siguiente volvía a Dulce",
+      "visualIntent": "Amanecer: la misma camioneta marrón sale de la casa hacia el desierto",
+      "characters": [],
+      "shotClass": "landscape",
+      "slotSeconds": [
+        4.2
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "LOW",
+      "motionValue": "MEDIUM",
+      "recommendedMethod": "parallax",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "Truck at dawn: a lateral pan past a parked truck on the road reads as departure.",
+      "storyboardChange": "",
+      "acceptedSeconds": 4.2
+    },
+    {
+      "asset": "N22",
+      "slots": [
+        "P1-068"
+      ],
+      "narrationIntent": "Y volvía a guardar silencio.",
+      "visualIntent": "Thomas (C1) primer plano en corredor, silencio; push-in",
+      "characters": [
+        "Thomas"
+      ],
+      "shotClass": "single_human",
+      "slotSeconds": [
+        4.3
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Thomas close-up in the corridor; push-in only.",
+      "storyboardChange": "",
+      "acceptedSeconds": 4.3
+    },
+    {
+      "asset": "N23",
+      "slots": [
+        "P1-069"
+      ],
+      "narrationIntent": "Existían reglas. Conversaciones restringidas",
+      "visualIntent": "Mampara de cristal: dos técnicos humanos a un lado, un gris lejos al otro; estático",
+      "characters": [
+        "personal",
+        "gris"
+      ],
+      "shotClass": "human_creature",
+      "slotSeconds": [
+        6.0
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "HIGH",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Humans and a grey across a partition: interaction class.",
+      "storyboardChange": "",
+      "acceptedSeconds": 6.0
+    },
+    {
+      "asset": "N25",
+      "slots": [
+        "P1-074"
+      ],
+      "narrationIntent": "Hasta que empezó a ver cosas…",
+      "visualIntent": "Thomas (C1) ante ventana de observación, reflejo del laboratorio en el cristal",
+      "characters": [
+        "Thomas"
+      ],
+      "shotClass": "single_human",
+      "slotSeconds": [
+        7.9
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "MEDIUM",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Thomas at the observation window: slow push, reflection static.",
+      "storyboardChange": "",
+      "acceptedSeconds": 7.9
+    },
+    {
+      "asset": "N26",
+      "slots": [
+        "P1-076",
+        "P1-081"
+      ],
+      "narrationIntent": "…investigación biológica y médica / Medicina experimental.",
+      "visualIntent": "Sala médica clínica (distinta del laboratorio de cámaras): camilla vacía, instrumental, luz blanca-verde",
+      "characters": [],
+      "shotClass": "laboratory",
+      "slotSeconds": [
+        4.3,
+        2.6
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "LOW",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Empty medical bay: dolly-in on a still.",
+      "storyboardChange": "",
+      "acceptedSeconds": 6.9
+    },
+    {
+      "asset": "N27",
+      "slots": [
+        "P1-077"
+      ],
+      "narrationIntent": "Equipamiento que no comprendía",
+      "visualIntent": "Equipamiento extraño: recipientes de vidrio, cables, luces que laten",
+      "characters": [],
+      "shotClass": "object",
+      "slotSeconds": [
+        3.5
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "LOW",
+      "motionValue": "MEDIUM",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "Strange equipment: a push plus an FFmpeg glow pulse on the lights.",
+      "storyboardChange": "",
+      "acceptedSeconds": 3.5
+    },
+    {
+      "asset": "N28",
+      "slots": [
+        "P1-079"
+      ],
+      "narrationIntent": "Personal humano cerca de entidades no humanas",
+      "visualIntent": "Técnico humano al microscopio; un gris observa a su lado sin tocar nada",
+      "characters": [
+        "técnico",
+        "gris"
+      ],
+      "shotClass": "human_creature",
+      "slotSeconds": [
+        4.3
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "HIGH",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "Technician at microscope with a grey beside him: interaction class, hands.",
+      "storyboardChange": "",
+      "acceptedSeconds": 4.3
+    },
+    {
+      "asset": "N29",
+      "slots": [
+        "P1-082"
+      ],
+      "narrationIntent": "…alguien arriba sabía",
+      "visualIntent": "Galería de observación desde arriba: laboratorio con figuras pequeñas",
+      "characters": [
+        "personal"
+      ],
+      "shotClass": "laboratory",
+      "slotSeconds": [
+        4.3
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "Gallery view from above with small figures.",
+      "storyboardChange": "",
+      "acceptedSeconds": 4.3
+    },
+    {
+      "asset": "N30",
+      "slots": [
+        "P1-083"
+      ],
+      "narrationIntent": "…no había visto los niveles inferiores",
+      "visualIntent": "Puerta de ascensor sin botón de llamada, nivel inferior; Thomas la mira de espaldas",
+      "characters": [
+        "Thomas"
+      ],
+      "shotClass": "single_human",
+      "slotSeconds": [
+        4.7
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "LOW",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "Thomas from behind facing a lift door.",
+      "storyboardChange": "",
+      "acceptedSeconds": 4.7
+    },
+    {
+      "asset": "N31",
+      "slots": [
+        "P1-084"
+      ],
+      "narrationIntent": "…otros trabajadores. Comentarios. Rumores.",
+      "visualIntent": "Sala de descanso: dos trabajadores sentados con café hablando en voz baja (plano medio, casi quietos)",
+      "characters": [
+        "trabajadores"
+      ],
+      "shotClass": "multi_human",
+      "slotSeconds": [
+        5.4
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "HIGH",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Two workers talking: multi-human, lips.",
+      "storyboardChange": "",
+      "acceptedSeconds": 5.4
+    },
+    {
+      "asset": "N32",
+      "slots": [
+        "P1-085"
+      ],
+      "narrationIntent": "Advertencias.",
+      "visualIntent": "Trabajador (uno) mira de reojo, advierte en silencio; primer plano",
+      "characters": [
+        "trabajador"
+      ],
+      "shotClass": "single_human",
+      "slotSeconds": [
+        3.6
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "MEDIUM",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "Worker's sideways glance; a push-in carries the warning.",
+      "storyboardChange": "",
+      "acceptedSeconds": 3.6
+    },
+    {
+      "asset": "N33",
+      "slots": [
+        "P1-086",
+        "P1-098",
+        "P1-112"
+      ],
+      "narrationIntent": "…no formaban parte del personal / …no estaban allí voluntariamente / Personas retenidas.",
+      "visualIntent": "Por la ventanilla de una puerta: hombre civil sentado en un catre de una sala de retención",
+      "characters": [
+        "George"
+      ],
+      "shotClass": "single_human",
+      "slotSeconds": [
+        4.5,
+        4.2,
+        1.4
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Man seated in the holding room through a small window.",
+      "storyboardChange": "",
+      "acceptedSeconds": 10.1
+    },
+    {
+      "asset": "N34",
+      "slots": [
+        "P1-087"
+      ],
+      "narrationIntent": "…especialmente importante",
+      "visualIntent": "Thomas (C1) mira por la ventanilla de la puerta; primer plano de perfil",
+      "characters": [
+        "Thomas"
+      ],
+      "shotClass": "single_human",
+      "slotSeconds": [
+        3.6
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "Thomas in profile at the door window.",
+      "storyboardChange": "",
+      "acceptedSeconds": 3.6
+    },
+    {
+      "asset": "N35",
+      "slots": [
+        "P1-088",
+        "P1-092"
+      ],
+      "narrationIntent": "…un hombre al que identificó como George / …una persona retenida contra su voluntad",
+      "visualIntent": "GEORGE retrato: ~55 años, delgado, barba canosa, camisa de franela civil; levanta la vista",
+      "characters": [
+        "George"
+      ],
+      "shotClass": "single_human",
+      "slotSeconds": [
+        5.4,
+        5.7
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_ESSENTIAL",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "HIGH",
+      "recommendedMethod": "i2v_economy",
+      "clipSeconds": 5,
+      "expectedCostUsd": 0.25,
+      "savingsUsd": 0.25,
+      "reason": "George's introduction: lifting his eyes to the lens is the moment the story turns.",
+      "storyboardChange": "Slot P1-088 trimmed to 5.0 s; p10 reuse (P1-092) uses the approved still with a push-in.",
+      "acceptedSeconds": 11.1,
+      "acceptedSecondsB": 5
+    },
+    {
+      "asset": "N36",
+      "slots": [
+        "P1-089",
+        "P1-121"
+      ],
+      "narrationIntent": "…llevado allí. Contra su voluntad. / …las personas retenidas",
+      "visualIntent": "George primer plano, ojos cansados; respira",
+      "characters": [
+        "George"
+      ],
+      "shotClass": "single_human",
+      "slotSeconds": [
+        4.6,
+        3.8
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "George close-up; still push after N35 has established him alive.",
+      "storyboardChange": "",
+      "acceptedSeconds": 8.4
+    },
+    {
+      "asset": "N37",
+      "slots": [
+        "P1-090"
+      ],
+      "narrationIntent": "…podía justificar muchas cosas",
+      "visualIntent": "Thomas (C1) camina despacio por corredor, pensativo; dolly hacia atrás",
+      "characters": [
+        "Thomas"
+      ],
+      "shotClass": "single_human",
+      "slotSeconds": [
+        6.9
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "HIGH",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Thomas walking = complex body action; identity first.",
+      "storyboardChange": "Thomas STANDS in the corridor, head lowered; camera dolly-back on the still.",
+      "acceptedSeconds": 6.9
+    },
+    {
+      "asset": "N38",
+      "slots": [
+        "P1-093"
+      ],
+      "narrationIntent": "Era una cuestión moral.",
+      "visualIntent": "Thomas (C1) primer plano en luz baja, conflicto; push-in",
+      "characters": [
+        "Thomas"
+      ],
+      "shotClass": "single_human",
+      "slotSeconds": [
+        6.9
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "MEDIUM",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Thomas in low light; slow push.",
+      "storyboardChange": "",
+      "acceptedSeconds": 6.9
+    },
+    {
+      "asset": "N41",
+      "slots": [
+        "P1-099",
+        "P1-102",
+        "P1-115",
+        "P1-119"
+      ],
+      "narrationIntent": "…apareció una palabra… NIGHTMARE HALL / Seres. / …Nightmare Hall / …entraremos en Nightmare Hall",
+      "visualIntent": "Corredor inferior con niebla y luces de emergencia rojas; el fondo nunca se ve (Nightmare Hall, sin revelar)",
+      "characters": [],
+      "shotClass": "corridor",
+      "slotSeconds": [
+        11.0,
+        1.5,
+        3.8,
+        4.7
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_ESSENTIAL",
+      "deformationRisk": "LOW",
+      "motionValue": "HIGH",
+      "recommendedMethod": "i2v_hero",
+      "clipSeconds": 10,
+      "expectedCostUsd": 0.5,
+      "savingsUsd": 0.0,
+      "reason": "Nightmare Hall: drifting fog and pulsing red light are the atmosphere; used in four slots (up to 11 s).",
+      "storyboardChange": "",
+      "acceptedSeconds": 21.0,
+      "acceptedSecondsB": 20.0
+    },
+    {
+      "asset": "N43",
+      "slots": [
+        "P1-109"
+      ],
+      "narrationIntent": "…eligió bajar",
+      "visualIntent": "Thomas (C1) dentro del ascensor bajando; luz roja sube por su cara",
+      "characters": [
+        "Thomas"
+      ],
+      "shotClass": "single_human",
+      "slotSeconds": [
+        5.7
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "MEDIUM",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Thomas descending: the rising red light is done in FFmpeg as a graded light sweep over the still.",
+      "storyboardChange": "",
+      "acceptedSeconds": 5.7
+    },
+    {
+      "asset": "N44",
+      "slots": [
+        "P1-104",
+        "P1-110"
+      ],
+      "narrationIntent": "Experimentación. / …transformó completamente su historia",
+      "visualIntent": "Compuerta blindada del nivel inferior entreabierta, niebla, luz roja (la puerta no se mueve)",
+      "characters": [],
+      "shotClass": "object",
+      "slotSeconds": [
+        1.6,
+        4.8
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_BENEFICIAL",
+      "deformationRisk": "LOW",
+      "motionValue": "MEDIUM",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "Blast door with fog: push-in; fog stays in the still.",
+      "storyboardChange": "",
+      "acceptedSeconds": 6.4
+    },
+    {
+      "asset": "N46",
+      "slots": [
+        "P1-122"
+      ],
+      "narrationIntent": "…el conflicto dentro de Dulce",
+      "visualIntent": "Luz giratoria de emergencia roja en corredor vacío",
+      "characters": [],
+      "shotClass": "object",
+      "slotSeconds": [
+        3.8
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_ESSENTIAL",
+      "deformationRisk": "LOW",
+      "motionValue": "HIGH",
+      "recommendedMethod": "i2v_economy",
+      "clipSeconds": 5,
+      "expectedCostUsd": 0.25,
+      "savingsUsd": 0.0,
+      "reason": "A rotating emergency beacon has no meaning without rotation; object class, low risk.",
+      "storyboardChange": "",
+      "acceptedSeconds": 3.8,
+      "acceptedSecondsB": 3.8
+    },
+    {
+      "asset": "N47",
+      "slots": [
+        "P1-123"
+      ],
+      "narrationIntent": "…el origen real de la leyenda",
+      "visualIntent": "Cielo nocturno sobre la mesa de Nuevo México, estrellas, paneo",
+      "characters": [],
+      "shotClass": "landscape",
+      "slotSeconds": [
+        5.7
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 10,
+        "costUsd": 0.5
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "LOW",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.5,
+      "reason": "Night sky: a pan on a still is the standard treatment.",
+      "storyboardChange": "",
+      "acceptedSeconds": 5.7
+    },
+    {
+      "asset": "N48",
+      "slots": [
+        "P1-124"
+      ],
+      "narrationIntent": "…Paul Bennewitz",
+      "visualIntent": "Equipo de radio de los 70-80 con osciloscopio encendido en un despacho (sin persona)",
+      "characters": [],
+      "shotClass": "object",
+      "slotSeconds": [
+        5.7
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "LOW",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "Radio equipment insert.",
+      "storyboardChange": "",
+      "acceptedSeconds": 5.7
+    },
+    {
+      "asset": "N49",
+      "slots": [
+        "P1-125"
+      ],
+      "narrationIntent": "…una posibilidad completamente diferente",
+      "visualIntent": "Antenas en un tejado contra el cielo nocturno",
+      "characters": [],
+      "shotClass": "object",
+      "slotSeconds": [
+        4.7
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "LOW",
+      "motionValue": "LOW",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "Antennas against the sky.",
+      "storyboardChange": "",
+      "acceptedSeconds": 4.7
+    },
+    {
+      "asset": "D04-01",
+      "slots": [
+        "P1-009",
+        "P1-103"
+      ],
+      "narrationIntent": "(sigue) / Contención.",
+      "visualIntent": "Gris en el haz de la linterna (still aprobado V1)",
+      "characters": [
+        "gris"
+      ],
+      "shotClass": "creature",
+      "slotSeconds": [
+        2.1,
+        1.5
+      ],
+      "planA": {
+        "method": "i2v_runway",
+        "clipSeconds": 5,
+        "costUsd": 0.25
+      },
+      "classification": "MOTION_UNNECESSARY",
+      "deformationRisk": "MEDIUM",
+      "motionValue": "MEDIUM",
+      "recommendedMethod": "ken_burns",
+      "clipSeconds": 0,
+      "expectedCostUsd": 0.0,
+      "savingsUsd": 0.25,
+      "reason": "The approved still of the grey in the flashlight beam is excellent; the V1 animation turned it into another being. Push-in on the still, no new generation.",
+      "storyboardChange": "",
+      "acceptedSeconds": 3.6
+    }
+  ]
+}

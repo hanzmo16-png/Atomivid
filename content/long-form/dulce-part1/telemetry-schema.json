@@ -4,12 +4,18 @@
     "attemptId": "string, unique: <shotId>-<asset>-<provider>-a<n>",
     "shotId": "storyboard slot id, e.g. P1-014 (an asset reused in several slots lists every slot in usedInShots)",
     "assetId": "N05 | D04-01 | ...",
-    "usedInShots": ["P1-014", "P1-061"],
+    "usedInShots": [
+      "P1-014",
+      "P1-061"
+    ],
     "stage": "image | animation | voice | still-motion | graphic",
     "provider": "openai | runway | elevenlabs | ffmpeg | none",
     "model": "gpt-image-2 | gen4_turbo | eleven_multilingual_v2 | ffmpeg-zoompan",
     "sceneType": "establishing | tunnel | corridor | control-room | portrait | human+non-human | lab | family | insert | document | graphic",
-    "characters": ["Thomas", "grey"],
+    "characters": [
+      "Thomas",
+      "grey"
+    ],
     "motionComplexity": "camera-only | micro-gesture | single-action | multi-action",
     "requestedSeconds": 5,
     "costUsd": 0.25,
@@ -19,14 +25,32 @@
     "qa": {
       "result": "PASS | FAIL | PENDING",
       "method": "temporal-sheet-12-frames + face-count + frame-diff",
-      "failureReasons": ["duplicated-person", "appearing-person", "identity-drift", "extra-limb", "malformed-hand", "body-deformation", "morphing-object", "impossible-action", "clothing-change", "temporal-instability", "narrative-mismatch"],
+      "failureReasons": [
+        "duplicated-person",
+        "appearing-person",
+        "identity-drift",
+        "extra-limb",
+        "malformed-hand",
+        "body-deformation",
+        "morphing-object",
+        "impossible-action",
+        "clothing-change",
+        "temporal-instability",
+        "narrative-mismatch"
+      ],
       "reviewer": "assistant visual inspection | owner",
       "notes": "string"
     },
     "fallbackUsed": "none | retry | approved-still-camera-motion | v1-recut",
     "finalApproved": "true when this attempt's output is the one the master uses",
     "outputSha256": "checksum of the produced file",
-    "createdAt": "ISO timestamp"
+    "createdAt": "ISO timestamp",
+    "productionMethod": "stock | still | ken_burns | parallax | i2v_economy | i2v_hero | v1_recut | graphic",
+    "shotClass": "landscape | object | single_human | multi_human | creature | human_creature | laboratory | corridor | graphic | other",
+    "generatedSeconds": "seconds produced by the provider (0 for stills)",
+    "acceptedSeconds": "seconds of this output used in the final master (summed over the slots it fills)",
+    "failureKind": "none | transport (not accepted/charged: at most one retry) | semantic (QA fail: next attempt must change prompt, motion, method or provider, or drop down the ladder)",
+    "qaLayer": "L0 planner | L1 local (ffmpeg/opencv: black, freeze, duration, abrupt change, face-count change) | L2 semantic review (humans, creatures, hero shots, L1 flags)"
   },
   "metrics": {
     "costPerApprovedShot": "sum(costUsd of every attempt for an asset, including failed ones and fallbacks) / number of storyboard slots that asset fills in the final master; reported per asset, per sceneType and per provider",
@@ -36,10 +60,14 @@
     "qaFailureRate": "attempts with qa.result=FAIL / attempts reviewed",
     "fallbackRate": "assets whose final output is fallbackUsed=approved-still-camera-motion / assets attempted with video",
     "costPerFinishedMinute": "totalGenerationCost / (final master seconds / 60)",
-    "costPerFinishedVideo": "totalGenerationCost for the episode, plus voice characters valued at the plan's per-character rate"
+    "costPerFinishedVideo": "totalGenerationCost for the episode, plus voice characters valued at the plan's per-character rate",
+    "costPerApprovedSecond": "sum(costUsd for an asset) / acceptedSeconds of that asset in the final master",
+    "generativeShareOfTimeline": "sum(acceptedSeconds where productionMethod in (i2v_economy, i2v_hero)) / final master seconds; also reported including reused V1 generative footage",
+    "generativeSecondsPerFinishedMinute": "sum(generatedSeconds) / (final master seconds / 60)"
   },
   "policy": {
-    "retry": "At most one justified retry per generative video after a QA FAIL; a second FAIL falls back to the approved still with controlled camera motion (push-in, pan, parallax). No regeneration loops.",
-    "gate": "The render only accepts assets whose final approval is recorded by checksum; a FAIL never reaches the master."
+    "retry": "TRANSPORT failure: at most one retry, only with evidence the job was not accepted or charged. SEMANTIC failure: never repeat the same attempt; change something material (simpler motion or prompt, other method or provider/tier) or step down the ladder. After a second failure: approved still + controlled camera motion. Never regenerate until it passes.",
+    "gate": "The render only accepts assets whose final approval is recorded by checksum; a FAIL never reaches the master.",
+    "preGenerationQA": "New images are inspected and approved (limbs, hands, duplicates, identity, clothing, character count, text artifacts, narrative fit) before any image-to-video call; only approved stills may be animated."
   }
 }
