@@ -2027,7 +2027,7 @@
       "existingStillPath": null,
       "reuse": null,
       "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The second hand of an ordinary kitchen clock moves steadily; the camera stays fixed. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The second hand of an ordinary kitchen clock moves steadily; the camera stays fixed. Use locked camera or very slow push; subject action remains primary.",
+      "animationPrompt": "Locked camera watches a normal wall clock and a man standing quietly. The clock FACE, HOUR HAND and MINUTE HAND stay in their exact starting positions throughout. Only the thin SECOND HAND advances through a small arc, one tick per second, nine small ticks total. Normal real-time speed. No time lapse, no spinning hands, no fast-forward. The man breathes subtly without moving his position. Stable objects, continuous shot.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -2043,7 +2043,8 @@
         "S1",
         "H1"
       ],
-      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition. Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
+      "imagePromptExtra": " Insert shot: frame the named object or hands tightly and clearly, with only the necessary part of any person visible. Use a new camera position, not the wide reference composition. Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action.",
+      "animationRevision": "v2"
     },
     {
       "shotId": "D09-05",

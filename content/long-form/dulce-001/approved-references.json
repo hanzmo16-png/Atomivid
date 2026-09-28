@@ -258,5 +258,60 @@
     "shotId": "D09-05",
     "sha256": "254bf03b046cf705ece09c665b3bb7db5d0135ac2376bbd38e7a5c0919128004",
     "note": "Reviewed: corrected guard identity or empty-house continuity; subjects match story and composition is usable."
+  },
+  {
+    "shotId": "D02-03",
+    "sha256": "87adedc647560757d3165342784c7208587144a1ab39139e6621a5855bd558b8",
+    "note": "Reviewed corrected close-up or seated master: consistent faces and wardrobe, appropriate framing, no unwanted objects or people."
+  },
+  {
+    "shotId": "D05-06",
+    "sha256": "1a2c043ee996bdd058da045de4d8fe24ecd4bc952a7e543aa08338424595f495",
+    "note": "Reviewed corrected close-up or seated master: consistent faces and wardrobe, appropriate framing, no unwanted objects or people."
+  },
+  {
+    "shotId": "D07-03",
+    "sha256": "178df2187992abbb1dce5a9da84e14bf68fe16f648ea60f9677f6c61f2573855",
+    "note": "Reviewed corrected close-up or seated master: consistent faces and wardrobe, appropriate framing, no unwanted objects or people."
+  },
+  {
+    "shotId": "D10-04",
+    "sha256": "0a15d34edcd893c2feea02b79ee44245e2dd4148b44cea6d70779c917bc1c3ba",
+    "note": "Reviewed corrected close-up or seated master: consistent faces and wardrobe, appropriate framing, no unwanted objects or people."
+  },
+  {
+    "shotId": "D10-05",
+    "sha256": "59cfd277c3e303c5aad99efd3e4bf4881dad6c06e40a117563a5fd7d3b6aec40",
+    "note": "Reviewed corrected close-up or seated master: consistent faces and wardrobe, appropriate framing, no unwanted objects or people."
+  },
+  {
+    "shotId": "D11-01",
+    "sha256": "599eb244a04f6b4ef075470f43256a85b8700c7e7a3b8044f01d63f310031c34",
+    "note": "Reviewed corrected close-up or seated master: consistent faces and wardrobe, appropriate framing, no unwanted objects or people."
+  },
+  {
+    "shotId": "D11-02",
+    "sha256": "a1d80d602dd10c405feb860b0be67070cc38d6ba60750716c73ed618ee1085fc",
+    "note": "Reviewed corrected close-up or seated master: consistent faces and wardrobe, appropriate framing, no unwanted objects or people."
+  },
+  {
+    "shotId": "D11-03",
+    "sha256": "b9d1851c7b707608bd7e4d619d2873b4964060e20b77af35aa4f837bd071086e",
+    "note": "Reviewed corrected close-up or seated master: consistent faces and wardrobe, appropriate framing, no unwanted objects or people."
+  },
+  {
+    "shotId": "D11-04",
+    "sha256": "c1afb39db7714a51a3ab0f94a3ef7a0cdb438455887cbdd7a00da13123f727eb",
+    "note": "Reviewed corrected close-up or seated master: consistent faces and wardrobe, appropriate framing, no unwanted objects or people."
+  },
+  {
+    "shotId": "D11-06",
+    "sha256": "410616f4e246482ce2d178f88f1c0df248f064a683ca7571bd52c14b1c500bd9",
+    "note": "Reviewed corrected close-up or seated master: consistent faces and wardrobe, appropriate framing, no unwanted objects or people."
+  },
+  {
+    "shotId": "D12-01",
+    "sha256": "6c128d8e9a0602df9c1abf61a2d8806b0a9372bd07034ec1913dde28640c9e2c",
+    "note": "Reviewed corrected close-up or seated master: consistent faces and wardrobe, appropriate framing, no unwanted objects or people."
   }
 ]
