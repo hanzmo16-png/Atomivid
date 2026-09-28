@@ -1,7 +1,7 @@
 {
   "videoId": "dulce-part1",
-  "requestId": "approve-batch3-narrate-1",
-  "stage": "approve,narrate",
+  "requestId": "render-master-1",
+  "stage": "status,render",
   "assets": [],
   "draft": false,
   "capUsd": 40,
