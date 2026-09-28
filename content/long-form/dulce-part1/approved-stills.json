@@ -163,5 +163,90 @@
     "asset": "N25",
     "sha256": "2d89e0902970ff10213bbf4f0722404fec759b9e40c3216a8700e90a0f58ffb9",
     "note": "Thomas at observation window, lab reflected; minor: two flat monitors in dark lower right (period detail), accepted."
+  },
+  {
+    "asset": "N27",
+    "sha256": "cb0217ebc7d1b3988de762997166d15cdbce9c2f807da0eca52c2f14cfeebfec",
+    "note": "Lab equipment, pulsing lights, no people."
+  },
+  {
+    "asset": "N30",
+    "sha256": "450889dbf560a6e68a060fec9d3b0e617474a35f6509efd6ab54ec52af8e6468",
+    "note": "Thomas from behind at a buttonless steel elevator; wardrobe matches."
+  },
+  {
+    "asset": "N29",
+    "sha256": "0d362896ed4820dbebd2d4d40759af6c51ba7973faadd0fa37b11cbd62bc42f7",
+    "note": "High-angle lab, small still figures at stations as requested."
+  },
+  {
+    "asset": "N28",
+    "sha256": "2819ed2b8dcc7954d09d6319c75aa12880b52fca3692e53995d82b3119e87374",
+    "note": "Technician at microscope, grey observes without touching; two characters as requested (still only, never animated)."
+  },
+  {
+    "asset": "N32",
+    "sha256": "fec4f67b12f940f06c3312016a1a02113da998e5b939d3b53c9e3f6ac6d93f4d",
+    "note": "Single worker, cautious sideways glance, dim corridor."
+  },
+  {
+    "asset": "N34",
+    "sha256": "710c549d350bb963b2d5a380f34a85506f0f70a20f52c204615e9eedb1536832",
+    "note": "Thomas profile at door window; identity consistent with N37/N38 and wardrobe."
+  },
+  {
+    "asset": "N31",
+    "sha256": "8169eff9ca857fc023a333cef433b79c74ab133486d6300154564b233cb6f79f",
+    "note": "Two workers at table; faces similar but distinguishable (hair, build). Accepted as still; no animation."
+  },
+  {
+    "asset": "N37",
+    "sha256": "9f3c3305fdcf5b16f4cdb25bf9440a0fdd2c2ba340dc1e4d20565eb97bb0bb98",
+    "note": "Thomas head lowered in corridor; identity consistent."
+  },
+  {
+    "asset": "N38",
+    "sha256": "b5cf118ff25f4b6f319afc30ab7c8c5574854b70a4fbd32da2089f685de3edb6",
+    "note": "Thomas close-up, conflicted, eyes aside; identity consistent."
+  },
+  {
+    "asset": "N39",
+    "sha256": "450bf4cc9c4181e0bb5f3e94948f52b195d5143b23daf74fef0a9477ead16309",
+    "note": "Desk, lamp, closed folder; no people, no text."
+  },
+  {
+    "asset": "N42",
+    "sha256": "0a8291f494edcb252da984f82e71bb098f69be6e3704e8dc75d8a3b69f4a1cb7",
+    "note": "Unlabeled button column, lowest lit red; no hands/numbers."
+  },
+  {
+    "asset": "N44",
+    "sha256": "584f04aec9b5e0b4899b559bc5373355315ed87893d51450360bbe11b51b5909",
+    "note": "Lowest-level corridor ending in door ajar with red light beyond; fog light. Semantically acceptable."
+  },
+  {
+    "asset": "N40",
+    "sha256": "8560d317078855f53beec15a97a7333718078c9c5d339fe2fd31dbcc27dbe058",
+    "note": "Files top-down; redaction bars only, no readable text; faceless photo silhouettes."
+  },
+  {
+    "asset": "N45",
+    "sha256": "02369312de74dc1c3fe579aa037c3fb1ede7756df464d44cc50a61d6082e8b9c",
+    "note": "Open filing drawer, empty folders, no writing."
+  },
+  {
+    "asset": "N47",
+    "sha256": "4f674ab40e32926c71db151afa8f90a286bfbb019bb7e554467c5550eb9cd32d",
+    "note": "Mesa silhouette under Milky Way, no ground lights."
+  },
+  {
+    "asset": "N49",
+    "sha256": "0df7e0acd0932c076aa7aed16c7f7c485676ea38d62409d7ac2900f3db851e86",
+    "note": "Rooftop antennas at night; no people."
+  },
+  {
+    "asset": "N50",
+    "sha256": "56cd79a774f29477f785d137d19f75b18970f17af865f266234d2463bd28bde9",
+    "note": "Typewriter and blacked-out pages; no readable text."
   }
 ]
