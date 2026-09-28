@@ -1,0 +1,30 @@
+name: Dulce Part I - voice and quota check (read-only, no characters used)
+on:
+  push:
+    branches: [claude/dulce-final-mp4-6jqvxn]
+    paths: [scripts/dulce-voice-check.ts, .github/workflows/dulce-voice-check.yml]
+permissions:
+  contents: read
+jobs:
+  check:
+    if: github.ref == 'refs/heads/claude/dulce-final-mp4-6jqvxn'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/dulce-voice-check.ts
+        env:
+          VOICE_OUT: ${{ runner.temp }}/voice-check
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dulce-voice-check-${{ github.run_id }}
+          path: ${{ runner.temp }}/voice-check/
+          retention-days: 14
+          if-no-files-found: ignore
