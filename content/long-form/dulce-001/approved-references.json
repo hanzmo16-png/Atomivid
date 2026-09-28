@@ -203,5 +203,30 @@
     "shotId": "D08-02",
     "sha256": "147bb9401e036d58a9488c4546cb0c740f6e4fa9816aa272b32921ed814a3c8f",
     "note": "Reviewed reference at full contact-sheet resolution: correct character, location and intended action; central 16:9 composition usable."
+  },
+  {
+    "shotId": "D08-03",
+    "sha256": "e382b5254ab5e0ad23ac23e181f983bca4b88df5686db54b38ec3a7fc89d0d0c",
+    "note": "Visual review passed: intended action and identities, domestic continuity or industrial card reader; usable central 16:9 frame."
+  },
+  {
+    "shotId": "D09-04",
+    "sha256": "58a5f31e4b328ce8be0019071171ee2b0dfebe8e0e93c1ec10e6dc630f9e5697",
+    "note": "Visual review passed: intended action and identities, domestic continuity or industrial card reader; usable central 16:9 frame."
+  },
+  {
+    "shotId": "D10-01",
+    "sha256": "ac94c4b5762b096b53129e08439324352bb11d27ed66f37f1ed5b94b133b1166",
+    "note": "Visual review passed: intended action and identities, domestic continuity or industrial card reader; usable central 16:9 frame."
+  },
+  {
+    "shotId": "D10-02",
+    "sha256": "18f594a68d74153d98d43d3f0735c4ec42b404449eb191c342fe5da835be53cd",
+    "note": "Visual review passed: intended action and identities, domestic continuity or industrial card reader; usable central 16:9 frame."
+  },
+  {
+    "shotId": "D10-03",
+    "sha256": "9a132cd5fcc093ce6cada21690e2711a57ead220f2e63776bf9ee927ecb974de",
+    "note": "Visual review passed: intended action and identities, domestic continuity or industrial card reader; usable central 16:9 frame."
   }
 ]

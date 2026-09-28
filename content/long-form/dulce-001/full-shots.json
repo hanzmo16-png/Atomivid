@@ -1803,12 +1803,11 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "d02",
         "d01"
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: An adult guard presses a desk button; the exit gate begins to open behind the window. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
+      "imagePrompt": "Photorealistic cinematic still. Only ONE human security guard: adult man 60, broad face, gray mustache, navy security uniform and peaked cap. He sits inside a small guard booth in an industrial maintenance corridor, hand resting beside a red desk button. Through booth glass the exit gate is visible. Castello is not in this shot. No flashlight. Different identity from the maintenance worker. Keep essential subjects inside central 16:9 crop.",
       "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. An adult guard presses a desk button; the exit gate begins to open behind the window. Use locked camera or very slow push; subject action remains primary.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
@@ -1820,10 +1819,11 @@
       "editSeconds": 7.7,
       "timingStatus": "measured_audio_conform_pending_picture_review",
       "contextKeys": [
-        "C1",
         "P1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": "Depict only the explicitly requested subjects; do not copy unwanted people or settings from reference images.",
+      "imageRevision": "v2",
+      "replaceReferenceSha256": "4962e967517898abbe57c10c17ef2bc9ee8f6a89044986014bf184b8491c729d"
     },
     {
       "shotId": "D08-05",
@@ -1841,11 +1841,11 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06"
+        "D02-03"
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: Desert wind carries dust past the worker as he opens the same truck door. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
+      "imagePrompt": "Photorealistic cinematic still. Castello alone beside his muted brown 1980s pickup OUTSIDE THE INDUSTRIAL FACILITY, at a concrete service/loading entrance in the desert at night. Concrete retaining wall and metal service door behind him. He reaches to open the driver door. No domestic house, no wooden porch, no wife or child. Truck matches reference color and era; use other reference for Castello identity only. Keep essential subjects inside central 16:9 crop.",
       "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Desert wind carries dust past the worker as he opens the same truck door. Use locked camera or very slow push; subject action remains primary.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
@@ -1857,10 +1857,11 @@
       "editSeconds": 7.7,
       "timingStatus": "measured_audio_conform_pending_picture_review",
       "contextKeys": [
-        "C1",
-        "H1"
+        "C1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": "Depict only the explicitly requested subjects; do not copy unwanted people or settings from reference images.",
+      "imageRevision": "v2",
+      "replaceReferenceSha256": "c19a107953e141bf63209051cc658c0b02c69f6aa578ef5398bd90fa64c33292"
     },
     {
       "shotId": "D08-06",
@@ -1877,12 +1878,12 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "d02",
-        "D09-06"
+        "D09-06",
+        "D02-03"
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The truck approaches the established dark house and slows to a stop. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
+      "imagePrompt": "Photorealistic cinematic still. Exterior wide shot at night of the modest stucco house with timber porch. The muted brown pickup approaches on the gravel drive, headlights on. All doors of the house are shut. NO PEOPLE anywhere outside, on porch, in windows or beside the truck. Driver is hidden by dark windshield. Use references ONLY for house architecture and truck design. The household is absent. Keep essential subjects inside central 16:9 crop.",
       "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The truck approaches the established dark house and slows to a stop. Use restrained tracking or lateral camera movement.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
@@ -1894,10 +1895,11 @@
       "editSeconds": 8.7,
       "timingStatus": "measured_audio_conform_pending_picture_review",
       "contextKeys": [
-        "C1",
         "H1"
       ],
-      "imagePromptExtra": ""
+      "imagePromptExtra": "Depict only the explicitly requested subjects; do not copy unwanted people or settings from reference images.",
+      "imageRevision": "v2",
+      "replaceReferenceSha256": "331fefe9d10f6ed7a319796a2c257851ae014e524998ae19cef4e59fff5287a4"
     },
     {
       "shotId": "D09-01",
@@ -1914,13 +1916,11 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "d02",
-        "D09-06",
         "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: A curtain moves in a draft beside a table set for three; one chair is pulled back. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
+      "imagePrompt": "Photorealistic cinematic still. Wide shot of the EMPTY established kitchen at night. A rectangular wooden table is set for three with three plates; one chair pulled back. Curtain beside the window. NO PEOPLE, no bodies, faces or reflections anywhere. Same cream lamp, cabinets and doorway as reference, but every person from reference is absent. Keep essential subjects inside central 16:9 crop.",
       "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. A curtain moves in a draft beside a table set for three; one chair is pulled back. Use restrained tracking or lateral camera movement.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
@@ -1932,12 +1932,11 @@
       "editSeconds": 7.866666666666666,
       "timingStatus": "measured_audio_conform_pending_picture_review",
       "contextKeys": [
-        "C1",
-        "W1",
-        "S1",
         "H1"
       ],
-      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
+      "imagePromptExtra": "Depict only the explicitly requested subjects; do not copy unwanted people or settings from reference images.",
+      "imageRevision": "v2",
+      "replaceReferenceSha256": "15c443bf1e7838c8ea1af0f8f4a8c9b758a9b463b19252d3aa1dca543ee6b63a"
     },
     {
       "shotId": "D09-02",
@@ -1954,14 +1953,12 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "d02",
-        "D09-06",
         "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The worker steadies a glass lying beside the sink and looks toward the doorway. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
-      "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The worker steadies a glass lying beside the sink and looks toward the doorway. Use locked camera or very slow push; subject action remains primary.",
+      "imagePrompt": "Photorealistic cinematic still. Close-up of an ordinary empty clear drinking glass lying on its side beside a kitchen sink, and ONLY one adult hand in a dark long sleeve hovering above the glass. No faces, bodies, wife or child. Warm kitchen lamp lighting. Undamaged glass, dry counter, ordinary domestic setting. Central 16:9 framing. Keep essential subjects inside central 16:9 crop.",
+      "animationPrompt": "Close-up on a single drinking glass lying beside a kitchen sink. One adult hand carefully turns the glass upright and withdraws. No other objects or people enter the frame. Fixed camera, realistic controlled motion, no cuts.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
       "reviewStatus": "pending_generation_and_review",
@@ -1972,12 +1969,10 @@
       "editSeconds": 7.866666666666666,
       "timingStatus": "measured_audio_conform_pending_picture_review",
       "contextKeys": [
-        "C1",
-        "W1",
-        "S1",
         "H1"
       ],
-      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
+      "imagePromptExtra": "Depict only the explicitly requested subjects; do not copy unwanted people or settings from reference images.",
+      "imageRevision": "v2"
     },
     {
       "shotId": "D09-03",
@@ -1995,12 +1990,11 @@
       "newImageRequired": true,
       "referenceKeys": [
         "d02",
-        "D09-06",
         "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: The worker pushes open a bedroom door and leans into the empty room. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
+      "imagePrompt": "Photorealistic cinematic still. Medium shot from hallway: ONLY Castello in charcoal coveralls, opening a bedroom door and looking into the EMPTY bedroom at night. Behind him is the EMPTY established kitchen. Absolutely no wife, child, other person or faces in the background. The entire house is deserted except for Castello. He holds his single flashlight low. Keep essential subjects inside central 16:9 crop.",
       "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. The worker pushes open a bedroom door and leans into the empty room. Use locked camera or very slow push; subject action remains primary.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
@@ -2013,11 +2007,11 @@
       "timingStatus": "measured_audio_conform_pending_picture_review",
       "contextKeys": [
         "C1",
-        "W1",
-        "S1",
         "H1"
       ],
-      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
+      "imagePromptExtra": "Depict only the explicitly requested subjects; do not copy unwanted people or settings from reference images.",
+      "imageRevision": "v2",
+      "replaceReferenceSha256": "f2832f25b505d9f663e4a4d948e2d68e0f260e06574461f4f10b9f9e69d84250"
     },
     {
       "shotId": "D09-04",
@@ -2074,13 +2068,11 @@
       "ratio": "1280:720",
       "newImageRequired": true,
       "referenceKeys": [
-        "d02",
-        "D09-06",
         "D02-01"
       ],
       "existingStillPath": null,
       "reuse": null,
-      "imagePrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Compose a landscape starting frame with room for this action: Light from an approaching car moves across the kitchen curtains. Match the relevant characters and sets in visualBible; use approved references, not unrelated text-only identities. Keep essential subjects inside the central 16:9 area.",
+      "imagePrompt": "Photorealistic cinematic still. Close view of the established kitchen window and curtains at night, warm lamp reflected subtly in glass. Part of the EMPTY dining table visible below. No people or human reflections anywhere. Wife, child and Castello are all outside the frame. A faint white light from an approaching car appears beyond the curtain. Use reference only for architecture, not people. Keep essential subjects inside central 16:9 crop.",
       "animationPrompt": "Photorealistic cinematic science fiction, restrained practical lighting, clear readable action. Preserve the approved source image identities, clothing and geometry. One continuous shot. No cuts, no generated text, no logos, no gore. Light from an approaching car moves across the kitchen curtains. Use locked camera or very slow push; subject action remains primary.",
       "animationUsd": 0.5,
       "referenceReserveUsd": 0.15,
@@ -2092,12 +2084,11 @@
       "editSeconds": 7.866666666666666,
       "timingStatus": "measured_audio_conform_pending_picture_review",
       "contextKeys": [
-        "C1",
-        "W1",
-        "S1",
         "H1"
       ],
-      "imagePromptExtra": " Match the exact approved D02-01 kitchen layout: same table, chairs, cabinetry, doorway, cream lamp and window. New camera angle appropriate to this action."
+      "imagePromptExtra": "Depict only the explicitly requested subjects; do not copy unwanted people or settings from reference images.",
+      "imageRevision": "v2",
+      "replaceReferenceSha256": "71af0979a9757088d4d931b1a1a7ae5b9ccb429a070fe57f43d69abafa7708d6"
     },
     {
       "shotId": "D09-06",
