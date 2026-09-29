@@ -115,12 +115,13 @@ export function planMix(i: MixInput): MixPlan {
   // ---- V1.1 timeline rhythm (anti-slideshow), deterministic and global ----
   let rhythm: MixPlan["rhythm"]; let timelineOut: MixPlan["timeline"];
   const lim = i.profile.rhythm;
+  const rhythmShot = new Map<string, string>(); // shotId -> reason, for non-generative rhythm treatments
   if (i.policy.params.timelineRhythm && lim) {
     const byId = new Map(i.contracts.map((c) => [c.shotId, c]));
     const slots: TimelineSlot[] = i.timeline ?? i.contracts.map((c) => ({ slotId: c.shotId, shotId: c.shotId, seconds: c.desiredDuration }));
-    const override = new Map<string, Method>();
+    const override = new Map<string, Method>(); // shotId -> non-generative rhythm treatment
     const slotWhy = new Map<string, string[]>();
-    const methodOf = (sl: TimelineSlot): Method | null => (sl.shotId && byId.has(sl.shotId) ? override.get(sl.slotId) ?? (upgraded.get(sl.shotId)?.d ?? floorDecisions.get(sl.shotId)!).method : null);
+    const methodOf = (sl: TimelineSlot): Method | null => (sl.shotId && byId.has(sl.shotId) ? override.get(sl.shotId) ?? (upgraded.get(sl.shotId)?.d ?? floorDecisions.get(sl.shotId)!).method : null);
     const motionOf = (sl: TimelineSlot): SlotMotion => {
       if (sl.fixed) return sl.fixed;
       const m = methodOf(sl); const c = sl.shotId ? byId.get(sl.shotId) : undefined;
@@ -157,9 +158,10 @@ export function planMix(i: MixInput): MixPlan {
       const cands = bad.filter(eligible).sort(order(bad));
       if (parallaxAllowed && cands.length) {
         const k = cands[0];
-        override.set(slots[k].slotId, "STILL_PARALLAX");
+        override.set(slots[k].shotId!, "STILL_PARALLAX"); // a shot has one method in every slot it occupies
         slotWhy.set(slots[k].slotId, [...(slotWhy.get(slots[k].slotId) ?? []), `${why}; broken with STILL_PARALLAX (non-generative motion first, USD 0 extra)`]);
         treatments.push({ runSlots: bad.map((x) => slots[x].slotId), runSeconds: secsOf(bad), slotId: slots[k].slotId, shotId: slots[k].shotId!, treatment: "STILL_PARALLAX", generative: false, nonGenerativeAvailable: true, reason: why });
+        rhythmShot.set(slots[k].shotId!, `${why}; STILL_PARALLAX (non-generative motion first)`);
         continue;
       }
       // Only when no non-generative treatment exists: a MEDIUM/HIGH shot may be generated, inside the ceiling.
@@ -194,6 +196,11 @@ export function planMix(i: MixInput): MixPlan {
 
   const shots: MixShot[] = i.contracts.map((c) => {
     const u = upgraded.get(c.shotId);
+    if (!u && rhythmShot.has(c.shotId)) {
+      // Non-generative rhythm treatment: re-decided as STILL_PARALLAX with zero generative seconds available.
+      const d = decide({ ...base, contract: c, requestedMethod: "STILL_PARALLAX", budget: { remainingReservedUsd: Number.MAX_SAFE_INTEGER, generativeSecondsRemaining: 0, heroRemaining: 0 } });
+      return { shotId: c.shotId, method: d.method, decision: d, upgradeRank: null, reasons: [rhythmShot.get(c.shotId)!, ...d.reasons] };
+    }
     const d = u?.d ?? floorDecisions.get(c.shotId)!;
     const why = u ? [`upgrade #${u.rank}${u.d.upgradeReason ? ` (${u.d.upgradeReason})` : ` by motion leverage ${c.motionLeverage}`}`, ...d.reasons] : skipWhy.has(c.shotId) ? [...d.reasons, skipWhy.get(c.shotId)!] : d.reasons;
     return { shotId: c.shotId, method: d.method, decision: d, upgradeRank: u?.rank ?? null, reasons: why };

@@ -1,0 +1,796 @@
+{
+ "dataset": "pi-dulce-timeline",
+ "version": 1,
+ "source": "content/long-form/dulce-part1/storyboard.json",
+ "sourceSha256": "cb22576b47c5ba52c2536fa4498d046d6a534fdcf78dcbf6cbe1bcb0b6a1c706",
+ "fieldsRead": [
+  "id",
+  "src",
+  "sec",
+  "origin",
+  "productionMethod (V1 slots only: v1_recut vs ken_burns)"
+ ],
+ "contractsNotOnTimeline": [],
+ "totalSeconds": 508.6,
+ "slots": [
+  {
+   "slotId": "P1-001",
+   "shotId": "N01",
+   "seconds": 2.6
+  },
+  {
+   "slotId": "P1-002",
+   "shotId": "N02",
+   "seconds": 2.4
+  },
+  {
+   "slotId": "P1-003",
+   "shotId": "N03",
+   "seconds": 2.6
+  },
+  {
+   "slotId": "P1-004",
+   "shotId": "N04",
+   "seconds": 2.2
+  },
+  {
+   "slotId": "P1-005",
+   "shotId": null,
+   "seconds": 2.1,
+   "fixed": "static",
+   "note": "NEW G1 without a mix contract (graphic or unlisted still)"
+  },
+  {
+   "slotId": "P1-006",
+   "shotId": null,
+   "seconds": 2,
+   "fixed": "live",
+   "note": "V1 v1_recut D01-04"
+  },
+  {
+   "slotId": "P1-007",
+   "shotId": null,
+   "seconds": 2,
+   "fixed": "live",
+   "note": "V1 v1_recut D03-06"
+  },
+  {
+   "slotId": "P1-008",
+   "shotId": null,
+   "seconds": 2.6,
+   "fixed": "live",
+   "note": "V1 v1_recut D01-07"
+  },
+  {
+   "slotId": "P1-009",
+   "shotId": null,
+   "seconds": 2.1,
+   "fixed": "static",
+   "note": "V1 ken_burns D04-01"
+  },
+  {
+   "slotId": "P1-010",
+   "shotId": null,
+   "seconds": 2.9,
+   "fixed": "live",
+   "note": "V1 v1_recut D01-01"
+  },
+  {
+   "slotId": "P1-011",
+   "shotId": null,
+   "seconds": 2.9,
+   "fixed": "live",
+   "note": "V1 v1_recut D01-03"
+  },
+  {
+   "slotId": "P1-012",
+   "shotId": null,
+   "seconds": 2.9,
+   "fixed": "live",
+   "note": "V1 v1_recut D07-03"
+  },
+  {
+   "slotId": "P1-013",
+   "shotId": null,
+   "seconds": 3.1,
+   "fixed": "live",
+   "note": "V1 v1_recut D03-04"
+  },
+  {
+   "slotId": "P1-014",
+   "shotId": "N05",
+   "seconds": 5.5
+  },
+  {
+   "slotId": "P1-015",
+   "shotId": null,
+   "seconds": 4.1,
+   "fixed": "live",
+   "note": "V1 v1_recut D02-03"
+  },
+  {
+   "slotId": "P1-016",
+   "shotId": null,
+   "seconds": 4.1,
+   "fixed": "live",
+   "note": "V1 v1_recut D08-04"
+  },
+  {
+   "slotId": "P1-017",
+   "shotId": null,
+   "seconds": 2.7,
+   "fixed": "live",
+   "note": "V1 v1_recut D07-05"
+  },
+  {
+   "slotId": "P1-018",
+   "shotId": null,
+   "seconds": 2.7,
+   "fixed": "live",
+   "note": "V1 v1_recut D07-04"
+  },
+  {
+   "slotId": "P1-019",
+   "shotId": "N06",
+   "seconds": 2.7
+  },
+  {
+   "slotId": "P1-020",
+   "shotId": null,
+   "seconds": 2.3,
+   "fixed": "live",
+   "note": "V1 v1_recut D02-06"
+  },
+  {
+   "slotId": "P1-021",
+   "shotId": null,
+   "seconds": 3.7,
+   "fixed": "live",
+   "note": "V1 v1_recut D08-01"
+  },
+  {
+   "slotId": "P1-022",
+   "shotId": null,
+   "seconds": 4.9,
+   "fixed": "live",
+   "note": "V1 v1_recut D03-03"
+  },
+  {
+   "slotId": "P1-023",
+   "shotId": null,
+   "seconds": 6.2,
+   "fixed": "static",
+   "note": "NEW G1 without a mix contract (graphic or unlisted still)"
+  },
+  {
+   "slotId": "P1-024",
+   "shotId": null,
+   "seconds": 2.1,
+   "fixed": "live",
+   "note": "V1 v1_recut D08-03"
+  },
+  {
+   "slotId": "P1-025",
+   "shotId": "N07",
+   "seconds": 4.6
+  },
+  {
+   "slotId": "P1-026",
+   "shotId": null,
+   "seconds": 4.6,
+   "fixed": "live",
+   "note": "V1 v1_recut D07-01"
+  },
+  {
+   "slotId": "P1-027",
+   "shotId": "N08",
+   "seconds": 5.1
+  },
+  {
+   "slotId": "P1-028",
+   "shotId": null,
+   "seconds": 4.6,
+   "fixed": "live",
+   "note": "V1 v1_recut D07-06"
+  },
+  {
+   "slotId": "P1-029",
+   "shotId": "N09",
+   "seconds": 4.1
+  },
+  {
+   "slotId": "P1-030",
+   "shotId": "N10",
+   "seconds": 6.4
+  },
+  {
+   "slotId": "P1-031",
+   "shotId": null,
+   "seconds": 4.3,
+   "fixed": "live",
+   "note": "V1 v1_recut D04-03"
+  },
+  {
+   "slotId": "P1-032",
+   "shotId": null,
+   "seconds": 4.3,
+   "fixed": "live",
+   "note": "V1 v1_recut D04-02"
+  },
+  {
+   "slotId": "P1-033",
+   "shotId": "N11",
+   "seconds": 4.3
+  },
+  {
+   "slotId": "P1-034",
+   "shotId": "N12",
+   "seconds": 4.3
+  },
+  {
+   "slotId": "P1-035",
+   "shotId": null,
+   "seconds": 2.6,
+   "fixed": "live",
+   "note": "V1 v1_recut D04-04"
+  },
+  {
+   "slotId": "P1-036",
+   "shotId": "N13",
+   "seconds": 5.2
+  },
+  {
+   "slotId": "P1-037",
+   "shotId": "N14",
+   "seconds": 5.2
+  },
+  {
+   "slotId": "P1-038",
+   "shotId": null,
+   "seconds": 3.5,
+   "fixed": "live",
+   "note": "V1 v1_recut D06-02"
+  },
+  {
+   "slotId": "P1-039",
+   "shotId": "N15",
+   "seconds": 3.7
+  },
+  {
+   "slotId": "P1-040",
+   "shotId": null,
+   "seconds": 2.4,
+   "fixed": "live",
+   "note": "V1 v1_recut D05-06"
+  },
+  {
+   "slotId": "P1-041",
+   "shotId": "N16",
+   "seconds": 4.4
+  },
+  {
+   "slotId": "P1-042",
+   "shotId": null,
+   "seconds": 3.4,
+   "fixed": "live",
+   "note": "V1 v1_recut D07-06"
+  },
+  {
+   "slotId": "P1-043",
+   "shotId": null,
+   "seconds": 3.9,
+   "fixed": "static",
+   "note": "NEW N17 without a mix contract (graphic or unlisted still)"
+  },
+  {
+   "slotId": "P1-044",
+   "shotId": null,
+   "seconds": 3.9,
+   "fixed": "live",
+   "note": "V1 v1_recut D02-04"
+  },
+  {
+   "slotId": "P1-045",
+   "shotId": null,
+   "seconds": 3.9,
+   "fixed": "live",
+   "note": "V1 v1_recut D06-03"
+  },
+  {
+   "slotId": "P1-046",
+   "shotId": "N18",
+   "seconds": 3.9
+  },
+  {
+   "slotId": "P1-047",
+   "shotId": null,
+   "seconds": 2.9,
+   "fixed": "live",
+   "note": "V1 v1_recut D03-05"
+  },
+  {
+   "slotId": "P1-048",
+   "shotId": "N19",
+   "seconds": 5.3
+  },
+  {
+   "slotId": "P1-049",
+   "shotId": null,
+   "seconds": 4.2,
+   "fixed": "live",
+   "note": "V1 v1_recut D08-06"
+  },
+  {
+   "slotId": "P1-050",
+   "shotId": null,
+   "seconds": 4.2,
+   "fixed": "live",
+   "note": "V1 v1_recut D12-06"
+  },
+  {
+   "slotId": "P1-051",
+   "shotId": null,
+   "seconds": 5.1,
+   "fixed": "live",
+   "note": "V1 v1_recut D12-01"
+  },
+  {
+   "slotId": "P1-052",
+   "shotId": null,
+   "seconds": 1.2,
+   "fixed": "live",
+   "note": "V1 v1_recut D01-01"
+  },
+  {
+   "slotId": "P1-053",
+   "shotId": null,
+   "seconds": 5.1,
+   "fixed": "live",
+   "note": "V1 v1_recut D12-03"
+  },
+  {
+   "slotId": "P1-054",
+   "shotId": null,
+   "seconds": 3.4,
+   "fixed": "live",
+   "note": "V1 v1_recut D11-06"
+  },
+  {
+   "slotId": "P1-055",
+   "shotId": null,
+   "seconds": 3.4,
+   "fixed": "live",
+   "note": "V1 v1_recut D10-05"
+  },
+  {
+   "slotId": "P1-056",
+   "shotId": "N20",
+   "seconds": 5
+  },
+  {
+   "slotId": "P1-057",
+   "shotId": null,
+   "seconds": 1.2,
+   "fixed": "live",
+   "note": "V1 v1_recut D04-02"
+  },
+  {
+   "slotId": "P1-058",
+   "shotId": null,
+   "seconds": 4.7,
+   "fixed": "live",
+   "note": "V1 v1_recut D10-04"
+  },
+  {
+   "slotId": "P1-059",
+   "shotId": null,
+   "seconds": 4.2,
+   "fixed": "live",
+   "note": "V1 v1_recut D09-04"
+  },
+  {
+   "slotId": "P1-060",
+   "shotId": null,
+   "seconds": 3.4,
+   "fixed": "live",
+   "note": "V1 v1_recut D11-04"
+  },
+  {
+   "slotId": "P1-061",
+   "shotId": null,
+   "seconds": 3.4,
+   "fixed": "live",
+   "note": "V1 v1_recut D11-03"
+  },
+  {
+   "slotId": "P1-062",
+   "shotId": null,
+   "seconds": 1.2,
+   "fixed": "live",
+   "note": "V1 v1_recut D05-01"
+  },
+  {
+   "slotId": "P1-063",
+   "shotId": null,
+   "seconds": 4.2,
+   "fixed": "live",
+   "note": "V1 v1_recut D12-04"
+  },
+  {
+   "slotId": "P1-064",
+   "shotId": "N21",
+   "seconds": 4.2
+  },
+  {
+   "slotId": "P1-065",
+   "shotId": "N05",
+   "seconds": 3
+  },
+  {
+   "slotId": "P1-066",
+   "shotId": null,
+   "seconds": 2.5,
+   "fixed": "live",
+   "note": "V1 v1_recut D01-01"
+  },
+  {
+   "slotId": "P1-067",
+   "shotId": null,
+   "seconds": 2.5,
+   "fixed": "live",
+   "note": "V1 v1_recut D01-03"
+  },
+  {
+   "slotId": "P1-068",
+   "shotId": "N22",
+   "seconds": 4.3
+  },
+  {
+   "slotId": "P1-069",
+   "shotId": "N23",
+   "seconds": 6
+  },
+  {
+   "slotId": "P1-070",
+   "shotId": null,
+   "seconds": 2,
+   "fixed": "live",
+   "note": "V1 v1_recut D06-05"
+  },
+  {
+   "slotId": "P1-071",
+   "shotId": null,
+   "seconds": 3,
+   "fixed": "live",
+   "note": "V1 v1_recut D07-02"
+  },
+  {
+   "slotId": "P1-072",
+   "shotId": "N05",
+   "seconds": 5
+  },
+  {
+   "slotId": "P1-073",
+   "shotId": null,
+   "seconds": 4,
+   "fixed": "static",
+   "note": "NEW N24 without a mix contract (graphic or unlisted still)"
+  },
+  {
+   "slotId": "P1-074",
+   "shotId": "N25",
+   "seconds": 7.9
+  },
+  {
+   "slotId": "P1-075",
+   "shotId": null,
+   "seconds": 4.3,
+   "fixed": "live",
+   "note": "V1 v1_recut D01-04"
+  },
+  {
+   "slotId": "P1-076",
+   "shotId": "N26",
+   "seconds": 4.3
+  },
+  {
+   "slotId": "P1-077",
+   "shotId": "N27",
+   "seconds": 3.5
+  },
+  {
+   "slotId": "P1-078",
+   "shotId": null,
+   "seconds": 4.3,
+   "fixed": "live",
+   "note": "V1 v1_recut D05-01"
+  },
+  {
+   "slotId": "P1-079",
+   "shotId": "N28",
+   "seconds": 4.3
+  },
+  {
+   "slotId": "P1-080",
+   "shotId": null,
+   "seconds": 3.5,
+   "fixed": "live",
+   "note": "V1 v1_recut D06-01"
+  },
+  {
+   "slotId": "P1-081",
+   "shotId": "N26",
+   "seconds": 2.6
+  },
+  {
+   "slotId": "P1-082",
+   "shotId": "N29",
+   "seconds": 4.3
+  },
+  {
+   "slotId": "P1-083",
+   "shotId": "N30",
+   "seconds": 4.7
+  },
+  {
+   "slotId": "P1-084",
+   "shotId": "N31",
+   "seconds": 5.4
+  },
+  {
+   "slotId": "P1-085",
+   "shotId": "N32",
+   "seconds": 3.6
+  },
+  {
+   "slotId": "P1-086",
+   "shotId": "N33",
+   "seconds": 4.5
+  },
+  {
+   "slotId": "P1-087",
+   "shotId": "N34",
+   "seconds": 3.6
+  },
+  {
+   "slotId": "P1-088",
+   "shotId": "N35",
+   "seconds": 5.4
+  },
+  {
+   "slotId": "P1-089",
+   "shotId": "N36",
+   "seconds": 4.6
+  },
+  {
+   "slotId": "P1-090",
+   "shotId": "N37",
+   "seconds": 6.9
+  },
+  {
+   "slotId": "P1-091",
+   "shotId": null,
+   "seconds": 4.6,
+   "fixed": "live",
+   "note": "V1 v1_recut D04-02"
+  },
+  {
+   "slotId": "P1-092",
+   "shotId": "N35",
+   "seconds": 5.7
+  },
+  {
+   "slotId": "P1-093",
+   "shotId": "N38",
+   "seconds": 6.9
+  },
+  {
+   "slotId": "P1-094",
+   "shotId": null,
+   "seconds": 5.7,
+   "fixed": "live",
+   "note": "V1 v1_recut D03-06"
+  },
+  {
+   "slotId": "P1-095",
+   "shotId": null,
+   "seconds": 5.2,
+   "fixed": "static",
+   "note": "NEW N39 without a mix contract (graphic or unlisted still)"
+  },
+  {
+   "slotId": "P1-096",
+   "shotId": null,
+   "seconds": 5.2,
+   "fixed": "static",
+   "note": "NEW N40 without a mix contract (graphic or unlisted still)"
+  },
+  {
+   "slotId": "P1-097",
+   "shotId": null,
+   "seconds": 4.2,
+   "fixed": "live",
+   "note": "V1 v1_recut D06-06"
+  },
+  {
+   "slotId": "P1-098",
+   "shotId": "N33",
+   "seconds": 4.2
+  },
+  {
+   "slotId": "P1-099",
+   "shotId": "N41",
+   "seconds": 11
+  },
+  {
+   "slotId": "P1-100",
+   "shotId": null,
+   "seconds": 5.9,
+   "fixed": "static",
+   "note": "NEW G1 without a mix contract (graphic or unlisted still)"
+  },
+  {
+   "slotId": "P1-101",
+   "shotId": null,
+   "seconds": 1.5,
+   "fixed": "live",
+   "note": "V1 v1_recut D05-02"
+  },
+  {
+   "slotId": "P1-102",
+   "shotId": "N41",
+   "seconds": 1.5
+  },
+  {
+   "slotId": "P1-103",
+   "shotId": null,
+   "seconds": 1.5,
+   "fixed": "static",
+   "note": "V1 ken_burns D04-01"
+  },
+  {
+   "slotId": "P1-104",
+   "shotId": "N44",
+   "seconds": 1.6
+  },
+  {
+   "slotId": "P1-105",
+   "shotId": null,
+   "seconds": 5.9,
+   "fixed": "live",
+   "note": "V1 v1_recut D03-03"
+  },
+  {
+   "slotId": "P1-106",
+   "shotId": null,
+   "seconds": 5.9,
+   "fixed": "live",
+   "note": "V1 v1_recut D12-06"
+  },
+  {
+   "slotId": "P1-107",
+   "shotId": null,
+   "seconds": 5.9,
+   "fixed": "static",
+   "note": "NEW N42 without a mix contract (graphic or unlisted still)"
+  },
+  {
+   "slotId": "P1-108",
+   "shotId": null,
+   "seconds": 5.3,
+   "fixed": "live",
+   "note": "V1 v1_recut D03-04"
+  },
+  {
+   "slotId": "P1-109",
+   "shotId": "N43",
+   "seconds": 5.7
+  },
+  {
+   "slotId": "P1-110",
+   "shotId": "N44",
+   "seconds": 4.8
+  },
+  {
+   "slotId": "P1-111",
+   "shotId": null,
+   "seconds": 1.4,
+   "fixed": "live",
+   "note": "V1 v1_recut D01-06"
+  },
+  {
+   "slotId": "P1-112",
+   "shotId": "N33",
+   "seconds": 1.4
+  },
+  {
+   "slotId": "P1-113",
+   "shotId": null,
+   "seconds": 1.4,
+   "fixed": "live",
+   "note": "V1 v1_recut D01-05"
+  },
+  {
+   "slotId": "P1-114",
+   "shotId": "N12",
+   "seconds": 1.4
+  },
+  {
+   "slotId": "P1-115",
+   "shotId": "N41",
+   "seconds": 3.8
+  },
+  {
+   "slotId": "P1-116",
+   "shotId": null,
+   "seconds": 5.7,
+   "fixed": "static",
+   "note": "NEW N45 without a mix contract (graphic or unlisted still)"
+  },
+  {
+   "slotId": "P1-117",
+   "shotId": null,
+   "seconds": 5.7,
+   "fixed": "live",
+   "note": "V1 v1_recut D07-03"
+  },
+  {
+   "slotId": "P1-118",
+   "shotId": null,
+   "seconds": 2,
+   "fixed": "static",
+   "note": "NEW G7 without a mix contract (graphic or unlisted still)"
+  },
+  {
+   "slotId": "P1-119",
+   "shotId": "N41",
+   "seconds": 4.7
+  },
+  {
+   "slotId": "P1-120",
+   "shotId": null,
+   "seconds": 3.8,
+   "fixed": "live",
+   "note": "V1 v1_recut D01-05"
+  },
+  {
+   "slotId": "P1-121",
+   "shotId": "N36",
+   "seconds": 3.8
+  },
+  {
+   "slotId": "P1-122",
+   "shotId": "N46",
+   "seconds": 3.8
+  },
+  {
+   "slotId": "P1-123",
+   "shotId": "N47",
+   "seconds": 5.7
+  },
+  {
+   "slotId": "P1-124",
+   "shotId": "N48",
+   "seconds": 5.7
+  },
+  {
+   "slotId": "P1-125",
+   "shotId": "N49",
+   "seconds": 4.7
+  },
+  {
+   "slotId": "P1-126",
+   "shotId": null,
+   "seconds": 7.1,
+   "fixed": "static",
+   "note": "NEW N50 without a mix contract (graphic or unlisted still)"
+  },
+  {
+   "slotId": "P1-127",
+   "shotId": null,
+   "seconds": 6,
+   "fixed": "static",
+   "note": "NEW G7 without a mix contract (graphic or unlisted still)"
+  }
+ ]
+}
