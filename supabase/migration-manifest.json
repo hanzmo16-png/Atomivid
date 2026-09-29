@@ -1,0 +1,247 @@
+{
+ "manifest": "atomivid-migrations",
+ "manifestVersion": 1,
+ "generatedAt": "2026-09-29",
+ "hashAlgorithm": "sha256 of the exact file bytes",
+ "registry": {
+  "table": "public._migrations_applied",
+  "columns": [
+   "name",
+   "applied_at"
+  ],
+  "storesChecksum": false,
+  "note": "production content can only be verified against these hashes once a checksum column exists (see docs/pi-exam/MIGRATION-HISTORY.md)"
+ },
+ "variantsCheck": "every remote branch carrying 0020/0021/0022 has exactly one byte-identical variant (12/9/6 branches); no other file numbered 0020-0029 exists on any branch",
+ "migrations": [
+  {
+   "migrationName": "0001_init.sql",
+   "sha256": "475a418a62aca690e54beedca426370982b44607cbfd8b5e7cb55986fc57953e",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0002_generation.sql",
+   "sha256": "4de70739b5d88f2e04b371fa362a69f45577dee6212eb2dac39357e987ea1898",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0003_billing.sql",
+   "sha256": "8040e5d68470cd1d1d4de83ddc3080a8ecd5e8ec1c98c5faecb6c2c0626258fe",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0004_script_review.sql",
+   "sha256": "e937fa39ff76af7e7ed1dd507932164b2479fd33d2748c9f9ce9cd188a178484",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0005_render_progress.sql",
+   "sha256": "1c55bea2595695f7e67be58f5cb41d1daac2a6b5d979962a523c9bbdcf600fff",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0006_render_worker.sql",
+   "sha256": "cb023f93b1d5e420d166d5733f1236a88805062d99e40a2d5f4247797bb75948",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0007_input_limits.sql",
+   "sha256": "e26e00e7832ea500f65fa8fc46c32d50c939a0ccc02e23242d73f768577105ea",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0008_language_and_costs.sql",
+   "sha256": "bb9ef000cc1cf9225089bd561f19e263a44800528b62d56c29189399d71480df",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0009_music_traceability.sql",
+   "sha256": "93088286ab5ebdc823921d0bf0884cf722fcc38fcf046b59f8de8a10500afe9e",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0010_visual_director.sql",
+   "sha256": "d76f602d6f89ee83c11b80d1e9a2054ec0cc48e01d16aeae0260a0521e13bafb",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0011_video_modes_avatar.sql",
+   "sha256": "ce54bf385eb09ec2a4067aab8e9b8196794cde02320041d8c286f8d341961b62",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0012_visual_resource_planner.sql",
+   "sha256": "ebeceeff28546512a71c2d9a2187110c0ee86fe6ad6c0a7d6423f8545c1c0365",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0013_avatar_state_taxonomy.sql",
+   "sha256": "d1b13c1963396dd2fb713e05da9cd3d8c210ecf4e311c0c7d9e5190d58f0e9c5",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0014_avatar_single_attempt.sql",
+   "sha256": "a1c5f251cb439cf3ea3af15ddcacb0ece3ead1eaec475820b941fecfc58eb040",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0015_avatar_recorded_audio.sql",
+   "sha256": "600b3445a5d679a753b23427d620214223afdaacb352e2b3fc74bc132f7872a4",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0016_long_form_mode.sql",
+   "sha256": "5ad73eee87af413530d0660fe8cffda5b34aab29670c8f634161b57561b3db02",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0017_avatar_narration_source.sql",
+   "sha256": "0b0ae97fbfeeb72e76dec01905f82605db29cb2c456b20e5fea2ba819880a260",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0018_long_form_duration_check.sql",
+   "sha256": "169ec9b398ff7f5463d2f3435d462f8d17f5c889f4e0285118522ab5fb0442be",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0019_long_form_production_plan.sql",
+   "sha256": "1c862f7bc36bea02572848e89d7242b545ca755b7c95fe69444a63d4e16f7abe",
+   "sourceBranch": "claude/atomivid-mvp-setup-0079jv (default)",
+   "knownProductionApplied": true,
+   "appliedDate": "UNKNOWN",
+   "evidence": "registered before the V1 audit (0001-0008 applied by hand in the SQL Editor, later reconciled by scripts/apply-supabase-migration.ts); dates not readable without a DB connection",
+   "onDefaultBranch": true
+  },
+  {
+   "migrationName": "0020_audiovisual_direction.sql",
+   "sha256": "f37629536676f784e83b95863bd809033d95a84ce30d589a76e62767898f777d",
+   "sourceBranch": "claude/voices-medieval-tts",
+   "knownProductionApplied": true,
+   "appliedDate": "2026-09-26",
+   "evidence": "apply-supabase-migration workflow run 36267136646 (log)",
+   "sourceCommit": "1a0272d35cbafa4fd655147367d7a22ff7c192ab",
+   "onDefaultBranch": null
+  },
+  {
+   "migrationName": "0021_voices_and_text_to_speech.sql",
+   "sha256": "d0ad18ece3453faf736883f0bfc5150ae631aee4d79f71f53c977e03a2ee2e0b",
+   "sourceBranch": "claude/voices-medieval-tts",
+   "knownProductionApplied": true,
+   "appliedDate": "2026-09-26",
+   "evidence": "apply-supabase-migration workflow run 36267136646 (log)",
+   "sourceCommit": "1a0272d35cbafa4fd655147367d7a22ff7c192ab",
+   "onDefaultBranch": null
+  },
+  {
+   "migrationName": "0022_tts_podcast.sql",
+   "sha256": "be03eec66f3085d8a753355f426e764776f8ef8498ab3d6635188923a0db33e8",
+   "sourceBranch": "claude/tts-podcast",
+   "knownProductionApplied": true,
+   "appliedDate": "2026-09-27",
+   "evidence": "apply-supabase-migration workflow run 36286808790 (log)",
+   "sourceCommit": "9dd5760b953dc95010a522f168d360cc142132e4",
+   "onDefaultBranch": null
+  },
+  {
+   "migrationName": "0023_production_intelligence.sql",
+   "sha256": "0b49d9a4752d19c1b6f6f24df6c3f0c6fbdbd39136a41832f5a6189aa7fa8131",
+   "sourceBranch": "claude/production-intelligence-v1",
+   "knownProductionApplied": false,
+   "appliedDate": null,
+   "evidence": "NOT applied; needs explicit human authorization",
+   "onDefaultBranch": null
+  },
+  {
+   "migrationName": "0024_distribution_youtube.sql",
+   "sha256": "97e14020fcc7644b96bf90bb76590816d1f1abb06cd3e99780a315a3d26b4e6f",
+   "sourceBranch": "claude/production-intelligence-v1",
+   "knownProductionApplied": false,
+   "appliedDate": null,
+   "evidence": "NOT applied; needs explicit human authorization",
+   "onDefaultBranch": null
+  },
+  {
+   "migrationName": "0025_delivery_assets.sql",
+   "sha256": "d589aaf365a52ce88fa56a3851bf714ad6f805f32deffa3887851438090ac80c",
+   "sourceBranch": "claude/production-intelligence-v1",
+   "knownProductionApplied": false,
+   "appliedDate": null,
+   "evidence": "NOT applied; needs explicit human authorization",
+   "onDefaultBranch": null
+  }
+ ],
+ "defaultBranch": "claude/atomivid-mvp-setup-0079jv"
+}

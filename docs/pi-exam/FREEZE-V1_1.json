@@ -1,0 +1,52 @@
+{
+ "freeze": "PI_V1_1_CANDIDATE_FROZEN",
+ "date": "2026-09-29",
+ "authority": "engineCommit + engineTreeSha256 (tag push is rejected by the environment, HTTP 403); the tag, if present, points at the commit that adds this file",
+ "engineCommit": "a4eff3f4f6dec3edf9f1d0209f8eced78dcd42f7",
+ "engineTreeSha256": "fb24a4026e29815b9c8a2071e2db474d3d399adb50c933e276f1480f05a2cbef",
+ "engineTreeHashCommand": "git ls-tree -r <commit> src/lib/production-intelligence | sha256sum",
+ "versions": {
+  "policy": "policy/1.1.0-candidate (status CANDIDATE)",
+  "profile": "longform-16x9/1.1 (short-9x16/1.1, avatar/1.1)",
+  "contract": "shot-contract/1 (default), shot-contract/1.1 (replacement fields)",
+  "rateCard": "rate-card/2026-09-28.1",
+  "memorySnapshot": "mem_empty"
+ },
+ "rhythmLimits_PROVISIONAL": {
+  "longform-16x9/1.1": {
+   "maxConsecutiveStillSeconds": 30,
+   "maxConsecutiveStillShots": 6,
+   "motionDensityWindowSeconds": 60
+  },
+  "short-9x16/1.1": {
+   "maxConsecutiveStillSeconds": 8,
+   "maxConsecutiveStillShots": 3,
+   "motionDensityWindowSeconds": 15
+  },
+  "avatar/1.1": null,
+  "note": "fixed in commit 131972c, before any DULCE/Ocean V1.1 run; not calibrated"
+ },
+ "generativeSecondsPerFinishedMinute": 8,
+ "fixtures": {
+  "dulce-mix-contracts.json": "v1 (unchanged)",
+  "dulce-timeline.json": "v1 (built by scripts/pi-exam/build-dulce-timeline.ts)",
+  "ocean-input": "verbatim from codex/ocean-opening-review@5427188 (unchanged)"
+ },
+ "tests": {
+  "v1Suite": 22,
+  "v1_1Suite": 13,
+  "testUnitTotal": 1293,
+  "testUnitPass": 1293
+ },
+ "examCode": {
+  "file": "scripts/pi-exam/exam-v1_1.ts",
+  "committedBeforeFirstRun": "a4eff3f",
+  "results": "docs/pi-exam/results-v1_1.json"
+ },
+ "v1Baseline": {
+  "commit": "d1330e7",
+  "engineTreeSha256": "c57bf6236e1f9fa049ded33faa822d17d694b2dba83906e04d0ddd7ceef1cc49",
+  "results": "docs/pi-exam/results.json (unchanged)",
+  "reproducibility": "exam.ts on the V1.1 tree reproduces every V1 decision; only the tree-hash stamp differs (V1 behavior is policy-gated)"
+ }
+}
