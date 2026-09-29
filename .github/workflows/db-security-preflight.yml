@@ -1,0 +1,36 @@
+name: DB security preflight (read-only, no writes)
+
+# Reads catalog facts for the security hardening mission inside a READ ONLY transaction.
+# Same connection resolution as the migration runner. Nothing is created, altered or written.
+on:
+  push:
+    branches: [claude/production-intelligence-v1]
+    paths: [scripts/db-security-preflight.ts]
+  workflow_dispatch:
+    inputs:
+      pooler_host:
+        description: "Supavisor pooler host confirmed by a human (only when the direct host is IPv6-unreachable)"
+        required: false
+        default: ""
+        type: string
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/db-security-preflight.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || inputs.pooler_host }}
+          SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
