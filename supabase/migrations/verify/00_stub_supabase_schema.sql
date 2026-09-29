@@ -26,9 +26,18 @@ begin
   if not exists (select 1 from pg_roles where rolname = 'authenticated') then
     create role authenticated;
   end if;
+  -- "anon" (PostgREST sin sesión) y "service_role" (backend, BYPASSRLS en
+  -- Supabase) también existen en todo proyecto real; 0029 los referencia
+  -- en REVOKE y verify/07 los usa para probar aislamiento.
+  if not exists (select 1 from pg_roles where rolname = 'anon') then
+    create role anon;
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'service_role') then
+    create role service_role bypassrls;
+  end if;
 end $$;
-grant usage on schema public to authenticated;
-grant usage on schema auth to authenticated;
+grant usage on schema public to authenticated, anon, service_role;
+grant usage on schema auth to authenticated, anon, service_role;
 
 -- Stub mínimo del esquema "storage" de Supabase (solo lo que las
 -- migraciones referencian: storage.buckets/storage.objects).

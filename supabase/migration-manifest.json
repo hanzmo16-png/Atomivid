@@ -1,6 +1,6 @@
 {
  "manifest": "atomivid-migrations",
- "manifestVersion": 4,
+ "manifestVersion": 5,
  "generatedAt": "2026-09-29",
  "hashAlgorithm": "sha256 of the exact file bytes",
  "registry": {
@@ -12,7 +12,7 @@
   "storesChecksum": false,
   "note": "production content can only be verified against these hashes once a checksum column exists (see docs/pi-exam/MIGRATION-HISTORY.md)"
  },
- "variantsCheck": "every remote branch carrying 0020/0021/0022 has exactly one byte-identical variant (12/9/6 branches); no other file numbered 0020-0029 exists on any branch",
+ "variantsCheck": "every remote branch carrying 0020/0021/0022 has exactly one byte-identical variant (12/9/6 branches); 0029 exists only on claude/production-intelligence-v1; no other file numbered 0020-0029 exists on any branch",
  "migrations": [
   {
    "migrationName": "0001_init.sql",
@@ -267,6 +267,15 @@
    "knownProductionApplied": false,
    "appliedDate": null,
    "evidence": "NOT applied; verified locally with verify/06_youtube_go_live_test.sql",
+   "onDefaultBranch": null
+  },
+  {
+   "migrationName": "0029_database_security_hardening.sql",
+   "sha256": "fbf81ba0a67292dcc586403213abccc504fc8dee224801ce3fd47bf528404f1b",
+   "sourceBranch": "claude/production-intelligence-v1",
+   "knownProductionApplied": false,
+   "appliedDate": null,
+   "evidence": "NOT applied (requires new explicit human authorization); verified locally with verify/07_database_security_hardening_test.sql and a runner rehearsal (docs/security/DB-HARDENING-V1.md)",
    "onDefaultBranch": null
   }
  ],

@@ -59,3 +59,28 @@ policy, secret NAMES only in the provider registry, UNKNOWN capacity never store
 URLs as storage paths, masters never expiring, encrypted-only OAuth envelopes, no invented metrics,
 and RLS: an owner sees only their channel; clients cannot read tokens, ledger or delivery records.
 Supabase security/performance advisors can only run after the migrations are applied to a real project.
+
+## Database security hardening (0029)
+
+`0029_database_security_hardening.sql` closes three Security Advisor findings without touching data,
+product behaviour or performance findings: `yt_video_experiment` becomes `security_invoker` and loses
+every anon/authenticated privilege (backend only); `_migrations_applied` gets RLS with NO policies and
+no client privileges (the runner connects as the table owner and service_role has BYPASSRLS, so both
+keep working); the six trigger functions get `search_path = pg_catalog, public`. NOT applied to
+production — requires a new explicit human authorization. The stub `00_…` now also creates the
+`anon` and `service_role` roles (guarded) because 0029 revokes from them.
+
+```bash
+psql -d atomivid_migration_test -v ON_ERROR_STOP=1 -f supabase/migrations/0029_database_security_hardening.sql   # after 0001-0028
+psql -d atomivid_migration_test -v ON_ERROR_STOP=1 -f supabase/migrations/verify/07_database_security_hardening_test.sql  # after 03-06, from the repo root (it re-applies 0029 with \i)
+```
+
+Checks (each raises on failure): the view is `security_invoker` and anon/authenticated have no privilege
+on it while service_role keeps SELECT; the registry has RLS enabled, zero policies, no client privilege,
+and the owner/runner can still insert, read and delete a probe row; anon and authenticated are denied on
+the view and the registry; a deliberately re-granted view still shows owner B nothing (invoker semantics);
+exactly six trigger functions carry the pinned `search_path` and none is SECURITY DEFINER; every trigger
+still fires (and its limit logic still holds) from a session whose own `search_path` is `pg_catalog`
+only; re-applying 0029 is a no-op; row counts of the six production tables are unchanged.
+Runner rehearsal against a DB mirroring production's registry (0001–0022 registered, 0023–0028 objects
+present but unregistered): see `docs/security/DB-HARDENING-V1.md`.
