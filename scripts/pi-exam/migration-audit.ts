@@ -38,8 +38,8 @@ async function main() {
     for (const [m, ps] of Object.entries(PROBES)) { probes[m] = {}; for (const [k, q] of Object.entries(ps)) probes[m][k] = (await client.query(q)).rows[0].v; }
     out.probes = probes;
     out.publicTablesLike = (await client.query("select table_name from information_schema.tables where table_schema='public' and (table_name like 'pi\\_%' or table_name like 'yt\\_%' or table_name like 'delivery%' or table_name like 'tts%' or table_name like 'user_voices') order by 1")).rows.map((r) => r.table_name);
-    out.videoRequestsByStatus = (await client.query("select status, count(*)::int as n, max(updated_at) as last_update from public.video_requests group by status order by status")).rows;
-    out.processingRecent = (await client.query("select id, mode, status, long_form_stage, updated_at from public.video_requests where status in ('pending','processing') order by updated_at desc limit 10")).rows;
+    out.videoRequestsByStatus = (await client.query("select status, count(*)::int as n, max(created_at) as last_created from public.video_requests group by status order by status")).rows;
+    out.processingRecent = (await client.query("select id, mode, status, long_form_stage, created_at from public.video_requests where status in ('pending','processing') order by created_at desc limit 10")).rows;
     out.activeSessions = (await client.query("select count(*)::int as n from pg_stat_activity where state = 'active' and pid <> pg_backend_pid()")).rows[0].n;
     await client.query("rollback");
   } finally {
