@@ -5,6 +5,8 @@
 import { z } from "zod";
 
 export const CONTRACT_VERSION = "shot-contract/1";
+/** V1.1 adds optional reuse/replacement fields; V1 contracts parse unchanged. */
+export const CONTRACT_VERSION_1_1 = "shot-contract/1.1";
 
 export const SHOT_CLASSES = [
   "landscape", "object", "single_human", "multi_human", "creature", "human_creature",
@@ -33,7 +35,7 @@ export const RISK_FLAGS = [
 export type RiskFlag = (typeof RISK_FLAGS)[number];
 
 export const ShotContractSchema = z.object({
-  contractVersion: z.literal(CONTRACT_VERSION).default(CONTRACT_VERSION),
+  contractVersion: z.enum([CONTRACT_VERSION, CONTRACT_VERSION_1_1]).default(CONTRACT_VERSION),
   shotId: z.string().min(1),
   shotClass: z.enum(SHOT_CLASSES),
   narrationIntent: z.string(),
@@ -56,7 +58,16 @@ export const ShotContractSchema = z.object({
   existingApprovedAssetId: z.string().nullable().default(null),
   /** Stock footage is licensable and acceptable for this contract. */
   stockAvailable: z.boolean().default(false),
-});
+  // ---- V1.1 (optional; absent in V1 contracts) ----
+  /** The existing approved asset is usable for this shot (default true when an id is given). */
+  existingAssetUsable: z.boolean().optional(),
+  /** Whether the existing asset is moving footage or a still (timeline rhythm). */
+  existingAssetKind: z.enum(["clip", "still"]).optional(),
+  /** Explicit, human-authorized replacement of an existing approved asset (R12 exception). */
+  replacementRequested: z.boolean().optional(),
+  replacementReason: z.string().min(1).optional(),
+  replacementAuthorization: z.string().min(1).optional(),
+}).refine((c) => !c.replacementRequested || c.contractVersion === CONTRACT_VERSION_1_1, { message: "replacement fields require shot-contract/1.1" });
 export type ShotContract = z.infer<typeof ShotContractSchema>;
 export type ShotContractInput = z.input<typeof ShotContractSchema>;
 
@@ -66,4 +77,10 @@ export function parseShotContract(input: unknown): ShotContract {
 
 export function hasFlag(c: ShotContract, f: RiskFlag): boolean {
   return c.riskFlags.includes(f);
+}
+
+/** R12: an existing, approved, usable asset that no explicit authorization asks to replace. */
+export function isProtectedExistingAsset(c: ShotContract): boolean {
+  if (!c.existingApprovedAssetId || c.existingAssetUsable === false) return false;
+  return !(c.replacementRequested && c.replacementReason && c.replacementAuthorization);
 }

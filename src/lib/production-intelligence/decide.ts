@@ -4,7 +4,7 @@
  * context changes the next decision materially. Same inputs -> same decision
  * (decisionHash), and every outcome carries reasons[].
  */
-import { hasFlag, CONTRACT_VERSION, type ShotContract } from "./contract";
+import { hasFlag, isProtectedExistingAsset, CONTRACT_VERSION, type ShotContract } from "./contract";
 import { isGenerativeVideo, type Method } from "./ladder";
 import { methodAllowed, type ProductionProfile } from "./profiles";
 import type { Policy } from "./policy";
@@ -42,7 +42,21 @@ export type DecideInput = {
   stillQa?: "PASS" | "FAIL" | "PENDING";
   stillAttemptsUsed?: number;
   capacity?: Partial<Record<string, CapacityStatus>>;
+  /** V1.1: why a generative upgrade is requested. Unused budget is never a reason. */
+  upgradeReason?: UpgradeReason;
 };
+
+export const UPGRADE_REASONS = ["MOTION_ESSENTIAL", "TIMELINE_RHYTHM_NEED", "HERO_VALUE"] as const;
+export type UpgradeReason = (typeof UPGRADE_REASONS)[number];
+
+/** V1.1: is the stated reason valid for this contract and method? (decide() never trusts the caller blindly) */
+export function upgradeReasonInvalidity(c: ShotContract, m: Method, r: UpgradeReason | undefined): string | null {
+  if (!r) return "C14/C15 no upgradeReason: remaining generative budget alone is not a reason to generate";
+  if (c.motionLeverage === "LOW") return `upgradeReason ${r} rejected: LOW motion leverage is never animated automatically`;
+  if (r === "MOTION_ESSENTIAL" && c.motionLeverage !== "HIGH") return "MOTION_ESSENTIAL requires HIGH motion leverage";
+  if (r === "HERO_VALUE" && !(m === "I2V_HERO" && c.qualityTier === "hero" && c.motionLeverage === "HIGH")) return "HERO_VALUE requires a hero-tier, HIGH-leverage shot on I2V_HERO";
+  return null;
+}
 
 export type Decision = {
   shotId: string;
@@ -57,6 +71,8 @@ export type Decision = {
   generativeSeconds: number;
   downgrade: { from: Method; to: Method } | null;
   reasons: string[];
+  /** V1.1 only: the validated reason behind a generative decision. */
+  upgradeReason?: UpgradeReason;
   versions: { policyVersion: string; profileVersion: string; contractVersion: string; rateCardVersion: string; memorySnapshotId: string };
   decisionHash: string;
 };
@@ -138,6 +154,18 @@ export function decide(i: DecideInput): Decision {
     } else lower(floor.method, "R08 semantic failure: downgrade to approved still + controlled camera motion");
   }
 
+  // ---- V1.1 R12: existing + approved + usable is reused, never repurchased automatically ----
+  if (!blocked && policy.params.reuseApprovedAssets && isProtectedExistingAsset(c) && method !== "EXISTING_APPROVED_ASSET") {
+    lower("EXISTING_APPROVED_ASSET", `R12 existing approved usable asset ${c.existingApprovedAssetId}: reused at USD 0; replacement needs an explicit authorization`);
+  }
+  // ---- V1.1 budget ceiling: every generative decision needs a valid upgradeReason ----
+  let upgradeReason: UpgradeReason | undefined;
+  if (!blocked && policy.params.requireUpgradeReason && isGenerativeVideo(method)) {
+    const why = upgradeReasonInvalidity(c, method, i.upgradeReason);
+    if (why) lower(floor.method, why);
+    else { upgradeReason = i.upgradeReason; reasons.push(`upgradeReason: ${i.upgradeReason}`); }
+  }
+
   // ---- generative authorization ----
   if (!blocked && isGenerativeVideo(method)) {
     if (method === "I2V_HERO" && i.budget.heroRemaining <= 0) lower("I2V_ECONOMY", "R10 hero quota exhausted: a shot cannot self-promote to hero");
@@ -183,6 +211,7 @@ export function decide(i: DecideInput): Decision {
     authorizedAttempts: blocked || cost.lines.every((l) => l.worstUsd === 0) ? 0 : isGenerativeVideo(method) ? (attemptKind === "infrastructure_retry" ? 1 : Math.max(1, p.maxMotionAttempts)) : attemptKind === "still_regeneration" ? 1 : p.maxStillAttempts,
     generativeSeconds: !blocked && isGenerativeVideo(method) ? cost.billedSeconds : 0,
     downgrade, reasons, versions,
+    ...(policy.params.requireUpgradeReason && isGenerativeVideo(method) && !blocked && upgradeReason ? { upgradeReason } : {}),
   };
   return { ...body, decisionHash: stableHash({ input: { ...i, pin: i.pin }, output: body }) };
 }

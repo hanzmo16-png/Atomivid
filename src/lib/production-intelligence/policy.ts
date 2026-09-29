@@ -17,6 +17,13 @@ export type PolicyParams = {
   maxInfrastructureRetries: number;
   /** Mix: minimum leverage eligible for an upgrade. */
   minUpgradeLeverage: "MEDIUM" | "HIGH";
+  // ---- V1.1 (absent in V1 => V1 behavior) ----
+  /** R12: existing + approved + usable assets are reused and never repurchased automatically. */
+  reuseApprovedAssets?: boolean;
+  /** Budget is a ceiling: a generative upgrade needs an explicit, valid upgradeReason. */
+  requireUpgradeReason?: boolean;
+  /** Anti-slideshow: break over-long runs of flat stills, non-generative motion first. */
+  timelineRhythm?: boolean;
 };
 
 export type Policy = { policyVersion: string; status: PolicyStatus; params: PolicyParams; notes: string };
@@ -33,6 +40,14 @@ export const POLICY_V1: Policy = {
     maxInfrastructureRetries: 1,
     minUpgradeLeverage: "MEDIUM",
   },
+};
+
+/** V1.1 CANDIDATE: V1 plus exactly three evidence-driven changes (reuse, budget ceiling, timeline rhythm). */
+export const POLICY_V1_1: Policy = {
+  policyVersion: "policy/1.1.0-candidate",
+  status: "CANDIDATE",
+  notes: "Candidate after the V1 exam FAIL: R12 reuse, budget as ceiling with explicit upgradeReason, deterministic anti-slideshow. R04 unchanged (OPEN_QUESTION_IDENTITY_POLICY).",
+  params: { ...POLICY_V1.params, reuseApprovedAssets: true, requireUpgradeReason: true, timelineRhythm: true },
 };
 
 const LEGAL: Record<PolicyStatus, PolicyStatus[]> = {

@@ -26,6 +26,11 @@ export type ProductionProfile = {
   minimumOnScreenMotion: "none" | "camera";
   /** Default priors: informative only in V1. */
   priors: { expectedSemanticPassRate: number };
+  /**
+   * V1.1 timeline rhythm (PROVISIONAL BUSINESS CONSTRAINTS, chosen before any DULCE/Ocean
+   * run and not calibrated): a run of consecutive flat stills may not exceed these limits.
+   */
+  rhythm?: { maxConsecutiveStillSeconds: number; maxConsecutiveStillShots: number; motionDensityWindowSeconds: number };
 };
 
 const ALL: Method[] = ["EXISTING_APPROVED_ASSET", "STOCK", "AI_STILL", "STILL_KEN_BURNS", "STILL_PARALLAX", "I2V_ECONOMY", "I2V_HERO"];
@@ -82,6 +87,13 @@ export const PROFILES: Record<ProductionProfile["id"], ProductionProfile> = {
     minimumOnScreenMotion: "camera",
     priors: { expectedSemanticPassRate: 0.8 },
   },
+};
+
+/** V1.1 profiles: identical to V1 (same 8 s/min ceiling, hero quota, attempts) plus rhythm limits. */
+export const PROFILES_V1_1: Record<ProductionProfile["id"], ProductionProfile> = {
+  LONGFORM_16X9: { ...PROFILES.LONGFORM_16X9, profileVersion: "longform-16x9/1.1", rhythm: { maxConsecutiveStillSeconds: 30, maxConsecutiveStillShots: 6, motionDensityWindowSeconds: 60 } },
+  SHORT_9X16: { ...PROFILES.SHORT_9X16, profileVersion: "short-9x16/1.1", rhythm: { maxConsecutiveStillSeconds: 8, maxConsecutiveStillShots: 3, motionDensityWindowSeconds: 15 } },
+  AVATAR: { ...PROFILES.AVATAR, profileVersion: "avatar/1.1" }, // the avatar supplies motion: no rhythm rule
 };
 
 export function methodAllowed(p: ProductionProfile, m: Method): boolean {
