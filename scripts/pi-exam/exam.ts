@@ -19,6 +19,7 @@ import { assessCapacity } from "@/lib/production-intelligence/capacity/capacity"
 import { runwaySnapshot } from "@/lib/production-intelligence/capacity/adapters";
 import { runShadow } from "@/lib/production-intelligence/shadow";
 import { isGenerativeVideo } from "@/lib/production-intelligence/ladder";
+import { r4, overlap, sb, scenes, FINISHED, BUDGET, oceanContract, oldMethod, type Sb } from "./lib";
 
 // ---------- zero network ----------
 let networkCalls = 0;
@@ -28,7 +29,6 @@ const P = PROFILES.LONGFORM_16X9;
 const NOW = "2026-09-29T00:00:00.000Z";
 const treeHash = execSync("git ls-tree -r HEAD src/lib/production-intelligence | sha256sum").toString().slice(0, 64);
 const pin = (projectId: string) => pinProject({ projectId, policyVersion: POLICY_V1.policyVersion, profileVersion: P.profileVersion, contractVersion: "shot-contract/1", rateCardVersion: RATE_CARD_V1.rateCardVersion, memorySnapshotId: "mem_empty" }, NOW);
-const r4 = (x: number) => Math.round(x * 1e4) / 1e4;
 const motionUsd = (s: MixPlan["shots"][number]) => r4(s.decision.generativeSeconds * RATE_CARD_V1.entries["runway:gen4_turbo"].price);
 
 function plan(projectId: string, contracts: ShotContract[], finishedSeconds: number, projectBudgetUsd: number) {
@@ -82,12 +82,6 @@ function constitution(projectId: string, contracts: ShotContract[], p: MixPlan, 
   return { violations: v, reservation: res };
 }
 
-function overlap(name: string, pi: string[], human: string[]) {
-  const P_ = new Set(pi), H = new Set(human);
-  const inter = [...P_].filter((x) => H.has(x)).sort();
-  const union = new Set([...P_, ...H]);
-  return { comparison: name, pi: pi.length, human: human.length, intersection: inter, piOnly: [...P_].filter((x) => !H.has(x)).sort(), humanOnly: [...H].filter((x) => !P_.has(x)).sort(), precision: r4(inter.length / (P_.size || 1)), recall: r4(inter.length / (H.size || 1)), jaccard: r4(inter.length / (union.size || 1)) };
-}
 
 // ================= DULCE =================
 const dm = JSON.parse(fs.readFileSync("src/lib/production-intelligence/fixtures/dulce-mix-contracts.json", "utf8"));
@@ -122,27 +116,6 @@ const dulce = {
 };
 
 // ================= OCEAN =================
-type Sb = { shotId: string; beatId: string; durationApprox: number; assetType: string; motion: string; hybridClassification: string; reused?: boolean; description: string; visualIntent: string; estimatedCostUsd?: number; billableVideoSeconds?: number; aiGenerated?: boolean };
-const sb = JSON.parse(fs.readFileSync("docs/pi-exam/ocean-input/ocean-storyboard-001.v003.json", "utf8")) as { shots: Sb[] };
-const manifest = JSON.parse(fs.readFileSync("docs/pi-exam/ocean-input/episode-manifest.json", "utf8"));
-const scenes = (manifest.scenes ?? manifest) as { source: { kind: string; key?: string } }[];
-const FINISHED = 659.343, BUDGET = 17.65;
-const CREATURE = /\b(fish|fishes|angler|dragonfish|jelly|squid|octopus|shrimp|worm|animal|lure|bacteria|silhouette|counterillumination|biolumin)/i;
-const VEHICLE = /\b(vehicle|rov|submersible|deep discoverer|bathyscaphe|trieste)/i;
-const PEOPLE = /\b(people|person|men|crew|scientist|piccard|walsh)\b/i;
-function oceanContract(s: Sb, aiLeverage: "LOW" | "MEDIUM" | "HIGH"): ShotContract {
-  const text = `${s.visualIntent} ${s.description}`;
-  const common = { shotId: s.shotId, narrationIntent: s.visualIntent, visualIntent: s.description, desiredDuration: s.durationApprox, maxGeneratedDuration: 8, qualityTier: "economy" as const, continuityGroup: s.beatId, existingApprovedAssetId: s.reused ? s.shotId : null };
-  if (s.hybridClassification === "AI_RECREATION") {
-    const shotClass = CREATURE.test(text) ? "creature" : VEHICLE.test(text) ? "object" : "landscape";
-    return parseShotContract({ ...common, shotClass, motionRequirement: "simple", motionLeverage: aiLeverage, riskClass: shotClass === "creature" ? "MEDIUM" : "LOW", humanIntervention: "human", stockAvailable: false });
-  }
-  if (s.motion === "map-graphic") return parseShotContract({ ...common, shotClass: "map", motionRequirement: "camera_only", motionLeverage: "LOW", riskClass: "LOW", stockAvailable: false });
-  if (s.motion === "figure-over-motion") return parseShotContract({ ...common, shotClass: "graphic", motionRequirement: "camera_only", motionLeverage: "LOW", riskClass: "LOW", stockAvailable: true });
-  if (s.motion.startsWith("still-push")) return parseShotContract({ ...common, shotClass: PEOPLE.test(text) ? "other" : "object", motionRequirement: "camera_only", motionLeverage: "LOW", riskClass: "LOW", stockAvailable: true });
-  return parseShotContract({ ...common, shotClass: "broll", motionRequirement: "simple", motionLeverage: "LOW", riskClass: "LOW", stockAvailable: true });
-}
-const oldMethod = (s: Sb) => (s.motion.startsWith("ai-animation") ? "GENERATIVE_VIDEO (Veo 8 s)" : s.motion === "real-footage" ? "STOCK" : s.motion === "figure-over-motion" ? "GRAPHIC_OVER_FOOTAGE" : s.motion === "map-graphic" ? "MAP_GRAPHIC" : "ARCHIVAL_STILL_PUSH");
 const oldGenerative = sb.shots.filter((s) => s.motion.startsWith("ai-animation")).map((s) => s.shotId);
 const oldNewVeo = sb.shots.filter((s) => s.motion.startsWith("ai-animation") && !s.reused);
 const veoKeys = [...new Set(scenes.filter((x) => x.source.kind === "veo-clip").map((x) => x.source.key))];
