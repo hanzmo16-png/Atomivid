@@ -19,8 +19,15 @@ export const METRIC_MAP = {
   shares: "shares",
   subscribersGained: "subscribersGained",
   subscribersLost: "subscribersLost",
+  averagePercentageViewed: "averageViewPercentage",
 } as const;
-export type MetricName = keyof typeof METRIC_MAP | "audienceWatchRatio";
+/**
+ * Metrics YouTube exposes ONLY in Studio, never through the public Analytics API
+ * (impressions, impressions click-through rate). They can be entered by hand from Studio
+ * and are always stored with source "manual_entry"; the monitor never fabricates them.
+ */
+export const MANUAL_ONLY_METRICS = ["impressions", "impressionsCtr"] as const;
+export type MetricName = keyof typeof METRIC_MAP | "audienceWatchRatio" | (typeof MANUAL_ONLY_METRICS)[number];
 
 export type MetricRow = {
   rowKey: string;
@@ -30,9 +37,11 @@ export type MetricRow = {
   value: number;
   /** For retention: elapsedVideoTimeRatio (0..1); null for totals. */
   dimensionValue: number | null;
+  /** For traffic sources: insightTrafficSourceType label; null otherwise (additive, absent = null). */
+  dimensionLabel?: string | null;
   windowStart: string;
   windowEnd: string;
-  source: "youtube-analytics-v2" | "youtube-data-v3";
+  source: "youtube-analytics-v2" | "youtube-data-v3" | "manual_entry";
   collectedAt: string;
 };
 
@@ -44,9 +53,38 @@ export function retentionQuery(videoId: string, start: string, end: string): str
   return `${ANALYTICS_REPORTS_URL}?${new URLSearchParams({ ids: "channel==MINE", startDate: start, endDate: end, metrics: "audienceWatchRatio", dimensions: "elapsedVideoTimeRatio", filters: `video==${videoId}` })}`;
 }
 
-type Report = { columnHeaders: { name: string }[]; rows?: (string | number)[][] };
+export type Report = { columnHeaders: { name: string }[]; rows?: (string | number)[][] };
 
 const key = (r: Omit<MetricRow, "rowKey" | "value" | "collectedAt" | "source">) => "ytm_" + stableHash(r, 24);
+
+export function trafficSourceQuery(videoId: string, start: string, end: string): string {
+  return `${ANALYTICS_REPORTS_URL}?${new URLSearchParams({ ids: "channel==MINE", startDate: start, endDate: end, metrics: "views,estimatedMinutesWatched", dimensions: "insightTrafficSourceType", filters: `video==${videoId}`, sort: "-views" })}`;
+}
+
+/** Views / watch time per traffic source type (the API's own labels, e.g. YT_SEARCH, SUBSCRIBER). */
+export function parseTrafficSources(channelId: string, videoId: string, start: string, end: string, report: Report, collectedAt: string): MetricRow[] {
+  const cols = report.columnHeaders.map((c) => c.name);
+  const d = cols.indexOf("insightTrafficSourceType");
+  if (d < 0) return [];
+  const out: MetricRow[] = [];
+  for (const row of report.rows ?? []) {
+    const label = String(row[d]);
+    for (const [ours, api] of [["views", "views"], ["watchTimeMinutes", "estimatedMinutesWatched"]] as const) {
+      const i = cols.indexOf(api);
+      if (i < 0 || typeof row[i] !== "number") continue;
+      const id = { channelId, videoId, metric: ours, dimensionValue: null, dimensionLabel: label, windowStart: start, windowEnd: end };
+      out.push({ rowKey: key(id), ...id, value: row[i] as number, source: "youtube-analytics-v2", collectedAt });
+    }
+  }
+  return out;
+}
+
+/** A Studio-only figure typed in by a person: explicit source, never mixed with API rows. */
+export function manualMetricRow(channelId: string, videoId: string, metric: (typeof MANUAL_ONLY_METRICS)[number], value: number, start: string, end: string, collectedAt: string): MetricRow {
+  if (!Number.isFinite(value) || value < 0) throw new Error("manual metric must be a non-negative number");
+  const id = { channelId, videoId, metric, dimensionValue: null, dimensionLabel: null, windowStart: start, windowEnd: end };
+  return { rowKey: key(id), ...id, value, source: "manual_entry", collectedAt };
+}
 
 /** Parse a totals report (dimension=video) into metric rows. Unknown columns are ignored. */
 export function parseTotals(channelId: string, videoId: string, start: string, end: string, report: Report, collectedAt: string): MetricRow[] {
