@@ -4,11 +4,17 @@ name: Final Cut retrospective (read-only, INSPECT_ONLY)
 # Final Cut Intelligence in INSPECT_ONLY mode with local ffmpeg. Nothing is uploaded to Storage,
 # no master is modified, no provider API is called (fetch is disabled inside the inspector).
 on:
+  # A workflow that only exists on a feature branch cannot be dispatched until GitHub registers it:
+  # a push touching this file registers it and runs the retrospective with the defaults below.
+  push:
+    branches: [claude/production-intelligence-v1]
+    paths: [.github/workflows/final-cut-retrospective.yml]
   workflow_dispatch:
     inputs:
       dulce_sha256:
         description: "Expected sha256 of dulce-part1/final/DULCE-Part-I-master.mp4"
-        required: true
+        required: false
+        default: "28c0e1b662d1b9c9299996bdc68abf9bafa40813b79caf1b5b9a2aab4229841f"
         type: string
       ocean_prefix:
         description: "Storage prefix to list for the Ocean master"
@@ -36,8 +42,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OUT_DIR: ${{ runner.temp }}/masters
-          DULCE_SHA256: ${{ inputs.dulce_sha256 }}
-          OCEAN_PREFIX: ${{ inputs.ocean_prefix }}
+          DULCE_SHA256: ${{ inputs.dulce_sha256 || '28c0e1b662d1b9c9299996bdc68abf9bafa40813b79caf1b5b9a2aab4229841f' }}
+          OCEAN_PREFIX: ${{ inputs.ocean_prefix || 'ocean-deep-001' }}
       - name: Inspect DULCE Part I master (INSPECT_ONLY)
         run: |
           sha256sum "$RUNNER_TEMP/masters/dulce-part1-master.mp4"
