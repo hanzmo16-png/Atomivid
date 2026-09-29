@@ -1,0 +1,64 @@
+name: Final Cut retrospective (read-only, INSPECT_ONLY)
+
+# Downloads EXISTING masters from the private "videos" bucket, verifies their sha256, and runs
+# Final Cut Intelligence in INSPECT_ONLY mode with local ffmpeg. Nothing is uploaded to Storage,
+# no master is modified, no provider API is called (fetch is disabled inside the inspector).
+on:
+  workflow_dispatch:
+    inputs:
+      dulce_sha256:
+        description: "Expected sha256 of dulce-part1/final/DULCE-Part-I-master.mp4"
+        required: true
+        type: string
+      ocean_prefix:
+        description: "Storage prefix to list for the Ocean master"
+        required: false
+        default: "ocean-deep-001"
+        type: string
+
+jobs:
+  retrospective:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install ffmpeg (local analysis only)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null && ffmpeg -version | head -1
+      - name: Fetch masters (read-only) and verify identity
+        run: npx tsx scripts/final-cut/fetch-masters.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OUT_DIR: ${{ runner.temp }}/masters
+          DULCE_SHA256: ${{ inputs.dulce_sha256 }}
+          OCEAN_PREFIX: ${{ inputs.ocean_prefix }}
+      - name: Inspect DULCE Part I master (INSPECT_ONLY)
+        run: |
+          sha256sum "$RUNNER_TEMP/masters/dulce-part1-master.mp4"
+          npx tsx scripts/final-cut/inspect.ts --storyboard content/long-form/dulce-part1/storyboard.json --production dulce-part1 --master dulce-part1-master --media "$RUNNER_TEMP/masters/dulce-part1-master.mp4" --out "$RUNNER_TEMP/reports/dulce-master.json"
+          sha256sum "$RUNNER_TEMP/masters/dulce-part1-master.mp4"
+      - name: Inspect Ocean master (INSPECT_ONLY, only if found)
+        run: |
+          if [ -f "$RUNNER_TEMP/masters/ocean-master.mp4" ]; then
+            sha256sum "$RUNNER_TEMP/masters/ocean-master.mp4"
+            npx tsx scripts/final-cut/inspect.ts --storyboard docs/pi-exam/ocean-input/ocean-storyboard-001.v003.json --production ocean-deep-001 --master ocean-deep-001-master --media "$RUNNER_TEMP/masters/ocean-master.mp4" --out "$RUNNER_TEMP/reports/ocean-master.json"
+            sha256sum "$RUNNER_TEMP/masters/ocean-master.mp4"
+          else
+            echo "OCEAN MASTER NOT FOUND: see masters-manifest.json listing"
+          fi
+      - name: Print reports (for retrieval through the logs)
+        run: |
+          cp "$RUNNER_TEMP/masters/masters-manifest.json" "$RUNNER_TEMP/reports/masters-manifest.json"
+          for f in "$RUNNER_TEMP"/reports/*.json; do echo "=====BEGIN $(basename "$f")====="; gzip -c "$f" | base64 -w0; echo; echo "=====END $(basename "$f")====="; done
+      - name: Publish reports as artifact (no media)
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-cut-retrospective-${{ github.run_id }}
+          path: ${{ runner.temp }}/reports/
+          retention-days: 7
