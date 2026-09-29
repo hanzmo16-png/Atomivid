@@ -1,0 +1,86 @@
+name: Vercel preview env scope (inspect / apply)
+
+# Inspects the Vercel project's environment variables (NAMES, targets, types — never values) and,
+# only with apply=true, adds the "preview" target to the four variables the app needs when they exist
+# for production but not for preview. Values are never read, printed, changed or deleted. Production
+# targets are never removed. Then redeploys ONLY the preview of the given commit.
+on:
+  push:
+    branches: [claude/production-intelligence-v1]
+    paths: [.github/workflows/vercel-preview-env-scope.yml]
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "true = add the preview target to the missing variables (value unchanged); false = inspect only"
+        required: false
+        default: "false"
+        type: string
+      redeploy_sha:
+        description: "commit to redeploy as PREVIEW after applying (never production)"
+        required: false
+        default: ""
+        type: string
+permissions:
+  contents: read
+jobs:
+  scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_TEAM_SLUG: atomivid
+      VERCEL_PROJECT_ID: prj_d2APVqG7KqQ7ZqZbUVaF50UUwOZQ
+      APPLY: ${{ inputs.apply || 'false' }}
+      REDEPLOY_SHA: ${{ inputs.redeploy_sha || '' }}
+      BYPASS_PRESENT: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET != '' }}
+    steps:
+      - name: Inspect (and optionally apply) env scopes — values never printed
+        shell: python3 {0}
+        run: |
+          import json, os, sys, urllib.request, urllib.parse
+          tok = os.environ.get("VERCEL_TOKEN", "")
+          print("VERCEL_TOKEN secret:", "present" if tok else "ABSENT")
+          print("VERCEL_AUTOMATION_BYPASS_SECRET secret:", "present" if os.environ.get("BYPASS_PRESENT") == "true" else "ABSENT")
+          if not tok:
+              print("BLOCKED: no VERCEL_TOKEN repository secret; nothing can be inspected or changed from CI."); sys.exit(2)
+          base = "https://api.vercel.com"; team = os.environ["VERCEL_TEAM_SLUG"]; proj = os.environ["VERCEL_PROJECT_ID"]
+          def api(method, path, body=None, params=None):
+              q = {"slug": team, **(params or {})}
+              req = urllib.request.Request(f"{base}{path}?{urllib.parse.urlencode(q)}", method=method, data=json.dumps(body).encode() if body is not None else None, headers={"Authorization": f"Bearer {tok}", "Content-Type": "application/json"})
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as r: return r.status, json.loads(r.read() or b"{}")
+              except urllib.error.HTTPError as e:
+                  return e.code, json.loads(e.read() or b"{}")
+          st, me = api("GET", "/v2/user"); print("token user:", me.get("user", {}).get("username", "?") if st == 200 else f"HTTP {st}")
+          st, p = api("GET", f"/v9/projects/{proj}"); print("project:", p.get("name"), "id ok" if st == 200 else f"HTTP {st} {p.get('error',{}).get('message')}")
+          if st != 200: sys.exit(3)
+          st, envs = api("GET", f"/v9/projects/{proj}/env", params={"decrypt": "false"})
+          if st != 200: print("env list HTTP", st, envs.get("error", {}).get("message")); sys.exit(3)
+          needed = ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "AVATAR_PREPARATION_OWNER_EMAIL"]
+          rows = envs.get("envs", [])
+          print(f"{len(rows)} variables in project (names/targets/types only):")
+          for e in sorted(rows, key=lambda x: x["key"]):
+              print(f"  {e['key']:<40} targets={','.join(e.get('target', []) or [])}{(' branch=' + e['gitBranch']) if e.get('gitBranch') else ''} type={e.get('type')}")
+          todo = []
+          for k in needed:
+              cands = [e for e in rows if e["key"] == k]
+              prod = [e for e in cands if "production" in (e.get("target") or [])]
+              prev = [e for e in cands if "preview" in (e.get("target") or [])]
+              print(f"NEEDED {k}: production={'yes' if prod else 'NO'} preview={'yes' if prev else 'NO'}")
+              if prod and not prev: todo.append(prod[0])
+              if not prod and not prev: print(f"  !! {k} does not exist at all — cannot copy; the operator must create it (out of scope here)")
+          if os.environ.get("APPLY") != "true":
+              print("inspect only (apply=false). Would add preview target to:", [e["key"] for e in todo] or "nothing"); sys.exit(0)
+          for e in todo:
+              targets = sorted(set((e.get("target") or []) + ["preview"]))
+              st, r = api("PATCH", f"/v10/projects/{proj}/env/{e['id']}", {"target": targets})
+              print(f"PATCH {e['key']} targets -> {','.join(targets)}: HTTP {st}{'' if st == 200 else ' ' + str(r.get('error', {}).get('message'))}")
+              if st != 200: sys.exit(4)
+          sha = os.environ.get("REDEPLOY_SHA", "")
+          if sha:
+              st, d = api("GET", "/v6/deployments", params={"projectId": proj, "sha": sha, "target": "preview", "limit": "1"})
+              deps = d.get("deployments", []) if st == 200 else []
+              if not deps: print("no preview deployment found for", sha); sys.exit(5)
+              st, nd = api("POST", "/v13/deployments", {"name": p["name"], "deploymentId": deps[0]["uid"], "target": "preview", "meta": {"reason": "preview env scope fix"}}, params={"forceNew": "1"})
+              print("redeploy preview:", f"HTTP {st}", nd.get("id"), nd.get("url"), nd.get("readyState"), nd.get("target"), (nd.get("error") or {}).get("message", ""))
+              if st not in (200, 201, 202): sys.exit(6)
