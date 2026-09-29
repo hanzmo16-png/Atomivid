@@ -1,0 +1,34 @@
+name: Preview smoke (read-only HTTP probe)
+
+# Probes a Vercel PREVIEW deployment over plain HTTP from a runner with egress: status code,
+# Vercel error code header and the first bytes of the body per route. Reads only; sends no
+# credentials, changes nothing, never touches Production.
+on:
+  push:
+    branches: [claude/production-intelligence-v1]
+    paths: [.github/workflows/preview-smoke.yml]
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Preview base URL (https://...vercel.app), never the production alias"
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe routes
+        env:
+          BASE: ${{ inputs.base_url || 'https://atomivid-4ukc4r8f2-atomivid.vercel.app' }}
+        run: |
+          set -u
+          case "$BASE" in https://atomivid.vercel.app*) echo "refusing to probe the production alias"; exit 1;; esac
+          for p in / /login /manifest.webmanifest /dashboard /dashboard/command-center "/dashboard/command-center?window=28D" /api/admin/command-center "/api/admin/command-center?section=telemetry" /api/health /nonexistent-route-probe; do
+            echo "=================== GET $p"
+            curl -sS -m 40 -o body.txt -D headers.txt -w "status=%{http_code} redirect=%{redirect_url} time=%{time_total}s size=%{size_download}\n" "$BASE$p" || echo "curl failed"
+            grep -i -E "^(x-vercel-error|x-vercel-id|x-vercel-cache|x-matched-path|content-type|location|cache-control|x-robots-tag|set-cookie):" headers.txt | sed -E 's/(set-cookie:).*/\1 <redacted>/I' || true
+            echo "--- body (first 600 chars)"; head -c 600 body.txt | tr -d '\r'; echo
+          done
