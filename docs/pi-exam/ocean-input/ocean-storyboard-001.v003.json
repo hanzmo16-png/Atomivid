@@ -1,0 +1,1601 @@
+{
+  "meta": {
+    "videoId": "ocean-deep-001",
+    "version": "003",
+    "totalShots": 84,
+    "format": "1920x1080 (16:9)",
+    "language": "en",
+    "durationsBasis": "Estimated at Brian's measured pace (b1: 128 words in 41.05 s ≈ 3.1 words/s); b1 uses its real cut times; real scene boundaries are re-cut to the recorded narration's word timings before any paid generation (sample-manifest.ts: cuts only in silences between words).",
+    "estimatedSecondsByBeat": {
+      "b1": 42.3,
+      "b2": 43.0,
+      "b3": 142.8,
+      "b4": 103.0,
+      "b5": 134.4,
+      "b6": 93.4,
+      "b7": 45.2
+    },
+    "estimatedTotalSeconds": 604.1,
+    "paidItemsUsd": {
+      "total": 7.14,
+      "firstMinute": 0,
+      "contingent": 2.94
+    },
+    "veoClips": 7,
+    "veoBillableSeconds": 56,
+    "aiStills": 8,
+    "assetTypeMapping": "generated_image=AI_RECREATION (production: veo-clip/ai-still in the sample manifest); documentary_image/stock_video=public domain or Pexels; diagram/map/text=deterministic",
+    "notReused": "No medieval style, no Pixabay/Eleven Music tracks, no footage or thumbnail from any existing YouTube video.",
+    "motionMix": {
+      "ai-animation": 8,
+      "ai-animation-of-real-photo": 1,
+      "figure-over-motion": 37,
+      "map-graphic": 6,
+      "real-footage": 29,
+      "still-push (archival)": 3
+    },
+    "cardSecondsMax": 1.5,
+    "editorialBasis": "Approved moving opening and subsequent budget approval. Target real video/animation for all non-map, non-historical shots. This is a source-selection plan, not evidence that assets are already selected or rendered. Maps are reported as graphics, not actual moving footage.",
+    "estimatedSecondsByMotion": {
+      "ai-animation": 52.9,
+      "ai-animation-of-real-photo": 5.0,
+      "figure-over-motion": 260.4,
+      "map-graphic": 49.4,
+      "real-footage": 212.6,
+      "still-push (archival)": 23.8
+    }
+  },
+  "shots": [
+    {
+      "beatId": "b1",
+      "shotId": "b1-s1",
+      "durationApprox": 5.0,
+      "assetType": "generated_image",
+      "visualIntent": "A light switches on over pale sediment 3,000 m down",
+      "description": "Veo animation of NOAA's public-domain frame of Deep Discoverer lighting the seabed (key ocean-b1-s01-lights-v1). Kept as approved; not regenerated for the particle plume",
+      "queryOrPrompt": "REUSED from the approved first minute (already paid / already cleared) — no new cost",
+      "sourceRequirement": "veo-clip (reference: public-domain photo)",
+      "hybridClassification": "AI_RECREATION",
+      "licensing": {
+        "status": "Reference photo: Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA. Animation: AI-generated (Veo) — On-screen label: 'AI illustration' / 'AI animation' — never presented as filmed discovery"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": true,
+      "billableVideoSeconds": 0,
+      "motion": "ai-animation-of-real-photo",
+      "reused": true,
+      "firstMinute": true,
+      "cover": "Title over this shot: 'The Deep Ocean' / 'What we've seen, what we haven't'"
+    },
+    {
+      "beatId": "b1",
+      "shotId": "b1-s2",
+      "durationApprox": 6.7,
+      "assetType": "stock_video",
+      "visualIntent": "'pale sediment, a few scattered stones'",
+      "description": "Replace planned still with relevant reviewed video. NOAA public-domain photo Expn0686 (cold seep seafloor), slow push",
+      "queryOrPrompt": "REUSED from the approved first minute (already paid / already cleared) — no new cost",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "reused": true,
+      "firstMinute": true
+    },
+    {
+      "beatId": "b1",
+      "shotId": "b1-s3",
+      "durationApprox": 2.5,
+      "assetType": "stock_video",
+      "visualIntent": "'a small animal drifting through the beam'",
+      "description": "Replace planned still with relevant reviewed video. NOAA public-domain photo of an Atolla medusa in the ROV lights",
+      "queryOrPrompt": "REUSED from the approved first minute (already paid / already cleared) — no new cost",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "reused": true,
+      "firstMinute": true
+    },
+    {
+      "beatId": "b1",
+      "shotId": "b1-s4",
+      "durationApprox": 3.9,
+      "assetType": "generated_image",
+      "visualIntent": "'the vehicle moves on, and the darkness closes behind it'",
+      "description": "Veo animation of an AI still (key ocean-b1-s04-recede-v1)",
+      "queryOrPrompt": "REUSED from the approved first minute (already paid / already cleared) — no new cost",
+      "sourceRequirement": "veo-clip (reference: AI still)",
+      "hybridClassification": "AI_RECREATION",
+      "licensing": {
+        "status": "AI-generated for Atomivid (OpenAI image / Google Veo) — On-screen label: 'AI illustration' / 'AI animation' — never presented as filmed discovery"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": true,
+      "billableVideoSeconds": 0,
+      "motion": "ai-animation",
+      "reused": true,
+      "firstMinute": true
+    },
+    {
+      "beatId": "b1",
+      "shotId": "b1-s5",
+      "durationApprox": 6.1,
+      "assetType": "stat_overlay",
+      "visualIntent": "'One lit patch at a time' — over real ROV footage",
+      "description": "Was a black card: now the words sit over real NOAA ROV footage moving along the seafloor (motion under text), citation Bell et al. 2025",
+      "queryOrPrompt": "NOAA OE video (PD) + overlay — new free asset; the rest of b1 is reused",
+      "sourceRequirement": "figure overlaid on moving footage (source named on screen)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material; footage underneath licensed as listed in queryOrPrompt"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion",
+      "firstMinute": true
+    },
+    {
+      "beatId": "b1",
+      "shotId": "b1-s6",
+      "durationApprox": 4.9,
+      "assetType": "stat_overlay",
+      "visualIntent": "'More than a quarter mapped' over the ETOPO relief",
+      "description": "NOAA NCEI ETOPO relief with a slow lateral move; overlay '28.7% mapped — Seabed 2030, Apr 2026'",
+      "queryOrPrompt": "REUSED from the approved first minute (already paid / already cleared) — no new cost",
+      "sourceRequirement": "figure overlaid on moving footage (source named on screen)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material; footage underneath licensed as listed in queryOrPrompt"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion",
+      "reused": true,
+      "firstMinute": true
+    },
+    {
+      "beatId": "b1",
+      "shotId": "b1-s7",
+      "durationApprox": 4.5,
+      "assetType": "stock_video",
+      "visualIntent": "'Two kinds of knowing' — Mapped · Seen",
+      "description": "Short readable figure or statement over relevant moving footage. No full-screen black text card. Short card (4.5 s, 16 words): the words are the picture here",
+      "queryOrPrompt": "REUSED from the approved first minute (already paid / already cleared) — no new cost",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock) with timed overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion",
+      "reused": true,
+      "firstMinute": true
+    },
+    {
+      "beatId": "b1",
+      "shotId": "b1-s8",
+      "durationApprox": 8.7,
+      "assetType": "stock_video",
+      "visualIntent": "'How do we actually know what is down there?'",
+      "description": "Pexels 38178142, ocean surface at dusk",
+      "queryOrPrompt": "REUSED from the approved first minute (already paid / already cleared) — no new cost",
+      "sourceRequirement": "pexels-video",
+      "hybridClassification": "STOCK_REAL",
+      "licensing": {
+        "status": "Pexels License — free commercial use, no attribution required; not presented as deep-sea footage"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "reused": true,
+      "firstMinute": true
+    },
+    {
+      "beatId": "b2",
+      "shotId": "b2-s1",
+      "durationApprox": 6.0,
+      "assetType": "stock_video",
+      "visualIntent": "'Below about two hundred metres, sunlight fades away'",
+      "description": "Real underwater footage: sun rays fading into blue-black",
+      "queryOrPrompt": "Pexels: 'underwater sun rays deep blue'",
+      "sourceRequirement": "pexels-video",
+      "hybridClassification": "STOCK_REAL",
+      "licensing": {
+        "status": "Pexels License — free commercial use, no attribution required; not presented as deep-sea footage"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage"
+    },
+    {
+      "beatId": "b2",
+      "shotId": "b2-s2",
+      "durationApprox": 7.0,
+      "assetType": "stock_video",
+      "visualIntent": "Depth zones: Sunlight 0–200 m -> Twilight 200–1,000 m -> Midnight 1,000–4,000 m -> Abyss 4,000–6,000 m -> Hadal 6,000–11,000 m",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated descent through the zone limits (NOAA), camera moving down",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b2",
+      "shotId": "b2-s3",
+      "durationApprox": 6.0,
+      "assetType": "stat_overlay",
+      "visualIntent": "'More than 90% of the ocean's volume is deep ocean' (NOAA)",
+      "description": "Figure over real footage of a slow descent into dark water",
+      "queryOrPrompt": "Pexels: 'descending into deep blue water' + overlay",
+      "sourceRequirement": "figure overlaid on moving footage (source named on screen)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material; footage underneath licensed as listed in queryOrPrompt"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b2",
+      "shotId": "b2-s4",
+      "durationApprox": 6.0,
+      "assetType": "map",
+      "visualIntent": "The deep seafloor covers about two thirds of Earth's surface",
+      "description": "World map (Natural Earth) with oceans shaded; caption cites Bell et al. 2025",
+      "queryOrPrompt": "Natural Earth (public domain) — data map rendered by Atomivid code",
+      "sourceRequirement": "data-map (Natural Earth)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Natural Earth (public domain) — data map rendered by Atomivid code"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "map-graphic"
+    },
+    {
+      "beatId": "b2",
+      "shotId": "b2-s5",
+      "durationApprox": 5,
+      "assetType": "stock_video",
+      "visualIntent": "'Three different measurements' — Mapped · Seen · Volume",
+      "description": "Short readable figure or statement over relevant moving footage. No full-screen black text card. Short three-column key (returns in b7)",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock) with timed overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b2",
+      "shotId": "b2-s6",
+      "durationApprox": 6.0,
+      "assetType": "stock_video",
+      "visualIntent": "'mapped with modern sonar'",
+      "description": "Real NOAA OE multibeam data-acquisition screen recording or 3D fly-through (public domain)",
+      "queryOrPrompt": "NOAA OE video / Commons webm: 'Okeanos Explorer multibeam' (PD)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "fallback": "veo-from-pd"
+    },
+    {
+      "beatId": "b2",
+      "shotId": "b2-s7",
+      "durationApprox": 7.0,
+      "assetType": "stock_video",
+      "visualIntent": "'seen, with a camera or with their own eyes'",
+      "description": "Real NOAA OE ROV dive footage over the seafloor (public domain)",
+      "queryOrPrompt": "NOAA OE video / Commons webm: 'Deep Discoverer dive video' (PD)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "fallback": "veo-from-pd"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s1",
+      "durationApprox": 5.2,
+      "assetType": "stock_video",
+      "visualIntent": "'Take the maps first.'",
+      "description": "Real footage: ship bow in open sea (no brand names)",
+      "queryOrPrompt": "Pexels: 'ship bow open sea'",
+      "sourceRequirement": "pexels-video",
+      "hybridClassification": "STOCK_REAL",
+      "licensing": {
+        "status": "Pexels License — free commercial use, no attribution required; not presented as deep-sea footage"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s2",
+      "durationApprox": 7.3,
+      "assetType": "documentary_image",
+      "visualIntent": "'lower a weight on a rope' — HMS Challenger",
+      "description": "Public-domain engraving/photo of HMS Challenger (1870s), slow push — archival, not animated",
+      "queryOrPrompt": "commons: 'HMS Challenger 1872' (PD, 19th-century)",
+      "sourceRequirement": "commons archival still (public domain, slow push)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "still-push (archival)"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s3",
+      "durationApprox": 6.3,
+      "assetType": "documentary_image",
+      "visualIntent": "'a weighted hemp line again and again'",
+      "description": "Public-domain plate from the Challenger Report showing sounding gear",
+      "queryOrPrompt": "commons: 'Challenger Report sounding apparatus' (PD)",
+      "sourceRequirement": "commons archival still (public domain, slow push)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "still-push (archival)"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s4",
+      "durationApprox": 5.2,
+      "assetType": "stat_overlay",
+      "visualIntent": "'Fewer than 500 deep soundings in 3½ years'",
+      "description": "Figure over real footage of rope running through water",
+      "queryOrPrompt": "Pexels: 'rope underwater' + overlay",
+      "sourceRequirement": "figure overlaid on moving footage (source named on screen)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material; footage underneath licensed as listed in queryOrPrompt"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s5",
+      "durationApprox": 7.3,
+      "assetType": "map",
+      "visualIntent": "1875 sounding: more than 8,000 m, near today's Mariana Trench",
+      "description": "Western Pacific map (existing 'marianas' land region) with the 1875 station marked (reduced precision)",
+      "queryOrPrompt": "Natural Earth (public domain) — data map rendered by Atomivid code",
+      "sourceRequirement": "data-map (Natural Earth)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Natural Earth (public domain) — data map rendered by Atomivid code"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "map-graphic"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s6",
+      "durationApprox": 7.3,
+      "assetType": "stock_video",
+      "visualIntent": "Echo sounding: Pulse goes down -> Echo returns -> Time becomes depth",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated diagram (Meteor-era single beam)",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s7",
+      "durationApprox": 5.2,
+      "assetType": "stat_overlay",
+      "visualIntent": "'Meteor, 1925–27: about 67,000 echo soundings'",
+      "description": "Figure over real footage of a ship crossing open ocean",
+      "queryOrPrompt": "Pexels: 'ship crossing ocean aerial' + overlay",
+      "sourceRequirement": "figure overlaid on moving footage (source named on screen)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material; footage underneath licensed as listed in queryOrPrompt"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s8",
+      "durationApprox": 8.3,
+      "assetType": "stock_video",
+      "visualIntent": "Six echo profiles line up -> A notch at the ridge crest -> A rift valley",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated diagram built from our own profile drawing (not a copy of the Heezen–Tharp map)",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s9",
+      "durationApprox": 6.3,
+      "assetType": "stock_video",
+      "visualIntent": "'as if the water had been drained away'",
+      "description": "Replace planned still with relevant reviewed video. NOAA NCEI ETOPO relief of the Atlantic (public domain) with a slow tilt — a modern equivalent, labelled as such",
+      "queryOrPrompt": "commons: 'NOAA ETOPO Atlantic relief' (PD)",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s10",
+      "durationApprox": 6.3,
+      "assetType": "stock_video",
+      "visualIntent": "'Today, most seafloor maps still begin with sound'",
+      "description": "Real NOAA footage of Okeanos Explorer at sea",
+      "queryOrPrompt": "NOAA OE video (PD)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "fallback": "pd-image"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s11",
+      "durationApprox": 8.3,
+      "assetType": "stock_video",
+      "visualIntent": "Multibeam sonar: Ship sends a fan of sound -> Echoes return -> Travel time becomes depth",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated fan-shaped swath diagram",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s12",
+      "durationApprox": 8.3,
+      "assetType": "stock_video",
+      "visualIntent": "'ridges, canyons, and volcanoes that never reach the surface'",
+      "description": "Real NOAA 3D multibeam fly-through of a seamount (public domain)",
+      "queryOrPrompt": "NOAA OE mapping video (PD)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "fallback": "veo-from-pd"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s13",
+      "durationApprox": 6.3,
+      "assetType": "stock_video",
+      "visualIntent": "'a strip a few times wider than the water is deep' — swath ≈ 1.3–6× depth",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated diagram: water depth vs swath width",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s14",
+      "durationApprox": 7.3,
+      "assetType": "stock_video",
+      "visualIntent": "'a map of the entire ocean floor… from space'",
+      "description": "Replace planned still with relevant reviewed video. NASA/CNES SWOT artist's concept (credit 'NASA/JPL-Caltech'), labelled as illustration",
+      "queryOrPrompt": "NASA JPL: 'SWOT satellite illustration'",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s15",
+      "durationApprox": 9.4,
+      "assetType": "stock_video",
+      "visualIntent": "Satellite altimetry: Seamount's gravity pulls water -> Sea surface bulges slightly -> Satellite measures the bump -> Seafloor shape is estimated",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated diagram",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s16",
+      "durationApprox": 6.3,
+      "assetType": "stat_overlay",
+      "visualIntent": "'Satellites: features around 8 km across'",
+      "description": "Figure over real footage of open-ocean swell",
+      "queryOrPrompt": "Pexels: 'open ocean swell' + overlay",
+      "sourceRequirement": "figure overlaid on moving footage (source named on screen)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material; footage underneath licensed as listed in queryOrPrompt"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s17",
+      "durationApprox": 6.3,
+      "assetType": "stock_video",
+      "visualIntent": "'a shipwreck, a cold seep, or many smaller hills'",
+      "description": "Real NOAA ROV footage of a cold-seep mussel bed",
+      "queryOrPrompt": "NOAA OE video (PD)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "fallback": "veo-from-pd"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s18",
+      "durationApprox": 7.3,
+      "assetType": "stat_overlay",
+      "visualIntent": "'28.7% of the global seafloor mapped to modern standards' — Seabed 2030, April 2026",
+      "description": "Figure over a slowly turning globe of seafloor relief (public-domain NOAA/NASA visualisation; not the b1 ETOPO still)",
+      "queryOrPrompt": "NOAA/NASA globe bathymetry visualisation (PD) + overlay",
+      "sourceRequirement": "figure overlaid on moving footage (source named on screen)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material; footage underneath licensed as listed in queryOrPrompt"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s19",
+      "durationApprox": 5,
+      "assetType": "stock_video",
+      "visualIntent": "'Mapped = at least one measured depth per grid cell'",
+      "description": "Short readable figure or statement over relevant moving footage. No full-screen black text card. Short card; the grid follows",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock) with timed overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s20",
+      "durationApprox": 7.3,
+      "assetType": "stock_video",
+      "visualIntent": "Grid cells: 100 m (0–1,500 m) -> 200 m -> 400 m -> 800 m (>5,750 m)",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated grid-cell diagram (GEBCO/Seabed 2030 definition)",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b3",
+      "shotId": "b3-s21",
+      "durationApprox": 6.3,
+      "assetType": "stock_video",
+      "visualIntent": "'It does not tell us what lives there.'",
+      "description": "Real NOAA ROV footage: animals on a seamount",
+      "queryOrPrompt": "NOAA OE video (PD)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "fallback": "veo-from-pd"
+    },
+    {
+      "beatId": "b4",
+      "shotId": "b4-s1",
+      "durationApprox": 6,
+      "assetType": "generated_image",
+      "visualIntent": "'Light does not travel far in seawater'",
+      "description": "AI animation: a beam fading within a few metres, particles drifting",
+      "queryOrPrompt": "prompt: realistic deep-sea documentary still, a single white beam of light fading into black water within a few metres, drifting particles, no creatures, no text",
+      "sourceRequirement": "veo-clip (reference: AI still)",
+      "hybridClassification": "AI_RECREATION",
+      "licensing": {
+        "status": "AI-generated for Atomivid (OpenAI image / Google Veo) — On-screen label: 'AI illustration' / 'AI animation' — never presented as filmed discovery"
+      },
+      "estimatedCostUsd": 1.02,
+      "aiGenerated": true,
+      "billableVideoSeconds": 8,
+      "motion": "ai-animation"
+    },
+    {
+      "beatId": "b4",
+      "shotId": "b4-s2",
+      "durationApprox": 9.4,
+      "assetType": "stock_video",
+      "visualIntent": "Pressure: surface 1 atm -> 1,000 m ≈ 100 atm -> 4,000 m ≈ 400 atm -> 11,000 m ≈ 1,100 atm",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated descent with the pressure counter",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b4",
+      "shotId": "b4-s3",
+      "durationApprox": 7.1,
+      "assetType": "stock_video",
+      "visualIntent": "'remotely operated vehicles, tethered to a ship'",
+      "description": "Real NOAA footage of Deep Discoverer being launched",
+      "queryOrPrompt": "NOAA OE video (PD); exclude CC BY-SA files",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "fallback": "pd-image"
+    },
+    {
+      "beatId": "b4",
+      "shotId": "b4-s4",
+      "durationApprox": 7.1,
+      "assetType": "stock_video",
+      "visualIntent": "'scientists on shore can watch its cameras in real time'",
+      "description": "Real NOAA footage from the control van / telepresence",
+      "queryOrPrompt": "NOAA OE video (PD)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "fallback": "pd-image"
+    },
+    {
+      "beatId": "b4",
+      "shotId": "b4-s5",
+      "durationApprox": 7.1,
+      "assetType": "stock_video",
+      "visualIntent": "'crewed submersibles, and autonomous vehicles'",
+      "description": "Real public-domain footage of a crewed submersible or AUV (NOAA / U.S. Navy)",
+      "queryOrPrompt": "NOAA / U.S. Navy video (PD)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "fallback": "pd-image"
+    },
+    {
+      "beatId": "b4",
+      "shotId": "b4-s6",
+      "durationApprox": 8.2,
+      "assetType": "stat_overlay",
+      "visualIntent": "'About 44,000 dive records · 1958–2024' — Bell et al. 2025",
+      "description": "Figure over real ROV footage descending",
+      "queryOrPrompt": "NOAA OE video (PD) + overlay",
+      "sourceRequirement": "figure overlaid on moving footage (source named on screen)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material; footage underneath licensed as listed in queryOrPrompt"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b4",
+      "shotId": "b4-s7",
+      "durationApprox": 10.6,
+      "assetType": "stock_video",
+      "visualIntent": "'About 3,800 km² seen — roughly 0.001% of the deep seafloor'",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated scale graphic: a vast dark field and a barely visible speck; 1.5 s of silence after the line",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b4",
+      "shotId": "b4-s8",
+      "durationApprox": 8.2,
+      "assetType": "map",
+      "visualIntent": "Seen so far — an area about the size of Rhode Island",
+      "description": "Rhode Island at scale (U.S. Census Bureau outline)",
+      "queryOrPrompt": "Natural Earth (public domain) — data map rendered by Atomivid code",
+      "sourceRequirement": "data-map (Natural Earth)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Natural Earth (public domain) — data map rendered by Atomivid code"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "map-graphic"
+    },
+    {
+      "beatId": "b4",
+      "shotId": "b4-s9",
+      "durationApprox": 4,
+      "assetType": "stock_video",
+      "visualIntent": "'An estimate' — records are incomplete; some imagery was never shared",
+      "description": "Short readable figure or statement over relevant moving footage. No full-screen black text card. Short caveat card",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock) with timed overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b4",
+      "shotId": "b4-s10",
+      "durationApprox": 10.6,
+      "assetType": "map",
+      "visualIntent": "About two thirds of observations — near the U.S., Japan and New Zealand",
+      "description": "Pacific map highlighting three countries",
+      "queryOrPrompt": "Natural Earth (public domain) — data map rendered by Atomivid code",
+      "sourceRequirement": "data-map (Natural Earth)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Natural Earth (public domain) — data map rendered by Atomivid code"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "map-graphic"
+    },
+    {
+      "beatId": "b4",
+      "shotId": "b4-s11",
+      "durationApprox": 7.1,
+      "assetType": "stat_overlay",
+      "visualIntent": "'High seas: most of the ocean — less than a fifth of the dives'",
+      "description": "Figure over real open-ocean footage at night",
+      "queryOrPrompt": "Pexels: 'open ocean night' + overlay",
+      "sourceRequirement": "figure overlaid on moving footage (source named on screen)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material; footage underneath licensed as listed in queryOrPrompt"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b4",
+      "shotId": "b4-s12",
+      "durationApprox": 8.2,
+      "assetType": "stock_video",
+      "visualIntent": "'We have mapped more than a quarter…'",
+      "description": "Real footage: dark ocean surface at night",
+      "queryOrPrompt": "Pexels: 'ocean at night dark waves'",
+      "sourceRequirement": "pexels-video",
+      "hybridClassification": "STOCK_REAL",
+      "licensing": {
+        "status": "Pexels License — free commercial use, no attribution required; not presented as deep-sea footage"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage"
+    },
+    {
+      "beatId": "b4",
+      "shotId": "b4-s13",
+      "durationApprox": 9.4,
+      "assetType": "stock_video",
+      "visualIntent": "'…We have seen a vanishingly small part of it.'",
+      "description": "Real NOAA ROV footage at the edge of its lights, darkness beyond",
+      "queryOrPrompt": "NOAA OE video (PD)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "fallback": "veo-from-pd"
+    },
+    {
+      "beatId": "b5",
+      "shotId": "b5-s1",
+      "durationApprox": 7,
+      "assetType": "generated_image",
+      "visualIntent": "'the darkness is not empty, and it is not entirely dark'",
+      "description": "AI animation: scattered blue sparks blinking in black water — an illustration of bioluminescence",
+      "queryOrPrompt": "prompt: realistic deep-sea documentary still, black water with a few scattered faint blue bioluminescent sparks at different distances, no identifiable animals, no text",
+      "sourceRequirement": "veo-clip (reference: AI still)",
+      "hybridClassification": "AI_RECREATION",
+      "licensing": {
+        "status": "AI-generated for Atomivid (OpenAI image / Google Veo) — On-screen label: 'AI illustration' / 'AI animation' — never presented as filmed discovery"
+      },
+      "estimatedCostUsd": 1.02,
+      "aiGenerated": true,
+      "billableVideoSeconds": 8,
+      "motion": "ai-animation"
+    },
+    {
+      "beatId": "b5",
+      "shotId": "b5-s2",
+      "durationApprox": 8.1,
+      "assetType": "stock_video",
+      "visualIntent": "'many animals make their own light'",
+      "description": "Real public-domain footage of a bioluminescent display (NOAA). Fallback: AI animation (+still+clip)",
+      "queryOrPrompt": "NOAA OE video (PD); MBARI excluded (copyrighted)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "contingentUsd": 1.02
+    },
+    {
+      "beatId": "b5",
+      "shotId": "b5-s3",
+      "durationApprox": 9.4,
+      "assetType": "stat_overlay",
+      "visualIntent": "'240 dives · surface to ~3,900 m · 350,000+ animals' — Martini & Haddock 2017",
+      "description": "Figure over real ROV midwater footage",
+      "queryOrPrompt": "NOAA OE video (PD) + overlay",
+      "sourceRequirement": "figure overlaid on moving footage (source named on screen)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material; footage underneath licensed as listed in queryOrPrompt"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b5",
+      "shotId": "b5-s4",
+      "durationApprox": 6.7,
+      "assetType": "stat_overlay",
+      "visualIntent": "'About three quarters could produce light (76%)'",
+      "description": "Figure over real midwater footage (small animals in the ROV lights)",
+      "queryOrPrompt": "NOAA OE video (PD) + overlay",
+      "sourceRequirement": "figure overlaid on moving footage (source named on screen)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material; footage underneath licensed as listed in queryOrPrompt"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b5",
+      "shotId": "b5-s5",
+      "durationApprox": 9.4,
+      "assetType": "stock_video",
+      "visualIntent": "Light in seawater: red is absorbed first -> then yellow and green -> blue travels farthest",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated spectrum/attenuation diagram",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b5",
+      "shotId": "b5-s6",
+      "durationApprox": 7,
+      "assetType": "generated_image",
+      "visualIntent": "'to erase their own silhouette' (counterillumination)",
+      "description": "AI animation of a small silvery fish whose belly lights match faint light from above",
+      "queryOrPrompt": "prompt: realistic documentary still, small silvery midwater fish seen from below against faint blue light, glowing ventral photophores matching the light, dark water, no text",
+      "sourceRequirement": "veo-clip (reference: AI still)",
+      "hybridClassification": "AI_RECREATION",
+      "licensing": {
+        "status": "AI-generated for Atomivid (OpenAI image / Google Veo) — On-screen label: 'AI illustration' / 'AI animation' — never presented as filmed discovery"
+      },
+      "estimatedCostUsd": 1.02,
+      "aiGenerated": true,
+      "billableVideoSeconds": 8,
+      "motion": "ai-animation"
+    },
+    {
+      "beatId": "b5",
+      "shotId": "b5-s7",
+      "durationApprox": 6,
+      "assetType": "generated_image",
+      "visualIntent": "'A few deep-sea dragonfishes even make red light'",
+      "description": "AI animation (was a still): dragonfish gliding with a red light organ beneath the eye",
+      "queryOrPrompt": "prompt: realistic deep-sea documentary still, dragonfish (Malacosteus-like) in black water, small red light organ below the eye and a faint blue one behind it, no text",
+      "sourceRequirement": "veo-clip (reference: AI still)",
+      "hybridClassification": "AI_RECREATION",
+      "licensing": {
+        "status": "AI-generated for Atomivid (OpenAI image / Google Veo) — On-screen label: 'AI illustration' / 'AI animation' — never presented as filmed discovery"
+      },
+      "estimatedCostUsd": 1.02,
+      "aiGenerated": true,
+      "billableVideoSeconds": 8,
+      "motion": "ai-animation"
+    },
+    {
+      "beatId": "b5",
+      "shotId": "b5-s8",
+      "durationApprox": 8,
+      "assetType": "generated_image",
+      "visualIntent": "'The most famous light in the deep belongs to the anglerfishes'",
+      "description": "AI animation: a deep-sea anglerfish swimming slowly through black water, its lure glowing; labelled AI recreation — no public-domain footage of a live ceratioid was found",
+      "queryOrPrompt": "prompt: realistic deep-sea documentary still, a female deep-sea anglerfish (ceratioid, Melanocetus-like) swimming slowly in black water, a single glowing blue-white lure on a modified fin ray above the mouth, soft falloff, no other animals, no text",
+      "sourceRequirement": "veo-clip (reference: AI still)",
+      "hybridClassification": "AI_RECREATION",
+      "licensing": {
+        "status": "AI-generated for Atomivid (OpenAI image / Google Veo) — On-screen label: 'AI illustration' / 'AI animation' — never presented as filmed discovery"
+      },
+      "estimatedCostUsd": 1.02,
+      "aiGenerated": true,
+      "billableVideoSeconds": 8,
+      "motion": "ai-animation",
+      "priority": "Hans",
+      "overlay": "About 160 species of deep-sea anglerfish (Pietsch 2009)"
+    },
+    {
+      "beatId": "b5",
+      "shotId": "b5-s9",
+      "durationApprox": 7,
+      "assetType": "generated_image",
+      "visualIntent": "'It comes from bacteria living inside the lure'",
+      "description": "AI animation: extreme close-up of the glowing lure pulsing gently; labelled AI recreation",
+      "queryOrPrompt": "prompt: realistic macro documentary still, the glowing lure (esca) of a deep-sea anglerfish, translucent bulb with a soft blue-white glow, black background, no text",
+      "sourceRequirement": "veo-clip (reference: AI still)",
+      "hybridClassification": "AI_RECREATION",
+      "licensing": {
+        "status": "AI-generated for Atomivid (OpenAI image / Google Veo) — On-screen label: 'AI illustration' / 'AI animation' — never presented as filmed discovery"
+      },
+      "estimatedCostUsd": 1.02,
+      "aiGenerated": true,
+      "billableVideoSeconds": 8,
+      "motion": "ai-animation",
+      "priority": "Hans"
+    },
+    {
+      "beatId": "b5",
+      "shotId": "b5-s10",
+      "durationApprox": 10.7,
+      "assetType": "stock_video",
+      "visualIntent": "Tiny male -> fuses to the female -> immune genes lost (Swann et al. 2020)",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated scientific diagram (no gore, silhouettes)",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b5",
+      "shotId": "b5-s11",
+      "durationApprox": 9.4,
+      "assetType": "stock_video",
+      "visualIntent": "Sonar screen: a 'false bottom' at 300–500 m by day -> rises at night",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated echogram of the deep scattering layer",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b5",
+      "shotId": "b5-s12",
+      "durationApprox": 9.4,
+      "assetType": "stock_video",
+      "visualIntent": "'climbing at dusk to feed… sinking again before dawn'",
+      "description": "Real footage: ocean surface at dusk turning to night",
+      "queryOrPrompt": "Pexels: 'ocean dusk to night timelapse'",
+      "sourceRequirement": "pexels-video",
+      "hybridClassification": "STOCK_REAL",
+      "licensing": {
+        "status": "Pexels License — free commercial use, no attribution required; not presented as deep-sea footage"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage"
+    },
+    {
+      "beatId": "b5",
+      "shotId": "b5-s13",
+      "durationApprox": 8.1,
+      "assetType": "stat_overlay",
+      "visualIntent": "'Twilight-zone fish: about 2 to 16 billion tonnes' — estimates vary",
+      "description": "Figure over real midwater footage with small animals",
+      "queryOrPrompt": "NOAA OE video (PD) + overlay",
+      "sourceRequirement": "figure overlaid on moving footage (source named on screen)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material; footage underneath licensed as listed in queryOrPrompt"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b5",
+      "shotId": "b5-s14",
+      "durationApprox": 10.7,
+      "assetType": "stock_video",
+      "visualIntent": "'a slow rain from above… marine snow'",
+      "description": "Real NOAA dive footage with marine snow drifting through the lights. Fallback: AI animation",
+      "queryOrPrompt": "NOAA OE video (PD)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "contingentUsd": 0.96
+    },
+    {
+      "beatId": "b5",
+      "shotId": "b5-s15",
+      "durationApprox": 8.1,
+      "assetType": "stock_video",
+      "visualIntent": "'for many animals in the deep, it is food'",
+      "description": "Real NOAA footage of a filter-feeding animal (crinoid, sponge, sea pen)",
+      "queryOrPrompt": "NOAA OE video (PD)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "fallback": "pd-image"
+    },
+    {
+      "beatId": "b5",
+      "shotId": "b5-s16",
+      "durationApprox": 9.4,
+      "assetType": "map",
+      "visualIntent": "Monterey Bay — where the 76% figure was measured",
+      "description": "Map of Monterey Bay (Natural Earth) — 'one region, not a census'",
+      "queryOrPrompt": "Natural Earth (public domain) — data map rendered by Atomivid code",
+      "sourceRequirement": "data-map (Natural Earth)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Natural Earth (public domain) — data map rendered by Atomivid code"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "map-graphic"
+    },
+    {
+      "beatId": "b6",
+      "shotId": "b6-s1",
+      "durationApprox": 6.8,
+      "assetType": "stock_video",
+      "visualIntent": "'the animals themselves'",
+      "description": "Real NOAA footage of a deep-sea animal",
+      "queryOrPrompt": "NOAA OE video (PD)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "fallback": "pd-image"
+    },
+    {
+      "beatId": "b6",
+      "shotId": "b6-s2",
+      "durationApprox": 6.8,
+      "assetType": "stat_overlay",
+      "visualIntent": "'1,121 species new to science in one year' — Ocean Census, Apr 2025–Mar 2026",
+      "description": "Figure over real footage of a small deep-sea animal",
+      "queryOrPrompt": "NOAA OE video (PD) + overlay",
+      "sourceRequirement": "figure overlaid on moving footage (source named on screen)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material; footage underneath licensed as listed in queryOrPrompt"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b6",
+      "shotId": "b6-s3",
+      "durationApprox": 4,
+      "assetType": "stock_video",
+      "visualIntent": "'How many remain undescribed? Estimates vary widely.'",
+      "description": "Short readable figure or statement over relevant moving footage. No full-screen black text card. Short uncertainty card (no single number)",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock) with timed overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b6",
+      "shotId": "b6-s4",
+      "durationApprox": 7.9,
+      "assetType": "stock_video",
+      "visualIntent": "'a steep slope, a seamount or a cold seep worth visiting'",
+      "description": "Real NOAA multibeam fly-through dissolving to ROV footage of the same area if available",
+      "queryOrPrompt": "NOAA OE video (PD)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "fallback": "veo-from-pd"
+    },
+    {
+      "beatId": "b6",
+      "shotId": "b6-s5",
+      "durationApprox": 6.8,
+      "assetType": "stock_video",
+      "visualIntent": "'corals, microbes or whole communities'",
+      "description": "Real NOAA footage of a deep-sea coral community",
+      "queryOrPrompt": "NOAA OE video (PD)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "fallback": "veo-from-pd"
+    },
+    {
+      "beatId": "b6",
+      "shotId": "b6-s6",
+      "durationApprox": 7.9,
+      "assetType": "stock_video",
+      "visualIntent": "'a camera sled towed over a volcanic rift near the Galápagos'",
+      "description": "Replace planned still with relevant reviewed video. Public-domain NOAA/WHOI-cleared photo of a towed camera sled or the Galápagos Rift (licence checked per file)",
+      "queryOrPrompt": "commons: 'ANGUS camera sled' / 'Galapagos Rift 1977' (PD only)",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "fallback": "graphic"
+    },
+    {
+      "beatId": "b6",
+      "shotId": "b6-s7",
+      "durationApprox": 7.9,
+      "assetType": "stock_video",
+      "visualIntent": "'hot springs crowded with clams, crabs and tube worms'",
+      "description": "Real NOAA footage of a hydrothermal vent community (public domain)",
+      "queryOrPrompt": "NOAA OE / NOAA PMEL vent video (PD)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "contingentUsd": 0.96
+    },
+    {
+      "beatId": "b6",
+      "shotId": "b6-s8",
+      "durationApprox": 5.7,
+      "assetType": "stat_overlay",
+      "visualIntent": "'1977 · about 2,500 m · no biologists aboard'",
+      "description": "Figure over the vent footage",
+      "queryOrPrompt": "same clip + overlay",
+      "sourceRequirement": "figure overlaid on moving footage (source named on screen)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material; footage underneath licensed as listed in queryOrPrompt"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b6",
+      "shotId": "b6-s9",
+      "durationApprox": 7.9,
+      "assetType": "stock_video",
+      "visualIntent": "Energy without sunlight: Vent chemicals -> Microbes -> Tube worms, clams, crabs",
+      "description": "Explain with short timed text over relevant video or a scientific animation, rather than tiny static diagram nodes. Animated food-web diagram (chemosynthesis)",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage or scientific animation with short explanatory overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b6",
+      "shotId": "b6-s10",
+      "durationApprox": 7.9,
+      "assetType": "map",
+      "visualIntent": "Challenger Deep, Mariana Trench — about 10,935 m",
+      "description": "Western Pacific with the Challenger Deep marked",
+      "queryOrPrompt": "Natural Earth (public domain) — data map rendered by Atomivid code",
+      "sourceRequirement": "data-map (Natural Earth)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Natural Earth (public domain) — data map rendered by Atomivid code"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "map-graphic"
+    },
+    {
+      "beatId": "b6",
+      "shotId": "b6-s11",
+      "durationApprox": 7.9,
+      "assetType": "stat_overlay",
+      "visualIntent": "'10,935 m ± 6 m (2021)' — other surveys differ by tens of metres",
+      "description": "Figure over a slow descent into black water (real footage)",
+      "queryOrPrompt": "Pexels / NOAA (PD) + overlay",
+      "sourceRequirement": "figure overlaid on moving footage (source named on screen)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material; footage underneath licensed as listed in queryOrPrompt"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b6",
+      "shotId": "b6-s12",
+      "durationApprox": 10.2,
+      "assetType": "documentary_image",
+      "visualIntent": "'The first two people reached it in 1960'",
+      "description": "U.S. Navy public-domain photo of the bathyscaphe Trieste, slow push — archival",
+      "queryOrPrompt": "commons: 'Bathyscaphe Trieste US Navy' (PD-USGov-Military-Navy)",
+      "sourceRequirement": "commons archival still (public domain, slow push)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "still-push (archival)"
+    },
+    {
+      "beatId": "b6",
+      "shotId": "b6-s13",
+      "durationApprox": 5.7,
+      "assetType": "stat_overlay",
+      "visualIntent": "'Descent: nearly 5 hours · about 20 minutes on the bottom'",
+      "description": "Figure over a second archival Trieste photo",
+      "queryOrPrompt": "commons (PD) + overlay",
+      "sourceRequirement": "figure overlaid on moving footage (source named on screen)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material; footage underneath licensed as listed in queryOrPrompt"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b7",
+      "shotId": "b7-s1",
+      "durationApprox": 8.6,
+      "assetType": "stock_video",
+      "visualIntent": "'sound and satellites have measured it'",
+      "description": "Real NOAA multibeam fly-through (the 'map')",
+      "queryOrPrompt": "NOAA OE video (PD)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "fallback": "pd-image"
+    },
+    {
+      "beatId": "b7",
+      "shotId": "b7-s2",
+      "durationApprox": 8.6,
+      "assetType": "stock_video",
+      "visualIntent": "'cameras and samples have visited small, scattered patches'",
+      "description": "Real NOAA ROV footage (the 'visit')",
+      "queryOrPrompt": "NOAA OE video (PD)",
+      "sourceRequirement": "commons video (public domain)",
+      "hybridClassification": "REAL_DOCUMENTARY",
+      "licensing": {
+        "status": "Public domain (U.S. Government work, NOAA) — verify per file at candidate review: reject if caption says 'copyright' or licence is CC BY-SA"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "real-footage",
+      "fallback": "pd-image"
+    },
+    {
+      "beatId": "b7",
+      "shotId": "b7-s3",
+      "durationApprox": 10.0,
+      "assetType": "stat_overlay",
+      "visualIntent": "'Mapped: 28.7% · Seen: about 0.001%' — two kinds of knowing",
+      "description": "Recap figures over real ROV footage",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material + NOAA OE video (PD)",
+      "sourceRequirement": "figure overlaid on moving footage (source named on screen)",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material; footage underneath licensed as listed in queryOrPrompt"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b7",
+      "shotId": "b7-s4",
+      "durationApprox": 5,
+      "assetType": "stock_video",
+      "visualIntent": "'A map tells you that a place exists. An observation is a visit.'",
+      "description": "Short readable figure or statement over relevant moving footage. No full-screen black text card. Short card; the one line that is the picture",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock) with timed overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    },
+    {
+      "beatId": "b7",
+      "shotId": "b7-s5",
+      "durationApprox": 8,
+      "assetType": "generated_image",
+      "visualIntent": "'The next time a light switches on three thousand metres down…'",
+      "description": "AI animation: lights switch on over untouched sediment — callback to the opening",
+      "queryOrPrompt": "prompt: realistic deep-sea documentary still, two ROV lights just switching on over untouched pale sediment with a faint animal track, black water beyond, no text",
+      "sourceRequirement": "veo-clip (reference: AI still)",
+      "hybridClassification": "AI_RECREATION",
+      "licensing": {
+        "status": "AI-generated for Atomivid (OpenAI image / Google Veo) — On-screen label: 'AI illustration' / 'AI animation' — never presented as filmed discovery"
+      },
+      "estimatedCostUsd": 1.02,
+      "aiGenerated": true,
+      "billableVideoSeconds": 8,
+      "motion": "ai-animation"
+    },
+    {
+      "beatId": "b7",
+      "shotId": "b7-s6",
+      "durationApprox": 5,
+      "assetType": "stock_video",
+      "visualIntent": "'Sources: NOAA Ocean Exploration · Seabed 2030 / GEBCO · Bell et al. 2025 · Martini & Haddock 2017 · Ocean Census 2026 · WHOI · Pietsch 2009' — end card",
+      "description": "Short readable figure or statement over relevant moving footage. No full-screen black text card. End card with references; channel name 'Earthward Chronicles'",
+      "queryOrPrompt": "Deterministic graphic rendered by Atomivid code — no third-party material",
+      "sourceRequirement": "Reviewed real footage (NOAA public domain or licensed stock) with timed overlay",
+      "hybridClassification": "DETERMINISTIC",
+      "licensing": {
+        "status": "Deterministic graphic rendered by Atomivid code — no third-party material"
+      },
+      "estimatedCostUsd": 0,
+      "aiGenerated": false,
+      "billableVideoSeconds": 0,
+      "motion": "figure-over-motion"
+    }
+  ]
+}
