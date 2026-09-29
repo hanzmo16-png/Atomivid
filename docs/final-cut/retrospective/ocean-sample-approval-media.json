@@ -1,0 +1,170 @@
+{
+ "summary": {
+  "masterId": "ocean-deep-001-master",
+  "source": {
+   "kind": "media+edit_timeline",
+   "ref": "docs/pi-exam/ocean-input/ocean-storyboard-001.v003.json@78f4e5026a54 + storage:ocean-master.mp4@42feae88bbe1"
+  },
+  "verdict": "REPAIR_REQUIRED",
+  "counts": {
+   "AUTO_FIX": 1,
+   "SMART_REPAIR": 1,
+   "ESCALATE": 0,
+   "NONE": 0,
+   "blocking": 0,
+   "notAssessable": [
+    "deformed AI images / face changes / anomalous hands (no production QA evidence attached; not detectable from the EDL)",
+    "clipping",
+    "music over voice (no stem report)",
+    "fade in/out",
+    "word cuts / discontinuities (no speech timing)",
+    "subtitles (none attached)"
+   ]
+  },
+  "opening": {
+   "windowSec": 30,
+   "shotCount": 7,
+   "averageShotSec": 4.29,
+   "movementDensity": 1,
+   "stillStreakMaxSec": 0,
+   "blackSec": 0.6,
+   "titleCardSec": 0,
+   "visualRepetitions": 0,
+   "assessable": true
+  },
+  "editorial": {
+   "slots": 84,
+   "averageShotSec": 7.19,
+   "longestShotSec": 10.7,
+   "longestStaticRunSec": 10.6,
+   "staticShare": 0.08,
+   "motionDensity": 0.92,
+   "transitions": 83,
+   "textCardSec": 0,
+   "blackSec": 0.6,
+   "captions": 0
+  },
+  "technical": {
+   "durationSec": 42.4,
+   "width": 1920,
+   "height": 1080,
+   "fps": 30,
+   "integratedLufs": -16.23,
+   "truePeakDbtp": -2,
+   "silenceSec": 0,
+   "blackSec": 0.6,
+   "freezeSec": 0
+  },
+  "issuesByRule": {
+   "O_BLACK": 1,
+   "V_BLACK_FRAMES": 1
+  },
+  "inputUntouched": true,
+  "mediaUntouched": true,
+  "networkCalls": 0
+ },
+ "report": {
+  "inspectionVersion": "final-cut-inspection/1",
+  "policyVersion": "final-cut-policy/1",
+  "masterId": "ocean-deep-001-master",
+  "productionId": "ocean-deep-001",
+  "source": {
+   "kind": "media+edit_timeline",
+   "ref": "docs/pi-exam/ocean-input/ocean-storyboard-001.v003.json@78f4e5026a54 + storage:ocean-master.mp4@42feae88bbe1"
+  },
+  "mode": "INSPECT_ONLY",
+  "technical": {
+   "durationSec": 42.4,
+   "width": 1920,
+   "height": 1080,
+   "fps": 30,
+   "integratedLufs": -16.23,
+   "truePeakDbtp": -2,
+   "silenceSec": 0,
+   "blackSec": 0.6,
+   "freezeSec": 0
+  },
+  "editorial": {
+   "slots": 84,
+   "averageShotSec": 7.19,
+   "longestShotSec": 10.7,
+   "longestStaticRunSec": 10.6,
+   "staticShare": 0.08,
+   "motionDensity": 0.92,
+   "transitions": 83,
+   "textCardSec": 0,
+   "blackSec": 0.6,
+   "captions": 0
+  },
+  "opening": {
+   "windowSec": 30,
+   "shotCount": 7,
+   "averageShotSec": 4.29,
+   "movementDensity": 1,
+   "stillStreakMaxSec": 0,
+   "blackSec": 0.6,
+   "titleCardSec": 0,
+   "visualRepetitions": 0,
+   "assessable": true
+  },
+  "issues": [
+   {
+    "category": "opening",
+    "rule": "O_BLACK",
+    "severity": "major",
+    "confidence": 0.95,
+    "startTime": 0,
+    "endTime": 30,
+    "shotId": null,
+    "description": "0.6 s of black in the opening",
+    "evidence": {
+     "blackSec": 0.6
+    },
+    "recommendedAction": "trim opening black",
+    "issueId": "fci_71ed2840fb926e813551",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "visual",
+    "rule": "V_BLACK_FRAMES",
+    "severity": "minor",
+    "confidence": 0.97,
+    "startTime": 17.47,
+    "endTime": 18.07,
+    "shotId": "b1-s4",
+    "description": "0.6 s of unexpected black",
+    "evidence": {
+     "durationSec": 0.6,
+     "atEdge": false
+    },
+    "recommendedAction": "re-cut the slot boundary",
+    "issueId": "fci_3b3fd0c06dad4514506d",
+    "repairClass": "AUTO_FIX"
+   }
+  ],
+  "counts": {
+   "AUTO_FIX": 1,
+   "SMART_REPAIR": 1,
+   "ESCALATE": 0,
+   "NONE": 0,
+   "blocking": 0,
+   "notAssessable": [
+    "deformed AI images / face changes / anomalous hands (no production QA evidence attached; not detectable from the EDL)",
+    "clipping",
+    "music over voice (no stem report)",
+    "fade in/out",
+    "word cuts / discontinuities (no speech timing)",
+    "subtitles (none attached)"
+   ]
+  },
+  "verdict": "REPAIR_REQUIRED",
+  "reasons": [
+   "1 auto-fixable, 1 need a controlled repair",
+   "not assessable from this input: deformed AI images / face changes / anomalous hands (no production QA evidence attached; not detectable from the EDL); clipping; music over voice (no stem report); fade in/out; word cuts / discontinuities (no speech timing); subtitles (none attached)"
+  ],
+  "inputSha256": "6817f6205a82241912f5b312c5c3d4cbbc11041719bb3368e56890e7d91f9a28",
+  "reportId": "fcr_7dbe5a61188b261e21dd",
+  "timestamp": "2026-09-29T13:48:07.775Z"
+ },
+ "storyboardSha256": "78f4e5026a54990df7e81af3e05a2101f5092b4c6a64afe551e593cf7cfd700b"
+}

@@ -1,0 +1,409 @@
+{
+ "fetchedAt": "2026-09-29T13:44:21.786Z",
+ "files": [
+  {
+   "objectPath": "dulce-part1/final/DULCE-Part-I-master.mp4",
+   "local": "<runner temp>",
+   "bytes": 278960791,
+   "sha256": "28c0e1b662d1b9c9299996bdc68abf9bafa40813b79caf1b5b9a2aab4229841f",
+   "expectedSha256": "28c0e1b662d1b9c9299996bdc68abf9bafa40813b79caf1b5b9a2aab4229841f",
+   "identityVerified": true
+  },
+  {
+   "objectPath": "ocean-deep-001/samples/episode/sample-approval-motion-production-check.mp4",
+   "local": "<runner temp>",
+   "bytes": 25448568,
+   "sha256": "42feae88bbe17bfb1154c8afe7e2cc414252183b921835457b231d718937b422",
+   "expectedSha256": null,
+   "identityVerified": "no recorded hash to compare; identity = storage path + sha256 recorded now",
+   "candidates": [
+    {
+     "path": "ocean-deep-001/samples/episode/sample-approval-motion-production-check.mp4",
+     "bytes": 25448568
+    }
+   ]
+  }
+ ],
+ "oceanListing": [
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b3-14.mp4",
+   "bytes": 50911490
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b3-05.mp4",
+   "bytes": 48938847
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b3-01.mp4",
+   "bytes": 28360624
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/sample-approval-motion-production-check.mp4",
+   "bytes": 25448568
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/sample-approval-minute1-portada.mp4",
+   "bytes": 20859693
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b3-12.mp4",
+   "bytes": 17809632
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/motion-s08.mp4",
+   "bytes": 16671901
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/s08.mp4",
+   "bytes": 16671901
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-14.mp4",
+   "bytes": 15370930
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b2-01.mp4",
+   "bytes": 15176855
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/motion-s04.mp4",
+   "bytes": 15102168
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/s04.mp4",
+   "bytes": 15102168
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/motion-s01.mp4",
+   "bytes": 12114774
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/s01.mp4",
+   "bytes": 12114774
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-09.mp4",
+   "bytes": 10265538
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-10.mp4",
+   "bytes": 10214861
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-08.mp4",
+   "bytes": 9933766
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b7-01.mp4",
+   "bytes": 9394774
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-12.mp4",
+   "bytes": 7531882
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-01.mp4",
+   "bytes": 7373429
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-11.mp4",
+   "bytes": 7103207
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-13.mp4",
+   "bytes": 6966971
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b6-02.mp4",
+   "bytes": 4068962
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b4-11.mp4",
+   "bytes": 3925094
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b6-08.mp4",
+   "bytes": 3907747
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b6-07.mp4",
+   "bytes": 3437009
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b7-04.mp4",
+   "bytes": 3392431
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-24.mp4",
+   "bytes": 3094260
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b4-15.mp4",
+   "bytes": 2863394
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b3-13.mp4",
+   "bytes": 2786611
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b6-10.mp4",
+   "bytes": 2740696
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b4-10.mp4",
+   "bytes": 2729877
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b4-09.mp4",
+   "bytes": 2698382
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-15.mp4",
+   "bytes": 2562208
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b6-01.mp4",
+   "bytes": 2554646
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-23.mp4",
+   "bytes": 2525231
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b4-08.mp4",
+   "bytes": 2471405
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b6-12.mp4",
+   "bytes": 2469913
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b3-08.mp4",
+   "bytes": 2456608
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b7-09.mp4",
+   "bytes": 2388150
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b6-05.mp4",
+   "bytes": 2381225
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-17.mp4",
+   "bytes": 2324148
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b3-18.mp4",
+   "bytes": 2277169
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b3-25.mp4",
+   "bytes": 2260870
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b7-05.mp4",
+   "bytes": 2206877
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b4-05.mp4",
+   "bytes": 2123528
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b6-09.mp4",
+   "bytes": 2034702
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b7-06.mp4",
+   "bytes": 1940042
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/motion-s05.mp4",
+   "bytes": 1900745
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b6-04.mp4",
+   "bytes": 1840116
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b2-05.mp4",
+   "bytes": 1824055
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b6-13.mp4",
+   "bytes": 1779272
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b4-13.mp4",
+   "bytes": 1711677
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b6-06.mp4",
+   "bytes": 1706785
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/motion-s02.mp4",
+   "bytes": 1655181
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b2-06.mp4",
+   "bytes": 1620510
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-06.mp4",
+   "bytes": 1518180
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b3-09.mp4",
+   "bytes": 1514944
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b4-01.mp4",
+   "bytes": 1456951
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-25.mp4",
+   "bytes": 1411909
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b6-15.mp4",
+   "bytes": 1410323
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b7-07.mp4",
+   "bytes": 1390393
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b7-03.mp4",
+   "bytes": 1379036
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b2-07.mp4",
+   "bytes": 1376360
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b4-18.mp4",
+   "bytes": 1334713
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-07.mp4",
+   "bytes": 1294009
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b4-12.mp4",
+   "bytes": 1164961
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-27.mp4",
+   "bytes": 1116626
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-04.mp4",
+   "bytes": 1113366
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-21.mp4",
+   "bytes": 1101625
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b4-19.mp4",
+   "bytes": 1081488
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-22.mp4",
+   "bytes": 999612
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-05.mp4",
+   "bytes": 948946
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b4-06.mp4",
+   "bytes": 907393
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-20.mp4",
+   "bytes": 905134
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b4-03.mp4",
+   "bytes": 889395
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b6-03.mp4",
+   "bytes": 866760
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b4-02.mp4",
+   "bytes": 858479
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b2-04.mp4",
+   "bytes": 847172
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b2-02.mp4",
+   "bytes": 790470
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b7-08.mp4",
+   "bytes": 767219
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-26.mp4",
+   "bytes": 738630
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b2-08.mp4",
+   "bytes": 733393
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b4-07.mp4",
+   "bytes": 728204
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-02.mp4",
+   "bytes": 659790
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-19.mp4",
+   "bytes": 561474
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b4-04.mp4",
+   "bytes": 548484
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-16.mp4",
+   "bytes": 540989
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b5-18.mp4",
+   "bytes": 533493
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/motion-s03.mp4",
+   "bytes": 503149
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/episode-b4-17.mp4",
+   "bytes": 476265
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/motion-s06.mp4",
+   "bytes": 356902
+  },
+  {
+   "path": "ocean-deep-001/samples/episode/assets/motion-s07.mp4",
+   "bytes": 245264
+  }
+ ],
+ "workflowRun": {
+  "id": 36577200675,
+  "workflow": ".github/workflows/final-cut-retrospective.yml",
+  "commit": "3c3f4b3",
+  "mode": "INSPECT_ONLY",
+  "paidApiCalls": 0
+ },
+ "note": "Ocean: no full-episode master exists under ocean-deep-001/ (91 per-scene assets + 2 approval samples); the inspected file is the first-minute motion production check, not an episode master."
+}
