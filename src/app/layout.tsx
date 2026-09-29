@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -35,6 +35,18 @@ export const metadata: Metadata = {
     title: TITLE,
     description: DESCRIPTION,
   },
+  // PWA foundation (installable on Android/Samsung home screen); the manifest lives in app/manifest.ts.
+  manifest: "/manifest.webmanifest",
+  applicationName: "Atomivid",
+  appleWebApp: { capable: true, title: "Atomivid", statusBarStyle: "default" },
+  icons: { icon: "/icons/icon-192.png", apple: "/icons/icon-192.png" },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#111827",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

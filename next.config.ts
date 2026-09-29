@@ -18,6 +18,13 @@ const nextConfig: NextConfig = {
   // Remotion (y su webpack/esbuild internos) usan requires dinámicos por
   // plataforma que el bundler de Next no puede resolver estáticamente.
   serverExternalPackages: ["@remotion/renderer", "@remotion/bundler", "@ffmpeg-installer/ffmpeg", "@ffprobe-installer/ffprobe"],
+  // Admin/command-center and distribution endpoints carry global metrics or OAuth state: never cacheable by any layer.
+  async headers() {
+    return [
+      { source: "/api/admin/:path*", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex" }] },
+      { source: "/api/distribution/:path*", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex" }] },
+    ];
+  },
   outputFileTracingIncludes: { "/dashboard/avatar/prepare": ["./node_modules/@ffmpeg-installer/linux-x64/**", "./node_modules/@ffprobe-installer/linux-x64/**"] },
 };
 

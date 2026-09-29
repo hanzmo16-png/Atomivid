@@ -1,6 +1,6 @@
 {
  "manifest": "atomivid-migrations",
- "manifestVersion": 3,
+ "manifestVersion": 4,
  "generatedAt": "2026-09-29",
  "hashAlgorithm": "sha256 of the exact file bytes",
  "registry": {
@@ -258,6 +258,15 @@
    "knownProductionApplied": false,
    "appliedDate": null,
    "evidence": "NOT applied; verified locally with verify/05_final_cut_test.sql",
+   "onDefaultBranch": null
+  },
+  {
+   "migrationName": "0028_youtube_go_live.sql",
+   "sha256": "48467f2d526e746ade7716ebc53df456a1c51a24ee88137837bb46b745fade38",
+   "sourceBranch": "claude/production-intelligence-v1",
+   "knownProductionApplied": false,
+   "appliedDate": null,
+   "evidence": "NOT applied; verified locally with verify/06_youtube_go_live_test.sql",
    "onDefaultBranch": null
   }
  ],
