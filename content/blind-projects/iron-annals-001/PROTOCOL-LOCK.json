@@ -1,0 +1,8 @@
+{
+ "protocolId": "BLIND-PROJECT-001-PROTOCOL",
+ "protocolVersion": "blind-protocol/001.1",
+ "protocolSha256": "2e15edda59fa937832ad3f63870040625c2a86f3a1001738fe15629995806cb1",
+ "hashOf": "canonical JSON (sorted keys) of protocol.json",
+ "lockedAt": "2026-09-29",
+ "rule": "any change to protocol.json makes the CLI refuse seal/shadow/evaluate; a new protocol needs a new version AND a new blind project"
+}

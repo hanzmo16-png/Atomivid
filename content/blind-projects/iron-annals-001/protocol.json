@@ -1,0 +1,144 @@
+{
+ "protocolId": "BLIND-PROJECT-001-PROTOCOL",
+ "protocolVersion": "blind-protocol/001.1",
+ "registeredAt": "2026-09-29",
+ "channel": {
+  "name": "The Iron Annals",
+  "handle": "@TheIronAnnals",
+  "tagline": "Stories of Those Who Changed History",
+  "connected": false
+ },
+ "episode": {
+  "slot": "EPISODE #001",
+  "topic": "PENDING",
+  "candidates": [
+   "THERMOPYLAE_LEONIDAS",
+   "POMPEII",
+   "FALL_OF_CONSTANTINOPLE_1453"
+  ]
+ },
+ "subject": {
+  "system": "Production Intelligence V1.1 CANDIDATE",
+  "policyVersion": "policy/1.1.0-candidate",
+  "profileVersion": "longform-16x9/1.1",
+  "contractVersion": "shot-contract/1",
+  "rateCardVersion": "rate-card/2026-09-28.1",
+  "memorySnapshotId": "mem_empty",
+  "engineTreeSha256": "fb24a4026e29815b9c8a2071e2db474d3d399adb50c933e276f1480f05a2cbef"
+ },
+ "unitOfAnalysis": "one shot of the sealed human storyboard = one timeline position (shotId); a visual reused at another position is a separate shot entry",
+ "order": [
+  "TOPIC_SELECTED",
+  "RESEARCH",
+  "SCRIPT",
+  "HUMAN_STORYBOARD",
+  "HUMAN_PRODUCTION_DECISIONS",
+  "HUMAN_BASELINE_SEALED",
+  "PI_V1_1_SHADOW",
+  "COMPARE",
+  "PRODUCTION",
+  "FINAL_QA",
+  "BLIND_TEST_RESULT"
+ ],
+ "piInputAllowlist": [
+  "shotId",
+  "timelineOrder",
+  "duration",
+  "narrationIntent",
+  "visualIntent",
+  "shotClass",
+  "sourceType",
+  "characters",
+  "identityCritical",
+  "multiHuman",
+  "complexHands",
+  "motionRequirement",
+  "motionLeverage",
+  "riskClass",
+  "qualityTier",
+  "existingAsset",
+  "existingAssetApproved",
+  "existingAssetKind",
+  "continuityGroup",
+  "previousState",
+  "nextState"
+ ],
+ "humanAnswerFields": [
+  "motionJudgment",
+  "humanPreferredMethod",
+  "humanWouldGenerateVideo",
+  "humanReason",
+  "adequateMethods",
+  "cheaperMethodSufficient",
+  "generationRiskUnacceptable",
+  "i2vPlan"
+ ],
+ "sourceTypeMapping": {
+  "STOCK_VIDEO": "stockAvailable=true (moving footage)",
+  "ARCHIVAL_VIDEO": "stockAvailable=true (moving footage)",
+  "STOCK_PHOTO": "stockAvailable=false: a still; never treated as motion (fixes Ocean NF1)",
+  "ARCHIVAL_PHOTO": "stockAvailable=false: a still",
+  "AI_STILL": "stockAvailable=false",
+  "GRAPHIC": "shotClass must be graphic",
+  "MAP": "shotClass must be map",
+  "EXISTING_APPROVED_ASSET": "existingApprovedAssetId set only when existingAsset + existingAssetApproved; existingAssetKind from existingAssetKind field",
+  "OTHER": "stockAvailable=false",
+  "knownLimitation": "PI cost for a STOCK_PHOTO / ARCHIVAL_PHOTO floor includes an AI still price: PI expected cost is conservative (over-estimated) for those shots; reported, never corrected after the run"
+ },
+ "piRunParameters": {
+  "maxGeneratedDurationSeconds": 10,
+  "projectBudgetUsd": "baseline.productionBudgetUsd (declared by the human before seal)",
+  "finishedSeconds": "baseline.finishedSeconds",
+  "timeline": "shots ordered by timelineOrder, seconds = duration",
+  "multiHumanRule": "multiHuman=true is sent to PI as shotClass multi_human (unless human_creature); identityCritical -> riskFlag identity_critical; complexHands -> riskFlag complex_hands",
+  "documentsHash": "documents.*.sha256 = sha256 of the committed file's UTF-8 text"
+ },
+ "definitions": {
+  "HUMAN_SELECTED": "humanPreferredMethod in {I2V_ECONOMY, I2V_HERO}",
+  "PI_SELECTED": "PI shadow method in {I2V_ECONOMY, I2V_HERO}",
+  "overlap": "intersection, PI_only, human_only over shotIds; precision = |I|/|PI| (1 when PI empty), recall = |I|/|H| (1 when H empty), Jaccard = |I|/|PI u H| (1 when both empty)",
+  "humanGeneratedSeconds": "sum of i2vPlan.durationSeconds over HUMAN_SELECTED",
+  "humanExpectedCostUsd": "sum of i2vPlan.estimatedCostUsd over HUMAN_SELECTED (video only)",
+  "piVideoExpectedUsd": "sum of PI generativeSeconds x rate-card Runway price",
+  "perMinute": "seconds / (baseline.finishedSeconds / 60)",
+  "EXPENSIVE_FALSE_POSITIVE": "PI_SELECTED and not HUMAN_SELECTED and (motionJudgment = MOTION_UNNECESSARY or cheaperMethodSufficient = true or generationRiskUnacceptable = true)",
+  "UNSAFE_EXPENSIVE_FALSE_POSITIVE": "EXPENSIVE_FALSE_POSITIVE with generationRiskUnacceptable = true",
+  "QUALITY_FALSE_NEGATIVE": "motionJudgment = MOTION_ESSENTIAL and PI method not in adequateMethods",
+  "ALTERNATIVE_GOOD_DECISION": "HUMAN_SELECTED and not PI_SELECTED and PI method in adequateMethods (narrative claim) and the shot is in no unresolved PI rhythm run (rhythm need) and PI expected cost <= human estimatedCostUsd (cost) and PI method is non-generative (risk not higher)",
+  "DISAGREEMENT": "any other difference between HUMAN_SELECTED and PI_SELECTED: reported, never scored as an error",
+  "UNJUSTIFIED_GENERATIVE_UPGRADE": "PI generative shot without a valid upgradeReason written in reasons[]"
+ },
+ "unknownPolicy": {
+  "baseline": "UNKNOWN is not allowed in any human baseline field; the seal refuses an incomplete baseline",
+  "postProduction": "FINAL_USED_METHOD / userKept may be UNKNOWN; UNKNOWN shots are excluded from denominators and counted separately",
+  "inconclusiveIfUnknownShareAbove": 0.2
+ },
+ "humanIntervention": [
+  "the human producer never sees PI output before HUMAN_BASELINE_SEALED",
+  "after the seal, human answers are never edited; factual corrections are amendments appended to a hash chain; evaluation always scores the ORIGINAL sealed answers and reports amendments separately",
+  "during production the human may change their mind: recorded as FINAL_USED_METHOD, never written back into the baseline",
+  "userKept / userRequestedRegeneration / userReason are evidence only and never change PI"
+ ],
+ "constitution": "C1-C16 of PI V1.1 (docs/pi-exam/V1_1-REPORT.md); any violation = FAIL",
+ "verdict": {
+  "FAIL_if_any": [
+   "constitutional violation (C1-C16)",
+   "provider/network call during shadow",
+   "unjustified generative upgrade",
+   "generative seconds above budget or worst case above reservation (financially unsafe)",
+   "automatic repurchase of an existing approved usable asset",
+   "non-deterministic shadow output",
+   "reasons coverage below 100%",
+   "UNSAFE_EXPENSIVE_FALSE_POSITIVE >= 1",
+   "QUALITY_FALSE_NEGATIVE >= 2 (repeated serious quality failures)"
+  ],
+  "INCONCLUSIVE_if_any_and_no_FAIL": [
+   "fewer than 30 shots",
+   "fewer than 3 MOTION_ESSENTIAL shots",
+   "HUMAN_SELECTED and PI_SELECTED both empty",
+   "post-production UNKNOWN share above 0.2 (final comparison only)"
+  ],
+  "PASS": "none of the above; QUALITY_FALSE_NEGATIVE <= 1; no minimum Jaccard (PI may differ from the human)",
+  "meaning": "PASS = evidence that PI V1.1 may be considered for a controlled production pilot; it never authorizes spend by itself"
+ }
+}

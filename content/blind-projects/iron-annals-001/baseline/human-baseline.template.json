@@ -1,0 +1,46 @@
+{
+ "_instructions": "Copy to human-baseline.json only AFTER the user selects the topic. Fill every field for every shot WITHOUT looking at any PI output. UNKNOWN is not allowed. Remove this _instructions key. Commit research, script, storyboard and this file, then run `seal`.",
+ "projectId": "iron-annals-001",
+ "protocolVersion": "blind-protocol/001.1",
+ "episodeTopic": "PENDING",
+ "finishedSeconds": 0,
+ "productionBudgetUsd": 0,
+ "documents": {
+  "research": { "path": "content/blind-projects/iron-annals-001/research/research.md", "sha256": "<sha256 of the committed file>" },
+  "script": { "path": "content/blind-projects/iron-annals-001/script/script.md", "sha256": "<sha256>" },
+  "storyboard": { "path": "content/blind-projects/iron-annals-001/storyboard/storyboard.json", "sha256": "<sha256>" }
+ },
+ "shots": [
+  {
+   "shotId": "IA001-S001",
+   "timelineOrder": 0,
+   "duration": 5,
+   "narrationIntent": "<what the narration claims at this moment>",
+   "visualIntent": "<what the viewer must see>",
+   "shotClass": "landscape | object | single_human | multi_human | creature | human_creature | laboratory | corridor | graphic | map | broll | talking_head | other",
+   "sourceType": "STOCK_VIDEO | STOCK_PHOTO | AI_STILL | ARCHIVAL_VIDEO | ARCHIVAL_PHOTO | GRAPHIC | MAP | EXISTING_APPROVED_ASSET | OTHER",
+   "characters": [],
+   "identityCritical": false,
+   "multiHuman": false,
+   "complexHands": false,
+   "motionRequirement": "none | camera_only | simple | complex",
+   "motionLeverage": "LOW | MEDIUM | HIGH",
+   "riskClass": "LOW | MEDIUM | HIGH",
+   "qualityTier": "economy | standard | hero",
+   "existingAsset": null,
+   "existingAssetApproved": false,
+   "existingAssetKind": null,
+   "continuityGroup": null,
+   "previousState": null,
+   "nextState": null,
+   "motionJudgment": "MOTION_ESSENTIAL | MOTION_BENEFICIAL | MOTION_UNNECESSARY",
+   "humanPreferredMethod": "EXISTING_APPROVED_ASSET | STOCK | AI_STILL | STILL_KEN_BURNS | STILL_PARALLAX | I2V_ECONOMY | I2V_HERO",
+   "humanWouldGenerateVideo": false,
+   "humanReason": "<why this method>",
+   "adequateMethods": ["<every method that would still carry the narrative claim>"],
+   "cheaperMethodSufficient": false,
+   "generationRiskUnacceptable": false,
+   "i2vPlan": { "why": "<only when humanPreferredMethod is I2V; otherwise null>", "durationSeconds": 5, "expectedProvider": "runway:gen4_turbo", "estimatedCostUsd": 0 }
+  }
+ ]
+}
