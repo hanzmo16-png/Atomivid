@@ -1,0 +1,909 @@
+{
+ "summary": {
+  "masterId": "dulce-part1-timeline",
+  "source": {
+   "kind": "edit_timeline",
+   "ref": "content/long-form/dulce-part1/storyboard.json@cb22576b47c5"
+  },
+  "verdict": "HUMAN_REVIEW_REQUIRED",
+  "counts": {
+   "AUTO_FIX": 0,
+   "SMART_REPAIR": 40,
+   "ESCALATE": 2,
+   "NONE": 0,
+   "blocking": 2,
+   "notAssessable": [
+    "resolution/aspect (no media probe)",
+    "black frames (no media measurement)",
+    "freeze frames (no media measurement)",
+    "deformed AI images / face changes / anomalous hands (no production QA evidence attached; not detectable from the EDL)",
+    "integrated loudness",
+    "true peak",
+    "clipping",
+    "anomalous silences",
+    "music over voice (no stem report)",
+    "fade in/out",
+    "word cuts / discontinuities (no speech timing)",
+    "subtitles (none attached)"
+   ]
+  },
+  "opening": {
+   "windowSec": 30,
+   "shotCount": 13,
+   "averageShotSec": 2.31,
+   "movementDensity": 0.69,
+   "stillStreakMaxSec": 5,
+   "blackSec": null,
+   "titleCardSec": 0,
+   "visualRepetitions": 0,
+   "assessable": true
+  },
+  "editorial": {
+   "slots": 127,
+   "averageShotSec": 4,
+   "longestShotSec": 11,
+   "longestStaticRunSec": 18,
+   "staticShare": 0.46,
+   "motionDensity": 0.54,
+   "transitions": 126,
+   "textCardSec": 0,
+   "blackSec": null,
+   "captions": 0
+  },
+  "technical": {
+   "durationSec": 508.6,
+   "width": null,
+   "height": null,
+   "fps": null,
+   "integratedLufs": null,
+   "truePeakDbtp": null,
+   "silenceSec": null,
+   "blackSec": null,
+   "freezeSec": null
+  },
+  "issuesByRule": {
+   "R_CONTIGUOUS": 2,
+   "R_MIN_VISIBLE": 22,
+   "R_REPETITION": 9,
+   "V_ASSET_REPETITION": 9
+  },
+  "inputUntouched": true,
+  "mediaUntouched": null,
+  "networkCalls": 0
+ },
+ "report": {
+  "inspectionVersion": "final-cut-inspection/1",
+  "policyVersion": "final-cut-policy/1",
+  "masterId": "dulce-part1-timeline",
+  "productionId": "dulce-part1",
+  "source": {
+   "kind": "edit_timeline",
+   "ref": "content/long-form/dulce-part1/storyboard.json@cb22576b47c5"
+  },
+  "mode": "INSPECT_ONLY",
+  "technical": {
+   "durationSec": 508.6,
+   "width": null,
+   "height": null,
+   "fps": null,
+   "integratedLufs": null,
+   "truePeakDbtp": null,
+   "silenceSec": null,
+   "blackSec": null,
+   "freezeSec": null
+  },
+  "editorial": {
+   "slots": 127,
+   "averageShotSec": 4,
+   "longestShotSec": 11,
+   "longestStaticRunSec": 18,
+   "staticShare": 0.46,
+   "motionDensity": 0.54,
+   "transitions": 126,
+   "textCardSec": 0,
+   "blackSec": null,
+   "captions": 0
+  },
+  "opening": {
+   "windowSec": 30,
+   "shotCount": 13,
+   "averageShotSec": 2.31,
+   "movementDensity": 0.69,
+   "stillStreakMaxSec": 5,
+   "blackSec": null,
+   "titleCardSec": 0,
+   "visualRepetitions": 0,
+   "assessable": true
+  },
+  "issues": [
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 2.6,
+    "endTime": 5,
+    "shotId": "N02",
+    "description": "2.4 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-002"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_78cbdbd62c8d6d36974e",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 7.6,
+    "endTime": 9.8,
+    "shotId": "N04",
+    "description": "2.2 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-004"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_d0fc33dae0000f049422",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 9.8,
+    "endTime": 11.9,
+    "shotId": "G1",
+    "description": "2.1 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-005"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_eadeb2b4be60a30090a6",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 11.9,
+    "endTime": 13.9,
+    "shotId": "D01-04",
+    "description": "2 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-006"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_75469f127a2a0966c1ed",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 13.9,
+    "endTime": 15.9,
+    "shotId": "D03-06",
+    "description": "2 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-007"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_186447dc290f93a96c0c",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 18.5,
+    "endTime": 20.6,
+    "shotId": "D04-01",
+    "description": "2.1 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-009"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_d8a88533ac05fa08cc7f",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 54.2,
+    "endTime": 56.5,
+    "shotId": "D02-06",
+    "description": "2.3 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-020"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_3504d25e56495855d6a2",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 71.3,
+    "endTime": 73.4,
+    "shotId": "D08-03",
+    "description": "2.1 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-024"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_7cc027e98568858a6012",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 140.2,
+    "endTime": 142.6,
+    "shotId": "D05-06",
+    "description": "2.4 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-040"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_a7ffee19bd95e165077b",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 187.7,
+    "endTime": 188.9,
+    "shotId": "D01-01",
+    "description": "1.2 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-052"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_857993ee6d2e01226dd6",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_CONTIGUOUS",
+    "severity": "blocking",
+    "confidence": 0.95,
+    "startTime": 200.8,
+    "endTime": 208.3,
+    "shotId": null,
+    "description": "gap of 1.3 s",
+    "evidence": {
+     "slotIds": [
+      "P1-056",
+      "P1-057"
+     ]
+    },
+    "recommendedAction": "close the gap / overlap",
+    "issueId": "fci_59dc563987ff2ee27a14",
+    "repairClass": "ESCALATE"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 207.1,
+    "endTime": 208.3,
+    "shotId": "D04-02",
+    "description": "1.2 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-057"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_ca55d6cbfe66f5daa452",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_CONTIGUOUS",
+    "severity": "blocking",
+    "confidence": 0.95,
+    "startTime": 208.3,
+    "endTime": 215.9,
+    "shotId": null,
+    "description": "overlap of 1.3 s",
+    "evidence": {
+     "slotIds": [
+      "P1-058",
+      "P1-059"
+     ]
+    },
+    "recommendedAction": "close the gap / overlap",
+    "issueId": "fci_df92a64f7531a5cb3f85",
+    "repairClass": "ESCALATE"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 222.7,
+    "endTime": 223.9,
+    "shotId": "D05-01",
+    "description": "1.2 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-062"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_afc0797b564ff3ed6c0d",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 232.3,
+    "endTime": 260.6,
+    "shotId": null,
+    "description": "visual N05 reappears after 20.3 s (< 45 s)",
+    "evidence": {
+     "slotIds": [
+      "P1-065",
+      "P1-072"
+     ]
+    },
+    "recommendedAction": "substitute the repeated asset",
+    "issueId": "fci_f51dd37023152edbbc8a",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 250.6,
+    "endTime": 252.6,
+    "shotId": "D06-05",
+    "description": "2 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-070"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_d950cd2be641b6589f9e",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "visual",
+    "rule": "V_ASSET_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 255.6,
+    "endTime": 260.6,
+    "shotId": "N05",
+    "description": "asset N05 reappears 20.3 s after its previous use",
+    "evidence": {
+     "previousSlot": "P1-065",
+     "gapSec": 20.3
+    },
+    "recommendedAction": "substitute or re-cut",
+    "issueId": "fci_8859e38bd68375f3b684",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 276.8,
+    "endTime": 299.3,
+    "shotId": null,
+    "description": "visual N26 reappears after 15.6 s (< 45 s)",
+    "evidence": {
+     "slotIds": [
+      "P1-076",
+      "P1-081"
+     ]
+    },
+    "recommendedAction": "substitute the repeated asset",
+    "issueId": "fci_c6bdb417fd4bc3845ea2",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "visual",
+    "rule": "V_ASSET_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 296.7,
+    "endTime": 299.3,
+    "shotId": "N26",
+    "description": "asset N26 reappears 15.6 s after its previous use",
+    "evidence": {
+     "previousSlot": "P1-076",
+     "gapSec": 15.6
+    },
+    "recommendedAction": "substitute or re-cut",
+    "issueId": "fci_5b5532b0a100d34f82d4",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 325.4,
+    "endTime": 352.6,
+    "shotId": null,
+    "description": "visual N35 reappears after 16.1 s (< 45 s)",
+    "evidence": {
+     "slotIds": [
+      "P1-088",
+      "P1-092"
+     ]
+    },
+    "recommendedAction": "substitute the repeated asset",
+    "issueId": "fci_9427ae6dae1b6c995e26",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "visual",
+    "rule": "V_ASSET_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 346.9,
+    "endTime": 352.6,
+    "shotId": "N35",
+    "description": "asset N35 reappears 16.1 s after its previous use",
+    "evidence": {
+     "previousSlot": "P1-088",
+     "gapSec": 16.1
+    },
+    "recommendedAction": "substitute or re-cut",
+    "issueId": "fci_44463a05e9a547b2bfe0",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 384,
+    "endTime": 403.9,
+    "shotId": null,
+    "description": "visual N41 reappears after 7.4 s (< 45 s)",
+    "evidence": {
+     "slotIds": [
+      "P1-099",
+      "P1-102"
+     ]
+    },
+    "recommendedAction": "substitute the repeated asset",
+    "issueId": "fci_ea7bb8c1bef2c4cfb4ed",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 400.9,
+    "endTime": 402.4,
+    "shotId": "D05-02",
+    "description": "1.5 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-101"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_edab6da5adea935c1912",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 402.4,
+    "endTime": 403.9,
+    "shotId": "N41",
+    "description": "1.5 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-102"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_00284e094dae7274afd7",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 402.4,
+    "endTime": 449.9,
+    "shotId": null,
+    "description": "visual N41 reappears after 42.2 s (< 45 s)",
+    "evidence": {
+     "slotIds": [
+      "P1-102",
+      "P1-115"
+     ]
+    },
+    "recommendedAction": "substitute the repeated asset",
+    "issueId": "fci_7776ae95e7dc126bd9fe",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "visual",
+    "rule": "V_ASSET_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 402.4,
+    "endTime": 403.9,
+    "shotId": "N41",
+    "description": "asset N41 reappears 7.4 s after its previous use",
+    "evidence": {
+     "previousSlot": "P1-099",
+     "gapSec": 7.4
+    },
+    "recommendedAction": "substitute or re-cut",
+    "issueId": "fci_1ee81f436691894e8860",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 403.9,
+    "endTime": 405.4,
+    "shotId": "D04-01",
+    "description": "1.5 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-103"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_466f2beece2db413f51b",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 405.4,
+    "endTime": 407,
+    "shotId": "N44",
+    "description": "1.6 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-104"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_6486b914e6e8a4a2709e",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 405.4,
+    "endTime": 440.5,
+    "shotId": null,
+    "description": "visual N44 reappears after 28.7 s (< 45 s)",
+    "evidence": {
+     "slotIds": [
+      "P1-104",
+      "P1-110"
+     ]
+    },
+    "recommendedAction": "substitute the repeated asset",
+    "issueId": "fci_e529cb604d269118af76",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "visual",
+    "rule": "V_ASSET_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 435.7,
+    "endTime": 440.5,
+    "shotId": "N44",
+    "description": "asset N44 reappears 28.7 s after its previous use",
+    "evidence": {
+     "previousSlot": "P1-104",
+     "gapSec": 28.7
+    },
+    "recommendedAction": "substitute or re-cut",
+    "issueId": "fci_8d9e6292b7aa1c30acb4",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 440.5,
+    "endTime": 441.9,
+    "shotId": "D01-06",
+    "description": "1.4 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-111"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_e062af6bfb6c0ae907d9",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 441.9,
+    "endTime": 443.3,
+    "shotId": "N33",
+    "description": "1.4 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-112"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_b6ea3192d22c86086968",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 443.3,
+    "endTime": 444.7,
+    "shotId": "D01-05",
+    "description": "1.4 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-113"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_a2d43e4acbea8fe2f907",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 443.3,
+    "endTime": 471.8,
+    "shotId": null,
+    "description": "visual D01-05 reappears after 23.3 s (< 45 s)",
+    "evidence": {
+     "slotIds": [
+      "P1-113",
+      "P1-120"
+     ]
+    },
+    "recommendedAction": "substitute the repeated asset",
+    "issueId": "fci_f416ae18ba08ac44abcb",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 444.7,
+    "endTime": 446.1,
+    "shotId": "N12",
+    "description": "1.4 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-114"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_eed01c3eff664edd050c",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 446.1,
+    "endTime": 468,
+    "shotId": null,
+    "description": "visual N41 reappears after 13.4 s (< 45 s)",
+    "evidence": {
+     "slotIds": [
+      "P1-115",
+      "P1-119"
+     ]
+    },
+    "recommendedAction": "substitute the repeated asset",
+    "issueId": "fci_260eb6e0f7c458dc2385",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "visual",
+    "rule": "V_ASSET_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 446.1,
+    "endTime": 449.9,
+    "shotId": "N41",
+    "description": "asset N41 reappears 42.2 s after its previous use",
+    "evidence": {
+     "previousSlot": "P1-102",
+     "gapSec": 42.2
+    },
+    "recommendedAction": "substitute or re-cut",
+    "issueId": "fci_c4d13c465cea3a9cd7c1",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_MIN_VISIBLE",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 461.3,
+    "endTime": 463.3,
+    "shotId": "G7",
+    "description": "2 s on screen is below the 2.5 s minimum",
+    "evidence": {
+     "slotIds": [
+      "P1-118"
+     ]
+    },
+    "recommendedAction": "extend or merge the slot",
+    "issueId": "fci_5a5da971db48550e7b93",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "rhythm",
+    "rule": "R_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 461.3,
+    "endTime": 508.6,
+    "shotId": null,
+    "description": "visual G7 reappears after 39.3 s (< 45 s)",
+    "evidence": {
+     "slotIds": [
+      "P1-118",
+      "P1-127"
+     ]
+    },
+    "recommendedAction": "substitute the repeated asset",
+    "issueId": "fci_01c66315a7e2c52760e0",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "visual",
+    "rule": "V_ASSET_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 463.3,
+    "endTime": 468,
+    "shotId": "N41",
+    "description": "asset N41 reappears 13.4 s after its previous use",
+    "evidence": {
+     "previousSlot": "P1-115",
+     "gapSec": 13.4
+    },
+    "recommendedAction": "substitute or re-cut",
+    "issueId": "fci_8f9a8c67e2c88ab69f48",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "visual",
+    "rule": "V_ASSET_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 468,
+    "endTime": 471.8,
+    "shotId": "D01-05",
+    "description": "asset D01-05 reappears 23.3 s after its previous use",
+    "evidence": {
+     "previousSlot": "P1-113",
+     "gapSec": 23.3
+    },
+    "recommendedAction": "substitute or re-cut",
+    "issueId": "fci_7e169823e3bff5c47bf4",
+    "repairClass": "SMART_REPAIR"
+   },
+   {
+    "category": "visual",
+    "rule": "V_ASSET_REPETITION",
+    "severity": "minor",
+    "confidence": 0.95,
+    "startTime": 502.6,
+    "endTime": 508.6,
+    "shotId": "G7",
+    "description": "asset G7 reappears 39.3 s after its previous use",
+    "evidence": {
+     "previousSlot": "P1-118",
+     "gapSec": 39.3
+    },
+    "recommendedAction": "substitute or re-cut",
+    "issueId": "fci_c406ff4c997a2a180f7a",
+    "repairClass": "SMART_REPAIR"
+   }
+  ],
+  "counts": {
+   "AUTO_FIX": 0,
+   "SMART_REPAIR": 40,
+   "ESCALATE": 2,
+   "NONE": 0,
+   "blocking": 2,
+   "notAssessable": [
+    "resolution/aspect (no media probe)",
+    "black frames (no media measurement)",
+    "freeze frames (no media measurement)",
+    "deformed AI images / face changes / anomalous hands (no production QA evidence attached; not detectable from the EDL)",
+    "integrated loudness",
+    "true peak",
+    "clipping",
+    "anomalous silences",
+    "music over voice (no stem report)",
+    "fade in/out",
+    "word cuts / discontinuities (no speech timing)",
+    "subtitles (none attached)"
+   ]
+  },
+  "verdict": "HUMAN_REVIEW_REQUIRED",
+  "reasons": [
+   "2 issue(s) need human judgment",
+   "not assessable from this input: resolution/aspect (no media probe); black frames (no media measurement); freeze frames (no media measurement); deformed AI images / face changes / anomalous hands (no production QA evidence attached; not detectable from the EDL); integrated loudness; true peak; clipping; anomalous silences; music over voice (no stem report); fade in/out; word cuts / discontinuities (no speech timing); subtitles (none attached)"
+  ],
+  "inputSha256": "1f82483bb8bf27f6c62787228a7482c91939a0a71a6b04a242c1ac86a7ac04cd",
+  "reportId": "fcr_6bf8e770d91e878d6f68",
+  "timestamp": "2026-09-29T13:24:19.250Z"
+ },
+ "storyboardSha256": "cb22576b47c5ba52c2536fa4498d046d6a534fdcf78dcbf6cbe1bcb0b6a1c706"
+}

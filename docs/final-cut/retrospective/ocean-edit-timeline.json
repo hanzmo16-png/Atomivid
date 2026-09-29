@@ -1,0 +1,145 @@
+{
+ "summary": {
+  "masterId": "ocean-deep-001-plan-v003",
+  "source": {
+   "kind": "edit_timeline",
+   "ref": "docs/pi-exam/ocean-input/ocean-storyboard-001.v003.json@78f4e5026a54"
+  },
+  "verdict": "PASS",
+  "counts": {
+   "AUTO_FIX": 0,
+   "SMART_REPAIR": 0,
+   "ESCALATE": 0,
+   "NONE": 0,
+   "blocking": 0,
+   "notAssessable": [
+    "resolution/aspect (no media probe)",
+    "black frames (no media measurement)",
+    "freeze frames (no media measurement)",
+    "deformed AI images / face changes / anomalous hands (no production QA evidence attached; not detectable from the EDL)",
+    "integrated loudness",
+    "true peak",
+    "clipping",
+    "anomalous silences",
+    "music over voice (no stem report)",
+    "fade in/out",
+    "word cuts / discontinuities (no speech timing)",
+    "subtitles (none attached)"
+   ]
+  },
+  "opening": {
+   "windowSec": 30,
+   "shotCount": 7,
+   "averageShotSec": 4.29,
+   "movementDensity": 1,
+   "stillStreakMaxSec": 0,
+   "blackSec": null,
+   "titleCardSec": 0,
+   "visualRepetitions": 0,
+   "assessable": true
+  },
+  "editorial": {
+   "slots": 84,
+   "averageShotSec": 7.19,
+   "longestShotSec": 10.7,
+   "longestStaticRunSec": 10.6,
+   "staticShare": 0.08,
+   "motionDensity": 0.92,
+   "transitions": 83,
+   "textCardSec": 0,
+   "blackSec": null,
+   "captions": 0
+  },
+  "technical": {
+   "durationSec": 604.1,
+   "width": null,
+   "height": null,
+   "fps": null,
+   "integratedLufs": null,
+   "truePeakDbtp": null,
+   "silenceSec": null,
+   "blackSec": null,
+   "freezeSec": null
+  },
+  "issuesByRule": {},
+  "inputUntouched": true,
+  "mediaUntouched": null,
+  "networkCalls": 0
+ },
+ "report": {
+  "inspectionVersion": "final-cut-inspection/1",
+  "policyVersion": "final-cut-policy/1",
+  "masterId": "ocean-deep-001-plan-v003",
+  "productionId": "ocean-deep-001",
+  "source": {
+   "kind": "edit_timeline",
+   "ref": "docs/pi-exam/ocean-input/ocean-storyboard-001.v003.json@78f4e5026a54"
+  },
+  "mode": "INSPECT_ONLY",
+  "technical": {
+   "durationSec": 604.1,
+   "width": null,
+   "height": null,
+   "fps": null,
+   "integratedLufs": null,
+   "truePeakDbtp": null,
+   "silenceSec": null,
+   "blackSec": null,
+   "freezeSec": null
+  },
+  "editorial": {
+   "slots": 84,
+   "averageShotSec": 7.19,
+   "longestShotSec": 10.7,
+   "longestStaticRunSec": 10.6,
+   "staticShare": 0.08,
+   "motionDensity": 0.92,
+   "transitions": 83,
+   "textCardSec": 0,
+   "blackSec": null,
+   "captions": 0
+  },
+  "opening": {
+   "windowSec": 30,
+   "shotCount": 7,
+   "averageShotSec": 4.29,
+   "movementDensity": 1,
+   "stillStreakMaxSec": 0,
+   "blackSec": null,
+   "titleCardSec": 0,
+   "visualRepetitions": 0,
+   "assessable": true
+  },
+  "issues": [],
+  "counts": {
+   "AUTO_FIX": 0,
+   "SMART_REPAIR": 0,
+   "ESCALATE": 0,
+   "NONE": 0,
+   "blocking": 0,
+   "notAssessable": [
+    "resolution/aspect (no media probe)",
+    "black frames (no media measurement)",
+    "freeze frames (no media measurement)",
+    "deformed AI images / face changes / anomalous hands (no production QA evidence attached; not detectable from the EDL)",
+    "integrated loudness",
+    "true peak",
+    "clipping",
+    "anomalous silences",
+    "music over voice (no stem report)",
+    "fade in/out",
+    "word cuts / discontinuities (no speech timing)",
+    "subtitles (none attached)"
+   ]
+  },
+  "verdict": "PASS",
+  "reasons": [
+   "no editorial issue above policy thresholds",
+   "not assessable from this input: resolution/aspect (no media probe); black frames (no media measurement); freeze frames (no media measurement); deformed AI images / face changes / anomalous hands (no production QA evidence attached; not detectable from the EDL); integrated loudness; true peak; clipping; anomalous silences; music over voice (no stem report); fade in/out; word cuts / discontinuities (no speech timing); subtitles (none attached)"
+  ],
+  "inputSha256": "3a3a35153fad066b076830c833b8b91598e9177fd386366b0e72127b7b8219d8",
+  "reportId": "fcr_9fc2404833c52657b1c3",
+  "timestamp": "2026-09-29T13:24:18.510Z"
+ },
+ "storyboardSha256": "78f4e5026a54990df7e81af3e05a2101f5092b4c6a64afe551e593cf7cfd700b"
+}
