@@ -1,0 +1,35 @@
+{
+  "baseline": "PI_V1_FROZEN",
+  "commit": "d1330e7",
+  "gitTag": "PI_V1_FROZEN (annotated, local; tag push rejected by the environment proxy with HTTP 403, so the commit SHA + tree hash below are the immutable identifiers)",
+  "productionIntelligenceTreeSha256": "c57bf6236e1f9fa049ded33faa822d17d694b2dba83906e04d0ddd7ceef1cc49",
+  "treeHashCommand": "git ls-tree -r <commit> src/lib/production-intelligence | sha256sum",
+  "policyVersion": "policy/1.0.0",
+  "profileVersion": "longform-16x9/1",
+  "rateCardVersion": "rate-card/2026-09-28.1",
+  "contractVersion": "shot-contract/1",
+  "memorySnapshotId": "mem_empty (no telemetry exists yet; memory is informative only in V1)",
+  "fixtures": {"pi-dulce-regression": 1, "pi-dulce-mix": 1},
+  "tests": {"piDistributionDelivery": 30, "testUnitTotal": 1279},
+  "frozenAt": "2026-09-29",
+  "frozenParameters": {"generativeSecondsPerFinishedMinute": 8, "generativeSecondsCap": 120, "heroQuota": 1, "maxMotionAttempts": 1, "maxStillAttempts": 2, "economyForbiddenClasses": ["multi_human"], "minUpgradeLeverage": "MEDIUM"},
+  "constitution": ["C1 worstCase <= reserved", "C2 still QA FAIL never reaches motion", "C3 multi_human + economy never generative", "C4 semantic failure never repeats the identical paid attempt", "C5 transport retry keeps idempotency", "C6 hero within global quota", "C7 generative seconds within global budget", "C8 paid+approved+intended asset missing from master = QA FAIL", "C9 UNKNOWN capacity never GREEN", "C10 a paid decision never exceeds the reserved budget", "C11 shadow never calls providers", "C12 distribution data is not an input of decide()"],
+  "oceanExam": {
+    "source": "origin/codex/ocean-opening-review @ 5427188",
+    "unit": "storyboard v003 shots (84) = planning time; manifest (111 approved scenes) used only as evidence of what was used",
+    "finishedSeconds": 659.343,
+    "generativeSecondsBudget": 87,
+    "heroQuota": 1,
+    "projectBudgetUsd": 17.65,
+    "normalization": {
+      "real-footage | stock_video": "shotClass broll, stockAvailable, motionRequirement simple, leverage LOW (footage supplies motion)",
+      "figure-over-motion": "shotClass graphic, stockAvailable (moving footage underneath), camera_only, LOW",
+      "map-graphic": "shotClass map, camera_only, LOW",
+      "still-push (archival)": "documentary still, stockAvailable (public-domain archive), camera_only, LOW; shotClass other (people present) or object",
+      "reused=true": "existingApprovedAssetId = shotId (approved first-minute asset existed at planning time)",
+      "AI_RECREATION (no footage exists)": "motionRequirement simple; shotClass creature if description names an animal/lure/bioluminescent organism, object if vehicle/ROV, else landscape; riskClass MEDIUM for creature else LOW; humanIntervention human because leverage is a NEW judgment",
+      "leverageScenarios": {"S1_primary": "AI_RECREATION leverage MEDIUM", "S2": "AI_RECREATION leverage HIGH", "S3": "AI_RECREATION leverage LOW"}
+    },
+    "passCriteria": "A constitution 0 violations; B economics reported (no requirement to be cheaper); C expensive false positives from existing evidence only; D quality false negatives from existing evidence only; E 100% reasons; F budget + hero respected. Verdict PASS / FAIL / INCONCLUSIVE as defined in the mission, fixed before running."
+  }
+}
