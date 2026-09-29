@@ -1,6 +1,6 @@
 {
  "manifest": "atomivid-migrations",
- "manifestVersion": 5,
+ "manifestVersion": 6,
  "generatedAt": "2026-09-29",
  "hashAlgorithm": "sha256 of the exact file bytes",
  "registry": {
@@ -12,7 +12,7 @@
   "storesChecksum": false,
   "note": "production content can only be verified against these hashes once a checksum column exists (see docs/pi-exam/MIGRATION-HISTORY.md)"
  },
- "variantsCheck": "every remote branch carrying 0020/0021/0022 has exactly one byte-identical variant (12/9/6 branches); 0029 exists only on claude/production-intelligence-v1; no other file numbered 0020-0029 exists on any branch",
+ "variantsCheck": "every remote branch carrying 0020/0021/0022 has exactly one byte-identical variant (12/9/6 branches); 0029 and 0030 exist only on claude/production-intelligence-v1; no other file numbered 0020-0030 exists on any branch",
  "migrations": [
   {
    "migrationName": "0001_init.sql",
@@ -273,9 +273,18 @@
    "migrationName": "0029_database_security_hardening.sql",
    "sha256": "fbf81ba0a67292dcc586403213abccc504fc8dee224801ce3fd47bf528404f1b",
    "sourceBranch": "claude/production-intelligence-v1",
+   "knownProductionApplied": true,
+   "appliedDate": "2026-09-29",
+   "evidence": "applied to production by the operator after commit 8740c90 (read-only preflight run 36604539319 observed: registry RLS on, view security_invoker, six functions pinned); NOT registered in _migrations_applied (applied outside the runner, like 0023-0028)",
+   "onDefaultBranch": null
+  },
+  {
+   "migrationName": "0030_business_telemetry_foundation.sql",
+   "sha256": "0fcafc0f804821d3d56c5cd4cc1b638fe75408ec80c5ef2774553a34a5436383",
+   "sourceBranch": "claude/production-intelligence-v1",
    "knownProductionApplied": false,
    "appliedDate": null,
-   "evidence": "NOT applied (requires new explicit human authorization); verified locally with verify/07_database_security_hardening_test.sql and a runner rehearsal (docs/security/DB-HARDENING-V1.md)",
+   "evidence": "NOT applied (requires separate human authorization); verified locally with verify/08_business_telemetry_test.sql (docs/business-telemetry/FOUNDATION-V0.md)",
    "onDefaultBranch": null
   }
  ],

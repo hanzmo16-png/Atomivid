@@ -48,12 +48,12 @@ test("0029 hardens exactly the three findings: invoker view without client acces
   assert.ok(!/service_role/.test(statements.join(" ")), "service_role privileges are never touched");
 });
 
-test("0029 is registered in the migration manifest by exact hash and marked NOT applied to production", () => {
+test("0029 is registered in the migration manifest by exact hash; production state is recorded as observed (applied by the operator after commit 8740c90)", () => {
   const manifest = JSON.parse(fs.readFileSync("supabase/migration-manifest.json", "utf8")) as { manifestVersion: number; migrations: { migrationName: string; sha256: string; knownProductionApplied: boolean }[] };
   const entry = manifest.migrations.find((m) => m.migrationName === "0029_database_security_hardening.sql");
   assert.ok(entry, "manifest entry");
   assert.equal(entry.sha256, crypto.createHash("sha256").update(fs.readFileSync(MIGRATION)).digest("hex"));
-  assert.equal(entry.knownProductionApplied, false);
+  assert.equal(entry.knownProductionApplied, true, "observed by read-only preflight run 36604539319");
   assert.ok(manifest.manifestVersion >= 5);
   assert.equal(manifest.migrations.filter((m) => m.migrationName.startsWith("0029")).length, 1);
 });

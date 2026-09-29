@@ -5,6 +5,7 @@ import { CommandCenterService, isSection } from "@/lib/command-center/service";
 import { supabaseSource } from "@/lib/command-center/sources";
 import { CommandCenterAccessError } from "@/lib/command-center/access";
 import { isWindowKey } from "@/lib/command-center/windows";
+import { supabaseTelemetrySource } from "@/lib/business-telemetry/command-center";
 
 // OWNER/ADMIN only, read-only, never cached: global metrics, provider capacity and other
 // users' production must never reach a normal user or a shared cache.
@@ -18,7 +19,8 @@ export async function GET(request: Request) {
   const section = q.get("section") ?? "overview", window = q.get("window") ?? "7D";
   if (!isSection(section) || !isWindowKey(window)) return NextResponse.json({ error: "invalid section or window" }, { status: 400, headers: NO_STORE });
   try {
-    const service = new CommandCenterService({ source: supabaseSource(createServiceClient()), now: () => new Date().toISOString() });
+    const sb = createServiceClient();
+    const service = new CommandCenterService({ source: supabaseSource(sb), telemetry: supabaseTelemetrySource(sb), now: () => new Date().toISOString() });
     return NextResponse.json(await service.section(user, section, window), { headers: NO_STORE });
   } catch (e) {
     if (e instanceof CommandCenterAccessError) return NextResponse.json({ error: e.message }, { status: e.status, headers: NO_STORE });

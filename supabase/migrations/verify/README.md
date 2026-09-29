@@ -84,3 +84,23 @@ still fires (and its limit logic still holds) from a session whose own `search_p
 only; re-applying 0029 is a no-op; row counts of the six production tables are unchanged.
 Runner rehearsal against a DB mirroring production's registry (0001–0022 registered, 0023–0028 objects
 present but unregistered): see `docs/security/DB-HARDENING-V1.md`.
+
+## Business telemetry foundation (0030)
+
+`0030_business_telemetry_foundation.sql` adds three append-only, backend-only tables (`business_events`,
+`business_event_rejections`, `business_attribution_touches`) with RLS enabled and NO policies, client
+privileges revoked and a `bt_append_only()` trigger (pinned `search_path`). Additive and re-runnable.
+NOT applied to production — requires a separate human authorization. Write path, schemas and policy:
+`docs/business-telemetry/FOUNDATION-V0.md`.
+
+```bash
+psql -d atomivid_migration_test -v ON_ERROR_STOP=1 -f supabase/migrations/0030_business_telemetry_foundation.sql   # after 0001-0029
+psql -d atomivid_migration_test -v ON_ERROR_STOP=1 -f supabase/migrations/verify/08_business_telemetry_test.sql   # after 07, from the repo root (re-applies 0030 with \i)
+```
+
+Checks (each raises on failure): the three tables are RLS-enabled, policy-free, client-revoked and
+append-only (UPDATE/DELETE rejected); `bt_append_only` is non-definer with a pinned search_path; a
+duplicate `event_id` or `idempotency_key` is refused by the database; provenance, actor type, JSON-object
+metadata and rejection reasons are constrained; landing pages cannot carry query strings; a touch needs
+at least one datum; anon and authenticated (even for their own user id) cannot read or write any of the
+three tables; service_role reads and appends; re-applying 0030 is a no-op.
