@@ -1,0 +1,4975 @@
+{
+ "frozen": {
+  "commit": "d1330e7",
+  "treeSha256AtRun": "c57bf6236e1f9fa049ded33faa822d17d694b2dba83906e04d0ddd7ceef1cc49",
+  "expectedTreeSha256": "c57bf6236e1f9fa049ded33faa822d17d694b2dba83906e04d0ddd7ceef1cc49",
+  "unchanged": true,
+  "policyVersion": "policy/1.0.0",
+  "profileVersion": "longform-16x9/1",
+  "rateCardVersion": "rate-card/2026-09-28.1",
+  "memorySnapshotId": "mem_empty",
+  "oceanBudgetSeconds": 87
+ },
+ "networkCalls": 0,
+ "dulce": {
+  "sets": {
+   "HUMAN_PLANNED": [
+    "N01",
+    "N04",
+    "N05",
+    "N11",
+    "N12",
+    "N20",
+    "N26",
+    "N33",
+    "N35",
+    "N41",
+    "N43",
+    "N46",
+    "N48"
+   ],
+   "HUMAN_USED": [
+    "N01",
+    "N04",
+    "N05",
+    "N11",
+    "N12",
+    "N26",
+    "N33",
+    "N35",
+    "N41",
+    "N46",
+    "N48"
+   ],
+   "PI_SELECTED": [
+    "N01",
+    "N04",
+    "N09",
+    "N10",
+    "N11",
+    "N12",
+    "N20",
+    "N21",
+    "N27",
+    "N32",
+    "N35",
+    "N41",
+    "N44",
+    "N46"
+   ]
+  },
+  "overlap": [
+   {
+    "comparison": "PI vs HUMAN_PLANNED",
+    "pi": 14,
+    "human": 13,
+    "intersection": [
+     "N01",
+     "N04",
+     "N11",
+     "N12",
+     "N20",
+     "N35",
+     "N41",
+     "N46"
+    ],
+    "piOnly": [
+     "N09",
+     "N10",
+     "N21",
+     "N27",
+     "N32",
+     "N44"
+    ],
+    "humanOnly": [
+     "N05",
+     "N26",
+     "N33",
+     "N43",
+     "N48"
+    ],
+    "precision": 0.5714,
+    "recall": 0.6154,
+    "jaccard": 0.4211
+   },
+   {
+    "comparison": "PI vs HUMAN_USED",
+    "pi": 14,
+    "human": 11,
+    "intersection": [
+     "N01",
+     "N04",
+     "N11",
+     "N12",
+     "N35",
+     "N41",
+     "N46"
+    ],
+    "piOnly": [
+     "N09",
+     "N10",
+     "N20",
+     "N21",
+     "N27",
+     "N32",
+     "N44"
+    ],
+    "humanOnly": [
+     "N05",
+     "N26",
+     "N33",
+     "N48"
+    ],
+    "precision": 0.5,
+    "recall": 0.6364,
+    "jaccard": 0.3889
+   }
+  ],
+  "economics": {
+   "humanPlanned": {
+    "clips": 13,
+    "generativeSeconds": 70,
+    "perMinute": 7.2078,
+    "videoUsd": 3.5,
+    "recordedPlan": {
+     "planBVideoUsd": 1.75,
+     "upgradePackVideoUsd": 1.75,
+     "planBWorstCaseUsd": 44.5
+    }
+   },
+   "humanUsed": {
+    "clips": 11,
+    "billedGenerativeSeconds": 60,
+    "perMinute": 6.1781,
+    "videoUsd": 3,
+    "actualVideoSpendAllAttemptsUsd": 3.75,
+    "note": "3.75 = 14 Runway attempts incl. N20 x2 and N43 (ledger)"
+   },
+   "pi": {
+    "clips": 14,
+    "generativeSeconds": 75,
+    "perMinute": 7.7227,
+    "videoUsd": 3.75,
+    "expectedTotalUsd": 7.27,
+    "worstCaseReservedUsd": 30.15,
+    "budget": 77
+   }
+  },
+  "errorAnalysis": {
+   "piOnlyVsUsed": [
+    {
+     "shotId": "N09",
+     "shotClass": "other",
+     "motionLeverage": "MEDIUM",
+     "motionRequirement": "simple",
+     "riskClass": "LOW",
+     "riskFlags": [],
+     "humanClassification": "MOTION_BENEFICIAL",
+     "humanRecommended": "ken_burns",
+     "humanReason": "Technical area: vapor would help, a slow pan is enough.",
+     "piMethod": "I2V_ECONOMY",
+     "piSeconds": 5,
+     "piExpectedUsd": 0.33,
+     "piReasons": [
+      "upgrade #10 by motion leverage MEDIUM",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "N10",
+     "shotClass": "other",
+     "motionLeverage": "MEDIUM",
+     "motionRequirement": "simple",
+     "riskClass": "LOW",
+     "riskFlags": [],
+     "humanClassification": "MOTION_BENEFICIAL",
+     "humanRecommended": "ken_burns",
+     "humanReason": "Shaft looking down: a push-in downward gives the vertigo.",
+     "piMethod": "I2V_ECONOMY",
+     "piSeconds": 5,
+     "piExpectedUsd": 0.33,
+     "piReasons": [
+      "upgrade #12 by motion leverage MEDIUM",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "N20",
+     "shotClass": "single_human",
+     "motionLeverage": "HIGH",
+     "motionRequirement": "complex",
+     "riskClass": "MEDIUM",
+     "riskFlags": [
+      "identity_critical"
+     ],
+     "humanClassification": "MOTION_ESSENTIAL",
+     "humanRecommended": "i2v_economy",
+     "humanReason": "Emotional core: Thomas silent at dinner. Breath and a blink keep a 5 s close-up alive; one micro-gesture only.",
+     "piMethod": "I2V_ECONOMY",
+     "piSeconds": 5,
+     "piExpectedUsd": 0.33,
+     "piReasons": [
+      "upgrade #5 by motion leverage HIGH",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "N21",
+     "shotClass": "landscape",
+     "motionLeverage": "MEDIUM",
+     "motionRequirement": "simple",
+     "riskClass": "LOW",
+     "riskFlags": [],
+     "humanClassification": "MOTION_BENEFICIAL",
+     "humanRecommended": "parallax",
+     "humanReason": "Truck at dawn: a lateral pan past a parked truck on the road reads as departure.",
+     "piMethod": "I2V_ECONOMY",
+     "piSeconds": 5,
+     "piExpectedUsd": 0.33,
+     "piReasons": [
+      "upgrade #11 by motion leverage MEDIUM",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "N27",
+     "shotClass": "object",
+     "motionLeverage": "MEDIUM",
+     "motionRequirement": "simple",
+     "riskClass": "LOW",
+     "riskFlags": [],
+     "humanClassification": "MOTION_BENEFICIAL",
+     "humanRecommended": "ken_burns",
+     "humanReason": "Strange equipment: a push plus an FFmpeg glow pulse on the lights.",
+     "piMethod": "I2V_ECONOMY",
+     "piSeconds": 5,
+     "piExpectedUsd": 0.33,
+     "piReasons": [
+      "upgrade #9 by motion leverage MEDIUM",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "N32",
+     "shotClass": "single_human",
+     "motionLeverage": "MEDIUM",
+     "motionRequirement": "simple",
+     "riskClass": "MEDIUM",
+     "riskFlags": [],
+     "humanClassification": "MOTION_BENEFICIAL",
+     "humanRecommended": "ken_burns",
+     "humanReason": "Worker's sideways glance; a push-in carries the warning.",
+     "piMethod": "I2V_ECONOMY",
+     "piSeconds": 5,
+     "piExpectedUsd": 0.33,
+     "piReasons": [
+      "upgrade #14 by motion leverage MEDIUM",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "N44",
+     "shotClass": "object",
+     "motionLeverage": "MEDIUM",
+     "motionRequirement": "simple",
+     "riskClass": "LOW",
+     "riskFlags": [],
+     "humanClassification": "MOTION_BENEFICIAL",
+     "humanRecommended": "ken_burns",
+     "humanReason": "Blast door with fog: push-in; fog stays in the still.",
+     "piMethod": "I2V_ECONOMY",
+     "piSeconds": 5,
+     "piExpectedUsd": 0.33,
+     "piReasons": [
+      "upgrade #13 by motion leverage MEDIUM",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    }
+   ],
+   "humanOnlyVsUsed": [
+    {
+     "shotId": "N05",
+     "shotClass": "single_human",
+     "motionLeverage": "MEDIUM",
+     "motionRequirement": "simple",
+     "riskClass": "MEDIUM",
+     "riskFlags": [
+      "identity_critical"
+     ],
+     "humanClassification": "MOTION_BENEFICIAL",
+     "humanRecommended": "ken_burns",
+     "humanReason": "Thomas identity outranks screen flicker; one still gives three framings (wide, medium, monitors).",
+     "piMethod": "STILL_KEN_BURNS",
+     "piSeconds": 0,
+     "piExpectedUsd": 0.08,
+     "piReasons": [
+      "floor: still + controlled camera motion (cheapest moving picture)",
+      "memory mem_empty is informative only in V1",
+      "upgrade candidate #20 kept economical: R04 identity-critical human without HIGH leverage: prefer still-motion"
+     ]
+    },
+    {
+     "shotId": "N26",
+     "shotClass": "laboratory",
+     "motionLeverage": "LOW",
+     "motionRequirement": "camera_only",
+     "riskClass": "LOW",
+     "riskFlags": [],
+     "humanClassification": "MOTION_UNNECESSARY",
+     "humanRecommended": "ken_burns",
+     "humanReason": "Empty medical bay: dolly-in on a still.",
+     "piMethod": "STILL_KEN_BURNS",
+     "piSeconds": 0,
+     "piExpectedUsd": 0.08,
+     "piReasons": [
+      "floor: still + controlled camera motion (cheapest moving picture)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "N33",
+     "shotClass": "single_human",
+     "motionLeverage": "LOW",
+     "motionRequirement": "simple",
+     "riskClass": "MEDIUM",
+     "riskFlags": [
+      "identity_critical"
+     ],
+     "humanClassification": "MOTION_BENEFICIAL",
+     "humanRecommended": "ken_burns",
+     "humanReason": "Man seated in the holding room through a small window.",
+     "piMethod": "STILL_KEN_BURNS",
+     "piSeconds": 0,
+     "piExpectedUsd": 0.08,
+     "piReasons": [
+      "floor: still + controlled camera motion (cheapest moving picture)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "N48",
+     "shotClass": "object",
+     "motionLeverage": "LOW",
+     "motionRequirement": "camera_only",
+     "riskClass": "LOW",
+     "riskFlags": [],
+     "humanClassification": "MOTION_UNNECESSARY",
+     "humanRecommended": "ken_burns",
+     "humanReason": "Radio equipment insert.",
+     "piMethod": "STILL_KEN_BURNS",
+     "piSeconds": 0,
+     "piExpectedUsd": 0.08,
+     "piReasons": [
+      "floor: still + controlled camera motion (cheapest moving picture)",
+      "memory mem_empty is informative only in V1"
+     ]
+    }
+   ],
+   "piOnlyVsPlanned": [
+    "N09",
+    "N10",
+    "N21",
+    "N27",
+    "N32",
+    "N44"
+   ],
+   "humanOnlyVsPlanned": [
+    {
+     "shotId": "N05",
+     "shotClass": "single_human",
+     "motionLeverage": "MEDIUM",
+     "motionRequirement": "simple",
+     "riskClass": "MEDIUM",
+     "riskFlags": [
+      "identity_critical"
+     ],
+     "humanClassification": "MOTION_BENEFICIAL",
+     "humanRecommended": "ken_burns",
+     "humanReason": "Thomas identity outranks screen flicker; one still gives three framings (wide, medium, monitors).",
+     "piMethod": "STILL_KEN_BURNS",
+     "piSeconds": 0,
+     "piExpectedUsd": 0.08,
+     "piReasons": [
+      "floor: still + controlled camera motion (cheapest moving picture)",
+      "memory mem_empty is informative only in V1",
+      "upgrade candidate #20 kept economical: R04 identity-critical human without HIGH leverage: prefer still-motion"
+     ]
+    },
+    {
+     "shotId": "N26",
+     "shotClass": "laboratory",
+     "motionLeverage": "LOW",
+     "motionRequirement": "camera_only",
+     "riskClass": "LOW",
+     "riskFlags": [],
+     "humanClassification": "MOTION_UNNECESSARY",
+     "humanRecommended": "ken_burns",
+     "humanReason": "Empty medical bay: dolly-in on a still.",
+     "piMethod": "STILL_KEN_BURNS",
+     "piSeconds": 0,
+     "piExpectedUsd": 0.08,
+     "piReasons": [
+      "floor: still + controlled camera motion (cheapest moving picture)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "N33",
+     "shotClass": "single_human",
+     "motionLeverage": "LOW",
+     "motionRequirement": "simple",
+     "riskClass": "MEDIUM",
+     "riskFlags": [
+      "identity_critical"
+     ],
+     "humanClassification": "MOTION_BENEFICIAL",
+     "humanRecommended": "ken_burns",
+     "humanReason": "Man seated in the holding room through a small window.",
+     "piMethod": "STILL_KEN_BURNS",
+     "piSeconds": 0,
+     "piExpectedUsd": 0.08,
+     "piReasons": [
+      "floor: still + controlled camera motion (cheapest moving picture)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "N43",
+     "shotClass": "single_human",
+     "motionLeverage": "MEDIUM",
+     "motionRequirement": "simple",
+     "riskClass": "MEDIUM",
+     "riskFlags": [
+      "identity_critical"
+     ],
+     "humanClassification": "MOTION_BENEFICIAL",
+     "humanRecommended": "ken_burns",
+     "humanReason": "Thomas descending: the rising red light is done in FFmpeg as a graded light sweep over the still.",
+     "piMethod": "STILL_KEN_BURNS",
+     "piSeconds": 0,
+     "piExpectedUsd": 0.08,
+     "piReasons": [
+      "floor: still + controlled camera motion (cheapest moving picture)",
+      "memory mem_empty is informative only in V1",
+      "upgrade candidate #17 kept economical: R04 identity-critical human without HIGH leverage: prefer still-motion"
+     ]
+    },
+    {
+     "shotId": "N48",
+     "shotClass": "object",
+     "motionLeverage": "LOW",
+     "motionRequirement": "camera_only",
+     "riskClass": "LOW",
+     "riskFlags": [],
+     "humanClassification": "MOTION_UNNECESSARY",
+     "humanRecommended": "ken_burns",
+     "humanReason": "Radio equipment insert.",
+     "piMethod": "STILL_KEN_BURNS",
+     "piSeconds": 0,
+     "piExpectedUsd": 0.08,
+     "piReasons": [
+      "floor: still + controlled camera motion (cheapest moving picture)",
+      "memory mem_empty is informative only in V1"
+     ]
+    }
+   ]
+  },
+  "constitution": [],
+  "deterministic": true,
+  "reasonsCoverage": 1
+ },
+ "ocean": {
+  "baseline": {
+   "storyboardShots": 84,
+   "manifestScenes": 111,
+   "finishedSeconds": 659.343,
+   "oldPlannedGenerativeShots": [
+    "b1-s1",
+    "b1-s4",
+    "b4-s1",
+    "b5-s1",
+    "b5-s6",
+    "b5-s7",
+    "b5-s8",
+    "b5-s9",
+    "b7-s5"
+   ],
+   "oldPlannedNewVeo": 7,
+   "oldPlannedReusedFirstMinute": 2,
+   "oldPlannedBillableSeconds": 72,
+   "oldPlannedVeoUsd": 7.14,
+   "manifestVeoClips": 8,
+   "manifestVeoKeys": [
+    "ocean-b5-sparks-v1",
+    "ocean-b5-counterlight-v1",
+    "ocean-b5-dragonfish-v1",
+    "ocean-b5-angler-wide-v1",
+    "ocean-b5-angler-head-v1",
+    "ocean-b5-lure-v1",
+    "ocean-b5-lure-detail-v1",
+    "ocean-b5-pair-v1"
+   ],
+   "recordedSpend": {
+    "spentUsd": 13.36019,
+    "voiceUsd": 3.2061,
+    "imagesAndClipsUsd": 10.15409,
+    "committedUsd": 14.3202,
+    "capUsd": 17.65,
+    "source": "docs/quality/ocean-deep-001/PLAN.md §13.6 on 5427188"
+   },
+   "unknown": [
+    "per-shot actual cost (ledger JSON lives in Storage, not in git)",
+    "shot-level mapping storyboard -> manifest (no join key; final Veo clips are all in b5 with different keys)",
+    "final master (no verified master found)",
+    "motionLeverage (never recorded; pre-registered scenarios)"
+   ],
+   "oldPerMinute": 6.552
+  },
+  "S1_primary": {
+   "aiRecreationLeverage": "MEDIUM",
+   "budgetSeconds": 87,
+   "heroQuota": 1,
+   "piGenerativeShots": [
+    "b1-s1",
+    "b1-s4",
+    "b4-s1",
+    "b5-s1",
+    "b5-s6",
+    "b5-s7",
+    "b5-s8",
+    "b5-s9",
+    "b7-s5"
+   ],
+   "piGenerativeSeconds": 45,
+   "piPerMinute": 4.095,
+   "heroShots": 0,
+   "piVideoUsd": 2.25,
+   "piExpectedUsd": 3.45,
+   "piWorstCaseUsd": 11.25,
+   "constitution": [],
+   "reservation": "RESERVED",
+   "deterministic": true,
+   "reasonsCoverage": 1,
+   "vsHumanPlanned": {
+    "comparison": "PI vs HUMAN_PLANNED (storyboard ai-animation)",
+    "pi": 9,
+    "human": 9,
+    "intersection": [
+     "b1-s1",
+     "b1-s4",
+     "b4-s1",
+     "b5-s1",
+     "b5-s6",
+     "b5-s7",
+     "b5-s8",
+     "b5-s9",
+     "b7-s5"
+    ],
+    "piOnly": [],
+    "humanOnly": [],
+    "precision": 1,
+    "recall": 1,
+    "jaccard": 1
+   },
+   "perShot": [
+    {
+     "shotId": "b1-s1",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "object",
+     "motionLeverage": "MEDIUM",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #2 by motion leverage MEDIUM",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s2",
+     "oldMethod": "STOCK",
+     "piMethod": "EXISTING_APPROVED_ASSET",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: reuse approved asset b1-s2 (ladder step 1)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s3",
+     "oldMethod": "STOCK",
+     "piMethod": "EXISTING_APPROVED_ASSET",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: reuse approved asset b1-s3 (ladder step 1)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s4",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "object",
+     "motionLeverage": "MEDIUM",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #1 by motion leverage MEDIUM",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s5",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s6",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "EXISTING_APPROVED_ASSET",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: reuse approved asset b1-s6 (ladder step 1)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s7",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "EXISTING_APPROVED_ASSET",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: reuse approved asset b1-s7 (ladder step 1)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s8",
+     "oldMethod": "STOCK",
+     "piMethod": "EXISTING_APPROVED_ASSET",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: reuse approved asset b1-s8 (ladder step 1)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s1",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s2",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s3",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s4",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s5",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s6",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s7",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s1",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s2",
+     "oldMethod": "ARCHIVAL_STILL_PUSH",
+     "piMethod": "STOCK",
+     "shotClass": "object",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s3",
+     "oldMethod": "ARCHIVAL_STILL_PUSH",
+     "piMethod": "STOCK",
+     "shotClass": "object",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s4",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s5",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s6",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s7",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s8",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s9",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s10",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s11",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s12",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s13",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s14",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s15",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s16",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s17",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s18",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s19",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s20",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s21",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s1",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "landscape",
+     "motionLeverage": "MEDIUM",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #3 by motion leverage MEDIUM",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s2",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s3",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s4",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s5",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s6",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s7",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s8",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s9",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s10",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s11",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s12",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s13",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s1",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "creature",
+     "motionLeverage": "MEDIUM",
+     "riskClass": "MEDIUM",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #6 by motion leverage MEDIUM",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s2",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s3",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s4",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s5",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s6",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "creature",
+     "motionLeverage": "MEDIUM",
+     "riskClass": "MEDIUM",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #7 by motion leverage MEDIUM",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s7",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "creature",
+     "motionLeverage": "MEDIUM",
+     "riskClass": "MEDIUM",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #5 by motion leverage MEDIUM",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s8",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "creature",
+     "motionLeverage": "MEDIUM",
+     "riskClass": "MEDIUM",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #9 by motion leverage MEDIUM",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s9",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "creature",
+     "motionLeverage": "MEDIUM",
+     "riskClass": "MEDIUM",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #8 by motion leverage MEDIUM",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s10",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s11",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s12",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s13",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s14",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s15",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s16",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s1",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s2",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s3",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s4",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s5",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s6",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s7",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s8",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s9",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s10",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s11",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s12",
+     "oldMethod": "ARCHIVAL_STILL_PUSH",
+     "piMethod": "STOCK",
+     "shotClass": "other",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s13",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s1",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s2",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s3",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s4",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s5",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "landscape",
+     "motionLeverage": "MEDIUM",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #4 by motion leverage MEDIUM",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s6",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    }
+   ]
+  },
+  "S2": {
+   "aiRecreationLeverage": "HIGH",
+   "budgetSeconds": 87,
+   "heroQuota": 1,
+   "piGenerativeShots": [
+    "b1-s1",
+    "b1-s4",
+    "b4-s1",
+    "b5-s1",
+    "b5-s6",
+    "b5-s7",
+    "b5-s8",
+    "b5-s9",
+    "b7-s5"
+   ],
+   "piGenerativeSeconds": 45,
+   "piPerMinute": 4.095,
+   "heroShots": 0,
+   "piVideoUsd": 2.25,
+   "piExpectedUsd": 3.45,
+   "piWorstCaseUsd": 11.25,
+   "constitution": [],
+   "reservation": "RESERVED",
+   "deterministic": true,
+   "reasonsCoverage": 1,
+   "vsHumanPlanned": {
+    "comparison": "PI vs HUMAN_PLANNED (storyboard ai-animation)",
+    "pi": 9,
+    "human": 9,
+    "intersection": [
+     "b1-s1",
+     "b1-s4",
+     "b4-s1",
+     "b5-s1",
+     "b5-s6",
+     "b5-s7",
+     "b5-s8",
+     "b5-s9",
+     "b7-s5"
+    ],
+    "piOnly": [],
+    "humanOnly": [],
+    "precision": 1,
+    "recall": 1,
+    "jaccard": 1
+   },
+   "perShot": [
+    {
+     "shotId": "b1-s1",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "object",
+     "motionLeverage": "HIGH",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #2 by motion leverage HIGH",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s2",
+     "oldMethod": "STOCK",
+     "piMethod": "EXISTING_APPROVED_ASSET",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: reuse approved asset b1-s2 (ladder step 1)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s3",
+     "oldMethod": "STOCK",
+     "piMethod": "EXISTING_APPROVED_ASSET",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: reuse approved asset b1-s3 (ladder step 1)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s4",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "object",
+     "motionLeverage": "HIGH",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #1 by motion leverage HIGH",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s5",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s6",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "EXISTING_APPROVED_ASSET",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: reuse approved asset b1-s6 (ladder step 1)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s7",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "EXISTING_APPROVED_ASSET",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: reuse approved asset b1-s7 (ladder step 1)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s8",
+     "oldMethod": "STOCK",
+     "piMethod": "EXISTING_APPROVED_ASSET",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: reuse approved asset b1-s8 (ladder step 1)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s1",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s2",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s3",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s4",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s5",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s6",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s7",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s1",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s2",
+     "oldMethod": "ARCHIVAL_STILL_PUSH",
+     "piMethod": "STOCK",
+     "shotClass": "object",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s3",
+     "oldMethod": "ARCHIVAL_STILL_PUSH",
+     "piMethod": "STOCK",
+     "shotClass": "object",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s4",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s5",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s6",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s7",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s8",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s9",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s10",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s11",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s12",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s13",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s14",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s15",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s16",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s17",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s18",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s19",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s20",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s21",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s1",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "landscape",
+     "motionLeverage": "HIGH",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #3 by motion leverage HIGH",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s2",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s3",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s4",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s5",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s6",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s7",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s8",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s9",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s10",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s11",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s12",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s13",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s1",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "creature",
+     "motionLeverage": "HIGH",
+     "riskClass": "MEDIUM",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #6 by motion leverage HIGH",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s2",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s3",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s4",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s5",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s6",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "creature",
+     "motionLeverage": "HIGH",
+     "riskClass": "MEDIUM",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #7 by motion leverage HIGH",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s7",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "creature",
+     "motionLeverage": "HIGH",
+     "riskClass": "MEDIUM",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #5 by motion leverage HIGH",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s8",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "creature",
+     "motionLeverage": "HIGH",
+     "riskClass": "MEDIUM",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #9 by motion leverage HIGH",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s9",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "creature",
+     "motionLeverage": "HIGH",
+     "riskClass": "MEDIUM",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #8 by motion leverage HIGH",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s10",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s11",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s12",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s13",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s14",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s15",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s16",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s1",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s2",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s3",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s4",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s5",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s6",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s7",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s8",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s9",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s10",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s11",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s12",
+     "oldMethod": "ARCHIVAL_STILL_PUSH",
+     "piMethod": "STOCK",
+     "shotClass": "other",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s13",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s1",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s2",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s3",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s4",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s5",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "I2V_ECONOMY",
+     "shotClass": "landscape",
+     "motionLeverage": "HIGH",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 5,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.33,
+     "piWorstCaseUsd": 0.85,
+     "reasons": [
+      "upgrade #4 by motion leverage HIGH",
+      "requested by mix: I2V_ECONOMY",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s6",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    }
+   ]
+  },
+  "S3": {
+   "aiRecreationLeverage": "LOW",
+   "budgetSeconds": 87,
+   "heroQuota": 1,
+   "piGenerativeShots": [],
+   "piGenerativeSeconds": 0,
+   "piPerMinute": 0,
+   "heroShots": 0,
+   "piVideoUsd": 0,
+   "piExpectedUsd": 1.04,
+   "piWorstCaseUsd": 7.8,
+   "constitution": [],
+   "reservation": "RESERVED",
+   "deterministic": true,
+   "reasonsCoverage": 1,
+   "vsHumanPlanned": {
+    "comparison": "PI vs HUMAN_PLANNED (storyboard ai-animation)",
+    "pi": 0,
+    "human": 9,
+    "intersection": [],
+    "piOnly": [],
+    "humanOnly": [
+     "b1-s1",
+     "b1-s4",
+     "b4-s1",
+     "b5-s1",
+     "b5-s6",
+     "b5-s7",
+     "b5-s8",
+     "b5-s9",
+     "b7-s5"
+    ],
+    "precision": 0,
+    "recall": 0,
+    "jaccard": 0
+   },
+   "perShot": [
+    {
+     "shotId": "b1-s1",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "EXISTING_APPROVED_ASSET",
+     "shotClass": "object",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: reuse approved asset b1-s1 (ladder step 1)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s2",
+     "oldMethod": "STOCK",
+     "piMethod": "EXISTING_APPROVED_ASSET",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: reuse approved asset b1-s2 (ladder step 1)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s3",
+     "oldMethod": "STOCK",
+     "piMethod": "EXISTING_APPROVED_ASSET",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: reuse approved asset b1-s3 (ladder step 1)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s4",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "EXISTING_APPROVED_ASSET",
+     "shotClass": "object",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: reuse approved asset b1-s4 (ladder step 1)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s5",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s6",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "EXISTING_APPROVED_ASSET",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: reuse approved asset b1-s6 (ladder step 1)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s7",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "EXISTING_APPROVED_ASSET",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: reuse approved asset b1-s7 (ladder step 1)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b1-s8",
+     "oldMethod": "STOCK",
+     "piMethod": "EXISTING_APPROVED_ASSET",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: reuse approved asset b1-s8 (ladder step 1)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s1",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s2",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s3",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s4",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s5",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s6",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b2-s7",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s1",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s2",
+     "oldMethod": "ARCHIVAL_STILL_PUSH",
+     "piMethod": "STOCK",
+     "shotClass": "object",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s3",
+     "oldMethod": "ARCHIVAL_STILL_PUSH",
+     "piMethod": "STOCK",
+     "shotClass": "object",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s4",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s5",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s6",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s7",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s8",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s9",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s10",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s11",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s12",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s13",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s14",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s15",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s16",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s17",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s18",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s19",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s20",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b3-s21",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s1",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "STILL_PARALLAX",
+     "shotClass": "landscape",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: still + parallax camera motion (depth shot)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s2",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s3",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s4",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s5",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s6",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s7",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s8",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s9",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s10",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s11",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s12",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b4-s13",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s1",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "creature",
+     "motionLeverage": "LOW",
+     "riskClass": "MEDIUM",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: still + controlled camera motion (cheapest moving picture)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s2",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s3",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s4",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s5",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s6",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "creature",
+     "motionLeverage": "LOW",
+     "riskClass": "MEDIUM",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: still + controlled camera motion (cheapest moving picture)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s7",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "creature",
+     "motionLeverage": "LOW",
+     "riskClass": "MEDIUM",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: still + controlled camera motion (cheapest moving picture)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s8",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "creature",
+     "motionLeverage": "LOW",
+     "riskClass": "MEDIUM",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: still + controlled camera motion (cheapest moving picture)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s9",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "creature",
+     "motionLeverage": "LOW",
+     "riskClass": "MEDIUM",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: still + controlled camera motion (cheapest moving picture)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s10",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s11",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s12",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s13",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s14",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s15",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b5-s16",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s1",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s2",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s3",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s4",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s5",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s6",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s7",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s8",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s9",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s10",
+     "oldMethod": "MAP_GRAPHIC",
+     "piMethod": "STILL_KEN_BURNS",
+     "shotClass": "map",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: graphic/map with controlled camera motion",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s11",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s12",
+     "oldMethod": "ARCHIVAL_STILL_PUSH",
+     "piMethod": "STOCK",
+     "shotClass": "other",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b6-s13",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s1",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s2",
+     "oldMethod": "STOCK",
+     "piMethod": "STOCK",
+     "shotClass": "broll",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s3",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s4",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s5",
+     "oldMethod": "GENERATIVE_VIDEO (Veo 8 s)",
+     "piMethod": "STILL_PARALLAX",
+     "shotClass": "landscape",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 8,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 1.02,
+     "piExpectedUsd": 0.08,
+     "piWorstCaseUsd": 0.6,
+     "reasons": [
+      "floor: still + parallax camera motion (depth shot)",
+      "memory mem_empty is informative only in V1"
+     ]
+    },
+    {
+     "shotId": "b7-s6",
+     "oldMethod": "GRAPHIC_OVER_FOOTAGE",
+     "piMethod": "STOCK",
+     "shotClass": "graphic",
+     "motionLeverage": "LOW",
+     "riskClass": "LOW",
+     "oldGeneratedSeconds": 0,
+     "piGeneratedSeconds": 0,
+     "oldEstimatedUsd": 0,
+     "piExpectedUsd": 0,
+     "piWorstCaseUsd": 0,
+     "reasons": [
+      "floor: licensed stock satisfies the contract (ladder step 2)",
+      "memory mem_empty is informative only in V1"
+     ]
+    }
+   ]
+  }
+ }
+}
