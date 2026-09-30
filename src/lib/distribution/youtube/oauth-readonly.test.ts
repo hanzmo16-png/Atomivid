@@ -89,6 +89,20 @@ test("completeConnect: exact read-only grant → encrypted envelope stored, chan
   assert.equal(store.pending.size, 0, "state consumed (one-time)");
 });
 
+test("completeConnect persists channel parent before OAuth child and marks connected only after token storage", async () => {
+  const base = memoryYouTubeOAuthStore(); const calls: string[] = []; const order: string[] = [];
+  const store = {
+    ...base,
+    async upsertChannel(c: Parameters<typeof base.upsertChannel>[0]) { order.push(`channel:${c.status}`); await base.upsertChannel(c); },
+    async saveConnection(id: string, token: string, scopes: string[]) { order.push("oauth"); assert.ok(base.channels.size === 1, "parent channel exists before OAuth child"); await base.saveConnection(id, token, scopes); },
+  };
+  const start = await startConnect({ store, env: baseEnv, now: NOW }, OWNER);
+  const state = new URL(start.url).searchParams.get("state")!;
+  const r = await completeConnect({ store, env: baseEnv, fetch: fakeGoogle(READ_ONLY, calls), now: NOW }, OWNER, "auth-code", state, { language: "es", niche: "", timezone: "UTC" });
+  assert.deepEqual(order, ["channel:pending", "oauth", "channel:connected"]);
+  assert.equal(base.channels.get(r.channel.channelId)?.status, "connected");
+});
+
 test("granted scopes are verified: any extra or write-capable scope is refused and YouTube is never called with that token", async () => {
   for (const extra of ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube", "https://www.googleapis.com/auth/youtube.force-ssl", "https://www.googleapis.com/auth/youtubepartner"]) {
     const store = memoryYouTubeOAuthStore(); const calls: string[] = [];
