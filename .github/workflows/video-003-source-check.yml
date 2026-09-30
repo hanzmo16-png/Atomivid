@@ -5,6 +5,9 @@ name: Video 003 final source check (read-only, no provider calls)
 # frozen narration. No provider API is called; nothing is generated.
 on:
   workflow_dispatch:
+  push:
+    branches: [claude/production-intelligence-v1]
+    paths: [.github/workflows/video-003-source-check.yml]
 permissions:
   contents: read
 jobs:
