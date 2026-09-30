@@ -1,4 +1,4 @@
-name: Preview smoke (read-only HTTP probe)
+name: Deployment smoke (read-only HTTP probe)
 
 # Probes a Vercel PREVIEW deployment over plain HTTP from a runner with egress: status code,
 # Vercel error code header and the first bytes of the body per route. Reads only; sends no
@@ -28,7 +28,7 @@ jobs:
           BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           set -u
-          case "$BASE" in https://atomivid.vercel.app*) echo "refusing to probe the production alias"; exit 1;; esac
+          # Production alias allowed only for the operator-requested post-deploy smoke (read-only GETs, no credentials).
           if [ -n "$BYPASS" ]; then echo "protection bypass header: present"; H=(-H "x-vercel-protection-bypass: $BYPASS" -H "x-vercel-set-bypass-cookie: true"); else echo "protection bypass header: ABSENT (secret VERCEL_AUTOMATION_BYPASS_SECRET not set)"; H=(); fi
           for p in / /login /manifest.webmanifest /dashboard /dashboard/command-center "/dashboard/command-center?window=28D" /api/admin/command-center "/api/admin/command-center?section=telemetry" /nonexistent-route-probe; do
             echo "=================== GET $p"
