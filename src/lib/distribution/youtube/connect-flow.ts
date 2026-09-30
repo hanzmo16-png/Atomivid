@@ -49,6 +49,11 @@ export async function completeConnect(deps: { store: YouTubeOAuthStore; env: Env
   const item = list.items?.[0];
   if (!item) throw new OAuthConfigError("the Google account has no YouTube channel");
   const channel = ChannelSchema.parse({ channelId: item.id, ownerUserId, connectionId: pending.connectionId, title: item.snippet?.title ?? "", language: profile.language, niche: profile.niche, timezone: profile.timezone, distributionProfile: profile.distributionProfile ?? "default", connectedAt: deps.now, status: "connected" });
+  // yt_oauth_connections.connection_id has an FK to yt_channels.connection_id.
+  // Persist the parent first as pending, then the encrypted token envelope, and only
+  // mark the channel connected after the token write succeeds. This also leaves a
+  // truthful/retryable pending row if token persistence fails.
+  await deps.store.upsertChannel({ ...channel, connectedAt: undefined, status: "pending" });
   await deps.store.saveConnection(pending.connectionId, refreshTokenEnc, scopes);
   await deps.store.upsertChannel(channel);
   return { channel: { channelId: channel.channelId, connectionId: channel.connectionId, status: channel.status, title: channel.title }, scopes };
