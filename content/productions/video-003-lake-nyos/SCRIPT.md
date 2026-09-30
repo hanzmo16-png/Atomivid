@@ -3,11 +3,11 @@
 Working title: **The Lake That Held Its Breath**
 Alternative: *The Night Lake Nyos Exhaled*
 
-Target: 9–11 minutes at ~150 words per minute. Scene timings are the storyboard targets.
+Target: the strongest documentary, not a duration. Measured at 150 words per minute; the picture timeline is narration plus a small set of intentional breaths (see storyboard.ts). Scene timings are the storyboard targets.
 
 ---
 
-## S1 · HOOK (0:00–0:38)
+## S1 · HOOK
 
 On the night of August 21st, 1986, in the highlands of Cameroon, a valley went quiet.
 
@@ -19,7 +19,7 @@ The killer had no colour and no smell. For days, nobody could say what it was.
 
 This is the story of a lake that held its breath for centuries — and the night it finally exhaled.
 
-## S2 · THE LAKE (0:38–1:45)
+## S2 · THE LAKE
 
 Lake Nyos sits in a volcanic crater in north-west Cameroon, along a chain of volcanoes geologists call the Cameroon Volcanic Line.
 
@@ -29,11 +29,11 @@ From the rim it looks like any calm mountain lake. Farmers kept cattle on the sl
 
 Nothing about the surface suggested what was dissolved underneath.
 
-## S3 · THE MYSTERY (1:45–3:10)
+## S3 · THE MYSTERY
 
 The first reports were confusing. Survivors described a rumbling sound, then a smell like rotten eggs, then a strange warmth — and then nothing. Some woke a day and a half later, surrounded by silence.
 
-One man from the village of Subum said he woke around midnight, unable to speak, and found that the people around him would not wake at all.
+One man from the village of Subum remembered collapsing as he tried to reach his daughter, and waking the next morning to find that the people around him would not wake at all.
 
 There were no burns. No wounds. Animals lay where they had stood.
 
@@ -41,7 +41,7 @@ Two years earlier, at Lake Monoun, a hundred kilometres to the south, thirty-sev
 
 Scientists from Cameroon and from abroad arrived within weeks. They measured the air, the soil, the water. And they found the lake was still there. Only its colour had changed. The clear water had turned a rusty red.
 
-## S4 · THE SCIENCE (3:10–5:15)
+## S4 · THE SCIENCE
 
 The answer was under the surface.
 
@@ -61,7 +61,7 @@ It filled the valleys and pushed the air out of them. People asleep in low house
 
 The red colour was iron from the deep water, oxidizing at the surface — the lake's own evidence of what it had done.
 
-## S5 · THE FIX (5:15–7:10)
+## S5 · THE FIX
 
 The disturbing part was not the eruption. It was the recharge.
 
@@ -73,13 +73,13 @@ In 2001, engineers lowered a pipe from a raft to the bottom of the lake and pump
 
 A fountain shot into the air — a controlled, permanent exhale, driven by the lake's own pressure.
 
-Two more pipes followed in 2011. By 2019, the gas leaving through the pipes balanced the gas seeping in. Nyos had reached a steady state.
+Two more pipes followed a decade later. By 2019, the gas leaving through the pipes balanced the gas seeping in. Nyos had reached a steady state.
 
 The weak natural dam was another problem: engineers feared its collapse could send a flood a hundred kilometres downstream and trigger a larger gas release. It has since been reinforced with grouting and a concrete cap.
 
 The lake is monitored. The fountain still runs.
 
-## S6 · KIVU (7:10–9:05)
+## S6 · KIVU
 
 Nyos and Monoun are small. There is a third lake.
 
@@ -93,9 +93,9 @@ Here, the science is measured carefully, and the current answer is measured too:
 
 Rwanda extracts methane from the deep water to generate electricity — a slow drawdown of the pressure, but at present rates only a small fraction of the gas.
 
-Sediment studies suggest Kivu may have erupted thousands of years ago. Nobody wants to learn what that looked like with cities on the shore.
+Some sediment studies suggest Kivu may have erupted thousands of years ago; others find no such sign. Nobody wants to learn what that looked like with cities on the shore.
 
-## S7 · ENDING (9:05–10:05)
+## S7 · ENDING
 
 Lake Nyos taught the world that a lake can behave like a volcano — quietly, invisibly, and all at once.
 
@@ -107,7 +107,4 @@ It is the lake breathing out — slowly, on purpose, so that it never has to do 
 
 ---
 
-Word count: measured in `freeze/summary.json` (972 words). At 150 wpm this is ≈ 6.5 minutes of speech;
-picture-led passages and pauses bring the cut to the ≈ 9.4-minute target set by the storyboard (564.5 s),
-close to Ocean's speech-to-picture ratio. If the recorded narration runs short, the
-storyboard's hold times (min visible) absorb it; no shot is added merely to fill time.
+Word count: measured in `freeze/summary.json`. The storyboard carries this text sentence by sentence; a test asserts the two are identical.

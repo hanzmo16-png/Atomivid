@@ -1,7 +1,7 @@
 {
  "manifestVersion": "production-manifest/1",
  "projectId": "video-003-lake-nyos",
- "generatedAt": "2026-09-30T23:12:22.228Z",
+ "generatedAt": "2026-09-30T23:30:39.276Z",
  "pins": {
   "policy": "policy/1.1.0-candidate",
   "profile": "longform-16x9/1.1",
@@ -38,7 +38,7 @@
     "provider": "pexels",
     "cameraBehavior": "cut",
     "transitionIn": "cut",
-    "durationTargetSec": 3,
+    "durationTargetSec": 3.5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": null,
@@ -55,7 +55,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "0525cdd3e54a353e",
+    "decisionHash": "d7bd0604cd15bc86",
     "operations": [],
     "retries": {
      "count": 0,
@@ -72,12 +72,12 @@
     "sceneId": "S1",
     "timelineOrder": 1,
     "narrativePurpose": "hook: the lake at night",
-    "assetType": "ken_burns_image",
-    "plannedMethod": "STILL_PARALLAX",
-    "provider": "openai",
-    "cameraBehavior": "parallax",
+    "assetType": "ai_video",
+    "plannedMethod": "I2V_ECONOMY",
+    "provider": "runway",
+    "cameraBehavior": "generated",
     "transitionIn": "cut",
-    "durationTargetSec": 4,
+    "durationTargetSec": 5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": "lake-night",
@@ -86,15 +86,15 @@
     "provenance": null,
     "historicalClassification": "reconstruction",
     "cost": {
-     "expectedUsd": 0.08,
-     "reservedUsd": 0.6,
+     "expectedUsd": 0.33,
+     "reservedUsd": 0.85,
      "actualUsd": null
     },
     "lifecycleState": "PLANNED",
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "54970d2810774d93",
+    "decisionHash": "61cf8a7d02b66338",
     "operations": [],
     "retries": {
      "count": 0,
@@ -116,7 +116,7 @@
     "provider": "pexels",
     "cameraBehavior": "cut",
     "transitionIn": "cut",
-    "durationTargetSec": 3,
+    "durationTargetSec": 2.5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": null,
@@ -133,7 +133,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "396aba93e662037d",
+    "decisionHash": "1663e4311e6add28",
     "operations": [],
     "retries": {
      "count": 0,
@@ -155,7 +155,7 @@
     "provider": "pexels",
     "cameraBehavior": "cut",
     "transitionIn": "cut",
-    "durationTargetSec": 3,
+    "durationTargetSec": 2.5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": null,
@@ -172,7 +172,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "60d71aefec7550b4",
+    "decisionHash": "51602628f9e47b7e",
     "operations": [],
     "retries": {
      "count": 0,
@@ -194,7 +194,7 @@
     "provider": "openai",
     "cameraBehavior": "parallax",
     "transitionIn": "cut",
-    "durationTargetSec": 4,
+    "durationTargetSec": 4.5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": null,
@@ -211,7 +211,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "33c86b1b514f0c55",
+    "decisionHash": "8ebd9d9936f65c46",
     "operations": [],
     "retries": {
      "count": 0,
@@ -233,7 +233,7 @@
     "provider": "pexels",
     "cameraBehavior": "cut",
     "transitionIn": "cut",
-    "durationTargetSec": 3,
+    "durationTargetSec": 2.5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": null,
@@ -250,7 +250,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "79e420398e041f28",
+    "decisionHash": "3e570abc880e1572",
     "operations": [],
     "retries": {
      "count": 0,
@@ -272,7 +272,7 @@
     "provider": "openai",
     "cameraBehavior": "parallax",
     "transitionIn": "cut",
-    "durationTargetSec": 4,
+    "durationTargetSec": 5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": null,
@@ -289,7 +289,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "8e92c3da01bf921d",
+    "decisionHash": "6ae539f90dbb1e90",
     "operations": [],
     "retries": {
      "count": 0,
@@ -311,7 +311,7 @@
     "provider": "runway",
     "cameraBehavior": "generated",
     "transitionIn": "cut",
-    "durationTargetSec": 5,
+    "durationTargetSec": 4,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": "gas-cloud",
@@ -328,7 +328,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "a8a2969c40753cfb",
+    "decisionHash": "8ed726c9070f016b",
     "operations": [],
     "retries": {
      "count": 0,
@@ -367,7 +367,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "6bc620bd85bf0815",
+    "decisionHash": "21335dc66e6e37ec",
     "operations": [],
     "retries": {
      "count": 0,
@@ -383,6 +383,45 @@
     "shotId": "V3-010",
     "sceneId": "S1",
     "timelineOrder": 9,
+    "narrativePurpose": "hook: held its breath",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 6,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "81ff73f85c510e14",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-011",
+    "sceneId": "S1",
+    "timelineOrder": 10,
     "narrativePurpose": "title",
     "assetType": "ken_burns_image",
     "plannedMethod": "STILL_PARALLAX",
@@ -406,7 +445,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "ba312d8fe79ac964",
+    "decisionHash": "a8e57274d755ed05",
     "operations": [],
     "retries": {
      "count": 0,
@@ -419,16 +458,16 @@
     }
    },
    {
-    "shotId": "V3-011",
+    "shotId": "V3-012",
     "sceneId": "S2",
-    "timelineOrder": 10,
+    "timelineOrder": 11,
     "narrativePurpose": "geography",
     "assetType": "stock_video",
     "plannedMethod": "STOCK",
     "provider": "pexels",
     "cameraBehavior": "cut",
     "transitionIn": "cut",
-    "durationTargetSec": 8,
+    "durationTargetSec": 4.5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": null,
@@ -445,7 +484,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "d350fb6723634ddc",
+    "decisionHash": "4977f30c3b12135b",
     "operations": [],
     "retries": {
      "count": 0,
@@ -458,16 +497,16 @@
     }
    },
    {
-    "shotId": "V3-012",
+    "shotId": "V3-013",
     "sceneId": "S2",
-    "timelineOrder": 11,
+    "timelineOrder": 12,
     "narrativePurpose": "scale",
     "assetType": "ken_burns_image",
     "plannedMethod": "STILL_PARALLAX",
     "provider": "openai",
     "cameraBehavior": "parallax",
     "transitionIn": "cut",
-    "durationTargetSec": 7,
+    "durationTargetSec": 4,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": "lake-day",
@@ -484,7 +523,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "d862e093679bfc6a",
+    "decisionHash": "49ce4ec4b5c842a2",
     "operations": [],
     "retries": {
      "count": 0,
@@ -497,16 +536,16 @@
     }
    },
    {
-    "shotId": "V3-013",
+    "shotId": "V3-014",
     "sceneId": "S2",
-    "timelineOrder": 12,
+    "timelineOrder": 13,
     "narrativePurpose": "the dam",
     "assetType": "ken_burns_image",
     "plannedMethod": "STILL_PARALLAX",
     "provider": "openai",
     "cameraBehavior": "parallax",
     "transitionIn": "cut",
-    "durationTargetSec": 7,
+    "durationTargetSec": 6.5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": null,
@@ -523,46 +562,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "4094a54295f3a117",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-014",
-    "sceneId": "S2",
-    "timelineOrder": 13,
-    "narrativePurpose": "calm",
-    "assetType": "stock_video",
-    "plannedMethod": "STOCK",
-    "provider": "pexels",
-    "cameraBehavior": "cut",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "real_documented",
-    "cost": {
-     "expectedUsd": 0,
-     "reservedUsd": 0,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "fc59964f4aff6e94",
+    "decisionHash": "c4f0a5da0bc1fbe0",
     "operations": [],
     "retries": {
      "count": 0,
@@ -578,13 +578,13 @@
     "shotId": "V3-015",
     "sceneId": "S2",
     "timelineOrder": 14,
-    "narrativePurpose": "life on the slopes",
+    "narrativePurpose": "calm",
     "assetType": "stock_video",
     "plannedMethod": "STOCK",
     "provider": "pexels",
     "cameraBehavior": "cut",
     "transitionIn": "cut",
-    "durationTargetSec": 7,
+    "durationTargetSec": 4.5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": null,
@@ -601,7 +601,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "c19549da6d7dc400",
+    "decisionHash": "da855521a323d156",
     "operations": [],
     "retries": {
      "count": 0,
@@ -617,13 +617,13 @@
     "shotId": "V3-016",
     "sceneId": "S2",
     "timelineOrder": 15,
-    "narrativePurpose": "villages",
+    "narrativePurpose": "life on the slopes",
     "assetType": "stock_video",
     "plannedMethod": "STOCK",
     "provider": "pexels",
     "cameraBehavior": "cut",
     "transitionIn": "cut",
-    "durationTargetSec": 7,
+    "durationTargetSec": 3,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": null,
@@ -640,7 +640,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "f7e055157c0443d6",
+    "decisionHash": "4e480253be1a538f",
     "operations": [],
     "retries": {
      "count": 0,
@@ -656,52 +656,13 @@
     "shotId": "V3-017",
     "sceneId": "S2",
     "timelineOrder": 16,
-    "narrativePurpose": "foreshadow",
-    "assetType": "ai_video",
-    "plannedMethod": "I2V_ECONOMY",
-    "provider": "runway",
-    "cameraBehavior": "generated",
-    "transitionIn": "cut",
-    "durationTargetSec": 8,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": "underwater",
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.33,
-     "reservedUsd": 0.85,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "6f36493109528c95",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-018",
-    "sceneId": "S3",
-    "timelineOrder": 17,
-    "narrativePurpose": "confusion",
+    "narrativePurpose": "villages",
     "assetType": "stock_video",
     "plannedMethod": "STOCK",
     "provider": "pexels",
     "cameraBehavior": "cut",
     "transitionIn": "cut",
-    "durationTargetSec": 7,
+    "durationTargetSec": 3,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": null,
@@ -718,7 +679,46 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "13d096c27abfbdb2",
+    "decisionHash": "4ef74c7c86fa6b63",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-018",
+    "sceneId": "S2",
+    "timelineOrder": 17,
+    "narrativePurpose": "foreshadow",
+    "assetType": "ken_burns_image",
+    "plannedMethod": "STILL_KEN_BURNS",
+    "provider": "openai",
+    "cameraBehavior": "ken_burns",
+    "transitionIn": "cut",
+    "durationTargetSec": 6,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "underwater",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.08,
+     "reservedUsd": 0.6,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "b4a8f1388732e8be",
     "operations": [],
     "retries": {
      "count": 0,
@@ -734,13 +734,52 @@
     "shotId": "V3-019",
     "sceneId": "S3",
     "timelineOrder": 18,
+    "narrativePurpose": "confusion",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 2.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "c51370d5b8f62edf",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-020",
+    "sceneId": "S3",
+    "timelineOrder": 19,
     "narrativePurpose": "rumble",
     "assetType": "ken_burns_image",
     "plannedMethod": "STILL_PARALLAX",
     "provider": "openai",
     "cameraBehavior": "parallax",
     "transitionIn": "cut",
-    "durationTargetSec": 7,
+    "durationTargetSec": 4,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": "night-valley",
@@ -757,7 +796,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "8aaf66a9d92caa9a",
+    "decisionHash": "d34741022fa89b49",
     "operations": [],
     "retries": {
      "count": 0,
@@ -770,9 +809,9 @@
     }
    },
    {
-    "shotId": "V3-020",
+    "shotId": "V3-021",
     "sceneId": "S3",
-    "timelineOrder": 19,
+    "timelineOrder": 20,
     "narrativePurpose": "smell",
     "assetType": "ken_burns_image",
     "plannedMethod": "STILL_PARALLAX",
@@ -796,46 +835,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "0555e1265f64be62",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-021",
-    "sceneId": "S3",
-    "timelineOrder": 20,
-    "narrativePurpose": "silence",
-    "assetType": "stock_video",
-    "plannedMethod": "STOCK",
-    "provider": "pexels",
-    "cameraBehavior": "cut",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "real_documented",
-    "cost": {
-     "expectedUsd": 0,
-     "reservedUsd": 0,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "8ec656f2167c5610",
+    "decisionHash": "cd63be3302f1b167",
     "operations": [],
     "retries": {
      "count": 0,
@@ -851,436 +851,7 @@
     "shotId": "V3-022",
     "sceneId": "S3",
     "timelineOrder": 21,
-    "narrativePurpose": "Subum",
-    "assetType": "ken_burns_image",
-    "plannedMethod": "STILL_PARALLAX",
-    "provider": "openai",
-    "cameraBehavior": "parallax",
-    "transitionIn": "cut",
-    "durationTargetSec": 8,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.08,
-     "reservedUsd": 0.6,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "81a243813ba99cd8",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-023",
-    "sceneId": "S3",
-    "timelineOrder": 22,
-    "narrativePurpose": "no wounds",
-    "assetType": "ken_burns_image",
-    "plannedMethod": "STILL_KEN_BURNS",
-    "provider": "openai",
-    "cameraBehavior": "ken_burns",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.08,
-     "reservedUsd": 0.6,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "63b29ca93a1534da",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-024",
-    "sceneId": "S3",
-    "timelineOrder": 23,
-    "narrativePurpose": "animals",
-    "assetType": "stock_video",
-    "plannedMethod": "STOCK",
-    "provider": "pexels",
-    "cameraBehavior": "cut",
-    "transitionIn": "cut",
-    "durationTargetSec": 6,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "real_documented",
-    "cost": {
-     "expectedUsd": 0,
-     "reservedUsd": 0,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "aa4a3cf976f132de",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-025",
-    "sceneId": "S3",
-    "timelineOrder": 24,
-    "narrativePurpose": "Monoun",
-    "assetType": "ken_burns_image",
-    "plannedMethod": "STILL_PARALLAX",
-    "provider": "openai",
-    "cameraBehavior": "parallax",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.08,
-     "reservedUsd": 0.6,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "9113dc0220bf3f9d",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-026",
-    "sceneId": "S3",
-    "timelineOrder": 25,
-    "narrativePurpose": "suspicion",
-    "assetType": "stock_video",
-    "plannedMethod": "STOCK",
-    "provider": "pexels",
-    "cameraBehavior": "cut",
-    "transitionIn": "cut",
-    "durationTargetSec": 6,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "real_documented",
-    "cost": {
-     "expectedUsd": 0,
-     "reservedUsd": 0,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "41ed76b8f70e9209",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-027",
-    "sceneId": "S3",
-    "timelineOrder": 26,
-    "narrativePurpose": "volcano suspected",
-    "assetType": "stock_video",
-    "plannedMethod": "STOCK",
-    "provider": "pexels",
-    "cameraBehavior": "cut",
-    "transitionIn": "cut",
-    "durationTargetSec": 6,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "real_documented",
-    "cost": {
-     "expectedUsd": 0,
-     "reservedUsd": 0,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "e91bbbfc41918e4b",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-028",
-    "sceneId": "S3",
-    "timelineOrder": 27,
-    "narrativePurpose": "the red lake",
-    "assetType": "ken_burns_image",
-    "plannedMethod": "STILL_PARALLAX",
-    "provider": "openai",
-    "cameraBehavior": "parallax",
-    "transitionIn": "cut",
-    "durationTargetSec": 8,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": "lake-red",
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.08,
-     "reservedUsd": 0.6,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "df9beda8e1562dfa",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-029",
-    "sceneId": "S3",
-    "timelineOrder": 28,
-    "narrativePurpose": "red water close",
-    "assetType": "ken_burns_image",
-    "plannedMethod": "STILL_PARALLAX",
-    "provider": "openai",
-    "cameraBehavior": "parallax",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": "lake-red",
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.08,
-     "reservedUsd": 0.6,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "916646634d2ce6b5",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-030",
-    "sceneId": "S4",
-    "timelineOrder": 29,
-    "narrativePurpose": "under the surface",
-    "assetType": "ai_video",
-    "plannedMethod": "I2V_ECONOMY",
-    "provider": "runway",
-    "cameraBehavior": "generated",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": "underwater",
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.33,
-     "reservedUsd": 0.85,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "166ea1bac8ed5d88",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-031",
-    "sceneId": "S4",
-    "timelineOrder": 30,
-    "narrativePurpose": "seep",
-    "assetType": "ken_burns_image",
-    "plannedMethod": "STILL_KEN_BURNS",
-    "provider": "openai",
-    "cameraBehavior": "ken_burns",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": "underwater",
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.08,
-     "reservedUsd": 0.6,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "fb5bb61732023cb1",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-032",
-    "sceneId": "S4",
-    "timelineOrder": 31,
-    "narrativePurpose": "soda bottle",
-    "assetType": "stock_video",
-    "plannedMethod": "STOCK",
-    "provider": "pexels",
-    "cameraBehavior": "cut",
-    "transitionIn": "cut",
-    "durationTargetSec": 6,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "real_documented",
-    "cost": {
-     "expectedUsd": 0,
-     "reservedUsd": 0,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "1c0f85be5899b15b",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-033",
-    "sceneId": "S4",
-    "timelineOrder": 32,
-    "narrativePurpose": "soda opened",
+    "narrativePurpose": "silence",
     "assetType": "stock_video",
     "plannedMethod": "STOCK",
     "provider": "pexels",
@@ -1303,7 +874,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "a584f4af416aa82a",
+    "decisionHash": "5c0441ed7f58799c",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1316,19 +887,19 @@
     }
    },
    {
-    "shotId": "V3-034",
-    "sceneId": "S4",
-    "timelineOrder": 33,
-    "narrativePurpose": "charging",
+    "shotId": "V3-023",
+    "sceneId": "S3",
+    "timelineOrder": 22,
+    "narrativePurpose": "Subum",
     "assetType": "ken_burns_image",
     "plannedMethod": "STILL_PARALLAX",
     "provider": "openai",
     "cameraBehavior": "parallax",
     "transitionIn": "cut",
-    "durationTargetSec": 6,
+    "durationTargetSec": 7,
     "minVisibleSec": 2.5,
     "continuity": {
-     "group": "lake-day",
+     "group": null,
      "characterReferences": 0
     },
     "provenance": null,
@@ -1342,7 +913,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "4f44dc10872c7c22",
+    "decisionHash": "abd23e71ab827661",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1355,55 +926,16 @@
     }
    },
    {
-    "shotId": "V3-035",
-    "sceneId": "S4",
-    "timelineOrder": 34,
-    "narrativePurpose": "trigger 1",
-    "assetType": "ai_video",
-    "plannedMethod": "I2V_ECONOMY",
-    "provider": "runway",
-    "cameraBehavior": "generated",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": "night-valley",
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.33,
-     "reservedUsd": 0.85,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "a5ecda4c4fcb7c6d",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-036",
-    "sceneId": "S4",
-    "timelineOrder": 35,
-    "narrativePurpose": "trigger 2",
+    "shotId": "V3-024",
+    "sceneId": "S3",
+    "timelineOrder": 23,
+    "narrativePurpose": "the next morning",
     "assetType": "stock_video",
     "plannedMethod": "STOCK",
     "provider": "pexels",
     "cameraBehavior": "cut",
     "transitionIn": "cut",
-    "durationTargetSec": 6,
+    "durationTargetSec": 7.5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": null,
@@ -1420,7 +952,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "f058e31c49f8853c",
+    "decisionHash": "74eaa662d5171293",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1433,33 +965,33 @@
     }
    },
    {
-    "shotId": "V3-037",
-    "sceneId": "S4",
-    "timelineOrder": 36,
-    "narrativePurpose": "bubbles form",
-    "assetType": "ai_video",
-    "plannedMethod": "I2V_ECONOMY",
-    "provider": "runway",
-    "cameraBehavior": "generated",
+    "shotId": "V3-025",
+    "sceneId": "S3",
+    "timelineOrder": 24,
+    "narrativePurpose": "no wounds",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
     "transitionIn": "cut",
-    "durationTargetSec": 7,
+    "durationTargetSec": 5.5,
     "minVisibleSec": 2.5,
     "continuity": {
-     "group": "underwater",
+     "group": null,
      "characterReferences": 0
     },
     "provenance": null,
-    "historicalClassification": "reconstruction",
+    "historicalClassification": "real_documented",
     "cost": {
-     "expectedUsd": 0.33,
-     "reservedUsd": 0.85,
+     "expectedUsd": 0,
+     "reservedUsd": 0,
      "actualUsd": null
     },
     "lifecycleState": "PLANNED",
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "b506cc0bbd2697b6",
+    "decisionHash": "20f8ad51c56ed3ac",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1472,250 +1004,16 @@
     }
    },
    {
-    "shotId": "V3-038",
-    "sceneId": "S4",
-    "timelineOrder": 37,
-    "narrativePurpose": "runaway",
-    "assetType": "ai_video",
-    "plannedMethod": "I2V_ECONOMY",
-    "provider": "runway",
-    "cameraBehavior": "generated",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": "underwater",
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.33,
-     "reservedUsd": 0.85,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "8411c6ed1b620f45",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-039",
-    "sceneId": "S4",
-    "timelineOrder": 38,
-    "narrativePurpose": "the eruption",
-    "assetType": "ai_video",
-    "plannedMethod": "I2V_ECONOMY",
-    "provider": "runway",
-    "cameraBehavior": "generated",
-    "transitionIn": "cut",
-    "durationTargetSec": 8,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": "lake-night",
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.33,
-     "reservedUsd": 0.85,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "5879124a27174d9b",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-040",
-    "sceneId": "S4",
-    "timelineOrder": 39,
-    "narrativePurpose": "surge on shore",
-    "assetType": "ai_video",
-    "plannedMethod": "I2V_ECONOMY",
-    "provider": "runway",
-    "cameraBehavior": "generated",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": "lake-night",
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.33,
-     "reservedUsd": 0.85,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "f8022801a8abc13b",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-041",
-    "sceneId": "S4",
-    "timelineOrder": 40,
-    "narrativePurpose": "the invisible flood",
-    "assetType": "ai_video",
-    "plannedMethod": "I2V_ECONOMY",
-    "provider": "runway",
-    "cameraBehavior": "generated",
-    "transitionIn": "cut",
-    "durationTargetSec": 8,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": "gas-cloud",
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.33,
-     "reservedUsd": 0.85,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "b8e77422a4075d5a",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-042",
-    "sceneId": "S4",
-    "timelineOrder": 41,
-    "narrativePurpose": "down the valleys",
-    "assetType": "ai_video",
-    "plannedMethod": "I2V_ECONOMY",
-    "provider": "runway",
-    "cameraBehavior": "generated",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": "gas-cloud",
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.33,
-     "reservedUsd": 0.85,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "458a28f4f98d2287",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-043",
-    "sceneId": "S4",
-    "timelineOrder": 42,
-    "narrativePurpose": "it filled the valleys",
+    "shotId": "V3-026",
+    "sceneId": "S3",
+    "timelineOrder": 25,
+    "narrativePurpose": "Monoun",
     "assetType": "ken_burns_image",
     "plannedMethod": "STILL_PARALLAX",
     "provider": "openai",
     "cameraBehavior": "parallax",
     "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": "gas-cloud",
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.08,
-     "reservedUsd": 0.6,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "8114a20e78ae29fa",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-044",
-    "sceneId": "S4",
-    "timelineOrder": 43,
-    "narrativePurpose": "silence",
-    "assetType": "ken_burns_image",
-    "plannedMethod": "STILL_PARALLAX",
-    "provider": "openai",
-    "cameraBehavior": "parallax",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
+    "durationTargetSec": 3.5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": null,
@@ -1732,7 +1030,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "16407d4514b9c0d1",
+    "decisionHash": "1c31dad47062f67b",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1745,16 +1043,133 @@
     }
    },
    {
-    "shotId": "V3-045",
-    "sceneId": "S4",
-    "timelineOrder": 44,
-    "narrativePurpose": "iron",
+    "shotId": "V3-027",
+    "sceneId": "S3",
+    "timelineOrder": 26,
+    "narrativePurpose": "suspicion",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 3,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "356a44fc41fb2208",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-028",
+    "sceneId": "S3",
+    "timelineOrder": 27,
+    "narrativePurpose": "volcano suspected",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 2.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "762bae67e17355d7",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-029",
+    "sceneId": "S3",
+    "timelineOrder": 28,
+    "narrativePurpose": "investigators",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 7.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "a6b260e19b409a07",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-030",
+    "sceneId": "S3",
+    "timelineOrder": 29,
+    "narrativePurpose": "the red lake",
     "assetType": "ken_burns_image",
     "plannedMethod": "STILL_PARALLAX",
     "provider": "openai",
     "cameraBehavior": "parallax",
     "transitionIn": "cut",
-    "durationTargetSec": 8,
+    "durationTargetSec": 6,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": "lake-red",
@@ -1771,7 +1186,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "73b2e3614dc9864a",
+    "decisionHash": "de7f3d48cf52a247",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1784,19 +1199,19 @@
     }
    },
    {
-    "shotId": "V3-046",
-    "sceneId": "S5",
-    "timelineOrder": 45,
-    "narrativePurpose": "recharge",
+    "shotId": "V3-031",
+    "sceneId": "S3",
+    "timelineOrder": 30,
+    "narrativePurpose": "red water close",
     "assetType": "ken_burns_image",
     "plannedMethod": "STILL_PARALLAX",
     "provider": "openai",
     "cameraBehavior": "parallax",
     "transitionIn": "cut",
-    "durationTargetSec": 7,
+    "durationTargetSec": 5,
     "minVisibleSec": 2.5,
     "continuity": {
-     "group": "lake-day",
+     "group": "lake-red",
      "characterReferences": 0
     },
     "provenance": null,
@@ -1810,7 +1225,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "73f59b2ed5021872",
+    "decisionHash": "09667f6651cfbbaa",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1823,523 +1238,16 @@
     }
    },
    {
-    "shotId": "V3-047",
-    "sceneId": "S5",
-    "timelineOrder": 46,
-    "narrativePurpose": "measurements",
-    "assetType": "stock_video",
-    "plannedMethod": "STOCK",
-    "provider": "pexels",
-    "cameraBehavior": "cut",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "real_documented",
-    "cost": {
-     "expectedUsd": 0,
-     "reservedUsd": 0,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "ed0308ecd8ff9498",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-048",
-    "sceneId": "S5",
-    "timelineOrder": 47,
-    "narrativePurpose": "a pipe",
-    "assetType": "stock_video",
-    "plannedMethod": "STOCK",
-    "provider": "pexels",
-    "cameraBehavior": "cut",
-    "transitionIn": "cut",
-    "durationTargetSec": 6,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "real_documented",
-    "cost": {
-     "expectedUsd": 0,
-     "reservedUsd": 0,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "4c14cf32d121f2c2",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-049",
-    "sceneId": "S5",
-    "timelineOrder": 48,
-    "narrativePurpose": "lowering",
+    "shotId": "V3-032",
+    "sceneId": "S4",
+    "timelineOrder": 31,
+    "narrativePurpose": "under the surface",
     "assetType": "ken_burns_image",
     "plannedMethod": "STILL_KEN_BURNS",
     "provider": "openai",
     "cameraBehavior": "ken_burns",
     "transitionIn": "cut",
-    "durationTargetSec": 8,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": "raft",
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.08,
-     "reservedUsd": 0.6,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "97cdd3a6c5fd0c01",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-050",
-    "sceneId": "S5",
-    "timelineOrder": 49,
-    "narrativePurpose": "the fountain",
-    "assetType": "ai_video",
-    "plannedMethod": "I2V_ECONOMY",
-    "provider": "runway",
-    "cameraBehavior": "generated",
-    "transitionIn": "cut",
-    "durationTargetSec": 8,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": "fountain",
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.33,
-     "reservedUsd": 0.85,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "8cc15cbc347f7fc6",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-051",
-    "sceneId": "S5",
-    "timelineOrder": 50,
-    "narrativePurpose": "fountain detail",
-    "assetType": "ken_burns_image",
-    "plannedMethod": "STILL_PARALLAX",
-    "provider": "openai",
-    "cameraBehavior": "parallax",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": "fountain",
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.08,
-     "reservedUsd": 0.6,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "415aa483efae441e",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-052",
-    "sceneId": "S5",
-    "timelineOrder": 51,
-    "narrativePurpose": "three pipes",
-    "assetType": "ken_burns_image",
-    "plannedMethod": "STILL_PARALLAX",
-    "provider": "openai",
-    "cameraBehavior": "parallax",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": "fountain",
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.08,
-     "reservedUsd": 0.6,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "1541ebdc88a01092",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-053",
-    "sceneId": "S5",
-    "timelineOrder": 52,
-    "narrativePurpose": "the dam again",
-    "assetType": "ken_burns_image",
-    "plannedMethod": "STILL_PARALLAX",
-    "provider": "openai",
-    "cameraBehavior": "parallax",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.08,
-     "reservedUsd": 0.6,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "f94210bc74ebc25d",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-054",
-    "sceneId": "S5",
-    "timelineOrder": 53,
-    "narrativePurpose": "reinforced",
-    "assetType": "ken_burns_image",
-    "plannedMethod": "STILL_KEN_BURNS",
-    "provider": "openai",
-    "cameraBehavior": "ken_burns",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.08,
-     "reservedUsd": 0.6,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "60f3873ada783ed1",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-055",
-    "sceneId": "S5",
-    "timelineOrder": 54,
-    "narrativePurpose": "monitoring",
-    "assetType": "stock_video",
-    "plannedMethod": "STOCK",
-    "provider": "pexels",
-    "cameraBehavior": "cut",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "real_documented",
-    "cost": {
-     "expectedUsd": 0,
-     "reservedUsd": 0,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "7ef7dd896ad2c6a6",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-056",
-    "sceneId": "S5",
-    "timelineOrder": 55,
-    "narrativePurpose": "fountain runs",
-    "assetType": "ken_burns_image",
-    "plannedMethod": "STILL_PARALLAX",
-    "provider": "openai",
-    "cameraBehavior": "parallax",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": "fountain",
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.08,
-     "reservedUsd": 0.6,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "6a55084e320b48d3",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-057",
-    "sceneId": "S6",
-    "timelineOrder": 56,
-    "narrativePurpose": "small lakes",
-    "assetType": "ken_burns_image",
-    "plannedMethod": "STILL_PARALLAX",
-    "provider": "openai",
-    "cameraBehavior": "parallax",
-    "transitionIn": "cut",
-    "durationTargetSec": 6,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.08,
-     "reservedUsd": 0.6,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "7c99200e22e563bf",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-058",
-    "sceneId": "S6",
-    "timelineOrder": 57,
-    "narrativePurpose": "Kivu",
-    "assetType": "stock_video",
-    "plannedMethod": "STOCK",
-    "provider": "pexels",
-    "cameraBehavior": "cut",
-    "transitionIn": "cut",
-    "durationTargetSec": 8,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "real_documented",
-    "cost": {
-     "expectedUsd": 0,
-     "reservedUsd": 0,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "303be44e2c536245",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-059",
-    "sceneId": "S6",
-    "timelineOrder": 58,
-    "narrativePurpose": "scale",
-    "assetType": "ken_burns_image",
-    "plannedMethod": "STILL_PARALLAX",
-    "provider": "openai",
-    "cameraBehavior": "parallax",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "reconstruction",
-    "cost": {
-     "expectedUsd": 0.08,
-     "reservedUsd": 0.6,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "417776cae7e01f6a",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-060",
-    "sceneId": "S6",
-    "timelineOrder": 59,
-    "narrativePurpose": "deep water",
-    "assetType": "ken_burns_image",
-    "plannedMethod": "STILL_KEN_BURNS",
-    "provider": "openai",
-    "cameraBehavior": "ken_burns",
-    "transitionIn": "cut",
-    "durationTargetSec": 8,
+    "durationTargetSec": 4,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": "underwater",
@@ -2356,7 +1264,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "8881dce0443e1a69",
+    "decisionHash": "ebbefc37eceed429",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2369,16 +1277,55 @@
     }
    },
    {
-    "shotId": "V3-061",
-    "sceneId": "S6",
-    "timelineOrder": 60,
-    "narrativePurpose": "two million",
+    "shotId": "V3-033",
+    "sceneId": "S4",
+    "timelineOrder": 32,
+    "narrativePurpose": "seep",
+    "assetType": "ken_burns_image",
+    "plannedMethod": "STILL_KEN_BURNS",
+    "provider": "openai",
+    "cameraBehavior": "ken_burns",
+    "transitionIn": "cut",
+    "durationTargetSec": 6,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "underwater",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.08,
+     "reservedUsd": 0.6,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "9f7d185a52a1cbd2",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-034",
+    "sceneId": "S4",
+    "timelineOrder": 33,
+    "narrativePurpose": "soda bottle",
     "assetType": "stock_video",
     "plannedMethod": "STOCK",
     "provider": "pexels",
     "cameraBehavior": "cut",
     "transitionIn": "cut",
-    "durationTargetSec": 8,
+    "durationTargetSec": 6.5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": null,
@@ -2395,7 +1342,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "53cd7797709c0718",
+    "decisionHash": "b359a9cdc7102f7f",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2408,16 +1355,16 @@
     }
    },
    {
-    "shotId": "V3-062",
-    "sceneId": "S6",
-    "timelineOrder": 61,
-    "narrativePurpose": "measured",
+    "shotId": "V3-035",
+    "sceneId": "S4",
+    "timelineOrder": 34,
+    "narrativePurpose": "soda opened",
     "assetType": "stock_video",
     "plannedMethod": "STOCK",
     "provider": "pexels",
     "cameraBehavior": "cut",
     "transitionIn": "cut",
-    "durationTargetSec": 7,
+    "durationTargetSec": 3,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": null,
@@ -2434,7 +1381,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "c5940b4aa00d07b8",
+    "decisionHash": "e22af295a14c7714",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2447,127 +1394,10 @@
     }
    },
    {
-    "shotId": "V3-063",
-    "sceneId": "S6",
-    "timelineOrder": 62,
-    "narrativePurpose": "KivuWatt",
-    "assetType": "stock_video",
-    "plannedMethod": "STOCK",
-    "provider": "pexels",
-    "cameraBehavior": "cut",
-    "transitionIn": "cut",
-    "durationTargetSec": 8,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "real_documented",
-    "cost": {
-     "expectedUsd": 0,
-     "reservedUsd": 0,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "b2219ee523c9cd15",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-064",
-    "sceneId": "S6",
-    "timelineOrder": 63,
-    "narrativePurpose": "sediment",
-    "assetType": "stock_video",
-    "plannedMethod": "STOCK",
-    "provider": "pexels",
-    "cameraBehavior": "cut",
-    "transitionIn": "cut",
-    "durationTargetSec": 7,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "real_documented",
-    "cost": {
-     "expectedUsd": 0,
-     "reservedUsd": 0,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "de10a9f38b145671",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-065",
-    "sceneId": "S6",
-    "timelineOrder": 64,
-    "narrativePurpose": "city at night",
-    "assetType": "stock_video",
-    "plannedMethod": "STOCK",
-    "provider": "pexels",
-    "cameraBehavior": "cut",
-    "transitionIn": "cut",
-    "durationTargetSec": 8,
-    "minVisibleSec": 2.5,
-    "continuity": {
-     "group": null,
-     "characterReferences": 0
-    },
-    "provenance": null,
-    "historicalClassification": "real_documented",
-    "cost": {
-     "expectedUsd": 0,
-     "reservedUsd": 0,
-     "actualUsd": null
-    },
-    "lifecycleState": "PLANNED",
-    "qaStatus": "NOT_RUN",
-    "retryCount": 0,
-    "fallbackState": "NONE",
-    "decisionHash": "1fa4145ccd39b99b",
-    "operations": [],
-    "retries": {
-     "count": 0,
-     "reasons": []
-    },
-    "fallback": {
-     "used": false,
-     "state": "NONE",
-     "explicit": true
-    }
-   },
-   {
-    "shotId": "V3-066",
-    "sceneId": "S7",
-    "timelineOrder": 65,
-    "narrativePurpose": "a lake like a volcano",
+    "shotId": "V3-036",
+    "sceneId": "S4",
+    "timelineOrder": 35,
+    "narrativePurpose": "charging",
     "assetType": "ken_burns_image",
     "plannedMethod": "STILL_PARALLAX",
     "provider": "openai",
@@ -2590,7 +1420,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "4663abebecbb9af5",
+    "decisionHash": "3b358d8176c5e994",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2603,16 +1433,16 @@
     }
    },
    {
-    "shotId": "V3-067",
-    "sceneId": "S7",
-    "timelineOrder": 66,
-    "narrativePurpose": "patience",
+    "shotId": "V3-037",
+    "sceneId": "S4",
+    "timelineOrder": 36,
+    "narrativePurpose": "something disturbed it",
     "assetType": "stock_video",
     "plannedMethod": "STOCK",
     "provider": "pexels",
     "cameraBehavior": "cut",
     "transitionIn": "cut",
-    "durationTargetSec": 7,
+    "durationTargetSec": 5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": null,
@@ -2629,7 +1459,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "fcc51fa30218fbe5",
+    "decisionHash": "3eb3bce960772cb5",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2642,16 +1472,718 @@
     }
    },
    {
-    "shotId": "V3-068",
-    "sceneId": "S7",
-    "timelineOrder": 67,
-    "narrativePurpose": "the rim",
+    "shotId": "V3-038",
+    "sceneId": "S4",
+    "timelineOrder": 37,
+    "narrativePurpose": "trigger 1",
+    "assetType": "ken_burns_image",
+    "plannedMethod": "STILL_PARALLAX",
+    "provider": "openai",
+    "cameraBehavior": "parallax",
+    "transitionIn": "cut",
+    "durationTargetSec": 4,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "night-valley",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.08,
+     "reservedUsd": 0.6,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "d7fe2e210073e3b8",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-039",
+    "sceneId": "S4",
+    "timelineOrder": 38,
+    "narrativePurpose": "trigger 2",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 4.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "8a909cfdde073aba",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-040",
+    "sceneId": "S4",
+    "timelineOrder": 39,
+    "narrativePurpose": "bubbles form",
     "assetType": "ai_video",
     "plannedMethod": "I2V_ECONOMY",
     "provider": "runway",
     "cameraBehavior": "generated",
     "transitionIn": "cut",
+    "durationTargetSec": 4,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "underwater",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.33,
+     "reservedUsd": 0.85,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "7aa7e4d40fd2bbf6",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-041",
+    "sceneId": "S4",
+    "timelineOrder": 40,
+    "narrativePurpose": "runaway",
+    "assetType": "ai_video",
+    "plannedMethod": "I2V_ECONOMY",
+    "provider": "runway",
+    "cameraBehavior": "generated",
+    "transitionIn": "cut",
+    "durationTargetSec": 6.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "underwater",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.33,
+     "reservedUsd": 0.85,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "ecffcae6e395db0d",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-042",
+    "sceneId": "S4",
+    "timelineOrder": 41,
+    "narrativePurpose": "the eruption",
+    "assetType": "ai_video",
+    "plannedMethod": "I2V_ECONOMY",
+    "provider": "runway",
+    "cameraBehavior": "generated",
+    "transitionIn": "cut",
+    "durationTargetSec": 6,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "lake-night",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.33,
+     "reservedUsd": 0.85,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "13ae95a7733e61af",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-043",
+    "sceneId": "S4",
+    "timelineOrder": 42,
+    "narrativePurpose": "surge on shore",
+    "assetType": "ai_video",
+    "plannedMethod": "I2V_ECONOMY",
+    "provider": "runway",
+    "cameraBehavior": "generated",
+    "transitionIn": "cut",
+    "durationTargetSec": 5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "lake-night",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.33,
+     "reservedUsd": 0.85,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "f1dba4de00f83074",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-044",
+    "sceneId": "S4",
+    "timelineOrder": 43,
+    "narrativePurpose": "the invisible flood",
+    "assetType": "ai_video",
+    "plannedMethod": "I2V_ECONOMY",
+    "provider": "runway",
+    "cameraBehavior": "generated",
+    "transitionIn": "cut",
+    "durationTargetSec": 9.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "gas-cloud",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.33,
+     "reservedUsd": 0.85,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "6a626e1533cc7949",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-045",
+    "sceneId": "S4",
+    "timelineOrder": 44,
+    "narrativePurpose": "down the valleys",
+    "assetType": "ai_video",
+    "plannedMethod": "I2V_ECONOMY",
+    "provider": "runway",
+    "cameraBehavior": "generated",
+    "transitionIn": "cut",
+    "durationTargetSec": 6,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "gas-cloud",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.33,
+     "reservedUsd": 0.85,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "0dbbe152d3d72e46",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-046",
+    "sceneId": "S4",
+    "timelineOrder": 45,
+    "narrativePurpose": "it filled the valleys",
+    "assetType": "ken_burns_image",
+    "plannedMethod": "STILL_PARALLAX",
+    "provider": "openai",
+    "cameraBehavior": "parallax",
+    "transitionIn": "cut",
+    "durationTargetSec": 5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "gas-cloud",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.08,
+     "reservedUsd": 0.6,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "9a27df4011fa2e35",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-047",
+    "sceneId": "S4",
+    "timelineOrder": 46,
+    "narrativePurpose": "a few metres higher",
+    "assetType": "ken_burns_image",
+    "plannedMethod": "STILL_PARALLAX",
+    "provider": "openai",
+    "cameraBehavior": "parallax",
+    "transitionIn": "cut",
     "durationTargetSec": 8,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "gas-cloud",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.08,
+     "reservedUsd": 0.6,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "963cab80ef557309",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-048",
+    "sceneId": "S4",
+    "timelineOrder": 47,
+    "narrativePurpose": "in silence",
+    "assetType": "ken_burns_image",
+    "plannedMethod": "STILL_PARALLAX",
+    "provider": "openai",
+    "cameraBehavior": "parallax",
+    "transitionIn": "cut",
+    "durationTargetSec": 8,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.08,
+     "reservedUsd": 0.6,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "312022d463ac4dce",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-049",
+    "sceneId": "S4",
+    "timelineOrder": 48,
+    "narrativePurpose": "iron",
+    "assetType": "ken_burns_image",
+    "plannedMethod": "STILL_PARALLAX",
+    "provider": "openai",
+    "cameraBehavior": "parallax",
+    "transitionIn": "cut",
+    "durationTargetSec": 6,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "lake-red",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.08,
+     "reservedUsd": 0.6,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "3d5b6d477d0b9170",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-050",
+    "sceneId": "S4",
+    "timelineOrder": 49,
+    "narrativePurpose": "evidence",
+    "assetType": "ken_burns_image",
+    "plannedMethod": "STILL_PARALLAX",
+    "provider": "openai",
+    "cameraBehavior": "parallax",
+    "transitionIn": "cut",
+    "durationTargetSec": 5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "lake-red",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.08,
+     "reservedUsd": 0.6,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "c2f364fc8ed0e53e",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-051",
+    "sceneId": "S5",
+    "timelineOrder": 50,
+    "narrativePurpose": "recharge",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "b4e93e4a7959ae9c",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-052",
+    "sceneId": "S5",
+    "timelineOrder": 51,
+    "narrativePurpose": "measurements",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 4,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "a43e704f343cb25f",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-053",
+    "sceneId": "S5",
+    "timelineOrder": 52,
+    "narrativePurpose": "a pipe",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 6.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "b6c0bf19f31f9a54",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-054",
+    "sceneId": "S5",
+    "timelineOrder": 53,
+    "narrativePurpose": "lowering",
+    "assetType": "ken_burns_image",
+    "plannedMethod": "STILL_KEN_BURNS",
+    "provider": "openai",
+    "cameraBehavior": "ken_burns",
+    "transitionIn": "cut",
+    "durationTargetSec": 9,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "raft",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.08,
+     "reservedUsd": 0.6,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "a47a1580f14a1a63",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-055",
+    "sceneId": "S5",
+    "timelineOrder": 54,
+    "narrativePurpose": "pipe mouth",
+    "assetType": "ken_burns_image",
+    "plannedMethod": "STILL_KEN_BURNS",
+    "provider": "openai",
+    "cameraBehavior": "parallax",
+    "transitionIn": "cut",
+    "durationTargetSec": 4.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "fountain",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.08,
+     "reservedUsd": 0.6,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "c2bd915f0bfcccb3",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-056",
+    "sceneId": "S5",
+    "timelineOrder": 55,
+    "narrativePurpose": "the fountain",
+    "assetType": "ai_video",
+    "plannedMethod": "I2V_ECONOMY",
+    "provider": "runway",
+    "cameraBehavior": "generated",
+    "transitionIn": "cut",
+    "durationTargetSec": 8.5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": "fountain",
@@ -2668,7 +2200,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "05605ce98410c287",
+    "decisionHash": "fd6c5750bcd35674",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2681,16 +2213,16 @@
     }
    },
    {
-    "shotId": "V3-069",
-    "sceneId": "S7",
-    "timelineOrder": 68,
-    "narrativePurpose": "breathing out",
+    "shotId": "V3-057",
+    "sceneId": "S5",
+    "timelineOrder": 56,
+    "narrativePurpose": "three pipes",
     "assetType": "ken_burns_image",
     "plannedMethod": "STILL_PARALLAX",
     "provider": "openai",
     "cameraBehavior": "parallax",
     "transitionIn": "cut",
-    "durationTargetSec": 8,
+    "durationTargetSec": 3.5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": "fountain",
@@ -2707,7 +2239,475 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "66637c2c23da0e5d",
+    "decisionHash": "93d7965e54689087",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-058",
+    "sceneId": "S5",
+    "timelineOrder": 57,
+    "narrativePurpose": "fountain detail",
+    "assetType": "ken_burns_image",
+    "plannedMethod": "STILL_PARALLAX",
+    "provider": "openai",
+    "cameraBehavior": "parallax",
+    "transitionIn": "cut",
+    "durationTargetSec": 3,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "fountain",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.08,
+     "reservedUsd": 0.6,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "e03250e30497adb9",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-059",
+    "sceneId": "S5",
+    "timelineOrder": 58,
+    "narrativePurpose": "the dam again",
+    "assetType": "ken_burns_image",
+    "plannedMethod": "STILL_PARALLAX",
+    "provider": "openai",
+    "cameraBehavior": "parallax",
+    "transitionIn": "cut",
+    "durationTargetSec": 3.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.08,
+     "reservedUsd": 0.6,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "3b3e08fe2eeaf5ca",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-060",
+    "sceneId": "S5",
+    "timelineOrder": 59,
+    "narrativePurpose": "reinforced",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "13ccb464c63625ec",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-061",
+    "sceneId": "S5",
+    "timelineOrder": 60,
+    "narrativePurpose": "monitoring",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 2.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "845a51beb5fec435",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-062",
+    "sceneId": "S5",
+    "timelineOrder": 61,
+    "narrativePurpose": "fountain runs",
+    "assetType": "ken_burns_image",
+    "plannedMethod": "STILL_PARALLAX",
+    "provider": "openai",
+    "cameraBehavior": "parallax",
+    "transitionIn": "cut",
+    "durationTargetSec": 5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "fountain",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.08,
+     "reservedUsd": 0.6,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "cef67cd5a4f91a6b",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-063",
+    "sceneId": "S6",
+    "timelineOrder": 62,
+    "narrativePurpose": "small lakes",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 4.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "6323381c9c7162e0",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-064",
+    "sceneId": "S6",
+    "timelineOrder": 63,
+    "narrativePurpose": "Kivu",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 2.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "1d2bdd237c157581",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-065",
+    "sceneId": "S6",
+    "timelineOrder": 64,
+    "narrativePurpose": "scale",
+    "assetType": "ken_burns_image",
+    "plannedMethod": "STILL_PARALLAX",
+    "provider": "openai",
+    "cameraBehavior": "parallax",
+    "transitionIn": "cut",
+    "durationTargetSec": 3,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.08,
+     "reservedUsd": 0.6,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "77db14c7783bc669",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-066",
+    "sceneId": "S6",
+    "timelineOrder": 65,
+    "narrativePurpose": "deep water",
+    "assetType": "ken_burns_image",
+    "plannedMethod": "STILL_KEN_BURNS",
+    "provider": "openai",
+    "cameraBehavior": "ken_burns",
+    "transitionIn": "cut",
+    "durationTargetSec": 6,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "underwater",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.08,
+     "reservedUsd": 0.6,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "f5137bb42ff5e985",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-067",
+    "sceneId": "S6",
+    "timelineOrder": 66,
+    "narrativePurpose": "two million",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "6f4d9467e006d05e",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-068",
+    "sceneId": "S6",
+    "timelineOrder": 67,
+    "narrativePurpose": "measured",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 6,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "b8f35b44552b46da",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-069",
+    "sceneId": "S6",
+    "timelineOrder": 68,
+    "narrativePurpose": "KivuWatt",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 4.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "02a3136b87296e96",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2721,15 +2721,93 @@
    },
    {
     "shotId": "V3-070",
-    "sceneId": "S7",
+    "sceneId": "S6",
     "timelineOrder": 69,
-    "narrativePurpose": "closing",
+    "narrativePurpose": "sediment",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 7.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "a5f985edbabbba90",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-071",
+    "sceneId": "S6",
+    "timelineOrder": 70,
+    "narrativePurpose": "city at night",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 7.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "a15af923baebfae4",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-072",
+    "sceneId": "S7",
+    "timelineOrder": 71,
+    "narrativePurpose": "a lake like a volcano",
     "assetType": "ken_burns_image",
     "plannedMethod": "STILL_PARALLAX",
     "provider": "openai",
     "cameraBehavior": "parallax",
     "transitionIn": "cut",
-    "durationTargetSec": 8,
+    "durationTargetSec": 8.5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": "lake-day",
@@ -2746,7 +2824,202 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "ddd3e867bc6d95aa",
+    "decisionHash": "e67cff691a7157f6",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-073",
+    "sceneId": "S7",
+    "timelineOrder": 72,
+    "narrativePurpose": "same physics",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 8.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "8f5c8034a61bf9c4",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-074",
+    "sceneId": "S7",
+    "timelineOrder": 73,
+    "narrativePurpose": "the rim",
+    "assetType": "ken_burns_image",
+    "plannedMethod": "STILL_PARALLAX",
+    "provider": "openai",
+    "cameraBehavior": "parallax",
+    "transitionIn": "cut",
+    "durationTargetSec": 7,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "fountain",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.08,
+     "reservedUsd": 0.6,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "685ed2daeb53f8ef",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-075",
+    "sceneId": "S7",
+    "timelineOrder": 74,
+    "narrativePurpose": "breathing out",
+    "assetType": "ken_burns_image",
+    "plannedMethod": "STILL_PARALLAX",
+    "provider": "openai",
+    "cameraBehavior": "parallax",
+    "transitionIn": "cut",
+    "durationTargetSec": 6.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "fountain",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.08,
+     "reservedUsd": 0.6,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "a50cafc832bc6b2c",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-076",
+    "sceneId": "S7",
+    "timelineOrder": 75,
+    "narrativePurpose": "closing",
+    "assetType": "ai_video",
+    "plannedMethod": "I2V_ECONOMY",
+    "provider": "runway",
+    "cameraBehavior": "generated",
+    "transitionIn": "cut",
+    "durationTargetSec": 4.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": "lake-day",
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "reconstruction",
+    "cost": {
+     "expectedUsd": 0.33,
+     "reservedUsd": 0.85,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "3c6cebd9da8b6399",
+    "operations": [],
+    "retries": {
+     "count": 0,
+     "reasons": []
+    },
+    "fallback": {
+     "used": false,
+     "state": "NONE",
+     "explicit": true
+    }
+   },
+   {
+    "shotId": "V3-077",
+    "sceneId": "S7",
+    "timelineOrder": 76,
+    "narrativePurpose": "last breath",
+    "assetType": "stock_video",
+    "plannedMethod": "STOCK",
+    "provider": "pexels",
+    "cameraBehavior": "cut",
+    "transitionIn": "cut",
+    "durationTargetSec": 8.5,
+    "minVisibleSec": 2.5,
+    "continuity": {
+     "group": null,
+     "characterReferences": 0
+    },
+    "provenance": null,
+    "historicalClassification": "real_documented",
+    "cost": {
+     "expectedUsd": 0,
+     "reservedUsd": 0,
+     "actualUsd": null
+    },
+    "lifecycleState": "PLANNED",
+    "qaStatus": "NOT_RUN",
+    "retryCount": 0,
+    "fallbackState": "NONE",
+    "decisionHash": "02b78c7229dce2cd",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2759,25 +3032,25 @@
     }
    }
   ],
-  "finishedSeconds": 465,
+  "finishedSeconds": 401,
   "mix": {
-   "finishedSeconds": 465,
+   "finishedSeconds": 401,
    "seconds": {
-    "ai_motion": 87,
-    "real_footage": 163,
-    "animated_stills": 215,
+    "ai_motion": 59,
+    "real_footage": 162,
+    "animated_stills": 180,
     "graphics": 0
    },
    "share": {
-    "ai_motion": 0.187,
-    "real_footage": 0.351,
-    "animated_stills": 0.462,
+    "ai_motion": 0.147,
+    "real_footage": 0.404,
+    "animated_stills": 0.449,
     "graphics": 0
    },
    "shots": {
-    "ai_motion": 12,
-    "real_footage": 26,
-    "animated_stills": 32,
+    "ai_motion": 10,
+    "real_footage": 34,
+    "animated_stills": 33,
     "graphics": 0
    }
   },
@@ -2788,23 +3061,23 @@
     {
      "category": "ai_motion",
      "target": 0.3,
-     "actual": 0.187,
-     "delta": -0.113,
-     "withinTolerance": true
+     "actual": 0.147,
+     "delta": -0.153,
+     "withinTolerance": false
     },
     {
      "category": "real_footage",
      "target": 0.3,
-     "actual": 0.351,
-     "delta": 0.051,
+     "actual": 0.404,
+     "delta": 0.104,
      "withinTolerance": true
     },
     {
      "category": "animated_stills",
      "target": 0.3,
-     "actual": 0.462,
-     "delta": 0.162,
-     "withinTolerance": false
+     "actual": 0.449,
+     "delta": 0.149,
+     "withinTolerance": true
     },
     {
      "category": "graphics",
@@ -2814,32 +3087,32 @@
      "withinTolerance": true
     }
    ],
-   "note": "plan deviates from 30/70 economical (AI motion / stills+footage+graphics): animated_stills 0.462 vs 0.3"
+   "note": "plan deviates from 30/70 economical (AI motion / stills+footage+graphics): ai_motion 0.147 vs 0.3"
   },
   "generative": {
-   "shots": 12,
-   "secondsUsed": 60,
-   "secondsBudget": 62,
+   "shots": 10,
+   "secondsUsed": 50,
+   "secondsBudget": 53,
    "heroShots": 0
   }
  },
  "cost": {
-  "estimatedUsd": 7.647,
-  "reservedUsd": 30.527,
+  "estimatedUsd": 7.0776,
+  "reservedUsd": 29.4376,
   "actualUsd": 0,
   "retryUsd": 0,
-  "varianceUsd": -7.647,
+  "varianceUsd": -7.0776,
   "projectBudgetUsd": 40,
-  "remainingBudgetUsd": 9.473,
+  "remainingBudgetUsd": 10.5624,
   "byProvider": {
    "elevenlabs": {
-    "estimatedUsd": 1.127,
-    "reservedUsd": 1.127,
+    "estimatedUsd": 1.1376,
+    "reservedUsd": 1.1376,
     "actualUsd": 0
    },
    "openai": {
-    "estimatedUsd": 2.56,
-    "reservedUsd": 19.2,
+    "estimatedUsd": 2.64,
+    "reservedUsd": 19.8,
     "actualUsd": 0
    },
    "pexels": {
@@ -2848,8 +3121,8 @@
     "actualUsd": 0
    },
    "runway": {
-    "estimatedUsd": 3.96,
-    "reservedUsd": 10.2,
+    "estimatedUsd": 3.3,
+    "reservedUsd": 8.5,
     "actualUsd": 0
    }
   },
@@ -2857,10 +3130,10 @@
   "reconciliationRequired": [],
   "reservation": {
    "status": "RESERVED",
-   "reservedUsd": 30.527,
-   "worstCaseUsd": 30.527,
+   "reservedUsd": 29.4376,
+   "worstCaseUsd": 29.4376,
    "reasons": [
-    "reserved worst case USD 30.527 (expected USD 7.646999999999999) within budget USD 40"
+    "reserved worst case USD 29.4376 (expected USD 7.0776) within budget USD 40"
    ]
   }
  },
@@ -2987,15 +3260,15 @@
    },
    {
     "assetId": "V3-010",
-    "state": "PLANNED"
-   },
-   {
-    "assetId": "V3-011",
     "state": "LOCKED"
    },
    {
-    "assetId": "V3-012",
+    "assetId": "V3-011",
     "state": "PLANNED"
+   },
+   {
+    "assetId": "V3-012",
+    "state": "LOCKED"
    },
    {
     "assetId": "V3-013",
@@ -3003,7 +3276,7 @@
    },
    {
     "assetId": "V3-014",
-    "state": "LOCKED"
+    "state": "PLANNED"
    },
    {
     "assetId": "V3-015",
@@ -3015,15 +3288,15 @@
    },
    {
     "assetId": "V3-017",
-    "state": "PLANNED"
-   },
-   {
-    "assetId": "V3-018",
     "state": "LOCKED"
    },
    {
-    "assetId": "V3-019",
+    "assetId": "V3-018",
     "state": "PLANNED"
+   },
+   {
+    "assetId": "V3-019",
+    "state": "LOCKED"
    },
    {
     "assetId": "V3-020",
@@ -3031,11 +3304,11 @@
    },
    {
     "assetId": "V3-021",
-    "state": "LOCKED"
+    "state": "PLANNED"
    },
    {
     "assetId": "V3-022",
-    "state": "PLANNED"
+    "state": "LOCKED"
    },
    {
     "assetId": "V3-023",
@@ -3047,11 +3320,11 @@
    },
    {
     "assetId": "V3-025",
-    "state": "PLANNED"
+    "state": "LOCKED"
    },
    {
     "assetId": "V3-026",
-    "state": "LOCKED"
+    "state": "PLANNED"
    },
    {
     "assetId": "V3-027",
@@ -3059,11 +3332,11 @@
    },
    {
     "assetId": "V3-028",
-    "state": "PLANNED"
+    "state": "LOCKED"
    },
    {
     "assetId": "V3-029",
-    "state": "PLANNED"
+    "state": "LOCKED"
    },
    {
     "assetId": "V3-030",
@@ -3075,27 +3348,27 @@
    },
    {
     "assetId": "V3-032",
-    "state": "LOCKED"
+    "state": "PLANNED"
    },
    {
     "assetId": "V3-033",
-    "state": "LOCKED"
+    "state": "PLANNED"
    },
    {
     "assetId": "V3-034",
-    "state": "PLANNED"
-   },
-   {
-    "assetId": "V3-035",
-    "state": "PLANNED"
-   },
-   {
-    "assetId": "V3-036",
     "state": "LOCKED"
    },
    {
-    "assetId": "V3-037",
+    "assetId": "V3-035",
+    "state": "LOCKED"
+   },
+   {
+    "assetId": "V3-036",
     "state": "PLANNED"
+   },
+   {
+    "assetId": "V3-037",
+    "state": "LOCKED"
    },
    {
     "assetId": "V3-038",
@@ -3103,7 +3376,7 @@
    },
    {
     "assetId": "V3-039",
-    "state": "PLANNED"
+    "state": "LOCKED"
    },
    {
     "assetId": "V3-040",
@@ -3135,11 +3408,11 @@
    },
    {
     "assetId": "V3-047",
-    "state": "LOCKED"
+    "state": "PLANNED"
    },
    {
     "assetId": "V3-048",
-    "state": "LOCKED"
+    "state": "PLANNED"
    },
    {
     "assetId": "V3-049",
@@ -3151,15 +3424,15 @@
    },
    {
     "assetId": "V3-051",
-    "state": "PLANNED"
+    "state": "LOCKED"
    },
    {
     "assetId": "V3-052",
-    "state": "PLANNED"
+    "state": "LOCKED"
    },
    {
     "assetId": "V3-053",
-    "state": "PLANNED"
+    "state": "LOCKED"
    },
    {
     "assetId": "V3-054",
@@ -3167,7 +3440,7 @@
    },
    {
     "assetId": "V3-055",
-    "state": "LOCKED"
+    "state": "PLANNED"
    },
    {
     "assetId": "V3-056",
@@ -3179,7 +3452,7 @@
    },
    {
     "assetId": "V3-058",
-    "state": "LOCKED"
+    "state": "PLANNED"
    },
    {
     "assetId": "V3-059",
@@ -3187,7 +3460,7 @@
    },
    {
     "assetId": "V3-060",
-    "state": "PLANNED"
+    "state": "LOCKED"
    },
    {
     "assetId": "V3-061",
@@ -3195,7 +3468,7 @@
    },
    {
     "assetId": "V3-062",
-    "state": "LOCKED"
+    "state": "PLANNED"
    },
    {
     "assetId": "V3-063",
@@ -3207,7 +3480,7 @@
    },
    {
     "assetId": "V3-065",
-    "state": "LOCKED"
+    "state": "PLANNED"
    },
    {
     "assetId": "V3-066",
@@ -3219,15 +3492,43 @@
    },
    {
     "assetId": "V3-068",
-    "state": "PLANNED"
+    "state": "LOCKED"
    },
    {
     "assetId": "V3-069",
-    "state": "PLANNED"
+    "state": "LOCKED"
    },
    {
     "assetId": "V3-070",
+    "state": "LOCKED"
+   },
+   {
+    "assetId": "V3-071",
+    "state": "LOCKED"
+   },
+   {
+    "assetId": "V3-072",
     "state": "PLANNED"
+   },
+   {
+    "assetId": "V3-073",
+    "state": "LOCKED"
+   },
+   {
+    "assetId": "V3-074",
+    "state": "PLANNED"
+   },
+   {
+    "assetId": "V3-075",
+    "state": "PLANNED"
+   },
+   {
+    "assetId": "V3-076",
+    "state": "PLANNED"
+   },
+   {
+    "assetId": "V3-077",
+    "state": "LOCKED"
    }
   ]
  },

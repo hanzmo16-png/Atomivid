@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { video003ShotRecords, ROWS, VIDEO_003 } from "../../../content/productions/video-003-lake-nyos/storyboard";
+import { video003ShotRecords, ROWS, VIDEO_003, PAUSES } from "../../../content/productions/video-003-lake-nyos/storyboard";
 import { dryRunPipeline } from "./pipeline";
 import { measureMix, MIX_PRESETS, checkMixPreset } from "./mix-presets";
 import type { AdapterRegistry } from "./admission";
@@ -28,7 +28,7 @@ test("every Video #003 shot is a real, parseable contract with narration and vis
   }
   assert.equal(new Set(all.map((r) => r.contract.shotId)).size, all.length);
   const total = all.reduce((t, r) => t + r.durationTargetSec, 0);
-  assert.ok(total >= 540 && total <= 660, `target ~9.5–10.5 min, got ${total}s`);
+  assert.ok(total >= 400 && total <= 540, `narration-led cut (~7–9 min), got ${total}s`);
   assert.equal(VIDEO_003.language, "en");
 });
 
@@ -68,4 +68,22 @@ test("research, script and topic selection exist and the script carries no fabri
   const script = fs.readFileSync(`${dir}/SCRIPT.md`, "utf8");
   assert.ok(/still cannot say what/.test(script) && /Shoreline damage suggests/.test(script), "uncertainty is stated, not hidden");
   assert.ok(!/conspiracy|cover-up/i.test(script));
+});
+
+test("timeline is narration-led: storyboard narration equals SCRIPT.md verbatim, every shot's duration is speech + tail + a declared pause, no picture-only interval > 5 s", () => {
+  const script = fs.readFileSync("content/productions/video-003-lake-nyos/SCRIPT.md", "utf8").split("## S1")[1].split("\n---")[0].replace(/^[^\n]*\n/, "").replace(/^##.*$/gm, "");
+  const norm = (s: string) => s.replace(/\s+/g, " ").trim();
+  const rows = ROWS.slice(0, -1);
+  assert.equal(norm(rows.map((r) => r[5]).join(" ")), norm(script), "storyboard narration must be the script, sentence by sentence");
+  const words = (s: string) => s.split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w)).length;
+  let silentTotal = 0;
+  for (const r of rows) {
+    const speech = words(r[5]) / 2.5; const pause = PAUSES[r[3]] ?? 0;
+    const expected = Math.max(2.5, Math.ceil((speech + 0.5 + pause) * 2) / 2);
+    assert.equal(r[2], expected, `${r[3]}: ${r[2]}s vs ${expected}s`);
+    const silent = r[2] - speech; silentTotal += silent;
+    assert.ok(silent <= 5, `${r[3]} has ${silent}s without narration`);
+  }
+  const total = rows.reduce((t, r) => t + r[2], 0);
+  assert.ok(silentTotal / total <= 0.25, `picture-only share ${silentTotal / total}`);
 });
