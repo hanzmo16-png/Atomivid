@@ -53,7 +53,7 @@ export async function completeConnect(deps: { store: YouTubeOAuthStore; env: Env
   // Persist the parent first as pending, then the encrypted token envelope, and only
   // mark the channel connected after the token write succeeds. This also leaves a
   // truthful/retryable pending row if token persistence fails.
-  await deps.store.upsertChannel({ ...channel, connectedAt: undefined, status: "pending" });
+  await deps.store.upsertChannel({ ...channel, connectedAt: null, status: "pending" });
   await deps.store.saveConnection(pending.connectionId, refreshTokenEnc, scopes);
   await deps.store.upsertChannel(channel);
   return { channel: { channelId: channel.channelId, connectionId: channel.connectionId, status: channel.status, title: channel.title }, scopes };
