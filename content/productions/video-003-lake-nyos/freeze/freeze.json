@@ -1,0 +1,24 @@
+{
+ "freeze": "VIDEO_003_PREPRODUCTION",
+ "generatedAt": "2026-09-30T23:12:22.228Z",
+ "files": {
+  "TOPIC-SELECTION.md": "7f5cf4293e6fe2e2ad6afcefd9485860af5017664c59c87e2ee0e63df7792fe7",
+  "RESEARCH.md": "dff8608630460347974cd5393344838f1a12f840a6a845d87cefd96ff090da89",
+  "SCRIPT.md": "b8f7d157d7e5da3b885bbd8ca7b52897fa8b44109c23f450babe6bc12767cf9a",
+  "storyboard.ts": "98090294d21a36f119c64d742f3c00cb88e8d532f24c2ec63fde398939d7d36a"
+ },
+ "artifacts": {
+  "manifest.json": "78ecdae85eccd8e4753693bbfe1b2b3985d7f352a11bcc8ef48f0944d70448e5",
+  "shot-contracts.json": "6280db19ba6a0a2551b6548b5428f762f69130ccc5fe584c47d1a11a6883b89a",
+  "summary.json": "e9bbb5a3c410c101da355f924949446e577124d1c5b17ab80d4ac81eac32e70d"
+ },
+ "pins": {
+  "policy": "policy/1.1.0-candidate",
+  "profile": "longform-16x9/1.1",
+  "contract": "shot-contract/1",
+  "rateCard": "rate-card/2026-09-28.1",
+  "memorySnapshot": "mem_empty"
+ },
+ "engineNote": "frozen PI V1.1 engine imported unchanged",
+ "freezeHash": "de41be32d16db3accfdbe5e571dbe7d9b9de752fe90247214142608cf89e5374"
+}

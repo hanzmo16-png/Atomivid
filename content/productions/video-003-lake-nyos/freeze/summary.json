@@ -1,0 +1,286 @@
+{
+ "title": "The Lake That Held Its Breath",
+ "projectId": "video-003-lake-nyos",
+ "generatedAt": "2026-09-30T23:12:22.228Z",
+ "budgetUsd": 40,
+ "script": {
+  "words": 972,
+  "characters": 5635,
+  "estimatedSpeechMinutesAt150wpm": 6.48
+ },
+ "storyboard": {
+  "shots": 86,
+  "paidShots": 70,
+  "graphics": 16,
+  "targetSeconds": 564.5,
+  "paidTimelineSeconds": 465,
+  "first30Seconds": {
+   "shots": 9,
+   "averageSeconds": 3.67
+  },
+  "byKind": {
+   "stock": 26,
+   "ai": 24,
+   "parallax": 9,
+   "still": 11,
+   "graphic": 16
+  }
+ },
+ "mix": {
+  "measured": {
+   "finishedSeconds": 564.5,
+   "seconds": {
+    "ai_motion": 64,
+    "real_footage": 210,
+    "animated_stills": 191,
+    "graphics": 99.5
+   },
+   "share": {
+    "ai_motion": 0.113,
+    "real_footage": 0.372,
+    "animated_stills": 0.338,
+    "graphics": 0.176
+   },
+   "shots": {
+    "ai_motion": 10,
+    "real_footage": 32,
+    "animated_stills": 28,
+    "graphics": 16
+   }
+  },
+  "presets": [
+   {
+    "presetId": "mix/ai-motion-100",
+    "pass": false,
+    "deviations": [
+     {
+      "category": "ai_motion",
+      "target": 1,
+      "actual": 0.113,
+      "delta": -0.887,
+      "withinTolerance": false
+     },
+     {
+      "category": "real_footage",
+      "target": 0,
+      "actual": 0.372,
+      "delta": 0.372,
+      "withinTolerance": false
+     },
+     {
+      "category": "animated_stills",
+      "target": 0,
+      "actual": 0.338,
+      "delta": 0.338,
+      "withinTolerance": false
+     },
+     {
+      "category": "graphics",
+      "target": 0,
+      "actual": 0.176,
+      "delta": 0.176,
+      "withinTolerance": false
+     }
+    ],
+    "note": "plan deviates from 100% AI motion: ai_motion 0.113 vs 1, real_footage 0.372 vs 0, animated_stills 0.338 vs 0, graphics 0.176 vs 0"
+   },
+   {
+    "presetId": "mix/hybrid-50-50",
+    "pass": false,
+    "deviations": [
+     {
+      "category": "ai_motion",
+      "target": 0.5,
+      "actual": 0.113,
+      "delta": -0.387,
+      "withinTolerance": false
+     },
+     {
+      "category": "real_footage",
+      "target": 0.5,
+      "actual": 0.372,
+      "delta": -0.128,
+      "withinTolerance": false
+     },
+     {
+      "category": "animated_stills",
+      "target": 0,
+      "actual": 0.338,
+      "delta": 0.338,
+      "withinTolerance": false
+     },
+     {
+      "category": "graphics",
+      "target": 0,
+      "actual": 0.176,
+      "delta": 0.176,
+      "withinTolerance": false
+     }
+    ],
+    "note": "plan deviates from 50/50 hybrid (AI motion / real footage): ai_motion 0.113 vs 0.5, real_footage 0.372 vs 0.5, animated_stills 0.338 vs 0, graphics 0.176 vs 0"
+   },
+   {
+    "presetId": "mix/economical-30-70",
+    "pass": false,
+    "deviations": [
+     {
+      "category": "ai_motion",
+      "target": 0.3,
+      "actual": 0.113,
+      "delta": -0.187,
+      "withinTolerance": false
+     },
+     {
+      "category": "real_footage",
+      "target": 0.3,
+      "actual": 0.372,
+      "delta": 0.072,
+      "withinTolerance": true
+     },
+     {
+      "category": "animated_stills",
+      "target": 0.3,
+      "actual": 0.338,
+      "delta": 0.038,
+      "withinTolerance": true
+     },
+     {
+      "category": "graphics",
+      "target": 0.1,
+      "actual": 0.176,
+      "delta": 0.076,
+      "withinTolerance": true
+     }
+    ],
+    "note": "plan deviates from 30/70 economical (AI motion / stills+footage+graphics): ai_motion 0.113 vs 0.3"
+   }
+  ],
+  "selected": "mix/economical-30-70",
+  "engine": {
+   "generativeShots": 12,
+   "generativeSecondsUsed": 60,
+   "generativeSecondsBudget": 62,
+   "heroShots": 0,
+   "unresolvedRhythm": 0
+  }
+ },
+ "cost": {
+  "estimatedUsd": 7.647,
+  "reservedUsd": 30.527,
+  "actualUsd": 0,
+  "retryUsd": 0,
+  "varianceUsd": -7.647,
+  "projectBudgetUsd": 40,
+  "remainingBudgetUsd": 9.473,
+  "byProvider": {
+   "elevenlabs": {
+    "estimatedUsd": 1.127,
+    "reservedUsd": 1.127,
+    "actualUsd": 0
+   },
+   "openai": {
+    "estimatedUsd": 2.56,
+    "reservedUsd": 19.2,
+    "actualUsd": 0
+   },
+   "pexels": {
+    "estimatedUsd": 0,
+    "reservedUsd": 0,
+    "actualUsd": 0
+   },
+   "runway": {
+    "estimatedUsd": 3.96,
+    "reservedUsd": 10.2,
+    "actualUsd": 0
+   }
+  },
+  "topUpsExcludedUsd": 0,
+  "reconciliationRequired": [],
+  "reservation": {
+   "status": "RESERVED",
+   "reservedUsd": 30.527,
+   "worstCaseUsd": 30.527,
+   "reasons": [
+    "reserved worst case USD 30.527 (expected USD 7.646999999999999) within budget USD 40"
+   ]
+  }
+ },
+ "capacity": {
+  "verdict": "NEEDS_OPERATOR",
+  "perProvider": [
+   {
+    "provider": "elevenlabs",
+    "state": "UNKNOWN",
+    "covered": false,
+    "reasons": [
+     "balance not verifiable (none); UNKNOWN is never treated as GREEN",
+     "configured spending ceiling 10 character: 10 left after reserved",
+     "balance unverified: the ceiling bounds spend but does not make capacity known",
+     "balance not verifiable (none); UNKNOWN is never treated as GREEN",
+     "not covered: capacity unverified"
+    ]
+   },
+   {
+    "provider": "openai",
+    "state": "UNKNOWN",
+    "covered": false,
+    "reasons": [
+     "balance not verifiable (derived_from_ledger); UNKNOWN is never treated as GREEN",
+     "derived estimate 0 usd (informative only)",
+     "configured spending ceiling 20 usd: 20 left after reserved",
+     "balance unverified: the ceiling bounds spend but does not make capacity known",
+     "balance not verifiable (derived_from_ledger); UNKNOWN is never treated as GREEN",
+     "derived estimate 0 usd (informative only)",
+     "not covered: capacity unverified"
+    ]
+   },
+   {
+    "provider": "runway",
+    "state": "UNKNOWN",
+    "covered": false,
+    "reasons": [
+     "balance not verifiable (none); UNKNOWN is never treated as GREEN",
+     "derived estimate 0 usd (informative only)",
+     "configured spending ceiling 20 usd: 20 left after reserved",
+     "balance unverified: the ceiling bounds spend but does not make capacity known",
+     "balance not verifiable (none); UNKNOWN is never treated as GREEN",
+     "derived estimate 0 usd (informative only)",
+     "not covered: capacity unverified"
+    ]
+   }
+  ],
+  "snapshots": {
+   "elevenlabs": {
+    "unit": "character",
+    "available": null,
+    "health": "UNCHECKED",
+    "reliability": "none",
+    "renewalDate": null
+   },
+   "openai": {
+    "unit": "usd",
+    "available": null,
+    "health": "UNCHECKED",
+    "reliability": "derived_from_ledger",
+    "renewalDate": null
+   },
+   "runway": {
+    "unit": "usd",
+    "available": null,
+    "health": "UNCHECKED",
+    "reliability": "none",
+    "renewalDate": null
+   }
+  }
+ },
+ "policy": {
+  "violations": 0,
+  "timelinePass": true,
+  "findings": []
+ },
+ "ok": false,
+ "blockers": [
+  "capacity UNKNOWN for elevenlabs, openai, runway: an operator must accept the unverified risk explicitly"
+ ],
+ "networkCallsDuringDryRun": 0
+}

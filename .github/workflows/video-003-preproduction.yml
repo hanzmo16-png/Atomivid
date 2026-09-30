@@ -1,0 +1,31 @@
+name: Video 003 pre-production dry run (read-only, zero billable calls)
+
+# Runs the deterministic dry run with READ-ONLY capacity snapshots: ElevenLabs subscription endpoint
+# (free) and OpenAI model listing (free). No generation, no TTS, no image, no video is requested.
+# The pipeline itself refuses every network call. Secrets are read by name and never printed.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/production-intelligence-v1]
+    paths: [.github/workflows/video-003-preproduction.yml]
+permissions:
+  contents: read
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/video-003-dry-run.ts /tmp/video-003-freeze
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: video-003-freeze
+          path: /tmp/video-003-freeze

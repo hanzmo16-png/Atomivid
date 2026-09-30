@@ -78,7 +78,11 @@ export async function dryRunPipeline(i: DryRunInput): Promise<DryRunResult> {
       const provider = isGenerativeVideo(s.method) ? "runway" : s.method === "AI_STILL" || s.method === "STILL_KEN_BURNS" || s.method === "STILL_PARALLAX" ? "openai" : s.method === "STOCK" ? "pexels" : "existing";
       const e = ledger.estimateShot(r, s.method, RATE_CARD_V1, provider, i.now, { attempts: s.decision.authorizedAttempts || undefined });
       ledger.reserve(e.costKey, s.decision.maxCostUsd, i.now);
-      return { ...r, plannedMethod: s.method, expectedCostUsd: s.decision.expectedCostUsd, reservedCostUsd: s.decision.maxCostUsd, decisionHash: s.decision.decisionHash, sourceProvider: provider as ProductionShotRecord["sourceProvider"] };
+      // The record describes what will actually be produced: an AI-motion candidate the engine keeps as a
+      // still becomes a still (and vice versa), so provider eligibility is checked against the real asset.
+      const assetType: ProductionShotRecord["assetType"] = isGenerativeVideo(s.method) ? "ai_video" : r.assetType === "ai_video" ? "ken_burns_image" : r.assetType;
+      const cameraBehavior: ProductionShotRecord["cameraBehavior"] = isGenerativeVideo(s.method) ? "generated" : s.method === "STILL_PARALLAX" ? "parallax" : s.method === "STILL_KEN_BURNS" || s.method === "AI_STILL" ? (r.cameraBehavior === "generated" || r.cameraBehavior === "static" ? "ken_burns" : r.cameraBehavior) : r.cameraBehavior;
+      return { ...r, assetType, cameraBehavior, plannedMethod: s.method, expectedCostUsd: s.decision.expectedCostUsd, reservedCostUsd: s.decision.maxCostUsd, decisionHash: s.decision.decisionHash, sourceProvider: provider as ProductionShotRecord["sourceProvider"] };
     });
     const narration = ledger.estimateNarration(i.narrationCharacters, RATE_CARD_V1, "elevenlabs:eleven_multilingual_v2", i.now);
     ledger.reserve(narration.costKey, narration.estimatedUsd, i.now);
