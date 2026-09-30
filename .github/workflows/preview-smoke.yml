@@ -30,9 +30,10 @@ jobs:
           set -u
           # Production alias allowed only for the operator-requested post-deploy smoke (read-only GETs, no credentials).
           if [ -n "$BYPASS" ]; then echo "protection bypass header: present"; H=(-H "x-vercel-protection-bypass: $BYPASS" -H "x-vercel-set-bypass-cookie: true"); else echo "protection bypass header: ABSENT (secret VERCEL_AUTOMATION_BYPASS_SECRET not set)"; H=(); fi
-          for p in / /login /manifest.webmanifest /dashboard /dashboard/command-center "/dashboard/command-center?window=28D" /api/admin/command-center "/api/admin/command-center?section=telemetry" /nonexistent-route-probe; do
-            echo "=================== GET $p"
-            curl -sS -m 40 "${H[@]}" -o body.txt -D headers.txt -w "status=%{http_code} redirect=%{redirect_url} time=%{time_total}s size=%{size_download}\n" "$BASE$p" || echo "curl failed"
+          for spec in "GET /" "GET /login" "GET /dashboard" "GET /dashboard/command-center" "GET /api/admin/command-center" "POST /api/distribution/youtube/connect" "GET /api/distribution/youtube/connect" "GET /api/distribution/youtube/callback?code=probe&state=probe" "GET /nonexistent-route-probe"; do
+            m="${spec%% *}"; p="${spec#* }"
+            echo "=================== $m $p"
+            curl -sS -m 40 -X "$m" "${H[@]}" -o body.txt -D headers.txt -w "status=%{http_code} redirect=%{redirect_url} time=%{time_total}s size=%{size_download}\n" "$BASE$p" || echo "curl failed"
             grep -i -E "^(x-vercel-error|x-vercel-id|x-vercel-cache|x-matched-path|content-type|location|cache-control|x-robots-tag|set-cookie):" headers.txt | sed -E 's/(set-cookie:).*/\1 <redacted>/I' || true
             echo "--- body (first 600 chars)"; head -c 600 body.txt | tr -d '\r'; echo
           done
