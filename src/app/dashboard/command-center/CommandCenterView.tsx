@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { CommandCenterViewModel, Tile, Tone } from "@/lib/command-center/view-model";
 import { WINDOWS, type WindowKey } from "@/lib/command-center/windows";
+import { ConnectYouTubeButton } from "./ConnectYouTubeButton";
 
 /**
  * Command Center Visual V1: one mobile-first screen rendered on the server from the
@@ -156,6 +157,7 @@ export function CommandCenterView({ vm }: { vm: CommandCenterViewModel }) {
             <p className="text-sm font-semibold text-ink">{vm.youtube.setup === "MIGRATION_REQUIRED" ? "Migration required" : "Not connected"}</p>
             <p className="mt-1 text-xs text-ink-muted">{vm.youtube.setup === "MIGRATION_REQUIRED" ? "YouTube tables require database migration (0024–0028)." : vm.youtube.setup === "NOT_CONFIGURED" ? "Read-only monitoring ready · Google OAuth configuration required" : "Read-only monitoring ready · Connection required"}</p>
             <p className="mt-2 text-[11px] text-ink-faint">Nothing is published from here. Once connected: channels, videos linked, views, watch time, retention, subscribers.</p>
+            {vm.youtube.setup === "NOT_CONNECTED" && <ConnectYouTubeButton />}
           </div>
         )}
       </Section>
