@@ -1,0 +1,53 @@
+name: Video 003 final source check (read-only, no provider calls)
+
+# Opens the three remaining authoritative sources from a GitHub runner (this production
+# environment's network policy blocks the publishers) and prints the passages relevant to the
+# frozen narration. No provider API is called; nothing is generated.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils >/dev/null
+      - name: Baxter 1989 BMJ (PMC1836556)
+        run: |
+          set +e
+          curl -sSL -A "Mozilla/5.0" -o baxter.html "https://pmc.ncbi.nlm.nih.gov/articles/PMC1836556/"
+          echo "bytes: $(wc -c < baxter.html)"
+          python3 - <<'PY'
+          import re,html
+          t=open("baxter.html",errors="ignore").read()
+          t=re.sub(r"<script.*?</script>|<style.*?</style>","",t,flags=re.S); t=html.unescape(re.sub(r"<[^>]+>"," ",t)); t=re.sub(r"\s+"," ",t)
+          for k in ["1700","1,700","36 hours","36 h","coma","smell","warm","sulphur","sulfur","rotten","higher ground","elevation","altitude","rumbl","evening","21 August","845"]:
+            for m in list(re.finditer(re.escape(k),t,flags=re.I))[:3]:
+              print(f"[{k}] …{t[max(0,m.start()-220):m.end()+220]}…\n")
+          PY
+      - name: Kling et al 1987 Science (public PDF copy)
+        run: |
+          set +e
+          curl -sSL -A "Mozilla/5.0" -o kling.pdf "https://www.commerce.alaska.gov/web/Portals/18/pub/CCUS/Public%20Scoping%20Comments/2024-11-07/References%20for%20Center%20for%20Biological%20Diversity%20Comment/Kling%20et%20al%20(1987)%20The%201986%20Lake%20Nyos%20Gas%20Disaster%20in%20Cameroon,%20West%20Africa.pdf"
+          echo "bytes: $(wc -c < kling.pdf)"; file kling.pdf
+          pdftotext -layout kling.pdf kling.txt 2>/dev/null; echo "text chars: $(wc -c < kling.txt)"
+          python3 - <<'PY'
+          import re
+          t=re.sub(r"\s+"," ",open("kling.txt",errors="ignore").read())
+          for k in ["1700","1,700","killed","25 km","km from","iron","red","brown","hypolimnion","magmatic","trigger","landslide","seiche","rain","wave","fountain","25 m","80 m","100 m","208","210 m","depth","Subum","Cha ","Kam","Nyos village","September 1986","cattle","livestock"]:
+            for m in list(re.finditer(re.escape(k),t))[:2]:
+              print(f"[{k}] …{t[max(0,m.start()-200):m.end()+200]}…\n")
+          PY
+      - name: Kusakabe et al 2019 (title / abstract via Crossref and Semantic Scholar)
+        run: |
+          set +e
+          echo "--- crossref"; curl -sS "https://api.crossref.org/works?query.bibliographic=Final+step+of+the+32-year+Lake+Nyos+degassing+adventure&rows=2" | python3 -c 'import sys,json; d=json.load(sys.stdin); [print(i.get("DOI"), "|", " ".join(i.get("title",[])), "|", i.get("container-title"), "|", i.get("issued")) for i in d["message"]["items"]]'
+          echo "--- semantic scholar"; curl -sS "https://api.semanticscholar.org/graph/v1/paper/search?query=Final+step+of+the+32-year+Lake+Nyos+degassing+adventure&fields=title,abstract,year,venue&limit=2" | python3 -c 'import sys,json; d=json.load(sys.stdin); [print(p.get("year"), p.get("venue"), "\nTITLE:", p.get("title"), "\nABSTRACT:", p.get("abstract"), "\n") for p in d.get("data",[])]'
+          echo "--- sciencedirect abstract page"; curl -sSL -A "Mozilla/5.0" "https://www.sciencedirect.com/science/article/abs/pii/S1464343X19302286" -o kusakabe.html; echo "bytes: $(wc -c < kusakabe.html)"; python3 - <<'PY'
+          import re,html
+          t=open("kusakabe.html",errors="ignore").read(); t=re.sub(r"<script.*?</script>|<style.*?</style>","",t,flags=re.S); t=html.unescape(re.sub(r"<[^>]+>"," ",t)); t=re.sub(r"\s+"," ",t)
+          for k in ["Abstract","steady","balanc","recharge","2001","2011","2012","self-sustain","fountain","2019"]:
+            for m in list(re.finditer(re.escape(k),t,flags=re.I))[:2]:
+              print(f"[{k}] …{t[max(0,m.start()-200):m.end()+300]}…\n")
+          PY
