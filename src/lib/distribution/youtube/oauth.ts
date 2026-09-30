@@ -27,7 +27,8 @@ export function buildAuthorizationUrl(cfg: OAuthConfig, caps: Capability[], stat
   const challenge = createHash("sha256").update(codeVerifier).digest("base64url");
   const q = new URLSearchParams({
     client_id: cfg.clientId, redirect_uri: cfg.redirectUri, response_type: "code", scope: scopesFor(caps).join(" "),
-    access_type: "offline", include_granted_scopes: "true", prompt: "consent", state, code_challenge: challenge, code_challenge_method: "S256",
+    // No incremental authorization: previously granted scopes (possibly write-capable) must never be merged into this token.
+    access_type: "offline", prompt: "consent", state, code_challenge: challenge, code_challenge_method: "S256",
   });
   return { url: `${GOOGLE_AUTH_URL}?${q}`, codeVerifier };
 }

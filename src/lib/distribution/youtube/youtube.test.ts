@@ -45,6 +45,9 @@ test("OAuth: minimal read scopes, PKCE, server-side encrypted refresh token", as
   assert.equal(u.searchParams.get("code_challenge_method"), "S256");
   assert.equal(u.searchParams.get("access_type"), "offline");
   assert.ok(!url.includes("upload") && !url.includes(codeVerifier));
+  assert.equal(u.searchParams.get("include_granted_scopes"), null, "no incremental authorization: earlier write grants are never merged in");
+  assert.deepEqual(u.searchParams.get("scope")!.split(" ").sort(), ["https://www.googleapis.com/auth/youtube.readonly", "https://www.googleapis.com/auth/yt-analytics.readonly"]);
+  for (const forbidden of ["/auth/youtube ", "/auth/youtube\"", "youtube.force-ssl", "youtubepartner", "youtube.upload"]) assert.ok(!url.includes(forbidden), forbidden);
   const key = randomBytes(32).toString("base64");
   const env = { GOOGLE_OAUTH_CLIENT_SECRET: "test-secret", YOUTUBE_TOKEN_ENC_KEY: key };
   const out = await exchangeCode(async () => ({ ok: true, status: 200, json: async () => ({ refresh_token: "1//test-refresh", access_token: "ya29.test", scope: caps.join(" ") }) }), { clientId: "c", redirectUri: "r" }, env, "code", codeVerifier);
