@@ -54,3 +54,18 @@ jobs:
             for m in list(re.finditer(re.escape(k),t,flags=re.I))[:2]:
               print(f"[{k}] …{t[max(0,m.start()-200):m.end()+300]}…\n")
           PY
+      - name: Baxter 1989 via Europe PMC (PDF render) and Kusakabe 2019 abstract via Crossref
+        run: |
+          set +e
+          curl -sSL -A "Mozilla/5.0" -o baxter.pdf "https://europepmc.org/articles/PMC1836556?pdf=render"; echo "baxter bytes: $(wc -c < baxter.pdf)"; file baxter.pdf
+          pdftotext -layout baxter.pdf baxter.txt 2>/dev/null; echo "baxter text chars: $(wc -c < baxter.txt)"
+          python3 - <<'PY'
+          import re
+          t=re.sub(r"\s+"," ",open("baxter.txt",errors="ignore").read())
+          for k in ["1700","1,700","36 hours","36 h","coma","unconscious","smell","warmth","warm","sulph","rotten","higher","elevat","altitude","rumbl","2130","21.30","9.30","evening","845"]:
+            for m in list(re.finditer(re.escape(k),t,flags=re.I))[:2]:
+              print(f"[{k}] …{t[max(0,m.start()-220):m.end()+220]}…\n")
+          PY
+          echo "--- crossref abstract Kusakabe"; curl -sS "https://api.crossref.org/works/10.1016/j.jafrearsci.2019.103575" | python3 -c 'import sys,json,re; m=json.load(sys.stdin)["message"]; print("TITLE:", " ".join(m.get("title",[]))); print("ABSTRACT:", re.sub(r"<[^>]+>","",m.get("abstract","(none)")))'
+          echo "--- semantic scholar by DOI"; curl -sS "https://api.semanticscholar.org/graph/v1/paper/DOI:10.1016/j.jafrearsci.2019.103575?fields=title,abstract,year" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("year"), d.get("title")); print("ABSTRACT:", d.get("abstract"))'
+          echo "--- openalex"; curl -sS "https://api.openalex.org/works/https://doi.org/10.1016/j.jafrearsci.2019.103575" | python3 -c 'import sys,json; d=json.load(sys.stdin); inv=d.get("abstract_inverted_index") or {}; pos={}; [pos.__setitem__(i,w) for w,l in inv.items() for i in l]; print("ABSTRACT:", " ".join(pos[i] for i in sorted(pos)) if pos else "(none)")'
