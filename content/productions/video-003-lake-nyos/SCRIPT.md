@@ -13,7 +13,7 @@ On the night of August 21st, 1986, in the highlands of Cameroon, a valley went q
 
 No fire. No explosion. No storm.
 
-By morning, more than seventeen hundred people were dead, along with thousands of cattle — in villages up to twenty-five kilometres from a small, beautiful lake.
+By morning, more than seventeen hundred people were dead, along with thousands of cattle — in villages kilometres away, down the valleys below a small, beautiful lake.
 
 The killer had no colour and no smell. For days, nobody could say what it was.
 
@@ -23,7 +23,7 @@ This is the story of a lake that held its breath for centuries — and the night
 
 Lake Nyos sits in a volcanic crater in north-west Cameroon, along a chain of volcanoes geologists call the Cameroon Volcanic Line.
 
-It is not large. About a kilometre across. But it is deep — around two hundred metres — with steep crater walls and, on one side, a natural dam of loose volcanic rock.
+It is not large. About a kilometre wide. But it is deep — around two hundred metres — with steep crater walls and, on one side, a natural dam of loose volcanic rock.
 
 From the rim it looks like any calm mountain lake. Farmers kept cattle on the slopes. Villages sat in the valleys below.
 

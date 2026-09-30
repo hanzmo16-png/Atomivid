@@ -1,22 +1,22 @@
 {
  "title": "The Lake That Held Its Breath",
  "projectId": "video-003-lake-nyos",
- "generatedAt": "2026-09-30T23:30:39.276Z",
+ "generatedAt": "2026-09-30T23:43:41.609Z",
  "budgetUsd": 40,
  "script": {
-  "words": 983,
-  "characters": 5688,
-  "estimatedSpeechMinutesAt150wpm": 6.55
+  "words": 984,
+  "characters": 5692,
+  "estimatedSpeechMinutesAt150wpm": 6.56
  },
  "storyboard": {
   "shots": 93,
   "paidShots": 77,
   "graphics": 16,
-  "targetSeconds": 485.5,
-  "paidTimelineSeconds": 401,
+  "targetSeconds": 486,
+  "paidTimelineSeconds": 401.5,
   "first30Seconds": {
-   "shots": 9,
-   "averageSeconds": 3.72
+   "shots": 8,
+   "averageSeconds": 3.75
   },
   "byKind": {
    "stock": 34,
@@ -28,17 +28,17 @@
  },
  "mix": {
   "measured": {
-   "finishedSeconds": 485.5,
+   "finishedSeconds": 486,
    "seconds": {
     "ai_motion": 38.5,
     "real_footage": 242,
-    "animated_stills": 120.5,
+    "animated_stills": 121,
     "graphics": 84.5
    },
    "share": {
     "ai_motion": 0.079,
     "real_footage": 0.498,
-    "animated_stills": 0.248,
+    "animated_stills": 0.249,
     "graphics": 0.174
    },
    "shots": {
@@ -70,8 +70,8 @@
      {
       "category": "animated_stills",
       "target": 0,
-      "actual": 0.248,
-      "delta": 0.248,
+      "actual": 0.249,
+      "delta": 0.249,
       "withinTolerance": false
      },
      {
@@ -82,7 +82,7 @@
       "withinTolerance": false
      }
     ],
-    "note": "plan deviates from 100% AI motion: ai_motion 0.079 vs 1, real_footage 0.498 vs 0, animated_stills 0.248 vs 0, graphics 0.174 vs 0"
+    "note": "plan deviates from 100% AI motion: ai_motion 0.079 vs 1, real_footage 0.498 vs 0, animated_stills 0.249 vs 0, graphics 0.174 vs 0"
    },
    {
     "presetId": "mix/hybrid-50-50",
@@ -105,8 +105,8 @@
      {
       "category": "animated_stills",
       "target": 0,
-      "actual": 0.248,
-      "delta": 0.248,
+      "actual": 0.249,
+      "delta": 0.249,
       "withinTolerance": false
      },
      {
@@ -117,7 +117,7 @@
       "withinTolerance": false
      }
     ],
-    "note": "plan deviates from 50/50 hybrid (AI motion / real footage): ai_motion 0.079 vs 0.5, animated_stills 0.248 vs 0, graphics 0.174 vs 0"
+    "note": "plan deviates from 50/50 hybrid (AI motion / real footage): ai_motion 0.079 vs 0.5, animated_stills 0.249 vs 0, graphics 0.174 vs 0"
    },
    {
     "presetId": "mix/economical-30-70",
@@ -140,8 +140,8 @@
      {
       "category": "animated_stills",
       "target": 0.3,
-      "actual": 0.248,
-      "delta": -0.052,
+      "actual": 0.249,
+      "delta": -0.051,
       "withinTolerance": true
      },
      {
@@ -165,17 +165,17 @@
   }
  },
  "cost": {
-  "estimatedUsd": 7.0776,
-  "reservedUsd": 29.4376,
+  "estimatedUsd": 7.0784,
+  "reservedUsd": 29.4384,
   "actualUsd": 0,
   "retryUsd": 0,
-  "varianceUsd": -7.0776,
+  "varianceUsd": -7.0784,
   "projectBudgetUsd": 40,
-  "remainingBudgetUsd": 10.5624,
+  "remainingBudgetUsd": 10.5616,
   "byProvider": {
    "elevenlabs": {
-    "estimatedUsd": 1.1376,
-    "reservedUsd": 1.1376,
+    "estimatedUsd": 1.1384,
+    "reservedUsd": 1.1384,
     "actualUsd": 0
    },
    "openai": {
@@ -198,10 +198,10 @@
   "reconciliationRequired": [],
   "reservation": {
    "status": "RESERVED",
-   "reservedUsd": 29.4376,
-   "worstCaseUsd": 29.4376,
+   "reservedUsd": 29.4384,
+   "worstCaseUsd": 29.4384,
    "reasons": [
-    "reserved worst case USD 29.4376 (expected USD 7.0776) within budget USD 40"
+    "reserved worst case USD 29.4384 (expected USD 7.0784) within budget USD 40"
    ]
   }
  },

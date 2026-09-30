@@ -27,7 +27,7 @@ export const ROWS: Row[] = [
   ["S1", "stock", 2.5, "hook: silence", "empty dirt road between huts at night, no movement, wind in grass", "No storm.", "landscape", "simple"],
   ["S1", "parallax", 4.5, "hook: morning aftermath", "dawn light over an empty valley of scattered huts, no people, birds", "By morning, more than seventeen hundred people were dead,", "landscape", "camera_only"],
   ["S1", "stock", 2.5, "hook: cattle", "cattle lying in a field at dawn, seen from a distance, mist", "along with thousands of cattle —", "creature", "simple"],
-  ["S1", "ai", 5.0, "hook: distance", "wide shot of green highland valleys receding toward a distant crater lake, morning haze", "in villages up to twenty-five kilometres from a small, beautiful lake.", "landscape", "camera_only", "MEDIUM", "LOW"],
+  ["S1", "ai", 5.5, "hook: distance", "wide shot of green highland valleys receding toward a distant crater lake, morning haze", "in villages kilometres away, down the valleys below a small, beautiful lake.", "landscape", "camera_only", "MEDIUM", "LOW"],
   ["S1", "ai", 4.0, "hook: the invisible killer", "low white cloud creeping over grass in darkness, seen from ground level, faint moonlight", "The killer had no colour and no smell.", "landscape", "complex", "HIGH", "LOW", "gas-cloud"],
   ["S1", "still", 4.0, "hook: nobody knew", "empty village square with a single lantern, dawn, fog", "For days, nobody could say what it was.", "landscape", "camera_only"],
   ["S1", "stock", 6.0, "hook: held its breath", "wide calm crater lake at first light, glassy, crater walls mirrored", "This is the story of a lake that held its breath for centuries —", "landscape", "simple"],
@@ -35,7 +35,7 @@ export const ROWS: Row[] = [
   // S2
   ["S2", "stock", 4.5, "geography", "aerial over volcanic mountains of West Africa, cloud shadows moving", "Lake Nyos sits in a volcanic crater in north-west Cameroon,", "landscape", "simple"],
   ["S2", "graphic", 5.0, "map", "map of West Africa with the Cameroon Volcanic Line drawn as a chain from the Gulf of Guinea to the interior, Nyos marked", "along a chain of volcanoes geologists call the Cameroon Volcanic Line.", "map", "none"],
-  ["S2", "ai", 4.0, "scale", "aerial of a round crater lake about a kilometre across, steep walls, green rim", "It is not large. About a kilometre across.", "landscape", "camera_only", "MEDIUM", "LOW", "lake-day"],
+  ["S2", "ai", 4.0, "scale", "aerial of a round crater lake about a kilometre across, steep walls, green rim", "It is not large. About a kilometre wide.", "landscape", "camera_only", "MEDIUM", "LOW", "lake-day"],
   ["S2", "graphic", 4.0, "depth", "cross-section diagram: crater bowl, water 200 m deep, natural dam of volcanic rock on the north side", "But it is deep — around two hundred metres —", "graphic", "none"],
   ["S2", "parallax", 6.5, "the dam", "close view of a narrow ridge of loose grey-brown volcanic rock holding back the lake", "with steep crater walls and, on one side, a natural dam of loose volcanic rock.", "landscape", "camera_only"],
   ["S2", "stock", 4.5, "calm", "calm mountain lake reflecting sky, gentle breeze", "From the rim it looks like any calm mountain lake.", "landscape", "simple"],

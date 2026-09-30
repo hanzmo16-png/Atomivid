@@ -1,7 +1,7 @@
 {
  "manifestVersion": "production-manifest/1",
  "projectId": "video-003-lake-nyos",
- "generatedAt": "2026-09-30T23:30:39.276Z",
+ "generatedAt": "2026-09-30T23:43:41.609Z",
  "pins": {
   "policy": "policy/1.1.0-candidate",
   "profile": "longform-16x9/1.1",
@@ -55,7 +55,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "d7bd0604cd15bc86",
+    "decisionHash": "306f46d5556cfa42",
     "operations": [],
     "retries": {
      "count": 0,
@@ -94,7 +94,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "61cf8a7d02b66338",
+    "decisionHash": "1a62893cf0474056",
     "operations": [],
     "retries": {
      "count": 0,
@@ -133,7 +133,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "1663e4311e6add28",
+    "decisionHash": "c5d3ae1d394611ad",
     "operations": [],
     "retries": {
      "count": 0,
@@ -172,7 +172,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "51602628f9e47b7e",
+    "decisionHash": "eba99852c712e5b5",
     "operations": [],
     "retries": {
      "count": 0,
@@ -211,7 +211,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "8ebd9d9936f65c46",
+    "decisionHash": "198b007fc3951bc2",
     "operations": [],
     "retries": {
      "count": 0,
@@ -250,7 +250,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "3e570abc880e1572",
+    "decisionHash": "0a3400f8ba583d06",
     "operations": [],
     "retries": {
      "count": 0,
@@ -272,7 +272,7 @@
     "provider": "openai",
     "cameraBehavior": "parallax",
     "transitionIn": "cut",
-    "durationTargetSec": 5,
+    "durationTargetSec": 5.5,
     "minVisibleSec": 2.5,
     "continuity": {
      "group": null,
@@ -289,7 +289,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "6ae539f90dbb1e90",
+    "decisionHash": "2112a7562cd6fa3c",
     "operations": [],
     "retries": {
      "count": 0,
@@ -328,7 +328,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "8ed726c9070f016b",
+    "decisionHash": "d0ef96e55964fe6c",
     "operations": [],
     "retries": {
      "count": 0,
@@ -367,7 +367,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "21335dc66e6e37ec",
+    "decisionHash": "da1cc28300714b2e",
     "operations": [],
     "retries": {
      "count": 0,
@@ -406,7 +406,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "81ff73f85c510e14",
+    "decisionHash": "c58e9fd804c0dcf6",
     "operations": [],
     "retries": {
      "count": 0,
@@ -445,7 +445,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "a8e57274d755ed05",
+    "decisionHash": "92d1151341225a9b",
     "operations": [],
     "retries": {
      "count": 0,
@@ -484,7 +484,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "4977f30c3b12135b",
+    "decisionHash": "ce0106b23f122470",
     "operations": [],
     "retries": {
      "count": 0,
@@ -523,7 +523,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "49ce4ec4b5c842a2",
+    "decisionHash": "49132350d6631572",
     "operations": [],
     "retries": {
      "count": 0,
@@ -562,7 +562,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "c4f0a5da0bc1fbe0",
+    "decisionHash": "3557afcb9638795f",
     "operations": [],
     "retries": {
      "count": 0,
@@ -601,7 +601,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "da855521a323d156",
+    "decisionHash": "f3971233958fa054",
     "operations": [],
     "retries": {
      "count": 0,
@@ -640,7 +640,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "4e480253be1a538f",
+    "decisionHash": "54c680f1fcb924cc",
     "operations": [],
     "retries": {
      "count": 0,
@@ -679,7 +679,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "4ef74c7c86fa6b63",
+    "decisionHash": "8cc8692ab6f5d3cc",
     "operations": [],
     "retries": {
      "count": 0,
@@ -718,7 +718,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "b4a8f1388732e8be",
+    "decisionHash": "1d67d8b6f7ef5e5f",
     "operations": [],
     "retries": {
      "count": 0,
@@ -757,7 +757,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "c51370d5b8f62edf",
+    "decisionHash": "434221dfb7f17ecf",
     "operations": [],
     "retries": {
      "count": 0,
@@ -796,7 +796,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "d34741022fa89b49",
+    "decisionHash": "2aa5bd9f8bc39b8b",
     "operations": [],
     "retries": {
      "count": 0,
@@ -835,7 +835,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "cd63be3302f1b167",
+    "decisionHash": "598bc076f8283998",
     "operations": [],
     "retries": {
      "count": 0,
@@ -874,7 +874,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "5c0441ed7f58799c",
+    "decisionHash": "90c9e8adf1d68c01",
     "operations": [],
     "retries": {
      "count": 0,
@@ -913,7 +913,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "abd23e71ab827661",
+    "decisionHash": "fcccf8ec52bd454c",
     "operations": [],
     "retries": {
      "count": 0,
@@ -952,7 +952,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "74eaa662d5171293",
+    "decisionHash": "ea6130069fa01c4a",
     "operations": [],
     "retries": {
      "count": 0,
@@ -991,7 +991,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "20f8ad51c56ed3ac",
+    "decisionHash": "edc8549a04e5353b",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1030,7 +1030,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "1c31dad47062f67b",
+    "decisionHash": "8203a9425a3d6609",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1069,7 +1069,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "356a44fc41fb2208",
+    "decisionHash": "ae2ac16c31c73ca7",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1108,7 +1108,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "762bae67e17355d7",
+    "decisionHash": "4178d5801aa41fc5",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1147,7 +1147,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "a6b260e19b409a07",
+    "decisionHash": "34b9fced0f6ad408",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1186,7 +1186,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "de7f3d48cf52a247",
+    "decisionHash": "eae9b33c7c60187d",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1225,7 +1225,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "09667f6651cfbbaa",
+    "decisionHash": "a1f4eda23d983a60",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1264,7 +1264,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "ebbefc37eceed429",
+    "decisionHash": "8f3f7de48567879f",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1303,7 +1303,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "9f7d185a52a1cbd2",
+    "decisionHash": "2353534693074cc3",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1342,7 +1342,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "b359a9cdc7102f7f",
+    "decisionHash": "35785c6a40f0b711",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1381,7 +1381,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "e22af295a14c7714",
+    "decisionHash": "43227ba37662c089",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1420,7 +1420,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "3b358d8176c5e994",
+    "decisionHash": "438a110c30486d7c",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1459,7 +1459,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "3eb3bce960772cb5",
+    "decisionHash": "fd5dc10fb0dfb5de",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1498,7 +1498,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "d7fe2e210073e3b8",
+    "decisionHash": "db665c2fab47d006",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1537,7 +1537,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "8a909cfdde073aba",
+    "decisionHash": "cdc2004f3491ce17",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1576,7 +1576,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "7aa7e4d40fd2bbf6",
+    "decisionHash": "9a1b74f589e8f549",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1615,7 +1615,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "ecffcae6e395db0d",
+    "decisionHash": "0bb998f474f4880e",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1654,7 +1654,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "13ae95a7733e61af",
+    "decisionHash": "59eb2b513c422a7c",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1693,7 +1693,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "f1dba4de00f83074",
+    "decisionHash": "1f466b83d52f5925",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1732,7 +1732,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "6a626e1533cc7949",
+    "decisionHash": "bb8935758f12372a",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1771,7 +1771,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "0dbbe152d3d72e46",
+    "decisionHash": "defcc975f094a81b",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1810,7 +1810,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "9a27df4011fa2e35",
+    "decisionHash": "73b46d9610d19910",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1849,7 +1849,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "963cab80ef557309",
+    "decisionHash": "154205b2e0dadd13",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1888,7 +1888,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "312022d463ac4dce",
+    "decisionHash": "41f77b00471e3615",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1927,7 +1927,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "3d5b6d477d0b9170",
+    "decisionHash": "43e529b98897c2e0",
     "operations": [],
     "retries": {
      "count": 0,
@@ -1966,7 +1966,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "c2f364fc8ed0e53e",
+    "decisionHash": "9eebb18e87624b64",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2005,7 +2005,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "b4e93e4a7959ae9c",
+    "decisionHash": "1f54b5a75a19edb6",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2044,7 +2044,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "a43e704f343cb25f",
+    "decisionHash": "f8dfe90cd2aabf91",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2083,7 +2083,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "b6c0bf19f31f9a54",
+    "decisionHash": "a87214a797dc0943",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2122,7 +2122,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "a47a1580f14a1a63",
+    "decisionHash": "92830558b0e535e7",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2161,7 +2161,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "c2bd915f0bfcccb3",
+    "decisionHash": "1b7d0b631e4fd470",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2200,7 +2200,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "fd6c5750bcd35674",
+    "decisionHash": "dccd2f36ac710ed4",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2239,7 +2239,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "93d7965e54689087",
+    "decisionHash": "a54286cf85f58640",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2278,7 +2278,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "e03250e30497adb9",
+    "decisionHash": "aec0db4e10f9e0fc",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2317,7 +2317,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "3b3e08fe2eeaf5ca",
+    "decisionHash": "dcdc75013358eaf9",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2356,7 +2356,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "13ccb464c63625ec",
+    "decisionHash": "9c0f256b47e2811d",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2395,7 +2395,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "845a51beb5fec435",
+    "decisionHash": "45371f439dc9d7f5",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2434,7 +2434,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "cef67cd5a4f91a6b",
+    "decisionHash": "729d6a66f6541571",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2473,7 +2473,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "6323381c9c7162e0",
+    "decisionHash": "ef1a921a93dcd334",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2512,7 +2512,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "1d2bdd237c157581",
+    "decisionHash": "62a92998a2642a52",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2551,7 +2551,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "77db14c7783bc669",
+    "decisionHash": "8d8d773ea7ef4ba7",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2590,7 +2590,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "f5137bb42ff5e985",
+    "decisionHash": "dcf2498a6b5626fe",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2629,7 +2629,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "6f4d9467e006d05e",
+    "decisionHash": "c765d116a3a17fe1",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2668,7 +2668,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "b8f35b44552b46da",
+    "decisionHash": "af89007ba70defa4",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2707,7 +2707,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "02a3136b87296e96",
+    "decisionHash": "8d05c2ee51b3131a",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2746,7 +2746,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "a5f985edbabbba90",
+    "decisionHash": "d916aab9018ba9f7",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2785,7 +2785,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "a15af923baebfae4",
+    "decisionHash": "ac232dd528436c1d",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2824,7 +2824,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "e67cff691a7157f6",
+    "decisionHash": "4f71d8faf99a62a7",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2863,7 +2863,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "8f5c8034a61bf9c4",
+    "decisionHash": "e5b4bcceb1489f9d",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2902,7 +2902,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "685ed2daeb53f8ef",
+    "decisionHash": "9ba87cb4e3114d3c",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2941,7 +2941,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "a50cafc832bc6b2c",
+    "decisionHash": "52be1e271076b4ec",
     "operations": [],
     "retries": {
      "count": 0,
@@ -2980,7 +2980,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "3c6cebd9da8b6399",
+    "decisionHash": "21c1f10568394e69",
     "operations": [],
     "retries": {
      "count": 0,
@@ -3019,7 +3019,7 @@
     "qaStatus": "NOT_RUN",
     "retryCount": 0,
     "fallbackState": "NONE",
-    "decisionHash": "02b78c7229dce2cd",
+    "decisionHash": "927c12bbd0cdae3b",
     "operations": [],
     "retries": {
      "count": 0,
@@ -3032,19 +3032,19 @@
     }
    }
   ],
-  "finishedSeconds": 401,
+  "finishedSeconds": 401.5,
   "mix": {
-   "finishedSeconds": 401,
+   "finishedSeconds": 401.5,
    "seconds": {
     "ai_motion": 59,
     "real_footage": 162,
-    "animated_stills": 180,
+    "animated_stills": 180.5,
     "graphics": 0
    },
    "share": {
     "ai_motion": 0.147,
-    "real_footage": 0.404,
-    "animated_stills": 0.449,
+    "real_footage": 0.403,
+    "animated_stills": 0.45,
     "graphics": 0
    },
    "shots": {
@@ -3068,15 +3068,15 @@
     {
      "category": "real_footage",
      "target": 0.3,
-     "actual": 0.404,
-     "delta": 0.104,
+     "actual": 0.403,
+     "delta": 0.103,
      "withinTolerance": true
     },
     {
      "category": "animated_stills",
      "target": 0.3,
-     "actual": 0.449,
-     "delta": 0.149,
+     "actual": 0.45,
+     "delta": 0.15,
      "withinTolerance": true
     },
     {
@@ -3097,17 +3097,17 @@
   }
  },
  "cost": {
-  "estimatedUsd": 7.0776,
-  "reservedUsd": 29.4376,
+  "estimatedUsd": 7.0784,
+  "reservedUsd": 29.4384,
   "actualUsd": 0,
   "retryUsd": 0,
-  "varianceUsd": -7.0776,
+  "varianceUsd": -7.0784,
   "projectBudgetUsd": 40,
-  "remainingBudgetUsd": 10.5624,
+  "remainingBudgetUsd": 10.5616,
   "byProvider": {
    "elevenlabs": {
-    "estimatedUsd": 1.1376,
-    "reservedUsd": 1.1376,
+    "estimatedUsd": 1.1384,
+    "reservedUsd": 1.1384,
     "actualUsd": 0
    },
    "openai": {
@@ -3130,10 +3130,10 @@
   "reconciliationRequired": [],
   "reservation": {
    "status": "RESERVED",
-   "reservedUsd": 29.4376,
-   "worstCaseUsd": 29.4376,
+   "reservedUsd": 29.4384,
+   "worstCaseUsd": 29.4384,
    "reasons": [
-    "reserved worst case USD 29.4376 (expected USD 7.0776) within budget USD 40"
+    "reserved worst case USD 29.4384 (expected USD 7.0784) within budget USD 40"
    ]
   }
  },
