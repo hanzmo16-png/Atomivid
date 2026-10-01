@@ -1,0 +1,217 @@
+{
+ "status": "THERMOPYLAE_V3_PRONUNCIATION_GATE_READY_FOR_HUMAN_REVIEW",
+ "samples": [
+  {
+   "sampleId": "G1",
+   "name": "Thermopylae",
+   "display_text": "It is a harder story than the legend. And a better one. This is Thermopylae.",
+   "tts_text": "It is a harder story than the legend. And a better one. This is thermopilee.",
+   "characters": 76,
+   "status": "GENERATED",
+   "seconds": 6.530612,
+   "format": {
+    "codec": "mp3",
+    "sampleRate": 44100,
+    "channels": 1,
+    "bitrateKbps": 128
+   },
+   "targets": [
+    {
+     "word": "thermopilee.",
+     "start": 5.02,
+     "end": 6.5,
+     "voicedSec": 0.73,
+     "internalPausesMs": []
+    }
+   ],
+   "longSilences": [
+    0.736009
+   ],
+   "latencySeconds": 2.846,
+   "sha256": "5e9215f1e4db477c3bc90ce95dae6a36080f3b403296facbfada1bded0bd4a8e",
+   "technical": "FAIL",
+   "originalV2": {
+    "sentenceSeconds": 10.402,
+    "targetVoicedSeconds": {
+     "Thermopylae": 1.77
+    },
+    "internalPausesMs": {
+     "Thermopylae": [
+      120
+     ]
+    }
+   },
+   "deltaSeconds": -3.871,
+   "technicalNote": "technical flag uses a strict rule: FAIL if any silence >= 0.5 s anywhere in the clip; all flagged silences sit at sentence/comma boundaries or the clip tail, none inside a target name (internal pauses = 0 for every target)"
+  },
+  {
+   "sampleId": "G2",
+   "name": "Ephialtes",
+   "display_text": "And then, that evening, a local man came to the king's tent. His name was Ephialtes, from Trachis.",
+   "tts_text": "And then, that evening, a local man came to the king's tent. His name was efialtees, from trakis.",
+   "characters": 97,
+   "status": "GENERATED",
+   "seconds": 7.88898,
+   "format": {
+    "codec": "mp3",
+    "sampleRate": 44100,
+    "channels": 1,
+    "bitrateKbps": 128
+   },
+   "targets": [
+    {
+     "word": "efialtees,",
+     "start": 5.28,
+     "end": 6.55,
+     "voicedSec": 1.21,
+     "internalPausesMs": []
+    },
+    {
+     "word": "trakis.",
+     "start": 6.87,
+     "end": 7.85,
+     "voicedSec": 0.65,
+     "internalPausesMs": []
+    }
+   ],
+   "longSilences": [],
+   "latencySeconds": 3.042,
+   "sha256": "de45bad64ecc830db0e4e84e1d3fdf3a528ce20725de1e40d6759254b4b0635d",
+   "technical": "PASS",
+   "originalV2": {
+    "sentenceSeconds": 8.696,
+    "targetVoicedSeconds": {
+     "Ephialtes": 1.29,
+     "Trachis": 0.83
+    },
+    "internalPausesMs": {
+     "Ephialtes": [],
+     "Trachis": []
+    }
+   },
+   "deltaSeconds": -0.807,
+   "technicalNote": "technical flag uses a strict rule: FAIL if any silence >= 0.5 s anywhere in the clip; all flagged silences sit at sentence/comma boundaries or the clip tail, none inside a target name (internal pauses = 0 for every target)"
+  },
+  {
+   "sampleId": "G3",
+   "name": "Thespiae / Phocians / Locrians (worst measured: 280 ms and 210 ms internal pauses)",
+   "display_text": "On the road north, the allies joined: men from Tegea and Mantinea, Corinth, Phlius, Mycenae, seven hundred from Thespiae, four hundred from Thebes, and the Phocians and Locrians, whose land lay just beyond the pass.",
+   "tts_text": "On the road north, the allies joined: men from Tegea and Mantinea, Corinth, Phlius, myseenee, seven hundred from thespiee, four hundred from Thebes, and the focians and locrians, whose land lay just beyond the pass.",
+   "characters": 215,
+   "status": "GENERATED",
+   "seconds": 17.162449,
+   "format": {
+    "codec": "mp3",
+    "sampleRate": 44100,
+    "channels": 1,
+    "bitrateKbps": 128
+   },
+   "targets": [
+    {
+     "word": "myseenee,",
+     "start": 7.48,
+     "end": 8.32,
+     "voicedSec": 0.63,
+     "internalPausesMs": []
+    },
+    {
+     "word": "thespiee,",
+     "start": 9.46,
+     "end": 10.32,
+     "voicedSec": 0.65,
+     "internalPausesMs": []
+    },
+    {
+     "word": "focians",
+     "start": 12.76,
+     "end": 13.23,
+     "voicedSec": 0.47,
+     "internalPausesMs": []
+    },
+    {
+     "word": "locrians,",
+     "start": 13.4,
+     "end": 14.18,
+     "voicedSec": 0.6,
+     "internalPausesMs": []
+    }
+   ],
+   "longSilences": [
+    0.504989,
+    0.518163,
+    0.528209,
+    0.531973,
+    0.58873,
+    0.505011,
+    0.558186
+   ],
+   "latencySeconds": 4.108,
+   "sha256": "8632691a2e14800853abfc8a2bd7e79acf3a1ec678435cf38195692d17db8da2",
+   "technical": "FAIL",
+   "originalV2": {
+    "sentenceSeconds": 20.804,
+    "targetVoicedSeconds": {
+     "Thespiae": 1.98,
+     "Phocians": 1.26,
+     "Locrians": 1.85
+    },
+    "internalPausesMs": {
+     "Thespiae": [
+      280,
+      270
+     ],
+     "Phocians": [
+      90
+     ],
+     "Locrians": [
+      210
+     ]
+    }
+   },
+   "deltaSeconds": -3.642,
+   "technicalNote": "technical flag uses a strict rule: FAIL if any silence >= 0.5 s anywhere in the clip; all flagged silences sit at sentence/comma boundaries or the clip tail, none inside a target name (internal pauses = 0 for every target)"
+  }
+ ],
+ "cost": {
+  "projectedChars": 388,
+  "consumedChars": 0,
+  "projectedUsd": 0.0776,
+  "actualUsd": 0,
+  "quotaBefore": {
+   "remaining": 20623,
+   "used": 42379,
+   "limit": 63002
+  },
+  "quotaAfter": {
+   "remaining": 20623,
+   "used": 42379,
+   "limit": 63002
+  },
+  "ttsCalls": 3,
+  "retries": 0
+ },
+ "v2Hash": {
+  "before": "eca494aa3881204724c7a9211f7eebc08893ffb3caa3ed587fe626ba4e236b10",
+  "after": "eca494aa3881204724c7a9211f7eebc08893ffb3caa3ed587fe626ba4e236b10",
+  "intact": true
+ },
+ "review": {
+  "url": "(signed URL withheld from git; delivered in chat; expires 2026-10-09T16:21:53.789Z)",
+  "expiresAt": "2026-10-09T16:21:53.789Z",
+  "bytes": 536703,
+  "seconds": 33.515102,
+  "sampleRate": 44100,
+  "channels": 1,
+  "bitrateKbps": 128,
+  "check": {
+   "get": 200,
+   "contentType": "audio/mpeg",
+   "bytesMatch": true,
+   "range": 206,
+   "acceptRanges": null
+  }
+ },
+ "ledgerNote": "ElevenLabs subscription counter did not move between the before/after reads (used 42379 both times), so the ledger settled this gate at USD 0.00 measured; charge basis remains 388 chars = USD 0.0776 projected. Conservative cumulative: 16.8295 + 0.0776 = 16.9071.",
+ "runId": 36890517949,
+ "commit": "c9a9511"
+}
