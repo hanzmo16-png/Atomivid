@@ -11,12 +11,36 @@ import {buildAss, buildCues, type TitleOverlay} from '../lib/dulce-edit';
 import {moveFor, stillMotionFilter, type Move, type WordTiming} from '../lib/dulce-part1-core';
 import {CHANNEL, EXPECTED_USD, EXPOSURE_CEILING_USD, GRAPHICS, HARD_CAP_USD, MUSIC, MUSIC_DROPS, ON_SCREEN_NOTICE, ON_SCREEN_NOTES, RUMBLE_CUES, TITLE, V2, V2_ANIMATED_STILL_CALLOUTS} from './plan';
 import {animatedGraphicSvg, persianKitOverlaySvg, type AnimCtx} from './graphics-anim';
+import type {GraphicKind} from './plan';
 import {SFX, V2_MUSIC_DROPS, V2_TOTAL_SILENCE, sfxSource} from './sfx';
+import {CTA, V3, V2_MASTER_SHA, ctaMarkSvg} from './v3-cta';
 import {FPS, P, type Plan, type Shot, stillPath, clipRev, bucket, committedUsd, entries, exposure, listTelemetry, log, out, probe, put, putJson, read, readJsonStore, run, service, sha, sign} from './shared';
 
-const NAME = V2 ? 'VIDEO-004-Three-Days-at-the-Hot-Gates-v2-master.mp4' : 'VIDEO-004-Three-Days-at-the-Hot-Gates-master.mp4';
-const FINAL_DIR = V2 ? 'final-v2' : 'final', WATCH_DIR = V2 ? 'watch-v2' : 'watch', SUB = V2 ? 'video-004-v2' : 'video-004';
-const V1_SPENT_USD = 11.3295;
+const NAME = V3 ? 'VIDEO-004-Three-Days-at-the-Hot-Gates-v3-master.mp4' : V2 ? 'VIDEO-004-Three-Days-at-the-Hot-Gates-v2-master.mp4' : 'VIDEO-004-Three-Days-at-the-Hot-Gates-master.mp4';
+const FINAL_DIR = V3 ? 'final-v3' : V2 ? 'final-v2' : 'final', WATCH_DIR = V3 ? 'watch-v3' : V2 ? 'watch-v2' : 'watch', SUB = V3 ? 'video-004-v3' : V2 ? 'video-004-v2' : 'video-004';
+const V1_SPENT_USD = 11.3295, V2_SPENT_USD = 16.8295;
+const V3_DIR = `${P}/v3`;
+/** Native SVG canvas is 2304x1296 at 72 dpi. V2 rendered it at density 96 (3072x1728) and extracted with 2304-based
+ * coordinates, so every animated graphic showed only its top-left 75% enlarged 1.33x (RC: 3072/2304 mismatch). V3 renders at 72. */
+const SVG_DENSITY = 72;
+const SAFE = {x: 96, y: 54, subtitleTop: 880};
+
+/** One animated-graphic frame through the exact pipeline the master uses (drift crop + resize). stripText removes <text> for QA diffs. */
+export async function animFrame(kind: GraphicKind, ctx: AnimCtx, i: number, frames: number, stripText = false): Promise<Buffer> {
+  const sharp = (await import('sharp')).default;
+  let svg = await animatedGraphicSvg(kind, ctx); if (stripText) svg = svg.replace(/<text\b[\s\S]*?<\/text>/g, '');
+  const z = 1 + 0.03 * (i / Math.max(1, frames - 1)); const cw = Math.round(2304 / z / 2) * 2, ch = Math.round(1296 / z / 2) * 2;
+  return sharp(Buffer.from(svg), {density: SVG_DENSITY}).extract({left: Math.round((2304 - cw) / 2), top: Math.round((1296 - ch) / 2), width: cw, height: ch}).resize(1920, 1080).png().toBuffer();
+}
+/** V4-042 callout frame (still + overlay) or the overlay alone on transparency, same drift crop. */
+export async function calloutFrame(base: Buffer | null, ctx: AnimCtx, i: number, frames: number): Promise<Buffer> {
+  const sharp = (await import('sharp')).default;
+  const z = 1 + 0.03 * (i / Math.max(1, frames - 1)); const cw = Math.round(1920 / z / 2) * 2, ch = Math.round(1080 / z / 2) * 2;
+  const canvas = base ? sharp(base) : sharp({create: {width: 1920, height: 1080, channels: 4, background: {r: 0, g: 0, b: 0, alpha: 0}}});
+  return canvas.composite([{input: Buffer.from(persianKitOverlaySvg(ctx)), top: 0, left: 0}]).extract({left: Math.round((1920 - cw) / 2), top: Math.round((1080 - ch) / 2), width: cw, height: ch}).resize(1920, 1080).png().toBuffer();
+}
+/** Reassembles the V2 master from its stored parts and hashes it (V2 must stay byte-for-byte intact). */
+async function v2MasterHash(): Promise<string> { const man = await readJsonStore<{parts: string[]}>(`${P}/final-v2/manifest.json`); if (!man) throw Error('V2 manifest missing'); const chunks: Buffer[] = []; for (const p of man.parts) { const b = await read(p); if (!b) throw Error('V2 part missing ' + p); chunks.push(b); } return sha(Buffer.concat(chunks)); }
 
 /** V2: render a word-synchronised animated graphic (or still + callouts) as a PNG frame sequence, then encode the segment. */
 async function renderAnimatedSegment(s: Slot, srcFile: string | null, seg: string, work: string) {
@@ -29,8 +53,7 @@ async function renderAnimatedSegment(s: Slot, srcFile: string | null, seg: strin
   await Promise.all(Array.from({length: 6}, async () => { while (next < s.frames) { const i = next++; const ctx: AnimCtx = {t: i / FPS, dur, cues, cacheDir}; const f = path.join(dir, `f${String(i).padStart(5, '0')}.png`);
     // A slow continuous drift (3% push over the slot) keeps the picture alive between word cues and clears the frozen-picture QA.
     const z = 1 + 0.03 * (i / Math.max(1, s.frames - 1));
-    if (base) { const cw = Math.round(1920 / z / 2) * 2, ch = Math.round(1080 / z / 2) * 2; await sharp(base).composite([{input: Buffer.from(persianKitOverlaySvg(ctx)), top: 0, left: 0}]).extract({left: Math.round((1920 - cw) / 2), top: Math.round((1080 - ch) / 2), width: cw, height: ch}).resize(1920, 1080).png().toFile(f); }
-    else { const cw = Math.round(2304 / z / 2) * 2, ch = Math.round(1296 / z / 2) * 2; await sharp(Buffer.from(await animatedGraphicSvg(kind, ctx)), {density: 96}).extract({left: Math.round((2304 - cw) / 2), top: Math.round((1296 - ch) / 2), width: cw, height: ch}).resize(1920, 1080).png().toFile(f); } } }));
+    void z; await fs.writeFile(f, base ? await calloutFrame(base, ctx, i, s.frames) : await animFrame(kind, ctx, i, s.frames)); } }));
   await run('ffmpeg', ['-y', '-framerate', String(FPS), '-i', path.join(dir, 'f%05d.png'), '-frames:v', String(s.frames), '-vf', 'setsar=1,format=yuv420p', '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '15', '-r', String(FPS), seg]);
   await fs.rm(dir, {recursive: true, force: true});
 }
@@ -42,11 +65,17 @@ type Slot = Shot & {startFrame: number; frames: number; chunk: {file: string | n
 export async function render(plan: Plan) {
   const draft = process.env.V4_DRAFT === 'true';
   const work = path.join(out, 'work'); await fs.mkdir(work, {recursive: true});
+  const v2HashBefore = V3 && !draft ? await v2MasterHash() : null; if (v2HashBefore && v2HashBefore !== V2_MASTER_SHA) throw Error('V2 master hash mismatch before the V3 render');
   const issues: string[] = []; const deviations: string[] = [];
 
   // 1) Narration per scene (cached ElevenLabs audio with word timings) or draft silence.
   const scenes: {scene: string; file: string | null; seconds: number; words: WordTiming[]}[] = [];
   for (const sc of plan.scenes) {
+    if (V3) { // V3: patched stems (48 kHz WAV + re-aligned words) replace the V2 narration where they exist; CTA scenes only exist here
+      const r3 = await readJsonStore<{seconds: number; sha256: string; words: WordTiming[]}>(`${V3_DIR}/narration/${sc}.json`); const w3 = await read(`${V3_DIR}/narration/${sc}.wav`);
+      if (r3 && w3) { if (sha(w3) !== r3.sha256) throw Error('V3 narration checksum ' + sc); const f = path.join(work, `${sc}.wav`); await fs.writeFile(f, w3); scenes.push({scene: sc, file: f, seconds: r3.seconds, words: r3.words}); continue; }
+      if (sc.startsWith('CTA')) throw Error('V3 narration missing for ' + sc);
+    }
     const rec = await readJsonStore<{seconds: number; sha256: string; words: WordTiming[]}>(`${P}/narration/${sc}.json`); const mp3 = await read(`${P}/narration/${sc}.mp3`);
     if (rec && mp3) { if (sha(mp3) !== rec.sha256) throw Error('Narration checksum ' + sc); const f = path.join(work, `${sc}.wav`); await fs.writeFile(path.join(work, `${sc}.mp3`), mp3); await run('ffmpeg', ['-y', '-i', path.join(work, `${sc}.mp3`), '-ar', '48000', '-ac', '2', f]); scenes.push({scene: sc, file: f, seconds: rec.seconds, words: rec.words}); }
     else if (draft) { const shots = plan.shots.filter((s) => s.scene === sc && s.purpose !== 'end card'); let t = 0; const ws: WordTiming[] = []; for (const s of shots) for (const w of toks(s.narration)) { ws.push({text: w, startSeconds: t, endSeconds: t + 0.36}); t += 0.4; } scenes.push({scene: sc, file: null, seconds: t, words: ws}); issues.push(`draft: narration ${sc} missing (synthetic timings)`); }
@@ -80,6 +109,12 @@ export async function render(plan: Plan) {
   async function resolve(s: Shot): Promise<Src> {
     if (cache.has(s.id)) return cache.get(s.id)!;
     let src: Src | null = null;
+    if (s.method === 'CTA_REUSE') { // V3 CTA: the first approved candidate whose picture can cover the slot without a hold
+      const c = CTA.find((x) => x.id === s.id)!; const edit = (slots.find((x) => x.id === s.id)?.frames ?? 7 * FPS) / FPS; let pick: Src | null = null; const tried: string[] = [];
+      for (const id of c.candidates) { const base = plan.shots.find((x) => x.id === id); if (!base) continue; const b = await resolve(base); if (b.kind === 'placeholder') continue; const secs = b.kind === 'stock' || b.kind === 'clip' ? await probeDuration(b.file) : 0; tried.push(`${id}:${secs.toFixed(1)}s`); if ((secs - 0.5) * 1.3 >= edit) { pick = {...b, origin: `${b.origin} (reused for ${s.id})`, note: '0.5'}; break; } }
+      if (!pick) throw Error(`CTA ${s.id}: no approved candidate long enough (${tried.join(', ')})`);
+      cache.set(s.id, pick); return pick;
+    }
     if (s.kind === 'graphic') { const b = await read(`${P}/graphics/${s.id}.png`); if (b) { const f = path.join(work, `g-${s.id}.png`); await fs.writeFile(f, b); src = {kind: 'graphic', file: f, sha256: sha(b), origin: `videos/${P}/graphics/${s.id}.png`}; } }
     else if (s.provider === 'pexels') { const rv = await readJsonStore<{result: string; from?: string; inPoint?: number}>(`${P}/reviews/stock-${s.id}.json`);
       if (rv?.result === 'STILL') { const b = await approvedStill(s.id); if (b) { const f = path.join(work, `still-${s.id}.png`); await fs.writeFile(f, b); src = {kind: 'still', file: f, sha256: sha(b), origin: `videos/${stillPath(s.id)}`, note: 'stock replaced by an approved still (review verdict STILL)'}; issues.push(`${s.id}: stock replaced by a generated still`); } }
@@ -118,10 +153,14 @@ export async function render(plan: Plan) {
       const window = clipSeconds - inPoint;
       if (window < edit) { speed = Math.min(1.5, edit / window); frozen = Math.max(0, edit - window * speed); if (frozen > 0.05) issues.push(`${s.id}: ${frozen.toFixed(2)} s held beyond the clip`); }
       args = ['-ss', inPoint.toFixed(3), '-i', src.file, '-vf', `setpts=${speed.toFixed(4)}*PTS,scale=1920:1080:flags=lanczos:force_original_aspect_ratio=increase,crop=1920:1080,fps=${FPS}${frozen > 0.05 ? `,tpad=stop_mode=clone:stop_duration=${frozen.toFixed(3)}` : ''}${tail}`];
+      if (s.method === 'CTA_REUSE') { // V3: subscribe mark fades in over the continuing picture (no black, no stop)
+        const c = CTA.find((x) => x.id === s.id)!; const mark = path.join(work, `mark-${s.id}.png`); const sharp = (await import('sharp')).default; await sharp(Buffer.from(ctaMarkSvg(c)), {density: 72}).png().toFile(mark);
+        args = ['-ss', inPoint.toFixed(3), '-i', src.file, '-loop', '1', '-framerate', String(FPS), '-i', mark, '-filter_complex', `[0:v]setpts=${speed.toFixed(4)}*PTS,scale=1920:1080:flags=lanczos:force_original_aspect_ratio=increase,crop=1920:1080,fps=${FPS}${frozen > 0.05 ? `,tpad=stop_mode=clone:stop_duration=${frozen.toFixed(3)}` : ''}[b];[1:v]format=rgba,fade=t=in:st=1.0:d=0.8:alpha=1[m];[b][m]overlay=0:0:shortest=1:format=auto,setsar=1,format=yuv420p[v]`, '-map', '[v]'];
+      }
     }
     await run('ffmpeg', ['-y', ...args, '-frames:v', String(s.frames), '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '15', '-r', String(FPS), seg]);
     segs.push(seg);
-    report.push({slot: i, id: s.id, planShotId: s.planShotId, scene: s.scene, purpose: s.purpose, kind: src.kind, method: s.method, provider: s.provider, start: +(s.startFrame / FPS).toFixed(3), seconds: +edit.toFixed(3), frozenPlanSeconds: s.seconds, pause: s.pause, move, inPoint, speed, frozen, origin: src.origin, sha256: src.sha256 ?? null, generative: s.generative, motion: src.kind === 'clip' || src.kind === 'stock'});
+    report.push({slot: i, id: s.id, planShotId: s.planShotId, scene: s.scene, purpose: s.purpose, kind: s.method === 'CTA_REUSE' ? 'cta' : src.kind, method: s.method, provider: s.provider, start: +(s.startFrame / FPS).toFixed(3), seconds: +edit.toFixed(3), frozenPlanSeconds: s.seconds, pause: s.pause, move, inPoint, speed, frozen, origin: src.origin, sha256: src.sha256 ?? null, generative: s.generative, motion: src.kind === 'clip' || src.kind === 'stock'});
   }
   const picture = path.join(work, 'picture.mp4');
   if (!bedOnly) { await fs.writeFile(path.join(work, 'concat.txt'), segs.map((f) => `file '${f}'`).join('\n')); await run('ffmpeg', ['-y', '-f', 'concat', '-safe', '0', '-i', path.join(work, 'concat.txt'), '-c', 'copy', picture]); }
@@ -216,7 +255,43 @@ export async function render(plan: Plan) {
   const genSlots = report.filter((r) => r.kind === 'clip'); const expectedGen = plan.shots.filter((s) => s.generative).length;
   // A generative shot whose clip failed review falls back to its approved still (documented in reviews.json); it counts as honoured only when that verdict exists.
   let documentedFallbacks = 0; for (const s of plan.shots.filter((x) => x.generative)) { const rv = await readJsonStore<{result: string}>(`${P}/reviews/clip-${s.id}-${clipRev(s.id)}.json`); if (rv?.result === 'FAIL') documentedFallbacks++; }
+  // V3 QA on the COMPOSED frame (not the SVG source): every animated graphic's last frame vs the same frame re-rendered
+  // through the pipeline, text bbox from a with/without-<text> diff, safe area 96/54, subtitle band, 17-graphic geometry contract.
+  type GQA = {id: string; kind: string; textBox: number[] | null; safeArea: boolean; clearOfSubtitles: boolean; composedMatch: boolean; meanDiff: number; hasSubtitles: boolean};
+  const gqa: GQA[] = []; const gTiles: {image: Buffer; label: string}[] = [];
+  if (V3 && !bedOnly) {
+    const sharp = (await import('sharp')).default; const cacheDir = path.join(out, 'geo-cache');
+    const raw = async (png: Buffer) => sharp(png).ensureAlpha().raw().toBuffer({resolveWithObject: true});
+    const safeRect = Buffer.from(`<svg width="1920" height="1080"><rect x="${SAFE.x}" y="${SAFE.y}" width="${1920 - 2 * SAFE.x}" height="${1080 - 2 * SAFE.y}" fill="none" stroke="#00e0ff" stroke-width="4"/><line x1="0" y1="${SAFE.subtitleTop}" x2="1920" y2="${SAFE.subtitleTop}" stroke="#ff4040" stroke-width="3" stroke-dasharray="18 12"/></svg>`);
+    for (const s of slots) {
+      const isGraphic = s.kind === 'graphic' && GRAPHICS[s.id]; const isCallout = V2_ANIMATED_STILL_CALLOUTS.includes(s.id);
+      if (!isGraphic && !isCallout) continue;
+      const i = s.frames - 1; const t0 = s.startFrame / FPS; const ctx: AnimCtx = {t: i / FPS, dur: s.frames / FPS, cues: s.words.map((w) => ({text: w.text, t: w.startSeconds - t0})), cacheDir};
+      let withText: Buffer, noText: Buffer;
+      if (isGraphic) { withText = await animFrame(GRAPHICS[s.id], ctx, i, s.frames); noText = await animFrame(GRAPHICS[s.id], ctx, i, s.frames, true); }
+      else { const src = await resolve(s); const base = await sharp(src.file).resize(1920, 1080, {fit: 'cover', position: 'centre'}).png().toBuffer(); withText = await calloutFrame(base, ctx, i, s.frames); noText = await sharp(base).extract({left: Math.round((1920 - Math.round(1920 / (1 + 0.03) / 2) * 2) / 2), top: 0, width: 2, height: 2}).png().toBuffer(); }
+      // text / overlay ink bbox
+      let box: number[] | null = null;
+      if (isGraphic) { const a = await raw(withText), b = await raw(noText); let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1; for (let y = 0; y < 1080; y++) for (let x = 0; x < 1920; x++) { const k = (y * 1920 + x) * 4; const d = Math.abs(a.data[k] - b.data[k]) + Math.abs(a.data[k + 1] - b.data[k + 1]) + Math.abs(a.data[k + 2] - b.data[k + 2]); if (d > 60) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } } if (x1 >= 0) box = [x0, y0, x1, y1]; }
+      else { const ov = await raw(await calloutFrame(null, ctx, i, s.frames)); let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1; for (let y = 0; y < 1080; y++) for (let x = 0; x < 1920; x++) { if (ov.data[(y * 1920 + x) * 4 + 3] > 40) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } } if (x1 >= 0) box = [x0, y0, x1, y1]; }
+      // composed frame from the master at the same instant
+      const tEnd = (s.startFrame + i + 0.5) / FPS; const fr = path.join(work, `gqa-${s.id}.png`); await run('ffmpeg', ['-y', '-ss', tEnd.toFixed(4), '-i', final, '-frames:v', '1', fr]);
+      const F = await raw(await fs.readFile(fr)), Rr = await raw(withText); let acc = 0, n = 0; for (let y = 0; y < SAFE.subtitleTop; y += 2) for (let x = 0; x < 1920; x += 2) { const k = (y * 1920 + x) * 4; acc += Math.abs(F.data[k] - Rr.data[k]) + Math.abs(F.data[k + 1] - Rr.data[k + 1]) + Math.abs(F.data[k + 2] - Rr.data[k + 2]); n += 3; } const meanDiff = acc / n;
+      const hasSubtitles = s.words.length > 0;
+      const safeArea = !box || (box[0] >= SAFE.x && box[2] <= 1920 - SAFE.x && box[1] >= SAFE.y && box[3] <= 1080 - SAFE.y);
+      const clearOfSubtitles = !box || !hasSubtitles || box[3] < SAFE.subtitleTop;
+      gqa.push({id: s.id, kind: isGraphic ? GRAPHICS[s.id] : 'still-callouts', textBox: box, safeArea, clearOfSubtitles, composedMatch: meanDiff < 14, meanDiff: +meanDiff.toFixed(2), hasSubtitles});
+      for (const q of [0.25, 0.5, 0.75, 1]) { const t = (s.startFrame + Math.max(0, Math.round(q * s.frames) - 1) + 0.5) / FPS; const tf = path.join(work, `gqa-${s.id}-${q}.png`); await run('ffmpeg', ['-y', '-ss', t.toFixed(4), '-i', final, '-frames:v', '1', tf]); gTiles.push({image: await sharp(await fs.readFile(tf)).composite([{input: safeRect, top: 0, left: 0}]).resize(480).jpeg({quality: 82}).toBuffer(), label: `${s.id} ${Math.round(q * 100)}%${box ? ` text ${box.join(',')}` : ''}`}); }
+    }
+    for (let k = 0; k * 24 < gTiles.length; k++) await fs.writeFile(path.join(out, `qa-graphics-safe-area-${k + 1}.jpg`), await buildContactSheet(gTiles.slice(k * 24, k * 24 + 24), {columns: 4, tileWidth: 480, tileHeight: 270, title: `V3 animated graphics on the composed master, safe area 96/54 (cyan), subtitle band (red)`}));
+  }
+  const ctaSlots = slots.filter((s) => s.method === 'CTA_REUSE');
+  const v3checks: Record<string, boolean> = V3 ? {
+    graphicsCount17: gqa.length === 17, graphicsSafeArea: gqa.every((g) => g.safeArea), graphicsClearOfSubtitles: gqa.every((g) => g.clearOfSubtitles), graphicsComposedFrameMatch: gqa.every((g) => g.composedMatch),
+    ctaScenesPresent: ctaSlots.length === 2 && ctaSlots.every((s) => s.words.length > 0), ctaAfterEndCardsBeforeEndCard: ctaSlots.length === 2 && slots.indexOf(ctaSlots[1]) === slots.length - 2 && slots[slots.indexOf(ctaSlots[1]) - 1].purpose === 'still in it',
+  } : {};
   const checks: Record<string, boolean> = {
+    ...v3checks,
     durationNearPlan: Math.abs(pr.duration - total) < 0.5, durationInTarget: pr.duration >= 600 && pr.duration <= 800, resolution1080p: pr.width === 1920 && pr.height === 1080, fps30: pr.fps === '30/1', h264: pr.codec === 'h264',
     audioStereo: pr.channels === 2, noAccidentalBlack: black.length === 0, noFrozenPicture: fz.length === 0, noSilentGaps: silS.length === 0,
     loudnessNear14: Math.abs(num(/I:\s+(-?[\d.]+) LUFS/) + 14) <= 1, truePeakSafe: num(/Peak:\s+(-?[\d.]+) dBFS/) <= -1,
@@ -232,7 +307,10 @@ export async function render(plan: Plan) {
   const longestStill = report.filter((r) => !r.motion && r.id !== endSlot.id).reduce<{id: string; seconds: number}>((a, r) => ((r.seconds as number) > a.seconds ? {id: r.id as string, seconds: r.seconds as number} : a), {id: '', seconds: 0});
   const v2qa = {motionSeconds: +motionSec.toFixed(1), motionShare: +(motionSec / total).toFixed(3), first60MotionSeconds: +first60.toFixed(1), longestStill, stillChains: stillRuns.filter((x) => x.ids.length >= 2).map((x) => ({...x, seconds: +x.seconds.toFixed(1)})), longestStillChainSeconds: +Math.max(0, ...stillRuns.map((x) => x.seconds)).toFixed(1), sfxCues: sfxCount, animatedGraphics: report.filter((r) => r.kind === 'animated').length};
   const bytes = await fs.readFile(final);
-  const qc = {draft, v2: V2 ? v2qa : undefined, final: {file: NAME, bytes: bytes.length, sha256: sha(bytes), durationSeconds: pr.duration, width: pr.width, height: pr.height, fps: pr.fps, codec: pr.codec}, loudness: {integratedLufs: num(/I:\s+(-?[\d.]+) LUFS/), truePeakDbfs: num(/Peak:\s+(-?[\d.]+) dBFS/), lra: num(/LRA:\s+(-?[\d.]+) LU/)}, black, freeze: fz, silences: silS, checks, failed: Object.entries(checks).filter(([, ok]) => !ok).map(([k]) => k), issues, deviations, timeline: {totalSeconds: total, narratedSeconds: scenes.reduce((a, s) => a + s.seconds, 0), slots: slots.length, hookSlots}};
+  const v2HashAfter = V3 && !draft ? await v2MasterHash() : null;
+  const v3info = V3 ? {graphics: gqa, cta: ctaSlots.map((s) => ({id: s.id, scene: s.scene, start: +(s.startFrame / FPS).toFixed(3), seconds: +(s.frames / FPS).toFixed(3), line: s.narration})), v2Master: {expected: V2_MASTER_SHA, before: v2HashBefore, after: v2HashAfter, intact: v2HashBefore === V2_MASTER_SHA && v2HashAfter === V2_MASTER_SHA}, svgDensity: SVG_DENSITY, safeArea: SAFE} : undefined;
+  if (V3 && !draft && !(v3info!.v2Master.intact)) throw Error('V2 master changed during the V3 render');
+  const qc = {draft, v2: V2 ? v2qa : undefined, v3: v3info, final: {file: NAME, bytes: bytes.length, sha256: sha(bytes), durationSeconds: pr.duration, width: pr.width, height: pr.height, fps: pr.fps, codec: pr.codec}, loudness: {integratedLufs: num(/I:\s+(-?[\d.]+) LUFS/), truePeakDbfs: num(/Peak:\s+(-?[\d.]+) dBFS/), lra: num(/LRA:\s+(-?[\d.]+) LU/)}, black, freeze: fz, silences: silS, checks, failed: Object.entries(checks).filter(([, ok]) => !ok).map(([k]) => k), issues, deviations, timeline: {totalSeconds: total, narratedSeconds: scenes.reduce((a, s) => a + s.seconds, 0), slots: slots.length, hookSlots}};
   await fs.writeFile(path.join(out, 'qc.json'), JSON.stringify(qc, null, 2)); await fs.writeFile(path.join(out, 'timeline.json'), JSON.stringify(report, null, 2));
 
   // 9) Review sheets.
@@ -251,9 +329,9 @@ export async function render(plan: Plan) {
   const fallbacks = issues.filter((i) => /fell back|held beyond|rejected/.test(i));
   const genSec = genSlots.reduce((x, r) => x + (r.seconds as number), 0);
   const manifestOut = {
-    manifestVersion: V2 ? 'video-004/production-manifest/2' : 'video-004/production-manifest/1', v2: V2 ? v2qa : undefined, projectId: P, title: TITLE, channel: CHANNEL, freezeHash: plan.freezeHash, generatedAt: new Date().toISOString(), draft, commit: process.env.GITHUB_SHA ?? null, runId: process.env.GITHUB_RUN_ID ?? null,
+    manifestVersion: V3 ? 'video-004/production-manifest/3' : V2 ? 'video-004/production-manifest/2' : 'video-004/production-manifest/1', v2: V2 ? v2qa : undefined, v3: v3info, projectId: P, title: TITLE, channel: CHANNEL, freezeHash: plan.freezeHash, generatedAt: new Date().toISOString(), draft, commit: process.env.GITHUB_SHA ?? null, runId: process.env.GITHUB_RUN_ID ?? null,
     master: qc.final, qa: {technical: checks, failed: qc.failed, loudness: qc.loudness, issues, deviationsFromFrozenDurations: deviations},
-    cost: {expectedUsd: EXPECTED_USD, worstCaseReservationUsd: EXPOSURE_CEILING_USD, actualUsd: +spent.toFixed(4), varianceUsd: +(spent - EXPECTED_USD).toFixed(4), incrementalUsd: V2 ? +(spent - V1_SPENT_USD).toFixed(4) : undefined, historicUsd: V2 ? V1_SPENT_USD : undefined, byProvider, exposureUsd: exposure(), ceilingUsd: EXPOSURE_CEILING_USD, hardCapUsd: HARD_CAP_USD, paidOperations: led.filter((e) => e.status !== 'released').length, releasedClaims: led.filter((e) => e.status === 'released').length, retries: {count: retries.length, usd: +retryUsd.toFixed(4)}, providerTopupsAreNotCogs: true},
+    cost: {expectedUsd: EXPECTED_USD, worstCaseReservationUsd: EXPOSURE_CEILING_USD, actualUsd: +spent.toFixed(4), varianceUsd: +(spent - EXPECTED_USD).toFixed(4), incrementalUsd: V3 ? +(spent - V2_SPENT_USD).toFixed(4) : V2 ? +(spent - V1_SPENT_USD).toFixed(4) : undefined, historicUsd: V3 ? V2_SPENT_USD : V2 ? V1_SPENT_USD : undefined, conservativeCumulativeUsd: V3 ? +spent.toFixed(4) : undefined, byProvider, exposureUsd: exposure(), ceilingUsd: EXPOSURE_CEILING_USD, hardCapUsd: HARD_CAP_USD, paidOperations: led.filter((e) => e.status !== 'released').length, releasedClaims: led.filter((e) => e.status === 'released').length, retries: {count: retries.length, usd: +retryUsd.toFixed(4)}, providerTopupsAreNotCogs: true},
     mix: {generativeClips: genSlots.length, documentedClipFallbacks: documentedFallbacks, animatedGraphics: report.filter((r) => r.kind === 'animated').length, generativeSeconds: +genSec.toFixed(2), generativeShare: +(genSec / pr.duration).toFixed(3), stillMotionSlots: report.filter((r) => ['still', 'graphic', 'photo'].includes(r.kind as string)).length, stockSlots: report.filter((r) => r.kind === 'stock').length},
     fallbacks, shots: report.map((r) => ({...r, cost: led.filter((e) => e.shotId === r.id && e.status === 'committed').reduce((a, e) => a + (e.actualUsd ?? e.maxUsd), 0), attempts: attempts.filter((a) => a.shotId === r.id).map((a) => ({attemptId: a.attemptId, provider: a.provider, costUsd: a.costUsd, qa: a.qa?.result ?? null}))})),
   };
@@ -265,6 +343,8 @@ export async function render(plan: Plan) {
     for (let i = 0; i * part < bytes.length; i++) { const p = `${P}/${FINAL_DIR}/${NAME}.part${String(i).padStart(2, '0')}`; await put(p, bytes.subarray(i * part, (i + 1) * part), 'application/octet-stream'); parts.push(p); }
     await putJson(`${P}/${FINAL_DIR}/manifest.json`, {file: NAME, bytes: bytes.length, sha256: sha(bytes), parts, checks, commit: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID});
     await putJson(`${P}/${FINAL_DIR}/production-manifest.json`, manifestOut);
+    if (V3) { await fs.writeFile(path.join(out, 'watch-link.json'), JSON.stringify({watchUrl: null, singleMp4Url: null, delivery: 'app route /r/video-004-v3-review after the review-proxy stage (no signed URL, no HLS)', parts}, null, 2)); }
+    else {
     const hls = path.join(work, 'hls'); await fs.mkdir(hls, {recursive: true});
     await run('ffmpeg', ['-y', '-i', final, '-c', 'copy', '-f', 'hls', '-hls_time', '30', '-hls_playlist_type', 'vod', '-hls_segment_filename', path.join(hls, 'seg%03d.ts'), path.join(hls, 'index.m3u8')]);
     const lines = (await fs.readFile(path.join(hls, 'index.m3u8'), 'utf8')).split('\n'); const signed: string[] = [];
@@ -273,8 +353,9 @@ export async function render(plan: Plan) {
     const watchUrl = await sign(`${P}/${WATCH_DIR}/hls/index.m3u8`);
     const single = bytes.length <= 50 * 1024 * 1024 ? await (async () => { const dest = `${P}/${FINAL_DIR}/${NAME}`; const {error} = await bucket.upload(dest, bytes, {contentType: 'video/mp4', upsert: true}); return error ? null : await sign(dest, 30); })() : null;
     await fs.writeFile(path.join(out, 'watch-link.json'), JSON.stringify({watchUrl, singleMp4Url: single, expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(), parts}, null, 2));
+    }
   }
   await fs.rm(work, {recursive: true, force: true});
-  log('QC', {draft, passed: qc.failed.length === 0, failed: qc.failed, issues: issues.length, deviations: deviations.length, duration: pr.duration, spent, v2: V2 ? v2qa : undefined});
+  log('QC', {draft, passed: qc.failed.length === 0, failed: qc.failed, issues: issues.length, deviations: deviations.length, duration: pr.duration, spent, v2: V2 ? v2qa : undefined, v3: V3 ? {graphics: gqa.map((g) => `${g.id}:${g.safeArea && g.clearOfSubtitles && g.composedMatch ? 'PASS' : 'FAIL'}:${g.meanDiff}`), cta: v3info?.cta, v2Master: v3info?.v2Master} : undefined});
   if (!draft && qc.failed.length) throw Error('Technical QA failed: ' + qc.failed.join(', '));
 }

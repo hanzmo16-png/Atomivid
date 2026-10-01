@@ -11,6 +11,8 @@ export const AUTHORIZED_ENGINE_TREE = 'fb24a4026e29815b9c8a2071e2db474d3d399adb5
 /** Hard cap authorized for the project (USD): the exposure ceiling that stops production IS the cap. */
 /** V2 (scenario B upgrade) runs with V4_V2=true: cumulative hard cap USD 19 (historic 11.33 + new ≤ 7.67), expected total 17.65. */
 export const V2 = process.env.V4_V2 === 'true';
+export const V3 = process.env.V4_V3 === 'true'; // V3 = V2 pipeline + pronunciation patches, CTA scenes, graphics geometry fix
+if (V3 && !V2) throw Error('V4_V3 requires V4_V2=true');
 export const HARD_CAP_USD = V2 ? 19 : 20;
 export const EXPOSURE_CEILING_USD = V2 ? 19 : 20;
 export const EXPECTED_USD = V2 ? 17.65 : 11.23;

@@ -13,7 +13,7 @@ export const BG = '#121212', INK = '#e6ddd0', DIM = '#9a9185', ACCENT = '#d9a441
 export const FONT = 'DejaVu Sans';
 export const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 export const text = (x: number, y: number, s: string, size = 40, fill = INK, anchor: 'start' | 'middle' | 'end' = 'start', weight = 'normal') => `<text x="${x}" y="${y}" font-family="${FONT}" font-size="${size}" fill="${fill}" text-anchor="${anchor}" font-weight="${weight}">${esc(s)}</text>`;
-export const frame = (inner: string, caption?: string) => `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="${BG}"/>${inner}${caption ? text(W / 2, H - 70, caption, 34, DIM, 'middle') : ''}</svg>`;
+export const frame = (inner: string, caption?: string) => `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="${BG}"/>${inner}${caption ? text(W / 2, H - 290, caption, 34, DIM, 'middle') : ''}</svg>`; // V3: caption sits above the 1080p subtitle band (y < 880 px), inside the 96/54 safe area
 
 export type LonLat = [number, number];
 export type Geo = {countries: {name: string; rings: LonLat[][]}[]} | null;
@@ -39,9 +39,11 @@ export async function geo(cacheDir: string): Promise<Geo> {
 export type Label = {at: LonLat; s: string; size?: number; fill?: string; anchor?: 'start' | 'middle' | 'end'};
 export function mapSvg(g: Geo, bbox: [number, number, number, number], inner: (proj: (p: number[]) => [number, number]) => string, caption: string, labels: Label[] = []) {
   const [w, s, e, n] = bbox; const pad = 110; const cy0 = (s + n) / 2; const kx = Math.cos((cy0 * Math.PI) / 180);
-  const sx = (W - 2 * pad) / ((e - w) * kx), sy = (H - 2 * pad) / (n - s); const k = Math.min(sx, sy);
+  // V3 frame contract: the map body fits the region above the 1080p subtitle band and the caption (HM), inside the safe area.
+  const HM = H - 160;
+  const sx = (W - 2 * pad) / ((e - w) * kx), sy = (HM - 2 * pad) / (n - s); const k = Math.min(sx, sy);
   const cx = (w + e) / 2;
-  const proj = (p: number[]): [number, number] => [W / 2 + (p[0] - cx) * kx * k, H / 2 - (p[1] - cy0) * k];
+  const proj = (p: number[]): [number, number] => [W / 2 + (p[0] - cx) * kx * k, HM / 2 - (p[1] - cy0) * k];
   const poly = (rings: LonLat[][], fill: string, stroke: string) => rings.map((r) => `<path d="${r.map((p, i) => (i ? 'L' : 'M') + proj(p).map((v) => v.toFixed(1)).join(' ')).join(' ')} Z" fill="${fill}" stroke="${stroke}" stroke-width="2.5" stroke-linejoin="round"/>`).join('');
   const inView = (rings: LonLat[][]) => rings.some((r) => r.some((p) => p[0] > w - 5 && p[0] < e + 5 && p[1] > s - 5 && p[1] < n + 5));
   let body = `<rect width="100%" height="100%" fill="${WATER}" opacity="0.35"/>`;
@@ -67,21 +69,21 @@ export function passSchematic(opts: {anopaea?: boolean; modern?: boolean; dayThr
   b += `<path d="M 0 ${seaY} C 400 ${seaY - 20}, 700 ${seaY + 60}, 1000 ${seaY + 90} C 1250 ${seaY + 110}, 1500 ${seaY + 20}, 1800 ${seaY + 70} C 2000 ${seaY + 100}, 2200 ${seaY + 40}, ${W} ${seaY}" fill="${LAND}"/>`; // shore
   b += `<rect x="0" y="${seaY}" width="${W}" height="${H - seaY}" fill="${LAND}" opacity="0"/>`;
   b += `<path d="M 0 ${cliffY - 60} C 300 ${cliffY - 80}, 600 ${cliffY - 120}, 950 ${cliffY - 190} C 1200 ${cliffY - 230}, 1450 ${cliffY - 150}, 1750 ${cliffY - 140} C 2000 ${cliffY - 130}, 2200 ${cliffY - 60}, ${W} ${cliffY - 40} L ${W} ${H} L 0 ${H} Z" fill="#3a332c"/>`; // mountain
-  b += text(1150, 300, 'Malian Gulf (480 BC shoreline)', 40, '#bfe0ee', 'middle') + text(1150, 1180, 'Mount Kallidromo', 44, '#cdb89c', 'middle');
+  b += text(1150, 300, 'Malian Gulf (480 BC shoreline)', 40, '#bfe0ee', 'middle') + text(1150, 1000, 'Mount Kallidromo', 44, '#cdb89c', 'middle');
   b += text(300, 600, 'west gate', 34, DIM, 'middle') + text(1180, 540, 'middle gate', 34, DIM, 'middle') + text(1980, 580, 'east gate', 34, DIM, 'middle');
   b += `<line x1="1150" y1="520" x2="1150" y2="${cliffY - 215}" stroke="${BRONZE}" stroke-width="16"/>` + text(1050, 500, 'Phocian wall', 36, BRONZE, 'end');
   b += `<rect x="1230" y="470" width="40" height="40" rx="8" fill="${BRONZE}"/>` + text(1290, 500, 'the hill', 32, INK);
   b += marker([200, 520], 10, RED) + text(230, 530, 'hot springs', 32, RED);
-  b += text(60, 470, '← Persian camp (Trachis plain)', 34, PERSIAN) + text(W - 60, 470, 'Greece →', 34, INK, 'end');
+  b += text(150, 470, '← Persian camp (Trachis plain)', 34, PERSIAN) + text(W - 150, 470, 'Greece →', 34, INK, 'end');
   if (opts.anopaea || opts.dayThree) {
     b += curve([[150, 900], [450, 1050], [800, 1130], [1200, 1120], [1600, 1040], [1950, 860], [2050, 640]], opts.dayThree ? RED : ACCENT, 9, '28 18');
-    b += text(1150, 1080, 'Anopaea path (night march over the ridge)', 36, opts.dayThree ? RED : ACCENT, 'middle');
-    if (opts.phocians) b += marker([1380, 1105], 12, INK) + text(1420, 1095, '1,000 Phocians', 32, INK);
+    b += text(1150, 940, 'Anopaea path (night march over the ridge)', 36, opts.dayThree ? RED : ACCENT, 'middle');
+    if (opts.phocians) b += marker([1380, 985], 12, INK) + text(1420, 975, '1,000 Phocians', 32, INK);
     if (opts.dayThree) { b += arrowHead([1950, 860], [2050, 640], RED, 34); b += curve([[300, 560], [1080, 560]], RED, 10); b += arrowHead([300, 560], [1080, 560], RED, 34); b += text(600, 530, 'frontal assault', 34, RED, 'middle'); b += `<rect x="1120" y="440" width="140" height="90" fill="none" stroke="${INK}" stroke-width="4" stroke-dasharray="10 8"/>` + text(1190, 420, 'Greeks', 32, INK, 'middle'); }
   }
   if (opts.modern) {
     b += `<path d="M 0 150 C 600 120, 1500 110, ${W} 140" fill="none" stroke="#bfe0ee" stroke-width="5" stroke-dasharray="18 14"/>` + text(1150, 120, 'today’s shoreline, several km north', 34, '#bfe0ee', 'middle');
-    b += `<path d="M 0 ${seaY + 20} C 600 ${seaY + 30}, 1500 ${seaY + 60}, ${W} ${seaY + 30}" fill="none" stroke="${INK}" stroke-width="6"/>` + text(W - 60, seaY + 10, 'modern highway on the old shore', 32, INK, 'end');
+    b += `<path d="M 0 ${seaY + 20} C 600 ${seaY + 30}, 1500 ${seaY + 60}, ${W} ${seaY + 30}" fill="none" stroke="${INK}" stroke-width="6"/>` + text(W - 150, seaY + 10, 'modern highway on the old shore', 32, INK, 'end');
   }
   return b;
 }

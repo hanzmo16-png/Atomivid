@@ -21,6 +21,13 @@ export const REVIEW_OBJECTS: Record<string, ReviewObject> = {
     filename: "VIDEO-004-pron-gate-review.mp3",
     what: "Thermopylae V3 pronunciation gate G1+G2+G3 review audio",
   },
+  "video-004-v3-review": {
+    bucket: "videos",
+    path: "video-004-thermopylae/review/VIDEO-004-Three-Days-at-the-Hot-Gates-v3-review-480p.mp4",
+    contentType: "video/mp4",
+    filename: "VIDEO-004-v3-review-480p.mp4",
+    what: "Thermopylae V3 480p review proxy (final polish)",
+  },
   "video-004-v2-review": {
     bucket: "videos",
     path: "video-004-thermopylae/review/VIDEO-004-Three-Days-at-the-Hot-Gates-v2-review-480p.mp4",

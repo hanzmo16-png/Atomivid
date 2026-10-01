@@ -33,12 +33,13 @@ jobs:
           const fs = require('node:fs');
           const r = JSON.parse(fs.readFileSync('content/productions/video-004-thermopylae/production-request.json', 'utf8'));
           const freeze = JSON.parse(fs.readFileSync('content/productions/video-004-thermopylae/freeze/freeze.json', 'utf8'));
-          const stages = ['status','narrate','validate-narration','images','stock','graphics','review','animate','render','watch-check','review-proxy'];
+          const stages = ['status','narrate','validate-narration','images','stock','graphics','review','animate','render','watch-check','review-proxy','v3-patch'];
           if (r.projectId !== 'video-004-thermopylae' || r.capUsd !== (r.v2 === true ? 19 : 20) || r.freezeHash !== freeze.freezeHash || r.freezeHash !== '916059ce129bb1bc3095c1397f2805d75b1ff28bccb816f9afb4f33c4fdc443c') throw Error('Request is not for the authorized freeze');
           if (!r.requestId || !String(r.stage).split(',').every(s => stages.includes(s))) throw Error('Invalid stage list');
-          const paid = String(r.stage).split(',').some(s => ['narrate','images','animate'].includes(s));
+          const paid = String(r.stage).split(',').some(s => ['narrate','images','animate','v3-patch'].includes(s));
+          if (r.v3 === true && r.v2 !== true) throw Error('v3 requires v2');
           if (paid && r.confirm !== 'SPEND') throw Error('Paid stage without confirm=SPEND');
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `stage=${r.stage}\nshots=${(r.shots || []).join(',')}\ndraft=${r.draft === true}\npaid=${paid}\nbedonly=${r.bedOnly === true}\nv2=${r.v2 === true}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `stage=${r.stage}\nshots=${(r.shots || []).join(',')}\ndraft=${r.draft === true}\npaid=${paid}\nbedonly=${r.bedOnly === true}\nv2=${r.v2 === true}\nv3=${r.v3 === true}\n`);
           NODE
       - name: Run stages
         run: npx tsx scripts/video-004/produce.ts
@@ -50,9 +51,10 @@ jobs:
           V4_ALLOW_PAID: ${{ steps.request.outputs.paid }}
           V4_OUT: ${{ runner.temp }}/video-004
           V4_V2: ${{ steps.request.outputs.v2 }}
+          V4_V3: ${{ steps.request.outputs.v3 }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          ELEVENLABS_API_KEY: ${{ (contains(steps.request.outputs.stage, 'status') || contains(steps.request.outputs.stage, 'narrate')) && secrets.ELEVENLABS_API_KEY || '' }}
+          ELEVENLABS_API_KEY: ${{ (contains(steps.request.outputs.stage, 'status') || contains(steps.request.outputs.stage, 'narrate') || contains(steps.request.outputs.stage, 'v3-patch')) && secrets.ELEVENLABS_API_KEY || '' }}
           OPENAI_API_KEY: ${{ (contains(steps.request.outputs.stage, 'images') || contains(steps.request.outputs.stage, 'status')) && secrets.OPENAI_API_KEY || '' }}
           RUNWAY_API_KEY: ${{ contains(steps.request.outputs.stage, 'animate') && secrets.RUNWAY_API_KEY || '' }}
           PEXELS_API_KEY: ${{ contains(steps.request.outputs.stage, 'stock') && secrets.PEXELS_API_KEY || '' }}

@@ -5,10 +5,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {P, out, probe, put, read, readJsonStore, run, sha, sign} from './shared';
-import {V2} from './plan';
+import {V2, V3} from './plan';
+import {getSupabaseServiceRoleKey, getSupabaseUrl} from '../../src/lib/supabase/env';
 
-const NAME = V2 ? 'VIDEO-004-Three-Days-at-the-Hot-Gates-v2-review-480p.mp4' : 'VIDEO-004-Three-Days-at-the-Hot-Gates-review-480p.mp4';
-const FINAL = V2 ? 'final-v2' : 'final';
+const NAME = V3 ? 'VIDEO-004-Three-Days-at-the-Hot-Gates-v3-review-480p.mp4' : V2 ? 'VIDEO-004-Three-Days-at-the-Hot-Gates-v2-review-480p.mp4' : 'VIDEO-004-Three-Days-at-the-Hot-Gates-review-480p.mp4';
+const FINAL = V3 ? 'final-v3' : V2 ? 'final-v2' : 'final';
 const LIMIT = 50 * 1024 * 1024;
 
 export async function reviewProxy() {
@@ -31,6 +32,21 @@ export async function reviewProxy() {
   if (pb.length > LIMIT) throw Error(`Proxy ${pb.length} bytes exceeds the 50 MB object limit`);
   if (Math.abs(pp.duration - pr.duration) > 0.5) throw Error('Proxy duration differs from the master');
   const dest = `${P}/review/${NAME}`; await put(dest, pb, 'video/mp4');
+  if (V3) {
+    // V3 delivery: no signed URL to the client. The object is served by the app's owner-only route /r/video-004-v3-review;
+    // here we verify the same server-side path the route uses (service key, Range) and never print a token.
+    const base = getSupabaseUrl().replace(/\/+$/, ''); const key = getSupabaseServiceRoleKey(); const h = {Authorization: `Bearer ${key}`, apikey: key};
+    const u = `${base}/storage/v1/object/authenticated/videos/${dest.split('/').map(encodeURIComponent).join('/')}`;
+    const full = await fetch(u, {headers: h}); const got = Buffer.from(await full.arrayBuffer()); const rg = await fetch(u, {headers: {...h, Range: 'bytes=0-1023'}}); const first = Buffer.from(await rg.arrayBuffer());
+    const check = {status: full.status, contentType: full.headers.get('content-type'), bytes: got.length, sha256Matches: sha(got) === sha(pb), rangeStatus: rg.status, contentRange: rg.headers.get('content-range'), ftypAtStart: first.subarray(4, 8).toString() === 'ftyp', faststart: pb.indexOf(Buffer.from('moov')) < pb.indexOf(Buffer.from('mdat'))};
+    console.log('verify (authenticated object path)', check);
+    if (full.status !== 200 || !check.sha256Matches || rg.status !== 206 || !/video\/mp4/.test(String(check.contentType))) throw Error('Authenticated object verification failed');
+    const rec = {reviewSlug: 'video-004-v3-review', route: '/r/video-004-v3-review', object: dest, proxy: {file: NAME, bytes: pb.length, seconds: pp.duration, width: pp.width, height: pp.height, sha256: sha(pb)}, master: {file: man.file, bytes: man.bytes, sha256: man.sha256}, check};
+    await fs.writeFile(path.join(out, 'review-link.json'), JSON.stringify(rec, null, 2));
+    console.log('@@V4_REVIEW_OBJECT ' + JSON.stringify(rec));
+    await fs.rm(master, {force: true}); await fs.rm(proxy, {force: true});
+    return;
+  }
   const url = await sign(dest, 7);
   // Anonymous verification, as a phone browser would fetch it: full GET headers, then a byte range (seeking).
   const head = await fetch(url, {method: 'GET', headers: {Range: 'bytes=0-1023'}}); const first = Buffer.from(await head.arrayBuffer());

@@ -2,11 +2,12 @@
   "projectId": "video-004-thermopylae",
   "freezeHash": "916059ce129bb1bc3095c1397f2805d75b1ff28bccb816f9afb4f33c4fdc443c",
   "capUsd": 19,
-  "requestId": "v2-04-final-render",
-  "stage": "status,review,render,watch-check,review-proxy",
+  "requestId": "v3-01-full-patch-tts",
+  "stage": "status,v3-patch",
   "draft": false,
-  "confirm": "",
+  "confirm": "SPEND",
   "shots": [],
   "bedOnly": false,
-  "v2": true
+  "v2": true,
+  "v3": true
 }

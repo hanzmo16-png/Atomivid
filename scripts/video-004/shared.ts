@@ -13,6 +13,7 @@ import {idempotencyKey as piKey} from '../../src/lib/production-intelligence/led
 import {canSpend, exposureUsd, type LedgerEntry} from '../lib/dulce-part1-core';
 import {ROWS, PAUSES, video004ShotRecords, secondsOf} from '../../content/productions/video-004-thermopylae/storyboard';
 import {AUTHORIZED_FREEZE_HASH, AUTHORIZED_ENGINE_TREE, EXPOSURE_CEILING_USD, PROVIDER_CEILING_USD, PROJECT, GRAPHICS, GENERATIVE_COUNT, CLIP_RETRY, V2, V2_MOTION} from './plan';
+import {V3, withCtaShots} from './v3-cta';
 
 export const FPS = 30;
 export const P = PROJECT;
@@ -67,7 +68,8 @@ export async function loadPlan(): Promise<Plan> {
     for (const s of shots) if (V2_MOTION[s.id] && !s.generative) { s.generative = true; s.method = 'I2V_V2'; } // V4-055 stays in the frozen set and is retried at rev v2 with the V2 prompt
     if (shots.filter((s) => s.method === 'I2V_V2').length !== Object.keys(V2_MOTION).length - 1) throw Error('V2 overlay count mismatch');
   }
-  return {shots, scenes: [...new Set(shots.map((s) => s.scene))], freezeHash: freeze.freezeHash, manifest: manifest as unknown as Record<string, unknown>};
+  const finalShots = V3 ? withCtaShots(shots) : shots; // V3: two CTA scenes (post-hook, final); the frozen storyboard rows are untouched
+  return {shots: finalShots, scenes: [...new Set(finalShots.map((s) => s.scene))], freezeHash: freeze.freezeHash, manifest: manifest as unknown as Record<string, unknown>};
 }
 
 // ---------------- storage ----------------

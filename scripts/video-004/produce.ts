@@ -297,6 +297,7 @@ async function main() {
     for (const s of stage.split(',')) {
       log('STAGE', {stage: s});
       if (s === 'narrate') { await narrate(plan); await validateNarration(plan); }
+      else if (s === 'v3-patch') { const {v3Patch} = await import('./v3'); await v3Patch(plan); }
       else if (s === 'validate-narration') await validateNarration(plan);
       else if (s === 'images') await images(plan);
       else if (s === 'stock') await stock(plan);
