@@ -1,4 +1,4 @@
-name: Video 004 review proxy (free: FFmpeg only, no provider API)
+name: Video 004 review proxy (free, FFmpeg only, no provider API)
 
 # Builds a single-object 480p review MP4 from the EXISTING 1080p master parts in Supabase Storage,
 # uploads it beside the master and verifies the signed link anonymously. No generation, no paid call.
