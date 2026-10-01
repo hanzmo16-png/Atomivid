@@ -109,8 +109,13 @@ export async function render(plan: Plan) {
   for (const [j, [id, s0, s1]] of sections.entries()) {
     const {data, error} = await service.storage.from('music-library').download(id + '.mp3'); if (error || !data) throw Error('Missing licensed music ' + id);
     const mf = path.join(work, id + '.mp3'); await fs.writeFile(mf, Buffer.from(await data.arrayBuffer()));
-    const len = s1 - s0; const idx = inputs.filter((x) => x === '-i').length; inputs.push('-stream_loop', '-1', '-i', mf);
-    const d = Math.round(s0 * 1000); f.push(`[${idx}]aresample=48000,aformat=channel_layouts=stereo,dynaudnorm=f=400:g=11:p=0.9:m=12:s=8,atrim=0:${len.toFixed(3)},asetpts=N/SR/TB,afade=t=in:d=${j ? 4 : 0.4}:curve=qsin,afade=t=out:st=${Math.max(0, len - (j === sections.length - 1 ? 1.2 : 4)).toFixed(3)}:d=${j === sections.length - 1 ? 1.2 : 4}:curve=qsin,adelay=${d}|${d}[m${j}]`); mids.push(`[m${j}]`);
+    // Library tracks have quiet intros/outros: trim them, then crossfade copies into a seamless loop (as DULCE Part I did).
+    const tr = path.join(work, id + '.wav'); await run('ffmpeg', ['-y', '-i', mf, '-af', 'aresample=48000,aformat=channel_layouts=stereo,silenceremove=start_periods=1:start_threshold=-40dB,areverse,silenceremove=start_periods=1:start_threshold=-40dB,areverse', tr]);
+    const trackSeconds = await probeDuration(tr); const len = s1 - s0; const copies = Math.ceil(len / Math.max(10, trackSeconds - 3)) + 1; const first = inputs.filter((x) => x === '-i').length;
+    for (let k = 0; k < copies; k++) inputs.push('-i', tr);
+    let chain = `[${first}]`; for (let k = 1; k < copies; k++) { f.push(`${chain}[${first + k}]acrossfade=d=3:c1=tri:c2=tri[m${j}x${k}]`); chain = `[m${j}x${k}]`; }
+    const d = Math.round(s0 * 1000); f.push(`${chain}dynaudnorm=f=400:g=11:p=0.9:m=12:s=8,atrim=0:${len.toFixed(3)},asetpts=N/SR/TB,afade=t=in:d=${j ? 4 : 0.4}:curve=qsin,afade=t=out:st=${Math.max(0, len - (j === sections.length - 1 ? 1.2 : 4)).toFixed(3)}:d=${j === sections.length - 1 ? 1.2 : 4}:curve=qsin,adelay=${d}|${d}[m${j}]`); mids.push(`[m${j}]`);
+    log('MUSIC', {id, trackSeconds: +trackSeconds.toFixed(1), copies, from: +s0.toFixed(1), to: +s1.toFixed(1)});
   }
   const drops = slots.filter((s) => MUSIC_DROPS[s.id]).map((s) => { const [o, d] = MUSIC_DROPS[s.id]; const a = s.startFrame / FPS + o; return `(1-0.5*between(t,${a.toFixed(2)},${(a + d).toFixed(2)}))`; });
   const dropExpr = drops.length ? `volume='${drops.join('*')}':eval=frame,` : '';
