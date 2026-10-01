@@ -49,7 +49,6 @@ export const STILL_NOTES: Record<string, string> = {
   'V3-032': 'Three field scientists in 1980s field clothes on a lakeshore with sample cases and instruments, seen from behind or at a distance, faces not visible.',
   'V3-033': 'The crater lake from the rim, water rusty red-brown, morning light; eerie but calm.',
   'V3-036': 'Not a diagram: a photoreal cutaway impression is NOT wanted. Instead: dark fractured volcanic rock with faint wisps of gas rising, abstract, close.',
-  'V3-038': 'Macro of a sealed glass bottle of carbonated water, condensation, no bubbles visible, dark background.',
   'V3-046': 'Underwater in darkness: thousands of small bubbles nucleating and rushing upward, dramatic.',
   'V3-047': 'Underwater looking straight up: a towering column of bubbles exploding toward a pale surface.',
   'V3-048': 'Night: a crater lake with a huge surge of dark water and white spray heaving upward from the centre, mist, moonlight; no people.',
