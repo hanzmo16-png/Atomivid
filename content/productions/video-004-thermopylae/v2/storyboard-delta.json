@@ -1,0 +1,1007 @@
+{
+ "deltaVersion": "video-004/v2-delta/1",
+ "baseFreeze": "916059ce129bb1bc3095c1397f2805d75b1ff28bccb816f9afb4f33c4fdc443c",
+ "baseCommit": "c227517",
+ "masterSha256": "d9101587a127df1c79483026564014ed1abf9ebd0a7b33f0d825d372ecdb8510",
+ "principle": "NARRATION DESCRIBES ACTION -> VISUAL SHOWS ACTION",
+ "status": "THERMOPYLAE_V2_COST_AUTHORIZATION_REQUIRED",
+ "shots": [
+  {
+   "id": "V4-001",
+   "slotSeconds": 3.533,
+   "currentKind": "clip",
+   "currentMethod": "I2V_ECONOMY",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "wind, gentle surf, one distant shield knock; clip stays"
+  },
+  {
+   "id": "V4-002",
+   "slotSeconds": 2.9,
+   "currentKind": "clip",
+   "currentMethod": "I2V_ECONOMY",
+   "action": "KEEP",
+   "treatment": "clip stays; surf and steam hiss"
+  },
+  {
+   "id": "V4-003",
+   "slotSeconds": 2.5,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "stock stays"
+  },
+  {
+   "id": "V4-004",
+   "slotSeconds": 2,
+   "currentKind": "still",
+   "currentMethod": "STOCK",
+   "action": "ENHANCE_FREE",
+   "treatment": "free: faster tilt-up + procedural dust haze overlay (ffmpeg noise/blur composite) + first footstep swell; 2.0 s only",
+   "scenario": "A",
+   "costUsd": 0
+  },
+  {
+   "id": "V4-005",
+   "slotSeconds": 3.367,
+   "currentKind": "clip",
+   "currentMethod": "I2V_ECONOMY",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "clip stays; thousands of footsteps rising, horses, carts"
+  },
+  {
+   "id": "V4-006",
+   "slotSeconds": 6.133,
+   "currentKind": "still",
+   "currentMethod": "STILL_KEN_BURNS",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion from the approved still: helmets turn a few degrees, cloaks and crests move in wind, dust drifts past; no new figures",
+   "scenario": "B",
+   "clipSeconds": 10,
+   "costUsd": 0.5,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static camera from behind the Greek line. Cloaks and helmet crests stir in the wind, a few helmets turn slightly toward the shore, dust drifts across; figures stay in place, no faces. Photoreal."
+  },
+  {
+   "id": "V4-007",
+   "slotSeconds": 3.567,
+   "currentKind": "still",
+   "currentMethod": "STILL_KEN_BURNS",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "macro shield rim stays; wood creak + leather + breathing, music dips"
+  },
+  {
+   "id": "V4-008",
+   "slotSeconds": 4.333,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "stock stays; wind"
+  },
+  {
+   "id": "V4-009",
+   "slotSeconds": 3.9,
+   "currentKind": "clip",
+   "currentMethod": "I2V_ECONOMY",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "clip stays; wind, a single far-off crow, music low"
+  },
+  {
+   "id": "V4-010",
+   "slotSeconds": 4.333,
+   "currentKind": "still",
+   "currentMethod": "STILL_KEN_BURNS",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "tilt-down stays; silence then low drone"
+  },
+  {
+   "id": "V4-011",
+   "slotSeconds": 5.833,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "surf stock stays"
+  },
+  {
+   "id": "V4-012",
+   "slotSeconds": 7.2,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "ENHANCE_FREE",
+   "treatment": "free: animated title (letters track in, thin rule draws) instead of a static card; notice moved off the hook",
+   "scenario": "A",
+   "costUsd": 0
+  },
+  {
+   "id": "V4-013",
+   "slotSeconds": 7.267,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "Marathon beach stock stays; free inset mini-map pin \"Marathon, 490 BC\" fades in"
+  },
+  {
+   "id": "V4-014",
+   "slotSeconds": 5.333,
+   "currentKind": "still",
+   "currentMethod": "STOCK",
+   "action": "ENHANCE_FREE",
+   "treatment": "free: slow light sweep (animated gradient mask) across the relief instead of a pan",
+   "scenario": "A",
+   "costUsd": 0
+  },
+  {
+   "id": "V4-015",
+   "slotSeconds": 6.567,
+   "currentKind": "still",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "ruins still stays (ken burns)"
+  },
+  {
+   "id": "V4-016",
+   "slotSeconds": 10.4,
+   "currentKind": "graphic",
+   "currentMethod": "GRAPHIC",
+   "action": "REPLACE_WITH_GRAPHICS",
+   "treatment": "ANIMATED MAP: route draws Sardis\u2192Hellespont\u2192Doriscus\u2192Athos\u2192Therma\u2192Thermopylae as the words arrive; depot and canal labels appear on \"grain\" and \"canal\"; camera follows",
+   "scenario": "A",
+   "costUsd": 0,
+   "engine": "render.ts animated-graphic frames (SVG per frame, word-synchronised)"
+  },
+  {
+   "id": "V4-017",
+   "slotSeconds": 8.167,
+   "currentKind": "clip",
+   "currentMethod": "I2V_ECONOMY",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "bridges clip stays; creaking timber, water, hooves on planks"
+  },
+  {
+   "id": "V4-018",
+   "slotSeconds": 7.9,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "storm stock stays; whip crack synthesized x3 under \"whipped\" (optional)"
+  },
+  {
+   "id": "V4-019",
+   "slotSeconds": 13.567,
+   "currentKind": "graphic",
+   "currentMethod": "GRAPHIC",
+   "action": "REPLACE_WITH_GRAPHICS",
+   "treatment": "ANIMATED CHART: Herodotus bar grows with a counter to 2,641,610; modern bar appears on \"Modern historians\"; fleet bars on \"fleet\"",
+   "scenario": "A",
+   "costUsd": 0,
+   "engine": "render.ts animated-graphic frames (SVG per frame, word-synchronised)"
+  },
+  {
+   "id": "V4-020",
+   "slotSeconds": 4.067,
+   "currentKind": "still",
+   "currentMethod": "STILL_PARALLAX",
+   "action": "ENHANCE_FREE",
+   "treatment": "free: smoke/haze drift overlay on the camp still",
+   "scenario": "A",
+   "costUsd": 0
+  },
+  {
+   "id": "V4-021",
+   "slotSeconds": 9.833,
+   "currentKind": "still",
+   "currentMethod": "STOCK",
+   "action": "ENHANCE_FREE",
+   "treatment": "free: split into two camera moves (push on the bowl, then rack to the jar); water pour sound",
+   "scenario": "A",
+   "costUsd": 0
+  },
+  {
+   "id": "V4-022",
+   "slotSeconds": 5.3,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "ruins stock stays"
+  },
+  {
+   "id": "V4-023",
+   "slotSeconds": 8.833,
+   "currentKind": "graphic",
+   "currentMethod": "GRAPHIC",
+   "action": "REPLACE_WITH_GRAPHICS",
+   "treatment": "ANIMATED MAP: resisting cities light up one by one, Corinth pulses on \"Corinth\", submitted cities dim in purple",
+   "scenario": "A",
+   "costUsd": 0,
+   "engine": "render.ts animated-graphic frames (SVG per frame, word-synchronised)"
+  },
+  {
+   "id": "V4-024",
+   "slotSeconds": 2.767,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "Taygetus stock stays"
+  },
+  {
+   "id": "V4-025",
+   "slotSeconds": 7.233,
+   "currentKind": "still",
+   "currentMethod": "STILL_PARALLAX",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion: shipwrights as tiny figures, sea moving, timber dust",
+   "scenario": "C",
+   "clipSeconds": 10,
+   "costUsd": 0.5,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static wide camera. Gentle waves, tiny figures moving along the hulls, sawdust drifting in the morning light; ships stay in place. Photoreal."
+  },
+  {
+   "id": "V4-026",
+   "slotSeconds": 15.233,
+   "currentKind": "graphic",
+   "currentMethod": "GRAPHIC",
+   "action": "REPLACE_WITH_GRAPHICS",
+   "treatment": "ANIMATED MAP: army arrow advances to Thermopylae, fleet arrow to Artemisium, two bronze bars snap in on \"block\"; \"60 km\" label on \"beside it\"",
+   "scenario": "A",
+   "costUsd": 0,
+   "engine": "render.ts animated-graphic frames (SVG per frame, word-synchronised)"
+  },
+  {
+   "id": "V4-027",
+   "slotSeconds": 8.433,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "temple stock stays; distant festival drums (low)"
+  },
+  {
+   "id": "V4-028",
+   "slotSeconds": 8.533,
+   "currentKind": "still",
+   "currentMethod": "STILL_KEN_BURNS",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion of the Leonidas still: cloak and hair in wind, column behind shifts its weight; no face",
+   "scenario": "B",
+   "clipSeconds": 10,
+   "costUsd": 0.5,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static camera behind the king at the gate. The crimson cloak and long hair move in the wind, spear points sway in the column beyond, dawn light flickers through dust. The figure does not turn. Photoreal."
+  },
+  {
+   "id": "V4-029",
+   "slotSeconds": 9.367,
+   "currentKind": "still",
+   "currentMethod": "STILL_KEN_BURNS",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion of the boy still: the column walks away down the street; the boy stays",
+   "scenario": "C",
+   "clipSeconds": 10,
+   "costUsd": 0.5,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static camera. The column of cloaked men walks slowly away down the dusty street; the child at the doorway stays still, hand on the post. No faces. Photoreal."
+  },
+  {
+   "id": "V4-030",
+   "slotSeconds": 21,
+   "currentKind": "graphic",
+   "currentMethod": "GRAPHIC",
+   "action": "REPLACE_WITH_GRAPHICS",
+   "treatment": "ANIMATED MAP (21 s): each contingent marker pops in with its number as it is named (Tegea, Mantinea, Corinth, Phlius, Mycenae, Thespiae, Thebes, Phocis, Locris); the route line draws north; camera zooms from the Peloponnese to the pass",
+   "scenario": "A",
+   "costUsd": 0,
+   "engine": "render.ts animated-graphic frames (SVG per frame, word-synchronised)"
+  },
+  {
+   "id": "V4-031",
+   "slotSeconds": 8.6,
+   "currentKind": "still",
+   "currentMethod": "STILL_PARALLAX",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion: the column winds along the road, mules, dust; seen from the ridge",
+   "scenario": "B",
+   "clipSeconds": 10,
+   "costUsd": 0.5,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Slow aerial drift along the ridge. The long column of hoplites and pack mules moves steadily along the dusty mountain road toward the sea; dust rises; figures small. Photoreal."
+  },
+  {
+   "id": "V4-032",
+   "slotSeconds": 7.7,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "hot springs stock stays; hiss"
+  },
+  {
+   "id": "V4-033",
+   "slotSeconds": 5,
+   "currentKind": "graphic",
+   "currentMethod": "GRAPHIC",
+   "action": "REPLACE_WITH_GRAPHICS",
+   "treatment": "ANIMATED MAP: the 480 BC sea fills in against the cliff, the three gates light up in turn, the wall snaps in",
+   "scenario": "A",
+   "costUsd": 0,
+   "engine": "render.ts animated-graphic frames (SVG per frame, word-synchronised)"
+  },
+  {
+   "id": "V4-034",
+   "slotSeconds": 8.233,
+   "currentKind": "still",
+   "currentMethod": "STILL_PARALLAX",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion: ground-level dolly along the pass, surf, soldiers walking ahead",
+   "scenario": "C",
+   "clipSeconds": 10,
+   "costUsd": 0.5,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Slow forward dolly at ground level along the shore track; waves lap at the left, the line of hoplites ahead walks slowly away; dust and morning haze. Photoreal."
+  },
+  {
+   "id": "V4-035",
+   "slotSeconds": 8,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "highway stock stays"
+  },
+  {
+   "id": "V4-036",
+   "slotSeconds": 8,
+   "currentKind": "still",
+   "currentMethod": "STILL_PARALLAX",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion: cooking smoke rises behind the wall, figures move, sea lapping",
+   "scenario": "C",
+   "clipSeconds": 10,
+   "costUsd": 0.5,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static camera. Smoke from the cooking fires drifts up behind the low wall, tiny figures move among them, waves lap the shore, the cliff is still. Photoreal."
+  },
+  {
+   "id": "V4-037",
+   "slotSeconds": 4.6,
+   "currentKind": "still",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "resting hoplites still stays; camp sounds"
+  },
+  {
+   "id": "V4-038",
+   "slotSeconds": 19.433,
+   "currentKind": "graphic",
+   "currentMethod": "GRAPHIC",
+   "action": "REPLACE_WITH_GRAPHICS",
+   "treatment": "ANIMATED KIT (19 s): each item draws/highlights exactly when named: shield \u2192 spear \u2192 sword \u2192 helmet \u2192 armour \u2192 greaves; the rest dims",
+   "scenario": "A",
+   "costUsd": 0,
+   "engine": "render.ts animated-graphic frames (SVG per frame, word-synchronised)"
+  },
+  {
+   "id": "V4-039",
+   "slotSeconds": 10.2,
+   "currentKind": "still",
+   "currentMethod": "STILL_KEN_BURNS",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion: Spartan from behind, cloak and braids in the wind, shield still",
+   "scenario": "B",
+   "clipSeconds": 10,
+   "costUsd": 0.5,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static camera behind one Spartan on the shore. His crimson cloak and long braided hair move in the wind, waves move, spear points sway far along the shore. He does not turn. Photoreal."
+  },
+  {
+   "id": "V4-040",
+   "slotSeconds": 10.2,
+   "currentKind": "graphic",
+   "currentMethod": "GRAPHIC",
+   "action": "REPLACE_WITH_GRAPHICS",
+   "treatment": "ANIMATED DIAGRAM: ranks fill in one by one on \"ranks\", shields slide to overlap on \"each shield\", spears lower on \"levelled\"",
+   "scenario": "A",
+   "costUsd": 0,
+   "engine": "render.ts animated-graphic frames (SVG per frame, word-synchronised)"
+  },
+  {
+   "id": "V4-041",
+   "slotSeconds": 7.7,
+   "currentKind": "graphic",
+   "currentMethod": "GRAPHIC",
+   "action": "REPLACE_WITH_GRAPHICS",
+   "treatment": "ANIMATED DIAGRAM: in the open the purple mass flows around the flanks; in the pass it piles up against the front and stops",
+   "scenario": "A",
+   "costUsd": 0,
+   "engine": "render.ts animated-graphic frames (SVG per frame, word-synchronised)"
+  },
+  {
+   "id": "V4-042",
+   "slotSeconds": 16.7,
+   "currentKind": "still",
+   "currentMethod": "STILL_KEN_BURNS",
+   "action": "REPLACE_WITH_GRAPHICS",
+   "treatment": "free: keep the flat-lay still as background; animated callout dots and short labels appear on each item as named (felt cap, tunic, scales, trousers, wicker shield, spears, daggers, bows); two camera moves instead of one 16.7 s pan",
+   "scenario": "A",
+   "costUsd": 0,
+   "engine": "render.ts animated-graphic frames (SVG per frame, word-synchronised)"
+  },
+  {
+   "id": "V4-043",
+   "slotSeconds": 10.367,
+   "currentKind": "still",
+   "currentMethod": "STILL_PARALLAX",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion: the block of Immortals marches at parade pace, wicker shields swaying",
+   "scenario": "B",
+   "clipSeconds": 10,
+   "costUsd": 0.5,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static high camera. The dense block of Persian infantry marches forward at a slow parade pace, wicker shields and spears swaying in step, dust at their feet. No faces. Photoreal."
+  },
+  {
+   "id": "V4-044",
+   "slotSeconds": 8.033,
+   "currentKind": "still",
+   "currentMethod": "STOCK",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "equipment still stays; leather, wicker creak, bowstring"
+  },
+  {
+   "id": "V4-045",
+   "slotSeconds": 6,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "sunset stock stays; camp at dusk ambience"
+  },
+  {
+   "id": "V4-046",
+   "slotSeconds": 3.5,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "horseman stock stays; hooves, wind"
+  },
+  {
+   "id": "V4-047",
+   "slotSeconds": 14.533,
+   "currentKind": "still",
+   "currentMethod": "STILL_KEN_BURNS",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion (risky: hands): men in camp, combing and oiling; keep as C with a strict back-view prompt",
+   "scenario": "C",
+   "clipSeconds": 10,
+   "costUsd": 0.5,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static camera at mid distance behind the Spartans. One slowly combs his long hair, another turns a shield in his hands; cloaks move; tents flap. Backs only, no faces, slow and natural. Photoreal."
+  },
+  {
+   "id": "V4-048",
+   "slotSeconds": 7.067,
+   "currentKind": "still",
+   "currentMethod": "STILL_PARALLAX",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion: the Median column advances along the shore toward the wall",
+   "scenario": "B",
+   "clipSeconds": 10,
+   "costUsd": 0.5,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static high camera. The column of Median infantry advances steadily along the shore toward the low wall, wicker shields up, dust rising behind them. Figures small. Photoreal."
+  },
+  {
+   "id": "V4-049",
+   "slotSeconds": 3.867,
+   "currentKind": "clip",
+   "currentMethod": "I2V_ECONOMY",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "assault clip stays; crowd roar, shield impacts, music drop before contact"
+  },
+  {
+   "id": "V4-050",
+   "slotSeconds": 4.033,
+   "currentKind": "still",
+   "currentMethod": "STILL_KEN_BURNS",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion: low angle, spear hedge sways, wicker shields push, dust",
+   "scenario": "B",
+   "clipSeconds": 5,
+   "costUsd": 0.25,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static low camera from the Persian side. The hedge of long spear points sways and thrusts over the bronze rim, wicker shields in the foreground push forward, dust blows across. No faces. Photoreal."
+  },
+  {
+   "id": "V4-051",
+   "slotSeconds": 3.267,
+   "currentKind": "still",
+   "currentMethod": "STILL_PARALLAX",
+   "action": "KEEP",
+   "treatment": "from-the-cliff still stays (3.3 s)"
+  },
+  {
+   "id": "V4-052",
+   "slotSeconds": 10.867,
+   "currentKind": "still",
+   "currentMethod": "STILL_PARALLAX",
+   "action": "ENHANCE_FREE",
+   "treatment": "free: dust drift overlay on the empty platform; the king's absence reads better in silence (music out)",
+   "scenario": "A",
+   "costUsd": 0
+  },
+  {
+   "id": "V4-053",
+   "slotSeconds": 9.667,
+   "currentKind": "clip",
+   "currentMethod": "I2V_ECONOMY",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "clip stays; shouting crowd rush, then turn"
+  },
+  {
+   "id": "V4-054",
+   "slotSeconds": 10.8,
+   "currentKind": "clip",
+   "currentMethod": "I2V_ECONOMY",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "clip stays; impact layer on \"wheel\", king rising = music stab"
+  },
+  {
+   "id": "V4-055",
+   "slotSeconds": 14.367,
+   "currentKind": "still",
+   "currentMethod": "I2V_ECONOMY",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion retry with a materially different prompt (the v1 clip degraded into noise): shadow sweeps across the shields, a sparse flight of arrows",
+   "scenario": "B",
+   "clipSeconds": 10,
+   "costUsd": 0.5,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static camera under the shield rims. A dark shadow sweeps slowly across the bronze shields as a thin flight of arrows passes overhead; the sky dims and returns. Few arrows, slow, photoreal, no faces."
+  },
+  {
+   "id": "V4-056",
+   "slotSeconds": 9.4,
+   "currentKind": "still",
+   "currentMethod": "STILL_PARALLAX",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion: fresh contingent files forward past a resting one",
+   "scenario": "C",
+   "clipSeconds": 10,
+   "costUsd": 0.5,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static high camera. A fresh line of hoplites files forward along the shore past men sitting against the wall; dust hangs; figures small. Photoreal."
+  },
+  {
+   "id": "V4-057",
+   "slotSeconds": 10.067,
+   "currentKind": "still",
+   "currentMethod": "STILL_PARALLAX",
+   "action": "ENHANCE_FREE",
+   "treatment": "free: lamp flicker overlay (animated warm vignette) on the camp still",
+   "scenario": "A",
+   "costUsd": 0
+  },
+  {
+   "id": "V4-058",
+   "slotSeconds": 10.4,
+   "currentKind": "graphic",
+   "currentMethod": "GRAPHIC",
+   "action": "REPLACE_WITH_GRAPHICS",
+   "treatment": "ANIMATED MAP: the Anopaea path draws itself over the ridge through the night; Immortals markers climb it; the Phocian marker appears on \"posted\"",
+   "scenario": "A",
+   "costUsd": 0,
+   "engine": "render.ts animated-graphic frames (SVG per frame, word-synchronised)"
+  },
+  {
+   "id": "V4-059",
+   "slotSeconds": 5.767,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "forest ridge stock stays"
+  },
+  {
+   "id": "V4-060",
+   "slotSeconds": 7.4,
+   "currentKind": "clip",
+   "currentMethod": "I2V_ECONOMY",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "night march clip stays; footsteps on leaves, owls, torches"
+  },
+  {
+   "id": "V4-061",
+   "slotSeconds": 3.933,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "moon stock stays"
+  },
+  {
+   "id": "V4-062",
+   "slotSeconds": 10.233,
+   "currentKind": "clip",
+   "currentMethod": "I2V_ECONOMY",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "clip stays; leaves, sudden silence, then arrows"
+  },
+  {
+   "id": "V4-063",
+   "slotSeconds": 6.767,
+   "currentKind": "still",
+   "currentMethod": "STOCK",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion: Phocians withdraw up the hill, arrows fall",
+   "scenario": "C",
+   "clipSeconds": 10,
+   "costUsd": 0.5,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static camera at the foot of the hill. Hoplites with raised shields climb back up among the oaks at dawn as arrows drop into the turf; mist drifts. Figures distant. Photoreal."
+  },
+  {
+   "id": "V4-064",
+   "slotSeconds": 6.3,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "descent aerial stock stays"
+  },
+  {
+   "id": "V4-065",
+   "slotSeconds": 6.133,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "embers stock stays; running footsteps approaching"
+  },
+  {
+   "id": "V4-066",
+   "slotSeconds": 6.433,
+   "currentKind": "still",
+   "currentMethod": "STILL_KEN_BURNS",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "council still stays; silence, wind, embers"
+  },
+  {
+   "id": "V4-067",
+   "slotSeconds": 6,
+   "currentKind": "still",
+   "currentMethod": "STILL_PARALLAX",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion: the allied column marches away east along the shore",
+   "scenario": "B",
+   "clipSeconds": 10,
+   "costUsd": 0.5,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static camera behind the wall. The column of hoplites marches away east along the shore at dawn, dust rising, figures small; the shore ahead empty. Photoreal."
+  },
+  {
+   "id": "V4-068",
+   "slotSeconds": 9.733,
+   "currentKind": "still",
+   "currentMethod": "STILL_KEN_BURNS",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "Thespians still stays (strong frame); surf, no music for 3 s"
+  },
+  {
+   "id": "V4-069",
+   "slotSeconds": 7.567,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "Delphi stock stays"
+  },
+  {
+   "id": "V4-070",
+   "slotSeconds": 10.933,
+   "currentKind": "graphic",
+   "currentMethod": "GRAPHIC",
+   "action": "REPLACE_WITH_GRAPHICS",
+   "treatment": "ANIMATED MAP: the retreat road draws south while the fleet line draws to Salamis; an hours counter on \"hours\"",
+   "scenario": "A",
+   "costUsd": 0,
+   "engine": "render.ts animated-graphic frames (SVG per frame, word-synchronised)"
+  },
+  {
+   "id": "V4-071",
+   "slotSeconds": 3.3,
+   "currentKind": "still",
+   "currentMethod": "STILL_PARALLAX",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion: the host forms up, standards moving",
+   "scenario": "B",
+   "clipSeconds": 5,
+   "costUsd": 0.25,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static camera from the Greek side. The distant Persian host forms up on the shore, standards swaying, dust rising; the canopied platform still. Photoreal, no close detail."
+  },
+  {
+   "id": "V4-072",
+   "slotSeconds": 3.2,
+   "currentKind": "still",
+   "currentMethod": "STILL_KEN_BURNS",
+   "action": "KEEP",
+   "treatment": "gap in the wall still stays (3.2 s)"
+  },
+  {
+   "id": "V4-073",
+   "slotSeconds": 9.5,
+   "currentKind": "clip",
+   "currentMethod": "I2V_HERO",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "hero clip stays; music out, footsteps and breathing only, then impact"
+  },
+  {
+   "id": "V4-074",
+   "slotSeconds": 4.267,
+   "currentKind": "still",
+   "currentMethod": "STILL_KEN_BURNS",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "broken spear still stays; wood snap"
+  },
+  {
+   "id": "V4-075",
+   "slotSeconds": 4.667,
+   "currentKind": "still",
+   "currentMethod": "STILL_KEN_BURNS",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "helmet still stays; total silence 1.5 s then wind"
+  },
+  {
+   "id": "V4-076",
+   "slotSeconds": 6.7,
+   "currentKind": "clip",
+   "currentMethod": "I2V_ECONOMY",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "clip stays; crowd heave, metal"
+  },
+  {
+   "id": "V4-077",
+   "slotSeconds": 3.333,
+   "currentKind": "still",
+   "currentMethod": "STILL_PARALLAX",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion: Persian column emerges from the forest onto the shore",
+   "scenario": "B",
+   "clipSeconds": 5,
+   "costUsd": 0.25,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static high camera. A column of Persian infantry emerges from the oak forest onto the shore behind the wall and spreads along it; dust; figures small. Photoreal."
+  },
+  {
+   "id": "V4-078",
+   "slotSeconds": 11.4,
+   "currentKind": "clip",
+   "currentMethod": "I2V_ECONOMY",
+   "action": "SOUND_DESIGN_ONLY",
+   "treatment": "hill clip stays; distant roar, then quiet"
+  },
+  {
+   "id": "V4-079",
+   "slotSeconds": 5,
+   "currentKind": "still",
+   "currentMethod": "STILL_PARALLAX",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion: volleys arc onto the mound (simple prompt, few arrows)",
+   "scenario": "B",
+   "clipSeconds": 5,
+   "costUsd": 0.25,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static camera at distance behind the archers. Sparse volleys of arrows arc slowly up and fall onto the far mound; dust settles; nothing else moves. Photoreal."
+  },
+  {
+   "id": "V4-080",
+   "slotSeconds": 7.2,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "trowel stock stays"
+  },
+  {
+   "id": "V4-081",
+   "slotSeconds": 4.833,
+   "currentKind": "graphic",
+   "currentMethod": "GRAPHIC",
+   "action": "REPLACE_WITH_GRAPHICS",
+   "treatment": "ANIMATED: the six arrowheads fade in one after another; count ticks up",
+   "scenario": "A",
+   "costUsd": 0,
+   "engine": "render.ts animated-graphic frames (SVG per frame, word-synchronised)"
+  },
+  {
+   "id": "V4-082",
+   "slotSeconds": 10.133,
+   "currentKind": "still",
+   "currentMethod": "STILL_KEN_BURNS",
+   "action": "ENHANCE_FREE",
+   "treatment": "free: slower, longer push instead of a pan; the Theban note stays",
+   "scenario": "A",
+   "costUsd": 0
+  },
+  {
+   "id": "V4-083",
+   "slotSeconds": 11.9,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "waves stock stays; wind only, music low"
+  },
+  {
+   "id": "V4-084",
+   "slotSeconds": 7.133,
+   "currentKind": "graphic",
+   "currentMethod": "GRAPHIC",
+   "action": "REPLACE_WITH_GRAPHICS",
+   "treatment": "ANIMATED MAP: fleet lines appear, the gulf sightline draws between pass and Artemisium",
+   "scenario": "A",
+   "costUsd": 0,
+   "engine": "render.ts animated-graphic frames (SVG per frame, word-synchronised)"
+  },
+  {
+   "id": "V4-085",
+   "slotSeconds": 5.2,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "storm stock stays"
+  },
+  {
+   "id": "V4-086",
+   "slotSeconds": 5.133,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "moon sea stock stays; oars"
+  },
+  {
+   "id": "V4-087",
+   "slotSeconds": 5.267,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "Athens aerial stock stays"
+  },
+  {
+   "id": "V4-088",
+   "slotSeconds": 3.7,
+   "currentKind": "still",
+   "currentMethod": "STILL_PARALLAX",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion: smoke columns rise from the citadel",
+   "scenario": "C",
+   "clipSeconds": 5,
+   "costUsd": 0.25,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static wide camera. Columns of smoke rise and lean from the rocky citadel above the empty plain at dusk; light fades slightly. No people. Photoreal."
+  },
+  {
+   "id": "V4-089",
+   "slotSeconds": 6.733,
+   "currentKind": "still",
+   "currentMethod": "STILL_PARALLAX",
+   "action": "REPLACE_WITH_AI_MOTION",
+   "treatment": "AI motion: triremes close in the strait, oars churning",
+   "scenario": "B",
+   "clipSeconds": 10,
+   "costUsd": 0.5,
+   "baseStill": "existing approved still (USD 0)",
+   "motionPrompt": "Static high camera. Lines of triremes move slowly toward each other in the narrow strait, oars churning the water, some ships turning. No close detail. Photoreal."
+  },
+  {
+   "id": "V4-090",
+   "slotSeconds": 2,
+   "currentKind": "graphic",
+   "currentMethod": "GRAPHIC",
+   "action": "REPLACE_WITH_GRAPHICS",
+   "treatment": "ANIMATED MAP: Xerxes's return line draws to the Hellespont (2 s)",
+   "scenario": "A",
+   "costUsd": 0,
+   "engine": "render.ts animated-graphic frames (SVG per frame, word-synchronised)"
+  },
+  {
+   "id": "V4-091",
+   "slotSeconds": 7.3,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "plain stock stays"
+  },
+  {
+   "id": "V4-092",
+   "slotSeconds": 9.367,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "cliffs stock stays"
+  },
+  {
+   "id": "V4-093",
+   "slotSeconds": 9.033,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "islands stock stays"
+  },
+  {
+   "id": "V4-094",
+   "slotSeconds": 11.933,
+   "currentKind": "graphic",
+   "currentMethod": "GRAPHIC",
+   "action": "REPLACE_WITH_GRAPHICS",
+   "treatment": "ANIMATED CARD: Greek lines fade in, English lines appear with the narration; stone texture breathes",
+   "scenario": "A",
+   "costUsd": 0,
+   "engine": "render.ts animated-graphic frames (SVG per frame, word-synchronised)"
+  },
+  {
+   "id": "V4-095",
+   "slotSeconds": 8.6,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "manuscript stock stays"
+  },
+  {
+   "id": "V4-096",
+   "slotSeconds": 8.5,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "olive groves stock stays"
+  },
+  {
+   "id": "V4-097",
+   "slotSeconds": 4.6,
+   "currentKind": "stock",
+   "currentMethod": "STOCK",
+   "action": "KEEP",
+   "treatment": "plain sunset stock stays"
+  },
+  {
+   "id": "V4-098",
+   "slotSeconds": 7.767,
+   "currentKind": "still",
+   "currentMethod": "STOCK",
+   "action": "ENHANCE_FREE",
+   "treatment": "free: slow push instead of static framing; wind",
+   "scenario": "A",
+   "costUsd": 0
+  },
+  {
+   "id": "V4-099",
+   "slotSeconds": 1.5,
+   "currentKind": "graphic",
+   "currentMethod": "GRAPHIC",
+   "action": "KEEP",
+   "treatment": "end card"
+  }
+ ],
+ "scenarios": {
+  "A": {
+   "ai": 0,
+   "retry": 0,
+   "stills": 0,
+   "add": 0,
+   "total": 11.33,
+   "currentUsd": 11.3295,
+   "motionSeconds": 455.3,
+   "motionShare": 0.618
+  },
+  "B": {
+   "ai": 5.5,
+   "retry": 0.82,
+   "stills": 0,
+   "add": 6.32,
+   "total": 17.65,
+   "currentUsd": 11.3295,
+   "motionSeconds": 548.9,
+   "motionShare": 0.745,
+   "aiClips": 13
+  },
+  "C": {
+   "ai": 9.25,
+   "retry": 1.39,
+   "stills": 0.14,
+   "add": 10.78,
+   "total": 22.11,
+   "currentUsd": 11.3295,
+   "motionSeconds": 616.2,
+   "motionShare": 0.837,
+   "aiClips": 21
+  }
+ }
+}
