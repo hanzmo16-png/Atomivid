@@ -72,3 +72,15 @@ points to a non-deterministic alteration on the delivery path.
 ### Spend
 
 USD 0.00 (no TTS, no image/video generation; read-only probes and one storage read).
+
+### Verification of the fix (`video-004-review-route-check.yml`, runs 36895735310 / 36895905906)
+
+| Check | Result |
+|---|---|
+| Upstream path used by `/r/<slug>` (service key, authenticated endpoint) | full GET 200 `audio/mpeg` 536,703 bytes sha256 `47dd7267…3d5a` (identical to the gate artifact); `Range: bytes=0-999` → 206 `bytes 0-999/536703`; open range → 206 `bytes 100000-536702/536703`; client headers `private, no-store`, `Accept-Ranges: bytes`. |
+| Production alias `atomivid.vercel.app/r/video-004-pron-gate` | 404 (`x-matched-path: /404`): production serves the project's production branch, which does not contain this route yet. Merging is not authorized from this session. |
+| Branch preview `atomivid-git-claude-production-intelligence-v1-atomivid.vercel.app` | Vercel Deployment Protection (302 → `vercel.com/sso-api`) in front of the app; the repository no longer holds `VERCEL_AUTOMATION_BYPASS_SECRET` nor `VERCEL_TOKEN`, so CI cannot see behind it. The owner can open it after the Vercel login, then the app's own login. |
+
+Delivery status for the gate MP3: the file itself was handed to the user in the chat (same
+bytes, sha256 above). The short route is DELIVERY_PASS only once the user confirms it on the
+device, per the rule above.
