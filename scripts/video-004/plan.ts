@@ -9,9 +9,11 @@
 export const AUTHORIZED_FREEZE_HASH = '916059ce129bb1bc3095c1397f2805d75b1ff28bccb816f9afb4f33c4fdc443c';
 export const AUTHORIZED_ENGINE_TREE = 'fb24a4026e29815b9c8a2071e2db474d3d399adb50c933e276f1480f05a2cbef';
 /** Hard cap authorized for the project (USD): the exposure ceiling that stops production IS the cap. */
-export const HARD_CAP_USD = 20;
-export const EXPOSURE_CEILING_USD = 20;
-export const EXPECTED_USD = 11.23;
+/** V2 (scenario B upgrade) runs with V4_V2=true: cumulative hard cap USD 19 (historic 11.33 + new ≤ 7.67), expected total 17.65. */
+export const V2 = process.env.V4_V2 === 'true';
+export const HARD_CAP_USD = V2 ? 19 : 20;
+export const EXPOSURE_CEILING_USD = V2 ? 19 : 20;
+export const EXPECTED_USD = V2 ? 17.65 : 11.23;
 export const PROVIDER_CEILING_USD: Record<string, number> = { elevenlabs: 5, openai: 10, runway: 8, pexels: 0 };
 export const GENERATIVE_COUNT = 14;
 
@@ -193,3 +195,10 @@ export const ON_SCREEN_NOTICE = 'Battle imagery is reconstruction; maps and figu
 export const ON_SCREEN_NOTES: Record<string, string> = { 'the Thebans': "Herodotus's account · Theban sources differ" };
 export const END_CARD_LINES = [TITLE, CHANNEL];
 export const CREDITS = 'Sources: Herodotus, Histories 7.175–239 · Thucydides 5.71 · Xenophon, Lac. Pol. 11 · Plutarch, Apophth. Lac. 225D · Pausanias 3.14.1 · Marinatos 1951 · Kraft et al. 1987 · Cartledge 2006 · Lazenby 1993. Stock footage: Pexels.';
+
+// ---------------- V2 delta (scenario B): 13 operator-authorised motion upgrades outside the frozen PI V1.1 plan ----------------
+import deltaJson from '../../content/productions/video-004-thermopylae/v2/storyboard-delta.json';
+type DeltaShot = {id: string; action: string; scenario?: string; motionPrompt?: string; clipSeconds?: number};
+export const V2_MOTION: Record<string, string> = Object.fromEntries((deltaJson.shots as DeltaShot[]).filter((d) => d.action === 'REPLACE_WITH_AI_MOTION' && d.scenario === 'B' && d.motionPrompt).map((d) => [d.id, d.motionPrompt!]));
+/** V2 graphics rendered as word-synchronised frame sequences (all 16 graphics) plus the Persian-kit still with callouts. */
+export const V2_ANIMATED_STILL_CALLOUTS = ['V4-042'];

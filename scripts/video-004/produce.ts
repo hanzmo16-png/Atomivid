@@ -18,7 +18,7 @@ import {wrapDurableVideoProvider} from '../../src/lib/video/long-form/ai-video-d
 import {searchSceneVideos, searchScenePhotos, type FootageCandidateRaw} from '../../src/lib/ai/footage';
 import {buildContactSheet, frameAt, probeDuration} from '../lib/contact-sheet';
 import {scriptWordsWithTimings, type WordTiming} from '../lib/dulce-part1-core';
-import {ALIASES, CLIP_RETRY, GRAPHICS, IMAGE_MAX_USD, MODEL, MOTION_PROMPTS, SEC_USD, STILL_NOTES, STOCK_QUERIES, STYLE, VOICE, VOICE_SETTINGS, XI_USD_PER_CHAR, clipSecondsFor} from './plan';
+import {ALIASES, CLIP_RETRY, GRAPHICS, V2, V2_MOTION, IMAGE_MAX_USD, MODEL, MOTION_PROMPTS, SEC_USD, STILL_NOTES, STOCK_QUERIES, STYLE, VOICE, VOICE_SETTINGS, XI_USD_PER_CHAR, clipSecondsFor} from './plan';
 import {graphicsNotes, renderGraphicPng} from './graphics';
 import {DIR, P, STILL_RETAKES, type Plan, type Shot, bucket, committedUsd, ensureOut, entries, exposure, loadLedger, loadPlan, log, opKey, out, probe, put, putJson, read, readJson, readJsonStore, reserve, run, service, settle, sha, stillPath, stillRev, clipRev, tele, words, writeLedgerSnapshot} from './shared';
 
@@ -233,7 +233,7 @@ async function review() {
 // ---------------- Runway image-to-video (frozen generative set only) ----------------
 async function animate(plan: Plan) {
   const targets = only(plan.shots.filter((s) => s.generative));
-  if (targets.some((s) => !MOTION_PROMPTS[s.id])) throw Error('A generative shot has no motion prompt');
+  if (targets.some((s) => !MOTION_PROMPTS[s.id] && !V2_MOTION[s.id])) throw Error('A generative shot has no motion prompt');
   const sharp = (await import('sharp')).default;
   const provider = getVideoProvider('runway'); if (provider.name !== 'runway') throw Error('Runway unavailable (VIDEO_PROVIDER/PREMIUM_CLIPS_ENABLED/RUNWAY_API_KEY)');
   const durable = wrapDurableVideoProvider(provider, {supabase: service, scopeId: P, executionMode: 'real', maxInAttemptResumes: 2, beforeSubmit: async (req) => { const m = req.metadata as {claimKey: string; shotId: string; opKey: string}; await reserve({key: m.claimKey, opKey: m.opKey, kind: 'video', provider: 'runway', shotId: m.shotId.replace(/-v\d+$/, ''), maxUsd: req.maxCostUsd}); return true; }});
@@ -243,7 +243,7 @@ async function animate(plan: Plan) {
     if (!still || !rv || rv.result !== 'PASS' || rv.sha256 !== sha(still)) throw Error(`Still ${s.id} is not approved: never animate an unreviewed image`);
     const jpeg = await sharp(still).resize(1280, 720, {fit: 'cover', position: 'centre'}).jpeg({quality: 92}).toBuffer();
     const rev = clipRev(s.id), recordKey = `${s.id}-${rev}`, claimKey = `video-${s.id}-${rev}`, t0 = Date.now();
-    const prompt = CLIP_RETRY[s.id] || MOTION_PROMPTS[s.id]; const ordinal = rev === 'v2' ? 2 : 1;
+    const prompt = V2_MOTION[s.id] || CLIP_RETRY[s.id] || MOTION_PROMPTS[s.id]; const ordinal = rev === 'v2' ? 2 : 1;
     if (await readJsonStore(`${P}/reviews/clip-${recordKey}.json`)) { log('CLIP_SKIP', {id: s.id, rev, reason: 'already reviewed'}); return; }
     const seconds = clipSecondsFor(s.seconds); const maxCostUsd = seconds * SEC_USD;
     const ok = opKey({shotId: s.id, provider: 'runway', model: 'gen4_turbo', method: s.method, inputFingerprint: sha(prompt + sha(still) + seconds), attemptOrdinal: ordinal});
@@ -266,7 +266,7 @@ async function animate(plan: Plan) {
 // ---------------- watch-check (free): fetch the signed playlist and segments anonymously, as a phone would ----------------
 async function watchCheck() {
   const {bucket: b} = await import('./shared');
-  const {data, error} = await b.createSignedUrl(`${P}/watch/hls/index.m3u8`, 7 * 86400); if (error || !data) throw Error('Sign failed');
+  const {data, error} = await b.createSignedUrl(`${P}/${V2 ? 'watch-v2' : 'watch'}/hls/index.m3u8`, 7 * 86400); if (error || !data) throw Error('Sign failed');
   const r = await fetch(data.signedUrl); const text = await r.text(); const segs = text.split('\n').filter((l) => l.startsWith('http'));
   if (!r.ok || !text.startsWith('#EXTM3U') || !segs.length) throw Error(`Watch playlist not playable anonymously: HTTP ${r.status}`);
   const probe = async (u: string) => { const x = await fetch(u); const buf = Buffer.from(await x.arrayBuffer()); return {status: x.status, bytes: buf.length, mpegTs: buf[0] === 0x47}; };
@@ -305,6 +305,7 @@ async function main() {
       else if (s === 'animate') await animate(plan);
       else if (s === 'render') { const {render} = await import('./render'); await render(plan); }
       else if (s === 'watch-check') await watchCheck();
+      else if (s === 'review-proxy') { const {reviewProxy} = await import('./review-proxy'); await reviewProxy(); }
       else await status(plan);
     }
   } finally { await writeLedgerSnapshot(); log('LEDGER', {exposureUsd: exposure(), committedUsd: committedUsd()}); }

@@ -12,7 +12,7 @@ import {createServiceClient} from '../../src/lib/supabase/service';
 import {idempotencyKey as piKey} from '../../src/lib/production-intelligence/ledger';
 import {canSpend, exposureUsd, type LedgerEntry} from '../lib/dulce-part1-core';
 import {ROWS, PAUSES, video004ShotRecords, secondsOf} from '../../content/productions/video-004-thermopylae/storyboard';
-import {AUTHORIZED_FREEZE_HASH, AUTHORIZED_ENGINE_TREE, EXPOSURE_CEILING_USD, PROVIDER_CEILING_USD, PROJECT, GRAPHICS, GENERATIVE_COUNT, CLIP_RETRY} from './plan';
+import {AUTHORIZED_FREEZE_HASH, AUTHORIZED_ENGINE_TREE, EXPOSURE_CEILING_USD, PROVIDER_CEILING_USD, PROJECT, GRAPHICS, GENERATIVE_COUNT, CLIP_RETRY, V2, V2_MOTION} from './plan';
 
 export const FPS = 30;
 export const P = PROJECT;
@@ -25,7 +25,8 @@ export const words = (s: string) => s.split(/\s+/).filter((w) => /[A-Za-z0-9]/.t
 /** Still retakes recorded in reviews.json (id -> correction note): a retaken still lives at rev v2 under a new paid claim. */
 export const STILL_RETAKES: Record<string, string> = (() => { try { return (JSON.parse(fsSync.readFileSync(`${'content/productions/video-004-thermopylae'}/reviews.json`, 'utf8')) as {stillRetake?: Record<string, string>}).stillRetake || {}; } catch { return {}; } })();
 export const stillRev = (id: string) => (STILL_RETAKES[id] ? 'v2' : 'v1');
-export const clipRev = (id: string) => (CLIP_RETRY[id] ? 'v2' : 'v1');
+/** Clip revision: v2 for the policy retry (V4-076) and, in V2, for V4-055 whose v1 clip failed review; v1 otherwise. */
+export const clipRev = (id: string) => (CLIP_RETRY[id] || (V2 && id === 'V4-055') ? 'v2' : 'v1');
 export const stillPath = (id: string) => `${PROJECT}/stills/${id}-${stillRev(id)}.png`;
 
 // ---------------- frozen plan ----------------
@@ -61,6 +62,11 @@ export async function loadPlan(): Promise<Plan> {
   const generative = shots.filter((s) => s.generative);
   if (generative.length !== GENERATIVE_COUNT) throw Error(`Frozen plan has ${GENERATIVE_COUNT} generative shots, found ${generative.length}`);
   if (generative.filter((s) => s.method === 'I2V_HERO').length !== 1) throw Error('Frozen plan has exactly one hero shot');
+  if (V2) {
+    // Scenario B overlay: the 13 authorised shots become generative with method I2V_V2 (operator exception to the frozen 76 s ceiling, logged as such).
+    for (const s of shots) if (V2_MOTION[s.id] && !s.generative) { s.generative = true; s.method = 'I2V_V2'; } // V4-055 stays in the frozen set and is retried at rev v2 with the V2 prompt
+    if (shots.filter((s) => s.method === 'I2V_V2').length !== Object.keys(V2_MOTION).length - 1) throw Error('V2 overlay count mismatch');
+  }
   return {shots, scenes: [...new Set(shots.map((s) => s.scene))], freezeHash: freeze.freezeHash, manifest: manifest as unknown as Record<string, unknown>};
 }
 

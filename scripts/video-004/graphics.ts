@@ -8,19 +8,19 @@ import path from 'node:path';
 import type {GraphicKind} from './plan';
 import {TITLE, CHANNEL, CREDITS} from './plan';
 
-const W = 2304, H = 1296;
-const BG = '#121212', INK = '#e6ddd0', DIM = '#9a9185', ACCENT = '#d9a441', WATER = '#2f5b73', LAND = '#2a2621', RED = '#b5452f', BRONZE = '#b98b45', PERSIAN = '#8c4a8a';
-const FONT = 'DejaVu Sans';
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const text = (x: number, y: number, s: string, size = 40, fill = INK, anchor: 'start' | 'middle' | 'end' = 'start', weight = 'normal') => `<text x="${x}" y="${y}" font-family="${FONT}" font-size="${size}" fill="${fill}" text-anchor="${anchor}" font-weight="${weight}">${esc(s)}</text>`;
-const frame = (inner: string, caption?: string) => `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="${BG}"/>${inner}${caption ? text(W / 2, H - 70, caption, 34, DIM, 'middle') : ''}</svg>`;
+export const W = 2304; export const H = 1296;
+export const BG = '#121212', INK = '#e6ddd0', DIM = '#9a9185', ACCENT = '#d9a441', WATER = '#2f5b73', LAND = '#2a2621', RED = '#b5452f', BRONZE = '#b98b45', PERSIAN = '#8c4a8a';
+export const FONT = 'DejaVu Sans';
+export const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+export const text = (x: number, y: number, s: string, size = 40, fill = INK, anchor: 'start' | 'middle' | 'end' = 'start', weight = 'normal') => `<text x="${x}" y="${y}" font-family="${FONT}" font-size="${size}" fill="${fill}" text-anchor="${anchor}" font-weight="${weight}">${esc(s)}</text>`;
+export const frame = (inner: string, caption?: string) => `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="${BG}"/>${inner}${caption ? text(W / 2, H - 70, caption, 34, DIM, 'middle') : ''}</svg>`;
 
-type LonLat = [number, number];
-type Geo = {countries: {name: string; rings: LonLat[][]}[]} | null;
+export type LonLat = [number, number];
+export type Geo = {countries: {name: string; rings: LonLat[][]}[]} | null;
 let geoCache: Geo | undefined;
 export const graphicsNotes: string[] = [];
 
-async function geo(cacheDir: string): Promise<Geo> {
+export async function geo(cacheDir: string): Promise<Geo> {
   if (geoCache !== undefined) return geoCache;
   const get = async (name: string) => {
     const f = path.join(cacheDir, name); try { return JSON.parse(await fs.readFile(f, 'utf8')); } catch { /* fetch */ }
@@ -36,8 +36,8 @@ async function geo(cacheDir: string): Promise<Geo> {
   return geoCache;
 }
 
-type Label = {at: LonLat; s: string; size?: number; fill?: string; anchor?: 'start' | 'middle' | 'end'};
-function mapSvg(g: Geo, bbox: [number, number, number, number], inner: (proj: (p: number[]) => [number, number]) => string, caption: string, labels: Label[] = []) {
+export type Label = {at: LonLat; s: string; size?: number; fill?: string; anchor?: 'start' | 'middle' | 'end'};
+export function mapSvg(g: Geo, bbox: [number, number, number, number], inner: (proj: (p: number[]) => [number, number]) => string, caption: string, labels: Label[] = []) {
   const [w, s, e, n] = bbox; const pad = 110; const cy0 = (s + n) / 2; const kx = Math.cos((cy0 * Math.PI) / 180);
   const sx = (W - 2 * pad) / ((e - w) * kx), sy = (H - 2 * pad) / (n - s); const k = Math.min(sx, sy);
   const cx = (w + e) / 2;
@@ -50,9 +50,9 @@ function mapSvg(g: Geo, bbox: [number, number, number, number], inner: (proj: (p
   for (const l of labels) { const [x, y] = proj(l.at); body += text(x, y, l.s, l.size ?? 36, l.fill ?? INK, l.anchor ?? 'start'); }
   return frame(body, caption);
 }
-const marker = (p: [number, number], r = 14, fill = ACCENT) => `<circle cx="${p[0]}" cy="${p[1]}" r="${r + 10}" fill="${fill}" opacity="0.25"/><circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${fill}" stroke="#000" stroke-width="2"/>`;
-const curve = (pts: [number, number][], stroke = ACCENT, width = 8, dash?: string) => `<path d="${pts.map((p, i) => (i ? 'L' : 'M') + p.map((v) => v.toFixed(1)).join(' ')).join(' ')}" fill="none" stroke="${stroke}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
-const arrowHead = (from: [number, number], to: [number, number], fill = ACCENT, size = 26) => { const a = Math.atan2(to[1] - from[1], to[0] - from[0]); const p = (d: number, s: number) => [to[0] - size * Math.cos(a - d) * s, to[1] - size * Math.sin(a - d) * s]; return `<path d="M ${to.join(' ')} L ${p(0.5, 1).join(' ')} L ${p(-0.5, 1).join(' ')} Z" fill="${fill}"/>`; };
+export const marker = (p: [number, number], r = 14, fill = ACCENT) => `<circle cx="${p[0]}" cy="${p[1]}" r="${r + 10}" fill="${fill}" opacity="0.25"/><circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${fill}" stroke="#000" stroke-width="2"/>`;
+export const curve = (pts: [number, number][], stroke = ACCENT, width = 8, dash?: string) => `<path d="${pts.map((p, i) => (i ? 'L' : 'M') + p.map((v) => v.toFixed(1)).join(' ')).join(' ')}" fill="none" stroke="${stroke}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+export const arrowHead = (from: [number, number], to: [number, number], fill = ACCENT, size = 26) => { const a = Math.atan2(to[1] - from[1], to[0] - from[0]); const p = (d: number, s: number) => [to[0] - size * Math.cos(a - d) * s, to[1] - size * Math.sin(a - d) * s]; return `<path d="M ${to.join(' ')} L ${p(0.5, 1).join(' ')} L ${p(-0.5, 1).join(' ')} Z" fill="${fill}"/>`; };
 
 // Places (lon, lat).
 const HELLESPONT: LonLat = [26.4, 40.2], ATHOS: LonLat = [23.95, 40.37], DORISCUS: LonLat = [26.1, 40.85], THERMA: LonLat = [22.95, 40.63], THERMOPYLAE: LonLat = [22.54, 38.80], ARTEMISIUM: LonLat = [23.2, 39.05];
@@ -61,7 +61,7 @@ const TEGEA: LonLat = [22.42, 37.45], MANTINEA: LonLat = [22.39, 37.6], PHLIUS: 
 const ROUTE: LonLat[] = [SARDIS, [27.0, 39.6], HELLESPONT, DORISCUS, [25.0, 40.9], [24.3, 40.75], ATHOS, THERMA, [22.4, 39.9], [22.5, 39.3], THERMOPYLAE];
 
 // ---- schematic pass (not geographic): x = west→east along the shore, y = sea (top) → mountain (bottom)
-function passSchematic(opts: {anopaea?: boolean; modern?: boolean; dayThree?: boolean; phocians?: boolean}) {
+export function passSchematic(opts: {anopaea?: boolean; modern?: boolean; dayThree?: boolean; phocians?: boolean}) {
   const seaY = 420, cliffY = 760;
   let b = `<rect x="0" y="0" width="${W}" height="${seaY}" fill="${WATER}" opacity="0.8"/>`;
   b += `<path d="M 0 ${seaY} C 400 ${seaY - 20}, 700 ${seaY + 60}, 1000 ${seaY + 90} C 1250 ${seaY + 110}, 1500 ${seaY + 20}, 1800 ${seaY + 70} C 2000 ${seaY + 100}, 2200 ${seaY + 40}, ${W} ${seaY}" fill="${LAND}"/>`; // shore
@@ -86,8 +86,8 @@ function passSchematic(opts: {anopaea?: boolean; modern?: boolean; dayThree?: bo
   return b;
 }
 
-const shield = (x: number, y: number, r: number, fill = BRONZE) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" stroke="#2a1e10" stroke-width="3"/>`;
-const spear = (x: number, y: number, len: number, up = true) => `<line x1="${x}" y1="${y}" x2="${x}" y2="${up ? y - len : y + len}" stroke="#d8c9a5" stroke-width="4"/><path d="M ${x - 7} ${up ? y - len + 22 : y + len - 22} L ${x} ${up ? y - len : y + len} L ${x + 7} ${up ? y - len + 22 : y + len - 22} Z" fill="#cfd4d8"/>`;
+export const shield = (x: number, y: number, r: number, fill = BRONZE) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" stroke="#2a1e10" stroke-width="3"/>`;
+export const spear = (x: number, y: number, len: number, up = true) => `<line x1="${x}" y1="${y}" x2="${x}" y2="${up ? y - len : y + len}" stroke="#d8c9a5" stroke-width="4"/><path d="M ${x - 7} ${up ? y - len + 22 : y + len - 22} L ${x} ${up ? y - len : y + len} L ${x + 7} ${up ? y - len + 22 : y + len - 22} Z" fill="#cfd4d8"/>`;
 
 export async function graphicSvg(kind: GraphicKind, cacheDir: string): Promise<string> {
   switch (kind) {

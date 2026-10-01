@@ -33,12 +33,12 @@ jobs:
           const fs = require('node:fs');
           const r = JSON.parse(fs.readFileSync('content/productions/video-004-thermopylae/production-request.json', 'utf8'));
           const freeze = JSON.parse(fs.readFileSync('content/productions/video-004-thermopylae/freeze/freeze.json', 'utf8'));
-          const stages = ['status','narrate','validate-narration','images','stock','graphics','review','animate','render','watch-check'];
-          if (r.projectId !== 'video-004-thermopylae' || r.capUsd !== 20 || r.freezeHash !== freeze.freezeHash || r.freezeHash !== '916059ce129bb1bc3095c1397f2805d75b1ff28bccb816f9afb4f33c4fdc443c') throw Error('Request is not for the authorized freeze');
+          const stages = ['status','narrate','validate-narration','images','stock','graphics','review','animate','render','watch-check','review-proxy'];
+          if (r.projectId !== 'video-004-thermopylae' || r.capUsd !== (r.v2 === true ? 19 : 20) || r.freezeHash !== freeze.freezeHash || r.freezeHash !== '916059ce129bb1bc3095c1397f2805d75b1ff28bccb816f9afb4f33c4fdc443c') throw Error('Request is not for the authorized freeze');
           if (!r.requestId || !String(r.stage).split(',').every(s => stages.includes(s))) throw Error('Invalid stage list');
           const paid = String(r.stage).split(',').some(s => ['narrate','images','animate'].includes(s));
           if (paid && r.confirm !== 'SPEND') throw Error('Paid stage without confirm=SPEND');
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `stage=${r.stage}\nshots=${(r.shots || []).join(',')}\ndraft=${r.draft === true}\npaid=${paid}\nbedonly=${r.bedOnly === true}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `stage=${r.stage}\nshots=${(r.shots || []).join(',')}\ndraft=${r.draft === true}\npaid=${paid}\nbedonly=${r.bedOnly === true}\nv2=${r.v2 === true}\n`);
           NODE
       - name: Run stages
         run: npx tsx scripts/video-004/produce.ts
@@ -49,6 +49,7 @@ jobs:
           V4_BED_ONLY: ${{ steps.request.outputs.bedonly }}
           V4_ALLOW_PAID: ${{ steps.request.outputs.paid }}
           V4_OUT: ${{ runner.temp }}/video-004
+          V4_V2: ${{ steps.request.outputs.v2 }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ELEVENLABS_API_KEY: ${{ (contains(steps.request.outputs.stage, 'status') || contains(steps.request.outputs.stage, 'narrate')) && secrets.ELEVENLABS_API_KEY || '' }}
@@ -61,7 +62,9 @@ jobs:
         if: always() && contains(steps.request.outputs.stage, 'render') && steps.request.outputs.draft != 'true'
         uses: actions/upload-artifact@v7
         with:
-          path: ${{ runner.temp }}/video-004/VIDEO-004-Three-Days-at-the-Hot-Gates-master.mp4
+          path: |
+            ${{ runner.temp }}/video-004/VIDEO-004-Three-Days-at-the-Hot-Gates-master.mp4
+            ${{ runner.temp }}/video-004/VIDEO-004-Three-Days-at-the-Hot-Gates-v2-master.mp4
           archive: false
           retention-days: 30
           if-no-files-found: ignore

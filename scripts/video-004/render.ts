@@ -9,10 +9,29 @@ import {readAiVideoClipRecord} from '../../src/lib/video/long-form/ai-video-stor
 import {buildContactSheet, frameAt, probeDuration} from '../lib/contact-sheet';
 import {buildAss, buildCues, type TitleOverlay} from '../lib/dulce-edit';
 import {moveFor, stillMotionFilter, type Move, type WordTiming} from '../lib/dulce-part1-core';
-import {CHANNEL, EXPECTED_USD, EXPOSURE_CEILING_USD, HARD_CAP_USD, MUSIC, MUSIC_DROPS, ON_SCREEN_NOTICE, ON_SCREEN_NOTES, RUMBLE_CUES, TITLE} from './plan';
+import {CHANNEL, EXPECTED_USD, EXPOSURE_CEILING_USD, GRAPHICS, HARD_CAP_USD, MUSIC, MUSIC_DROPS, ON_SCREEN_NOTICE, ON_SCREEN_NOTES, RUMBLE_CUES, TITLE, V2, V2_ANIMATED_STILL_CALLOUTS} from './plan';
+import {animatedGraphicSvg, persianKitOverlaySvg, type AnimCtx} from './graphics-anim';
+import {SFX, V2_MUSIC_DROPS, V2_TOTAL_SILENCE, sfxSource} from './sfx';
 import {FPS, P, type Plan, type Shot, stillPath, clipRev, bucket, committedUsd, entries, exposure, listTelemetry, log, out, probe, put, putJson, read, readJsonStore, run, service, sha, sign} from './shared';
 
-const NAME = 'VIDEO-004-Three-Days-at-the-Hot-Gates-master.mp4';
+const NAME = V2 ? 'VIDEO-004-Three-Days-at-the-Hot-Gates-v2-master.mp4' : 'VIDEO-004-Three-Days-at-the-Hot-Gates-master.mp4';
+const FINAL_DIR = V2 ? 'final-v2' : 'final', WATCH_DIR = V2 ? 'watch-v2' : 'watch', SUB = V2 ? 'video-004-v2' : 'video-004';
+const V1_SPENT_USD = 11.3295;
+
+/** V2: render a word-synchronised animated graphic (or still + callouts) as a PNG frame sequence, then encode the segment. */
+async function renderAnimatedSegment(s: Slot, srcFile: string | null, seg: string, work: string) {
+  const sharp = (await import('sharp')).default;
+  const dir = path.join(work, `anim-${s.id}`); await fs.mkdir(dir, {recursive: true});
+  const t0 = s.startFrame / FPS; const cues = s.words.map((w) => ({text: w.text, t: w.startSeconds - t0})); const dur = s.frames / FPS; const cacheDir = path.join(out, 'geo-cache');
+  const callouts = V2_ANIMATED_STILL_CALLOUTS.includes(s.id) && srcFile;
+  const base = callouts ? await sharp(srcFile!).resize(1920, 1080, {fit: 'cover', position: 'centre'}).png().toBuffer() : null;
+  let next = 0; const kind = GRAPHICS[s.id];
+  await Promise.all(Array.from({length: 6}, async () => { while (next < s.frames) { const i = next++; const ctx: AnimCtx = {t: i / FPS, dur, cues, cacheDir}; const f = path.join(dir, `f${String(i).padStart(5, '0')}.png`);
+    if (base) await sharp(base).composite([{input: Buffer.from(persianKitOverlaySvg(ctx)), top: 0, left: 0}]).png().toFile(f);
+    else await sharp(Buffer.from(await animatedGraphicSvg(kind, ctx)), {density: 96}).resize(1920, 1080).png().toFile(f); } }));
+  await run('ffmpeg', ['-y', '-framerate', String(FPS), '-i', path.join(dir, 'f%05d.png'), '-frames:v', String(s.frames), '-vf', 'setsar=1,format=yuv420p', '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '15', '-r', String(FPS), seg]);
+  await fs.rm(dir, {recursive: true, force: true});
+}
 const LEAD_IN = 0.4, SCENE_TAIL = 0.3, END_CARD = 1.5;
 const toks = (s: string) => s.split(/\s+/).filter(Boolean);
 type Src = {kind: 'clip' | 'stock' | 'photo' | 'still' | 'graphic' | 'placeholder'; file: string; sha256?: string; origin: string; note?: string};
@@ -78,7 +97,13 @@ export async function render(plan: Plan) {
   for (const [i, s] of slots.entries()) {
     if (bedOnly) break;
     const src = await resolve(s); const seg = path.join(work, `seg-${String(i).padStart(3, '0')}.mp4`); const edit = s.frames / FPS;
-    let args: string[]; let inPoint = 0, speed = 1, frozen = 0, move: Move | 'push-in-soft' | 'cut' = 'cut';
+    let args: string[]; let inPoint = 0, speed = 1, frozen = 0, move: Move | 'push-in-soft' | 'cut' | 'animated' = 'cut';
+    const animated = V2 && src.kind !== 'placeholder' && (s.kind === 'graphic' || (V2_ANIMATED_STILL_CALLOUTS.includes(s.id) && src.kind === 'still'));
+    if (animated) {
+      await renderAnimatedSegment(s, src.kind === 'still' ? src.file : null, seg, work); move = 'animated'; segs.push(seg);
+      report.push({slot: i, id: s.id, planShotId: s.planShotId, scene: s.scene, purpose: s.purpose, kind: 'animated', method: s.method, provider: s.provider, start: +(s.startFrame / FPS).toFixed(3), seconds: +edit.toFixed(3), frozenPlanSeconds: s.seconds, pause: s.pause, move, inPoint: 0, speed: 1, frozen: 0, origin: src.origin, sha256: src.sha256 ?? null, generative: s.generative, motion: true});
+      continue;
+    }
     const tail = ',setsar=1,format=yuv420p';
     if (src.kind === 'still' || src.kind === 'graphic' || src.kind === 'placeholder' || src.kind === 'photo') {
       move = src.kind === 'graphic' ? 'push-in-soft' : s.method === 'STILL_PARALLAX' ? (panToggle++ % 2 ? 'pan-left' : 'pan-right') : moveFor(i, s.cls);
@@ -94,7 +119,7 @@ export async function render(plan: Plan) {
     }
     await run('ffmpeg', ['-y', ...args, '-frames:v', String(s.frames), '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '15', '-r', String(FPS), seg]);
     segs.push(seg);
-    report.push({slot: i, id: s.id, planShotId: s.planShotId, scene: s.scene, purpose: s.purpose, kind: src.kind, method: s.method, provider: s.provider, start: +(s.startFrame / FPS).toFixed(3), seconds: +edit.toFixed(3), frozenPlanSeconds: s.seconds, pause: s.pause, move, inPoint, speed, frozen, origin: src.origin, sha256: src.sha256 ?? null, generative: s.generative});
+    report.push({slot: i, id: s.id, planShotId: s.planShotId, scene: s.scene, purpose: s.purpose, kind: src.kind, method: s.method, provider: s.provider, start: +(s.startFrame / FPS).toFixed(3), seconds: +edit.toFixed(3), frozenPlanSeconds: s.seconds, pause: s.pause, move, inPoint, speed, frozen, origin: src.origin, sha256: src.sha256 ?? null, generative: s.generative, motion: src.kind === 'clip' || src.kind === 'stock'});
   }
   const picture = path.join(work, 'picture.mp4');
   if (!bedOnly) { await fs.writeFile(path.join(work, 'concat.txt'), segs.map((f) => `file '${f}'`).join('\n')); await run('ffmpeg', ['-y', '-f', 'concat', '-safe', '0', '-i', path.join(work, 'concat.txt'), '-c', 'copy', picture]); }
@@ -117,12 +142,25 @@ export async function render(plan: Plan) {
     const d = Math.round(s0 * 1000); f.push(`${chain}dynaudnorm=f=400:g=11:p=0.9:m=12:s=8,atrim=0:${len.toFixed(3)},asetpts=N/SR/TB,afade=t=in:d=${j ? 4 : 0.4}:curve=qsin,afade=t=out:st=${Math.max(0, len - (j === sections.length - 1 ? 1.2 : 4)).toFixed(3)}:d=${j === sections.length - 1 ? 1.2 : 4}:curve=qsin,adelay=${d}|${d}[m${j}]`); mids.push(`[m${j}]`);
     log('MUSIC', {id, trackSeconds: +trackSeconds.toFixed(1), copies, from: +s0.toFixed(1), to: +s1.toFixed(1)});
   }
-  const drops = slots.filter((s) => MUSIC_DROPS[s.id]).map((s) => { const [o, d] = MUSIC_DROPS[s.id]; const a = s.startFrame / FPS + o; return `(1-0.5*between(t,${a.toFixed(2)},${(a + d).toFixed(2)}))`; });
+  const drops = V2
+    ? slots.filter((s) => V2_MUSIC_DROPS[s.id]).flatMap((s) => V2_MUSIC_DROPS[s.id].map(([o, d, depth]) => { const a = s.startFrame / FPS + o; return `(1-${depth}*between(t,${a.toFixed(2)},${(a + d).toFixed(2)}))`; }))
+    : slots.filter((s) => MUSIC_DROPS[s.id]).map((s) => { const [o, d] = MUSIC_DROPS[s.id]; const a = s.startFrame / FPS + o; return `(1-0.5*between(t,${a.toFixed(2)},${(a + d).toFixed(2)}))`; });
   const dropExpr = drops.length ? `volume='${drops.join('*')}':eval=frame,` : '';
   f.push(`${mids.join('')}amix=inputs=${mids.length}:normalize=0:duration=longest,apad,atrim=0:${total},${dropExpr}volume=0.30[bed]`);
   const rumbles = slots.filter((s) => RUMBLE_CUES[s.id]); const rl: string[] = [];
   for (const [k, s] of rumbles.entries()) { const d = RUMBLE_CUES[s.id]; const at = Math.round((s.startFrame / FPS) * 1000); f.push(`anoisesrc=c=brown:r=48000:d=${d}:s=${7 + k},lowpass=f=90,aformat=channel_layouts=stereo,afade=t=in:d=0.8,afade=t=out:st=${(d - 1.5).toFixed(2)}:d=1.5,volume=0.55,adelay=${at}|${at}[r${k}]`); rl.push(`[r${k}]`); }
-  const bedIn = rl.length ? (f.push(`[bed]${rl.join('')}amix=inputs=${rl.length + 1}:normalize=0:duration=longest,apad,atrim=0:${total}[bedr]`), '[bedr]') : '[bed]';
+  let bedIn = rl.length ? (f.push(`[bed]${rl.join('')}amix=inputs=${rl.length + 1}:normalize=0:duration=longest,apad,atrim=0:${total}[bedr]`), '[bedr]') : '[bed]';
+  // V2 sound design: procedural SFX cues on the timeline, silenced on total-silence beats, mixed into the ducked stem.
+  let sfxCount = 0;
+  if (V2) {
+    const sx: string[] = []; let seed = 1;
+    for (const s of slots) for (const c of SFX[s.id] || []) { const slotSec = s.frames / FPS; if (c.at >= slotSec + 0.5) continue; const d = Math.min(c.dur, slotSec - c.at + 2); if (d <= 0.2) continue; const at = Math.round((s.startFrame / FPS + c.at) * 1000); f.push(`${sfxSource(c.kind, d, seed++)},aformat=sample_fmts=fltp:channel_layouts=stereo:sample_rates=48000,afade=t=in:d=${Math.min(0.4, d / 4).toFixed(2)},afade=t=out:st=${Math.max(0, d - Math.min(1.0, d / 3)).toFixed(2)}:d=${Math.min(1.0, d / 3).toFixed(2)},volume=${c.gain},adelay=${at}|${at}[x${sfxCount}]`); sx.push(`[x${sfxCount}]`); sfxCount++; }
+    if (sx.length) {
+      const silence = slots.filter((s) => V2_TOTAL_SILENCE[s.id]).map((s) => { const [o, d] = V2_TOTAL_SILENCE[s.id]; const a = s.startFrame / FPS + o; return `(1-between(t,${a.toFixed(2)},${(a + d).toFixed(2)}))`; });
+      f.push(`${sx.join('')}amix=inputs=${sx.length}:normalize=0:duration=longest,apad,atrim=0:${total},${silence.length ? `volume='${silence.join('*')}':eval=frame,` : ''}alimiter=limit=0.5:level=false,volume=0.85[sfx]`);
+      f.push(`${bedIn}[sfx]amix=inputs=2:normalize=0:duration=longest,apad,atrim=0:${total}[bedsfx]`); bedIn = '[bedsfx]';
+    }
+  }
   f.push(`${bedIn}[key]sidechaincompress=threshold=0.03:ratio=3:attack=30:release=500[ducked]`, `[voice]volume=0.95[v]`, `[v][ducked]amix=inputs=2:normalize=0:duration=longest,apad,atrim=0:${total}[mix]`);
   const mix = path.join(work, 'mix.wav');
   if (bedOnly) {
@@ -148,13 +186,16 @@ export async function render(plan: Plan) {
   const at = (purpose: string) => slots.find((s) => s.purpose === purpose);
   const ov: TitleOverlay[] = [];
   const add = (s: Slot | undefined, lines: string[], style: 'Title' | 'Note', from = 0.3, len?: number, corner = false) => { if (!s) { issues.push('overlay slot missing ' + lines[0]); return; } const t0 = s.startFrame / FPS; ov.push({start: t0 + from, end: Math.min(t0 + s.frames / FPS - 0.2, len ? t0 + from + len : t0 + s.frames / FPS - 0.2), lines, style, corner}); };
-  add(at('hook: late summer'), [ON_SCREEN_NOTICE], 'Note', 0.2, undefined, true);
-  add(at('hook: this is Thermopylae'), [TITLE.toUpperCase()], 'Title', 0.3);
+  if (V2) { add(at('hook: this is Thermopylae'), [ON_SCREEN_NOTICE], 'Note', 1.2, undefined, true); add(at('hook: this is Thermopylae'), [TITLE.toUpperCase()], 'Title', 0.3); }
+  else { add(at('hook: late summer'), [ON_SCREEN_NOTICE], 'Note', 0.2, undefined, true); add(at('hook: this is Thermopylae'), [TITLE.toUpperCase()], 'Title', 0.3); }
   for (const [purpose, line] of Object.entries(ON_SCREEN_NOTES)) add(at(purpose), [line], 'Note', 0.2, undefined, true);
   const endSlot = slots.at(-1)!; // the end card graphic already carries the title, channel and credits
-  const cues = buildCues(words); const ass = path.join(work, 'v4.ass'); await fs.writeFile(ass, buildAss(cues, ov)); await fs.copyFile(ass, path.join(out, 'video-004-subtitles.ass'));
+  const cues = buildCues(words); const ass = path.join(work, 'v4.ass');
+  let assText = buildAss(cues, ov);
+  if (V2) assText = assText.split('\n').map((l) => (l.includes(',Title,,') ? l.replace('{\\fad(500,600)', '{\\fad(500,600)\\fsp46\\t(0,1400,\\fsp14)') : l)).join('\n'); // animated title: letters track in
+  await fs.writeFile(ass, assText); await fs.copyFile(ass, path.join(out, `${SUB}-subtitles.ass`));
   const srtT = (s: number) => { const ms = Math.round(s * 1000); return `${String(Math.floor(ms / 3600000)).padStart(2, '0')}:${String(Math.floor(ms / 60000) % 60).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')},${String(ms % 1000).padStart(3, '0')}`; };
-  await fs.writeFile(path.join(out, 'video-004-en.srt'), cues.map((c, i) => `${i + 1}\n${srtT(c.start)} --> ${srtT(c.end)}\n${c.words.map((w) => w.text).join(' ')}\n`).join('\n'));
+  await fs.writeFile(path.join(out, `${SUB}-en.srt`), cues.map((c, i) => `${i + 1}\n${srtT(c.start)} --> ${srtT(c.end)}\n${c.words.map((w) => w.text).join(' ')}\n`).join('\n'));
 
   // 7) Encode.
   const final = path.join(out, NAME);
@@ -181,8 +222,15 @@ export async function render(plan: Plan) {
     subtitlesCoverAllWords: cues.reduce((x, c) => x + c.words.length, 0) === words.length && words.length === scriptWords,
     hookAtLeast8Changes: hookSlots >= 8, noHeldFrames: !report.some((r) => (r.frozen as number) > 0.05), frozenGenerativeSetHonoured: genSlots.length + documentedFallbacks === expectedGen,
   };
+  // V2 special QA: significant motion (AI clip, stock, animated graphic), first minute, still runs.
+  const motionSec = report.filter((r) => r.motion).reduce((x, r) => x + (r.seconds as number), 0);
+  const first60 = report.reduce((x, r) => { const st = r.start as number, sec = r.seconds as number; return st < 60 && r.motion ? x + Math.min(sec, 60 - st) : x; }, 0);
+  const stillRuns: {ids: string[]; seconds: number}[] = []; let cur: {ids: string[]; seconds: number} | null = null;
+  for (const r of report) { if (!r.motion && r.id !== endSlot.id) { if (!cur) cur = {ids: [], seconds: 0}; cur.ids.push(r.id as string); cur.seconds += r.seconds as number; } else if (cur) { stillRuns.push(cur); cur = null; } } if (cur) stillRuns.push(cur);
+  const longestStill = report.filter((r) => !r.motion && r.id !== endSlot.id).reduce<{id: string; seconds: number}>((a, r) => ((r.seconds as number) > a.seconds ? {id: r.id as string, seconds: r.seconds as number} : a), {id: '', seconds: 0});
+  const v2qa = {motionSeconds: +motionSec.toFixed(1), motionShare: +(motionSec / total).toFixed(3), first60MotionSeconds: +first60.toFixed(1), longestStill, stillChains: stillRuns.filter((x) => x.ids.length >= 2).map((x) => ({...x, seconds: +x.seconds.toFixed(1)})), longestStillChainSeconds: +Math.max(0, ...stillRuns.map((x) => x.seconds)).toFixed(1), sfxCues: sfxCount, animatedGraphics: report.filter((r) => r.kind === 'animated').length};
   const bytes = await fs.readFile(final);
-  const qc = {draft, final: {file: NAME, bytes: bytes.length, sha256: sha(bytes), durationSeconds: pr.duration, width: pr.width, height: pr.height, fps: pr.fps, codec: pr.codec}, loudness: {integratedLufs: num(/I:\s+(-?[\d.]+) LUFS/), truePeakDbfs: num(/Peak:\s+(-?[\d.]+) dBFS/), lra: num(/LRA:\s+(-?[\d.]+) LU/)}, black, freeze: fz, silences: silS, checks, failed: Object.entries(checks).filter(([, ok]) => !ok).map(([k]) => k), issues, deviations, timeline: {totalSeconds: total, narratedSeconds: scenes.reduce((a, s) => a + s.seconds, 0), slots: slots.length, hookSlots}};
+  const qc = {draft, v2: V2 ? v2qa : undefined, final: {file: NAME, bytes: bytes.length, sha256: sha(bytes), durationSeconds: pr.duration, width: pr.width, height: pr.height, fps: pr.fps, codec: pr.codec}, loudness: {integratedLufs: num(/I:\s+(-?[\d.]+) LUFS/), truePeakDbfs: num(/Peak:\s+(-?[\d.]+) dBFS/), lra: num(/LRA:\s+(-?[\d.]+) LU/)}, black, freeze: fz, silences: silS, checks, failed: Object.entries(checks).filter(([, ok]) => !ok).map(([k]) => k), issues, deviations, timeline: {totalSeconds: total, narratedSeconds: scenes.reduce((a, s) => a + s.seconds, 0), slots: slots.length, hookSlots}};
   await fs.writeFile(path.join(out, 'qc.json'), JSON.stringify(qc, null, 2)); await fs.writeFile(path.join(out, 'timeline.json'), JSON.stringify(report, null, 2));
 
   // 9) Review sheets.
@@ -201,10 +249,10 @@ export async function render(plan: Plan) {
   const fallbacks = issues.filter((i) => /fell back|held beyond|rejected/.test(i));
   const genSec = genSlots.reduce((x, r) => x + (r.seconds as number), 0);
   const manifestOut = {
-    manifestVersion: 'video-004/production-manifest/1', projectId: P, title: TITLE, channel: CHANNEL, freezeHash: plan.freezeHash, generatedAt: new Date().toISOString(), draft, commit: process.env.GITHUB_SHA ?? null, runId: process.env.GITHUB_RUN_ID ?? null,
+    manifestVersion: V2 ? 'video-004/production-manifest/2' : 'video-004/production-manifest/1', v2: V2 ? v2qa : undefined, projectId: P, title: TITLE, channel: CHANNEL, freezeHash: plan.freezeHash, generatedAt: new Date().toISOString(), draft, commit: process.env.GITHUB_SHA ?? null, runId: process.env.GITHUB_RUN_ID ?? null,
     master: qc.final, qa: {technical: checks, failed: qc.failed, loudness: qc.loudness, issues, deviationsFromFrozenDurations: deviations},
-    cost: {expectedUsd: EXPECTED_USD, worstCaseReservationUsd: EXPOSURE_CEILING_USD, actualUsd: +spent.toFixed(4), varianceUsd: +(spent - EXPECTED_USD).toFixed(4), byProvider, exposureUsd: exposure(), ceilingUsd: EXPOSURE_CEILING_USD, hardCapUsd: HARD_CAP_USD, paidOperations: led.filter((e) => e.status !== 'released').length, releasedClaims: led.filter((e) => e.status === 'released').length, retries: {count: retries.length, usd: +retryUsd.toFixed(4)}, providerTopupsAreNotCogs: true},
-    mix: {generativeClips: genSlots.length, documentedClipFallbacks: documentedFallbacks, generativeSeconds: +genSec.toFixed(2), generativeShare: +(genSec / pr.duration).toFixed(3), stillMotionSlots: report.filter((r) => ['still', 'graphic', 'photo'].includes(r.kind as string)).length, stockSlots: report.filter((r) => r.kind === 'stock').length},
+    cost: {expectedUsd: EXPECTED_USD, worstCaseReservationUsd: EXPOSURE_CEILING_USD, actualUsd: +spent.toFixed(4), varianceUsd: +(spent - EXPECTED_USD).toFixed(4), incrementalUsd: V2 ? +(spent - V1_SPENT_USD).toFixed(4) : undefined, historicUsd: V2 ? V1_SPENT_USD : undefined, byProvider, exposureUsd: exposure(), ceilingUsd: EXPOSURE_CEILING_USD, hardCapUsd: HARD_CAP_USD, paidOperations: led.filter((e) => e.status !== 'released').length, releasedClaims: led.filter((e) => e.status === 'released').length, retries: {count: retries.length, usd: +retryUsd.toFixed(4)}, providerTopupsAreNotCogs: true},
+    mix: {generativeClips: genSlots.length, documentedClipFallbacks: documentedFallbacks, animatedGraphics: report.filter((r) => r.kind === 'animated').length, generativeSeconds: +genSec.toFixed(2), generativeShare: +(genSec / pr.duration).toFixed(3), stillMotionSlots: report.filter((r) => ['still', 'graphic', 'photo'].includes(r.kind as string)).length, stockSlots: report.filter((r) => r.kind === 'stock').length},
     fallbacks, shots: report.map((r) => ({...r, cost: led.filter((e) => e.shotId === r.id && e.status === 'committed').reduce((a, e) => a + (e.actualUsd ?? e.maxUsd), 0), attempts: attempts.filter((a) => a.shotId === r.id).map((a) => ({attemptId: a.attemptId, provider: a.provider, costUsd: a.costUsd, qa: a.qa?.result ?? null}))})),
   };
   await fs.writeFile(path.join(out, 'production-manifest.json'), JSON.stringify(manifestOut, null, 2));
@@ -212,19 +260,19 @@ export async function render(plan: Plan) {
   // 11) Durable copy + phone watch link (skipped for drafts).
   if (!draft) {
     const part = 45 * 1024 * 1024, parts: string[] = [];
-    for (let i = 0; i * part < bytes.length; i++) { const p = `${P}/final/${NAME}.part${String(i).padStart(2, '0')}`; await put(p, bytes.subarray(i * part, (i + 1) * part), 'application/octet-stream'); parts.push(p); }
-    await putJson(`${P}/final/manifest.json`, {file: NAME, bytes: bytes.length, sha256: sha(bytes), parts, checks, commit: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID});
-    await putJson(`${P}/final/production-manifest.json`, manifestOut);
+    for (let i = 0; i * part < bytes.length; i++) { const p = `${P}/${FINAL_DIR}/${NAME}.part${String(i).padStart(2, '0')}`; await put(p, bytes.subarray(i * part, (i + 1) * part), 'application/octet-stream'); parts.push(p); }
+    await putJson(`${P}/${FINAL_DIR}/manifest.json`, {file: NAME, bytes: bytes.length, sha256: sha(bytes), parts, checks, commit: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID});
+    await putJson(`${P}/${FINAL_DIR}/production-manifest.json`, manifestOut);
     const hls = path.join(work, 'hls'); await fs.mkdir(hls, {recursive: true});
     await run('ffmpeg', ['-y', '-i', final, '-c', 'copy', '-f', 'hls', '-hls_time', '30', '-hls_playlist_type', 'vod', '-hls_segment_filename', path.join(hls, 'seg%03d.ts'), path.join(hls, 'index.m3u8')]);
     const lines = (await fs.readFile(path.join(hls, 'index.m3u8'), 'utf8')).split('\n'); const signed: string[] = [];
-    for (const l of lines) { if (!l.endsWith('.ts')) { signed.push(l); continue; } const p = `${P}/watch/hls/${l}`; await put(p, await fs.readFile(path.join(hls, l)), 'video/mp2t'); signed.push(await sign(p)); }
-    await put(`${P}/watch/hls/index.m3u8`, Buffer.from(signed.join('\n')), 'application/vnd.apple.mpegurl');
-    const watchUrl = await sign(`${P}/watch/hls/index.m3u8`);
-    const single = bytes.length <= 50 * 1024 * 1024 ? await (async () => { const dest = `${P}/final/${NAME}`; const {error} = await bucket.upload(dest, bytes, {contentType: 'video/mp4', upsert: true}); return error ? null : await sign(dest, 30); })() : null;
+    for (const l of lines) { if (!l.endsWith('.ts')) { signed.push(l); continue; } const p = `${P}/${WATCH_DIR}/hls/${l}`; await put(p, await fs.readFile(path.join(hls, l)), 'video/mp2t'); signed.push(await sign(p)); }
+    await put(`${P}/${WATCH_DIR}/hls/index.m3u8`, Buffer.from(signed.join('\n')), 'application/vnd.apple.mpegurl');
+    const watchUrl = await sign(`${P}/${WATCH_DIR}/hls/index.m3u8`);
+    const single = bytes.length <= 50 * 1024 * 1024 ? await (async () => { const dest = `${P}/${FINAL_DIR}/${NAME}`; const {error} = await bucket.upload(dest, bytes, {contentType: 'video/mp4', upsert: true}); return error ? null : await sign(dest, 30); })() : null;
     await fs.writeFile(path.join(out, 'watch-link.json'), JSON.stringify({watchUrl, singleMp4Url: single, expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(), parts}, null, 2));
   }
   await fs.rm(work, {recursive: true, force: true});
-  log('QC', {draft, passed: qc.failed.length === 0, failed: qc.failed, issues: issues.length, deviations: deviations.length, duration: pr.duration, spent});
+  log('QC', {draft, passed: qc.failed.length === 0, failed: qc.failed, issues: issues.length, deviations: deviations.length, duration: pr.duration, spent, v2: V2 ? v2qa : undefined});
   if (!draft && qc.failed.length) throw Error('Technical QA failed: ' + qc.failed.join(', '));
 }

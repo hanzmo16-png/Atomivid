@@ -4,14 +4,16 @@
  * ranges). The 1080p master is never modified. Usage: npx tsx scripts/video-004/review-proxy.ts */
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import {P, bucket, out, probe, put, read, readJsonStore, run, sha, sign} from './shared';
+import {P, out, probe, put, read, readJsonStore, run, sha, sign} from './shared';
+import {V2} from './plan';
 
-const NAME = 'VIDEO-004-Three-Days-at-the-Hot-Gates-review-480p.mp4';
+const NAME = V2 ? 'VIDEO-004-Three-Days-at-the-Hot-Gates-v2-review-480p.mp4' : 'VIDEO-004-Three-Days-at-the-Hot-Gates-review-480p.mp4';
+const FINAL = V2 ? 'final-v2' : 'final';
 const LIMIT = 50 * 1024 * 1024;
 
-async function main() {
+export async function reviewProxy() {
   await fs.mkdir(out, {recursive: true});
-  const man = await readJsonStore<{file: string; bytes: number; sha256: string; parts: string[]}>(`${P}/final/manifest.json`);
+  const man = await readJsonStore<{file: string; bytes: number; sha256: string; parts: string[]}>(`${P}/${FINAL}/manifest.json`);
   if (!man) throw Error('No final manifest in storage');
   const master = path.join(out, man.file); const chunks: Buffer[] = [];
   for (const p of man.parts) { const b = await read(p); if (!b) throw Error('Missing part ' + p); chunks.push(b); }
@@ -41,4 +43,4 @@ async function main() {
   console.log('@@V4_REVIEW_LINK ' + JSON.stringify({url, expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(), bytes: pb.length, seconds: pp.duration, width: pp.width, height: pp.height}));
   await fs.rm(master, {force: true}); await fs.rm(proxy, {force: true});
 }
-main().catch((e) => { console.error(e instanceof Error ? e.stack || e.message : String(e)); process.exitCode = 1; });
+if (process.argv[1] && /review-proxy/.test(process.argv[1])) reviewProxy().catch((e) => { console.error(e instanceof Error ? e.stack || e.message : String(e)); process.exitCode = 1; });
