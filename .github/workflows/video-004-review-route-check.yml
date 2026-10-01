@@ -3,8 +3,8 @@ name: Video 004 short review route check (read-only, zero spend)
 # Verifies the app-controlled review route (/r/<slug>) end to end without credentials in chat:
 #  1. upstream path with the service key: full GET, Range GET (200/206, audio/mpeg, bytes, sha256);
 #  2. where the route is deployed: Vercel production branch + latest preview of this commit (API, token never printed);
-#  3. HTTP probes of /r/video-004-pron-gate on the preview (bypass header) and on production:
-#     expected 307 -> /login when the route is deployed (owner login required), 404 where it is not.
+#  3. HTTP probes of /r/video-004-pron-gate on production: 307 -> /login without a session, 404 for an
+#     unknown slug, and the X-Review-Gate header (configured/unconfigured owner gate) on every answer.
 on:
   workflow_dispatch:
   push:
@@ -38,7 +38,7 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           set -u
-          probe() { local label="$1" url="$2"; shift 2; st=$(curl -sS -m 40 -o body.txt -D h.txt -w "%{http_code} redirect=%{redirect_url} size=%{size_download}" "$@" "$url"); echo "[$label] $st"; grep -i -E "^(content-type|location|x-vercel-error|x-matched-path|cache-control|x-robots-tag|accept-ranges|content-range):" h.txt | tr -d '\r' | sed 's/^/    /'; }
+          probe() { local label="$1" url="$2"; shift 2; st=$(curl -sS -m 40 -o body.txt -D h.txt -w "%{http_code} redirect=%{redirect_url} size=%{size_download}" "$@" "$url"); echo "[$label] $st"; grep -i -E "^(content-type|location|x-vercel-error|x-matched-path|cache-control|x-robots-tag|accept-ranges|content-range|x-review-gate|x-review-denied|x-vercel-id):" h.txt | tr -d '\r' | sed 's/^/    /'; }
           H=(); if [ -n "$BYPASS" ]; then H=(-H "x-vercel-protection-bypass: $BYPASS"); echo "protection bypass header: present"; else echo "protection bypass header: ABSENT"; fi
           if [ -n "$VERCEL_TOKEN" ]; then
             api() { curl -sS -m 30 -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com$1"; }
