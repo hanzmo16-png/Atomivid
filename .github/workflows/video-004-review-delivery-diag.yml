@@ -1,0 +1,55 @@
+name: Video 004 review delivery diagnostic (read-only, zero spend)
+
+# Incident REVIEW_DELIVERY_ANDROID_INVALID_JWT: the signed MP3 URL verified from a runner (200/206/audio)
+# fails on the user's Samsung/Android/Chrome with 400 InvalidJWT "signature verification failed".
+# This job reads the URL already stored in the gate report (never prints the token), compares it with the
+# URL delivered in chat (sha256 only), decodes the public JWT header/claims, lists the project's JWKS kids,
+# and probes the URL many times over fresh connections (HTTP/1.1 and HTTP/2, Chrome-Android headers,
+# Range: bytes=0-, HEAD, redirect check) from two independent runners. No TTS, no write, no spend.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/production-intelligence-v1]
+    paths: [.github/workflows/video-004-review-delivery-diag.yml]
+permissions:
+  contents: read
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [a, b]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CHAT_URL_SHA256: 0b1fda7fc6f890cfd733e50121826f6cd03613b276c51d318618077852987a19
+    steps:
+      - name: Read stored report and probe
+        env:
+          SB: ${{ secrets.SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -u
+          curl -sS -m 30 -H "Authorization: Bearer $KEY" -H "apikey: $KEY" -o report.json -w "report fetch status=%{http_code}\n" "$SB/storage/v1/object/authenticated/videos/video-004-thermopylae/v3/pron-gate/pron-gate-review.mp3.json" || true
+          curl -sS -m 30 -H "Authorization: Bearer $KEY" -H "apikey: $KEY" -o report.json -w "report fetch status=%{http_code}\n" "$SB/storage/v1/object/authenticated/videos/video-004-thermopylae/v3/pron-gate/pron-gate-report.json"
+          URL=$(jq -r '.review.url' report.json); TOK="${URL#*token=}"; echo "::add-mask::$TOK"; echo "::add-mask::$URL"
+          echo "url length=${#URL} token length=${#TOK} urlsafe=$([[ "$TOK" =~ ^[A-Za-z0-9._-]+$ ]] && echo yes || echo no) underscores=$(tr -cd '_' <<<"$TOK" | wc -c) dashes=$(tr -cd '-' <<<"$TOK" | wc -c)"
+          SHA=$(printf %s "$URL" | sha256sum | cut -c1-64); echo "stored url sha256=$SHA"; echo "chat url sha256=$CHAT_URL_SHA256"; [ "$SHA" = "$CHAT_URL_SHA256" ] && echo "CHAT_URL_MATCHES_STORED=yes" || echo "CHAT_URL_MATCHES_STORED=NO"
+          b64() { local s="$1"; s=$(tr '_-' '/+' <<<"$s"); while [ $(( ${#s} % 4 )) -ne 0 ]; do s="$s="; done; base64 -d <<<"$s" 2>/dev/null; }
+          echo "jwt header: $(b64 "$(cut -d. -f1 <<<"$TOK")")"; CLAIMS=$(b64 "$(cut -d. -f2 <<<"$TOK")"); echo "jwt claims: $CLAIMS"
+          NOW=$(date +%s); EXP=$(jq -r .exp <<<"$CLAIMS"); IAT=$(jq -r .iat <<<"$CLAIMS"); echo "runner now=$NOW ($(date -u)) iat=$IAT exp=$EXP remaining_s=$((EXP-NOW)) age_s=$((NOW-IAT))"
+          KID=$(b64 "$(cut -d. -f1 <<<"$TOK")" | jq -r .kid); echo "token kid=$KID"
+          echo "--- JWKS (public)"; curl -sS -m 20 "$SB/auth/v1/.well-known/jwks.json" -o jwks.json -w "jwks status=%{http_code}\n"; jq -c '[.keys[]? | {kid,alg,kty,use}]' jwks.json || head -c 300 jwks.json; echo "kid_in_jwks=$(jq --arg k "$KID" '[.keys[]?|select(.kid==$k)]|length' jwks.json 2>/dev/null)"
+          hdr() { grep -i -E "^(content-type|content-length|content-range|accept-ranges|cache-control|cf-cache-status|cf-ray|age|server|x-served-by|sb-request-id|x-request-id|location|via|date):" "$1" | tr -d '\r' | sed 's/^/    /'; }
+          probe() { local label="$1"; shift; rm -f h.txt b.bin; local st; st=$(curl -sS -m 40 -o b.bin -D h.txt -w "%{http_code} proto=%{http_version} redirects=%{num_redirects} size=%{size_download} ip=%{remote_ip} t=%{time_total}" "$@" "$URL" 2>&1); echo "[$label] $st"; hdr h.txt; case "$st" in 2*) ;; *) echo "    body: $(head -c 240 b.bin | tr -d '\n')";; esac; }
+          echo "--- redirect check (no follow)"; probe "nofollow-head" -I
+          echo "--- 10x fresh connections HTTP/1.1"; for i in $(seq 1 10); do probe "h1-$i" --http1.1 --no-keepalive -H "Connection: close" -r 0-999; done
+          echo "--- 10x fresh connections HTTP/2"; for i in $(seq 1 10); do probe "h2-$i" --http2 --no-keepalive -r 0-999; done
+          echo "--- Chrome Android media-style request (Range: bytes=0-, no follow)"; probe "chrome-android" --http2 -A "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36" -H "Accept: */*" -H "Accept-Language: es-ES,es;q=0.9" -H "Range: bytes=0-" -H "Sec-Fetch-Dest: document" -H "Sec-Fetch-Mode: navigate" -H "Sec-Fetch-Site: none" -H "Upgrade-Insecure-Requests: 1" -H "Accept-Encoding: gzip, deflate, br"
+          echo "--- Chrome Android navigation without Range (full GET)"; probe "chrome-android-full" --http2 -A "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36" -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8" -H "Sec-Fetch-Dest: document" -H "Sec-Fetch-Mode: navigate" -H "Sec-Fetch-Site: none" -H "Upgrade-Insecure-Requests: 1"
+          echo "--- what Supabase answers to a token altered by one character (reference for the user's error text)"; ALT="${URL%?}x"; st=$(curl -sS -m 30 -o b.bin -w "%{http_code}" "$ALT"); echo "[altered-last-char] $st body: $(head -c 240 b.bin | tr -d '\n')"
+          echo "--- truncated by 8 characters"; TR="${URL%????????}"; st=$(curl -sS -m 30 -o b.bin -w "%{http_code}" "$TR"); echo "[truncated-8] $st body: $(head -c 240 b.bin | tr -d '\n')"
+          echo "--- token with a '+' instead of '-' (what a non-url-safe re-encoding would do)"; PL="${URL//-/+}"; st=$(curl -sS -m 30 -o b.bin -w "%{http_code}" "$PL"); echo "[dash-to-plus] $st body: $(head -c 240 b.bin | tr -d '\n')"
+          echo "--- URL with the query string dropped"; Q="${URL%%\?*}"; st=$(curl -sS -m 30 -o b.bin -w "%{http_code}" "$Q"); echo "[no-query] $st body: $(head -c 240 b.bin | tr -d '\n')"
+          echo "--- is the bucket private? (anonymous GET on the public path must fail)"; st=$(curl -sS -m 30 -o b.bin -w "%{http_code}" "$SB/storage/v1/object/public/videos/video-004-thermopylae/v3/pron-gate/pron-gate-review.mp3"); echo "[public-path] $st body: $(head -c 160 b.bin | tr -d '\n')"
+          rm -f report.json b.bin h.txt
