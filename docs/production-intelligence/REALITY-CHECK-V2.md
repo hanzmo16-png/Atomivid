@@ -111,19 +111,24 @@ the authenticated path end to end (session → owner gate → allowlist → priv
 `src/app/r/[slug]/route.ts` (owner gate). Production configuration names a different account
 than the one the owner signs in with. Not a routing, cookie, slug, allowlist or storage fault.
 
-### Fix
+### Fix (authorized by the owner, 2026-10-01)
 
-1. **Code (deployed, commits e03e262 and 2448f75 on the production branch):** the route core moved
-   to `src/lib/delivery/review-route.ts` with injected dependencies; denials are now distinguishable:
-   404 `unknown-slug`, 403 `forbidden: owner-gate-unconfigured | email-unconfirmed | not-owner`
-   (header `X-Review-Denied`, body carries the same code, nothing else leaked), `X-Review-Gate`
-   on every answer. No behaviour change for the owner path.
-2. **Configuration (owner action, not possible from this session — no Vercel token):** set
-   `AVATAR_PREPARATION_OWNER_EMAIL` (Vercel → Project → Settings → Environment Variables,
-   Production) to the e-mail of the account you sign in with, redeploy, then open the same link.
-   Alternatively sign in with the account whose e-mail is already configured.
-   Adding the signed-in account to the gate in code was proposed and withheld: it is an
-   authorization grant, which is the owner's decision.
+1. **Diagnosable denials (commits e03e262, 2448f75):** route core in `src/lib/delivery/review-route.ts`
+   with injected dependencies; 404 `unknown-slug`, 403 `forbidden: owner-gate-unconfigured |
+   email-unconfirmed | not-owner` (header `X-Review-Denied`, same code in the body, nothing else
+   leaked), `X-Review-Gate` on every answer.
+2. **Dedicated authority (commit 50822e8):** Review Delivery no longer consults
+   `AVATAR_PREPARATION_OWNER_EMAIL`. The single allowed account is the Supabase auth user id in the
+   server-side variable **`REVIEW_DELIVERY_OWNER_USER_ID`** (`isReviewOwner` /
+   `reviewOwnerUserId` in `src/lib/delivery/review-stream.ts`). Authentication, confirmed e-mail,
+   allowlist, service-role server-side, Range, `private, no-store` and `noindex` are unchanged.
+   Empty variable = nobody. No id, e-mail, key or token is hard-coded in source
+   (`.env.example` documents the variable).
+3. **Configuration (owner action):** set `REVIEW_DELIVERY_OWNER_USER_ID` in Vercel → Production to
+   the user id of the account verified by the real sign-in at 18:11:15 UTC, redeploy, open the same
+   link. Until then the route answers `403 forbidden: owner-gate-unconfigured`
+   (`X-Review-Gate: unconfigured`), which is how CI verifies the variable's presence without
+   printing its value.
 
 ### Regression tests (`src/lib/delivery/review-route.test.ts`, fake dependencies, no credentials)
 
@@ -132,6 +137,9 @@ than the one the owner signs in with. Not a routing, cookie, slug, allowlist or 
 - anonymous → 307 `/login?redirectedFrom=…`; unknown slug → 404 before any session or storage access;
   signed-in non-owner → 403 `not-owner`, nothing fetched; unconfigured gate → 403 `owner-gate-unconfigured`;
   unconfirmed e-mail → 403 `email-unconfirmed`; upstream error → 502 without leaking the storage body.
+- `REVIEW_DELIVERY_OWNER_USER_ID is the only authority` — correct owner id → 200 / 206; other confirmed
+  account → 403 `not-owner`; anonymous → 307; unknown slug → 404; empty or blank variable → denies all;
+  an account matching `AVATAR_PREPARATION_OWNER_EMAIL` but not the id → denied (the e-mail gate is not consulted).
 
 ### Spend
 
