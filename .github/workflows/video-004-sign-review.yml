@@ -1,0 +1,31 @@
+name: Video 004 sign review link (free, no encoding, no provider API)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/production-intelligence-v1]
+    paths: [.github/workflows/video-004-sign-review.yml]
+permissions:
+  contents: read
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/video-004/sign-review.ts
+        env:
+          V4_OUT: ${{ runner.temp }}/video-004-review
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: video-004-review-link
+          path: ${{ runner.temp }}/video-004-review/review-link.json
+          if-no-files-found: ignore
