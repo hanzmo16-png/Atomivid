@@ -34,7 +34,7 @@ type NarrationRec = {seconds: number; sha256: string; words: WordTiming[]};
 /** The gate script stored word times as start/end; the renderer uses startSeconds/endSeconds. */
 export type GateWord = {text: string; start?: number; end?: number; startSeconds?: number; endSeconds?: number};
 export const gateWords = (ws: GateWord[]): WordTiming[] => ws.map((w) => ({text: w.text, startSeconds: w.startSeconds ?? w.start ?? 0, endSeconds: w.endSeconds ?? w.end ?? 0}));
-type Fit = {X: number; Y: number; rate: number; place: number; patchLen: number; roomLen: number; usedTrailingGap: number; usedLeadingGap: number};
+type Fit = {X: number; Y: number; rate: number; place: number; patchLen: number; roomLen: number; usedTrailingGap: number; usedLeadingGap: number; relaxedGaps?: boolean};
 
 const XI = process.env.ELEVENLABS_API_KEY || '';
 async function xi<T>(p: string, init?: RequestInit): Promise<T> { const r = await fetch('https://api.elevenlabs.io' + p, {...init, headers: {'xi-api-key': XI, 'Content-Type': 'application/json', ...(init?.headers || {})}}); if (!r.ok) throw Error(`ElevenLabs ${p.split('?')[0]} HTTP ${r.status}: ${(await r.text()).slice(0, 300)}`); return r.json() as Promise<T>; }
@@ -76,7 +76,7 @@ async function quietWindow(file: string): Promise<[number, number]> {
 }
 
 /** Decides how the regenerated sentence fits the original span without moving any later word. */
-export function fitPatch(sceneWords: WordTiming[], span: [number, number], sceneSeconds: number, patchVoiced: number): Fit | {blocker: string} {
+export function fitPatch(sceneWords: WordTiming[], span: [number, number], sceneSeconds: number, patchVoiced: number, minGap = MIN_GAP): Fit | {blocker: string} {
   const [i0, i1] = span; const A = sceneWords[i0].startSeconds, B = sceneWords[i1].endSeconds;
   const prevEnd = i0 > 0 ? sceneWords[i0 - 1].endSeconds : 0; const nextStart = i1 + 1 < sceneWords.length ? sceneWords[i1 + 1].startSeconds : sceneSeconds;
   const gapBefore = A - prevEnd, gapAfter = nextStart - B;
@@ -85,10 +85,14 @@ export function fitPatch(sceneWords: WordTiming[], span: [number, number], scene
   if (patchVoiced <= Lo) return {X, Y, rate: 1, place: X, patchLen: patchVoiced, roomLen: Lo - patchVoiced, usedTrailingGap: 0, usedLeadingGap: 0};
   // Longer: speed up to 1.03 first, then borrow from the trailing pause, then from the leading pause, keeping MIN_GAP.
   let rate = Math.min(1.03, patchVoiced / Lo); let L = patchVoiced / rate; let usedT = 0, usedL = 0;
-  if (L > Lo) { const availT = Math.max(0, nextStart - MIN_GAP - Y); usedT = Math.min(availT, L - Lo); Y += usedT; }
+  if (L > Lo) { const availT = Math.max(0, nextStart - minGap - Y); usedT = Math.min(availT, L - Lo); Y += usedT; }
   let place = X;
-  if (L > Y - X) { const availL = Math.max(0, X - (prevEnd + MIN_GAP)); usedL = Math.min(availL, L - (Y - X)); place = X - usedL; }
-  if (L > Y - place + 0.005) return {blocker: `TIMING_BLOCKER: sentence ${(patchVoiced).toFixed(2)} s does not fit ${(Lo).toFixed(2)} s + pauses (rate ${rate.toFixed(3)}, trailing ${usedT.toFixed(2)}, leading ${usedL.toFixed(2)})`};
+  if (L > Y - X) { const availL = Math.max(0, X - (prevEnd + minGap)); usedL = Math.min(availL, L - (Y - X)); place = X - usedL; }
+  if (L > Y - place + 0.005) {
+    // Audit rule: a sentence up to 150 ms too long after atempo <= 1.03 is absorbed by the neighbouring pauses (kept >= 100 ms); beyond that it is a blocker.
+    if (minGap > 0.1 && L - (Y - place) <= 0.15) { const r = fitPatch(sceneWords, span, sceneSeconds, patchVoiced, 0.1); return 'blocker' in r ? r : {...r, relaxedGaps: true}; }
+    return {blocker: `TIMING_BLOCKER: sentence ${(patchVoiced).toFixed(2)} s does not fit ${(Lo).toFixed(2)} s + pauses (rate ${rate.toFixed(3)}, trailing ${usedT.toFixed(2)}, leading ${usedL.toFixed(2)}, min gap ${minGap})`};
+  }
   return {X: place, Y, rate, place, patchLen: L, roomLen: Math.max(0, Y - place - L), usedTrailingGap: usedT, usedLeadingGap: usedL};
 }
 
@@ -150,8 +154,14 @@ export async function v3Patch(plan: Plan) {
   if (projected > V3_PATCH_MAX_USD || PRE_V3_CONSERVATIVE_USD + V3_PATCH_MAX_USD > 19) { log('V3_STOP', {reason: 'cost'}); throw Error('V3_COST_BLOCKER'); }
   // Account the gate conservatively (provider counter lag != zero spend): a committed correction entry, no call.
   try { await reserve({key: 'tts-pron-gate-v3-settlement', opKey: opKey({shotId: 'pron-gate', provider: 'elevenlabs', model: MODEL, method: 'tts-settlement', inputFingerprint: 'gate-388-chars', attemptOrdinal: 1}), kind: 'tts', provider: 'elevenlabs', shotId: null, maxUsd: 0.0776, reason: 'Gate G1-G3 (388 chars) settled conservatively: counter lag is not zero spend'}); await settle('tts-pron-gate-v3-settlement', 0.0776, 'committed'); } catch (e) { log('V3_GATE_SETTLEMENT', {skipped: e instanceof Error ? e.message : String(e)}); }
-  await reserve({key: 'tts-v3-patch', opKey: opKey({shotId: 'v3-patch', provider: 'elevenlabs', model: MODEL, method: 'tts', inputFingerprint: sha(toGenerate.map((s) => s.tts_text).concat(CTA.map((c) => c.line)).join('\n')), attemptOrdinal: 1}), kind: 'tts', provider: 'elevenlabs', shotId: null, maxUsd: V3_PATCH_MAX_USD, reason: `V3 full patch: ${toGenerate.length} segments + 2 CTA (${chars} chars)`});
-  const before = await quota(); let calls = 0; let charsSent = 0;
+  if (needCalls) await reserve({key: 'tts-v3-patch', opKey: opKey({shotId: 'v3-patch', provider: 'elevenlabs', model: MODEL, method: 'tts', inputFingerprint: sha(toGenerate.map((s) => s.tts_text).concat(CTA.map((c) => c.line)).join('\n')), attemptOrdinal: 1}), kind: 'tts', provider: 'elevenlabs', shotId: null, maxUsd: V3_PATCH_MAX_USD, reason: `V3 full patch: ${toGenerate.length} segments + 2 CTA (${chars} chars)`});
+  // Stored patches (a previous run's TTS output) are reused as-is: a fit-only re-run makes no call and reserves nothing.
+  const stored: Record<string, {audio: Buffer; words: WordTiming[]}> = {};
+  for (const s of toGenerate) { const b = await read(`${V3_DIR}/patches/${s.segmentId}.mp3`); const j = await readJsonStore<{words: WordTiming[]}>(`${V3_DIR}/patches/${s.segmentId}.json`); if (b && j) stored[s.segmentId] = {audio: b, words: j.words}; }
+  for (const c of CTA) { const b = await read(`${V3_DIR}/patches/${c.scene}.mp3`); const j = await readJsonStore<{words: WordTiming[]}>(`${V3_DIR}/narration/${c.scene}.json`); if (b && j) stored[c.scene] = {audio: b, words: j.words}; }
+  const needCalls = toGenerate.filter((s) => !stored[s.segmentId]).length + CTA.filter((c) => !stored[c.scene]).length;
+  log('V3_REUSE', {stored: Object.keys(stored), needCalls});
+  const before = needCalls ? await quota() : {remaining: 0, used: 0, limit: 0}; let calls = 0; let charsSent = 0;
   // Patch audio per segment (reused gate audio or one new call).
   const patches: Record<string, {audio: string; words: WordTiming[]; display: string; source: string}> = {};
   for (const s of segs) {
@@ -160,6 +170,7 @@ export async function v3Patch(plan: Plan) {
       const b = await read(`${V3_DIR}/pron-gate/${g}.mp3`); const j = await readJsonStore<{words: GateWord[]}>(`${V3_DIR}/pron-gate/${g}.json`); if (!b || !j) { blockers.push(`${s.segmentId}: gate audio ${g} missing`); continue; }
       const f = path.join(work, `${s.segmentId}.mp3`); await fs.writeFile(f, b); patches[s.segmentId] = {audio: f, words: gateWords(j.words), display: gate.find((x) => x.sampleId === g)!.test_phrase, source: g}; continue;
     }
+    if (stored[s.segmentId]) { const f = path.join(work, `${s.segmentId}.mp3`); await fs.writeFile(f, stored[s.segmentId].audio); patches[s.segmentId] = {audio: f, words: stored[s.segmentId].words, display: s.display_text, source: 'tts-stored'}; continue; }
     try {
       calls++; charsSent += s.tts_text.length;
       const r = await ttsPatch(voiceSetup.voiceId, s.tts_text, s.previous_text, s.next_text);
@@ -170,6 +181,7 @@ export async function v3Patch(plan: Plan) {
   // CTA narration (plain text, same voice, context = neighbouring sentences).
   const ctaAudio: Record<string, {audio: string; words: WordTiming[]}> = {};
   for (const c of CTA) {
+    if (stored[c.scene]) { const f = path.join(work, `${c.scene}.mp3`); await fs.writeFile(f, stored[c.scene].audio); ctaAudio[c.scene] = {audio: f, words: stored[c.scene].words}; continue; }
     try {
       calls++; charsSent += c.line.length;
       const prev = c.scene === 'CTA1' ? 'It is a harder story than the legend. And a better one. This is Thermopylae.' : 'But the low hill is still where it was, and the arrowheads were still in it.';
@@ -180,10 +192,10 @@ export async function v3Patch(plan: Plan) {
       ctaAudio[c.scene] = {audio: f, words: r.words.map((w, i) => ({...w, text: toks(c.line)[i]}))};
     } catch (e) { blockers.push(`${c.scene}: TTS failed (no retry): ${e instanceof Error ? e.message : String(e)}`); }
   }
-  const after = await quota(); const measured = Math.max(0, after.used - before.used);
+  const after = needCalls ? await quota() : before; const measured = Math.max(0, after.used - before.used);
   const measuredUsd = +(measured * XI_USD_PER_CHAR).toFixed(5), projectedSentUsd = +(charsSent * XI_USD_PER_CHAR).toFixed(5);
   const settledUsd = Math.max(measuredUsd, projectedSentUsd); // counter lag is not zero spend
-  await settle('tts-v3-patch', settledUsd, 'committed');
+  if (needCalls) await settle('tts-v3-patch', settledUsd, 'committed');
   // Scene stems: apply every patch of a scene in sentence order on the V2 narration (48 kHz stereo WAV).
   const scenesTouched = [...new Set(segs.map((s) => s.scene))];
   for (const sc of scenesTouched) {
@@ -198,7 +210,7 @@ export async function v3Patch(plan: Plan) {
       const r = await applyPatch({sceneWav: cur, sceneWords: words, sceneSeconds, patchAudio: p.audio, patchWords: p.words, span, work, tag: `${sc}-${s.segmentId}`});
       if ('blocker' in r) { blockers.push(`${s.segmentId}: ${r.blocker}`); applied.push({segmentId: s.segmentId, status: 'BLOCKER', detail: r.blocker}); continue; }
       cur = r.wav; words = r.words;
-      applied.push({segmentId: s.segmentId, status: 'PATCHED', source: p.source, names: s.names, span, originalSpan: {start: rec.words[span[0]].startSeconds, end: rec.words[span[1]].endSeconds}, fit: r.fit, gainDb: +r.gainDb.toFixed(2), lufsOriginal: +r.lufsOriginal.toFixed(2), lufsPatch: +r.lufsPatch.toFixed(2)});
+      applied.push({segmentId: s.segmentId, status: 'PATCHED', source: p.source, names: s.names, span, relaxedGaps: r.fit.relaxedGaps === true, originalSpan: {start: rec.words[span[0]].startSeconds, end: rec.words[span[1]].endSeconds}, fit: r.fit, gainDb: +r.gainDb.toFixed(2), lufsOriginal: +r.lufsOriginal.toFixed(2), lufsPatch: +r.lufsPatch.toFixed(2)});
     }
     const bytes = await fs.readFile(cur); const dur = await probeDuration(cur);
     await put(`${V3_DIR}/narration/${sc}.wav`, bytes, 'audio/wav');
