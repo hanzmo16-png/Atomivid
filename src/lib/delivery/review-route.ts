@@ -6,10 +6,10 @@
  */
 import { forwardableRange, passthroughStatus, resolveReviewObject, responseHeaders, upstreamRequest } from "./review-stream";
 
-export type ReviewUser = { email?: string; email_confirmed_at?: string } | null;
+export type ReviewUser = { id?: string; email?: string; email_confirmed_at?: string } | null;
 export type ReviewRouteDeps = {
   getUser: () => Promise<ReviewUser>;
-  /** Owner gate (production: canPrepareAvatar). */
+  /** Owner gate (production: isReviewOwner, REVIEW_DELIVERY_OWNER_USER_ID). */
   isOwner: (user: NonNullable<ReviewUser>) => boolean;
   /** Whether the owner gate has any configuration at all (env present). Reported as a header so a denial is diagnosable. */
   gateConfigured: () => boolean;
