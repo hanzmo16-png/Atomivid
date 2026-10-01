@@ -9,7 +9,7 @@ import {readAiVideoClipRecord} from '../../src/lib/video/long-form/ai-video-stor
 import {buildContactSheet, frameAt, probeDuration} from '../lib/contact-sheet';
 import {buildAss, buildCues, type TitleOverlay} from '../lib/dulce-edit';
 import {moveFor, stillMotionFilter, type Move, type WordTiming} from '../lib/dulce-part1-core';
-import {CHANNEL, END_CARD_LINES, EXPOSURE_CEILING_USD, HARD_CAP_USD, MUSIC, MUSIC_DROPS, ON_SCREEN_NOTICE, RUMBLE_CUES, TITLE} from './plan';
+import {CHANNEL, EXPOSURE_CEILING_USD, HARD_CAP_USD, MUSIC, MUSIC_DROPS, ON_SCREEN_NOTICE, RUMBLE_CUES, TITLE} from './plan';
 import {FPS, P, type Plan, type Shot, bucket, committedUsd, entries, exposure, listTelemetry, log, out, probe, put, putJson, read, readJsonStore, run, service, sha, sign} from './shared';
 
 const NAME = 'VIDEO-003-The-Lake-That-Held-Its-Breath-master.mp4';
@@ -128,7 +128,7 @@ export async function render(plan: Plan) {
   add(at('hook: the lake at night'), [ON_SCREEN_NOTICE], 'Note', 0.2, undefined, true);
   add(at('title'), [TITLE.toUpperCase()], 'Title', 0.4);
   add(at('trigger 1'), ['One of several hypotheses · the trigger is not known'], 'Note', 0.2, undefined, true);
-  const endSlot = slots.at(-1)!; ov.push({start: endSlot.startFrame / FPS + 0.15, end: total - 0.1, lines: [END_CARD_LINES[0].toUpperCase(), CHANNEL], style: 'Title'});
+  const endSlot = slots.at(-1)!; // the end card graphic already carries the title, channel and credits
   const cues = buildCues(words); const ass = path.join(work, 'v3.ass'); await fs.writeFile(ass, buildAss(cues, ov)); await fs.copyFile(ass, path.join(out, 'video-003-subtitles.ass'));
   const srtT = (s: number) => { const ms = Math.round(s * 1000); return `${String(Math.floor(ms / 3600000)).padStart(2, '0')}:${String(Math.floor(ms / 60000) % 60).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')},${String(ms % 1000).padStart(3, '0')}`; };
   await fs.writeFile(path.join(out, 'video-003-en.srt'), cues.map((c, i) => `${i + 1}\n${srtT(c.start)} --> ${srtT(c.end)}\n${c.words.map((w) => w.text).join(' ')}\n`).join('\n'));
