@@ -20,13 +20,12 @@ import {buildContactSheet, frameAt, probeDuration} from '../lib/contact-sheet';
 import {scriptWordsWithTimings, type WordTiming} from '../lib/dulce-part1-core';
 import {ALIASES, GRAPHICS, IMAGE_MAX_USD, MODEL, MOTION_PROMPTS, SEC_USD, STILL_NOTES, STOCK_QUERIES, STYLE, VOICE, VOICE_SETTINGS, XI_USD_PER_CHAR, clipSecondsFor} from './plan';
 import {graphicsNotes, renderGraphicPng} from './graphics';
-import {DIR, P, type Plan, type Shot, bucket, committedUsd, ensureOut, entries, exposure, loadLedger, loadPlan, log, opKey, out, probe, put, putJson, read, readJson, readJsonStore, reserve, run, service, settle, sha, tele, words, writeLedgerSnapshot} from './shared';
+import {DIR, P, STILL_RETAKES, type Plan, type Shot, bucket, committedUsd, ensureOut, entries, exposure, loadLedger, loadPlan, log, opKey, out, probe, put, putJson, read, readJson, readJsonStore, reserve, run, service, settle, sha, stillPath, stillRev, tele, words, writeLedgerSnapshot} from './shared';
 
 const stage = process.env.V4_STAGE || 'status';
 const wanted = (process.env.V4_SHOTS || '').split(',').map((s) => s.trim()).filter(Boolean);
 const only = (shots: Shot[]) => (wanted.length ? shots.filter((s) => wanted.includes(s.id)) : shots);
 const sceneText = (plan: Plan, scene: string) => plan.shots.filter((s) => s.scene === scene && s.purpose !== 'end card').map((s) => s.narration).join(' ');
-const stillPath = (id: string, rev = 'v1') => `${P}/stills/${id}-${rev}.png`;
 
 // ---------------- ElevenLabs ----------------
 const XI = process.env.ELEVENLABS_API_KEY || '';
@@ -127,10 +126,12 @@ async function images(plan: Plan) {
   const make = async (s: Shot) => {
     const dest = stillPath(s.id); let bytes = await read(dest);
     if (!bytes) {
-      const ref = await refOf(s);
-      const prompt = `${s.visual}. ${STILL_NOTES[s.id] || ''} ${STYLE}${ref ? ` Attached reference: the same place, light, formation and equipment as in the reference image; use it only for continuity of location, costume and lighting, not for composition.` : ''}`;
+      const ref = await refOf(s); const rev = stillRev(s.id); const retake = STILL_RETAKES[s.id];
+      // A stock shot replaced by a still (review verdict STILL) is described by its STILL_NOTES entry alone, never by the stock description.
+      const base = fallback.has(s.id) && STILL_NOTES[s.id] ? STILL_NOTES[s.id] : `${s.visual}. ${STILL_NOTES[s.id] || ''}`;
+      const prompt = `${base}${retake ? ` CORRECTION (the previous attempt was rejected): ${retake}` : ''} ${STYLE}${ref ? ` Attached reference: the same place, light, formation and equipment as in the reference image; use it only for continuity of location, costume and lighting, not for composition.` : ''}`;
       const fingerprint = sha(prompt + (ref ? sha(ref.buf) : ''));
-      const key = `image-${s.id}-v1`; const ok = opKey({shotId: s.id, provider: 'openai', model: 'gpt-image-2', method: s.method, inputFingerprint: fingerprint, attemptOrdinal: 1});
+      const key = `image-${s.id}-${rev}`; const ok = opKey({shotId: s.id, provider: 'openai', model: 'gpt-image-2', method: s.method, inputFingerprint: fingerprint, attemptOrdinal: rev === 'v2' ? 2 : 1});
       await reserve({key, opKey: ok, kind: 'image', provider: 'openai', shotId: s.id, maxUsd: IMAGE_MAX_USD});
       const t0 = Date.now(); const headers: Record<string, string> = {Authorization: `Bearer ${process.env.OPENAI_API_KEY}`};
       let body: FormData | string;
@@ -143,8 +144,8 @@ async function images(plan: Plan) {
       bytes = Buffer.from(res.data[0].b64_json, 'base64'); await put(dest, bytes, 'image/png');
       const u = res.usage; const cost = u && Number.isFinite(u.output_tokens) ? ((u.input_tokens_details?.text_tokens ?? u.input_tokens ?? 0) * 5 + (u.input_tokens_details?.image_tokens ?? 0) * 10 + (u.output_tokens ?? 0) * 40) / 1e6 : IMAGE_MAX_USD;
       await settle(key, Math.round(cost * 1e5) / 1e5, 'committed');
-      await tele({attemptId: key, opKey: ok, shotId: s.id, stage: 'image', provider: 'openai', model: 'gpt-image-2', method: s.method, attemptOrdinal: 1, costUsd: Math.round(cost * 1e5) / 1e5, latencySeconds: (Date.now() - t0) / 1000, outputSha256: sha(bytes), generatedSeconds: 0, qa: {result: 'PENDING'}, at: new Date().toISOString()});
-      await putJson(`${P}/stills/${s.id}-v1.json`, {id: s.id, prompt, reference: ref?.id ?? null, sha256: sha(bytes), usage: u ?? null, costUsd: cost, at: new Date().toISOString()});
+      await tele({attemptId: key, opKey: ok, shotId: s.id, stage: 'image', provider: 'openai', model: 'gpt-image-2', method: s.method, attemptOrdinal: rev === 'v2' ? 2 : 1, costUsd: Math.round(cost * 1e5) / 1e5, latencySeconds: (Date.now() - t0) / 1000, outputSha256: sha(bytes), generatedSeconds: 0, qa: {result: 'PENDING'}, at: new Date().toISOString()});
+      await putJson(`${P}/stills/${s.id}-${rev}.json`, {id: s.id, rev, prompt, reference: ref?.id ?? null, sha256: sha(bytes), usage: u ?? null, costUsd: cost, at: new Date().toISOString()});
     }
     await fs.writeFile(path.join(out, `still-${s.id}.jpg`), await sharp(bytes).jpeg({quality: 90}).toBuffer());
     tiles.push({image: bytes, label: `${s.id} ${s.purpose} ${sha(bytes).slice(0, 8)}`});
@@ -221,7 +222,7 @@ async function graphics(plan: Plan) {
 type Review = {stills?: {id: string; sha256: string; result: 'PASS' | 'FAIL'; note: string; reasons?: string[]}[]; clips?: {id: string; sha256: string; result: 'PASS' | 'FAIL'; note: string; reasons?: string[]; usableUntil?: number}[]; stock?: {id: string; result: 'PASS' | 'FAIL' | 'REUSE' | 'STILL'; note: string; from?: string; inPoint?: number}[]; stillFallback?: string[]};
 async function review() {
   const rv = await readJson<Review>(`${DIR}/reviews.json`).catch(() => ({} as Review));
-  for (const x of rv.stills || []) { const b = await read(stillPath(x.id)); if (!b || sha(b) !== x.sha256) throw Error('Still checksum mismatch ' + x.id); await putJson(`${P}/reviews/still-${x.id}.json`, {...x, reviewer: 'assistant visual inspection', at: new Date().toISOString()}); const t = await readJsonStore<Record<string, unknown>>(`${P}/telemetry/image-${x.id}-v1.json`); if (t) { t.qa = {result: x.result, notes: x.note, reasons: x.reasons}; await putJson(`${P}/telemetry/image-${x.id}-v1.json`, t); } }
+  for (const x of rv.stills || []) { const b = await read(stillPath(x.id)); if (!b || sha(b) !== x.sha256) throw Error('Still checksum mismatch ' + x.id); await putJson(`${P}/reviews/still-${x.id}.json`, {...x, reviewer: 'assistant visual inspection', at: new Date().toISOString()}); const t = await readJsonStore<Record<string, unknown>>(`${P}/telemetry/image-${x.id}-${stillRev(x.id)}.json`); if (t) { t.qa = {result: x.result, notes: x.note, reasons: x.reasons}; await putJson(`${P}/telemetry/image-${x.id}-${stillRev(x.id)}.json`, t); } }
   for (const x of rv.clips || []) { await putJson(`${P}/reviews/clip-${x.id}.json`, {...x, reviewer: 'assistant temporal inspection', at: new Date().toISOString()}); const t = await readJsonStore<Record<string, unknown>>(`${P}/telemetry/video-${x.id}-v1.json`); if (t) { t.qa = {result: x.result, notes: x.note, reasons: x.reasons}; await putJson(`${P}/telemetry/video-${x.id}-v1.json`, t); } }
   for (const x of rv.stock || []) await putJson(`${P}/reviews/stock-${x.id}.json`, {...x, at: new Date().toISOString()});
   log('REVIEW', {stills: rv.stills?.length ?? 0, clips: rv.clips?.length ?? 0, stock: rv.stock?.length ?? 0});

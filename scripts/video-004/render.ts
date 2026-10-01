@@ -10,7 +10,7 @@ import {buildContactSheet, frameAt, probeDuration} from '../lib/contact-sheet';
 import {buildAss, buildCues, type TitleOverlay} from '../lib/dulce-edit';
 import {moveFor, stillMotionFilter, type Move, type WordTiming} from '../lib/dulce-part1-core';
 import {CHANNEL, EXPECTED_USD, EXPOSURE_CEILING_USD, HARD_CAP_USD, MUSIC, MUSIC_DROPS, ON_SCREEN_NOTICE, ON_SCREEN_NOTES, RUMBLE_CUES, TITLE} from './plan';
-import {FPS, P, type Plan, type Shot, bucket, committedUsd, entries, exposure, listTelemetry, log, out, probe, put, putJson, read, readJsonStore, run, service, sha, sign} from './shared';
+import {FPS, P, type Plan, type Shot, stillPath, bucket, committedUsd, entries, exposure, listTelemetry, log, out, probe, put, putJson, read, readJsonStore, run, service, sha, sign} from './shared';
 
 const NAME = 'VIDEO-004-Three-Days-at-the-Hot-Gates-master.mp4';
 const LEAD_IN = 0.4, SCENE_TAIL = 0.3, END_CARD = 1.5;
@@ -55,18 +55,18 @@ export async function render(plan: Plan) {
   // 3) Sources.
   const cache = new Map<string, Src>();
   const placeholder = async (s: Shot): Promise<Src> => { if (!draft) throw Error('No source for ' + s.id); const sharp = (await import('sharp')).default; const f = path.join(work, `ph-${s.id}.png`); await sharp({create: {width: 1920, height: 1080, channels: 3, background: '#243036'}}).composite([{input: Buffer.from(`<svg width="1920" height="1080" xmlns="http://www.w3.org/2000/svg"><text x="960" y="520" font-family="DejaVu Sans" font-size="60" fill="#dfe6e8" text-anchor="middle">${s.id} · ${s.kind}</text><text x="960" y="600" font-family="DejaVu Sans" font-size="36" fill="#9fb3b8" text-anchor="middle">${s.visual.replace(/[<>&]/g, '').slice(0, 90)}</text></svg>`), top: 0, left: 0}]).png().toFile(f); issues.push(`draft placeholder ${s.id}`); return {kind: 'placeholder', file: f, origin: 'placeholder'}; };
-  const approvedStill = async (id: string) => { const b = await read(`${P}/stills/${id}-v1.png`); const rv = await readJsonStore<{sha256: string; result: string}>(`${P}/reviews/still-${id}.json`); return b && rv && rv.result === 'PASS' && rv.sha256 === sha(b) ? b : null; };
+  const approvedStill = async (id: string) => { const b = await read(stillPath(id)); const rv = await readJsonStore<{sha256: string; result: string}>(`${P}/reviews/still-${id}.json`); return b && rv && rv.result === 'PASS' && rv.sha256 === sha(b) ? b : null; };
   async function resolve(s: Shot): Promise<Src> {
     if (cache.has(s.id)) return cache.get(s.id)!;
     let src: Src | null = null;
     if (s.kind === 'graphic') { const b = await read(`${P}/graphics/${s.id}.png`); if (b) { const f = path.join(work, `g-${s.id}.png`); await fs.writeFile(f, b); src = {kind: 'graphic', file: f, sha256: sha(b), origin: `videos/${P}/graphics/${s.id}.png`}; } }
     else if (s.provider === 'pexels') { const rv = await readJsonStore<{result: string; from?: string; inPoint?: number}>(`${P}/reviews/stock-${s.id}.json`);
-      if (rv?.result === 'STILL') { const b = await approvedStill(s.id); if (b) { const f = path.join(work, `still-${s.id}.png`); await fs.writeFile(f, b); src = {kind: 'still', file: f, sha256: sha(b), origin: `videos/${P}/stills/${s.id}-v1.png`, note: 'stock replaced by an approved still (review verdict STILL)'}; issues.push(`${s.id}: stock replaced by a generated still`); } }
+      if (rv?.result === 'STILL') { const b = await approvedStill(s.id); if (b) { const f = path.join(work, `still-${s.id}.png`); await fs.writeFile(f, b); src = {kind: 'still', file: f, sha256: sha(b), origin: `videos/${stillPath(s.id)}`, note: 'stock replaced by an approved still (review verdict STILL)'}; issues.push(`${s.id}: stock replaced by a generated still`); } }
       else if (rv?.result === 'REUSE' && rv.from) { const rec = await readJsonStore<{file: string; sha256: string; sourceId: string}>(`${P}/stock/${rv.from}.json`); const b = rec ? await read(rec.file) : null; if (rec && b) { const f = path.join(work, `st-${s.id}.mp4`); await fs.writeFile(f, b); src = {kind: 'stock', file: f, sha256: sha(b), origin: `${rec.sourceId} (reused from ${rv.from} @${rv.inPoint ?? 0}s)`, note: String(rv.inPoint ?? 0)}; issues.push(`${s.id}: reuses ${rv.from}'s clip at ${rv.inPoint ?? 0}s`); } }
       else { const rec = await readJsonStore<{file: string; kind: 'video' | 'photo'; sha256: string; sourceId: string}>(`${P}/stock/${s.id}.json`); if (rec && (!rv || rv.result === 'PASS' || rv.result === 'PENDING')) { const b = await read(rec.file); if (b) { const f = path.join(work, `st-${s.id}.${rec.kind === 'photo' ? 'jpg' : 'mp4'}`); await fs.writeFile(f, b); src = {kind: rec.kind === 'photo' ? 'photo' : 'stock', file: f, sha256: sha(b), origin: rec.sourceId}; } } if (!src && rv?.result === 'FAIL') issues.push(`${s.id}: stock rejected in review, no replacement`); } }
     else {
       if (s.generative) { const rec = await readAiVideoClipRecord(service, 'videos', P, `${s.id}-v1`); const rv = await readJsonStore<{result: string; sha256: string}>(`${P}/reviews/clip-${s.id}-v1.json`); if (rec?.status === 'COMPLETED' && rec.storagePath && rv?.result === 'PASS' && rv.sha256 === rec.checksumSha256) { const b = await read(rec.storagePath); if (!b || sha(b) !== rec.checksumSha256) throw Error('Clip checksum ' + s.id); const f = path.join(work, `clip-${s.id}.mp4`); await fs.writeFile(f, b); src = {kind: 'clip', file: f, sha256: sha(b), origin: `videos/${rec.storagePath}`}; } else if (!draft) issues.push(`${s.id}: no approved clip, fell back to approved still + camera motion`); }
-      if (!src) { const b = await approvedStill(s.id); if (b) { const f = path.join(work, `still-${s.id}.png`); await fs.writeFile(f, b); src = {kind: 'still', file: f, sha256: sha(b), origin: `videos/${P}/stills/${s.id}-v1.png`}; } }
+      if (!src) { const b = await approvedStill(s.id); if (b) { const f = path.join(work, `still-${s.id}.png`); await fs.writeFile(f, b); src = {kind: 'still', file: f, sha256: sha(b), origin: `videos/${stillPath(s.id)}`}; } }
     }
     if (!src) src = await placeholder(s);
     cache.set(s.id, src); return src;

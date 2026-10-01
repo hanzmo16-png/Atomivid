@@ -22,6 +22,10 @@ export const sha = (b: Buffer | string) => createHash('sha256').update(b).digest
 export const log = (tag: string, v: unknown) => console.log(`@@V4_${tag} ` + JSON.stringify(v));
 export const readJson = async <T>(f: string): Promise<T> => JSON.parse(await fs.readFile(f, 'utf8')) as T;
 export const words = (s: string) => s.split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w));
+/** Still retakes recorded in reviews.json (id -> correction note): a retaken still lives at rev v2 under a new paid claim. */
+export const STILL_RETAKES: Record<string, string> = (() => { try { return (JSON.parse(fsSync.readFileSync(`${'content/productions/video-004-thermopylae'}/reviews.json`, 'utf8')) as {stillRetake?: Record<string, string>}).stillRetake || {}; } catch { return {}; } })();
+export const stillRev = (id: string) => (STILL_RETAKES[id] ? 'v2' : 'v1');
+export const stillPath = (id: string) => `${PROJECT}/stills/${id}-${stillRev(id)}.png`;
 
 // ---------------- frozen plan ----------------
 export type Kind = 'stock' | 'still' | 'parallax' | 'ai' | 'graphic';

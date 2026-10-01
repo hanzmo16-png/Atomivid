@@ -1,1 +1,446 @@
-{"stock": [], "stills": [], "stillFallback": [], "clips": []}
+{
+ "stock": [
+  {
+   "id": "V4-003",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-004",
+   "result": "FAIL",
+   "note": "modern quad bike rider in frame"
+  },
+  {
+   "id": "V4-008",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-011",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-012",
+   "result": "FAIL",
+   "note": "same clip as V4-045 (duplicate); also sunset, not sunrise"
+  },
+  {
+   "id": "V4-013",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-014",
+   "result": "FAIL",
+   "note": "Egyptian hieroglyph relief with a hand, not Persian"
+  },
+  {
+   "id": "V4-015",
+   "result": "FAIL",
+   "note": "Roman arch ruins, not Persian"
+  },
+  {
+   "id": "V4-018",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-021",
+   "result": "FAIL",
+   "note": "modern brass tap on the fountain"
+  },
+  {
+   "id": "V4-022",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-024",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-027",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-032",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-035",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-037",
+   "result": "FAIL",
+   "note": "Chinese terracotta warrior, not Greek"
+  },
+  {
+   "id": "V4-044",
+   "result": "FAIL",
+   "note": "Roman battle relief, not Persian"
+  },
+  {
+   "id": "V4-045",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-046",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-059",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-061",
+   "result": "FAIL",
+   "note": "modern town lights under the moon"
+  },
+  {
+   "id": "V4-063",
+   "result": "FAIL",
+   "note": "same clip as V4-059 (duplicate)"
+  },
+  {
+   "id": "V4-064",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-065",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-069",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-080",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-083",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-085",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-086",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-087",
+   "result": "FAIL",
+   "note": "modern tourist crowds on the Acropolis"
+  },
+  {
+   "id": "V4-091",
+   "result": "FAIL",
+   "note": "coastal gorge cliffs, not a plain"
+  },
+  {
+   "id": "V4-092",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-093",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-095",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-096",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-097",
+   "result": "PASS",
+   "note": "matches the shot; no modern objects or crowds; licensed Pexels"
+  },
+  {
+   "id": "V4-098",
+   "result": "FAIL",
+   "note": "Roman triumphal arch (Arch of Constantine), not Thermopylae"
+  }
+ ],
+ "stills": [
+  {
+   "id": "V4-001",
+   "sha256": "5908acc2d9a4acd2d0eaed9adcbe732e7ec0770612883c6f5b738a3d0ddd7125",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-005",
+   "sha256": "8c7ec09fe217f93a1f359e3d0e2f6f012a1806bdfcbabad8dec2193c4d25ebef",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-009",
+   "sha256": "0a4700166ddd7ea22be848fcf575ba105d4af8fa9ae4bbe862aef6fc831ca942",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-002",
+   "sha256": "22583f5fd3b5d3cc1a4d23c05d5124a65c085a94631c2d6f017dc8f9c9557222",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-017",
+   "sha256": "6bddc24ef9b038b7b98af291171de756625bbe2ea4db0d2e1943ad9d2d35aa6e",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-025",
+   "sha256": "133f7ea5f9c495709ad71bedf7237a953c0480127a6123897509350f8299d64b",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-031",
+   "sha256": "ac2b4b9752dc42a0ed70e31c1674137ce4e6b55c5f3cfee14d15b2e6ee021980",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-043",
+   "sha256": "8539ca6bd930a2bd788217e338a7aab99ea62272964fe5a9704125dfa80eaea9",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-049",
+   "sha256": "b4030067b355f02067804e8172d9117f6b59df2c1646848157a66cbe76411bc9",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-036",
+   "sha256": "5c04ccabb7deac31aaac42d3cf85946c912592df1be23d6719a1565df9876183",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-055",
+   "sha256": "f65fa81d410cd3af2fa060e7345fb10aa5580160cddb33c9f056597c9ba61fea",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-060",
+   "sha256": "b49b4c89ccce24cc57ffd05882cbebfbc8cad189a91ca7312ad00217c5f5a3a5",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-006",
+   "sha256": "63ab2ac0b4b8752dc0d0e987104a43c43ec4c10b4954d3a8d0e1f43104b13706",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-007",
+   "sha256": "c53ba25767b250033ebe370d2f91089f56fe66ad729c0493f6a4f91dd1518d27",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-010",
+   "sha256": "982f300d8fdb0966e8c180b116b11959f7d7ad532b1e0d2db2c20fa58abc053a",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-028",
+   "sha256": "375696d22677a9dfedfa2936ed8ebba672282f21b592d6cca762b4e9855e8dea",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-020",
+   "sha256": "5ec5a2e6fc81c64804ac601acd791c1ad8e1be8b6cacf71f553da9dbd3e4eba2",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-029",
+   "sha256": "6845bf761f7c49610f473db6dc9d388c988bdeb4d36b0e79b70e0af3e9faffbe",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-034",
+   "sha256": "ad74c78a1436458e6d0a75089384782566c5b05c40425d2eddde369eafb33f28",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-042",
+   "sha256": "25613e67955528a624ba8d6f7ef3aa2bd0c495088757782a4bedd7f94c6335f0",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-039",
+   "sha256": "64b04afb14769f01d8f39d52abf0b2f9984e439b21cb371d6e1fbc19046c89d0",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-047",
+   "sha256": "478b49b084da3c8d21e1fac6165cf26473850ada6ff111dcd6e9380e7290a3f9",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-048",
+   "sha256": "9901e55cc9e775ef8251e1f29d5145242b7964b5688ca7c35962704f95cdeedf",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-050",
+   "sha256": "d2afbfc3afd85040a24c4c6b0457743fae651ad9fc9eb915cf2500480216aeb8",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-051",
+   "sha256": "6df4d74cfab79b1b733bd4252d300672caa7581081e6e986360234ea383a0786",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-052",
+   "sha256": "39943c18d47890547ae37ec4e4aa9b6de64564d2b9c1cabf6046d1dac6fe3312",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-053",
+   "sha256": "3ad3734c85e9751087c36d75401d30550b98bf08473b35a31cacb4f3ee54a4e8",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-054",
+   "sha256": "2191d262b16f04f6d12738630b29b7fdcde978c43cb3db110fab43eed3433bee",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-056",
+   "sha256": "72f8d6147e07ad9664fd4a027f48092bb2c1b833f86a3eeaed977ec50fcecaad",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-062",
+   "sha256": "5eb36d81428b0ad00a64cf4a12aee15f2f8c5cdb5e773e8a69782dbd7a33ed90",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-067",
+   "sha256": "fad9dc39c2f9b245e6454109538d850c276402b404840e39f719810dc6d2d801",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-071",
+   "sha256": "4df4e262f505656c4f38fc4cc6ce439a8aab08412886665a0818688ea0bd9e1c",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-072",
+   "sha256": "96d11482074f8d78291ddb485d3ca911251ebe310413434aa69854a12b6fc922",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-073",
+   "sha256": "25f6740379224c6a8b84715cbc0e0a1b830b0f1a3c5b982cfc8fb0532a06e5a5",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-074",
+   "sha256": "0ebfc3d37bcfe6d09559ae12e6fa7ec271b1a21194ea33755398e03f477c4e79",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-075",
+   "sha256": "67c27198243dc567181673b2fdbd23a5591ecb7013af489e6d64738d12e17992",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-076",
+   "sha256": "d0875e938bec52fb2814d7ad62cc0bca1c86cb31c40f553f26d94e6fdf9d21b0",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-077",
+   "sha256": "711b2670f310e43c37878a3ede40ea189a81e8c02dc44f6fcdb3731f1a72657a",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-079",
+   "sha256": "98fff24881f26d23906b398b66a3b2caa99a4875dae0a84a53b5c396a89fe54f",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-082",
+   "sha256": "a252809276485fe233985ca0e22611b4e889565474b6a636a50529e673c62007",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  },
+  {
+   "id": "V4-089",
+   "sha256": "03e46403d104699082f34e2f44e99a0e244b34295db5e58c2742f7a09b222ebb",
+   "result": "PASS",
+   "note": "period-correct kit, no text/watermark, no gore, faces not recognisable, continuity consistent"
+  }
+ ],
+ "stillRetake": {
+  "V4-057": "The guards and soldiers are PERSIAN: soft felt caps, sleeved patterned tunics, trousers, tall wicker shields, bows; no Greek helmets, no crimson cloaks, no round bronze shields. One cloaked civilian led toward the lamplit tent, seen from far behind.",
+  "V4-066": "No castle, no fortress, no battlements, no towers, no crenellations. The wall is a low rough field wall of unworked limestone blocks about chest height, as a Greek pass wall of 480 BC, with the cliff and the sea beyond; spears and helmets planted around a cold fire; no people.",
+  "V4-068": "No castle, no fortress, no battlements. The wall behind the men is a low rough field wall of unworked limestone blocks about chest height; the sea and the shore beyond at dawn; the men are hoplites in plain brown cloaks seen from behind with shields down.",
+  "V4-078": "The figures in the foreground are PERSIAN infantry seen from behind: soft felt caps, sleeved patterned tunics, trousers, tall wicker shields, bows; no Greek helmets, no crimson cloaks, no round bronze shields in the foreground. The ring of bronze shields is far away on top of the low mound.",
+  "V4-088": "No people and no soldiers anywhere in the frame: only the rocky citadel above the plain at dusk with columns of smoke rising, seen from far across the empty plain."
+ },
+ "stillFallback": [],
+ "clips": []
+}
