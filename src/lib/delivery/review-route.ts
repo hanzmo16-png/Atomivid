@@ -33,7 +33,7 @@ export async function handleReviewRequest(request: Request, slug: string, deps: 
   }
   if (!deps.isOwner(user)) {
     const reason = !deps.gateConfigured() ? "owner-gate-unconfigured" : !user.email_confirmed_at ? "email-unconfirmed" : "not-owner";
-    return new Response("forbidden", { status: 403, headers: { ...NO_STORE, ...gate, "X-Review-Denied": reason } });
+    return new Response(`forbidden: ${reason}`, { status: 403, headers: { ...NO_STORE, ...gate, "X-Review-Denied": reason } });
   }
 
   const range = forwardableRange(request.headers.get("range"));
