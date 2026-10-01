@@ -108,15 +108,15 @@ export async function render(plan: Plan) {
     const {data, error} = await service.storage.from('music-library').download(id + '.mp3'); if (error || !data) throw Error('Missing licensed music ' + id);
     const mf = path.join(work, id + '.mp3'); await fs.writeFile(mf, Buffer.from(await data.arrayBuffer()));
     const len = s1 - s0; const idx = inputs.filter((x) => x === '-i').length; inputs.push('-stream_loop', '-1', '-i', mf);
-    const d = Math.round(s0 * 1000); f.push(`[${idx}]aresample=48000,aformat=channel_layouts=stereo,atrim=0:${len.toFixed(3)},asetpts=N/SR/TB,afade=t=in:d=${j ? 3 : 0.5},afade=t=out:st=${Math.max(0, len - (j === sections.length - 1 ? 1.8 : 3)).toFixed(3)}:d=${j === sections.length - 1 ? 1.8 : 3},adelay=${d}|${d}[m${j}]`); mids.push(`[m${j}]`);
+    const d = Math.round(s0 * 1000); f.push(`[${idx}]aresample=48000,aformat=channel_layouts=stereo,loudnorm=I=-20:TP=-2:LRA=7,atrim=0:${len.toFixed(3)},asetpts=N/SR/TB,afade=t=in:d=${j ? 3 : 0.5},afade=t=out:st=${Math.max(0, len - (j === sections.length - 1 ? 1.8 : 3)).toFixed(3)}:d=${j === sections.length - 1 ? 1.8 : 3},adelay=${d}|${d}[m${j}]`); mids.push(`[m${j}]`);
   }
   const drops = slots.filter((s) => MUSIC_DROPS[s.id]).map((s) => { const [o, d] = MUSIC_DROPS[s.id]; const a = s.startFrame / FPS + o; return `(1-0.6*between(t,${a.toFixed(2)},${(a + d).toFixed(2)}))`; });
   const dropExpr = drops.length ? `volume='${drops.join('*')}':eval=frame,` : '';
-  f.push(`${mids.join('')}amix=inputs=${mids.length}:normalize=0:duration=longest,apad,atrim=0:${total},${dropExpr}volume=0.40[bed]`);
+  f.push(`${mids.join('')}amix=inputs=${mids.length}:normalize=0:duration=longest,apad,atrim=0:${total},${dropExpr}volume=0.35[bed]`);
   const rumbles = slots.filter((s) => RUMBLE_CUES[s.id]); const rl: string[] = [];
   for (const [k, s] of rumbles.entries()) { const d = RUMBLE_CUES[s.id]; const at = Math.round((s.startFrame / FPS) * 1000); f.push(`anoisesrc=c=brown:r=48000:d=${d}:s=${7 + k},lowpass=f=90,aformat=channel_layouts=stereo,afade=t=in:d=0.8,afade=t=out:st=${(d - 1.5).toFixed(2)}:d=1.5,volume=0.55,adelay=${at}|${at}[r${k}]`); rl.push(`[r${k}]`); }
   const bedIn = rl.length ? (f.push(`[bed]${rl.join('')}amix=inputs=${rl.length + 1}:normalize=0:duration=longest,apad,atrim=0:${total}[bedr]`), '[bedr]') : '[bed]';
-  f.push(`${bedIn}[key]sidechaincompress=threshold=0.015:ratio=4:attack=30:release=600[ducked]`, `[voice]volume=0.95[v]`, `[v][ducked]amix=inputs=2:normalize=0:duration=longest,apad,atrim=0:${total}[mix]`);
+  f.push(`${bedIn}[key]sidechaincompress=threshold=0.03:ratio=3:attack=30:release=500[ducked]`, `[voice]volume=0.95[v]`, `[v][ducked]amix=inputs=2:normalize=0:duration=longest,apad,atrim=0:${total}[mix]`);
   const mix = path.join(work, 'mix.wav'); await run('ffmpeg', ['-y', ...inputs, '-filter_complex', f.join(';'), '-map', '[mix]', '-t', String(total), '-c:a', 'pcm_s16le', mix]);
   const p1 = await run('ffmpeg', ['-i', mix, '-af', 'loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json', '-f', 'null', '-']); const ln = JSON.parse(p1.slice(p1.lastIndexOf('{'), p1.lastIndexOf('}') + 1));
   const mastered = path.join(work, 'mastered.wav'); await run('ffmpeg', ['-y', '-i', mix, '-af', `loudnorm=I=-14:TP=-1.5:LRA=11:measured_I=${ln.input_i}:measured_TP=${ln.input_tp}:measured_LRA=${ln.input_lra}:measured_thresh=${ln.input_thresh}:offset=${ln.target_offset}:linear=true:print_format=summary`, '-ar', '48000', mastered]);
