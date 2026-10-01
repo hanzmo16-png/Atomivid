@@ -161,10 +161,15 @@ export async function render(plan: Plan) {
       inPoint = Math.max(0, Math.min(want, clipSeconds - edit - 0.05));
       const window = clipSeconds - inPoint;
       if (window < edit) { speed = Math.min(1.5, edit / window); frozen = Math.max(0, edit - window * speed); if (frozen > 0.05) issues.push(`${s.id}: ${frozen.toFixed(2)} s held beyond the clip`); }
-      args = ['-ss', inPoint.toFixed(3), '-i', src.file, '-vf', `setpts=${speed.toFixed(4)}*PTS,scale=1920:1080:flags=lanczos:force_original_aspect_ratio=increase,crop=1920:1080,fps=${FPS}${frozen > 0.05 ? `,tpad=stop_mode=clone:stop_duration=${frozen.toFixed(3)}` : ''}${tail}`];
+      let srcFile = src.file;
+      if (V3 && frozen > 0.05) { // V3: the shortfall plays the clip's own tail in reverse at the same speed (picture keeps moving) instead of a frozen frame
+        const pal = path.join(work, `pal-${s.id}.mp4`); await run('ffmpeg', ['-y', '-ss', inPoint.toFixed(3), '-i', src.file, '-filter_complex', '[0:v]split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0,setsar=1,format=yuv420p[v]', '-map', '[v]', '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '15', pal]);
+        issues.push(`${s.id}: ${frozen.toFixed(2)} s covered by the clip's reversed tail (no hold)`); srcFile = pal; inPoint = 0; frozen = 0;
+      }
+      args = ['-ss', inPoint.toFixed(3), '-i', srcFile, '-vf', `setpts=${speed.toFixed(4)}*PTS,scale=1920:1080:flags=lanczos:force_original_aspect_ratio=increase,crop=1920:1080,fps=${FPS}${frozen > 0.05 ? `,tpad=stop_mode=clone:stop_duration=${frozen.toFixed(3)}` : ''}${tail}`];
       if (s.method === 'CTA_REUSE') { // V3: subscribe mark fades in over the continuing picture (no black, no stop)
         const c = CTA.find((x) => x.id === s.id)!; const mark = path.join(work, `mark-${s.id}.png`); const sharp = (await import('sharp')).default; await sharp(Buffer.from(ctaMarkSvg(c)), {density: 72}).png().toFile(mark);
-        args = ['-ss', inPoint.toFixed(3), '-i', src.file, '-loop', '1', '-framerate', String(FPS), '-i', mark, '-filter_complex', `[0:v]setpts=${speed.toFixed(4)}*PTS,scale=1920:1080:flags=lanczos:force_original_aspect_ratio=increase,crop=1920:1080,fps=${FPS}${frozen > 0.05 ? `,tpad=stop_mode=clone:stop_duration=${frozen.toFixed(3)}` : ''},tpad=stop_mode=clone:stop_duration=2[b];[1:v]format=rgba,fade=t=in:st=1.0:d=0.8:alpha=1[m];[b][m]overlay=0:0:format=auto,setsar=1,format=yuv420p[v]`, '-map', '[v]'];
+        args = ['-ss', inPoint.toFixed(3), '-i', srcFile, '-loop', '1', '-framerate', String(FPS), '-i', mark, '-filter_complex', `[0:v]setpts=${speed.toFixed(4)}*PTS,scale=1920:1080:flags=lanczos:force_original_aspect_ratio=increase,crop=1920:1080,fps=${FPS}${frozen > 0.05 ? `,tpad=stop_mode=clone:stop_duration=${frozen.toFixed(3)}` : ''},tpad=stop_mode=clone:stop_duration=2[b];[1:v]format=rgba,fade=t=in:st=1.0:d=0.8:alpha=1[m];[b][m]overlay=0:0:format=auto,setsar=1,format=yuv420p[v]`, '-map', '[v]'];
       }
     }
     await run('ffmpeg', ['-y', ...args, '-frames:v', String(s.frames), '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '15', '-r', String(FPS), seg]);
@@ -249,7 +254,11 @@ export async function render(plan: Plan) {
 
   // 7) Encode.
   const final = path.join(out, NAME);
-  await run('ffmpeg', ['-y', '-i', picture, '-i', mastered, '-vf', `subtitles=${ass}:fontsdir=/usr/share/fonts/truetype/dejavu,fade=t=in:st=0:d=0.6,fade=t=out:st=${(total - 1).toFixed(3)}:d=1`, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p', '-r', String(FPS), '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', final]);
+  if (V3) { const pf = Number(String(await run('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-count_frames', '-show_entries', 'stream=nb_read_frames', '-of', 'csv=p=0', picture])).trim().split('\n')[0]); log('PICTURE', {frames: pf, expected: cursor}); if (pf !== cursor) issues.push(`picture concat had ${pf} frames vs ${cursor} expected (re-sequenced and padded at the end card)`); }
+  // V3: frames are re-sequenced by index (setpts) so the join timestamps of 101 segments cannot drop frames, and the
+  // output is cut to exactly the timeline's frame count (padded on the end card if the concat came up short).
+  const vfV3 = `setpts=N/${FPS}/TB,subtitles=${ass}:fontsdir=/usr/share/fonts/truetype/dejavu,fade=t=in:st=0:d=0.6,fade=t=out:st=${(total - 1).toFixed(3)}:d=1,tpad=stop_mode=clone:stop_duration=1`;
+  await run('ffmpeg', ['-y', '-i', picture, '-i', mastered, '-vf', V3 ? vfV3 : `subtitles=${ass}:fontsdir=/usr/share/fonts/truetype/dejavu,fade=t=in:st=0:d=0.6,fade=t=out:st=${(total - 1).toFixed(3)}:d=1`, ...(V3 ? ['-frames:v', String(cursor)] : []), '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p', '-r', String(FPS), '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', final]);
 
   // 8) Technical QA.
   const pr = await probe(final);
@@ -277,7 +286,7 @@ export async function render(plan: Plan) {
     for (const s of slots) {
       const isGraphic = s.kind === 'graphic' && GRAPHICS[s.id]; const isCallout = V2_ANIMATED_STILL_CALLOUTS.includes(s.id);
       if (!isGraphic && !isCallout) continue;
-      const i = s.frames - 1; const t0 = s.startFrame / FPS; const ctx: AnimCtx = {t: i / FPS, dur: s.frames / FPS, cues: s.words.map((w) => ({text: w.text, t: w.startSeconds - t0})), cacheDir};
+      const i = Math.max(0, Math.round(s.frames * 0.5)); const t0 = s.startFrame / FPS; const ctx: AnimCtx = {t: i / FPS, dur: s.frames / FPS, cues: s.words.map((w) => ({text: w.text, t: w.startSeconds - t0})), cacheDir}; // mid-slot: text fully in, zoom 1.015, never a boundary frame
       let withText: Buffer, noText: Buffer;
       if (isGraphic) { withText = await animFrame(GRAPHICS[s.id], ctx, i, s.frames); noText = await animFrame(GRAPHICS[s.id], ctx, i, s.frames, true); }
       else { const src = await resolve(s); const base = await sharp(src.file).resize(1920, 1080, {fit: 'cover', position: 'centre'}).png().toBuffer(); withText = await calloutFrame(base, ctx, i, s.frames); noText = await sharp(base).extract({left: Math.round((1920 - Math.round(1920 / (1 + 0.03) / 2) * 2) / 2), top: 0, width: 2, height: 2}).png().toBuffer(); }
