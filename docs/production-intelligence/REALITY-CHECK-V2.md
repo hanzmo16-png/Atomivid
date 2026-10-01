@@ -52,16 +52,16 @@ points to a non-deterministic alteration on the delivery path.
 
 ### Fix (minimum, existing infrastructure only)
 
-1. **Immediate delivery of the existing MP3** as a file in the chat (no regeneration, no spend).
-2. **App-controlled short review link** `/r/<slug>` (`src/app/r/[slug]/route.ts`):
+1. **App-controlled short review link** `/r/<slug>` (`src/app/r/[slug]/route.ts`):
    owner-only (same single-account gate as `/dashboard/admin/p2b-veo`), server-side fetch of
    the private object with the service key, `Range` forwarded (200/206), forced `Content-Type`,
    `private, no-store`, `noindex`; static allowlist of review objects (no DB, no migration); no
-   JWT reaches the client; nothing is logged. Verified upstream from CI
-   (`video-004-review-route-check.yml`). It is live wherever this branch is deployed; the
-   production alias follows the project's production branch (reported by the same workflow).
-3. **Policy:** signed URLs remain valid for CI verification and for desktop use, but a review
+   JWT reaches the client; nothing is logged. Merged to the production branch in PR #27
+   (4 files: the route, `src/lib/delivery/review-stream.ts`, its test, `package.json`).
+2. **Policy:** signed URLs remain valid for CI verification and for desktop use, but a review
    hand-off to a phone is only *DELIVERY_PASS* once the user confirms on the device.
+3. A file attached in the chat was also tried and did not reach the user: chat attachments
+   are not a delivery channel for this project either.
 
 ### Regression test
 
@@ -78,9 +78,61 @@ USD 0.00 (no TTS, no image/video generation; read-only probes and one storage re
 | Check | Result |
 |---|---|
 | Upstream path used by `/r/<slug>` (service key, authenticated endpoint) | full GET 200 `audio/mpeg` 536,703 bytes sha256 `47dd7267…3d5a` (identical to the gate artifact); `Range: bytes=0-999` → 206 `bytes 0-999/536703`; open range → 206 `bytes 100000-536702/536703`; client headers `private, no-store`, `Accept-Ranges: bytes`. |
-| Production alias `atomivid.vercel.app/r/video-004-pron-gate` | 404 (`x-matched-path: /404`): production serves the project's production branch, which does not contain this route yet. Merging is not authorized from this session. |
-| Branch preview `atomivid-git-claude-production-intelligence-v1-atomivid.vercel.app` | Vercel Deployment Protection (302 → `vercel.com/sso-api`) in front of the app; the repository no longer holds `VERCEL_AUTOMATION_BYPASS_SECRET` nor `VERCEL_TOKEN`, so CI cannot see behind it. The owner can open it after the Vercel login, then the app's own login. |
+| Branch preview | Vercel Deployment Protection (302 → `vercel.com/sso-api`) in front of the app; the repository holds neither `VERCEL_AUTOMATION_BYPASS_SECRET` nor `VERCEL_TOKEN`, so CI cannot see behind it. |
+| Production alias `atomivid.vercel.app/r/video-004-pron-gate` | Before the merge: 404. After the merge: 307 → `/login` without a session, 404 for unknown slugs (runs 36904335107 / 36904522424). The authenticated hop then failed on the real device: see RC-002. |
 
-Delivery status for the gate MP3: the file itself was handed to the user in the chat (same
-bytes, sha256 above). The short route is DELIVERY_PASS only once the user confirms it on the
-device, per the rule above.
+The short route is DELIVERY_PASS only once the user confirms it on the device, per the rule
+above.
+
+## RC-002 — AUTHENTICATED_REVIEW_DELIVERY_FALSE_PASS (2026-10-01)
+
+**Symptom.** Real flow on Samsung / Android / Chrome: `/r/video-004-pron-gate` → 307 to the
+Atomivid login → successful login (confirmed account, sign-in recorded 18:11:15 UTC) → redirect
+back to `/r/video-004-pron-gate` → plain-text `not found`.
+
+**Rule adopted:** `MODULE_PASS + UNAUTH_REDIRECT_PASS ≠ DELIVERY_PASS`. DELIVERY_PASS requires
+the authenticated path end to end (session → owner gate → allowlist → private object → bytes).
+
+### Evidence
+
+| Step | Finding |
+|---|---|
+| URL after login | The login action redirects to `redirectedFrom` verbatim after `safeRedirectTarget` (`/r/video-004-pron-gate` passes: starts with `/`, not `//`, not `/login`). |
+| Middleware | `src/proxy.ts` only redirects `/dashboard*`; `/r/*` reaches the route handler. |
+| Slug / allowlist | The same URL answers 307 anonymously, i.e. `resolveReviewObject` found the slug; an unknown slug answers 404 with `X-Review-Denied: unknown-slug`. |
+| Session | The route returned text (not a redirect), so `auth.getUser()` found the session cookie. |
+| Response origin | `not found` as plain text is the route's own body; the Next.js 404 page is HTML. In the first deployment the route used that same text for a failed owner gate. |
+| Owner gate configured? | `X-Review-Gate: configured` on production (anonymous probe, run 36906165009): `AVATAR_PREPARATION_OWNER_EMAIL` is set in production. |
+| Account confirmed? | Auth admin API (masked): the account that signed in at 18:11:15 UTC is confirmed (created 2026-09-08). Project has `mailer_autoconfirm: false`; 4 accounts exist, three `ha***@gmail.com`. |
+| Remaining condition | `canPrepareAvatar(user)` → `user.email.toLowerCase() === owner` is false: the configured owner e-mail is not the e-mail of the account used to sign in. |
+
+**Root cause.** `src/lib/video/avatar/private-access.ts` line 6 (e-mail equality against
+`AVATAR_PREPARATION_OWNER_EMAIL`) evaluated for the signed-in account, called from
+`src/app/r/[slug]/route.ts` (owner gate). Production configuration names a different account
+than the one the owner signs in with. Not a routing, cookie, slug, allowlist or storage fault.
+
+### Fix
+
+1. **Code (deployed, commits e03e262 and 2448f75 on the production branch):** the route core moved
+   to `src/lib/delivery/review-route.ts` with injected dependencies; denials are now distinguishable:
+   404 `unknown-slug`, 403 `forbidden: owner-gate-unconfigured | email-unconfirmed | not-owner`
+   (header `X-Review-Denied`, body carries the same code, nothing else leaked), `X-Review-Gate`
+   on every answer. No behaviour change for the owner path.
+2. **Configuration (owner action, not possible from this session — no Vercel token):** set
+   `AVATAR_PREPARATION_OWNER_EMAIL` (Vercel → Project → Settings → Environment Variables,
+   Production) to the e-mail of the account you sign in with, redeploy, then open the same link.
+   Alternatively sign in with the account whose e-mail is already configured.
+   Adding the signed-in account to the gate in code was proposed and withheld: it is an
+   authorization grant, which is the owner's decision.
+
+### Regression tests (`src/lib/delivery/review-route.test.ts`, fake dependencies, no credentials)
+
+- `AUTHENTICATED_OWNER_GET_DELIVERS_AUDIO_BYTES` — owner session → 200, `audio/mpeg`, exact bytes (sha256).
+- `AUTHENTICATED_OWNER_RANGE_DELIVERS_206` — owner session + `Range: bytes=0-999` → 206, `Content-Range: bytes 0-999/N`, exact bytes.
+- anonymous → 307 `/login?redirectedFrom=…`; unknown slug → 404 before any session or storage access;
+  signed-in non-owner → 403 `not-owner`, nothing fetched; unconfigured gate → 403 `owner-gate-unconfigured`;
+  unconfirmed e-mail → 403 `email-unconfirmed`; upstream error → 502 without leaking the storage body.
+
+### Spend
+
+USD 0.00.
