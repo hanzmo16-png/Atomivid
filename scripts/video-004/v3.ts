@@ -154,7 +154,6 @@ export async function v3Patch(plan: Plan) {
   if (projected > V3_PATCH_MAX_USD || PRE_V3_CONSERVATIVE_USD + V3_PATCH_MAX_USD > 19) { log('V3_STOP', {reason: 'cost'}); throw Error('V3_COST_BLOCKER'); }
   // Account the gate conservatively (provider counter lag != zero spend): a committed correction entry, no call.
   try { await reserve({key: 'tts-pron-gate-v3-settlement', opKey: opKey({shotId: 'pron-gate', provider: 'elevenlabs', model: MODEL, method: 'tts-settlement', inputFingerprint: 'gate-388-chars', attemptOrdinal: 1}), kind: 'tts', provider: 'elevenlabs', shotId: null, maxUsd: 0.0776, reason: 'Gate G1-G3 (388 chars) settled conservatively: counter lag is not zero spend'}); await settle('tts-pron-gate-v3-settlement', 0.0776, 'committed'); } catch (e) { log('V3_GATE_SETTLEMENT', {skipped: e instanceof Error ? e.message : String(e)}); }
-  if (needCalls) await reserve({key: 'tts-v3-patch', opKey: opKey({shotId: 'v3-patch', provider: 'elevenlabs', model: MODEL, method: 'tts', inputFingerprint: sha(toGenerate.map((s) => s.tts_text).concat(CTA.map((c) => c.line)).join('\n')), attemptOrdinal: 1}), kind: 'tts', provider: 'elevenlabs', shotId: null, maxUsd: V3_PATCH_MAX_USD, reason: `V3 full patch: ${toGenerate.length} segments + 2 CTA (${chars} chars)`});
   // Stored patches (a previous run's TTS output) are reused as-is: a fit-only re-run makes no call and reserves nothing.
   const stored: Record<string, {audio: Buffer; words: WordTiming[]}> = {};
   for (const s of toGenerate) { const b = await read(`${V3_DIR}/patches/${s.segmentId}.mp3`); const j = await readJsonStore<{words: WordTiming[]}>(`${V3_DIR}/patches/${s.segmentId}.json`); if (b && j) stored[s.segmentId] = {audio: b, words: j.words}; }
@@ -162,6 +161,7 @@ export async function v3Patch(plan: Plan) {
   const needCalls = toGenerate.filter((s) => !stored[s.segmentId]).length + CTA.filter((c) => !stored[c.scene]).length;
   log('V3_REUSE', {stored: Object.keys(stored), needCalls});
   const before = needCalls ? await quota() : {remaining: 0, used: 0, limit: 0}; let calls = 0; let charsSent = 0;
+  if (needCalls) await reserve({key: 'tts-v3-patch', opKey: opKey({shotId: 'v3-patch', provider: 'elevenlabs', model: MODEL, method: 'tts', inputFingerprint: sha(toGenerate.map((s) => s.tts_text).concat(CTA.map((c) => c.line)).join('\n')), attemptOrdinal: 1}), kind: 'tts', provider: 'elevenlabs', shotId: null, maxUsd: V3_PATCH_MAX_USD, reason: `V3 full patch: ${toGenerate.length} segments + 2 CTA (${chars} chars)`});
   // Patch audio per segment (reused gate audio or one new call).
   const patches: Record<string, {audio: string; words: WordTiming[]; display: string; source: string}> = {};
   for (const s of segs) {
