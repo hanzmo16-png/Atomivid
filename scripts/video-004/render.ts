@@ -262,7 +262,8 @@ export async function render(plan: Plan) {
   if (V3 && !bedOnly) {
     const sharp = (await import('sharp')).default; const cacheDir = path.join(out, 'geo-cache');
     const raw = async (png: Buffer) => sharp(png).ensureAlpha().raw().toBuffer({resolveWithObject: true});
-    const safeRect = Buffer.from(`<svg width="1920" height="1080"><rect x="${SAFE.x}" y="${SAFE.y}" width="${1920 - 2 * SAFE.x}" height="${1080 - 2 * SAFE.y}" fill="none" stroke="#00e0ff" stroke-width="4"/><line x1="0" y1="${SAFE.subtitleTop}" x2="1920" y2="${SAFE.subtitleTop}" stroke="#ff4040" stroke-width="3" stroke-dasharray="18 12"/></svg>`);
+    // The safe-area overlay is pre-rendered to PNG: sharp refuses to composite an SVG buffer of equal size ("must have same dimensions or smaller").
+    const safeRect = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080"><rect x="${SAFE.x}" y="${SAFE.y}" width="${1920 - 2 * SAFE.x}" height="${1080 - 2 * SAFE.y}" fill="none" stroke="#00e0ff" stroke-width="4"/><line x1="0" y1="${SAFE.subtitleTop}" x2="1920" y2="${SAFE.subtitleTop}" stroke="#ff4040" stroke-width="3" stroke-dasharray="18 12"/></svg>`)).png().toBuffer();
     for (const s of slots) {
       const isGraphic = s.kind === 'graphic' && GRAPHICS[s.id]; const isCallout = V2_ANIMATED_STILL_CALLOUTS.includes(s.id);
       if (!isGraphic && !isCallout) continue;
