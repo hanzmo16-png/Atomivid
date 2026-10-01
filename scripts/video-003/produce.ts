@@ -104,7 +104,7 @@ async function validateNarration(plan: Plan) {
     const pr = await probe(f); const sil = await run('ffmpeg', ['-i', f, '-af', 'silencedetect=n=-40dB:d=2.0', '-f', 'null', '-']).catch(() => '');
     const longSilences = [...sil.matchAll(/silence_duration: ([\d.]+)/g)].map((m) => Number(m[1]));
     const planned = words(sceneText(plan, s)).length / 2.5;
-    const r = {scene: s, seconds: rec.seconds, probeSeconds: pr.duration, plannedSeconds: planned, ratio: +(rec.seconds / planned).toFixed(3), checksumOk: sha(mp3) === rec.sha256, wordsOk: rec.scriptWords === words(sceneText(plan, s)).length && rec.words.length === rec.scriptWords, exactAlignment: rec.exactAlignment, longSilences};
+    const r = {scene: s, seconds: rec.seconds, probeSeconds: pr.duration, plannedSeconds: planned, ratio: +(rec.seconds / planned).toFixed(3), checksumOk: sha(mp3) === rec.sha256, wordsOk: rec.words.length === sceneText(plan, s).split(/\s+/).filter(Boolean).length, exactAlignment: rec.exactAlignment, longSilences};
     if (!r.checksumOk || !r.wordsOk || r.ratio < 0.7 || r.ratio > 1.5 || longSilences.length) ok = false;
     report.push(r); await fs.unlink(f);
   }

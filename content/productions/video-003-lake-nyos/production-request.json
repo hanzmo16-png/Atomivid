@@ -2,9 +2,9 @@
   "projectId": "video-003-lake-nyos",
   "freezeHash": "ed78405b8726e16aa7e890247085b6a045706f5b333ba06b0d4c1443b9aaed57",
   "capUsd": 32,
-  "requestId": "02-narrate-stock",
-  "stage": "narrate,stock",
+  "requestId": "03-validate-stock",
+  "stage": "validate-narration,stock",
   "draft": false,
-  "confirm": "SPEND",
+  "confirm": "",
   "shots": []
 }
