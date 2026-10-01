@@ -1,0 +1,60 @@
+name: Video 004 final source check (read-only, no provider calls)
+
+# Opens the primary texts behind the frozen narration from a GitHub runner (this production
+# environment's network policy blocks the publishers) and prints the passages the script relies on:
+# Herodotus Book 7 (Macaulay translation, Project Gutenberg #2456; Godley at Perseus), Plutarch's
+# "Sayings of Spartans" 225D, Pausanias 3.14.1. No provider API is called; nothing is generated.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/production-intelligence-v1]
+    paths: [.github/workflows/video-004-source-check.yml]
+permissions:
+  contents: read
+jobs:
+  sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Herodotus Book 7 (Macaulay, Gutenberg 2456)
+        run: |
+          set +e
+          for u in "https://www.gutenberg.org/cache/epub/2456/pg2456.txt" "https://www.gutenberg.org/files/2456/2456-0.txt" "https://www.gutenberg.org/ebooks/2456.txt.utf-8"; do curl -sSL -A "Mozilla/5.0" -o hdt.txt "$u" && [ "$(wc -c < hdt.txt)" -gt 200000 ] && break; done
+          echo "bytes: $(wc -c < hdt.txt)"; head -c 400 hdt.txt; echo
+          python3 - <<'PY'
+          import re
+          t=re.sub(r"\s+"," ",open("hdt.txt",errors="ignore").read())
+          keys=["comb","combing","lamps are lit","lamp","oak","leaves","rustl","four times","teeth","shade","branded","impaled","crucif","many human beings","few men","living sons","Carneia","Olympi","Demophilos","Demophilus","Epialtes","Ephialtes","Anopaia","Anopaea","wheel-track","cart","three hundred lashes","lashes","two million","2,641,610","Trachis","Hydarnes","Thespians","Lacedemonians, that here","Lacedaemonians","Dienekes","Dienekes","Demaratos","Demaratus","fish","trousers","wicker","Immortals","leapt","leap","take them alive","Kissians","Cissians","Medes","Phokians","Phocians","hill","Simonides","Phoinix","Alpenoi","hot springs","Thermopylai"]
+          for k in keys:
+            ms=list(re.finditer(re.escape(k),t))
+            print(f"=== [{k}] {len(ms)} hits")
+            for m in ms[:3]: print(f"…{t[max(0,m.start()-260):m.end()+260]}…\n")
+          PY
+      - name: Herodotus 7.209-7.238 (Godley, Perseus)
+        run: |
+          set +e
+          for ch in 205 208 209 210 211 212 213 215 217 218 219 220 222 223 224 225 226 228 233 238 61 83 176 35 185; do
+            echo "=== Hdt 7.$ch"; curl -sSL -A "Mozilla/5.0" "https://www.perseus.tufts.edu/hopper/text?doc=Perseus%3Atext%3A1999.01.0126%3Abook%3D7%3Achapter%3D$ch" | python3 -c '
+          import sys,re,html
+          t=sys.stdin.read(); m=re.search(r"<div class=\"text\".*?</div>\s*</div>",t,flags=re.S); t=m.group(0) if m else t[:4000]
+          t=html.unescape(re.sub(r"<[^>]+>"," ",t)); print(re.sub(r"\s+"," ",t)[:1800])'
+          done
+      - name: Plutarch 225D and Pausanias 3.14.1 (Perseus) and Thucydides 5.71
+        run: |
+          set +e
+          for d in "Plut.+Apoph.+Lac.+Leonidas" "Paus.+3.14.1" "Thuc.+5.71" "Xen.+Const.+Lac.+11"; do
+            echo "=== $d"; curl -sSL -A "Mozilla/5.0" "https://www.perseus.tufts.edu/hopper/text?doc=$d" | python3 -c '
+          import sys,re,html
+          t=sys.stdin.read(); m=re.search(r"<div class=\"text\".*?</div>\s*</div>",t,flags=re.S); t=m.group(0) if m else t[:6000]
+          t=html.unescape(re.sub(r"<[^>]+>"," ",t)); print(re.sub(r"\s+"," ",t)[:2500])'
+          done
+          echo "=== Pausanias 3.14.1 (theoi mirror)"; curl -sSL -A "Mozilla/5.0" "https://www.theoi.com/Text/Pausanias3B.html" | python3 -c '
+          import sys,re,html
+          t=html.unescape(re.sub(r"<[^>]+>"," ",sys.stdin.read())); t=re.sub(r"\s+"," ",t)
+          for k in ["Leonidas","forty years","Leonidea"]:
+            for m in list(re.finditer(k,t))[:3]: print(f"[{k}] …{t[max(0,m.start()-250):m.end()+250]}…\n")'
+          echo "=== Plutarch Moralia 225 (penelope/LacusCurtius)"; curl -sSL -A "Mozilla/5.0" "https://penelope.uchicago.edu/Thayer/E/Roman/Texts/Plutarch/Moralia/Sayings_of_Spartans*/main.html" | python3 -c '
+          import sys,re,html
+          t=html.unescape(re.sub(r"<[^>]+>"," ",sys.stdin.read())); t=re.sub(r"\s+"," ",t)
+          for k in ["Come and take","Molon","come and take"]:
+            for m in list(re.finditer(k,t))[:3]: print(f"[{k}] …{t[max(0,m.start()-250):m.end()+250]}…\n")'

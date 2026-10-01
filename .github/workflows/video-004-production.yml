@@ -1,0 +1,77 @@
+name: Video 004 production (authorized freeze 916059ce, hard cap USD 20)
+
+# Runs the stages named in content/productions/video-004-thermopylae/production-request.json.
+# Paid stages (narrate, images, animate) only receive their provider key when the request says
+# confirm=SPEND; every paid call is gated by the ledger BEFORE it is sent. The runner verifies the
+# freeze hash of the package and the frozen engine tree before doing anything.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/production-intelligence-v1]
+    paths: [content/productions/video-004-thermopylae/production-request.json]
+permissions:
+  contents: read
+concurrency:
+  group: video-004-production
+  cancel-in-progress: false
+jobs:
+  production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core >/dev/null
+      - name: Resolve production request
+        id: request
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const r = JSON.parse(fs.readFileSync('content/productions/video-004-thermopylae/production-request.json', 'utf8'));
+          const freeze = JSON.parse(fs.readFileSync('content/productions/video-004-thermopylae/freeze/freeze.json', 'utf8'));
+          const stages = ['status','narrate','validate-narration','images','stock','graphics','review','animate','render','watch-check'];
+          if (r.projectId !== 'video-004-thermopylae' || r.capUsd !== 20 || r.freezeHash !== freeze.freezeHash || r.freezeHash !== '916059ce129bb1bc3095c1397f2805d75b1ff28bccb816f9afb4f33c4fdc443c') throw Error('Request is not for the authorized freeze');
+          if (!r.requestId || !String(r.stage).split(',').every(s => stages.includes(s))) throw Error('Invalid stage list');
+          const paid = String(r.stage).split(',').some(s => ['narrate','images','animate'].includes(s));
+          if (paid && r.confirm !== 'SPEND') throw Error('Paid stage without confirm=SPEND');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `stage=${r.stage}\nshots=${(r.shots || []).join(',')}\ndraft=${r.draft === true}\npaid=${paid}\nbedonly=${r.bedOnly === true}\n`);
+          NODE
+      - name: Run stages
+        run: npx tsx scripts/video-004/produce.ts
+        env:
+          V4_STAGE: ${{ steps.request.outputs.stage }}
+          V4_SHOTS: ${{ steps.request.outputs.shots }}
+          V4_DRAFT: ${{ steps.request.outputs.draft }}
+          V4_BED_ONLY: ${{ steps.request.outputs.bedonly }}
+          V4_ALLOW_PAID: ${{ steps.request.outputs.paid }}
+          V4_OUT: ${{ runner.temp }}/video-004
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ (contains(steps.request.outputs.stage, 'status') || contains(steps.request.outputs.stage, 'narrate')) && secrets.ELEVENLABS_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ (contains(steps.request.outputs.stage, 'images') || contains(steps.request.outputs.stage, 'status')) && secrets.OPENAI_API_KEY || '' }}
+          RUNWAY_API_KEY: ${{ contains(steps.request.outputs.stage, 'animate') && secrets.RUNWAY_API_KEY || '' }}
+          PEXELS_API_KEY: ${{ contains(steps.request.outputs.stage, 'stock') && secrets.PEXELS_API_KEY || '' }}
+          VIDEO_PROVIDER: runway
+          PREMIUM_CLIPS_ENABLED: 'true'
+      - name: Publish master MP4 directly
+        if: always() && contains(steps.request.outputs.stage, 'render') && steps.request.outputs.draft != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/video-004/VIDEO-004-Three-Days-at-the-Hot-Gates-master.mp4
+          archive: false
+          retention-days: 30
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: video-004-run-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/video-004/
+            !${{ runner.temp }}/video-004/work
+            !${{ runner.temp }}/video-004/geo-cache
+          retention-days: 30
+          if-no-files-found: ignore
