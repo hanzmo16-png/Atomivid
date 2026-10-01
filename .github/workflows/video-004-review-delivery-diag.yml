@@ -30,8 +30,15 @@ jobs:
           KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -u
-          curl -sS -m 30 -H "Authorization: Bearer $KEY" -H "apikey: $KEY" -o report.json -w "report fetch status=%{http_code}\n" "$SB/storage/v1/object/authenticated/videos/video-004-thermopylae/v3/pron-gate/pron-gate-review.mp3.json" || true
-          curl -sS -m 30 -H "Authorization: Bearer $KEY" -H "apikey: $KEY" -o report.json -w "report fetch status=%{http_code}\n" "$SB/storage/v1/object/authenticated/videos/video-004-thermopylae/v3/pron-gate/pron-gate-report.json"
+          echo "key shape: prefix=$(cut -c1-3 <<<"$KEY") length=${#KEY} dots=$(tr -cd '.' <<<"$KEY" | wc -c)"
+          for variant in "object/authenticated" "object"; do
+            for auth in bearer apikey-only; do
+              if [ "$auth" = bearer ]; then H=(-H "Authorization: Bearer $KEY" -H "apikey: $KEY"); else H=(-H "apikey: $KEY"); fi
+              st=$(curl -sS -m 30 "${H[@]}" -o report.json -w "%{http_code}" "$SB/storage/v1/$variant/videos/video-004-thermopylae/v3/pron-gate/pron-gate-report.json"); echo "report fetch [$variant/$auth] status=$st $( [ "$st" = 200 ] || head -c 200 report.json | tr -d '\n')"
+              [ "$st" = 200 ] && break 2
+            done
+          done
+          [ "$st" = 200 ] || { echo "REPORT_FETCH_FAILED"; exit 1; }
           URL=$(jq -r '.review.url' report.json); TOK="${URL#*token=}"; echo "::add-mask::$TOK"; echo "::add-mask::$URL"
           echo "url length=${#URL} token length=${#TOK} urlsafe=$([[ "$TOK" =~ ^[A-Za-z0-9._-]+$ ]] && echo yes || echo no) underscores=$(tr -cd '_' <<<"$TOK" | wc -c) dashes=$(tr -cd '-' <<<"$TOK" | wc -c)"
           SHA=$(printf %s "$URL" | sha256sum | cut -c1-64); echo "stored url sha256=$SHA"; echo "chat url sha256=$CHAT_URL_SHA256"; [ "$SHA" = "$CHAT_URL_SHA256" ] && echo "CHAT_URL_MATCHES_STORED=yes" || echo "CHAT_URL_MATCHES_STORED=NO"
