@@ -102,17 +102,17 @@ export async function render(plan: Plan) {
   for (const s of slots) { if (!s.chunk.file || s.chunk.seconds <= 0) continue; const d = Math.round((s.startFrame / FPS) * 1000); inputs.push('-ss', s.chunk.offset.toFixed(3), '-t', s.chunk.seconds.toFixed(3), '-i', s.chunk.file); f.push(`[${ni}]aresample=48000,aformat=channel_layouts=stereo,adelay=${d}|${d}[n${ni}]`); ni++; }
   if (ni) f.push(`${Array.from({length: ni}, (_, i) => `[n${i}]`).join('')}amix=inputs=${ni}:normalize=0:duration=longest,apad,atrim=0:${total},asplit[voice][key]`); else f.push(`anullsrc=r=48000:cl=stereo,atrim=0:${total},asplit[voice][key]`);
   const sceneStart = (sc: string) => { const s = slots.find((x) => x.scene === sc); return s ? s.startFrame / FPS : total; };
-  const sections = MUSIC.map(([id, from, to]) => [id, Math.max(0, sceneStart(from) - 1.5), to ? sceneStart(to) + 1.5 : total] as [string, number, number]);
+  const sections = MUSIC.map(([id, from, to]) => [id, Math.max(0, sceneStart(from) - 3), to ? sceneStart(to) + 3 : total] as [string, number, number]);
   const mids: string[] = [];
   for (const [j, [id, s0, s1]] of sections.entries()) {
     const {data, error} = await service.storage.from('music-library').download(id + '.mp3'); if (error || !data) throw Error('Missing licensed music ' + id);
     const mf = path.join(work, id + '.mp3'); await fs.writeFile(mf, Buffer.from(await data.arrayBuffer()));
     const len = s1 - s0; const idx = inputs.filter((x) => x === '-i').length; inputs.push('-stream_loop', '-1', '-i', mf);
-    const d = Math.round(s0 * 1000); f.push(`[${idx}]aresample=48000,aformat=channel_layouts=stereo,atrim=0:${len.toFixed(3)},asetpts=N/SR/TB,afade=t=in:d=${j ? 2.5 : 0.5},afade=t=out:st=${Math.max(0, len - 2.5).toFixed(3)}:d=2.5,adelay=${d}|${d}[m${j}]`); mids.push(`[m${j}]`);
+    const d = Math.round(s0 * 1000); f.push(`[${idx}]aresample=48000,aformat=channel_layouts=stereo,atrim=0:${len.toFixed(3)},asetpts=N/SR/TB,afade=t=in:d=${j ? 3 : 0.5},afade=t=out:st=${Math.max(0, len - (j === sections.length - 1 ? 1.8 : 3)).toFixed(3)}:d=${j === sections.length - 1 ? 1.8 : 3},adelay=${d}|${d}[m${j}]`); mids.push(`[m${j}]`);
   }
-  const drops = slots.filter((s) => MUSIC_DROPS[s.id]).map((s) => { const [o, d] = MUSIC_DROPS[s.id]; const a = s.startFrame / FPS + o; return `(1-0.8*between(t,${a.toFixed(2)},${(a + d).toFixed(2)}))`; });
+  const drops = slots.filter((s) => MUSIC_DROPS[s.id]).map((s) => { const [o, d] = MUSIC_DROPS[s.id]; const a = s.startFrame / FPS + o; return `(1-0.6*between(t,${a.toFixed(2)},${(a + d).toFixed(2)}))`; });
   const dropExpr = drops.length ? `volume='${drops.join('*')}':eval=frame,` : '';
-  f.push(`${mids.join('')}amix=inputs=${mids.length}:normalize=0:duration=longest,apad,atrim=0:${total},${dropExpr}volume=0.32[bed]`);
+  f.push(`${mids.join('')}amix=inputs=${mids.length}:normalize=0:duration=longest,apad,atrim=0:${total},${dropExpr}volume=0.40[bed]`);
   const rumbles = slots.filter((s) => RUMBLE_CUES[s.id]); const rl: string[] = [];
   for (const [k, s] of rumbles.entries()) { const d = RUMBLE_CUES[s.id]; const at = Math.round((s.startFrame / FPS) * 1000); f.push(`anoisesrc=c=brown:r=48000:d=${d}:s=${7 + k},lowpass=f=90,aformat=channel_layouts=stereo,afade=t=in:d=0.8,afade=t=out:st=${(d - 1.5).toFixed(2)}:d=1.5,volume=0.55,adelay=${at}|${at}[r${k}]`); rl.push(`[r${k}]`); }
   const bedIn = rl.length ? (f.push(`[bed]${rl.join('')}amix=inputs=${rl.length + 1}:normalize=0:duration=longest,apad,atrim=0:${total}[bedr]`), '[bedr]') : '[bed]';

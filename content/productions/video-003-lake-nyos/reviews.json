@@ -3,9 +3,9 @@
   {
    "id": "V3-003",
    "result": "REUSE",
-   "from": "V3-006",
-   "inPoint": 4,
-   "note": "three searches failed (snow, daytime herd, daytime fence); reuses the approved misty cattle clip at a later in-point"
+   "from": "V3-027",
+   "inPoint": 8,
+   "note": "three searches failed; reuses the approved misty-cattle clip V3-027 (2:05) at 8 s so the hook does not repeat V3-006"
   },
   {
    "id": "V3-004",
