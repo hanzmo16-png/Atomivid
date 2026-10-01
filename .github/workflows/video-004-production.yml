@@ -67,6 +67,7 @@ jobs:
           path: |
             ${{ runner.temp }}/video-004/VIDEO-004-Three-Days-at-the-Hot-Gates-master.mp4
             ${{ runner.temp }}/video-004/VIDEO-004-Three-Days-at-the-Hot-Gates-v2-master.mp4
+            ${{ runner.temp }}/video-004/VIDEO-004-Three-Days-at-the-Hot-Gates-v3-master.mp4
           archive: false
           retention-days: 30
           if-no-files-found: ignore
