@@ -616,6 +616,84 @@
    "sha256": "85edeeefa9f8d4083d561b44cd70ac32f9b1ed1517500b6e5fd5c0af3289651b",
    "result": "PASS",
    "note": "simplified retry: dust drifts over the massed figures, line sways, no morphing"
+  },
+  {
+   "id": "V4-028-v1",
+   "sha256": "3fc7aa14aca7480f499efcaaacc97b0477d048ccb1b345c816514587b05ee861",
+   "result": "PASS",
+   "note": "V2 scenario B: cloak and hair in wind, column sways; figure does not turn"
+  },
+  {
+   "id": "V4-039-v1",
+   "sha256": "f7211a14d75545769dcda20773946b470b57669901ad47d4507c1984f68fd4f7",
+   "result": "PASS",
+   "note": "V2 scenario B: cloak and braids move, waves and distant spear line sway"
+  },
+  {
+   "id": "V4-031-v1",
+   "sha256": "7389a814b1112f5a550d5568fd7dbdcdffca9e72e4eaf619712da2b6da469912",
+   "result": "PASS",
+   "note": "V2 scenario B: column and mules advance along the ridge road"
+  },
+  {
+   "id": "V4-050-v1",
+   "sha256": "4a9b56413a4e6cfc69f19508b4fed30d5007b20e8927708c3f95a612f88d552b",
+   "result": "PASS",
+   "note": "V2 scenario B: spear hedge sways, wicker shields push, dust"
+  },
+  {
+   "id": "V4-006-v1",
+   "sha256": "423bac12abaf079bc772611f88c82f9225443ba135fbe269a377b81eb9176a60",
+   "result": "PASS",
+   "note": "V2 scenario B: crests and cloaks move, helmets turn slightly, dust drifts; no new figures"
+  },
+  {
+   "id": "V4-048-v1",
+   "sha256": "8c1efab57e2807835de8983e31c492596d860f293d1da34d9baebdf2044f8c88",
+   "result": "PASS",
+   "note": "V2 scenario B: Median column advances along the shore"
+  },
+  {
+   "id": "V4-067-v1",
+   "sha256": "a54fae6893e744cb9cf419ebf4d1bac70815c9d87648a0a8dd3ff57b342c5ae9",
+   "result": "PASS",
+   "note": "V2 scenario B: column marches away; two hoplites enter from the right edge and walk past, coherent kit"
+  },
+  {
+   "id": "V4-043-v1",
+   "sha256": "8b95d594107739a38678e3cf875bda58c5b3c9fdb4ac81cd4af135e2f41f7847",
+   "result": "PASS",
+   "note": "V2 scenario B: block marches at parade pace, shields sway in step"
+  },
+  {
+   "id": "V4-079-v1",
+   "sha256": "d9bf7c3d1a8b7d7b352064e950577f715bc8bf9dc380ab8ebc410f9fe6cf2842",
+   "result": "FAIL",
+   "note": "dust erupts from the mound like an explosion, physically absurd for arrows; no retry, falls back to the approved still with camera motion"
+  },
+  {
+   "id": "V4-089-v1",
+   "sha256": "1abad6efeeb1aaffaead961eea713d2f07c37df2ddd3b06a38734e3f2eb234df",
+   "result": "PASS",
+   "note": "V2 scenario B: triremes close in the strait, oars churn, no morphing"
+  },
+  {
+   "id": "V4-055-v2",
+   "sha256": "fe126d01b56cd51c7abb56f794c5bcdd3927ab45bb92b69b651dae33f796641b",
+   "result": "FAIL",
+   "note": "v2: the arrow flight again degrades into a speckled noise texture at mid-clip (same defect as v1); no further retry, falls back to the approved still with camera motion"
+  },
+  {
+   "id": "V4-077-v1",
+   "sha256": "8211cff9a1e4ec27fdac2981815dee6fee642f8a2512820bcb66685ffe1cd3ca",
+   "result": "PASS",
+   "note": "V2 scenario B: Persian column emerges from the forest and spreads along the shore"
+  },
+  {
+   "id": "V4-071-v1",
+   "sha256": "cc8666701398c3d9b62c688cd1eccc220a2ab26953922726a5887eb2d45f0116",
+   "result": "PASS",
+   "note": "V2 scenario B: host forms, standards sway, dust"
   }
  ],
  "releaseClaims": [
