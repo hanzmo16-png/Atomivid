@@ -105,7 +105,7 @@ export function reserve(e: {key: string; opKey: string; kind: string; provider: 
     const pc = PROVIDER_CEILING_USD[e.provider] ?? 0; const pe = providerExposure(e.provider);
     if (pe + e.maxUsd > pc + 1e-9) throw Error(`PROVIDER CEILING ${e.provider}: ${pe.toFixed(2)} + ${e.maxUsd.toFixed(2)} > ${pc}; stopped before the call`);
     const retries = ledger.entries.filter((x) => x.key === e.key && x.status === 'released').length;
-    await putJson(`${P}/claims/${e.key}${retries ? `-r${retries}` : ''}.json`, {...e, at: new Date().toISOString()}, false);
+    await putJson(`${P}/claims/${e.key}${retries ? `-r${retries}` : ''}.json`, {...e, at: new Date().toISOString()}, true); // informational; the ledger is authoritative
     ledger.entries.push({...e, actualUsd: null, status: 'reserved', at: new Date().toISOString()});
     await putJson(LEDGER_PATH, ledger);
   });
