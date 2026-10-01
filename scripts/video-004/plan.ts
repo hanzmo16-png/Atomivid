@@ -162,7 +162,8 @@ export const MUSIC: [string, string, string | null][] = [
   ['elevenlabs-tension-1', 'S1', 'S2'],
   ['elevenlabs-reflective-1', 'S2', 'S4'],
   ['elevenlabs-minimal-1', 'S4', 'S5'],
-  ['elevenlabs-tension-2', 'S5', 'S8'],
+  ['elevenlabs-cinematic-1', 'S5', 'S7'],
+  ['elevenlabs-tension-2', 'S7', 'S8'],
   ['elevenlabs-inspirational-2', 'S8', null],
 ];
 /** Music ducks to near silence on these shots (seconds after the shot start, duration). */

@@ -2,10 +2,10 @@
   "projectId": "video-004-thermopylae",
   "freezeHash": "916059ce129bb1bc3095c1397f2805d75b1ff28bccb816f9afb4f33c4fdc443c",
   "capUsd": 20,
-  "requestId": "01-status-graphics-draft",
-  "stage": "status,graphics,render",
-  "draft": true,
-  "confirm": "",
+  "requestId": "02-narrate",
+  "stage": "narrate",
+  "draft": false,
+  "confirm": "SPEND",
   "shots": [],
   "bedOnly": false
 }
