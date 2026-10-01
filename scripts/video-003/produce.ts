@@ -115,7 +115,7 @@ async function validateNarration(plan: Plan) {
 
 // ---------------- OpenAI stills ----------------
 async function images(plan: Plan) {
-  const fallback = new Set(((await readJson<{stillFallback?: string[]}>(`${DIR}/reviews.json`).catch(() => ({}))).stillFallback) || []);
+  const fallback = new Set((await readJson<{stillFallback?: string[]}>(`${DIR}/reviews.json`).catch(() => ({} as {stillFallback?: string[]}))).stillFallback || []);
   const targets = only(plan.shots.filter((s) => s.provider === 'openai' || s.generative || fallback.has(s.id)));
   const sharp = (await import('sharp')).default;
   const groups = new Map<string, Shot[]>(); for (const s of targets) if (s.continuity) groups.set(s.continuity, [...(groups.get(s.continuity) || []), s]);
