@@ -5,7 +5,7 @@ name: Video 004 authenticated review gate diagnostic (read-only, zero spend)
 # env AVATAR_PREPARATION_OWNER_EMAIL unset/different in production, e-mail mismatch, or
 # email_confirmed_at null. This job gathers evidence without credentials in chat: the auth project's
 # public settings (autoconfirm), and the accounts' confirmation state + last sign-in time via the
-# admin API (e-mails masked, no tokens). It changes nothing.
+# admin API (e-mails masked, ids shown, no tokens). It changes nothing.
 on:
   workflow_dispatch:
   push:
@@ -22,14 +22,12 @@ jobs:
         env:
           SB: ${{ secrets.SUPABASE_URL }}
           KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          OWNER_EMAIL_SECRET_PRESENT: ${{ secrets.AVATAR_PREPARATION_OWNER_EMAIL != '' }}
         run: |
           set -u
-          echo "repo secret AVATAR_PREPARATION_OWNER_EMAIL present in GitHub: $OWNER_EMAIL_SECRET_PRESENT (Vercel env is separate and not readable from here)"
           echo "--- auth settings (public)"; curl -sS -m 20 -H "apikey: $KEY" "$SB/auth/v1/settings" | jq -c '{external_email: .external.email, mailer_autoconfirm, disable_signup}' || true
-          echo "--- accounts (masked)"
+          echo "--- accounts (masked e-mail, id, confirmed, created, last sign-in)"
           curl -sS -m 30 -H "apikey: $KEY" -H "Authorization: Bearer $KEY" "$SB/auth/v1/admin/users?per_page=50" -o users.json -w "admin users status=%{http_code}\n"
-          jq -r '.users[] | [ (.email | sub("^(?<a>..).*@(?<d>.*)$"; "\(.a)***@\(.d)")), (if .email_confirmed_at then "confirmed" else "UNCONFIRMED" end), (.created_at[0:19]), (.last_sign_in_at // "never" | .[0:19]), (.app_metadata.provider // "?") ] | @tsv' users.json | sort -k4 -r | head -20 || head -c 300 users.json
+          jq -r '.users[] | [ (.email | sub("^(?<a>..).*@(?<d>.*)$"; "\(.a)***@\(.d)")), .id, (if .email_confirmed_at then "confirmed" else "UNCONFIRMED" end), (.created_at[0:19]), (.last_sign_in_at // "never" | .[0:19]) ] | @tsv' users.json | sort -k5 -r | head -20 || head -c 300 users.json
           echo "total users: $(jq '.users | length' users.json 2>/dev/null)"
-          echo "--- production route, unauthenticated, for reference"; curl -sS -m 30 -o /dev/null -w "status=%{http_code} redirect=%{redirect_url}\n" https://atomivid.vercel.app/r/video-004-pron-gate
+          echo "--- production route, unauthenticated, for reference"; curl -sS -m 30 -o /dev/null -D - -w "status=%{http_code} redirect=%{redirect_url}\n" https://atomivid.vercel.app/r/video-004-pron-gate | grep -iE "^x-review|^status="
           rm -f users.json
