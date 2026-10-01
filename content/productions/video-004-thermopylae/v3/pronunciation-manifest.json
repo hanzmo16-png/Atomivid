@@ -1,0 +1,456 @@
+{
+ "version": "video-004/v3-polish-manifest/1",
+ "status": "THERMOPYLAE_V3_POLISH_COST_AUTHORIZATION_REQUIRED",
+ "v2MasterSha256": "eca494aa3881204724c7a9211f7eebc08893ffb3caa3ed587fe626ba4e236b10",
+ "audited": 128,
+ "pass": 113,
+ "watch": [
+  {
+   "name": "Mycenae",
+   "master": 196.27,
+   "why": "slightly slow (2.3x)"
+  },
+  {
+   "name": "Xerxes",
+   "master": 621.46,
+   "why": "slightly slow (2.3x)"
+  }
+ ],
+ "patchRequired": [
+  {
+   "name": "Thermopylae",
+   "master": 44.28,
+   "scene": "S1",
+   "voicedSec": 1.77,
+   "ratio": 2.68,
+   "internalPausesMs": [
+    120
+   ],
+   "why": "internal pause 120 ms; 2.7x the scene speaking time for its length",
+   "sentence": "This is Thermopylae."
+  },
+  {
+   "name": "Xerxes",
+   "master": 91.74,
+   "scene": "S2",
+   "voicedSec": 0.93,
+   "ratio": 2.56,
+   "internalPausesMs": [],
+   "why": "over-articulated: 2.6x the scene speaking time for its length (no internal pause detected; hyphenated alias read as separate pieces)",
+   "sentence": "Herodotus says that when a storm broke the first bridges, Xerxes had the sea whipped."
+  },
+  {
+   "name": "Artemisium",
+   "master": 155.92,
+   "scene": "S3",
+   "voicedSec": 1.76,
+   "ratio": 2.63,
+   "internalPausesMs": [
+    90
+   ],
+   "why": "internal pause 90 ms; 2.6x the scene speaking time for its length",
+   "sentence": "Block the land road into central Greece at Thermopylae, and block the sea beside it at Artemisium, so the two Persian forces could not support each other."
+  },
+  {
+   "name": "Leonidas",
+   "master": 175.35,
+   "scene": "S3",
+   "voicedSec": 1.28,
+   "ratio": 2.39,
+   "internalPausesMs": [],
+   "why": "over-articulated: 2.4x the scene speaking time for its length (no internal pause detected; hyphenated alias read as separate pieces)",
+   "sentence": "So Sparta sent an advance guard: one of its two kings, Leonidas, with three hundred full citizens, each chosen, Herodotus says, because he had a living son."
+  },
+  {
+   "name": "Thespiae",
+   "master": 198.94,
+   "scene": "S3",
+   "voicedSec": 1.98,
+   "ratio": 3.7,
+   "internalPausesMs": [
+    280,
+    270
+   ],
+   "why": "internal pause 280 ms; 3.7x the scene speaking time for its length",
+   "sentence": "On the road north, the allies joined: men from Tegea and Mantinea, Corinth, Phlius, Mycenae, seven hundred from Thespiae, four hundred from Thebes, and the Phocians and Locrians, whose land lay just beyond the pass."
+  },
+  {
+   "name": "Phocians",
+   "master": 203.57,
+   "scene": "S3",
+   "voicedSec": 1.26,
+   "ratio": 2.35,
+   "internalPausesMs": [
+    90
+   ],
+   "why": "over-articulated: 2.4x the scene speaking time for its length (no internal pause detected; hyphenated alias read as separate pieces)",
+   "sentence": "On the road north, the allies joined: men from Tegea and Mantinea, Corinth, Phlius, Mycenae, seven hundred from Thespiae, four hundred from Thebes, and the Phocians and Locrians, whose land lay just beyond the pass."
+  },
+  {
+   "name": "Locrians",
+   "master": 205.02,
+   "scene": "S3",
+   "voicedSec": 1.85,
+   "ratio": 3.46,
+   "internalPausesMs": [
+    210
+   ],
+   "why": "internal pause 210 ms; 3.5x the scene speaking time for its length",
+   "sentence": "On the road north, the allies joined: men from Tegea and Mantinea, Corinth, Phlius, Mycenae, seven hundred from Thespiae, four hundred from Thebes, and the Phocians and Locrians, whose land lay just beyond the pass."
+  },
+  {
+   "name": "Demaratus",
+   "master": 358.96,
+   "scene": "S5",
+   "voicedSec": 1.33,
+   "ratio": 2.44,
+   "internalPausesMs": [],
+   "why": "over-articulated: 2.4x the scene speaking time for its length (no internal pause detected; hyphenated alias read as separate pieces)",
+   "sentence": "A Spartan exile at the king's court, Demaratus, explained: that is what they do when they are about to risk their lives."
+  },
+  {
+   "name": "Dienekes",
+   "master": 418.9,
+   "scene": "S5",
+   "voicedSec": 1.16,
+   "ratio": 2.39,
+   "internalPausesMs": [],
+   "why": "over-articulated: 2.4x the scene speaking time for its length (no internal pause detected; hyphenated alias read as separate pieces)",
+   "sentence": "Before the battle, a Spartan named Dienekes was told that Persian arrows would hide the sun."
+  },
+  {
+   "name": "Ephialtes",
+   "master": 445.72,
+   "scene": "S6",
+   "voicedSec": 1.29,
+   "ratio": 2.35,
+   "internalPausesMs": [],
+   "why": "over-articulated: 2.4x the scene speaking time for its length (no internal pause detected; hyphenated alias read as separate pieces)",
+   "sentence": "His name was Ephialtes, from Trachis."
+  },
+  {
+   "name": "Thespians",
+   "master": 520.48,
+   "scene": "S7",
+   "voicedSec": 1.6,
+   "ratio": 2.83,
+   "internalPausesMs": [],
+   "why": "over-articulated: 2.8x the scene speaking time for its length (no internal pause detected; hyphenated alias read as separate pieces)",
+   "sentence": "The seven hundred Thespians, under Demophilus, refused to leave."
+  },
+  {
+   "name": "Leonidas",
+   "master": 568.0,
+   "scene": "S7",
+   "voicedSec": 1.33,
+   "ratio": 2.64,
+   "internalPausesMs": [],
+   "why": "over-articulated: 2.6x the scene speaking time for its length (no internal pause detected; hyphenated alias read as separate pieces)",
+   "sentence": "Leonidas fell."
+  },
+  {
+   "name": "Artemisium",
+   "master": 636.37,
+   "scene": "S8",
+   "voicedSec": 1.87,
+   "ratio": 2.92,
+   "internalPausesMs": [],
+   "why": "over-articulated: 2.9x the scene speaking time for its length (no internal pause detected; hyphenated alias read as separate pieces)",
+   "sentence": "The same three days, the fleets had been fighting off Artemisium, in sight of the pass."
+  }
+ ],
+ "segments": [
+  {
+   "segmentId": "P01",
+   "masterTimestamp": 44.28,
+   "scene": "S1",
+   "names": [
+    "Thermopylae"
+   ],
+   "display_text": "It is a harder story than the legend. And a better one. This is Thermopylae.",
+   "tts_text": "It is a harder story than the legend. And a better one. This is thermopilee.",
+   "previous_text": "Then a goat path through the mountains changed everything. By the third afternoon, a king of Sparta was dead, and the men who had stayed with him lay around him on a low hill.",
+   "next_text": "Ten years earlier, a Persian army had landed at Marathon, north of Athens, and been thrown back into the sea. The Great King, Darius, planned to return.",
+   "target_pronunciation": {
+    "Thermopylae": "/\u03b8\u0259r\u02c8m\u0252p\u026ali\u02d0/ ther-MOP-i-lee, one word"
+   },
+   "strategy": "1 dictionary alias rewritten as a plain lowercase respelling (no hyphens, no capitals); 2 contextual generation with previous_text/next_text; 3 controlled respelling in tts_text only if the alias still fragments; 4 SSML/phoneme not used (unsupported on eleven_multilingual_v2 unless the gate GET proves otherwise)",
+   "characters": 76,
+   "currentNameDurationSec": 1.77,
+   "estimatedNameDurationSec": 0.86,
+   "estimatedDeltaSec": -0.91,
+   "timingRule": "shorter \u2192 absorbed with silence padding inside the same slot (cuts, maps and music keep their frames); longer \u2264 +0.15 s \u2192 micro-crossfade; longer > +0.15 s \u2192 atempo 0.97\u20131.03 if transparent, else TIMING_BLOCKER"
+  },
+  {
+   "segmentId": "P02",
+   "masterTimestamp": 91.74,
+   "scene": "S2",
+   "names": [
+    "Xerxes"
+   ],
+   "display_text": "Herodotus says that when a storm broke the first bridges, Xerxes had the sea whipped.",
+   "tts_text": "Herodotus says that when a storm broke the first bridges, zerksees had the sea whipped.",
+   "previous_text": "His son Xerxes inherited the empire, the grudge, and the preparations. For years the Persians stockpiled grain along the route, dug a canal through the neck of Mount Athos so the fleet could avoid the cape that had wrecked ships before, and bridged the Hellespont, the strait between Asia and Europe, with two floating roads built on hundreds of ships.",
+   "next_text": "How big was the army? Herodotus counted more than two million fighting men.",
+   "target_pronunciation": {
+    "Xerxes": "/\u02c8z\u025c\u02d0rksi\u02d0z/ ZURK-seez"
+   },
+   "strategy": "1 dictionary alias rewritten as a plain lowercase respelling (no hyphens, no capitals); 2 contextual generation with previous_text/next_text; 3 controlled respelling in tts_text only if the alias still fragments; 4 SSML/phoneme not used (unsupported on eleven_multilingual_v2 unless the gate GET proves otherwise)",
+   "characters": 85,
+   "currentNameDurationSec": 0.93,
+   "estimatedNameDurationSec": 0.47,
+   "estimatedDeltaSec": -0.46,
+   "timingRule": "shorter \u2192 absorbed with silence padding inside the same slot (cuts, maps and music keep their frames); longer \u2264 +0.15 s \u2192 micro-crossfade; longer > +0.15 s \u2192 atempo 0.97\u20131.03 if transparent, else TIMING_BLOCKER"
+  },
+  {
+   "segmentId": "P03",
+   "masterTimestamp": 155.92,
+   "scene": "S3",
+   "names": [
+    "Artemisium"
+   ],
+   "display_text": "Block the land road into central Greece at Thermopylae, and block the sea beside it at Artemisium, so the two Persian forces could not support each other.",
+   "tts_text": "Block the land road into central Greece at thermopilee, and block the sea beside it at artemisium, so the two Persian forces could not support each other.",
+   "previous_text": "Athens, which had just built two hundred warships with silver from its mines, would carry the fight at sea. The plan was simple.",
+   "next_text": "But the timing was bad. Sparta was keeping the festival of the Carneia, and the Olympic truce was in force.",
+   "target_pronunciation": {
+    "Artemisium": "/\u02cc\u0251\u02d0rt\u026a\u02c8m\u026azi\u0259m/ ar-ti-MIZ-i-um"
+   },
+   "strategy": "1 dictionary alias rewritten as a plain lowercase respelling (no hyphens, no capitals); 2 contextual generation with previous_text/next_text; 3 controlled respelling in tts_text only if the alias still fragments; 4 SSML/phoneme not used (unsupported on eleven_multilingual_v2 unless the gate GET proves otherwise)",
+   "characters": 154,
+   "currentNameDurationSec": 1.76,
+   "estimatedNameDurationSec": 0.87,
+   "estimatedDeltaSec": -0.89,
+   "timingRule": "shorter \u2192 absorbed with silence padding inside the same slot (cuts, maps and music keep their frames); longer \u2264 +0.15 s \u2192 micro-crossfade; longer > +0.15 s \u2192 atempo 0.97\u20131.03 if transparent, else TIMING_BLOCKER"
+  },
+  {
+   "segmentId": "P04",
+   "masterTimestamp": 175.35,
+   "scene": "S3",
+   "names": [
+    "Leonidas"
+   ],
+   "display_text": "So Sparta sent an advance guard: one of its two kings, Leonidas, with three hundred full citizens, each chosen, Herodotus says, because he had a living son.",
+   "tts_text": "So Sparta sent an advance guard: one of its two kings, leeonidas, with three hundred full citizens, each chosen, Herodotus says, because he had a living son.",
+   "previous_text": "But the timing was bad. Sparta was keeping the festival of the Carneia, and the Olympic truce was in force.",
+   "next_text": "Leonidas was probably about sixty. On the road north, the allies joined: men from Tegea and Mantinea, Corinth, Phlius, Mycenae, seven hundred from Thespiae, four hundred from Thebes, and the Phocians and Locrians, whose land lay just beyond the pass.",
+   "target_pronunciation": {
+    "Leonidas": "/li\u02d0\u02c8\u0252n\u026ad\u0259s/ lee-ON-i-das"
+   },
+   "strategy": "1 dictionary alias rewritten as a plain lowercase respelling (no hyphens, no capitals); 2 contextual generation with previous_text/next_text; 3 controlled respelling in tts_text only if the alias still fragments; 4 SSML/phoneme not used (unsupported on eleven_multilingual_v2 unless the gate GET proves otherwise)",
+   "characters": 156,
+   "currentNameDurationSec": 1.28,
+   "estimatedNameDurationSec": 0.7,
+   "estimatedDeltaSec": -0.58,
+   "timingRule": "shorter \u2192 absorbed with silence padding inside the same slot (cuts, maps and music keep their frames); longer \u2264 +0.15 s \u2192 micro-crossfade; longer > +0.15 s \u2192 atempo 0.97\u20131.03 if transparent, else TIMING_BLOCKER"
+  },
+  {
+   "segmentId": "P05",
+   "masterTimestamp": 198.94,
+   "scene": "S3",
+   "names": [
+    "Thespiae",
+    "Phocians",
+    "Locrians"
+   ],
+   "display_text": "On the road north, the allies joined: men from Tegea and Mantinea, Corinth, Phlius, Mycenae, seven hundred from Thespiae, four hundred from Thebes, and the Phocians and Locrians, whose land lay just beyond the pass.",
+   "tts_text": "On the road north, the allies joined: men from Tegea and Mantinea, Corinth, Phlius, myseenee, seven hundred from thespiee, four hundred from Thebes, and the focians and locrians, whose land lay just beyond the pass.",
+   "previous_text": "So Sparta sent an advance guard: one of its two kings, Leonidas, with three hundred full citizens, each chosen, Herodotus says, because he had a living son. Leonidas was probably about sixty.",
+   "next_text": "Roughly seven thousand men, with their helot servants. They were told the main army would follow after the festival.",
+   "target_pronunciation": {
+    "Thespiae": "/\u02c8\u03b8\u025bspie\u026a/ THES-pi-ee",
+    "Phocians": "/\u02c8fo\u028a\u0283\u0259nz/ FOH-shanz",
+    "Locrians": "/\u02c8lo\u028akri\u0259nz/ LOH-kri-anz"
+   },
+   "strategy": "1 dictionary alias rewritten as a plain lowercase respelling (no hyphens, no capitals); 2 contextual generation with previous_text/next_text; 3 controlled respelling in tts_text only if the alias still fragments; 4 SSML/phoneme not used (unsupported on eleven_multilingual_v2 unless the gate GET proves otherwise)",
+   "characters": 215,
+   "currentNameDurationSec": 5.09,
+   "estimatedNameDurationSec": 2.09,
+   "estimatedDeltaSec": -3.0,
+   "timingRule": "shorter \u2192 absorbed with silence padding inside the same slot (cuts, maps and music keep their frames); longer \u2264 +0.15 s \u2192 micro-crossfade; longer > +0.15 s \u2192 atempo 0.97\u20131.03 if transparent, else TIMING_BLOCKER"
+  },
+  {
+   "segmentId": "P06",
+   "masterTimestamp": 358.96,
+   "scene": "S5",
+   "names": [
+    "Demaratus"
+   ],
+   "display_text": "A Spartan exile at the king's court, Demaratus, explained: that is what they do when they are about to risk their lives.",
+   "tts_text": "A Spartan exile at the king's court, demaratus, explained: that is what they do when they are about to risk their lives.",
+   "previous_text": "A horseman sent to look at them came back puzzled. The Spartans were exercising and combing their hair.",
+   "next_text": "On the fifth day Xerxes sent in the Medes and Cissians, with orders to take the Greeks alive. They attacked the wall for hours.",
+   "target_pronunciation": {
+    "Demaratus": "/\u02ccd\u025bm\u0259\u02c8re\u026at\u0259s/ dem-a-RAY-tus"
+   },
+   "strategy": "1 dictionary alias rewritten as a plain lowercase respelling (no hyphens, no capitals); 2 contextual generation with previous_text/next_text; 3 controlled respelling in tts_text only if the alias still fragments; 4 SSML/phoneme not used (unsupported on eleven_multilingual_v2 unless the gate GET proves otherwise)",
+   "characters": 120,
+   "currentNameDurationSec": 1.33,
+   "estimatedNameDurationSec": 0.71,
+   "estimatedDeltaSec": -0.62,
+   "timingRule": "shorter \u2192 absorbed with silence padding inside the same slot (cuts, maps and music keep their frames); longer \u2264 +0.15 s \u2192 micro-crossfade; longer > +0.15 s \u2192 atempo 0.97\u20131.03 if transparent, else TIMING_BLOCKER"
+  },
+  {
+   "segmentId": "P07",
+   "masterTimestamp": 418.9,
+   "scene": "S5",
+   "names": [
+    "Dienekes"
+   ],
+   "display_text": "Before the battle, a Spartan named Dienekes was told that Persian arrows would hide the sun.",
+   "tts_text": "Before the battle, a Spartan named dieneekees was told that Persian arrows would hide the sun.",
+   "previous_text": "The Spartans, fighting in front, would turn and feign flight, draw the pursuers into a rush, then wheel and cut them down. Three times that day, Herodotus says, the king leapt up from his seat in fear for his army.",
+   "next_text": "Good, he said: then we will fight in the shade. The second day went the same way.",
+   "target_pronunciation": {
+    "Dienekes": "/da\u026a\u02c8\u025bn\u026aki\u02d0z/ dy-EN-i-keez"
+   },
+   "strategy": "1 dictionary alias rewritten as a plain lowercase respelling (no hyphens, no capitals); 2 contextual generation with previous_text/next_text; 3 controlled respelling in tts_text only if the alias still fragments; 4 SSML/phoneme not used (unsupported on eleven_multilingual_v2 unless the gate GET proves otherwise)",
+   "characters": 92,
+   "currentNameDurationSec": 1.16,
+   "estimatedNameDurationSec": 0.63,
+   "estimatedDeltaSec": -0.53,
+   "timingRule": "shorter \u2192 absorbed with silence padding inside the same slot (cuts, maps and music keep their frames); longer \u2264 +0.15 s \u2192 micro-crossfade; longer > +0.15 s \u2192 atempo 0.97\u20131.03 if transparent, else TIMING_BLOCKER"
+  },
+  {
+   "segmentId": "P08",
+   "masterTimestamp": 445.72,
+   "scene": "S6",
+   "names": [
+    "Ephialtes"
+   ],
+   "display_text": "The Persians attacked in relays; the Greeks rotated city by city, so fresh men always held the line. And then, that evening, a local man came to the king's tent. His name was Ephialtes, from Trachis.",
+   "tts_text": "The Persians attacked in relays; the Greeks rotated city by city, so fresh men always held the line. And then, that evening, a local man came to the king's tent. His name was efialtees, from trakis.",
+   "previous_text": "Good, he said: then we will fight in the shade. The second day went the same way.",
+   "next_text": "He knew a path. The Anopaea: a mountain track that climbed behind the pass, over the ridge, and came down beyond the Greek wall.",
+   "target_pronunciation": {
+    "Ephialtes": "/\u02cc\u025bfi\u02c8\u00e6lti\u02d0z/ ef-i-AL-teez"
+   },
+   "strategy": "1 dictionary alias rewritten as a plain lowercase respelling (no hyphens, no capitals); 2 contextual generation with previous_text/next_text; 3 controlled respelling in tts_text only if the alias still fragments; 4 SSML/phoneme not used (unsupported on eleven_multilingual_v2 unless the gate GET proves otherwise)",
+   "characters": 199,
+   "currentNameDurationSec": 1.29,
+   "estimatedNameDurationSec": 0.71,
+   "estimatedDeltaSec": -0.58,
+   "timingRule": "shorter \u2192 absorbed with silence padding inside the same slot (cuts, maps and music keep their frames); longer \u2264 +0.15 s \u2192 micro-crossfade; longer > +0.15 s \u2192 atempo 0.97\u20131.03 if transparent, else TIMING_BLOCKER"
+  },
+  {
+   "segmentId": "P09",
+   "masterTimestamp": 520.48,
+   "scene": "S7",
+   "names": [
+    "Thespians"
+   ],
+   "display_text": "The seven hundred Thespians, under Demophilus, refused to leave.",
+   "tts_text": "The seven hundred thespians, under Demophilus, refused to leave.",
+   "previous_text": "What was said, nobody recorded. Herodotus says Leonidas sent the allies away and kept the Spartans.",
+   "next_text": "The four hundred Thebans also stayed. Why stay?",
+   "target_pronunciation": {
+    "Thespians": "/\u02c8\u03b8\u025bspi\u0259nz/ THES-pi-anz"
+   },
+   "strategy": "1 dictionary alias rewritten as a plain lowercase respelling (no hyphens, no capitals); 2 contextual generation with previous_text/next_text; 3 controlled respelling in tts_text only if the alias still fragments; 4 SSML/phoneme not used (unsupported on eleven_multilingual_v2 unless the gate GET proves otherwise)",
+   "characters": 64,
+   "currentNameDurationSec": 1.6,
+   "estimatedNameDurationSec": 0.73,
+   "estimatedDeltaSec": -0.87,
+   "timingRule": "shorter \u2192 absorbed with silence padding inside the same slot (cuts, maps and music keep their frames); longer \u2264 +0.15 s \u2192 micro-crossfade; longer > +0.15 s \u2192 atempo 0.97\u20131.03 if transparent, else TIMING_BLOCKER"
+  },
+  {
+   "segmentId": "P10",
+   "masterTimestamp": 568.0,
+   "scene": "S7",
+   "names": [
+    "Leonidas"
+   ],
+   "display_text": "The spears broke. They fought with swords. Leonidas fell.",
+   "tts_text": "The spears broke. They fought with swords. leeonidas fell.",
+   "previous_text": "This time the Greeks did not wait behind the wall. They came out into the wider part of the pass, where more of them could fight at once, knowing the men on the path would soon arrive behind them.",
+   "next_text": "Four times the two sides fought over his body, and four times the Greeks dragged it back. Then the Immortals came down the mountain into the Greeks' rear.",
+   "target_pronunciation": {
+    "Leonidas": "/li\u02d0\u02c8\u0252n\u026ad\u0259s/ lee-ON-i-das"
+   },
+   "strategy": "1 dictionary alias rewritten as a plain lowercase respelling (no hyphens, no capitals); 2 contextual generation with previous_text/next_text; 3 controlled respelling in tts_text only if the alias still fragments; 4 SSML/phoneme not used (unsupported on eleven_multilingual_v2 unless the gate GET proves otherwise)",
+   "characters": 57,
+   "currentNameDurationSec": 1.33,
+   "estimatedNameDurationSec": 0.65,
+   "estimatedDeltaSec": -0.68,
+   "timingRule": "shorter \u2192 absorbed with silence padding inside the same slot (cuts, maps and music keep their frames); longer \u2264 +0.15 s \u2192 micro-crossfade; longer > +0.15 s \u2192 atempo 0.97\u20131.03 if transparent, else TIMING_BLOCKER"
+  },
+  {
+   "segmentId": "P11",
+   "masterTimestamp": 636.37,
+   "scene": "S8",
+   "names": [
+    "Artemisium"
+   ],
+   "display_text": "The same three days, the fleets had been fighting off Artemisium, in sight of the pass.",
+   "tts_text": "The same three days, the fleets had been fighting off artemisium, in sight of the pass.",
+   "previous_text": "Their names are rarely remembered. Xerxes ordered Leonidas's head cut off and his body impaled, which Herodotus notes was unlike the Persians, who usually honoured brave enemies.",
+   "next_text": "A storm had already wrecked many Persian ships. The battle was a draw.",
+   "target_pronunciation": {
+    "Artemisium": "/\u02cc\u0251\u02d0rt\u026a\u02c8m\u026azi\u0259m/ ar-ti-MIZ-i-um"
+   },
+   "strategy": "1 dictionary alias rewritten as a plain lowercase respelling (no hyphens, no capitals); 2 contextual generation with previous_text/next_text; 3 controlled respelling in tts_text only if the alias still fragments; 4 SSML/phoneme not used (unsupported on eleven_multilingual_v2 unless the gate GET proves otherwise)",
+   "characters": 87,
+   "currentNameDurationSec": 1.87,
+   "estimatedNameDurationSec": 0.83,
+   "estimatedDeltaSec": -1.04,
+   "timingRule": "shorter \u2192 absorbed with silence padding inside the same slot (cuts, maps and music keep their frames); longer \u2264 +0.15 s \u2192 micro-crossfade; longer > +0.15 s \u2192 atempo 0.97\u20131.03 if transparent, else TIMING_BLOCKER"
+  }
+ ],
+ "elevenlabsLock": {
+  "voice_id": "cCYjmrGZaI86GUJ7F2Nn",
+  "voice_name": "David - Audiobook & Documentary",
+  "model_id": "eleven_multilingual_v2",
+  "stability": 0.5,
+  "similarity_boost": 0.75,
+  "style": 0,
+  "use_speaker_boost": true,
+  "speed": 0.92,
+  "endpoint": "/v1/text-to-speech/{voice}/with-timestamps",
+  "output_format": "default (mp3_44100_128: MP3 44.1 kHz 128 kbps mono, confirmed by ffprobe on the V2 narration files)",
+  "pronunciation_dictionary": "video-004-thermopylae (25 alias rules, hyphenated capitalised respellings)",
+  "language": "en"
+ },
+ "dryGate": {
+  "status": "DRY_GATE_READY_FOR_AUDIO_TEST",
+  "samples": [
+   {
+    "sampleId": "G1",
+    "name": "Thermopylae",
+    "test_phrase": "It is a harder story than the legend. And a better one. This is Thermopylae.",
+    "tts_text": "It is a harder story than the legend. And a better one. This is thermopilee.",
+    "context": {
+     "previous_text": "Then a goat path through the mountains changed everything. By the third afternoon, a king of Sparta was dead, and the men who had stayed with him lay around him on a low hill.",
+     "next_text": "Ten years earlier, a Persian army had landed at Marathon, north of Athens, and been thrown back into the sea."
+    },
+    "characters": 76,
+    "strategy": "alias \u2192 plain respelling, contextual"
+   },
+   {
+    "sampleId": "G2",
+    "name": "Ephialtes",
+    "test_phrase": "And then, that evening, a local man came to the king's tent. His name was Ephialtes, from Trachis.",
+    "tts_text": "And then, that evening, a local man came to the king's tent. His name was efialtees, from trakis.",
+    "context": {
+     "previous_text": "The second day went the same way. The Persians attacked in relays; the Greeks rotated city by city, so fresh men always held the line.",
+     "next_text": "He knew a path. The Anopaea: a mountain track that climbed behind the pass, over the ridge, and came down beyond the Greek wall."
+    },
+    "characters": 98,
+    "strategy": "alias \u2192 plain respelling, contextual"
+   },
+   {
+    "sampleId": "G3",
+    "name": "Thespiae / Phocians / Locrians (worst measured: 280 ms and 210 ms internal pauses)",
+    "test_phrase": "On the road north, the allies joined: men from Tegea and Mantinea, Corinth, Phlius, Mycenae, seven hundred from Thespiae, four hundred from Thebes, and the Phocians and Locrians, whose land lay just beyond the pass.",
+    "tts_text": "On the road north, the allies joined: men from Tegea and Mantinea, Corinth, Phlius, myseenee, seven hundred from thespiee, four hundred from Thebes, and the focians and locrians, whose land lay just beyond the pass.",
+    "context": {
+     "previous_text": "Leonidas was probably about sixty.",
+     "next_text": "Roughly seven thousand men, with their helot servants."
+    },
+    "characters": 215,
+    "strategy": "alias \u2192 plain respelling, contextual; the allies list is the hardest prosodic case"
+   }
+  ],
+  "characters": 389,
+  "estimatedUsd": 0.0778
+ }
+}
