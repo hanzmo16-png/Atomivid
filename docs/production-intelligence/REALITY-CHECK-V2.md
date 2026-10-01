@@ -144,3 +144,19 @@ than the one the owner signs in with. Not a routing, cookie, slug, allowlist or 
 ### Spend
 
 USD 0.00.
+
+## Regression record — learnings for PI V2 (registered 2026-10-01, not implemented in the engine)
+
+PI V1 / V1.1 remains frozen. These are the regressions observed on VIDEO-004 that PI V2 must treat as
+rules. Each one names the evidence in this file or in the production docs.
+
+| # | Regression | Rule for PI V2 | Evidence |
+|---|---|---|---|
+| R1 | Pronunciation aliases with hyphens / capitals (`Ther-MOP-ih-lee`) made the voice drag and pause inside names. | Dictionary aliases are plain lowercase respellings; names are generated inside full sentences with previous/next context; a measured name audit (word timing + RMS envelope) runs before any patch. | `VIDEO-004-V3-POLISH-AUDIT.md` §2–§4; 13 of 128 occurrences PATCH_REQUIRED, all alias words. |
+| R2 | A pronunciation gate that passes does not unlock the full patch. | GATE_PASS → human approval → FULL_PATCH; the gate run must stop even when every sample passes. | Gate run 36890517949 stopped at `THERMOPYLAE_V3_PRONUNCIATION_GATE_READY_FOR_HUMAN_REVIEW`; full patch authorised separately. |
+| R3 | Provider counter lag is not zero spend. | A paid call whose provider counter has not moved is settled at its projected cost (conservative) until reconciled; the ledger never records 0 for a call that was made. | Gate: 3 calls, 388 chars, counter delta 0 → settled at USD 0.0776 in the V3 patch stage. |
+| R4 | 3072×1728 render vs 2304×1296 crop coordinates. | One frame contract for every animated graphic: native SVG canvas at 72 dpi → 1920×1080; the crop/drift and the render share the same geometry source. | `renderAnimatedSegment` density 96 → 72; all 17 graphics showed the top-left 75% in V2. |
+| R5 | Source-frame QA is not composed-frame QA. | Graphics QA runs on frames extracted from the final master (text bbox from with/without-text diffs, safe area 96/54, subtitle band, pixel match with the pipeline render), never on the SVG alone. | `qa-graphics-safe-area-*.jpg`, `checks.graphics*` in the V3 QA. |
+| R6 | Signed-URL runner PASS is not mobile DELIVERY_PASS. | `RUNNER_HTTP_200 != DELIVERY_PASS`; phone delivery goes through the app's owner-only route, no token in the client URL; DELIVERY_PASS only on device confirmation. | RC-001. |
+| R7 | Authenticated module PASS is not authenticated end-to-end DELIVERY_PASS. | `MODULE_PASS + UNAUTH_REDIRECT_PASS ≠ DELIVERY_PASS`; the owner path is tested end to end (session → gate → allowlist → object → bytes), in unit tests with fake dependencies and on the real device. | RC-002. |
+| R8 | Review Delivery owner authorization must be explicit. | A dedicated server-side variable (`REVIEW_DELIVERY_OWNER_USER_ID`) names the single reviewing account; no reuse of another feature's gate, no identity in source. | RC-002 fix, commit 50822e8. |
