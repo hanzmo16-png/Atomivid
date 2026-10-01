@@ -37,19 +37,22 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           set -u
-          if [ -z "$VERCEL_TOKEN" ]; then echo "VERCEL_TOKEN absent: cannot inspect deployments"; exit 0; fi
-          api() { curl -sS -m 30 -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com$1"; }
-          echo "production branch: $(api "/v9/projects/$PROJ?teamId=$TEAM" | jq -r '.link.productionBranch // "unknown"')"
-          api "/v6/deployments?projectId=$PROJ&teamId=$TEAM&target=production&limit=1" | jq -c '.deployments[0] | {url, state: .readyState, ref: .meta.githubCommitRef, sha: .meta.githubCommitSha[0:7], created: (.created/1000|todate)}' | sed 's/^/production latest: /'
-          PREV=$(api "/v6/deployments?projectId=$PROJ&teamId=$TEAM&target=preview&sha=$SHA&limit=1" | jq -r '.deployments[0] | "\(.url) \(.readyState) \(.meta.githubCommitRef)"')
-          echo "preview for this commit: $PREV"
-          PURL=$(cut -d' ' -f1 <<<"$PREV"); PSTATE=$(cut -d' ' -f2 <<<"$PREV")
           probe() { local label="$1" url="$2"; shift 2; st=$(curl -sS -m 40 -o body.txt -D h.txt -w "%{http_code} redirect=%{redirect_url}" "$@" "$url"); echo "[$label] $st"; grep -i -E "^(content-type|location|x-vercel-error|x-matched-path|cache-control):" h.txt | tr -d '\r' | sed 's/^/    /'; }
-          if [ -n "$PURL" ] && [ "$PURL" != "null" ]; then
-            if [ "$PSTATE" != "READY" ]; then echo "preview not READY yet ($PSTATE); probing anyway"; fi
-            H=(); [ -n "$BYPASS" ] && H=(-H "x-vercel-protection-bypass: $BYPASS")
-            probe "preview /r/video-004-pron-gate (no session)" "https://$PURL/r/video-004-pron-gate" "${H[@]}"
-            probe "preview /r/unknown-slug" "https://$PURL/r/unknown-slug" "${H[@]}"
+          H=(); if [ -n "$BYPASS" ]; then H=(-H "x-vercel-protection-bypass: $BYPASS"); echo "protection bypass header: present"; else echo "protection bypass header: ABSENT"; fi
+          if [ -n "$VERCEL_TOKEN" ]; then
+            api() { curl -sS -m 30 -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com$1"; }
+            echo "production branch: $(api "/v9/projects/$PROJ?teamId=$TEAM" | jq -r '.link.productionBranch // "unknown"')"
+            api "/v6/deployments?projectId=$PROJ&teamId=$TEAM&target=production&limit=1" | jq -c '.deployments[0] | {url, state: .readyState, ref: .meta.githubCommitRef, sha: .meta.githubCommitSha[0:7], created: (.created/1000|todate)}' | sed 's/^/production latest: /'
+            api "/v6/deployments?projectId=$PROJ&teamId=$TEAM&target=preview&sha=$SHA&limit=1" | jq -c '.deployments[0] | {url, state: .readyState, ref: .meta.githubCommitRef}' | sed 's/^/preview for this commit: /'
+          else
+            echo "VERCEL_TOKEN absent: deployment metadata not inspected; probing the branch alias instead"
           fi
+          # Vercel git-branch alias: <project>-git-<branch with / -> ->-<team>.vercel.app
+          BR="https://atomivid-git-claude-production-intelligence-v1-atomivid.vercel.app"
+          probe "branch preview / (no bypass)" "$BR/"
+          probe "branch preview /r/video-004-pron-gate (bypass, no session)" "$BR/r/video-004-pron-gate" "${H[@]}"
+          probe "branch preview /r/unknown-slug (bypass)" "$BR/r/unknown-slug" "${H[@]}"
+          probe "branch preview HEAD /r/video-004-pron-gate (bypass)" "$BR/r/video-004-pron-gate" -I "${H[@]}"
           probe "production /r/video-004-pron-gate" "https://atomivid.vercel.app/r/video-004-pron-gate"
+          probe "production /" "https://atomivid.vercel.app/"
           rm -f body.txt h.txt
