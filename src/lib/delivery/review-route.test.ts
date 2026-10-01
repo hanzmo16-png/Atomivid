@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { handleReviewRequest, type ReviewRouteDeps, type ReviewUser } from "./review-route";
+import { isReviewOwner, reviewOwnerUserId } from "./review-stream";
 
 // RC-002 AUTHENTICATED_REVIEW_DELIVERY_FALSE_PASS: MODULE_PASS + UNAUTH_REDIRECT_PASS != DELIVERY_PASS.
 // These tests drive the whole authenticated path of /r/<slug> with fake dependencies (no real
@@ -105,4 +106,40 @@ test("upstream failure never leaks the storage response", async () => {
   const res = await handleReviewRequest(req(), SLUG, deps(owner, { fetch: async () => new Response('{"error":"secret details"}', { status: 400 }) }));
   assert.equal(res.status, 502);
   assert.equal(await res.text(), "review object unavailable");
+});
+
+// RC-002 fix: Review Delivery's own authority is REVIEW_DELIVERY_OWNER_USER_ID (server-side env).
+test("REVIEW_DELIVERY_OWNER_USER_ID is the only authority: correct owner allowed, other account 403, empty config denies all", async () => {
+  const OWNER_ID = "11111111-1111-4111-8111-111111111111";
+  const env = { REVIEW_DELIVERY_OWNER_USER_ID: ` ${OWNER_ID} ` };
+  const realOwner = { id: OWNER_ID, email: "login-account@example.test", email_confirmed_at: "2026-09-08T17:30:12Z" };
+  const other = { id: "22222222-2222-4222-8222-222222222222", email: "other@example.test", email_confirmed_at: "2026-09-16T14:49:11Z" };
+  assert.equal(reviewOwnerUserId(env), OWNER_ID);
+  assert.equal(reviewOwnerUserId({}), null);
+  assert.equal(isReviewOwner(realOwner, env), true);
+  assert.equal(isReviewOwner({ ...realOwner, email_confirmed_at: undefined }, env), false, "confirmed e-mail still required");
+  assert.equal(isReviewOwner(other, env), false);
+  assert.equal(isReviewOwner(realOwner, {}), false, "empty configuration denies everyone");
+  assert.equal(isReviewOwner(realOwner, { REVIEW_DELIVERY_OWNER_USER_ID: "" }), false);
+  assert.equal(isReviewOwner(null, env), false);
+  // the e-mail gate is no longer consulted: an account matching an owner e-mail but not the id is denied
+  assert.equal(isReviewOwner({ id: other.id, email: "login-account@example.test", email_confirmed_at: "2026-09-08T17:30:12Z" }, { ...env, AVATAR_PREPARATION_OWNER_EMAIL: "login-account@example.test" }), false);
+  const gate = { isOwner: (u: NonNullable<ReviewUser>) => isReviewOwner(u, env), gateConfigured: () => reviewOwnerUserId(env) !== null };
+  const ok = await handleReviewRequest(req(), SLUG, deps(realOwner, gate));
+  assert.equal(ok.status, 200);
+  assert.equal(ok.headers.get("content-type"), "audio/mpeg");
+  assert.equal(ok.headers.get("x-review-gate"), "configured");
+  const range = await handleReviewRequest(req({ Range: "bytes=0-999" }), SLUG, deps(realOwner, gate));
+  assert.equal(range.status, 206);
+  assert.equal(range.headers.get("content-range"), `bytes 0-999/${AUDIO.length}`);
+  const denied = await handleReviewRequest(req(), SLUG, deps(other, gate));
+  assert.equal(denied.status, 403);
+  assert.equal(denied.headers.get("x-review-denied"), "not-owner");
+  const anon = await handleReviewRequest(req(), SLUG, deps(null, gate));
+  assert.equal(anon.status, 307);
+  const unknown = await handleReviewRequest(new Request("https://atomivid.example/r/nope"), "nope", deps(realOwner, gate));
+  assert.equal(unknown.status, 404);
+  const unconfigured = await handleReviewRequest(req(), SLUG, deps(realOwner, { isOwner: (u) => isReviewOwner(u, {}), gateConfigured: () => reviewOwnerUserId({}) !== null }));
+  assert.equal(unconfigured.status, 403);
+  assert.equal(unconfigured.headers.get("x-review-denied"), "owner-gate-unconfigured");
 });

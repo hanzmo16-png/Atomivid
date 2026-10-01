@@ -104,3 +104,27 @@ export function classifyReviewDelivery(input: { channel: DeliveryChannel; runner
   if (input.device && !input.device.confirmedOnDevice) return "DELIVERY_FAIL";
   return "RUNNER_PASS";
 }
+
+// ---- Review Delivery owner gate (RC-002) ----
+
+/**
+ * Review Delivery has its own authority: REVIEW_DELIVERY_OWNER_USER_ID (server-side only), the
+ * Supabase auth user id of the single account allowed to open /r/<slug>. It replaces the e-mail
+ * gate AVATAR_PREPARATION_OWNER_EMAIL for review links (RC-002: that variable named a different
+ * account than the one the owner signs in with). No id, e-mail, key or token lives in source.
+ * Empty configuration denies everyone; a confirmed e-mail and a session are still required.
+ */
+export const REVIEW_DELIVERY_OWNER_ENV = "REVIEW_DELIVERY_OWNER_USER_ID";
+
+export type ReviewAccount = { id?: string; email?: string; email_confirmed_at?: string } | null;
+
+export function reviewOwnerUserId(env: Record<string, string | undefined> = process.env): string | null {
+  const v = env[REVIEW_DELIVERY_OWNER_ENV]?.trim();
+  return v ? v : null;
+}
+
+export function isReviewOwner(user: ReviewAccount, env: Record<string, string | undefined> = process.env): boolean {
+  const owner = reviewOwnerUserId(env);
+  if (!owner || !user?.id || !user.email_confirmed_at) return false;
+  return user.id === owner;
+}
