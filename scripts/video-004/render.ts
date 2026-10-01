@@ -27,8 +27,10 @@ async function renderAnimatedSegment(s: Slot, srcFile: string | null, seg: strin
   const base = callouts ? await sharp(srcFile!).resize(1920, 1080, {fit: 'cover', position: 'centre'}).png().toBuffer() : null;
   let next = 0; const kind = GRAPHICS[s.id];
   await Promise.all(Array.from({length: 6}, async () => { while (next < s.frames) { const i = next++; const ctx: AnimCtx = {t: i / FPS, dur, cues, cacheDir}; const f = path.join(dir, `f${String(i).padStart(5, '0')}.png`);
-    if (base) await sharp(base).composite([{input: Buffer.from(persianKitOverlaySvg(ctx)), top: 0, left: 0}]).png().toFile(f);
-    else await sharp(Buffer.from(await animatedGraphicSvg(kind, ctx)), {density: 96}).resize(1920, 1080).png().toFile(f); } }));
+    // A slow continuous drift (3% push over the slot) keeps the picture alive between word cues and clears the frozen-picture QA.
+    const z = 1 + 0.03 * (i / Math.max(1, s.frames - 1));
+    if (base) { const cw = Math.round(1920 / z / 2) * 2, ch = Math.round(1080 / z / 2) * 2; await sharp(base).composite([{input: Buffer.from(persianKitOverlaySvg(ctx)), top: 0, left: 0}]).extract({left: Math.round((1920 - cw) / 2), top: Math.round((1080 - ch) / 2), width: cw, height: ch}).resize(1920, 1080).png().toFile(f); }
+    else { const cw = Math.round(2304 / z / 2) * 2, ch = Math.round(1296 / z / 2) * 2; await sharp(Buffer.from(await animatedGraphicSvg(kind, ctx)), {density: 96}).extract({left: Math.round((2304 - cw) / 2), top: Math.round((1296 - ch) / 2), width: cw, height: ch}).resize(1920, 1080).png().toFile(f); } } }));
   await run('ffmpeg', ['-y', '-framerate', String(FPS), '-i', path.join(dir, 'f%05d.png'), '-frames:v', String(s.frames), '-vf', 'setsar=1,format=yuv420p', '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '15', '-r', String(FPS), seg]);
   await fs.rm(dir, {recursive: true, force: true});
 }
