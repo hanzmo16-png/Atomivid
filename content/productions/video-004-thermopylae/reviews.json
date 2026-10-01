@@ -492,6 +492,24 @@
    "sha256": "1e3284a7608886b07998f264adef47e21ba6ecbc2fdaef72b806fc6a9a09e666",
    "result": "PASS",
    "note": "fallback still for a rejected stock shot; labelled reconstruction"
+  },
+  {
+   "id": "V4-014",
+   "sha256": "d4cf20e887130d67a8ad3cda7b66cc30e89e1dba1c7f16820bc4ecb6b203cb3c",
+   "result": "PASS",
+   "note": "retake v2 fallback still: Persian procession relief, no people (reconstruction)"
+  },
+  {
+   "id": "V4-015",
+   "sha256": "de3f21ebab030a1f4acec470cd8d5f867e6b9969e52063dcaf0ee2c32ac99c4b",
+   "result": "PASS",
+   "note": "retake v2 fallback still: Persian palace ruins at sunset, no people (reconstruction)"
+  },
+  {
+   "id": "V4-098",
+   "sha256": "9c9213b4ce9fb574a5e156cb2e193f44e885ddfdc993d36af6315c683e737297",
+   "result": "PASS",
+   "note": "retake v2 fallback still: low grassy hill under the cliffs, no people, no text"
   }
  ],
  "stillRetake": {
@@ -592,6 +610,12 @@
    "sha256": "15c1461bb0681c038041a1f533c7032d833d5a0327dc97f78d8837627c4585bb",
    "result": "PASS",
    "note": "motion coherent, no duplicated or morphing figures, equipment stable, no text"
+  },
+  {
+   "id": "V4-076-v2",
+   "sha256": "85edeeefa9f8d4083d561b44cd70ac32f9b1ed1517500b6e5fd5c0af3289651b",
+   "result": "PASS",
+   "note": "simplified retry: dust drifts over the massed figures, line sways, no morphing"
   }
  ],
  "releaseClaims": [
