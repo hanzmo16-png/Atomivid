@@ -124,7 +124,7 @@ export async function render(plan: Plan) {
     // Export the UNducked bed stem and analyse it for silences below -45 dB lasting 1.5 s.
     const bedWav = path.join(out, 'bed.wav');
     const graph = f.join(';').replace(`${bedIn}[key]sidechaincompress`, `${bedIn}asplit[bedX][bedY];[bedX]anull[bedout];[bedY][key]sidechaincompress`);
-    await run('ffmpeg', ['-y', ...inputs, '-filter_complex', graph, '-map', '[bedout]', '-t', String(total), '-c:a', 'pcm_s16le', bedWav]);
+    await run('ffmpeg', ['-y', ...inputs, '-filter_complex', graph, '-map', '[bedout]', '-t', String(total), '-c:a', 'pcm_s16le', bedWav, '-map', '[mix]', '-t', String(total), '-c:a', 'pcm_s16le', path.join(out, 'mix-diag.wav')]);
     const det = await run('ffmpeg', ['-i', bedWav, '-af', 'silencedetect=n=-45dB:d=1.5', '-f', 'null', '-']);
     const sil = [...det.matchAll(/silence_start: ([\d.]+)/g)].map((m) => Number(m[1]));
     const stats = await run('ffmpeg', ['-i', bedWav, '-af', 'astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-', '-f', 'null', '-']);
