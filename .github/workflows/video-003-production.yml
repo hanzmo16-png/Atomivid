@@ -1,0 +1,76 @@
+name: Video 003 production (authorized freeze ed78405b, exposure ceiling USD 29.44)
+
+# Runs the stages named in content/productions/video-003-lake-nyos/production-request.json.
+# Paid stages (narrate, images, animate) only receive their provider key when the request says
+# confirm=SPEND; every paid call is gated by the ledger BEFORE it is sent. The runner verifies the
+# freeze hash of the package and the frozen engine tree before doing anything.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/production-intelligence-v1]
+    paths: [content/productions/video-003-lake-nyos/production-request.json]
+permissions:
+  contents: read
+concurrency:
+  group: video-003-production
+  cancel-in-progress: false
+jobs:
+  production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core >/dev/null
+      - name: Resolve production request
+        id: request
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const r = JSON.parse(fs.readFileSync('content/productions/video-003-lake-nyos/production-request.json', 'utf8'));
+          const freeze = JSON.parse(fs.readFileSync('content/productions/video-003-lake-nyos/freeze/freeze.json', 'utf8'));
+          const stages = ['status','narrate','validate-narration','images','stock','graphics','review','animate','render'];
+          if (r.projectId !== 'video-003-lake-nyos' || r.capUsd !== 32 || r.freezeHash !== freeze.freezeHash || r.freezeHash !== 'ed78405b8726e16aa7e890247085b6a045706f5b333ba06b0d4c1443b9aaed57') throw Error('Request is not for the authorized freeze');
+          if (!r.requestId || !String(r.stage).split(',').every(s => stages.includes(s))) throw Error('Invalid stage list');
+          const paid = String(r.stage).split(',').some(s => ['narrate','images','animate'].includes(s));
+          if (paid && r.confirm !== 'SPEND') throw Error('Paid stage without confirm=SPEND');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `stage=${r.stage}\nshots=${(r.shots || []).join(',')}\ndraft=${r.draft === true}\npaid=${paid}\n`);
+          NODE
+      - name: Run stages
+        run: npx tsx scripts/video-003/produce.ts
+        env:
+          V3_STAGE: ${{ steps.request.outputs.stage }}
+          V3_SHOTS: ${{ steps.request.outputs.shots }}
+          V3_DRAFT: ${{ steps.request.outputs.draft }}
+          V3_ALLOW_PAID: ${{ steps.request.outputs.paid }}
+          V3_OUT: ${{ runner.temp }}/video-003
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ (contains(steps.request.outputs.stage, 'status') || contains(steps.request.outputs.stage, 'narrate')) && secrets.ELEVENLABS_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ (contains(steps.request.outputs.stage, 'images') || contains(steps.request.outputs.stage, 'status')) && secrets.OPENAI_API_KEY || '' }}
+          RUNWAY_API_KEY: ${{ contains(steps.request.outputs.stage, 'animate') && secrets.RUNWAY_API_KEY || '' }}
+          PEXELS_API_KEY: ${{ contains(steps.request.outputs.stage, 'stock') && secrets.PEXELS_API_KEY || '' }}
+          VIDEO_PROVIDER: runway
+          PREMIUM_CLIPS_ENABLED: 'true'
+      - name: Publish master MP4 directly
+        if: always() && contains(steps.request.outputs.stage, 'render') && steps.request.outputs.draft != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/video-003/VIDEO-003-The-Lake-That-Held-Its-Breath-master.mp4
+          archive: false
+          retention-days: 30
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: video-003-run-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/video-003/
+            !${{ runner.temp }}/video-003/work
+            !${{ runner.temp }}/video-003/geo-cache
+          retention-days: 30
+          if-no-files-found: ignore
