@@ -1,0 +1,286 @@
+{
+ "title": "Three Days at the Hot Gates",
+ "projectId": "video-004-thermopylae",
+ "generatedAt": "2026-10-01T04:19:09.174Z",
+ "budgetUsd": 40,
+ "script": {
+  "words": 1566,
+  "characters": 8987,
+  "estimatedSpeechMinutesAt150wpm": 10.44
+ },
+ "storyboard": {
+  "shots": 99,
+  "paidShots": 83,
+  "graphics": 16,
+  "targetSeconds": 733.5,
+  "paidTimelineSeconds": 576,
+  "first30Seconds": {
+   "shots": 8,
+   "averageSeconds": 4.06
+  },
+  "byKind": {
+   "ai": 14,
+   "stock": 37,
+   "parallax": 22,
+   "still": 10,
+   "graphic": 16
+  }
+ },
+ "mix": {
+  "measured": {
+   "finishedSeconds": 733.5,
+   "seconds": {
+    "ai_motion": 70.5,
+    "real_footage": 350.5,
+    "animated_stills": 155,
+    "graphics": 157.5
+   },
+   "share": {
+    "ai_motion": 0.096,
+    "real_footage": 0.478,
+    "animated_stills": 0.211,
+    "graphics": 0.215
+   },
+   "shots": {
+    "ai_motion": 12,
+    "real_footage": 51,
+    "animated_stills": 20,
+    "graphics": 16
+   }
+  },
+  "presets": [
+   {
+    "presetId": "mix/ai-motion-100",
+    "pass": false,
+    "deviations": [
+     {
+      "category": "ai_motion",
+      "target": 1,
+      "actual": 0.096,
+      "delta": -0.904,
+      "withinTolerance": false
+     },
+     {
+      "category": "real_footage",
+      "target": 0,
+      "actual": 0.478,
+      "delta": 0.478,
+      "withinTolerance": false
+     },
+     {
+      "category": "animated_stills",
+      "target": 0,
+      "actual": 0.211,
+      "delta": 0.211,
+      "withinTolerance": false
+     },
+     {
+      "category": "graphics",
+      "target": 0,
+      "actual": 0.215,
+      "delta": 0.215,
+      "withinTolerance": false
+     }
+    ],
+    "note": "plan deviates from 100% AI motion: ai_motion 0.096 vs 1, real_footage 0.478 vs 0, animated_stills 0.211 vs 0, graphics 0.215 vs 0"
+   },
+   {
+    "presetId": "mix/hybrid-50-50",
+    "pass": false,
+    "deviations": [
+     {
+      "category": "ai_motion",
+      "target": 0.5,
+      "actual": 0.096,
+      "delta": -0.404,
+      "withinTolerance": false
+     },
+     {
+      "category": "real_footage",
+      "target": 0.5,
+      "actual": 0.478,
+      "delta": -0.022,
+      "withinTolerance": true
+     },
+     {
+      "category": "animated_stills",
+      "target": 0,
+      "actual": 0.211,
+      "delta": 0.211,
+      "withinTolerance": false
+     },
+     {
+      "category": "graphics",
+      "target": 0,
+      "actual": 0.215,
+      "delta": 0.215,
+      "withinTolerance": false
+     }
+    ],
+    "note": "plan deviates from 50/50 hybrid (AI motion / real footage): ai_motion 0.096 vs 0.5, animated_stills 0.211 vs 0, graphics 0.215 vs 0"
+   },
+   {
+    "presetId": "mix/economical-30-70",
+    "pass": false,
+    "deviations": [
+     {
+      "category": "ai_motion",
+      "target": 0.3,
+      "actual": 0.096,
+      "delta": -0.204,
+      "withinTolerance": false
+     },
+     {
+      "category": "real_footage",
+      "target": 0.3,
+      "actual": 0.478,
+      "delta": 0.178,
+      "withinTolerance": false
+     },
+     {
+      "category": "animated_stills",
+      "target": 0.3,
+      "actual": 0.211,
+      "delta": -0.089,
+      "withinTolerance": true
+     },
+     {
+      "category": "graphics",
+      "target": 0.1,
+      "actual": 0.215,
+      "delta": 0.115,
+      "withinTolerance": true
+     }
+    ],
+    "note": "plan deviates from 30/70 economical (AI motion / stills+footage+graphics): ai_motion 0.096 vs 0.3, real_footage 0.478 vs 0.3"
+   }
+  ],
+  "selected": "mix/economical-30-70",
+  "engine": {
+   "generativeShots": 14,
+   "generativeSecondsUsed": 75,
+   "generativeSecondsBudget": 76,
+   "heroShots": 1,
+   "unresolvedRhythm": 0
+  }
+ },
+ "cost": {
+  "estimatedUsd": 9.2274,
+  "reservedUsd": 33.1474,
+  "actualUsd": 0,
+  "retryUsd": 0,
+  "varianceUsd": -9.2274,
+  "projectBudgetUsd": 40,
+  "remainingBudgetUsd": 6.8526,
+  "byProvider": {
+   "elevenlabs": {
+    "estimatedUsd": 1.7974,
+    "reservedUsd": 1.7974,
+    "actualUsd": 0
+   },
+   "openai": {
+    "estimatedUsd": 2.56,
+    "reservedUsd": 19.2,
+    "actualUsd": 0
+   },
+   "pexels": {
+    "estimatedUsd": 0,
+    "reservedUsd": 0,
+    "actualUsd": 0
+   },
+   "runway": {
+    "estimatedUsd": 4.87,
+    "reservedUsd": 12.15,
+    "actualUsd": 0
+   }
+  },
+  "topUpsExcludedUsd": 0,
+  "reconciliationRequired": [],
+  "reservation": {
+   "status": "RESERVED",
+   "reservedUsd": 33.1474,
+   "worstCaseUsd": 33.1474,
+   "reasons": [
+    "reserved worst case USD 33.1474 (expected USD 9.2274) within budget USD 40"
+   ]
+  }
+ },
+ "capacity": {
+  "verdict": "NEEDS_OPERATOR",
+  "perProvider": [
+   {
+    "provider": "elevenlabs",
+    "state": "UNKNOWN",
+    "covered": false,
+    "reasons": [
+     "balance not verifiable (none); UNKNOWN is never treated as GREEN",
+     "configured spending ceiling 10 character: 10 left after reserved",
+     "balance unverified: the ceiling bounds spend but does not make capacity known",
+     "balance not verifiable (none); UNKNOWN is never treated as GREEN",
+     "not covered: capacity unverified"
+    ]
+   },
+   {
+    "provider": "openai",
+    "state": "UNKNOWN",
+    "covered": false,
+    "reasons": [
+     "balance not verifiable (derived_from_ledger); UNKNOWN is never treated as GREEN",
+     "derived estimate 0 usd (informative only)",
+     "configured spending ceiling 20 usd: 20 left after reserved",
+     "balance unverified: the ceiling bounds spend but does not make capacity known",
+     "balance not verifiable (derived_from_ledger); UNKNOWN is never treated as GREEN",
+     "derived estimate 0 usd (informative only)",
+     "not covered: capacity unverified"
+    ]
+   },
+   {
+    "provider": "runway",
+    "state": "UNKNOWN",
+    "covered": false,
+    "reasons": [
+     "balance not verifiable (none); UNKNOWN is never treated as GREEN",
+     "derived estimate 0 usd (informative only)",
+     "configured spending ceiling 20 usd: 20 left after reserved",
+     "balance unverified: the ceiling bounds spend but does not make capacity known",
+     "balance not verifiable (none); UNKNOWN is never treated as GREEN",
+     "derived estimate 0 usd (informative only)",
+     "not covered: capacity unverified"
+    ]
+   }
+  ],
+  "snapshots": {
+   "elevenlabs": {
+    "unit": "character",
+    "available": null,
+    "health": "UNCHECKED",
+    "reliability": "none",
+    "renewalDate": null
+   },
+   "openai": {
+    "unit": "usd",
+    "available": null,
+    "health": "UNCHECKED",
+    "reliability": "derived_from_ledger",
+    "renewalDate": null
+   },
+   "runway": {
+    "unit": "usd",
+    "available": null,
+    "health": "UNCHECKED",
+    "reliability": "none",
+    "renewalDate": null
+   }
+  }
+ },
+ "policy": {
+  "violations": 0,
+  "timelinePass": true,
+  "findings": []
+ },
+ "ok": false,
+ "blockers": [
+  "capacity UNKNOWN for elevenlabs, openai, runway: an operator must accept the unverified risk explicitly"
+ ],
+ "networkCallsDuringDryRun": 0
+}

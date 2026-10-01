@@ -1,0 +1,25 @@
+{
+ "freeze": "VIDEO_004_PREPRODUCTION",
+ "generatedAt": "2026-10-01T04:19:09.174Z",
+ "files": {
+  "TOPIC-SELECTION.md": "26300dbd5bd9c6e66db961a82a1a4dbda0e8f7e65526940131b165dbcc562266",
+  "RESEARCH.md": "e0c7d3ad72ebd97847f2cf8900f011a81d6041cbf06e87446b75837dbe86fd64",
+  "VERIFICATION.md": "119a93798c689176686528924e4885c3209ff7255db954fdc122ae2d51cb6530",
+  "SCRIPT.md": "253650e540befb280f59ee5d72b53f233248e9f9443482845a14c3b474ca0d98",
+  "storyboard.ts": "7784088741e5da3c7c4c677bf0a90603579f22b8e4b9ee554125b1dde8633dd4"
+ },
+ "artifacts": {
+  "manifest.json": "63c15f131a47b9313200ab11536f32a777475a4f91409344b639fc1cc5c4dc30",
+  "shot-contracts.json": "43be84ff76040ab4ef5681bdc21ba1ac7b380ee8974fee3894750dbcf70b0a86",
+  "summary.json": "32da5268995792e002125c1c850104d4467319f61c9abf5c6ef513815f4f3dce"
+ },
+ "pins": {
+  "policy": "policy/1.1.0-candidate",
+  "profile": "longform-16x9/1.1",
+  "contract": "shot-contract/1",
+  "rateCard": "rate-card/2026-09-28.1",
+  "memorySnapshot": "mem_empty"
+ },
+ "engineNote": "frozen PI V1.1 engine imported unchanged",
+ "freezeHash": "916059ce129bb1bc3095c1397f2805d75b1ff28bccb816f9afb4f33c4fdc443c"
+}
