@@ -117,6 +117,10 @@ export const MOTION_PROMPTS: Record<string, string> = {
   'V4-076': 'Static high camera at distance. The knot of figures in the dust heaves forward and back; shields rise and fall over one point; dust thickens. Nothing distinct, photoreal.',
   'V4-078': 'Static camera at distance. The ring of shields on the mound tightens; Persian figures gather around at a standoff; dust settles. No close detail, photoreal.',
 };
+/** One simplified retry (frozen policy R08: a materially different attempt after provider_no_output / semantic failure), rev v2. */
+export const CLIP_RETRY: Record<string, string> = {
+  'V4-076': 'Static high camera at distance. Dust slowly drifts and thickens over the crowd of tiny figures on the shore; shields glint as the mass sways gently; the sea glitters. Calm, photoreal, no close detail.',
+};
 /** Runway accepts 5 or 10 s; the clip must cover the frozen shot (slowed up to 1.5x at render). */
 export const clipSecondsFor = (shotSeconds: number): 5 | 10 => (shotSeconds <= 5 ? 5 : 10);
 export const SEC_USD = 0.05;

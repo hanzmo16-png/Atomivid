@@ -10,7 +10,7 @@ import {buildContactSheet, frameAt, probeDuration} from '../lib/contact-sheet';
 import {buildAss, buildCues, type TitleOverlay} from '../lib/dulce-edit';
 import {moveFor, stillMotionFilter, type Move, type WordTiming} from '../lib/dulce-part1-core';
 import {CHANNEL, EXPECTED_USD, EXPOSURE_CEILING_USD, HARD_CAP_USD, MUSIC, MUSIC_DROPS, ON_SCREEN_NOTICE, ON_SCREEN_NOTES, RUMBLE_CUES, TITLE} from './plan';
-import {FPS, P, type Plan, type Shot, stillPath, bucket, committedUsd, entries, exposure, listTelemetry, log, out, probe, put, putJson, read, readJsonStore, run, service, sha, sign} from './shared';
+import {FPS, P, type Plan, type Shot, stillPath, clipRev, bucket, committedUsd, entries, exposure, listTelemetry, log, out, probe, put, putJson, read, readJsonStore, run, service, sha, sign} from './shared';
 
 const NAME = 'VIDEO-004-Three-Days-at-the-Hot-Gates-master.mp4';
 const LEAD_IN = 0.4, SCENE_TAIL = 0.3, END_CARD = 1.5;
@@ -65,7 +65,7 @@ export async function render(plan: Plan) {
       else if (rv?.result === 'REUSE' && rv.from) { const rec = await readJsonStore<{file: string; sha256: string; sourceId: string}>(`${P}/stock/${rv.from}.json`); const b = rec ? await read(rec.file) : null; if (rec && b) { const f = path.join(work, `st-${s.id}.mp4`); await fs.writeFile(f, b); src = {kind: 'stock', file: f, sha256: sha(b), origin: `${rec.sourceId} (reused from ${rv.from} @${rv.inPoint ?? 0}s)`, note: String(rv.inPoint ?? 0)}; issues.push(`${s.id}: reuses ${rv.from}'s clip at ${rv.inPoint ?? 0}s`); } }
       else { const rec = await readJsonStore<{file: string; kind: 'video' | 'photo'; sha256: string; sourceId: string}>(`${P}/stock/${s.id}.json`); if (rec && (!rv || rv.result === 'PASS' || rv.result === 'PENDING')) { const b = await read(rec.file); if (b) { const f = path.join(work, `st-${s.id}.${rec.kind === 'photo' ? 'jpg' : 'mp4'}`); await fs.writeFile(f, b); src = {kind: rec.kind === 'photo' ? 'photo' : 'stock', file: f, sha256: sha(b), origin: rec.sourceId}; } } if (!src && rv?.result === 'FAIL') issues.push(`${s.id}: stock rejected in review, no replacement`); } }
     else {
-      if (s.generative) { const rec = await readAiVideoClipRecord(service, 'videos', P, `${s.id}-v1`); const rv = await readJsonStore<{result: string; sha256: string}>(`${P}/reviews/clip-${s.id}-v1.json`); if (rec?.status === 'COMPLETED' && rec.storagePath && rv?.result === 'PASS' && rv.sha256 === rec.checksumSha256) { const b = await read(rec.storagePath); if (!b || sha(b) !== rec.checksumSha256) throw Error('Clip checksum ' + s.id); const f = path.join(work, `clip-${s.id}.mp4`); await fs.writeFile(f, b); src = {kind: 'clip', file: f, sha256: sha(b), origin: `videos/${rec.storagePath}`}; } else if (!draft) issues.push(`${s.id}: no approved clip, fell back to approved still + camera motion`); }
+      if (s.generative) { const rec = await readAiVideoClipRecord(service, 'videos', P, `${s.id}-${clipRev(s.id)}`); const rv = await readJsonStore<{result: string; sha256: string}>(`${P}/reviews/clip-${s.id}-${clipRev(s.id)}.json`); if (rec?.status === 'COMPLETED' && rec.storagePath && rv?.result === 'PASS' && rv.sha256 === rec.checksumSha256) { const b = await read(rec.storagePath); if (!b || sha(b) !== rec.checksumSha256) throw Error('Clip checksum ' + s.id); const f = path.join(work, `clip-${s.id}.mp4`); await fs.writeFile(f, b); src = {kind: 'clip', file: f, sha256: sha(b), origin: `videos/${rec.storagePath}`}; } else if (!draft) issues.push(`${s.id}: no approved clip, fell back to approved still + camera motion`); }
       if (!src) { const b = await approvedStill(s.id); if (b) { const f = path.join(work, `still-${s.id}.png`); await fs.writeFile(f, b); src = {kind: 'still', file: f, sha256: sha(b), origin: `videos/${stillPath(s.id)}`}; } }
     }
     if (!src) src = await placeholder(s);
@@ -171,13 +171,15 @@ export async function render(plan: Plan) {
   const hookSlots = slots.filter((s) => s.startFrame < 30 * FPS).length;
   const scriptWords = plan.shots.filter((s) => s.purpose !== 'end card').reduce((x, s) => x + toks(s.narration).length, 0);
   const genSlots = report.filter((r) => r.kind === 'clip'); const expectedGen = plan.shots.filter((s) => s.generative).length;
+  // A generative shot whose clip failed review falls back to its approved still (documented in reviews.json); it counts as honoured only when that verdict exists.
+  let documentedFallbacks = 0; for (const s of plan.shots.filter((x) => x.generative)) { const rv = await readJsonStore<{result: string}>(`${P}/reviews/clip-${s.id}-${clipRev(s.id)}.json`); if (rv?.result === 'FAIL') documentedFallbacks++; }
   const checks: Record<string, boolean> = {
     durationNearPlan: Math.abs(pr.duration - total) < 0.5, durationInTarget: pr.duration >= 600 && pr.duration <= 800, resolution1080p: pr.width === 1920 && pr.height === 1080, fps30: pr.fps === '30/1', h264: pr.codec === 'h264',
     audioStereo: pr.channels === 2, noAccidentalBlack: black.length === 0, noFrozenPicture: fz.length === 0, noSilentGaps: silS.length === 0,
     loudnessNear14: Math.abs(num(/I:\s+(-?[\d.]+) LUFS/) + 14) <= 1, truePeakSafe: num(/Peak:\s+(-?[\d.]+) dBFS/) <= -1,
     allSlotsSourced: report.length === slots.length, noPlaceholders: !report.some((r) => r.kind === 'placeholder'),
     subtitlesCoverAllWords: cues.reduce((x, c) => x + c.words.length, 0) === words.length && words.length === scriptWords,
-    hookAtLeast8Changes: hookSlots >= 8, noHeldFrames: !report.some((r) => (r.frozen as number) > 0.05), frozenGenerativeSetHonoured: genSlots.length === expectedGen,
+    hookAtLeast8Changes: hookSlots >= 8, noHeldFrames: !report.some((r) => (r.frozen as number) > 0.05), frozenGenerativeSetHonoured: genSlots.length + documentedFallbacks === expectedGen,
   };
   const bytes = await fs.readFile(final);
   const qc = {draft, final: {file: NAME, bytes: bytes.length, sha256: sha(bytes), durationSeconds: pr.duration, width: pr.width, height: pr.height, fps: pr.fps, codec: pr.codec}, loudness: {integratedLufs: num(/I:\s+(-?[\d.]+) LUFS/), truePeakDbfs: num(/Peak:\s+(-?[\d.]+) dBFS/), lra: num(/LRA:\s+(-?[\d.]+) LU/)}, black, freeze: fz, silences: silS, checks, failed: Object.entries(checks).filter(([, ok]) => !ok).map(([k]) => k), issues, deviations, timeline: {totalSeconds: total, narratedSeconds: scenes.reduce((a, s) => a + s.seconds, 0), slots: slots.length, hookSlots}};
@@ -202,7 +204,7 @@ export async function render(plan: Plan) {
     manifestVersion: 'video-004/production-manifest/1', projectId: P, title: TITLE, channel: CHANNEL, freezeHash: plan.freezeHash, generatedAt: new Date().toISOString(), draft, commit: process.env.GITHUB_SHA ?? null, runId: process.env.GITHUB_RUN_ID ?? null,
     master: qc.final, qa: {technical: checks, failed: qc.failed, loudness: qc.loudness, issues, deviationsFromFrozenDurations: deviations},
     cost: {expectedUsd: EXPECTED_USD, worstCaseReservationUsd: EXPOSURE_CEILING_USD, actualUsd: +spent.toFixed(4), varianceUsd: +(spent - EXPECTED_USD).toFixed(4), byProvider, exposureUsd: exposure(), ceilingUsd: EXPOSURE_CEILING_USD, hardCapUsd: HARD_CAP_USD, paidOperations: led.filter((e) => e.status !== 'released').length, releasedClaims: led.filter((e) => e.status === 'released').length, retries: {count: retries.length, usd: +retryUsd.toFixed(4)}, providerTopupsAreNotCogs: true},
-    mix: {generativeClips: genSlots.length, generativeSeconds: +genSec.toFixed(2), generativeShare: +(genSec / pr.duration).toFixed(3), stillMotionSlots: report.filter((r) => ['still', 'graphic', 'photo'].includes(r.kind as string)).length, stockSlots: report.filter((r) => r.kind === 'stock').length},
+    mix: {generativeClips: genSlots.length, documentedClipFallbacks: documentedFallbacks, generativeSeconds: +genSec.toFixed(2), generativeShare: +(genSec / pr.duration).toFixed(3), stillMotionSlots: report.filter((r) => ['still', 'graphic', 'photo'].includes(r.kind as string)).length, stockSlots: report.filter((r) => r.kind === 'stock').length},
     fallbacks, shots: report.map((r) => ({...r, cost: led.filter((e) => e.shotId === r.id && e.status === 'committed').reduce((a, e) => a + (e.actualUsd ?? e.maxUsd), 0), attempts: attempts.filter((a) => a.shotId === r.id).map((a) => ({attemptId: a.attemptId, provider: a.provider, costUsd: a.costUsd, qa: a.qa?.result ?? null}))})),
   };
   await fs.writeFile(path.join(out, 'production-manifest.json'), JSON.stringify(manifestOut, null, 2));

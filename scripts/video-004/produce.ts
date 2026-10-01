@@ -18,9 +18,9 @@ import {wrapDurableVideoProvider} from '../../src/lib/video/long-form/ai-video-d
 import {searchSceneVideos, searchScenePhotos, type FootageCandidateRaw} from '../../src/lib/ai/footage';
 import {buildContactSheet, frameAt, probeDuration} from '../lib/contact-sheet';
 import {scriptWordsWithTimings, type WordTiming} from '../lib/dulce-part1-core';
-import {ALIASES, GRAPHICS, IMAGE_MAX_USD, MODEL, MOTION_PROMPTS, SEC_USD, STILL_NOTES, STOCK_QUERIES, STYLE, VOICE, VOICE_SETTINGS, XI_USD_PER_CHAR, clipSecondsFor} from './plan';
+import {ALIASES, CLIP_RETRY, GRAPHICS, IMAGE_MAX_USD, MODEL, MOTION_PROMPTS, SEC_USD, STILL_NOTES, STOCK_QUERIES, STYLE, VOICE, VOICE_SETTINGS, XI_USD_PER_CHAR, clipSecondsFor} from './plan';
 import {graphicsNotes, renderGraphicPng} from './graphics';
-import {DIR, P, STILL_RETAKES, type Plan, type Shot, bucket, committedUsd, ensureOut, entries, exposure, loadLedger, loadPlan, log, opKey, out, probe, put, putJson, read, readJson, readJsonStore, reserve, run, service, settle, sha, stillPath, stillRev, tele, words, writeLedgerSnapshot} from './shared';
+import {DIR, P, STILL_RETAKES, type Plan, type Shot, bucket, committedUsd, ensureOut, entries, exposure, loadLedger, loadPlan, log, opKey, out, probe, put, putJson, read, readJson, readJsonStore, reserve, run, service, settle, sha, stillPath, stillRev, clipRev, tele, words, writeLedgerSnapshot} from './shared';
 
 const stage = process.env.V4_STAGE || 'status';
 const wanted = (process.env.V4_SHOTS || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -219,12 +219,14 @@ async function graphics(plan: Plan) {
 }
 
 // ---------------- review verdicts (recorded from the repo file) ----------------
-type Review = {stills?: {id: string; sha256: string; result: 'PASS' | 'FAIL'; note: string; reasons?: string[]}[]; clips?: {id: string; sha256: string; result: 'PASS' | 'FAIL'; note: string; reasons?: string[]; usableUntil?: number}[]; stock?: {id: string; result: 'PASS' | 'FAIL' | 'REUSE' | 'STILL'; note: string; from?: string; inPoint?: number}[]; stillFallback?: string[]};
+type Review = {releaseClaims?: {key: string; note: string}[]; stills?: {id: string; sha256: string; result: 'PASS' | 'FAIL'; note: string; reasons?: string[]}[]; clips?: {id: string; sha256: string; result: 'PASS' | 'FAIL'; note: string; reasons?: string[]; usableUntil?: number}[]; stock?: {id: string; result: 'PASS' | 'FAIL' | 'REUSE' | 'STILL'; note: string; from?: string; inPoint?: number}[]; stillFallback?: string[]};
 async function review() {
   const rv = await readJson<Review>(`${DIR}/reviews.json`).catch(() => ({} as Review));
   for (const x of rv.stills || []) { const b = await read(stillPath(x.id)); if (!b || sha(b) !== x.sha256) throw Error('Still checksum mismatch ' + x.id); await putJson(`${P}/reviews/still-${x.id}.json`, {...x, reviewer: 'assistant visual inspection', at: new Date().toISOString()}); const t = await readJsonStore<Record<string, unknown>>(`${P}/telemetry/image-${x.id}-${stillRev(x.id)}.json`); if (t) { t.qa = {result: x.result, notes: x.note, reasons: x.reasons}; await putJson(`${P}/telemetry/image-${x.id}-${stillRev(x.id)}.json`, t); } }
   for (const x of rv.clips || []) { await putJson(`${P}/reviews/clip-${x.id}.json`, {...x, reviewer: 'assistant temporal inspection', at: new Date().toISOString()}); const t = await readJsonStore<Record<string, unknown>>(`${P}/telemetry/video-${x.id}-v1.json`); if (t) { t.qa = {result: x.result, notes: x.note, reasons: x.reasons}; await putJson(`${P}/telemetry/video-${x.id}-v1.json`, t); } }
   for (const x of rv.stock || []) await putJson(`${P}/reviews/stock-${x.id}.json`, {...x, at: new Date().toISOString()});
+  // Claims whose provider job ended without output are released (Runway refunds failed tasks); recorded, never silently dropped.
+  for (const x of rv.releaseClaims || []) { const e = entries().find((c) => c.key === x.key && c.status === 'reserved'); if (e) { await settle(x.key, 0, 'released'); await putJson(`${P}/reviews/claim-${x.key}.json`, {...x, at: new Date().toISOString()}); log('CLAIM_RELEASED', {key: x.key, note: x.note}); } }
   log('REVIEW', {stills: rv.stills?.length ?? 0, clips: rv.clips?.length ?? 0, stock: rv.stock?.length ?? 0});
 }
 
@@ -240,16 +242,18 @@ async function animate(plan: Plan) {
     const still = await read(stillPath(s.id)); const rv = await readJsonStore<{sha256: string; result: string}>(`${P}/reviews/still-${s.id}.json`);
     if (!still || !rv || rv.result !== 'PASS' || rv.sha256 !== sha(still)) throw Error(`Still ${s.id} is not approved: never animate an unreviewed image`);
     const jpeg = await sharp(still).resize(1280, 720, {fit: 'cover', position: 'centre'}).jpeg({quality: 92}).toBuffer();
-    const rev = 'v1', recordKey = `${s.id}-${rev}`, claimKey = `video-${s.id}-${rev}`, t0 = Date.now();
+    const rev = clipRev(s.id), recordKey = `${s.id}-${rev}`, claimKey = `video-${s.id}-${rev}`, t0 = Date.now();
+    const prompt = CLIP_RETRY[s.id] || MOTION_PROMPTS[s.id]; const ordinal = rev === 'v2' ? 2 : 1;
+    if (await readJsonStore(`${P}/reviews/clip-${recordKey}.json`)) { log('CLIP_SKIP', {id: s.id, rev, reason: 'already reviewed'}); return; }
     const seconds = clipSecondsFor(s.seconds); const maxCostUsd = seconds * SEC_USD;
-    const ok = opKey({shotId: s.id, provider: 'runway', model: 'gen4_turbo', method: s.method, inputFingerprint: sha(MOTION_PROMPTS[s.id] + sha(still) + seconds), attemptOrdinal: 1});
-    const asset = await durable.generateVideo({prompt: MOTION_PROMPTS[s.id], aspectRatio: '16:9', durationSeconds: seconds, maxCostUsd, referenceImageUrl: 'data:image/jpeg;base64,' + jpeg.toString('base64'), metadata: {shotId: recordKey, videoId: P, claimKey, opKey: ok}});
+    const ok = opKey({shotId: s.id, provider: 'runway', model: 'gen4_turbo', method: s.method, inputFingerprint: sha(prompt + sha(still) + seconds), attemptOrdinal: ordinal});
+    const asset = await durable.generateVideo({prompt, aspectRatio: '16:9', durationSeconds: seconds, maxCostUsd, referenceImageUrl: 'data:image/jpeg;base64,' + jpeg.toString('base64'), metadata: {shotId: recordKey, videoId: P, claimKey, opKey: ok}});
     const file = path.join(out, `clip-${s.id}.mp4`); await fs.writeFile(file, asset.buffer);
     const actual = await probeDuration(file);
     const claim = entries().find((e) => e.key === claimKey); if (claim && claim.status === 'reserved') await settle(claimKey, maxCostUsd, 'committed');
     const det = await run('ffmpeg', ['-i', file, '-vf', 'scdet=threshold=18,blackdetect=d=0.3:pix_th=0.06,freezedetect=n=-60dB:d=1.5', '-f', 'null', '-']);
     const l1 = {abruptChanges: [...det.matchAll(/lavfi\.scd\.time: ([\d.]+)/g)].map((m) => Number(m[1])), black: /black_start/.test(det), freeze: /freeze_start/.test(det)};
-    await tele({attemptId: claimKey, opKey: ok, shotId: s.id, stage: 'animation', provider: 'runway', model: asset.model || 'gen4_turbo', method: s.method, attemptOrdinal: 1, costUsd: maxCostUsd, latencySeconds: (Date.now() - t0) / 1000, outputSha256: sha(asset.buffer), generatedSeconds: actual, qa: {result: 'PENDING', notes: 'L1 ' + JSON.stringify(l1)}, at: new Date().toISOString()});
+    await tele({attemptId: claimKey, opKey: ok, shotId: s.id, stage: 'animation', provider: 'runway', model: asset.model || 'gen4_turbo', method: s.method, attemptOrdinal: ordinal, ...(ordinal > 1 ? {retryReason: 'R08 simplified retry after provider_no_output'} : {}), costUsd: maxCostUsd, latencySeconds: (Date.now() - t0) / 1000, outputSha256: sha(asset.buffer), generatedSeconds: actual, qa: {result: 'PENDING', notes: 'L1 ' + JSON.stringify(l1)}, at: new Date().toISOString()});
     const tiles = []; for (let k = 0; k < 12; k++) { const t = 0.1 + (actual - 0.3) * k / 11; tiles.push({image: await frameAt(file, t, 480), label: `${s.id} ${t.toFixed(1)}s`}); }
     await fs.writeFile(path.join(out, `clip-${s.id}-temporal.jpg`), await buildContactSheet(tiles, {columns: 4, tileWidth: 480, tileHeight: 270, title: `${s.id} ${s.purpose} · ${seconds}s · L1 ${JSON.stringify(l1).slice(0, 80)}`}));
     await fs.writeFile(path.join(out, `clip-${s.id}.json`), JSON.stringify({id: s.id, rev, sha256: sha(asset.buffer), seconds: actual, requested: seconds, providerJobId: asset.providerJobId, l1}, null, 2));

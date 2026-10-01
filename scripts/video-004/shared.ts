@@ -12,7 +12,7 @@ import {createServiceClient} from '../../src/lib/supabase/service';
 import {idempotencyKey as piKey} from '../../src/lib/production-intelligence/ledger';
 import {canSpend, exposureUsd, type LedgerEntry} from '../lib/dulce-part1-core';
 import {ROWS, PAUSES, video004ShotRecords, secondsOf} from '../../content/productions/video-004-thermopylae/storyboard';
-import {AUTHORIZED_FREEZE_HASH, AUTHORIZED_ENGINE_TREE, EXPOSURE_CEILING_USD, PROVIDER_CEILING_USD, PROJECT, GRAPHICS, GENERATIVE_COUNT} from './plan';
+import {AUTHORIZED_FREEZE_HASH, AUTHORIZED_ENGINE_TREE, EXPOSURE_CEILING_USD, PROVIDER_CEILING_USD, PROJECT, GRAPHICS, GENERATIVE_COUNT, CLIP_RETRY} from './plan';
 
 export const FPS = 30;
 export const P = PROJECT;
@@ -25,6 +25,7 @@ export const words = (s: string) => s.split(/\s+/).filter((w) => /[A-Za-z0-9]/.t
 /** Still retakes recorded in reviews.json (id -> correction note): a retaken still lives at rev v2 under a new paid claim. */
 export const STILL_RETAKES: Record<string, string> = (() => { try { return (JSON.parse(fsSync.readFileSync(`${'content/productions/video-004-thermopylae'}/reviews.json`, 'utf8')) as {stillRetake?: Record<string, string>}).stillRetake || {}; } catch { return {}; } })();
 export const stillRev = (id: string) => (STILL_RETAKES[id] ? 'v2' : 'v1');
+export const clipRev = (id: string) => (CLIP_RETRY[id] ? 'v2' : 'v1');
 export const stillPath = (id: string) => `${PROJECT}/stills/${id}-${stillRev(id)}.png`;
 
 // ---------------- frozen plan ----------------

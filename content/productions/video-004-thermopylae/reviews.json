@@ -462,6 +462,36 @@
    "sha256": "548e546d8b0ce7c86ffdc537f7bba0e9382b2e772494bfbf5d4ea50f83f78254",
    "result": "PASS",
    "note": "retake v2: empty plain, smoke rising from the citadel; no figures"
+  },
+  {
+   "id": "V4-004",
+   "sha256": "9d07bb94e7a0f0e4378bec081036d7a7148eebac74d8437154d5fe63141ed2a9",
+   "result": "PASS",
+   "note": "fallback still for a rejected stock shot; labelled reconstruction"
+  },
+  {
+   "id": "V4-021",
+   "sha256": "7317ad9dd111754ea2296d3cbfc4935dfce35fbc749d227a5057ee11da2abf6c",
+   "result": "PASS",
+   "note": "fallback still for a rejected stock shot; labelled reconstruction"
+  },
+  {
+   "id": "V4-037",
+   "sha256": "1ccb96f4fd3daa066a34186d628214f43095864d2c0cff0b13aca19ba4cfc257",
+   "result": "PASS",
+   "note": "fallback still for a rejected stock shot; labelled reconstruction"
+  },
+  {
+   "id": "V4-044",
+   "sha256": "adb98cf4524d23a9197c63d294557c476da66fd0dd36d5132a270accc2cac53a",
+   "result": "PASS",
+   "note": "fallback still for a rejected stock shot; labelled reconstruction"
+  },
+  {
+   "id": "V4-063",
+   "sha256": "1e3284a7608886b07998f264adef47e21ba6ecbc2fdaef72b806fc6a9a09e666",
+   "result": "PASS",
+   "note": "fallback still for a rejected stock shot; labelled reconstruction"
   }
  ],
  "stillRetake": {
@@ -469,7 +499,10 @@
   "V4-066": "No castle, no fortress, no battlements, no towers, no crenellations. The wall is a low rough field wall of unworked limestone blocks about chest height, as a Greek pass wall of 480 BC, with the cliff and the sea beyond; spears and helmets planted around a cold fire; no people.",
   "V4-068": "No castle, no fortress, no battlements. The wall behind the men is a low rough field wall of unworked limestone blocks about chest height; the sea and the shore beyond at dawn; the men are hoplites in plain brown cloaks seen from behind with shields down.",
   "V4-078": "The figures in the foreground are PERSIAN infantry seen from behind: soft felt caps, sleeved patterned tunics, trousers, tall wicker shields, bows; no Greek helmets, no crimson cloaks, no round bronze shields in the foreground. The ring of bronze shields is far away on top of the low mound.",
-  "V4-088": "No people and no soldiers anywhere in the frame: only the rocky citadel above the plain at dusk with columns of smoke rising, seen from far across the empty plain."
+  "V4-088": "No people and no soldiers anywhere in the frame: only the rocky citadel above the plain at dusk with columns of smoke rising, seen from far across the empty plain.",
+  "V4-014": "No people, no soldiers, no hoplites anywhere: ONLY the carved stone relief wall of robed Persian figures in procession, close, raking light.",
+  "V4-015": "No people, no soldiers anywhere: only the ruined columns, carved doorways and stairway of the Persian palace at sunset with the empty plain beyond.",
+  "V4-098": "No people, no soldiers, no shields anywhere: only the low grassy hill at the foot of the limestone cliffs, wild grass, the plain beyond, low sun."
  },
  "stillFallback": [
   "V4-004",
@@ -481,5 +514,90 @@
   "V4-063",
   "V4-098"
  ],
- "clips": []
+ "clips": [
+  {
+   "id": "V4-001-v1",
+   "sha256": "4a06bf0bdfec5729d1042780449deb72fed2a7d7b94f7a2af81a12072fa81e73",
+   "result": "PASS",
+   "note": "motion coherent, no duplicated or morphing figures, equipment stable, no text"
+  },
+  {
+   "id": "V4-002-v1",
+   "sha256": "11e1e6f141a68d1a5820ac1e73ba46036f5bf957c9956138a66c2c84835c8d50",
+   "result": "PASS",
+   "note": "motion coherent, no duplicated or morphing figures, equipment stable, no text"
+  },
+  {
+   "id": "V4-005-v1",
+   "sha256": "8d5c8811cd49ff2227744c929526d6cf42c751f095936a8e187cf87aa7a751e7",
+   "result": "PASS",
+   "note": "motion coherent, no duplicated or morphing figures, equipment stable, no text"
+  },
+  {
+   "id": "V4-009-v1",
+   "sha256": "ea203fe35cfd37a7c7842baf407266319d483ad54b28f84f1c3bf8cbf1daeb57",
+   "result": "PASS",
+   "note": "motion coherent, no duplicated or morphing figures, equipment stable, no text"
+  },
+  {
+   "id": "V4-017-v1",
+   "sha256": "776a7cd78b2b3e149f206e29d488a8534f1e4c1c82f69dff8d8e12be7f53236b",
+   "result": "PASS",
+   "note": "motion coherent, no duplicated or morphing figures, equipment stable, no text"
+  },
+  {
+   "id": "V4-049-v1",
+   "sha256": "00048f8d95990809f5e3e4353bd971d9ba520db7241678b0581f7a60ab0dc549",
+   "result": "PASS",
+   "note": "motion coherent, no duplicated or morphing figures, equipment stable, no text"
+  },
+  {
+   "id": "V4-053-v1",
+   "sha256": "87ccd94de7efa1b9ce41d0e467f7ea7600fde6253f9a9b582d9cc382861f7c52",
+   "result": "PASS",
+   "note": "motion coherent, no duplicated or morphing figures, equipment stable, no text"
+  },
+  {
+   "id": "V4-054-v1",
+   "sha256": "97ca424237621bcf29bb229c73a6cc9617cf182f68a1f8ba8f3dcdc1061d8eb5",
+   "result": "PASS",
+   "note": "motion coherent, no duplicated or morphing figures, equipment stable, no text"
+  },
+  {
+   "id": "V4-055-v1",
+   "sha256": "61bd599612ccbccb3eb36dbec4431a3907021d8ab5f927c13a24dab43a49322e",
+   "result": "FAIL",
+   "note": "arrow flight degrades into a speckled noise texture mid-clip (AI defect); falls back to the approved still with camera motion, no retry spend"
+  },
+  {
+   "id": "V4-060-v1",
+   "sha256": "ecd69992a48846f7e4d37a18d125821bd8f22838a62875ac8fd0c22a06a2a332",
+   "result": "PASS",
+   "note": "motion coherent, no duplicated or morphing figures, equipment stable, no text"
+  },
+  {
+   "id": "V4-062-v1",
+   "sha256": "9ffd0415eaa72cdd8cc8dae73f9501a9952f8ce7b664e4264c7640df7648ab1c",
+   "result": "PASS",
+   "note": "motion coherent, no duplicated or morphing figures, equipment stable, no text"
+  },
+  {
+   "id": "V4-073-v1",
+   "sha256": "710888e1893bdb132a51358f4155754d0b53c8141c3a435e61b4995d24c2d4cd",
+   "result": "PASS",
+   "note": "motion coherent, no duplicated or morphing figures, equipment stable, no text"
+  },
+  {
+   "id": "V4-078-v1",
+   "sha256": "15c1461bb0681c038041a1f533c7032d833d5a0327dc97f78d8837627c4585bb",
+   "result": "PASS",
+   "note": "motion coherent, no duplicated or morphing figures, equipment stable, no text"
+  }
+ ],
+ "releaseClaims": [
+  {
+   "key": "video-V4-076-v1",
+   "note": "Runway task ended without video (provider_no_output); no asset delivered, failed tasks are refunded; one simplified retry as v2 per policy R08"
+  }
+ ]
 }
