@@ -28,31 +28,35 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx tsx scripts/video-004/review-route-check.ts
-      - name: Where is the route deployed (Vercel API)
+      - name: Where is the route deployed (Vercel API) + production smoke
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          SB: ${{ secrets.SUPABASE_URL }}
           TEAM: atomivid
           PROJ: prj_d2APVqG7KqQ7ZqZbUVaF50UUwOZQ
           SHA: ${{ github.sha }}
         run: |
           set -u
-          probe() { local label="$1" url="$2"; shift 2; st=$(curl -sS -m 40 -o body.txt -D h.txt -w "%{http_code} redirect=%{redirect_url}" "$@" "$url"); echo "[$label] $st"; grep -i -E "^(content-type|location|x-vercel-error|x-matched-path|cache-control):" h.txt | tr -d '\r' | sed 's/^/    /'; }
+          probe() { local label="$1" url="$2"; shift 2; st=$(curl -sS -m 40 -o body.txt -D h.txt -w "%{http_code} redirect=%{redirect_url} size=%{size_download}" "$@" "$url"); echo "[$label] $st"; grep -i -E "^(content-type|location|x-vercel-error|x-matched-path|cache-control|x-robots-tag|accept-ranges|content-range):" h.txt | tr -d '\r' | sed 's/^/    /'; }
           H=(); if [ -n "$BYPASS" ]; then H=(-H "x-vercel-protection-bypass: $BYPASS"); echo "protection bypass header: present"; else echo "protection bypass header: ABSENT"; fi
           if [ -n "$VERCEL_TOKEN" ]; then
             api() { curl -sS -m 30 -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com$1"; }
             echo "production branch: $(api "/v9/projects/$PROJ?teamId=$TEAM" | jq -r '.link.productionBranch // "unknown"')"
             api "/v6/deployments?projectId=$PROJ&teamId=$TEAM&target=production&limit=1" | jq -c '.deployments[0] | {url, state: .readyState, ref: .meta.githubCommitRef, sha: .meta.githubCommitSha[0:7], created: (.created/1000|todate)}' | sed 's/^/production latest: /'
-            api "/v6/deployments?projectId=$PROJ&teamId=$TEAM&target=preview&sha=$SHA&limit=1" | jq -c '.deployments[0] | {url, state: .readyState, ref: .meta.githubCommitRef}' | sed 's/^/preview for this commit: /'
           else
-            echo "VERCEL_TOKEN absent: deployment metadata not inspected; probing the branch alias instead"
+            echo "VERCEL_TOKEN absent: deployment metadata not inspected"
           fi
-          # Vercel git-branch alias: <project>-git-<branch with / -> ->-<team>.vercel.app
-          BR="https://atomivid-git-claude-production-intelligence-v1-atomivid.vercel.app"
-          probe "branch preview / (no bypass)" "$BR/"
-          probe "branch preview /r/video-004-pron-gate (bypass, no session)" "$BR/r/video-004-pron-gate" "${H[@]}"
-          probe "branch preview /r/unknown-slug (bypass)" "$BR/r/unknown-slug" "${H[@]}"
-          probe "branch preview HEAD /r/video-004-pron-gate (bypass)" "$BR/r/video-004-pron-gate" -I "${H[@]}"
-          probe "production /r/video-004-pron-gate" "https://atomivid.vercel.app/r/video-004-pron-gate"
-          probe "production /" "https://atomivid.vercel.app/"
+          echo "--- production smoke (atomivid.vercel.app)"
+          P="https://atomivid.vercel.app"
+          probe "production /r/video-004-pron-gate (no session)" "$P/r/video-004-pron-gate"
+          probe "production /r/video-004-pron-gate (no session, follow)" "$P/r/video-004-pron-gate" -L
+          probe "production HEAD /r/video-004-pron-gate (no session)" "$P/r/video-004-pron-gate" -I
+          probe "production /r/unknown-slug" "$P/r/unknown-slug"
+          probe "production /r/video-004-pron-gate Range (no session)" "$P/r/video-004-pron-gate" -H "Range: bytes=0-99"
+          probe "production /" "$P/"
+          echo "--- client-side leak check: no supabase host, token or key in any production response"
+          leak=0; for u in "$P/r/video-004-pron-gate" "$P/r/unknown-slug"; do curl -sS -m 40 -D h.txt -o body.txt "$u"; if grep -qiE "token=|supabase\.co|eyJ[A-Za-z0-9_-]{20,}" h.txt body.txt; then echo "LEAK in $u"; leak=1; fi; done; [ $leak = 0 ] && echo "no signed URL, token, key or storage host in production responses"
+          echo "--- bucket still private (anonymous GET on the public path)"
+          st=$(curl -sS -m 30 -o body.txt -w "%{http_code}" "$SB/storage/v1/object/public/videos/video-004-thermopylae/v3/pron-gate/pron-gate-review.mp3"); echo "[public-path] $st $(head -c 120 body.txt | tr -d '\n')"
           rm -f body.txt h.txt
