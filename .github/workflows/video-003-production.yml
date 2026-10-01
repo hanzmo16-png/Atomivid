@@ -33,7 +33,7 @@ jobs:
           const fs = require('node:fs');
           const r = JSON.parse(fs.readFileSync('content/productions/video-003-lake-nyos/production-request.json', 'utf8'));
           const freeze = JSON.parse(fs.readFileSync('content/productions/video-003-lake-nyos/freeze/freeze.json', 'utf8'));
-          const stages = ['status','narrate','validate-narration','images','stock','graphics','review','animate','render'];
+          const stages = ['status','narrate','validate-narration','images','stock','graphics','review','animate','render','watch-check'];
           if (r.projectId !== 'video-003-lake-nyos' || r.capUsd !== 32 || r.freezeHash !== freeze.freezeHash || r.freezeHash !== 'ed78405b8726e16aa7e890247085b6a045706f5b333ba06b0d4c1443b9aaed57') throw Error('Request is not for the authorized freeze');
           if (!r.requestId || !String(r.stage).split(',').every(s => stages.includes(s))) throw Error('Invalid stage list');
           const paid = String(r.stage).split(',').some(s => ['narrate','images','animate'].includes(s));

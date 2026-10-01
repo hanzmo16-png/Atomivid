@@ -258,6 +258,20 @@ async function animate(plan: Plan) {
   if (errors.length) throw errors[0];
 }
 
+// ---------------- watch-check (free): fetch the signed playlist and segments anonymously, as a phone would ----------------
+async function watchCheck() {
+  const {bucket: b} = await import('./shared');
+  const {data, error} = await b.createSignedUrl(`${P}/watch/hls/index.m3u8`, 7 * 86400); if (error || !data) throw Error('Sign failed');
+  const r = await fetch(data.signedUrl); const text = await r.text(); const segs = text.split('\n').filter((l) => l.startsWith('http'));
+  if (!r.ok || !text.startsWith('#EXTM3U') || !segs.length) throw Error(`Watch playlist not playable anonymously: HTTP ${r.status}`);
+  const probe = async (u: string) => { const x = await fetch(u); const buf = Buffer.from(await x.arrayBuffer()); return {status: x.status, bytes: buf.length, mpegTs: buf[0] === 0x47}; };
+  const first = await probe(segs[0]), last = await probe(segs[segs.length - 1]);
+  const seconds = text.split('\n').filter((l) => l.startsWith('#EXTINF:')).reduce((a, l) => a + parseFloat(l.slice(8)), 0);
+  const rec = {watchUrl: data.signedUrl, expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(), anonymous: {playlist: r.status, segments: segs.length, first, last, seconds}};
+  if (first.status !== 200 || last.status !== 200 || !first.mpegTs || !last.mpegTs) throw Error('Watch segments not playable anonymously');
+  await fs.writeFile(path.join(out, 'watch-check.json'), JSON.stringify(rec, null, 2)); log('WATCH', rec.anonymous);
+}
+
 // ---------------- status ----------------
 async function status(plan: Plan) {
   const q = XI ? await quota().catch((e) => ({error: String(e)})) : null;
@@ -285,6 +299,7 @@ async function main() {
       else if (s === 'review') await review();
       else if (s === 'animate') await animate(plan);
       else if (s === 'render') { const {render} = await import('./render'); await render(plan); }
+      else if (s === 'watch-check') await watchCheck();
       else await status(plan);
     }
   } finally { await writeLedgerSnapshot(); log('LEDGER', {exposureUsd: exposure(), committedUsd: committedUsd()}); }
