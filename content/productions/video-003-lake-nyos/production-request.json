@@ -2,10 +2,10 @@
   "projectId": "video-003-lake-nyos",
   "freezeHash": "ed78405b8726e16aa7e890247085b6a045706f5b333ba06b0d4c1443b9aaed57",
   "capUsd": 32,
-  "requestId": "16-bed-check-3",
-  "stage": "render",
+  "requestId": "17-final-render-5",
+  "stage": "review,render",
   "draft": false,
   "confirm": "",
   "shots": [],
-  "bedOnly": true
+  "bedOnly": false
 }
