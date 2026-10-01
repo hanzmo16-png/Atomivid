@@ -2,13 +2,15 @@
  "stock": [
   {
    "id": "V3-003",
-   "result": "FAIL",
-   "note": "daytime herd at a fence; the beat is night silence"
+   "result": "REUSE",
+   "from": "V3-006",
+   "inPoint": 4,
+   "note": "three searches failed (snow, daytime herd, daytime fence); reuses the approved misty cattle clip at a later in-point"
   },
   {
    "id": "V3-004",
-   "result": "FAIL",
-   "note": "car headlights on the road; no vehicles wanted"
+   "result": "STILL",
+   "note": "three searches failed (daylight, car, gas station); generated still of the empty night road"
   },
   {
    "id": "V3-024",
@@ -22,13 +24,13 @@
   },
   {
    "id": "V3-038",
-   "result": "FAIL",
-   "note": "glass of beer; needs a sealed soda bottle"
+   "result": "STILL",
+   "note": "stock showed cans, beer and a trademarked bottle; generated unbranded bottle still"
   },
   {
    "id": "V3-039",
-   "result": "FAIL",
-   "note": "can again; needs a bottle opening"
+   "result": "STILL",
+   "note": "stock showed cans and a trademarked bottle; generated unbranded bottle-opening still"
   },
   {
    "id": "V3-057",
@@ -47,8 +49,8 @@
   },
   {
    "id": "V3-084",
-   "result": "FAIL",
-   "note": "scuba diver on a reef, not sediment cores"
+   "result": "STILL",
+   "note": "stock showed mud flats, a diver and a drill press; generated sediment-core still"
   },
   {
    "id": "V3-001",
@@ -430,5 +432,11 @@
    "result": "PASS",
    "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
   }
+ ],
+ "stillFallback": [
+  "V3-004",
+  "V3-038",
+  "V3-039",
+  "V3-084"
  ]
 }

@@ -32,6 +32,10 @@ export const IMAGE_MAX_USD = 0.30;
 export const STYLE = 'Photorealistic documentary cinematography, 16:9 widescreen, natural light, restrained cinematic colour grade, fine film grain, shallow haze. Setting: the volcanic highlands of north-west Cameroon (green grassy hills, crater lakes with steep walls, red laterite soil, thatched and tin-roof villages). Absolutely no text, letters, captions, logos or watermarks. No people in frame unless the description says so; never any bodies, victims, injured people or animals in distress. Single frame, not a collage.';
 export const STILL_NOTES: Record<string, string> = {
   'V3-005': 'Wide, empty, quiet; birds as tiny specks; no figures.',
+  'V3-004': 'Night: an empty dirt road between thatched huts, wind moving the grass, faint moonlight; nobody, no vehicles.',
+  'V3-038': 'Macro: a sealed plain glass bottle of sparkling water, condensation beading, cap on, no label, no bubbles visible, dark background.',
+  'V3-039': 'Macro: the same plain glass bottle just opened, a burst of fizz and bubbles rushing up the neck, no label, dark background.',
+  'V3-084': 'Sediment core sections laid in a row on a lab table, layered dark and light mud bands, soft daylight, no labels or text.',
   'V3-007': 'Vast scale; valleys recede toward a small lake in the distance.',
   'V3-009': 'Single lantern on a post, fog; nobody present.',
   'V3-011': 'Clean, serene; one ring of ripples centred; soft dawn light.',
