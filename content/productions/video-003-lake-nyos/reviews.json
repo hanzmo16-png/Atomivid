@@ -1,0 +1,174 @@
+{
+ "stock": [
+  {
+   "id": "V3-003",
+   "result": "FAIL",
+   "note": "cattle in snow; wrong climate"
+  },
+  {
+   "id": "V3-004",
+   "result": "FAIL",
+   "note": "daylight road; the beat is night"
+  },
+  {
+   "id": "V3-024",
+   "result": "FAIL",
+   "note": "a person stands in the doorway; settlements must read empty"
+  },
+  {
+   "id": "V3-026",
+   "result": "FAIL",
+   "note": "fire is burning; the line says it had gone cold"
+  },
+  {
+   "id": "V3-038",
+   "result": "FAIL",
+   "note": "aluminium can; narration says bottle"
+  },
+  {
+   "id": "V3-039",
+   "result": "FAIL",
+   "note": "can top; narration says bottle"
+  },
+  {
+   "id": "V3-057",
+   "result": "FAIL",
+   "note": "a figure stands at the shore; no people wanted"
+  },
+  {
+   "id": "V3-070",
+   "result": "FAIL",
+   "note": "rusty steel channel; needs concrete dam works"
+  },
+  {
+   "id": "V3-074",
+   "result": "FAIL",
+   "note": "ocean coast with surf; Kivu is a lake"
+  },
+  {
+   "id": "V3-084",
+   "result": "FAIL",
+   "note": "mud flat, not sediment cores"
+  },
+  {
+   "id": "V3-001",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-006",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-010",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-012",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-017",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-018",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-019",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-021",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-027",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-030",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-031",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-032",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-042",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-044",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-058",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-060",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-071",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-073",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-079",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-080",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-082",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-085",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-087",
+   "result": "PASS",
+   "note": "matches the shot"
+  },
+  {
+   "id": "V3-092",
+   "result": "PASS",
+   "note": "matches the shot"
+  }
+ ]
+}

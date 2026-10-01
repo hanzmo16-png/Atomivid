@@ -2,9 +2,20 @@
   "projectId": "video-003-lake-nyos",
   "freezeHash": "ed78405b8726e16aa7e890247085b6a045706f5b333ba06b0d4c1443b9aaed57",
   "capUsd": 32,
-  "requestId": "04-images",
-  "stage": "images",
+  "requestId": "05-stock-replacements",
+  "stage": "review,stock",
   "draft": false,
-  "confirm": "SPEND",
-  "shots": []
+  "confirm": "",
+  "shots": [
+    "V3-003",
+    "V3-004",
+    "V3-024",
+    "V3-026",
+    "V3-038",
+    "V3-039",
+    "V3-057",
+    "V3-070",
+    "V3-074",
+    "V3-084"
+  ]
 }

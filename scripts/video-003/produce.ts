@@ -164,12 +164,14 @@ async function stock(plan: Plan) {
   const targets = only(plan.shots.filter((s) => s.provider === 'pexels'));
   const tiles: {image: Buffer; label: string}[] = []; const missing: string[] = [];
   for (const s of targets) {
-    const recPath = `${P}/stock/${s.id}.json`; const prior = await readJsonStore<{file: string; kind: string}>(recPath);
+    const recPath = `${P}/stock/${s.id}.json`; let prior = await readJsonStore<{file: string; kind: string; sourceId: string; rejected?: string[]}>(recPath);
+    const rv = await readJsonStore<{result: string; note: string}>(`${P}/reviews/stock-${s.id}.json`); const rejected = new Set(prior?.rejected ?? []);
+    if (prior && rv?.result === 'FAIL' && !rejected.has(prior.sourceId)) { rejected.add(prior.sourceId); log('STOCK_RESEARCH', {id: s.id, rejected: [...rejected], note: rv.note}); prior = null; }
     if (prior) { const b = await read(prior.file); if (b) { const f = path.join(out, `stock-${s.id}.${prior.kind === 'photo' ? 'jpg' : 'mp4'}`); await fs.writeFile(f, b); tiles.push({image: prior.kind === 'photo' ? b : await frameAt(f, 1, 480), label: `${s.id} ${s.purpose} (cached)`}); continue; } }
     const queries = STOCK_QUERIES[s.id] || [s.visual]; let chosen: (FootageCandidateRaw & {query: string}) | null = null; const tried: {query: string; candidates: number}[] = [];
     for (const q of queries) {
-      const c = await searchSceneVideos(q, s.seconds + 1, 'landscape').catch((e) => { log('STOCK_SEARCH_ERROR', {id: s.id, q, error: String(e)}); return [] as FootageCandidateRaw[]; });
-      tried.push({query: q, candidates: c.length});
+      let c = await searchSceneVideos(q, s.seconds + 1, 'landscape').catch((e) => { log('STOCK_SEARCH_ERROR', {id: s.id, q, error: String(e)}); return [] as FootageCandidateRaw[]; });
+      c = c.filter((x) => !rejected.has(x.sourceId)); tried.push({query: q, candidates: c.length});
       const good = c.filter((x) => (x.width ?? 0) >= 1920 && (x.durationSeconds ?? 0) >= s.seconds + 1 && (x.durationSeconds ?? 0) <= 90).sort((a, b) => (a.durationSeconds ?? 0) - (b.durationSeconds ?? 0));
       const pick = good[0] ?? c.filter((x) => (x.width ?? 0) >= 1280).sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0];
       if (pick) { chosen = {...pick, query: q}; break; }
@@ -180,7 +182,8 @@ async function stock(plan: Plan) {
       const buf = Buffer.from(await r.arrayBuffer()); const f = path.join(out, `stock-${s.id}.mp4`); await fs.writeFile(f, buf);
       const pr = await probe(f); if (!pr.width || pr.duration < s.seconds) { missing.push(s.id); log('STOCK_REJECT', {id: s.id, probe: pr}); continue; }
       const file = `${P}/stock/${s.id}.mp4`; await put(file, buf, 'video/mp4');
-      await putJson(recPath, {id: s.id, kind: 'video', file, sourceId: chosen.sourceId, pageUrl: chosen.pageUrl, photographer: chosen.photographer, width: pr.width, height: pr.height, seconds: pr.duration, query: chosen.query, license: 'Pexels License (free for commercial use, no attribution required)', sha256: sha(buf), at: new Date().toISOString()});
+      await putJson(`${P}/reviews/stock-${s.id}.json`, {id: s.id, result: 'PENDING', note: 'replacement awaiting review', at: new Date().toISOString()});
+      await putJson(recPath, {id: s.id, kind: 'video', file, sourceId: chosen.sourceId, rejected: [...rejected], pageUrl: chosen.pageUrl, photographer: chosen.photographer, width: pr.width, height: pr.height, seconds: pr.duration, query: chosen.query, license: 'Pexels License (free for commercial use, no attribution required)', sha256: sha(buf), at: new Date().toISOString()});
       tiles.push({image: await frameAt(f, Math.min(1, pr.duration / 2), 480), label: `${s.id} ${s.purpose} · ${chosen.sourceId} ${pr.width}x${pr.height} ${pr.duration.toFixed(1)}s`});
       log('STOCK', {id: s.id, sourceId: chosen.sourceId, width: pr.width, seconds: pr.duration, query: chosen.query});
     } else {
