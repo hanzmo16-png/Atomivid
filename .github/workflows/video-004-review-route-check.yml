@@ -27,7 +27,7 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: npx tsx scripts/video-004/review-route-check.ts
+        run: npx tsx scripts/video-004/review-route-check.ts && REVIEW_SLUG=video-004-v3-review npx tsx scripts/video-004/review-route-check.ts
       - name: Where is the route deployed (Vercel API) + production smoke
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -53,6 +53,8 @@ jobs:
           probe "production /r/video-004-pron-gate (no session, follow)" "$P/r/video-004-pron-gate" -L
           probe "production HEAD /r/video-004-pron-gate (no session)" "$P/r/video-004-pron-gate" -I
           probe "production /r/unknown-slug" "$P/r/unknown-slug"
+          probe "production /r/video-004-v3-review (no session)" "$P/r/video-004-v3-review"
+          probe "production /r/video-004-v3-review Range (no session)" "$P/r/video-004-v3-review" -H "Range: bytes=0-99"
           probe "production /r/video-004-pron-gate Range (no session)" "$P/r/video-004-pron-gate" -H "Range: bytes=0-99"
           probe "production /" "$P/"
           echo "--- client-side leak check: no supabase host, token or key in any production response"
