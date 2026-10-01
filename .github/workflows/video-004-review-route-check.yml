@@ -1,0 +1,55 @@
+name: Video 004 short review route check (read-only, zero spend)
+
+# Verifies the app-controlled review route (/r/<slug>) end to end without credentials in chat:
+#  1. upstream path with the service key: full GET, Range GET (200/206, audio/mpeg, bytes, sha256);
+#  2. where the route is deployed: Vercel production branch + latest preview of this commit (API, token never printed);
+#  3. HTTP probes of /r/video-004-pron-gate on the preview (bypass header) and on production:
+#     expected 307 -> /login when the route is deployed (owner login required), 404 where it is not.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/production-intelligence-v1]
+    paths: [.github/workflows/video-004-review-route-check.yml, scripts/video-004/review-route-check.ts, src/lib/delivery/review-stream.ts, 'src/app/r/**']
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Upstream path (service key, never printed)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/video-004/review-route-check.ts
+      - name: Where is the route deployed (Vercel API)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          TEAM: atomivid
+          PROJ: prj_d2APVqG7KqQ7ZqZbUVaF50UUwOZQ
+          SHA: ${{ github.sha }}
+        run: |
+          set -u
+          if [ -z "$VERCEL_TOKEN" ]; then echo "VERCEL_TOKEN absent: cannot inspect deployments"; exit 0; fi
+          api() { curl -sS -m 30 -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com$1"; }
+          echo "production branch: $(api "/v9/projects/$PROJ?teamId=$TEAM" | jq -r '.link.productionBranch // "unknown"')"
+          api "/v6/deployments?projectId=$PROJ&teamId=$TEAM&target=production&limit=1" | jq -c '.deployments[0] | {url, state: .readyState, ref: .meta.githubCommitRef, sha: .meta.githubCommitSha[0:7], created: (.created/1000|todate)}' | sed 's/^/production latest: /'
+          PREV=$(api "/v6/deployments?projectId=$PROJ&teamId=$TEAM&target=preview&sha=$SHA&limit=1" | jq -r '.deployments[0] | "\(.url) \(.readyState) \(.meta.githubCommitRef)"')
+          echo "preview for this commit: $PREV"
+          PURL=$(cut -d' ' -f1 <<<"$PREV"); PSTATE=$(cut -d' ' -f2 <<<"$PREV")
+          probe() { local label="$1" url="$2"; shift 2; st=$(curl -sS -m 40 -o body.txt -D h.txt -w "%{http_code} redirect=%{redirect_url}" "$@" "$url"); echo "[$label] $st"; grep -i -E "^(content-type|location|x-vercel-error|x-matched-path|cache-control):" h.txt | tr -d '\r' | sed 's/^/    /'; }
+          if [ -n "$PURL" ] && [ "$PURL" != "null" ]; then
+            if [ "$PSTATE" != "READY" ]; then echo "preview not READY yet ($PSTATE); probing anyway"; fi
+            H=(); [ -n "$BYPASS" ] && H=(-H "x-vercel-protection-bypass: $BYPASS")
+            probe "preview /r/video-004-pron-gate (no session)" "https://$PURL/r/video-004-pron-gate" "${H[@]}"
+            probe "preview /r/unknown-slug" "https://$PURL/r/unknown-slug" "${H[@]}"
+          fi
+          probe "production /r/video-004-pron-gate" "https://atomivid.vercel.app/r/video-004-pron-gate"
+          rm -f body.txt h.txt

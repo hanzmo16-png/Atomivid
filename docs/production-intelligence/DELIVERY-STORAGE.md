@@ -20,3 +20,11 @@ Reuses: `output-policy.ts` (`configuredStorageMaxBytes`, size estimates, error c
 
 ## Not implemented yet
 Retention sweeper (deliberately none: nothing is deleted in V1); wiring `delivery_assets` writes into render stages.
+
+## Review hand-off to a phone (RC-001, 2026-10-01)
+
+A long signed URL that passes from a runner is a RUNNER_PASS, not a DELIVERY_PASS
+(see REALITY-CHECK-V2.md). Reviews meant for the user's phone go through the app's short
+route `/r/<slug>` (owner login, server-side fetch with the service key, Range forwarded, forced
+Content-Type, bucket private, no token in the URL). Allowlist: `REVIEW_OBJECTS` in
+`src/lib/delivery/review-stream.ts`.
