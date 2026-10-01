@@ -115,7 +115,8 @@ async function validateNarration(plan: Plan) {
 
 // ---------------- OpenAI stills ----------------
 async function images(plan: Plan) {
-  const targets = only(plan.shots.filter((s) => s.provider === 'openai' || s.generative));
+  const fallback = new Set(((await readJson<{stillFallback?: string[]}>(`${DIR}/reviews.json`).catch(() => ({}))).stillFallback) || []);
+  const targets = only(plan.shots.filter((s) => s.provider === 'openai' || s.generative || fallback.has(s.id)));
   const sharp = (await import('sharp')).default;
   const groups = new Map<string, Shot[]>(); for (const s of targets) if (s.continuity) groups.set(s.continuity, [...(groups.get(s.continuity) || []), s]);
   const refOf = async (s: Shot): Promise<{id: string; buf: Buffer} | null> => {
@@ -217,7 +218,7 @@ async function graphics(plan: Plan) {
 }
 
 // ---------------- review verdicts (recorded from the repo file) ----------------
-type Review = {stills?: {id: string; sha256: string; result: 'PASS' | 'FAIL'; note: string; reasons?: string[]}[]; clips?: {id: string; sha256: string; result: 'PASS' | 'FAIL'; note: string; reasons?: string[]; usableUntil?: number}[]; stock?: {id: string; result: 'PASS' | 'FAIL'; note: string}[]};
+type Review = {stills?: {id: string; sha256: string; result: 'PASS' | 'FAIL'; note: string; reasons?: string[]}[]; clips?: {id: string; sha256: string; result: 'PASS' | 'FAIL'; note: string; reasons?: string[]; usableUntil?: number}[]; stock?: {id: string; result: 'PASS' | 'FAIL' | 'REUSE' | 'STILL'; note: string; from?: string; inPoint?: number}[]; stillFallback?: string[]};
 async function review() {
   const rv = await readJson<Review>(`${DIR}/reviews.json`).catch(() => ({} as Review));
   for (const x of rv.stills || []) { const b = await read(stillPath(x.id)); if (!b || sha(b) !== x.sha256) throw Error('Still checksum mismatch ' + x.id); await putJson(`${P}/reviews/still-${x.id}.json`, {...x, reviewer: 'assistant visual inspection', at: new Date().toISOString()}); const t = await readJsonStore<Record<string, unknown>>(`${P}/telemetry/image-${x.id}-v1.json`); if (t) { t.qa = {result: x.result, notes: x.note, reasons: x.reasons}; await putJson(`${P}/telemetry/image-${x.id}-v1.json`, t); } }

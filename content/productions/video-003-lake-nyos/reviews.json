@@ -3,52 +3,52 @@
   {
    "id": "V3-003",
    "result": "FAIL",
-   "note": "cattle in snow; wrong climate"
+   "note": "daytime herd at a fence; the beat is night silence"
   },
   {
    "id": "V3-004",
    "result": "FAIL",
-   "note": "daylight road; the beat is night"
+   "note": "car headlights on the road; no vehicles wanted"
   },
   {
    "id": "V3-024",
-   "result": "FAIL",
-   "note": "a person stands in the doorway; settlements must read empty"
+   "result": "PASS",
+   "note": "empty interior, light rays, no people"
   },
   {
    "id": "V3-026",
-   "result": "FAIL",
-   "note": "fire is burning; the line says it had gone cold"
+   "result": "PASS",
+   "note": "ashes and thin smoke, fire out"
   },
   {
    "id": "V3-038",
    "result": "FAIL",
-   "note": "aluminium can; narration says bottle"
+   "note": "glass of beer; needs a sealed soda bottle"
   },
   {
    "id": "V3-039",
    "result": "FAIL",
-   "note": "can top; narration says bottle"
+   "note": "can again; needs a bottle opening"
   },
   {
    "id": "V3-057",
-   "result": "FAIL",
-   "note": "a figure stands at the shore; no people wanted"
+   "result": "PASS",
+   "note": "calm dusk lake, no people"
   },
   {
    "id": "V3-070",
-   "result": "FAIL",
-   "note": "rusty steel channel; needs concrete dam works"
+   "result": "PASS",
+   "note": "concrete dam wall"
   },
   {
    "id": "V3-074",
-   "result": "FAIL",
-   "note": "ocean coast with surf; Kivu is a lake"
+   "result": "PASS",
+   "note": "lakeside city at dusk from the air"
   },
   {
    "id": "V3-084",
    "result": "FAIL",
-   "note": "mud flat, not sediment cores"
+   "note": "scuba diver on a reef, not sediment cores"
   },
   {
    "id": "V3-001",
@@ -169,6 +169,266 @@
    "id": "V3-092",
    "result": "PASS",
    "note": "matches the shot"
+  }
+ ],
+ "stills": [
+  {
+   "id": "V3-002",
+   "sha256": "3a31ffddd06e014b3cf862830b570dd2a7bcd40fcb38e6018201e2523d9b563c",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-005",
+   "sha256": "69fdc083e387b1ffc4d9f943e4d7f8ded776414fbc76f6811ba3594c9b4a6f5e",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-007",
+   "sha256": "d2a92c974cc22d75b92a435d8bf108205335dd061388b948fe2a4b0ce06f7184",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-008",
+   "sha256": "36e77cf2ec1131ce3fc6c5ca2c01b52914e9b5561bfc3e56deb12c621e2836c8",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-009",
+   "sha256": "7829ab3ded11667d3ebcbb72f228b286a00788cdbdfb5f1e81d109b949aec6ab",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-011",
+   "sha256": "b1b5f5226f6f4411e7206bc5409618b6b3c4461e82e49bfcfcd903457d93039b",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-014",
+   "sha256": "f82b487b277c34b526600a9ff5065777c23006df094a84d2f9bbf7b796ac514e",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-016",
+   "sha256": "6797008cbe21cc6181b67f1edaa016a9e04742a179afe6bb02b98c33d7b59b41",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-020",
+   "sha256": "1a3db0e93176c6f33d5db7f530384a56d5aee19d13e5c1816cd505b4e2303f8a",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-022",
+   "sha256": "e9dce518b3058615d8e81ff92b4c72ab2aaf7fc1c38f50a09c72efb75969a4b6",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-023",
+   "sha256": "541f2adb1210cff0a832c209b86bbb65a1cf46ea88b82ede991064d9559357bc",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-025",
+   "sha256": "11ccf19d83efe05db7289a82eedbcf714db17ade15865c513d51b75695773f1c",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-029",
+   "sha256": "57a8ee2299582bd13b34bef9209fdd1d4686f8abfa3ff892e280b7094b862541",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-033",
+   "sha256": "8850e8bab9af00749844b80350a9d908ce9048d8b00e7bb0b1a8176012a776c2",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-034",
+   "sha256": "77027425506dac61993869331f8ffe421ad477ac806fd1c635c4f8b7ad566d14",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-035",
+   "sha256": "b53414d4b87a461732fee5ea5ffea209922c743e23fba96b78ccba9536e7ba0f",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-037",
+   "sha256": "f64de4225c4efa7057a9333904e6d0308fc95419886116af2290bd449cf69727",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-041",
+   "sha256": "da36444ced9ec7f8045f0cb108dec019f56e292ef47d7a253150ee4dd77c11b8",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-043",
+   "sha256": "bcea8d297d4c0a2890418947588a77522bd2e8cdca3bd06035b2d35bfb76d236",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-046",
+   "sha256": "fceb7d61eeb153e29de58a7b2fbe40021b5c67d46683c1ef7156bbad8b527886",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-047",
+   "sha256": "a9ff9395a8ad9c966b063a73c6a98902f12bdfc37f70d5d211b30aff0d2061bb",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-048",
+   "sha256": "ca67eac385e8afc577ad258d9c6e61e11a39273ac89416c7fe81e538ad4403af",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-049",
+   "sha256": "a3ea778b15e9346d638eaf1a940daf39ff0941d5c7db21afd44479968a406fe0",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-050",
+   "sha256": "5e8c48a7f0dc37b5d5a720ff52e22509ad96ae92d85e46943f3afd236f0a1b43",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-051",
+   "sha256": "cf91697cbd594e03423183cfa09701361a24b79fedf89d09142133165f0dbc49",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-052",
+   "sha256": "16ccfc01f6e7e8ac6644f385ed59931333d8fe684534e73dfba560e2043ccf94",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-053",
+   "sha256": "0755a53a80aff6ee34414c2e6d01a305f7fd9520ab7ac3b88cd42d2e3b73d881",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-054",
+   "sha256": "443583038c47a6e3ca3c989ce67ee71d8f857cbe5d15aa7d44b632c7bb01d8e6",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-055",
+   "sha256": "bcd33437efa450873dc32b22ccfbafbca9287f0c97a0d054f50010ea3ef0637b",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-056",
+   "sha256": "17b2ba5f97a1f66e5d1e1ba598bde3532270d8ea75e78a2718b915693768d713",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-061",
+   "sha256": "109fb1155840be0c82f794a26f7f6e923e027f38b48ed58ac42d63e6d6c6e4e9",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-063",
+   "sha256": "0c6bfae664a0f2f0d7d0d1cee448481ad414ada8e23cd03c89bb7d4eab8a0d62",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-064",
+   "sha256": "cc311dbe746f243429ebc910471fe055c43f064403c7105106477e0514e52a60",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-065",
+   "sha256": "5df5feda0ca99b3ab39e9de73ef48648c15d0edefe17be6ad7ea614af1c36a01",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-067",
+   "sha256": "7eeb919762c04a0205d716b485b457a78c8461d2257a5ce618c169f34d81f59e",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-068",
+   "sha256": "5d32dee2335dc4cd9df97e1c0603c7f98f167b3acd59315205ee8dd59ee0f175",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-072",
+   "sha256": "16e0090197c554e30b70d20cdb1bff65773a9ddf8b33a0e5ab79e1be41bded47",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-076",
+   "sha256": "fde60dcfec24d8eed78b1fcf89672fd28c59f0df21eb3cb58afdb458d4293d3d",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-077",
+   "sha256": "ca144ece9a635bc359000caa11759df6540cda506c0116fe9284ba145854aed6",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-086",
+   "sha256": "f49991cbf6bb55ee543a597a9714e87c3f947ba92f8e297231db2c48cc2ee8e0",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-089",
+   "sha256": "3ec4b1cd3cd4d1c6029886566a579ca498bcbecd948c1271047345172fd36bb2",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-090",
+   "sha256": "5efef36de1657488657e19c31da210aa32f7fb948c3de2626b2acee098c90833",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-091",
+   "sha256": "3862bef0bd3633befff668a8043e9cbe37a44e1537e1035ad612422e13af76eb",
+   "result": "PASS",
+   "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
   }
  ]
 }
