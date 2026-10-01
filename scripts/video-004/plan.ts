@@ -14,7 +14,7 @@ export const V2 = process.env.V4_V2 === 'true';
 export const HARD_CAP_USD = V2 ? 19 : 20;
 export const EXPOSURE_CEILING_USD = V2 ? 19 : 20;
 export const EXPECTED_USD = V2 ? 17.65 : 11.23;
-export const PROVIDER_CEILING_USD: Record<string, number> = { elevenlabs: 5, openai: 10, runway: 8, pexels: 0 };
+export const PROVIDER_CEILING_USD: Record<string, number> = { elevenlabs: 5, openai: 10, runway: V2 ? 12 : 8, pexels: 0 }; // V2: 5.75 historic + 5.50 scenario B + retry margin, under the cumulative cap of 19
 export const GENERATIVE_COUNT = 14;
 
 export const PROJECT = 'video-004-thermopylae';
