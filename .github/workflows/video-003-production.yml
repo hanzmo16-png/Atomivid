@@ -38,7 +38,7 @@ jobs:
           if (!r.requestId || !String(r.stage).split(',').every(s => stages.includes(s))) throw Error('Invalid stage list');
           const paid = String(r.stage).split(',').some(s => ['narrate','images','animate'].includes(s));
           if (paid && r.confirm !== 'SPEND') throw Error('Paid stage without confirm=SPEND');
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `stage=${r.stage}\nshots=${(r.shots || []).join(',')}\ndraft=${r.draft === true}\npaid=${paid}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `stage=${r.stage}\nshots=${(r.shots || []).join(',')}\ndraft=${r.draft === true}\npaid=${paid}\nbedonly=${r.bedOnly === true}\n`);
           NODE
       - name: Run stages
         run: npx tsx scripts/video-003/produce.ts
@@ -46,6 +46,7 @@ jobs:
           V3_STAGE: ${{ steps.request.outputs.stage }}
           V3_SHOTS: ${{ steps.request.outputs.shots }}
           V3_DRAFT: ${{ steps.request.outputs.draft }}
+          V3_BED_ONLY: ${{ steps.request.outputs.bedonly }}
           V3_ALLOW_PAID: ${{ steps.request.outputs.paid }}
           V3_OUT: ${{ runner.temp }}/video-003
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

@@ -72,9 +72,11 @@ export async function render(plan: Plan) {
     cache.set(s.id, src); return src;
   }
 
-  // 4) Picture segments at exact frame counts.
+  // 4) Picture segments at exact frame counts (skipped in bed-only diagnostics).
+  const bedOnly = process.env.V3_BED_ONLY === 'true';
   const segs: string[] = []; const report: Record<string, unknown>[] = []; let panToggle = 0;
   for (const [i, s] of slots.entries()) {
+    if (bedOnly) break;
     const src = await resolve(s); const seg = path.join(work, `seg-${String(i).padStart(3, '0')}.mp4`); const edit = s.frames / FPS;
     let args: string[]; let inPoint = 0, speed = 1, frozen = 0, move: Move | 'push-in-soft' | 'cut' = 'cut';
     const tail = ',setsar=1,format=yuv420p';
@@ -94,30 +96,46 @@ export async function render(plan: Plan) {
     segs.push(seg);
     report.push({slot: i, id: s.id, planShotId: s.planShotId, scene: s.scene, purpose: s.purpose, kind: src.kind, method: s.method, provider: s.provider, start: +(s.startFrame / FPS).toFixed(3), seconds: +edit.toFixed(3), frozenPlanSeconds: s.seconds, pause: s.pause, move, inPoint, speed, frozen, origin: src.origin, sha256: src.sha256 ?? null, generative: s.generative});
   }
-  await fs.writeFile(path.join(work, 'concat.txt'), segs.map((f) => `file '${f}'`).join('\n'));
-  const picture = path.join(work, 'picture.mp4'); await run('ffmpeg', ['-y', '-f', 'concat', '-safe', '0', '-i', path.join(work, 'concat.txt'), '-c', 'copy', picture]);
+  const picture = path.join(work, 'picture.mp4');
+  if (!bedOnly) { await fs.writeFile(path.join(work, 'concat.txt'), segs.map((f) => `file '${f}'`).join('\n')); await run('ffmpeg', ['-y', '-f', 'concat', '-safe', '0', '-i', path.join(work, 'concat.txt'), '-c', 'copy', picture]); }
 
   // 5) Audio: narration chunks at shot starts, licensed music by scene (ducked), rumble cues, -14 LUFS.
   const inputs: string[] = []; const f: string[] = []; let ni = 0;
   for (const s of slots) { if (!s.chunk.file || s.chunk.seconds <= 0) continue; const d = Math.round((s.startFrame / FPS) * 1000); inputs.push('-ss', s.chunk.offset.toFixed(3), '-t', s.chunk.seconds.toFixed(3), '-i', s.chunk.file); f.push(`[${ni}]aresample=48000,aformat=channel_layouts=stereo,adelay=${d}|${d}[n${ni}]`); ni++; }
   if (ni) f.push(`${Array.from({length: ni}, (_, i) => `[n${i}]`).join('')}amix=inputs=${ni}:normalize=0:duration=longest,apad,atrim=0:${total},asplit[voice][key]`); else f.push(`anullsrc=r=48000:cl=stereo,atrim=0:${total},asplit[voice][key]`);
   const sceneStart = (sc: string) => { const s = slots.find((x) => x.scene === sc); return s ? s.startFrame / FPS : total; };
-  const sections = MUSIC.map(([id, from, to]) => [id, Math.max(0, sceneStart(from) - 3), to ? sceneStart(to) + 3 : total] as [string, number, number]);
+  const sections = MUSIC.map(([id, from, to]) => [id, Math.max(0, sceneStart(from) - 4), to ? sceneStart(to) + 4 : total] as [string, number, number]);
   const mids: string[] = [];
   for (const [j, [id, s0, s1]] of sections.entries()) {
     const {data, error} = await service.storage.from('music-library').download(id + '.mp3'); if (error || !data) throw Error('Missing licensed music ' + id);
     const mf = path.join(work, id + '.mp3'); await fs.writeFile(mf, Buffer.from(await data.arrayBuffer()));
     const len = s1 - s0; const idx = inputs.filter((x) => x === '-i').length; inputs.push('-stream_loop', '-1', '-i', mf);
-    const d = Math.round(s0 * 1000); f.push(`[${idx}]aresample=48000,aformat=channel_layouts=stereo,loudnorm=I=-20:TP=-2:LRA=7,atrim=0:${len.toFixed(3)},asetpts=N/SR/TB,afade=t=in:d=${j ? 3 : 0.5},afade=t=out:st=${Math.max(0, len - (j === sections.length - 1 ? 1.8 : 3)).toFixed(3)}:d=${j === sections.length - 1 ? 1.8 : 3},adelay=${d}|${d}[m${j}]`); mids.push(`[m${j}]`);
+    const d = Math.round(s0 * 1000); f.push(`[${idx}]aresample=48000,aformat=channel_layouts=stereo,dynaudnorm=f=400:g=11:p=0.9:m=12:s=8,atrim=0:${len.toFixed(3)},asetpts=N/SR/TB,afade=t=in:d=${j ? 4 : 0.4}:curve=qsin,afade=t=out:st=${Math.max(0, len - (j === sections.length - 1 ? 1.2 : 4)).toFixed(3)}:d=${j === sections.length - 1 ? 1.2 : 4}:curve=qsin,adelay=${d}|${d}[m${j}]`); mids.push(`[m${j}]`);
   }
-  const drops = slots.filter((s) => MUSIC_DROPS[s.id]).map((s) => { const [o, d] = MUSIC_DROPS[s.id]; const a = s.startFrame / FPS + o; return `(1-0.6*between(t,${a.toFixed(2)},${(a + d).toFixed(2)}))`; });
+  const drops = slots.filter((s) => MUSIC_DROPS[s.id]).map((s) => { const [o, d] = MUSIC_DROPS[s.id]; const a = s.startFrame / FPS + o; return `(1-0.5*between(t,${a.toFixed(2)},${(a + d).toFixed(2)}))`; });
   const dropExpr = drops.length ? `volume='${drops.join('*')}':eval=frame,` : '';
-  f.push(`${mids.join('')}amix=inputs=${mids.length}:normalize=0:duration=longest,apad,atrim=0:${total},${dropExpr}volume=0.35[bed]`);
+  f.push(`${mids.join('')}amix=inputs=${mids.length}:normalize=0:duration=longest,apad,atrim=0:${total},${dropExpr}volume=0.30[bed]`);
   const rumbles = slots.filter((s) => RUMBLE_CUES[s.id]); const rl: string[] = [];
   for (const [k, s] of rumbles.entries()) { const d = RUMBLE_CUES[s.id]; const at = Math.round((s.startFrame / FPS) * 1000); f.push(`anoisesrc=c=brown:r=48000:d=${d}:s=${7 + k},lowpass=f=90,aformat=channel_layouts=stereo,afade=t=in:d=0.8,afade=t=out:st=${(d - 1.5).toFixed(2)}:d=1.5,volume=0.55,adelay=${at}|${at}[r${k}]`); rl.push(`[r${k}]`); }
   const bedIn = rl.length ? (f.push(`[bed]${rl.join('')}amix=inputs=${rl.length + 1}:normalize=0:duration=longest,apad,atrim=0:${total}[bedr]`), '[bedr]') : '[bed]';
   f.push(`${bedIn}[key]sidechaincompress=threshold=0.03:ratio=3:attack=30:release=500[ducked]`, `[voice]volume=0.95[v]`, `[v][ducked]amix=inputs=2:normalize=0:duration=longest,apad,atrim=0:${total}[mix]`);
-  const mix = path.join(work, 'mix.wav'); await run('ffmpeg', ['-y', ...inputs, '-filter_complex', f.join(';'), '-map', '[mix]', '-t', String(total), '-c:a', 'pcm_s16le', mix]);
+  const mix = path.join(work, 'mix.wav');
+  if (bedOnly) {
+    // Export the UNducked bed stem and analyse it for silences below -45 dB lasting 1.5 s.
+    const bedWav = path.join(out, 'bed.wav');
+    const graph = f.join(';').replace(`${bedIn}[key]sidechaincompress`, `${bedIn}asplit[bedX][bedY];[bedX]anull[bedout];[bedY][key]sidechaincompress`);
+    await run('ffmpeg', ['-y', ...inputs, '-filter_complex', graph, '-map', '[bedout]', '-t', String(total), '-c:a', 'pcm_s16le', bedWav]);
+    const det = await run('ffmpeg', ['-i', bedWav, '-af', 'silencedetect=n=-45dB:d=1.5', '-f', 'null', '-']);
+    const sil = [...det.matchAll(/silence_start: ([\d.]+)/g)].map((m) => Number(m[1]));
+    const stats = await run('ffmpeg', ['-i', bedWav, '-af', 'astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-', '-f', 'null', '-']);
+    const rms = [...stats.matchAll(/RMS_level=(-?[\d.]+)/g)].map((m) => Number(m[1])).filter((v) => Number.isFinite(v));
+    const quiet = [...new Set(rms.map((v, i) => [Math.round(i * 1024 / 48000), v] as [number, number]).filter(([, v]) => v < -45).map(([t]) => t))];
+    const sorted = [...rms].sort((a, b) => a - b);
+    await fs.writeFile(path.join(out, 'bed-analysis.json'), JSON.stringify({sections, silences: sil, quietSeconds: quiet, rmsMin: sorted[0], rmsP05: sorted[Math.floor(sorted.length * 0.05)], rmsMedian: sorted[Math.floor(sorted.length / 2)]}, null, 2));
+    log('BED', {silences: sil, quietSeconds: quiet.slice(0, 60), rmsMin: sorted[0], rmsP05: sorted[Math.floor(sorted.length * 0.05)], rmsMedian: sorted[Math.floor(sorted.length / 2)]});
+    return;
+  }
+  await run('ffmpeg', ['-y', ...inputs, '-filter_complex', f.join(';'), '-map', '[mix]', '-t', String(total), '-c:a', 'pcm_s16le', mix]);
   const p1 = await run('ffmpeg', ['-i', mix, '-af', 'loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json', '-f', 'null', '-']); const ln = JSON.parse(p1.slice(p1.lastIndexOf('{'), p1.lastIndexOf('}') + 1));
   const mastered = path.join(work, 'mastered.wav'); await run('ffmpeg', ['-y', '-i', mix, '-af', `loudnorm=I=-14:TP=-1.5:LRA=11:measured_I=${ln.input_i}:measured_TP=${ln.input_tp}:measured_LRA=${ln.input_lra}:measured_thresh=${ln.input_thresh}:offset=${ln.target_offset}:linear=true:print_format=summary`, '-ar', '48000', mastered]);
 
