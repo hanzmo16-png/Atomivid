@@ -1,0 +1,37 @@
+name: Video 004 V3 pronunciation gate (G1-G3 only, max 450 chars / USD 0.09)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/production-intelligence-v1]
+    paths: [.github/workflows/video-004-pron-gate.yml]
+permissions:
+  contents: read
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
+      - run: npx tsx scripts/video-004/pron-gate.ts
+        env:
+          V4_OUT: ${{ runner.temp }}/video-004-gate
+          V4_V2: 'true'
+          V4_ALLOW_PAID: 'true'
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: video-004-pron-gate
+          path: |
+            ${{ runner.temp }}/video-004-gate/*.mp3
+            ${{ runner.temp }}/video-004-gate/*.json
+          if-no-files-found: ignore
