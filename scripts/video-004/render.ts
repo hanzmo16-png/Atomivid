@@ -58,6 +58,15 @@ async function renderAnimatedSegment(s: Slot, srcFile: string | null, seg: strin
   await fs.rm(dir, {recursive: true, force: true});
 }
 const LEAD_IN = 0.4, SCENE_TAIL = 0.3, END_CARD = 1.5;
+/** Every picture segment must carry exactly its slot's frames; a short one (V3: the CTA overlay ended with its clip) is
+ * extended by cloning its last frame, a long one is trimmed. Returns the frame count found before the fix. */
+async function ensureFrames(seg: string, frames: number): Promise<number> {
+  const o = await run('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-count_frames', '-show_entries', 'stream=nb_read_frames', '-of', 'csv=p=0', seg]); const n = Number(String(o).trim().split('\n')[0]);
+  if (n === frames) return n;
+  const fixed = seg.replace(/\.mp4$/, '-exact.mp4');
+  await run('ffmpeg', ['-y', '-i', seg, '-vf', `tpad=stop_mode=clone:stop_duration=${Math.max(1, (frames - n) / FPS + 1).toFixed(3)},setsar=1,format=yuv420p`, '-frames:v', String(frames), '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '15', '-r', String(FPS), fixed]);
+  await fs.rename(fixed, seg); return n;
+}
 const toks = (s: string) => s.split(/\s+/).filter(Boolean);
 type Src = {kind: 'clip' | 'stock' | 'photo' | 'still' | 'graphic' | 'placeholder'; file: string; sha256?: string; origin: string; note?: string};
 type Slot = Shot & {startFrame: number; frames: number; chunk: {file: string | null; offset: number; seconds: number}; words: WordTiming[]};
@@ -137,7 +146,7 @@ export async function render(plan: Plan) {
     let args: string[]; let inPoint = 0, speed = 1, frozen = 0, move: Move | 'push-in-soft' | 'cut' | 'animated' = 'cut';
     const animated = V2 && src.kind !== 'placeholder' && (s.kind === 'graphic' || (V2_ANIMATED_STILL_CALLOUTS.includes(s.id) && src.kind === 'still'));
     if (animated) {
-      await renderAnimatedSegment(s, src.kind === 'still' ? src.file : null, seg, work); move = 'animated'; segs.push(seg);
+      await renderAnimatedSegment(s, src.kind === 'still' ? src.file : null, seg, work); move = 'animated'; segs.push(seg); const nAnim = await ensureFrames(seg, s.frames); if (nAnim !== s.frames) issues.push(`${s.id}: segment had ${nAnim} frames, fixed to ${s.frames}`);
       report.push({slot: i, id: s.id, planShotId: s.planShotId, scene: s.scene, purpose: s.purpose, kind: 'animated', method: s.method, provider: s.provider, start: +(s.startFrame / FPS).toFixed(3), seconds: +edit.toFixed(3), frozenPlanSeconds: s.seconds, pause: s.pause, move, inPoint: 0, speed: 1, frozen: 0, origin: src.origin, sha256: src.sha256 ?? null, generative: s.generative, motion: true});
       continue;
     }
@@ -155,11 +164,11 @@ export async function render(plan: Plan) {
       args = ['-ss', inPoint.toFixed(3), '-i', src.file, '-vf', `setpts=${speed.toFixed(4)}*PTS,scale=1920:1080:flags=lanczos:force_original_aspect_ratio=increase,crop=1920:1080,fps=${FPS}${frozen > 0.05 ? `,tpad=stop_mode=clone:stop_duration=${frozen.toFixed(3)}` : ''}${tail}`];
       if (s.method === 'CTA_REUSE') { // V3: subscribe mark fades in over the continuing picture (no black, no stop)
         const c = CTA.find((x) => x.id === s.id)!; const mark = path.join(work, `mark-${s.id}.png`); const sharp = (await import('sharp')).default; await sharp(Buffer.from(ctaMarkSvg(c)), {density: 72}).png().toFile(mark);
-        args = ['-ss', inPoint.toFixed(3), '-i', src.file, '-loop', '1', '-framerate', String(FPS), '-i', mark, '-filter_complex', `[0:v]setpts=${speed.toFixed(4)}*PTS,scale=1920:1080:flags=lanczos:force_original_aspect_ratio=increase,crop=1920:1080,fps=${FPS}${frozen > 0.05 ? `,tpad=stop_mode=clone:stop_duration=${frozen.toFixed(3)}` : ''}[b];[1:v]format=rgba,fade=t=in:st=1.0:d=0.8:alpha=1[m];[b][m]overlay=0:0:shortest=1:format=auto,setsar=1,format=yuv420p[v]`, '-map', '[v]'];
+        args = ['-ss', inPoint.toFixed(3), '-i', src.file, '-loop', '1', '-framerate', String(FPS), '-i', mark, '-filter_complex', `[0:v]setpts=${speed.toFixed(4)}*PTS,scale=1920:1080:flags=lanczos:force_original_aspect_ratio=increase,crop=1920:1080,fps=${FPS}${frozen > 0.05 ? `,tpad=stop_mode=clone:stop_duration=${frozen.toFixed(3)}` : ''},tpad=stop_mode=clone:stop_duration=2[b];[1:v]format=rgba,fade=t=in:st=1.0:d=0.8:alpha=1[m];[b][m]overlay=0:0:format=auto,setsar=1,format=yuv420p[v]`, '-map', '[v]'];
       }
     }
     await run('ffmpeg', ['-y', ...args, '-frames:v', String(s.frames), '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '15', '-r', String(FPS), seg]);
-    segs.push(seg);
+    segs.push(seg); const nSeg = await ensureFrames(seg, s.frames); if (nSeg !== s.frames) issues.push(`${s.id}: segment had ${nSeg} frames, fixed to ${s.frames}`);
     report.push({slot: i, id: s.id, planShotId: s.planShotId, scene: s.scene, purpose: s.purpose, kind: s.method === 'CTA_REUSE' ? 'cta' : src.kind, method: s.method, provider: s.provider, start: +(s.startFrame / FPS).toFixed(3), seconds: +edit.toFixed(3), frozenPlanSeconds: s.seconds, pause: s.pause, move, inPoint, speed, frozen, origin: src.origin, sha256: src.sha256 ?? null, generative: s.generative, motion: src.kind === 'clip' || src.kind === 'stock'});
   }
   const picture = path.join(work, 'picture.mp4');
@@ -244,6 +253,7 @@ export async function render(plan: Plan) {
 
   // 8) Technical QA.
   const pr = await probe(final);
+  const vFrames = Number(String(await run('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-count_frames', '-show_entries', 'stream=nb_read_frames', '-of', 'csv=p=0', final])).trim().split('\n')[0]); const vEnd = vFrames / FPS;
   const det = await run('ffmpeg', ['-i', final, '-vf', 'blackdetect=d=0.5:pix_th=0.04,freezedetect=n=-60dB:d=2.5', '-af', 'silencedetect=n=-45dB:d=1.5,ebur128=peak=true', '-f', 'null', '-']);
   const cardStart = endSlot.startFrame / FPS - 0.7;
   const black = [...det.matchAll(/black_start:([\d.]+) black_end:([\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]).filter(([s0]) => s0 > 1 && s0 < cardStart);
@@ -276,20 +286,20 @@ export async function render(plan: Plan) {
       if (isGraphic) { const a = await raw(withText), b = await raw(noText); let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1; for (let y = 0; y < 1080; y++) for (let x = 0; x < 1920; x++) { const k = (y * 1920 + x) * 4; const d = Math.abs(a.data[k] - b.data[k]) + Math.abs(a.data[k + 1] - b.data[k + 1]) + Math.abs(a.data[k + 2] - b.data[k + 2]); if (d > 60) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } } if (x1 >= 0) box = [x0, y0, x1, y1]; }
       else { const ov = await raw(await calloutFrame(null, ctx, i, s.frames)); let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1; for (let y = 0; y < 1080; y++) for (let x = 0; x < 1920; x++) { if (ov.data[(y * 1920 + x) * 4 + 3] > 40) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } } if (x1 >= 0) box = [x0, y0, x1, y1]; }
       // composed frame from the master at the same instant
-      const tEnd = Math.min(pr.duration - 0.1, (s.startFrame + i + 0.5) / FPS); const fr = path.join(work, `gqa-${s.id}.png`); /* clamped: the end card's last frame sits at the encoded end */ await run('ffmpeg', ['-y', '-ss', tEnd.toFixed(4), '-i', final, '-frames:v', '1', fr]);
+      const tEnd = Math.min(vEnd - 0.05, (s.startFrame + i + 0.5) / FPS); const fr = path.join(work, `gqa-${s.id}.png`); /* clamped: the end card's last frame sits at the encoded end */ await run('ffmpeg', ['-y', '-ss', tEnd.toFixed(4), '-i', final, '-frames:v', '1', fr]);
       const F = await raw(await fs.readFile(fr)), Rr = await raw(withText); let acc = 0, n = 0; for (let y = 0; y < SAFE.subtitleTop; y += 2) for (let x = 0; x < 1920; x += 2) { const k = (y * 1920 + x) * 4; acc += Math.abs(F.data[k] - Rr.data[k]) + Math.abs(F.data[k + 1] - Rr.data[k + 1]) + Math.abs(F.data[k + 2] - Rr.data[k + 2]); n += 3; } const meanDiff = acc / n;
       const hasSubtitles = s.words.length > 0;
       const safeArea = !box || (box[0] >= SAFE.x && box[2] <= 1920 - SAFE.x && box[1] >= SAFE.y && box[3] <= 1080 - SAFE.y);
       const clearOfSubtitles = !box || !hasSubtitles || box[3] < SAFE.subtitleTop;
       gqa.push({id: s.id, kind: isGraphic ? GRAPHICS[s.id] : 'still-callouts', textBox: box, safeArea, clearOfSubtitles, composedMatch: meanDiff < 14, meanDiff: +meanDiff.toFixed(2), hasSubtitles});
-      for (const q of [0.25, 0.5, 0.75, 1]) { const t = Math.min(pr.duration - 0.1, (s.startFrame + Math.max(0, Math.round(q * s.frames) - 1) + 0.5) / FPS); const tf = path.join(work, `gqa-${s.id}-${q}.png`); await run('ffmpeg', ['-y', '-ss', t.toFixed(4), '-i', final, '-frames:v', '1', tf]); const composed = await sharp(await fs.readFile(tf)).composite([{input: safeRect, top: 0, left: 0}]).png().toBuffer(); /* sharp resizes before compositing inside one pipeline, so overlay first, then shrink */ gTiles.push({image: await sharp(composed).resize(480).jpeg({quality: 82}).toBuffer(), label: `${s.id} ${Math.round(q * 100)}%${box ? ` text ${box.join(',')}` : ''}`}); }
+      for (const q of [0.25, 0.5, 0.75, 1]) { const t = Math.min(vEnd - 0.05, (s.startFrame + Math.max(0, Math.round(q * s.frames) - 1) + 0.5) / FPS); const tf = path.join(work, `gqa-${s.id}-${q}.png`); await run('ffmpeg', ['-y', '-ss', t.toFixed(4), '-i', final, '-frames:v', '1', tf]); const composed = await sharp(await fs.readFile(tf)).composite([{input: safeRect, top: 0, left: 0}]).png().toBuffer(); /* sharp resizes before compositing inside one pipeline, so overlay first, then shrink */ gTiles.push({image: await sharp(composed).resize(480).jpeg({quality: 82}).toBuffer(), label: `${s.id} ${Math.round(q * 100)}%${box ? ` text ${box.join(',')}` : ''}`}); }
     }
     for (let k = 0; k * 24 < gTiles.length; k++) await fs.writeFile(path.join(out, `qa-graphics-safe-area-${k + 1}.jpg`), await buildContactSheet(gTiles.slice(k * 24, k * 24 + 24), {columns: 4, tileWidth: 480, tileHeight: 270, title: `V3 animated graphics on the composed master, safe area 96/54 (cyan), subtitle band (red)`}));
   }
   const ctaSlots = slots.filter((s) => s.method === 'CTA_REUSE');
   const v3checks: Record<string, boolean> = V3 ? {
     graphicsCount17: gqa.length === 17, graphicsSafeArea: gqa.every((g) => g.safeArea), graphicsClearOfSubtitles: gqa.every((g) => g.clearOfSubtitles), graphicsComposedFrameMatch: gqa.every((g) => g.composedMatch),
-    ctaScenesPresent: ctaSlots.length === 2 && ctaSlots.every((s) => s.words.length > 0), ctaAfterEndCardsBeforeEndCard: ctaSlots.length === 2 && slots.indexOf(ctaSlots[1]) === slots.length - 2 && slots[slots.indexOf(ctaSlots[1]) - 1].purpose === 'still in it',
+    pictureFramesExact: vFrames === cursor, ctaScenesPresent: ctaSlots.length === 2 && ctaSlots.every((s) => s.words.length > 0), ctaAfterEndCardsBeforeEndCard: ctaSlots.length === 2 && slots.indexOf(ctaSlots[1]) === slots.length - 2 && slots[slots.indexOf(ctaSlots[1]) - 1].purpose === 'still in it',
   } : {};
   const checks: Record<string, boolean> = {
     ...v3checks,
