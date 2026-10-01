@@ -34,7 +34,7 @@ jobs:
           for variant in "object/authenticated" "object"; do
             for auth in bearer apikey-only; do
               if [ "$auth" = bearer ]; then H=(-H "Authorization: Bearer $KEY" -H "apikey: $KEY"); else H=(-H "apikey: $KEY"); fi
-              st=$(curl -sS -m 30 "${H[@]}" -o report.json -w "%{http_code}" "$SB/storage/v1/$variant/videos/video-004-thermopylae/v3/pron-gate/pron-gate-report.json"); echo "report fetch [$variant/$auth] status=$st $( [ "$st" = 200 ] || head -c 200 report.json | tr -d '\n')"
+              st=$(curl -sS -m 30 "${H[@]}" -o report.json -w "%{http_code}" "$SB/storage/v1/$variant/videos/video-004-thermopylae/v3/pron-gate/report.json"); echo "report fetch [$variant/$auth] status=$st $( [ "$st" = 200 ] || head -c 200 report.json | tr -d '\n')"
               [ "$st" = 200 ] && break 2
             done
           done
