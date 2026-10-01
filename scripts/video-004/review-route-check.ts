@@ -19,6 +19,9 @@ async function probe(label: string, range: string | null) {
   const h = responseHeaders(r.headers, obj!);
   console.log(`@@ROUTE_CHECK ${label} ${JSON.stringify({status: r.status, upstreamContentType: r.headers.get('content-type'), clientContentType: h['Content-Type'], contentRange: h['Content-Range'] ?? null, acceptRanges: h['Accept-Ranges'], cacheControl: h['Cache-Control'], bytes: body.length, sha256: createHash('sha256').update(body).digest('hex'), id3: body.subarray(0, 3).toString() === 'ID3'})}`);
 }
-await probe('full-get', null);
-await probe('range-0-999', 'bytes=0-999');
-await probe('range-open', 'bytes=100000-');
+async function main() {
+  await probe('full-get', null);
+  await probe('range-0-999', 'bytes=0-999');
+  await probe('range-open', 'bytes=100000-');
+}
+main().catch((e) => { console.error(e instanceof Error ? e.message : String(e)); process.exit(1); });
