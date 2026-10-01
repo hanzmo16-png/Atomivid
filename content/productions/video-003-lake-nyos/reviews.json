@@ -431,6 +431,30 @@
    "sha256": "3862bef0bd3633befff668a8043e9cbe37a44e1537e1035ad612422e13af76eb",
    "result": "PASS",
    "note": "photoreal, no text/watermark, no people/victims, continuity consistent"
+  },
+  {
+   "id": "V3-004",
+   "sha256": "f1c5cffb67feae07003166932bac4458a3df92830c15300df6d6d6dd40fc11e2",
+   "result": "PASS",
+   "note": "fallback still for a stock shot; unbranded, no text, no people"
+  },
+  {
+   "id": "V3-038",
+   "sha256": "d3244a5f2aeb54005b5fe52bf019c598312ad8773e0a7c43bfd60975e40c251d",
+   "result": "PASS",
+   "note": "fallback still for a stock shot; unbranded, no text, no people"
+  },
+  {
+   "id": "V3-039",
+   "sha256": "9631e7fe3f6e2a40ac11fbc175f7aa1ca7cd025738483377cefc6d6bad301b36",
+   "result": "PASS",
+   "note": "fallback still for a stock shot; unbranded, no text, no people"
+  },
+  {
+   "id": "V3-084",
+   "sha256": "fe39f72072b32a0a78d342f32408a5324e6afaa451a4531445454e2c73ec1f56",
+   "result": "PASS",
+   "note": "fallback still for a stock shot; unbranded, no text, no people"
   }
  ],
  "stillFallback": [
@@ -438,5 +462,67 @@
   "V3-038",
   "V3-039",
   "V3-084"
+ ],
+ "clips": [
+  {
+   "id": "V3-002-v1",
+   "sha256": "9157a113bc00a18e9b9f3abdc861ae066227576cc79c99bfa46724fb62be5720",
+   "result": "PASS",
+   "note": "mist drifts over the still lake, stars hold"
+  },
+  {
+   "id": "V3-008-v1",
+   "sha256": "7de5277b53b3bf08814db3849de5353fce2084824fde39d2101676a6f4fc818a",
+   "result": "PASS",
+   "note": "fog creeps over the grass toward camera, moon steady"
+  },
+  {
+   "id": "V3-046-v1",
+   "sha256": "ff62241dcb8bd1842dc23489ab18abb593a2b59ff6d1c4b20007dc21a1d9821b",
+   "result": "PASS",
+   "note": "bubbles multiply and rise, no artifacts"
+  },
+  {
+   "id": "V3-047-v1",
+   "sha256": "9c53f7dcd604bfba42bc586f20eca91f290d717e51f66ad7bfb20889d13fec39",
+   "result": "PASS",
+   "note": "bubble column rises to the surface, coherent"
+  },
+  {
+   "id": "V3-048-v1",
+   "sha256": "a80f2fbcc66908b3fa75951202a022412c298d94b713009fd166f9f29496a609",
+   "result": "PASS",
+   "note": "single coherent surge column, no deformation; reconstruction"
+  },
+  {
+   "id": "V3-049-v1",
+   "sha256": "fa28df5992196a865672c82406d2e92c0a69eb025b64e7f275bfb573061a575a",
+   "result": "PASS",
+   "note": "water sloshes up the dark rocks plausibly"
+  },
+  {
+   "id": "V3-050-v1",
+   "sha256": "8754a24114c91ac002f137720947d7df9e0bdc5dbd6ddb7d88883e30cf80b11f",
+   "result": "PASS",
+   "note": "fog pours down the slope, treetops emerge; no warping"
+  },
+  {
+   "id": "V3-051-v1",
+   "sha256": "827199d9de51bf1db445e72d46acf498c3a0bbd8e1e7fa064417100a68d935ad",
+   "result": "PASS",
+   "note": "valley fog flows slowly, aerial steady"
+  },
+  {
+   "id": "V3-064-v1",
+   "sha256": "72dd3ef0bb38cd0629f0693ad9aa3a877e75eb86a86024b6629716bd5ee47e6e",
+   "result": "PASS",
+   "note": "fountain jets steadily from the raft, spray drifts"
+  },
+  {
+   "id": "V3-091-v1",
+   "sha256": "422901e15d1e6ebb88fd7daedc347af2ab0786ab6c81d0ef02fe533511eec6e4",
+   "result": "PASS",
+   "note": "smooth aerial pull-back, lake geometry stable; fountain faint at this altitude (minor)"
+  }
  ]
 }

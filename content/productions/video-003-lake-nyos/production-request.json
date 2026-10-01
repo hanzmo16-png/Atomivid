@@ -2,14 +2,9 @@
   "projectId": "video-003-lake-nyos",
   "freezeHash": "ed78405b8726e16aa7e890247085b6a045706f5b333ba06b0d4c1443b9aaed57",
   "capUsd": 32,
-  "requestId": "09-still-fallbacks",
-  "stage": "images,review",
+  "requestId": "10-final-render",
+  "stage": "review,render",
   "draft": false,
-  "confirm": "SPEND",
-  "shots": [
-    "V3-004",
-    "V3-038",
-    "V3-039",
-    "V3-084"
-  ]
+  "confirm": "",
+  "shots": []
 }
