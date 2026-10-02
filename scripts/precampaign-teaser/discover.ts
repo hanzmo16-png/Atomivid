@@ -164,6 +164,17 @@ async function main() {
     }
   }
 
+  // Evidencia de identidad por METADATOS (nunca por comparación facial): ¿el avatar pertenece a la
+  // misma cuenta que la voz clonada autorizada? Solo booleanos y la política de consentimiento.
+  const ownership: Record<string, unknown>[] = [];
+  if (voiceId) {
+    const { data: v } = await service.from("user_voices").select("user_id").eq("id", voiceId).maybeSingle();
+    for (const id of (process.env.TEASER_AVATAR_PHOTO_IDS ?? "").split(",").map((x) => x.trim()).filter(Boolean)) {
+      const { data: a } = await service.from("avatars").select("id,user_id,consent_given,consent_policy_version").eq("id", id).maybeSingle();
+      ownership.push({ avatarId: id, sameAccountAsVoice: Boolean(a && v && a.user_id === v.user_id), consentGiven: a?.consent_given ?? null, consentPolicyVersion: a?.consent_policy_version ?? null });
+    }
+  }
+
   const reuse = [];
   for (const path of (process.env.TEASER_REUSE_PATHS ?? "").split(",").map((p) => p.trim()).filter(Boolean)) {
     const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
@@ -194,6 +205,7 @@ async function main() {
     probed,
     avatarPhotos,
     found,
+    ownership,
   };
   await rm(work, { recursive: true, force: true });
   await writeFile(join(outDir, "teaser-discovery.json"), JSON.stringify(report, null, 2) + "\n");
