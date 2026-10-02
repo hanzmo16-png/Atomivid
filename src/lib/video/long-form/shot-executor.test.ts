@@ -358,3 +358,65 @@ test("B5.2-5: motion:false con el presupuesto de imágenes agotado sigue el fall
   assert.equal(result.executedType, "ken_burns_image");
   assert.deepEqual(bindMotionReservations([shot("ken_burns_image")], new Map()).map((s) => s.type), ["ken_burns_image"]);
 });
+
+// --- PI V2 B5.3b (RB-08): plan confirmado y executor no divergen en motion:true ---
+
+test("B5.3: mismo guion motion:true → el plan confirmado solo asigna ai_video/stock_video y el executor solo consume un clip reservado de ESE visualId (3 estrategias, video IA on/off)", async () => {
+  const { allocateShotTypes, computeProductionPlan, executionAllocation, getGenerativeUnitCosts, limitsWithinAllocation, planShotsFromScript, REAL_LONG_FORM_PROVIDER_NAMES, strategyLimits } = await import("./production-plan");
+  const { motionDemands } = await import("./produce");
+  const { documentary180sFixture } = await import("./test-fixtures");
+  const script = documentary180sFixture();
+  const MOVING = new Set(["ai_video", "stock_video"]);
+  const OFF_CONTRACT = new Set(["ken_burns_image", "generated_placeholder", "stock_image", "text", "diagram", "map"]);
+  for (const strategy of ["economical", "balanced", "cinematic"] as const) {
+    for (const aiVideoEnabled of [false, true]) {
+      const label = `${strategy} aiVideo=${aiVideoEnabled}`;
+      const plan = computeProductionPlan({ ...script, strategy, providers: REAL_LONG_FORM_PROVIDER_NAMES, aiVideoEnabled });
+      const { shots, narrationSeconds } = planShotsFromScript(script.beats, script.topic, strategy);
+      const limits = limitsWithinAllocation(strategyLimits(strategy, plan.estimatedVoiceCostUsd ?? 0, { aiVideoEnabled, units: getGenerativeUnitCosts() }), executionAllocation(plan));
+      const allocated = allocateShotTypes(shots, narrationSeconds, limits).shots;
+      const motion = allocated.filter((s) => s.motionRequired);
+      assert.ok(motion.length > 0, `${label}: el fixture tiene escenas motion:true`);
+      const offContract = motion.filter((s) => !MOVING.has(s.type) || OFF_CONTRACT.has(s.type));
+      assert.deepEqual(offContract.map((s) => `${s.id}:${s.type}`), [], `${label}: offContract=0`);
+
+      // Reserva del worker para el mismo guion y plan; cada clip vive en el store durable.
+      const demands = motionDemands(script.beats, script.topic, plan.beatShotCounts);
+      const demandIds = new Set(demands.map((d) => d.visualId));
+      const unreserved = motion.filter((s) => !s.motionVisualId || !demandIds.has(s.motionVisualId));
+      assert.deepEqual(unreserved.map((s) => s.id), [], `${label}: unreserved=0`);
+
+      const images = fakeImages(async () => pngAsset());
+      const noStock: FootageProvider = {
+        name: "must-not-search",
+        async fetchFootage() { throw new Error("la ejecución motion no debe buscar archivo"); },
+        async searchVideoCandidates() { throw new Error("la ejecución motion no debe buscar archivo"); },
+        async downloadFootage() { throw new Error("la ejecución motion no debe descargar archivo"); },
+      };
+      const { deps: d, mem } = await deps({ imageProvider: images.provider, footageProvider: noStock });
+      const reservations = new Map<string, { ref: string; durationSec: number }[]>();
+      for (const demand of demands) {
+        const clips = [];
+        for (let k = 0; k < demand.clips; k++) {
+          const ref = `motionres-${demand.visualId}-${k}`;
+          await reserveClip(mem.store, ref, 30);
+          clips.push({ ref, durationSec: 30 });
+        }
+        reservations.set(demand.visualId, clips);
+      }
+
+      const bound = bindMotionReservations(allocated, reservations);
+      for (const s of bound.filter((x) => x.motionRequired)) {
+        const own = (reservations.get(s.motionVisualId!) ?? []).map((c) => c.ref);
+        assert.ok(s.motionClipRef && own.includes(s.motionClipRef), `${label}: ${s.id} ligado a un clip de SU visual ${s.motionVisualId}`);
+        const execution = await executeShot(s, d, emptyAiVideoLedgerState());
+        assert.ok(MOVING.has(execution.executedType), `${label}: ${s.id} ejecutado como ${execution.executedType}`);
+        assert.ok(execution.asset.kind === "media" && execution.asset.mediaType === "video", `${label}: ${s.id} se ve como video`);
+        if (execution.executedType === "stock_video") {
+          assert.equal(execution.asset.kind === "media" ? execution.asset.url : "", `memory://${mem.store.objectPathFor(s.motionClipRef!, "stock", "mp4")}`, `${label}: ${s.id} consume exactamente su clip reservado`);
+        }
+      }
+      assert.equal(images.calls(), 0, `${label}: sin proveedor de video IA no se paga imagen de referencia`);
+    }
+  }
+});
