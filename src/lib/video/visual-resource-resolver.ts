@@ -3,6 +3,7 @@ import type { ImageProvider } from "@/lib/providers/image";
 import type { StoryboardScene } from "./storyboard/types";
 import { generatedImageObjectPrefix } from "./visual-resource-planner";
 import { validateVisualAssetBuffer } from "./visual-asset-validation";
+import { guardPaidCall, type LedgerStore } from "@/lib/paid-calls/gate";
 
 /**
  * Parte con I/O real del planificador visual — separada de
@@ -57,6 +58,7 @@ export async function resolveGeneratedImageForScene({
   imageProvider,
   remainingBudgetUsd,
   signedUrlTtlSeconds,
+  ledger,
 }: {
   supabase: SupabaseClient;
   bucket: string;
@@ -66,6 +68,12 @@ export async function resolveGeneratedImageForScene({
   imageProvider: ImageProvider;
   remainingBudgetUsd: number;
   signedUrlTtlSeconds: number;
+  /**
+   * Puerta de llamadas pagadas (PI V2 B1, RB-01). Obligatoria para un proveedor real: la fila
+   * de `pi_paid_operations` se escribe antes del HTTP; COMMITTED sin objeto en Storage no
+   * vuelve a generar. El fixture (sin red, sin costo) no pasa por ella.
+   */
+  ledger?: LedgerStore;
 }): Promise<GeneratedImageOutcome> {
   const existing = await findExistingGeneratedImage(supabase, bucket, requestId, sceneIndex);
   if (existing) {
@@ -83,26 +91,65 @@ export async function resolveGeneratedImageForScene({
     };
   }
 
-  const asset = await imageProvider.generateImage({
+  const request = {
     prompt: scene.imagePrompt,
     negativePrompt: scene.negativePrompt,
-    aspectRatio: "9:16",
+    aspectRatio: "9:16" as const,
     maxCostUsd: remainingBudgetUsd,
-  });
+  };
+  const generateAndStore = async () => {
+    const asset = await imageProvider.generateImage(request);
 
-  // Nunca confiar en que "la llamada no lanzó" ya implica "es un archivo
-  // usable" — se valida ANTES de subir nada a Storage.
-  const validation = validateVisualAssetBuffer(asset.buffer, asset.mimeType);
-  if (!validation.valid) {
-    throw new Error(`El proveedor de imagen "${imageProvider.name}" devolvió un archivo inválido: ${validation.reason}`);
-  }
+    // Nunca confiar en que "la llamada no lanzó" ya implica "es un archivo
+    // usable" — se valida ANTES de subir nada a Storage.
+    const validation = validateVisualAssetBuffer(asset.buffer, asset.mimeType);
+    if (!validation.valid) {
+      throw new Error(`El proveedor de imagen "${imageProvider.name}" devolvió un archivo inválido: ${validation.reason}`);
+    }
 
-  const path = `${requestId}/${generatedImageObjectPrefix(sceneIndex)}.${asset.extension}`;
-  const { error: uploadError } = await supabase.storage
-    .from(bucket)
-    .upload(path, asset.buffer, { contentType: asset.mimeType, upsert: true });
-  if (uploadError) {
-    throw new Error(`No se pudo subir la imagen generada (${path}): ${uploadError.message}`);
+    const path = `${requestId}/${generatedImageObjectPrefix(sceneIndex)}.${asset.extension}`;
+    const { error: uploadError } = await supabase.storage
+      .from(bucket)
+      .upload(path, asset.buffer, { contentType: asset.mimeType, upsert: true });
+    if (uploadError) {
+      throw new Error(`No se pudo subir la imagen generada (${path}): ${uploadError.message}`);
+    }
+    return { asset, path };
+  };
+
+  let asset: Awaited<ReturnType<typeof generateAndStore>>["asset"];
+  let path: string;
+  if (imageProvider.name === "fixture" || !ledger) {
+    if (imageProvider.name !== "fixture") {
+      throw new Error(`Imagen generada para la escena ${sceneIndex}: proveedor real "${imageProvider.name}" sin puerta de llamadas pagadas — no se llama.`);
+    }
+    ({ asset, path } = await generateAndStore());
+  } else {
+    const guarded = await guardPaidCall<{ asset: Awaited<ReturnType<typeof generateAndStore>>["asset"]; path: string }>(
+      ledger,
+      {
+        projectId: requestId,
+        shotId: `image:scene-${sceneIndex}`,
+        provider: imageProvider.name,
+        model: imageProvider.name,
+        method: "generate_image",
+        inputFingerprint: { prompt: request.prompt, negativePrompt: request.negativePrompt ?? null, aspectRatio: request.aspectRatio },
+        reservedUsd: Math.max(0, remainingBudgetUsd),
+      },
+      {
+        call: async () => {
+          const r = await generateAndStore();
+          return { result: r, costUsd: r.asset.costUsd, resultRef: r.path };
+        },
+        // `findExistingGeneratedImage` ya se consultó arriba: llegar aquí con COMMITTED significa
+        // que el objeto pagado no está en Storage. No se genera de nuevo.
+        load: async () => null,
+        // El proveedor de imagen ya reintenta UNA vez por su cuenta ante un rechazo explícito
+        // (openai.ts MAX_RETRIES); la puerta no añade otro para no superar un reintento.
+        maxRejectedRetries: 0,
+      },
+    );
+    ({ asset, path } = guarded.result);
   }
 
   const { data, error: signError } = await supabase.storage.from(bucket).createSignedUrl(path, signedUrlTtlSeconds);

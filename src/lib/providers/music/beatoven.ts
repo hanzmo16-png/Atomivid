@@ -93,7 +93,9 @@ async function composeTrack(prompt: string, durationSeconds: number): Promise<st
     }),
   });
   if (!response.ok) {
-    throw new MusicProviderError(`Beatoven respondió HTTP ${response.status} al pedir composición`);
+    // Refused before any task exists: nothing charged. Marked for the paid-call gate (one retry
+    // at most). Everything after a task_id exists stays "uncertain" and is never retried.
+    throw Object.assign(new MusicProviderError(`Beatoven respondió HTTP ${response.status} al pedir composición`), { paidCallOutcome: "rejected" as const });
   }
   const json = (await response.json()) as BeatovenComposeResponse;
   if (!json.task_id) {

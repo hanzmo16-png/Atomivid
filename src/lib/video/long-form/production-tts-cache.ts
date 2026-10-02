@@ -16,6 +16,8 @@
  * nuevo y paralelo, no una modificación de aquel.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { guardPaidCall, type LedgerStore } from "@/lib/paid-calls/gate";
+import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
 import { randomUUID } from "node:crypto";
 import type { ScriptLanguage, VoiceProvider, WordTiming } from "@/lib/providers/types";
 import type { NarrativeBeat } from "./types";
@@ -130,6 +132,8 @@ export async function synthesizeBeatNarrationProductionCached(
     bucket?: string;
     voiceIdentity: { voiceId: string; modelId: string; voiceSettingsJson: string };
     costGuard?: ProductionTtsCostGuard;
+    /** Puerta de llamadas pagadas (PI V2 B1, RB-01): `pi_paid_operations`. Por defecto la real sobre `supabase`. */
+    ledger?: LedgerStore;
   },
 ): Promise<ProductionSynthesizeBeatCachedResult> {
   if (voiceProvider.name === "fixture") {
@@ -184,31 +188,56 @@ export async function synthesizeBeatNarrationProductionCached(
     updatedAtIso: now,
   });
 
-  const result = await synthesizeBeatNarration(voiceProvider, beat, language);
+  // Puerta de llamadas pagadas: la fila de pi_paid_operations se escribe ANTES del HTTP.
+  // Un STARTED perdido (p. ej. lectura de Storage fallida tratada como "ausente") ya no
+  // puede volver a facturar: la fila SUBMITTED/COMMITTED del ledger lo impide.
+  const ledger = ctx.ledger ?? supabaseLedgerStore(supabase);
+  const guarded = await guardPaidCall<BeatNarrationResult>(
+    ledger,
+    {
+      projectId: ctx.videoId,
+      shotId: `tts:${beat.id}:${key}`,
+      provider: voiceProvider.name,
+      model: ctx.voiceIdentity.modelId,
+      method: "tts_with_timestamps",
+      inputFingerprint: identity,
+      reservedUsd: Math.max(0, estimatedCostUsd),
+    },
+    {
+      call: async () => {
+        const result = await synthesizeBeatNarration(voiceProvider, beat, language);
 
-  const path = audioPathFor(ctx.videoId, key, result.extension);
-  const { error: uploadError } = await supabase.storage
-    .from(bucket)
-    .upload(path, result.audioBuffer, { contentType: result.mimeType, upsert: true });
-  if (uploadError) {
-    throw new Error(`No se pudo subir el audio TTS de producción a Storage ("${path}"): ${uploadError.message}`);
-  }
-  const checksum = computeChecksumSha256(result.audioBuffer);
+        const path = audioPathFor(ctx.videoId, key, result.extension);
+        const { error: uploadError } = await supabase.storage
+          .from(bucket)
+          .upload(path, result.audioBuffer, { contentType: result.mimeType, upsert: true });
+        if (uploadError) {
+          throw new Error(`No se pudo subir el audio TTS de producción a Storage ("${path}"): ${uploadError.message}`);
+        }
+        const checksum = computeChecksumSha256(result.audioBuffer);
 
-  await writeProductionTtsCacheRecord(supabase, bucket, ctx.videoId, {
-    key,
-    identity,
-    status: "COMPLETED",
-    audioPath: path,
-    audioChecksumSha256: checksum,
-    mimeType: result.mimeType,
-    extension: result.extension,
-    durationSeconds: result.durationSeconds,
-    words: toRecordWordTimings(result.words),
-    costUsd: estimatedCostUsd,
-    createdAtIso: now,
-    updatedAtIso: new Date().toISOString(),
-  });
+        await writeProductionTtsCacheRecord(supabase, bucket, ctx.videoId, {
+          key,
+          identity,
+          status: "COMPLETED",
+          audioPath: path,
+          audioChecksumSha256: checksum,
+          mimeType: result.mimeType,
+          extension: result.extension,
+          durationSeconds: result.durationSeconds,
+          words: toRecordWordTimings(result.words),
+          costUsd: estimatedCostUsd,
+          createdAtIso: now,
+          updatedAtIso: new Date().toISOString(),
+        });
+        return { result, costUsd: estimatedCostUsd, resultRef: `production-tts:${ctx.videoId}:${key}` };
+      },
+      // COMMITTED en el ledger: el registro COMPLETED ya se consultó arriba y no valía. No se
+      // vuelve a sintetizar; el beat queda sin audio reutilizable hasta conciliar.
+      load: async () => null,
+    },
+  );
+  const result = guarded.result;
 
   if (ctx.costGuard) await ctx.costGuard.recordSpend(estimatedCostUsd, `TTS beat ${beat.id} (producción real)`);
 

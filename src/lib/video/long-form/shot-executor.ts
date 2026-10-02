@@ -12,7 +12,10 @@
  *   → archivo real; archivo (consulta alternativa) → tarjeta de texto REAL.
  *   Nunca un fixture, nunca un tipo más caro que lo asignado.
  */
-import type { FootageProvider, ImageProvider, VideoProvider } from "@/lib/providers/types";
+import type { FootageProvider, GenerativeAsset, ImageProvider, VideoProvider } from "@/lib/providers/types";
+import { guardPaidCall, type LedgerStore } from "@/lib/paid-calls/gate";
+import { PaidResultUnavailableError } from "@/lib/paid-calls/errors";
+import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 import { GenerativeProviderError } from "@/lib/providers/types";
 import type { ResolvedShotAsset } from "./asset-resolver";
 import { resolveAiVideoForShot } from "./ai-video-resolver";
@@ -39,6 +42,12 @@ const NO_CHARGE_IMAGE_REASONS = new Set<GenerativeProviderError["reason"]>([
 ]);
 
 export type ShotExecutionDeps = {
+  /**
+   * Puerta de llamadas pagadas (PI V2 B1, RB-01): `pi_paid_operations`. produce.ts pasa la real
+   * (Supabase). Si falta, se usa una en memoria POR OBJETO deps (solo válida dentro del proceso;
+   * pensada para pruebas): nunca es un sustituto del ledger durable en producción.
+   */
+  ledger?: LedgerStore;
   topic: string;
   footageProvider: FootageProvider;
   imageProvider: ImageProvider;
@@ -265,6 +274,17 @@ async function resolveStock(shot: AllocatedShot, deps: ShotExecutionDeps, prefer
 
 type AiImageOutcome = MediaOutcome | { unavailable: string };
 
+const inProcessLedgers = new WeakMap<object, LedgerStore>();
+function ledgerFor(deps: ShotExecutionDeps): LedgerStore {
+  if (deps.ledger) return deps.ledger;
+  let l = inProcessLedgers.get(deps);
+  if (!l) {
+    l = memoryLedgerStore();
+    inProcessLedgers.set(deps, l);
+  }
+  return l;
+}
+
 /** Imagen IA con reuso durable + reserva de presupuesto; nunca regenera un STARTED incierto. */
 async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Promise<AiImageOutcome> {
   const cached = await reuseCompleted(deps, shot.id, "ai_image");
@@ -282,14 +302,47 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
   }
   await deps.store.write({ shotId: shot.id, kind: "ai_image", status: "STARTED", provider: deps.imageProvider.name, updatedAtIso: new Date().toISOString() });
 
-  let asset;
+  const request = {
+    prompt: deps.visualPipeline === "anchored_v1" ? aiImagePromptFor(shot) : documentaryImagePrompt(shot.visualIntent),
+    aspectRatio: "16:9" as const,
+    maxCostUsd: deps.units.imageUsd,
+  };
+  let asset: GenerativeAsset;
   try {
-    asset = await deps.imageProvider.generateImage({
-      prompt: deps.visualPipeline === "anchored_v1" ? aiImagePromptFor(shot) : documentaryImagePrompt(shot.visualIntent),
-      aspectRatio: "16:9",
-      maxCostUsd: deps.units.imageUsd,
-    });
+    if (deps.imageProvider.name === "fixture") {
+      asset = await deps.imageProvider.generateImage(request);
+    } else {
+      // Puerta de llamadas pagadas (PI V2 B1, RB-01): fila en pi_paid_operations antes del HTTP;
+      // COMMITTED sin registro COMPLETED (el reuso de arriba no lo encontró) no regenera.
+      const guarded = await guardPaidCall<GenerativeAsset>(
+        ledgerFor(deps),
+        {
+          projectId: deps.metadata?.requestId ?? "unknown-request",
+          shotId: `ai_image:${shot.id}`,
+          provider: deps.imageProvider.name,
+          model: deps.imageProvider.name,
+          method: "generate_image",
+          inputFingerprint: { prompt: request.prompt, aspectRatio: request.aspectRatio },
+          reservedUsd: Math.max(0, deps.units.imageUsd),
+        },
+        {
+          call: async () => {
+            const a = await deps.imageProvider.generateImage(request);
+            return { result: a, costUsd: a.costUsd, resultRef: `shot-asset:${shot.id}:ai_image` };
+          },
+          load: async () => null,
+          // El proveedor ya reintenta una vez por su cuenta ante un rechazo explícito (openai.ts).
+          maxRejectedRetries: 0,
+        },
+      );
+      asset = guarded.result;
+    }
   } catch (err) {
+    if (err instanceof PaidResultUnavailableError) {
+      // Nada se envió ni se cobró en este intento: la reserva vuelve al presupuesto.
+      await deps.budget.releaseAiImage(deps.units.imageUsd);
+      return { unavailable: "esta imagen ya se pagó en un intento anterior y su resultado no está disponible — no se regenera" };
+    }
     if (err instanceof GenerativeProviderError && NO_CHARGE_IMAGE_REASONS.has(err.reason)) {
       await deps.store.write({ shotId: shot.id, kind: "ai_image", status: "FAILED_NO_CHARGE", provider: deps.imageProvider.name, updatedAtIso: new Date().toISOString() });
       await deps.budget.releaseAiImage(deps.units.imageUsd);

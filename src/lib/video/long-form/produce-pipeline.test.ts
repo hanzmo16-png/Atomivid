@@ -16,6 +16,7 @@ import type { FootageProvider, ImageProvider, VideoProvider, VoiceProvider } fro
 import type { LongFormProviderSet } from "./mode";
 import type { RenderLongFormDocInput } from "./render";
 import { memoryOutputDeps } from "./output-finalize";
+import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 
 /**
  * Prueba de integración del pipeline REAL de producción de Long Form
@@ -112,11 +113,12 @@ type Env = {
   supabase: ReturnType<typeof makeStorage>;
   mem: ReturnType<typeof memoryShotAssetStore>;
   budgetStore: ReturnType<typeof memoryBudgetStore>;
+  ledger: ReturnType<typeof memoryLedgerStore>;
   out: ReturnType<typeof memoryOutputDeps>;
   reports: import("./visual-report").VisualReport[];
 };
 function freshEnv(outputOpts: Parameters<typeof memoryOutputDeps>[0] = {}): Env {
-  return { supabase: makeStorage(), mem: memoryShotAssetStore(), budgetStore: memoryBudgetStore(), out: memoryOutputDeps(outputOpts), reports: [] };
+  return { supabase: makeStorage(), mem: memoryShotAssetStore(), budgetStore: memoryBudgetStore(), ledger: memoryLedgerStore(), out: memoryOutputDeps(outputOpts), reports: [] };
 }
 
 function planFor(strategy: VisualStrategy): ProductionPlan {
@@ -142,6 +144,7 @@ async function run(
   const runtime: LongFormRuntime = {
     store: env.mem.store,
     budgetStore: env.budgetStore,
+    ledger: env.ledger,
     videoProvider: opts.videoProvider === undefined ? null : opts.videoProvider,
     aiVideoEnabled: opts.videoProvider ? true : false,
     recordCosts: false,

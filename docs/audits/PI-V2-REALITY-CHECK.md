@@ -1,6 +1,6 @@
 # ATOMIVID — Production Intelligence V2 Hardening, Fase A: Code Reality Check / Gap Analysis
 
-**Date:** 2026-10-02 · **Repo:** `hanzmo16-png/Atomivid` · **HEAD audited:** `692e9ec` (branch `claude/production-intelligence-v1`) · **Mode:** READ-ONLY (no code, no migrations, no deploy, no paid calls, no assets, no render, no publish) · **Spend:** USD 0.00
+**Date:** 2026-10-02 · **Repo:** `hanzmo16-png/Atomivid` · **HEAD audited:** `692e9ec` (branch `claude/production-intelligence-v1`) · **Updated:** Fase B1 (RB-01 double-charge guard), see section 17 · **Mode:** READ-ONLY (no code, no migrations, no deploy, no paid calls, no assets, no render, no publish) · **Spend:** USD 0.00
 
 **Scope rule.** "Product path" / "Generate" means the customer flow and nothing else:
 `POST /api/generate/[id]/render` (`src/app/api/generate/[id]/render/route.ts`) → `src/lib/worker/{index,github-actions}.ts` → `.github/workflows/render.yml` → `scripts/render-worker.ts` → `src/lib/video/run-job.ts` → `src/lib/video/generate-video.ts` (Reel) · `src/lib/video/long-form/produce.ts` (Long Form) · `src/lib/video/avatar/pipeline.ts` (Avatar).
@@ -15,7 +15,7 @@
 
 ## 1. Executive summary
 
-- **RELEASE READINESS: NOT_READY.** 9 of 13 blockers are MISSING on the product path (RB-01, RB-02, RB-03, RB-06, RB-07, RB-08, RB-09, RB-10, RB-13); 4 are PARTIAL (RB-04, RB-05, RB-11, RB-12); 0 IMPLEMENTED. One MISSING is enough for NOT_READY; there are nine.
+- **RELEASE READINESS: NOT_READY.** After Fase B1: 8 of 13 blockers are MISSING on the product path (RB-02, RB-03, RB-06, RB-07, RB-08, RB-09, RB-10, RB-13); 5 are PARTIAL (RB-01 since B1, RB-04, RB-05, RB-11, RB-12); 0 IMPLEMENTED. One MISSING is enough for NOT_READY; there are eight.
 - **The money path is unprotected where it matters.** The Reel branch of Generate reaches ElevenLabs (`src/lib/ai/voice.ts:113`), OpenAI images and Beatoven with no provider-call record, no idempotency key, no timeout, no reconciliation. Long Form has a real write-ahead record (STARTED → COMPLETED in Storage JSON) with tests, but no idempotency key reaches any provider, a Storage read error is treated as "absent" (resubmission), and there is no sweeper. **A timeout can produce two charges** (RB-01: yes, both branches). **Ten jobs can read the same balance and all start** (RB-02: yes; quota is a read-then-act count, provider balance is never read on Generate).
 - **PI V1's ledger (`pi_paid_operations`, `executePaidOperation`) is correct but unreachable:** it is not imported by anything on the product path. The red team's RESERVED/DISPATCHED/NEEDS_RECONCILE model exists in migration 0023 and in `src/lib/production-intelligence/ledger.ts`, and Generate never passes through it.
 - **Tenant isolation has a concrete hole** (RB-06): the `video_requests` INSERT policy (`0001_init.sql:27-29`) checks only `auth.uid() = user_id`; no column grant or trigger constrains `status`, `video_path`, `render_attempts`, `created_at` or `long_form_production_plan`. The dashboard signs `video_path` with the service role without a path check (`src/lib/storage/signed-url.ts:13-23`, `src/app/dashboard/videos/[id]/page.tsx:67-68`). Static reading shows a cross-tenant read and quota/attempt bypass; not executed in this turn.
@@ -30,7 +30,7 @@
 
 | ID | Blocker | Status (product path) | Branch detail | Complexity |
 |---|---|---|---|---|
-| RB-01 | Provider idempotency / reconciliation | **MISSING** | Reel/Avatar-TTS MISSING · Long Form PARTIAL | L |
+| RB-01 | Provider idempotency / reconciliation | **PARTIAL** (B1; was MISSING at `692e9ec`) | Every paid call site named in section 4 now writes a `pi_paid_operations` row before the HTTP (section 17). Still open: sweeper, CI, idempotency key not sent to providers, no-shotId AI video path, test-only in-process fallback ledgers | L |
 | RB-02 | Atomic budget / capacity hold | **MISSING** | Long Form per-request budget PARTIAL; account/provider level MISSING | L |
 | RB-03 | Paid asset saga / storage consistency | **MISSING** | Reel MISSING · Long Form PARTIAL | M |
 | RB-04 | Single job owner / fencing | **PARTIAL** | CAS + attempt token on `video_requests` only | M |
@@ -50,7 +50,7 @@
 
 | ID | Status | One-line reason |
 |---|---|---|
-| RB-01 | MISSING | The Reel paid calls (`voice.ts:113`, `providers/image/openai.ts:134`, `providers/music/beatoven.ts:83`) have no durable record, no key, no timeout. Long Form records are durable but no key is sent to any provider and no sweeper exists. |
+| RB-01 | PARTIAL (B1) | At `692e9ec`: the Reel paid calls (`voice.ts:113`, `providers/image/openai.ts:134`, `providers/music/beatoven.ts:83`) had no durable record, no key, no timeout. Since B1 (section 17) all Generate paid call sites pass through `guardPaidCall` on `pi_paid_operations` with mock tests; no sweeper, no CI, no provider-side key. |
 | RB-02 | MISSING | `assertCanGenerate` (`billing/quota.ts:91-145`) is read-then-act with no lock/RPC; no provider or account balance is read on Generate; UNKNOWN balance proceeds. |
 | RB-03 | MISSING | Reel pays, uploads `${requestId}/attempt-N/*`, then writes `video_path` in a separate step; a retry re-pays voice and music. No content-addressed paths, no orphan GC, no reconciliation except Long Form's output size check. |
 | RB-04 | PARTIAL | Compare-and-set on `status`/`render_attempts` (`render/route.ts:163-180`, `attempt-state.ts:6-18`) with a race test against a fake PostgREST; no lease expiry, no `pipeline_version`, Storage/budget writes unfenced, script routes unfenced. |
@@ -469,8 +469,44 @@ Totals: TEST_EXISTS 0 · TEST_PARTIAL 4 · TEST_MISSING 6.
 
 **NOT_READY.**
 
-Nine blockers are MISSING on the product path (RB-01, RB-02, RB-03, RB-06, RB-07, RB-08, RB-09, RB-10, RB-13); four are PARTIAL (RB-04, RB-05, RB-11, RB-12); none is IMPLEMENTED. The test suite is not executed by CI. Two questions from the mandate are answered yes: a timeout can produce two charges, and ten jobs can read the same balance and all start. No caveats apply to this verdict.
+Eight blockers are MISSING on the product path (RB-02, RB-03, RB-06, RB-07, RB-08, RB-09, RB-10, RB-13); five are PARTIAL (RB-01, RB-04, RB-05, RB-11, RB-12); none is IMPLEMENTED. The test suite is not executed by CI. Of the two questions from the mandate: "can a timeout produce two charges" is now answered no for the gated call sites (section 17, mock-tested, not CI-enforced); "can ten jobs read the same balance and all start" is still yes. No caveats apply to this verdict.
 
 Items outside the repo and therefore UNVERIFIABLE (noted apart, not counted as PASS): Supabase project upload size limit and bucket `public` flags in production, the `music-library` bucket's existence and ACL, GitHub runner concurrency limits, ElevenLabs account dictionary and concurrency behaviour, provider balances, and the production Vercel branch's `/r/[slug]` route (this audit covers HEAD `692e9ec`).
+
+---
+
+## 17. Fase B1 — RB-01 double-charge guard (2026-10-02, after `48ce847`)
+
+**Scope executed:** RB-01 plus the re-pay part of RB-03, on the call sites named in section 4 only. No migration, no new ledger, no provider called (mocks only), VIDEO-004 untouched, PI V1 engine tree unchanged (`src/lib/production-intelligence` tree `6253c14…`).
+
+**Mechanism.** `src/lib/paid-calls/gate.ts` `guardPaidCall()` is a policy wrapper over the frozen engine `executePaidOperation()` and the existing `pi_paid_operations` table (0023), through `src/lib/paid-calls/supabase-ledger-store.ts` (service role; a store error fails closed: no row, no call). Key = `idempotencyKey({projectId: requestId, shotId, provider, model, method, inputFingerprint, attemptOrdinal})`; `render_attempts` is never part of it. Transitions used, all forward-only under the 0023 trigger: RESERVED → SUBMITTED before the HTTP; SUBMITTED → COMMITTED (result_ref) on success; SUBMITTED → RECONCILIATION_REQUIRED on timeout/cut ("uncertain"); SUBMITTED → PROVIDER_JOB_RECORDED when the failure carries a provider job id (resume only, never resubmit; `commitRecordedPaidJob` closes it after a resume); SUBMITTED → REFUNDED (`committed_usd 0`, `result_ref rejected:…`) on a pre-acceptance refusal, with at most one retry on the ordinal-1 key. COMMITTED → the stored result is loaded; unloadable → `PaidResultUnavailableError`, no call. The 0023 schema represents every required state; no migration was needed.
+
+**Call sites now gated (product path):**
+
+| Call site | Gate | Reuse on a later attempt |
+|---|---|---|
+| Reel voice ×2 (`generate-video.ts`, incl. speed correction) | `gatedVoiceSynthesize` | audio + words stored under `${requestId}/paid/<key>.{mp3,json}`, sha256-checked |
+| Reel music (`generate-video.ts`) | `gatedMusicTrack` — only `beatoven` is paid; curated library/fixture pass through | stored as above |
+| Reel image (`visual-resource-resolver.ts`) | `guardPaidCall`, `maxRejectedRetries: 0` (openai.ts already retries once) | existing `findExistingGeneratedImage` path; COMMITTED without object → refused |
+| Long Form TTS (`production-tts-cache.ts`) | `guardPaidCall` around `synthesizeBeatNarration` | existing COMPLETED cache; COMMITTED + invalid cache → refused (test 6 re-specified) |
+| Long Form AI image (`shot-executor.ts resolveAiImage`) | `guardPaidCall`, `maxRejectedRetries: 0` | existing COMPLETED record; refusal → `unavailable` (degrades, never re-pays; reservation released) |
+| Long Form AI video submit (`ai-video-durable-provider.ts`) | `guardPaidCall` around `inner.generateVideo`; accepted job id → PROVIDER_JOB_RECORDED; resume paths commit the row | existing COMPLETED/STARTED records |
+| Avatar narration, `createAvatar`, `generateVideo` (`avatar/pipeline.ts`) | `gatedVoiceSynthesize` / `guardPaidCall` (`maxRejectedRetries: 0`) | existing single-attempt claim + stored narration |
+
+Pre-acceptance refusals are now typed: `voice.ts` throws `ProviderRejectedError` on a non-2xx answer; `beatoven.ts` marks the compose refusal with `paidCallOutcome: "rejected"`; `GenerativeProviderError` reasons map via `classifyPaidCallError` (`upstream_error`/`rate_limited` → rejected; moderation/budget/config/invalid_request/contract/auth/quota → rejected_final; a `providerJobId` → accepted; anything else → uncertain).
+
+**Tests (mocks, run locally: 1425/1425 pass; `tsc --noEmit` and eslint clean):** `src/lib/paid-calls/gate.test.ts` B1-1/2 (mock charges then cuts → 1 call; same key twice more → still 1, row RECONCILIATION_REQUIRED), B1-3 (refusal retries exactly once, then stops across attempts), B1-3b, B1-4 (rejected_final/uncertain never retry), B1-5 (row SUBMITTED before the HTTP; unwritable ledger → 0 calls), B1-6 (unloadable result refused, not regenerated), B1-7 (accepted job → PROVIDER_JOB_RECORDED → resume → COMMITTED, 1 submit), B1-8 (key ignores attempts), B1-9 (Reel voice attempt 2 reuses with 0 calls; corrupted copy refused), B1-10 (Beatoven gated, library free); `supabase-ledger-store.test.ts` (CAS on a fake PostgREST; missing table fails closed).
+
+**Why RB-01 stays PARTIAL, not IMPLEMENTED:**
+1. No CI runs the suite (unchanged).
+2. No sweeper: RECONCILIATION_REQUIRED and PROVIDER_JOB_RECORDED rows are only ever resolved by a later attempt's resume path or by hand. No entry point exists in the repo.
+3. The idempotency key is local only; no provider receives it (ElevenLabs and OpenAI images have no such header on these endpoints; Runway/Veo not changed).
+4. `wrapDurableVideoProvider` still forwards a request without `metadata.shotId` ungated (no safe key), as before.
+5. Deps built without a ledger (`ShotExecutionDeps.ledger`, `DurableVideoProviderOptions.ledger`) fall back to an in-process memory ledger; `produce.ts` always passes the Supabase one, but the fallback is a test convenience, not a control.
+6. `visual-resource-resolver` with a real provider and no ledger throws (fail closed); `generate-video.ts` always passes one.
+7. **Deployment prerequisite:** with real providers, Generate now fails closed if `pi_paid_operations` (migration 0023) is not applied to the production database. Whether 0023 is applied in production is UNVERIFIABLE from the repo (the command-center has an "unavailable (0023 not applied?)" path). Apply 0023 before deploying this change; nothing in this phase applies it.
+8. One existing expectation was re-specified to the rule: `production-tts-cache.test.ts` test 6 (corrupt cached audio after a COMMITTED row) now expects refusal, not a new paid synthesis; test 6b keeps the pre-B1 behaviour when the ledger has no row.
+
+**RB-03 (re-pay part only):** a Reel retry no longer re-pays voice, image or music; the storage saga, content-addressed paths, orphan GC and hash reconciliation remain MISSING as in section 4.
 
 ATOMIVID_PI_V2_REALITY_CHECK_COMPLETE

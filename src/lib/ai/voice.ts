@@ -8,6 +8,8 @@
 // ELEVENLABS_API_KEY. Ese mismo criterio aplica a getVoiceProvider() en
 // src/lib/providers/voice/index.ts, que hoy decide real-vs-fixture solo
 // por presencia de la API key, sin validar la voz.
+import { ProviderRejectedError } from "@/lib/paid-calls/errors";
+
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 // Mateo (uYlzyj2kIZo3HfBB21vF) — voz masculina de la Voice Library de
 // ElevenLabs (acento latinoamericano, es-AR), elegida como ganadora tras
@@ -127,8 +129,11 @@ export async function synthesizeVoice(
   );
 
   if (!res.ok) {
+    // The provider answered and refused: nothing was generated or charged. Typed so the
+    // paid-call gate (src/lib/paid-calls) may retry it once; any other failure (timeout,
+    // connection cut, unreadable body) stays "uncertain" and is never retried.
     const errorBody = await res.text().catch(() => "");
-    throw new Error(`ElevenLabs respondió ${res.status}: ${errorBody}`);
+    throw new ProviderRejectedError(`ElevenLabs respondió ${res.status}: ${errorBody}`);
   }
 
   const data = (await res.json()) as ElevenLabsResponse;

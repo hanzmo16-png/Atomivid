@@ -1,0 +1,127 @@
+/**
+ * Gate adapters for the synchronous paid providers on the Generate path (voice, music).
+ * Each one: fixture bypass (no network, no cost) -> paid-call gate -> result persisted under
+ * `${requestId}/paid/` so a later attempt reuses it with zero provider calls.
+ */
+import { stableHash } from "@/lib/production-intelligence/canonical";
+import type { MusicProvider, MusicResult, MusicSelectionContext, ScriptLanguage, VoiceProvider, VoiceResult, WordTiming } from "@/lib/providers/types";
+import { guardPaidCall, type LedgerStore } from "./gate";
+import { paidResultPath, sha256Hex, UNSTORED_REF, type PaidResultStore } from "./result-store";
+
+export type PaidCallDeps = { ledger: LedgerStore; results: PaidResultStore; requestId: string };
+
+type StoredVoice = { audioPath: string; sha256: string; bytes: number; durationSeconds: number; words: WordTiming[]; mimeType: string; extension: string };
+type StoredMusic = { audioPath: string; sha256: string; bytes: number; durationSeconds: number; mimeType: string; extension: string; track?: MusicResult["track"] };
+
+async function storeAudio<M extends { audioPath: string; sha256: string; bytes: number }>(
+  results: PaidResultStore,
+  requestId: string,
+  key: string,
+  audio: { audioBuffer: Buffer; mimeType: string; extension: string },
+  meta: Omit<M, "audioPath" | "sha256" | "bytes">,
+): Promise<string> {
+  const audioPath = paidResultPath(requestId, key, audio.extension);
+  const jsonPath = paidResultPath(requestId, key, "json");
+  try {
+    await results.putBytes(audioPath, audio.audioBuffer, audio.mimeType);
+    await results.putJson(jsonPath, { ...meta, audioPath, sha256: sha256Hex(audio.audioBuffer), bytes: audio.audioBuffer.byteLength });
+    return jsonPath;
+  } catch (err) {
+    // The provider already charged: commit with an unloadable ref rather than lose the row. A
+    // later attempt refuses (PaidResultUnavailableError) instead of paying again.
+    return `${UNSTORED_REF}${err instanceof Error ? err.message.slice(0, 160) : "storage error"}`;
+  }
+}
+
+async function loadAudio<M extends { audioPath: string; sha256: string; bytes: number }>(results: PaidResultStore, resultRef: string): Promise<{ meta: M; audioBuffer: Buffer } | null> {
+  if (resultRef.startsWith(UNSTORED_REF)) return null;
+  const meta = await results.getJson<M>(resultRef);
+  if (!meta) return null;
+  const audioBuffer = await results.getBytes(meta.audioPath);
+  if (!audioBuffer || audioBuffer.byteLength !== meta.bytes || sha256Hex(audioBuffer) !== meta.sha256) return null;
+  return { meta, audioBuffer };
+}
+
+/**
+ * ElevenLabs on Generate (Reel voice ×2 incl. the speed correction, Avatar narration). The key
+ * is the text + language + speed + voice identity; render_attempts is not part of it.
+ */
+export async function gatedVoiceSynthesize(
+  deps: PaidCallDeps & { voiceProvider: VoiceProvider; voiceIdentity: { voiceId: string; modelId: string; voiceSettingsJson: string }; estimatedCostUsd: number },
+  text: string,
+  language: ScriptLanguage,
+  speed?: number,
+): Promise<VoiceResult & { reused: boolean; costUsd: number }> {
+  if (deps.voiceProvider.name === "fixture") {
+    const r = await deps.voiceProvider.synthesize(text, language, speed);
+    return { ...r, reused: false, costUsd: 0 };
+  }
+  const fingerprint = { text, language, speed: speed ?? null, voiceId: deps.voiceIdentity.voiceId, modelId: deps.voiceIdentity.modelId, voiceSettingsJson: deps.voiceIdentity.voiceSettingsJson };
+  const guarded = await guardPaidCall<VoiceResult>(
+    deps.ledger,
+    {
+      projectId: deps.requestId,
+      shotId: `voice:${stableHash(fingerprint, 16)}`,
+      provider: deps.voiceProvider.name,
+      model: deps.voiceIdentity.modelId,
+      method: "tts_with_timestamps",
+      inputFingerprint: fingerprint,
+      reservedUsd: Math.max(0, deps.estimatedCostUsd),
+    },
+    {
+      call: async ({ key }) => {
+        const r = await deps.voiceProvider.synthesize(text, language, speed);
+        const resultRef = await storeAudio<StoredVoice>(deps.results, deps.requestId, key, r, { durationSeconds: r.durationSeconds, words: r.words, mimeType: r.mimeType, extension: r.extension });
+        return { result: r, costUsd: Math.max(0, deps.estimatedCostUsd), resultRef };
+      },
+      load: async (resultRef) => {
+        const stored = await loadAudio<StoredVoice>(deps.results, resultRef);
+        if (!stored) return null;
+        const { meta, audioBuffer } = stored;
+        return { audioBuffer, durationSeconds: meta.durationSeconds, words: meta.words, mimeType: meta.mimeType, extension: meta.extension };
+      },
+    },
+  );
+  return { ...guarded.result, reused: guarded.reused, costUsd: guarded.costUsd };
+}
+
+/**
+ * Music on Generate. Only a generative provider (Beatoven) is paid; the curated library and the
+ * fixture are free and pass through untouched.
+ */
+export async function gatedMusicTrack(
+  deps: PaidCallDeps & { musicProvider: MusicProvider; estimatedCostUsd: number },
+  context: MusicSelectionContext,
+): Promise<MusicResult & { reused: boolean; costUsd: number }> {
+  if (deps.musicProvider.name !== "beatoven") {
+    const r = await deps.musicProvider.getTrack(context);
+    return { ...r, reused: false, costUsd: 0 };
+  }
+  const fingerprint = { durationSeconds: Math.round(context.durationSeconds), style: context.style ?? null, topic: context.topic ?? null, scriptText: context.scriptText ?? null, language: context.language ?? null, seed: context.seed ?? null };
+  const guarded = await guardPaidCall<MusicResult>(
+    deps.ledger,
+    {
+      projectId: deps.requestId,
+      shotId: `music:${stableHash(fingerprint, 16)}`,
+      provider: deps.musicProvider.name,
+      model: "maestro",
+      method: "compose",
+      inputFingerprint: fingerprint,
+      reservedUsd: Math.max(0, deps.estimatedCostUsd),
+    },
+    {
+      call: async ({ key }) => {
+        const r = await deps.musicProvider.getTrack(context);
+        const resultRef = await storeAudio<StoredMusic>(deps.results, deps.requestId, key, r, { durationSeconds: r.durationSeconds, mimeType: r.mimeType, extension: r.extension, track: r.track });
+        return { result: r, costUsd: Math.max(0, deps.estimatedCostUsd), resultRef };
+      },
+      load: async (resultRef) => {
+        const stored = await loadAudio<StoredMusic>(deps.results, resultRef);
+        if (!stored) return null;
+        const { meta, audioBuffer } = stored;
+        return { audioBuffer, durationSeconds: meta.durationSeconds, mimeType: meta.mimeType, extension: meta.extension, track: meta.track };
+      },
+    },
+  );
+  return { ...guarded.result, reused: guarded.reused, costUsd: guarded.costUsd };
+}

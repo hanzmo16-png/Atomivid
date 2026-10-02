@@ -63,6 +63,8 @@ import { DocumentAssetRegistry, type AssetIdentity } from "./asset-identity";
 import { assertVisualQuality, buildVisualReport, type VisualReport } from "./visual-report";
 import { ProductionBudget, supabaseBudgetStore, type BudgetStore } from "./production-budget";
 import { supabaseShotAssetStore, type ShotAssetStore } from "./durable-shot-assets";
+import type { LedgerStore } from "@/lib/paid-calls/gate";
+import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
 import { executeShot, type ShotExecution } from "./shot-executor";
 import { type LongFormStage } from "./stages";
 import {
@@ -90,6 +92,8 @@ type OnProgress = (stage: LongFormStage, units?: LongFormProgressUnits) => void 
 
 /** Dependencias inyectables (pruebas / inyección de fallos). En producción se omiten todas. */
 export type LongFormRuntime = {
+  /** Puerta de llamadas pagadas (PI V2 B1, RB-01): `pi_paid_operations`. Por defecto la real sobre `supabase`. */
+  ledger?: LedgerStore;
   store?: ShotAssetStore;
   budgetStore?: BudgetStore;
   /** `null` fuerza "sin proveedor de video IA"; ausente = el real (envuelto durable) solo si el plan lo permite. */
@@ -194,6 +198,7 @@ export async function generateLongFormVideoFromScript({
   const resolvedProviders = providers ?? resolveLongFormProviders("real");
   const requireReal = !providers;
   const store = runtime.store ?? supabaseShotAssetStore(supabase, requestId, STORAGE_BUCKET);
+  const ledger = runtime.ledger ?? supabaseLedgerStore(supabase);
   const allocation = executionAllocation(plan);
   // Abrir el presupuesto (gratis) ANTES de cualquier llamada pagada: si el
   // storage no responde, el trabajo falla aquí con $0 gastado.
@@ -224,6 +229,7 @@ export async function generateLongFormVideoFromScript({
       synthesizeBeatNarrationProductionCached(supabase, voiceProvider, beat, lang, {
         videoId: requestId,
         voiceIdentity: getVoiceIdentity(lang === "en" ? "en" : "es"),
+        ledger,
       }));
   let synthesized = 0;
   const synthesizeWithProgress: BeatSynthesizer = async (voiceProvider, beat, lang) => {
@@ -306,6 +312,7 @@ export async function generateLongFormVideoFromScript({
           supabase,
           scopeId: requestId,
           executionMode: "real",
+          ledger,
           beforeSubmit: () => budget.reserveAiVideoSubmit(units.veoClipUsd),
           maxInAttemptResumes: 2,
           resumeBackoffMs: runtime.resumeBackoffMs,
@@ -350,6 +357,7 @@ export async function generateLongFormVideoFromScript({
         imageProvider: resolvedProviders.imageProvider,
         videoProvider,
         store,
+        ledger,
         budget,
         units,
         aiVideoCostConfig: limits.aiVideoCostConfig,

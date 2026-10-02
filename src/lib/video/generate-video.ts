@@ -29,6 +29,11 @@ import type { Storyboard } from "@/lib/video/storyboard/types";
 import { getImageProvider } from "@/lib/providers/image";
 import { decideResourceStrategy, buildScenePlanEntry, type ScenePlanEntry } from "@/lib/video/visual-resource-planner";
 import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resolver";
+import { getVoiceIdentity } from "@/lib/ai/voice";
+import { getPricingConfig } from "@/lib/billing/pricing";
+import { gatedMusicTrack, gatedVoiceSynthesize, type PaidCallDeps } from "@/lib/paid-calls/gated-providers";
+import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
+import { supabaseResultStore } from "@/lib/paid-calls/result-store";
 
 // Deliberadamente separado de generate-script.ts — ver el comentario ahí
 // para la razón exacta (Remotion no debe cargarse en la ruta de guion).
@@ -60,10 +65,17 @@ export async function generateVideoFromScript({
   language = "es",
   targetDurationSeconds,
   onProgress,
+  paidCalls,
 }: {
   supabase: SupabaseClient;
   requestId: string;
   artifactPrefix?: string;
+  /**
+   * Puerta de llamadas pagadas (PI V2 B1, RB-01): ledger `pi_paid_operations` + almacén del
+   * resultado. Por defecto, los reales sobre `supabase`; inyectable en pruebas. Toda llamada
+   * de pago de esta función (voz ×2, imagen, música generativa) pasa por ella.
+   */
+  paidCalls?: Pick<PaidCallDeps, "ledger" | "results">;
   script: GeneratedScript;
   /** Estilo elegido por el usuario (p. ej. "Motivacional") — usado para elegir música acorde. */
   style?: string;
@@ -79,6 +91,15 @@ export async function generateVideoFromScript({
   const musicProvider = getMusicProvider();
   const imageProvider = getFeatureFlags().imageGenerationEnabled ? getImageProvider() : undefined;
   let storageBytes = 0;
+  const gate: PaidCallDeps = {
+    ledger: paidCalls?.ledger ?? supabaseLedgerStore(supabase),
+    results: paidCalls?.results ?? supabaseResultStore(supabase, STORAGE_BUCKET),
+    requestId,
+  };
+  const voiceIdentity = getVoiceIdentity(language === "en" ? "en" : "es");
+  const voiceCostUsd = (text: string) => (text.length / 1000) * getPricingConfig().elevenLabsUsdPer1kChars;
+  const synthesizeGated = (text: string, speed?: number) =>
+    gatedVoiceSynthesize({ ...gate, voiceProvider, voiceIdentity, estimatedCostUsd: voiceCostUsd(text) }, text, language, speed);
 
   // 0. Storyboard semántico (Visual Director) — detrás de
   // VISUAL_DIRECTOR_ENABLED (apagado por defecto, ver feature-flags.ts),
@@ -119,7 +140,7 @@ export async function generateVideoFromScript({
   // palabra (así toda la narración usa la misma voz y ritmo).
   await onProgress?.("voice");
   const fullText = script.segments.map((s) => s.text).join(" ");
-  let voice = await voiceProvider.synthesize(fullText, language);
+  let voice = await synthesizeGated(fullText);
 
   // Verificación de duración REAL (no estimada) contra el objetivo de la
   // solicitud — nunca estira ni recorta el audio ya grabado (eso sonaría
@@ -142,7 +163,7 @@ export async function generateVideoFromScript({
     let durationResult = checkDuration(targetDurationSeconds, voice.durationSeconds);
     if (!durationResult.withinTolerance) {
       const correctedSpeed = voice.durationSeconds / targetDurationSeconds;
-      const correctedVoice = await voiceProvider.synthesize(fullText, language, correctedSpeed);
+      const correctedVoice = await synthesizeGated(fullText, correctedSpeed);
       const correctedResult = checkDuration(targetDurationSeconds, correctedVoice.durationSeconds);
       voice = correctedVoice;
       durationResult = correctedResult;
@@ -231,6 +252,7 @@ export async function generateVideoFromScript({
             imageProvider,
             remainingBudgetUsd: Math.min(remainingBudgetUsd, decision.estimatedCostUsd),
             signedUrlTtlSeconds: ASSET_SIGNED_URL_TTL_SECONDS,
+            ledger: gate.ledger,
           });
 
           storageBytes += generated.bufferBytes;
@@ -382,14 +404,10 @@ export async function generateVideoFromScript({
   let music: MusicResult | null = null;
   let musicFallbackReason: string | null = null;
   try {
-    music = await musicProvider.getTrack({
-      durationSeconds: finalDurationSeconds,
-      style,
-      topic,
-      scriptText: fullText,
-      language,
-      seed: requestId,
-    });
+    music = await gatedMusicTrack(
+      { ...gate, musicProvider, estimatedCostUsd: Number(process.env.BEATOVEN_ESTIMATED_COST_USD || "0") },
+      { durationSeconds: finalDurationSeconds, style, topic, scriptText: fullText, language, seed: requestId },
+    );
   } catch (err) {
     const errorName = err instanceof Error ? err.name : "Error";
     const errorMessage = err instanceof Error ? err.message : String(err);
