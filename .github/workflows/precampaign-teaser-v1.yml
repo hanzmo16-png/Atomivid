@@ -40,6 +40,10 @@ on:
         description: "avatars.id cuya foto de origen guardada se exporta para revisión visual (opcional)"
         required: false
         type: string
+      find_name:
+        description: "Texto a buscar en la raíz de todos los buckets (localizar subidas del operador; opcional)"
+        required: false
+        type: string
       list_identities:
         description: "Listar avatares y voces listos (id, nombre, proveedor; sin usuarios) para elegir los de Hans"
         required: false
@@ -84,6 +88,7 @@ jobs:
           TEASER_LIST_IDENTITIES: ${{ inputs.list_identities }}
           TEASER_PROBE_PREFIX: ${{ inputs.probe_prefix }}
           TEASER_AVATAR_PHOTO_IDS: ${{ inputs.avatar_photo_ids }}
+          TEASER_FIND_NAME: ${{ inputs.find_name }}
 
       - name: Publicar informe de descubrimiento
         if: always()

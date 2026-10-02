@@ -144,6 +144,26 @@ async function main() {
     avatarPhotos.push({ id, name: row.name, provider: row.provider, photo: `avatars/${id}.${ext}` });
   }
 
+  // Búsqueda por nombre en la raíz de todos los buckets (y un nivel dentro de lo que coincida):
+  // para localizar subidas del operador sin conocer la ruta exacta. Solo nombres y tamaños.
+  const found: Record<string, { path: string; bytes: number | null }[]> = {};
+  const needle = process.env.TEASER_FIND_NAME?.trim().toLowerCase();
+  if (needle) {
+    const { data: buckets } = await service.storage.listBuckets();
+    for (const b of buckets ?? []) {
+      const store = service.storage.from(b.name);
+      const hits: { path: string; bytes: number | null }[] = [];
+      const { data: root } = await store.list("", { limit: 1000 });
+      for (const e of root ?? []) {
+        if (!e.name.toLowerCase().includes(needle)) continue;
+        if (e.id !== null) { hits.push({ path: e.name, bytes: (e.metadata as { size?: number } | null)?.size ?? null }); continue; }
+        const { data: inner } = await store.list(e.name, { limit: 100 });
+        for (const f of inner ?? []) hits.push({ path: `${e.name}/${f.name}`, bytes: (f.metadata as { size?: number } | null)?.size ?? null });
+      }
+      found[b.name] = hits;
+    }
+  }
+
   const reuse = [];
   for (const path of (process.env.TEASER_REUSE_PATHS ?? "").split(",").map((p) => p.trim()).filter(Boolean)) {
     const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
@@ -173,6 +193,7 @@ async function main() {
     listing,
     probed,
     avatarPhotos,
+    found,
   };
   await rm(work, { recursive: true, force: true });
   await writeFile(join(outDir, "teaser-discovery.json"), JSON.stringify(report, null, 2) + "\n");
