@@ -12,11 +12,13 @@ import { computeProductionProgress, type ProgressStageKey } from "./progress";
 import { documentary180sFixture } from "./test-fixtures";
 import { fixtureVoiceProvider } from "@/lib/providers/voice/fixture";
 import { fixtureMusicProvider } from "@/lib/providers/music/fixture";
-import type { FootageProvider, ImageProvider, VideoProvider, VoiceProvider } from "@/lib/providers/types";
+import type { FootageProvider, ImageProvider, MusicProvider, MusicSelectionContext, VideoProvider, VoiceProvider } from "@/lib/providers/types";
 import type { LongFormProviderSet } from "./mode";
 import type { RenderLongFormDocInput } from "./render";
 import { memoryOutputDeps } from "./output-finalize";
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
+import { gatedMusicTrack, loadCommittedMusicTrack } from "@/lib/paid-calls/gated-providers";
+import { supabaseResultStore } from "@/lib/paid-calls/result-store";
 import { visualsForBeat } from "./visual-intents";
 import { selectionQueries } from "./stock-selection";
 
@@ -153,6 +155,7 @@ async function run(
     replayOnly?: boolean;
     thumbnails?: { calls: unknown[]; uploads: string[] };
     providersOverride?: Partial<LongFormProviderSet>;
+    artifacts?: Map<string, Buffer>;
   } = {},
 ) {
   const script = documentary180sFixture();
@@ -166,8 +169,9 @@ async function run(
     aiVideoEnabled: opts.videoProvider ? true : false,
     recordCosts: false,
     resumeBackoffMs: 0,
-    uploadArtifact: async (p) => {
+    uploadArtifact: async (p, buffer) => {
       opts.thumbnails?.uploads.push(p);
+      opts.artifacts?.set(p, Buffer.from(buffer));
       return { path: p, url: `memory://${p}` };
     },
     renderThumbnail: async (input) => {
@@ -603,4 +607,111 @@ test("B5.2-4: retry con reserva persistida → 0 búsquedas nuevas, 0 voz nueva,
   const reservedAfter = [...env.mem.records.values()].filter((r) => r.shotId.startsWith("motionres-")).map((r) => `${r.shotId}:${r.objectPath}`).sort();
   assert.deepEqual(reservedAfter, reservedBefore, "la identidad de la reserva no cambia");
   assert.ok(renderInput!.scenes.some((s) => s.asset.kind === "media" && s.asset.url.includes("/motionres-")));
+});
+
+// ---- PI V2 COST-B: música pagada (Beatoven) de Long Form por la misma puerta + result store que Reel ----
+
+function fakeBeatoven(calls: MusicSelectionContext[]): MusicProvider {
+  return {
+    name: "beatoven",
+    async getTrack(context) {
+      calls.push(context);
+      return { audioBuffer: Buffer.from(`beatoven-track-${calls.length}`), durationSeconds: context.durationSeconds, mimeType: "audio/mpeg", extension: "mp3" };
+    },
+  };
+}
+
+const composeOps = (env: Env) => [...env.ledger.ops.values()].filter((op) => op.method === "compose");
+const musicDepsFor = (env: Env, musicProvider: MusicProvider) => ({
+  ledger: env.ledger,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  results: supabaseResultStore(env.supabase as any, "videos"),
+  requestId: "req-panama-qa",
+  musicProvider,
+  estimatedCostUsd: 0,
+});
+
+test("COST-B-2: primer intento con Beatoven → 1 llamada, pista persistida reutilizable y operación COMMITTED", async () => {
+  const c = counters();
+  const calls: MusicSelectionContext[] = [];
+  const env = freshEnv();
+  const artifacts = new Map<string, Buffer>();
+  await run(env, c, planFor("economical"), { providersOverride: { musicProvider: fakeBeatoven(calls) }, artifacts });
+  assert.equal(calls.length, 1);
+  const ops = composeOps(env);
+  assert.equal(ops.length, 1);
+  assert.equal(ops[0].status, "COMMITTED");
+  assert.equal(ops[0].provider, "beatoven");
+  assert.equal(ops[0].projectId, "req-panama-qa");
+  assert.ok(ops[0].resultRef?.startsWith("req-panama-qa/paid/"), "durable fuera del prefijo de intento");
+  const stored = await loadCommittedMusicTrack(musicDepsFor(env, fakeBeatoven([])), calls[0]);
+  assert.equal(stored?.audioBuffer.toString(), "beatoven-track-1");
+  assert.equal(artifacts.get("req-panama-qa/attempt-1/music.mp3")?.toString(), "beatoven-track-1");
+});
+
+test("COST-B-1: retry con la pista Beatoven ya persistida → 0 getTrack, 0 filas nuevas, la misma pista; otra identidad no la reutiliza", async () => {
+  const c = counters();
+  const calls: MusicSelectionContext[] = [];
+  const env = freshEnv({ durationSeconds: 180, transientUploadFailures: 1 });
+  const beatoven = fakeBeatoven(calls);
+  const original = await run(env, c, planFor("economical"), { providersOverride: { musicProvider: beatoven } }).catch(() => null);
+  assert.equal(original, null, "el intento original falló en la entrega, después de la música");
+  assert.equal(calls.length, 1);
+  const rowsBefore = env.ledger.ops.size;
+
+  const artifacts = new Map<string, Buffer>();
+  await run(env, c, planFor("economical"), { providersOverride: { musicProvider: beatoven }, artifacts });
+  assert.equal(calls.length, 1, "getTrack = 0 en el retry");
+  assert.equal(env.ledger.ops.size, rowsBefore, "0 filas nuevas de ledger");
+  assert.equal(artifacts.get("req-panama-qa/attempt-1/music.mp3")?.toString(), "beatoven-track-1", "se reutiliza exactamente la pista pagada");
+
+  // Mismo requestId, identidad musical distinta: no hay pista que reutilizar y pagarla es otra operación.
+  const deps = musicDepsFor(env, beatoven);
+  const ctx = calls[0];
+  assert.equal((await loadCommittedMusicTrack(deps, ctx))?.audioBuffer.toString(), "beatoven-track-1");
+  for (const other of [{ ...ctx, scriptText: `${ctx.scriptText} Epílogo.` }, { ...ctx, durationSeconds: ctx.durationSeconds + 30 }, { ...ctx, language: "en" as const }]) {
+    assert.equal(await loadCommittedMusicTrack(deps, other), null);
+  }
+  const other = await gatedMusicTrack(deps, { ...ctx, scriptText: `${ctx.scriptText} Epílogo.` });
+  assert.equal(other.reused, false);
+  assert.equal(other.audioBuffer.toString(), "beatoven-track-2");
+  assert.equal(composeOps(env).length, 2, "dos identidades → dos operaciones distintas");
+});
+
+test("COST-B-3: biblioteca curada y fixture siguen gratis — 0 operaciones de ledger, mismo comportamiento", async () => {
+  const fixtureEnv = freshEnv();
+  await run(fixtureEnv, counters(), planFor("economical"));
+  assert.equal(composeOps(fixtureEnv).length, 0);
+
+  const curatedCalls: MusicSelectionContext[] = [];
+  const curated: MusicProvider = { ...fakeBeatoven(curatedCalls), name: "curated-library" };
+  const env = freshEnv({ durationSeconds: 180, transientUploadFailures: 1 });
+  await run(env, counters(), planFor("economical"), { providersOverride: { musicProvider: curated } }).catch(() => null);
+  await run(env, counters(), planFor("economical"), { providersOverride: { musicProvider: curated } });
+  assert.equal(curatedCalls.length, 2, "la biblioteca gratuita se consulta en cada intento, como antes");
+  assert.equal(composeOps(env).length, 0, "sin fila de ledger pagada");
+});
+
+test("COST-B replay: la pista Beatoven solo se lee del resultado durable; si falta, error de replay sin generar", async () => {
+  const calls: MusicSelectionContext[] = [];
+  const env = freshEnv({ durationSeconds: 180, transientUploadFailures: 1 });
+  await run(env, counters(), planFor("economical"), { providersOverride: { musicProvider: fakeBeatoven(calls) } }).catch(() => null);
+  assert.equal(calls.length, 1);
+  const artifacts = new Map<string, Buffer>();
+  await run(env, counters(), planFor("economical"), { replayOnly: true, providersOverride: { musicProvider: fakeBeatoven(calls) }, artifacts });
+  assert.equal(calls.length, 1, "replay: 0 llamadas a Beatoven");
+  assert.equal(artifacts.get("req-panama-qa/attempt-1/music.mp3")?.toString(), "beatoven-track-1");
+
+  // Sin pista pagada persistida (el original usó otra música): replay aborta, nunca genera ni sustituye.
+  const missingCalls: MusicSelectionContext[] = [];
+  const env2 = freshEnv({ durationSeconds: 180, transientUploadFailures: 1 });
+  await run(env2, counters(), planFor("economical")).catch(() => null);
+  const renders = { count: 0 };
+  await assert.rejects(
+    () => run(env2, counters(), planFor("economical"), { replayOnly: true, renders, providersOverride: { musicProvider: fakeBeatoven(missingCalls) } }),
+    (err: unknown) => err instanceof Error && err.name === "LongFormReplayError" && /música/.test(err.message),
+  );
+  assert.equal(missingCalls.length, 0);
+  assert.equal(renders.count, 0);
+  assert.equal(composeOps(env2).length, 0);
 });

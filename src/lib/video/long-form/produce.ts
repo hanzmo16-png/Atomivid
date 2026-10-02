@@ -67,6 +67,8 @@ import { ProductionBudget, supabaseBudgetStore, type BudgetStore } from "./produ
 import { supabaseShotAssetStore, type ShotAssetStore } from "./durable-shot-assets";
 import type { LedgerStore } from "@/lib/paid-calls/gate";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
+import { gatedMusicTrack, isPaidMusicProvider, loadCommittedMusicTrack } from "@/lib/paid-calls/gated-providers";
+import { supabaseResultStore } from "@/lib/paid-calls/result-store";
 import { bindMotionReservations, executeShot, MotionShotUnavailableError, reserveMotionClips, STOCK_CLIP_MARGIN_SEC, type MotionVisualDemand, type ReservedMotionClip, type ShotExecution } from "./shot-executor";
 import { motionVisualId, shotCountForSpan } from "./shots";
 import type { Shot } from "./types";
@@ -502,18 +504,26 @@ export async function generateLongFormVideoFromScript({
   const finalDurationSeconds = timeline.durationSeconds + VIDEO_TAIL_SECONDS;
   let music: MusicResult | null = null;
   let musicFallbackReason: string | null = null;
-  try {
-    music = await resolvedProviders.musicProvider.getTrack({
-      durationSeconds: finalDurationSeconds,
-      style: "documental",
-      topic,
-      scriptText: fullNarrationText,
-      language,
-      seed: requestId,
-    });
-  } catch (err) {
-    musicFallbackReason = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-    console.warn(`[atomivid:long-form:produce] ${requestId} — no se pudo obtener música, el documental se genera sin ella:`, musicFallbackReason);
+  const musicContext = { durationSeconds: finalDurationSeconds, style: "documental", topic, scriptText: fullNarrationText, language, seed: requestId };
+  // PI V2 COST-B: paid music (Beatoven) goes through the same gate + result store as Reel — keyed by
+  // these inputs, never by attempt — so a retry reuses the committed track. Replay only reads it.
+  const musicDeps = {
+    ledger,
+    results: supabaseResultStore(supabase, STORAGE_BUCKET),
+    requestId,
+    musicProvider: resolvedProviders.musicProvider,
+    estimatedCostUsd: Number(process.env.BEATOVEN_ESTIMATED_COST_USD || "0"),
+  };
+  if (replayOnly && isPaidMusicProvider(resolvedProviders.musicProvider)) {
+    music = await loadCommittedMusicTrack(musicDeps, musicContext);
+    if (!music) throw new LongFormReplayError("la pista de música pagada no está en el resultado durable (no se genera)");
+  } else {
+    try {
+      music = await gatedMusicTrack(musicDeps, musicContext);
+    } catch (err) {
+      musicFallbackReason = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      console.warn(`[atomivid:long-form:produce] ${requestId} — no se pudo obtener música, el documental se genera sin ella:`, musicFallbackReason);
+    }
   }
   let musicUrl: string | undefined;
   if (music) {

@@ -5,7 +5,7 @@
  */
 import { stableHash } from "@/lib/production-intelligence/canonical";
 import type { MusicProvider, MusicResult, MusicSelectionContext, ScriptLanguage, VoiceProvider, VoiceResult, WordTiming } from "@/lib/providers/types";
-import { guardPaidCall, type LedgerStore } from "./gate";
+import { guardPaidCall, paidCallKey, type LedgerStore, type PaidCallSpec } from "./gate";
 import { paidResultPath, sha256Hex, UNSTORED_REF, type PaidResultStore } from "./result-store";
 import { lintPronunciationAliases, restoreDisplayWords, spokenText, TtsVoiceMissingError, type PronunciationAlias } from "./pronunciation";
 
@@ -97,43 +97,68 @@ export async function gatedVoiceSynthesize(
   return { ...guarded.result, words: restoreDisplayWords(guarded.result.words, aliases), reused: guarded.reused, costUsd: guarded.costUsd };
 }
 
+type MusicCallDeps = PaidCallDeps & { musicProvider: MusicProvider; estimatedCostUsd: number };
+
+/** Only a generative provider (Beatoven) is paid; the curated library and the fixture are free. */
+export const isPaidMusicProvider = (provider: MusicProvider) => provider.name === "beatoven";
+
+function musicCallSpec(deps: MusicCallDeps, context: MusicSelectionContext): PaidCallSpec {
+  const fingerprint = { durationSeconds: Math.round(context.durationSeconds), style: context.style ?? null, topic: context.topic ?? null, scriptText: context.scriptText ?? null, language: context.language ?? null, seed: context.seed ?? null };
+  return {
+    projectId: deps.requestId,
+    shotId: `music:${stableHash(fingerprint, 16)}`,
+    provider: deps.musicProvider.name,
+    model: "maestro",
+    method: "compose",
+    inputFingerprint: fingerprint,
+    reservedUsd: Math.max(0, deps.estimatedCostUsd),
+  };
+}
+
+async function loadMusic(results: PaidResultStore, resultRef: string): Promise<MusicResult | null> {
+  const stored = await loadAudio<StoredMusic>(results, resultRef);
+  if (!stored) return null;
+  const { meta, audioBuffer } = stored;
+  return { audioBuffer, durationSeconds: meta.durationSeconds, mimeType: meta.mimeType, extension: meta.extension, track: meta.track };
+}
+
 /**
- * Music on Generate. Only a generative provider (Beatoven) is paid; the curated library and the
- * fixture are free and pass through untouched.
+ * Music on Generate and Long Form. Only a generative provider (Beatoven) is paid; the curated
+ * library and the fixture are free and pass through untouched.
  */
 export async function gatedMusicTrack(
-  deps: PaidCallDeps & { musicProvider: MusicProvider; estimatedCostUsd: number },
+  deps: MusicCallDeps,
   context: MusicSelectionContext,
 ): Promise<MusicResult & { reused: boolean; costUsd: number }> {
-  if (deps.musicProvider.name !== "beatoven") {
+  if (!isPaidMusicProvider(deps.musicProvider)) {
     const r = await deps.musicProvider.getTrack(context);
     return { ...r, reused: false, costUsd: 0 };
   }
-  const fingerprint = { durationSeconds: Math.round(context.durationSeconds), style: context.style ?? null, topic: context.topic ?? null, scriptText: context.scriptText ?? null, language: context.language ?? null, seed: context.seed ?? null };
   const guarded = await guardPaidCall<MusicResult>(
     deps.ledger,
-    {
-      projectId: deps.requestId,
-      shotId: `music:${stableHash(fingerprint, 16)}`,
-      provider: deps.musicProvider.name,
-      model: "maestro",
-      method: "compose",
-      inputFingerprint: fingerprint,
-      reservedUsd: Math.max(0, deps.estimatedCostUsd),
-    },
+    musicCallSpec(deps, context),
     {
       call: async ({ key }) => {
         const r = await deps.musicProvider.getTrack(context);
         const resultRef = await storeAudio<StoredMusic>(deps.results, deps.requestId, key, r, { durationSeconds: r.durationSeconds, mimeType: r.mimeType, extension: r.extension, track: r.track });
         return { result: r, costUsd: Math.max(0, deps.estimatedCostUsd), resultRef };
       },
-      load: async (resultRef) => {
-        const stored = await loadAudio<StoredMusic>(deps.results, resultRef);
-        if (!stored) return null;
-        const { meta, audioBuffer } = stored;
-        return { audioBuffer, durationSeconds: meta.durationSeconds, mimeType: meta.mimeType, extension: meta.extension, track: meta.track };
-      },
+      load: (resultRef) => loadMusic(deps.results, resultRef),
     },
   );
   return { ...guarded.result, reused: guarded.reused, costUsd: guarded.costUsd };
+}
+
+/**
+ * Read-only: the COMMITTED paid track for this exact context (same key as `gatedMusicTrack`), with
+ * its sha256 verified; null when there is none. Never calls the provider nor writes the ledger.
+ */
+export async function loadCommittedMusicTrack(deps: MusicCallDeps, context: MusicSelectionContext): Promise<MusicResult | null> {
+  const spec = musicCallSpec(deps, context);
+  // Ordinal 1 is the gate's single retry after a pre-acceptance refusal (default maxRejectedRetries).
+  for (const ordinal of [0, 1]) {
+    const op = await deps.ledger.get(paidCallKey(spec, ordinal));
+    if (op?.status === "COMMITTED" && op.resultRef) return loadMusic(deps.results, op.resultRef);
+  }
+  return null;
 }
