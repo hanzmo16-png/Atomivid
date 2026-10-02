@@ -715,3 +715,25 @@ test("COST-B replay: la pista Beatoven solo se lee del resultado durable; si fal
   assert.equal(renders.count, 0);
   assert.equal(composeOps(env2).length, 0);
 });
+
+test("COST-3: en el camino del job, cada envío al proveedor de video IA lleva metadata.shotId (nunca la rama sin clave de idempotencia)", async () => {
+  const previous = process.env.LONG_FORM_AI_VIDEO_ENABLED;
+  process.env.LONG_FORM_AI_VIDEO_ENABLED = "true";
+  try {
+    const c = counters();
+    const plan = computeProductionPlan({ ...documentary180sFixture(), strategy: "cinematic", providers: REAL_LONG_FORM_PROVIDER_NAMES, aiVideoEnabled: true });
+    const veo = fakeVeo(c);
+    const shotIds: (string | undefined)[] = [];
+    const recording: VideoProvider = { ...veo, generateVideo: (req) => (shotIds.push(req.metadata?.shotId), veo.generateVideo(req)) };
+    const env = freshEnv();
+    await run(env, c, plan, { videoProvider: recording });
+    assert.ok(shotIds.length > 0, "el plan cinematic envía clips de video IA");
+    assert.ok(shotIds.every((id) => typeof id === "string" && id.length > 0), `envíos sin shotId: ${JSON.stringify(shotIds)}`);
+    const videoOps = [...env.ledger.ops.values()].filter((op) => op.method === "generate_video");
+    assert.equal(videoOps.length, shotIds.length, "cada envío pasó por el gate con su propia fila");
+    assert.ok(videoOps.every((op) => op.shotId.startsWith("ai_video:") && op.projectId === "req-panama-qa"));
+  } finally {
+    if (previous === undefined) delete process.env.LONG_FORM_AI_VIDEO_ENABLED;
+    else process.env.LONG_FORM_AI_VIDEO_ENABLED = previous;
+  }
+});
