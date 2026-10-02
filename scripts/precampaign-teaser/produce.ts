@@ -301,7 +301,7 @@ async function main() {
     args.push("-i", audio);
     const chains = picks.map((_, i) => `${vertical(`${i}:v`).replaceAll("[bg]", `[bg${i}]`).replaceAll("[fg]", `[fg${i}]`)},setsar=1,fps=${FPS},trim=duration=${each.toFixed(3)},setpts=PTS-STARTPTS[v${i}]`);
     const concat = `${picks.map((_, i) => `[v${i}]`).join("")}concat=n=${picks.length}:v=1:a=0[mv]`;
-    const filter = `${chains.join(";")};${concat};[mv]${extra || "null"}[vout];[${picks.length}:a]apad=whole_dur=${dur.toFixed(3)}[aout]`;
+    const filter = `${chains.join(";")};${concat};[mv]tpad=stop_mode=clone:stop_duration=1,${extra || "null"}[vout];[${picks.length}:a]apad=whole_dur=${dur.toFixed(3)}[aout]`;
     await ff([...args, "-filter_complex", filter, "-map", "[vout]", "-map", "[aout]", "-t", dur.toFixed(3), ...enc, seg(name)]);
     return dur;
   };
@@ -329,7 +329,9 @@ async function main() {
   await ff(["-i", real.opening.file, ...enc, seg("opening")]);
   await ff(["-i", real.closing.file, ...enc, seg("closing")]);
   // Avatar: retrato vertical a pantalla completa con su propia voz.
-  await ff(["-i", avatarFile, "-i", tts.avatar.file, "-filter_complex", `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${FPS},setsar=1[v]`, "-map", "[v]", "-map", "1:a", "-shortest", ...enc, seg("avatar")]);
+  // El video de HeyGen puede durar unas décimas menos que su audio: se congela el último cuadro hasta la duración
+  // exacta del audio (con -shortest todo lo posterior quedaría adelantado respecto de la voz).
+  await ff(["-i", avatarFile, "-i", tts.avatar.file, "-filter_complex", `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${FPS},setsar=1,tpad=stop_mode=clone:stop_duration=2[v]`, "-map", "[v]", "-map", "1:a", "-t", tts.avatar.duration.toFixed(3), ...enc, seg("avatar")]);
   // Demo: IDEA → GUION → VOZ → VISUALES → MOVIMIENTO → MÚSICA → VIDEO sincronizado con la voz.
   const dw = tts.demo.words;
   const at = (i: number) => dw[Math.min(i, dw.length - 1)]?.start ?? 0;
@@ -354,6 +356,15 @@ async function main() {
   const order = ["opening", "avatar", "demo", "results", "reveal", "closing", "end"];
   const durs: Record<string, number> = {};
   for (const n of order) durs[n] = (await probe(seg(n))).duration;
+  // Sincronía: en cada segmento el video y el audio deben durar lo mismo (± 1 cuadro), o el montaje se desfasa.
+  const avDrift: Record<string, number> = {};
+  for (const n of order) {
+    const { stdout } = await sh(FFPROBE, ["-v", "error", "-show_entries", "stream=codec_type,duration", "-of", "json", seg(n)]);
+    const st = (JSON.parse(stdout) as { streams: { codec_type: string; duration?: string }[] }).streams;
+    const dv = Number(st.find((x) => x.codec_type === "video")?.duration ?? 0), da = Number(st.find((x) => x.codec_type === "audio")?.duration ?? 0);
+    avDrift[n] = Math.round(Math.abs(dv - da) * 1000);
+  }
+  if (Math.max(...Object.values(avDrift)) > 60) throw new Error(`Desfase A/V por segmento (ms): ${JSON.stringify(avDrift)}`);
   const XF = 0.3;
   const inputsArgs = order.flatMap((n) => ["-i", seg(n)]);
   const vchain = [`[0:v][1:v]xfade=transition=pixelize:duration=${XF}:offset=${(durs.opening - XF).toFixed(3)}[x01]`, `[x01]${order.slice(2).map((_, i) => `[${i + 2}:v]`).join("")}concat=n=${order.length - 1}:v=1:a=0[vcat]`];
@@ -432,6 +443,7 @@ async function main() {
       resolution1080x1920: m.width === W && m.height === H, fps30: Math.abs(m.fps - FPS) < 0.05, duration30to36: m.duration >= 30 && m.duration <= 36,
       audioPresent: m.hasAudio, firstFrameVisual: firstYavg > 16, noAccidentalBlack: blackIntervals.length === 0, noClipping: truePeak <= -1.0,
     },
+    avSyncDriftMsPerSegment: avDrift,
     loudnessLufs: integrated, truePeakDbfs: truePeak, firstFrameYavg: firstYavg, blackIntervals,
     sections: Object.fromEntries(order.map((n) => [n, { start: Math.round(offsets[n] * 100) / 100, duration: Math.round(durs[n] * 100) / 100 }])),
     retouch: { tools: "ffmpeg (hqdn3d, bilateral, curves, colorbalance, eq, unsharp)", localRetouchLimitReached: true, note: "Sin detección facial local: el suavizado y el color se aplican a todo el plano con parámetros leves; sin cambios de geometría." },
