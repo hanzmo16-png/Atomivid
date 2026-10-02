@@ -1,6 +1,6 @@
 # ATOMIVID — Production Intelligence V2 Hardening, Fase A: Code Reality Check / Gap Analysis
 
-**Date:** 2026-10-02 · **Repo:** `hanzmo16-png/Atomivid` · **HEAD audited:** `692e9ec` (branch `claude/production-intelligence-v1`) · **Updated:** Fase B1 (RB-01 double-charge guard, section 17) Fase B2 (RB-02 capacity hold, section 18) Fase B3 (RB-06 owner-scoped signing, section 19) Fase B3.1 (RB-06 column guard migration 0031, section 20) Fase B3.2 (RB-06 completed-row check and avatar write guard 0032, section 21) and Fase B3.3 (RB-06 review owner gate, section 22) · **Mode:** READ-ONLY (no code, no migrations, no deploy, no paid calls, no assets, no render, no publish) · **Spend:** USD 0.00
+**Date:** 2026-10-02 · **Repo:** `hanzmo16-png/Atomivid` · **HEAD audited:** `692e9ec` (branch `claude/production-intelligence-v1`) · **Updated:** Fase B1 (RB-01 double-charge guard, section 17) Fase B2 (RB-02 capacity hold, section 18) Fase B3 (RB-06 owner-scoped signing, section 19) Fase B3.1 (RB-06 column guard migration 0031, section 20) Fase B3.2 (RB-06 completed-row check and avatar write guard 0032, section 21) Fase B3.3 (RB-06 review owner gate, section 22) and Fase B4 (RB-07 pronunciation lint, section 23) · **Mode:** READ-ONLY (no code, no migrations, no deploy, no paid calls, no assets, no render, no publish) · **Spend:** USD 0.00
 
 **Scope rule.** "Product path" / "Generate" means the customer flow and nothing else:
 `POST /api/generate/[id]/render` (`src/app/api/generate/[id]/render/route.ts`) → `src/lib/worker/{index,github-actions}.ts` → `.github/workflows/render.yml` → `scripts/render-worker.ts` → `src/lib/video/run-job.ts` → `src/lib/video/generate-video.ts` (Reel) · `src/lib/video/long-form/produce.ts` (Long Form) · `src/lib/video/avatar/pipeline.ts` (Avatar).
@@ -15,7 +15,7 @@
 
 ## 1. Executive summary
 
-- **RELEASE READINESS: NOT_READY.** After Fase B3: 6 of 13 blockers are MISSING on the product path (RB-03, RB-07, RB-08, RB-09, RB-10, RB-13); 7 are PARTIAL (RB-01 since B1, RB-02 since B2, RB-06 since B3, RB-04, RB-05, RB-11, RB-12); 0 IMPLEMENTED. One MISSING is enough for NOT_READY; there are six.
+- **RELEASE READINESS: NOT_READY.** After Fase B4: 5 of 13 blockers are MISSING on the product path (RB-03, RB-08, RB-09, RB-10, RB-13); 8 are PARTIAL (RB-01 since B1, RB-02 since B2, RB-06 since B3, RB-07 since B4, RB-04, RB-05, RB-11, RB-12); 0 IMPLEMENTED. One MISSING is enough for NOT_READY; there are five.
 - **The money path is unprotected where it matters.** The Reel branch of Generate reaches ElevenLabs (`src/lib/ai/voice.ts:113`), OpenAI images and Beatoven with no provider-call record, no idempotency key, no timeout, no reconciliation. Long Form has a real write-ahead record (STARTED → COMPLETED in Storage JSON) with tests, but no idempotency key reaches any provider, a Storage read error is treated as "absent" (resubmission), and there is no sweeper. **A timeout can produce two charges** (RB-01: yes, both branches). **Ten jobs can read the same balance and all start** (RB-02: yes; quota is a read-then-act count, provider balance is never read on Generate).
 - **PI V1's ledger (`pi_paid_operations`, `executePaidOperation`) is correct but unreachable:** it is not imported by anything on the product path. The red team's RESERVED/DISPATCHED/NEEDS_RECONCILE model exists in migration 0023 and in `src/lib/production-intelligence/ledger.ts`, and Generate never passes through it.
 - **Tenant isolation has a concrete hole** (RB-06): the `video_requests` INSERT policy (`0001_init.sql:27-29`) checks only `auth.uid() = user_id`; no column grant or trigger constrains `status`, `video_path`, `render_attempts`, `created_at` or `long_form_production_plan`. The dashboard signs `video_path` with the service role without a path check (`src/lib/storage/signed-url.ts:13-23`, `src/app/dashboard/videos/[id]/page.tsx:67-68`). Static reading shows a cross-tenant read and quota/attempt bypass; not executed in this turn.
@@ -36,7 +36,7 @@
 | RB-04 | Single job owner / fencing | **PARTIAL** | CAS + attempt token on `video_requests` only | M |
 | RB-05 | Review ≠ publish | **PARTIAL** | No publish code exists; no review state exists | S |
 | RB-06 | Secrets / signed-URL redaction / tenant isolation | **PARTIAL** (B3; was MISSING at `692e9ec`) | Customer pages now sign only a path under the owned row's own `${id}/` prefix (section 19). Migration 0031 (written, verified on Postgres 16, NOT applied to production) stops clients writing `video_path`, `created_at`, `render_attempts`, the plan and the confirmation, and pins client rows to their own `user_id` and `pending`/`script_ready` (section 20). Migration 0032 (written, verified, NOT applied) revokes client writes on `avatars`; the app inserts avatars with the service role (section 21). `/r/<slug>` now admits only `isReviewOwner` (section 22). Still open: 0031/0032 not applied, Sentry redaction | M |
-| RB-07 | Immutable pronunciation contract | **MISSING** | TTS cache identity PARTIAL | M |
+| RB-07 | Immutable pronunciation contract | **PARTIAL** (B4; was MISSING at `692e9ec`) | Broken aliases (hyphen/uppercase) rejected before the B1 gate; speak-only aliases never reach subtitles; explicit voice_id/model_id/settings, no voice_id → no call (section 23). Still open: no product input carries aliases, no dictionary/version pin, voice from env not pinned per job, Long Form TTS path not linted, cache key lacks dictionary/context | M |
 | RB-08 | Visual class contract | **MISSING** | Downgrade is designed behaviour | L |
 | RB-09 | Factual grounding / creative risk | **MISSING** | — | L |
 | RB-10 | Final-frame license / attribution QA | **MISSING** | Cover-spec checks PARTIAL (cover only) | M |
@@ -56,7 +56,7 @@
 | RB-04 | PARTIAL | Compare-and-set on `status`/`render_attempts` (`render/route.ts:163-180`, `attempt-state.ts:6-18`) with a race test against a fake PostgREST; no lease expiry, no `pipeline_version`, Storage/budget writes unfenced, script routes unfenced. |
 | RB-05 | PARTIAL | `AUTO_PUBLISH` is the literal `false` and tested; no YouTube write endpoint is called anywhere; bucket private since 0006. But `READY_FOR_REVIEW`/`PUBLISH_REQUESTED`/`PUBLISHED` do not exist and `completed` is delivery. |
 | RB-06 | PARTIAL (B3) | At `692e9ec`: INSERT policy with no column restriction + unchecked `video_path` signing = cross-tenant read (static). Since B3 the signing is owner- and prefix-scoped (section 19) so a forged `video_path` yields no URL; the insert policy itself still lets a client set `status`, `created_at`, `render_attempts` and the plan (quota/attempt/budget bypass), which only SQL can close. `redactSignedUrl` still unused at runtime (nothing logs a URL); Sentry has no `beforeSend`; `isReviewOwner` not wired on this branch. |
-| RB-07 | MISSING | Product request body is `{text, model_id, voice_settings}` (`voice.ts:121-125`): no dictionary, no version, no SSML; voice/model from env at call time; captions from TTS words; no alias lint. |
+| RB-07 | PARTIAL (B4) | Request body is still `{text, model_id, voice_settings}` with no dictionary (now asserted by test); since B4 the gated TTS boundary rejects broken aliases before any ledger row, maps alias timings back to display words, and refuses a missing voice_id (section 23). Voice/model still come from env at call time and are not pinned per job. |
 | RB-08 | MISSING | Shot type from `STRATEGY_CYCLES` (`long-form/shots.ts:41-61,229`); `allocateShotTypes` converts `ai_video` → `generated_placeholder` → `ken_burns_image` (`production-plan.ts:233-245`); tests assert the downgrade. |
 | RB-09 | MISSING | `ClaimSchema.support` is LLM self-labelled (`documentary-script.ts:56-66`), never validated; sources not persisted (`long-form/new/actions.ts:118-121`); no judge, no spans, no hashes. |
 | RB-10 | MISSING | No frame is extracted from the rendered master on the product path; `creditText` never set; AI-video scene gets `provenance: undefined`; 3072/2304 class of error is undetectable in product. |
@@ -469,7 +469,7 @@ Totals: TEST_EXISTS 0 · TEST_PARTIAL 4 · TEST_MISSING 6.
 
 **NOT_READY.**
 
-Six blockers are MISSING on the product path (RB-03, RB-07, RB-08, RB-09, RB-10, RB-13); seven are PARTIAL (RB-01, RB-02, RB-04, RB-05, RB-06, RB-11, RB-12); none is IMPLEMENTED. The test suite is not executed by CI. Both questions from the mandate are now answered no for the covered paths, mock-tested and not CI-enforced: a timeout cannot produce two charges at the gated call sites (section 17), and ten jobs cannot read the same voice balance and all start (section 18). No caveats apply to this verdict.
+Five blockers are MISSING on the product path (RB-03, RB-08, RB-09, RB-10, RB-13); eight are PARTIAL (RB-01, RB-02, RB-04, RB-05, RB-06, RB-07, RB-11, RB-12); none is IMPLEMENTED. The test suite is not executed by CI. Both questions from the mandate are now answered no for the covered paths, mock-tested and not CI-enforced: a timeout cannot produce two charges at the gated call sites (section 17), and ten jobs cannot read the same voice balance and all start (section 18). No caveats apply to this verdict.
 
 Items outside the repo and therefore UNVERIFIABLE (noted apart, not counted as PASS): Supabase project upload size limit and bucket `public` flags in production, the `music-library` bucket's existence and ACL, GitHub runner concurrency limits, ElevenLabs account dictionary and concurrency behaviour, provider balances, and the production Vercel branch's `/r/[slug]` route (this audit covers HEAD `692e9ec`).
 
@@ -594,5 +594,25 @@ Pre-acceptance refusals are now typed: `voice.ts` throws `ProviderRejectedError`
 **Tests (`src/lib/delivery/review-owner.test.ts`, fake deps, no network):** B3.3-1 owner gets the bytes from the authenticated object endpoint; B3.3-2 another signed-in user on the avatar allowlist gets 403 and no object read; B3.3-3 anonymous gets 307 and no object read; B3.3-4 none of the three sees `token=`, `/object/sign/`, an AWS signature or the service key in headers or body; B3.3-5 fail closed (unconfigured, unconfirmed, unknown slug); B3.3-6 the route wires `isReviewOwner` through the handler and no longer references `canPrepareAvatar`. Full suite 1452/1453 (the one failure is the pre-existing intermittent ffmpeg loudness test); `tsc --noEmit` and eslint clean.
 
 **Why RB-06 stays PARTIAL:** 0031 and 0032 are not applied to production; Sentry has no `beforeSend`; no CI runs the unit suite or the verify scripts.
+
+---
+
+## 23. Fase B4 — RB-07 pronunciation lint (2026-10-02, after `e8c9997`)
+
+**Sites.** TTS request builder: `src/lib/ai/voice.ts` `synthesizeVoice`, now through the pure `buildTtsRequest` (voice_id in the path, `{text, model_id, voice_settings}` in the body; a missing voice_id or model_id throws before any request exists). Gated TTS boundary on Generate: `src/lib/paid-calls/gated-providers.ts` `gatedVoiceSynthesize` (Reel voice ×2, Avatar narration). Subtitles: Reel `generate-video.ts:446 buildCaptions(voice.words, …)`; Long Form `produce.ts:435-436` from `timeline.words` (`scene-captions.ts`). Captions are built from the word timings returned by TTS.
+
+**Finding.** No pronunciation dictionary, alias, context or phoneme field is sent on the product path, and no product input carries an alias. Per the mandate no dictionary was added; `src/lib/ai/voice-request.test.ts` asserts the real request body has exactly `text`, `model_id`, `voice_settings` (fetch stubbed, nothing leaves the process).
+
+**Change (no provider, no dictionary, no migration).** `src/lib/paid-calls/pronunciation.ts`: `lintPronunciationAliases` rejects an alias whose spoken form is empty, contains any hyphen or any uppercase letter; `spokenText` replaces whole display words only in the text sent to TTS; `restoreDisplayWords` maps the returned timings of a spoken alias back to one timing per display word. `gatedVoiceSynthesize` now takes optional `aliases` and, before any ledger row or provider call: refuses a missing voice_id (`TtsVoiceMissingError`), lints the aliases (`PronunciationAliasError`), sends the spoken text to the provider through the unchanged B1 gate, and returns display words (fresh and reused results alike). Without aliases the spoken text equals the display text, so every existing B1 key is byte-identical (asserted). voice_id configuration, review routes, B1, B2, 0031, 0032 and `ownedVideoPath` unchanged.
+
+**Tests (mocks; full suite 1461/1461; tsc and eslint clean):** B4-1 aliases `THER-MOP-Y-LAE` and `Eph-IAL-tes` → provider mock 0 and no ledger row; B4-2 lint cases for Thermopylae, Ephialtes, Thespiae, Locrians (hyphen, uppercase, empty rejected; lowercase single- and multi-token accepted); B4-3 the four names in normal text reach the gate once, provider receives the display text verbatim, B1 key unchanged; B4-4 a valid alias changes only what TTS hears, captions say "Thermopylae" and "Locrians", also on the reused paid result; B4-5 no voice_id → mock 0, no row; B4-6 whole-word substitution, display text untouched; B4-7 real request body without dictionary/alias/context; B4-8 builder refuses missing voice_id/model_id with zero fetches.
+
+**Why RB-07 stays PARTIAL:**
+1. No product input supplies aliases yet; the lint guards the boundary, it does not create a pronunciation workflow.
+2. Long Form TTS (`production-tts-cache.ts` → `synthesizeBeatNarration`) does not pass through `gatedVoiceSynthesize`, so it has no alias parameter and no lint (it also has no alias source).
+3. No dictionary id/version pin and no per-job voice pin: voice and model still resolve from env at call time (unchanged by mandate).
+4. The TTS cache identity has no dictionary/context fields; no `previous_text`/`next_text`.
+5. Operator scripts (VIDEO-004) keep their own alias handling; untouched by mandate.
+6. No CI runs the suite.
 
 ATOMIVID_PI_V2_REALITY_CHECK_COMPLETE

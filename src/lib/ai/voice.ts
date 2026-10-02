@@ -92,6 +92,31 @@ export type WordTiming = {
 const MIN_SPEED = 0.85;
 const MAX_SPEED = 1.15;
 
+/**
+ * The ElevenLabs request, built explicitly (PI V2 B4, RB-07): voice_id in the path, model_id and
+ * voice_settings in the body. No pronunciation dictionary, alias or context field is sent. A
+ * missing voice_id throws before any request exists. Which voice is configured does not change.
+ */
+export function buildTtsRequest(input: {
+  text: string;
+  voiceId: string;
+  modelId: string;
+  voiceSettings: Record<string, number | boolean>;
+  apiKey: string;
+}): { url: string; init: { method: "POST"; headers: Record<string, string>; body: string } } {
+  const voiceId = input.voiceId?.trim();
+  if (!voiceId) throw new Error("Falta voice_id para la síntesis de voz. No se llamó al proveedor de voz.");
+  if (!input.modelId?.trim()) throw new Error("Falta model_id para la síntesis de voz. No se llamó al proveedor de voz.");
+  return {
+    url: `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/with-timestamps`,
+    init: {
+      method: "POST",
+      headers: { "xi-api-key": input.apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ text: input.text, model_id: input.modelId, voice_settings: input.voiceSettings }),
+    },
+  };
+}
+
 export async function synthesizeVoice(
   text: string,
   language: "es" | "en" = "es",
@@ -112,21 +137,8 @@ export async function synthesizeVoice(
       ? VOICE_SETTINGS
       : { ...VOICE_SETTINGS, speed: Math.min(MAX_SPEED, Math.max(MIN_SPEED, speed)) };
 
-  const res = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps`,
-    {
-      method: "POST",
-      headers: {
-        "xi-api-key": ELEVENLABS_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        text,
-        model_id: MODEL_ID,
-        voice_settings: voiceSettings,
-      }),
-    },
-  );
+  const request = buildTtsRequest({ text, voiceId, modelId: MODEL_ID, voiceSettings, apiKey: ELEVENLABS_API_KEY });
+  const res = await fetch(request.url, request.init);
 
   if (!res.ok) {
     // The provider answered and refused: nothing was generated or charged. Typed so the

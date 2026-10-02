@@ -7,6 +7,7 @@ import { stableHash } from "@/lib/production-intelligence/canonical";
 import type { MusicProvider, MusicResult, MusicSelectionContext, ScriptLanguage, VoiceProvider, VoiceResult, WordTiming } from "@/lib/providers/types";
 import { guardPaidCall, type LedgerStore } from "./gate";
 import { paidResultPath, sha256Hex, UNSTORED_REF, type PaidResultStore } from "./result-store";
+import { lintPronunciationAliases, restoreDisplayWords, spokenText, TtsVoiceMissingError, type PronunciationAlias } from "./pronunciation";
 
 export type PaidCallDeps = { ledger: LedgerStore; results: PaidResultStore; requestId: string };
 
@@ -45,18 +46,29 @@ async function loadAudio<M extends { audioPath: string; sha256: string; bytes: n
 /**
  * ElevenLabs on Generate (Reel voice ×2 incl. the speed correction, Avatar narration). The key
  * is the text + language + speed + voice identity; render_attempts is not part of it.
+ *
+ * B4 (RB-07): before anything else, a missing voice_id or a broken pronunciation alias (hyphen or
+ * uppercase in the spoken form) throws — no ledger row, no provider call. Aliases change only the
+ * text sent to TTS; the returned word timings are mapped back to the display words, so captions
+ * built from them show the canonical text. Without aliases the spoken text equals `text`, so the
+ * B1 key of every existing call is unchanged.
  */
 export async function gatedVoiceSynthesize(
   deps: PaidCallDeps & { voiceProvider: VoiceProvider; voiceIdentity: { voiceId: string; modelId: string; voiceSettingsJson: string }; estimatedCostUsd: number },
   text: string,
   language: ScriptLanguage,
   speed?: number,
+  opts: { aliases?: readonly PronunciationAlias[] } = {},
 ): Promise<VoiceResult & { reused: boolean; costUsd: number }> {
+  if (!deps.voiceIdentity.voiceId?.trim()) throw new TtsVoiceMissingError();
+  const aliases = opts.aliases ?? [];
+  lintPronunciationAliases(aliases);
+  const ttsText = spokenText(text, aliases);
   if (deps.voiceProvider.name === "fixture") {
-    const r = await deps.voiceProvider.synthesize(text, language, speed);
-    return { ...r, reused: false, costUsd: 0 };
+    const r = await deps.voiceProvider.synthesize(ttsText, language, speed);
+    return { ...r, words: restoreDisplayWords(r.words, aliases), reused: false, costUsd: 0 };
   }
-  const fingerprint = { text, language, speed: speed ?? null, voiceId: deps.voiceIdentity.voiceId, modelId: deps.voiceIdentity.modelId, voiceSettingsJson: deps.voiceIdentity.voiceSettingsJson };
+  const fingerprint = { text: ttsText, language, speed: speed ?? null, voiceId: deps.voiceIdentity.voiceId, modelId: deps.voiceIdentity.modelId, voiceSettingsJson: deps.voiceIdentity.voiceSettingsJson };
   const guarded = await guardPaidCall<VoiceResult>(
     deps.ledger,
     {
@@ -70,7 +82,7 @@ export async function gatedVoiceSynthesize(
     },
     {
       call: async ({ key }) => {
-        const r = await deps.voiceProvider.synthesize(text, language, speed);
+        const r = await deps.voiceProvider.synthesize(ttsText, language, speed);
         const resultRef = await storeAudio<StoredVoice>(deps.results, deps.requestId, key, r, { durationSeconds: r.durationSeconds, words: r.words, mimeType: r.mimeType, extension: r.extension });
         return { result: r, costUsd: Math.max(0, deps.estimatedCostUsd), resultRef };
       },
@@ -82,7 +94,7 @@ export async function gatedVoiceSynthesize(
       },
     },
   );
-  return { ...guarded.result, reused: guarded.reused, costUsd: guarded.costUsd };
+  return { ...guarded.result, words: restoreDisplayWords(guarded.result.words, aliases), reused: guarded.reused, costUsd: guarded.costUsd };
 }
 
 /**
