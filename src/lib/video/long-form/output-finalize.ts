@@ -154,7 +154,7 @@ async function keepCopy(filePath: string, keepDir: string | null | undefined, re
  * se pudo entregar; el archivo local se conserva para recuperarlo.
  */
 export async function finalizeLongFormOutput(
-  input: { requestId: string; attempt: number | null; filePath: string; profile?: string },
+  input: { requestId: string; attempt: number | null; filePath: string; profile?: string; expectedDurationSeconds?: number },
   deps: OutputFinalizeDeps,
 ): Promise<{ videoPath: string; state: LongFormOutputState }> {
   const profile = input.profile ?? LONG_FORM_ENCODING_PROFILE.id;
@@ -206,6 +206,7 @@ export async function finalizeLongFormOutput(
   }
   // PI V2 QA-R-B: the master must match the Long Form contract (1920x1080, 30 fps within the
   // existing QC tolerance, an audio track — narration is mandatory) using what ffprobe already read.
+  // QA-R-FINAL: and, when the caller knows it, the composed duration within the existing QC tolerance.
   const specIssues = evaluateVideoProbe(
     {
       hasVideoStream: Boolean(rendered.videoCodec),
@@ -215,7 +216,7 @@ export async function finalizeLongFormOutput(
       fps: rendered.fps ?? 0,
       durationSeconds: rendered.durationSeconds,
     },
-    { width: LONG_FORM_ENCODING_PROFILE.width, height: LONG_FORM_ENCODING_PROFILE.height, fps: LONG_FORM_ENCODING_PROFILE.fps, expectedDurationSeconds: 0 },
+    { width: LONG_FORM_ENCODING_PROFILE.width, height: LONG_FORM_ENCODING_PROFILE.height, fps: LONG_FORM_ENCODING_PROFILE.fps, expectedDurationSeconds: input.expectedDurationSeconds ?? 0 },
   );
   if (specIssues.length > 0) {
     return fail("output_invalid", { reason: "master_spec_mismatch", issues: specIssues, rendered });

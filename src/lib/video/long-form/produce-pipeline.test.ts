@@ -172,6 +172,7 @@ async function run(
   const script = documentary180sFixture();
   const events: { stage: ProgressStageKey; completed?: number; total?: number; label?: string }[] = [];
   let renderInput: RenderLongFormDocInput | null = null;
+  let renderedDuration: number | undefined;
   const runtime: LongFormRuntime = {
     store: env.mem.store,
     budgetStore: env.budgetStore,
@@ -191,7 +192,15 @@ async function run(
       fs.writeFileSync(out, "fake-jpg");
       return out;
     },
-    output: env.out.deps,
+    // The fake render writes a placeholder file: the probe double reports the duration that render
+    // was asked for (a real ffprobe would read it from the file), never an unrelated fixed value.
+    output: {
+      ...env.out.deps,
+      probe: async (filePath) => {
+        const metrics = await env.out.deps.probe(filePath);
+        return renderedDuration === undefined ? metrics : { ...metrics, durationSeconds: renderedDuration };
+      },
+    },
     replayOnly: opts.replayOnly,
     // Identidad sin ffmpeg/sharp en pruebas (SHA-256 real; sin hash perceptual).
     identify: async (buffer) => ({ sha256: createHash("sha256").update(buffer).digest("hex"), dhashUnavailable: "test" }),
@@ -200,6 +209,7 @@ async function run(
     },
     render: async (input) => {
       renderInput = input;
+      renderedDuration = input.durationSeconds;
       if (opts.renders) opts.renders.count += 1;
       for (let f = 0; f <= 5400; f += 540) input.onFrameProgress?.({ renderedFrames: f, totalFrames: 5400 });
       const out = path.join(os.tmpdir(), `lf-test-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`);

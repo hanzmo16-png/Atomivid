@@ -264,13 +264,13 @@ test("subida: sin endpoint reanudable → respaldo estándar del MISMO archivo c
 
 // ---- PI V2 QA-R-B: the master must match the Long Form contract (ffprobe metadata already read) ----
 
-async function deliverWithProbe(overrides: Record<string, unknown>) {
+async function deliverWithProbe(overrides: Record<string, unknown>, expectedDurationSeconds?: number) {
   const out = memoryOutputDeps({ durationSeconds: 180 });
   const realProbe = out.deps.probe;
   out.deps.probe = async (filePath) => ({ ...(await realProbe(filePath)), ...overrides });
   const file = tmpFile(1 * MiB, "spec");
   try {
-    const result = await finalizeLongFormOutput({ requestId: REQ, attempt: 1, filePath: file }, out.deps).catch((err: unknown) => err);
+    const result = await finalizeLongFormOutput({ requestId: REQ, attempt: 1, filePath: file, expectedDurationSeconds }, out.deps).catch((err: unknown) => err);
     return { out, result };
   } finally {
     fs.rmSync(file, { force: true });
@@ -301,5 +301,21 @@ test("QA-R-B: master 1920×1080, 30 fps (29.97 dentro de la tolerancia existente
     assert.ok(!(result instanceof Error), `fps ${fps}: entregado`);
     assert.equal(out.states.get(REQ)?.status, "UPLOADED");
     assert.equal(out.calls.upload, 1);
+  }
+});
+
+test("QA-R-FINAL: duración del master fuera de la tolerancia existente (±10%) frente a la compuesta → veto antes de subir", async () => {
+  const { out, result } = await deliverWithProbe({ durationSeconds: 180 }, 160);
+  assert.ok(result instanceof LongFormOutputError);
+  assert.equal(out.calls.upload, 0);
+  const issues = out.states.get(REQ)?.failure?.detail.issues as { code: string }[];
+  assert.ok(issues.some((i) => i.code === "duration_out_of_tolerance"));
+});
+
+test("QA-R-FINAL: duración dentro de la tolerancia, o sin duración esperada conocida → se entrega", async () => {
+  for (const expected of [175, undefined]) {
+    const { out, result } = await deliverWithProbe({ durationSeconds: 180 }, expected);
+    assert.ok(!(result instanceof Error), `esperada ${expected}: entregado`);
+    assert.equal(out.states.get(REQ)?.status, "UPLOADED");
   }
 });
