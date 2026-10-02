@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { wrapDurableVideoProvider } from "./ai-video-durable-provider";
 import { readAiVideoClipRecord, AI_VIDEO_STORAGE_BUCKET } from "./ai-video-storage";
 import { ProductionBudget, memoryBudgetStore } from "./production-budget";
+import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 import { GenerativeProviderError, type GenerativeAsset, type VideoGenerationRequest, type VideoProvider } from "@/lib/providers/types";
 
 /** Storage en memoria con inyección de fallos de subida (compartido entre "intentos" = misma solicitud). */
@@ -254,4 +255,21 @@ test("allocation del plan confirmado: envíos a Veo NUNCA > allocation, sumando 
   }
   assert.ok(counts.submits <= allocation.maxAiVideoClips, `envíos=${counts.submits}`);
   assert.equal(budgetStore.current()?.used.aiVideoSubmits, counts.submits);
+});
+
+test("COST-A2-3 video IA: upstream_error / rate_limited sin operación aceptada → un solo envío, sin reintento automático del gate", async () => {
+  for (const reason of ["upstream_error", "rate_limited"] as const) {
+    const storage = makeStorage();
+    const ledger = memoryLedgerStore();
+    const { provider, counts } = veoLike([
+      async () => {
+        throw new GenerativeProviderError(`veo ${reason} antes de aceptar`, "veo", reason);
+      },
+    ]);
+    await assert.rejects(wrap(provider, storage.client, { ledger }).generateVideo(request("s1")));
+    assert.equal(counts.generateCalls, 1, `${reason}: retry automático = 0`);
+    assert.equal(counts.submits, 0);
+    assert.equal(ledger.ops.size, 1);
+    assert.equal([...ledger.ops.values()][0].status, "REFUNDED");
+  }
 });

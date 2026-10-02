@@ -420,3 +420,16 @@ test("B5.3: mismo guion motion:true → el plan confirmado solo asigna ai_video/
     }
   }
 });
+
+test("COST-A2-3 imagen IA: upstream_error / rate_limited → una sola llamada, sin reintento automático; el reintento del job tampoco vuelve a pagar", async () => {
+  for (const reason of ["upstream_error", "rate_limited"] as const) {
+    const images = fakeImages(async () => {
+      throw new GenerativeProviderError(`openai ${reason}`, "openai", reason);
+    });
+    const { deps: d } = await deps({ imageProvider: images.provider });
+    await executeShot(shot("generated_placeholder"), d, emptyAiVideoLedgerState());
+    assert.equal(images.calls(), 1, `${reason}: retry automático = 0`);
+    await executeShot(shot("generated_placeholder"), d, emptyAiVideoLedgerState());
+    assert.equal(images.calls(), 1, `${reason}: el reintento no vuelve a llamar`);
+  }
+});

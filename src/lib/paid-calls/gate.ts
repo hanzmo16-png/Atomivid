@@ -15,9 +15,11 @@
  * 4. A failure after the request left the process ("uncertain") moves the row to
  *    RECONCILIATION_REQUIRED. A failure that carries a provider job id ("accepted") moves it
  *    to PROVIDER_JOB_RECORDED. Neither ever triggers another submit.
- * 5. A refusal before acceptance ("rejected", nothing charged) moves the row to REFUNDED
- *    (committed_usd 0, result_ref "rejected:...") and the gate retries at most once on the
- *    ordinal-1 key. "rejected_final" never retries.
+ * 5. A refusal before acceptance ("rejected") moves the row to REFUNDED (committed_usd 0,
+ *    result_ref "rejected:..."). Whether the provider bills such an answer (upstream_error,
+ *    rate_limited, HTTP refusal) is not known, so by default there is no automatic retry
+ *    (PI V2 COST-A2); a caller may still opt in on the ordinal-1 key. "rejected_final" never
+ *    retries.
  */
 import { stableHash } from "@/lib/production-intelligence/canonical";
 import {
@@ -60,7 +62,7 @@ export type PaidCallHooks<T> = {
   /** Resume a PROVIDER_JOB_RECORDED job without resubmitting (optional; absent = reconcile). */
   resume?: (providerJobId: string, ctx: { key: string }) => Promise<PaidCallResult<T>>;
   classify?: (err: unknown) => PaidCallClassification;
-  /** Retries after a pre-acceptance refusal. Default 1. Never applies to accepted/uncertain failures. */
+  /** Retries after a pre-acceptance refusal. Default 0 (economically uncertain). Never applies to accepted/uncertain failures. */
   maxRejectedRetries?: number;
   now?: () => string;
 };
@@ -107,7 +109,7 @@ const isRetryableRejection = (op: PaidOperation) => op.status === "REFUNDED" && 
 
 export async function guardPaidCall<T>(store: LedgerStore, spec: PaidCallSpec, hooks: PaidCallHooks<T>): Promise<GuardedPaidCall<T>> {
   const now = hooks.now ?? (() => new Date().toISOString());
-  const maxRejectedRetries = hooks.maxRejectedRetries ?? 1;
+  const maxRejectedRetries = hooks.maxRejectedRetries ?? 0;
   const classify = hooks.classify ?? classifyPaidCallError;
   let lastRejection: unknown = null;
 

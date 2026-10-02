@@ -3,11 +3,12 @@
  * Mandatory cases (user-specified):
  *  1. the mock charges and then the connection is cut: exactly one call;
  *  2. a second attempt with the same key leaves the call count at 1;
- *  3. a failure before acceptance retries exactly once, then stops.
+ *  3. a failure before acceptance is not retried by default (COST-A2: billing is uncertain).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { memoryLedgerStore, ReconciliationRequiredError } from "@/lib/production-intelligence/ledger";
+import { GenerativeProviderError } from "@/lib/providers/types";
 import { commitRecordedPaidJob, guardPaidCall, paidCallKey, type PaidCallSpec } from "./gate";
 import { PaidLedgerUnavailableError, PaidResultUnavailableError, ProviderRejectedError } from "./errors";
 import { gatedMusicTrack, gatedVoiceSynthesize } from "./gated-providers";
@@ -42,7 +43,7 @@ test("B1-1/2: the mock charges then the connection is cut → one call; the same
   assert.equal(store.ops.get(paidCallKey(spec))!.status, "RECONCILIATION_REQUIRED");
 });
 
-test("B1-3: a refusal before acceptance retries exactly once, then stops — across attempts too", async () => {
+test("B1-3: a refusal before acceptance is not retried automatically (COST-A2), and a later attempt does not call again", async () => {
   const store = memoryLedgerStore();
   let calls = 0;
   const hooks = {
@@ -53,21 +54,22 @@ test("B1-3: a refusal before acceptance retries exactly once, then stops — acr
     load: async () => null,
     now: NOW,
   };
-  await assert.rejects(guardPaidCall(store, spec, hooks), /HTTP 503 on submit #2/);
-  assert.equal(calls, 2, "initial + exactly one retry");
+  await assert.rejects(guardPaidCall(store, spec, hooks), /HTTP 503 on submit #1/);
+  assert.equal(calls, 1, "no automatic retry");
   assert.equal(store.ops.get(paidCallKey(spec, 0))!.status, "REFUNDED");
-  assert.equal(store.ops.get(paidCallKey(spec, 1))!.status, "REFUNDED");
   assert.equal(store.ops.get(paidCallKey(spec, 0))!.committedUsd, 0);
+  assert.equal(store.ops.has(paidCallKey(spec, 1)), false, "no ordinal-1 row");
 
-  // A later attempt finds both rows refunded: no third call.
+  // A later attempt finds the row refunded: no second call.
   await assert.rejects(guardPaidCall(store, spec, hooks), PaidResultUnavailableError);
-  assert.equal(calls, 2);
+  assert.equal(calls, 1);
 });
 
-test("B1-3b: a refusal then a success → two calls, COMMITTED on the retry key; the next attempt reuses with zero calls", async () => {
+test("B1-3b: with an explicit opt-in retry, a refusal then a success → two calls, COMMITTED on the retry key; the next attempt reuses with zero calls", async () => {
   const store = memoryLedgerStore();
   let calls = 0;
   const hooks = {
+    maxRejectedRetries: 1,
     call: async () => {
       calls++;
       if (calls === 1) throw new ProviderRejectedError("HTTP 500 on submit");
@@ -196,4 +198,55 @@ test("B1-10 Reel music: Beatoven is gated and reused; the curated library passes
   await gatedMusicTrack({ ...deps, musicProvider: curated }, ctx);
   assert.equal(calls, 3);
   assert.equal(ledger.ops.size, 1, "only the generative provider writes ledger rows");
+});
+
+// ---- PI V2 COST-A2: upstream_error / rate_limited are economically uncertain → no automatic retry ----
+
+for (const [label, reason] of [["COST-A2-1", "upstream_error"], ["COST-A2-2", "rate_limited"]] as const) {
+  test(`${label}: ${reason} → exactly one provider call, no ordinal-1 row; the row ends REFUNDED (SUBMITTED → REFUNDED)`, async () => {
+    const store = memoryLedgerStore();
+    let calls = 0;
+    const err = new GenerativeProviderError(`provider ${reason}`, "elevenlabs", reason);
+    const statuses: string[] = [];
+    const hooks = {
+      call: async ({ key }: { key: string }) => {
+        calls++;
+        statuses.push(store.ops.get(key)!.status);
+        throw err;
+      },
+      load: async () => null,
+      now: NOW,
+    };
+    await assert.rejects(guardPaidCall(store, spec, hooks), (e: unknown) => e === err);
+    assert.equal(calls, 1, "retry automático = 0");
+    assert.deepEqual(statuses, ["SUBMITTED"], "the provider is called with the row SUBMITTED");
+    const row = store.ops.get(paidCallKey(spec, 0))!;
+    assert.equal(row.status, "REFUNDED");
+    assert.equal(row.committedUsd, 0);
+    assert.ok(row.resultRef?.startsWith("rejected:rejected:"));
+    assert.equal(store.ops.has(paidCallKey(spec, 1)), false, "no ordinal-1 row");
+    assert.equal(store.ops.size, 1);
+  });
+}
+
+test("COST-A2-4 (characterization): re-invoking the gate with the same identity after upstream_error / rate_limited is refused with zero calls and no new row", async () => {
+  for (const reason of ["upstream_error", "rate_limited"] as const) {
+    const store = memoryLedgerStore();
+    let calls = 0;
+    const hooks = {
+      call: async () => {
+        calls++;
+        throw new GenerativeProviderError(`provider ${reason}`, "elevenlabs", reason);
+      },
+      load: async () => null,
+      now: NOW,
+    };
+    await assert.rejects(guardPaidCall(store, spec, hooks));
+    const after = { ...store.ops.get(paidCallKey(spec, 0))! };
+    await assert.rejects(guardPaidCall(store, spec, hooks), PaidResultUnavailableError);
+    await assert.rejects(guardPaidCall(store, spec, hooks), PaidResultUnavailableError);
+    assert.equal(calls, 1, `${reason}: later invocations never call the provider`);
+    assert.equal(store.ops.size, 1, `${reason}: no new operation`);
+    assert.deepEqual(store.ops.get(paidCallKey(spec, 0)), after, `${reason}: the REFUNDED row is unchanged`);
+  }
 });

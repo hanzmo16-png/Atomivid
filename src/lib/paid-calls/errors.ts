@@ -3,7 +3,8 @@
  *
  * A provider error is classified into exactly one of:
  * - "rejected": the provider answered and refused BEFORE accepting the work (HTTP 4xx/5xx
- *   on the submit, budget/config refusals). Nothing was charged. The gate may retry ONCE.
+ *   on the submit, budget/config refusals). Billing is not proven either way: the gate does
+ *   not retry by default.
  * - "rejected_final": same, but retrying can never change the answer (moderation, config).
  * - "accepted": the provider accepted a job and we know its id; the charge is real or
  *   pending. The row becomes PROVIDER_JOB_RECORDED and is only ever RESUMED, never resent.

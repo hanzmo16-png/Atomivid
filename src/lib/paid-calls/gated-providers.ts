@@ -155,7 +155,7 @@ export async function gatedMusicTrack(
  */
 export async function loadCommittedMusicTrack(deps: MusicCallDeps, context: MusicSelectionContext): Promise<MusicResult | null> {
   const spec = musicCallSpec(deps, context);
-  // Ordinal 1 is the gate's single retry after a pre-acceptance refusal (default maxRejectedRetries).
+  // Ordinal 1 holds a gate retry after a pre-acceptance refusal (rows from before COST-A2's default of 0).
   for (const ordinal of [0, 1]) {
     const op = await deps.ledger.get(paidCallKey(spec, ordinal));
     if (op?.status === "COMMITTED" && op.resultRef) return loadMusic(deps.results, op.resultRef);
