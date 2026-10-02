@@ -286,13 +286,24 @@ async function main() {
     const dur = (await probe(audio)).duration + 0.25;
     const each = dur / picks.length;
     const args: string[] = [];
-    picks.forEach((p) => args.push("-ss", p.at.toFixed(2), "-t", each.toFixed(3), "-i", p.file));
+    for (const p of picks) args.push("-ss", (await cleanStart(p.file, p.at, each)).toFixed(2), "-t", each.toFixed(3), "-i", p.file);
     args.push("-i", audio);
     const chains = picks.map((_, i) => `${vertical(`${i}:v`).replaceAll("[bg]", `[bg${i}]`).replaceAll("[fg]", `[fg${i}]`)},setsar=1,fps=${FPS},trim=duration=${each.toFixed(3)},setpts=PTS-STARTPTS[v${i}]`);
     const concat = `${picks.map((_, i) => `[v${i}]`).join("")}concat=n=${picks.length}:v=1:a=0[mv]`;
     const filter = `${chains.join(";")};${concat};[mv]${extra || "null"}[vout];[${picks.length}:a]apad=whole_dur=${dur.toFixed(3)}[aout]`;
     await ff([...args, "-filter_complex", filter, "-map", "[vout]", "-map", "[aout]", "-t", dur.toFixed(3), ...enc, seg(name)]);
     return dur;
+  };
+  /** Desplaza la ventana hasta que no tenga negros ni fundidos (blackdetect local), para evitar cortes a negro. */
+  const cleanStart = async (file: string, at: number, len: number) => {
+    const total = file === inputs.dulce ? dulceDur : oceanDur;
+    for (let i = 0, t = at; i < 12; i++, t += len * 0.75) {
+      const start = t % Math.max(1, total - len - 0.5);
+      const { stderr } = await sh(FFMPEG, ["-hide_banner", "-ss", start.toFixed(2), "-t", (len + 0.1).toFixed(2), "-i", file, "-vf", "blackdetect=d=0.1:pix_th=0.10", "-an", "-f", "null", "-"], { maxBuffer: 16 << 20 }).catch((e: { stderr?: string }) => ({ stderr: e.stderr ?? "" }));
+      if (!/black_start/.test(stderr)) return start;
+    }
+    notes.push(`b-roll sin ventana limpia cerca de ${at.toFixed(1)} s; se usa la original.`);
+    return at;
   };
   const D = (f: number) => ({ file: inputs.dulce, at: dulceDur * f });
   const O = (f: number) => ({ file: inputs.ocean, at: oceanDur * f });
@@ -308,7 +319,7 @@ async function main() {
   const dw = tts.demo.words;
   const at = (i: number) => dw[Math.min(i, dw.length - 1)]?.start ?? 0;
   const steps: [string, number, number][] = [["IDEA", 0, at(0)], ["GUION", at(0), at(1)], ["VOZ", at(1), at(2)], ["VISUALES", at(2), at(3)], ["MOVIMIENTO", at(3), at(4)], ["MÚSICA", at(4), at(5)], ["SUBTÍTULOS", at(5), at(6)], ["VIDEO", at(6), 99]];
-  const demoDur = await montage("demo", tts.demo.file, [O(0.15), D(0.12), O(0.4), D(0.38), O(0.7), D(0.62)], [
+  const demoDur = await montage("demo", tts.demo.file, [O(0.15), D(0.12), O(0.47), D(0.38), O(0.7), D(0.62)], [
     ...steps.map(([t, a, b]) => label(t, a, b)),
     `drawtext=fontfile=${FONT}:text='IDEA → GUION → VOZ → VISUALES → MOVIMIENTO → MÚSICA → VIDEO':fontcolor=white@0.8:fontsize=30:x=(w-tw)/2:y=470:borderw=3:bordercolor=black@0.7`,
   ].join(","));
