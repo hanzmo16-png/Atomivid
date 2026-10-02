@@ -6,6 +6,7 @@ import { memoryShotAssetStore } from "./durable-shot-assets";
 import { ProductionBudget, memoryBudgetStore } from "./production-budget";
 import { emptyAiVideoLedgerState, getAiVideoCostConfig } from "./ai-video-cost-guard";
 import { wrapDurableVideoProvider } from "./ai-video-durable-provider";
+import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 import type { AllocatedShot } from "./production-plan";
 import type { ShotType } from "./types";
 import {
@@ -432,4 +433,26 @@ test("COST-A2-3 imagen IA: upstream_error / rate_limited → una sola llamada, s
     await executeShot(shot("generated_placeholder"), d, emptyAiVideoLedgerState());
     assert.equal(images.calls(), 1, `${reason}: el reintento no vuelve a llamar`);
   }
+});
+
+test("COST-7 imagen IA: la imagen pagada queda durable ANTES del commit del ledger — una caída entre ambos se reutiliza sin volver a pagar", async () => {
+  const images = fakeImages(async () => pngAsset());
+  const ledger = memoryLedgerStore();
+  // El proceso muere justo después de que el proveedor respondió: toda escritura posterior del ledger falla.
+  const crashing = { ...ledger, update: async (k: string, expected: Parameters<typeof ledger.update>[1], patch: Parameters<typeof ledger.update>[2]) => {
+    if (patch.status !== "SUBMITTED") throw new Error("proceso terminado antes de cerrar la fila");
+    return ledger.update(k, expected, patch);
+  } };
+  const { deps: d, mem } = await deps({ imageProvider: images.provider, ledger: crashing, metadata: { requestId: "req-c7" } });
+  await executeShot(shot("generated_placeholder"), d, emptyAiVideoLedgerState());
+  assert.equal(images.calls(), 1);
+  const record = await mem.store.read("beat-1-shot-2", "ai_image");
+  assert.equal(record?.status, "COMPLETED", "el asset pagado ya es durable");
+  assert.equal([...ledger.ops.values()][0].status, "SUBMITTED", "el ledger no se marcó COMMITTED");
+
+  const retry = await executeShot(shot("generated_placeholder"), { ...d, ledger }, emptyAiVideoLedgerState());
+  assert.equal(images.calls(), 1, "0 llamadas nuevas");
+  assert.equal(retry.executedType, "generated_placeholder");
+  assert.equal(retry.reused, true);
+  assert.equal([...ledger.ops.values()][0].status, "SUBMITTED");
 });

@@ -309,7 +309,37 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
     aspectRatio: "16:9" as const,
     maxCostUsd: deps.units.imageUsd,
   };
+  const persistImage = async (asset: GenerativeAsset): Promise<MediaOutcome> => {
+    if (deps.visualPipeline === "anchored_v1") {
+      // Recreación IA: identidad de contenido (para el registro del documental) y procedencia explícita.
+      const identity: AssetIdentity = { provider: deps.imageProvider.name, ...(await (deps.identify ?? contentIdentity)(asset.buffer, "image")) };
+      const provenance: AssetProvenance = { kind: "ai_recreation", provider: deps.imageProvider.name, license: "Generada por IA para este documental — recreación, no registro histórico" };
+      const selection: AssetSelectionTrace = { relevance: "generated_from_intent", query: shot.visualIntent };
+      const url = await persistMedia(deps, shot.id, "ai_image", asset.buffer, asset.mimeType, asset.extension, "image", deps.imageProvider.name, asset.costUsd, {
+        identity,
+        provenance,
+        selection,
+      });
+      return {
+        url,
+        mediaType: "image",
+        costUsd: asset.costUsd,
+        bytes: asset.buffer.byteLength,
+        provider: deps.imageProvider.name,
+        reused: false,
+        meta: { objectPath: deps.store.objectPathFor(shot.id, "ai_image", asset.extension), identity, provenance, selection },
+      };
+    }
+    const url = await persistMedia(deps, shot.id, "ai_image", asset.buffer, asset.mimeType, asset.extension, "image", deps.imageProvider.name, asset.costUsd);
+    return { url, mediaType: "image", costUsd: asset.costUsd, bytes: asset.buffer.byteLength, provider: deps.imageProvider.name, reused: false };
+  };
+
   let asset: GenerativeAsset;
+  // PI V2 COST-7: a paid image is made durable (object + COMPLETED record) BEFORE its ledger row
+  // is committed, so a crash in between leaves a reusable asset instead of a paid, lost one. A
+  // storage failure still commits the row (the provider charged) and then fails the shot as before.
+  let persisted: MediaOutcome | undefined;
+  let persistError: unknown;
   try {
     if (deps.imageProvider.name === "fixture") {
       asset = await deps.imageProvider.generateImage(request);
@@ -330,6 +360,11 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
         {
           call: async () => {
             const a = await deps.imageProvider.generateImage(request);
+            try {
+              persisted = await persistImage(a);
+            } catch (err) {
+              persistError = err;
+            }
             return { result: a, costUsd: a.costUsd, resultRef: `shot-asset:${shot.id}:ai_image` };
           },
           load: async () => null,
@@ -353,31 +388,12 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
     // Costo incierto: queda STARTED (nunca se regenera) y la reserva queda contada.
     return { unavailable: `imagen IA falló (${err instanceof GenerativeProviderError ? err.reason : "error inesperado"})` };
   }
+  if (persistError !== undefined) throw persistError;
+  if (persisted) return persisted;
   if (deps.requireReal && deps.imageProvider.name === "fixture") {
     throw new Error(`Shot ${shot.id}: el proveedor de imagen resolvió a fixture en una producción real.`);
   }
-  if (deps.visualPipeline === "anchored_v1") {
-    // Recreación IA: identidad de contenido (para el registro del documental) y procedencia explícita.
-    const identity: AssetIdentity = { provider: deps.imageProvider.name, ...(await (deps.identify ?? contentIdentity)(asset.buffer, "image")) };
-    const provenance: AssetProvenance = { kind: "ai_recreation", provider: deps.imageProvider.name, license: "Generada por IA para este documental — recreación, no registro histórico" };
-    const selection: AssetSelectionTrace = { relevance: "generated_from_intent", query: shot.visualIntent };
-    const url = await persistMedia(deps, shot.id, "ai_image", asset.buffer, asset.mimeType, asset.extension, "image", deps.imageProvider.name, asset.costUsd, {
-      identity,
-      provenance,
-      selection,
-    });
-    return {
-      url,
-      mediaType: "image",
-      costUsd: asset.costUsd,
-      bytes: asset.buffer.byteLength,
-      provider: deps.imageProvider.name,
-      reused: false,
-      meta: { objectPath: deps.store.objectPathFor(shot.id, "ai_image", asset.extension), identity, provenance, selection },
-    };
-  }
-  const url = await persistMedia(deps, shot.id, "ai_image", asset.buffer, asset.mimeType, asset.extension, "image", deps.imageProvider.name, asset.costUsd);
-  return { url, mediaType: "image", costUsd: asset.costUsd, bytes: asset.buffer.byteLength, provider: deps.imageProvider.name, reused: false };
+  return persistImage(asset);
 }
 
 function mediaResult(shot: AllocatedShot, media: MediaOutcome, executedType: ShotType, ledger: AiVideoLedgerState, deviationReason?: string): ShotExecution {
