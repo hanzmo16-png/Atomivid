@@ -29,6 +29,17 @@ import { selectionQueries } from "./stock-selection";
  * Nunca hace red ni gasta dinero.
  */
 
+/** Minimal PNG accepted by validateVisualAssetBuffer (signature + IHDR 1024×576); `tag` makes the bytes unique. */
+const fakePng = (tag: string): Buffer => {
+  const head = Buffer.alloc(33);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(head, 0);
+  head.writeUInt32BE(13, 8);
+  head.write("IHDR", 12, "ascii");
+  head.writeUInt32BE(1024, 16);
+  head.writeUInt32BE(576, 20);
+  return Buffer.concat([head, Buffer.alloc(32), Buffer.from(tag)]);
+};
+
 function makeStorage() {
   const files = new Map<string, Buffer>();
   return {
@@ -106,7 +117,7 @@ function providers(c: ReturnType<typeof counters>): LongFormProviderSet {
     isAvailable: () => true,
     async generateImage() {
       c.image += 1;
-      return { buffer: Buffer.from(`png-${c.image}`), mimeType: "image/png", extension: "png", model: "m", costUsd: 0.05 };
+      return { buffer: fakePng(`png-${c.image}`), mimeType: "image/png", extension: "png", model: "m", costUsd: 0.05 };
     },
   };
   return { voiceProvider, footageProvider, imageProvider, musicProvider: fixtureMusicProvider };

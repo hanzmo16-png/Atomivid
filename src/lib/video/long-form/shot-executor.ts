@@ -18,6 +18,7 @@ import { PaidResultUnavailableError } from "@/lib/paid-calls/errors";
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 import { MotionRequiredUnsatisfiableError } from "./production-plan";
 import { GenerativeProviderError } from "@/lib/providers/types";
+import { validateVisualAssetBuffer } from "../visual-asset-validation";
 import type { ResolvedShotAsset } from "./asset-resolver";
 import { resolveAiVideoForShot } from "./ai-video-resolver";
 import { recordAiVideoSpend, type AiVideoCostConfig, type AiVideoLedgerState } from "./ai-video-cost-guard";
@@ -360,6 +361,11 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
         {
           call: async () => {
             const a = await deps.imageProvider.generateImage(request);
+            // Same contract as Reel generated images: never trust "the call did not throw" as "the
+            // file is usable". An invalid file is paid but unusable: the gate treats it as uncertain
+            // (no new call) and the shot uses its existing fallback (ASSET-FINAL).
+            const validation = validateVisualAssetBuffer(a.buffer, a.mimeType);
+            if (!validation.valid) throw new Error(`Imagen IA inválida de "${deps.imageProvider.name}": ${validation.reason}`);
             try {
               persisted = await persistImage(a);
             } catch (err) {

@@ -78,7 +78,17 @@ function fakeImages(behavior: (req: ImageGenerationRequest, n: number) => Promis
   return { provider, calls: () => calls };
 }
 
-const pngAsset = (): GenerativeAsset => ({ buffer: Buffer.from("png"), mimeType: "image/png", extension: "png", model: "gpt-image", costUsd: 0.05 });
+/** Minimal PNG accepted by validateVisualAssetBuffer (signature + IHDR 1024×576); `tag` makes the bytes unique. */
+const fakePng = (tag: string): Buffer => {
+  const head = Buffer.alloc(33);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(head, 0);
+  head.writeUInt32BE(13, 8);
+  head.write("IHDR", 12, "ascii");
+  head.writeUInt32BE(1024, 16);
+  head.writeUInt32BE(576, 20);
+  return Buffer.concat([head, Buffer.alloc(32), Buffer.from(tag)]);
+};
+const pngAsset = (): GenerativeAsset => ({ buffer: fakePng("png"), mimeType: "image/png", extension: "png", model: "gpt-image", costUsd: 0.05 });
 
 async function deps(overrides: Partial<ShotExecutionDeps> = {}, allocation = { maxAiImageGenerations: 5, maxAiVideoClips: 2, maxGenerativeUsd: 5 }) {
   const mem = memoryShotAssetStore();
@@ -455,4 +465,20 @@ test("COST-7 imagen IA: la imagen pagada queda durable ANTES del commit del ledg
   assert.equal(retry.executedType, "generated_placeholder");
   assert.equal(retry.reused, true);
   assert.equal([...ledger.ops.values()][0].status, "SUBMITTED");
+});
+
+test("ASSET-FINAL imagen IA: un archivo que no es la imagen declarada nunca se guarda ni se usa — 1 llamada, caída existente, el reintento no vuelve a pagar", async () => {
+  for (const bad of [
+    { buffer: Buffer.from([0xff, 0xd8, 0xff, ...Buffer.alloc(80)]), mimeType: "image/png" }, // dice PNG, es JPEG
+    { buffer: Buffer.from("png"), mimeType: "image/png" }, // truncado
+  ]) {
+    const images = fakeImages(async () => ({ ...pngAsset(), ...bad }));
+    const { deps: d, mem } = await deps({ imageProvider: images.provider });
+    const first = await executeShot(shot("generated_placeholder"), d, emptyAiVideoLedgerState());
+    assert.equal(images.calls(), 1);
+    assert.notEqual(first.executedType, "generated_placeholder", "la imagen inválida no se usa");
+    assert.notEqual((await mem.store.read("beat-1-shot-2", "ai_image"))?.status, "COMPLETED", "ni se guarda como reutilizable");
+    await executeShot(shot("generated_placeholder"), d, emptyAiVideoLedgerState());
+    assert.equal(images.calls(), 1, "el reintento no vuelve a pagar");
+  }
 });
