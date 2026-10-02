@@ -76,25 +76,35 @@ async function main() {
   await mkdir(OUT, { recursive: true });
   const { createServiceClient } = await import("../../src/lib/supabase/service");
   const service = createServiceClient();
-  const videos = service.storage.from("videos");
-  // Locate by name: root files and every root folder whose name hints at the teaser (read-only listing).
+  // Locate by name in every bucket: root files and one level inside every root folder (read-only
+  // listing; partial match on the timestamp so a renamed upload is still found).
   const located: Record<string, string> = {};
-  const { data: root } = await videos.list("", { limit: 1000 });
-  const folders = (root ?? []).filter((e) => e.id === null && /precamp|teaser|hans|v2|cinematic|upload/i.test(e.name)).map((e) => e.name);
-  for (const e of root ?? []) if (e.id !== null && NAMES.includes(e.name)) located[e.name] = e.name;
-  for (const f of folders) {
-    const { data } = await videos.list(f, { limit: 200 });
-    for (const e of data ?? []) if (NAMES.includes(e.name) && !located[e.name]) located[e.name] = `${f}/${e.name}`;
+  const locatedBucket: Record<string, string> = {};
+  const stems = NAMES.map((n) => n.replace(/^\d{8}_/, "").replace(/\.mp4$/i, ""));
+  const matchName = (file: string) => NAMES.find((n, i) => file === n || (file.includes(stems[i]) && /\.(mp4|mov)$/i.test(file)));
+  const folders: string[] = [];
+  const { data: buckets } = await service.storage.listBuckets();
+  for (const b of buckets ?? []) {
+    const store = service.storage.from(b.name);
+    const { data: root } = await store.list("", { limit: 1000 });
+    const dirs = (root ?? []).filter((e) => e.id === null).map((e) => e.name);
+    for (const e of root ?? []) { const hit = e.id !== null ? matchName(e.name) : undefined; if (hit && !located[hit]) { located[hit] = e.name; locatedBucket[hit] = b.name; } }
+    for (const d of dirs.slice(0, 600)) {
+      if (Object.keys(located).length === NAMES.length) break;
+      folders.push(`${b.name}:${d}`);
+      const { data } = await store.list(d, { limit: 1000 });
+      for (const e of data ?? []) { const hit = e.id !== null ? matchName(e.name) : undefined; if (hit && !located[hit]) { located[hit] = `${d}/${e.name}`; locatedBucket[hit] = b.name; } }
+    }
   }
   const missing = NAMES.filter((n) => !located[n]);
   if (missing.length) {
-    await writeFile(join(OUT, "analysis.json"), JSON.stringify({ status: "SOURCES_NOT_FOUND", missing, foldersSearched: folders }, null, 2));
-    throw new Error(`No se encontraron en Storage: ${missing.join(", ")} (carpetas revisadas: ${folders.join(", ")})`);
+    await writeFile(join(OUT, "analysis.json"), JSON.stringify({ status: "SOURCES_NOT_FOUND", missing, found: located, foldersSearched: folders.length }, null, 2));
+    throw new Error(`No se encontraron en Storage: ${missing.join(", ")} (${folders.length} carpetas revisadas)`);
   }
   const clips: Record<string, unknown>[] = [];
   for (const name of NAMES) {
     const path = located[name];
-    const { data, error } = await videos.download(path);
+    const { data, error } = await service.storage.from(locatedBucket[name]).download(path);
     if (error || !data) throw new Error(`No se pudo leer ${path}`);
     const local = join(OUT, "..", `src-${name}`);
     await writeFile(local, Buffer.from(await data.arrayBuffer()));
@@ -111,7 +121,7 @@ async function main() {
     const tile = Math.ceil((p.duration * 4) / 8);
     await run(FF, ["-y", "-hide_banner", "-v", "error", "-i", local, "-vf", `fps=4,scale=200:-2,drawtext=text='%{pts\\:hms}':fontcolor=white:fontsize=14:x=4:y=4:box=1:boxcolor=black@0.6,tile=8x${tile}`, "-frames:v", "1", join(OUT, `strip-${name}.jpg`)]);
     for (const t of [0.5, p.duration / 2, Math.max(0.5, p.duration - 1)]) await run(FF, ["-y", "-hide_banner", "-v", "error", "-ss", t.toFixed(2), "-i", local, "-frames:v", "1", "-vf", "scale=540:-2", join(OUT, `frame-${name}-${t.toFixed(1)}.jpg`)]);
-    clips.push({ name, path, probe: p, transcript: transcript.text, words: transcript.words, openingMatch: Math.round(overlap(OPENING, transcript.text) * 100) / 100, closingMatch: Math.round(overlap(CLOSING, transcript.text) * 100) / 100, audio });
+    clips.push({ name, bucket: locatedBucket[name], path, probe: p, transcript: transcript.text, words: transcript.words, openingMatch: Math.round(overlap(OPENING, transcript.text) * 100) / 100, closingMatch: Math.round(overlap(CLOSING, transcript.text) * 100) / 100, audio });
   }
   const scored = clips as { name: string; path: string; openingMatch: number; closingMatch: number }[];
   const opening = scored.reduce((a, b) => (b.openingMatch - b.closingMatch > a.openingMatch - a.closingMatch ? b : a));
