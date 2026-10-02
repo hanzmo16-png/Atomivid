@@ -61,7 +61,7 @@ const LINES = {
 } as const;
 const ALIASES = [{ word: "ATOMIVID", spoken: "atomivid" }];
 
-type Word = { text: string; start: number; end: number };
+type Word = { text: string; start: number; end: number; limit?: number };
 type Cost = { provider: string; operation: string; estimatedUsd: number; actualUsd: number; reused: boolean; ledgerKey?: string };
 
 const ff = (args: string[]) => sh(FFMPEG, ["-hide_banner", "-v", "error", "-y", ...args], { maxBuffer: 64 * 1024 * 1024 });
@@ -127,6 +127,16 @@ async function buildCostReport(service: unknown) {
 
 async function main() {
   await mkdir(WORK, { recursive: true });
+  if (process.env.TEASER_PREFLIGHT_ONLY === "1") {
+    // Solo verificación gratuita (GET) de la clave HeyGen: ninguna llamada pagada.
+    const { getHeygenWallet } = await import("../../src/lib/providers/avatar/heygen");
+    const wallet = await getHeygenWallet().catch((e: unknown) => { throw new Error(`HEYGEN_PREFLIGHT_FAILED (sin gasto): ${e instanceof Error ? e.message : e}`); });
+    const ok = wallet >= 0.3;
+    await writeFile(join(OUT, "heygen-preflight.json"), JSON.stringify({ authenticated: true, balanceSufficient: ok, paidCalls: 0 }, null, 2) + "\n");
+    console.log(ok ? "HEYGEN_PREFLIGHT_OK" : "HEYGEN_PREFLIGHT_LOW_BALANCE");
+    if (!ok) process.exit(1);
+    return;
+  }
 
   // ---------- Insumos ----------
   const inputs = { opening: join(WORK, "src-opening.mp4"), closing: join(WORK, "src-closing.mp4"), dulce: join(WORK, "dulce.mp4"), ocean: join(WORK, "ocean.mp4"), music: join(WORK, "music.mp3") };
@@ -278,8 +288,9 @@ async function main() {
   // ---------- Segmentos de video (cada uno 1080x1920@30 con su audio) ----------
   const seg = (name: string) => join(WORK, `seg-${name}.mp4`);
   const enc = ["-r", String(FPS), "-c:v", "libx264", "-crf", "17", "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"];
-  // Los renders de DULCE/Océano traen subtítulos en inglés y rótulos quemados: se recorta esa franja (arriba 10 %, abajo 22 %).
-  const SAFE = "crop=iw*0.84:ih*0.68:iw*0.08:ih*0.10";
+  // Los renders de DULCE/Océano traen subtítulos en inglés y rótulos quemados (abajo y esquina superior izquierda):
+  // se recortan arriba 14 %, abajo 22 % y 10 % por lado.
+  const SAFE = "crop=iw*0.80:ih*0.64:iw*0.10:ih*0.14";
   const vertical = (input: string) => `[${input}]${SAFE},scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=24:2,eq=brightness=-0.12:saturation=0.8[bg];[${input}]${SAFE},scale=${W}:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2-140`;
   const dulceDur = (await probe(inputs.dulce)).duration, oceanDur = (await probe(inputs.ocean)).duration;
   const montage = async (name: string, audio: string, picks: { file: string; at: number }[], extra = "") => {
@@ -355,21 +366,23 @@ async function main() {
   const offsets: Record<string, number> = {};
   let t = 0;
   for (const n of order) { offsets[n] = n === "avatar" ? t - XF : t; t = offsets[n] + durs[n]; }
+  // limit = fin del segmento: ningún subtítulo invade el plano siguiente (p. ej. "ATOMIVID." del reveal sobre el cierre real).
+  const place = (k: string, w: Word) => ({ ...w, start: w.start + offsets[k], end: w.end + offsets[k], limit: offsets[k] + durs[k] - (k === "opening" ? XF : 0) });
   const timeline: Word[] = [
-    ...real.opening.words.map((w) => ({ ...w, start: w.start + offsets.opening, end: w.end + offsets.opening })),
-    ...(["avatar", "demo", "results", "reveal"] as const).flatMap((k) => tts[k].words.map((w) => ({ ...w, start: w.start + offsets[k], end: w.end + offsets[k] }))),
-    ...real.closing.words.map((w) => ({ ...w, start: w.start + offsets.closing, end: w.end + offsets.closing })),
+    ...real.opening.words.map((w) => place("opening", w)),
+    ...(["avatar", "demo", "results", "reveal"] as const).flatMap((k) => tts[k].words.map((w) => place(k, w))),
+    ...real.closing.words.map((w) => place("closing", w)),
   ];
   const ts = (s: number) => { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = (s % 60).toFixed(2).padStart(5, "0"); return `${h}:${String(m).padStart(2, "0")}:${x}`; };
   const chunks: Word[][] = [];
   for (const w of timeline) {
     const cur = chunks.at(-1);
-    if (!cur || cur.length >= 3 || /[.,…?!]$/.test(cur.at(-1)!.text) || w.start - cur.at(-1)!.end > 0.4) chunks.push([w]); else cur.push(w);
+    if (!cur || cur.length >= 3 || cur.at(-1)!.limit !== w.limit || /[.,…?!]$/.test(cur.at(-1)!.text) || w.start - cur.at(-1)!.end > 0.4) chunks.push([w]); else cur.push(w);
   }
   const events: string[] = [];
   chunks.forEach((c, ci) => {
     const next = chunks[ci + 1]?.[0].start ?? Infinity;
-    const end = Math.min(c.at(-1)!.end + 0.08, next);
+    const end = Math.min(c.at(-1)!.end + 0.08, next, c.at(-1)!.limit ?? Infinity);
     c.forEach((w, i) => {
       const from = w.start, to = i === c.length - 1 ? end : c[i + 1].start;
       const text = c.map((x, j) => {
@@ -450,8 +463,10 @@ async function main() {
 main().catch(async (err) => {
   console.error("Producción del teaser detenida:", err instanceof Error ? err.message : err);
   await mkdir(OUT, { recursive: true });
-  const { createServiceClient } = LOCAL ? { createServiceClient: () => null } : await import("../../src/lib/supabase/service");
-  const report = await buildCostReport(createServiceClient()).catch(() => ({ capUsd: CAP, spentThisRunUsd: spent(), operations: costs }));
+  const report = await (async () => {
+    const { createServiceClient } = LOCAL ? { createServiceClient: () => null } : await import("../../src/lib/supabase/service");
+    return buildCostReport(createServiceClient());
+  })().catch(() => ({ capUsd: CAP, spentThisRunUsd: spent(), operations: costs }));
   await writeFile(join(OUT, "cost-report.json"), JSON.stringify({ ...report, stoppedWith: err instanceof Error ? err.message : String(err), notes }, null, 2) + "\n");
   process.exit(1);
 });
