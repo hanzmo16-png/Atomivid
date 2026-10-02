@@ -10,11 +10,11 @@ on:
     inputs:
       opening_path:
         description: "Ruta en el bucket 'videos' del clip HANS_OPENING_REAL (1080x1920, 30 fps)"
-        required: true
+        required: false
         type: string
       closing_path:
         description: "Ruta en el bucket 'videos' del clip HANS_CLOSING_REAL (1080x1920, 30 fps)"
-        required: true
+        required: false
         type: string
       avatar_id:
         description: "avatars.id autorizado de Hans (opcional)"
@@ -28,6 +28,15 @@ on:
         description: "Rutas en 'videos' de assets ya renderizados a reutilizar, separadas por comas (opcional)"
         required: false
         type: string
+      reuse_prefixes:
+        description: "Prefijos en 'videos' a listar (renders ya entregados), separados por comas (opcional)"
+        required: false
+        type: string
+      list_identities:
+        description: "Listar avatares y voces listos (id, nombre, proveedor; sin usuarios) para elegir los de Hans"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -63,6 +72,8 @@ jobs:
           TEASER_AVATAR_ID: ${{ inputs.avatar_id }}
           TEASER_VOICE_ID: ${{ inputs.voice_id }}
           TEASER_REUSE_PATHS: ${{ inputs.reuse_paths }}
+          TEASER_REUSE_PREFIXES: ${{ inputs.reuse_prefixes }}
+          TEASER_LIST_IDENTITIES: ${{ inputs.list_identities }}
 
       - name: Publicar informe de descubrimiento
         if: always()

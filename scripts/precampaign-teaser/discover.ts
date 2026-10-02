@@ -74,6 +74,31 @@ async function main() {
     ? await service.from("user_voices").select("id,provider,status,provider_voice_id").eq("id", voiceId).maybeSingle()
     : null;
 
+  // Identidades existentes (sin usuario fijo): solo metadatos no sensibles de avatares y voces listos,
+  // para que el operador elija el avatar y la voz autorizados de Hans. Nunca se crean.
+  const identities = process.env.TEASER_LIST_IDENTITIES === "true"
+    ? {
+        avatars: (await service.from("avatars").select("id,name,provider,status,created_at").eq("status", "ready").order("created_at", { ascending: false }).limit(20)).data ?? [],
+        voices: (await service.from("user_voices").select("id,name,provider,status,created_at").eq("status", "ready").order("created_at", { ascending: false }).limit(20)).data ?? [],
+      }
+    : undefined;
+
+  // Prefijos reutilizables (renders ya entregados): nombres y tamaños, dos niveles, sin descargar.
+  const listing: Record<string, { path: string; bytes: number | null }[]> = {};
+  for (const prefix of (process.env.TEASER_REUSE_PREFIXES ?? "").split(",").map((p) => p.trim().replace(/\/+$/, "")).filter(Boolean)) {
+    const found: { path: string; bytes: number | null }[] = [];
+    const walk = async (dir: string, depth: number) => {
+      const { data } = await bucket.list(dir, { limit: 100 });
+      for (const e of data ?? []) {
+        const full = `${dir}/${e.name}`;
+        if (e.id === null) { if (depth < 2) await walk(full, depth + 1); }
+        else found.push({ path: full, bytes: (e.metadata as { size?: number } | null)?.size ?? null });
+      }
+    };
+    await walk(prefix, 0);
+    listing[prefix] = found.slice(0, 60);
+  }
+
   const reuse = [];
   for (const path of (process.env.TEASER_REUSE_PATHS ?? "").split(",").map((p) => p.trim()).filter(Boolean)) {
     const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
@@ -99,6 +124,8 @@ async function main() {
         : { id: voiceId, status: "NOT_FOUND" }
       : { status: "NOT_PROVIDED" },
     reuse,
+    identities,
+    listing,
   };
   await rm(work, { recursive: true, force: true });
   await writeFile("teaser-discovery.json", JSON.stringify(report, null, 2) + "\n");
