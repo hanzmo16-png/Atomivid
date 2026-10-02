@@ -1,0 +1,60 @@
+name: Private media archive activation
+on:
+  push:
+    branches: [codex/private-media-library]
+    paths: [.github/workflows/private-media-archive-activation.yml]
+permissions:
+  contents: read
+concurrency:
+  group: private-channel-media-archive
+  cancel-in-progress: false
+jobs:
+  archive:
+    if: github.repository == 'hanzmo16-png/Atomivid'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 119fdcc37274a2d7eec768174542a064c18709c1
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install existing dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify archive logic
+        run: node --test scripts/lib/private-media-library.test.mjs
+      - name: Archive existing ocean media and verify recovery
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node --input-type=module <<'JS'
+          import { readFile } from 'node:fs/promises';
+          import { createClient } from '@supabase/supabase-js';
+          import { archive, catalog, listFiles, planArchive, retrieve, supabasePort } from './scripts/lib/private-media-library.mjs';
+          const config = JSON.parse(await readFile('scripts/private-media-library.example.json', 'utf8'));
+          const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+          const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+          if (!url || !key) throw new Error('Required existing Storage configuration missing');
+          const client = createClient(url, key, {auth:{persistSession:false,autoRefreshToken:false}});
+          const port = supabasePort(client);
+          const {data:buckets,error} = await client.storage.listBuckets();
+          if (error) throw new Error('Storage inventory unavailable');
+          let totalBytes = 0;
+          for (const bucket of buckets) {
+            const files = await listFiles(port,bucket.id);
+            totalBytes += files.reduce((n,f)=>n+f.size,0);
+          }
+          const plan = await planArchive(port,config);
+          if (!plan.files.length) throw new Error('No existing media found in the reviewed ocean scope');
+          if (totalBytes + plan.addedUpperBound > 90_000_000_000) throw new Error('Project exceeds conservative Pro headroom threshold');
+          console.log(JSON.stringify({projectBytes:totalBytes,selectedFiles:plan.files.length,sourceBytes:plan.sourceBytes,addedUpperBound:plan.addedUpperBound}));
+          const result = await archive(port,config);
+          const entries = await catalog(port,config,'ocean');
+          if (entries.length < result.archived) throw new Error('Catalog is incomplete');
+          const restored = await retrieve(port,config,entries[0].id);
+          console.log(JSON.stringify({archived:result.archived,catalogEntries:entries.length,retrievedBytes:restored.bytes.length,checksumVerified:true,sourceDeletion:false,paidGenerationCalls:0,independentBackup:false}));
+          JS
