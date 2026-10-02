@@ -14,10 +14,14 @@ on:
         description: "discover (sin gasto), heygen-preflight (GET gratuito de la clave HeyGen) o produce (gasto autorizado, tope USD 1.03)"
         required: true
         type: choice
-        options: [discover, heygen-preflight, produce]
+        options: [discover, heygen-preflight, produce, v2-analyze, v2-vfx, v2-master]
         default: discover
       confirm:
         description: "Escribir PRODUCIR para habilitar las claves pagadas en stage=produce"
+        required: false
+        type: string
+      v2_args:
+        description: "V2: parámetros JSON (p. ej. ventana VFX {\"vfxStart\":1.2}); opcional"
         required: false
         type: string
       avatar_mode:
@@ -164,5 +168,53 @@ jobs:
             teaser-output/*.json
             teaser-output/heygen-preflight.json
             teaser-output/work/captions.ass
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # V2 CINEMATIC: análisis (gratis), VFX-001 (único gasto permitido: Luma, tope por plan) y master.
+  # Nunca recibe claves de ElevenLabs ni HeyGen: TTS y avatar solo se reutilizan desde el ledger.
+  v2:
+    if: startsWith(inputs.stage, 'v2-') && inputs.confirm == 'PRODUCIR'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Instalar ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg && ffmpeg -version | head -1
+
+      - name: Transcripción local (faster-whisper, sin API)
+        if: inputs.stage == 'v2-analyze'
+        run: python3 -m pip install --quiet faster-whisper==1.1.1
+
+      - name: Ejecutar etapa V2
+        run: npx tsx scripts/precampaign-teaser/${{ inputs.stage }}.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LUMA_API_KEY: ${{ inputs.stage == 'v2-vfx' && secrets.LUMA_API_KEY || '' }}
+          TEASER_V2_ARGS: ${{ inputs.v2_args }}
+
+      - name: Publicar resultados V2
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: precampaign-v2-${{ inputs.stage }}
+          path: |
+            teaser-v2/analysis/
+            teaser-v2/vfx/*.json
+            teaser-v2/vfx/*.jpg
+            teaser-v2/vfx/*.mp4
+            teaser-v2/output/
           if-no-files-found: ignore
           retention-days: 7
