@@ -27,6 +27,7 @@ import {
 } from "./output-policy";
 import { probeOutput, sha256File, transcodeToFit, type OutputMediaMetrics } from "./output-media";
 import { OutputUploadError, uploadOutputFile, type UploadAttemptLog } from "./output-upload";
+import { evaluateVideoProbe } from "./long-form-qc";
 import { generateDiagnosticId } from "../render-error";
 
 export const OUTPUT_BUCKET = "videos";
@@ -202,6 +203,22 @@ export async function finalizeLongFormOutput(
   timingsMs.probe = now() - t;
   if (!(rendered.bytes > 0) || !(rendered.durationSeconds > 0) || !rendered.videoCodec) {
     return fail("output_invalid", { reason: "empty_or_unreadable", rendered });
+  }
+  // PI V2 QA-R-B: the master must match the Long Form contract (1920x1080, 30 fps within the
+  // existing QC tolerance, an audio track — narration is mandatory) using what ffprobe already read.
+  const specIssues = evaluateVideoProbe(
+    {
+      hasVideoStream: Boolean(rendered.videoCodec),
+      hasAudioStream: Boolean(rendered.audioCodec),
+      width: rendered.width ?? 0,
+      height: rendered.height ?? 0,
+      fps: rendered.fps ?? 0,
+      durationSeconds: rendered.durationSeconds,
+    },
+    { width: LONG_FORM_ENCODING_PROFILE.width, height: LONG_FORM_ENCODING_PROFILE.height, fps: LONG_FORM_ENCODING_PROFILE.fps, expectedDurationSeconds: 0 },
+  );
+  if (specIssues.length > 0) {
+    return fail("output_invalid", { reason: "master_spec_mismatch", issues: specIssues, rendered });
   }
 
   const fitFrom = async (ceiling: number, reason: string): Promise<string> => {

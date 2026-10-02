@@ -261,3 +261,45 @@ test("subida: sin endpoint reanudable → respaldo estándar del MISMO archivo c
   assert.equal(calls, 3);
   fs.rmSync(file, { force: true });
 });
+
+// ---- PI V2 QA-R-B: the master must match the Long Form contract (ffprobe metadata already read) ----
+
+async function deliverWithProbe(overrides: Record<string, unknown>) {
+  const out = memoryOutputDeps({ durationSeconds: 180 });
+  const realProbe = out.deps.probe;
+  out.deps.probe = async (filePath) => ({ ...(await realProbe(filePath)), ...overrides });
+  const file = tmpFile(1 * MiB, "spec");
+  try {
+    const result = await finalizeLongFormOutput({ requestId: REQ, attempt: 1, filePath: file }, out.deps).catch((err: unknown) => err);
+    return { out, result };
+  } finally {
+    fs.rmSync(file, { force: true });
+  }
+}
+
+for (const [label, overrides, code] of [
+  ["width incorrecto", { width: 1280 }, "resolution_mismatch"],
+  ["height incorrecto", { height: 720 }, "resolution_mismatch"],
+  ["fps incompatible con 30", { fps: 25 }, "fps_mismatch"],
+  ["sin pista de audio", { audioCodec: null }, "no_audio_stream"],
+] as const) {
+  test(`QA-R-B: master con ${label} → veto antes de subir`, async () => {
+    const { out, result } = await deliverWithProbe(overrides);
+    assert.ok(result instanceof LongFormOutputError, "la entrega se veta");
+    assert.equal(result.category, "output_invalid");
+    assert.equal(out.calls.upload, 0, "nada se sube");
+    const state = out.states.get(REQ);
+    assert.equal(state?.status, "FAILED");
+    assert.equal(state?.failure?.detail.reason, "master_spec_mismatch");
+    assert.ok((state?.failure?.detail.issues as { code: string }[]).some((i) => i.code === code), `incluye ${code}`);
+  });
+}
+
+test("QA-R-B: master 1920×1080, 30 fps (29.97 dentro de la tolerancia existente) y con audio → se entrega", async () => {
+  for (const fps of [30, 29.97]) {
+    const { out, result } = await deliverWithProbe({ width: 1920, height: 1080, fps, audioCodec: "aac" });
+    assert.ok(!(result instanceof Error), `fps ${fps}: entregado`);
+    assert.equal(out.states.get(REQ)?.status, "UPLOADED");
+    assert.equal(out.calls.upload, 1);
+  }
+});
