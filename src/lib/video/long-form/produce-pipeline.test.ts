@@ -737,3 +737,15 @@ test("COST-3: en el camino del job, cada envío al proveedor de video IA lleva m
     else process.env.LONG_FORM_AI_VIDEO_ENABLED = previous;
   }
 });
+
+test("COST-11: las reservas motionres-* son stock gratuito — costUsd 0 y ninguna fila en el ledger de llamadas pagadas", async () => {
+  const c = counters();
+  const env = freshEnv({ durationSeconds: 180 });
+  await run(env, c, planFor("balanced"), { videoProvider: null });
+  const reserved = [...env.mem.records.values()].filter((r) => r.shotId.startsWith("motionres-"));
+  assert.ok(reserved.length > 0, "el guion tiene visuales motion:true reservadas");
+  for (const r of reserved) assert.equal(r.costUsd, 0, `${r.shotId}: costUsd 0`);
+  const ops = [...env.ledger.ops.values()];
+  assert.ok(ops.length > 0, "el ledger sí registra las llamadas pagadas de esta producción");
+  assert.deepEqual(ops.filter((op) => op.shotId.includes("motionres") || op.provider === "fake-pexels"), [], "ninguna reserva de movimiento entra en pi_paid_operations");
+});
