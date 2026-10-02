@@ -14,6 +14,39 @@ import type { RenderStage } from "./stages";
 import { generateDiagnosticId } from "./render-error";
 import { ProviderConfigurationError } from "@/lib/providers/production";
 import { isCustomerSafeError } from "./long-form/output-policy";
+import { getVoiceProvider } from "@/lib/providers/voice";
+import { getPricingConfig } from "@/lib/billing/pricing";
+import {
+  acquireCapacityHolds,
+  CapacityUnavailableError,
+  releaseOpenHoldsForRequest,
+  settleCapacityHolds,
+  supabaseCapacityHoldStore,
+  type AcquiredHold,
+  type CapacityDemand,
+} from "@/lib/paid-calls/capacity-hold";
+import { snapshotBalancePort } from "@/lib/paid-calls/capacity-port";
+
+/**
+ * Demanda de capacidad de proveedor de este trabajo (PI V2 B2, RB-02): hoy solo la voz
+ * (ElevenLabs, en caracteres de narración). Sin narración pagada (fixture, audio grabado) no
+ * hay demanda. Imágenes/video quedan fuera de esta fase.
+ */
+export function capacityDemandsFor(row: Pick<JobRow, "mode" | "script_json" | "recorded_audio_path">, voiceProviderName: string): CapacityDemand[] {
+  if (voiceProviderName === "fixture") return [];
+  const mode = row.mode ?? "visual";
+  if (mode === "avatar" && row.recorded_audio_path) return [];
+  const script = row.script_json as unknown;
+  let text = "";
+  if (mode === "long_form" && isLongFormScriptJson(script)) {
+    text = (script as { beats: LongFormScriptBeatInput[] }).beats.map((b) => b.narration ?? "").join(" ");
+  } else if (script && typeof script === "object" && Array.isArray((script as GeneratedScript).segments)) {
+    text = (script as GeneratedScript).segments.map((s) => s.text).join(" ");
+  }
+  const units = text.length;
+  if (units <= 0) return [];
+  return [{ provider: voiceProviderName, units, usd: (units / 1000) * getPricingConfig().elevenLabsUsdPer1kChars }];
+}
 
 /** Rutas internas de Storage (`<uuid>/...`) nunca llegan al mensaje visible de Long Form. */
 export function scrubInternalPaths(message: string): string {
@@ -121,6 +154,10 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
     if (result.error || !result.data) throw new Error("El trabajo ya no tiene una reserva activa. No se repetirá automáticamente.");
   };
 
+  // Reserva atómica de capacidad del proveedor ANTES de que el trabajo llegue a la puerta de
+  // llamadas pagadas (PI V2 B2, RB-02): saldo desconocido o lectura fallida = no empieza.
+  const holdStore = supabaseCapacityHoldStore(service);
+  let holds: AcquiredHold[] = [];
   try {
     if (mode === "avatar" && !row.avatar_id) throw new Error("Falta el avatar asociado a esta solicitud.");
     if (mode !== "long_form" && !row.script_json) throw new Error("No hay guion guardado para renderizar.");
@@ -138,6 +175,13 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
             beats: (row.script_json as unknown as { beats: LongFormScriptBeatInput[] }).beats,
           })
         : null;
+    const demands = capacityDemandsFor(row, getVoiceProvider().name);
+    if (demands.length > 0) {
+      await releaseOpenHoldsForRequest(holdStore, requestId).catch(() => 0);
+      const admission = await acquireCapacityHolds({ store: holdStore, balance: snapshotBalancePort(service) }, { requestId, demands });
+      if (!admission.acquired) throw new CapacityUnavailableError(admission.provider, admission.reason);
+      holds = admission.holds;
+    }
     const { videoPath } =
       mode === "avatar"
         ? await generateAvatarVideo({
@@ -181,7 +225,11 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
       status: "completed", video_path: videoPath, progress_stage: null, long_form_stage: null, long_form_progress: null, error_message: null,
     }).select("id").maybeSingle();
     if (completed.error || !completed.data) throw new Error("No se pudo confirmar el resultado de este intento. No vuelvas a generar sin revisar su estado.");
+    // Consumo real: la reserva pasa a COMMITTED (sigue descontando hasta una instantánea más nueva).
+    await settleCapacityHolds(holdStore, holds, "COMMITTED").catch(() => undefined);
   } catch (error) {
+    // Cualquier fallo tras la admisión puede haber consumido unidades: se conserva como COMMITTED.
+    if (holds.length > 0) await settleCapacityHolds(holdStore, holds, "COMMITTED").catch(() => undefined);
     // QA real (2026-09-25): un fallo real de avatar (aquí, pipeline.ts
     // rechazando por AVATAR_MODE_ENABLED=false, un desajuste de proveedor,
     // etc.) llegaba a error_message sin ningún código de diagnóstico —
@@ -213,6 +261,11 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
     // siquiera soporte podía saber si faltaba HEYGEN_API_KEY, DID_API_KEY,
     // etc. sin adivinar. Se registra SOLO el/los nombres (nunca valores),
     // correlacionado con el mismo diagnosticId ya añadido a error_message.
+    // Admisión de capacidad rechazada (RB-02): la causa exacta (proveedor, saldo, unidades) va al
+    // log con el mismo código; al usuario solo le llega el mensaje seguro.
+    if (error instanceof CapacityUnavailableError) {
+      console.error(`[atomivid:capacity] (Código: ${diagnosticId}) ${error.provider}: ${error.detail}`);
+    }
     if (error instanceof ProviderConfigurationError && error.missingEnvVars.length > 0) {
       console.error(
         `[atomivid:provider-config] (Código: ${diagnosticId}) variables faltantes: ${error.missingEnvVars.join(", ")}`,

@@ -1,6 +1,6 @@
 # ATOMIVID — Production Intelligence V2 Hardening, Fase A: Code Reality Check / Gap Analysis
 
-**Date:** 2026-10-02 · **Repo:** `hanzmo16-png/Atomivid` · **HEAD audited:** `692e9ec` (branch `claude/production-intelligence-v1`) · **Updated:** Fase B1 (RB-01 double-charge guard), see section 17 · **Mode:** READ-ONLY (no code, no migrations, no deploy, no paid calls, no assets, no render, no publish) · **Spend:** USD 0.00
+**Date:** 2026-10-02 · **Repo:** `hanzmo16-png/Atomivid` · **HEAD audited:** `692e9ec` (branch `claude/production-intelligence-v1`) · **Updated:** Fase B1 (RB-01 double-charge guard, section 17) and Fase B2 (RB-02 capacity hold, section 18) · **Mode:** READ-ONLY (no code, no migrations, no deploy, no paid calls, no assets, no render, no publish) · **Spend:** USD 0.00
 
 **Scope rule.** "Product path" / "Generate" means the customer flow and nothing else:
 `POST /api/generate/[id]/render` (`src/app/api/generate/[id]/render/route.ts`) → `src/lib/worker/{index,github-actions}.ts` → `.github/workflows/render.yml` → `scripts/render-worker.ts` → `src/lib/video/run-job.ts` → `src/lib/video/generate-video.ts` (Reel) · `src/lib/video/long-form/produce.ts` (Long Form) · `src/lib/video/avatar/pipeline.ts` (Avatar).
@@ -15,7 +15,7 @@
 
 ## 1. Executive summary
 
-- **RELEASE READINESS: NOT_READY.** After Fase B1: 8 of 13 blockers are MISSING on the product path (RB-02, RB-03, RB-06, RB-07, RB-08, RB-09, RB-10, RB-13); 5 are PARTIAL (RB-01 since B1, RB-04, RB-05, RB-11, RB-12); 0 IMPLEMENTED. One MISSING is enough for NOT_READY; there are eight.
+- **RELEASE READINESS: NOT_READY.** After Fase B2: 7 of 13 blockers are MISSING on the product path (RB-03, RB-06, RB-07, RB-08, RB-09, RB-10, RB-13); 6 are PARTIAL (RB-01 since B1, RB-02 since B2, RB-04, RB-05, RB-11, RB-12); 0 IMPLEMENTED. One MISSING is enough for NOT_READY; there are seven.
 - **The money path is unprotected where it matters.** The Reel branch of Generate reaches ElevenLabs (`src/lib/ai/voice.ts:113`), OpenAI images and Beatoven with no provider-call record, no idempotency key, no timeout, no reconciliation. Long Form has a real write-ahead record (STARTED → COMPLETED in Storage JSON) with tests, but no idempotency key reaches any provider, a Storage read error is treated as "absent" (resubmission), and there is no sweeper. **A timeout can produce two charges** (RB-01: yes, both branches). **Ten jobs can read the same balance and all start** (RB-02: yes; quota is a read-then-act count, provider balance is never read on Generate).
 - **PI V1's ledger (`pi_paid_operations`, `executePaidOperation`) is correct but unreachable:** it is not imported by anything on the product path. The red team's RESERVED/DISPATCHED/NEEDS_RECONCILE model exists in migration 0023 and in `src/lib/production-intelligence/ledger.ts`, and Generate never passes through it.
 - **Tenant isolation has a concrete hole** (RB-06): the `video_requests` INSERT policy (`0001_init.sql:27-29`) checks only `auth.uid() = user_id`; no column grant or trigger constrains `status`, `video_path`, `render_attempts`, `created_at` or `long_form_production_plan`. The dashboard signs `video_path` with the service role without a path check (`src/lib/storage/signed-url.ts:13-23`, `src/app/dashboard/videos/[id]/page.tsx:67-68`). Static reading shows a cross-tenant read and quota/attempt bypass; not executed in this turn.
@@ -31,7 +31,7 @@
 | ID | Blocker | Status (product path) | Branch detail | Complexity |
 |---|---|---|---|---|
 | RB-01 | Provider idempotency / reconciliation | **PARTIAL** (B1; was MISSING at `692e9ec`) | Every paid call site named in section 4 now writes a `pi_paid_operations` row before the HTTP (section 17). Still open: sweeper, CI, idempotency key not sent to providers, no-shotId AI video path, test-only in-process fallback ledgers | L |
-| RB-02 | Atomic budget / capacity hold | **MISSING** | Long Form per-request budget PARTIAL; account/provider level MISSING | L |
+| RB-02 | Atomic budget / capacity hold | **PARTIAL** (B2; was MISSING at `692e9ec`) | Atomic provider-capacity hold on `pi_paid_operations` before any Generate job reaches the gate (section 18): voice units only; balance through a port reading `pi_capacity_snapshots`; UNKNOWN = no job. Still open: user/platform USD caps, images/video demand, stale-hold sweeper, real balance monitor, CI | L |
 | RB-03 | Paid asset saga / storage consistency | **MISSING** | Reel MISSING · Long Form PARTIAL | M |
 | RB-04 | Single job owner / fencing | **PARTIAL** | CAS + attempt token on `video_requests` only | M |
 | RB-05 | Review ≠ publish | **PARTIAL** | No publish code exists; no review state exists | S |
@@ -51,7 +51,7 @@
 | ID | Status | One-line reason |
 |---|---|---|
 | RB-01 | PARTIAL (B1) | At `692e9ec`: the Reel paid calls (`voice.ts:113`, `providers/image/openai.ts:134`, `providers/music/beatoven.ts:83`) had no durable record, no key, no timeout. Since B1 (section 17) all Generate paid call sites pass through `guardPaidCall` on `pi_paid_operations` with mock tests; no sweeper, no CI, no provider-side key. |
-| RB-02 | MISSING | `assertCanGenerate` (`billing/quota.ts:91-145`) is read-then-act with no lock/RPC; no provider or account balance is read on Generate; UNKNOWN balance proceeds. |
+| RB-02 | PARTIAL (B2) | At `692e9ec`: `assertCanGenerate` (`billing/quota.ts:91-145`) was read-then-act and no balance was read on Generate. Since B2 (section 18) the worker acquires an atomic hold (PK-serialised sequence on `pi_paid_operations`) against a snapshot balance before dispatch; UNKNOWN or a failed read starts nothing. The monthly quota count in `quota.ts` is unchanged (still read-then-act, still forgeable per RB-06). |
 | RB-03 | MISSING | Reel pays, uploads `${requestId}/attempt-N/*`, then writes `video_path` in a separate step; a retry re-pays voice and music. No content-addressed paths, no orphan GC, no reconciliation except Long Form's output size check. |
 | RB-04 | PARTIAL | Compare-and-set on `status`/`render_attempts` (`render/route.ts:163-180`, `attempt-state.ts:6-18`) with a race test against a fake PostgREST; no lease expiry, no `pipeline_version`, Storage/budget writes unfenced, script routes unfenced. |
 | RB-05 | PARTIAL | `AUTO_PUBLISH` is the literal `false` and tested; no YouTube write endpoint is called anywhere; bucket private since 0006. But `READY_FOR_REVIEW`/`PUBLISH_REQUESTED`/`PUBLISHED` do not exist and `completed` is delivery. |
@@ -469,7 +469,7 @@ Totals: TEST_EXISTS 0 · TEST_PARTIAL 4 · TEST_MISSING 6.
 
 **NOT_READY.**
 
-Eight blockers are MISSING on the product path (RB-02, RB-03, RB-06, RB-07, RB-08, RB-09, RB-10, RB-13); five are PARTIAL (RB-01, RB-04, RB-05, RB-11, RB-12); none is IMPLEMENTED. The test suite is not executed by CI. Of the two questions from the mandate: "can a timeout produce two charges" is now answered no for the gated call sites (section 17, mock-tested, not CI-enforced); "can ten jobs read the same balance and all start" is still yes. No caveats apply to this verdict.
+Seven blockers are MISSING on the product path (RB-03, RB-06, RB-07, RB-08, RB-09, RB-10, RB-13); six are PARTIAL (RB-01, RB-02, RB-04, RB-05, RB-11, RB-12); none is IMPLEMENTED. The test suite is not executed by CI. Both questions from the mandate are now answered no for the covered paths, mock-tested and not CI-enforced: a timeout cannot produce two charges at the gated call sites (section 17), and ten jobs cannot read the same voice balance and all start (section 18). No caveats apply to this verdict.
 
 Items outside the repo and therefore UNVERIFIABLE (noted apart, not counted as PASS): Supabase project upload size limit and bucket `public` flags in production, the `music-library` bucket's existence and ACL, GitHub runner concurrency limits, ElevenLabs account dictionary and concurrency behaviour, provider balances, and the production Vercel branch's `/r/[slug]` route (this audit covers HEAD `692e9ec`).
 
@@ -508,5 +508,29 @@ Pre-acceptance refusals are now typed: `voice.ts` throws `ProviderRejectedError`
 8. One existing expectation was re-specified to the rule: `production-tts-cache.test.ts` test 6 (corrupt cached audio after a COMMITTED row) now expects refusal, not a new paid synthesis; test 6b keeps the pre-B1 behaviour when the ledger has no row.
 
 **RB-03 (re-pay part only):** a Reel retry no longer re-pays voice, image or music; the storage saga, content-addressed paths, orphan GC and hash reconciliation remain MISSING as in section 4.
+
+---
+
+## 18. Fase B2 — RB-02 atomic capacity hold (2026-10-02, after `33689b8`)
+
+**Scope executed:** RB-02 only, on the worker admission path. No migration, no new table, no provider called (fake port in tests; the real port reads a table), no change to the B1 gate semantics or keys, VIDEO-004 untouched, PI V1 engine tree unchanged.
+
+**Paso 0 (schema).** `0023_production_intelligence.sql:24` constrains `status` to `('RESERVED','SUBMITTED','PROVIDER_JOB_RECORDED','COMMITTED','REFUNDED','RECONCILIATION_REQUIRED')`. The B1 gate writes SUBMITTED (engine), PROVIDER_JOB_RECORDED (`gate.ts:156,192`), REFUNDED (`:161`), RECONCILIATION_REQUIRED (`:168`) and COMMITTED (engine, `:192`): all in the list; no mismatch. The hold uses RESERVED → COMMITTED | REFUNDED, also in the list and forward under the 0023 trigger.
+
+**Mechanism (`src/lib/paid-calls/capacity-hold.ts`).** One `pi_paid_operations` row per hold (`method = capacity_hold`, key `cap:<provider>:<seq>`, `project_id = requestId`, `reserved_usd` = USD estimate, `result_ref = units:<n>`). Atomicity without read-then-act: holds per provider form a dense sequence; each job lists the holds, computes `max(seq)+1` and INSERTs exactly that primary key. The PK serialises the inserts, so the job that lands sequence n is the only one that saw every hold below n (a hold j < n inserted after its listing would have made it target j). The decision `demand ≤ available − open` is therefore taken on an exact view of prior holds; a 23505 conflict re-lists and retries, bounded (100 rounds, then refuse). Open holds = RESERVED, plus COMMITTED holds created after the balance snapshot (the provider's balance cannot reflect them yet); REFUNDED never counts. All-or-nothing across several demands (rollback to REFUNDED).
+
+**Balance port (`src/lib/paid-calls/capacity-port.ts`).** `ProviderBalancePort.read(provider)` → `{known:true, available, unit, checkedAt}` or `{known:false, reason}`. The production implementation `snapshotBalancePort` reads the newest `pi_capacity_snapshots` row (0023): known only when status is GREEN or YELLOW, `available` is set, reliability is `provider_api` or `manual_entry`, and the row is at most 24 h old. Anything else is UNKNOWN; a read error throws. UNKNOWN and errors both mean zero jobs (fail closed). `fakeBalancePort` is the test double; nothing calls a provider.
+
+**Wiring (`src/lib/video/run-job.ts`).** After the attempt claim and before any pipeline dispatch: `capacityDemandsFor(row, voiceProvider.name)` (voice characters of the narration; none for the fixture provider or recorded avatar audio) → `releaseOpenHoldsForRequest` (frees holds left by fenced-out earlier attempts of the same request) → `acquireCapacityHolds` → refusal throws `CapacityUnavailableError` (customer-safe message, provider/balance/units detail in the log under the same diagnostic code) and the job is marked failed with no paid call. After the job (success or failure after admission) the hold is settled COMMITTED, so it keeps counting until a newer snapshot; it is never released as free.
+
+**Tests (mocks; local run 1433 pass, one unrelated pre-existing ffmpeg loudness test flaked under full-suite load and passes in isolation; `tsc --noEmit` and eslint clean):** `src/lib/paid-calls/capacity-hold.test.ts` B2-1 (balance 3, 10 parallel → exactly 3 acquire, 7 rejected, mock runs 3 times), B2-2 (port throws → 10 rejected, mock 0, no rows), B2-3 (UNKNOWN and a hold-write failure → 0 jobs), B2-4 (COMMITTED-after-snapshot counts, REFUNDED frees, newer snapshot frees), B2-5 (stale hold of the same request released; all-or-nothing rollback), B2-6 (row encoding and CAS settle on a fake PostgREST), B2-7 (snapshot port rules), B2-8 (claim → hold → dispatch order in `run-job.ts`, source-structural).
+
+**Why RB-02 stays PARTIAL, not IMPLEMENTED:**
+1. **Deployment prerequisite (fail closed by rule):** with a real voice provider, every Generate job now refuses to start until `pi_capacity_snapshots` holds a GREEN/YELLOW row for `elevenlabs` (manual entry is enough; `pi_provider_accounts` must hold the provider first, foreign key) younger than 24 h. No code in the repo writes snapshots (no monitor, by mandate). Without that row, production Generate stops. Apply 0023 and seed the snapshot before deploying.
+2. Only the voice demand is held; image and AI-video demands are not (their per-request USD budget from `production-budget.ts` is unchanged).
+3. User and platform USD caps are still not atomic: `billing/quota.ts` monthly count is unchanged (read-then-act) and remains forgeable through the RB-06 insert hole.
+4. No sweeper: a hold whose process dies stays RESERVED until the next attempt of the same request releases it; holds of abandoned requests reduce capacity until an operator settles them. Settlement after a failed job is COMMITTED (conservative), so refunds never happen automatically.
+5. The command-center "open PI reservations" sum now includes hold rows (RESERVED, `reserved_usd` = USD estimate of the narration) until they settle.
+6. No CI runs the suite.
 
 ATOMIVID_PI_V2_REALITY_CHECK_COMPLETE
