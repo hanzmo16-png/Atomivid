@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { isSubscriptionActive } from "@/lib/billing/subscription";
-import { getSignedVideoUrl } from "@/lib/storage/signed-url";
+import { getSignedVideoUrlForRequest } from "@/lib/storage/signed-url";
 import type { VideoRequestSummary } from "@/lib/video/request-view";
 import { resolveHistoryViewState } from "@/lib/video/history-view";
 import { AutoRefresh } from "./AutoRefresh";
@@ -26,11 +26,11 @@ export default async function DashboardPage({
   const { data: requests, error: requestsError } = await supabase
     .from("video_requests")
     .select(
-      "id, mode, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage, long_form_progress, long_form_confirmed_at, recorded_audio_path",
+      "id, user_id, mode, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage, long_form_progress, long_form_confirmed_at, recorded_audio_path",
     )
     .eq("user_id", user?.id ?? "")
     .order("created_at", { ascending: false })
-    .returns<VideoRequestSummary[]>();
+    .returns<(VideoRequestSummary & { user_id: string })[]>();
 
   // QA blocker real (2026-09-25): un fallo de esta consulta (p. ej. una
   // migración aditiva todavía no aplicada en producción, como pasó con
@@ -51,8 +51,9 @@ export default async function DashboardPage({
   const completedRequests = (requests ?? []).filter(
     (r) => r.status === "completed" && r.video_path,
   );
+  // Firma acotada al dueño (RB-06): solo rutas bajo `${id}/` de filas del usuario de la sesión.
   const signedUrls = await Promise.all(
-    completedRequests.map((r) => getSignedVideoUrl(r.video_path!)),
+    completedRequests.map((r) => getSignedVideoUrlForRequest(r, user?.id ?? "")),
   );
   const videoUrlByPath = new Map(
     completedRequests.map((r, i) => [r.video_path!, signedUrls[i]]),

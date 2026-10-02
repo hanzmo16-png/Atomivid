@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { canonicalThumbnailPath } from "@/lib/video/long-form/packaging";
 import { isProductionPlan } from "@/lib/video/long-form/production-plan-types";
-import { getSignedVideoUrl } from "@/lib/storage/signed-url";
+import { getSignedVideoUrlForRequest } from "@/lib/storage/signed-url";
 import { selectIfOwned, type OwnedRequestRow } from "@/lib/video/access";
 import { ResultView } from "@/components/video/ResultView";
 import { Alert } from "@/components/ui/Alert";
@@ -65,13 +65,15 @@ export default async function VideoResultPage({
 
   const videoUrl =
     request.status === "completed" && request.video_path
-      ? await getSignedVideoUrl(request.video_path)
+      ? await getSignedVideoUrlForRequest({ id: request.id, user_id: data!.user_id, video_path: request.video_path }, user.id)
       : null;
   // Miniatura de YouTube de Long Form (opcional): solo existe si se pidió al confirmar la producción.
   const plan = data?.long_form_production_plan;
   const thumbnailRequested = request.mode === "long_form" && isProductionPlan(plan) && plan.version >= 3 && plan.packaging?.thumbnail?.enabled === true;
   const thumbnailUrl =
-    thumbnailRequested && request.status === "completed" ? await getSignedVideoUrl(canonicalThumbnailPath(request.id)) : null;
+    thumbnailRequested && request.status === "completed"
+      ? await getSignedVideoUrlForRequest({ id: request.id, user_id: data!.user_id, video_path: canonicalThumbnailPath(request.id) }, user.id)
+      : null;
 
   // Server Component evaluado una vez por request (mismo patrón que
   // dashboard/page.tsx). AutoRefresh vuelve a pedir ESTA página al backend

@@ -1,6 +1,6 @@
 # ATOMIVID — Production Intelligence V2 Hardening, Fase A: Code Reality Check / Gap Analysis
 
-**Date:** 2026-10-02 · **Repo:** `hanzmo16-png/Atomivid` · **HEAD audited:** `692e9ec` (branch `claude/production-intelligence-v1`) · **Updated:** Fase B1 (RB-01 double-charge guard, section 17) and Fase B2 (RB-02 capacity hold, section 18) · **Mode:** READ-ONLY (no code, no migrations, no deploy, no paid calls, no assets, no render, no publish) · **Spend:** USD 0.00
+**Date:** 2026-10-02 · **Repo:** `hanzmo16-png/Atomivid` · **HEAD audited:** `692e9ec` (branch `claude/production-intelligence-v1`) · **Updated:** Fase B1 (RB-01 double-charge guard, section 17) Fase B2 (RB-02 capacity hold, section 18) and Fase B3 (RB-06 owner-scoped signing, section 19) · **Mode:** READ-ONLY (no code, no migrations, no deploy, no paid calls, no assets, no render, no publish) · **Spend:** USD 0.00
 
 **Scope rule.** "Product path" / "Generate" means the customer flow and nothing else:
 `POST /api/generate/[id]/render` (`src/app/api/generate/[id]/render/route.ts`) → `src/lib/worker/{index,github-actions}.ts` → `.github/workflows/render.yml` → `scripts/render-worker.ts` → `src/lib/video/run-job.ts` → `src/lib/video/generate-video.ts` (Reel) · `src/lib/video/long-form/produce.ts` (Long Form) · `src/lib/video/avatar/pipeline.ts` (Avatar).
@@ -15,7 +15,7 @@
 
 ## 1. Executive summary
 
-- **RELEASE READINESS: NOT_READY.** After Fase B2: 7 of 13 blockers are MISSING on the product path (RB-03, RB-06, RB-07, RB-08, RB-09, RB-10, RB-13); 6 are PARTIAL (RB-01 since B1, RB-02 since B2, RB-04, RB-05, RB-11, RB-12); 0 IMPLEMENTED. One MISSING is enough for NOT_READY; there are seven.
+- **RELEASE READINESS: NOT_READY.** After Fase B3: 6 of 13 blockers are MISSING on the product path (RB-03, RB-07, RB-08, RB-09, RB-10, RB-13); 7 are PARTIAL (RB-01 since B1, RB-02 since B2, RB-06 since B3, RB-04, RB-05, RB-11, RB-12); 0 IMPLEMENTED. One MISSING is enough for NOT_READY; there are six.
 - **The money path is unprotected where it matters.** The Reel branch of Generate reaches ElevenLabs (`src/lib/ai/voice.ts:113`), OpenAI images and Beatoven with no provider-call record, no idempotency key, no timeout, no reconciliation. Long Form has a real write-ahead record (STARTED → COMPLETED in Storage JSON) with tests, but no idempotency key reaches any provider, a Storage read error is treated as "absent" (resubmission), and there is no sweeper. **A timeout can produce two charges** (RB-01: yes, both branches). **Ten jobs can read the same balance and all start** (RB-02: yes; quota is a read-then-act count, provider balance is never read on Generate).
 - **PI V1's ledger (`pi_paid_operations`, `executePaidOperation`) is correct but unreachable:** it is not imported by anything on the product path. The red team's RESERVED/DISPATCHED/NEEDS_RECONCILE model exists in migration 0023 and in `src/lib/production-intelligence/ledger.ts`, and Generate never passes through it.
 - **Tenant isolation has a concrete hole** (RB-06): the `video_requests` INSERT policy (`0001_init.sql:27-29`) checks only `auth.uid() = user_id`; no column grant or trigger constrains `status`, `video_path`, `render_attempts`, `created_at` or `long_form_production_plan`. The dashboard signs `video_path` with the service role without a path check (`src/lib/storage/signed-url.ts:13-23`, `src/app/dashboard/videos/[id]/page.tsx:67-68`). Static reading shows a cross-tenant read and quota/attempt bypass; not executed in this turn.
@@ -35,7 +35,7 @@
 | RB-03 | Paid asset saga / storage consistency | **MISSING** | Reel MISSING · Long Form PARTIAL | M |
 | RB-04 | Single job owner / fencing | **PARTIAL** | CAS + attempt token on `video_requests` only | M |
 | RB-05 | Review ≠ publish | **PARTIAL** | No publish code exists; no review state exists | S |
-| RB-06 | Secrets / signed-URL redaction / tenant isolation | **MISSING** | Isolation MISSING · secrets PARTIAL | M |
+| RB-06 | Secrets / signed-URL redaction / tenant isolation | **PARTIAL** (B3; was MISSING at `692e9ec`) | Customer pages now sign only a path under the owned row's own `${id}/` prefix (section 19); the forged `video_path` read is closed in code. Still open: the 0001 insert policy (SQL, not written), quota/attempt/plan forgery through that policy, Sentry redaction, `isReviewOwner` wiring | M |
 | RB-07 | Immutable pronunciation contract | **MISSING** | TTS cache identity PARTIAL | M |
 | RB-08 | Visual class contract | **MISSING** | Downgrade is designed behaviour | L |
 | RB-09 | Factual grounding / creative risk | **MISSING** | — | L |
@@ -55,7 +55,7 @@
 | RB-03 | MISSING | Reel pays, uploads `${requestId}/attempt-N/*`, then writes `video_path` in a separate step; a retry re-pays voice and music. No content-addressed paths, no orphan GC, no reconciliation except Long Form's output size check. |
 | RB-04 | PARTIAL | Compare-and-set on `status`/`render_attempts` (`render/route.ts:163-180`, `attempt-state.ts:6-18`) with a race test against a fake PostgREST; no lease expiry, no `pipeline_version`, Storage/budget writes unfenced, script routes unfenced. |
 | RB-05 | PARTIAL | `AUTO_PUBLISH` is the literal `false` and tested; no YouTube write endpoint is called anywhere; bucket private since 0006. But `READY_FOR_REVIEW`/`PUBLISH_REQUESTED`/`PUBLISHED` do not exist and `completed` is delivery. |
-| RB-06 | MISSING | INSERT policy with no column restriction + unchecked `video_path` signing = cross-tenant read and gate bypass (static). `redactSignedUrl` unused at runtime; Sentry has no `beforeSend`; `isReviewOwner` defined but not wired. |
+| RB-06 | PARTIAL (B3) | At `692e9ec`: INSERT policy with no column restriction + unchecked `video_path` signing = cross-tenant read (static). Since B3 the signing is owner- and prefix-scoped (section 19) so a forged `video_path` yields no URL; the insert policy itself still lets a client set `status`, `created_at`, `render_attempts` and the plan (quota/attempt/budget bypass), which only SQL can close. `redactSignedUrl` still unused at runtime (nothing logs a URL); Sentry has no `beforeSend`; `isReviewOwner` not wired on this branch. |
 | RB-07 | MISSING | Product request body is `{text, model_id, voice_settings}` (`voice.ts:121-125`): no dictionary, no version, no SSML; voice/model from env at call time; captions from TTS words; no alias lint. |
 | RB-08 | MISSING | Shot type from `STRATEGY_CYCLES` (`long-form/shots.ts:41-61,229`); `allocateShotTypes` converts `ai_video` → `generated_placeholder` → `ken_burns_image` (`production-plan.ts:233-245`); tests assert the downgrade. |
 | RB-09 | MISSING | `ClaimSchema.support` is LLM self-labelled (`documentary-script.ts:56-66`), never validated; sources not persisted (`long-form/new/actions.ts:118-121`); no judge, no spans, no hashes. |
@@ -469,7 +469,7 @@ Totals: TEST_EXISTS 0 · TEST_PARTIAL 4 · TEST_MISSING 6.
 
 **NOT_READY.**
 
-Seven blockers are MISSING on the product path (RB-03, RB-06, RB-07, RB-08, RB-09, RB-10, RB-13); six are PARTIAL (RB-01, RB-02, RB-04, RB-05, RB-11, RB-12); none is IMPLEMENTED. The test suite is not executed by CI. Both questions from the mandate are now answered no for the covered paths, mock-tested and not CI-enforced: a timeout cannot produce two charges at the gated call sites (section 17), and ten jobs cannot read the same voice balance and all start (section 18). No caveats apply to this verdict.
+Six blockers are MISSING on the product path (RB-03, RB-07, RB-08, RB-09, RB-10, RB-13); seven are PARTIAL (RB-01, RB-02, RB-04, RB-05, RB-06, RB-11, RB-12); none is IMPLEMENTED. The test suite is not executed by CI. Both questions from the mandate are now answered no for the covered paths, mock-tested and not CI-enforced: a timeout cannot produce two charges at the gated call sites (section 17), and ten jobs cannot read the same voice balance and all start (section 18). No caveats apply to this verdict.
 
 Items outside the repo and therefore UNVERIFIABLE (noted apart, not counted as PASS): Supabase project upload size limit and bucket `public` flags in production, the `music-library` bucket's existence and ACL, GitHub runner concurrency limits, ElevenLabs account dictionary and concurrency behaviour, provider balances, and the production Vercel branch's `/r/[slug]` route (this audit covers HEAD `692e9ec`).
 
@@ -532,5 +532,24 @@ Pre-acceptance refusals are now typed: `voice.ts` throws `ProviderRejectedError`
 4. No sweeper: a hold whose process dies stays RESERVED until the next attempt of the same request releases it; holds of abandoned requests reduce capacity until an operator settles them. Settlement after a failed job is COMMITTED (conservative), so refunds never happen automatically.
 5. The command-center "open PI reservations" sum now includes hold rows (RESERVED, `reserved_usd` = USD estimate of the narration) until they settle.
 6. No CI runs the suite.
+
+---
+
+## 19. Fase B3 — RB-06 owner-scoped signing (2026-10-02, after `5f6ba9a`)
+
+**Scope executed:** the RB-06 signing site only (`src/lib/storage/signed-url.ts`, `src/app/dashboard/videos/[id]/page.tsx`, `src/app/dashboard/page.tsx`). No migration, no RLS change, bucket stays private, dashboard stays on. B1 gate, B2 hold and VIDEO-004 untouched.
+
+**Test first (red at `5f6ba9a`).** `src/lib/storage/signed-url.test.ts` B3-1 ("user A cannot obtain a signed URL for user B's video_path") failed because no owner-scoped helper existed, and B3-1b failed because both pages called the raw `getSignedVideoUrl(path)` on whatever `video_path` the row carried. That reproduces the static finding: the row lookup was owner-filtered, the path inside the row was not.
+
+**Fix (minimum, server side).** `ownedVideoPath(row, sessionUserId)` returns the path only when `row.user_id === sessionUserId` and the path is under `${row.id}/` with no empty, `.` or `..` segment; `getSignedVideoUrlForRequest(row, sessionUserId, sign)` signs that path or returns null without touching the service role. Both customer pages now sign through it (the detail page also for the Long Form thumbnail; the history page adds `user_id` to its select). A row a user owns can no longer point the service role at another tenant's object or at an owner-only review object (`video-004-thermopylae/...`). The raw helper remains only for the admin-gated fixed path in `/dashboard/admin/p2b-veo`.
+
+**Tests (green after the fix; full suite 1439/1440, the one failure is the pre-existing ffmpeg loudness flake; `tsc --noEmit` and eslint clean):** B3-1 (B's path on A's row, B's row, review object, traversal/prefix tricks → null and zero sign calls; A's own path, attempt-scoped output and thumbnail → signed), B3-1b (pages use only the owner-scoped helper), B3-2 (the helper logs nothing; the pages' only console lines carry DB errors, never a URL, token or signature, so no redaction was added anywhere), B3-3 (the app's own INSERTs bind `user_id` to the session user, create only `pending`/`script_ready` rows and never set `video_path`, `created_at`, `render_attempts`, confirmation or plan columns).
+
+**Why RB-06 stays PARTIAL:**
+1. The 0001 insert policy still has no column restriction. A client calling PostgREST directly can set `status`, `created_at`, `render_attempts`, `long_form_confirmed_at` and `long_form_production_plan` on its own row: monthly quota, attempt cap and Long Form budget are still forgeable (RB-02 hold and B1 gate still apply to the spend itself). Closing it needs SQL (column grants or a BEFORE INSERT trigger) — described, not written.
+2. `avatars` has the same insert shape (0011).
+3. Sentry has no `beforeSend`; raw provider error text still reaches `error_message` for Reel/Avatar.
+4. `isReviewOwner` is not wired on this branch's `/r/[slug]` route.
+5. No CI runs the suite.
 
 ATOMIVID_PI_V2_REALITY_CHECK_COMPLETE
