@@ -71,3 +71,20 @@ export function restoreDisplayWords(words: readonly WordTiming[], aliases: reado
   }
   return out;
 }
+
+export class CaptionWordCountMismatchError extends Error {
+  constructor(readonly beatId: string, readonly expected: number, readonly received: number) {
+    super(`Subtítulos del beat ${beatId}: el texto visible tiene ${expected} palabras y la voz devolvió ${received}. No se desplazan palabras: el subtítulo no se construye.`);
+    this.name = "CaptionWordCountMismatchError";
+  }
+}
+
+/**
+ * Subtitle words from the canonical display text (PI V2 B4.1, RB-07): one display token per spoken
+ * word timing, index by index. If the counts differ, it throws — words are never shifted to fit.
+ */
+export function canonicalWords(displayText: string, spokenWords: readonly WordTiming[], beatId = "?"): WordTiming[] {
+  const tokens = displayText.split(/\s+/).filter(Boolean);
+  if (tokens.length !== spokenWords.length) throw new CaptionWordCountMismatchError(beatId, tokens.length, spokenWords.length);
+  return tokens.map((text, i) => ({ text, startSeconds: spokenWords[i].startSeconds, endSeconds: spokenWords[i].endSeconds }));
+}

@@ -59,7 +59,8 @@ function makeCountingRealProvider(name = "elevenlabs") {
         mimeType: "audio/mpeg",
         extension: "mp3",
         durationSeconds: 3.5,
-        words: [{ text: "hola", startSeconds: 0, endSeconds: 0.5 }],
+        // Como el proveedor real: una marca de tiempo por palabra del texto recibido (B4.1 exige el mismo número de palabras).
+        words: text.split(/\s+/).filter(Boolean).map((w, i) => ({ text: w, startSeconds: i * 0.5, endSeconds: i * 0.5 + 0.4 })),
       };
     },
   };
@@ -77,7 +78,7 @@ function makeFixtureProvider() {
         mimeType: "audio/mpeg",
         extension: "mp3",
         durationSeconds: 2,
-        words: [],
+        words: text.split(/\s+/).filter(Boolean).map((w, i) => ({ text: w, startSeconds: i * 0.5, endSeconds: i * 0.5 + 0.4 })),
       };
     },
   };

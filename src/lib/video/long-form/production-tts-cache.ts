@@ -18,6 +18,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { guardPaidCall, type LedgerStore } from "@/lib/paid-calls/gate";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
+import { canonicalWords, lintPronunciationAliases, restoreDisplayWords, spokenText, TtsVoiceMissingError, type PronunciationAlias } from "@/lib/paid-calls/pronunciation";
+import { buildTtsRequest } from "@/lib/ai/voice";
 import { randomUUID } from "node:crypto";
 import type { ScriptLanguage, VoiceProvider, WordTiming } from "@/lib/providers/types";
 import type { NarrativeBeat } from "./types";
@@ -134,18 +136,28 @@ export async function synthesizeBeatNarrationProductionCached(
     costGuard?: ProductionTtsCostGuard;
     /** Puerta de llamadas pagadas (PI V2 B1, RB-01): `pi_paid_operations`. Por defecto la real sobre `supabase`. */
     ledger?: LedgerStore;
+    /** Alias solo-habla (PI V2 B4.1, RB-07). Ningún llamador los pasa hoy; si llegan, se validan antes de todo. */
+    aliases?: readonly PronunciationAlias[];
   },
 ): Promise<ProductionSynthesizeBeatCachedResult> {
+  // PI V2 B4.1 (RB-07): voz, alias y petición se validan ANTES del registro STARTED y del gate de
+  // B1 — un alias roto o sin voice_id no deja fila en el ledger ni estado incierto en el caché.
+  const aliases = ctx.aliases ?? [];
+  const spoken = prepareLongFormSpeech(beat.narration, ctx.voiceIdentity, aliases);
+  const spokenBeat = { ...beat, narration: spoken };
+  const toCanonical = (words: WordTiming[]) => canonicalWords(beat.narration, restoreDisplayWords(words, aliases), beat.id);
+
   if (voiceProvider.name === "fixture") {
-    const result = await synthesizeBeatNarration(voiceProvider, beat, language);
-    return { ...result, reused: false, costUsd: 0 };
+    const result = await synthesizeBeatNarration(voiceProvider, spokenBeat, language);
+    return { ...result, words: toCanonical(result.words), reused: false, costUsd: 0 };
   }
 
   const bucket = ctx.bucket ?? VISUAL_TEST_V2_STORAGE_BUCKET;
   const identity: TtsCacheIdentity = {
     videoId: ctx.videoId,
     beatId: beat.id,
-    text: beat.narration,
+    // Lo que la voz pronuncia (igual a la narración cuando no hay alias: clave sin cambios).
+    text: spoken,
     voiceId: ctx.voiceIdentity.voiceId,
     modelId: ctx.voiceIdentity.modelId,
     voiceSettingsJson: ctx.voiceIdentity.voiceSettingsJson,
@@ -164,7 +176,7 @@ export async function synthesizeBeatNarrationProductionCached(
         mimeType: existing.mimeType!,
         extension: existing.extension!,
         durationSeconds: existing.durationSeconds!,
-        words: existing.words!,
+        words: toCanonical(existing.words!),
         reused: true,
         costUsd: 0,
       };
@@ -205,7 +217,7 @@ export async function synthesizeBeatNarrationProductionCached(
     },
     {
       call: async () => {
-        const result = await synthesizeBeatNarration(voiceProvider, beat, language);
+        const result = await synthesizeBeatNarration(voiceProvider, spokenBeat, language);
 
         const path = audioPathFor(ctx.videoId, key, result.extension);
         const { error: uploadError } = await supabase.storage
@@ -241,7 +253,30 @@ export async function synthesizeBeatNarrationProductionCached(
 
   if (ctx.costGuard) await ctx.costGuard.recordSpend(estimatedCostUsd, `TTS beat ${beat.id} (producción real)`);
 
-  return { ...result, reused: false, costUsd: estimatedCostUsd };
+  return { ...result, words: toCanonical(result.words), reused: false, costUsd: estimatedCostUsd };
+}
+
+/**
+ * Pre-gate checks for a Long Form beat (PI V2 B4.1, RB-07): voice_id present, aliases linted, and
+ * the same `buildTtsRequest` the provider uses builds the request for the spoken text (no fetch).
+ * Returns the text the voice will pronounce. Throws before any ledger row or cache record.
+ */
+export function prepareLongFormSpeech(
+  narration: string,
+  voiceIdentity: { voiceId: string; modelId: string; voiceSettingsJson: string },
+  aliases: readonly PronunciationAlias[] = [],
+): string {
+  if (!voiceIdentity.voiceId?.trim()) throw new TtsVoiceMissingError();
+  lintPronunciationAliases(aliases);
+  const spoken = spokenText(narration, aliases);
+  buildTtsRequest({
+    text: spoken,
+    voiceId: voiceIdentity.voiceId,
+    modelId: voiceIdentity.modelId,
+    voiceSettings: JSON.parse(voiceIdentity.voiceSettingsJson) as Record<string, number | boolean>,
+    apiKey: "preflight-no-request",
+  });
+  return spoken;
 }
 
 /** Recuperación sin proveedores: el beat no tiene audio COMPLETED válido en el caché. */
@@ -288,7 +323,7 @@ export async function loadProductionCachedBeatNarration(
     mimeType: existing.mimeType!,
     extension: existing.extension!,
     durationSeconds: existing.durationSeconds!,
-    words: existing.words!,
+    words: canonicalWords(beat.narration, existing.words!, beat.id),
     reused: true,
     costUsd: 0,
   };
