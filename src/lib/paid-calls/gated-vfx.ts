@@ -11,9 +11,13 @@
  *      estimate ≤ the operation max → otherwise refuse (budget_exceeded);
  *   5. guardPaidCall (ledger RESERVED → SUBMITTED → COMMITTED / RECONCILIATION_REQUIRED …).
  *
- * Identity = what determines the result: source sha256, provider, model, prompt, negative prompt,
- * range, aspect ratio, subject preservation, strength, style, quality, seed. Never the source URL
- * (a signed URL changes) and never render_attempts.
+ * Identity = what determines the result: source sha256 (even when the provider works from its own
+ * file id), provider, model, request type, prompt, negative prompt, range/duration, aspect ratio,
+ * resolution, dynamic range, edit controls, strength, style, seed — plus the provider-resolved
+ * parameters exactly as sent. Never the source URL or file id, never render_attempts.
+ *
+ * Source transport: `provider.prepareSource` (e.g. Luma Files API → file_id) runs before the ledger
+ * (it generates nothing); the resulting file id is cached per source sha256 so a retry reuses it.
  */
 import { stableHash } from "@/lib/production-intelligence/canonical";
 import { assertVfxBudget, type VfxBudget } from "@/lib/providers/vfx/pricing";
@@ -30,26 +34,31 @@ type StoredVfx = { kind: "vfx_transform"; videoPath: string; sha256: string; byt
 
 const ms = (s: number) => Math.round(s * 1000);
 
-export function vfxIdentity(provider: string, model: string, r: VfxTransformRequest) {
+export function vfxIdentity(provider: VfxProvider, r: VfxTransformRequest) {
   return {
     sourceSha256: r.source.sha256,
-    provider,
-    model,
+    sourceDurationMs: ms(r.source.durationSeconds),
+    provider: provider.name,
+    model: provider.resolveModel(r),
+    requestType: provider.capabilities.requestType,
     prompt: r.prompt.trim(),
     negativePrompt: r.negativePrompt?.trim() || null,
     rangeMs: [ms(r.range.startSeconds), ms(r.range.endSeconds)],
     aspectRatio: r.aspectRatio,
+    resolution: r.resolution,
+    dynamicRange: r.dynamicRange,
     preserveSubject: r.preserveSubject,
     strength: r.strength,
+    controls: r.controls ?? null,
     style: r.style?.trim() || null,
-    quality: r.quality,
     seed: r.seed ?? null,
+    providerParams: provider.describeRequest(r),
   };
 }
 
 export function vfxCallSpec(requestId: string, provider: VfxProvider, r: VfxTransformRequest, reservedUsd: number): PaidCallSpec {
-  const model = provider.resolveModel(r);
-  const fingerprint = vfxIdentity(provider.name, model, r);
+  const fingerprint = vfxIdentity(provider, r);
+  const model = fingerprint.model;
   return { projectId: requestId, shotId: `${VFX_SHOT_PREFIX}${stableHash(fingerprint, 16)}`, provider: provider.name, model, method: VFX_METHOD, inputFingerprint: fingerprint, reservedUsd: Math.max(0, reservedUsd) };
 }
 
@@ -78,6 +87,22 @@ export async function loadVfx(results: PaidResultStore, resultRef: string): Prom
 }
 
 export type VfxCallDeps = PaidCallDeps & { provider: VfxProvider; budget: VfxBudget };
+
+/** Where the provider file id for a given source sha256 is cached (no secret, no URL). */
+export const vfxSourceRefPath = (requestId: string, provider: string, sha256: string) => `${requestId}/vfx-sources/${provider}-${sha256}.json`;
+
+/** Free source preparation (e.g. Luma Files API upload) with the file id reused across attempts. */
+async function prepareSourceDurably(deps: VfxCallDeps, request: VfxTransformRequest): Promise<VfxTransformRequest> {
+  if (!deps.provider.prepareSource) return request;
+  const refPath = vfxSourceRefPath(deps.requestId, deps.provider.name, request.source.sha256);
+  const cached = request.source.providerFileId ? null : await deps.results.getJson<{ fileId?: string }>(refPath).catch(() => null);
+  const withRef = cached?.fileId ? { ...request, source: { ...request.source, providerFileId: cached.fileId } } : request;
+  const prepared = await deps.provider.prepareSource(withRef);
+  const fileId = prepared.source.providerFileId;
+  if (prepared.source.sha256 !== request.source.sha256) throw new GenerativeProviderError("VFX: la preparación cambió la identidad del origen", deps.provider.name, "invalid_response", undefined, undefined, "not_sent");
+  if (fileId && fileId !== cached?.fileId) await deps.results.putJson(refPath, { fileId, sha256: request.source.sha256 }).catch(() => undefined);
+  return prepared;
+}
 export type GatedVfxResult = VfxAsset & { reused: boolean; costUsd: number; key?: string };
 
 export async function gatedVfxTransform(deps: VfxCallDeps, request: VfxTransformRequest): Promise<GatedVfxResult> {
@@ -93,6 +118,7 @@ export async function gatedVfxTransform(deps: VfxCallDeps, request: VfxTransform
   }
   const estimate = provider.estimateCostUsd(request);
   assertVfxBudget(provider.name, estimate, request.maxCostUsd, deps.budget);
+  request = await prepareSourceDurably(deps, request);
   const spec = { ...spec0, reservedUsd: estimate };
   let acceptedJobId: string | undefined;
   const onAccepted = async (id: string) => {

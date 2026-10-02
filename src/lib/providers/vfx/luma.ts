@@ -1,134 +1,295 @@
 /**
- * Luma adapter for VFX / Transform Scene (VFX Provider V1).
+ * Luma adapter for VFX / Transform Scene — Ray 3.2 `video_edit` on the Luma Agents API.
  *
- * VERIFIED (2026-10-02) against Luma's official TypeScript SDK `lumaai` 1.19.1 (npm, published by
- * LumaAI support+api@lumalabs.ai, generated from Luma's OpenAPI spec by Stainless):
- *   - base URL https://api.lumalabs.ai/dream-machine/v1, auth `Authorization: Bearer <key>`;
- *   - POST /generations/video/modify with { generation_type: "modify_video", model: "ray-2" |
- *     "ray-flash-2", mode: adhere_1..3 | flex_1..3 | reimagine_1..3, media: { url }, prompt?,
- *     first_frame?, callback_url? };
- *   - GET /generations/{id} → state queued | dreaming | completed | failed, assets.video;
- *   - GET /credits → { credit_balance } in USD cents (read-only, no generation).
+ * Contract verified (2026-10-02) against Luma's official SDK `luma-agents` 0.5.0 (PyPI, published by
+ * Luma <support+luma-agents@lumalabs.ai>, 2026-08-05, generated from Luma's API spec):
+ *   - base https://agents.lumalabs.ai/v1, `Authorization: Bearer <key>`;
+ *   - Files API: POST /files (JSON → presigned `upload` {url, method PUT, headers}), PUT the bytes,
+ *     POST /files/{id}/complete, GET /files/{id} until state `ready` (pending | ready | failed | deleted);
+ *     GET /files?limit=n lists files (read-only);
+ *   - POST /generations { type: "video_edit", model: "ray-3.2", prompt, aspect_ratio,
+ *     source: { file_id }, video: { resolution: 360p|540p|720p|1080p, hdr, edit: { strength:
+ *     adhere_1..3 | flex_1..3 | reimagine_1..3, auto_controls, controls: { face {enabled}, pose
+ *     {enabled, strength precise|coarse}, depth {enabled, blur 0..1}, normals {enabled, augmentation
+ *     0..1}, trajectory {enabled, sparsity 0..1} } } };
+ *   - the video_edit source must be ≤ 18 s and the output lasts as long as the source;
+ *   - GET /generations/{id} → state queued | processing | completed | failed, output[].url (presigned, 1 h),
+ *     failure_code.
+ * There is no seed and no negative-prompt field: a seed is refused, the negative prompt is written into
+ * the prompt text. The SDK documents the strength bands, not a numeric scale; the enum order is read as
+ * going from most preserving (adhere_1) to most reimagined (reimagine_3).
  *
- * NOT VERIFIED, so `contractVerified` stays false and transformVideo() never sends a request:
- *   - whether Modify Video on Dream Machine v1 is still Luma's CURRENT video-to-video API. Search
- *     results describe a newer Ray3.2 `video_edit` request on the Agents API (agents.lumalabs.ai);
- *     its official SDK (npm luma-agents 0.1.2, 2026-05-08) only exposes image/image_edit, and
- *     docs.lumalabs.ai, docs.agents.lumalabs.ai and lumalabs.ai are blocked by this environment's
- *     network policy (EGRESS_BLOCKED);
- *   - the price (see pricing.ts), the per-model range limits and the output resolution/fps;
- *   - which API the configured LUMA_API_KEY belongs to (Dream Machine vs Agents).
- * A human must confirm the contract on the primary docs before `LUMA_VFX_CONTRACT_VERIFIED` and the
- * rates can flip to true. Same deliberate policy as video-gen/kling.ts.
+ * The previous Dream Machine v1 `modify_video` (ray-2 / ray-flash-2) adapter was removed: this is
+ * the only Luma VFX contract.
  */
+import { createHash } from "node:crypto";
+import { fetchFailureOutcome, httpStatusOutcome } from "../charge-outcome";
 import { GenerativeProviderError } from "../types";
-import { estimateVfxCostUsd, type VfxOutputShape } from "./pricing";
-import { vfxRangeSeconds, type VfxAsset, type VfxProvider, type VfxStrength, type VfxTransformRequest } from "./types";
+import { estimateVfxCostUsd } from "./pricing";
+import type { VfxAsset, VfxEditControls, VfxProvider, VfxStrength, VfxTransformRequest } from "./types";
 
-export const LUMA_API_BASE = "https://api.lumalabs.ai/dream-machine/v1";
-export const LUMA_MODIFY_PATH = "/generations/video/modify";
-export const LUMA_MODIFY_MODELS = ["ray-2", "ray-flash-2"] as const;
-export type LumaModifyModel = (typeof LUMA_MODIFY_MODELS)[number];
-export const LUMA_MODIFY_MODES = ["adhere_1", "adhere_2", "adhere_3", "flex_1", "flex_2", "flex_3", "reimagine_1", "reimagine_2", "reimagine_3"] as const;
-export type LumaModifyMode = (typeof LUMA_MODIFY_MODES)[number];
+export const LUMA_API_BASE = "https://agents.lumalabs.ai/v1";
+export const LUMA_VFX_MODEL = "ray-3.2";
+export const LUMA_VFX_REQUEST_TYPE = "video_edit";
+export const LUMA_SDK_SOURCE = "luma-agents 0.5.0 (PyPI, 2026-08-05)";
+export const LUMA_MAX_SOURCE_SECONDS = 18;
+export const LUMA_EDIT_STRENGTHS = ["adhere_1", "adhere_2", "adhere_3", "flex_1", "flex_2", "flex_3", "reimagine_1", "reimagine_2", "reimagine_3"] as const;
+export type LumaEditStrength = (typeof LUMA_EDIT_STRENGTHS)[number];
 
-/** Flip only after a human confirms the current contract and prices on Luma's primary docs. */
-export const LUMA_VFX_CONTRACT_VERIFIED = false;
-export const LUMA_VFX_CONTRACT_SOURCE = "npm lumaai@1.19.1 (OpenAPI-generated SDK, 2026-01-21)";
+/** Product strength → Ray 3.2 edit strength. Conservative: preserving the subject never reaches the reimagine band. */
+export function lumaStrengthFor(r: Pick<VfxTransformRequest, "strength" | "preserveSubject">): LumaEditStrength {
+  const map: Record<VfxStrength, LumaEditStrength> = { subtle: "adhere_2", balanced: "flex_1", strong: r.preserveSubject ? "flex_3" : "reimagine_1" };
+  return map[r.strength];
+}
 
-/**
- * UNVERIFIED limits/shape, used only to plan (spend plans, estimates shown as unverified):
- * search snippets of the Modify Video page give max 10 s (ray-2) / 15 s (ray-flash-2), 100 MB.
- */
-export const LUMA_PLANNING_LIMITS = { maxRangeSeconds: { "ray-2": 10, "ray-flash-2": 15 }, maxBytes: 100 * 1024 * 1024 } as const;
-/** UNVERIFIED output shape assumed for planning (the pricing examples use 720p at 24 fps). */
-export const LUMA_PLANNING_OUTPUT = { shortSide: 720, fps: 24 } as const;
+type LumaControls = {
+  face?: { enabled: boolean };
+  pose?: { enabled: boolean; strength?: "precise" | "coarse" };
+  depth?: { enabled: boolean; blur?: number };
+  normals?: { enabled: boolean; augmentation?: number };
+  trajectory?: { enabled: boolean; sparsity?: number };
+};
 
-/**
- * Product strength → Modify mode band (verified names; the SDK documents the bands, not the order
- * inside a band, so the middle level of each band is used): subtle keeps motion and structure,
- * balanced lets the environment change, strong lets the prompt take over.
- */
-const STRENGTH_MODE: Record<VfxStrength, LumaModifyMode> = { subtle: "adhere_2", balanced: "flex_2", strong: "reimagine_2" };
+const fail = (message: string, reason: GenerativeProviderError["reason"], jobId?: string, outcome: "not_sent" | "rejected" | "uncertain" = jobId ? "uncertain" : "not_sent") =>
+  new GenerativeProviderError(message, "luma", reason, undefined, jobId, outcome);
 
-const fail = (message: string, reason: GenerativeProviderError["reason"]) => new GenerativeProviderError(message, "luma", reason, undefined, undefined, "not_sent");
+const unit = (v: number | undefined, name: string) => {
+  if (v === undefined) return undefined;
+  if (!(Number.isFinite(v) && v >= 0 && v <= 1)) throw fail(`Luma: ${name} debe estar entre 0 y 1`, "invalid_request");
+  return v;
+};
+
+/** Pure: provider-agnostic controls → documented Ray 3.2 `video.edit.controls`. */
+export function lumaControlsFor(c: VfxEditControls | undefined): LumaControls | undefined {
+  if (!c) return undefined;
+  const out: LumaControls = {};
+  if (c.faceIdentity !== undefined) out.face = { enabled: c.faceIdentity };
+  if (c.pose !== undefined) out.pose = c.pose === "off" ? { enabled: false } : { enabled: true, strength: c.pose };
+  if (c.depth) out.depth = { enabled: c.depth.enabled, ...(c.depth.freedom === undefined ? {} : { blur: unit(c.depth.freedom, "depth.freedom") }) };
+  if (c.normals) out.normals = { enabled: c.normals.enabled, ...(c.normals.freedom === undefined ? {} : { augmentation: unit(c.normals.freedom, "normals.freedom") }) };
+  if (c.trajectory) out.trajectory = { enabled: c.trajectory.enabled, ...(c.trajectory.sparsity === undefined ? {} : { sparsity: unit(c.trajectory.sparsity, "trajectory.sparsity") }) };
+  return Object.keys(out).length ? out : undefined;
+}
+
+function validate(r: VfxTransformRequest) {
+  if (r.seed !== undefined) throw fail("Luma Ray 3.2: video_edit no admite semilla", "invalid_request");
+  if (r.dynamicRange !== "sdr") throw fail("Luma: VFX V1 solo admite SDR", "invalid_request");
+  if (!(r.source.durationSeconds > 0 && r.source.durationSeconds <= LUMA_MAX_SOURCE_SECONDS)) throw fail(`Luma: el origen de video_edit debe durar como máximo ${LUMA_MAX_SOURCE_SECONDS} s`, "invalid_request");
+  if (!/^[0-9a-f]{64}$/.test(r.source.sha256)) throw fail("Luma: sha256 de origen inválido", "invalid_request");
+  if (!r.prompt.trim()) throw fail("Luma: prompt vacío", "invalid_request");
+}
+
+/** Pure: the exact POST /generations body. No credentials, no network. */
+export function buildLumaVideoEditPayload(r: VfxTransformRequest, fileId: string) {
+  validate(r);
+  if (!fileId) throw fail("Luma: falta file_id del origen (preparar el origen primero)", "invalid_request");
+  const parts = [r.prompt.trim()];
+  if (r.style?.trim()) parts.push(`Style: ${r.style.trim()}.`);
+  if (r.negativePrompt?.trim()) parts.push(`Avoid: ${r.negativePrompt.trim()}`);
+  const controls = lumaControlsFor(r.controls);
+  return {
+    type: LUMA_VFX_REQUEST_TYPE,
+    model: LUMA_VFX_MODEL,
+    prompt: parts.join("\n\n"),
+    aspect_ratio: r.aspectRatio,
+    source: { file_id: fileId },
+    video: {
+      resolution: r.resolution,
+      hdr: false,
+      edit: { strength: lumaStrengthFor(r), ...(controls ? { auto_controls: false, controls } : {}) },
+    },
+  };
+}
+
+function httpReason(status: number): GenerativeProviderError["reason"] {
+  if (status === 401 || status === 403) return "authentication_error";
+  if (status === 402) return "quota_exceeded";
+  if (status === 429) return "rate_limited";
+  if (status === 400 || status === 404 || status === 413 || status === 415 || status === 422) return "invalid_request";
+  return "upstream_error";
+}
+
+const FAILURE_REASON: Record<string, GenerativeProviderError["reason"]> = {
+  content_moderated: "moderation_rejected",
+  budget_exhausted: "quota_exceeded",
+  rate_limited: "rate_limited",
+  invalid_request: "invalid_request",
+  corrupt_input: "invalid_request",
+  unsupported_format: "invalid_request",
+  image_too_large: "invalid_request",
+  output_not_found: "download_failed",
+  generation_failed: "upstream_error",
+};
+
+export type LumaDeps = { fetch: typeof fetch; sleep: (ms: number) => Promise<void>; now: () => number };
+const defaultDeps = (): LumaDeps => ({ fetch: (...a) => fetch(...a), sleep: (ms) => new Promise((r) => setTimeout(r, ms)), now: () => Date.now() });
 const apiKey = () => process.env.LUMA_API_KEY?.trim();
+const ID = /^[A-Za-z0-9_-]{1,128}$/;
 
-export function lumaModelFor(request: Pick<VfxTransformRequest, "quality">): LumaModifyModel {
-  return request.quality === "draft" ? "ray-flash-2" : "ray-2";
+export function createLumaVfxProvider(deps: LumaDeps = defaultDeps(), opts: { pollMs?: number; fileTimeoutMs?: number; generationTimeoutMs?: number } = {}): VfxProvider {
+  const pollMs = opts.pollMs ?? 5_000;
+  const headers = (json = true) => {
+    const key = apiKey();
+    if (!key) throw fail("Luma: falta LUMA_API_KEY", "not_configured");
+    return { Authorization: `Bearer ${key}`, Accept: "application/json", ...(json ? { "Content-Type": "application/json" } : {}) };
+  };
+  /** Free Agents API call (files only: no generation). Errors are never billable. */
+  const filesCall = async (path: string, init: RequestInit = {}) => {
+    let res: Response;
+    try {
+      res = await deps.fetch(`${LUMA_API_BASE}${path}`, { ...init, redirect: "error", headers: headers(init.method === "POST"), signal: AbortSignal.timeout(30_000) });
+    } catch (cause) {
+      throw new GenerativeProviderError("Luma Files: fallo de conexión", "luma", "upstream_error", cause, undefined, "not_sent");
+    }
+    if (!res.ok) throw fail(`Luma Files: HTTP ${res.status}`, httpReason(res.status), undefined, "not_sent");
+    return (await res.json().catch(() => null)) as Record<string, unknown> | null;
+  };
+
+  async function waitFileReady(fileId: string): Promise<void> {
+    const deadline = deps.now() + (opts.fileTimeoutMs ?? 300_000);
+    for (;;) {
+      const f = await filesCall(`/files/${encodeURIComponent(fileId)}`);
+      if (f?.state === "ready") return;
+      if (f?.state === "failed" || f?.state === "deleted") throw fail(`Luma Files: el origen terminó en estado ${String(f.state)}`, "invalid_request");
+      if (deps.now() > deadline) throw fail("Luma Files: el origen no quedó listo a tiempo", "timeout");
+      await deps.sleep(pollMs);
+    }
+  }
+
+  async function finish(jobId: string, r: VfxTransformRequest, costUsd: number): Promise<VfxAsset> {
+    if (!ID.test(jobId)) throw fail("Luma: id de generación inválido", "invalid_request", jobId);
+    const deadline = deps.now() + (opts.generationTimeoutMs ?? 900_000);
+    try {
+      for (;;) {
+        const res = await deps.fetch(`${LUMA_API_BASE}/generations/${encodeURIComponent(jobId)}`, { headers: headers(false), redirect: "error", signal: AbortSignal.timeout(30_000) });
+        if (!res.ok) throw fail(`Luma: consulta respondió HTTP ${res.status}`, httpReason(res.status), jobId);
+        const g = (await res.json().catch(() => null)) as { state?: string; output?: { type?: string; url?: string }[]; failure_code?: string } | null;
+        if (g?.state === "completed") {
+          const url = (g.output ?? []).find((o) => o.type === "video")?.url ?? g.output?.[0]?.url;
+          if (typeof url !== "string" || !url.startsWith("https://")) throw fail("Luma: generación completada sin URL de video", "invalid_response", jobId);
+          // Never forward the API key to the media host, never log the presigned URL.
+          const video = await deps.fetch(url, { redirect: "follow", signal: AbortSignal.timeout(120_000) });
+          if (!video.ok) throw fail("Luma: falló la descarga del video", "download_failed", jobId);
+          const buffer = Buffer.from(await video.arrayBuffer());
+          if (!buffer.length) throw fail("Luma: video vacío", "download_failed", jobId);
+          return { kind: "vfx_transform", buffer, mimeType: "video/mp4", extension: "mp4", model: LUMA_VFX_MODEL, costUsd, costBasis: "estimated", providerJobId: jobId, durationSeconds: r.source.durationSeconds };
+        }
+        if (g?.state === "failed") throw fail(`Luma: la generación falló (${g.failure_code ?? "sin código"})`, FAILURE_REASON[g.failure_code ?? ""] ?? "upstream_error", jobId);
+        if (g?.state !== "queued" && g?.state !== "processing") throw fail("Luma: estado de generación desconocido", "invalid_response", jobId);
+        if (deps.now() > deadline) throw fail("Luma: espera agotada; reanudar la misma generación", "timeout", jobId);
+        await deps.sleep(pollMs);
+      }
+    } catch (cause) {
+      if (cause instanceof GenerativeProviderError) throw cause;
+      throw new GenerativeProviderError("Luma: consulta o descarga interrumpida; conservar la generación", "luma", "upstream_error", cause, jobId, "uncertain");
+    }
+  }
+
+  const estimate = (r: VfxTransformRequest) =>
+    estimateVfxCostUsd({ provider: "luma", model: LUMA_VFX_MODEL, requestType: LUMA_VFX_REQUEST_TYPE, resolution: r.resolution, dynamicRange: r.dynamicRange, durationSeconds: r.source.durationSeconds });
+
+  return {
+    name: "luma",
+    capabilities: {
+      id: "luma",
+      models: [LUMA_VFX_MODEL],
+      formats: ["video/mp4"],
+      aspectRatios: ["9:16", "16:9", "1:1"],
+      timeoutMs: opts.generationTimeoutMs ?? 900_000,
+      maxRetries: 0,
+      requestType: LUMA_VFX_REQUEST_TYPE,
+      contractVerified: true,
+      resolutions: ["360p", "540p", "720p", "1080p"],
+      maxSourceSeconds: LUMA_MAX_SOURCE_SECONDS,
+    },
+    isAvailable: () => Boolean(apiKey()),
+    resolveModel: () => LUMA_VFX_MODEL,
+    describeRequest: (r) => {
+      validate(r);
+      return { requestType: LUMA_VFX_REQUEST_TYPE, strength: lumaStrengthFor(r), controls: lumaControlsFor(r.controls) ?? null, autoControls: r.controls ? false : null, hdr: false, resolution: r.resolution };
+    },
+    estimateCostUsd: estimate,
+
+    /** Upload the exact source bytes once (Files API, presigned PUT) and wait until `ready`. Free: no generation. */
+    async prepareSource(r) {
+      validate(r);
+      if (r.source.providerFileId) {
+        const f = await filesCall(`/files/${encodeURIComponent(r.source.providerFileId)}`).catch(() => null);
+        if (f?.state === "ready" && Number(f.size_bytes) === r.source.sizeBytes) return r;
+      }
+      let bytes: Buffer;
+      try {
+        const res = await deps.fetch(r.source.url, { redirect: "follow", signal: AbortSignal.timeout(120_000) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        bytes = Buffer.from(await res.arrayBuffer());
+      } catch (cause) {
+        throw new GenerativeProviderError("Luma: no se pudo leer el video de origen", "luma", "invalid_request", cause, undefined, "not_sent");
+      }
+      if (bytes.byteLength !== r.source.sizeBytes || createHash("sha256").update(bytes).digest("hex") !== r.source.sha256) {
+        throw fail("Luma: el video de origen no coincide con su sha256/tamaño (identidad económica)", "invalid_request");
+      }
+      const created = await filesCall("/files", {
+        method: "POST",
+        body: JSON.stringify({ mime_type: r.source.mimeType, size_bytes: r.source.sizeBytes, filename: `atomivid-vfx-${r.source.sha256.slice(0, 16)}.mp4`, purpose: "input" }),
+      });
+      const fileId = typeof created?.id === "string" ? created.id : undefined;
+      const upload = created?.upload as { url?: unknown; method?: unknown; headers?: Record<string, string> } | null | undefined;
+      if (!fileId || !ID.test(fileId) || typeof upload?.url !== "string" || !upload.url.startsWith("https://")) throw fail("Luma Files: respuesta sin file id o URL de subida", "invalid_response");
+      let put: Response;
+      try {
+        // Presigned storage URL: only the headers Luma returned, never the API key.
+        put = await deps.fetch(upload.url, { method: "PUT", headers: upload.headers ?? {}, body: new Uint8Array(bytes), redirect: "error", signal: AbortSignal.timeout(300_000) });
+      } catch (cause) {
+        throw new GenerativeProviderError("Luma Files: fallo al subir el origen", "luma", "upstream_error", cause, undefined, "not_sent");
+      }
+      if (!put.ok) throw fail(`Luma Files: la subida respondió HTTP ${put.status}`, "upstream_error");
+      await filesCall(`/files/${encodeURIComponent(fileId)}/complete`, { method: "POST" });
+      await waitFileReady(fileId);
+      return { ...r, source: { ...r.source, providerFileId: fileId } };
+    },
+
+    async transformVideo(r) {
+      const costUsd = estimate(r);
+      if (costUsd > r.maxCostUsd + 1e-9) throw fail("Luma: presupuesto insuficiente para la edición", "budget_exceeded");
+      const body = JSON.stringify(buildLumaVideoEditPayload(r, r.source.providerFileId ?? ""));
+      const h = headers();
+      let res: Response;
+      try {
+        res = await deps.fetch(`${LUMA_API_BASE}/generations`, { method: "POST", headers: h, body, redirect: "error", signal: AbortSignal.timeout(60_000) });
+      } catch (cause) {
+        throw new GenerativeProviderError("Luma: fallo de conexión al enviar; no reenviar sin conciliación", "luma", "upstream_error", cause, undefined, fetchFailureOutcome(cause));
+      }
+      if (!res.ok) throw new GenerativeProviderError(`Luma: envío rechazado con HTTP ${res.status}`, "luma", httpReason(res.status), undefined, undefined, httpStatusOutcome(res.status));
+      const g = (await res.json().catch(() => null)) as { id?: unknown } | null;
+      if (typeof g?.id !== "string" || !ID.test(g.id)) throw new GenerativeProviderError("Luma: respuesta de envío sin id válido; resultado incierto", "luma", "invalid_response", undefined, undefined, "uncertain");
+      const jobId = g.id;
+      // The generation exists (billable). A callback failure must never cause another POST.
+      try {
+        await r.onProviderJobAccepted?.(jobId);
+      } catch {
+        /* keep polling; the job id travels with the result and any error */
+      }
+      return finish(jobId, r, costUsd);
+    },
+
+    async resumeTransform(jobId, r) {
+      return finish(jobId, r, estimate(r));
+    },
+  };
 }
 
-export function lumaModeFor(request: Pick<VfxTransformRequest, "strength" | "preserveSubject">): LumaModifyMode {
-  // Preserving the subject never goes to the "reimagine" band, whatever the strength.
-  if (request.preserveSubject && request.strength === "strong") return "flex_3";
-  return STRENGTH_MODE[request.strength];
-}
-
-/** Output shape used for planning estimates (720p short side at 24 fps, unverified). */
-export function lumaPlanningOutput(request: Pick<VfxTransformRequest, "aspectRatio" | "range">): VfxOutputShape {
-  const s = LUMA_PLANNING_OUTPUT.shortSide;
-  const [w, h] = request.aspectRatio === "9:16" ? [s, Math.round((s * 16) / 9)] : request.aspectRatio === "16:9" ? [Math.round((s * 16) / 9), s] : [s, s];
-  return { width: w, height: h, fps: LUMA_PLANNING_OUTPUT.fps, durationSeconds: Math.max(0, request.range.endSeconds - request.range.startSeconds) };
-}
-
-/** Pure: the exact body POST /generations/video/modify would receive. No credentials, no network. */
-export function buildLumaModifyPayload(request: VfxTransformRequest) {
-  const url = request.source.url?.trim();
-  if (!url || !/^https:\/\//.test(url)) throw fail("Luma: el video de origen debe ser una URL HTTPS", "invalid_request");
-  const model = lumaModelFor(request);
-  const seconds = vfxRangeSeconds(request);
-  if (!(seconds > 0) || seconds > LUMA_PLANNING_LIMITS.maxRangeSeconds[model]) throw fail(`Luma: el tramo debe durar entre 0 y ${LUMA_PLANNING_LIMITS.maxRangeSeconds[model]} s para ${model}`, "invalid_request");
-  const parts = [request.prompt.trim()];
-  if (request.style) parts.push(`Style: ${request.style}.`);
-  if (request.negativePrompt?.trim()) parts.push(`Avoid: ${request.negativePrompt.trim()}`);
-  const prompt = parts.join("\n\n");
-  if (!request.prompt.trim() || [...prompt].length > 2000) throw fail("Luma: prompt vacío o demasiado largo", "invalid_request");
-  return { generation_type: "modify_video" as const, model, mode: lumaModeFor(request), media: { url }, prompt };
-}
+export const lumaVfxProvider: VfxProvider = createLumaVfxProvider();
 
 /**
- * The one free, read-only call: GET /credits (balance in USD cents, per the official SDK). It
- * authenticates the key without creating any generation. Not called by the pipeline.
+ * Free read-only preflight: GET /files?limit=1 on the Agents API. Authenticates the key and checks
+ * access without creating anything (the SDK exposes no balance endpoint). Not used by the pipeline.
  */
-export async function lumaCreditsPreflight(fetchImpl: typeof fetch = fetch): Promise<{ authenticated: boolean; status: number; balanceUsd?: number }> {
+export async function lumaFilesPreflight(fetchImpl: typeof fetch = fetch): Promise<{ authenticated: boolean; status: number; filesListed?: number }> {
   const key = apiKey();
   if (!key) throw fail("Luma: falta LUMA_API_KEY", "not_configured");
-  const res = await fetchImpl(`${LUMA_API_BASE}/credits`, { method: "GET", headers: { Authorization: `Bearer ${key}`, Accept: "application/json" }, redirect: "error", signal: AbortSignal.timeout(20_000) });
+  const res = await fetchImpl(`${LUMA_API_BASE}/files?limit=1`, { method: "GET", headers: { Authorization: `Bearer ${key}`, Accept: "application/json" }, redirect: "error", signal: AbortSignal.timeout(20_000) });
   if (res.status === 401 || res.status === 403) return { authenticated: false, status: res.status };
-  if (!res.ok) throw fail(`Luma: preflight de créditos respondió HTTP ${res.status}`, "upstream_error");
-  const body = (await res.json().catch(() => null)) as { credit_balance?: unknown } | null;
-  const cents = typeof body?.credit_balance === "number" && Number.isFinite(body.credit_balance) ? body.credit_balance : undefined;
-  return { authenticated: true, status: res.status, balanceUsd: cents === undefined ? undefined : cents / 100 };
+  if (!res.ok) throw fail(`Luma: preflight respondió HTTP ${res.status}`, "upstream_error");
+  const body = (await res.json().catch(() => null)) as { data?: unknown[] } | null;
+  return { authenticated: true, status: res.status, filesListed: Array.isArray(body?.data) ? body.data.length : undefined };
 }
-
-const unverified = () =>
-  fail(
-    "Luma: el contrato actual de video-to-video (Modify Video en Dream Machine v1 vs Ray3.2 video_edit en la Agents API) y su precio " +
-      "no están verificados contra la documentación primaria en este entorno — nunca se envía una solicitud pagada con un contrato no confirmado.",
-    "contract_unverified",
-  );
-
-export const lumaVfxProvider: VfxProvider = {
-  name: "luma",
-  capabilities: {
-    id: "luma",
-    models: [...LUMA_MODIFY_MODELS],
-    formats: ["video/mp4"],
-    aspectRatios: ["9:16", "16:9", "1:1"],
-    timeoutMs: 600_000,
-    maxRetries: 0,
-    contractVerified: LUMA_VFX_CONTRACT_VERIFIED,
-    maxRangeSeconds: { ...LUMA_PLANNING_LIMITS.maxRangeSeconds },
-  },
-  isAvailable: () => Boolean(apiKey()),
-  resolveModel: (request) => lumaModelFor(request),
-  estimateCostUsd: (request) => estimateVfxCostUsd("luma", lumaModelFor(request), lumaPlanningOutput(request)),
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- required by VfxProvider; never read while the contract is unverified.
-  async transformVideo(request: VfxTransformRequest): Promise<VfxAsset> {
-    throw unverified();
-  },
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- same as transformVideo.
-  async resumeTransform(providerJobId: string, request: VfxTransformRequest): Promise<VfxAsset> {
-    throw unverified();
-  },
-};

@@ -1,54 +1,55 @@
 /**
- * VFX cost engine: pre-call estimate from a rate table, and the budget check that must pass before
- * any paid VFX request. Only a rate marked `verified` (checked against the provider's primary
- * pricing page and confirmed by a human) can produce an estimate; an unverified rate throws, so an
- * unknown price can never let a paid call through. The provider's account balance is NOT a budget.
+ * VFX cost engine: pre-call estimate from a price table, and the budget check that must pass before
+ * any paid VFX request. Only a `verified` price can produce an estimate; a missing price (another
+ * resolution, duration, HDR…) throws, so an unknown price can never let a paid call through. The
+ * provider's account balance is NOT a budget.
  */
 import { GenerativeProviderError } from "../types";
+import type { VfxDynamicRange, VfxResolution } from "./types";
 
-export type VfxRate = {
+export type VfxPrice = {
   provider: string;
   model: string;
-  /** per_megapixel: USD per million OUTPUT pixels (width × height × fps × seconds). */
-  basis: "per_megapixel" | "per_second";
+  requestType: string;
+  resolution: VfxResolution;
+  dynamicRange: VfxDynamicRange;
+  /** Billed duration of the output, in seconds (the table is per duration step). */
+  durationSeconds: number;
   usd: number;
   verified: boolean;
-  /** Where the number comes from, and when it was read. */
   source: string;
 };
 
-/**
- * Luma Modify Video (Dream Machine API v1). The models come from the official SDK (npm lumaai
- * 1.19.1, generated from Luma's OpenAPI spec). The rates do NOT: docs.lumalabs.ai is blocked by
- * this environment's network policy and they were only read from a search-result snippet of
- * docs.lumalabs.ai/docs/modify-video (2026-10-02). They reproduce that page's own examples
- * (ray-2, 720p, 5 s, 16:9 → USD 1.75; ray-flash-2 → USD 0.60 at 24 fps), but stay unverified until
- * a human confirms them on the primary page.
- */
-export const VFX_RATES: readonly VfxRate[] = [
-  { provider: "luma", model: "ray-2", basis: "per_megapixel", usd: 0.01582, verified: false, source: "search snippet of docs.lumalabs.ai/docs/modify-video, 2026-10-02 (primary page blocked)" },
-  { provider: "luma", model: "ray-flash-2", basis: "per_megapixel", usd: 0.00544, verified: false, source: "search snippet of docs.lumalabs.ai/docs/modify-video, 2026-10-02 (primary page blocked)" },
+const LUMA_SOURCE =
+  "Ray 3.2 video_edit standard/SDR price table authorized by the owner on 2026-10-02; units (360p/540p/720p/1080p, 5s/10s) match the official " +
+  "luma-agents 0.5.0 SDK enums (VideoResolution, VideoDuration).";
+const lumaPrice = (resolution: VfxResolution, durationSeconds: number, usd: number): VfxPrice => ({ provider: "luma", model: "ray-3.2", requestType: "video_edit", resolution, dynamicRange: "sdr", durationSeconds, usd, verified: true, source: LUMA_SOURCE });
+
+export const VFX_PRICES: readonly VfxPrice[] = [
+  lumaPrice("360p", 5, 0.54), lumaPrice("360p", 10, 1.08),
+  lumaPrice("540p", 5, 0.72), lumaPrice("540p", 10, 1.44),
+  lumaPrice("720p", 5, 1.08), lumaPrice("720p", 10, 2.16),
+  lumaPrice("1080p", 5, 2.16), lumaPrice("1080p", 10, 4.32),
 ];
 
-export type VfxOutputShape = { width: number; height: number; fps: number; durationSeconds: number };
+/** A source within this many seconds of a priced step is billed as that step. */
+export const VFX_DURATION_TOLERANCE_SECONDS = 0.05;
 
-export function findVfxRate(provider: string, model: string, rates: readonly VfxRate[] = VFX_RATES): VfxRate | undefined {
-  return rates.find((r) => r.provider === provider && r.model === model);
+export type VfxPriceQuery = { provider: string; model: string; requestType: string; resolution: VfxResolution; dynamicRange: VfxDynamicRange; durationSeconds: number };
+
+export function findVfxPrice(q: VfxPriceQuery, prices: readonly VfxPrice[] = VFX_PRICES): VfxPrice | undefined {
+  return prices.find((p) => p.provider === q.provider && p.model === q.model && p.requestType === q.requestType && p.resolution === q.resolution && p.dynamicRange === q.dynamicRange && Math.abs(p.durationSeconds - q.durationSeconds) <= VFX_DURATION_TOLERANCE_SECONDS);
 }
 
-/** Cost from a rate, rounded UP to the cent (never under-reserve). Pure: ignores `verified`. */
-export function costFromRate(rate: VfxRate, out: VfxOutputShape): number {
-  if (![out.width, out.height, out.fps, out.durationSeconds].every((n) => Number.isFinite(n) && n > 0)) throw new GenerativeProviderError("VFX: forma de salida inválida para estimar costo", rate.provider, "invalid_request");
-  const raw = rate.basis === "per_megapixel" ? ((out.width * out.height * out.fps * out.durationSeconds) / 1e6) * rate.usd : out.durationSeconds * rate.usd;
-  return Math.ceil(raw * 100 - 1e-9) / 100;
-}
-
-/** Estimate usable before a paid call: refuses (no network, no ledger row) when the rate is missing or unverified. */
-export function estimateVfxCostUsd(provider: string, model: string, out: VfxOutputShape, rates: readonly VfxRate[] = VFX_RATES): number {
-  const rate = findVfxRate(provider, model, rates);
-  if (!rate) throw new GenerativeProviderError(`VFX: no hay tarifa para ${provider}/${model}`, provider, "contract_unverified");
-  if (!rate.verified) throw new GenerativeProviderError(`VFX: la tarifa de ${provider}/${model} no está verificada contra la documentación primaria`, provider, "contract_unverified");
-  return costFromRate(rate, out);
+/**
+ * Estimate usable before a paid call. Durations between steps are NOT interpolated: the billing
+ * rule for them is not documented, so the source must be trimmed to a priced step (5 s or 10 s).
+ */
+export function estimateVfxCostUsd(q: VfxPriceQuery, prices: readonly VfxPrice[] = VFX_PRICES): number {
+  const price = findVfxPrice(q, prices);
+  if (!price) throw new GenerativeProviderError(`VFX: no hay precio verificado para ${q.provider}/${q.model} ${q.requestType} ${q.resolution} ${q.dynamicRange} ${q.durationSeconds.toFixed(2)} s`, q.provider, "contract_unverified", undefined, undefined, "not_sent");
+  if (!price.verified) throw new GenerativeProviderError(`VFX: el precio de ${q.provider}/${q.model} no está verificado`, q.provider, "contract_unverified", undefined, undefined, "not_sent");
+  return price.usd;
 }
 
 export type VfxBudget = {
@@ -64,9 +65,9 @@ export type VfxBudget = {
 export function assertVfxBudget(provider: string, estimateUsd: number, maxCostUsd: number, budget: VfxBudget): void {
   const total = estimateUsd + budget.committedUsd + budget.reservedUsd;
   if (!Number.isFinite(maxCostUsd) || estimateUsd > maxCostUsd + 1e-9) {
-    throw new GenerativeProviderError(`VFX: estimado USD ${estimateUsd.toFixed(2)} supera el máximo de la operación (USD ${maxCostUsd})`, provider, "budget_exceeded");
+    throw new GenerativeProviderError(`VFX: estimado USD ${estimateUsd.toFixed(2)} supera el máximo de la operación (USD ${maxCostUsd})`, provider, "budget_exceeded", undefined, undefined, "not_sent");
   }
   if (!Number.isFinite(budget.hardCapUsd) || total > budget.hardCapUsd + 1e-9) {
-    throw new GenerativeProviderError(`VFX: estimado + comprometido + reservado = USD ${total.toFixed(2)} supera el tope absoluto (USD ${budget.hardCapUsd})`, provider, "budget_exceeded");
+    throw new GenerativeProviderError(`VFX: estimado + comprometido + reservado = USD ${total.toFixed(2)} supera el tope absoluto (USD ${budget.hardCapUsd})`, provider, "budget_exceeded", undefined, undefined, "not_sent");
   }
 }

@@ -1,87 +1,108 @@
-/** VFX Provider V1 — Luma adapter, cost engine, registry and VFX-001 plan. Mocks only. */
+/** VFX Provider V1 — Luma Ray 3.2 video_edit adapter, cost engine, registry, UX contract and VFX-001 plan. Mocks only. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { GenerativeProviderError } from "../types";
 import { getVfxProvider } from "./index";
-import { buildLumaModifyPayload, LUMA_VFX_CONTRACT_VERIFIED, lumaCreditsPreflight, lumaModeFor, lumaVfxProvider } from "./luma";
-import { assertVfxBudget, costFromRate, estimateVfxCostUsd, VFX_RATES, type VfxRate } from "./pricing";
+import { buildLumaVideoEditPayload, LUMA_API_BASE, lumaControlsFor, lumaFilesPreflight, lumaStrengthFor, lumaVfxProvider } from "./luma";
+import { assertVfxBudget, estimateVfxCostUsd, VFX_PRICES, type VfxPriceQuery } from "./pricing";
 import { toVfxTransformRequest, type VfxTransformRequest } from "./types";
-import { buildVfxSpendPlan, VFX_001 } from "@/lib/video/vfx/vfx-001";
+import { buildVfxSpendPlan, VFX_001, VFX_001_CONTROLS } from "@/lib/video/vfx/vfx-001";
 
 const REQ: VfxTransformRequest = {
-  source: { url: "https://storage.example/hans.mp4", sha256: "a".repeat(64), durationSeconds: 8, width: 1080, height: 1920, fps: 30 },
+  source: { url: "https://storage.example/hans.mp4", sha256: "a".repeat(64), sizeBytes: 1000, mimeType: "video/mp4", durationSeconds: 5, width: 1080, height: 1920, fps: 30 },
   range: { startSeconds: 0, endSeconds: 5 },
   prompt: "Turn the apartment into New York at night.",
   negativePrompt: "face change",
   aspectRatio: "9:16",
+  resolution: "720p",
+  dynamicRange: "sdr",
   preserveSubject: true,
   strength: "balanced",
-  quality: "standard",
+  controls: VFX_001_CONTROLS,
   maxCostUsd: 2,
 };
+const q = (resolution: VfxPriceQuery["resolution"], durationSeconds: number): VfxPriceQuery => ({ provider: "luma", model: "ray-3.2", requestType: "video_edit", resolution, dynamicRange: "sdr", durationSeconds });
 
-test("LUMA-1: the payload matches the SDK contract (modify_video, ray-2, flex mode, media.url, prompt with Avoid)", () => {
-  const body = buildLumaModifyPayload(REQ);
-  assert.deepEqual(Object.keys(body).sort(), ["generation_type", "media", "mode", "model", "prompt"]);
-  assert.equal(body.generation_type, "modify_video");
-  assert.equal(body.model, "ray-2");
-  assert.equal(body.mode, "flex_2");
-  assert.equal(body.media.url, REQ.source.url);
+test("LUMA-1/2/3/4/5: payload = Agents API video_edit on ray-3.2 with source.file_id, 9:16, 720p, SDR (hdr false), no duration", () => {
+  const body = buildLumaVideoEditPayload(REQ, "file-1");
+  assert.equal(LUMA_API_BASE, "https://agents.lumalabs.ai/v1");
+  assert.equal(body.type, "video_edit");
+  assert.equal(body.model, "ray-3.2");
+  assert.deepEqual(body.source, { file_id: "file-1" });
+  assert.equal(body.aspect_ratio, "9:16");
+  assert.equal(body.video.resolution, "720p");
+  assert.equal(body.video.hdr, false);
+  assert.ok(!("duration" in body.video));
   assert.match(body.prompt, /Avoid: face change/);
-  assert.equal(buildLumaModifyPayload({ ...REQ, quality: "draft" }).model, "ray-flash-2");
-  assert.equal(lumaModeFor({ strength: "strong", preserveSubject: true }), "flex_3");
-  assert.equal(lumaModeFor({ strength: "strong", preserveSubject: false }), "reimagine_2");
-  assert.throws(() => buildLumaModifyPayload({ ...REQ, source: { ...REQ.source, url: "http://insecure" } }), (e: unknown) => e instanceof GenerativeProviderError && e.reason === "invalid_request");
-  assert.throws(() => buildLumaModifyPayload({ ...REQ, range: { startSeconds: 0, endSeconds: 12 } }), (e: unknown) => e instanceof GenerativeProviderError && e.reason === "invalid_request");
+  assert.throws(() => buildLumaVideoEditPayload(REQ, ""), /file_id/);
 });
 
-test("LUMA-2: contract and prices are unverified → no estimate and no paid request", async () => {
-  assert.equal(LUMA_VFX_CONTRACT_VERIFIED, false);
-  assert.equal(lumaVfxProvider.capabilities.contractVerified, false);
-  assert.ok(VFX_RATES.every((r) => !r.verified));
-  assert.throws(() => lumaVfxProvider.estimateCostUsd(REQ), (e: unknown) => e instanceof GenerativeProviderError && e.reason === "contract_unverified");
-  await assert.rejects(lumaVfxProvider.resumeTransform!("job", REQ), (e: unknown) => e instanceof GenerativeProviderError && e.reason === "contract_unverified");
+test("LUMA-6: subject preservation uses only documented controls (face, pose, depth blur, normals, trajectory) and stays conservative", () => {
+  const body = buildLumaVideoEditPayload(REQ, "file-1");
+  assert.equal(body.video.edit.strength, "flex_1");
+  assert.equal(body.video.edit.auto_controls, false);
+  assert.deepEqual(body.video.edit.controls, {
+    face: { enabled: true },
+    pose: { enabled: true, strength: "precise" },
+    depth: { enabled: true, blur: 0.7 },
+    normals: { enabled: false },
+    trajectory: { enabled: true },
+  });
+  assert.equal(lumaStrengthFor({ strength: "subtle", preserveSubject: true }), "adhere_2");
+  assert.equal(lumaStrengthFor({ strength: "strong", preserveSubject: true }), "flex_3");
+  assert.equal(lumaStrengthFor({ strength: "strong", preserveSubject: false }), "reimagine_1");
+  assert.equal(lumaControlsFor(undefined), undefined);
+  assert.throws(() => lumaControlsFor({ depth: { enabled: true, freedom: 1.5 } }), /entre 0 y 1/);
+  // Undocumented parameters are refused, never silently dropped.
+  assert.throws(() => buildLumaVideoEditPayload({ ...REQ, seed: "42" }, "file-1"), (e: unknown) => e instanceof GenerativeProviderError && e.reason === "invalid_request");
+  assert.throws(() => buildLumaVideoEditPayload({ ...REQ, source: { ...REQ.source, durationSeconds: 19 } }, "file-1"), /18 s/);
 });
 
-test("LUMA-3: the cost engine reproduces the published examples and only estimates from verified rates", () => {
-  const verified: VfxRate[] = VFX_RATES.map((r) => ({ ...r, verified: true }));
-  const shape = { width: 1280, height: 720, fps: 24, durationSeconds: 5 };
-  assert.equal(costFromRate(verified[0], shape), 1.75);
-  assert.equal(costFromRate(verified[1], shape), 0.61); // 0.6017 rounded up to the cent: never under-reserve.
-  assert.equal(estimateVfxCostUsd("luma", "ray-2", shape, verified), 1.75);
-  assert.throws(() => estimateVfxCostUsd("luma", "ray-2", shape), (e: unknown) => e instanceof GenerativeProviderError && e.reason === "contract_unverified");
-  assert.throws(() => estimateVfxCostUsd("luma", "unknown-model", shape, verified), /no hay tarifa/);
-  assert.throws(() => assertVfxBudget("luma", 1.75, 2, { hardCapUsd: 5, committedUsd: 3.5, reservedUsd: 0 }), /tope absoluto/);
-  assert.doesNotThrow(() => assertVfxBudget("luma", 1.75, 2, { hardCapUsd: 5, committedUsd: 3, reservedUsd: 0.25 }));
+test("LUMA-7/8: Ray 3.2 video_edit standard/SDR prices — 720p/5s = 1.08, 1080p/5s = 2.16, full table, no interpolation", () => {
+  assert.equal(estimateVfxCostUsd(q("720p", 5)), 1.08);
+  assert.equal(estimateVfxCostUsd(q("1080p", 5)), 2.16);
+  const table: Record<string, [number, number]> = { "360p": [0.54, 1.08], "540p": [0.72, 1.44], "720p": [1.08, 2.16], "1080p": [2.16, 4.32] };
+  for (const [res, [five, ten]] of Object.entries(table)) {
+    assert.equal(estimateVfxCostUsd(q(res as VfxPriceQuery["resolution"], 5)), five);
+    assert.equal(estimateVfxCostUsd(q(res as VfxPriceQuery["resolution"], 10)), ten);
+  }
+  assert.equal(VFX_PRICES.length, 8);
+  assert.ok(VFX_PRICES.every((p) => p.verified && p.dynamicRange === "sdr" && p.model === "ray-3.2" && p.requestType === "video_edit"));
+  assert.equal(estimateVfxCostUsd(q("720p", 5.03)), 1.08);
+  assert.throws(() => estimateVfxCostUsd(q("720p", 7)), (e: unknown) => e instanceof GenerativeProviderError && e.reason === "contract_unverified");
+  assert.throws(() => estimateVfxCostUsd({ ...q("720p", 5), model: "ray-2" }), /no hay precio verificado/);
+  assert.equal(lumaVfxProvider.estimateCostUsd(REQ), 1.08);
+  assert.throws(() => assertVfxBudget("luma", 1.08, 2, { hardCapUsd: 5, committedUsd: 4, reservedUsd: 0 }), /tope absoluto/);
+  assert.doesNotThrow(() => assertVfxBudget("luma", 1.08, 2, { hardCapUsd: 5, committedUsd: 2.16, reservedUsd: 1.08 }));
 });
 
-test("LUMA-4: the free preflight is a single GET /credits with Bearer auth (balance in USD cents); 401 → unauthenticated", async () => {
+test("LUMA-PF: the free preflight is a single read-only GET /files?limit=1 with Bearer auth; 401 → unauthenticated", async () => {
   const prev = process.env.LUMA_API_KEY;
   process.env.LUMA_API_KEY = "test-key";
   try {
     const seen: { url: string; method?: string; auth?: string }[] = [];
     const ok = (async (url: string, init?: RequestInit) => {
       seen.push({ url, method: init?.method, auth: (init?.headers as Record<string, string>)?.Authorization });
-      return new Response(JSON.stringify({ credit_balance: 1000 }), { status: 200 });
+      return new Response(JSON.stringify({ data: [], has_more: false }), { status: 200 });
     }) as unknown as typeof fetch;
-    const r = await lumaCreditsPreflight(ok);
-    assert.deepEqual(r, { authenticated: true, status: 200, balanceUsd: 10 });
-    assert.deepEqual(seen, [{ url: "https://api.lumalabs.ai/dream-machine/v1/credits", method: "GET", auth: "Bearer test-key" }]);
+    assert.deepEqual(await lumaFilesPreflight(ok), { authenticated: true, status: 200, filesListed: 0 });
+    assert.deepEqual(seen, [{ url: "https://agents.lumalabs.ai/v1/files?limit=1", method: "GET", auth: "Bearer test-key" }]);
     const denied = (async () => new Response("{}", { status: 401 })) as unknown as typeof fetch;
-    assert.deepEqual(await lumaCreditsPreflight(denied), { authenticated: false, status: 401 });
+    assert.deepEqual(await lumaFilesPreflight(denied), { authenticated: false, status: 401 });
   } finally {
     if (prev === undefined) delete process.env.LUMA_API_KEY;
     else process.env.LUMA_API_KEY = prev;
   }
 });
 
-test("LUMA-5: registry picks Luma only when requested and keyed; fixture otherwise (outside production)", () => {
+test("LUMA-REG: registry picks Luma only when requested and keyed; fixture otherwise (outside production)", () => {
   const prev = process.env.LUMA_API_KEY;
   try {
     delete process.env.LUMA_API_KEY;
     assert.equal(getVfxProvider("luma").name, "fixture");
     process.env.LUMA_API_KEY = "k";
     assert.equal(getVfxProvider("luma").name, "luma");
+    assert.equal(getVfxProvider("luma").capabilities.requestType, "video_edit");
     assert.equal(getVfxProvider(undefined).name, "fixture");
   } finally {
     if (prev === undefined) delete process.env.LUMA_API_KEY;
@@ -89,36 +110,37 @@ test("LUMA-5: registry picks Luma only when requested and keyed; fixture otherwi
   }
 });
 
-test("VFX-UX: the Transform Scene contract fills safe defaults and validates prompt and range", () => {
+test("VFX-UX: the Transform Scene contract fills conservative defaults and validates prompt and range", () => {
   const r = toVfxTransformRequest({ prompt: "  Nueva York de noche  " }, REQ.source, { aspectRatio: "9:16", maxCostUsd: 2 });
   assert.equal(r.prompt, "Nueva York de noche");
   assert.equal(r.preserveSubject, true);
-  assert.equal(r.strength, "balanced");
-  assert.equal(r.quality, "standard");
-  assert.deepEqual(r.range, { startSeconds: 0, endSeconds: 8 });
+  assert.equal(r.strength, "subtle");
+  assert.equal(r.resolution, "720p");
+  assert.equal(r.dynamicRange, "sdr");
+  assert.equal(r.controls?.faceIdentity, true);
+  assert.deepEqual(r.range, { startSeconds: 0, endSeconds: 5 });
   assert.throws(() => toVfxTransformRequest({ prompt: " " }, REQ.source, { aspectRatio: "9:16", maxCostUsd: 2 }));
-  assert.throws(() => toVfxTransformRequest({ prompt: "x" }, REQ.source, { aspectRatio: "9:16", maxCostUsd: 2, range: { startSeconds: 2, endSeconds: 9 } }));
+  assert.throws(() => toVfxTransformRequest({ prompt: "x" }, REQ.source, { aspectRatio: "9:16", maxCostUsd: 2, range: { startSeconds: 0, endSeconds: 8 } }), /recortado/);
 });
 
-test("VFX-001: prepared, waiting for the source; the plan is pure, capped and flags every unverified input", () => {
-  assert.equal(VFX_001.status, "READY_FOR_SOURCE_VIDEO");
-  assert.equal(VFX_001.targetBudgetUsd, 2);
-  assert.equal(VFX_001.hardCapUsd, 5);
-  const src = { sha256: "c".repeat(64), durationSeconds: 9.5, width: 1080, height: 1920, fps: 30 };
-  const plan8 = buildVfxSpendPlan(src);
-  assert.equal(plan8.plan, "VFX_001_SPEND_PLAN");
-  assert.equal(plan8.requiresHumanAuthorization, true);
-  assert.equal(plan8.source.range.endSeconds, 8);
-  const ray2at8 = plan8.candidates.find((c) => c.model === "ray-2")!;
-  assert.equal(ray2at8.estimatedUsd, 2.8);
-  assert.equal(ray2at8.fitsTarget, false);
-  assert.equal(plan8.recommended?.model, "ray-flash-2");
-  assert.ok(plan8.maximumCostUsd <= VFX_001.hardCapUsd);
-  assert.ok(plan8.blockers.some((b) => /no verificado/.test(b)));
-  const plan5 = buildVfxSpendPlan(src, { startSeconds: 1, endSeconds: 6 });
-  assert.equal(plan5.recommended?.model, "ray-2");
-  assert.equal(plan5.recommended?.estimatedUsd, 1.75);
-  assert.equal(plan5.maxPaidAttempts, 2);
-  assert.equal(plan5.maximumCostUsd, 3.5);
+test("VFX-001: waits for Hans' source; the spend plan is pure, 720p/5 s = 1.08, within target and cap, and needs human authorization", () => {
+  assert.equal(VFX_001.status, "WAITING_FOR_HANS_SOURCE_VIDEO");
+  assert.equal(VFX_001.model, "ray-3.2");
+  assert.equal(VFX_001.requestType, "video_edit");
+  assert.equal(VFX_001.resolution, "720p");
+  assert.equal(VFX_001.expectedCostUsd, 1.08);
+  const src = { sha256: "c".repeat(64), sizeBytes: 12_000_000, mimeType: "video/mp4", durationSeconds: 5.0, width: 1080, height: 1920, fps: 30 };
+  const plan = buildVfxSpendPlan(src);
+  assert.equal(plan.plan, "VFX_001_SPEND_PLAN");
+  assert.equal(plan.requiresHumanAuthorization, true);
+  assert.equal(plan.estimatedCostUsd, 1.08);
+  assert.equal(plan.request.strength, "flex_1");
+  assert.equal(plan.maxPaidAttemptsWithinTarget, 1);
+  assert.equal(plan.maxPaidAttempts, 2);
+  assert.equal(plan.maximumCostUsd, 2.16);
+  assert.ok(plan.maximumCostUsd <= VFX_001.hardCapUsd);
+  assert.deepEqual(plan.blockers, []);
+  assert.deepEqual(plan.options.map((o) => [o.resolution, o.usd, o.withinTarget]), [["720p", 1.08, true], ["540p", 0.72, true], ["1080p", 2.16, false]]);
+  assert.ok(buildVfxSpendPlan({ ...src, durationSeconds: 7.2 }).blockers.some((b) => /recortarse/.test(b)));
   assert.ok(buildVfxSpendPlan({ ...src, width: 1920, height: 1080 }).blockers.some((b) => /9:16/.test(b)));
 });

@@ -1,7 +1,8 @@
 /**
  * VFX-001 — spend plan only (no provider call, no network). Usage, once the new take exists:
- *   VFX_SOURCE_PATH=/path/to/hans-walk.mp4 [VFX_RANGE=start,end] npx tsx scripts/vfx/vfx-001-plan.ts
- * Prints VFX_001_SPEND_PLAN. Generation needs a separate human authorization.
+ *   VFX_SOURCE_PATH=/path/to/hans-walk-5s.mp4 npx tsx scripts/vfx/vfx-001-plan.ts
+ * The file must already be the exact 5 s range to transform (video_edit output = source length).
+ * Prints VFX_001_SPEND_PLAN and stops. Generation needs a separate human authorization.
  */
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -23,11 +24,16 @@ async function main() {
   const rot = Math.abs(Number(v?.side_data_list?.find((x) => x.rotation !== undefined)?.rotation ?? 0));
   const [n, d] = (v?.avg_frame_rate ?? "0/1").split("/").map(Number);
   const swap = rot === 90 || rot === 270;
-  const range = process.env.VFX_RANGE?.split(",").map(Number);
-  const plan = buildVfxSpendPlan(
-    { sha256: createHash("sha256").update(await readFile(path)).digest("hex"), durationSeconds: Number(j.format?.duration ?? 0), width: (swap ? v?.height : v?.width) ?? 0, height: (swap ? v?.width : v?.height) ?? 0, fps: d ? n / d : 0 },
-    range && range.length === 2 ? { startSeconds: range[0], endSeconds: range[1] } : undefined,
-  );
+  const bytes = await readFile(path);
+  const plan = buildVfxSpendPlan({
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    sizeBytes: bytes.byteLength,
+    mimeType: "video/mp4",
+    durationSeconds: Number(j.format?.duration ?? 0),
+    width: (swap ? v?.height : v?.width) ?? 0,
+    height: (swap ? v?.width : v?.height) ?? 0,
+    fps: d ? n / d : 0,
+  });
   console.log(JSON.stringify(plan, null, 2));
 }
 

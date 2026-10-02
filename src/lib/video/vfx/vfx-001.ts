@@ -1,65 +1,80 @@
 /**
  * ATOMIVID_VFX_001_HANS_NYC_TRANSFORMATION — prepared, NOT executed. Status stays
- * READY_FOR_SOURCE_VIDEO until the new real walking take of Hans exists. When it does, the only
- * allowed step is `buildVfxSpendPlan` (pure: no provider, no network); the paid generation needs a
- * later human authorization after reading VFX_001_SPEND_PLAN.
+ * WAITING_FOR_HANS_SOURCE_VIDEO until the new real walking take of Hans exists. Then the only
+ * allowed step is `buildVfxSpendPlan` (pure: no provider, no network) → VFX_001_SPEND_PLAN, and a
+ * STOP before the first paid call: generation needs a later human authorization.
  */
-import { costFromRate, findVfxRate } from "@/lib/providers/vfx/pricing";
-import { LUMA_PLANNING_LIMITS, LUMA_VFX_CONTRACT_VERIFIED, lumaModeFor, lumaPlanningOutput, type LumaModifyModel } from "@/lib/providers/vfx/luma";
-import type { VfxSource, VfxTransformRequest } from "@/lib/providers/vfx/types";
+import { findVfxPrice } from "@/lib/providers/vfx/pricing";
+import { LUMA_MAX_SOURCE_SECONDS, LUMA_VFX_MODEL, LUMA_VFX_REQUEST_TYPE, lumaControlsFor, lumaStrengthFor } from "@/lib/providers/vfx/luma";
+import type { VfxEditControls, VfxResolution, VfxSource } from "@/lib/providers/vfx/types";
+
+/**
+ * First test, conservative (never the reimagine band): face identity on; pose followed precisely;
+ * motion trajectory kept; depth kept but with high blur (0.7) so the walking perspective and the
+ * subject's placement hold while the apartment's geometry can become a street; normals off so
+ * surfaces may be reinterpreted. Strength "balanced" → flex_1 (lowest flex level).
+ */
+export const VFX_001_CONTROLS: VfxEditControls = {
+  faceIdentity: true,
+  pose: "precise",
+  trajectory: { enabled: true },
+  depth: { enabled: true, freedom: 0.7 },
+  normals: { enabled: false },
+};
 
 export const VFX_001 = {
   id: "ATOMIVID_VFX_001_HANS_NYC_TRANSFORMATION",
-  status: "READY_FOR_SOURCE_VIDEO" as "READY_FOR_SOURCE_VIDEO" | "SOURCE_RECEIVED_PLAN_ONLY",
+  status: "WAITING_FOR_HANS_SOURCE_VIDEO" as const,
   provider: "luma",
+  model: LUMA_VFX_MODEL,
+  requestType: LUMA_VFX_REQUEST_TYPE,
   format: { aspectRatio: "9:16" as const, width: 1080, height: 1920 },
-  /** Target length of the VFX range. */
-  rangeSeconds: { min: 5, max: 8 },
+  /** The source is trimmed locally to exactly this length (video_edit output = source length; priced step). */
+  sourceSeconds: 5,
+  resolution: "720p" as VfxResolution,
+  dynamicRange: "sdr" as const,
+  expectedCostUsd: 1.08,
   targetBudgetUsd: 2.0,
   hardCapUsd: 5.0,
   preserveSubject: true,
   strength: "balanced" as const,
+  controls: VFX_001_CONTROLS,
   style: "cinematic New York City street at night, premium film look",
   prompt:
-    "The same man keeps walking toward the fixed camera and talking, exactly as in the source: same face, same identity, same body, " +
-    "same clothes, same hand and body movement, same timing. Only his surroundings change: the apartment gradually becomes a cinematic " +
+    "The same man keeps walking toward the fixed camera and talking, exactly as in the source: same face, same identity, same age, same body, " +
+    "same clothes, same hand and body movement, same timing. Only his surroundings change: the apartment progressively becomes a cinematic " +
     "New York City street at night — wet asphalt with reflections, warm streetlights, brownstones and avenue lights far behind him in soft " +
     "bokeh, gentle real ambient motion of distant traffic and steam. The city light falls on him realistically. Deep, premium, cinematic.",
   negativePrompt:
     "different person, face change, regenerated face, facial morphing, age change, clothing change, deformed hands, extra fingers, " +
-    "distorted body, sudden background swap, chroma-key edges, green-screen look, cartoon, oversaturated neon, crowded Times Square billboards, " +
-    "flicker, TikTok filter look",
-  priorities: ["identidad", "movimiento corporal", "continuidad temporal", "transformar sobre todo el entorno", "iluminación integrada", "acabado cinematográfico"],
+    "distorted body, cheap background replacement, chroma-key edges, green-screen look, cartoon, oversaturated neon, crowded Times Square " +
+    "billboards, flicker, AI-slop look",
+  priorities: ["identidad", "rostro", "movimiento corporal", "ropa", "continuidad temporal", "transformación del entorno", "integración de iluminación"],
   /**
-   * Progressive change: Modify transforms the whole range, so the "apartment → New York" progression
-   * is built locally (ffmpeg, USD 0): the untouched source plays first and blends into the
+   * Progressive change: video_edit transforms the whole source, so the "apartment → New York"
+   * progression is built locally (ffmpeg, USD 0): the untouched take plays first and blends into the
    * transformed range over the transition window. No second paid call for the transition.
    */
   progression: { method: "local_crossfade_source_to_transformed", transitionSeconds: 1.5 },
 } as const;
 
-export type VfxPlanCandidate = {
-  model: LumaModifyModel;
-  mode: string;
-  rangeSeconds: number;
-  outputPlanning: { width: number; height: number; fps: number };
-  estimatedUsd: number;
-  maxAttemptsWithinCap: number;
-  fitsTarget: boolean;
-  pricingVerified: boolean;
-};
+export type VfxPlanOption = { resolution: VfxResolution; seconds: number; usd: number; role: string; withinTarget: boolean };
 
 export type VfxSpendPlan = {
   id: string;
   plan: "VFX_001_SPEND_PLAN";
   provider: string;
-  source: { sha256: string; durationSeconds: number; width: number; height: number; fps: number; range: { startSeconds: number; endSeconds: number } };
-  candidates: VfxPlanCandidate[];
-  recommended: VfxPlanCandidate | null;
+  model: string;
+  requestType: string;
+  source: { sha256: string; sizeBytes: number; durationSeconds: number; width: number; height: number; fps: number };
+  request: { resolution: VfxResolution; dynamicRange: "sdr"; aspectRatio: "9:16"; strength: string; controls: unknown; sourceTransport: string };
+  estimatedCostUsd: number | null;
+  options: VfxPlanOption[];
   targetBudgetUsd: number;
   hardCapUsd: number;
-  maximumCostUsd: number;
   maxPaidAttempts: number;
+  maxPaidAttemptsWithinTarget: number;
+  maximumCostUsd: number;
   reuse: string;
   onFailure: string[];
   blockers: string[];
@@ -67,45 +82,58 @@ export type VfxSpendPlan = {
 };
 
 const MAX_PAID_ATTEMPTS = 2;
+const price = (resolution: VfxResolution, seconds: number) => findVfxPrice({ provider: "luma", model: LUMA_VFX_MODEL, requestType: LUMA_VFX_REQUEST_TYPE, resolution, dynamicRange: "sdr", durationSeconds: seconds })?.usd ?? null;
 
-/** Pure: builds the spend plan from the probed source. Never calls a provider. */
-export function buildVfxSpendPlan(source: Omit<VfxSource, "url">, range?: { startSeconds: number; endSeconds: number }): VfxSpendPlan {
-  const len = Math.min(VFX_001.rangeSeconds.max, source.durationSeconds);
-  const r = range ?? { startSeconds: 0, endSeconds: len };
-  const rangeSeconds = r.endSeconds - r.startSeconds;
+/** Pure: builds the spend plan from the probed, already trimmed source. Never calls a provider. */
+export function buildVfxSpendPlan(source: Omit<VfxSource, "url" | "providerFileId">): VfxSpendPlan {
   const blockers: string[] = [];
-  if (Math.abs(source.width / source.height - 9 / 16) > 0.02) blockers.push(`El clip no es 9:16 (${source.width}x${source.height}).`);
-  if (rangeSeconds < VFX_001.rangeSeconds.min - 1e-6) blockers.push(`El tramo dura ${rangeSeconds.toFixed(2)} s (< ${VFX_001.rangeSeconds.min} s).`);
-  if (!LUMA_VFX_CONTRACT_VERIFIED) blockers.push("Contrato Luma video-to-video no verificado contra la documentación primaria (Modify Video Dream Machine v1 vs Ray3.2 video_edit).");
-  const req = { aspectRatio: VFX_001.format.aspectRatio, range: r, strength: VFX_001.strength, preserveSubject: VFX_001.preserveSubject } as Pick<VfxTransformRequest, "aspectRatio" | "range" | "strength" | "preserveSubject">;
-  const out = lumaPlanningOutput(req);
-  const candidates: VfxPlanCandidate[] = (["ray-flash-2", "ray-2"] as const)
-    .filter((model) => rangeSeconds <= LUMA_PLANNING_LIMITS.maxRangeSeconds[model])
-    .map((model) => {
-      const rate = findVfxRate("luma", model)!;
-      const estimatedUsd = costFromRate(rate, out);
-      return { model, mode: lumaModeFor(req), rangeSeconds, outputPlanning: { width: out.width, height: out.height, fps: out.fps }, estimatedUsd, maxAttemptsWithinCap: Math.min(MAX_PAID_ATTEMPTS, Math.floor((VFX_001.hardCapUsd + 1e-9) / estimatedUsd)), fitsTarget: estimatedUsd <= VFX_001.targetBudgetUsd, pricingVerified: rate.verified };
-    });
-  if (candidates.some((c) => !c.pricingVerified)) blockers.push("Tarifas Luma no verificadas contra la página de precios oficial (estimaciones solo orientativas).");
-  const recommended = candidates.filter((c) => c.model === "ray-2" && c.fitsTarget)[0] ?? candidates.find((c) => c.fitsTarget) ?? null;
-  const maxPaidAttempts = recommended ? recommended.maxAttemptsWithinCap : 0;
+  if (Math.abs(source.width / source.height - 9 / 16) > 0.02) blockers.push(`El origen no es 9:16 (${source.width}x${source.height}).`);
+  if (source.durationSeconds > LUMA_MAX_SOURCE_SECONDS) blockers.push(`El origen dura ${source.durationSeconds.toFixed(2)} s (> ${LUMA_MAX_SOURCE_SECONDS} s).`);
+  const est = price(VFX_001.resolution, source.durationSeconds);
+  if (est === null) blockers.push(`El origen dura ${source.durationSeconds.toFixed(2)} s: debe recortarse a exactamente ${VFX_001.sourceSeconds} s (precio verificado por tramo de 5/10 s).`);
+  const s = VFX_001.sourceSeconds;
+  const opt = (resolution: VfxResolution, role: string): VfxPlanOption => {
+    const usd = price(resolution, s)!;
+    return { resolution, seconds: s, usd, role, withinTarget: usd <= VFX_001.targetBudgetUsd };
+  };
+  const options: VfxPlanOption[] = [
+    opt("720p", "primera prueba (recomendada)"),
+    opt("540p", "alternativa más barata / segundo intento dentro del objetivo"),
+    opt("1080p", "acabado final solo tras aprobar la prueba de 720p"),
+  ];
+  const first = est ?? options[0].usd;
+  const maxPaidAttempts = Math.min(MAX_PAID_ATTEMPTS, Math.floor((VFX_001.hardCapUsd + 1e-9) / first));
   return {
     id: VFX_001.id,
     plan: "VFX_001_SPEND_PLAN",
     provider: VFX_001.provider,
-    source: { sha256: source.sha256, durationSeconds: source.durationSeconds, width: source.width, height: source.height, fps: source.fps, range: r },
-    candidates,
-    recommended,
+    model: VFX_001.model,
+    requestType: VFX_001.requestType,
+    source: { sha256: source.sha256, sizeBytes: source.sizeBytes, durationSeconds: source.durationSeconds, width: source.width, height: source.height, fps: source.fps },
+    request: {
+      resolution: VFX_001.resolution,
+      dynamicRange: "sdr",
+      aspectRatio: "9:16",
+      strength: lumaStrengthFor({ strength: VFX_001.strength, preserveSubject: VFX_001.preserveSubject }),
+      controls: lumaControlsFor(VFX_001.controls),
+      sourceTransport: "Luma Files API (POST /files presigned → PUT → complete → ready) → source.file_id; file_id reutilizado por sha256",
+    },
+    estimatedCostUsd: est,
+    options,
     targetBudgetUsd: VFX_001.targetBudgetUsd,
     hardCapUsd: VFX_001.hardCapUsd,
-    maximumCostUsd: recommended ? Math.min(VFX_001.hardCapUsd, recommended.estimatedUsd * maxPaidAttempts) : 0,
     maxPaidAttempts,
-    reuse: "Identidad = sha256 del tramo + proveedor + modelo + prompt + negativo + rango + 9:16 + preservar sujeto + intensidad + estilo + calidad + semilla. El resultado se guarda en `${requestId}/paid/<key>.mp4` (sha256 verificado) y cualquier reintento lo reutiliza con 0 llamadas.",
+    maxPaidAttemptsWithinTarget: Math.floor((VFX_001.targetBudgetUsd + 1e-9) / first),
+    maximumCostUsd: Math.round(Math.min(VFX_001.hardCapUsd, first * maxPaidAttempts) * 100) / 100,
+    reuse:
+      "Identidad = sha256 del origen + proveedor + modelo + video_edit + prompt + negativo + rango/duración + 9:16 + 720p + SDR + controles + intensidad + estilo. " +
+      "El resultado se guarda en `${requestId}/paid/<key>.mp4` (sha256 verificado); cualquier reintento lo reutiliza con 0 llamadas. El file_id de Luma se reutiliza por sha256.",
     onFailure: [
-      "Rechazo antes de aceptar (4xx/validación): fila REFUNDED, sin reintento automático; nuevo intento solo con nueva autorización.",
+      "Subida del origen fallida (Files API): sin fila de ledger y sin costo; se puede repetir.",
+      "Rechazo antes de aceptar (4xx/validación/moderación): fila REFUNDED, sin reintento automático; nuevo intento solo con nueva autorización.",
       "Fallo incierto (red cortada tras enviar): RECONCILIATION_REQUIRED, ninguna nueva llamada hasta conciliar.",
-      "Trabajo aceptado y fallo al sondear/descargar: PROVIDER_JOB_RECORDED → se reanuda ese mismo trabajo, nunca se reenvía.",
-      "Resultado de baja calidad: se detiene y se informa; un segundo intento (otra variante) requiere autorización y cabe en el tope.",
+      "Generación aceptada y fallo al sondear/descargar: PROVIDER_JOB_RECORDED → se reanuda esa misma generación, nunca se reenvía.",
+      "Resultado de baja calidad: STOP e informe; un segundo intento (variante de prompt/controles) requiere autorización y cabe en el tope.",
     ],
     blockers,
     requiresHumanAuthorization: true,
