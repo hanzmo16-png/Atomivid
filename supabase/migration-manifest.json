@@ -1,7 +1,7 @@
 {
  "manifest": "atomivid-migrations",
- "manifestVersion": 6,
- "generatedAt": "2026-09-29",
+ "manifestVersion": 7,
+ "generatedAt": "2026-10-02",
  "hashAlgorithm": "sha256 of the exact file bytes",
  "registry": {
   "table": "public._migrations_applied",
@@ -285,6 +285,15 @@
    "knownProductionApplied": false,
    "appliedDate": null,
    "evidence": "NOT applied (requires separate human authorization); verified locally with verify/08_business_telemetry_test.sql (docs/business-telemetry/FOUNDATION-V0.md)",
+   "onDefaultBranch": null
+  },
+  {
+   "migrationName": "0031_video_request_column_guard.sql",
+   "sha256": "ca2920f5a287fe6f5761aef2288bda402308dd8f1638290f18edc0d6b9cd892e",
+   "sourceBranch": "claude/production-intelligence-v1",
+   "knownProductionApplied": false,
+   "appliedDate": null,
+   "evidence": "NOT applied (requires separate human authorization); verified locally on Postgres 16 with verify/09_video_request_column_guard_test.sql (red on 0001-0030, green with 0031); docs/audits/PI-V2-REALITY-CHECK.md section 20",
    "onDefaultBranch": null
   }
  ],

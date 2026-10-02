@@ -1,6 +1,6 @@
 # ATOMIVID — Production Intelligence V2 Hardening, Fase A: Code Reality Check / Gap Analysis
 
-**Date:** 2026-10-02 · **Repo:** `hanzmo16-png/Atomivid` · **HEAD audited:** `692e9ec` (branch `claude/production-intelligence-v1`) · **Updated:** Fase B1 (RB-01 double-charge guard, section 17) Fase B2 (RB-02 capacity hold, section 18) and Fase B3 (RB-06 owner-scoped signing, section 19) · **Mode:** READ-ONLY (no code, no migrations, no deploy, no paid calls, no assets, no render, no publish) · **Spend:** USD 0.00
+**Date:** 2026-10-02 · **Repo:** `hanzmo16-png/Atomivid` · **HEAD audited:** `692e9ec` (branch `claude/production-intelligence-v1`) · **Updated:** Fase B1 (RB-01 double-charge guard, section 17) Fase B2 (RB-02 capacity hold, section 18) Fase B3 (RB-06 owner-scoped signing, section 19) and Fase B3.1 (RB-06 column guard migration 0031, section 20) · **Mode:** READ-ONLY (no code, no migrations, no deploy, no paid calls, no assets, no render, no publish) · **Spend:** USD 0.00
 
 **Scope rule.** "Product path" / "Generate" means the customer flow and nothing else:
 `POST /api/generate/[id]/render` (`src/app/api/generate/[id]/render/route.ts`) → `src/lib/worker/{index,github-actions}.ts` → `.github/workflows/render.yml` → `scripts/render-worker.ts` → `src/lib/video/run-job.ts` → `src/lib/video/generate-video.ts` (Reel) · `src/lib/video/long-form/produce.ts` (Long Form) · `src/lib/video/avatar/pipeline.ts` (Avatar).
@@ -35,7 +35,7 @@
 | RB-03 | Paid asset saga / storage consistency | **MISSING** | Reel MISSING · Long Form PARTIAL | M |
 | RB-04 | Single job owner / fencing | **PARTIAL** | CAS + attempt token on `video_requests` only | M |
 | RB-05 | Review ≠ publish | **PARTIAL** | No publish code exists; no review state exists | S |
-| RB-06 | Secrets / signed-URL redaction / tenant isolation | **PARTIAL** (B3; was MISSING at `692e9ec`) | Customer pages now sign only a path under the owned row's own `${id}/` prefix (section 19); the forged `video_path` read is closed in code. Still open: the 0001 insert policy (SQL, not written), quota/attempt/plan forgery through that policy, Sentry redaction, `isReviewOwner` wiring | M |
+| RB-06 | Secrets / signed-URL redaction / tenant isolation | **PARTIAL** (B3; was MISSING at `692e9ec`) | Customer pages now sign only a path under the owned row's own `${id}/` prefix (section 19). Migration 0031 (written, verified on Postgres 16, NOT applied to production) stops clients writing `video_path`, `created_at`, `render_attempts`, the plan and the confirmation, and pins client rows to their own `user_id` and `pending`/`script_ready` (section 20). Still open: 0031 not applied, `avatars` insert shape, Sentry redaction, `isReviewOwner` wiring | M |
 | RB-07 | Immutable pronunciation contract | **MISSING** | TTS cache identity PARTIAL | M |
 | RB-08 | Visual class contract | **MISSING** | Downgrade is designed behaviour | L |
 | RB-09 | Factual grounding / creative risk | **MISSING** | — | L |
@@ -551,5 +551,22 @@ Pre-acceptance refusals are now typed: `voice.ts` throws `ProviderRejectedError`
 3. Sentry has no `beforeSend`; raw provider error text still reaches `error_message` for Reel/Avatar.
 4. `isReviewOwner` is not wired on this branch's `/r/[slug]` route.
 5. No CI runs the suite.
+
+---
+
+## 20. Fase B3.1 — RB-06 column guard, migration 0031 (2026-10-02, after `f7910a5`)
+
+**Paso 0 (path layout).** The only writers of `video_requests.video_path` are the worker (`src/lib/video/run-job.ts:225`, value returned by the pipeline) and the operator recovery script (`scripts/recover-long-form-output.ts:257`). Every value is under `${requestId}/`: Reel `${requestId}/attempt-N/final.mp4` (`generate-video.ts:491` with `artifactPrefix` from `run-job.ts`), Long Form `${requestId}/output/final.mp4` (`output-finalize.ts:33 canonicalOutputPath`, also used by `reconcileExistingOutput` and the recovery script), Avatar `${requestId}/final.mp4` (`avatar/pipeline.ts:448,484`). The VIDEO-004 masters (`video-004-thermopylae/...`) are never written to `video_path`. `ownedVideoPath` (B3) was not loosened or changed.
+
+**Migration `supabase/migrations/0031_video_request_column_guard.sql` (written, NOT applied to production).** Scoped to `public.video_requests` and the `anon`/`authenticated` roles: (1) revokes their table-level INSERT/UPDATE and re-grants both on every current column except `video_path`, `created_at`, `render_attempts`, `long_form_production_plan`, `long_form_confirmed_at` (Postgres cannot revoke one column under a table-level grant; a column added later is not client-writable until its migration grants it); (2) adds one RESTRICTIVE policy for INSERT and one for UPDATE: `user_id = auth.uid() and status in ('pending','script_ready')`. The 0001 policies are not rewritten, there is no trigger, `service_role` is not touched (keeps its grants and BYPASSRLS). Idempotent; manual rollback in the header. Registered in `supabase/migration-manifest.json` (v7) by exact sha256 with `knownProductionApplied: false`.
+
+**Tests.** Real database: `supabase/migrations/verify/09_video_request_column_guard_test.sql` on local Postgres 16 after the stub and all 31 migrations, emulating Supabase's table-level default grants and re-applying 0031 on top. Result: 13 refusals (insert of B's `video_path`, `render_attempts`, plan, confirmation, past `created_at`, status `completed`, status `processing`, another user's `user_id`; update of `video_path`, `render_attempts`, plan; two `anon` inserts), A's `pending`, `script_ready` and default-status inserts succeed, a client status update changes nothing, `service_role` writes `video_path` under `${id}/`, status, attempts, plan and confirmation; re-running 0031 is a no-op. The same script on 0001–0030 fails at its first check ("insert video_path pointing at user B's object — the database accepted it"), so it detects the hole. Verify 01 passes with 0031; verify 07 fails at line 89 on a `yt_video_links` foreign key identically with and without 0031 (pre-existing, unrelated). Unit suite: `src/lib/security/video-request-column-guard.test.ts` pins the migration text, the exclusion list, the restrictive policies, the untouched service role and the manifest hash; `src/lib/storage/signed-url.test.ts` unchanged and green. Full suite 1444/1444; `tsc --noEmit` and eslint clean.
+
+**Why RB-06 stays PARTIAL:**
+1. 0031 is not applied to production (requires separate authorization). Until it is, the hole is open in production; the B3 signing fix already denies the cross-tenant read.
+2. `avatars` (0011) has the same unrestricted insert shape; not in this phase's scope.
+3. Sentry has no `beforeSend`; raw provider error text still reaches `error_message` for Reel/Avatar.
+4. `isReviewOwner` is not wired on this branch's `/r/[slug]` route.
+5. The real-database verify scripts are run by hand; no CI runs them or the unit suite.
 
 ATOMIVID_PI_V2_REALITY_CHECK_COMPLETE
