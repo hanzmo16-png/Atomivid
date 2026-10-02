@@ -308,8 +308,9 @@ async function main() {
   // Hojas de fuentes (1 cuadro cada ~2.5 % de duración) para elegir planos con criterio en la revisión.
   for (const [n, f, d] of [["dulce", inputs.dulce, dulceDur], ["ocean", inputs.ocean, oceanDur]] as const)
     await ff(["-i", f, "-vf", `fps=${(40 / d).toFixed(4)},scale=240:-2,drawtext=fontfile=${FONT}:text='%{pts\\:hms}':fontcolor=white:fontsize=18:x=4:y=4:box=1:boxcolor=black@0.6,tile=8x5`, "-frames:v", "1", join(OUT, `source-sheet-${n}.jpg`)]);
-  const D = (f: number) => ({ file: inputs.dulce, at: dulceDur * f });
-  const O = (f: number) => ({ file: inputs.ocean, at: oceanDur * f });
+  // Planos elegidos sobre las hojas de fuentes (segundos absolutos; sin rótulos ni negros).
+  const D = (sec: number) => ({ file: inputs.dulce, at: Math.min(sec, Math.max(0, dulceDur - 3)) });
+  const O = (sec: number) => ({ file: inputs.ocean, at: Math.min(sec, Math.max(0, oceanDur - 3)) });
   const esc = (t: string) => t.replace(/:/g, "\\:").replace(/'/g, "\u2019");
   const label = (text: string, from: number, to: number, y = 330, size = 104) => `drawtext=fontfile=${FONT}:text='${esc(text)}':fontcolor=white:fontsize=${size}:x=(w-tw)/2:y=${y}:borderw=6:bordercolor=black@0.85:enable='between(t,${from.toFixed(2)},${to.toFixed(2)})'`;
 
@@ -322,16 +323,16 @@ async function main() {
   const dw = tts.demo.words;
   const at = (i: number) => dw[Math.min(i, dw.length - 1)]?.start ?? 0;
   const steps: [string, number, number][] = [["IDEA", 0, at(0)], ["GUION", at(0), at(1)], ["VOZ", at(1), at(2)], ["VISUALES", at(2), at(3)], ["MOVIMIENTO", at(3), at(4)], ["MÚSICA", at(4), at(5)], ["SUBTÍTULOS", at(5), at(6)], ["VIDEO", at(6), 99]];
-  const demoDur = await montage("demo", tts.demo.file, [O(0.15), D(0.12), O(0.25), D(0.38), O(0.7), D(0.62)], [
+  const demoDur = await montage("demo", tts.demo.file, [O(2.2), D(14.5), O(6.0), D(185), O(22.3), D(199)], [
     ...steps.map(([t, a, b]) => label(t, a, b)),
     `drawtext=fontfile=${FONT}:text='IDEA → GUION → VOZ → VISUALES → MOVIMIENTO → MÚSICA → VIDEO':fontcolor=white@0.8:fontsize=30:x=(w-tw)/2:y=470:borderw=3:bordercolor=black@0.7`,
   ].join(","));
   // Resultados: cortes rápidos de producciones reales (DULCE primero, luego Océano).
-  const resultsDur = await montage("results", tts.results.file, [D(0.2), D(0.45), O(0.3), D(0.7), O(0.85)], label("HECHO CON ATOMIVID", 0, 99, 300, 70));
+  const resultsDur = await montage("results", tts.results.file, [D(170), D(455.8), O(11.7), D(242), O(20.1)], label("HECHO CON ATOMIVID", 0, 99, 300, 70));
   // Reveal: el beat principal, con espacio y "CREATED WITH ATOMIVID".
   const rw = tts.reveal.words;
   const createdAt = rw.find((w) => /creado/i.test(w.text))?.start ?? 2;
-  const revealDur = await montage("reveal", tts.reveal.file, [O(0.55), D(0.85)], label("CREATED WITH ATOMIVID", createdAt, 99, 330, 88));
+  const revealDur = await montage("reveal", tts.reveal.file, [O(36), D(195)], label("CREATED WITH ATOMIVID", createdAt, 99, 330, 88));
   // End card ≤ 1.2 s: marca tipográfica + claim (el repo no tiene logotipo de marca), fondo oscuro de marca (no negro puro).
   const END = 1.2;
   await ff(["-f", "lavfi", "-i", `color=c=0x0d1220:s=${W}x${H}:d=${END}:r=${FPS}`, "-f", "lavfi", "-i", `anullsrc=r=48000:cl=stereo`, "-filter_complex",
