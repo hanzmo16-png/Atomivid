@@ -84,16 +84,23 @@ async function main() {
   const matchName = (file: string) => NAMES.find((n, i) => file === n || (file.includes(stems[i]) && /\.(mp4|mov)$/i.test(file)));
   const folders: string[] = [];
   const { data: buckets } = await service.storage.listBuckets();
+  // Breadth-first walk of every bucket (depth ≤ 5, ≤ 3000 listings): names only, nothing downloaded.
   for (const b of buckets ?? []) {
     const store = service.storage.from(b.name);
-    const { data: root } = await store.list("", { limit: 1000 });
-    const dirs = (root ?? []).filter((e) => e.id === null).map((e) => e.name);
-    for (const e of root ?? []) { const hit = e.id !== null ? matchName(e.name) : undefined; if (hit && !located[hit]) { located[hit] = e.name; locatedBucket[hit] = b.name; } }
-    for (const d of dirs.slice(0, 600)) {
-      if (Object.keys(located).length === NAMES.length) break;
-      folders.push(`${b.name}:${d}`);
-      const { data } = await store.list(d, { limit: 1000 });
-      for (const e of data ?? []) { const hit = e.id !== null ? matchName(e.name) : undefined; if (hit && !located[hit]) { located[hit] = `${d}/${e.name}`; locatedBucket[hit] = b.name; } }
+    const queue: { dir: string; depth: number }[] = [{ dir: "", depth: 0 }];
+    while (queue.length && folders.length < 3000 && Object.keys(located).length < NAMES.length) {
+      const { dir, depth } = queue.shift()!;
+      folders.push(`${b.name}:${dir}`);
+      for (let offset = 0; offset < 10000; offset += 1000) {
+        const { data } = await store.list(dir, { limit: 1000, offset });
+        for (const e of data ?? []) {
+          const full = dir ? `${dir}/${e.name}` : e.name;
+          if (e.id === null) { if (depth < 5) queue.push({ dir: full, depth: depth + 1 }); continue; }
+          const hit = matchName(e.name);
+          if (hit && !located[hit]) { located[hit] = full; locatedBucket[hit] = b.name; }
+        }
+        if (!data || data.length < 1000) break;
+      }
     }
   }
   const missing = NAMES.filter((n) => !located[n]);
