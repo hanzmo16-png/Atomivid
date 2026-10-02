@@ -1,6 +1,6 @@
 {
  "manifest": "atomivid-migrations",
- "manifestVersion": 7,
+ "manifestVersion": 8,
  "generatedAt": "2026-10-02",
  "hashAlgorithm": "sha256 of the exact file bytes",
  "registry": {
@@ -294,6 +294,15 @@
    "knownProductionApplied": false,
    "appliedDate": null,
    "evidence": "NOT applied (requires separate human authorization); verified locally on Postgres 16 with verify/09_video_request_column_guard_test.sql (red on 0001-0030, green with 0031); docs/audits/PI-V2-REALITY-CHECK.md section 20",
+   "onDefaultBranch": null
+  },
+  {
+   "migrationName": "0032_avatar_write_guard.sql",
+   "sha256": "923873522a53f3862eb3d646ed18282bbc1fcd15489b1e1fd306f7ffb93fb7ae",
+   "sourceBranch": "claude/production-intelligence-v1",
+   "knownProductionApplied": false,
+   "appliedDate": null,
+   "evidence": "NOT applied (requires separate human authorization; deploy the service-role avatar insert in src/app/dashboard/new/actions.ts first); verified locally on Postgres 16 with verify/10_completed_row_and_avatar_guard_test.sql (red on 0001-0031, green with 0032); docs/audits/PI-V2-REALITY-CHECK.md section 21",
    "onDefaultBranch": null
   }
  ],

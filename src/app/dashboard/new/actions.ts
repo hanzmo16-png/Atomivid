@@ -276,7 +276,9 @@ export async function createVideoRequest(formData: FormData) {
       redirect(`/dashboard/new?error=${encodeURIComponent(message)}`);
     }
 
-    const { data: inserted, error: insertError } = await supabase
+    // Fila escrita con la service role (migración 0032: el cliente no escribe avatars). Todos los
+    // valores salen del servidor; user_id es el de la sesión verificada arriba.
+    const { data: inserted, error: insertError } = await service
       .from("avatars")
       .insert({
         user_id: user.id,

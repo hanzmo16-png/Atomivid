@@ -1,0 +1,23 @@
+-- 0032: Clients cannot write public.avatars (PI V2 Fase B3.2, RB-06).
+-- Finding (docs/audits/PI-V2-REALITY-CHECK.md, RB-06): the 0011 insert policy only checks
+-- auth.uid() = user_id, and Supabase's default grants give anon/authenticated INSERT and UPDATE on
+-- every column. A client calling PostgREST directly could create its own avatar row already
+-- status 'ready', with any provider_avatar_id / provider_job_id, any source_photo_path and
+-- consent_given = true without the consent flow.
+--
+-- Every value of the one legitimate insert (src/app/dashboard/new/actions.ts) is computed on the
+-- server: provider ids from the provider call, source_photo_path from a service-role upload to the
+-- private avatar-uploads bucket, status from the provider status, consent fields from the server
+-- action. A client never has a legitimate reason to write this table, so its INSERT and UPDATE are
+-- revoked outright; the server action inserts with the service role (same commit), with
+-- user_id taken from the verified session.
+--
+-- Scope: public.avatars, roles anon and authenticated, INSERT and UPDATE only. SELECT (and its
+-- 0011 owner policy) is unchanged, so the dashboard still lists the user's own avatars. No policy
+-- is rewritten or dropped, no trigger, service_role untouched (keeps grants and BYPASSRLS).
+-- There was never a permissive UPDATE policy, so client updates already changed nothing.
+-- Deployment order: deploy the app change BEFORE applying this migration; the new app code works
+-- with or without 0032, the old app code cannot create avatars once 0032 is applied.
+-- Re-runnable: idempotent. Rollback (manual): grant insert, update on public.avatars to anon, authenticated;
+
+revoke insert, update on public.avatars from anon, authenticated;
