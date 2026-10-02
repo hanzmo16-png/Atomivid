@@ -31,10 +31,25 @@ const OUT = resolve(process.env.TEASER_OUT_DIR ?? "teaser-output");
 const WORK = join(OUT, "work");
 const FONT = resolve("public/fonts/Anton-Regular.ttf");
 const LOCAL = process.env.TEASER_LOCAL_DIR ? resolve(process.env.TEASER_LOCAL_DIR) : null;
+/** "heygen" (master) | "review-placeholder": sin llamada a HeyGen; corte SOLO de revisión, nunca el master. */
+const AVATAR_MODE = process.env.TEASER_AVATAR_MODE === "review-placeholder" ? "review-placeholder" : "heygen";
+/** Intento explícito del avatar: el intento 1 (run 37029447621) fue rechazado con HTTP 401 antes de crear trabajo (sin cobro). */
+const AVATAR_ATTEMPT = process.env.TEASER_AVATAR_ATTEMPT ?? "2";
 
-/** Retoque local aprobado en pruebas: denoise leve, suavizado bilateral suave (conserva textura),
- * altas luces contenidas, calidez discreta en medios tonos, luz y nitidez moderadas. Sin geometría. */
-const RETOUCH = "hqdn3d=1.5:1.5:3:3,bilateral=sigmaS=2.5:sigmaR=0.04,curves=all='0/0 0.3/0.31 0.6/0.64 0.88/0.88 1/0.96',colorbalance=rm=0.025:gm=0.005:bm=-0.03:rh=0.01:bh=-0.015,eq=gamma=1.07:contrast=1.07:saturation=1.08,unsharp=5:5:0.4:5:5:0";
+/** Retoque local v2 (look cálido/bronceado aprobado por Hans), USD 0.00, sin geometría:
+ * - base: denoise leve, altas luces contenidas (contraluz de la ventana), contraste y calidez globales MUY leves;
+ * - piel: máscara local por crominancia (Cb/Cr de piel; excluye camisa blanca, pared y ventana), cerrada y
+ *   difuminada para incluir cara, cuello y manos por igual; sobre ella: suavizado que respeta bordes,
+ *   medios tonos algo más profundos (bronceado), calidez dorada y saturación selectiva;
+ * - mezcla con maskedmerge (la máscara se arma desde un único plano gris en los tres planos) + nitidez discreta. */
+const SKIN_MASK = "clip((cr(X,Y)-131)/9,0,1)*clip((180-cr(X,Y))/10,0,1)*clip((cb(X,Y)-78)/8,0,1)*clip((130-cb(X,Y))/6,0,1)*clip((lum(X,Y)-35)/25,0,1)*255";
+const RETOUCH_GRAPH = (input: string, output: string) =>
+  `[${input}]format=yuv444p,hqdn3d=1.5:1.5:3:3,split=3[ra][rb][rc];` +
+  `[ra]curves=all='0/0 0.25/0.235 0.6/0.61 0.85/0.82 1/0.93',eq=contrast=1.06:saturation=1.04,colorbalance=rm=0.01:bm=-0.012,format=yuv444p[rbase];` +
+  `[rb]smartblur=lr=2.5:ls=0.6:lt=6,curves=all='0/0 0.25/0.235 0.6/0.61 0.85/0.82 1/0.93',curves=all='0/0 0.35/0.33 0.65/0.59 0.9/0.83 1/0.95',` +
+  `colorbalance=rs=0.03:bs=-0.04:rm=0.08:gm=0.015:bm=-0.08:rh=0.03:bh=-0.04,eq=contrast=1.08:saturation=1.2,format=yuv444p[rskin];` +
+  `[rc]scale=iw/4:ih/4,geq=lum='${SKIN_MASK}':cb=128:cr=128,format=gray,dilation,dilation,erosion,gblur=sigma=3,scale=iw*4:ih*4:flags=bicubic,split=3[rm1][rm2][rm3];` +
+  `[rm1][rm2][rm3]mergeplanes=0x001020:yuv444p[rmask];[rbase][rskin][rmask]maskedmerge,unsharp=5:5:0.45:5:5:0,format=yuv420p[${output}]`;
 
 const OPENING_TEXT = "Llevo meses trabajando en algo que por fin hoy te puedo empezar a enseñar.";
 const CLOSING_TEXT = "Estamos terminando las últimas pruebas. Si quieres ser de los primeros en probarlo, escribe ATOMIVID en los comentarios.";
@@ -94,11 +109,24 @@ function spreadWords(text: string, start: number, end: number): Word[] {
   });
 }
 
+const costs: Cost[] = [];
+const spent = () => costs.reduce((s, c) => s + c.actualUsd, 0);
+const notes: string[] = [];
+let ledgerRows: unknown[] = [];
+
+type SvcLike = { from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => PromiseLike<{ data: unknown[] | null }> } } };
+/** Gasto real: operaciones de esta ejecución + filas del ledger del proyecto (incluye llamadas de ejecuciones previas). */
+async function buildCostReport(service: unknown) {
+  if (service) {
+    const { data } = await (service as SvcLike).from("pi_paid_operations").select("provider,shot_id,status,reserved_usd,committed_usd,updated_at").eq("project_id", PROJECT);
+    ledgerRows = data ?? [];
+  }
+  const committed = (ledgerRows as { committed_usd: number | string | null }[]).reduce((a, r) => a + Number(r.committed_usd ?? 0), 0);
+  return { capUsd: CAP, spentThisRunUsd: Math.round(spent() * 10000) / 10000, ledgerCommittedTotalUsd: Math.round(committed * 10000) / 10000, operations: costs, ledger: ledgerRows, avatarMode: AVATAR_MODE, avatarAttempt: AVATAR_ATTEMPT };
+}
+
 async function main() {
   await mkdir(WORK, { recursive: true });
-  const costs: Cost[] = [];
-  const spent = () => costs.reduce((s, c) => s + c.actualUsd, 0);
-  const notes: string[] = [];
 
   // ---------- Insumos ----------
   const inputs = { opening: join(WORK, "src-opening.mp4"), closing: join(WORK, "src-closing.mp4"), dulce: join(WORK, "dulce.mp4"), ocean: join(WORK, "ocean.mp4"), music: join(WORK, "music.mp3") };
@@ -136,8 +164,14 @@ async function main() {
     const m = await probe(src);
     const win = await speechWindow(src, m.duration);
     const file = join(WORK, `${k}-retouched.mp4`);
-    await ff(["-ss", win.start.toFixed(3), "-to", win.end.toFixed(3), "-i", src, "-vf", `scale=${W}:${H}:flags=lanczos,fps=${FPS},${RETOUCH},format=yuv420p`,
-      "-af", "aresample=48000,highpass=f=70,afftdn=nf=-25", "-ac", "2", "-c:v", "libx264", "-crf", "16", "-preset", "medium", "-c:a", "aac", "-b:a", "192k", file]);
+    await ff(["-ss", win.start.toFixed(3), "-to", win.end.toFixed(3), "-i", src, "-filter_complex", `[0:v]scale=${W}:${H}:flags=lanczos,fps=${FPS}[src];${RETOUCH_GRAPH("src", "v")}`,
+      "-map", "[v]", "-map", "0:a", "-af", "aresample=48000,highpass=f=70,afftdn=nf=-25", "-ac", "2", "-c:v", "libx264", "-crf", "16", "-preset", "medium", "-c:a", "aac", "-b:a", "192k", file]);
+    // Comparación ORIGINAL → POLISHED (mismo instante, resolución completa) para la QA de Hans.
+    for (const f of [0.25, 0.6]) {
+      const tt = (win.end - win.start) * f;
+      await ff(["-ss", (win.start + tt).toFixed(3), "-i", src, "-ss", tt.toFixed(3), "-i", file, "-frames:v", "1", "-filter_complex",
+        `[0:v]scale=${W}:${H},format=rgb24[o];[1:v]format=rgb24[p];[o][p]hstack=2,scale=1080:-2`, join(OUT, `hans-${k}-original-vs-polished-${Math.round(f * 100)}.jpg`)]);
+    }
     const d = (await probe(file)).duration;
     const lead = 0.12;
     real[k] = { file, duration: d, words: spreadWords(text, Math.min(lead, d / 4), Math.max(d - 0.3, d * 0.8)) };
@@ -156,6 +190,13 @@ async function main() {
   } else {
     const { data: voice } = await service!.from("user_voices").select("provider,status,provider_voice_id").eq("id", process.env.TEASER_VOICE_ID!).maybeSingle();
     if (!voice || voice.status !== "ready" || voice.provider !== "elevenlabs" || !voice.provider_voice_id) throw new Error("La voz clonada autorizada no está lista: no se crea ninguna.");
+    if (AVATAR_MODE === "heygen") {
+      // Comprobación gratuita (GET) de la clave de HeyGen ANTES de cualquier gasto: una clave rechazada detiene todo con USD 0.
+      const { getHeygenWallet } = await import("../../src/lib/providers/avatar/heygen");
+      const wallet = await getHeygenWallet().catch((e: unknown) => { throw new Error(`HEYGEN_PREFLIGHT_FAILED (sin gasto): ${e instanceof Error ? e.message : e}`); });
+      if (wallet < 0.3) throw new Error(`HEYGEN_PREFLIGHT_FAILED (sin gasto): saldo insuficiente (${wallet} USD)`);
+      notes.push(`HeyGen preflight OK (saldo suficiente).`);
+    }
     process.env.ELEVENLABS_VOICE_ID_ES = voice.provider_voice_id;
     const { gatedVoiceSynthesize } = await import("../../src/lib/paid-calls/gated-providers");
     const { supabaseLedgerStore } = await import("../../src/lib/paid-calls/supabase-ledger-store");
@@ -182,8 +223,9 @@ async function main() {
   const avatarWav = join(WORK, "avatar-line.wav");
   await ff(["-i", tts.avatar.file, "-ar", "48000", "-ac", "1", avatarWav]);
   const avatarSeconds = (await probe(avatarWav)).duration;
-  if (LOCAL) {
-    await ff(["-f", "lavfi", "-i", `color=c=0x1d2433:s=720x1280:d=${avatarSeconds}`, "-vf", `drawtext=fontfile=${FONT}:text='AVATAR':fontcolor=white:fontsize=90:x=(w-tw)/2:y=(h-th)/2`, "-r", "30", avatarFile]);
+  if (LOCAL || AVATAR_MODE === "review-placeholder") {
+    await ff(["-f", "lavfi", "-i", `color=c=0x1d2433:s=720x1280:d=${avatarSeconds}`, "-vf", `drawtext=fontfile=${FONT}:text='AVATAR HEYGEN':fontcolor=white:fontsize=80:x=(w-tw)/2:y=(h-th)/2,drawtext=fontfile=${FONT}:text='PENDIENTE - SOLO REVISIÓN':fontcolor=0xffd37f:fontsize=40:x=(w-tw)/2:y=(h-th)/2+110`, "-r", "30", avatarFile]);
+    notes.push("AVATAR: marcador de revisión (sin llamada a HeyGen). Este corte NO es el master.");
   } else {
     const { heygenAvatarProvider, estimateHeygenCost } = await import("../../src/lib/providers/avatar/heygen");
     const { guardPaidCall, classifyPaidCallError } = await import("../../src/lib/paid-calls/gate");
@@ -208,7 +250,7 @@ async function main() {
     };
     const guarded = await guardPaidCall<Buffer>(supabaseLedgerStore(service!), {
       projectId: PROJECT, shotId: "avatar:line", provider: "heygen", model: "avatar-iv-photo", method: "generate_video",
-      inputFingerprint: { avatarId: process.env.TEASER_AVATAR_ID, audioSha256: sha256(wav) }, reservedUsd: est,
+      inputFingerprint: { avatarId: process.env.TEASER_AVATAR_ID, audioSha256: sha256(wav), attempt: AVATAR_ATTEMPT }, reservedUsd: est,
     }, {
       call: async ({ key }) => {
         const r = await heygenAvatarProvider.generateVideo({ providerAvatarId: avatar.provider_avatar_id!, script: LINES.avatar, audioUrl: signed.signedUrl, audioDurationSeconds: avatarSeconds, language: "es", maxCostUsd: CAP - spent(), onJobCreated: async (id) => { acceptedJobId = id; } });
@@ -223,7 +265,9 @@ async function main() {
         const bytes = meta ? await results.getBytes(meta.videoPath) : null;
         return bytes && sha256(bytes) === meta!.sha256 ? bytes : null;
       },
-      classify: (err) => (acceptedJobId ? { kind: "accepted", providerJobId: acceptedJobId } : classifyPaidCallError(err)),
+      // 401/403 sin trabajo creado = autenticación rechazada, no facturable y no reintentable.
+      classify: (err) => acceptedJobId ? { kind: "accepted", providerJobId: acceptedJobId }
+        : /HeyGen HTTP 40[13];/.test(err instanceof Error ? err.message : "") ? { kind: "rejected_final" } : classifyPaidCallError(err),
       maxRejectedRetries: 0,
     });
     await writeFile(avatarFile, guarded.result);
@@ -329,7 +373,8 @@ async function main() {
   await writeFile(assPath, ass);
 
   // ---------- Música curada con ducking bajo la voz + normalización para redes ----------
-  const master = join(OUT, "ATOMIVID-precampaign-teaser-v1.mp4");
+  const review = LOCAL !== null || AVATAR_MODE === "review-placeholder";
+  const master = join(OUT, review ? "ATOMIVID-precampaign-teaser-v1-REVIEW-ONLY.mp4" : "ATOMIVID-precampaign-teaser-v1.mp4");
   const fontsDir = resolve("public/fonts");
   await ff(["-i", assembled, "-stream_loop", "-1", "-i", inputs.music, "-filter_complex",
     `[0:v]subtitles=${assPath}:fontsdir=${fontsDir}[v];` +
@@ -363,7 +408,7 @@ async function main() {
     humanReviewRequired: ["identidad preservada", "piel natural", "avatar sin deformación", "transición", "subtítulos sobre el rostro", "selección de planos de DULCE/Océano", "pronunciación de ATOMIVID"],
     notes,
   };
-  const costReport = { capUsd: CAP, spentUsd: Math.round(spent() * 10000) / 10000, operations: costs };
+  const costReport = await buildCostReport(service);
   const manifest = {
     teaser: "ATOMIVID_PRECAMPAIGN_TEASER_V1",
     reused: {
@@ -378,14 +423,18 @@ async function main() {
   await writeFile(join(OUT, "qa-report.json"), JSON.stringify(qa, null, 2) + "\n");
   await writeFile(join(OUT, "cost-report.json"), JSON.stringify(costReport, null, 2) + "\n");
   await writeFile(join(OUT, "asset-manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
-  if (service) {
+  if (service && !review) {
     const bytes = await readFile(master);
     await service.storage.from("videos").upload(`${PROJECT}/output/ATOMIVID-precampaign-teaser-v1.mp4`, bytes, { contentType: "video/mp4", upsert: true });
   }
   console.log(JSON.stringify({ qa, costReport }, null, 2));
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error("Producción del teaser detenida:", err instanceof Error ? err.message : err);
+  await mkdir(OUT, { recursive: true });
+  const { createServiceClient } = LOCAL ? { createServiceClient: () => null } : await import("../../src/lib/supabase/service");
+  const report = await buildCostReport(createServiceClient()).catch(() => ({ capUsd: CAP, spentThisRunUsd: spent(), operations: costs }));
+  await writeFile(join(OUT, "cost-report.json"), JSON.stringify({ ...report, stoppedWith: err instanceof Error ? err.message : String(err), notes }, null, 2) + "\n");
   process.exit(1);
 });

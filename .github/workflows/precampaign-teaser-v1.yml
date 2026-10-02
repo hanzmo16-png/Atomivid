@@ -20,6 +20,12 @@ on:
         description: "Escribir PRODUCIR para habilitar las claves pagadas en stage=produce"
         required: false
         type: string
+      avatar_mode:
+        description: "heygen (master) o review-placeholder (corte SOLO de revisión, sin llamada a HeyGen)"
+        required: false
+        type: choice
+        options: [heygen, review-placeholder]
+        default: heygen
       opening_path:
         description: "Ruta en el bucket 'videos' del clip HANS_OPENING_REAL (1080x1920, 30 fps)"
         required: false
@@ -138,8 +144,9 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-          HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
+          HEYGEN_API_KEY: ${{ inputs.avatar_mode != 'review-placeholder' && secrets.HEYGEN_API_KEY || '' }}
           TEASER_HARD_CAP_USD: "1.03"
+          TEASER_AVATAR_MODE: ${{ inputs.avatar_mode }}
           TEASER_OPENING_PATH: ${{ inputs.opening_path }}
           TEASER_CLOSING_PATH: ${{ inputs.closing_path }}
           TEASER_AVATAR_ID: ${{ inputs.avatar_id }}
