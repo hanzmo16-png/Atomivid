@@ -1,0 +1,391 @@
+/**
+ * ATOMIVID_PRECAMPAIGN_TEASER_V1 — producción controlada del teaser vertical (1080x1920, 30 fps).
+ *
+ * Reutiliza infraestructura existente, sin tocar el producto:
+ * - voz clonada existente (user_voices) vía gatedVoiceSynthesize: gate de pago + ledger + result store;
+ * - avatar HeyGen existente vía heygenAvatarProvider envuelto en guardPaidCall (mismo ledger);
+ * - DULCE y Océano ya entregados en Storage, música curada del bucket music-library;
+ * - retoque y montaje 100 % locales con ffmpeg (sin proveedor externo, USD 0.00).
+ *
+ * Tope absoluto de gasto nuevo: TEASER_HARD_CAP_USD (1.03). Se comprueba ANTES de cada llamada pagada.
+ * Los clips originales de Hans nunca se modifican: solo se leen.
+ *
+ * TEASER_LOCAL_DIR: modo de ensayo local (sin Supabase, sin proveedores, sin red): lee los insumos
+ * de ese directorio y sustituye la voz/avatar por marcadores, para validar el montaje con USD 0.00.
+ */
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { promisify } from "node:util";
+
+export {};
+
+const sh = promisify(execFile);
+const FFMPEG = process.env.FFMPEG_BIN ?? "ffmpeg";
+const FFPROBE = process.env.FFPROBE_BIN ?? "ffprobe";
+const W = 1080, H = 1920, FPS = 30;
+const PROJECT = "precampaign-teaser-v1";
+const CAP = Number(process.env.TEASER_HARD_CAP_USD ?? "1.03");
+const OUT = resolve(process.env.TEASER_OUT_DIR ?? "teaser-output");
+const WORK = join(OUT, "work");
+const FONT = resolve("public/fonts/Anton-Regular.ttf");
+const LOCAL = process.env.TEASER_LOCAL_DIR ? resolve(process.env.TEASER_LOCAL_DIR) : null;
+
+/** Retoque local aprobado en pruebas: denoise leve, suavizado bilateral suave (conserva textura),
+ * altas luces contenidas, calidez discreta en medios tonos, luz y nitidez moderadas. Sin geometría. */
+const RETOUCH = "hqdn3d=1.5:1.5:3:3,bilateral=sigmaS=2.5:sigmaR=0.04,curves=all='0/0 0.3/0.31 0.6/0.64 0.88/0.88 1/0.96',colorbalance=rm=0.025:gm=0.005:bm=-0.03:rh=0.01:bh=-0.015,eq=gamma=1.07:contrast=1.07:saturation=1.08,unsharp=5:5:0.4:5:5:0";
+
+const OPENING_TEXT = "Llevo meses trabajando en algo que por fin hoy te puedo empezar a enseñar.";
+const CLOSING_TEXT = "Estamos terminando las últimas pruebas. Si quieres ser de los primeros en probarlo, escribe ATOMIVID en los comentarios.";
+const LINES = {
+  avatar: "Se llama ATOMIVID. Tú le das una idea… y empieza la producción.",
+  demo: "Guion. Voz. Imágenes. Movimiento. Música. Subtítulos. Todo dentro del mismo proceso.",
+  results: "Y esto no es una presentación. Son videos que ya estamos produciendo.",
+  reveal: "De hecho… el video que estás viendo también fue creado con ATOMIVID.",
+} as const;
+const ALIASES = [{ word: "ATOMIVID", spoken: "atomivid" }];
+
+type Word = { text: string; start: number; end: number };
+type Cost = { provider: string; operation: string; estimatedUsd: number; actualUsd: number; reused: boolean; ledgerKey?: string };
+
+const ff = (args: string[]) => sh(FFMPEG, ["-hide_banner", "-v", "error", "-y", ...args], { maxBuffer: 64 * 1024 * 1024 });
+async function probe(file: string) {
+  const { stdout } = await sh(FFPROBE, ["-v", "error", "-print_format", "json", "-show_format", "-show_streams", file]);
+  const j = JSON.parse(stdout) as { format?: { duration?: string }; streams?: { codec_type?: string; width?: number; height?: number; avg_frame_rate?: string; side_data_list?: { rotation?: number }[]; tags?: { rotate?: string } }[] };
+  const v = j.streams?.find((s) => s.codec_type === "video");
+  const [n, d] = (v?.avg_frame_rate ?? "0/1").split("/").map(Number);
+  const rot = Math.abs(Number(v?.side_data_list?.find((x) => x.rotation !== undefined)?.rotation ?? v?.tags?.rotate ?? 0));
+  const swap = rot === 90 || rot === 270;
+  return {
+    width: swap ? v?.height ?? 0 : v?.width ?? 0,
+    height: swap ? v?.width ?? 0 : v?.height ?? 0,
+    fps: d ? n / d : 0,
+    duration: Number(j.format?.duration ?? 0),
+    hasAudio: Boolean(j.streams?.some((s) => s.codec_type === "audio")),
+    rotation: rot,
+  };
+}
+const sha256 = (b: Buffer) => createHash("sha256").update(b).digest("hex");
+
+/** Speech region of a real take (local silencedetect), to trim dead air without rushing the line. */
+async function speechWindow(file: string, duration: number) {
+  const { stderr } = await sh(FFMPEG, ["-hide_banner", "-i", file, "-af", "silencedetect=noise=-35dB:d=0.3", "-f", "null", "-"], { maxBuffer: 16 * 1024 * 1024 }).catch((e: { stderr?: string }) => ({ stderr: e.stderr ?? "" }));
+  const starts = [...stderr.matchAll(/silence_start: ([\d.]+)/g)].map((m) => Number(m[1]));
+  const ends = [...stderr.matchAll(/silence_end: ([\d.]+)/g)].map((m) => Number(m[1]));
+  let a = 0, b = duration;
+  if (starts.length && starts[0] < 0.05 && ends.length) a = ends[0];
+  const lastStart = starts.at(-1);
+  if (lastStart !== undefined && (ends.length < starts.length || (ends.at(-1) ?? 0) >= duration - 0.05)) b = lastStart;
+  return { start: Math.max(0, a - 0.12), end: Math.min(duration, b + 0.3) };
+}
+
+/** Known line spread over the measured speech window (no transcription provider). */
+function spreadWords(text: string, start: number, end: number): Word[] {
+  const words = text.split(/\s+/);
+  const weights = words.map((w) => w.length + 1);
+  const total = weights.reduce((a, b) => a + b, 0);
+  let t = start;
+  return words.map((w, i) => {
+    const d = ((end - start) * weights[i]) / total;
+    const word = { text: w, start: t, end: t + d };
+    t += d;
+    return word;
+  });
+}
+
+async function main() {
+  await mkdir(WORK, { recursive: true });
+  const costs: Cost[] = [];
+  const spent = () => costs.reduce((s, c) => s + c.actualUsd, 0);
+  const notes: string[] = [];
+
+  // ---------- Insumos ----------
+  const inputs = { opening: join(WORK, "src-opening.mp4"), closing: join(WORK, "src-closing.mp4"), dulce: join(WORK, "dulce.mp4"), ocean: join(WORK, "ocean.mp4"), music: join(WORK, "music.mp3") };
+  type Svc = Awaited<ReturnType<typeof import("../../src/lib/supabase/service")["createServiceClient"]>>;
+  let service: Svc | null = null;
+  if (LOCAL) {
+    for (const [k, p] of Object.entries(inputs)) await copyFile(join(LOCAL, `${k}${p.slice(p.lastIndexOf("."))}`), p);
+  } else {
+    const { createServiceClient } = await import("../../src/lib/supabase/service");
+    service = createServiceClient();
+    const videos = service.storage.from("videos");
+    const get = async (bucket: string, path: string, to: string) => {
+      const { data, error } = await service!.storage.from(bucket).download(path);
+      if (error || !data) throw new Error(`No se pudo leer ${bucket}/${path}`);
+      await writeFile(to, Buffer.from(await data.arrayBuffer()));
+    };
+    await get("videos", process.env.TEASER_OPENING_PATH!, inputs.opening);
+    await get("videos", process.env.TEASER_CLOSING_PATH!, inputs.closing);
+    const manifest = JSON.parse(Buffer.from(await (await videos.download("dulce-001/full-v1/final/manifest.json")).data!.arrayBuffer()).toString()) as { parts: string[] };
+    const parts: Buffer[] = [];
+    for (const p of manifest.parts) parts.push(Buffer.from(await (await videos.download(p)).data!.arrayBuffer()));
+    await writeFile(inputs.dulce, Buffer.concat(parts));
+    await get("videos", "ocean-deep-001/samples/episode/sample-approval-motion-production-check.mp4", inputs.ocean);
+    await get("music-library", process.env.TEASER_MUSIC_PATH ?? "elevenlabs-corporate-2.mp3", inputs.music);
+  }
+  for (const k of ["opening", "closing"] as const) {
+    const m = await probe(inputs[k]);
+    if (m.width !== W || m.height !== H || Math.abs(m.fps - FPS) > 0.5 || !m.hasAudio) throw new Error(`${k}: formato mostrado ${m.width}x${m.height} ${m.fps} fps audio=${m.hasAudio}`);
+  }
+
+  // ---------- Tomas reales: retoque local + recorte de silencios (los originales no se tocan) ----------
+  const real: Record<"opening" | "closing", { file: string; duration: number; words: Word[] }> = {} as never;
+  for (const [k, text] of [["opening", OPENING_TEXT], ["closing", CLOSING_TEXT]] as const) {
+    const src = inputs[k];
+    const m = await probe(src);
+    const win = await speechWindow(src, m.duration);
+    const file = join(WORK, `${k}-retouched.mp4`);
+    await ff(["-ss", win.start.toFixed(3), "-to", win.end.toFixed(3), "-i", src, "-vf", `scale=${W}:${H}:flags=lanczos,fps=${FPS},${RETOUCH},format=yuv420p`,
+      "-af", "aresample=48000,highpass=f=70,afftdn=nf=-25", "-ac", "2", "-c:v", "libx264", "-crf", "16", "-preset", "medium", "-c:a", "aac", "-b:a", "192k", file]);
+    const d = (await probe(file)).duration;
+    const lead = 0.12;
+    real[k] = { file, duration: d, words: spreadWords(text, Math.min(lead, d / 4), Math.max(d - 0.3, d * 0.8)) };
+  }
+
+  // ---------- Voz clonada existente (gate + ledger + result store) ----------
+  const tts: Record<keyof typeof LINES, { file: string; duration: number; words: Word[] }> = {} as never;
+  if (LOCAL) {
+    for (const [k, text] of Object.entries(LINES) as [keyof typeof LINES, string][]) {
+      const dur = Math.max(2.5, text.split(/\s+/).length * 0.36);
+      const file = join(WORK, `tts-${k}.wav`);
+      await ff(["-f", "lavfi", "-i", `sine=frequency=220:duration=${dur}`, "-af", "volume=0.2", "-ar", "48000", "-ac", "2", file]);
+      tts[k] = { file, duration: dur, words: spreadWords(text, 0.05, dur - 0.1) };
+    }
+    notes.push("ENSAYO LOCAL: voz y avatar sustituidos por marcadores; sin proveedores.");
+  } else {
+    const { data: voice } = await service!.from("user_voices").select("provider,status,provider_voice_id").eq("id", process.env.TEASER_VOICE_ID!).maybeSingle();
+    if (!voice || voice.status !== "ready" || voice.provider !== "elevenlabs" || !voice.provider_voice_id) throw new Error("La voz clonada autorizada no está lista: no se crea ninguna.");
+    process.env.ELEVENLABS_VOICE_ID_ES = voice.provider_voice_id;
+    const { gatedVoiceSynthesize } = await import("../../src/lib/paid-calls/gated-providers");
+    const { supabaseLedgerStore } = await import("../../src/lib/paid-calls/supabase-ledger-store");
+    const { supabaseResultStore } = await import("../../src/lib/paid-calls/result-store");
+    const { realVoiceProvider } = await import("../../src/lib/providers/voice/real");
+    const { getVoiceIdentity } = await import("../../src/lib/ai/voice");
+    const { getPricingConfig } = await import("../../src/lib/billing/pricing");
+    const rate = getPricingConfig().elevenLabsUsdPer1kChars;
+    const deps = { ledger: supabaseLedgerStore(service!), results: supabaseResultStore(service!, "videos"), requestId: PROJECT, voiceProvider: realVoiceProvider, voiceIdentity: getVoiceIdentity("es") };
+    const heygenReserve = Number(process.env.TEASER_HEYGEN_RESERVE_USD ?? "0.30");
+    for (const [k, text] of Object.entries(LINES) as [keyof typeof LINES, string][]) {
+      const est = Math.round((text.length / 1000) * rate * 10000) / 10000;
+      if (spent() + est + heygenReserve > CAP) throw new Error(`Tope: ${spent() + est + heygenReserve} > ${CAP} USD antes de TTS ${k}; no se llama.`);
+      const r = await gatedVoiceSynthesize({ ...deps, estimatedCostUsd: est }, text, "es", undefined, { aliases: ALIASES });
+      const file = join(WORK, `tts-${k}.${r.extension}`);
+      await writeFile(file, r.audioBuffer);
+      tts[k] = { file, duration: (await probe(file)).duration, words: r.words.map((w) => ({ text: w.text, start: w.startSeconds, end: w.endSeconds })) };
+      costs.push({ provider: "elevenlabs", operation: `tts:${k}`, estimatedUsd: est, actualUsd: r.costUsd, reused: r.reused });
+    }
+  }
+
+  // ---------- Avatar HeyGen existente: solo la frase del avatar (~4-5 s) ----------
+  const avatarFile = join(WORK, "avatar.mp4");
+  const avatarWav = join(WORK, "avatar-line.wav");
+  await ff(["-i", tts.avatar.file, "-ar", "48000", "-ac", "1", avatarWav]);
+  const avatarSeconds = (await probe(avatarWav)).duration;
+  if (LOCAL) {
+    await ff(["-f", "lavfi", "-i", `color=c=0x1d2433:s=720x1280:d=${avatarSeconds}`, "-vf", `drawtext=fontfile=${FONT}:text='AVATAR':fontcolor=white:fontsize=90:x=(w-tw)/2:y=(h-th)/2`, "-r", "30", avatarFile]);
+  } else {
+    const { heygenAvatarProvider, estimateHeygenCost } = await import("../../src/lib/providers/avatar/heygen");
+    const { guardPaidCall, classifyPaidCallError } = await import("../../src/lib/paid-calls/gate");
+    const { supabaseLedgerStore } = await import("../../src/lib/paid-calls/supabase-ledger-store");
+    const { supabaseResultStore, paidResultPath } = await import("../../src/lib/paid-calls/result-store");
+    const results = supabaseResultStore(service!, "videos");
+    const { data: avatar } = await service!.from("avatars").select("provider,status,provider_avatar_id,consent_given").eq("id", process.env.TEASER_AVATAR_ID!).maybeSingle();
+    if (!avatar || avatar.provider !== "heygen" || avatar.status !== "ready" || !avatar.provider_avatar_id || !avatar.consent_given) throw new Error("El avatar autorizado no está listo: no se crea ninguno.");
+    const est = estimateHeygenCost(avatarSeconds);
+    if (spent() + est > CAP) throw new Error(`Tope: ${spent() + est} > ${CAP} USD antes del avatar; no se llama.`);
+    const wav = await readFile(avatarWav);
+    const audioPath = `${PROJECT}/work/avatar-line-${sha256(wav).slice(0, 12)}.wav`;
+    await service!.storage.from("videos").upload(audioPath, wav, { contentType: "audio/wav", upsert: true });
+    const { data: signed } = await service!.storage.from("videos").createSignedUrl(audioPath, 3600);
+    if (!signed?.signedUrl) throw new Error("No se pudo firmar el audio del avatar.");
+    let acceptedJobId: string | undefined;
+    const store = async (key: string, buffer: Buffer) => {
+      const path = paidResultPath(PROJECT, key, "mp4");
+      await results.putBytes(path, buffer, "video/mp4");
+      await results.putJson(paidResultPath(PROJECT, key, "json"), { videoPath: path, sha256: sha256(buffer), bytes: buffer.byteLength });
+      return paidResultPath(PROJECT, key, "json");
+    };
+    const guarded = await guardPaidCall<Buffer>(supabaseLedgerStore(service!), {
+      projectId: PROJECT, shotId: "avatar:line", provider: "heygen", model: "avatar-iv-photo", method: "generate_video",
+      inputFingerprint: { avatarId: process.env.TEASER_AVATAR_ID, audioSha256: sha256(wav) }, reservedUsd: est,
+    }, {
+      call: async ({ key }) => {
+        const r = await heygenAvatarProvider.generateVideo({ providerAvatarId: avatar.provider_avatar_id!, script: LINES.avatar, audioUrl: signed.signedUrl, audioDurationSeconds: avatarSeconds, language: "es", maxCostUsd: CAP - spent(), onJobCreated: async (id) => { acceptedJobId = id; } });
+        return { result: r.buffer, costUsd: r.costUsd, resultRef: await store(key, r.buffer), providerJobId: r.providerJobId };
+      },
+      resume: async (jobId, { key }) => {
+        const r = await heygenAvatarProvider.recoverVideo!(jobId);
+        return { result: r.buffer, costUsd: est, resultRef: await store(key, r.buffer), providerJobId: jobId };
+      },
+      load: async (ref) => {
+        const meta = await results.getJson<{ videoPath: string; sha256: string }>(ref);
+        const bytes = meta ? await results.getBytes(meta.videoPath) : null;
+        return bytes && sha256(bytes) === meta!.sha256 ? bytes : null;
+      },
+      classify: (err) => (acceptedJobId ? { kind: "accepted", providerJobId: acceptedJobId } : classifyPaidCallError(err)),
+      maxRejectedRetries: 0,
+    });
+    await writeFile(avatarFile, guarded.result);
+    costs.push({ provider: "heygen", operation: "avatar:line", estimatedUsd: est, actualUsd: guarded.costUsd, reused: guarded.reused, ledgerKey: guarded.key });
+  }
+  if (spent() > CAP) throw new Error(`Gasto ${spent()} supera el tope ${CAP}.`);
+
+  // ---------- Segmentos de video (cada uno 1080x1920@30 con su audio) ----------
+  const seg = (name: string) => join(WORK, `seg-${name}.mp4`);
+  const enc = ["-r", String(FPS), "-c:v", "libx264", "-crf", "17", "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"];
+  const vertical = (input: string) => `[${input}]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=24:2,eq=brightness=-0.12:saturation=0.8[bg];[${input}]scale=${W}:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2-140`;
+  const dulceDur = (await probe(inputs.dulce)).duration, oceanDur = (await probe(inputs.ocean)).duration;
+  const montage = async (name: string, audio: string, picks: { file: string; at: number }[], extra = "") => {
+    const dur = (await probe(audio)).duration + 0.25;
+    const each = dur / picks.length;
+    const args: string[] = [];
+    picks.forEach((p) => args.push("-ss", p.at.toFixed(2), "-t", each.toFixed(3), "-i", p.file));
+    args.push("-i", audio);
+    const chains = picks.map((_, i) => `${vertical(`${i}:v`).replaceAll("[bg]", `[bg${i}]`).replaceAll("[fg]", `[fg${i}]`)},setsar=1,fps=${FPS},trim=duration=${each.toFixed(3)},setpts=PTS-STARTPTS[v${i}]`);
+    const concat = `${picks.map((_, i) => `[v${i}]`).join("")}concat=n=${picks.length}:v=1:a=0[mv]`;
+    const filter = `${chains.join(";")};${concat};[mv]${extra || "null"}[vout];[${picks.length}:a]apad=whole_dur=${dur.toFixed(3)}[aout]`;
+    await ff([...args, "-filter_complex", filter, "-map", "[vout]", "-map", "[aout]", "-t", dur.toFixed(3), ...enc, seg(name)]);
+    return dur;
+  };
+  const D = (f: number) => ({ file: inputs.dulce, at: dulceDur * f });
+  const O = (f: number) => ({ file: inputs.ocean, at: oceanDur * f });
+  const esc = (t: string) => t.replace(/:/g, "\\:").replace(/'/g, "\u2019");
+  const label = (text: string, from: number, to: number, y = 330, size = 104) => `drawtext=fontfile=${FONT}:text='${esc(text)}':fontcolor=white:fontsize=${size}:x=(w-tw)/2:y=${y}:borderw=6:bordercolor=black@0.85:enable='between(t,${from.toFixed(2)},${to.toFixed(2)})'`;
+
+  // Apertura y cierre reales retocados.
+  await ff(["-i", real.opening.file, ...enc, seg("opening")]);
+  await ff(["-i", real.closing.file, ...enc, seg("closing")]);
+  // Avatar: retrato vertical a pantalla completa con su propia voz.
+  await ff(["-i", avatarFile, "-i", tts.avatar.file, "-filter_complex", `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${FPS},setsar=1[v]`, "-map", "[v]", "-map", "1:a", "-shortest", ...enc, seg("avatar")]);
+  // Demo: IDEA → GUION → VOZ → VISUALES → MOVIMIENTO → MÚSICA → VIDEO sincronizado con la voz.
+  const dw = tts.demo.words;
+  const at = (i: number) => dw[Math.min(i, dw.length - 1)]?.start ?? 0;
+  const steps: [string, number, number][] = [["IDEA", 0, at(0)], ["GUION", at(0), at(1)], ["VOZ", at(1), at(2)], ["VISUALES", at(2), at(3)], ["MOVIMIENTO", at(3), at(4)], ["MÚSICA", at(4), at(5)], ["SUBTÍTULOS", at(5), at(6)], ["VIDEO", at(6), 99]];
+  const demoDur = await montage("demo", tts.demo.file, [O(0.15), D(0.12), O(0.4), D(0.38), O(0.7), D(0.62)], [
+    ...steps.map(([t, a, b]) => label(t, a, b)),
+    `drawtext=fontfile=${FONT}:text='IDEA → GUION → VOZ → VISUALES → MOVIMIENTO → MÚSICA → VIDEO':fontcolor=white@0.8:fontsize=30:x=(w-tw)/2:y=470:borderw=3:bordercolor=black@0.7`,
+  ].join(","));
+  // Resultados: cortes rápidos de producciones reales (DULCE primero, luego Océano).
+  const resultsDur = await montage("results", tts.results.file, [D(0.2), D(0.45), O(0.3), D(0.7), O(0.85)], label("HECHO CON ATOMIVID", 0, 99, 300, 70));
+  // Reveal: el beat principal, con espacio y "CREATED WITH ATOMIVID".
+  const rw = tts.reveal.words;
+  const createdAt = rw.find((w) => /creado/i.test(w.text))?.start ?? 2;
+  const revealDur = await montage("reveal", tts.reveal.file, [O(0.55), D(0.85)], label("CREATED WITH ATOMIVID", createdAt, 99, 330, 88));
+  // End card ≤ 1.2 s: marca tipográfica + claim (el repo no tiene logotipo de marca), fondo oscuro de marca (no negro puro).
+  const END = 1.2;
+  await ff(["-f", "lavfi", "-i", `color=c=0x0d1220:s=${W}x${H}:d=${END}:r=${FPS}`, "-f", "lavfi", "-i", `anullsrc=r=48000:cl=stereo`, "-filter_complex",
+    `[0:v]drawbox=x=(iw-220)/2:y=760:w=220:h=8:color=0x7fd3ff:t=fill,drawtext=fontfile=${FONT}:text='ATOMIVID':fontcolor=white:fontsize=170:x=(w-tw)/2:y=800,drawtext=fontfile=${FONT}:text='Tu idea. Tu video.':fontcolor=white:fontsize=72:x=(w-tw)/2:y=1030,drawtext=fontfile=${FONT}:text='Próximamente.':fontcolor=0x7fd3ff:fontsize=58:x=(w-tw)/2:y=1140[v]`,
+    "-map", "[v]", "-map", "1:a", "-t", String(END), ...enc, seg("end")]);
+
+  // ---------- Ensamblado: corte tecnológico (pixelado breve) Hans real → avatar ----------
+  const order = ["opening", "avatar", "demo", "results", "reveal", "closing", "end"];
+  const durs: Record<string, number> = {};
+  for (const n of order) durs[n] = (await probe(seg(n))).duration;
+  const XF = 0.3;
+  const inputsArgs = order.flatMap((n) => ["-i", seg(n)]);
+  const vchain = [`[0:v][1:v]xfade=transition=pixelize:duration=${XF}:offset=${(durs.opening - XF).toFixed(3)}[x01]`, `[x01]${order.slice(2).map((_, i) => `[${i + 2}:v]`).join("")}concat=n=${order.length - 1}:v=1:a=0[vcat]`];
+  const achain = [`[0:a][1:a]acrossfade=d=${XF}[a01]`, `[a01]${order.slice(2).map((_, i) => `[${i + 2}:a]`).join("")}concat=n=${order.length - 1}:v=0:a=1[voice]`];
+  const assembled = join(WORK, "assembled.mp4");
+  await ff([...inputsArgs, "-filter_complex", [...vchain, ...achain].join(";"), "-map", "[vcat]", "-map", "[voice]", ...enc, assembled]);
+  const total = (await probe(assembled)).duration;
+
+  // ---------- Subtítulos dinámicos (ASS): palabra resaltada, ATOMIVID destacado, zona segura ----------
+  const offsets: Record<string, number> = {};
+  let t = 0;
+  for (const n of order) { offsets[n] = n === "avatar" ? t - XF : t; t = offsets[n] + durs[n]; }
+  const timeline: Word[] = [
+    ...real.opening.words.map((w) => ({ ...w, start: w.start + offsets.opening, end: w.end + offsets.opening })),
+    ...(["avatar", "demo", "results", "reveal"] as const).flatMap((k) => tts[k].words.map((w) => ({ ...w, start: w.start + offsets[k], end: w.end + offsets[k] }))),
+    ...real.closing.words.map((w) => ({ ...w, start: w.start + offsets.closing, end: w.end + offsets.closing })),
+  ];
+  const ts = (s: number) => { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = (s % 60).toFixed(2).padStart(5, "0"); return `${h}:${String(m).padStart(2, "0")}:${x}`; };
+  const chunks: Word[][] = [];
+  for (const w of timeline) {
+    const cur = chunks.at(-1);
+    if (!cur || cur.length >= 3 || /[.,…?!]$/.test(cur.at(-1)!.text) || w.start - cur.at(-1)!.end > 0.4) chunks.push([w]); else cur.push(w);
+  }
+  const events: string[] = [];
+  chunks.forEach((c, ci) => {
+    const next = chunks[ci + 1]?.[0].start ?? Infinity;
+    const end = Math.min(c.at(-1)!.end + 0.08, next);
+    c.forEach((w, i) => {
+      const from = w.start, to = i === c.length - 1 ? end : c[i + 1].start;
+      const text = c.map((x, j) => {
+        const brand = /ATOMIVID/i.test(x.text);
+        const col = j === i ? "&H0000D7FF&" : brand ? "&H00FFD37F&" : "&H00FFFFFF&";
+        return `{\\c${col}}${x.text.toUpperCase()}`;
+      }).join(" ");
+      events.push(`Dialogue: 0,${ts(from)},${ts(to)},Cap,,0,0,0,,${text}`);
+    });
+  });
+  const ass = [
+    "[Script Info]", "ScriptType: v4.00+", `PlayResX: ${W}`, `PlayResY: ${H}`, "",
+    "[V4+ Styles]", "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+    "Style: Cap,Anton,82,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,0,0,0,0,100,100,1,0,1,6,2,2,140,160,560,1", "",
+    "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text", ...events, "",
+  ].join("\n");
+  const assPath = join(WORK, "captions.ass");
+  await writeFile(assPath, ass);
+
+  // ---------- Música curada con ducking bajo la voz + normalización para redes ----------
+  const master = join(OUT, "ATOMIVID-precampaign-teaser-v1.mp4");
+  const fontsDir = resolve("public/fonts");
+  await ff(["-i", assembled, "-stream_loop", "-1", "-i", inputs.music, "-filter_complex",
+    `[0:v]subtitles=${assPath}:fontsdir=${fontsDir}[v];` +
+    `[1:a]atrim=0:${total.toFixed(3)},volume=0.32,afade=t=in:d=0.6,afade=t=out:st=${(total - 1.2).toFixed(3)}:d=1.2[m];` +
+    `[0:a]asplit=2[vo][sc];[m][sc]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=300[md];` +
+    `[vo][md]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[a]`,
+    "-map", "[v]", "-map", "[a]", "-t", total.toFixed(3), "-c:v", "libx264", "-crf", "18", "-preset", "slow", "-pix_fmt", "yuv420p", "-r", String(FPS), "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", master]);
+
+  // ---------- QA automático (metadatos + señal; la revisión visual es humana con la hoja de contactos) ----------
+  const m = await probe(master);
+  const blk = await sh(FFMPEG, ["-hide_banner", "-i", master, "-vf", "blackdetect=d=0.25:pix_th=0.08", "-an", "-f", "null", "-"], { maxBuffer: 16 << 20 }).catch((e: { stderr?: string }) => ({ stderr: e.stderr ?? "" }));
+  const blackIntervals = [...blk.stderr.matchAll(/black_start:([\d.]+) black_end:([\d.]+)/g)].map((x) => [Number(x[1]), Number(x[2])]);
+  const lufs = await sh(FFMPEG, ["-hide_banner", "-i", master, "-af", "ebur128=peak=true", "-f", "null", "-"], { maxBuffer: 16 << 20 }).catch((e: { stderr?: string }) => ({ stderr: e.stderr ?? "" }));
+  const integrated = Number(/I:\s+(-?[\d.]+) LUFS/.exec(lufs.stderr.split("Summary:").at(-1) ?? "")?.[1]);
+  const truePeak = Number(/Peak:\s+(-?[\d.]+) dBFS/.exec(lufs.stderr.split("Summary:").at(-1) ?? "")?.[1]);
+  const first = await sh(FFMPEG, ["-hide_banner", "-i", master, "-vf", "select=eq(n\\,0),signalstats,metadata=print", "-frames:v", "1", "-f", "null", "-"], { maxBuffer: 16 << 20 }).catch((e: { stderr?: string }) => ({ stderr: e.stderr ?? "" }));
+  const firstYavg = Number(/YAVG=([\d.]+)/.exec(first.stderr)?.[1]);
+  await ff(["-i", master, "-vf", "fps=1/1.5,scale=216:-2,tile=6x4", "-frames:v", "1", join(OUT, "contact-sheet.jpg")]);
+  for (const [n, off] of Object.entries(offsets)) await ff(["-ss", (off + Math.min(1, durs[n] / 2)).toFixed(2), "-i", master, "-frames:v", "1", "-vf", "scale=540:-2", join(OUT, `frame-${n}.jpg`)]);
+  await ff(["-i", master, "-vf", "scale=540:960", "-c:v", "libx264", "-crf", "26", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", join(OUT, "preview-540p.mp4")]);
+
+  const qa = {
+    resolution: `${m.width}x${m.height}`, fps: Math.round(m.fps * 1000) / 1000, durationSeconds: Math.round(m.duration * 100) / 100, hasAudio: m.hasAudio,
+    checks: {
+      resolution1080x1920: m.width === W && m.height === H, fps30: Math.abs(m.fps - FPS) < 0.05, duration30to36: m.duration >= 30 && m.duration <= 36,
+      audioPresent: m.hasAudio, firstFrameVisual: firstYavg > 16, noAccidentalBlack: blackIntervals.length === 0, noClipping: truePeak <= -1.0,
+    },
+    loudnessLufs: integrated, truePeakDbfs: truePeak, firstFrameYavg: firstYavg, blackIntervals,
+    sections: Object.fromEntries(order.map((n) => [n, { start: Math.round(offsets[n] * 100) / 100, duration: Math.round(durs[n] * 100) / 100 }])),
+    retouch: { tools: "ffmpeg (hqdn3d, bilateral, curves, colorbalance, eq, unsharp)", localRetouchLimitReached: true, note: "Sin detección facial local: el suavizado y el color se aplican a todo el plano con parámetros leves; sin cambios de geometría." },
+    humanReviewRequired: ["identidad preservada", "piel natural", "avatar sin deformación", "transición", "subtítulos sobre el rostro", "selección de planos de DULCE/Océano", "pronunciación de ATOMIVID"],
+    notes,
+  };
+  const costReport = { capUsd: CAP, spentUsd: Math.round(spent() * 10000) / 10000, operations: costs };
+  const manifest = {
+    teaser: "ATOMIVID_PRECAMPAIGN_TEASER_V1",
+    reused: {
+      HANS_OPENING_REAL: process.env.TEASER_OPENING_PATH, HANS_CLOSING_REAL: process.env.TEASER_CLOSING_PATH,
+      voice: process.env.TEASER_VOICE_ID, avatar: process.env.TEASER_AVATAR_ID,
+      dulce: "videos/dulce-001/full-v1/final (manifest + partes)", ocean: "videos/ocean-deep-001/samples/episode/sample-approval-motion-production-check.mp4",
+      music: `music-library/${process.env.TEASER_MUSIC_PATH ?? "elevenlabs-corporate-2.mp3"}`, font: "public/fonts/Anton-Regular.ttf",
+    },
+    generated: costs.map((c) => `${c.provider}:${c.operation}${c.reused ? " (reutilizado)" : ""}`),
+    excluded: ["VIDEO-004 / Termópilas", "OpenAI Images", "Runway", "Veo", "Beatoven"],
+  };
+  await writeFile(join(OUT, "qa-report.json"), JSON.stringify(qa, null, 2) + "\n");
+  await writeFile(join(OUT, "cost-report.json"), JSON.stringify(costReport, null, 2) + "\n");
+  await writeFile(join(OUT, "asset-manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
+  if (service) {
+    const bytes = await readFile(master);
+    await service.storage.from("videos").upload(`${PROJECT}/output/ATOMIVID-precampaign-teaser-v1.mp4`, bytes, { contentType: "video/mp4", upsert: true });
+  }
+  console.log(JSON.stringify({ qa, costReport }, null, 2));
+}
+
+main().catch((err) => {
+  console.error("Producción del teaser detenida:", err instanceof Error ? err.message : err);
+  process.exit(1);
+});

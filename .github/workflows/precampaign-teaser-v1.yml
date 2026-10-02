@@ -1,13 +1,25 @@
-name: ATOMIVID precampaign teaser V1 (descubrimiento sin gasto)
+name: ATOMIVID precampaign teaser V1
 
 # Producción controlada de marketing — SOLO ejecución manual. Esta versión solo hace el
 # descubrimiento de solo lectura (scripts/precampaign-teaser/discover.ts): comprueba los dos
 # clips reales de Hans subidos al bucket privado "videos", el avatar y la voz indicados por id
 # y los assets a reutilizar. No recibe ninguna clave de proveedor pagado: gasto USD 0.00.
-# La etapa de producción se añadirá solo tras autorizar el PRECAMPAIGN_SPEND_PLAN.
+# stage=produce + confirm=PRODUCIR (autorizado, tope absoluto USD 1.03) ejecuta
+# scripts/precampaign-teaser/produce.ts: voz clonada existente (ElevenLabs) y avatar existente
+# (HeyGen) por el gate de pago + ledger; montaje y retoque locales con ffmpeg. No publica nada.
 on:
   workflow_dispatch:
     inputs:
+      stage:
+        description: "discover (sin gasto) o produce (gasto autorizado, tope USD 1.03)"
+        required: true
+        type: choice
+        options: [discover, produce]
+        default: discover
+      confirm:
+        description: "Escribir PRODUCIR para habilitar las claves pagadas en stage=produce"
+        required: false
+        type: string
       opening_path:
         description: "Ruta en el bucket 'videos' del clip HANS_OPENING_REAL (1080x1920, 30 fps)"
         required: false
@@ -59,6 +71,7 @@ concurrency:
 
 jobs:
   discover:
+    if: inputs.stage != 'produce'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -98,3 +111,49 @@ jobs:
           path: teaser-discovery/
           if-no-files-found: ignore
           retention-days: 3
+
+  produce:
+    if: inputs.stage == 'produce' && inputs.confirm == 'PRODUCIR'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Instalar ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg && ffmpeg -version | head -1
+
+      - name: Producir teaser (gate de pago + ledger, tope USD 1.03)
+        run: npx tsx scripts/precampaign-teaser/produce.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
+          TEASER_HARD_CAP_USD: "1.03"
+          TEASER_OPENING_PATH: ${{ inputs.opening_path }}
+          TEASER_CLOSING_PATH: ${{ inputs.closing_path }}
+          TEASER_AVATAR_ID: ${{ inputs.avatar_id }}
+          TEASER_VOICE_ID: ${{ inputs.voice_id }}
+
+      - name: Publicar master, preview e informes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: precampaign-teaser-v1-output
+          path: |
+            teaser-output/*.mp4
+            teaser-output/*.jpg
+            teaser-output/*.json
+            teaser-output/work/captions.ass
+          if-no-files-found: ignore
+          retention-days: 7
