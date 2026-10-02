@@ -16,6 +16,7 @@ const FILES = [
   "video-gen/runway.ts",
   "music/beatoven.ts",
   "avatar/heygen.ts",
+  "vfx/luma.ts",
 ];
 
 const DANGEROUS_TOKENS = [
