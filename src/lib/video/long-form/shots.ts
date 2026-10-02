@@ -111,6 +111,20 @@ function productMotion(type: ShotType): ShotMotion {
   return "static";
 }
 
+/** The number of shots a beat span is split into (same rule for planning, reservation and execution). */
+export function shotCountForSpan(span: number, target?: number): number {
+  let count = Math.max(2, Math.round(span / 4));
+  while (span / count > MAX_HOLD) count += 1;
+  while (count > 2 && span / count < MIN_HOLD) count -= 1;
+  if (target !== undefined && Number.isInteger(target) && target >= 2 && span / target >= MIN_HOLD && span / target <= MAX_HOLD) {
+    count = target;
+  }
+  return count;
+}
+
+/** PI V2 B5.2: stable id of a beat visual (index in visualsForBeat), keyed with the production for reservations. */
+export const motionVisualId = (beatId: string, visualIndex: number) => `${beatId}-v${visualIndex}`;
+
 /**
  * Split a beat into 3–8s shots. Never returns a single image for the beat.
  * Sin `visuals`/`strategy` (CLI/fixtures) conserva exactamente el
@@ -142,13 +156,7 @@ export function shotsForSpan(input: {
 }): Shot[] {
   const span = input.endSec - input.startSec;
   if (!(span > 0)) throw new Error(`Beat ${input.beatId} has non-positive span`);
-  let count = Math.max(2, Math.round(span / 4));
-  while (span / count > MAX_HOLD) count += 1;
-  while (count > 2 && span / count < MIN_HOLD) count -= 1;
-  const target = input.targetCount;
-  if (target !== undefined && Number.isInteger(target) && target >= 2 && span / target >= MIN_HOLD && span / target <= MAX_HOLD) {
-    count = target;
-  }
+  const count = shotCountForSpan(span, input.targetCount);
   const hold = span / count;
   if (hold < MIN_HOLD - 0.05 || hold > MAX_HOLD + 0.05) {
     throw new Error(`Beat ${input.beatId} span ${span}s cannot be split into ${MIN_HOLD}-${MAX_HOLD}s shots`);
@@ -161,7 +169,8 @@ export function shotsForSpan(input: {
     const start = input.startSec + i * hold;
     const end = i === count - 1 ? input.endSec : input.startSec + (i + 1) * hold;
     const cycled = cycleShotType(i + (input.typeOffset ?? 0), input.strategy);
-    const visual = input.visuals && input.visuals.length > 0 ? input.visuals[i % input.visuals.length] : undefined;
+    const visualIndex = input.visuals && input.visuals.length > 0 ? i % input.visuals.length : -1;
+    const visual = visualIndex >= 0 ? input.visuals![visualIndex] : undefined;
     const shotType = visual?.motion ? motionShotType(cycled) : cycled;
     if (visual) {
       shots.push({
@@ -175,6 +184,7 @@ export function shotsForSpan(input: {
         assetId: `${input.beatId}-${i}`,
         visualIntent: visual.description,
         motionRequired: visual.motion || undefined,
+        motionVisualId: visual.motion ? motionVisualId(input.beatId, visualIndex) : undefined,
         motion: productMotion(shotType),
         captionText: input.narration,
         license: "resolved-at-execution",
@@ -251,6 +261,7 @@ function anchoredShots(
       assetId: `${input.beatId}-${i}`,
       visualIntent: intent.visual.description,
       motionRequired: intent.visual.motion || undefined,
+      motionVisualId: intent.visual.motion ? motionVisualId(input.beatId, intent.visualIndex) : undefined,
       motion: productMotion(shotType),
       captionText: fragment,
       narrationFragment: fragment,

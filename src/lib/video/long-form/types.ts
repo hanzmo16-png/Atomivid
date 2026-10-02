@@ -121,6 +121,10 @@ export type Shot = {
   anchoredVisual?: import("./visual-intents").BeatVisual;
   /** Cómo se ancló: índice de la intención en el beat, escenas previas con la misma intención, y por qué criterio. */
   intentAnchor?: { visualIndex: number; reuseIndex: number; anchoredBy: "quote" | "order" };
+  /** PI V2 B5.2 (RB-08): id of the motion:true visual this shot shows (`${beatId}-v${index}`). */
+  motionVisualId?: string;
+  /** PI V2 B5.2: the reserved stock clip (durable record id) this motion shot must consume. */
+  motionClipRef?: string;
 
   // --- Campos RESERVADOS para la futura capa musical (no implementada
   // todavía, ver sección 5 del encargo P1) — ningún código los lee o

@@ -57,6 +57,8 @@ import {
   limitsWithinAllocation,
   strategyLimits,
   usesAnchoredVisuals,
+  estimateNarrationSeconds,
+  MotionRequiredUnsatisfiableError,
   type ProductionPlan,
 } from "./production-plan";
 import { DocumentAssetRegistry, type AssetIdentity } from "./asset-identity";
@@ -65,7 +67,9 @@ import { ProductionBudget, supabaseBudgetStore, type BudgetStore } from "./produ
 import { supabaseShotAssetStore, type ShotAssetStore } from "./durable-shot-assets";
 import type { LedgerStore } from "@/lib/paid-calls/gate";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
-import { executeShot, MotionShotUnavailableError, preflightMotionFootage, type ShotExecution } from "./shot-executor";
+import { bindMotionReservations, executeShot, MotionShotUnavailableError, reserveMotionClips, STOCK_CLIP_MARGIN_SEC, type MotionVisualDemand, type ReservedMotionClip, type ShotExecution } from "./shot-executor";
+import { motionVisualId, shotCountForSpan } from "./shots";
+import type { Shot } from "./types";
 import { type LongFormStage } from "./stages";
 import {
   finalizeLongFormOutput,
@@ -129,6 +133,27 @@ export type LongFormRuntime = {
    */
   soundCues?: RenderLongFormDocInput["soundCues"];
 };
+
+/**
+ * PI V2 B5.2: what each motion:true visual must have reserved before TTS. Shots in its beat = the
+ * v3 pin if present, else the planner's count for the estimated span (words / calibrated speech
+ * rate); one extra clip of margin. Minimum clip length = estimated shot length + clip margin.
+ */
+export function motionDemands(beats: readonly LongFormScriptBeatInput[], topic: string, pinned?: Record<string, number>): MotionVisualDemand[] {
+  const out: MotionVisualDemand[] = [];
+  for (const beat of beats) {
+    const visuals = visualsForBeat(beat as { narration: string; visuals?: unknown }, topic);
+    if (!visuals.some((v) => v.motion)) continue;
+    const span = estimateNarrationSeconds(beat.narration);
+    const pin = pinned?.[beat.id];
+    const count = typeof pin === "number" && pin >= 2 ? pin : shotCountForSpan(span);
+    const minDurationSec = Math.ceil((span / count) * 10) / 10 + STOCK_CLIP_MARGIN_SEC;
+    visuals.forEach((visual, i) => {
+      if (visual.motion) out.push({ visualId: motionVisualId(beat.id, i), visual, clips: count + 1, minDurationSec });
+    });
+  }
+  return out;
+}
 
 export class LongFormReplayError extends Error {
   constructor(reason: string) {
@@ -203,9 +228,6 @@ export async function generateLongFormVideoFromScript({
   // Abrir el presupuesto (gratis) ANTES de cualquier llamada pagada: si el
   // storage no responde, el trabajo falla aquí con $0 gastado.
   const budgetStore = runtime.budgetStore ?? supabaseBudgetStore(supabase, requestId, STORAGE_BUCKET);
-  // A durable budget only exists if an earlier attempt of this request already ran (and passed the
-  // motion check below before spending). A failed read counts as "first attempt": check again.
-  const priorAttempt = (await budgetStore.load().catch(() => null)) !== null;
   const budget = await ProductionBudget.open(budgetStore, allocation);
   const units = getGenerativeUnitCosts(plan.providers.aiVideo);
   // Fail before speech/image spend if a Runway plan cannot actually animate.
@@ -216,16 +238,27 @@ export async function generateLongFormVideoFromScript({
     }
   }
   const uploadArtifact = runtime.uploadArtifact ?? ((path: string, buffer: Buffer, ct: string) => uploadToStorage(supabase, path, buffer, ct));
-  // PI V2 B5.1 (RB-08): a visual with motion:true only admits stock video or AI video, and stock
-  // video is the fallback when AI video is refused. Without moving stock footage for it the
-  // production fails here — before TTS or any other paid call — instead of degrading to stills.
-  if (!replayOnly && !priorAttempt) {
-    await preflightMotionFootage(
-      beats.flatMap((b) => visualsForBeat(b as { narration: string; visuals?: unknown }, topic)),
-      resolvedProviders.footageProvider,
-      { anchored: usesAnchoredVisuals(plan) },
-    );
-  }
+  // PI V2 B5.1/B5.2 (RB-08): a visual with motion:true only admits stock video or AI video, and
+  // stock video is the fallback when AI video is refused. BEFORE TTS or any paid call, each such
+  // visual gets its concrete moving clips reserved (durable, keyed by production + visual): as many
+  // as the beat can have shots plus one of margin, each long enough for the estimated shot plus the
+  // clip margin. A visual that cannot fill its quota stops the production here. A retry reads the
+  // durable reservation (no new search); replay never searches.
+  const loadMotionReservations = async (): Promise<Map<string, ReservedMotionClip[]>> => {
+    try {
+      return await reserveMotionClips(
+        motionDemands(beats, topic, plan.beatShotCounts),
+        { footageProvider: resolvedProviders.footageProvider, store, identify: runtime.identify },
+        { searchAllowed: !replayOnly },
+      );
+    } catch (err) {
+      if (replayOnly && err instanceof MotionRequiredUnsatisfiableError) throw new LongFormReplayError(err.message);
+      throw err;
+    }
+  };
+  // Live runs reserve strictly before TTS. Replay calls no provider at all, so it reads the durable
+  // reservation after its cached narration (a missing narration is reported first, as before).
+  let motionReservations = replayOnly ? new Map<string, ReservedMotionClip[]>() : await loadMotionReservations();
 
   await onProgress?.("scripting");
   await onProgress?.("storyboard", { completed: 0, total: beats.length, label: "narraciones" });
@@ -294,7 +327,16 @@ export async function generateLongFormVideoFromScript({
     strategyLimits(plan.strategy, plan.estimatedVoiceCostUsd ?? 0, { aiVideoEnabled, units }),
     allocation,
   );
-  const allShots = timeline.beats.flatMap((b) => b.shots);
+  if (replayOnly) motionReservations = await loadMotionReservations();
+  // PI V2 B5.2: each motion shot is bound to its reserved clip; a shot longer than its clip allows is
+  // split and consumes the next reserved clip. No search happens after TTS.
+  let allShots: Shot[];
+  try {
+    allShots = bindMotionReservations(timeline.beats.flatMap((b) => b.shots), motionReservations);
+  } catch (err) {
+    if (replayOnly && err instanceof MotionShotUnavailableError) throw new LongFormReplayError(err.message);
+    throw err;
+  }
   const allocated = allocateShotTypes(allShots, timeline.durationSeconds, limits);
   if (plannedShotCounts && allShots.length !== plan.shotCount && !replayOnly) {
     // Nunca en silencio: la duración real narrada no permitió respetar el
@@ -338,6 +380,8 @@ export async function generateLongFormVideoFromScript({
   // reintento nunca reutilice en otra escena un recurso ya usado.
   const priorTextDeviations = new Set(budget.snapshot().deviations.filter((d) => d.executed === "text").map((d) => d.shotId));
   const registry = anchored ? new DocumentAssetRegistry() : undefined;
+  // Reserved motion clips belong to their motion shots: other scenes never reuse them.
+  for (const clips of motionReservations.values()) for (const c of clips) if (c.identity) registry?.register(c.ref, c.identity);
   if (registry) {
     for (let i = 0; i < allocated.shots.length; i += 10) {
       await Promise.all(

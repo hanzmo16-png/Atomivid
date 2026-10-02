@@ -61,6 +61,8 @@ export type ShotAssetRecord = {
   identity?: AssetIdentity;
   provenance?: AssetProvenance;
   selection?: AssetSelectionTrace;
+  /** PI V2 B5.2: duration of a reserved moving stock clip (provider-reported), checked against the shot. */
+  clipDurationSec?: number;
 };
 
 export interface ShotAssetStore {

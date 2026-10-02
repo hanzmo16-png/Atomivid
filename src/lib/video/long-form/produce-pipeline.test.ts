@@ -17,6 +17,8 @@ import type { LongFormProviderSet } from "./mode";
 import type { RenderLongFormDocInput } from "./render";
 import { memoryOutputDeps } from "./output-finalize";
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
+import { visualsForBeat } from "./visual-intents";
+import { selectionQueries } from "./stock-selection";
 
 /**
  * Prueba de integración del pipeline REAL de producción de Long Form
@@ -514,4 +516,91 @@ test("B5.1-3: el solver nunca asigna Ken Burns, imagen IA ni tarjeta a una escen
   for (const s of motion) assert.ok(s.type === "stock_video" || s.type === "ai_video", `${s.id}: ${s.type}`);
   assert.ok(still.some((s) => s.type === "ken_burns_image" && s.plannedType === "generated_placeholder"), "motion:false con imágenes agotadas sigue cayendo a Ken Burns");
   assert.throws(() => allocateShotTypes(shots, narrationSeconds, { ...noBudget, movingStockAvailable: false }), MotionRequiredUnsatisfiableError);
+});
+
+// --- PI V2 B5.2 (RB-08): reserva por visual antes de la voz; la ejecución solo la consume ---
+
+function loggedProviders(c: ReturnType<typeof counters>, log: string[], footage?: FootageProvider): Partial<LongFormProviderSet> {
+  const base = providers(c);
+  const f = footage ?? base.footageProvider;
+  const footageProvider: FootageProvider = {
+    ...f,
+    name: f.name,
+    fetchFootage: (...a) => (log.push(`stock:${a[0]}`), f.fetchFootage(...a)),
+    downloadFootage: (url) => f.downloadFootage(url),
+    ...(f.searchVideoCandidates ? { searchVideoCandidates: (...a: Parameters<NonNullable<FootageProvider["searchVideoCandidates"]>>) => (log.push(`stock:${a[0]}`), f.searchVideoCandidates!(...a)) } : {}),
+    ...(f.searchImageCandidates ? { searchImageCandidates: (...a: Parameters<NonNullable<FootageProvider["searchImageCandidates"]>>) => (log.push("stock-image"), f.searchImageCandidates!(...a)) } : {}),
+  };
+  const voiceProvider: VoiceProvider = { name: base.voiceProvider.name, synthesize: (...a) => (log.push("voice"), base.voiceProvider.synthesize(...a)) };
+  return { footageProvider, voiceProvider };
+}
+
+test("B5.2-1: hay video, pero ningún candidato cumple los criterios reales (irrelevante o demasiado corto) → falla ANTES de la voz; voz, imagen IA, Veo y render en 0", async () => {
+  for (const kind of ["irrelevante", "corto"] as const) {
+    const c = counters();
+    const bad: FootageProvider = {
+      name: "pexels-video-first",
+      async fetchFootage() { throw new Error("no se usa"); },
+      async searchVideoCandidates(query) {
+        c.stock += 1;
+        return Array.from({ length: 12 }, (_, i) => ({
+          url: `https://stock/v/${kind}/${encodeURIComponent(query)}/${i}.mp4`,
+          sourceId: `${kind}-${query}-${i}`,
+          description: kind === "irrelevante" ? "cat sleeping on a sofa" : query,
+          mediaType: "video" as const,
+          mimeType: "video/mp4",
+          extension: "mp4",
+          durationSeconds: kind === "corto" ? 2 : 30,
+        }));
+      },
+      async downloadFootage(url) { return Buffer.from(url); },
+    };
+    const renders = { count: 0 };
+    await assert.rejects(run(freshEnv(), c, planFor("economical"), { videoProvider: null, providersOverride: { footageProvider: bad }, renders }), MotionRequiredUnsatisfiableError);
+    assert.ok(c.stock > 0, "sí había candidatos de video");
+    assert.deepEqual({ voice: c.voice, image: c.image, veoSubmits: c.veoSubmits, renders: renders.count }, { voice: 0, image: 0, veoSubmits: 0, renders: 0 }, kind);
+  }
+});
+
+test("B5.2-2: reserva llena → cada escena motion sale como video de SU clip reservado; 0 búsquedas de las visuales motion después de la voz; 0 imágenes IA", async () => {
+  const c = counters();
+  const log: string[] = [];
+  const env = freshEnv({ durationSeconds: 180 });
+  const { renderInput } = await run(env, c, planFor("economical"), { videoProvider: null, providersOverride: loggedProviders(c, log) });
+  const firstVoice = log.indexOf("voice");
+  assert.ok(firstVoice > 0, "la reserva buscó antes de la primera voz");
+  // Las escenas motion:false conservan su búsqueda normal (sin cambios); ninguna búsqueda de una visual motion:true tras la voz.
+  const script0 = documentary180sFixture();
+  const motionQueries = new Set(script0.beats.flatMap((b) => visualsForBeat(b as { narration: string; visuals?: unknown }, script0.topic)).filter((v) => v.motion).flatMap((v) => selectionQueries(v)));
+  assert.ok(log.slice(0, firstVoice).some((e) => motionQueries.has(e.replace(/^stock:/, ""))), "la reserva usó las consultas de las visuales motion:true");
+  assert.deepEqual(log.slice(firstVoice).filter((e) => e.startsWith("stock:") && motionQueries.has(e.slice(6))), [], "ninguna búsqueda de una visual motion:true después de la voz");
+  assert.equal(c.image, 0);
+  const reserved = [...env.mem.records.values()].filter((r) => r.shotId.startsWith("motionres-"));
+  assert.ok(reserved.length > 0);
+  const motionScenes = renderInput!.scenes.filter((s) => s.asset.kind === "media" && s.asset.url.includes("/motionres-"));
+  assert.ok(motionScenes.length > 0);
+  const script = documentary180sFixture();
+  const { shots } = planShotsFromScript(script.beats, script.topic, "economical");
+  const motionIds = new Set(shots.filter((s) => s.motionRequired).map((s) => s.id));
+  for (const scene of renderInput!.scenes.filter((s) => motionIds.has(s.id))) {
+    assert.ok(scene.asset.kind === "media" && scene.asset.mediaType === "video" && scene.asset.url.includes("/motionres-"), `${scene.id} usa un clip reservado`);
+  }
+  const used = motionScenes.map((s) => (s.asset.kind === "media" ? s.asset.url : ""));
+  assert.equal(new Set(used).size, used.length, "cada clip reservado se consume una sola vez");
+});
+
+test("B5.2-4: retry con reserva persistida → 0 búsquedas nuevas, 0 voz nueva, mismos clips", async () => {
+  const c = counters();
+  const log: string[] = [];
+  const env = freshEnv({ durationSeconds: 180, transientUploadFailures: 1 });
+  const first = await run(env, c, planFor("economical"), { videoProvider: null, providersOverride: loggedProviders(c, log) }).catch(() => null);
+  assert.equal(first, null, "el primer intento falla en la subida");
+  const before = { ...c, log: log.length };
+  const reservedBefore = [...env.mem.records.values()].filter((r) => r.shotId.startsWith("motionres-")).map((r) => `${r.shotId}:${r.objectPath}`).sort();
+  const { renderInput } = await run(env, c, planFor("economical"), { videoProvider: null, providersOverride: loggedProviders(c, log) });
+  assert.deepEqual(log.slice(before.log), [], "el reintento no busca stock ni sintetiza voz");
+  assert.deepEqual({ voice: c.voice, image: c.image, veoSubmits: c.veoSubmits }, { voice: before.voice, image: before.image, veoSubmits: before.veoSubmits });
+  const reservedAfter = [...env.mem.records.values()].filter((r) => r.shotId.startsWith("motionres-")).map((r) => `${r.shotId}:${r.objectPath}`).sort();
+  assert.deepEqual(reservedAfter, reservedBefore, "la identidad de la reserva no cambia");
+  assert.ok(renderInput!.scenes.some((s) => s.asset.kind === "media" && s.asset.url.includes("/motionres-")));
 });

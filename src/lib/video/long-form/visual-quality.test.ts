@@ -307,22 +307,35 @@ test("muestra inicial (≤ 60 s) del fixture: 0 recursos repetidos, cada escena 
   });
   // PI V2 B5.1: las escenas motion:true del fixture solo admiten video — el catálogo también ofrece
   // clips (mismas reglas: 3 pertinentes + 1 ajeno en todas las búsquedas).
-  catalog.searchVideoCandidates = async (q: string) => [
+  const videoQueries: string[] = [];
+  catalog.searchVideoCandidates = async (q: string) => (videoQueries.push(q), [
     { ...candidate("generic-doorway-man-clip", "man standing in a doorway", "https://cdn.example/generic-doorway-man-clip.mp4"), mediaType: "video" as const, mimeType: "video/mp4", extension: "mp4", durationSeconds: 12 },
-    ...[0, 1, 2].map((i) => ({ ...candidate(`${q}-clip-${i}`, q, `https://cdn.example/${encodeURIComponent(q)}-clip-${i}.mp4`), mediaType: "video" as const, mimeType: "video/mp4", extension: "mp4", durationSeconds: 12 })),
-  ];
+    ...Array.from({ length: 12 }, (_, i) => ({ ...candidate(`${q}-clip-${i}`, q, `https://cdn.example/${encodeURIComponent(q)}-clip-${i}.mp4`), mediaType: "video" as const, mimeType: "video/mp4", extension: "mp4", durationSeconds: 12 })),
+  ]);
   const deps = execDeps({ footageProvider: catalog });
   deps.budget = await ProductionBudget.open(memoryBudgetStore(), { maxAiImageGenerations: 0, maxAiVideoClips: 0, maxGenerativeUsd: 0 });
+  // PI V2 B5.2: las escenas motion:true consumen clips reservados antes de la voz (mismo flujo que el worker).
+  const { motionDemands } = await import("./produce");
+  const { reserveMotionClips, bindMotionReservations } = await import("./shot-executor");
+  const reservations = await reserveMotionClips(motionDemands(script.beats, script.topic, plan.beatShotCounts), { footageProvider: catalog, store: deps.store, identify: deps.identify }, { searchAllowed: true });
+  for (const clips of reservations.values()) for (const c of clips) if (c.identity) deps.registry!.register(c.ref, c.identity);
+  const videoSearchesBeforeExecution = videoQueries.length;
   const executions = [];
-  for (const shot of opening) executions.push(await executeShot(shot, deps, emptyAiVideoLedgerState()));
-  const report = buildVisualReport({ requestId: "fixture", planVersion: 3, topic: script.topic, shots: opening, executions });
+  const boundOpening = bindMotionReservations(opening, reservations);
+  for (const shot of boundOpening) executions.push(await executeShot(shot, deps, emptyAiVideoLedgerState()));
+  const report = buildVisualReport({ requestId: "fixture", planVersion: 3, topic: script.topic, shots: boundOpening, executions });
   assert.equal(report.summary.repeatedAssets.length, 0);
   assert.equal(report.summary.titleCards.length, 0);
   assert.ok(report.scenes.every((s) => s.narrationFragment && s.narrationFragment.length > 0));
   assert.ok(!executions.some((e) => e.assetMeta?.identity?.sourceId === "generic-doorway-man"), "el recurso genérico ajeno nunca rellena");
-  for (const [i, s] of opening.entries()) {
-    if (s.motionRequired) assert.equal(executions[i].executedType, "stock_video", `${s.id}: motion:true se conserva como video`);
+  for (const [i, s] of boundOpening.entries()) {
+    if (s.motionRequired) {
+      assert.equal(executions[i].executedType, "stock_video", `${s.id}: motion:true se conserva como video`);
+      assert.ok(executions[i].asset.kind === "media" && executions[i].asset.url.includes(`/${s.motionClipRef}.stock.`), `${s.id}: usa SU clip reservado`);
+    }
   }
+  const motionQueries = new Set(opening.filter((s) => s.motionRequired && s.anchoredVisual).flatMap((s) => selectionQueries(s.anchoredVisual!)));
+  assert.deepEqual(videoQueries.slice(videoSearchesBeforeExecution).filter((q) => motionQueries.has(q)), [], "la ejecución no vuelve a buscar video para las escenas motion:true");
   assert.doesNotThrow(() => assertVisualQuality(report));
   assert.ok(report.summary.openingWindow.scenes >= 10 && report.summary.openingWindow.repeatedScenes.length === 0);
 });

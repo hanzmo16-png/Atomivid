@@ -12,7 +12,7 @@
  *   → archivo real; archivo (consulta alternativa) → tarjeta de texto REAL.
  *   Nunca un fixture, nunca un tipo más caro que lo asignado.
  */
-import type { FootageProvider, GenerativeAsset, ImageProvider, VideoProvider } from "@/lib/providers/types";
+import type { FootageCandidate, FootageProvider, GenerativeAsset, ImageProvider, VideoProvider } from "@/lib/providers/types";
 import { guardPaidCall, type LedgerStore } from "@/lib/paid-calls/gate";
 import { PaidResultUnavailableError } from "@/lib/paid-calls/errors";
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
@@ -22,13 +22,14 @@ import type { ResolvedShotAsset } from "./asset-resolver";
 import { resolveAiVideoForShot } from "./ai-video-resolver";
 import { recordAiVideoSpend, type AiVideoCostConfig, type AiVideoLedgerState } from "./ai-video-cost-guard";
 import type { AssetProvenance, AssetSelectionTrace, ShotAssetKind, ShotAssetStore } from "./durable-shot-assets";
-import { contentIdentity, type AssetIdentity, type DocumentAssetRegistry } from "./asset-identity";
+import { contentIdentity, DocumentAssetRegistry, type AssetIdentity } from "./asset-identity";
 import { selectStockForShot } from "./stock-selection";
 import { clip, salientFact } from "./scene-anchoring";
 import type { ProductionBudget } from "./production-budget";
 import type { AllocatedShot, GenerativeUnitCosts } from "./production-plan";
 import { documentaryImagePrompt, textCardForShot } from "./visual-intents";
-import type { ShotType } from "./types";
+import type { Shot, ShotType } from "./types";
+import type { BeatVisual } from "./visual-intents";
 
 /** Rechazos de imagen con costo conocido CERO (el proveedor no generó nada). */
 const NO_CHARGE_IMAGE_REASONS = new Set<GenerativeProviderError["reason"]>([
@@ -452,35 +453,147 @@ async function stockOrText(shot: AllocatedShot, deps: ShotExecutionDeps, ledger:
 }
 
 /**
- * PI V2 B5.1 (RB-08): before TTS or any paid call, every visual with motion:true must have moving
- * stock footage (stock video is the admitted fallback when AI video is refused). Uses only the free
- * stock search, the same way the executor will: anchored pipeline → video candidate search (or a
- * single fetch when the provider has no candidate search at all); legacy pipeline → fetchFootage.
- * A visual without moving footage fails the whole production; nothing is substituted.
+ * PI V2 B5.2 (RB-08): per-visual reservation of moving stock clips, made BEFORE TTS. Each clip is a
+ * normal COMPLETED `stock` record in the request's durable shot store, keyed by
+ * `motionres-${visualId}-${k}` instead of a shot id (the production id is the store's scope).
+ * Selection uses selectStockForShot itself (relevance, dedupe by provider id / canonical URL,
+ * download, empty-file and SHA-256 / perceptual-hash checks) over a video-only view of the footage
+ * provider that keeps only clips at least `minDurationSec` long. A retry reads the durable records
+ * and searches nothing; replay never searches.
  */
-export async function preflightMotionFootage(
-  visuals: readonly { description: string; motion: boolean; alternates?: string[] }[],
-  footageProvider: FootageProvider,
-  opts: { anchored: boolean; minDurationSec?: number },
-): Promise<void> {
-  const min = opts.minDurationSec ?? 3;
-  const seen = new Set<string>();
-  for (const visual of visuals) {
-    if (!visual.motion || seen.has(visual.description)) continue;
-    seen.add(visual.description);
-    let found = false;
-    for (const query of [visual.description, ...(visual.alternates ?? [])]) {
-      if (opts.anchored && footageProvider.searchVideoCandidates) {
-        const candidates = await footageProvider.searchVideoCandidates(query, min, "landscape").catch(() => []);
-        found = candidates.some((c) => c.mediaType === "video");
-      } else if (!opts.anchored || !footageProvider.searchImageCandidates) {
-        const one = await footageProvider.fetchFootage(query, min, "landscape").catch(() => null);
-        found = one?.mediaType === "video";
-      }
-      if (found) break;
+export type MotionVisualDemand = { visualId: string; visual: BeatVisual; clips: number; minDurationSec: number };
+export type ReservedMotionClip = { ref: string; durationSec: number; identity?: AssetIdentity };
+export const motionReservationRef = (visualId: string, k: number) => `motionres-${visualId}-${k}`;
+
+function videoOnlyFootage(provider: FootageProvider, minDurationSec: number): FootageProvider {
+  return {
+    name: provider.name,
+    fetchFootage: (q, min, o) => provider.fetchFootage(q, min, o),
+    downloadFootage: (url) => provider.downloadFootage(url),
+    async searchVideoCandidates(query, min, orientation) {
+      const raw: FootageCandidate[] = provider.searchVideoCandidates
+        ? await provider.searchVideoCandidates(query, min, orientation)
+        : await provider.fetchFootage(query, min, orientation).then((r) => (r ? [{ ...r, sourceId: "" }] : []));
+      return raw.filter((c) => c.mediaType === "video" && typeof c.durationSeconds === "number" && c.durationSeconds >= minDurationSec);
+    },
+  };
+}
+
+export async function reserveMotionClips(
+  demands: readonly MotionVisualDemand[],
+  deps: {
+    footageProvider: FootageProvider;
+    store: ShotAssetStore;
+    identify?: (buffer: Buffer, mediaType: "image" | "video") => Promise<Pick<AssetIdentity, "sha256" | "dhash" | "dhashUnavailable">>;
+  },
+  opts: { searchAllowed: boolean },
+): Promise<Map<string, ReservedMotionClip[]>> {
+  const registry = new DocumentAssetRegistry();
+  const out = new Map<string, ReservedMotionClip[]>();
+  // Already-reserved clips first (retry/replay): they are reused as-is and block duplicates.
+  const existing = new Map<string, (ReservedMotionClip | null)[]>();
+  for (const d of demands) {
+    const clips: (ReservedMotionClip | null)[] = [];
+    for (let k = 0; k < d.clips; k++) {
+      const ref = motionReservationRef(d.visualId, k);
+      const rec = await deps.store.read(ref, "stock");
+      const ok = rec?.status === "COMPLETED" && rec.objectPath && rec.mediaType === "video" && typeof rec.clipDurationSec === "number";
+      clips.push(ok ? { ref, durationSec: rec!.clipDurationSec!, identity: rec!.identity } : null);
+      if (ok && rec!.identity) registry.register(ref, rec!.identity);
     }
-    if (!found) throw new MotionRequiredUnsatisfiableError(visual.description, "el proveedor de archivo no devolvió video para esta escena y no se sustituye por una imagen fija");
+    existing.set(d.visualId, clips);
   }
+  for (const d of demands) {
+    const clips = existing.get(d.visualId)!;
+    for (let k = 0; k < d.clips; k++) {
+      if (clips[k]) continue;
+      if (!opts.searchAllowed) throw new MotionRequiredUnsatisfiableError(d.visualId, `reserva de movimiento incompleta (falta el clip ${k + 1} de ${d.clips}) y esta ejecución no puede buscar`);
+      const ref = motionReservationRef(d.visualId, k);
+      const outcome = await selectStockForShot(
+        { shotId: ref, visual: d.visual, preferVideo: true, minDurationSec: d.minDurationSec },
+        { footageProvider: videoOnlyFootage(deps.footageProvider, d.minDurationSec), registry, identify: deps.identify },
+      );
+      if (outcome.status === "gap") {
+        throw new MotionRequiredUnsatisfiableError(d.visualId, `solo ${k} de ${d.clips} clips en movimiento reservables de al menos ${d.minDurationSec.toFixed(1)} s: ${outcome.reason}`);
+      }
+      const { candidate, buffer } = outcome;
+      const identity = outcome.identity;
+      const objectPath = deps.store.objectPathFor(ref, "stock", candidate.extension);
+      await deps.store.putObject(objectPath, buffer, candidate.mimeType);
+      await deps.store.write({
+        shotId: ref,
+        kind: "stock",
+        status: "COMPLETED",
+        objectPath,
+        contentType: candidate.mimeType,
+        mediaType: "video",
+        costUsd: 0,
+        provider: deps.footageProvider.name,
+        bytes: buffer.byteLength,
+        updatedAtIso: new Date().toISOString(),
+        identity,
+        provenance: { kind: "stock_illustrative", provider: deps.footageProvider.name, license: PEXELS_LICENSE, author: candidate.photographer, pageUrl: candidate.pageUrl },
+        selection: {
+          query: outcome.query,
+          tier: outcome.tier,
+          relevance: outcome.assessment.relevance === "keyword_match" ? "keyword_match" : "unverified",
+          score: outcome.assessment.score,
+          matchedTerms: outcome.assessment.matchedTerms,
+          candidateDescription: candidate.description,
+          candidatesConsidered: outcome.candidatesConsidered,
+          rejected: outcome.rejected.slice(0, 12),
+        },
+        clipDurationSec: candidate.durationSeconds,
+      });
+      registry.register(ref, identity);
+      clips[k] = { ref, durationSec: candidate.durationSeconds!, identity };
+    }
+    out.set(d.visualId, clips as ReservedMotionClip[]);
+  }
+  return out;
+}
+
+/**
+ * PI V2 B5.2: binds each motion shot (timeline order) to the next free reserved clip of its visual.
+ * A shot never lasts longer than its clip allows (clip ≥ shot + STOCK_CLIP_MARGIN_SEC): when the
+ * measured timing asks for more, the shot is split into equal parts, each consuming the next
+ * reserved clip (extra parts are stock_video). No clip left → MotionShotUnavailableError.
+ * Shots without motion are returned untouched.
+ */
+export function bindMotionReservations<S extends Shot>(shots: readonly S[], reservations: ReadonlyMap<string, readonly ReservedMotionClip[]>): S[] {
+  const cursor = new Map<string, number>();
+  const out: S[] = [];
+  for (const shot of shots) {
+    if (!shot.motionRequired) {
+      out.push(shot);
+      continue;
+    }
+    const visualId = shot.motionVisualId ?? "";
+    const clips = reservations.get(visualId) ?? [];
+    const at = cursor.get(visualId) ?? 0;
+    let parts = 1;
+    for (;;) {
+      if (at + parts > clips.length) {
+        throw new MotionShotUnavailableError(shot.id, `la reserva de la escena ${visualId || "(sin visual)"} no cubre ${shot.durationSec.toFixed(2)} s (${clips.length - at} clips libres)`);
+      }
+      const partSec = shot.durationSec / parts;
+      if (clips.slice(at, at + parts).every((c) => c.durationSec >= partSec + STOCK_CLIP_MARGIN_SEC)) break;
+      parts += 1;
+    }
+    const partSec = shot.durationSec / parts;
+    for (let j = 0; j < parts; j++) {
+      const startSec = Math.round((shot.startSec + j * partSec) * 1000) / 1000;
+      const endSec = j === parts - 1 ? shot.endSec : Math.round((shot.startSec + (j + 1) * partSec) * 1000) / 1000;
+      const base = { ...shot, startSec, endSec, durationSec: Math.round((endSec - startSec) * 1000) / 1000, motionClipRef: clips[at + j].ref };
+      out.push(
+        j === 0
+          ? base
+          : { ...base, id: `${shot.id}-m${j + 1}`, type: "stock_video", source: "stock", motion: "pan", dedupKey: `${shot.dedupKey}:m${j + 1}` },
+      );
+    }
+    cursor.set(visualId, at + parts);
+  }
+  return out;
 }
 
 /** A motion-required shot could not get moving footage. The job stops; nothing is substituted. */
@@ -534,12 +647,32 @@ async function executeMotionShot(shot: AllocatedShot, deps: ShotExecutionDeps, l
       }
     }
   }
-  const stock = await resolveStock(shot, deps, true);
-  if (stock && !("gap" in stock) && stock.mediaType === "video") {
-    return mediaResult(shot, stock, "stock_video", ledger, shot.type === "stock_video" ? undefined : reason ?? "la escena requiere movimiento");
+  // PI V2 B5.2: only the clip reserved before TTS — no new search, no other candidate.
+  const prefix = reason ? `${reason}; ` : "";
+  if (!shot.motionClipRef) throw new MotionShotUnavailableError(shot.id, `${prefix}sin clip en movimiento reservado`);
+  const rec = await deps.store.read(shot.motionClipRef, "stock");
+  if (rec?.status !== "COMPLETED" || !rec.objectPath || rec.mediaType !== "video") {
+    throw new MotionShotUnavailableError(shot.id, `${prefix}el clip reservado ${shot.motionClipRef} no está disponible`);
   }
-  const why = !stock ? "sin video de archivo" : "gap" in stock ? `sin video de archivo pertinente: ${stock.gap.reason}` : "el archivo encontrado es una imagen fija";
-  throw new MotionShotUnavailableError(shot.id, reason ? `${reason}; ${why}` : why);
+  if (!(typeof rec.clipDurationSec === "number" && rec.clipDurationSec >= shot.durationSec + STOCK_CLIP_MARGIN_SEC)) {
+    throw new MotionShotUnavailableError(shot.id, `${prefix}el clip reservado (${rec.clipDurationSec ?? "?"} s) no cubre la escena (${shot.durationSec.toFixed(2)} s + margen)`);
+  }
+  const url = await deps.store.signedUrl(rec.objectPath);
+  return mediaResult(
+    shot,
+    {
+      url,
+      mediaType: "video",
+      costUsd: 0,
+      bytes: rec.bytes ?? 0,
+      provider: rec.provider ?? deps.footageProvider.name,
+      reused: true,
+      meta: { objectPath: rec.objectPath, identity: rec.identity, provenance: rec.provenance, selection: rec.selection },
+    },
+    "stock_video",
+    ledger,
+    shot.type === "stock_video" ? undefined : reason ?? "la escena requiere movimiento",
+  );
 }
 
 export async function executeShot(shot: AllocatedShot, deps: ShotExecutionDeps, ledger: AiVideoLedgerState): Promise<ShotExecution> {

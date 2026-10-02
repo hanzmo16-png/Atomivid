@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { executeShot, MotionShotUnavailableError, type ShotExecutionDeps } from "./shot-executor";
+import { createHash } from "node:crypto";
+import { bindMotionReservations, executeShot, MotionShotUnavailableError, reserveMotionClips, type ShotExecutionDeps } from "./shot-executor";
 import { memoryShotAssetStore } from "./durable-shot-assets";
 import { ProductionBudget, memoryBudgetStore } from "./production-budget";
 import { emptyAiVideoLedgerState, getAiVideoCostConfig } from "./ai-video-cost-guard";
@@ -234,10 +235,20 @@ test("video IA (Veo image-to-video): referencia IA + 1 envío; el reintento reut
   }
 });
 
-test("B5.1: video IA no disponible (sin proveedor) en una escena motion:true → video de archivo, nunca la imagen IA con Ken Burns; 0 imágenes IA", async () => {
+async function reserveClip(store: ShotExecutionDeps["store"], ref: string, durationSec: number) {
+  const objectPath = store.objectPathFor(ref, "stock", "mp4");
+  await store.putObject(objectPath, Buffer.from(`clip:${ref}`), "video/mp4");
+  await store.write({ shotId: ref, kind: "stock", status: "COMPLETED", objectPath, contentType: "video/mp4", mediaType: "video", costUsd: 0, provider: "pexels-video-first", bytes: 9, updatedAtIso: "x", identity: { provider: "pexels-video-first", sourceId: ref, sha256: ref }, clipDurationSec: durationSec });
+  return objectPath;
+}
+
+test("B5.1: video IA no disponible (sin proveedor) en una escena motion:true → su clip reservado, nunca la imagen IA con Ken Burns; 0 imágenes IA, 0 búsquedas", async () => {
   const images = fakeImages(async () => pngAsset());
-  const { deps: d } = await deps({ imageProvider: images.provider });
-  const result = await executeShot(shot("ai_video", { motionRequired: true }), d, emptyAiVideoLedgerState());
+  const footage = fakeFootage();
+  const { deps: d, mem } = await deps({ imageProvider: images.provider, footageProvider: footage.provider });
+  await reserveClip(mem.store, "motionres-beat-1-v0-0", 12);
+  const result = await executeShot(shot("ai_video", { motionRequired: true, motionVisualId: "beat-1-v0", motionClipRef: "motionres-beat-1-v0-0" }), d, emptyAiVideoLedgerState());
+  assert.equal(footage.calls.length, 0, "la ejecución no vuelve a buscar archivo");
   assert.equal(result.executedType, "stock_video");
   assert.equal(result.asset.kind, "media");
   assert.equal(result.asset.kind === "media" ? result.asset.mediaType : null, "video");
@@ -276,4 +287,74 @@ test("tarjeta de texto: tema + oración real de la narración, sin marca de fixt
     assert.equal(result.asset.graphic.body, "Miles de barcos cruzan cada año.");
     assert.equal(result.asset.graphic.isFixture, false);
   }
+});
+
+// --- PI V2 B5.2: reserva por visual, consumo sin segunda búsqueda ---
+
+test("B5.2-3: el timing medido alarga un plano motion:true → se parte y consume el clip de margen; 0 búsquedas; nunca still", async () => {
+  const footage = fakeFootage();
+  const images = fakeImages(async () => pngAsset());
+  const { deps: d, mem } = await deps({ footageProvider: footage.provider, imageProvider: images.provider });
+  for (const k of [0, 1, 2]) await reserveClip(mem.store, `motionres-beat-1-v0-${k}`, 5);
+  const reservations = new Map([["beat-1-v0", [0, 1, 2].map((k) => ({ ref: `motionres-beat-1-v0-${k}`, durationSec: 5 }))]]);
+  // Estimado: 3.5 s por plano; medido: el primer plano dura 7 s (> 5 s - 1.2 s de margen).
+  const shots = [
+    shot("stock_video", { id: "beat-1-shot-1", startSec: 0, endSec: 7, durationSec: 7, motionRequired: true, motionVisualId: "beat-1-v0" }),
+    shot("ken_burns_image", { id: "beat-1-shot-2", startSec: 7, endSec: 11, durationSec: 4 }),
+  ];
+  const bound = bindMotionReservations(shots, reservations);
+  assert.deepEqual(bound.map((s) => [s.id, s.type, s.startSec, s.endSec, s.motionClipRef]), [
+    ["beat-1-shot-1", "stock_video", 0, 3.5, "motionres-beat-1-v0-0"],
+    ["beat-1-shot-1-m2", "stock_video", 3.5, 7, "motionres-beat-1-v0-1"],
+    ["beat-1-shot-2", "ken_burns_image", 7, 11, undefined],
+  ]);
+  const executed = [];
+  for (const s of bound.slice(0, 2)) executed.push(await executeShot(s, d, emptyAiVideoLedgerState()));
+  assert.deepEqual(executed.map((e) => [e.executedType, e.asset.kind === "media" ? e.asset.url : ""]), [
+    ["stock_video", "memory://req/assets/motionres-beat-1-v0-0.stock.mp4"],
+    ["stock_video", "memory://req/assets/motionres-beat-1-v0-1.stock.mp4"],
+  ]);
+  assert.equal(footage.calls.length, 0);
+  assert.equal(images.calls(), 0);
+  // Sin clips suficientes: el job falla, sin sustitución.
+  assert.throws(() => bindMotionReservations([shots[0]], new Map([["beat-1-v0", [{ ref: "motionres-beat-1-v0-0", durationSec: 5 }]]])), MotionShotUnavailableError);
+  // Un clip que no cubre el plano tampoco se usa en ejecución.
+  await assert.rejects(executeShot({ ...bound[0], durationSec: 6 }, d, emptyAiVideoLedgerState()), MotionShotUnavailableError);
+});
+
+test("B5.2: la reserva aplica los criterios reales (relevancia, duración, video, únicos) y se guarda durable; un segundo intento no busca", async () => {
+  const { mem } = await deps();
+  let searches = 0;
+  const provider: FootageProvider = {
+    name: "pexels-video-first",
+    async fetchFootage() { throw new Error("no se usa"); },
+    async searchVideoCandidates(q) {
+      searches += 1;
+      return [
+        { url: "https://v/cat.mp4", sourceId: "cat", description: "cat sleeping on a sofa", mediaType: "video", mimeType: "video/mp4", extension: "mp4", durationSeconds: 30 },
+        { url: "https://v/short.mp4", sourceId: "short", description: q, mediaType: "video", mimeType: "video/mp4", extension: "mp4", durationSeconds: 2 },
+        { url: "https://v/a.mp4", sourceId: "a", description: q, mediaType: "video", mimeType: "video/mp4", extension: "mp4", durationSeconds: 10 },
+        { url: "https://v/b.mp4", sourceId: "b", description: q, mediaType: "video", mimeType: "video/mp4", extension: "mp4", durationSeconds: 10 },
+      ];
+    },
+    async downloadFootage(url) { return Buffer.from(`bytes:${url}`); },
+  };
+  const demand = { visualId: "beat-1-v0", visual: { description: "workers digging canal locks", motion: true }, clips: 2, minDurationSec: 6 };
+  const identify = async (b: Buffer) => ({ sha256: createHash("sha256").update(b).digest("hex"), dhashUnavailable: "test" });
+  const first = await reserveMotionClips([demand], { footageProvider: provider, store: mem.store, identify }, { searchAllowed: true });
+  assert.deepEqual(first.get("beat-1-v0")!.map((c) => c.identity?.sourceId), ["a", "b"], "ni el gato (irrelevante) ni el clip de 2 s");
+  const searchesAfterFirst = searches;
+  const again = await reserveMotionClips([demand], { footageProvider: provider, store: mem.store, identify }, { searchAllowed: true });
+  assert.deepEqual(again.get("beat-1-v0")!.map((c) => c.ref), first.get("beat-1-v0")!.map((c) => c.ref));
+  assert.equal(searches, searchesAfterFirst, "retry: 0 búsquedas nuevas");
+  await assert.rejects(reserveMotionClips([{ ...demand, clips: 3 }], { footageProvider: provider, store: mem.store, identify }, { searchAllowed: false }), /reserva de movimiento incompleta/);
+});
+
+test("B5.2-5: motion:false con el presupuesto de imágenes agotado sigue el fallback actual, sin reserva", async () => {
+  const images = fakeImages(async () => pngAsset());
+  const { deps: d } = await deps({ imageProvider: images.provider }, { maxAiImageGenerations: 0, maxAiVideoClips: 0, maxGenerativeUsd: 0 });
+  const result = await executeShot(shot("generated_placeholder"), d, emptyAiVideoLedgerState());
+  assert.equal(images.calls(), 0);
+  assert.equal(result.executedType, "ken_burns_image");
+  assert.deepEqual(bindMotionReservations([shot("ken_burns_image")], new Map()).map((s) => s.type), ["ken_burns_image"]);
 });
