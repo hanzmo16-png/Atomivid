@@ -1,0 +1,111 @@
+/**
+ * ATOMIVID_PRECAMPAIGN_TEASER_V1 — descubrimiento SIN GASTO (solo lectura).
+ *
+ * Comprueba, antes de cualquier llamada pagada, qué existe ya para el teaser:
+ * - los dos clips reales de Hans (HANS_OPENING_REAL / HANS_CLOSING_REAL), subidos por un
+ *   humano al bucket privado "videos" ya existente: formato real con ffprobe (1080x1920, 30 fps,
+ *   audio);
+ * - el avatar y la voz clonada indicados explícitamente por id (nunca se busca por usuario ni
+ *   email: el operador elige cuáles están autorizados);
+ * - assets reutilizables ya renderizados (rutas en el mismo bucket).
+ *
+ * Solo usa Supabase (lectura). Ningún proveedor pagado: el workflow no le pasa claves de
+ * ElevenLabs, HeyGen, D-ID, OpenAI, Runway ni Beatoven. No escribe nada.
+ */
+import { execFile } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+import ffprobeInstaller from "@ffprobe-installer/ffprobe";
+
+export {};
+
+const BUCKET = "videos";
+const EXPECTED = { width: 1080, height: 1920, fps: 30 };
+const FPS_TOLERANCE = 0.5;
+
+type ClipStatus = { path: string | null; status: "READY" | "MISSING_FROM_WORKFLOW" | "INVALID"; detail?: string; width?: number; height?: number; fps?: number; durationSeconds?: number; hasAudio?: boolean };
+
+async function probe(file: string) {
+  const { stdout } = await promisify(execFile)(ffprobeInstaller.path, ["-v", "error", "-print_format", "json", "-show_format", "-show_streams", file]);
+  const json = JSON.parse(stdout) as { format?: { duration?: string }; streams?: { codec_type?: string; width?: number; height?: number; avg_frame_rate?: string }[] };
+  const video = json.streams?.find((s) => s.codec_type === "video");
+  const [n, d] = (video?.avg_frame_rate ?? "0/1").split("/").map(Number);
+  return {
+    width: video?.width ?? 0,
+    height: video?.height ?? 0,
+    fps: d ? Math.round((n / d) * 1000) / 1000 : 0,
+    durationSeconds: Number(json.format?.duration ?? 0),
+    hasAudio: Boolean(json.streams?.some((s) => s.codec_type === "audio")),
+  };
+}
+
+async function main() {
+  const { createServiceClient } = await import("../../src/lib/supabase/service");
+  const service = createServiceClient();
+  const bucket = service.storage.from(BUCKET);
+  const work = await mkdtemp(join(tmpdir(), "teaser-discover-"));
+
+  const clip = async (path: string | undefined): Promise<ClipStatus> => {
+    if (!path?.trim()) return { path: null, status: "MISSING_FROM_WORKFLOW", detail: "no se indicó la ruta en Storage" };
+    const { data, error } = await bucket.download(path.trim());
+    if (error || !data) return { path, status: "MISSING_FROM_WORKFLOW", detail: `no existe en el bucket "${BUCKET}"` };
+    const bytes = Buffer.from(await data.arrayBuffer());
+    if (bytes.byteLength === 0) return { path, status: "INVALID", detail: "archivo vacío" };
+    const file = join(work, `clip-${Math.random().toString(36).slice(2)}.mp4`);
+    await writeFile(file, bytes);
+    const m = await probe(file).catch(() => null);
+    if (!m) return { path, status: "INVALID", detail: "ffprobe no pudo leer el archivo" };
+    const problems = [
+      m.width !== EXPECTED.width || m.height !== EXPECTED.height ? `resolución ${m.width}x${m.height}` : "",
+      Math.abs(m.fps - EXPECTED.fps) > FPS_TOLERANCE ? `fps ${m.fps}` : "",
+      m.hasAudio ? "" : "sin pista de audio",
+    ].filter(Boolean);
+    return { path, status: problems.length ? "INVALID" : "READY", detail: problems.join("; ") || undefined, ...m };
+  };
+
+  const avatarId = process.env.TEASER_AVATAR_ID?.trim();
+  const voiceId = process.env.TEASER_VOICE_ID?.trim();
+  const avatar = avatarId
+    ? await service.from("avatars").select("id,provider,status,consent_given,provider_avatar_id").eq("id", avatarId).maybeSingle()
+    : null;
+  const voice = voiceId
+    ? await service.from("user_voices").select("id,provider,status,provider_voice_id").eq("id", voiceId).maybeSingle()
+    : null;
+
+  const reuse = [];
+  for (const path of (process.env.TEASER_REUSE_PATHS ?? "").split(",").map((p) => p.trim()).filter(Boolean)) {
+    const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+    const name = path.slice(path.lastIndexOf("/") + 1);
+    const { data } = await bucket.list(dir, { search: name });
+    const hit = data?.find((e) => e.name === name);
+    reuse.push({ path, exists: Boolean(hit), bytes: (hit?.metadata as { size?: number } | null)?.size ?? null });
+  }
+
+  const report = {
+    teaser: "ATOMIVID_PRECAMPAIGN_TEASER_V1",
+    providerCalls: 0,
+    spendUsd: 0,
+    inputs: { HANS_OPENING_REAL: await clip(process.env.TEASER_OPENING_PATH), HANS_CLOSING_REAL: await clip(process.env.TEASER_CLOSING_PATH) },
+    avatar: avatarId
+      ? avatar?.data
+        ? { id: avatar.data.id, provider: avatar.data.provider, status: avatar.data.status, consentGiven: avatar.data.consent_given, hasProviderAvatar: Boolean(avatar.data.provider_avatar_id) }
+        : { id: avatarId, status: "NOT_FOUND" }
+      : { status: "NOT_PROVIDED" },
+    voice: voiceId
+      ? voice?.data
+        ? { id: voice.data.id, provider: voice.data.provider, status: voice.data.status, hasProviderVoice: Boolean(voice.data.provider_voice_id) }
+        : { id: voiceId, status: "NOT_FOUND" }
+      : { status: "NOT_PROVIDED" },
+    reuse,
+  };
+  await rm(work, { recursive: true, force: true });
+  await writeFile("teaser-discovery.json", JSON.stringify(report, null, 2) + "\n");
+  console.log(JSON.stringify(report, null, 2));
+}
+
+main().catch((err) => {
+  console.error("Descubrimiento del teaser fallido:", err instanceof Error ? err.message : err);
+  process.exit(1);
+});
