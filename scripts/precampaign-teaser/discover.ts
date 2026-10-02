@@ -18,6 +18,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import ffprobeInstaller from "@ffprobe-installer/ffprobe";
+import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
+import { mkdir } from "node:fs/promises";
 
 export {};
 
@@ -99,6 +101,49 @@ async function main() {
     listing[prefix] = found.slice(0, 60);
   }
 
+  // Clips subidos por el operador: cada MP4 del prefijo con ffprobe y dos fotogramas de referencia
+  // (para identificar visualmente la toma con lentes / sin lentes). Sin proveedores.
+  const outDir = "teaser-discovery";
+  await mkdir(join(outDir, "frames"), { recursive: true });
+  await mkdir(join(outDir, "avatars"), { recursive: true });
+  const probed: Record<string, unknown>[] = [];
+  const probePrefix = process.env.TEASER_PROBE_PREFIX?.trim().replace(/\/+$/, "");
+  if (probePrefix) {
+    const { data } = await bucket.list(probePrefix, { limit: 100 });
+    for (const e of (data ?? []).filter((x) => x.id !== null && /\.(mp4|mov|m4v)$/i.test(x.name))) {
+      const path = `${probePrefix}/${e.name}`;
+      const status = await clip(path);
+      const local = join(work, `probe-${e.name}`);
+      const dl = await bucket.download(path);
+      if (dl.data) {
+        await writeFile(local, Buffer.from(await dl.data.arrayBuffer()));
+        for (const at of [0.5, Math.max(1, (status.durationSeconds ?? 2) / 2)]) {
+          await promisify(execFile)(ffmpegInstaller.path, ["-v", "error", "-ss", String(at), "-i", local, "-frames:v", "1", "-vf", "scale=360:-2", "-y", join(outDir, "frames", `${e.name}-${at.toFixed(1)}s.jpg`)]).catch(() => undefined);
+        }
+      }
+      probed.push({ name: e.name, createdAt: e.created_at, bytes: (e.metadata as { size?: number } | null)?.size ?? null, ...status });
+    }
+  }
+
+  // Foto de origen ya guardada de los avatares indicados (referencia visual sin gasto; nunca se llama
+  // al proveedor). Solo para la revisión del operador; el artifact caduca pronto.
+  const avatarPhotos: Record<string, unknown>[] = [];
+  for (const id of (process.env.TEASER_AVATAR_PHOTO_IDS ?? "").split(",").map((x) => x.trim()).filter(Boolean)) {
+    const { data: row } = await service.from("avatars").select("id,name,provider,source_photo_path,source_deleted_at").eq("id", id).maybeSingle();
+    if (!row?.source_photo_path || row.source_deleted_at) {
+      avatarPhotos.push({ id, photo: "NOT_AVAILABLE" });
+      continue;
+    }
+    const dl = await service.storage.from("avatar-uploads").download(row.source_photo_path);
+    if (!dl.data) {
+      avatarPhotos.push({ id, photo: "NOT_AVAILABLE" });
+      continue;
+    }
+    const ext = row.source_photo_path.split(".").pop() ?? "jpg";
+    await writeFile(join(outDir, "avatars", `${id}.${ext}`), Buffer.from(await dl.data.arrayBuffer()));
+    avatarPhotos.push({ id, name: row.name, provider: row.provider, photo: `avatars/${id}.${ext}` });
+  }
+
   const reuse = [];
   for (const path of (process.env.TEASER_REUSE_PATHS ?? "").split(",").map((p) => p.trim()).filter(Boolean)) {
     const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
@@ -126,9 +171,11 @@ async function main() {
     reuse,
     identities,
     listing,
+    probed,
+    avatarPhotos,
   };
   await rm(work, { recursive: true, force: true });
-  await writeFile("teaser-discovery.json", JSON.stringify(report, null, 2) + "\n");
+  await writeFile(join(outDir, "teaser-discovery.json"), JSON.stringify(report, null, 2) + "\n");
   console.log(JSON.stringify(report, null, 2));
 }
 

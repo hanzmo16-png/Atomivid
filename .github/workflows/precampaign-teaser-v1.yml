@@ -32,6 +32,14 @@ on:
         description: "Prefijos en 'videos' a listar (renders ya entregados), separados por comas (opcional)"
         required: false
         type: string
+      probe_prefix:
+        description: "Prefijo en 'videos' con los clips del operador: ffprobe + fotogramas de referencia (opcional)"
+        required: false
+        type: string
+      avatar_photo_ids:
+        description: "avatars.id cuya foto de origen guardada se exporta para revisión visual (opcional)"
+        required: false
+        type: string
       list_identities:
         description: "Listar avatares y voces listos (id, nombre, proveedor; sin usuarios) para elegir los de Hans"
         required: false
@@ -74,12 +82,14 @@ jobs:
           TEASER_REUSE_PATHS: ${{ inputs.reuse_paths }}
           TEASER_REUSE_PREFIXES: ${{ inputs.reuse_prefixes }}
           TEASER_LIST_IDENTITIES: ${{ inputs.list_identities }}
+          TEASER_PROBE_PREFIX: ${{ inputs.probe_prefix }}
+          TEASER_AVATAR_PHOTO_IDS: ${{ inputs.avatar_photo_ids }}
 
       - name: Publicar informe de descubrimiento
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: precampaign-teaser-v1-discovery
-          path: teaser-discovery.json
+          path: teaser-discovery/
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 3
