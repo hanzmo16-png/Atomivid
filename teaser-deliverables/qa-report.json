@@ -1,0 +1,66 @@
+{
+  "resolution": "1080x1920",
+  "fps": 30,
+  "durationSeconds": 34.81,
+  "hasAudio": true,
+  "checks": {
+    "resolution1080x1920": true,
+    "fps30": true,
+    "duration30to36": true,
+    "audioPresent": true,
+    "firstFrameVisual": true,
+    "noAccidentalBlack": true,
+    "noClipping": true
+  },
+  "loudnessLufs": -14.6,
+  "truePeakDbfs": -1.3,
+  "firstFrameYavg": 140.009,
+  "blackIntervals": [],
+  "sections": {
+    "opening": {
+      "start": 0,
+      "duration": 6.27
+    },
+    "avatar": {
+      "start": 5.97,
+      "duration": 3.76
+    },
+    "demo": {
+      "start": 9.73,
+      "duration": 5.92
+    },
+    "results": {
+      "start": 15.65,
+      "duration": 4.33
+    },
+    "reveal": {
+      "start": 19.98,
+      "duration": 5.03
+    },
+    "closing": {
+      "start": 25.01,
+      "duration": 8.57
+    },
+    "end": {
+      "start": 33.57,
+      "duration": 1.2
+    }
+  },
+  "retouch": {
+    "tools": "ffmpeg (hqdn3d, bilateral, curves, colorbalance, eq, unsharp)",
+    "localRetouchLimitReached": true,
+    "note": "Sin detección facial local: el suavizado y el color se aplican a todo el plano con parámetros leves; sin cambios de geometría."
+  },
+  "humanReviewRequired": [
+    "identidad preservada",
+    "piel natural",
+    "avatar sin deformación",
+    "transición",
+    "subtítulos sobre el rostro",
+    "selección de planos de DULCE/Océano",
+    "pronunciación de ATOMIVID"
+  ],
+  "notes": [
+    "AVATAR: marcador de revisión (sin llamada a HeyGen). Este corte NO es el master."
+  ]
+}

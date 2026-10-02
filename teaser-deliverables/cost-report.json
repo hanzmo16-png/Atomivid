@@ -1,0 +1,79 @@
+{
+  "capUsd": 1.03,
+  "spentThisRunUsd": 0,
+  "ledgerCommittedTotalUsd": 0.0284,
+  "operations": [
+    {
+      "provider": "elevenlabs",
+      "operation": "tts:avatar",
+      "estimatedUsd": 0.0063,
+      "actualUsd": 0,
+      "reused": true
+    },
+    {
+      "provider": "elevenlabs",
+      "operation": "tts:demo",
+      "estimatedUsd": 0.0084,
+      "actualUsd": 0,
+      "reused": true
+    },
+    {
+      "provider": "elevenlabs",
+      "operation": "tts:results",
+      "estimatedUsd": 0.0069,
+      "actualUsd": 0,
+      "reused": true
+    },
+    {
+      "provider": "elevenlabs",
+      "operation": "tts:reveal",
+      "estimatedUsd": 0.0068,
+      "actualUsd": 0,
+      "reused": true
+    }
+  ],
+  "ledger": [
+    {
+      "provider": "elevenlabs",
+      "shot_id": "voice:2505b141287b7248",
+      "status": "COMMITTED",
+      "reserved_usd": 0.0063,
+      "committed_usd": 0.0063,
+      "updated_at": "2026-10-02T15:49:42.965215+00:00"
+    },
+    {
+      "provider": "elevenlabs",
+      "shot_id": "voice:2ccb8711cd187b99",
+      "status": "COMMITTED",
+      "reserved_usd": 0.0084,
+      "committed_usd": 0.0084,
+      "updated_at": "2026-10-02T15:49:45.593381+00:00"
+    },
+    {
+      "provider": "elevenlabs",
+      "shot_id": "voice:10387418b6ab5f39",
+      "status": "COMMITTED",
+      "reserved_usd": 0.0069,
+      "committed_usd": 0.0069,
+      "updated_at": "2026-10-02T15:49:47.918476+00:00"
+    },
+    {
+      "provider": "elevenlabs",
+      "shot_id": "voice:cb165e9bde04e196",
+      "status": "COMMITTED",
+      "reserved_usd": 0.0068,
+      "committed_usd": 0.0068,
+      "updated_at": "2026-10-02T15:49:50.510136+00:00"
+    },
+    {
+      "provider": "heygen",
+      "shot_id": "avatar:line",
+      "status": "RECONCILIATION_REQUIRED",
+      "reserved_usd": 0.15,
+      "committed_usd": null,
+      "updated_at": "2026-10-02T15:49:52.086929+00:00"
+    }
+  ],
+  "avatarMode": "review-placeholder",
+  "avatarAttempt": "2"
+}

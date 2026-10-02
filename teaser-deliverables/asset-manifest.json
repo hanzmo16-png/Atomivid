@@ -1,0 +1,26 @@
+{
+  "teaser": "ATOMIVID_PRECAMPAIGN_TEASER_V1",
+  "reused": {
+    "HANS_OPENING_REAL": "precampaign-teaser-v1./20261002_091640.mp4",
+    "HANS_CLOSING_REAL": "precampaign-teaser-v1./20261002_091904.mp4",
+    "voice": "2485ab5a-4975-4e9a-a6dd-30f6723d99b2",
+    "avatar": "245a8a51-a699-4f69-a387-7c11246a0b7f",
+    "dulce": "videos/dulce-001/full-v1/final (manifest + partes)",
+    "ocean": "videos/ocean-deep-001/samples/episode/sample-approval-motion-production-check.mp4",
+    "music": "music-library/elevenlabs-corporate-2.mp3",
+    "font": "public/fonts/Anton-Regular.ttf"
+  },
+  "generated": [
+    "elevenlabs:tts:avatar (reutilizado)",
+    "elevenlabs:tts:demo (reutilizado)",
+    "elevenlabs:tts:results (reutilizado)",
+    "elevenlabs:tts:reveal (reutilizado)"
+  ],
+  "excluded": [
+    "VIDEO-004 / Termópilas",
+    "OpenAI Images",
+    "Runway",
+    "Veo",
+    "Beatoven"
+  ]
+}
