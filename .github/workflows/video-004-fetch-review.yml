@@ -1,0 +1,29 @@
+name: Video 004 fetch review proxy (read-only, zero spend)
+
+# Copies the existing V3 review proxy out of the private bucket (service key, never printed) into a run
+# artifact so it can be handed to the owner as a file. Nothing is generated, signed or made public.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/production-intelligence-v1]
+    paths: [.github/workflows/video-004-fetch-review.yml]
+permissions:
+  contents: read
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download the stored proxy
+        env:
+          SB: ${{ secrets.SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -u; mkdir -p out
+          curl -sS -m 300 -H "Authorization: Bearer $KEY" -H "apikey: $KEY" -o out/VIDEO-004-Thermopylae-v3-review-480p.mp4 -w "status=%{http_code} bytes=%{size_download}\n" "$SB/storage/v1/object/authenticated/videos/video-004-thermopylae/review/VIDEO-004-Three-Days-at-the-Hot-Gates-v3-review-480p.mp4"
+          sha256sum out/VIDEO-004-Thermopylae-v3-review-480p.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: video-004-v3-review-480p
+          path: out/VIDEO-004-Thermopylae-v3-review-480p.mp4
+          compression-level: 0
