@@ -250,3 +250,50 @@ test("COST-A2-4 (characterization): re-invoking the gate with the same identity 
     assert.deepEqual(store.ops.get(paidCallKey(spec, 0)), after, `${reason}: the REFUNDED row is unchanged`);
   }
 });
+
+// ---- PI V2 COST-A2b: even an explicit opt-in cannot retry upstream_error / rate_limited ----
+
+for (const [label, reason] of [["COST-A2b-1", "upstream_error"], ["COST-A2b-2", "rate_limited"]] as const) {
+  test(`${label}: maxRejectedRetries: 1 + ${reason} → exactly one provider call, no ordinal-1 row, SUBMITTED → REFUNDED`, async () => {
+    for (const maxRejectedRetries of [1, 5]) {
+      const store = memoryLedgerStore();
+      let calls = 0;
+      const err = new GenerativeProviderError(`provider ${reason}`, "elevenlabs", reason);
+      const hooks = {
+        maxRejectedRetries,
+        call: async () => {
+          calls++;
+          throw err;
+        },
+        load: async () => null,
+        now: NOW,
+      };
+      await assert.rejects(guardPaidCall(store, spec, hooks), (e: unknown) => e === err);
+      assert.equal(calls, 1, `maxRejectedRetries ${maxRejectedRetries}: retry automático = 0`);
+      const row = store.ops.get(paidCallKey(spec, 0))!;
+      assert.equal(row.status, "REFUNDED");
+      assert.equal(row.committedUsd, 0);
+      assert.ok(row.resultRef?.startsWith("rejected:rejected:"));
+      assert.equal(store.ops.has(paidCallKey(spec, 1)), false, "no ordinal-1 row");
+      assert.equal(store.ops.size, 1);
+    }
+  });
+}
+
+test("COST-A2b-3 (negative control): an HTTP refusal tagged 'rejected' without a GenerativeProviderError reason keeps the explicit opt-in retry (unchanged)", async () => {
+  const store = memoryLedgerStore();
+  let calls = 0;
+  const hooks = {
+    maxRejectedRetries: 1,
+    call: async () => {
+      calls++;
+      throw new ProviderRejectedError(`HTTP 503 on submit #${calls}`);
+    },
+    load: async () => null,
+    now: NOW,
+  };
+  await assert.rejects(guardPaidCall(store, spec, hooks), /HTTP 503 on submit #2/);
+  assert.equal(calls, 2, "the opt-in retry still applies to this refusal");
+  assert.equal(store.ops.get(paidCallKey(spec, 0))!.status, "REFUNDED");
+  assert.equal(store.ops.get(paidCallKey(spec, 1))!.status, "REFUNDED");
+});

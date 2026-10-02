@@ -18,8 +18,8 @@
  * 5. A refusal before acceptance ("rejected") moves the row to REFUNDED (committed_usd 0,
  *    result_ref "rejected:..."). Whether the provider bills such an answer (upstream_error,
  *    rate_limited, HTTP refusal) is not known, so by default there is no automatic retry
- *    (PI V2 COST-A2); a caller may still opt in on the ordinal-1 key. "rejected_final" never
- *    retries.
+ *    (PI V2 COST-A2); a caller may still opt in on the ordinal-1 key, except for upstream_error
+ *    and rate_limited, which are never retried (COST-A2b). "rejected_final" never retries.
  */
 import { stableHash } from "@/lib/production-intelligence/canonical";
 import {
@@ -79,6 +79,8 @@ const REJECTED_FINAL_REASONS = new Set<GenerativeProviderError["reason"]>([
   "quota_exceeded",
 ]);
 const REJECTED_REASONS = new Set<GenerativeProviderError["reason"]>(["upstream_error", "rate_limited"]);
+/** upstream_error / rate_limited: whether the provider billed is unknown, so no caller may retry them (COST-A2b). */
+const isBillingUncertainRefusal = (err: unknown) => err instanceof GenerativeProviderError && REJECTED_REASONS.has(err.reason);
 
 /** Default classification. Anything unknown is "uncertain": the only safe assumption about money. */
 export function classifyPaidCallError(err: unknown): PaidCallClassification {
@@ -161,7 +163,7 @@ export async function guardPaidCall<T>(store: LedgerStore, spec: PaidCallSpec, h
       if (c.kind === "rejected" || c.kind === "rejected_final") {
         const message = err instanceof Error ? err.message : String(err);
         await store.update(key, "SUBMITTED", { status: "REFUNDED", committedUsd: 0, resultRef: `${REJECTED_REF}${c.kind}:${message.slice(0, 200)}`, updatedAt: now() });
-        if (c.kind === "rejected" && ordinal < maxRejectedRetries) {
+        if (c.kind === "rejected" && ordinal < maxRejectedRetries && !isBillingUncertainRefusal(err)) {
           lastRejection = err;
           continue;
         }
