@@ -1,7 +1,7 @@
 {
   "resolution": "1080x1920",
   "fps": 30,
-  "durationSeconds": 34.81,
+  "durationSeconds": 34.87,
   "hasAudio": true,
   "checks": {
     "resolution1080x1920": true,
@@ -12,9 +12,18 @@
     "noAccidentalBlack": true,
     "noClipping": true
   },
+  "avSyncDriftMsPerSegment": {
+    "opening": 5,
+    "avatar": 39,
+    "demo": 14,
+    "results": 8,
+    "reveal": 3,
+    "closing": 13,
+    "end": 0
+  },
   "loudnessLufs": -14.6,
   "truePeakDbfs": -1.3,
-  "firstFrameYavg": 140.009,
+  "firstFrameYavg": 140.012,
   "blackIntervals": [],
   "sections": {
     "opening": {
@@ -23,26 +32,26 @@
     },
     "avatar": {
       "start": 5.97,
-      "duration": 3.76
+      "duration": 3.8
     },
     "demo": {
-      "start": 9.73,
-      "duration": 5.92
+      "start": 9.77,
+      "duration": 5.93
     },
     "results": {
-      "start": 15.65,
+      "start": 15.71,
       "duration": 4.33
     },
     "reveal": {
-      "start": 19.98,
+      "start": 20.04,
       "duration": 5.03
     },
     "closing": {
-      "start": 25.01,
+      "start": 25.07,
       "duration": 8.57
     },
     "end": {
-      "start": 33.57,
+      "start": 33.64,
       "duration": 1.2
     }
   },
@@ -61,6 +70,6 @@
     "pronunciación de ATOMIVID"
   ],
   "notes": [
-    "AVATAR: marcador de revisión (sin llamada a HeyGen). Este corte NO es el master."
+    "HeyGen preflight OK (saldo suficiente)."
   ]
 }

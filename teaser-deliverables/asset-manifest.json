@@ -14,7 +14,8 @@
     "elevenlabs:tts:avatar (reutilizado)",
     "elevenlabs:tts:demo (reutilizado)",
     "elevenlabs:tts:results (reutilizado)",
-    "elevenlabs:tts:reveal (reutilizado)"
+    "elevenlabs:tts:reveal (reutilizado)",
+    "heygen:avatar:line (reutilizado)"
   ],
   "excluded": [
     "VIDEO-004 / Termópilas",

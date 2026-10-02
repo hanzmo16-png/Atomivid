@@ -1,7 +1,7 @@
 {
   "capUsd": 1.03,
   "spentThisRunUsd": 0,
-  "ledgerCommittedTotalUsd": 0.0284,
+  "ledgerCommittedTotalUsd": 0.1784,
   "operations": [
     {
       "provider": "elevenlabs",
@@ -30,6 +30,14 @@
       "estimatedUsd": 0.0068,
       "actualUsd": 0,
       "reused": true
+    },
+    {
+      "provider": "heygen",
+      "operation": "avatar:line",
+      "estimatedUsd": 0.15,
+      "actualUsd": 0,
+      "reused": true,
+      "ledgerKey": "op_74b8be2b88849f21ce77b862beb4c4a2"
     }
   ],
   "ledger": [
@@ -72,8 +80,16 @@
       "reserved_usd": 0.15,
       "committed_usd": null,
       "updated_at": "2026-10-02T15:49:52.086929+00:00"
+    },
+    {
+      "provider": "heygen",
+      "shot_id": "avatar:line",
+      "status": "COMMITTED",
+      "reserved_usd": 0.15,
+      "committed_usd": 0.15,
+      "updated_at": "2026-10-02T17:03:06.707116+00:00"
     }
   ],
-  "avatarMode": "review-placeholder",
+  "avatarMode": "heygen",
   "avatarAttempt": "2"
 }
