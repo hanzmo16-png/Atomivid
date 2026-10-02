@@ -122,7 +122,20 @@ export type AllocationLimits = {
   aiVideoEnabled: boolean;
   aiVideoCostConfig: AiVideoCostConfig;
   units: GenerativeUnitCosts;
+  /**
+   * PI V2 B5.1 (RB-08): whether a moving stock source exists (footage provider with video search).
+   * Undefined = assumed available (confirm-time estimate); the worker passes the real value.
+   */
+  movingStockAvailable?: boolean;
 };
+
+/** A shot that requires motion has no admitted moving type (stock video or AI video). The plan fails; nothing is substituted. */
+export class MotionRequiredUnsatisfiableError extends Error {
+  constructor(readonly shotId: string, readonly reason: string) {
+    super(`La escena ${shotId} requiere movimiento y no hay video de archivo ni video IA disponible (${reason}). No se sustituye por una imagen fija: la producción no se inicia.`);
+    this.name = "MotionRequiredUnsatisfiableError";
+  }
+}
 
 /** Topes por estrategia (antes de aplicar el snapshot confirmado). */
 export function strategyLimits(
@@ -195,7 +208,49 @@ export function allocateShotTypes(shots: Shot[], totalDurationSec: number, limit
     aiImageGenerations + 1 <= limits.maxAiImageGenerations &&
     imageUsd + aiVideoUsd + limits.units.imageUsd <= limits.maxGenerativeUsd + 1e-9;
 
+  /** Same checks as the ai_video branch below; undefined = allowed. */
+  const aiVideoRefusal = (shot: Shot): string | undefined => {
+    if (!limits.aiVideoEnabled || limits.maxAiVideoClips <= 0) return "video IA no habilitado para esta estrategia/entorno";
+    const eligibility = scoreAiVideoEligibility(
+      { id: shot.id, visualIntent: shot.visualIntent, durationSec: shot.durationSec, type: "ai_video", motionRequired: shot.motionRequired },
+      limits.aiVideoCostConfig,
+    );
+    const clipCost = limits.units.veoClipUsd;
+    if (eligibility.recommendedAssetType !== "ai_video") return `el contenido no justifica video IA (${eligibility.reason})`;
+    if (ledger.usedClips + 1 > limits.maxAiVideoClips) return "tope de clips de video IA alcanzado";
+    if (aiImageGenerations + 1 > limits.maxAiImageGenerations) return "sin imagen de referencia disponible dentro del tope de imágenes";
+    if (imageUsd + aiVideoUsd + limits.units.imageUsd + clipCost > limits.maxGenerativeUsd + 1e-9) return "excedería el tope de costo generativo";
+    const decision = assertAiVideoBudget(ledger, shot.durationSec, clipCost, totalDurationSec, limits.aiVideoCostConfig);
+    return decision.allowed ? undefined : decision.reason;
+  };
+  const commitAiVideo = (shot: Shot) => {
+    const clipCost = limits.units.veoClipUsd;
+    ledger = recordAiVideoSpend(ledger, shot.durationSec, clipCost);
+    aiImageGenerations += 1;
+    imageUsd += limits.units.imageUsd;
+    aiVideoUsd += clipCost;
+  };
+
   for (const shot of shots) {
+    // PI V2 B5.1 (RB-08): motion-required shots only resolve to ai_video or stock_video — never
+    // to an AI still, Ken Burns, text or a photo with zoom. No moving source → the plan fails.
+    if (shot.motionRequired) {
+      let reason: string | undefined;
+      if (shot.type === "ai_video") {
+        reason = aiVideoRefusal(shot);
+        if (!reason) {
+          commitAiVideo(shot);
+          out.push({ ...shot, plannedType: "ai_video" });
+          continue;
+        }
+      }
+      if (limits.movingStockAvailable === false) {
+        throw new MotionRequiredUnsatisfiableError(shot.id, `${reason ? `${reason}; ` : ""}sin proveedor de video de archivo`);
+      }
+      if (shot.type === "stock_video") out.push({ ...shot, plannedType: shot.type });
+      else out.push({ ...shot, type: "stock_video", motion: "pan", source: "stock", plannedType: shot.type, degradeReason: reason ?? "la escena requiere movimiento" });
+      continue;
+    }
     if (shot.type === "ai_video") {
       let reason: string | undefined;
       if (!limits.aiVideoEnabled || limits.maxAiVideoClips <= 0) {

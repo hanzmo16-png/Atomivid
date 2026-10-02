@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { executeShot, type ShotExecutionDeps } from "./shot-executor";
+import { executeShot, MotionShotUnavailableError, type ShotExecutionDeps } from "./shot-executor";
 import { memoryShotAssetStore } from "./durable-shot-assets";
 import { ProductionBudget, memoryBudgetStore } from "./production-budget";
 import { emptyAiVideoLedgerState, getAiVideoCostConfig } from "./ai-video-cost-guard";
@@ -234,12 +234,37 @@ test("video IA (Veo image-to-video): referencia IA + 1 envío; el reintento reut
   }
 });
 
-test("video IA no disponible (sin proveedor): usa la imagen IA de referencia con movimiento, nunca un fixture", async () => {
-  const { deps: d } = await deps();
+test("B5.1: video IA no disponible (sin proveedor) en una escena motion:true → video de archivo, nunca la imagen IA con Ken Burns; 0 imágenes IA", async () => {
+  const images = fakeImages(async () => pngAsset());
+  const { deps: d } = await deps({ imageProvider: images.provider });
   const result = await executeShot(shot("ai_video", { motionRequired: true }), d, emptyAiVideoLedgerState());
-  assert.equal(result.executedType, "generated_placeholder");
+  assert.equal(result.executedType, "stock_video");
   assert.equal(result.asset.kind, "media");
-  assert.ok(result.deviation);
+  assert.equal(result.asset.kind === "media" ? result.asset.mediaType : null, "video");
+  assert.equal(images.calls(), 0, "sin proveedor de video IA no se paga una imagen de referencia");
+  assert.ok(result.deviation, "el cambio ai_video → stock_video queda registrado");
+});
+
+test("B5.1: escena motion:true sin video IA y con archivo solo en imagen fija → la producción se detiene; nada se sustituye, 0 imágenes IA", async () => {
+  const images = fakeImages(async () => pngAsset());
+  const stills: FootageProvider = {
+    name: "stills-only",
+    async fetchFootage() { return { url: "https://stock/x.jpg", mediaType: "image", mimeType: "image/jpeg", extension: "jpg" }; },
+    async downloadFootage() { return Buffer.from("jpg"); },
+  };
+  for (const type of ["ai_video", "stock_video"] as const) {
+    const { deps: d } = await deps({ imageProvider: images.provider, footageProvider: stills });
+    await assert.rejects(executeShot(shot(type, { motionRequired: true }), d, emptyAiVideoLedgerState()), MotionShotUnavailableError);
+  }
+  assert.equal(images.calls(), 0);
+});
+
+test("B5.1: escena motion:false con el presupuesto de imágenes agotado sigue el fallback actual (archivo con Ken Burns)", async () => {
+  const images = fakeImages(async () => pngAsset());
+  const { deps: d } = await deps({ imageProvider: images.provider }, { maxAiImageGenerations: 0, maxAiVideoClips: 0, maxGenerativeUsd: 0 });
+  const result = await executeShot(shot("generated_placeholder"), d, emptyAiVideoLedgerState());
+  assert.equal(images.calls(), 0);
+  assert.equal(result.executedType, "ken_burns_image");
 });
 
 test("tarjeta de texto: tema + oración real de la narración, sin marca de fixture", async () => {

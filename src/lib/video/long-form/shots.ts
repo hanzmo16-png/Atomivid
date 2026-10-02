@@ -90,6 +90,16 @@ export function dedupKeys(shots: Shot[]): string[] {
   return shots.map((s) => s.dedupKey);
 }
 
+/**
+ * PI V2 B5.1 (RB-08): a visual with `motion: true` only admits a moving shot — stock video or AI
+ * video. The rotated slot is kept when it already moves; any still/text/Ken Burns slot becomes
+ * stock video. `motion: false` (the default, see visual-intents.ts) keeps the rotation untouched.
+ */
+export const MOTION_SHOT_TYPES: readonly ShotType[] = ["stock_video", "ai_video"];
+export function motionShotType(cycled: ShotType): ShotType {
+  return MOTION_SHOT_TYPES.includes(cycled) ? cycled : "stock_video";
+}
+
 export function cycleShotType(index: number, strategy?: VisualStrategy): ShotType {
   const cycle = strategy ? STRATEGY_CYCLES[strategy] : CYCLE;
   return cycle[index % cycle.length];
@@ -150,8 +160,9 @@ export function shotsForSpan(input: {
   for (let i = 0; i < count; i++) {
     const start = input.startSec + i * hold;
     const end = i === count - 1 ? input.endSec : input.startSec + (i + 1) * hold;
-    const shotType = cycleShotType(i + (input.typeOffset ?? 0), input.strategy);
+    const cycled = cycleShotType(i + (input.typeOffset ?? 0), input.strategy);
     const visual = input.visuals && input.visuals.length > 0 ? input.visuals[i % input.visuals.length] : undefined;
+    const shotType = visual?.motion ? motionShotType(cycled) : cycled;
     if (visual) {
       shots.push({
         id: `${input.beatId}-shot-${i + 1}`,
@@ -228,6 +239,7 @@ function anchoredShots(
     const intent = intents[i];
     let shotType = cycleShotType(i + (input.typeOffset ?? 0), input.strategy);
     if ((shotType === "text" || shotType === "diagram" || shotType === "map") && !salientFact(fragment)) shotType = "ken_burns_image";
+    if (intent.visual.motion) shotType = motionShotType(shotType);
     return {
       id: `${input.beatId}-shot-${i + 1}`,
       beatId: input.beatId,

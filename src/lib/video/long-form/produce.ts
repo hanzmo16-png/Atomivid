@@ -65,7 +65,7 @@ import { ProductionBudget, supabaseBudgetStore, type BudgetStore } from "./produ
 import { supabaseShotAssetStore, type ShotAssetStore } from "./durable-shot-assets";
 import type { LedgerStore } from "@/lib/paid-calls/gate";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
-import { executeShot, type ShotExecution } from "./shot-executor";
+import { executeShot, MotionShotUnavailableError, preflightMotionFootage, type ShotExecution } from "./shot-executor";
 import { type LongFormStage } from "./stages";
 import {
   finalizeLongFormOutput,
@@ -202,7 +202,11 @@ export async function generateLongFormVideoFromScript({
   const allocation = executionAllocation(plan);
   // Abrir el presupuesto (gratis) ANTES de cualquier llamada pagada: si el
   // storage no responde, el trabajo falla aquí con $0 gastado.
-  const budget = await ProductionBudget.open(runtime.budgetStore ?? supabaseBudgetStore(supabase, requestId, STORAGE_BUCKET), allocation);
+  const budgetStore = runtime.budgetStore ?? supabaseBudgetStore(supabase, requestId, STORAGE_BUCKET);
+  // A durable budget only exists if an earlier attempt of this request already ran (and passed the
+  // motion check below before spending). A failed read counts as "first attempt": check again.
+  const priorAttempt = (await budgetStore.load().catch(() => null)) !== null;
+  const budget = await ProductionBudget.open(budgetStore, allocation);
   const units = getGenerativeUnitCosts(plan.providers.aiVideo);
   // Fail before speech/image spend if a Runway plan cannot actually animate.
   if (!replayOnly && allocation.maxAiVideoClips > 0 && plan.providers.aiVideo === "runway") {
@@ -212,6 +216,16 @@ export async function generateLongFormVideoFromScript({
     }
   }
   const uploadArtifact = runtime.uploadArtifact ?? ((path: string, buffer: Buffer, ct: string) => uploadToStorage(supabase, path, buffer, ct));
+  // PI V2 B5.1 (RB-08): a visual with motion:true only admits stock video or AI video, and stock
+  // video is the fallback when AI video is refused. Without moving stock footage for it the
+  // production fails here — before TTS or any other paid call — instead of degrading to stills.
+  if (!replayOnly && !priorAttempt) {
+    await preflightMotionFootage(
+      beats.flatMap((b) => visualsForBeat(b as { narration: string; visuals?: unknown }, topic)),
+      resolvedProviders.footageProvider,
+      { anchored: usesAnchoredVisuals(plan) },
+    );
+  }
 
   await onProgress?.("scripting");
   await onProgress?.("storyboard", { completed: 0, total: beats.length, label: "narraciones" });
@@ -370,7 +384,11 @@ export async function generateLongFormVideoFromScript({
         identify: runtime.identify,
       },
       aiVideoLedger,
-    );
+    ).catch((err: unknown) => {
+      // Recuperación: un video durable faltante de una escena con movimiento es un fallo de replay, nunca un sustituto.
+      if (replayOnly && err instanceof MotionShotUnavailableError) throw new LongFormReplayError(`la escena ${shot.id} no tiene su video durable (${err.reason})`);
+      throw err;
+    });
     // Una escena que ya fue tarjeta (carencia/degradación) en la ejecución
     // original — registrada en el presupuesto durable — se reproduce igual.
     const priorTextFallback = execution.executedType === "text" && priorTextDeviations.has(shot.id);

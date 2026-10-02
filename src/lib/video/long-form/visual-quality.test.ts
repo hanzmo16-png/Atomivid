@@ -305,6 +305,12 @@ test("muestra inicial (≤ 60 s) del fixture: 0 recursos repetidos, cada escena 
       ...[0, 1, 2].map((i) => candidate(`${q}-${i}`, q)),
     ],
   });
+  // PI V2 B5.1: las escenas motion:true del fixture solo admiten video — el catálogo también ofrece
+  // clips (mismas reglas: 3 pertinentes + 1 ajeno en todas las búsquedas).
+  catalog.searchVideoCandidates = async (q: string) => [
+    { ...candidate("generic-doorway-man-clip", "man standing in a doorway", "https://cdn.example/generic-doorway-man-clip.mp4"), mediaType: "video" as const, mimeType: "video/mp4", extension: "mp4", durationSeconds: 12 },
+    ...[0, 1, 2].map((i) => ({ ...candidate(`${q}-clip-${i}`, q, `https://cdn.example/${encodeURIComponent(q)}-clip-${i}.mp4`), mediaType: "video" as const, mimeType: "video/mp4", extension: "mp4", durationSeconds: 12 })),
+  ];
   const deps = execDeps({ footageProvider: catalog });
   deps.budget = await ProductionBudget.open(memoryBudgetStore(), { maxAiImageGenerations: 0, maxAiVideoClips: 0, maxGenerativeUsd: 0 });
   const executions = [];
@@ -314,6 +320,9 @@ test("muestra inicial (≤ 60 s) del fixture: 0 recursos repetidos, cada escena 
   assert.equal(report.summary.titleCards.length, 0);
   assert.ok(report.scenes.every((s) => s.narrationFragment && s.narrationFragment.length > 0));
   assert.ok(!executions.some((e) => e.assetMeta?.identity?.sourceId === "generic-doorway-man"), "el recurso genérico ajeno nunca rellena");
+  for (const [i, s] of opening.entries()) {
+    if (s.motionRequired) assert.equal(executions[i].executedType, "stock_video", `${s.id}: motion:true se conserva como video`);
+  }
   assert.doesNotThrow(() => assertVisualQuality(report));
   assert.ok(report.summary.openingWindow.scenes >= 10 && report.summary.openingWindow.repeatedScenes.length === 0);
 });

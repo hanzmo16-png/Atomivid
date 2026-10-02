@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { generateLongFormVideoFromScript, LongFormScriptChangedError, type LongFormRuntime } from "./produce";
-import { computeProductionPlan, resolveExecutablePlan, REAL_LONG_FORM_PROVIDER_NAMES, type ProductionPlan, type VisualStrategy } from "./production-plan";
+import { allocateShotTypes, computeProductionPlan, MotionRequiredUnsatisfiableError, planShotsFromScript, resolveExecutablePlan, REAL_LONG_FORM_PROVIDER_NAMES, strategyLimits, type ProductionPlan, type VisualStrategy } from "./production-plan";
 import { memoryShotAssetStore } from "./durable-shot-assets";
 import { memoryBudgetStore } from "./production-budget";
 import { computeProductionProgress, type ProgressStageKey } from "./progress";
@@ -66,6 +66,20 @@ function providers(c: ReturnType<typeof counters>): LongFormProviderSet {
     async fetchFootage(query) {
       c.stock += 1;
       return { url: `https://stock/v/${encodeURIComponent(query)}.mp4`, mediaType: "video", mimeType: "video/mp4", extension: "mp4" };
+    },
+    // Como el proveedor real: búsqueda de candidatos de VIDEO (las escenas con motion:true solo
+    // admiten video en movimiento — PI V2 B5.1).
+    async searchVideoCandidates(query) {
+      c.stock += 1;
+      return Array.from({ length: 12 }, (_, i) => ({
+        url: `https://stock/v/${encodeURIComponent(query)}/${i}.mp4?sig=abc`,
+        sourceId: `vid-${query}-${i}`,
+        description: query,
+        mediaType: "video" as const,
+        mimeType: "video/mp4",
+        extension: "mp4",
+        durationSeconds: 12,
+      }));
     },
     async searchImageCandidates(query) {
       c.stock += 1;
@@ -136,6 +150,7 @@ async function run(
     renders?: { count: number };
     replayOnly?: boolean;
     thumbnails?: { calls: unknown[]; uploads: string[] };
+    providersOverride?: Partial<LongFormProviderSet>;
   } = {},
 ) {
   const script = documentary180sFixture();
@@ -184,7 +199,7 @@ async function run(
     beats: opts.beats ?? script.beats,
     language: "es",
     plan,
-    providers: providers(c),
+    providers: { ...providers(c), ...opts.providersOverride },
     runtime,
     onProgress: (stage, units) => {
       events.push({ stage, completed: units?.completed, total: units?.total, label: units?.label });
@@ -443,4 +458,60 @@ test("Runway plan executes 10s clips at its own cost and reuses completed output
     if (previous === undefined) delete process.env.LONG_FORM_AI_VIDEO_ENABLED;
     else process.env.LONG_FORM_AI_VIDEO_ENABLED = previous;
   }
+});
+
+// --- PI V2 B5.1 (RB-08): motion:true no se degrada a imagen fija ---
+
+test("B5.1-1: motion:true sin video IA y sin archivo en movimiento → la producción falla ANTES de la voz y de cualquier llamada de pago", async () => {
+  for (const strategy of ["balanced", "economical"] as const) {
+    const c = counters();
+    const stillsOnly: FootageProvider = {
+      name: "stills-only",
+      async fetchFootage(query) {
+        c.stock += 1;
+        return { url: `https://stock/i/${encodeURIComponent(query)}.jpg`, mediaType: "image", mimeType: "image/jpeg", extension: "jpg" };
+      },
+      async searchImageCandidates(query) {
+        c.stock += 1;
+        return [{ url: `https://stock/i/${encodeURIComponent(query)}.jpg`, sourceId: query, description: query, mediaType: "image" as const, mimeType: "image/jpeg", extension: "jpg" }];
+      },
+      async downloadFootage() {
+        return Buffer.from("jpg");
+      },
+    };
+    const renders = { count: 0 };
+    await assert.rejects(run(freshEnv(), c, planFor(strategy), { videoProvider: null, providersOverride: { footageProvider: stillsOnly }, renders }), MotionRequiredUnsatisfiableError);
+    assert.deepEqual({ voice: c.voice, image: c.image, veoSubmits: c.veoSubmits, renders: renders.count }, { voice: 0, image: 0, veoSubmits: 0, renders: 0 }, strategy);
+  }
+});
+
+test("B5.1-2: motion:true con archivo en movimiento → cada escena con movimiento se ve como VIDEO, nunca Ken Burns ni imagen IA", async () => {
+  const c = counters();
+  const env = freshEnv({ durationSeconds: 180 });
+  const script = documentary180sFixture();
+  const { shots } = planShotsFromScript(script.beats, script.topic, "balanced");
+  const motionIds = new Set(shots.filter((s) => s.motionRequired).map((s) => s.id));
+  assert.ok(motionIds.size > 0, "el fixture tiene escenas motion:true");
+  await run(env, c, planFor("balanced"), { videoProvider: null });
+  const report = env.reports.at(-1)!;
+  const motionScenes = report.scenes.filter((s) => motionIds.has(s.shotId));
+  assert.equal(motionScenes.length, motionIds.size);
+  for (const scene of motionScenes) {
+    assert.equal(scene.display, "video", `${scene.shotId} se ve como ${scene.display}`);
+    assert.ok(scene.executedType === "stock_video" || scene.executedType === "ai_video", `${scene.shotId}: ${scene.executedType}`);
+  }
+});
+
+test("B5.1-3: el solver nunca asigna Ken Burns, imagen IA ni tarjeta a una escena motion:true; sin archivo en movimiento falla; motion:false conserva su fallback", () => {
+  const script = documentary180sFixture();
+  const { shots, narrationSeconds } = planShotsFromScript(script.beats, script.topic, "cinematic");
+  const limits = strategyLimits("cinematic", 0, { aiVideoEnabled: false });
+  const noBudget = { ...limits, maxAiImageGenerations: 0, maxGenerativeUsd: 0 };
+  const allocated = allocateShotTypes(shots, narrationSeconds, noBudget);
+  const motion = allocated.shots.filter((s) => s.motionRequired);
+  const still = allocated.shots.filter((s) => !s.motionRequired);
+  assert.ok(motion.length > 0 && still.length > 0);
+  for (const s of motion) assert.ok(s.type === "stock_video" || s.type === "ai_video", `${s.id}: ${s.type}`);
+  assert.ok(still.some((s) => s.type === "ken_burns_image" && s.plannedType === "generated_placeholder"), "motion:false con imágenes agotadas sigue cayendo a Ken Burns");
+  assert.throws(() => allocateShotTypes(shots, narrationSeconds, { ...noBudget, movingStockAvailable: false }), MotionRequiredUnsatisfiableError);
 });

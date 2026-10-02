@@ -16,6 +16,7 @@ import type { FootageProvider, GenerativeAsset, ImageProvider, VideoProvider } f
 import { guardPaidCall, type LedgerStore } from "@/lib/paid-calls/gate";
 import { PaidResultUnavailableError } from "@/lib/paid-calls/errors";
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
+import { MotionRequiredUnsatisfiableError } from "./production-plan";
 import { GenerativeProviderError } from "@/lib/providers/types";
 import type { ResolvedShotAsset } from "./asset-resolver";
 import { resolveAiVideoForShot } from "./ai-video-resolver";
@@ -450,7 +451,99 @@ async function stockOrText(shot: AllocatedShot, deps: ShotExecutionDeps, ledger:
   return textResult(shot, deps, ledger, reason ? `${reason}; archivo real no disponible` : "archivo real no disponible");
 }
 
+/**
+ * PI V2 B5.1 (RB-08): before TTS or any paid call, every visual with motion:true must have moving
+ * stock footage (stock video is the admitted fallback when AI video is refused). Uses only the free
+ * stock search, the same way the executor will: anchored pipeline → video candidate search (or a
+ * single fetch when the provider has no candidate search at all); legacy pipeline → fetchFootage.
+ * A visual without moving footage fails the whole production; nothing is substituted.
+ */
+export async function preflightMotionFootage(
+  visuals: readonly { description: string; motion: boolean; alternates?: string[] }[],
+  footageProvider: FootageProvider,
+  opts: { anchored: boolean; minDurationSec?: number },
+): Promise<void> {
+  const min = opts.minDurationSec ?? 3;
+  const seen = new Set<string>();
+  for (const visual of visuals) {
+    if (!visual.motion || seen.has(visual.description)) continue;
+    seen.add(visual.description);
+    let found = false;
+    for (const query of [visual.description, ...(visual.alternates ?? [])]) {
+      if (opts.anchored && footageProvider.searchVideoCandidates) {
+        const candidates = await footageProvider.searchVideoCandidates(query, min, "landscape").catch(() => []);
+        found = candidates.some((c) => c.mediaType === "video");
+      } else if (!opts.anchored || !footageProvider.searchImageCandidates) {
+        const one = await footageProvider.fetchFootage(query, min, "landscape").catch(() => null);
+        found = one?.mediaType === "video";
+      }
+      if (found) break;
+    }
+    if (!found) throw new MotionRequiredUnsatisfiableError(visual.description, "el proveedor de archivo no devolvió video para esta escena y no se sustituye por una imagen fija");
+  }
+}
+
+/** A motion-required shot could not get moving footage. The job stops; nothing is substituted. */
+export class MotionShotUnavailableError extends Error {
+  constructor(readonly shotId: string, readonly reason: string) {
+    super(`La escena ${shotId} requiere movimiento y no se obtuvo video (${reason}). No se sustituye por una imagen fija ni una tarjeta: la producción se detiene.`);
+    this.name = "MotionShotUnavailableError";
+  }
+}
+
+/**
+ * PI V2 B5.1 (RB-08): a shot whose visual requires motion executes only as AI video or stock
+ * video. AI video refused/unavailable → moving stock; no moving stock → MotionShotUnavailableError.
+ * Never generated_placeholder, Ken Burns, a still or a text card.
+ */
+async function executeMotionShot(shot: AllocatedShot, deps: ShotExecutionDeps, ledger: AiVideoLedgerState): Promise<ShotExecution> {
+  let reason: string | undefined;
+  if (shot.type === "ai_video") {
+    const cachedClip = await reuseCompleted(deps, shot.id, "ai_video");
+    if (cachedClip) {
+      return mediaResult(shot, { ...cachedClip, mediaType: "video" }, "ai_video", recordAiVideoSpend(ledger, shot.durationSec, 0));
+    }
+    if (!deps.videoProvider || deps.replayOnly) {
+      reason = "proveedor de video IA no configurado";
+    } else {
+      const reference = await resolveAiImage(shot, deps);
+      if ("unavailable" in reference) {
+        reason = `sin imagen de referencia para video IA: ${reference.unavailable}`;
+      } else {
+        const outcome = await resolveAiVideoForShot({
+          shot: { ...shot, referenceAsset: reference.url },
+          totalDocumentaryDurationSec: deps.totalDurationSec,
+          ledger,
+          videoProvider: deps.videoProvider,
+          aspectRatio: "16:9",
+          costConfig: deps.aiVideoCostConfig,
+          billedDurationSec: deps.units.veoBilledSeconds,
+          requireReal: deps.requireReal,
+          metadata: deps.metadata,
+        });
+        if (outcome.status !== "skipped") {
+          const url = await persistMedia(deps, shot.id, "ai_video", outcome.clip.buffer, outcome.clip.mimeType, outcome.clip.extension, "video", outcome.clip.provider, outcome.clip.costUsd);
+          return mediaResult(
+            shot,
+            { url, mediaType: "video", costUsd: outcome.clip.costUsd + reference.costUsd, bytes: outcome.clip.buffer.byteLength, provider: outcome.clip.provider, reused: false },
+            "ai_video",
+            recordAiVideoSpend(ledger, shot.durationSec, outcome.clip.costUsd),
+          );
+        }
+        reason = `video IA no generado: ${outcome.reason}`;
+      }
+    }
+  }
+  const stock = await resolveStock(shot, deps, true);
+  if (stock && !("gap" in stock) && stock.mediaType === "video") {
+    return mediaResult(shot, stock, "stock_video", ledger, shot.type === "stock_video" ? undefined : reason ?? "la escena requiere movimiento");
+  }
+  const why = !stock ? "sin video de archivo" : "gap" in stock ? `sin video de archivo pertinente: ${stock.gap.reason}` : "el archivo encontrado es una imagen fija";
+  throw new MotionShotUnavailableError(shot.id, reason ? `${reason}; ${why}` : why);
+}
+
 export async function executeShot(shot: AllocatedShot, deps: ShotExecutionDeps, ledger: AiVideoLedgerState): Promise<ShotExecution> {
+  if (shot.motionRequired) return executeMotionShot(shot, deps, ledger);
   switch (shot.type) {
     case "text":
     case "diagram":
