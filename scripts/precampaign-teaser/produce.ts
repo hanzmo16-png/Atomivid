@@ -278,7 +278,9 @@ async function main() {
   // ---------- Segmentos de video (cada uno 1080x1920@30 con su audio) ----------
   const seg = (name: string) => join(WORK, `seg-${name}.mp4`);
   const enc = ["-r", String(FPS), "-c:v", "libx264", "-crf", "17", "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"];
-  const vertical = (input: string) => `[${input}]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=24:2,eq=brightness=-0.12:saturation=0.8[bg];[${input}]scale=${W}:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2-140`;
+  // Los renders de DULCE/Océano traen subtítulos en inglés y rótulos quemados: se recorta esa franja (arriba 10 %, abajo 22 %).
+  const SAFE = "crop=iw*0.84:ih*0.68:iw*0.08:ih*0.10";
+  const vertical = (input: string) => `[${input}]${SAFE},scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=24:2,eq=brightness=-0.12:saturation=0.8[bg];[${input}]${SAFE},scale=${W}:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2-140`;
   const dulceDur = (await probe(inputs.dulce)).duration, oceanDur = (await probe(inputs.ocean)).duration;
   const montage = async (name: string, audio: string, picks: { file: string; at: number }[], extra = "") => {
     const dur = (await probe(audio)).duration + 0.25;
