@@ -44,6 +44,20 @@ async function loadAudio<M extends { audioPath: string; sha256: string; bytes: n
 }
 
 /**
+ * A result already stored for this exact paid call (any gate ordinal), sha256-verified. The
+ * object is written right after the provider answered and before the ledger row is closed, so a
+ * crash in between leaves the asset with the row still SUBMITTED: reusing it costs nothing and
+ * leaves the ledger untouched (PI V2 COST-6). Null when nothing valid is stored.
+ */
+async function loadStoredResult<T>(results: PaidResultStore, requestId: string, spec: PaidCallSpec, load: (resultRef: string) => Promise<T | null>): Promise<T | null> {
+  for (const ordinal of [0, 1]) {
+    const stored = await load(paidResultPath(requestId, paidCallKey(spec, ordinal), "json"));
+    if (stored) return stored;
+  }
+  return null;
+}
+
+/**
  * ElevenLabs on Generate (Reel voice ×2 incl. the speed correction, Avatar narration). The key
  * is the text + language + speed + voice identity; render_attempts is not part of it.
  *
@@ -69,29 +83,33 @@ export async function gatedVoiceSynthesize(
     return { ...r, words: restoreDisplayWords(r.words, aliases), reused: false, costUsd: 0 };
   }
   const fingerprint = { text: ttsText, language, speed: speed ?? null, voiceId: deps.voiceIdentity.voiceId, modelId: deps.voiceIdentity.modelId, voiceSettingsJson: deps.voiceIdentity.voiceSettingsJson };
+  const spec: PaidCallSpec = {
+    projectId: deps.requestId,
+    shotId: `voice:${stableHash(fingerprint, 16)}`,
+    provider: deps.voiceProvider.name,
+    model: deps.voiceIdentity.modelId,
+    method: "tts_with_timestamps",
+    inputFingerprint: fingerprint,
+    reservedUsd: Math.max(0, deps.estimatedCostUsd),
+  };
+  const load = async (resultRef: string): Promise<VoiceResult | null> => {
+    const stored = await loadAudio<StoredVoice>(deps.results, resultRef);
+    if (!stored) return null;
+    const { meta, audioBuffer } = stored;
+    return { audioBuffer, durationSeconds: meta.durationSeconds, words: meta.words, mimeType: meta.mimeType, extension: meta.extension };
+  };
+  const stored = await loadStoredResult(deps.results, deps.requestId, spec, load);
+  if (stored) return { ...stored, words: restoreDisplayWords(stored.words, aliases), reused: true, costUsd: 0 };
   const guarded = await guardPaidCall<VoiceResult>(
     deps.ledger,
-    {
-      projectId: deps.requestId,
-      shotId: `voice:${stableHash(fingerprint, 16)}`,
-      provider: deps.voiceProvider.name,
-      model: deps.voiceIdentity.modelId,
-      method: "tts_with_timestamps",
-      inputFingerprint: fingerprint,
-      reservedUsd: Math.max(0, deps.estimatedCostUsd),
-    },
+    spec,
     {
       call: async ({ key }) => {
         const r = await deps.voiceProvider.synthesize(ttsText, language, speed);
         const resultRef = await storeAudio<StoredVoice>(deps.results, deps.requestId, key, r, { durationSeconds: r.durationSeconds, words: r.words, mimeType: r.mimeType, extension: r.extension });
         return { result: r, costUsd: Math.max(0, deps.estimatedCostUsd), resultRef };
       },
-      load: async (resultRef) => {
-        const stored = await loadAudio<StoredVoice>(deps.results, resultRef);
-        if (!stored) return null;
-        const { meta, audioBuffer } = stored;
-        return { audioBuffer, durationSeconds: meta.durationSeconds, words: meta.words, mimeType: meta.mimeType, extension: meta.extension };
-      },
+      load,
     },
   );
   return { ...guarded.result, words: restoreDisplayWords(guarded.result.words, aliases), reused: guarded.reused, costUsd: guarded.costUsd };
@@ -134,9 +152,12 @@ export async function gatedMusicTrack(
     const r = await deps.musicProvider.getTrack(context);
     return { ...r, reused: false, costUsd: 0 };
   }
+  const spec = musicCallSpec(deps, context);
+  const stored = await loadStoredResult(deps.results, deps.requestId, spec, (ref) => loadMusic(deps.results, ref));
+  if (stored) return { ...stored, reused: true, costUsd: 0 };
   const guarded = await guardPaidCall<MusicResult>(
     deps.ledger,
-    musicCallSpec(deps, context),
+    spec,
     {
       call: async ({ key }) => {
         const r = await deps.musicProvider.getTrack(context);

@@ -297,3 +297,55 @@ test("COST-A2b-3 (negative control): an HTTP refusal tagged 'rejected' without a
   assert.equal(store.ops.get(paidCallKey(spec, 0))!.status, "REFUNDED");
   assert.equal(store.ops.get(paidCallKey(spec, 1))!.status, "REFUNDED");
 });
+
+// ---- PI V2 COST-6: asset stored, ledger still SUBMITTED → reuse it, no second call, ledger untouched ----
+
+/** The process dies right after the provider answered and the result was stored: every later ledger write fails. */
+function crashAfterSubmit(base: ReturnType<typeof memoryLedgerStore>) {
+  return { ...base, update: async (k: string, expected: Parameters<typeof base.update>[1], patch: Parameters<typeof base.update>[2]) => {
+    if (patch.status !== "SUBMITTED") throw new Error("process killed before closing the ledger row");
+    return base.update(k, expected, patch);
+  } };
+}
+
+test("COST-6 Reel voice: stored audio + row SUBMITTED → the next attempt reuses it with zero calls and leaves the row SUBMITTED", async () => {
+  const ledger = memoryLedgerStore();
+  const results = memoryResultStore();
+  let calls = 0;
+  const voiceProvider: VoiceProvider = {
+    name: "elevenlabs",
+    async synthesize(text) {
+      calls++;
+      return { audioBuffer: Buffer.from(`mp3:${text}`), durationSeconds: 1.5, words: [{ text, startSeconds: 0, endSeconds: 1.5 }], mimeType: "audio/mpeg", extension: "mp3" };
+    },
+  };
+  const deps = { results, requestId: "req-c6", voiceProvider, voiceIdentity: { voiceId: "v", modelId: "m", voiceSettingsJson: "{}" }, estimatedCostUsd: 0.004 };
+  await assert.rejects(gatedVoiceSynthesize({ ...deps, ledger: crashAfterSubmit(ledger) }, "hola mundo", "es"), /process killed/);
+  assert.equal(calls, 1);
+  const [row] = [...ledger.ops.values()];
+  assert.equal(row.status, "SUBMITTED");
+
+  const again = await gatedVoiceSynthesize({ ...deps, ledger }, "hola mundo", "es");
+  assert.deepEqual([again.reused, again.costUsd, calls, again.audioBuffer.toString()], [true, 0, 1, "mp3:hola mundo"]);
+  assert.equal(ledger.ops.size, 1);
+  assert.equal([...ledger.ops.values()][0].status, "SUBMITTED", "the ledger is not marked COMMITTED without economic evidence");
+
+  // A corrupted stored copy is not reused: the gate then refuses (reconciliation), never re-pays.
+  for (const [p, b] of results.objects) if (p.endsWith(".mp3")) results.objects.set(p, Buffer.from(b.toString() + "x"));
+  await assert.rejects(gatedVoiceSynthesize({ ...deps, ledger }, "hola mundo", "es"), ReconciliationRequiredError);
+  assert.equal(calls, 1);
+});
+
+test("COST-6 music: stored Beatoven track + row SUBMITTED → reused with zero calls; the ledger row is not touched", async () => {
+  const ledger = memoryLedgerStore();
+  const results = memoryResultStore();
+  let calls = 0;
+  const beatoven: MusicProvider = { name: "beatoven", async getTrack() { calls++; return { audioBuffer: Buffer.from(`track-${calls}`), durationSeconds: 30, mimeType: "audio/mpeg", extension: "mp3" }; } };
+  const ctx = { durationSeconds: 30.2, style: "documental", seed: "req-c6m" };
+  const deps = { results, requestId: "req-c6m", musicProvider: beatoven, estimatedCostUsd: 0 };
+  await assert.rejects(gatedMusicTrack({ ...deps, ledger: crashAfterSubmit(ledger) }, ctx), /process killed/);
+  assert.equal(calls, 1);
+  const again = await gatedMusicTrack({ ...deps, ledger }, ctx);
+  assert.deepEqual([again.reused, again.costUsd, calls, again.audioBuffer.toString()], [true, 0, 1, "track-1"]);
+  assert.equal([...ledger.ops.values()][0].status, "SUBMITTED");
+});
