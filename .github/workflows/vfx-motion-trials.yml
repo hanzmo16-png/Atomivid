@@ -1,0 +1,40 @@
+name: VFX approved independent motion trials
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [docs/production-intelligence/VFX-MOTION-TRIAL-AUTHORIZATION.json]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: vfx-approved-first-frames
+  cancel-in-progress: false
+jobs:
+  trials:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: chmod +x node_modules/@ffprobe-installer/linux-x64/ffprobe
+      - run: python3 scripts/vfx/remote_preflight.py
+        env:
+          LTX_API_KEY: ${{ secrets.LTX_API_KEY }}
+      - run: node --import tsx scripts/vfx/motion-trials.ts
+        env:
+          FFPROBE_BINARY: node_modules/@ffprobe-installer/linux-x64/ffprobe
+          VFX_DIRECTOR_ENABLED: '1'
+          AVATAR_PREPARATION_OWNER_EMAIL: hanzmo16@gmail.com
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LTX_API_KEY: ${{ secrets.LTX_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vfx-empty-background-motion-trials
+          path: vfx-motion-review/
+          retention-days: 7
