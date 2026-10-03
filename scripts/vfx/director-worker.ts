@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { createServiceClient } from "../../src/lib/supabase/service";
 import { supabaseJobStore } from "../../src/lib/production-intelligence/vfx-director/store";
-import { createJob, runTask, ownedJob, type DurableExecutor } from "../../src/lib/production-intelligence/vfx-director/jobs";
+import { createJob, runTask, ownedJob, reconcileTask, type DurableExecutor } from "../../src/lib/production-intelligence/vfx-director/jobs";
 import { vfx002bExecutor } from "../../src/lib/production-intelligence/vfx-director/compositor";
 import { STAGES } from "../../src/lib/production-intelligence/vfx-director/gates";
 import { BriefSchema } from "../../src/lib/production-intelligence/vfx-director";
@@ -68,6 +68,9 @@ async function main() {
   } else if (action === "inspect") {
     const job = await ownedJob(store, manifest.jobId, actor);
     console.log(JSON.stringify({ jobId: job.id, status: job.status, activeTask: job.activeTask }));
+  } else if (action === "reconcile") {
+    if (process.env.VFX_PRIOR_RUN_TERMINATED !== "1") throw new Error("VFX_PRIOR_RUN_MUST_TERMINATE");
+    await reconcileTask(store, manifest.jobId, actor, executors);
   } else throw new Error("VFX_ACTION_UNSUPPORTED");
 }
 main().catch(() => { console.error("VFX_WORKER_BLOCKED"); process.exitCode = 1; });

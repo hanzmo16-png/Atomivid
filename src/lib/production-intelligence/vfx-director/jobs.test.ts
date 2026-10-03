@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createJob, runTask, approveStage, replacePlan, memoryJobStore, ownedJob, type DurableExecutor } from "./jobs";
+import { createJob, runTask, reconcileTask, approveStage, replacePlan, memoryJobStore, ownedJob, type DurableExecutor } from "./jobs";
 import { parseShotContract } from "../contract";
 import { DIRECTOR_VERSION } from "./index";
 import { CHECKS } from "./gates";
@@ -62,4 +62,13 @@ test("owner access is disabled by default and requires verified owner email", ()
   assert.throws(() => directorActor(user, {}));
   const env = { VFX_DIRECTOR_ENABLED: "1", AVATAR_PREPARATION_OWNER_EMAIL: user.email };
   assert.equal(directorActor(user, env), owner); assert.throws(() => directorActor({ ...user, email: "other@example.test" }, env));
+});
+
+test("interrupted task recovers existing output without invoking its executor again", async () => {
+  const store = await initialize(); const job = (await store.get(brief.projectId))!;
+  await store.cas({ ...job, revision: 1, status: "RUNNING", activeTask: "direction" }, 0);
+  const ex = executor(async () => { throw new Error("must not run"); });
+  ex.recover = async task => ({ assetId: task.outputAssetId, sha256: "b".repeat(64), checks: [{ name: "hash", pass: true, evidence: "existing output" }] });
+  const recovered = await reconcileTask(store, brief.projectId, owner, { proof: ex });
+  assert.equal(recovered.status, "READY"); assert.equal(recovered.planHash, job.planHash); assert.equal(recovered.results.direction.assetId, "direction-result");
 });

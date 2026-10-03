@@ -6,7 +6,7 @@
 - ShotContract, canonical plan fingerprint including gate-policy version and existing budget reservation.
 - Model transport through the existing durable paid-call ledger/result store. Token limits and verified operator-supplied tariff bound the worst cost before the call; zero budget blocks before network. SDK retries disabled.
 - Durable Supabase snapshots with revision CAS; job owner, frozen plan, approvals, artifact hashes, completed task results, status and error are persisted.
-- Dedicated runner `scripts/vfx/director-worker.ts`, registered as `npm run vfx:worker`. Plan, init, inspect and step actions. Existing jobs reuse their frozen plan; completed tasks are skipped. Concurrent invocations cannot claim the same task twice.
+- Dedicated runner `scripts/vfx/director-worker.ts`, registered as `npm run vfx:worker`. Plan, init, inspect, step and reconciliation actions. Existing jobs reuse their frozen plan; completed tasks are skipped. Concurrent invocations cannot claim the same task twice.
 - Owner-only, feature-flagged API at `/api/admin/vfx-director` for inspection, plan replacement and review. Verified session identity is the reviewer identity. Same-origin mutations, bounded body and service-only table.
 - VFX-002b compositor adapter with explicit format/identity limits, source hash verification, plate resolution/aspect/duration checks and measured output fingerprints. No silent upscale or substitution.
 
@@ -22,7 +22,7 @@ A RUNNING task after process death is not retried blindly. `reconcileTask()` can
 
 Use existing Supabase credentials and `AVATAR_PREPARATION_OWNER_EMAIL`. `VFX_DIRECTOR_ENABLED=1` enables owner access. The manifest is trusted runner configuration and contains owner UUID, job ID, brief, approved plan, asset identities and registered executors. It must never come directly from model or browser input.
 
-`VFX_JOB_MANIFEST=/trusted/manifest.json VFX_WORKER_ACTION=init|plan|inspect|step npm run vfx:worker`
+`VFX_JOB_MANIFEST=/trusted/manifest.json VFX_WORKER_ACTION=init|plan|inspect|step|reconcile npm run vfx:worker`
 
 For live planning only: existing `ANTHROPIC_API_KEY`, `ANTHROPIC_SCRIPT_MODEL`; operator-verified `VFX_PLANNING_PRICE_SOURCE`, `VFX_PLANNING_INPUT_USD_PER_MILLION`, `VFX_PLANNING_OUTPUT_USD_PER_MILLION`, `VFX_PLANNING_MAX_USD`. Missing/unverified pricing or insufficient budget blocks. No live planning call was made in this implementation session.
 
