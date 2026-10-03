@@ -191,11 +191,11 @@ async function main() {
     const graph = vfxAsset
       ? `[0:v]${TM},scale=${W}:${H}:flags=lanczos,fps=${FPS},setsar=1[src];${RETOUCH_GRAPH("src", "base")};` +
         `[1:v]scale=${W}:${H}:flags=lanczos,unsharp=5:5:0.45:5:5:0,noise=alls=3:allf=t,fps=${FPS},setsar=1,format=yuva420p,fade=t=in:st=0:d=1.6:alpha=1,setpts=PTS-STARTPTS+${off.toFixed(3)}/TB[fx];` +
-        `[base][fx]overlay=eof_action=pass:format=auto,format=yuv420p[v]`
-      : `[0:v]${TM},scale=${W}:${H}:flags=lanczos,fps=${FPS},setsar=1[src];${RETOUCH_GRAPH("src", "v")}`;
-    await ff(["-ss", oA.toFixed(3), "-to", oB.toFixed(3), "-i", opening, ...(vfxAsset ? ["-i", vfxFile] : []), "-filter_complex", `${graph};[0:a]${voiceChain},volume=${gO.toFixed(2)}dB,aresample=48000[a]`, "-map", "[v]", "-map", "[a]", ...enc, segExt("opening")]);
+        `[base][fx]overlay=eof_action=pass:format=auto,format=yuv420p,tpad=stop_mode=clone:stop_duration=0.3[v]`
+      : `[0:v]${TM},scale=${W}:${H}:flags=lanczos,fps=${FPS},setsar=1[src];${RETOUCH_GRAPH("src", "v0")};[v0]tpad=stop_mode=clone:stop_duration=0.3[v]`;
+    await ff(["-ss", oA.toFixed(3), "-to", oB.toFixed(3), "-i", opening, ...(vfxAsset ? ["-i", vfxFile] : []), "-filter_complex", `${graph};[0:a]${voiceChain},volume=${gO.toFixed(2)}dB,aresample=48000,apad=whole_dur=${(oB - oA).toFixed(3)}[a]`, "-map", "[v]", "-map", "[a]", "-t", (oB - oA).toFixed(3), ...enc, segExt("opening")]);
   }
-  await ff(["-ss", cA.toFixed(3), "-to", cB.toFixed(3), "-i", closing, "-filter_complex", `[0:v]${TM},scale=${W}:${H}:flags=lanczos,fps=${FPS},setsar=1[src];${RETOUCH_GRAPH("src", "v")};[0:a]${voiceChain},volume=${gC.toFixed(2)}dB,aresample=48000[a]`, "-map", "[v]", "-map", "[a]", ...enc, segExt("closing")]);
+  await ff(["-ss", cA.toFixed(3), "-to", cB.toFixed(3), "-i", closing, "-filter_complex", `[0:v]${TM},scale=${W}:${H}:flags=lanczos,fps=${FPS},setsar=1[src];${RETOUCH_GRAPH("src", "v0")};[v0]tpad=stop_mode=clone:stop_duration=0.3[v];[0:a]${voiceChain},volume=${gC.toFixed(2)}dB,aresample=48000,apad=whole_dur=${(cB - cA).toFixed(3)}[a]`, "-map", "[v]", "-map", "[a]", "-t", (cB - cA).toFixed(3), ...enc, segExt("closing")]);
   const openingWords = alignWords(OPENING_TEXT, await transcribe(opening, oA, oB, "opening"), [ow.start - oA, ow.end - oA]);
   const closingWords = alignWords(CLOSING_TEXT, await transcribe(closing, cA, cB, "closing"), [cw.start - cA, cw.end - cA]);
 
