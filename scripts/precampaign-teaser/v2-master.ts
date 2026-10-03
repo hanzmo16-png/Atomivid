@@ -148,7 +148,7 @@ async function main() {
   const vfxAsset = !compFile && vfxRow && args.useVfx !== false ? await loadVfx(results, vfxRow.result_ref!) : null;
   const vfxFile = join(WORK, "vfx-001-output.mp4");
   if (vfxAsset) await writeFile(vfxFile, vfxAsset.buffer);
-  else if (compFile) notes.push("VFX-002: composite local con píxeles del sujeto bloqueados (VFX-001 de Luma solo como material de fondo).");
+  else if (compFile) notes.push(`VFX-002: composite local con píxeles del sujeto bloqueados (${args.vfxCompositePath}).`);
   else notes.push(vfxRow ? "VFX-001 generado pero vetado en QA de identidad: apertura real sin VFX." : "VFX-001 no disponible: apertura real sin VFX.");
   const hasVfx = Boolean(vfxAsset || compFile);
 

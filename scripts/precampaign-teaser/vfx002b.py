@@ -77,7 +77,7 @@ def main():
     if cache and os.path.exists(cache + ".hans.npy"):
         A = np.load(cache + ".hans.npy")
     else:
-        A = run_rvm(model, src_path, 0.25, (W, H))
+        A = run_rvm(model, src_path, 0.4, (W, H))  # 0.4: smoother edges on motion-blurred shoulders than 0.25
         if cache:
             np.save(cache + ".hans.npy", A)
     assert len(A) == T, (len(A), T)
@@ -88,7 +88,7 @@ def main():
     # matte refinement (validated in VFX-002): choke + soften + motion-adaptive temporal smoothing on edges
     Af = np.empty((T, H, W), np.float32)
     for i in range(T):
-        a = np.clip((A[i].astype(np.float32) / 255 - 0.05) / 0.92, 0, 1)
+        a = np.clip((A[i].astype(np.float32) / 255 - 0.03) / 0.94, 0, 1)
         a = cv2.GaussianBlur(a, (0, 0), 0.8)
         if i > 0:
             ds_ = cv2.GaussianBlur(np.abs(S[i].astype(np.int16) - S[i - 1].astype(np.int16)).max(-1).astype(np.float32), (0, 0), 3)
@@ -101,19 +101,22 @@ def main():
     st = S[::3].astype(np.float32)
     kd = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))
     cov = np.stack([cv2.dilate((c > 2).astype(np.uint8), kd) > 0 for c in A[::3]])
+    seen_count = (~cov).sum(0)  # how many sampled frames show the empty room at each pixel
     st[cov] = np.nan
     apt = np.nanmedian(st, axis=0)
     apt_known = ~np.isnan(apt[..., 0])
     # pixels never uncovered (always behind the subject): inpaint the room so edge decontamination
     # applies everywhere (otherwise wall colour bleeds into the edge band as a grey smudge)
     apt = cv2.inpaint(np.nan_to_num(apt).astype(np.uint8), (~apt_known).astype(np.uint8) * 255, 9, cv2.INPAINT_TELEA).astype(np.float32) / 255
-    apt_seen = apt_known.copy()
+    # trust the empty-room plate only where the room was seen uncovered often enough (otherwise the median
+    # can be contaminated by motion-blurred hair/edges and the refinement would cut real subject detail)
+    apt_seen = apt_known & (seen_count >= 8)
     apt_known[:] = True
     del st
     # clean-plate difference refinement, edge band only: where the source pixel equals the empty room,
     # partial alpha is a matte error (static objects behind motion-blurred edges) -> push to background
     for i in range(T):
-        band = (Af[i] > 0.02) & (Af[i] < 0.98) & apt_seen
+        band = (Af[i] > 0.02) & (Af[i] < 0.7) & apt_seen
         if band.any():
             d = cv2.GaussianBlur(np.abs(S[i].astype(np.float32) / 255 - apt).max(-1), (0, 0), 1.0)
             ref_ = Af[i] * smoothstep(0.035, 0.11, d)
@@ -221,8 +224,8 @@ def main():
         "matteFlickerStaticEdgeMeanAbsRawRvm": round(fr_ / max(nr, 1), 4),
         "plateMotionMeanAbsFrameDiff": round(float(np.mean(pm)), 2),
         "method": {
-            "segmentation": "Robust Video Matting mobilenetv3 (ONNX, CPU), recurrent; choke + soften + motion-adaptive temporal smoothing on edges; no chroma key",
-            "edgeDecontamination": "un-premultiply against a clean apartment plate (temporal median, fixed camera)",
+            "segmentation": "Robust Video Matting mobilenetv3 (ONNX, CPU), recurrent, downsample 0.4; choke + soften + motion-adaptive temporal smoothing on edges; no chroma key",
+            "edgeDecontamination": "un-premultiply against a clean apartment plate (temporal median, fixed camera); conservative clean-plate difference refinement only where alpha < 0.7 and the room was seen uncovered in >= 8 sampled frames",
             "background": "real stock video plate (locked-off camera), Times Square at night, native 2160x3840 downscaled to 1080x1920; light DOF (sigma 1.6), slight desaturation, screen bloom, grain",
             "transition": f"AI render scan {SCAN_START}-{SCAN_END}s: accent (#7c6aef) scan line rising behind the subject, room re-drawn as glowing edges ahead of it, real city behind it",
             "subject": "original source pixels; fixed per-pixel grade ramp (exposure -8%, cooler shadows, contrast +5%, key falloff); light wrap on the rim only",
