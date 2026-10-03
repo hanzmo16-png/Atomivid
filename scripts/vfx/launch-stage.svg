@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
+<defs>
+ <radialGradient id="wall"><stop stop-color="#242034"/><stop offset="1" stop-color="#070910"/></radialGradient>
+ <linearGradient id="screen" x2="0" y2="1"><stop stop-color="#171925"/><stop offset="1" stop-color="#090c14"/></linearGradient>
+ <linearGradient id="floor" x2="0" y2="1"><stop stop-color="#14131e"/><stop offset="1" stop-color="#05070d"/></linearGradient>
+ <linearGradient id="deck" x2="0" y2="1"><stop stop-color="#2a263a"/><stop offset="1" stop-color="#0e101b"/></linearGradient>
+ <filter id="glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="12"/></filter>
+ <filter id="beam"><feGaussianBlur stdDeviation="23"/></filter>
+</defs>
+<rect width="1080" height="1920" fill="url(#wall)"/>
+<path d="M-100 200 L150 1540 L610 1540 Z M1180 200 L930 1540 L470 1540 Z" fill="#8f7ff5" opacity=".10" filter="url(#beam)"/>
+<rect x="138" y="110" width="804" height="810" rx="22" fill="#8f7ff5" opacity=".16" filter="url(#glow)"/>
+<rect x="138" y="110" width="804" height="810" rx="22" fill="url(#screen)" stroke="#3c355d" stroke-width="3"/>
+<rect x="166" y="138" width="748" height="754" rx="10" fill="#0a0d16" stroke="#222435"/>
+<g transform="translate(462 191) scale(6.5)" fill="none" stroke="#8f7ff5" stroke-width="1.3" stroke-linecap="round">
+ <ellipse cx="12" cy="12" rx="10" ry="4.1"/>
+ <ellipse cx="12" cy="12" rx="10" ry="4.1" transform="rotate(60 12 12)"/>
+ <ellipse cx="12" cy="12" rx="10" ry="4.1" transform="rotate(120 12 12)"/>
+ <circle cx="12" cy="12" r="2.6" fill="#8f7ff5" stroke="none"/>
+</g>
+<text x="540" y="390" text-anchor="middle" font-family="DejaVu Sans,Arial,sans-serif" font-size="66" font-weight="600" letter-spacing="-2" fill="#f0eef8">Atomivid</text>
+<path d="M70 460 L70 1300 M1010 460 L1010 1300" stroke="#8f7ff5" stroke-width="14" opacity=".4" filter="url(#glow)"/>
+<path d="M70 460 L70 1300 M1010 460 L1010 1300" stroke="#a89aff" stroke-width="4"/>
+<rect y="1320" width="1080" height="600" fill="url(#floor)"/>
+<ellipse cx="540" cy="1534" rx="715" ry="201" fill="#060810"/>
+<path d="M-110 1480 Q540 1220 1190 1480 L1190 1530 Q540 1270 -110 1530 Z" fill="#151522"/>
+<ellipse cx="540" cy="1442" rx="660" ry="161" fill="url(#deck)" stroke="#302b43" stroke-width="3"/>
+<path d="M-75 1498 Q540 1730 1155 1498" stroke="#8f7ff5" stroke-width="10" fill="none" opacity=".42" filter="url(#glow)"/>
+<path d="M-75 1498 Q540 1730 1155 1498" stroke="#9f90ed" stroke-width="3" fill="none"/>
+<path d="M0 1680 L1080 1680 M0 1830 L1080 1830" stroke="#181925" stroke-width="1"/>
+</svg>
