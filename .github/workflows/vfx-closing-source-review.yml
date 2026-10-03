@@ -1,0 +1,30 @@
+name: VFX private closing source review
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [scripts/vfx/closing-source-review.ts]
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: chmod +x node_modules/@ffprobe-installer/linux-x64/ffprobe
+      - run: |
+          export PATH="$PWD/node_modules/@ffprobe-installer/linux-x64:$PATH"
+          node --import tsx scripts/vfx/closing-source-review.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vfx-private-closing-source
+          path: vfx-closing-encrypted/
+          retention-days: 7
