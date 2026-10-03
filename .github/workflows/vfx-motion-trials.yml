@@ -20,13 +20,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: chmod +x node_modules/@ffprobe-installer/linux-x64/ffprobe
+      - run: chmod +x node_modules/@ffprobe-installer/linux-x64/ffprobe node_modules/@ffmpeg-installer/linux-x64/ffmpeg
       - run: python3 scripts/vfx/remote_preflight.py
         env:
           LTX_API_KEY: ${{ secrets.LTX_API_KEY }}
       - run: node --import tsx scripts/vfx/motion-trials.ts
         env:
           FFPROBE_BINARY: node_modules/@ffprobe-installer/linux-x64/ffprobe
+          FFMPEG_BINARY: node_modules/@ffmpeg-installer/linux-x64/ffmpeg
           VFX_DIRECTOR_ENABLED: '1'
           AVATAR_PREPARATION_OWNER_EMAIL: hanzmo16@gmail.com
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

@@ -39,17 +39,22 @@ async function main(){
    if(fingerprint!==approved.plateSha256||scope.artifacts.styleframe!==fingerprint)throw new Error('VFX_APPROVED_PLATE_CHANGED');
    if(!scope.approvals.some(a=>a.stage==='styleframe'&&a.approved&&a.artifactSha256===fingerprint))job=await approveStage(store,projectId,actor,{environmentId:world.environmentId,stage:'styleframe',planHash:scope.planHash,artifactSha256:fingerprint,approved:true,checks:CHECKS.styleframe.map(name=>({name,pass:true,evidence:'Owner approval '+auth.approvedAt+' of exact background '+fingerprint+'; 720x1280 PNG preparation only, original person excluded. Physical integration remains a separate review.'}))});
    const a=await gatedWorldAsset({...base,job,port,maxCostUsd:.54},{environmentId:world.environmentId,phase:'motion',prompt:world.motionPrompt,reference:{bytes:still.buffer,sha256:fingerprint,mimeType:'image/png'}});
-   const path=`vfx-motion-review/${world.environmentId}.mp4`;await writeFile(path,a.buffer);
-   const info=JSON.parse(execFileSync(process.env.FFPROBE_BINARY??'ffprobe',['-v','error','-count_frames','-show_streams','-show_format','-of','json',path],{encoding:'utf8'}));
+   const path=`vfx-motion-review/${world.environmentId}.mp4`,rawPath=`vfx-${world.environmentId}-raw.mp4`;await writeFile(rawPath,a.buffer);
+   const info=JSON.parse(execFileSync(process.env.FFPROBE_BINARY??'ffprobe',['-v','error','-count_frames','-show_streams','-show_format','-of','json',rawPath],{encoding:'utf8'}));
    const v=info.streams.find((s:{codec_type:string})=>s.codec_type==='video');
-   if(info.streams.some((s:{codec_type:string})=>s.codec_type==='audio')||!v||v.width!==720||v.height!==1280||v.avg_frame_rate!=='25/1'||Number(v.nb_read_frames)!==150||Math.abs(Number(info.format.duration)-6)>.05)throw new Error('VFX_MOTION_FORMAT_REJECTED');
-   const motionSha=sha(a.buffer);
+   if(info.streams.some((s:{codec_type:string})=>s.codec_type==='audio')||!v||v.width!==720||v.height!==1280||v.avg_frame_rate!=='25/1'||Number(v.nb_read_frames)<150||Number(v.nb_read_frames)>153||Number(info.format.duration)<6||Number(info.format.duration)>6.12+1e-9)throw new Error('VFX_MOTION_FORMAT_REJECTED');
+   // LTX returned three extra tail frames. Keep the first 150 packets unchanged: no interpolation or upscale.
+   execFileSync(process.env.FFMPEG_BINARY??'ffmpeg',['-v','error','-y','-i',rawPath,'-frames:v','150','-an','-c:v','copy',path]);
+   const normalized=await readFile(path),motionSha=sha(normalized);
+   const checked=JSON.parse(execFileSync(process.env.FFPROBE_BINARY??'ffprobe',['-v','error','-count_frames','-show_streams','-show_format','-of','json',path],{encoding:'utf8'}));
+   if(Number(checked.streams[0].nb_read_frames)!==150||Math.abs(Number(checked.format.duration)-6)>.001)throw new Error('VFX_NORMALIZED_MOTION_REJECTED');
+   await results.putBytes(`${projectId}/motion-review/${world.environmentId}-${motionSha}.mp4`,normalized,'video/mp4');
    if(!job.environmentArtifacts?.[world.environmentId]?.motion){
     const proof:DurableExecutor={capability:job.inventory['artifact-registry'],allowedStages:['motion'],async run(task){if(task.environmentId!==world.environmentId)throw new Error('VFX_WORLD_CHANGED');return {assetId:task.outputAssetId,sha256:motionSha,checks:[{name:'ledger-result-fingerprint',pass:true,evidence:a.key+' '+motionSha}]};}};
     const registered=await runTask(store,projectId,actor,{'artifact-registry':proof},world.environmentId+'-motion');if(!registered.executed)throw new Error('VFX_MOTION_REGISTRATION_BLOCKED');job=registered.job;
    }
    if(jobGates(job,world.environmentId).artifacts.motion!==motionSha)throw new Error('VFX_REGISTERED_MOTION_CHANGED');
-   receipts.push({environmentId:world.environmentId,key:a.key,providerJobId:a.providerJobId,sha256:motionSha,costUsd:a.costUsd,costBasis:a.costBasis,reused:a.reused,motionApproved:false});
+   receipts.push({environmentId:world.environmentId,key:a.key,providerJobId:a.providerJobId,sha256:motionSha,rawSha256:sha(a.buffer),rawFrames:Number(v.nb_read_frames),rawSeconds:Number(info.format.duration),normalization:'first 150 packets, stream copy',costUsd:a.costUsd,costBasis:a.costBasis,reused:a.reused,motionApproved:false});
    console.log(JSON.stringify(receipts.at(-1)));
   }catch(e){failed=true;const code=e instanceof Error&&/^[A-Z0-9_]+$/.test(e.message)?e.message:'VFX_TRIAL_BLOCKED';receipts.push({environmentId:world.environmentId,error:code});console.error(JSON.stringify({environmentId:world.environmentId,error:code}));}
  }
