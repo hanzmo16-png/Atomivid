@@ -1,0 +1,44 @@
+name: VFX private master asset replay
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [scripts/vfx/master-asset-recovery.ts]
+permissions:
+  contents: read
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node --import tsx scripts/vfx/master-asset-recovery.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vfx-master-replay-0
+          path: master-recovery-encrypted/part-000.enc
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vfx-master-replay-1
+          path: master-recovery-encrypted/part-001.enc
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vfx-master-replay-2
+          path: master-recovery-encrypted/part-002.enc
+          if-no-files-found: ignore
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vfx-master-replay-3
+          path: master-recovery-encrypted/part-003.enc
+          if-no-files-found: ignore
+          retention-days: 7
