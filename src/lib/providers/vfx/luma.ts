@@ -121,6 +121,14 @@ const FAILURE_REASON: Record<string, GenerativeProviderError["reason"]> = {
   generation_failed: "upstream_error",
 };
 
+/** Provider validation detail for diagnosis: message fields only, URLs removed, length capped (never logs secrets or signed URLs). */
+export async function lumaErrorDetail(res: Response): Promise<string> {
+  const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+  const pick = (v: unknown): string => (typeof v === "string" ? v : v && typeof v === "object" ? JSON.stringify(v) : "");
+  const raw = body ? pick(body.detail) || pick((body.error as Record<string, unknown> | undefined)?.message) || pick(body.message) || pick(body.error) : "";
+  return raw.replace(/https?:\/\/\S+/g, "[url]").replace(/\s+/g, " ").slice(0, 400);
+}
+
 export type LumaDeps = { fetch: typeof fetch; sleep: (ms: number) => Promise<void>; now: () => number };
 const defaultDeps = (): LumaDeps => ({ fetch: (...a) => fetch(...a), sleep: (ms) => new Promise((r) => setTimeout(r, ms)), now: () => Date.now() });
 const apiKey = () => process.env.LUMA_API_KEY?.trim();
@@ -141,7 +149,10 @@ export function createLumaVfxProvider(deps: LumaDeps = defaultDeps(), opts: { po
     } catch (cause) {
       throw new GenerativeProviderError("Luma Files: fallo de conexión", "luma", "upstream_error", cause, undefined, "not_sent");
     }
-    if (!res.ok) throw fail(`Luma Files: HTTP ${res.status}`, httpReason(res.status), undefined, "not_sent");
+    if (!res.ok) {
+      const detail = await lumaErrorDetail(res);
+      throw fail(`Luma Files: HTTP ${res.status}${detail ? ` — ${detail}` : ""}`, httpReason(res.status), undefined, "not_sent");
+    }
     return (await res.json().catch(() => null)) as Record<string, unknown> | null;
   };
 
@@ -259,7 +270,10 @@ export function createLumaVfxProvider(deps: LumaDeps = defaultDeps(), opts: { po
       } catch (cause) {
         throw new GenerativeProviderError("Luma: fallo de conexión al enviar; no reenviar sin conciliación", "luma", "upstream_error", cause, undefined, fetchFailureOutcome(cause));
       }
-      if (!res.ok) throw new GenerativeProviderError(`Luma: envío rechazado con HTTP ${res.status}`, "luma", httpReason(res.status), undefined, undefined, httpStatusOutcome(res.status));
+      if (!res.ok) {
+        const detail = await lumaErrorDetail(res);
+        throw new GenerativeProviderError(`Luma: envío rechazado con HTTP ${res.status}${detail ? ` — ${detail}` : ""}`, "luma", httpReason(res.status), undefined, undefined, httpStatusOutcome(res.status));
+      }
       const g = (await res.json().catch(() => null)) as { id?: unknown } | null;
       if (typeof g?.id !== "string" || !ID.test(g.id)) throw new GenerativeProviderError("Luma: respuesta de envío sin id válido; resultado incierto", "luma", "invalid_response", undefined, undefined, "uncertain");
       const jobId = g.id;

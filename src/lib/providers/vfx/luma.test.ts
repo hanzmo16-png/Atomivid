@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { GenerativeProviderError } from "../types";
 import { getVfxProvider } from "./index";
-import { buildLumaVideoEditPayload, LUMA_API_BASE, lumaControlsFor, lumaFilesPreflight, lumaStrengthFor, lumaVfxProvider } from "./luma";
+import { buildLumaVideoEditPayload, LUMA_API_BASE, lumaControlsFor, lumaErrorDetail, lumaFilesPreflight, lumaStrengthFor, lumaVfxProvider } from "./luma";
 import { assertVfxBudget, estimateVfxCostUsd, VFX_PRICES, type VfxPriceQuery } from "./pricing";
 import { toVfxTransformRequest, type VfxTransformRequest } from "./types";
 import { buildVfxSpendPlan, VFX_001, VFX_001_CONTROLS } from "@/lib/video/vfx/vfx-001";
@@ -143,4 +143,12 @@ test("VFX-001: waits for Hans' source; the spend plan is pure, 720p/5 s = 1.08, 
   assert.deepEqual(plan.options.map((o) => [o.resolution, o.usd, o.withinTarget]), [["720p", 1.08, true], ["540p", 0.72, true], ["1080p", 2.16, false]]);
   assert.ok(buildVfxSpendPlan({ ...src, durationSeconds: 7.2 }).blockers.some((b) => /recortarse/.test(b)));
   assert.ok(buildVfxSpendPlan({ ...src, width: 1920, height: 1080 }).blockers.some((b) => /9:16/.test(b)));
+});
+
+test("LUMA-ERR: a provider validation error keeps its message for diagnosis, without URLs", async () => {
+  const res = new Response(JSON.stringify({ detail: [{ loc: ["body", "aspect_ratio"], msg: "not allowed for video_edit; see https://docs.example/x?sig=secret" }] }), { status: 422 });
+  const d = await lumaErrorDetail(res);
+  assert.match(d, /aspect_ratio/);
+  assert.doesNotMatch(d, /https?:/);
+  assert.equal(await lumaErrorDetail(new Response("not json", { status: 422 })), "");
 });

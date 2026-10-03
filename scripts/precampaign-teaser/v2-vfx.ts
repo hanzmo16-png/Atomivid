@@ -32,7 +32,7 @@ const run = (bin: string, args: string[]) => sh(bin, args, { maxBuffer: 256 * 10
 const ff = (args: string[]) => run(FF, ["-hide_banner", "-v", "error", "-y", ...args]);
 const sha256 = (b: Buffer) => createHash("sha256").update(b).digest("hex");
 
-type Args = { openingPath: string; vfxStart: number; cropX?: number; execute?: boolean; tonemap?: "hable" | "mobius" | "clip" | "none" };
+type Args = { openingPath: string; vfxStart: number; cropX?: number; execute?: boolean; tonemap?: "hable" | "mobius" | "clip" | "none"; correctedSubmissionAuthorized?: boolean };
 
 async function probe(file: string) {
   const { stdout } = await run(FP, ["-v", "error", "-print_format", "json", "-show_format", "-show_streams", file]);
@@ -122,7 +122,12 @@ async function main() {
   };
   const ourKey = paidCallKey(vfxCallSpec(PROJECT, lumaVfxProvider, request, 0));
   const foreign = ledger.filter((r) => r.idempotency_key !== ourKey);
-  if (foreign.length) throw new Error(`Ya existe otro intento VFX-001 en el ledger (${foreign.map((r) => r.status).join(", ")}): no hay segundo intento automático.`);
+  // A refused request that charged nothing (HTTP 4xx before any job) only allows ONE corrected
+  // submission, and only with the owner's explicit authorization. Anything else stops here.
+  const refusedFree = foreign.every((r) => r.status === "REFUNDED" && Number(r.committed_usd ?? 0) === 0);
+  if (foreign.length && !(refusedFree && args.correctedSubmissionAuthorized && foreign.length === 1)) {
+    throw new Error(`Ya existe otro intento VFX-001 en el ledger (${foreign.map((r) => r.status).join(", ")}): no hay segundo intento automático.`);
+  }
   const committedUsd = ledger.reduce((a, r) => a + Number(r.committed_usd ?? 0), 0);
   const result = await gatedVfxTransform(
     { ledger: supabaseLedgerStore(service), results: supabaseResultStore(service, "videos"), requestId: PROJECT, provider: lumaVfxProvider, budget: { hardCapUsd: VFX_001.hardCapUsd, committedUsd, reservedUsd: 0 } },
