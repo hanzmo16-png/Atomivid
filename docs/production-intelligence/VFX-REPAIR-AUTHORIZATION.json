@@ -1,0 +1,17 @@
+{
+  "approved": true,
+  "approvedAt": "2026-10-03T18:44:48Z",
+  "approvalMessage": "Ok, adelante, bueno ejecuta lo que tengas que hacer. Tienes mi autorizaci\u00f3n. No te detengas",
+  "ownerId": "d2064950-7a95-4208-8dfb-d93b470d141d",
+  "packageSha256": "eea2e6d7299c3797cb26aef9af720070c439656c1881e6587078513b0ee47e7f",
+  "replacementEnvironment": "beach",
+  "failedProviderJobId": "9461fdbd-c308-4d7e-9607-24d11978912f",
+  "maximumAdditionalUsd": 0.03,
+  "maximumProjectGenerationUsd": 4.8,
+  "replacementRequiresConfirmedRejectedDefect": true,
+  "maximumReplacements": 1,
+  "preservePrompt": true,
+  "preparePrivateNativeMatte": true,
+  "motionCallsInThisWorkflow": 0,
+  "deploymentInThisWorkflow": false
+}

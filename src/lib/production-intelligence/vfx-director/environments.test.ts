@@ -93,3 +93,17 @@ test("legacy compositor refuses an unsupported world before even reading local f
   await assert.rejects(ex.run(plan.tasks[7], brief, "fixture", plan.environments[1]), /VFX002B_ENVIRONMENT_UNSUPPORTED/);
   assert.equal(ex.capability.fullShotOnly, true);
 });
+
+test("selected Moon registration is independent but cannot bypass its reviews or dependencies", async () => {
+ const store=memoryJobStore();await createJob(store,owner,owner,brief,plan,inventory,assets);
+ const calls:string[]=[];const ex=executor(calls);
+ assert.equal((await runTask(store,brief.projectId,owner,{proof:ex},"moon-styleframe")).executed,false);
+ const r=await runTask(store,brief.projectId,owner,{proof:ex},"moon-direction");assert.ok(r.executed);
+ const c=jobGates(r.job,"moon");
+ await approveStage(store,r.job.id,owner,{environmentId:"moon",stage:"direction",planHash:c.planHash,artifactSha256:c.artifacts.direction!,approved:true,checks:CHECKS.direction.map(name=>({name,pass:true,evidence:"fixture owner review"}))});
+ assert.ok((await runTask(store,brief.projectId,owner,{proof:ex},"moon-styleframe")).executed);
+ assert.equal((await runTask(store,brief.projectId,owner,{proof:ex},"master")).executed,false);
+ assert.equal((await runTask(store,brief.projectId,owner,{proof:ex},"moon-styleframe")).executed,false);
+ assert.deepEqual(calls,["moon-direction","moon-styleframe"]);
+ await assert.rejects(runTask(store,brief.projectId,owner,{proof:ex},"nonexistent"),/TASK_UNKNOWN/);
+});

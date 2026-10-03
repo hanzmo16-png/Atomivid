@@ -23,12 +23,22 @@ export async function gatedWorldAsset(deps:{ledger:LedgerStore;results:PaidResul
   if(r.reference!.sha256!==scope.artifacts.styleframe)throw new Error('VFX_REFERENCE_NOT_APPROVED');
  }
  if(r.phase==='final')assertGate('motion',scope);
- const key=idempotencyKey({projectId:deps.projectId,shotId:`world:${r.environmentId}:${r.phase}`,provider:recipe.provider,model:recipe.sku,method:r.phase==='styleframe'?'text-to-image':'image-to-video',
+ let key=idempotencyKey({projectId:deps.projectId,shotId:`world:${r.environmentId}:${r.phase}`,provider:recipe.provider,model:recipe.sku,method:r.phase==='styleframe'?'text-to-image':'image-to-video',
   inputFingerprint:stableHash({environmentId:r.environmentId,phase:r.phase,prompt:r.prompt,referenceSha256:r.reference?.sha256??null,scopeHash:scope.planHash,sku:recipe.sku,seconds:recipe.seconds,width:recipe.width,height:recipe.height,fps:recipe.fps,audio:false},32),attemptOrdinal:0});
  // One frozen request per world/phase. A changed prompt cannot evade the attempt ceiling.
  const slotKey='vfx_slot_'+stableHash({projectId:deps.projectId,environmentId:r.environmentId,phase:r.phase},32);
  await deps.ledger.insert({idempotencyKey:slotKey,projectId:deps.projectId,shotId:`world:${r.environmentId}:${r.phase}`,provider:recipe.provider,model:recipe.sku,method:'generation_slot',attemptKind:r.phase,reservedUsd:0,committedUsd:0,status:'COMMITTED',providerJobId:null,resultRef:key,updatedAt:new Date().toISOString()});
  if((await deps.ledger.get(slotKey))?.resultRef!==key)throw new Error('VFX_ATTEMPT_ALREADY_FROZEN');
+ // A service-recorded rejected styleframe may authorize exactly one replacement.
+ const defect=await deps.ledger.get(slotKey+'_defect_1');
+ if(defect){
+  if(r.phase!=='styleframe'||defect.status!=='COMMITTED'||defect.reservedUsd!==0||!defect.resultRef)throw new Error('VFX_REPLACEMENT_DEFECT_INVALID');
+  const review=JSON.parse(defect.resultRef);
+  const prior=await deps.ledger.get(key);
+  if(review.failedOperationKey!==key||review.ownerId!==deps.actorId||review.environmentId!==r.environmentId||review.phase!==r.phase||review.rejected!==true||review.maximumAdditionalUsd!==0.03||typeof review.authorizationSha256!=='string'||!review.code||prior?.status!=='RECONCILIATION_REQUIRED'||prior.providerJobId!==review.providerJobId)throw new Error('VFX_REPLACEMENT_NOT_AUTHORIZED');
+  if(deps.projectBudgetUsd<4.80)throw new Error('VFX_REPLACEMENT_BUDGET_EXCEEDED');
+  key=idempotencyKey({projectId:deps.projectId,shotId:`world:${r.environmentId}:${r.phase}`,provider:recipe.provider,model:recipe.sku,method:'text-to-image',inputFingerprint:stableHash({originalOperationKey:key,defectKey:defect.idempotencyKey,authorizationSha256:review.authorizationSha256},32),attemptOrdinal:1});
+ }
  let returned:OfficialAsset|undefined;
  const op=await executePaidOperation(deps.ledger,{idempotencyKey:key,projectId:deps.projectId,shotId:`world:${r.environmentId}:${r.phase}`,provider:recipe.provider,model:recipe.sku,method:r.phase==='styleframe'?'text-to-image':'image-to-video',attemptKind:r.phase,reservedUsd:recipe.reservedUsd},{
   async submit(){const job=await deps.port.submit(r);return {providerJobId:job.id,submissionReceiptRef:'provider-receipt:'+JSON.stringify(job)};},

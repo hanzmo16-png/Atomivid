@@ -1,0 +1,59 @@
+name: VFX authorized beach repair and private material proof
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [docs/production-intelligence/VFX-REPAIR-AUTHORIZATION.json]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: vfx-approved-first-frames
+  cancel-in-progress: false
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: chmod +x node_modules/@ffprobe-installer/linux-x64/ffprobe node_modules/@ffmpeg-installer/linux-x64/ffmpeg
+      - run: python3 scripts/vfx/remote_preflight.py
+        env:
+          BFL_API_KEY: ${{ secrets.BFL_API_KEY }}
+      - run: node --import tsx scripts/vfx/source-metadata.ts
+        env:
+          FFPROBE_BINARY: node_modules/@ffprobe-installer/linux-x64/ffprobe
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - run: node --import tsx scripts/vfx/repair-materials.ts
+        env:
+          VFX_DIRECTOR_ENABLED: '1'
+          AVATAR_PREPARATION_OWNER_EMAIL: hanzmo16@gmail.com
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BFL_API_KEY: ${{ secrets.BFL_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vfx-background-review-after-repair
+          path: vfx-styleframe-review/
+          retention-days: 7
+      - run: python3 -m pip install numpy==2.2.6 onnxruntime==1.22.1 opencv-python-headless==4.12.0.88
+      - name: Prepare native matte; encrypt private source and controls
+        run: |
+          export PATH="$PWD/node_modules/@ffmpeg-installer/linux-x64:$PATH"
+          node --import tsx scripts/vfx/private-material-proof.ts
+        env:
+          VFX_DIRECTOR_ENABLED: '1'
+          AVATAR_PREPARATION_OWNER_EMAIL: hanzmo16@gmail.com
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vfx-encrypted-private-material-controls
+          path: vfx-encrypted-review/
+          retention-days: 7

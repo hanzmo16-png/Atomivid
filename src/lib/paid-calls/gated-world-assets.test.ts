@@ -41,3 +41,19 @@ test('failed polling resumes the recorded job without a second submission',async
  await assert.rejects(gatedWorldAsset({...d,port},r),/poll failed/);
  await gatedWorldAsset({...d,port},r);assert.equal(submits,1);assert.equal(polls,2);
 });
+test('a rejected recorded styleframe allows exactly one budgeted replacement and retains the original charge',async()=>{
+ const d=deps();let submits=0;
+ const port:OfficialPort={async submit(){return{id:`job-${++submits}`,pollingUrl:'https://api.bfl.ai/v1/get_result?id=fixture'};},async finish(j){if(j.id==='job-1')throw new Error('VFX_HTTP_404');return{buffer:Buffer.from('replacement'),mimeType:'image/png',extension:'png',model:'flux-2-pro',costUsd:.03,costBasis:'provider_usage',providerJobId:j.id};}};
+ await assert.rejects(gatedWorldAsset({...d,port},r),/404/);
+ const original=[...d.ledger.ops.values()].find(o=>o.providerJobId==='job-1')!;
+ await d.ledger.update(original.idempotencyKey,'PROVIDER_JOB_RECORDED',{status:'RECONCILIATION_REQUIRED'});
+ const slot=[...d.ledger.ops.values()].find(o=>o.method==='generation_slot')!;
+ await d.ledger.insert({...slot,idempotencyKey:slot.idempotencyKey+'_defect_1',method:'rejected_styleframe',resultRef:JSON.stringify({failedOperationKey:original.idempotencyKey,providerJobId:'job-1',ownerId:'owner',environmentId:'nyc',phase:'styleframe',rejected:true,maximumAdditionalUsd:.03,authorizationSha256:'c'.repeat(64),code:'VFX_HTTP_404'})});
+ await assert.rejects(gatedWorldAsset({...d,port},r),/REPLACEMENT_BUDGET/);assert.equal(submits,1);
+ const updated={...d,port,projectBudgetUsd:4.80};
+ assert.equal((await gatedWorldAsset(updated,r)).reused,false);
+ assert.equal((await gatedWorldAsset(updated,r)).reused,true);assert.equal(submits,2);
+ assert.equal(d.ledger.ops.get(original.idempotencyKey)?.status,'RECONCILIATION_REQUIRED');
+ assert.equal(d.ledger.ops.get(original.idempotencyKey)?.reservedUsd,.03);
+ await assert.rejects(gatedWorldAsset(updated,{...r,prompt:'More epic'}),/ATTEMPT_ALREADY_FROZEN/);assert.equal(submits,2);
+});

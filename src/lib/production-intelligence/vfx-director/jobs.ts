@@ -101,10 +101,12 @@ export type DurableExecutor = Omit<Executor, "run"> & { run: (task: Plan["tasks"
   recover?: (task: Plan["tasks"][number], brief: Brief, operationKey: string, environment?: Environment) => Promise<TaskResult | null> };
 /** One task per invocation. CAS persists ownership BEFORE invoking the executor.
  * A process death leaves RUNNING and requires reconciliation; it never reruns blindly. */
-export async function runTask(store: JobStore, id: string, actorId: string, executors: Record<string, DurableExecutor>) {
+export async function runTask(store: JobStore, id: string, actorId: string, executors: Record<string, DurableExecutor>, taskId?: string) {
   let job = await ownedJob(store, id, actorId);
   if (job.status === "RUNNING") return { job, executed: false };
-  const task = job.plan.tasks.find(t => !job.results[t.id]);
+  if (taskId && !job.plan.tasks.some(t => t.id === taskId)) throw new Error("VFX_TASK_UNKNOWN");
+  if (taskId && job.results[taskId]) return { job, executed: false };
+  const task = job.plan.tasks.find(t => !job.results[t.id] && (!taskId || t.id === taskId));
   if (!task) return { job: job.status === "REVIEW_REQUIRED" ? job : await save(store, { ...job, status: "REVIEW_REQUIRED" }), executed: false };
   try {
     const inventory = Object.fromEntries(Object.entries(executors).map(([name, e]) => [name, e.capability]));
