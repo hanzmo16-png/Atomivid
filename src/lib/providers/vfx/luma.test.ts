@@ -29,7 +29,7 @@ test("LUMA-1/2/3/4/5: payload = Agents API video_edit on ray-3.2 with source.fil
   assert.equal(body.type, "video_edit");
   assert.equal(body.model, "ray-3.2");
   assert.deepEqual(body.source, { file_id: "file-1" });
-  assert.equal(body.aspect_ratio, "9:16");
+  assert.ok(!("aspect_ratio" in body)); // the edit inherits the 9:16 source geometry
   assert.equal(body.video.resolution, "720p");
   assert.equal(body.video.hdr, false);
   assert.ok(!("duration" in body.video));

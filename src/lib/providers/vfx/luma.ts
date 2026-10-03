@@ -7,7 +7,7 @@
  *   - Files API: POST /files (JSON → presigned `upload` {url, method PUT, headers}), PUT the bytes,
  *     POST /files/{id}/complete, GET /files/{id} until state `ready` (pending | ready | failed | deleted);
  *     GET /files?limit=n lists files (read-only);
- *   - POST /generations { type: "video_edit", model: "ray-3.2", prompt, aspect_ratio,
+ *   - POST /generations { type: "video_edit", model: "ray-3.2", prompt,
  *     source: { file_id }, video: { resolution: 360p|540p|720p|1080p, hdr, edit: { strength:
  *     adhere_1..3 | flex_1..3 | reimagine_1..3, auto_controls, controls: { face {enabled}, pose
  *     {enabled, strength precise|coarse}, depth {enabled, blur 0..1}, normals {enabled, augmentation
@@ -15,6 +15,9 @@
  *   - the video_edit source must be ≤ 18 s and the output lasts as long as the source;
  *   - GET /generations/{id} → state queued | processing | completed | failed, output[].url (presigned, 1 h),
  *     failure_code.
+ * No `aspect_ratio` is sent for video_edit: the SDK says valid values depend on the generation type
+ * and the edit inherits the source's geometry (VFX-001 attempt 1 was refused with HTTP 422 while
+ * sending it; the request is otherwise identical). The source must already be in the target aspect.
  * There is no seed and no negative-prompt field: a seed is refused, the negative prompt is written into
  * the prompt text. The SDK documents the strength bands, not a numeric scale; the enum order is read as
  * going from most preserving (adhere_1) to most reimagined (reimagine_3).
@@ -91,7 +94,6 @@ export function buildLumaVideoEditPayload(r: VfxTransformRequest, fileId: string
     type: LUMA_VFX_REQUEST_TYPE,
     model: LUMA_VFX_MODEL,
     prompt: parts.join("\n\n"),
-    aspect_ratio: r.aspectRatio,
     source: { file_id: fileId },
     video: {
       resolution: r.resolution,
@@ -217,7 +219,8 @@ export function createLumaVfxProvider(deps: LumaDeps = defaultDeps(), opts: { po
     resolveModel: () => LUMA_VFX_MODEL,
     describeRequest: (r) => {
       validate(r);
-      return { requestType: LUMA_VFX_REQUEST_TYPE, strength: lumaStrengthFor(r), controls: lumaControlsFor(r.controls) ?? null, autoControls: r.controls ? false : null, hdr: false, resolution: r.resolution };
+      // Exactly what is sent (aspect_ratio is not sent for video_edit): a changed payload is a new identity.
+      return { requestType: LUMA_VFX_REQUEST_TYPE, strength: lumaStrengthFor(r), controls: lumaControlsFor(r.controls) ?? null, autoControls: r.controls ? false : null, hdr: false, resolution: r.resolution, aspectRatioSent: null };
     },
     estimateCostUsd: estimate,
 

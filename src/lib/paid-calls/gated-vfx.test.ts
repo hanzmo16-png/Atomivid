@@ -209,12 +209,12 @@ test("VFX-1..6 (Luma Ray 3.2): Files API → file_id → one video_edit on ray-3
     assert.equal(out.costUsd, 1.08);
     const submits = api.calls.filter((c) => c.method === "POST" && c.url.endsWith("/v1/generations"));
     assert.equal(submits.length, 1);
-    type Body = { type: string; model: string; source: unknown; aspect_ratio: string; video: { resolution: string; hdr: boolean; duration?: string; edit: { strength: string; auto_controls?: boolean; controls: Record<string, unknown> } } };
+    type Body = { type: string; model: string; source: unknown; aspect_ratio?: string; video: { resolution: string; hdr: boolean; duration?: string; edit: { strength: string; auto_controls?: boolean; controls: Record<string, unknown> } } };
     const body = submits[0].body as Body;
     assert.equal(body.type, "video_edit");
     assert.equal(body.model, "ray-3.2");
     assert.deepEqual(body.source, { file_id: "file-abc" });
-    assert.equal(body.aspect_ratio, "9:16");
+    assert.equal(body.aspect_ratio, undefined);
     assert.equal(body.video.resolution, "720p");
     assert.equal(body.video.hdr, false);
     assert.equal(body.video.edit.strength, "flex_1");

@@ -265,7 +265,7 @@ async function main() {
     { type: "fade", d: 0.04 }, // cut on the beat
     { type: "fade", d: 0.04 },
     { type: "dissolve", d: 0.3 }, // into the reveal (riser)
-    { type: "fadewhite", d: 0.3 }, // reveal → real Hans
+    { type: "dissolve", d: 0.4 }, // reveal → real Hans (soft, no white frame)
     { type: "fade", d: 0.35 }, // → end card
   ];
   const durs: Record<string, number> = {};
@@ -352,6 +352,8 @@ async function main() {
   const loud = await lufs(master);
   const first = await ffLog(["-i", master, "-vf", "select=eq(n\\,0),signalstats,metadata=print", "-frames:v", "1", "-f", "null", "-"]);
   const firstYavg = Number(/YAVG=([\d.]+)/.exec(first)?.[1]);
+  const lum = await ffLog(["-i", master, "-vf", "signalstats,metadata=print:key=lavfi.signalstats.YAVG", "-an", "-f", "null", "-"]);
+  const whiteFrames = [...lum.matchAll(/YAVG=([\d.]+)/g)].filter((x) => Number(x[1]) > 235).length;
   const evTimes = events.map((e) => e.split(",").slice(1, 3).map((x) => { const [h, mm, s] = x.split(":"); return Number(h) * 3600 + Number(mm) * 60 + Number(s); }));
   const overlaps = evTimes.filter((t, i) => i > 0 && t[0] < evTimes[i - 1][1] - 0.011).length;
   const crossings = order.slice(1).filter((n) => evTimes.some(([a, b]) => a < offsets[n] - 0.02 && b > offsets[n] + 0.05)).length;
@@ -386,7 +388,7 @@ async function main() {
     checks: {
       resolution1080x1920: m.width === W && m.height === H, fps30: Math.abs(m.fps - FPS) < 0.05, duration30to36: m.duration >= 30 && m.duration <= 36,
       audioPresent: m.hasAudio, firstFrameVisual: firstYavg > 16, noAccidentalBlack: blackIntervals.length === 0, noClipping: loud.tp <= -1.0,
-      loudnessAround14: Math.abs(loud.i + 14) <= 1, captionsNoOverlap: overlaps === 0, captionsWithinSections: crossings === 0, endCardMax1_5s: END <= 1.5,
+      loudnessAround14: Math.abs(loud.i + 14) <= 1, noFullWhiteFrames: whiteFrames === 0, captionsNoOverlap: overlaps === 0, captionsWithinSections: crossings === 0, endCardMax1_5s: END <= 1.5,
       avSyncPerSegmentMs60: Math.max(...Object.values(avDrift)) <= 60, vfxIntegrated: Boolean(vfxAsset),
     },
     loudnessLufs: loud.i, truePeakDbfs: loud.tp, loudnessRangeLu: loud.lra, firstFrameYavg: firstYavg, blackIntervals, avSyncDriftMsPerSegment: avDrift,
