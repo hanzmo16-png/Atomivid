@@ -50,7 +50,7 @@ const VOICE_CHAIN_DEFAULT =
 const VOICE_LUFS = -16;
 
 type Word = { text: string; start: number; end: number; limit?: number };
-type Args = { openingPath: string; closingPath: string; vfxStart: number; openingStart?: number; closingTrim?: [number, number]; voiceChain?: string; musicPath?: string; tonemap?: "hable" | "mobius" | "clip" | "none"; useVfx?: boolean; vfxCompositePath?: string };
+type Args = { openingPath: string; closingPath: string; vfxStart: number; openingStart?: number; closingTrim?: [number, number]; voiceChain?: string; musicPath?: string; tonemap?: "hable" | "mobius" | "clip" | "none"; useVfx?: boolean; vfxCompositePath?: string; outputPath?: string };
 
 const run = (bin: string, args: string[]) => sh(bin, args, { maxBuffer: 256 * 1024 * 1024 });
 const ff = (args: string[]) => run(FF, ["-hide_banner", "-v", "error", "-y", ...args]);
@@ -413,7 +413,8 @@ async function main() {
   await writeFile(join(OUT, "qa-report.json"), JSON.stringify(qa, null, 2) + "\n");
   await writeFile(join(OUT, "cost-report.json"), JSON.stringify(costReport, null, 2) + "\n");
   await writeFile(join(OUT, "captions.ass"), await readFile(assPath));
-  await videos.upload("precampaign-teaser-v1/output/ATOMIVID-precampaign-v2-cinematic.mp4", await readFile(master), { contentType: "video/mp4", upsert: true });
+  const outputPath = args.outputPath ?? "precampaign-teaser-v1/output/ATOMIVID-precampaign-v2-cinematic.mp4";
+  await videos.upload(outputPath, await readFile(master), { contentType: "video/mp4", upsert: true });
   console.log(JSON.stringify({ qa, costReport: { ...costReport, rows: undefined } }, null, 2));
 }
 
