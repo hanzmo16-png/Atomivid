@@ -8,6 +8,14 @@ The director extends Production Intelligence's ShotContract, stable fingerprint 
 
 ## Current boundary
 
+### Approval gates
+
+Planner responses are now strict `PLANNED` (with plan), `NEEDS_MATERIAL` (reason and material), or `REJECTED` (reason and alternative). Every task has an explicit stage; each host executor separately declares allowed stages, so a model cannot label a final compositor as preview to bypass checks.
+
+Final composition requires recorded direction, styleframe, motion and integration approvals. Delivery additionally requires master approval. Each approval must match both the current compiled plan hash and the reviewed artifact SHA-256, name a reviewer and contain all required checks with passing evidence. A later rejection of the same artifact invalidates its earlier approval. Centered framing is not an automatic defect. Evidence is supplied by a trusted host review service, not by the model; this module does not authenticate reviewers or persist approvals yet.
+
+Preview material can be produced before visual approval, but paid executors remain blocked. Stored plans, resumable task state, double-click protection and tenant authorization still require worker/API integration; these gates do not claim to implement those features.
+
 This is a tested library core, not a deployed product capability. No live model transport, production compositor adapter, persistent execution store or UI has been connected. Executor capabilities and check evidence are trusted host inputs, not independently measured by this module. Fixture tests do not prove visual quality. Paid executors are blocked until they are routed through existing gated paid calls and the durable ledger. Do not use the local zero-cost runner for durable retries or billable work.
 
 ## Opening recipe to validate next
