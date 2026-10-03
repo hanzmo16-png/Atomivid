@@ -91,17 +91,20 @@ async function main(){
   const scope=jobGates(job,w.environmentId);
   if(!scope.approvals.some(a=>a.stage==='direction'&&a.approved))job=await approveStage(store,projectId,actor,{environmentId:w.environmentId,stage:'direction',planHash:scope.planHash,artifactSha256:w.directionSha256,approved:true,checks:CHECKS.direction.map(name=>({name,pass:true,evidence:'Owner explicitly approved the concrete three-world direction, including lunar rover, in chat on 2026-10-03 at 12:49 Cancun; package '+hash(raw)}))});
  }
- await mkdir('vfx-styleframe-review',{recursive:true});const receipts=[];
+ await mkdir('vfx-styleframe-review',{recursive:true});const receipts=[];const blocked=[];
  for(const w of worlds){
+  try{
   const a=await gatedWorldAsset({ledger,results,port:officialWorldPort(),projectId,actorId:actor,job,maxCostUsd:0.03,projectBudgetUsd:4.77,connectionsVerified:true},{environmentId:w.environmentId,phase:'styleframe',prompt:w.styleframePrompt});
   const sha=hash(a.buffer);await writeFile(`vfx-styleframe-review/${w.environmentId}.png`,a.buffer);
-  if(!job.environmentArtifacts?.[w.environmentId]?.styleframe){
+  if(!job.environmentArtifacts?.[w.environmentId]?.styleframe&&worlds.slice(0,worlds.indexOf(w)).every(previous=>job.environmentArtifacts?.[previous.environmentId]?.styleframe)){
    const proof:DurableExecutor={capability,allowedStages:['styleframe'],async run(task){if(task.environmentId!==w.environmentId)throw new Error('WORLD_ORDER_CHANGED');return {assetId:task.outputAssetId,sha256:sha,checks:[{name:'ledger-result-fingerprint',pass:true,evidence:a.key+' '+sha}]};}};
    const r=await runTask(store,projectId,actor,{'artifact-registry':proof});if(!r.executed)throw new Error('STYLEFRAME_REGISTRATION_BLOCKED');job=r.job;
-  }else if(job.environmentArtifacts[w.environmentId].styleframe!==sha)throw new Error('STYLEFRAME_CHANGED');
-  receipts.push({environmentId:w.environmentId,key:a.key,sha256:sha,costUsd:a.costUsd,costBasis:a.costBasis,reused:a.reused,review:'REQUIRED'});
+  }else if(job.environmentArtifacts?.[w.environmentId]?.styleframe&&job.environmentArtifacts[w.environmentId].styleframe!==sha)throw new Error('STYLEFRAME_CHANGED');
+  receipts.push({environmentId:w.environmentId,key:a.key,sha256:sha,costUsd:a.costUsd,costBasis:a.costBasis,reused:a.reused,review:'REQUIRED',registered:job.environmentArtifacts?.[w.environmentId]?.styleframe===sha});
+  }catch(e){const code=e instanceof Error&&/^[A-Z0-9_]+$/.test(e.message)?e.message:'VFX_WORLD_PREPARATION_BLOCKED';blocked.push({environmentId:w.environmentId,code});console.log(JSON.stringify({environmentId:w.environmentId,blocked:code}));}
  }
- await writeFile('vfx-styleframe-review/receipts.json',JSON.stringify({projectId,receipts,productionReady:false,motionCalls:0},null,2));
- console.log(JSON.stringify({projectId,receipts,motionCalls:0,productionReady:false}));
+ await writeFile('vfx-styleframe-review/receipts.json',JSON.stringify({projectId,receipts,blocked,productionReady:false,motionCalls:0},null,2));
+ console.log(JSON.stringify({projectId,receipts,blocked,motionCalls:0,productionReady:false}));
+ if(blocked.length)throw new Error('VFX_PARTIAL_MATERIALS_REVIEW_REQUIRED');
 }
 main().catch(e=>{console.error(e instanceof Error&&/^[A-Z0-9_]+$/.test(e.message)?e.message:'VFX_STYLEFRAME_BATCH_BLOCKED');process.exitCode=1;});
