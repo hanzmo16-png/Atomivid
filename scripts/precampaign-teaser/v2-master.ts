@@ -50,7 +50,7 @@ const VOICE_CHAIN_DEFAULT =
 const VOICE_LUFS = -16;
 
 type Word = { text: string; start: number; end: number; limit?: number };
-type Args = { openingPath: string; closingPath: string; vfxStart: number; openingStart?: number; closingTrim?: [number, number]; voiceChain?: string; musicPath?: string; tonemap?: "hable" | "mobius" | "clip" | "none"; useVfx?: boolean; vfxCompositePath?: string; outputPath?: string };
+type Args = { openingPath: string; closingPath: string; vfxStart: number; openingStart?: number; closingTrim?: [number, number]; voiceChain?: string; musicPath?: string; tonemap?: "hable" | "mobius" | "clip" | "none"; useVfx?: boolean; vfxCompositePath?: string; outputPath?: string; brandAssets?: string };
 
 const run = (bin: string, args: string[]) => sh(bin, args, { maxBuffer: 256 * 1024 * 1024 });
 const ff = (args: string[]) => run(FF, ["-hide_banner", "-v", "error", "-y", ...args]);
@@ -220,6 +220,18 @@ async function main() {
   for (const k of Object.keys(LINES) as LineKey[]) { const m = await lufs(tts[k].file); ttsGain[k] = Number.isFinite(m.i) ? VOICE_LUFS - m.i : 0; }
 
   // ---------- Avatar (frozen last frame up to the exact audio length) ----------
+  // Brand/UI assets (scripts/precampaign-teaser/brand): REAL interface captures of the deployed app + official end card.
+  const BRAND = args.brandAssets ? resolve(args.brandAssets) : null;
+  if (BRAND) {
+    // "Tú le das una idea… y empieza la producción": the real app takes over on "tú" (selector → title → Confirmar).
+    const tu = tts.avatar.words.find((w) => norm(w.text).join(" ") === "tu")?.start ?? 1.18;
+    const at = Math.max(0.4, tu - 0.06);
+    await ff(["-i", avatarFile, "-i", tts.avatar.file, "-i", join(BRAND, "ui-idea.mp4"), "-filter_complex",
+      `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${FPS},setsar=1,tpad=stop_mode=clone:stop_duration=2[av];` +
+      `[2:v]fps=${FPS},setsar=1,format=yuva420p,fade=t=in:st=0:d=0.2:alpha=1,setpts=PTS-STARTPTS+${at.toFixed(3)}/TB[ui];[av][ui]overlay=eof_action=repeat:format=auto,format=yuv420p[v];` +
+      `[1:a]volume=${ttsGain.avatar.toFixed(2)}dB,aresample=48000[a]`, "-map", "[v]", "-map", "[a]", "-t", tts.avatar.duration.toFixed(3), ...enc, segExt("avatar")]);
+    notes.push(`Interfaz real: selector/título/Confirmar desde ${at.toFixed(2)} s del avatar ("tú").`);
+  } else
   await ff(["-i", avatarFile, "-i", tts.avatar.file, "-filter_complex", `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${FPS},setsar=1,tpad=stop_mode=clone:stop_duration=2[v];[1:a]volume=${ttsGain.avatar.toFixed(2)}dB,aresample=48000[a]`, "-map", "[v]", "-map", "[a]", "-t", tts.avatar.duration.toFixed(3), ...enc, segExt("avatar")]);
 
   // ---------- Montages: cuts on the words, micro push-in, animated typography ----------
@@ -233,19 +245,24 @@ async function main() {
     `drawtext=fontfile=${FONT}:text='${esc(text)}':fontcolor=white:fontsize=${size}:x=(w-tw)/2:y=${y}+24*(1-min(1\\,max(0\\,(t-${from.toFixed(2)})/0.22))):borderw=5:bordercolor=black@0.8:` +
     `alpha='if(lt(t\\,${from.toFixed(2)})\\,0\\,if(lt(t\\,${(from + 0.22).toFixed(2)})\\,(t-${from.toFixed(2)})/0.22\\,if(gt(t\\,${(to - 0.15).toFixed(2)})\\,max(0\\,(${to.toFixed(2)}-t)/0.15)\\,1)))'`;
   const wordStart = (k: LineKey, re: RegExp) => tts[k].words.find((w) => re.test(norm(w.text).join(" ")))?.start;
-  const montage = async (name: LineKey, picks: { file: string; at: number }[], cuts: number[], extra: string) => {
+  const montage = async (name: LineKey, picks: { file: string; at: number }[], cuts: number[], extra: string, badge?: string) => {
     const dur = tts[name].duration + 0.3;
     const bounds = [0, ...cuts.slice(1), dur];
     const args2: string[] = [];
     picks.forEach((p, i) => args2.push("-ss", p.at.toFixed(2), "-t", (bounds[i + 1] - bounds[i] + 0.1).toFixed(3), "-i", p.file));
     args2.push("-i", tts[name].file);
+    if (badge) args2.push("-loop", "1", "-t", dur.toFixed(3), "-i", badge);
     const chains = picks.map((_, i) => {
       const len = bounds[i + 1] - bounds[i], frames = Math.max(2, Math.round(len * FPS));
       return `[${i}:v]${SAFE},scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=24:2,eq=brightness=-0.13:saturation=0.8,setsar=1[bg${i}];` +
         `[${i}:v]${SAFE},scale=${W}:-2,setsar=1,fps=${FPS},zoompan=z='1+0.045*on/${frames}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${W}x${Math.round((W * 0.64 * 9) / (16 * 0.8) / 2) * 2}:fps=${FPS}[fg${i}];` +
         `[bg${i}][fg${i}]overlay=(W-w)/2:(H-h)/2-140:shortest=1,fps=${FPS},trim=duration=${len.toFixed(3)},setpts=PTS-STARTPTS[v${i}]`;
     });
-    const filter = `${chains.join(";")};${picks.map((_, i) => `[v${i}]`).join("")}concat=n=${picks.length}:v=1:a=0[mv];[mv]${extra || "null"}[vout];[${picks.length}:a]volume=${ttsGain[name].toFixed(2)}dB,apad=whole_dur=${dur.toFixed(3)},aresample=48000[aout]`;
+    const bd = picks.length + 1;
+    const tail = badge
+      ? `[mv]${extra || "null"}[mx];[${bd}:v]format=rgba,fade=t=in:st=0.05:d=0.25:alpha=1[bd];[mx][bd]overlay=(W-w)/2:250:shortest=1,format=yuv420p[vout];`
+      : `[mv]${extra || "null"}[vout];`;
+    const filter = `${chains.join(";")};${picks.map((_, i) => `[v${i}]`).join("")}concat=n=${picks.length}:v=1:a=0[mv];${tail}[${picks.length}:a]volume=${ttsGain[name].toFixed(2)}dB,apad=whole_dur=${dur.toFixed(3)},aresample=48000[aout]`;
     await ff([...args2, "-filter_complex", filter, "-map", "[vout]", "-map", "[aout]", "-t", dur.toFixed(3), ...enc, segExt(name)]);
   };
   // Demo: one shot per pipeline word, the label lands with the word.
@@ -253,17 +270,41 @@ async function main() {
   const demoCuts = demoWords.map((t, i) => (Number.isFinite(t) ? t : (i * tts.demo.duration) / 7));
   demoCuts[0] = 0;
   const demoLabels = ["GUION", "VOZ", "IMÁGENES", "MOVIMIENTO", "MÚSICA", "SUBTÍTULOS"];
+  if (BRAND) {
+    // Real progress cards of the app on "Guion. Voz. Imágenes…", then the dedicated 16:9 result playing the
+    // real DULCE production inside the app's own player rect.
+    const ui = JSON.parse(await readFile(join(BRAND, "ui-demo.json"), "utf8")) as { player: { x: number; y: number; w: number; h: number }; playerFrom: number };
+    const dur = tts.demo.duration + 0.3, p = ui.player;
+    await ff(["-i", join(BRAND, "ui-demo.mp4"), "-ss", D(185).at.toFixed(2), "-t", (dur + 0.5).toFixed(2), "-i", dulce, "-i", tts.demo.file, "-loop", "1", "-t", (dur + 0.5).toFixed(2), "-i", join(BRAND, "player-mask.png"), "-filter_complex",
+      `[0:v]fps=${FPS},setsar=1,tpad=stop_mode=clone:stop_duration=2[base];` +
+      `[1:v]scale=${p.w}:${p.h}:force_original_aspect_ratio=increase,crop=${p.w}:${p.h},fps=${FPS},setsar=1,format=rgba[pv];[3:v]format=gray,scale=${p.w}:${p.h}[pm];[pv][pm]alphamerge,fade=t=in:st=0:d=0.25:alpha=1,setpts=PTS-STARTPTS+${ui.playerFrom.toFixed(3)}/TB[pl];` +
+      `[base][pl]overlay=${p.x}:${p.y}:eof_action=pass:format=auto,format=yuv420p[vout];[2:a]volume=${ttsGain.demo.toFixed(2)}dB,apad=whole_dur=${dur.toFixed(3)},aresample=48000[aout]`,
+      "-map", "[vout]", "-map", "[aout]", "-t", dur.toFixed(3), ...enc, segExt("demo")]);
+  } else
   await montage("demo", [D(14.5), O(2.2), D(185), O(6.0), O(22.3), D(199), D(242)], demoCuts,
     demoLabels.map((t, i) => label(t, Math.max(0.02, (demoWords[i] ?? demoCuts[i]) - 0.05), demoCuts[i + 1], 330, 108)).join(","));
   // Results: cuts on the beats of the sentence.
   const r1 = wordStart("results", /^presentacion/) ?? 1.6, r2 = wordStart("results", /^son$/) ?? 2.4, r3 = wordStart("results", /^ya$/) ?? 3.2;
-  await montage("results", [D(170), D(455.8), O(11.7), D(242.5), O(20.1)], [0, r1, r2, r3, Math.min(tts.results.duration, r3 + 0.9)], label("HECHO CON ATOMIVID", 0.05, tts.results.duration + 0.3, 300, 70));
+  if (BRAND) await montage("results", [D(170), D(455.8), O(11.7), D(242.5), O(20.1)], [0, r1, r2, r3, Math.min(tts.results.duration, r3 + 0.9)], "", join(BRAND, "badge.png"));
+  else await montage("results", [D(170), D(455.8), O(11.7), D(242.5), O(20.1)], [0, r1, r2, r3, Math.min(tts.results.duration, r3 + 0.9)], label("HECHO CON ATOMIVID", 0.05, tts.results.duration + 0.3, 300, 70));
   // Reveal: "CREATED WITH ATOMIVID" lands on "creado".
   const created = wordStart("reveal", /^creado/) ?? 2.6;
   const elVideo = wordStart("reveal", /^el$/) ?? 1.2;
+  if (BRAND) {
+    // "…el video que estás viendo también fue creado con ATOMIVID": the PRODUCTION landing (atomivid.vercel.app).
+    const dur = tts.reveal.duration + 0.3;
+    await ff(["-i", join(BRAND, "ui-reveal.mp4"), "-i", tts.reveal.file, "-filter_complex",
+      `[0:v]fps=${FPS},setsar=1,tpad=stop_mode=clone:stop_duration=2[vout];[1:a]volume=${ttsGain.reveal.toFixed(2)}dB,apad=whole_dur=${dur.toFixed(3)},aresample=48000[aout]`,
+      "-map", "[vout]", "-map", "[aout]", "-t", dur.toFixed(3), ...enc, segExt("reveal")]);
+  } else
   await montage("reveal", [O(36), D(195)], [0, elVideo], label("CREATED WITH ATOMIVID", created, tts.reveal.duration + 0.3, 330, 92));
   // End card ≤ 1.2 s: wordmark rises in, claim and "Próximamente." follow.
-  const END = 1.2;
+  const END = BRAND ? 2.0 : 1.2;
+  if (BRAND) {
+    // Official close: real logo mark + "Atomivid" + "Tu idea. Tu video." + "Próximamente." (app tokens, Geist).
+    await ff(["-i", join(BRAND, "end-card.mp4"), "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-filter_complex", `[0:v]fps=${FPS},setsar=1,tpad=stop_mode=clone:stop_duration=1[v]`,
+      "-map", "[v]", "-map", "1:a", "-t", String(END), ...enc, segExt("end")]);
+  } else
   await ff(["-f", "lavfi", "-i", `color=c=0x0d1220:s=${W}x${H}:d=${END}:r=${FPS}`, "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-filter_complex",
     `[0:v]vignette=angle=PI/5,drawbox=x=(iw-220)/2:y=760:w=220:h=8:color=0x7fd3ff:t=fill:enable='gte(t\\,0.12)',${label("ATOMIVID", 0.0, 9, 800, 170)},${label("Tu idea. Tu video.", 0.18, 9, 1030, 72)},` +
     `drawtext=fontfile=${FONT}:text='Próximamente.':fontcolor=0x7fd3ff:fontsize=58:x=(w-tw)/2:y=1140:alpha='min(1\\,max(0\\,(t-0.36)/0.2))'[v]`,
@@ -399,7 +440,7 @@ async function main() {
     checks: {
       resolution1080x1920: m.width === W && m.height === H, fps30: Math.abs(m.fps - FPS) < 0.05, duration30to36: m.duration >= 30 && m.duration <= 36,
       audioPresent: m.hasAudio, firstFrameVisual: firstYavg > 16, noAccidentalBlack: blackIntervals.length === 0, noClipping: loud.tp <= -1.0,
-      loudnessAround14: Math.abs(loud.i + 14) <= 1, noFullWhiteFrames: whiteFrames === 0, captionsNoOverlap: overlaps === 0, captionsWithinSections: crossings === 0, endCardMax1_5s: END <= 1.5,
+      loudnessAround14: Math.abs(loud.i + 14) <= 1, noFullWhiteFrames: whiteFrames === 0, captionsNoOverlap: overlaps === 0, captionsWithinSections: crossings === 0, endCardWithinLimit: END <= (BRAND ? 2.5 : 1.5),
       avSyncPerSegmentMs60: Math.max(...Object.values(avDrift)) <= 60, vfxIntegrated: hasVfx,
     },
     loudnessLufs: loud.i, truePeakDbfs: loud.tp, loudnessRangeLu: loud.lra, firstFrameYavg: firstYavg, blackIntervals, avSyncDriftMsPerSegment: avDrift,
