@@ -14,7 +14,7 @@ on:
         description: "discover (sin gasto), heygen-preflight (GET gratuito de la clave HeyGen) o produce (gasto autorizado, tope USD 1.03)"
         required: true
         type: choice
-        options: [discover, heygen-preflight, produce, v2-analyze, v2-looktest, v2-vfx, v2-vfx002, v2-master]
+        options: [discover, heygen-preflight, produce, v2-analyze, v2-looktest, v2-vfx, v2-vfx002, v2-scout, v2-master]
         default: discover
       confirm:
         description: "Escribir PRODUCIR para habilitar las claves pagadas en stage=produce"
@@ -194,7 +194,7 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg && ffmpeg -version | head -1
 
       - name: Transcripción y beats locales (faster-whisper + numpy, sin API)
-        if: inputs.stage != 'v2-vfx' && inputs.stage != 'v2-vfx002'
+        if: inputs.stage != 'v2-vfx' && inputs.stage != 'v2-vfx002' && inputs.stage != 'v2-scout'
         run: python3 -m pip install --quiet "faster-whisper==1.1.1" numpy
 
       # VFX-002: matte local (Robust Video Matting, ONNX en CPU) + composición local. Sin proveedor, USD 0.
@@ -206,12 +206,21 @@ jobs:
           curl -fsSL -o teaser-v2/rvm_mobilenetv3_fp32.onnx https://github.com/PeterL1n/RobustVideoMatting/releases/download/v1.0.0/rvm_mobilenetv3_fp32.onnx
           echo "88d4531297118f595bf2fd60f6f566aec2e559393802d1f436c380f0cbbd2828  teaser-v2/rvm_mobilenetv3_fp32.onnx" | sha256sum -c -
 
+      # Scout (USD 0): Pexels Videos (catálogo gratuito) + capturas públicas de la app en producción.
+      - name: Herramientas de scouting (OpenCV + Playwright, sin API de pago)
+        if: inputs.stage == 'v2-scout'
+        run: |
+          python3 -m pip install --quiet "opencv-contrib-python-headless==5.0.0.93" "numpy==2.4.6"
+          npm install --no-save --no-audit --no-fund playwright@1.63.0
+          npx playwright install --with-deps chromium
+
       - name: Ejecutar etapa V2
         run: npx tsx scripts/precampaign-teaser/${{ inputs.stage }}.ts
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           LUMA_API_KEY: ${{ inputs.stage == 'v2-vfx' && secrets.LUMA_API_KEY || '' }}
+          PEXELS_API_KEY: ${{ (inputs.stage == 'v2-scout' || inputs.stage == 'v2-vfx002') && secrets.PEXELS_API_KEY || '' }}
           TEASER_V2_ARGS: ${{ inputs.v2_args }}
 
       - name: Publicar resultados V2
@@ -228,6 +237,9 @@ jobs:
             teaser-v2/vfx002/*.jpg
             teaser-v2/vfx002/*.png
             teaser-v2/vfx002/*.mp4
+            teaser-v2/scout/*.json
+            teaser-v2/scout/nyc/*.jpg
+            teaser-v2/scout/ui/
             teaser-v2/output/
           if-no-files-found: ignore
           retention-days: 7
