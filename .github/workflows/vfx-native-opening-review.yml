@@ -1,0 +1,38 @@
+name: VFX private native opening review
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [docs/production-intelligence/VFX-NATIVE-OPENING-REVIEW-AUTHORIZATION.json]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: vfx-approved-first-frames
+  cancel-in-progress: false
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: chmod +x node_modules/@ffmpeg-installer/linux-x64/ffmpeg node_modules/@ffprobe-installer/linux-x64/ffprobe
+      - run: python3 -m pip install numpy==2.2.6 scipy==1.15.3 pillow==11.3.0
+      - name: Render local review; encrypt original-person media
+        run: |
+          export PATH="$PWD/node_modules/@ffmpeg-installer/linux-x64:$PWD/node_modules/@ffprobe-installer/linux-x64:$PATH"
+          node --import tsx scripts/vfx/native-opening-review.ts
+        env:
+          VFX_DIRECTOR_ENABLED: '1'
+          AVATAR_PREPARATION_OWNER_EMAIL: hanzmo16@gmail.com
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vfx-encrypted-native-opening-review
+          path: vfx-opening-encrypted/
+          retention-days: 7

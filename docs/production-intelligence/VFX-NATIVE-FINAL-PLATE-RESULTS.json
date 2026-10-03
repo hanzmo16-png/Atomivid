@@ -1,0 +1,44 @@
+{
+  "projectId": "precampaign-three-worlds-v1-preparation",
+  "receipts": [
+    {
+      "environmentId": "nyc",
+      "key": "op_82de7aecfa30dfb5038cbb8b2f172a3e",
+      "providerJobId": "453d26970b6d484a825250effe2095f5",
+      "sha256": "da058e0126e0fa7ff14df732c7d6ab81eb82230b6acf4933172d45b9d8ed6135",
+      "costUsd": 1.02,
+      "costBasis": "published_rate",
+      "reused": false,
+      "technicalPass": true,
+      "width": 1080,
+      "height": 1920,
+      "fps": "25/1",
+      "frames": "153",
+      "seconds": "6.120000",
+      "visualApproved": false,
+      "integrationApproved": false
+    },
+    {
+      "environmentId": "beach",
+      "key": "op_9d5e8353495ac44cb8899b4c97309947",
+      "providerJobId": "e2aa7f2235804ad998a4fa8565ea070c",
+      "sha256": "3a04d3ca5f4694dd5724f6b6e9099a018af36cff78d69681ebda3531fc8f80d3",
+      "costUsd": 1.02,
+      "costBasis": "published_rate",
+      "reused": false,
+      "technicalPass": true,
+      "width": 1080,
+      "height": 1920,
+      "fps": "25/1",
+      "frames": "153",
+      "seconds": "6.120000",
+      "visualApproved": false,
+      "integrationApproved": false
+    }
+  ],
+  "approvalSha256": "0332044f9f37ac2e53c3f3a67c7cb7f49c1792c97761621b7876ca2347b8608d",
+  "maximumAdditionalUsd": 2.04,
+  "moonPaidCalls": 0,
+  "deployment": false,
+  "productionReady": false
+}
