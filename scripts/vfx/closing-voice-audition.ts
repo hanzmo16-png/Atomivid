@@ -11,7 +11,8 @@ async function main(){
  const root=await mkdtemp(join(tmpdir(),'voice-audition-'));let holds:AcquiredHold[]=[];
  try{
   const source=await results.getBytes(c.sourcePath);if(!source||hash(source)!==c.sourceSha256)throw new Error('VFX_VOICE_SOURCE_CHANGED');await writeFile(join(root,'original.mp4'),source);await writeFile(join(root,'config.json'),JSON.stringify(c));
-  await exec('ffmpeg',['-v','error','-y','-i',join(root,'original.mp4'),'-ss',String(c.phraseStart),'-t',String(c.phraseEnd-c.phraseStart),'-vn','-ac','1','-ar','44100','-c:a','pcm_s16le',join(root,'phrase.wav')]);const audio=await readFile(join(root,'phrase.wav'));
+  // Select an exact integer count of resampled audio samples; codec seek rounding must not extend the authorized phrase.
+  await exec('ffmpeg',['-v','error','-y','-i',join(root,'original.mp4'),'-vn','-ac','1','-ar','44100','-af','aresample=44100,atrim=start_sample='+Math.round(c.phraseStart*44100)+':end_sample='+Math.round(c.phraseEnd*44100)+',asetpts=PTS-STARTPTS','-c:a','pcm_s16le',join(root,'phrase.wav')]);const audio=await readFile(join(root,'phrase.wav'));
   const probe=JSON.parse((await exec('ffprobe',['-v','error','-show_format','-of','json',join(root,'phrase.wav')])).stdout);const exactSeconds=Number(probe.format.duration);if(Math.abs(exactSeconds-(c.phraseEnd-c.phraseStart))>.025)throw new Error('VFX_VOICE_PHRASE_DURATION_CHANGED');
   const guarded=await gatedVoiceConversion({ledger,results,apiKey,beforePost:async()=>{
    const get=async(path:string)=>{const r=await fetch('https://api.elevenlabs.io/v1/'+path,{headers:{'xi-api-key':apiKey},signal:AbortSignal.timeout(30000)});if(!r.ok)throw new ProviderRejectedError('VFX_PREFLIGHT_HTTP_'+r.status,'rejected_final');return r.json();};
