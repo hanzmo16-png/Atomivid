@@ -8,6 +8,7 @@ import { z } from "zod";
 import { createServiceClient } from "../../src/lib/supabase/service";
 import { supabaseJobStore } from "../../src/lib/production-intelligence/vfx-director/store";
 import { createJob, runTask, ownedJob, reconcileTask, jobGates, type DurableExecutor } from "../../src/lib/production-intelligence/vfx-director/jobs";
+import { WorldCompositeSchema, CutMasterSchema, worldCompositeExecutor, cutMasterExecutor, assertReviewedSegments } from "../../src/lib/production-intelligence/vfx-director/sequence-compositor";
 import { vfx002bExecutor } from "../../src/lib/production-intelligence/vfx-director/compositor";
 import { STAGES } from "../../src/lib/production-intelligence/vfx-director/gates";
 import { BriefSchema } from "../../src/lib/production-intelligence/vfx-director";
@@ -17,7 +18,7 @@ import { supabaseResultStore } from "../../src/lib/paid-calls/result-store";
 import Anthropic from "@anthropic-ai/sdk";
 const Proof = z.object({ kind: z.literal("artifact"), path: z.string().min(1), sha256: z.string().regex(/^[a-f0-9]{64}$/), stage: z.enum(STAGES) }).strict();
 const Composite = z.object({ kind: z.literal("vfx002b"), source: z.string(), plate: z.string(), model: z.string(), root: z.string(), script: z.string() }).strict();
-const Manifest = z.object({ jobId: z.string(), ownerId: z.string().uuid(), brief: z.unknown(), plan: z.unknown(), assets: z.array(z.string()), executors: z.record(z.string(), z.union([Proof, Composite])) }).strict();
+const Manifest = z.object({ jobId: z.string(), ownerId: z.string().uuid(), brief: z.unknown(), plan: z.unknown(), assets: z.array(z.string()), executors: z.record(z.string(), z.union([Proof, Composite, WorldCompositeSchema, CutMasterSchema])) }).strict();
 async function main() {
   if (process.env.VFX_DIRECTOR_ENABLED !== "1") throw new Error("VFX_DISABLED");
   const manifest = Manifest.parse(JSON.parse(await readFile(process.env.VFX_JOB_MANIFEST ?? "", "utf8")));
@@ -26,8 +27,23 @@ async function main() {
   const { directorActor } = await import("../../src/lib/production-intelligence/vfx-director/access");
   if (user.error) throw new Error("VFX_OWNER_LOOKUP_FAILED");
   const actor = directorActor(user.data.user);
+  const store = supabaseJobStore(sb);
   const executors: Record<string, DurableExecutor> = {};
   for (const [name, config] of Object.entries(manifest.executors)) {
+    if (config.kind === "world-composite") {
+      executors[name] = worldCompositeExecutor(config); continue;
+    }
+    if (config.kind === "cut-master") {
+      const executor = cutMasterExecutor(config);
+      const bind = async () => {
+        const job = await ownedJob(store, manifest.jobId, actor);
+        assertReviewedSegments(config, job);
+      };
+      executors[name] = { ...executor,
+        async run(...args) { await bind(); return executor.run(...args); },
+        async recover(...args) { await bind(); return executor.recover!(...args); },
+      }; continue;
+    }
     executors[name] = config.kind === "vfx002b" ? vfx002bExecutor(config) : {
       capability: { available: true, paid: false, preservesOriginalPixels: true }, allowedStages: [config.stage],
       async run(task) {
@@ -37,7 +53,6 @@ async function main() {
       },
     };
   }
-  const store = supabaseJobStore(sb);
   const action = process.env.VFX_WORKER_ACTION ?? "inspect";
   if (action === "plan") {
     const brief = BriefSchema.parse(manifest.brief);

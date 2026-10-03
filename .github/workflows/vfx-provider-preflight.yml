@@ -1,0 +1,27 @@
+name: VFX official provider preflight (read-only)
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: vfx-provider-preflight
+  cancel-in-progress: false
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read-only official API checks
+        run: python3 scripts/vfx/remote_preflight.py
+        env:
+          BFL_API_KEY: ${{ secrets.BFL_API_KEY }}
+          LTX_API_KEY: ${{ secrets.LTX_API_KEY }}
+          LTX_PREFLIGHT_JOB_ID: ${{ vars.LTX_PREFLIGHT_JOB_ID }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vfx-official-provider-preflight
+          path: vfx-provider-preflight.json
+          retention-days: 7
