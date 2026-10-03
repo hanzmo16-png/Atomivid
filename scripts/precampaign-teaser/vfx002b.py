@@ -57,7 +57,7 @@ def fg_grade(x, s):
 def grade_plate(p):
     """Integrate a real 4K night plate behind a ~1 m subject: light lens DOF (not a mush), deeper blacks,
     highlight bloom from the screens, a touch less saturation so the subject stays the hero."""
-    p = cv2.GaussianBlur(p, (0, 0), 1.6)
+    p = cv2.GaussianBlur(p, (0, 0), 0.45)  # preserve billboard detail at delivery resolution
     lum = p @ np.array([0.114, 0.587, 0.299], np.float32)
     p = lum[..., None] + (p - lum[..., None]) * 0.9
     p = np.clip((p - 0.015) * 1.04, 0, 1)
@@ -127,7 +127,6 @@ def main():
     edges = np.maximum(edges, cv2.GaussianBlur(edges, (0, 0), 2.5) * 0.8)[..., None]
 
     yy = np.arange(H, dtype=np.float32)[:, None]
-    rng = np.random.default_rng(5)
     enc = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
                             "-c:v", "libx264", "-preset", "slow", "-crf", "14", "-pix_fmt", "yuv420p",
                             "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-movflags", "+faststart",
@@ -161,7 +160,7 @@ def main():
 
         nyc = grade_plate(P[i].astype(np.float32) / 255)
         nyc = nyc * (1 + 0.7 * (np.exp(-np.clip(yy - ys, 0, None) / 110.0) * (yy >= ys) * (0 < lin < 1))[..., None])  # city switches on behind the line
-        nyc = np.clip(nyc + rng.normal(0, 0.010, nyc.shape).astype(np.float32), 0, 1)
+        # No synthetic plate grain: added noise competes with fine detail in mobile encodes.
         room = I * (1 - 0.8 * ahead) * (1 - 0.25 * prog) + edges * ACCENT * np.clip(ahead * 1.6, 0, 1) * 1.15  # room re-drawn as glowing edges
         bg = room * (1 - R) + nyc * R
         light = np.clip(core * ACCENT_HI * 1.0 + halo * ACCENT * 0.55, 0, 1)
@@ -226,7 +225,7 @@ def main():
         "method": {
             "segmentation": "Robust Video Matting mobilenetv3 (ONNX, CPU), recurrent, downsample 0.4; choke + soften + motion-adaptive temporal smoothing on edges; no chroma key",
             "edgeDecontamination": "un-premultiply against a clean apartment plate (temporal median, fixed camera); conservative clean-plate difference refinement only where alpha < 0.7 and the room was seen uncovered in >= 8 sampled frames",
-            "background": "real stock video plate (locked-off camera), Times Square at night, native 2160x3840 downscaled to 1080x1920; light DOF (sigma 1.6), slight desaturation, screen bloom, grain",
+            "background": "real stock video plate (locked-off camera), Times Square at night, native 2160x3840 downscaled to 1080x1920; minimal DOF (sigma 0.45), slight desaturation, screen bloom, no added grain",
             "transition": f"AI render scan {SCAN_START}-{SCAN_END}s: accent (#7c6aef) scan line rising behind the subject, room re-drawn as glowing edges ahead of it, real city behind it",
             "subject": "original source pixels; fixed per-pixel grade ramp (exposure -8%, cooler shadows, contrast +5%, key falloff); light wrap on the rim only",
         },

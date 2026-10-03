@@ -48,6 +48,7 @@ export type Plan = z.infer<typeof PlanSchema>;
  * Price and identity properties belong to the host, never to model output. */
 export type Capability = { available: boolean; paid: boolean; preservesOriginalPixels: boolean;
   /** Only physical render executors declare these measured limitations. */
+  recipeVersion?: string;
   fullShotOnly?: boolean;
   environments?: { kind: Environment["kind"]; lighting: Environment["lighting"] }[] };
 export type Inventory = Record<string, Capability>;

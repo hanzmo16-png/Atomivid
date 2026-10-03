@@ -23,7 +23,7 @@ export function vfx002bExecutor(config: { source: string; plate: string; model: 
       { name: "graded-subject-lock", pass: report.subjectLock?.interiorPixels > 0 && report.subjectLock.maxAbsDiffInteriorVsGradedSource <= 5, evidence: JSON.stringify(report.subjectLock) },
     ] };
   }
-  return { capability: { available: true, paid: false, preservesOriginalPixels: false, fullShotOnly: true, environments: [{ kind: "city", lighting: "night_practical" }] }, allowedStages: ["preview", "integration"],
+  return { capability: { available: true, paid: false, preservesOriginalPixels: false, recipeVersion: "vfx002b/clarity-2", fullShotOnly: true, environments: [{ kind: "city", lighting: "night_practical" }] }, allowedStages: ["preview", "integration"],
     async recover(task, brief, operationKey, environment) {
       if (!environment || environment.kind !== "city" || environment.lighting !== "night_practical") throw new Error("VFX002B_ENVIRONMENT_UNSUPPORTED");
       if (await fingerprint(config.plate) !== environment.materialSha256) throw new Error("VFX_PLATE_CHANGED");
