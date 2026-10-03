@@ -12,7 +12,7 @@ import {gatedWorldAsset} from '../../src/lib/paid-calls/gated-world-assets';
 import {supabaseLedgerStore} from '../../src/lib/paid-calls/supabase-ledger-store';
 import {supabaseResultStore} from '../../src/lib/paid-calls/result-store';
 import {officialWorldPort} from '../../src/lib/providers/vfx-worlds/official';
-import {assertProductionConnections,type ConnectionEvidence} from '../../src/lib/production-intelligence/vfx-director/production-preflight';
+import {type ConnectionEvidence} from '../../src/lib/production-intelligence/vfx-director/production-preflight';
 const OWNER='d2064950-7a95-4208-8dfb-d93b470d141d';
 const hash=(b:string|Buffer)=>createHash('sha256').update(b).digest('hex');
 type World={environmentId:'nyc'|'beach'|'moon';kind:'city'|'beach'|'moon';lighting:'night_practical'|'daylight_soft'|'sun_hard';sourceStartFrame:number;sourceEndFrame:number;directionSha256:string;styleframePrompt:string;motionPrompt:string};
@@ -27,16 +27,25 @@ async function main(){
  if(measurement.sourceSha256!==pkg.source.sha256||measurement.frames!==150||measurement.width!==1080||measurement.height!==1920||measurement.fps!=='30/1')throw new Error('SOURCE_CHANGED');
  const evidence=JSON.parse(await readFile('vfx-provider-preflight.json','utf8'));
  if(Date.now()-Date.parse(evidence.checkedAt)>60*60_000)throw new Error('PREFLIGHT_EXPIRED');
- const ltx=evidence.connections.find((e:ConnectionEvidence)=>e.provider==='ltx');
- // Console balance evidence supplied directly by the owner; never pretend it came from an API.
- if(authorization.ltxBalanceUsd<4.68||Date.now()-Date.parse(authorization.ltxBalanceObservedAt)>60*60_000)throw new Error('LTX_BALANCE_EVIDENCE_EXPIRED');
- if(ltx)ltx.creditsVerified=true;
- assertProductionConnections(evidence.connections);
- if(!evidence.connections.find((e:ConnectionEvidence&{enoughForBaseQuote?:boolean})=>e.provider==='bfl'&&e.enoughForBaseQuote))throw new Error('BFL_BALANCE_INSUFFICIENT');
+ const bfl=evidence.connections.find((e:ConnectionEvidence)=>e.provider==='bfl');
+ if(!bfl?.dns||!bfl.https||!bfl.authenticated||!bfl.creditsVerified||!bfl.enoughForBaseQuote)throw new Error('BFL_CONNECTION_OR_BALANCE_NOT_VERIFIED');
+ // This entrypoint submits only BFL images; LTX balance must be rechecked before motion.
  const sb=createServiceClient(),user=await sb.auth.admin.getUserById(OWNER);
  if(user.error)throw new Error('OWNER_LOOKUP_FAILED');
  const actor=directorActor(user.data.user),store=supabaseJobStore(sb),ledger=supabaseLedgerStore(sb),results=supabaseResultStore(sb);
  const projectId=pkg.projectId+'-preparation';
+ await mkdir('vfx-styleframe-review',{recursive:true});
+ const committed=await sb.from('pi_paid_operations').select('shot_id,result_ref').eq('project_id',projectId).eq('status','COMMITTED').eq('method','text-to-image');
+ if(committed.error)throw new Error('COMMITTED_ASSET_READ_FAILED');
+ for(const row of committed.data??[]){
+  const world=worlds.find(w=>row.shot_id===`world:${w.environmentId}:styleframe`);
+  if(!world||!row.result_ref)continue;
+  const meta=await results.getJson<{assetPath:string;sha256:string;bytes:number}>(row.result_ref);
+  if(!meta)throw new Error('VFX_STORED_RESULT_MISSING');
+  const bytes=await results.getBytes(meta.assetPath);
+  if(!bytes||bytes.length!==meta.bytes||hash(bytes)!==meta.sha256)throw new Error('VFX_STORED_RESULT_CHANGED');
+  await writeFile(`vfx-styleframe-review/${world.environmentId}.png`,bytes);
+ }
  // One-time read-only reconciliation of the pre-receipt NYC operation. Only documented
  // official global/US/EU API hosts are queried; never POST or guess additional regions.
  for(const legacyWorld of worlds){

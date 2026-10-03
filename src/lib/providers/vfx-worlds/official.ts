@@ -79,8 +79,8 @@ export function officialWorldPort(options:{fetch?:typeof fetch;sleep?:(ms:number
      if(url.protocol!=='https:'||url.username||url.password)throw new OfficialCallError('VFX_RESULT_URL_INVALID',jobId);
      // Output URLs are provider-produced; API credentials never leave the official API host.
      let response:Response;
-     try {response=await http(url,{redirect:'error',signal:AbortSignal.timeout(60_000)});} catch {throw new OfficialCallError('VFX_DOWNLOAD_FAILED',jobId);}
-     if(!response.ok)throw new OfficialCallError('VFX_DOWNLOAD_FAILED',jobId);
+     try {response=await http(url,{redirect:'follow',signal:AbortSignal.timeout(60_000)});} catch {throw new OfficialCallError('VFX_DOWNLOAD_FAILED',jobId);}
+     if(!response.ok)throw new OfficialCallError(`VFX_DOWNLOAD_HTTP_${response.status}`,jobId);
      const buffer=Buffer.from(await response.arrayBuffer());
      if(!buffer.length)throw new OfficialCallError('VFX_EMPTY_RESULT',jobId);
      const reported=recipe.provider==='bfl'&&typeof data.cost==='number'&&Number.isFinite(data.cost)&&data.cost>=0?data.cost/100:job.costUsd;
