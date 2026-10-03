@@ -19,6 +19,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npx next typegen
       - run: npm run typecheck
       - run: node --import tsx --test src/lib/production-intelligence/vfx-director/*.test.ts
       - run: npm run lint
