@@ -1,0 +1,30 @@
+{
+  "version": "vfx-visual-approval/1",
+  "projectId": "precampaign-three-worlds-v1-preparation",
+  "approvedAt": "2026-10-03T18:30:24Z",
+  "userMessage": "Aprovado",
+  "scope": "Visual approval of the two background images shown immediately before this message",
+  "sourceSha256": "5d6e025f43a0f27e3835330edd79dcef46742a7e565ecb158cffefaf7f990e7b",
+  "backgrounds": [
+    {
+      "environmentId": "nyc",
+      "sha256": "e8c3d0aa4033b9cb116cd952aede6f094fd08f23e2b47c93bc2d733932a65f23",
+      "visualApproved": true
+    },
+    {
+      "environmentId": "moon",
+      "sha256": "f0e4568511b7108381e39bb3e2d2611ab37fde36c6d087b194055553bb113d7c",
+      "visualApproved": true
+    }
+  ],
+  "beachApproved": false,
+  "motionAuthorizedByThisRecord": false,
+  "integrationApproved": false,
+  "masterApproved": false,
+  "deploymentAuthorizedByThisRecord": false,
+  "technicalGateStatus": {
+    "nyc": "Visual approval recorded; technical styleframe gate still requires validated evidence",
+    "moon": "Visual approval recorded; artifact registry import and technical gate still pending"
+  },
+  "preserveExistingRequests": true
+}
