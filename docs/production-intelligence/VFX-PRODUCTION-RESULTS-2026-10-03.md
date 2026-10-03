@@ -32,3 +32,13 @@ Three still compositor controls were rendered locally from source frames 25, 75 
 Validation: 43 scoped TypeScript tests, typecheck, lint, and the five deterministic pixel tests passed. Official LTX docs were rechecked: fixed six seconds at 25 fps, silent generation, $0.09/s Fast 720 and $0.17/s Pro 1080 remain supported. Forecast remaining motion generation: $1.62 preview plus $3.06 final, $4.68 total. Authentication was verified by the read-only provider workflow; the most recent owner-supplied LTX balance remains the $21.25 console evidence, not a fabricated live API balance.
 
 Next gates: owner visual review of Beach, then real LTX movement trials and motion review, native 1080 final plates, per-world integration review and master QA. No LTX generation, Kling generation, master video or deployment occurred. Kling's existing generic adapter remains contract-unverified; it is not required to retain the original recorded person's movement and must not be described as fully integrated. Overall Director certification remains open.
+
+## Approved motion trials — 2026-10-03
+
+Owner approved the replacement beach and three still lighting treatments at 19:26:45 UTC. Three official LTX-2.5 Fast requests, one per world, were submitted through the write-ahead payment ledger: 6 requested seconds, portrait 720, 25 fps, no audio, $0.54 each. LTX delivered 153 frames/6.12 s. The retained first 150 decoded frames were encoded losslessly and checked against the raw decoded-frame SHA; no interpolation, upscale, or new provider call. Public review previews are compressed separately; the registered artifacts are the private lossless files.
+
+New booked trial cost: $1.62 at the published request tariff, not a provider billing receipt. Total committed project ledger: $1.71, with an additional $0.03 original beach charge still held for reconciliation. Every recovery reused the three same provider IDs and incurred zero new submissions.
+
+NYC motion rejected: a stationary facade drifts approximately 22 pixels by 5.9 seconds; camera and cable geometry change. Moon motion rejected: stationary terrain structure changes instead of only the rover. Beach has gentle waves and near-stationary sand; owner movement review remains pending. Exact rejection/artifact fingerprints are persisted in the durable director job. Existing approved direction/styleframes and still lighting treatments are retained.
+
+Workflow 37148958794 succeeded in execution/registration; this is not visual approval. Durable job status is BLOCKED (rejected motion). No Pro call, integration, final master, merge or deployment occurred. The VFX Director is not certified 100% for production. No second paid trial is authorized by this contract.

@@ -1,0 +1,92 @@
+{
+  "projectId": "precampaign-three-worlds-v1-preparation",
+  "receipts": [
+    {
+      "environmentId": "nyc",
+      "key": "op_7a35a6feed27328e49d21adf714ed9b2",
+      "providerJobId": "0e3da8693ced4de1be66762cdd0f78db",
+      "sha256": "1e3f4586e7483a524afbe3567507a107e4c2b94783b277c4ef7189e83e0c7b43",
+      "rawSha256": "22c4f965c103039b350bdf45f3d8ab8206a37731a46bb42067adc88264db46fa",
+      "rawFrames": 153,
+      "rawSeconds": 6.12,
+      "normalization": "first 150 decoded frames, verified lossless encoding",
+      "previewSha256": "c7f66335b8f24a6d3837734e37d1acaa5d7c7990e77de74978a7aec43c7d29bd",
+      "costUsd": 0.54,
+      "costBasis": "published_rate",
+      "reused": true,
+      "motionApproved": false
+    },
+    {
+      "environmentId": "beach",
+      "key": "op_6131958bf73e7223f9a5dc374154f342",
+      "providerJobId": "cd7a46820b15452b85bb5c4fcc36e16c",
+      "sha256": "e2a7ce7879a24584b0c27da61fcde00335f92212c6fcd9c736b54b0a72063b4f",
+      "rawSha256": "15b685eaf55bb6533f6d50845a4298d6112f98758070a549fd8297518aa91ab6",
+      "rawFrames": 153,
+      "rawSeconds": 6.12,
+      "normalization": "first 150 decoded frames, verified lossless encoding",
+      "previewSha256": "c19e943bb18ff2b663d7f8da05f7183b7caeb9f4d9cb9bf5487a0a4f3d5c0cd0",
+      "costUsd": 0.54,
+      "costBasis": "published_rate",
+      "reused": true,
+      "motionApproved": false
+    },
+    {
+      "environmentId": "moon",
+      "key": "op_443b8cc719eea90e2167fe44e471cc6e",
+      "providerJobId": "15fb05aa8fb24ec2942e266bb7e341a2",
+      "sha256": "5cccd39c6b0ca46c1ddc126932774147e82a715cb06985abf8751ebc9ac8bfe2",
+      "rawSha256": "70b1b50d47d757fa68050707d04fdb3e5210264227420e98e4edf2bd3c0eace0",
+      "rawFrames": 153,
+      "rawSeconds": 6.12,
+      "normalization": "first 150 decoded frames, verified lossless encoding",
+      "previewSha256": "29d8b80631769122fa849999a2c02794994a9faca913d6e93236e59c9b7ce783",
+      "costUsd": 0.54,
+      "costBasis": "published_rate",
+      "reused": true,
+      "motionApproved": false
+    }
+  ],
+  "technicalReview": {
+    "projectId": "precampaign-three-worlds-v1-preparation",
+    "maximumPaidTrialUsd": 1.62,
+    "secondPaidTrialAuthorized": false,
+    "finalBlocked": true,
+    "worlds": [
+      {
+        "environmentId": "nyc",
+        "rawSha256": "22c4f965c103039b350bdf45f3d8ab8206a37731a46bb42067adc88264db46fa",
+        "frames": 150,
+        "seconds": 6,
+        "review": "REJECTED",
+        "defect": "Camera/architecture/cable geometry changes rather than only signage and distant traffic."
+      },
+      {
+        "environmentId": "beach",
+        "rawSha256": "15b685eaf55bb6533f6d50845a4298d6112f98758070a549fd8297518aa91ab6",
+        "frames": 150,
+        "seconds": 6,
+        "review": "PENDING_OWNER_REVIEW",
+        "defect": null
+      },
+      {
+        "environmentId": "moon",
+        "rawSha256": "70b1b50d47d757fa68050707d04fdb3e5210264227420e98e4edf2bd3c0eace0",
+        "frames": 150,
+        "seconds": 6,
+        "review": "REJECTED",
+        "defect": "Camera/terrain geometry changes rather than only the small rover."
+      }
+    ]
+  },
+  "maximumTrialBatchUsd": 1.62,
+  "ltxBalanceEvidence": {
+    "balanceUsd": 21.25,
+    "observedAt": "2026-10-03T17:19:57Z",
+    "source": "owner-console-screenshot",
+    "apiBalanceVerified": false
+  },
+  "finalCalls": 0,
+  "deployment": false,
+  "productionReady": false
+}

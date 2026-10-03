@@ -10,7 +10,8 @@
       "frames": 150,
       "seconds": 6,
       "review": "REJECTED",
-      "defect": "Camera/architecture/cable geometry changes rather than only signage and distant traffic."
+      "defect": "Camera/architecture/cable geometry changes rather than only signage and distant traffic.",
+      "measuredEvidence": "Stable facade patch moves -12 px horizontally and +18 px vertically by 5.9 s; displaced match correlation 0.979 versus 0.194 at original position."
     },
     {
       "environmentId": "beach",
@@ -18,7 +19,8 @@
       "frames": 150,
       "seconds": 6,
       "review": "PENDING_OWNER_REVIEW",
-      "defect": null
+      "defect": null,
+      "measuredEvidence": "Stationary foreground terrain patch changes structure; best nearby match correlation <0.17. This does not quantify a rigid camera transform."
     },
     {
       "environmentId": "moon",
@@ -26,7 +28,8 @@
       "frames": 150,
       "seconds": 6,
       "review": "REJECTED",
-      "defect": "Camera/terrain geometry changes rather than only the small rover."
+      "defect": "Camera/terrain geometry changes rather than only the small rover.",
+      "measuredEvidence": "Static sand patch best offset 0 px horizontal and +1 px vertical at 3/5.9 s; gentle waves visible. Owner movement review still pending."
     }
   ]
 }
