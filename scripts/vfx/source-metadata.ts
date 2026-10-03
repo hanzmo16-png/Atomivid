@@ -19,7 +19,7 @@ async function main(){
   if(downloaded.error||!downloaded.data)throw new Error('SOURCE_DOWNLOAD_FAILED');
   const bytes=Buffer.from(await downloaded.data.arrayBuffer()),path=join(dir,'source.mp4');
   await writeFile(path,bytes);
-  const {stdout}=await promisify(execFile)('ffprobe',['-v','error','-count_frames','-show_streams','-show_format','-of','json',path]);
+  const {stdout}=await promisify(execFile)(process.env.FFPROBE_BINARY??'ffprobe',['-v','error','-count_frames','-show_streams','-show_format','-of','json',path]);
   const probe=JSON.parse(stdout),video=probe.streams.find((s:{codec_type:string})=>s.codec_type==='video');
   if(!video)throw new Error('SOURCE_VIDEO_MISSING');
   const report={checkedAt:new Date().toISOString(),sourceSha256:createHash('sha256').update(bytes).digest('hex'),bytes:bytes.length,width:video.width,height:video.height,fps:video.avg_frame_rate,frames:Number(video.nb_read_frames),durationSeconds:Number(probe.format.duration),hasAudio:probe.streams.some((s:{codec_type:string})=>s.codec_type==='audio'),paidCalls:0,sourceExported:false,framesExported:false};

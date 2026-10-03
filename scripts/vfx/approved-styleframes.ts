@@ -69,4 +69,4 @@ async function main(){
  await writeFile('vfx-styleframe-review/receipts.json',JSON.stringify({projectId,receipts,productionReady:false,motionCalls:0},null,2));
  console.log(JSON.stringify({projectId,receipts,motionCalls:0,productionReady:false}));
 }
-main().catch(e=>{console.error(e instanceof Error&&/^[A-Z_]+$/.test(e.message)?e.message:'VFX_STYLEFRAME_BATCH_BLOCKED');process.exitCode=1;});
+main().catch(e=>{console.error(e instanceof Error&&/^[A-Z0-9_]+$/.test(e.message)?e.message:'VFX_STYLEFRAME_BATCH_BLOCKED');process.exitCode=1;});

@@ -17,5 +17,6 @@
     "final",
     "master",
     "deployment"
-  ]
+  ],
+  "recoveryRun": 1
 }

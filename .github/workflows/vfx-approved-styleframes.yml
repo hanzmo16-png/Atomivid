@@ -20,13 +20,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - run: chmod +x node_modules/@ffprobe-installer/linux-x64/ffprobe
       - run: python3 scripts/vfx/remote_preflight.py
         env:
           BFL_API_KEY: ${{ secrets.BFL_API_KEY }}
           LTX_API_KEY: ${{ secrets.LTX_API_KEY }}
       - run: node --import tsx scripts/vfx/source-metadata.ts
         env:
+          FFPROBE_BINARY: node_modules/@ffprobe-installer/linux-x64/ffprobe
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       - name: Owner approved direction; ledger required before each official BFL call
