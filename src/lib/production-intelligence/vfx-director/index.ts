@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ShotContractSchema } from "../contract";
 import { stableHash } from "../canonical";
 import { reserveProject } from "../budget";
+import { assertBeforeTask, assertGate, BlockedDirectionSchema, type GateContext } from "./gates";
 
 export const DIRECTOR_VERSION = "vfx-director/1";
 const text = z.string().trim().min(1);
@@ -14,6 +15,7 @@ export const BriefSchema = z.object({
   budgetUsd: z.number().finite().nonnegative(),
 }).strict();
 const TaskSchema = z.object({
+  stage: z.enum(["preview", "direction", "styleframe", "motion", "integration", "master"]),
   id: text, executor: text, dependsOn: z.array(text),
   inputAssetIds: z.array(text).min(1), outputAssetId: text,
   instruction: text, acceptance: z.array(text).min(1),
@@ -36,6 +38,8 @@ export type Capability = { available: boolean; paid: boolean; preservesOriginalP
 export type Inventory = Record<string, Capability>;
 
 export const DIRECTOR_INSTRUCTIONS = `You are the ATOMIVID VFX Director. Return a structured plan, never a finished clip or an approval.
+If infeasible, return status REJECTED with reason and alternative. If essential material is missing, return status NEEDS_MATERIAL with reason and requiredMaterial. Do not force a plan.
+Plans use status PLANNED and a plan field. Assign every task its stage. Preview tasks may create proof material; final stages require trusted approvals of previous stages. Never include approval records in model output.
 Serve the brief: define story function, silent readability, world rules, lighting, minimum viable technique and continuity.
 Preserve what is real. Generate only what must become impossible.
 Respect source fps, framing and the declared subject lock. Do not invent source optics or geometry: request measurements or mark assumptions in instructions.
@@ -80,19 +84,28 @@ export async function direct(brief: unknown, inventory: Inventory, assets: reado
   instructions: string; brief: Brief; inventory: Inventory; assets: readonly string[];
 }) => Promise<unknown>) {
   const parsed = BriefSchema.parse(brief);
-  return compilePlan(parsed, await propose({ instructions: DIRECTOR_INSTRUCTIONS, brief: parsed, inventory, assets }), inventory, assets);
+  const response = await propose({ instructions: DIRECTOR_INSTRUCTIONS, brief: parsed, inventory, assets });
+  const blocked = BlockedDirectionSchema.safeParse(response);
+  if (blocked.success) return { ...blocked.data, executable: false as const };
+  const planned = z.object({ status: z.literal("PLANNED"), plan: PlanSchema }).strict().parse(response);
+  return { status: "PLANNED" as const, ...compilePlan(parsed, planned.plan, inventory, assets) };
 }
 
 export type Check = { name: string; pass: boolean; evidence: string };
-export type Executor = { capability: Capability; run: (task: Plan["tasks"][number], brief: Brief) => Promise<{ assetId: string; checks: Check[] }> };
+export type Executor = { capability: Capability; allowedStages: Plan["tasks"][number]["stage"][]; run: (task: Plan["tasks"][number], brief: Brief) => Promise<{ assetId: string; checks: Check[] }> };
 /** Sequential execution with revalidation; only host-registered zero-cost executors run.
  * Durable retries and paid execution deliberately remain with the existing production worker. */
-export async function execute(rawBrief: unknown, rawPlan: unknown, executors: Record<string, Executor>, assets: readonly string[]) {
+export async function execute(rawBrief: unknown, rawPlan: unknown, executors: Record<string, Executor>, assets: readonly string[], gates?: GateContext) {
   const inventory = Object.fromEntries(Object.entries(executors).map(([name, executor]) => [name, executor.capability]));
   const compiled = compilePlan(rawBrief, rawPlan, inventory, assets);
   if (!compiled.executable) throw new Error(compiled.errors.join("; "));
   const results: { assetId: string; checks: Check[] }[] = [];
   for (const task of compiled.plan.tasks) {
+    if (!executors[task.executor].allowedStages.includes(task.stage)) throw new Error(`executor stage unsupported: ${task.id}`);
+    if (task.stage !== "preview") {
+      if (!gates || gates.planHash !== compiled.planHash) throw new Error("trusted gates for current plan required");
+      assertBeforeTask(task.stage, gates);
+    }
     const result = await executors[task.executor].run(task, compiled.brief);
     if (result.assetId !== task.outputAssetId) throw new Error(`executor output mismatch: ${task.id}`);
     if (!result.checks.length || result.checks.some(c => !c.pass || !c.evidence.trim())) throw new Error(`executor QA failed: ${task.id}`);
@@ -104,4 +117,10 @@ export function review(plan: Plan, checks: Check[], humanApproved: boolean) {
   const missing = plan.requiredChecks.filter(name => !checks.some(c => c.name === name && c.pass && c.evidence.trim()));
   const failed = checks.filter(c => !c.pass).map(c => c.name);
   return { approved: humanApproved && missing.length === 0 && failed.length === 0, missing, failed };
+}
+
+/** Final delivery gate is separate from rendering the review master. */
+export function assertDelivery(context: GateContext) {
+  assertBeforeTask("master", context);
+  assertGate("master", context);
 }
