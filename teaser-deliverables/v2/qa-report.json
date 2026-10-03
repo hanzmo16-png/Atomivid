@@ -1,7 +1,7 @@
 {
   "resolution": "1080x1920",
   "fps": 30,
-  "durationSeconds": 34.63,
+  "durationSeconds": 34.53,
   "checks": {
     "resolution1080x1920": true,
     "fps30": true,
@@ -11,6 +11,7 @@
     "noAccidentalBlack": true,
     "noClipping": true,
     "loudnessAround14": true,
+    "noFullWhiteFrames": true,
     "captionsNoOverlap": true,
     "captionsWithinSections": true,
     "endCardMax1_5s": true,
@@ -19,7 +20,7 @@
   },
   "loudnessLufs": -14.3,
   "truePeakDbfs": -1.5,
-  "loudnessRangeLu": 2.3,
+  "loudnessRangeLu": 2.4,
   "firstFrameYavg": 95.1837,
   "blackIntervals": [],
   "avSyncDriftMsPerSegment": {
@@ -33,16 +34,16 @@
   },
   "music": {
     "bpm": 119.96,
-    "startOffsetSeconds": 0.35000000000000014,
+    "startOffsetSeconds": 0.38000000000000017,
     "cutTimes": [
       7.125,
       10.73,
       16.659000000000002,
       20.864,
-      25.663999999999998,
-      33.605667
+      25.614,
+      33.505666999999995
     ],
-    "meanCutBeatErrorSeconds": 0.062
+    "meanCutBeatErrorSeconds": 0.086
   },
   "voice": {
     "chain": "volume=-6dB,highpass=f=75,afftdn=nr=6:nf=-55:tn=1,equalizer=f=220:t=q:w=1.0:g=-2,equalizer=f=3200:t=q:w=1.1:g=3,highshelf=f=9000:g=1.5,deesser=i=0.2,acompressor=threshold=0.1:ratio=2.5:attack=10:release=160:makeup=1.4,alimiter=limit=0.89:level=disabled",
@@ -92,11 +93,11 @@
       "duration": 5.1
     },
     "closing": {
-      "start": 25.51,
+      "start": 25.41,
       "duration": 8.27
     },
     "end": {
-      "start": 33.43,
+      "start": 33.33,
       "duration": 1.2
     }
   },
@@ -118,8 +119,8 @@
       "d": 0.3
     },
     {
-      "type": "fadewhite",
-      "d": 0.3
+      "type": "dissolve",
+      "d": 0.4
     },
     {
       "type": "fade",
@@ -127,6 +128,6 @@
     }
   ],
   "notes": [
-    "VFX-001 no disponible: apertura real sin VFX."
+    "VFX-001 generado pero vetado en QA de identidad: apertura real sin VFX."
   ]
 }

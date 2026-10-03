@@ -1,7 +1,7 @@
 {
   "v1CommittedUsd": 0.1784,
-  "vfxCommittedUsd": 0,
-  "incrementalV2Usd": 0,
+  "vfxCommittedUsd": 1.08,
+  "incrementalV2Usd": 1.08,
   "masterStagePaidCalls": 0,
   "rows": [
     {
@@ -52,13 +52,44 @@
       "shot": "vfx:51ba13890870eaa1",
       "status": "REFUNDED",
       "committedUsd": 0
+    },
+    {
+      "project": "atomivid-vfx-001",
+      "provider": "luma",
+      "shot": "vfx:92434a812a995683",
+      "status": "REFUNDED",
+      "committedUsd": 0
+    },
+    {
+      "project": "atomivid-vfx-001",
+      "provider": "luma",
+      "shot": "vfx:f826cfcc0969c9d9",
+      "status": "COMMITTED",
+      "committedUsd": 1.08
     }
   ],
   "summary": {
-    "lumaVfx001Usd": 0.0,
-    "lumaVfx001Status": "REFUNDED (HTTP 422 before any job; no charge)",
-    "incrementalV2Usd": 0.0,
+    "lumaVfx001Attempts": [
+      {
+        "attempt": 1,
+        "result": "HTTP 422 content_moderated (prompt)",
+        "usd": 0
+      },
+      {
+        "attempt": 2,
+        "result": "HTTP 422 content_moderated (prompt)",
+        "usd": 0
+      },
+      {
+        "attempt": 3,
+        "result": "COMPLETED, vetoed in identity QA",
+        "usd": 1.08
+      }
+    ],
+    "lumaRealUsd": 1.08,
+    "incrementalV2Usd": 1.08,
     "reusedV1PaidAssetsUsd": 0.1784,
-    "paidCallsInMasterStage": 0
+    "paidCallsInMasterStage": 0,
+    "otherProvidersCalled": "none"
   }
 }
