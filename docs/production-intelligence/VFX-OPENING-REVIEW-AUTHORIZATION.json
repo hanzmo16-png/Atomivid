@@ -1,0 +1,30 @@
+{
+  "approved": true,
+  "approvedAt": "2026-10-03T20:23:17Z",
+  "ownerId": "d2064950-7a95-4208-8dfb-d93b470d141d",
+  "stage": "private-opening-review",
+  "maximumAdditionalUsd": 0,
+  "sourceSha256": "5d6e025f43a0f27e3835330edd79dcef46742a7e565ecb158cffefaf7f990e7b",
+  "assets": [
+    {
+      "name": "nyc.png",
+      "metadataPath": "precampaign-three-worlds-v1-preparation/paid/op_0b80d26acc63f091cd3c429e94f1a3e8.json",
+      "sha256": "e8c3d0aa4033b9cb116cd952aede6f094fd08f23e2b47c93bc2d733932a65f23"
+    },
+    {
+      "name": "nyc.mp4",
+      "metadataPath": "precampaign-three-worlds-v1-preparation/paid/op_7a35a6feed27328e49d21adf714ed9b2.json",
+      "sha256": "22c4f965c103039b350bdf45f3d8ab8206a37731a46bb42067adc88264db46fa"
+    },
+    {
+      "name": "beach.mp4",
+      "metadataPath": "precampaign-three-worlds-v1-preparation/paid/op_6131958bf73e7223f9a5dc374154f342.json",
+      "sha256": "15b685eaf55bb6533f6d50845a4298d6112f98758070a549fd8297518aa91ab6"
+    },
+    {
+      "name": "flag.png",
+      "metadataPath": "precampaign-three-worlds-v1-preparation/paid/op_03e4377e84b076613a0b5d2797f8069a.json",
+      "sha256": "f4e744686f63543070a497a733b310e136e96562d270433f7006d5a436050f6c"
+    }
+  ]
+}

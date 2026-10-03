@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { compilePlan, DIRECTOR_VERSION, type Inventory, type Plan } from "./index";
-import { createJob, runTask, approveStage, replacePlan, memoryJobStore, jobGates, environmentHash, type DurableExecutor } from "./jobs";
-import { CHECKS } from "./gates";
+import { createJob, runTask, approveStage, replacePlan, memoryJobStore, jobGates, environmentHash, registerArtifactRevision, type DurableExecutor } from "./jobs";
+import { CHECKS, assertGate } from "./gates";
 import { parseShotContract } from "../contract";
 import { vfx002bExecutor } from "./compositor";
 const owner = "owner";
@@ -43,6 +43,22 @@ async function reviewedWorlds() {
   }
   return store;
 }
+test('measured motion repair retains upstream and other worlds, invalidates dependent master, requires fresh review',async()=>{
+  const store=await reviewedWorlds();const before=(await store.get(brief.projectId))!;
+  await runTask(store,before.id,owner,{proof:executor()});
+  const output={assetId:'beach-motion-out',sha256:'c'.repeat(64),checks:[{name:'fingerprint',pass:true,evidence:'measured repaired asset'}]};
+  await assert.rejects(registerArtifactRevision(store,before.id,'intruder','beach-motion','b'.repeat(64),output),/OWNER_ONLY/);
+  await assert.rejects(registerArtifactRevision(store,before.id,owner,'beach-motion','a'.repeat(64),output),/STALE/);
+  const revised=await registerArtifactRevision(store,before.id,owner,'beach-motion','b'.repeat(64),output);
+  assert.deepEqual(revised.results['nyc-integration'],before.results['nyc-integration']);
+  assert.deepEqual(revised.results['moon-integration'],before.results['moon-integration']);
+  assert.equal(revised.results['beach-styleframe'].sha256,'b'.repeat(64));
+  assert.equal(revised.results['beach-integration'],undefined);assert.equal(revised.results.master,undefined);
+  assert.doesNotThrow(()=>assertGate('styleframe',jobGates(revised,'beach')));
+  assert.throws(()=>assertGate('motion',jobGates(revised,'beach')),/approval required/);
+  assert.doesNotThrow(()=>assertGate('integration',jobGates(revised,'nyc')));
+  assert.equal(revised.approvals.length,before.approvals.length);assert.equal(revised.status,'REVIEW_REQUIRED');
+});
 test("planner cannot omit requested worlds, light or mandatory stage proofs", () => {
   assert.ok(compilePlan(brief, plan, inventory, assets).executable);
   assert.ok(!compilePlan(brief, { ...plan, environments: plan.environments.slice(0, 1) }, inventory, assets).executable);

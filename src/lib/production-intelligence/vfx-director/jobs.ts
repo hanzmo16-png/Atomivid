@@ -97,6 +97,30 @@ export async function approveStage(store: JobStore, id: string, actorId: string,
   job = { ...job, approvals: [...job.approvals, approval], status: input.approved ? "READY" : "BLOCKED", error: input.approved ? null : `rejected ${input.stage}` };
   return save(store, job);
 }
+/** Trusted worker import only; not exposed by the client API. A repair is a new measured
+ * artifact, never approval of the rejected one. Prior reviews remain as audit evidence. */
+export async function registerArtifactRevision(store:JobStore,id:string,actorId:string,taskId:string,expectedSha256:string,result:TaskResult){
+  const job=await ownedJob(store,id,actorId);
+  if(job.status==='RUNNING')throw new Error('VFX_JOB_BUSY');
+  const task=job.plan.tasks.find(t=>t.id===taskId);
+  if(!task||!job.results[taskId]||job.results[taskId].sha256!==expectedSha256)throw new Error('VFX_STALE_ARTIFACT_REVISION');
+  if(result.assetId!==task.outputAssetId||!/^[a-f0-9]{64}$/.test(result.sha256)||!result.checks.length||result.checks.some(c=>!c.pass||!c.evidence.trim()))throw new Error('VFX_REVISION_OUTPUT_INVALID');
+  assertBeforeTask(task.stage,jobGates(job,task.environmentId));
+  if(result.sha256===expectedSha256)return job;
+  const affected=new Set([taskId]);let added=true;
+  while(added){added=false;for(const t of job.plan.tasks)if(!affected.has(t.id)&&t.dependsOn.some(d=>affected.has(d))){affected.add(t.id);added=true;}}
+  const results={...job.results},artifacts={...job.artifacts},environmentArtifacts=structuredClone(job.environmentArtifacts??{});
+  for(const t of job.plan.tasks)if(affected.has(t.id)){
+    delete results[t.id];
+    if(t.stage!=='preview'){
+      if(t.environmentId)delete environmentArtifacts[t.environmentId]?.[t.stage];
+      else delete artifacts[t.stage];
+    }
+  }
+  results[taskId]=result;
+  const revised={...job,results,artifacts,environmentArtifacts};
+  return save(store,{...revised,...recordArtifact(revised,task,result.sha256),status:'REVIEW_REQUIRED',error:null,activeTask:null});
+}
 export type DurableExecutor = Omit<Executor, "run"> & { run: (task: Plan["tasks"][number], brief: Brief, operationKey: string, environment?: Environment) => Promise<TaskResult>;
   recover?: (task: Plan["tasks"][number], brief: Brief, operationKey: string, environment?: Environment) => Promise<TaskResult | null> };
 /** One task per invocation. CAS persists ownership BEFORE invoking the executor.
