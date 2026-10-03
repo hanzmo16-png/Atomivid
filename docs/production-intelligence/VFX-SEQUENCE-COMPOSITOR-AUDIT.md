@@ -1,7 +1,7 @@
 # VFX Director sequence compositor — 2026-10-03
 
 Base: PR #29, 6f971c69ff2c5816690cfd91793d1c46debcd01e.
-Status: implementation prepared locally; production readiness NOT certified.
+Status: implementation prepared on isolated branch; production readiness NOT certified.
 
 ## Implemented
 
@@ -25,7 +25,7 @@ The new FFmpeg encode and assembly route has NOT run on campaign material: campa
 
 No end-to-end production worker/database run or deployment occurred. The existing NEEDS_MATERIAL record remains authoritative. The opening-only master is silent; established campaign assembly must retain approved UI, voice, music, subtitles and closing.
 
-The branch is local, not pushed: this repository's Vercel integration can deploy pushed branches. No production or preview deployment was authorized.
+The branch codex/vfx-sequence-compositor is published with automatic Vercel deployment disabled for that branch. Paid production and deployment are authorized subject to verified connections and total budget; neither has been executed.
 
 ## Verification
 

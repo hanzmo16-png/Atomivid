@@ -13,12 +13,21 @@ References: https://docs.bfl.ai/quick_start/pricing ; https://bfl.ai/pricing?cat
 
 ## Observed connection state
 
-Both api.bfl.ai and api.ltx.io fail DNS resolution in this execution environment. No authenticated provider requests were sent. Neither BFL_API_KEY nor LTX_API_KEY is present here. This does not establish that credentials are absent in GitHub/Vercel.
+The local execution environment cannot resolve the provider hosts. GitHub Actions run 37137364457 successfully verified DNS and HTTPS for both official APIs. Its report found neither BFL_API_KEY nor LTX_API_KEY available to that workflow. Authentication and balances remain unverified. No generation occurred.
 
 Connected Vercel project access was verified read-only: atomivid / prj_d2APVqG7KqQ7ZqZbUVaF50UUwOZQ. Available connector returned project metadata, not provider secrets/account balances. Project access does not verify provider access.
 
 ## Blocking work
 
-Run read-only DNS/HTTPS/auth/balance preflight from a reachable authorized execution runner; integrate official BFL/LTX adapters with the existing durable paid-call ledger; prepare deterministic 25fps-to-30fps plate normalization; produce/freeze the actual relight data and matte/clean plate; complete each human world review. Do not bypass missing receipts, unknown billing outcomes or missing reviews.
+Official BFL/LTX adapters now use the existing durable ledger and result store through gatedWorldAsset. Tests cover failure before submission, frozen attempt slots, approved references, recovery without resubmission and reuse. The dedicated preparation command remains blocked without fresh authenticated connection evidence and reviewed materials. normalize-plate.ts provides native-size 25fps-to-30fps duplication/drop conversion without optical interpolation. Actual source windows, matte, clean plate and frozen per-world lighting still need preparation and review; these utilities do not certify campaign production readiness.
 
-No generation, new render, publication, remote push or deployment occurred in this preflight. Existing production readiness remains blocked. Pure quote/connection-condition tests pass; preflight explicitly reports productionReady=false. The added preflight utility itself cannot certify authentication or trigger paid operations.
+No paid generation or deployment occurred. Changes are on the isolated codex/vfx-sequence-compositor branch, whose automatic Vercel deployment is disabled. Preflight reports productionReady=false. With credentials, the check reads BFL credits and requests an LTX upload authorization without uploading media or generating video; LTX balance still needs evidence from its official console.
+
+## Owner steps
+
+1. Create official API keys in https://dashboard.bfl.ai and https://console.ltx.io .
+2. In https://github.com/hanzmo16-png/Atomivid/settings/secrets/actions create repository secrets BFL_API_KEY and LTX_API_KEY. Never paste keys into chat or screenshots.
+3. Supply the LTX API credit balance only. BFL credits can be checked through its official API. Required base consumption is $0.09 BFL and $4.68 LTX; minimum purchases, taxes and hosting/storage are additional and must be checked before calling this a total budget.
+4. Re-run the no-generation provider preflight. Then prepare and review one frame per environment, then each motion preview, then final plates. Preserve unrelated approvals. No master composition is accepted with a rejected defect.
+
+Validation: adapter tests pass, TypeScript and lint pass. Full unit run had one AAC loudness failure (-18.01 LUFS); all six audio tests passed when run separately. Do not describe the full run as green or the project as 100% certified.
