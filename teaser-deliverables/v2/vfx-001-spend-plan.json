@@ -1,0 +1,93 @@
+{
+  "id": "ATOMIVID_VFX_001_HANS_NYC_TRANSFORMATION",
+  "plan": "VFX_001_SPEND_PLAN",
+  "provider": "luma",
+  "model": "ray-3.2",
+  "requestType": "video_edit",
+  "source": {
+    "sha256": "5d6e025f43a0f27e3835330edd79dcef46742a7e565ecb158cffefaf7f990e7b",
+    "sizeBytes": 12511303,
+    "durationSeconds": 5,
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "storagePath": "precampaign-teaser-v1/v2/vfx-001-source-20261002_181854-1.mp4-4.700-0.500-hable.mp4",
+    "window": {
+      "openingPath": "precampaign-teaser-v1./20261002_181854-1.mp4",
+      "startSeconds": 4.7,
+      "endSeconds": 9.7
+    }
+  },
+  "request": {
+    "resolution": "720p",
+    "dynamicRange": "sdr",
+    "aspectRatio": "9:16",
+    "strength": "flex_1",
+    "controls": {
+      "face": {
+        "enabled": true
+      },
+      "pose": {
+        "enabled": true,
+        "strength": "precise"
+      },
+      "depth": {
+        "enabled": true,
+        "blur": 0.7
+      },
+      "normals": {
+        "enabled": false
+      },
+      "trajectory": {
+        "enabled": true
+      }
+    },
+    "sourceTransport": "Luma Files API (POST /files presigned → PUT → complete → ready) → source.file_id; file_id reutilizado por sha256"
+  },
+  "estimatedCostUsd": 1.08,
+  "options": [
+    {
+      "resolution": "720p",
+      "seconds": 5,
+      "usd": 1.08,
+      "role": "primera prueba (recomendada)",
+      "withinTarget": true
+    },
+    {
+      "resolution": "540p",
+      "seconds": 5,
+      "usd": 0.72,
+      "role": "alternativa más barata / segundo intento dentro del objetivo",
+      "withinTarget": true
+    },
+    {
+      "resolution": "1080p",
+      "seconds": 5,
+      "usd": 2.16,
+      "role": "acabado final solo tras aprobar la prueba de 720p",
+      "withinTarget": false
+    }
+  ],
+  "targetBudgetUsd": 2,
+  "hardCapUsd": 5,
+  "maxPaidAttempts": 2,
+  "maxPaidAttemptsWithinTarget": 1,
+  "maximumCostUsd": 2.16,
+  "reuse": "Identidad = sha256 del origen + proveedor + modelo + video_edit + prompt + negativo + rango/duración + 9:16 + 720p + SDR + controles + intensidad + estilo. El resultado se guarda en `${requestId}/paid/<key>.mp4` (sha256 verificado); cualquier reintento lo reutiliza con 0 llamadas. El file_id de Luma se reutiliza por sha256.",
+  "onFailure": [
+    "Subida del origen fallida (Files API): sin fila de ledger y sin costo; se puede repetir.",
+    "Rechazo antes de aceptar (4xx/validación/moderación): fila REFUNDED, sin reintento automático; nuevo intento solo con nueva autorización.",
+    "Fallo incierto (red cortada tras enviar): RECONCILIATION_REQUIRED, ninguna nueva llamada hasta conciliar.",
+    "Generación aceptada y fallo al sondear/descargar: PROVIDER_JOB_RECORDED → se reanuda esa misma generación, nunca se reenvía.",
+    "Resultado de baja calidad: STOP e informe; un segundo intento (variante de prompt/controles) requiere autorización y cabe en el tope."
+  ],
+  "blockers": [],
+  "requiresHumanAuthorization": true,
+  "thisRun": {
+    "maxAttempts": 1,
+    "maxCostUsd": 1.08,
+    "otherPaidProviders": "none"
+  },
+  "existingLedgerRows": [],
+  "authorizedByOwnerOrder": true
+}

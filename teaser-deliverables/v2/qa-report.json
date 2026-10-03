@@ -1,0 +1,132 @@
+{
+  "resolution": "1080x1920",
+  "fps": 30,
+  "durationSeconds": 34.63,
+  "checks": {
+    "resolution1080x1920": true,
+    "fps30": true,
+    "duration30to36": true,
+    "audioPresent": true,
+    "firstFrameVisual": true,
+    "noAccidentalBlack": true,
+    "noClipping": true,
+    "loudnessAround14": true,
+    "captionsNoOverlap": true,
+    "captionsWithinSections": true,
+    "endCardMax1_5s": true,
+    "avSyncPerSegmentMs60": true,
+    "vfxIntegrated": false
+  },
+  "loudnessLufs": -14.3,
+  "truePeakDbfs": -1.5,
+  "loudnessRangeLu": 2.3,
+  "firstFrameYavg": 95.1837,
+  "blackIntervals": [],
+  "avSyncDriftMsPerSegment": {
+    "opening": 10,
+    "avatar": 38,
+    "demo": 2,
+    "results": 8,
+    "reveal": 20,
+    "closing": 7,
+    "end": 0
+  },
+  "music": {
+    "bpm": 119.96,
+    "startOffsetSeconds": 0.35000000000000014,
+    "cutTimes": [
+      7.125,
+      10.73,
+      16.659000000000002,
+      20.864,
+      25.663999999999998,
+      33.605667
+    ],
+    "meanCutBeatErrorSeconds": 0.062
+  },
+  "voice": {
+    "chain": "volume=-6dB,highpass=f=75,afftdn=nr=6:nf=-55:tn=1,equalizer=f=220:t=q:w=1.0:g=-2,equalizer=f=3200:t=q:w=1.1:g=3,highshelf=f=9000:g=1.5,deesser=i=0.2,acompressor=threshold=0.1:ratio=2.5:attack=10:release=160:makeup=1.4,alimiter=limit=0.89:level=disabled",
+    "targetLufs": -16,
+    "gainsDb": {
+      "opening": 3.8000000000000007,
+      "closing": 2.1000000000000014,
+      "avatar": -1.6999999999999993,
+      "demo": -2.4000000000000004,
+      "results": -0.5999999999999996,
+      "reveal": -0.5999999999999996
+    }
+  },
+  "trims": {
+    "opening": [
+      2.5,
+      9.79
+    ],
+    "closing": [
+      2.85,
+      11.11
+    ],
+    "vfxWindow": [
+      4.7,
+      9.7
+    ]
+  },
+  "sections": {
+    "opening": {
+      "start": 0,
+      "duration": 7.3
+    },
+    "avatar": {
+      "start": 6.95,
+      "duration": 3.8
+    },
+    "demo": {
+      "start": 10.71,
+      "duration": 5.97
+    },
+    "results": {
+      "start": 16.64,
+      "duration": 4.38
+    },
+    "reveal": {
+      "start": 20.71,
+      "duration": 5.1
+    },
+    "closing": {
+      "start": 25.51,
+      "duration": 8.27
+    },
+    "end": {
+      "start": 33.43,
+      "duration": 1.2
+    }
+  },
+  "transitions": [
+    {
+      "type": "zoomin",
+      "d": 0.35
+    },
+    {
+      "type": "fade",
+      "d": 0.04
+    },
+    {
+      "type": "fade",
+      "d": 0.04
+    },
+    {
+      "type": "dissolve",
+      "d": 0.3
+    },
+    {
+      "type": "fadewhite",
+      "d": 0.3
+    },
+    {
+      "type": "fade",
+      "d": 0.35
+    }
+  ],
+  "notes": [
+    "VFX-001 no disponible: apertura real sin VFX."
+  ]
+}
