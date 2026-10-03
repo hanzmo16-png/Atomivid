@@ -1,0 +1,36 @@
+{
+  "version": "vfx-lunar-direction-amendment/1",
+  "authorizedAt": "2026-10-03T20:20:31Z",
+  "ownerMessage": "O mejor, una bandera con el logo de Atomivid",
+  "environmentId": "moon",
+  "substitutes": "rover",
+  "proposal": "Fixed ATOMIVID flag supported by a vertical pole and horizontal crossbar on the lunar surface.",
+  "brandSource": "src/components/ui/Logo.tsx",
+  "brandSourceSha256": "33beaab7700309d1da1b95059ce0f04b89400216a2c554d9ae5655e79adf700c",
+  "brandMark": "Existing atom mark: nucleus and three elliptical orbits; exact geometry from LogoMark.",
+  "wordmark": "Atomivid",
+  "brandAccent": "#8f7ff5",
+  "sourceFrameInterval": [
+    100,
+    150
+  ],
+  "physicalConstraints": [
+    "No atmospheric wind or waving flag animation.",
+    "Fixed camera and fixed lunar terrain.",
+    "One hard sunlight direction with pole/flag cast shadow and ground contact.",
+    "Original subject supplies foreground motion; lunar background is intentionally static under the new direction."
+  ],
+  "motionContractChange": "Remove rover rolling requirement only for this lunar alternative. Existing rejected rover motion is never approved or reused as valid.",
+  "newMaterialVisualApproval": false,
+  "finalIntegrationApproved": false,
+  "productionReady": false,
+  "preserveEnvironments": [
+    "nyc",
+    "beach"
+  ],
+  "fallbackAuthorizedByOwner": "Omit Moon if the flag still prevents a clean result; use NYC and beach.",
+  "maximumProjectUsd": 4.8,
+  "additionalPaidCalls": 0,
+  "paidGenerationRequiresUpdatedQuoteAndLedger": true,
+  "deployment": false
+}
