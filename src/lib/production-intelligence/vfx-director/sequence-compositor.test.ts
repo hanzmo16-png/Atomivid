@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { WorldCompositeSchema, CutMasterSchema, assertCuts, assertWorld, assertReviewedSegments, worldCompositeExecutor } from './sequence-compositor';
+import { WorldCompositeSchema, CutMasterSchema, assertCuts, assertWorld, assertReviewedSegments, worldCompositeExecutor, assertFixedFlagApproval } from './sequence-compositor';
 import type { Brief, Environment, Plan } from './index';
 const file = {path:'/missing',sha256:'a'.repeat(64)};
 const brief: Brief = {projectId:'test',intent:'worlds',emotion:'wow',frames:150,fps:30,width:1080,height:1920,sourceSha256:file.sha256,subjectLock:'identity_with_relight',budgetUsd:0,environments:[{id:'nyc',kind:'city',lighting:'night_practical'},{id:'beach',kind:'beach',lighting:'daylight_soft'},{id:'moon',kind:'moon',lighting:'sun_hard'}]};
@@ -9,6 +9,15 @@ const env: Environment = {...brief.environments[0],startFrame:0,endFrame:50,mate
 const task: Plan['tasks'][number] = {stage:'integration',id:'nyc-integrate',environmentId:'nyc',executor:'world',dependsOn:[],inputAssetIds:['plate'],outputAssetId:'nyc-out',instruction:'compose',acceptance:['review']};
 const master = {...task,stage:'master' as const,environmentId:undefined,inputAssetIds:['nyc-out','beach-out','moon-out']};
 const cuts = CutMasterSchema.parse({kind:'cut-master',root:'/missing',segments:brief.environments.map((e,i)=>({...file,assetId:e.id+'-out',environmentId:e.id,startFrame:i*50,endFrame:(i+1)*50}))});
+test('fixed background is an explicit lunar flag direction, never a default motion fallback',()=>{
+  assert.equal(config.plateMotion.mode,'moving');
+  assert.equal(WorldCompositeSchema.safeParse({...config,plateMotion:{mode:'fixed_lunar_flag'}}).success,false);
+  assert.equal(WorldCompositeSchema.safeParse({...config,plateMotion:{mode:'fixed_lunar_flag',authorization:file}}).success,false);
+  const fixed=WorldCompositeSchema.parse({...config,environmentId:'moon',worldKind:'moon',lighting:'sun_hard',plateMotion:{mode:'fixed_lunar_flag',authorization:file}});
+  const review={approved:true,stage:'fixed-background-direction',projectId:brief.projectId,environmentId:'moon',materialSha256:file.sha256,sourceSha256:file.sha256,reviewerId:'d2064950-7a95-4208-8dfb-d93b470d141d',approvedAt:'2026-10-03T20:23:17Z'};
+  assert.doesNotThrow(()=>assertFixedFlagApproval(fixed,brief,review));
+  for(const change of [{approved:false},{materialSha256:'b'.repeat(64)},{sourceSha256:'b'.repeat(64)},{projectId:'other'},{environmentId:'beach'}])assert.throws(()=>assertFixedFlagApproval(fixed,brief,{...review,...change}));
+});
 test('world rejects wrong light and missing material before reading files',async()=>{
   const ex=worldCompositeExecutor(config);
   await assert.rejects(ex.run(task,brief,'test',{...env,lighting:'daylight_soft'}),/WORLD_OR_LIGHT/);

@@ -3,7 +3,7 @@ Usage: sequence_render.py manifest.json output-directory
 """
 import hashlib, json, os, subprocess, sys
 import numpy as np
-from sequence_pixels import composite
+from sequence_pixels import composite, validate_motion
 
 
 def fingerprint(path):
@@ -32,6 +32,16 @@ def main():
         raise ValueError('VFX_MATTE_SOURCE_ALIGNMENT')
     if any(x.shape != (h,w,3) for x in (room,gain,bias)):
         raise ValueError('VFX_FROZEN_LOOK_FORMAT')
+    motion_mode = c.get('plateMotion',{}).get('mode','moving')
+    if motion_mode == 'fixed_lunar_flag':
+        if c['environmentId'] != 'moon' or c['worldKind'] != 'moon' or c['lighting'] != 'sun_hard':
+            raise ValueError('VFX_FIXED_FLAG_LUNAR_ONLY')
+        approval_file = c['plateMotion']['authorization']
+        if fingerprint(approval_file['path']) != approval_file['sha256']:
+            raise ValueError('VFX_FIXED_FLAG_APPROVAL_CHANGED')
+        approval = json.load(open(approval_file['path']))
+        if approval.get('approved') is not True or approval.get('stage') != 'fixed-background-direction' or approval.get('environmentId') != 'moon' or approval.get('materialSha256') != c['plate']['sha256'] or approval.get('sourceSha256') != c['source']['sha256']:
+            raise ValueError('VFX_FIXED_FLAG_APPROVAL_CHANGED')
     def decode(path, start):
         return subprocess.Popen(['ffmpeg','-v','error','-i',path,'-vf',
             f'trim=start_frame={start}:end_frame={start+n},setpts=PTS-STARTPTS',
@@ -43,7 +53,7 @@ def main():
         '-s',f'{w}x{h}','-r',str(fps),'-i','-','-an','-c:v','libx264','-crf','14',
         '-pix_fmt','yuv420p','-color_primaries','bt709','-color_trc','bt709',
         '-colorspace','bt709','-movflags','+faststart',output], stdin=subprocess.PIPE)
-    motion, lock, interior, previous = [], 0, 0, None
+    motion, source_motion, lock, interior, previous, previous_source = [], [], 0, 0, None, None
     try:
         for i in range(n):
             def frame(proc):
@@ -62,17 +72,23 @@ def main():
                 interior += int(mask.sum())
             if previous is not None:
                 motion.append(float(np.abs(p-previous).mean()*255))
+                if mask.any():
+                    source_motion.append(float(np.abs(s-previous_source)[mask].mean()*255))
             previous = p
+            previous_source = s
             encoder.stdin.write(o8.tobytes())
         encoder.stdin.close()
         if encoder.wait() or source.wait() or plate.wait():
             raise ValueError('VFX_CODEC_FAILED')
         mean_motion = float(np.mean(motion))
-        if interior == 0 or lock != 0 or mean_motion <= .1:
+        mean_source_motion = float(np.mean(source_motion)) if source_motion else 0
+        validate_motion(mean_motion, mean_source_motion, motion_mode)
+        if interior == 0 or lock != 0:
             raise ValueError('VFX_PIXEL_QA_FAILED')
         os.rename(output, os.path.join(outdir,'composite.mp4'))
         report = dict(frames=n, subjectInteriorPixels=interior, subjectMaxDifference=lock,
                       plateMotionMeanAbsFrameDiff=mean_motion, grainPasses=0,
+                      plateMotionMode=motion_mode,sourceMotionMeanAbsFrameDiff=mean_source_motion,
                       transition='cut', environmentId=c['environmentId'])
         json.dump(report,open(os.path.join(outdir,'report.json'),'w'),indent=2)
     finally:

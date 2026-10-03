@@ -1,8 +1,16 @@
 import unittest
 import numpy as np
-from sequence_pixels import composite
+from sequence_pixels import composite, validate_motion
 
 class Pixels(unittest.TestCase):
+    def test_fixed_flag_does_not_relax_required_motion(self):
+        with self.assertRaises(ValueError):validate_motion(0,10)
+        validate_motion(.2,0)
+    def test_fixed_flag_requires_fixed_plate_and_real_source_motion(self):
+        validate_motion(0,.2,'fixed_lunar_flag')
+        for plate,source in [(0,0),(.2,.2),(0,float('nan'))]:
+            with self.assertRaises(ValueError):validate_motion(plate,source,'fixed_lunar_flag')
+        with self.assertRaises(ValueError):validate_motion(0,1,'still')
     def setUp(self):
         self.s=np.full((4,4,3),.5,np.float32)
         self.p=np.full((4,4,3),.2,np.float32)

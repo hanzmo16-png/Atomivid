@@ -10,12 +10,26 @@ import type { DurableExecutor, Job } from './jobs';
 const exec = promisify(execFile);
 const sha = z.string().regex(/^[a-f0-9]{64}$/);
 const File = z.object({ path: z.string().min(1), sha256: sha }).strict();
+const PlateMotion = z.discriminatedUnion('mode', [
+  z.object({mode:z.literal('moving')}).strict(),
+  z.object({mode:z.literal('fixed_lunar_flag'),authorization:File}).strict(),
+]);
+const FixedFlagApproval = z.object({approved:z.literal(true),stage:z.literal('fixed-background-direction'),
+  projectId:z.string().min(1),environmentId:z.literal('moon'),materialSha256:sha,sourceSha256:sha,
+  reviewerId:z.string().uuid(),approvedAt:z.string().datetime()}).strict();
 export const WorldCompositeSchema = z.object({ kind: z.literal('world-composite'),
   source: File, plate: File, matte: File, room: File, look: File,
   environmentId: z.string().min(1), lighting: z.enum(['night_practical','daylight_soft','sun_hard']),
   worldKind: z.enum(['city','beach','moon']), root: z.string().min(1),
   plateStartFrame: z.number().int().nonnegative().default(0),
-}).strict().refine(c => ({city:'night_practical',beach:'daylight_soft',moon:'sun_hard'}[c.worldKind] === c.lighting), 'VFX_WORLD_LIGHT_PAIR');
+  plateMotion:PlateMotion.default({mode:'moving'}),
+}).strict().refine(c => ({city:'night_practical',beach:'daylight_soft',moon:'sun_hard'}[c.worldKind] === c.lighting), 'VFX_WORLD_LIGHT_PAIR')
+  .refine(c=>c.plateMotion.mode==='moving'||(c.worldKind==='moon'&&c.environmentId==='moon'),'VFX_FIXED_FLAG_LUNAR_ONLY');
+export function assertFixedFlagApproval(config:z.infer<typeof WorldCompositeSchema>,brief:Brief,evidence:unknown){
+  if(config.plateMotion.mode!=='fixed_lunar_flag')throw new Error('VFX_FIXED_FLAG_NOT_DECLARED');
+  const a=FixedFlagApproval.parse(evidence);
+  if(a.projectId!==brief.projectId||a.sourceSha256!==config.source.sha256||a.materialSha256!==config.plate.sha256)throw new Error('VFX_FIXED_FLAG_APPROVAL_CHANGED');
+}
 export const CutMasterSchema = z.object({ kind: z.literal('cut-master'), root: z.string().min(1),
   segments: z.array(File.extend({ assetId: z.string().min(1), environmentId: z.string().min(1),
     startFrame: z.number().int().nonnegative(), endFrame: z.number().int().positive() }).strict()).min(1),
@@ -49,6 +63,10 @@ export function worldCompositeExecutor(raw: z.input<typeof WorldCompositeSchema>
   async function validate(task: Task, brief: Brief, env?: Environment) {
     assertWorld(c,task,brief,env);
     await Promise.all([c.source,c.plate,c.matte,c.room,c.look].map(verify));
+    if(c.plateMotion.mode==='fixed_lunar_flag'){
+      await verify(c.plateMotion.authorization);
+      assertFixedFlagApproval(c,brief,JSON.parse(await readFile(c.plateMotion.authorization.path,'utf8')));
+    }
     format(await probe(c.source.path),brief,brief.frames);
     const p = await probe(c.plate.path); format(p,brief);
     if (p.frames-c.plateStartFrame < env!.endFrame-env!.startFrame) throw new Error('VFX_PLATE_TOO_SHORT');
@@ -57,14 +75,16 @@ export function worldCompositeExecutor(raw: z.input<typeof WorldCompositeSchema>
     const dir = outputDir(c.root,key), path = join(dir,'composite.mp4');
     const r = JSON.parse(await readFile(join(dir,'report.json'),'utf8'));
     format(await probe(path),brief,env.endFrame-env.startFrame);
-    if (r.environmentId !== env.id || r.frames !== env.endFrame-env.startFrame || r.grainPasses !== 0 || r.transition !== 'cut' || r.subjectInteriorPixels <= 0 || r.subjectMaxDifference !== 0 || !(r.plateMotionMeanAbsFrameDiff > .1)) throw new Error('VFX_COMPOSITE_QA_FAILED');
+    const motionPass=c.plateMotion.mode==='moving'?r.plateMotionMeanAbsFrameDiff>.1:
+      r.plateMotionMode==='fixed_lunar_flag'&&r.plateMotionMeanAbsFrameDiff===0&&r.sourceMotionMeanAbsFrameDiff>.1;
+    if (r.environmentId !== env.id || r.frames !== env.endFrame-env.startFrame || r.grainPasses !== 0 || r.transition !== 'cut' || r.subjectInteriorPixels <= 0 || r.subjectMaxDifference !== 0 || !motionPass) throw new Error('VFX_COMPOSITE_QA_FAILED');
     const fingerprint = await hash(path);
     const receipt = JSON.parse(await readFile(join(dir,'receipt.json'),'utf8'));
     if (receipt.sha256 !== fingerprint || receipt.operationKey !== key) throw new Error('VFX_OUTPUT_CHANGED');
     return { assetId: task.outputAssetId, sha256: fingerprint, checks: [{ name:'technical-pixels',pass:true,evidence:JSON.stringify(r) }] };
   }
   return { capability: { available:true,paid:false,preservesOriginalPixels:false,
-    recipeVersion:`world-cut/1:${stableHash(c,64)}`, environments:[{ kind:c.worldKind,lighting:c.lighting }] }, allowedStages:['integration'],
+    recipeVersion:`world-cut/2:${stableHash(c,64)}`, environments:[{ kind:c.worldKind,lighting:c.lighting }] }, allowedStages:['integration'],
     async run(task,brief,key,env) {
       await validate(task,brief,env);
       const dir = outputDir(c.root,key); await mkdir(dir,{ recursive:true });
