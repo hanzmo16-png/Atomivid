@@ -13,5 +13,6 @@
   "preservePrompt": true,
   "preparePrivateNativeMatte": true,
   "motionCallsInThisWorkflow": 0,
-  "deploymentInThisWorkflow": false
+  "deploymentInThisWorkflow": false,
+  "privateProofRecoveryRun": 1
 }

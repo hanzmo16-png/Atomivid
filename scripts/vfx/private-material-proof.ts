@@ -1,5 +1,5 @@
 /** Private original/matte controls are encrypted before any GitHub artifact upload. */
-import {mkdtemp,readFile,writeFile,mkdir,rm} from 'node:fs/promises';
+import {mkdtemp,readFile,writeFile,mkdir,rm,readdir} from 'node:fs/promises';
 import {join} from 'node:path';import {tmpdir} from 'node:os';
 import {randomBytes,createCipheriv,createHash} from 'node:crypto';
 import {execFile} from 'node:child_process';import {promisify} from 'node:util';
@@ -19,6 +19,11 @@ async function main(){
   const response=await fetch('https://github.com/PeterL1n/RobustVideoMatting/releases/download/v1.0.0/rvm_mobilenetv3_fp32.onnx');
   if(!response.ok)throw new Error('VFX_MATTE_MODEL_UNAVAILABLE');await writeFile(join(root,'rvm.onnx'),Buffer.from(await response.arrayBuffer()));
   const {stdout}=await promisify(execFile)('python3',['scripts/vfx/private-material-proof.py',root],{timeout:10*60_000,maxBuffer:1024*1024});console.log(stdout.trim());
+  for(const file of (await readdir(root)).filter(f=>f.startsWith('matte-part-')&&f.endsWith('.npz'))){
+   const matte=await readFile(join(root,file));if(matte.length>25*1024*1024)throw new Error('VFX_NATIVE_MATTE_STORAGE_LIMIT');
+   await results.putBytes(pkg.projectId+'-preparation/private-proof/'+file,matte,'application/octet-stream');
+  }
+  await results.putJson(pkg.projectId+'-preparation/private-proof/matte-report.json',JSON.parse(await readFile(join(root,'matte-report.json'),'utf8')));
   const plain=await readFile(join(root,'private-proof.zip'));if(plain.length>30*1024*1024)throw new Error('VFX_PRIVATE_CAPSULE_TOO_LARGE');
   const key=randomBytes(32),iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',key,iv);
   const encrypted=Buffer.concat([iv,cipher.update(plain),cipher.final(),cipher.getAuthTag()]);
@@ -30,4 +35,4 @@ async function main(){
   console.log(JSON.stringify({deliveryKey,plaintextMediaExported:false,paidCalls:0,productionReady:false}));
  }finally{await rm(root,{recursive:true,force:true});}
 }
-main().catch(()=>{console.error('VFX_PRIVATE_PROOF_BLOCKED');process.exitCode=1;});
+main().catch(e=>{console.error(e instanceof Error&&/^[A-Z0-9_]+$/.test(e.message)?e.message:'VFX_PRIVATE_PROOF_BLOCKED');process.exitCode=1;});
