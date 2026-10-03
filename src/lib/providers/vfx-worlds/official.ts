@@ -60,7 +60,7 @@ export function officialWorldPort(options:{fetch?:typeof fetch;sleep?:(ms:number
    return {id:jobId,...(cost===undefined?{}:{costUsd:cost}),...(recipe.provider==='bfl'&&typeof data.polling_url==='string'?{pollingUrl:data.polling_url}:{})};
   },
   async finish(job,r) {
-   const jobId=id(job.id),recipe=worldRecipe(r),h=headers(recipe.provider);
+   const jobId=id(job.id),recipe=worldRecipe(r),h=recipe.provider==='bfl'?undefined:headers(recipe.provider);
    let poll=`https://api.ltx.io/v2/image-to-video/${encodeURIComponent(jobId)}`;
    if(recipe.provider==='bfl') {
     if(!job.pollingUrl)throw new OfficialCallError('VFX_POLLING_RECEIPT_MISSING',jobId);

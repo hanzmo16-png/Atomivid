@@ -33,7 +33,7 @@ test('official BFL actual credits are distinguished from a quote',async()=>{
 });
 test('BFL follows the returned regional receipt and rejects missing or foreign receipts before polling',async()=>{
  const calls:string[]=[];
- const port=officialWorldPort({bflKey:'test',fetch:async(url)=>{calls.push(String(url));if(String(url).includes('bfl.ai'))return Response.json({status:'Ready',result:{sample:'https://media.example.test/image.png'}});return new Response(Buffer.from('image'));}});
+ const port=officialWorldPort({bflKey:'test',fetch:async(url,init)=>{calls.push(String(url));assert.equal(init?.headers,undefined);if(String(url).includes('bfl.ai'))return Response.json({status:'Ready',result:{sample:'https://media.example.test/image.png'}});return new Response(Buffer.from('image'));}});
  const q:WorldRequest={environmentId:'nyc',phase:'styleframe',prompt:'Empty city'};
  await assert.rejects(port.finish({id:'job-1'},q),/POLLING_RECEIPT_MISSING/);
  await assert.rejects(port.finish({id:'job-1',pollingUrl:'https://evil.example.test/v1/get_result?id=job-1'},q),/POLLING_RECEIPT_INVALID/);
