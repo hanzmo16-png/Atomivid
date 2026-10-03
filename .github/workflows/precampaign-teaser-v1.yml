@@ -195,7 +195,7 @@ jobs:
 
       - name: Transcripción y beats locales (faster-whisper + numpy, sin API)
         if: inputs.stage != 'v2-vfx'
-        run: python3 -m pip install --quiet "faster-whisper==1.1.1" "av<15" numpy
+        run: python3 -m pip install --quiet "faster-whisper==1.1.1" numpy
 
       - name: Ejecutar etapa V2
         run: npx tsx scripts/precampaign-teaser/${{ inputs.stage }}.ts
