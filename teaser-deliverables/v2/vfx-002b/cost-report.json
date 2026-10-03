@@ -1,0 +1,13 @@
+{
+  "correctionSpendUsd": 0,
+  "paidProviderCalls": 0,
+  "items": [
+    { "item": "NYC motion plate", "provider": "pexels (free stock license)", "id": 5908347, "usd": 0 },
+    { "item": "matte + composite + render-scan transition", "provider": "local (RVM ONNX, OpenCV, ffmpeg)", "usd": 0 },
+    { "item": "ATOMIVID UI captures + end card", "provider": "local Playwright (deployed code) + production screenshots", "usd": 0 },
+    { "item": "REVIEW master", "provider": "ledger replay (TTS, avatar), local assembly", "usd": 0 }
+  ],
+  "v2CumulativeUsd": 1.08,
+  "repaidHeyGen": false,
+  "repaidElevenLabs": false
+}

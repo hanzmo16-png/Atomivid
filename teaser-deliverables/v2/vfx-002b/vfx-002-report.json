@@ -1,0 +1,26 @@
+{
+  "matteFlickerStaticEdgeMeanAbs": 0.0314,
+  "matteFlickerStaticEdgeMeanAbsRawRvm": 0.0412,
+  "plateMotionMeanAbsFrameDiff": 2.31,
+  "method": {
+    "segmentation": "Robust Video Matting mobilenetv3 (ONNX, CPU), recurrent, downsample 0.4; choke + soften + motion-adaptive temporal smoothing on edges; no chroma key",
+    "edgeDecontamination": "un-premultiply against a clean apartment plate (temporal median, fixed camera); conservative clean-plate difference refinement only where alpha < 0.7 and the room was seen uncovered in >= 8 sampled frames",
+    "background": "real stock video plate (locked-off camera), Times Square at night, native 2160x3840 downscaled to 1080x1920; light DOF (sigma 1.6), slight desaturation, screen bloom, grain",
+    "transition": "AI render scan 0.45-1.75s: accent (#7c6aef) scan line rising behind the subject, room re-drawn as glowing edges ahead of it, real city behind it",
+    "subject": "original source pixels; fixed per-pixel grade ramp (exposure -8%, cooler shadows, contrast +5%, key falloff); light wrap on the rim only"
+  },
+  "matte": {
+    "frames": 150,
+    "meanCoverage": 0.5569,
+    "edgeFraction": 0.0242,
+    "meanAbsFrameDiff": 0.00341,
+    "meanAbsFrameDiffEdgeBand": 0.114,
+    "p99AbsFrameDiff": 0.0784
+  },
+  "subjectLock": {
+    "maxAbsDiffInteriorVsGradedSource": 2,
+    "interiorPixels": 162243028,
+    "maxAbsDiffInteriorVsSourceBeforeGrade": 48
+  },
+  "seconds": 260.0
+}

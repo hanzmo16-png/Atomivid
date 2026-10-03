@@ -1,0 +1,56 @@
+{
+  "id": "ATOMIVID_VFX_002B_SUBJECT_LOCKED_NYC_MOTION_PLATE",
+  "spendUsd": 0,
+  "paidProviderCalls": 0,
+  "source": {
+    "sha256": "5d6e025f43a0f27e3835330edd79dcef46742a7e565ecb158cffefaf7f990e7b",
+    "bytes": 12511303
+  },
+  "plate": {
+    "provider": "pexels (free stock license)",
+    "id": 5908347,
+    "page": "https://www.pexels.com/video/a-city-at-night-5908347/",
+    "author": "Katerina Holmes",
+    "file": {
+      "width": 2160,
+      "height": 3840
+    },
+    "sha256": "3a287c0edc333b7e392bcacf51f8f7c46111f0568cdf2cb39cac2d3bee69c606",
+    "window": "raw 1.0 s + 8 s, composite starts at plate +0.5 s"
+  },
+  "model": {
+    "file": "rvm_mobilenetv3_fp32.onnx",
+    "sha256": "88d4531297118f595bf2fd60f6f566aec2e559393802d1f436c380f0cbbd2828"
+  },
+  "composite": {
+    "path": "precampaign-teaser-v1/v2/vfx-002b-composite.mp4",
+    "sha256": "a507cacbceb935983c5cae2292f3126cc59ab7d599acd75c1a7bdd35eaad1266",
+    "bytes": 15406487
+  },
+  "report": {
+    "matteFlickerStaticEdgeMeanAbs": 0.0314,
+    "matteFlickerStaticEdgeMeanAbsRawRvm": 0.0412,
+    "plateMotionMeanAbsFrameDiff": 2.31,
+    "method": {
+      "segmentation": "Robust Video Matting mobilenetv3 (ONNX, CPU), recurrent, downsample 0.4; choke + soften + motion-adaptive temporal smoothing on edges; no chroma key",
+      "edgeDecontamination": "un-premultiply against a clean apartment plate (temporal median, fixed camera); conservative clean-plate difference refinement only where alpha < 0.7 and the room was seen uncovered in >= 8 sampled frames",
+      "background": "real stock video plate (locked-off camera), Times Square at night, native 2160x3840 downscaled to 1080x1920; light DOF (sigma 1.6), slight desaturation, screen bloom, grain",
+      "transition": "AI render scan 0.45-1.75s: accent (#7c6aef) scan line rising behind the subject, room re-drawn as glowing edges ahead of it, real city behind it",
+      "subject": "original source pixels; fixed per-pixel grade ramp (exposure -8%, cooler shadows, contrast +5%, key falloff); light wrap on the rim only"
+    },
+    "matte": {
+      "frames": 150,
+      "meanCoverage": 0.5569,
+      "edgeFraction": 0.0242,
+      "meanAbsFrameDiff": 0.00341,
+      "meanAbsFrameDiffEdgeBand": 0.114,
+      "p99AbsFrameDiff": 0.0784
+    },
+    "subjectLock": {
+      "maxAbsDiffInteriorVsGradedSource": 2,
+      "interiorPixels": 162243028,
+      "maxAbsDiffInteriorVsSourceBeforeGrade": 48
+    },
+    "seconds": 260
+  }
+}
