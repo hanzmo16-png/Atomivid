@@ -1,6 +1,6 @@
 # Campaign material direction — 2026-10-03
 
-Status: prepared direction, not generated or visually approved. Source measurement must supply the exact hash, frame count and fps before fixing cut intervals. No source video or frames are published by the metadata worker. Existing VFX Director production job query returned no rows; approval records are not invented from the merged PR.
+Status: prepared direction, not generated or visually approved. Source measured by GitHub Actions run 37141516555: 1080×1920, 30fps, 150 frames, five seconds, no audio; SHA256 5d6e025f43a0f27e3835330edd79dcef46742a7e565ecb158cffefaf7f990e7b. Proposed hard cuts at frames 50 and 100 await direction review. No source video or frames are published by the metadata worker. Existing VFX Director production job query returned no rows; approval records are not invented from the merged PR.
 
 ## Shared contract
 

@@ -1,0 +1,79 @@
+{
+  "version": "vfx-campaign-preparation/1",
+  "projectId": "precampaign-three-worlds-v1",
+  "status": "DIRECTION_REVIEW_REQUIRED",
+  "source": {
+    "sha256": "5d6e025f43a0f27e3835330edd79dcef46742a7e565ecb158cffefaf7f990e7b",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "frames": 150,
+    "hasAudio": false,
+    "measuredRunId": 37141516555
+  },
+  "transitions": "hard_cuts",
+  "grain": "once_on_final_whole_frame",
+  "worlds": [
+    {
+      "environmentId": "nyc",
+      "kind": "city",
+      "lighting": "night_practical",
+      "sourceStartFrame": 0,
+      "sourceEndFrame": 50,
+      "directionSha256": "ff57b2d08ae4a37c7fd8103335e290ceda81e8884d6f48cb89e520aec130df6c",
+      "directionReview": "REQUIRED",
+      "styleframePrompt": "A photorealistic background plate of Times Square, New York at night, vertical 9:16, street-level stationary camera at human eye height, natural perspective, luminous storefronts and illuminated signs with restrained highlights, cool night ambient and warm practical lights, an unobstructed foreground reserved for a separately composited person, subtle lens depth of field with the midground gently softer than a sharply focused foreground subject, clean digital image. Background only, no people, no silhouettes, no foreground character, no film grain. No artificial blur streaks or transition effects.",
+      "motionPrompt": "Keep the camera position, perspective, geometry, horizon and night lighting of the supplied approved image unchanged. Animate only plausible small background activity: restrained electronic signage changes and distant traffic light movement. Preserve the empty foreground for compositing. No people appear. Continuous realistic motion for six seconds, no cut, no transformation, no daylight, no film grain, no audio.",
+      "styleframeSha256": null,
+      "previewSha256": null,
+      "finalPlateSha256": null,
+      "integrationSha256": null,
+      "approved": false
+    },
+    {
+      "environmentId": "beach",
+      "kind": "beach",
+      "lighting": "daylight_soft",
+      "sourceStartFrame": 50,
+      "sourceEndFrame": 100,
+      "directionSha256": "1f8424cb4d9bfa354f145a366ea977f1d3eee99a50e585a9e83a3efe7f7f3663",
+      "directionReview": "REQUIRED",
+      "styleframePrompt": "A photorealistic empty tropical beach background plate, vertical 9:16, stationary eye-level camera with natural perspective, pale warm sand in the foreground, turquoise ocean in the midground, a level horizon and bright sky with light atmospheric haze, soft daylight and gentle sand bounce, unobstructed central foreground reserved for a separately composited person. Background only, no people, no silhouettes, no buildings, no foreground character, no film grain, no artificial blur streaks.",
+      "motionPrompt": "Preserve the supplied approved beach image, camera position, natural perspective, level horizon and soft daylight. Animate gentle small ocean waves and subtle distant clouds while keeping the empty foreground stable. No people or new objects appear. Six seconds of continuous plausible motion, no camera move, no cut, no transformation, no night lights, no film grain, no audio.",
+      "styleframeSha256": null,
+      "previewSha256": null,
+      "finalPlateSha256": null,
+      "integrationSha256": null,
+      "approved": false
+    },
+    {
+      "environmentId": "moon",
+      "kind": "moon",
+      "lighting": "sun_hard",
+      "sourceStartFrame": 100,
+      "sourceEndFrame": 150,
+      "directionSha256": "05fd0ec358787f380923143834ee3d6a75f119232fd83c58a36599c22d3671c4",
+      "directionReview": "REQUIRED",
+      "styleframePrompt": "A photorealistic lunar surface background plate, vertical 9:16, stationary eye-level camera with natural perspective, pale gray regolith, sparse shallow crater relief and distant lunar hills, an unobstructed foreground reserved for a separately composited person, black space sky without atmospheric haze, one hard sunlight direction producing crisp consistent terrain shadows, a small uncrewed lunar rover in the distant right midground with room to travel parallel to the horizon. Background only, no people, no astronauts, no foreground character, no film grain, no artificial glow or transition effects.",
+      "motionPrompt": "Preserve the supplied approved lunar image, locked camera, terrain geometry, black sky and single hard sunlight direction. Animate only the small distant uncrewed rover rolling slowly across the right midground, with consistent ground contact and its own hard-sun shadow. The lunar terrain and camera stay fixed. Do not invent wind, floating dust, moving stars, atmospheric clouds or terrain deformation. No people appear. Six seconds, no camera orbit, no cut, no transformation, no film grain, no audio.",
+      "styleframeSha256": null,
+      "previewSha256": null,
+      "finalPlateSha256": null,
+      "integrationSha256": null,
+      "approved": false
+    }
+  ],
+  "generationBaseQuoteUsd": 4.77,
+  "paidCalls": 0,
+  "remaining": [
+    "human_direction_review",
+    "durable_preparation_job_and_actual_result_binding",
+    "measured_source_matte_and_clean_room_plate",
+    "three_styleframes_and_reviews",
+    "motion_previews_and_reviews",
+    "final_plates_and_normalization",
+    "frozen_per_world_relight",
+    "integration_reviews_and_master_QA"
+  ],
+  "productionReady": false
+}
