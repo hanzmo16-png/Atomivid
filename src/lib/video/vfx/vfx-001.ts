@@ -39,16 +39,19 @@ export const VFX_001 = {
   preserveSubject: true,
   strength: "balanced" as const,
   controls: VFX_001_CONTROLS,
-  style: "cinematic New York City street at night, premium film look",
+  /**
+   * Attempt #3 (owner-authorized): positive, neutral description only. Attempts #1/#2 were refused by
+   * Luma's content policy (HTTP 422 content_moderated) while the prompt carried an "Avoid:" list with
+   * anatomy vocabulary; that list and the style suffix are no longer sent. Subject preservation stays in
+   * the documented controls (VFX_001_CONTROLS), unchanged.
+   */
+  style: "",
   prompt:
-    "The same man keeps walking toward the fixed camera and talking, exactly as in the source: same face, same identity, same age, same body, " +
-    "same clothes, same hand and body movement, same timing. Only his surroundings change: the apartment progressively becomes a cinematic " +
-    "New York City street at night — wet asphalt with reflections, warm streetlights, brownstones and avenue lights far behind him in soft " +
-    "bokeh, gentle real ambient motion of distant traffic and steam. The city light falls on him realistically. Deep, premium, cinematic.",
-  negativePrompt:
-    "different person, face change, regenerated face, facial morphing, age change, clothing change, deformed hands, extra fingers, " +
-    "distorted body, cheap background replacement, chroma-key edges, green-screen look, cartoon, oversaturated neon, crowded Times Square " +
-    "billboards, flicker, AI-slop look",
+    "The same man continues walking naturally toward the fixed camera while speaking, maintaining the appearance and movement " +
+    "established by the source video. The surrounding apartment gradually transitions into a cinematic New York City street at night, " +
+    "with wet asphalt reflections, warm streetlights, brownstones and avenue lights in soft bokeh, subtle traffic and distant steam. " +
+    "Natural realistic city lighting integrates with the existing subject. Premium cinematic film look, photorealistic and temporally coherent.",
+  negativePrompt: "",
   priorities: ["identidad", "rostro", "movimiento corporal", "ropa", "continuidad temporal", "transformación del entorno", "integración de iluminación"],
   /**
    * Progressive change: video_edit transforms the whole source, so the "apartment → New York"
