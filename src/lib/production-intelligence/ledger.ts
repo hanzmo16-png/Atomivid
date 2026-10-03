@@ -53,7 +53,7 @@ export class ReconciliationRequiredError extends Error {}
 
 export type ProviderPort = {
   /** Submit a job; must return the provider job id as soon as it is accepted. */
-  submit(): Promise<{ providerJobId: string }>;
+  submit(): Promise<{ providerJobId: string; submissionReceiptRef?: string }>;
   /** Wait for a previously accepted job (resume path never calls submit). */
   poll(providerJobId: string): Promise<{ resultRef: string; actualUsd: number } | { refunded: true }>;
 };
@@ -82,9 +82,12 @@ export async function executePaidOperation(store: LedgerStore, op: Omit<PaidOper
   let jobId = cur.providerJobId;
   if (cur.status === "RESERVED") {
     if (!(await store.update(key, "RESERVED", { status: "SUBMITTED", updatedAt: now() }))) throw new ReconciliationRequiredError(`${key}: concurrent submission detected`);
-    const { providerJobId } = await port.submit();
+    const { providerJobId, submissionReceiptRef } = await port.submit();
     jobId = providerJobId;
-    await store.update(key, "SUBMITTED", { status: "PROVIDER_JOB_RECORDED", providerJobId, updatedAt: now() });
+    if (!await store.update(key, "SUBMITTED", { status: "PROVIDER_JOB_RECORDED", providerJobId,
+      ...(submissionReceiptRef === undefined ? {} : { resultRef: submissionReceiptRef }), updatedAt: now() })) {
+      throw new ReconciliationRequiredError(`${key}: accepted job could not be recorded; never resubmit`);
+    }
   }
   const r = await port.poll(jobId!);
   if ("refunded" in r) {

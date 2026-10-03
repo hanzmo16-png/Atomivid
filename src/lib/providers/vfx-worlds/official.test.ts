@@ -25,9 +25,19 @@ test('official LTX async route never forwards credentials to the download host',
 test('official BFL actual credits are distinguished from a quote',async()=>{
  const q:WorldRequest={environmentId:'nyc',phase:'styleframe',prompt:'Empty city'};
  const port=officialWorldPort({bflKey:'test',sleep:async()=>{},fetch:async(url,init)=>{
-  if(init?.method==='POST')return Response.json({id:'image-1',cost:3});
+  if(init?.method==='POST')return Response.json({id:'image-1',cost:3,polling_url:'https://api.bfl.ai/v1/get_result?id=image-1'});
   if(String(url).includes('api.bfl.ai'))return Response.json({status:'Ready',cost:3,result:{sample:'https://media.example.test/result.png'}});
   return new Response(Buffer.from('fixture-image'));
  }});
  const a=await port.finish(await port.submit(q),q);assert.equal(a.costUsd,.03);assert.equal(a.costBasis,'provider_usage');
+});
+test('BFL follows the returned regional receipt and rejects missing or foreign receipts before polling',async()=>{
+ const calls:string[]=[];
+ const port=officialWorldPort({bflKey:'test',fetch:async(url)=>{calls.push(String(url));if(String(url).includes('bfl.ai'))return Response.json({status:'Ready',result:{sample:'https://media.example.test/image.png'}});return new Response(Buffer.from('image'));}});
+ const q:WorldRequest={environmentId:'nyc',phase:'styleframe',prompt:'Empty city'};
+ await assert.rejects(port.finish({id:'job-1'},q),/POLLING_RECEIPT_MISSING/);
+ await assert.rejects(port.finish({id:'job-1',pollingUrl:'https://evil.example.test/v1/get_result?id=job-1'},q),/POLLING_RECEIPT_INVALID/);
+ assert.equal(calls.length,0);
+ await port.finish({id:'job-1',pollingUrl:'https://api.us1.bfl.ai/v1/get_result?id=job-1'},q);
+ assert.equal(calls[0],'https://api.us1.bfl.ai/v1/get_result?id=job-1');
 });

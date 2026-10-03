@@ -6,7 +6,7 @@ import { executePaidOperation, idempotencyKey, type LedgerStore } from '../produ
 import { stableHash } from '../production-intelligence/canonical';
 import { assertGate } from '../production-intelligence/vfx-director/gates';
 import { requireOwner, jobGates, type Job } from '../production-intelligence/vfx-director/jobs';
-import { worldRecipe,type WorldRequest,type OfficialPort,type OfficialAsset } from '../providers/vfx-worlds/official';
+import { worldRecipe,type WorldRequest,type OfficialPort,type OfficialAsset,type Submitted } from '../providers/vfx-worlds/official';
 import { paidResultPath,sha256Hex,type PaidResultStore } from './result-store';
 export async function gatedWorldAsset(deps:{ledger:LedgerStore;results:PaidResultStore;port:OfficialPort;
  projectId:string;actorId:string;job:Job;maxCostUsd:number;projectBudgetUsd:number;connectionsVerified:boolean},r:WorldRequest) {
@@ -30,11 +30,13 @@ export async function gatedWorldAsset(deps:{ledger:LedgerStore;results:PaidResul
  await deps.ledger.insert({idempotencyKey:slotKey,projectId:deps.projectId,shotId:`world:${r.environmentId}:${r.phase}`,provider:recipe.provider,model:recipe.sku,method:'generation_slot',attemptKind:r.phase,reservedUsd:0,committedUsd:0,status:'COMMITTED',providerJobId:null,resultRef:key,updatedAt:new Date().toISOString()});
  if((await deps.ledger.get(slotKey))?.resultRef!==key)throw new Error('VFX_ATTEMPT_ALREADY_FROZEN');
  let returned:OfficialAsset|undefined;
- let acceptedCostUsd:number|undefined;
  const op=await executePaidOperation(deps.ledger,{idempotencyKey:key,projectId:deps.projectId,shotId:`world:${r.environmentId}:${r.phase}`,provider:recipe.provider,model:recipe.sku,method:r.phase==='styleframe'?'text-to-image':'image-to-video',attemptKind:r.phase,reservedUsd:recipe.reservedUsd},{
-  async submit(){const job=await deps.port.submit(r);acceptedCostUsd=job.costUsd;return {providerJobId:job.id};},
+  async submit(){const job=await deps.port.submit(r);return {providerJobId:job.id,submissionReceiptRef:'provider-receipt:'+JSON.stringify(job)};},
   async poll(jobId){
-   const a=await deps.port.finish({id:jobId,...(acceptedCostUsd===undefined?{}:{costUsd:acceptedCostUsd})},r);
+   const current=await deps.ledger.get(key);
+   const receipt=current?.resultRef?.startsWith('provider-receipt:')?JSON.parse(current.resultRef.slice('provider-receipt:'.length)) as Submitted:{id:jobId};
+   if(receipt.id!==jobId)throw new Error('VFX_PROVIDER_RECEIPT_CHANGED');
+   const a=await deps.port.finish(receipt,r);
    if(!Number.isFinite(a.costUsd)||a.costUsd<0||a.costUsd>recipe.reservedUsd+1e-9)throw new Error('VFX_COST_RECONCILIATION_REQUIRED');
    returned=a;
    const assetPath=paidResultPath(deps.projectId,key,a.extension),ref=paidResultPath(deps.projectId,key,'json');

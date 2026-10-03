@@ -10,7 +10,7 @@ export const WorldRequestSchema = z.object({
 }).strict();
 export type WorldRequest=z.infer<typeof WorldRequestSchema>;
 export type OfficialAsset={buffer:Buffer;mimeType:string;extension:string;model:string;costUsd:number;costBasis:'provider_usage'|'published_rate';providerJobId:string};
-export type Submitted={id:string;costUsd?:number};
+export type Submitted={id:string;costUsd?:number;pollingUrl?:string};
 export interface OfficialPort {
   submit(request:WorldRequest):Promise<Submitted>;
   finish(job:Submitted,request:WorldRequest):Promise<OfficialAsset>;
@@ -57,11 +57,17 @@ export function officialWorldPort(options:{fetch?:typeof fetch;sleep?:(ms:number
    const jobId=id(data.id);
    // BFL explicitly returns cost in credits when available; never silently turn missing usage into actual billing.
    const cost=recipe.provider==='bfl'&&typeof data.cost==='number'&&Number.isFinite(data.cost)&&data.cost>=0?data.cost/100:undefined;
-   return {id:jobId,...(cost===undefined?{}:{costUsd:cost})};
+   return {id:jobId,...(cost===undefined?{}:{costUsd:cost}),...(recipe.provider==='bfl'&&typeof data.polling_url==='string'?{pollingUrl:data.polling_url}:{})};
   },
   async finish(job,r) {
    const jobId=id(job.id),recipe=worldRecipe(r),h=headers(recipe.provider);
-   const poll=recipe.provider==='bfl'?`https://api.bfl.ai/v1/get_result?id=${encodeURIComponent(jobId)}`:`https://api.ltx.io/v2/image-to-video/${encodeURIComponent(jobId)}`;
+   let poll=`https://api.ltx.io/v2/image-to-video/${encodeURIComponent(jobId)}`;
+   if(recipe.provider==='bfl') {
+    if(!job.pollingUrl)throw new OfficialCallError('VFX_POLLING_RECEIPT_MISSING',jobId);
+    const u=new URL(job.pollingUrl);
+    if(u.protocol!=='https:'||u.username||u.password||!/^api(?:\.[a-z0-9-]+)?\.bfl\.ai$/.test(u.hostname)||u.pathname!=='/v1/get_result'||u.searchParams.get('id')!==jobId)throw new OfficialCallError('VFX_POLLING_RECEIPT_INVALID',jobId);
+    poll=u.toString();
+   }
    for(let n=0;n<(options.maxPolls??120);n++) {
     const data=await json(poll,{method:'GET',headers:h},jobId);
     const done=recipe.provider==='bfl'?data.status==='Ready':data.status==='completed';

@@ -37,7 +37,7 @@ test('connection, owner and review failures block before any submission',async()
 });
 test('failed polling resumes the recorded job without a second submission',async()=>{
  const d=deps();let submits=0,polls=0;
- const port:OfficialPort={async submit(){submits++;return{id:'job-1'};},async finish(){polls++;if(polls===1)throw new Error('poll failed');return{buffer:Buffer.from('image'),mimeType:'image/png',extension:'png',model:'flux-2-pro',costUsd:.03,costBasis:'published_rate',providerJobId:'job-1'};}};
+ const port:OfficialPort={async submit(){submits++;return{id:'job-1',pollingUrl:'https://api.us1.bfl.ai/v1/get_result?id=job-1',costUsd:.03};},async finish(receipt){assert.equal(receipt.pollingUrl,'https://api.us1.bfl.ai/v1/get_result?id=job-1');assert.equal(receipt.costUsd,.03);polls++;if(polls===1)throw new Error('poll failed');return{buffer:Buffer.from('image'),mimeType:'image/png',extension:'png',model:'flux-2-pro',costUsd:.03,costBasis:'provider_usage',providerJobId:'job-1'};}};
  await assert.rejects(gatedWorldAsset({...d,port},r),/poll failed/);
  await gatedWorldAsset({...d,port},r);assert.equal(submits,1);assert.equal(polls,2);
 });

@@ -37,6 +37,28 @@ async function main(){
  if(user.error)throw new Error('OWNER_LOOKUP_FAILED');
  const actor=directorActor(user.data.user),store=supabaseJobStore(sb),ledger=supabaseLedgerStore(sb),results=supabaseResultStore(sb);
  const projectId=pkg.projectId+'-preparation';
+ // One-time read-only reconciliation of the pre-receipt NYC operation. Only documented
+ // official global/US/EU API hosts are queried; never POST or guess additional regions.
+ const legacy=await sb.from('pi_paid_operations').select('idempotency_key,provider_job_id,result_ref,status').eq('project_id',projectId).eq('shot_id','world:nyc:styleframe').eq('status','PROVIDER_JOB_RECORDED').maybeSingle();
+ if(legacy.error)throw new Error('LEGACY_RECEIPT_READ_FAILED');
+ if(legacy.data&&!legacy.data.result_ref){
+  const id=legacy.data.provider_job_id;
+  if(typeof id!=='string'||! /^[a-zA-Z0-9_-]{1,160}$/.test(id))throw new Error('LEGACY_ID_INVALID');
+  let recovered=false;
+  for(const host of ['api.us.bfl.ai','api.eu.bfl.ai']){
+   const url:string=`https://${host}/v1/get_result?id=${encodeURIComponent(id)}`;
+   try{
+    // Credential-free GET may follow official regional routing; finish validates the final URL.
+    const response:Response=await fetch(url,{redirect:'follow',signal:AbortSignal.timeout(15_000)});
+    if(!response.ok)continue;
+    const data:{id?:string;status?:string}=await response.json();
+    if(data.id!==id||!['Ready','Pending'].includes(data.status??''))continue;
+    if(!await ledger.update(legacy.data.idempotency_key,'PROVIDER_JOB_RECORDED',{resultRef:'provider-receipt:'+JSON.stringify({id,pollingUrl:response.url}),updatedAt:new Date().toISOString()}))throw new Error('LEGACY_RECEIPT_CONCURRENT_UPDATE');
+    recovered=true;break;
+   }catch(e){if(e instanceof Error&&e.message==='LEGACY_RECEIPT_CONCURRENT_UPDATE')throw e;}
+  }
+  if(!recovered)throw new Error('VFX_LEGACY_POLLING_RECEIPT_REQUIRED');
+ }
  const brief={projectId,intent:'Approved three-world background preparation; original Hans pixels preserved',emotion:'wonder',frames:150,fps:30,width:1080,height:1920,sourceSha256:pkg.source.sha256,subjectLock:'identity_with_relight',budgetUsd:4.77,environments:worlds.map(w=>({id:w.environmentId,kind:w.kind,lighting:w.lighting}))};
  const stages=['direction','styleframe','motion','integration'] as const;
  // This is an artifact registry plan, not the physical compositor plan. Its material is the
