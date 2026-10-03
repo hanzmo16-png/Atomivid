@@ -1,0 +1,21 @@
+{
+  "approved": true,
+  "ownerId": "d2064950-7a95-4208-8dfb-d93b470d141d",
+  "approvedAt": "2026-10-03T20:23:17Z",
+  "approvalMessage": "Perfecto, entonces contin\u00faa con el desarrollo y ya para terminar esto",
+  "directionSha256": "6e22eaf7abcc029242bf781adb756105ec2bac1264a36412e2c39badd8663079",
+  "maximumCalls": 1,
+  "maximumCallUsd": 0.075,
+  "maximumProjectUsd": 4.8,
+  "provider": "bfl",
+  "sku": "flux-2-pro",
+  "maximumSeconds": 0,
+  "width": 1088,
+  "height": 1920,
+  "referenceSha256": "f0e4568511b7108381e39bb3e2d2611ab37fde36c6d087b194055553bb113d7c",
+  "referenceMetadataPath": "precampaign-three-worlds-v1-preparation/paid/op_3a1c404aec8ef9d2f6470926a1c00782.json",
+  "prompt": "Use image 1 as the lunar terrain and lighting reference, and image 2 as the exact flag artwork reference. Remove the rover completely. Preserve the eye-level locked camera, natural lunar terrain, black sky, gray regolith and single hard sunlight direction. Add one modest ATOMIVID flag in the right midground, to the far right of the empty foreground reserved for a separately composited person. The flag is supported by a vertical metal pole and a horizontal crossbar: stretched fabric with small fixed creases, not billowing. Place the artwork from image 2 on the fabric: violet background, exact white three-orbit atom emblem and the readable word Atomivid. Keep the branding legible and undistorted. Show believable pole insertion, ground contact and one crisp cast shadow consistent with the terrain sunlight. No rover, no people, no astronauts, no wind, no flying dust, no atmosphere, no film grain, no creative upscale. Photorealistic native portrait plate.",
+  "priceSource": "https://docs.bfl.ai/quick_start/pricing",
+  "budgetBasis": "Conservative ceiling for 2 MP output plus two <=1 MP references; provider-reported credits override estimate when available.",
+  "recoveryRun": 0
+}
