@@ -1,0 +1,42 @@
+name: VFX approved first native final plates
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [docs/production-intelligence/VFX-FINAL-AUTHORIZATION.json]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: vfx-approved-first-frames
+  cancel-in-progress: false
+jobs:
+  final-plates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: python3 -m pip install numpy==2.2.6 scipy==1.15.3 pillow==11.3.0
+      - run: chmod +x node_modules/@ffmpeg-installer/linux-x64/ffmpeg node_modules/@ffprobe-installer/linux-x64/ffprobe
+      - run: python3 scripts/vfx/remote_preflight.py
+        env:
+          LTX_API_KEY: ${{ secrets.LTX_API_KEY }}
+      - run: |
+          export PATH="$PWD/node_modules/@ffmpeg-installer/linux-x64:$PWD/node_modules/@ffprobe-installer/linux-x64:$PATH"
+          node --import tsx scripts/vfx/final-plates.ts
+        env:
+          VFX_DIRECTOR_ENABLED: '1'
+          AVATAR_PREPARATION_OWNER_EMAIL: hanzmo16@gmail.com
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LTX_API_KEY: ${{ secrets.LTX_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vfx-empty-native-final-plates
+          path: vfx-final-review/
+          retention-days: 7
