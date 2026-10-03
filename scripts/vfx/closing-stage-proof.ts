@@ -14,7 +14,11 @@ async function main(){
   const original=await results.getBytes(config.sourcePath);if(!original||sha(original)!==config.sourceSha256)throw new Error('VFX_CLOSING_SOURCE_CHANGED');await writeFile(join(root,'original.mp4'),original);await writeFile(join(root,'config.json'),JSON.stringify(config));
   const svg=await readFile('scripts/vfx/launch-stage.svg');await writeFile(join(root,'stage.png'),await sharp(svg).png().toBuffer());
   const model=await fetch('https://github.com/PeterL1n/RobustVideoMatting/releases/download/v1.0.0/rvm_mobilenetv3_fp32.onnx');if(!model.ok)throw new Error('VFX_MATTE_MODEL_UNAVAILABLE');await writeFile(join(root,'rvm.onnx'),Buffer.from(await model.arrayBuffer()));
-  const run=await promisify(execFile)('python3',['scripts/vfx/closing-stage-proof.py',root],{timeout:20*60_000,maxBuffer:1024*1024});console.log(run.stdout.trim());
+  let run;try{run=await promisify(execFile)('python3',['scripts/vfx/closing-stage-proof.py',root],{timeout:20*60_000,maxBuffer:1024*1024});}catch(e){
+   const err=e as Error&{stderr?:string;stdout?:string;code?:unknown};
+   await results.putJson(config.projectId+'/closing-launch-stage/failure-'+process.env.GITHUB_RUN_ID+'.json',{message:err.message,stderr:err.stderr,stdout:err.stdout,code:err.code,paidCalls:0});
+   throw new Error('VFX_CLOSING_PYTHON_FAILED_PRIVATE_DIAGNOSTIC_SAVED');
+  }console.log(run.stdout.trim());
   const report=JSON.parse(await readFile(join(root,'closing-report.json'),'utf8')),prefix=config.projectId+'/closing-launch-stage/';
   const video=await readFile(join(root,'ATOMIVID-cierre-escenario-prueba.mp4'));if(video.length>45*1024*1024||sha(video)!==report.sha256)throw new Error('VFX_CLOSING_PROOF_STORAGE_LIMIT');await results.putBytes(prefix+report.sha256+'.mp4',video,'video/mp4');await results.putJson(prefix+'closing-report.json',report);
   const matteParts=[];for(const file of (await readdir(root)).filter(f=>/^matte-part-\d{3}\.npz$/.test(f)).sort()){const b=await readFile(join(root,file));await results.putBytes(prefix+file,b,'application/octet-stream');matteParts.push({file,sha256:sha(b)});}await results.putJson(prefix+'matte-report.json',{sourceSha256:config.sourceSha256,trim:report.trim,frames:report.frames,matteParts});
