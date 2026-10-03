@@ -1,0 +1,34 @@
+{
+  "matteFlickerStaticEdgeMeanAbs": 0.0329,
+  "matteFlickerStaticEdgeMeanAbsRawRvm": 0.0464,
+  "method": {
+    "segmentation": "Robust Video Matting mobilenetv3 (ONNX, CPU), recurrent temporal state, downsample 0.25; choke 3% + 0.8px soften; motion-adaptive temporal smoothing (static pixels only); no chroma key",
+    "edgeDecontamination": "un-premultiply against a clean apartment plate (temporal median of uncovered pixels, fixed camera)",
+    "background": "Luma VFX-001 output reused as raw plate only: generated person matted out (RVM), temporal median of uncovered pixels, residual hole Telea-inpainted, lanczos 720->1080, night grade + DOF blur + bloom; ambient motion local (fog drift, light flicker, grain)",
+    "transition": "spatial reveal ordered by distance from the subject + room luminance (shadows first), low-frequency organic edge, 0.4-1.9s, warm light-sweep front, local displacement of the apartment at the front",
+    "subject": "original source pixels; fixed per-pixel grade ramp (exposure -7%, warmer, contrast +6%); light wrap on rim only"
+  },
+  "matte": {
+    "frames": 150,
+    "meanCoverage": 0.5571,
+    "edgeFraction": 0.0242,
+    "meanAbsFrameDiff": 0.00348,
+    "meanAbsFrameDiffEdgeBand": 0.1132,
+    "p99AbsFrameDiff": 0.0824
+  },
+  "fakeMatte": {
+    "frames": 150,
+    "meanCoverage": 0.5589,
+    "edgeFraction": 0.0145,
+    "meanAbsFrameDiff": 0.00316,
+    "meanAbsFrameDiffEdgeBand": 0.153,
+    "p99AbsFrameDiff": 0.0549
+  },
+  "plateHoleSeenBehindSubjectFraction": 0.00411,
+  "subjectLock": {
+    "maxAbsDiffInteriorVsGradedSource": 2,
+    "interiorPixels": 161647271,
+    "maxAbsDiffInteriorVsSourceBeforeGrade": 50
+  },
+  "seconds": 187.3
+}

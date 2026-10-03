@@ -1,0 +1,71 @@
+{
+  "v1CommittedUsd": 0.1784,
+  "vfxCommittedUsd": 1.08,
+  "incrementalV2Usd": 1.08,
+  "masterStagePaidCalls": 0,
+  "rows": [
+    {
+      "project": "precampaign-teaser-v1",
+      "provider": "elevenlabs",
+      "shot": "voice:2505b141287b7248",
+      "status": "COMMITTED",
+      "committedUsd": 0.0063
+    },
+    {
+      "project": "precampaign-teaser-v1",
+      "provider": "elevenlabs",
+      "shot": "voice:2ccb8711cd187b99",
+      "status": "COMMITTED",
+      "committedUsd": 0.0084
+    },
+    {
+      "project": "precampaign-teaser-v1",
+      "provider": "elevenlabs",
+      "shot": "voice:10387418b6ab5f39",
+      "status": "COMMITTED",
+      "committedUsd": 0.0069
+    },
+    {
+      "project": "precampaign-teaser-v1",
+      "provider": "elevenlabs",
+      "shot": "voice:cb165e9bde04e196",
+      "status": "COMMITTED",
+      "committedUsd": 0.0068
+    },
+    {
+      "project": "precampaign-teaser-v1",
+      "provider": "heygen",
+      "shot": "avatar:line",
+      "status": "RECONCILIATION_REQUIRED",
+      "committedUsd": 0
+    },
+    {
+      "project": "precampaign-teaser-v1",
+      "provider": "heygen",
+      "shot": "avatar:line",
+      "status": "COMMITTED",
+      "committedUsd": 0.15
+    },
+    {
+      "project": "atomivid-vfx-001",
+      "provider": "luma",
+      "shot": "vfx:51ba13890870eaa1",
+      "status": "REFUNDED",
+      "committedUsd": 0
+    },
+    {
+      "project": "atomivid-vfx-001",
+      "provider": "luma",
+      "shot": "vfx:92434a812a995683",
+      "status": "REFUNDED",
+      "committedUsd": 0
+    },
+    {
+      "project": "atomivid-vfx-001",
+      "provider": "luma",
+      "shot": "vfx:f826cfcc0969c9d9",
+      "status": "COMMITTED",
+      "committedUsd": 1.08
+    }
+  ]
+}

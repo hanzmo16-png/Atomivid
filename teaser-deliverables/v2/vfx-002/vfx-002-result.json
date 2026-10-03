@@ -1,0 +1,59 @@
+{
+  "id": "ATOMIVID_VFX_002_SUBJECT_LOCKED_COMPOSITE",
+  "spendUsd": 0,
+  "providerCalls": 0,
+  "source": {
+    "path": "precampaign-teaser-v1/v2/vfx-001-source-20261002_181854-1.mp4-4.700-0.500-hable.mp4",
+    "sha256": "5d6e025f43a0f27e3835330edd79dcef46742a7e565ecb158cffefaf7f990e7b",
+    "bytes": 12511303
+  },
+  "plateMaterial": {
+    "ledgerProject": "atomivid-vfx-001",
+    "resultRef": "atomivid-vfx-001/paid/op_94a9ce223799cef270db251494f243a7.json",
+    "sha256": "d6852c86d3b11810fe6715fd08feb367a0896f9fbe0ba2acb37f38003c6e2e23",
+    "note": "VFX-001 output reused as raw plate only (generated subject matted out)"
+  },
+  "model": {
+    "file": "rvm_mobilenetv3_fp32.onnx",
+    "sha256": "88d4531297118f595bf2fd60f6f566aec2e559393802d1f436c380f0cbbd2828"
+  },
+  "composite": {
+    "path": "precampaign-teaser-v1/v2/vfx-002-composite.mp4",
+    "sha256": "cba889ba5ebbaf1e170819f0fe72691b6f8be39e645c1d1e57f998ca78dace34",
+    "bytes": 20232512
+  },
+  "report": {
+    "matteFlickerStaticEdgeMeanAbs": 0.0329,
+    "matteFlickerStaticEdgeMeanAbsRawRvm": 0.0464,
+    "method": {
+      "segmentation": "Robust Video Matting mobilenetv3 (ONNX, CPU), recurrent temporal state, downsample 0.25; choke 3% + 0.8px soften; motion-adaptive temporal smoothing (static pixels only); no chroma key",
+      "edgeDecontamination": "un-premultiply against a clean apartment plate (temporal median of uncovered pixels, fixed camera)",
+      "background": "Luma VFX-001 output reused as raw plate only: generated person matted out (RVM), temporal median of uncovered pixels, residual hole Telea-inpainted, lanczos 720->1080, night grade + DOF blur + bloom; ambient motion local (fog drift, light flicker, grain)",
+      "transition": "spatial reveal ordered by distance from the subject + room luminance (shadows first), low-frequency organic edge, 0.4-1.9s, warm light-sweep front, local displacement of the apartment at the front",
+      "subject": "original source pixels; fixed per-pixel grade ramp (exposure -7%, warmer, contrast +6%); light wrap on rim only"
+    },
+    "matte": {
+      "frames": 150,
+      "meanCoverage": 0.5571,
+      "edgeFraction": 0.0242,
+      "meanAbsFrameDiff": 0.00348,
+      "meanAbsFrameDiffEdgeBand": 0.1132,
+      "p99AbsFrameDiff": 0.0824
+    },
+    "fakeMatte": {
+      "frames": 150,
+      "meanCoverage": 0.5589,
+      "edgeFraction": 0.0145,
+      "meanAbsFrameDiff": 0.00316,
+      "meanAbsFrameDiffEdgeBand": 0.153,
+      "p99AbsFrameDiff": 0.0549
+    },
+    "plateHoleSeenBehindSubjectFraction": 0.00411,
+    "subjectLock": {
+      "maxAbsDiffInteriorVsGradedSource": 2,
+      "interiorPixels": 161647271,
+      "maxAbsDiffInteriorVsSourceBeforeGrade": 50
+    },
+    "seconds": 187.3
+  }
+}

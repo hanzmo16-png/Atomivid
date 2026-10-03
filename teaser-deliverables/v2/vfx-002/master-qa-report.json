@@ -1,0 +1,138 @@
+{
+  "resolution": "1080x1920",
+  "fps": 30,
+  "durationSeconds": 34.43,
+  "checks": {
+    "resolution1080x1920": true,
+    "fps30": true,
+    "duration30to36": true,
+    "audioPresent": true,
+    "firstFrameVisual": true,
+    "noAccidentalBlack": true,
+    "noClipping": true,
+    "loudnessAround14": true,
+    "noFullWhiteFrames": true,
+    "captionsNoOverlap": true,
+    "captionsWithinSections": true,
+    "endCardMax1_5s": true,
+    "avSyncPerSegmentMs60": true,
+    "vfxIntegrated": true
+  },
+  "loudnessLufs": -14.3,
+  "truePeakDbfs": -1.5,
+  "loudnessRangeLu": 2.3,
+  "firstFrameYavg": 95.1811,
+  "blackIntervals": [],
+  "avSyncDriftMsPerSegment": {
+    "opening": 0,
+    "avatar": 38,
+    "demo": 2,
+    "results": 8,
+    "reveal": 20,
+    "closing": 7,
+    "end": 0
+  },
+  "music": {
+    "bpm": 119.96,
+    "startOffsetSeconds": 0.47000000000000025,
+    "cutTimes": [
+      7.025,
+      10.63,
+      16.559,
+      20.764,
+      25.514,
+      33.405666999999994
+    ],
+    "meanCutBeatErrorSeconds": 0.086
+  },
+  "voice": {
+    "chain": "volume=-6dB,highpass=f=75,afftdn=nr=6:nf=-55:tn=1,equalizer=f=220:t=q:w=1.0:g=-2,equalizer=f=3200:t=q:w=1.1:g=3,highshelf=f=9000:g=1.5,deesser=i=0.2,acompressor=threshold=0.1:ratio=2.5:attack=10:release=160:makeup=1.4,alimiter=limit=0.89:level=disabled",
+    "targetLufs": -16,
+    "gainsDb": {
+      "opening": 3.8000000000000007,
+      "closing": 2.1000000000000014,
+      "avatar": -1.6999999999999993,
+      "demo": -2.4000000000000004,
+      "results": -0.5999999999999996,
+      "reveal": -0.5999999999999996
+    }
+  },
+  "trims": {
+    "opening": [
+      2.5,
+      9.7
+    ],
+    "closing": [
+      2.85,
+      11.11
+    ],
+    "vfxWindow": [
+      4.7,
+      9.7
+    ]
+  },
+  "vfx": {
+    "kind": "VFX-002 subject-locked local composite",
+    "path": "precampaign-teaser-v1/v2/vfx-002-composite.mp4",
+    "sha256": "cba889ba5ebbaf1e170819f0fe72691b6f8be39e645c1d1e57f998ca78dace34"
+  },
+  "sections": {
+    "opening": {
+      "start": 0,
+      "duration": 7.2
+    },
+    "avatar": {
+      "start": 6.85,
+      "duration": 3.8
+    },
+    "demo": {
+      "start": 10.61,
+      "duration": 5.97
+    },
+    "results": {
+      "start": 16.54,
+      "duration": 4.38
+    },
+    "reveal": {
+      "start": 20.61,
+      "duration": 5.1
+    },
+    "closing": {
+      "start": 25.31,
+      "duration": 8.27
+    },
+    "end": {
+      "start": 33.23,
+      "duration": 1.2
+    }
+  },
+  "transitions": [
+    {
+      "type": "zoomin",
+      "d": 0.35
+    },
+    {
+      "type": "fade",
+      "d": 0.04
+    },
+    {
+      "type": "fade",
+      "d": 0.04
+    },
+    {
+      "type": "dissolve",
+      "d": 0.3
+    },
+    {
+      "type": "dissolve",
+      "d": 0.4
+    },
+    {
+      "type": "fade",
+      "d": 0.35
+    }
+  ],
+  "notes": [
+    "VFX-002: composite local con píxeles del sujeto bloqueados (VFX-001 de Luma solo como material de fondo)."
+  ]
+}

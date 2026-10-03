@@ -1,0 +1,8 @@
+{
+  "vfx002": { "spendUsd": 0, "providerCalls": 0, "notes": "local RVM matting + compositing; VFX-001 Luma output replayed from the ledger as plate material (no new call)" },
+  "masterStagePaidCalls": 0,
+  "v2IncrementalUsd": 1.08,
+  "v1CommittedUsd": 0.1784,
+  "repaidHeyGen": false,
+  "repaidElevenLabs": false
+}
