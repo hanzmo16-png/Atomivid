@@ -50,7 +50,7 @@ const VOICE_CHAIN_DEFAULT =
 const VOICE_LUFS = -16;
 
 type Word = { text: string; start: number; end: number; limit?: number };
-type Args = { openingPath: string; closingPath: string; vfxStart: number; openingStart?: number; closingTrim?: [number, number]; voiceChain?: string; musicPath?: string; tonemap?: "hable" | "mobius" | "clip" | "none"; useVfx?: boolean };
+type Args = { openingPath: string; closingPath: string; vfxStart: number; openingStart?: number; closingTrim?: [number, number]; voiceChain?: string; musicPath?: string; tonemap?: "hable" | "mobius" | "clip" | "none"; useVfx?: boolean; vfxCompositePath?: string };
 
 const run = (bin: string, args: string[]) => sh(bin, args, { maxBuffer: 256 * 1024 * 1024 });
 const ff = (args: string[]) => run(FF, ["-hide_banner", "-v", "error", "-y", ...args]);
@@ -141,10 +141,16 @@ async function main() {
   await writeFile(avatarFile, avatarBytes);
   const vfxRow = committed.find((r) => r.project_id === VFX_PROJECT && r.provider === "luma");
   // A paid VFX result is only used when its identity QA approved it (useVfx !== false).
-  const vfxAsset = vfxRow && args.useVfx !== false ? await loadVfx(results, vfxRow.result_ref!) : null;
+  // VFX-002 (subject-locked local composite) replaces the full-frame VFX-001 output: Hans' pixels come
+  // from the real take; the composite starts as the untouched source, so it is layered without a fade.
+  const compFile = args.vfxCompositePath ? join(WORK, "vfx-002-composite.mp4") : null;
+  const compBytes = compFile ? await get("videos", args.vfxCompositePath!, compFile) : null;
+  const vfxAsset = !compFile && vfxRow && args.useVfx !== false ? await loadVfx(results, vfxRow.result_ref!) : null;
   const vfxFile = join(WORK, "vfx-001-output.mp4");
   if (vfxAsset) await writeFile(vfxFile, vfxAsset.buffer);
+  else if (compFile) notes.push("VFX-002: composite local con píxeles del sujeto bloqueados (VFX-001 de Luma solo como material de fondo).");
   else notes.push(vfxRow ? "VFX-001 generado pero vetado en QA de identidad: apertura real sin VFX." : "VFX-001 no disponible: apertura real sin VFX.");
+  const hasVfx = Boolean(vfxAsset || compFile);
 
   // ---------- Inputs ----------
   const opening = join(WORK, "opening.mp4"), closing = join(WORK, "closing.mp4"), dulce = join(WORK, "dulce.mp4"), ocean = join(WORK, "ocean.mp4"), music = join(WORK, "music.mp3");
@@ -186,19 +192,23 @@ async function main() {
   const vfxEnd = args.vfxStart + 5;
   const XF0 = 0.35;
   const oA = Math.max(0, args.openingStart ?? ow.start - 0.25);
-  const oB = vfxAsset ? vfxEnd : Math.min(op.duration, ow.end + 0.45);
-  if (vfxAsset && ow.end > vfxEnd - XF0 + 0.02) notes.push(`La voz de apertura termina en ${ow.end.toFixed(2)} s, cerca del fin del VFX (${vfxEnd.toFixed(2)} s).`);
+  const oB = hasVfx ? vfxEnd : Math.min(op.duration, ow.end + 0.45);
+  if (hasVfx && ow.end > vfxEnd - XF0 + 0.02) notes.push(`La voz de apertura termina en ${ow.end.toFixed(2)} s, cerca del fin del VFX (${vfxEnd.toFixed(2)} s).`);
   const [cA, cB] = args.closingTrim ?? [Math.max(0, cw.start - 0.25), Math.min(cp.duration, cw.end + 0.45)];
   const gO = await voiceGain(opening, voiceChain), gC = await voiceGain(closing, voiceChain);
   // Opening: base real take (look) + VFX layered in progressively from the window start.
   {
     const off = Math.max(0, args.vfxStart - oA);
-    const graph = vfxAsset
+    const graph = compFile
+      ? `[0:v]${TM},scale=${W}:${H}:flags=lanczos,fps=${FPS},setsar=1[src];${RETOUCH_GRAPH("src", "base")};` +
+        `[1:v]scale=${W}:${H}:flags=lanczos,fps=${FPS},setsar=1,format=yuv420p,setpts=PTS-STARTPTS+${off.toFixed(3)}/TB[fx];` +
+        `[base][fx]overlay=eof_action=pass:format=auto,format=yuv420p,tpad=stop_mode=clone:stop_duration=0.3[v]`
+      : vfxAsset
       ? `[0:v]${TM},scale=${W}:${H}:flags=lanczos,fps=${FPS},setsar=1[src];${RETOUCH_GRAPH("src", "base")};` +
         `[1:v]scale=${W}:${H}:flags=lanczos,unsharp=5:5:0.45:5:5:0,noise=alls=3:allf=t,fps=${FPS},setsar=1,format=yuva420p,fade=t=in:st=0:d=1.6:alpha=1,setpts=PTS-STARTPTS+${off.toFixed(3)}/TB[fx];` +
         `[base][fx]overlay=eof_action=pass:format=auto,format=yuv420p,tpad=stop_mode=clone:stop_duration=0.3[v]`
       : `[0:v]${TM},scale=${W}:${H}:flags=lanczos,fps=${FPS},setsar=1[src];${RETOUCH_GRAPH("src", "v0")};[v0]tpad=stop_mode=clone:stop_duration=0.3[v]`;
-    await ff(["-ss", oA.toFixed(3), "-to", oB.toFixed(3), "-i", opening, ...(vfxAsset ? ["-i", vfxFile] : []), "-filter_complex", `${graph};[0:a]${voiceChain},volume=${gO.toFixed(2)}dB,aresample=48000,apad=whole_dur=${(oB - oA).toFixed(3)}[a]`, "-map", "[v]", "-map", "[a]", "-t", (oB - oA).toFixed(3), ...enc, segExt("opening")]);
+    await ff(["-ss", oA.toFixed(3), "-to", oB.toFixed(3), "-i", opening, ...(compFile ? ["-i", compFile] : vfxAsset ? ["-i", vfxFile] : []), "-filter_complex", `${graph};[0:a]${voiceChain},volume=${gO.toFixed(2)}dB,aresample=48000,apad=whole_dur=${(oB - oA).toFixed(3)}[a]`, "-map", "[v]", "-map", "[a]", "-t", (oB - oA).toFixed(3), ...enc, segExt("opening")]);
   }
   await ff(["-ss", cA.toFixed(3), "-to", cB.toFixed(3), "-i", closing, "-filter_complex", `[0:v]${TM},scale=${W}:${H}:flags=lanczos,fps=${FPS},setsar=1[src];${RETOUCH_GRAPH("src", "v0")};[v0]tpad=stop_mode=clone:stop_duration=0.3[v];[0:a]${voiceChain},volume=${gC.toFixed(2)}dB,aresample=48000,apad=whole_dur=${(cB - cA).toFixed(3)}[a]`, "-map", "[v]", "-map", "[a]", "-t", (cB - cA).toFixed(3), ...enc, segExt("closing")]);
   const rel = (h: Word[], a: number, b: number) => h.filter((w) => w.start >= a - 0.05 && w.end <= b + 0.05).map((w) => ({ ...w, start: w.start - a, end: w.end - a }));
@@ -390,12 +400,13 @@ async function main() {
       resolution1080x1920: m.width === W && m.height === H, fps30: Math.abs(m.fps - FPS) < 0.05, duration30to36: m.duration >= 30 && m.duration <= 36,
       audioPresent: m.hasAudio, firstFrameVisual: firstYavg > 16, noAccidentalBlack: blackIntervals.length === 0, noClipping: loud.tp <= -1.0,
       loudnessAround14: Math.abs(loud.i + 14) <= 1, noFullWhiteFrames: whiteFrames === 0, captionsNoOverlap: overlaps === 0, captionsWithinSections: crossings === 0, endCardMax1_5s: END <= 1.5,
-      avSyncPerSegmentMs60: Math.max(...Object.values(avDrift)) <= 60, vfxIntegrated: Boolean(vfxAsset),
+      avSyncPerSegmentMs60: Math.max(...Object.values(avDrift)) <= 60, vfxIntegrated: hasVfx,
     },
     loudnessLufs: loud.i, truePeakDbfs: loud.tp, loudnessRangeLu: loud.lra, firstFrameYavg: firstYavg, blackIntervals, avSyncDriftMsPerSegment: avDrift,
     music: { bpm: beats.bpm, startOffsetSeconds: bestOff, cutTimes, meanCutBeatErrorSeconds: Math.round((bestScore / cutTimes.length) * 1000) / 1000 },
     voice: { chain: voiceChain, targetLufs: VOICE_LUFS, gainsDb: { opening: gO, closing: gC, ...ttsGain } },
     trims: { opening: [oA, oB], closing: [cA, cB], vfxWindow: [args.vfxStart, vfxEnd] },
+    vfx: compFile ? { kind: "VFX-002 subject-locked local composite", path: args.vfxCompositePath, sha256: sha256(compBytes!) } : vfxAsset ? { kind: "VFX-001 full-frame" } : null,
     sections: Object.fromEntries(order.map((n) => [n, { start: Math.round(offsets[n] * 100) / 100, duration: Math.round(durs[n] * 100) / 100 }])),
     transitions: trans, notes,
   };
