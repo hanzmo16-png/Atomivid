@@ -1,0 +1,18 @@
+{
+  "costUsd": 1.08,
+  "reused": false,
+  "ledgerKey": "op_94a9ce223799cef270db251494f243a7",
+  "output": {
+    "width": 720,
+    "height": 1280,
+    "fps": 30,
+    "durationSeconds": 5,
+    "bytes": 2156258
+  },
+  "checks": {
+    "durationMatchesSource": true,
+    "portrait916": true,
+    "maxFrameDiff": 7.27795,
+    "meanFrameDiff": 2.850979233333335
+  }
+}
