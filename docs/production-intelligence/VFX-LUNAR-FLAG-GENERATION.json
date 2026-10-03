@@ -17,5 +17,5 @@
   "prompt": "Use image 1 as the lunar terrain and lighting reference, and image 2 as the exact flag artwork reference. Remove the rover completely. Preserve the eye-level locked camera, natural lunar terrain, black sky, gray regolith and single hard sunlight direction. Add one modest ATOMIVID flag in the right midground, to the far right of the empty foreground reserved for a separately composited person. The flag is supported by a vertical metal pole and a horizontal crossbar: stretched fabric with small fixed creases, not billowing. Place the artwork from image 2 on the fabric: violet background, exact white three-orbit atom emblem and the readable word Atomivid. Keep the branding legible and undistorted. Show believable pole insertion, ground contact and one crisp cast shadow consistent with the terrain sunlight. No rover, no people, no astronauts, no wind, no flying dust, no atmosphere, no film grain, no creative upscale. Photorealistic native portrait plate.",
   "priceSource": "https://docs.bfl.ai/quick_start/pricing",
   "budgetBasis": "Conservative ceiling for 2 MP output plus two <=1 MP references; provider-reported credits override estimate when available.",
-  "recoveryRun": 1
+  "recoveryRun": 2
 }

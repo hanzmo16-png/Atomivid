@@ -42,3 +42,23 @@ New booked trial cost: $1.62 at the published request tariff, not a provider bil
 NYC motion rejected: a stationary facade drifts approximately 22 pixels by 5.9 seconds; camera and cable geometry change. Moon motion rejected: stationary terrain structure changes instead of only the rover. Beach has gentle waves and near-stationary sand; owner movement review remains pending. Exact rejection/artifact fingerprints are persisted in the durable director job. Existing approved direction/styleframes and still lighting treatments are retained.
 
 Workflow 37148958794 succeeded in execution/registration; this is not visual approval. Durable job status is BLOCKED (rejected motion). No Pro call, integration, final master, merge or deployment occurred. The VFX Director is not certified 100% for production. No second paid trial is authorized by this contract.
+
+## Fixed lunar flag amendment and proof
+
+Owner replaced the rover with an ATOMIVID flag and authorized continuation at 20:23:17 UTC. One official FLUX.2 Pro edit used the existing lunar plate and the existing atom/wordmark reference. Operation op_03e4377e84b076613a0b5d2797f8069a, provider job 33253d93-7037-4e2b-9503-c71b2283df97: recovered after a download failure without another submission; COMMITTED $0.075, provider_usage. Raw 1088x1920 cropped four pixels per side to native 1080x1920; no resize/upscale. New material SHA f4e744686f63543070a497a733b310e136e96562d270433f7006d5a436050f6c. Visual approval remains pending.
+
+Native still foreground proof preserves all solid subject pixels under the previously proposed frozen grade (delta 0). NYC and beach still proof hashes are unchanged. The lunar flag is visible above/right of the subject; real motion, edge, reflection and hard-sun integration review remain necessary.
+
+Compositor supports an explicit fixed_lunar_flag only for Moon/hard-sun and with a fingerprinted approved file bound to project, source and material. Required moving plates remain the default; fixed flag requires exactly zero background motion and measurable original subject movement. Trusted artifact revision retains upstream and unrelated worlds, invalidates dependent integration/master, retains prior review audit and demands fresh approval. 24 related TypeScript tests and seven pixel tests pass; typecheck/lint pass. No Pro call, master, merge or deployment.
+
+Total committed ledger now $1.785 plus original failed-beach $0.03 held; with two remaining $1.02 Pro finals the conservative project forecast is $3.855, within the existing $4.80 ceiling. Hosting/storage/tax are excluded.
+
+## Actual five-second private opening review
+
+Workflow 37152601595 succeeded. The approved original 150 source frames and measured native matte parts produced a 1080x1920@30, 150-frame, exactly 5.000-second silent proof. New NYC screen-region repair, actual beach movement trial and the fixed native lunar flag are cut at frames 50 and 100. No geometric warp, no grain, no audio or provider call in the proof. Subject frozen-grade interior difference is zero before encoding across 169,316,021 measured solid pixels. SHA bc0d686dc5bceb954b584cc7d9e8f44efcf6be99797c44508ee8d67705fa52ad.
+
+Personal media was encrypted before the public GitHub artifact step; only the owner-controlled capsule was retrieved. Reviewed contact frames around both cuts and the late gesture: world lighting remains separate, camera geometry is fixed outside NYC screen regions, flag stays behind/right of the foreground subject. This is not physical hard-sun/reflection certification or final integration approval.
+
+NYC/beach use 720 trial material deterministically resized for this preview. Native final Pro plates remain required after real motion approval; do not promote this proof to a final master. New lunar material visual approval is pending. Full campaign UI, voice, music, captions and closing remain outside this opening proof. No merge or deployment.
+
+Final development checks: all 1,571 application unit tests and seven deterministic pixel tests passed, with typecheck and scoped lint clean. Fixed-flag world payment policy rejects new lunar image-to-video calls while preserving recovery of already accepted operations. Policy persistence is performed by the existing committed flag recovery, with no new provider submission.

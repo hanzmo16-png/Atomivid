@@ -10,6 +10,7 @@ import {supabaseLedgerStore} from '../../src/lib/paid-calls/supabase-ledger-stor
 import {supabaseResultStore,paidResultPath} from '../../src/lib/paid-calls/result-store';
 import {executePaidOperation,idempotencyKey} from '../../src/lib/production-intelligence/ledger';
 import {officialWorldPort,type Submitted} from '../../src/lib/providers/vfx-worlds/official';
+import {stableHash} from '../../src/lib/production-intelligence/canonical';
 const sha=(b:Buffer)=>createHash('sha256').update(b).digest('hex');
 async function main(){
  const auth=JSON.parse(await readFile('docs/production-intelligence/VFX-LUNAR-FLAG-GENERATION.json','utf8'));
@@ -23,6 +24,10 @@ async function main(){
  const actor=directorActor(owner.data.user),projectId='precampaign-three-worlds-v1-preparation';
  await ownedJob(supabaseJobStore(sb),projectId,actor);
  const ledger=supabaseLedgerStore(sb),results=supabaseResultStore(sb);
+ const policyKey='vfx_world_policy_'+stableHash({projectId,environmentId:'moon'},32);
+ const policy=JSON.stringify({ownerId:actor,environmentId:'moon',background:'fixed_lunar_flag',allowImageToVideo:false,authorizationSha256:auth.directionSha256});
+ await ledger.insert({idempotencyKey:policyKey,projectId,shotId:'world:moon:payment-policy',provider:'internal',model:'world-payment-policy/1',method:'world_payment_policy',attemptKind:'direction-change',reservedUsd:0,committedUsd:0,status:'COMMITTED',providerJobId:null,resultRef:policy,updatedAt:new Date().toISOString()});
+ if((await ledger.get(policyKey))?.resultRef!==policy)throw new Error('VFX_WORLD_PAYMENT_POLICY_CHANGED');
  const key=idempotencyKey({projectId,shotId:'world:moon:flag-direction-20261003',provider:'bfl',model:'flux-2-pro',method:'image-edit',inputFingerprint:sha(Buffer.from(JSON.stringify({directionSha256:auth.directionSha256,prompt:auth.prompt,width:1088,height:1920,referenceSha256:auth.referenceSha256,brandSourceSha256:direction.brandSourceSha256}))),attemptOrdinal:0});
  const slot='vfx_lunar_flag_direction_20261003';await ledger.insert({idempotencyKey:slot,projectId,shotId:'world:moon:flag-direction-20261003',provider:'internal',model:'direction-slot/1',method:'generation_slot',attemptKind:'direction-change',reservedUsd:0,committedUsd:0,status:'COMMITTED',providerJobId:null,resultRef:key,updatedAt:new Date().toISOString()});
  if((await ledger.get(slot))?.resultRef!==key)throw new Error('VFX_FLAG_ALREADY_FROZEN');

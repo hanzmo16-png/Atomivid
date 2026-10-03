@@ -25,6 +25,18 @@ export async function gatedWorldAsset(deps:{ledger:LedgerStore;results:PaidResul
  if(r.phase==='final')assertGate('motion',scope);
  let key=idempotencyKey({projectId:deps.projectId,shotId:`world:${r.environmentId}:${r.phase}`,provider:recipe.provider,model:recipe.sku,method:r.phase==='styleframe'?'text-to-image':'image-to-video',
   inputFingerprint:stableHash({environmentId:r.environmentId,phase:r.phase,prompt:r.prompt,referenceSha256:r.reference?.sha256??null,scopeHash:scope.planHash,sku:recipe.sku,seconds:recipe.seconds,width:recipe.width,height:recipe.height,fps:recipe.fps,audio:false},32),attemptOrdinal:0});
+ // A trusted owner direction can explicitly remove paid background video from this world.
+ // Already accepted requests remain recoverable; the policy cannot authorize a new charge.
+ const policy=await deps.ledger.get('vfx_world_policy_'+stableHash({projectId:deps.projectId,environmentId:r.environmentId},32));
+ if(policy){
+  if(policy.projectId!==deps.projectId||policy.status!=='COMMITTED'||policy.method!=='world_payment_policy'||!policy.resultRef)throw new Error('VFX_WORLD_PAYMENT_POLICY_INVALID');
+  const p=JSON.parse(policy.resultRef);
+  if(p.ownerId!==deps.actorId||p.environmentId!==r.environmentId||p.background!=='fixed_lunar_flag'||p.allowImageToVideo!==false||r.environmentId!=='moon')throw new Error('VFX_WORLD_PAYMENT_POLICY_INVALID');
+  if(r.phase!=='styleframe'){
+   const prior=await deps.ledger.get(key);
+   if(!prior||!['COMMITTED','PROVIDER_JOB_RECORDED'].includes(prior.status))throw new Error('VFX_FIXED_FLAG_PAID_VIDEO_FORBIDDEN');
+  }
+ }
  // One frozen request per world/phase. A changed prompt cannot evade the attempt ceiling.
  const slotKey='vfx_slot_'+stableHash({projectId:deps.projectId,environmentId:r.environmentId,phase:r.phase},32);
  await deps.ledger.insert({idempotencyKey:slotKey,projectId:deps.projectId,shotId:`world:${r.environmentId}:${r.phase}`,provider:recipe.provider,model:recipe.sku,method:'generation_slot',attemptKind:r.phase,reservedUsd:0,committedUsd:0,status:'COMMITTED',providerJobId:null,resultRef:key,updatedAt:new Date().toISOString()});

@@ -57,3 +57,16 @@ test('a rejected recorded styleframe allows exactly one budgeted replacement and
  assert.equal(d.ledger.ops.get(original.idempotencyKey)?.reservedUsd,.03);
  await assert.rejects(gatedWorldAsset(updated,{...r,prompt:'More epic'}),/ATTEMPT_ALREADY_FROZEN/);assert.equal(submits,2);
 });
+
+test('fixed lunar flag policy blocks new video charges while retaining accepted result recovery',async()=>{
+ const d=deps(),bytes=Buffer.from('lunar reference');
+ const {createHash}=await import('node:crypto');const {stableHash}=await import('../production-intelligence/canonical');const referenceSha=createHash('sha256').update(bytes).digest('hex');
+ d.job.brief.environments=[{id:'moon',kind:'moon',lighting:'sun_hard'}];d.job.plan.environments=d.job.plan.environments.map(e=>({...e,id:'moon',kind:'moon',lighting:'sun_hard'}));d.job.environmentArtifacts={moon:{direction:artifact,styleframe:referenceSha,motion:artifact}};
+ const scope=environmentHash(d.job,'moon');d.job.approvals=(['direction','styleframe','motion'] as const).map(stage=>({environmentId:'moon',stage,planHash:scope,artifactSha256:stage==='styleframe'?referenceSha:artifact,reviewerId:'owner',approved:true,checks:CHECKS[stage].map(name=>({name,pass:true,evidence:'fixture'}))}));
+ let calls=0;const port:OfficialPort={async submit(){calls++;return{id:'recorded-moon'};},async finish(){return{buffer:Buffer.from('video'),mimeType:'video/mp4',extension:'mp4',model:'ltx-2-5-fast',costUsd:.54,costBasis:'published_rate',providerJobId:'recorded-moon'};}};
+ const motion:WorldRequest={environmentId:'moon',phase:'motion',prompt:'old reviewed rover request',reference:{bytes,sha256:referenceSha,mimeType:'image/png'}};
+ await gatedWorldAsset({...d,port,maxCostUsd:.54,projectBudgetUsd:4.80},motion);
+ await d.ledger.insert({idempotencyKey:'vfx_world_policy_'+stableHash({projectId:d.projectId,environmentId:'moon'},32),projectId:d.projectId,shotId:'world:moon:policy',provider:'internal',model:'world-payment-policy/1',method:'world_payment_policy',attemptKind:'direction-change',reservedUsd:0,committedUsd:0,status:'COMMITTED',providerJobId:null,resultRef:JSON.stringify({ownerId:'owner',environmentId:'moon',background:'fixed_lunar_flag',allowImageToVideo:false}),updatedAt:'now'});
+ assert.equal((await gatedWorldAsset({...d,port,maxCostUsd:.54,projectBudgetUsd:4.80},motion)).reused,true);
+ await assert.rejects(gatedWorldAsset({...d,port,maxCostUsd:1.02,projectBudgetUsd:4.80},{...motion,phase:'final'}),/FIXED_FLAG_PAID_VIDEO_FORBIDDEN/);assert.equal(calls,1);
+});

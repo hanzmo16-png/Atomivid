@@ -1,0 +1,57 @@
+{
+  "stage": "still-material-integration-proof",
+  "width": 1080,
+  "height": 1920,
+  "motionApproved": false,
+  "integrationApproved": false,
+  "productionReady": false,
+  "grainPasses": 0,
+  "geometricWarp": false,
+  "transition": "hard cuts only; no sequence rendered",
+  "plateNormalization": "NYC/beach deterministic proof-only 720-to-1080 resize; lunar flag native 1080, no spatial resize.",
+  "lightingModel": "Proposed 2D gain/bias, no new geometry or physically certified cast shadows",
+  "controls": [
+    {
+      "environmentId": "nyc",
+      "sourceFrame": 25,
+      "sourceFrameSha256": "9bafac60312aaefab569f0cb7249f8198617a595c6eb5920b587bafb4e4812bf",
+      "matteSha256": "425e9cbdd2b20b813b635d5f904ffc9f904782751d9e78c2f1f60625f64d15f1",
+      "plateSha256": "e8c3d0aa4033b9cb116cd952aede6f094fd08f23e2b47c93bc2d733932a65f23",
+      "proposedLookSha256": "11eec6eb71ded735055d87ffe4d92af65e4f7efb8a3342c74319e0f94d6664cb",
+      "subjectInteriorPixels": 1131392,
+      "subjectMaxDifferenceVsFrozenGrade": 0,
+      "addedLensBlurRadius": 1.0,
+      "outputSha256": "9037de0fe82ac9c5e17ac710956ab2e6bf950d5aacd5bacb19a9c87ddf11f7b5",
+      "approval": "REQUIRED",
+      "stillLookApproval": "Retained: output hash identical to previously approved NYC control."
+    },
+    {
+      "environmentId": "beach",
+      "sourceFrame": 75,
+      "sourceFrameSha256": "60c86d212b40a6188f1c73b7b0054e7df601f121c1853aa0140ec8015589e50f",
+      "matteSha256": "ce6455d415ead093a22ac8dab13d06fa3765c7271b74497ada606ec51652cfd5",
+      "plateSha256": "ccfe555d6232fd646bc218881b232cb963388ce10f5f7be743e06fd7cd1b1fcc",
+      "proposedLookSha256": "1365560997a0e87f75b205887f374d7af599d1d12a1a8e583662e6b1c94041f4",
+      "subjectInteriorPixels": 1147536,
+      "subjectMaxDifferenceVsFrozenGrade": 0,
+      "addedLensBlurRadius": 1.8,
+      "outputSha256": "22ab0c3e57c2ec25587beba818e0b48debf6688bceefae08be00f0c98ae736b8",
+      "approval": "REQUIRED",
+      "stillLookApproval": "Retained: output hash identical to previously approved beach control."
+    },
+    {
+      "environmentId": "moon",
+      "sourceFrame": 125,
+      "sourceFrameSha256": "733632555afc581c7dbc6c3316f90d99387562a172236b243f6299d3d131648d",
+      "matteSha256": "8e66c133ca4ffcd627c868e0bf21fbcc8a4d2adf5e1b90cfe8eaed82d3b4fb3e",
+      "plateSha256": "f4e744686f63543070a497a733b310e136e96562d270433f7006d5a436050f6c",
+      "proposedLookSha256": "c87f0f6de7b4a8abbd2c16cb325361d64afd0d656cf39904c5388d86a39e1d5f",
+      "subjectInteriorPixels": 1112353,
+      "subjectMaxDifferenceVsFrozenGrade": 0,
+      "addedLensBlurRadius": 2.5,
+      "outputSha256": "814b462be3c15955dbc4c437d5d362b6abd3fcbdf4658cc6f9719498a907922f",
+      "approval": "REQUIRED",
+      "stillLookApproval": "Lighting field retained; new lunar material and integration awaiting actual review."
+    }
+  ]
+}

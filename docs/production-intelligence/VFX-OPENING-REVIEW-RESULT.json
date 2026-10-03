@@ -1,0 +1,37 @@
+{
+  "stage": "private-opening-review",
+  "sourceSha256": "5d6e025f43a0f27e3835330edd79dcef46742a7e565ecb158cffefaf7f990e7b",
+  "sha256": "bc0d686dc5bceb954b584cc7d9e8f44efcf6be99797c44508ee8d67705fa52ad",
+  "width": 1080,
+  "height": 1920,
+  "frames": 150,
+  "fps": 30,
+  "seconds": 5,
+  "worlds": [
+    "nyc",
+    "beach",
+    "moon-fixed-flag"
+  ],
+  "cutsAtFrames": [
+    50,
+    100
+  ],
+  "subjectInteriorPixels": 169316021,
+  "subjectMaxDifferenceBeforeEncoding": 0,
+  "geometricWarp": false,
+  "grainPasses": 0,
+  "audio": false,
+  "providerCalls": 0,
+  "additionalUsd": 0,
+  "motionApproved": false,
+  "integrationApproved": false,
+  "productionReady": false,
+  "limitations": [
+    "NYC and beach 720 preview plates resized deterministically for this proof only; final native 1080 material remains required",
+    "No physical hard-sun relighting certification; actual foreground reflections, edges and contact need review",
+    "This is the five-second opening only; campaign UI/voice/music/captions/closing are not assembled here"
+  ],
+  "workflowRun": 37152601595,
+  "privateEncryptedDelivery": true,
+  "visualReview": "Pending owner review; cuts/geometry inspected on frames 25,49,50,75,99,100,125,140,149; physical hard-sun/reflections/edges not certified."
+}
