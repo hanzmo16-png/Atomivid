@@ -1,0 +1,34 @@
+name: VFX private authorized voice audition
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [scripts/vfx/closing-voice-audition.ts]
+permissions:
+  contents: read
+concurrency:
+  group: vfx-closing-voice-audition
+  cancel-in-progress: false
+jobs:
+  audition:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - run: python3 -m pip install numpy==2.2.6 faster-whisper==1.2.0 av==15.1.0
+      - run: node --import tsx --test src/lib/paid-calls/gated-voice-conversion.test.ts
+      - run: node --import tsx scripts/vfx/closing-voice-audition.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vfx-private-closing-voice-audition
+          path: vfx-closing-voice-encrypted/
+          retention-days: 7
