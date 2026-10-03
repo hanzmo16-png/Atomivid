@@ -50,7 +50,7 @@ const VOICE_CHAIN_DEFAULT =
 const VOICE_LUFS = -16;
 
 type Word = { text: string; start: number; end: number; limit?: number };
-type Args = { openingPath: string; closingPath: string; vfxStart: number; openingStart?: number; closingTrim?: [number, number]; voiceChain?: string; musicPath?: string; tonemap?: "hable" | "mobius" | "clip" | "none" };
+type Args = { openingPath: string; closingPath: string; vfxStart: number; openingStart?: number; closingTrim?: [number, number]; voiceChain?: string; musicPath?: string; tonemap?: "hable" | "mobius" | "clip" | "none"; useVfx?: boolean };
 
 const run = (bin: string, args: string[]) => sh(bin, args, { maxBuffer: 256 * 1024 * 1024 });
 const ff = (args: string[]) => run(FF, ["-hide_banner", "-v", "error", "-y", ...args]);
@@ -140,10 +140,11 @@ async function main() {
   const avatarFile = join(WORK, "avatar.mp4");
   await writeFile(avatarFile, avatarBytes);
   const vfxRow = committed.find((r) => r.project_id === VFX_PROJECT && r.provider === "luma");
-  const vfxAsset = vfxRow ? await loadVfx(results, vfxRow.result_ref!) : null;
+  // A paid VFX result is only used when its identity QA approved it (useVfx !== false).
+  const vfxAsset = vfxRow && args.useVfx !== false ? await loadVfx(results, vfxRow.result_ref!) : null;
   const vfxFile = join(WORK, "vfx-001-output.mp4");
   if (vfxAsset) await writeFile(vfxFile, vfxAsset.buffer);
-  else notes.push("VFX-001 no disponible: apertura real sin VFX.");
+  else notes.push(vfxRow ? "VFX-001 generado pero vetado en QA de identidad: apertura real sin VFX." : "VFX-001 no disponible: apertura real sin VFX.");
 
   // ---------- Inputs ----------
   const opening = join(WORK, "opening.mp4"), closing = join(WORK, "closing.mp4"), dulce = join(WORK, "dulce.mp4"), ocean = join(WORK, "ocean.mp4"), music = join(WORK, "music.mp3");
