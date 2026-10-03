@@ -1,0 +1,32 @@
+{
+  "projectId": "precampaign-three-worlds-v1-preparation",
+  "maximumPaidTrialUsd": 1.62,
+  "secondPaidTrialAuthorized": false,
+  "finalBlocked": true,
+  "worlds": [
+    {
+      "environmentId": "nyc",
+      "rawSha256": "22c4f965c103039b350bdf45f3d8ab8206a37731a46bb42067adc88264db46fa",
+      "frames": 150,
+      "seconds": 6,
+      "review": "REJECTED",
+      "defect": "Camera/architecture/cable geometry changes rather than only signage and distant traffic."
+    },
+    {
+      "environmentId": "beach",
+      "rawSha256": "15b685eaf55bb6533f6d50845a4298d6112f98758070a549fd8297518aa91ab6",
+      "frames": 150,
+      "seconds": 6,
+      "review": "PENDING_OWNER_REVIEW",
+      "defect": null
+    },
+    {
+      "environmentId": "moon",
+      "rawSha256": "70b1b50d47d757fa68050707d04fdb3e5210264227420e98e4edf2bd3c0eace0",
+      "frames": 150,
+      "seconds": 6,
+      "review": "REJECTED",
+      "defect": "Camera/terrain geometry changes rather than only the small rover."
+    }
+  ]
+}
