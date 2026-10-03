@@ -14,7 +14,7 @@ on:
         description: "discover (sin gasto), heygen-preflight (GET gratuito de la clave HeyGen) o produce (gasto autorizado, tope USD 1.03)"
         required: true
         type: choice
-        options: [discover, heygen-preflight, produce, v2-analyze, v2-vfx, v2-master]
+        options: [discover, heygen-preflight, produce, v2-analyze, v2-looktest, v2-vfx, v2-master]
         default: discover
       confirm:
         description: "Escribir PRODUCIR para habilitar las claves pagadas en stage=produce"

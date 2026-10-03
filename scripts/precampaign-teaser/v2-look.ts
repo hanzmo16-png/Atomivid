@@ -13,3 +13,10 @@ export const RETOUCH_GRAPH = (input: string, output: string) =>
   `colorbalance=rs=0.03:bs=-0.04:rm=0.08:gm=0.015:bm=-0.08:rh=0.03:bh=-0.04,eq=contrast=1.08:saturation=1.2,format=yuv444p[rskin];` +
   `[rc]scale=iw/4:ih/4,geq=lum='${SKIN_MASK}':cb=128:cr=128,format=gray,dilation,dilation,erosion,gblur=sigma=3,scale=iw*4:ih*4:flags=bicubic,split=3[rm1][rm2][rm3];` +
   `[rm1][rm2][rm3]mergeplanes=0x001020:yuv444p[rmask];[rbase][rskin][rmask]maskedmerge,unsharp=5:5:0.45:5:5:0,format=yuv420p[${output}]`;
+
+/**
+ * The new takes are HLG (arib-std-b67, BT.2020). Proper HDR → SDR (BT.709) conversion before the look,
+ * so VFX source and master are true SDR (no washed-out HLG-as-709 rendering).
+ */
+export const HLG_TO_SDR = (op: "hable" | "mobius" | "clip" = "hable", npl = 100) =>
+  `zscale=tin=arib-std-b67:min=bt2020nc:pin=bt2020:rin=tv:t=linear:npl=${npl},format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=${op}:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p`;
