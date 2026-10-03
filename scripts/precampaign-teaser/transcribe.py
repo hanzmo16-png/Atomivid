@@ -4,13 +4,19 @@ No external API: the model runs on the CI runner. Output: {"text", "words": [{"t
 """
 import json
 import sys
+import wave
 
+import numpy as np
 from faster_whisper import WhisperModel
 
 audio, out = sys.argv[1], sys.argv[2]
 model_name = sys.argv[3] if len(sys.argv) > 3 else "small"
 model = WhisperModel(model_name, device="cpu", compute_type="int8")
-segments, info = model.transcribe(audio, language="es", word_timestamps=True, vad_filter=False, beam_size=5, condition_on_previous_text=False)
+# Decode the 16 kHz mono PCM WAV ourselves (no PyAV dependency).
+with wave.open(audio, "rb") as w:
+    assert w.getframerate() == 16000 and w.getnchannels() == 1, "expects 16 kHz mono WAV"
+    samples = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(np.float32) / 32768.0
+segments, info = model.transcribe(samples, language="es", word_timestamps=True, vad_filter=False, beam_size=5, condition_on_previous_text=False)
 words, texts = [], []
 for seg in segments:
     texts.append(seg.text.strip())
