@@ -39,7 +39,8 @@ async function main(){
  const projectId=pkg.projectId+'-preparation';
  // One-time read-only reconciliation of the pre-receipt NYC operation. Only documented
  // official global/US/EU API hosts are queried; never POST or guess additional regions.
- const legacy=await sb.from('pi_paid_operations').select('idempotency_key,provider_job_id,result_ref,status').eq('project_id',projectId).eq('shot_id','world:nyc:styleframe').eq('status','PROVIDER_JOB_RECORDED').maybeSingle();
+ for(const legacyWorld of worlds){
+ const legacy=await sb.from('pi_paid_operations').select('idempotency_key,provider_job_id,result_ref,status').eq('project_id',projectId).eq('shot_id',`world:${legacyWorld.environmentId}:styleframe`).eq('status','PROVIDER_JOB_RECORDED').maybeSingle();
  if(legacy.error)throw new Error('LEGACY_RECEIPT_READ_FAILED');
  if(legacy.data&&!legacy.data.result_ref){
   const id=legacy.data.provider_job_id;
@@ -58,6 +59,7 @@ async function main(){
    }catch(e){if(e instanceof Error&&e.message==='LEGACY_RECEIPT_CONCURRENT_UPDATE')throw e;}
   }
   if(!recovered)throw new Error('VFX_LEGACY_POLLING_RECEIPT_REQUIRED');
+ }
  }
  const brief={projectId,intent:'Approved three-world background preparation; original Hans pixels preserved',emotion:'wonder',frames:150,fps:30,width:1080,height:1920,sourceSha256:pkg.source.sha256,subjectLock:'identity_with_relight',budgetUsd:4.77,environments:worlds.map(w=>({id:w.environmentId,kind:w.kind,lighting:w.lighting}))};
  const stages=['direction','styleframe','motion','integration'] as const;
