@@ -72,3 +72,12 @@ test("interrupted task recovers existing output without invoking its executor ag
   const recovered = await reconcileTask(store, brief.projectId, owner, { proof: ex });
   assert.equal(recovered.status, "READY"); assert.equal(recovered.planHash, job.planHash); assert.equal(recovered.results.direction.assetId, "direction-result");
 });
+
+test("Preview rollout permits only configured verified owner; production stays off", () => {
+  const user = { id: owner, email: "owner@example.test", email_confirmed_at: "now" };
+  const preview = { VERCEL_ENV: "preview", AVATAR_PREPARATION_OWNER_EMAIL: user.email };
+  assert.equal(directorActor(user, preview), owner);
+  assert.throws(() => directorActor({ ...user, email: "intruder@example.test" }, preview));
+  assert.throws(() => directorActor(user, { ...preview, VERCEL_ENV: "production" }));
+  assert.throws(() => directorActor(user, { ...preview, VFX_DIRECTOR_ENABLED: "0" }));
+});

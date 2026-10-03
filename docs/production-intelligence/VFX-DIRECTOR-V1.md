@@ -20,7 +20,7 @@ A RUNNING task after process death is not retried blindly. `reconcileTask()` can
 
 ## Runtime configuration
 
-Use existing Supabase credentials and `AVATAR_PREPARATION_OWNER_EMAIL`. `VFX_DIRECTOR_ENABLED=1` enables owner access. The manifest is trusted runner configuration and contains owner UUID, job ID, brief, approved plan, asset identities and registered executors. It must never come directly from model or browser input.
+Use existing Supabase credentials and `AVATAR_PREPARATION_OWNER_EMAIL`. Preview enables only the configured verified owner by default; `VFX_DIRECTOR_ENABLED=0` disables it explicitly. Production remains disabled unless `VFX_DIRECTOR_ENABLED=1`. The manifest is trusted runner configuration and contains owner UUID, job ID, brief, approved plan, asset identities and registered executors. It must never come directly from model or browser input.
 
 `VFX_JOB_MANIFEST=/trusted/manifest.json VFX_WORKER_ACTION=init|plan|inspect|step|reconcile npm run vfx:worker`
 
@@ -40,4 +40,4 @@ The VFX-002b adapter currently supports one plate and a fixed nighttime treatmen
 
 Director/worker failure tests include concurrent execution, unchanged plan on resumption, rejected evidence, stale hashes, account isolation, disabled access and zero-budget planner blocking. Full application tests, typecheck, lint and production build are run separately. Synthetic evidence does not demonstrate visual quality.
 
-The integration is in the development branch. The table exists but app activation remains disabled by default. No precampaign render, paid generation, production deployment or approved-master replacement was performed. Release requires deploying the branch and configuring the owner feature flag; visual production still requires actual materials and reviews.
+The integration is in the development branch. The table exists but production activation remains disabled by default. No precampaign render, paid generation, production deployment or approved-master replacement was performed. Release requires deploying the branch and configuring the owner feature flag; visual production still requires actual materials and reviews.
