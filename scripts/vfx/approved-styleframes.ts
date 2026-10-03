@@ -51,9 +51,11 @@ async function main(){
    try{
     // Credential-free GET may follow official regional routing; finish validates the final URL.
     const response:Response=await fetch(url,{redirect:'follow',signal:AbortSignal.timeout(15_000)});
-    if(!response.ok)continue;
+    if(!response.ok){console.log(JSON.stringify({reconciliationWorld:legacyWorld.environmentId,region:host,httpStatus:response.status}));continue;}
     const data:{id?:string;status?:string}=await response.json();
-    if(data.id!==id||!['Ready','Pending'].includes(data.status??''))continue;
+    console.log(JSON.stringify({reconciliationWorld:legacyWorld.environmentId,region:host,status:data.status??'missing',responseIncludesId:data.id!==undefined}));
+    const returnedUrl=new URL(response.url);
+    if(returnedUrl.protocol!=='https:'||!/^api(?:\.[a-z0-9-]+)?\.bfl\.ai$/.test(returnedUrl.hostname)||returnedUrl.pathname!=='/v1/get_result'||returnedUrl.searchParams.get('id')!==id||(data.id!==undefined&&data.id!==id)||!['Ready','Pending'].includes(data.status??''))continue;
     if(!await ledger.update(legacy.data.idempotency_key,'PROVIDER_JOB_RECORDED',{resultRef:'provider-receipt:'+JSON.stringify({id,pollingUrl:response.url}),updatedAt:new Date().toISOString()}))throw new Error('LEGACY_RECEIPT_CONCURRENT_UPDATE');
     recovered=true;break;
    }catch(e){if(e instanceof Error&&e.message==='LEGACY_RECEIPT_CONCURRENT_UPDATE')throw e;}
