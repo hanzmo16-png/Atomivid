@@ -222,6 +222,7 @@ jobs:
           LUMA_API_KEY: ${{ inputs.stage == 'v2-vfx' && secrets.LUMA_API_KEY || '' }}
           PEXELS_API_KEY: ${{ (inputs.stage == 'v2-scout' || inputs.stage == 'v2-vfx002') && secrets.PEXELS_API_KEY || '' }}
           TEASER_V2_ARGS: ${{ inputs.v2_args }}
+          SCOUT_PLATES: ${{ inputs.stage == 'v2-scout' && inputs.reuse_paths || '' }}
 
       - name: Publicar resultados V2
         if: always()
@@ -240,6 +241,8 @@ jobs:
             teaser-v2/scout/*.json
             teaser-v2/scout/nyc/*.jpg
             teaser-v2/scout/ui/
+            teaser-v2/scout/plates.json
+            teaser-v2/scout/plates/*[0-9].mp4
             teaser-v2/output/
           if-no-files-found: ignore
           retention-days: 7

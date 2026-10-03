@@ -35,7 +35,31 @@ function best(files: PexelsFile[]) {
   return { big, proxy };
 }
 
+/** SCOUT_PLATES=id,id,…: hi-res export of chosen candidates for local framing (landscape → centered
+ * 2160x2160 square scaled to 1920x1920; portrait → 1080x1920), 8 s from t=1 s, 30 fps, no audio. */
+async function plates(ids: string[]) {
+  await mkdir(join(OUT, "plates"), { recursive: true });
+  const meta: unknown[] = [];
+  for (const id of ids) {
+    const res = await fetch(`https://api.pexels.com/videos/videos/${id}`, { headers: { Authorization: KEY } });
+    if (!res.ok) { console.warn(`Pexels ${res.status} para ${id}`); continue; }
+    const v = (await res.json()) as PexelsVideo;
+    const { big } = best(v.video_files);
+    const raw = join(OUT, "plates", `${id}-raw.mp4`);
+    await writeFile(raw, Buffer.from(await (await fetch(big.link)).arrayBuffer()));
+    const portrait = big.height! > big.width!;
+    const vf = portrait ? "scale=1080:1920:flags=lanczos" : "crop=ih:ih,scale=1920:1920:flags=lanczos";
+    await run("ffmpeg", ["-v", "error", "-y", "-ss", "1", "-t", "8", "-i", raw, "-vf", `${vf},fps=30,format=yuv420p`, "-an", "-c:v", "libx264", "-crf", "17", "-preset", "medium", join(OUT, "plates", `${id}.mp4`)]);
+    meta.push({ id: v.id, page: v.url, author: v.user?.name ?? null, source: { width: big.width, height: big.height, fps: big.fps ?? null }, export: portrait ? "1080x1920" : "1920x1920 (center square of full height)" });
+  }
+  await writeFile(join(OUT, "plates.json"), JSON.stringify(meta, null, 2) + "\n");
+}
+
 async function main() {
+  if (process.env.SCOUT_PLATES) {
+    if (!KEY) throw new Error("Falta PEXELS_API_KEY.");
+    return plates(process.env.SCOUT_PLATES.split(",").map((x) => x.trim()).filter(Boolean));
+  }
   await mkdir(join(OUT, "nyc"), { recursive: true });
   const seen = new Map<number, PexelsVideo & { query: string }>();
   if (!KEY) throw new Error("Falta PEXELS_API_KEY.");
