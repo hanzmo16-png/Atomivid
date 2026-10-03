@@ -1,0 +1,46 @@
+name: VFX approved first frames (three calls max, no video)
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [docs/production-intelligence/VFX-DIRECTION-APPROVAL.json]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: vfx-approved-first-frames
+  cancel-in-progress: false
+jobs:
+  first-frames:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - run: python3 scripts/vfx/remote_preflight.py
+        env:
+          BFL_API_KEY: ${{ secrets.BFL_API_KEY }}
+          LTX_API_KEY: ${{ secrets.LTX_API_KEY }}
+      - run: node --import tsx scripts/vfx/source-metadata.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Owner approved direction; ledger required before each official BFL call
+        run: node --import tsx scripts/vfx/approved-styleframes.ts
+        env:
+          VFX_STYLEFRAMES_AUTHORIZED: '1'
+          VFX_DIRECTOR_ENABLED: '1'
+          AVATAR_PREPARATION_OWNER_EMAIL: hanzmo16@gmail.com
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BFL_API_KEY: ${{ secrets.BFL_API_KEY }}
+          LTX_API_KEY: ${{ secrets.LTX_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vfx-three-background-frames-for-review
+          path: vfx-styleframe-review/
+          retention-days: 7

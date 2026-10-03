@@ -1,0 +1,21 @@
+{
+  "stage": "direction",
+  "approved": true,
+  "approvalMessage": "Aprobado",
+  "approvedAt": "2026-10-03T17:49:10Z",
+  "ownerId": "d2064950-7a95-4208-8dfb-d93b470d141d",
+  "packageSha256": "eea2e6d7299c3797cb26aef9af720070c439656c1881e6587078513b0ee47e7f",
+  "maximumBatchUsd": 0.09,
+  "ltxBalanceUsd": 21.25,
+  "ltxBalanceObservedAt": "2026-10-03T17:19:57Z",
+  "ltxBalanceEvidence": "Owner supplied official console screenshot 650849.jpg; no API balance claim",
+  "authorizedPhases": [
+    "styleframe"
+  ],
+  "notAuthorizedByThisManifest": [
+    "motion",
+    "final",
+    "master",
+    "deployment"
+  ]
+}

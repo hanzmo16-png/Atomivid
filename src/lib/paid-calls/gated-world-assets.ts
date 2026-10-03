@@ -30,10 +30,11 @@ export async function gatedWorldAsset(deps:{ledger:LedgerStore;results:PaidResul
  await deps.ledger.insert({idempotencyKey:slotKey,projectId:deps.projectId,shotId:`world:${r.environmentId}:${r.phase}`,provider:recipe.provider,model:recipe.sku,method:'generation_slot',attemptKind:r.phase,reservedUsd:0,committedUsd:0,status:'COMMITTED',providerJobId:null,resultRef:key,updatedAt:new Date().toISOString()});
  if((await deps.ledger.get(slotKey))?.resultRef!==key)throw new Error('VFX_ATTEMPT_ALREADY_FROZEN');
  let returned:OfficialAsset|undefined;
+ let acceptedCostUsd:number|undefined;
  const op=await executePaidOperation(deps.ledger,{idempotencyKey:key,projectId:deps.projectId,shotId:`world:${r.environmentId}:${r.phase}`,provider:recipe.provider,model:recipe.sku,method:r.phase==='styleframe'?'text-to-image':'image-to-video',attemptKind:r.phase,reservedUsd:recipe.reservedUsd},{
-  async submit(){const job=await deps.port.submit(r);return {providerJobId:job.id};},
+  async submit(){const job=await deps.port.submit(r);acceptedCostUsd=job.costUsd;return {providerJobId:job.id};},
   async poll(jobId){
-   const a=await deps.port.finish({id:jobId},r);
+   const a=await deps.port.finish({id:jobId,...(acceptedCostUsd===undefined?{}:{costUsd:acceptedCostUsd})},r);
    if(!Number.isFinite(a.costUsd)||a.costUsd<0||a.costUsd>recipe.reservedUsd+1e-9)throw new Error('VFX_COST_RECONCILIATION_REQUIRED');
    returned=a;
    const assetPath=paidResultPath(deps.projectId,key,a.extension),ref=paidResultPath(deps.projectId,key,'json');
