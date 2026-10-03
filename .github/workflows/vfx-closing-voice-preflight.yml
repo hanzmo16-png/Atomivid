@@ -19,7 +19,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: python3 -m pip install faster-whisper==1.2.0
+      - run: python3 -m pip install faster-whisper==1.2.0 av==15.1.0
       - run: node --import tsx scripts/vfx/closing-voice-preflight.ts
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

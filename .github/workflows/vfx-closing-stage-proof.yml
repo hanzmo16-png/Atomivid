@@ -20,7 +20,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
-      - run: python3 -m pip install numpy==2.2.6 scipy==1.15.3 pillow==11.3.0 onnxruntime==1.22.1 opencv-python-headless==4.12.0.88 faster-whisper==1.2.0
+      - run: python3 -m pip install numpy==2.2.6 scipy==1.15.3 pillow==11.3.0 onnxruntime==1.22.1 opencv-python-headless==4.12.0.88 faster-whisper==1.2.0 av==15.1.0
       - run: node --import tsx scripts/vfx/closing-stage-proof.ts
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

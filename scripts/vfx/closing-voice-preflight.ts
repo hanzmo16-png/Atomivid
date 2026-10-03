@@ -1,4 +1,4 @@
-/** Read-only official voice connection check. Private source and account data never enter logs. */
+/** Read-only official voice connection check with pinned compatible audio decoding. */
 import {mkdtemp,writeFile,readFile,rm} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join} from 'node:path';import {createHash} from 'node:crypto';import {execFile} from 'node:child_process';import {promisify} from 'node:util';
 import {createServiceClient} from '../../src/lib/supabase/service';import {supabaseLedgerStore} from '../../src/lib/paid-calls/supabase-ledger-store';import {supabaseResultStore} from '../../src/lib/paid-calls/result-store';
 const hash=(b:Buffer)=>createHash('sha256').update(b).digest('hex');

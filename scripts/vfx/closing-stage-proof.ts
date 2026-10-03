@@ -1,4 +1,4 @@
-/** Zero-cost internal scene proof. Every source/report/media output stays private. */
+/** Zero-cost internal scene proof. Pinned compatible audio decoder; all media stays private. */
 import {mkdtemp,writeFile,readFile,mkdir,readdir,rm} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join} from 'node:path';
 import {createHash,randomBytes,createCipheriv} from 'node:crypto';import {execFile} from 'node:child_process';import {promisify} from 'node:util';import sharp from 'sharp';
 import {createServiceClient} from '../../src/lib/supabase/service';import {supabaseLedgerStore} from '../../src/lib/paid-calls/supabase-ledger-store';import {supabaseResultStore} from '../../src/lib/paid-calls/result-store';
