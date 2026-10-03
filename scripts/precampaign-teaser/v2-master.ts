@@ -15,7 +15,7 @@ import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { RETOUCH_GRAPH } from "./v2-look";
+import { HLG_TO_SDR, RETOUCH_GRAPH } from "./v2-look";
 
 export {};
 
@@ -38,13 +38,19 @@ const LINES = {
 } as const;
 type LineKey = keyof typeof LINES;
 /** Professional voice chain for the real takes (decided from the v2-analyze audio report). */
+/**
+ * From the v2-analyze report of the new external mic: hot input (−11.5/−9.8 LUFS, peaks at 0 dBFS, a few
+ * full-scale samples), very clean (37/47 dB speech-to-noise), dry (−30 dB decay in 0.22–0.36 s, no
+ * de-reverb needed), dark balance (2–6 kHz ≈ 12 dB under 150–500 Hz). So: pre-gain, rumble cut, light
+ * denoise, low-mid cleanup, presence and air, gentle de-ess, moderate compression, peak limiter.
+ */
 const VOICE_CHAIN_DEFAULT =
-  "highpass=f=75,afftdn=nr=8:nf=-50:tn=1,equalizer=f=220:t=q:w=1.0:g=-2,equalizer=f=3200:t=q:w=1.0:g=2,highshelf=f=9000:g=1.5," +
-  "deesser=i=0.2,acompressor=threshold=0.1:ratio=2.5:attack=10:release=160:makeup=1.4,alimiter=limit=0.9:level=disabled";
+  "volume=-6dB,highpass=f=75,afftdn=nr=6:nf=-55:tn=1,equalizer=f=220:t=q:w=1.0:g=-2,equalizer=f=3200:t=q:w=1.1:g=3,highshelf=f=9000:g=1.5," +
+  "deesser=i=0.2,acompressor=threshold=0.1:ratio=2.5:attack=10:release=160:makeup=1.4,alimiter=limit=0.89:level=disabled";
 const VOICE_LUFS = -16;
 
 type Word = { text: string; start: number; end: number; limit?: number };
-type Args = { openingPath: string; closingPath: string; vfxStart: number; openingStart?: number; closingTrim?: [number, number]; voiceChain?: string; musicPath?: string };
+type Args = { openingPath: string; closingPath: string; vfxStart: number; openingStart?: number; closingTrim?: [number, number]; voiceChain?: string; musicPath?: string; tonemap?: "hable" | "mobius" | "clip" | "none" };
 
 const run = (bin: string, args: string[]) => sh(bin, args, { maxBuffer: 256 * 1024 * 1024 });
 const ff = (args: string[]) => run(FF, ["-hide_banner", "-v", "error", "-y", ...args]);
@@ -152,6 +158,7 @@ async function main() {
 
   // ---------- Real takes: trim, approved look, pro voice chain, loudness match, local transcription ----------
   const voiceChain = args.voiceChain ?? VOICE_CHAIN_DEFAULT;
+  const TM = !args.tonemap || args.tonemap === "none" ? "null" : HLG_TO_SDR(args.tonemap);
   const seg = (n: string) => join(WORK, `seg-${n}.mp4`);
   const enc = ["-r", String(FPS), "-c:v", "libx264", "-crf", "16", "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2"];
   const segExt = (n: string) => seg(n).replace(/\.mp4$/, ".mov");
@@ -182,13 +189,13 @@ async function main() {
   {
     const off = Math.max(0, args.vfxStart - oA);
     const graph = vfxAsset
-      ? `[0:v]scale=${W}:${H}:flags=lanczos,fps=${FPS},setsar=1[src];${RETOUCH_GRAPH("src", "base")};` +
+      ? `[0:v]${TM},scale=${W}:${H}:flags=lanczos,fps=${FPS},setsar=1[src];${RETOUCH_GRAPH("src", "base")};` +
         `[1:v]scale=${W}:${H}:flags=lanczos,unsharp=5:5:0.45:5:5:0,noise=alls=3:allf=t,fps=${FPS},setsar=1,format=yuva420p,fade=t=in:st=0:d=1.6:alpha=1,setpts=PTS-STARTPTS+${off.toFixed(3)}/TB[fx];` +
         `[base][fx]overlay=eof_action=pass:format=auto,format=yuv420p[v]`
-      : `[0:v]scale=${W}:${H}:flags=lanczos,fps=${FPS},setsar=1[src];${RETOUCH_GRAPH("src", "v")}`;
+      : `[0:v]${TM},scale=${W}:${H}:flags=lanczos,fps=${FPS},setsar=1[src];${RETOUCH_GRAPH("src", "v")}`;
     await ff(["-ss", oA.toFixed(3), "-to", oB.toFixed(3), "-i", opening, ...(vfxAsset ? ["-i", vfxFile] : []), "-filter_complex", `${graph};[0:a]${voiceChain},volume=${gO.toFixed(2)}dB,aresample=48000[a]`, "-map", "[v]", "-map", "[a]", ...enc, segExt("opening")]);
   }
-  await ff(["-ss", cA.toFixed(3), "-to", cB.toFixed(3), "-i", closing, "-filter_complex", `[0:v]scale=${W}:${H}:flags=lanczos,fps=${FPS},setsar=1[src];${RETOUCH_GRAPH("src", "v")};[0:a]${voiceChain},volume=${gC.toFixed(2)}dB,aresample=48000[a]`, "-map", "[v]", "-map", "[a]", ...enc, segExt("closing")]);
+  await ff(["-ss", cA.toFixed(3), "-to", cB.toFixed(3), "-i", closing, "-filter_complex", `[0:v]${TM},scale=${W}:${H}:flags=lanczos,fps=${FPS},setsar=1[src];${RETOUCH_GRAPH("src", "v")};[0:a]${voiceChain},volume=${gC.toFixed(2)}dB,aresample=48000[a]`, "-map", "[v]", "-map", "[a]", ...enc, segExt("closing")]);
   const openingWords = alignWords(OPENING_TEXT, await transcribe(opening, oA, oB, "opening"), [ow.start - oA, ow.end - oA]);
   const closingWords = alignWords(CLOSING_TEXT, await transcribe(closing, cA, cB, "closing"), [cw.start - cA, cw.end - cA]);
 

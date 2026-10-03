@@ -32,7 +32,7 @@ const run = (bin: string, args: string[]) => sh(bin, args, { maxBuffer: 256 * 10
 const ff = (args: string[]) => run(FF, ["-hide_banner", "-v", "error", "-y", ...args]);
 const sha256 = (b: Buffer) => createHash("sha256").update(b).digest("hex");
 
-type Args = { openingPath: string; vfxStart: number; cropX?: number; execute?: boolean };
+type Args = { openingPath: string; vfxStart: number; cropX?: number; execute?: boolean; tonemap?: "hable" | "mobius" | "clip" | "none" };
 
 async function probe(file: string) {
   const { stdout } = await run(FP, ["-v", "error", "-print_format", "json", "-show_format", "-show_streams", file]);
@@ -49,12 +49,13 @@ async function main() {
   if (!args.openingPath || !Number.isFinite(args.vfxStart)) throw new Error("Faltan openingPath/vfxStart en TEASER_V2_ARGS.");
   await mkdir(OUT, { recursive: true });
   const { createServiceClient } = await import("../../src/lib/supabase/service");
-  const { RETOUCH_GRAPH } = await import("./v2-look");
+  const { RETOUCH_GRAPH, HLG_TO_SDR } = await import("./v2-look");
   const service = createServiceClient();
   const videos = service.storage.from("videos");
 
   // ---------- 1. Exact 5.0 s source, persisted once ----------
-  const tag = `${args.openingPath.split("/").pop()}-${args.vfxStart.toFixed(3)}-${(args.cropX ?? 0.5).toFixed(3)}`.replace(/[^A-Za-z0-9._-]/g, "_");
+  const tm = args.tonemap ?? "hable";
+  const tag = `${args.openingPath.split("/").pop()}-${args.vfxStart.toFixed(3)}-${(args.cropX ?? 0.5).toFixed(3)}-${tm}`.replace(/[^A-Za-z0-9._-]/g, "_");
   const srcPath = `${SOURCE_DIR}/vfx-001-source-${tag}.mp4`;
   const local = join(OUT, "vfx-001-source.mp4");
   let bytes: Buffer;
@@ -71,7 +72,7 @@ async function main() {
     const cx = Math.min(1, Math.max(0, args.cropX ?? 0.5));
     // Landscape takes are cropped to 9:16 around the subject; portrait takes are only scaled.
     const frame = portrait ? "scale=1080:1920:flags=lanczos" : `crop=ih*9/16:ih:(iw-ih*9/16)*${cx.toFixed(3)}:0,scale=1080:1920:flags=lanczos`;
-    await ff(["-ss", args.vfxStart.toFixed(3), "-i", original, "-t", "5.000", "-filter_complex", `[0:v]${frame},fps=30,setsar=1[src];${RETOUCH_GRAPH("src", "v")}`, "-map", "[v]", "-an",
+    await ff(["-ss", args.vfxStart.toFixed(3), "-i", original, "-t", "5.000", "-filter_complex", `[0:v]${tm === "none" ? "null" : HLG_TO_SDR(tm)},${frame},fps=30,setsar=1[src];${RETOUCH_GRAPH("src", "v")}`, "-map", "[v]", "-an",
       "-c:v", "libx264", "-preset", "slow", "-crf", "14", "-pix_fmt", "yuv420p", "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-movflags", "+faststart", local]);
     bytes = await readFile(local);
     const { error } = await videos.upload(srcPath, bytes, { contentType: "video/mp4", upsert: false });
