@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { createServiceClient } from "../../src/lib/supabase/service";
 import { supabaseJobStore } from "../../src/lib/production-intelligence/vfx-director/store";
-import { createJob, runTask, ownedJob, reconcileTask, type DurableExecutor } from "../../src/lib/production-intelligence/vfx-director/jobs";
+import { createJob, runTask, ownedJob, reconcileTask, jobGates, type DurableExecutor } from "../../src/lib/production-intelligence/vfx-director/jobs";
 import { vfx002bExecutor } from "../../src/lib/production-intelligence/vfx-director/compositor";
 import { STAGES } from "../../src/lib/production-intelligence/vfx-director/gates";
 import { BriefSchema } from "../../src/lib/production-intelligence/vfx-director";
@@ -67,7 +67,7 @@ async function main() {
     console.log(JSON.stringify({ jobId: result.job.id, status: result.job.status, executed: result.executed }));
   } else if (action === "inspect") {
     const job = await ownedJob(store, manifest.jobId, actor);
-    console.log(JSON.stringify({ jobId: job.id, status: job.status, activeTask: job.activeTask }));
+    console.log(JSON.stringify({ jobId: job.id, status: job.status, activeTask: job.activeTask, reviewScopes: jobGates(job) }));
   } else if (action === "reconcile") {
     if (process.env.VFX_PRIOR_RUN_TERMINATED !== "1") throw new Error("VFX_PRIOR_RUN_MUST_TERMINATE");
     await reconcileTask(store, manifest.jobId, actor, executors);

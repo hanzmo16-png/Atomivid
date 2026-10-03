@@ -33,6 +33,7 @@ export async function claudeDirection(input: { brief: Brief; inventory: Inventor
       const response = deps.call ? await deps.call(request) : await (async () => {
         const message = await deps.client.messages.create(request, { maxRetries: 0 });
         const text = message.content.filter(b => b.type === "text").map(b => b.text).join("");
+        if (![message.usage.input_tokens, message.usage.output_tokens].every(n => Number.isSafeInteger(n) && n >= 0) || message.usage.input_tokens + message.usage.output_tokens === 0) throw new Error("VFX_PLANNER_USAGE_MISSING");
         const costUsd = (message.usage.input_tokens * quote.inputUsdPerMillion + message.usage.output_tokens * quote.outputUsdPerMillion) / 1e6;
         return { response: JSON.parse(text), costUsd };
       })();

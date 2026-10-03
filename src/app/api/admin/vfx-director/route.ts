@@ -4,12 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { directorActor } from "@/lib/production-intelligence/vfx-director/access";
 import { supabaseJobStore } from "@/lib/production-intelligence/vfx-director/store";
-import { ownedJob, approveStage, replacePlan } from "@/lib/production-intelligence/vfx-director/jobs";
+import { ownedJob, approveStage, replacePlan, jobGates } from "@/lib/production-intelligence/vfx-director/jobs";
 import { STAGES } from "@/lib/production-intelligence/vfx-director/gates";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 const Action = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("approve"), id: z.string().min(1), stage: z.enum(STAGES), planHash: z.string().min(1), artifactSha256: z.string().regex(/^[a-f0-9]{64}$/), approved: z.boolean(), checks: z.array(z.object({ name: z.string(), pass: z.boolean(), evidence: z.string() }).strict()) }).strict(),
+  z.object({ action: z.literal("approve"), id: z.string().min(1), stage: z.enum(STAGES), environmentId: z.string().min(1).optional(), planHash: z.string().min(1), artifactSha256: z.string().regex(/^[a-f0-9]{64}$/), approved: z.boolean(), checks: z.array(z.object({ name: z.string(), pass: z.boolean(), evidence: z.string() }).strict()) }).strict(),
   z.object({ action: z.literal("replace-plan"), id: z.string().min(1), plan: z.unknown() }).strict(),
 ]);
 async function context() {
@@ -24,7 +24,8 @@ function failure(error: unknown) {
 }
 export async function GET(request: Request) {
   try { const { actor, store } = await context(); const id = new URL(request.url).searchParams.get("id") ?? "";
-    return NextResponse.json(await ownedJob(store, id, actor), { headers });
+    const job = await ownedJob(store, id, actor);
+    return NextResponse.json({ ...job, reviewScopes: jobGates(job) }, { headers });
   } catch (error) { return failure(error); }
 }
 export async function POST(request: Request) {

@@ -12,7 +12,7 @@
 
 ## Gates and evidence
 
-Direction → styleframe (the frozen frame law) → motion → integration → review master. Every final-stage task requires all prior-stage approvals. Delivery additionally requires master approval. Approvals bind the current plan hash and artifact SHA-256 and are recorded against the authenticated owner. Replacing the plan clears prior approvals and output state. Rejected or stale reviews block advancement. Stage capabilities are registered by the host, not supplied by Claude.
+Direction → styleframe (the frozen frame law) → motion → integration → review master. Every final-stage task requires all prior-stage approvals. Delivery additionally requires master approval. Approvals bind the current plan hash and artifact SHA-256 and are recorded against the authenticated owner. For an environment sequence, each world has a separate scope hash containing its source, material SHA-256, light, frame interval, tasks, shared contract and transitive dependencies. A local correction clears only that world and dependent results; unrelated worlds retain their outputs and approvals. Shared contract corrections invalidate every affected scope. A single-world legacy plan change clears all results. Replacing an unchanged plan is a no-op. Rejected or stale reviews block advancement. Stage capabilities are registered by the host, not supplied by Claude.
 
 Subjective reviews are explicitly human evidence, not automated claims of cinematic quality. Centered composition is not inherently defective. All failing findings block approval, even if an iteration prioritizes only three repair notes.
 
@@ -34,6 +34,8 @@ Preserve the approved UI navigation, voice, music, captions and closing. Inspect
 
 Before rendering: measure the actual source duration/framing; assign three exact frame windows within that slot; obtain moving plates with matching framing, crop density and perspective; freeze each environment's styleframe and light treatment; approve low-resolution motion and integration. The lunar scene deliberately suspends ordinary realism and must state its world rules.
 
+The brief must declare every requested world. The plan must contain exactly one direction, frozen-look, motion and integration task per world, consuming the prior proof; the master must consume every integrated world. `compilePlan` rejects an omitted world, unsupported light treatment or unsupported frame interval BEFORE claiming a worker task. Worker checks the entire plan against its real registered capabilities on every invocation. Review API and worker inspection expose `reviewScopes` with the exact hashes to review.
+
 The VFX-002b adapter currently supports one plate and a fixed nighttime treatment, not a proven three-environment recipe. The director must return NEEDS_MATERIAL or reject that route until sequence-aware plate composition and environment-specific light treatments are registered. This is an explicit capability boundary, not permission to silently deliver NYC alone.
 
 ## Validation and release status
@@ -41,3 +43,9 @@ The VFX-002b adapter currently supports one plate and a fixed nighttime treatmen
 Director/worker failure tests include concurrent execution, unchanged plan on resumption, rejected evidence, stale hashes, account isolation, disabled access and zero-budget planner blocking. Full application tests, typecheck, lint and production build are run separately. Synthetic evidence does not demonstrate visual quality.
 
 The integration is in the development branch. The table exists but production activation remains disabled by default. No precampaign render, paid generation, production deployment or approved-master replacement was performed. Release requires deploying the branch and configuring the owner feature flag; visual production still requires actual materials and reviews.
+
+## Environment hardening, 2026-10-03
+
+Executable capability metadata now declares city/night-practical/full-shot-only for VFX-002b. Its runtime independently refuses beach, Moon, missing environment contracts and changed plate bytes before reading source or invoking Python. The full-source crop and duration requirements remain. A sequence-aware compositor is still required to produce the three-world opening. This change closes the scheduling hole; it does not claim that a missing production adapter has been implemented.
+
+Real Anthropic responses must carry nonzero, valid token usage; actual usage is costed and committed through the paid-call ledger. Fixtures use a separate injected test transport and do not represent paid provider calls. No live Claude call or new video render occurred during this hardening.
