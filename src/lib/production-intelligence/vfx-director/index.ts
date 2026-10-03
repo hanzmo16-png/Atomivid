@@ -2,7 +2,7 @@ import { z } from "zod";
 import { ShotContractSchema } from "../contract";
 import { stableHash } from "../canonical";
 import { reserveProject } from "../budget";
-import { assertBeforeTask, assertGate, BlockedDirectionSchema, type GateContext } from "./gates";
+import { assertBeforeTask, assertGate, BlockedDirectionSchema, GATE_VERSION, type GateContext } from "./gates";
 
 export const DIRECTOR_VERSION = "vfx-director/1";
 const text = z.string().trim().min(1);
@@ -62,6 +62,7 @@ export function compilePlan(rawBrief: unknown, rawPlan: unknown, inventory: Inve
   if (plan.beats.some((b, i) => i > 0 && b.frame <= plan.beats[i - 1].frame)) errors.push("beats must be strictly ordered");
   const ids = new Set<string>(); const outputs = new Set(assets); const completed = new Set<string>();
   for (const task of plan.tasks) {
+    if (/^(more epic|more cinematic|more wow|higher quality|más épico|más cinematográfico|sube la calidad)[.! ]*$/i.test(task.instruction)) errors.push(`vague task instruction: ${task.id}`);
     if (ids.has(task.id)) errors.push(`duplicate task ${task.id}`);
     ids.add(task.id);
     const cap = inventory[task.executor];
@@ -76,7 +77,7 @@ export function compilePlan(rawBrief: unknown, rawPlan: unknown, inventory: Inve
   if (new Set(plan.requiredChecks).size !== plan.requiredChecks.length) errors.push("duplicate QA checks");
   const reservation = reserveProject(brief.projectId, { expectedCostUsd: 0, worstCaseUsd: 0 }, brief.budgetUsd);
   return { brief, plan, reservation, errors, executable: errors.length === 0,
-    planHash: stableHash({ brief, plan, inventory, assets }, 64), reviewRequired: true as const };
+    planHash: stableHash({ brief, plan, inventory, assets, gateVersion: GATE_VERSION }, 64), reviewRequired: true as const };
 }
 
 /** Planning adapter: the caller provides its existing model transport. No model call here. */

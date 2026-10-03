@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const STAGES = ["direction", "styleframe", "motion", "integration", "master"] as const;
+export const GATE_VERSION = "vfx-gates/1";
 export type Stage = typeof STAGES[number];
 export const CHECKS: Record<Stage, readonly string[]> = {
   direction: ["story-function", "silent-readability", "world-rules", "lighting-plan", "continuity", "concrete-instructions"],
