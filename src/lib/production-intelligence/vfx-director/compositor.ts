@@ -23,13 +23,17 @@ export function vfx002bExecutor(config: { source: string; plate: string; model: 
       { name: "graded-subject-lock", pass: report.subjectLock?.interiorPixels > 0 && report.subjectLock.maxAbsDiffInteriorVsGradedSource <= 5, evidence: JSON.stringify(report.subjectLock) },
     ] };
   }
-  return { capability: { available: true, paid: false, preservesOriginalPixels: false }, allowedStages: ["preview", "integration"],
-    async recover(task, brief, operationKey) {
+  return { capability: { available: true, paid: false, preservesOriginalPixels: false, recipeVersion: "vfx002b/clarity-2", fullShotOnly: true, environments: [{ kind: "city", lighting: "night_practical" }] }, allowedStages: ["preview", "integration"],
+    async recover(task, brief, operationKey, environment) {
+      if (!environment || environment.kind !== "city" || environment.lighting !== "night_practical") throw new Error("VFX002B_ENVIRONMENT_UNSUPPORTED");
+      if (await fingerprint(config.plate) !== environment.materialSha256) throw new Error("VFX_PLATE_CHANGED");
       if (await fingerprint(config.source) !== brief.sourceSha256) throw new Error("VFX_SOURCE_CHANGED");
       try { return await storedResult(task.outputAssetId, operationKey); } catch { return null; }
     },
-    async run(task, brief, operationKey) {
+    async run(task, brief, operationKey, environment) {
       if (brief.width !== 1080 || brief.height !== 1920 || brief.fps !== 30 || brief.subjectLock !== "identity_with_relight") throw new Error("VFX002B_FORMAT_OR_LOCK_UNSUPPORTED");
+      if (!environment || environment.kind !== "city" || environment.lighting !== "night_practical") throw new Error("VFX002B_ENVIRONMENT_UNSUPPORTED");
+      if (await fingerprint(config.plate) !== environment.materialSha256) throw new Error("VFX_PLATE_CHANGED");
       if (await fingerprint(config.source) !== brief.sourceSha256) throw new Error("VFX_SOURCE_CHANGED");
       const [source, plate] = await Promise.all([media(config.source), media(config.plate)]);
       const duration = brief.frames / brief.fps;

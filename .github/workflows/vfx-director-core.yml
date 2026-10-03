@@ -1,0 +1,54 @@
+name: VFX Director core and read-only campaign audit
+on:
+  push:
+    branches: [codex/vfx-environment-contracts]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: vfx-director-core-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx next typegen
+      - run: npm run typecheck
+      - run: node --import tsx --test src/lib/production-intelligence/vfx-director/*.test.ts
+      - run: npm run lint
+  media-audit:
+    needs: core
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Inspect persisted campaign media (no paid keys, no generation)
+        run: npx tsx scripts/vfx/inspect-precampaign.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vfx-director-source
+          path: vfx-inspection/source.mp4
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vfx-director-original-resolution-controls
+          path: |
+            vfx-inspection/*.png
+            vfx-inspection/media-audit.json
+          retention-days: 7

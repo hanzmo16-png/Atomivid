@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const STAGES = ["direction", "styleframe", "motion", "integration", "master"] as const;
-export const GATE_VERSION = "vfx-gates/1";
+export const GATE_VERSION = "vfx-gates/2";
 export type Stage = typeof STAGES[number];
 export const CHECKS: Record<Stage, readonly string[]> = {
   direction: ["story-function", "silent-readability", "world-rules", "lighting-plan", "continuity", "concrete-instructions"],
@@ -12,9 +12,9 @@ export const CHECKS: Record<Stage, readonly string[]> = {
 };
 /** Trusted review-service records, never accepted from the planner/model.
  * Evidence proves only that a review was recorded, not that perception is automated. */
-export type Approval = { stage: Stage; planHash: string; artifactSha256: string;
+export type Approval = { environmentId?: string; stage: Stage; planHash: string; artifactSha256: string;
   reviewerId: string; approved: boolean; checks: { name: string; pass: boolean; evidence: string }[] };
-export type GateContext = { planHash: string; artifacts: Partial<Record<Stage, string>>; approvals: Approval[] };
+export type GateContext = { planHash: string; artifacts: Partial<Record<Stage, string>>; approvals: Approval[]; environments?: Record<string, GateContext> };
 
 export function assertGate(stage: Stage, context: GateContext): void {
   const fingerprint = context.artifacts[stage];
@@ -30,6 +30,12 @@ export function assertGate(stage: Stage, context: GateContext): void {
 
 export function assertBeforeTask(stage: Stage | "preview", context: GateContext): void {
   if (stage === "preview") return; // Low-cost proof material can precede visual approval.
+  if (stage === "master" && context.environments) {
+    for (const environment of Object.values(context.environments)) {
+      for (const prerequisite of STAGES.slice(0, -1)) assertGate(prerequisite, environment);
+    }
+    return;
+  }
   const index = STAGES.indexOf(stage);
   for (let i = 0; i < index; i++) assertGate(STAGES[i], context);
 }

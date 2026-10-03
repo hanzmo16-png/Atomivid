@@ -1,0 +1,17 @@
+{
+  "projectId": "atomivid-precampaign-v3-opening",
+  "intent": "Demonstrate that Atomivid can transform a real idea into distinct worlds before showing the existing real product interface.",
+  "emotion": "surprise and anticipation",
+  "frames": 150,
+  "fps": 30,
+  "width": 1080,
+  "height": 1920,
+  "sourceSha256": "5d6e025f43a0f27e3835330edd79dcef46742a7e565ecb158cffefaf7f990e7b",
+  "subjectLock": "identity_with_relight",
+  "budgetUsd": 0,
+  "environments": [
+    { "id": "nyc", "kind": "city", "lighting": "night_practical" },
+    { "id": "beach", "kind": "beach", "lighting": "daylight_soft" },
+    { "id": "moon", "kind": "moon", "lighting": "sun_hard" }
+  ]
+}

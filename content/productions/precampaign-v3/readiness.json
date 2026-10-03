@@ -1,0 +1,25 @@
+{
+  "status": "NEEDS_MATERIAL",
+  "source": {
+    "path": "precampaign-teaser-v1/v2/vfx-001-source-20261002_181854-1.mp4-4.700-0.500-hable.mp4",
+    "sha256": "5d6e025f43a0f27e3835330edd79dcef46742a7e565ecb158cffefaf7f990e7b",
+    "frames": 150,
+    "fps": 30,
+    "width": 1080,
+    "height": 1920
+  },
+  "preserve": ["approved UI navigation", "existing voice", "existing music", "captions", "real closing"],
+  "requiredMaterial": [
+    "Three environment-specific moving plates with measured framing and native crop resolution",
+    "Frozen styleframes for NYC practical night, soft daylight beach and hard single-source lunar light",
+    "A sequence-aware compositor that consumes the frozen looks and all reviewed environment integrations"
+  ],
+  "blockedExecutor": {
+    "name": "vfx002b",
+    "reason": "One full-shot city/night-practical plate; cannot execute beach/daylight, Moon/sunlight or partial environment intervals"
+  },
+  "auditRun": "https://github.com/hanzmo16-png/Atomivid/actions/runs/37132248576",
+  "providerCalls": 0,
+  "newRender": false,
+  "budgetNote": "Zero is a fail-closed planning/generation limit for this readiness record; no additional production quote has been established."
+}
