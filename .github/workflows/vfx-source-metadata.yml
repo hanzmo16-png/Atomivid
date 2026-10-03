@@ -1,0 +1,29 @@
+name: VFX private source measurement (metadata only)
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Measure privately and remove temporary source
+        run: node --import tsx scripts/vfx/source-metadata.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vfx-source-metadata-only
+          path: vfx-source-metadata.json
+          retention-days: 7
