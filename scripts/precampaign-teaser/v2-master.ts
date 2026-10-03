@@ -177,13 +177,17 @@ async function main() {
   };
 
   const op = await probe(opening), cp = await probe(closing);
-  const ow = await speechWindow(opening, op.duration), cw = await speechWindow(closing, cp.duration);
+  // Speech windows from the local transcription (footsteps/movement before speaking are not silence).
+  const heardO = await transcribe(opening, 0, op.duration, "opening-full");
+  const heardC = await transcribe(closing, 0, cp.duration, "closing-full");
+  const sw = (h: Word[], f: { start: number; end: number }) => (h.length ? { start: h[0].start, end: h.at(-1)!.end } : f);
+  const ow = sw(heardO, await speechWindow(opening, op.duration)), cw = sw(heardC, await speechWindow(closing, cp.duration));
   const vfxEnd = args.vfxStart + 5;
   const XF0 = 0.35;
-  const oA = Math.max(0, args.openingStart ?? ow.start - 0.2);
+  const oA = Math.max(0, args.openingStart ?? ow.start - 0.25);
   const oB = vfxAsset ? vfxEnd : Math.min(op.duration, ow.end + 0.45);
   if (vfxAsset && ow.end > vfxEnd - XF0 + 0.02) notes.push(`La voz de apertura termina en ${ow.end.toFixed(2)} s, cerca del fin del VFX (${vfxEnd.toFixed(2)} s).`);
-  const [cA, cB] = args.closingTrim ?? [Math.max(0, cw.start - 0.2), Math.min(cp.duration, cw.end + 0.45)];
+  const [cA, cB] = args.closingTrim ?? [Math.max(0, cw.start - 0.25), Math.min(cp.duration, cw.end + 0.45)];
   const gO = await voiceGain(opening, voiceChain), gC = await voiceGain(closing, voiceChain);
   // Opening: base real take (look) + VFX layered in progressively from the window start.
   {
@@ -196,8 +200,9 @@ async function main() {
     await ff(["-ss", oA.toFixed(3), "-to", oB.toFixed(3), "-i", opening, ...(vfxAsset ? ["-i", vfxFile] : []), "-filter_complex", `${graph};[0:a]${voiceChain},volume=${gO.toFixed(2)}dB,aresample=48000,apad=whole_dur=${(oB - oA).toFixed(3)}[a]`, "-map", "[v]", "-map", "[a]", "-t", (oB - oA).toFixed(3), ...enc, segExt("opening")]);
   }
   await ff(["-ss", cA.toFixed(3), "-to", cB.toFixed(3), "-i", closing, "-filter_complex", `[0:v]${TM},scale=${W}:${H}:flags=lanczos,fps=${FPS},setsar=1[src];${RETOUCH_GRAPH("src", "v0")};[v0]tpad=stop_mode=clone:stop_duration=0.3[v];[0:a]${voiceChain},volume=${gC.toFixed(2)}dB,aresample=48000,apad=whole_dur=${(cB - cA).toFixed(3)}[a]`, "-map", "[v]", "-map", "[a]", "-t", (cB - cA).toFixed(3), ...enc, segExt("closing")]);
-  const openingWords = alignWords(OPENING_TEXT, await transcribe(opening, oA, oB, "opening"), [ow.start - oA, ow.end - oA]);
-  const closingWords = alignWords(CLOSING_TEXT, await transcribe(closing, cA, cB, "closing"), [cw.start - cA, cw.end - cA]);
+  const rel = (h: Word[], a: number, b: number) => h.filter((w) => w.start >= a - 0.05 && w.end <= b + 0.05).map((w) => ({ ...w, start: w.start - a, end: w.end - a }));
+  const openingWords = alignWords(OPENING_TEXT, rel(heardO, oA, oB), [ow.start - oA, ow.end - oA]);
+  const closingWords = alignWords(CLOSING_TEXT, rel(heardC, cA, cB), [cw.start - cA, cw.end - cA]);
 
   // ---------- TTS loudness match (same target as the real voice) ----------
   const ttsGain: Record<string, number> = {};
@@ -237,9 +242,8 @@ async function main() {
   const demoCuts = demoWords.map((t, i) => (Number.isFinite(t) ? t : (i * tts.demo.duration) / 7));
   demoCuts[0] = 0;
   const demoLabels = ["GUION", "VOZ", "IMÁGENES", "MOVIMIENTO", "MÚSICA", "SUBTÍTULOS"];
-  const demoEnd = tts.demo.duration + 0.3;
   await montage("demo", [D(14.5), O(2.2), D(185), O(6.0), O(22.3), D(199), D(242)], demoCuts,
-    [...demoLabels.map((t, i) => label(t, Math.max(0.02, (demoWords[i] ?? demoCuts[i]) - 0.05), demoCuts[i + 1], 330, 108)), label("TODO EN UN SOLO PROCESO", demoCuts[6], demoEnd, 330, 74)].join(","));
+    demoLabels.map((t, i) => label(t, Math.max(0.02, (demoWords[i] ?? demoCuts[i]) - 0.05), demoCuts[i + 1], 330, 108)).join(","));
   // Results: cuts on the beats of the sentence.
   const r1 = wordStart("results", /^presentacion/) ?? 1.6, r2 = wordStart("results", /^son$/) ?? 2.4, r3 = wordStart("results", /^ya$/) ?? 3.2;
   await montage("results", [D(170), D(455.8), O(11.7), D(242.5), O(20.1)], [0, r1, r2, r3, Math.min(tts.results.duration, r3 + 0.9)], label("HECHO CON ATOMIVID", 0.05, tts.results.duration + 0.3, 300, 70));
