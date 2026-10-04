@@ -33,6 +33,10 @@ export type ExecutionProfile = z.infer<typeof ProfileSchema>;
 
 /** Paid executors are not registerable from the page (capability.paid is literally false). */
 const PROFILES: ExecutionProfile[] = [
+  { jobId: "vfx-execution-smoke-v1", executors: {
+    "artifact-registry": { kind: "stored-artifact", stages: ["preview"],
+      capability: { available: true, paid: false, preservesOriginalPixels: true, recipeVersion: "artifact-registry/approved-styleframes-1" } }
+  } },
   {
     // Three-world preparation: an artifact registry. Physical renders were measured and reviewed
     // outside the page; the registry only records operator-staged private artifacts by fingerprint.
