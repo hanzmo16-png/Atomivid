@@ -160,6 +160,55 @@ trial or weaken visual acceptance. Stock fallback under quality/2, automatic
 planning, Avatar and Long Form still need separate real-flow validation before
 claiming broad product coverage.
 
+Two stock-footage trials on 2026-10-04 exercised the same production render stage
+with a frozen four-scene Spanish business script. The first (Actions
+`37235563961`, request `9f0c276e-2cc2-440e-9f8c-3fbdd047974a`) passed technical
+checks but was rejected during manual pixel inspection: the last accepted clip
+showed cryptocurrency/candlestick trading screens while the narration discussed
+customer inquiries, purchases and service costs. Four stock clips, six reviews
+and two voice submissions accounted for $0.1112. The request was marked failed
+for final visual QA; its output and immutable paid receipts remain preserved.
+The model's confident initial verdict was not treated as proof of suitability.
+
+The planner instructions and vision system now require matching the narration's
+domain as well as the literal subject. Business sales/customer reports must not
+be substituted with financial-market or cryptocurrency trading. The instructions
+hash is already part of the review fingerprint, so the corrected instructions
+cannot silently reuse verdicts from the old prompt. The final scene's frozen
+visual contract and search terms were also made specific to business reports.
+
+The corrected trial (Actions `37236428790`, worker commit
+`52363f2bbaf6b7a9aa63cf1c56f642c50c3003e1`, request
+`c661d874-f383-4230-9bd9-449d6722ef80`) explicitly rejected the original trading
+clip as a real negative control. It rejected another insufficient report clip
+and selected four stock videos showing notebook planning, a business discussion,
+product-order preparation, and printed business reports. No generated images
+were needed. All six new paid reviews are COMMITTED, accounting for $0.0132;
+both stock attempts together account for $0.1244, including estimated voice cost.
+These figures are system estimates, not provider invoices.
+
+There were zero new voice calls in the correction. Its immutable grant forbids
+them. The isolated runner verifies the original owner, exact narration text,
+voice/model/settings and paid-operation fingerprints, then validates audio SHA,
+byte length and word timings before referencing the existing paid audio. An
+internal zero-cost reuse receipt records provenance; it does not fabricate a
+new committed TTS payment or reopen the failed request. This is scoped trial
+reuse, not a new customer-facing cross-request cache feature.
+
+Corrected output: 1080×1920 H.264 at 30fps, AAC, 28.6 seconds, 7,179,953 bytes;
+−16.25 LUFS and −1.47 dBTP. Manual visual inspection of fourteen timeline
+samples, the four narration-aligned scene frames and the last scene at full
+resolution confirmed suitable report imagery without trading screens. A complete
+local FFmpeg decode found no media errors. TypeScript, ESLint and 45 focused
+tests passed locally; the worker's checks and all four concurrent read-only CI
+workflows passed. The general flags remain off and production was not deployed.
+
+This supplies real quality/2 stock-selection evidence for one business script.
+Automatic script generation and API admission still need end-to-end validation.
+The stock-to-AI fallback was not invoked in this stock trial; separate real AI
+illustration and stock trials do not prove that combined fallback in a live
+request. Avatar and Long Form remain outside this semantic-review change.
+
 Vision can make mistakes; three time samples do not prove every frame of a clip. It cannot
 authenticate the identity of a real person or prove historical accuracy. Passing
 the gate is a quality check rather than a promise of perfect relevance for every
