@@ -103,3 +103,12 @@ Consequences:
 - The API refuses an execute request (`VFX_NOTHING_TO_EXECUTE`) before writing anything.
 - The approved video cannot be regenerated or replaced from the page, and execution never creates or changes approvals.
 - The first real page execution will happen when a correction leaves a task without a result. A staged artifact for it must exist at `<job>/execution/staged/<task>.json` (written by a trusted operator script) for the registry to record it.
+
+### Release blockers (2026-10-04)
+
+1. **Preview deployment.** Run 37173181725 of `owner-pilot-preview.yml` stopped at its first check: the repository secret `VERCEL_TOKEN` is empty (`PREVIEW_DEPLOY_BLOCKED_PRIVATE_STATE_RETAINED`; no ledger row written). Git deployments are disabled for this branch in `vercel.json`. The READY preview `atomivid-liylclzem` therefore still runs the previous commit, without the execution panel. To publish commit `3e0e4c7` or later as preview, either add `VERCEL_TOKEN` and push a change to `scripts/deploy-owner-pilot-preview.ts`, or deploy that commit manually as **Preview**, never Production.
+2. **Worker credential on preview.** The page needs `GH_WORKER_TOKEN` and `GH_WORKER_REPO` on the preview target. The token needs "Actions: read and write" on this repository: write to dispatch, read to confirm runs before resolution. Their presence on preview could not be checked, because the env-name report runs after the token check. When either is missing, the page shows "Falta la credencial del worker de GitHub en este entorno" and nothing is dispatched.
+3. **Owner click.** Executing from the page requires the owner's authenticated session. This was not performed by the agent.
+4. **Nothing pending.** Every task of the current job has a result, so even with 1–3 resolved the button stays disabled until a correction leaves a task pending.
+
+Verified without the page: strict request schema, ledger-first dispatch, concurrency, uncertain dispatch handling, resolution, claim-once, commit pinning, profile/inventory equality and untouched-job checks (16 tests). The real runner ran read-only against the production job in CI. Typecheck, lint and build pass. All 1,596 application tests pass.
