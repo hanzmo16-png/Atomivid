@@ -1,0 +1,33 @@
+name: Resume verified pilot accounting defect
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [scripts/owner-pilot-recover.ts]
+permissions:
+  contents: read
+concurrency:
+  group: owner-pilot-defect-recovery
+  cancel-in-progress: false
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: node --import tsx scripts/owner-pilot-recover.ts
+        env:
+          ATOMIVID_RUNTIME: production
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          MUSIC_PROVIDER: ${{ secrets.MUSIC_PROVIDER }}
+          MUSIC_TRACK_URLS: ${{ secrets.MUSIC_TRACK_URLS }}
