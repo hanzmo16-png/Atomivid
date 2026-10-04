@@ -8,9 +8,10 @@ import { OwnerPilotSchema, ownerPilotKey } from "../src/lib/billing/owner-pilot"
 import { MUSIC_MANIFEST } from "../src/lib/providers/music/manifest";
 import { checkScriptContentQuality } from "../src/lib/video/script-quality";
 import { targetWordsFor } from "../src/lib/video/script-pacing";
-import { loadReelLogo } from "../src/lib/video/reel-logo";
+import { loadReelLogo, REEL_LOGO_BUCKET, reelLogoPath } from "../src/lib/video/reel-logo";
 const preparationKey = process.env.OWNER_PILOT_PREPARATION_KEY?.trim() || "owner_pilot_preparation_current";
 const Input = z.object({ ownerId: z.string().uuid(), requestId: z.string().uuid(),
+  recoveryFromRequestId: z.string().uuid().optional(),
   script: z.object({ title: z.string().min(1), segments: z.array(z.object({ text: z.string().min(1), visualQuery: z.string().min(1),
     visualConcepts: z.array(z.string()).optional(), energy: z.enum(["low","medium","high"]).optional() }).strict()).min(1).max(10) }).strict() }).strict();
 async function main() {
@@ -25,6 +26,24 @@ async function main() {
   if (authError || !auth.user?.email_confirmed_at || request.error || request.data.user_id !== input.ownerId
     || request.data.mode !== "visual" || request.data.language !== "es" || request.data.duration_seconds !== 30
     || request.data.render_attempts !== 0 || !["pending","script_ready"].includes(request.data.status)) throw new Error("PILOT_SCOPE_BLOCKED");
+  if (input.recoveryFromRequestId) {
+    const source = await service.from("video_requests").select("user_id,mode,topic,language,duration_seconds,status,render_attempts,video_path,error_message,brand_logo_path")
+      .eq("id", input.recoveryFromRequestId).single();
+    if (source.error || source.data.user_id !== input.ownerId || source.data.status !== "failed"
+      || source.data.render_attempts !== 1 || source.data.video_path || source.data.mode !== "visual"
+      || source.data.topic !== request.data.topic || source.data.language !== "es" || source.data.duration_seconds !== 30
+      || !source.data.error_message?.startsWith("La narración dura ")
+      || !source.data.brand_logo_path || request.data.brand_logo_path !== reelLogoPath(input.ownerId, input.requestId)) throw new Error("PILOT_RECOVERY_SCOPE_BLOCKED");
+    const original = await loadReelLogo(service, input.ownerId, input.recoveryFromRequestId, source.data.brand_logo_path);
+    if (!original) throw new Error("PILOT_RECOVERY_LOGO_MISSING");
+    const bucket = service.storage.from(REEL_LOGO_BUCKET);
+    const existing = await bucket.download(request.data.brand_logo_path);
+    if (!existing.data) {
+      const savedLogo = await bucket.upload(request.data.brand_logo_path, Buffer.from(original.split(",")[1], "base64"), { contentType: "image/png", upsert: false });
+      if (savedLogo.error) throw new Error("PILOT_RECOVERY_LOGO_COPY_FAILED");
+    }
+    console.log("PILOT_RECOVERY_LOGO_PRESERVED_NO_GENERATION");
+  }
   // Validate this request's private logo before granting its render.
   await loadReelLogo(service, input.ownerId, input.requestId, request.data.brand_logo_path);
   const quality = checkScriptContentQuality(input.script, { topic: request.data.topic, targetWords: targetWordsFor(30) });
