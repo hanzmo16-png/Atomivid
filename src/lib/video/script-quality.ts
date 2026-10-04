@@ -26,6 +26,7 @@ export type ScriptQualityIssue =
   | "excessive_repetition"
   | "duplicate_visual_queries"
   | "generic_visual_query"
+  | "unsupported_statistic"
   | "word_count_out_of_range";
 
 export type ScriptQualityResult =
@@ -71,6 +72,17 @@ export function checkScriptQuality(
       issue: "fallback_provider",
       detail: `El guion se generó con el proveedor "${providerName}", no con el proveedor de IA principal.`,
     };
+  }
+
+  // A small, explicit guard against invented percentages and population ratios.
+  // Counts such as "three decisions" are allowed. This is not general fact-checking.
+  const statistic = /\b(?:\d+(?:[.,]\d+)?|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:%|por\s+ciento\b|percent\b|(?:de\s+cada|out\s+of)\s+(?:\d+|diez|cien|mil|ten|hundred|thousand)\b)/gi;
+  for (const segment of script.segments) {
+    for (const match of segment.text.matchAll(statistic)) {
+      if (!topic.toLowerCase().replace(/\s+/g, " ").includes(match[0].toLowerCase().replace(/\s+/g, " "))) {
+        return { ok: false, issue: "unsupported_statistic", detail: "La narración añadió una estadística que no aparece en el tema. Revísala antes de producir." };
+      }
+    }
   }
 
   return checkScriptContentQuality(script, { topic, targetWords });

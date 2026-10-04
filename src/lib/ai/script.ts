@@ -174,6 +174,10 @@ export async function generateScript({
     "'esto es sobre...' y variantes similares están prohibidas). Responde " +
     `SIEMPRE en ${LANGUAGE_NAME[language]}, sin importar en qué idioma ` +
     "esté escrito el tema que te da el usuario.";
+  const factuality = "No inventes estadísticas, porcentajes, tasas de fracaso, citas ni atribuciones. " +
+    "Si el tema no proporciona una cifra con su fuente, expresa la idea sin cifras. " +
+    "Por ejemplo, no conviertas consejos para emprender en 'nueve de cada diez negocios fracasan'. " +
+    "No prometas resultados garantizados ni presentes una causa única como un hecho probado.";
 
   const basePrompt = `${VISUAL_INTENT_INSTRUCTIONS}\n\nEscribe el guion de un reel faceless con un arco narrativo real: gancho → tensión/problema → desarrollo → conclusión → cierre.
 
@@ -217,7 +221,7 @@ Tu intento anterior tuvo ${lastWordCount} palabras narradas en total, fuera del 
     const params = {
       model: execution?.model ?? SCRIPT_MODEL,
       max_tokens: 6000,
-      system,
+      system: system + " " + factuality,
       messages: [{ role: "user" as const, content }],
       output_config: {
         format: zodOutputFormat(ScriptSchema),

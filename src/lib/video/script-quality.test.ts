@@ -91,3 +91,19 @@ test("ScriptQualityError conserva el resultado de calidad para clasificar el err
   assert.ok(err instanceof Error);
   assert.equal(err.result.issue, "fallback_provider");
 });
+
+test("rejects invented percentages and population ratios from a real generated script", () => {
+  for (const text of ["Nueve de cada diez negocios mueren por una razón.", "El 90% de los negocios fracasan.",
+    "El 90 por ciento de los negocios fracasan.", "Nine out of ten businesses fail.", "90 percent of businesses fail."]) {
+    const result = checkScriptQuality({ segments: [{ text, visualQuery: "entrepreneur notebook" }] },
+      { topic: "Tres decisiones para empezar un negocio", targetWords: 0, providerName: "anthropic" });
+    assert.deepEqual(result.ok ? null : result.issue, "unsupported_statistic");
+  }
+});
+
+test("ordinary counts remain valid and supplied statistics are not described as independently verified", () => {
+  for (const [text, topic] of [["Toma tres decisiones para avanzar.", "Emprender"],
+    ["En la muestra, el 30% pidió información.", "El 30% de nuestra muestra pidió información"]])
+    assert.equal(checkScriptQuality({ segments: [{ text, visualQuery: "entrepreneur notebook" }] },
+      { topic, targetWords: 0, providerName: "anthropic" }).ok, true);
+});
