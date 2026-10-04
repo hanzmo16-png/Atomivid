@@ -22,7 +22,7 @@ static raster images must retain at least 720×1280 native pixels after the vert
 cover crop (before camera zoom). A large landscape width does not qualify a blurry
 vertical crop. Corrupt, undersized, animated/vector images and too-short clips are
 rejected as defective candidates, without a vision reservation; selection can try
-another candidate. Missing executables, timeouts, vision/provider and budget failures
+another candidate. Missing executables, system errors, timeouts, vision/provider and budget failures
 stop processing. Clips use their probed video-stream duration and square pixels.
 
 Review examines paired base and maximum-camera views using the same zoom/pan
@@ -113,8 +113,8 @@ and no additional paid inference.
 
 This trial used six fixed visual contracts. It does not validate automatic
 script planning, narrated rendering or every possible topic. The general feature
-flag remains off; production was not activated. The quality/2 refinements were verified with 49 focused tests and the full
-1,629-test unit suite, plus TypeScript and ESLint. These added quality verdicts use
+flag remains off; production was not activated. The quality/2 refinements were verified with 50 focused tests and the full
+1,630-test unit suite, plus TypeScript and ESLint. These added quality verdicts use
 model-response doubles; the earlier paid trial tested relevance/1, not quality/2.
 Avatar and Long Form do not use the new semantic/quality review. Their existing
 pipelines and motion requirements remain unchanged. This is a focused reels change,

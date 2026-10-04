@@ -50,7 +50,7 @@ function badVideo(error: unknown): never {
   const processError = error as { code?: string | number; killed?: boolean };
   // A missing executable or a timeout is an operational failure, not permission
   // to switch to paid generation or to treat an unavailable check as acceptance.
-  if (processError.code === "ENOENT" || processError.killed) throw error;
+  if (typeof processError.code === "string" || processError.killed) throw error;
   throw new VisualAssetQualityError("El clip no contiene video decodificable y verificable.");
 }
 

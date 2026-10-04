@@ -7,6 +7,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
+import ffprobe from "@ffprobe-installer/ffprobe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 import { memoryResultStore } from "@/lib/paid-calls/result-store";
@@ -47,6 +48,19 @@ test("bad downloaded bytes stop before reserving or buying a vision review", asy
     }
     assert.equal(calls, 0); assert.equal(reservations, 0);
   } finally { if (old === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = old; }
+});
+
+test("an unavailable media inspector is an operational failure, not a defective candidate eligible for paid fallback", async () => {
+  const oldPath = ffprobe.path;
+  try {
+    ffprobe.path = "/atomivid-nonexistent-inspector";
+    await assert.rejects(visualReviewFrames(Buffer.from("asset"), "video", 3), error => {
+      assert.ok(error instanceof Error);
+      assert.equal(error instanceof VisualAssetQualityError, false);
+      assert.equal((error as NodeJS.ErrnoException).code, "ENOENT");
+      return true;
+    });
+  } finally { ffprobe.path = oldPath; }
 });
 
 test("video sampling includes the end of the used range and checks real stream duration", async () => {
