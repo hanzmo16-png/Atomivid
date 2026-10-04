@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ScriptScene } from "@/lib/providers/types";
+import type { GeneratedScript, ScriptScene } from "@/lib/providers/types";
 
 /** A subject contract, rather than a bag of loosely related search terms. */
 export const VisualIntentSchema = z.object({
@@ -19,6 +19,21 @@ export function requireVisualIntents(segments: ScriptScene[]): VisualIntent[] {
     if (!parsed.success) throw new Error(`La escena ${index + 1} necesita un plan visual actualizado. Regenera su guion antes de producir el video.`);
     return parsed.data;
   });
+}
+
+export function visualPlanIssue(segments: ScriptScene[]): string | null {
+  const index = segments.findIndex(segment => !VisualIntentSchema.safeParse(segment.visualIntent).success);
+  return index < 0 ? null : `La escena ${index + 1} necesita un plan visual actualizado. Regenera esa escena antes de generar el video.`;
+}
+
+/** Manual edits may retain only the server's plan for unchanged narration/searches. */
+export function preserveUnchangedVisualPlans(script: GeneratedScript, previous: GeneratedScript | null): GeneratedScript {
+  return { ...script, segments: script.segments.map((segment, index) => {
+    const prior = previous?.segments[index];
+    const unchanged = prior && segment.text === prior.text && segment.visualQuery === prior.visualQuery
+      && JSON.stringify(segment.visualConcepts ?? []) === JSON.stringify(prior.visualConcepts ?? []);
+    return { ...segment, visualIntent: unchanged ? prior.visualIntent : undefined };
+  }) };
 }
 
 export const VisualVerdictSchema = z.object({

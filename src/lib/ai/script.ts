@@ -67,12 +67,12 @@ const ScriptSchema = z.object({
           .max(3)
           .optional()
           .describe(
-            "2-3 interpretaciones visuales DISTINTAS de la idea de esta escena, en inglés, cada una " +
-              "'sujeto + acción/situación concreta' de 3-6 palabras — NUNCA sinónimos de la misma imagen. " +
-              "Interpreta el SIGNIFICADO de la frase, no la traduzcas literalmente a palabras clave. " +
-              "Ejemplo: para 'y ahí es donde la mayoría abandona sus sueños', NO uses variantes de 'dreams' " +
-              "— usa: ['exhausted athlete stopping mid run', 'person quitting a workout', " +
-              "'runner falling behind and giving up']. El primer elemento es el concepto principal " +
+            "2-3 búsquedas en inglés del MISMO sujeto y dominio definidos en visualIntent, cada una " +
+              "'sujeto + acción/situación concreta' de 3-6 palabras. Varía el encuadre, la acción o el " +
+              "entorno sin sustituir la identidad, los rasgos requeridos ni el dominio. Para narración " +
+              "abstracta, elige primero una acción concreta relevante y conserva ese sujeto en todas " +
+              "las alternativas. Ejemplo: ['runner stopping mid race', 'exhausted runner leaving race', " +
+              "'runner giving up at track']. El primer elemento es el concepto principal " +
               "(debe coincidir con visualQuery). " +
               AVOID_STOCK_TEXT_CLICHES,
           ),

@@ -209,6 +209,25 @@ The stock-to-AI fallback was not invoked in this stock trial; separate real AI
 illustration and stock trials do not prove that combined fallback in a live
 request. Avatar and Long Form remain outside this semantic-review change.
 
+The subsequent form-to-render audit found conflicting schema instructions: the
+visualConcepts description still requested different interpretations despite the
+literal-subject prompt. Both now preserve the same subject and domain. Manual
+PATCH edits retain only the server's plan for unchanged narration and search
+alternatives; changed scenes lose that plan. With reviewed reels enabled, the
+review UI explains which scene to regenerate and disables generation, and the
+render API independently rejects the missing plan before quota, state mutation
+or worker dispatch. Scene regeneration first saves pending edits so it works
+from the current narration. Inputs and render controls lock during that operation.
+
+Script POST/PATCH no longer announce saved success when the database reports an
+error or their conditional state update loses a race. Successful-provider usage
+is recorded before saving, and failed generation cannot clear a request that has
+already moved to a different status. Behavioral tests execute actual HTTP handlers
+with explicit auth/database/provider doubles and render the real review component;
+these are zero-spend integration checks, not live authentication or model evidence.
+The deployed browser was signed out during this audit. A complete authenticated
+form-to-provider test remains pending; no subscription or auth gate was bypassed.
+
 Vision can make mistakes; three time samples do not prove every frame of a clip. It cannot
 authenticate the identity of a real person or prove historical accuracy. Passing
 the gate is a quality check rather than a promise of perfect relevance for every

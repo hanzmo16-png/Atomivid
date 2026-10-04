@@ -9,7 +9,7 @@ import { generateDiagnosticId } from "@/lib/video/render-error";
 import { checkScriptQuality, ScriptQualityError } from "@/lib/video/script-quality";
 import { targetWordsFor } from "@/lib/video/script-pacing";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
-import { VisualIntentSchema } from "@/lib/video/visual-intent";
+import { preserveUnchangedVisualPlans, VisualIntentSchema } from "@/lib/video/visual-intent";
 
 // Sin esto, la función queda al límite por defecto de la plataforma (tan
 // bajo como 10s en algunos planes de Vercel) — una llamada real a Claude
@@ -32,6 +32,7 @@ type VideoRequestRow = {
   duration_seconds: number;
   status: string;
   language: ScriptLanguage;
+  script_json: GeneratedScript | null;
 };
 
 // Coincide con targetScenes en src/lib/ai/script.ts (máximo 10 para la
@@ -46,7 +47,7 @@ async function loadOwnedRequest(id: string, userId: string) {
 
   const { data: videoRequest, error } = await service
     .from("video_requests")
-    .select("id, user_id, mode, topic, style, duration_seconds, status, language, recorded_audio_path")
+    .select("id, user_id, mode, topic, style, duration_seconds, status, language, recorded_audio_path, script_json")
     .eq("id", id)
     .single<VideoRequestRow>();
 
@@ -148,7 +149,8 @@ export async function POST(
       const { error: updateError } = await service
         .from("video_requests")
         .update({ status: "failed", error_message: message, script_json: null })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("status", videoRequest.status);
       if (updateError) {
         console.warn(`No se pudo marcar como fallida la solicitud ${id}:`, updateError.code);
       }
@@ -156,19 +158,24 @@ export async function POST(
       return NextResponse.json({ error: message }, { status: 500 });
     }
 
-    const { error: updateError } = await service
-      .from("video_requests")
-      .update({ status: "script_ready", script_json: script, error_message: null })
-      .eq("id", id);
-    if (updateError) {
-      console.warn(`No se pudo actualizar la solicitud ${id} a script_ready:`, updateError.code);
-    }
-
+    // The provider already returned: account for it even if saving fails.
     const inputChars = videoRequest.topic.length + videoRequest.style.length;
     const outputChars = JSON.stringify(script).length;
     await recordScriptCall(service, id, { inputChars, outputChars }).catch((err) => {
       console.warn(`No se pudo registrar el costo de guion de ${id}:`, err);
     });
+
+    const { data: saved, error: updateError } = await service
+      .from("video_requests")
+      .update({ status: "script_ready", script_json: script, error_message: null })
+      .eq("id", id)
+      .eq("status", videoRequest.status)
+      .select("id");
+    if (updateError) {
+      console.warn(`No se pudo actualizar la solicitud ${id} a script_ready:`, updateError.code);
+      return NextResponse.json({ error: "No se pudo guardar el guion. Intenta de nuevo." }, { status: 500 });
+    }
+    if (!saved?.length) return NextResponse.json({ error: "El estado de la solicitud cambió. Actualiza la página antes de continuar." }, { status: 409 });
 
     return NextResponse.json({ status: "script_ready", script });
   } catch (error) {
@@ -240,8 +247,15 @@ export async function PATCH(
     }
   }
 
-  const service = createServiceClient();
-  await service.from("video_requests").update({ script_json: body }).eq("id", id);
-
-  return NextResponse.json({ status: "script_ready", script: body });
+  const script = videoRequest.mode === "visual" ? preserveUnchangedVisualPlans(body, videoRequest.script_json) : body;
+  try {
+    const service = createServiceClient();
+    const { data: saved, error } = await service.from("video_requests").update({ script_json: script })
+      .eq("id", id).eq("status", "script_ready").select("id");
+    if (error) return NextResponse.json({ error: "No se pudieron guardar los cambios. Intenta de nuevo." }, { status: 500 });
+    if (!saved?.length) return NextResponse.json({ error: "El estado de la solicitud cambió. Actualiza la página antes de continuar." }, { status: 409 });
+    return NextResponse.json({ status: "script_ready", script });
+  } catch {
+    return NextResponse.json({ error: "No se pudieron guardar los cambios. Intenta de nuevo." }, { status: 500 });
+  }
 }

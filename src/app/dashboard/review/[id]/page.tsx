@@ -8,6 +8,7 @@ import { RECORDING_BUCKET, isOwnedRecordingPath } from "@/lib/video/avatar/recor
 import { avatarEntitlementPreview } from "@/lib/billing/quota";
 import { readOwnerPilot, assertOwnerPilot } from "@/lib/billing/owner-pilot";
 import { ScriptReview } from "./ScriptReview";
+import { getFeatureFlags } from "@/lib/video/feature-flags";
 
 type VideoRequestRow = {
   id: string;
@@ -111,6 +112,7 @@ export default async function ReviewPage({
         requestId={data.id}
         status={data.status}
         initialScript={data.script_json}
+        reviewedVisuals={data.mode === "visual" && getFeatureFlags().reelVisualRelevanceEnabled}
         errorMessage={data.error_message}
         usesRecording={Boolean(data.recorded_audio_path)}
         entitlementBlockedReason={avatarEntitlementBlockedReason}

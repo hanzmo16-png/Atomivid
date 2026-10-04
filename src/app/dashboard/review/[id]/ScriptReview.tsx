@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { safeParseJsonResponse } from "@/lib/http/safe-json";
+import { visualPlanIssue } from "@/lib/video/visual-intent";
 
 export function ScriptReview({
   requestId,
@@ -18,6 +19,7 @@ export function ScriptReview({
   usesRecording = false,
   diagnosticRetry = false,
   entitlementBlockedReason,
+  reviewedVisuals = false,
 }: {
   requestId: string;
   status: string;
@@ -37,6 +39,7 @@ export function ScriptReview({
    * desde aquí.
    */
   entitlementBlockedReason?: string;
+  reviewedVisuals?: boolean;
 }) {
   const router = useRouter();
   const [script, setScript] = useState(initialScript);
@@ -51,6 +54,8 @@ export function ScriptReview({
   const canGenerate = status === "script_ready" || diagnosticRetry;
   const editable = canGenerate && !usesRecording;
   const entitlementBlocked = Boolean(entitlementBlockedReason);
+  const planIssue = reviewedVisuals ? visualPlanIssue(script.segments) : null;
+  const inputsLocked = !editable || saving || generating || regeneratingAll || savingIndex !== null;
 
   function updateScene(index: number, field: "text" | "visualQuery", value: string) {
     setScript((prev) => ({
@@ -71,8 +76,9 @@ export function ScriptReview({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(script),
       });
-      const result = await safeParseJsonResponse(res);
+      const result = await safeParseJsonResponse<{ script: GeneratedScript }>(res);
       if (!result.ok) throw new Error(result.error);
+      setScript(result.data.script);
       setDirty(false);
       return true;
     } catch (err) {
@@ -87,6 +93,7 @@ export function ScriptReview({
     setSavingIndex(index);
     setError(null);
     try {
+      if (dirty && !(await saveChanges())) return;
       const res = await fetch(`/api/generate/${requestId}/script/regenerate-scene`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -95,6 +102,7 @@ export function ScriptReview({
       const result = await safeParseJsonResponse<{ script: GeneratedScript }>(res);
       if (!result.ok) throw new Error(result.error);
       setScript(result.data.script);
+      setDirty(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
     } finally {
@@ -131,7 +139,7 @@ export function ScriptReview({
   }
 
   async function generateFinalVideo() {
-    if (entitlementBlocked) return;
+    if (entitlementBlocked || planIssue) return;
     setGenerating(true);
     setError(null);
     setNeedsSubscription(false);
@@ -221,7 +229,7 @@ export function ScriptReview({
             <textarea
               value={scene.text}
               onChange={(e) => updateScene(i, "text", e.target.value)}
-              disabled={!editable}
+              disabled={inputsLocked}
               rows={3}
               aria-label={`Narración de la escena ${i + 1}`}
               className="w-full rounded-md border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:opacity-60"
@@ -233,7 +241,7 @@ export function ScriptReview({
               id={`visual-${i}`}
               value={scene.visualQuery}
               onChange={(e) => updateScene(i, "visualQuery", e.target.value)}
-              disabled={!editable}
+              disabled={inputsLocked}
               className="mt-1 w-full rounded-md border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:opacity-60"
             />
           </Card>
@@ -266,19 +274,20 @@ export function ScriptReview({
 
       {canGenerate && (
         <div className="sticky bottom-4 mt-6 flex flex-col gap-2 rounded-lg border border-border-strong bg-surface-raised p-4 shadow-lg sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          {planIssue && <Alert tone="warning">{planIssue}</Alert>}
           {!usesRecording && <Button
             variant="secondary"
             onClick={saveChanges}
-            disabled={!dirty || saving || generating || regeneratingAll}
+            disabled={!dirty || saving || generating || regeneratingAll || savingIndex !== null}
             loading={saving}
           >
             {saving ? "Guardando…" : dirty ? "Guardar cambios" : "Sin cambios pendientes"}
           </Button>}
           <Button
             onClick={generateFinalVideo}
-            disabled={entitlementBlocked || generating || saving || regeneratingAll}
+            disabled={entitlementBlocked || Boolean(planIssue) || generating || saving || regeneratingAll || savingIndex !== null}
             loading={generating}
-            title={entitlementBlocked ? entitlementBlockedReason : undefined}
+            title={entitlementBlocked ? entitlementBlockedReason : planIssue ?? undefined}
           >
             {generating ? "Generando video…" : "Generar video final"}
           </Button>

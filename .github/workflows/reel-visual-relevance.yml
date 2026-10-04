@@ -3,6 +3,7 @@ on:
   push:
     branches: [codex/vfx-sequence-compositor]
     paths:
+      - src/lib/video/visual-flow*
       - src/lib/video/visual-intent*
       - src/lib/video/visual-review*
       - remotion/reel-framing*
@@ -17,6 +18,8 @@ on:
       - src/lib/providers/image/openai*
       - src/app/api/generate/**/script/route.ts
       - src/app/dashboard/review/**/ScriptReview.tsx
+      - src/app/dashboard/review/**/page.tsx
+      - src/app/api/generate/**/render/route.ts
       - supabase/migrations/*reel_visual_review_budget.sql
       - package.json
       - .github/workflows/reel-visual-relevance.yml
@@ -35,4 +38,4 @@ jobs:
       - run: npm ci
       - run: npx next typegen
       - run: npx tsc --noEmit
-      - run: node --import tsx --test src/lib/video/visual-intent.test.ts src/lib/video/visual-review.test.ts src/lib/video/visual-review-media.test.ts remotion/reel-framing.test.ts src/lib/video/footage-select.test.ts src/lib/video/visual-resource-resolver.test.ts src/lib/video/reel-logo.test.ts src/lib/providers/image/openai.test.ts
+      - run: node --import tsx --test src/lib/video/visual-intent.test.ts src/lib/video/visual-flow.test.ts src/lib/video/visual-flow-ui.test.tsx src/lib/video/visual-review.test.ts src/lib/video/visual-review-media.test.ts remotion/reel-framing.test.ts src/lib/video/footage-select.test.ts src/lib/video/visual-resource-resolver.test.ts src/lib/video/reel-logo.test.ts src/lib/providers/image/openai.test.ts
