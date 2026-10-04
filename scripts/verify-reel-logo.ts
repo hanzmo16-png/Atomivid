@@ -55,9 +55,11 @@ async function main() {
     const start = path.join(output, "with-logo-start.png");
     const end = path.join(output, "with-logo-end.png");
     const brandedProps = { ...inputProps, customerLogoUrl, showLogo: true };
+    // Remotion renders composition.props resolved by selectComposition, so resolve each variant.
+    const brandedComposition = await selectComposition({ serveUrl, id: "VerticalReel", inputProps: brandedProps });
     await renderStill({ serveUrl, composition, inputProps, frame: 0, output: baseline, imageFormat: "png" });
-    await renderStill({ serveUrl, composition, inputProps: brandedProps, frame: 0, output: start, imageFormat: "png" });
-    await renderStill({ serveUrl, composition, inputProps: brandedProps, frame: 29, output: end, imageFormat: "png" });
+    await renderStill({ serveUrl, composition: brandedComposition, inputProps: brandedProps, frame: 0, output: start, imageFormat: "png" });
+    await renderStill({ serveUrl, composition: brandedComposition, inputProps: brandedProps, frame: 29, output: end, imageFormat: "png" });
     const logoCrop = { left: 64, top: 96, width: 200, height: 120 };
     const basePixels = await sharp(baseline).extract(logoCrop).raw().toBuffer();
     const startPixels = await sharp(start).extract(logoCrop).raw().toBuffer();
@@ -66,7 +68,7 @@ async function main() {
     assert.deepEqual(startPixels, endPixels, "Logo must remain on the last frame");
     const rightCrop = { left: 700, top: 64, width: 350, height: 200 };
     assert.deepEqual(await sharp(start).extract(rightCrop).raw().toBuffer(), await sharp(baseline).extract(rightCrop).raw().toBuffer(), "Customer logo replaces internal Atomivid badge");
-    await renderMedia({ serveUrl, composition, inputProps: brandedProps, codec: "h264", crf: 26,
+    await renderMedia({ serveUrl, composition: brandedComposition, inputProps: brandedProps, codec: "h264", crf: 26,
       outputLocation: path.join(output, "with-logo.mp4"), concurrency: 2 });
     console.log("REEL_LOGO_RENDER_PASS", JSON.stringify({ output, providerCalls: 0, providerSpendUsd: 0 }));
   } finally {
