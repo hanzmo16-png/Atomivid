@@ -10,6 +10,8 @@ import { Alert } from "@/components/ui/Alert";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LinkButton } from "@/components/ui/Button";
 import Link from "next/link";
+import { createServiceClient } from "@/lib/supabase/service";
+import { readOwnerPilot, assertOwnerPilot } from "@/lib/billing/owner-pilot";
 
 export default async function DashboardPage({
   searchParams,
@@ -68,6 +70,12 @@ export default async function DashboardPage({
   const subscribed = isSubscriptionActive(
     (subscriptionData as { status: string } | null)?.status,
   );
+  const pilotAccess = user && !subscribed ? await Promise.all((requests ?? []).filter(row => row.status === "script_ready").slice(0, 10).map(async row => {
+    const grant = await readOwnerPilot(createServiceClient(), row.id);
+    if (!grant) return false;
+    try { assertOwnerPilot(grant, { ...row, mode: row.mode ?? null }, user, "admission"); return true; } catch { return false; }
+  })) : [];
+  const hasPilotAccess = pilotAccess.some(Boolean);
 
   const hasProcessing = (requests ?? []).some((r) => r.status === "processing");
   const firstName = user?.email?.split("@")[0];
@@ -96,7 +104,7 @@ export default async function DashboardPage({
       <div className="mt-4 space-y-3">
         {!subscribed && (
           <Alert tone="info">
-            Necesitas una suscripción activa para generar videos.{" "}
+            {hasPilotAccess ? "Tienes un permiso de prueba para el piloto preparado. Las demás solicitudes requieren una suscripción activa." : "Necesitas una suscripción activa para generar videos."}{" "}
             <Link href="/dashboard/billing" className="font-medium underline">
               Suscribirme
             </Link>

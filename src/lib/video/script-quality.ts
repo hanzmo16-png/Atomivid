@@ -73,6 +73,15 @@ export function checkScriptQuality(
     };
   }
 
+  return checkScriptContentQuality(script, { topic, targetWords });
+}
+
+/** Content checks for explicit operator-authored material; does not claim AI provenance. */
+export function checkScriptContentQuality(
+  script: Pick<GeneratedScript, "segments">,
+  { topic, targetWords }: { topic: string; targetWords: number },
+): ScriptQualityResult {
+
   const sentenceCounts = new Map<string, number>();
   for (const segment of script.segments) {
     for (const sentence of splitSentences(segment.text)) {

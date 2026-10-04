@@ -8,6 +8,7 @@ import { Onboarding } from "@/components/onboarding/Onboarding";
 import { NavLink } from "./NavLink";
 import { isLongFormEnabled, isLongFormAllowlisted } from "@/lib/video/long-form/access";
 import { isCommandCenterAdmin } from "@/lib/command-center/access";
+import { directorActor } from "@/lib/production-intelligence/vfx-director/access";
 
 export default async function DashboardLayout({
   children,
@@ -29,6 +30,8 @@ export default async function DashboardLayout({
   const showLongFormDryRun = isLongFormEnabled() && isLongFormAllowlisted(user);
   // Command Center: owner/admin only (same gate as its page and API); plain navigation.
   const showCommandCenter = isCommandCenterAdmin(user);
+  let showVfx = false;
+  try { directorActor(user); showVfx = true; } catch { /* Owner-only navigation. */ }
 
   return (
     <div className="min-h-screen">
@@ -70,6 +73,7 @@ export default async function DashboardLayout({
             <LinkButton href="/dashboard/new" size="sm">
               Nuevo video
             </LinkButton>
+            {showVfx && <NavLink href="/dashboard/vfx" className="hidden rounded-md px-3 py-2 text-sm font-medium sm:inline-block">Director VFX</NavLink>}
             <form action={signOut}>
               <button
                 type="submit"
@@ -92,6 +96,7 @@ export default async function DashboardLayout({
               <NavLink href="/dashboard/long-form/visual-test-v2">Dry Run Long Form</NavLink>
             )}
             {showCommandCenter && <NavLink href="/dashboard/command-center">Command Center</NavLink>}
+            {showVfx && <NavLink href="/dashboard/vfx">Director VFX</NavLink>}
           </div>
         </div>
       </header>

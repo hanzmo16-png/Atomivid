@@ -1,0 +1,29 @@
+name: Private application pilot preflight
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [scripts/owner-pilot-preflight.ts]
+permissions:
+  contents: read
+concurrency:
+  group: owner-pilot-preflight
+  cancel-in-progress: false
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node --import tsx scripts/owner-pilot-preflight.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}

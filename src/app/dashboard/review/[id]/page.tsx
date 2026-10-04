@@ -6,6 +6,7 @@ import type { GeneratedScript } from "@/lib/providers/types";
 import { createServiceClient } from "@/lib/supabase/service";
 import { RECORDING_BUCKET, isOwnedRecordingPath } from "@/lib/video/avatar/recording";
 import { avatarEntitlementPreview } from "@/lib/billing/quota";
+import { readOwnerPilot, assertOwnerPilot } from "@/lib/billing/owner-pilot";
 import { ScriptReview } from "./ScriptReview";
 
 type VideoRequestRow = {
@@ -64,6 +65,11 @@ export default async function ReviewPage({
   // antemano; assertCanGenerate en render/route.ts sigue siendo la única
   // fuente de verdad que de verdad bloquea el envío server-side.
   let avatarEntitlementBlockedReason: string | undefined;
+  const pilot = await readOwnerPilot(createServiceClient(), id);
+  if (pilot) {
+    try { assertOwnerPilot(pilot, { ...data, user_id: user.id }, user, "admission"); }
+    catch { avatarEntitlementBlockedReason = "Este permiso de prueba expiró, ya se utilizó o el guion cambió. Requiere una nueva revisión."; }
+  }
   if (data.mode === "avatar") {
     const preview = await avatarEntitlementPreview(createServiceClient(), user.id, user);
     if (preview.blocked) avatarEntitlementBlockedReason = preview.reason;
@@ -78,6 +84,7 @@ export default async function ReviewPage({
           ? `Duración: ${data.duration_seconds}s`
           : `${data.duration_seconds}s`}
       </p>
+      {pilot && <p className="my-4 rounded border border-border p-3 text-sm">Piloto autorizado: un render de 30 segundos. Guion preparado sin generación de IA; voz con saldo incluido y sin sobreconsumo. Gasto adicional de proveedor: $0.00. Puedes revisar el guion; cambiarlo requiere volver a verificar su presupuesto.</p>}
       {/* Contrato de duración (RC QA 2026-09-25): para "recording"/"tts_text"
           duration_seconds ya NO es el objetivo 30/60/90 del selector, sino la
           duración REAL del audio medida con ffprobe al crear la solicitud

@@ -76,6 +76,7 @@ export const githubActionsWorker: RenderWorker = {
   async trigger({ requestId, renderAttempt, mode }) {
     const token = process.env.GH_WORKER_TOKEN;
     const repo = process.env.GH_WORKER_REPO;
+    const ref = process.env.GH_WORKER_REF?.trim();
 
     // Tipados (no un Error genérico) para que classifyRenderError pueda
     // decirle al cliente exactamente qué variable falta, en vez de un
@@ -86,20 +87,21 @@ export const githubActionsWorker: RenderWorker = {
     if (!OWNER_REPO_PATTERN.test(repo)) {
       throw new InvalidEnvVarError("GH_WORKER_REPO", '"owner/repo", p. ej. "hanzmo16-png/Atomivid"');
     }
+    if (ref && (!/^[A-Za-z0-9][A-Za-z0-9_./-]*$/.test(ref) || ref.includes(".."))) throw new InvalidEnvVarError("GH_WORKER_REF", "una rama o SHA del worker");
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), DISPATCH_TIMEOUT_MS);
 
     let res: Response;
     try {
-      res = await fetch(`${GITHUB_API}/repos/${repo}/dispatches`, {
+      res = await fetch(`${GITHUB_API}/repos/${repo}/${ref ? "actions/workflows/render.yml/dispatches" : "dispatches"}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "application/vnd.github+json",
           "X-GitHub-Api-Version": "2022-11-28",
         },
-        body: JSON.stringify({
+        body: JSON.stringify(ref ? { ref, inputs: { request_id: requestId, mode: mode ?? "", render_attempt: renderAttempt?.toString() ?? "" } } : {
           event_type: DISPATCH_EVENT_TYPE,
           // `mode` permite a render.yml dar a Long Form su propio timeout y
           // sus credenciales (OpenAI/Veo/confirmación de gasto) sin

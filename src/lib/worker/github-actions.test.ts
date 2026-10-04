@@ -7,7 +7,7 @@ import {
   GitHubWorkerNetworkError,
 } from "./github-actions";
 
-const ENV_KEYS = ["GH_WORKER_TOKEN", "GH_WORKER_REPO"] as const;
+const ENV_KEYS = ["GH_WORKER_TOKEN", "GH_WORKER_REPO", "GH_WORKER_REF"] as const;
 
 function withEnv(overrides: Partial<Record<(typeof ENV_KEYS)[number], string>>, fn: () => Promise<void>) {
   const original: Partial<Record<string, string | undefined>> = {};
@@ -23,6 +23,18 @@ function withEnv(overrides: Partial<Record<(typeof ENV_KEYS)[number], string>>, 
     }
   });
 }
+
+test("preview dispatch uses only the configured worker ref and reserved attempt", async () => {
+  const originalFetch = global.fetch;
+  let captured: { url: string; body: unknown } | undefined;
+  global.fetch = (async (url, init) => { captured = { url: String(url), body: JSON.parse(String(init?.body)) }; return new Response(null, { status: 204 }); }) as typeof fetch;
+  try {
+    await withEnv({ GH_WORKER_TOKEN: "test", GH_WORKER_REPO: "owner/repo", GH_WORKER_REF: "codex/preview" },
+      () => githubActionsWorker.trigger({ requestId: "request", renderAttempt: 1, mode: "visual" }));
+    assert.deepEqual(captured, { url: "https://api.github.com/repos/owner/repo/actions/workflows/render.yml/dispatches",
+      body: { ref: "codex/preview", inputs: { request_id: "request", mode: "visual", render_attempt: "1" } } });
+  } finally { global.fetch = originalFetch; }
+});
 
 /**
  * Regresión exacta del incidente en producción (Código: 30451999): al

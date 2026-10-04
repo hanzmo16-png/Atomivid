@@ -34,6 +34,8 @@ import { getPricingConfig } from "@/lib/billing/pricing";
 import { gatedMusicTrack, gatedVoiceSynthesize, type PaidCallDeps } from "@/lib/paid-calls/gated-providers";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
 import { supabaseResultStore } from "@/lib/paid-calls/result-store";
+import type { OwnerPilot } from "@/lib/billing/owner-pilot";
+import { ownerPilotLedger } from "@/lib/paid-calls/owner-pilot-ledger";
 
 // Deliberadamente separado de generate-script.ts — ver el comentario ahí
 // para la razón exacta (Remotion no debe cargarse en la ruta de guion).
@@ -66,6 +68,7 @@ export async function generateVideoFromScript({
   targetDurationSeconds,
   onProgress,
   paidCalls,
+  ownerPilot,
 }: {
   supabase: SupabaseClient;
   requestId: string;
@@ -76,6 +79,7 @@ export async function generateVideoFromScript({
    * de pago de esta función (voz ×2, imagen, música generativa) pasa por ella.
    */
   paidCalls?: Pick<PaidCallDeps, "ledger" | "results">;
+  ownerPilot?: OwnerPilot;
   script: GeneratedScript;
   /** Estilo elegido por el usuario (p. ej. "Motivacional") — usado para elegir música acorde. */
   style?: string;
@@ -89,15 +93,19 @@ export async function generateVideoFromScript({
   const voiceProvider = getVoiceProvider();
   const footageProvider = getFootageProvider();
   const musicProvider = getMusicProvider();
-  const imageProvider = getFeatureFlags().imageGenerationEnabled ? getImageProvider() : undefined;
+  const imageProvider = !ownerPilot && getFeatureFlags().imageGenerationEnabled ? getImageProvider() : undefined;
   let storageBytes = 0;
   const gate: PaidCallDeps = {
-    ledger: paidCalls?.ledger ?? supabaseLedgerStore(supabase),
+    ledger: ownerPilot ? ownerPilotLedger(supabase, ownerPilot) : paidCalls?.ledger ?? supabaseLedgerStore(supabase),
     results: paidCalls?.results ?? supabaseResultStore(supabase, STORAGE_BUCKET),
     requestId,
   };
   const voiceIdentity = getVoiceIdentity(language === "en" ? "en" : "es");
-  const voiceCostUsd = (text: string) => (text.length / 1000) * getPricingConfig().elevenLabsUsdPer1kChars;
+  if (ownerPilot && (ownerPilot.requestId !== requestId || voiceProvider.name !== "elevenlabs"
+    || footageProvider.name !== "pexels-video-first" || musicProvider.name !== "curated-library"
+    || voiceIdentity.voiceId !== ownerPilot.voiceId || voiceIdentity.modelId !== ownerPilot.modelId
+    || script.segments.map(s => s.text).join(" ").length > ownerPilot.maxVoiceCharacters)) throw new Error("PILOT_PROVIDER_CONTRACT_CHANGED");
+  const voiceCostUsd = (text: string) => (text.length / 1000) * (ownerPilot?.voiceUsdPer1kChars ?? getPricingConfig().elevenLabsUsdPer1kChars);
   const synthesizeGated = (text: string, speed?: number) =>
     gatedVoiceSynthesize({ ...gate, voiceProvider, voiceIdentity, estimatedCostUsd: voiceCostUsd(text) }, text, language, speed);
 
@@ -112,7 +120,7 @@ export async function generateVideoFromScript({
   // porque esa columna depende de la migración 0010, que no se aplica
   // sola (ver supabase/migrations/0010_visual_director.sql).
   let storyboard: Storyboard | undefined;
-  if (getFeatureFlags().visualDirectorEnabled) {
+  if (!ownerPilot && getFeatureFlags().visualDirectorEnabled) {
     try {
       const built = await buildStoryboard(script, language);
       storyboard = built.storyboard;

@@ -26,6 +26,8 @@ import {
   type CapacityDemand,
 } from "@/lib/paid-calls/capacity-hold";
 import { snapshotBalancePort } from "@/lib/paid-calls/capacity-port";
+import { readOwnerPilot, assertOwnerPilot } from "@/lib/billing/owner-pilot";
+import { refreshPrepaidPilot } from "@/lib/paid-calls/prepaid-pilot";
 
 /**
  * Demanda de capacidad de proveedor de este trabajo (PI V2 B2, RB-02): hoy solo la voz
@@ -159,6 +161,13 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
   const holdStore = supabaseCapacityHoldStore(service);
   let holds: AcquiredHold[] = [];
   try {
+    const pilot = await readOwnerPilot(service, requestId);
+    if (pilot) {
+      const { data: auth, error } = await service.auth.admin.getUserById(row.user_id);
+      if (error || !auth.user) throw new Error("PILOT_OWNER_UNVERIFIED");
+      assertOwnerPilot(pilot, { ...row, id: requestId }, auth.user, "worker");
+      await refreshPrepaidPilot(service, pilot);
+    }
     if (mode === "avatar" && !row.avatar_id) throw new Error("Falta el avatar asociado a esta solicitud.");
     if (mode !== "long_form" && !row.script_json) throw new Error("No hay guion guardado para renderizar.");
     if (mode === "long_form" && !isLongFormScriptJson(row.script_json)) {
@@ -175,7 +184,8 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
             beats: (row.script_json as unknown as { beats: LongFormScriptBeatInput[] }).beats,
           })
         : null;
-    const demands = capacityDemandsFor(row, getVoiceProvider().name);
+    const baseDemands = capacityDemandsFor(row, getVoiceProvider().name);
+    const demands = pilot ? baseDemands.map(d => ({ ...d, units: pilot.maxVoiceCharacters * pilot.maxVoiceCalls, usd: 0 })) : baseDemands;
     if (demands.length > 0) {
       await releaseOpenHoldsForRequest(holdStore, requestId).catch(() => 0);
       const admission = await acquireCapacityHolds({ store: holdStore, balance: snapshotBalancePort(service) }, { requestId, demands });
@@ -219,6 +229,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
               language: row.language ?? undefined,
               targetDurationSeconds: row.duration_seconds ?? undefined,
               onProgress,
+              ownerPilot: pilot ?? undefined,
             });
 
     const completed = await update({

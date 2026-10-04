@@ -5,7 +5,13 @@ import { parseShotContract } from "../contract";
 import { DIRECTOR_VERSION } from "./index";
 import { CHECKS } from "./gates";
 import { directorActor } from "./access";
+import { reviewView } from "./review-view";
 const owner = "owner-1";
+test("VFX has a separate owner setting without changing Avatar access", () => {
+  const user = { id: owner, email: "vfx@example.com", email_confirmed_at: "confirmed" };
+  assert.equal(directorActor(user, { VFX_DIRECTOR_ENABLED: "1", VFX_DIRECTOR_OWNER_EMAIL: "vfx@example.com", AVATAR_PREPARATION_OWNER_EMAIL: "avatar@example.com" }), owner);
+  assert.throws(() => directorActor({ ...user, email: "avatar@example.com" }, { VFX_DIRECTOR_ENABLED: "1", VFX_DIRECTOR_OWNER_EMAIL: "vfx@example.com", AVATAR_PREPARATION_OWNER_EMAIL: "avatar@example.com" }));
+});
 const inventory = { proof: { available: true, paid: false, preservesOriginalPixels: true } };
 const brief = { projectId: "proof-job", intent: "show transformation", emotion: "surprise", frames: 150, fps: 30, width: 1080, height: 1920, sourceSha256: "a".repeat(64), subjectLock: "original_pixels", budgetUsd: 0 };
 const contract = parseShotContract({ shotId: "open", shotClass: "talking_head", narrationIntent: "show transformation", visualIntent: "room to city", motionRequirement: "simple", motionLeverage: "HIGH", riskClass: "HIGH", desiredDuration: 5, maxGeneratedDuration: 0, qualityTier: "hero" });
@@ -49,6 +55,7 @@ test("rejection persists and blocks worker; other account cannot read, execute o
   const store = await initialize(); await runTask(store, brief.projectId, owner, { proof: executor() }); const approved = await approveDirection(store);
   await approveStage(store, approved.id, owner, { stage: "direction", planHash: approved.planHash, artifactSha256: approved.artifacts.direction!, approved: false, checks: [{ name: "silent-readability", pass: false, evidence: "action unclear" }] });
   assert.equal((await runTask(store, approved.id, owner, { proof: executor() })).job.status, "BLOCKED");
+  assert.equal(reviewView(await ownedJob(store, approved.id, owner))[0].canApprove, false);
   await assert.rejects(ownedJob(store, approved.id, "intruder")); await assert.rejects(runTask(store, approved.id, "intruder", { proof: executor() }));
   await assert.rejects(approveStage(store, approved.id, "intruder", { stage: "direction", planHash: approved.planHash, artifactSha256: "b".repeat(64), approved: true, checks: [] }));
 });

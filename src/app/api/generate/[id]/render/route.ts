@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getRenderWorker } from "@/lib/worker";
 import { assertCanGenerate } from "@/lib/billing/quota";
+import { readOwnerPilot, assertOwnerPilot } from "@/lib/billing/owner-pilot";
 import { evaluateRenderStart } from "@/lib/video/render-guard";
 import {
   classifyRenderError,
@@ -27,6 +28,7 @@ export const maxDuration = 300;
 type VideoRequestRow = {
   id: string;
   mode: string;
+  duration_seconds: number;
   user_id: string;
   status: string;
   script_json: GeneratedScript | null;
@@ -74,7 +76,7 @@ export async function POST(
     try {
       const { data, error: fetchError } = await service
         .from("video_requests")
-        .select("id, mode, user_id, status, script_json, render_attempts, render_started_at, created_at, error_message, avatar_provider_video_job_id, long_form_confirmed_at, long_form_progress")
+        .select("id, mode, duration_seconds, user_id, status, script_json, render_attempts, render_started_at, created_at, error_message, avatar_provider_video_job_id, long_form_confirmed_at, long_form_progress")
         .eq("id", id)
         .single<VideoRequestRow>();
 
@@ -142,7 +144,11 @@ export async function POST(
 
     let check: Awaited<ReturnType<typeof assertCanGenerate>>;
     try {
-      check = await assertCanGenerate(service, user.id, videoRequest.mode, user);
+      const pilot = await readOwnerPilot(service, id);
+      if (pilot) {
+        assertOwnerPilot(pilot, videoRequest, user, "admission");
+        check = { allowed: true };
+      } else check = await assertCanGenerate(service, user.id, videoRequest.mode, user);
     } catch (error) {
       throw new RenderStageError("check_subscription", error);
     }
