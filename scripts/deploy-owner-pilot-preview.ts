@@ -1,4 +1,6 @@
-/** Deploy the exact trusted branch commit to the existing project's preview environment only. */
+/** Deploy the exact trusted branch commit to the existing project's preview environment only.
+ * Owner form QA: use the existing server deployment job when credential protection blocks browser controls.
+ */
 import { createServiceClient } from "../src/lib/supabase/service";
 import { supabaseLedgerStore } from "../src/lib/paid-calls/supabase-ledger-store";
 import { executePaidOperation } from "../src/lib/production-intelligence/ledger";
@@ -20,7 +22,7 @@ async function main() {
   // Names and targets only (never values): page-initiated VFX execution needs these on preview.
   const envs = await api(`/v9/projects/${project}/env`) as { envs?: { key: string; target?: string[] | string }[] };
   const onPreview = (key: string) => (envs.envs ?? []).some(e => e.key === key && (Array.isArray(e.target) ? e.target : [e.target]).includes("preview"));
-  console.log(JSON.stringify({ previewEnvPresent: Object.fromEntries(["GH_WORKER_TOKEN", "GH_WORKER_REPO", "VFX_EXECUTION_ENABLED", "VFX_DIRECTOR_ENABLED", "AVATAR_PREPARATION_OWNER_EMAIL", "VFX_DIRECTOR_OWNER_EMAIL"].map(k => [k, onPreview(k)])) }));
+  console.log(JSON.stringify({ previewEnvPresent: Object.fromEntries(["GH_WORKER_TOKEN", "GH_WORKER_REPO", "GH_WORKER_REF", "VFX_EXECUTION_ENABLED", "VFX_DIRECTOR_ENABLED", "AVATAR_PREPARATION_OWNER_EMAIL", "VFX_DIRECTOR_OWNER_EMAIL"].map(k => [k, onPreview(k)])) }));
   const operationKey = "owner_pilot_preview_deploy:" + sha;
   // An independently submitted UI deployment needs explicit reconciliation.
   // An old reservation without a receipt must never cause another deployment.
