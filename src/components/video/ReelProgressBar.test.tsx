@@ -20,7 +20,7 @@ test("an in-flight reel shows the same stage percentage in history and detail", 
     assert.match(html, /role="progressbar"/);
     assert.match(html, /aria-valuenow="67"/);
     assert.match(html, /4 de 6 etapas completadas/);
-    assert.match(html, /width:67%/);
+    assert.match(html, /stroke-dashoffset="33"/);
     assert.match(html, /Ensamblando el video/);
   }
 });
