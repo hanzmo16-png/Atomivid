@@ -37,6 +37,8 @@ export type VerticalReelProps = {
   accentColor?: string;
   /** Badge de logo opt-in en la esquina — nunca activo por defecto, ver src/lib/video/brand.ts. */
   showLogo?: boolean;
+  /** Customer PNG; has priority over the internal Atomivid promotional badge. */
+  customerLogoUrl?: string;
 };
 
 // Duración del crossfade entre escenas. A 30fps, 15 frames = 0.5s.
@@ -52,6 +54,7 @@ export function VerticalReel({
   narrationGaps = [],
   accentColor = DEFAULT_ACCENT_COLOR,
   showLogo = false,
+  customerLogoUrl,
 }: VerticalReelProps) {
   const { fps, durationInFrames } = useVideoConfig();
 
@@ -89,7 +92,10 @@ export function VerticalReel({
 
       <Captions captions={captions} accentColor={accentColor} />
 
-      {showLogo && <LogoBadge accentColor={accentColor} />}
+      {customerLogoUrl ? (
+        <Img src={customerLogoUrl} style={{ position: "absolute", top: 96, left: 64,
+          width: 200, height: 120, objectFit: "contain", objectPosition: "left top" }} />
+      ) : showLogo ? <LogoBadge accentColor={accentColor} /> : null}
 
       {audioUrl && (
         <Audio

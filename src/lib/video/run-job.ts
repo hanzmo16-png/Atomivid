@@ -28,6 +28,7 @@ import {
 import { snapshotBalancePort } from "@/lib/paid-calls/capacity-port";
 import { readOwnerPilot, assertOwnerPilot } from "@/lib/billing/owner-pilot";
 import { refreshPrepaidPilot } from "@/lib/paid-calls/prepaid-pilot";
+import { loadReelLogo } from "./reel-logo";
 
 /**
  * Demanda de capacidad de proveedor de este trabajo (PI V2 B2, RB-02): hoy solo la voz
@@ -73,6 +74,7 @@ type JobRow = {
   avatar_provider_video_job_id: string | null;
   long_form_production_plan: ProductionPlan | null;
   long_form_confirmed_at: string | null;
+  brand_logo_path: string | null;
 };
 
 /**
@@ -96,7 +98,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
   const { data: row, error: readError } = await service
     .from("video_requests")
     .select(
-      "status, render_attempts, progress_stage, user_id, script_json, style, topic, language, duration_seconds, mode, avatar_id, avatar_voice_id, avatar_provider_video_job_id, recorded_audio_path, avatar_narration_source, long_form_production_plan, long_form_confirmed_at",
+      "status, render_attempts, progress_stage, user_id, script_json, style, topic, language, duration_seconds, mode, avatar_id, avatar_voice_id, avatar_provider_video_job_id, recorded_audio_path, avatar_narration_source, long_form_production_plan, long_form_confirmed_at, brand_logo_path",
     )
     .eq("id", requestId)
     .single<JobRow>();
@@ -184,6 +186,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
             beats: (row.script_json as unknown as { beats: LongFormScriptBeatInput[] }).beats,
           })
         : null;
+    const customerLogoUrl = mode === "visual" ? await loadReelLogo(service, row.user_id, requestId, row.brand_logo_path) : undefined;
     const baseDemands = capacityDemandsFor(row, getVoiceProvider().name);
     const demands = pilot ? baseDemands.map(d => ({ ...d, units: pilot.maxVoiceCharacters * pilot.maxVoiceCalls, usd: 0 })) : baseDemands;
     if (demands.length > 0) {
@@ -230,6 +233,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
               targetDurationSeconds: row.duration_seconds ?? undefined,
               onProgress,
               ownerPilot: pilot ?? undefined,
+              customerLogoUrl,
             });
 
     const completed = await update({

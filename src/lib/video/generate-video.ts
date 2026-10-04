@@ -69,6 +69,7 @@ export async function generateVideoFromScript({
   onProgress,
   paidCalls,
   ownerPilot,
+  customerLogoUrl,
 }: {
   supabase: SupabaseClient;
   requestId: string;
@@ -80,6 +81,8 @@ export async function generateVideoFromScript({
    */
   paidCalls?: Pick<PaidCallDeps, "ledger" | "results">;
   ownerPilot?: OwnerPilot;
+  /** Validated private PNG loaded by the worker, never a user-supplied URL. */
+  customerLogoUrl?: string;
   script: GeneratedScript;
   /** Estilo elegido por el usuario (p. ej. "Motivacional") — usado para elegir música acorde. */
   style?: string;
@@ -464,6 +467,7 @@ export async function generateVideoFromScript({
     captions,
     narrationGaps,
     durationSeconds: finalDurationSeconds,
+    customerLogoUrl,
   });
   const renderMs = Date.now() - renderStartedAt;
 
@@ -618,6 +622,7 @@ async function renderVerticalReel({
   captions,
   narrationGaps,
   durationSeconds,
+  customerLogoUrl,
 }: {
   audioUrl: string;
   musicUrl?: string;
@@ -625,6 +630,7 @@ async function renderVerticalReel({
   captions: Caption[];
   narrationGaps: NarrationGap[];
   durationSeconds: number;
+  customerLogoUrl?: string;
 }): Promise<string> {
   const entryPoint = path.join(process.cwd(), "remotion", "index.ts");
   const browserExecutable = process.env.REMOTION_BROWSER_EXECUTABLE || undefined;
@@ -646,6 +652,7 @@ async function renderVerticalReel({
     durationSeconds,
     accentColor: getAccentColor(),
     showLogo: shouldShowLogo(),
+    customerLogoUrl,
   };
 
   const composition = await selectComposition({

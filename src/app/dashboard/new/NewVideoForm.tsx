@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
 import { AvatarFields } from "./AvatarFields";
 import { SubmitButton } from "./SubmitButton";
+import { LogoFields } from "./LogoFields";
 import { avatarDurationSelectorApplies } from "./validation";
 
 const STYLES = [
@@ -174,6 +175,7 @@ export function NewVideoForm({
         />
       )}
 
+      {mode === "visual" && <LogoFields />}
       <SubmitButton />
     </form>
   );

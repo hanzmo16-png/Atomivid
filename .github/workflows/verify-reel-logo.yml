@@ -1,0 +1,25 @@
+name: Verify optional reel logo (no paid calls)
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [scripts/verify-reel-logo.ts, .github/workflows/verify-reel-logo.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx remotion browser ensure
+      - run: npx tsx scripts/verify-reel-logo.ts --storage
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          REEL_LOGO_VERIFY_USER_ID: d2064950-7a95-4208-8dfb-d93b470d141d

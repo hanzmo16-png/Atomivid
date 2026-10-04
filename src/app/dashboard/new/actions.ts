@@ -11,6 +11,7 @@ import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { getAvatarProvider, AvatarProviderError, type AvatarJobStatus } from "@/lib/providers/avatar";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { validatePhotoBuffer } from "@/lib/video/avatar/photo-validation";
+import { MAX_REEL_LOGO_BYTES, normalizeReelLogo, REEL_LOGO_BUCKET, reelLogoPath } from "@/lib/video/reel-logo";
 import { recordAvatarNarrationTts } from "@/lib/billing/usage";
 import {
   avatarStatusFromProviderStatus,
@@ -77,7 +78,29 @@ export async function createVideoRequest(formData: FormData) {
   }
 
   if (mode === "visual") {
-    const { error } = await supabase.from("video_requests").insert({
+    const requestId = randomUUID();
+    let logoPath: string | undefined;
+    const includeLogo = formData.get("include_logo") === "yes";
+    const service = includeLogo ? createServiceClient() : null;
+    if (includeLogo && service) {
+      const file = formData.get("brand_logo");
+      if (!(file instanceof File) || !file.size) redirect("/dashboard/new?error=Selecciona+un+logo+PNG");
+      if (file.size > MAX_REEL_LOGO_BYTES) redirect("/dashboard/new?error=El+logo+no+puede+superar+1+MB");
+      let buffer: Buffer;
+      try {
+        buffer = await normalizeReelLogo(Buffer.from(await file.arrayBuffer()), file.type);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "No se pudo leer el logo.";
+        redirect(`/dashboard/new?error=${encodeURIComponent(message)}`);
+      }
+      logoPath = reelLogoPath(user.id, requestId);
+      const { error: uploadError } = await service.storage.from(REEL_LOGO_BUCKET)
+        .upload(logoPath, buffer, { contentType: "image/png", upsert: false });
+      if (uploadError) redirect("/dashboard/new?error=No+se+pudo+guardar+tu+logo.+Intenta+de+nuevo.");
+    }
+    // Only verified server-generated paths can populate the protected logo column.
+    const { error } = await (service ?? supabase).from("video_requests").insert({
+      id: requestId,
       user_id: user.id,
       topic,
       style,
@@ -85,9 +108,11 @@ export async function createVideoRequest(formData: FormData) {
       language,
       mode: "visual",
       status: "pending",
+      ...(logoPath ? { brand_logo_path: logoPath } : {}),
     });
 
     if (error) {
+      if (logoPath && service) await service.storage.from(REEL_LOGO_BUCKET).remove([logoPath]).catch(() => {});
       redirect(`/dashboard/new?error=${encodeURIComponent(error.message)}`);
     }
 

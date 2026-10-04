@@ -45,6 +45,9 @@ yarn-error.log*
 # src/lib/video/long-form/video-cost-guard.ts
 /.atomivid-state/
 
+# Supabase CLI version cache
+/supabase/.temp/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
