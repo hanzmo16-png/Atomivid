@@ -25,6 +25,10 @@ on:
         description: "Intento reservado por la aplicación; rechaza despachos atrasados."
         required: false
         type: string
+      owner_form_trial:
+        description: "Private one-request trial; the worker still verifies its service-only grant."
+        required: false
+        type: string
 
 # Evita que dos renders de la MISMA solicitud corran en paralelo si por lo
 # que sea llegara un dispatch duplicado; distintas solicitudes sí corren en
@@ -64,17 +68,27 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Renderizar video
-        timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 120 || (vars.REEL_VISUAL_RELEVANCE_ENABLED == 'true' && 25 || 12) }}
+        timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 120 || ((vars.REEL_VISUAL_RELEVANCE_ENABLED == 'true' || inputs.owner_form_trial == 'true') && 25 || 12) }}
         run: npx tsx scripts/render-worker.ts
         env:
           ATOMIVID_RUNTIME: production
+          OWNER_FORM_TRIAL_WORKER: ${{ inputs.owner_form_trial == 'true' && 'true' || '' }}
+          VOICE_PROVIDER: ${{ inputs.owner_form_trial == 'true' && 'elevenlabs' || '' }}
+          FOOTAGE_PROVIDER: ${{ inputs.owner_form_trial == 'true' && 'pexels' || '' }}
+          PRICING_ELEVENLABS_USD_PER_1K_CHARS: ${{ inputs.owner_form_trial == 'true' && '0.1' || '' }}
+          OPENAI_IMAGE_ESTIMATED_COST_USD: ${{ inputs.owner_form_trial == 'true' && '0.08' || '' }}
+          OPENAI_IMAGE_MODEL: ${{ inputs.owner_form_trial == 'true' && 'gpt-image-2' || '' }}
+          OPENAI_IMAGE_SIZE: ${{ inputs.owner_form_trial == 'true' && '1024x1536' || '' }}
+          OPENAI_IMAGE_QUALITY: ${{ inputs.owner_form_trial == 'true' && 'medium' || '' }}
+          OPENAI_IMAGE_MAX_RETRIES: ${{ inputs.owner_form_trial == 'true' && '0' || '' }}
+          OPENAI_IMAGE_TIMEOUT_MS: ${{ inputs.owner_form_trial == 'true' && '120000' || '' }}
           REQUEST_ID: ${{ github.event.client_payload.requestId || inputs.request_id }}
           RENDER_ATTEMPT: ${{ github.event.client_payload.renderAttempt || inputs.render_attempt }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
-          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          ELEVENLABS_VOICE_ID: ${{ inputs.owner_form_trial == 'true' && 'uYlzyj2kIZo3HfBB21vF' || secrets.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ inputs.owner_form_trial == 'true' && 'eleven_multilingual_v2' || secrets.ELEVENLABS_MODEL_ID }}
           # QA real (2026-09-25, "AVATAR REAL HEYGEN ATTEMPT FAILED"): esto
           # decía 'false' con el comentario "el worker general nunca
           # habilita avatar" — cierto ANTES del RC mission de Avatar, cuando
@@ -98,7 +112,7 @@ jobs:
           MAX_GENERATED_IMAGES_PER_VIDEO: ${{ vars.REEL_MAX_GENERATED_IMAGES }}
           MAX_VISUAL_COST_USD: ${{ vars.REEL_MAX_VISUAL_COST_USD }}
           MUSIC_TRACK_URLS: ${{ secrets.MUSIC_TRACK_URLS }}
-          MUSIC_PROVIDER: ${{ secrets.MUSIC_PROVIDER }}
+          MUSIC_PROVIDER: ${{ inputs.owner_form_trial == 'true' && 'curated-library' || secrets.MUSIC_PROVIDER }}
           # --- Solo Long Form (vacío para cualquier otra modalidad: Reel/Avatar
           # siguen exactamente igual, nunca reciben estas credenciales) ---
           # Interruptor GLOBAL de gasto real (mode.ts). Hans lo activa creando
@@ -107,7 +121,7 @@ jobs:
           # confirmación humana (long_form_confirmed_at).
           LONG_FORM_REAL_RUN_CONFIRM: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && secrets.LONG_FORM_REAL_RUN_CONFIRM || '' }}
           IMAGE_PROVIDER: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form' || vars.REEL_VISUAL_RELEVANCE_ENABLED == 'true') && 'openai' || '' }}
-          OPENAI_API_KEY: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form' || vars.REEL_VISUAL_RELEVANCE_ENABLED == 'true') && secrets.OPENAI_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form' || vars.REEL_VISUAL_RELEVANCE_ENABLED == 'true' || inputs.owner_form_trial == 'true') && secrets.OPENAI_API_KEY || '' }}
           # Video IA: en el worker se encienden para Long Form y el ÚNICO
           # control es la allocation del plan confirmado (calculada en Vercel
           # con sus propias flags y mostrada al usuario antes de confirmar):
@@ -127,12 +141,30 @@ jobs:
           # tamaño, se ajusta desde el mismo archivo al límite demostrado.
           LONG_FORM_STORAGE_MAX_OBJECT_BYTES: ${{ vars.LONG_FORM_STORAGE_MAX_OBJECT_BYTES }}
 
+      - name: Audit authorized owner form delivery
+        if: inputs.owner_form_trial == 'true'
+        run: node --import tsx scripts/owner-form-trial-audit.ts
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          OWNER_FORM_TRIAL_WORKER: 'true'
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Retain owner form trial for manual review
+        if: always() && inputs.owner_form_trial == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: owner-form-trial-${{ inputs.request_id }}-${{ github.run_id }}
+          path: owner-form-trial-output/
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
       - name: Marcar como fallido si el render no terminó
         if: failure()
         run: npx tsx scripts/mark-render-failed.ts
         env:
           REQUEST_ID: ${{ github.event.client_payload.requestId || inputs.request_id }}
-          RENDER_ATTEMPT: ${{ github.event.client_payload.renderAttempt }}
+          RENDER_ATTEMPT: ${{ github.event.client_payload.renderAttempt || inputs.render_attempt }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 

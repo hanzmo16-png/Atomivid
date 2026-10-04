@@ -24,10 +24,11 @@ export function assertReviewedVisualConfiguration(segments: ScriptScene[], owner
 
 export { createFootageSelectionState };
 export async function resolveReviewedVisual({ service, requestId, sceneIndex, segment, intent, durationSeconds,
-  footageProvider, imageProvider, ledger, state, remainingImageBudgetUsd, mayGenerate,
+  footageProvider, imageProvider, ledger, reviewLedger, state, remainingImageBudgetUsd, mayGenerate,
 }: {
   service: SupabaseClient; requestId: string; sceneIndex: number; segment: ScriptScene; intent: VisualIntent; durationSeconds: number;
   footageProvider: FootageProvider; imageProvider?: ImageProvider; ledger: LedgerStore; state: FootageSelectionState;
+  reviewLedger?: LedgerStore;
   remainingImageBudgetUsd: number; mayGenerate: boolean;
 }) {
   let reviewCostUsd = 0;
@@ -35,7 +36,8 @@ export async function resolveReviewedVisual({ service, requestId, sceneIndex, se
   const verify = async (buffer: Buffer, mediaType: "image" | "video") => {
     let review;
     try {
-      review = await reviewVisual({ service, requestId, sceneIndex, intent, narration: segment.text, buffer, mediaType, durationSeconds });
+      review = await reviewVisual({ service, requestId, sceneIndex, intent, narration: segment.text, buffer, mediaType, durationSeconds,
+        ...(reviewLedger ? { ledger: reviewLedger } : {}) });
     } catch (error) {
       if (!(error instanceof VisualAssetQualityError)) throw error;
       console.log("[atomivid:visual-review]", JSON.stringify({ requestId, sceneIndex, mediaType, accepted: false, reason: error.message, costUsd: 0, technicalRejection: true }));

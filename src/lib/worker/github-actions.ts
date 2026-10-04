@@ -73,10 +73,11 @@ export class GitHubWorkerNetworkError extends Error {
  */
 export const githubActionsWorker: RenderWorker = {
   name: "github-actions",
-  async trigger({ requestId, renderAttempt, mode }) {
+  async trigger({ requestId, renderAttempt, mode, ownerFormTrial }) {
     const token = process.env.GH_WORKER_TOKEN;
     const repo = process.env.GH_WORKER_REPO;
     const ref = process.env.GH_WORKER_REF?.trim();
+    if (ownerFormTrial && !ref) throw new MissingEnvVarError("GH_WORKER_REF");
 
     // Tipados (no un Error genérico) para que classifyRenderError pueda
     // decirle al cliente exactamente qué variable falta, en vez de un
@@ -101,7 +102,8 @@ export const githubActionsWorker: RenderWorker = {
           Accept: "application/vnd.github+json",
           "X-GitHub-Api-Version": "2022-11-28",
         },
-        body: JSON.stringify(ref ? { ref, inputs: { request_id: requestId, mode: mode ?? "", render_attempt: renderAttempt?.toString() ?? "" } } : {
+        body: JSON.stringify(ref ? { ref, inputs: { request_id: requestId, mode: mode ?? "", render_attempt: renderAttempt?.toString() ?? "",
+          ...(ownerFormTrial ? { owner_form_trial: "true" } : {}) } } : {
           event_type: DISPATCH_EVENT_TYPE,
           // `mode` permite a render.yml dar a Long Form su propio timeout y
           // sus credenciales (OpenAI/Veo/confirmación de gasto) sin

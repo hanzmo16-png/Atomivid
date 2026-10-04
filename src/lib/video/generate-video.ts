@@ -69,6 +69,7 @@ export async function generateVideoFromScript({
   targetDurationSeconds,
   onProgress,
   paidCalls,
+  trialReviewLedger,
   ownerPilot,
   customerLogoUrl,
 }: {
@@ -81,6 +82,8 @@ export async function generateVideoFromScript({
    * de pago de esta función (voz ×2, imagen, música generativa) pasa por ella.
    */
   paidCalls?: Pick<PaidCallDeps, "ledger" | "results">;
+  /** Private trial combines reviews with the same atomic total budget. */
+  trialReviewLedger?: PaidCallDeps["ledger"];
   ownerPilot?: OwnerPilot;
   /** Validated private PNG loaded by the worker, never a user-supplied URL. */
   customerLogoUrl?: string;
@@ -233,7 +236,7 @@ export async function generateVideoFromScript({
       // One verified subject persists across its entire narration, including long scenes.
       const visual = await resolveReviewedVisual({ service: supabase, requestId, sceneIndex: i, segment,
         intent: visualIntents[i], durationSeconds: timing.end - timing.start, footageProvider, imageProvider,
-        ledger: gate.ledger, state: footageState,
+        ledger: gate.ledger, reviewLedger: trialReviewLedger, state: footageState,
         remainingImageBudgetUsd: Math.max(0, getFeatureFlags().maxVisualCostUsd - visualCostSpentUsd),
         mayGenerate: getFeatureFlags().imageGenerationEnabled && imagesRequestedCount < getFeatureFlags().maxImagesPerVideo });
       scenes.push({ mediaUrl: visual.url, mediaType: visual.mediaType, startSeconds: timing.start, endSeconds: timing.end });

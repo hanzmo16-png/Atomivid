@@ -136,17 +136,26 @@ function countScriptWords(script: Pick<VideoScript, "segments">): number {
 // rechazarlo.
 const MAX_LENGTH_ATTEMPTS = 3;
 
+export type ScriptCallResult = { script: VideoScript; inputTokens: number; outputTokens: number };
+/** A server-owned trial can reserve EACH HTTP call, with SDK retries disabled. */
+export type ScriptExecution = {
+  model: string;
+  call(attempt: number, input: unknown, invoke: () => Promise<ScriptCallResult>): Promise<ScriptCallResult>;
+};
+
 export async function generateScript({
   topic,
   style,
   durationSeconds,
   language = "es",
+  execution,
 }: {
   topic: string;
   style: string;
   durationSeconds: number;
   /** Idioma elegido por el usuario — no se infiere del texto del tema. */
   language?: "es" | "en";
+  execution?: ScriptExecution;
 }): Promise<VideoScript> {
   const targetWords = targetWordsFor(durationSeconds);
   const targetScenes = Math.max(3, Math.min(10, Math.round(durationSeconds / 5)));
@@ -205,20 +214,22 @@ La suma de las palabras de todos los "text" debe quedar entre ${minWords} y ${ma
 
 Tu intento anterior tuvo ${lastWordCount} palabras narradas en total, fuera del rango pedido (${minWords}-${maxWords}). Reescribe el guion completo — mismo tema, arco narrativo, idioma y estilo —, ${direction} el nivel de detalle de cada escena (sin relleno ni cortes artificiales) hasta que la suma de "text" caiga dentro del rango. Cuenta las palabras con cuidado antes de responder.`;
 
-    const response = await getClient().messages.parse({
-      model: SCRIPT_MODEL,
+    const params = {
+      model: execution?.model ?? SCRIPT_MODEL,
       max_tokens: 6000,
       system,
-      messages: [{ role: "user", content }],
+      messages: [{ role: "user" as const, content }],
       output_config: {
         format: zodOutputFormat(ScriptSchema),
       },
-    });
-
-    const parsed = response.parsed_output;
-    if (!parsed) {
-      throw new Error("Claude no devolvió un guion válido");
-    }
+    };
+    const invoke = async (): Promise<ScriptCallResult> => {
+      const response = await getClient().messages.parse(params, execution ? { maxRetries: 0 } : undefined);
+      if (!response.parsed_output) throw new Error("Claude no devolvió un guion válido");
+      return { script: response.parsed_output, inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens };
+    };
+    const { script: parsed } = execution ? await execution.call(attempt, params, invoke) : await invoke();
 
     lastScript = parsed;
     lastWordCount = countScriptWords(parsed);

@@ -27,6 +27,12 @@ import {
 } from "@/lib/paid-calls/capacity-hold";
 import { snapshotBalancePort } from "@/lib/paid-calls/capacity-port";
 import { readOwnerPilot, assertOwnerPilot } from "@/lib/billing/owner-pilot";
+import { readOwnerFormTrial, assertOwnerFormTrial, assertOwnerFormFrozen } from "@/lib/billing/owner-form-trial";
+import { ownerFormTrialLedger } from "@/lib/paid-calls/owner-form-trial-ledger";
+import { supabaseResultStore } from "@/lib/paid-calls/result-store";
+import { getVoiceIdentity } from "@/lib/ai/voice";
+import { getFootageProvider } from "@/lib/providers/footage";
+import { getMusicProvider } from "@/lib/providers/music";
 import { refreshPrepaidPilot } from "@/lib/paid-calls/prepaid-pilot";
 import { loadReelLogo } from "./reel-logo";
 
@@ -164,6 +170,31 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
   let holds: AcquiredHold[] = [];
   try {
     const pilot = await readOwnerPilot(service, requestId);
+    const trial = await readOwnerFormTrial(service, requestId);
+    if (process.env.OWNER_FORM_TRIAL_WORKER === "true" && !trial) throw new Error("OWNER_FORM_TRIAL_GRANT_MISSING");
+    if (trial) {
+      // Only the isolated one-request Actions process may change these settings.
+      if (process.env.OWNER_FORM_TRIAL_WORKER !== "true" || !process.env.GITHUB_ACTIONS)
+        throw new Error("OWNER_FORM_TRIAL_REQUIRES_ISOLATED_WORKER");
+      const { data: auth, error } = await service.auth.admin.getUserById(row.user_id);
+      if (error || !auth.user) throw new Error("OWNER_FORM_TRIAL_OWNER_UNVERIFIED");
+      assertOwnerFormTrial(trial, { ...row, id: requestId, mode }, auth.user, "worker");
+      await assertOwnerFormFrozen(service, trial, row.script_json as GeneratedScript);
+      const voice = getVoiceIdentity("es");
+      if (voice.voiceId !== trial.voiceId || voice.modelId !== trial.voiceModel
+        || getVoiceProvider().name !== "elevenlabs" || getPricingConfig().elevenLabsUsdPer1kChars !== 0.1
+        || getFootageProvider().name !== "pexels-video-first" || getMusicProvider().name !== "curated-library"
+        || process.env.OPENAI_IMAGE_ESTIMATED_COST_USD !== "0.08" || process.env.OPENAI_IMAGE_MODEL !== "gpt-image-2"
+        || process.env.OPENAI_IMAGE_SIZE !== "1024x1536" || process.env.OPENAI_IMAGE_QUALITY !== "medium")
+        throw new Error("OWNER_FORM_TRIAL_PROVIDER_CONTRACT_CHANGED");
+      await refreshPrepaidPilot(service, trial);
+      process.env.REEL_VISUAL_RELEVANCE_ENABLED = "true";
+      process.env.OPENAI_IMAGE_GENERATION_ENABLED = "true";
+      process.env.IMAGE_PROVIDER = "openai";
+      process.env.MAX_GENERATED_IMAGES_PER_VIDEO = String(trial.maxImages);
+      process.env.MAX_VISUAL_COST_USD = String(trial.maxImages * trial.maxImageReservationUsd);
+    }
+    const trialLedger = trial ? ownerFormTrialLedger(service, trial) : undefined;
     if (pilot) {
       const { data: auth, error } = await service.auth.admin.getUserById(row.user_id);
       if (error || !auth.user) throw new Error("PILOT_OWNER_UNVERIFIED");
@@ -188,7 +219,8 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
         : null;
     const customerLogoUrl = mode === "visual" ? await loadReelLogo(service, row.user_id, requestId, row.brand_logo_path) : undefined;
     const baseDemands = capacityDemandsFor(row, getVoiceProvider().name);
-    const demands = pilot ? baseDemands.map(d => ({ ...d, units: pilot.maxVoiceCharacters * pilot.maxVoiceCalls, usd: 0 })) : baseDemands;
+    const demands = pilot ? baseDemands.map(d => ({ ...d, units: pilot.maxVoiceCharacters * pilot.maxVoiceCalls, usd: 0 }))
+      : trial ? baseDemands.map(d => ({ ...d, units: trial.maxVoiceCharacters * trial.maxVoiceCalls, usd: 0.2 })) : baseDemands;
     if (demands.length > 0) {
       await releaseOpenHoldsForRequest(holdStore, requestId).catch(() => 0);
       const admission = await acquireCapacityHolds({ store: holdStore, balance: snapshotBalancePort(service) }, { requestId, demands });
@@ -233,6 +265,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
               targetDurationSeconds: row.duration_seconds ?? undefined,
               onProgress,
               ownerPilot: pilot ?? undefined,
+              ...(trialLedger ? { paidCalls: { ledger: trialLedger, results: supabaseResultStore(service) }, trialReviewLedger: trialLedger } : {}),
               customerLogoUrl,
             });
 

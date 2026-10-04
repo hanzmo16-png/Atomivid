@@ -7,6 +7,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { getRenderWorker } from "@/lib/worker";
 import { assertCanGenerate } from "@/lib/billing/quota";
 import { readOwnerPilot, assertOwnerPilot } from "@/lib/billing/owner-pilot";
+import { readOwnerFormTrial, assertOwnerFormTrial, freezeOwnerFormRender } from "@/lib/billing/owner-form-trial";
 import { evaluateRenderStart } from "@/lib/video/render-guard";
 import {
   classifyRenderError,
@@ -29,6 +30,9 @@ export const maxDuration = 300;
 type VideoRequestRow = {
   id: string;
   mode: string;
+  topic: string;
+  style: string;
+  language: string;
   duration_seconds: number;
   user_id: string;
   status: string;
@@ -77,7 +81,7 @@ export async function POST(
     try {
       const { data, error: fetchError } = await service
         .from("video_requests")
-        .select("id, mode, duration_seconds, user_id, status, script_json, render_attempts, render_started_at, created_at, error_message, avatar_provider_video_job_id, long_form_confirmed_at, long_form_progress")
+        .select("id, mode, topic, style, language, duration_seconds, user_id, status, script_json, render_attempts, render_started_at, created_at, error_message, avatar_provider_video_job_id, long_form_confirmed_at, long_form_progress")
         .eq("id", id)
         .single<VideoRequestRow>();
 
@@ -147,10 +151,15 @@ export async function POST(
       return NextResponse.json({ error: decision.error }, { status: decision.status });
     }
 
+    const trial = await readOwnerFormTrial(service, id);
     let check: Awaited<ReturnType<typeof assertCanGenerate>>;
     try {
       const pilot = await readOwnerPilot(service, id);
-      if (pilot) {
+      if (trial) {
+        assertOwnerFormTrial(trial, videoRequest, user, "admission");
+        await freezeOwnerFormRender(service, trial, videoRequest.script_json);
+        check = { allowed: true };
+      } else if (pilot) {
         assertOwnerPilot(pilot, videoRequest, user, "admission");
         check = { allowed: true };
       } else check = await assertCanGenerate(service, user.id, videoRequest.mode, user);
@@ -209,7 +218,8 @@ export async function POST(
     }
 
     try {
-      await worker.trigger({ requestId: id, renderAttempt: videoRequest.render_attempts + 1, mode: videoRequest.mode });
+      await worker.trigger({ requestId: id, renderAttempt: videoRequest.render_attempts + 1, mode: videoRequest.mode,
+        ...(trial ? { ownerFormTrial: true } : {}) });
     } catch (error) {
       const diagnosticId = generateDiagnosticId();
       logRenderError(`POST /render (worker: ${worker.name})`, error, diagnosticId);

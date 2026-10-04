@@ -3,6 +3,9 @@ on:
   push:
     branches: [codex/vfx-sequence-compositor]
     paths:
+      - src/lib/billing/owner-form-trial*
+      - src/lib/paid-calls/owner-form-trial*
+      - src/lib/video/owner-form-script*
       - src/lib/video/visual-flow*
       - src/lib/video/visual-intent*
       - src/lib/video/visual-review*
@@ -38,4 +41,4 @@ jobs:
       - run: npm ci
       - run: npx next typegen
       - run: npx tsc --noEmit
-      - run: node --import tsx --test src/lib/video/visual-intent.test.ts src/lib/video/visual-flow.test.ts src/lib/video/visual-flow-ui.test.tsx src/lib/video/visual-review.test.ts src/lib/video/visual-review-media.test.ts remotion/reel-framing.test.ts src/lib/video/footage-select.test.ts src/lib/video/visual-resource-resolver.test.ts src/lib/video/reel-logo.test.ts src/lib/providers/image/openai.test.ts
+      - run: node --import tsx --test src/lib/billing/owner-form-trial.test.ts src/lib/video/visual-intent.test.ts src/lib/video/visual-flow.test.ts src/lib/video/visual-flow-ui.test.tsx src/lib/video/visual-review.test.ts src/lib/video/visual-review-media.test.ts remotion/reel-framing.test.ts src/lib/video/footage-select.test.ts src/lib/video/visual-resource-resolver.test.ts src/lib/video/reel-logo.test.ts src/lib/providers/image/openai.test.ts

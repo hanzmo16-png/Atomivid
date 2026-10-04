@@ -7,6 +7,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { RECORDING_BUCKET, isOwnedRecordingPath } from "@/lib/video/avatar/recording";
 import { avatarEntitlementPreview } from "@/lib/billing/quota";
 import { readOwnerPilot, assertOwnerPilot } from "@/lib/billing/owner-pilot";
+import { readOwnerFormTrial, assertOwnerFormTrial } from "@/lib/billing/owner-form-trial";
 import { ScriptReview } from "./ScriptReview";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 
@@ -15,6 +16,7 @@ type VideoRequestRow = {
   mode: string;
   topic: string;
   style: string;
+  language: string;
   duration_seconds: number;
   status: string;
   render_attempts: number;
@@ -42,7 +44,7 @@ export default async function ReviewPage({
 
   const { data } = await supabase
     .from("video_requests")
-    .select("id, mode, topic, style, duration_seconds, status, script_json, error_message, recorded_audio_path, render_attempts, avatar_provider_video_job_id")
+    .select("id, mode, topic, style, language, duration_seconds, status, script_json, error_message, recorded_audio_path, render_attempts, avatar_provider_video_job_id")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle<VideoRequestRow>();
@@ -67,6 +69,11 @@ export default async function ReviewPage({
   // fuente de verdad que de verdad bloquea el envío server-side.
   let avatarEntitlementBlockedReason: string | undefined;
   const pilot = await readOwnerPilot(createServiceClient(), id);
+  const trial = await readOwnerFormTrial(createServiceClient(), id);
+  if (trial) {
+    try { assertOwnerFormTrial(trial, { ...data, user_id: user.id }, user, "admission"); }
+    catch { avatarEntitlementBlockedReason = "Este permiso de prueba expiró, ya se utilizó o el guion supera sus límites."; }
+  }
   if (pilot) {
     try { assertOwnerPilot(pilot, { ...data, user_id: user.id }, user, "admission"); }
     catch { avatarEntitlementBlockedReason = "Este permiso de prueba expiró, ya se utilizó o el guion cambió. Requiere una nueva revisión."; }
@@ -86,6 +93,7 @@ export default async function ReviewPage({
           : `${data.duration_seconds}s`}
       </p>
       {pilot && <p className="my-4 rounded border border-border p-3 text-sm">Piloto autorizado: un render de 30 segundos. Guion preparado sin generación de IA; voz con saldo incluido y sin sobreconsumo. Gasto adicional de proveedor: $0.00. Puedes revisar el guion; cambiarlo requiere volver a verificar su presupuesto.</p>}
+      {trial && <p className="my-4 rounded border border-border p-3 text-sm">Prueba autorizada para esta solicitud: un video de 30 segundos, con revisión visual y un límite de US$1.25 de gasto estimado.</p>}
       {/* Contrato de duración (RC QA 2026-09-25): para "recording"/"tts_text"
           duration_seconds ya NO es el objetivo 30/60/90 del selector, sino la
           duración REAL del audio medida con ffprobe al crear la solicitud
@@ -112,7 +120,7 @@ export default async function ReviewPage({
         requestId={data.id}
         status={data.status}
         initialScript={data.script_json}
-        reviewedVisuals={data.mode === "visual" && getFeatureFlags().reelVisualRelevanceEnabled}
+        reviewedVisuals={data.mode === "visual" && (Boolean(trial) || getFeatureFlags().reelVisualRelevanceEnabled)}
         errorMessage={data.error_message}
         usesRecording={Boolean(data.recorded_audio_path)}
         entitlementBlockedReason={avatarEntitlementBlockedReason}

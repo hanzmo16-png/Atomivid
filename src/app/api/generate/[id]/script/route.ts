@@ -10,6 +10,8 @@ import { checkScriptQuality, ScriptQualityError } from "@/lib/video/script-quali
 import { targetWordsFor } from "@/lib/video/script-pacing";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { preserveUnchangedVisualPlans, VisualIntentSchema } from "@/lib/video/visual-intent";
+import { readOwnerFormTrial, assertOwnerFormTrial } from "@/lib/billing/owner-form-trial";
+import { generateOwnerFormScript } from "@/lib/video/owner-form-script";
 
 // Sin esto, la función queda al límite por defecto de la plataforma (tan
 // bajo como 10s en algunos planes de Vercel) — una llamada real a Claude
@@ -33,6 +35,7 @@ type VideoRequestRow = {
   status: string;
   language: ScriptLanguage;
   script_json: GeneratedScript | null;
+  render_attempts: number;
 };
 
 // Coincide con targetScenes en src/lib/ai/script.ts (máximo 10 para la
@@ -47,7 +50,7 @@ async function loadOwnedRequest(id: string, userId: string) {
 
   const { data: videoRequest, error } = await service
     .from("video_requests")
-    .select("id, user_id, mode, topic, style, duration_seconds, status, language, recorded_audio_path, script_json")
+    .select("id, user_id, mode, topic, style, duration_seconds, status, language, recorded_audio_path, script_json, render_attempts")
     .eq("id", id)
     .single<VideoRequestRow>();
 
@@ -111,14 +114,16 @@ export async function POST(
       );
     }
 
-    const check = await assertCanGenerate(service, user.id, videoRequest.mode, user);
+    const trial = await readOwnerFormTrial(service, id);
+    if (trial) assertOwnerFormTrial(trial, videoRequest, user, "script");
+    const check: Awaited<ReturnType<typeof assertCanGenerate>> = trial ? { allowed: true } : await assertCanGenerate(service, user.id, videoRequest.mode, user);
     if (!check.allowed) {
       return NextResponse.json({ error: check.reason }, { status: 402 });
     }
 
     let script: GeneratedScript;
     try {
-      const result = await generateScriptForRequest({
+      const result = trial ? await generateOwnerFormScript(service, trial) : await generateScriptForRequest({
         topic: videoRequest.topic,
         style: videoRequest.style,
         durationSeconds: videoRequest.duration_seconds,
@@ -161,7 +166,8 @@ export async function POST(
     // The provider already returned: account for it even if saving fails.
     const inputChars = videoRequest.topic.length + videoRequest.style.length;
     const outputChars = JSON.stringify(script).length;
-    await recordScriptCall(service, id, { inputChars, outputChars }).catch((err) => {
+    // Trial HTTP calls already carry exact usage in the paid ledger; cache reuse costs zero.
+    if (!trial) await recordScriptCall(service, id, { inputChars, outputChars }).catch((err) => {
       console.warn(`No se pudo registrar el costo de guion de ${id}:`, err);
     });
 
