@@ -8,20 +8,23 @@ import { OwnerPilotSchema, ownerPilotKey } from "../src/lib/billing/owner-pilot"
 import { MUSIC_MANIFEST } from "../src/lib/providers/music/manifest";
 import { checkScriptContentQuality } from "../src/lib/video/script-quality";
 import { targetWordsFor } from "../src/lib/video/script-pacing";
+const preparationKey = process.env.OWNER_PILOT_PREPARATION_KEY?.trim() || "owner_pilot_preparation_current";
 const Input = z.object({ ownerId: z.string().uuid(), requestId: z.string().uuid(),
   script: z.object({ title: z.string().min(1), segments: z.array(z.object({ text: z.string().min(1), visualQuery: z.string().min(1),
     visualConcepts: z.array(z.string()).optional(), energy: z.enum(["low","medium","high"]).optional() }).strict()).min(1).max(10) }).strict() }).strict();
 async function main() {
   const service = createServiceClient(), ledger = supabaseLedgerStore(service);
-  const record = await ledger.get("owner_pilot_preparation_current");
-  if (record?.status !== "COMMITTED" || record.method !== "human_direction" || !record.resultRef) throw new Error("PILOT_MATERIAL_NOT_AUTHORIZED");
+  const record = await ledger.get(preparationKey);
+  if (record?.status !== "COMMITTED" || record.method !== "human_direction" || record.provider !== "internal"
+    || record.reservedUsd !== 0 || record.committedUsd !== 0 || !record.resultRef) throw new Error("PILOT_MATERIAL_NOT_AUTHORIZED");
   const input = Input.parse(JSON.parse(record.resultRef));
+  if (record.projectId !== input.requestId) throw new Error("PILOT_MATERIAL_NOT_AUTHORIZED");
   const { data: auth, error: authError } = await service.auth.admin.getUserById(input.ownerId);
-  const request = await service.from("video_requests").select("user_id,mode,duration_seconds,status,render_attempts,language").eq("id", input.requestId).single();
+  const request = await service.from("video_requests").select("user_id,mode,topic,duration_seconds,status,render_attempts,language").eq("id", input.requestId).single();
   if (authError || !auth.user?.email_confirmed_at || request.error || request.data.user_id !== input.ownerId
     || request.data.mode !== "visual" || request.data.language !== "es" || request.data.duration_seconds !== 30
     || request.data.render_attempts !== 0 || !["pending","script_ready"].includes(request.data.status)) throw new Error("PILOT_SCOPE_BLOCKED");
-  const quality = checkScriptContentQuality(input.script, { topic: "océano profundo", targetWords: targetWordsFor(30) });
+  const quality = checkScriptContentQuality(input.script, { topic: request.data.topic, targetWords: targetWordsFor(30) });
   if (!quality.ok) throw new Error("PILOT_SCRIPT_QUALITY_BLOCKED");
   const identity = getVoiceIdentity("es");
   if (identity.modelId !== "eleven_multilingual_v2") throw new Error("PILOT_MODEL_CHANGED");
@@ -43,7 +46,8 @@ async function main() {
     || !Number.isFinite(available) || available < characters * 2
     || !model?.can_do_text_to_speech || model.token_cost_factor !== 1
     || (voice.sharing?.rate ?? 1) !== 1 || voice.sharing?.fiat_rate != null) throw new Error("PILOT_PREPAID_BUDGET_UNVERIFIED");
-  const footage = await fetch("https://api.pexels.com/videos/search?query=ocean&per_page=1", { headers: { Authorization: pexelsKey }, signal: AbortSignal.timeout(30000) });
+  const footageQuery = encodeURIComponent(input.script.segments[0].visualQuery);
+  const footage = await fetch(`https://api.pexels.com/videos/search?query=${footageQuery}&per_page=1`, { headers: { Authorization: pexelsKey }, signal: AbortSignal.timeout(30000) });
   if (!footage.ok || !(await footage.json()).videos?.length) throw new Error("PILOT_FOOTAGE_CONNECTION_FAILED");
   const tracks = await service.storage.from("music-library").list("", { limit: 100 });
   if (tracks.error || !MUSIC_MANIFEST.some(track => track.instrumental && tracks.data.some(file => file.name === track.storagePath))) throw new Error("PILOT_MUSIC_CONNECTION_FAILED");
@@ -80,7 +84,7 @@ async function main() {
 main().catch(async error => {
   try {
     const ledger = supabaseLedgerStore(createServiceClient());
-    const prepared = await ledger.get("owner_pilot_preparation_current");
+    const prepared = await ledger.get(preparationKey);
     if (prepared) await ledger.insert({ idempotencyKey: "owner_pilot_preflight_failure_" + process.env.GITHUB_RUN_ID,
       projectId: prepared.projectId, shotId: "connection-preflight", provider: "internal", model: "owner-pilot-preflight/1",
       method: "private_diagnostic", attemptKind: "pilot", reservedUsd: 0, committedUsd: 0, status: "COMMITTED",

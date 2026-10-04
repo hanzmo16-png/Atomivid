@@ -21,6 +21,7 @@ jobs:
       - run: npm ci
       - run: node --import tsx scripts/owner-pilot-preflight.ts
         env:
+          OWNER_PILOT_PREPARATION_KEY: owner_pilot_preparation_business_reel_20261004
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
