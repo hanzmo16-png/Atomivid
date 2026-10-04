@@ -65,7 +65,7 @@ export async function reviewVisual({ service, requestId, sceneIndex, intent, nar
   const guarded = await guardPaidCall<VisualVerdict>(ledger, {
     projectId: requestId, shotId: `visual-review:scene-${sceneIndex}`, provider: "openai", model: REVIEW_MODEL,
     method: "visual_relevance_review", reservedUsd: REVIEW_RESERVATION_USD,
-    inputFingerprint: { policy: "literal-visual/1", intent, narration, mediaSha256: sha256Hex(buffer), frameSha256: inputFrames.map(f => sha256Hex(Buffer.from(f))) },
+    inputFingerprint: { policy: "literal-visual/1", responseContract: { reasonMaxCharacters: 240 }, intent, narration, mediaSha256: sha256Hex(buffer), frameSha256: inputFrames.map(f => sha256Hex(Buffer.from(f))) },
   }, {
     call: async ({ key }) => {
       const response = await fetcher("https://api.openai.com/v1/responses", {
@@ -76,20 +76,26 @@ export async function reviewVisual({ service, requestId, sceneIndex, intent, nar
             { type: "input_text", text: prompt }, ...inputFrames.map(image_url => ({ type: "input_image", image_url, detail: "low" })),
           ] }], text: { format: { type: "json_schema", name: "visual_verdict", strict: true, schema: {
             type: "object", additionalProperties: false,
-            properties: { subjectPresent: { type: "boolean" }, allRequiredTraitsPresent: { type: "boolean" }, forbiddenSubstitutePresent: { type: "boolean" }, unrelatedTextOrWatermark: { type: "boolean" }, confidence: { type: "number" }, reason: { type: "string" } },
+            properties: { subjectPresent: { type: "boolean" }, allRequiredTraitsPresent: { type: "boolean" }, forbiddenSubstitutePresent: { type: "boolean" }, unrelatedTextOrWatermark: { type: "boolean" }, confidence: { type: "number" }, reason: { type: "string", maxLength: 240 } },
             required: ["subjectPresent", "allRequiredTraitsPresent", "forbiddenSubstitutePresent", "unrelatedTextOrWatermark", "confidence", "reason"],
           } } },
         }),
       });
       if (!response.ok) throw new ProviderRejectedError(`La revisión visual respondió HTTP ${response.status}.`);
       const body = await response.json() as { status: string; usage?: { input_tokens: number; output_tokens: number }; output: Array<{ content?: Array<{ type: string; text?: string }> }> };
+      // Keep the exact provider response privately before validation, so a parse failure
+      // can be reconciled without buying another copy of the same verdict.
+      const ref = paidResultPath(requestId, key, "json");
+      await results.putJson(ref + ".provider-response.json", body);
       if (body.status !== "completed") throw new Error("La revisión visual no terminó.");
       const text = body.output.flatMap(item => item.content ?? []).find(item => item.type === "output_text")?.text;
-      const verdict = VisualVerdictSchema.parse(JSON.parse(text ?? "null"));
+      const parsed = JSON.parse(text ?? "null");
+      // Explanation length is presentation, never an acceptance criterion.
+      if (typeof parsed?.reason === "string") parsed.reason = parsed.reason.slice(0, 240);
+      const verdict = VisualVerdictSchema.parse(parsed);
       const usage = body.usage;
       const costUsd = usage && Number.isFinite(usage.input_tokens) && Number.isFinite(usage.output_tokens)
         ? (usage.input_tokens * 0.4 + usage.output_tokens * 1.6) / 1_000_000 : REVIEW_RESERVATION_USD;
-      const ref = paidResultPath(requestId, key, "json");
       await results.putJson(ref, verdict);
       return { result: verdict, costUsd, resultRef: ref };
     },

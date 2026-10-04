@@ -1,4 +1,7 @@
-/** Authorized visual-only trial: six fixed images, no TTS, no retries or live rollout. */
+/** Authorized visual-only trial: six fixed images, no TTS, no retries or live rollout.
+ * The bounded explanation response contract can change; stored images are reused
+ * and prior failed/uncertain review reservations remain in the same twenty-call cap.
+ */
 import fs from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "node:child_process";

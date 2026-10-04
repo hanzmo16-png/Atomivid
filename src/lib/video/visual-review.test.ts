@@ -79,3 +79,20 @@ test("reservation failure blocks HTTP; uncertain HTTP never retries automaticall
     await assert.rejects(reviewVisual({ ...args, ledger: port })); assert.equal(calls, 1);
   } finally { if (old === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = old; }
 });
+
+test("long explanations do not discard a valid verdict and exact provider response is retained privately", async () => {
+  const old = process.env.OPENAI_API_KEY; process.env.OPENAI_API_KEY = "test-key";
+  try {
+    const { port } = ledger(), results = memoryResultStore();
+    const response = { status: "completed", usage: { input_tokens: 900, output_tokens: 180 }, output: [{ content: [{ type: "output_text", text: JSON.stringify({ ...verdict, reason: "Visible subject and traits. ".repeat(25) }) }] }] };
+    const result = await reviewVisual({ service: {} as SupabaseClient, requestId: "request", sceneIndex: 0, intent, narration: "A grey alien",
+      buffer: Buffer.from("asset"), mediaType: "image", durationSeconds: 3, ledger: port, results,
+      frames: async () => ["data:image/jpeg;base64,cGl4ZWxz"], fetcher: (async (_url, options) => {
+        const body = JSON.parse(String(options?.body)); assert.equal(body.text.format.schema.properties.reason.maxLength, 240);
+        return new Response(JSON.stringify(response), { status: 200 });
+      }) as typeof fetch });
+    assert.equal(result.accepted, true); assert.equal(result.verdict.reason.length, 240);
+    const raw = [...results.objects.entries()].find(([key]) => key.endsWith(".provider-response.json"));
+    assert.ok(raw); assert.deepEqual(JSON.parse(raw[1].toString()), response);
+  } finally { if (old === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = old; }
+});
