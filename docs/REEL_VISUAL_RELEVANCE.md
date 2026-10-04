@@ -67,8 +67,31 @@ gates, not real-model accuracy. The database reservation test exercises all twen
 reservations, the twenty-first refusal and idempotence inside a transaction that
 is rolled back. No paid inference or image generation is performed for these tests.
 
-A paid visual trial and human review are still required before activation. Vision
-can make mistakes; two frames do not prove every frame of a clip. It cannot
+A paid isolated trial completed on 2026-10-04 (Actions run `37222747262`,
+request `4a3af8e9-17e6-45ef-ade4-cac80be6c1d2`). The owner authorized at most
+six illustrations and twenty reviews with an estimated $0.40 visual budget,
+without voice calls or live rollout. Real Pexels iguana and light-bulb images were
+correctly rejected against reptilian-humanoid and grey-alien requirements. Six
+generated illustrations passed the production relevance gate: grey, reptilian,
+Arcturian, Pleiadian and Urmah characters, and tacos al pastor. Human inspection
+confirmed the defined subjects and traits. The silent 30-second vertical preview
+and six-image contact sheet are review artifacts, not a full narrated reel.
+
+The first attempt exposed an overly long model explanation rejected by local
+validation. The corrected contract caps explanations, normalizes their display
+length and saves raw provider responses before parsing. All three existing paid
+images were reused. There were six image calls and thirteen vision submissions
+across both attempts. One original vision submission remains explicitly
+`RECONCILIATION_REQUIRED`; its $0.005 reservation is retained. The ledger totals
+$0.3402 in system-calculated committed costs plus that reservation, or $0.3452
+accounted. Image pricing is an estimate, not a verified provider invoice. The
+human-reviewed deliverable moves titles below faces using the same saved images
+and no additional paid inference.
+
+This trial used six fixed visual contracts. It does not validate automatic
+script planning, narrated rendering or every possible topic. The general feature
+flag remains off; production was not activated. Vision can make mistakes; two
+frames do not prove every frame of a clip. It cannot
 authenticate the identity of a real person or prove historical accuracy. Passing
 the gate is a quality check rather than a promise of perfect relevance for every
 possible topic.

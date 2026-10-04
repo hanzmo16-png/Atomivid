@@ -104,7 +104,8 @@ async function main() {
         remainingImageBudgetUsd: Math.max(0, 0.4 - used.usd - 0.005), mayGenerate: true });
       const bytes = await provider.downloadFootage(visual.url);
       await fs.writeFile(path.join(OUT, `image-${index + 1}.png`), bytes);
-      const frame = await sharp(bytes).resize(1080, 1920, { fit: "cover", position: "centre" }).composite([{ input: labelSvg(scene.label), top: 0, left: 0 }]).jpeg({ quality: 88 }).toBuffer();
+      // Keep the subject's face unobstructed in the human-review preview.
+      const frame = await sharp(bytes).resize(1080, 1920, { fit: "cover", position: "centre" }).composite([{ input: labelSvg(scene.label), top: 1690, left: 0 }]).jpeg({ quality: 88 }).toBuffer();
       const framePath = path.join(OUT, `scene-${index + 1}.jpg`); await fs.writeFile(framePath, frame); previews.push(framePath);
       report.scenes.push({ index, label: scene.label, intent: scene.visualIntent, accepted: true, imageCostUsd: visual.imageCostUsd, reviewCostUsd: visual.reviewCostUsd });
       console.log("VISUAL_TRIAL_ACCEPTED", JSON.stringify({ index, label: scene.label }));
