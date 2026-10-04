@@ -225,8 +225,23 @@ is recorded before saving, and failed generation cannot clear a request that has
 already moved to a different status. Behavioral tests execute actual HTTP handlers
 with explicit auth/database/provider doubles and render the real review component;
 these are zero-spend integration checks, not live authentication or model evidence.
-The deployed browser was signed out during this audit. A complete authenticated
-form-to-provider test remains pending; no subscription or auth gate was bypassed.
+These changes passed 63 focused local tests, TypeScript and ESLint, plus all four
+read-only CI workflows. Preview `dpl_2VeL3c2Zbm9Gt5bBJq4RkLHTHNff` is READY on
+commit `411565bc9d6555651c1bd9b9070d0b8818fb32bd`; production remains untouched.
+
+After secure owner sign-in, the actual new-video form created request
+`34bc43f3-a53d-4daa-b8fa-bef3f1544b04` at `2026-10-04T22:14:05Z` for the business
+topic. The dashboard showed the saved pending request. The real script POST at
+`22:14:44Z` returned HTTP 402 with the active-subscription message. The owner has
+no subscription row; the request remains pending with no script and zero render
+attempts. There are no generation-cost or external paid-operation rows for it.
+This verifies authenticated form creation, persistence, history rendering and
+subscription refusal before the provider. Automatic live script generation and
+render dispatch remain unverified because admission intentionally refused them.
+The older immutable voice/render trial grants do not authorize this new script
+request; none were reopened and no subscription/auth gate was bypassed. General
+review flags remain off. A scoped owner test authorization for script generation
+is still needed before continuing the paid part of this end-to-end test.
 
 Vision can make mistakes; three time samples do not prove every frame of a clip. It cannot
 authenticate the identity of a real person or prove historical accuracy. Passing
