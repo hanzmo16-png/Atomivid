@@ -56,6 +56,25 @@ async function main() {
     if (hash((await results.getBytes(assetPath)) ?? Buffer.alloc(0)) !== sha256) throw new Error("STORAGE_VERIFY_FAILED");
     const prior = await results.getJson<unknown[]>(`${job.id}/review/bindings.json`);
     const retained = (Array.isArray(prior) ? prior : []).map(v => currentReviewBinding(v, current)).filter(b => b?.stage === "master");
+    const masterSha = jobGates(current).artifacts.master;
+    if (masterSha) {
+      const master: ReviewBinding = { ownerId: current.ownerId, stage: "master", planHash: current.planHash,
+        artifactSha256: masterSha, assetPath: `${job.id}/review/${masterSha}.mp4`, sha256: masterSha,
+        startFrame: 0, endFrame: current.brief.frames };
+      if (!currentReviewBinding(master, current)) throw new Error("MASTER_VERSION_CHANGED");
+      const key = `vfx_review_upload_ticket:${job.id}:${masterSha}`;
+      if (!await ledger.get(key)) {
+        const { data: upload, error } = await service.storage.from("videos").createSignedUploadUrl(master.assetPath);
+        if (error || !upload?.signedUrl) throw new Error("PRIVATE_UPLOAD_UNAVAILABLE");
+        if (!await ledger.insert({ idempotencyKey: key, projectId: job.id, shotId: "master-preview-import",
+          provider: "internal", model: "private-review-import/1", method: "private_media_upload", attemptKind: "review",
+          reservedUsd: 0, committedUsd: 0, status: "COMMITTED", providerJobId: null,
+          resultRef: JSON.stringify({ ownerId: job.ownerId, assetPath: master.assetPath, sha256: masterSha,
+            signedUploadUrl: upload.signedUrl, createdAt: new Date().toISOString(), providerCalls: 0 }),
+          updatedAt: new Date().toISOString() })) throw new Error("UPLOAD_TICKET_EXISTS");
+      }
+      retained.splice(0, retained.length, master);
+    }
     await results.putJson(`${job.id}/review/bindings.json`, [...retained, ...bindings]);
     console.log("PRIVATE_REVIEW_LINKED; PROVIDER_CALLS=0; ADDITIONAL_USD=0; APPROVALS_UNCHANGED");
   } finally { await rm(root, { recursive: true, force: true }); }
