@@ -11,6 +11,15 @@ import { reviewMedia } from "@/lib/production-intelligence/vfx-director/review-m
 
 export const dynamic = "force-dynamic";
 const labels: Record<string, string> = { approved: "Aprobado", rejected: "Defecto rechazado", review: "Pendiente de revisión", missing: "Material pendiente" };
+const worldLabels: Record<string, string> = { nyc: "Nueva York", beach: "Playa", moon: "Luna" };
+function MaterialPreview({ url }: { url: string }) {
+  const pathname = new URL(url).pathname;
+  return <div className="my-3">
+    {/\.mp4$/.test(pathname) ? <video controls preload="metadata" src={url} className="max-h-96 w-full rounded-lg" />
+      : <img src={url} alt="Material de la versión en revisión" className="max-h-96 w-full rounded-lg object-contain" />}
+    <a href={url} target="_blank" rel="noopener noreferrer" className="mt-2 block text-sm underline">Abrir material de esta versión</a>
+  </div>;
+}
 export default async function VfxPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
   const { data: { user } } = await (await createClient()).auth.getUser();
   let actor: string;
@@ -33,12 +42,12 @@ export default async function VfxPage({ searchParams }: { searchParams: Promise<
         <p className="mt-2 text-sm text-ink-muted">La ejecución permanece en el worker protegido. Las revisiones de esta página se guardan sobre la huella exacta de cada versión.</p>
       </section>
       {job.plan.environments.map(environment => <section key={environment.id} className="rounded-lg border border-border p-4">
-        <h2 className="text-lg font-semibold">{environment.id}</h2><p className="mt-1 text-sm">{environment.light}</p>
-        <p className="mt-1 text-sm text-ink-muted">Fotogramas {environment.startFrame}–{environment.endFrame - 1} · {environment.continuityIn} → {environment.continuityOut}</p>
+        <h2 className="text-lg font-semibold">{worldLabels[environment.id] ?? environment.id}</h2><p className="mt-1 text-sm">Luz propia de este entorno.</p>
+        <details className="mt-2 text-sm text-ink-muted"><summary>Dirección y continuidad</summary><p>{environment.light}</p><p>Fotogramas {environment.startFrame}–{environment.endFrame - 1} · {environment.continuityIn} → {environment.continuityOut}</p></details>
         <div className="mt-4 space-y-4">{reviewView(job, environment.id).map(item => <article key={item.stage}>
           <h3 className="font-medium">{item.label}: {labels[item.state]}</h3>
-          {media[`${environment.id}:${item.stage}`] ? <a href={media[`${environment.id}:${item.stage}`]} target="_blank" rel="noopener noreferrer" className="my-2 block text-sm underline">Abrir material de esta versión</a> : <p className="mt-1 text-sm text-ink-muted">Vista previa de esta versión pendiente de vincular. No se puede aprobar desde esta pantalla sin el material.</p>}
-          {item.evidence.map(check => <p key={check.name} className="mt-1 text-sm text-ink-muted">{check.name}: {check.evidence}</p>)}
+          {media[`${environment.id}:${item.stage}`] ? <MaterialPreview url={media[`${environment.id}:${item.stage}`]} /> : <p className="mt-1 text-sm text-ink-muted">Vista previa de esta versión pendiente de vincular. No se puede aprobar desde esta pantalla sin el material.</p>}
+          <details className="mt-2 text-sm text-ink-muted"><summary>Comprobaciones de esta versión</summary>{item.evidence.map(check => <p key={check.name} className="mt-1">{check.name}: {check.evidence}</p>)}</details>
           <ReviewControls jobId={job.id} environmentId={environment.id} item={item} materialAvailable={Boolean(media[`${environment.id}:${item.stage}`])} />
         </article>)}</div>
       </section>)}
