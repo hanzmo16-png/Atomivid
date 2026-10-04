@@ -1,0 +1,52 @@
+name: Authorized reel visual trial (six images)
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [scripts/reel-visual-trial.ts, .github/workflows/reel-visual-trial.yml]
+permissions:
+  contents: read
+concurrency:
+  group: authorized-reel-visual-trial-20261004
+  cancel-in-progress: false
+jobs:
+  trial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx next typegen && npx tsc --noEmit
+      - run: node --import tsx scripts/reel-visual-trial.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          REEL_VISUAL_RELEVANCE_ENABLED: 'true'
+          OPENAI_IMAGE_GENERATION_ENABLED: 'true'
+          IMAGE_PROVIDER: openai
+          FOOTAGE_PROVIDER: pexels
+          MAX_GENERATED_IMAGES_PER_VIDEO: '6'
+          MAX_VISUAL_COST_USD: '0.4'
+          OPENAI_IMAGE_ESTIMATED_COST_USD: '0.05'
+          OPENAI_IMAGE_MODEL: gpt-image-2
+          OPENAI_IMAGE_SIZE: 1024x1536
+          OPENAI_IMAGE_QUALITY: medium
+          OPENAI_IMAGE_MAX_RETRIES: '0'
+          OPENAI_IMAGE_TIMEOUT_MS: '120000'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reel-visual-trial
+          path: |
+            reel-visual-trial-output/image-*.png
+            reel-visual-trial-output/negative-*.jpg
+            reel-visual-trial-output/contact-sheet.jpg
+            reel-visual-trial-output/preview.mp4
+            reel-visual-trial-output/report.json
+          if-no-files-found: warn
+          retention-days: 7
