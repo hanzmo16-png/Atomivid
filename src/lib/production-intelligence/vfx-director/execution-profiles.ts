@@ -17,6 +17,7 @@ import { z } from "zod";
 import type { PaidResultStore } from "@/lib/paid-calls/result-store";
 import type { Capability } from "./index";
 import type { DurableExecutor, Job } from "./jobs";
+import { ApprovedCutTrialSchema, approvedCutTrialExecutor } from "./approved-cut-trial";
 import { worldCompositeExecutor, cutMasterExecutor, assertReviewedSegments } from "./sequence-compositor";
 
 /** Fixed runner directory: compositor recipe fingerprints include their local paths. */
@@ -28,11 +29,12 @@ const CapabilitySchema = z.object({ available: z.boolean(), paid: z.literal(fals
   environments: z.array(z.object({ kind: z.enum(["city", "beach", "moon", "other"]), lighting: z.enum(["night_practical", "daylight_soft", "sun_hard", "other"]) }).strict()).optional() }).strict();
 const StoredArtifact = z.object({ kind: z.literal("stored-artifact"), capability: CapabilitySchema, stages: z.array(STAGE).min(1) }).strict();
 const Compositor = z.object({ kind: z.enum(["world-composite", "cut-master"]), config: z.record(z.string(), z.unknown()) }).strict();
-const ProfileSchema = z.object({ jobId: z.string().min(1), executors: z.record(z.string(), z.union([StoredArtifact, Compositor])) }).strict();
+const ProfileSchema = z.object({ jobId: z.string().min(1), executors: z.record(z.string(), z.union([StoredArtifact, Compositor, ApprovedCutTrialSchema])) }).strict();
 export type ExecutionProfile = z.infer<typeof ProfileSchema>;
 
 /** Paid executors are not registerable from the page (capability.paid is literally false). */
 const PROFILES: ExecutionProfile[] = [
+  { jobId: "vfx-compositor-trial-v1", executors: { "approved-cuts": { kind: "approved-cut-trial", sourceJobId: "precampaign-three-worlds-v1-preparation", sourceRevision: 53, nativeSha256: "58a6f6395dcb1d35301e69ed74c01d42b19de6b6081e34ad805bbf2aa010a51e", grainStrength: 1 } } },
   { jobId: "vfx-execution-smoke-v1", executors: {
     "artifact-registry": { kind: "stored-artifact", stages: ["preview"],
       capability: { available: true, paid: false, preservesOriginalPixels: true, recipeVersion: "artifact-registry/approved-styleframes-1" } }
@@ -99,10 +101,14 @@ export async function materialize(value: unknown, results: PaidResultStore, root
 }
 
 /** Builds the runner's executors for a job strictly from its profile. */
-export async function profileExecutors(profile: ExecutionProfile, deps: { results: PaidResultStore; currentJob: () => Promise<Job> }): Promise<Record<string, ProfiledExecutor>> {
+export async function profileExecutors(profile: ExecutionProfile, deps: { results: PaidResultStore; currentJob: () => Promise<Job>; sourceJob?: (id: string) => Promise<Job> }): Promise<Record<string, ProfiledExecutor>> {
   const executors: Record<string, ProfiledExecutor> = {};
   for (const [name, spec] of Object.entries(profile.executors)) {
     if (spec.kind === "stored-artifact") { executors[name] = storedArtifactExecutor(profile.jobId, spec, deps.results); continue; }
+    if (spec.kind === "approved-cut-trial") {
+      if (!deps.sourceJob) throw new Error("VFX_TRIAL_SOURCE_LOADER_MISSING");
+      executors[name] = approvedCutTrialExecutor(spec, { ...deps, sourceJob: () => deps.sourceJob!(spec.sourceJobId), root: join(RUNNER_ROOT, "out", profile.jobId, name) }); continue;
+    }
     const config = { ...(await materialize(spec.config, deps.results) as Record<string, unknown>), root: join(RUNNER_ROOT, "out", profile.jobId, name) };
     if (spec.kind === "world-composite") { executors[name] = worldCompositeExecutor(config as Parameters<typeof worldCompositeExecutor>[0]); continue; }
     const executor = cutMasterExecutor(config as Parameters<typeof cutMasterExecutor>[0]);

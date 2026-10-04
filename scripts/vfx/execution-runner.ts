@@ -4,6 +4,7 @@
  *   VFX_DISPATCH_KEY=vfx_exec:<job>:r<rev>:n<seq>   → claim once, run one task, record outcome
  *   VFX_INSPECT_JOB=<job>                            → read-only diagnostics (no writes)
  */
+import { ownedJob } from "../../src/lib/production-intelligence/vfx-director/jobs";
 import { createServiceClient } from "../../src/lib/supabase/service";
 import { supabaseResultStore } from "../../src/lib/paid-calls/result-store";
 import { supabaseJobStore, supabaseDispatchLedger } from "../../src/lib/production-intelligence/vfx-director/store";
@@ -29,7 +30,7 @@ async function main() {
   const outcome = await runDispatch({ ledger, jobs, now: () => new Date(),
     owner: async id => { const r = await sb.auth.admin.getUserById(id); return r.error || !r.data.user ? null : r.data.user; },
     profile: executionProfile,
-    build: (profile, currentJob) => profileExecutors(profile, { results, currentJob }),
+    build: (profile, currentJob) => profileExecutors(profile, { results, currentJob, sourceJob: async id => ownedJob(jobs, id, (await currentJob()).ownerId) }),
   }, key, { commit, ref, runId });
   console.log(JSON.stringify({ dispatch: key, outcome }));
   if (outcome.kind === "blocked_before_task" || outcome.kind === "task_failed" || outcome.kind === "reconciliation_failed") process.exitCode = 2;

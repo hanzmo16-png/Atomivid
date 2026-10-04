@@ -1,5 +1,6 @@
 /** Readable project names; the technical identifier stays available in audit details. */
 const PROJECT_NAMES: Record<string, string> = {
+  "vfx-compositor-trial-v1": "Prueba real del compositor · Cortes y grano final",
   "precampaign-three-worlds-v1-preparation": "Precampaña · Tres mundos (Nueva York, playa y luna)",
 };
 export function projectName(id: string): string {

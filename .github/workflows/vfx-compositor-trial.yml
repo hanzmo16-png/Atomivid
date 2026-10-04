@@ -1,0 +1,32 @@
+name: Prepare isolated real VFX compositor trial
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [scripts/vfx/prepare-compositor-trial.ts]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: vfx-compositor-trial-preparation
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - run: npx next typegen
+      - run: npm run typecheck
+      - run: node --import tsx --test src/lib/production-intelligence/vfx-director/*.test.ts
+      - run: node --import tsx scripts/vfx/prepare-compositor-trial.ts
+        env:
+          VFX_DIRECTOR_ENABLED: '1'
+          VFX_DIRECTOR_OWNER_EMAIL: hanzmo16@gmail.com
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

@@ -112,3 +112,14 @@ Consequences:
 4. **Nothing pending.** Every task of the current job has a result, so even with 1–3 resolved the button stays disabled until a correction leaves a task pending.
 
 Verified without the page: strict request schema, ledger-first dispatch, concurrency, uncertain dispatch handling, resolution, claim-once, commit pinning, profile/inventory equality and untouched-job checks (16 tests). The real runner ran read-only against the production job in CI. Typecheck, lint and build pass. All 1,596 application tests pass.
+
+
+## Isolated real compositor trial (2026-10-04 UTC)
+
+The owner completed the web orchestration probe: dispatch `vfx_exec:vfx-execution-smoke-v1:r0:n1`, GitHub run 37175892313 SUCCESS, one COMMITTED USD 0 row, private bytes measured, job revision 2. This was not a render. The source precampaign remains revision 53 with 18 reviews.
+
+`vfx-compositor-trial-v1` is a separate pending master task. Its reviewed server profile binds source revision 53 and native file SHA 58a6f6395dcb1d35301e69ed74c01d42b19de6b6081e34ad805bbf2aa010a51e. The executor reads the original job's live owner-scoped gates and bindings; it copies no approvals. All four prior stages of all three worlds must still pass. A rejection or source revision change blocks publishing.
+
+The worker verifies the native file, decodes and verifies each reviewed RGB24 interval, extracts lossless FFV1 segments, invokes the real `cutMasterExecutor` to assemble hard cuts and one global grain pass, and verifies 150 frames / 1080x1920 / 30 fps. It persists MP4 bytes and a receipt in private Storage, downloads and verifies them before reporting success, and publishes a byte-bound private review binding. A fresh worker can recover the stored receipt without rendering. Source media, source reviews and the approved full campaign are untouched. No paid provider credentials are passed.
+
+Local validation includes an actual small FFmpeg render, durable recovery in a fresh directory, corrupt persisted media rejection, owner/version gates and a beach rejection. The live page render and owner visual review are still pending; these tests do not establish cinematic quality or completion of the whole SaaS. A new Preview of this commit is required before its pending task can be dispatched from the owner session.
