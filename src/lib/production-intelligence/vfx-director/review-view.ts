@@ -2,9 +2,18 @@ import { assertBeforeTask, assertGate, CHECKS, STAGES, type Stage } from "./gate
 import { jobGates, type Job } from "./jobs";
 
 export const STAGE_LABELS: Record<Stage, string> = {
-  direction: "Dirección", styleframe: "Frame ley", motion: "Movimiento",
+  direction: "Dirección", styleframe: "Fotograma de referencia", motion: "Movimiento",
   integration: "Integración", master: "Composición final",
 };
+/** Readable names for review criteria; the API keeps the stable identifiers. */
+export const CHECK_LABELS: Record<string, string> = {
+  "story-function": "Función narrativa", "silent-readability": "Se entiende sin sonido", "world-rules": "Reglas del mundo",
+  "lighting-plan": "Plan de luz", continuity: "Continuidad", "concrete-instructions": "Instrucciones concretas",
+  "scale-perspective": "Escala y perspectiva", lighting: "Luz", "subject-preservation": "Hans sin alterar", "plate-resolution": "Resolución del fondo",
+  "timing-weight": "Ritmo y peso", "action-readability": "Acción legible", edges: "Bordes", "occlusion-contact": "Oclusión y contacto",
+  "blur-focus": "Desenfoque y foco", technical: "Calidad técnica", "caption-clearance": "Espacio para subtítulos", "edit-continuity": "Continuidad del montaje",
+};
+export const checkLabel = (name: string) => CHECK_LABELS[name] ?? name;
 export function reviewView(job: Job, environmentId?: string) {
   const scope = jobGates(job, environmentId);
   return (environmentId ? STAGES.slice(0, -1) : ["master"] as const).map(stage => {

@@ -1,4 +1,6 @@
 name: ATOMIVID precampaign teaser V1
+# The run title carries the VFX dispatch key so the server can reconcile a dispatch with its run.
+run-name: ${{ inputs.stage == 'vfx-director-execute' && format('vfx-execute {0}', inputs.v2_args) || 'ATOMIVID precampaign teaser V1' }}
 
 # Producción controlada de marketing — SOLO ejecución manual. Esta versión solo hace el
 # descubrimiento de solo lectura (scripts/precampaign-teaser/discover.ts): comprueba los dos
@@ -14,7 +16,7 @@ on:
         description: "discover (sin gasto), heygen-preflight (GET gratuito de la clave HeyGen) o produce (gasto autorizado, tope USD 1.03)"
         required: true
         type: choice
-        options: [discover, heygen-preflight, produce, v2-analyze, v2-looktest, v2-vfx, v2-vfx002, v2-scout, v2-master]
+        options: [discover, heygen-preflight, produce, v2-analyze, v2-looktest, v2-vfx, v2-vfx002, v2-scout, v2-master, vfx-director-execute, vfx-director-inspect]
         default: discover
       confirm:
         description: "Escribir PRODUCIR para habilitar las claves pagadas en stage=produce"
@@ -76,7 +78,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: atomivid-precampaign-teaser-v1
+  # VFX execution has its own queue: a teaser stage must never cancel a pending VFX dispatch.
+  group: ${{ startsWith(inputs.stage, 'vfx-director-') && format('atomivid-{0}', inputs.stage) || 'atomivid-precampaign-teaser-v1' }}
   cancel-in-progress: false
 
 jobs:
@@ -246,3 +249,30 @@ jobs:
             teaser-v2/output/
           if-no-files-found: ignore
           retention-days: 7
+
+  # VFX Director: page-initiated durable execution. Registered on the default branch through this file
+  # name; the dispatched ref (the deployed preview branch) supplies this job. The only input is the
+  # dispatch key written ledger-first by the owner-authenticated API; executors, material locations and
+  # capabilities come from execution-profiles.ts at this exact commit. No paid provider key is passed.
+  vfx-director:
+    if: startsWith(inputs.stage, 'vfx-director-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Ejecutar una tarea durable (o inspeccionar sin escrituras)
+        run: npx tsx scripts/vfx/execution-runner.ts
+        env:
+          VFX_DIRECTOR_ENABLED: '1'
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VFX_DISPATCH_KEY: ${{ inputs.stage == 'vfx-director-execute' && inputs.v2_args || '' }}
+          VFX_INSPECT_JOB: ${{ inputs.stage == 'vfx-director-inspect' && inputs.v2_args || '' }}
