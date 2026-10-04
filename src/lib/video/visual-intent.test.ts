@@ -3,9 +3,11 @@ import assert from "node:assert/strict";
 import { acceptsVisual, requireVisualIntents, VisualIntentSchema, type VisualIntent } from "./visual-intent";
 import { createFootageSelectionState, selectFootageForScene, FootageSelectionError } from "./footage-select";
 import type { FootageCandidate, FootageProvider } from "@/lib/providers/types";
-import { assertReviewedVisualConfiguration } from "./reviewed-visual";
+import { assertReviewedVisualConfiguration, resolveReviewedVisual } from "./reviewed-visual";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 
-const verdict = { subjectPresent: true, allRequiredTraitsPresent: true, forbiddenSubstitutePresent: false, unrelatedTextOrWatermark: false, confidence: 0.95, reason: "Requested subject visible." };
+const verdict = { subjectPresent: true, allRequiredTraitsPresent: true, forbiddenSubstitutePresent: false, unrelatedTextOrWatermark: false, subjectClear: true, compositionAcceptable: true, visualArtifactsPresent: false, confidence: 0.95, reason: "Requested subject visible." };
 const intent: VisualIntent = { source: "illustration", subject: "humanoid reptilian alien", mustShow: ["upright humanoid figure", "scaled skin"], mustNotShow: ["ordinary iguana"], imagePrompt: "A humanoid reptilian alien, upright with scaled skin." };
 
 test("requires a bounded subject plan; incomplete legacy or malformed plans cannot silently use generic footage", () => {
@@ -31,9 +33,12 @@ test("rejects wrong subjects, missing distinguishing traits, forbidden substitut
   for (const reason of ["Iguana instead of humanoid alien", "Lamp instead of grey alien", "Generic bird instead of toucan", "Pizza instead of requested tacos", "Modern city instead of historical reconstruction"]) {
     assert.equal(acceptsVisual({ ...verdict, subjectPresent: false, reason }), false);
   }
-  for (const bad of [{ allRequiredTraitsPresent: false }, { forbiddenSubstitutePresent: true }, { confidence: 0.79 }, { unrelatedTextOrWatermark: true }]) assert.equal(acceptsVisual({ ...verdict, ...bad }), false);
+  for (const bad of [{ allRequiredTraitsPresent: false }, { forbiddenSubstitutePresent: true }, { confidence: 0.79 }, { unrelatedTextOrWatermark: true }, { subjectClear: false }, { compositionAcceptable: false }, { visualArtifactsPresent: true }]) assert.equal(acceptsVisual({ ...verdict, ...bad }), false);
   assert.equal(acceptsVisual({ ...verdict, confidence: "high" }), false);
   assert.equal(acceptsVisual(verdict), true);
+  const { subjectClear, compositionAcceptable, visualArtifactsPresent, ...legacy } = verdict;
+  assert.ok(subjectClear && compositionAcceptable && !visualArtifactsPresent);
+  assert.equal(acceptsVisual(legacy), false, "old relevance-only verdicts cannot authorize the new quality gate");
 });
 
 const candidate = (id: string, mediaType: "video" | "image" = "video"): FootageCandidate => ({ sourceId: id, url: `https://example.test/${id}`, mediaType, mimeType: mediaType === "video" ? "video/mp4" : "image/jpeg", extension: mediaType === "video" ? "mp4" : "jpg", width: 1080, height: 1920, durationSeconds: 10 });
@@ -57,4 +62,20 @@ test("no-match and vision failures stop selection; rejected resources never poll
   await assert.rejects(selectFootageForScene({ provider, concepts: ["specific subject"], minimumDurationSeconds: 3, state, verifyCandidate: async () => false }), FootageSelectionError);
   assert.equal(state.usedSourceIds.size, 0);
   await assert.rejects(selectFootageForScene({ provider, concepts: ["specific subject"], minimumDurationSeconds: 3, state, verifyCandidate: async () => { throw Error("vision unavailable"); } }), /vision unavailable/);
+});
+
+test("corrupt stock candidates are skipped without paid calls, and no rejected source is committed", async () => {
+  const old = process.env.OPENAI_API_KEY; process.env.OPENAI_API_KEY = "test-key";
+  try {
+    let downloads = 0, reservations = 0;
+    const state = createFootageSelectionState();
+    const service = { rpc: async () => { reservations++; throw Error("must not reserve"); } } as unknown as SupabaseClient;
+    const provider: FootageProvider = { name: "test", fetchFootage: async () => { throw Error("unused"); },
+      searchImageCandidates: async () => [candidate("corrupt-one", "image"), candidate("corrupt-two", "image")],
+      downloadFootage: async () => { downloads++; return Buffer.from("invalid jpeg"); } };
+    await assert.rejects(resolveReviewedVisual({ service, requestId: "r", sceneIndex: 0,
+      segment: { text: "Un reptiliano", visualQuery: "reptilian humanoid alien" }, intent: { ...intent, source: "stock" }, durationSeconds: 3,
+      footageProvider: provider, ledger: memoryLedgerStore(), state, remainingImageBudgetUsd: 0, mayGenerate: false }), /No se encontró una imagen/);
+    assert.equal(downloads, 2); assert.equal(reservations, 0); assert.equal(state.usedSourceIds.size, 0);
+  } finally { if (old === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = old; }
 });

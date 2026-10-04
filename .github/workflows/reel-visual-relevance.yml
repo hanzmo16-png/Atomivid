@@ -5,6 +5,8 @@ on:
     paths:
       - src/lib/video/visual-intent*
       - src/lib/video/visual-review*
+      - remotion/reel-framing*
+      - remotion/VerticalReel.tsx
       - src/lib/video/reviewed-visual.ts
       - src/lib/video/footage-select.ts
       - src/lib/video/generate-video.ts
@@ -33,4 +35,4 @@ jobs:
       - run: npm ci
       - run: npx next typegen
       - run: npx tsc --noEmit
-      - run: node --import tsx --test src/lib/video/visual-intent.test.ts src/lib/video/visual-review.test.ts src/lib/video/footage-select.test.ts src/lib/video/visual-resource-resolver.test.ts src/lib/video/reel-logo.test.ts src/lib/providers/image/openai.test.ts
+      - run: node --import tsx --test src/lib/video/visual-intent.test.ts src/lib/video/visual-review.test.ts src/lib/video/visual-review-media.test.ts remotion/reel-framing.test.ts src/lib/video/footage-select.test.ts src/lib/video/visual-resource-resolver.test.ts src/lib/video/reel-logo.test.ts src/lib/providers/image/openai.test.ts

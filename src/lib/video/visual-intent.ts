@@ -26,6 +26,9 @@ export const VisualVerdictSchema = z.object({
   allRequiredTraitsPresent: z.boolean(),
   forbiddenSubstitutePresent: z.boolean(),
   unrelatedTextOrWatermark: z.boolean(),
+  subjectClear: z.boolean(),
+  compositionAcceptable: z.boolean(),
+  visualArtifactsPresent: z.boolean(),
   confidence: z.number().min(0).max(1),
   reason: z.string().min(1).max(360),
 }).strict();
@@ -33,5 +36,7 @@ export type VisualVerdict = z.infer<typeof VisualVerdictSchema>;
 export function acceptsVisual(verdict: unknown): boolean {
   const parsed = VisualVerdictSchema.safeParse(verdict);
   return parsed.success && parsed.data.subjectPresent && parsed.data.allRequiredTraitsPresent
-    && !parsed.data.forbiddenSubstitutePresent && !parsed.data.unrelatedTextOrWatermark && parsed.data.confidence >= 0.8;
+    && !parsed.data.forbiddenSubstitutePresent && !parsed.data.unrelatedTextOrWatermark
+    && parsed.data.subjectClear && parsed.data.compositionAcceptable && !parsed.data.visualArtifactsPresent
+    && parsed.data.confidence >= 0.8;
 }

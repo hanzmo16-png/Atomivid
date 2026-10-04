@@ -9,6 +9,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import { type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from "./audio-mix";
+import { REEL_HOOK_ZOOM, REEL_SCENE_ZOOM, REEL_SCENE_PAN_X } from "./reel-framing";
 
 export type Scene = {
   mediaUrl: string;
@@ -140,11 +141,11 @@ function SceneMedia({
   // zoom uniforme e imperceptible.
   const hookProgress = Math.min(1, progress / 0.4);
   const scale = isHook
-    ? interpolate(hookProgress, [0, 1], [1, 1.22], { extrapolateRight: "clamp" })
-    : interpolate(progress, [0, 1], [1, 1.12]);
+    ? interpolate(hookProgress, [0, 1], [1, REEL_HOOK_ZOOM], { extrapolateRight: "clamp" })
+    : interpolate(progress, [0, 1], [1, REEL_SCENE_ZOOM]);
   const translateX = isHook
     ? 0
-    : interpolate(progress, [0, 1], [0, -18]);
+    : interpolate(progress, [0, 1], [0, REEL_SCENE_PAN_X]);
 
   let opacity = 1;
   if (fadeInFrames > 0) {
