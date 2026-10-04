@@ -73,6 +73,17 @@ async function main() {
             signedUploadUrl: upload.signedUrl, createdAt: new Date().toISOString(), providerCalls: 0 }),
           updatedAt: new Date().toISOString() })) throw new Error("UPLOAD_TICKET_EXISTS");
       }
+      const storedMaster = await results.getBytes(master.assetPath);
+      if (storedMaster) {
+        if (hash(storedMaster) !== masterSha) throw new Error("MASTER_STORAGE_CHANGED");
+        const receiptKey = `vfx_review_media_verified:${job.id}:${masterSha}`;
+        if (!await ledger.get(receiptKey)) await ledger.insert({ idempotencyKey: receiptKey, projectId: job.id,
+          shotId: "master-preview-import", provider: "internal", model: "private-review-import/1",
+          method: "private_media_import", attemptKind: "review", reservedUsd: 0, committedUsd: 0,
+          status: "COMMITTED", providerJobId: null, resultRef: JSON.stringify({ ownerId: job.ownerId,
+            assetPath: master.assetPath, sha256: masterSha, storageBytesVerified: true, approved: false,
+            providerCalls: 0, approvalsUnchanged: true }), updatedAt: new Date().toISOString() });
+      }
       retained.splice(0, retained.length, master);
     }
     await results.putJson(`${job.id}/review/bindings.json`, [...retained, ...bindings]);
