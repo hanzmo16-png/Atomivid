@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { OwnerPilot } from "@/lib/billing/owner-pilot";
 /** Refresh included-credit capacity just before admission; never enable overage. */
-export async function refreshPrepaidPilot(service: SupabaseClient, grant: OwnerPilot) {
+export async function refreshPrepaidPilot(service: SupabaseClient, grant: Pick<OwnerPilot, "maxVoiceCharacters" | "maxVoiceCalls">) {
   const key = process.env.ELEVENLABS_API_KEY;
   if (!key) throw new Error("PILOT_VOICE_NOT_CONFIGURED");
   const response = await fetch("https://api.elevenlabs.io/v1/user/subscription", {
