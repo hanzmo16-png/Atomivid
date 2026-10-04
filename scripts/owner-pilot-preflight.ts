@@ -48,6 +48,13 @@ async function main() {
   const tracks = await service.storage.from("music-library").list("", { limit: 100 });
   if (tracks.error || !MUSIC_MANIFEST.some(track => track.instrumental && tracks.data.some(file => file.name === track.storagePath))) throw new Error("PILOT_MUSIC_CONNECTION_FAILED");
   const checkedAt = new Date().toISOString();
+  const account = await service.from("pi_provider_accounts").select("provider").eq("provider", "elevenlabs").maybeSingle();
+  if (account.error) throw new Error("PILOT_ACCOUNT_REGISTRY_UNAVAILABLE");
+  if (!account.data) {
+    const registered = await service.from("pi_provider_accounts").insert({ provider: "elevenlabs", production_account_label: "Configured official ElevenLabs API account",
+      plan: subscription.tier, secret_reference_name: "ELEVENLABS_API_KEY", status: "active", balance_source: "provider_api" });
+    if (registered.error && registered.error.code !== "23505") throw new Error("PILOT_ACCOUNT_REGISTRATION_FAILED");
+  }
   const grant = OwnerPilotSchema.parse({ version: "owner-pilot/1", ownerId: input.ownerId, requestId: input.requestId,
     expiresAt: new Date(Date.now() + 72 * 3600_000).toISOString(), scriptSha256: stableHash(input.script, 64),
     maxDurationSeconds: 30, maxRenderAttempts: 1, budgetVerified: true, maxVoiceCalls: 2,

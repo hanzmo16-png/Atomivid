@@ -1,0 +1,28 @@
+name: Deploy private application pilot preview
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [scripts/deploy-owner-pilot-preview.ts]
+permissions:
+  contents: read
+concurrency:
+  group: owner-pilot-preview-deploy
+  cancel-in-progress: false
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node --import tsx scripts/deploy-owner-pilot-preview.ts
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: prj_d2APVqG7KqQ7ZqZbUVaF50UUwOZQ
+          VERCEL_TEAM_ID: team_gEUqGWgyDDEzCFVpM5aoSOAO
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
