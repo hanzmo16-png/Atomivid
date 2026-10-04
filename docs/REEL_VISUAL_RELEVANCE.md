@@ -115,10 +115,50 @@ This trial used six fixed visual contracts. It does not validate automatic
 script planning, narrated rendering or every possible topic. The general feature
 flag remains off; production was not activated. The quality/2 refinements were verified with 50 focused tests and the full
 1,630-test unit suite, plus TypeScript and ESLint. These added quality verdicts use
-model-response doubles; the earlier paid trial tested relevance/1, not quality/2.
+model-response doubles; the earlier visual-only paid trial tested relevance/1, not quality/2.
 Avatar and Long Form do not use the new semantic/quality review. Their existing
 pipelines and motion requirements remain unchanged. This is a focused reels change,
 not certification of every existing product function.
+
+A second isolated trial completed on 2026-10-04 through the actual
+`generateVideoFromScript` production render stage, using quality/2 (Actions
+`37232968501`, commit `9e30e0ceeef12f455a6f99bf0fefd3bef6b311a8`, request
+`40b04013-986f-4621-bfc2-4cf0f265287d`). Its separate immutable authorization
+allowed five images, twenty reviews and two prepaid voice calls, with a $0.65
+accounted-cost ceiling. Old voice-only grants and the first closed trial were
+not reopened. An atomic request claim prevents another paid execution; completed,
+failed or previously claimed requests stop without paid replay. The general
+feature flag remains off.
+
+The new trial used a frozen five-scene Spanish script, explicitly about fictional
+grey, reptilian, Arcturian, Pleiadian and Urmah characters. It validates narrated
+rendering from an approved script, not automatic script generation or API billing
+admission. Real iguana and light-bulb controls were rejected. Five newly generated
+illustrations passed both the base vertical crop and maximum camera framing under
+the new subject/clarity/composition/artifact verdict. The final MP4 contains the
+five matching subjects, real ElevenLabs narration with word-timed captions,
+curated music and loudness mastering. Human inspection of seventeen time samples
+confirmed matching subjects and readable captions; a complete local FFmpeg decode
+found no media errors. This is positive evidence for this reel, not every topic.
+
+Output: 1080×1920 H.264 at 30fps with AAC audio, 33.3 seconds (within the current
+30-second narration tolerance plus the half-second tail), 9,088,562 bytes.
+Measured loudness: −16.21 LUFS, −1.54 dBTP. There were five image submissions,
+seven vision submissions and one voice submission, all COMMITTED. The system
+ledger accounts $0.2796 for images, $0.0070 for reviews and $0.0496 estimated voice
+cost, $0.3362 total. These are system-calculated estimates, not an invoice.
+ElevenLabs was checked active with overage disabled before and after execution;
+the subscription's included balance changed from 18,254 to 18,056 credits.
+
+The trial exposed misleading legacy diagnostic scoring: generated illustrations
+do not populate the Pexels source-ID set, and one subject per narration segment
+does not follow the old 1.8–3.8-second stock-beat rule. The diagnostic now records
+the actual reviewed/planned scene counts, composition policy and narration
+duration result on the reviewed path; the old score still applies to the legacy
+stock-beat path. This diagnostic-only correction does not change the rendered
+trial or weaken visual acceptance. Stock fallback under quality/2, automatic
+planning, Avatar and Long Form still need separate real-flow validation before
+claiming broad product coverage.
 
 Vision can make mistakes; three time samples do not prove every frame of a clip. It cannot
 authenticate the identity of a real person or prove historical accuracy. Passing

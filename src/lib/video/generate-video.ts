@@ -385,32 +385,44 @@ export async function generateVideoFromScript({
   // comentario en quality-gate.ts) — se calcula ANTES del paso más caro
   // en cómputo que queda (el render de Remotion), con los datos reales de
   // la selección de footage ya hecha.
-  const qualityGate = evaluateQualityGate({
-    totalBeats: scenes.length,
-    // footage-select.ts garantiza por construcción que nunca se reutiliza
-    // un sourceId dentro del mismo video (ver su `state.usedSourceIds`) —
-    // por eso la cantidad de candidatos únicos es siempre igual al total
-    // de beats; se registra igual como valor real, no supuesto, por si
-    // esa garantía se rompiera algún día (el score de diversidad bajaría
-    // y quedaría en los logs de este propio gate, no en silencio).
-    uniqueSourceIds: footageState.usedSourceIds.size,
-    fallbackCount: footageSelections.filter((s) => s.usedFallbackQuery).length,
-    averageConceptTier:
-      footageSelections.length > 0
-        ? footageSelections.reduce((sum, s) => sum + s.conceptTier, 0) / footageSelections.length
-        : 0,
-    beatDurations: scenes.map((s) => s.endSeconds - s.startSeconds),
-    durationWithinTolerance,
-  });
-  console.log(
-    "[atomivid:quality-gate]",
-    JSON.stringify({ requestId, ...qualityGate }),
-  );
-  if (!qualityGate.passed) {
-    console.warn(
-      `[atomivid:quality-gate] ${requestId} — score ${qualityGate.score} por debajo del mínimo ` +
-        `sugerido (${QUALITY_GATE_MIN_SCORE}): ${qualityGate.reasons.join("; ")}`,
+  if (visualIntents) {
+    // Reviewed scenes deliberately hold one subject throughout its narration.
+    // The legacy Pexels-only ID set and 1.8–3.8s beat heuristic do not measure
+    // this composition: applying them reported zero diversity for five distinct
+    // approved illustrations. Report the actual enforced checks instead of a
+    // misleading legacy score. Acceptance is recorded per asset above.
+    console.log("[atomivid:quality-gate]", JSON.stringify({
+      requestId, policy: "literal-visual-quality/2", composition: "narration_aligned_subjects",
+      reviewedSceneCount: scenes.length, plannedSceneCount: script.segments.length, durationWithinTolerance,
+    }));
+  } else {
+    const qualityGate = evaluateQualityGate({
+      totalBeats: scenes.length,
+      // footage-select.ts garantiza por construcción que nunca se reutiliza
+      // un sourceId dentro del mismo video (ver su `state.usedSourceIds`) —
+      // por eso la cantidad de candidatos únicos es siempre igual al total
+      // de beats; se registra igual como valor real, no supuesto, por si
+      // esa garantía se rompiera algún día (el score de diversidad bajaría
+      // y quedaría en los logs de este propio gate, no en silencio).
+      uniqueSourceIds: footageState.usedSourceIds.size,
+      fallbackCount: footageSelections.filter((s) => s.usedFallbackQuery).length,
+      averageConceptTier:
+        footageSelections.length > 0
+          ? footageSelections.reduce((sum, s) => sum + s.conceptTier, 0) / footageSelections.length
+          : 0,
+      beatDurations: scenes.map((s) => s.endSeconds - s.startSeconds),
+      durationWithinTolerance,
+    });
+    console.log(
+      "[atomivid:quality-gate]",
+      JSON.stringify({ requestId, ...qualityGate }),
     );
+    if (!qualityGate.passed) {
+      console.warn(
+        `[atomivid:quality-gate] ${requestId} — score ${qualityGate.score} por debajo del mínimo ` +
+          `sugerido (${QUALITY_GATE_MIN_SCORE}): ${qualityGate.reasons.join("; ")}`,
+      );
+    }
   }
 
   // 4. Subir la narración generada
