@@ -42,7 +42,7 @@ jobs:
     # producción — 120 min de paso cubren 15 min de documental con margen.
     # Un timeout del job entero no ejecutaría la limpieza, por eso el job
     # siempre deja ~15 min más que el paso.
-    timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 135 || 18 }}
+    timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 135 || (vars.REEL_VISUAL_RELEVANCE_ENABLED == 'true' && 30 || 18) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -64,7 +64,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Renderizar video
-        timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 120 || 12 }}
+        timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 120 || (vars.REEL_VISUAL_RELEVANCE_ENABLED == 'true' && 25 || 12) }}
         run: npx tsx scripts/render-worker.ts
         env:
           ATOMIVID_RUNTIME: production
@@ -93,6 +93,10 @@ jobs:
           MAX_AVATAR_DURATION_SECONDS: '45'
           MAX_AVATAR_COST_USD: '5'
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          REEL_VISUAL_RELEVANCE_ENABLED: ${{ vars.REEL_VISUAL_RELEVANCE_ENABLED }}
+          OPENAI_IMAGE_GENERATION_ENABLED: ${{ vars.REEL_IMAGE_GENERATION_ENABLED }}
+          MAX_GENERATED_IMAGES_PER_VIDEO: ${{ vars.REEL_MAX_GENERATED_IMAGES }}
+          MAX_VISUAL_COST_USD: ${{ vars.REEL_MAX_VISUAL_COST_USD }}
           MUSIC_TRACK_URLS: ${{ secrets.MUSIC_TRACK_URLS }}
           MUSIC_PROVIDER: ${{ secrets.MUSIC_PROVIDER }}
           # --- Solo Long Form (vacío para cualquier otra modalidad: Reel/Avatar
@@ -102,8 +106,8 @@ jobs:
           # se escribe aquí en claro. Además, cada producción exige su propia
           # confirmación humana (long_form_confirmed_at).
           LONG_FORM_REAL_RUN_CONFIRM: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && secrets.LONG_FORM_REAL_RUN_CONFIRM || '' }}
-          IMAGE_PROVIDER: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 'openai' || '' }}
-          OPENAI_API_KEY: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && secrets.OPENAI_API_KEY || '' }}
+          IMAGE_PROVIDER: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form' || vars.REEL_VISUAL_RELEVANCE_ENABLED == 'true') && 'openai' || '' }}
+          OPENAI_API_KEY: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form' || vars.REEL_VISUAL_RELEVANCE_ENABLED == 'true') && secrets.OPENAI_API_KEY || '' }}
           # Video IA: en el worker se encienden para Long Form y el ÚNICO
           # control es la allocation del plan confirmado (calculada en Vercel
           # con sus propias flags y mostrada al usuario antes de confirmar):

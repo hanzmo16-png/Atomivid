@@ -25,6 +25,8 @@ function numberEnv(envVar: string, fallback: number): number {
 
 export function getFeatureFlags() {
   return {
+    /** Reviewed rollout: requires real vision and explicit image-generation settings. */
+    reelVisualRelevanceEnabled: flag("REEL_VISUAL_RELEVANCE_ENABLED", false),
     /**
      * Enciende la etapa de storyboard semántico (Visual Director). Añade
      * una llamada extra a Claude (proveedor ya configurado) por video — sí

@@ -36,6 +36,7 @@ import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
 import { supabaseResultStore } from "@/lib/paid-calls/result-store";
 import type { OwnerPilot } from "@/lib/billing/owner-pilot";
 import { ownerPilotLedger } from "@/lib/paid-calls/owner-pilot-ledger";
+import { assertReviewedVisualConfiguration, resolveReviewedVisual } from "./reviewed-visual";
 
 // Deliberadamente separado de generate-script.ts — ver el comentario ahí
 // para la razón exacta (Remotion no debe cargarse en la ruta de guion).
@@ -97,6 +98,9 @@ export async function generateVideoFromScript({
   const footageProvider = getFootageProvider();
   const musicProvider = getMusicProvider();
   const imageProvider = !ownerPilot && getFeatureFlags().imageGenerationEnabled ? getImageProvider() : undefined;
+  // Validate required illustration capacity before spending on narration.
+  const visualIntents = getFeatureFlags().reelVisualRelevanceEnabled
+    ? assertReviewedVisualConfiguration(script.segments, Boolean(ownerPilot)) : undefined;
   let storageBytes = 0;
   const gate: PaidCallDeps = {
     ledger: ownerPilot ? ownerPilotLedger(supabase, ownerPilot) : paidCalls?.ledger ?? supabaseLedgerStore(supabase),
@@ -123,7 +127,7 @@ export async function generateVideoFromScript({
   // porque esa columna depende de la migración 0010, que no se aplica
   // sola (ver supabase/migrations/0010_visual_director.sql).
   let storyboard: Storyboard | undefined;
-  if (!ownerPilot && getFeatureFlags().visualDirectorEnabled) {
+  if (!visualIntents && !ownerPilot && getFeatureFlags().visualDirectorEnabled) {
     try {
       const built = await buildStoryboard(script, language);
       storyboard = built.storyboard;
@@ -220,10 +224,23 @@ export async function generateVideoFromScript({
   let usedGeneratedImageProvider: string | null = null;
   let usedGeneratedImageModel: string | null = null;
   let usedGeneratedImageSize: string | null = null;
+  let visualReviewCostUsd = 0;
 
   for (let i = 0; i < script.segments.length; i++) {
     const segment = script.segments[i];
     const timing = sceneTimings[i];
+    if (visualIntents) {
+      // One verified subject persists across its entire narration, including long scenes.
+      const visual = await resolveReviewedVisual({ service: supabase, requestId, sceneIndex: i, segment,
+        intent: visualIntents[i], durationSeconds: timing.end - timing.start, footageProvider, imageProvider,
+        ledger: gate.ledger, state: footageState,
+        remainingImageBudgetUsd: Math.max(0, getFeatureFlags().maxVisualCostUsd - visualCostSpentUsd),
+        mayGenerate: getFeatureFlags().imageGenerationEnabled && imagesRequestedCount < getFeatureFlags().maxImagesPerVideo });
+      scenes.push({ mediaUrl: visual.url, mediaType: visual.mediaType, startSeconds: timing.start, endSeconds: timing.end });
+      storageBytes += visual.storageBytes; visualCostSpentUsd += visual.imageCostUsd; visualReviewCostUsd += visual.reviewCostUsd;
+      if (visual.requestedImage) { imagesRequestedCount++; usedGeneratedImageProvider = "openai"; if (visual.generated) imagesGeneratedCount++; else imagesReusedCount++; }
+      continue;
+    }
     const beats = splitIntoBeats(timing.start, timing.end);
     const baseConcepts =
       segment.visualConcepts && segment.visualConcepts.length > 0
@@ -353,6 +370,7 @@ export async function generateVideoFromScript({
         imagesGeneratedCount,
         imagesReusedCount,
         visualCostSpentUsd,
+        visualReviewCostUsd,
         plan: visualPlan,
       }),
     );
@@ -534,11 +552,12 @@ export async function generateVideoFromScript({
     renderMs,
     storageBytes,
     creativeLayer:
-      imagesRequestedCount > 0
+      imagesRequestedCount > 0 || visualReviewCostUsd > 0
         ? {
             imageProvider: usedGeneratedImageProvider ?? undefined,
             imageGenerationCount: imagesGeneratedCount,
-            imageCostUsd: visualCostSpentUsd,
+            // Total creative visual cost; exact review calls remain in the paid ledger.
+            imageCostUsd: visualCostSpentUsd + visualReviewCostUsd,
             imageRequestedCount: imagesRequestedCount,
             imageReusedCount: imagesReusedCount,
             imageDryRun: false,

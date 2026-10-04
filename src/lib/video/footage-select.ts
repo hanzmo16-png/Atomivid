@@ -116,17 +116,35 @@ export async function selectFootageForScene({
   concepts,
   minimumDurationSeconds,
   state,
+  verifyCandidate,
+  maxCandidatesToVerify = 6,
 }: {
   provider: FootageProvider;
   /** Ya debe incluir el concepto principal como primer elemento. */
   concepts: string[];
   minimumDurationSeconds: number;
   state: FootageSelectionState;
+  /** The technical score never substitutes for looking at the actual media. */
+  verifyCandidate?: (candidate: FootageCandidate) => Promise<boolean>;
+  maxCandidatesToVerify?: number;
 }): Promise<FootageSelectionOutcome> {
   const effectiveConcepts = concepts.length > 0 ? concepts : ["b-roll motivational"];
 
   const searchVideo = provider.searchVideoCandidates?.bind(provider);
   const searchImage = provider.searchImageCandidates?.bind(provider);
+  const checked = new Set<string>();
+  let checks = 0;
+  async function verifiedBest(ranked: TieredScoredCandidate[], requireScore = true) {
+    for (const candidate of ranked) {
+      if (requireScore && candidate.score < MIN_ACCEPTABLE_SCORE) continue;
+      if (!verifyCandidate) return candidate;
+      if (checked.has(candidate.candidate.sourceId)) continue;
+      if (checks >= maxCandidatesToVerify) return undefined;
+      checked.add(candidate.candidate.sourceId); checks++;
+      if (await verifyCandidate(candidate.candidate)) return candidate;
+    }
+    return undefined;
+  }
 
   // Proveedor sin soporte de candidatos múltiples (p. ej. el fixture de
   // desarrollo): usa fetchFootage tal cual, sin puntuar ni diversificar —
@@ -135,6 +153,7 @@ export async function selectFootageForScene({
   if (!searchVideo && !searchImage) {
     const result = await provider.fetchFootage(effectiveConcepts[0], minimumDurationSeconds);
     const sourceId = `${provider.name}-${result.url}`;
+    if (verifyCandidate && !(await verifyCandidate({ ...result, sourceId }))) throw new FootageSelectionError(effectiveConcepts);
     state.usedSourceIds.add(sourceId);
     return {
       result,
@@ -156,12 +175,17 @@ export async function selectFootageForScene({
       state,
     );
     const ranked = rankTiered(scored);
-    const best = ranked[0];
+    // Reserve half the bounded checks for still images if all clips mismatch.
+    const unique = ranked.filter((candidate, index) => ranked.findIndex(other => other.candidate.sourceId === candidate.candidate.sourceId) === index);
+    const best = await verifiedBest(verifyCandidate ? unique.slice(0, Math.ceil(maxCandidatesToVerify / 2)) : ranked);
     if (best && best.score >= MIN_ACCEPTABLE_SCORE) {
       return commit(best, state, false, totalCandidates);
     }
 
     // 2) Reformular el concepto principal y reintentar solo video, una vez.
+    // Dropping words can change the requested subject ("grey alien" -> "grey").
+    // In reviewed mode, only the explicit subject-preserving alternatives are used.
+    if (!verifyCandidate) {
     const fallbackQuery = buildFallbackQuery(effectiveConcepts[0]);
     const fallback = await collectScored(
       [fallbackQuery],
@@ -178,6 +202,7 @@ export async function selectFootageForScene({
       );
       return commit(fallbackBest, state, true, fallback.totalCandidates);
     }
+    }
   }
 
   // 3) Último recurso: imagen, con los conceptos originales.
@@ -189,7 +214,7 @@ export async function selectFootageForScene({
       state,
     );
     const ranked = rankTiered(scored);
-    const best = ranked[0];
+    const best = await verifiedBest(ranked, Boolean(verifyCandidate));
     if (best) {
       console.warn(
         `[atomivid:footage] sin video aprovechable para [${effectiveConcepts.join(" | ")}] — se usa una imagen`,

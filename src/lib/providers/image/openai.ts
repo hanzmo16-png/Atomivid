@@ -252,7 +252,7 @@ export const openaiImageProvider: ImageProvider = {
     }
 
     let lastError: unknown;
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    for (let attempt = 0; attempt <= (request.disableRetries ? 0 : MAX_RETRIES); attempt++) {
       try {
         return await requestOnce(request);
       } catch (err) {

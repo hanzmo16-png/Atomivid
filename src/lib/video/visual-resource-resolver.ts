@@ -53,6 +53,8 @@ export async function resolveGeneratedImageForScene({
   supabase,
   bucket,
   requestId,
+  artifactPrefix = requestId,
+  disableProviderRetries = false,
   sceneIndex,
   scene,
   imageProvider,
@@ -63,6 +65,8 @@ export async function resolveGeneratedImageForScene({
   supabase: SupabaseClient;
   bucket: string;
   requestId: string;
+  artifactPrefix?: string;
+  disableProviderRetries?: boolean;
   sceneIndex: number;
   scene: StoryboardScene;
   imageProvider: ImageProvider;
@@ -75,7 +79,7 @@ export async function resolveGeneratedImageForScene({
    */
   ledger?: LedgerStore;
 }): Promise<GeneratedImageOutcome> {
-  const existing = await findExistingGeneratedImage(supabase, bucket, requestId, sceneIndex);
+  const existing = await findExistingGeneratedImage(supabase, bucket, artifactPrefix, sceneIndex);
   if (existing) {
     const { data, error } = await supabase.storage.from(bucket).createSignedUrl(existing.path, signedUrlTtlSeconds);
     if (error || !data) {
@@ -92,6 +96,7 @@ export async function resolveGeneratedImageForScene({
   }
 
   const request = {
+    disableRetries: disableProviderRetries,
     prompt: scene.imagePrompt,
     negativePrompt: scene.negativePrompt,
     aspectRatio: "9:16" as const,
@@ -107,7 +112,7 @@ export async function resolveGeneratedImageForScene({
       throw new Error(`El proveedor de imagen "${imageProvider.name}" devolvió un archivo inválido: ${validation.reason}`);
     }
 
-    const path = `${requestId}/${generatedImageObjectPrefix(sceneIndex)}.${asset.extension}`;
+    const path = `${artifactPrefix}/${generatedImageObjectPrefix(sceneIndex)}.${asset.extension}`;
     const { error: uploadError } = await supabase.storage
       .from(bucket)
       .upload(path, asset.buffer, { contentType: asset.mimeType, upsert: true });

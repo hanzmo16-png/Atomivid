@@ -3,6 +3,8 @@ import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { targetWordsFor } from "@/lib/video/script-pacing";
+import { VisualIntentSchema, VISUAL_INTENT_INSTRUCTIONS } from "@/lib/video/visual-intent";
+import type { GeneratedScript } from "@/lib/providers/types";
 
 // Instanciado de forma perezosa, mismo patrón que getStripe() en
 // src/lib/stripe/client.ts: así ANTHROPIC_API_KEY se valida explícitamente
@@ -53,6 +55,7 @@ const ScriptSchema = z.object({
     .array(
       z.object({
         text: z.string().describe("Narración en voz alta para esta escena"),
+        visualIntent: VisualIntentSchema.describe("Literal visual requirements, including the actual subject and wrong substitutes to reject."),
         visualQuery: z
           .string()
           .describe(
@@ -163,7 +166,7 @@ export async function generateScript({
     `SIEMPRE en ${LANGUAGE_NAME[language]}, sin importar en qué idioma ` +
     "esté escrito el tema que te da el usuario.";
 
-  const basePrompt = `Escribe el guion de un reel faceless con un arco narrativo real: gancho → tensión/problema → desarrollo → conclusión → cierre.
+  const basePrompt = `${VISUAL_INTENT_INSTRUCTIONS}\n\nEscribe el guion de un reel faceless con un arco narrativo real: gancho → tensión/problema → desarrollo → conclusión → cierre.
 
 Idioma de la narración: ${LANGUAGE_NAME[language]} (obligatorio, sin excepción).
 Tema: ${topic}
@@ -178,12 +181,12 @@ Reglas estrictas:
 - La escena de apertura necesita un gancho visual fuerte — no un plano contemplativo ni introducción lenta.
 - La escena de cierre debe sentirse como una resolución, con conceptos visuales que NO se hayan usado antes en el guion. ${AVOID_STOCK_TEXT_CLICHES}
 
-Para cada escena, interpreta el SIGNIFICADO de la narración, no la conviertas literalmente en palabras clave. Ejemplo: para "y ahí es donde la mayoría abandona sus sueños", NO busques variantes de "dreams" — interpreta la idea (alguien rindiéndose) y da conceptos como "exhausted athlete stopping mid run", "person quitting a workout", "runner falling behind and giving up".
+Para escenas descriptivas, muestra el sujeto descrito y conserva sus rasgos: no lo sustituyas por objetos asociados. Para narración abstracta o motivacional, interpreta el significado con una acción concreta. Ejemplo: para "y ahí es donde la mayoría abandona sus sueños", elige a un corredor que abandona su carrera y varía sus encuadres; no busques la palabra "dreams".
 
 Da, para cada escena:
 - "text": el texto exacto que narrará la voz IA.
 - "visualQuery": el concepto visual principal (2-4 palabras en inglés) — igual a visualConcepts[0].
-- "visualConcepts": 2-3 interpretaciones visuales DISTINTAS de la misma idea (nunca sinónimos de la misma imagen — ángulos, sujetos o situaciones distintas que comunican lo mismo).
+- "visualConcepts": 2-3 encuadres o acciones del MISMO sujeto requerido; conserva su identidad y características.
 - "excludedTerms": opcional, palabras en inglés a evitar en el material visual de esta escena.
 - "energy": "low"/"medium"/"high" según el ritmo narrativo de esa escena.
 - "emphasisWords": 1-3 palabras EXACTAS de "text" (mismo idioma de la narración) que merecen destacarse visualmente.
@@ -204,7 +207,7 @@ Tu intento anterior tuvo ${lastWordCount} palabras narradas en total, fuera del 
 
     const response = await getClient().messages.parse({
       model: SCRIPT_MODEL,
-      max_tokens: 2000,
+      max_tokens: 6000,
       system,
       messages: [{ role: "user", content }],
       output_config: {
@@ -238,7 +241,7 @@ export async function regenerateScene({
 }: {
   topic: string;
   style: string;
-  script: VideoScript;
+  script: GeneratedScript;
   sceneIndex: number;
 }): Promise<VideoScriptScene> {
   const current = script.segments[sceneIndex];
@@ -252,7 +255,7 @@ export async function regenerateScene({
 
   const response = await getClient().messages.parse({
     model: SCRIPT_MODEL,
-    max_tokens: 500,
+    max_tokens: 1800,
     system:
       "Eres guionista de reels 'faceless' para redes sociales. Reescribes " +
       "UNA SOLA escena de un guion ya existente, manteniendo el mismo " +
@@ -262,14 +265,14 @@ export async function regenerateScene({
     messages: [
       {
         role: "user",
-        content: `Guion completo — tema: "${topic}", estilo/tono: "${style}".
+        content: `${VISUAL_INTENT_INSTRUCTIONS}\n\nGuion completo — tema: "${topic}", estilo/tono: "${style}".
 
 ${previous ? `Escena anterior: "${previous}"\n` : ""}Escena actual (a reescribir): "${current.text}"
 ${next ? `Escena siguiente: "${next}"\n` : ""}
 Reescribe SOLO la escena actual. Da:
 - "text": nueva narración (~${targetWords} palabras, sin emojis ni acotaciones).
 - "visualQuery": el concepto visual principal (2-4 palabras en inglés) — igual a visualConcepts[0].
-- "visualConcepts": 2-3 interpretaciones visuales DISTINTAS de la idea de la escena (nunca sinónimos de la misma imagen) — interpreta el significado, no traduzcas la frase literalmente a palabras clave. ${AVOID_STOCK_TEXT_CLICHES}
+- "visualConcepts": 2-3 encuadres o acciones del MISMO sujeto requerido; conserva su identidad y características. Para narración abstracta usa una acción concreta relevante. ${AVOID_STOCK_TEXT_CLICHES}
 - "excludedTerms": opcional, palabras en inglés a evitar en el material visual.
 - "energy": "low"/"medium"/"high" según el ritmo de esta escena.
 - "emphasisWords": 1-3 palabras EXACTAS del nuevo "text" que merecen destacarse visualmente.`,

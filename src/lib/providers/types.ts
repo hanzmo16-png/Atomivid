@@ -10,6 +10,8 @@ export type SceneEnergy = "low" | "medium" | "high";
 
 export type ScriptScene = {
   text: string;
+  /** Required by the reviewed visual path; absent on legacy scripts. */
+  visualIntent?: import("@/lib/video/visual-intent").VisualIntent;
   /** Concepto visual primario — 2-4 palabras en inglés, editable por el usuario en la revisión del guion. */
   visualQuery: string;
   /**
@@ -285,6 +287,8 @@ export class GenerativeProviderError extends Error {
 }
 
 export type ImageGenerationRequest = {
+  /** Reviewed reels use one HTTP submission, including on ambiguous provider failures. */
+  disableRetries?: boolean;
   prompt: string;
   negativePrompt?: string;
   /**

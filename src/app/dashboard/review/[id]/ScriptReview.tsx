@@ -55,7 +55,9 @@ export function ScriptReview({
   function updateScene(index: number, field: "text" | "visualQuery", value: string) {
     setScript((prev) => ({
       ...prev,
-      segments: prev.segments.map((s, i) => (i === index ? { ...s, [field]: value } : s)),
+      // A changed narration/query invalidates the subject plan; never render a stale plan.
+      segments: prev.segments.map((s, i) => (i === index ? { ...s, [field]: value, visualIntent: undefined,
+        ...(field === "visualQuery" ? { visualConcepts: [value] } : {}) } : s)),
     }));
     setDirty(true);
   }

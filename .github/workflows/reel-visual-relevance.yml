@@ -1,0 +1,35 @@
+name: Reel visual relevance (no paid calls)
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths:
+      - src/lib/video/visual-intent*
+      - src/lib/video/visual-review*
+      - src/lib/video/reviewed-visual.ts
+      - src/lib/video/footage-select.ts
+      - src/lib/video/generate-video.ts
+      - src/lib/video/visual-resource-resolver.ts
+      - src/lib/video/feature-flags.ts
+      - src/lib/ai/script.ts
+      - src/lib/providers/types.ts
+      - src/lib/providers/image/openai*
+      - src/app/api/generate/**/script/route.ts
+      - src/app/dashboard/review/**/ScriptReview.tsx
+      - supabase/migrations/*reel_visual_review_budget.sql
+      - package.json
+      - .github/workflows/reel-visual-relevance.yml
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: node --import tsx --test src/lib/video/visual-intent.test.ts src/lib/video/visual-review.test.ts src/lib/video/footage-select.test.ts src/lib/video/visual-resource-resolver.test.ts src/lib/video/reel-logo.test.ts src/lib/providers/image/openai.test.ts

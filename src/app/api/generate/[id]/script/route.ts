@@ -9,6 +9,7 @@ import { generateDiagnosticId } from "@/lib/video/render-error";
 import { checkScriptQuality, ScriptQualityError } from "@/lib/video/script-quality";
 import { targetWordsFor } from "@/lib/video/script-pacing";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
+import { VisualIntentSchema } from "@/lib/video/visual-intent";
 
 // Sin esto, la función queda al límite por defecto de la plataforma (tan
 // bajo como 10s en algunos planes de Vercel) — una llamada real a Claude
@@ -219,6 +220,9 @@ export async function PATCH(
     );
   }
   for (const segment of body.segments) {
+    if (segment.visualIntent !== undefined && !VisualIntentSchema.safeParse(segment.visualIntent).success) {
+      return NextResponse.json({ error: "Plan visual inválido" }, { status: 400 });
+    }
     if (typeof segment.text !== "string" || typeof segment.visualQuery !== "string") {
       return NextResponse.json({ error: "Guion inválido" }, { status: 400 });
     }
