@@ -41,7 +41,7 @@ export function approvedCutTrialExecutor(config:ApprovedCutTrial,deps:{results:P
   await deps.results.putBytes(reviewPath,bytes,'video/mp4');
   const stored=await deps.results.getBytes(reviewPath);
   if(!stored||hash(stored)!==result.sha256)throw Error('VFX_TRIAL_REVIEW_NOT_PERSISTED');
-  await deps.results.putJson(`${trial.id}/review/bindings.json`,[{ownerId:trial.ownerId,stage:'master',planHash:trial.planHash,artifactSha256:result.sha256,assetPath:reviewPath,sha256:result.sha256,startFrame:0,endFrame:trial.brief.frames}]);
+  await deps.results.putJson(`${trial.id}/review/bindings.json`,[{ownerId:trial.ownerId,stage:'preview',planHash:trial.planHash,artifactSha256:result.sha256,assetPath:reviewPath,sha256:result.sha256,startFrame:0,endFrame:trial.brief.frames}]);
  }
  async function recovered(task:Job['plan']['tasks'][number],key:string):Promise<TaskResult|null> {
   const path=`${(await deps.currentJob()).id}/execution/rendered/${hash(Buffer.from(key))}`;
@@ -52,10 +52,10 @@ export function approvedCutTrialExecutor(config:ApprovedCutTrial,deps:{results:P
   await publishReview(result,bytes);
   return result;
  }
- return {capability,allowedStages:['master'] as Job['plan']['tasks'][number]['stage'][],
+ return {capability,allowedStages:['preview'] as Job['plan']['tasks'][number]['stage'][],
   async preflight(){await preflight();},
   async run(task:Job['plan']['tasks'][number],brief:Job['brief'],key:string) {
-   if(task.stage!=='master'||brief.projectId!==(await deps.currentJob()).id)throw Error('VFX_TRIAL_TASK_MISMATCH');
+   if(task.stage!=='preview'||brief.projectId!==(await deps.currentJob()).id)throw Error('VFX_TRIAL_TASK_MISMATCH');
    const input=await preflight();
    if(brief.frames!==input.source.brief.frames||brief.fps!==input.source.brief.fps||brief.width!==input.source.brief.width||brief.height!==input.source.brief.height||brief.sourceSha256!==input.source.brief.sourceSha256)throw Error('VFX_TRIAL_FORMAT_CHANGED');
    const old=await recovered(task,key);if(old)return old;
@@ -75,7 +75,7 @@ export function approvedCutTrialExecutor(config:ApprovedCutTrial,deps:{results:P
    }
    const root=join(dir,'assembled');
    const master=cutMasterExecutor({kind:'cut-master',root,segments,grainStrength:c.grainStrength});
-   const innerTask={...task,inputAssetIds:segments.map(s=>s.assetId)};
+   const innerTask={...task,stage:"master" as const,inputAssetIds:segments.map(s=>s.assetId)};
    const assembled=await master.run(innerTask,input.source.brief,key);
    const result={...assembled,checks:[...assembled.checks,{name:"approved-source-pixels",pass:true,evidence:JSON.stringify({sourceJobId:input.source.id,revision:input.source.revision,nativeSha256:c.nativeSha256,intervals:input.bindings.map(b=>({environmentId:b!.environmentId,startFrame:b!.startFrame,endFrame:b!.endFrame,pixelSha256:b!.artifactSha256}))})}]};
    // Recheck approvals immediately before publishing the measured output.

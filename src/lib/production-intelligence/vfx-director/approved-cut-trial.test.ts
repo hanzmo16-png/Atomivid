@@ -9,7 +9,9 @@ import { createHash } from 'node:crypto';
 import { memoryResultStore } from '@/lib/paid-calls/result-store';
 import { approvedCutTrialExecutor, assertTrialSource, type ApprovedCutTrial } from './approved-cut-trial';
 import { CHECKS, STAGES } from './gates';
-import { environmentHash, type Job } from './jobs';
+import { parseShotContract } from '../contract';
+import { currentReviewBinding } from './review-bindings';
+import { createJob, runTask, memoryJobStore, ownedJob, environmentHash, type Job } from './jobs';
 const exec=promisify(execFile),hash=(b:Buffer)=>createHash('sha256').update(b).digest('hex');
 const fixture=()=>{
  const environments=['nyc','beach','moon'].map((id,i)=>({id,kind:['city','beach','moon'][i],lighting:['night_practical','daylight_soft','sun_hard'][i],startFrame:i*2,endFrame:(i+1)*2,materialAssetId:id+'-plate',materialSha256:'a'.repeat(64),light:id,continuityIn:'source',continuityOut:'cut'}));
@@ -29,7 +31,7 @@ test('trial requires exact owner/version and all source-world reviews; a beach r
 test('real FFmpeg cut/grain render persists privately and recovers with a fresh local directory',async()=>{
  const root=await mkdtemp(join(tmpdir(),'vfx-cut-test-'));
  try{
- const {source,trial}=fixture(),store=memoryResultStore();
+ const {source,trial}=fixture(),store=memoryResultStore(),jobs=memoryJobStore();
  const native=join(root,'native.mp4');
  await exec('ffmpeg',['-v','error','-f','lavfi','-i','testsrc2=size=16x16:rate=30','-frames:v','6','-c:v','libx264','-pix_fmt','yuv420p',native]);
  const bytes=await readFile(native),spec={...config,nativeSha256:hash(bytes)};
@@ -43,13 +45,24 @@ test('real FFmpeg cut/grain render persists privately and recovers with a fresh 
  bindings.push({ownerId:source.ownerId,environmentId:e.id,stage:'integration',planHash:environmentHash(source,e.id),artifactSha256:fingerprint,assetPath:path,sha256:spec.nativeSha256,startFrame:e.startFrame,endFrame:e.endFrame});
  }
  await store.putJson(source.id+'/review/bindings.json',bindings);
- const deps={results:store,currentJob:async()=>trial,sourceJob:async()=>source,root:join(root,'first')};
- const task={id:'assemble',stage:'master' as const,executor:'cut',dependsOn:[],inputAssetIds:['source'],outputAssetId:'trial-master',instruction:'cut',acceptance:['measured']};
- const ex=approvedCutTrialExecutor(spec,deps),result=await ex.run(task,trial.brief,'stable-key');
+ const deps={results:store,currentJob:async()=>ownedJob(jobs,trial.id,trial.ownerId),sourceJob:async()=>source,root:join(root,'first')};
+ const task={id:'assemble',stage:'preview' as const,executor:'cut',dependsOn:[],inputAssetIds:['source'],outputAssetId:'trial-master',instruction:'cut',acceptance:['measured']};
+ const ex=approvedCutTrialExecutor(spec,deps);
+ const brief={...trial.brief,intent:"Composition proof",emotion:"Technical review",subjectLock:"identity_with_relight" as const,budgetUsd:0,environments:[]};
+ const contract=parseShotContract({shotId:"proof",shotClass:"talking_head",narrationIntent:"proof",visualIntent:"cuts",motionRequirement:"simple",motionLeverage:"HIGH",riskClass:"HIGH",desiredDuration:.2,maxGeneratedDuration:0,qualityTier:"hero"});
+ const plan={version:"vfx-director/1" as const,sourceSha256:brief.sourceSha256,contract,environments:[],world:{scaleMeters:1.8,physics:"source",light:"approved per world",optics:"source",continuityIn:"source",continuityOut:"cut"},layersFrontToBack:["subject","plate"],beats:[{frame:0,action:"cut"}],tasks:[task],requiredChecks:["cut-sequence"]};
+ const job=await createJob(jobs,trial.ownerId,trial.ownerId,brief,plan,{cut:ex.capability},["source"]);
+ const executed=await runTask(jobs,job.id,job.ownerId,{cut:ex},task.id);
+ assert.equal(executed.executed,true,executed.job.error??"durable task should execute");
+ assert.equal(executed.job.approvals.length,0);assert.equal(executed.job.artifacts.master,undefined);
+ const result=executed.job.results[task.id],key=`${job.planHash}:${task.id}`;
+ const previews=await store.getJson<unknown[]>(trial.id+'/review/bindings.json');
+ assert.ok(currentReviewBinding(previews![0],executed.job));
+ assert.equal(currentReviewBinding(previews![0],{...executed.job,results:{}}),null);
  assert.equal(result.assetId,'trial-master');assert.equal(result.checks[0].pass,true);
  const receipt=JSON.parse(result.checks[0].evidence);assert.equal(receipt.grainPasses,1);assert.equal(receipt.transition,'cut');assert.equal(receipt.frames,6);
- const fresh=approvedCutTrialExecutor(spec,{...deps,root:join(root,'fresh')});assert.deepEqual(await fresh.recover(task,trial.brief,'stable-key'),result);
- const outputPath='trial/execution/rendered/'+hash(Buffer.from('stable-key'))+'.mp4';store.objects.set(outputPath,Buffer.from('changed'));
- await assert.rejects(fresh.recover(task,trial.brief,'stable-key'),/STORED_OUTPUT_CHANGED/);
+ const fresh=approvedCutTrialExecutor(spec,{...deps,root:join(root,'fresh')});assert.deepEqual(await fresh.recover(task,brief,key),result);
+ const outputPath='trial/execution/rendered/'+hash(Buffer.from(key))+'.mp4';store.objects.set(outputPath,Buffer.from('changed'));
+ await assert.rejects(fresh.recover(task,brief,key),/STORED_OUTPUT_CHANGED/);
  }finally{await rm(root,{recursive:true,force:true});}
 });

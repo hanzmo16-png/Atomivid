@@ -50,7 +50,11 @@ export function VfxDirectorView({ projects, job, media, execution }: { projects:
           <ReviewControls jobId={job.id} environmentId={environment.id} item={item} materialAvailable={Boolean(media[`${environment.id}:${item.stage}`])} />
         </article>)}</div>
       </section>)}
-      <section className="min-w-0 rounded-lg border border-border p-4"><h2 className="text-lg font-semibold">Composición final</h2>
+      {job.plan.tasks.every(t => t.stage === "preview") ? <section className="min-w-0 rounded-lg border border-border p-4">
+        <h2 className="text-lg font-semibold">Material de prueba</h2>
+        {media["global:preview"] ? <MaterialPreview url={media["global:preview"]} /> : <p className="mt-2 text-sm text-ink-muted">La vista previa aparecerá cuando termine la prueba de composición.</p>}
+        <p className="mt-2 text-sm text-ink-muted">La prueba no aprueba ni sustituye el video de la precampaña.</p>
+      </section> : <section className="min-w-0 rounded-lg border border-border p-4"><h2 className="text-lg font-semibold">Composición final</h2>
         <p className="mt-1 text-sm text-ink-muted">Cortes entre entornos aprobados. Grano una sola vez sobre todo el cuadro.</p>
         {reviewView(job).map(item => <article key={item.stage} className="min-w-0"><p className="mt-3">{labels[item.state]}</p>{media[`global:${item.stage}`] ? <MaterialPreview url={media[`global:${item.stage}`]} /> : <p className="mt-1 text-sm text-ink-muted">El archivo de esta composición debe vincularse antes de una nueva aprobación desde la página.</p>}
           <details className="mt-2 text-sm text-ink-muted"><summary className="cursor-pointer">Comprobaciones de esta versión</summary>
@@ -58,7 +62,7 @@ export function VfxDirectorView({ projects, job, media, execution }: { projects:
             {item.sha256 && <p className="mt-2 break-all">Huella del material: {item.sha256}</p>}
           </details>
           <ReviewControls jobId={job.id} item={item} materialAvailable={Boolean(media[`global:${item.stage}`])} /></article>)}
-      </section>
+      </section>}
     </>}
   </div>;
 }
