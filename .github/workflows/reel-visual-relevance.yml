@@ -31,5 +31,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npx next typegen
       - run: npx tsc --noEmit
       - run: node --import tsx --test src/lib/video/visual-intent.test.ts src/lib/video/visual-review.test.ts src/lib/video/footage-select.test.ts src/lib/video/visual-resource-resolver.test.ts src/lib/video/reel-logo.test.ts src/lib/providers/image/openai.test.ts
