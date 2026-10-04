@@ -17,6 +17,10 @@ async function main() {
   const config = await api(`/v9/projects/${project}`);
   if (config.id !== project || config.name !== "atomivid" || config.link?.type !== "github"
     || config.link.org !== "hanzmo16-png" || config.link.repo !== "Atomivid" || !config.link.repoId) throw new Error("PREVIEW_PROJECT_IDENTITY_BLOCKED");
+  // Names and targets only (never values): page-initiated VFX execution needs these on preview.
+  const envs = await api(`/v9/projects/${project}/env`) as { envs?: { key: string; target?: string[] | string }[] };
+  const onPreview = (key: string) => (envs.envs ?? []).some(e => e.key === key && (Array.isArray(e.target) ? e.target : [e.target]).includes("preview"));
+  console.log(JSON.stringify({ previewEnvPresent: Object.fromEntries(["GH_WORKER_TOKEN", "GH_WORKER_REPO", "VFX_EXECUTION_ENABLED", "VFX_DIRECTOR_ENABLED", "AVATAR_PREPARATION_OWNER_EMAIL", "VFX_DIRECTOR_OWNER_EMAIL"].map(k => [k, onPreview(k)])) }));
   const operationKey = "owner_pilot_preview_deploy:" + sha;
   // An independently submitted UI deployment needs explicit reconciliation.
   // An old reservation without a receipt must never cause another deployment.

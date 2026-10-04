@@ -53,3 +53,53 @@ Real Anthropic responses must carry nonzero, valid token usage; actual usage is 
 Validation of this revision: 27 director tests, 1,552 application tests, typecheck, lint and production build passed locally. CI generates Next route types before typecheck; the clean runner also passed the director suite. The campaign audit reads persisted media and exports original-resolution control frames without a provider call, storage mutation or replacement master.
 
 The read-only CI audit recovered the original 1080×1920 source, composite and master control frames. The source slot is exactly 150 frames/5 seconds; the existing master is 35.233333 seconds. Visual inspection confirms softened background detail in the full-resolution master, not just a low-resolution proxy. The legacy compositor applies Gaussian sigma 1.6 and synthetic plate noise sigma 0.010. Its next-render recipe reduces blur to sigma 0.45 and removes synthetic noise; capability recipe version `vfx002b/clarity-2` changes the plan fingerprint so prior approvals cannot authorize the changed recipe. This is a code correction, not a claim that a corrected video has been rendered or visually approved. Audit run: https://github.com/hanzmo16-png/Atomivid/actions/runs/37132248576 (core and media audit passed).
+
+## Page-initiated durable execution, 2026-10-04
+
+The `/dashboard/vfx` page can now ask the protected worker to run **one** durable task (or reconcile an interrupted one). Design:
+
+- **Browser vocabulary:** `{action:"execute", id, mode:"step"|"reconcile", revision, planHash}` and `{action:"resolve-dispatch", id, key}`. The schemas are strict, so executors, paths, prices, manifests, refs and commits are rejected (tested).
+- **Server configuration:**
+  - Executors, materials and capabilities come only from `execution-profiles.ts` at the deployed commit.
+  - The precampaign job's profile is the zero-cost `artifact-registry` with the frozen capability `artifact-registry/approved-styleframes-1`. Any difference makes the runner refuse before touching the job.
+  - Compositor profiles (`world-composite`, `cut-master`) bind private Storage objects by SHA-256. They are materialized into a fixed runner directory, so recipe fingerprints are stable.
+- **Gates:**
+  - Owner session (`directorActor`), same-origin POST.
+  - Execution is on by default only on preview (`VFX_EXECUTION_ENABLED`). Production also needs `VFX_EXECUTION_PRODUCTION=1`.
+  - It requires `GH_WORKER_TOKEN`/`GH_WORKER_REPO` and the deployment's `VERCEL_GIT_COMMIT_REF`/`SHA`.
+- **Ledger first:**
+  - A USD 0 `pi_paid_operations` row (`method=vfx_execution_dispatch`) is inserted before the GitHub call.
+  - Statuses: `RESERVED → SUBMITTED` (accepted), `REFUNDED` (4xx, nothing ran) or `RECONCILIATION_REQUIRED` (timeout/5xx, outcome unknown).
+  - The key `vfx_exec:<job>:r<revision>:n<sequence>` makes concurrent clicks collide on the unique key. Any non-final row blocks new dispatches for that job.
+- **No automatic repetition:**
+  - Uncertain or interrupted dispatches stay blocking until the owner presses "Cerrar ejecución interrumpida".
+  - That action is allowed only after the queue/runner grace period, and only when the GitHub runs API shows no queued or running run carrying the key. The run title includes the key.
+  - Closing never dispatches. Reconciling a `RUNNING` task needs a new explicit request, and is accepted only when no dispatch is active.
+- **Runner** (`precampaign-teaser-v1.yml`, stage `vfx-director-execute`; that file is already registered on the default branch, so nothing is merged there):
+  - The run claims `SUBMITTED → PROVIDER_JOB_RECORDED` exactly once. A different commit or ref, or a forged key, is refused.
+  - It verifies the owner, revision and plan hash, profile/inventory equality, review gates, dependencies and staged-material fingerprints before calling `runTask`. A failing check is recorded as `blocked_before_task` and the job is left untouched.
+  - It records the outcome as `COMMITTED`.
+  - `VFX_WORKER_ACTION`/manifest operation (`director-worker.ts`) is unchanged for operators.
+  - `vfx-director-inspect` is a read-only diagnostic.
+- **UI:**
+  - Translated job and dispatch states; readable project, world, stage and criterion names.
+  - Hashes, keys and codes are kept in "Detalles de auditoría".
+  - The layout is checked at 320/390 px on `/dev/vfx-director` (dev only) with every details panel open: scrollWidth equals the viewport and no element extends past it.
+
+Verified job state (read-only CI inspection, run 37173117238, commit 84381f1):
+
+| Field | Value |
+|---|---|
+| Revision | 53 |
+| Status | `REVIEW_REQUIRED` |
+| Tasks with a measured result | 13 of 13 |
+| Approvals | 18 |
+| Active task | none |
+| Dispatch rows | none |
+| Frozen inventory | `artifact-registry/approved-styleframes-1`, exactly equal to the server profile |
+
+Consequences:
+- The page shows "No quedan tareas por ejecutar" with the button disabled.
+- The API refuses an execute request (`VFX_NOTHING_TO_EXECUTE`) before writing anything.
+- The approved video cannot be regenerated or replaced from the page, and execution never creates or changes approvals.
+- The first real page execution will happen when a correction leaves a task without a result. A staged artifact for it must exist at `<job>/execution/staged/<task>.json` (written by a trusted operator script) for the registry to record it.
