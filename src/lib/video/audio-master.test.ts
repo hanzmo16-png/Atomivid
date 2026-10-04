@@ -105,10 +105,11 @@ test(
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "atomivid-tp-test-"));
     const input = path.join(dir, "in.mp4");
     try {
-      // Ruido rosa silencioso con transitorios: exige ganancia alta y limitación (el caso real de Long Form).
+      // Ruido rosa con semilla fija: reproduce los mismos transitorios y métricas en cada ejecución.
+      // Exige ganancia alta y limitación (el caso real de Long Form).
       const gen = spawnSync("ffmpeg", [
         "-y", "-f", "lavfi", "-i", "color=c=black:s=160x90:d=12",
-        "-f", "lavfi", "-i", "anoisesrc=color=pink:amplitude=0.12:d=12,aformat=channel_layouts=stereo,volume='if(lt(mod(t,0.37),0.02),4.5,1)':eval=frame",
+        "-f", "lavfi", "-i", "anoisesrc=color=pink:amplitude=0.12:seed=29:d=12,aformat=channel_layouts=stereo,volume='if(lt(mod(t,0.37),0.02),4.5,1)':eval=frame",
         "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k", "-shortest", input,
       ]);
       assert.equal(gen.status, 0, String(gen.stderr));
