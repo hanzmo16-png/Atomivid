@@ -1,6 +1,7 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
+import { GenerationProgress } from "@/components/ui/GenerationProgress";
 import { Button } from "@/components/ui/Button";
 
 /**
@@ -17,8 +18,11 @@ import { Button } from "@/components/ui/Button";
 export function SubmitButton() {
   const { pending } = useFormStatus();
   return (
+    <div className="w-full">
     <Button type="submit" className="w-full" loading={pending} disabled={pending}>
       {pending ? "Generando guion…" : "Generar guion"}
     </Button>
+    {pending && <GenerationProgress label="Generando guion documental" />}
+    </div>
   );
 }

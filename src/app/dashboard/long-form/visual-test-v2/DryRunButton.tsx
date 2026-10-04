@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { GenerationProgress } from "@/components/ui/GenerationProgress";
 import { Button } from "@/components/ui/Button";
 import { summarizeDryRunResponse, type DryRunDisplayState } from "@/lib/video/long-form/visual-test-v2-display";
 
@@ -40,6 +41,8 @@ export function DryRunButton() {
       <Button type="button" onClick={runDryRun} loading={state.kind === "loading"}>
         Ejecutar Dry Run Long Form
       </Button>
+
+      {state.kind === "loading" && <GenerationProgress label="Comprobando el plan visual" />}
 
       {state.kind === "error" && (
         <p role="alert" className="text-sm text-danger">

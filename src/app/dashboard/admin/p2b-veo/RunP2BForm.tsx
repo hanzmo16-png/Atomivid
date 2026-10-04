@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { GenerationProgress } from "@/components/ui/GenerationProgress";
 import { Button } from "@/components/ui/Button";
 import { runP2BPillarTransportVeo, type RunP2BState } from "./actions";
 
@@ -12,6 +13,8 @@ export function RunP2BForm() {
       <Button type="submit" loading={pending}>
         Ejecutar prueba Veo
       </Button>
+
+      {pending && <GenerationProgress label="Generando prueba de video Veo" />}
 
       {state.kind === "unauthorized" && (
         <p role="alert" className="text-sm text-danger">

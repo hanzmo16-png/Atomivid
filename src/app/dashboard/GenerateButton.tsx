@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { GenerationProgress } from "@/components/ui/GenerationProgress";
 import { Button } from "@/components/ui/Button";
 import { safeParseJsonResponse } from "@/lib/http/safe-json";
 import { classifyClientFetchError } from "@/lib/http/client-error";
@@ -59,10 +60,11 @@ export function GenerateButton({
   }
 
   return (
-    <div className="flex flex-col items-end gap-1.5">
+    <div className="flex w-full min-w-0 flex-col items-end gap-1.5 sm:min-w-48">
       <Button type="button" size="sm" onClick={handleClick} loading={loading}>
         {loading ? "Generando…" : label}
       </Button>
+      {loading && <GenerationProgress label={label === "Reintentar" ? "Iniciando generación" : label} />}
       {error && <p className="max-w-[220px] text-right text-xs text-danger">{error}</p>}
       {needsSubscription && (
         <Link href="/dashboard/billing" className="text-right text-xs font-medium text-accent hover:text-accent-hover">

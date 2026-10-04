@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { GenerationProgress } from "@/components/ui/GenerationProgress";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
 import { PREPARATION_MAX_SECONDS } from "@/lib/video/avatar/private-access";
@@ -46,6 +47,7 @@ export function PreparationForm() {
     {(tooLarge || tooLong || audioError || state.error) && <p role="alert" className="text-sm text-danger">{tooLarge ? "Foto y audio superan 3 MB." : tooLong ? "La grabación supera 45 segundos. No se recortará automáticamente." : audioError ? "El navegador no pudo leer este audio. Prueba un archivo M4A o MP3." : state.error}</p>}
     <label className="flex gap-2 text-sm"><input type="checkbox" name="consent" required />Confirmo que la foto y la grabación son mías y autorizo guardarlas de forma privada para preparar esta prueba.</label>
     <p className="text-sm text-ink-muted">Consumo al guardar: 0 créditos D-ID. El consumo de generar el video está pendiente de confirmar; no hay generación automática.</p>
+    {pending && <GenerationProgress label="Subiendo y verificando los archivos del avatar" />}
     <Button type="submit" loading={pending} disabled={!photo || !audio || !duration || tooLarge || tooLong || audioError}>Guardar preparación</Button>
   </form>;
 }
@@ -57,6 +59,7 @@ export function SavedPreparationForm({ id, label }: { id: string; label: string 
     <p>{label}</p>
     {state.saved ? <p role="status">Solicitud asociada. Audio verificado: {state.seconds?.toFixed(3)} s. No se ha generado ningún video.</p>
       : <Button type="submit" loading={pending}>Verificar y asociar archivos guardados</Button>}
+    {pending && <GenerationProgress label="Verificando archivos del avatar" />}
     {state.error && <p role="alert">{state.error}</p>}
   </form>;
 }

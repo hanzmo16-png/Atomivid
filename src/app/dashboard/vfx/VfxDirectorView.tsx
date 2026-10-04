@@ -5,6 +5,7 @@ import { environmentName, JOB_STATUS_LABELS, taskName, type ExecutionView } from
 import { projectName, projectDescription, lightingText } from "@/lib/production-intelligence/vfx-director/display";
 import { ReviewControls } from "./ReviewControls";
 import { ExecutionControls } from "./ExecutionControls";
+import { VfxProgress } from "./VfxProgress";
 
 const labels: Record<string, string> = { approved: "Aprobado", rejected: "Defecto rechazado", review: "Pendiente de revisión", missing: "Material pendiente" };
 function MaterialPreview({ url }: { url: string }) {
@@ -26,6 +27,7 @@ export function VfxDirectorView({ projects, job, media, execution }: { projects:
         <p className="mt-1 text-sm text-ink-muted">{projectDescription(job.id, job.brief.intent)}</p>
         <p className="mt-2 text-sm">{job.brief.frames / job.brief.fps} s · {job.brief.width} × {job.brief.height} · Revisión {job.revision}</p>
         <p className="mt-2 text-sm">Estado: <strong>{JOB_STATUS_LABELS[job.status]}</strong>{job.activeTask && ` · Tarea activa: ${taskName(job, job.activeTask)}`}</p>
+        <VfxProgress job={job} />
         {job.error && <p role="alert" className="mt-2 text-sm">La ejecución está bloqueada; requiere revisar la tarea y sus materiales.</p>}
         <details className="mt-2 text-sm text-ink-muted"><summary className="cursor-pointer">Detalles de auditoría</summary>
           <p className="break-all">Proyecto: {job.id}</p><p className="break-all">Huella del plan: {job.planHash}</p>

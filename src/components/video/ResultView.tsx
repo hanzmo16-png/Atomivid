@@ -89,7 +89,7 @@ export function ResultView({
               <p className="font-medium text-ink">
                 {stageLabel ? stageLabel + "…" : "Preparando tu video…"}
               </p>
-              {request.mode !== "avatar" && <ReelProgressBar stage={request.progress_stage} />}
+              <ReelProgressBar stage={request.progress_stage} avatar={request.mode === "avatar"} />
               <p className="mt-1 text-sm text-ink-muted">
                 Esto puede tardar unos minutos. Puedes cerrar esta página — el progreso se
                 guarda y lo verás reflejado aquí al volver.

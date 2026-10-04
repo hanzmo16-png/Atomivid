@@ -8,9 +8,10 @@ import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
 import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
 import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
 import { STATUS_LABEL, STATUS_TONE, pendingRequestCta, type VideoRequestSummary } from "@/lib/video/request-view";
-import { computeProductionProgress, isLongFormProgress, type ProgressStageKey } from "@/lib/video/long-form/progress";
+import { isLongFormProgress } from "@/lib/video/long-form/progress";
 import { GenerateButton } from "@/app/dashboard/GenerateButton";
 import { ReelProgressBar } from "./ReelProgressBar";
+import { LongFormProgressBar } from "./LongFormProgressBar";
 
 /**
  * Tarjeta de una solicitud en el historial. Puramente presentacional —
@@ -52,14 +53,6 @@ export function RequestCard({
     isLongForm && isLongFormProgress(request.long_form_progress) && request.long_form_progress.stage === request.long_form_stage
       ? request.long_form_progress
       : null;
-  const longFormPercent =
-    isLongForm && request.long_form_stage
-      ? computeProductionProgress({
-          stage: request.long_form_stage as ProgressStageKey,
-          unitsCompleted: longFormProgress?.unitsCompleted ?? 0,
-          unitsTotal: longFormProgress?.unitsTotal ?? 0,
-        })
-      : null;
 
   return (
     <Card className="p-4 sm:p-5">
@@ -89,7 +82,6 @@ export function RequestCard({
                     ({longFormProgress.unitsCompleted}/{longFormProgress.unitsTotal} {longFormProgress.unitLabel})
                   </span>
                 )}
-                {longFormPercent !== null && <span className="tabular-nums"> · {longFormPercent}%</span>}
               </span>
             </p>
           )}
@@ -101,8 +93,10 @@ export function RequestCard({
                 : "El progreso quedó detenido. Puedes iniciar un nuevo intento desde aquí; no se reinicia automáticamente."}
             </p>
           )}
-          {request.status === "processing" && !isStaleProcessing && !isLongForm && request.mode !== "avatar" && (
-            <ReelProgressBar stage={request.progress_stage} />
+          {request.status === "processing" && !isStaleProcessing && (
+            isLongForm
+              ? <LongFormProgressBar stage={request.long_form_stage ?? null} progress={request.long_form_progress} />
+              : <ReelProgressBar stage={request.progress_stage} avatar={request.mode === "avatar"} />
           )}
         </div>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { GenerationProgress } from "@/components/ui/GenerationProgress";
 import { Button } from "@/components/ui/Button";
 import { summarizeRealRunResponse, type RealRunDisplayState } from "@/lib/video/long-form/visual-test-v2-real-display";
 import { VISUAL_TEST_V2_REAL_CONFIRM_VALUE } from "@/lib/video/long-form/visual-test-v2-real-confirm";
@@ -65,6 +66,8 @@ export function RealGenerateButton({
       <Button type="button" variant="danger" onClick={runReal} loading={state.kind === "loading"}>
         Generar 3 imágenes — máximo US$0.50
       </Button>
+
+      {state.kind === "loading" && <GenerationProgress label="Generando imágenes" />}
 
       {state.kind === "error" && (
         <p role="alert" className="text-sm text-danger">

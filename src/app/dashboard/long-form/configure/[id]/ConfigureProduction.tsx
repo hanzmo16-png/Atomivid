@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
+import { GenerationProgress } from "@/components/ui/GenerationProgress";
 import { Button } from "@/components/ui/Button";
 import { safeParseJsonResponse } from "@/lib/http/safe-json";
 import { classifyClientFetchError } from "@/lib/http/client-error";
@@ -169,6 +170,7 @@ export function ConfigureProduction({
         <Button type="button" onClick={handleConfirm} loading={loading} disabled={!packagingValid} className="w-full sm:w-auto">
           {loading ? "Confirmando…" : "Confirmar y generar video"}
         </Button>
+        {loading && <GenerationProgress label="Preparando la producción del video" />}
         <p className="text-xs text-ink-faint">Nada se genera ni se cobra hasta que confirmes.</p>
         {!packagingValid && (
           <p className="text-sm text-danger" role="alert">

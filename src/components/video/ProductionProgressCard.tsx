@@ -1,8 +1,8 @@
+import { LongFormProgressBar } from "./LongFormProgressBar";
 import { Card } from "@/components/ui/Card";
 import { LONG_FORM_STAGES, LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
 import {
   VISIBLE_PROGRESS_STAGES,
-  computeProductionProgress,
   estimateRemainingRangeSeconds,
   formatRemainingRange,
   isLongFormProgress,
@@ -33,8 +33,6 @@ export function ProductionProgressCard({
   const progress = isLongFormProgress(longFormProgress) && longFormProgress.stage === stage ? longFormProgress : null;
   const unitsCompleted = progress?.unitsCompleted ?? 0;
   const unitsTotal = progress?.unitsTotal ?? 0;
-  const hasEvidence = progress !== null || stage !== "queued";
-  const percent = computeProductionProgress({ stage, unitsCompleted, unitsTotal });
   const eta = formatRemainingRange(
     progress ? estimateRemainingRangeSeconds({ ...progress, stage }, nowMs) : null,
   );
@@ -51,21 +49,7 @@ export function ProductionProgressCard({
         </p>
       )}
 
-      {hasEvidence && (
-        <div className="mt-4">
-          <div
-            className="h-2 w-full overflow-hidden rounded-full bg-surface-raised"
-            role="progressbar"
-            aria-label="Progreso de la producción"
-            aria-valuenow={percent}
-            aria-valuemin={0}
-            aria-valuemax={100}
-          >
-            <div className="h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${percent}%` }} />
-          </div>
-          <p className="mt-1.5 text-xs text-ink-faint">{percent}%</p>
-        </div>
-      )}
+      <LongFormProgressBar stage={longFormStage} progress={longFormProgress} />
 
       <ul className="mt-5 flex flex-col gap-1.5 text-sm">
         {VISIBLE_PROGRESS_STAGES.map((s, i) => {

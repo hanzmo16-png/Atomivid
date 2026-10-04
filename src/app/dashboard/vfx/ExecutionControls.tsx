@@ -1,4 +1,5 @@
 "use client";
+import { GenerationProgress } from "@/components/ui/GenerationProgress";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ExecutionView } from "@/lib/production-intelligence/vfx-director/execution";
@@ -36,6 +37,7 @@ export function ExecutionControls({ jobId, revision, planHash, view }: { jobId: 
     <button type="button" disabled={busy || !view.canDispatch} onClick={() => {
       if (view.mode && window.confirm(`${label}: ${view.pendingTask}. Se registrará antes de enviarse al worker y no se repetirá automáticamente.`)) post({ action: "execute", id: jobId, mode: view.mode, revision, planHash }, "Ejecución registrada y enviada al worker. Esta página se actualizará sola.");
     }} className="w-full rounded border border-border px-3 py-2 disabled:opacity-40 sm:w-auto">{busy ? "Enviando…" : label}</button>
+    {busy && <GenerationProgress label="Enviando solicitud VFX" />}
     {message && <p role="status" className="break-words">{message}</p>}
     {view.dispatches.length > 0 && <div className="space-y-2">
       <h3 className="font-medium">Ejecuciones recientes</h3>

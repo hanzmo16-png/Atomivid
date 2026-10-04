@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { GeneratedScript } from "@/lib/providers/types";
+import { GenerationProgress } from "@/components/ui/GenerationProgress";
 import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
 import { Button, LinkButton } from "@/components/ui/Button";
@@ -157,6 +158,10 @@ export function ScriptReview({
 
   return (
     <div className="mt-6">
+      {(regeneratingAll || status === "processing") && (
+        <GenerationProgress label={regeneratingAll ? "Regenerando guion completo" : "Generación del video en curso"} />
+      )}
+      {status === "processing" && <Link href={`/dashboard/videos/${requestId}`} className="mt-2 block text-sm text-accent underline">Ver avance de la producción</Link>}
       {!canGenerate && (
         <Alert tone={status === "failed" ? "danger" : "info"}>
           {status === "processing" &&
@@ -210,6 +215,7 @@ export function ScriptReview({
               )}
             </div>
 
+            {savingIndex === i && <GenerationProgress label={`Regenerando escena ${i + 1}`} />}
             <textarea
               value={scene.text}
               onChange={(e) => updateScene(i, "text", e.target.value)}
@@ -257,7 +263,7 @@ export function ScriptReview({
       )}
 
       {canGenerate && (
-        <div className="sticky bottom-4 mt-6 flex flex-col gap-2 rounded-lg border border-border-strong bg-surface-raised p-4 shadow-lg sm:flex-row sm:items-center sm:justify-between">
+        <div className="sticky bottom-4 mt-6 flex flex-col gap-2 rounded-lg border border-border-strong bg-surface-raised p-4 shadow-lg sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           {!usesRecording && <Button
             variant="secondary"
             onClick={saveChanges}
@@ -274,6 +280,7 @@ export function ScriptReview({
           >
             {generating ? "Generando video…" : "Generar video final"}
           </Button>
+          {generating && <GenerationProgress label="Iniciando generación del video" />}
         </div>
       )}
 

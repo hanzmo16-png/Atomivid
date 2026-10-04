@@ -42,6 +42,5 @@ test("unknown stages have no numeric claim and completed requests remove the pro
   for (const component of [
     <RequestCard key="history" request={{ ...request, status: "completed" }} nowMs={now} />,
     <ResultView key="detail" request={{ ...request, status: "completed" }} nowMs={now} />,
-    <RequestCard key="avatar" request={{ ...request, mode: "avatar" }} nowMs={now} />,
   ]) assert.doesNotMatch(renderToStaticMarkup(component), /role="progressbar"/);
 });
