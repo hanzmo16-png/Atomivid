@@ -6,6 +6,7 @@ import { Alert } from "@/components/ui/Alert";
 import { LinkButton } from "@/components/ui/Button";
 import { ModeBadge } from "./ModeBadge";
 import { ProductionProgressCard } from "./ProductionProgressCard";
+import { ReelProgressBar } from "./ReelProgressBar";
 import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
 import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
 import {
@@ -19,8 +20,8 @@ import {
  * Contenido de la pantalla dedicada /dashboard/videos/[id] — puramente
  * presentacional (sin fetch de datos), para poder reutilizarla igual en
  * /dev/states con datos simulados. No inventa porcentajes: mientras
- * procesa muestra la etapa real (o un indicador indeterminado si no hay
- * etapa todavía) en vez de un número inexistente.
+ * procesa muestra las etapas completadas del reel o las unidades reales
+ * de Long Form. Sin etapa conocida, el indicador es indeterminado.
  */
 export function ResultView({
   request,
@@ -84,10 +85,11 @@ export function ResultView({
               className="size-8 animate-spin rounded-full border-2 border-accent border-t-transparent motion-reduce:animate-none"
               aria-hidden="true"
             />
-            <div>
+            <div className="w-full min-w-0">
               <p className="font-medium text-ink">
                 {stageLabel ? stageLabel + "…" : "Preparando tu video…"}
               </p>
+              {request.mode !== "avatar" && <ReelProgressBar stage={request.progress_stage} />}
               <p className="mt-1 text-sm text-ink-muted">
                 Esto puede tardar unos minutos. Puedes cerrar esta página — el progreso se
                 guarda y lo verás reflejado aquí al volver.

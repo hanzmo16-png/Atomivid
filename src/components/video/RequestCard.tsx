@@ -10,6 +10,7 @@ import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
 import { STATUS_LABEL, STATUS_TONE, pendingRequestCta, type VideoRequestSummary } from "@/lib/video/request-view";
 import { computeProductionProgress, isLongFormProgress, type ProgressStageKey } from "@/lib/video/long-form/progress";
 import { GenerateButton } from "@/app/dashboard/GenerateButton";
+import { ReelProgressBar } from "./ReelProgressBar";
 
 /**
  * Tarjeta de una solicitud en el historial. Puramente presentacional —
@@ -63,7 +64,7 @@ export function RequestCard({
   return (
     <Card className="p-4 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <Link href={detailHref} className="block truncate font-medium text-ink hover:text-accent">
               {request.topic}
@@ -99,6 +100,9 @@ export function RequestCard({
                 ? "Se alcanzó el máximo de intentos para este video."
                 : "El progreso quedó detenido. Puedes iniciar un nuevo intento desde aquí; no se reinicia automáticamente."}
             </p>
+          )}
+          {request.status === "processing" && !isStaleProcessing && !isLongForm && request.mode !== "avatar" && (
+            <ReelProgressBar stage={request.progress_stage} />
           )}
         </div>
 
