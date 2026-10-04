@@ -8,6 +8,7 @@ import { OwnerPilotSchema, ownerPilotKey } from "../src/lib/billing/owner-pilot"
 import { MUSIC_MANIFEST } from "../src/lib/providers/music/manifest";
 import { checkScriptContentQuality } from "../src/lib/video/script-quality";
 import { targetWordsFor } from "../src/lib/video/script-pacing";
+import { loadReelLogo } from "../src/lib/video/reel-logo";
 const preparationKey = process.env.OWNER_PILOT_PREPARATION_KEY?.trim() || "owner_pilot_preparation_current";
 const Input = z.object({ ownerId: z.string().uuid(), requestId: z.string().uuid(),
   script: z.object({ title: z.string().min(1), segments: z.array(z.object({ text: z.string().min(1), visualQuery: z.string().min(1),
@@ -20,10 +21,12 @@ async function main() {
   const input = Input.parse(JSON.parse(record.resultRef));
   if (record.projectId !== input.requestId) throw new Error("PILOT_MATERIAL_NOT_AUTHORIZED");
   const { data: auth, error: authError } = await service.auth.admin.getUserById(input.ownerId);
-  const request = await service.from("video_requests").select("user_id,mode,topic,duration_seconds,status,render_attempts,language").eq("id", input.requestId).single();
+  const request = await service.from("video_requests").select("user_id,mode,topic,duration_seconds,status,render_attempts,language,brand_logo_path").eq("id", input.requestId).single();
   if (authError || !auth.user?.email_confirmed_at || request.error || request.data.user_id !== input.ownerId
     || request.data.mode !== "visual" || request.data.language !== "es" || request.data.duration_seconds !== 30
     || request.data.render_attempts !== 0 || !["pending","script_ready"].includes(request.data.status)) throw new Error("PILOT_SCOPE_BLOCKED");
+  // Validate this request's private logo before granting its render.
+  await loadReelLogo(service, input.ownerId, input.requestId, request.data.brand_logo_path);
   const quality = checkScriptContentQuality(input.script, { topic: request.data.topic, targetWords: targetWordsFor(30) });
   if (!quality.ok) throw new Error("PILOT_SCRIPT_QUALITY_BLOCKED");
   const identity = getVoiceIdentity("es");
