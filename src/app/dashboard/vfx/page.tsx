@@ -53,7 +53,7 @@ export default async function VfxPage({ searchParams }: { searchParams: Promise<
       </section>)}
       <section className="rounded-lg border border-border p-4"><h2 className="text-lg font-semibold">Composición final</h2>
         <p className="mt-1 text-sm text-ink-muted">Cortes entre entornos aprobados. Grano una sola vez sobre todo el cuadro.</p>
-        {reviewView(job).map(item => <article key={item.stage}><p className="mt-3">{labels[item.state]}</p><p className="mt-1 text-sm text-ink-muted">El archivo de esta composición debe vincularse antes de una nueva aprobación desde la página.</p><ReviewControls jobId={job.id} item={item} materialAvailable={false} /></article>)}
+        {reviewView(job).map(item => <article key={item.stage}><p className="mt-3">{labels[item.state]}</p>{media[`global:${item.stage}`] ? <MaterialPreview url={media[`global:${item.stage}`]} /> : <p className="mt-1 text-sm text-ink-muted">El archivo de esta composición debe vincularse antes de una nueva aprobación desde la página.</p>}<ReviewControls jobId={job.id} item={item} materialAvailable={Boolean(media[`global:${item.stage}`])} /></article>)}
       </section>
     </>}
   </div>;

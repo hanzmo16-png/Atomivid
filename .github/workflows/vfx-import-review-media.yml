@@ -1,0 +1,39 @@
+name: VFX recover private review media
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [scripts/vfx/import-review-media.ts, .github/workflows/vfx-import-review-media.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: vfx-private-review-import
+  cancel-in-progress: false
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: vfx-encrypted-native-opening-review
+          run-id: 37155444043
+          github-token: ${{ github.token }}
+          path: review-capsule
+      - run: chmod +x node_modules/@ffmpeg-installer/linux-x64/ffmpeg
+      - name: Verify and privately store existing bytes
+        run: |
+          export PATH="$PWD/node_modules/@ffmpeg-installer/linux-x64:$PATH"
+          node --import tsx scripts/vfx/import-review-media.ts
+        env:
+          VFX_DIRECTOR_ENABLED: '1'
+          VFX_DIRECTOR_OWNER_EMAIL: hanzmo16@gmail.com
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

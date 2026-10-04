@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseResultStore } from "@/lib/paid-calls/result-store";
+import { currentReviewBinding } from "./review-bindings";
 import { reviewMaterial, matchesReviewBytes } from "./review-media-validation";
 import { jobGates, type Job } from "./jobs";
 
@@ -28,6 +29,14 @@ export async function reviewMedia(service: SupabaseClient, job: Job): Promise<Re
     const { data: signed, error: signingError } = await service.storage.from("videos").createSignedUrl(meta.assetPath, 600);
     if (signingError || !signed?.signedUrl) throw new Error("VFX_MATERIAL_SIGNING_FAILED");
     urls[`${environment.id}:${stage}`] = signed.signedUrl;
+  }
+  const bindings = await results.getJson<unknown[]>(`${job.id}/review/bindings.json`);
+  for (const value of Array.isArray(bindings) ? bindings : []) {
+    const binding = currentReviewBinding(value, job);
+    if (!binding || !matchesReviewBytes(binding, await results.getBytes(binding.assetPath))) continue;
+    const { data: signed, error } = await service.storage.from("videos").createSignedUrl(binding.assetPath, 600);
+    if (error || !signed?.signedUrl) throw new Error("VFX_MATERIAL_SIGNING_FAILED");
+    urls[`${binding.environmentId ?? "global"}:${binding.stage}`] = `${signed.signedUrl}#t=${binding.startFrame / job.brief.fps},${binding.endFrame / job.brief.fps}`;
   }
   return urls;
 }
