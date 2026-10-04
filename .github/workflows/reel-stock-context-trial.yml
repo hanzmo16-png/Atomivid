@@ -1,0 +1,68 @@
+name: Authorized stock context correction (reuse voice)
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [scripts/reel-stock-context-trial.ts, scripts/reel-stock-context-plan.ts, .github/workflows/reel-stock-context-trial.yml]
+permissions:
+  contents: read
+concurrency:
+  group: authorized-reel-stock-context-trial-20261004
+  cancel-in-progress: false
+jobs:
+  trial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx next typegen && npx tsc --noEmit
+      - run: node --import tsx --test src/lib/video/visual-intent.test.ts src/lib/video/visual-review.test.ts src/lib/video/visual-review-media.test.ts remotion/reel-framing.test.ts
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: node --import tsx scripts/reel-stock-context-trial.ts
+        timeout-minutes: 18
+        env:
+          ATOMIVID_RUNTIME: production
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: uYlzyj2kIZo3HfBB21vF
+          ELEVENLABS_MODEL_ID: eleven_multilingual_v2
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          MUSIC_PROVIDER: curated-library
+          VOICE_PROVIDER: elevenlabs
+          FOOTAGE_PROVIDER: pexels
+          REEL_VISUAL_RELEVANCE_ENABLED: 'true'
+          OPENAI_IMAGE_GENERATION_ENABLED: 'true'
+          IMAGE_PROVIDER: openai
+          MAX_GENERATED_IMAGES_PER_VIDEO: '4'
+          MAX_VISUAL_COST_USD: '0.32'
+          OPENAI_IMAGE_ESTIMATED_COST_USD: '0.08'
+          OPENAI_IMAGE_MODEL: gpt-image-2
+          OPENAI_IMAGE_SIZE: 1024x1536
+          OPENAI_IMAGE_QUALITY: medium
+          OPENAI_IMAGE_MAX_RETRIES: '0'
+          OPENAI_IMAGE_TIMEOUT_MS: '120000'
+          PRICING_ELEVENLABS_USD_PER_1K_CHARS: '0.1'
+      - name: Close a timed-out claimed trial
+        if: failure()
+        run: node --import tsx scripts/mark-render-failed.ts
+        env:
+          REQUEST_ID: c661d874-f383-4230-9bd9-449d6722ef80
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reel-stock-context-trial
+          path: |
+            reel-stock-context-trial-output/final.mp4
+            reel-stock-context-trial-output/contact-sheet.jpg
+            reel-stock-context-trial-output/report.json
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 0
