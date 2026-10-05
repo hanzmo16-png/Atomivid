@@ -1,3 +1,4 @@
+import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { heygenAudio } from "./heygen-audio";
 import { validatePhotoBuffer } from "./photo-validation";
 import fs from "node:fs/promises";
@@ -248,6 +249,7 @@ export async function generateAvatarVideo({
         const seconds = await measureNarrationSeconds(audioBuffer);
         if (seconds > flags.maxAvatarDurationSeconds) throw new AvatarPipelineError("La grabación excede la duración máxima. No se consumieron créditos.", "duration_exceeded");
       } catch (err) {
+        if (err instanceof SupplyUnavailableError) throw err;
         if (err instanceof AvatarPipelineError) throw err;
         throw new AvatarPipelineError("No se pudo validar la grabación privada. No se generó otra voz ni se solicitó el avatar.", "narration_failed");
       }
@@ -344,6 +346,7 @@ export async function generateAvatarVideo({
       audioUrl = signedNarration.signedUrl;
       storageBytes += voiceResult.audioBuffer.byteLength;
     } catch (err) {
+      if (err instanceof SupplyUnavailableError) throw err;
       if (err instanceof AvatarPipelineError) throw err;
       // No propagar errores que puedan contener URLs firmadas o credenciales.
       throw new AvatarPipelineError(
@@ -399,6 +402,7 @@ export async function generateAvatarVideo({
         )
       ).result;
     } catch (err) {
+      if (err instanceof SupplyUnavailableError) throw err;
       if (err instanceof PaidResultUnavailableError) {
         throw new AvatarPipelineError("Este video de avatar ya se pagó en un intento anterior y su resultado no está disponible. No se solicita otro.", "attempt_blocked");
       }
@@ -436,6 +440,7 @@ export async function generateAvatarVideo({
     outputPath = masteredPath;
     console.log("[atomivid:avatar-audio] masterización de loudness", JSON.stringify({ requestId, target: LOUDNESS_TARGET, ...mastering }));
   } catch (err) {
+    if (err instanceof SupplyUnavailableError) throw err;
     console.warn(
       `[atomivid:avatar-audio] ${requestId} — no se pudo masterizar el loudness (¿falta ffmpeg?), se sube el video sin normalizar:`,
       err instanceof Error ? err.message : err,

@@ -17,11 +17,12 @@ export async function elevenLabsSnapshot(fetchImpl: Fetch, env: Env, reservedCha
   const key = env[a.secretReferenceName];
   if (!key) return base;
   try {
-    const r = await fetchImpl("https://api.elevenlabs.io/v1/user/subscription", { headers: { "xi-api-key": key } });
+    const r = await fetchImpl("https://api.elevenlabs.io/v1/user/subscription", { headers: { "xi-api-key": key }, signal: AbortSignal.timeout(10000) });
     if (!r.ok) return { ...base, health: r.status >= 500 ? "DEGRADED" : "DOWN" };
     const j = (await r.json()) as { character_count?: number; character_limit?: number; next_character_count_reset_unix?: number };
-    if (typeof j.character_limit !== "number" || typeof j.character_count !== "number") return { ...base, health: "OK" };
-    return { ...base, available: j.character_limit - j.character_count, health: "OK", reliability: "provider_api", renewalDate: j.next_character_count_reset_unix ? new Date(j.next_character_count_reset_unix * 1000).toISOString().slice(0, 10) : a.renewalDate };
+    if (!Number.isFinite(j.character_limit) || !Number.isFinite(j.character_count) || j.character_limit! < 0 || j.character_count! < 0) return { ...base, health: "DEGRADED" };
+    // Included credits only. A PAYG extension is NOT added without verified balance evidence.
+    return { ...base, available: Math.max(0, j.character_limit! - j.character_count!), health: "OK", reliability: "provider_api", renewalDate: j.next_character_count_reset_unix ? new Date(j.next_character_count_reset_unix * 1000).toISOString().slice(0, 10) : a.renewalDate };
   } catch {
     return { ...base, health: "DEGRADED" };
   }

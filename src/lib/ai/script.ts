@@ -1,3 +1,4 @@
+import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
@@ -18,7 +19,7 @@ function getClient(): Anthropic {
     if (!apiKey) {
       throw new MissingEnvVarError("ANTHROPIC_API_KEY");
     }
-    cachedClient = new Anthropic({ apiKey });
+    cachedClient = new Anthropic({ apiKey, maxRetries: 0 });
   }
   return cachedClient;
 }
@@ -228,7 +229,9 @@ Tu intento anterior tuvo ${lastWordCount} palabras narradas en total, fuera del 
       },
     };
     const invoke = async (): Promise<ScriptCallResult> => {
-      const response = await getClient().messages.parse(params, execution ? { maxRetries: 0 } : undefined);
+      const response = await (execution
+        ? getClient().messages.parse(params, { maxRetries: 0 })
+        : supplyProtectedAnthropic(params, () => getClient().messages.parse(params, { maxRetries: 0 })));
       if (!response.parsed_output) throw new Error("Claude no devolvió un guion válido");
       return { script: response.parsed_output, inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens };
@@ -268,7 +271,7 @@ export async function regenerateScene({
   const next = script.segments[sceneIndex + 1]?.text;
   const targetWords = current.text.split(/\s+/).filter(Boolean).length;
 
-  const response = await getClient().messages.parse({
+  const params = {
     model: SCRIPT_MODEL,
     max_tokens: 1800,
     system:
@@ -279,7 +282,7 @@ export async function regenerateScene({
       "otra forma de decirlo) mientras encaja en el mismo lugar del guion.",
     messages: [
       {
-        role: "user",
+        role: "user" as const,
         content: `${VISUAL_INTENT_INSTRUCTIONS}\n\nGuion completo — tema: "${topic}", estilo/tono: "${style}".
 
 ${previous ? `Escena anterior: "${previous}"\n` : ""}Escena actual (a reescribir): "${current.text}"
@@ -296,7 +299,8 @@ Reescribe SOLO la escena actual. Da:
     output_config: {
       format: zodOutputFormat(SceneSchema),
     },
-  });
+  };
+  const response = await supplyProtectedAnthropic(params, () => getClient().messages.parse(params, { maxRetries: 0 }));
 
   if (!response.parsed_output) {
     throw new Error("Claude no devolvió una escena válida");

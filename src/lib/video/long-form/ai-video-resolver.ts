@@ -1,3 +1,4 @@
+import { SupplyUnavailableError } from "@/lib/supply/policy";
 /**
  * Resolver del AI Video Pipeline de Long Form — encadena, en orden:
  * elegibilidad (ai-video-eligibility.ts, sin red) → cost guard
@@ -144,6 +145,7 @@ export async function resolveAiVideoForShot(params: ResolveAiVideoForShotParams)
   try {
     asset = await params.videoProvider.generateVideo(request);
   } catch (err) {
+    if (err instanceof SupplyUnavailableError) throw err;
     // Cualquier fallo del proveedor (moderación, presupuesto propio,
     // timeout, error upstream) nunca se finge como éxito — se registra
     // (mensaje del error incluido en `reason`) y se ejecuta el fallback

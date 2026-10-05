@@ -1,3 +1,4 @@
+import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { buildCaptions } from "./captions";
 import { VIDEO_TAIL_SECONDS } from "./script-pacing";
 import { ProviderConfigurationError } from "@/lib/providers/production";
@@ -150,6 +151,7 @@ export async function generateVideoFromScript({
         }),
       );
     } catch (err) {
+      if (err instanceof SupplyUnavailableError) throw err;
       if (err instanceof ProviderConfigurationError) throw err;
       console.warn(
         `[atomivid:storyboard] ${requestId} — no se pudo generar el storyboard, se continúa con el flujo actual:`,
@@ -317,6 +319,7 @@ export async function generateVideoFromScript({
           );
           resolvedViaGeneration = true;
         } catch (err) {
+          if (err instanceof SupplyUnavailableError) throw err;
           // Nunca cae a otro proveedor de PAGO como sustituto silencioso —
           // solo se registra el fallo y se sigue con stock (gratis) abajo.
           console.warn(
@@ -457,6 +460,7 @@ export async function generateVideoFromScript({
       { durationSeconds: finalDurationSeconds, style, topic, scriptText: fullText, language, seed: requestId },
     );
   } catch (err) {
+    if (err instanceof SupplyUnavailableError) throw err;
     const errorName = err instanceof Error ? err.name : "Error";
     const errorMessage = err instanceof Error ? err.message : String(err);
     musicFallbackReason = `${errorName}: ${errorMessage}`;
@@ -523,6 +527,7 @@ export async function generateVideoFromScript({
       JSON.stringify({ requestId, target: LOUDNESS_TARGET, ...mastering }),
     );
   } catch (err) {
+    if (err instanceof SupplyUnavailableError) throw err;
     console.warn(
       `[atomivid:audio] ${requestId} — no se pudo masterizar el loudness (¿falta ffmpeg?), ` +
         "se sube el video sin normalizar:",

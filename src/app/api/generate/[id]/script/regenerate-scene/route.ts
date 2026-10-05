@@ -1,3 +1,5 @@
+import { SupplyUnavailableError } from "@/lib/supply/policy";
+import { withSupplyContext } from "@/lib/supply/anthropic";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -87,12 +89,12 @@ export async function POST(
         });
       }
 
-      newScene = await scriptProvider.regenerateScene({
+      newScene = await withSupplyContext(id, () => scriptProvider.regenerateScene({
         topic: videoRequest.topic,
         style: videoRequest.style,
-        script: videoRequest.script_json,
+        script: videoRequest.script_json as GeneratedScript,
         sceneIndex,
-      });
+      }));
 
       const otherVisualQueries = videoRequest.script_json.segments
         .filter((_, i) => i !== sceneIndex)
@@ -105,6 +107,7 @@ export async function POST(
         });
       }
     } catch (err) {
+      if (err instanceof SupplyUnavailableError) return NextResponse.json({ error: err.customerMessage }, { status: 503, headers: { "Retry-After": "300" } });
       logScriptError("POST /script/regenerate-scene", err);
       return NextResponse.json({ error: classifyScriptError(err) }, { status: 500 });
     }

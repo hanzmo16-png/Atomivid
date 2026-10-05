@@ -1,26 +1,9 @@
 # Provider Capacity Monitor
 
-**What.** `src/lib/production-intelligence/capacity/`: snapshots per provider, status GREEN / YELLOW / RED / UNKNOWN, admission control, a simple forecast, and a non-secret account registry.
+Updated 2026-10-05. The current preventive operating plan is [PROVIDER_SUPPLY_CONTROLS.md](../PROVIDER_SUPPLY_CONTROLS.md). Its stricter admission controls supersede the older informational snapshot forecast.
 
-**Why.** During DULCE, ElevenLabs ran out of characters and OpenAI returned `insufficient_quota` mid-production; a workspace mix-up also confused which account was paying.
+The provider registry contains secret reference names, never values. Historical balances in old reports are not current capacity. The production paid-call store checks funded global/provider ceilings, verified supply, concurrent calls and daily limits atomically before setting SUBMITTED. Full media jobs reserve their supplier units and cash before admission; unused capacity may be released while submitted/uncertain consumption stays protected.
 
-## Model
-`free = available − reserved` (balance is not free capacity). GREEN: reserved + pending + 15% buffer covered. YELLOW: committed work covered, new work risky (or provider degraded). RED: reserved work not covered, or provider down. UNKNOWN: no verifiable balance.
-Admission: a new project is covered only if `free ≥ requirement + buffer`. UNKNOWN is **not** covered unless an operator explicitly accepts it; it is never promoted to GREEN (also enforced by a DB constraint in migration 0023).
-Forecast: mean daily use over 14 days → depletion date vs renewal date. No ML.
+Supply monitoring reads ElevenLabs included characters, Runway API credits and a HeyGen prepaid API wallet when applicable. Other supplier balances stay UNKNOWN until certified. Alerts use 30% / 72-hour and 15% / 24-hour thresholds, account for reserved pending work and keep unsuccessful deliveries in a durable outbox.
 
-## Providers
-| Provider | Source | Status today |
-|---|---|---|
-| ElevenLabs | `GET /v1/user/subscription` (official, read-only) | Real balance (last run: 26,518 of 63,002 characters). Renewal from `next_character_count_reset_unix` |
-| OpenAI | No official API-credit balance endpoint. Key health via free `GET /v1/models` | **UNKNOWN**; informative estimate = registered top-ups − ledger consumption (e.g. 10 − 3.79 = 6.21) |
-| Runway | No verified balance endpoint (docs not reachable from the build environment; nothing in the repo) | **UNKNOWN**; tier-1 limits noted in the registry |
-
-## Registry
-`accounts.ts` (and table `pi_provider_accounts`) stores provider, production account label, plan, **secret reference name** (e.g. `OPENAI_API_KEY`), renewal, status, notes. Never key values; a DB check rejects anything that is not an env-style name.
-
-## How to test
-Tests 13–15 and 18 in `production-intelligence.test.ts` (fetch is injected; no network).
-
-## Not implemented yet
-Scheduled capacity checks and persistence (table `pi_capacity_snapshots` exists, not applied); Runway balance until an official endpoint is verified; admission wired into project confirmation.
+Policies are OFF by default. Account verification, funded limits, real alarm delivery, infrastructure quotas and coordinated page/worker rollout are still launch requirements. Neither a pricing estimate nor a simulated 50-request test is a verified live balance or capacity guarantee.

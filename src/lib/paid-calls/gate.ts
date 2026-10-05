@@ -47,6 +47,7 @@ export type PaidCallSpec = {
   /** Everything that makes this request THIS request (text, prompt, settings…). Hashed canonically. */
   inputFingerprint: unknown;
   reservedUsd: number;
+  capacityUnits?: number;
   attemptKind?: string;
 };
 
@@ -149,6 +150,7 @@ export async function guardPaidCall<T>(store: LedgerStore, spec: PaidCallSpec, h
           method: spec.method,
           attemptKind: ordinal === 0 ? (spec.attemptKind ?? "initial") : "rejected_retry",
           reservedUsd: spec.reservedUsd,
+          capacityUnits: spec.capacityUnits,
         },
         port,
         now,

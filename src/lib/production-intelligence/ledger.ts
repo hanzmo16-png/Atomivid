@@ -18,6 +18,8 @@ export type PaidOperation = {
   method: string;
   attemptKind: string;
   reservedUsd: number;
+  /** Exact provider units when known (e.g. spoken characters), otherwise policy conversion. */
+  capacityUnits?: number;
   committedUsd: number | null;
   status: PaidOpStatus;
   providerJobId: string | null;
@@ -36,6 +38,8 @@ export interface LedgerStore {
   insert(op: PaidOperation): Promise<boolean>;
   /** Compare-and-set on status; returns false when the current status differs. */
   update(key: string, expected: PaidOpStatus, patch: Partial<PaidOperation>): Promise<boolean>;
+  /** Production stores atomically check supply/concurrency AND set SUBMITTED. */
+  submit?(op: PaidOperation, at: string): Promise<boolean>;
 }
 
 export function memoryLedgerStore(): LedgerStore & { ops: Map<string, PaidOperation>; writes: number } {
@@ -81,7 +85,8 @@ export async function executePaidOperation(store: LedgerStore, op: Omit<PaidOper
   }
   let jobId = cur.providerJobId;
   if (cur.status === "RESERVED") {
-    if (!(await store.update(key, "RESERVED", { status: "SUBMITTED", updatedAt: now() }))) throw new ReconciliationRequiredError(`${key}: concurrent submission detected`);
+    const submitted = store.submit ? await store.submit(cur, now()) : await store.update(key, "RESERVED", { status: "SUBMITTED", updatedAt: now() });
+    if (!submitted) throw new ReconciliationRequiredError(`${key}: concurrent submission detected`);
     const { providerJobId, submissionReceiptRef } = await port.submit();
     jobId = providerJobId;
     if (!await store.update(key, "SUBMITTED", { status: "PROVIDER_JOB_RECORDED", providerJobId,

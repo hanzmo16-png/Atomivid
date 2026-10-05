@@ -1,3 +1,4 @@
+import { SupplyUnavailableError } from "@/lib/supply/policy";
 /**
  * Ejecución de UN shot ya asignado (allocateShotTypes) en la ruta de
  * producto de Long Form — con reuso durable, presupuesto confirmado y
@@ -151,6 +152,7 @@ async function reuseCompleted(deps: ShotExecutionDeps, shotId: string, kind: Sho
       meta: { objectPath: record.objectPath, identity: record.identity, provenance: record.provenance, selection: record.selection },
     };
   } catch (err) {
+    if (err instanceof SupplyUnavailableError) throw err;
     if (deps.replayOnly) throw new ShotReplayError(shotId, `el asset ${kind} COMPLETED no se pudo leer (${err instanceof Error ? err.message : String(err)})`);
     return null;
   }
@@ -269,6 +271,7 @@ async function resolveStock(shot: AllocatedShot, deps: ShotExecutionDeps, prefer
       const url = await persistMedia(deps, shot.id, "stock", buffer, result.mimeType, result.extension, result.mediaType, deps.footageProvider.name, 0);
       return { url, mediaType: result.mediaType, costUsd: 0, bytes: buffer.byteLength, provider: deps.footageProvider.name, reused: false };
     } catch (err) {
+      if (err instanceof SupplyUnavailableError) throw err;
       console.warn(`[atomivid:long-form:shot] archivo no disponible para ${shot.id} ("${query}"):`, err instanceof Error ? err.message : err);
     }
   }
@@ -360,7 +363,7 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
         },
         {
           call: async () => {
-            const a = await deps.imageProvider.generateImage(request);
+            const a = await deps.imageProvider.generateImage({ ...request, disableRetries: true });
             // Same contract as Reel generated images: never trust "the call did not throw" as "the
             // file is usable". An invalid file is paid but unusable: the gate treats it as uncertain
             // (no new call) and the shot uses its existing fallback (ASSET-FINAL).
@@ -369,6 +372,7 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
             try {
               persisted = await persistImage(a);
             } catch (err) {
+              if (err instanceof SupplyUnavailableError) throw err;
               persistError = err;
             }
             return { result: a, costUsd: a.costUsd, resultRef: `shot-asset:${shot.id}:ai_image` };
@@ -381,6 +385,7 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
       asset = guarded.result;
     }
   } catch (err) {
+    if (err instanceof SupplyUnavailableError) throw err;
     if (err instanceof PaidResultUnavailableError) {
       // Nada se envió ni se cobró en este intento: la reserva vuelve al presupuesto.
       await deps.budget.releaseAiImage(deps.units.imageUsd);

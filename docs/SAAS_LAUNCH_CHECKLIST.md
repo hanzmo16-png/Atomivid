@@ -15,12 +15,14 @@
 2. Verify deployed reviewed-visual settings for the page AND its worker, together with provider capacity/cost configuration; isolated trial settings do not establish general rollout. Live customer-logo inclusion, new avatar admission and normal Long Form production/delivery still need applicable scoped evidence.
 3. Review/publish the corrected application to production and repeat critical checks there. Verify a customer signup/confirmation, checkout/webhook entitlement, quota counting and cancellation in the intended Stripe mode. Local doubles and a beta subscription are not payment-integration proof. Do not silently alter Stripe state or grant accounts subscriptions.
 
+## Supply readiness — implementation update
+
+See [PROVIDER_SUPPLY_CONTROLS.md](PROVIDER_SUPPLY_CONTROLS.md) for the preventive operating plan, atomic whole-job supply/cash reservation, provider/worker concurrency, 30% / 72-hour alerts, durable waiting and reconciliation. Policies remain OFF with unfunded ceilings; no recharge, ad purchase or paid generation was performed. This does not replace live account/budget/notification/deployment acceptance.
+
 ## Precampaign proposal (not executed or spend-authorized)
 
-Recommend one Meta Ads Manager campaign using Facebook and Instagram, initially Mexico, Spanish creative, one broad audience with 25–55 as an initial age hypothesis, all genders. Creative/copy should qualify people who need recurring reels for their business. The audience hypothesis is not evidence of buying propensity, and actual control availability must be checked in Ads Manager.
+Use one Meta Ads Manager experiment across Facebook and Instagram, with an overall MXN 2,100–4,200 funded ceiling and an end date. Start with the Spanish-language market hypothesis (Spanish-speaking customers in the United States and Spain); English-language expansion requires an English landing/demo and product readiness. This is a test hypothesis, not proven country-level profitability. Do not split the initial budget across multiple paid platforms.
 
-Recommend MXN 2,100 advertising budget over seven days (MXN 300/day equivalent), configured as a fixed total with end date; verify account currency, taxes and final checkout. This is our proposed experiment, not Meta pricing, guaranteed volume or existing advertising authorization. Avoid fragmenting this initial spend among countries or paid platforms.
+The precampaign should collect launch interest through a demonstration of existing results. No two free videos; no unlimited free generation. Any future short promotional sample needs a separate per-user limit, total redemption cap and funded cost ceiling. Keep the SQL free pool at zero until then. Advertising money is separate from provider/infra funds; sales receipts can be reinvested once actual costs and obligations are measured.
 
-For precampaign, propose the Leads objective with a native Meta form inviting launch interest. Ask contact details and intended use (business, clients, own channel); verify an appropriate privacy link and handling before publication. Evaluate qualified/contactable leads and later activations and paid subscriptions, separately from views/likes. Reuse the owner's approved campaign video; no asset modifications, external messages, ad creation, publication or purchases were performed in this readiness pass.
-
-Official public guidance reviewed: https://www.facebook.com/business/ads/facebook-instagram-reels-ads and Meta Blueprint https://www.facebookblueprint.com/student/activity/707407 (Reels creative and instant-form lead quality). Some Meta pricing/help pages were inaccessible to automated retrieval; no country CPM/CPL benchmark or guaranteed return is claimed.
+Measure qualified leads, activation, paid conversions and continued use. Verify the privacy notice and intended handling before collecting leads. No ads, external messages, purchases or audience settings were published by this work.

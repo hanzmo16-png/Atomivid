@@ -19,7 +19,6 @@ import { getPricingConfig } from "@/lib/billing/pricing";
 import {
   acquireCapacityHolds,
   CapacityUnavailableError,
-  releaseOpenHoldsForRequest,
   settleCapacityHolds,
   supabaseCapacityHoldStore,
   type AcquiredHold,
@@ -35,6 +34,10 @@ import { getVoiceIdentity } from "@/lib/ai/voice";
 import { getFootageProvider } from "@/lib/providers/footage";
 import { getMusicProvider } from "@/lib/providers/music";
 import { refreshPrepaidPilot } from "@/lib/paid-calls/prepaid-pilot";
+import { jobSupplyDemands, reserveJobSupply, releaseUnusedJobSupply } from "@/lib/supply/job";
+import { supplyGuardRequired } from "@/lib/supply/server";
+import { withSupplyContext } from "@/lib/supply/anthropic";
+import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { loadReelLogo } from "./reel-logo";
 
 /**
@@ -100,6 +103,9 @@ type JobRow = {
  * Lambda) más adelante no requiere reescribir esta lógica.
  */
 export async function runRenderJob(requestId: string, expectedAttempt?: number): Promise<void> {
+  return withSupplyContext(requestId, () => runRenderJobWithSupply(requestId, expectedAttempt));
+}
+async function runRenderJobWithSupply(requestId: string, expectedAttempt?: number): Promise<void> {
   const service = createServiceClient();
 
   const { data: row, error: readError } = await service
@@ -226,8 +232,9 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
     const baseDemands = capacityDemandsFor(row, getVoiceProvider().name);
     const demands = pilot ? baseDemands.map(d => ({ ...d, units: pilot.maxVoiceCharacters * pilot.maxVoiceCalls, usd: 0 }))
       : trial ? baseDemands.map(d => ({ ...d, units: trial.maxVoiceCharacters * trial.maxVoiceCalls, usd: 0.2 })) : baseDemands;
-    if (demands.length > 0) {
-      await releaseOpenHoldsForRequest(holdStore, requestId).catch(() => 0);
+    if (supplyGuardRequired()) {
+      await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name));
+    } else if (demands.length > 0) {
       const admission = await acquireCapacityHolds({ store: holdStore, balance: snapshotBalancePort(service) }, { requestId, demands });
       if (!admission.acquired) throw new CapacityUnavailableError(admission.provider, admission.reason);
       holds = admission.holds;
@@ -276,14 +283,26 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
             });
 
     const completed = await update({
+      supply_wait_started_at: null, supply_not_before: null,
       status: "completed", video_path: videoPath, progress_stage: null, long_form_stage: null, long_form_progress: null, error_message: null,
     }).select("id").maybeSingle();
     if (completed.error || !completed.data) throw new Error("No se pudo confirmar el resultado de este intento. No vuelvas a generar sin revisar su estado.");
+    await releaseUnusedJobSupply(service, requestId, row.render_attempts).catch(() => console.error("[atomivid:supply] unused envelope release unconfirmed; funds remain protected"));
     // Consumo real: la reserva pasa a COMMITTED (sigue descontando hasta una instantánea más nueva).
     await settleCapacityHolds(holdStore, holds, "COMMITTED").catch(() => undefined);
   } catch (error) {
     // Cualquier fallo tras la admisión puede haber consumido unidades: se conserva como COMMITTED.
     if (holds.length > 0) await settleCapacityHolds(holdStore, holds, "COMMITTED").catch(() => undefined);
+    if (error instanceof SupplyUnavailableError || error instanceof CapacityUnavailableError) {
+      // No paid submit is replayed: cached assets / paid ledger decide recovery.
+      // Same render attempt stays active; subscription quota is unchanged.
+      await update({ progress_stage: "queued", supply_wait_started_at: new Date().toISOString(),
+        supply_not_before: new Date(Date.now() + 300_000).toISOString(),
+        error_message: "Estamos esperando disponibilidad de producción. Tu solicitud y sus avances están guardados." });
+      return;
+    }
+    // Only unused envelope units are released; ambiguous paid calls remain counted.
+    await releaseUnusedJobSupply(service, requestId, row.render_attempts).catch(() => undefined);
     // QA real (2026-09-25): un fallo real de avatar (aquí, pipeline.ts
     // rechazando por AVATAR_MODE_ENABLED=false, un desajuste de proveedor,
     // etc.) llegaba a error_message sin ningún código de diagnóstico —

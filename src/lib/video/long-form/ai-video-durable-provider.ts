@@ -1,3 +1,4 @@
+import { SupplyUnavailableError } from "@/lib/supply/policy";
 /**
  * Envoltorio de idempotencia/durabilidad para CUALQUIER VideoProvider real
  * (Veo/Runway/Kling) — RC Phase 1, item "worker abstraction". Antes de
@@ -147,6 +148,7 @@ export function wrapDurableVideoProvider(inner: VideoProvider, opts: DurableVide
     try {
       return await inner.resumeGeneration(providerJobId, request);
     } catch (err) {
+      if (err instanceof SupplyUnavailableError) throw err;
       if (err instanceof GenerativeProviderError && TERMINAL_REASONS.has(err.reason)) {
         await persistTerminalFailure(shotId, err);
         throw err;
@@ -315,6 +317,7 @@ export function wrapDurableVideoProvider(inner: VideoProvider, opts: DurableVide
         await persistCompletedTolerant(shotId, asset);
         return asset;
       } catch (err) {
+        if (err instanceof SupplyUnavailableError) throw err;
         if (err instanceof PaidResultUnavailableError) {
           throw new GenerativeProviderError(
             `El shot "${shotId}" ya se pagó en "${inner.name}" en un intento anterior y su clip no está disponible — no se reenvía; se usa el fallback.`,
@@ -350,6 +353,7 @@ export function wrapDurableVideoProvider(inner: VideoProvider, opts: DurableVide
     try {
       await persistCompleted(shotId, asset);
     } catch (err) {
+      if (err instanceof SupplyUnavailableError) throw err;
       console.warn(
         `[atomivid:ai-video-durable] no se pudo persistir el clip COMPLETED de "${shotId}" — se usa el buffer en memoria; un reintento reanudará la operación ${asset.providerJobId ?? "(sin id)"} sin reenviar:`,
         err instanceof Error ? err.message : err,

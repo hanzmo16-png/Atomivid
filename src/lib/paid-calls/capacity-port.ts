@@ -17,7 +17,7 @@ export interface ProviderBalancePort {
   read(provider: string): Promise<ProviderBalance>;
 }
 
-export const DEFAULT_SNAPSHOT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+export const DEFAULT_SNAPSHOT_MAX_AGE_MS = 5 * 60 * 1000;
 
 type SnapshotRow = { provider: string; unit: string; available: number | string | null; status: string; reliability: string; checked_at: string };
 
@@ -42,7 +42,7 @@ export function snapshotBalancePort(supabase: SupabaseClient, opts: { maxAgeMs?:
       const age = now() - Date.parse(row.checked_at);
       if (!(age >= 0 && age <= maxAgeMs)) return { known: false, provider, reason: `snapshot is ${Math.round(age / 60000)} min old (max ${Math.round(maxAgeMs / 60000)})` };
       const available = Number(row.available);
-      if (!Number.isFinite(available)) return { known: false, provider, reason: "snapshot balance is not a number" };
+      if (!Number.isFinite(available) || available < 0) return { known: false, provider, reason: "snapshot balance is invalid" };
       return { known: true, provider, available, unit: row.unit, checkedAt: row.checked_at };
     },
   };

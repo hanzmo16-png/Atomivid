@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [{ "path": "/api/cron/supply", "schedule": "*/5 * * * *" }],
   "git": {
     "deploymentEnabled": {
       "codex/vfx-sequence-compositor": false

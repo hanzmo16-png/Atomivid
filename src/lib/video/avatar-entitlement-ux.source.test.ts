@@ -62,12 +62,12 @@ test('[8] ScriptReview.tsx deshabilita "Generar video final" (no solo lo oculta 
   );
   assert.match(
     source,
-    /disabled=\{entitlementBlocked \|\| generating \|\| saving \|\| regeneratingAll\}/,
+    /disabled=\{entitlementBlocked \|\| Boolean\(planIssue\) \|\| generating \|\| saving \|\| regeneratingAll \|\| savingIndex !== null\}/,
     'el botón "Generar video final" debe quedar deshabilitado cuando el entitlement está bloqueado, no solo fallar tras pulsarlo',
   );
   assert.match(
     source,
-    /if \(entitlementBlocked\) return;/,
+    /if \(entitlementBlocked \|\| planIssue\) return;/,
     "generateFinalVideo() debe negarse a enviar aunque, por algún bug futuro, el botón llegara a estar clickeable",
   );
 });

@@ -54,7 +54,6 @@ export async function resolveGeneratedImageForScene({
   bucket,
   requestId,
   artifactPrefix = requestId,
-  disableProviderRetries = false,
   sceneIndex,
   scene,
   imageProvider,
@@ -96,7 +95,7 @@ export async function resolveGeneratedImageForScene({
   }
 
   const request = {
-    disableRetries: disableProviderRetries,
+    disableRetries: true,
     prompt: scene.imagePrompt,
     negativePrompt: scene.negativePrompt,
     aspectRatio: "9:16" as const,

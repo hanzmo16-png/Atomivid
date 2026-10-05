@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LedgerStore, PaidOperation, PaidOpStatus } from "@/lib/production-intelligence/ledger";
 import { PaidLedgerUnavailableError } from "./errors";
+import { submitWithSupply, supplyGuardRequired } from "@/lib/supply/server";
 
 export const PAID_OPERATIONS_TABLE = "pi_paid_operations";
 const UNIQUE_VIOLATION = "23505";
@@ -19,6 +20,7 @@ type Row = {
   method: string;
   attempt_kind: string;
   reserved_usd: number | string;
+  capacity_units?: number | string | null;
   committed_usd: number | string | null;
   status: PaidOpStatus;
   provider_job_id: string | null;
@@ -36,6 +38,7 @@ function toRow(op: PaidOperation): Row {
     method: op.method,
     attempt_kind: op.attemptKind,
     reserved_usd: op.reservedUsd,
+    ...(op.capacityUnits === undefined ? {} : { capacity_units: op.capacityUnits }),
     committed_usd: op.committedUsd,
     status: op.status,
     provider_job_id: op.providerJobId,
@@ -54,6 +57,7 @@ function fromRow(r: Row): PaidOperation {
     method: r.method,
     attemptKind: r.attempt_kind,
     reservedUsd: Number(r.reserved_usd),
+    ...(r.capacity_units == null ? {} : { capacityUnits: Number(r.capacity_units) }),
     committedUsd: r.committed_usd === null ? null : Number(r.committed_usd),
     status: r.status,
     providerJobId: r.provider_job_id,
@@ -73,7 +77,7 @@ function patchRow(patch: Partial<PaidOperation>): Partial<Row> {
 }
 
 export function supabaseLedgerStore(supabase: SupabaseClient): LedgerStore {
-  return {
+  const store: LedgerStore = {
     async get(key) {
       const { data, error } = await supabase.from(PAID_OPERATIONS_TABLE).select("*").eq("idempotency_key", key).maybeSingle();
       if (error) throw new PaidLedgerUnavailableError(`read failed (${error.code ?? "?"}): ${error.message}`);
@@ -96,4 +100,6 @@ export function supabaseLedgerStore(supabase: SupabaseClient): LedgerStore {
       return Array.isArray(data) && data.length === 1;
     },
   };
+  if (supplyGuardRequired()) store.submit = op => submitWithSupply(supabase, op);
+  return store;
 }

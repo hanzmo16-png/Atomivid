@@ -212,6 +212,7 @@ export async function synthesizeBeatNarrationProductionCached(
       provider: voiceProvider.name,
       model: ctx.voiceIdentity.modelId,
       method: "tts_with_timestamps",
+      capacityUnits: spokenBeat.narration.length,
       inputFingerprint: identity,
       reservedUsd: Math.max(0, estimatedCostUsd),
     },

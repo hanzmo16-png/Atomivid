@@ -9,7 +9,7 @@
  * target j, not n). The admission decision (demand ≤ balance − open holds) is therefore made on
  * an exact view of all prior holds; a lost insert (23505) re-lists and retries, bounded.
  *
- * Open holds: RESERVED, plus COMMITTED holds created after the balance snapshot (the provider's
+ * Open holds: RESERVED, plus COMMITTED holds settled after the balance snapshot (the provider's
  * balance cannot reflect them yet). REFUNDED never counts. UNKNOWN balance or a port error → no
  * hold, no job. Units live in `result_ref` ("units:<n>"); `reserved_usd` is the USD estimate.
  */
@@ -22,7 +22,7 @@ const KEY_PREFIX = "cap:";
 const MAX_ACQUIRE_ROUNDS = 100;
 
 export type CapacityHoldStatus = "RESERVED" | "COMMITTED" | "REFUNDED";
-export type CapacityHoldRow = { key: string; seq: number; provider: string; projectId: string; status: CapacityHoldStatus; units: number; createdAt: string };
+export type CapacityHoldRow = { key: string; seq: number; provider: string; projectId: string; status: CapacityHoldStatus; units: number; createdAt: string; settledAt?: string };
 export type CapacityDemand = { provider: string; units: number; usd: number };
 export type AcquiredHold = { key: string; provider: string; units: number };
 
@@ -96,7 +96,7 @@ export async function acquireCapacityHolds(
         outcome = `hold ledger read failed: ${err instanceof Error ? err.message : String(err)}`;
         break;
       }
-      const open = holds.filter((h) => h.status === "RESERVED" || (h.status === "COMMITTED" && Date.parse(h.createdAt) > snapshotAt));
+      const open = holds.filter((h) => h.status === "RESERVED" || (h.status === "COMMITTED" && Date.parse(h.settledAt ?? h.createdAt) >= snapshotAt));
       const held = open.reduce((t, h) => t + h.units, 0);
       const effective = balance.available - held;
       if (demand.units > effective) {
@@ -127,8 +127,10 @@ export async function settleCapacityHolds(store: CapacityHoldStore, holds: Acqui
   for (const h of holds) await store.settleHold(h.key, status);
 }
 
-/** A new attempt of the same request releases the open holds of its fenced-out predecessors. */
-export async function releaseOpenHoldsForRequest(store: CapacityHoldStore, requestId: string): Promise<number> {
+/** Release only with positive evidence that NO provider submission could have happened.
+ * A restart or expired worker is not that evidence. Default keeps every predecessor hold. */
+export async function releaseOpenHoldsForRequest(store: CapacityHoldStore, requestId: string, evidence?: { noProviderSubmission: true }): Promise<number> {
+  if (!evidence?.noProviderSubmission) return 0;
   const open = await store.listOpenHoldsForProject(requestId);
   let n = 0;
   for (const h of open) if (await store.settleHold(h.key, "REFUNDED")) n++;
@@ -137,16 +139,16 @@ export async function releaseOpenHoldsForRequest(store: CapacityHoldStore, reque
 
 // ---- stores ----
 
-type Row = { idempotency_key: string; project_id: string; provider: string; status: string; result_ref: string | null; created_at: string };
+type Row = { idempotency_key: string; project_id: string; provider: string; status: string; result_ref: string | null; created_at: string; updated_at?: string };
 const rowToHold = (r: Row): CapacityHoldRow | null => {
   const seq = parseHoldSeq(r.idempotency_key);
   if (seq === null) return null;
-  return { key: r.idempotency_key, seq, provider: r.provider, projectId: r.project_id, status: r.status as CapacityHoldStatus, units: unitsFromRef(r.result_ref), createdAt: r.created_at };
+  return { key: r.idempotency_key, seq, provider: r.provider, projectId: r.project_id, status: r.status as CapacityHoldStatus, units: unitsFromRef(r.result_ref), createdAt: r.created_at, settledAt: r.updated_at };
 };
 
 export function supabaseCapacityHoldStore(supabase: SupabaseClient): CapacityHoldStore {
   const table = "pi_paid_operations";
-  const cols = "idempotency_key,project_id,provider,status,result_ref,created_at";
+  const cols = "idempotency_key,project_id,provider,status,result_ref,created_at,updated_at";
   return {
     async listHolds(provider) {
       const { data, error } = await supabase.from(table).select(cols).eq("method", CAPACITY_HOLD_METHOD).eq("provider", provider);

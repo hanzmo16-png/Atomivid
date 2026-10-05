@@ -90,7 +90,7 @@ test("B2-5: a new attempt of the same request releases its fenced-out predecesso
   assert.ok(first.acquired);
   // Attempt 2 (process died without settling): the stale hold blocks until released.
   assert.equal((await acquireCapacityHolds(deps, { requestId: "req-A", demands: [{ provider: "elevenlabs", units: 1, usd: 0 }] })).acquired, false);
-  assert.equal(await releaseOpenHoldsForRequest(store, "req-A"), 1);
+  assert.equal(await releaseOpenHoldsForRequest(store, "req-A", { noProviderSubmission: true }), 1);
   // Two demands, the second unavailable: the first hold is rolled back (REFUNDED), nothing stays held.
   const both = await acquireCapacityHolds(deps, { requestId: "req-B", demands: [{ provider: "elevenlabs", units: 1, usd: 0 }, { provider: "openai", units: 1, usd: 0 }] });
   assert.equal(both.acquired, false);

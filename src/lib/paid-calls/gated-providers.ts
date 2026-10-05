@@ -89,6 +89,7 @@ export async function gatedVoiceSynthesize(
     provider: deps.voiceProvider.name,
     model: deps.voiceIdentity.modelId,
     method: "tts_with_timestamps",
+    capacityUnits: ttsText.length,
     inputFingerprint: fingerprint,
     reservedUsd: Math.max(0, deps.estimatedCostUsd),
   };
