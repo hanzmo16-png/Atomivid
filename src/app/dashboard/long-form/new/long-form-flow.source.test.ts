@@ -203,9 +203,9 @@ test("longFormFormRedirect (actions.ts): reenvía topic/duration_minutes/sources
   const source = readActions();
   assert.match(
     source,
-    /function longFormFormRedirect\(\s*error: string,\s*fields: \{ topic: string; durationMinutes: string; sources: string; openQuestions: string \},?\s*\): never \{/,
+    /function longFormFormRedirect\(\s*error: string,\s*fields: \{ topic: string; durationMinutes: string; sources: string; openQuestions: string; language: string \},?\s*\): never \{/,
   );
-  assert.match(source, /new URLSearchParams\(\{\s*error,\s*topic: fields\.topic,\s*duration_minutes: fields\.durationMinutes,\s*sources: fields\.sources,\s*open_questions: fields\.openQuestions,?\s*\}\)/);
+  assert.match(source, /new URLSearchParams\(\{\s*error,\s*topic: fields\.topic,\s*duration_minutes: fields\.durationMinutes,\s*sources: fields\.sources,\s*open_questions: fields\.openQuestions,\s*language: fields\.language,?\s*\}\)/);
   // Los 4 redirects recuperables del formulario (topic/duración/fuentes/
   // proveedor) deben usar el helper, no un redirect(...) crudo que pierda
   // los valores ya escritos.

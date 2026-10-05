@@ -69,7 +69,7 @@ export function aggregateCosts(reqs: RequestRow[] | null, costs: CostRow[] | nul
   // Legacy COGS = provider consumption recorded per request (image + premium video + avatar). Top-ups are never here.
   const legacyActual = legacy.reduce((t, c) => t + (c.imageCostUsd ?? 0) + (c.premiumVideoCostUsd ?? 0) + (c.avatarCostUsd ?? 0), 0);
   const piCommitted = (ops ?? []).filter((o) => o.status === "COMMITTED").reduce((t, o) => t + (o.committedUsd ?? o.reservedUsd), 0);
-  const piReserved = (ops ?? []).filter((o) => o.status === "RESERVED" || o.status === "SUBMITTED" || o.status === "PROVIDER_JOB_RECORDED").reduce((t, o) => t + o.reservedUsd, 0);
+  const piReserved = (ops ?? []).filter((o) => o.status === "RESERVED" || o.status === "SUBMITTED" || o.status === "PROVIDER_JOB_RECORDED" || o.status === "RECONCILIATION_REQUIRED").reduce((t, o) => t + o.reservedUsd, 0);
   const byProvider: Record<string, number> = {};
   const add = (p: string | null, usd: number | null) => { if (p && usd) byProvider[p] = r2((byProvider[p] ?? 0) + usd); };
   for (const c of legacy) { add(c.imageProvider, c.imageCostUsd); add(c.premiumVideoProvider, c.premiumVideoCostUsd); if (c.avatarCostUsd) add("avatar", c.avatarCostUsd); }
@@ -81,7 +81,7 @@ export function aggregateCosts(reqs: RequestRow[] | null, costs: CostRow[] | nul
   const avgByType = Object.fromEntries(Object.entries(perType).map(([t, v]) => [t, v.productions ? r2(v.cogsUsd / v.productions) : null]));
   return {
     estimatedUsd: costs ? known(r2(estimated)) : unavailable("generation_costs unavailable"),
-    reservedUsd: ops ? known(r2(piReserved), "open PI reservations") : unavailable("pi_paid_operations unavailable (0023 not applied?)"),
+    reservedUsd: ops ? known(r2(piReserved), "open PI reservations, including unresolved provider charges") : unavailable("pi_paid_operations unavailable (0023 not applied?)"),
     actualCogsUsd: costs || ops ? known(r2(legacyActual + piCommitted), "committed provider consumption only; top-ups excluded by construction") : unavailable("no cost source"),
     byProvider, byMediaType, averageCogsByProductionType: avgByType,
     costByProduction: legacy.map((c) => ({ requestId: c.requestId, type: typeOf.get(c.requestId) ?? "unknown", estimatedUsd: c.estimatedCostUsd, cogsUsd: r2((c.imageCostUsd ?? 0) + (c.premiumVideoCostUsd ?? 0) + (c.avatarCostUsd ?? 0)) })),
@@ -91,19 +91,36 @@ export function aggregateCosts(reqs: RequestRow[] | null, costs: CostRow[] | nul
 
 // ---------- providers ----------
 export type ProviderState = "HEALTHY" | "LIMITED" | "INSUFFICIENT" | "UNKNOWN";
-export function aggregateProviders(rows: CapacityRow[] | null) {
-  if (!rows) return { state: "UNAVAILABLE" as MetricState, providers: [] as { provider: string; state: ProviderState; availability: string; balance: number | null; unit: string; reserved: number; queued: number; renewalDate: string | null; checkedAt: string; note: string }[] };
+export type ProviderCapacity = {
+  provider: string; state: ProviderState; availability: string; balance: number | null;
+  unit: string; reserved: number | null; queued: number | null;
+  renewalDate: string | null; checkedAt: string | null; note: string;
+};
+/** Match the supply gate's five-minute evidence window; do not trust a persisted GREEN. */
+export const CAPACITY_MAX_AGE_MS = 300_000;
+export function aggregateProviders(rows: CapacityRow[] | null, now: string, expectedProviders: string[] | null) {
+  if (!rows || !expectedProviders) return { state: "UNAVAILABLE" as MetricState, providers: [] as ProviderCapacity[] };
   const latest = new Map<string, CapacityRow>();
-  for (const r of rows) if (!latest.has(r.provider) || latest.get(r.provider)!.checkedAt < r.checkedAt) latest.set(r.provider, r);
-  const map = (s: string): ProviderState => (s === "GREEN" ? "HEALTHY" : s === "YELLOW" ? "LIMITED" : s === "RED" ? "INSUFFICIENT" : "UNKNOWN");
-  return {
-    state: "KNOWN" as MetricState,
-    providers: [...latest.values()].sort((a, b) => a.provider.localeCompare(b.provider)).map((r) => {
-      // UNKNOWN never becomes HEALTHY: an unverifiable balance stays UNKNOWN whatever the stored status says.
-      const state = r.available === null || r.reliability === "none" || r.reliability === "derived_from_ledger" ? "UNKNOWN" : map(r.status);
-      return { provider: r.provider, state, availability: r.status === "RED" ? "DOWN/INSUFFICIENT" : state === "UNKNOWN" ? "UNVERIFIED" : "UP", balance: r.reliability === "provider_api" ? r.available : null, unit: r.unit, reserved: r.reserved, queued: r.pending, renewalDate: r.renewalDate, checkedAt: r.checkedAt, note: state === "UNKNOWN" ? `balance not verifiable (${r.reliability})` : "provider-reported balance" };
-    }),
-  };
+  for (const r of rows) {
+    const prior = latest.get(r.provider);
+    // A malformed timestamp cannot silently resurrect an older healthy observation.
+    if (!prior || !Number.isFinite(Date.parse(r.checkedAt)) || Date.parse(r.checkedAt) > Date.parse(prior.checkedAt)) latest.set(r.provider, r);
+  }
+  const providers = [...new Set([...expectedProviders, ...latest.keys()])].sort().map((provider): ProviderCapacity => {
+    const r = latest.get(provider);
+    if (!r) return { provider, state: "UNKNOWN", availability: "UNVERIFIED", balance: null, unit: "", reserved: null, queued: null, renewalDate: null, checkedAt: null, note: "No capacity snapshot recorded yet" };
+    const age = Date.parse(now) - Date.parse(r.checkedAt);
+    const fresh = Number.isFinite(age) && age >= 0 && age <= CAPACITY_MAX_AGE_MS;
+    const valid = r.available !== null && Number.isFinite(r.available) && r.available >= 0
+      && Number.isFinite(r.reserved) && r.reserved >= 0 && Number.isFinite(r.pending) && r.pending >= 0;
+    const verified = fresh && valid && r.reliability === "provider_api";
+    const state: ProviderState = !verified ? "UNKNOWN" : r.status === "RED" || r.available! <= r.reserved ? "INSUFFICIENT" : r.status === "GREEN" ? "HEALTHY" : r.status === "YELLOW" ? "LIMITED" : "UNKNOWN";
+    const note = !fresh ? `Balance needs refresh; last check: ${r.checkedAt}` : !valid ? "Provider balance unavailable: invalid quantities" : r.reliability !== "provider_api" ? `Provider balance unavailable: ${r.reliability} is not live API evidence` : state === "UNKNOWN" ? "Provider balance unavailable: status unverified" : "provider-reported balance";
+    return { provider, state, availability: state === "UNKNOWN" ? "UNVERIFIED" : state === "INSUFFICIENT" ? "DOWN/INSUFFICIENT" : "UP",
+      balance: verified ? r.available : null, unit: r.unit, reserved: verified ? r.reserved : null, queued: verified ? r.pending : null,
+      renewalDate: r.renewalDate, checkedAt: r.checkedAt, note };
+  });
+  return { state: (providers.length ? "KNOWN" : "UNKNOWN") as MetricState, providers };
 }
 
 // ---------- youtube ----------

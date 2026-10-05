@@ -25,7 +25,7 @@ const data: MemoryData = {
   ],
   costs: [{ requestId: "r1", estimatedCostUsd: 1, imageProvider: "openai", imageCostUsd: 0.4, premiumVideoProvider: "runway", premiumVideoCostUsd: 0.5, avatarCostUsd: 0, voiceProvider: "elevenlabs", footageProvider: "pexels", renderMs: 60000, regenerations: 0 }, { requestId: "r4", estimatedCostUsd: 30, imageProvider: "openai", imageCostUsd: 3, premiumVideoProvider: "runway", premiumVideoCostUsd: 2, avatarCostUsd: 0, voiceProvider: "elevenlabs", footageProvider: null, renderMs: 180000, regenerations: 1 }],
   paidOps: [{ projectId: "r4", provider: "runway", method: "I2V_ECONOMY", reservedUsd: 0.25, committedUsd: 0.25, status: "COMMITTED", updatedAt: "2026-10-20T09:00:00Z" }, { projectId: "r2", provider: "runway", method: "I2V_ECONOMY", reservedUsd: 0.5, committedUsd: null, status: "RESERVED", updatedAt: "2026-10-28T09:00:00Z" }],
-  capacity: [{ provider: "elevenlabs", unit: "character", available: 20000, reserved: 1000, pending: 0, status: "GREEN", reliability: "provider_api", renewalDate: "2026-11-15", checkedAt: "2026-10-30T10:00:00Z" }, { provider: "openai", unit: "usd", available: null, reserved: 2, pending: 0, status: "GREEN", reliability: "derived_from_ledger", renewalDate: null, checkedAt: "2026-10-30T10:00:00Z" }, { provider: "runway", unit: "usd", available: 1, reserved: 5, pending: 0, status: "RED", reliability: "provider_api", renewalDate: null, checkedAt: "2026-10-30T10:00:00Z" }],
+  capacity: [{ provider: "elevenlabs", unit: "character", available: 20000, reserved: 1000, pending: 0, status: "GREEN", reliability: "provider_api", renewalDate: "2026-11-15", checkedAt: "2026-10-30T11:59:00Z" }, { provider: "openai", unit: "usd", available: null, reserved: 2, pending: 0, status: "GREEN", reliability: "derived_from_ledger", renewalDate: null, checkedAt: "2026-10-30T11:59:00Z" }, { provider: "runway", unit: "usd", available: 1, reserved: 5, pending: 0, status: "RED", reliability: "provider_api", renewalDate: null, checkedAt: "2026-10-30T11:59:00Z" }],
   finalCut: [{ productionId: "r4", masterId: "m4", toState: "EDITORIAL_INSPECTING", decidedAt: "2026-10-21T00:00:00Z" }, { productionId: "r4", masterId: "m4", toState: "EDITORIAL_QA_PASS", decidedAt: "2026-10-21T00:01:00Z" }, { productionId: "r2", masterId: "m2", toState: "HUMAN_REVIEW_REQUIRED", decidedAt: "2026-10-29T00:00:00Z" }],
   ytChannels: [{ channelId: "UCaaaaaaaaaaaaaaaaaaaaaa", status: "connected", title: "T" }],
   ytLinks: [{ projectId: "r4", channelId: "UCaaaaaaaaaaaaaaaaaaaaaa", videoId: "dQw4w9WgXcQ", publishedAt: "2026-10-22T00:00:00Z" }],
@@ -87,7 +87,7 @@ test("empty database: KNOWN zeros where the source answered, UNAVAILABLE where i
 test("providers: partial data and UNKNOWN capacity never become HEALTHY; INSUFFICIENT is surfaced", async () => {
   const p = (await service().section(owner, "providers", "7D")).data as { providers: { provider: string; state: string; balance: number | null }[] };
   assert.deepEqual(p.providers.map((x) => [x.provider, x.state, x.balance]), [["elevenlabs", "HEALTHY", 20000], ["openai", "UNKNOWN", null], ["runway", "INSUFFICIENT", 1]]);
-  const stale = aggregateProviders([{ provider: "openai", unit: "usd", available: null, reserved: 0, pending: 0, status: "GREEN", reliability: "none", renewalDate: null, checkedAt: NOW }]);
+  const stale = aggregateProviders([{ provider: "openai", unit: "usd", available: null, reserved: 0, pending: 0, status: "GREEN", reliability: "none", renewalDate: null, checkedAt: NOW }], NOW, ["openai"]);
   assert.equal(stale.providers[0].state, "UNKNOWN", "a stored GREEN with no verifiable balance is still UNKNOWN");
   const health = (await service().section(owner, "system-health", "7D")).data as { providersUnknown: string[]; providersInsufficient: string[]; autoPublish: boolean; finalCutGate: string };
   assert.deepEqual(health.providersUnknown, ["openai"]); assert.deepEqual(health.providersInsufficient, ["runway"]); assert.equal(health.autoPublish, false); assert.equal(health.finalCutGate, "ACTIVE");
@@ -102,3 +102,48 @@ test("youtube section: channel -> video -> production navigation without duplica
 });
 
 test("no network call in this file", () => { assert.equal(networkCalls, 0); });
+
+test("capacity freshness: five-minute boundary, future/invalid dates and invalid quantities fail closed", () => {
+  const row = { ...data.capacity![0], checkedAt: NOW };
+  assert.equal(aggregateProviders([row], NOW, [row.provider]).providers[0].state, "HEALTHY");
+  assert.equal(aggregateProviders([{ ...row, checkedAt: new Date(Date.parse(NOW) - 300_000).toISOString() }], NOW, [row.provider]).providers[0].state, "HEALTHY");
+  for (const patch of [
+    { checkedAt: new Date(Date.parse(NOW) - 300_001).toISOString() },
+    { checkedAt: new Date(Date.parse(NOW) + 1).toISOString() }, { checkedAt: "invalid" },
+    { available: NaN }, { available: Infinity }, { available: -1 }, { reserved: -1 },
+    { reliability: "manual_entry" }, { reliability: "unexpected" },
+  ]) {
+    const result = aggregateProviders([{ ...row, ...patch }], NOW, [row.provider]).providers[0];
+    assert.equal(result.state, "UNKNOWN", JSON.stringify(patch));
+    assert.equal(result.balance, null); assert.equal(result.reserved, null);
+    assert.equal(result.availability, "UNVERIFIED");
+  }
+  assert.equal(aggregateProviders([{ ...row, available: 0, reserved: 0 }], NOW, [row.provider]).providers[0].state, "INSUFFICIENT");
+});
+
+test("capacity registry makes missing suppliers visible without fabricating balances or holds", async () => {
+  const svc = service({ ...data, capacity: [{ ...data.capacity![0], checkedAt: NOW }], capacityProviders: ["elevenlabs", "veo", "heygen"] });
+  const p = (await svc.section(owner, "providers", "7D")).data as ReturnType<typeof aggregateProviders>;
+  assert.deepEqual(p.providers.map(r => [r.provider, r.state]), [["elevenlabs", "HEALTHY"], ["heygen", "UNKNOWN"], ["veo", "UNKNOWN"]]);
+  for (const row of p.providers.slice(1)) { assert.equal(row.balance, null); assert.equal(row.reserved, null); assert.equal(row.checkedAt, null); }
+  const ov = (await svc.section(owner, "overview", "7D")).data as { providers: typeof p; systemHealth: { providersUnknown: string[] } };
+  assert.deepEqual(ov.providers, p); assert.deepEqual(ov.systemHealth.providersUnknown, ["heygen", "veo"]);
+  const missing = (await service({ ...data, unavailable: ["capacityProviders"] }).section(owner, "providers", "7D")).data as typeof p;
+  assert.equal(missing.state, "UNAVAILABLE");
+});
+
+test("an older healthy snapshot never hides the newest failed read; ISO offsets compare by time", () => {
+  const row = { ...data.capacity![0], checkedAt: NOW };
+  const failed = { ...row, available: null, reliability: "none" };
+  const old = { ...row, checkedAt: "2026-10-30T13:58:00+02:00" };
+  for (const rows of [[failed, old], [old, failed]]) {
+    const p = aggregateProviders(rows, NOW, [row.provider]).providers[0];
+    assert.equal(p.state, "UNKNOWN"); assert.equal(p.balance, null);
+  }
+});
+
+test("unreconciled operations remain reserved, never become confirmed cost or a refund", async () => {
+  const op = { ...data.paidOps![0], status: "RECONCILIATION_REQUIRED", reservedUsd: 0.195, committedUsd: null };
+  const c = (await service({ ...data, costs: [], paidOps: [op] }).section(owner, "costs", "LIFETIME")).data as { reservedUsd: { value: number }; actualCogsUsd: { value: number } };
+  assert.equal(c.reservedUsd.value, 0.2); assert.equal(c.actualCogsUsd.value, 0);
+});

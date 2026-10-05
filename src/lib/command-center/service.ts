@@ -34,13 +34,16 @@ export class CommandCenterService {
       case "customers": { const [users, subs] = await Promise.all([s.users(range), s.subscriptions()]); return { ...meta, data: aggregateCustomers(users, subs) }; }
       case "production": { const [reqs, fc] = await Promise.all([s.requests(range), s.finalCutDecisions(range)]); const costs = reqs ? await s.costs(reqs.map((r) => r.id)) : null; return { ...meta, data: aggregateProduction(reqs, costs, fc, now) }; }
       case "costs": { const [reqs, ops] = await Promise.all([s.requests(range), s.paidOps(range)]); const costs = reqs ? await s.costs(reqs.map((r) => r.id)) : null; return { ...meta, data: aggregateCosts(reqs, costs, ops) }; }
-      case "providers": return { ...meta, data: aggregateProviders(await s.capacity()) };
+      case "providers": {
+        const [snapshots, providers] = await Promise.all([s.capacity(), s.capacityProviders()]);
+        return { ...meta, data: aggregateProviders(snapshots, now, providers) };
+      }
       case "telemetry": return { ...meta, data: await this.telemetry(now) };
       case "youtube": { const [ch, links, rows] = await Promise.all([s.youtubeChannels(), s.youtubeLinks(), s.youtubeRows(range)]); return { ...meta, data: aggregateYouTube(ch, links, rows, now) }; }
       case "system-health": case "overview": {
-        const [reqs, fc, ops, cap, ch, links, rows, users, subs] = await Promise.all([s.requests(range), s.finalCutDecisions(range), s.paidOps(range), s.capacity(), s.youtubeChannels(), s.youtubeLinks(), s.youtubeRows(range), s.users(range), s.subscriptions()]);
+        const [reqs, fc, ops, cap, ch, links, rows, users, subs, accounts] = await Promise.all([s.requests(range), s.finalCutDecisions(range), s.paidOps(range), s.capacity(), s.youtubeChannels(), s.youtubeLinks(), s.youtubeRows(range), s.users(range), s.subscriptions(), s.capacityProviders()]);
         const costs = reqs ? await s.costs(reqs.map((r) => r.id)) : null;
-        const production = aggregateProduction(reqs, costs, fc, now), providers = aggregateProviders(cap), youtube = aggregateYouTube(ch, links, rows, now);
+        const production = aggregateProduction(reqs, costs, fc, now), providers = aggregateProviders(cap, now, accounts), youtube = aggregateYouTube(ch, links, rows, now);
         const flags = { autoPublish: distributionFlags(this.deps.env ?? process.env).AUTO_PUBLISH, finalCutEnabled: finalCutEnabled(this.deps.env ?? process.env) };
         const health = aggregateSystemHealth({ production, providers, youtube, flags });
         const telemetry = await this.telemetry(now);
