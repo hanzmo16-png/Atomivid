@@ -16,6 +16,7 @@
  * de intentar parsear, y así distinguir truncamiento de un fallo de schema
  * real — cada caso dispara un reintento distinto (ver generateStoryboard).
  */
+import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { MissingEnvVarError } from "@/lib/env-errors";
@@ -31,7 +32,7 @@ function getClient(): Anthropic {
     if (!apiKey) {
       throw new MissingEnvVarError("ANTHROPIC_API_KEY");
     }
-    cachedClient = new Anthropic({ apiKey });
+    cachedClient = new Anthropic({ apiKey, maxRetries: 0 });
   }
   return cachedClient;
 }
@@ -112,13 +113,14 @@ async function callClaude(
 
   // Llamada de bajo nivel (create, no parse) — necesitamos stop_reason
   // ANTES de intentar parsear el JSON (ver comentario del archivo).
-  const response = await getClient().messages.create({
+  const params = {
     model: VISUAL_DIRECTOR_MODEL,
     max_tokens: maxTokens,
     system: buildSystemPrompt(),
-    messages: [{ role: "user", content: userPrompt }],
+    messages: [{ role: "user" as const, content: userPrompt }],
     output_config: { format: outputFormat },
-  });
+  };
+  const response = await supplyProtectedAnthropic(params, () => getClient().messages.create(params, { maxRetries: 0 }));
 
   const inputTokens = response.usage?.input_tokens ?? 0;
   const outputTokens = response.usage?.output_tokens ?? 0;

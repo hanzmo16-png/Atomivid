@@ -1,3 +1,9 @@
+import { SupplyUnavailableError } from "@/lib/supply/policy";
+import { getVoiceIdentity } from "@/lib/ai/voice";
+import { getPricingConfig } from "@/lib/billing/pricing";
+import { gatedMusicTrack, gatedVoiceSynthesize, type PaidCallDeps } from "@/lib/paid-calls/gated-providers";
+import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
+import { supabaseResultStore } from "@/lib/paid-calls/result-store";
 import { buildCaptions } from "./captions";
 import { VIDEO_TAIL_SECONDS } from "./script-pacing";
 import { ProviderConfigurationError } from "@/lib/providers/production";
@@ -60,8 +66,10 @@ export async function generateVideoFromScript({
   language = "es",
   targetDurationSeconds,
   onProgress,
+  paidCalls,
 }: {
   supabase: SupabaseClient;
+  paidCalls?: Pick<PaidCallDeps, "ledger" | "results">;
   requestId: string;
   artifactPrefix?: string;
   script: GeneratedScript;
@@ -78,6 +86,13 @@ export async function generateVideoFromScript({
   const footageProvider = getFootageProvider();
   const musicProvider = getMusicProvider();
   const imageProvider = getFeatureFlags().imageGenerationEnabled ? getImageProvider() : undefined;
+  const gate: PaidCallDeps = {
+    ledger: paidCalls?.ledger ?? supabaseLedgerStore(supabase),
+    results: paidCalls?.results ?? supabaseResultStore(supabase, STORAGE_BUCKET), requestId,
+  };
+  const synthesizeGated = (text: string, speed?: number) => gatedVoiceSynthesize({ ...gate, voiceProvider,
+    voiceIdentity: getVoiceIdentity(language === "en" ? "en" : "es"),
+    estimatedCostUsd: text.length / 1000 * getPricingConfig().elevenLabsUsdPer1kChars }, text, language, speed);
   let storageBytes = 0;
 
   // 0. Storyboard semántico (Visual Director) — detrás de
@@ -107,6 +122,7 @@ export async function generateVideoFromScript({
         }),
       );
     } catch (err) {
+      if (err instanceof SupplyUnavailableError) throw err;
       if (err instanceof ProviderConfigurationError) throw err;
       console.warn(
         `[atomivid:storyboard] ${requestId} — no se pudo generar el storyboard, se continúa con el flujo actual:`,
@@ -119,7 +135,7 @@ export async function generateVideoFromScript({
   // palabra (así toda la narración usa la misma voz y ritmo).
   await onProgress?.("voice");
   const fullText = script.segments.map((s) => s.text).join(" ");
-  let voice = await voiceProvider.synthesize(fullText, language);
+  let voice = await synthesizeGated(fullText);
 
   // Verificación de duración REAL (no estimada) contra el objetivo de la
   // solicitud — nunca estira ni recorta el audio ya grabado (eso sonaría
@@ -142,7 +158,7 @@ export async function generateVideoFromScript({
     let durationResult = checkDuration(targetDurationSeconds, voice.durationSeconds);
     if (!durationResult.withinTolerance) {
       const correctedSpeed = voice.durationSeconds / targetDurationSeconds;
-      const correctedVoice = await voiceProvider.synthesize(fullText, language, correctedSpeed);
+      const correctedVoice = await synthesizeGated(fullText, correctedSpeed);
       const correctedResult = checkDuration(targetDurationSeconds, correctedVoice.durationSeconds);
       voice = correctedVoice;
       durationResult = correctedResult;
@@ -223,6 +239,7 @@ export async function generateVideoFromScript({
         try {
           const remainingBudgetUsd = Math.max(0, getFeatureFlags().maxVisualCostUsd - visualCostSpentUsd);
           const generated = await resolveGeneratedImageForScene({
+            ledger: gate.ledger,
             supabase,
             bucket: STORAGE_BUCKET,
             requestId,
@@ -260,6 +277,7 @@ export async function generateVideoFromScript({
           );
           resolvedViaGeneration = true;
         } catch (err) {
+      if (err instanceof SupplyUnavailableError) throw err;
           // Nunca cae a otro proveedor de PAGO como sustituto silencioso —
           // solo se registra el fallo y se sigue con stock (gratis) abajo.
           console.warn(
@@ -382,7 +400,7 @@ export async function generateVideoFromScript({
   let music: MusicResult | null = null;
   let musicFallbackReason: string | null = null;
   try {
-    music = await musicProvider.getTrack({
+    music = await gatedMusicTrack({ ...gate, musicProvider, estimatedCostUsd: Number(process.env.BEATOVEN_ESTIMATED_COST_USD || "0") }, {
       durationSeconds: finalDurationSeconds,
       style,
       topic,
@@ -391,6 +409,7 @@ export async function generateVideoFromScript({
       seed: requestId,
     });
   } catch (err) {
+      if (err instanceof SupplyUnavailableError) throw err;
     const errorName = err instanceof Error ? err.name : "Error";
     const errorMessage = err instanceof Error ? err.message : String(err);
     musicFallbackReason = `${errorName}: ${errorMessage}`;
@@ -456,6 +475,7 @@ export async function generateVideoFromScript({
       JSON.stringify({ requestId, target: LOUDNESS_TARGET, ...mastering }),
     );
   } catch (err) {
+      if (err instanceof SupplyUnavailableError) throw err;
     console.warn(
       `[atomivid:audio] ${requestId} — no se pudo masterizar el loudness (¿falta ffmpeg?), ` +
         "se sube el video sin normalizar:",

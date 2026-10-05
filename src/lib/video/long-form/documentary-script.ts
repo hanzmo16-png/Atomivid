@@ -15,6 +15,7 @@
  * Long Form (claims sourced/inference/unverified, sin eso Shorts no tiene
  * equivalente).
  */
+import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
@@ -29,7 +30,7 @@ function getClient(): Anthropic {
   if (!cachedClient) {
     const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
     if (!apiKey) throw new MissingEnvVarError("ANTHROPIC_API_KEY");
-    cachedClient = new Anthropic({ apiKey });
+    cachedClient = new Anthropic({ apiKey, maxRetries: 0 });
   }
   return cachedClient;
 }
@@ -204,13 +205,14 @@ con lo narrado — si la narración habla de 1904 en Panamá, la escena no puede
   const parse: ScriptParse =
     input.parse ??
     (async (args) => {
-      const response = await getClient().messages.parse({
+      const params = {
         model: SCRIPT_MODEL,
         max_tokens: 8000,
         system: args.system,
-        messages: [{ role: "user", content: args.prompt }],
+        messages: [{ role: "user" as const, content: args.prompt }],
         output_config: { format: zodOutputFormat(DocumentaryScriptSchema) },
-      });
+      };
+      const response = await supplyProtectedAnthropic(params, () => getClient().messages.parse(params, { maxRetries: 0 }));
       return response.parsed_output ?? null;
     });
 

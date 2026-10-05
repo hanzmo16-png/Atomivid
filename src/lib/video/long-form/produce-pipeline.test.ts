@@ -1,3 +1,6 @@
+function testPng(seed = 0) { const b = Buffer.alloc(224, seed % 256); Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0,73,72,68,82]).copy(b); b.writeUInt32BE(1024,16); b.writeUInt32BE(1024,20); return b; }
+import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
+import { memoryResultStore } from "@/lib/paid-calls/result-store";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -87,7 +90,7 @@ function providers(c: ReturnType<typeof counters>): LongFormProviderSet {
     isAvailable: () => true,
     async generateImage() {
       c.image += 1;
-      return { buffer: Buffer.from(`png-${c.image}`), mimeType: "image/png", extension: "png", model: "m", costUsd: 0.05 };
+      return { buffer: testPng(c.image), mimeType: "image/png", extension: "png", model: "m", costUsd: 0.05 };
     },
   };
   return { voiceProvider, footageProvider, imageProvider, musicProvider: fixtureMusicProvider };
@@ -109,6 +112,7 @@ function fakeVeo(c: ReturnType<typeof counters>): VideoProvider {
 }
 
 type Env = {
+  paidCalls: { ledger: ReturnType<typeof memoryLedgerStore>; results: ReturnType<typeof memoryResultStore> };
   supabase: ReturnType<typeof makeStorage>;
   mem: ReturnType<typeof memoryShotAssetStore>;
   budgetStore: ReturnType<typeof memoryBudgetStore>;
@@ -116,7 +120,7 @@ type Env = {
   reports: import("./visual-report").VisualReport[];
 };
 function freshEnv(outputOpts: Parameters<typeof memoryOutputDeps>[0] = {}): Env {
-  return { supabase: makeStorage(), mem: memoryShotAssetStore(), budgetStore: memoryBudgetStore(), out: memoryOutputDeps(outputOpts), reports: [] };
+  return { paidCalls: { ledger: memoryLedgerStore(), results: memoryResultStore() }, supabase: makeStorage(), mem: memoryShotAssetStore(), budgetStore: memoryBudgetStore(), out: memoryOutputDeps(outputOpts), reports: [] };
 }
 
 function planFor(strategy: VisualStrategy): ProductionPlan {
@@ -140,6 +144,7 @@ async function run(
   const events: { stage: ProgressStageKey; completed?: number; total?: number; label?: string }[] = [];
   let renderInput: RenderLongFormDocInput | null = null;
   const runtime: LongFormRuntime = {
+    paidCalls: env.paidCalls,
     store: env.mem.store,
     budgetStore: env.budgetStore,
     videoProvider: opts.videoProvider === undefined ? null : opts.videoProvider,

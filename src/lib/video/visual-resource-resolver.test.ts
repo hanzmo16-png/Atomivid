@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { resolveGeneratedImageForScene, findExistingGeneratedImage } from "./visual-resource-resolver";
 import type { ImageProvider } from "@/lib/providers/image";
 import type { StoryboardScene } from "./storyboard/types";
+import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 
 const BUCKET = "videos";
 
@@ -111,6 +112,7 @@ test("resolveGeneratedImageForScene reutiliza un archivo existente (idempotencia
   const { provider, callCount } = makeFakeImageProvider();
 
   const result = await resolveGeneratedImageForScene({
+      ledger: memoryLedgerStore(),
     supabase: fake,
     bucket: BUCKET,
     requestId: "req-1",
@@ -133,6 +135,7 @@ test("resolveGeneratedImageForScene genera y sube una imagen nueva cuando no exi
   const { provider, callCount } = makeFakeImageProvider();
 
   const result = await resolveGeneratedImageForScene({
+      ledger: memoryLedgerStore(),
     supabase: fake,
     bucket: BUCKET,
     requestId: "req-2",
@@ -164,6 +167,7 @@ test("resolveGeneratedImageForScene rechaza (sin subir nada) si el proveedor dev
   await assert.rejects(
     () =>
       resolveGeneratedImageForScene({
+      ledger: memoryLedgerStore(),
         supabase: fake,
         bucket: BUCKET,
         requestId: "req-3",
@@ -189,6 +193,7 @@ test("resolveGeneratedImageForScene propaga el error del proveedor tal cual (nun
   await assert.rejects(
     () =>
       resolveGeneratedImageForScene({
+      ledger: memoryLedgerStore(),
         supabase: fake,
         bucket: BUCKET,
         requestId: "req-4",

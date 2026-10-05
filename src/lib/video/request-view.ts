@@ -52,6 +52,7 @@ export type VideoRequestSummary = {
    * RequestCard.tsx.
    */
   recorded_audio_path?: string | null;
+  supply_wait_started_at?: string | null;
 };
 
 export const STATUS_LABEL: Record<string, string> = {

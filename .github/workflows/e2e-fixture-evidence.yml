@@ -37,6 +37,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Verify spending controls without provider calls
+        run: npm run test:spend
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: npx remotion browser ensure
       - name: Prepare synthetic test image (no personal photo)

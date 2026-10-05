@@ -1,3 +1,4 @@
+function testPng() { const b = Buffer.alloc(224); Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0,73,72,68,82]).copy(b); b.writeUInt32BE(1024,16); b.writeUInt32BE(1024,20); return b; }
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { executeShot, type ShotExecutionDeps } from "./shot-executor";
@@ -76,7 +77,7 @@ function fakeImages(behavior: (req: ImageGenerationRequest, n: number) => Promis
   return { provider, calls: () => calls };
 }
 
-const pngAsset = (): GenerativeAsset => ({ buffer: Buffer.from("png"), mimeType: "image/png", extension: "png", model: "gpt-image", costUsd: 0.05 });
+const pngAsset = (): GenerativeAsset => ({ buffer: testPng(), mimeType: "image/png", extension: "png", model: "gpt-image", costUsd: 0.05 });
 
 async function deps(overrides: Partial<ShotExecutionDeps> = {}, allocation = { maxAiImageGenerations: 5, maxAiVideoClips: 2, maxGenerativeUsd: 5 }) {
   const mem = memoryShotAssetStore();

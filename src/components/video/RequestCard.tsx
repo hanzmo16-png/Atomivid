@@ -102,9 +102,12 @@ export function RequestCard({
           )}
         </div>
 
+        {request.status === "processing" && request.supply_wait_started_at && (
+          <p className="mt-2 max-w-md text-sm text-warning">Estamos esperando disponibilidad de producción. Tu solicitud y sus avances están guardados.</p>
+        )}
         <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
           <Badge tone={STATUS_TONE[request.status] ?? "neutral"}>
-            {STATUS_LABEL[request.status] ?? request.status}
+            {request.status === "processing" && request.supply_wait_started_at ? "En espera" : STATUS_LABEL[request.status] ?? request.status}
           </Badge>
 
           {request.status === "pending" && <GenerateButton {...pendingRequestCta(request.id)} />}
