@@ -10,7 +10,7 @@ export type AuthUser = { id?: string; email?: string; email_confirmed_at?: strin
 
 export function isCommandCenterAdmin(user: AuthUser, env: Record<string, string | undefined> = process.env): boolean {
   if (!user?.email || !user.email_confirmed_at) return false;
-  if (canPrepareAvatar(user, env.AVATAR_PREPARATION_OWNER_EMAIL)) return true;
+  if (canPrepareAvatar(user, env.AVATAR_PREPARATION_OWNER_EMAIL, env)) return true;
   const extra = (env.COMMAND_CENTER_ADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
   return extra.includes(user.email.toLowerCase());
 }

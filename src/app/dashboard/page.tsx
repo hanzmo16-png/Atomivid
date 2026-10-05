@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { isSubscriptionActive } from "@/lib/billing/subscription";
+import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import { getSignedVideoUrl } from "@/lib/storage/signed-url";
 import type { VideoRequestSummary } from "@/lib/video/request-view";
 import { resolveHistoryViewState } from "@/lib/video/history-view";
@@ -69,6 +70,7 @@ export default async function DashboardPage({
   );
 
   const hasProcessing = (requests ?? []).some((r) => r.status === "processing");
+  const internalOwner = isInternalProductionOwner(user);
   const firstName = user?.email?.split("@")[0];
   // Server Component: se evalúa una sola vez por request en el servidor
   // (no hay re-render en el cliente que pueda desincronizarse), así que
@@ -93,7 +95,15 @@ export default async function DashboardPage({
       </div>
 
       <div className="mt-4 space-y-3">
-        {!subscribed && (
+        {internalOwner && (
+          <Alert tone="info">
+            Plan Propietario activo: producción al costo de proveedores, con los topes de gasto configurados.{" "}
+            <Link href="/dashboard/billing" className="font-medium underline">
+              Ver mi plan
+            </Link>
+          </Alert>
+        )}
+        {!subscribed && !internalOwner && (
           <Alert tone="info">
             Necesitas una suscripción activa para generar videos.{" "}
             <Link href="/dashboard/billing" className="font-medium underline">
