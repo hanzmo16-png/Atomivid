@@ -9,6 +9,7 @@ import { visualReviewFrames } from "./visual-review-media";
 export const REVIEW_MODEL = "gpt-4.1-mini-2025-04-14";
 export const REVIEW_RESERVATION_USD = 0.005;
 export const REVIEW_BUDGET_USD = 0.1;
+export const REVIEW_OUTPUT_TOKEN_LIMIT = 1024;
 export { visualReviewFrames, VisualAssetQualityError } from "./visual-review-media";
 
 export const VISUAL_REVIEW_POLICY = "literal-visual-quality/2";
@@ -47,7 +48,10 @@ export async function reviewVisual({ service, requestId, sceneIndex, intent, nar
   // UTF-8 bytes bound text tokens conservatively; allow 512 extra framing tokens.
   // Refuse before reserving/calling if even this upper estimate exceeds the hold.
   const upperInputTokens = Buffer.byteLength(prompt + SYSTEM) + 512 + inputFrames.length * Math.ceil(16 * 29 * 1.62);
-  if ((upperInputTokens * 0.4 + 512 * 1.6) / 1_000_000 > REVIEW_RESERVATION_USD) throw new Error("El plan visual supera la reserva de revisión. Reduce su descripción antes de generar.");
+  if ((upperInputTokens * 0.4 + REVIEW_OUTPUT_TOKEN_LIMIT * 1.6) / 1_000_000 > REVIEW_RESERVATION_USD) throw new Error("El plan visual supera la reserva de revisión. Reduce su descripción antes de generar.");
+  // Raising the response allowance must not invalidate paid identities. The verdict
+  // contract/policy stays identical: reuse completed reviews and block uncertain
+  // ones, including those submitted with the previous 512-token allowance.
   const guarded = await guardPaidCall<VisualVerdict>(ledger, {
     projectId: requestId, shotId: `visual-review:scene-${sceneIndex}`, provider: "openai", model: REVIEW_MODEL,
     method: "visual_relevance_review", reservedUsd: REVIEW_RESERVATION_USD,
@@ -57,7 +61,7 @@ export async function reviewVisual({ service, requestId, sceneIndex, intent, nar
       const response = await fetcher("https://api.openai.com/v1/responses", {
         method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         signal: AbortSignal.timeout(30_000),
-        body: JSON.stringify({ model: REVIEW_MODEL, store: false, max_output_tokens: 512,
+        body: JSON.stringify({ model: REVIEW_MODEL, store: false, max_output_tokens: REVIEW_OUTPUT_TOKEN_LIMIT,
           instructions: SYSTEM, input: [{ role: "user", content: [
             { type: "input_text", text: prompt }, ...inputFrames.map(image_url => ({ type: "input_image", image_url, detail: "high" })),
           ] }], text: { format: { type: "json_schema", name: "visual_verdict", strict: true, schema: {
@@ -68,12 +72,15 @@ export async function reviewVisual({ service, requestId, sceneIndex, intent, nar
         }),
       });
       if (!response.ok) throw new ProviderRejectedError(`La revisión visual respondió HTTP ${response.status}.`);
-      const body = await response.json() as { status: string; usage?: { input_tokens: number; output_tokens: number }; output: Array<{ content?: Array<{ type: string; text?: string }> }> };
+      const body = await response.json() as { status: string; incomplete_details?: { reason?: string } | null; usage?: { input_tokens: number; output_tokens: number }; output: Array<{ content?: Array<{ type: string; text?: string }> }> };
       // Keep the exact provider response privately before validation, so a parse failure
       // can be reconciled without buying another copy of the same verdict.
       const ref = paidResultPath(requestId, key, "json");
       await results.putJson(ref + ".provider-response.json", body);
-      if (body.status !== "completed") throw new Error("La revisión visual no terminó.");
+      if (body.status !== "completed") {
+        if (body.incomplete_details?.reason === "max_output_tokens") throw new Error("La revisión visual alcanzó el límite de respuesta. Se conservó el resultado para revisarlo sin repetir el cobro automáticamente.");
+        throw new Error("La revisión visual no terminó.");
+      }
       const text = body.output.flatMap(item => item.content ?? []).find(item => item.type === "output_text")?.text;
       const parsed = JSON.parse(text ?? "null");
       // Explanation length is presentation, never an acceptance criterion.

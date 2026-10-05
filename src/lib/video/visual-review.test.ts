@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { memoryResultStore } from "@/lib/paid-calls/result-store";
+import { memoryResultStore, sha256Hex } from "@/lib/paid-calls/result-store";
+import { paidCallKey } from "@/lib/paid-calls/gate";
 import type { LedgerStore, PaidOperation } from "@/lib/production-intelligence/ledger";
-import { reviewVisual, REVIEW_MODEL } from "./visual-review";
+import { reviewVisual, REVIEW_MODEL, REVIEW_OUTPUT_TOKEN_LIMIT, REVIEW_RESERVATION_USD } from "./visual-review";
 import type { VisualIntent } from "./visual-intent";
 
 const intent: VisualIntent = { source: "illustration", subject: "grey alien figure", mustShow: ["large head", "large black eyes"], mustNotShow: ["lamp"], imagePrompt: "A grey alien figure with a large head and large black eyes." };
@@ -21,11 +22,21 @@ test("vision receives image pixels plus literal requirements; retries reuse the 
     const fetcher: typeof fetch = async (_url, options) => {
       calls++; const body = JSON.parse(String(options?.body));
       assert.equal(body.model, REVIEW_MODEL); assert.equal(body.store, false);
-      assert.equal(body.max_output_tokens, 512);
+      assert.equal(body.max_output_tokens, 1024);
       for (const field of ["subjectClear", "compositionAcceptable", "visualArtifactsPresent"]) assert.ok(body.text.format.schema.required.includes(field));
       assert.equal(body.input[0].content[1].detail, "high");
       assert.match(body.instructions, /Judge EVERY supplied view/);
       assert.equal([...rows.values()].filter(row => row.status === "SUBMITTED").length, 1);
+      if (calls === 1) {
+        // Identity from the previous 512-token implementation: raising the output
+        // allowance cannot create a new paid key for the same existing review.
+        const previousKey = paidCallKey({ projectId: "request", shotId: "visual-review:scene-0", provider: "openai", model: REVIEW_MODEL,
+          method: "visual_relevance_review", reservedUsd: 0.005,
+          inputFingerprint: { policy: "literal-visual-quality/2", instructionsSha256: sha256Hex(Buffer.from(body.instructions)),
+            responseContract: { reasonMaxCharacters: 240, qualityFieldsRequired: true }, intent, narration: "A grey alien",
+            mediaSha256: sha256Hex(Buffer.from("asset")), frameSha256: [sha256Hex(Buffer.from("data:image/jpeg;base64,cGl4ZWxz"))] } });
+        assert.equal([...rows.values()][0].idempotencyKey, previousKey);
+      }
       assert.match(body.input[0].content[0].text, /grey alien/);
       assert.match(body.input[0].content[1].image_url, /^data:image\/jpeg;base64,/);
       return new Response(JSON.stringify({ status: "completed", usage: { input_tokens: 900, output_tokens: 100 }, output: [{ content: [{ type: "output_text", text: JSON.stringify(verdict) }] }] }), { status: 200 });
@@ -35,6 +46,44 @@ test("vision receives image pixels plus literal requirements; retries reuse the 
     const reused = await reviewVisual(args); assert.equal(reused.reused, true); assert.equal(reused.costUsd, 0); assert.equal(calls, 1);
     const changed = await reviewVisual({ ...args, intent: { ...intent, subject: "another alien" } });
     assert.equal(changed.reused, false); assert.equal(calls, 2);
+  } finally { if (old === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = old; }
+});
+
+test("an incomplete token-limited response never passes, stays private, and cannot be purchased again", async () => {
+  const old = process.env.OPENAI_API_KEY; process.env.OPENAI_API_KEY = "test-key";
+  try {
+    const { port, rows } = ledger(), results = memoryResultStore(); let calls = 0;
+    // Even apparently valid output is not trustworthy when its response is incomplete.
+    const response = { status: "incomplete", incomplete_details: { reason: "max_output_tokens" }, usage: { input_tokens: 900, output_tokens: 512 },
+      output: [{ content: [{ type: "output_text", text: JSON.stringify(verdict) }] }] };
+    const args = { service: {} as SupabaseClient, requestId: "r", sceneIndex: 0, intent, narration: "A grey alien", buffer: Buffer.from("asset"), mediaType: "image" as const, durationSeconds: 3,
+      ledger: port, results, frames: async () => ["data:image/jpeg;base64,cGl4ZWxz"],
+      fetcher: (async () => { calls++; return new Response(JSON.stringify(response), { status: 200 }); }) as typeof fetch };
+    await assert.rejects(reviewVisual(args), /límite de respuesta/);
+    assert.equal([...rows.values()][0].status, "RECONCILIATION_REQUIRED");
+    assert.equal(results.objects.size, 1);
+    assert.deepEqual(JSON.parse([...results.objects.values()][0].toString()), response);
+    await assert.rejects(reviewVisual(args), /reconcile/);
+    assert.equal(calls, 1);
+  } finally { if (old === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = old; }
+});
+
+test("the expanded response allowance fits six views when bounded and blocks oversize input before reservation", async () => {
+  const old = process.env.OPENAI_API_KEY; process.env.OPENAI_API_KEY = "test-key";
+  try {
+    const { port, rows } = ledger(); let calls = 0;
+    const args = { service: {} as SupabaseClient, requestId: "r", sceneIndex: 0, intent, narration: "A grey alien", buffer: Buffer.from("asset"), mediaType: "video" as const, durationSeconds: 3,
+      ledger: port, results: memoryResultStore(), frames: async () => Array(6).fill("data:image/jpeg;base64,cGl4ZWxz") as string[],
+      fetcher: (async (_url, options) => {
+        calls++; const body = JSON.parse(String(options?.body));
+        const upperInputTokens = Buffer.byteLength(body.instructions + body.input[0].content[0].text) + 512 + 6 * Math.ceil(16 * 29 * 1.62);
+        assert.equal(body.max_output_tokens, REVIEW_OUTPUT_TOKEN_LIMIT);
+        assert.ok((upperInputTokens * 0.4 + body.max_output_tokens * 1.6) / 1_000_000 <= REVIEW_RESERVATION_USD);
+        return new Response(JSON.stringify({ status: "completed", output: [{ content: [{ type: "output_text", text: JSON.stringify(verdict) }] }] }), { status: 200 });
+      }) as typeof fetch };
+    assert.equal((await reviewVisual(args)).accepted, true);
+    await assert.rejects(reviewVisual({ ...args, narration: "a".repeat(2000) }), /supera la reserva/);
+    assert.equal(calls, 1); assert.equal(rows.size, 1);
   } finally { if (old === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = old; }
 });
 
