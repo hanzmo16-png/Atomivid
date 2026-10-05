@@ -126,3 +126,23 @@ test("sensitive admin responses stay no-store; page is force-dynamic and noindex
   assert.ok(page.includes('force-dynamic') && page.includes("index: false") && page.includes("isCommandCenterAdmin") && page.includes("notFound()"));
   assert.equal(networkCalls, 0);
 });
+
+test("expired provider evidence and missing registry entries stay visible as UNKNOWN in the actual panel", async () => {
+  const { html, vm } = await render({ ...RICH, capacity: [{ ...RICH.capacity![0], checkedAt: "2026-10-29T18:00:00Z" }], capacityProviders: ["elevenlabs", "heygen"] }, { youtubeConfigured: true });
+  assert.equal(vm.overall.status, "Partial Data");
+  assert.ok(vm.providers.cards.every(p => p.state === "UNKNOWN" && p.balance === "Unavailable" && p.reserved === "Unavailable"));
+  assert.ok(html.includes("Balance needs refresh")); assert.ok(html.includes("No capacity snapshot recorded yet"));
+  assert.ok(!html.includes('data-state="HEALTHY"'));
+});
+
+test("an empty capacity source cannot claim providers READY even with YouTube connected", async () => {
+  const { vm } = await render({ ...RICH, capacity: [] }, { youtubeConfigured: true });
+  assert.equal(vm.overall.status, "Partial Data");
+  assert.equal(vm.health.find(h => h.id === "providers")?.state, "UNKNOWN");
+});
+
+test("provider USD balances and reservations preserve cents", async () => {
+  const { vm } = await render({ ...RICH, capacity: [{ ...RICH.capacity![0], provider: "openai", unit: "usd", available: 2.97, reserved: 0.15 }] });
+  assert.equal(vm.providers.cards[0].balance, "2.97 USD");
+  assert.equal(vm.providers.cards[0].reserved, "0.15 USD");
+});

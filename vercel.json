@@ -1,7 +1,8 @@
 {
   "git": {
     "deploymentEnabled": {
-      "codex/provider-monitor-ready": false
+      "codex/provider-monitor-ready": false,
+      "codex/internal-readiness-isolated": false
     }
   }
 }
