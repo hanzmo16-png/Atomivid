@@ -9,6 +9,7 @@ import { buildCheckoutUrl } from "@/lib/billing/checkout";
 import { SupabaseQueryError, classifyBillingError, logBillingError } from "@/lib/billing/checkout-error";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { getPlanPriceId, planPriceIdEnvVar, type PlanId } from "@/lib/billing/plans";
+import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 
 /**
  * No es un error real — es una señal interna para salir del try/catch de
@@ -58,6 +59,8 @@ export async function createCheckoutSession(planId: PlanId) {
   if (!user) {
     redirect("/login");
   }
+  // An internal owner must not accidentally purchase the retail subscription.
+  if (isInternalProductionOwner(user)) redirect("/dashboard/billing");
 
   let checkoutUrl: string;
   try {

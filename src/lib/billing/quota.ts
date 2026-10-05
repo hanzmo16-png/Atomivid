@@ -1,7 +1,7 @@
 import { isSubscriptionActive } from "./subscription";
 import { getPlanByPriceId, PLAN_CONFIGS, type PlanConfig } from "./plans";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
-import { canProduceInternalLongForm } from "./internal-production";
+import { isInternalProductionOwner, INTERNAL_PRODUCTION_MODES } from "./internal-production";
 import type { createServiceClient } from "@/lib/supabase/service";
 
 type ServiceClient = ReturnType<typeof createServiceClient>;
@@ -77,6 +77,7 @@ export async function avatarEntitlementPreview(
   userId: string,
   user: MinimalUser,
 ): Promise<{ blocked: boolean; reason?: string }> {
+  if (user?.id === userId && isInternalProductionOwner(user)) return { blocked: false };
   const resolution = await resolveActivePlan(service, userId);
   if (!resolution.active) return { blocked: true, reason: resolution.reason };
   const limit = resolveAvatarLimit(resolution.plan, user);
@@ -101,11 +102,11 @@ export async function assertCanGenerate(
    */
   user?: MinimalUser,
 ): Promise<GenerationCheck> {
-  // Owner-authorized internal production replaces only the retail subscription
-  // requirement for Long Form. The authenticated identity must own the request.
+  // Owner-authorized internal production replaces the retail subscription
+  // requirement for supported modes. The authenticated identity must own the request.
   // Global/provider cash ceilings, job reservations and worker slots still run
   // in the render route, and every paid call still passes the durable supply gate.
-  if (mode === "long_form" && user?.id === userId && canProduceInternalLongForm(user)) {
+  if ((INTERNAL_PRODUCTION_MODES as readonly string[]).includes(mode) && user?.id === userId && isInternalProductionOwner(user)) {
     return { allowed: true };
   }
   const resolution = await resolveActivePlan(service, userId);
