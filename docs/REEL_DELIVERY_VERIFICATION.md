@@ -21,9 +21,15 @@ Validation: 37 focused tests passed, including stale-state regression cases, pro
 
 ## Still required
 
-1. Deploy these delivery corrections to Preview and verify the exact commit.
+1. COMPLETED: delivery corrections `20e137529c3577172f8f2acb8d4f67fdb34fb86a` are READY in Preview deployment `dpl_DJcQE8aicnniS7BbQZ6kQCuyQjVx`, confirmed by the Vercel connector after the owner deployed them.
 2. Complete browser playback and download verification when this browser permits them. Compare the downloaded bytes with the accepted MP4 without generating again.
 3. Prove the normal authenticated render-admission click and live progress separately. The completed request must not be reset or regenerated to manufacture that proof.
 4. Keep production activation and quality-feature rollout separate from this read-only result verification. Owner approval and actual applicable budget remain necessary for any further provider consumption.
 
 No new paid calls, changes to subscription/quota, request state, grants, or financial receipts were made during this verification.
+
+## Follow-up server delivery check
+
+The authenticated result page on the new Preview again showed Listo. Native credential protection blocked console inspection and the UI download-event check; the browser runtime reset after its rejected asynchronous observation. No playback or UI-download success is claimed, and no further browser workaround is attempted.
+
+`owner-reel-delivery-check.ts` checks the exact already accepted object in an isolated worker with existing server credentials. It creates its own 120-second URL using the same owner-scoped signing helper as the page, checks full-byte hash, media MIME, byte-range delivery, download attachment headers, and unsigned denial. It reads no browser credentials, cookies, signed URLs or network state. It never generates, resets the completed request, or changes paid receipts. Only a private technical report is written under the owned request; public logs contain categorical pass/fail. The normal browser flow still requires separate evidence. Results are pending until the worker's private report is read.
