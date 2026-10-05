@@ -1,6 +1,7 @@
 import { isSubscriptionActive } from "./subscription";
 import { getPlanByPriceId, PLAN_CONFIGS, type PlanConfig } from "./plans";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
+import { canProduceInternalLongForm } from "./internal-production";
 import type { createServiceClient } from "@/lib/supabase/service";
 
 type ServiceClient = ReturnType<typeof createServiceClient>;
@@ -9,7 +10,7 @@ export type GenerationCheck =
   | { allowed: true }
   | { allowed: false; reason: string };
 
-type MinimalUser = { email?: string; email_confirmed_at?: string } | null | undefined;
+type MinimalUser = { id?: string; email?: string; email_confirmed_at?: string } | null | undefined;
 
 /**
  * QA bypass EXCLUSIVO para la cuenta beta/admin allowlisted
@@ -100,6 +101,13 @@ export async function assertCanGenerate(
    */
   user?: MinimalUser,
 ): Promise<GenerationCheck> {
+  // Owner-authorized internal production replaces only the retail subscription
+  // requirement for Long Form. The authenticated identity must own the request.
+  // Global/provider cash ceilings, job reservations and worker slots still run
+  // in the render route, and every paid call still passes the durable supply gate.
+  if (mode === "long_form" && user?.id === userId && canProduceInternalLongForm(user)) {
+    return { allowed: true };
+  }
   const resolution = await resolveActivePlan(service, userId);
   if (!resolution.active) return { allowed: false, reason: resolution.reason };
   const { plan } = resolution;

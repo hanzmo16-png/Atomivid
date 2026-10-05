@@ -5,6 +5,24 @@ import { assertCanGenerate, avatarEntitlementPreview } from "./quota";
 const BETA_EMAIL = "beta-qa@example.test";
 const BETA_USER = { email: BETA_EMAIL, email_confirmed_at: "2026-09-18" };
 
+test("internal Long Form entitlement is identity-bound and does not create a retail subscription", async t => {
+  const id = "12345678-1234-4234-8234-123456789abc";
+  const previous = process.env.INTERNAL_LONG_FORM_USER_ID;
+  process.env.INTERNAL_LONG_FORM_USER_ID = id;
+  t.after(() => { if (previous === undefined) delete process.env.INTERNAL_LONG_FORM_USER_ID; else process.env.INTERNAL_LONG_FORM_USER_ID = previous; });
+  const user = { id, email_confirmed_at: "2026-10-05" };
+  const service = fakeService({});
+  assert.deepEqual(await assertCanGenerate(service, id, "long_form", user), { allowed: true });
+  for (const mode of ["visual", "avatar", "hybrid"]) {
+    assert.equal((await assertCanGenerate(service, id, mode, user)).allowed, false);
+  }
+  assert.equal((await assertCanGenerate(service, "another-user", "long_form", user)).allowed, false);
+  assert.equal((await assertCanGenerate(service, id, "long_form", { id })).allowed, false);
+  assert.equal((await assertCanGenerate(service, id, "long_form")).allowed, false);
+  delete process.env.INTERNAL_LONG_FORM_USER_ID;
+  assert.equal((await assertCanGenerate(service, id, "long_form", user)).allowed, false);
+});
+
 /** Fija AVATAR_PREPARATION_OWNER_EMAIL durante el test y lo restaura después — mismo patrón que STRIPE_PRICE_ID_PRO más abajo. */
 function withBetaOwnerEnv(t: { after: (fn: () => void) => void }) {
   const original = process.env.AVATAR_PREPARATION_OWNER_EMAIL;

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { isSubscriptionActive } from "@/lib/billing/subscription";
+import { canProduceInternalLongForm } from "@/lib/billing/internal-production";
 import { getSignedVideoUrl } from "@/lib/storage/signed-url";
 import type { VideoRequestSummary } from "@/lib/video/request-view";
 import { resolveHistoryViewState } from "@/lib/video/history-view";
@@ -69,6 +70,7 @@ export default async function DashboardPage({
   );
 
   const hasProcessing = (requests ?? []).some((r) => r.status === "processing");
+  const internalLongForm = canProduceInternalLongForm(user);
   const firstName = user?.email?.split("@")[0];
   // Server Component: se evalúa una sola vez por request en el servidor
   // (no hay re-render en el cliente que pueda desincronizarse), así que
@@ -93,7 +95,15 @@ export default async function DashboardPage({
       </div>
 
       <div className="mt-4 space-y-3">
-        {!subscribed && (
+        {internalLongForm && (
+          <Alert tone="info">
+            Producción interna de Long Form habilitada, sujeta a los saldos y topes de gasto configurados.{" "}
+            <Link href="/dashboard/long-form/new" className="font-medium underline">
+              Crear documental
+            </Link>
+          </Alert>
+        )}
+        {!subscribed && !internalLongForm && (
           <Alert tone="info">
             Necesitas una suscripción activa para generar videos.{" "}
             <Link href="/dashboard/billing" className="font-medium underline">
