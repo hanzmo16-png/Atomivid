@@ -1,5 +1,4 @@
 {
-  "stage": "fetch",
-  "requestId": "fetch-dulce-1",
-  "what": ["dulce"]
+  "stage": "render",
+  "requestId": "render-1"
 }
