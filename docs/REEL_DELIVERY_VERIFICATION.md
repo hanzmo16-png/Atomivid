@@ -22,7 +22,7 @@ Validation: 37 focused tests passed, including stale-state regression cases, pro
 ## Still required
 
 1. COMPLETED: delivery corrections `20e137529c3577172f8f2acb8d4f67fdb34fb86a` are READY in Preview deployment `dpl_DJcQE8aicnniS7BbQZ6kQCuyQjVx`, confirmed by the Vercel connector after the owner deployed them.
-2. Complete browser playback and download verification when this browser permits them. Compare the downloaded bytes with the accepted MP4 without generating again.
+2. COMPLETED by owner confirmation: on 2026-10-05 at 07:29 America/Cancun, the owner reported that the existing reel plays and downloads from the supplied Preview. The server's accepted-file hash check remains separate from this manual UI confirmation; no browser-download byte comparison by the agent is claimed.
 3. Prove the normal authenticated render-admission click and live progress separately. The completed request must not be reset or regenerated to manufacture that proof.
 4. Keep production activation and quality-feature rollout separate from this read-only result verification. Owner approval and actual applicable budget remain necessary for any further provider consumption.
 
@@ -37,3 +37,7 @@ The authenticated result page on the new Preview again showed Listo. Native cred
 ### Confirmed server result
 
 Worker commit `33749f9b95227714b3fd6b0ea641fdda4619c4fe`, Actions run `37306651108`, checked at 2026-10-05 12:01:31 UTC. The private Storage report was read independently through its technical metadata: all 13 checks passed, failure null, provider calls zero. Full signed read returned HTTP 200 with `video/mp4` and exact accepted byte length/hash. Byte-range and download requests returned HTTP 206 with matching bytes; the download response included attachment disposition and the intended filename. The same path without its signature was denied with HTTP 400. The owned completed request remained unchanged. Browser playback and UI download remain explicitly unverified.
+
+### Owner confirmation closes the delivery check
+
+The subsequent owner message was: “Listo lo reproduce y lo descarga.” This supplies the previously missing manual UI evidence for playback and download. The diagnostic report's browser flags correctly describe what the automated worker verified at its earlier execution; do not rewrite them as automated browser success. This closes delivery verification for this existing reel, not the still-pending normal render-admission click, live progress, other video modes, or production rollout.
