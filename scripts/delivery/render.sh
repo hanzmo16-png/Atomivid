@@ -8,7 +8,7 @@ FETCH_WHAT=dulce,dulce-master,thermopylae node scripts/delivery/fetch.mjs
 DM="$F/DULCE-Part-I-master.mp4"; TM="$F/VIDEO-004-v3-master.mp4"
 
 node scripts/delivery/edit.mjs dulce "$DM" "$F/src" "$OUT"
-node scripts/delivery/edit.mjs thermopylae "$TM" "$F/src" "$OUT"
+EDIT_CRF=18 node scripts/delivery/edit.mjs thermopylae "$TM" "$F/src" "$OUT"
 DN="$OUT/DULCE-Part-I-review-v2.mp4"; TN="$OUT/Thermopylae-The-Annals-of-History-review-v4.mp4"
 
 echo '[[11.03,13.40],[29.70,32.97],[73.93,82.14],[455.86,462.24],[521.13,527.24],[576.70,582.70]]' > "$OUT/win-dulce.json"
