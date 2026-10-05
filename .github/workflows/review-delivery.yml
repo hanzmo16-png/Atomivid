@@ -26,11 +26,12 @@ jobs:
       - name: Resolve request
         id: request
         run: |
-          node -e "const r=require('./content/delivery/request.json'); if(!['fetch','render'].includes(r.stage)) throw Error('bad stage'); require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'stage='+r.stage+'\n')"
+          node -e "const r=require('./content/delivery/request.json'); if(!['fetch','render'].includes(r.stage)) throw Error('bad stage'); require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'stage='+r.stage+'\nwhat='+(r.what||['thermopylae']).join(',')+'\n')"
       - name: Fetch approved masters and sources
         if: steps.request.outputs.stage == 'fetch'
         run: node scripts/delivery/fetch.mjs
         env:
+          FETCH_WHAT: ${{ steps.request.outputs.what }}
           DELIVERY_OUT: ${{ runner.temp }}/delivery
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

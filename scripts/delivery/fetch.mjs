@@ -15,6 +15,18 @@ const MUSIC = ['elevenlabs-inspirational-2'];
 
 const dir = path.join(OUT, 'fetch'); await fs.mkdir(path.join(dir, 'src'), {recursive: true});
 const report = {master: null, sources: [], missing: []};
+const WHAT = (process.env.FETCH_WHAT || 'thermopylae').split(',');
+
+if (WHAT.includes('dulce')) {
+  // DULCE Part I: the V1 clip under the two Castello notices, and the listing of the approved final.
+  const clip = 'long-form/dulce-001-full-v1/ai-video/D07-03-v3-D07-03-v3.mp4';
+  const b = await download('videos', clip, path.join(dir, 'src', 'D07-03-v3.mp4'));
+  report.sources.push({path: clip, bytes: b.length, sha256: sha256(b)});
+  report.dulceFinalListing = await list('videos', 'dulce-part1/final/');
+  report.dulceWatchListing = await list('videos', 'dulce-part1/watch/');
+  await fs.writeFile(path.join(dir, 'fetch-report.json'), JSON.stringify(report, null, 2));
+  if (!WHAT.includes('thermopylae')) { console.log(JSON.stringify(report.sources)); process.exit(0); }
+}
 
 // 1) Master V3 from parts + manifest.
 const items = await list('videos', `${P}/final-v3/`);
