@@ -4,6 +4,16 @@ Actualización: 5 de octubre de 2026. El objetivo es terminar las funciones exis
 
 ## Comportamiento implementado
 
+### Respaldo financiero de cuotas
+
+El Command Center del propietario/admin añade una estimación de todas las cuotas todavía disponibles en el mes natural usado por el contador existente. Las cuentas trial también consumen recursos: se muestran por separado y no se presentan como ventas cobradas. Los planes sin correspondencia verificada mantienen la reserva total en «Sin verificar».
+
+La estimación suma las cuotas sin usar y el respaldo de los trabajos en curso, con 30 % de contingencia. Un trabajo que ya consume cuota no se vuelve a contar como video sin solicitar. Sus reservas de proveedores se agrupan y se usa el mayor entre el costo completo estimado y el resto reservado; las reservas abiertas de trabajos antiguos o fallidos se preservan. El acceso privado a avatar y Long Form también se considera; si una cuota puede utilizarse en varios modos, se respalda por el más costoso permitido.
+
+Las tarifas `SUPPLY_RESERVE_REEL_USD`, `SUPPLY_RESERVE_AVATAR_USD` y `SUPPLY_RESERVE_LONG_FORM_USD` son costos de planificación por trabajo completo, sin valores asumidos. Deben incluir guion, voz, imágenes, revisión, render y correcciones permitidas. No representan facturas, un saldo bancario ni una compra. El panel no calcula dinero libre para publicidad mientras no exista conciliación de fondos, cobros pendientes, gastos e impuestos. No aplica un nuevo bloqueo a clientes ni modifica sus cuotas; los controles de suministro por trabajo siguen siendo los que autorizan cada llamada.
+
+Esta versión es una estimación operativa de lectura, no una contabilidad automática completa. Los datos se paginan y los errores parciales no se convierten en cero. Hace falta verificar tarifas, fondos y obligaciones de los planes reales antes de certificar cobertura para el lanzamiento.
+
 | Situación | Control | Resultado |
 |---|---|---|
 | Empieza un reel, avatar o documental | Reserva atómica de unidades por proveedor y dinero para todo el trabajo | No acepta producción sin recursos y presupuesto comprobados |

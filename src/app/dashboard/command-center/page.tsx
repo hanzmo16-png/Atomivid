@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import { readSupplyOverview } from "@/lib/supply/admin";
 import { SupplyPanel } from "./SupplyPanel";
+import { readObligationOverview } from "@/lib/supply/obligations-server";
+import { FinancePanel } from "./FinancePanel";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -26,9 +28,10 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   const window: WindowKey = isWindowKey(sp.window) ? sp.window : "7D";
   const sb = createServiceClient();
   const supplyPromise = readSupplyOverview(sb).catch(() => null);
+  const financePromise = readObligationOverview(sb).catch(() => null);
   const service = new CommandCenterService({ source: supabaseSource(sb), now: () => new Date().toISOString() });
   const overview = await service.section(user, "overview", window);
   const vm = buildViewModel({ data: overview.data as Parameters<typeof buildViewModel>[0]["data"], window, generatedAt: overview.generatedAt, youtubeConfigured: youtubeConfigured(process.env), pwaReady: fs.existsSync("public/icons/icon-192.png") });
-  const supply = await supplyPromise;
-  return <><SupplyPanel data={supply} /><CommandCenterView vm={vm} /></>;
+  const [supply, finance] = await Promise.all([supplyPromise, financePromise]);
+  return <><SupplyPanel data={supply} /><FinancePanel data={finance} /><CommandCenterView vm={vm} /></>;
 }
