@@ -10,4 +10,5 @@ The approved black-shirt avatar is request `245a8a51-a699-4f69-a387-7c11246a0b7f
 
 Technical delivery success does not establish visual identity, lip synchronization, voice quality, or playback in the user's browser. Those remain separate review criteria. Do not reset old DID attempts, migrate beta assets to another owner, or reuse expired trial grants. No new provider calls are authorized by this diagnostic.
 
-Local validation: diagnostic TypeScript check and five existing owner-scoped signing/access tests passed. Worker result is pending.
+Local validation: diagnostic TypeScript check and five existing owner-scoped signing/access tests passed. Worker result: PASSED (11/11 checks), GitHub Actions run `37311444040`, job `111767574109`, diagnostic commit `d0643700263474c47c23c5cfc6be25c8f5acf530`; completed successfully. Zero provider calls. Private report checked at 2026-10-05T12:43:21.044Z. Media: 720×1280 H.264/AAC, 42.800 seconds; saved narration 42.794667 seconds; complete decode passed. SHA-256 `1a9920e99b16554e882e3e38c4b9e6e1412a4d07f3fabcf23b66406cebe902fa`. The request remained unchanged. Browser playback, visual identity and lip synchronization remain unverified by this audit.
+
