@@ -22,7 +22,7 @@ Entrega para revisión humana. No está publicado ni listo para publicar hasta t
 4. **Tarjeta final:**
    - Alargada de 1,5 s a 4,0 s (+2,5 s) para que el crédito se vea unos 3 s.
    - Contenido: título, "THE ANNALS OF HISTORY" y fuentes.
-   - Crédito: logotipo oficial (solo el átomo) y "Powered by AtomiBit", abajo en el centro, de 12:30,2 a 12:33,7. Queda libre la zona central para la pantalla final de YouTube.
+   - Crédito: "Powered by" seguido del logotipo oficial de Atomivid (átomo y nombre), abajo en el centro, de 12:30,2 a 12:33,7. Queda libre la zona central para la pantalla final de YouTube.
 5. **Música del cierre:**
    - Es la misma pista del final (elevenlabs-inspirational-2), con su propia salida natural.
    - Se igualó el nivel a la mezcla y se unió con un fundido cruzado de 1 s en 12:29–12:30.
@@ -39,8 +39,7 @@ Se revisaron los cuatro: Efialtes de Traquis, atribución a Simónides, lambda y
 En YouTube Studio marca "Sí": escenas de batalla y personas realistas generadas con IA, y voz sintética.
 
 ## Declaración comercial
-AtomiBit es nuestra propia plataforma, no un patrocinio de terceros, así que no corresponde marcar "promoción pagada". La relación se hace explícita en la descripción.
+Atomivid es nuestra propia plataforma, no un patrocinio de terceros, así que no corresponde marcar "promoción pagada". La relación se hace explícita en la descripción.
 
 ## Pendientes
-- **Nombre de marca:** el logo oficial del repositorio lleva el nombre "Atomivid". Se usó solo el símbolo junto a "Powered by AtomiBit". Confirma el nombre.
-- **Enlace:** no se incluye ninguno a AtomiBit, porque no hay un dominio verificado.
+- **Enlace:** el enlace a https://atomivid.vercel.app solo se añade a la descripción si el flujo de entrega lo encontró público (ver `site-check` en el informe).

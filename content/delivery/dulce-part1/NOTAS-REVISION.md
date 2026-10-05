@@ -17,7 +17,7 @@ Entrega para revisión humana. No está publicado ni listo para publicar hasta t
    - Ambos planos se reconstruyeron desde el clip aprobado D07-03 (V1), así que el texto pequeño anterior ya no aparece.
    - Gráfico de los siete niveles (0:11, 1:14, 7:36): la cabecera pasa de texto gris de 28 px a "ACCOUNT ATTRIBUTED TO THOMAS CASTELLO · NOT VERIFIED" en blanco y ámbar a 35–39 px. El movimiento de cámara es el mismo.
 2. **Tarjeta final:** "DULCE / The investigation continues in Part II" y el aviso "Dramatized reconstruction of claims attributed to Thomas Castello. Not verified." en tamaño legible. Ya no se anuncia "PART II: NIGHTMARE HALL" ni se da fecha.
-3. **Crédito:** logotipo oficial (solo el átomo) y "Powered by AtomiBit".
+3. **Crédito:** "Powered by" seguido del logotipo oficial de Atomivid (átomo y nombre, colores y proporciones de `Logo.tsx`).
    - Abajo en el centro, de 9:39.4 a 9:42.7 (≈3,3 s; el último segundo con el fundido final existente).
    - Queda libre la franja central para los elementos de la pantalla final de YouTube.
    - Sin locución ni audio nuevo.
@@ -30,10 +30,9 @@ Guion, narración, montaje, música, subtítulos y tiempos.
 En YouTube Studio marca "Sí": personas y escenas realistas generadas con IA, y voz sintética. La descripción también lo indica.
 
 ## Declaración comercial
-AtomiBit es nuestra propia plataforma, no un patrocinio de terceros. No hay pago de terceros ni colocación de producto. Por eso no corresponde marcar "promoción pagada". La relación se hace explícita en la descripción: "Powered by AtomiBit — our own AI-assisted video creation platform."
+Atomivid es nuestra propia plataforma, no un patrocinio de terceros. No hay pago de terceros ni colocación de producto. Por eso no corresponde marcar "promoción pagada". La relación se hace explícita en la descripción: "Powered by Atomivid — our own AI-assisted video creation platform."
 
 ## Pendientes
-- **Nombre de marca:** el logo oficial del repositorio lleva el nombre "Atomivid" y la web pública es atomivid.vercel.app. Se usó solo el símbolo del átomo junto al texto "Powered by AtomiBit". Confirma el nombre; cambiarlo cuesta un render gratuito.
 - **Canal:** pendiente. El video no lleva marca de canal.
-- **Enlace:** no se incluye ninguno a AtomiBit, porque no hay un dominio "AtomiBit" verificado y público.
+- **Enlace:** el enlace a https://atomivid.vercel.app solo se añade a la descripción si el flujo de entrega lo encontró público (ver `site-check` en el informe).
 - **Fuentes:** las de Bennewitz y Castello se comprobaron con búsquedas web. Contrasta el libro de Bishop y la conferencia de Moore antes de publicar.

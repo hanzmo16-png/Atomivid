@@ -16,12 +16,20 @@ echo '[[49.70,54.77],[689.63,698.67],[740.06,753.70]]' > "$OUT/win-thermo.json"
 node scripts/delivery/qa.mjs "$DN" "$DM" "$OUT/win-dulce.json" "$OUT/qa-dulce.json"
 node scripts/delivery/qa.mjs "$TN" "$TM" "$OUT/win-thermo.json" "$OUT/qa-thermopylae.json"
 
+# Official public site: linked only if it answers publicly right now.
+SITE=https://atomivid.vercel.app; CODE=$(curl -s -o /tmp/site.html -w '%{http_code}' -L --max-time 20 "$SITE" || echo 000)
+if [ "$CODE" = "200" ] && grep -qi "atomivid" /tmp/site.html; then LINK="$SITE"; else LINK=""; fi
+echo "{\"site\":\"$SITE\",\"http\":\"$CODE\",\"linked\":$( [ -n "$LINK" ] && echo true || echo false )}" > "$OUT/site-check.json"; cat "$OUT/site-check.json"
+for v in dulce-part1 thermopylae; do
+  if [ -n "$LINK" ]; then sed -i "s#{{ATOMIVID_LINK}}#$LINK#" content/delivery/$v/YOUTUBE-TEXT.md; else sed -i '/{{ATOMIVID_LINK}}/d' content/delivery/$v/YOUTUBE-TEXT.md; fi
+done
+
 pkg() { # video dir, master, base name, closing capture time, thumbnail, srt, text
   local d="$P/$1" m="$2" b="$3"
   cp "$m" "$d/$b.mp4"
   ffmpeg -loglevel error -y -i "$m" -vf scale=854:480:flags=lanczos -c:v libx264 -preset medium -crf 27 -c:a aac -b:a 96k -movflags +faststart "$d/$b-proxy-480p.mp4"
   ffmpeg -loglevel error -y -ss "$4" -i "$m" -frames:v 1 -q:v 2 "$d/$b-closing-credit.jpg"
-  cp "$5" "$d/"; cp "$6" "$d/$b.srt"; cp "$7" "$d/$b-YOUTUBE-TEXT.md"; cp "$8" "$d/$b-qa.json"
+  cp "$5" "$d/"; cp "$6" "$d/$b.srt"; cp "$7" "$d/$b-YOUTUBE-TEXT.md"; cp "$8" "$d/$b-qa.json"; cp "$(dirname "$7")/NOTAS-REVISION.md" "$d/$b-NOTAS-REVISION.md"
   (cd "$d" && sha256sum ./* > SHA256SUMS.txt && zip -q -0 "../$b-package.zip" ./* && mv "../$b-package.zip" .)
 }
 pkg dulce-part1 "$DN" DULCE-Part-I-review-v2 581.0 content/delivery/dulce-part1/DULCE-Part-I-thumbnail.jpg content/delivery/dulce-part1/dulce-part1-en.srt content/delivery/dulce-part1/YOUTUBE-TEXT.md "$OUT/qa-dulce.json"

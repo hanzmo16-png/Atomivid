@@ -45,7 +45,8 @@ A FEW PRECISIONS
 Where sources disagree (the size of the army, why the Spartans stayed, the Thebans' role), the narration says so. Battle scenes are AI-generated reconstructions; maps and figures follow Herodotus and modern estimates. Stock footage: Pexels.
 
 —
-Powered by AtomiBit — our own AI-assisted video creation platform.
+Powered by Atomivid — our own AI-assisted video creation platform.
+{{ATOMIVID_LINK}}
 
 ## Comentario fijado (copiar)
 

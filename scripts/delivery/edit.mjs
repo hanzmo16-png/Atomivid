@@ -15,7 +15,6 @@ if (!['dulce', 'thermopylae'].includes(WHICH) || !MASTER || !SRC || !OUT) throw 
 const FPS = 30, W = 1920, H = 1080;
 const WORK = path.join(OUT, `work-${WHICH}`);
 await fs.mkdir(WORK, {recursive: true});
-const CREDIT_TEXT = process.env.CREDIT_TEXT ?? 'Powered by AtomiBit';
 const log = (...a) => console.log(`[${WHICH}]`, ...a);
 
 function run(cmd, args) {
@@ -32,20 +31,24 @@ const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const png = async (svg, file) => { await sharp(Buffer.from(svg), {density: 72}).png().toFile(file); return file; };
 
 // ---------- shared graphics ----------
-/** Official Atomivid mark (src/components/ui/Logo.tsx LogoMark), unchanged geometry and accent #7c6aef; icon only, no wordmark. */
+/** Official Atomivid mark (src/components/ui/Logo.tsx LogoMark): unchanged geometry and accent #7c6aef. */
 const logoMark = (x, y, size) => {
   const s = size / 24;
   return `<g transform="translate(${x} ${y}) scale(${s})"><g stroke="#7c6aef" stroke-width="1.3" stroke-linecap="round" fill="none">
     <ellipse cx="12" cy="12" rx="10" ry="4.1"/><ellipse cx="12" cy="12" rx="10" ry="4.1" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4.1" transform="rotate(120 12 12)"/></g>
     <circle cx="12" cy="12" r="2.6" fill="#7c6aef"/></g>`;
 };
-/** Static credit, bottom centre (clear of the YouTube end-screen area, inside the 5% safe margin). */
+/** Static credit, bottom centre (clear of the YouTube end-screen area, inside the safe margin):
+ * "Powered by" + the official Atomivid logo (mark + wordmark, as in Logo.tsx: mark, gap, semibold "Atomivid" in ink). */
 function creditSvg() {
-  const size = 56, fs_ = 34, textW = Math.round(CREDIT_TEXT.length * fs_ * 0.56);
-  const total = size + 18 + textW, x0 = Math.round((W - total) / 2), y = 940;
-  const [pre, brand] = CREDIT_TEXT.startsWith('Powered by ') ? ['Powered by ', CREDIT_TEXT.slice(11)] : ['', CREDIT_TEXT];
-  return `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${logoMark(x0, y - size / 2 - 2, size)}
-    <text x="${x0 + size + 18}" y="${y + 12}" font-family="DejaVu Sans" font-size="${fs_}" fill="#d9d9df">${esc(pre)}<tspan font-weight="bold" fill="#f5f5f7">${esc(brand)}</tspan></text></svg>`;
+  const fs_ = 34, size = Math.round(fs_ * 1.45), gap = Math.round(fs_ * 0.33), y = 950;
+  const pre = 'Powered by', word = 'Atomivid';
+  const preW = Math.round(pre.length * fs_ * 0.56), wordW = Math.round(word.length * fs_ * 0.62);
+  const total = preW + gap * 2 + size + gap + wordW, x0 = Math.round((W - total) / 2);
+  const xm = x0 + preW + gap * 2, xw = xm + size + gap;
+  return `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
+    <text x="${x0}" y="${y + 12}" font-family="DejaVu Sans" font-size="${fs_}" fill="#a3a3b0">${pre}</text>${logoMark(xm, y - size / 2, size)}
+    <text x="${xw}" y="${y + 12}" font-family="DejaVu Sans" font-size="${fs_}" font-weight="600" fill="#f5f5f7" letter-spacing="-0.5">${word}</text></svg>`;
 }
 /** Readable on-screen notice card, top-left, kept left of the face (max right edge ~530 px). */
 function noticeSvg(lines) {
