@@ -24,6 +24,11 @@ if (WHAT.includes('dulce')) {
   report.sources.push({path: clip, bytes: b.length, sha256: sha256(b)});
   report.dulceFinalListing = await list('videos', 'dulce-part1/final/');
   report.dulceWatchListing = await list('videos', 'dulce-part1/watch/');
+  if (WHAT.includes('dulce-master')) {
+    const m = await download('videos', 'dulce-part1/final/DULCE-Part-I-master.mp4');
+    if (sha256(m) !== '28c0e1b662d1b9c9299996bdc68abf9bafa40813b79caf1b5b9a2aab4229841f') throw Error('DULCE master checksum mismatch');
+    await fs.writeFile(path.join(dir, 'DULCE-Part-I-master.mp4'), m); report.dulceMaster = {bytes: m.length, sha256: sha256(m)};
+  }
   await fs.writeFile(path.join(dir, 'fetch-report.json'), JSON.stringify(report, null, 2));
   if (!WHAT.includes('thermopylae')) { console.log(JSON.stringify(report.sources)); process.exit(0); }
 }

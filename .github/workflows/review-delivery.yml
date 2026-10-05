@@ -42,10 +42,45 @@ jobs:
           DELIVERY_OUT: ${{ runner.temp }}/delivery
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Master DULCE (direct MP4)
+        if: steps.request.outputs.stage == 'render'
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/delivery/masters/DULCE-Part-I-review-v2.mp4
+          archive: false
+          retention-days: 30
+          if-no-files-found: ignore
+      - name: Master Thermopylae (direct MP4)
+        if: steps.request.outputs.stage == 'render'
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/delivery/masters/Thermopylae-The-Annals-of-History-review-v4.mp4
+          archive: false
+          retention-days: 30
+          if-no-files-found: ignore
+      - name: Package DULCE (ZIP)
+        if: steps.request.outputs.stage == 'render'
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/delivery/masters/DULCE-Part-I-review-v2-package.zip
+          archive: false
+          retention-days: 30
+          if-no-files-found: ignore
+      - name: Package Thermopylae (ZIP)
+        if: steps.request.outputs.stage == 'render'
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/delivery/masters/Thermopylae-The-Annals-of-History-review-v4-package.zip
+          archive: false
+          retention-days: 30
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: review-delivery-${{ steps.request.outputs.stage }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/delivery/
+          path: |
+            ${{ runner.temp }}/delivery/
+            !${{ runner.temp }}/delivery/masters/
+            !${{ runner.temp }}/delivery/fetch/
           retention-days: 30
           if-no-files-found: ignore

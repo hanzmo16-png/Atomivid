@@ -1,0 +1,1616 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Sub,DejaVu Sans,50,&H00FFFFFF,&H00FFFFFF,&H00000000,&H90000000,-1,0,0,0,100,100,0,0,1,3,1.5,2,160,160,64,1
+Style: Title,DejaVu Serif,104,&H00F2F2F2,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,14,0,1,2,3,5,100,100,0,1
+Style: Note,DejaVu Sans,34,&H00D8D8D8,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,1,0,1,2,1.5,2,100,100,150,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.40,0:00:00.97,Sub,,0,0,0,,{\c&H0048C8FF&}Late{\c&H00FFFFFF&} summer, 480 BC.
+Dialogue: 0,0:00:00.97,0:00:01.87,Sub,,0,0,0,,Late {\c&H0048C8FF&}summer,{\c&H00FFFFFF&} 480 BC.
+Dialogue: 0,0:00:01.87,0:00:02.51,Sub,,0,0,0,,Late summer, {\c&H0048C8FF&}480{\c&H00FFFFFF&} BC.
+Dialogue: 0,0:00:02.51,0:00:03.69,Sub,,0,0,0,,Late summer, 480 {\c&H0048C8FF&}BC.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:04.03,0:00:04.24,Sub,,0,0,0,,{\c&H0048C8FF&}A{\c&H00FFFFFF&} strip of shore between a mountain
+Dialogue: 0,0:00:04.24,0:00:04.68,Sub,,0,0,0,,A {\c&H0048C8FF&}strip{\c&H00FFFFFF&} of shore between a mountain
+Dialogue: 0,0:00:04.68,0:00:04.80,Sub,,0,0,0,,A strip {\c&H0048C8FF&}of{\c&H00FFFFFF&} shore between a mountain
+Dialogue: 0,0:00:04.80,0:00:05.16,Sub,,0,0,0,,A strip of {\c&H0048C8FF&}shore{\c&H00FFFFFF&} between a mountain
+Dialogue: 0,0:00:05.16,0:00:05.48,Sub,,0,0,0,,A strip of shore {\c&H0048C8FF&}between{\c&H00FFFFFF&} a mountain
+Dialogue: 0,0:00:05.48,0:00:05.58,Sub,,0,0,0,,A strip of shore between {\c&H0048C8FF&}a{\c&H00FFFFFF&} mountain
+Dialogue: 0,0:00:05.58,0:00:05.98,Sub,,0,0,0,,A strip of shore between a {\c&H0048C8FF&}mountain{\c&H00FFFFFF&}
+Dialogue: 0,0:00:05.98,0:00:06.10,Sub,,0,0,0,,{\c&H0048C8FF&}and{\c&H00FFFFFF&} the sea,
+Dialogue: 0,0:00:06.10,0:00:06.22,Sub,,0,0,0,,and {\c&H0048C8FF&}the{\c&H00FFFFFF&} sea,
+Dialogue: 0,0:00:06.22,0:00:06.90,Sub,,0,0,0,,and the {\c&H0048C8FF&}sea,{\c&H00FFFFFF&}
+Dialogue: 0,0:00:06.90,0:00:07.08,Sub,,0,0,0,,{\c&H0048C8FF&}in{\c&H00FFFFFF&} places no wider than a road.
+Dialogue: 0,0:00:07.08,0:00:07.57,Sub,,0,0,0,,in {\c&H0048C8FF&}places{\c&H00FFFFFF&} no wider than a road.
+Dialogue: 0,0:00:07.57,0:00:07.86,Sub,,0,0,0,,in places {\c&H0048C8FF&}no{\c&H00FFFFFF&} wider than a road.
+Dialogue: 0,0:00:07.86,0:00:08.28,Sub,,0,0,0,,in places no {\c&H0048C8FF&}wider{\c&H00FFFFFF&} than a road.
+Dialogue: 0,0:00:08.28,0:00:08.43,Sub,,0,0,0,,in places no wider {\c&H0048C8FF&}than{\c&H00FFFFFF&} a road.
+Dialogue: 0,0:00:08.43,0:00:08.55,Sub,,0,0,0,,in places no wider than {\c&H0048C8FF&}a{\c&H00FFFFFF&} road.
+Dialogue: 0,0:00:08.55,0:00:09.45,Sub,,0,0,0,,in places no wider than a {\c&H0048C8FF&}road.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:09.45,0:00:09.76,Sub,,0,0,0,,{\c&H0048C8FF&}Coming{\c&H00FFFFFF&} down the coast toward it:
+Dialogue: 0,0:00:09.76,0:00:09.98,Sub,,0,0,0,,Coming {\c&H0048C8FF&}down{\c&H00FFFFFF&} the coast toward it:
+Dialogue: 0,0:00:09.98,0:00:10.15,Sub,,0,0,0,,Coming down {\c&H0048C8FF&}the{\c&H00FFFFFF&} coast toward it:
+Dialogue: 0,0:00:10.15,0:00:10.46,Sub,,0,0,0,,Coming down the {\c&H0048C8FF&}coast{\c&H00FFFFFF&} toward it:
+Dialogue: 0,0:00:10.46,0:00:10.75,Sub,,0,0,0,,Coming down the coast {\c&H0048C8FF&}toward{\c&H00FFFFFF&} it:
+Dialogue: 0,0:00:10.75,0:00:11.43,Sub,,0,0,0,,Coming down the coast toward {\c&H0048C8FF&}it:{\c&H00FFFFFF&}
+Dialogue: 0,0:00:11.43,0:00:11.62,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} largest invasion force Greece had
+Dialogue: 0,0:00:11.62,0:00:12.17,Sub,,0,0,0,,the {\c&H0048C8FF&}largest{\c&H00FFFFFF&} invasion force Greece had
+Dialogue: 0,0:00:12.17,0:00:12.73,Sub,,0,0,0,,the largest {\c&H0048C8FF&}invasion{\c&H00FFFFFF&} force Greece had
+Dialogue: 0,0:00:12.73,0:00:13.09,Sub,,0,0,0,,the largest invasion {\c&H0048C8FF&}force{\c&H00FFFFFF&} Greece had
+Dialogue: 0,0:00:13.09,0:00:13.45,Sub,,0,0,0,,the largest invasion force {\c&H0048C8FF&}Greece{\c&H00FFFFFF&} had
+Dialogue: 0,0:00:13.45,0:00:13.60,Sub,,0,0,0,,the largest invasion force Greece {\c&H0048C8FF&}had{\c&H00FFFFFF&}
+Dialogue: 0,0:00:13.60,0:00:13.86,Sub,,0,0,0,,{\c&H0048C8FF&}ever{\c&H00FFFFFF&} seen.
+Dialogue: 0,0:00:13.86,0:00:14.83,Sub,,0,0,0,,ever {\c&H0048C8FF&}seen.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:14.83,0:00:15.29,Sub,,0,0,0,,{\c&H0048C8FF&}Waiting{\c&H00FFFFFF&} inside it:
+Dialogue: 0,0:00:15.29,0:00:15.81,Sub,,0,0,0,,Waiting {\c&H0048C8FF&}inside{\c&H00FFFFFF&} it:
+Dialogue: 0,0:00:15.81,0:00:16.26,Sub,,0,0,0,,Waiting inside {\c&H0048C8FF&}it:{\c&H00FFFFFF&}
+Dialogue: 0,0:00:16.26,0:00:16.63,Sub,,0,0,0,,{\c&H0048C8FF&}about{\c&H00FFFFFF&} seven thousand Greeks,
+Dialogue: 0,0:00:16.63,0:00:17.03,Sub,,0,0,0,,about {\c&H0048C8FF&}seven{\c&H00FFFFFF&} thousand Greeks,
+Dialogue: 0,0:00:17.03,0:00:17.50,Sub,,0,0,0,,about seven {\c&H0048C8FF&}thousand{\c&H00FFFFFF&} Greeks,
+Dialogue: 0,0:00:17.50,0:00:18.26,Sub,,0,0,0,,about seven thousand {\c&H0048C8FF&}Greeks,{\c&H00FFFFFF&}
+Dialogue: 0,0:00:18.26,0:00:18.47,Sub,,0,0,0,,{\c&H0048C8FF&}and{\c&H00FFFFFF&} three hundred of them from Sparta.
+Dialogue: 0,0:00:18.47,0:00:18.77,Sub,,0,0,0,,and {\c&H0048C8FF&}three{\c&H00FFFFFF&} hundred of them from Sparta.
+Dialogue: 0,0:00:18.77,0:00:19.08,Sub,,0,0,0,,and three {\c&H0048C8FF&}hundred{\c&H00FFFFFF&} of them from Sparta.
+Dialogue: 0,0:00:19.08,0:00:19.19,Sub,,0,0,0,,and three hundred {\c&H0048C8FF&}of{\c&H00FFFFFF&} them from Sparta.
+Dialogue: 0,0:00:19.19,0:00:19.64,Sub,,0,0,0,,and three hundred of {\c&H0048C8FF&}them{\c&H00FFFFFF&} from Sparta.
+Dialogue: 0,0:00:19.64,0:00:19.86,Sub,,0,0,0,,and three hundred of them {\c&H0048C8FF&}from{\c&H00FFFFFF&} Sparta.
+Dialogue: 0,0:00:19.86,0:00:20.86,Sub,,0,0,0,,and three hundred of them from {\c&H0048C8FF&}Sparta.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:21.16,0:00:21.41,Sub,,0,0,0,,{\c&H0048C8FF&}For{\c&H00FFFFFF&} two days,
+Dialogue: 0,0:00:21.41,0:00:21.68,Sub,,0,0,0,,For {\c&H0048C8FF&}two{\c&H00FFFFFF&} days,
+Dialogue: 0,0:00:21.68,0:00:22.50,Sub,,0,0,0,,For two {\c&H0048C8FF&}days,{\c&H00FFFFFF&}
+Dialogue: 0,0:00:22.50,0:00:22.70,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} pass held.
+Dialogue: 0,0:00:22.70,0:00:23.09,Sub,,0,0,0,,the {\c&H0048C8FF&}pass{\c&H00FFFFFF&} held.
+Dialogue: 0,0:00:23.09,0:00:24.03,Sub,,0,0,0,,the pass {\c&H0048C8FF&}held.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:24.61,0:00:24.85,Sub,,0,0,0,,{\c&H0048C8FF&}Then{\c&H00FFFFFF&} a goat path through the mountains
+Dialogue: 0,0:00:24.85,0:00:24.98,Sub,,0,0,0,,Then {\c&H0048C8FF&}a{\c&H00FFFFFF&} goat path through the mountains
+Dialogue: 0,0:00:24.98,0:00:25.29,Sub,,0,0,0,,Then a {\c&H0048C8FF&}goat{\c&H00FFFFFF&} path through the mountains
+Dialogue: 0,0:00:25.29,0:00:25.62,Sub,,0,0,0,,Then a goat {\c&H0048C8FF&}path{\c&H00FFFFFF&} through the mountains
+Dialogue: 0,0:00:25.62,0:00:25.84,Sub,,0,0,0,,Then a goat path {\c&H0048C8FF&}through{\c&H00FFFFFF&} the mountains
+Dialogue: 0,0:00:25.84,0:00:25.96,Sub,,0,0,0,,Then a goat path through {\c&H0048C8FF&}the{\c&H00FFFFFF&} mountains
+Dialogue: 0,0:00:25.96,0:00:26.77,Sub,,0,0,0,,Then a goat path through the {\c&H0048C8FF&}mountains{\c&H00FFFFFF&}
+Dialogue: 0,0:00:26.77,0:00:27.54,Sub,,0,0,0,,{\c&H0048C8FF&}changed{\c&H00FFFFFF&} everything.
+Dialogue: 0,0:00:27.54,0:00:29.01,Sub,,0,0,0,,changed {\c&H0048C8FF&}everything.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:29.01,0:00:29.22,Sub,,0,0,0,,{\c&H0048C8FF&}By{\c&H00FFFFFF&} the third afternoon,
+Dialogue: 0,0:00:29.22,0:00:29.36,Sub,,0,0,0,,By {\c&H0048C8FF&}the{\c&H00FFFFFF&} third afternoon,
+Dialogue: 0,0:00:29.36,0:00:29.64,Sub,,0,0,0,,By the {\c&H0048C8FF&}third{\c&H00FFFFFF&} afternoon,
+Dialogue: 0,0:00:29.64,0:00:30.67,Sub,,0,0,0,,By the third {\c&H0048C8FF&}afternoon,{\c&H00FFFFFF&}
+Dialogue: 0,0:00:30.67,0:00:30.87,Sub,,0,0,0,,{\c&H0048C8FF&}a{\c&H00FFFFFF&} king of Sparta was dead,
+Dialogue: 0,0:00:30.87,0:00:31.12,Sub,,0,0,0,,a {\c&H0048C8FF&}king{\c&H00FFFFFF&} of Sparta was dead,
+Dialogue: 0,0:00:31.12,0:00:31.23,Sub,,0,0,0,,a king {\c&H0048C8FF&}of{\c&H00FFFFFF&} Sparta was dead,
+Dialogue: 0,0:00:31.23,0:00:31.65,Sub,,0,0,0,,a king of {\c&H0048C8FF&}Sparta{\c&H00FFFFFF&} was dead,
+Dialogue: 0,0:00:31.65,0:00:31.84,Sub,,0,0,0,,a king of Sparta {\c&H0048C8FF&}was{\c&H00FFFFFF&} dead,
+Dialogue: 0,0:00:31.84,0:00:32.84,Sub,,0,0,0,,a king of Sparta was {\c&H0048C8FF&}dead,{\c&H00FFFFFF&}
+Dialogue: 0,0:00:32.84,0:00:33.06,Sub,,0,0,0,,{\c&H0048C8FF&}and{\c&H00FFFFFF&} the men who had stayed with
+Dialogue: 0,0:00:33.06,0:00:33.23,Sub,,0,0,0,,and {\c&H0048C8FF&}the{\c&H00FFFFFF&} men who had stayed with
+Dialogue: 0,0:00:33.23,0:00:33.47,Sub,,0,0,0,,and the {\c&H0048C8FF&}men{\c&H00FFFFFF&} who had stayed with
+Dialogue: 0,0:00:33.47,0:00:33.61,Sub,,0,0,0,,and the men {\c&H0048C8FF&}who{\c&H00FFFFFF&} had stayed with
+Dialogue: 0,0:00:33.61,0:00:33.74,Sub,,0,0,0,,and the men who {\c&H0048C8FF&}had{\c&H00FFFFFF&} stayed with
+Dialogue: 0,0:00:33.74,0:00:34.07,Sub,,0,0,0,,and the men who had {\c&H0048C8FF&}stayed{\c&H00FFFFFF&} with
+Dialogue: 0,0:00:34.07,0:00:34.25,Sub,,0,0,0,,and the men who had stayed {\c&H0048C8FF&}with{\c&H00FFFFFF&}
+Dialogue: 0,0:00:34.25,0:00:34.77,Sub,,0,0,0,,{\c&H0048C8FF&}him{\c&H00FFFFFF&} lay around him on a low
+Dialogue: 0,0:00:34.77,0:00:35.00,Sub,,0,0,0,,him {\c&H0048C8FF&}lay{\c&H00FFFFFF&} around him on a low
+Dialogue: 0,0:00:35.00,0:00:35.40,Sub,,0,0,0,,him lay {\c&H0048C8FF&}around{\c&H00FFFFFF&} him on a low
+Dialogue: 0,0:00:35.40,0:00:35.57,Sub,,0,0,0,,him lay around {\c&H0048C8FF&}him{\c&H00FFFFFF&} on a low
+Dialogue: 0,0:00:35.57,0:00:35.69,Sub,,0,0,0,,him lay around him {\c&H0048C8FF&}on{\c&H00FFFFFF&} a low
+Dialogue: 0,0:00:35.69,0:00:35.78,Sub,,0,0,0,,him lay around him on {\c&H0048C8FF&}a{\c&H00FFFFFF&} low
+Dialogue: 0,0:00:35.78,0:00:36.05,Sub,,0,0,0,,him lay around him on a {\c&H0048C8FF&}low{\c&H00FFFFFF&}
+Dialogue: 0,0:00:36.05,0:00:36.99,Sub,,0,0,0,,{\c&H0048C8FF&}hill.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:37.24,0:00:37.45,Sub,,0,0,0,,{\c&H0048C8FF&}It{\c&H00FFFFFF&} is a harder story than the
+Dialogue: 0,0:00:37.45,0:00:37.58,Sub,,0,0,0,,It {\c&H0048C8FF&}is{\c&H00FFFFFF&} a harder story than the
+Dialogue: 0,0:00:37.58,0:00:37.70,Sub,,0,0,0,,It is {\c&H0048C8FF&}a{\c&H00FFFFFF&} harder story than the
+Dialogue: 0,0:00:37.70,0:00:38.03,Sub,,0,0,0,,It is a {\c&H0048C8FF&}harder{\c&H00FFFFFF&} story than the
+Dialogue: 0,0:00:38.03,0:00:38.50,Sub,,0,0,0,,It is a harder {\c&H0048C8FF&}story{\c&H00FFFFFF&} than the
+Dialogue: 0,0:00:38.50,0:00:38.65,Sub,,0,0,0,,It is a harder story {\c&H0048C8FF&}than{\c&H00FFFFFF&} the
+Dialogue: 0,0:00:38.65,0:00:38.77,Sub,,0,0,0,,It is a harder story than {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:00:38.77,0:00:39.69,Sub,,0,0,0,,{\c&H0048C8FF&}legend.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:39.69,0:00:40.10,Sub,,0,0,0,,{\c&H0048C8FF&}And{\c&H00FFFFFF&} a better one.
+Dialogue: 0,0:00:40.10,0:00:40.19,Sub,,0,0,0,,And {\c&H0048C8FF&}a{\c&H00FFFFFF&} better one.
+Dialogue: 0,0:00:40.19,0:00:40.51,Sub,,0,0,0,,And a {\c&H0048C8FF&}better{\c&H00FFFFFF&} one.
+Dialogue: 0,0:00:40.51,0:00:41.18,Sub,,0,0,0,,And a better {\c&H0048C8FF&}one.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:41.18,0:00:42.02,Sub,,0,0,0,,{\c&H0048C8FF&}This{\c&H00FFFFFF&}
+Dialogue: 0,0:00:42.02,0:00:42.26,Sub,,0,0,0,,{\c&H0048C8FF&}is{\c&H00FFFFFF&} Thermopylae.
+Dialogue: 0,0:00:42.26,0:00:44.10,Sub,,0,0,0,,is {\c&H0048C8FF&}Thermopylae.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:49.70,0:00:49.91,Sub,,0,0,0,,{\c&H0048C8FF&}If{\c&H00FFFFFF&} you want more history told this
+Dialogue: 0,0:00:49.91,0:00:50.03,Sub,,0,0,0,,If {\c&H0048C8FF&}you{\c&H00FFFFFF&} want more history told this
+Dialogue: 0,0:00:50.03,0:00:50.21,Sub,,0,0,0,,If you {\c&H0048C8FF&}want{\c&H00FFFFFF&} more history told this
+Dialogue: 0,0:00:50.21,0:00:50.42,Sub,,0,0,0,,If you want {\c&H0048C8FF&}more{\c&H00FFFFFF&} history told this
+Dialogue: 0,0:00:50.42,0:00:50.76,Sub,,0,0,0,,If you want more {\c&H0048C8FF&}history{\c&H00FFFFFF&} told this
+Dialogue: 0,0:00:50.76,0:00:50.95,Sub,,0,0,0,,If you want more history {\c&H0048C8FF&}told{\c&H00FFFFFF&} this
+Dialogue: 0,0:00:50.95,0:00:51.12,Sub,,0,0,0,,If you want more history told {\c&H0048C8FF&}this{\c&H00FFFFFF&}
+Dialogue: 0,0:00:51.12,0:00:51.55,Sub,,0,0,0,,{\c&H0048C8FF&}carefully,{\c&H00FFFFFF&} subscribe.
+Dialogue: 0,0:00:51.55,0:00:52.52,Sub,,0,0,0,,carefully, {\c&H0048C8FF&}subscribe.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:52.52,0:00:52.73,Sub,,0,0,0,,{\c&H0048C8FF&}Now,{\c&H00FFFFFF&} back to the pass.
+Dialogue: 0,0:00:52.73,0:00:52.92,Sub,,0,0,0,,Now, {\c&H0048C8FF&}back{\c&H00FFFFFF&} to the pass.
+Dialogue: 0,0:00:52.92,0:00:53.02,Sub,,0,0,0,,Now, back {\c&H0048C8FF&}to{\c&H00FFFFFF&} the pass.
+Dialogue: 0,0:00:53.02,0:00:53.14,Sub,,0,0,0,,Now, back to {\c&H0048C8FF&}the{\c&H00FFFFFF&} pass.
+Dialogue: 0,0:00:53.14,0:00:54.23,Sub,,0,0,0,,Now, back to the {\c&H0048C8FF&}pass.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:54.77,0:00:55.07,Sub,,0,0,0,,{\c&H0048C8FF&}Ten{\c&H00FFFFFF&} years earlier,
+Dialogue: 0,0:00:55.07,0:00:55.32,Sub,,0,0,0,,Ten {\c&H0048C8FF&}years{\c&H00FFFFFF&} earlier,
+Dialogue: 0,0:00:55.32,0:00:56.22,Sub,,0,0,0,,Ten years {\c&H0048C8FF&}earlier,{\c&H00FFFFFF&}
+Dialogue: 0,0:00:56.22,0:00:56.38,Sub,,0,0,0,,{\c&H0048C8FF&}a{\c&H00FFFFFF&} Persian army had landed at Marathon,
+Dialogue: 0,0:00:56.38,0:00:56.78,Sub,,0,0,0,,a {\c&H0048C8FF&}Persian{\c&H00FFFFFF&} army had landed at Marathon,
+Dialogue: 0,0:00:56.78,0:00:57.08,Sub,,0,0,0,,a Persian {\c&H0048C8FF&}army{\c&H00FFFFFF&} had landed at Marathon,
+Dialogue: 0,0:00:57.08,0:00:57.23,Sub,,0,0,0,,a Persian army {\c&H0048C8FF&}had{\c&H00FFFFFF&} landed at Marathon,
+Dialogue: 0,0:00:57.23,0:00:57.53,Sub,,0,0,0,,a Persian army had {\c&H0048C8FF&}landed{\c&H00FFFFFF&} at Marathon,
+Dialogue: 0,0:00:57.53,0:00:57.62,Sub,,0,0,0,,a Persian army had landed {\c&H0048C8FF&}at{\c&H00FFFFFF&} Marathon,
+Dialogue: 0,0:00:57.62,0:00:58.50,Sub,,0,0,0,,a Persian army had landed at {\c&H0048C8FF&}Marathon,{\c&H00FFFFFF&}
+Dialogue: 0,0:00:58.50,0:00:58.81,Sub,,0,0,0,,{\c&H0048C8FF&}north{\c&H00FFFFFF&} of Athens,
+Dialogue: 0,0:00:58.81,0:00:58.95,Sub,,0,0,0,,north {\c&H0048C8FF&}of{\c&H00FFFFFF&} Athens,
+Dialogue: 0,0:00:58.95,0:00:59.75,Sub,,0,0,0,,north of {\c&H0048C8FF&}Athens,{\c&H00FFFFFF&}
+Dialogue: 0,0:00:59.75,0:00:59.96,Sub,,0,0,0,,{\c&H0048C8FF&}and{\c&H00FFFFFF&} been thrown back into the sea.
+Dialogue: 0,0:00:59.96,0:01:00.17,Sub,,0,0,0,,and {\c&H0048C8FF&}been{\c&H00FFFFFF&} thrown back into the sea.
+Dialogue: 0,0:01:00.17,0:01:00.65,Sub,,0,0,0,,and been {\c&H0048C8FF&}thrown{\c&H00FFFFFF&} back into the sea.
+Dialogue: 0,0:01:00.65,0:01:00.92,Sub,,0,0,0,,and been thrown {\c&H0048C8FF&}back{\c&H00FFFFFF&} into the sea.
+Dialogue: 0,0:01:00.92,0:01:01.13,Sub,,0,0,0,,and been thrown back {\c&H0048C8FF&}into{\c&H00FFFFFF&} the sea.
+Dialogue: 0,0:01:01.13,0:01:01.24,Sub,,0,0,0,,and been thrown back into {\c&H0048C8FF&}the{\c&H00FFFFFF&} sea.
+Dialogue: 0,0:01:01.24,0:01:02.29,Sub,,0,0,0,,and been thrown back into the {\c&H0048C8FF&}sea.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:02.29,0:01:02.46,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} Great King,
+Dialogue: 0,0:01:02.46,0:01:02.77,Sub,,0,0,0,,The {\c&H0048C8FF&}Great{\c&H00FFFFFF&} King,
+Dialogue: 0,0:01:02.77,0:01:03.54,Sub,,0,0,0,,The Great {\c&H0048C8FF&}King,{\c&H00FFFFFF&}
+Dialogue: 0,0:01:03.54,0:01:04.52,Sub,,0,0,0,,{\c&H0048C8FF&}Darius,{\c&H00FFFFFF&} planned to return.
+Dialogue: 0,0:01:04.52,0:01:04.88,Sub,,0,0,0,,Darius, {\c&H0048C8FF&}planned{\c&H00FFFFFF&} to return.
+Dialogue: 0,0:01:04.88,0:01:05.01,Sub,,0,0,0,,Darius, planned {\c&H0048C8FF&}to{\c&H00FFFFFF&} return.
+Dialogue: 0,0:01:05.01,0:01:06.06,Sub,,0,0,0,,Darius, planned to {\c&H0048C8FF&}return.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:06.06,0:01:06.29,Sub,,0,0,0,,{\c&H0048C8FF&}He{\c&H00FFFFFF&} died first.
+Dialogue: 0,0:01:06.29,0:01:06.62,Sub,,0,0,0,,He {\c&H0048C8FF&}died{\c&H00FFFFFF&} first.
+Dialogue: 0,0:01:06.62,0:01:07.53,Sub,,0,0,0,,He died {\c&H0048C8FF&}first.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:07.53,0:01:07.77,Sub,,0,0,0,,{\c&H0048C8FF&}His{\c&H00FFFFFF&} son Xerxes inherited the empire,
+Dialogue: 0,0:01:07.77,0:01:08.05,Sub,,0,0,0,,His {\c&H0048C8FF&}son{\c&H00FFFFFF&} Xerxes inherited the empire,
+Dialogue: 0,0:01:08.05,0:01:09.06,Sub,,0,0,0,,His son {\c&H0048C8FF&}Xerxes{\c&H00FFFFFF&} inherited the empire,
+Dialogue: 0,0:01:09.06,0:01:09.63,Sub,,0,0,0,,His son Xerxes {\c&H0048C8FF&}inherited{\c&H00FFFFFF&} the empire,
+Dialogue: 0,0:01:09.63,0:01:09.78,Sub,,0,0,0,,His son Xerxes inherited {\c&H0048C8FF&}the{\c&H00FFFFFF&} empire,
+Dialogue: 0,0:01:09.78,0:01:10.80,Sub,,0,0,0,,His son Xerxes inherited the {\c&H0048C8FF&}empire,{\c&H00FFFFFF&}
+Dialogue: 0,0:01:10.80,0:01:10.99,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} grudge, and the preparations.
+Dialogue: 0,0:01:10.99,0:01:11.98,Sub,,0,0,0,,the {\c&H0048C8FF&}grudge,{\c&H00FFFFFF&} and the preparations.
+Dialogue: 0,0:01:11.98,0:01:12.27,Sub,,0,0,0,,the grudge, {\c&H0048C8FF&}and{\c&H00FFFFFF&} the preparations.
+Dialogue: 0,0:01:12.27,0:01:12.38,Sub,,0,0,0,,the grudge, and {\c&H0048C8FF&}the{\c&H00FFFFFF&} preparations.
+Dialogue: 0,0:01:12.38,0:01:13.86,Sub,,0,0,0,,the grudge, and the {\c&H0048C8FF&}preparations.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:14.37,0:01:14.61,Sub,,0,0,0,,{\c&H0048C8FF&}For{\c&H00FFFFFF&} years the Persians stockpiled grain
+Dialogue: 0,0:01:14.61,0:01:15.25,Sub,,0,0,0,,For {\c&H0048C8FF&}years{\c&H00FFFFFF&} the Persians stockpiled grain
+Dialogue: 0,0:01:15.25,0:01:15.44,Sub,,0,0,0,,For years {\c&H0048C8FF&}the{\c&H00FFFFFF&} Persians stockpiled grain
+Dialogue: 0,0:01:15.44,0:01:15.91,Sub,,0,0,0,,For years the {\c&H0048C8FF&}Persians{\c&H00FFFFFF&} stockpiled grain
+Dialogue: 0,0:01:15.91,0:01:16.59,Sub,,0,0,0,,For years the Persians {\c&H0048C8FF&}stockpiled{\c&H00FFFFFF&} grain
+Dialogue: 0,0:01:16.59,0:01:17.02,Sub,,0,0,0,,For years the Persians stockpiled {\c&H0048C8FF&}grain{\c&H00FFFFFF&}
+Dialogue: 0,0:01:17.02,0:01:17.31,Sub,,0,0,0,,{\c&H0048C8FF&}along{\c&H00FFFFFF&} the route,
+Dialogue: 0,0:01:17.31,0:01:17.43,Sub,,0,0,0,,along {\c&H0048C8FF&}the{\c&H00FFFFFF&} route,
+Dialogue: 0,0:01:17.43,0:01:18.19,Sub,,0,0,0,,along the {\c&H0048C8FF&}route,{\c&H00FFFFFF&}
+Dialogue: 0,0:01:18.19,0:01:18.48,Sub,,0,0,0,,{\c&H0048C8FF&}dug{\c&H00FFFFFF&} a canal through the neck of
+Dialogue: 0,0:01:18.48,0:01:18.59,Sub,,0,0,0,,dug {\c&H0048C8FF&}a{\c&H00FFFFFF&} canal through the neck of
+Dialogue: 0,0:01:18.59,0:01:19.08,Sub,,0,0,0,,dug a {\c&H0048C8FF&}canal{\c&H00FFFFFF&} through the neck of
+Dialogue: 0,0:01:19.08,0:01:19.27,Sub,,0,0,0,,dug a canal {\c&H0048C8FF&}through{\c&H00FFFFFF&} the neck of
+Dialogue: 0,0:01:19.27,0:01:19.42,Sub,,0,0,0,,dug a canal through {\c&H0048C8FF&}the{\c&H00FFFFFF&} neck of
+Dialogue: 0,0:01:19.42,0:01:19.67,Sub,,0,0,0,,dug a canal through the {\c&H0048C8FF&}neck{\c&H00FFFFFF&} of
+Dialogue: 0,0:01:19.67,0:01:19.80,Sub,,0,0,0,,dug a canal through the neck {\c&H0048C8FF&}of{\c&H00FFFFFF&}
+Dialogue: 0,0:01:19.80,0:01:20.05,Sub,,0,0,0,,{\c&H0048C8FF&}Mount{\c&H00FFFFFF&} Athos so the fleet could avoid
+Dialogue: 0,0:01:20.05,0:01:20.83,Sub,,0,0,0,,Mount {\c&H0048C8FF&}Athos{\c&H00FFFFFF&} so the fleet could avoid
+Dialogue: 0,0:01:20.83,0:01:21.09,Sub,,0,0,0,,Mount Athos {\c&H0048C8FF&}so{\c&H00FFFFFF&} the fleet could avoid
+Dialogue: 0,0:01:21.09,0:01:21.21,Sub,,0,0,0,,Mount Athos so {\c&H0048C8FF&}the{\c&H00FFFFFF&} fleet could avoid
+Dialogue: 0,0:01:21.21,0:01:21.56,Sub,,0,0,0,,Mount Athos so the {\c&H0048C8FF&}fleet{\c&H00FFFFFF&} could avoid
+Dialogue: 0,0:01:21.56,0:01:21.74,Sub,,0,0,0,,Mount Athos so the fleet {\c&H0048C8FF&}could{\c&H00FFFFFF&} avoid
+Dialogue: 0,0:01:21.74,0:01:22.13,Sub,,0,0,0,,Mount Athos so the fleet could {\c&H0048C8FF&}avoid{\c&H00FFFFFF&}
+Dialogue: 0,0:01:22.13,0:01:22.28,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} cape that had wrecked ships before,
+Dialogue: 0,0:01:22.28,0:01:22.58,Sub,,0,0,0,,the {\c&H0048C8FF&}cape{\c&H00FFFFFF&} that had wrecked ships before,
+Dialogue: 0,0:01:22.58,0:01:22.72,Sub,,0,0,0,,the cape {\c&H0048C8FF&}that{\c&H00FFFFFF&} had wrecked ships before,
+Dialogue: 0,0:01:22.72,0:01:22.85,Sub,,0,0,0,,the cape that {\c&H0048C8FF&}had{\c&H00FFFFFF&} wrecked ships before,
+Dialogue: 0,0:01:22.85,0:01:23.19,Sub,,0,0,0,,the cape that had {\c&H0048C8FF&}wrecked{\c&H00FFFFFF&} ships before,
+Dialogue: 0,0:01:23.19,0:01:23.48,Sub,,0,0,0,,the cape that had wrecked {\c&H0048C8FF&}ships{\c&H00FFFFFF&} before,
+Dialogue: 0,0:01:23.48,0:01:24.47,Sub,,0,0,0,,the cape that had wrecked ships {\c&H0048C8FF&}before,{\c&H00FFFFFF&}
+Dialogue: 0,0:01:24.47,0:01:24.78,Sub,,0,0,0,,{\c&H0048C8FF&}and{\c&H00FFFFFF&} bridged the Hellespont,
+Dialogue: 0,0:01:24.78,0:01:25.53,Sub,,0,0,0,,and {\c&H0048C8FF&}bridged{\c&H00FFFFFF&} the Hellespont,
+Dialogue: 0,0:01:25.53,0:01:25.76,Sub,,0,0,0,,and bridged {\c&H0048C8FF&}the{\c&H00FFFFFF&} Hellespont,
+Dialogue: 0,0:01:25.76,0:01:26.95,Sub,,0,0,0,,and bridged the {\c&H0048C8FF&}Hellespont,{\c&H00FFFFFF&}
+Dialogue: 0,0:01:26.95,0:01:27.12,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} strait between Asia and Europe,
+Dialogue: 0,0:01:27.12,0:01:27.47,Sub,,0,0,0,,the {\c&H0048C8FF&}strait{\c&H00FFFFFF&} between Asia and Europe,
+Dialogue: 0,0:01:27.47,0:01:27.88,Sub,,0,0,0,,the strait {\c&H0048C8FF&}between{\c&H00FFFFFF&} Asia and Europe,
+Dialogue: 0,0:01:27.88,0:01:28.33,Sub,,0,0,0,,the strait between {\c&H0048C8FF&}Asia{\c&H00FFFFFF&} and Europe,
+Dialogue: 0,0:01:28.33,0:01:28.52,Sub,,0,0,0,,the strait between Asia {\c&H0048C8FF&}and{\c&H00FFFFFF&} Europe,
+Dialogue: 0,0:01:28.52,0:01:29.39,Sub,,0,0,0,,the strait between Asia and {\c&H0048C8FF&}Europe,{\c&H00FFFFFF&}
+Dialogue: 0,0:01:29.39,0:01:29.63,Sub,,0,0,0,,{\c&H0048C8FF&}with{\c&H00FFFFFF&} two floating roads built on
+Dialogue: 0,0:01:29.63,0:01:29.93,Sub,,0,0,0,,with {\c&H0048C8FF&}two{\c&H00FFFFFF&} floating roads built on
+Dialogue: 0,0:01:29.93,0:01:30.35,Sub,,0,0,0,,with two {\c&H0048C8FF&}floating{\c&H00FFFFFF&} roads built on
+Dialogue: 0,0:01:30.35,0:01:30.75,Sub,,0,0,0,,with two floating {\c&H0048C8FF&}roads{\c&H00FFFFFF&} built on
+Dialogue: 0,0:01:30.75,0:01:31.06,Sub,,0,0,0,,with two floating roads {\c&H0048C8FF&}built{\c&H00FFFFFF&} on
+Dialogue: 0,0:01:31.06,0:01:31.26,Sub,,0,0,0,,with two floating roads built {\c&H0048C8FF&}on{\c&H00FFFFFF&}
+Dialogue: 0,0:01:31.26,0:01:31.65,Sub,,0,0,0,,{\c&H0048C8FF&}hundreds{\c&H00FFFFFF&} of ships.
+Dialogue: 0,0:01:31.65,0:01:31.77,Sub,,0,0,0,,hundreds {\c&H0048C8FF&}of{\c&H00FFFFFF&} ships.
+Dialogue: 0,0:01:31.77,0:01:32.56,Sub,,0,0,0,,hundreds of {\c&H0048C8FF&}ships.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:32.56,0:01:33.18,Sub,,0,0,0,,{\c&H0048C8FF&}Herodotus{\c&H00FFFFFF&} says that when a storm broke
+Dialogue: 0,0:01:33.18,0:01:33.56,Sub,,0,0,0,,Herodotus {\c&H0048C8FF&}says{\c&H00FFFFFF&} that when a storm broke
+Dialogue: 0,0:01:33.56,0:01:33.69,Sub,,0,0,0,,Herodotus says {\c&H0048C8FF&}that{\c&H00FFFFFF&} when a storm broke
+Dialogue: 0,0:01:33.69,0:01:33.85,Sub,,0,0,0,,Herodotus says that {\c&H0048C8FF&}when{\c&H00FFFFFF&} a storm broke
+Dialogue: 0,0:01:33.85,0:01:33.93,Sub,,0,0,0,,Herodotus says that when {\c&H0048C8FF&}a{\c&H00FFFFFF&} storm broke
+Dialogue: 0,0:01:33.93,0:01:34.28,Sub,,0,0,0,,Herodotus says that when a {\c&H0048C8FF&}storm{\c&H00FFFFFF&} broke
+Dialogue: 0,0:01:34.28,0:01:34.52,Sub,,0,0,0,,Herodotus says that when a storm {\c&H0048C8FF&}broke{\c&H00FFFFFF&}
+Dialogue: 0,0:01:34.52,0:01:34.64,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} first bridges,
+Dialogue: 0,0:01:34.64,0:01:34.90,Sub,,0,0,0,,the {\c&H0048C8FF&}first{\c&H00FFFFFF&} bridges,
+Dialogue: 0,0:01:34.90,0:01:35.81,Sub,,0,0,0,,the first {\c&H0048C8FF&}bridges,{\c&H00FFFFFF&}
+Dialogue: 0,0:01:35.81,0:01:36.36,Sub,,0,0,0,,{\c&H0048C8FF&}Xerxes{\c&H00FFFFFF&} had the sea whipped.
+Dialogue: 0,0:01:36.36,0:01:36.51,Sub,,0,0,0,,Xerxes {\c&H0048C8FF&}had{\c&H00FFFFFF&} the sea whipped.
+Dialogue: 0,0:01:36.51,0:01:36.64,Sub,,0,0,0,,Xerxes had {\c&H0048C8FF&}the{\c&H00FFFFFF&} sea whipped.
+Dialogue: 0,0:01:36.64,0:01:36.95,Sub,,0,0,0,,Xerxes had the {\c&H0048C8FF&}sea{\c&H00FFFFFF&} whipped.
+Dialogue: 0,0:01:36.95,0:01:38.11,Sub,,0,0,0,,Xerxes had the sea {\c&H0048C8FF&}whipped.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:40.57,0:01:40.92,Sub,,0,0,0,,{\c&H0048C8FF&}How{\c&H00FFFFFF&} big was the army?
+Dialogue: 0,0:01:40.92,0:01:41.20,Sub,,0,0,0,,How {\c&H0048C8FF&}big{\c&H00FFFFFF&} was the army?
+Dialogue: 0,0:01:41.20,0:01:41.36,Sub,,0,0,0,,How big {\c&H0048C8FF&}was{\c&H00FFFFFF&} the army?
+Dialogue: 0,0:01:41.36,0:01:41.52,Sub,,0,0,0,,How big was {\c&H0048C8FF&}the{\c&H00FFFFFF&} army?
+Dialogue: 0,0:01:41.52,0:01:42.53,Sub,,0,0,0,,How big was the {\c&H0048C8FF&}army?{\c&H00FFFFFF&}
+Dialogue: 0,0:01:42.53,0:01:43.22,Sub,,0,0,0,,{\c&H0048C8FF&}Herodotus{\c&H00FFFFFF&} counted more than two million
+Dialogue: 0,0:01:43.22,0:01:43.55,Sub,,0,0,0,,Herodotus {\c&H0048C8FF&}counted{\c&H00FFFFFF&} more than two million
+Dialogue: 0,0:01:43.55,0:01:43.72,Sub,,0,0,0,,Herodotus counted {\c&H0048C8FF&}more{\c&H00FFFFFF&} than two million
+Dialogue: 0,0:01:43.72,0:01:43.90,Sub,,0,0,0,,Herodotus counted more {\c&H0048C8FF&}than{\c&H00FFFFFF&} two million
+Dialogue: 0,0:01:43.90,0:01:44.27,Sub,,0,0,0,,Herodotus counted more than {\c&H0048C8FF&}two{\c&H00FFFFFF&} million
+Dialogue: 0,0:01:44.27,0:01:44.73,Sub,,0,0,0,,Herodotus counted more than two {\c&H0048C8FF&}million{\c&H00FFFFFF&}
+Dialogue: 0,0:01:44.73,0:01:45.09,Sub,,0,0,0,,{\c&H0048C8FF&}fighting{\c&H00FFFFFF&} men.
+Dialogue: 0,0:01:45.09,0:01:46.17,Sub,,0,0,0,,fighting {\c&H0048C8FF&}men.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:46.17,0:01:46.56,Sub,,0,0,0,,{\c&H0048C8FF&}Modern{\c&H00FFFFFF&} historians think somewhere
+Dialogue: 0,0:01:46.56,0:01:47.19,Sub,,0,0,0,,Modern {\c&H0048C8FF&}historians{\c&H00FFFFFF&} think somewhere
+Dialogue: 0,0:01:47.19,0:01:47.43,Sub,,0,0,0,,Modern historians {\c&H0048C8FF&}think{\c&H00FFFFFF&} somewhere
+Dialogue: 0,0:01:47.43,0:01:47.77,Sub,,0,0,0,,Modern historians think {\c&H0048C8FF&}somewhere{\c&H00FFFFFF&}
+Dialogue: 0,0:01:47.77,0:01:48.10,Sub,,0,0,0,,{\c&H0048C8FF&}between{\c&H00FFFFFF&} a hundred thousand and three
+Dialogue: 0,0:01:48.10,0:01:48.22,Sub,,0,0,0,,between {\c&H0048C8FF&}a{\c&H00FFFFFF&} hundred thousand and three
+Dialogue: 0,0:01:48.22,0:01:48.52,Sub,,0,0,0,,between a {\c&H0048C8FF&}hundred{\c&H00FFFFFF&} thousand and three
+Dialogue: 0,0:01:48.52,0:01:49.21,Sub,,0,0,0,,between a hundred {\c&H0048C8FF&}thousand{\c&H00FFFFFF&} and three
+Dialogue: 0,0:01:49.21,0:01:49.60,Sub,,0,0,0,,between a hundred thousand {\c&H0048C8FF&}and{\c&H00FFFFFF&} three
+Dialogue: 0,0:01:49.60,0:01:49.92,Sub,,0,0,0,,between a hundred thousand and {\c&H0048C8FF&}three{\c&H00FFFFFF&}
+Dialogue: 0,0:01:49.92,0:01:50.21,Sub,,0,0,0,,{\c&H0048C8FF&}hundred{\c&H00FFFFFF&} thousand, with a fleet of
+Dialogue: 0,0:01:50.21,0:01:51.19,Sub,,0,0,0,,hundred {\c&H0048C8FF&}thousand,{\c&H00FFFFFF&} with a fleet of
+Dialogue: 0,0:01:51.19,0:01:51.44,Sub,,0,0,0,,hundred thousand, {\c&H0048C8FF&}with{\c&H00FFFFFF&} a fleet of
+Dialogue: 0,0:01:51.44,0:01:51.55,Sub,,0,0,0,,hundred thousand, with {\c&H0048C8FF&}a{\c&H00FFFFFF&} fleet of
+Dialogue: 0,0:01:51.55,0:01:51.88,Sub,,0,0,0,,hundred thousand, with a {\c&H0048C8FF&}fleet{\c&H00FFFFFF&} of
+Dialogue: 0,0:01:51.88,0:01:52.05,Sub,,0,0,0,,hundred thousand, with a fleet {\c&H0048C8FF&}of{\c&H00FFFFFF&}
+Dialogue: 0,0:01:52.05,0:01:52.50,Sub,,0,0,0,,{\c&H0048C8FF&}several{\c&H00FFFFFF&} hundred warships.
+Dialogue: 0,0:01:52.50,0:01:52.78,Sub,,0,0,0,,several {\c&H0048C8FF&}hundred{\c&H00FFFFFF&} warships.
+Dialogue: 0,0:01:52.78,0:01:53.97,Sub,,0,0,0,,several hundred {\c&H0048C8FF&}warships.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:54.30,0:01:54.66,Sub,,0,0,0,,{\c&H0048C8FF&}Even{\c&H00FFFFFF&} the low figure was larger than
+Dialogue: 0,0:01:54.66,0:01:54.81,Sub,,0,0,0,,Even {\c&H0048C8FF&}the{\c&H00FFFFFF&} low figure was larger than
+Dialogue: 0,0:01:54.81,0:01:55.10,Sub,,0,0,0,,Even the {\c&H0048C8FF&}low{\c&H00FFFFFF&} figure was larger than
+Dialogue: 0,0:01:55.10,0:01:55.50,Sub,,0,0,0,,Even the low {\c&H0048C8FF&}figure{\c&H00FFFFFF&} was larger than
+Dialogue: 0,0:01:55.50,0:01:55.73,Sub,,0,0,0,,Even the low figure {\c&H0048C8FF&}was{\c&H00FFFFFF&} larger than
+Dialogue: 0,0:01:55.73,0:01:56.09,Sub,,0,0,0,,Even the low figure was {\c&H0048C8FF&}larger{\c&H00FFFFFF&} than
+Dialogue: 0,0:01:56.09,0:01:56.25,Sub,,0,0,0,,Even the low figure was larger {\c&H0048C8FF&}than{\c&H00FFFFFF&}
+Dialogue: 0,0:01:56.25,0:01:56.72,Sub,,0,0,0,,{\c&H0048C8FF&}anything{\c&H00FFFFFF&} Greece had faced.
+Dialogue: 0,0:01:56.72,0:01:57.06,Sub,,0,0,0,,anything {\c&H0048C8FF&}Greece{\c&H00FFFFFF&} had faced.
+Dialogue: 0,0:01:57.06,0:01:57.20,Sub,,0,0,0,,anything Greece {\c&H0048C8FF&}had{\c&H00FFFFFF&} faced.
+Dialogue: 0,0:01:57.20,0:01:58.21,Sub,,0,0,0,,anything Greece had {\c&H0048C8FF&}faced.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:58.21,0:01:58.77,Sub,,0,0,0,,{\c&H0048C8FF&}Heralds{\c&H00FFFFFF&} went ahead demanding earth and
+Dialogue: 0,0:01:58.77,0:01:58.96,Sub,,0,0,0,,Heralds {\c&H0048C8FF&}went{\c&H00FFFFFF&} ahead demanding earth and
+Dialogue: 0,0:01:58.96,0:01:59.37,Sub,,0,0,0,,Heralds went {\c&H0048C8FF&}ahead{\c&H00FFFFFF&} demanding earth and
+Dialogue: 0,0:01:59.37,0:02:00.07,Sub,,0,0,0,,Heralds went ahead {\c&H0048C8FF&}demanding{\c&H00FFFFFF&} earth and
+Dialogue: 0,0:02:00.07,0:02:00.50,Sub,,0,0,0,,Heralds went ahead demanding {\c&H0048C8FF&}earth{\c&H00FFFFFF&} and
+Dialogue: 0,0:02:00.50,0:02:00.65,Sub,,0,0,0,,Heralds went ahead demanding earth {\c&H0048C8FF&}and{\c&H00FFFFFF&}
+Dialogue: 0,0:02:00.65,0:02:01.61,Sub,,0,0,0,,{\c&H0048C8FF&}water:{\c&H00FFFFFF&}
+Dialogue: 0,0:02:01.61,0:02:01.81,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} sign of submission.
+Dialogue: 0,0:02:01.81,0:02:02.65,Sub,,0,0,0,,the {\c&H0048C8FF&}sign{\c&H00FFFFFF&} of submission.
+Dialogue: 0,0:02:02.65,0:02:02.88,Sub,,0,0,0,,the sign {\c&H0048C8FF&}of{\c&H00FFFFFF&} submission.
+Dialogue: 0,0:02:02.88,0:02:04.00,Sub,,0,0,0,,the sign of {\c&H0048C8FF&}submission.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:04.31,0:02:04.67,Sub,,0,0,0,,{\c&H0048C8FF&}Many{\c&H00FFFFFF&} northern cities gave it.
+Dialogue: 0,0:02:04.67,0:02:05.12,Sub,,0,0,0,,Many {\c&H0048C8FF&}northern{\c&H00FFFFFF&} cities gave it.
+Dialogue: 0,0:02:05.12,0:02:05.52,Sub,,0,0,0,,Many northern {\c&H0048C8FF&}cities{\c&H00FFFFFF&} gave it.
+Dialogue: 0,0:02:05.52,0:02:05.85,Sub,,0,0,0,,Many northern cities {\c&H0048C8FF&}gave{\c&H00FFFFFF&} it.
+Dialogue: 0,0:02:05.85,0:02:06.93,Sub,,0,0,0,,Many northern cities gave {\c&H0048C8FF&}it.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:07.87,0:02:08.12,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} Greeks were not a nation.
+Dialogue: 0,0:02:08.12,0:02:08.80,Sub,,0,0,0,,The {\c&H0048C8FF&}Greeks{\c&H00FFFFFF&} were not a nation.
+Dialogue: 0,0:02:08.80,0:02:09.10,Sub,,0,0,0,,The Greeks {\c&H0048C8FF&}were{\c&H00FFFFFF&} not a nation.
+Dialogue: 0,0:02:09.10,0:02:09.36,Sub,,0,0,0,,The Greeks were {\c&H0048C8FF&}not{\c&H00FFFFFF&} a nation.
+Dialogue: 0,0:02:09.36,0:02:09.46,Sub,,0,0,0,,The Greeks were not {\c&H0048C8FF&}a{\c&H00FFFFFF&} nation.
+Dialogue: 0,0:02:09.46,0:02:10.61,Sub,,0,0,0,,The Greeks were not a {\c&H0048C8FF&}nation.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:10.61,0:02:10.87,Sub,,0,0,0,,{\c&H0048C8FF&}They{\c&H00FFFFFF&} were hundreds of quarrelling
+Dialogue: 0,0:02:10.87,0:02:11.12,Sub,,0,0,0,,They {\c&H0048C8FF&}were{\c&H00FFFFFF&} hundreds of quarrelling
+Dialogue: 0,0:02:11.12,0:02:11.57,Sub,,0,0,0,,They were {\c&H0048C8FF&}hundreds{\c&H00FFFFFF&} of quarrelling
+Dialogue: 0,0:02:11.57,0:02:11.70,Sub,,0,0,0,,They were hundreds {\c&H0048C8FF&}of{\c&H00FFFFFF&} quarrelling
+Dialogue: 0,0:02:11.70,0:02:12.21,Sub,,0,0,0,,They were hundreds of {\c&H0048C8FF&}quarrelling{\c&H00FFFFFF&}
+Dialogue: 0,0:02:12.21,0:02:13.16,Sub,,0,0,0,,{\c&H0048C8FF&}cities.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:13.51,0:02:13.79,Sub,,0,0,0,,{\c&H0048C8FF&}In{\c&H00FFFFFF&} 481, the ones that chose to
+Dialogue: 0,0:02:13.79,0:02:15.02,Sub,,0,0,0,,In {\c&H0048C8FF&}481,{\c&H00FFFFFF&} the ones that chose to
+Dialogue: 0,0:02:15.02,0:02:15.24,Sub,,0,0,0,,In 481, {\c&H0048C8FF&}the{\c&H00FFFFFF&} ones that chose to
+Dialogue: 0,0:02:15.24,0:02:15.62,Sub,,0,0,0,,In 481, the {\c&H0048C8FF&}ones{\c&H00FFFFFF&} that chose to
+Dialogue: 0,0:02:15.62,0:02:15.80,Sub,,0,0,0,,In 481, the ones {\c&H0048C8FF&}that{\c&H00FFFFFF&} chose to
+Dialogue: 0,0:02:15.80,0:02:16.15,Sub,,0,0,0,,In 481, the ones that {\c&H0048C8FF&}chose{\c&H00FFFFFF&} to
+Dialogue: 0,0:02:16.15,0:02:16.29,Sub,,0,0,0,,In 481, the ones that chose {\c&H0048C8FF&}to{\c&H00FFFFFF&}
+Dialogue: 0,0:02:16.29,0:02:17.00,Sub,,0,0,0,,{\c&H0048C8FF&}resist{\c&H00FFFFFF&} met at Corinth and agreed,
+Dialogue: 0,0:02:17.00,0:02:17.24,Sub,,0,0,0,,resist {\c&H0048C8FF&}met{\c&H00FFFFFF&} at Corinth and agreed,
+Dialogue: 0,0:02:17.24,0:02:17.36,Sub,,0,0,0,,resist met {\c&H0048C8FF&}at{\c&H00FFFFFF&} Corinth and agreed,
+Dialogue: 0,0:02:17.36,0:02:18.08,Sub,,0,0,0,,resist met at {\c&H0048C8FF&}Corinth{\c&H00FFFFFF&} and agreed,
+Dialogue: 0,0:02:18.08,0:02:18.43,Sub,,0,0,0,,resist met at Corinth {\c&H0048C8FF&}and{\c&H00FFFFFF&} agreed,
+Dialogue: 0,0:02:18.43,0:02:19.51,Sub,,0,0,0,,resist met at Corinth and {\c&H0048C8FF&}agreed,{\c&H00FFFFFF&}
+Dialogue: 0,0:02:19.51,0:02:20.48,Sub,,0,0,0,,{\c&H0048C8FF&}barely,{\c&H00FFFFFF&} to fight together.
+Dialogue: 0,0:02:20.48,0:02:20.72,Sub,,0,0,0,,barely, {\c&H0048C8FF&}to{\c&H00FFFFFF&} fight together.
+Dialogue: 0,0:02:20.72,0:02:20.99,Sub,,0,0,0,,barely, to {\c&H0048C8FF&}fight{\c&H00FFFFFF&} together.
+Dialogue: 0,0:02:20.99,0:02:22.04,Sub,,0,0,0,,barely, to fight {\c&H0048C8FF&}together.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:22.31,0:02:23.14,Sub,,0,0,0,,{\c&H0048C8FF&}Sparta{\c&H00FFFFFF&} would lead on land.
+Dialogue: 0,0:02:23.14,0:02:23.40,Sub,,0,0,0,,Sparta {\c&H0048C8FF&}would{\c&H00FFFFFF&} lead on land.
+Dialogue: 0,0:02:23.40,0:02:23.77,Sub,,0,0,0,,Sparta would {\c&H0048C8FF&}lead{\c&H00FFFFFF&} on land.
+Dialogue: 0,0:02:23.77,0:02:23.94,Sub,,0,0,0,,Sparta would lead {\c&H0048C8FF&}on{\c&H00FFFFFF&} land.
+Dialogue: 0,0:02:23.94,0:02:24.99,Sub,,0,0,0,,Sparta would lead on {\c&H0048C8FF&}land.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:24.99,0:02:25.71,Sub,,0,0,0,,{\c&H0048C8FF&}Athens,{\c&H00FFFFFF&} which had just built two hundred
+Dialogue: 0,0:02:25.71,0:02:25.96,Sub,,0,0,0,,Athens, {\c&H0048C8FF&}which{\c&H00FFFFFF&} had just built two hundred
+Dialogue: 0,0:02:25.96,0:02:26.14,Sub,,0,0,0,,Athens, which {\c&H0048C8FF&}had{\c&H00FFFFFF&} just built two hundred
+Dialogue: 0,0:02:26.14,0:02:26.45,Sub,,0,0,0,,Athens, which had {\c&H0048C8FF&}just{\c&H00FFFFFF&} built two hundred
+Dialogue: 0,0:02:26.45,0:02:26.78,Sub,,0,0,0,,Athens, which had just {\c&H0048C8FF&}built{\c&H00FFFFFF&} two hundred
+Dialogue: 0,0:02:26.78,0:02:27.12,Sub,,0,0,0,,Athens, which had just built {\c&H0048C8FF&}two{\c&H00FFFFFF&} hundred
+Dialogue: 0,0:02:27.12,0:02:27.46,Sub,,0,0,0,,Athens, which had just built two {\c&H0048C8FF&}hundred{\c&H00FFFFFF&}
+Dialogue: 0,0:02:27.46,0:02:28.09,Sub,,0,0,0,,{\c&H0048C8FF&}warships{\c&H00FFFFFF&} with silver from its mines,
+Dialogue: 0,0:02:28.09,0:02:28.27,Sub,,0,0,0,,warships {\c&H0048C8FF&}with{\c&H00FFFFFF&} silver from its mines,
+Dialogue: 0,0:02:28.27,0:02:28.68,Sub,,0,0,0,,warships with {\c&H0048C8FF&}silver{\c&H00FFFFFF&} from its mines,
+Dialogue: 0,0:02:28.68,0:02:28.85,Sub,,0,0,0,,warships with silver {\c&H0048C8FF&}from{\c&H00FFFFFF&} its mines,
+Dialogue: 0,0:02:28.85,0:02:29.03,Sub,,0,0,0,,warships with silver from {\c&H0048C8FF&}its{\c&H00FFFFFF&} mines,
+Dialogue: 0,0:02:29.03,0:02:29.85,Sub,,0,0,0,,warships with silver from its {\c&H0048C8FF&}mines,{\c&H00FFFFFF&}
+Dialogue: 0,0:02:29.85,0:02:30.10,Sub,,0,0,0,,{\c&H0048C8FF&}would{\c&H00FFFFFF&} carry the fight at sea.
+Dialogue: 0,0:02:30.10,0:02:30.43,Sub,,0,0,0,,would {\c&H0048C8FF&}carry{\c&H00FFFFFF&} the fight at sea.
+Dialogue: 0,0:02:30.43,0:02:30.60,Sub,,0,0,0,,would carry {\c&H0048C8FF&}the{\c&H00FFFFFF&} fight at sea.
+Dialogue: 0,0:02:30.60,0:02:30.94,Sub,,0,0,0,,would carry the {\c&H0048C8FF&}fight{\c&H00FFFFFF&} at sea.
+Dialogue: 0,0:02:30.94,0:02:31.09,Sub,,0,0,0,,would carry the fight {\c&H0048C8FF&}at{\c&H00FFFFFF&} sea.
+Dialogue: 0,0:02:31.09,0:02:32.02,Sub,,0,0,0,,would carry the fight at {\c&H0048C8FF&}sea.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:32.33,0:02:32.49,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} plan was simple.
+Dialogue: 0,0:02:32.49,0:02:33.21,Sub,,0,0,0,,The {\c&H0048C8FF&}plan{\c&H00FFFFFF&} was simple.
+Dialogue: 0,0:02:33.21,0:02:33.47,Sub,,0,0,0,,The plan {\c&H0048C8FF&}was{\c&H00FFFFFF&} simple.
+Dialogue: 0,0:02:33.47,0:02:34.64,Sub,,0,0,0,,The plan was {\c&H0048C8FF&}simple.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:34.64,0:02:35.04,Sub,,0,0,0,,{\c&H0048C8FF&}Block{\c&H00FFFFFF&} the land road into central Greece
+Dialogue: 0,0:02:35.04,0:02:35.17,Sub,,0,0,0,,Block {\c&H0048C8FF&}the{\c&H00FFFFFF&} land road into central Greece
+Dialogue: 0,0:02:35.17,0:02:35.50,Sub,,0,0,0,,Block the {\c&H0048C8FF&}land{\c&H00FFFFFF&} road into central Greece
+Dialogue: 0,0:02:35.50,0:02:35.85,Sub,,0,0,0,,Block the land {\c&H0048C8FF&}road{\c&H00FFFFFF&} into central Greece
+Dialogue: 0,0:02:35.85,0:02:36.11,Sub,,0,0,0,,Block the land road {\c&H0048C8FF&}into{\c&H00FFFFFF&} central Greece
+Dialogue: 0,0:02:36.11,0:02:36.53,Sub,,0,0,0,,Block the land road into {\c&H0048C8FF&}central{\c&H00FFFFFF&} Greece
+Dialogue: 0,0:02:36.53,0:02:36.92,Sub,,0,0,0,,Block the land road into central {\c&H0048C8FF&}Greece{\c&H00FFFFFF&}
+Dialogue: 0,0:02:36.92,0:02:37.04,Sub,,0,0,0,,{\c&H0048C8FF&}at{\c&H00FFFFFF&} Thermopylae, and block the sea beside
+Dialogue: 0,0:02:37.04,0:02:38.14,Sub,,0,0,0,,at {\c&H0048C8FF&}Thermopylae,{\c&H00FFFFFF&} and block the sea beside
+Dialogue: 0,0:02:38.14,0:02:38.36,Sub,,0,0,0,,at Thermopylae, {\c&H0048C8FF&}and{\c&H00FFFFFF&} block the sea beside
+Dialogue: 0,0:02:38.36,0:02:38.71,Sub,,0,0,0,,at Thermopylae, and {\c&H0048C8FF&}block{\c&H00FFFFFF&} the sea beside
+Dialogue: 0,0:02:38.71,0:02:38.84,Sub,,0,0,0,,at Thermopylae, and block {\c&H0048C8FF&}the{\c&H00FFFFFF&} sea beside
+Dialogue: 0,0:02:38.84,0:02:39.08,Sub,,0,0,0,,at Thermopylae, and block the {\c&H0048C8FF&}sea{\c&H00FFFFFF&} beside
+Dialogue: 0,0:02:39.08,0:02:39.56,Sub,,0,0,0,,at Thermopylae, and block the sea {\c&H0048C8FF&}beside{\c&H00FFFFFF&}
+Dialogue: 0,0:02:39.56,0:02:39.66,Sub,,0,0,0,,{\c&H0048C8FF&}it{\c&H00FFFFFF&} at Artemisium,
+Dialogue: 0,0:02:39.66,0:02:39.79,Sub,,0,0,0,,it {\c&H0048C8FF&}at{\c&H00FFFFFF&} Artemisium,
+Dialogue: 0,0:02:39.79,0:02:40.89,Sub,,0,0,0,,it at {\c&H0048C8FF&}Artemisium,{\c&H00FFFFFF&}
+Dialogue: 0,0:02:40.89,0:02:41.11,Sub,,0,0,0,,{\c&H0048C8FF&}so{\c&H00FFFFFF&} the two Persian forces could not
+Dialogue: 0,0:02:41.11,0:02:41.24,Sub,,0,0,0,,so {\c&H0048C8FF&}the{\c&H00FFFFFF&} two Persian forces could not
+Dialogue: 0,0:02:41.24,0:02:41.50,Sub,,0,0,0,,so the {\c&H0048C8FF&}two{\c&H00FFFFFF&} Persian forces could not
+Dialogue: 0,0:02:41.50,0:02:41.89,Sub,,0,0,0,,so the two {\c&H0048C8FF&}Persian{\c&H00FFFFFF&} forces could not
+Dialogue: 0,0:02:41.89,0:02:42.60,Sub,,0,0,0,,so the two Persian {\c&H0048C8FF&}forces{\c&H00FFFFFF&} could not
+Dialogue: 0,0:02:42.60,0:02:42.84,Sub,,0,0,0,,so the two Persian forces {\c&H0048C8FF&}could{\c&H00FFFFFF&} not
+Dialogue: 0,0:02:42.84,0:02:43.03,Sub,,0,0,0,,so the two Persian forces could {\c&H0048C8FF&}not{\c&H00FFFFFF&}
+Dialogue: 0,0:02:43.03,0:02:43.38,Sub,,0,0,0,,{\c&H0048C8FF&}support{\c&H00FFFFFF&} each other.
+Dialogue: 0,0:02:43.38,0:02:43.58,Sub,,0,0,0,,support {\c&H0048C8FF&}each{\c&H00FFFFFF&} other.
+Dialogue: 0,0:02:43.58,0:02:44.74,Sub,,0,0,0,,support each {\c&H0048C8FF&}other.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:47.68,0:02:47.89,Sub,,0,0,0,,{\c&H0048C8FF&}But{\c&H00FFFFFF&} the timing was bad.
+Dialogue: 0,0:02:47.89,0:02:48.02,Sub,,0,0,0,,But {\c&H0048C8FF&}the{\c&H00FFFFFF&} timing was bad.
+Dialogue: 0,0:02:48.02,0:02:48.48,Sub,,0,0,0,,But the {\c&H0048C8FF&}timing{\c&H00FFFFFF&} was bad.
+Dialogue: 0,0:02:48.48,0:02:48.68,Sub,,0,0,0,,But the timing {\c&H0048C8FF&}was{\c&H00FFFFFF&} bad.
+Dialogue: 0,0:02:48.68,0:02:49.49,Sub,,0,0,0,,But the timing was {\c&H0048C8FF&}bad.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:49.49,0:02:49.99,Sub,,0,0,0,,{\c&H0048C8FF&}Sparta{\c&H00FFFFFF&} was keeping the festival of the
+Dialogue: 0,0:02:49.99,0:02:50.17,Sub,,0,0,0,,Sparta {\c&H0048C8FF&}was{\c&H00FFFFFF&} keeping the festival of the
+Dialogue: 0,0:02:50.17,0:02:50.52,Sub,,0,0,0,,Sparta was {\c&H0048C8FF&}keeping{\c&H00FFFFFF&} the festival of the
+Dialogue: 0,0:02:50.52,0:02:50.64,Sub,,0,0,0,,Sparta was keeping {\c&H0048C8FF&}the{\c&H00FFFFFF&} festival of the
+Dialogue: 0,0:02:50.64,0:02:51.20,Sub,,0,0,0,,Sparta was keeping the {\c&H0048C8FF&}festival{\c&H00FFFFFF&} of the
+Dialogue: 0,0:02:51.20,0:02:51.30,Sub,,0,0,0,,Sparta was keeping the festival {\c&H0048C8FF&}of{\c&H00FFFFFF&} the
+Dialogue: 0,0:02:51.30,0:02:51.45,Sub,,0,0,0,,Sparta was keeping the festival of {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:02:51.45,0:02:52.88,Sub,,0,0,0,,{\c&H0048C8FF&}Carneia,{\c&H00FFFFFF&} and the Olympic truce was in
+Dialogue: 0,0:02:52.88,0:02:53.11,Sub,,0,0,0,,Carneia, {\c&H0048C8FF&}and{\c&H00FFFFFF&} the Olympic truce was in
+Dialogue: 0,0:02:53.11,0:02:53.23,Sub,,0,0,0,,Carneia, and {\c&H0048C8FF&}the{\c&H00FFFFFF&} Olympic truce was in
+Dialogue: 0,0:02:53.23,0:02:53.65,Sub,,0,0,0,,Carneia, and the {\c&H0048C8FF&}Olympic{\c&H00FFFFFF&} truce was in
+Dialogue: 0,0:02:53.65,0:02:54.32,Sub,,0,0,0,,Carneia, and the Olympic {\c&H0048C8FF&}truce{\c&H00FFFFFF&} was in
+Dialogue: 0,0:02:54.32,0:02:54.61,Sub,,0,0,0,,Carneia, and the Olympic truce {\c&H0048C8FF&}was{\c&H00FFFFFF&} in
+Dialogue: 0,0:02:54.61,0:02:54.76,Sub,,0,0,0,,Carneia, and the Olympic truce was {\c&H0048C8FF&}in{\c&H00FFFFFF&}
+Dialogue: 0,0:02:54.76,0:02:55.55,Sub,,0,0,0,,{\c&H0048C8FF&}force.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:55.55,0:02:55.87,Sub,,0,0,0,,{\c&H0048C8FF&}So{\c&H00FFFFFF&} Sparta sent an advance guard:
+Dialogue: 0,0:02:55.87,0:02:56.34,Sub,,0,0,0,,So {\c&H0048C8FF&}Sparta{\c&H00FFFFFF&} sent an advance guard:
+Dialogue: 0,0:02:56.34,0:02:56.57,Sub,,0,0,0,,So Sparta {\c&H0048C8FF&}sent{\c&H00FFFFFF&} an advance guard:
+Dialogue: 0,0:02:56.57,0:02:56.67,Sub,,0,0,0,,So Sparta sent {\c&H0048C8FF&}an{\c&H00FFFFFF&} advance guard:
+Dialogue: 0,0:02:56.67,0:02:57.07,Sub,,0,0,0,,So Sparta sent an {\c&H0048C8FF&}advance{\c&H00FFFFFF&} guard:
+Dialogue: 0,0:02:57.07,0:02:57.95,Sub,,0,0,0,,So Sparta sent an advance {\c&H0048C8FF&}guard:{\c&H00FFFFFF&}
+Dialogue: 0,0:02:57.95,0:02:58.14,Sub,,0,0,0,,{\c&H0048C8FF&}one{\c&H00FFFFFF&} of its two kings,
+Dialogue: 0,0:02:58.14,0:02:58.26,Sub,,0,0,0,,one {\c&H0048C8FF&}of{\c&H00FFFFFF&} its two kings,
+Dialogue: 0,0:02:58.26,0:02:58.46,Sub,,0,0,0,,one of {\c&H0048C8FF&}its{\c&H00FFFFFF&} two kings,
+Dialogue: 0,0:02:58.46,0:02:58.80,Sub,,0,0,0,,one of its {\c&H0048C8FF&}two{\c&H00FFFFFF&} kings,
+Dialogue: 0,0:02:58.80,0:02:59.72,Sub,,0,0,0,,one of its two {\c&H0048C8FF&}kings,{\c&H00FFFFFF&}
+Dialogue: 0,0:02:59.72,0:03:00.81,Sub,,0,0,0,,{\c&H0048C8FF&}Leonidas,{\c&H00FFFFFF&} with three hundred full
+Dialogue: 0,0:03:00.81,0:03:01.04,Sub,,0,0,0,,Leonidas, {\c&H0048C8FF&}with{\c&H00FFFFFF&} three hundred full
+Dialogue: 0,0:03:01.04,0:03:01.40,Sub,,0,0,0,,Leonidas, with {\c&H0048C8FF&}three{\c&H00FFFFFF&} hundred full
+Dialogue: 0,0:03:01.40,0:03:01.75,Sub,,0,0,0,,Leonidas, with three {\c&H0048C8FF&}hundred{\c&H00FFFFFF&} full
+Dialogue: 0,0:03:01.75,0:03:01.99,Sub,,0,0,0,,Leonidas, with three hundred {\c&H0048C8FF&}full{\c&H00FFFFFF&}
+Dialogue: 0,0:03:01.99,0:03:03.10,Sub,,0,0,0,,{\c&H0048C8FF&}citizens,{\c&H00FFFFFF&} each chosen,
+Dialogue: 0,0:03:03.10,0:03:03.50,Sub,,0,0,0,,citizens, {\c&H0048C8FF&}each{\c&H00FFFFFF&} chosen,
+Dialogue: 0,0:03:03.50,0:03:04.43,Sub,,0,0,0,,citizens, each {\c&H0048C8FF&}chosen,{\c&H00FFFFFF&}
+Dialogue: 0,0:03:04.43,0:03:05.06,Sub,,0,0,0,,{\c&H0048C8FF&}Herodotus{\c&H00FFFFFF&} says, because he had a living
+Dialogue: 0,0:03:05.06,0:03:05.76,Sub,,0,0,0,,Herodotus {\c&H0048C8FF&}says,{\c&H00FFFFFF&} because he had a living
+Dialogue: 0,0:03:05.76,0:03:06.24,Sub,,0,0,0,,Herodotus says, {\c&H0048C8FF&}because{\c&H00FFFFFF&} he had a living
+Dialogue: 0,0:03:06.24,0:03:06.39,Sub,,0,0,0,,Herodotus says, because {\c&H0048C8FF&}he{\c&H00FFFFFF&} had a living
+Dialogue: 0,0:03:06.39,0:03:06.95,Sub,,0,0,0,,Herodotus says, because he {\c&H0048C8FF&}had{\c&H00FFFFFF&} a living
+Dialogue: 0,0:03:06.95,0:03:07.21,Sub,,0,0,0,,Herodotus says, because he had {\c&H0048C8FF&}a{\c&H00FFFFFF&} living
+Dialogue: 0,0:03:07.21,0:03:07.63,Sub,,0,0,0,,Herodotus says, because he had a {\c&H0048C8FF&}living{\c&H00FFFFFF&}
+Dialogue: 0,0:03:07.63,0:03:09.18,Sub,,0,0,0,,{\c&H0048C8FF&}son.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:09.18,0:03:10.43,Sub,,0,0,0,,{\c&H0048C8FF&}Leonidas{\c&H00FFFFFF&} was probably about sixty.
+Dialogue: 0,0:03:10.43,0:03:10.71,Sub,,0,0,0,,Leonidas {\c&H0048C8FF&}was{\c&H00FFFFFF&} probably about sixty.
+Dialogue: 0,0:03:10.71,0:03:11.44,Sub,,0,0,0,,Leonidas was {\c&H0048C8FF&}probably{\c&H00FFFFFF&} about sixty.
+Dialogue: 0,0:03:11.44,0:03:11.86,Sub,,0,0,0,,Leonidas was probably {\c&H0048C8FF&}about{\c&H00FFFFFF&} sixty.
+Dialogue: 0,0:03:11.86,0:03:12.85,Sub,,0,0,0,,Leonidas was probably about {\c&H0048C8FF&}sixty.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:13.58,0:03:13.79,Sub,,0,0,0,,{\c&H0048C8FF&}On{\c&H00FFFFFF&} the road north,
+Dialogue: 0,0:03:13.79,0:03:13.91,Sub,,0,0,0,,On {\c&H0048C8FF&}the{\c&H00FFFFFF&} road north,
+Dialogue: 0,0:03:13.91,0:03:14.15,Sub,,0,0,0,,On the {\c&H0048C8FF&}road{\c&H00FFFFFF&} north,
+Dialogue: 0,0:03:14.15,0:03:14.86,Sub,,0,0,0,,On the road {\c&H0048C8FF&}north,{\c&H00FFFFFF&}
+Dialogue: 0,0:03:14.86,0:03:15.03,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} allies joined:
+Dialogue: 0,0:03:15.03,0:03:15.49,Sub,,0,0,0,,the {\c&H0048C8FF&}allies{\c&H00FFFFFF&} joined:
+Dialogue: 0,0:03:15.49,0:03:16.46,Sub,,0,0,0,,the allies {\c&H0048C8FF&}joined:{\c&H00FFFFFF&}
+Dialogue: 0,0:03:16.46,0:03:16.79,Sub,,0,0,0,,{\c&H0048C8FF&}men{\c&H00FFFFFF&} from Tegea and Mantinea,
+Dialogue: 0,0:03:16.79,0:03:16.97,Sub,,0,0,0,,men {\c&H0048C8FF&}from{\c&H00FFFFFF&} Tegea and Mantinea,
+Dialogue: 0,0:03:16.97,0:03:17.58,Sub,,0,0,0,,men from {\c&H0048C8FF&}Tegea{\c&H00FFFFFF&} and Mantinea,
+Dialogue: 0,0:03:17.58,0:03:17.71,Sub,,0,0,0,,men from Tegea {\c&H0048C8FF&}and{\c&H00FFFFFF&} Mantinea,
+Dialogue: 0,0:03:17.71,0:03:18.89,Sub,,0,0,0,,men from Tegea and {\c&H0048C8FF&}Mantinea,{\c&H00FFFFFF&}
+Dialogue: 0,0:03:18.89,0:03:19.91,Sub,,0,0,0,,{\c&H0048C8FF&}Corinth,{\c&H00FFFFFF&} Phlius, Mycenae,
+Dialogue: 0,0:03:19.91,0:03:21.06,Sub,,0,0,0,,Corinth, {\c&H0048C8FF&}Phlius,{\c&H00FFFFFF&} Mycenae,
+Dialogue: 0,0:03:21.06,0:03:22.29,Sub,,0,0,0,,Corinth, Phlius, {\c&H0048C8FF&}Mycenae,{\c&H00FFFFFF&}
+Dialogue: 0,0:03:22.29,0:03:22.65,Sub,,0,0,0,,{\c&H0048C8FF&}seven{\c&H00FFFFFF&} hundred from Thespiae,
+Dialogue: 0,0:03:22.65,0:03:22.89,Sub,,0,0,0,,seven {\c&H0048C8FF&}hundred{\c&H00FFFFFF&} from Thespiae,
+Dialogue: 0,0:03:22.89,0:03:23.05,Sub,,0,0,0,,seven hundred {\c&H0048C8FF&}from{\c&H00FFFFFF&} Thespiae,
+Dialogue: 0,0:03:23.05,0:03:24.29,Sub,,0,0,0,,seven hundred from {\c&H0048C8FF&}Thespiae,{\c&H00FFFFFF&}
+Dialogue: 0,0:03:24.29,0:03:24.57,Sub,,0,0,0,,{\c&H0048C8FF&}four{\c&H00FFFFFF&} hundred from Thebes,
+Dialogue: 0,0:03:24.57,0:03:24.83,Sub,,0,0,0,,four {\c&H0048C8FF&}hundred{\c&H00FFFFFF&} from Thebes,
+Dialogue: 0,0:03:24.83,0:03:25.02,Sub,,0,0,0,,four hundred {\c&H0048C8FF&}from{\c&H00FFFFFF&} Thebes,
+Dialogue: 0,0:03:25.02,0:03:25.99,Sub,,0,0,0,,four hundred from {\c&H0048C8FF&}Thebes,{\c&H00FFFFFF&}
+Dialogue: 0,0:03:25.99,0:03:26.20,Sub,,0,0,0,,{\c&H0048C8FF&}and{\c&H00FFFFFF&} the Phocians and Locrians,
+Dialogue: 0,0:03:26.20,0:03:26.34,Sub,,0,0,0,,and {\c&H0048C8FF&}the{\c&H00FFFFFF&} Phocians and Locrians,
+Dialogue: 0,0:03:26.34,0:03:26.87,Sub,,0,0,0,,and the {\c&H0048C8FF&}Phocians{\c&H00FFFFFF&} and Locrians,
+Dialogue: 0,0:03:26.87,0:03:26.98,Sub,,0,0,0,,and the Phocians {\c&H0048C8FF&}and{\c&H00FFFFFF&} Locrians,
+Dialogue: 0,0:03:26.98,0:03:28.00,Sub,,0,0,0,,and the Phocians and {\c&H0048C8FF&}Locrians,{\c&H00FFFFFF&}
+Dialogue: 0,0:03:28.00,0:03:28.29,Sub,,0,0,0,,{\c&H0048C8FF&}whose{\c&H00FFFFFF&} land lay just beyond the pass.
+Dialogue: 0,0:03:28.29,0:03:28.68,Sub,,0,0,0,,whose {\c&H0048C8FF&}land{\c&H00FFFFFF&} lay just beyond the pass.
+Dialogue: 0,0:03:28.68,0:03:28.92,Sub,,0,0,0,,whose land {\c&H0048C8FF&}lay{\c&H00FFFFFF&} just beyond the pass.
+Dialogue: 0,0:03:28.92,0:03:29.22,Sub,,0,0,0,,whose land lay {\c&H0048C8FF&}just{\c&H00FFFFFF&} beyond the pass.
+Dialogue: 0,0:03:29.22,0:03:29.54,Sub,,0,0,0,,whose land lay just {\c&H0048C8FF&}beyond{\c&H00FFFFFF&} the pass.
+Dialogue: 0,0:03:29.54,0:03:29.64,Sub,,0,0,0,,whose land lay just beyond {\c&H0048C8FF&}the{\c&H00FFFFFF&} pass.
+Dialogue: 0,0:03:29.64,0:03:31.07,Sub,,0,0,0,,whose land lay just beyond the {\c&H0048C8FF&}pass.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:34.69,0:03:35.18,Sub,,0,0,0,,{\c&H0048C8FF&}Roughly{\c&H00FFFFFF&} seven thousand men,
+Dialogue: 0,0:03:35.18,0:03:35.58,Sub,,0,0,0,,Roughly {\c&H0048C8FF&}seven{\c&H00FFFFFF&} thousand men,
+Dialogue: 0,0:03:35.58,0:03:36.08,Sub,,0,0,0,,Roughly seven {\c&H0048C8FF&}thousand{\c&H00FFFFFF&} men,
+Dialogue: 0,0:03:36.08,0:03:36.72,Sub,,0,0,0,,Roughly seven thousand {\c&H0048C8FF&}men,{\c&H00FFFFFF&}
+Dialogue: 0,0:03:36.72,0:03:37.00,Sub,,0,0,0,,{\c&H0048C8FF&}with{\c&H00FFFFFF&} their helot servants.
+Dialogue: 0,0:03:37.00,0:03:37.25,Sub,,0,0,0,,with {\c&H0048C8FF&}their{\c&H00FFFFFF&} helot servants.
+Dialogue: 0,0:03:37.25,0:03:37.71,Sub,,0,0,0,,with their {\c&H0048C8FF&}helot{\c&H00FFFFFF&} servants.
+Dialogue: 0,0:03:37.71,0:03:38.63,Sub,,0,0,0,,with their helot {\c&H0048C8FF&}servants.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:38.63,0:03:38.90,Sub,,0,0,0,,{\c&H0048C8FF&}They{\c&H00FFFFFF&} were told the main army would
+Dialogue: 0,0:03:38.90,0:03:39.09,Sub,,0,0,0,,They {\c&H0048C8FF&}were{\c&H00FFFFFF&} told the main army would
+Dialogue: 0,0:03:39.09,0:03:39.39,Sub,,0,0,0,,They were {\c&H0048C8FF&}told{\c&H00FFFFFF&} the main army would
+Dialogue: 0,0:03:39.39,0:03:39.56,Sub,,0,0,0,,They were told {\c&H0048C8FF&}the{\c&H00FFFFFF&} main army would
+Dialogue: 0,0:03:39.56,0:03:39.89,Sub,,0,0,0,,They were told the {\c&H0048C8FF&}main{\c&H00FFFFFF&} army would
+Dialogue: 0,0:03:39.89,0:03:40.17,Sub,,0,0,0,,They were told the main {\c&H0048C8FF&}army{\c&H00FFFFFF&} would
+Dialogue: 0,0:03:40.17,0:03:40.38,Sub,,0,0,0,,They were told the main army {\c&H0048C8FF&}would{\c&H00FFFFFF&}
+Dialogue: 0,0:03:40.38,0:03:41.14,Sub,,0,0,0,,{\c&H0048C8FF&}follow{\c&H00FFFFFF&} after the festival.
+Dialogue: 0,0:03:41.14,0:03:41.57,Sub,,0,0,0,,follow {\c&H0048C8FF&}after{\c&H00FFFFFF&} the festival.
+Dialogue: 0,0:03:41.57,0:03:41.72,Sub,,0,0,0,,follow after {\c&H0048C8FF&}the{\c&H00FFFFFF&} festival.
+Dialogue: 0,0:03:41.72,0:03:43.13,Sub,,0,0,0,,follow after the {\c&H0048C8FF&}festival.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:43.13,0:03:44.81,Sub,,0,0,0,,{\c&H0048C8FF&}Thermopylae{\c&H00FFFFFF&} means the Hot Gates.
+Dialogue: 0,0:03:44.81,0:03:45.27,Sub,,0,0,0,,Thermopylae {\c&H0048C8FF&}means{\c&H00FFFFFF&} the Hot Gates.
+Dialogue: 0,0:03:45.27,0:03:45.42,Sub,,0,0,0,,Thermopylae means {\c&H0048C8FF&}the{\c&H00FFFFFF&} Hot Gates.
+Dialogue: 0,0:03:45.42,0:03:45.66,Sub,,0,0,0,,Thermopylae means the {\c&H0048C8FF&}Hot{\c&H00FFFFFF&} Gates.
+Dialogue: 0,0:03:45.66,0:03:46.76,Sub,,0,0,0,,Thermopylae means the Hot {\c&H0048C8FF&}Gates.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:46.76,0:03:47.21,Sub,,0,0,0,,{\c&H0048C8FF&}Sulphur{\c&H00FFFFFF&} springs still steam out of the
+Dialogue: 0,0:03:47.21,0:03:48.08,Sub,,0,0,0,,Sulphur {\c&H0048C8FF&}springs{\c&H00FFFFFF&} still steam out of the
+Dialogue: 0,0:03:48.08,0:03:48.44,Sub,,0,0,0,,Sulphur springs {\c&H0048C8FF&}still{\c&H00FFFFFF&} steam out of the
+Dialogue: 0,0:03:48.44,0:03:48.97,Sub,,0,0,0,,Sulphur springs still {\c&H0048C8FF&}steam{\c&H00FFFFFF&} out of the
+Dialogue: 0,0:03:48.97,0:03:49.10,Sub,,0,0,0,,Sulphur springs still steam {\c&H0048C8FF&}out{\c&H00FFFFFF&} of the
+Dialogue: 0,0:03:49.10,0:03:49.18,Sub,,0,0,0,,Sulphur springs still steam out {\c&H0048C8FF&}of{\c&H00FFFFFF&} the
+Dialogue: 0,0:03:49.18,0:03:49.30,Sub,,0,0,0,,Sulphur springs still steam out of {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:03:49.30,0:03:50.31,Sub,,0,0,0,,{\c&H0048C8FF&}cliff.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:51.21,0:03:51.47,Sub,,0,0,0,,{\c&H0048C8FF&}In{\c&H00FFFFFF&} 480 BC
+Dialogue: 0,0:03:51.47,0:03:52.14,Sub,,0,0,0,,In {\c&H0048C8FF&}480{\c&H00FFFFFF&} BC
+Dialogue: 0,0:03:52.14,0:03:52.80,Sub,,0,0,0,,In 480 {\c&H0048C8FF&}BC{\c&H00FFFFFF&}
+Dialogue: 0,0:03:53.11,0:03:53.31,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} sea came right up to the
+Dialogue: 0,0:03:53.31,0:03:53.60,Sub,,0,0,0,,the {\c&H0048C8FF&}sea{\c&H00FFFFFF&} came right up to the
+Dialogue: 0,0:03:53.60,0:03:53.93,Sub,,0,0,0,,the sea {\c&H0048C8FF&}came{\c&H00FFFFFF&} right up to the
+Dialogue: 0,0:03:53.93,0:03:54.22,Sub,,0,0,0,,the sea came {\c&H0048C8FF&}right{\c&H00FFFFFF&} up to the
+Dialogue: 0,0:03:54.22,0:03:54.36,Sub,,0,0,0,,the sea came right {\c&H0048C8FF&}up{\c&H00FFFFFF&} to the
+Dialogue: 0,0:03:54.36,0:03:54.48,Sub,,0,0,0,,the sea came right up {\c&H0048C8FF&}to{\c&H00FFFFFF&} the
+Dialogue: 0,0:03:54.48,0:03:54.60,Sub,,0,0,0,,the sea came right up to {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:03:54.60,0:03:54.81,Sub,,0,0,0,,{\c&H0048C8FF&}foot{\c&H00FFFFFF&} of the mountain.
+Dialogue: 0,0:03:54.81,0:03:54.89,Sub,,0,0,0,,foot {\c&H0048C8FF&}of{\c&H00FFFFFF&} the mountain.
+Dialogue: 0,0:03:54.89,0:03:55.01,Sub,,0,0,0,,foot of {\c&H0048C8FF&}the{\c&H00FFFFFF&} mountain.
+Dialogue: 0,0:03:55.01,0:03:56.04,Sub,,0,0,0,,foot of the {\c&H0048C8FF&}mountain.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:56.04,0:03:56.23,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} pass ran for several kilometres
+Dialogue: 0,0:03:56.23,0:03:56.66,Sub,,0,0,0,,The {\c&H0048C8FF&}pass{\c&H00FFFFFF&} ran for several kilometres
+Dialogue: 0,0:03:56.66,0:03:56.99,Sub,,0,0,0,,The pass {\c&H0048C8FF&}ran{\c&H00FFFFFF&} for several kilometres
+Dialogue: 0,0:03:56.99,0:03:57.19,Sub,,0,0,0,,The pass ran {\c&H0048C8FF&}for{\c&H00FFFFFF&} several kilometres
+Dialogue: 0,0:03:57.19,0:03:57.59,Sub,,0,0,0,,The pass ran for {\c&H0048C8FF&}several{\c&H00FFFFFF&} kilometres
+Dialogue: 0,0:03:57.59,0:03:58.19,Sub,,0,0,0,,The pass ran for several {\c&H0048C8FF&}kilometres{\c&H00FFFFFF&}
+Dialogue: 0,0:03:58.19,0:03:58.63,Sub,,0,0,0,,{\c&H0048C8FF&}between{\c&H00FFFFFF&} cliff and water,
+Dialogue: 0,0:03:58.63,0:03:58.96,Sub,,0,0,0,,between {\c&H0048C8FF&}cliff{\c&H00FFFFFF&} and water,
+Dialogue: 0,0:03:58.96,0:03:59.11,Sub,,0,0,0,,between cliff {\c&H0048C8FF&}and{\c&H00FFFFFF&} water,
+Dialogue: 0,0:03:59.11,0:03:59.97,Sub,,0,0,0,,between cliff and {\c&H0048C8FF&}water,{\c&H00FFFFFF&}
+Dialogue: 0,0:03:59.97,0:04:00.16,Sub,,0,0,0,,{\c&H0048C8FF&}and{\c&H00FFFFFF&} at its narrowest points it was
+Dialogue: 0,0:04:00.16,0:04:00.29,Sub,,0,0,0,,and {\c&H0048C8FF&}at{\c&H00FFFFFF&} its narrowest points it was
+Dialogue: 0,0:04:00.29,0:04:00.50,Sub,,0,0,0,,and at {\c&H0048C8FF&}its{\c&H00FFFFFF&} narrowest points it was
+Dialogue: 0,0:04:00.50,0:04:01.01,Sub,,0,0,0,,and at its {\c&H0048C8FF&}narrowest{\c&H00FFFFFF&} points it was
+Dialogue: 0,0:04:01.01,0:04:01.89,Sub,,0,0,0,,and at its narrowest {\c&H0048C8FF&}points{\c&H00FFFFFF&} it was
+Dialogue: 0,0:04:01.89,0:04:02.07,Sub,,0,0,0,,and at its narrowest points {\c&H0048C8FF&}it{\c&H00FFFFFF&} was
+Dialogue: 0,0:04:02.07,0:04:02.27,Sub,,0,0,0,,and at its narrowest points it {\c&H0048C8FF&}was{\c&H00FFFFFF&}
+Dialogue: 0,0:04:02.27,0:04:02.70,Sub,,0,0,0,,{\c&H0048C8FF&}barely{\c&H00FFFFFF&} a cart's width.
+Dialogue: 0,0:04:02.70,0:04:02.81,Sub,,0,0,0,,barely {\c&H0048C8FF&}a{\c&H00FFFFFF&} cart's width.
+Dialogue: 0,0:04:02.81,0:04:03.17,Sub,,0,0,0,,barely a {\c&H0048C8FF&}cart's{\c&H00FFFFFF&} width.
+Dialogue: 0,0:04:03.17,0:04:04.10,Sub,,0,0,0,,barely a cart's {\c&H0048C8FF&}width.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:04.40,0:04:04.78,Sub,,0,0,0,,{\c&H0048C8FF&}Today{\c&H00FFFFFF&} the river silt has pushed the
+Dialogue: 0,0:04:04.78,0:04:04.93,Sub,,0,0,0,,Today {\c&H0048C8FF&}the{\c&H00FFFFFF&} river silt has pushed the
+Dialogue: 0,0:04:04.93,0:04:05.28,Sub,,0,0,0,,Today the {\c&H0048C8FF&}river{\c&H00FFFFFF&} silt has pushed the
+Dialogue: 0,0:04:05.28,0:04:05.58,Sub,,0,0,0,,Today the river {\c&H0048C8FF&}silt{\c&H00FFFFFF&} has pushed the
+Dialogue: 0,0:04:05.58,0:04:05.78,Sub,,0,0,0,,Today the river silt {\c&H0048C8FF&}has{\c&H00FFFFFF&} pushed the
+Dialogue: 0,0:04:05.78,0:04:06.08,Sub,,0,0,0,,Today the river silt has {\c&H0048C8FF&}pushed{\c&H00FFFFFF&} the
+Dialogue: 0,0:04:06.08,0:04:06.23,Sub,,0,0,0,,Today the river silt has pushed {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:04:06.23,0:04:06.72,Sub,,0,0,0,,{\c&H0048C8FF&}coast{\c&H00FFFFFF&} several kilometres away,
+Dialogue: 0,0:04:06.72,0:04:07.15,Sub,,0,0,0,,coast {\c&H0048C8FF&}several{\c&H00FFFFFF&} kilometres away,
+Dialogue: 0,0:04:07.15,0:04:07.73,Sub,,0,0,0,,coast several {\c&H0048C8FF&}kilometres{\c&H00FFFFFF&} away,
+Dialogue: 0,0:04:07.73,0:04:08.81,Sub,,0,0,0,,coast several kilometres {\c&H0048C8FF&}away,{\c&H00FFFFFF&}
+Dialogue: 0,0:04:08.81,0:04:08.97,Sub,,0,0,0,,{\c&H0048C8FF&}and{\c&H00FFFFFF&} the ancient shoreline is a highway.
+Dialogue: 0,0:04:08.97,0:04:09.13,Sub,,0,0,0,,and {\c&H0048C8FF&}the{\c&H00FFFFFF&} ancient shoreline is a highway.
+Dialogue: 0,0:04:09.13,0:04:09.51,Sub,,0,0,0,,and the {\c&H0048C8FF&}ancient{\c&H00FFFFFF&} shoreline is a highway.
+Dialogue: 0,0:04:09.51,0:04:10.67,Sub,,0,0,0,,and the ancient {\c&H0048C8FF&}shoreline{\c&H00FFFFFF&} is a highway.
+Dialogue: 0,0:04:10.67,0:04:10.91,Sub,,0,0,0,,and the ancient shoreline {\c&H0048C8FF&}is{\c&H00FFFFFF&} a highway.
+Dialogue: 0,0:04:10.91,0:04:11.00,Sub,,0,0,0,,and the ancient shoreline is {\c&H0048C8FF&}a{\c&H00FFFFFF&} highway.
+Dialogue: 0,0:04:11.00,0:04:12.07,Sub,,0,0,0,,and the ancient shoreline is a {\c&H0048C8FF&}highway.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:12.40,0:04:12.88,Sub,,0,0,0,,{\c&H0048C8FF&}Across{\c&H00FFFFFF&} the middle of the pass stood
+Dialogue: 0,0:04:12.88,0:04:13.04,Sub,,0,0,0,,Across {\c&H0048C8FF&}the{\c&H00FFFFFF&} middle of the pass stood
+Dialogue: 0,0:04:13.04,0:04:13.28,Sub,,0,0,0,,Across the {\c&H0048C8FF&}middle{\c&H00FFFFFF&} of the pass stood
+Dialogue: 0,0:04:13.28,0:04:13.36,Sub,,0,0,0,,Across the middle {\c&H0048C8FF&}of{\c&H00FFFFFF&} the pass stood
+Dialogue: 0,0:04:13.36,0:04:13.48,Sub,,0,0,0,,Across the middle of {\c&H0048C8FF&}the{\c&H00FFFFFF&} pass stood
+Dialogue: 0,0:04:13.48,0:04:14.03,Sub,,0,0,0,,Across the middle of the {\c&H0048C8FF&}pass{\c&H00FFFFFF&} stood
+Dialogue: 0,0:04:14.03,0:04:14.34,Sub,,0,0,0,,Across the middle of the pass {\c&H0048C8FF&}stood{\c&H00FFFFFF&}
+Dialogue: 0,0:04:14.34,0:04:14.49,Sub,,0,0,0,,{\c&H0048C8FF&}an{\c&H00FFFFFF&} old wall the Phocians had built.
+Dialogue: 0,0:04:14.49,0:04:14.82,Sub,,0,0,0,,an {\c&H0048C8FF&}old{\c&H00FFFFFF&} wall the Phocians had built.
+Dialogue: 0,0:04:14.82,0:04:15.24,Sub,,0,0,0,,an old {\c&H0048C8FF&}wall{\c&H00FFFFFF&} the Phocians had built.
+Dialogue: 0,0:04:15.24,0:04:15.52,Sub,,0,0,0,,an old wall {\c&H0048C8FF&}the{\c&H00FFFFFF&} Phocians had built.
+Dialogue: 0,0:04:15.52,0:04:16.45,Sub,,0,0,0,,an old wall the {\c&H0048C8FF&}Phocians{\c&H00FFFFFF&} had built.
+Dialogue: 0,0:04:16.45,0:04:16.60,Sub,,0,0,0,,an old wall the Phocians {\c&H0048C8FF&}had{\c&H00FFFFFF&} built.
+Dialogue: 0,0:04:16.60,0:04:17.62,Sub,,0,0,0,,an old wall the Phocians had {\c&H0048C8FF&}built.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:17.62,0:04:17.77,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} Greeks rebuilt it and camped behind
+Dialogue: 0,0:04:17.77,0:04:18.10,Sub,,0,0,0,,The {\c&H0048C8FF&}Greeks{\c&H00FFFFFF&} rebuilt it and camped behind
+Dialogue: 0,0:04:18.10,0:04:18.60,Sub,,0,0,0,,The Greeks {\c&H0048C8FF&}rebuilt{\c&H00FFFFFF&} it and camped behind
+Dialogue: 0,0:04:18.60,0:04:18.70,Sub,,0,0,0,,The Greeks rebuilt {\c&H0048C8FF&}it{\c&H00FFFFFF&} and camped behind
+Dialogue: 0,0:04:18.70,0:04:18.85,Sub,,0,0,0,,The Greeks rebuilt it {\c&H0048C8FF&}and{\c&H00FFFFFF&} camped behind
+Dialogue: 0,0:04:18.85,0:04:19.12,Sub,,0,0,0,,The Greeks rebuilt it and {\c&H0048C8FF&}camped{\c&H00FFFFFF&} behind
+Dialogue: 0,0:04:19.12,0:04:19.48,Sub,,0,0,0,,The Greeks rebuilt it and camped {\c&H0048C8FF&}behind{\c&H00FFFFFF&}
+Dialogue: 0,0:04:19.48,0:04:20.37,Sub,,0,0,0,,{\c&H0048C8FF&}it.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:20.37,0:04:20.54,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} men who held it were hoplites:
+Dialogue: 0,0:04:20.54,0:04:20.73,Sub,,0,0,0,,The {\c&H0048C8FF&}men{\c&H00FFFFFF&} who held it were hoplites:
+Dialogue: 0,0:04:20.73,0:04:20.89,Sub,,0,0,0,,The men {\c&H0048C8FF&}who{\c&H00FFFFFF&} held it were hoplites:
+Dialogue: 0,0:04:20.89,0:04:21.18,Sub,,0,0,0,,The men who {\c&H0048C8FF&}held{\c&H00FFFFFF&} it were hoplites:
+Dialogue: 0,0:04:21.18,0:04:21.54,Sub,,0,0,0,,The men who held {\c&H0048C8FF&}it{\c&H00FFFFFF&} were hoplites:
+Dialogue: 0,0:04:21.54,0:04:21.76,Sub,,0,0,0,,The men who held it {\c&H0048C8FF&}were{\c&H00FFFFFF&} hoplites:
+Dialogue: 0,0:04:21.76,0:04:22.98,Sub,,0,0,0,,The men who held it were {\c&H0048C8FF&}hoplites:{\c&H00FFFFFF&}
+Dialogue: 0,0:04:22.98,0:04:23.48,Sub,,0,0,0,,{\c&H0048C8FF&}citizen{\c&H00FFFFFF&} infantry.
+Dialogue: 0,0:04:23.48,0:04:24.63,Sub,,0,0,0,,citizen {\c&H0048C8FF&}infantry.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:25.07,0:04:25.44,Sub,,0,0,0,,{\c&H0048C8FF&}Each{\c&H00FFFFFF&} carried a round shield almost a
+Dialogue: 0,0:04:25.44,0:04:25.76,Sub,,0,0,0,,Each {\c&H0048C8FF&}carried{\c&H00FFFFFF&} a round shield almost a
+Dialogue: 0,0:04:25.76,0:04:25.86,Sub,,0,0,0,,Each carried {\c&H0048C8FF&}a{\c&H00FFFFFF&} round shield almost a
+Dialogue: 0,0:04:25.86,0:04:26.19,Sub,,0,0,0,,Each carried a {\c&H0048C8FF&}round{\c&H00FFFFFF&} shield almost a
+Dialogue: 0,0:04:26.19,0:04:26.69,Sub,,0,0,0,,Each carried a round {\c&H0048C8FF&}shield{\c&H00FFFFFF&} almost a
+Dialogue: 0,0:04:26.69,0:04:27.08,Sub,,0,0,0,,Each carried a round shield {\c&H0048C8FF&}almost{\c&H00FFFFFF&} a
+Dialogue: 0,0:04:27.08,0:04:27.23,Sub,,0,0,0,,Each carried a round shield almost {\c&H0048C8FF&}a{\c&H00FFFFFF&}
+Dialogue: 0,0:04:27.23,0:04:27.53,Sub,,0,0,0,,{\c&H0048C8FF&}metre{\c&H00FFFFFF&} across, wood faced with bronze;
+Dialogue: 0,0:04:27.53,0:04:28.75,Sub,,0,0,0,,metre {\c&H0048C8FF&}across,{\c&H00FFFFFF&} wood faced with bronze;
+Dialogue: 0,0:04:28.75,0:04:29.18,Sub,,0,0,0,,metre across, {\c&H0048C8FF&}wood{\c&H00FFFFFF&} faced with bronze;
+Dialogue: 0,0:04:29.18,0:04:29.44,Sub,,0,0,0,,metre across, wood {\c&H0048C8FF&}faced{\c&H00FFFFFF&} with bronze;
+Dialogue: 0,0:04:29.44,0:04:29.61,Sub,,0,0,0,,metre across, wood faced {\c&H0048C8FF&}with{\c&H00FFFFFF&} bronze;
+Dialogue: 0,0:04:29.61,0:04:30.88,Sub,,0,0,0,,metre across, wood faced with {\c&H0048C8FF&}bronze;{\c&H00FFFFFF&}
+Dialogue: 0,0:04:30.88,0:04:31.06,Sub,,0,0,0,,{\c&H0048C8FF&}a{\c&H00FFFFFF&} spear of two metres or more,
+Dialogue: 0,0:04:31.06,0:04:31.50,Sub,,0,0,0,,a {\c&H0048C8FF&}spear{\c&H00FFFFFF&} of two metres or more,
+Dialogue: 0,0:04:31.50,0:04:31.59,Sub,,0,0,0,,a spear {\c&H0048C8FF&}of{\c&H00FFFFFF&} two metres or more,
+Dialogue: 0,0:04:31.59,0:04:31.80,Sub,,0,0,0,,a spear of {\c&H0048C8FF&}two{\c&H00FFFFFF&} metres or more,
+Dialogue: 0,0:04:31.80,0:04:32.11,Sub,,0,0,0,,a spear of two {\c&H0048C8FF&}metres{\c&H00FFFFFF&} or more,
+Dialogue: 0,0:04:32.11,0:04:32.24,Sub,,0,0,0,,a spear of two metres {\c&H0048C8FF&}or{\c&H00FFFFFF&} more,
+Dialogue: 0,0:04:32.24,0:04:33.01,Sub,,0,0,0,,a spear of two metres or {\c&H0048C8FF&}more,{\c&H00FFFFFF&}
+Dialogue: 0,0:04:33.01,0:04:33.21,Sub,,0,0,0,,{\c&H0048C8FF&}with{\c&H00FFFFFF&} an iron head and a bronze
+Dialogue: 0,0:04:33.21,0:04:33.35,Sub,,0,0,0,,with {\c&H0048C8FF&}an{\c&H00FFFFFF&} iron head and a bronze
+Dialogue: 0,0:04:33.35,0:04:33.75,Sub,,0,0,0,,with an {\c&H0048C8FF&}iron{\c&H00FFFFFF&} head and a bronze
+Dialogue: 0,0:04:33.75,0:04:34.41,Sub,,0,0,0,,with an iron {\c&H0048C8FF&}head{\c&H00FFFFFF&} and a bronze
+Dialogue: 0,0:04:34.41,0:04:34.77,Sub,,0,0,0,,with an iron head {\c&H0048C8FF&}and{\c&H00FFFFFF&} a bronze
+Dialogue: 0,0:04:34.77,0:04:34.87,Sub,,0,0,0,,with an iron head and {\c&H0048C8FF&}a{\c&H00FFFFFF&} bronze
+Dialogue: 0,0:04:34.87,0:04:35.33,Sub,,0,0,0,,with an iron head and a {\c&H0048C8FF&}bronze{\c&H00FFFFFF&}
+Dialogue: 0,0:04:35.33,0:04:35.77,Sub,,0,0,0,,{\c&H0048C8FF&}spike{\c&H00FFFFFF&} at the butt;
+Dialogue: 0,0:04:35.77,0:04:35.88,Sub,,0,0,0,,spike {\c&H0048C8FF&}at{\c&H00FFFFFF&} the butt;
+Dialogue: 0,0:04:35.88,0:04:35.99,Sub,,0,0,0,,spike at {\c&H0048C8FF&}the{\c&H00FFFFFF&} butt;
+Dialogue: 0,0:04:35.99,0:04:36.96,Sub,,0,0,0,,spike at the {\c&H0048C8FF&}butt;{\c&H00FFFFFF&}
+Dialogue: 0,0:04:36.96,0:04:37.12,Sub,,0,0,0,,{\c&H0048C8FF&}a{\c&H00FFFFFF&} short sword;
+Dialogue: 0,0:04:37.12,0:04:37.39,Sub,,0,0,0,,a {\c&H0048C8FF&}short{\c&H00FFFFFF&} sword;
+Dialogue: 0,0:04:37.39,0:04:38.23,Sub,,0,0,0,,a short {\c&H0048C8FF&}sword;{\c&H00FFFFFF&}
+Dialogue: 0,0:04:38.23,0:04:38.40,Sub,,0,0,0,,{\c&H0048C8FF&}a{\c&H00FFFFFF&} bronze helmet;
+Dialogue: 0,0:04:38.40,0:04:38.83,Sub,,0,0,0,,a {\c&H0048C8FF&}bronze{\c&H00FFFFFF&} helmet;
+Dialogue: 0,0:04:38.83,0:04:39.91,Sub,,0,0,0,,a bronze {\c&H0048C8FF&}helmet;{\c&H00FFFFFF&}
+Dialogue: 0,0:04:39.91,0:04:40.32,Sub,,0,0,0,,{\c&H0048C8FF&}body{\c&H00FFFFFF&} armour of bronze or layered linen;
+Dialogue: 0,0:04:40.32,0:04:40.66,Sub,,0,0,0,,body {\c&H0048C8FF&}armour{\c&H00FFFFFF&} of bronze or layered linen;
+Dialogue: 0,0:04:40.66,0:04:40.79,Sub,,0,0,0,,body armour {\c&H0048C8FF&}of{\c&H00FFFFFF&} bronze or layered linen;
+Dialogue: 0,0:04:40.79,0:04:41.30,Sub,,0,0,0,,body armour of {\c&H0048C8FF&}bronze{\c&H00FFFFFF&} or layered linen;
+Dialogue: 0,0:04:41.30,0:04:41.45,Sub,,0,0,0,,body armour of bronze {\c&H0048C8FF&}or{\c&H00FFFFFF&} layered linen;
+Dialogue: 0,0:04:41.45,0:04:41.80,Sub,,0,0,0,,body armour of bronze or {\c&H0048C8FF&}layered{\c&H00FFFFFF&} linen;
+Dialogue: 0,0:04:41.80,0:04:42.76,Sub,,0,0,0,,body armour of bronze or layered {\c&H0048C8FF&}linen;{\c&H00FFFFFF&}
+Dialogue: 0,0:04:42.76,0:04:43.05,Sub,,0,0,0,,{\c&H0048C8FF&}and{\c&H00FFFFFF&} greaves.
+Dialogue: 0,0:04:43.05,0:04:44.36,Sub,,0,0,0,,and {\c&H0048C8FF&}greaves.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:44.36,0:04:44.94,Sub,,0,0,0,,{\c&H0048C8FF&}Spartans{\c&H00FFFFFF&} fought in crimson cloaks and
+Dialogue: 0,0:04:44.94,0:04:45.22,Sub,,0,0,0,,Spartans {\c&H0048C8FF&}fought{\c&H00FFFFFF&} in crimson cloaks and
+Dialogue: 0,0:04:45.22,0:04:45.37,Sub,,0,0,0,,Spartans fought {\c&H0048C8FF&}in{\c&H00FFFFFF&} crimson cloaks and
+Dialogue: 0,0:04:45.37,0:04:45.77,Sub,,0,0,0,,Spartans fought in {\c&H0048C8FF&}crimson{\c&H00FFFFFF&} cloaks and
+Dialogue: 0,0:04:45.77,0:04:46.49,Sub,,0,0,0,,Spartans fought in crimson {\c&H0048C8FF&}cloaks{\c&H00FFFFFF&} and
+Dialogue: 0,0:04:46.49,0:04:46.82,Sub,,0,0,0,,Spartans fought in crimson cloaks {\c&H0048C8FF&}and{\c&H00FFFFFF&}
+Dialogue: 0,0:04:46.82,0:04:47.16,Sub,,0,0,0,,{\c&H0048C8FF&}wore{\c&H00FFFFFF&} their hair long.
+Dialogue: 0,0:04:47.16,0:04:47.38,Sub,,0,0,0,,wore {\c&H0048C8FF&}their{\c&H00FFFFFF&} hair long.
+Dialogue: 0,0:04:47.38,0:04:47.72,Sub,,0,0,0,,wore their {\c&H0048C8FF&}hair{\c&H00FFFFFF&} long.
+Dialogue: 0,0:04:47.72,0:04:48.78,Sub,,0,0,0,,wore their hair {\c&H0048C8FF&}long.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:48.78,0:04:48.99,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} famous lambda on the shield comes
+Dialogue: 0,0:04:48.99,0:04:49.41,Sub,,0,0,0,,The {\c&H0048C8FF&}famous{\c&H00FFFFFF&} lambda on the shield comes
+Dialogue: 0,0:04:49.41,0:04:49.75,Sub,,0,0,0,,The famous {\c&H0048C8FF&}lambda{\c&H00FFFFFF&} on the shield comes
+Dialogue: 0,0:04:49.75,0:04:49.88,Sub,,0,0,0,,The famous lambda {\c&H0048C8FF&}on{\c&H00FFFFFF&} the shield comes
+Dialogue: 0,0:04:49.88,0:04:50.00,Sub,,0,0,0,,The famous lambda on {\c&H0048C8FF&}the{\c&H00FFFFFF&} shield comes
+Dialogue: 0,0:04:50.00,0:04:50.38,Sub,,0,0,0,,The famous lambda on the {\c&H0048C8FF&}shield{\c&H00FFFFFF&} comes
+Dialogue: 0,0:04:50.38,0:04:50.65,Sub,,0,0,0,,The famous lambda on the shield {\c&H0048C8FF&}comes{\c&H00FFFFFF&}
+Dialogue: 0,0:04:50.65,0:04:51.48,Sub,,0,0,0,,{\c&H0048C8FF&}later;{\c&H00FFFFFF&}
+Dialogue: 0,0:04:51.48,0:04:51.71,Sub,,0,0,0,,{\c&H0048C8FF&}in{\c&H00FFFFFF&} 480 it did not exist.
+Dialogue: 0,0:04:51.71,0:04:52.69,Sub,,0,0,0,,in {\c&H0048C8FF&}480{\c&H00FFFFFF&} it did not exist.
+Dialogue: 0,0:04:52.69,0:04:52.89,Sub,,0,0,0,,in 480 {\c&H0048C8FF&}it{\c&H00FFFFFF&} did not exist.
+Dialogue: 0,0:04:52.89,0:04:53.09,Sub,,0,0,0,,in 480 it {\c&H0048C8FF&}did{\c&H00FFFFFF&} not exist.
+Dialogue: 0,0:04:53.09,0:04:53.32,Sub,,0,0,0,,in 480 it did {\c&H0048C8FF&}not{\c&H00FFFFFF&} exist.
+Dialogue: 0,0:04:53.32,0:04:54.51,Sub,,0,0,0,,in 480 it did not {\c&H0048C8FF&}exist.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:54.51,0:04:54.79,Sub,,0,0,0,,{\c&H0048C8FF&}They{\c&H00FFFFFF&} fought in a phalanx:
+Dialogue: 0,0:04:54.79,0:04:55.12,Sub,,0,0,0,,They {\c&H0048C8FF&}fought{\c&H00FFFFFF&} in a phalanx:
+Dialogue: 0,0:04:55.12,0:04:55.23,Sub,,0,0,0,,They fought {\c&H0048C8FF&}in{\c&H00FFFFFF&} a phalanx:
+Dialogue: 0,0:04:55.23,0:04:55.32,Sub,,0,0,0,,They fought in {\c&H0048C8FF&}a{\c&H00FFFFFF&} phalanx:
+Dialogue: 0,0:04:55.32,0:04:56.41,Sub,,0,0,0,,They fought in a {\c&H0048C8FF&}phalanx:{\c&H00FFFFFF&}
+Dialogue: 0,0:04:56.41,0:04:56.77,Sub,,0,0,0,,{\c&H0048C8FF&}ranks{\c&H00FFFFFF&} of men standing shoulder to
+Dialogue: 0,0:04:56.77,0:04:56.91,Sub,,0,0,0,,ranks {\c&H0048C8FF&}of{\c&H00FFFFFF&} men standing shoulder to
+Dialogue: 0,0:04:56.91,0:04:57.23,Sub,,0,0,0,,ranks of {\c&H0048C8FF&}men{\c&H00FFFFFF&} standing shoulder to
+Dialogue: 0,0:04:57.23,0:04:57.74,Sub,,0,0,0,,ranks of men {\c&H0048C8FF&}standing{\c&H00FFFFFF&} shoulder to
+Dialogue: 0,0:04:57.74,0:04:58.14,Sub,,0,0,0,,ranks of men standing {\c&H0048C8FF&}shoulder{\c&H00FFFFFF&} to
+Dialogue: 0,0:04:58.14,0:04:58.27,Sub,,0,0,0,,ranks of men standing shoulder {\c&H0048C8FF&}to{\c&H00FFFFFF&}
+Dialogue: 0,0:04:58.27,0:04:59.08,Sub,,0,0,0,,{\c&H0048C8FF&}shoulder,{\c&H00FFFFFF&} each shield covering the man
+Dialogue: 0,0:04:59.08,0:04:59.44,Sub,,0,0,0,,shoulder, {\c&H0048C8FF&}each{\c&H00FFFFFF&} shield covering the man
+Dialogue: 0,0:04:59.44,0:05:00.11,Sub,,0,0,0,,shoulder, each {\c&H0048C8FF&}shield{\c&H00FFFFFF&} covering the man
+Dialogue: 0,0:05:00.11,0:05:00.57,Sub,,0,0,0,,shoulder, each shield {\c&H0048C8FF&}covering{\c&H00FFFFFF&} the man
+Dialogue: 0,0:05:00.57,0:05:00.72,Sub,,0,0,0,,shoulder, each shield covering {\c&H0048C8FF&}the{\c&H00FFFFFF&} man
+Dialogue: 0,0:05:00.72,0:05:01.09,Sub,,0,0,0,,shoulder, each shield covering the {\c&H0048C8FF&}man{\c&H00FFFFFF&}
+Dialogue: 0,0:05:01.09,0:05:01.21,Sub,,0,0,0,,{\c&H0048C8FF&}on{\c&H00FFFFFF&} his left,
+Dialogue: 0,0:05:01.21,0:05:01.39,Sub,,0,0,0,,on {\c&H0048C8FF&}his{\c&H00FFFFFF&} left,
+Dialogue: 0,0:05:01.39,0:05:02.22,Sub,,0,0,0,,on his {\c&H0048C8FF&}left,{\c&H00FFFFFF&}
+Dialogue: 0,0:05:02.22,0:05:02.92,Sub,,0,0,0,,{\c&H0048C8FF&}spears{\c&H00FFFFFF&} levelled over the rim.
+Dialogue: 0,0:05:02.92,0:05:03.36,Sub,,0,0,0,,spears {\c&H0048C8FF&}levelled{\c&H00FFFFFF&} over the rim.
+Dialogue: 0,0:05:03.36,0:05:03.58,Sub,,0,0,0,,spears levelled {\c&H0048C8FF&}over{\c&H00FFFFFF&} the rim.
+Dialogue: 0,0:05:03.58,0:05:03.74,Sub,,0,0,0,,spears levelled over {\c&H0048C8FF&}the{\c&H00FFFFFF&} rim.
+Dialogue: 0,0:05:03.74,0:05:04.71,Sub,,0,0,0,,spears levelled over the {\c&H0048C8FF&}rim.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:04.71,0:05:04.88,Sub,,0,0,0,,{\c&H0048C8FF&}In{\c&H00FFFFFF&} the open,
+Dialogue: 0,0:05:04.88,0:05:05.06,Sub,,0,0,0,,In {\c&H0048C8FF&}the{\c&H00FFFFFF&} open,
+Dialogue: 0,0:05:05.06,0:05:05.87,Sub,,0,0,0,,In the {\c&H0048C8FF&}open,{\c&H00FFFFFF&}
+Dialogue: 0,0:05:05.87,0:05:06.36,Sub,,0,0,0,,{\c&H0048C8FF&}numbers{\c&H00FFFFFF&} could flank a phalanx.
+Dialogue: 0,0:05:06.36,0:05:06.57,Sub,,0,0,0,,numbers {\c&H0048C8FF&}could{\c&H00FFFFFF&} flank a phalanx.
+Dialogue: 0,0:05:06.57,0:05:06.90,Sub,,0,0,0,,numbers could {\c&H0048C8FF&}flank{\c&H00FFFFFF&} a phalanx.
+Dialogue: 0,0:05:06.90,0:05:06.96,Sub,,0,0,0,,numbers could flank {\c&H0048C8FF&}a{\c&H00FFFFFF&} phalanx.
+Dialogue: 0,0:05:06.96,0:05:08.16,Sub,,0,0,0,,numbers could flank a {\c&H0048C8FF&}phalanx.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:08.16,0:05:08.35,Sub,,0,0,0,,{\c&H0048C8FF&}In{\c&H00FFFFFF&} a corridor a few metres wide,
+Dialogue: 0,0:05:08.35,0:05:08.47,Sub,,0,0,0,,In {\c&H0048C8FF&}a{\c&H00FFFFFF&} corridor a few metres wide,
+Dialogue: 0,0:05:08.47,0:05:08.98,Sub,,0,0,0,,In a {\c&H0048C8FF&}corridor{\c&H00FFFFFF&} a few metres wide,
+Dialogue: 0,0:05:08.98,0:05:09.10,Sub,,0,0,0,,In a corridor {\c&H0048C8FF&}a{\c&H00FFFFFF&} few metres wide,
+Dialogue: 0,0:05:09.10,0:05:09.31,Sub,,0,0,0,,In a corridor a {\c&H0048C8FF&}few{\c&H00FFFFFF&} metres wide,
+Dialogue: 0,0:05:09.31,0:05:09.68,Sub,,0,0,0,,In a corridor a few {\c&H0048C8FF&}metres{\c&H00FFFFFF&} wide,
+Dialogue: 0,0:05:09.68,0:05:10.61,Sub,,0,0,0,,In a corridor a few metres {\c&H0048C8FF&}wide,{\c&H00FFFFFF&}
+Dialogue: 0,0:05:10.61,0:05:10.82,Sub,,0,0,0,,{\c&H0048C8FF&}there{\c&H00FFFFFF&} was no flank.
+Dialogue: 0,0:05:10.82,0:05:11.11,Sub,,0,0,0,,there {\c&H0048C8FF&}was{\c&H00FFFFFF&} no flank.
+Dialogue: 0,0:05:11.11,0:05:11.32,Sub,,0,0,0,,there was {\c&H0048C8FF&}no{\c&H00FFFFFF&} flank.
+Dialogue: 0,0:05:11.32,0:05:12.44,Sub,,0,0,0,,there was no {\c&H0048C8FF&}flank.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:12.44,0:05:12.65,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} Persian infantry,
+Dialogue: 0,0:05:12.65,0:05:13.03,Sub,,0,0,0,,The {\c&H0048C8FF&}Persian{\c&H00FFFFFF&} infantry,
+Dialogue: 0,0:05:13.03,0:05:13.97,Sub,,0,0,0,,The Persian {\c&H0048C8FF&}infantry,{\c&H00FFFFFF&}
+Dialogue: 0,0:05:13.97,0:05:14.19,Sub,,0,0,0,,{\c&H0048C8FF&}as{\c&H00FFFFFF&} Herodotus describes them,
+Dialogue: 0,0:05:14.19,0:05:14.78,Sub,,0,0,0,,as {\c&H0048C8FF&}Herodotus{\c&H00FFFFFF&} describes them,
+Dialogue: 0,0:05:14.78,0:05:15.29,Sub,,0,0,0,,as Herodotus {\c&H0048C8FF&}describes{\c&H00FFFFFF&} them,
+Dialogue: 0,0:05:15.29,0:05:15.90,Sub,,0,0,0,,as Herodotus describes {\c&H0048C8FF&}them,{\c&H00FFFFFF&}
+Dialogue: 0,0:05:15.90,0:05:16.23,Sub,,0,0,0,,{\c&H0048C8FF&}wore{\c&H00FFFFFF&} felt caps,
+Dialogue: 0,0:05:16.23,0:05:16.58,Sub,,0,0,0,,wore {\c&H0048C8FF&}felt{\c&H00FFFFFF&} caps,
+Dialogue: 0,0:05:16.58,0:05:17.37,Sub,,0,0,0,,wore felt {\c&H0048C8FF&}caps,{\c&H00FFFFFF&}
+Dialogue: 0,0:05:17.37,0:05:18.09,Sub,,0,0,0,,{\c&H0048C8FF&}trousers{\c&H00FFFFFF&} and sleeved tunics,
+Dialogue: 0,0:05:18.09,0:05:18.24,Sub,,0,0,0,,trousers {\c&H0048C8FF&}and{\c&H00FFFFFF&} sleeved tunics,
+Dialogue: 0,0:05:18.24,0:05:18.61,Sub,,0,0,0,,trousers and {\c&H0048C8FF&}sleeved{\c&H00FFFFFF&} tunics,
+Dialogue: 0,0:05:18.61,0:05:19.51,Sub,,0,0,0,,trousers and sleeved {\c&H0048C8FF&}tunics,{\c&H00FFFFFF&}
+Dialogue: 0,0:05:19.51,0:05:19.73,Sub,,0,0,0,,{\c&H0048C8FF&}with{\c&H00FFFFFF&} scale armour under the cloth.
+Dialogue: 0,0:05:19.73,0:05:20.17,Sub,,0,0,0,,with {\c&H0048C8FF&}scale{\c&H00FFFFFF&} armour under the cloth.
+Dialogue: 0,0:05:20.17,0:05:20.66,Sub,,0,0,0,,with scale {\c&H0048C8FF&}armour{\c&H00FFFFFF&} under the cloth.
+Dialogue: 0,0:05:20.66,0:05:20.94,Sub,,0,0,0,,with scale armour {\c&H0048C8FF&}under{\c&H00FFFFFF&} the cloth.
+Dialogue: 0,0:05:20.94,0:05:21.05,Sub,,0,0,0,,with scale armour under {\c&H0048C8FF&}the{\c&H00FFFFFF&} cloth.
+Dialogue: 0,0:05:21.05,0:05:22.13,Sub,,0,0,0,,with scale armour under the {\c&H0048C8FF&}cloth.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:22.13,0:05:22.40,Sub,,0,0,0,,{\c&H0048C8FF&}They{\c&H00FFFFFF&} carried wicker shields,
+Dialogue: 0,0:05:22.40,0:05:22.76,Sub,,0,0,0,,They {\c&H0048C8FF&}carried{\c&H00FFFFFF&} wicker shields,
+Dialogue: 0,0:05:22.76,0:05:23.11,Sub,,0,0,0,,They carried {\c&H0048C8FF&}wicker{\c&H00FFFFFF&} shields,
+Dialogue: 0,0:05:23.11,0:05:24.01,Sub,,0,0,0,,They carried wicker {\c&H0048C8FF&}shields,{\c&H00FFFFFF&}
+Dialogue: 0,0:05:24.01,0:05:24.38,Sub,,0,0,0,,{\c&H0048C8FF&}short{\c&H00FFFFFF&} spears, daggers,
+Dialogue: 0,0:05:24.38,0:05:25.40,Sub,,0,0,0,,short {\c&H0048C8FF&}spears,{\c&H00FFFFFF&} daggers,
+Dialogue: 0,0:05:25.40,0:05:26.37,Sub,,0,0,0,,short spears, {\c&H0048C8FF&}daggers,{\c&H00FFFFFF&}
+Dialogue: 0,0:05:26.37,0:05:26.61,Sub,,0,0,0,,{\c&H0048C8FF&}and{\c&H00FFFFFF&} above all bows.
+Dialogue: 0,0:05:26.61,0:05:27.02,Sub,,0,0,0,,and {\c&H0048C8FF&}above{\c&H00FFFFFF&} all bows.
+Dialogue: 0,0:05:27.02,0:05:27.72,Sub,,0,0,0,,and above {\c&H0048C8FF&}all{\c&H00FFFFFF&} bows.
+Dialogue: 0,0:05:27.72,0:05:29.16,Sub,,0,0,0,,and above all {\c&H0048C8FF&}bows.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:29.16,0:05:29.50,Sub,,0,0,0,,{\c&H0048C8FF&}Their{\c&H00FFFFFF&} best were the ten thousand the
+Dialogue: 0,0:05:29.50,0:05:30.09,Sub,,0,0,0,,Their {\c&H0048C8FF&}best{\c&H00FFFFFF&} were the ten thousand the
+Dialogue: 0,0:05:30.09,0:05:30.30,Sub,,0,0,0,,Their best {\c&H0048C8FF&}were{\c&H00FFFFFF&} the ten thousand the
+Dialogue: 0,0:05:30.30,0:05:30.43,Sub,,0,0,0,,Their best were {\c&H0048C8FF&}the{\c&H00FFFFFF&} ten thousand the
+Dialogue: 0,0:05:30.43,0:05:30.73,Sub,,0,0,0,,Their best were the {\c&H0048C8FF&}ten{\c&H00FFFFFF&} thousand the
+Dialogue: 0,0:05:30.73,0:05:31.22,Sub,,0,0,0,,Their best were the ten {\c&H0048C8FF&}thousand{\c&H00FFFFFF&} the
+Dialogue: 0,0:05:31.22,0:05:31.32,Sub,,0,0,0,,Their best were the ten thousand {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:05:31.32,0:05:31.63,Sub,,0,0,0,,{\c&H0048C8FF&}Greeks{\c&H00FFFFFF&} called the Immortals,
+Dialogue: 0,0:05:31.63,0:05:32.24,Sub,,0,0,0,,Greeks {\c&H0048C8FF&}called{\c&H00FFFFFF&} the Immortals,
+Dialogue: 0,0:05:32.24,0:05:32.46,Sub,,0,0,0,,Greeks called {\c&H0048C8FF&}the{\c&H00FFFFFF&} Immortals,
+Dialogue: 0,0:05:32.46,0:05:33.71,Sub,,0,0,0,,Greeks called the {\c&H0048C8FF&}Immortals,{\c&H00FFFFFF&}
+Dialogue: 0,0:05:33.71,0:05:34.17,Sub,,0,0,0,,{\c&H0048C8FF&}because{\c&H00FFFFFF&} every man who fell
+Dialogue: 0,0:05:34.17,0:05:34.47,Sub,,0,0,0,,because {\c&H0048C8FF&}every{\c&H00FFFFFF&} man who fell
+Dialogue: 0,0:05:34.47,0:05:34.72,Sub,,0,0,0,,because every {\c&H0048C8FF&}man{\c&H00FFFFFF&} who fell
+Dialogue: 0,0:05:34.72,0:05:34.92,Sub,,0,0,0,,because every man {\c&H0048C8FF&}who{\c&H00FFFFFF&} fell
+Dialogue: 0,0:05:34.92,0:05:35.80,Sub,,0,0,0,,because every man who {\c&H0048C8FF&}fell{\c&H00FFFFFF&}
+Dialogue: 0,0:05:35.80,0:05:36.10,Sub,,0,0,0,,{\c&H0048C8FF&}was{\c&H00FFFFFF&} replaced at once.
+Dialogue: 0,0:05:36.10,0:05:37.10,Sub,,0,0,0,,was {\c&H0048C8FF&}replaced{\c&H00FFFFFF&} at once.
+Dialogue: 0,0:05:37.10,0:05:37.37,Sub,,0,0,0,,was replaced {\c&H0048C8FF&}at{\c&H00FFFFFF&} once.
+Dialogue: 0,0:05:37.37,0:05:38.30,Sub,,0,0,0,,was replaced at {\c&H0048C8FF&}once.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:39.57,0:05:39.80,Sub,,0,0,0,,{\c&H0048C8FF&}They{\c&H00FFFFFF&} were brave,
+Dialogue: 0,0:05:39.80,0:05:39.97,Sub,,0,0,0,,They {\c&H0048C8FF&}were{\c&H00FFFFFF&} brave,
+Dialogue: 0,0:05:39.97,0:05:41.07,Sub,,0,0,0,,They were {\c&H0048C8FF&}brave,{\c&H00FFFFFF&}
+Dialogue: 0,0:05:41.07,0:05:42.38,Sub,,0,0,0,,{\c&H0048C8FF&}professional,{\c&H00FFFFFF&} and equipped for a
+Dialogue: 0,0:05:42.38,0:05:42.64,Sub,,0,0,0,,professional, {\c&H0048C8FF&}and{\c&H00FFFFFF&} equipped for a
+Dialogue: 0,0:05:42.64,0:05:43.03,Sub,,0,0,0,,professional, and {\c&H0048C8FF&}equipped{\c&H00FFFFFF&} for a
+Dialogue: 0,0:05:43.03,0:05:43.21,Sub,,0,0,0,,professional, and equipped {\c&H0048C8FF&}for{\c&H00FFFFFF&} a
+Dialogue: 0,0:05:43.21,0:05:43.34,Sub,,0,0,0,,professional, and equipped for {\c&H0048C8FF&}a{\c&H00FFFFFF&}
+Dialogue: 0,0:05:43.34,0:05:43.72,Sub,,0,0,0,,{\c&H0048C8FF&}different{\c&H00FFFFFF&} kind of war.
+Dialogue: 0,0:05:43.72,0:05:43.97,Sub,,0,0,0,,different {\c&H0048C8FF&}kind{\c&H00FFFFFF&} of war.
+Dialogue: 0,0:05:43.97,0:05:44.09,Sub,,0,0,0,,different kind {\c&H0048C8FF&}of{\c&H00FFFFFF&} war.
+Dialogue: 0,0:05:44.09,0:05:45.85,Sub,,0,0,0,,different kind of {\c&H0048C8FF&}war.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:47.30,0:05:48.17,Sub,,0,0,0,,{\c&H0048C8FF&}Xerxes{\c&H00FFFFFF&} camped in the plain and waited
+Dialogue: 0,0:05:48.17,0:05:48.52,Sub,,0,0,0,,Xerxes {\c&H0048C8FF&}camped{\c&H00FFFFFF&} in the plain and waited
+Dialogue: 0,0:05:48.52,0:05:48.60,Sub,,0,0,0,,Xerxes camped {\c&H0048C8FF&}in{\c&H00FFFFFF&} the plain and waited
+Dialogue: 0,0:05:48.60,0:05:48.71,Sub,,0,0,0,,Xerxes camped in {\c&H0048C8FF&}the{\c&H00FFFFFF&} plain and waited
+Dialogue: 0,0:05:48.71,0:05:49.48,Sub,,0,0,0,,Xerxes camped in the {\c&H0048C8FF&}plain{\c&H00FFFFFF&} and waited
+Dialogue: 0,0:05:49.48,0:05:49.81,Sub,,0,0,0,,Xerxes camped in the plain {\c&H0048C8FF&}and{\c&H00FFFFFF&} waited
+Dialogue: 0,0:05:49.81,0:05:50.19,Sub,,0,0,0,,Xerxes camped in the plain and {\c&H0048C8FF&}waited{\c&H00FFFFFF&}
+Dialogue: 0,0:05:50.19,0:05:50.48,Sub,,0,0,0,,{\c&H0048C8FF&}four{\c&H00FFFFFF&} days, expecting the Greeks to run.
+Dialogue: 0,0:05:50.48,0:05:51.33,Sub,,0,0,0,,four {\c&H0048C8FF&}days,{\c&H00FFFFFF&} expecting the Greeks to run.
+Dialogue: 0,0:05:51.33,0:05:51.91,Sub,,0,0,0,,four days, {\c&H0048C8FF&}expecting{\c&H00FFFFFF&} the Greeks to run.
+Dialogue: 0,0:05:51.91,0:05:52.03,Sub,,0,0,0,,four days, expecting {\c&H0048C8FF&}the{\c&H00FFFFFF&} Greeks to run.
+Dialogue: 0,0:05:52.03,0:05:52.33,Sub,,0,0,0,,four days, expecting the {\c&H0048C8FF&}Greeks{\c&H00FFFFFF&} to run.
+Dialogue: 0,0:05:52.33,0:05:52.49,Sub,,0,0,0,,four days, expecting the Greeks {\c&H0048C8FF&}to{\c&H00FFFFFF&} run.
+Dialogue: 0,0:05:52.49,0:05:53.51,Sub,,0,0,0,,four days, expecting the Greeks to {\c&H0048C8FF&}run.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:53.51,0:05:53.71,Sub,,0,0,0,,{\c&H0048C8FF&}A{\c&H00FFFFFF&} horseman sent to look at them
+Dialogue: 0,0:05:53.71,0:05:54.14,Sub,,0,0,0,,A {\c&H0048C8FF&}horseman{\c&H00FFFFFF&} sent to look at them
+Dialogue: 0,0:05:54.14,0:05:54.38,Sub,,0,0,0,,A horseman {\c&H0048C8FF&}sent{\c&H00FFFFFF&} to look at them
+Dialogue: 0,0:05:54.38,0:05:54.47,Sub,,0,0,0,,A horseman sent {\c&H0048C8FF&}to{\c&H00FFFFFF&} look at them
+Dialogue: 0,0:05:54.47,0:05:54.65,Sub,,0,0,0,,A horseman sent to {\c&H0048C8FF&}look{\c&H00FFFFFF&} at them
+Dialogue: 0,0:05:54.65,0:05:54.75,Sub,,0,0,0,,A horseman sent to look {\c&H0048C8FF&}at{\c&H00FFFFFF&} them
+Dialogue: 0,0:05:54.75,0:05:55.32,Sub,,0,0,0,,A horseman sent to look at {\c&H0048C8FF&}them{\c&H00FFFFFF&}
+Dialogue: 0,0:05:55.32,0:05:55.63,Sub,,0,0,0,,{\c&H0048C8FF&}came{\c&H00FFFFFF&} back puzzled.
+Dialogue: 0,0:05:55.63,0:05:55.90,Sub,,0,0,0,,came {\c&H0048C8FF&}back{\c&H00FFFFFF&} puzzled.
+Dialogue: 0,0:05:55.90,0:05:57.01,Sub,,0,0,0,,came back {\c&H0048C8FF&}puzzled.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:57.01,0:05:57.16,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} Spartans were exercising and combing
+Dialogue: 0,0:05:57.16,0:05:57.74,Sub,,0,0,0,,The {\c&H0048C8FF&}Spartans{\c&H00FFFFFF&} were exercising and combing
+Dialogue: 0,0:05:57.74,0:05:57.90,Sub,,0,0,0,,The Spartans {\c&H0048C8FF&}were{\c&H00FFFFFF&} exercising and combing
+Dialogue: 0,0:05:57.90,0:05:58.97,Sub,,0,0,0,,The Spartans were {\c&H0048C8FF&}exercising{\c&H00FFFFFF&} and combing
+Dialogue: 0,0:05:58.97,0:05:59.38,Sub,,0,0,0,,The Spartans were exercising {\c&H0048C8FF&}and{\c&H00FFFFFF&} combing
+Dialogue: 0,0:05:59.38,0:05:59.84,Sub,,0,0,0,,The Spartans were exercising and {\c&H0048C8FF&}combing{\c&H00FFFFFF&}
+Dialogue: 0,0:05:59.84,0:06:00.05,Sub,,0,0,0,,{\c&H0048C8FF&}their{\c&H00FFFFFF&} hair.
+Dialogue: 0,0:06:00.05,0:06:01.10,Sub,,0,0,0,,their {\c&H0048C8FF&}hair.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:01.10,0:06:01.29,Sub,,0,0,0,,{\c&H0048C8FF&}A{\c&H00FFFFFF&} Spartan exile at the king's court,
+Dialogue: 0,0:06:01.29,0:06:01.76,Sub,,0,0,0,,A {\c&H0048C8FF&}Spartan{\c&H00FFFFFF&} exile at the king's court,
+Dialogue: 0,0:06:01.76,0:06:02.22,Sub,,0,0,0,,A Spartan {\c&H0048C8FF&}exile{\c&H00FFFFFF&} at the king's court,
+Dialogue: 0,0:06:02.22,0:06:02.31,Sub,,0,0,0,,A Spartan exile {\c&H0048C8FF&}at{\c&H00FFFFFF&} the king's court,
+Dialogue: 0,0:06:02.31,0:06:02.44,Sub,,0,0,0,,A Spartan exile at {\c&H0048C8FF&}the{\c&H00FFFFFF&} king's court,
+Dialogue: 0,0:06:02.44,0:06:02.77,Sub,,0,0,0,,A Spartan exile at the {\c&H0048C8FF&}king's{\c&H00FFFFFF&} court,
+Dialogue: 0,0:06:02.77,0:06:03.25,Sub,,0,0,0,,A Spartan exile at the king's {\c&H0048C8FF&}court,{\c&H00FFFFFF&}
+Dialogue: 0,0:06:03.25,0:06:03.99,Sub,,0,0,0,,{\c&H0048C8FF&}Demaratus,{\c&H00FFFFFF&} explained:
+Dialogue: 0,0:06:03.99,0:06:05.10,Sub,,0,0,0,,Demaratus, {\c&H0048C8FF&}explained:{\c&H00FFFFFF&}
+Dialogue: 0,0:06:05.10,0:06:05.33,Sub,,0,0,0,,{\c&H0048C8FF&}that{\c&H00FFFFFF&} is what they do when they
+Dialogue: 0,0:06:05.33,0:06:05.44,Sub,,0,0,0,,that {\c&H0048C8FF&}is{\c&H00FFFFFF&} what they do when they
+Dialogue: 0,0:06:05.44,0:06:05.62,Sub,,0,0,0,,that is {\c&H0048C8FF&}what{\c&H00FFFFFF&} they do when they
+Dialogue: 0,0:06:05.62,0:06:05.83,Sub,,0,0,0,,that is what {\c&H0048C8FF&}they{\c&H00FFFFFF&} do when they
+Dialogue: 0,0:06:05.83,0:06:06.36,Sub,,0,0,0,,that is what they {\c&H0048C8FF&}do{\c&H00FFFFFF&} when they
+Dialogue: 0,0:06:06.36,0:06:06.61,Sub,,0,0,0,,that is what they do {\c&H0048C8FF&}when{\c&H00FFFFFF&} they
+Dialogue: 0,0:06:06.61,0:06:06.73,Sub,,0,0,0,,that is what they do when {\c&H0048C8FF&}they{\c&H00FFFFFF&}
+Dialogue: 0,0:06:06.73,0:06:06.88,Sub,,0,0,0,,{\c&H0048C8FF&}are{\c&H00FFFFFF&} about to risk their lives.
+Dialogue: 0,0:06:06.88,0:06:07.19,Sub,,0,0,0,,are {\c&H0048C8FF&}about{\c&H00FFFFFF&} to risk their lives.
+Dialogue: 0,0:06:07.19,0:06:07.38,Sub,,0,0,0,,are about {\c&H0048C8FF&}to{\c&H00FFFFFF&} risk their lives.
+Dialogue: 0,0:06:07.38,0:06:07.65,Sub,,0,0,0,,are about to {\c&H0048C8FF&}risk{\c&H00FFFFFF&} their lives.
+Dialogue: 0,0:06:07.65,0:06:07.87,Sub,,0,0,0,,are about to risk {\c&H0048C8FF&}their{\c&H00FFFFFF&} lives.
+Dialogue: 0,0:06:07.87,0:06:09.25,Sub,,0,0,0,,are about to risk their {\c&H0048C8FF&}lives.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:11.86,0:06:12.06,Sub,,0,0,0,,{\c&H0048C8FF&}On{\c&H00FFFFFF&} the fifth day Xerxes sent in
+Dialogue: 0,0:06:12.06,0:06:12.19,Sub,,0,0,0,,On {\c&H0048C8FF&}the{\c&H00FFFFFF&} fifth day Xerxes sent in
+Dialogue: 0,0:06:12.19,0:06:12.44,Sub,,0,0,0,,On the {\c&H0048C8FF&}fifth{\c&H00FFFFFF&} day Xerxes sent in
+Dialogue: 0,0:06:12.44,0:06:13.09,Sub,,0,0,0,,On the fifth {\c&H0048C8FF&}day{\c&H00FFFFFF&} Xerxes sent in
+Dialogue: 0,0:06:13.09,0:06:13.74,Sub,,0,0,0,,On the fifth day {\c&H0048C8FF&}Xerxes{\c&H00FFFFFF&} sent in
+Dialogue: 0,0:06:13.74,0:06:14.00,Sub,,0,0,0,,On the fifth day Xerxes {\c&H0048C8FF&}sent{\c&H00FFFFFF&} in
+Dialogue: 0,0:06:14.00,0:06:14.11,Sub,,0,0,0,,On the fifth day Xerxes sent {\c&H0048C8FF&}in{\c&H00FFFFFF&}
+Dialogue: 0,0:06:14.11,0:06:14.24,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} Medes and Cissians,
+Dialogue: 0,0:06:14.24,0:06:14.67,Sub,,0,0,0,,the {\c&H0048C8FF&}Medes{\c&H00FFFFFF&} and Cissians,
+Dialogue: 0,0:06:14.67,0:06:14.86,Sub,,0,0,0,,the Medes {\c&H0048C8FF&}and{\c&H00FFFFFF&} Cissians,
+Dialogue: 0,0:06:14.86,0:06:16.04,Sub,,0,0,0,,the Medes and {\c&H0048C8FF&}Cissians,{\c&H00FFFFFF&}
+Dialogue: 0,0:06:16.04,0:06:16.27,Sub,,0,0,0,,{\c&H0048C8FF&}with{\c&H00FFFFFF&} orders to take the Greeks alive.
+Dialogue: 0,0:06:16.27,0:06:16.60,Sub,,0,0,0,,with {\c&H0048C8FF&}orders{\c&H00FFFFFF&} to take the Greeks alive.
+Dialogue: 0,0:06:16.60,0:06:16.74,Sub,,0,0,0,,with orders {\c&H0048C8FF&}to{\c&H00FFFFFF&} take the Greeks alive.
+Dialogue: 0,0:06:16.74,0:06:16.96,Sub,,0,0,0,,with orders to {\c&H0048C8FF&}take{\c&H00FFFFFF&} the Greeks alive.
+Dialogue: 0,0:06:16.96,0:06:17.11,Sub,,0,0,0,,with orders to take {\c&H0048C8FF&}the{\c&H00FFFFFF&} Greeks alive.
+Dialogue: 0,0:06:17.11,0:06:17.47,Sub,,0,0,0,,with orders to take the {\c&H0048C8FF&}Greeks{\c&H00FFFFFF&} alive.
+Dialogue: 0,0:06:17.47,0:06:18.52,Sub,,0,0,0,,with orders to take the Greeks {\c&H0048C8FF&}alive.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:18.52,0:06:18.75,Sub,,0,0,0,,{\c&H0048C8FF&}They{\c&H00FFFFFF&} attacked the wall for hours.
+Dialogue: 0,0:06:18.75,0:06:19.13,Sub,,0,0,0,,They {\c&H0048C8FF&}attacked{\c&H00FFFFFF&} the wall for hours.
+Dialogue: 0,0:06:19.13,0:06:19.26,Sub,,0,0,0,,They attacked {\c&H0048C8FF&}the{\c&H00FFFFFF&} wall for hours.
+Dialogue: 0,0:06:19.26,0:06:19.67,Sub,,0,0,0,,They attacked the {\c&H0048C8FF&}wall{\c&H00FFFFFF&} for hours.
+Dialogue: 0,0:06:19.67,0:06:19.86,Sub,,0,0,0,,They attacked the wall {\c&H0048C8FF&}for{\c&H00FFFFFF&} hours.
+Dialogue: 0,0:06:19.86,0:06:20.96,Sub,,0,0,0,,They attacked the wall for {\c&H0048C8FF&}hours.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:22.42,0:06:22.75,Sub,,0,0,0,,{\c&H0048C8FF&}Short{\c&H00FFFFFF&} spears against long ones,
+Dialogue: 0,0:06:22.75,0:06:23.32,Sub,,0,0,0,,Short {\c&H0048C8FF&}spears{\c&H00FFFFFF&} against long ones,
+Dialogue: 0,0:06:23.32,0:06:23.73,Sub,,0,0,0,,Short spears {\c&H0048C8FF&}against{\c&H00FFFFFF&} long ones,
+Dialogue: 0,0:06:23.73,0:06:24.05,Sub,,0,0,0,,Short spears against {\c&H0048C8FF&}long{\c&H00FFFFFF&} ones,
+Dialogue: 0,0:06:24.05,0:06:24.72,Sub,,0,0,0,,Short spears against long {\c&H0048C8FF&}ones,{\c&H00FFFFFF&}
+Dialogue: 0,0:06:24.72,0:06:25.12,Sub,,0,0,0,,{\c&H0048C8FF&}wicker{\c&H00FFFFFF&} against bronze,
+Dialogue: 0,0:06:25.12,0:06:25.46,Sub,,0,0,0,,wicker {\c&H0048C8FF&}against{\c&H00FFFFFF&} bronze,
+Dialogue: 0,0:06:25.46,0:06:26.39,Sub,,0,0,0,,wicker against {\c&H0048C8FF&}bronze,{\c&H00FFFFFF&}
+Dialogue: 0,0:06:26.39,0:06:26.60,Sub,,0,0,0,,{\c&H0048C8FF&}in{\c&H00FFFFFF&} a space where only the front
+Dialogue: 0,0:06:26.60,0:06:26.68,Sub,,0,0,0,,in {\c&H0048C8FF&}a{\c&H00FFFFFF&} space where only the front
+Dialogue: 0,0:06:26.68,0:06:27.07,Sub,,0,0,0,,in a {\c&H0048C8FF&}space{\c&H00FFFFFF&} where only the front
+Dialogue: 0,0:06:27.07,0:06:27.30,Sub,,0,0,0,,in a space {\c&H0048C8FF&}where{\c&H00FFFFFF&} only the front
+Dialogue: 0,0:06:27.30,0:06:27.60,Sub,,0,0,0,,in a space where {\c&H0048C8FF&}only{\c&H00FFFFFF&} the front
+Dialogue: 0,0:06:27.60,0:06:27.77,Sub,,0,0,0,,in a space where only {\c&H0048C8FF&}the{\c&H00FFFFFF&} front
+Dialogue: 0,0:06:27.77,0:06:28.01,Sub,,0,0,0,,in a space where only the {\c&H0048C8FF&}front{\c&H00FFFFFF&}
+Dialogue: 0,0:06:28.01,0:06:28.09,Sub,,0,0,0,,{\c&H0048C8FF&}of{\c&H00FFFFFF&} the column could fight.
+Dialogue: 0,0:06:28.09,0:06:28.20,Sub,,0,0,0,,of {\c&H0048C8FF&}the{\c&H00FFFFFF&} column could fight.
+Dialogue: 0,0:06:28.20,0:06:28.61,Sub,,0,0,0,,of the {\c&H0048C8FF&}column{\c&H00FFFFFF&} could fight.
+Dialogue: 0,0:06:28.61,0:06:28.81,Sub,,0,0,0,,of the column {\c&H0048C8FF&}could{\c&H00FFFFFF&} fight.
+Dialogue: 0,0:06:28.81,0:06:29.80,Sub,,0,0,0,,of the column could {\c&H0048C8FF&}fight.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:29.80,0:06:30.45,Sub,,0,0,0,,{\c&H0048C8FF&}Herodotus{\c&H00FFFFFF&} says they made it clear to
+Dialogue: 0,0:06:30.45,0:06:31.09,Sub,,0,0,0,,Herodotus {\c&H0048C8FF&}says{\c&H00FFFFFF&} they made it clear to
+Dialogue: 0,0:06:31.09,0:06:31.31,Sub,,0,0,0,,Herodotus says {\c&H0048C8FF&}they{\c&H00FFFFFF&} made it clear to
+Dialogue: 0,0:06:31.31,0:06:31.51,Sub,,0,0,0,,Herodotus says they {\c&H0048C8FF&}made{\c&H00FFFFFF&} it clear to
+Dialogue: 0,0:06:31.51,0:06:31.62,Sub,,0,0,0,,Herodotus says they made {\c&H0048C8FF&}it{\c&H00FFFFFF&} clear to
+Dialogue: 0,0:06:31.62,0:06:32.00,Sub,,0,0,0,,Herodotus says they made it {\c&H0048C8FF&}clear{\c&H00FFFFFF&} to
+Dialogue: 0,0:06:32.00,0:06:32.22,Sub,,0,0,0,,Herodotus says they made it clear {\c&H0048C8FF&}to{\c&H00FFFFFF&}
+Dialogue: 0,0:06:32.22,0:06:33.13,Sub,,0,0,0,,{\c&H0048C8FF&}everyone,{\c&H00FFFFFF&} and to the king
+Dialogue: 0,0:06:33.13,0:06:33.40,Sub,,0,0,0,,everyone, {\c&H0048C8FF&}and{\c&H00FFFFFF&} to the king
+Dialogue: 0,0:06:33.40,0:06:33.54,Sub,,0,0,0,,everyone, and {\c&H0048C8FF&}to{\c&H00FFFFFF&} the king
+Dialogue: 0,0:06:33.54,0:06:33.67,Sub,,0,0,0,,everyone, and to {\c&H0048C8FF&}the{\c&H00FFFFFF&} king
+Dialogue: 0,0:06:33.67,0:06:34.50,Sub,,0,0,0,,everyone, and to the {\c&H0048C8FF&}king{\c&H00FFFFFF&}
+Dialogue: 0,0:06:34.50,0:06:34.96,Sub,,0,0,0,,{\c&H0048C8FF&}above{\c&H00FFFFFF&} all, that he had many men
+Dialogue: 0,0:06:34.96,0:06:35.82,Sub,,0,0,0,,above {\c&H0048C8FF&}all,{\c&H00FFFFFF&} that he had many men
+Dialogue: 0,0:06:35.82,0:06:36.06,Sub,,0,0,0,,above all, {\c&H0048C8FF&}that{\c&H00FFFFFF&} he had many men
+Dialogue: 0,0:06:36.06,0:06:36.24,Sub,,0,0,0,,above all, that {\c&H0048C8FF&}he{\c&H00FFFFFF&} had many men
+Dialogue: 0,0:06:36.24,0:06:36.48,Sub,,0,0,0,,above all, that he {\c&H0048C8FF&}had{\c&H00FFFFFF&} many men
+Dialogue: 0,0:06:36.48,0:06:36.81,Sub,,0,0,0,,above all, that he had {\c&H0048C8FF&}many{\c&H00FFFFFF&} men
+Dialogue: 0,0:06:36.81,0:06:37.73,Sub,,0,0,0,,above all, that he had many {\c&H0048C8FF&}men{\c&H00FFFFFF&}
+Dialogue: 0,0:06:37.73,0:06:38.01,Sub,,0,0,0,,{\c&H0048C8FF&}but{\c&H00FFFFFF&} few soldiers.
+Dialogue: 0,0:06:38.01,0:06:38.28,Sub,,0,0,0,,but {\c&H0048C8FF&}few{\c&H00FFFFFF&} soldiers.
+Dialogue: 0,0:06:38.28,0:06:39.40,Sub,,0,0,0,,but few {\c&H0048C8FF&}soldiers.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:40.80,0:06:41.73,Sub,,0,0,0,,{\c&H0048C8FF&}Then{\c&H00FFFFFF&}
+Dialogue: 0,0:06:41.73,0:06:42.00,Sub,,0,0,0,,{\c&H0048C8FF&}he{\c&H00FFFFFF&} sent the Immortals.
+Dialogue: 0,0:06:42.00,0:06:42.29,Sub,,0,0,0,,he {\c&H0048C8FF&}sent{\c&H00FFFFFF&} the Immortals.
+Dialogue: 0,0:06:42.29,0:06:42.43,Sub,,0,0,0,,he sent {\c&H0048C8FF&}the{\c&H00FFFFFF&} Immortals.
+Dialogue: 0,0:06:42.43,0:06:43.53,Sub,,0,0,0,,he sent the {\c&H0048C8FF&}Immortals.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:43.93,0:06:44.19,Sub,,0,0,0,,{\c&H0048C8FF&}They{\c&H00FFFFFF&} did no better.
+Dialogue: 0,0:06:44.19,0:06:44.42,Sub,,0,0,0,,They {\c&H0048C8FF&}did{\c&H00FFFFFF&} no better.
+Dialogue: 0,0:06:44.42,0:06:44.62,Sub,,0,0,0,,They did {\c&H0048C8FF&}no{\c&H00FFFFFF&} better.
+Dialogue: 0,0:06:44.62,0:06:45.77,Sub,,0,0,0,,They did no {\c&H0048C8FF&}better.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:45.77,0:06:45.94,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} Spartans, fighting in front,
+Dialogue: 0,0:06:45.94,0:06:46.83,Sub,,0,0,0,,The {\c&H0048C8FF&}Spartans,{\c&H00FFFFFF&} fighting in front,
+Dialogue: 0,0:06:46.83,0:06:47.24,Sub,,0,0,0,,The Spartans, {\c&H0048C8FF&}fighting{\c&H00FFFFFF&} in front,
+Dialogue: 0,0:06:47.24,0:06:47.36,Sub,,0,0,0,,The Spartans, fighting {\c&H0048C8FF&}in{\c&H00FFFFFF&} front,
+Dialogue: 0,0:06:47.36,0:06:48.32,Sub,,0,0,0,,The Spartans, fighting in {\c&H0048C8FF&}front,{\c&H00FFFFFF&}
+Dialogue: 0,0:06:48.32,0:06:48.55,Sub,,0,0,0,,{\c&H0048C8FF&}would{\c&H00FFFFFF&} turn and feign flight,
+Dialogue: 0,0:06:48.55,0:06:48.98,Sub,,0,0,0,,would {\c&H0048C8FF&}turn{\c&H00FFFFFF&} and feign flight,
+Dialogue: 0,0:06:48.98,0:06:49.14,Sub,,0,0,0,,would turn {\c&H0048C8FF&}and{\c&H00FFFFFF&} feign flight,
+Dialogue: 0,0:06:49.14,0:06:49.44,Sub,,0,0,0,,would turn and {\c&H0048C8FF&}feign{\c&H00FFFFFF&} flight,
+Dialogue: 0,0:06:49.44,0:06:50.19,Sub,,0,0,0,,would turn and feign {\c&H0048C8FF&}flight,{\c&H00FFFFFF&}
+Dialogue: 0,0:06:50.19,0:06:50.50,Sub,,0,0,0,,{\c&H0048C8FF&}draw{\c&H00FFFFFF&} the pursuers into a rush,
+Dialogue: 0,0:06:50.50,0:06:50.62,Sub,,0,0,0,,draw {\c&H0048C8FF&}the{\c&H00FFFFFF&} pursuers into a rush,
+Dialogue: 0,0:06:50.62,0:06:51.25,Sub,,0,0,0,,draw the {\c&H0048C8FF&}pursuers{\c&H00FFFFFF&} into a rush,
+Dialogue: 0,0:06:51.25,0:06:51.55,Sub,,0,0,0,,draw the pursuers {\c&H0048C8FF&}into{\c&H00FFFFFF&} a rush,
+Dialogue: 0,0:06:51.55,0:06:51.67,Sub,,0,0,0,,draw the pursuers into {\c&H0048C8FF&}a{\c&H00FFFFFF&} rush,
+Dialogue: 0,0:06:51.67,0:06:52.42,Sub,,0,0,0,,draw the pursuers into a {\c&H0048C8FF&}rush,{\c&H00FFFFFF&}
+Dialogue: 0,0:06:52.42,0:06:52.72,Sub,,0,0,0,,{\c&H0048C8FF&}then{\c&H00FFFFFF&} wheel and cut them down.
+Dialogue: 0,0:06:52.72,0:06:53.28,Sub,,0,0,0,,then {\c&H0048C8FF&}wheel{\c&H00FFFFFF&} and cut them down.
+Dialogue: 0,0:06:53.28,0:06:53.47,Sub,,0,0,0,,then wheel {\c&H0048C8FF&}and{\c&H00FFFFFF&} cut them down.
+Dialogue: 0,0:06:53.47,0:06:53.69,Sub,,0,0,0,,then wheel and {\c&H0048C8FF&}cut{\c&H00FFFFFF&} them down.
+Dialogue: 0,0:06:53.69,0:06:53.90,Sub,,0,0,0,,then wheel and cut {\c&H0048C8FF&}them{\c&H00FFFFFF&} down.
+Dialogue: 0,0:06:53.90,0:06:54.72,Sub,,0,0,0,,then wheel and cut them {\c&H0048C8FF&}down.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:54.72,0:06:55.05,Sub,,0,0,0,,{\c&H0048C8FF&}Three{\c&H00FFFFFF&} times that day,
+Dialogue: 0,0:06:55.05,0:06:55.41,Sub,,0,0,0,,Three {\c&H0048C8FF&}times{\c&H00FFFFFF&} that day,
+Dialogue: 0,0:06:55.41,0:06:55.63,Sub,,0,0,0,,Three times {\c&H0048C8FF&}that{\c&H00FFFFFF&} day,
+Dialogue: 0,0:06:55.63,0:06:56.36,Sub,,0,0,0,,Three times that {\c&H0048C8FF&}day,{\c&H00FFFFFF&}
+Dialogue: 0,0:06:56.36,0:06:57.04,Sub,,0,0,0,,{\c&H0048C8FF&}Herodotus{\c&H00FFFFFF&} says, the king leapt up from
+Dialogue: 0,0:06:57.04,0:06:57.77,Sub,,0,0,0,,Herodotus {\c&H0048C8FF&}says,{\c&H00FFFFFF&} the king leapt up from
+Dialogue: 0,0:06:57.77,0:06:57.98,Sub,,0,0,0,,Herodotus says, {\c&H0048C8FF&}the{\c&H00FFFFFF&} king leapt up from
+Dialogue: 0,0:06:57.98,0:06:58.26,Sub,,0,0,0,,Herodotus says, the {\c&H0048C8FF&}king{\c&H00FFFFFF&} leapt up from
+Dialogue: 0,0:06:58.26,0:06:58.52,Sub,,0,0,0,,Herodotus says, the king {\c&H0048C8FF&}leapt{\c&H00FFFFFF&} up from
+Dialogue: 0,0:06:58.52,0:06:58.63,Sub,,0,0,0,,Herodotus says, the king leapt {\c&H0048C8FF&}up{\c&H00FFFFFF&} from
+Dialogue: 0,0:06:58.63,0:06:58.81,Sub,,0,0,0,,Herodotus says, the king leapt up {\c&H0048C8FF&}from{\c&H00FFFFFF&}
+Dialogue: 0,0:06:58.81,0:06:58.95,Sub,,0,0,0,,{\c&H0048C8FF&}his{\c&H00FFFFFF&} seat in fear for his army.
+Dialogue: 0,0:06:58.95,0:06:59.27,Sub,,0,0,0,,his {\c&H0048C8FF&}seat{\c&H00FFFFFF&} in fear for his army.
+Dialogue: 0,0:06:59.27,0:06:59.45,Sub,,0,0,0,,his seat {\c&H0048C8FF&}in{\c&H00FFFFFF&} fear for his army.
+Dialogue: 0,0:06:59.45,0:06:59.79,Sub,,0,0,0,,his seat in {\c&H0048C8FF&}fear{\c&H00FFFFFF&} for his army.
+Dialogue: 0,0:06:59.79,0:06:59.93,Sub,,0,0,0,,his seat in fear {\c&H0048C8FF&}for{\c&H00FFFFFF&} his army.
+Dialogue: 0,0:06:59.93,0:07:00.09,Sub,,0,0,0,,his seat in fear for {\c&H0048C8FF&}his{\c&H00FFFFFF&} army.
+Dialogue: 0,0:07:00.09,0:07:01.08,Sub,,0,0,0,,his seat in fear for his {\c&H0048C8FF&}army.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:01.08,0:07:01.48,Sub,,0,0,0,,{\c&H0048C8FF&}Before{\c&H00FFFFFF&} the battle,
+Dialogue: 0,0:07:01.48,0:07:01.60,Sub,,0,0,0,,Before {\c&H0048C8FF&}the{\c&H00FFFFFF&} battle,
+Dialogue: 0,0:07:01.60,0:07:02.39,Sub,,0,0,0,,Before the {\c&H0048C8FF&}battle,{\c&H00FFFFFF&}
+Dialogue: 0,0:07:02.39,0:07:02.56,Sub,,0,0,0,,{\c&H0048C8FF&}a{\c&H00FFFFFF&} Spartan named Dienekes was told that
+Dialogue: 0,0:07:02.56,0:07:03.05,Sub,,0,0,0,,a {\c&H0048C8FF&}Spartan{\c&H00FFFFFF&} named Dienekes was told that
+Dialogue: 0,0:07:03.05,0:07:03.33,Sub,,0,0,0,,a Spartan {\c&H0048C8FF&}named{\c&H00FFFFFF&} Dienekes was told that
+Dialogue: 0,0:07:03.33,0:07:04.24,Sub,,0,0,0,,a Spartan named {\c&H0048C8FF&}Dienekes{\c&H00FFFFFF&} was told that
+Dialogue: 0,0:07:04.24,0:07:04.47,Sub,,0,0,0,,a Spartan named Dienekes {\c&H0048C8FF&}was{\c&H00FFFFFF&} told that
+Dialogue: 0,0:07:04.47,0:07:04.71,Sub,,0,0,0,,a Spartan named Dienekes was {\c&H0048C8FF&}told{\c&H00FFFFFF&} that
+Dialogue: 0,0:07:04.71,0:07:04.89,Sub,,0,0,0,,a Spartan named Dienekes was told {\c&H0048C8FF&}that{\c&H00FFFFFF&}
+Dialogue: 0,0:07:04.89,0:07:05.32,Sub,,0,0,0,,{\c&H0048C8FF&}Persian{\c&H00FFFFFF&} arrows would hide the sun.
+Dialogue: 0,0:07:05.32,0:07:05.99,Sub,,0,0,0,,Persian {\c&H0048C8FF&}arrows{\c&H00FFFFFF&} would hide the sun.
+Dialogue: 0,0:07:05.99,0:07:06.25,Sub,,0,0,0,,Persian arrows {\c&H0048C8FF&}would{\c&H00FFFFFF&} hide the sun.
+Dialogue: 0,0:07:06.25,0:07:06.55,Sub,,0,0,0,,Persian arrows would {\c&H0048C8FF&}hide{\c&H00FFFFFF&} the sun.
+Dialogue: 0,0:07:06.55,0:07:06.69,Sub,,0,0,0,,Persian arrows would hide {\c&H0048C8FF&}the{\c&H00FFFFFF&} sun.
+Dialogue: 0,0:07:06.69,0:07:08.24,Sub,,0,0,0,,Persian arrows would hide the {\c&H0048C8FF&}sun.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:08.51,0:07:09.41,Sub,,0,0,0,,{\c&H0048C8FF&}Good,{\c&H00FFFFFF&} he said:
+Dialogue: 0,0:07:09.41,0:07:09.58,Sub,,0,0,0,,Good, {\c&H0048C8FF&}he{\c&H00FFFFFF&} said:
+Dialogue: 0,0:07:09.58,0:07:10.59,Sub,,0,0,0,,Good, he {\c&H0048C8FF&}said:{\c&H00FFFFFF&}
+Dialogue: 0,0:07:10.59,0:07:10.80,Sub,,0,0,0,,{\c&H0048C8FF&}then{\c&H00FFFFFF&} we will fight in the shade.
+Dialogue: 0,0:07:10.80,0:07:10.91,Sub,,0,0,0,,then {\c&H0048C8FF&}we{\c&H00FFFFFF&} will fight in the shade.
+Dialogue: 0,0:07:10.91,0:07:11.12,Sub,,0,0,0,,then we {\c&H0048C8FF&}will{\c&H00FFFFFF&} fight in the shade.
+Dialogue: 0,0:07:11.12,0:07:11.39,Sub,,0,0,0,,then we will {\c&H0048C8FF&}fight{\c&H00FFFFFF&} in the shade.
+Dialogue: 0,0:07:11.39,0:07:11.48,Sub,,0,0,0,,then we will fight {\c&H0048C8FF&}in{\c&H00FFFFFF&} the shade.
+Dialogue: 0,0:07:11.48,0:07:11.60,Sub,,0,0,0,,then we will fight in {\c&H0048C8FF&}the{\c&H00FFFFFF&} shade.
+Dialogue: 0,0:07:11.60,0:07:13.29,Sub,,0,0,0,,then we will fight in the {\c&H0048C8FF&}shade.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:15.23,0:07:15.45,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} second day went the same way.
+Dialogue: 0,0:07:15.45,0:07:15.81,Sub,,0,0,0,,The {\c&H0048C8FF&}second{\c&H00FFFFFF&} day went the same way.
+Dialogue: 0,0:07:15.81,0:07:16.32,Sub,,0,0,0,,The second {\c&H0048C8FF&}day{\c&H00FFFFFF&} went the same way.
+Dialogue: 0,0:07:16.32,0:07:16.62,Sub,,0,0,0,,The second day {\c&H0048C8FF&}went{\c&H00FFFFFF&} the same way.
+Dialogue: 0,0:07:16.62,0:07:16.77,Sub,,0,0,0,,The second day went {\c&H0048C8FF&}the{\c&H00FFFFFF&} same way.
+Dialogue: 0,0:07:16.77,0:07:17.08,Sub,,0,0,0,,The second day went the {\c&H0048C8FF&}same{\c&H00FFFFFF&} way.
+Dialogue: 0,0:07:17.08,0:07:17.87,Sub,,0,0,0,,The second day went the same {\c&H0048C8FF&}way.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:17.87,0:07:18.07,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} Persians attacked in relays;
+Dialogue: 0,0:07:18.07,0:07:18.53,Sub,,0,0,0,,The {\c&H0048C8FF&}Persians{\c&H00FFFFFF&} attacked in relays;
+Dialogue: 0,0:07:18.53,0:07:18.90,Sub,,0,0,0,,The Persians {\c&H0048C8FF&}attacked{\c&H00FFFFFF&} in relays;
+Dialogue: 0,0:07:18.90,0:07:19.03,Sub,,0,0,0,,The Persians attacked {\c&H0048C8FF&}in{\c&H00FFFFFF&} relays;
+Dialogue: 0,0:07:19.03,0:07:20.09,Sub,,0,0,0,,The Persians attacked in {\c&H0048C8FF&}relays;{\c&H00FFFFFF&}
+Dialogue: 0,0:07:20.09,0:07:20.25,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} Greeks rotated city by city,
+Dialogue: 0,0:07:20.25,0:07:20.57,Sub,,0,0,0,,the {\c&H0048C8FF&}Greeks{\c&H00FFFFFF&} rotated city by city,
+Dialogue: 0,0:07:20.57,0:07:21.08,Sub,,0,0,0,,the Greeks {\c&H0048C8FF&}rotated{\c&H00FFFFFF&} city by city,
+Dialogue: 0,0:07:21.08,0:07:21.36,Sub,,0,0,0,,the Greeks rotated {\c&H0048C8FF&}city{\c&H00FFFFFF&} by city,
+Dialogue: 0,0:07:21.36,0:07:21.56,Sub,,0,0,0,,the Greeks rotated city {\c&H0048C8FF&}by{\c&H00FFFFFF&} city,
+Dialogue: 0,0:07:21.56,0:07:22.18,Sub,,0,0,0,,the Greeks rotated city by {\c&H0048C8FF&}city,{\c&H00FFFFFF&}
+Dialogue: 0,0:07:22.18,0:07:22.44,Sub,,0,0,0,,{\c&H0048C8FF&}so{\c&H00FFFFFF&} fresh men always held the line.
+Dialogue: 0,0:07:22.44,0:07:22.77,Sub,,0,0,0,,so {\c&H0048C8FF&}fresh{\c&H00FFFFFF&} men always held the line.
+Dialogue: 0,0:07:22.77,0:07:23.01,Sub,,0,0,0,,so fresh {\c&H0048C8FF&}men{\c&H00FFFFFF&} always held the line.
+Dialogue: 0,0:07:23.01,0:07:23.62,Sub,,0,0,0,,so fresh men {\c&H0048C8FF&}always{\c&H00FFFFFF&} held the line.
+Dialogue: 0,0:07:23.62,0:07:23.81,Sub,,0,0,0,,so fresh men always {\c&H0048C8FF&}held{\c&H00FFFFFF&} the line.
+Dialogue: 0,0:07:23.81,0:07:23.94,Sub,,0,0,0,,so fresh men always held {\c&H0048C8FF&}the{\c&H00FFFFFF&} line.
+Dialogue: 0,0:07:23.94,0:07:24.73,Sub,,0,0,0,,so fresh men always held the {\c&H0048C8FF&}line.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:24.73,0:07:24.98,Sub,,0,0,0,,{\c&H0048C8FF&}And{\c&H00FFFFFF&} then, that evening,
+Dialogue: 0,0:07:24.98,0:07:25.75,Sub,,0,0,0,,And {\c&H0048C8FF&}then,{\c&H00FFFFFF&} that evening,
+Dialogue: 0,0:07:25.75,0:07:26.00,Sub,,0,0,0,,And then, {\c&H0048C8FF&}that{\c&H00FFFFFF&} evening,
+Dialogue: 0,0:07:26.00,0:07:26.78,Sub,,0,0,0,,And then, that {\c&H0048C8FF&}evening,{\c&H00FFFFFF&}
+Dialogue: 0,0:07:26.78,0:07:27.00,Sub,,0,0,0,,{\c&H0048C8FF&}a{\c&H00FFFFFF&} local man came to the king's
+Dialogue: 0,0:07:27.00,0:07:27.36,Sub,,0,0,0,,a {\c&H0048C8FF&}local{\c&H00FFFFFF&} man came to the king's
+Dialogue: 0,0:07:27.36,0:07:27.64,Sub,,0,0,0,,a local {\c&H0048C8FF&}man{\c&H00FFFFFF&} came to the king's
+Dialogue: 0,0:07:27.64,0:07:27.91,Sub,,0,0,0,,a local man {\c&H0048C8FF&}came{\c&H00FFFFFF&} to the king's
+Dialogue: 0,0:07:27.91,0:07:28.05,Sub,,0,0,0,,a local man came {\c&H0048C8FF&}to{\c&H00FFFFFF&} the king's
+Dialogue: 0,0:07:28.05,0:07:28.17,Sub,,0,0,0,,a local man came to {\c&H0048C8FF&}the{\c&H00FFFFFF&} king's
+Dialogue: 0,0:07:28.17,0:07:28.49,Sub,,0,0,0,,a local man came to the {\c&H0048C8FF&}king's{\c&H00FFFFFF&}
+Dialogue: 0,0:07:28.49,0:07:29.20,Sub,,0,0,0,,{\c&H0048C8FF&}tent.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:29.20,0:07:29.44,Sub,,0,0,0,,{\c&H0048C8FF&}His{\c&H00FFFFFF&} name was Ephialtes,
+Dialogue: 0,0:07:29.44,0:07:29.71,Sub,,0,0,0,,His {\c&H0048C8FF&}name{\c&H00FFFFFF&} was Ephialtes,
+Dialogue: 0,0:07:29.71,0:07:30.01,Sub,,0,0,0,,His name {\c&H0048C8FF&}was{\c&H00FFFFFF&} Ephialtes,
+Dialogue: 0,0:07:30.01,0:07:31.38,Sub,,0,0,0,,His name was {\c&H0048C8FF&}Ephialtes,{\c&H00FFFFFF&}
+Dialogue: 0,0:07:31.38,0:07:31.60,Sub,,0,0,0,,{\c&H0048C8FF&}from{\c&H00FFFFFF&} Trachis.
+Dialogue: 0,0:07:31.60,0:07:32.92,Sub,,0,0,0,,from {\c&H0048C8FF&}Trachis.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:34.95,0:07:35.26,Sub,,0,0,0,,{\c&H0048C8FF&}He{\c&H00FFFFFF&} knew a path.
+Dialogue: 0,0:07:35.26,0:07:35.53,Sub,,0,0,0,,He {\c&H0048C8FF&}knew{\c&H00FFFFFF&} a path.
+Dialogue: 0,0:07:35.53,0:07:35.65,Sub,,0,0,0,,He knew {\c&H0048C8FF&}a{\c&H00FFFFFF&} path.
+Dialogue: 0,0:07:35.65,0:07:36.59,Sub,,0,0,0,,He knew a {\c&H0048C8FF&}path.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:36.59,0:07:36.83,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} Anopaea:
+Dialogue: 0,0:07:36.83,0:07:38.20,Sub,,0,0,0,,The {\c&H0048C8FF&}Anopaea:{\c&H00FFFFFF&}
+Dialogue: 0,0:07:38.20,0:07:38.37,Sub,,0,0,0,,{\c&H0048C8FF&}a{\c&H00FFFFFF&} mountain track that climbed behind the
+Dialogue: 0,0:07:38.37,0:07:38.71,Sub,,0,0,0,,a {\c&H0048C8FF&}mountain{\c&H00FFFFFF&} track that climbed behind the
+Dialogue: 0,0:07:38.71,0:07:39.05,Sub,,0,0,0,,a mountain {\c&H0048C8FF&}track{\c&H00FFFFFF&} that climbed behind the
+Dialogue: 0,0:07:39.05,0:07:39.23,Sub,,0,0,0,,a mountain track {\c&H0048C8FF&}that{\c&H00FFFFFF&} climbed behind the
+Dialogue: 0,0:07:39.23,0:07:39.64,Sub,,0,0,0,,a mountain track that {\c&H0048C8FF&}climbed{\c&H00FFFFFF&} behind the
+Dialogue: 0,0:07:39.64,0:07:39.96,Sub,,0,0,0,,a mountain track that climbed {\c&H0048C8FF&}behind{\c&H00FFFFFF&} the
+Dialogue: 0,0:07:39.96,0:07:40.08,Sub,,0,0,0,,a mountain track that climbed behind {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:07:40.08,0:07:40.83,Sub,,0,0,0,,{\c&H0048C8FF&}pass,{\c&H00FFFFFF&} over the ridge,
+Dialogue: 0,0:07:40.83,0:07:41.12,Sub,,0,0,0,,pass, {\c&H0048C8FF&}over{\c&H00FFFFFF&} the ridge,
+Dialogue: 0,0:07:41.12,0:07:41.28,Sub,,0,0,0,,pass, over {\c&H0048C8FF&}the{\c&H00FFFFFF&} ridge,
+Dialogue: 0,0:07:41.28,0:07:41.94,Sub,,0,0,0,,pass, over the {\c&H0048C8FF&}ridge,{\c&H00FFFFFF&}
+Dialogue: 0,0:07:41.94,0:07:42.25,Sub,,0,0,0,,{\c&H0048C8FF&}and{\c&H00FFFFFF&} came down beyond the Greek wall.
+Dialogue: 0,0:07:42.25,0:07:42.60,Sub,,0,0,0,,and {\c&H0048C8FF&}came{\c&H00FFFFFF&} down beyond the Greek wall.
+Dialogue: 0,0:07:42.60,0:07:43.02,Sub,,0,0,0,,and came {\c&H0048C8FF&}down{\c&H00FFFFFF&} beyond the Greek wall.
+Dialogue: 0,0:07:43.02,0:07:43.80,Sub,,0,0,0,,and came down {\c&H0048C8FF&}beyond{\c&H00FFFFFF&} the Greek wall.
+Dialogue: 0,0:07:43.80,0:07:44.04,Sub,,0,0,0,,and came down beyond {\c&H0048C8FF&}the{\c&H00FFFFFF&} Greek wall.
+Dialogue: 0,0:07:44.04,0:07:44.36,Sub,,0,0,0,,and came down beyond the {\c&H0048C8FF&}Greek{\c&H00FFFFFF&} wall.
+Dialogue: 0,0:07:44.36,0:07:45.27,Sub,,0,0,0,,and came down beyond the Greek {\c&H0048C8FF&}wall.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:45.27,0:07:46.31,Sub,,0,0,0,,{\c&H0048C8FF&}Leonidas{\c&H00FFFFFF&} knew it too.
+Dialogue: 0,0:07:46.31,0:07:46.49,Sub,,0,0,0,,Leonidas {\c&H0048C8FF&}knew{\c&H00FFFFFF&} it too.
+Dialogue: 0,0:07:46.49,0:07:46.61,Sub,,0,0,0,,Leonidas knew {\c&H0048C8FF&}it{\c&H00FFFFFF&} too.
+Dialogue: 0,0:07:46.61,0:07:47.39,Sub,,0,0,0,,Leonidas knew it {\c&H0048C8FF&}too.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:47.39,0:07:47.56,Sub,,0,0,0,,{\c&H0048C8FF&}He{\c&H00FFFFFF&} had posted the thousand Phocians
+Dialogue: 0,0:07:47.56,0:07:47.71,Sub,,0,0,0,,He {\c&H0048C8FF&}had{\c&H00FFFFFF&} posted the thousand Phocians
+Dialogue: 0,0:07:47.71,0:07:48.15,Sub,,0,0,0,,He had {\c&H0048C8FF&}posted{\c&H00FFFFFF&} the thousand Phocians
+Dialogue: 0,0:07:48.15,0:07:48.30,Sub,,0,0,0,,He had posted {\c&H0048C8FF&}the{\c&H00FFFFFF&} thousand Phocians
+Dialogue: 0,0:07:48.30,0:07:48.88,Sub,,0,0,0,,He had posted the {\c&H0048C8FF&}thousand{\c&H00FFFFFF&} Phocians
+Dialogue: 0,0:07:48.88,0:07:49.60,Sub,,0,0,0,,He had posted the thousand {\c&H0048C8FF&}Phocians{\c&H00FFFFFF&}
+Dialogue: 0,0:07:49.60,0:07:49.81,Sub,,0,0,0,,{\c&H0048C8FF&}there{\c&H00FFFFFF&} to guard it.
+Dialogue: 0,0:07:49.81,0:07:49.94,Sub,,0,0,0,,there {\c&H0048C8FF&}to{\c&H00FFFFFF&} guard it.
+Dialogue: 0,0:07:49.94,0:07:50.23,Sub,,0,0,0,,there to {\c&H0048C8FF&}guard{\c&H00FFFFFF&} it.
+Dialogue: 0,0:07:50.23,0:07:50.90,Sub,,0,0,0,,there to guard {\c&H0048C8FF&}it.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:51.20,0:07:51.45,Sub,,0,0,0,,{\c&H0048C8FF&}At{\c&H00FFFFFF&} lamp-lighting time,
+Dialogue: 0,0:07:51.45,0:07:52.03,Sub,,0,0,0,,At {\c&H0048C8FF&}lamp-lighting{\c&H00FFFFFF&} time,
+Dialogue: 0,0:07:52.03,0:07:52.88,Sub,,0,0,0,,At lamp-lighting {\c&H0048C8FF&}time,{\c&H00FFFFFF&}
+Dialogue: 0,0:07:52.88,0:07:54.19,Sub,,0,0,0,,{\c&H0048C8FF&}Hydarnes{\c&H00FFFFFF&} led the Immortals out of the
+Dialogue: 0,0:07:54.19,0:07:54.50,Sub,,0,0,0,,Hydarnes {\c&H0048C8FF&}led{\c&H00FFFFFF&} the Immortals out of the
+Dialogue: 0,0:07:54.50,0:07:54.61,Sub,,0,0,0,,Hydarnes led {\c&H0048C8FF&}the{\c&H00FFFFFF&} Immortals out of the
+Dialogue: 0,0:07:54.61,0:07:55.12,Sub,,0,0,0,,Hydarnes led the {\c&H0048C8FF&}Immortals{\c&H00FFFFFF&} out of the
+Dialogue: 0,0:07:55.12,0:07:55.30,Sub,,0,0,0,,Hydarnes led the Immortals {\c&H0048C8FF&}out{\c&H00FFFFFF&} of the
+Dialogue: 0,0:07:55.30,0:07:55.38,Sub,,0,0,0,,Hydarnes led the Immortals out {\c&H0048C8FF&}of{\c&H00FFFFFF&} the
+Dialogue: 0,0:07:55.38,0:07:55.49,Sub,,0,0,0,,Hydarnes led the Immortals out of {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:07:55.49,0:07:56.05,Sub,,0,0,0,,{\c&H0048C8FF&}camp{\c&H00FFFFFF&} and up into the oak forest.
+Dialogue: 0,0:07:56.05,0:07:56.39,Sub,,0,0,0,,camp {\c&H0048C8FF&}and{\c&H00FFFFFF&} up into the oak forest.
+Dialogue: 0,0:07:56.39,0:07:56.71,Sub,,0,0,0,,camp and {\c&H0048C8FF&}up{\c&H00FFFFFF&} into the oak forest.
+Dialogue: 0,0:07:56.71,0:07:56.92,Sub,,0,0,0,,camp and up {\c&H0048C8FF&}into{\c&H00FFFFFF&} the oak forest.
+Dialogue: 0,0:07:56.92,0:07:57.05,Sub,,0,0,0,,camp and up into {\c&H0048C8FF&}the{\c&H00FFFFFF&} oak forest.
+Dialogue: 0,0:07:57.05,0:07:57.25,Sub,,0,0,0,,camp and up into the {\c&H0048C8FF&}oak{\c&H00FFFFFF&} forest.
+Dialogue: 0,0:07:57.25,0:07:58.55,Sub,,0,0,0,,camp and up into the oak {\c&H0048C8FF&}forest.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:58.55,0:07:58.81,Sub,,0,0,0,,{\c&H0048C8FF&}They{\c&H00FFFFFF&} marched all night.
+Dialogue: 0,0:07:58.81,0:07:59.35,Sub,,0,0,0,,They {\c&H0048C8FF&}marched{\c&H00FFFFFF&} all night.
+Dialogue: 0,0:07:59.35,0:07:59.74,Sub,,0,0,0,,They marched {\c&H0048C8FF&}all{\c&H00FFFFFF&} night.
+Dialogue: 0,0:07:59.74,0:08:00.68,Sub,,0,0,0,,They marched all {\c&H0048C8FF&}night.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:02.58,0:08:02.80,Sub,,0,0,0,,{\c&H0048C8FF&}At{\c&H00FFFFFF&} first light the Phocians heard
+Dialogue: 0,0:08:02.80,0:08:03.10,Sub,,0,0,0,,At {\c&H0048C8FF&}first{\c&H00FFFFFF&} light the Phocians heard
+Dialogue: 0,0:08:03.10,0:08:03.69,Sub,,0,0,0,,At first {\c&H0048C8FF&}light{\c&H00FFFFFF&} the Phocians heard
+Dialogue: 0,0:08:03.69,0:08:03.90,Sub,,0,0,0,,At first light {\c&H0048C8FF&}the{\c&H00FFFFFF&} Phocians heard
+Dialogue: 0,0:08:03.90,0:08:04.60,Sub,,0,0,0,,At first light the {\c&H0048C8FF&}Phocians{\c&H00FFFFFF&} heard
+Dialogue: 0,0:08:04.60,0:08:04.81,Sub,,0,0,0,,At first light the Phocians {\c&H0048C8FF&}heard{\c&H00FFFFFF&}
+Dialogue: 0,0:08:04.81,0:08:05.35,Sub,,0,0,0,,{\c&H0048C8FF&}footsteps{\c&H00FFFFFF&} on fallen leaves,
+Dialogue: 0,0:08:05.35,0:08:05.53,Sub,,0,0,0,,footsteps {\c&H0048C8FF&}on{\c&H00FFFFFF&} fallen leaves,
+Dialogue: 0,0:08:05.53,0:08:05.90,Sub,,0,0,0,,footsteps on {\c&H0048C8FF&}fallen{\c&H00FFFFFF&} leaves,
+Dialogue: 0,0:08:05.90,0:08:06.88,Sub,,0,0,0,,footsteps on fallen {\c&H0048C8FF&}leaves,{\c&H00FFFFFF&}
+Dialogue: 0,0:08:06.88,0:08:07.14,Sub,,0,0,0,,{\c&H0048C8FF&}and{\c&H00FFFFFF&} looked up at thousands of men
+Dialogue: 0,0:08:07.14,0:08:07.44,Sub,,0,0,0,,and {\c&H0048C8FF&}looked{\c&H00FFFFFF&} up at thousands of men
+Dialogue: 0,0:08:07.44,0:08:07.62,Sub,,0,0,0,,and looked {\c&H0048C8FF&}up{\c&H00FFFFFF&} at thousands of men
+Dialogue: 0,0:08:07.62,0:08:07.76,Sub,,0,0,0,,and looked up {\c&H0048C8FF&}at{\c&H00FFFFFF&} thousands of men
+Dialogue: 0,0:08:07.76,0:08:08.34,Sub,,0,0,0,,and looked up at {\c&H0048C8FF&}thousands{\c&H00FFFFFF&} of men
+Dialogue: 0,0:08:08.34,0:08:08.47,Sub,,0,0,0,,and looked up at thousands {\c&H0048C8FF&}of{\c&H00FFFFFF&} men
+Dialogue: 0,0:08:08.47,0:08:08.96,Sub,,0,0,0,,and looked up at thousands of {\c&H0048C8FF&}men{\c&H00FFFFFF&}
+Dialogue: 0,0:08:08.96,0:08:09.60,Sub,,0,0,0,,{\c&H0048C8FF&}already{\c&H00FFFFFF&} on top of them.
+Dialogue: 0,0:08:09.60,0:08:09.74,Sub,,0,0,0,,already {\c&H0048C8FF&}on{\c&H00FFFFFF&} top of them.
+Dialogue: 0,0:08:09.74,0:08:10.02,Sub,,0,0,0,,already on {\c&H0048C8FF&}top{\c&H00FFFFFF&} of them.
+Dialogue: 0,0:08:10.02,0:08:10.12,Sub,,0,0,0,,already on top {\c&H0048C8FF&}of{\c&H00FFFFFF&} them.
+Dialogue: 0,0:08:10.12,0:08:10.83,Sub,,0,0,0,,already on top of {\c&H0048C8FF&}them.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:12.87,0:08:13.43,Sub,,0,0,0,,{\c&H0048C8FF&}Arrows{\c&H00FFFFFF&} came down.
+Dialogue: 0,0:08:13.43,0:08:13.71,Sub,,0,0,0,,Arrows {\c&H0048C8FF&}came{\c&H00FFFFFF&} down.
+Dialogue: 0,0:08:13.71,0:08:14.69,Sub,,0,0,0,,Arrows came {\c&H0048C8FF&}down.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:15.00,0:08:15.22,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} Phocians pulled back to a hilltop
+Dialogue: 0,0:08:15.22,0:08:16.23,Sub,,0,0,0,,The {\c&H0048C8FF&}Phocians{\c&H00FFFFFF&} pulled back to a hilltop
+Dialogue: 0,0:08:16.23,0:08:16.54,Sub,,0,0,0,,The Phocians {\c&H0048C8FF&}pulled{\c&H00FFFFFF&} back to a hilltop
+Dialogue: 0,0:08:16.54,0:08:16.76,Sub,,0,0,0,,The Phocians pulled {\c&H0048C8FF&}back{\c&H00FFFFFF&} to a hilltop
+Dialogue: 0,0:08:16.76,0:08:16.92,Sub,,0,0,0,,The Phocians pulled back {\c&H0048C8FF&}to{\c&H00FFFFFF&} a hilltop
+Dialogue: 0,0:08:16.92,0:08:17.00,Sub,,0,0,0,,The Phocians pulled back to {\c&H0048C8FF&}a{\c&H00FFFFFF&} hilltop
+Dialogue: 0,0:08:17.00,0:08:17.69,Sub,,0,0,0,,The Phocians pulled back to a {\c&H0048C8FF&}hilltop{\c&H00FFFFFF&}
+Dialogue: 0,0:08:17.69,0:08:17.89,Sub,,0,0,0,,{\c&H0048C8FF&}to{\c&H00FFFFFF&} make a stand.
+Dialogue: 0,0:08:17.89,0:08:18.09,Sub,,0,0,0,,to {\c&H0048C8FF&}make{\c&H00FFFFFF&} a stand.
+Dialogue: 0,0:08:18.09,0:08:18.16,Sub,,0,0,0,,to make {\c&H0048C8FF&}a{\c&H00FFFFFF&} stand.
+Dialogue: 0,0:08:18.16,0:08:19.16,Sub,,0,0,0,,to make a {\c&H0048C8FF&}stand.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:19.58,0:08:19.76,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} Persians ignored them and kept
+Dialogue: 0,0:08:19.76,0:08:20.25,Sub,,0,0,0,,The {\c&H0048C8FF&}Persians{\c&H00FFFFFF&} ignored them and kept
+Dialogue: 0,0:08:20.25,0:08:20.67,Sub,,0,0,0,,The Persians {\c&H0048C8FF&}ignored{\c&H00FFFFFF&} them and kept
+Dialogue: 0,0:08:20.67,0:08:21.25,Sub,,0,0,0,,The Persians ignored {\c&H0048C8FF&}them{\c&H00FFFFFF&} and kept
+Dialogue: 0,0:08:21.25,0:08:21.67,Sub,,0,0,0,,The Persians ignored them {\c&H0048C8FF&}and{\c&H00FFFFFF&} kept
+Dialogue: 0,0:08:21.67,0:08:21.93,Sub,,0,0,0,,The Persians ignored them and {\c&H0048C8FF&}kept{\c&H00FFFFFF&}
+Dialogue: 0,0:08:21.93,0:08:22.94,Sub,,0,0,0,,{\c&H0048C8FF&}moving,{\c&H00FFFFFF&} down toward the pass.
+Dialogue: 0,0:08:22.94,0:08:23.33,Sub,,0,0,0,,moving, {\c&H0048C8FF&}down{\c&H00FFFFFF&} toward the pass.
+Dialogue: 0,0:08:23.33,0:08:23.56,Sub,,0,0,0,,moving, down {\c&H0048C8FF&}toward{\c&H00FFFFFF&} the pass.
+Dialogue: 0,0:08:23.56,0:08:23.68,Sub,,0,0,0,,moving, down toward {\c&H0048C8FF&}the{\c&H00FFFFFF&} pass.
+Dialogue: 0,0:08:23.68,0:08:25.50,Sub,,0,0,0,,moving, down toward the {\c&H0048C8FF&}pass.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:25.50,0:08:25.94,Sub,,0,0,0,,{\c&H0048C8FF&}Before{\c&H00FFFFFF&} dawn, lookouts came running down
+Dialogue: 0,0:08:25.94,0:08:26.91,Sub,,0,0,0,,Before {\c&H0048C8FF&}dawn,{\c&H00FFFFFF&} lookouts came running down
+Dialogue: 0,0:08:26.91,0:08:27.43,Sub,,0,0,0,,Before dawn, {\c&H0048C8FF&}lookouts{\c&H00FFFFFF&} came running down
+Dialogue: 0,0:08:27.43,0:08:27.75,Sub,,0,0,0,,Before dawn, lookouts {\c&H0048C8FF&}came{\c&H00FFFFFF&} running down
+Dialogue: 0,0:08:27.75,0:08:28.11,Sub,,0,0,0,,Before dawn, lookouts came {\c&H0048C8FF&}running{\c&H00FFFFFF&} down
+Dialogue: 0,0:08:28.11,0:08:28.32,Sub,,0,0,0,,Before dawn, lookouts came running {\c&H0048C8FF&}down{\c&H00FFFFFF&}
+Dialogue: 0,0:08:28.32,0:08:28.44,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} mountain.
+Dialogue: 0,0:08:28.44,0:08:29.36,Sub,,0,0,0,,the {\c&H0048C8FF&}mountain.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:29.36,0:08:29.55,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} Greeks knew.
+Dialogue: 0,0:08:29.55,0:08:29.91,Sub,,0,0,0,,The {\c&H0048C8FF&}Greeks{\c&H00FFFFFF&} knew.
+Dialogue: 0,0:08:29.91,0:08:30.82,Sub,,0,0,0,,The Greeks {\c&H0048C8FF&}knew.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:31.80,0:08:32.08,Sub,,0,0,0,,{\c&H0048C8FF&}They{\c&H00FFFFFF&} held a council.
+Dialogue: 0,0:08:32.08,0:08:32.36,Sub,,0,0,0,,They {\c&H0048C8FF&}held{\c&H00FFFFFF&} a council.
+Dialogue: 0,0:08:32.36,0:08:32.47,Sub,,0,0,0,,They held {\c&H0048C8FF&}a{\c&H00FFFFFF&} council.
+Dialogue: 0,0:08:32.47,0:08:33.64,Sub,,0,0,0,,They held a {\c&H0048C8FF&}council.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:33.64,0:08:33.87,Sub,,0,0,0,,{\c&H0048C8FF&}What{\c&H00FFFFFF&} was said,
+Dialogue: 0,0:08:33.87,0:08:34.04,Sub,,0,0,0,,What {\c&H0048C8FF&}was{\c&H00FFFFFF&} said,
+Dialogue: 0,0:08:34.04,0:08:35.06,Sub,,0,0,0,,What was {\c&H0048C8FF&}said,{\c&H00FFFFFF&}
+Dialogue: 0,0:08:35.06,0:08:35.57,Sub,,0,0,0,,{\c&H0048C8FF&}nobody{\c&H00FFFFFF&} recorded.
+Dialogue: 0,0:08:35.57,0:08:36.68,Sub,,0,0,0,,nobody {\c&H0048C8FF&}recorded.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:38.30,0:08:38.89,Sub,,0,0,0,,{\c&H0048C8FF&}Herodotus{\c&H00FFFFFF&} says Leonidas sent the allies
+Dialogue: 0,0:08:38.89,0:08:39.20,Sub,,0,0,0,,Herodotus {\c&H0048C8FF&}says{\c&H00FFFFFF&} Leonidas sent the allies
+Dialogue: 0,0:08:39.20,0:08:40.49,Sub,,0,0,0,,Herodotus says {\c&H0048C8FF&}Leonidas{\c&H00FFFFFF&} sent the allies
+Dialogue: 0,0:08:40.49,0:08:40.78,Sub,,0,0,0,,Herodotus says Leonidas {\c&H0048C8FF&}sent{\c&H00FFFFFF&} the allies
+Dialogue: 0,0:08:40.78,0:08:40.93,Sub,,0,0,0,,Herodotus says Leonidas sent {\c&H0048C8FF&}the{\c&H00FFFFFF&} allies
+Dialogue: 0,0:08:40.93,0:08:41.43,Sub,,0,0,0,,Herodotus says Leonidas sent the {\c&H0048C8FF&}allies{\c&H00FFFFFF&}
+Dialogue: 0,0:08:41.43,0:08:42.20,Sub,,0,0,0,,{\c&H0048C8FF&}away{\c&H00FFFFFF&} and kept the Spartans.
+Dialogue: 0,0:08:42.20,0:08:42.63,Sub,,0,0,0,,away {\c&H0048C8FF&}and{\c&H00FFFFFF&} kept the Spartans.
+Dialogue: 0,0:08:42.63,0:08:42.93,Sub,,0,0,0,,away and {\c&H0048C8FF&}kept{\c&H00FFFFFF&} the Spartans.
+Dialogue: 0,0:08:42.93,0:08:43.05,Sub,,0,0,0,,away and kept {\c&H0048C8FF&}the{\c&H00FFFFFF&} Spartans.
+Dialogue: 0,0:08:43.05,0:08:44.28,Sub,,0,0,0,,away and kept the {\c&H0048C8FF&}Spartans.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:44.28,0:08:44.50,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} seven hundred Thespians,
+Dialogue: 0,0:08:44.50,0:08:44.85,Sub,,0,0,0,,The {\c&H0048C8FF&}seven{\c&H00FFFFFF&} hundred Thespians,
+Dialogue: 0,0:08:44.85,0:08:45.15,Sub,,0,0,0,,The seven {\c&H0048C8FF&}hundred{\c&H00FFFFFF&} Thespians,
+Dialogue: 0,0:08:45.15,0:08:46.31,Sub,,0,0,0,,The seven hundred {\c&H0048C8FF&}Thespians,{\c&H00FFFFFF&}
+Dialogue: 0,0:08:46.31,0:08:46.54,Sub,,0,0,0,,{\c&H0048C8FF&}under{\c&H00FFFFFF&} Demophilus, refused to leave.
+Dialogue: 0,0:08:46.54,0:08:47.61,Sub,,0,0,0,,under {\c&H0048C8FF&}Demophilus,{\c&H00FFFFFF&} refused to leave.
+Dialogue: 0,0:08:47.61,0:08:48.25,Sub,,0,0,0,,under Demophilus, {\c&H0048C8FF&}refused{\c&H00FFFFFF&} to leave.
+Dialogue: 0,0:08:48.25,0:08:48.44,Sub,,0,0,0,,under Demophilus, refused {\c&H0048C8FF&}to{\c&H00FFFFFF&} leave.
+Dialogue: 0,0:08:48.44,0:08:49.83,Sub,,0,0,0,,under Demophilus, refused to {\c&H0048C8FF&}leave.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:51.06,0:08:51.26,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} four hundred Thebans also stayed.
+Dialogue: 0,0:08:51.26,0:08:51.53,Sub,,0,0,0,,The {\c&H0048C8FF&}four{\c&H00FFFFFF&} hundred Thebans also stayed.
+Dialogue: 0,0:08:51.53,0:08:51.84,Sub,,0,0,0,,The four {\c&H0048C8FF&}hundred{\c&H00FFFFFF&} Thebans also stayed.
+Dialogue: 0,0:08:51.84,0:08:52.45,Sub,,0,0,0,,The four hundred {\c&H0048C8FF&}Thebans{\c&H00FFFFFF&} also stayed.
+Dialogue: 0,0:08:52.45,0:08:52.93,Sub,,0,0,0,,The four hundred Thebans {\c&H0048C8FF&}also{\c&H00FFFFFF&} stayed.
+Dialogue: 0,0:08:52.93,0:08:54.07,Sub,,0,0,0,,The four hundred Thebans also {\c&H0048C8FF&}stayed.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:54.07,0:08:54.39,Sub,,0,0,0,,{\c&H0048C8FF&}Why{\c&H00FFFFFF&} stay?
+Dialogue: 0,0:08:54.39,0:08:55.37,Sub,,0,0,0,,Why {\c&H0048C8FF&}stay?{\c&H00FFFFFF&}
+Dialogue: 0,0:08:55.67,0:08:56.32,Sub,,0,0,0,,{\c&H0048C8FF&}Herodotus{\c&H00FFFFFF&} points to an oracle:
+Dialogue: 0,0:08:56.32,0:08:56.64,Sub,,0,0,0,,Herodotus {\c&H0048C8FF&}points{\c&H00FFFFFF&} to an oracle:
+Dialogue: 0,0:08:56.64,0:08:56.76,Sub,,0,0,0,,Herodotus points {\c&H0048C8FF&}to{\c&H00FFFFFF&} an oracle:
+Dialogue: 0,0:08:56.76,0:08:56.86,Sub,,0,0,0,,Herodotus points to {\c&H0048C8FF&}an{\c&H00FFFFFF&} oracle:
+Dialogue: 0,0:08:56.86,0:08:57.97,Sub,,0,0,0,,Herodotus points to an {\c&H0048C8FF&}oracle:{\c&H00FFFFFF&}
+Dialogue: 0,0:08:57.97,0:08:58.44,Sub,,0,0,0,,{\c&H0048C8FF&}Sparta{\c&H00FFFFFF&} would lose a king,
+Dialogue: 0,0:08:58.44,0:08:58.60,Sub,,0,0,0,,Sparta {\c&H0048C8FF&}would{\c&H00FFFFFF&} lose a king,
+Dialogue: 0,0:08:58.60,0:08:58.84,Sub,,0,0,0,,Sparta would {\c&H0048C8FF&}lose{\c&H00FFFFFF&} a king,
+Dialogue: 0,0:08:58.84,0:08:58.95,Sub,,0,0,0,,Sparta would lose {\c&H0048C8FF&}a{\c&H00FFFFFF&} king,
+Dialogue: 0,0:08:58.95,0:08:59.81,Sub,,0,0,0,,Sparta would lose a {\c&H0048C8FF&}king,{\c&H00FFFFFF&}
+Dialogue: 0,0:08:59.81,0:09:00.06,Sub,,0,0,0,,{\c&H0048C8FF&}or{\c&H00FFFFFF&} lose the city.
+Dialogue: 0,0:09:00.06,0:09:00.39,Sub,,0,0,0,,or {\c&H0048C8FF&}lose{\c&H00FFFFFF&} the city.
+Dialogue: 0,0:09:00.39,0:09:00.53,Sub,,0,0,0,,or lose {\c&H0048C8FF&}the{\c&H00FFFFFF&} city.
+Dialogue: 0,0:09:00.53,0:09:01.67,Sub,,0,0,0,,or lose the {\c&H0048C8FF&}city.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:01.67,0:09:02.03,Sub,,0,0,0,,{\c&H0048C8FF&}Modern{\c&H00FFFFFF&} historians point at the road:
+Dialogue: 0,0:09:02.03,0:09:02.69,Sub,,0,0,0,,Modern {\c&H0048C8FF&}historians{\c&H00FFFFFF&} point at the road:
+Dialogue: 0,0:09:02.69,0:09:02.92,Sub,,0,0,0,,Modern historians {\c&H0048C8FF&}point{\c&H00FFFFFF&} at the road:
+Dialogue: 0,0:09:02.92,0:09:03.01,Sub,,0,0,0,,Modern historians point {\c&H0048C8FF&}at{\c&H00FFFFFF&} the road:
+Dialogue: 0,0:09:03.01,0:09:03.16,Sub,,0,0,0,,Modern historians point at {\c&H0048C8FF&}the{\c&H00FFFFFF&} road:
+Dialogue: 0,0:09:03.16,0:09:04.02,Sub,,0,0,0,,Modern historians point at the {\c&H0048C8FF&}road:{\c&H00FFFFFF&}
+Dialogue: 0,0:09:04.02,0:09:04.42,Sub,,0,0,0,,{\c&H0048C8FF&}somebody{\c&H00FFFFFF&} had to hold the pass long
+Dialogue: 0,0:09:04.42,0:09:04.54,Sub,,0,0,0,,somebody {\c&H0048C8FF&}had{\c&H00FFFFFF&} to hold the pass long
+Dialogue: 0,0:09:04.54,0:09:04.65,Sub,,0,0,0,,somebody had {\c&H0048C8FF&}to{\c&H00FFFFFF&} hold the pass long
+Dialogue: 0,0:09:04.65,0:09:04.89,Sub,,0,0,0,,somebody had to {\c&H0048C8FF&}hold{\c&H00FFFFFF&} the pass long
+Dialogue: 0,0:09:04.89,0:09:05.04,Sub,,0,0,0,,somebody had to hold {\c&H0048C8FF&}the{\c&H00FFFFFF&} pass long
+Dialogue: 0,0:09:05.04,0:09:05.60,Sub,,0,0,0,,somebody had to hold the {\c&H0048C8FF&}pass{\c&H00FFFFFF&} long
+Dialogue: 0,0:09:05.60,0:09:05.90,Sub,,0,0,0,,somebody had to hold the pass {\c&H0048C8FF&}long{\c&H00FFFFFF&}
+Dialogue: 0,0:09:05.90,0:09:06.40,Sub,,0,0,0,,{\c&H0048C8FF&}enough{\c&H00FFFFFF&} for the rest to get clear,
+Dialogue: 0,0:09:06.40,0:09:06.62,Sub,,0,0,0,,enough {\c&H0048C8FF&}for{\c&H00FFFFFF&} the rest to get clear,
+Dialogue: 0,0:09:06.62,0:09:06.79,Sub,,0,0,0,,enough for {\c&H0048C8FF&}the{\c&H00FFFFFF&} rest to get clear,
+Dialogue: 0,0:09:06.79,0:09:07.11,Sub,,0,0,0,,enough for the {\c&H0048C8FF&}rest{\c&H00FFFFFF&} to get clear,
+Dialogue: 0,0:09:07.11,0:09:07.25,Sub,,0,0,0,,enough for the rest {\c&H0048C8FF&}to{\c&H00FFFFFF&} get clear,
+Dialogue: 0,0:09:07.25,0:09:07.43,Sub,,0,0,0,,enough for the rest to {\c&H0048C8FF&}get{\c&H00FFFFFF&} clear,
+Dialogue: 0,0:09:07.43,0:09:08.26,Sub,,0,0,0,,enough for the rest to get {\c&H0048C8FF&}clear,{\c&H00FFFFFF&}
+Dialogue: 0,0:09:08.26,0:09:08.64,Sub,,0,0,0,,{\c&H0048C8FF&}and{\c&H00FFFFFF&} for the fleet at Artemisium to
+Dialogue: 0,0:09:08.64,0:09:08.79,Sub,,0,0,0,,and {\c&H0048C8FF&}for{\c&H00FFFFFF&} the fleet at Artemisium to
+Dialogue: 0,0:09:08.79,0:09:08.92,Sub,,0,0,0,,and for {\c&H0048C8FF&}the{\c&H00FFFFFF&} fleet at Artemisium to
+Dialogue: 0,0:09:08.92,0:09:09.22,Sub,,0,0,0,,and for the {\c&H0048C8FF&}fleet{\c&H00FFFFFF&} at Artemisium to
+Dialogue: 0,0:09:09.22,0:09:09.36,Sub,,0,0,0,,and for the fleet {\c&H0048C8FF&}at{\c&H00FFFFFF&} Artemisium to
+Dialogue: 0,0:09:09.36,0:09:10.73,Sub,,0,0,0,,and for the fleet at {\c&H0048C8FF&}Artemisium{\c&H00FFFFFF&} to
+Dialogue: 0,0:09:10.73,0:09:11.00,Sub,,0,0,0,,and for the fleet at Artemisium {\c&H0048C8FF&}to{\c&H00FFFFFF&}
+Dialogue: 0,0:09:11.00,0:09:11.33,Sub,,0,0,0,,{\c&H0048C8FF&}learn{\c&H00FFFFFF&} what had happened.
+Dialogue: 0,0:09:11.33,0:09:11.48,Sub,,0,0,0,,learn {\c&H0048C8FF&}what{\c&H00FFFFFF&} had happened.
+Dialogue: 0,0:09:11.48,0:09:11.63,Sub,,0,0,0,,learn what {\c&H0048C8FF&}had{\c&H00FFFFFF&} happened.
+Dialogue: 0,0:09:11.63,0:09:12.47,Sub,,0,0,0,,learn what had {\c&H0048C8FF&}happened.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:12.47,0:09:12.71,Sub,,0,0,0,,{\c&H0048C8FF&}At{\c&H00FFFFFF&} mid-morning, Xerxes attacked from the
+Dialogue: 0,0:09:12.71,0:09:13.70,Sub,,0,0,0,,At {\c&H0048C8FF&}mid-morning,{\c&H00FFFFFF&} Xerxes attacked from the
+Dialogue: 0,0:09:13.70,0:09:14.36,Sub,,0,0,0,,At mid-morning, {\c&H0048C8FF&}Xerxes{\c&H00FFFFFF&} attacked from the
+Dialogue: 0,0:09:14.36,0:09:14.75,Sub,,0,0,0,,At mid-morning, Xerxes {\c&H0048C8FF&}attacked{\c&H00FFFFFF&} from the
+Dialogue: 0,0:09:14.75,0:09:14.89,Sub,,0,0,0,,At mid-morning, Xerxes attacked {\c&H0048C8FF&}from{\c&H00FFFFFF&} the
+Dialogue: 0,0:09:14.89,0:09:15.01,Sub,,0,0,0,,At mid-morning, Xerxes attacked from {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:09:15.01,0:09:15.75,Sub,,0,0,0,,{\c&H0048C8FF&}front.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:15.75,0:09:16.03,Sub,,0,0,0,,{\c&H0048C8FF&}This{\c&H00FFFFFF&} time the Greeks did not wait
+Dialogue: 0,0:09:16.03,0:09:16.63,Sub,,0,0,0,,This {\c&H0048C8FF&}time{\c&H00FFFFFF&} the Greeks did not wait
+Dialogue: 0,0:09:16.63,0:09:16.85,Sub,,0,0,0,,This time {\c&H0048C8FF&}the{\c&H00FFFFFF&} Greeks did not wait
+Dialogue: 0,0:09:16.85,0:09:17.20,Sub,,0,0,0,,This time the {\c&H0048C8FF&}Greeks{\c&H00FFFFFF&} did not wait
+Dialogue: 0,0:09:17.20,0:09:17.36,Sub,,0,0,0,,This time the Greeks {\c&H0048C8FF&}did{\c&H00FFFFFF&} not wait
+Dialogue: 0,0:09:17.36,0:09:17.56,Sub,,0,0,0,,This time the Greeks did {\c&H0048C8FF&}not{\c&H00FFFFFF&} wait
+Dialogue: 0,0:09:17.56,0:09:17.83,Sub,,0,0,0,,This time the Greeks did not {\c&H0048C8FF&}wait{\c&H00FFFFFF&}
+Dialogue: 0,0:09:17.83,0:09:18.14,Sub,,0,0,0,,{\c&H0048C8FF&}behind{\c&H00FFFFFF&} the wall.
+Dialogue: 0,0:09:18.14,0:09:18.26,Sub,,0,0,0,,behind {\c&H0048C8FF&}the{\c&H00FFFFFF&} wall.
+Dialogue: 0,0:09:18.26,0:09:18.93,Sub,,0,0,0,,behind the {\c&H0048C8FF&}wall.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:18.93,0:09:19.16,Sub,,0,0,0,,{\c&H0048C8FF&}They{\c&H00FFFFFF&} came out into the wider part
+Dialogue: 0,0:09:19.16,0:09:19.48,Sub,,0,0,0,,They {\c&H0048C8FF&}came{\c&H00FFFFFF&} out into the wider part
+Dialogue: 0,0:09:19.48,0:09:19.76,Sub,,0,0,0,,They came {\c&H0048C8FF&}out{\c&H00FFFFFF&} into the wider part
+Dialogue: 0,0:09:19.76,0:09:20.02,Sub,,0,0,0,,They came out {\c&H0048C8FF&}into{\c&H00FFFFFF&} the wider part
+Dialogue: 0,0:09:20.02,0:09:20.17,Sub,,0,0,0,,They came out into {\c&H0048C8FF&}the{\c&H00FFFFFF&} wider part
+Dialogue: 0,0:09:20.17,0:09:20.60,Sub,,0,0,0,,They came out into the {\c&H0048C8FF&}wider{\c&H00FFFFFF&} part
+Dialogue: 0,0:09:20.60,0:09:20.82,Sub,,0,0,0,,They came out into the wider {\c&H0048C8FF&}part{\c&H00FFFFFF&}
+Dialogue: 0,0:09:20.82,0:09:20.90,Sub,,0,0,0,,{\c&H0048C8FF&}of{\c&H00FFFFFF&} the pass,
+Dialogue: 0,0:09:20.90,0:09:21.02,Sub,,0,0,0,,of {\c&H0048C8FF&}the{\c&H00FFFFFF&} pass,
+Dialogue: 0,0:09:21.02,0:09:21.75,Sub,,0,0,0,,of the {\c&H0048C8FF&}pass,{\c&H00FFFFFF&}
+Dialogue: 0,0:09:21.75,0:09:22.06,Sub,,0,0,0,,{\c&H0048C8FF&}where{\c&H00FFFFFF&} more of them could fight at
+Dialogue: 0,0:09:22.06,0:09:22.28,Sub,,0,0,0,,where {\c&H0048C8FF&}more{\c&H00FFFFFF&} of them could fight at
+Dialogue: 0,0:09:22.28,0:09:22.37,Sub,,0,0,0,,where more {\c&H0048C8FF&}of{\c&H00FFFFFF&} them could fight at
+Dialogue: 0,0:09:22.37,0:09:22.61,Sub,,0,0,0,,where more of {\c&H0048C8FF&}them{\c&H00FFFFFF&} could fight at
+Dialogue: 0,0:09:22.61,0:09:22.83,Sub,,0,0,0,,where more of them {\c&H0048C8FF&}could{\c&H00FFFFFF&} fight at
+Dialogue: 0,0:09:22.83,0:09:23.06,Sub,,0,0,0,,where more of them could {\c&H0048C8FF&}fight{\c&H00FFFFFF&} at
+Dialogue: 0,0:09:23.06,0:09:23.21,Sub,,0,0,0,,where more of them could fight {\c&H0048C8FF&}at{\c&H00FFFFFF&}
+Dialogue: 0,0:09:23.21,0:09:23.98,Sub,,0,0,0,,{\c&H0048C8FF&}once,{\c&H00FFFFFF&} knowing the men on the path
+Dialogue: 0,0:09:23.98,0:09:24.38,Sub,,0,0,0,,once, {\c&H0048C8FF&}knowing{\c&H00FFFFFF&} the men on the path
+Dialogue: 0,0:09:24.38,0:09:24.53,Sub,,0,0,0,,once, knowing {\c&H0048C8FF&}the{\c&H00FFFFFF&} men on the path
+Dialogue: 0,0:09:24.53,0:09:24.75,Sub,,0,0,0,,once, knowing the {\c&H0048C8FF&}men{\c&H00FFFFFF&} on the path
+Dialogue: 0,0:09:24.75,0:09:24.86,Sub,,0,0,0,,once, knowing the men {\c&H0048C8FF&}on{\c&H00FFFFFF&} the path
+Dialogue: 0,0:09:24.86,0:09:24.99,Sub,,0,0,0,,once, knowing the men on {\c&H0048C8FF&}the{\c&H00FFFFFF&} path
+Dialogue: 0,0:09:24.99,0:09:25.40,Sub,,0,0,0,,once, knowing the men on the {\c&H0048C8FF&}path{\c&H00FFFFFF&}
+Dialogue: 0,0:09:25.40,0:09:25.64,Sub,,0,0,0,,{\c&H0048C8FF&}would{\c&H00FFFFFF&} soon arrive behind them.
+Dialogue: 0,0:09:25.64,0:09:25.92,Sub,,0,0,0,,would {\c&H0048C8FF&}soon{\c&H00FFFFFF&} arrive behind them.
+Dialogue: 0,0:09:25.92,0:09:26.45,Sub,,0,0,0,,would soon {\c&H0048C8FF&}arrive{\c&H00FFFFFF&} behind them.
+Dialogue: 0,0:09:26.45,0:09:26.87,Sub,,0,0,0,,would soon arrive {\c&H0048C8FF&}behind{\c&H00FFFFFF&} them.
+Dialogue: 0,0:09:26.87,0:09:27.55,Sub,,0,0,0,,would soon arrive behind {\c&H0048C8FF&}them.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:28.40,0:09:28.59,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} spears broke.
+Dialogue: 0,0:09:28.59,0:09:29.20,Sub,,0,0,0,,The {\c&H0048C8FF&}spears{\c&H00FFFFFF&} broke.
+Dialogue: 0,0:09:29.20,0:09:30.31,Sub,,0,0,0,,The spears {\c&H0048C8FF&}broke.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:30.31,0:09:30.58,Sub,,0,0,0,,{\c&H0048C8FF&}They{\c&H00FFFFFF&} fought with swords.
+Dialogue: 0,0:09:30.58,0:09:30.87,Sub,,0,0,0,,They {\c&H0048C8FF&}fought{\c&H00FFFFFF&} with swords.
+Dialogue: 0,0:09:30.87,0:09:31.04,Sub,,0,0,0,,They fought {\c&H0048C8FF&}with{\c&H00FFFFFF&} swords.
+Dialogue: 0,0:09:31.04,0:09:32.18,Sub,,0,0,0,,They fought with {\c&H0048C8FF&}swords.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:33.30,0:09:34.11,Sub,,0,0,0,,{\c&H0048C8FF&}Leonidas{\c&H00FFFFFF&} fell.
+Dialogue: 0,0:09:34.11,0:09:35.58,Sub,,0,0,0,,Leonidas {\c&H0048C8FF&}fell.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:37.43,0:09:37.78,Sub,,0,0,0,,{\c&H0048C8FF&}Four{\c&H00FFFFFF&} times the two sides fought over
+Dialogue: 0,0:09:37.78,0:09:38.20,Sub,,0,0,0,,Four {\c&H0048C8FF&}times{\c&H00FFFFFF&} the two sides fought over
+Dialogue: 0,0:09:38.20,0:09:38.30,Sub,,0,0,0,,Four times {\c&H0048C8FF&}the{\c&H00FFFFFF&} two sides fought over
+Dialogue: 0,0:09:38.30,0:09:38.56,Sub,,0,0,0,,Four times the {\c&H0048C8FF&}two{\c&H00FFFFFF&} sides fought over
+Dialogue: 0,0:09:38.56,0:09:39.12,Sub,,0,0,0,,Four times the two {\c&H0048C8FF&}sides{\c&H00FFFFFF&} fought over
+Dialogue: 0,0:09:39.12,0:09:39.47,Sub,,0,0,0,,Four times the two sides {\c&H0048C8FF&}fought{\c&H00FFFFFF&} over
+Dialogue: 0,0:09:39.47,0:09:39.71,Sub,,0,0,0,,Four times the two sides fought {\c&H0048C8FF&}over{\c&H00FFFFFF&}
+Dialogue: 0,0:09:39.71,0:09:39.86,Sub,,0,0,0,,{\c&H0048C8FF&}his{\c&H00FFFFFF&} body, and four times the Greeks
+Dialogue: 0,0:09:39.86,0:09:40.70,Sub,,0,0,0,,his {\c&H0048C8FF&}body,{\c&H00FFFFFF&} and four times the Greeks
+Dialogue: 0,0:09:40.70,0:09:41.03,Sub,,0,0,0,,his body, {\c&H0048C8FF&}and{\c&H00FFFFFF&} four times the Greeks
+Dialogue: 0,0:09:41.03,0:09:41.38,Sub,,0,0,0,,his body, and {\c&H0048C8FF&}four{\c&H00FFFFFF&} times the Greeks
+Dialogue: 0,0:09:41.38,0:09:41.88,Sub,,0,0,0,,his body, and four {\c&H0048C8FF&}times{\c&H00FFFFFF&} the Greeks
+Dialogue: 0,0:09:41.88,0:09:42.00,Sub,,0,0,0,,his body, and four times {\c&H0048C8FF&}the{\c&H00FFFFFF&} Greeks
+Dialogue: 0,0:09:42.00,0:09:42.51,Sub,,0,0,0,,his body, and four times the {\c&H0048C8FF&}Greeks{\c&H00FFFFFF&}
+Dialogue: 0,0:09:42.51,0:09:42.98,Sub,,0,0,0,,{\c&H0048C8FF&}dragged{\c&H00FFFFFF&} it back.
+Dialogue: 0,0:09:42.98,0:09:43.11,Sub,,0,0,0,,dragged {\c&H0048C8FF&}it{\c&H00FFFFFF&} back.
+Dialogue: 0,0:09:43.11,0:09:44.21,Sub,,0,0,0,,dragged it {\c&H0048C8FF&}back.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:44.21,0:09:44.48,Sub,,0,0,0,,{\c&H0048C8FF&}Then{\c&H00FFFFFF&} the Immortals came down the
+Dialogue: 0,0:09:44.48,0:09:44.60,Sub,,0,0,0,,Then {\c&H0048C8FF&}the{\c&H00FFFFFF&} Immortals came down the
+Dialogue: 0,0:09:44.60,0:09:45.10,Sub,,0,0,0,,Then the {\c&H0048C8FF&}Immortals{\c&H00FFFFFF&} came down the
+Dialogue: 0,0:09:45.10,0:09:45.38,Sub,,0,0,0,,Then the Immortals {\c&H0048C8FF&}came{\c&H00FFFFFF&} down the
+Dialogue: 0,0:09:45.38,0:09:45.57,Sub,,0,0,0,,Then the Immortals came {\c&H0048C8FF&}down{\c&H00FFFFFF&} the
+Dialogue: 0,0:09:45.57,0:09:45.68,Sub,,0,0,0,,Then the Immortals came down {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:09:45.68,0:09:46.03,Sub,,0,0,0,,{\c&H0048C8FF&}mountain{\c&H00FFFFFF&} into the Greeks' rear.
+Dialogue: 0,0:09:46.03,0:09:46.22,Sub,,0,0,0,,mountain {\c&H0048C8FF&}into{\c&H00FFFFFF&} the Greeks' rear.
+Dialogue: 0,0:09:46.22,0:09:46.33,Sub,,0,0,0,,mountain into {\c&H0048C8FF&}the{\c&H00FFFFFF&} Greeks' rear.
+Dialogue: 0,0:09:46.33,0:09:46.69,Sub,,0,0,0,,mountain into the {\c&H0048C8FF&}Greeks'{\c&H00FFFFFF&} rear.
+Dialogue: 0,0:09:46.69,0:09:47.47,Sub,,0,0,0,,mountain into the Greeks' {\c&H0048C8FF&}rear.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:47.47,0:09:47.64,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} survivors withdrew behind the wall
+Dialogue: 0,0:09:47.64,0:09:48.29,Sub,,0,0,0,,The {\c&H0048C8FF&}survivors{\c&H00FFFFFF&} withdrew behind the wall
+Dialogue: 0,0:09:48.29,0:09:48.76,Sub,,0,0,0,,The survivors {\c&H0048C8FF&}withdrew{\c&H00FFFFFF&} behind the wall
+Dialogue: 0,0:09:48.76,0:09:49.09,Sub,,0,0,0,,The survivors withdrew {\c&H0048C8FF&}behind{\c&H00FFFFFF&} the wall
+Dialogue: 0,0:09:49.09,0:09:49.22,Sub,,0,0,0,,The survivors withdrew behind {\c&H0048C8FF&}the{\c&H00FFFFFF&} wall
+Dialogue: 0,0:09:49.22,0:09:49.58,Sub,,0,0,0,,The survivors withdrew behind the {\c&H0048C8FF&}wall{\c&H00FFFFFF&}
+Dialogue: 0,0:09:49.58,0:09:49.75,Sub,,0,0,0,,{\c&H0048C8FF&}to{\c&H00FFFFFF&} a low mound and formed up
+Dialogue: 0,0:09:49.75,0:09:49.87,Sub,,0,0,0,,to {\c&H0048C8FF&}a{\c&H00FFFFFF&} low mound and formed up
+Dialogue: 0,0:09:49.87,0:09:50.18,Sub,,0,0,0,,to a {\c&H0048C8FF&}low{\c&H00FFFFFF&} mound and formed up
+Dialogue: 0,0:09:50.18,0:09:50.81,Sub,,0,0,0,,to a low {\c&H0048C8FF&}mound{\c&H00FFFFFF&} and formed up
+Dialogue: 0,0:09:50.81,0:09:51.18,Sub,,0,0,0,,to a low mound {\c&H0048C8FF&}and{\c&H00FFFFFF&} formed up
+Dialogue: 0,0:09:51.18,0:09:51.62,Sub,,0,0,0,,to a low mound and {\c&H0048C8FF&}formed{\c&H00FFFFFF&} up
+Dialogue: 0,0:09:51.62,0:09:51.82,Sub,,0,0,0,,to a low mound and formed {\c&H0048C8FF&}up{\c&H00FFFFFF&}
+Dialogue: 0,0:09:51.82,0:09:51.97,Sub,,0,0,0,,{\c&H0048C8FF&}on{\c&H00FFFFFF&} it, with swords,
+Dialogue: 0,0:09:51.97,0:09:52.40,Sub,,0,0,0,,on {\c&H0048C8FF&}it,{\c&H00FFFFFF&} with swords,
+Dialogue: 0,0:09:52.40,0:09:52.64,Sub,,0,0,0,,on it, {\c&H0048C8FF&}with{\c&H00FFFFFF&} swords,
+Dialogue: 0,0:09:52.64,0:09:53.54,Sub,,0,0,0,,on it, with {\c&H0048C8FF&}swords,{\c&H00FFFFFF&}
+Dialogue: 0,0:09:53.54,0:09:53.77,Sub,,0,0,0,,{\c&H0048C8FF&}with{\c&H00FFFFFF&} hands, with teeth,
+Dialogue: 0,0:09:53.77,0:09:54.55,Sub,,0,0,0,,with {\c&H0048C8FF&}hands,{\c&H00FFFFFF&} with teeth,
+Dialogue: 0,0:09:54.55,0:09:54.82,Sub,,0,0,0,,with hands, {\c&H0048C8FF&}with{\c&H00FFFFFF&} teeth,
+Dialogue: 0,0:09:54.82,0:09:55.69,Sub,,0,0,0,,with hands, with {\c&H0048C8FF&}teeth,{\c&H00FFFFFF&}
+Dialogue: 0,0:09:55.69,0:09:56.38,Sub,,0,0,0,,{\c&H0048C8FF&}Herodotus{\c&H00FFFFFF&} says.
+Dialogue: 0,0:09:56.38,0:09:57.37,Sub,,0,0,0,,Herodotus {\c&H0048C8FF&}says.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:58.95,0:09:59.12,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} Persians did not close with them.
+Dialogue: 0,0:09:59.12,0:09:59.55,Sub,,0,0,0,,The {\c&H0048C8FF&}Persians{\c&H00FFFFFF&} did not close with them.
+Dialogue: 0,0:09:59.55,0:09:59.71,Sub,,0,0,0,,The Persians {\c&H0048C8FF&}did{\c&H00FFFFFF&} not close with them.
+Dialogue: 0,0:09:59.71,0:09:59.89,Sub,,0,0,0,,The Persians did {\c&H0048C8FF&}not{\c&H00FFFFFF&} close with them.
+Dialogue: 0,0:09:59.89,0:10:00.22,Sub,,0,0,0,,The Persians did not {\c&H0048C8FF&}close{\c&H00FFFFFF&} with them.
+Dialogue: 0,0:10:00.22,0:10:00.37,Sub,,0,0,0,,The Persians did not close {\c&H0048C8FF&}with{\c&H00FFFFFF&} them.
+Dialogue: 0,0:10:00.37,0:10:01.07,Sub,,0,0,0,,The Persians did not close with {\c&H0048C8FF&}them.{\c&H00FFFFFF&}
+Dialogue: 0,0:10:01.07,0:10:01.35,Sub,,0,0,0,,{\c&H0048C8FF&}They{\c&H00FFFFFF&} buried the hill in arrows.
+Dialogue: 0,0:10:01.35,0:10:01.72,Sub,,0,0,0,,They {\c&H0048C8FF&}buried{\c&H00FFFFFF&} the hill in arrows.
+Dialogue: 0,0:10:01.72,0:10:01.83,Sub,,0,0,0,,They buried {\c&H0048C8FF&}the{\c&H00FFFFFF&} hill in arrows.
+Dialogue: 0,0:10:01.83,0:10:02.46,Sub,,0,0,0,,They buried the {\c&H0048C8FF&}hill{\c&H00FFFFFF&} in arrows.
+Dialogue: 0,0:10:02.46,0:10:02.69,Sub,,0,0,0,,They buried the hill {\c&H0048C8FF&}in{\c&H00FFFFFF&} arrows.
+Dialogue: 0,0:10:02.69,0:10:03.77,Sub,,0,0,0,,They buried the hill in {\c&H0048C8FF&}arrows.{\c&H00FFFFFF&}
+Dialogue: 0,0:10:04.04,0:10:04.25,Sub,,0,0,0,,{\c&H0048C8FF&}In{\c&H00FFFFFF&} 1939, a Greek archaeologist,
+Dialogue: 0,0:10:04.25,0:10:05.62,Sub,,0,0,0,,In {\c&H0048C8FF&}1939,{\c&H00FFFFFF&} a Greek archaeologist,
+Dialogue: 0,0:10:05.62,0:10:05.81,Sub,,0,0,0,,In 1939, {\c&H0048C8FF&}a{\c&H00FFFFFF&} Greek archaeologist,
+Dialogue: 0,0:10:05.81,0:10:06.10,Sub,,0,0,0,,In 1939, a {\c&H0048C8FF&}Greek{\c&H00FFFFFF&} archaeologist,
+Dialogue: 0,0:10:06.10,0:10:07.20,Sub,,0,0,0,,In 1939, a Greek {\c&H0048C8FF&}archaeologist,{\c&H00FFFFFF&}
+Dialogue: 0,0:10:07.20,0:10:07.86,Sub,,0,0,0,,{\c&H0048C8FF&}Spyridon{\c&H00FFFFFF&} Marinatos, dug into that mound.
+Dialogue: 0,0:10:07.86,0:10:09.40,Sub,,0,0,0,,Spyridon {\c&H0048C8FF&}Marinatos,{\c&H00FFFFFF&} dug into that mound.
+Dialogue: 0,0:10:09.40,0:10:09.81,Sub,,0,0,0,,Spyridon Marinatos, {\c&H0048C8FF&}dug{\c&H00FFFFFF&} into that mound.
+Dialogue: 0,0:10:09.81,0:10:10.00,Sub,,0,0,0,,Spyridon Marinatos, dug {\c&H0048C8FF&}into{\c&H00FFFFFF&} that mound.
+Dialogue: 0,0:10:10.00,0:10:10.22,Sub,,0,0,0,,Spyridon Marinatos, dug into {\c&H0048C8FF&}that{\c&H00FFFFFF&} mound.
+Dialogue: 0,0:10:10.22,0:10:11.02,Sub,,0,0,0,,Spyridon Marinatos, dug into that {\c&H0048C8FF&}mound.{\c&H00FFFFFF&}
+Dialogue: 0,0:10:11.02,0:10:11.24,Sub,,0,0,0,,{\c&H0048C8FF&}He{\c&H00FFFFFF&} found hundreds of Persian bronze
+Dialogue: 0,0:10:11.24,0:10:11.58,Sub,,0,0,0,,He {\c&H0048C8FF&}found{\c&H00FFFFFF&} hundreds of Persian bronze
+Dialogue: 0,0:10:11.58,0:10:11.98,Sub,,0,0,0,,He found {\c&H0048C8FF&}hundreds{\c&H00FFFFFF&} of Persian bronze
+Dialogue: 0,0:10:11.98,0:10:12.10,Sub,,0,0,0,,He found hundreds {\c&H0048C8FF&}of{\c&H00FFFFFF&} Persian bronze
+Dialogue: 0,0:10:12.10,0:10:12.50,Sub,,0,0,0,,He found hundreds of {\c&H0048C8FF&}Persian{\c&H00FFFFFF&} bronze
+Dialogue: 0,0:10:12.50,0:10:12.83,Sub,,0,0,0,,He found hundreds of Persian {\c&H0048C8FF&}bronze{\c&H00FFFFFF&}
+Dialogue: 0,0:10:12.83,0:10:13.94,Sub,,0,0,0,,{\c&H0048C8FF&}arrowheads.{\c&H00FFFFFF&}
+Dialogue: 0,0:10:15.94,0:10:16.39,Sub,,0,0,0,,{\c&H0048C8FF&}According{\c&H00FFFFFF&} to Herodotus,
+Dialogue: 0,0:10:16.39,0:10:16.53,Sub,,0,0,0,,According {\c&H0048C8FF&}to{\c&H00FFFFFF&} Herodotus,
+Dialogue: 0,0:10:16.53,0:10:17.55,Sub,,0,0,0,,According to {\c&H0048C8FF&}Herodotus,{\c&H00FFFFFF&}
+Dialogue: 0,0:10:17.55,0:10:17.75,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} Thebans surrendered and were
+Dialogue: 0,0:10:17.75,0:10:18.20,Sub,,0,0,0,,the {\c&H0048C8FF&}Thebans{\c&H00FFFFFF&} surrendered and were
+Dialogue: 0,0:10:18.20,0:10:18.77,Sub,,0,0,0,,the Thebans {\c&H0048C8FF&}surrendered{\c&H00FFFFFF&} and were
+Dialogue: 0,0:10:18.77,0:10:18.90,Sub,,0,0,0,,the Thebans surrendered {\c&H0048C8FF&}and{\c&H00FFFFFF&} were
+Dialogue: 0,0:10:18.90,0:10:19.08,Sub,,0,0,0,,the Thebans surrendered and {\c&H0048C8FF&}were{\c&H00FFFFFF&}
+Dialogue: 0,0:10:19.08,0:10:20.04,Sub,,0,0,0,,{\c&H0048C8FF&}branded.{\c&H00FFFFFF&}
+Dialogue: 0,0:10:20.04,0:10:20.27,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} Thespians died with the Spartans.
+Dialogue: 0,0:10:20.27,0:10:21.65,Sub,,0,0,0,,The {\c&H0048C8FF&}Thespians{\c&H00FFFFFF&} died with the Spartans.
+Dialogue: 0,0:10:21.65,0:10:21.95,Sub,,0,0,0,,The Thespians {\c&H0048C8FF&}died{\c&H00FFFFFF&} with the Spartans.
+Dialogue: 0,0:10:21.95,0:10:22.09,Sub,,0,0,0,,The Thespians died {\c&H0048C8FF&}with{\c&H00FFFFFF&} the Spartans.
+Dialogue: 0,0:10:22.09,0:10:22.19,Sub,,0,0,0,,The Thespians died with {\c&H0048C8FF&}the{\c&H00FFFFFF&} Spartans.
+Dialogue: 0,0:10:22.19,0:10:23.21,Sub,,0,0,0,,The Thespians died with the {\c&H0048C8FF&}Spartans.{\c&H00FFFFFF&}
+Dialogue: 0,0:10:23.21,0:10:23.49,Sub,,0,0,0,,{\c&H0048C8FF&}Their{\c&H00FFFFFF&} names are rarely remembered.
+Dialogue: 0,0:10:23.49,0:10:24.13,Sub,,0,0,0,,Their {\c&H0048C8FF&}names{\c&H00FFFFFF&} are rarely remembered.
+Dialogue: 0,0:10:24.13,0:10:24.42,Sub,,0,0,0,,Their names {\c&H0048C8FF&}are{\c&H00FFFFFF&} rarely remembered.
+Dialogue: 0,0:10:24.42,0:10:24.86,Sub,,0,0,0,,Their names are {\c&H0048C8FF&}rarely{\c&H00FFFFFF&} remembered.
+Dialogue: 0,0:10:24.86,0:10:25.92,Sub,,0,0,0,,Their names are rarely {\c&H0048C8FF&}remembered.{\c&H00FFFFFF&}
+Dialogue: 0,0:10:26.23,0:10:27.19,Sub,,0,0,0,,{\c&H0048C8FF&}Xerxes{\c&H00FFFFFF&} ordered Leonidas's head cut off
+Dialogue: 0,0:10:27.19,0:10:27.57,Sub,,0,0,0,,Xerxes {\c&H0048C8FF&}ordered{\c&H00FFFFFF&} Leonidas's head cut off
+Dialogue: 0,0:10:27.57,0:10:28.56,Sub,,0,0,0,,Xerxes ordered {\c&H0048C8FF&}Leonidas's{\c&H00FFFFFF&} head cut off
+Dialogue: 0,0:10:28.56,0:10:28.80,Sub,,0,0,0,,Xerxes ordered Leonidas's {\c&H0048C8FF&}head{\c&H00FFFFFF&} cut off
+Dialogue: 0,0:10:28.80,0:10:29.07,Sub,,0,0,0,,Xerxes ordered Leonidas's head {\c&H0048C8FF&}cut{\c&H00FFFFFF&} off
+Dialogue: 0,0:10:29.07,0:10:29.51,Sub,,0,0,0,,Xerxes ordered Leonidas's head cut {\c&H0048C8FF&}off{\c&H00FFFFFF&}
+Dialogue: 0,0:10:29.51,0:10:29.82,Sub,,0,0,0,,{\c&H0048C8FF&}and{\c&H00FFFFFF&} his body impaled,
+Dialogue: 0,0:10:29.82,0:10:30.00,Sub,,0,0,0,,and {\c&H0048C8FF&}his{\c&H00FFFFFF&} body impaled,
+Dialogue: 0,0:10:30.00,0:10:30.35,Sub,,0,0,0,,and his {\c&H0048C8FF&}body{\c&H00FFFFFF&} impaled,
+Dialogue: 0,0:10:30.35,0:10:31.34,Sub,,0,0,0,,and his body {\c&H0048C8FF&}impaled,{\c&H00FFFFFF&}
+Dialogue: 0,0:10:31.34,0:10:31.65,Sub,,0,0,0,,{\c&H0048C8FF&}which{\c&H00FFFFFF&} Herodotus notes was unlike the
+Dialogue: 0,0:10:31.65,0:10:32.33,Sub,,0,0,0,,which {\c&H0048C8FF&}Herodotus{\c&H00FFFFFF&} notes was unlike the
+Dialogue: 0,0:10:32.33,0:10:32.65,Sub,,0,0,0,,which Herodotus {\c&H0048C8FF&}notes{\c&H00FFFFFF&} was unlike the
+Dialogue: 0,0:10:32.65,0:10:32.87,Sub,,0,0,0,,which Herodotus notes {\c&H0048C8FF&}was{\c&H00FFFFFF&} unlike the
+Dialogue: 0,0:10:32.87,0:10:33.41,Sub,,0,0,0,,which Herodotus notes was {\c&H0048C8FF&}unlike{\c&H00FFFFFF&} the
+Dialogue: 0,0:10:33.41,0:10:33.53,Sub,,0,0,0,,which Herodotus notes was unlike {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:10:33.53,0:10:34.51,Sub,,0,0,0,,{\c&H0048C8FF&}Persians,{\c&H00FFFFFF&} who usually honoured brave
+Dialogue: 0,0:10:34.51,0:10:34.76,Sub,,0,0,0,,Persians, {\c&H0048C8FF&}who{\c&H00FFFFFF&} usually honoured brave
+Dialogue: 0,0:10:34.76,0:10:35.25,Sub,,0,0,0,,Persians, who {\c&H0048C8FF&}usually{\c&H00FFFFFF&} honoured brave
+Dialogue: 0,0:10:35.25,0:10:35.70,Sub,,0,0,0,,Persians, who usually {\c&H0048C8FF&}honoured{\c&H00FFFFFF&} brave
+Dialogue: 0,0:10:35.70,0:10:36.18,Sub,,0,0,0,,Persians, who usually honoured {\c&H0048C8FF&}brave{\c&H00FFFFFF&}
+Dialogue: 0,0:10:36.18,0:10:37.80,Sub,,0,0,0,,{\c&H0048C8FF&}enemies.{\c&H00FFFFFF&}
+Dialogue: 0,0:10:37.80,0:10:38.07,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} same three days,
+Dialogue: 0,0:10:38.07,0:10:38.46,Sub,,0,0,0,,The {\c&H0048C8FF&}same{\c&H00FFFFFF&} three days,
+Dialogue: 0,0:10:38.46,0:10:38.73,Sub,,0,0,0,,The same {\c&H0048C8FF&}three{\c&H00FFFFFF&} days,
+Dialogue: 0,0:10:38.73,0:10:39.58,Sub,,0,0,0,,The same three {\c&H0048C8FF&}days,{\c&H00FFFFFF&}
+Dialogue: 0,0:10:39.58,0:10:39.74,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} fleets had been fighting off
+Dialogue: 0,0:10:39.74,0:10:40.04,Sub,,0,0,0,,the {\c&H0048C8FF&}fleets{\c&H00FFFFFF&} had been fighting off
+Dialogue: 0,0:10:40.04,0:10:40.16,Sub,,0,0,0,,the fleets {\c&H0048C8FF&}had{\c&H00FFFFFF&} been fighting off
+Dialogue: 0,0:10:40.16,0:10:40.33,Sub,,0,0,0,,the fleets had {\c&H0048C8FF&}been{\c&H00FFFFFF&} fighting off
+Dialogue: 0,0:10:40.33,0:10:40.70,Sub,,0,0,0,,the fleets had been {\c&H0048C8FF&}fighting{\c&H00FFFFFF&} off
+Dialogue: 0,0:10:40.70,0:10:40.91,Sub,,0,0,0,,the fleets had been fighting {\c&H0048C8FF&}off{\c&H00FFFFFF&}
+Dialogue: 0,0:10:40.91,0:10:42.12,Sub,,0,0,0,,{\c&H0048C8FF&}Artemisium,{\c&H00FFFFFF&} in sight of the pass.
+Dialogue: 0,0:10:42.12,0:10:42.37,Sub,,0,0,0,,Artemisium, {\c&H0048C8FF&}in{\c&H00FFFFFF&} sight of the pass.
+Dialogue: 0,0:10:42.37,0:10:42.75,Sub,,0,0,0,,Artemisium, in {\c&H0048C8FF&}sight{\c&H00FFFFFF&} of the pass.
+Dialogue: 0,0:10:42.75,0:10:42.84,Sub,,0,0,0,,Artemisium, in sight {\c&H0048C8FF&}of{\c&H00FFFFFF&} the pass.
+Dialogue: 0,0:10:42.84,0:10:42.95,Sub,,0,0,0,,Artemisium, in sight of {\c&H0048C8FF&}the{\c&H00FFFFFF&} pass.
+Dialogue: 0,0:10:42.95,0:10:44.23,Sub,,0,0,0,,Artemisium, in sight of the {\c&H0048C8FF&}pass.{\c&H00FFFFFF&}
+Dialogue: 0,0:10:45.18,0:10:45.37,Sub,,0,0,0,,{\c&H0048C8FF&}A{\c&H00FFFFFF&} storm had already wrecked many Persian
+Dialogue: 0,0:10:45.37,0:10:45.83,Sub,,0,0,0,,A {\c&H0048C8FF&}storm{\c&H00FFFFFF&} had already wrecked many Persian
+Dialogue: 0,0:10:45.83,0:10:46.00,Sub,,0,0,0,,A storm {\c&H0048C8FF&}had{\c&H00FFFFFF&} already wrecked many Persian
+Dialogue: 0,0:10:46.00,0:10:46.53,Sub,,0,0,0,,A storm had {\c&H0048C8FF&}already{\c&H00FFFFFF&} wrecked many Persian
+Dialogue: 0,0:10:46.53,0:10:46.88,Sub,,0,0,0,,A storm had already {\c&H0048C8FF&}wrecked{\c&H00FFFFFF&} many Persian
+Dialogue: 0,0:10:46.88,0:10:47.19,Sub,,0,0,0,,A storm had already wrecked {\c&H0048C8FF&}many{\c&H00FFFFFF&} Persian
+Dialogue: 0,0:10:47.19,0:10:47.62,Sub,,0,0,0,,A storm had already wrecked many {\c&H0048C8FF&}Persian{\c&H00FFFFFF&}
+Dialogue: 0,0:10:47.62,0:10:48.55,Sub,,0,0,0,,{\c&H0048C8FF&}ships.{\c&H00FFFFFF&}
+Dialogue: 0,0:10:48.55,0:10:48.77,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} battle was a draw.
+Dialogue: 0,0:10:48.77,0:10:49.12,Sub,,0,0,0,,The {\c&H0048C8FF&}battle{\c&H00FFFFFF&} was a draw.
+Dialogue: 0,0:10:49.12,0:10:49.30,Sub,,0,0,0,,The battle {\c&H0048C8FF&}was{\c&H00FFFFFF&} a draw.
+Dialogue: 0,0:10:49.30,0:10:49.39,Sub,,0,0,0,,The battle was {\c&H0048C8FF&}a{\c&H00FFFFFF&} draw.
+Dialogue: 0,0:10:49.39,0:10:50.27,Sub,,0,0,0,,The battle was a {\c&H0048C8FF&}draw.{\c&H00FFFFFF&}
+Dialogue: 0,0:10:50.27,0:10:50.49,Sub,,0,0,0,,{\c&H0048C8FF&}When{\c&H00FFFFFF&} the news came from Thermopylae,
+Dialogue: 0,0:10:50.49,0:10:50.61,Sub,,0,0,0,,When {\c&H0048C8FF&}the{\c&H00FFFFFF&} news came from Thermopylae,
+Dialogue: 0,0:10:50.61,0:10:50.97,Sub,,0,0,0,,When the {\c&H0048C8FF&}news{\c&H00FFFFFF&} came from Thermopylae,
+Dialogue: 0,0:10:50.97,0:10:51.30,Sub,,0,0,0,,When the news {\c&H0048C8FF&}came{\c&H00FFFFFF&} from Thermopylae,
+Dialogue: 0,0:10:51.30,0:10:51.53,Sub,,0,0,0,,When the news came {\c&H0048C8FF&}from{\c&H00FFFFFF&} Thermopylae,
+Dialogue: 0,0:10:51.53,0:10:52.88,Sub,,0,0,0,,When the news came from {\c&H0048C8FF&}Thermopylae,{\c&H00FFFFFF&}
+Dialogue: 0,0:10:52.88,0:10:53.08,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} Greek fleet withdrew in the night.
+Dialogue: 0,0:10:53.08,0:10:53.35,Sub,,0,0,0,,the {\c&H0048C8FF&}Greek{\c&H00FFFFFF&} fleet withdrew in the night.
+Dialogue: 0,0:10:53.35,0:10:53.67,Sub,,0,0,0,,the Greek {\c&H0048C8FF&}fleet{\c&H00FFFFFF&} withdrew in the night.
+Dialogue: 0,0:10:53.67,0:10:54.28,Sub,,0,0,0,,the Greek fleet {\c&H0048C8FF&}withdrew{\c&H00FFFFFF&} in the night.
+Dialogue: 0,0:10:54.28,0:10:54.39,Sub,,0,0,0,,the Greek fleet withdrew {\c&H0048C8FF&}in{\c&H00FFFFFF&} the night.
+Dialogue: 0,0:10:54.39,0:10:54.53,Sub,,0,0,0,,the Greek fleet withdrew in {\c&H0048C8FF&}the{\c&H00FFFFFF&} night.
+Dialogue: 0,0:10:54.53,0:10:55.46,Sub,,0,0,0,,the Greek fleet withdrew in the {\c&H0048C8FF&}night.{\c&H00FFFFFF&}
+Dialogue: 0,0:10:55.46,0:10:55.66,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} Persians marched south.
+Dialogue: 0,0:10:55.66,0:10:56.14,Sub,,0,0,0,,The {\c&H0048C8FF&}Persians{\c&H00FFFFFF&} marched south.
+Dialogue: 0,0:10:56.14,0:10:56.74,Sub,,0,0,0,,The Persians {\c&H0048C8FF&}marched{\c&H00FFFFFF&} south.
+Dialogue: 0,0:10:56.74,0:10:57.77,Sub,,0,0,0,,The Persians marched {\c&H0048C8FF&}south.{\c&H00FFFFFF&}
+Dialogue: 0,0:10:58.04,0:10:58.58,Sub,,0,0,0,,{\c&H0048C8FF&}Athens{\c&H00FFFFFF&} emptied its people onto the
+Dialogue: 0,0:10:58.58,0:10:58.91,Sub,,0,0,0,,Athens {\c&H0048C8FF&}emptied{\c&H00FFFFFF&} its people onto the
+Dialogue: 0,0:10:58.91,0:10:59.06,Sub,,0,0,0,,Athens emptied {\c&H0048C8FF&}its{\c&H00FFFFFF&} people onto the
+Dialogue: 0,0:10:59.06,0:10:59.41,Sub,,0,0,0,,Athens emptied its {\c&H0048C8FF&}people{\c&H00FFFFFF&} onto the
+Dialogue: 0,0:10:59.41,0:10:59.60,Sub,,0,0,0,,Athens emptied its people {\c&H0048C8FF&}onto{\c&H00FFFFFF&} the
+Dialogue: 0,0:10:59.60,0:10:59.77,Sub,,0,0,0,,Athens emptied its people onto {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:10:59.77,0:11:00.67,Sub,,0,0,0,,{\c&H0048C8FF&}islands,{\c&H00FFFFFF&} and the Acropolis burned.
+Dialogue: 0,0:11:00.67,0:11:00.85,Sub,,0,0,0,,islands, {\c&H0048C8FF&}and{\c&H00FFFFFF&} the Acropolis burned.
+Dialogue: 0,0:11:00.85,0:11:00.99,Sub,,0,0,0,,islands, and {\c&H0048C8FF&}the{\c&H00FFFFFF&} Acropolis burned.
+Dialogue: 0,0:11:00.99,0:11:02.09,Sub,,0,0,0,,islands, and the {\c&H0048C8FF&}Acropolis{\c&H00FFFFFF&} burned.
+Dialogue: 0,0:11:02.09,0:11:03.24,Sub,,0,0,0,,islands, and the Acropolis {\c&H0048C8FF&}burned.{\c&H00FFFFFF&}
+Dialogue: 0,0:11:04.58,0:11:05.48,Sub,,0,0,0,,{\c&H0048C8FF&}Then,{\c&H00FFFFFF&} in the narrow strait of Salamis,
+Dialogue: 0,0:11:05.48,0:11:05.65,Sub,,0,0,0,,Then, {\c&H0048C8FF&}in{\c&H00FFFFFF&} the narrow strait of Salamis,
+Dialogue: 0,0:11:05.65,0:11:05.79,Sub,,0,0,0,,Then, in {\c&H0048C8FF&}the{\c&H00FFFFFF&} narrow strait of Salamis,
+Dialogue: 0,0:11:05.79,0:11:06.16,Sub,,0,0,0,,Then, in the {\c&H0048C8FF&}narrow{\c&H00FFFFFF&} strait of Salamis,
+Dialogue: 0,0:11:06.16,0:11:06.53,Sub,,0,0,0,,Then, in the narrow {\c&H0048C8FF&}strait{\c&H00FFFFFF&} of Salamis,
+Dialogue: 0,0:11:06.53,0:11:06.62,Sub,,0,0,0,,Then, in the narrow strait {\c&H0048C8FF&}of{\c&H00FFFFFF&} Salamis,
+Dialogue: 0,0:11:06.62,0:11:07.66,Sub,,0,0,0,,Then, in the narrow strait of {\c&H0048C8FF&}Salamis,{\c&H00FFFFFF&}
+Dialogue: 0,0:11:07.66,0:11:07.83,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} Greek fleet destroyed Xerxes's.
+Dialogue: 0,0:11:07.83,0:11:08.10,Sub,,0,0,0,,the {\c&H0048C8FF&}Greek{\c&H00FFFFFF&} fleet destroyed Xerxes's.
+Dialogue: 0,0:11:08.10,0:11:08.41,Sub,,0,0,0,,the Greek {\c&H0048C8FF&}fleet{\c&H00FFFFFF&} destroyed Xerxes's.
+Dialogue: 0,0:11:08.41,0:11:09.45,Sub,,0,0,0,,the Greek fleet {\c&H0048C8FF&}destroyed{\c&H00FFFFFF&} Xerxes's.
+Dialogue: 0,0:11:09.45,0:11:11.27,Sub,,0,0,0,,the Greek fleet destroyed {\c&H0048C8FF&}Xerxes's.{\c&H00FFFFFF&}
+Dialogue: 0,0:11:11.27,0:11:11.47,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} king went home.
+Dialogue: 0,0:11:11.47,0:11:11.78,Sub,,0,0,0,,The {\c&H0048C8FF&}king{\c&H00FFFFFF&} went home.
+Dialogue: 0,0:11:11.78,0:11:12.00,Sub,,0,0,0,,The king {\c&H0048C8FF&}went{\c&H00FFFFFF&} home.
+Dialogue: 0,0:11:12.00,0:11:12.85,Sub,,0,0,0,,The king went {\c&H0048C8FF&}home.{\c&H00FFFFFF&}
+Dialogue: 0,0:11:13.23,0:11:13.44,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} army he left behind was broken
+Dialogue: 0,0:11:13.44,0:11:13.74,Sub,,0,0,0,,The {\c&H0048C8FF&}army{\c&H00FFFFFF&} he left behind was broken
+Dialogue: 0,0:11:13.74,0:11:13.89,Sub,,0,0,0,,The army {\c&H0048C8FF&}he{\c&H00FFFFFF&} left behind was broken
+Dialogue: 0,0:11:13.89,0:11:14.12,Sub,,0,0,0,,The army he {\c&H0048C8FF&}left{\c&H00FFFFFF&} behind was broken
+Dialogue: 0,0:11:14.12,0:11:14.60,Sub,,0,0,0,,The army he left {\c&H0048C8FF&}behind{\c&H00FFFFFF&} was broken
+Dialogue: 0,0:11:14.60,0:11:14.77,Sub,,0,0,0,,The army he left behind {\c&H0048C8FF&}was{\c&H00FFFFFF&} broken
+Dialogue: 0,0:11:14.77,0:11:15.13,Sub,,0,0,0,,The army he left behind was {\c&H0048C8FF&}broken{\c&H00FFFFFF&}
+Dialogue: 0,0:11:15.13,0:11:15.24,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} next summer at Plataea,
+Dialogue: 0,0:11:15.24,0:11:15.49,Sub,,0,0,0,,the {\c&H0048C8FF&}next{\c&H00FFFFFF&} summer at Plataea,
+Dialogue: 0,0:11:15.49,0:11:15.86,Sub,,0,0,0,,the next {\c&H0048C8FF&}summer{\c&H00FFFFFF&} at Plataea,
+Dialogue: 0,0:11:15.86,0:11:15.99,Sub,,0,0,0,,the next summer {\c&H0048C8FF&}at{\c&H00FFFFFF&} Plataea,
+Dialogue: 0,0:11:15.99,0:11:17.33,Sub,,0,0,0,,the next summer at {\c&H0048C8FF&}Plataea,{\c&H00FFFFFF&}
+Dialogue: 0,0:11:17.33,0:11:17.55,Sub,,0,0,0,,{\c&H0048C8FF&}by{\c&H00FFFFFF&} a Greek line with the Spartans
+Dialogue: 0,0:11:17.55,0:11:17.66,Sub,,0,0,0,,by {\c&H0048C8FF&}a{\c&H00FFFFFF&} Greek line with the Spartans
+Dialogue: 0,0:11:17.66,0:11:17.99,Sub,,0,0,0,,by a {\c&H0048C8FF&}Greek{\c&H00FFFFFF&} line with the Spartans
+Dialogue: 0,0:11:17.99,0:11:18.34,Sub,,0,0,0,,by a Greek {\c&H0048C8FF&}line{\c&H00FFFFFF&} with the Spartans
+Dialogue: 0,0:11:18.34,0:11:18.49,Sub,,0,0,0,,by a Greek line {\c&H0048C8FF&}with{\c&H00FFFFFF&} the Spartans
+Dialogue: 0,0:11:18.49,0:11:18.59,Sub,,0,0,0,,by a Greek line with {\c&H0048C8FF&}the{\c&H00FFFFFF&} Spartans
+Dialogue: 0,0:11:18.59,0:11:19.15,Sub,,0,0,0,,by a Greek line with the {\c&H0048C8FF&}Spartans{\c&H00FFFFFF&}
+Dialogue: 0,0:11:19.15,0:11:19.25,Sub,,0,0,0,,{\c&H0048C8FF&}at{\c&H00FFFFFF&} its heart.
+Dialogue: 0,0:11:19.25,0:11:19.42,Sub,,0,0,0,,at {\c&H0048C8FF&}its{\c&H00FFFFFF&} heart.
+Dialogue: 0,0:11:19.42,0:11:20.29,Sub,,0,0,0,,at its {\c&H0048C8FF&}heart.{\c&H00FFFFFF&}
+Dialogue: 0,0:11:20.59,0:11:21.57,Sub,,0,0,0,,{\c&H0048C8FF&}So,{\c&H00FFFFFF&} did Thermopylae matter?
+Dialogue: 0,0:11:21.57,0:11:21.80,Sub,,0,0,0,,So, {\c&H0048C8FF&}did{\c&H00FFFFFF&} Thermopylae matter?
+Dialogue: 0,0:11:21.80,0:11:22.87,Sub,,0,0,0,,So, did {\c&H0048C8FF&}Thermopylae{\c&H00FFFFFF&} matter?
+Dialogue: 0,0:11:22.87,0:11:23.88,Sub,,0,0,0,,So, did Thermopylae {\c&H0048C8FF&}matter?{\c&H00FFFFFF&}
+Dialogue: 0,0:11:23.88,0:11:24.15,Sub,,0,0,0,,{\c&H0048C8FF&}Three{\c&H00FFFFFF&} days did not stop the invasion.
+Dialogue: 0,0:11:24.15,0:11:24.47,Sub,,0,0,0,,Three {\c&H0048C8FF&}days{\c&H00FFFFFF&} did not stop the invasion.
+Dialogue: 0,0:11:24.47,0:11:24.64,Sub,,0,0,0,,Three days {\c&H0048C8FF&}did{\c&H00FFFFFF&} not stop the invasion.
+Dialogue: 0,0:11:24.64,0:11:24.80,Sub,,0,0,0,,Three days did {\c&H0048C8FF&}not{\c&H00FFFFFF&} stop the invasion.
+Dialogue: 0,0:11:24.80,0:11:25.11,Sub,,0,0,0,,Three days did not {\c&H0048C8FF&}stop{\c&H00FFFFFF&} the invasion.
+Dialogue: 0,0:11:25.11,0:11:25.23,Sub,,0,0,0,,Three days did not stop {\c&H0048C8FF&}the{\c&H00FFFFFF&} invasion.
+Dialogue: 0,0:11:25.23,0:11:26.40,Sub,,0,0,0,,Three days did not stop the {\c&H0048C8FF&}invasion.{\c&H00FFFFFF&}
+Dialogue: 0,0:11:26.40,0:11:26.58,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} pass fell.
+Dialogue: 0,0:11:26.58,0:11:27.28,Sub,,0,0,0,,The {\c&H0048C8FF&}pass{\c&H00FFFFFF&} fell.
+Dialogue: 0,0:11:27.28,0:11:28.23,Sub,,0,0,0,,The pass {\c&H0048C8FF&}fell.{\c&H00FFFFFF&}
+Dialogue: 0,0:11:29.90,0:11:30.11,Sub,,0,0,0,,{\c&H0048C8FF&}But{\c&H00FFFFFF&} the retreat was orderly,
+Dialogue: 0,0:11:30.11,0:11:30.26,Sub,,0,0,0,,But {\c&H0048C8FF&}the{\c&H00FFFFFF&} retreat was orderly,
+Dialogue: 0,0:11:30.26,0:11:30.69,Sub,,0,0,0,,But the {\c&H0048C8FF&}retreat{\c&H00FFFFFF&} was orderly,
+Dialogue: 0,0:11:30.69,0:11:30.84,Sub,,0,0,0,,But the retreat {\c&H0048C8FF&}was{\c&H00FFFFFF&} orderly,
+Dialogue: 0,0:11:30.84,0:11:31.79,Sub,,0,0,0,,But the retreat was {\c&H0048C8FF&}orderly,{\c&H00FFFFFF&}
+Dialogue: 0,0:11:31.79,0:11:31.97,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} fleet survived,
+Dialogue: 0,0:11:31.97,0:11:32.27,Sub,,0,0,0,,the {\c&H0048C8FF&}fleet{\c&H00FFFFFF&} survived,
+Dialogue: 0,0:11:32.27,0:11:33.40,Sub,,0,0,0,,the fleet {\c&H0048C8FF&}survived,{\c&H00FFFFFF&}
+Dialogue: 0,0:11:33.40,0:11:33.67,Sub,,0,0,0,,{\c&H0048C8FF&}and{\c&H00FFFFFF&} every city in Greece now knew
+Dialogue: 0,0:11:33.67,0:11:34.07,Sub,,0,0,0,,and {\c&H0048C8FF&}every{\c&H00FFFFFF&} city in Greece now knew
+Dialogue: 0,0:11:34.07,0:11:34.37,Sub,,0,0,0,,and every {\c&H0048C8FF&}city{\c&H00FFFFFF&} in Greece now knew
+Dialogue: 0,0:11:34.37,0:11:34.51,Sub,,0,0,0,,and every city {\c&H0048C8FF&}in{\c&H00FFFFFF&} Greece now knew
+Dialogue: 0,0:11:34.51,0:11:35.44,Sub,,0,0,0,,and every city in {\c&H0048C8FF&}Greece{\c&H00FFFFFF&} now knew
+Dialogue: 0,0:11:35.44,0:11:35.81,Sub,,0,0,0,,and every city in Greece {\c&H0048C8FF&}now{\c&H00FFFFFF&} knew
+Dialogue: 0,0:11:35.81,0:11:36.16,Sub,,0,0,0,,and every city in Greece now {\c&H0048C8FF&}knew{\c&H00FFFFFF&}
+Dialogue: 0,0:11:36.16,0:11:36.41,Sub,,0,0,0,,{\c&H0048C8FF&}what{\c&H00FFFFFF&} resistance looked like.
+Dialogue: 0,0:11:36.41,0:11:37.02,Sub,,0,0,0,,what {\c&H0048C8FF&}resistance{\c&H00FFFFFF&} looked like.
+Dialogue: 0,0:11:37.02,0:11:37.26,Sub,,0,0,0,,what resistance {\c&H0048C8FF&}looked{\c&H00FFFFFF&} like.
+Dialogue: 0,0:11:37.26,0:11:38.67,Sub,,0,0,0,,what resistance looked {\c&H0048C8FF&}like.{\c&H00FFFFFF&}
+Dialogue: 0,0:11:38.67,0:11:39.77,Sub,,0,0,0,,{\c&H0048C8FF&}Simonides{\c&H00FFFFFF&} wrote the lines later carved
+Dialogue: 0,0:11:39.77,0:11:40.01,Sub,,0,0,0,,Simonides {\c&H0048C8FF&}wrote{\c&H00FFFFFF&} the lines later carved
+Dialogue: 0,0:11:40.01,0:11:40.14,Sub,,0,0,0,,Simonides wrote {\c&H0048C8FF&}the{\c&H00FFFFFF&} lines later carved
+Dialogue: 0,0:11:40.14,0:11:40.51,Sub,,0,0,0,,Simonides wrote the {\c&H0048C8FF&}lines{\c&H00FFFFFF&} later carved
+Dialogue: 0,0:11:40.51,0:11:40.81,Sub,,0,0,0,,Simonides wrote the lines {\c&H0048C8FF&}later{\c&H00FFFFFF&} carved
+Dialogue: 0,0:11:40.81,0:11:41.17,Sub,,0,0,0,,Simonides wrote the lines later {\c&H0048C8FF&}carved{\c&H00FFFFFF&}
+Dialogue: 0,0:11:41.17,0:11:41.27,Sub,,0,0,0,,{\c&H0048C8FF&}at{\c&H00FFFFFF&} the pass:
+Dialogue: 0,0:11:41.27,0:11:41.39,Sub,,0,0,0,,at {\c&H0048C8FF&}the{\c&H00FFFFFF&} pass:
+Dialogue: 0,0:11:41.39,0:11:42.22,Sub,,0,0,0,,at the {\c&H0048C8FF&}pass:{\c&H00FFFFFF&}
+Dialogue: 0,0:11:42.22,0:11:43.37,Sub,,0,0,0,,{\c&H0048C8FF&}"Stranger,{\c&H00FFFFFF&} go tell the Spartans that
+Dialogue: 0,0:11:43.37,0:11:43.64,Sub,,0,0,0,,"Stranger, {\c&H0048C8FF&}go{\c&H00FFFFFF&} tell the Spartans that
+Dialogue: 0,0:11:43.64,0:11:43.84,Sub,,0,0,0,,"Stranger, go {\c&H0048C8FF&}tell{\c&H00FFFFFF&} the Spartans that
+Dialogue: 0,0:11:43.84,0:11:43.95,Sub,,0,0,0,,"Stranger, go tell {\c&H0048C8FF&}the{\c&H00FFFFFF&} Spartans that
+Dialogue: 0,0:11:43.95,0:11:44.41,Sub,,0,0,0,,"Stranger, go tell the {\c&H0048C8FF&}Spartans{\c&H00FFFFFF&} that
+Dialogue: 0,0:11:44.41,0:11:44.59,Sub,,0,0,0,,"Stranger, go tell the Spartans {\c&H0048C8FF&}that{\c&H00FFFFFF&}
+Dialogue: 0,0:11:44.59,0:11:45.38,Sub,,0,0,0,,{\c&H0048C8FF&}here,{\c&H00FFFFFF&} obedient to their laws,
+Dialogue: 0,0:11:45.38,0:11:45.85,Sub,,0,0,0,,here, {\c&H0048C8FF&}obedient{\c&H00FFFFFF&} to their laws,
+Dialogue: 0,0:11:45.85,0:11:45.96,Sub,,0,0,0,,here, obedient {\c&H0048C8FF&}to{\c&H00FFFFFF&} their laws,
+Dialogue: 0,0:11:45.96,0:11:46.15,Sub,,0,0,0,,here, obedient to {\c&H0048C8FF&}their{\c&H00FFFFFF&} laws,
+Dialogue: 0,0:11:46.15,0:11:46.97,Sub,,0,0,0,,here, obedient to their {\c&H0048C8FF&}laws,{\c&H00FFFFFF&}
+Dialogue: 0,0:11:46.97,0:11:47.26,Sub,,0,0,0,,{\c&H0048C8FF&}we{\c&H00FFFFFF&} lie."
+Dialogue: 0,0:11:47.26,0:11:48.23,Sub,,0,0,0,,we {\c&H0048C8FF&}lie."{\c&H00FFFFFF&}
+Dialogue: 0,0:11:50.81,0:11:50.97,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} famous answer,
+Dialogue: 0,0:11:50.97,0:11:51.32,Sub,,0,0,0,,The {\c&H0048C8FF&}famous{\c&H00FFFFFF&} answer,
+Dialogue: 0,0:11:51.32,0:11:52.08,Sub,,0,0,0,,The famous {\c&H0048C8FF&}answer,{\c&H00FFFFFF&}
+Dialogue: 0,0:11:52.08,0:11:52.57,Sub,,0,0,0,,{\c&H0048C8FF&}"Come{\c&H00FFFFFF&} and take them",
+Dialogue: 0,0:11:52.57,0:11:52.74,Sub,,0,0,0,,"Come {\c&H0048C8FF&}and{\c&H00FFFFFF&} take them",
+Dialogue: 0,0:11:52.74,0:11:53.02,Sub,,0,0,0,,"Come and {\c&H0048C8FF&}take{\c&H00FFFFFF&} them",
+Dialogue: 0,0:11:53.02,0:11:53.70,Sub,,0,0,0,,"Come and take {\c&H0048C8FF&}them",{\c&H00FFFFFF&}
+Dialogue: 0,0:11:53.70,0:11:53.92,Sub,,0,0,0,,{\c&H0048C8FF&}does{\c&H00FFFFFF&} not appear in Herodotus.
+Dialogue: 0,0:11:53.92,0:11:54.10,Sub,,0,0,0,,does {\c&H0048C8FF&}not{\c&H00FFFFFF&} appear in Herodotus.
+Dialogue: 0,0:11:54.10,0:11:54.42,Sub,,0,0,0,,does not {\c&H0048C8FF&}appear{\c&H00FFFFFF&} in Herodotus.
+Dialogue: 0,0:11:54.42,0:11:54.51,Sub,,0,0,0,,does not appear {\c&H0048C8FF&}in{\c&H00FFFFFF&} Herodotus.
+Dialogue: 0,0:11:54.51,0:11:55.74,Sub,,0,0,0,,does not appear in {\c&H0048C8FF&}Herodotus.{\c&H00FFFFFF&}
+Dialogue: 0,0:11:55.74,0:11:55.92,Sub,,0,0,0,,{\c&H0048C8FF&}It{\c&H00FFFFFF&} was written down by Plutarch,
+Dialogue: 0,0:11:55.92,0:11:56.05,Sub,,0,0,0,,It {\c&H0048C8FF&}was{\c&H00FFFFFF&} written down by Plutarch,
+Dialogue: 0,0:11:56.05,0:11:56.31,Sub,,0,0,0,,It was {\c&H0048C8FF&}written{\c&H00FFFFFF&} down by Plutarch,
+Dialogue: 0,0:11:56.31,0:11:56.55,Sub,,0,0,0,,It was written {\c&H0048C8FF&}down{\c&H00FFFFFF&} by Plutarch,
+Dialogue: 0,0:11:56.55,0:11:56.70,Sub,,0,0,0,,It was written down {\c&H0048C8FF&}by{\c&H00FFFFFF&} Plutarch,
+Dialogue: 0,0:11:56.70,0:11:57.67,Sub,,0,0,0,,It was written down by {\c&H0048C8FF&}Plutarch,{\c&H00FFFFFF&}
+Dialogue: 0,0:11:57.67,0:11:58.01,Sub,,0,0,0,,{\c&H0048C8FF&}five{\c&H00FFFFFF&} centuries later.
+Dialogue: 0,0:11:58.01,0:11:58.43,Sub,,0,0,0,,five {\c&H0048C8FF&}centuries{\c&H00FFFFFF&} later.
+Dialogue: 0,0:11:58.43,0:11:59.23,Sub,,0,0,0,,five centuries {\c&H0048C8FF&}later.{\c&H00FFFFFF&}
+Dialogue: 0,0:11:59.53,0:11:59.84,Sub,,0,0,0,,{\c&H0048C8FF&}About{\c&H00FFFFFF&} forty years after the battle,
+Dialogue: 0,0:11:59.84,0:12:00.15,Sub,,0,0,0,,About {\c&H0048C8FF&}forty{\c&H00FFFFFF&} years after the battle,
+Dialogue: 0,0:12:00.15,0:12:00.41,Sub,,0,0,0,,About forty {\c&H0048C8FF&}years{\c&H00FFFFFF&} after the battle,
+Dialogue: 0,0:12:00.41,0:12:00.67,Sub,,0,0,0,,About forty years {\c&H0048C8FF&}after{\c&H00FFFFFF&} the battle,
+Dialogue: 0,0:12:00.67,0:12:00.78,Sub,,0,0,0,,About forty years after {\c&H0048C8FF&}the{\c&H00FFFFFF&} battle,
+Dialogue: 0,0:12:00.78,0:12:01.69,Sub,,0,0,0,,About forty years after the {\c&H0048C8FF&}battle,{\c&H00FFFFFF&}
+Dialogue: 0,0:12:01.69,0:12:02.75,Sub,,0,0,0,,{\c&H0048C8FF&}Leonidas's{\c&H00FFFFFF&} bones were carried home to
+Dialogue: 0,0:12:02.75,0:12:03.11,Sub,,0,0,0,,Leonidas's {\c&H0048C8FF&}bones{\c&H00FFFFFF&} were carried home to
+Dialogue: 0,0:12:03.11,0:12:03.28,Sub,,0,0,0,,Leonidas's bones {\c&H0048C8FF&}were{\c&H00FFFFFF&} carried home to
+Dialogue: 0,0:12:03.28,0:12:03.59,Sub,,0,0,0,,Leonidas's bones were {\c&H0048C8FF&}carried{\c&H00FFFFFF&} home to
+Dialogue: 0,0:12:03.59,0:12:03.76,Sub,,0,0,0,,Leonidas's bones were carried {\c&H0048C8FF&}home{\c&H00FFFFFF&} to
+Dialogue: 0,0:12:03.76,0:12:03.84,Sub,,0,0,0,,Leonidas's bones were carried home {\c&H0048C8FF&}to{\c&H00FFFFFF&}
+Dialogue: 0,0:12:03.84,0:12:04.81,Sub,,0,0,0,,{\c&H0048C8FF&}Sparta,{\c&H00FFFFFF&} and games were held there in
+Dialogue: 0,0:12:04.81,0:12:05.09,Sub,,0,0,0,,Sparta, {\c&H0048C8FF&}and{\c&H00FFFFFF&} games were held there in
+Dialogue: 0,0:12:05.09,0:12:05.46,Sub,,0,0,0,,Sparta, and {\c&H0048C8FF&}games{\c&H00FFFFFF&} were held there in
+Dialogue: 0,0:12:05.46,0:12:05.63,Sub,,0,0,0,,Sparta, and games {\c&H0048C8FF&}were{\c&H00FFFFFF&} held there in
+Dialogue: 0,0:12:05.63,0:12:05.84,Sub,,0,0,0,,Sparta, and games were {\c&H0048C8FF&}held{\c&H00FFFFFF&} there in
+Dialogue: 0,0:12:05.84,0:12:06.02,Sub,,0,0,0,,Sparta, and games were held {\c&H0048C8FF&}there{\c&H00FFFFFF&} in
+Dialogue: 0,0:12:06.02,0:12:06.11,Sub,,0,0,0,,Sparta, and games were held there {\c&H0048C8FF&}in{\c&H00FFFFFF&}
+Dialogue: 0,0:12:06.11,0:12:06.30,Sub,,0,0,0,,{\c&H0048C8FF&}his{\c&H00FFFFFF&} name every year.
+Dialogue: 0,0:12:06.30,0:12:06.71,Sub,,0,0,0,,his {\c&H0048C8FF&}name{\c&H00FFFFFF&} every year.
+Dialogue: 0,0:12:06.71,0:12:06.97,Sub,,0,0,0,,his name {\c&H0048C8FF&}every{\c&H00FFFFFF&} year.
+Dialogue: 0,0:12:06.97,0:12:07.94,Sub,,0,0,0,,his name every {\c&H0048C8FF&}year.{\c&H00FFFFFF&}
+Dialogue: 0,0:12:07.94,0:12:08.11,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} sea has gone.
+Dialogue: 0,0:12:08.11,0:12:08.32,Sub,,0,0,0,,The {\c&H0048C8FF&}sea{\c&H00FFFFFF&} has gone.
+Dialogue: 0,0:12:08.32,0:12:08.50,Sub,,0,0,0,,The sea {\c&H0048C8FF&}has{\c&H00FFFFFF&} gone.
+Dialogue: 0,0:12:08.50,0:12:09.43,Sub,,0,0,0,,The sea has {\c&H0048C8FF&}gone.{\c&H00FFFFFF&}
+Dialogue: 0,0:12:09.43,0:12:09.60,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} gates are quiet.
+Dialogue: 0,0:12:09.60,0:12:09.88,Sub,,0,0,0,,The {\c&H0048C8FF&}gates{\c&H00FFFFFF&} are quiet.
+Dialogue: 0,0:12:09.88,0:12:10.02,Sub,,0,0,0,,The gates {\c&H0048C8FF&}are{\c&H00FFFFFF&} quiet.
+Dialogue: 0,0:12:10.02,0:12:11.03,Sub,,0,0,0,,The gates are {\c&H0048C8FF&}quiet.{\c&H00FFFFFF&}
+Dialogue: 0,0:12:12.42,0:12:12.61,Sub,,0,0,0,,{\c&H0048C8FF&}But{\c&H00FFFFFF&} the low hill is still where
+Dialogue: 0,0:12:12.61,0:12:12.74,Sub,,0,0,0,,But {\c&H0048C8FF&}the{\c&H00FFFFFF&} low hill is still where
+Dialogue: 0,0:12:12.74,0:12:13.01,Sub,,0,0,0,,But the {\c&H0048C8FF&}low{\c&H00FFFFFF&} hill is still where
+Dialogue: 0,0:12:13.01,0:12:13.28,Sub,,0,0,0,,But the low {\c&H0048C8FF&}hill{\c&H00FFFFFF&} is still where
+Dialogue: 0,0:12:13.28,0:12:13.38,Sub,,0,0,0,,But the low hill {\c&H0048C8FF&}is{\c&H00FFFFFF&} still where
+Dialogue: 0,0:12:13.38,0:12:13.61,Sub,,0,0,0,,But the low hill is {\c&H0048C8FF&}still{\c&H00FFFFFF&} where
+Dialogue: 0,0:12:13.61,0:12:13.79,Sub,,0,0,0,,But the low hill is still {\c&H0048C8FF&}where{\c&H00FFFFFF&}
+Dialogue: 0,0:12:13.79,0:12:13.89,Sub,,0,0,0,,{\c&H0048C8FF&}it{\c&H00FFFFFF&} was, and the arrowheads were still
+Dialogue: 0,0:12:13.89,0:12:14.77,Sub,,0,0,0,,it {\c&H0048C8FF&}was,{\c&H00FFFFFF&} and the arrowheads were still
+Dialogue: 0,0:12:14.77,0:12:14.99,Sub,,0,0,0,,it was, {\c&H0048C8FF&}and{\c&H00FFFFFF&} the arrowheads were still
+Dialogue: 0,0:12:14.99,0:12:15.12,Sub,,0,0,0,,it was, and {\c&H0048C8FF&}the{\c&H00FFFFFF&} arrowheads were still
+Dialogue: 0,0:12:15.12,0:12:15.71,Sub,,0,0,0,,it was, and the {\c&H0048C8FF&}arrowheads{\c&H00FFFFFF&} were still
+Dialogue: 0,0:12:15.71,0:12:15.89,Sub,,0,0,0,,it was, and the arrowheads {\c&H0048C8FF&}were{\c&H00FFFFFF&} still
+Dialogue: 0,0:12:15.89,0:12:16.18,Sub,,0,0,0,,it was, and the arrowheads were {\c&H0048C8FF&}still{\c&H00FFFFFF&}
+Dialogue: 0,0:12:16.18,0:12:16.31,Sub,,0,0,0,,{\c&H0048C8FF&}in{\c&H00FFFFFF&} it.
+Dialogue: 0,0:12:16.31,0:12:17.12,Sub,,0,0,0,,in {\c&H0048C8FF&}it.{\c&H00FFFFFF&}
+Dialogue: 0,0:12:20.07,0:12:20.35,Sub,,0,0,0,,{\c&H0048C8FF&}If{\c&H00FFFFFF&} this stayed with you,
+Dialogue: 0,0:12:20.35,0:12:20.53,Sub,,0,0,0,,If {\c&H0048C8FF&}this{\c&H00FFFFFF&} stayed with you,
+Dialogue: 0,0:12:20.53,0:12:20.80,Sub,,0,0,0,,If this {\c&H0048C8FF&}stayed{\c&H00FFFFFF&} with you,
+Dialogue: 0,0:12:20.80,0:12:20.98,Sub,,0,0,0,,If this stayed {\c&H0048C8FF&}with{\c&H00FFFFFF&} you,
+Dialogue: 0,0:12:20.98,0:12:21.60,Sub,,0,0,0,,If this stayed with {\c&H0048C8FF&}you,{\c&H00FFFFFF&}
+Dialogue: 0,0:12:21.60,0:12:22.64,Sub,,0,0,0,,{\c&H0048C8FF&}subscribe{\c&H00FFFFFF&} and turn on notifications:
+Dialogue: 0,0:12:22.64,0:12:22.95,Sub,,0,0,0,,subscribe {\c&H0048C8FF&}and{\c&H00FFFFFF&} turn on notifications:
+Dialogue: 0,0:12:22.95,0:12:23.21,Sub,,0,0,0,,subscribe and {\c&H0048C8FF&}turn{\c&H00FFFFFF&} on notifications:
+Dialogue: 0,0:12:23.21,0:12:23.33,Sub,,0,0,0,,subscribe and turn {\c&H0048C8FF&}on{\c&H00FFFFFF&} notifications:
+Dialogue: 0,0:12:23.33,0:12:24.88,Sub,,0,0,0,,subscribe and turn on {\c&H0048C8FF&}notifications:{\c&H00FFFFFF&}
+Dialogue: 0,0:12:24.88,0:12:25.11,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} next documentary is already on its
+Dialogue: 0,0:12:25.11,0:12:25.38,Sub,,0,0,0,,the {\c&H0048C8FF&}next{\c&H00FFFFFF&} documentary is already on its
+Dialogue: 0,0:12:25.38,0:12:26.42,Sub,,0,0,0,,the next {\c&H0048C8FF&}documentary{\c&H00FFFFFF&} is already on its
+Dialogue: 0,0:12:26.42,0:12:26.67,Sub,,0,0,0,,the next documentary {\c&H0048C8FF&}is{\c&H00FFFFFF&} already on its
+Dialogue: 0,0:12:26.67,0:12:27.17,Sub,,0,0,0,,the next documentary is {\c&H0048C8FF&}already{\c&H00FFFFFF&} on its
+Dialogue: 0,0:12:27.17,0:12:27.30,Sub,,0,0,0,,the next documentary is already {\c&H0048C8FF&}on{\c&H00FFFFFF&} its
+Dialogue: 0,0:12:27.30,0:12:27.47,Sub,,0,0,0,,the next documentary is already on {\c&H0048C8FF&}its{\c&H00FFFFFF&}
+Dialogue: 0,0:12:27.47,0:12:28.54,Sub,,0,0,0,,{\c&H0048C8FF&}way.{\c&H00FFFFFF&}
+Dialogue: 1,0:00:42.23,0:00:49.50,Note,,0,0,0,,{\fad(500,600)\an7\pos(90,80)}Battle imagery is reconstruction; maps and figures follow Herodotus and modern estimates
+Dialogue: 1,0:00:41.33,0:00:49.50,Title,,0,0,0,,{\fad(500,600)\fsp46\t(0,1400,\fsp14)}THREE DAYS AT THE HOT GATES
+Dialogue: 1,0:10:15.97,0:10:25.70,Note,,0,0,0,,{\fad(500,600)\an7\pos(90,80)}Herodotus's account · Theban sources differ
