@@ -68,7 +68,7 @@ test("supply queue excludes expired/private trials and uncertain supplier submis
   assert.equal(db.rows.video_requests[2].render_attempts, 1);
 });
 test("whole reel reserves a pacing correction and images; recorded avatar needs no paid voice", () => {
-  const flags = { ...getFeatureFlags(), imageGenerationEnabled: true, imageProvider: "openai" };
+  const flags = { ...getFeatureFlags(), imageGenerationEnabled: true, imageProvider: "openai", avatarProvider: "heygen" };
   const row = { mode: "visual", script_json: { segments: [{ text: "hola mundo" }] }, recorded_audio_path: null, long_form_production_plan: null };
   const demands = jobSupplyDemands(row, "elevenlabs", flags);
   assert.equal(demands.find(d => d.provider === "elevenlabs")?.units, 20);
