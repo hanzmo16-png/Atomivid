@@ -1,0 +1,22 @@
+name: Read saved owner trial review response (no paid calls)
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [scripts/owner-form-review-readback.ts, .github/workflows/owner-form-review-readback.yml]
+permissions:
+  contents: read
+jobs:
+  readback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node --import tsx scripts/owner-form-review-readback.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
