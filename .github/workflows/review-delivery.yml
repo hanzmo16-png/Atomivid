@@ -26,7 +26,7 @@ jobs:
       - name: Resolve request
         id: request
         run: |
-          node -e "const r=require('./content/delivery/request.json'); if(!['fetch','render'].includes(r.stage)) throw Error('bad stage'); require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'stage='+r.stage+'\nwhat='+(r.what||['thermopylae']).join(',')+'\n')"
+          node -e "const r=require('./content/delivery/request.json'); if(!['fetch','render','verify'].includes(r.stage)) throw Error('bad stage'); require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'stage='+r.stage+'\nwhat='+(r.what||['thermopylae']).join(',')+'\nrun='+(r.run||'')+'\n')"
       - name: Fetch approved masters and sources
         if: steps.request.outputs.stage == 'fetch'
         run: node scripts/delivery/fetch.mjs
@@ -39,6 +39,14 @@ jobs:
         if: steps.request.outputs.stage == 'render'
         run: bash scripts/delivery/render.sh
         env:
+          DELIVERY_OUT: ${{ runner.temp }}/delivery
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Verify published links anonymously
+        if: steps.request.outputs.stage == 'verify'
+        run: node scripts/delivery/verify.mjs
+        env:
+          VERIFY_RUN: ${{ steps.request.outputs.run }}
           DELIVERY_OUT: ${{ runner.temp }}/delivery
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
