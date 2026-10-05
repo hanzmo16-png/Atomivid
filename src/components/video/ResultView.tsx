@@ -1,4 +1,5 @@
 import { renderFailureMessage } from "@/lib/video/job-error";
+import { isRenderStale } from "@/lib/video/render-guard";
 import { asDownloadUrl } from "@/lib/storage/download-url";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -45,6 +46,7 @@ export function ResultView({
     new Date(request.created_at).toLocaleString("es-MX"),
   ].filter(Boolean);
   const isLongForm = request.mode === "long_form";
+  const isStaleProcessing = isRenderStale(request, nowMs);
   const isLandscape = request.aspect_ratio === "16:9";
   const stageLabel = isLongForm
     ? request.long_form_stage &&
@@ -71,7 +73,17 @@ export function ResultView({
           />
         )}
 
-        {request.status === "processing" && isLongForm && (
+        {request.status === "processing" && isStaleProcessing && (
+          <Alert tone="warning" role="status">
+            <p className="font-medium">Esto está tardando más de lo normal.</p>
+            <p className="mt-1">
+              Tu solicitud sigue guardada. La producción ha superado el plazo esperado.
+              Vuelve al historial para revisar su estado y las opciones disponibles.
+            </p>
+          </Alert>
+        )}
+
+        {request.status === "processing" && !isStaleProcessing && isLongForm && (
           <ProductionProgressCard
             longFormStage={request.long_form_stage ?? null}
             longFormProgress={request.long_form_progress}
@@ -79,7 +91,7 @@ export function ResultView({
           />
         )}
 
-        {request.status === "processing" && !isLongForm && (
+        {request.status === "processing" && !isStaleProcessing && !isLongForm && (
           <Card className="flex flex-col items-center gap-4 p-10 text-center">
             <span
               className="size-8 animate-spin rounded-full border-2 border-accent border-t-transparent motion-reduce:animate-none"

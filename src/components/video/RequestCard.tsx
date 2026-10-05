@@ -1,4 +1,5 @@
 import { isRenderStale } from "@/lib/video/render-guard";
+import { asDownloadUrl } from "@/lib/storage/download-url";
 import { renderFailureMessage } from "@/lib/video/job-error";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
@@ -178,7 +179,7 @@ export function RequestCard({
           </video>
           <div className="flex flex-col gap-2 sm:flex-row">
             <a
-              href={videoUrl}
+              href={asDownloadUrl(videoUrl, "atomivid-video.mp4")}
               download
               target="_blank"
               rel="noopener noreferrer"

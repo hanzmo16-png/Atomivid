@@ -8,7 +8,7 @@ import { ReelProgressBar } from "./ReelProgressBar";
 import { VfxProgress } from "@/app/dashboard/vfx/VfxProgress";
 import type { VideoRequestSummary } from "@/lib/video/request-view";
 import type { Job } from "@/lib/production-intelligence/vfx-director/jobs";
-import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
+import { LONG_FORM_HEARTBEAT_STALE_MS, MAX_RENDER_ATTEMPTS, RENDER_TIMEOUT_MS } from "@/lib/video/limits";
 
 const now = Date.parse("2026-10-04T12:30:00Z");
 const request: VideoRequestSummary = {
@@ -48,6 +48,34 @@ test("terminal requests remove bars for every video mode", () => {
     assert.doesNotMatch(renderToStaticMarkup(<RequestCard request={terminal} nowMs={now} />), /role="progressbar"/);
     assert.doesNotMatch(renderToStaticMarkup(<ResultView request={terminal} nowMs={now} />), /role="progressbar"/);
   }
+});
+
+test("stalled requests stop claiming active progress in history and details without starting another job", () => {
+  for (const mode of ["avatar", "visual", "long_form"]) {
+    const timeout = mode === "long_form" ? LONG_FORM_HEARTBEAT_STALE_MS : RENDER_TIMEOUT_MS;
+    const stale = { ...request, mode, render_attempts: MAX_RENDER_ATTEMPTS,
+      render_started_at: new Date(now - timeout - 1).toISOString(),
+      long_form_stage: "assets", long_form_progress: { stage: "assets", unitsCompleted: 5,
+        unitsTotal: 10, unitLabel: "recursos", updatedAt: new Date(now - timeout - 1).toISOString() } };
+    for (const html of [renderToStaticMarkup(<RequestCard request={stale} nowMs={now} />),
+      renderToStaticMarkup(<ResultView request={stale} nowMs={now} />)]) {
+      assert.match(html, /Esto está tardando más de lo normal/);
+      assert.doesNotMatch(html, /role="progressbar"/);
+      assert.doesNotMatch(html, /Reintentar/);
+    }
+    const detail = renderToStaticMarkup(<ResultView request={stale} nowMs={now} />);
+    assert.match(detail, /Tu solicitud sigue guardada/);
+    assert.match(detail, /Volver al historial/);
+  }
+});
+
+test("a long-form job with a recent heartbeat keeps measured progress despite an old start", () => {
+  const live = { ...request, mode: "long_form", render_started_at: new Date(now - RENDER_TIMEOUT_MS * 3).toISOString(),
+    long_form_stage: "assets", long_form_progress: { stage: "assets", unitsCompleted: 5,
+      unitsTotal: 10, unitLabel: "recursos", updatedAt: new Date(now).toISOString() } };
+  const html = renderToStaticMarkup(<ResultView request={live} nowMs={now} />);
+  assert.equal(value(html), 43);
+  assert.doesNotMatch(html, /Esto está tardando más de lo normal/);
 });
 
 test("unknown or nonfinite measurements show activity without a false percentage", () => {
