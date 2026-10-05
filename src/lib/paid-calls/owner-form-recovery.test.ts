@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { LedgerStore, PaidOperation } from "./gate";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { OwnerFormTrial } from "@/lib/billing/owner-form-trial";
-import { skipKnownIncompleteCandidate, KnownIncompleteCandidateError, INCOMPLETE_REVIEW, RECOVERY_REQUEST, RECOVERY_AUTH, RECOVERY_RUN, RecoverySchema, recoveryLedger } from "./owner-form-recovery";
+import { skipKnownIncompleteCandidate, KnownIncompleteCandidateError, INCOMPLETE_REVIEW, SECOND_INCOMPLETE_REVIEW, RECOVERY_REQUEST, RECOVERY_AUTH, RECOVERY_RUN, RecoverySchema, CompactRecoverySchema, recoveryLedger } from "./owner-form-recovery";
 
 const grant = { version: "owner-form-recovery/1", requestId: RECOVERY_REQUEST, ownerId: "d2064950-7a95-4208-8dfb-d93b470d141d",
   scriptSha: "55b44c3c552c52f69fc9bd5818afd643098d88d9cfea708900ddcc670832a4b0", blockedReviewKey: INCOMPLETE_REVIEW,
@@ -31,13 +31,19 @@ test("a recovery receipt cannot authorize another request, script, review or lar
     { maxAccountedUsd: 2 }, { maxRenderAttempts: 2 }, { authorization: "old permission" }]) {
     assert.equal(RecoverySchema.safeParse({ ...grant, ...patch }).success, false);
   }
+  const compact = { ...grant, version: "owner-form-recovery/2", additionalBlockedReviewKey: SECOND_INCOMPLETE_REVIEW, preferIllustrations: true };
+  assert.ok(CompactRecoverySchema.safeParse(compact).success);
+  for (const patch of [{ additionalBlockedReviewKey: "other" }, { preferIllustrations: false }, { maxAccountedUsd: 2 }]) {
+    assert.equal(CompactRecoverySchema.safeParse({ ...compact, ...patch }).success, false);
+  }
 });
 
 test("recovery requires the exact active run and saved truncation evidence; unknown failures cannot be skipped", async () => {
-  const keys = ["OWNER_FORM_RECOVERY_WORKER", "GITHUB_ACTIONS", "GITHUB_RUN_ID"];
+  const keys = ["OWNER_FORM_RECOVERY_WORKER", "GITHUB_ACTIONS", "GITHUB_RUN_ID", "OWNER_FORM_RECOVERY_STAGE"];
   const old = keys.map(k => process.env[k]);
   try {
     process.env.OWNER_FORM_RECOVERY_WORKER = "true"; process.env.GITHUB_ACTIONS = "true"; process.env.GITHUB_RUN_ID = "123";
+    delete process.env.OWNER_FORM_RECOVERY_STAGE;
     const common = { project_id: RECOVERY_REQUEST, provider: "internal", model: "internal", attempt_kind: "initial", reserved_usd: 0,
       committed_usd: 0, status: "COMMITTED", shot_id: "internal", provider_job_id: null, result_ref: null, updated_at: "2026-10-05T00:00:00Z" };
     const rows: Record<string, Record<string, unknown>> = {
@@ -61,5 +67,15 @@ test("recovery requires the exact active run and saved truncation evidence; unkn
     await assert.rejects(recoveryLedger(service, trial, base), /CAUSE_UNVERIFIED/);
     rows[`owner_form_render:${RECOVERY_REQUEST}`].result_ref = "changed";
     await assert.rejects(recoveryLedger(service, trial, base), /SCRIPT_CHANGED/);
+    rows[`owner_form_render:${RECOVERY_REQUEST}`].result_ref = grant.scriptSha; reason = "max_output_tokens";
+    process.env.OWNER_FORM_RECOVERY_STAGE = "compact-final";
+    await assert.rejects(recoveryLedger(service, trial, base), /AUTH_REQUIRED/);
+    rows[RECOVERY_AUTH + ":compact-final"] = { ...rows[RECOVERY_AUTH], result_ref: JSON.stringify({ ...grant,
+      version: "owner-form-recovery/2", additionalBlockedReviewKey: SECOND_INCOMPLETE_REVIEW, preferIllustrations: true }) };
+    rows[RECOVERY_RUN + ":compact-final"] = { ...rows[RECOVERY_RUN] };
+    rows[SECOND_INCOMPLETE_REVIEW] = { ...rows[INCOMPLETE_REVIEW], shot_id: "visual-review:scene-2" };
+    await recoveryLedger(service, trial, base);
+    rows[SECOND_INCOMPLETE_REVIEW].status = "SUBMITTED";
+    await assert.rejects(recoveryLedger(service, trial, base), /REVIEW_STATE_BLOCKED/);
   } finally { keys.forEach((key, i) => { if (old[i] === undefined) delete process.env[key]; else process.env[key] = old[i]; }); }
 });

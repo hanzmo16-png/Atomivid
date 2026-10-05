@@ -1,6 +1,8 @@
-name: Resume owner form trial after authorized deployment
+name: Complete owner form trial with bounded visual responses
 on:
-  workflow_dispatch:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [scripts/owner-form-trial-resume.ts, .github/workflows/owner-form-trial-compact.yml]
 permissions:
   contents: read
 concurrency:
@@ -18,7 +20,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx next typegen && npx tsc --noEmit
-      - run: node --import tsx --test src/lib/video/script-quality.test.ts src/lib/billing/owner-form-trial.test.ts src/lib/video/visual-flow.test.ts src/lib/paid-calls/owner-form-recovery.test.ts
+      - run: node --import tsx --test src/lib/video/script-quality.test.ts src/lib/billing/owner-form-trial.test.ts src/lib/video/visual-flow.test.ts src/lib/paid-calls/owner-form-recovery.test.ts src/lib/video/visual-review.test.ts
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: node --import tsx scripts/owner-form-trial-resume.ts
         timeout-minutes: 25
@@ -26,6 +28,7 @@ jobs:
           ATOMIVID_RUNTIME: production
           OWNER_FORM_TRIAL_WORKER: 'true'
           OWNER_FORM_RECOVERY_WORKER: 'true'
+          OWNER_FORM_RECOVERY_STAGE: compact-final
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -51,6 +54,7 @@ jobs:
           REQUEST_ID: 34bc43f3-a53d-4daa-b8fa-bef3f1544b04
           OWNER_FORM_TRIAL_WORKER: 'true'
           OWNER_FORM_RECOVERY_WORKER: 'true'
+          OWNER_FORM_RECOVERY_STAGE: compact-final
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       - name: Close a claimed timed-out attempt

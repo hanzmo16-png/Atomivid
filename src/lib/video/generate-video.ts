@@ -70,6 +70,7 @@ export async function generateVideoFromScript({
   onProgress,
   paidCalls,
   trialReviewLedger,
+  trialIllustrationOnly = false,
   ownerPilot,
   customerLogoUrl,
 }: {
@@ -84,6 +85,8 @@ export async function generateVideoFromScript({
   paidCalls?: Pick<PaidCallDeps, "ledger" | "results">;
   /** Private trial combines reviews with the same atomic total budget. */
   trialReviewLedger?: PaidCallDeps["ledger"];
+  /** Isolated recovery uses verified cached/new illustrations within the same budget. */
+  trialIllustrationOnly?: boolean;
   ownerPilot?: OwnerPilot;
   /** Validated private PNG loaded by the worker, never a user-supplied URL. */
   customerLogoUrl?: string;
@@ -97,6 +100,7 @@ export async function generateVideoFromScript({
   targetDurationSeconds?: number;
   onProgress?: OnProgress;
 }): Promise<{ videoPath: string }> {
+  if (trialIllustrationOnly && !trialReviewLedger) throw new Error("La continuación visual requiere su presupuesto de prueba privado.");
   const voiceProvider = getVoiceProvider();
   const footageProvider = getFootageProvider();
   const musicProvider = getMusicProvider();
@@ -236,7 +240,7 @@ export async function generateVideoFromScript({
       // One verified subject persists across its entire narration, including long scenes.
       const visual = await resolveReviewedVisual({ service: supabase, requestId, sceneIndex: i, segment,
         intent: visualIntents[i], durationSeconds: timing.end - timing.start, footageProvider, imageProvider,
-        ledger: gate.ledger, reviewLedger: trialReviewLedger, state: footageState,
+        ledger: gate.ledger, reviewLedger: trialReviewLedger, state: footageState, preferIllustration: trialIllustrationOnly,
         remainingImageBudgetUsd: Math.max(0, getFeatureFlags().maxVisualCostUsd - visualCostSpentUsd),
         mayGenerate: getFeatureFlags().imageGenerationEnabled && imagesRequestedCount < getFeatureFlags().maxImagesPerVideo });
       scenes.push({ mediaUrl: visual.url, mediaType: visual.mediaType, startSeconds: timing.start, endSeconds: timing.end });

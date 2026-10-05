@@ -25,12 +25,13 @@ export function assertReviewedVisualConfiguration(segments: ScriptScene[], owner
 
 export { createFootageSelectionState };
 export async function resolveReviewedVisual({ service, requestId, sceneIndex, segment, intent, durationSeconds,
-  footageProvider, imageProvider, ledger, reviewLedger, state, remainingImageBudgetUsd, mayGenerate,
+  footageProvider, imageProvider, ledger, reviewLedger, state, remainingImageBudgetUsd, mayGenerate, preferIllustration = false,
 }: {
   service: SupabaseClient; requestId: string; sceneIndex: number; segment: ScriptScene; intent: VisualIntent; durationSeconds: number;
   footageProvider: FootageProvider; imageProvider?: ImageProvider; ledger: LedgerStore; state: FootageSelectionState;
   reviewLedger?: LedgerStore;
   remainingImageBudgetUsd: number; mayGenerate: boolean;
+  preferIllustration?: boolean;
 }) {
   let reviewCostUsd = 0;
   let acceptedBuffer: Buffer | undefined;
@@ -50,7 +51,7 @@ export async function resolveReviewedVisual({ service, requestId, sceneIndex, se
     if (review.accepted) acceptedBuffer = buffer;
     return review.accepted;
   };
-  if (intent.source === "stock") {
+  if (intent.source === "stock" && !preferIllustration) {
     try {
       const outcome = await selectFootageForScene({ provider: footageProvider,
         concepts: [segment.visualQuery, ...(segment.visualConcepts ?? []).filter(q => q !== segment.visualQuery)],

@@ -271,6 +271,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
               onProgress,
               ownerPilot: pilot ?? undefined,
               ...(trialLedger ? { paidCalls: { ledger: trialLedger, results: supabaseResultStore(service) }, trialReviewLedger: trialLedger } : {}),
+              trialIllustrationOnly: process.env.OWNER_FORM_RECOVERY_WORKER === "true" && process.env.OWNER_FORM_RECOVERY_STAGE === "compact-final",
               customerLogoUrl,
             });
 

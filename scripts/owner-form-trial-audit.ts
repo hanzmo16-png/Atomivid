@@ -7,7 +7,7 @@ import { createServiceClient } from "../src/lib/supabase/service";
 import { readOwnerFormTrial, assertOwnerFormFrozen } from "../src/lib/billing/owner-form-trial";
 import { sha256Hex } from "../src/lib/paid-calls/result-store";
 import { measureLoudness } from "../src/lib/video/audio-master";
-import { INCOMPLETE_REVIEW, RECOVERY_RUN, verifyIncompleteReview } from "../src/lib/paid-calls/owner-form-recovery";
+import { INCOMPLETE_REVIEW, SECOND_INCOMPLETE_REVIEW, activeRecoveryKeys, verifyIncompleteReview } from "../src/lib/paid-calls/owner-form-recovery";
 import { supabaseLedgerStore } from "../src/lib/paid-calls/supabase-ledger-store";
 const execute = promisify(execFile);
 async function main() {
@@ -35,10 +35,13 @@ async function main() {
   if (operations.error || !operations.data) throw new Error("AUDIT_LEDGER");
   const paid = operations.data;
   const retainedIncomplete = await service.from("pi_paid_operations").select("status").eq("idempotency_key", INCOMPLETE_REVIEW).maybeSingle();
-  const recovery = await supabaseLedgerStore(service).get(RECOVERY_RUN);
+  const keys = activeRecoveryKeys();
+  const recovery = await supabaseLedgerStore(service).get(keys.execution);
   const knownIncomplete = retainedIncomplete.data?.status === "RECONCILIATION_REQUIRED" && recovery?.status === "COMMITTED"
     && recovery.projectId === requestId && recovery.provider === "internal" && recovery.method === "resume_incomplete_visual_trial";
   if (knownIncomplete) await verifyIncompleteReview(service);
+  const retainedKeys = knownIncomplete ? [INCOMPLETE_REVIEW] : [];
+  if (knownIncomplete && keys.compact) { await verifyIncompleteReview(service, SECOND_INCOMPLETE_REVIEW); retainedKeys.push(SECOND_INCOMPLETE_REVIEW); }
   const accountedUsd = paid.reduce((sum, p) => sum + Math.max(Number(p.reserved_usd), Number(p.committed_usd ?? 0)), 0);
   const count = (method: string) => paid.filter(p => p.method === method).length;
   const checks = { vertical: video.width === 1080 && video.height === 1920, h264: video.codec_name === "h264",
@@ -46,13 +49,13 @@ async function main() {
     synchronized: Math.abs(Number(video.duration) - Number(audio.duration)) < 0.1,
     loudness: Math.abs(loudness.integratedLufs + 16) <= 1.5, truePeak: loudness.truePeakDbtp <= -1,
     budget: accountedUsd <= grant.maxAccountedUsd, paidStatesAccounted: paid.every(p => p.status === "COMMITTED"
-      || (knownIncomplete && p.idempotency_key === INCOMPLETE_REVIEW && p.status === "RECONCILIATION_REQUIRED")),
+      || (retainedKeys.includes(p.idempotency_key) && p.status === "RECONCILIATION_REQUIRED")),
     script: count("generate_script") > 0 && count("generate_script") <= 3, voice: count("tts_with_timestamps") <= 2,
     images: count("generate_image") <= 6, reviews: count("visual_relevance_review") > 0 && count("visual_relevance_review") <= 20 };
   await fs.writeFile(path.join(out, "report.json"), JSON.stringify({ requestId, sha256: sha256Hex(bytes), bytes: bytes.length,
     script: request.data.script_json, durationSeconds: Number(probe.format.duration), loudness, operations: paid,
     accountedUsd, checks, passed: Object.values(checks).every(Boolean), manualVisualReview: "pending",
-    financialReconciliation: knownIncomplete ? "One saved incomplete review retains its $0.005 reservation; not treated as a successful review or refunded." : "No pending paid rows." }, null, 2));
+    financialReconciliation: retainedKeys.length ? `${retainedKeys.length} saved incomplete reviews retain $${retainedKeys.length * 0.005} in reservations; not treated as successful reviews or refunded.` : "No pending paid rows." }, null, 2));
   await execute("ffmpeg", ["-hide_banner", "-loglevel", "error", "-i", videoFile, "-vf", "fps=1/2,scale=270:480,tile=5x3", "-frames:v", "1", path.join(out, "contact.jpg")]);
   if (!Object.values(checks).every(Boolean)) throw new Error("AUDIT_TECHNICAL_CHECK_FAILED");
   console.log("OWNER_FORM_TRIAL_TECHNICAL_CHECKS_PASSED_MANUAL_REVIEW_PENDING");

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { guardPaidCall, type LedgerStore } from "@/lib/paid-calls/gate";
+import { guardPaidCall, paidCallKey, type LedgerStore } from "@/lib/paid-calls/gate";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
 import { supabaseResultStore, paidResultPath, sha256Hex, type PaidResultStore } from "@/lib/paid-calls/result-store";
 import { ProviderRejectedError } from "@/lib/paid-calls/errors";
@@ -13,6 +13,15 @@ export const REVIEW_OUTPUT_TOKEN_LIMIT = 1024;
 export { visualReviewFrames, VisualAssetQualityError } from "./visual-review-media";
 
 export const VISUAL_REVIEW_POLICY = "literal-visual-quality/2";
+export const REVIEW_REASONS = [
+  "All required visible traits and quality checks pass.", "The requested subject is missing.",
+  "A required visible trait or action is missing.", "A forbidden substitute is visible.",
+  "Unrelated text or a watermark is visible.", "The subject is blurred, obscured, too small, or poorly lit.",
+  "Framing or camera crop hides the required subject or action.", "Malformed anatomy or visual geometry is visible.",
+  "The visual evidence is uncertain.", "The narration and visible subject are from different domains.",
+];
+export const REVIEW_CONFIDENCE_VALUES = [0, 0.25, 0.5, 0.75, 0.8, 0.85, 0.9, 0.95, 1];
+export const REVIEW_FORMAT_INSTRUCTION = "\nResponse format: Return ONLY one compact JSON object matching the schema. No markdown, commentary, padding, or repeated characters. Choose confidence and reason from the schema's allowed values. Stop immediately after the closing brace.";
 
 /** Atomic per-request reservation; all uncertain/failed reviews also consume the ceiling. */
 export function visualReviewLedger(service: SupabaseClient): LedgerStore {
@@ -47,26 +56,30 @@ export async function reviewVisual({ service, requestId, sceneIndex, intent, nar
   // 512x910 => 16x29 patches, multiplied by 1.62 for this fixed model.
   // UTF-8 bytes bound text tokens conservatively; allow 512 extra framing tokens.
   // Refuse before reserving/calling if even this upper estimate exceeds the hold.
-  const upperInputTokens = Buffer.byteLength(prompt + SYSTEM) + 512 + inputFrames.length * Math.ceil(16 * 29 * 1.62);
+  const upperInputTokens = Buffer.byteLength(prompt + SYSTEM + REVIEW_FORMAT_INSTRUCTION) + 512 + inputFrames.length * Math.ceil(16 * 29 * 1.62);
   if ((upperInputTokens * 0.4 + REVIEW_OUTPUT_TOKEN_LIMIT * 1.6) / 1_000_000 > REVIEW_RESERVATION_USD) throw new Error("El plan visual supera la reserva de revisión. Reduce su descripción antes de generar.");
-  // Raising the response allowance must not invalidate paid identities. The verdict
-  // contract/policy stays identical: reuse completed reviews and block uncertain
-  // ones, including those submitted with the previous 512-token allowance.
-  const guarded = await guardPaidCall<VisualVerdict>(ledger, {
+  const legacySpec = {
     projectId: requestId, shotId: `visual-review:scene-${sceneIndex}`, provider: "openai", model: REVIEW_MODEL,
     method: "visual_relevance_review", reservedUsd: REVIEW_RESERVATION_USD,
     inputFingerprint: { policy: VISUAL_REVIEW_POLICY, instructionsSha256: sha256Hex(Buffer.from(SYSTEM)), responseContract: { reasonMaxCharacters: 240, qualityFieldsRequired: true }, intent, narration, mediaSha256: sha256Hex(buffer), frameSha256: inputFrames.map(f => sha256Hex(Buffer.from(f))) },
-  }, {
+  };
+  // Presentation is now bounded, but the quality criteria are unchanged. Existing
+  // paid verdicts remain reusable; old uncertain identities still block submission.
+  const legacy = await ledger.get(paidCallKey(legacySpec));
+  const spec = legacy ? legacySpec : { ...legacySpec, inputFingerprint: { ...legacySpec.inputFingerprint,
+    responseContract: { ...legacySpec.inputFingerprint.responseContract, confidenceValues: REVIEW_CONFIDENCE_VALUES, reasonValues: REVIEW_REASONS },
+    formattingInstructionsSha256: sha256Hex(Buffer.from(REVIEW_FORMAT_INSTRUCTION)), outputTokenLimit: REVIEW_OUTPUT_TOKEN_LIMIT } };
+  const guarded = await guardPaidCall<VisualVerdict>(ledger, spec, {
     call: async ({ key }) => {
       const response = await fetcher("https://api.openai.com/v1/responses", {
         method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         signal: AbortSignal.timeout(30_000),
         body: JSON.stringify({ model: REVIEW_MODEL, store: false, max_output_tokens: REVIEW_OUTPUT_TOKEN_LIMIT,
-          instructions: SYSTEM, input: [{ role: "user", content: [
+          instructions: SYSTEM + REVIEW_FORMAT_INSTRUCTION, input: [{ role: "user", content: [
             { type: "input_text", text: prompt }, ...inputFrames.map(image_url => ({ type: "input_image", image_url, detail: "high" })),
           ] }], text: { format: { type: "json_schema", name: "visual_verdict", strict: true, schema: {
             type: "object", additionalProperties: false,
-            properties: { subjectPresent: { type: "boolean" }, allRequiredTraitsPresent: { type: "boolean" }, forbiddenSubstitutePresent: { type: "boolean" }, unrelatedTextOrWatermark: { type: "boolean" }, subjectClear: { type: "boolean" }, compositionAcceptable: { type: "boolean" }, visualArtifactsPresent: { type: "boolean" }, confidence: { type: "number" }, reason: { type: "string", maxLength: 240 } },
+            properties: { subjectPresent: { type: "boolean" }, allRequiredTraitsPresent: { type: "boolean" }, forbiddenSubstitutePresent: { type: "boolean" }, unrelatedTextOrWatermark: { type: "boolean" }, subjectClear: { type: "boolean" }, compositionAcceptable: { type: "boolean" }, visualArtifactsPresent: { type: "boolean" }, confidence: { type: "number", enum: REVIEW_CONFIDENCE_VALUES }, reason: { type: "string", maxLength: 240, enum: REVIEW_REASONS } },
             required: ["subjectPresent", "allRequiredTraitsPresent", "forbiddenSubstitutePresent", "unrelatedTextOrWatermark", "subjectClear", "compositionAcceptable", "visualArtifactsPresent", "confidence", "reason"],
           } } },
         }),
