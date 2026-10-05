@@ -67,7 +67,7 @@ function CountList({ rows }: { rows: { label: string; count: number }[] }) {
   );
 }
 
-export function CommandCenterView({ vm }: { vm: CommandCenterViewModel }) {
+export function CommandCenterView({ vm, alerts }: { vm: CommandCenterViewModel; alerts?: React.ReactNode }) {
   const windowLabel: Record<WindowKey, string> = { TODAY: "Today", "7D": "7 days", "28D": "28 days", MTD: "Month", LIFETIME: "Lifetime" };
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
@@ -88,6 +88,7 @@ export function CommandCenterView({ vm }: { vm: CommandCenterViewModel }) {
         ))}
       </nav>
 
+      {alerts}
       <Section id="overview" title="Overview" subtitle={windowLabel[vm.window]}>
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">{vm.overview.map((t) => <MetricTile key={t.id} t={t} />)}</div>
       </Section>
