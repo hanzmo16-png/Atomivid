@@ -9,6 +9,7 @@ import { resolveGeneratedImageForScene } from "./visual-resource-resolver";
 import { reviewVisual, VisualAssetQualityError } from "./visual-review";
 import { requireVisualIntents, type VisualIntent } from "./visual-intent";
 import { ESTIMATED_COST_USD } from "@/lib/providers/image/openai";
+import { KnownIncompleteCandidateError } from "@/lib/paid-calls/owner-form-recovery";
 
 export function assertReviewedVisualConfiguration(segments: ScriptScene[], ownerPilot: boolean): VisualIntent[] {
   const intents = requireVisualIntents(segments);
@@ -39,6 +40,7 @@ export async function resolveReviewedVisual({ service, requestId, sceneIndex, se
       review = await reviewVisual({ service, requestId, sceneIndex, intent, narration: segment.text, buffer, mediaType, durationSeconds,
         ...(reviewLedger ? { ledger: reviewLedger } : {}) });
     } catch (error) {
+      if (error instanceof KnownIncompleteCandidateError) return false;
       if (!(error instanceof VisualAssetQualityError)) throw error;
       console.log("[atomivid:visual-review]", JSON.stringify({ requestId, sceneIndex, mediaType, accepted: false, reason: error.message, costUsd: 0, technicalRejection: true }));
       return false;

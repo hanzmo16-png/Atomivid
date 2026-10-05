@@ -29,6 +29,7 @@ import { snapshotBalancePort } from "@/lib/paid-calls/capacity-port";
 import { readOwnerPilot, assertOwnerPilot } from "@/lib/billing/owner-pilot";
 import { readOwnerFormTrial, assertOwnerFormTrial, assertOwnerFormFrozen } from "@/lib/billing/owner-form-trial";
 import { ownerFormTrialLedger } from "@/lib/paid-calls/owner-form-trial-ledger";
+import { recoveryLedger } from "@/lib/paid-calls/owner-form-recovery";
 import { supabaseResultStore } from "@/lib/paid-calls/result-store";
 import { getVoiceIdentity } from "@/lib/ai/voice";
 import { getFootageProvider } from "@/lib/providers/footage";
@@ -194,7 +195,11 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
       process.env.MAX_GENERATED_IMAGES_PER_VIDEO = String(trial.maxImages);
       process.env.MAX_VISUAL_COST_USD = String(trial.maxImages * trial.maxImageReservationUsd);
     }
-    const trialLedger = trial ? ownerFormTrialLedger(service, trial) : undefined;
+    let trialLedger = trial ? ownerFormTrialLedger(service, trial) : undefined;
+    if (process.env.OWNER_FORM_RECOVERY_WORKER === "true") {
+      if (!trial || !trialLedger) throw new Error("RECOVERY_TRIAL_REQUIRED");
+      trialLedger = await recoveryLedger(service, trial, trialLedger);
+    }
     if (pilot) {
       const { data: auth, error } = await service.auth.admin.getUserById(row.user_id);
       if (error || !auth.user) throw new Error("PILOT_OWNER_UNVERIFIED");
