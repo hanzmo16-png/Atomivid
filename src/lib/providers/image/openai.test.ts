@@ -1,6 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { openaiImageProvider } from "./openai";
+
+test("reviewed image requests never automatically replay a failed HTTP submission", async () => {
+  const originalFetch = global.fetch;
+  let calls = 0;
+  global.fetch = (async () => { calls++; return new Response(null, { status: 500 }); }) as typeof fetch;
+  try {
+    await withEnv({ OPENAI_API_KEY: "fake-key" }, async () => {
+      await assert.rejects(openaiImageProvider.generateImage({ ...BASE_REQUEST, disableRetries: true }));
+      assert.equal(calls, 1);
+    });
+  } finally { global.fetch = originalFetch; }
+});
 import { GenerativeProviderError } from "../types";
 
 function withEnv(vars: Record<string, string | undefined>, fn: () => void | Promise<void>) {

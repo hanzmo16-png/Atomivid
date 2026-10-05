@@ -1,3 +1,5 @@
+import { SupplyUnavailableError } from "@/lib/supply/policy";
+import { withSupplyContext } from "@/lib/supply/anthropic";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -116,12 +118,12 @@ export async function POST(
 
     let script: GeneratedScript;
     try {
-      const result = await generateScriptForRequest({
+      const result = await withSupplyContext(id, () => generateScriptForRequest({
         topic: videoRequest.topic,
         style: videoRequest.style,
         durationSeconds: videoRequest.duration_seconds,
         language: videoRequest.language,
-      });
+      }));
 
       const quality = checkScriptQuality(result.script, {
         topic: videoRequest.topic,
@@ -134,6 +136,7 @@ export async function POST(
 
       script = result.script;
     } catch (error) {
+      if (error instanceof SupplyUnavailableError) return NextResponse.json({ error: error.customerMessage }, { status: 503, headers: { "Retry-After": "300" } });
       const diagnosticId = generateDiagnosticId();
       logScriptError("POST /script", error, diagnosticId);
       const message = classifyScriptError(error, diagnosticId);

@@ -1,3 +1,7 @@
+import type { ProductionPlan } from "@/lib/video/long-form/production-plan-types";
+import { SupplyUnavailableError } from "@/lib/supply/policy";
+import { jobSupplyDemands, reserveJobSupply } from "@/lib/supply/job";
+import { getVoiceProvider } from "@/lib/providers/voice";
 import { NextResponse } from "next/server";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
@@ -37,6 +41,9 @@ type VideoRequestRow = {
   created_at: string;
   long_form_confirmed_at: string | null;
   long_form_progress: unknown;
+  long_form_production_plan: ProductionPlan | null;
+  recorded_audio_path: string | null;
+  supply_wait_started_at: string | null;
 };
 
 export async function POST(
@@ -74,7 +81,7 @@ export async function POST(
     try {
       const { data, error: fetchError } = await service
         .from("video_requests")
-        .select("id, mode, user_id, status, script_json, render_attempts, render_started_at, created_at, error_message, avatar_provider_video_job_id, long_form_confirmed_at, long_form_progress")
+        .select("id, mode, user_id, status, script_json, render_attempts, render_started_at, created_at, error_message, avatar_provider_video_job_id, long_form_confirmed_at, long_form_progress, long_form_production_plan, recorded_audio_path, supply_wait_started_at")
         .eq("id", id)
         .single<VideoRequestRow>();
 
@@ -150,6 +157,13 @@ export async function POST(
       return NextResponse.json({ error: check.reason }, { status: 402 });
     }
 
+    try {
+      await reserveJobSupply(service, id, videoRequest.render_attempts + 1,
+        jobSupplyDemands(videoRequest, getVoiceProvider().name));
+    } catch (error) {
+      if (error instanceof SupplyUnavailableError) return NextResponse.json({ error: error.customerMessage }, { status: 503, headers: { "Retry-After": "300" } });
+      throw error;
+    }
     const worker = getRenderWorker();
 
     // Guarda de concurrencia: la transición a "processing" solo aplica si
@@ -165,6 +179,7 @@ export async function POST(
       const result = await service
         .from("video_requests")
         .update({
+          supply_wait_started_at: null, supply_not_before: null,
           status: "processing",
           error_message: null,
           progress_stage: "queued",

@@ -1,3 +1,4 @@
+import { SupplyUnavailableError } from "@/lib/supply/policy";
 /**
  * Envoltorio de idempotencia/durabilidad para CUALQUIER VideoProvider real
  * (Veo/Runway/Kling) — RC Phase 1, item "worker abstraction". Antes de
@@ -50,6 +51,10 @@ import {
   writeAiVideoClipRecord,
 } from "./ai-video-storage";
 import type { ResolvedAiVideoClip } from "./ai-video-resolver";
+import { classifyPaidCallError, commitRecordedPaidJob, guardPaidCall, paidCallKey, type LedgerStore, type PaidCallSpec } from "@/lib/paid-calls/gate";
+import { PaidResultUnavailableError } from "@/lib/paid-calls/errors";
+import { supplyGuardRequired } from "@/lib/supply/server";
+import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 
 /** Fallos con los que reanudar la MISMA operación tiene sentido (el proveedor sigue teniendo el trabajo pagado). */
 const RESUMABLE_REASONS = new Set<GenerativeProviderError["reason"]>(["timeout", "upstream_error", "download_failed", "rate_limited"]);
@@ -60,6 +65,11 @@ export type DurableVideoProviderOptions = {
   supabase: SupabaseClient;
   scopeId: string;
   executionMode?: "simulation" | "real";
+  /**
+   * Puerta de llamadas pagadas (PI V2 B1, RB-01): `pi_paid_operations`. produce.ts pasa la real.
+   * Si falta (pruebas), se usa una en memoria para este envoltorio — nunca en producción.
+   */
+  ledger?: LedgerStore;
   /**
    * Reserva (write-ahead) del presupuesto confirmado ANTES de un envío
    * NUEVO — nunca se llama para reutilizar un COMPLETED ni para reanudar un
@@ -74,6 +84,19 @@ export type DurableVideoProviderOptions = {
 
 export function wrapDurableVideoProvider(inner: VideoProvider, opts: DurableVideoProviderOptions): VideoProvider {
   const executionMode = opts.executionMode ?? "real";
+  if (!opts.ledger && supplyGuardRequired()) throw new Error("PAID_LEDGER_REQUIRED");
+  const ledger = opts.ledger ?? memoryLedgerStore();
+  const specFor = (shotId: string, request: VideoGenerationRequest): PaidCallSpec => ({
+    projectId: opts.scopeId,
+    shotId: `ai_video:${shotId}`,
+    provider: inner.name,
+    model: inner.name,
+    method: "generate_video",
+    // La URL de referencia es firmada (cambia por intento): no forma parte de la identidad.
+    inputFingerprint: { prompt: request.prompt, negativePrompt: request.negativePrompt ?? null, aspectRatio: request.aspectRatio, durationSeconds: request.durationSeconds, seed: request.seed ?? null },
+    reservedUsd: Math.max(0, request.maxCostUsd),
+  });
+  const resultRefFor = (shotId: string) => `ai-video-record:${opts.scopeId}:${shotId}`;
   const maxInAttemptResumes = opts.maxInAttemptResumes ?? 0;
   const resumeBackoffMs = opts.resumeBackoffMs ?? 5000;
 
@@ -127,6 +150,7 @@ export function wrapDurableVideoProvider(inner: VideoProvider, opts: DurableVide
     try {
       return await inner.resumeGeneration(providerJobId, request);
     } catch (err) {
+      if (err instanceof SupplyUnavailableError) throw err;
       if (err instanceof GenerativeProviderError && TERMINAL_REASONS.has(err.reason)) {
         await persistTerminalFailure(shotId, err);
         throw err;
@@ -244,6 +268,7 @@ export function wrapDurableVideoProvider(inner: VideoProvider, opts: DurableVide
       if (existing?.status === "STARTED" && existing.providerJobId) {
         const asset = await resumeWithRetries(shotId, existing.providerJobId, request, maxInAttemptResumes);
         await persistCompletedTolerant(shotId, asset);
+        await commitRecordedPaidJob(ledger, paidCallKey(specFor(shotId, request)), { costUsd: asset.costUsd, resultRef: resultRefFor(shotId) }).catch(() => false);
         return asset;
       }
 
@@ -273,10 +298,35 @@ export function wrapDurableVideoProvider(inner: VideoProvider, opts: DurableVide
         },
       };
       try {
-        const asset = await inner.generateVideo(submitted);
+        // Puerta de llamadas pagadas: fila SUBMITTED en pi_paid_operations antes del envío. Un
+        // fallo con providerJobId deja PROVIDER_JOB_RECORDED (solo reanudable); un corte sin id,
+        // RECONCILIATION_REQUIRED. Ninguno vuelve a enviar. Un intento posterior que llegue aquí
+        // sin registro COMPLETED/STARTED en Storage es rechazado por el ledger, no re-enviado.
+        const guarded = await guardPaidCall<GenerativeAsset>(ledger, specFor(shotId, request), {
+          call: async () => {
+            const asset = await inner.generateVideo(submitted);
+            return { result: asset, costUsd: asset.costUsd, resultRef: resultRefFor(shotId), providerJobId: asset.providerJobId };
+          },
+          load: async () => null,
+          classify: (err) => {
+            const jobId = (err instanceof GenerativeProviderError && err.providerJobId) || acceptedJobId;
+            if (jobId) return { kind: "accepted", providerJobId: jobId };
+            return classifyPaidCallError(err);
+          },
+          maxRejectedRetries: 0,
+        });
+        const asset = guarded.result;
         await persistCompletedTolerant(shotId, asset);
         return asset;
       } catch (err) {
+        if (err instanceof SupplyUnavailableError) throw err;
+        if (err instanceof PaidResultUnavailableError) {
+          throw new GenerativeProviderError(
+            `El shot "${shotId}" ya se pagó en "${inner.name}" en un intento anterior y su clip no está disponible — no se reenvía; se usa el fallback.`,
+            inner.name,
+            "invalid_request",
+          );
+        }
         const jobId = (err instanceof GenerativeProviderError && err.providerJobId) || acceptedJobId;
         if (err instanceof GenerativeProviderError && TERMINAL_REASONS.has(err.reason) && jobId) {
           await persistTerminalFailure(shotId, new GenerativeProviderError(err.message, err.providerId, err.reason, err.cause, jobId));
@@ -286,6 +336,7 @@ export function wrapDurableVideoProvider(inner: VideoProvider, opts: DurableVide
           if (resumeBackoffMs > 0) await new Promise((r) => setTimeout(r, resumeBackoffMs));
           const asset = await resumeWithRetries(shotId, jobId, request, maxInAttemptResumes - 1);
           await persistCompletedTolerant(shotId, asset);
+          await commitRecordedPaidJob(ledger, paidCallKey(specFor(shotId, request)), { costUsd: asset.costUsd, resultRef: resultRefFor(shotId) }).catch(() => false);
           return asset;
         }
         await persistStartedIfRecoverable(shotId, err);
@@ -304,6 +355,7 @@ export function wrapDurableVideoProvider(inner: VideoProvider, opts: DurableVide
     try {
       await persistCompleted(shotId, asset);
     } catch (err) {
+      if (err instanceof SupplyUnavailableError) throw err;
       console.warn(
         `[atomivid:ai-video-durable] no se pudo persistir el clip COMPLETED de "${shotId}" — se usa el buffer en memoria; un reintento reanudará la operación ${asset.providerJobId ?? "(sin id)"} sin reenviar:`,
         err instanceof Error ? err.message : err,

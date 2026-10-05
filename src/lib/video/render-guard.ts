@@ -21,6 +21,7 @@ export type RenderStartRow = {
   mode?: string | null;
   /** JSONB de progreso de Long Form — su `updatedAt` es el latido del worker. */
   long_form_progress?: unknown;
+  supply_wait_started_at?: string | null;
 };
 
 export type RenderStartDecision =
@@ -72,6 +73,7 @@ function heartbeatOf(progress: unknown): number | null {
  * progreso) durante LONG_FORM_HEARTBEAT_STALE_MS.
  */
 export function isRenderStale(row: RenderStartRow, nowMs: number): boolean {
+  if (row.supply_wait_started_at) return false;
   const timestamp = row.render_started_at ?? row.created_at;
   if (row.status !== "processing" || !timestamp) return false;
   const startedAt = Date.parse(timestamp);

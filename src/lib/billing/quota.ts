@@ -28,7 +28,7 @@ const BETA_QA_AVATAR_MONTHLY_LIMIT = PLAN_CONFIGS.pro.monthlyAvatarLimit;
  * en absoluto, a la que se le sube a un piso de QA real (nunca se le baja
  * un límite ya incluido en su plan real).
  */
-function resolveAvatarLimit(plan: PlanConfig, user: MinimalUser): number {
+export function resolveAvatarLimit(plan: PlanConfig, user: MinimalUser): number {
   if (plan.monthlyAvatarLimit > 0) return plan.monthlyAvatarLimit;
   return canPrepareAvatar(user ?? null) ? BETA_QA_AVATAR_MONTHLY_LIMIT : plan.monthlyAvatarLimit;
 }
