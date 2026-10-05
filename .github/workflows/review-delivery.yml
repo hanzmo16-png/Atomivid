@@ -1,0 +1,50 @@
+name: Review delivery (DULCE Part I + Thermopylae, free, no providers)
+
+# Post-production for owner review only: rebuilds approved masters from Storage, applies the
+# authorized closing/branding edits with FFmpeg, uploads review deliverables and signs download
+# links. No paid provider key is exposed; nothing is published to YouTube.
+on:
+  push:
+    branches: [claude/hola-sn3dxy]
+    paths: [content/delivery/request.json]
+permissions:
+  contents: read
+concurrency:
+  group: review-delivery
+  cancel-in-progress: false
+jobs:
+  delivery:
+    if: github.ref == 'refs/heads/claude/hola-sn3dxy'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core zip >/dev/null
+      - name: Resolve request
+        id: request
+        run: |
+          node -e "const r=require('./content/delivery/request.json'); if(!['fetch','render'].includes(r.stage)) throw Error('bad stage'); require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'stage='+r.stage+'\n')"
+      - name: Fetch approved masters and sources
+        if: steps.request.outputs.stage == 'fetch'
+        run: node scripts/delivery/fetch.mjs
+        env:
+          DELIVERY_OUT: ${{ runner.temp }}/delivery
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Render, verify and publish review packages
+        if: steps.request.outputs.stage == 'render'
+        run: bash scripts/delivery/render.sh
+        env:
+          DELIVERY_OUT: ${{ runner.temp }}/delivery
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: review-delivery-${{ steps.request.outputs.stage }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/delivery/
+          retention-days: 30
+          if-no-files-found: ignore
