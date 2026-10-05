@@ -1,0 +1,7 @@
+{
+  "git": {
+    "deploymentEnabled": {
+      "codex/provider-monitor-ready": false
+    }
+  }
+}
