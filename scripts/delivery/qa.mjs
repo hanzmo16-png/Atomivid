@@ -66,7 +66,7 @@ report.checks = {
   noNewBlack: black.every(([s, e]) => s < 1.0 || dO.black.some(([os, oe]) => s <= oe + 0.5 && e >= os - 0.5)),
   noNewFrozenPicture: frozen.every((t) => dO.frozen.some((o) => Math.abs(o - t) < 1)),
   noNewSilentGaps: silence.every((t) => t > dur - 3 || dO.silence.some((o) => Math.abs(o - t) < 1)), loudnessNear14: Math.abs(loud.integratedLufs + 14) <= 1, truePeakSafe: loud.truePeakDbfs <= -1,
-  audioMatchesApproved: audioIdentical || nullTestRmsDb < -40, // a plain AAC 192k re-encode of the approved mix measures about -45 dB noAbruptVolumeJumpAtEdits: Math.abs(maxJump.db) < 12 || Math.abs(maxJump.db) <= Math.abs(maxJumpOriginal.db) + 1, unchangedPictureMatchesApproved: minOut.psnr >= 32,
+  audioMatchesApproved: audioIdentical || nullTestRmsDb < -40 /* a plain AAC 192k re-encode of the approved mix measures about -45 dB */, noAbruptVolumeJumpAtEdits: Math.abs(maxJump.db) < 12 || Math.abs(maxJump.db) <= Math.abs(maxJumpOriginal.db) + 1, unchangedPictureMatchesApproved: minOut.psnr >= 32,
 };
 report.passed = Object.values(report.checks).every(Boolean);
 await fs.writeFile(OUT, JSON.stringify(report, null, 2));
