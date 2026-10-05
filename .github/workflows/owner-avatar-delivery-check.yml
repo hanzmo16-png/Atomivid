@@ -1,0 +1,25 @@
+name: Check existing owner avatar delivery (no generation)
+on:
+  push:
+    branches: [codex/vfx-sequence-compositor]
+    paths: [scripts/owner-avatar-delivery-check.ts, .github/workflows/owner-avatar-delivery-check.yml]
+permissions:
+  contents: read
+concurrency:
+  group: owner-existing-avatar-readback
+  cancel-in-progress: false
+jobs:
+  delivery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node --import tsx scripts/owner-avatar-delivery-check.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
