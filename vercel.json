@@ -3,7 +3,8 @@
   "crons": [{ "path": "/api/cron/supply", "schedule": "*/5 * * * *" }],
   "git": {
     "deploymentEnabled": {
-      "codex/vfx-sequence-compositor": false
+      "codex/vfx-sequence-compositor": false,
+      "codex/provider-capacity-evidence": false
     }
   }
 }

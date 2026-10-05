@@ -25,13 +25,14 @@ export interface CommandCenterSource {
   costs(requestIds: string[]): Promise<CostRow[] | null>;
   paidOps(r: TimeRange): Promise<PaidOpRow[] | null>;
   capacity(): Promise<CapacityRow[] | null>;
+  capacityProviders(): Promise<string[] | null>;
   finalCutDecisions(r: TimeRange): Promise<FcDecisionRow[] | null>;
   youtubeChannels(): Promise<YtChannelRow[] | null>;
   youtubeLinks(): Promise<YtLinkRow[] | null>;
   youtubeRows(r: TimeRange): Promise<YtRowLite[] | null>;
 }
 
-export type MemoryData = Partial<{ users: { total: number; rows: UserRow[] }; subscriptions: SubscriptionRow[]; requests: RequestRow[]; costs: CostRow[]; paidOps: PaidOpRow[]; capacity: CapacityRow[]; finalCut: FcDecisionRow[]; ytChannels: YtChannelRow[]; ytLinks: YtLinkRow[]; ytRows: YtRowLite[] }> & { unavailable?: (keyof CommandCenterSource)[] };
+export type MemoryData = Partial<{ users: { total: number; rows: UserRow[] }; subscriptions: SubscriptionRow[]; requests: RequestRow[]; costs: CostRow[]; paidOps: PaidOpRow[]; capacity: CapacityRow[]; capacityProviders: string[]; finalCut: FcDecisionRow[]; ytChannels: YtChannelRow[]; ytLinks: YtLinkRow[]; ytRows: YtRowLite[] }> & { unavailable?: (keyof CommandCenterSource)[] };
 
 export function memorySource(d: MemoryData): CommandCenterSource {
   const un = new Set(d.unavailable ?? []);
@@ -43,6 +44,7 @@ export function memorySource(d: MemoryData): CommandCenterSource {
     async costs(ids) { return un.has("costs") ? null : (d.costs ?? []).filter((c) => ids.includes(c.requestId)); },
     async paidOps(r) { return un.has("paidOps") ? null : (d.paidOps ?? []).filter((x) => inR(x.updatedAt, r)); },
     async capacity() { return un.has("capacity") ? null : d.capacity ?? []; },
+    async capacityProviders() { return un.has("capacityProviders") ? null : d.capacityProviders ?? [...new Set((d.capacity ?? []).map(r => r.provider))]; },
     async finalCutDecisions(r) { return un.has("finalCutDecisions") ? null : (d.finalCut ?? []).filter((x) => inR(x.decidedAt, r)); },
     async youtubeChannels() { return un.has("youtubeChannels") ? null : d.ytChannels ?? []; },
     async youtubeLinks() { return un.has("youtubeLinks") ? null : d.ytLinks ?? []; },
@@ -75,6 +77,7 @@ export function supabaseSource(sb: SupabaseClient): CommandCenterSource {
     costs: (ids) => (ids.length ? q(() => sb.from("generation_costs").select("request_id,estimated_cost_usd,image_provider,image_cost_usd,premium_video_provider,premium_video_cost_usd,avatar_cost_usd,voice_provider,footage_provider,render_ms,regenerations").in("request_id", ids), (d) => ({ requestId: String(d.request_id), estimatedCostUsd: n(d.estimated_cost_usd), imageProvider: s(d.image_provider), imageCostUsd: n(d.image_cost_usd), premiumVideoProvider: s(d.premium_video_provider), premiumVideoCostUsd: n(d.premium_video_cost_usd), avatarCostUsd: n(d.avatar_cost_usd), voiceProvider: s(d.voice_provider), footageProvider: s(d.footage_provider), renderMs: n(d.render_ms), regenerations: n(d.regenerations) })) : Promise.resolve([])),
     paidOps: (r) => q(() => range(sb.from("pi_paid_operations").select("project_id,provider,method,reserved_usd,committed_usd,status,updated_at"), "updated_at", r), (d) => ({ projectId: String(d.project_id), provider: String(d.provider), method: String(d.method), reservedUsd: Number(d.reserved_usd), committedUsd: n(d.committed_usd), status: String(d.status), updatedAt: String(d.updated_at) })),
     capacity: () => q(() => sb.from("pi_capacity_snapshots").select("provider,unit,available,reserved,pending,status,reliability,renewal_date,checked_at").order("checked_at", { ascending: false }).limit(50), (d) => ({ provider: String(d.provider), unit: String(d.unit), available: n(d.available), reserved: Number(d.reserved ?? 0), pending: Number(d.pending ?? 0), status: String(d.status), reliability: String(d.reliability), renewalDate: s(d.renewal_date), checkedAt: String(d.checked_at) })),
+    capacityProviders: () => q(() => sb.from("pi_provider_accounts").select("provider"), d => String(d.provider)),
     finalCutDecisions: (r) => q(() => range(sb.from("fc_qa_decisions").select("production_id,master_id,to_state,decided_at"), "decided_at", r), (d) => ({ productionId: String(d.production_id), masterId: String(d.master_id), toState: String(d.to_state), decidedAt: String(d.decided_at) })),
     youtubeChannels: () => q(() => sb.from("yt_channels").select("channel_id,status,title"), (d) => ({ channelId: String(d.channel_id), status: String(d.status), title: String(d.title ?? "") })),
     youtubeLinks: () => q(() => sb.from("yt_video_links").select("project_id,channel_id,video_id,published_at").eq("status", "linked"), (d) => ({ projectId: String(d.project_id), channelId: String(d.channel_id), videoId: String(d.video_id), publishedAt: s(d.published_at) })),
