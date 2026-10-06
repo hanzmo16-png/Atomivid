@@ -1,4 +1,12 @@
 const BANNED_OPENERS = [
+  "¿alguna vez te has preguntado",
+  "alguna vez te has preguntado",
+  "have you ever wondered",
+  "en este video te voy a contar",
+  "hola, bienvenidos al canal",
+  "quédate hasta el final",
+  "stay until the end",
+  "3 secretos que nadie te dice",
   "welcome back to the channel",
   "in today's video",
   "in this video we",
