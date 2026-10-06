@@ -1,0 +1,30 @@
+name: Prepare documentary script
+on:
+  repository_dispatch:
+    types: [prepare-documentary-script]
+  workflow_dispatch: {}
+  push:
+    branches: [claude/atomivid-mvp-setup-0079jv]
+    paths: [.github/workflows/documentary-script.yml]
+permissions:
+  contents: read
+concurrency:
+  group: documentary-script-${{ github.event.client_payload.jobId || github.run_id }}
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Advance saved stages using production provider configuration
+        run: npx tsx scripts/documentary-script-worker.ts
+        env:
+          SCRIPT_JOB_ID: ${{ github.event.client_payload.jobId }}
+          SCRIPT_PROBE_ONLY: ${{ github.event_name != 'repository_dispatch' && 'true' || 'false' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

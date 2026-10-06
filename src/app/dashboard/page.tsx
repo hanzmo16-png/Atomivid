@@ -1,3 +1,5 @@
+import { ScriptJobCard } from "@/components/video/ScriptJobCard";
+import { scriptJobView, type ScriptJobSummary } from "@/lib/video/long-form/script-job-types";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { isSubscriptionActive } from "@/lib/billing/subscription";
@@ -15,9 +17,9 @@ import Link from "next/link";
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ created?: string }>;
+  searchParams: Promise<{ created?: string; script_job?: string }>;
 }) {
-  const { created } = await searchParams;
+  const { created, script_job } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -32,6 +34,11 @@ export default async function DashboardPage({
     .eq("user_id", user?.id ?? "")
     .order("created_at", { ascending: false })
     .returns<VideoRequestSummary[]>();
+
+  const { data: scriptJobs, error: scriptJobsError } = await supabase.from("documentary_script_jobs")
+    .select("id,topic,status,stage,error_message,request_id,created_at,updated_at")
+    .eq("user_id", user?.id ?? "").neq("status","completed").order("created_at",{ascending:false}).limit(30)
+    .returns<ScriptJobSummary[]>();
 
   // QA blocker real (2026-09-25): un fallo de esta consulta (p. ej. una
   // migración aditiva todavía no aplicada en producción, como pasó con
@@ -80,7 +87,7 @@ export default async function DashboardPage({
 
   return (
     <div>
-      <AutoRefresh active={hasProcessing} />
+      <AutoRefresh active={hasProcessing || (scriptJobs ?? []).some(job => scriptJobView(job, nowMs).refresh)} />
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -112,6 +119,7 @@ export default async function DashboardPage({
           </Alert>
         )}
 
+        {script_job && <Alert tone="info">La preparación está guardada. Puedes salir; el progreso aparecerá en tu historial.</Alert>}
         {created && (
           <Alert tone="success">
             Tu solicitud se guardó correctamente. Pulsa &quot;Generar guion&quot; para
@@ -120,6 +128,8 @@ export default async function DashboardPage({
         )}
       </div>
 
+      {scriptJobsError && <Alert tone="danger">No se pudo consultar la preparación de guiones. No crees otra solicitud: vuelve a cargar el historial.</Alert>}
+      {(scriptJobs ?? []).length > 0 && <ul className="mt-6 space-y-3">{scriptJobs!.map(job => <li key={job.id}><ScriptJobCard job={job} nowMs={nowMs}/></li>)}</ul>}
       {historyState.kind === "error" ? (
         <div className="mt-4">
           <Alert tone="danger" role="alert">
@@ -127,7 +137,7 @@ export default async function DashboardPage({
             recarga la página en un momento. Si el problema sigue, contacta al soporte.
           </Alert>
         </div>
-      ) : historyState.kind === "empty" ? (
+      ) : historyState.kind === "empty" ? ((scriptJobs?.length || scriptJobsError) ? null : (
         <div className="mt-10">
           <EmptyState
             icon={
@@ -140,7 +150,7 @@ export default async function DashboardPage({
             action={<LinkButton href="/dashboard/new">Crear contenido</LinkButton>}
           />
         </div>
-      ) : (
+      )) : (
         <ul className="mt-6 space-y-3">
           {historyState.requests.map((req) => (
             <li key={req.id}>

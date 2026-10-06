@@ -1,20 +1,11 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
-import { withDocumentarySupplyContext } from "@/lib/supply/anthropic";
-import { isInternalProductionOwner } from "@/lib/billing/internal-production";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
-import { loadCreativeHistory } from "@/lib/video/long-form/creative-history";
-import { researchDocumentary, RESEARCH_VERSION } from "@/lib/video/long-form/research";
-import type { LongFormSource } from "@/lib/video/long-form/types";
-import { generateDocumentaryScript } from "@/lib/video/long-form/documentary-script";
-import { EDITORIAL_VERSION, type EditorialReport } from "@/lib/video/long-form/editorial";
-import type { LongFormScriptJson } from "@/lib/video/long-form/produce";
-import { parseOpenQuestions, parseSources } from "./parse";
-import { generateDiagnosticId } from "@/lib/video/render-error";
-import { documentaryFormError } from "@/lib/video/long-form/form-error";
+import { enqueueScriptJob } from "@/lib/video/long-form/script-jobs";
+import { dispatchScriptJob } from "@/lib/video/long-form/script-job-dispatch";
 
 const MIN_DURATION_MINUTES = 3;
 const MAX_DURATION_MINUTES = 15;
@@ -41,26 +32,6 @@ function longFormFormRedirect(
     language: fields.language,
   });
   redirect(`/dashboard/long-form/new?${params.toString()}`);
-}
-
-/**
- * Nunca se expone al cliente el texto crudo de un error de Postgres (p.
- * ej. "violates check constraint video_requests_duration_seconds_check")
- * — ni su nombre de constraint, ni su detalle interno. El código
- * '23514' es check_violation (mismo código para duration_seconds, mode,
- * aspect_ratio, etc. — cualquier CHECK de video_requests). Se registra el
- * detalle completo server-side junto a un diagnosticId (mismo patrón que
- * generateDiagnosticId ya usa run-job.ts/render-error.ts) para que
- * soporte pueda investigar sin adivinar, sin que el usuario vea nada
- * técnico.
- */
-function classifyInsertError(error: { message: string; code?: string }): string {
-  const diagnosticId = generateDiagnosticId();
-  console.error(`[atomivid:long-form-insert] (Código: ${diagnosticId}) [${error.code ?? "sin código"}] ${error.message}`);
-  if (error.code === "23514") {
-    return `No se pudo guardar la solicitud: algún valor del formulario está fuera de rango. Revisa la duración y vuelve a intentarlo. (Código: ${diagnosticId})`;
-  }
-  return `No se pudo guardar la solicitud. Inténtalo de nuevo en unos minutos. (Código: ${diagnosticId})`;
 }
 
 export async function createLongFormVideoRequest(formData: FormData) {
@@ -102,62 +73,25 @@ export async function createLongFormVideoRequest(formData: FormData) {
   if (sourcesRaw.length > 12000 || openQuestionsRaw.length > 4000) {
     longFormFormRedirect("Acorta las referencias a 12.000 caracteres y las preguntas a 4.000.", submittedFields);
   }
-  const references = parseSources(sourcesRaw);
-  const openQuestions = parseOpenQuestions(openQuestionsRaw);
-
-  // Research, writer, critic and bounded correction share owner-scoped durable
-  // accounting. A failure creates no partially approved video request.
-  let beats: Awaited<ReturnType<typeof generateDocumentaryScript>>;
-  let editorial: EditorialReport | undefined;
-  let sources: LongFormSource[] = [];
+  let job: {id:string;status:string};
   try {
-    const creativeHistory = await loadCreativeHistory(supabase, user.id);
-    beats = await withDocumentarySupplyContext(user.id,
-      { ...submittedFields, editorialVersion: EDITORIAL_VERSION, researchVersion: RESEARCH_VERSION, creativeHistory },
-      isInternalProductionOwner(user), async () => {
-        const researchPack = await researchDocumentary({ topic, references, openQuestions });
-        sources = researchPack.sources;
-        return generateDocumentaryScript({
-          researchPack, creativeHistory, mode: "curiosity_documentary", language,
-          targetDurationSeconds: durationMinutes * 60,
-          onEditorialApproved: report => { editorial = report; },
-        });
-      });
-  } catch (err) {
-    const message = reportScriptError(err);
-    longFormFormRedirect(message, submittedFields);
+    job = await enqueueScriptJob(supabase, user, { ...submittedFields, language });
+  } catch {
+    longFormFormRedirect("No se pudo guardar la preparación. No se inició ninguna generación; conserva los datos y vuelve al historial para comprobarlo.", submittedFields);
   }
-  if (!editorial) longFormFormRedirect("La revisión editorial no terminó. No se inició la producción audiovisual.", submittedFields);
-
-  const scriptJson: LongFormScriptJson = {
-    topic,
-    beats: beats.map((beat, i) => ({ id: `beat-${i + 1}`, ...beat })),
-    editorial,
-    sources,
-  };
-
-  const { error } = await supabase.from("video_requests").insert({
-    id: randomUUID(),
-    user_id: user.id,
-    topic,
-    style: "Documental",
-    duration_seconds: durationMinutes * 60,
-    language,
-    mode: "long_form",
-    aspect_ratio: "16:9",
-    script_json: scriptJson,
-    status: "script_ready",
-  });
-
-  if (error) {
-    longFormFormRedirect(classifyInsertError(error), submittedFields);
-  }
-
-  redirect("/dashboard?created=1");
+  if (job.status === "queued") after(() => dispatchScriptJob(job.id));
+  redirect(`/dashboard?script_job=${job.id}`);
 }
 
-function reportScriptError(error: unknown): string {
-  const id = generateDiagnosticId();
-  console.error(`[atomivid:long-form-script] (Código: ${id})`, error);
-  return documentaryFormError(error, id);
+/** Resume dispatch only for a persisted, owner-scoped QUEUED job. Never reset a
+ * failed/running paid operation, create a new job or change its fingerprint. */
+export async function resumeQueuedScriptJob(formData: FormData) {
+  const client=await createClient();
+  const {data:{user}}=await client.auth.getUser();
+  if(!user) redirect("/login");
+  if(!canAccessLongFormBeta(user)) redirect("/dashboard");
+  const id=String(formData.get("job_id")??"");
+  const {data:job}=await client.from("documentary_script_jobs").select("id,status,updated_at,error_message").eq("id",id).eq("user_id",user.id).maybeSingle();
+  if(job?.status==="queued" && (job.error_message || Date.now()-Date.parse(job.updated_at)>90000)) after(()=>dispatchScriptJob(job.id));
+  redirect("/dashboard");
 }

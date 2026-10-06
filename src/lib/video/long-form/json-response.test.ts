@@ -41,8 +41,8 @@ test("real SDK serialization uses no compiled grammar for writer AND critic; edi
     assert.equal(body.output_config?.format, undefined);
     assert.equal(body.tools, undefined);
     assert.match(body.system, /OUTPUT CONTRACT/);
-    const data = requests.length === 1 ? script : passingReview(script);
-    assert.ok(requests.length <= 2, "no hidden retries");
+    const data = requests.length === 1 ? script : requests.length === 2 ? passingReview(script) : { visuals: script.beats[requests.length - 3].visuals };
+    assert.ok(requests.length <= 7, "no hidden retries");
     return new Response(JSON.stringify({ id: "msg_fixture", type: "message", role: "assistant", model: body.model,
       ...response(data), stop_sequence: null, usage: { input_tokens: 100, output_tokens: 200 } }),
       { status: 200, headers: { "content-type": "application/json" } });
@@ -50,7 +50,11 @@ test("real SDK serialization uses no compiled grammar for writer AND critic; edi
   try {
     let approved = false;
     const beats = await generateDocumentaryScript({ researchPack: { topic: "A legend examined", sources: [{ id: "s1", title: "Archive", kind: "primary", notes: "An allegation" }], openQuestions: [] }, mode: "curiosity_documentary", targetDurationSeconds: 180, onEditorialApproved: () => { approved = true; } });
-    assert.equal(beats.length, 5); assert.equal(approved, true); assert.equal(requests.length, 2);
+    assert.equal(beats.length, 5); assert.equal(approved, true); assert.equal(requests.length, 7);
+    const contract = JSON.parse(requests[0].system.split("All constraints apply.\n")[1]);
+    const item = contract.properties.beats.items;
+    const shape = item.$ref ? contract.$defs[item.$ref.split("/").at(-1)] : item;
+    assert.equal(shape.properties.visuals, undefined);
     assert.match(requests[0].system, /creativeDirection/); assert.match(requests[1].system, /findings/);
   } finally { globalThis.fetch = oldFetch; if (oldKey === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = oldKey; }
 });
