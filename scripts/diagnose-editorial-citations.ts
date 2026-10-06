@@ -1,3 +1,4 @@
+import {canonicalizeEditorialCitations,invalidEditorialCitations} from '../src/lib/video/long-form/editorial-evidence';
 /** Read-only. Only structural statistics leave the runner, never private text. */
 import {createClient} from '@supabase/supabase-js';
 import {DocumentaryNarrativeSchema} from '../src/lib/video/long-form/documentary-script';
@@ -26,6 +27,7 @@ async function main(){
   const exact=n.includes(e.quote),norm=normalized(n).includes(normalized(e.quote));
   if(!exact||e.quote.trim().split(/\s+/).length<3)console.log(JSON.stringify({path,beatIndex:e.beatIndex,words:e.quote.trim().split(/\s+/).length,exact,typographyMatch:norm,exactOtherBeats:script.beats.flatMap((b:any,i:number)=>b.narration.includes(e.quote)?[i]:[]),typographyOtherBeats:script.beats.flatMap((b:any,i:number)=>normalized(b.narration).includes(normalized(e.quote))?[i]:[]),hasEllipsis:/\.\.\.|…/.test(e.quote),quoteLength:e.quote.length,onlyPunctuation:!/[a-zA-Z]/.test(e.quote),placeholder:/^(?:n\/?a|none|absent|ausente|ninguna|no\s+cta|\[.*?\]|\(.*?\))$/i.test(e.quote.trim()),ellipsisParts:e.quote.split(/\.{3}|…/).map((p:string)=>({words:p.trim().split(/\s+/).length,found:normalized(n).includes(normalized(p))}))}));
  }
- try{validateEditorialReview(review,script);console.log('review_validation=pass');}catch{console.log('review_validation=fail');}
+ const canonical=canonicalizeEditorialCitations(review,script.beats);console.log(JSON.stringify({invalidBefore:invalidEditorialCitations(review,script.beats).length,invalidAfterLiteralExpansion:invalidEditorialCitations(canonical,script.beats).length}));
+ try{validateEditorialReview(canonical,script);console.log('review_validation=pass');}catch{console.log('review_validation=fail');}
 }
 main().catch(()=>{console.error('Read-only editorial diagnostic failed');process.exitCode=1;});
