@@ -16,6 +16,7 @@
  * equivalente).
  */
 import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
+import { documentaryOutputBudget } from "./script-output-budget";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
@@ -205,14 +206,19 @@ con lo narrado — si la narración habla de 1904 en Panamá, la escena no puede
   const parse: ScriptParse =
     input.parse ??
     (async (args) => {
+      const outputBudget = documentaryOutputBudget(SCRIPT_MODEL);
       const params = {
         model: SCRIPT_MODEL,
-        max_tokens: 8000,
+        max_tokens: outputBudget.max_tokens,
         system: args.system,
         messages: [{ role: "user" as const, content: args.prompt }],
-        output_config: { format: zodOutputFormat(DocumentaryScriptSchema) },
+        output_config: { format: zodOutputFormat(DocumentaryScriptSchema),
+          ...(outputBudget.effort ? { effort: outputBudget.effort } : {}) },
       };
       const response = await supplyProtectedAnthropic(params, () => getClient().messages.parse(params, { maxRetries: 0 }));
+      if (!response.parsed_output && response.stop_reason === "max_tokens") {
+        throw new Error("El guion alcanzó el límite de salida del modelo. El consumo quedó registrado; no se reintentó automáticamente.");
+      }
       return response.parsed_output ?? null;
     });
 
