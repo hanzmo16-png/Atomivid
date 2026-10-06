@@ -1,4 +1,5 @@
 import { getVoiceProvider } from "@/lib/providers/voice";
+import { editorialApprovalError } from "./long-form/editorial";
 import { jobSupplyDemands, reserveJobSupply, releaseUnusedJobSupply } from "@/lib/supply/job";
 import { withSupplyContext } from "@/lib/supply/anthropic";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
@@ -133,6 +134,10 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     if (mode !== "long_form" && !row.script_json) throw new Error("No hay guion guardado para renderizar.");
     if (mode === "long_form" && !isLongFormScriptJson(row.script_json)) {
       throw new Error("El guion guardado no tiene la forma esperada para Long Form (topic + beats[] con narración).");
+    }
+    if (mode === "long_form" && isLongFormScriptJson(row.script_json)) {
+      const editorialError = editorialApprovalError(row.script_json);
+      if (editorialError) throw new Error(editorialError);
     }
     // Defensa en profundidad (además de la puerta de render/route.ts): sin
     // confirmación humana, con un plan inválido/de versión desconocida, o

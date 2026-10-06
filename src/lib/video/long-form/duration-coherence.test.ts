@@ -9,6 +9,7 @@ import { generateDocumentaryScript, LongFormScriptDurationError, type Documentar
 import { shotsForSpan } from "./shots";
 import { computeProductionPlan, REAL_LONG_FORM_PROVIDER_NAMES } from "./production-plan";
 import { documentary180sFixture } from "./test-fixtures";
+import { editorialFixture, passingReview } from "./editorial.test-fixtures";
 
 /**
  * P0 2026-09-25 (Canal de Panamá): 180 s pedidos → plan ~4m33 → render
@@ -37,6 +38,7 @@ test("presupuesto de palabras: 180 s → ~450 palabras en 5 beats (antes: ≥ 75
 function fakeScript(wordsPerBeat: number, beats = 5): DocumentaryScript {
   const narration = Array.from({ length: wordsPerBeat }, (_, i) => (i === 0 ? "Panamá" : "palabra")).join(" ") + ".";
   return {
+    storyPlan: editorialFixture(wordsPerBeat).storyPlan,
     title: "t",
     workingTitleOptions: ["t"],
     hook: "En 1914 un barco cruzó dos océanos en ocho horas.",
@@ -61,6 +63,7 @@ test("tolerancia aplicada: guion largo (Panamá: ~153 palabras/beat) → UNA cor
     researchPack: pack as never,
     mode: "curiosity_documentary",
     targetDurationSeconds: 180,
+    review: async ({ prompt }) => passingReview(JSON.parse(prompt).script),
     parse: async ({ prompt }) => {
       prompts.push(prompt);
       return prompts.length === 1 ? fakeScript(153) : fakeScript(90);
@@ -81,6 +84,7 @@ test("tolerancia aplicada: si tras la corrección sigue fuera de ±25% → no se
         researchPack: pack as never,
         mode: "curiosity_documentary",
         targetDurationSeconds: 180,
+        review: async ({ prompt }) => passingReview(JSON.parse(prompt).script),
         parse: async () => ((calls += 1), fakeScript(153)),
       }),
     (err: unknown) => err instanceof LongFormScriptDurationError,
@@ -94,6 +98,7 @@ test("tolerancia: un guion dentro de ±15% no se corrige (una sola llamada)", as
     researchPack: pack as never,
     mode: "curiosity_documentary",
     targetDurationSeconds: 180,
+    review: async ({ prompt }) => passingReview(JSON.parse(prompt).script),
     parse: async () => ((calls += 1), fakeScript(95)),
   });
   assert.equal(calls, 1);

@@ -6,7 +6,10 @@ import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
+import { researchDocumentary, RESEARCH_VERSION } from "@/lib/video/long-form/research";
+import type { LongFormSource } from "@/lib/video/long-form/types";
 import { generateDocumentaryScript } from "@/lib/video/long-form/documentary-script";
+import { EDITORIAL_VERSION, type EditorialReport } from "@/lib/video/long-form/editorial";
 import type { LongFormScriptJson } from "@/lib/video/long-form/produce";
 import { parseOpenQuestions, parseSources } from "./parse";
 import { generateDiagnosticId } from "@/lib/video/render-error";
@@ -94,36 +97,40 @@ export async function createLongFormVideoRequest(formData: FormData) {
     );
   }
 
-  const sources = parseSources(sourcesRaw);
-  if (sources.length === 0) {
-    longFormFormRedirect(
-      "Agrega al menos una fuente verificada. Un documental de Long Form nunca se genera sin fuentes.",
-      submittedFields,
-    );
+  if (sourcesRaw.length > 12000 || openQuestionsRaw.length > 4000) {
+    longFormFormRedirect("Acorta las referencias a 12.000 caracteres y las preguntas a 4.000.", submittedFields);
   }
+  const references = parseSources(sourcesRaw);
   const openQuestions = parseOpenQuestions(openQuestionsRaw);
 
-  // Llamada real a Claude (mismo costo/patrón que el guion de Reel) —
-  // nunca genera contenido factual sin las fuentes de arriba, ver
-  // documentary-script.ts. Cualquier fallo (sin ANTHROPIC_API_KEY, hook
-  // genérico rechazado, opener prohibido, etc.) se reporta y NO crea una
-  // solicitud a medias.
+  // Research, writer, critic and bounded correction share owner-scoped durable
+  // accounting. A failure creates no partially approved video request.
   let beats: Awaited<ReturnType<typeof generateDocumentaryScript>>;
+  let editorial: EditorialReport | undefined;
+  let sources: LongFormSource[] = [];
   try {
-    beats = await withDocumentarySupplyContext(user.id, submittedFields, isInternalProductionOwner(user), () => generateDocumentaryScript({
-      researchPack: { topic, sources, openQuestions },
-      mode: "curiosity_documentary",
-      language,
-      targetDurationSeconds: durationMinutes * 60,
-    }));
+    beats = await withDocumentarySupplyContext(user.id,
+      { ...submittedFields, editorialVersion: EDITORIAL_VERSION, researchVersion: RESEARCH_VERSION },
+      isInternalProductionOwner(user), async () => {
+        const researchPack = await researchDocumentary({ topic, references, openQuestions });
+        sources = researchPack.sources;
+        return generateDocumentaryScript({
+          researchPack, mode: "curiosity_documentary", language,
+          targetDurationSeconds: durationMinutes * 60,
+          onEditorialApproved: report => { editorial = report; },
+        });
+      });
   } catch (err) {
     const message = err instanceof Error ? err.message : "No se pudo generar el guion documental.";
     longFormFormRedirect(message, submittedFields);
   }
+  if (!editorial) longFormFormRedirect("La revisión editorial no terminó. No se inició la producción audiovisual.", submittedFields);
 
   const scriptJson: LongFormScriptJson = {
     topic,
     beats: beats.map((beat, i) => ({ id: `beat-${i + 1}`, ...beat })),
+    editorial,
+    sources,
   };
 
   const { error } = await supabase.from("video_requests").insert({

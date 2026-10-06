@@ -37,7 +37,7 @@ test("page.tsx declara maxDuration explícito — los Server Actions heredan el 
   const source = readPage();
   assert.match(
     source,
-    /export const maxDuration = 120/,
+    /export const maxDuration = 300/,
     "sin esto, Vercel corta la función a medias antes de que createLongFormVideoRequest llegue a insertar la fila o a su propio error — el submit se ve como si no hiciera nada",
   );
 });
@@ -59,7 +59,7 @@ test("SubmitButton.tsx: usa useFormStatus para mostrar estado de carga y protege
   assert.match(source, /const \{ pending \} = useFormStatus\(\)/);
   assert.match(source, /loading=\{pending\}/, "debe mostrar el spinner ya establecido por Button.tsx mientras está pendiente");
   assert.match(source, /disabled=\{pending\}/, "el botón debe deshabilitarse mientras está pendiente, para que un segundo click no dispare un segundo submit");
-  assert.match(source, /pending \? "Generando guion…" : "Generar guion"/);
+  assert.match(source, /pending \? "Investigando y revisando guion…" : "Crear y revisar guion"/);
 });
 
 test('open_questions sigue siendo opcional: el <textarea> no tiene el atributo "required"', () => {
@@ -69,18 +69,13 @@ test('open_questions sigue siendo opcional: el <textarea> no tiene el atributo "
   assert.ok(!match![0].includes("required"), 'open_questions nunca debe volver a marcarse required — el campo está explícitamente etiquetado "(opcional)"');
 });
 
-test("sources sigue siendo obligatorio en el HTML (required) Y en el servidor (al menos 1 fuente parseada)", () => {
-  const pageSource = readPage();
-  const sourcesMatch = pageSource.match(/<textarea\s+id="sources"[\s\S]*?\/>/);
-  assert.ok(sourcesMatch, "no se encontró el textarea de sources");
-  assert.ok(sourcesMatch![0].includes("required"), "el HTML debe seguir marcando sources como required");
-
-  const actionsSource = readActions();
-  assert.match(
-    actionsSource,
-    /if \(sources\.length === 0\) \{\s*longFormFormRedirect\(/,
-    "un documental factual de Long Form nunca debe generarse sin al menos una fuente verificada — no relajar esta regla",
-  );
+test("references are optional, but retrieved research precedes script generation", () => {
+  const match = readPage().match(/<textarea\s+id="sources"[\s\S]*?\/>/);
+  assert.ok(match && !match[0].includes("required"));
+  const action = readActions();
+  assert.ok(action.indexOf("await researchDocumentary(") < action.indexOf("return generateDocumentaryScript("));
+  assert.match(action, /researchPack, mode:/);
+  assert.ok(!action.includes("researchPack: { topic, sources"), "raw URLs must not be treated as retrieved sources");
 });
 
 test("duration_minutes=3 es válido: el contrato server-side usa < (estricto), no <=", () => {
@@ -97,7 +92,7 @@ test("createLongFormVideoRequest: la generación real (Anthropic) está envuelta
   const source = readActions();
   assert.match(
     source,
-    /try \{\s*beats = await generateDocumentaryScript\(/,
+    /try \{\s*beats = await withDocumentarySupplyContext\([\s\S]*?generateDocumentaryScript\(/,
     "la llamada real al proveedor debe seguir envuelta en try/catch para convertir cualquier fallo en un error visible, nunca en un submit silencioso",
   );
   assert.match(
@@ -217,7 +212,7 @@ test("page.tsx: topic/duration_minutes/sources/open_questions se leen de searchP
   const source = readPage();
   assert.match(source, /topic\?: string;\s*duration_minutes\?: string;\s*sources\?: string;\s*open_questions\?: string;/);
   assert.match(source, /defaultValue=\{topic \?\? ""\}/);
-  assert.match(source, /defaultValue=\{durationMinutes \?\? "10"\}/);
+  assert.match(source, /defaultValue=\{durationMinutes \?\? "7"\}/);
   assert.match(source, /defaultValue=\{sources \?\? ""\}/);
   assert.match(source, /defaultValue=\{openQuestions \?\? ""\}/);
 });
