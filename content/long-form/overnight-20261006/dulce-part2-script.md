@@ -53,7 +53,7 @@ This is why our own images need labels. If a frame from this episode appears els
 
 ## 6 — The trail of disinformation
 
-Part One also introduced Paul Bennewitz as a separate thread in the wider Dulce discussion. We must not treat his name as a bridge that automatically verifies the Castello story. These strands require separate sourcing, and the exact links between them remain a research question for this draft.
+Part One also introduced Paul Bennewitz as a separate thread in the wider Dulce discussion. We must not treat his name as a bridge that automatically verifies the Castello story. His story needs to be investigated on its own terms. Placing two names side by side does not establish that their experiences were connected.
 
 The filmmakers behind Mirage Men offer a different perspective on UFO narratives. On their own project website, they describe investigating Richard Doty and allegations that disinformation was introduced into UFO communities around sensitive military activity. This is their account of an investigation, not an official finding that settles every claim about Dulce.
 

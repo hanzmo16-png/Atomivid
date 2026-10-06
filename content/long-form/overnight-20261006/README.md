@@ -55,3 +55,11 @@ The unmodified eligibility vocabulary allocated zero generated clips to these dr
 The current automatic plans still allocate only **one** new clip for DULCE II and **two** for Achilles/Genghis. These estimates do **not** meet the complete editorial motion plan yet. DULCE's approved reusable clips can add real animation once integrated, but no reuse discount or resolved asset has been claimed. Do not confirm these plans until motion placement and reuse are reconciled. Stock-search placeholders are not approved historical visuals.
 
 The proposed larger closing credit passes TypeScript and the three existing long-form independence checks. A local frame-render attempt was blocked by the environment's `os.networkInterfaces()` error before a frame was produced. Visual sign-off and owner-specific app wiring are pending; no preview image or finished frame exists.
+
+### Second preparation pass — 6 October 2026
+
+See `salamis-editorial-corrections.md` for a sourced replacement payoff and a contiguous 90-second opening proposal with four moving clips (32 seconds of used action). The current app script could not be reread because the database connector rejected authentication; none of these edits was applied to the live request or its confirmed plan.
+
+Removed production-note language from the two draft narrations and regenerated their estimates/hashes. DULCE II is now 1,432 words / 8,980 characters; Achilles/Genghis is 1,451 words / 9,198 characters. With the last recorded Salamis script, the total is 26,624 characters. Compare against a fresh provider observation before booking narration; no live capacity was verified in this pass.
+
+The existing no-provider fixture workflow now also renders the opt-in closing credit at frames 0 and 285 of a ten-second black-background fixture. This is a layout check only, not documentary production. A successful workflow and inspection of its artifact are still required before visual sign-off. No paid generation keys were added to the workflow.

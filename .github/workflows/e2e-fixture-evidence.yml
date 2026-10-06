@@ -50,6 +50,13 @@ jobs:
         run: npx tsx scripts/test-pipeline-avatar.ts /tmp/avatar-test.jpg --out-dir evidence/avatar
       - name: Render generated-image and stock fixtures and validate MP4
         run: npx tsx scripts/test-pipeline-visual-mix.ts --out-dir evidence/visual-mix
+      - name: Render opt-in long-form closing credit (no providers)
+        run: |
+          mkdir -p evidence/closing-credit
+          printf '%s\n' '{"audioUrl":"","durationSeconds":10,"scenes":[],"captions":[],"closingCredit":true}' > /tmp/closing-credit-props.json
+          npx remotion still remotion/index.ts LongFormDoc evidence/closing-credit/before-credit.png --props=/tmp/closing-credit-props.json --frame=0
+          npx remotion still remotion/index.ts LongFormDoc evidence/closing-credit/closing-credit.png --props=/tmp/closing-credit-props.json --frame=285
+          printf '%s\n' 'Synthetic black-background layout preview only. Frame 0: no credit. Frame 285: final-three-second credit. No narration, footage or provider calls; not a finished documentary.' > evidence/closing-credit/README.txt
       - name: Publish verified simulated videos
         uses: actions/upload-artifact@v4
         with:

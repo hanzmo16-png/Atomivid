@@ -21,7 +21,7 @@ In Book Sixteen, Achilles sends Patroclus into the fighting with the Myrmidons a
 
 Our comparison will not import every later legend or every movie costume. We will not simply declare Achilles invulnerable and then pretend the result tells us something about military skill. For the physical scenarios, divine intervention is excluded. Achilles retains the exceptional martial ability of his literary characterization, but not an automatic supernatural victory.
 
-His force is also not a unit of classical Spartans borrowed from Thermopylae. The Myrmidons belong to a different narrative and period. Our images must communicate that difference. A matching gold color palette can connect a channel's identity; it cannot erase historical distinctions between its subjects.
+His force is also not a unit of classical Spartans borrowed from Thermopylae. The Myrmidons belong to a different narrative and period. These are different fighting traditions, separated by centuries. Before we compare courage or command, we have to keep the men, their weapons, and their worlds distinct.
 
 ## 3 — What Genghis brings
 
