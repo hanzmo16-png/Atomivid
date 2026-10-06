@@ -71,11 +71,25 @@ async function main() {
   }
 
   const { runRenderJob } = await import("../src/lib/video/run-job");
+  const { monitorSupply } = await import("../src/lib/supply/monitor");
+  // Read-only billing GETs keep API-backed observations fresh during a long
+  // render. Manual OpenAI/Anthropic observations retain their original age.
+  const service = createServiceClient();
+  let refreshing = false;
+  const refresh = async () => {
+    if (refreshing) return;
+    refreshing = true;
+    try { await monitorSupply(service); } finally { refreshing = false; }
+  };
+  await refresh();
+  const supplyTimer = setInterval(() => {
+    void refresh().catch(() => { /* Existing supply gates fail closed on stale/failed reads. */ });
+  }, 120_000);
   const original = { log: console.log, warn: console.warn, error: console.error };
   try {
     console.log = console.warn = console.error = () => {};
     await runRenderJob(requestId, attempt);
-  } finally { Object.assign(console, original); }
+  } finally { clearInterval(supplyTimer); Object.assign(console, original); }
 }
 
 main().catch(() => {

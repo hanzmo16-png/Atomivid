@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { VoiceProvider } from "@/lib/providers/types";
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 import { PaidResultUnavailableError } from "@/lib/paid-calls/errors";
+import { getPricingConfig } from "@/lib/billing/pricing";
 import {
   synthesizeBeatNarrationProductionCached,
   readProductionTtsCacheRecord,
@@ -94,12 +95,15 @@ test("1. beat nuevo (sin registro) → sintetiza, marca COMPLETED, reused=false"
   assert.equal(getCallCount(), 1);
   assert.equal(result.reused, false);
   assert.ok(result.audioBuffer.byteLength > 0);
+  assert.equal(result.costUsd, BEAT.narration.length / 1000 * getPricingConfig().elevenLabsUsdPer1kChars,
+    "normal app production must account for prepaid voice even without an optional costGuard");
 
   const identity = { videoId: VIDEO_ID, beatId: BEAT.id, text: BEAT.narration, voiceId: VOICE_IDENTITY.voiceId, modelId: VOICE_IDENTITY.modelId, voiceSettingsJson: VOICE_IDENTITY.voiceSettingsJson, language: "es", providerName: "elevenlabs" };
   const { computeTtsCacheKey } = await import("./tts-cache");
   const key = computeTtsCacheKey(identity);
   const record = await readProductionTtsCacheRecord(fake, BUCKET, VIDEO_ID, key);
   assert.equal(record?.status, "COMPLETED");
+  assert.equal(record?.costUsd, result.costUsd);
 });
 
 test("2. beat completado y válido → REUSE, el proveedor no se llama de nuevo", async () => {
