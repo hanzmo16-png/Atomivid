@@ -1,4 +1,4 @@
-/** All quantities are provider units. Missing/future/stale evidence never authorizes spend. */
+/** All quantities are provider units. Manual observations persist; API evidence expires. */
 export type SupplyLevel = "GREEN" | "YELLOW" | "RED" | "UNKNOWN";
 export type SupplyState = {
   unit?: string; provider: string; level: SupplyLevel; free: number | null; remainingRatio: number | null;
@@ -12,9 +12,12 @@ export function assessSupply(input: {
 }): SupplyState {
   const base = { provider: input.provider, free: null, remainingRatio: null, coverageHours: null };
   const age = input.checkedAt ? input.now - Date.parse(input.checkedAt) : NaN;
-  const maxAge = input.reliability === "manual_entry" ? 1_800_000 : 300_000;
+  // Manual balances are a starting balance, not a live wallet read. The SQL gate
+  // subtracts all consumption since checkedAt and unresolved holds on every call.
+  const usableObservation = Number.isFinite(age) && age >= 0
+    && (input.reliability === "manual_entry" || age <= 300_000);
   if (!input.reliable || input.available === null || !Number.isFinite(input.available)
-    || input.reliability === "none" || input.available < 0 || !(age >= 0 && age <= maxAge) || !(input.baseline > 0))
+    || input.reliability === "none" || input.available < 0 || !usableObservation || !(input.baseline > 0))
     return { ...base, level: "UNKNOWN", reason: "unverified, stale or unconfigured supply" };
   const free = Math.max(0, input.available - input.held);
   const remainingRatio = free / input.baseline;

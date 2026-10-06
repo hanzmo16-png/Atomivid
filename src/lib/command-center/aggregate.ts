@@ -96,7 +96,7 @@ export type ProviderCapacity = {
   unit: string; reserved: number | null; queued: number | null;
   renewalDate: string | null; checkedAt: string | null; note: string;
 };
-/** Match the supply gate's five-minute evidence window; do not trust a persisted GREEN. */
+/** Live API evidence only. Manual ledger estimates are shown in SupplyPanel. */
 export const CAPACITY_MAX_AGE_MS = 300_000;
 export function aggregateProviders(rows: CapacityRow[] | null, now: string, expectedProviders: string[] | null) {
   if (!rows || !expectedProviders) return { state: "UNAVAILABLE" as MetricState, providers: [] as ProviderCapacity[] };
@@ -115,7 +115,9 @@ export function aggregateProviders(rows: CapacityRow[] | null, now: string, expe
       && Number.isFinite(r.reserved) && r.reserved >= 0 && Number.isFinite(r.pending) && r.pending >= 0;
     const verified = fresh && valid && r.reliability === "provider_api";
     const state: ProviderState = !verified ? "UNKNOWN" : r.status === "RED" || r.available! <= r.reserved ? "INSUFFICIENT" : r.status === "GREEN" ? "HEALTHY" : r.status === "YELLOW" ? "LIMITED" : "UNKNOWN";
-    const note = !fresh ? `Balance needs refresh; last check: ${r.checkedAt}` : !valid ? "Provider balance unavailable: invalid quantities" : r.reliability !== "provider_api" ? `Provider balance unavailable: ${r.reliability} is not live API evidence` : state === "UNKNOWN" ? "Provider balance unavailable: status unverified" : "provider-reported balance";
+    const note = r.reliability === "manual_entry"
+      ? "Saldo manual sin caducidad. Consulta el saldo estimado tras consumo y reservas en Suministro de producción; no es una lectura en vivo del proveedor."
+      : !fresh ? `Balance needs refresh; last check: ${r.checkedAt}` : !valid ? "Provider balance unavailable: invalid quantities" : r.reliability !== "provider_api" ? `Provider balance unavailable: ${r.reliability} is not live API evidence` : state === "UNKNOWN" ? "Provider balance unavailable: status unverified" : "provider-reported balance";
     return { provider, state, availability: state === "UNKNOWN" ? "UNVERIFIED" : state === "INSUFFICIENT" ? "DOWN/INSUFFICIENT" : "UP",
       balance: verified ? r.available : null, unit: r.unit, reserved: verified ? r.reserved : null, queued: verified ? r.pending : null,
       renewalDate: r.renewalDate, checkedAt: r.checkedAt, note };
