@@ -159,7 +159,9 @@ export async function POST(
 
     try {
       await reserveJobSupply(service, id, videoRequest.render_attempts + 1,
-        jobSupplyDemands(videoRequest, getVoiceProvider().name));
+        jobSupplyDemands(videoRequest, videoRequest.mode === "long_form"
+          ? videoRequest.long_form_production_plan?.providers.voice ?? "unconfigured"
+          : getVoiceProvider().name));
     } catch (error) {
       if (error instanceof SupplyUnavailableError) return NextResponse.json({ error: error.customerMessage }, { status: 503, headers: { "Retry-After": "300" } });
       throw error;
