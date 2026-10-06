@@ -6,6 +6,7 @@ export function SupplyPanel({ data }: { data: { states: SupplyState[]; pendingAl
   return <section aria-labelledby="supply-title" className="mx-auto my-6 max-w-7xl rounded-2xl border border-white/10 bg-zinc-950 p-5">
     <h2 id="supply-title" className="text-lg font-semibold">Suministro de producción</h2>
     <p className="mt-2 text-sm text-zinc-400">Aviso al 30 % restante o menos de 72 horas de cobertura. Las generaciones requieren recursos y presupuesto verificados.</p>
+    <p className="mt-2 text-sm text-zinc-400">Los saldos manuales no caducan: el saldo libre se estima descontando el consumo registrado y las reservas pendientes. Actualízalos al recargar o si gastas fuera de Atomivid. Los topes de gasto siguen activos.</p>
     {data ? <>
       <p className="my-3 text-sm">Avisos registrados: {data.pendingAlerts ?? "Sin verificar"} · Trabajos en espera: {data.queued ?? "Sin verificar"}</p>
       {data.limits && <div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption className="mb-2 text-left">Topes configurados · día de Cancún</caption><thead><tr><th>Proveedor</th><th>Tope diario</th><th>Tope mensual</th><th>Gasto habilitado</th></tr></thead><tbody>{data.limits.map(limit => <tr key={limit.provider}><td>{limit.provider}</td><td>{limit.dailyUsd > 0 ? `${limit.dailyUsd.toFixed(2)} USD` : "Sin definir"}</td><td>{limit.monthlyUsd > 0 ? `${limit.monthlyUsd.toFixed(2)} USD` : "Sin definir"}</td><td>{limit.enabled ? "Sí, sujeto a saldo y controles" : "No"}</td></tr>)}</tbody></table></div>}

@@ -34,22 +34,23 @@ test("50 simultaneous jobs cannot double-book 17,000 characters", async () => {
   assert.equal(await releaseOpenHoldsForRequest(store, "r0"), 0, "restart is not proof of nonconsumption");
 });
 
-test("manual balances last 30 minutes while API balances retain the five-minute boundary", () => {
+test("manual observations never expire; API balances retain the five-minute boundary", () => {
   const atAge = (age: number) => new Date(now - age).toISOString();
-  for (const age of [300_001, 1_799_999, 1_800_000]) {
+  for (const age of [300_001, 1_800_000, 1_800_001, 86_400_000 * 31, 86_400_000 * 3650]) {
     assert.equal(assessSupply({ ...base, reliability: "manual_entry", checkedAt: atAge(age) }).level, "GREEN");
     assert.equal(assessSupply({ ...base, reliability: "provider_api", checkedAt: atAge(age) }).level, "UNKNOWN");
   }
   assert.equal(assessSupply({ ...base, reliability: "provider_api", checkedAt: atAge(300_000) }).level, "GREEN");
-  for (const checkedAt of [atAge(1_800_001), atAge(-1), null, "invalid"]) {
+  for (const checkedAt of [atAge(-1), null, "invalid", "Infinity", "-Infinity"]) {
     assert.equal(assessSupply({ ...base, reliability: "manual_entry", checkedAt }).level, "UNKNOWN");
   }
   assert.equal(assessSupply({ ...base, reliability: "none" }).level, "UNKNOWN");
   assert.equal(assessSupply({ ...base, reliable: false, reliability: "manual_entry" }).level, "UNKNOWN");
+  assert.equal(assessSupply({ ...base, now: Infinity, reliability: "manual_entry" }).level, "UNKNOWN");
 });
 
 test("a manual balance still subtracts held consumption and blocks exhausted supply", () => {
-  const manual = { ...base, reliability: "manual_entry" as const, checkedAt: new Date(now - 1_200_000).toISOString() };
+  const manual = { ...base, reliability: "manual_entry" as const, checkedAt: "2025-01-01T00:00:00Z" };
   assert.equal(assessSupply({ ...manual, held: 25_000 }).free, 75_000);
   assert.equal(assessSupply({ ...manual, held: 100_000 }).level, "RED");
   assert.equal(assessSupply({ ...manual, health: "DOWN" }).level, "RED");
