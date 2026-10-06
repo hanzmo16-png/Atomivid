@@ -1,0 +1,41 @@
+import { z } from "zod";
+
+/** Complex editorial documents exceed Anthropic's compiled-grammar budget.
+ * Keep the complete contract in the prompt and validate locally AFTER the raw
+ * response/usage has been durably committed by supplyProtectedAnthropic.
+ * This is not a fallback/retry and never weakens the acceptance schema.
+ */
+export function jsonResponseSystem(system: string, schema: z.ZodType): string {
+  return `${system}\nOUTPUT CONTRACT: Return exactly one JSON object matching the following JSON Schema. ` +
+    `No markdown fences, commentary or extra keys. All constraints apply.\n${JSON.stringify(z.toJSONSchema(schema, { reused: "ref" }))}`;
+}
+
+export class DocumentaryResponseError extends Error {
+  constructor(detail: string) {
+    super(`${detail} La respuesta y su consumo quedaron registrados; no se repite la llamada automáticamente.`);
+    this.name = "DocumentaryResponseError";
+  }
+}
+
+export function parseDocumentaryResponse<T extends z.ZodType>(schema: T, response: {
+  stop_reason: string | null;
+  content: Array<{ type: string; text?: string }>;
+}): z.infer<T> {
+  if (response.stop_reason !== "end_turn") {
+    throw new DocumentaryResponseError(response.stop_reason === "max_tokens"
+      ? "La respuesta alcanzó el límite de salida del modelo."
+      : "El modelo no completó la respuesta.");
+  }
+  const text = response.content.filter(b => b.type === "text").map(b => b.text ?? "").join("").trim();
+  // Accept only a whole JSON document (optionally wrapped in a single code fence).
+  // Never salvage a partial object or extract JSON out of explanatory prose.
+  const json = text.replace(/^```(?:json)?\s*\n([\s\S]*?)\n```$/i, "$1");
+  let value: unknown;
+  try { value = JSON.parse(json); }
+  catch { throw new DocumentaryResponseError("El modelo devolvió un documento que no se pudo leer."); }
+  const parsed = schema.safeParse(value);
+  if (!parsed.success) {
+    throw new DocumentaryResponseError("La respuesta no cumple el formato editorial requerido.");
+  }
+  return parsed.data;
+}

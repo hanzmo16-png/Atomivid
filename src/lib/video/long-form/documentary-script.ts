@@ -7,7 +7,7 @@ import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
 import { documentaryOutputBudget } from "./script-output-budget";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { jsonResponseSystem, parseDocumentaryResponse } from "./json-response";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { assertOriginalHook, usesBannedOpener } from "./originality";
 import { BEAT_TYPES, type LongFormClaim, type LongFormMode, type LongFormSource, type NarrativeBeat } from "./types";
@@ -105,7 +105,7 @@ const BeatSchema = z.object({
     ),
 });
 
-const DocumentaryScriptSchema = z.object({
+export const DocumentaryScriptSchema = z.object({
   creativeDirection: CreativeDirectionSchema,
   storyPlan: StoryPlanSchema,
   title: z.string(),
@@ -215,31 +215,25 @@ con lo narrado — si la narración habla de 1904 en Panamá, la escena no puede
       const params = {
         model: SCRIPT_MODEL,
         max_tokens: outputBudget.max_tokens,
-        system: args.system,
+        system: jsonResponseSystem(args.system, DocumentaryScriptSchema),
         messages: [{ role: "user" as const, content: args.prompt }],
-        output_config: { format: zodOutputFormat(DocumentaryScriptSchema),
-          ...(outputBudget.effort ? { effort: outputBudget.effort } : {}) },
+        ...(outputBudget.effort ? { output_config: { effort: outputBudget.effort } } : {}),
       };
-      const response = await supplyProtectedAnthropic(params, () => getClient().messages.parse(params, { maxRetries: 0 }));
-      if (!response.parsed_output && response.stop_reason === "max_tokens") {
-        throw new Error("El guion alcanzó el límite de salida del modelo. El consumo quedó registrado; no se reintentó automáticamente.");
-      }
-      return response.parsed_output ?? null;
+      const response = await supplyProtectedAnthropic(params, () => getClient().messages.create(params, { maxRetries: 0 }));
+      return parseDocumentaryResponse(DocumentaryScriptSchema, response);
     });
 
   const review: EditorialParse = input.review ?? (async (args) => {
     const params = {
       model: SCRIPT_MODEL,
       max_tokens: 6000,
-      system: args.system,
+      system: jsonResponseSystem(args.system, EditorialReviewSchema),
       messages: [{ role: "user" as const, content: args.prompt }],
-      output_config: { format: zodOutputFormat(EditorialReviewSchema),
-        ...(SCRIPT_MODEL === "claude-sonnet-5" ? { effort: "low" as const } : {}) },
+      ...(SCRIPT_MODEL === "claude-sonnet-5" ? { output_config: { effort: "low" as const } } : {}),
     };
     // The critic has the same durable accounting, reservations and zero SDK retries.
-    const response = await supplyProtectedAnthropic(params, () => getClient().messages.parse(params, { maxRetries: 0 }));
-    if (!response.parsed_output) throw new EditorialQualityError(["El revisor no pudo completar su evaluación. Conservamos las llamadas registradas para evitar repetir cobros."]);
-    return response.parsed_output;
+    const response = await supplyProtectedAnthropic(params, () => getClient().messages.create(params, { maxRetries: 0 }));
+    return parseDocumentaryResponse(EditorialReviewSchema, response);
   });
 
   let parsed = await parse({ system, prompt });

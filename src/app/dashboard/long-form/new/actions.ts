@@ -14,6 +14,7 @@ import { EDITORIAL_VERSION, type EditorialReport } from "@/lib/video/long-form/e
 import type { LongFormScriptJson } from "@/lib/video/long-form/produce";
 import { parseOpenQuestions, parseSources } from "./parse";
 import { generateDiagnosticId } from "@/lib/video/render-error";
+import { documentaryFormError } from "@/lib/video/long-form/form-error";
 
 const MIN_DURATION_MINUTES = 3;
 const MAX_DURATION_MINUTES = 15;
@@ -123,7 +124,7 @@ export async function createLongFormVideoRequest(formData: FormData) {
         });
       });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "No se pudo generar el guion documental.";
+    const message = reportScriptError(err);
     longFormFormRedirect(message, submittedFields);
   }
   if (!editorial) longFormFormRedirect("La revisión editorial no terminó. No se inició la producción audiovisual.", submittedFields);
@@ -153,4 +154,10 @@ export async function createLongFormVideoRequest(formData: FormData) {
   }
 
   redirect("/dashboard?created=1");
+}
+
+function reportScriptError(error: unknown): string {
+  const id = generateDiagnosticId();
+  console.error(`[atomivid:long-form-script] (Código: ${id})`, error);
+  return documentaryFormError(error, id);
 }

@@ -8,6 +8,7 @@ import { supabaseResultStore, paidResultPath } from "@/lib/paid-calls/result-sto
 import { stableHash } from "@/lib/production-intelligence/canonical";
 import { supplyGuardRequired } from "./server";
 import { anthropicReservation, anthropicActualCost, type ScriptUsage } from "./anthropic-cost";
+import { classifyAnthropicError } from "./anthropic-error";
 
 const context = new AsyncLocalStorage<{ projectId: string; intentId: string; recoverLegacyOperator?: boolean }>();
 export function withSupplyContext<T>(projectId: string, fn: () => Promise<T>): Promise<T> {
@@ -57,6 +58,6 @@ export async function supplyProtectedAnthropic<T extends { usage?: ScriptUsage }
     const resultRef = paidResultPath(scope.projectId, key, "script.json");
     await results.putJson(resultRef, result);
     return { result, costUsd, resultRef };
-  }, load: ref => results.getJson<T>(ref), maxRejectedRetries: 0 });
+  }, load: ref => results.getJson<T>(ref), classify: classifyAnthropicError, maxRejectedRetries: 0 });
   return paid.result;
 }
