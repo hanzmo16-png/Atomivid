@@ -10,6 +10,27 @@ import { getAiVideoCostConfig } from "./ai-video-cost-guard";
 
 const BALANCED = getAiVideoCostConfig("balanced");
 
+test("declared maritime motion remains animated without unrelated action keywords", () => {
+  for (const visualIntent of [
+    "Lone messenger rowing a small boat across dark water at night",
+    "Large fleet of ancient warships sailing along a rocky coastline",
+    "Bronze-plated ship prow ramming into the hull of another wooden vessel",
+    "Families carrying belongings boarding wooden ships at a rocky harbor",
+    "Close view of oars cutting through black water, silhouetted hulls",
+  ]) {
+    const input = { id: "naval", type: "ai_video" as const, visualIntent, durationSec: 4 };
+    assert.equal(scoreAiVideoEligibility({ ...input, motionRequired: true }).recommendedAssetType, "ai_video", visualIntent);
+    assert.notEqual(scoreAiVideoEligibility({ ...input, motionRequired: false }).recommendedAssetType, "ai_video");
+  }
+});
+
+test("maritime subjects do not animate static depictions or override deterministic scenes", () => {
+  for (const visualIntent of ["Painting of sailing warships", "Model of a rowing ship", "Map of colliding fleets", "Rows of anchored wooden warships"]) {
+    assert.notEqual(scoreAiVideoEligibility({ id: "static", visualIntent, motionRequired: true, durationSec: 4 }).recommendedAssetType, "ai_video");
+  }
+  assert.equal(scoreAiVideoEligibility({ id: "map", type: "map", visualIntent: "rowing and ramming ships", motionRequired: true, durationSec: 4 }).recommendedAssetType, "real_image");
+});
+
 test("un shot determinístico (text/diagram/map) nunca es candidato — score 0, sin fallback", () => {
   for (const type of ["text", "diagram", "map"] as const) {
     const result = scoreAiVideoEligibility(
