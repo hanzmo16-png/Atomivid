@@ -1,3 +1,4 @@
+import { canonicalizeEditorialCitations, invalidEditorialCitations, EditorialEvidenceError } from "./editorial-evidence";
 import { creativeDirectionIssues, type CreativeDirection } from "./creative-direction";
 import { z } from "zod";
 import { stableHash } from "@/lib/production-intelligence/canonical";
@@ -35,7 +36,13 @@ export const EditorialReviewSchema = z.object({
     repair: text,
   })).max(16),
 });
-export type EditorialReview = z.infer<typeof EditorialReviewSchema>;
+// Provider prompt contract stays unchanged. These references are derived and
+// verified locally; a claim identifier is never treated as a narrated quotation.
+const ClaimReferenceSchema = z.object({ findingIndex: z.number().int().min(0).max(15),
+  claimId: z.string().min(1).max(100), beatIndex: z.number().int().min(0).max(9),
+  originalBeatIndex: z.number().int().min(0).max(9) });
+export const ResolvedEditorialReviewSchema = EditorialReviewSchema.extend({ claimReferences: z.array(ClaimReferenceSchema).max(160).optional() });
+export type EditorialReview = z.infer<typeof ResolvedEditorialReviewSchema>;
 export type StoryPlan = z.infer<typeof StoryPlanSchema>;
 export type EditorialScript = {
   storyPlan: StoryPlan;
@@ -96,15 +103,10 @@ export function validateStoryPlan(script: EditorialScript): void {
     throw new Error("El plan narrativo no corresponde a todos los bloques del guion.");
 }
 export function validateEditorialReview(value: unknown, script: EditorialScript): EditorialReview {
-  const review = EditorialReviewSchema.parse(value);
+  const review = canonicalizeEditorialCitations(ResolvedEditorialReviewSchema.parse(value), script.beats);
   if (!coversAll(review.sections.map(s => s.beatIndex), script.beats.length))
     throw new Error("La revisión editorial no cubre todos los bloques.");
-  const evidence = [...review.sections, review.firstAnswer.evidence, review.ending.evidence,
-    ...review.findings.flatMap(f => f.evidence)];
-  for (const item of evidence) {
-    if (!script.beats[item.beatIndex]?.narration.includes(item.quote) || item.quote.trim().split(/\s+/).length < 3)
-      throw new Error("La revisión editorial cita un pasaje que no corresponde al guion.");
-  }
+  if (invalidEditorialCitations(review, script.beats).length) throw new EditorialEvidenceError();
   for (const f of review.findings) {
     if (f.kind === "repeated_promise" && new Set(f.evidence.map(e => e.beatIndex)).size < 2)
       throw new Error("La repetición editorial necesita evidencia de dos bloques distintos.");

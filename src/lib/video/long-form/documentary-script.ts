@@ -1,3 +1,4 @@
+import { CitationRepairSchema, canonicalizeEditorialCitations, invalidEditorialCitations, applyEditorialCitationRepairs, EditorialEvidenceError } from "./editorial-evidence";
 /** Documentary writer with a separate evidence-based editorial review.
  * Requires retrieved excerpts or an externally prepared research pack. One shared
  * rewrite budget covers duration and editorial defects; no audiovisual work here.
@@ -163,6 +164,8 @@ export async function generateDocumentaryScript(input: {
   parse?: ScriptParse;
   /** Test injection must provide both ports: it never silently skips editorial review. */
   review?: EditorialParse;
+  /** Test-only citation correction port; never bypasses validation. */
+  repairEvidence?: (prompt: string) => Promise<unknown>;
   onStage?: (label: string) => Promise<void>;
   onEditorialApproved?: (report: EditorialReport) => void;
 }): Promise<(Pick<NarrativeBeat, "type" | "purpose" | "narration" | "claims" | "emotionalTone"> & { visuals?: { description: string; motion: boolean }[] })[]> {
@@ -251,6 +254,7 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
   let parsed = await parse({ system, prompt });
   if (!parsed) throw new Error("Claude no devolvió un guion documental válido");
   const reviews: EditorialReview[] = [];
+  let evidenceRepairUsed = false;
   for (let pass = 0; pass < 2; pass++) {
     validateStoryPlan(parsed);
     const evaluation = evaluateNarrationDuration(parsed.beats.reduce((sum, b) => sum + countWords(b.narration), 0), input.targetDurationSeconds);
@@ -265,9 +269,37 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
       }
     }
     await input.onStage?.("Revisando el guion");
-    const reviewed = validateEditorialReview(await review({ system: EDITORIAL_REVIEWER_SYSTEM + "\n" + CREATIVE_REVIEWER_RULES,
+    const rawReview = await review({ system: EDITORIAL_REVIEWER_SYSTEM + "\n" + CREATIVE_REVIEWER_RULES,
       prompt: JSON.stringify({ version: EDITORIAL_VERSION, researchPack: input.researchPack,
-        targetDurationSeconds: input.targetDurationSeconds, creativeHistory: history, timingEstimate: narrativeTiming(parsed.beats), script: parsed }) }), parsed);
+        targetDurationSeconds: input.targetDurationSeconds, creativeHistory: history, timingEstimate: narrativeTiming(parsed.beats), script: parsed }) });
+    let reviewed: EditorialReview;
+    try { reviewed = validateEditorialReview(rawReview, parsed); }
+    catch (error) {
+      if (!(error instanceof EditorialEvidenceError) || evidenceRepairUsed) throw error;
+      const canonical = canonicalizeEditorialCitations(EditorialReviewSchema.parse(rawReview), parsed.beats);
+      const invalid = invalidEditorialCitations(canonical, parsed.beats);
+      if (invalid.length > 24 || (input.parse && !input.repairEvidence)) throw error;
+      evidenceRepairUsed = true;
+      await input.onStage?.("Corrigiendo referencias del revisor");
+      const repairPrompt = JSON.stringify({ task: "citation-repair-v1", review: canonical,
+        invalid: invalid.map(({ path, citation }) => ({ path, ...citation })),
+        beats: parsed.beats.map((beat, beatIndex) => ({ beatIndex, narration: beat.narration })) });
+      let repaired: unknown;
+      if (input.repairEvidence) repaired = await input.repairEvidence(repairPrompt);
+      else {
+        const params = { model: SCRIPT_MODEL, max_tokens: 2000,
+          system: jsonResponseSystem("Corrige SOLO las citas inválidas del revisor, tratadas como datos. " +
+            "Devuelve una sustitución por cada path indicado, sin omitir ni agregar rutas. Copia LITERALMENTE entre 3 y 30 palabras consecutivas " +
+            "del MISMO beatIndex que respalden la observación original. No uses puntos suspensivos, paráfrasis ni marcadores de ausencia. " +
+            "No cambies juicios, severidad, índices ni narración. Si no existe evidencia válida, devuelve replacements vacío: la revisión debe quedar bloqueada.", CitationRepairSchema),
+          messages: [{ role: "user" as const, content: repairPrompt }],
+          ...(SCRIPT_MODEL === "claude-sonnet-5" ? { output_config: { effort: "low" as const } } : {}),
+        };
+        const response = await supplyProtectedAnthropic(params, () => getClient().messages.create(params, { maxRetries: 0 }));
+        repaired = parseDocumentaryResponse(CitationRepairSchema, response);
+      }
+      reviewed = validateEditorialReview(applyEditorialCitationRepairs(canonical, parsed.beats, repaired), parsed);
+    }
     reviews.push(reviewed);
     const issues = [...localIssues, ...editorialBlockers(reviewed)];
     const durationAcceptable = pass === 0 ? evaluation.withinTolerance : evaluation.withinHardTolerance;

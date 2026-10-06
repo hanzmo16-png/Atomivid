@@ -97,3 +97,76 @@ test("metadata binds the approved narration, claims and visual plan; legacy mast
 test("a test writer cannot silently bypass the critic or call the live API", async () => {
   await assert.rejects(generateDocumentaryScript({ ...input, parse: async () => editorialFixture() }), /revisor editorial simulado/);
 });
+
+test("ellipsis quotes expand to the literal span including omitted words; ambiguity and invented fragments fail", async()=>{
+ const {resolveEditorialQuote}=await import('./editorial-evidence');
+ const n='The first dated account did not prove the allegation. The later archive changed the interpretation.';
+ assert.equal(resolveEditorialQuote(n,'The first dated account...The later archive changed'), 'The first dated account did not prove the allegation. The later archive changed');
+ for(const q of ['invented dated account...The later archive changed','The later archive changed...The first dated account','...The later archive changed','The first...The later archive changed']) assert.equal(resolveEditorialQuote(n,q),null);
+ assert.equal(resolveEditorialQuote(n+' The first dated account returned.','The first dated account...The later archive changed'),null);
+});
+
+test("citation repair cannot change reviewer judgments, select other beats, omit defects or duplicate paths", async()=>{
+ const {applyEditorialCitationRepairs,EditorialEvidenceError}=await import('./editorial-evidence');
+ const script=editorialFixture(),review=passingReview(script),quote=review.sections[1].quote;
+ review.sections[1].quote='Missing';
+ const repaired=applyEditorialCitationRepairs(review,script.beats,{replacements:[{path:'sections/1',quote}]});
+ assert.equal(repaired.sections[1].quote,quote);assert.equal(review.sections[1].quote,'Missing');
+ assert.deepEqual({...repaired,sections:[]},{...review,sections:[]});
+ for(const replacements of [[],[{path:'ending',quote}],[{path:'sections/1',quote:script.beats[0].narration}],[{path:'sections/1',quote},{path:'sections/1',quote}],[{path:'sections/1',quote:'not actually present here'}]])
+  assert.throws(()=>applyEditorialCitationRepairs(review,script.beats,{replacements}),EditorialEvidenceError);
+});
+
+test("one known malformed citation gets a bounded correction and complete editorial revalidation",async()=>{
+ const script=editorialFixture(),review=passingReview(script),quote=review.sections[1].quote;
+ review.sections[1].quote='Missing';let repaired=0,approved=false;
+ await generateDocumentaryScript({...input,parse:async()=>script,review:async()=>review,repairEvidence:async prompt=>{
+  repaired++;assert.match(prompt,/citation-repair-v1/);return {replacements:[{path:'sections/1',quote}]};
+ },onEditorialApproved:()=>{approved=true;}});
+ assert.equal(repaired,1);assert.equal(approved,true);
+});
+
+test("citation repair never upgrades blocking findings to approval",async()=>{
+ const {script,review}=repeatedPromiseFixture();const quote=review.sections[1].quote;review.sections[1].quote='Missing';
+ let repairs=0,approved=false;
+ await assert.rejects(generateDocumentaryScript({...input,parse:async()=>script,review:async()=>review,
+  repairEvidence:async()=>{repairs++;return {replacements:[{path:'sections/1',quote}]};},onEditorialApproved:()=>{approved=true;}}));
+ assert.equal(repairs,1,'correction allowance is shared across both script drafts');assert.equal(approved,false);
+});
+
+test("failed or uncertain evidence correction stops without another call or approval",async()=>{
+ const script=editorialFixture(),review=passingReview(script);review.sections[1].quote='Missing';
+ for(const failure of ['uncertain','invalid']){
+  let repairs=0,approved=false;
+  await assert.rejects(generateDocumentaryScript({...input,parse:async()=>script,review:async()=>review,
+   repairEvidence:async()=>{repairs++;if(failure==='uncertain')throw Error('RECONCILIATION_REQUIRED');return {replacements:[]};},onEditorialApproved:()=>{approved=true;}}));
+  assert.equal(repairs,1);assert.equal(approved,false);
+ }
+});
+
+test("supplementary unique claim IDs remain audited references, never fabricated quotations",()=>{
+ const script=editorialFixture(),review=passingReview(script);
+ script.beats[3].claims=[{id:'c4-5',text:'An inference about the archive.',support:'inference',sourceIds:['s1']}];
+ review.findings.push({kind:'unsupported_claim',severity:'suggestion',evidence:[review.sections[3],{beatIndex:4,quote:'c4-5'}],explanation:'A limited inference.',repair:'Qualify the wording.'});
+ const resolved=validateEditorialReview(review,script);
+ assert.equal(resolved.findings.length,1);assert.equal(resolved.findings[0].severity,'suggestion');
+ assert.equal(resolved.findings[0].explanation,review.findings[0].explanation);assert.equal(resolved.findings[0].repair,review.findings[0].repair);
+ assert.deepEqual(resolved.findings[0].evidence,[{beatIndex:review.sections[3].beatIndex,quote:review.sections[3].quote}]);
+ assert.deepEqual(resolved.claimReferences,[{findingIndex:0,claimId:'c4-5',beatIndex:3,originalBeatIndex:4}]);
+ assert.deepEqual(validateEditorialReview(resolved,script),resolved,'stored references revalidate without duplication');
+ assert.equal(review.findings[0].evidence.length,2,'raw response is unchanged');
+});
+
+test("claim references cannot replace mandatory narrative evidence or hide blocking findings",()=>{
+ const script=editorialFixture(),review=passingReview(script);
+ script.beats[3].claims=[{id:'c4-5',text:'An inference.',support:'inference',sourceIds:['s1']}];
+ const finding={kind:'unsupported_claim' as const,severity:'blocking' as const,evidence:[review.sections[3],{beatIndex:4,quote:'c4-5'}],explanation:'Material overstatement.',repair:'Correct the unsupported assertion.'};
+ review.findings.push(finding);
+ assert.equal(editorialBlockers(validateEditorialReview(review,script)).length,1);
+ for(const evidence of [[{beatIndex:4,quote:'c4-5'}],[review.sections[2],{beatIndex:4,quote:'c4-5'}],[review.sections[3],{beatIndex:4,quote:'unknown-id'}]]){
+  const bad=structuredClone(review);bad.findings[0].evidence=evidence;assert.throws(()=>validateEditorialReview(bad,script));
+ }
+ const bad=structuredClone(review);bad.sections[3].quote='c4-5';assert.throws(()=>validateEditorialReview(bad,script));
+ const duplicate=structuredClone(script);duplicate.beats[2].claims=script.beats[3].claims;assert.throws(()=>validateEditorialReview(review,duplicate));
+ const tampered=validateEditorialReview(review,script);tampered.claimReferences![0].beatIndex=2;assert.throws(()=>validateEditorialReview(tampered,script));
+});

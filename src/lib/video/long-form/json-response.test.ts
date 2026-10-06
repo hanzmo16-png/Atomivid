@@ -35,14 +35,18 @@ test("real SDK serialization uses no compiled grammar for writer AND critic; edi
   const oldFetch = globalThis.fetch;
   process.env.ANTHROPIC_API_KEY = "test-only-no-network";
   const script = editorialFixture();
+  const critic = passingReview(script), originalQuote = critic.sections[1].quote;
+  critic.sections[1].quote = 'Missing';
   const requests: Record<string, any>[] = [];
   globalThis.fetch = async (_url, init) => {
     const body = JSON.parse(String(init?.body)); requests.push(body);
     assert.equal(body.output_config?.format, undefined);
     assert.equal(body.tools, undefined);
     assert.match(body.system, /OUTPUT CONTRACT/);
-    const data = requests.length === 1 ? script : requests.length === 2 ? passingReview(script) : { visuals: script.beats[requests.length - 3].visuals };
-    assert.ok(requests.length <= 7, "no hidden retries");
+    const data = requests.length === 1 ? script : requests.length === 2 ? critic : requests.length === 3
+      ? { replacements: [{ path: 'sections/1', quote: originalQuote }] } : { visuals: script.beats[requests.length - 4].visuals };
+    if (requests.length === 3) { assert.equal(body.max_tokens, 2000); assert.match(body.messages[0].content, /citation-repair-v1/); }
+    assert.ok(requests.length <= 8, "one correction only, no hidden retries");
     return new Response(JSON.stringify({ id: "msg_fixture", type: "message", role: "assistant", model: body.model,
       ...response(data), stop_sequence: null, usage: { input_tokens: 100, output_tokens: 200 } }),
       { status: 200, headers: { "content-type": "application/json" } });
@@ -50,7 +54,7 @@ test("real SDK serialization uses no compiled grammar for writer AND critic; edi
   try {
     let approved = false;
     const beats = await generateDocumentaryScript({ researchPack: { topic: "A legend examined", sources: [{ id: "s1", title: "Archive", kind: "primary", notes: "An allegation" }], openQuestions: [] }, mode: "curiosity_documentary", targetDurationSeconds: 180, onEditorialApproved: () => { approved = true; } });
-    assert.equal(beats.length, 5); assert.equal(approved, true); assert.equal(requests.length, 7);
+    assert.equal(beats.length, 5); assert.equal(approved, true); assert.equal(requests.length, 8);
     const contract = JSON.parse(requests[0].system.split("All constraints apply.\n")[1]);
     const item = contract.properties.beats.items;
     const shape = item.$ref ? contract.$defs[item.$ref.split("/").at(-1)] : item;
