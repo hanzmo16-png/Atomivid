@@ -71,6 +71,9 @@ jobs:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
           ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          # Starter: USD 6 / 30,000 credits, Multilingual v2 = 1 credit/character.
+          # Keep the worker aligned with the production app's configured allocation rate.
+          PRICING_ELEVENLABS_USD_PER_1K_CHARS: '0.2'
           # QA real (2026-09-25, "AVATAR REAL HEYGEN ATTEMPT FAILED"): esto
           # decía 'false' con el comentario "el worker general nunca
           # habilita avatar" — cierto ANTES del RC mission de Avatar, cuando

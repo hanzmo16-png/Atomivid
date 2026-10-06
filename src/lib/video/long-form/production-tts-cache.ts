@@ -20,6 +20,7 @@ import { guardPaidCall, type LedgerStore } from "@/lib/paid-calls/gate";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
 import { canonicalWords, lintPronunciationAliases, restoreDisplayWords, spokenText, TtsVoiceMissingError, type PronunciationAlias } from "@/lib/paid-calls/pronunciation";
 import { buildTtsRequest } from "@/lib/ai/voice";
+import { getPricingConfig } from "@/lib/billing/pricing";
 import { randomUUID } from "node:crypto";
 import type { ScriptLanguage, VoiceProvider, WordTiming } from "@/lib/providers/types";
 import type { NarrativeBeat } from "./types";
@@ -189,7 +190,11 @@ export async function synthesizeBeatNarrationProductionCached(
   }
 
   const now = new Date().toISOString();
-  const estimatedCostUsd = ctx.costGuard?.estimateCostUsd(beat.narration) ?? 0;
+  const estimatedCostUsd = ctx.costGuard?.estimateCostUsd(spokenBeat.narration) ??
+    spokenBeat.narration.length / 1000 * getPricingConfig().elevenLabsUsdPer1kChars;
+  if (!Number.isFinite(estimatedCostUsd) || estimatedCostUsd <= 0) {
+    throw new Error("Paid narration requires a positive verified cost estimate.");
+  }
   if (ctx.costGuard) await ctx.costGuard.assertCanSpend(estimatedCostUsd);
 
   await writeProductionTtsCacheRecord(supabase, bucket, ctx.videoId, {
