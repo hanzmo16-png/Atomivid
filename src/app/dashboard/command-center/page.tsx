@@ -1,4 +1,6 @@
 import fs from "node:fs";
+import { scriptConfigSummary } from "@/lib/supply/script-config";
+import { ScriptConfigPanel } from "./ScriptConfigPanel";
 import { readSupplyOverview } from "@/lib/supply/admin";
 import { SupplyPanel } from "./SupplyPanel";
 import { readObligationOverview } from "@/lib/supply/obligations-server";
@@ -35,5 +37,5 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
     readSupplyOverview(client).catch(() => null), readObligationOverview(client).catch(() => null),
   ]);
   const vm = buildViewModel({ data: overview.data as Parameters<typeof buildViewModel>[0]["data"], window, generatedAt: overview.generatedAt, youtubeConfigured: youtubeConfigured(process.env), pwaReady: fs.existsSync("public/icons/icon-192.png") });
-  return <CommandCenterView vm={vm} alerts={<><SupplyAlertsView inbox={inbox} window={window} /><SupplyPanel data={supply} /><FinancePanel data={obligations} /></>} />;
+  return <CommandCenterView vm={vm} alerts={<><ScriptConfigPanel config={scriptConfigSummary(process.env)} /><SupplyAlertsView inbox={inbox} window={window} /><SupplyPanel data={supply} /><FinancePanel data={obligations} /></>} />;
 }
