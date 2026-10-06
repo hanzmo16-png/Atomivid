@@ -25,14 +25,7 @@ import { SubmitButton } from "./SubmitButton";
 // the existing single duration correction to finish before Vercel interrupts.
 export const maxDuration = 300;
 
-/**
- * RC mission Fase 4 — entrada self-service de Long Form (documental
- * 16:9/YouTube), beta/admin-only (ver private-access.ts). A diferencia de
- * Reel, el guion NUNCA se genera solo a partir de un tema libre — Long
- * Form es documental/factual y exige al menos una fuente verificada (ver
- * documentary-script.ts: "nunca genera contenido factual sin fuentes"),
- * así que este formulario pide también las fuentes que respaldan el tema.
- */
+/** Self-service documentary: retrieved evidence → narrative plan → writer → critic. */
 export default async function NewLongFormVideoPage({
   searchParams,
 }: {
@@ -50,7 +43,7 @@ export default async function NewLongFormVideoPage({
   // mismos valores que el usuario ya escribió como query params — se usan
   // aquí como defaultValue para que nunca tenga que volver a escribir
   // tema/fuentes/preguntas. Sin submit previo, estos params no existen y
-  // los campos quedan vacíos/con su default de siempre (10 minutos).
+  // los campos quedan vacíos/con su default de siempre (7 minutos).
   const { error, topic, duration_minutes: durationMinutes, sources, open_questions: openQuestions, language } = await searchParams;
   const supabase = await createClient();
   const {
@@ -100,7 +93,7 @@ export default async function NewLongFormVideoPage({
             </select>
           </Field>
 
-          <Field id="duration_minutes" label="Duración objetivo (minutos)" hint="Entre 3 y 15 minutos — 8-12 es lo recomendado.">
+          <Field id="duration_minutes" label="Duración objetivo (minutos)" hint="Entre 3 y 15 minutos. Empieza con 7: prioriza una historia completa, sin relleno.">
             <input
               id="duration_minutes"
               name="duration_minutes"
@@ -108,20 +101,20 @@ export default async function NewLongFormVideoPage({
               required
               min={3}
               max={15}
-              defaultValue={durationMinutes ?? "10"}
+              defaultValue={durationMinutes ?? "7"}
               className={INPUT_CLASS}
             />
           </Field>
 
           <Field
             id="sources"
-            label="Fuentes verificadas"
-            hint='Una por línea: "Título | URL o referencia | nota (opcional)". Al menos una es obligatoria — el guion nunca se genera sin fuentes.'
+            label="Referencias para investigar (opcional)"
+            hint='La aplicación busca fuentes automáticamente. Puedes orientar la búsqueda con una referencia por línea: "Título | URL | nota".'
           >
             <textarea
               id="sources"
               name="sources"
-              required
+              maxLength={12000}
               rows={6}
               defaultValue={sources ?? ""}
               className={`${INPUT_CLASS} font-mono text-xs`}
@@ -136,6 +129,7 @@ export default async function NewLongFormVideoPage({
             <textarea
               id="open_questions"
               name="open_questions"
+              maxLength={4000}
               rows={3}
               defaultValue={openQuestions ?? ""}
               className={`${INPUT_CLASS} font-mono text-xs`}
@@ -144,10 +138,10 @@ export default async function NewLongFormVideoPage({
 
           <SubmitButton />
           <p className="text-xs text-ink-faint">
-            Esto genera el guion con IA ahora mismo (costo real, mismo criterio que el guion de
-            Reel). Puede tardar hasta un minuto — no cierres esta pantalla ni pulses el botón más
-            de una vez. El video final se genera después, desde tu historial, y solo cuando lo
-            confirmes.
+            La IA investiga, prepara el arco narrativo, escribe y revisa el guion. Si detecta repetición o
+            promesas sin resolver, realiza una sola corrección y la comprueba. La búsqueda y la escritura usan
+            créditos del proveedor y puede tardar varios minutos. La voz y las imágenes se generan
+            después de superar esta revisión y confirmar el plan. No pulses el botón más de una vez.
           </p>
         </form>
       </Card>

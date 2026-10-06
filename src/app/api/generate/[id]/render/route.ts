@@ -1,4 +1,6 @@
 import type { ProductionPlan } from "@/lib/video/long-form/production-plan-types";
+import { isLongFormScriptJson } from "@/lib/video/long-form/script-json";
+import { editorialApprovalError } from "@/lib/video/long-form/editorial";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { jobSupplyDemands, reserveJobSupply } from "@/lib/supply/job";
 import { getVoiceProvider } from "@/lib/providers/voice";
@@ -121,6 +123,10 @@ export async function POST(
         { error: "Todavía no hay un guion generado para esta solicitud" },
         { status: 409 },
       );
+    }
+    if (videoRequest.mode === "long_form" && isLongFormScriptJson(videoRequest.script_json)) {
+      const editorialError = editorialApprovalError(videoRequest.script_json);
+      if (editorialError) return NextResponse.json({ error: editorialError }, { status: 409 });
     }
     // RC mission "LONG FORM RC FINAL HARDENING" (sección 8/36): Long Form
     // ya no puede arrancar producción audiovisual paga directo desde
