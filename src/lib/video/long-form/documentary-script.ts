@@ -2,7 +2,7 @@
  * Requires retrieved excerpts or an externally prepared research pack. One shared
  * rewrite budget covers duration and editorial defects; no audiovisual work here.
  */
-import { CreativeDirectionSchema, creativeDirectionIssues, CREATIVE_WRITER_RULES, CREATIVE_REVIEWER_RULES, narrativeTiming, type CreativeHistoryEntry } from "./creative-direction";
+import { CreativeDirectionPromptSchema, CreativeDirectionSchema, creativeDirectionIssues, CREATIVE_WRITER_RULES, CREATIVE_REVIEWER_RULES, narrativeTiming, type CreativeHistoryEntry } from "./creative-direction";
 import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
 import { documentaryOutputBudget } from "./script-output-budget";
 import Anthropic from "@anthropic-ai/sdk";
@@ -118,6 +118,8 @@ export const DocumentaryScriptSchema = z.object({
 export const DocumentaryNarrativeSchema = DocumentaryScriptSchema.extend({
   beats: z.array(BeatSchema.omit({ visuals: true })).min(5).max(10),
 });
+// Preserve the exact generation contract/fingerprint so paid drafts replay free.
+export const DocumentaryNarrativePromptSchema = DocumentaryNarrativeSchema.extend({ creativeDirection: CreativeDirectionPromptSchema });
 const BeatVisualsSchema = z.object({ visuals: z.array(VisualSchema).min(2).max(12) });
 
 export type DocumentaryScript = z.infer<typeof DocumentaryScriptSchema>;
@@ -223,7 +225,7 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
       const params = {
         model: SCRIPT_MODEL,
         max_tokens: outputBudget.max_tokens,
-        system: jsonResponseSystem(args.system, DocumentaryNarrativeSchema),
+        system: jsonResponseSystem(args.system, DocumentaryNarrativePromptSchema),
         messages: [{ role: "user" as const, content: args.prompt }],
         ...(outputBudget.effort ? { output_config: { effort: outputBudget.effort } } : {}),
       };
