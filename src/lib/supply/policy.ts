@@ -8,11 +8,13 @@ export function assessSupply(input: {
   provider: string; available: number | null; held: number; baseline: number;
   dailyForecast: number; recentDailyPeak?: number; pending?: number;
   checkedAt: string | null; now: number; health: string; reliable: boolean;
+  reliability?: "provider_api" | "manual_entry" | "none";
 }): SupplyState {
   const base = { provider: input.provider, free: null, remainingRatio: null, coverageHours: null };
   const age = input.checkedAt ? input.now - Date.parse(input.checkedAt) : NaN;
+  const maxAge = input.reliability === "manual_entry" ? 1_800_000 : 300_000;
   if (!input.reliable || input.available === null || !Number.isFinite(input.available)
-    || input.available < 0 || !(age >= 0 && age <= 300_000) || !(input.baseline > 0))
+    || input.reliability === "none" || input.available < 0 || !(age >= 0 && age <= maxAge) || !(input.baseline > 0))
     return { ...base, level: "UNKNOWN", reason: "unverified, stale or unconfigured supply" };
   const free = Math.max(0, input.available - input.held);
   const remainingRatio = free / input.baseline;

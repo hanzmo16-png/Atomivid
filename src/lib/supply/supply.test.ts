@@ -33,6 +33,27 @@ test("50 simultaneous jobs cannot double-book 17,000 characters", async () => {
   assert.equal([...store.rows.values()].reduce((s, r) => s + r.units, 0), 17_000);
   assert.equal(await releaseOpenHoldsForRequest(store, "r0"), 0, "restart is not proof of nonconsumption");
 });
+
+test("manual balances last 30 minutes while API balances retain the five-minute boundary", () => {
+  const atAge = (age: number) => new Date(now - age).toISOString();
+  for (const age of [300_001, 1_799_999, 1_800_000]) {
+    assert.equal(assessSupply({ ...base, reliability: "manual_entry", checkedAt: atAge(age) }).level, "GREEN");
+    assert.equal(assessSupply({ ...base, reliability: "provider_api", checkedAt: atAge(age) }).level, "UNKNOWN");
+  }
+  assert.equal(assessSupply({ ...base, reliability: "provider_api", checkedAt: atAge(300_000) }).level, "GREEN");
+  for (const checkedAt of [atAge(1_800_001), atAge(-1), null, "invalid"]) {
+    assert.equal(assessSupply({ ...base, reliability: "manual_entry", checkedAt }).level, "UNKNOWN");
+  }
+  assert.equal(assessSupply({ ...base, reliability: "none" }).level, "UNKNOWN");
+  assert.equal(assessSupply({ ...base, reliable: false, reliability: "manual_entry" }).level, "UNKNOWN");
+});
+
+test("a manual balance still subtracts held consumption and blocks exhausted supply", () => {
+  const manual = { ...base, reliability: "manual_entry" as const, checkedAt: new Date(now - 1_200_000).toISOString() };
+  assert.equal(assessSupply({ ...manual, held: 25_000 }).free, 75_000);
+  assert.equal(assessSupply({ ...manual, held: 100_000 }).level, "RED");
+  assert.equal(assessSupply({ ...manual, health: "DOWN" }).level, "RED");
+});
 test("50 simultaneous paid submissions respect three slots; denied calls stay RESERVED and make no HTTP", async () => {
   const baseStore = memoryLedgerStore();
   let active = 0, peak = 0, calls = 0;
