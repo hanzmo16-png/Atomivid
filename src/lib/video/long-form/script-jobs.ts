@@ -1,3 +1,4 @@
+import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -64,6 +65,10 @@ export async function runScriptJobStep(id:string, service=createServiceClient())
   return {state:"completed"};
  } catch(error) {
   if(error instanceof DocumentaryStepYield) {await update({status:"queued",run_token:null});return {state:"queued"};}
+  if(error instanceof SupplyUnavailableError) {
+   await update({status:"queued",run_token:null,stage:"Esperando disponibilidad",error_message:error.customerMessage});
+   return {state:"waiting"};
+  }
   const code=randomUUID().slice(0,8);
   console.error(`[atomivid:script-job:${code}]`,error);
   await update({status:"failed",run_token:null,error_message:documentaryFormError(error,code)});
