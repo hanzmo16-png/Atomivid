@@ -1,0 +1,384 @@
+{
+  "topic": "Achilles vs Genghis Khan: Warrior, Army, Empire",
+  "editorialStatus": "draft-not-approved",
+  "targetDurationSeconds": 600,
+  "beats": [
+    {
+      "id": "b01",
+      "type": "hook",
+      "purpose": "1 — The fight that never happened",
+      "narration": "A line of bronze shields waits in the dust. Beyond spear range, horsemen turn across the horizon. Achilles wants an enemy he can reach. The commander opposite him has no reason to give him one. Before a sword moves, the first contest has already begun: who decides the distance?\n\nThis meeting never happened. Achilles belongs to the world of Greek epic. Genghis Khan was a historical conqueror from a much later age. We are bringing them together in a clearly labeled thought experiment, not revealing a lost battle or running a machine that can prove who would win.\n\nAnd we will ask three different questions. Who has the stronger case as a strategist? Which army has the advantage under rules we can actually state? And what changes when we remove the armies and put the two leaders into a personal duel?\n\nKeep your first choice in mind. By the end, it may still be your choice, but for a different contest. A warrior can dominate the encounter in front of him. A commander can arrange matters so that the encounter never occurs. That difference is the center of this comparison.",
+      "visuals": [
+        {
+          "description": "Mongol horsemen wheel at a distance from a Bronze Age-inspired shield line on open dry ground.",
+          "motion": true,
+          "quote": "A line of bronze shields waits in the dust. Beyond",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "Separate portraits of epic Achilles and historical Genghis in distinct eras, no claim of an actual meeting.",
+          "motion": false,
+          "quote": "This meeting never happened. Achilles belongs to the world of",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "Three clean animated panels compare campaign strategy, army engagement and an artificial personal duel.",
+          "motion": false,
+          "quote": "And we will ask three different questions. Who has the",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "A lone bronze-armored epic warrior watches distant mounted riders stay beyond spear range.",
+          "motion": false,
+          "quote": "Keep your first choice in mind. By the end, it",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        }
+      ],
+      "emotionalTone": "cinematic analytical",
+      "patternInterrupt": true,
+      "claims": [
+        {
+          "id": "b01-c1",
+          "text": "The encounter and its scenario conditions are fictional counterfactuals.",
+          "support": "inference",
+          "sourceIds": []
+        }
+      ],
+      "sources": []
+    },
+    {
+      "id": "b02",
+      "type": "setup",
+      "purpose": "2 — Which Achilles enters the arena?",
+      "narration": "We must choose an Achilles before we can compare him. For this episode, the starting point is the warrior of Homer's Iliad. That is a literary portrayal, with extraordinary feats and divine involvement. It is not a service record from which we can calculate reaction speed or a verified fighting percentage.\n\nIn Book Sixteen, Achilles sends Patroclus into the fighting with the Myrmidons and gives him instructions about how far to pursue the Trojans. The episode presents leadership, obedience, pride, and disastrous consequences. It offers more than a picture of an angry man with a spear. It also belongs to a poem whose gods take an active part in events.\n\nOur comparison will not import every later legend or every movie costume. We will not simply declare Achilles invulnerable and then pretend the result tells us something about military skill. For the physical scenarios, divine intervention is excluded. Achilles retains the exceptional martial ability of his literary characterization, but not an automatic supernatural victory.\n\nHis force is also not a unit of classical Spartans borrowed from Thermopylae. The Myrmidons belong to a different narrative and period. Our images must communicate that difference. A matching gold color palette can connect a channel's identity; it cannot erase historical distinctions between its subjects.",
+      "visuals": [
+        {
+          "description": "A Bronze Age-inspired epic warrior stands beside a shield and spear, no classical Spartan uniform.",
+          "motion": false,
+          "quote": "We must choose an Achilles before we can compare him.",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "Myrmidon-inspired warriors prepare beside ships while their leader gestures to a companion, epic reconstruction.",
+          "motion": false,
+          "quote": "In Book Sixteen, Achilles sends Patroclus into the fighting with",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "A plain scenario card excludes divine intervention and invulnerability, typography added in post.",
+          "motion": false,
+          "quote": "Our comparison will not import every later legend or every",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "Bronze Age-inspired and classical-period equipment are separated in a clear editorial comparison.",
+          "motion": false,
+          "quote": "His force is also not a unit of classical Spartans",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        }
+      ],
+      "emotionalTone": "cinematic analytical",
+      "patternInterrupt": false,
+      "claims": [
+        {
+          "id": "b02-c1",
+          "text": "Iliad XVI presents Achilles sending Patroclus with the Myrmidons and instructions.",
+          "support": "sourced",
+          "sourceIds": [
+            "iliad16"
+          ]
+        }
+      ],
+      "sources": [
+        "iliad16"
+      ]
+    },
+    {
+      "id": "b03",
+      "type": "discovery",
+      "purpose": "3 — What Genghis brings",
+      "narration": "Genghis Khan's comparison begins with organization. Columbia University's teaching materials describe military units arranged on a decimal principle and a deliberate effort to build loyalties beyond older tribal divisions. The significance is not that a number wins a battle. It is that coordinated groups can act together without every decision requiring the ruler's personal presence.\n\nThe same educational account discusses the feigned withdrawal: a force appears to give ground, draws an opponent into pursuit, then attacks under more favorable conditions. A successful pursuit can become a failure of judgment if the pursuer mistakes a planned movement for panic.\n\nThose observations support a comparison of systems, not a claim that every Mongol maneuver succeeded. Our scenario still needs room to move, usable terrain, and soldiers who can maintain coordination. We cannot give one side perfect information while making the other side foolish.\n\nThis is also not a ranking of human worth. Military effectiveness is not moral approval of conquest. Nor does the later reach of an empire tell us that its founder personally won every campaign fought by his successors. The relevant question is how a commander organizes decisions and capabilities beyond his own weapon. On that scale, individual courage is only one part of the picture.",
+      "visuals": [
+        {
+          "description": "Mongol units form disciplined groups on a dry steppe, historical reconstruction, no fantasy armor.",
+          "motion": false,
+          "quote": "Genghis Khan's comparison begins with organization. Columbia University's teaching materials",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "Mounted archers turn away in a controlled withdrawal at distance, dust trails and steady lateral tracking.",
+          "motion": true,
+          "quote": "The same educational account discusses the feigned withdrawal: a force",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "A wide open landscape shows room for maneuver, supply baggage distant, no mass collision.",
+          "motion": false,
+          "quote": "Those observations support a comparison of systems, not a claim",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "An overhead animated organization diagram separates individual combat from army command, no invented battle map.",
+          "motion": false,
+          "quote": "This is also not a ranking of human worth. Military",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        }
+      ],
+      "emotionalTone": "cinematic analytical",
+      "patternInterrupt": false,
+      "claims": [
+        {
+          "id": "b03-c1",
+          "text": "The Columbia material describes decimal military organization and feigned withdrawal.",
+          "support": "sourced",
+          "sourceIds": [
+            "columbia-organization",
+            "columbia-tactics"
+          ]
+        }
+      ],
+      "sources": [
+        "columbia-organization",
+        "columbia-tactics"
+      ]
+    },
+    {
+      "id": "b04",
+      "type": "escalation",
+      "purpose": "4 — First verdict: strategy",
+      "narration": "Suppose the assignment is not to win one afternoon, but to sustain a campaign. The commander has to choose where to fight, keep forces coordinated, respond to losses, and avoid allowing a single emotional moment to determine the whole plan. Those are our comparison criteria, not a scorecard recovered from the past.\n\nGenghis has the stronger evidentiary case for that assignment. His political and military organization can be examined as part of historical state-building. Achilles offers a rich literary study of leadership, but epic heroism is not equivalent evidence for administering a far-reaching campaign.\n\nThat does not make Achilles unintelligent. It means the records being compared answer different questions. A poem centered on a hero is designed to show us the consequences of his presence, absence, anger, and grief. The history of a conquering polity asks us to examine many people and institutions across time.\n\nOur first verdict therefore favors Genghis as the strategic commander, with that evidentiary qualification attached. There is no defensible reason to turn the judgment into a fabricated percentage. The useful lesson is about scale. If the contest requires thousands of people to make coordinated choices, a leader's most important achievement may be what continues working when he is not standing beside them.",
+      "visuals": [
+        {
+          "description": "A commander considers routes on a plain terrain model, no fake historical document.",
+          "motion": false,
+          "quote": "Suppose the assignment is not to win one afternoon, but",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "Separate army organization and epic hero panels illustrate unequal kinds of evidence.",
+          "motion": false,
+          "quote": "Genghis has the stronger evidentiary case for that assignment. His",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "An epic warrior looks toward distant ships while a campaign diagram develops in a separate panel.",
+          "motion": false,
+          "quote": "That does not make Achilles unintelligent. It means the records",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "A distant commander and coordinated riders illustrate organization beyond one individual, wide steady camera.",
+          "motion": false,
+          "quote": "Our first verdict therefore favors Genghis as the strategic commander,",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        }
+      ],
+      "emotionalTone": "cinematic analytical",
+      "patternInterrupt": true,
+      "claims": [
+        {
+          "id": "b04-c1",
+          "text": "The strategic verdict is an interpretation of different kinds of evidence, not a measured score.",
+          "support": "inference",
+          "sourceIds": [
+            "iliad16",
+            "columbia-organization"
+          ]
+        }
+      ],
+      "sources": [
+        "iliad16",
+        "columbia-organization"
+      ]
+    },
+    {
+      "id": "b05",
+      "type": "twist",
+      "purpose": "5 — Second verdict: armies on open ground",
+      "narration": "Now fix the rules for the imagined battlefield. Give each commander one thousand combatants. The Myrmidon-inspired force is predominantly shield-and-spear infantry. The Mongol force is mounted and equipped for missile fighting. Both start rested, supplied, and aware of the opposing force. There is open, dry ground, no fortress, no ambush prepared before the start, and no divine assistance. These numbers and conditions are invented controls for our comparison.\n\nUnder those assumptions, the mounted force has a major advantage in choosing when to approach and when to disengage. The infantry's strength matters most at contact. Its problem is how to create that contact without losing cohesion in the attempt.\n\nWatch the hypothetical sequence. Riders move toward a flank. Shields turn. The infantry advances, but its opponent gives ground. Pursue too far and the line may stretch; remain still and the mounted force can keep seeking a better angle. This is an illustration of a tactical dilemma, not measured proof of inevitable destruction.\n\nOur conditional verdict favors Genghis's force on this open field. Equal headcounts do not mean equal mobility or equal equipment. We deliberately kept those differences, because they are the point of the scenario. Change them, and you have changed the experiment rather than discovered a contradiction.",
+      "visuals": [
+        {
+          "description": "Two abstract formations on open dry ground illustrate one thousand infantry versus one thousand mounted troops.",
+          "motion": false,
+          "quote": "Now fix the rules for the imagined battlefield. Give each",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "Mounted archers maintain distance from a cohesive shield line, no arrow impacts or close melee.",
+          "motion": false,
+          "quote": "Under those assumptions, the mounted force has a major advantage",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "Riders wheel toward a flank while infantry turns in formation, controlled movement without contact.",
+          "motion": true,
+          "quote": "Watch the hypothetical sequence. Riders move toward a flank. Shields",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "An overhead animated spacing diagram shows conditional mobility advantage under the stated hypothetical rules.",
+          "motion": false,
+          "quote": "Our conditional verdict favors Genghis's force on this open field.",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        }
+      ],
+      "emotionalTone": "cinematic analytical",
+      "patternInterrupt": false,
+      "claims": [
+        {
+          "id": "b05-c1",
+          "text": "Equal numbers on open ground yield a conditional mobility advantage, not a proven win rate.",
+          "support": "inference",
+          "sourceIds": []
+        }
+      ],
+      "sources": []
+    },
+    {
+      "id": "b06",
+      "type": "insight",
+      "purpose": "6 — Change the ground, then the fight",
+      "narration": "Move the same forces into a narrow, broken passage where riders cannot easily spread out. The earlier advantage becomes harder to use. A defending infantry line can reduce the directions from which it must respond. That does not automatically hand Achilles a victory, and we are not claiming that this invented passage resembles a documented battle.\n\nInstead, it shows why a universal army verdict would be misleading. Can the mounted force wait? Is there another route? Must it capture a position before nightfall? Are the defenders allowed to withdraw? Victory conditions matter as much as the dramatic image of two lines meeting.\n\nNow remove the armies. For a separate duel, put both leaders on foot, with comparable protective equipment, a spear and a sidearm, on level ground. Remove outside assistance and supernatural intervention. This is an artificial scenario that deliberately removes a commander's ability to avoid a personal fight.\n\nWithin that fictional setup, the Achilles described as an extraordinary close-combat hero is the more plausible dramatic favorite. But the conclusion rests on literary characterization and chosen rules. It does not establish that a historical man would lose a fight we cannot observe. We have no common performance record that makes a numerical probability credible.",
+      "visuals": [
+        {
+          "description": "Infantry holds a narrow rocky passage while horsemen remain outside, hypothetical terrain comparison.",
+          "motion": false,
+          "quote": "Move the same forces into a narrow, broken passage where",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "A route diagram highlights alternate paths and a timed objective, clearly editorial rather than historical.",
+          "motion": false,
+          "quote": "Instead, it shows why a universal army verdict would be",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "Two isolated fighters with comparable spear and shield equipment prepare on level ground, no divine effects.",
+          "motion": false,
+          "quote": "Now remove the armies. For a separate duel, put both",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "A controlled foot-duel stance with no impact, literary Achilles framed as a conditional dramatic favorite.",
+          "motion": false,
+          "quote": "Within that fictional setup, the Achilles described as an extraordinary",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        }
+      ],
+      "emotionalTone": "cinematic analytical",
+      "patternInterrupt": true,
+      "claims": [
+        {
+          "id": "b06-c1",
+          "text": "The narrow-ground and foot-duel verdicts depend on invented rules.",
+          "support": "inference",
+          "sourceIds": []
+        }
+      ],
+      "sources": []
+    },
+    {
+      "id": "b07",
+      "type": "payoff",
+      "purpose": "7 — Three answers, one lesson",
+      "narration": "In the Iliad's confrontation with Hector, Achilles' personal violence and grief dominate the narrative, while divine action also shapes the outcome. That is powerful literature. It is precisely why we should be careful about treating an epic duel as an ordinary measurement of human athletic performance.\n\nOur final animated encounter is therefore labeled hypothetical. A spear moves into range. A fighter shifts his shield. We stop before a staged blow can be mistaken for the result of a scientific simulation. The point is the changed problem: close-combat skill now matters more because we wrote mobility, command, and escape out of the rules.\n\nHere are the three judgments. Strategic command: Genghis, on the stronger historical record for organizing warfare at scale. Equal-number armies on our open field: the mounted force has the advantage under the stated conditions. The invented foot duel: Achilles is the literary favorite, with no claim of historical certainty. In confined terrain, the army comparison becomes less decisive and more dependent on objectives.\n\nOne answer did not overturn another. We asked different questions. Perhaps the greatest advantage in war is knowing which question you should refuse to answer on your opponent's terms. Would you rather possess the finest weapon in the arena, or decide where the arena will be? Tell us which scenario you would change, and subscribe to The Annals of History.",
+      "visuals": [
+        {
+          "description": "An epic Achilles reconstruction beside a simple Iliad citation card, no claim of documentary footage.",
+          "motion": false,
+          "quote": "In the Iliad's confrontation with Hector, Achilles' personal violence and",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "A fighter shifts his shield as a spear approaches range, freeze before contact, hypothetical duel label.",
+          "motion": true,
+          "quote": "Our final animated encounter is therefore labeled hypothetical. A spear",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "Three restrained gold and red verdict cards show strategy, open-ground army and foot-duel conditions.",
+          "motion": false,
+          "quote": "Here are the three judgments. Strategic command: Genghis, on the",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        },
+        {
+          "description": "A wide empty battlefield at sunset fades toward a clean channel end screen with the central area free.",
+          "motion": false,
+          "quote": "One answer did not overturn another. We asked different questions.",
+          "subject": "Hypothetical comparison",
+          "era": "Epic Bronze Age / 13th century, separate reconstructions"
+        }
+      ],
+      "emotionalTone": "cinematic analytical",
+      "patternInterrupt": false,
+      "claims": [
+        {
+          "id": "b07-c1",
+          "text": "Iliad XXII is an epic duel narrative involving divine action, not a neutral athletic record.",
+          "support": "sourced",
+          "sourceIds": [
+            "iliad22"
+          ]
+        }
+      ],
+      "sources": [
+        "iliad22"
+      ]
+    }
+  ],
+  "sourceRegistry": [
+    {
+      "id": "iliad16",
+      "title": "Homer, Iliad XVI",
+      "kind": "primary",
+      "locator": "https://www.theoi.com/Text/HomerIliad16.html",
+      "notes": "Literary text; not a historical military record."
+    },
+    {
+      "id": "iliad22",
+      "title": "Homer, Iliad XXII",
+      "kind": "primary",
+      "locator": "https://www.theoi.com/Text/HomerIliad22.html",
+      "notes": "Epic duel includes divine intervention."
+    },
+    {
+      "id": "columbia-organization",
+      "title": "Asia for Educators: tribal unity and organization",
+      "kind": "secondary",
+      "locator": "https://afe.easia.columbia.edu/mongols/conquests/conquests_2a.htm"
+    },
+    {
+      "id": "columbia-tactics",
+      "title": "Asia for Educators: military organization and tactics",
+      "kind": "secondary",
+      "locator": "https://afe.easia.columbia.edu/mongols/conquests/conquests_2b.htm"
+    }
+  ]
+}

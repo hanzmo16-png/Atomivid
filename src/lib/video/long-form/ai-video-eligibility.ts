@@ -92,6 +92,10 @@ const MOTION_REQUIRED_BOOST = 0.25;
 // candidate even when it lacks the construction/human-action vocabulary
 // above. Static depictions (maps, paintings, models) must not qualify.
 const MARITIME_ACTION = /\b(?:rowing|sailing|ramming|colliding|boarding|oars cutting)\b/i;
+// Concrete physical motion can also be the subject of a shot without
+// construction vocabulary. Camera-only movement and vague atmosphere do
+// not qualify; the existing clip/cost guards still decide allocation.
+const PHYSICAL_ACTION = /\b(?:(?:horsemen|riders|cavalry)\s+(?:wheel|turn|gallop|withdraw)\b|mounted\s+archers\s+turn\b|(?:drifting\s+fog|fog\s+drifts)|rotating\s+(?:red\s+alarm\s+)?beacon|fighter\s+shifts\s+his\s+shield)\b/i;
 const STATIC_DEPICTION = /\b(?:static|painting|illustration|model|miniature|photograph|map|diagram|relief|manuscript)\b/i;
 
 /** Umbral desde el cual se recomienda un clip de video-IA completo. */
@@ -174,8 +178,10 @@ export function scoreAiVideoEligibility(
   const motionBoost = input.motionRequired ? MOTION_REQUIRED_BOOST : 0;
   const maritimeMotion = input.motionRequired === true && MARITIME_ACTION.test(text) &&
     lowHits === 0 && !STATIC_DEPICTION.test(text);
+  const physicalMotion = input.motionRequired === true && PHYSICAL_ACTION.test(text) &&
+    !STATIC_DEPICTION.test(text);
   const heuristicScore = clamp01(BASE_SCORE + highHits * HIGH_SIGNAL_WEIGHT - lowHits * LOW_SIGNAL_WEIGHT + motionBoost);
-  const eligibilityScore = maritimeMotion ? Math.max(AI_VIDEO_SCORE_THRESHOLD, heuristicScore) : heuristicScore;
+  const eligibilityScore = maritimeMotion || physicalMotion ? Math.max(AI_VIDEO_SCORE_THRESHOLD, heuristicScore) : heuristicScore;
 
   let recommendedAssetType: VisualAssetTier;
   let reason: string;
@@ -186,6 +192,8 @@ export function scoreAiVideoEligibility(
     recommendedAssetType = "ai_video";
     reason = maritimeMotion
       ? `acción marítima con movimiento declarado — score=${eligibilityScore.toFixed(2)}; sujeto a los mismos topes de clips y gasto`
+      : physicalMotion
+        ? `acción física concreta con movimiento declarado — score=${eligibilityScore.toFixed(2)}; sujeto a los mismos topes de clips y gasto`
       : `score=${eligibilityScore.toFixed(2)} >= ${AI_VIDEO_SCORE_THRESHOLD} (${highHits} señales de movimiento significativo, ${lowHits} señales estáticas) — candidato a clip de video IA completo`;
   } else if (eligibilityScore >= AI_IMAGE_MOTION_SCORE_THRESHOLD) {
     recommendedAssetType = "ai_image_motion";

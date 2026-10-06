@@ -14,6 +14,7 @@ import { LARGE_CARD, provenanceLabel, type SceneProvenance } from "./long-form-c
 import { coverWindowSeconds, fitCover, type CoverSpec } from "./cover-rules";
 import { OpeningTitle } from "./OpeningTitle";
 import { useCoverFont } from "./cover-font";
+import { AtomividClosingCredit } from "./AtomividClosingCredit";
 
 /**
  * Composición 16:9 para Long Form — independiente de VerticalReel.tsx
@@ -106,6 +107,8 @@ export type LongFormDocProps = {
   narrationGaps?: NarrationGap[];
   accentColor?: string;
   showLogo?: boolean;
+  /** Large credit during the final 3 seconds; separate from the corner watermark. */
+  closingCredit?: boolean;
   /**
    * Portada de apertura (opcional): título grande sobre los primeros
    * segundos, dentro de la primera escena. Ausente = el video no cambia.
@@ -126,6 +129,7 @@ export function LongFormDoc({
   narrationGaps = [],
   accentColor = DEFAULT_ACCENT_COLOR,
   showLogo = false,
+  closingCredit = false,
   opening,
 }: LongFormDocProps) {
   const { fps, durationInFrames } = useVideoConfig();
@@ -169,6 +173,7 @@ export function LongFormDoc({
       <Captions captions={captions} accentColor={accentColor} />
 
       {showLogo && <LogoBadge accentColor={accentColor} />}
+      {closingCredit && <AtomividClosingCredit />}
 
       {audioUrl && (
         <Audio src={audioUrl} volume={(frame) => voiceVolumeAtSeconds(frame / fps, durationSeconds)} />
