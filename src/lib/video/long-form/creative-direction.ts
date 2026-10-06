@@ -5,7 +5,7 @@ const brief = z.string().min(1).max(300);
 export const NARRATIVE_DEVICES = ["in_medias_res", "contradiction", "mistake", "experiment", "myth_evidence",
   "timeline", "character_case", "disagreement", "sensory", "counterfactual", "observational", "clue_mystery", "thesis"] as const;
 const passage = z.object({ beatIndex: z.number().int().min(0).max(9), quote: z.string().min(1).max(350) });
-export const CreativeDirectionSchema = z.object({
+export const CreativeDirectionPromptSchema = z.object({
   audience: brief, emotionalPromise: brief, beliefToChallenge: brief, finalFeeling: brief,
   angles: z.array(z.object({ premise: brief, device: z.enum(NARRATIVE_DEVICES), hook: brief, genericRisk: brief })).length(7),
   finalists: z.array(z.number().int().min(0).max(6)).length(3),
@@ -20,6 +20,13 @@ export const CreativeDirectionSchema = z.object({
   protectInEdit: z.array(passage).length(3),
   weakness: brief,
   evidenceThatWouldHelp: brief,
+});
+// Generation stays concise (300 chars); acceptance allows complete editorial
+// explanations. These are metadata, never narration, evidence or approval.
+const explanation = z.string().min(1).max(1600);
+export const CreativeDirectionSchema = CreativeDirectionPromptSchema.extend({
+  selectionReason: explanation,
+  cloneTest: CreativeDirectionPromptSchema.shape.cloneTest.extend({ whyThisStoryBreaks: explanation }),
 });
 export type CreativeDirection = z.infer<typeof CreativeDirectionSchema>;
 export type CreativeHistoryEntry = { topic: string; opening: string; ending: string; device?: string; promise?: string; structure: string[] };

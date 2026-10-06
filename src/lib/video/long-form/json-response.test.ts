@@ -64,3 +64,29 @@ test("form error hides provider payload and preserves a diagnostic reference", (
   assert.match(message, /test123/); assert.match(message, /Conservamos/);
   assert.ok(!message.includes("400") && !message.includes("secret"));
 });
+
+test("long editorial explanations retain full text without weakening story requirements", async () => {
+  const { DocumentaryNarrativeSchema } = await import('./documentary-script');
+  const script = editorialFixture();
+  script.creativeDirection.selectionReason = 'r'.repeat(314);
+  script.creativeDirection.cloneTest.whyThisStoryBreaks = 's'.repeat(421);
+  const recovered = parseDocumentaryResponse(DocumentaryNarrativeSchema, response(script));
+  assert.equal(recovered.creativeDirection.selectionReason, script.creativeDirection.selectionReason);
+  assert.equal(recovered.creativeDirection.cloneTest.whyThisStoryBreaks, script.creativeDirection.cloneTest.whyThisStoryBreaks);
+  assert.equal(recovered.beats[0].narration, script.beats[0].narration);
+  for (const field of ['selectionReason', 'whyThisStoryBreaks']) {
+    const bad = structuredClone(script);
+    if (field === 'selectionReason') bad.creativeDirection.selectionReason = 'x'.repeat(1601);
+    else bad.creativeDirection.cloneTest.whyThisStoryBreaks = 'x'.repeat(1601);
+    assert.throws(() => parseDocumentaryResponse(DocumentaryNarrativeSchema, response(bad)), /formato editorial/);
+  }
+  const missing = structuredClone(script); missing.creativeDirection.angles.pop();
+  assert.throws(() => parseDocumentaryResponse(DocumentaryNarrativeSchema, response(missing)), /formato editorial/);
+});
+
+test("writer contract stays byte-identical to deployed v1 so existing paid work is reused", async () => {
+  const { DocumentaryNarrativePromptSchema } = await import('./documentary-script');
+  const { createHash } = await import('node:crypto');
+  const contract = JSON.stringify(z.toJSONSchema(DocumentaryNarrativePromptSchema, { reused: 'ref' }));
+  assert.equal(createHash('sha256').update(contract).digest('hex'), '173ea300e6beb8700700c2d062ec33af69193aefd292d24aeec5fdd3be8e97c9');
+});
