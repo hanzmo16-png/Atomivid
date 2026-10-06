@@ -41,7 +41,8 @@ export const EditorialReviewSchema = z.object({
 const ClaimReferenceSchema = z.object({ findingIndex: z.number().int().min(0).max(15),
   claimId: z.string().min(1).max(100), beatIndex: z.number().int().min(0).max(9),
   originalBeatIndex: z.number().int().min(0).max(9) });
-export const ResolvedEditorialReviewSchema = EditorialReviewSchema.extend({ claimReferences: z.array(ClaimReferenceSchema).max(160).optional() });
+export const ResolvedEditorialReviewSchema = EditorialReviewSchema.extend({ claimReferences: z.array(ClaimReferenceSchema).max(160).optional(),
+ citationLocations: z.array(z.object({ path:z.string().max(80), originalBeatIndex:z.number().int().min(0).max(9), beatIndex:z.number().int().min(0).max(9), quote:text })).max(24).optional() });
 export type EditorialReview = z.infer<typeof ResolvedEditorialReviewSchema>;
 export type StoryPlan = z.infer<typeof StoryPlanSchema>;
 export type EditorialScript = {
@@ -135,7 +136,7 @@ export function editorialScriptHash(beats: EditorialScript["beats"]): string {
   return stableHash(beats.map(b => ({ type: b.type, purpose: b.purpose, narration: b.narration, claims: b.claims, visuals: b.visuals, emotionalTone: b.emotionalTone })), 64);
 }
 export class EditorialQualityError extends Error {
-  constructor(readonly reasons: string[]) {
+  constructor(readonly reasons: string[], readonly correctionExhausted = false) {
     super(`El guion necesita más trabajo editorial: ${reasons.slice(0, 2).join(" ").slice(0, 750)} No se inició la producción audiovisual.`);
     this.name = "EditorialQualityError";
   }

@@ -170,3 +170,26 @@ test("claim references cannot replace mandatory narrative evidence or hide block
  const duplicate=structuredClone(script);duplicate.beats[2].claims=script.beats[3].claims;assert.throws(()=>validateEditorialReview(review,duplicate));
  const tampered=validateEditorialReview(review,script);tampered.claimReferences![0].beatIndex=2;assert.throws(()=>validateEditorialReview(tampered,script));
 });
+
+test('legacy saved correction relocates only unique literal finding evidence and records its origin',async()=>{
+ const {applyEditorialCitationRepairs}=await import('./editorial-evidence');
+ const script=editorialFixture(),review=passingReview(script),quote=review.sections[3].quote;
+ review.findings=[{kind:'unsupported_claim',severity:'blocking',explanation:'Evidence must support this claim.',repair:'Qualify this claim.',evidence:[{beatIndex:4,quote:'not in narration'}]}];
+ const raw=structuredClone(review),patch={replacements:[{path:'findings/0/0',quote}]};
+ const resolved=validateEditorialReview(applyEditorialCitationRepairs(review,script.beats,patch),script);
+ assert.deepEqual(review,raw);assert.equal(editorialBlockers(resolved).length,1);
+ assert.equal(resolved.findings[0].evidence[0].beatIndex,3);
+ assert.deepEqual(resolved.citationLocations,[{path:'findings/0/0',originalBeatIndex:4,beatIndex:3,quote}]);
+ assert.deepEqual(validateEditorialReview(resolved,script),resolved);
+ const duplicate=structuredClone(script);duplicate.beats[2].narration+=' '+quote;
+ assert.throws(()=>applyEditorialCitationRepairs(review,duplicate.beats,patch));
+ const bad=structuredClone(resolved);bad.findings[0].evidence[0].quote='changed words here';assert.throws(()=>validateEditorialReview(bad,script));
+});
+
+test('persistent story defects have a quality stage and actionable message distinct from reference failures',async()=>{
+ const {documentaryFormError}=await import('./form-error');const {script,review}=repeatedPromiseFixture();review.sections[2].function='restatement';let lastStage='';
+ await assert.rejects(generateDocumentaryScript({...input,parse:async()=>script,review:async()=>review,onStage:async label=>{lastStage=label;}}),e=>{
+  assert.ok(e instanceof EditorialQualityError);const message=documentaryFormError(e,'fixture');assert.match(message,/repite ideas/);assert.match(message,/corrección prevista ya se utilizó/);assert.ok(!message.includes(review.sections[2].contribution));return true;
+ });
+ assert.equal(lastStage,'Comprobando calidad narrativa');
+});

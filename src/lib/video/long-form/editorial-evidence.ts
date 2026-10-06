@@ -25,8 +25,16 @@ export function resolveEditorialQuote(narration:string, quote:string):string|nul
  const literal=narration.slice(first,end);
  return literal.length<=1600?literal:null;
 }
+function literalLocations(beats:Beats,quote:string):number[] {
+ return beats.flatMap((b,i)=>{const found:number[]=[];let at=b.narration.indexOf(quote);while(at!==-1){found.push(i);at=b.narration.indexOf(quote,at+1);}return found;});
+}
 export function canonicalizeEditorialCitations(review:EditorialReview, beats:Beats):EditorialReview {
  const copy=structuredClone(review);
+ for(const ref of copy.citationLocations??[]){
+  const citation=editorialCitations(copy).find(e=>e.path===ref.path)?.citation;
+  const matches=literalLocations(beats,ref.quote);
+  if(!citation||citation.quote!==ref.quote||citation.beatIndex!==ref.beatIndex||matches.length!==1||matches[0]!==ref.beatIndex)throw new EditorialEvidenceError();
+ }
  for(const {citation} of editorialCitations(copy)){
   const literal=resolveEditorialQuote(beats[citation.beatIndex]?.narration??'',citation.quote);
   if(literal!==null)citation.quote=literal;
@@ -60,7 +68,7 @@ export class EditorialEvidenceError extends Error {
  constructor(){super('La revisión editorial cita un pasaje que no corresponde al guion.');this.name='EditorialEvidenceError';}
 }
 export const CitationRepairSchema=z.object({replacements:z.array(z.object({path:z.string().min(1).max(80),quote:z.string().min(1).max(1600)})).max(24)});
-/** Only replace requested quotes. Beat positions, findings, severity, judgments,
+/** Only replace requested quotes. Findings, severity, judgments,
  * narration and source attribution cannot be edited through this contract. */
 export function applyEditorialCitationRepairs(review:EditorialReview,beats:Beats,raw:unknown):EditorialReview {
  const replacements=CitationRepairSchema.parse(raw).replacements;
@@ -69,7 +77,17 @@ export function applyEditorialCitationRepairs(review:EditorialReview,beats:Beats
  if(replacements.length!==expected.size || new Set(replacements.map(x=>x.path)).size!==expected.size)throw new EditorialEvidenceError();
  for(const patch of replacements){
   const target=expected.get(patch.path);
-  if(!target || words(patch.quote)<3 || !beats[target.beatIndex]?.narration.includes(patch.quote))throw new EditorialEvidenceError();
+  if(!target || words(patch.quote)<3)throw new EditorialEvidenceError();
+  if(!beats[target.beatIndex]?.narration.includes(patch.quote)){
+   // Legacy correction responses can contain a real quote with a wrong block.
+   // Repair the pointer only for ONE exact occurrence in the entire draft;
+   // retain the original location and quote for audit. No fuzzy text matching.
+   if(!patch.path.startsWith('findings/'))throw new EditorialEvidenceError();
+   const matches=literalLocations(beats,patch.quote);
+   if(matches.length!==1)throw new EditorialEvidenceError();
+   copy.citationLocations=[...(copy.citationLocations??[]),{path:patch.path,originalBeatIndex:target.beatIndex,beatIndex:matches[0],quote:patch.quote}];
+   target.beatIndex=matches[0];
+  }
   target.quote=patch.quote;
  }
  return copy;

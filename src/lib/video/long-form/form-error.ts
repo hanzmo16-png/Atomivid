@@ -11,7 +11,13 @@ export function documentaryFormError(error: unknown, diagnosticId: string): stri
   if (error instanceof DocumentaryResponseError || error instanceof DocumentaryResearchError)
     return error.message + suffix;
   if (error instanceof EditorialEvidenceError) return "El revisor no pudo respaldar sus observaciones con citas válidas. El guion sigue guardado, pendiente de revisión; no se inició la producción audiovisual." + suffix;
-  if (error instanceof EditorialQualityError)
-    return "El guion no superó la revisión editorial. No se inició la producción audiovisual. Conservamos las respuestas recibidas para revisar el problema." + suffix;
+  if (error instanceof EditorialQualityError) {
+    const repeated=error.reasons.some(r=>/^El bloque \d+ repite sin avanzar:/.test(r));
+    return (repeated
+      ? "El revisor señala un bloque que repite ideas sin hacer avanzar la historia. El guion necesita trabajo editorial; no es un fallo de acceso ni de créditos. "
+      : "El guion mantiene observaciones editoriales pendientes. ") +
+      (error.correctionExhausted ? "La corrección prevista ya se utilizó. " : "") +
+      "Conservamos los avances; no iniciamos otra llamada ni la producción audiovisual." + suffix;
+  }
   return "No se pudo completar el guion. Conservamos los campos y los avances registrados. No se inició la producción audiovisual; revisaremos el fallo antes de repetir una llamada." + suffix;
 }

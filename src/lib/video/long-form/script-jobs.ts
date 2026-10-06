@@ -22,7 +22,7 @@ export async function enqueueScriptJob(session: SupabaseClient, user: {id:string
  if(readError) throw new Error("No se pudo comprobar la solicitud guardada.");
  if(existing) return existing as {id:string;status:string};
  const creativeHistory=await loadCreativeHistory(session,user.id);
- const input:ScriptJobInput={fields,creativeHistory,recoverLegacyOperator:isInternalProductionOwner(user)};
+ const input:ScriptJobInput={fields,creativeHistory,recoverLegacyOperator:isInternalProductionOwner(user),referenceContract:"catalog-v1"};
  const {error}=await service.from("documentary_script_jobs").upsert({user_id:user.id,input_hash:inputHash,topic:fields.topic,input},
    {onConflict:"user_id,input_hash",ignoreDuplicates:true});
  if(error) throw new Error("No se pudo guardar la preparación. No se inició ninguna generación.");
@@ -50,12 +50,13 @@ export async function runScriptJobStep(id:string, service=createServiceClient())
   if(ownerError || !canAccessLongFormBeta(owner?.user)) throw new Error("Script job access unavailable");
   const input=job.input as ScriptJobInput, fields=ScriptJobFieldsSchema.parse(input.fields);
   let editorial:EditorialReport|undefined;
+  if(input.referenceContract!==undefined && input.referenceContract!=="catalog-v1")throw new Error("Unsupported saved reference contract");
   const script=await withDocumentaryStep(()=>withDocumentarySupplyContext(job.user_id,
-   {...fields,editorialVersion:EDITORIAL_VERSION,researchVersion:RESEARCH_VERSION,creativeHistory:input.creativeHistory},
+   {...fields,editorialVersion:EDITORIAL_VERSION,researchVersion:RESEARCH_VERSION,creativeHistory:input.creativeHistory,...(input.referenceContract?{referenceContract:input.referenceContract}:{})},
    input.recoverLegacyOperator && isInternalProductionOwner(owner.user),async()=>{
     await update({stage:"Investigando fuentes"});
     const researchPack=await researchDocumentary({topic:fields.topic,references:parseSources(fields.sources),openQuestions:parseOpenQuestions(fields.openQuestions)});
-    const beats=await generateDocumentaryScript({researchPack,creativeHistory:input.creativeHistory,mode:"curiosity_documentary",language:fields.language,
+    const beats=await generateDocumentaryScript({researchPack,creativeHistory:input.creativeHistory,referenceContract:input.referenceContract,mode:"curiosity_documentary",language:fields.language,
      targetDurationSeconds:Number(fields.durationMinutes)*60,onStage:stage=>update({stage}),onEditorialApproved:r=>{editorial=r;}});
     if(!editorial) throw new Error("Editorial approval missing");
     return {topic:fields.topic,beats:beats.map((b,i)=>({id:`beat-${i+1}`,...b})),editorial,sources:researchPack.sources};
