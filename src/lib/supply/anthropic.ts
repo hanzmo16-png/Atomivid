@@ -2,13 +2,15 @@ import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getPricingConfig } from "@/lib/billing/pricing";
-import { guardPaidCall } from "@/lib/paid-calls/gate";
+import { guardPaidCall, paidCallKey } from "@/lib/paid-calls/gate";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
 import { supabaseResultStore, paidResultPath } from "@/lib/paid-calls/result-store";
 import { stableHash } from "@/lib/production-intelligence/canonical";
 import { supplyGuardRequired } from "./server";
 import { anthropicReservation, anthropicActualCost, type ScriptUsage } from "./anthropic-cost";
 import { classifyAnthropicError } from "./anthropic-error";
+
+import { admitDocumentaryCall } from "./documentary-step";
 
 const context = new AsyncLocalStorage<{ projectId: string; intentId: string; recoverLegacyOperator?: boolean }>();
 export function withSupplyContext<T>(projectId: string, fn: () => Promise<T>): Promise<T> {
@@ -48,11 +50,15 @@ export async function supplyProtectedAnthropic<T extends { usage?: ScriptUsage }
       return recovered;
     }
   }
-  const paid = await guardPaidCall<T>(supabaseLedgerStore(service), {
+  const store = supabaseLedgerStore(service);
+  const spec = {
     projectId: scope.projectId, shotId: `script:${scope.intentId}:${stableHash(params, 16)}`,
     provider: "anthropic", model: params.model, method: "generate_script",
     inputFingerprint: params, reservedUsd: upperUsd,
-  }, { async call({ key }) {
+  };
+  const existing = await store.get(paidCallKey(spec));
+  admitDocumentaryCall(existing?.status);
+  const paid = await guardPaidCall<T>(store, spec, { async call({ key }) {
     const result = await invoke();
     const costUsd = anthropicActualCost(params, pricing, result.usage, upperUsd);
     const resultRef = paidResultPath(scope.projectId, key, "script.json");
