@@ -19,12 +19,12 @@ async function main(){
   if(s.success)script=s.data;if(e.success)review=e.data;
  }
  if(!script||!review)throw Error('matching documents unavailable');
- console.log(JSON.stringify({beats:script.beats.length,sections:review.sections.length,findings:review.findings.length}));
+ console.log(JSON.stringify({beats:script.beats.length,sections:review.sections.length,findings:review.findings.map((f:any)=>({kind:f.kind,severity:f.severity,evidence:f.evidence.length})),firstDelivered:review.firstAnswer.delivered,endingResolved:review.ending.resolvesPromise}));
  const citations=[...review.sections.map((e:any,i:number)=>({path:`sections.${i}`,e})),{path:'firstAnswer',e:review.firstAnswer.evidence},{path:'ending',e:review.ending.evidence},...review.findings.flatMap((f:any,i:number)=>f.evidence.map((e:any,j:number)=>({path:`findings.${i}.${j}`,e})))];
  for(const {path,e} of citations){
   const n=script.beats[e.beatIndex]?.narration??'';
   const exact=n.includes(e.quote),norm=normalized(n).includes(normalized(e.quote));
-  if(!exact||e.quote.trim().split(/\s+/).length<3)console.log(JSON.stringify({path,beatIndex:e.beatIndex,words:e.quote.trim().split(/\s+/).length,exact,typographyMatch:norm,exactOtherBeats:script.beats.flatMap((b:any,i:number)=>b.narration.includes(e.quote)?[i]:[]),typographyOtherBeats:script.beats.flatMap((b:any,i:number)=>normalized(b.narration).includes(normalized(e.quote))?[i]:[]),hasEllipsis:/\.\.\.|…/.test(e.quote)}));
+  if(!exact||e.quote.trim().split(/\s+/).length<3)console.log(JSON.stringify({path,beatIndex:e.beatIndex,words:e.quote.trim().split(/\s+/).length,exact,typographyMatch:norm,exactOtherBeats:script.beats.flatMap((b:any,i:number)=>b.narration.includes(e.quote)?[i]:[]),typographyOtherBeats:script.beats.flatMap((b:any,i:number)=>normalized(b.narration).includes(normalized(e.quote))?[i]:[]),hasEllipsis:/\.\.\.|…/.test(e.quote),quoteLength:e.quote.length,onlyPunctuation:!/[a-zA-Z]/.test(e.quote),placeholder:/^(?:n\/?a|none|absent|ausente|ninguna|no\s+cta|\[.*?\]|\(.*?\))$/i.test(e.quote.trim()),ellipsisParts:e.quote.split(/\.{3}|…/).map((p:string)=>({words:p.trim().split(/\s+/).length,found:normalized(n).includes(normalized(p))}))}));
  }
  try{validateEditorialReview(review,script);console.log('review_validation=pass');}catch{console.log('review_validation=fail');}
 }
