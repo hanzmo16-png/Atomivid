@@ -9,7 +9,7 @@ import { generateDocumentaryScript, LongFormScriptDurationError, type Documentar
 import { shotsForSpan } from "./shots";
 import { computeProductionPlan, REAL_LONG_FORM_PROVIDER_NAMES } from "./production-plan";
 import { documentary180sFixture } from "./test-fixtures";
-import { editorialFixture, passingReview } from "./editorial.test-fixtures";
+import { editorialFixture, passingReview, creativeFixture } from "./editorial.test-fixtures";
 
 /**
  * P0 2026-09-25 (Canal de Panamá): 180 s pedidos → plan ~4m33 → render
@@ -38,6 +38,7 @@ test("presupuesto de palabras: 180 s → ~450 palabras en 5 beats (antes: ≥ 75
 function fakeScript(wordsPerBeat: number, beats = 5): DocumentaryScript {
   const narration = Array.from({ length: wordsPerBeat }, (_, i) => (i === 0 ? "Panamá" : "palabra")).join(" ") + ".";
   return {
+    creativeDirection: creativeFixture(Array.from({ length: beats }, () => narration)),
     storyPlan: editorialFixture(wordsPerBeat).storyPlan,
     title: "t",
     workingTitleOptions: ["t"],

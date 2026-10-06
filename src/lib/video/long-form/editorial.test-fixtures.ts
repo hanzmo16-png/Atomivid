@@ -1,5 +1,19 @@
+import { NARRATIVE_DEVICES, type CreativeDirection } from "./creative-direction";
 import type { DocumentaryScript } from "./documentary-script";
 import type { EditorialReview } from "./editorial";
+
+export function creativeFixture(narrations: string[]): CreativeDirection {
+  const quote = (i: number) => ({ beatIndex: i, quote: narrations[i].split(" ").slice(0, 7).join(" ") });
+  return { audience: "Curious documentary viewers", emotionalPromise: "Understand how the story spread",
+    beliefToChallenge: "Repetition is not independent evidence", finalFeeling: "Curiosity with a method",
+    angles: NARRATIVE_DEVICES.slice(0, 7).map((device, i) => ({ device, premise: `Archive inquiry ${i}`,
+      hook: "A dated claim changes interpretation", genericRisk: "Avoid a generic hidden secret" })),
+    finalists: [1, 4, 6], chosenAngle: 4, selectionReason: "Evidence lets the audience revise a belief",
+    cloneTest: { substitutedTopic: "Ocean navigation", whyThisStoryBreaks: "The chain of repeated witness claims is specific to this legend" },
+    avoidedPatterns: [], signatureDetail: quote(1), shareableLine: quote(4), commentMoment: null, closingCta: null,
+    protectInEdit: [quote(0), quote(2), quote(4)], weakness: "The original witness cannot be questioned",
+    evidenceThatWouldHelp: "An authenticated original recording" };
+}
 
 export function editorialFixture(wordsPerBeat = 90): DocumentaryScript {
   const openings = ["The locked door is only a story, not physical evidence.",
@@ -7,7 +21,7 @@ export function editorialFixture(wordsPerBeat = 90): DocumentaryScript {
     "The second witness repeats the first account without independent access.",
     "That dependency changes how much weight the testimony can carry.",
     "The available evidence documents a circulating legend, not a verified facility."];
-  return { title: "A legend examined", workingTitleOptions: ["A legend examined"], hook: openings[0],
+  return { creativeDirection: creativeFixture(openings), title: "A legend examined", workingTitleOptions: ["A legend examined"], hook: openings[0],
     storyPlan: { centralQuestion: "What supports the allegation?", openingPromise: "Follow the evidence.",
       firstAnswer: openings[0], endingAnswer: openings[4], sections: openings.map((s, i) => ({ beatIndex: i,
         newInformation: s, consequence: "Changes the evidence assessment.", tension: i % 2 ? "reflection" : "rise" })) },

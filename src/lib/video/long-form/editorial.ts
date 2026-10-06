@@ -1,7 +1,8 @@
+import { creativeDirectionIssues, type CreativeDirection } from "./creative-direction";
 import { z } from "zod";
 import { stableHash } from "@/lib/production-intelligence/canonical";
 
-export const EDITORIAL_VERSION = "editorial-v1" as const;
+export const EDITORIAL_VERSION = "editorial-v2" as const;
 const text = z.string().min(1).max(1600);
 export const StoryPlanSchema = z.object({
   centralQuestion: text,
@@ -27,7 +28,7 @@ export const EditorialReviewSchema = z.object({
   firstAnswer: z.object({ delivered: z.boolean(), evidence: EvidenceSchema, explanation: text }),
   ending: z.object({ resolvesPromise: z.boolean(), evidence: EvidenceSchema, explanation: text }),
   findings: z.array(z.object({
-    kind: z.enum(["repeated_promise", "empty_suspense", "missing_payoff", "unsupported_claim", "padding", "pacing"]),
+    kind: z.enum(["repeated_promise", "empty_suspense", "missing_payoff", "unsupported_claim", "padding", "pacing", "template_clone", "packaging_mismatch", "engagement_bait", "unresolved_placeholder", "spoken_clarity"]),
     severity: z.enum(["blocking", "suggestion"]),
     evidence: z.array(EvidenceSchema).min(1).max(10),
     explanation: text,
@@ -41,7 +42,10 @@ export type EditorialScript = {
   beats: { type: string; purpose: string; narration: string; claims: unknown; visuals?: unknown; emotionalTone?: string }[];
 };
 export type EditorialReport = {
-  version: typeof EDITORIAL_VERSION;
+  version: "editorial-v1" | typeof EDITORIAL_VERSION;
+  creativeDirection?: CreativeDirection;
+  historyCount?: number;
+  publicationTitle?: string;
   status: "approved";
   scriptHash: string;
   model: string;
@@ -139,11 +143,17 @@ export class EditorialQualityError extends Error {
 export function editorialApprovalError(script: { beats: unknown[]; editorial?: unknown }): string | null {
   if (script.editorial === undefined) return null;
   const report = script.editorial as Partial<EditorialReport> | null;
-  if (!report || report.version !== EDITORIAL_VERSION || report.status !== "approved" || !Array.isArray(report.reviews) || !report.reviews.length)
+  if (!report || !["editorial-v1", EDITORIAL_VERSION].includes(report.version ?? "") || report.status !== "approved" || !Array.isArray(report.reviews) || !report.reviews.length)
     return "El guion todavía no tiene una revisión editorial válida.";
   try {
     if (report.scriptHash !== editorialScriptHash(script.beats as EditorialScript["beats"]))
       return "El guion cambió después de la revisión editorial. Debe revisarse de nuevo antes de producir.";
+    if (report.version === EDITORIAL_VERSION) {
+      if (!Number.isInteger(report.historyCount) || report.historyCount! < 0 || report.historyCount! > 5)
+        return "La memoria de la revisión creativa está incompleta.";
+      if (creativeDirectionIssues(report.creativeDirection, script.beats as EditorialScript["beats"], [], report.historyCount).length)
+        return "La dirección creativa guardada no corresponde al guion aprobado.";
+    }
     const reviewed = { beats: script.beats, storyPlan: report.storyPlan } as EditorialScript;
     validateStoryPlan(reviewed);
     const last = validateEditorialReview(report.reviews.at(-1), reviewed);

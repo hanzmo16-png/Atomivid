@@ -74,7 +74,7 @@ test("references are optional, but retrieved research precedes script generation
   assert.ok(match && !match[0].includes("required"));
   const action = readActions();
   assert.ok(action.indexOf("await researchDocumentary(") < action.indexOf("return generateDocumentaryScript("));
-  assert.match(action, /researchPack, mode:/);
+  assert.match(action, /researchPack, creativeHistory, mode:/);
   assert.ok(!action.includes("researchPack: { topic, sources"), "raw URLs must not be treated as retrieved sources");
 });
 
@@ -92,7 +92,7 @@ test("createLongFormVideoRequest: la generación real (Anthropic) está envuelta
   const source = readActions();
   assert.match(
     source,
-    /try \{\s*beats = await withDocumentarySupplyContext\([\s\S]*?generateDocumentaryScript\(/,
+    /try \{\s*const creativeHistory = await loadCreativeHistory\([\s\S]*?beats = await withDocumentarySupplyContext\([\s\S]*?generateDocumentaryScript\(/,
     "la llamada real al proveedor debe seguir envuelta en try/catch para convertir cualquier fallo en un error visible, nunca en un submit silencioso",
   );
   assert.match(

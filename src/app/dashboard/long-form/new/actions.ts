@@ -6,6 +6,7 @@ import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
+import { loadCreativeHistory } from "@/lib/video/long-form/creative-history";
 import { researchDocumentary, RESEARCH_VERSION } from "@/lib/video/long-form/research";
 import type { LongFormSource } from "@/lib/video/long-form/types";
 import { generateDocumentaryScript } from "@/lib/video/long-form/documentary-script";
@@ -109,13 +110,14 @@ export async function createLongFormVideoRequest(formData: FormData) {
   let editorial: EditorialReport | undefined;
   let sources: LongFormSource[] = [];
   try {
+    const creativeHistory = await loadCreativeHistory(supabase, user.id);
     beats = await withDocumentarySupplyContext(user.id,
-      { ...submittedFields, editorialVersion: EDITORIAL_VERSION, researchVersion: RESEARCH_VERSION },
+      { ...submittedFields, editorialVersion: EDITORIAL_VERSION, researchVersion: RESEARCH_VERSION, creativeHistory },
       isInternalProductionOwner(user), async () => {
         const researchPack = await researchDocumentary({ topic, references, openQuestions });
         sources = researchPack.sources;
         return generateDocumentaryScript({
-          researchPack, mode: "curiosity_documentary", language,
+          researchPack, creativeHistory, mode: "curiosity_documentary", language,
           targetDurationSeconds: durationMinutes * 60,
           onEditorialApproved: report => { editorial = report; },
         });

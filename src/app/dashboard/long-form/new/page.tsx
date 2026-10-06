@@ -138,7 +138,7 @@ export default async function NewLongFormVideoPage({
 
           <SubmitButton />
           <p className="text-xs text-ink-faint">
-            La IA investiga, prepara el arco narrativo, escribe y revisa el guion. Si detecta repetición o
+            La IA investiga, compara ángulos y consulta tus guiones recientes antes de escribir y revisar la historia. Si detecta repetición o
             promesas sin resolver, realiza una sola corrección y la comprueba. La búsqueda y la escritura usan
             créditos del proveedor y puede tardar varios minutos. La voz y las imágenes se generan
             después de superar esta revisión y confirmar el plan. No pulses el botón más de una vez.
