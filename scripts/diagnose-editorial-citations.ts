@@ -1,3 +1,11 @@
+import {isProductionRuntime} from '../src/lib/providers/production';
+import {stableHash} from '../src/lib/production-intelligence/canonical';
+import {documentarySupplyScope} from '../src/lib/supply/anthropic';
+import {researchDocumentary,RESEARCH_VERSION} from '../src/lib/video/long-form/research';
+import {generateDocumentaryScript} from '../src/lib/video/long-form/documentary-script';
+import {parseSources,parseOpenQuestions} from '../src/app/dashboard/long-form/new/parse';
+import {EDITORIAL_VERSION} from '../src/lib/video/long-form/editorial';
+import {applyEditorialCitationRepairs} from '../src/lib/video/long-form/editorial-evidence';
 import {createHash} from 'node:crypto';
 import {creativeDirectionIssues} from '../src/lib/video/long-form/creative-direction';
 import {editorialBlockers} from '../src/lib/video/long-form/editorial';
@@ -9,16 +17,17 @@ import {DocumentaryNarrativeSchema} from '../src/lib/video/long-form/documentary
 import {EditorialReviewSchema,validateEditorialReview} from '../src/lib/video/long-form/editorial';
 const normalized=(s:string)=>s.normalize('NFKC').replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/[–—]/g,'-').replace(/\s+/g,' ').trim();
 async function main(){
+ if(isProductionRuntime()||process.env.SUPPLY_GUARD_ENFORCED==='true'||process.env.ANTHROPIC_API_KEY)throw Error('Read-only offline diagnostic environment required');
  const db=createClient(process.env.SUPABASE_URL!.trim(),process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(),{auth:{persistSession:false,autoRefreshToken:false}});
  const latest=await db.from('pi_paid_operations').select('project_id').eq('provider','anthropic').eq('status','COMMITTED').like('project_id','documentary:%').order('created_at',{ascending:false}).limit(1);
  if(latest.error||!latest.data?.[0])throw Error('read');
  if(createHash('sha256').update(latest.data[0].project_id).digest('hex')!=='4ab5689838b0540d705e68ba18772583c8c740bf91b319ea76a8306e3057d884')throw Error('Diagnostic scope changed');
- const rows=await db.from('pi_paid_operations').select('result_ref').eq('project_id',latest.data[0].project_id).eq('provider','anthropic').eq('status','COMMITTED').order('created_at',{ascending:true});
+ const rows=await db.from('pi_paid_operations').select('result_ref,shot_id').eq('project_id',latest.data[0].project_id).eq('provider','anthropic').eq('status','COMMITTED').order('created_at',{ascending:true});
  if(rows.error)throw Error('read');
- let script:any,review:any;const docs:any[]=[];
+ let script:any,review:any;const docs:any[]=[],responses=new Map<string,any>();
  for(const row of rows.data??[]){
   const f=await db.storage.from('videos').download(row.result_ref);if(f.error||!f.data)throw Error('read');
-  const r=JSON.parse(await f.data.text());if(r.stop_reason!=='end_turn')continue;
+  const r=JSON.parse(await f.data.text());responses.set(row.shot_id.split(':').at(-1),r);if(r.stop_reason!=='end_turn')continue;
   const t=r.content.filter((b:any)=>b.type==='text').map((b:any)=>b.text).join('').trim().replace(/^```(?:json)?\s*\n([\s\S]*?)\n```$/i,'$1');
   let v:any;try{v=JSON.parse(t);}catch{continue;}
   docs.push(v);const s=DocumentaryNarrativeSchema.safeParse(v),e=EditorialReviewSchema.safeParse(v);
@@ -38,6 +47,30 @@ async function main(){
  const invalid=invalidEditorialCitations(canonical,script.beats);
  const latestRepair=repairs.at(-1);const patches=latestRepair?.replacements??[];
  console.log(JSON.stringify({repairCounts:repairs.map(r=>r.replacements.length),invalid:invalid.map(x=>({path:x.path,beatIndex:x.citation.beatIndex,words:x.citation.quote.split(/\s+/).length})),patches:patches.map((p:any)=>{const target=invalid.find(x=>x.path===p.path);const n=target?script.beats[target.citation.beatIndex]?.narration??'':'';return {knownPath:!!target,words:p.quote?.split(/\s+/).length,exact:!!target&&n.includes(p.quote),typographyMatch:!!target&&normalized(n).includes(normalized(p.quote)),exactOtherBeats:script.beats.flatMap((b:any,i:number)=>b.narration.includes(p.quote)?[i]:[])};})}));console.log(JSON.stringify({invalidBefore:invalidEditorialCitations(review,script.beats).length,invalidAfterLiteralExpansion:invalidEditorialCitations(canonical,script.beats).length}));
+ let finalReview=canonical;
+ try{if(invalid.length)finalReview=applyEditorialCitationRepairs(canonical,script.beats,latestRepair);const validated=validateEditorialReview(finalReview,script);console.log(JSON.stringify({savedRepairValid:true,retainedFindings:validated.findings.length,blockers:editorialBlockers(validated).length,relocatedReferences:validated.citationLocations?.length??0}));}catch{console.log('saved_repair_valid=false');}
+ // Replay ALL SDK requests against the exact recorded parameter fingerprints.
+ // Networking is replaced only after read-only downloads; no provider credential,
+ // writes or paid call can occur. A cache miss is a boundary, never a fallback.
+ const jobs=await db.from('documentary_script_jobs').select('user_id,input').eq('user_id',latest.data[0].project_id.split(':')[1]).eq('status','failed').order('created_at',{ascending:false});
+ if(jobs.error)throw Error('read');
+ const job=jobs.data?.find(j=>documentarySupplyScope(j.user_id,{...j.input.fields,editorialVersion:EDITORIAL_VERSION,researchVersion:RESEARCH_VERSION,creativeHistory:j.input.creativeHistory},false).projectId===latest.data[0].project_id);
+ if(!job)throw Error('Replay input unavailable');
+ const fields=job.input.fields,originalFetch=globalThis.fetch;
+ let stage='research',hits=0,miss=false,approved=false;
+ const stages:string[]=[];
+ process.env.ANTHROPIC_API_KEY='offline-replay-no-provider-key';
+ globalThis.fetch=async(_url,init)=>{
+  const params=JSON.parse(String(init?.body));const response=responses.get(stableHash(params,16));
+  if(!response){miss=true;throw Error('OFFLINE_CACHE_BOUNDARY');}
+  hits++;return new Response(JSON.stringify(response),{status:200,headers:{'content-type':'application/json'}});
+ };
+ try{
+  const researchPack=await researchDocumentary({topic:fields.topic,references:parseSources(fields.sources),openQuestions:parseOpenQuestions(fields.openQuestions)});
+  await generateDocumentaryScript({researchPack,creativeHistory:job.input.creativeHistory,mode:'curiosity_documentary',language:fields.language,targetDurationSeconds:Number(fields.durationMinutes)*60,onStage:async label=>{stage=label;stages.push(label);},onEditorialApproved:()=>{approved=true;}});
+  console.log(JSON.stringify({offlineReplay:'completed',hits,approved,stages}));
+ }catch{console.log(JSON.stringify({offlineReplay:miss?'cache_boundary':'validation_failure',hits,approved,stage,stages}));}
+ finally{globalThis.fetch=originalFetch;delete process.env.ANTHROPIC_API_KEY;}
  try{const validated=validateEditorialReview(canonical,script);console.log(JSON.stringify({reviewValidation:true,blockers:editorialBlockers(validated).length}));}catch{console.log('review_validation=fail');}
 }
 main().catch(()=>{console.error('Read-only editorial diagnostic failed');process.exitCode=1;});

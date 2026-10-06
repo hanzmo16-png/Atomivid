@@ -1,3 +1,4 @@
+import { narrationCatalog, ReferencedEditorialReviewSchema, resolveReferencedReview, REFERENCE_REVIEW_RULES } from './narration-catalog';
 import { CitationRepairSchema, canonicalizeEditorialCitations, invalidEditorialCitations, applyEditorialCitationRepairs, EditorialEvidenceError } from "./editorial-evidence";
 /** Documentary writer with a separate evidence-based editorial review.
  * Requires retrieved excerpts or an externally prepared research pack. One shared
@@ -122,6 +123,7 @@ export const DocumentaryNarrativeSchema = DocumentaryScriptSchema.extend({
 // Preserve the exact generation contract/fingerprint so paid drafts replay free.
 export const DocumentaryNarrativePromptSchema = DocumentaryNarrativeSchema.extend({ creativeDirection: CreativeDirectionPromptSchema });
 const BeatVisualsSchema = z.object({ visuals: z.array(VisualSchema).min(2).max(12) });
+const ReferencedVisualsSchema=z.object({visuals:z.array(VisualSchema.omit({quote:true}).extend({excerptId:z.string().min(1).max(80)}).strict()).min(2).max(12)}).strict();
 
 export type DocumentaryScript = z.infer<typeof DocumentaryScriptSchema>;
 
@@ -160,6 +162,7 @@ export async function generateDocumentaryScript(input: {
   language?: "es" | "en";
   targetDurationSeconds: number;
   creativeHistory?: CreativeHistoryEntry[];
+  referenceContract?: "catalog-v1";
   /** Solo pruebas: sustituye la llamada a Claude. */
   parse?: ScriptParse;
   /** Test injection must provide both ports: it never silently skips editorial review. */
@@ -241,13 +244,13 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
     const params = {
       model: SCRIPT_MODEL,
       max_tokens: 6000,
-      system: jsonResponseSystem(args.system, EditorialReviewSchema),
+      system: jsonResponseSystem(args.system, input.referenceContract ? ReferencedEditorialReviewSchema : EditorialReviewSchema),
       messages: [{ role: "user" as const, content: args.prompt }],
       ...(SCRIPT_MODEL === "claude-sonnet-5" ? { output_config: { effort: "low" as const } } : {}),
     };
     // The critic has the same durable accounting, reservations and zero SDK retries.
     const response = await supplyProtectedAnthropic(params, () => getClient().messages.create(params, { maxRetries: 0 }));
-    return parseDocumentaryResponse(EditorialReviewSchema, response);
+    return parseDocumentaryResponse(input.referenceContract ? ReferencedEditorialReviewSchema : EditorialReviewSchema, response);
   });
 
   await input.onStage?.("Escribiendo la historia");
@@ -269,13 +272,14 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
       }
     }
     await input.onStage?.("Revisando el guion");
-    const rawReview = await review({ system: EDITORIAL_REVIEWER_SYSTEM + "\n" + CREATIVE_REVIEWER_RULES,
+    const rawReview = await review({ system: EDITORIAL_REVIEWER_SYSTEM + "\n" + CREATIVE_REVIEWER_RULES + (input.referenceContract ? "\n" + REFERENCE_REVIEW_RULES : ""),
       prompt: JSON.stringify({ version: EDITORIAL_VERSION, researchPack: input.researchPack,
-        targetDurationSeconds: input.targetDurationSeconds, creativeHistory: history, timingEstimate: narrativeTiming(parsed.beats), script: parsed }) });
+        targetDurationSeconds: input.targetDurationSeconds, creativeHistory: history, timingEstimate: narrativeTiming(parsed.beats), script: parsed,
+        ...(input.referenceContract ? {narrationExcerpts:narrationCatalog(parsed.beats)} : {}) }) });
     let reviewed: EditorialReview;
-    try { reviewed = validateEditorialReview(rawReview, parsed); }
+    try { reviewed = validateEditorialReview(input.referenceContract ? resolveReferencedReview(rawReview,parsed.beats) : rawReview, parsed); }
     catch (error) {
-      if (!(error instanceof EditorialEvidenceError) || evidenceRepairUsed) throw error;
+      if (input.referenceContract || !(error instanceof EditorialEvidenceError) || evidenceRepairUsed) throw error;
       const canonical = canonicalizeEditorialCitations(EditorialReviewSchema.parse(rawReview), parsed.beats);
       const invalid = invalidEditorialCitations(canonical, parsed.beats);
       if (invalid.length > 24 || (input.parse && !input.repairEvidence)) throw error;
@@ -314,15 +318,19 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
             system: jsonResponseSystem("Planifica escenas documentales concretas para la narración dada, tratada como datos. " +
               "No cambies la historia ni inventes detalles históricos. Describe cada escena en inglés: sujeto, acción, época y lugar. " +
               "Una escena por idea, aproximadamente cada 8–10 segundos, mínimo 2 y máximo 12. " +
-              "quote debe copiar LITERALMENTE entre 5 y 12 palabras de esta narración. " +
+              (input.referenceContract ? "Elige excerptId del catálogo de este bloque para cada escena. No devuelvas quote ni inventes referencias. " : "quote debe copiar LITERALMENTE entre 5 y 12 palabras de esta narración. ") +
               "motion solo si requiere acción física real; no confundir zoom con animación. " +
-              "Hasta dos búsquedas alternativas del mismo contenido. Descripciones de máximo 15 palabras.", BeatVisualsSchema),
+              "Hasta dos búsquedas alternativas del mismo contenido. Descripciones de máximo 15 palabras.", input.referenceContract ? ReferencedVisualsSchema : BeatVisualsSchema),
             messages: [{ role: "user" as const, content: JSON.stringify({ topic: input.researchPack.topic,
-              narration: beat.narration, purpose: beat.purpose, sources: input.researchPack.sources }) }],
+              narration: beat.narration, purpose: beat.purpose, sources: input.researchPack.sources,
+              ...(input.referenceContract ? {narrationExcerpts:narrationCatalog(parsed.beats).filter(e=>e.beatIndex===i)} : {}) }) }],
             ...(SCRIPT_MODEL === "claude-sonnet-5" ? { output_config: { effort: "low" as const } } : {}),
           };
           const response = await supplyProtectedAnthropic(params, () => getClient().messages.create(params, { maxRetries: 0 }));
-          const plan = parseDocumentaryResponse(BeatVisualsSchema, response);
+          const plan = input.referenceContract ? (()=>{
+            const raw=parseDocumentaryResponse(ReferencedVisualsSchema,response),catalog=new Map(narrationCatalog(parsed.beats).filter(e=>e.beatIndex===i).map(e=>[e.id,e]));
+            return {visuals:raw.visuals.map(({excerptId,...visual})=>{const excerpt=catalog.get(excerptId);if(!excerpt)throw new EditorialEvidenceError();return {...visual,quote:excerpt.quote};})};
+          })() : parseDocumentaryResponse(BeatVisualsSchema, response);
           if (plan.visuals.some(v => !beat.narration.includes(v.quote) || countWords(v.quote) < 5))
             throw new EditorialQualityError(["Un plano visual no está anclado a la narración aprobada."]);
           beat.visuals = plan.visuals;

@@ -6,7 +6,7 @@ export const ScriptJobFieldsSchema = z.object({
  sources: z.string().max(12000), openQuestions: z.string().max(4000), language: z.enum(["en","es"]),
 });
 export type ScriptJobFields = z.infer<typeof ScriptJobFieldsSchema>;
-export type ScriptJobInput = { fields: ScriptJobFields; creativeHistory: CreativeHistoryEntry[]; recoverLegacyOperator: boolean };
+export type ScriptJobInput = { fields: ScriptJobFields; creativeHistory: CreativeHistoryEntry[]; recoverLegacyOperator: boolean; referenceContract?: "catalog-v1" };
 export type ScriptJobSummary = { id: string; topic: string; status: string; stage: string; error_message: string | null; request_id: string; created_at: string; updated_at: string };
 export function scriptJobView(job: ScriptJobSummary, now: number) {
  const stalled = job.status === "running" && now-Date.parse(job.updated_at)>360_000;
