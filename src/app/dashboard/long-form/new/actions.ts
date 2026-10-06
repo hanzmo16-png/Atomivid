@@ -1,6 +1,8 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
+import { withDocumentarySupplyContext } from "@/lib/supply/anthropic";
+import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
@@ -108,12 +110,12 @@ export async function createLongFormVideoRequest(formData: FormData) {
   // solicitud a medias.
   let beats: Awaited<ReturnType<typeof generateDocumentaryScript>>;
   try {
-    beats = await generateDocumentaryScript({
+    beats = await withDocumentarySupplyContext(user.id, submittedFields, isInternalProductionOwner(user), () => generateDocumentaryScript({
       researchPack: { topic, sources, openQuestions },
       mode: "curiosity_documentary",
       language,
       targetDurationSeconds: durationMinutes * 60,
-    });
+    }));
   } catch (err) {
     const message = err instanceof Error ? err.message : "No se pudo generar el guion documental.";
     longFormFormRedirect(message, submittedFields);
