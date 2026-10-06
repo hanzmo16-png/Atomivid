@@ -48,7 +48,7 @@ async function main(){
  const latestRepair=repairs.at(-1);const patches=latestRepair?.replacements??[];
  console.log(JSON.stringify({repairCounts:repairs.map(r=>r.replacements.length),invalid:invalid.map(x=>({path:x.path,beatIndex:x.citation.beatIndex,words:x.citation.quote.split(/\s+/).length})),patches:patches.map((p:any)=>{const target=invalid.find(x=>x.path===p.path);const n=target?script.beats[target.citation.beatIndex]?.narration??'':'';return {knownPath:!!target,words:p.quote?.split(/\s+/).length,exact:!!target&&n.includes(p.quote),typographyMatch:!!target&&normalized(n).includes(normalized(p.quote)),exactOtherBeats:script.beats.flatMap((b:any,i:number)=>b.narration.includes(p.quote)?[i]:[])};})}));console.log(JSON.stringify({invalidBefore:invalidEditorialCitations(review,script.beats).length,invalidAfterLiteralExpansion:invalidEditorialCitations(canonical,script.beats).length}));
  let finalReview=canonical;
- try{if(invalid.length)finalReview=applyEditorialCitationRepairs(canonical,script.beats,latestRepair);const validated=validateEditorialReview(finalReview,script);console.log(JSON.stringify({savedRepairValid:true,retainedFindings:validated.findings.length,blockers:editorialBlockers(validated).length,relocatedReferences:validated.citationLocations?.length??0}));}catch{console.log('saved_repair_valid=false');}
+ try{if(invalid.length)finalReview=applyEditorialCitationRepairs(canonical,script.beats,latestRepair);const validated=validateEditorialReview(finalReview,script);console.log(JSON.stringify({savedRepairValid:true,retainedFindings:validated.findings.length,blockers:editorialBlockers(validated).length,relocatedReferences:validated.citationLocations?.length??0,repeatedBlocks:validated.sections.filter(s=>s.function==='restatement').map(s=>s.beatIndex),blockingFindings:validated.findings.filter(f=>f.severity==='blocking').length}));}catch{console.log('saved_repair_valid=false');}
  // Replay ALL SDK requests against the exact recorded parameter fingerprints.
  // Networking is replaced only after read-only downloads; no provider credential,
  // writes or paid call can occur. A cache miss is a boundary, never a fallback.
@@ -69,7 +69,7 @@ async function main(){
   const researchPack=await researchDocumentary({topic:fields.topic,references:parseSources(fields.sources),openQuestions:parseOpenQuestions(fields.openQuestions)});
   await generateDocumentaryScript({researchPack,creativeHistory:job.input.creativeHistory,mode:'curiosity_documentary',language:fields.language,targetDurationSeconds:Number(fields.durationMinutes)*60,onStage:async label=>{stage=label;stages.push(label);},onEditorialApproved:()=>{approved=true;}});
   console.log(JSON.stringify({offlineReplay:'completed',hits,approved,stages}));
- }catch{console.log(JSON.stringify({offlineReplay:miss?'cache_boundary':'validation_failure',hits,approved,stage,stages}));}
+ }catch(error){console.log(JSON.stringify({offlineReplay:miss?'cache_boundary':'validation_failure',errorType:error instanceof Error?error.name:'unknown',hits,approved,stage,stages}));}
  finally{globalThis.fetch=originalFetch;delete process.env.ANTHROPIC_API_KEY;}
  try{const validated=validateEditorialReview(canonical,script);console.log(JSON.stringify({reviewValidation:true,blockers:editorialBlockers(validated).length}));}catch{console.log('review_validation=fail');}
 }

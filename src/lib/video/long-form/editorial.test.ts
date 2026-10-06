@@ -185,3 +185,11 @@ test('legacy saved correction relocates only unique literal finding evidence and
  assert.throws(()=>applyEditorialCitationRepairs(review,duplicate.beats,patch));
  const bad=structuredClone(resolved);bad.findings[0].evidence[0].quote='changed words here';assert.throws(()=>validateEditorialReview(bad,script));
 });
+
+test('persistent story defects have a quality stage and actionable message distinct from reference failures',async()=>{
+ const {documentaryFormError}=await import('./form-error');const {script,review}=repeatedPromiseFixture();review.sections[2].function='restatement';let lastStage='';
+ await assert.rejects(generateDocumentaryScript({...input,parse:async()=>script,review:async()=>review,onStage:async label=>{lastStage=label;}}),e=>{
+  assert.ok(e instanceof EditorialQualityError);const message=documentaryFormError(e,'fixture');assert.match(message,/repite ideas/);assert.match(message,/corrección prevista ya se utilizó/);assert.ok(!message.includes(review.sections[2].contribution));return true;
+ });
+ assert.equal(lastStage,'Comprobando calidad narrativa');
+});

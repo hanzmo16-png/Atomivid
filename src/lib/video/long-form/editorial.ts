@@ -136,7 +136,7 @@ export function editorialScriptHash(beats: EditorialScript["beats"]): string {
   return stableHash(beats.map(b => ({ type: b.type, purpose: b.purpose, narration: b.narration, claims: b.claims, visuals: b.visuals, emotionalTone: b.emotionalTone })), 64);
 }
 export class EditorialQualityError extends Error {
-  constructor(readonly reasons: string[]) {
+  constructor(readonly reasons: string[], readonly correctionExhausted = false) {
     super(`El guion necesita más trabajo editorial: ${reasons.slice(0, 2).join(" ").slice(0, 750)} No se inició la producción audiovisual.`);
     this.name = "EditorialQualityError";
   }
