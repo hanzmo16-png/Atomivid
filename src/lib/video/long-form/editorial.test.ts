@@ -143,3 +143,30 @@ test("failed or uncertain evidence correction stops without another call or appr
   assert.equal(repairs,1);assert.equal(approved,false);
  }
 });
+
+test("supplementary unique claim IDs remain audited references, never fabricated quotations",()=>{
+ const script=editorialFixture(),review=passingReview(script);
+ script.beats[3].claims=[{id:'c4-5',text:'An inference about the archive.',support:'inference',sourceIds:['s1']}];
+ review.findings.push({kind:'unsupported_claim',severity:'suggestion',evidence:[review.sections[3],{beatIndex:4,quote:'c4-5'}],explanation:'A limited inference.',repair:'Qualify the wording.'});
+ const resolved=validateEditorialReview(review,script);
+ assert.equal(resolved.findings.length,1);assert.equal(resolved.findings[0].severity,'suggestion');
+ assert.equal(resolved.findings[0].explanation,review.findings[0].explanation);assert.equal(resolved.findings[0].repair,review.findings[0].repair);
+ assert.deepEqual(resolved.findings[0].evidence,[{beatIndex:review.sections[3].beatIndex,quote:review.sections[3].quote}]);
+ assert.deepEqual(resolved.claimReferences,[{findingIndex:0,claimId:'c4-5',beatIndex:3,originalBeatIndex:4}]);
+ assert.deepEqual(validateEditorialReview(resolved,script),resolved,'stored references revalidate without duplication');
+ assert.equal(review.findings[0].evidence.length,2,'raw response is unchanged');
+});
+
+test("claim references cannot replace mandatory narrative evidence or hide blocking findings",()=>{
+ const script=editorialFixture(),review=passingReview(script);
+ script.beats[3].claims=[{id:'c4-5',text:'An inference.',support:'inference',sourceIds:['s1']}];
+ const finding={kind:'unsupported_claim' as const,severity:'blocking' as const,evidence:[review.sections[3],{beatIndex:4,quote:'c4-5'}],explanation:'Material overstatement.',repair:'Correct the unsupported assertion.'};
+ review.findings.push(finding);
+ assert.equal(editorialBlockers(validateEditorialReview(review,script)).length,1);
+ for(const evidence of [[{beatIndex:4,quote:'c4-5'}],[review.sections[2],{beatIndex:4,quote:'c4-5'}],[review.sections[3],{beatIndex:4,quote:'unknown-id'}]]){
+  const bad=structuredClone(review);bad.findings[0].evidence=evidence;assert.throws(()=>validateEditorialReview(bad,script));
+ }
+ const bad=structuredClone(review);bad.sections[3].quote='c4-5';assert.throws(()=>validateEditorialReview(bad,script));
+ const duplicate=structuredClone(script);duplicate.beats[2].claims=script.beats[3].claims;assert.throws(()=>validateEditorialReview(review,duplicate));
+ const tampered=validateEditorialReview(review,script);tampered.claimReferences![0].beatIndex=2;assert.throws(()=>validateEditorialReview(tampered,script));
+});

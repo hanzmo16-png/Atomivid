@@ -36,7 +36,13 @@ export const EditorialReviewSchema = z.object({
     repair: text,
   })).max(16),
 });
-export type EditorialReview = z.infer<typeof EditorialReviewSchema>;
+// Provider prompt contract stays unchanged. These references are derived and
+// verified locally; a claim identifier is never treated as a narrated quotation.
+const ClaimReferenceSchema = z.object({ findingIndex: z.number().int().min(0).max(15),
+  claimId: z.string().min(1).max(100), beatIndex: z.number().int().min(0).max(9),
+  originalBeatIndex: z.number().int().min(0).max(9) });
+export const ResolvedEditorialReviewSchema = EditorialReviewSchema.extend({ claimReferences: z.array(ClaimReferenceSchema).max(160).optional() });
+export type EditorialReview = z.infer<typeof ResolvedEditorialReviewSchema>;
 export type StoryPlan = z.infer<typeof StoryPlanSchema>;
 export type EditorialScript = {
   storyPlan: StoryPlan;
@@ -97,7 +103,7 @@ export function validateStoryPlan(script: EditorialScript): void {
     throw new Error("El plan narrativo no corresponde a todos los bloques del guion.");
 }
 export function validateEditorialReview(value: unknown, script: EditorialScript): EditorialReview {
-  const review = canonicalizeEditorialCitations(EditorialReviewSchema.parse(value), script.beats);
+  const review = canonicalizeEditorialCitations(ResolvedEditorialReviewSchema.parse(value), script.beats);
   if (!coversAll(review.sections.map(s => s.beatIndex), script.beats.length))
     throw new Error("La revisión editorial no cubre todos los bloques.");
   if (invalidEditorialCitations(review, script.beats).length) throw new EditorialEvidenceError();

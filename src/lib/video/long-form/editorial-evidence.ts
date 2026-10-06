@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { EditorialReview } from './editorial';
-type Beats = { narration: string }[];
+type Beats = { narration: string; claims?: unknown }[];
 type Citation = { beatIndex: number; quote: string };
 export function editorialCitations(review: EditorialReview): { path: string; citation: Citation }[] {
  return [...review.sections.map((citation,i)=>({path:`sections/${i}`,citation})),
@@ -31,6 +31,26 @@ export function canonicalizeEditorialCitations(review:EditorialReview, beats:Bea
   const literal=resolveEditorialQuote(beats[citation.beatIndex]?.narration??'',citation.quote);
   if(literal!==null)citation.quote=literal;
  }
+ // A supplementary ID may be misplaced in the quote field. Keep it as a
+ // separately audited claim reference ONLY when the same finding already cites
+ // literal narration in the unique claim's actual beat. Never invent a quote.
+ const claimBeats=(id:string)=>beats.flatMap((b,i)=>Array.isArray(b.claims)?b.claims.filter(c=>c && typeof c==='object' && c.id===id).map(()=>i):[]);
+ const literalInBeat=(findingIndex:number,beatIndex:number)=>copy.findings[findingIndex]?.evidence.some(e=>e.beatIndex===beatIndex && words(e.quote)>=3 && beats[beatIndex]?.narration.includes(e.quote));
+ for(const ref of copy.claimReferences??[]){
+  const matches=claimBeats(ref.claimId);
+  if(matches.length!==1 || matches[0]!==ref.beatIndex || !literalInBeat(ref.findingIndex,ref.beatIndex))throw new EditorialEvidenceError();
+ }
+ copy.findings.forEach((finding,findingIndex)=>{
+  const references:NonNullable<EditorialReview['claimReferences']>=[];
+  const keep=finding.evidence.filter(e=>{
+   if(words(e.quote)>=3 && beats[e.beatIndex]?.narration.includes(e.quote))return true;
+   const matches=claimBeats(e.quote);
+   if(matches.length!==1 || !literalInBeat(findingIndex,matches[0]))return true;
+   references.push({findingIndex,claimId:e.quote,beatIndex:matches[0],originalBeatIndex:e.beatIndex});
+   return false;
+  });
+  if(references.length){finding.evidence=keep;copy.claimReferences=[...(copy.claimReferences??[]),...references];}
+ });
  return copy;
 }
 export function invalidEditorialCitations(review:EditorialReview,beats:Beats){
