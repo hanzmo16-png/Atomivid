@@ -112,7 +112,9 @@ export function RequestCard({
 
           {request.status === "pending" && <GenerateButton {...pendingRequestCta(request.id)} />}
           {request.status === "script_ready" &&
-            (isLongForm ? (
+            (isLongForm ? (request.long_form_confirmed_at ? (
+              <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Iniciar producción" />
+            ) : (
               // RC mission "LONG FORM RC FINAL HARDENING": ya no dispara el
               // render directo — primero pasa por "Configurar producción"
               // (estrategia visual + costo estimado + confirmación
@@ -125,7 +127,7 @@ export function RequestCard({
               >
                 Configurar producción
               </Link>
-            ) : (
+            )) : (
               <Link
                 href={`/dashboard/review/${request.id}`}
                 className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover"
