@@ -87,7 +87,7 @@
       "claims": [
         {
           "id": "b02-c1",
-          "text": "Nightmare Hall and the sixth-level designation are claims in retellings requiring provenance review.",
+          "text": "The circulated chapter 11 text links Nightmare Hall to the sixth level; the claimed place and events remain unverified.",
           "support": "unverified",
           "sourceIds": [
             "legend-locator"
@@ -356,10 +356,10 @@
     },
     {
       "id": "legend-locator",
-      "title": "Reprinted Castello interview locator",
+      "title": "Branton, The Dulce Book, chapter 11 (circulated claim text)",
       "kind": "reference",
-      "locator": "https://www.bibliotecapleyades.net/branton/esp_dulcebook11.htm",
-      "notes": "Full-text review blocked; provenance unresolved. Do not mark sourced."
+      "locator": "https://galacticanthropology.org/wp-content/uploads/2023/02/dulcebook.pdf",
+      "notes": "Relevant passages read 6 October 2026: PDF pages 70 and 72. Establishes wording in the circulated legend only. Original interview provenance and claimed events remain unverified."
     },
     {
       "id": "mirage-statement",

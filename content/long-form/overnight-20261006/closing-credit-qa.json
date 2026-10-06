@@ -1,0 +1,29 @@
+{
+  "before-credit.png": {
+    "sha256": "d8a47083af576d4b882a0495196940e6d70dd81c7b285e51e76f649a70fe8703",
+    "width": 1920,
+    "height": 1080,
+    "nonblackBoundingBox": null
+  },
+  "closing-credit.png": {
+    "sha256": "414ff43bc2475972b50785f6f2db43f94ad7ed7693aa0bb4b497e060ead9e4ed",
+    "width": 1920,
+    "height": 1080,
+    "nonblackBoundingBox": [
+      634,
+      64,
+      1286,
+      178
+    ]
+  },
+  "status": "fixture layout visually inspected; not a final documentary frame",
+  "runUrl": "https://github.com/hanzmo16-png/Atomivid/actions/runs/37432883075",
+  "runCommit": "8e3e05b953e74aae8a8e1e54d8b53eaf179734f9",
+  "componentSha256": "8670cab7b34b0e76a6ecf68ce1f2156bc765c3ab96c3aa74f1de176e45c7a3f0",
+  "observations": [
+    "Frame 0 contains no credit",
+    "Frame 285 contains readable Powered by, violet atom and Atomivid",
+    "Credit occupies only the upper band; central area remains blank",
+    "Owner-specific application wiring and final-footage review still pending"
+  ]
+}

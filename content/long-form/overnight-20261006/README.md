@@ -54,7 +54,7 @@ The unmodified eligibility vocabulary allocated zero generated clips to these dr
 
 The current automatic plans still allocate only **one** new clip for DULCE II and **two** for Achilles/Genghis. These estimates do **not** meet the complete editorial motion plan yet. DULCE's approved reusable clips can add real animation once integrated, but no reuse discount or resolved asset has been claimed. Do not confirm these plans until motion placement and reuse are reconciled. Stock-search placeholders are not approved historical visuals.
 
-The proposed larger closing credit passes TypeScript and the three existing long-form independence checks. A local frame-render attempt was blocked by the environment's `os.networkInterfaces()` error before a frame was produced. Visual sign-off and owner-specific app wiring are pending; no preview image or finished frame exists.
+The proposed larger closing credit passes TypeScript and the three existing long-form independence checks. A local frame-render attempt was blocked by the environment's `os.networkInterfaces()` error before a frame was produced. That local failure was subsequently resolved for layout verification by the no-provider GitHub fixture run documented below; owner-specific app wiring remains pending.
 
 ### Second preparation pass — 6 October 2026
 
@@ -62,4 +62,6 @@ See `salamis-editorial-corrections.md` for a sourced replacement payoff and a co
 
 Removed production-note language from the two draft narrations and regenerated their estimates/hashes. DULCE II is now 1,432 words / 8,980 characters; Achilles/Genghis is 1,451 words / 9,198 characters. With the last recorded Salamis script, the total is 26,624 characters. Compare against a fresh provider observation before booking narration; no live capacity was verified in this pass.
 
-The existing no-provider fixture workflow now also renders the opt-in closing credit at frames 0 and 285 of a ten-second black-background fixture. This is a layout check only, not documentary production. A successful workflow and inspection of its artifact are still required before visual sign-off. No paid generation keys were added to the workflow.
+The existing no-provider fixture workflow now also renders the opt-in closing credit at frames 0 and 285 of a ten-second black-background fixture. This is a layout check only, not documentary production. Workflow 37432883075 succeeded on commit 8e3e05b953e74aae8a8e1e54d8b53eaf179734f9. Its downloaded artifact checksum matches GitHub, and the two 1920×1080 fixture frames were inspected: frame 0 is black, frame 285 shows the readable violet atom and large credit only in the upper band. See closing-credit-qa.json and the PNG files. This completes fixture layout review, not owner-specific app integration or review over final footage. No paid generation keys were added to the workflow.
+
+DULCE source follow-up: relevant chapter 11 passages were located in a circulated PDF of The Dulce Book. The source notes now distinguish confirmation of the legend wording from authentication of the alleged witness or events; claims stay unverified.

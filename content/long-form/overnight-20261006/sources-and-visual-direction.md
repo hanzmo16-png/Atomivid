@@ -4,7 +4,7 @@
 
 **Continuity source:** repository commit `0873a9ce5c0f5d0ab7f0fb09c5e2b8a509119dd1`, `content/long-form/dulce-part1/script-en.json`, `assets.json`, `approved-stills.json`, `approved-clips.json`. This establishes the prior film's story and asset identities, not the truth of the allegations.
 
-**Legend locator, NOT fully reviewed:** https://www.bibliotecapleyades.net/branton/esp_dulcebook11.htm — access failed during this pass. Trace the original interview provenance before treating any precise floor designation, quote, name, date or casualty figure as adequately sourced. Draft claims remain unverified.
+**Legend text located, authenticity NOT established:** Branton, *The Dulce Book*, chapter 11, mirrored at https://galacticanthropology.org/wp-content/uploads/2023/02/dulcebook.pdf — relevant passages reviewed on 6 October 2026. PDF page 70 links the sixth level to Nightmare Hall; page 72 includes the George narrative. This confirms these elements occur in the circulated text, not that the facility, witness or events are real. The original interview recording, identity and chain of custody remain unverified. The earlier bibliotecapleyades locator could not be opened.
 
 **Filmmakers' own account:** https://miragemen.com/statement.html and https://miragemen.com/synopsis.html — reviewed as statements by the creators about their film and allegations. Neither is an official finding or independent proof of the underground-base story. Their statements do not establish every proposed Bennewitz/Dulce causal connection. No fabricated quotation or government document.
 
