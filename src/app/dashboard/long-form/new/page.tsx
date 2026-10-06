@@ -21,7 +21,9 @@ import { SubmitButton } from "./SubmitButton";
 // producción: cero filas mode='long_form' existen). Los Server Actions
 // heredan el maxDuration de la página que los invoca (ver docs de Next.js
 // para "Server Actions" bajo maxDuration), no el de actions.ts.
-export const maxDuration = 120;
+// Sonnet 5 shares output tokens with reasoning; allow the bounded response and
+// the existing single duration correction to finish before Vercel interrupts.
+export const maxDuration = 300;
 
 /**
  * RC mission Fase 4 — entrada self-service de Long Form (documental
