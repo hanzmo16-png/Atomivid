@@ -2,7 +2,7 @@ name: Read-only trace of the configure link (no providers, no writes)
 on:
   push:
     branches: [claude/hola-sn3dxy]
-    paths: [scripts/diagnose-gucci-confirmation.ts, scripts/diagnose-configure-404.tsx, .github/workflows/diagnose-configure-404.yml]
+    paths: [scripts/diagnose-gucci-session.ts, scripts/diagnose-gucci-confirmation.ts, scripts/diagnose-configure-404.tsx, .github/workflows/diagnose-configure-404.yml]
 permissions:
   contents: read
 jobs:
@@ -23,6 +23,10 @@ jobs:
           INTERNAL_PRODUCTION_OWNER_USER_ID: ${{ secrets.INTERNAL_PRODUCTION_OWNER_USER_ID }}
           AVATAR_PREPARATION_OWNER_EMAIL: ${{ secrets.AVATAR_PREPARATION_OWNER_EMAIL }}
       - run: npx tsx scripts/diagnose-gucci-confirmation.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - run: npx tsx scripts/diagnose-gucci-session.ts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
