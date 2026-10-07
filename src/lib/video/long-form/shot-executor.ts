@@ -29,7 +29,7 @@ import { selectStockForShot, type StockSelectionDeps } from "./stock-selection";
 import { clip, salientFact } from "./scene-anchoring";
 import type { ProductionBudget } from "./production-budget";
 import type { AllocatedShot, GenerativeUnitCosts } from "./production-plan";
-import { documentaryImagePrompt, requiresIdentity, textCardForShot } from "./visual-intents";
+import { documentaryImagePrompt, requiresEvidence, requiresIdentity, textCardForShot } from "./visual-intents";
 import type { ShotType } from "./types";
 
 /** Rechazos de imagen con costo conocido CERO (el proveedor no generó nada). */
@@ -85,6 +85,8 @@ export type ShotExecutionDeps = {
   identify?: (buffer: Buffer, mediaType: "image" | "video") => Promise<Pick<AssetIdentity, "sha256" | "dhash" | "dhashUnavailable">>;
   /** Verificador de vínculos de entidad del servidor (archivo de confianza). Ausente hoy: ningún recurso queda vinculado a una persona. */
   verifyEntityLink?: StockSelectionDeps["verifyEntityLink"];
+  /** Verificador de pruebas del servidor. Ausente hoy: ninguna escena EVIDENCE se ocupa con material sin prueba. */
+  verifyEvidenceLink?: StockSelectionDeps["verifyEvidenceLink"];
 };
 
 /** Qué recurso ocupa la escena y por qué (insumo del informe previo al render). */
@@ -205,17 +207,18 @@ async function resolveStockAnchored(shot: AllocatedShot, deps: ShotExecutionDeps
   const outcome = await selectStockForShot(
     // Margen: el corte puede desplazarse hasta ±0.6 s al alinearse con la voz y un fundido añade cola.
     { shotId: shot.id, visual, preferVideo, minDurationSec: shot.durationSec + STOCK_CLIP_MARGIN_SEC },
-    { footageProvider: deps.footageProvider, registry: deps.registry, identify: deps.identify, verifyEntityLink: deps.verifyEntityLink },
+    { footageProvider: deps.footageProvider, registry: deps.registry, identify: deps.identify, verifyEntityLink: deps.verifyEntityLink, verifyEvidenceLink: deps.verifyEvidenceLink },
   );
   if (outcome.status === "gap") {
     return { gap: { reason: outcome.reason, queries: outcome.queries, rejected: outcome.rejected.slice(0, 12) } };
   }
   const { candidate } = outcome;
   // Solo un vínculo confirmado por el verificador del servidor convierte el recurso en documento de archivo.
+  const verified = !!(outcome.entityLink || outcome.evidenceLink);
   const provenance: AssetProvenance = {
-    kind: outcome.entityLink ? "archival_documentary" : "stock_illustrative",
+    kind: verified ? "archival_documentary" : "stock_illustrative",
     provider: deps.footageProvider.name,
-    license: outcome.entityLink ? undefined : PEXELS_LICENSE,
+    license: verified ? undefined : PEXELS_LICENSE,
     author: candidate.photographer,
     pageUrl: candidate.pageUrl,
   };
@@ -229,6 +232,7 @@ async function resolveStockAnchored(shot: AllocatedShot, deps: ShotExecutionDeps
     candidatesConsidered: outcome.candidatesConsidered,
     rejected: outcome.rejected.slice(0, 12),
     ...(outcome.entityLink ? { entityLink: outcome.entityLink } : {}),
+    ...(outcome.evidenceLink ? { evidenceLink: outcome.evidenceLink } : {}),
   };
   const url = await persistMedia(deps, shot.id, "stock", outcome.buffer, candidate.mimeType, candidate.extension, candidate.mediaType, deps.footageProvider.name, 0, {
     identity: outcome.identity,
@@ -303,6 +307,10 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
   // reserva ni se llama al proveedor; la escena sigue a archivo verificado o carencia.
   if (shot.anchoredVisual && requiresIdentity(shot.anchoredVisual)) {
     return { unavailable: "la escena exige una persona real: una imagen IA no puede representarla" };
+  }
+  // Una recreación nunca prueba un hecho (v4): una escena EVIDENCE no se genera.
+  if (shot.anchoredVisual && requiresEvidence(shot.anchoredVisual)) {
+    return { unavailable: "la escena debe probar un hecho: una imagen IA no es una prueba" };
   }
   const cached = await reuseCompleted(deps, shot.id, "ai_image");
   if (cached) return cached;

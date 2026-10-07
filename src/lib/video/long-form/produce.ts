@@ -64,9 +64,12 @@ import {
   usesAnchoredVisuals,
   usesVisualIdentity,
   type ProductionPlan,
+  planShotsFromScript,
+  type ProductionPlanBeatInput,
 } from "./production-plan";
 import { DocumentAssetRegistry, type AssetIdentity } from "./asset-identity";
-import { assertVisualQuality, buildVisualReport, type VisualReport } from "./visual-report";
+import { assertVisualQuality, buildVisualReport, LongFormVisualQualityError, type VisualReport } from "./visual-report";
+import { planReleaseBlockers } from "./cinematic-director";
 import { ProductionBudget, supabaseBudgetStore, type BudgetStore } from "./production-budget";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import { getLongFormBudget } from "./cost";
@@ -204,6 +207,12 @@ export async function generateLongFormVideoFromScript({
     return { videoPath: existingOutput.videoPath, deviations: 0, spentUsd: 0, reconciled: true, output: existingOutput.state };
   }
   const replayOnly = runtime.replayOnly === true;
+  // v4: lo que el PLAN ya revela como no entregable (clasificación incierta en HERO, apertura de
+  // tarjetas seguras) se detiene ANTES de cualquier llamada pagada: voz, imágenes, video o render.
+  if (usesVisualIdentity(plan)) {
+    const blockers = planReleaseBlockers(planShotsFromScript(beats as ProductionPlanBeatInput[], topic, plan.strategy).shots);
+    if (blockers.length > 0) throw new LongFormVisualQualityError(blockers.map((f) => `${f.code}: ${f.detail} (${f.shots.join(", ")})`));
+  }
 
   const resolvedProviders = providers ?? resolveLongFormProviders("real");
   const requireReal = !providers;

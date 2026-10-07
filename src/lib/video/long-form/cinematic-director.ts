@@ -16,11 +16,13 @@
  *   cambia un recurso para alcanzarlas. Si la verdad impide alcanzarlas, el
  *   resultado es BLOCKED_CINEMATIC_QUALITY, nunca un recurso falso.
  * - Época: decide qué tratamientos son apropiados (no un filtro cosmético).
+ * - Entrega: la política de bloqueo está CONGELADA en DELIVERY_POLICY. Si el
+ *   sistema sabe que un visual es narrativamente falso, no se renderiza.
  */
 import type { SceneDirection, SceneLook } from "../../../../remotion/long-form-direction";
 import type { AssetProvenanceKind } from "./durable-shot-assets";
 import type { ShotType } from "./types";
-import { requiresIdentity, type BeatVisual, type VisualBeatClass } from "./visual-intents";
+import { requiresEvidence, requiresIdentity, type BeatVisual, type VisualBeatClass } from "./visual-intents";
 
 // --------------------------------------------------------------------------
 // Zonas
@@ -142,6 +144,7 @@ export type GenerativeVerdict = { allowed: true } | { allowed: false; reason: st
 export function generativeVerdict(visual: BeatVisual | undefined, type: "image" | "video"): GenerativeVerdict {
   if (!visual) return { allowed: true };
   if (requiresIdentity(visual)) return { allowed: false, reason: "la escena exige una persona real: una recreación IA no puede representarla" };
+  if (requiresEvidence(visual)) return { allowed: false, reason: "la escena debe probar un hecho: una recreación IA no es una prueba" };
   const era = eraProfile(visual.era);
   if (era.schematicAction && visual.motion) return { allowed: false, reason: `acción física en época ${era.period}: representación esquemática, nunca fotorrealista` };
   if (type === "video" && !era.generatedMotion) return { allowed: false, reason: `época ${era.period}: un video IA fabricaría metraje de época` };
@@ -152,6 +155,40 @@ export function generativeVerdict(visual: BeatVisual | undefined, type: "image" 
 export function requiresSchematic(visual: BeatVisual | undefined): boolean {
   return !!visual && !requiresIdentity(visual) && visual.motion && eraProfile(visual.era).schematicAction;
 }
+
+// --------------------------------------------------------------------------
+// Capacidades reales del renderer (remotion/LongFormDoc.tsx + long-form-direction.ts)
+// --------------------------------------------------------------------------
+
+export type RendererSupport = "SUPPORTED_NOW" | "PLANNED_NOT_SUPPORTED" | "NOT_APPLICABLE";
+
+/**
+ * Lo que el Director puede pedir y si el renderer lo ejecuta HOY. El QA solo
+ * cuenta lo ejecutado: un tratamiento pedido y no soportado nunca se reporta
+ * como hecho.
+ */
+export const RENDERER_CAPABILITIES = {
+  "camera:still": "SUPPORTED_NOW",
+  "camera:push": "SUPPORTED_NOW",
+  "camera:pull": "SUPPORTED_NOW",
+  "camera:left": "SUPPORTED_NOW",
+  "camera:right": "SUPPORTED_NOW",
+  "transition:cut": "SUPPORTED_NOW",
+  "transition:dissolve": "SUPPORTED_NOW",
+  "look:contrast": "SUPPORTED_NOW",
+  "media:video_playback": "SUPPORTED_NOW",
+  "card:passage": "SUPPORTED_NOW",
+  // Monocromo auténtico: el renderer solo admite saturación ≥ 0.6 (validateDirection); se aplica contraste, no B/N.
+  "grade:archival_monochrome": "PLANNED_NOT_SUPPORTED",
+  "grade:period_color": "NOT_APPLICABLE",
+  "grade:neutral": "NOT_APPLICABLE",
+  // El mapa existe como spec (diagram-map.ts) pero no hay datos cartográficos verificados que lo alimenten.
+  "schematic_map": "PLANNED_NOT_SUPPORTED",
+  "parallax": "PLANNED_NOT_SUPPORTED",
+  "document_animation": "PLANNED_NOT_SUPPORTED",
+  "map_animation": "PLANNED_NOT_SUPPORTED",
+} as const satisfies Record<string, RendererSupport>;
+export type Treatment = keyof typeof RENDERER_CAPABILITIES;
 
 // --------------------------------------------------------------------------
 // Dirección por escena
@@ -167,9 +204,14 @@ export type DirectorInput = {
   visual?: BeatVisual;
   /** Vínculo de identidad confirmado por el verificador del servidor. */
   entityLink?: { name: string };
+  /** Vínculo de prueba confirmado por el verificador del servidor. */
+  evidenceLink?: { sourceIds: string[] };
   /** La escena quedó en carencia (ABSENT). */
   gap?: boolean;
 };
+
+/** Por qué una escena es tarjeta: no es lo mismo abstenerse con verdad que un fallo del planner. */
+export type CardReason = "TRUTHFUL_ABSTENTION" | "PLANNING_FAILURE" | "CLASSIFICATION_INTEGRITY_GAP" | "EDITORIAL_CARD";
 
 export type CinematicDecision = {
   tier: CinematicTier;
@@ -183,14 +225,29 @@ export type CinematicDecision = {
   provenance: AssetProvenanceKind | "text_card";
   identityRequired: boolean;
   verifiedIdentity: boolean;
+  evidenceRequired: boolean;
+  verifiedEvidence: boolean;
   reconstruction: boolean;
   schematic: boolean;
   costClass: CostClass;
+  cardReason?: CardReason;
+  /** Tratamientos que el Director pidió y el renderer ejecuta hoy. */
+  executed: Treatment[];
+  /** Pedidos y NO ejecutables todavía (nunca cuentan como hechos). */
+  unsupported: Treatment[];
   why: string;
 };
 
 const ARCHIVAL_MOVES: NonNullable<SceneDirection["camera"]>[] = ["push", "pull"];
 const CONTEMPORARY_MOVES: NonNullable<SceneDirection["camera"]>[] = ["push", "left", "pull", "right"];
+
+function cardReasonOf(s: DirectorInput): CardReason {
+  const v = s.visual;
+  if (v?.classificationGap) return "CLASSIFICATION_INTEGRITY_GAP";
+  if (v && ((v.beatClass === "IDENTITY" && !v.identity) || (requiresEvidence(v) && !v.evidence))) return "PLANNING_FAILURE";
+  if (s.gap || requiresSchematic(v)) return "TRUTHFUL_ABSTENTION";
+  return "EDITORIAL_CARD";
+}
 
 /** Decisión de presentación de cada escena, por razones narrativas (no para alcanzar una métrica). */
 export function directCinematic(scenes: DirectorInput[]): CinematicDecision[] {
@@ -199,70 +256,118 @@ export function directCinematic(scenes: DirectorInput[]): CinematicDecision[] {
     const era = eraProfile(s.visual?.era);
     const identityRequired = !!s.visual && requiresIdentity(s.visual);
     const verifiedIdentity = identityRequired && !!s.entityLink && s.provenance === "archival_documentary";
-    const provenance = s.kind === "graphic" ? "text_card" : (s.provenance ?? "stock_illustrative");
+    const evidenceRequired = !!s.visual && requiresEvidence(s.visual);
+    const verifiedEvidence = evidenceRequired && !!s.evidenceLink && s.provenance === "archival_documentary";
+    // Sin metadatos, la procedencia sale del tipo ejecutado (igual que el informe): lo generado es recreación.
+    const provenance =
+      s.kind === "graphic" ? "text_card" : (s.provenance ?? (s.executedType === "generated_placeholder" || s.executedType === "ai_video" ? "ai_recreation" : "stock_illustrative"));
+    const schematic = requiresSchematic(s.visual);
+    const requested: Treatment[] = [];
     let camera: NonNullable<SceneDirection["camera"]>;
     let look: SceneLook | undefined;
     let why: string;
+    let cardReason: CardReason | undefined;
     if (s.kind === "video") {
       camera = "still";
+      requested.push("media:video_playback");
       why = "movimiento propio del material: la cámara no añade nada";
     } else if (s.kind === "graphic") {
       camera = "still";
-      why = requiresSchematic(s.visual)
-        ? "acción física sin registro de la época: requiere esquema; sin datos cartográficos verificados se muestra el pasaje"
-        : s.gap
-          ? "ausencia: ningún recurso verdadero; se muestra el pasaje (mejor nada que algo falso)"
-          : "tarjeta: quieta para que se lea";
+      cardReason = cardReasonOf(s);
+      if (schematic) requested.push("schematic_map");
+      requested.push("card:passage");
+      why = {
+        CLASSIFICATION_INTEGRITY_GAP: "clasificación incierta: falló cerrada (no es una abstención buena: el planner debe clasificar)",
+        PLANNING_FAILURE: "fallo del planner: la escena exige identidad/prueba que no declaró",
+        TRUTHFUL_ABSTENTION: schematic
+          ? "acción física sin registro de la época: requiere esquema; sin datos cartográficos verificados se muestra el pasaje"
+          : "ausencia: ningún recurso legal; se muestra el pasaje (mejor nada que algo falso)",
+        EDITORIAL_CARD: "tarjeta editorial: quieta para que se lea",
+      }[cardReason];
     } else if (verifiedIdentity) {
       // El retrato no se dramatiza: quieto mientras dure poco; si se prolonga, un acercamiento de presentación (nunca una acción del sujeto).
       camera = s.durationSec <= VERIFIED_PORTRAIT_STATIC_MAX_SEC ? "still" : "push";
       why = camera === "still" ? "retrato verificado: se sostiene quieto, sin inventar acción" : "retrato verificado prolongado: acercamiento de presentación, sin acción del sujeto";
-    } else if (s.visual?.beatClass === "EVIDENCE") {
+    } else if (evidenceRequired) {
       camera = "push";
-      why = "prueba/documento: acercamiento de lectura";
+      why = "prueba verificada de la proposición: acercamiento de lectura";
     } else {
       const moves = era.cadence === "archival" ? ARCHIVAL_MOVES : CONTEMPORARY_MOVES;
       camera = moves[still++ % moves.length];
       why = s.visual?.beatClass === "PLACE" ? `lugar: recorrido de presentación (${era.cadence === "archival" ? "cadencia de archivo" : "cadencia actual"})` : `imagen fija: movimiento de presentación (${era.cadence === "archival" ? "cadencia de archivo" : "cadencia actual"})`;
     }
+    requested.push(`camera:${camera}`);
     // El grado de época solo sobre archivo verificado: nunca disfraza material moderno como antiguo.
-    if (provenance === "archival_documentary" && era.grade === "archival_monochrome" && s.kind !== "graphic") look = { contrast: 1.1 };
+    if (provenance === "archival_documentary" && s.kind !== "graphic") {
+      requested.push(`grade:${era.grade}`);
+      if (era.grade === "archival_monochrome") {
+        look = { contrast: 1.1 };
+        requested.push("look:contrast");
+      }
+    }
+    const executed = requested.filter((t) => RENDERER_CAPABILITIES[t] === "SUPPORTED_NOW");
+    const unsupported = requested.filter((t) => RENDERER_CAPABILITIES[t] === "PLANNED_NOT_SUPPORTED");
     return {
       tier: shotTier(s.startSec, s.endSec),
       tierSeconds: tierSeconds(s.startSec, s.endSec),
       camera,
       look,
-      motionClass: motionClassOf({ kind: s.kind, camera }),
+      // Solo lo que el renderer ejecuta mueve la escena.
+      motionClass: executed.includes("media:video_playback") ? "TRUE_MOTION" : executed.some((t) => t.startsWith("camera:") && t !== "camera:still") && s.kind === "image" ? "PRESENTATION_MOTION" : "STATIC",
       beatClass: s.visual?.beatClass,
       era: era.period,
       grade: era.grade,
       provenance,
       identityRequired,
       verifiedIdentity,
+      evidenceRequired,
+      verifiedEvidence,
       reconstruction: provenance === "ai_recreation",
-      schematic: requiresSchematic(s.visual),
+      schematic,
       costClass: costClassOf(s.executedType, provenance),
+      ...(cardReason ? { cardReason } : {}),
+      executed,
+      unsupported,
       why,
     };
   });
 }
 
 // --------------------------------------------------------------------------
-// QA cinematográfico (nunca gasta, nunca cambia un recurso)
+// Política de entrega CONGELADA y QA cinematográfico (nunca gasta, nunca cambia un recurso)
 // --------------------------------------------------------------------------
 
-export const CINEMATIC_REASON_CODES = [
-  "LOW_MOTION_DENSITY",
-  "STATIC_RUN",
-  "REPETITIVE_TREATMENT",
-  "LOW_VISUAL_DIVERSITY",
-  "ERA_MISMATCH",
-  "GENERIC_HERO_VISUAL",
-  "IDENTITY_VISUAL_VIOLATION",
-  "CLASSIFICATION_INTEGRITY_GAP",
-  "RECONSTRUCTION_OVERUSE",
-] as const;
-export type CinematicReasonCode = (typeof CINEMATIC_REASON_CODES)[number];
+/**
+ * Política de entrega (Visual Excellence release gate). BLOCK detiene la
+ * entrega/render sin excepción; WARN es diagnóstico. No se decide caso a caso.
+ */
+export const DELIVERY_POLICY = {
+  // Bloqueantes: el sistema SABE que el visual es falso.
+  GENERIC_HUMAN_IMPERSONATION: "BLOCK",
+  FALSE_FRIEND_IN_HERO: "BLOCK",
+  FALSE_FRIEND_IN_IDENTITY: "BLOCK",
+  FALSE_FRIEND_IN_EVIDENCE: "BLOCK",
+  CLASSIFICATION_INTEGRITY_GAP_IN_HERO: "BLOCK",
+  FABRICATED_ACTION: "BLOCK",
+  FAKE_ARCHIVAL: "BLOCK",
+  IDENTITY_VISUAL_VIOLATION: "BLOCK",
+  OPENING_TEXT_CARD_RUN: "BLOCK",
+  // Diagnóstico.
+  LOW_MOTION_DENSITY: "WARN",
+  STATIC_RUN: "WARN",
+  REPETITIVE_TREATMENT: "WARN",
+  LOW_VISUAL_DIVERSITY: "WARN",
+  ERA_MISMATCH: "WARN",
+  GENERIC_HERO_VISUAL: "WARN",
+  CLASSIFICATION_INTEGRITY_GAP: "WARN",
+  RECONSTRUCTION_OVERUSE: "WARN",
+  PLANNING_FAILURE_CARD: "WARN",
+} as const;
+export type CinematicReasonCode = keyof typeof DELIVERY_POLICY;
+export const CINEMATIC_REASON_CODES = Object.keys(DELIVERY_POLICY) as CinematicReasonCode[];
+/** Tarjetas seguidas en los primeros 30 s que bloquean la entrega. */
+export const OPENING_CARD_WINDOW_SEC = 30;
+export const OPENING_CARD_RUN_MAX = 3;
 
 export type CinematicFinding = { code: CinematicReasonCode; severity: "FAIL" | "BLOCK"; shots: string[]; detail: string; tier?: CinematicTier; blockedByTruth?: boolean };
 
@@ -276,6 +381,8 @@ export type CinematicQaScene = CinematicDecision & {
   relevance: string;
   classificationGap?: boolean;
   gap?: boolean;
+  /** El recurso mostrado muestra la acción de la persona del beat sin ser ella (recomprobación del selector). */
+  substitutesPerson?: boolean;
 };
 
 export type CinematicWindow = {
@@ -286,27 +393,32 @@ export type CinematicWindow = {
   target: number | null;
   reconstructionSeconds: number;
   reconstructionShare: number;
-  /** Segundos quietos que la verdad impone (ausencias de identidad, retratos verificados, esquemas sin datos). */
+  /** Segundos quietos que la verdad impone (ausencias de identidad/prueba, retratos verificados, esquemas sin datos). */
   truthLockedStaticSeconds: number;
   outsideRhythm: string[];
 };
 
 export type CinematicQa = {
   verdict: "PASS" | "FAIL" | "BLOCK";
-  /** BLOCKED_CINEMATIC_QUALITY: la meta de movimiento solo se alcanzaría sacrificando identidad o verdad. */
+  /** BLOCKED_CINEMATIC_QUALITY: lo único que falla lo impone la verdad (alcanzarlo exigiría mentir). */
   status: "PASS" | "LOW_MOTION_DENSITY" | "BLOCKED_CINEMATIC_QUALITY" | "FAIL" | "BLOCK";
   windows: CinematicWindow[];
   findings: CinematicFinding[];
+  /** Puerta de entrega: solo es entregable sin ningún bloqueante de DELIVERY_POLICY. */
+  release: { deliverable: boolean; blockers: CinematicReasonCode[] };
+  cards: { shotId: string; startSec: number; reason: CardReason }[];
 };
 
 function truthLocked(s: CinematicQaScene): boolean {
-  return s.motionClass === "STATIC" && (s.identityRequired || s.schematic || !!s.classificationGap);
+  return s.motionClass === "STATIC" && (s.identityRequired || s.evidenceRequired || s.schematic || !!s.classificationGap);
 }
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
 export function cinematicQa(scenes: CinematicQaScene[]): CinematicQa {
   const findings: CinematicFinding[] = [];
+  const add = (code: CinematicReasonCode, shots: string[], detail: string, extra: Partial<CinematicFinding> = {}) =>
+    findings.push({ code, severity: DELIVERY_POLICY[code] === "BLOCK" ? "BLOCK" : "FAIL", shots, detail, ...extra });
   const end = scenes.reduce((m, s) => Math.max(m, s.endSec), 0);
   const windows: CinematicWindow[] = CINEMATIC_TIERS.map((tier) => {
     const seconds = overlap(0, end, WINDOWS[tier]);
@@ -340,24 +452,16 @@ export function cinematicQa(scenes: CinematicQaScene[]): CinematicQa {
     if (w.target === null || w.seconds <= 0 || w.density + 1e-9 >= w.target) continue;
     // Si ni contando como movimiento lo que la verdad deja quieto se llega a la meta, la culpa NO es de la verdad.
     const truth = (w.motionSeconds + w.truthLockedStaticSeconds) / w.seconds + 1e-9 >= w.target;
-    findings.push({
-      code: "LOW_MOTION_DENSITY",
-      severity: "FAIL",
-      tier: w.tier,
-      blockedByTruth: truth,
-      shots: scenes.filter((s) => s.tierSeconds[w.tier] > 0 && s.motionClass === "STATIC").map((s) => s.shotId),
-      detail: `${w.tier}: ${Math.round(w.density * 100)} % de movimiento (meta diagnóstica ${Math.round(w.target * 100)} %)${truth ? " — solo alcanzable sacrificando identidad/verdad" : ""}`,
-    });
+    add(
+      "LOW_MOTION_DENSITY",
+      scenes.filter((s) => s.tierSeconds[w.tier] > 0 && s.motionClass === "STATIC").map((s) => s.shotId),
+      `${w.tier}: ${Math.round(w.density * 100)} % de movimiento (meta diagnóstica ${Math.round(w.target * 100)} %)${truth ? " — solo alcanzable sacrificando identidad/verdad" : ""}`,
+      { tier: w.tier, blockedByTruth: truth },
+    );
   }
   const hero = windows[0];
   if (hero.seconds > 0 && hero.reconstructionShare > HERO_RECONSTRUCTION_CAP + 1e-9) {
-    findings.push({
-      code: "RECONSTRUCTION_OVERUSE",
-      severity: "FAIL",
-      tier: "HERO",
-      shots: scenes.filter((s) => s.reconstruction && s.tierSeconds.HERO > 0).map((s) => s.shotId),
-      detail: `reconstrucción ${Math.round(hero.reconstructionShare * 100)} % de HERO (tope ${HERO_RECONSTRUCTION_CAP * 100} %)`,
-    });
+    add("RECONSTRUCTION_OVERUSE", scenes.filter((s) => s.reconstruction && s.tierSeconds.HERO > 0).map((s) => s.shotId), `reconstrucción ${Math.round(hero.reconstructionShare * 100)} % de HERO (tope ${HERO_RECONSTRUCTION_CAP * 100} %)`, { tier: "HERO" });
   }
 
   // Corridas quietas: 2 consecutivas o ≥ 10 s. Un retrato VERIFICADO de ≤ 8 s no forma corrida por sí solo
@@ -367,7 +471,7 @@ export function cinematicQa(scenes: CinematicQaScene[]): CinematicQa {
     const secs = run.reduce((a, s) => a + s.durationSec, 0);
     if (run.length >= 2 || secs >= STATIC_RUN_MAX_SEC) {
       const truth = run.every(truthLocked);
-      findings.push({ code: "STATIC_RUN", severity: "FAIL", blockedByTruth: truth, shots: run.map((s) => s.shotId), detail: `${run.length} escena(s) quietas seguidas, ${round3(secs)} s${truth ? " — impuestas por la verdad (identidad/esquema)" : ""}` });
+      add("STATIC_RUN", run.map((s) => s.shotId), `${run.length} escena(s) quietas seguidas, ${round3(secs)} s${truth ? " — impuestas por la verdad (identidad/prueba/esquema)" : ""}`, { blockedByTruth: truth });
     }
     run = [];
   };
@@ -381,13 +485,25 @@ export function cinematicQa(scenes: CinematicQaScene[]): CinematicQa {
   }
   flush();
 
+  // Tarjetas: 3+ seguidas que empiezan en los primeros 30 s bloquean la entrega (nunca se "arreglan" con un recurso ilegal).
+  let cardRun: CinematicQaScene[] = [];
+  const flushCards = () => {
+    if (cardRun.length >= OPENING_CARD_RUN_MAX) add("OPENING_TEXT_CARD_RUN", cardRun.map((s) => s.shotId), `${cardRun.length} tarjetas seguidas en los primeros ${OPENING_CARD_WINDOW_SEC} s`);
+    cardRun = [];
+  };
+  for (const s of scenes) {
+    if (s.display === "card" && s.startSec < OPENING_CARD_WINDOW_SEC) cardRun.push(s);
+    else flushCards();
+  }
+  flushCards();
+
   // Monotonía real: 3+ escenas seguidas con el mismo tratamiento (clase, cámara, procedencia).
   for (let i = 0; i + 2 < scenes.length; i++) {
     const key = (s: CinematicQaScene) => `${s.motionClass}|${s.camera}|${s.provenance}`;
     if (key(scenes[i]) === key(scenes[i + 1]) && key(scenes[i]) === key(scenes[i + 2])) {
       let j = i + 2;
       while (j + 1 < scenes.length && key(scenes[j + 1]) === key(scenes[i])) j++;
-      findings.push({ code: "REPETITIVE_TREATMENT", severity: "FAIL", shots: scenes.slice(i, j + 1).map((s) => s.shotId), detail: `mismo tratamiento ${key(scenes[i])}` });
+      add("REPETITIVE_TREATMENT", scenes.slice(i, j + 1).map((s) => s.shotId), `mismo tratamiento ${key(scenes[i])}`);
       i = j;
     }
   }
@@ -399,36 +515,94 @@ export function cinematicQa(scenes: CinematicQaScene[]): CinematicQa {
     const byRole = new Map<string, number>();
     for (const s of inTier) byRole.set(`${s.provenance}|${s.motionClass}`, (byRole.get(`${s.provenance}|${s.motionClass}`) ?? 0) + s.tierSeconds[tier]);
     const [role, secs] = [...byRole.entries()].sort((a, b) => b[1] - a[1])[0];
-    if (secs / total > 0.75) findings.push({ code: "LOW_VISUAL_DIVERSITY", severity: "FAIL", tier, shots: inTier.map((s) => s.shotId), detail: `${tier}: ${role} ocupa ${Math.round((secs / total) * 100)} %` });
+    if (secs / total > 0.75) add("LOW_VISUAL_DIVERSITY", inTier.map((s) => s.shotId), `${tier}: ${role} ocupa ${Math.round((secs / total) * 100)} %`, { tier });
   }
 
   for (const s of scenes) {
-    // Identidad: solo archivo con vínculo verificado (o la ausencia) puede ocupar una escena que exige a una persona real.
-    if (s.identityRequired && s.display !== "card" && !s.verifiedIdentity) {
-      findings.push({ code: "IDENTITY_VISUAL_VIOLATION", severity: "BLOCK", shots: [s.shotId], detail: `escena de identidad con ${s.provenance} sin vínculo verificado` });
+    const media = s.display !== "card";
+    const hero = s.tier === "HERO";
+    // Identidad: solo archivo con vínculo verificado (o la ausencia) ocupa una escena que exige a una persona real.
+    if (s.identityRequired && media && !s.verifiedIdentity) {
+      add("IDENTITY_VISUAL_VIOLATION", [s.shotId], `escena de identidad con ${s.provenance} sin vínculo verificado`);
+      add("FALSE_FRIEND_IN_IDENTITY", [s.shotId], "un recurso no verificado representa a la persona");
+    }
+    if ((s.identityRequired && media && !s.verifiedIdentity) || (media && s.substitutesPerson)) {
+      add("GENERIC_HUMAN_IMPERSONATION", [s.shotId], s.substitutesPerson ? "el recurso muestra la acción de la persona del beat sin ser ella" : "un humano no verificado ocupa el lugar de la persona");
+    }
+    // Prueba: solo un recurso vinculado por el servidor a la MISMA proposición.
+    if (s.evidenceRequired && media && !s.verifiedEvidence) add("FALSE_FRIEND_IN_EVIDENCE", [s.shotId], "el recurso no prueba la proposición de la escena (mismo objeto ≠ mismo hecho)");
+    if (hero && media && ((s.identityRequired && !s.verifiedIdentity) || (s.evidenceRequired && !s.verifiedEvidence) || s.substitutesPerson)) {
+      add("FALSE_FRIEND_IN_HERO", [s.shotId], "falso amigo en los primeros 120 s", { tier: "HERO" });
+    }
+    // Acción fabricada: animar material real (o a la persona) inventa una acción que el original no contiene.
+    if (s.executedType === "ai_video" && (s.identityRequired || s.evidenceRequired || s.provenance === "archival_documentary" || s.provenance === "stock_illustrative")) {
+      add("FABRICATED_ACTION", [s.shotId], "video generado sobre una persona, una prueba o material real: inventa una acción");
+    }
+    // Falso archivo: lo generado presentado como documento auténtico, o archivo filmado de una época sin cine.
+    const generated = s.executedType === "generated_placeholder" || s.executedType === "ai_video";
+    if ((s.provenance === "archival_documentary" && generated) || (s.evidenceRequired && s.provenance === "ai_recreation")) {
+      add("FAKE_ARCHIVAL", [s.shotId], "material generado presentado como archivo/prueba auténtica");
     }
     if (s.display === "video" && s.provenance === "archival_documentary" && (s.era === "ancient" || s.era === "pre_photographic")) {
-      findings.push({ code: "ERA_MISMATCH", severity: "BLOCK", shots: [s.shotId], detail: `no existe archivo filmado de la época ${s.era}` });
+      add("FAKE_ARCHIVAL", [s.shotId], `no existe archivo filmado de la época ${s.era}`);
     }
+    // Preferencias de época con procedencia verdadera: diagnóstico.
     if (s.executedType === "ai_video" && (s.era === "ancient" || s.era === "pre_photographic" || s.era === "early_photographic")) {
-      findings.push({ code: "ERA_MISMATCH", severity: "BLOCK", shots: [s.shotId], detail: `video IA en época ${s.era}: fabricaría metraje de época` });
+      add("ERA_MISMATCH", [s.shotId], `video IA (rotulado como recreación) en época ${s.era}`);
     }
-    if (s.schematic && s.display !== "card") {
-      findings.push({ code: "ERA_MISMATCH", severity: "BLOCK", shots: [s.shotId], detail: `acción física en época ${s.era} presentada de forma fotorrealista` });
-    }
-    if (s.tier === "HERO" && s.display !== "card" && (s.relevance === "unverified" || s.relevance === "unknown")) {
-      findings.push({ code: "GENERIC_HERO_VISUAL", severity: "FAIL", tier: "HERO", shots: [s.shotId], detail: "recurso en HERO sin pertinencia comprobada" });
+    if (s.schematic && media) add("ERA_MISMATCH", [s.shotId], `acción física en época ${s.era} mostrada sin esquema`);
+    // Un recurso habilitado por un vínculo verificado no es genérico aunque su texto no coincida con la intención.
+    if (hero && media && !s.verifiedIdentity && !s.verifiedEvidence && (s.relevance === "unverified" || s.relevance === "unknown")) {
+      add("GENERIC_HERO_VISUAL", [s.shotId], "recurso en HERO sin pertinencia comprobada", { tier: "HERO" });
     }
     if (s.classificationGap) {
-      findings.push({ code: "CLASSIFICATION_INTEGRITY_GAP", severity: "FAIL", shots: [s.shotId], detail: "clasificación incierta o contradictoria: la escena falló cerrada (sin material genérico)" });
+      add(hero ? "CLASSIFICATION_INTEGRITY_GAP_IN_HERO" : "CLASSIFICATION_INTEGRITY_GAP", [s.shotId], "clasificación incierta o contradictoria: la escena falló cerrada (sin material genérico)", hero ? { tier: "HERO" } : {});
     }
+    if (s.cardReason === "PLANNING_FAILURE") add("PLANNING_FAILURE_CARD", [s.shotId], "tarjeta por un contrato del planner incompleto (identidad/prueba sin declarar)");
   }
 
-  const verdict = findings.some((f) => f.severity === "BLOCK") ? "BLOCK" : findings.length > 0 ? "FAIL" : "PASS";
+  const blockers = [...new Set(findings.filter((f) => f.severity === "BLOCK").map((f) => f.code))];
+  const verdict = blockers.length > 0 ? "BLOCK" : findings.length > 0 ? "FAIL" : "PASS";
   // BLOCKED_CINEMATIC_QUALITY: todo lo que falla lo impone la verdad (y la clasificación que falló cerrada).
   const truthOnly = findings.some((f) => f.blockedByTruth) && findings.every((f) => f.blockedByTruth || f.code === "CLASSIFICATION_INTEGRITY_GAP");
   const onlyDensity = findings.every((f) => f.code === "LOW_MOTION_DENSITY");
   const status: CinematicQa["status"] =
     verdict === "BLOCK" ? "BLOCK" : verdict === "PASS" ? "PASS" : truthOnly ? "BLOCKED_CINEMATIC_QUALITY" : onlyDensity ? "LOW_MOTION_DENSITY" : "FAIL";
-  return { verdict, status, windows, findings };
+  return {
+    verdict,
+    status,
+    windows,
+    findings,
+    release: { deliverable: blockers.length === 0, blockers },
+    cards: scenes.filter((s) => s.display === "card").map((s) => ({ shotId: s.shotId, startSec: s.startSec, reason: s.cardReason ?? "EDITORIAL_CARD" })),
+  };
+}
+
+/**
+ * Bloqueantes que el PLAN ya revela (antes de cualquier llamada pagada): una
+ * clasificación que falló cerrada dentro de HERO, o 3+ tarjetas seguras seguidas
+ * en los primeros 30 s. Lo demás solo se sabe tras resolver los recursos.
+ */
+export function planReleaseBlockers(shots: { id: string; startSec: number; endSec: number; type: ShotType; anchoredVisual?: BeatVisual }[]): CinematicFinding[] {
+  const out: CinematicFinding[] = [];
+  for (const s of shots) {
+    if (s.anchoredVisual?.classificationGap && tierSeconds(s.startSec, s.endSec).HERO > 0) {
+      out.push({ code: "CLASSIFICATION_INTEGRITY_GAP_IN_HERO", severity: "BLOCK", tier: "HERO", shots: [s.id], detail: "clasificación incierta dentro de HERO (detectada en el plan)" });
+    }
+  }
+  const certainCard = (s: (typeof shots)[number]) => {
+    const v = s.anchoredVisual;
+    return s.type === "text" || requiresSchematic(v) || !!v?.classificationGap || (v?.beatClass === "IDENTITY" && !v.identity) || (!!v && requiresEvidence(v) && !v.evidence);
+  };
+  let run: string[] = [];
+  const flush = () => {
+    if (run.length >= OPENING_CARD_RUN_MAX) out.push({ code: "OPENING_TEXT_CARD_RUN", severity: "BLOCK", shots: run, detail: `${run.length} tarjetas seguras seguidas en los primeros ${OPENING_CARD_WINDOW_SEC} s (detectadas en el plan)` });
+    run = [];
+  };
+  for (const s of shots) {
+    if (s.startSec < OPENING_CARD_WINDOW_SEC && certainCard(s)) run.push(s.id);
+    else flush();
+  }
+  flush();
+  return out;
 }

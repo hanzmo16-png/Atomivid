@@ -35,6 +35,18 @@ export type VisualIdentity = {
   sourceIds?: string[];
 };
 
+/**
+ * Proposición que una escena EVIDENCE debe probar (planes v4): las fuentes del
+ * research pack (y, si las hay, las afirmaciones del beat) que sostienen el
+ * hecho. No verifica ningún recurso por sí misma: un recurso solo prueba la
+ * proposición si el verificador del servidor lo vincula a esas mismas fuentes.
+ * "newspaper", "document" o "court paper" no prueban el contenido.
+ */
+export type VisualEvidence = {
+  sourceIds: string[];
+  claimIds?: string[];
+};
+
 export type BeatVisual = {
   /** Escena concreta y filmable, idealmente en inglés (búsqueda de stock y prompt de imagen/video). */
   description: string;
@@ -60,6 +72,8 @@ export type BeatVisual = {
   beatClass?: VisualBeatClass;
   /** Persona que la escena exige representar; ver VisualIdentity. Nunca se copia a otras escenas del beat. */
   identity?: VisualIdentity;
+  /** v4, escenas EVIDENCE: la proposición que el recurso debe probar. Sin ella, nada puede ocupar la escena. */
+  evidence?: VisualEvidence;
   /**
    * v4: la clasificación es incierta o contradictoria según datos estructurados
    * del propio planner (clase ausente en un beat clasificado, o identidad en una
@@ -120,11 +134,26 @@ export function personActionIndex(beats: { visuals?: unknown }[]): Map<string, s
   return new Map([...index].map(([k, v]) => [k, [...v]]));
 }
 
+/** v4: la escena afirma probar un hecho; solo un recurso vinculado por el servidor a su proposición puede ocuparla. */
+export function requiresEvidence(visual: BeatVisual): boolean {
+  return visual.beatClass === "EVIDENCE";
+}
+
 /** Restrictividad de un contrato cuando dos escenas compiten por el MISMO tramo narrado (mayor = gana). */
 export function contractRestrictiveness(visual: BeatVisual): number {
   if (visual.beatClass === undefined && !visual.identity && !visual.classificationGap) return 0;
   if (requiresIdentity(visual)) return 4;
   return visual.beatClass === "EVIDENCE" ? 3 : visual.beatClass === "PLACE" ? 2 : visual.beatClass === "PROCESS" ? 1 : 0;
+}
+
+function declaredEvidence(item: Record<string, unknown>): VisualEvidence | undefined {
+  const raw = item.evidence;
+  if (!raw || typeof raw !== "object") return undefined;
+  const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => x.trim()) : []);
+  const sourceIds = strings((raw as Record<string, unknown>).sourceIds);
+  const claimIds = strings((raw as Record<string, unknown>).claimIds);
+  if (sourceIds.length === 0) return undefined;
+  return { sourceIds, ...(claimIds.length > 0 ? { claimIds } : {}) };
 }
 
 function declaredIdentity(item: Record<string, unknown>): VisualIdentity | undefined {
@@ -191,6 +220,9 @@ export function normalizeDeclaredVisuals(
       // IDENTITY sin identity válida queda IDENTITY sin persona: requiresIdentity la deja sin representación posible.
       const identity = declaredIdentity(record);
       if (identity) visual.identity = identity;
+      // Solo una escena EVIDENCE lleva proposición: en otra clase no autoriza ni restringe nada.
+      const evidence = beatClass === "EVIDENCE" ? declaredEvidence(record) : undefined;
+      if (evidence) visual.evidence = evidence;
     }
     out.push(visual);
     if (out.length >= MAX_VISUALS_PER_BEAT) break;

@@ -96,7 +96,8 @@ export const VisualSchema = z.object({
     .enum(VISUAL_BEAT_CLASSES)
     .optional()
     .describe(
-      "Qué AFIRMA la escena: IDENTITY (muestra a una persona real concreta), PLACE (lugar o espacio), EVIDENCE (documento, objeto o prueba), " +
+      "Qué AFIRMA la escena: IDENTITY (muestra a una persona real concreta), PLACE (lugar o espacio), EVIDENCE (el documento, registro u objeto " +
+        "que PRUEBA este hecho concreto — no un objeto genérico del mismo tipo; declara su evidence), " +
         "PROCESS (actividad sin una persona concreta), TRANSITION (paso de tiempo o lugar), METAPHOR (imagen simbólica). " +
         "Si la narración dice que una persona concreta hace algo (entra, sube, camina, llega), la escena de esa persona es IDENTITY, nunca un cuerpo " +
         "anónimo haciendo la acción; el lugar, edificio o documento va en OTRA escena PLACE/EVIDENCE sin identity.",
@@ -109,6 +110,16 @@ export const VisualSchema = z.object({
     })
     .optional()
     .describe("OBLIGATORIO si beatClass es IDENTITY; ausente en cualquier otra clase. Solo la persona que ESTA escena muestra."),
+  evidence: z
+    .object({
+      sourceIds: z.array(z.string()).optional().describe("IDs de las fuentes del research pack que sostienen el hecho que esta prueba muestra."),
+      claimIds: z.array(z.string()).optional().describe("IDs de las afirmaciones (claims) de este beat que la prueba respalda."),
+    })
+    .optional()
+    .describe(
+      "OBLIGATORIO si beatClass es EVIDENCE; ausente en cualquier otra clase. Un periódico, documento o expediente genérico NO prueba un hecho: " +
+        "si solo ilustras el tipo de objeto, usa PLACE, PROCESS o METAPHOR.",
+    ),
 });
 
 const BeatSchema = z.object({
@@ -428,6 +439,8 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
               (input.referenceContract ? "Elige excerptId del catálogo de este bloque para cada escena. No devuelvas quote ni inventes referencias. " : "quote debe copiar LITERALMENTE entre 5 y 12 palabras de esta narración. ") +
               "motion solo si requiere acción física real; no confundir zoom con animación. " +
               "Declara beatClass en cada escena; una persona real concreta solo en una escena IDENTITY con identity (sourceIds de las fuentes dadas). " +
+              "En un beat con una persona, su movimiento físico (entra, sube, camina) es IDENTITY, nunca TRANSITION. " +
+              "EVIDENCE solo para la prueba de ESTE hecho, con evidence.sourceIds; la ilustración genérica es PLACE, PROCESS o METAPHOR. " +
               "Hasta dos búsquedas alternativas del mismo contenido. Descripciones de máximo 15 palabras.", input.referenceContract ? ReferencedVisualsSchema : BeatVisualsSchema),
             messages: [{ role: "user" as const, content: JSON.stringify({ topic: input.researchPack.topic,
               narration: beat.narration, purpose: beat.purpose, sources: input.researchPack.sources,

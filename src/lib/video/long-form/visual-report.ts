@@ -16,6 +16,7 @@ import type { ShotExecution } from "./shot-executor";
 import type { Shot, ShotType } from "./types";
 import { cinematicQa, directCinematic, type CinematicDecision, type CinematicQa } from "./cinematic-director";
 import { usesVisualIdentity } from "./production-plan-types";
+import { personSubstitute } from "./stock-selection";
 
 export const OPENING_WINDOW_SECONDS = 60;
 
@@ -266,6 +267,7 @@ function cinematicSection(shots: Shot[], executions: ShotExecution[], scenes: Vi
         provenance: meta?.provenance?.kind,
         visual: shot.anchoredVisual,
         entityLink: meta?.selection?.entityLink,
+        evidenceLink: meta?.selection?.evidenceLink,
         gap: !!meta?.gap,
       };
     }),
@@ -282,6 +284,8 @@ function cinematicSection(shots: Shot[], executions: ShotExecution[], scenes: Vi
       relevance: scenes[i].relevance,
       classificationGap: shots[i].anchoredVisual?.classificationGap,
       gap: !!scenes[i].gap,
+      // Recomprobación sobre el recurso FINAL: el selector ya lo excluye; si llegara, la entrega se bloquea.
+      substitutesPerson: !!(shots[i].anchoredVisual && scenes[i].display !== "card" && personSubstitute(shots[i].anchoredVisual!, scenes[i].candidateDescription)),
     })),
   );
   return { scenes: decisions.map((d, i) => ({ shotId: scenes[i].shotId, ...d })), qa };
@@ -306,8 +310,8 @@ export function assertVisualQuality(report: VisualReport): void {
   const unjustified = report.summary.repeatedAssets.filter((g) => !g.justification);
   if (unjustified.length > 0) problems.push(`${unjustified.length} recurso(s) repetido(s) sin justificación (${unjustified.map((g) => g.shots.join("=")).join(", ")})`);
   if (report.summary.titleCards.length > 0) problems.push(`${report.summary.titleCards.length} tarjeta(s) que repiten el título`);
-  // v4: solo detienen el render las violaciones de VERDAD (identidad, falso archivo de época). Movimiento,
-  // variedad y ritmo son diagnóstico: quedan en el informe y nunca cambian un recurso.
+  // v4: puerta de entrega con la política CONGELADA (DELIVERY_POLICY). Si el sistema sabe que un visual es
+  // narrativamente falso, no se renderiza. Movimiento, variedad y ritmo son diagnóstico.
   for (const f of report.cinematic?.qa.findings ?? []) if (f.severity === "BLOCK") problems.push(`${f.code}: ${f.detail} (${f.shots.join(", ")})`);
   if (problems.length > 0) throw new LongFormVisualQualityError(problems);
 }

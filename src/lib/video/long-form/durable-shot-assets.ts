@@ -46,6 +46,8 @@ export type AssetSelectionTrace = {
   rejected?: { sourceId?: string; query: string; reason: string }[];
   /** Persona cuyo vínculo con el recurso confirmó el verificador del servidor (nunca el texto del proveedor). */
   entityLink?: { name: string };
+  /** Fuentes que el verificador del servidor confirma que el recurso documenta (escenas EVIDENCE). */
+  evidenceLink?: { sourceIds: string[] };
 };
 
 export type ShotAssetRecord = {
