@@ -95,7 +95,7 @@ export function cycleShotType(index: number, strategy?: VisualStrategy): ShotTyp
   return cycle[index % cycle.length];
 }
 
-function productMotion(type: ShotType): ShotMotion {
+export function productMotion(type: ShotType): ShotMotion {
   if (type === "stock_video") return "pan";
   if (type === "ken_burns_image" || type === "generated_placeholder" || type === "stock_image") return "ken_burns";
   return "static";

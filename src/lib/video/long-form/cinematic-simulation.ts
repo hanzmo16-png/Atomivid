@@ -18,6 +18,7 @@ import { directAnchoredScenes, MAX_TEXT_FALLBACK_RATIO } from "./produce";
 import { assetFingerprint, contractKey, heroCoverage, VerifiedAssetRegistry, type CuratableAsset, type CurationFile, type RehydrationPolicy } from "./verified-assets";
 import { decideLink, emptyCurationFile, proposeAsset, requestedContracts, type RequestedContract } from "./asset-curation";
 import { visualsForBeat, type BeatVisual } from "./visual-intents";
+import type { SequenceIntent } from "./sequence-intent";
 import { planReleaseBlockers } from "./cinematic-director";
 
 import fs from "node:fs";
@@ -307,6 +308,28 @@ export const gucciBeats: ProductionPlanBeatInput[] = [
   },
 ];
 
+const ROLE_BY_CLASS: Record<string, SequenceIntent["slots"][number]["role"]> = { IDENTITY: "ANCHOR", PLACE: "CONTEXT", EVIDENCE: "EVIDENCE", PROCESS: "CONTEXT", METAPHOR: "ATMOSPHERE", TRANSITION: "TRANSITION" };
+
+/**
+ * HONEST-GUCCI v5: la MISMA intención narrativa del guion v4 (mismos beats, mismos contratos), ahora
+ * agrupada por secuencia con roles. No añade ningún recurso. Incluye un DETAIL (titular de la prueba de
+ * la deuda) que, sin región curada en el registro, NO debe fabricarse.
+ */
+export function gucciSequences(beats: ProductionPlanBeatInput[] = gucciBeats): SequenceIntent[] {
+  return beats.map((beat, i) => {
+    const visuals = beat.visuals as Record<string, unknown>[];
+    const slots: SequenceIntent["slots"] = visuals.map((v) => {
+      const role = ROLE_BY_CLASS[String(v.beatClass)] ?? "ATMOSPHERE";
+      return { role, scale: role === "ANCHOR" ? "MEDIUM" : "WIDE", scaleReason: role === "ANCHOR" ? "introduce or hold the person" : "establish the place, record or texture", beatId: beat.id, visual: v };
+    });
+    if (beat.id === "b5") {
+      const debt = visuals.findIndex((v) => (v.evidence as { sourceIds?: string[] } | undefined)?.sourceIds?.includes("web-5"));
+      slots.push({ role: "DETAIL", scale: "DETAIL", scaleReason: "the debt headline is the claim", beatId: beat.id, visual: { ...visuals[debt], quote: "fighting in court" }, detail: { of: debt, region: "headline" } });
+    }
+    return { id: `G${i + 1}`, purpose: `${beat.type}: ${beat.narration.split(".")[0]}`, viewerTakeaway: beat.narration.split(".")[0], beatIds: [beat.id], slots };
+  });
+}
+
 /** El MISMO guion con el planner que NO cumple: la subida por la escalera de Maurizio declarada como TRANSITION sin identidad. */
 export const gucciBeatsMisclassified: ProductionPlanBeatInput[] = gucciBeats.map((b) =>
   b.id !== "b1"
@@ -458,7 +481,35 @@ export function countingProviders(events: string[], failDownloads?: RegExp) {
   return { voiceProvider, footageProvider, imageProvider, musicProvider };
 }
 
-export async function produceOffline(beats: ProductionPlanBeatInput[], plan: ProductionPlan, opts: { verifiedAssets?: VerifiedAssetRegistry; failDownloads?: RegExp; curationFile?: unknown } = {}) {
+/** Registra cada búsqueda/descarga del pool inyectado como evento "stock" (0 llamadas externas). */
+function countingFootage(base: FootageProvider, events: string[]): FootageProvider {
+  return {
+    ...base,
+    name: base.name,
+    fetchFootage: (...args) => base.fetchFootage(...args),
+    downloadFootage: (url) => base.downloadFootage(url),
+    searchImageCandidates: async (q, o) => (events.push("stock"), (await base.searchImageCandidates?.(q, o)) ?? []),
+    ...(base.searchVideoCandidates ? { searchVideoCandidates: async (q: string, m: number, o?: "portrait" | "landscape") => (events.push("stock"), base.searchVideoCandidates!(q, m, o)) } : {}),
+  };
+}
+
+export async function produceOffline(
+  beats: ProductionPlanBeatInput[],
+  plan: ProductionPlan,
+  opts: {
+    verifiedAssets?: VerifiedAssetRegistry;
+    failDownloads?: RegExp;
+    curationFile?: unknown;
+    /** Pool de candidatos (p. ej. los falsos amigos de Gucci); por defecto, stock genérico. */
+    footageProvider?: FootageProvider;
+    store?: LongFormRuntime["store"];
+    curatedSvgMarkup?: LongFormRuntime["curatedSvgMarkup"];
+    topic?: string;
+    /** Captura lo que recibiría el renderer (escenas, subtítulos) y el informe visual. */
+    onRender?: (input: Parameters<NonNullable<LongFormRuntime["render"]>>[0]) => void;
+    onReport?: (report: Parameters<NonNullable<LongFormRuntime["saveVisualReport"]>>[0]) => void;
+  } = {},
+) {
   const events: string[] = [];
   const storage = makeStorage();
   // Archivo de curaduría persistido (JSON plano): produce() lo rehidrata con su propia validación.
@@ -466,9 +517,10 @@ export async function produceOffline(beats: ProductionPlanBeatInput[], plan: Pro
   const out = memoryOutputDeps({ durationSeconds: 60 });
   const runtime: LongFormRuntime = {
     paidCalls: { ledger: memoryLedgerStore(), results: memoryResultStore() },
-    store: memoryShotAssetStore().store,
+    store: opts.store ?? memoryShotAssetStore().store,
     budgetStore: memoryBudgetStore(),
     observedUnitMax: {},
+    ...(opts.curatedSvgMarkup ? { curatedSvgMarkup: opts.curatedSvgMarkup } : {}),
     ...(opts.verifiedAssets ? { verifiedAssets: opts.verifiedAssets } : {}),
     videoProvider: null,
     aiVideoEnabled: false,
@@ -477,11 +529,13 @@ export async function produceOffline(beats: ProductionPlanBeatInput[], plan: Pro
     output: out.deps,
     uploadArtifact: async (p) => (events.push(`upload:${p.split("/").pop()}`), { path: p, url: `memory://${p}` }),
     identify: async (b) => ({ sha256: createHash("sha256").update(b).digest("hex"), dhashUnavailable: "test" }),
-    saveVisualReport: async () => {
+    saveVisualReport: async (report) => {
       events.push("visual-report");
+      opts.onReport?.(report);
     },
-    render: async () => {
+    render: async (input) => {
       events.push("render");
+      opts.onRender?.(input);
       const file = path.join(os.tmpdir(), `rg-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`);
       fs.writeFileSync(file, "fake-mp4");
       return file;
@@ -500,11 +554,11 @@ export async function produceOffline(beats: ProductionPlanBeatInput[], plan: Pro
       supabase: { storage } as any,
       requestId: FIXTURE_REQUEST_ID,
       artifactPrefix: "req-release-gate/attempt-1",
-      topic: GUCCI_TOPIC,
+      topic: opts.topic ?? GUCCI_TOPIC,
       beats: beats as never,
       language: "en",
       plan,
-      providers: countingProviders(events, opts.failDownloads),
+      providers: { ...countingProviders(events, opts.failDownloads), ...(opts.footageProvider ? { footageProvider: countingFootage(opts.footageProvider, events) } : {}) },
       runtime,
     });
   } catch (err) {
@@ -513,6 +567,6 @@ export async function produceOffline(beats: ProductionPlanBeatInput[], plan: Pro
   return { events, error };
 }
 
-export const planFor = (beats: ProductionPlanBeatInput[], strategy: "economical" | "balanced" = "economical") =>
-  ({ ...computeProductionPlan({ beats, topic: GUCCI_TOPIC, strategy, providers: REAL_LONG_FORM_PROVIDER_NAMES, aiVideoEnabled: false }), confirmedAt: "2026-10-07T00:00:00Z" }) as ProductionPlan;
+export const planFor = (beats: ProductionPlanBeatInput[], strategy: "economical" | "balanced" = "economical", sequences?: SequenceIntent[], topic = GUCCI_TOPIC) =>
+  ({ ...computeProductionPlan({ beats, topic, strategy, providers: REAL_LONG_FORM_PROVIDER_NAMES, aiVideoEnabled: false, ...(sequences ? { sequences } : {}) }), confirmedAt: "2026-10-07T00:00:00Z" }) as ProductionPlan;
 

@@ -1,6 +1,6 @@
 /**
  * Soporte de PRUEBAS y de la prueba visual local (scripts/premium-composition-proof.ts).
- * Todo el material es PROPIO y está marcado "FIXTURE": no representa a ninguna
+ * FIXTURE_ONLY / TEST_ONLY. Todo el material es PROPIO y está marcado "FIXTURE": no representa a ninguna
  * persona real, ningún periódico real ni ninguna geografía real. Pasa por la
  * MISMA curaduría y rehidratación que producción.
  */
@@ -102,8 +102,9 @@ export function schematicSvg(): string {
 const asset = (id: string, baseUrl: string, file: string, mime: string, size: { width: number; height: number }, extra: Partial<CuratableAsset> = {}): CuratableAsset => ({
   id,
   source: "owned",
-  sourceUrl: `${baseUrl}/${file}`,
-  mediaUrl: `${baseUrl}/${file}`,
+  // FIXTURE_ONLY / TEST_ONLY: la marca viaja en el id y en las URLs (fixture-only.ts la rechaza en producción).
+  sourceUrl: `${baseUrl}/fixture-only/${file}`,
+  mediaUrl: `${baseUrl}/fixture-only/${file}`,
   mediaType: "image",
   mime,
   width: size.width,
@@ -116,10 +117,10 @@ const asset = (id: string, baseUrl: string, file: string, mime: string, size: { 
 
 export function premiumAssets(baseUrl: string) {
   return {
-    portrait: asset("fixture-portrait", baseUrl, "portrait.png", "image/png", PORTRAIT_SIZE, { description: "Fixture portrait (fictional person)" }),
-    document: asset("fixture-document", baseUrl, "document.png", "image/png", DOCUMENT_SIZE, { description: "Fixture gazette front page", regions: DOCUMENT_REGIONS }),
-    documentNoRegions: asset("fixture-document-plain", baseUrl, "document.png", "image/png", DOCUMENT_SIZE, { description: "Fixture gazette front page (no curated regions)" }),
-    schematic: asset("fixture-schematic", baseUrl, "schematic.svg", "image/svg+xml", SCHEMATIC_SIZE, { description: "Fixture schematic", svgReveal: SCHEMATIC_REVEAL }),
+    portrait: asset("fixture-only:portrait", baseUrl, "portrait.png", "image/png", PORTRAIT_SIZE, { description: "Fixture portrait (fictional person)" }),
+    document: asset("fixture-only:gazette", baseUrl, "document.png", "image/png", DOCUMENT_SIZE, { description: "Fixture gazette front page", regions: DOCUMENT_REGIONS }),
+    documentNoRegions: asset("fixture-only:gazette-plain", baseUrl, "document.png", "image/png", DOCUMENT_SIZE, { description: "Fixture gazette front page (no curated regions)" }),
+    schematic: asset("fixture-only:schematic", baseUrl, "schematic.svg", "image/svg+xml", SCHEMATIC_SIZE, { description: "Fixture schematic", svgReveal: SCHEMATIC_REVEAL }),
   };
 }
 

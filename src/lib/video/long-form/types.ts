@@ -121,6 +121,8 @@ export type Shot = {
   anchoredVisual?: import("./visual-intents").BeatVisual;
   /** Cómo se ancló: índice de la intención en el beat, escenas previas con la misma intención, y por qué criterio. */
   intentAnchor?: { visualIndex: number; reuseIndex: number; anchoredBy: "quote" | "order" };
+  /** Plan v5: rol de la secuencia que ocupa este plano (la intención existe ANTES de elegir recurso). v1–v4: ausente. */
+  sequenceSlot?: import("./sequence-direction").SequenceSlotRef;
 
   // --- Campos RESERVADOS para la futura capa musical (no implementada
   // todavía, ver sección 5 del encargo P1) — ningún código los lee o

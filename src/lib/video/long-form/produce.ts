@@ -72,6 +72,11 @@ import { assertVisualQuality, buildVisualReport, LongFormVisualQualityError, typ
 import { planReleaseBlockers } from "./cinematic-director";
 import { heroCoverage, VerifiedAssetRegistry } from "./verified-assets";
 import { CURATION_FILE_PATH, isAuthorizedCurator, requestedContracts } from "./asset-curation";
+import { containsFixtureOnlyMaterial } from "./fixture-only";
+import { curatedSvgGraphic } from "./premium-composition";
+import type { LongFormCuratedSvgGraphic } from "../../../../remotion/LongFormDoc";
+import { PLAN_ESTIMATE_AVAILABILITY, registryAvailability, resolveSequences, usesSequences, validateSequenceIntents, type ExecutableSequence } from "./sequence-intent";
+import { directSequenceScenes, planSequenceShots, sequenceShotsForSpan } from "./sequence-direction";
 import { ProductionBudget, supabaseBudgetStore, type BudgetStore } from "./production-budget";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import { getLongFormBudget } from "./cost";
@@ -139,6 +144,11 @@ export type LongFormRuntime = {
   attempt?: number | null;
   /** Destino del informe visual previo al render (por defecto `${requestId}/state/visual-report.json`). */
   saveVisualReport?: (report: VisualReport) => Promise<void>;
+  /**
+   * v5 GEOGRAPHY: lee el SVG CURADO ya persistido por el ejecutor (ruta del objeto) para revelar su trazo.
+   * Ausente (producción hoy) = el esquema se muestra completo, quieto, sin revelado.
+   */
+  curatedSvgMarkup?: (objectPath: string) => Promise<string | null>;
   /** Inyectable en pruebas: identidad de contenido sin ffmpeg/sharp. */
   identify?: (buffer: Buffer, mediaType: "image" | "video") => Promise<Pick<AssetIdentity, "sha256" | "dhash" | "dhashUnavailable">>;
   /**
@@ -219,9 +229,20 @@ export async function generateLongFormVideoFromScript({
   // Además, la cobertura HERO con material verificado: si las reglas existentes (3 tarjetas en los primeros
   // 30 s, proporción máxima de tarjetas) hacen el fallo inevitable, no se gasta nada.
   let verifiedAssets: VerifiedAssetRegistry | undefined;
+  // v5: la intención por secuencia existe ANTES de elegir recursos; aquí se resuelve contra el registro real.
+  let sequences: ExecutableSequence[] | undefined;
   if (usesVisualIdentity(plan)) {
-    const plannedShots = planShotsFromScript(beats as ProductionPlanBeatInput[], topic, plan.strategy).shots;
-    verifiedAssets = runtime.verifiedAssets ?? (await loadVerifiedAssets(supabase, requestId, new Set(requestedContracts(plannedShots).keys())));
+    const v5 = usesSequences(plan);
+    if (v5) {
+      const check = validateSequenceIntents(plan.sequences, beats as ProductionPlanBeatInput[]);
+      if (check.errors.length > 0) throw new LongFormVisualQualityError(check.errors.map((e) => `SEQUENCE_CONTRACT: ${e}`));
+    }
+    const estimate = v5
+      ? planSequenceShots(beats as ProductionPlanBeatInput[], resolveSequences(plan.sequences!, PLAN_ESTIMATE_AVAILABILITY)).shots
+      : planShotsFromScript(beats as ProductionPlanBeatInput[], topic, plan.strategy).shots;
+    verifiedAssets = runtime.verifiedAssets ?? (await loadVerifiedAssets(supabase, requestId, new Set(requestedContracts(estimate).keys())));
+    if (v5) sequences = resolveSequences(plan.sequences!, registryAvailability(verifiedAssets));
+    const plannedShots = sequences ? planSequenceShots(beats as ProductionPlanBeatInput[], sequences).shots : estimate;
     const blockers = planReleaseBlockers(plannedShots).map((f) => `${f.code}: ${f.detail} (${f.shots.join(", ")})`);
     const coverage = heroCoverage(plannedShots, verifiedAssets, MAX_TEXT_FALLBACK_RATIO);
     const missing = [...coverage.heroMissingRequiredIdentities, ...coverage.heroMissingRequiredEvidence, ...coverage.missingIdentities, ...coverage.missingEvidence];
@@ -287,11 +308,14 @@ export async function generateLongFormVideoFromScript({
   // tiempos reales por palabra (scene-anchoring.ts). v1/v2: sin cambios.
   const anchored = usesAnchoredVisuals(plan);
   const shotsForPlannedSpan = (spanInput: Parameters<typeof shotsForSpan>[0] & { words?: import("@/lib/providers/types").WordTiming[] }) =>
-    shotsForSpan({
-      ...spanInput,
-      targetCount: plannedShotCounts?.[spanInput.beatId],
-      anchoring: anchored ? { words: spanInput.words } : undefined,
-    });
+    sequences
+      ? // v5: los planos salen de los ROLES resueltos (no del reparto de 3–8 s por duración).
+        sequenceShotsForSpan({ beatId: spanInput.beatId, startSec: spanInput.startSec, endSec: spanInput.endSec, narration: spanInput.narration, words: spanInput.words, sequences })
+      : shotsForSpan({
+          ...spanInput,
+          targetCount: plannedShotCounts?.[spanInput.beatId],
+          anchoring: anchored ? { words: spanInput.words } : undefined,
+        });
   const personActions = usesVisualIdentity(plan) ? personActionIndex(beats as { visuals?: unknown }[]) : undefined;
   const timeline = await buildLongFormTimeline(
     resolvedProviders.voiceProvider,
@@ -472,7 +496,22 @@ export async function generateLongFormVideoFromScript({
   // v3: cortes alineados a la voz real, dirección de montaje editorial,
   // procedencia visible y carencias marcadas (nunca pasan por terminadas).
   // v1/v2 y la recuperación de planes anteriores: sin cambios.
-  const shotScenes = anchored ? directAnchoredScenes(baseScenes, executions, timeline.words, visualReport.cinematic?.scenes) : baseScenes;
+  const anchoredScenes = anchored ? directAnchoredScenes(baseScenes, executions, timeline.words, visualReport.cinematic?.scenes) : baseScenes;
+  // v5: escala y encuadre por ROL sobre escenas que ya pasaron por la verdad (mismo recurso, procedencia y crédito).
+  const geography = new Map<number, LongFormCuratedSvgGraphic>();
+  if (sequences && verifiedAssets && runtime.curatedSvgMarkup) {
+    for (let i = 0; i < allocated.shots.length; i++) {
+      const shot = allocated.shots[i];
+      const meta = executions[i]?.assetMeta;
+      if (shot.sequenceSlot?.role !== "GEOGRAPHY" || !shot.anchoredVisual || !meta?.objectPath) continue;
+      // Solo el registro de CONFIANZA que el ejecutor usó (misma página de origen) y su SVG intacto.
+      const record = verifiedAssets.recordsFor(shot.anchoredVisual).find((r) => r.sourceUrl === meta.provenance?.pageUrl);
+      const markup = await runtime.curatedSvgMarkup(meta.objectPath);
+      const graphic = markup ? curatedSvgGraphic(record, markup) : null;
+      if (graphic) geography.set(i, graphic);
+    }
+  }
+  const shotScenes = sequences ? directSequenceScenes(anchoredScenes, allocated.shots, executions, { geography: (i) => geography.get(i) ?? null }) : anchoredScenes;
 
   const emphasisSet = buildEmphasisSet([]);
   // v3: ningún subtítulo cruza un corte de escena; v1/v2 sin cambios.
@@ -701,11 +740,15 @@ export function directAnchoredScenes(
  * exacto que el plan pide). Ausente o ilegible = vacío.
  */
 async function loadVerifiedAssets(supabase: SupabaseClient, requestId: string, contracts: ReadonlySet<string>): Promise<VerifiedAssetRegistry> {
+  let raw: unknown;
   try {
     const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(CURATION_FILE_PATH(requestId));
     if (error || !data) return VerifiedAssetRegistry.empty();
-    return VerifiedAssetRegistry.rehydrate(JSON.parse(await data.text()), { requestId, isAuthorizedCurator: (by) => isAuthorizedCurator(by), requestedContracts: contracts });
+    raw = JSON.parse(await data.text());
   } catch {
     return VerifiedAssetRegistry.empty();
   }
+  // Material de benchmark (FIXTURE_ONLY / TEST_ONLY) nunca entra en una solicitud real, aunque lo apruebe un curador.
+  if (containsFixtureOnlyMaterial(raw)) throw new LongFormVisualQualityError(["FIXTURE_ONLY_MATERIAL: el archivo de curaduría contiene material de prueba; una solicitud real nunca lo usa"]);
+  return VerifiedAssetRegistry.rehydrate(raw, { requestId, isAuthorizedCurator: (by) => isAuthorizedCurator(by), requestedContracts: contracts });
 }

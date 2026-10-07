@@ -17,6 +17,28 @@ export type SceneDirection = {
    * full page → eased move to the headline → optional date/detail → back to the full page.
    */
   document?: DocumentDirection;
+  /**
+   * Plan v5 (dirección por secuencia): escala y encuadre decididos por el ROL del plano.
+   * Ausente = v1–v4 exactamente como antes.
+   */
+  shot?: ShotDirection;
+};
+export type ShotScaleName = "WIDE" | "MEDIUM" | "DETAIL";
+export type ShotDirection = {
+  role: "ANCHOR" | "CONTEXT" | "EVIDENCE" | "DETAIL" | "GEOGRAPHY" | "TRANSITION" | "ATMOSPHERE";
+  scale: ShotScaleName;
+  /** WIDE: imagen dentro de un campo negro diseñado ("field") o a sangre, quieta ("bleed"). */
+  wide?: "field" | "bleed";
+  /** MEDIUM: origen (0–1) del empuje lento: la región "subject" curada, o un tercio fijo. */
+  focus?: { x: number; y: number };
+  /** DETAIL: región CURADA (0–1 de la fuente) y tamaño de la fuente. */
+  region?: { label: string; x: number; y: number; w: number; h: number };
+  sourceWidth?: number;
+  sourceHeight?: number;
+  /** Rótulo de apertura de la secuencia: año (serif) y lugar (sans). */
+  slug?: { year?: string; place?: string };
+  /** Tarjeta (transición de tipo o ausencia dirigida): año opcional en serif. */
+  card?: { year?: string };
 };
 /** Only two era looks exist (no era engine): documentary colour and explicit, scoped monochrome. */
 export type LookPreset = "documentary_1990s" | "schematic_mono";
@@ -248,6 +270,72 @@ export function svgRevealState(progress: number): { pathDrawn: number; labelOpac
 }
 
 // --------------------------------------------------------------------------
+// Plan v5 — una sola familia tipográfica y un solo sistema de márgenes (16:9 y 9:16)
+// --------------------------------------------------------------------------
+
+/** Una serif (nombres, años) y una sans (créditos, "Recreación IA", lugar, mapa, metadatos). */
+export const TYPE = {
+  serif: "Georgia, 'Liberation Serif', 'DejaVu Serif', serif",
+  sans: "'Helvetica Neue', Helvetica, Arial, 'Liberation Sans', sans-serif",
+} as const;
+
+/** Escala tipográfica a partir del lado corto del cuadro: la misma lógica en 16:9 y 9:16. */
+export function typeScale(width: number, height: number) {
+  const u = Math.min(width, height);
+  return { credit: Math.round(u * 0.022), label: Math.round(u * 0.024), place: Math.round(u * 0.022), year: Math.round(u * 0.07), cardYear: Math.round(u * 0.12), cardLine: Math.round(u * 0.036), caption: Math.round(u * (height > width ? 0.046 : 0.04)) };
+}
+
+/** Altura reservada a los subtítulos (dos líneas) encima del margen inferior. */
+export function captionBand(width: number, height: number): number {
+  return Math.round(typeScale(width, height).caption * 1.3 * 2 + 32);
+}
+
+/**
+ * Caja de la imagen en un plano general "field": centrada, con margen negro
+ * diseñado, por debajo de la banda de rótulos y por encima de los subtítulos.
+ */
+export function wideFieldBox(width: number, height: number) {
+  const safe = safeAreas(width, height);
+  const t = typeScale(width, height);
+  const top = safe.top + Math.round(t.label * 2.4);
+  const bottom = height - safe.bottom - captionBand(width, height);
+  const side = height > width ? safe.side : Math.round(width * 0.11);
+  return { x: side, y: top, w: width - 2 * side, h: Math.max(1, bottom - top) };
+}
+
+/** Rectángulo (px) que ocupa una imagen "contain" dentro de una caja. */
+export function containRect(box: { x: number; y: number; w: number; h: number }, srcW: number, srcH: number) {
+  const s = Math.min(box.w / srcW, box.h / srcH);
+  return { x: box.x + (box.w - srcW * s) / 2, y: box.y + (box.h - srcH * s) / 2, w: srcW * s, h: srcH * s, s };
+}
+
+/** Empuje MEDIUM (v5): mismo tope 1.08, con aceleración, desde un origen fuera del centro. */
+export function mediumTransform(progress: number, focus: { x: number; y: number }): { transform: string; transformOrigin: string } {
+  return { transform: `scale(${1 + (CAMERA_MAX_SCALE - 1) * easedProgress(progress)})`, transformOrigin: `${(focus.x * 100).toFixed(2)}% ${(focus.y * 100).toFixed(2)}%` };
+}
+
+/**
+ * DETAIL sobre una región CURADA: la región domina el cuadro (≈80 % del ancho útil),
+ * sin pasar nunca de 1 px de fuente por px de cuadro (sin ampliar), con un movimiento
+ * corto dentro del tope de 1.08 y el resto de la página visible pero atenuado.
+ */
+export function detailLayout(region: { x: number; y: number; w: number; h: number }, srcW: number, srcH: number, width: number, height: number, progress: number) {
+  const box = wideFieldBox(width, height);
+  // 9:16: 82 % (no 92 %) para que los dos bordes de la página sigan a la vista con el titular dominante.
+  const targetW = (height > width ? 0.82 : 0.8) * width;
+  const targetH = box.h * 0.62;
+  const final = Math.min(targetW / (region.w * srcW), targetH / (region.h * srcH), 1);
+  const s = final * (1 / CAMERA_MAX_SCALE + (1 - 1 / CAMERA_MAX_SCALE) * easedProgress(Math.min(1, clamp(progress) / 0.4)));
+  const cx = width / 2;
+  const cy = box.y + box.h / 2;
+  const rx = (region.x + region.w / 2) * srcW;
+  const ry = (region.y + region.h / 2) * srcH;
+  const page = { x: cx - rx * s, y: cy - ry * s, w: srcW * s, h: srcH * s };
+  const focus = { x: page.x + region.x * srcW * s, y: page.y + region.y * srcH * s, w: region.w * srcW * s, h: region.h * srcH * s };
+  return { s, final, page, focus };
+}
+
+// --------------------------------------------------------------------------
 // Safe areas: the same composition in 16:9 and 9:16 (no Reels-specific copy of the rules).
 // --------------------------------------------------------------------------
 
@@ -305,6 +393,18 @@ export function validateDirection(
       const curatedSvg = s.asset?.kind === "graphic" && s.asset.graphic?.kind === "curated_svg";
       if (l.preset === "documentary_1990s" && s.provenance !== "archival_documentary") throw new Error(`Era look on non-archival scene: ${s.id}`);
       if (l.preset === "schematic_mono" && !(s.provenance === "archival_documentary" || curatedSvg)) throw new Error(`Monochrome on non-archival scene: ${s.id}`);
+    }
+    if (d.shot) {
+      const sh = d.shot;
+      if (!["WIDE", "MEDIUM", "DETAIL"].includes(sh.scale)) throw new Error(`Invalid shot scale: ${s.id}`);
+      if (sh.focus && ![sh.focus.x, sh.focus.y].every((v) => finite(v) && v >= 0 && v <= 1)) throw new Error(`Invalid shot focus: ${s.id}`);
+      if (sh.scale === "DETAIL") {
+        // DETAIL solo sobre una región CURADA de un recurso verificado (nunca un recorte arbitrario).
+        const r = sh.region;
+        if (s.provenance !== "archival_documentary" || !r || !finite(sh.sourceWidth ?? NaN) || !finite(sh.sourceHeight ?? NaN) || ![r.x, r.y, r.w, r.h].every((v) => finite(v) && v >= 0 && v <= 1) || r.w <= 0 || r.h <= 0) {
+          throw new Error(`DETAIL needs a curated region of a verified asset: ${s.id}`);
+        }
+      }
     }
     if (d.document) {
       const doc = d.document;

@@ -9,6 +9,11 @@ import {
   useVideoConfig,
 } from "remotion";
 import {
+  TYPE,
+  detailLayout,
+  mediumTransform,
+  typeScale,
+  wideFieldBox,
   cameraTransform,
   documentFrame,
   documentLayout,
@@ -23,6 +28,7 @@ import {
   type DocumentDirection,
   type SafeAreas,
   type SceneDirection,
+  type ShotDirection,
   type SoundCue,
 } from "./long-form-direction";
 import { type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from "./audio-mix";
@@ -154,6 +160,8 @@ export function LongFormDoc({
 }: LongFormDocProps) {
   const { fps, durationInFrames } = useVideoConfig();
   validateDirection(scenes, soundCues, durationSeconds);
+  // Plan v5: la película habla una sola tipografía (títulos, rótulos, subtítulos). v1–v4: sin cambios.
+  const directed = scenes.some((s) => s.direction?.shot);
   useCoverFont(Boolean(opening));
 
   return (
@@ -190,7 +198,7 @@ export function LongFormDoc({
       />
 
       {opening && scenes.length > 0 && <OpeningCover spec={opening} firstSceneEndSeconds={scenes[0].endSeconds} labelsTopLeft={Boolean(provenanceLabel(scenes[0].provenance) || scenes[0].creditText || scenes[0].pending)} />}
-      <Captions captions={captions} accentColor={accentColor} />
+      <Captions captions={captions} accentColor={accentColor} directed={directed} />
 
       {showLogo && <LogoBadge accentColor={accentColor} />}
 
@@ -271,6 +279,15 @@ function SceneRenderer({
 
   const doc = scene.direction?.document;
   const safe = safeAreas(width, height);
+  const shot = scene.direction?.shot;
+  if (shot) {
+    return (
+      <AbsoluteFill style={{ overflow: "hidden", opacity, backgroundColor: "#050505" }}>
+        <DirectedShot scene={scene} shot={shot} progress={progress} filter={look.filter} />
+        <DirectedLabels scene={scene} shot={shot} />
+      </AbsoluteFill>
+    );
+  }
   return (
     <AbsoluteFill style={{ overflow: "hidden", opacity }}>
       {scene.asset.kind === "media" && scene.asset.mediaType === "image" && doc ? (
@@ -329,6 +346,116 @@ function DocumentSequence({ url, document, progress, filter }: { url: string; do
         </AbsoluteFill>
       )}
     </>
+  );
+}
+
+// --- Plan v5: dirección por rol (escala/encuadre), una sola familia tipográfica ---
+
+function DirectedShot({ scene, shot, progress, filter }: { scene: LongFormShotScene; shot: ShotDirection; progress: number; filter?: string }) {
+  const { width, height, fps } = useVideoConfig();
+  if (scene.asset.kind === "graphic") {
+    if (scene.asset.graphic.kind === "curated_svg") {
+      // Mismo campo negro que un plano general: el mapa no ocupa los márgenes de rótulos ni de subtítulos.
+      const box = wideFieldBox(width, height);
+      return (
+        <AbsoluteFill style={filter && scene.direction?.look?.preset === "schematic_mono" ? { filter } : undefined}>
+          <div style={{ position: "absolute", left: box.x, top: box.y, width: box.w, height: box.h }}>
+            <CuratedSvgCard graphic={scene.asset.graphic} progress={progress} directed />
+          </div>
+        </AbsoluteFill>
+      );
+    }
+    return <DirectedCard graphic={scene.asset.graphic} year={shot.card?.year} />;
+  }
+  const asset = scene.asset;
+  const media = (style: React.CSSProperties) =>
+    asset.mediaType === "video" ? (
+      <OffthreadVideo src={asset.url} trimBefore={Math.round((scene.direction?.mediaStartSeconds ?? 0) * fps)} muted style={{ ...style, ...(filter ? { filter } : {}) }} />
+    ) : (
+      <Img src={asset.url} style={{ ...style, ...(filter ? { filter } : {}) }} />
+    );
+  if (shot.scale === "DETAIL" && shot.region && shot.sourceWidth && shot.sourceHeight) {
+    // La región CURADA toma el cuadro; la página sigue ahí (bordes y contexto), atenuada.
+    const L = detailLayout(shot.region, shot.sourceWidth, shot.sourceHeight, width, height, progress);
+    const box = wideFieldBox(width, height);
+    // La página queda dentro de la franja del plano general: rótulos arriba y subtítulos abajo caen en negro, nunca sobre el documento.
+    const f = { ...L.focus, y: L.focus.y - box.y };
+    const dim = "rgba(0,0,0,0.62)";
+    return (
+      <AbsoluteFill>
+        <div style={{ position: "absolute", left: 0, top: box.y, width: "100%", height: box.h, overflow: "hidden" }}>
+          {media({ position: "absolute", left: L.page.x, top: L.page.y - box.y, width: L.page.w, height: L.page.h })}
+          <div style={{ position: "absolute", left: 0, top: 0, width: "100%", height: Math.max(0, f.y), backgroundColor: dim }} />
+          <div style={{ position: "absolute", left: 0, top: f.y + f.h, width: "100%", bottom: 0, backgroundColor: dim }} />
+          <div style={{ position: "absolute", left: 0, top: f.y, width: Math.max(0, f.x), height: f.h, backgroundColor: dim }} />
+          <div style={{ position: "absolute", left: f.x + f.w, top: f.y, right: 0, height: f.h, backgroundColor: dim }} />
+        </div>
+      </AbsoluteFill>
+    );
+  }
+  if (shot.scale === "MEDIUM") {
+    const m = mediumTransform(progress, shot.focus ?? { x: 0.5, y: 0.5 });
+    return <AbsoluteFill>{media({ width: "100%", height: "100%", objectFit: "cover", transform: m.transform, transformOrigin: m.transformOrigin })}</AbsoluteFill>;
+  }
+  if (shot.wide === "bleed") return <AbsoluteFill>{media({ width: "100%", height: "100%", objectFit: "cover" })}</AbsoluteFill>;
+  // WIDE "field": la imagen completa, quieta, en un campo negro diseñado.
+  const box = wideFieldBox(width, height);
+  return (
+    <AbsoluteFill>
+      <div style={{ position: "absolute", left: box.x, top: box.y, width: box.w, height: box.h }}>{media({ width: "100%", height: "100%", objectFit: "contain" })}</div>
+    </AbsoluteFill>
+  );
+}
+
+/** Ausencia dirigida / transición de tipo: año en serif, pasaje en sans, sobre negro. Sin caja, sin degradado. */
+function DirectedCard({ graphic, year }: { graphic: LongFormGraphicAsset["graphic"]; year?: string }) {
+  const { width, height } = useVideoConfig();
+  const t = typeScale(width, height);
+  const box = wideFieldBox(width, height);
+  const line = graphic.kind === "text" ? graphic.body || graphic.title : graphic.title;
+  return (
+    <AbsoluteFill style={{ backgroundColor: "#050505" }}>
+      <div style={{ position: "absolute", left: box.x, top: box.y, width: box.w, height: box.h, display: "flex", flexDirection: "column", justifyContent: "center", gap: Math.round(t.cardLine * 0.8) }}>
+        {year && <div style={{ fontFamily: TYPE.serif, fontSize: t.cardYear, lineHeight: 1, color: "#efe9dd" }}>{year}</div>}
+        <div style={{ fontFamily: TYPE.sans, fontSize: t.cardLine, lineHeight: 1.35, color: "#d9d4ca", maxWidth: Math.min(box.w, t.cardLine * 26) }}>{line}</div>
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+/**
+ * Rótulos v5 como parte de la película: arriba a la izquierda la procedencia
+ * ("Recreación IA"), la carencia y el año/lugar de la secuencia; arriba a la
+ * derecha el crédito. Mismos márgenes y escala en 16:9 y 9:16; nunca sobre los
+ * subtítulos ni dentro de la caja de la imagen de un plano general.
+ */
+export function DirectedLabels({ scene, shot }: { scene: LongFormShotScene; shot: ShotDirection }) {
+  const { width, height } = useVideoConfig();
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const safe = safeAreas(width, height);
+  const t = typeScale(width, height);
+  const label = provenanceLabel(scene.provenance);
+  const slugOpacity = shot.slug ? interpolate(frame / fps, [0, 0.4, 3.2, 3.8], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) : 0;
+  const shadow = "0 1px 3px rgba(0,0,0,0.85)";
+  return (
+    <AbsoluteFill>
+      <div style={{ position: "absolute", left: safe.side, top: safe.top, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: Math.round(t.label * 0.5) }}>
+        {scene.pending && <div style={{ fontFamily: TYPE.sans, fontSize: t.label, fontWeight: 700, color: "#ff8a80", textShadow: shadow, letterSpacing: "0.04em" }}>Material pendiente</div>}
+        {label && <div style={{ fontFamily: TYPE.sans, fontSize: t.label, fontWeight: 700, color: "#ffffff", textShadow: shadow, letterSpacing: "0.06em", borderBottom: "2px solid rgba(255,255,255,0.85)", paddingBottom: 4 }}>{label}</div>}
+        {shot.slug && slugOpacity > 0 && (
+          <div style={{ opacity: slugOpacity, marginTop: Math.round(t.label * 0.4) }}>
+            {shot.slug.year && <div style={{ fontFamily: TYPE.serif, fontSize: t.year, lineHeight: 1, color: "#f3eee4", textShadow: shadow }}>{shot.slug.year}</div>}
+            {shot.slug.place && <div style={{ fontFamily: TYPE.sans, fontSize: t.place, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(255,255,255,0.88)", textShadow: shadow, marginTop: 8 }}>{shot.slug.place}</div>}
+          </div>
+        )}
+      </div>
+      {scene.creditText && (
+        <div style={{ position: "absolute", right: safe.side, top: safe.top, maxWidth: Math.round(width * (height > width ? 0.5 : 0.36)), textAlign: "right", fontFamily: TYPE.sans, fontSize: t.credit, lineHeight: 1.3, color: "rgba(255,255,255,0.8)", textShadow: shadow, overflowWrap: "anywhere" }}>
+          {scene.creditText}
+        </div>
+      )}
+    </AbsoluteFill>
   );
 }
 
@@ -467,15 +594,15 @@ function DiagramCard({ graphic }: { graphic: LongFormDiagramGraphic }) {
 }
 
 /** SVG curado: la base se dibuja tal cual; el trazo y la etiqueta APROBADOS se revelan con el tiempo (sin geometría nueva). */
-function CuratedSvgCard({ graphic, progress }: { graphic: LongFormCuratedSvgGraphic; progress: number }) {
+function CuratedSvgCard({ graphic, progress, directed = false }: { graphic: LongFormCuratedSvgGraphic; progress: number; directed?: boolean }) {
   const { pathDrawn, labelOpacity } = svgRevealState(progress);
   const { svg } = graphic;
   return (
-    <AbsoluteFill style={{ backgroundColor: "#0b0d14", justifyContent: "center", alignItems: "center" }}>
+    <AbsoluteFill style={{ backgroundColor: directed ? "#050505" : "#0b0d14", justifyContent: "center", alignItems: "center" }}>
       <svg viewBox={svg.viewBox} preserveAspectRatio="xMidYMid meet" style={{ width: "100%", height: "100%" }}>
         <g dangerouslySetInnerHTML={{ __html: svg.baseMarkup }} />
         <path d={svg.path.d} fill="none" stroke={svg.path.stroke} strokeWidth={svg.path.strokeWidth} strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray={1} strokeDashoffset={1 - pathDrawn} />
-        <text x={svg.label.x} y={svg.label.y} fontSize={svg.label.fontSize} fill={svg.label.fill} opacity={labelOpacity} fontFamily="Arial, Helvetica, sans-serif" fontWeight={700}>
+        <text x={svg.label.x} y={svg.label.y} fontSize={svg.label.fontSize} fill={svg.label.fill} opacity={labelOpacity} fontFamily={directed ? TYPE.sans : "Arial, Helvetica, sans-serif"} fontWeight={directed ? 600 : 700}>
           {svg.label.text}
         </text>
       </svg>
@@ -549,10 +676,11 @@ function OpeningCover({ spec, firstSceneEndSeconds, labelsTopLeft }: { spec: Cov
 // Zonas seguras por proporción (16:9: 120 px abajo / 1400 px de ancho, como antes; 9:16: ver safeAreas).
 const CAPTION_APPEAR_FRAMES = 5;
 
-function Captions({ captions, accentColor }: { captions: LongFormCaption[]; accentColor: string }) {
+function Captions({ captions, accentColor, directed = false }: { captions: LongFormCaption[]; accentColor: string; directed?: boolean }) {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const safe = safeAreas(width, height);
+  const ts = typeScale(width, height);
   const t = frame / fps;
 
   const active = captions.find((c) => t >= c.startSeconds && t < c.endSeconds);
@@ -566,6 +694,17 @@ function Captions({ captions, accentColor }: { captions: LongFormCaption[]; acce
 
   const emphasisSet = new Set((active.emphasisWords ?? []).map((w) => w.toLowerCase()));
   const words = active.text.split(/\s+/);
+
+  if (directed) {
+    // v5: misma sans que los rótulos, sin borde de color; legible sobre cualquier imagen.
+    return (
+      <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: safe.bottom, paddingLeft: safe.side, paddingRight: safe.side }}>
+        <div style={{ maxWidth: safe.captionMaxWidth, padding: "10px 22px", borderRadius: 6, backgroundColor: "rgba(0,0,0,0.58)", opacity, transform: `translateY(${translateY}px)` }}>
+          <div style={{ fontFamily: TYPE.sans, fontWeight: 600, fontSize: ts.caption, color: "white", textAlign: "center", lineHeight: 1.3 }}>{active.text}</div>
+        </div>
+      </AbsoluteFill>
+    );
+  }
 
   return (
     <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: safe.bottom, paddingLeft: safe.side, paddingRight: safe.side }}>

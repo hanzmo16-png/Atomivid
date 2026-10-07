@@ -33,6 +33,9 @@ export function usesVisualIdentity(plan: { version: number }): boolean {
   return plan.version >= 4;
 }
 
+/** v5: el plan dirige por secuencias (sequence-intent.ts). Solo existe si el plan las trae; v1–v4 nunca. */
+export const SEQUENCE_PLAN_VERSION = 5;
+
 export const VISUAL_STRATEGY_LABEL: Record<VisualStrategy, string> = {
   economical: "Económico / archivo",
   balanced: "Equilibrado",
@@ -96,6 +99,11 @@ export type ProductionPlan = {
   /** Todavía no existe un sistema de créditos real — nunca se inventa un saldo. */
   estimatedCredits: number | null;
   confirmedAt: string | null;
+  /**
+   * v5 (Directed Opening V1): intención narrativa por SECUENCIA, propuesta por el planner
+   * ANTES de elegir recursos (roles + escala justificada). Ausente en v1–v4.
+   */
+  sequences?: import("./sequence-intent").SequenceIntent[];
 };
 
 export function isProductionPlan(value: unknown): value is ProductionPlan {

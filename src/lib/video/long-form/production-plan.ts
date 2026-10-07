@@ -36,8 +36,11 @@ import { ESTIMATED_COST_USD as OPENAI_IMAGE_ESTIMATED_COST_USD } from "@/lib/pro
 import { VEO_DURATION_SECONDS_1080P, getVeoCostUsdPerSecond } from "@/lib/providers/video-gen/veo";
 import { RUNWAY_COST_USD_PER_SECOND } from "@/lib/providers/video-gen/runway";
 import type { BeatType, Shot, ShotType } from "./types";
+import { PLAN_ESTIMATE_AVAILABILITY, resolveSequences, validateSequenceIntents, type SequenceIntent } from "./sequence-intent";
+import { planSequenceShots } from "./sequence-direction";
 import {
   PRODUCTION_PLAN_VERSION,
+  SEQUENCE_PLAN_VERSION,
   isExecutablePlanVersion as isExecutablePlanVersionValue,
   usesVisualIdentity,
   isProductionPlan as isProductionPlanValue,
@@ -350,9 +353,18 @@ export function computeProductionPlan(input: {
   aiVideoEnabled?: boolean;
   /** Duración pedida por el usuario (video_requests.duration_seconds). */
   requestedDurationSeconds?: number;
+  /** v5: intención por secuencia del planner. Sin ella el plan es v4, exactamente como antes. */
+  sequences?: SequenceIntent[];
 }): ProductionPlan {
   const topic = input.topic ?? "";
-  const { shots, narrationSeconds } = planShotsFromScript(input.beats, topic, input.strategy);
+  let sequenced: { shots: Shot[]; narrationSeconds: number } | undefined;
+  if (input.sequences) {
+    const check = validateSequenceIntents(input.sequences, input.beats, estimateNarrationSeconds);
+    if (check.errors.length > 0) throw new LongFormPlanNotExecutableError(`secuencias inválidas: ${check.errors.join("; ")}`);
+    // Estimación del plan: cada rol se cuenta como ocupable; la ejecución lo resuelve contra el registro real.
+    sequenced = planSequenceShots(input.beats, resolveSequences(input.sequences, PLAN_ESTIMATE_AVAILABILITY));
+  }
+  const { shots, narrationSeconds } = sequenced ?? planShotsFromScript(input.beats, topic, input.strategy);
   const voiceCharacters = input.beats.reduce((sum, b) => sum + b.narration.length, 0);
   const voiceCostUsd = round4((voiceCharacters / 1000) * getPricingConfig().elevenLabsUsdPer1kChars);
   const aiVideoAvailable = input.aiVideoEnabled ?? isLongFormAiVideoConfigured();
@@ -364,7 +376,8 @@ export function computeProductionPlan(input: {
   const generativeUsd = round4(allocation.imageUsd + allocation.aiVideoUsd);
 
   return {
-    version: PRODUCTION_PLAN_VERSION,
+    version: input.sequences ? SEQUENCE_PLAN_VERSION : PRODUCTION_PLAN_VERSION,
+    ...(input.sequences ? { sequences: input.sequences } : {}),
     strategy: input.strategy,
     durationSeconds: Math.round(narrationSeconds + VIDEO_TAIL_SECONDS),
     shotCount: allocation.shots.length,
