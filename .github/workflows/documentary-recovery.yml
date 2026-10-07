@@ -1,0 +1,31 @@
+name: Zero-provider documentary recovery and production UI check
+# Replays saved responses only (no provider credential is present), stores the
+# recovered UNAPPROVED draft on the same failed job, and renders the deployed
+# components with the stored rows. Prints structural facts only.
+on:
+  push:
+    branches: [claude/hola-sn3dxy]
+    paths: [scripts/recover-documentary-job.tsx, .github/workflows/documentary-recovery.yml]
+permissions:
+  contents: read
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Deployed routes respond (unauthenticated requests are redirected to login)
+        run: |
+          for p in /dashboard /dashboard/long-form/new /dashboard/long-form/jobs/00000000-0000-4000-8000-000000000000; do
+            echo "$p $(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' https://atomivid.vercel.app$p)"
+          done
+      - run: npx tsx scripts/recover-documentary-job.tsx
+        env:
+          RECOVER_WRITE: "true"
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
