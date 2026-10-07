@@ -17,13 +17,17 @@ const CAP_USD = 4.0, OPENAI_IMAGE_OBSERVED_USD = 0.056; // ledger max of 17 real
 async function main() {
   const start = process.env.START === "true";
   const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!.trim(), process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(), { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: jobs } = await db.from("documentary_script_jobs").select("id,request_id,user_id,status");
+  const { data: jobs } = await db.from("documentary_script_jobs").select("id,request_id,user_id,status,input");
   const job = jobs!.find(j => j.id.startsWith("7b7d4b60"))!;
   const { data: row, error } = await db.from("video_requests").select("id, mode, user_id, status, script_json, render_attempts, render_started_at, created_at, error_message, avatar_provider_video_job_id, long_form_confirmed_at, long_form_progress, long_form_production_plan, recorded_audio_path, supply_wait_started_at").eq("id", job.request_id).single();
   if (error || !row) throw Error("read");
   const plan = row.long_form_production_plan as ProductionPlan;
   const beats = (row.script_json as { beats: { id: string; type: never; narration: string; visuals?: unknown }[] }).beats;
   const fail: string[] = [];
+  // Evidence recorded by production itself at enqueue: isInternalProductionOwner(user)
+  // evaluated with Vercel's configuration for this exact owner.
+  const internalOwnerAtEnqueue = (job.input as { recoverLegacyOperator?: boolean } | null)?.recoverLegacyOperator === true;
+  console.log("OWNER_EVIDENCE", JSON.stringify({ internalOwnerAtEnqueue, envOwnerMatches: (process.env.INTERNAL_PRODUCTION_OWNER_USER_ID ?? "").toLowerCase() === row.user_id.toLowerCase() }));
   const check = (ok: boolean, what: string) => { if (!ok) fail.push(what); };
   check(row.mode === "long_form" && row.status === "script_ready" && row.render_attempts === 0 && !row.render_started_at, "state is script_ready with 0 attempts");
   check(!!row.long_form_confirmed_at, "production confirmed");
