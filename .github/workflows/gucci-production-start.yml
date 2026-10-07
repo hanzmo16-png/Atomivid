@@ -1,0 +1,41 @@
+name: Gucci production start (owner-authorized, gates first)
+# GUCCI_CINEMATIC_V3_PRODUCTION_AUTHORIZED / MAX_SPEND_USD_4_00.
+# Gates run on every push; the start step runs only when the request file says so.
+on:
+  push:
+    branches: [claude/hola-sn3dxy]
+    paths: [content/acceptance/gucci-production.json, scripts/start-gucci-production.ts, .github/workflows/gucci-production-start.yml]
+permissions:
+  contents: read
+concurrency:
+  group: gucci-production-start
+  cancel-in-progress: false
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Resolve request
+        id: req
+        run: node -e "const r=require('./content/acceptance/gucci-production.json');require('fs').appendFileSync(process.env.GITHUB_OUTPUT,'start='+(r.start===true)+'\n')"
+      - name: Gates (and start only if requested)
+        run: npx tsx scripts/start-gucci-production.ts
+        env:
+          START: ${{ steps.req.outputs.start }}
+          ATOMIVID_RUNTIME: production
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          MUSIC_TRACK_URLS: ${{ secrets.MUSIC_TRACK_URLS }}
+          MUSIC_PROVIDER: ${{ secrets.MUSIC_PROVIDER }}
+          PRICING_ELEVENLABS_USD_PER_1K_CHARS: '0.2'
+          RUNWAY_KEY_PRESENT: ${{ secrets.RUNWAY_API_KEY != '' }}

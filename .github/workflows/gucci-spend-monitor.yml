@@ -1,0 +1,24 @@
+name: Gucci spend guard (cancels render at USD 3.95)
+on:
+  push:
+    branches: [claude/hola-sn3dxy]
+    paths: [content/acceptance/gucci-monitor.json]
+permissions:
+  contents: read
+  actions: write
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/gucci-spend-monitor.ts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

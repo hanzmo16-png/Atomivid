@@ -1,4 +1,5 @@
 function testPng(seed = 0) { const b = Buffer.alloc(224, seed % 256); Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0,73,72,68,82]).copy(b); b.writeUInt32BE(1024,16); b.writeUInt32BE(1024,20); return b; }
+import { SpendCapExceededError, type ObservedMax } from "./spend-cap";
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 import { memoryResultStore } from "@/lib/paid-calls/result-store";
 import { test } from "node:test";
@@ -138,6 +139,7 @@ async function run(
     renders?: { count: number };
     replayOnly?: boolean;
     thumbnails?: { calls: unknown[]; uploads: string[] };
+    observedUnitMax?: ObservedMax;
   } = {},
 ) {
   const script = documentary180sFixture();
@@ -147,6 +149,7 @@ async function run(
     paidCalls: env.paidCalls,
     store: env.mem.store,
     budgetStore: env.budgetStore,
+    observedUnitMax: opts.observedUnitMax ?? {},
     videoProvider: opts.videoProvider === undefined ? null : opts.videoProvider,
     aiVideoEnabled: opts.videoProvider ? true : false,
     recordCosts: false,
@@ -445,4 +448,27 @@ test("Runway plan executes 10s clips at its own cost and reuses completed output
     if (previous === undefined) delete process.env.LONG_FORM_AI_VIDEO_ENABLED;
     else process.env.LONG_FORM_AI_VIDEO_ENABLED = previous;
   }
+});
+
+test("hard cap: a confirmed plan whose conservative worst case exceeds the per-production ceiling stops before ANY paid call", async () => {
+  const previous = process.env.LONG_FORM_MAX_TOTAL_USD;
+  process.env.LONG_FORM_MAX_TOTAL_USD = "0.10";
+  try {
+    const c = counters();
+    await assert.rejects(run(freshEnv(), c, planFor("balanced")), SpendCapExceededError);
+    assert.deepEqual([c.voice, c.image, c.veoSubmits], [0, 0, 0]);
+  } finally {
+    if (previous === undefined) delete process.env.LONG_FORM_MAX_TOTAL_USD; else process.env.LONG_FORM_MAX_TOTAL_USD = previous;
+  }
+});
+
+test("hard cap: reservations use the highest billed price, the confirmed images still run, real spend stays within the cap", async () => {
+  const c = counters(), env = freshEnv(), plan = planFor("balanced");
+  await run(env, c, plan, { observedUnitMax: { imageUsd: 0.0558 } });
+  assert.equal(c.image, plan.aiImageCount, "confirmed composition unchanged");
+  const state = env.budgetStore.current()!;
+  assert.ok(state.hardCap, "the cap is persisted with the budget");
+  assert.ok(state.hardCap!.fixedUsd + (state.used.spentUsd ?? 0) <= state.hardCap!.capUsd + 1e-9);
+  // Each fake image billed 0.05; reservations were 0.06 and were settled to the bill.
+  assert.ok(Math.abs((state.used.spentUsd ?? 0) - 0.05 * c.image) < 1e-6);
 });

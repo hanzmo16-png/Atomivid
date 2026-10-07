@@ -66,6 +66,9 @@ import {
 import { DocumentAssetRegistry, type AssetIdentity } from "./asset-identity";
 import { assertVisualQuality, buildVisualReport, type VisualReport } from "./visual-report";
 import { ProductionBudget, supabaseBudgetStore, type BudgetStore } from "./production-budget";
+import { getPricingConfig } from "@/lib/billing/pricing";
+import { getLongFormBudget } from "./cost";
+import { conservativeUnits, conservativeWorstCaseUsd, loadObservedMax, productionHardCap, type ObservedMax } from "./spend-cap";
 import { supabaseShotAssetStore, type ShotAssetStore } from "./durable-shot-assets";
 import { executeShot, type ShotExecution } from "./shot-executor";
 import { type LongFormStage } from "./stages";
@@ -116,6 +119,8 @@ export type LongFormRuntime = {
    * aborta (LongFormReplayError) antes de renderizar.
    */
   replayOnly?: boolean;
+  /** Tests: highest billed cost per call, instead of reading the ledger. */
+  observedUnitMax?: ObservedMax;
   /** Perfil de codificación del render (ver render.ts). */
   encoding?: RenderLongFormDocInput["encoding"];
   /** Intento (render_attempts) — solo para el estado durable de la salida. */
@@ -204,8 +209,15 @@ export async function generateLongFormVideoFromScript({
   const allocation = executionAllocation(plan);
   // Abrir el presupuesto (gratis) ANTES de cualquier llamada pagada: si el
   // storage no responde, el trabajo falla aquí con $0 gastado.
-  const budget = await ProductionBudget.open(runtime.budgetStore ?? supabaseBudgetStore(supabase, requestId, STORAGE_BUCKET), allocation);
   const units = getGenerativeUnitCosts(plan.providers.aiVideo);
+  // Hard cap BEFORE any paid call: conservative prices (never below the highest
+  // cost already billed for the same call) applied to the confirmed allocation.
+  const conservative = conservativeUnits({ imageUsd: units.imageUsd, clipUsd: units.veoClipUsd, voiceUsdPer1kChars: getPricingConfig().elevenLabsUsdPer1kChars },
+    runtime.observedUnitMax ?? (replayOnly ? {} : await loadObservedMax(supabase, plan.providers)));
+  const narrationUsd = (plan.voiceCharacters / 1000) * conservative.voiceUsdPer1kChars;
+  const hardCapUsd = productionHardCap(conservativeWorstCaseUsd({ voiceCharacters: plan.voiceCharacters, allocation }, conservative), getLongFormBudget().maxTotalUsd);
+  const budget = await ProductionBudget.open(runtime.budgetStore ?? supabaseBudgetStore(supabase, requestId, STORAGE_BUCKET), allocation,
+    { capUsd: hardCapUsd, fixedUsd: narrationUsd });
   // Fail before speech/image spend if a Runway plan cannot actually animate.
   if (!replayOnly && allocation.maxAiVideoClips > 0 && plan.providers.aiVideo === "runway") {
     const candidate = runtime.videoProvider !== undefined ? runtime.videoProvider : getVideoProvider("runway");
@@ -315,7 +327,7 @@ export async function generateLongFormVideoFromScript({
           supabase,
           scopeId: requestId,
           executionMode: "real",
-          beforeSubmit: () => budget.reserveAiVideoSubmit(units.veoClipUsd),
+          beforeSubmit: () => budget.reserveAiVideoSubmit(units.veoClipUsd, conservative.clipUsd),
           maxInAttemptResumes: 2,
           resumeBackoffMs: runtime.resumeBackoffMs,
         })
@@ -362,6 +374,7 @@ export async function generateLongFormVideoFromScript({
         store,
         budget,
         units,
+        conservativeImageUsd: conservative.imageUsd,
         aiVideoCostConfig: limits.aiVideoCostConfig,
         totalDurationSec: timeline.durationSeconds,
         requireReal,

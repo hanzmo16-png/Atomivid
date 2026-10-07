@@ -1,0 +1,35 @@
+name: Gucci post-deploy check and cost preflight (read-only, no providers)
+on:
+  push:
+    branches: [claude/hola-sn3dxy]
+    paths: [scripts/openai-image-cost-history.ts, scripts/gucci-preflight.ts, .github/workflows/gucci-preflight.yml]
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Deployed detail route responds (unauthenticated → login)
+        run: echo "/dashboard/videos/<id> $(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' https://atomivid.vercel.app/dashboard/videos/00000000-0000-4000-8000-000000000000 | sed -E 's/[0-9a-f-]{36}/<id>/g')"
+      - name: Detail page render with Gucci's real row (merged code)
+        run: npx tsx scripts/diagnose-configure-404.tsx
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Cost preflight of the confirmed plan
+        run: npx tsx scripts/gucci-preflight.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Real per-call cost history (OpenAI images, ElevenLabs, Runway)
+        run: npx tsx scripts/openai-image-cost-history.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
