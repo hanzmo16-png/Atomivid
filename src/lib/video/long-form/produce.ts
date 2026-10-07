@@ -49,10 +49,11 @@ import { provenanceLabel } from "../../../../remotion/long-form-card-fit";
 import { defaultDirections, snapSceneBoundaries } from "./montage-direction";
 import { captionsWithinScenes } from "./scene-captions";
 import type { LongFormShotScene } from "../../../../remotion/LongFormDoc";
+import type { SceneDirection } from "../../../../remotion/long-form-direction";
 import { wrapDurableVideoProvider } from "./ai-video-durable-provider";
 import { emptyAiVideoLedgerState } from "./ai-video-cost-guard";
 import { loadProductionCachedBeatNarration, synthesizeBeatNarrationProductionCached } from "./production-tts-cache";
-import { visualsForBeat } from "./visual-intents";
+import { personActionIndex, visualsForBeat } from "./visual-intents";
 import {
   allocateShotTypes,
   executionAllocation,
@@ -267,6 +268,7 @@ export async function generateLongFormVideoFromScript({
       targetCount: plannedShotCounts?.[spanInput.beatId],
       anchoring: anchored ? { words: spanInput.words } : undefined,
     });
+  const personActions = usesVisualIdentity(plan) ? personActionIndex(beats as { visuals?: unknown }[]) : undefined;
   const timeline = await buildLongFormTimeline(
     resolvedProviders.voiceProvider,
     beats,
@@ -275,7 +277,7 @@ export async function generateLongFormVideoFromScript({
     synthesizeWithProgress,
     plan.strategy,
     // Las escenas se re-derivan del guion: solo un plan v4 lee clase e identidad.
-    (beat) => visualsForBeat(beat as { narration: string; visuals?: unknown }, topic, { identity: usesVisualIdentity(plan) }),
+    (beat) => visualsForBeat(beat as { narration: string; visuals?: unknown }, topic, { identity: usesVisualIdentity(plan), personActions }),
   );
 
   // Proveedor de video IA real (solo si el plan confirmado tiene clips). Si
@@ -292,10 +294,11 @@ export async function generateLongFormVideoFromScript({
     baseVideoProvider = candidate.name === "fixture" && requireReal ? null : candidate;
   }
   const aiVideoEnabled = baseVideoProvider !== null && (runtime.aiVideoEnabled ?? true);
-  const limits = limitsWithinAllocation(
-    strategyLimits(plan.strategy, plan.estimatedVoiceCostUsd ?? 0, { aiVideoEnabled, units }),
-    allocation,
-  );
+  const limits = {
+    ...limitsWithinAllocation(strategyLimits(plan.strategy, plan.estimatedVoiceCostUsd ?? 0, { aiVideoEnabled, units }), allocation),
+    // v4: el asignador no pide lo que el Director prohíbe (mismas reglas que al calcular el plan).
+    cinematic: usesVisualIdentity(plan),
+  };
   const allShots = timeline.beats.flatMap((b) => b.shots);
   const allocated = allocateShotTypes(allShots, timeline.durationSeconds, limits);
   if (plannedShotCounts && allShots.length !== plan.shotCount && !replayOnly) {
@@ -444,7 +447,7 @@ export async function generateLongFormVideoFromScript({
   // v3: cortes alineados a la voz real, dirección de montaje editorial,
   // procedencia visible y carencias marcadas (nunca pasan por terminadas).
   // v1/v2 y la recuperación de planes anteriores: sin cambios.
-  const shotScenes = anchored ? directAnchoredScenes(baseScenes, executions, timeline.words) : baseScenes;
+  const shotScenes = anchored ? directAnchoredScenes(baseScenes, executions, timeline.words, visualReport.cinematic?.scenes) : baseScenes;
 
   const emphasisSet = buildEmphasisSet([]);
   // v3: ningún subtítulo cruza un corte de escena; v1/v2 sin cambios.
@@ -638,6 +641,8 @@ export function directAnchoredScenes(
   scenes: LongFormShotScene[],
   executions: Pick<ShotExecution, "assetMeta">[],
   words: { startSeconds: number; endSeconds: number }[],
+  /** v4: cámara y tratamiento decididos por el Cinematic Director (los mismos que mide el QA). */
+  cinematic?: { camera: SceneDirection["camera"]; look?: SceneDirection["look"] }[],
 ): LongFormShotScene[] {
   if (scenes.length === 0) return scenes;
   const bounds = snapSceneBoundaries([...scenes.map((s) => s.startSeconds), scenes[scenes.length - 1].endSeconds], words);
@@ -653,7 +658,7 @@ export function directAnchoredScenes(
       ...scene,
       startSeconds: bounds[i],
       endSeconds: bounds[i + 1],
-      direction: directions[i],
+      direction: cinematic?.[i] ? { ...directions[i], camera: cinematic[i].camera, ...(cinematic[i].look ? { look: cinematic[i].look } : {}) } : directions[i],
       provenance: executions[i]?.assetMeta?.provenance?.kind,
       pending: gap ? `carencia de material pertinente: ${gap.reason}` : undefined,
     };

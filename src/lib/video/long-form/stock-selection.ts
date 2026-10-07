@@ -133,6 +133,14 @@ export function selectionQueries(visual: BeatVisual): string[] {
 
 export type RejectedCandidate = { sourceId?: string; query: string; reason: string };
 
+/** Términos de la acción de la persona del beat que aparecen en el candidato (solo escenas de contexto v4). */
+function personSubstitute(visual: BeatVisual, candidateText: string | undefined): string | null {
+  if (!visual.personActions || visual.personActions.length === 0 || !candidateText) return null;
+  const actions = new Set(englishTerms(visual.personActions.join(" ")));
+  const hits = englishTerms(candidateText).filter((t) => actions.has(t));
+  return hits.length > 0 ? hits.join(", ") : null;
+}
+
 /** Vínculo de entidad confirmado por el servidor (nunca por el texto del candidato). */
 export type TrustedEntityLink = { name: string };
 
@@ -156,7 +164,7 @@ export function identityEligibility(
   link: TrustedEntityLink | null,
 ): { eligible: true; link?: TrustedEntityLink } | { eligible: false; why: string } {
   if (!requiresIdentity(visual)) return { eligible: true };
-  if (!visual.identity) return { eligible: false, why: "escena IDENTITY sin identidad válida" };
+  if (!visual.identity) return { eligible: false, why: visual.classificationGap ? "CLASSIFICATION_INTEGRITY_GAP" : "escena IDENTITY sin identidad válida" };
   if (!link) return { eligible: false, why: `sin vínculo de confianza con ${visual.identity.name}` };
   if (!sameIdentity(link.name, visual.identity.name)) return { eligible: false, why: `vinculado a otra entidad (${link.name}), no a ${visual.identity.name}` };
   return { eligible: true, link };
@@ -221,8 +229,9 @@ export async function selectStockForShot(
   deps: StockSelectionDeps,
 ): Promise<StockSelection | StockGap> {
   if (requiresIdentity(input.visual) && !input.visual.identity) {
-    // Fail-closed (v4): IDENTITY sin persona declarada no busca material humano ni de ningún otro tipo.
-    return { status: "gap", reason: "escena IDENTITY sin identidad válida: no se busca material", queries: [], candidatesConsidered: 0, rejected: [] };
+    // Fail-closed (v4): IDENTITY sin persona declarada, o clasificación incierta, no busca material de ningún tipo.
+    const reason = input.visual.classificationGap ? "CLASSIFICATION_INTEGRITY_GAP: clasificación incierta, no se busca material" : "escena IDENTITY sin identidad válida: no se busca material";
+    return { status: "gap", reason, queries: [], candidatesConsidered: 0, rejected: [] };
   }
   const queries = selectionQueries(input.visual);
   const identify = deps.identify ?? contentIdentity;
@@ -250,6 +259,12 @@ export async function selectStockForShot(
       }
       const assessment = assessRelevance(input.visual, candidate.description);
       const identity = identityEligibility(input.visual, deps.verifyEntityLink?.(candidate, deps.footageProvider.name) ?? null);
+      const substitute = personSubstitute(input.visual, candidate.description);
+      if (substitute) {
+        // Contexto de un beat con persona: el candidato muestra lo que hace la persona → la sustituiría.
+        rejected.push({ sourceId: reference.sourceId, query, reason: `FALSE_FRIEND: muestra la acción de la persona del beat (${substitute}) sin ser ella (pertinencia ${assessment.relevance}, score ${assessment.score}; ${candidate.description})` });
+        continue;
+      }
       if (!identity.eligible) {
         // El score no se toca: se rechaza A PESAR de su pertinencia léxica.
         const falseFriend = assessment.relevance !== "irrelevant";

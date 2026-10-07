@@ -60,6 +60,20 @@ export type BeatVisual = {
   beatClass?: VisualBeatClass;
   /** Persona que la escena exige representar; ver VisualIdentity. Nunca se copia a otras escenas del beat. */
   identity?: VisualIdentity;
+  /**
+   * v4: la clasificación es incierta o contradictoria según datos estructurados
+   * del propio planner (clase ausente en un beat clasificado, o identidad en una
+   * escena que no es IDENTITY). Falla cerrada: se trata como escena de identidad.
+   */
+  classificationGap?: true;
+  /**
+   * v4, escenas de CONTEXTO en un beat que declara a una persona: lo que la
+   * persona hace en sus propias escenas (acción de la escena IDENTITY; sujeto y
+   * acción de las escenas que fallaron cerradas), sin su nombre. Un candidato
+   * que lo muestra sustituye a la persona: se rechaza aquí también. Solo
+   * restringe; nunca verifica a nadie.
+   */
+  personActions?: string[];
 };
 
 /**
@@ -67,7 +81,50 @@ export type BeatVisual = {
  * aunque su identity fuera inválida (fail-closed: entonces nada la representa).
  */
 export function requiresIdentity(visual: BeatVisual): boolean {
-  return visual.identity !== undefined || visual.beatClass === "IDENTITY";
+  return visual.identity !== undefined || visual.beatClass === "IDENTITY" || visual.classificationGap === true;
+}
+
+const personKey = (name: string) => name.toLowerCase().replace(/\s+/g, " ").trim();
+
+/** Lo que hacen las personas del beat en sus propias escenas (acción de IDENTITY; sujeto y acción de las que fallaron cerradas), sin sus nombres. */
+function beatPersonActions(visuals: BeatVisual[]): string[] {
+  const names = new Set(visuals.flatMap((v) => (v.identity ? v.identity.name.toLowerCase().split(/\s+/) : [])));
+  return [
+    ...new Set(
+      visuals
+        .filter((v) => requiresIdentity(v))
+        .flatMap((v) => (v.identity ? [v.action] : [v.subject, v.action]))
+        .flatMap((text) => (text ?? "").toLowerCase().split(/[^a-z0-9]+/))
+        .filter((w) => w.length >= 3 && !names.has(w)),
+    ),
+  ];
+}
+
+/**
+ * v4: acciones de cada persona declarada en TODO el guion (por nombre declarado,
+ * nunca inferido). Así una escena de contexto rechaza a quien muestra lo que la
+ * persona hace aunque lo haga en otro beat, sin depender del orden de ejecución.
+ */
+export function personActionIndex(beats: { visuals?: unknown }[]): Map<string, string[]> {
+  const index = new Map<string, Set<string>>();
+  for (const beat of beats) {
+    const visuals = normalizeDeclaredVisuals(beat.visuals, { identity: true });
+    const actions = beatPersonActions(visuals);
+    for (const v of visuals) {
+      if (!v.identity) continue;
+      const set = index.get(personKey(v.identity.name)) ?? new Set<string>();
+      for (const a of actions) set.add(a);
+      index.set(personKey(v.identity.name), set);
+    }
+  }
+  return new Map([...index].map(([k, v]) => [k, [...v]]));
+}
+
+/** Restrictividad de un contrato cuando dos escenas compiten por el MISMO tramo narrado (mayor = gana). */
+export function contractRestrictiveness(visual: BeatVisual): number {
+  if (visual.beatClass === undefined && !visual.identity && !visual.classificationGap) return 0;
+  if (requiresIdentity(visual)) return 4;
+  return visual.beatClass === "EVIDENCE" ? 3 : visual.beatClass === "PLACE" ? 2 : visual.beatClass === "PROCESS" ? 1 : 0;
 }
 
 function declaredIdentity(item: Record<string, unknown>): VisualIdentity | undefined {
@@ -99,7 +156,14 @@ function cleanDescription(text: string): string {
  * `identity` (solo planes v4) lee beatClass e identity; sin él ambos se ignoran
  * y el resultado es exactamente el de v3.
  */
-export function normalizeDeclaredVisuals(value: unknown, opts: { identity?: boolean } = {}): BeatVisual[] {
+export function normalizeDeclaredVisuals(
+  value: unknown,
+  opts: {
+    identity?: boolean;
+    /** v4: acciones de cada persona en TODO el documento (personActionIndex) — lo que hace una persona es suyo en cualquier beat. */
+    personActions?: Map<string, string[]>;
+  } = {},
+): BeatVisual[] {
   if (!Array.isArray(value)) return [];
   const out: BeatVisual[] = [];
   for (const item of value) {
@@ -130,6 +194,23 @@ export function normalizeDeclaredVisuals(value: unknown, opts: { identity?: bool
     }
     out.push(visual);
     if (out.length >= MAX_VISUALS_PER_BEAT) break;
+  }
+  if (opts.identity && out.some((v) => v.beatClass !== undefined)) {
+    // Integridad de clasificación (solo con evidencia estructurada; nunca por nombres):
+    // en un beat que el planner sí clasificó, una escena sin clase es incierta, y una
+    // identidad declarada en una escena que no es IDENTITY es contradictoria. Ambas fallan cerradas.
+    // Y una TRANSITION con acción física, sin identidad, en un beat que declara a una persona: ¿de quién es
+    // la acción? Incierto → falla cerrada (nunca un cuerpo anónimo haciendo lo que hizo la persona).
+    const beatDeclaresPerson = out.some((v) => v.identity !== undefined);
+    for (const visual of out) {
+      const uncertainAction = beatDeclaresPerson && visual.beatClass === "TRANSITION" && visual.motion && !visual.identity;
+      if (visual.beatClass === undefined || (visual.identity && visual.beatClass !== "IDENTITY") || uncertainAction) visual.classificationGap = true;
+    }
+    if (beatDeclaresPerson) {
+      const persons = [...new Set(out.flatMap((v) => (v.identity ? [personKey(v.identity.name)] : [])))];
+      const actions = [...new Set([...beatPersonActions(out), ...persons.flatMap((p) => opts.personActions?.get(p) ?? [])])];
+      if (actions.length > 0) for (const visual of out) if (!requiresIdentity(visual)) visual.personActions = actions;
+    }
   }
   return out;
 }
@@ -165,7 +246,11 @@ export function deriveVisualsFromNarration(topic: string, narration: string): Be
   return derived.length > 0 ? derived : [{ description: cleanTopic, motion: false, derived: true }];
 }
 
-export function visualsForBeat(beat: { narration: string; visuals?: unknown }, topic: string, opts: { identity?: boolean } = {}): BeatVisual[] {
+export function visualsForBeat(
+  beat: { narration: string; visuals?: unknown },
+  topic: string,
+  opts: { identity?: boolean; personActions?: Map<string, string[]> } = {},
+): BeatVisual[] {
   const declared = normalizeDeclaredVisuals(beat.visuals, opts);
   return declared.length > 0 ? declared : deriveVisualsFromNarration(topic, beat.narration);
 }
