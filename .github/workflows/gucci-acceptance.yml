@@ -1,0 +1,45 @@
+name: Gucci acceptance (existing job only, visual plans only)
+on:
+  push:
+    branches: [claude/hola-sn3dxy]
+    paths: [content/acceptance/gucci.json, scripts/gucci-acceptance.tsx, .github/workflows/gucci-acceptance.yml]
+permissions:
+  contents: read
+concurrency:
+  group: gucci-acceptance
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Resolve phase
+        id: req
+        run: node -e "const r=require('./content/acceptance/gucci.json');if(!['queue','work','verify'].includes(r.phase))throw Error('phase');require('fs').appendFileSync(process.env.GITHUB_OUTPUT,'phase='+r.phase+'\nsince='+(r.since||'')+'\n')"
+      - name: Resolve the existing job id (not printed)
+        if: steps.req.outputs.phase == 'work'
+        id: job
+        run: node --import tsx -e "const {createClient}=require('@supabase/supabase-js');const db=createClient(process.env.SUPABASE_URL.trim(),process.env.SUPABASE_SERVICE_ROLE_KEY.trim(),{auth:{persistSession:false}});db.from('documentary_script_jobs').select('id,status').then(({data,error})=>{const j=(data||[]).find(r=>r.id.startsWith('7b7d4b60'));if(error||!j||j.status!=='queued')throw Error('Gucci job not queued');require('fs').appendFileSync(process.env.GITHUB_OUTPUT,'id='+j.id+'\\n');})"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Production worker (same script as the dispatched worker)
+        if: steps.req.outputs.phase == 'work'
+        run: npx tsx scripts/documentary-script-worker.ts
+        env:
+          SCRIPT_JOB_ID: ${{ steps.job.outputs.id }}
+          SCRIPT_PROBE_ONLY: "false"
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - if: steps.req.outputs.phase != 'work'
+        run: npx tsx scripts/gucci-acceptance.tsx
+        env:
+          PHASE: ${{ steps.req.outputs.phase }}
+          SINCE: ${{ steps.req.outputs.since }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

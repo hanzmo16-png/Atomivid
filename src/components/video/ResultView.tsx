@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
 import { LinkButton } from "@/components/ui/Button";
+import { GenerateButton } from "@/app/dashboard/GenerateButton";
 import { ModeBadge } from "./ModeBadge";
 import { ProductionProgressCard } from "./ProductionProgressCard";
 import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
@@ -69,6 +70,24 @@ export function ResultView({
             body="Esta solicitud está esperando el guion o tu revisión antes de producir el video final."
           />
         )}
+        {/* Same next step the history card offers (RequestCard). Navigation only:
+            configuring never starts production; confirmation is explicit there. */}
+        {request.status === "script_ready" && (isLongForm ? (!request.long_form_confirmed_at ? (
+          <div className="mt-4 flex justify-center">
+            <LinkButton href={`/dashboard/long-form/configure/${request.id}`}>Revisar y configurar producción</LinkButton>
+          </div>
+        ) : (
+          // Confirmed plan: the same explicit start the history card offers.
+          // Nothing starts until the owner presses it (render route re-checks).
+          <div className="mt-4 flex flex-col items-center gap-2 text-center">
+            <p className="text-sm text-ink-muted">Producción confirmada. El video se genera solo cuando pulses «Iniciar producción».</p>
+            <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Iniciar producción" />
+          </div>
+        )) : (
+          <div className="mt-4 flex justify-center">
+            <LinkButton href={`/dashboard/review/${request.id}`}>{request.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}</LinkButton>
+          </div>
+        ))}
 
         {request.status === "processing" && isLongForm && (
           <ProductionProgressCard
