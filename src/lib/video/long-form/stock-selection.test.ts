@@ -4,13 +4,13 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { FootageCandidate, FootageProvider } from "@/lib/providers/types";
 import { DocumentAssetRegistry } from "./asset-identity";
-import { selectStockForShot, type StockGap, type StockSelection } from "./stock-selection";
+import { selectStockForShot, selectionQueries, type StockGap, type StockSelection } from "./stock-selection";
 import { executeShot, type ShotExecutionDeps } from "./shot-executor";
 import { memoryShotAssetStore } from "./durable-shot-assets";
 import { ProductionBudget, memoryBudgetStore } from "./production-budget";
 import { emptyAiVideoLedgerState, getAiVideoCostConfig } from "./ai-video-cost-guard";
 import { getGenerativeUnitCosts, type AllocatedShot } from "./production-plan";
-import type { BeatVisual } from "./visual-intents";
+import { normalizeDeclaredVisuals, type BeatVisual } from "./visual-intents";
 
 /**
  * Visual Excellence V1 — B1: arnés de regresión de "falsos amigos" visuales.
@@ -22,8 +22,14 @@ import type { BeatVisual } from "./visual-intents";
  * cada candidato) vive aparte y la usa únicamente el oráculo de las
  * aserciones — nunca se le pasa al selector.
  *
- * Los tests marcados [REGRESIÓN] expresan el contrato que B2 debe cumplir
- * y HOY fallan a propósito. Los [CONTROL] deben pasar hoy y después.
+ * [CARACTERIZACIÓN]: hechos de la ruta productiva actual (sin contrato de
+ * identidad), que explican por qué el selector léxico se equivocaba.
+ * [CONTRATO]: el comportamiento correcto con identidad declarada (B1 los
+ * dejó en rojo como evidencia; B2A los hace verdes sin tocar los hechos).
+ * [CONTROL]: deben pasar siempre.
+ *
+ * `archive` simula el catálogo de un archivo de confianza del SERVIDOR (el
+ * verificador inyectado en el selector); no es metadata del candidato.
  * Sin red, sin proveedores reales, sin modelos, sin revisor.
  */
 
@@ -34,7 +40,7 @@ globalThis.fetch = (async () => {
 
 type Depicts = "generic_human" | "entity" | "other_entity" | "non_human_context";
 type Truth = { depicts: Depicts; entity?: string };
-type Fixture = { id: string; description: string; similarity: number; truth: Truth };
+type Fixture = { id: string; description: string; similarity: number; truth: Truth; archive?: string; claims?: string };
 
 /** Lo que el beat exige narrativamente (dato del arnés: hoy no existe en BeatVisual). */
 type NarrativeBeat = { narration: string; requiredEntity?: string; visual: BeatVisual };
@@ -45,6 +51,7 @@ const identify = async (b: Buffer) => ({ sha256: createHash("sha256").update(b).
 function similarityProvider(fixtures: Fixture[]) {
   const ranked = [...fixtures].sort((a, b) => b.similarity - a.similarity);
   const truth = new Map(fixtures.map((f) => [f.id, f.truth]));
+  const catalog = new Map(fixtures.filter((f) => f.archive).map((f) => [f.id, f.archive!]));
   const searches: string[] = [];
   const downloads: string[] = [];
   const provider: FootageProvider = {
@@ -55,7 +62,15 @@ function similarityProvider(fixtures: Fixture[]) {
     async searchImageCandidates(q) {
       searches.push(q);
       return ranked.map(
-        (f): FootageCandidate => ({ url: `https://cdn.example/${f.id}.jpg`, sourceId: f.id, description: f.description, mediaType: "image", mimeType: "image/jpeg", extension: "jpg" }),
+        (f): FootageCandidate => ({
+          url: `https://cdn.example/${f.id}.jpg`,
+          sourceId: f.id,
+          description: f.description,
+          mediaType: "image",
+          mimeType: "image/jpeg",
+          extension: "jpg",
+          ...(f.claims ? { entityReference: { name: f.claims } } : {}),
+        }),
       );
     },
     async downloadFootage(url) {
@@ -63,19 +78,27 @@ function similarityProvider(fixtures: Fixture[]) {
       return Buffer.from(`bytes:${url}`);
     },
   };
-  return { provider, truth, ranked, searches, downloads };
+  /** Verificador del servidor: responde solo desde su catálogo, nunca desde el candidato. */
+  const verifyEntityLink = (c: FootageCandidate) => (catalog.has(c.sourceId) ? { name: catalog.get(c.sourceId)! } : null);
+  return { provider, truth, ranked, searches, downloads, verifyEntityLink };
 }
 
-async function select(beat: NarrativeBeat, fixtures: Fixture[]) {
+/**
+ * declareIdentity: el contrato de identidad del beat llega a BeatVisual (B2A lo construye el test;
+ * el planner aún no lo emite). trusted: hay verificador de archivo de confianza (producción hoy: no).
+ */
+async function select(beat: NarrativeBeat, fixtures: Fixture[], opts: { declareIdentity?: boolean; trusted?: boolean } = {}) {
+  const { declareIdentity = true, trusted = true } = opts;
   const fake = similarityProvider(fixtures);
+  const visual: BeatVisual = declareIdentity && beat.requiredEntity ? { ...beat.visual, identity: { name: beat.requiredEntity, kind: "person" } } : beat.visual;
   // Similitud intacta: el candidato incorrecto llega primero, tal como se declaró.
   assert.deepEqual(
     fake.ranked.map((f) => f.similarity),
     [...fixtures.map((f) => f.similarity)].sort((a, b) => b - a),
   );
   const outcome = await selectStockForShot(
-    { shotId: "shot-1", visual: beat.visual, preferVideo: false, minDurationSec: 4 },
-    { footageProvider: fake.provider, registry: new DocumentAssetRegistry(), identify },
+    { shotId: "shot-1", visual, preferVideo: false, minDurationSec: 4 },
+    { footageProvider: fake.provider, registry: new DocumentAssetRegistry(), identify, ...(trusted ? { verifyEntityLink: fake.verifyEntityLink } : {}) },
   );
   return { outcome, fake };
 }
@@ -107,7 +130,7 @@ const GUCCI_NARRATION = "Maurizio Gucci entered the building and climbed the sta
 const gucciFixtures: Fixture[] = [
   { id: "c-a", description: "anonymous feet climbing stairs", similarity: 0.95, truth: { depicts: "generic_human" } },
   { id: "c-b", description: "bellboy building attendant on the stairs of a Milan hotel", similarity: 0.93, truth: { depicts: "generic_human" } },
-  { id: "c-c", description: "Maurizio Gucci archival portrait photograph, Milan", similarity: 0.4, truth: { depicts: "entity", entity: "Maurizio Gucci" } },
+  { id: "c-c", description: "Maurizio Gucci archival portrait photograph, Milan", similarity: 0.4, truth: { depicts: "entity", entity: "Maurizio Gucci" }, archive: "Maurizio Gucci" },
   { id: "c-d", description: "facade and entrance stairs of an office building in Milan", similarity: 0.35, truth: { depicts: "non_human_context" } },
 ];
 /** Lo que el contrato ACTUAL del planner obliga a declarar ("nunca personas reales identificables"). */
@@ -123,7 +146,7 @@ const gucciPlannerVisual: BeatVisual = {
 const LEONIDAS_NARRATION = "Leonidas led the Spartans at Thermopylae.";
 const leonidasFixtures: Fixture[] = [
   { id: "l-a", description: "anonymous Spartan hoplite warrior with shield at Thermopylae", similarity: 0.95, truth: { depicts: "generic_human" } },
-  { id: "l-b", description: "statue of Leonidas king of Sparta at Thermopylae", similarity: 0.4, truth: { depicts: "entity", entity: "Leonidas" } },
+  { id: "l-b", description: "statue of Leonidas king of Sparta at Thermopylae", similarity: 0.4, truth: { depicts: "entity", entity: "Leonidas" }, archive: "Leonidas" },
 ];
 const leonidasPlannerVisual: BeatVisual = {
   description: "Spartan hoplite warriors holding the pass at Thermopylae",
@@ -142,17 +165,74 @@ const workshop: Fixture = {
   truth: { depicts: "generic_human" },
 };
 
+const reasonsOf = (outcome: StockSelection | StockGap) => new Map(outcome.rejected.map((r) => [r.sourceId, r.reason]));
+
+// --------------------------------------------------------------------------
+// CARACTERIZACIÓN — ruta productiva actual (sin contrato de identidad)
+// --------------------------------------------------------------------------
+
+test("[CARACTERIZACIÓN] sin contrato de identidad, el selector léxico acepta los pies anónimos (0.95): así nació el fallo", async () => {
+  const beat: NarrativeBeat = { narration: GUCCI_NARRATION, requiredEntity: "Maurizio Gucci", visual: gucciPlannerVisual };
+  const { outcome } = await select(beat, gucciFixtures, { declareIdentity: false });
+  assert.equal(outcome.status, "selected");
+  if (outcome.status === "selected") assert.equal(outcome.candidate.sourceId, "c-a");
+});
+
+test("[CARACTERIZACIÓN] sin contrato, con el nombre en el sujeto gana C solo porque su alt text dice el nombre (auto-declaración)", async () => {
+  const beat: NarrativeBeat = {
+    narration: GUCCI_NARRATION,
+    requiredEntity: "Maurizio Gucci",
+    visual: { ...gucciPlannerVisual, description: "Maurizio Gucci climbing the stairs to his office in Milan", subject: "Maurizio Gucci" },
+  };
+  const { outcome } = await select(beat, gucciFixtures, { declareIdentity: false, trusted: false });
+  assert.equal(outcome.status, "selected");
+  if (outcome.status !== "selected") return;
+  assert.equal(outcome.candidate.sourceId, "c-c");
+  assert.deepEqual(outcome.assessment.matchedTerms.slice(0, 2), ["maurizio", "gucci"]);
+});
+
+test("[CARACTERIZACIÓN] sin contrato de identidad, el hoplita anónimo (0.95) gana a Leonidas", async () => {
+  const beat: NarrativeBeat = { narration: LEONIDAS_NARRATION, requiredEntity: "Leonidas", visual: leonidasPlannerVisual };
+  const { outcome } = await select(beat, leonidasFixtures, { declareIdentity: false });
+  assert.equal(outcome.status, "selected");
+  if (outcome.status === "selected") assert.equal(outcome.candidate.sourceId, "l-a");
+});
+
 // --------------------------------------------------------------------------
 // TEST 1 — Gucci false friend
 // --------------------------------------------------------------------------
 
-test("[REGRESIÓN] 1a Gucci: con el contrato actual del planner, los pies anónimos (0.95) no deben representar a la persona", async () => {
+test("[CONTRATO] 1a Gucci: pies (0.95) y botones (0.93) son FALSE_FRIEND; el vínculo de confianza (0.40) es lo único elegible", async () => {
   const beat: NarrativeBeat = { narration: GUCCI_NARRATION, requiredEntity: "Maurizio Gucci", visual: gucciPlannerVisual };
   const { outcome, fake } = await select(beat, gucciFixtures);
   assert.equal(contractViolation(beat, outcome, fake.truth), null);
+  assert.equal(outcome.status, "selected");
+  if (outcome.status !== "selected") return;
+  assert.equal(outcome.candidate.sourceId, "c-c");
+  assert.deepEqual(outcome.entityLink, { name: "Maurizio Gucci" });
+  const reasons = reasonsOf(outcome);
+  assert.match(reasons.get("c-a") ?? "", /^FALSE_FRIEND: sin vínculo de confianza/);
+  assert.match(reasons.get("c-b") ?? "", /^(FALSE_FRIEND|IDENTITY_UNVERIFIED): sin vínculo de confianza/);
 });
 
-test("[REGRESIÓN] 1c Gucci: nombrar a la persona en el sujeto no basta — el token compartido con una marca no es un vínculo de entidad", async () => {
+/**
+ * Cambio documentado respecto de B1: el antiguo 1b afirmaba "el nombre en el
+ * alt text basta" (gana c-c). Ese hecho sigue registrado arriba como
+ * CARACTERIZACIÓN; el contrato correcto es el opuesto. Los fixtures no cambian.
+ */
+test("[CONTRATO] 1b el nombre en el alt text SIN vínculo de confianza NO basta → carencia", async () => {
+  const beat: NarrativeBeat = {
+    narration: GUCCI_NARRATION,
+    requiredEntity: "Maurizio Gucci",
+    visual: { ...gucciPlannerVisual, description: "Maurizio Gucci climbing the stairs to his office in Milan", subject: "Maurizio Gucci" },
+  };
+  const { outcome, fake } = await select(beat, gucciFixtures, { trusted: false });
+  assert.equal(contractViolation(beat, outcome, fake.truth), null);
+  assert.equal(outcome.status, "gap");
+  assert.match(reasonsOf(outcome).get("c-c") ?? "", /^FALSE_FRIEND: sin vínculo de confianza/);
+});
+
+test("[CONTRATO] 1c Gucci: el token compartido con una marca no es un vínculo de entidad", async () => {
   const beat: NarrativeBeat = {
     narration: GUCCI_NARRATION,
     requiredEntity: "Maurizio Gucci",
@@ -161,46 +241,50 @@ test("[REGRESIÓN] 1c Gucci: nombrar a la persona en el sujeto no basta — el t
   const brandModel: Fixture = { id: "c-m", description: "Gucci fashion model posing on the stairs in Milan", similarity: 0.97, truth: { depicts: "generic_human" } };
   const { outcome, fake } = await select(beat, [brandModel, ...gucciFixtures]);
   assert.equal(contractViolation(beat, outcome, fake.truth), null);
+  assert.match(reasonsOf(outcome).get("c-m") ?? "", /^FALSE_FRIEND/);
+  if (outcome.status === "selected") assert.equal(outcome.candidate.sourceId, "c-c");
 });
 
-test("[CARACTERIZACIÓN] 1b Gucci: con el nombre en el sujeto, A/B caen por léxico y gana C SOLO porque su texto dice el nombre (auto-declaración)", async () => {
-  const beat: NarrativeBeat = {
-    narration: GUCCI_NARRATION,
-    requiredEntity: "Maurizio Gucci",
-    visual: { ...gucciPlannerVisual, description: "Maurizio Gucci climbing the stairs to his office in Milan", subject: "Maurizio Gucci" },
-  };
-  const { outcome, fake } = await select(beat, gucciFixtures);
-  assert.equal(outcome.status, "selected");
-  if (outcome.status !== "selected") return;
-  assert.equal(outcome.candidate.sourceId, "c-c");
-  assert.deepEqual(
-    outcome.rejected.map((r) => r.sourceId),
-    ["c-a", "c-b"],
-  );
-  // La "verificación" es una coincidencia de texto del proveedor, no un vínculo de entidad de confianza.
-  assert.deepEqual(outcome.assessment.matchedTerms.slice(0, 2), ["maurizio", "gucci"]);
-  assert.equal(contractViolation(beat, outcome, fake.truth), null);
+test("[CONTRATO] 1d un proveedor genérico no se autodeclara: entityReference del candidato sin respaldo del servidor no verifica", async () => {
+  const beat: NarrativeBeat = { narration: GUCCI_NARRATION, requiredEntity: "Maurizio Gucci", visual: gucciPlannerVisual };
+  const selfClaimed: Fixture = { id: "c-s", description: "man climbing stairs in a Milan office", similarity: 0.99, truth: { depicts: "generic_human" }, claims: "Maurizio Gucci" };
+  const withArchive = await select(beat, [selfClaimed, ...gucciFixtures]);
+  assert.match(reasonsOf(withArchive.outcome).get("c-s") ?? "", /^FALSE_FRIEND: sin vínculo de confianza/);
+  assert.equal(contractViolation(beat, withArchive.outcome, withArchive.fake.truth), null);
+  const noVerifier = await select(beat, [selfClaimed, ...gucciFixtures], { trusted: false });
+  assert.equal(noVerifier.outcome.status, "gap", "sin verificador del servidor (producción hoy) nada representa a la persona");
 });
 
 // --------------------------------------------------------------------------
-// TEST 2 — Leonidas (misma clase de fallo, sin lógica de Gucci)
+// TEST 2 — Leonidas (misma regla general, sin lógica de Gucci)
 // --------------------------------------------------------------------------
 
-test("[REGRESIÓN] 2a Leonidas: el hoplita anónimo (0.95) no debe representar al rey", async () => {
+test("[CONTRATO] 2a Leonidas: el hoplita anónimo (0.95) es FALSE_FRIEND; la representación vinculada (0.40) es elegible", async () => {
   const beat: NarrativeBeat = { narration: LEONIDAS_NARRATION, requiredEntity: "Leonidas", visual: leonidasPlannerVisual };
   const { outcome, fake } = await select(beat, leonidasFixtures);
   assert.equal(contractViolation(beat, outcome, fake.truth), null);
+  assert.match(reasonsOf(outcome).get("l-a") ?? "", /^FALSE_FRIEND: sin vínculo de confianza/);
+  assert.equal(outcome.status, "selected");
+  if (outcome.status === "selected") assert.equal(outcome.candidate.sourceId, "l-b");
 });
 
-test("[REGRESIÓN] 2c Leonidas: una entidad homónima (marca) con el mismo token no es la persona", async () => {
+test("[CONTRATO] 2c Leonidas: una entidad homónima, aun vinculada por el archivo, es OTRA entidad", async () => {
   const beat: NarrativeBeat = {
     narration: LEONIDAS_NARRATION,
     requiredEntity: "Leonidas",
     visual: { ...leonidasPlannerVisual, description: "Leonidas leading the Spartans at Thermopylae", subject: "Leonidas" },
   };
-  const homonym: Fixture = { id: "l-h", description: "Leonidas chocolate shop window display", similarity: 0.9, truth: { depicts: "other_entity", entity: "Leonidas (brand)" } };
+  const homonym: Fixture = {
+    id: "l-h",
+    description: "Leonidas chocolate shop window display",
+    similarity: 0.9,
+    truth: { depicts: "other_entity", entity: "Leonidas (brand)" },
+    archive: "Leonidas (brand)",
+  };
   const { outcome, fake } = await select(beat, [homonym, ...leonidasFixtures]);
   assert.equal(contractViolation(beat, outcome, fake.truth), null);
+  assert.match(reasonsOf(outcome).get("l-h") ?? "", /^FALSE_FRIEND: vinculado a otra entidad/);
+  if (outcome.status === "selected") assert.equal(outcome.candidate.sourceId, "l-b");
 });
 
 // --------------------------------------------------------------------------
@@ -222,7 +306,7 @@ test("[CONTROL] 3 PROCESS: un taller textil florentino de época se ACEPTA (sin 
 // TEST 4 — la identidad domina al lugar
 // --------------------------------------------------------------------------
 
-test("[REGRESIÓN] 4 identidad + mismo lugar: el MISMO taller del test 3 no representa a la persona", async () => {
+test("[CONTRATO] 4 identidad + mismo lugar: el MISMO taller del test 3 no representa a la persona → carencia", async () => {
   const beat: NarrativeBeat = {
     narration: "Maurizio Gucci walked through the textile workshop in Florence.",
     requiredEntity: "Maurizio Gucci",
@@ -230,6 +314,8 @@ test("[REGRESIÓN] 4 identidad + mismo lugar: el MISMO taller del test 3 no repr
   };
   const { outcome, fake } = await select(beat, [workshop]);
   assert.equal(contractViolation(beat, outcome, fake.truth), null);
+  assert.equal(outcome.status, "gap");
+  assert.match(reasonsOf(outcome).get("w-1") ?? "", /^FALSE_FRIEND/);
 });
 
 // --------------------------------------------------------------------------
@@ -242,7 +328,7 @@ const allFalseFriends: Fixture[] = [
   { id: "f-3", description: "businessman in a suit climbing stairs in a Milan office building", similarity: 0.91, truth: { depicts: "generic_human" } },
 ];
 
-test("[REGRESIÓN] 5a ABSENT (selector): beat de identidad con solo falsos amigos → carencia, nunca el 'mejor malo'", async () => {
+test("[CONTRATO] 5a ABSENT (selector): beat de identidad con solo falsos amigos → carencia, nunca el 'mejor malo'", async () => {
   const beat: NarrativeBeat = { narration: GUCCI_NARRATION, requiredEntity: "Maurizio Gucci", visual: gucciPlannerVisual };
   const { outcome } = await select(beat, allFalseFriends);
   assert.equal(
@@ -250,6 +336,27 @@ test("[REGRESIÓN] 5a ABSENT (selector): beat de identidad con solo falsos amigo
     "gap",
     outcome.status === "selected" ? `se eligió "${outcome.candidate.description}" (${outcome.candidate.sourceId})` : undefined,
   );
+  assert.equal(outcome.rejected.length, 3);
+});
+
+// --------------------------------------------------------------------------
+// Consultas: la transición no busca
+// --------------------------------------------------------------------------
+
+test("[CONTRATO] consultas con identidad: la acción ('climbing') no forma ninguna búsqueda; persona + lugar + época sí", () => {
+  const visual: BeatVisual = { ...gucciPlannerVisual, alternates: ["person walking up office stairs"], identity: { name: "Maurizio Gucci", kind: "person" } };
+  const queries = selectionQueries(visual);
+  assert.deepEqual(queries, ["Maurizio Gucci Milan 1995", "Maurizio Gucci Milan", "Maurizio Gucci"]);
+  for (const q of queries) assert.doesNotMatch(q, /climb|stairs|walking/i, q);
+});
+
+test("[CONTROL] sin identidad las consultas no cambian (ruta productiva actual)", () => {
+  assert.deepEqual(selectionQueries(gucciPlannerVisual), ["man climbing stairs toward an office in a Milan building", "stairs Milan"]);
+});
+
+test("[CONTROL] B2A no se activa en producción: el guion todavía no puede introducir `identity` en BeatVisual", () => {
+  const [visual] = normalizeDeclaredVisuals([{ description: "office stairs", motion: false, identity: { name: "Someone", kind: "person" } }]);
+  assert.equal(visual.identity, undefined);
 });
 
 function execDeps(footageProvider: FootageProvider, imageCalls: string[]): ShotExecutionDeps {
@@ -301,11 +408,12 @@ function anchoredStockShot(visual: BeatVisual, fragment: string): AllocatedShot 
   } as AllocatedShot;
 }
 
-test("[REGRESIÓN] 5b ABSENT (ejecución): la toma termina en la tarjeta del pasaje existente, sin humano genérico ni imagen IA", async () => {
+test("[CONTRATO] 5b ABSENT (ejecución): la toma termina en la tarjeta del pasaje existente, sin humano genérico ni imagen IA", async () => {
   const imageCalls: string[] = [];
   const deps = execDeps(similarityProvider(allFalseFriends).provider, imageCalls);
   deps.budget = await ProductionBudget.open(memoryBudgetStore(), { maxAiImageGenerations: 0, maxAiVideoClips: 0, maxGenerativeUsd: 0 });
-  const ex = await executeShot(anchoredStockShot(gucciPlannerVisual, GUCCI_NARRATION), deps, emptyAiVideoLedgerState());
+  // Cableado productivo del ejecutor: sin verificador de entidades.
+  const ex = await executeShot(anchoredStockShot({ ...gucciPlannerVisual, identity: { name: "Maurizio Gucci", kind: "person" } }, GUCCI_NARRATION), deps, emptyAiVideoLedgerState());
   assert.deepEqual(imageCalls, [], "ABSENT nunca escala a generación");
   assert.equal(ex.executedType, "text", `se ejecutó ${ex.executedType} con ${JSON.stringify((ex.assetMeta as { selection?: { candidateDescription?: string } } | undefined)?.selection?.candidateDescription ?? null)}`);
   assert.ok(ex.assetMeta?.gap);

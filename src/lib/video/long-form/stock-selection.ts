@@ -113,12 +113,48 @@ export function assessRelevance(visual: BeatVisual, candidateText: string | unde
 
 /** Consultas por niveles de la MISMA intención — nunca el tema del documental solo. */
 export function selectionQueries(visual: BeatVisual): string[] {
+  if (visual.identity) {
+    // Con identidad exigida la acción/transición (subir, entrar, caminar) no
+    // busca nada: solo trae cuerpos anónimos haciéndola. Se busca a la
+    // persona en su lugar y época; la descripción y las alternativas, que
+    // narran la acción, no se usan.
+    const name = visual.identity.name;
+    return [...new Set([[name, visual.place, visual.era], [name, visual.place], [name]].map((q) => q.filter(Boolean).join(" ").trim()).filter(Boolean))];
+  }
   const queries = [visual.description, ...(visual.alternates ?? [])];
   if (visual.subject) queries.push([visual.subject, visual.place].filter(Boolean).join(" "));
   return [...new Set(queries.map((q) => q.trim()).filter(Boolean))];
 }
 
 export type RejectedCandidate = { sourceId?: string; query: string; reason: string };
+
+/** Vínculo de entidad confirmado por el servidor (nunca por el texto del candidato). */
+export type TrustedEntityLink = { name: string };
+
+function sameIdentity(a: string, b: string): boolean {
+  const norm = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
+  return norm(a) === norm(b);
+}
+
+/**
+ * Filtro duro de identidad (previo a cualquier aprobación por pertinencia).
+ * Con identidad exigida, solo es ELEGIBLE un candidato cuyo vínculo con esa
+ * misma persona confirma el verificador del servidor. Descripción, alt
+ * text, `entityReference` y orden del proveedor son afirmaciones, no
+ * pruebas: un humano genérico, una parte del cuerpo, una profesión, un
+ * homónimo o un nombre auto-declarado quedan fuera sin importar su score.
+ * Hoy ningún proveedor aporta metadata estructurada "sin personas", así
+ * que el contexto no humano tampoco es elegible aquí: sin vínculo, carencia.
+ */
+export function identityEligibility(
+  visual: BeatVisual,
+  link: TrustedEntityLink | null,
+): { eligible: true; link?: TrustedEntityLink } | { eligible: false; why: string } {
+  if (!visual.identity) return { eligible: true };
+  if (!link) return { eligible: false, why: `sin vínculo de confianza con ${visual.identity.name}` };
+  if (!sameIdentity(link.name, visual.identity.name)) return { eligible: false, why: `vinculado a otra entidad (${link.name}), no a ${visual.identity.name}` };
+  return { eligible: true, link };
+}
 
 export type StockSelection = {
   status: "selected";
@@ -128,6 +164,8 @@ export type StockSelection = {
   query: string;
   tier: number;
   assessment: RelevanceAssessment;
+  /** Presente cuando la escena exige identidad: el vínculo de confianza que la habilitó. */
+  entityLink?: TrustedEntityLink;
   candidatesConsidered: number;
   rejected: RejectedCandidate[];
 };
@@ -147,6 +185,12 @@ export type StockSelectionDeps = {
   identify?: (buffer: Buffer, mediaType: "image" | "video") => Promise<Pick<AssetIdentity, "sha256" | "dhash" | "dhashUnavailable">>;
   /** Tope de descargas por escena (cada descarga rechazada cuesta tiempo, no dinero). */
   maxDownloads?: number;
+  /**
+   * Verificador de vínculos de entidad controlado por el servidor (p. ej. el
+   * catálogo de un archivo de confianza). Es la ÚNICA fuente de confianza
+   * de identidad. Sin él (producción hoy), ningún candidato está vinculado.
+   */
+  verifyEntityLink?: (candidate: FootageCandidate, providerName: string) => TrustedEntityLink | null;
 };
 
 function describeDuplicate(match: DuplicateMatch): string {
@@ -195,7 +239,24 @@ export async function selectStockForShot(
         continue;
       }
       const assessment = assessRelevance(input.visual, candidate.description);
-      if (assessment.relevance === "irrelevant") {
+      const identity = identityEligibility(input.visual, deps.verifyEntityLink?.(candidate, deps.footageProvider.name) ?? null);
+      if (!identity.eligible) {
+        // El score no se toca: se rechaza A PESAR de su pertinencia léxica.
+        const falseFriend = assessment.relevance !== "irrelevant";
+        rejected.push({
+          sourceId: reference.sourceId,
+          query,
+          reason: `${falseFriend ? "FALSE_FRIEND" : "IDENTITY_UNVERIFIED"}: ${identity.why} (pertinencia ${assessment.relevance}, score ${assessment.score}; ${candidate.description ?? "sin descripción"})`,
+        });
+        continue;
+      }
+      if (identity.link) {
+        // Elegible por identidad, no aceptado: las contradicciones de época/lugar siguen descartando.
+        if (assessment.conflicts.length > 0) {
+          rejected.push({ sourceId: reference.sourceId, query, reason: `contradicción ${assessment.conflicts.join(", ")}` });
+          continue;
+        }
+      } else if (assessment.relevance === "irrelevant") {
         rejected.push({
           sourceId: reference.sourceId,
           query,
@@ -204,7 +265,7 @@ export async function selectStockForShot(
         continue;
       }
       // Sin texto descriptivo solo se acepta desde la consulta principal, y queda como incierto.
-      if (assessment.relevance === "unverified" && tier > 0) {
+      if (!identity.link && assessment.relevance === "unverified" && tier > 0) {
         rejected.push({ sourceId: reference.sourceId, query, reason: "sin descripción del proveedor en una consulta secundaria" });
         continue;
       }
@@ -238,6 +299,7 @@ export async function selectStockForShot(
         query,
         tier,
         assessment,
+        ...(identity.link ? { entityLink: identity.link } : {}),
         candidatesConsidered: considered,
         rejected,
       };

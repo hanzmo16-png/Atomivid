@@ -12,6 +12,20 @@
  */
 import type { TextCardSpec } from "./diagram-map";
 
+/**
+ * Persona concreta que la escena DEBE representar (Visual Excellence V1).
+ * Contrato explícito: un humano genérico, una parte del cuerpo, una
+ * profesión o un parecido nunca la sustituyen, y un nombre en el texto de
+ * un candidato no la verifica. Todavía no lo emite el planner ni lo lee
+ * normalizeDeclaredVisuals: sin este campo el comportamiento no cambia.
+ */
+export type VisualIdentity = {
+  name: string;
+  kind: "person";
+  /** Fuentes del research pack que anclan la identidad. */
+  sourceIds?: string[];
+};
+
 export type BeatVisual = {
   /** Escena concreta y filmable, idealmente en inglés (búsqueda de stock y prompt de imagen/video). */
   description: string;
@@ -33,6 +47,8 @@ export type BeatVisual = {
   alternates?: string[];
   /** true si NO la declaró el guionista (derivada de palabras de la narración): su pertinencia no se puede comprobar contra el texto del proveedor. */
   derived?: boolean;
+  /** Persona que la escena exige representar; ver VisualIdentity. */
+  identity?: VisualIdentity;
 };
 
 const MAX_VISUALS_PER_BEAT = 16;
