@@ -1,0 +1,24 @@
+name: Read-only documentary jobs diagnosis
+# Structural facts only (statuses, stop reasons, token usage, schema issue paths).
+# No provider credential is exposed and nothing is written.
+on:
+  push:
+    branches: [claude/hola-sn3dxy]
+    paths: [scripts/diagnose-documentary-jobs.ts, .github/workflows/documentary-jobs-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/diagnose-documentary-jobs.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
