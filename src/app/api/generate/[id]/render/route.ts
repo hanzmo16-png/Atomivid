@@ -3,6 +3,8 @@ import { isLongFormScriptJson } from "@/lib/video/long-form/script-json";
 import { editorialApprovalError } from "@/lib/video/long-form/editorial";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { jobSupplyDemands, reserveJobSupply } from "@/lib/supply/job";
+import { ensureJobSupplyReady, START_SUPPLY_UNAVAILABLE } from "@/lib/supply/readiness";
+import { supplyGuardRequired } from "@/lib/supply/server";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { NextResponse } from "next/server";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
@@ -164,12 +166,19 @@ export async function POST(
     }
 
     try {
-      await reserveJobSupply(service, id, videoRequest.render_attempts + 1,
-        jobSupplyDemands(videoRequest, videoRequest.mode === "long_form"
-          ? videoRequest.long_form_production_plan?.providers.voice ?? "unconfigured"
-          : getVoiceProvider().name));
+      const demands = jobSupplyDemands(videoRequest, videoRequest.mode === "long_form"
+        ? videoRequest.long_form_production_plan?.providers.voice ?? "unconfigured"
+        : getVoiceProvider().name);
+      if (supplyGuardRequired()) {
+        // Same readiness rule as the preflight: stale balances of THIS job's
+        // providers are re-read (billing GET only) before the atomic reservation.
+        const readiness = await ensureJobSupplyReady(service, demands);
+        if (!readiness.ready) throw new SupplyUnavailableError(readiness.failure!.provider, readiness.failure!.reason);
+      }
+      await reserveJobSupply(service, id, videoRequest.render_attempts + 1, demands);
     } catch (error) {
-      if (error instanceof SupplyUnavailableError) return NextResponse.json({ error: error.customerMessage }, { status: 503, headers: { "Retry-After": "300" } });
+      // Nothing was reserved, queued or charged; the request is unchanged and can be started again.
+      if (error instanceof SupplyUnavailableError) return NextResponse.json({ error: START_SUPPLY_UNAVAILABLE }, { status: 503, headers: { "Retry-After": "300" } });
       throw error;
     }
     const worker = getRenderWorker();

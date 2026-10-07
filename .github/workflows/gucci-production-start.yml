@@ -24,6 +24,11 @@ jobs:
       - name: Resolve request
         id: req
         run: node -e "const r=require('./content/acceptance/gucci-production.json');require('fs').appendFileSync(process.env.GITHUB_OUTPUT,'start='+(r.start===true)+'\n')"
+      - name: Detail page with Gucci's real row (start button)
+        run: npx tsx scripts/diagnose-configure-404.tsx
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       - name: Gates (and start only if requested)
         run: npx tsx scripts/start-gucci-production.ts
         env:
@@ -39,3 +44,7 @@ jobs:
           MUSIC_PROVIDER: ${{ secrets.MUSIC_PROVIDER }}
           PRICING_ELEVENLABS_USD_PER_1K_CHARS: '0.2'
           RUNWAY_KEY_PRESENT: ${{ secrets.RUNWAY_API_KEY != '' }}
+          RUNWAY_API_KEY: ${{ secrets.RUNWAY_API_KEY }}
+          VIDEO_PROVIDER: veo
+          PREMIUM_CLIPS_ENABLED: 'true'
+          LONG_FORM_AI_VIDEO_ENABLED: 'true'
