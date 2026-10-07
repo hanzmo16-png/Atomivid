@@ -2,7 +2,7 @@ name: Read-only trace of the configure link (no providers, no writes)
 on:
   push:
     branches: [claude/hola-sn3dxy]
-    paths: [scripts/diagnose-configure-404.ts, .github/workflows/diagnose-configure-404.yml]
+    paths: [scripts/diagnose-configure-404.tsx, .github/workflows/diagnose-configure-404.yml]
 permissions:
   contents: read
 jobs:
@@ -16,7 +16,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx tsx scripts/diagnose-configure-404.ts
+      - run: npx tsx scripts/diagnose-configure-404.tsx
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

@@ -69,6 +69,17 @@ export function ResultView({
             body="Esta solicitud está esperando el guion o tu revisión antes de producir el video final."
           />
         )}
+        {/* Same next step the history card offers (RequestCard). Navigation only:
+            configuring never starts production; confirmation is explicit there. */}
+        {request.status === "script_ready" && (isLongForm ? !request.long_form_confirmed_at && (
+          <div className="mt-4 flex justify-center">
+            <LinkButton href={`/dashboard/long-form/configure/${request.id}`}>Revisar y configurar producción</LinkButton>
+          </div>
+        ) : (
+          <div className="mt-4 flex justify-center">
+            <LinkButton href={`/dashboard/review/${request.id}`}>{request.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}</LinkButton>
+          </div>
+        ))}
 
         {request.status === "processing" && isLongForm && (
           <ProductionProgressCard
