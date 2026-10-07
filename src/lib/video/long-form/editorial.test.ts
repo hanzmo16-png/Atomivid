@@ -193,3 +193,25 @@ test('persistent story defects have a quality stage and actionable message disti
  });
  assert.equal(lastStage,'Comprobando calidad narrativa');
 });
+
+test('failed review retains the exact latest draft without approving it or mutating generation',async()=>{
+ const {script,review}=repeatedPromiseFixture();
+ const snapshots:import('./documentary-script').DocumentaryDraft[]=[];
+ let writes=0,approved=false;
+ await assert.rejects(generateDocumentaryScript({...input,
+  parse:async()=>{writes++;return structuredClone(script);},review:async()=>review,
+  onDraft:async draft=>{snapshots.push(structuredClone(draft));draft.script.beats[0].narration='Callback mutation must not reach generation';},
+  onEditorialApproved:()=>{approved=true;}}),EditorialQualityError);
+ assert.equal(writes,2);assert.equal(approved,false);
+ assert.deepEqual(snapshots.map(s=>[s.pass,Boolean(s.review)]),[[0,false],[0,true],[1,false],[1,true]]);
+ for(const snapshot of snapshots){assert.equal(snapshot.status,'unapproved');assert.equal(snapshot.script.beats[0].narration,script.beats[0].narration);}
+ assert.equal(snapshots.at(-1)?.review?.findings[0].severity,'blocking');
+});
+
+test('draft save failure stops before another paid review or approval',async()=>{
+ let reviews=0,approved=false;
+ await assert.rejects(generateDocumentaryScript({...input,parse:async()=>editorialFixture(),
+  review:async()=>{reviews++;return passingReview(editorialFixture());},
+  onDraft:async()=>{throw Error('CHECKPOINT_WRITE_FAILED');},onEditorialApproved:()=>{approved=true;}}),/CHECKPOINT_WRITE_FAILED/);
+ assert.equal(reviews,0);assert.equal(approved,false);
+});

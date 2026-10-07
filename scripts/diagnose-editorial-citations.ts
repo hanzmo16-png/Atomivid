@@ -2,16 +2,18 @@ import {isProductionRuntime} from '../src/lib/providers/production';
 import {stableHash} from '../src/lib/production-intelligence/canonical';
 import {documentarySupplyScope} from '../src/lib/supply/anthropic';
 import {researchDocumentary,RESEARCH_VERSION} from '../src/lib/video/long-form/research';
-import {generateDocumentaryScript} from '../src/lib/video/long-form/documentary-script';
+import {generateDocumentaryScript, type DocumentaryDraft} from '../src/lib/video/long-form/documentary-script';
 import {parseSources,parseOpenQuestions} from '../src/app/dashboard/long-form/new/parse';
 import {EDITORIAL_VERSION} from '../src/lib/video/long-form/editorial';
 import {applyEditorialCitationRepairs} from '../src/lib/video/long-form/editorial-evidence';
+import {documentaryFormError} from '../src/lib/video/long-form/form-error';
 import {createHash} from 'node:crypto';
 import {creativeDirectionIssues} from '../src/lib/video/long-form/creative-direction';
 import {editorialBlockers} from '../src/lib/video/long-form/editorial';
 import {evaluateNarrationDuration,countWords} from '../src/lib/video/long-form/duration-budget';
 import {canonicalizeEditorialCitations,invalidEditorialCitations} from '../src/lib/video/long-form/editorial-evidence';
-/** Read-only. Only structural statistics leave the runner, never private text. */
+/** Offline replay; opt-in recovery stores only an unapproved private checkpoint.
+ * Only structural statistics leave the runner, never private text. */
 import {createClient} from '@supabase/supabase-js';
 import {DocumentaryNarrativeSchema} from '../src/lib/video/long-form/documentary-script';
 import {EditorialReviewSchema,validateEditorialReview} from '../src/lib/video/long-form/editorial';
@@ -52,12 +54,13 @@ async function main(){
  // Replay ALL SDK requests against the exact recorded parameter fingerprints.
  // Networking is replaced only after read-only downloads; no provider credential,
  // writes or paid call can occur. A cache miss is a boundary, never a fallback.
- const jobs=await db.from('documentary_script_jobs').select('user_id,input').eq('user_id',latest.data[0].project_id.split(':')[1]).eq('status','failed').order('created_at',{ascending:false});
+ const jobs=await db.from('documentary_script_jobs').select('id,user_id,input,updated_at').eq('user_id',latest.data[0].project_id.split(':')[1]).eq('status','failed').order('created_at',{ascending:false});
  if(jobs.error)throw Error('read');
  const job=jobs.data?.find(j=>documentarySupplyScope(j.user_id,{...j.input.fields,editorialVersion:EDITORIAL_VERSION,researchVersion:RESEARCH_VERSION,creativeHistory:j.input.creativeHistory},false).projectId===latest.data[0].project_id);
  if(!job)throw Error('Replay input unavailable');
  const fields=job.input.fields,originalFetch=globalThis.fetch;
  let stage='research',hits=0,miss=false,approved=false;
+ let checkpoint:DocumentaryDraft|undefined, failure:unknown;
  const stages:string[]=[];
  process.env.ANTHROPIC_API_KEY='offline-replay-no-provider-key';
  globalThis.fetch=async(_url,init)=>{
@@ -67,10 +70,20 @@ async function main(){
  };
  try{
   const researchPack=await researchDocumentary({topic:fields.topic,references:parseSources(fields.sources),openQuestions:parseOpenQuestions(fields.openQuestions)});
-  await generateDocumentaryScript({researchPack,creativeHistory:job.input.creativeHistory,mode:'curiosity_documentary',language:fields.language,targetDurationSeconds:Number(fields.durationMinutes)*60,onStage:async label=>{stage=label;stages.push(label);},onEditorialApproved:()=>{approved=true;}});
+  await generateDocumentaryScript({researchPack,creativeHistory:job.input.creativeHistory,mode:'curiosity_documentary',language:fields.language,targetDurationSeconds:Number(fields.durationMinutes)*60,onStage:async label=>{stage=label;stages.push(label);},onDraft:async draft=>{checkpoint=draft;},onEditorialApproved:()=>{approved=true;}});
   console.log(JSON.stringify({offlineReplay:'completed',hits,approved,stages}));
- }catch(error){console.log(JSON.stringify({offlineReplay:miss?'cache_boundary':'validation_failure',errorType:error instanceof Error?error.name:'unknown',hits,approved,stage,stages}));}
+ }catch(error){failure=error;console.log(JSON.stringify({offlineReplay:miss?'cache_boundary':'validation_failure',errorType:error instanceof Error?error.name:'unknown',hits,approved,stage,stages}));}
  finally{globalThis.fetch=originalFetch;delete process.env.ANTHROPIC_API_KEY;}
+ // Recovery writes only to the same owner's existing private job row, with
+ // an exact timestamp lease. It never requeues, approves or calls a provider.
+ if(process.env.RECOVER_PRIVATE_DRAFT==='true') {
+  if(!checkpoint || !failure || miss || approved)throw Error('Recovery boundary not established');
+  const {data:saved,error:saveError}=await db.from('documentary_script_jobs')
+   .update({editorial_checkpoint:checkpoint,stage,error_message:documentaryFormError(failure,'saved-review'),updated_at:new Date().toISOString()})
+   .eq('id',job.id).eq('user_id',job.user_id).eq('status','failed').is('run_token',null).eq('updated_at',job.updated_at).select('id');
+  if(saveError || saved?.length!==1)throw Error('Private draft recovery lost ownership');
+  console.log(JSON.stringify({privateDraftSaved:true,status:'failed',providerCalls:0}));
+ }
  try{const validated=validateEditorialReview(canonical,script);console.log(JSON.stringify({reviewValidation:true,blockers:editorialBlockers(validated).length}));}catch{console.log('review_validation=fail');}
 }
 main().catch(()=>{console.error('Read-only editorial diagnostic failed');process.exitCode=1;});

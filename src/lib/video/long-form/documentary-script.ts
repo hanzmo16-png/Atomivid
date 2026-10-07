@@ -127,6 +127,16 @@ const ReferencedVisualsSchema=z.object({visuals:z.array(VisualSchema.omit({quote
 
 export type DocumentaryScript = z.infer<typeof DocumentaryScriptSchema>;
 
+/** A recoverable draft is never an approval or an input to media production. */
+export type DocumentaryDraft = {
+  version: 1;
+  status: "unapproved";
+  pass: number;
+  script: z.infer<typeof DocumentaryNarrativeSchema>;
+  researchPack: ResearchPack;
+  review: EditorialReview | null;
+};
+
 function buildSourcesBlock(sources: LongFormSource[]): string {
   return sources
     .map((s) => `[${s.id}] ${s.title} (${s.kind})${s.locator ? ` — ${s.locator}` : ""}${s.notes ? `\n    Nota: ${s.notes}` : ""}`)
@@ -170,6 +180,7 @@ export async function generateDocumentaryScript(input: {
   /** Test-only citation correction port; never bypasses validation. */
   repairEvidence?: (prompt: string) => Promise<unknown>;
   onStage?: (label: string) => Promise<void>;
+  onDraft?: (draft: DocumentaryDraft) => Promise<void>;
   onEditorialApproved?: (report: EditorialReport) => void;
 }): Promise<(Pick<NarrativeBeat, "type" | "purpose" | "narration" | "claims" | "emotionalTone"> & { visuals?: { description: string; motion: boolean }[] })[]> {
   if (input.researchPack.sources.length === 0) {
@@ -259,6 +270,11 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
   const reviews: EditorialReview[] = [];
   let evidenceRepairUsed = false;
   for (let pass = 0; pass < 2; pass++) {
+    const saveDraft = async (review: EditorialReview | null) => input.onDraft?.(structuredClone({
+      version: 1 as const, status: "unapproved" as const, pass,
+      script: DocumentaryNarrativeSchema.parse(parsed), researchPack: input.researchPack, review,
+    }));
+    await saveDraft(null);
     validateStoryPlan(parsed);
     const evaluation = evaluateNarrationDuration(parsed.beats.reduce((sum, b) => sum + countWords(b.narration), 0), input.targetDurationSeconds);
     const sourceIds = new Set(input.researchPack.sources.map(s => s.id));
@@ -306,6 +322,7 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
     }
     await input.onStage?.("Comprobando calidad narrativa");
     reviews.push(reviewed);
+    await saveDraft(reviewed);
     const issues = [...localIssues, ...editorialBlockers(reviewed)];
     const durationAcceptable = pass === 0 ? evaluation.withinTolerance : evaluation.withinHardTolerance;
     if (!issues.length && durationAcceptable) {
