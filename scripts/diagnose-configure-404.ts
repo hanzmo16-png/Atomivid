@@ -4,6 +4,7 @@
  * Prints booleans/counts only. */
 import { createClient } from "@supabase/supabase-js";
 import { isLongFormScriptJson } from "../src/lib/video/long-form/script-json";
+import { lookupConfigurableRequest } from "../src/lib/video/long-form/configure-lookup";
 import { editorialApprovalError } from "../src/lib/video/long-form/editorial";
 import { computeProductionPlan, getRealLongFormProviderNames, VISUAL_STRATEGIES } from "../src/lib/video/long-form/production-plan";
 
@@ -23,6 +24,16 @@ async function main() {
   const env = { id: process.env.INTERNAL_PRODUCTION_OWNER_USER_ID?.trim().toLowerCase(), email: process.env.AVATAR_PREPARATION_OWNER_EMAIL?.trim().toLowerCase() };
   console.log("OWNER", JSON.stringify({ emailConfirmed: !!owner?.user?.email_confirmed_at, ownerIdSecretPresent: !!env.id, ownerIdMatches: env.id ? env.id === owner?.user?.id : null,
     ownerEmailSecretPresent: !!env.email, ownerEmailMatches: env.email ? env.email === owner?.user?.email?.toLowerCase() : null }));
+  // The exact page lookup, with the owner filter the page applies on top of RLS.
+  // Access is passed as granted: the production worker's own owner-access check
+  // passed for this job (it completed), using the same canAccessLongFormBeta.
+  const owner_ = { id: job.user_id };
+  for (const [label, id] of [["request_id", job.request_id], ["job_id", job.id], ["placeholder", "<request>"]] as const) {
+    const r = await lookupConfigurableRequest(db as never, owner_, id, true);
+    console.log("LOOKUP", JSON.stringify({ link: label, kind: r.kind, reason: r.kind === "not_found" ? r.reason : undefined, to: r.kind === "redirect" ? r.to.replace(id, "<id>") : undefined }));
+  }
+  const other = await lookupConfigurableRequest(db as never, { id: "00000000-0000-4000-8000-000000000000" }, job.request_id, true);
+  console.log("LOOKUP", JSON.stringify({ link: "request_id_as_other_user", kind: other.kind, reason: other.kind === "not_found" ? other.reason : undefined }));
   if (!row) return;
   const script = row.script_json as { topic?: string; beats: { id: string; type: string; narration: string; visuals?: unknown[] }[] };
   const valid = isLongFormScriptJson(script);
@@ -31,7 +42,7 @@ async function main() {
   if (!valid) return;
   for (const strategy of VISUAL_STRATEGIES) {
     try {
-      const plan = computeProductionPlan({ beats: script.beats.map(b => ({ id: b.id, type: b.type, narration: b.narration, visuals: b.visuals as never })), topic: script.topic!,
+      const plan = computeProductionPlan({ beats: script.beats.map(b => ({ id: b.id, type: b.type, narration: b.narration, visuals: b.visuals })) as never, topic: script.topic!,
         strategy, providers: getRealLongFormProviderNames(), requestedDurationSeconds: row.duration_seconds ?? undefined });
       console.log("PLAN", JSON.stringify({ strategy, ok: !!plan }));
     } catch (e) { console.log("PLAN", JSON.stringify({ strategy, ok: false, error: e instanceof Error ? e.name : "unknown" })); }

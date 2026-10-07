@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
-import { isLongFormScriptJson } from "@/lib/video/long-form/script-json";
+import { lookupConfigurableRequest } from "@/lib/video/long-form/configure-lookup";
 import { narrativeTiming } from "@/lib/video/long-form/creative-direction";
 import { editorialApprovalError } from "@/lib/video/long-form/editorial";
 import {
@@ -15,15 +15,6 @@ import { ConfigureProduction } from "./ConfigureProduction";
 import { defaultPackaging, isOwnChannelAccount } from "@/lib/video/long-form/packaging";
 import { PRODUCTION_PLAN_VERSION, usesAnchoredVisuals } from "@/lib/video/long-form/production-plan-types";
 
-type VideoRequestRow = {
-  id: string;
-  mode: string;
-  topic: string;
-  status: string;
-  duration_seconds: number | null;
-  script_json: unknown;
-  long_form_confirmed_at: string | null;
-};
 
 /**
  * Pasos 3-9 del contrato de Long Form: revisar el guion, elegir estrategia
@@ -40,18 +31,10 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
-  if (!canAccessLongFormBeta(user)) notFound();
-
-  const { data } = await supabase
-    .from("video_requests")
-    .select("id, mode, topic, status, duration_seconds, script_json, long_form_confirmed_at")
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .maybeSingle<VideoRequestRow>();
-
-  if (!data || data.mode !== "long_form") notFound();
-  if (data.long_form_confirmed_at) redirect(`/dashboard/videos/${id}`);
-  if (data.status !== "script_ready" || !isLongFormScriptJson(data.script_json)) redirect("/dashboard");
+  const lookup = await lookupConfigurableRequest(supabase, user, id, canAccessLongFormBeta(user));
+  if (lookup.kind === "not_found") notFound();
+  if (lookup.kind === "redirect") redirect(lookup.to);
+  const data = lookup.data;
 
   const script = data.script_json;
   const editorialError = editorialApprovalError(script);
