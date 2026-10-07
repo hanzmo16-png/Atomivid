@@ -198,6 +198,12 @@ export function buildVisualReport(input: {
       assetRef: s.assetRef,
     })),
   );
+  // Reutilización VERIFICADA (v4): justificada solo si cada repetición la registró el selector con el mismo motivo.
+  const reuseOf = new Map(input.shots.map((s, i) => [s.id, input.executions[i]?.assetMeta?.selection?.reuse?.justification]));
+  for (const g of repeatedAssets) {
+    const reasons = g.shots.slice(1).map((id) => reuseOf.get(id));
+    if (reasons.every(Boolean) && new Set(reasons).size === 1) g.justification = reasons[0];
+  }
   const repeatedExtra = repeatedAssets.reduce((sum, g) => sum + g.shots.length - 1, 0);
   const coverage = { video: 0, image: 0, card: 0 };
   for (const s of scenes) coverage[s.display] += s.durationSec;
@@ -268,6 +274,7 @@ function cinematicSection(shots: Shot[], executions: ShotExecution[], scenes: Vi
         visual: shot.anchoredVisual,
         entityLink: meta?.selection?.entityLink,
         evidenceLink: meta?.selection?.evidenceLink,
+        reused: !!meta?.selection?.reuse,
         gap: !!meta?.gap,
       };
     }),

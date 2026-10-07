@@ -133,6 +133,9 @@ export function selectionQueries(visual: BeatVisual): string[] {
 
 export type RejectedCandidate = { sourceId?: string; query: string; reason: string };
 
+/** Reutilización justificada de un recurso VERIFICADO para la misma identidad/proposición (nunca genérica). */
+export type SelectionReuse = { of: string; justification: "verified_identity_reuse" | "verified_evidence_reuse" };
+
 /** Términos de la acción de la persona del beat que aparecen en el candidato (solo escenas de contexto v4). */
 export function personSubstitute(visual: BeatVisual, candidateText: string | undefined): string | null {
   if (!visual.personActions || visual.personActions.length === 0 || !candidateText) return null;
@@ -202,6 +205,8 @@ export type StockSelection = {
   entityLink?: TrustedEntityLink;
   /** Presente cuando la escena es EVIDENCE: el vínculo de prueba de confianza que la habilitó. */
   evidenceLink?: TrustedEvidenceLink;
+  /** Presente si el recurso ya ocupa otra escena: reutilización verificada y justificada. */
+  reuse?: SelectionReuse;
   candidatesConsidered: number;
   rejected: RejectedCandidate[];
 };
@@ -279,13 +284,22 @@ export async function selectStockForShot(
       if (seen.has(key)) continue;
       seen.add(key);
       considered += 1;
+      const identity = identityEligibility(input.visual, deps.verifyEntityLink?.(candidate, deps.footageProvider.name) ?? null);
+      const evidenceVerdict = evidenceEligibility(input.visual, deps.verifyEvidenceLink?.(candidate, deps.footageProvider.name) ?? null);
+      // Reutilización legítima (v4): SOLO un recurso con vínculo verificado que coincide con la identidad/proposición
+      // de ESTA escena. Cualquier otra repetición sigue rechazándose.
+      const verifiedReuse: SelectionReuse["justification"] | null =
+        identity.eligible && identity.link ? "verified_identity_reuse" : evidenceVerdict.eligible && evidenceVerdict.link ? "verified_evidence_reuse" : null;
+      let reuse: SelectionReuse | undefined;
       const refDup = deps.registry.findByReference(reference, input.shotId);
       if (refDup) {
-        rejected.push({ sourceId: reference.sourceId, query, reason: describeDuplicate(refDup) });
-        continue;
+        if (!verifiedReuse) {
+          rejected.push({ sourceId: reference.sourceId, query, reason: describeDuplicate(refDup) });
+          continue;
+        }
+        reuse = { of: refDup.shotId, justification: verifiedReuse };
       }
       const assessment = assessRelevance(input.visual, candidate.description);
-      const identity = identityEligibility(input.visual, deps.verifyEntityLink?.(candidate, deps.footageProvider.name) ?? null);
       const substitute = personSubstitute(input.visual, candidate.description);
       if (substitute) {
         // Contexto de un beat con persona: el candidato muestra lo que hace la persona → la sustituiría.
@@ -302,7 +316,7 @@ export async function selectStockForShot(
         });
         continue;
       }
-      const evidence = evidenceEligibility(input.visual, deps.verifyEvidenceLink?.(candidate, deps.footageProvider.name) ?? null);
+      const evidence = evidenceVerdict;
       if (!evidence.eligible) {
         // El score no se toca: mismo objeto/medio no es la misma proposición.
         const falseFriend = assessment.relevance !== "irrelevant";
@@ -351,8 +365,11 @@ export async function selectStockForShot(
       const content = await identify(buffer, candidate.mediaType);
       const contentDup = deps.registry.findByContent(content, input.shotId);
       if (contentDup) {
-        rejected.push({ sourceId: reference.sourceId, query, reason: describeDuplicate(contentDup) });
-        continue;
+        if (!verifiedReuse) {
+          rejected.push({ sourceId: reference.sourceId, query, reason: describeDuplicate(contentDup) });
+          continue;
+        }
+        reuse ??= { of: contentDup.shotId, justification: verifiedReuse };
       }
       return {
         status: "selected",
@@ -364,6 +381,7 @@ export async function selectStockForShot(
         assessment,
         ...(identity.link ? { entityLink: identity.link } : {}),
         ...(evidence.link ? { evidenceLink: evidence.link } : {}),
+        ...(reuse ? { reuse } : {}),
         candidatesConsidered: considered,
         rejected,
       };

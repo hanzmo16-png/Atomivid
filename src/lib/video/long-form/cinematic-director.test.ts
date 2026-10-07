@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { DocumentAssetRegistry } from "./asset-identity";
-import { BELLBOY, BUSINESSMAN, FEET, GUCCI_TOPIC, MAURIZIO, WRONG_NEWSPAPER, fakeImageProvider, gucciAdversarial, gucciBeats, identify, poolProvider, printTable, simulate, type Pooled } from "./cinematic-simulation";
+import { BELLBOY, BUSINESSMAN, FEET, GUCCI_TOPIC, MAURIZIO, WRONG_NEWSPAPER, fakeImageProvider, gucciAdversarial, gucciBeats, gucciRegistry, identify, poolProvider, printTable, simulate, type Pooled } from "./cinematic-simulation";
 import { executeShot } from "./shot-executor";
 import { memoryShotAssetStore } from "./durable-shot-assets";
 import { ProductionBudget, memoryBudgetStore } from "./production-budget";
@@ -260,7 +260,7 @@ test("BLOCKED_CINEMATIC_QUALITY: si la meta solo se alcanza sacrificando identid
 // --------------------------------------------------------------------------
 
 test("31-35, 41-42: simulación Gucci por la ruta productiva v4 — pies, botones y ejecutivo nunca representan a Maurizio", async () => {
-  const sim = await simulate(gucciBeats, GUCCI_TOPIC, gucciAdversarial);
+  const sim = await simulate(gucciBeats, GUCCI_TOPIC, gucciAdversarial, "cinematic", { registry: gucciRegistry() });
   printTable("GUCCI v4", sim.rows);
   assert.ok(sim.narrationSeconds > 180, `la simulación cubre HERO, PREMIUM y STANDARD (${Math.round(sim.narrationSeconds)} s)`);
   assert.deepEqual(new Set(sim.report.cinematic!.scenes.map((d) => d.tier)), new Set(["HERO", "PREMIUM", "STANDARD"]));

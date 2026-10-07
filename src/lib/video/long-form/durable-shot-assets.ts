@@ -32,6 +32,8 @@ export type AssetProvenance = {
   license?: string;
   author?: string;
   pageUrl?: string;
+  /** Crédito VISIBLE en el video (obligatorio con CC BY; lo dibuja SceneLabels). */
+  credit?: string;
 };
 
 /** Por qué se eligió (o no) este recurso — la pertinencia es LÉXICA, nunca se afirma validación semántica. */
@@ -48,6 +50,8 @@ export type AssetSelectionTrace = {
   entityLink?: { name: string };
   /** Fuentes que el verificador del servidor confirma que el recurso documenta (escenas EVIDENCE). */
   evidenceLink?: { sourceIds: string[] };
+  /** Reutilización verificada y justificada de un recurso que ya ocupa otra escena. */
+  reuse?: { of: string; justification: "verified_identity_reuse" | "verified_evidence_reuse" };
 };
 
 export type ShotAssetRecord = {

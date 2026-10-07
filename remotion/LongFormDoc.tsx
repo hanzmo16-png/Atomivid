@@ -279,7 +279,7 @@ function SceneRenderer({
   );
 }
 
-function SceneLabels({ scene }: { scene: LongFormShotScene }) {
+export function SceneLabels({ scene }: { scene: LongFormShotScene }) {
   const label = provenanceLabel(scene.provenance);
   if (!label && !scene.creditText && !scene.pending) return null;
   return (

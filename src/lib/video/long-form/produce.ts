@@ -70,6 +70,7 @@ import {
 import { DocumentAssetRegistry, type AssetIdentity } from "./asset-identity";
 import { assertVisualQuality, buildVisualReport, LongFormVisualQualityError, type VisualReport } from "./visual-report";
 import { planReleaseBlockers } from "./cinematic-director";
+import { heroCoverage, VerifiedAssetRegistry } from "./verified-assets";
 import { ProductionBudget, supabaseBudgetStore, type BudgetStore } from "./production-budget";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import { getLongFormBudget } from "./cost";
@@ -102,6 +103,11 @@ type OnProgress = (stage: LongFormStage, units?: LongFormProgressUnits) => void 
 
 /** Dependencias inyectables (pruebas / inyección de fallos). En producción se omiten todas. */
 export type LongFormRuntime = {
+  /**
+   * v4: registro de recursos verificados (curados/licenciados) del SERVIDOR. Ausente = el
+   * de `{requestId}/state/verified-assets.json` en Storage (solo lo escribe el servidor), o vacío.
+   */
+  verifiedAssets?: VerifiedAssetRegistry;
   paidCalls?: Pick<PaidCallDeps, "ledger" | "results">;
   store?: ShotAssetStore;
   budgetStore?: BudgetStore;
@@ -209,9 +215,15 @@ export async function generateLongFormVideoFromScript({
   const replayOnly = runtime.replayOnly === true;
   // v4: lo que el PLAN ya revela como no entregable (clasificación incierta en HERO, apertura de
   // tarjetas seguras) se detiene ANTES de cualquier llamada pagada: voz, imágenes, video o render.
+  // Además, la cobertura HERO con material verificado: si las reglas existentes (3 tarjetas en los primeros
+  // 30 s, proporción máxima de tarjetas) hacen el fallo inevitable, no se gasta nada.
+  const verifiedAssets = usesVisualIdentity(plan) ? (runtime.verifiedAssets ?? (await loadVerifiedAssets(supabase, requestId))) : undefined;
   if (usesVisualIdentity(plan)) {
-    const blockers = planReleaseBlockers(planShotsFromScript(beats as ProductionPlanBeatInput[], topic, plan.strategy).shots);
-    if (blockers.length > 0) throw new LongFormVisualQualityError(blockers.map((f) => `${f.code}: ${f.detail} (${f.shots.join(", ")})`));
+    const plannedShots = planShotsFromScript(beats as ProductionPlanBeatInput[], topic, plan.strategy).shots;
+    const blockers = planReleaseBlockers(plannedShots).map((f) => `${f.code}: ${f.detail} (${f.shots.join(", ")})`);
+    const coverage = heroCoverage(plannedShots, verifiedAssets, MAX_TEXT_FALLBACK_RATIO);
+    blockers.push(...coverage.blockers.map((b) => `HERO_COVERAGE ${b} (faltan: ${[...coverage.missingIdentities, ...coverage.missingEvidence].join(", ") || "—"})`));
+    if (blockers.length > 0) throw new LongFormVisualQualityError(blockers);
   }
 
   const resolvedProviders = providers ?? resolveLongFormProviders("real");
@@ -397,6 +409,7 @@ export async function generateLongFormVideoFromScript({
         visualPipeline: anchored ? "anchored_v1" : undefined,
         registry,
         identify: runtime.identify,
+        verifiedAssets,
       },
       aiVideoLedger,
     );
@@ -651,7 +664,7 @@ export function directAnchoredScenes(
   executions: Pick<ShotExecution, "assetMeta">[],
   words: { startSeconds: number; endSeconds: number }[],
   /** v4: cámara y tratamiento decididos por el Cinematic Director (los mismos que mide el QA). */
-  cinematic?: { camera: SceneDirection["camera"]; look?: SceneDirection["look"] }[],
+  cinematic?: { camera: SceneDirection["camera"]; look?: SceneDirection["look"]; provenance?: string }[],
 ): LongFormShotScene[] {
   if (scenes.length === 0) return scenes;
   const bounds = snapSceneBoundaries([...scenes.map((s) => s.startSeconds), scenes[scenes.length - 1].endSeconds], words);
@@ -668,8 +681,22 @@ export function directAnchoredScenes(
       startSeconds: bounds[i],
       endSeconds: bounds[i + 1],
       direction: cinematic?.[i] ? { ...directions[i], camera: cinematic[i].camera, ...(cinematic[i].look ? { look: cinematic[i].look } : {}) } : directions[i],
-      provenance: executions[i]?.assetMeta?.provenance?.kind,
+      // v4: un video IA sin metadatos también se rotula "Recreación IA" (la decisión del Director lo sabe).
+      provenance: executions[i]?.assetMeta?.provenance?.kind ?? (cinematic?.[i]?.provenance === "ai_recreation" ? "ai_recreation" : undefined),
+      // v4: crédito visible del recurso verificado (CC BY lo exige) → SceneLabels.
+      ...(cinematic && executions[i]?.assetMeta?.provenance?.credit ? { creditText: executions[i].assetMeta!.provenance!.credit } : {}),
       pending: gap ? `carencia de material pertinente: ${gap.reason}` : undefined,
     };
   });
+}
+
+/** Registro verificado del servidor para esta solicitud (Storage, escrito solo por el servidor). Ausente o ilegible = vacío. */
+async function loadVerifiedAssets(supabase: SupabaseClient, requestId: string): Promise<VerifiedAssetRegistry> {
+  try {
+    const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(`${requestId}/state/verified-assets.json`);
+    if (error || !data) return VerifiedAssetRegistry.empty();
+    return VerifiedAssetRegistry.load(JSON.parse(await data.text()));
+  } catch {
+    return VerifiedAssetRegistry.empty();
+  }
 }

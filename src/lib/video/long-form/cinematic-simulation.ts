@@ -14,9 +14,22 @@ import { emptyAiVideoLedgerState, getAiVideoCostConfig } from "./ai-video-cost-g
 import { allocateShotTypes, getGenerativeUnitCosts, planShotsFromScript, strategyLimits, type ProductionPlanBeatInput } from "./production-plan";
 import type { VisualStrategy } from "./shots";
 import { assertVisualQuality, buildVisualReport, LongFormVisualQualityError } from "./visual-report";
-import { directAnchoredScenes } from "./produce";
+import { directAnchoredScenes, MAX_TEXT_FALLBACK_RATIO } from "./produce";
+import { heroCoverage, VerifiedAssetRegistry, type VerifiedAssetRecord } from "./verified-assets";
 import { visualsForBeat } from "./visual-intents";
 import { planReleaseBlockers } from "./cinematic-director";
+
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import type { MusicProvider, VoiceProvider } from "@/lib/providers/types";
+import { fixtureVoiceProvider } from "@/lib/providers/voice/fixture";
+import { fixtureMusicProvider } from "@/lib/providers/music/fixture";
+import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
+import { memoryResultStore } from "@/lib/paid-calls/result-store";
+import { computeProductionPlan, REAL_LONG_FORM_PROVIDER_NAMES, type ProductionPlan } from "./production-plan";
+import { generateLongFormVideoFromScript, type LongFormRuntime } from "./produce";
+import { memoryOutputDeps } from "./output-finalize";
 
 export const identify = async (b: Buffer) => ({ sha256: createHash("sha256").update(b).digest("hex") });
 
@@ -101,11 +114,18 @@ export function truthfulPool(beats: ProductionPlanBeatInput[], topic: string): P
   return out;
 }
 
-export async function simulate(beats: ProductionPlanBeatInput[], topic: string, adversarial: Pooled[], strategy: VisualStrategy = "cinematic") {
+export async function simulate(
+  beats: ProductionPlanBeatInput[],
+  topic: string,
+  adversarial: Pooled[],
+  strategy: VisualStrategy = "cinematic",
+  opts: { registry?: VerifiedAssetRegistry } = {},
+) {
   // 1) Plan: escenas ancladas con las reglas v4 y asignación con las restricciones del Director.
   const { shots, narrationSeconds } = planShotsFromScript(beats, topic, strategy);
-  // Mismo preflight que produce.ts antes de cualquier llamada pagada.
+  // Mismo preflight que produce.ts antes de cualquier llamada pagada (plan + cobertura HERO verificada).
   const preflightBlockers = planReleaseBlockers(shots);
+  const coverage = heroCoverage(shots, opts.registry, MAX_TEXT_FALLBACK_RATIO);
   const limits = { ...strategyLimits(strategy, 1, { aiVideoEnabled: true, units: getGenerativeUnitCosts("runway") }), cinematic: true };
   const allocated = allocateShotTypes(shots, narrationSeconds, limits);
   // 2) Ejecución con proveedores falsos.
@@ -127,6 +147,7 @@ export async function simulate(beats: ProductionPlanBeatInput[], topic: string, 
     identify,
     verifyEntityLink: pool.verifyEntityLink,
     verifyEvidenceLink: pool.verifyEvidenceLink,
+    ...(opts.registry ? { verifiedAssets: opts.registry } : {}),
   };
   let ledger = emptyAiVideoLedgerState();
   const executions: ShotExecution[] = [];
@@ -166,12 +187,12 @@ export async function simulate(beats: ProductionPlanBeatInput[], topic: string, 
   // Puerta de entrega real (la de produce.ts antes de la música/subida/render).
   let gateError: unknown = null;
   try {
-    if (preflightBlockers.length > 0) throw new LongFormVisualQualityError(preflightBlockers.map((f) => f.code));
+    if (preflightBlockers.length > 0 || coverage.blockers.length > 0) throw new LongFormVisualQualityError([...preflightBlockers.map((f) => f.code), ...coverage.blockers]);
     assertVisualQuality(report);
   } catch (err) {
     gateError = err;
   }
-  return { shots, allocated, executions, report, rendered, rows, prompts: image.prompts, narrationSeconds, preflightBlockers, gateError, textFallbackRatio };
+  return { shots, allocated, executions, report, rendered, rows, prompts: image.prompts, narrationSeconds, preflightBlockers, coverage, gateError, textFallbackRatio };
 }
 
 export function printTable(title: string, rows: Record<string, unknown>[]) {
@@ -303,19 +324,156 @@ export const BUSINESSMAN: Pooled = { id: "adv-businessman", description: "busine
 /** Periódico sobre OTRO hecho (un tiroteo) con más similitud que la prueba correcta de la deuda. */
 export const WRONG_NEWSPAPER: Pooled = { id: "adv-wrong-newspaper", description: "Italian newspaper front page reporting a shooting", similarity: 0.94, media: "image" };
 
-export const gucciAdversarial: Pooled[] = [
-  FEET,
-  BELLBOY,
-  BUSINESSMAN,
-  WRONG_NEWSPAPER,
-  // Correctos, con MENOS similitud, vinculados por el catálogo del servidor.
-  { id: "ver-portrait", description: "Maurizio Gucci archival portrait photograph, Milan", similarity: 0.4, media: "image", verified: "Maurizio Gucci" },
-  { id: "ver-press", description: "Maurizio Gucci at a press conference in Milan", similarity: 0.38, media: "image", verified: "Maurizio Gucci" },
-  { id: "ev-murder-1", description: "Corriere della Sera front page of 28 March 1995 on the murder", similarity: 0.36, media: "image", documents: ["web-2"] },
-  { id: "ev-murder-2", description: "police photograph of the stairwell on Via Palestro, March 1995", similarity: 0.35, media: "image", documents: ["web-2"] },
-  { id: "ev-licences", description: "1980s advertisement for licensed Gucci products", similarity: 0.34, media: "image", documents: ["web-4"] },
-  { id: "ev-debt-1", description: "1993 financial press report on the company debt", similarity: 0.33, media: "image", documents: ["web-5"] },
-  { id: "ev-debt-2", description: "Investcorp share purchase announcement, 1993", similarity: 0.32, media: "image", documents: ["web-5"] },
-  { id: "ev-trial-1", description: "Milan court ruling of 1998 in the murder case", similarity: 0.31, media: "image", documents: ["web-6"] },
-  { id: "ev-trial-2", description: "Italian newspapers of November 1998 on the verdict", similarity: 0.3, media: "image", documents: ["web-6"] },
+/** Falsos amigos de ALTA similitud: siguen en el pool en todos los escenarios. */
+export const gucciAdversarial: Pooled[] = [FEET, BELLBOY, BUSINESSMAN, WRONG_NEWSPAPER];
+
+const curation = { curatedBy: "fixture-curator", curatedAt: "2026-10-07T00:00:00Z", basis: "fixture offline: material legítimo del escenario de prueba" };
+const licensed = (ref: string) => ({ kind: "LICENSED" as const, rightsReference: ref });
+const rec = (id: string, description: string, link: Pick<VerifiedAssetRecord, "entityLink" | "evidenceLink">, width = 2400, height = 1600): VerifiedAssetRecord => ({
+  id,
+  source: "licensed_archive",
+  sourceUrl: `https://archive.example/record/${id}`,
+  mediaUrl: `https://archive.example/media/${id}.jpg`,
+  mediaType: "image",
+  mime: "image/jpeg",
+  width,
+  height,
+  rights: licensed(`fixture-licence-${id}`),
+  creator: "Archivio (fixture)",
+  creditText: "Archivio fotografico (fixture)",
+  description,
+  ...link,
+  curation,
+});
+
+/**
+ * Material LEGÍTIMO del fixture como registros curados del servidor (con menor
+ * similitud que los falsos amigos: no compiten por ranking, los habilita la verificación).
+ */
+export const gucciVerifiedRecords: VerifiedAssetRecord[] = [
+  rec("ver-portrait", "Maurizio Gucci archival portrait photograph, Milan", { entityLink: { name: "Maurizio Gucci" } }),
+  rec("ver-press", "Maurizio Gucci at a press conference in Milan", { entityLink: { name: "Maurizio Gucci" } }, 2000, 1333),
+  rec("ev-murder-1", "Corriere della Sera front page of 28 March 1995 on the murder", { evidenceLink: { sourceIds: ["web-2"] } }),
+  rec("ev-murder-2", "police photograph of the stairwell on Via Palestro, March 1995", { evidenceLink: { sourceIds: ["web-2"] } }),
+  rec("ev-licences", "1980s advertisement for licensed Gucci products", { evidenceLink: { sourceIds: ["web-4"] } }),
+  rec("ev-debt-1", "1993 financial press report on the company debt", { evidenceLink: { sourceIds: ["web-5"] } }),
+  rec("ev-debt-2", "Investcorp share purchase announcement, 1993", { evidenceLink: { sourceIds: ["web-5"] } }),
+  rec("ev-trial-1", "Milan court ruling of 1998 in the murder case", { evidenceLink: { sourceIds: ["web-6"] } }),
+  rec("ev-trial-2", "Italian newspapers of November 1998 on the verdict", { evidenceLink: { sourceIds: ["web-6"] } }),
 ];
+
+/** Registros que NO deben entrar: baja resolución y CC BY-SA (fuera de V1). */
+export const gucciRegistryDecoys: VerifiedAssetRecord[] = [
+  { ...rec("lowres-portrait", "Maurizio Gucci photograph (small)", { entityLink: { name: "Maurizio Gucci" } }, 442, 590) },
+  { ...rec("bysa-portrait", "Maurizio Gucci at an event", { entityLink: { name: "Maurizio Gucci" } }), source: "commons", rights: { kind: "CC_BY_SA" as never }, creditText: "x" },
+];
+
+export const gucciRegistry = () => VerifiedAssetRegistry.load([...gucciVerifiedRecords, ...gucciRegistryDecoys]);
+
+// --------------------------------------------------------------------------
+// produce() real, offline (proveedores falsos que registran cada llamada)
+// --------------------------------------------------------------------------
+
+export function makeStorage() {
+  const files = new Map<string, Buffer>();
+  return {
+    from() {
+      return {
+        async download(p: string) {
+          const buf = files.get(p);
+          return buf ? { data: { text: async () => buf.toString("utf8"), arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) }, error: null } : { data: null, error: { message: "nf" } };
+        },
+        async upload(p: string, body: Buffer) {
+          files.set(p, Buffer.from(body));
+          return { error: null };
+        },
+      };
+    },
+  };
+}
+
+export function countingProviders(events: string[], failDownloads?: RegExp) {
+  const voiceProvider: VoiceProvider = { name: "fake-voice", synthesize: async (t, l, s) => (events.push("voice"), fixtureVoiceProvider.synthesize(t, l, s)) };
+  const footageProvider: FootageProvider = {
+    name: "fake-stock",
+    async fetchFootage(query) {
+      events.push("stock");
+      return { url: `https://stock/v/${encodeURIComponent(query)}.mp4`, mediaType: "video", mimeType: "video/mp4", extension: "mp4" };
+    },
+    async searchImageCandidates(query) {
+      events.push("stock");
+      return Array.from({ length: 8 }, (_, i) => ({ url: `https://stock/i/${encodeURIComponent(query)}/${i}.jpg`, sourceId: `img-${query}-${i}`, description: query, mediaType: "image" as const, mimeType: "image/jpeg", extension: "jpg" }));
+    },
+    async downloadFootage(url) {
+      if (failDownloads?.test(url)) throw new Error("archivo no disponible");
+      return Buffer.from(`bytes:${url}`);
+    },
+  };
+  const imageProvider: ImageProvider = {
+    name: "fake-openai",
+    capabilities: { id: "o", models: ["m"], formats: ["image/png"], aspectRatios: ["16:9"], timeoutMs: 1, maxRetries: 0 },
+    isAvailable: () => true,
+    async generateImage() {
+      events.push("image");
+      throw new Error("no se espera imagen IA");
+    },
+  };
+  const musicProvider: MusicProvider = { name: "fake-music", getTrack: async (ctx) => (events.push("music"), fixtureMusicProvider.getTrack(ctx)) };
+  return { voiceProvider, footageProvider, imageProvider, musicProvider };
+}
+
+export async function produceOffline(beats: ProductionPlanBeatInput[], plan: ProductionPlan, opts: { verifiedAssets?: VerifiedAssetRegistry; failDownloads?: RegExp } = {}) {
+  const events: string[] = [];
+  const out = memoryOutputDeps({ durationSeconds: 60 });
+  const runtime: LongFormRuntime = {
+    paidCalls: { ledger: memoryLedgerStore(), results: memoryResultStore() },
+    store: memoryShotAssetStore().store,
+    budgetStore: memoryBudgetStore(),
+    observedUnitMax: {},
+    ...(opts.verifiedAssets ? { verifiedAssets: opts.verifiedAssets } : {}),
+    videoProvider: null,
+    aiVideoEnabled: false,
+    recordCosts: false,
+    resumeBackoffMs: 0,
+    output: out.deps,
+    uploadArtifact: async (p) => (events.push(`upload:${p.split("/").pop()}`), { path: p, url: `memory://${p}` }),
+    identify: async (b) => ({ sha256: createHash("sha256").update(b).digest("hex"), dhashUnavailable: "test" }),
+    saveVisualReport: async () => {
+      events.push("visual-report");
+    },
+    render: async () => {
+      events.push("render");
+      const file = path.join(os.tmpdir(), `rg-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`);
+      fs.writeFileSync(file, "fake-mp4");
+      return file;
+    },
+    renderThumbnail: async () => {
+      events.push("thumbnail");
+      const file = path.join(os.tmpdir(), `rg-thumb-${Date.now()}.jpg`);
+      fs.writeFileSync(file, "fake-jpg");
+      return file;
+    },
+  };
+  let error: unknown = null;
+  try {
+    await generateLongFormVideoFromScript({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: { storage: makeStorage() } as any,
+      requestId: "req-release-gate",
+      artifactPrefix: "req-release-gate/attempt-1",
+      topic: GUCCI_TOPIC,
+      beats: beats as never,
+      language: "en",
+      plan,
+      providers: countingProviders(events, opts.failDownloads),
+      runtime,
+    });
+  } catch (err) {
+    error = err;
+  }
+  return { events, error };
+}
+
+export const planFor = (beats: ProductionPlanBeatInput[], strategy: "economical" | "balanced" = "economical") =>
+  ({ ...computeProductionPlan({ beats, topic: GUCCI_TOPIC, strategy, providers: REAL_LONG_FORM_PROVIDER_NAMES, aiVideoEnabled: false }), confirmedAt: "2026-10-07T00:00:00Z" }) as ProductionPlan;
+

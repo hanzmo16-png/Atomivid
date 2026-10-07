@@ -176,6 +176,8 @@ export const RENDERER_CAPABILITIES = {
   "transition:cut": "SUPPORTED_NOW",
   "transition:dissolve": "SUPPORTED_NOW",
   "look:contrast": "SUPPORTED_NOW",
+  // Reencuadre estático (scale + origin) — distinto encuadre al reutilizar un recurso verificado.
+  "look:reframe": "SUPPORTED_NOW",
   "media:video_playback": "SUPPORTED_NOW",
   "card:passage": "SUPPORTED_NOW",
   // Monocromo auténtico: el renderer solo admite saturación ≥ 0.6 (validateDirection); se aplica contraste, no B/N.
@@ -208,6 +210,8 @@ export type DirectorInput = {
   evidenceLink?: { sourceIds: string[] };
   /** La escena quedó en carencia (ABSENT). */
   gap?: boolean;
+  /** El recurso verificado ya ocupó otra escena (reutilización justificada). */
+  reused?: boolean;
 };
 
 /** Por qué una escena es tarjeta: no es lo mismo abstenerse con verdad que un fallo del planner. */
@@ -250,8 +254,15 @@ function cardReasonOf(s: DirectorInput): CardReason {
 }
 
 /** Decisión de presentación de cada escena, por razones narrativas (no para alcanzar una métrica). */
+const REUSE_FRAMES: SceneLook[] = [
+  { scale: 1.18, originX: 0.5, originY: 0.35 },
+  { scale: 1.15, originX: 0.35, originY: 0.4 },
+  { scale: 1.15, originX: 0.65, originY: 0.4 },
+];
+
 export function directCinematic(scenes: DirectorInput[]): CinematicDecision[] {
   let still = 0;
+  let reframe = 0;
   return scenes.map((s) => {
     const era = eraProfile(s.visual?.era);
     const identityRequired = !!s.visual && requiresIdentity(s.visual);
@@ -297,11 +308,17 @@ export function directCinematic(scenes: DirectorInput[]): CinematicDecision[] {
       why = s.visual?.beatClass === "PLACE" ? `lugar: recorrido de presentación (${era.cadence === "archival" ? "cadencia de archivo" : "cadencia actual"})` : `imagen fija: movimiento de presentación (${era.cadence === "archival" ? "cadencia de archivo" : "cadencia actual"})`;
     }
     requested.push(`camera:${camera}`);
+    // Reutilización verificada: otro encuadre estático del MISMO recurso (nunca una acción nueva).
+    if (s.reused && s.kind === "image" && (verifiedIdentity || verifiedEvidence)) {
+      look = { ...REUSE_FRAMES[reframe++ % REUSE_FRAMES.length] };
+      requested.push("look:reframe");
+      why = `${why}; reutilización verificada con otro encuadre`;
+    }
     // El grado de época solo sobre archivo verificado: nunca disfraza material moderno como antiguo.
     if (provenance === "archival_documentary" && s.kind !== "graphic") {
       requested.push(`grade:${era.grade}`);
       if (era.grade === "archival_monochrome") {
-        look = { contrast: 1.1 };
+        look = { ...(look ?? {}), contrast: 1.1 };
         requested.push("look:contrast");
       }
     }

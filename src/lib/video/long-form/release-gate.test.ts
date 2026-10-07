@@ -1,23 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { createHash } from "node:crypto";
-import type { FootageCandidate, FootageProvider, ImageProvider, MusicProvider, VoiceProvider } from "@/lib/providers/types";
-import { fixtureVoiceProvider } from "@/lib/providers/voice/fixture";
-import { fixtureMusicProvider } from "@/lib/providers/music/fixture";
-import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
-import { memoryResultStore } from "@/lib/paid-calls/result-store";
+import type { FootageCandidate } from "@/lib/providers/types";
 import { DocumentAssetRegistry } from "./asset-identity";
 import { selectStockForShot } from "./stock-selection";
 import { executeShot } from "./shot-executor";
 import { memoryShotAssetStore } from "./durable-shot-assets";
 import { ProductionBudget, memoryBudgetStore } from "./production-budget";
 import { emptyAiVideoLedgerState, getAiVideoCostConfig } from "./ai-video-cost-guard";
-import { computeProductionPlan, getGenerativeUnitCosts, REAL_LONG_FORM_PROVIDER_NAMES, type AllocatedShot, type ProductionPlan, type ProductionPlanBeatInput } from "./production-plan";
-import { generateLongFormVideoFromScript, type LongFormRuntime } from "./produce";
-import { memoryOutputDeps } from "./output-finalize";
+import { getGenerativeUnitCosts, type AllocatedShot, type ProductionPlan, type ProductionPlanBeatInput } from "./production-plan";
 import { buildVisualReport, LongFormVisualQualityError } from "./visual-report";
 import { normalizeDeclaredVisuals, type BeatVisual } from "./visual-intents";
 import { validateDirection } from "../../../../remotion/long-form-direction";
@@ -30,7 +20,11 @@ import {
   type CinematicQaScene,
   type DirectorInput,
 } from "./cinematic-director";
+import { VerifiedAssetRegistry } from "./verified-assets";
 import {
+  planFor,
+  produceOffline,
+  gucciVerifiedRecords,
   BELLBOY,
   BUSINESSMAN,
   FEET,
@@ -39,6 +33,7 @@ import {
   WRONG_NEWSPAPER,
   fakeImageProvider,
   gucciAdversarial,
+  gucciRegistry,
   gucciBeats,
   gucciBeatsMisclassified,
   identify,
@@ -314,7 +309,7 @@ test("M7: el QA solo cuenta lo que el renderer ejecuta; lo no soportado se decla
 // --------------------------------------------------------------------------
 
 test("M8/M11: Gucci por la ruta productiva v4 PASA la puerta de entrega (verdad + identidad + prueba + entrega)", async () => {
-  const sim = await simulate(gucciBeats, GUCCI_TOPIC, gucciAdversarial);
+  const sim = await simulate(gucciBeats, GUCCI_TOPIC, gucciAdversarial, "cinematic", { registry: gucciRegistry() });
   printTable("GUCCI v4 — release gate", sim.rows);
   const qa = sim.report.cinematic!.qa;
   console.log("GUCCI RELEASE", JSON.stringify({ release: qa.release, status: qa.status, windows: qa.windows.map((w) => ({ tier: w.tier, density: w.density, reconstructionShare: w.reconstructionShare })), warnings: qa.findings.map((f) => `${f.code}: ${f.detail}`), cards: qa.cards, textFallbackRatio: sim.textFallbackRatio }, null, 1));
@@ -339,7 +334,7 @@ test("M8/M11: Gucci por la ruta productiva v4 PASA la puerta de entrega (verdad 
 });
 
 test("M5: el planner que clasifica mal (subida de Maurizio como TRANSITION) NO es una abstención buena — y en HERO bloquea antes de gastar", async () => {
-  const sim = await simulate(gucciBeatsMisclassified, GUCCI_TOPIC, gucciAdversarial);
+  const sim = await simulate(gucciBeatsMisclassified, GUCCI_TOPIC, gucciAdversarial, "cinematic", { registry: gucciRegistry() });
   assert.ok(sim.preflightBlockers.some((b) => b.code === "CLASSIFICATION_INTEGRITY_GAP_IN_HERO"));
   assert.ok(sim.gateError instanceof LongFormVisualQualityError);
   const reasons = sim.report.cinematic!.qa.cards.map((c) => c.reason);
@@ -358,107 +353,6 @@ test("M5: una escena IDENTITY sin identidad declarada es PLANNING_FAILURE (no ab
 // --------------------------------------------------------------------------
 // MISSION 2 / 9 — un bloqueante NO llega al render (produce.ts real, offline)
 // --------------------------------------------------------------------------
-
-function makeStorage() {
-  const files = new Map<string, Buffer>();
-  return {
-    from() {
-      return {
-        async download(p: string) {
-          const buf = files.get(p);
-          return buf ? { data: { text: async () => buf.toString("utf8"), arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) }, error: null } : { data: null, error: { message: "nf" } };
-        },
-        async upload(p: string, body: Buffer) {
-          files.set(p, Buffer.from(body));
-          return { error: null };
-        },
-      };
-    },
-  };
-}
-
-function countingProviders(events: string[]) {
-  const voiceProvider: VoiceProvider = { name: "fake-voice", synthesize: async (t, l, s) => (events.push("voice"), fixtureVoiceProvider.synthesize(t, l, s)) };
-  const footageProvider: FootageProvider = {
-    name: "fake-stock",
-    async fetchFootage(query) {
-      events.push("stock");
-      return { url: `https://stock/v/${encodeURIComponent(query)}.mp4`, mediaType: "video", mimeType: "video/mp4", extension: "mp4" };
-    },
-    async searchImageCandidates(query) {
-      events.push("stock");
-      return Array.from({ length: 8 }, (_, i) => ({ url: `https://stock/i/${encodeURIComponent(query)}/${i}.jpg`, sourceId: `img-${query}-${i}`, description: query, mediaType: "image" as const, mimeType: "image/jpeg", extension: "jpg" }));
-    },
-    async downloadFootage(url) {
-      return Buffer.from(`bytes:${url}`);
-    },
-  };
-  const imageProvider: ImageProvider = {
-    name: "fake-openai",
-    capabilities: { id: "o", models: ["m"], formats: ["image/png"], aspectRatios: ["16:9"], timeoutMs: 1, maxRetries: 0 },
-    isAvailable: () => true,
-    async generateImage() {
-      events.push("image");
-      throw new Error("no se espera imagen IA");
-    },
-  };
-  const musicProvider: MusicProvider = { name: "fake-music", getTrack: async (ctx) => (events.push("music"), fixtureMusicProvider.getTrack(ctx)) };
-  return { voiceProvider, footageProvider, imageProvider, musicProvider };
-}
-
-async function produceOffline(beats: ProductionPlanBeatInput[], plan: ProductionPlan) {
-  const events: string[] = [];
-  const out = memoryOutputDeps({ durationSeconds: 60 });
-  const runtime: LongFormRuntime = {
-    paidCalls: { ledger: memoryLedgerStore(), results: memoryResultStore() },
-    store: memoryShotAssetStore().store,
-    budgetStore: memoryBudgetStore(),
-    observedUnitMax: {},
-    videoProvider: null,
-    aiVideoEnabled: false,
-    recordCosts: false,
-    resumeBackoffMs: 0,
-    output: out.deps,
-    uploadArtifact: async (p) => (events.push(`upload:${p.split("/").pop()}`), { path: p, url: `memory://${p}` }),
-    identify: async (b) => ({ sha256: createHash("sha256").update(b).digest("hex"), dhashUnavailable: "test" }),
-    saveVisualReport: async () => {
-      events.push("visual-report");
-    },
-    render: async () => {
-      events.push("render");
-      const file = path.join(os.tmpdir(), `rg-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`);
-      fs.writeFileSync(file, "fake-mp4");
-      return file;
-    },
-    renderThumbnail: async () => {
-      events.push("thumbnail");
-      const file = path.join(os.tmpdir(), `rg-thumb-${Date.now()}.jpg`);
-      fs.writeFileSync(file, "fake-jpg");
-      return file;
-    },
-  };
-  let error: unknown = null;
-  try {
-    await generateLongFormVideoFromScript({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      supabase: { storage: makeStorage() } as any,
-      requestId: "req-release-gate",
-      artifactPrefix: "req-release-gate/attempt-1",
-      topic: GUCCI_TOPIC,
-      beats: beats as never,
-      language: "en",
-      plan,
-      providers: countingProviders(events),
-      runtime,
-    });
-  } catch (err) {
-    error = err;
-  }
-  return { events, error };
-}
-
-const planFor = (beats: ProductionPlanBeatInput[], strategy: "economical" | "balanced" = "economical") =>
-  ({ ...computeProductionPlan({ beats, topic: GUCCI_TOPIC, strategy, providers: REAL_LONG_FORM_PROVIDER_NAMES, aiVideoEnabled: false }), confirmedAt: "2026-10-07T00:00:00Z" }) as ProductionPlan;
 
 /** Tres escenas de identidad seguidas al abrir: sin archivo verificado (producción hoy) → 3 tarjetas en los primeros 30 s. */
 const openingIdentityBeats: ProductionPlanBeatInput[] = [
@@ -484,7 +378,10 @@ test("M9: v4 + bloqueante conocido en el PLAN (clasificación incierta en HERO) 
 });
 
 test("M9: v4 + bloqueante conocido tras resolver los recursos (3 tarjetas en los primeros 30 s) → el render NO empieza y nada se llama después", async () => {
-  const run = await produceOffline(openingIdentityBeats, planFor(openingIdentityBeats));
+  // El registro cubre a la persona (el plan parece entregable), pero el archivo no se puede descargar al ejecutar:
+  // el bloqueante solo aparece tras resolver los recursos.
+  const registry = VerifiedAssetRegistry.load([gucciVerifiedRecords[0]]);
+  const run = await produceOffline(openingIdentityBeats, planFor(openingIdentityBeats), { verifiedAssets: registry, failDownloads: /archive\.example/ });
   assert.ok(run.error instanceof LongFormVisualQualityError, String(run.error));
   assert.match((run.error as Error).message, /OPENING_TEXT_CARD_RUN/);
   const known = run.events.indexOf("visual-report");
