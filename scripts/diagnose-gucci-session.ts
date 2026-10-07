@@ -10,6 +10,10 @@ async function main() {
   const { data: reqs } = await db.from("video_requests").select("id,user_id,mode,status,long_form_confirmed_at,render_attempts,created_at").ilike("topic", "%gucci%").order("created_at");
   for (const r of reqs ?? []) console.log("GUCCI_REQUEST", JSON.stringify({ id: r.id.slice(0, 8), isJobRequest: r.id === job.request_id, owner: h(r.user_id),
     ownerIsJobOwner: r.user_id === job.user_id, mode: r.mode, status: r.status, confirmed: !!r.long_form_confirmed_at, attempts: r.render_attempts, created: r.created_at }));
+  // Every long-form request of the job's owner, newest first (booleans only).
+  const { data: mine } = await db.from("video_requests").select("id,topic,mode,status,long_form_confirmed_at,render_attempts,created_at").eq("user_id", job.user_id).eq("mode", "long_form").order("created_at", { ascending: false }).limit(10);
+  for (const r of mine ?? []) console.log("OWNER_LONG_FORM", JSON.stringify({ id: r.id.slice(0, 8), isJobRequest: r.id === job.request_id, titleStartsLikeGucci: /^la historia obscura/i.test(r.topic ?? ""),
+    mentionsGucci: /gucci/i.test(r.topic ?? ""), titleLength: (r.topic ?? "").length, status: r.status, confirmed: !!r.long_form_confirmed_at, attempts: r.render_attempts, created: r.created_at }));
   const { data: gucciJobs } = await db.from("documentary_script_jobs").select("id,user_id,status").ilike("topic", "%gucci%");
   for (const j of gucciJobs ?? []) console.log("GUCCI_JOB", JSON.stringify({ id: j.id.slice(0, 8), owner: h(j.user_id), sameOwner: j.user_id === job.user_id, status: j.status }));
 }
