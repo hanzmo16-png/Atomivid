@@ -57,7 +57,8 @@ export async function runScriptJobStep(id:string, service=createServiceClient())
     await update({stage:"Investigando fuentes"});
     const researchPack=await researchDocumentary({topic:fields.topic,references:parseSources(fields.sources),openQuestions:parseOpenQuestions(fields.openQuestions)});
     const beats=await generateDocumentaryScript({researchPack,creativeHistory:input.creativeHistory,referenceContract:input.referenceContract,mode:"curiosity_documentary",language:fields.language,
-     targetDurationSeconds:Number(fields.durationMinutes)*60,onStage:stage=>update({stage}),onEditorialApproved:r=>{editorial=r;}});
+     targetDurationSeconds:Number(fields.durationMinutes)*60,onStage:stage=>update({stage}),
+     onDraft:draft=>update({editorial_checkpoint:draft}),onEditorialApproved:r=>{editorial=r;}});
     if(!editorial) throw new Error("Editorial approval missing");
     return {topic:fields.topic,beats:beats.map((b,i)=>({id:`beat-${i+1}`,...b})),editorial,sources:researchPack.sources};
    }));

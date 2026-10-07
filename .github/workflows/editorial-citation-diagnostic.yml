@@ -1,7 +1,7 @@
-name: Read-only editorial citation diagnosis
+name: Recover private documentary draft without provider calls
 on:
   push:
-    branches: [codex/editorial-citation-recovery]
+    branches: [codex/documentary-editorial-recovery]
     paths: [scripts/diagnose-editorial-citations.ts, .github/workflows/editorial-citation-diagnostic.yml]
 permissions:
   contents: read
@@ -18,5 +18,6 @@ jobs:
       - run: npm ci
       - run: npx tsx scripts/diagnose-editorial-citations.ts
         env:
+          RECOVER_PRIVATE_DRAFT: "true"
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
