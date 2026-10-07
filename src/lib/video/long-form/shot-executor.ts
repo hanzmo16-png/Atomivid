@@ -25,11 +25,11 @@ import { resolveAiVideoForShot } from "./ai-video-resolver";
 import { recordAiVideoSpend, type AiVideoCostConfig, type AiVideoLedgerState } from "./ai-video-cost-guard";
 import type { AssetProvenance, AssetSelectionTrace, ShotAssetKind, ShotAssetStore } from "./durable-shot-assets";
 import { contentIdentity, type DocumentAssetRegistry, type AssetIdentity } from "./asset-identity";
-import { selectStockForShot } from "./stock-selection";
+import { selectStockForShot, type StockSelectionDeps } from "./stock-selection";
 import { clip, salientFact } from "./scene-anchoring";
 import type { ProductionBudget } from "./production-budget";
 import type { AllocatedShot, GenerativeUnitCosts } from "./production-plan";
-import { documentaryImagePrompt, textCardForShot } from "./visual-intents";
+import { documentaryImagePrompt, requiresIdentity, textCardForShot } from "./visual-intents";
 import type { ShotType } from "./types";
 
 /** Rechazos de imagen con costo conocido CERO (el proveedor no generó nada). */
@@ -83,6 +83,8 @@ export type ShotExecutionDeps = {
   registry?: DocumentAssetRegistry;
   /** Inyectable en pruebas (evita ffmpeg/sharp). */
   identify?: (buffer: Buffer, mediaType: "image" | "video") => Promise<Pick<AssetIdentity, "sha256" | "dhash" | "dhashUnavailable">>;
+  /** Verificador de vínculos de entidad del servidor (archivo de confianza). Ausente hoy: ningún recurso queda vinculado a una persona. */
+  verifyEntityLink?: StockSelectionDeps["verifyEntityLink"];
 };
 
 /** Qué recurso ocupa la escena y por qué (insumo del informe previo al render). */
@@ -203,16 +205,17 @@ async function resolveStockAnchored(shot: AllocatedShot, deps: ShotExecutionDeps
   const outcome = await selectStockForShot(
     // Margen: el corte puede desplazarse hasta ±0.6 s al alinearse con la voz y un fundido añade cola.
     { shotId: shot.id, visual, preferVideo, minDurationSec: shot.durationSec + STOCK_CLIP_MARGIN_SEC },
-    { footageProvider: deps.footageProvider, registry: deps.registry, identify: deps.identify },
+    { footageProvider: deps.footageProvider, registry: deps.registry, identify: deps.identify, verifyEntityLink: deps.verifyEntityLink },
   );
   if (outcome.status === "gap") {
     return { gap: { reason: outcome.reason, queries: outcome.queries, rejected: outcome.rejected.slice(0, 12) } };
   }
   const { candidate } = outcome;
+  // Solo un vínculo confirmado por el verificador del servidor convierte el recurso en documento de archivo.
   const provenance: AssetProvenance = {
-    kind: "stock_illustrative",
+    kind: outcome.entityLink ? "archival_documentary" : "stock_illustrative",
     provider: deps.footageProvider.name,
-    license: PEXELS_LICENSE,
+    license: outcome.entityLink ? undefined : PEXELS_LICENSE,
     author: candidate.photographer,
     pageUrl: candidate.pageUrl,
   };
@@ -225,6 +228,7 @@ async function resolveStockAnchored(shot: AllocatedShot, deps: ShotExecutionDeps
     candidateDescription: candidate.description,
     candidatesConsidered: outcome.candidatesConsidered,
     rejected: outcome.rejected.slice(0, 12),
+    ...(outcome.entityLink ? { entityLink: outcome.entityLink } : {}),
   };
   const url = await persistMedia(deps, shot.id, "stock", outcome.buffer, candidate.mimeType, candidate.extension, candidate.mediaType, deps.footageProvider.name, 0, {
     identity: outcome.identity,
@@ -295,6 +299,11 @@ function ledgerFor(deps: ShotExecutionDeps): LedgerStore {
 
 /** Imagen IA con reuso durable + reserva de presupuesto; nunca regenera un STARTED incierto. */
 async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Promise<AiImageOutcome> {
+  // Una recreación IA nunca representa a una persona real exigida (v4): ni se
+  // reserva ni se llama al proveedor; la escena sigue a archivo verificado o carencia.
+  if (shot.anchoredVisual && requiresIdentity(shot.anchoredVisual)) {
+    return { unavailable: "la escena exige una persona real: una imagen IA no puede representarla" };
+  }
   const cached = await reuseCompleted(deps, shot.id, "ai_image");
   if (cached) return cached;
   if (deps.replayOnly) return { unavailable: "recuperación: sin imagen IA durable (no se genera)" };

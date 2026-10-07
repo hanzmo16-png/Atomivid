@@ -61,6 +61,7 @@ import {
   limitsWithinAllocation,
   strategyLimits,
   usesAnchoredVisuals,
+  usesVisualIdentity,
   type ProductionPlan,
 } from "./production-plan";
 import { DocumentAssetRegistry, type AssetIdentity } from "./asset-identity";
@@ -273,7 +274,8 @@ export async function generateLongFormVideoFromScript({
     shotsForPlannedSpan,
     synthesizeWithProgress,
     plan.strategy,
-    (beat) => visualsForBeat(beat as { narration: string; visuals?: unknown }, topic),
+    // Las escenas se re-derivan del guion: solo un plan v4 lee clase e identidad.
+    (beat) => visualsForBeat(beat as { narration: string; visuals?: unknown }, topic, { identity: usesVisualIdentity(plan) }),
   );
 
   // Proveedor de video IA real (solo si el plan confirmado tiene clips). Si

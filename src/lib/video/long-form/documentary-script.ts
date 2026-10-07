@@ -14,6 +14,7 @@ import { z } from "zod";
 import { jsonResponseSystem, parseDocumentaryResponse, DocumentaryResponseError } from "./json-response";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { assertOriginalHook, usesBannedOpener } from "./originality";
+import { VISUAL_BEAT_CLASSES } from "./visual-intents";
 import { BEAT_TYPES, type LongFormClaim, type LongFormMode, type LongFormSource, type NarrativeBeat } from "./types";
 import { countWords, evaluateNarrationDuration, narrationWordBudget, type DurationEvaluation } from "./duration-budget";
 import { StoryPlanSchema, EditorialReviewSchema, EDITORIAL_VERSION, EDITORIAL_WRITER_RULES, EDITORIAL_REVIEWER_SYSTEM,
@@ -67,7 +68,8 @@ export const VisualSchema = z.object({
     .string()
     .describe(
       "EN INGLÉS, máximo ~15 palabras. Una escena concreta y filmable para este beat (sujeto + lugar + acción visible), apta para buscar " +
-        "video de archivo o generar una imagen documental — nunca texto en pantalla, logos ni personas reales identificables. " +
+        "video de archivo o generar una imagen documental — nunca texto en pantalla ni logos. Una persona real concreta solo aparece en una escena " +
+        "beatClass IDENTITY con su identity; nunca la sustituyas por una persona genérica, partes del cuerpo, una profesión o un parecido. " +
         "Si hay acción, nómbrala con verbos concretos (p. ej. walking, building, digging, carrying, working, gathering, " +
         "crowd, procession, construction, moving through); si es estática, descríbela como tal (ruins, map, portrait...).",
     ),
@@ -88,6 +90,25 @@ export const VisualSchema = z.object({
     .max(2)
     .optional()
     .describe("Hasta 2 búsquedas alternativas EN INGLÉS del MISMO contenido (sinónimos del sujeto/acción), nunca de otro tema."),
+  // Visual Excellence V1 (planes v4). Opcionales en el esquema para no romper
+  // guiones anteriores: el normalizador v4 valida y falla cerrado.
+  beatClass: z
+    .enum(VISUAL_BEAT_CLASSES)
+    .optional()
+    .describe(
+      "Qué AFIRMA la escena: IDENTITY (muestra a una persona real concreta), PLACE (lugar o espacio), EVIDENCE (documento, objeto o prueba), " +
+        "PROCESS (actividad sin una persona concreta), TRANSITION (paso de tiempo o lugar), METAPHOR (imagen simbólica). " +
+        "Si la narración dice que una persona concreta hace algo (entra, sube, camina, llega), la escena de esa persona es IDENTITY, nunca un cuerpo " +
+        "anónimo haciendo la acción; el lugar, edificio o documento va en OTRA escena PLACE/EVIDENCE sin identity.",
+    ),
+  identity: z
+    .object({
+      name: z.string().optional().describe("Nombre completo de la persona tal como lo establece la narración."),
+      kind: z.string().optional().describe("Siempre 'person'."),
+      sourceIds: z.array(z.string()).optional().describe("IDs de las fuentes del research pack que sustentan que la narración habla de esta persona."),
+    })
+    .optional()
+    .describe("OBLIGATORIO si beatClass es IDENTITY; ausente en cualquier otra clase. Solo la persona que ESTA escena muestra."),
 });
 
 const BeatSchema = z.object({
@@ -406,6 +427,7 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
               "Una escena por idea, aproximadamente cada 8–10 segundos, mínimo 2 y máximo 12. " +
               (input.referenceContract ? "Elige excerptId del catálogo de este bloque para cada escena. No devuelvas quote ni inventes referencias. " : "quote debe copiar LITERALMENTE entre 5 y 12 palabras de esta narración. ") +
               "motion solo si requiere acción física real; no confundir zoom con animación. " +
+              "Declara beatClass en cada escena; una persona real concreta solo en una escena IDENTITY con identity (sourceIds de las fuentes dadas). " +
               "Hasta dos búsquedas alternativas del mismo contenido. Descripciones de máximo 15 palabras.", input.referenceContract ? ReferencedVisualsSchema : BeatVisualsSchema),
             messages: [{ role: "user" as const, content: JSON.stringify({ topic: input.researchPack.topic,
               narration: beat.narration, purpose: beat.purpose, sources: input.researchPack.sources,

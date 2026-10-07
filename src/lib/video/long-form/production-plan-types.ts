@@ -14,14 +14,23 @@ export type { VisualStrategy };
  * selección de archivo por pertinencia + deduplicación de contenido en todo el documental, y
  * procedencia/informe previo al render. v1/v2 se siguen ejecutando EXACTAMENTE como antes
  * (recuperación cache-only intacta).
+ * v4 (Visual Excellence V1): cada escena declara su clase (IDENTITY, PLACE...) y,
+ * si representa a una persona concreta, su identidad; la selección y la
+ * generación IA la respetan. Las escenas se re-derivan del guion en cada
+ * ejecución, así que v1-v3 NO leen esos campos (usesVisualIdentity).
  */
-export const PRODUCTION_PLAN_VERSION = 3;
+export const PRODUCTION_PLAN_VERSION = 4;
 /** Versiones que el worker sabe ejecutar (v1 con allocation conservadora derivada, ver executionAllocation). */
-export const EXECUTABLE_PLAN_VERSIONS = [1, 2, 3] as const;
+export const EXECUTABLE_PLAN_VERSIONS = [1, 2, 3, 4] as const;
 
 /** Planes que usan escenas ancladas + selección con identidad de contenido (v3+). */
 export function usesAnchoredVisuals(plan: { version: number }): boolean {
   return plan.version >= 3;
+}
+
+/** Planes que leen clase e identidad de cada escena (v4+). La única compuerta de Visual Excellence V1. */
+export function usesVisualIdentity(plan: { version: number }): boolean {
+  return plan.version >= 4;
 }
 
 export const VISUAL_STRATEGY_LABEL: Record<VisualStrategy, string> = {

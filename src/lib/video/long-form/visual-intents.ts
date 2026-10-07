@@ -13,11 +13,20 @@
 import type { TextCardSpec } from "./diagram-map";
 
 /**
+ * Qué AFIRMA la escena (Visual Excellence V1, planes v4). La declara la misma
+ * llamada del planner que escribe la escena; nunca se infiere de nombres.
+ * RECONSTRUCTION no es una clase: es procedencia (ai_recreation).
+ */
+export const VISUAL_BEAT_CLASSES = ["IDENTITY", "PLACE", "EVIDENCE", "PROCESS", "TRANSITION", "METAPHOR"] as const;
+export type VisualBeatClass = (typeof VISUAL_BEAT_CLASSES)[number];
+
+/**
  * Persona concreta que la escena DEBE representar (Visual Excellence V1).
  * Contrato explícito: un humano genérico, una parte del cuerpo, una
  * profesión o un parecido nunca la sustituyen, y un nombre en el texto de
- * un candidato no la verifica. Todavía no lo emite el planner ni lo lee
- * normalizeDeclaredVisuals: sin este campo el comportamiento no cambia.
+ * un candidato no la verifica. `sourceIds` dice qué fuentes sustentan que
+ * el GUION habla de esta persona; nunca verifica que un recurso la muestre.
+ * Solo los planes v4 la leen (normalizeDeclaredVisuals con identity: true).
  */
 export type VisualIdentity = {
   name: string;
@@ -47,9 +56,28 @@ export type BeatVisual = {
   alternates?: string[];
   /** true si NO la declaró el guionista (derivada de palabras de la narración): su pertinencia no se puede comprobar contra el texto del proveedor. */
   derived?: boolean;
-  /** Persona que la escena exige representar; ver VisualIdentity. */
+  /** v4: qué afirma la escena. Ausente en guiones y planes anteriores. */
+  beatClass?: VisualBeatClass;
+  /** Persona que la escena exige representar; ver VisualIdentity. Nunca se copia a otras escenas del beat. */
   identity?: VisualIdentity;
 };
+
+/**
+ * La escena exige una persona concreta: declaró identity, o es IDENTITY
+ * aunque su identity fuera inválida (fail-closed: entonces nada la representa).
+ */
+export function requiresIdentity(visual: BeatVisual): boolean {
+  return visual.identity !== undefined || visual.beatClass === "IDENTITY";
+}
+
+function declaredIdentity(item: Record<string, unknown>): VisualIdentity | undefined {
+  const raw = item.identity;
+  if (!raw || typeof raw !== "object") return undefined;
+  const { name, kind, sourceIds } = raw as Record<string, unknown>;
+  if (typeof name !== "string" || !name.trim() || kind !== "person") return undefined;
+  const ids = Array.isArray(sourceIds) ? sourceIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0).map((id) => id.trim()) : [];
+  return { name: name.replace(/\s+/g, " ").trim().slice(0, MAX_FIELD_CHARS), kind: "person", ...(ids.length > 0 ? { sourceIds: ids } : {}) };
+}
 
 const MAX_VISUALS_PER_BEAT = 16;
 const MAX_FIELD_CHARS = 80;
@@ -66,8 +94,12 @@ function cleanDescription(text: string): string {
   return text.replace(/\s+/g, " ").trim().slice(0, MAX_DESCRIPTION_CHARS);
 }
 
-/** Normaliza `beat.visuals` del guion (datos externos: se validan, nunca se confía en su forma). */
-export function normalizeDeclaredVisuals(value: unknown): BeatVisual[] {
+/**
+ * Normaliza `beat.visuals` del guion (datos externos: se validan, nunca se confía en su forma).
+ * `identity` (solo planes v4) lee beatClass e identity; sin él ambos se ignoran
+ * y el resultado es exactamente el de v3.
+ */
+export function normalizeDeclaredVisuals(value: unknown, opts: { identity?: boolean } = {}): BeatVisual[] {
   if (!Array.isArray(value)) return [];
   const out: BeatVisual[] = [];
   for (const item of value) {
@@ -88,6 +120,14 @@ export function normalizeDeclaredVisuals(value: unknown): BeatVisual[] {
       if (v) visual[key] = v;
     }
     if (alternates && alternates.length > 0) visual.alternates = alternates;
+    if (opts.identity) {
+      const record = item as Record<string, unknown>;
+      const beatClass = (VISUAL_BEAT_CLASSES as readonly unknown[]).includes(record.beatClass) ? (record.beatClass as VisualBeatClass) : undefined;
+      if (beatClass) visual.beatClass = beatClass;
+      // IDENTITY sin identity válida queda IDENTITY sin persona: requiresIdentity la deja sin representación posible.
+      const identity = declaredIdentity(record);
+      if (identity) visual.identity = identity;
+    }
     out.push(visual);
     if (out.length >= MAX_VISUALS_PER_BEAT) break;
   }
@@ -125,8 +165,8 @@ export function deriveVisualsFromNarration(topic: string, narration: string): Be
   return derived.length > 0 ? derived : [{ description: cleanTopic, motion: false, derived: true }];
 }
 
-export function visualsForBeat(beat: { narration: string; visuals?: unknown }, topic: string): BeatVisual[] {
-  const declared = normalizeDeclaredVisuals(beat.visuals);
+export function visualsForBeat(beat: { narration: string; visuals?: unknown }, topic: string, opts: { identity?: boolean } = {}): BeatVisual[] {
+  const declared = normalizeDeclaredVisuals(beat.visuals, opts);
   return declared.length > 0 ? declared : deriveVisualsFromNarration(topic, beat.narration);
 }
 

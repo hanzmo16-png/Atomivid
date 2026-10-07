@@ -38,6 +38,7 @@ import type { BeatType, Shot, ShotType } from "./types";
 import {
   PRODUCTION_PLAN_VERSION,
   isExecutablePlanVersion as isExecutablePlanVersionValue,
+  usesVisualIdentity,
   isProductionPlan as isProductionPlanValue,
   type ProductionPlan,
   type ProductionPlanAllocation,
@@ -287,7 +288,7 @@ export function planShotsFromScript(
         narration: beat.narration,
         typeOffset: i * 2,
         strategy,
-        visuals: visualsForBeat(beat, topic),
+        visuals: visualsForBeat(beat, topic, { identity: anchored && usesVisualIdentity({ version: PRODUCTION_PLAN_VERSION }) }),
         anchoring: anchored ? {} : undefined,
       }),
     );

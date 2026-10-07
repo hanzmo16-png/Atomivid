@@ -44,6 +44,8 @@ export type AssetSelectionTrace = {
   candidateDescription?: string;
   candidatesConsidered?: number;
   rejected?: { sourceId?: string; query: string; reason: string }[];
+  /** Persona cuyo vínculo con el recurso confirmó el verificador del servidor (nunca el texto del proveedor). */
+  entityLink?: { name: string };
 };
 
 export type ShotAssetRecord = {

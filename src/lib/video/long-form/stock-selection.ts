@@ -21,7 +21,7 @@
  *   nunca material ajeno en silencio.
  */
 import type { FootageCandidate, FootageProvider } from "@/lib/providers/types";
-import type { BeatVisual } from "./visual-intents";
+import { requiresIdentity, type BeatVisual } from "./visual-intents";
 import { canonicalizeUrl, contentIdentity, type AssetIdentity, type DocumentAssetRegistry, type DuplicateMatch } from "./asset-identity";
 
 const EN_STOPWORDS = new Set(
@@ -121,6 +121,11 @@ export function selectionQueries(visual: BeatVisual): string[] {
     const name = visual.identity.name;
     return [...new Set([[name, visual.place, visual.era], [name, visual.place], [name]].map((q) => q.filter(Boolean).join(" ").trim()).filter(Boolean))];
   }
+  if (visual.beatClass === "TRANSITION") {
+    // Una transición (v4) no convierte el verbo narrado en material literal:
+    // se busca su sujeto en su lugar y época, nunca la acción ni la descripción.
+    return [...new Set([[visual.subject, visual.place, visual.era], [visual.subject, visual.place]].map((q) => q.filter(Boolean).join(" ").trim()).filter(Boolean))];
+  }
   const queries = [visual.description, ...(visual.alternates ?? [])];
   if (visual.subject) queries.push([visual.subject, visual.place].filter(Boolean).join(" "));
   return [...new Set(queries.map((q) => q.trim()).filter(Boolean))];
@@ -150,7 +155,8 @@ export function identityEligibility(
   visual: BeatVisual,
   link: TrustedEntityLink | null,
 ): { eligible: true; link?: TrustedEntityLink } | { eligible: false; why: string } {
-  if (!visual.identity) return { eligible: true };
+  if (!requiresIdentity(visual)) return { eligible: true };
+  if (!visual.identity) return { eligible: false, why: "escena IDENTITY sin identidad válida" };
   if (!link) return { eligible: false, why: `sin vínculo de confianza con ${visual.identity.name}` };
   if (!sameIdentity(link.name, visual.identity.name)) return { eligible: false, why: `vinculado a otra entidad (${link.name}), no a ${visual.identity.name}` };
   return { eligible: true, link };
@@ -214,6 +220,10 @@ export async function selectStockForShot(
   input: { shotId: string; visual: BeatVisual; preferVideo: boolean; minDurationSec: number },
   deps: StockSelectionDeps,
 ): Promise<StockSelection | StockGap> {
+  if (requiresIdentity(input.visual) && !input.visual.identity) {
+    // Fail-closed (v4): IDENTITY sin persona declarada no busca material humano ni de ningún otro tipo.
+    return { status: "gap", reason: "escena IDENTITY sin identidad válida: no se busca material", queries: [], candidatesConsidered: 0, rejected: [] };
+  }
   const queries = selectionQueries(input.visual);
   const identify = deps.identify ?? contentIdentity;
   const maxDownloads = deps.maxDownloads ?? 6;
