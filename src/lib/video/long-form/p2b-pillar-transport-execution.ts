@@ -1,3 +1,5 @@
+import { guardPaidCall } from "@/lib/paid-calls/gate";
+import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
 /**
  * P2B — lógica COMPARTIDA de la generación real autorizada (Google Veo 3.1
  * Fast, shot "Pillar Transport") — extraída a un módulo propio para que
@@ -240,7 +242,16 @@ export async function executeP2BPillarTransportVeoOnce(): Promise<P2BExecutionRe
 
   const startedAtMs = Date.now();
   try {
-    const asset = await veoVideoProvider.generateVideo(request);
+    if (!supabase) throw new Error("PAID_LEDGER_REQUIRED");
+    const asset = (await guardPaidCall(supabaseLedgerStore(supabase), {
+      projectId: "p2b-pillar-transport", shotId: shot!.shotId, provider: "veo", model: VEO_MODEL,
+      method: "generate_video", reservedUsd: ABSOLUTE_MAX_COST_USD,
+      inputFingerprint: { prompt: request.prompt, durationSeconds, aspectRatio },
+    }, { maxRejectedRetries: 0, load: async () => null, call: async () => {
+      const generated = await veoVideoProvider.generateVideo(request);
+      return { result: generated, costUsd: generated.costUsd, providerJobId: generated.providerJobId,
+        resultRef: `p2b-video:${generated.providerJobId ?? "unrecorded"}` };
+    } })).result;
     const generationTimeMs = Date.now() - startedAtMs;
 
     const validation = validateVideoAssetBuffer(asset.buffer, asset.mimeType, {

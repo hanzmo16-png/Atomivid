@@ -1,3 +1,4 @@
+import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
@@ -16,7 +17,7 @@ function getClient(): Anthropic {
     if (!apiKey) {
       throw new MissingEnvVarError("ANTHROPIC_API_KEY");
     }
-    cachedClient = new Anthropic({ apiKey });
+    cachedClient = new Anthropic({ apiKey, maxRetries: 0 });
   }
   return cachedClient;
 }
@@ -202,15 +203,16 @@ La suma de las palabras de todos los "text" debe quedar entre ${minWords} y ${ma
 
 Tu intento anterior tuvo ${lastWordCount} palabras narradas en total, fuera del rango pedido (${minWords}-${maxWords}). Reescribe el guion completo — mismo tema, arco narrativo, idioma y estilo —, ${direction} el nivel de detalle de cada escena (sin relleno ni cortes artificiales) hasta que la suma de "text" caiga dentro del rango. Cuenta las palabras con cuidado antes de responder.`;
 
-    const response = await getClient().messages.parse({
+    const params = {
       model: SCRIPT_MODEL,
       max_tokens: 2000,
       system,
-      messages: [{ role: "user", content }],
+      messages: [{ role: "user" as const, content }],
       output_config: {
         format: zodOutputFormat(ScriptSchema),
       },
-    });
+    };
+    const response = await supplyProtectedAnthropic(params, () => getClient().messages.parse(params, { maxRetries: 0 }));
 
     const parsed = response.parsed_output;
     if (!parsed) {
@@ -250,7 +252,7 @@ export async function regenerateScene({
   const next = script.segments[sceneIndex + 1]?.text;
   const targetWords = current.text.split(/\s+/).filter(Boolean).length;
 
-  const response = await getClient().messages.parse({
+  const params = {
     model: SCRIPT_MODEL,
     max_tokens: 500,
     system:
@@ -261,7 +263,7 @@ export async function regenerateScene({
       "otra forma de decirlo) mientras encaja en el mismo lugar del guion.",
     messages: [
       {
-        role: "user",
+        role: "user" as const,
         content: `Guion completo — tema: "${topic}", estilo/tono: "${style}".
 
 ${previous ? `Escena anterior: "${previous}"\n` : ""}Escena actual (a reescribir): "${current.text}"
@@ -278,7 +280,8 @@ Reescribe SOLO la escena actual. Da:
     output_config: {
       format: zodOutputFormat(SceneSchema),
     },
-  });
+  };
+  const response = await supplyProtectedAnthropic(params, () => getClient().messages.parse(params, { maxRetries: 0 }));
 
   if (!response.parsed_output) {
     throw new Error("Claude no devolvió una escena válida");

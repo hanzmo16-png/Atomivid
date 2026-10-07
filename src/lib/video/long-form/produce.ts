@@ -1,3 +1,7 @@
+import { SupplyUnavailableError } from "@/lib/supply/policy";
+import { gatedMusicTrack, type PaidCallDeps } from "@/lib/paid-calls/gated-providers";
+import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
+import { supabaseResultStore } from "@/lib/paid-calls/result-store";
 /**
  * RC Phase 1 — versión "job real" del pipeline de Long Form, para que
  * `runRenderJob()` (src/lib/video/run-job.ts) pueda ejecutarlo exactamente
@@ -90,6 +94,7 @@ type OnProgress = (stage: LongFormStage, units?: LongFormProgressUnits) => void 
 
 /** Dependencias inyectables (pruebas / inyección de fallos). En producción se omiten todas. */
 export type LongFormRuntime = {
+  paidCalls?: Pick<PaidCallDeps, "ledger" | "results">;
   store?: ShotAssetStore;
   budgetStore?: BudgetStore;
   /** `null` fuerza "sin proveedor de video IA"; ausente = el real (envuelto durable) solo si el plan lo permite. */
@@ -184,6 +189,8 @@ export async function generateLongFormVideoFromScript({
   // Reconciliación ANTES de cualquier trabajo: si un intento anterior ya
   // entregó la salida canónica (p. ej. la subida funcionó y falló la
   // actualización de la fila), se reutiliza — 0 render, 0 proveedores.
+  const paidCalls: PaidCallDeps = { ledger: runtime.paidCalls?.ledger ?? supabaseLedgerStore(supabase),
+    results: runtime.paidCalls?.results ?? supabaseResultStore(supabase, STORAGE_BUCKET), requestId };
   const outputDeps = runtime.output ?? supabaseOutputDeps(supabase);
   const existingOutput = await reconcileExistingOutput(requestId, outputDeps);
   if (existingOutput) {
@@ -222,6 +229,7 @@ export async function generateLongFormVideoFromScript({
       : null) ??
     ((voiceProvider, beat, lang) =>
       synthesizeBeatNarrationProductionCached(supabase, voiceProvider, beat, lang, {
+        ledger: paidCalls.ledger,
         videoId: requestId,
         voiceIdentity: getVoiceIdentity(lang === "en" ? "en" : "es"),
       }));
@@ -303,6 +311,7 @@ export async function generateLongFormVideoFromScript({
   const videoProvider: VideoProvider | undefined =
     baseVideoProvider && limits.aiVideoEnabled && allocated.aiVideoClipCount > 0
       ? wrapDurableVideoProvider(baseVideoProvider, {
+          ledger: paidCalls.ledger,
           supabase,
           scopeId: requestId,
           executionMode: "real",
@@ -345,6 +354,7 @@ export async function generateLongFormVideoFromScript({
     const execution = await executeShot(
       shot,
       {
+        ledger: paidCalls.ledger,
         topic,
         footageProvider: resolvedProviders.footageProvider,
         imageProvider: resolvedProviders.imageProvider,
@@ -433,7 +443,7 @@ export async function generateLongFormVideoFromScript({
   let music: MusicResult | null = null;
   let musicFallbackReason: string | null = null;
   try {
-    music = await resolvedProviders.musicProvider.getTrack({
+    music = await gatedMusicTrack({ ...paidCalls, musicProvider: resolvedProviders.musicProvider, estimatedCostUsd: Number(process.env.BEATOVEN_ESTIMATED_COST_USD || "0") }, {
       durationSeconds: finalDurationSeconds,
       style: "documental",
       topic,
@@ -442,6 +452,7 @@ export async function generateLongFormVideoFromScript({
       seed: requestId,
     });
   } catch (err) {
+    if (err instanceof SupplyUnavailableError) throw err;
     musicFallbackReason = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
     console.warn(`[atomivid:long-form:produce] ${requestId} — no se pudo obtener música, el documental se genera sin ella:`, musicFallbackReason);
   }

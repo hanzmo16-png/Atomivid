@@ -1,0 +1,35 @@
+name: ATOMIVID VFX Luma preflight (gratuito)
+
+# Comprobación GRATUITA de la clave Luma (Agents API): GET /files?limit=1, de solo lectura.
+# No sube archivos ni crea generaciones: gasto USD 0.00. Solo ejecución manual.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atomivid-vfx-luma-preflight
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Preflight Luma (GET /files?limit=1, sin generación)
+        run: npx tsx scripts/vfx/luma-preflight.ts
+        env:
+          LUMA_API_KEY: ${{ secrets.LUMA_API_KEY }}

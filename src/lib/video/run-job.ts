@@ -1,3 +1,8 @@
+import { getVoiceProvider } from "@/lib/providers/voice";
+import { editorialApprovalError } from "./long-form/editorial";
+import { jobSupplyDemands, reserveJobSupply, releaseUnusedJobSupply } from "@/lib/supply/job";
+import { withSupplyContext } from "@/lib/supply/anthropic";
+import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { createServiceClient } from "@/lib/supabase/service";
 import { generateVideoFromScript } from "./generate-video";
 import { generateAvatarVideo } from "./avatar/pipeline";
@@ -56,6 +61,9 @@ type JobRow = {
  * Lambda) más adelante no requiere reescribir esta lógica.
  */
 export async function runRenderJob(requestId: string, expectedAttempt?: number): Promise<void> {
+  return withSupplyContext(requestId, () => runRenderJobWithSupply(requestId, expectedAttempt));
+}
+async function runRenderJobWithSupply(requestId: string, expectedAttempt?: number): Promise<void> {
   const service = createServiceClient();
 
   const { data: row, error: readError } = await service
@@ -127,6 +135,10 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
     if (mode === "long_form" && !isLongFormScriptJson(row.script_json)) {
       throw new Error("El guion guardado no tiene la forma esperada para Long Form (topic + beats[] con narración).");
     }
+    if (mode === "long_form" && isLongFormScriptJson(row.script_json)) {
+      const editorialError = editorialApprovalError(row.script_json);
+      if (editorialError) throw new Error(editorialError);
+    }
     // Defensa en profundidad (además de la puerta de render/route.ts): sin
     // confirmación humana, con un plan inválido/de versión desconocida, o
     // con un guion distinto al confirmado, no se ejecuta NADA pagado.
@@ -138,6 +150,7 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
             beats: (row.script_json as unknown as { beats: LongFormScriptBeatInput[] }).beats,
           })
         : null;
+    await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name));
     const { videoPath } =
       mode === "avatar"
         ? await generateAvatarVideo({
@@ -178,10 +191,21 @@ export async function runRenderJob(requestId: string, expectedAttempt?: number):
             });
 
     const completed = await update({
+      supply_wait_started_at: null, supply_not_before: null,
       status: "completed", video_path: videoPath, progress_stage: null, long_form_stage: null, long_form_progress: null, error_message: null,
     }).select("id").maybeSingle();
     if (completed.error || !completed.data) throw new Error("No se pudo confirmar el resultado de este intento. No vuelvas a generar sin revisar su estado.");
+    await releaseUnusedJobSupply(service, requestId, row.render_attempts).catch(() => console.error("[atomivid:supply] unused reservation release unconfirmed"));
   } catch (error) {
+    if (error instanceof SupplyUnavailableError) {
+      const waiting = await update({ progress_stage: "queued", supply_wait_started_at: new Date().toISOString(),
+        supply_not_before: new Date(Date.now() + 300_000).toISOString(),
+        error_message: "Estamos esperando disponibilidad de producción. Tu solicitud y sus avances están guardados." });
+      if (waiting.error) throw new Error("SUPPLY_WAIT_SAVE_FAILED");
+      return;
+    }
+    // Release only unused resources; uncertain paid calls remain charged against the caps.
+    await releaseUnusedJobSupply(service, requestId, row.render_attempts).catch(() => undefined);
     // QA real (2026-09-25): un fallo real de avatar (aquí, pipeline.ts
     // rechazando por AVATAR_MODE_ENABLED=false, un desajuste de proveedor,
     // etc.) llegaba a error_message sin ningún código de diagnóstico —

@@ -1,3 +1,5 @@
+import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
+import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { heygenAudio } from "./heygen-audio";
 import { validatePhotoBuffer } from "./photo-validation";
 import fs from "node:fs/promises";
@@ -6,6 +8,22 @@ import { measureNarrationSeconds } from "./measure-narration";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { AvatarProviderError } from "@/lib/providers/types";
+import { getVoiceIdentity } from "@/lib/ai/voice";
+import { getPricingConfig } from "@/lib/billing/pricing";
+import { guardPaidCall, type PaidCallClassification } from "@/lib/paid-calls/gate";
+import { PaidResultUnavailableError } from "@/lib/paid-calls/errors";
+import { gatedVoiceSynthesize, type PaidCallDeps } from "@/lib/paid-calls/gated-providers";
+import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
+import { supabaseResultStore } from "@/lib/paid-calls/result-store";
+
+/** Rechazos del proveedor de avatar anteriores a aceptar un trabajo (nada cobrado); el resto es incierto. */
+function classifyAvatarError(err: unknown): PaidCallClassification {
+  if (err instanceof AvatarProviderError) {
+    if (err.reason === "not_configured" || err.reason === "consent_missing" || err.reason === "budget_exceeded" || err.reason === "moderation_rejected" || err.reason === "circuit_open") return { kind: "rejected_final" };
+    if (err.reason === "upstream_error") return { kind: "uncertain" };
+  }
+  return { kind: "uncertain" };
+}
 import { getAvatarProvider } from "@/lib/providers/avatar";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
@@ -102,10 +120,13 @@ export async function generateAvatarVideo({
   recordedAudioPath,
   narrationSource,
   onProgress,
+  paidCalls,
 }: {
   supabase: SupabaseClient;
   requestId: string;
   userId: string;
+  /** Puerta de llamadas pagadas (PI V2 B1, RB-01). Por defecto, la real sobre `supabase`; inyectable en pruebas. */
+  paidCalls?: Pick<PaidCallDeps, "ledger" | "results">;
   script: GeneratedScript;
   avatarId: string;
   voiceId?: string;
@@ -151,6 +172,11 @@ export async function generateAvatarVideo({
   }
 
   const provider = getAvatarProvider();
+  const gate: PaidCallDeps = {
+    ledger: paidCalls?.ledger ?? (provider.name === "fixture" ? memoryLedgerStore() : supabaseLedgerStore(supabase)),
+    results: paidCalls?.results ?? supabaseResultStore(supabase, STORAGE_BUCKET),
+    requestId,
+  };
   if (!provider.isAvailable() || provider.name !== flags.avatarProvider || provider.name !== avatar.provider) {
     throw new AvatarPipelineError(`El proveedor de avatar "${provider.name}" no está disponible (¿falta la clave?).`, "provider_unavailable");
   }
@@ -224,6 +250,7 @@ export async function generateAvatarVideo({
         const seconds = await measureNarrationSeconds(audioBuffer);
         if (seconds > flags.maxAvatarDurationSeconds) throw new AvatarPipelineError("La grabación excede la duración máxima. No se consumieron créditos.", "duration_exceeded");
       } catch (err) {
+        if (err instanceof SupplyUnavailableError) throw err;
         if (err instanceof AvatarPipelineError) throw err;
         throw new AvatarPipelineError("No se pudo validar la grabación privada. No se generó otra voz ni se solicitó el avatar.", "narration_failed");
       }
@@ -260,7 +287,21 @@ export async function generateAvatarVideo({
     }
 
     if (heygenPhoto) {
-      const created = await provider.createAvatar(heygenPhoto);
+      const created = (
+        await guardPaidCall<{ providerAvatarId: string }>(
+          gate.ledger,
+          { projectId: requestId, shotId: "avatar:create", provider: provider.name, model: provider.name, method: "create_avatar", inputFingerprint: { avatarId, bytes: heygenPhoto.photoBuffer.byteLength, mimeType: heygenPhoto.mimeType }, reservedUsd: 0 },
+          {
+            call: async () => {
+              const r = await provider.createAvatar(heygenPhoto);
+              return { result: { providerAvatarId: r.providerAvatarId }, costUsd: 0, resultRef: `provider-avatar:${r.providerAvatarId}`, providerJobId: r.providerJobId };
+            },
+            load: async (ref) => (ref.startsWith("provider-avatar:") ? { providerAvatarId: ref.slice("provider-avatar:".length) } : null),
+            classify: classifyAvatarError,
+            maxRejectedRetries: 0,
+          },
+        )
+      ).result;
       providerAvatarId = created.providerAvatarId;
       const { error } = await supabase.from("avatars").update({ provider_avatar_id: providerAvatarId, status: "ready" }).eq("id", avatarId).eq("user_id", userId);
       if (error) throw new AvatarPipelineError("No se pudo guardar el recurso de fotografía.", "provider_error");
@@ -273,7 +314,18 @@ export async function generateAvatarVideo({
     let audioUrl: string | undefined;
     let audioDurationSeconds: number;
     try {
-      let voiceResult = recording ?? await voiceProvider!.synthesize(fullText, language);
+      let voiceResult =
+        recording ??
+        (await gatedVoiceSynthesize(
+          {
+            ...gate,
+            voiceProvider: voiceProvider!,
+            voiceIdentity: getVoiceIdentity(language === "en" ? "en" : "es"),
+            estimatedCostUsd: (fullText.length / 1000) * getPricingConfig().elevenLabsUsdPer1kChars,
+          },
+          fullText,
+          language,
+        ));
       if (provider.name === "heygen") voiceResult = await heygenAudio(voiceResult.audioBuffer);
       audioDurationSeconds = await measureNarrationSeconds(voiceResult.audioBuffer);
       if (audioDurationSeconds > flags.maxAvatarDurationSeconds) {
@@ -295,6 +347,7 @@ export async function generateAvatarVideo({
       audioUrl = signedNarration.signedUrl;
       storageBytes += voiceResult.audioBuffer.byteLength;
     } catch (err) {
+      if (err instanceof SupplyUnavailableError) throw err;
       if (err instanceof AvatarPipelineError) throw err;
       // No propagar errores que puedan contener URLs firmadas o credenciales.
       throw new AvatarPipelineError(
@@ -305,7 +358,11 @@ export async function generateAvatarVideo({
 
     await onProgress?.("render");
     try {
-      asset = await provider.generateVideo({
+      // Puerta de llamadas pagadas: fila SUBMITTED antes del envío; un fallo tras `onJobCreated`
+      // deja PROVIDER_JOB_RECORDED (el id ya está en video_requests para reanudar); un corte sin id,
+      // RECONCILIATION_REQUIRED. Ninguno vuelve a pedir otro video.
+      let acceptedJobId: string | undefined;
+      const avatarVideoRequest = (): Parameters<typeof provider.generateVideo>[0] => ({
         providerAvatarId: providerAvatarId!,
         script: fullText,
         audioUrl,
@@ -314,6 +371,7 @@ export async function generateAvatarVideo({
         language,
         maxCostUsd: flags.maxAvatarCostUsd,
         onJobCreated: async (providerJobId) => {
+          acceptedJobId = providerJobId;
           const { data, error } = await supabase
             .from("video_requests")
             .update({ avatar_provider_video_job_id: providerJobId, avatar_render_status: "processing" })
@@ -328,8 +386,27 @@ export async function generateAvatarVideo({
             );
           }
         },
-      });
+        });
+      asset = (
+        await guardPaidCall<Awaited<ReturnType<typeof provider.generateVideo>>>(
+          gate.ledger,
+          { projectId: requestId, shotId: "avatar:video", provider: provider.name, model: provider.name, method: "generate_video", inputFingerprint: { script: fullText, providerAvatarId, language, voiceId: recordedAudioPath ? null : (voiceId ?? null) }, reservedUsd: Math.max(0, flags.maxAvatarCostUsd) },
+          {
+            call: async () => {
+              const r = await provider.generateVideo(avatarVideoRequest());
+              return { result: r, costUsd: r.costUsd, resultRef: `avatar-job:${r.providerJobId}`, providerJobId: r.providerJobId };
+            },
+            load: async () => null,
+            classify: (err) => (acceptedJobId ? { kind: "accepted", providerJobId: acceptedJobId } : classifyAvatarError(err)),
+            maxRejectedRetries: 0,
+          },
+        )
+      ).result;
     } catch (err) {
+      if (err instanceof SupplyUnavailableError) throw err;
+      if (err instanceof PaidResultUnavailableError) {
+        throw new AvatarPipelineError("Este video de avatar ya se pagó en un intento anterior y su resultado no está disponible. No se solicita otro.", "attempt_blocked");
+      }
       if (err instanceof AvatarProviderError) {
         if (provider.name === "heygen" && err.cause) {
           // Exact response stays in the private owner bucket, never public logs.
@@ -364,6 +441,7 @@ export async function generateAvatarVideo({
     outputPath = masteredPath;
     console.log("[atomivid:avatar-audio] masterización de loudness", JSON.stringify({ requestId, target: LOUDNESS_TARGET, ...mastering }));
   } catch (err) {
+    if (err instanceof SupplyUnavailableError) throw err;
     console.warn(
       `[atomivid:avatar-audio] ${requestId} — no se pudo masterizar el loudness (¿falta ffmpeg?), se sube el video sin normalizar:`,
       err instanceof Error ? err.message : err,

@@ -1,0 +1,85 @@
+name: ATOMIVID precampaign teaser V1 (descubrimiento sin gasto)
+
+# Producción controlada de marketing — SOLO ejecución manual. Esta versión solo hace el
+# descubrimiento de solo lectura (scripts/precampaign-teaser/discover.ts): comprueba los dos
+# clips reales de Hans subidos al bucket privado "videos", el avatar y la voz indicados por id
+# y los assets a reutilizar. No recibe ninguna clave de proveedor pagado: gasto USD 0.00.
+# La etapa de producción se añadirá solo tras autorizar el PRECAMPAIGN_SPEND_PLAN.
+on:
+  workflow_dispatch:
+    inputs:
+      opening_path:
+        description: "Ruta en el bucket 'videos' del clip HANS_OPENING_REAL (1080x1920, 30 fps)"
+        required: false
+        type: string
+      closing_path:
+        description: "Ruta en el bucket 'videos' del clip HANS_CLOSING_REAL (1080x1920, 30 fps)"
+        required: false
+        type: string
+      avatar_id:
+        description: "avatars.id autorizado de Hans (opcional)"
+        required: false
+        type: string
+      voice_id:
+        description: "user_voices.id de la voz clonada autorizada de Hans (opcional)"
+        required: false
+        type: string
+      reuse_paths:
+        description: "Rutas en 'videos' de assets ya renderizados a reutilizar, separadas por comas (opcional)"
+        required: false
+        type: string
+      reuse_prefixes:
+        description: "Prefijos en 'videos' a listar (renders ya entregados), separados por comas (opcional)"
+        required: false
+        type: string
+      list_identities:
+        description: "Listar avatares y voces listos (id, nombre, proveedor; sin usuarios) para elegir los de Hans"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atomivid-precampaign-teaser-v1
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Descubrimiento sin gasto (solo Supabase, solo lectura)
+        run: npx tsx scripts/precampaign-teaser/discover.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TEASER_OPENING_PATH: ${{ inputs.opening_path }}
+          TEASER_CLOSING_PATH: ${{ inputs.closing_path }}
+          TEASER_AVATAR_ID: ${{ inputs.avatar_id }}
+          TEASER_VOICE_ID: ${{ inputs.voice_id }}
+          TEASER_REUSE_PATHS: ${{ inputs.reuse_paths }}
+          TEASER_REUSE_PREFIXES: ${{ inputs.reuse_prefixes }}
+          TEASER_LIST_IDENTITIES: ${{ inputs.list_identities }}
+
+      - name: Publicar informe de descubrimiento
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: precampaign-teaser-v1-discovery
+          path: teaser-discovery.json
+          if-no-files-found: ignore
+          retention-days: 14

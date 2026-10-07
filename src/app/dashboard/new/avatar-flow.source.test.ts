@@ -43,7 +43,8 @@ test("createVideoRequest ya NO usa un límite combinado foto+audio (MAX_AVATAR_F
 test("createVideoRequest acepta narrationSource=tts_text (Voz IA desde texto) y reutiliza getVoiceProvider (ElevenLabs)", () => {
   const source = fs.readFileSync(ACTIONS_PATH, "utf-8");
   assert.match(source, /"tts_text"/);
-  assert.match(source, /getVoiceProvider\(\)\.synthesize\(/, "debe reutilizar el provider de voz existente, no uno paralelo");
+  assert.match(source, /gatedVoiceSynthesize\(/, "la voz debe pasar por la reserva y la puerta de llamadas pagadas");
+  assert.match(source, /voiceProvider: getVoiceProvider\(\)/, "debe reutilizar el provider existente, no uno paralelo");
   assert.match(source, /recordAvatarNarrationTts\(/, "debe registrar el costo real de la síntesis TTS");
 });
 

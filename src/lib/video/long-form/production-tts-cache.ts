@@ -16,6 +16,12 @@
  * nuevo y paralelo, no una modificación de aquel.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { guardPaidCall, type LedgerStore } from "@/lib/paid-calls/gate";
+import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
+import { canonicalWords, lintPronunciationAliases, restoreDisplayWords, spokenText, TtsVoiceMissingError, type PronunciationAlias } from "@/lib/paid-calls/pronunciation";
+import { buildTtsRequest } from "@/lib/ai/voice";
+import { getPricingConfig } from "@/lib/billing/pricing";
+import { randomUUID } from "node:crypto";
 import type { ScriptLanguage, VoiceProvider, WordTiming } from "@/lib/providers/types";
 import type { NarrativeBeat } from "./types";
 import { synthesizeBeatNarration, type BeatNarrationResult } from "./timeline";
@@ -55,7 +61,7 @@ export async function readProductionTtsCacheRecord(
   videoId: string,
   key: string,
 ): Promise<ProductionTtsCacheRecord | undefined> {
-  const { data, error } = await supabase.storage.from(bucket).download(recordPath(videoId, key));
+  const { data, error } = await supabase.storage.from(bucket).download(recordPath(videoId, key), { cacheNonce: randomUUID() }, { cache: "no-store" });
   if (error || !data) return undefined;
   const text = await data.text();
   if (!text) return undefined;
@@ -70,7 +76,7 @@ export async function writeProductionTtsCacheRecord(
 ): Promise<void> {
   const body = Buffer.from(JSON.stringify(record, null, 2));
   const path = recordPath(videoId, record.key);
-  const { error } = await supabase.storage.from(bucket).upload(path, body, { contentType: "application/json", upsert: true });
+  const { error } = await supabase.storage.from(bucket).upload(path, body, { contentType: "application/json", cacheControl: "0", upsert: true });
   if (error) {
     throw new Error(`No se pudo guardar el registro TTS de producción en Storage ("${path}"): ${error.message}`);
   }
@@ -129,18 +135,30 @@ export async function synthesizeBeatNarrationProductionCached(
     bucket?: string;
     voiceIdentity: { voiceId: string; modelId: string; voiceSettingsJson: string };
     costGuard?: ProductionTtsCostGuard;
+    /** Puerta de llamadas pagadas (PI V2 B1, RB-01): `pi_paid_operations`. Por defecto la real sobre `supabase`. */
+    ledger?: LedgerStore;
+    /** Alias solo-habla (PI V2 B4.1, RB-07). Ningún llamador los pasa hoy; si llegan, se validan antes de todo. */
+    aliases?: readonly PronunciationAlias[];
   },
 ): Promise<ProductionSynthesizeBeatCachedResult> {
+  // PI V2 B4.1 (RB-07): voz, alias y petición se validan ANTES del registro STARTED y del gate de
+  // B1 — un alias roto o sin voice_id no deja fila en el ledger ni estado incierto en el caché.
+  const aliases = ctx.aliases ?? [];
+  const spoken = prepareLongFormSpeech(beat.narration, ctx.voiceIdentity, aliases);
+  const spokenBeat = { ...beat, narration: spoken };
+  const toCanonical = (words: WordTiming[]) => canonicalWords(beat.narration, restoreDisplayWords(words, aliases), beat.id);
+
   if (voiceProvider.name === "fixture") {
-    const result = await synthesizeBeatNarration(voiceProvider, beat, language);
-    return { ...result, reused: false, costUsd: 0 };
+    const result = await synthesizeBeatNarration(voiceProvider, spokenBeat, language);
+    return { ...result, words: toCanonical(result.words), reused: false, costUsd: 0 };
   }
 
   const bucket = ctx.bucket ?? VISUAL_TEST_V2_STORAGE_BUCKET;
   const identity: TtsCacheIdentity = {
     videoId: ctx.videoId,
     beatId: beat.id,
-    text: beat.narration,
+    // Lo que la voz pronuncia (igual a la narración cuando no hay alias: clave sin cambios).
+    text: spoken,
     voiceId: ctx.voiceIdentity.voiceId,
     modelId: ctx.voiceIdentity.modelId,
     voiceSettingsJson: ctx.voiceIdentity.voiceSettingsJson,
@@ -159,7 +177,7 @@ export async function synthesizeBeatNarrationProductionCached(
         mimeType: existing.mimeType!,
         extension: existing.extension!,
         durationSeconds: existing.durationSeconds!,
-        words: existing.words!,
+        words: toCanonical(existing.words!),
         reused: true,
         costUsd: 0,
       };
@@ -172,7 +190,11 @@ export async function synthesizeBeatNarrationProductionCached(
   }
 
   const now = new Date().toISOString();
-  const estimatedCostUsd = ctx.costGuard?.estimateCostUsd(beat.narration) ?? 0;
+  const estimatedCostUsd = ctx.costGuard?.estimateCostUsd(spokenBeat.narration) ??
+    spokenBeat.narration.length / 1000 * getPricingConfig().elevenLabsUsdPer1kChars;
+  if (!Number.isFinite(estimatedCostUsd) || estimatedCostUsd <= 0) {
+    throw new Error("Paid narration requires a positive verified cost estimate.");
+  }
   if (ctx.costGuard) await ctx.costGuard.assertCanSpend(estimatedCostUsd);
 
   await writeProductionTtsCacheRecord(supabase, bucket, ctx.videoId, {
@@ -183,35 +205,84 @@ export async function synthesizeBeatNarrationProductionCached(
     updatedAtIso: now,
   });
 
-  const result = await synthesizeBeatNarration(voiceProvider, beat, language);
+  // Puerta de llamadas pagadas: la fila de pi_paid_operations se escribe ANTES del HTTP.
+  // Un STARTED perdido (p. ej. lectura de Storage fallida tratada como "ausente") ya no
+  // puede volver a facturar: la fila SUBMITTED/COMMITTED del ledger lo impide.
+  const ledger = ctx.ledger ?? supabaseLedgerStore(supabase);
+  const guarded = await guardPaidCall<BeatNarrationResult>(
+    ledger,
+    {
+      projectId: ctx.videoId,
+      shotId: `tts:${beat.id}:${key}`,
+      provider: voiceProvider.name,
+      model: ctx.voiceIdentity.modelId,
+      method: "tts_with_timestamps",
+      capacityUnits: spokenBeat.narration.length,
+      inputFingerprint: identity,
+      reservedUsd: Math.max(0, estimatedCostUsd),
+    },
+    {
+      call: async () => {
+        const result = await synthesizeBeatNarration(voiceProvider, spokenBeat, language);
 
-  const path = audioPathFor(ctx.videoId, key, result.extension);
-  const { error: uploadError } = await supabase.storage
-    .from(bucket)
-    .upload(path, result.audioBuffer, { contentType: result.mimeType, upsert: true });
-  if (uploadError) {
-    throw new Error(`No se pudo subir el audio TTS de producción a Storage ("${path}"): ${uploadError.message}`);
-  }
-  const checksum = computeChecksumSha256(result.audioBuffer);
+        const path = audioPathFor(ctx.videoId, key, result.extension);
+        const { error: uploadError } = await supabase.storage
+          .from(bucket)
+          .upload(path, result.audioBuffer, { contentType: result.mimeType, upsert: true });
+        if (uploadError) {
+          throw new Error(`No se pudo subir el audio TTS de producción a Storage ("${path}"): ${uploadError.message}`);
+        }
+        const checksum = computeChecksumSha256(result.audioBuffer);
 
-  await writeProductionTtsCacheRecord(supabase, bucket, ctx.videoId, {
-    key,
-    identity,
-    status: "COMPLETED",
-    audioPath: path,
-    audioChecksumSha256: checksum,
-    mimeType: result.mimeType,
-    extension: result.extension,
-    durationSeconds: result.durationSeconds,
-    words: toRecordWordTimings(result.words),
-    costUsd: estimatedCostUsd,
-    createdAtIso: now,
-    updatedAtIso: new Date().toISOString(),
-  });
+        await writeProductionTtsCacheRecord(supabase, bucket, ctx.videoId, {
+          key,
+          identity,
+          status: "COMPLETED",
+          audioPath: path,
+          audioChecksumSha256: checksum,
+          mimeType: result.mimeType,
+          extension: result.extension,
+          durationSeconds: result.durationSeconds,
+          words: toRecordWordTimings(result.words),
+          costUsd: estimatedCostUsd,
+          createdAtIso: now,
+          updatedAtIso: new Date().toISOString(),
+        });
+        return { result, costUsd: estimatedCostUsd, resultRef: `production-tts:${ctx.videoId}:${key}` };
+      },
+      // COMMITTED en el ledger: el registro COMPLETED ya se consultó arriba y no valía. No se
+      // vuelve a sintetizar; el beat queda sin audio reutilizable hasta conciliar.
+      load: async () => null,
+    },
+  );
+  const result = guarded.result;
 
   if (ctx.costGuard) await ctx.costGuard.recordSpend(estimatedCostUsd, `TTS beat ${beat.id} (producción real)`);
 
-  return { ...result, reused: false, costUsd: estimatedCostUsd };
+  return { ...result, words: toCanonical(result.words), reused: false, costUsd: estimatedCostUsd };
+}
+
+/**
+ * Pre-gate checks for a Long Form beat (PI V2 B4.1, RB-07): voice_id present, aliases linted, and
+ * the same `buildTtsRequest` the provider uses builds the request for the spoken text (no fetch).
+ * Returns the text the voice will pronounce. Throws before any ledger row or cache record.
+ */
+export function prepareLongFormSpeech(
+  narration: string,
+  voiceIdentity: { voiceId: string; modelId: string; voiceSettingsJson: string },
+  aliases: readonly PronunciationAlias[] = [],
+): string {
+  if (!voiceIdentity.voiceId?.trim()) throw new TtsVoiceMissingError();
+  lintPronunciationAliases(aliases);
+  const spoken = spokenText(narration, aliases);
+  buildTtsRequest({
+    text: spoken,
+    voiceId: voiceIdentity.voiceId,
+    modelId: voiceIdentity.modelId,
+    voiceSettings: JSON.parse(voiceIdentity.voiceSettingsJson) as Record<string, number | boolean>,
+    apiKey: "preflight-no-request",
+  });
+  return spoken;
 }
 
 /** Recuperación sin proveedores: el beat no tiene audio COMPLETED válido en el caché. */
@@ -258,7 +329,7 @@ export async function loadProductionCachedBeatNarration(
     mimeType: existing.mimeType!,
     extension: existing.extension!,
     durationSeconds: existing.durationSeconds!,
-    words: existing.words!,
+    words: canonicalWords(beat.narration, existing.words!, beat.id),
     reused: true,
     costUsd: 0,
   };

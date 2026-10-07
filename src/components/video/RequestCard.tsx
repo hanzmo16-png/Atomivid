@@ -102,14 +102,19 @@ export function RequestCard({
           )}
         </div>
 
+        {request.status === "processing" && request.supply_wait_started_at && (
+          <p className="mt-2 max-w-md text-sm text-warning">Estamos esperando disponibilidad de producción. Tu solicitud y sus avances están guardados.</p>
+        )}
         <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
           <Badge tone={STATUS_TONE[request.status] ?? "neutral"}>
-            {STATUS_LABEL[request.status] ?? request.status}
+            {request.status === "processing" && request.supply_wait_started_at ? "En espera" : STATUS_LABEL[request.status] ?? request.status}
           </Badge>
 
           {request.status === "pending" && <GenerateButton {...pendingRequestCta(request.id)} />}
           {request.status === "script_ready" &&
-            (isLongForm ? (
+            (isLongForm ? (request.long_form_confirmed_at ? (
+              <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Iniciar producción" />
+            ) : (
               // RC mission "LONG FORM RC FINAL HARDENING": ya no dispara el
               // render directo — primero pasa por "Configurar producción"
               // (estrategia visual + costo estimado + confirmación
@@ -122,7 +127,7 @@ export function RequestCard({
               >
                 Configurar producción
               </Link>
-            ) : (
+            )) : (
               <Link
                 href={`/dashboard/review/${request.id}`}
                 className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover"

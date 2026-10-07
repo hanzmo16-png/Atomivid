@@ -1,4 +1,10 @@
 "use server";
+import { gatedVoiceSynthesize } from "@/lib/paid-calls/gated-providers";
+import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
+import { supabaseResultStore } from "@/lib/paid-calls/result-store";
+import { getVoiceIdentity } from "@/lib/ai/voice";
+import { getPricingConfig } from "@/lib/billing/pricing";
+import { SupplyUnavailableError } from "@/lib/supply/policy";
 
 import { recordingFormat, recordingPath, RECORDING_BUCKET, MAX_AVATAR_PHOTO_BYTES, MAX_RECORDING_BYTES } from "@/lib/video/avatar/recording";
 import { measureNarrationSeconds } from "@/lib/video/avatar/measure-narration";
@@ -164,7 +170,12 @@ export async function createVideoRequest(formData: FormData) {
     try {
       // Reutiliza el mismo provider ElevenLabs que ya usa Reel para
       // narración — nunca un cliente/pipeline TTS paralelo.
-      const voiceResult = await getVoiceProvider().synthesize(ttsText, language as "es" | "en");
+      const service = createServiceClient();
+      const voiceResult = await gatedVoiceSynthesize({ requestId, ledger: supabaseLedgerStore(service),
+        results: supabaseResultStore(service), voiceProvider: getVoiceProvider(),
+        voiceIdentity: getVoiceIdentity(language as "es" | "en"),
+        estimatedCostUsd: ttsText.length / 1000 * getPricingConfig().elevenLabsUsdPer1kChars,
+      }, ttsText, language as "es" | "en");
       recording = { audioBuffer: voiceResult.audioBuffer, extension: voiceResult.extension, mimeType: voiceResult.mimeType };
       narrationSourceForDb = "tts";
       // Costo real registrado AHORA (momento de la síntesis) — pipeline.ts
@@ -180,7 +191,8 @@ export async function createVideoRequest(formData: FormData) {
       } catch {
         // Igual que en "recording": no bloquea, solo se pierde el número informativo preciso.
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof SupplyUnavailableError) redirect(`/dashboard/new?error=${encodeURIComponent(error.customerMessage)}`);
       redirect("/dashboard/new?error=No+se+pudo+generar+la+voz+a+partir+del+texto.+Intenta+de+nuevo.");
     }
   }

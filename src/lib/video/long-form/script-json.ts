@@ -3,7 +3,8 @@
  * liviano (sin Remotion ni proveedores) para que rutas API y páginas
  * puedan validarlo sin arrastrar el pipeline de render a su bundle.
  */
-import type { NarrativeBeat } from "./types";
+import type { NarrativeBeat, LongFormSource } from "./types";
+import type { EditorialReport } from "./editorial";
 
 /** Forma persistida en video_requests.script_json para mode="long_form" — un guion ya aprobado (beats con narración), sin shots todavía: buildLongFormTimeline() los calcula contra la duración REAL narrada, igual que el CLI. */
 export type LongFormScriptBeatInput = Pick<
@@ -17,6 +18,8 @@ export type LongFormScriptBeatInput = Pick<
 export type LongFormScriptJson = {
   topic: string;
   beats: LongFormScriptBeatInput[];
+  editorial?: EditorialReport;
+  sources?: LongFormSource[];
 };
 
 export function isLongFormScriptJson(value: unknown): value is LongFormScriptJson {
@@ -31,4 +34,3 @@ export function isLongFormScriptJson(value: unknown): value is LongFormScriptJso
     )
   );
 }
-

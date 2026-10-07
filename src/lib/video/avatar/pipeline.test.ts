@@ -6,6 +6,10 @@ import { fixtureAvatarProvider } from "@/lib/providers/avatar/fixture";
 import { fixtureVoiceProvider } from "@/lib/providers/voice/fixture";
 import { generateAvatarVideo, AvatarPipelineError } from "./pipeline";
 import type { GeneratedScript } from "@/lib/providers/types";
+import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
+import { memoryResultStore } from "@/lib/paid-calls/result-store";
+
+const memoryPaidCalls = () => ({ ledger: memoryLedgerStore(), results: memoryResultStore() });
 
 const KEYS = ["AVATAR_MODE_ENABLED", "AVATAR_PROVIDER", "HEYGEN_API_KEY", "MAX_AVATAR_DURATION_SECONDS", "VOICE_PROVIDER", "ELEVENLABS_API_KEY"];
 
@@ -135,7 +139,7 @@ test("lanza mode_disabled si AVATAR_MODE_ENABLED no está encendido, sin tocar n
   await withEnv({}, async () => {
     const { fake } = makeFakeSupabase(null);
     await assert.rejects(
-      () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1" }),
+      () => generateAvatarVideo({ supabase: fake, paidCalls: memoryPaidCalls(), requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1" }),
       (err: unknown) => err instanceof AvatarPipelineError && err.code === "mode_disabled",
     );
   });
@@ -145,7 +149,7 @@ test("lanza avatar_not_found si el avatar no existe", async () => {
   await withEnv({ AVATAR_MODE_ENABLED: "true" }, async () => {
     const { fake } = makeFakeSupabase(null);
     await assert.rejects(
-      () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1" }),
+      () => generateAvatarVideo({ supabase: fake, paidCalls: memoryPaidCalls(), requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1" }),
       (err: unknown) => err instanceof AvatarPipelineError && err.code === "avatar_not_found",
     );
   });
@@ -162,7 +166,7 @@ test("lanza avatar_not_owned si el avatar pertenece a OTRO usuario — nunca con
       provider: "fixture",
     });
     await assert.rejects(
-      () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1" }),
+      () => generateAvatarVideo({ supabase: fake, paidCalls: memoryPaidCalls(), requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1" }),
       (err: unknown) => err instanceof AvatarPipelineError && err.code === "avatar_not_owned",
     );
   });
@@ -179,7 +183,7 @@ test("lanza consent_missing si el avatar del dueño correcto no tiene consentimi
       provider: "fixture",
     });
     await assert.rejects(
-      () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1" }),
+      () => generateAvatarVideo({ supabase: fake, paidCalls: memoryPaidCalls(), requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1" }),
       (err: unknown) => err instanceof AvatarPipelineError && err.code === "consent_missing",
     );
   });
@@ -196,7 +200,7 @@ test("lanza avatar_not_ready si el avatar está failed/deleted", async () => {
       provider: "fixture",
     });
     await assert.rejects(
-      () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1" }),
+      () => generateAvatarVideo({ supabase: fake, paidCalls: memoryPaidCalls(), requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1" }),
       (err: unknown) => err instanceof AvatarPipelineError && err.code === "avatar_not_ready",
     );
   });
@@ -217,7 +221,7 @@ test("lanza duration_exceeded si la narración estimada supera MAX_AVATAR_DURATI
       segments: [{ text: "una dos tres cuatro cinco seis siete ocho nueve diez once doce", visualQuery: "person" }],
     };
     await assert.rejects(
-      () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: longScript, avatarId: "a1" }),
+      () => generateAvatarVideo({ supabase: fake, paidCalls: memoryPaidCalls(), requestId: "r1", userId: "u1", script: longScript, avatarId: "a1" }),
       (err: unknown) => err instanceof AvatarPipelineError && err.code === "duration_exceeded",
     );
   });
@@ -235,7 +239,7 @@ test("ciclo completo exitoso con el proveedor fixture: registra el job id y sube
     });
 
     const result = await generateAvatarVideo({
-      supabase: fake,
+      supabase: fake, paidCalls: memoryPaidCalls(),
       requestId: "r1",
       userId: "u1",
       script: makeScript(),
@@ -274,7 +278,7 @@ for (const failure of ["synthesis", "upload", "sign"] as const) {
       };
       try {
         await assert.rejects(
-          () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1", voiceId: "fallback-voice" }),
+          () => generateAvatarVideo({ supabase: fake, paidCalls: memoryPaidCalls(), requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1", voiceId: "fallback-voice" }),
           (err: unknown) => err instanceof AvatarPipelineError && err.code === "narration_failed" && !err.message.includes("private-token"),
         );
         assert.equal(generate.mock.callCount(), 0);
@@ -295,7 +299,7 @@ for (const databaseFailure of [false, true]) {
       }, databaseFailure);
       const voice = mock.method(fixtureVoiceProvider, "synthesize", async () => { throw new Error("ambiguous timeout"); });
       const generate = mock.method(fixtureAvatarProvider, "generateVideo");
-      const run = () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1" });
+      const run = () => generateAvatarVideo({ supabase: fake, paidCalls: memoryPaidCalls(), requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1" });
       try {
         const results = await Promise.allSettled([run(), run()]);
         assert.ok(results.every(r => r.status === "rejected"));
@@ -322,7 +326,7 @@ for (const invalid of [false, true]) {
       try {
         const script = makeScript();
         script.segments = [{ ...script.segments[0], text: "Hola" }];
-        await assert.rejects(() => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script, avatarId: "a1" }), (err: unknown) => err instanceof AvatarPipelineError && err.code === (invalid ? "narration_failed" : "duration_exceeded"));
+        await assert.rejects(() => generateAvatarVideo({ supabase: fake, paidCalls: memoryPaidCalls(), requestId: "r1", userId: "u1", script, avatarId: "a1" }), (err: unknown) => err instanceof AvatarPipelineError && err.code === (invalid ? "narration_failed" : "duration_exceeded"));
         assert.equal(generate.mock.callCount(), 0);
         assert.equal(uploads.length, 0);
       } finally { voice.mock.restore(); generate.mock.restore(); }
@@ -340,7 +344,7 @@ for (const storedJob of ["existing", "different", null]) {
       const synthesize = mock.method(fixtureVoiceProvider, "synthesize", async () => { throw new Error("must not synthesize"); });
       const generate = mock.method(fixtureAvatarProvider, "generateVideo", async () => { throw new Error("must not generate"); });
       try {
-        const run = () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1", existingProviderVideoJobId: "existing" });
+        const run = () => generateAvatarVideo({ supabase: fake, paidCalls: memoryPaidCalls(), requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1", existingProviderVideoJobId: "existing" });
         if (storedJob === "existing") {
           assert.equal((await run()).videoPath, "r1/final.mp4");
           assert.ok(uploads.some(u => u.path === "r1/final.mp4"));
@@ -363,7 +367,7 @@ test("provider mismatch blocks before voice or generation", async () => {
       provider_avatar_id: "did-avatar", provider: "did",
     });
     await assert.rejects(
-      () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1" }),
+      () => generateAvatarVideo({ supabase: fake, paidCalls: memoryPaidCalls(), requestId: "r1", userId: "u1", script: makeScript(), avatarId: "a1" }),
       (err: unknown) => err instanceof AvatarPipelineError && err.code === "provider_unavailable",
     );
     assert.equal(uploads.length, 0);
@@ -387,7 +391,7 @@ for (const scenario of ["valid", "missing", "cross-user", "unassociated", "inval
       const originalGenerate = fixtureAvatarProvider.generateVideo.bind(fixtureAvatarProvider);
       const avatar = mock.method(fixtureAvatarProvider, "generateVideo", originalGenerate);
       try {
-        const execute = () => generateAvatarVideo({ supabase: fake, requestId: "r1", userId: "u1", avatarId: "a1", script: makeScript(), recordedAudioPath: selected });
+        const execute = () => generateAvatarVideo({ supabase: fake, paidCalls: memoryPaidCalls(), requestId: "r1", userId: "u1", avatarId: "a1", script: makeScript(), recordedAudioPath: selected });
         if (scenario === "valid") {
           await execute();
           assert.equal(avatar.mock.callCount(), 1);
@@ -439,7 +443,7 @@ test("HeyGen recorded pipeline preserves owner association, uses full audio and 
   };
   try {
     await withEnv({AVATAR_MODE_ENABLED:"true",AVATAR_PROVIDER:"heygen",HEYGEN_API_KEY:"fake"},async()=>{
-      await generateAvatarVideo({supabase:fake,requestId:"r1",userId:"u1",script:{title:"recorded",segments:[]},avatarId:"a1",recordedAudioPath:"u1/r1/recording.wav"});
+      await generateAvatarVideo({supabase:fake, paidCalls: memoryPaidCalls(),requestId:"r1",userId:"u1",script:{title:"recorded",segments:[]},avatarId:"a1",recordedAudioPath:"u1/r1/recording.wav"});
     });
     assert.equal(creations,1);
   } finally {heygenAvatarProvider.createAvatar=originalCreate;heygenAvatarProvider.generateVideo=originalGenerate;}
@@ -479,7 +483,7 @@ test("con narrationSource='tts', el upsert final a generation_costs NO incluye v
   };
   try {
     await withEnv({AVATAR_MODE_ENABLED:"true",AVATAR_PROVIDER:"heygen",HEYGEN_API_KEY:"fake"},async()=>{
-      await generateAvatarVideo({supabase:fake,requestId:"r1",userId:"u1",script:{title:"tts",segments:[]},avatarId:"a1",recordedAudioPath:"u1/r1/recording.wav",narrationSource:"tts"});
+      await generateAvatarVideo({supabase:fake, paidCalls: memoryPaidCalls(),requestId:"r1",userId:"u1",script:{title:"tts",segments:[]},avatarId:"a1",recordedAudioPath:"u1/r1/recording.wav",narrationSource:"tts"});
     });
     assert.equal(generationCostsUpserts.length, 1);
     // El upsert final SIEMPRE incluye la fila completa cargada (loadRow),
@@ -518,7 +522,7 @@ test("con narrationSource='own_audio' (o sin especificar), el upsert SÍ marca v
   };
   try {
     await withEnv({AVATAR_MODE_ENABLED:"true",AVATAR_PROVIDER:"heygen",HEYGEN_API_KEY:"fake"},async()=>{
-      await generateAvatarVideo({supabase:fake,requestId:"r1",userId:"u1",script:{title:"own",segments:[]},avatarId:"a1",recordedAudioPath:"u1/r1/recording.wav",narrationSource:"own_audio"});
+      await generateAvatarVideo({supabase:fake, paidCalls: memoryPaidCalls(),requestId:"r1",userId:"u1",script:{title:"own",segments:[]},avatarId:"a1",recordedAudioPath:"u1/r1/recording.wav",narrationSource:"own_audio"});
     });
     assert.equal(generationCostsUpserts[0].voice_provider, "uploaded");
     assert.equal(generationCostsUpserts[0].voice_characters, 0);

@@ -285,6 +285,8 @@ export class GenerativeProviderError extends Error {
 }
 
 export type ImageGenerationRequest = {
+  /** Paid gate owns retries. */
+  disableRetries?: boolean;
   prompt: string;
   negativePrompt?: string;
   /**

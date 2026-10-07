@@ -7,6 +7,7 @@ import { LinkButton } from "@/components/ui/Button";
 import { Onboarding } from "@/components/onboarding/Onboarding";
 import { NavLink } from "./NavLink";
 import { isLongFormEnabled, isLongFormAllowlisted } from "@/lib/video/long-form/access";
+import { isCommandCenterAdmin } from "@/lib/command-center/access";
 
 export default async function DashboardLayout({
   children,
@@ -26,6 +27,8 @@ export default async function DashboardLayout({
   // (isLongFormEnabled + isLongFormAllowlisted, access.ts) — este acceso
   // directo es solo navegación, nunca hace ninguna llamada por su cuenta.
   const showLongFormDryRun = isLongFormEnabled() && isLongFormAllowlisted(user);
+  // Command Center: owner/admin only (same gate as its page and API); plain navigation.
+  const showCommandCenter = isCommandCenterAdmin(user);
 
   return (
     <div className="min-h-screen">
@@ -56,6 +59,14 @@ export default async function DashboardLayout({
                 Dry Run Long Form
               </NavLink>
             )}
+            {showCommandCenter && (
+              <NavLink
+                href="/dashboard/command-center"
+                className="hidden rounded-md px-3 py-2 text-sm font-medium transition-colors sm:inline-block"
+              >
+                Command Center
+              </NavLink>
+            )}
             <LinkButton href="/dashboard/new" size="sm">
               Nuevo video
             </LinkButton>
@@ -80,6 +91,7 @@ export default async function DashboardLayout({
             {showLongFormDryRun && (
               <NavLink href="/dashboard/long-form/visual-test-v2">Dry Run Long Form</NavLink>
             )}
+            {showCommandCenter && <NavLink href="/dashboard/command-center">Command Center</NavLink>}
           </div>
         </div>
       </header>

@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { confirmLongFormProduction } from "./confirm-production";
 import { documentary180sFixture } from "./test-fixtures";
+import { editorialFixture, passingReview } from "./editorial.test-fixtures";
+import { editorialScriptHash } from "./editorial";
 
 type RowState = Record<string, unknown>;
 
@@ -69,6 +71,25 @@ function baseRow(overrides: RowState = {}): RowState {
     ...overrides,
   };
 }
+
+test("editorial approval is checked before confirmation or reuse of a confirmed plan", async () => {
+  const generated = editorialFixture();
+  const script = { topic: "A legend examined", beats: generated.beats.map((b, i) => ({ id: `beat-${i}`, ...b })),
+    editorial: { version: "editorial-v1", status: "approved", scriptHash: editorialScriptHash(generated.beats),
+      storyPlan: generated.storyPlan, reviews: [passingReview(generated)], corrected: false, model: "fixture" } };
+  const good = fakeService(baseRow({ script_json: script }));
+  assert.equal((await confirmLongFormProduction(good.client, { requestId: "req-1", userId: "user-1", strategy: "balanced" })).ok, true);
+  script.beats[0].narration += " A change after approval.";
+  for (const confirmed of [false, true]) {
+    const bad = fakeService(baseRow({ script_json: script,
+      long_form_confirmed_at: confirmed ? good.row.long_form_confirmed_at : null,
+      long_form_production_plan: confirmed ? good.row.long_form_production_plan : null }));
+    const result = await confirmLongFormProduction(bad.client, { requestId: "req-1", userId: "user-1", strategy: "balanced" });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.error, /cambió/);
+    assert.equal(bad.appliedUpdates(), 0);
+  }
+});
 
 test("confirma: calcula el plan en el servidor con la estrategia elegida y fija confirmed_at", async () => {
   const fake = fakeService(baseRow());

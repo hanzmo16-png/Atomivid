@@ -88,6 +88,12 @@ const HIGH_SIGNAL_WEIGHT = 0.22;
 const LOW_SIGNAL_WEIGHT = 0.18;
 const MOTION_REQUIRED_BOOST = 0.25;
 
+// A declared moving scene with a concrete maritime action is a valid video
+// candidate even when it lacks the construction/human-action vocabulary
+// above. Static depictions (maps, paintings, models) must not qualify.
+const MARITIME_ACTION = /\b(?:rowing|sailing|ramming|colliding|boarding|oars cutting)\b/i;
+const STATIC_DEPICTION = /\b(?:static|painting|illustration|model|miniature|photograph|map|diagram|relief|manuscript)\b/i;
+
 /** Umbral desde el cual se recomienda un clip de video-IA completo. */
 export const AI_VIDEO_SCORE_THRESHOLD = 0.7;
 /** Umbral desde el cual, sin llegar al anterior, se recomienda imagen fija + tratamiento de cámara/motion (más barato). */
@@ -166,7 +172,10 @@ export function scoreAiVideoEligibility(
   const highHits = countSignalHits(text, HIGH_MOTION_SIGNALS);
   const lowHits = countSignalHits(text, LOW_MOTION_SIGNALS);
   const motionBoost = input.motionRequired ? MOTION_REQUIRED_BOOST : 0;
-  const eligibilityScore = clamp01(BASE_SCORE + highHits * HIGH_SIGNAL_WEIGHT - lowHits * LOW_SIGNAL_WEIGHT + motionBoost);
+  const maritimeMotion = input.motionRequired === true && MARITIME_ACTION.test(text) &&
+    lowHits === 0 && !STATIC_DEPICTION.test(text);
+  const heuristicScore = clamp01(BASE_SCORE + highHits * HIGH_SIGNAL_WEIGHT - lowHits * LOW_SIGNAL_WEIGHT + motionBoost);
+  const eligibilityScore = maritimeMotion ? Math.max(AI_VIDEO_SCORE_THRESHOLD, heuristicScore) : heuristicScore;
 
   let recommendedAssetType: VisualAssetTier;
   let reason: string;
@@ -175,7 +184,9 @@ export function scoreAiVideoEligibility(
     reason = `preferencia explícita de preproducción ("${input.preferredAssetType}") — score calculado=${eligibilityScore.toFixed(2)} (${highHits} señales de movimiento, ${lowHits} señales estáticas) queda como referencia, no anula la preferencia`;
   } else if (eligibilityScore >= AI_VIDEO_SCORE_THRESHOLD) {
     recommendedAssetType = "ai_video";
-    reason = `score=${eligibilityScore.toFixed(2)} >= ${AI_VIDEO_SCORE_THRESHOLD} (${highHits} señales de movimiento significativo, ${lowHits} señales estáticas) — candidato a clip de video IA completo`;
+    reason = maritimeMotion
+      ? `acción marítima con movimiento declarado — score=${eligibilityScore.toFixed(2)}; sujeto a los mismos topes de clips y gasto`
+      : `score=${eligibilityScore.toFixed(2)} >= ${AI_VIDEO_SCORE_THRESHOLD} (${highHits} señales de movimiento significativo, ${lowHits} señales estáticas) — candidato a clip de video IA completo`;
   } else if (eligibilityScore >= AI_IMAGE_MOTION_SCORE_THRESHOLD) {
     recommendedAssetType = "ai_image_motion";
     reason = `score=${eligibilityScore.toFixed(2)} entre ${AI_IMAGE_MOTION_SCORE_THRESHOLD} y ${AI_VIDEO_SCORE_THRESHOLD} — imagen fija con tratamiento de cámara/motion, no justifica el costo de un clip completo`;

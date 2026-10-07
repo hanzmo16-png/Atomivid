@@ -12,6 +12,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isLongFormScriptJson } from "./script-json";
+import { editorialApprovalError } from "./editorial";
 import {
   computeProductionPlan,
   isProductionPlan,
@@ -61,6 +62,10 @@ export async function confirmLongFormProduction(
   if (fetchError || !data) return { ok: false, status: 404, error: "Solicitud no encontrada" };
   if (data.user_id !== input.userId) return { ok: false, status: 403, error: "No autorizado" };
   if (data.mode !== "long_form") return { ok: false, status: 409, error: "Esta solicitud no es de Long Form" };
+  if (isLongFormScriptJson(data.script_json)) {
+    const editorialError = editorialApprovalError(data.script_json);
+    if (editorialError) return { ok: false, status: 409, error: editorialError };
+  }
 
   if (data.long_form_confirmed_at && isProductionPlan(data.long_form_production_plan)) {
     return { ok: true, plan: data.long_form_production_plan, confirmedAt: data.long_form_confirmed_at, alreadyConfirmed: true };

@@ -8,6 +8,8 @@
 // ELEVENLABS_API_KEY. Ese mismo criterio aplica a getVoiceProvider() en
 // src/lib/providers/voice/index.ts, que hoy decide real-vs-fixture solo
 // por presencia de la API key, sin validar la voz.
+import { ProviderRejectedError } from "@/lib/paid-calls/errors";
+
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 // Mateo (uYlzyj2kIZo3HfBB21vF) — voz masculina de la Voice Library de
 // ElevenLabs (acento latinoamericano, es-AR), elegida como ganadora tras
@@ -90,6 +92,31 @@ export type WordTiming = {
 const MIN_SPEED = 0.85;
 const MAX_SPEED = 1.15;
 
+/**
+ * The ElevenLabs request, built explicitly (PI V2 B4, RB-07): voice_id in the path, model_id and
+ * voice_settings in the body. No pronunciation dictionary, alias or context field is sent. A
+ * missing voice_id throws before any request exists. Which voice is configured does not change.
+ */
+export function buildTtsRequest(input: {
+  text: string;
+  voiceId: string;
+  modelId: string;
+  voiceSettings: Record<string, number | boolean>;
+  apiKey: string;
+}): { url: string; init: { method: "POST"; headers: Record<string, string>; body: string } } {
+  const voiceId = input.voiceId?.trim();
+  if (!voiceId) throw new Error("Falta voice_id para la síntesis de voz. No se llamó al proveedor de voz.");
+  if (!input.modelId?.trim()) throw new Error("Falta model_id para la síntesis de voz. No se llamó al proveedor de voz.");
+  return {
+    url: `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/with-timestamps`,
+    init: {
+      method: "POST",
+      headers: { "xi-api-key": input.apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ text: input.text, model_id: input.modelId, voice_settings: input.voiceSettings }),
+    },
+  };
+}
+
 export async function synthesizeVoice(
   text: string,
   language: "es" | "en" = "es",
@@ -110,25 +137,15 @@ export async function synthesizeVoice(
       ? VOICE_SETTINGS
       : { ...VOICE_SETTINGS, speed: Math.min(MAX_SPEED, Math.max(MIN_SPEED, speed)) };
 
-  const res = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps`,
-    {
-      method: "POST",
-      headers: {
-        "xi-api-key": ELEVENLABS_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        text,
-        model_id: MODEL_ID,
-        voice_settings: voiceSettings,
-      }),
-    },
-  );
+  const request = buildTtsRequest({ text, voiceId, modelId: MODEL_ID, voiceSettings, apiKey: ELEVENLABS_API_KEY });
+  const res = await fetch(request.url, request.init);
 
   if (!res.ok) {
+    // The provider answered and refused: nothing was generated or charged. Typed so the
+    // paid-call gate (src/lib/paid-calls) may retry it once; any other failure (timeout,
+    // connection cut, unreadable body) stays "uncertain" and is never retried.
     const errorBody = await res.text().catch(() => "");
-    throw new Error(`ElevenLabs respondió ${res.status}: ${errorBody}`);
+    throw new ProviderRejectedError(`ElevenLabs respondió ${res.status}: ${errorBody}`);
   }
 
   const data = (await res.json()) as ElevenLabsResponse;

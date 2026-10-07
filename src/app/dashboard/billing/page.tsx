@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { isInternalProductionOwner } from "@/lib/billing/internal-production";
+import Link from "next/link";
 
 type SubscriptionRow = {
   status: string;
@@ -25,6 +27,32 @@ export default async function BillingPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (isInternalProductionOwner(user)) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <h1 className="text-2xl font-bold text-ink">Tu plan de producción</h1>
+        <Card className="mt-6 p-6">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-xl font-bold text-ink">Atomivid Propietario</h2>
+            <Badge tone="success">Activo</Badge>
+          </div>
+          <p className="mt-4 text-ink-muted">Cuenta interna con acceso de administrador. Sin mensualidad de cliente ni margen de Atomivid: la producción utiliza tus cuentas y créditos de proveedores.</p>
+          <ul className="mt-4 list-disc space-y-2 pl-5 text-ink-muted">
+            <li>Reels, documentales Long Form y videos con avatar.</li>
+            <li>Narración con voz IA y las opciones de audio disponibles dentro de los videos.</li>
+            <li>Acceso al Command Center para revisar producción, saldos y costos.</li>
+            <li>Los topes de gasto, saldos mínimos y límites de concurrencia siguen aplicándose.</li>
+          </ul>
+          <p className="mt-4 text-sm text-ink-muted">La generación necesita proveedores habilitados y saldo suficiente. El estudio de audio y la publicación directa de podcasts todavía no están integrados.</p>
+          <div className="mt-6 flex flex-wrap gap-4">
+            <Link className="font-medium text-accent underline" href="/dashboard/new">Crear contenido</Link>
+            <Link className="font-medium text-accent underline" href="/dashboard/command-center">Ver saldos y costos</Link>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   const { data } = await supabase
     .from("subscriptions")

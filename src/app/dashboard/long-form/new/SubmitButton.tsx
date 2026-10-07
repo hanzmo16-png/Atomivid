@@ -18,7 +18,7 @@ export function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" className="w-full" loading={pending} disabled={pending}>
-      {pending ? "Generando guion…" : "Generar guion"}
+      {pending ? "Guardando preparación…" : "Crear y revisar guion"}
     </Button>
   );
 }

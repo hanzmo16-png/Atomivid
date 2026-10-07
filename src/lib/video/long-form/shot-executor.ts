@@ -1,3 +1,4 @@
+import { SupplyUnavailableError } from "@/lib/supply/policy";
 /**
  * Ejecución de UN shot ya asignado (allocateShotTypes) en la ruta de
  * producto de Long Form — con reuso durable, presupuesto confirmado y
@@ -12,13 +13,18 @@
  *   → archivo real; archivo (consulta alternativa) → tarjeta de texto REAL.
  *   Nunca un fixture, nunca un tipo más caro que lo asignado.
  */
-import type { FootageProvider, ImageProvider, VideoProvider } from "@/lib/providers/types";
+import type { FootageProvider, GenerativeAsset, ImageProvider, VideoProvider } from "@/lib/providers/types";
+import { guardPaidCall, type LedgerStore } from "@/lib/paid-calls/gate";
+import { PaidResultUnavailableError } from "@/lib/paid-calls/errors";
+import { supplyGuardRequired } from "@/lib/supply/server";
+import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 import { GenerativeProviderError } from "@/lib/providers/types";
+import { validateVisualAssetBuffer } from "../visual-asset-validation";
 import type { ResolvedShotAsset } from "./asset-resolver";
 import { resolveAiVideoForShot } from "./ai-video-resolver";
 import { recordAiVideoSpend, type AiVideoCostConfig, type AiVideoLedgerState } from "./ai-video-cost-guard";
 import type { AssetProvenance, AssetSelectionTrace, ShotAssetKind, ShotAssetStore } from "./durable-shot-assets";
-import { contentIdentity, type AssetIdentity, type DocumentAssetRegistry } from "./asset-identity";
+import { contentIdentity, type DocumentAssetRegistry, type AssetIdentity } from "./asset-identity";
 import { selectStockForShot } from "./stock-selection";
 import { clip, salientFact } from "./scene-anchoring";
 import type { ProductionBudget } from "./production-budget";
@@ -39,6 +45,12 @@ const NO_CHARGE_IMAGE_REASONS = new Set<GenerativeProviderError["reason"]>([
 ]);
 
 export type ShotExecutionDeps = {
+  /**
+   * Puerta de llamadas pagadas (PI V2 B1, RB-01): `pi_paid_operations`. produce.ts pasa la real
+   * (Supabase). Si falta, se usa una en memoria POR OBJETO deps (solo válida dentro del proceso;
+   * pensada para pruebas): nunca es un sustituto del ledger durable en producción.
+   */
+  ledger?: LedgerStore;
   topic: string;
   footageProvider: FootageProvider;
   imageProvider: ImageProvider;
@@ -139,6 +151,7 @@ async function reuseCompleted(deps: ShotExecutionDeps, shotId: string, kind: Sho
       meta: { objectPath: record.objectPath, identity: record.identity, provenance: record.provenance, selection: record.selection },
     };
   } catch (err) {
+    if (err instanceof SupplyUnavailableError) throw err;
     if (deps.replayOnly) throw new ShotReplayError(shotId, `el asset ${kind} COMPLETED no se pudo leer (${err instanceof Error ? err.message : String(err)})`);
     return null;
   }
@@ -257,6 +270,7 @@ async function resolveStock(shot: AllocatedShot, deps: ShotExecutionDeps, prefer
       const url = await persistMedia(deps, shot.id, "stock", buffer, result.mimeType, result.extension, result.mediaType, deps.footageProvider.name, 0);
       return { url, mediaType: result.mediaType, costUsd: 0, bytes: buffer.byteLength, provider: deps.footageProvider.name, reused: false };
     } catch (err) {
+      if (err instanceof SupplyUnavailableError) throw err;
       console.warn(`[atomivid:long-form:shot] archivo no disponible para ${shot.id} ("${query}"):`, err instanceof Error ? err.message : err);
     }
   }
@@ -264,6 +278,18 @@ async function resolveStock(shot: AllocatedShot, deps: ShotExecutionDeps, prefer
 }
 
 type AiImageOutcome = MediaOutcome | { unavailable: string };
+
+const inProcessLedgers = new WeakMap<object, LedgerStore>();
+function ledgerFor(deps: ShotExecutionDeps): LedgerStore {
+  if (deps.ledger) return deps.ledger;
+  if (supplyGuardRequired()) throw new Error("PAID_LEDGER_REQUIRED");
+  let l = inProcessLedgers.get(deps);
+  if (!l) {
+    l = memoryLedgerStore();
+    inProcessLedgers.set(deps, l);
+  }
+  return l;
+}
 
 /** Imagen IA con reuso durable + reserva de presupuesto; nunca regenera un STARTED incierto. */
 async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Promise<AiImageOutcome> {
@@ -282,14 +308,89 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
   }
   await deps.store.write({ shotId: shot.id, kind: "ai_image", status: "STARTED", provider: deps.imageProvider.name, updatedAtIso: new Date().toISOString() });
 
-  let asset;
+  const request = {
+    prompt: deps.visualPipeline === "anchored_v1" ? aiImagePromptFor(shot) : documentaryImagePrompt(shot.visualIntent),
+    aspectRatio: "16:9" as const,
+    maxCostUsd: deps.units.imageUsd,
+  };
+  const persistImage = async (asset: GenerativeAsset): Promise<MediaOutcome> => {
+    if (deps.visualPipeline === "anchored_v1") {
+      // Recreación IA: identidad de contenido (para el registro del documental) y procedencia explícita.
+      const identity: AssetIdentity = { provider: deps.imageProvider.name, ...(await (deps.identify ?? contentIdentity)(asset.buffer, "image")) };
+      const provenance: AssetProvenance = { kind: "ai_recreation", provider: deps.imageProvider.name, license: "Generada por IA para este documental — recreación, no registro histórico" };
+      const selection: AssetSelectionTrace = { relevance: "generated_from_intent", query: shot.visualIntent };
+      const url = await persistMedia(deps, shot.id, "ai_image", asset.buffer, asset.mimeType, asset.extension, "image", deps.imageProvider.name, asset.costUsd, {
+        identity,
+        provenance,
+        selection,
+      });
+      return {
+        url,
+        mediaType: "image",
+        costUsd: asset.costUsd,
+        bytes: asset.buffer.byteLength,
+        provider: deps.imageProvider.name,
+        reused: false,
+        meta: { objectPath: deps.store.objectPathFor(shot.id, "ai_image", asset.extension), identity, provenance, selection },
+      };
+    }
+    const url = await persistMedia(deps, shot.id, "ai_image", asset.buffer, asset.mimeType, asset.extension, "image", deps.imageProvider.name, asset.costUsd);
+    return { url, mediaType: "image", costUsd: asset.costUsd, bytes: asset.buffer.byteLength, provider: deps.imageProvider.name, reused: false };
+  };
+
+  let asset: GenerativeAsset;
+  // PI V2 COST-7: a paid image is made durable (object + COMPLETED record) BEFORE its ledger row
+  // is committed, so a crash in between leaves a reusable asset instead of a paid, lost one. A
+  // storage failure still commits the row (the provider charged) and then fails the shot as before.
+  let persisted: MediaOutcome | undefined;
+  let persistError: unknown;
   try {
-    asset = await deps.imageProvider.generateImage({
-      prompt: deps.visualPipeline === "anchored_v1" ? aiImagePromptFor(shot) : documentaryImagePrompt(shot.visualIntent),
-      aspectRatio: "16:9",
-      maxCostUsd: deps.units.imageUsd,
-    });
+    if (deps.imageProvider.name === "fixture") {
+      asset = await deps.imageProvider.generateImage(request);
+    } else {
+      // Puerta de llamadas pagadas (PI V2 B1, RB-01): fila en pi_paid_operations antes del HTTP;
+      // COMMITTED sin registro COMPLETED (el reuso de arriba no lo encontró) no regenera.
+      const guarded = await guardPaidCall<GenerativeAsset>(
+        ledgerFor(deps),
+        {
+          projectId: deps.metadata?.requestId ?? "unknown-request",
+          shotId: `ai_image:${shot.id}`,
+          provider: deps.imageProvider.name,
+          model: deps.imageProvider.name,
+          method: "generate_image",
+          inputFingerprint: { prompt: request.prompt, aspectRatio: request.aspectRatio },
+          reservedUsd: Math.max(0, deps.units.imageUsd),
+        },
+        {
+          call: async () => {
+            const a = await deps.imageProvider.generateImage({ ...request, disableRetries: true });
+            // Same contract as Reel generated images: never trust "the call did not throw" as "the
+            // file is usable". An invalid file is paid but unusable: the gate treats it as uncertain
+            // (no new call) and the shot uses its existing fallback (ASSET-FINAL).
+            const validation = validateVisualAssetBuffer(a.buffer, a.mimeType);
+            if (!validation.valid) throw new Error(`Imagen IA inválida de "${deps.imageProvider.name}": ${validation.reason}`);
+            try {
+              persisted = await persistImage(a);
+            } catch (err) {
+              if (err instanceof SupplyUnavailableError) throw err;
+              persistError = err;
+            }
+            return { result: a, costUsd: a.costUsd, resultRef: `shot-asset:${shot.id}:ai_image` };
+          },
+          load: async () => null,
+          // El proveedor ya reintenta una vez por su cuenta ante un rechazo explícito (openai.ts).
+          maxRejectedRetries: 0,
+        },
+      );
+      asset = guarded.result;
+    }
   } catch (err) {
+    if (err instanceof SupplyUnavailableError) throw err;
+    if (err instanceof PaidResultUnavailableError) {
+      // Nada se envió ni se cobró en este intento: la reserva vuelve al presupuesto.
+      await deps.budget.releaseAiImage(deps.units.imageUsd);
+      return { unavailable: "esta imagen ya se pagó en un intento anterior y su resultado no está disponible — no se regenera" };
+    }
     if (err instanceof GenerativeProviderError && NO_CHARGE_IMAGE_REASONS.has(err.reason)) {
       await deps.store.write({ shotId: shot.id, kind: "ai_image", status: "FAILED_NO_CHARGE", provider: deps.imageProvider.name, updatedAtIso: new Date().toISOString() });
       await deps.budget.releaseAiImage(deps.units.imageUsd);
@@ -298,31 +399,12 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
     // Costo incierto: queda STARTED (nunca se regenera) y la reserva queda contada.
     return { unavailable: `imagen IA falló (${err instanceof GenerativeProviderError ? err.reason : "error inesperado"})` };
   }
+  if (persistError !== undefined) throw persistError;
+  if (persisted) return persisted;
   if (deps.requireReal && deps.imageProvider.name === "fixture") {
     throw new Error(`Shot ${shot.id}: el proveedor de imagen resolvió a fixture en una producción real.`);
   }
-  if (deps.visualPipeline === "anchored_v1") {
-    // Recreación IA: identidad de contenido (para el registro del documental) y procedencia explícita.
-    const identity: AssetIdentity = { provider: deps.imageProvider.name, ...(await (deps.identify ?? contentIdentity)(asset.buffer, "image")) };
-    const provenance: AssetProvenance = { kind: "ai_recreation", provider: deps.imageProvider.name, license: "Generada por IA para este documental — recreación, no registro histórico" };
-    const selection: AssetSelectionTrace = { relevance: "generated_from_intent", query: shot.visualIntent };
-    const url = await persistMedia(deps, shot.id, "ai_image", asset.buffer, asset.mimeType, asset.extension, "image", deps.imageProvider.name, asset.costUsd, {
-      identity,
-      provenance,
-      selection,
-    });
-    return {
-      url,
-      mediaType: "image",
-      costUsd: asset.costUsd,
-      bytes: asset.buffer.byteLength,
-      provider: deps.imageProvider.name,
-      reused: false,
-      meta: { objectPath: deps.store.objectPathFor(shot.id, "ai_image", asset.extension), identity, provenance, selection },
-    };
-  }
-  const url = await persistMedia(deps, shot.id, "ai_image", asset.buffer, asset.mimeType, asset.extension, "image", deps.imageProvider.name, asset.costUsd);
-  return { url, mediaType: "image", costUsd: asset.costUsd, bytes: asset.buffer.byteLength, provider: deps.imageProvider.name, reused: false };
+  return persistImage(asset);
 }
 
 function mediaResult(shot: AllocatedShot, media: MediaOutcome, executedType: ShotType, ledger: AiVideoLedgerState, deviationReason?: string): ShotExecution {
