@@ -7,6 +7,7 @@ import { isLongFormScriptJson } from "../src/lib/video/long-form/script-json";
 import { lookupConfigurableRequest } from "../src/lib/video/long-form/configure-lookup";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ResultView } from "../src/components/video/ResultView";
+import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { selectIfOwned } from "../src/lib/video/access";
 import { editorialApprovalError } from "../src/lib/video/long-form/editorial";
 import { computeProductionPlan, getRealLongFormProviderNames, VISUAL_STRATEGIES } from "../src/lib/video/long-form/production-plan";
@@ -42,9 +43,9 @@ async function main() {
   const detail = await db.from("video_requests").select("id, mode, user_id, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage, long_form_progress, long_form_production_plan, long_form_confirmed_at, recorded_audio_path")
     .eq("id", job.request_id).eq("user_id", job.user_id).maybeSingle();
   const summary = selectIfOwned(detail.data as never, job.user_id)!;
-  const html = renderToStaticMarkup(<ResultView request={summary} nowMs={Date.now()} />);
+  const html = renderToStaticMarkup(<AppRouterContext.Provider value={{ push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} } as never}><ResultView request={summary} nowMs={Date.now()} /></AppRouterContext.Provider>);
   console.log("DETAIL_PAGE", JSON.stringify({ emptyStage: html.includes("Todavía no se generó el video"), cta: html.includes("Revisar y configurar producción"),
-    ctaTargetsThisRequest: html.includes(`href="/dashboard/long-form/configure/${job.request_id}"`), startsProduction: html.includes("Iniciar producción") }));
+    ctaTargetsThisRequest: html.includes(`href="/dashboard/long-form/configure/${job.request_id}"`), confirmed: !!summary.long_form_confirmed_at, startButtonShown: html.includes("Iniciar producción") }));
   const script = row.script_json as { topic?: string; beats: { id: string; type: string; narration: string; visuals?: unknown[] }[] };
   const valid = isLongFormScriptJson(script);
   console.log("PAGE", JSON.stringify({ isLongFormScriptJson: valid, topicType: typeof script?.topic, beatIds: script?.beats?.map(b => typeof b.id), beats: script?.beats?.length,
