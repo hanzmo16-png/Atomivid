@@ -3,7 +3,7 @@
 import { refresh } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { searchCommonsProposals } from "@/lib/providers/footage/commons";
-import { canCurateAssets, decideLink, proposeAsset, revokeDecision } from "@/lib/video/long-form/asset-curation";
+import { canCurateAssets, curationOperational, decideLink, proposeAsset, revokeDecision } from "@/lib/video/long-form/asset-curation";
 import { assetFromProposal, ASSET_SOURCES, type AssetSource, type CuratableAsset } from "@/lib/video/long-form/verified-assets";
 import { loadCurationContext, saveCurationFile } from "./store";
 
@@ -12,13 +12,15 @@ import { loadCurationContext, saveCurationFile } from "./store";
  * en la página), opera sobre UN par y guarda solo la decisión: la confianza
  * la recalcula el servidor al producir (VerifiedAssetRegistry.rehydrate).
  */
+/** Correo del curador: SOLO de la sesión autenticada (nunca del formulario, del recurso ni del JSON del cliente). */
 async function curator(): Promise<string> {
+  if (!curationOperational()) throw new Error("Curaduría no configurada (ASSET_CURATOR_EMAILS).");
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!canCurateAssets(user) || !user?.email) throw new Error("No autorizado.");
-  return user.email.toLowerCase();
+  return user.email.trim().toLowerCase();
 }
 
 const str = (f: FormData, k: string) => {

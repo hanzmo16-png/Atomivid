@@ -189,9 +189,10 @@ test("15-17: perfiles de época — 1930s, 1990s y antigüedad deciden cosas dis
   const cams = (era: string) => directCinematic([0, 1, 2, 3].map(() => scene(era, "stock_illustrative"))).map((d) => d.camera);
   assert.deepEqual(cams("1930s"), ["push", "pull", "push", "pull"]);
   assert.deepEqual(cams("1990s"), ["push", "left", "pull", "right"]);
-  assert.deepEqual(directCinematic([scene("1930s", "archival_documentary")])[0].look, { contrast: 1.1 }, "grado solo sobre archivo verificado");
+  assert.deepEqual(directCinematic([scene("1930s", "archival_documentary")])[0].look, { contrast: 1.1, preset: "schematic_mono" }, "grado (B/N explícito) solo sobre archivo verificado");
   assert.equal(directCinematic([scene("1930s", "stock_illustrative")])[0].look, undefined, "nunca disfraza material moderno como antiguo");
-  assert.equal(directCinematic([scene("1990s", "archival_documentary")])[0].look, undefined);
+  assert.deepEqual(directCinematic([scene("1990s", "archival_documentary")])[0].look, { preset: "documentary_1990s" }, "los 90 siguen en color");
+  assert.equal(directCinematic([scene("1990s", "stock_illustrative")])[0].look, undefined, "el color de época tampoco disfraza stock");
   // Video IA: no en 1930s (fabricaría metraje de época), sí en 1990s para el entorno.
   const env = (era: string): BeatVisual => ({ description: "street", motion: false, era, beatClass: "PLACE" });
   assert.equal(generativeVerdict(env("1930s"), "video").allowed, false);
@@ -512,7 +513,7 @@ test("36: simulación 1930s por la misma ruta — la época cambia decisiones (s
   assert.ok(!sim.report.scenes.some((s) => s.candidateDescription?.includes("modern tractor")), "el material moderno contradice la época");
   const verified = sim.report.cinematic!.scenes.find((d) => d.verifiedIdentity);
   assert.ok(verified, "el retrato verificado de Lange representa a Lange");
-  assert.deepEqual(verified.look, { contrast: 1.1 });
+  assert.deepEqual(verified.look, { contrast: 1.1, preset: "schematic_mono" });
   assert.ok(sim.report.cinematic!.scenes.filter((d) => d.provenance === "stock_illustrative").every((d) => d.look === undefined), "el stock moderno no se disfraza");
   assert.ok(!sim.report.cinematic!.qa.findings.some((f) => f.severity === "BLOCK"));
   assert.equal(networkCalls, 0);

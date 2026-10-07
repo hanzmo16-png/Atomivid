@@ -8,7 +8,23 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { cameraTransform, lookStyle, soundCueVolume, transitionFrames, validateDirection, type SceneDirection, type SoundCue } from "./long-form-direction";
+import {
+  cameraTransform,
+  documentFrame,
+  documentLayout,
+  kenBurnsTransform,
+  lookStyle,
+  safeAreas,
+  soundCueVolume,
+  svgRevealState,
+  transitionFrames,
+  validateDirection,
+  type CuratedSvgReveal,
+  type DocumentDirection,
+  type SafeAreas,
+  type SceneDirection,
+  type SoundCue,
+} from "./long-form-direction";
 import { type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from "./audio-mix";
 import { LARGE_CARD, provenanceLabel, type SceneProvenance } from "./long-form-card-fit";
 import { coverWindowSeconds, fitCover, type CoverSpec } from "./cover-rules";
@@ -68,9 +84,17 @@ export type LongFormTextGraphic = {
   size?: "large";
 };
 
+/** SVG CURADO (registro verificado): solo se revelan UN trazo y UNA etiqueta que ya existen en él. */
+export type LongFormCuratedSvgGraphic = {
+  kind: "curated_svg";
+  title?: string;
+  svg: CuratedSvgReveal;
+  isFixture: boolean;
+};
+
 export type LongFormGraphicAsset = {
   kind: "graphic";
-  graphic: LongFormDiagramGraphic | LongFormMapGraphic | LongFormTextGraphic;
+  graphic: LongFormDiagramGraphic | LongFormMapGraphic | LongFormTextGraphic | LongFormCuratedSvgGraphic;
 };
 
 export type LongFormShotScene = {
@@ -205,20 +229,15 @@ function SceneRenderer({
   isHook: boolean;
 }) {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
   const progress = durationInFrames > 1 ? frame / (durationInFrames - 1) : 0;
 
   // Ken Burns/fade independientes de VerticalReel.tsx a propósito (ver
   // comentario de cabecera) — misma filosofía de movimiento (impulso más
-  // marcado en el gancho de apertura), constantes propias de este formato.
+  // marcado en el gancho de apertura), mismos topes (1.08; gancho 1.16), con
+  // aceleración y frenado suaves (long-form-direction.ts: cámara compartida).
   const kenBurnsActive = scene.motion === "ken_burns" || scene.motion === "pan";
-  const hookProgress = Math.min(1, progress / 0.4);
-  const scale = !kenBurnsActive
-    ? 1
-    : isHook
-      ? interpolate(hookProgress, [0, 1], [1, 1.16], { extrapolateRight: "clamp" })
-      : interpolate(progress, [0, 1], [1, 1.08]);
-  const translateX = kenBurnsActive && !isHook ? interpolate(progress, [0, 1], [0, -14]) : 0;
+  const { scale, translateX } = kenBurnsActive ? kenBurnsTransform(progress, isHook) : { scale: 1, translateX: 0 };
 
   let opacity = 1;
   if (fadeInFrames > 0) {
@@ -250,9 +269,13 @@ function SceneRenderer({
     ...(look.filter ? { filter: look.filter } : {}),
   };
 
+  const doc = scene.direction?.document;
+  const safe = safeAreas(width, height);
   return (
     <AbsoluteFill style={{ overflow: "hidden", opacity }}>
-      {scene.asset.kind === "media" ? (
+      {scene.asset.kind === "media" && scene.asset.mediaType === "image" && doc ? (
+        <DocumentSequence url={scene.asset.url} document={doc} progress={progress} filter={look.filter} />
+      ) : scene.asset.kind === "media" ? (
         scene.asset.mediaType === "video" ? (
           <OffthreadVideo src={scene.asset.url} trimBefore={Math.round((scene.direction?.mediaStartSeconds ?? 0) * fps)} muted style={mediaStyle} />
         ) : scene.asset.fit === "contain" ? (
@@ -269,34 +292,66 @@ function SceneRenderer({
           <Img src={scene.asset.url} style={mediaStyle} />
         )
       ) : (
-        <GraphicRenderer graphic={scene.asset.graphic} />
+        <AbsoluteFill style={scene.direction?.look?.preset === "schematic_mono" && look.filter ? { filter: look.filter } : undefined}>
+          <GraphicRenderer graphic={scene.asset.graphic} progress={progress} />
+        </AbsoluteFill>
       )}
       {look.vignette > 0 && (
         <AbsoluteFill style={{ background: `radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,${look.vignette}) 100%)` }} />
       )}
-      <SceneLabels scene={scene} />
+      <SceneLabels scene={scene} safe={safe} />
     </AbsoluteFill>
   );
 }
 
-export function SceneLabels({ scene }: { scene: LongFormShotScene }) {
+/**
+ * Documento VERIFICADO con regiones CURADAS: la página completa (contain), un
+ * movimiento suave hacia el titular, opcionalmente fecha/detalle, y vuelta a la
+ * página completa. Sin copias, sin texto nuevo: el mismo archivo, reencuadrado,
+ * con el resto atenuado mientras se lee una región.
+ */
+function DocumentSequence({ url, document, progress, filter }: { url: string; document: DocumentDirection; progress: number; filter?: string }) {
+  const { width, height } = useVideoConfig();
+  const f = documentFrame(document, progress, width, height);
+  const page = documentLayout(document, width, height);
+  return (
+    <>
+      <Img src={url} style={{ width: "100%", height: "100%", objectFit: "cover", filter: "blur(40px) brightness(0.35)", transform: "scale(1.15)" }} />
+      <AbsoluteFill style={{ transform: `translate(${f.translateX}px, ${f.translateY}px) scale(${f.scale})`, transformOrigin: "50% 50%" }}>
+        <Img src={url} style={{ position: "absolute", left: page.x, top: page.y, width: page.w, height: page.h, ...(filter ? { filter } : {}) }} />
+      </AbsoluteFill>
+      {f.focus && f.dim > 0 && (
+        <AbsoluteFill>
+          <div style={{ position: "absolute", left: 0, top: 0, width: "100%", height: Math.max(0, f.focus.y), backgroundColor: `rgba(0,0,0,${f.dim})` }} />
+          <div style={{ position: "absolute", left: 0, top: f.focus.y + f.focus.h, width: "100%", bottom: 0, backgroundColor: `rgba(0,0,0,${f.dim})` }} />
+          <div style={{ position: "absolute", left: 0, top: f.focus.y, width: Math.max(0, f.focus.x), height: f.focus.h, backgroundColor: `rgba(0,0,0,${f.dim})` }} />
+          <div style={{ position: "absolute", left: f.focus.x + f.focus.w, top: f.focus.y, right: 0, height: f.focus.h, backgroundColor: `rgba(0,0,0,${f.dim})` }} />
+        </AbsoluteFill>
+      )}
+    </>
+  );
+}
+
+const LANDSCAPE_SAFE = safeAreas(1920, 1080);
+
+export function SceneLabels({ scene, safe = LANDSCAPE_SAFE }: { scene: LongFormShotScene; safe?: SafeAreas }) {
   const label = provenanceLabel(scene.provenance);
   if (!label && !scene.creditText && !scene.pending) return null;
   return (
-    <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "flex-start", padding: "44px 56px" }}>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, fontFamily: "Arial, Helvetica, sans-serif" }}>
+    <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "flex-start", padding: `${safe.top}px ${safe.side}px` }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, maxWidth: "100%", fontFamily: "Arial, Helvetica, sans-serif" }}>
         {scene.pending && (
           <div style={{ padding: "8px 16px", borderRadius: 8, backgroundColor: "rgba(200,40,40,0.9)", color: "white", fontSize: 30, fontWeight: 800 }}>
             Material pendiente
           </div>
         )}
         {label && (
-          <div style={{ padding: "6px 14px", borderRadius: 999, backgroundColor: "rgba(10,10,14,0.62)", border: "1px solid rgba(255,255,255,0.35)", color: "white", fontSize: 28, fontWeight: 700, textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
+          <div style={{ padding: "6px 14px", borderRadius: 999, backgroundColor: "rgba(10,10,14,0.62)", border: "1px solid rgba(255,255,255,0.35)", color: "white", fontSize: safe.labelFontSize, fontWeight: 700, textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
             {label}
           </div>
         )}
         {scene.creditText && (
-          <div style={{ padding: "4px 12px", borderRadius: 6, backgroundColor: "rgba(10,10,14,0.5)", color: "rgba(255,255,255,0.92)", fontSize: 28, textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>
+          <div style={{ padding: "4px 12px", borderRadius: 6, backgroundColor: "rgba(10,10,14,0.5)", color: "rgba(255,255,255,0.92)", fontSize: safe.labelFontSize, overflowWrap: "anywhere", textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>
             {scene.creditText}
           </div>
         )}
@@ -307,8 +362,10 @@ export function SceneLabels({ scene }: { scene: LongFormShotScene }) {
 
 // --- Gráficos determinísticos (texto/diagrama/mapa) — sin IA, sin red ----
 
-function GraphicRenderer({ graphic }: { graphic: LongFormGraphicAsset["graphic"] }) {
+function GraphicRenderer({ graphic, progress }: { graphic: LongFormGraphicAsset["graphic"]; progress: number }) {
   switch (graphic.kind) {
+    case "curated_svg":
+      return <CuratedSvgCard graphic={graphic} progress={progress} />;
     case "text":
       return <TextCard graphic={graphic} />;
     case "diagram":
@@ -409,6 +466,23 @@ function DiagramCard({ graphic }: { graphic: LongFormDiagramGraphic }) {
   );
 }
 
+/** SVG curado: la base se dibuja tal cual; el trazo y la etiqueta APROBADOS se revelan con el tiempo (sin geometría nueva). */
+function CuratedSvgCard({ graphic, progress }: { graphic: LongFormCuratedSvgGraphic; progress: number }) {
+  const { pathDrawn, labelOpacity } = svgRevealState(progress);
+  const { svg } = graphic;
+  return (
+    <AbsoluteFill style={{ backgroundColor: "#0b0d14", justifyContent: "center", alignItems: "center" }}>
+      <svg viewBox={svg.viewBox} preserveAspectRatio="xMidYMid meet" style={{ width: "100%", height: "100%" }}>
+        <g dangerouslySetInnerHTML={{ __html: svg.baseMarkup }} />
+        <path d={svg.path.d} fill="none" stroke={svg.path.stroke} strokeWidth={svg.path.strokeWidth} strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray={1} strokeDashoffset={1 - pathDrawn} />
+        <text x={svg.label.x} y={svg.label.y} fontSize={svg.label.fontSize} fill={svg.label.fill} opacity={labelOpacity} fontFamily="Arial, Helvetica, sans-serif" fontWeight={700}>
+          {svg.label.text}
+        </text>
+      </svg>
+    </AbsoluteFill>
+  );
+}
+
 /** Proyección equirrectangular simple — copia intencional de la de diagram-map.ts (ver comentario de cabecera de este archivo sobre aislamiento del bundle). */
 function projectMarkerLocal(marker: LongFormMapMarker, bounds: LongFormMapGraphic["bounds"]) {
   const lonSpan = bounds.maxLon - bounds.minLon;
@@ -472,13 +546,13 @@ function OpeningCover({ spec, firstSceneEndSeconds, labelsTopLeft }: { spec: Cov
 
 // --- Captions (adaptadas a 16:9 — zonas seguras de YouTube, no TikTok) ---
 
-const SAFE_BOTTOM_PADDING = 120;
-const CAPTION_MAX_WIDTH = 1400;
+// Zonas seguras por proporción (16:9: 120 px abajo / 1400 px de ancho, como antes; 9:16: ver safeAreas).
 const CAPTION_APPEAR_FRAMES = 5;
 
 function Captions({ captions, accentColor }: { captions: LongFormCaption[]; accentColor: string }) {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
+  const safe = safeAreas(width, height);
   const t = frame / fps;
 
   const active = captions.find((c) => t >= c.startSeconds && t < c.endSeconds);
@@ -494,10 +568,10 @@ function Captions({ captions, accentColor }: { captions: LongFormCaption[]; acce
   const words = active.text.split(/\s+/);
 
   return (
-    <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: SAFE_BOTTOM_PADDING }}>
+    <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: safe.bottom, paddingLeft: safe.side, paddingRight: safe.side }}>
       <div
         style={{
-          maxWidth: CAPTION_MAX_WIDTH,
+          maxWidth: safe.captionMaxWidth,
           padding: "14px 32px",
           borderRadius: 14,
           backgroundColor: "rgba(10,10,14,0.68)",
@@ -510,7 +584,7 @@ function Captions({ captions, accentColor }: { captions: LongFormCaption[]; acce
           style={{
             fontFamily: "Arial, Helvetica, sans-serif",
             fontWeight: 800,
-            fontSize: 46,
+            fontSize: safe.captionFontSize,
             color: "white",
             textAlign: "center",
             lineHeight: 1.25,

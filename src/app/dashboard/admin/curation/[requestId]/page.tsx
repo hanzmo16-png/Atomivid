@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { activeApprovals, canCurateAssets, contractSentence, nextReview, pendingReviews } from "@/lib/video/long-form/asset-curation";
+import { activeApprovals, canCurateAssets, curationOperational, contractSentence, nextReview, pendingReviews } from "@/lib/video/long-form/asset-curation";
 import { contractKey } from "@/lib/video/long-form/verified-assets";
 import { decideAction, proposeManualAction, revokeAction, searchCommonsAction } from "./actions";
 import { loadCurationContext } from "./store";
@@ -16,7 +16,8 @@ export default async function AssetCurationPage({ params }: { params: Promise<{ 
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!canCurateAssets(user)) notFound();
+  // Falla cerrada: sin ASSET_CURATOR_EMAILS la curaduría no existe (ningún fallback de "primer admin").
+  if (!curationOperational() || !canCurateAssets(user)) notFound();
   const ctx = await loadCurationContext(requestId);
   if (!ctx) notFound();
 
@@ -137,7 +138,7 @@ export default async function AssetCurationPage({ params }: { params: Promise<{ 
         {approvals.map((d) => (
           <form key={d.id} action={revokeAction.bind(null, requestId, d.id)} className="flex items-center justify-between gap-3 rounded border border-border-strong p-2 text-sm">
             <span>
-              {d.assetId} → {contractSentence(d.contract)} ({d.decidedBy}, {d.decidedAt}){contractKey(d.contract) !== d.contractKey ? " [contrato incoherente]" : ""}
+              {d.assetId} → {contractSentence(d.contract)} ({d.curatorEmail}, {d.decidedAt}){contractKey(d.contract) !== d.contractKey ? " [contrato incoherente]" : ""}
             </span>
             <button type="submit" className="rounded border border-red-700 px-3 py-1 text-red-700">
               Revocar

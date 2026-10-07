@@ -9,9 +9,11 @@ import { MAX_TEXT_FALLBACK_RATIO } from "./produce";
 import { LongFormVisualQualityError } from "./visual-report";
 import { normalizeDeclaredVisuals, type BeatVisual } from "./visual-intents";
 import * as curationModule from "./asset-curation";
+import { readFileSync } from "node:fs";
 import {
   activeApprovals,
   canCurateAssets,
+  curationOperational,
   contractSentence,
   decideLink,
   emptyCurationFile,
@@ -213,7 +215,7 @@ test("7-9: NC, BY-SA, 442 px (y licencia desconocida) nunca llegan a aprobación
       ...emptyCurationFile(FIXTURE_REQUEST_ID),
       assets: [a],
       proposals: [{ id: "p-1", assetId: a.id, contract: { kind: "IDENTITY", name: "Maurizio Gucci" }, origin: "manual", proposedAt: NOW }],
-      decisions: [{ id: "d-1", proposalId: "p-1", assetId: a.id, assetFingerprint: assetFingerprint(a), contractKey: MAURIZIO_KEY, contract: { kind: "IDENTITY", name: "Maurizio Gucci" }, requestId: FIXTURE_REQUEST_ID, verdict: "APPROVED", status: "ACTIVE", decidedBy: FIXTURE_CURATOR, decidedAt: NOW, version: 1, approved: { creditText: "x" } }],
+      decisions: [{ id: "d-1", proposalId: "p-1", assetId: a.id, assetFingerprint: assetFingerprint(a), contractKey: MAURIZIO_KEY, contract: { kind: "IDENTITY", name: "Maurizio Gucci" }, requestId: FIXTURE_REQUEST_ID, verdict: "APPROVED", status: "ACTIVE", curatorEmail: FIXTURE_CURATOR, decidedBy: FIXTURE_CURATOR, decidedAt: NOW, version: 1, approved: { creditText: "x" } }],
     };
     assert.equal(pendingReviews(file, REQUESTED).length, 0, `${a.id}: nunca aparece al curador`);
     assert.equal(reload(file).size, 0, `${a.id}: nunca se rehidrata`);
@@ -520,4 +522,64 @@ test("HERO D: identidad cubierta y UNA prueba más sin material → se informa l
   const sim = await simulate(gucciBeats, GUCCI_TOPIC, gucciAdversarial, "cinematic", { registry });
   console.log("HERO D gate", sim.gateError ? String(sim.gateError).slice(0, 200) : "deliverable");
   assert.equal(networkCalls, 0);
+});
+
+// --------------------------------------------------------------------------
+// Gate 0 — identidad del curador: persistida desde la sesión y revalidada
+// --------------------------------------------------------------------------
+
+test("G0: la decisión persiste curatorEmail (de la sesión, normalizado) y el registro lo conserva", () => {
+  const file = weddingApproved();
+  assert.equal(file.decisions[0].curatorEmail, FIXTURE_CURATOR);
+  const upper = decideLink(propose(emptyCurationFile(FIXTURE_REQUEST_ID), WEDDING, MAURIZIO_VISUAL), { proposalId: "p-1", verdict: "APPROVED", curator: ` ${FIXTURE_CURATOR.toUpperCase()} `, now: NOW, expectedFingerprint: assetFingerprint(WEDDING) }, REQUESTED);
+  assert.ok("file" in upper && upper.decision.curatorEmail === FIXTURE_CURATOR);
+  assert.equal(reload(file).recordsFor(MAURIZIO_VISUAL)[0].curatedBy, FIXTURE_CURATOR);
+});
+
+test("G0: sin curatorEmail, con otro correo o con un correo ya no autorizado → NOT TRUSTED", () => {
+  const file = weddingApproved();
+  const missing = roundTrip(file) as unknown as { decisions: Record<string, unknown>[] };
+  delete missing.decisions[0].curatorEmail;
+  assert.equal(reload(missing).size, 0, "falta el correo");
+  // Otro curador AUTORIZADO puesto a mano en el JSON: no coincide con quien emitió la decisión.
+  const policy2 = { requestId: FIXTURE_REQUEST_ID, isAuthorizedCurator: (e: string) => e === FIXTURE_CURATOR || e === "other@atomivid.test" };
+  const swapped = roundTrip(file);
+  swapped.decisions[0].curatorEmail = "other@atomivid.test";
+  assert.equal(VerifiedAssetRegistry.rehydrate(swapped, policy2).size, 0, "correo cambiado sin una decisión emitida por ese curador");
+  // Ambos campos cambiados a alguien no autorizado: tampoco.
+  const both = roundTrip(file);
+  both.decisions[0].curatorEmail = "intruder@example.com";
+  both.decisions[0].decidedBy = "intruder@example.com";
+  assert.equal(reload(both).size, 0);
+  // El curador sale de ASSET_CURATOR_EMAILS: sus aprobaciones dejan de valer.
+  assert.equal(VerifiedAssetRegistry.rehydrate(roundTrip(file), { requestId: FIXTURE_REQUEST_ID, isAuthorizedCurator: (e) => isAuthorizedCurator(e, { ASSET_CURATOR_EMAILS: "other@atomivid.test" }) }).size, 0);
+  // Una decisión REAL emitida por ese otro curador para el mismo par sí vale.
+  const byOther = decideLink(propose(emptyCurationFile(FIXTURE_REQUEST_ID), WEDDING, MAURIZIO_VISUAL), { proposalId: "p-1", verdict: "APPROVED", curator: "other@atomivid.test", now: NOW, expectedFingerprint: assetFingerprint(WEDDING) }, REQUESTED);
+  assert.ok("file" in byOther);
+  assert.equal(VerifiedAssetRegistry.rehydrate(roundTrip(byOther.file), policy2).size, 1);
+});
+
+test("G0: configuración vacía → la curaduría falla cerrada (UI, acciones y rehidratación); sin 'primer admin'", async () => {
+  for (const env of [{}, { ASSET_CURATOR_EMAILS: "" }, { ASSET_CURATOR_EMAILS: " , " }]) {
+    assert.equal(curationOperational(env), false);
+    assert.equal(canCurateAssets({ email: FIXTURE_CURATOR, email_confirmed_at: NOW }, env), false);
+    assert.equal(isAuthorizedCurator(FIXTURE_CURATOR, env), false);
+  }
+  // produce() con la configuración vacía: el archivo aprobado no concede nada.
+  const prev = process.env.ASSET_CURATOR_EMAILS;
+  delete process.env.ASSET_CURATOR_EMAILS;
+  try {
+    const run = await produceOffline(gucciBeats, planFor(gucciBeats), { curationFile: roundTrip(curateFixture([...gucciVerifiedAssets], gucciRequested())) });
+    assert.match(String(run.error), /HERO_COVERAGE/);
+    assert.deepEqual(run.events, []);
+  } finally {
+    if (prev !== undefined) process.env.ASSET_CURATOR_EMAILS = prev;
+  }
+  // La página y las acciones exigen la configuración y toman el correo SOLO de la sesión.
+  const page = readFileSync("src/app/dashboard/admin/curation/[requestId]/page.tsx", "utf8");
+  const actions = readFileSync("src/app/dashboard/admin/curation/[requestId]/actions.ts", "utf8");
+  assert.match(page, /curationOperational\(\)/);
+  assert.match(actions, /curationOperational\(\)/);
+  assert.doesNotMatch(actions, /formData, "(curator|curatorEmail|email|decidedBy)"/, "el formulario nunca aporta la identidad del curador");
+  assert.match(actions, /return user\.email\.trim\(\)\.toLowerCase\(\)/);
 });

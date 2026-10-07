@@ -137,7 +137,8 @@ export function decideLink(
   input: { proposalId: string; verdict: "APPROVED" | "REJECTED"; curator: string; now: string; expectedFingerprint: string; creditText?: string },
   requested: Map<string, RequestedContract>,
 ): { file: CurationFile; decision: CurationDecisionEntry } | { error: string } {
-  if (!input.curator.trim()) return { error: "curador ausente" };
+  const curatorEmail = input.curator.trim().toLowerCase();
+  if (!curatorEmail) return { error: "curador ausente" };
   const proposal = file.proposals.find((p) => p.id === input.proposalId);
   if (!proposal) return { error: "propuesta inexistente" };
   const key = contractKey(proposal.contract);
@@ -162,7 +163,8 @@ export function decideLink(
     requestId: file.requestId,
     verdict: input.verdict,
     status: "ACTIVE",
-    decidedBy: input.curator,
+    curatorEmail,
+    decidedBy: curatorEmail,
     decidedAt: input.now,
     version: (prev?.version ?? 0) + 1,
     ...(input.verdict === "APPROVED" && credit ? { approved: { creditText: credit } } : {}),
@@ -183,15 +185,23 @@ export function activeApprovals(file: CurationFile): CurationDecisionEntry[] {
   return file.decisions.filter((d) => d.verdict === "APPROVED" && d.status === "ACTIVE" && effectiveDecision(file, d.assetId, d.contractKey)?.id === d.id);
 }
 
-/** Autoridad de curaduría (servidor): correos confirmados en ASSET_CURATOR_EMAILS. Sin configurar = nadie (falla cerrada). */
-export function isAuthorizedCurator(email: string | undefined | null, env: Record<string, string | undefined> = process.env): boolean {
-  const allowed = (env.ASSET_CURATOR_EMAILS ?? "")
+const curatorEmails = (env: Record<string, string | undefined>) =>
+  (env.ASSET_CURATOR_EMAILS ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  return !!email && allowed.includes(email.trim().toLowerCase());
+
+/** La curaduría solo es operativa con ASSET_CURATOR_EMAILS configurado. Sin fallback ("el primer admin") ni excepciones. */
+export function curationOperational(env: Record<string, string | undefined> = process.env): boolean {
+  return curatorEmails(env).length > 0;
 }
 
+/** Autoridad de curaduría (servidor): correos en ASSET_CURATOR_EMAILS. Sin configurar = nadie (falla cerrada). */
+export function isAuthorizedCurator(email: string | undefined | null, env: Record<string, string | undefined> = process.env): boolean {
+  return !!email?.trim() && curatorEmails(env).includes(email.trim().toLowerCase());
+}
+
+/** Sesión ADMIN: correo confirmado y autorizado HOY. El correo que se persiste sale de aquí, nunca del formulario. */
 export function canCurateAssets(user: { email?: string; email_confirmed_at?: string } | null, env: Record<string, string | undefined> = process.env): boolean {
-  return !!user?.email_confirmed_at && isAuthorizedCurator(user.email, env);
+  return curationOperational(env) && !!user?.email_confirmed_at && isAuthorizedCurator(user.email, env);
 }

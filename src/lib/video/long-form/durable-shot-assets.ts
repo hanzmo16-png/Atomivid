@@ -34,6 +34,10 @@ export type AssetProvenance = {
   pageUrl?: string;
   /** Crédito VISIBLE en el video (obligatorio con CC BY; lo dibuja SceneLabels). */
   credit?: string;
+  /** Solo de un registro VERIFICADO: regiones curadas (0–1) y tamaño de la fuente, para la animación de documento. */
+  regions?: { label: "headline" | "date" | "subject" | "detail"; x: number; y: number; w: number; h: number }[];
+  sourceWidth?: number;
+  sourceHeight?: number;
 };
 
 /** Por qué se eligió (o no) este recurso — la pertinencia es LÉXICA, nunca se afirma validación semántica. */

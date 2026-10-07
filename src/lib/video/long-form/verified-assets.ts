@@ -83,7 +83,8 @@ export function licenseEligibility(input: LicenseInput): LicenseVerdict {
 // --------------------------------------------------------------------------
 
 export const HERO_MIN_LONG_SIDE_PX = 1280;
-export const ALLOWED_MEDIA_MIME = ["image/jpeg", "image/png", "image/webp", "video/mp4"] as const;
+/** SVG: solo como recurso CURADO (esquema/mapa aprobado); su lienzo declarado también debe tener ≥ 1280 px de lado largo. */
+export const ALLOWED_MEDIA_MIME = ["image/jpeg", "image/png", "image/webp", "image/svg+xml", "video/mp4"] as const;
 
 export type QualityVerdict = { status: "QUALITY_ELIGIBLE" } | { status: "QUALITY_INELIGIBLE"; reason: string };
 
@@ -141,6 +142,8 @@ export type CuratableAsset = {
   creditText?: string;
   description?: string;
   regions?: AssetRegion[];
+  /** SVG curado: ids del ÚNICO trazo y la ÚNICA etiqueta (ya presentes en el SVG) que el renderer puede revelar. */
+  svgReveal?: { pathId: string; labelId: string };
   /** SHA-256 del contenido, si se conoce: el selector lo exige tras la descarga (mutación del recurso). */
   contentSha256?: string;
 };
@@ -163,6 +166,8 @@ export type CurationDecisionEntry = {
   requestId: string;
   verdict: "APPROVED" | "REJECTED";
   status: "ACTIVE" | "REVOKED";
+  /** Correo del curador tomado de la sesión ADMIN autenticada (nunca del formulario ni del recurso). */
+  curatorEmail: string;
   decidedBy: string;
   decidedAt: string;
   version: number;
@@ -209,8 +214,8 @@ function canonical(value: unknown): string {
 
 /** Huella de los campos MATERIALES del recurso (fuente, medio, dimensiones, derechos, crédito, contenido). */
 export function assetFingerprint(asset: CuratableAsset): string {
-  const { id, source, sourceUrl, mediaUrl, mediaType, mime, width, height, rights, licenseEvidence, creator, creditText, contentSha256 } = asset;
-  return createHash("sha256").update(canonical({ id, source, sourceUrl, mediaUrl, mediaType, mime, width, height, rights, licenseEvidence, creator, creditText, contentSha256 })).digest("hex");
+  const { id, source, sourceUrl, mediaUrl, mediaType, mime, width, height, rights, licenseEvidence, creator, creditText, regions, svgReveal, contentSha256 } = asset;
+  return createHash("sha256").update(canonical({ id, source, sourceUrl, mediaUrl, mediaType, mime, width, height, rights, licenseEvidence, creator, creditText, regions, svgReveal, contentSha256 })).digest("hex");
 }
 
 /**
@@ -263,6 +268,7 @@ export type VerifiedAssetRecord = Readonly<{
   creditText?: string;
   description?: string;
   regions?: readonly AssetRegion[];
+  svgReveal?: Readonly<{ pathId: string; labelId: string }>;
   contentSha256?: string;
   entityLink?: Readonly<{ name: string }>;
   evidenceLink?: Readonly<{ sourceIds: readonly string[]; claimIds?: readonly string[] }>;
@@ -325,6 +331,11 @@ export class VerifiedAssetRegistry {
     return new VerifiedAssetRegistry([], []);
   }
 
+  /** ¿Lo emitió la rehidratación del servidor? (una copia, un JSON o un objeto fabricado: no) */
+  static isTrusted(record: unknown): record is VerifiedAssetRecord {
+    return !!record && typeof record === "object" && TRUSTED.has(record);
+  }
+
   /**
    * UNTRUSTED PERSISTED RECORD → SERVER VALIDATION → CURATION VALIDATION →
    * TRUSTED RUNTIME RECORD. Cada decisión se revalida entera en cada carga;
@@ -361,7 +372,10 @@ export class VerifiedAssetRegistry {
       if (decision.verdict !== "APPROVED") reasons.push("decisión no aprobada");
       if (decision.status !== "ACTIVE") reasons.push("aprobación revocada o inactiva");
       if (decision.requestId !== policy.requestId || file.requestId !== policy.requestId) reasons.push("decisión de otra solicitud");
-      if (typeof decision.decidedBy !== "string" || !policy.isAuthorizedCurator(decision.decidedBy)) reasons.push("curador no autorizado por el servidor");
+      const email = typeof decision.curatorEmail === "string" ? decision.curatorEmail.trim().toLowerCase() : "";
+      if (!email) reasons.push("decisión sin curatorEmail");
+      else if (typeof decision.decidedBy !== "string" || decision.decidedBy.trim().toLowerCase() !== email) reasons.push("curatorEmail no coincide con el curador que emitió la decisión");
+      else if (!policy.isAuthorizedCurator(email)) reasons.push("curador no autorizado hoy por el servidor (ASSET_CURATOR_EMAILS)");
       const proposal = proposals.get(String(decision.proposalId));
       const contract = obj(decision.contract) as LinkContract | null;
       if (!proposal || !contract) reasons.push("sin propuesta o contrato de origen");
@@ -401,11 +415,12 @@ export class VerifiedAssetRegistry {
         ...(credit ? { creditText: credit } : {}),
         ...(asset.description ? { description: asset.description } : {}),
         ...(asset.regions?.length ? { regions: structuredClone(asset.regions) } : {}),
+        ...(asset.svgReveal?.pathId && asset.svgReveal.labelId ? { svgReveal: { pathId: asset.svgReveal.pathId, labelId: asset.svgReveal.labelId } } : {}),
         ...(asset.contentSha256 ? { contentSha256: asset.contentSha256 } : {}),
         ...(c.kind === "IDENTITY"
           ? { entityLink: { name: c.name } }
           : { evidenceLink: { sourceIds: sortedUnique(c.sourceIds), ...(c.claimIds?.length ? { claimIds: sortedUnique(c.claimIds) } : {}) } }),
-        curatedBy: String(decision.decidedBy),
+        curatedBy: String(decision.curatorEmail).trim().toLowerCase(),
         curatedAt: String(decision.decidedAt),
       });
       TRUSTED.add(record);

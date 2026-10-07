@@ -276,6 +276,9 @@ function cinematicSection(shots: Shot[], executions: ShotExecution[], scenes: Vi
         evidenceLink: meta?.selection?.evidenceLink,
         reused: !!meta?.selection?.reuse,
         gap: !!meta?.gap,
+        ...(meta?.provenance?.kind === "archival_documentary" && meta.provenance.regions?.length && meta.provenance.sourceWidth && meta.provenance.sourceHeight
+          ? { documentRegions: meta.provenance.regions, sourceSize: { width: meta.provenance.sourceWidth, height: meta.provenance.sourceHeight } }
+          : {}),
       };
     }),
   );

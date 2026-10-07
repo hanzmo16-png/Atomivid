@@ -324,7 +324,7 @@ test("J11b: el informe justifica la reutilización verificada y el render no se 
   assert.equal(report.summary.repeatedAssets[0]?.justification, "verified_identity_reuse");
   assert.doesNotThrow(() => assertVisualQuality(report));
   const [a, b] = report.cinematic!.scenes;
-  assert.equal(a.look, undefined);
+  assert.equal(a.look?.scale, undefined, "primera aparición: sin reencuadre (solo el color documental de su época)");
   assert.ok(b.look?.scale && b.look.scale > 1, "la reutilización usa otro encuadre estático");
   assert.ok(b.executed.includes("look:reframe"));
 });

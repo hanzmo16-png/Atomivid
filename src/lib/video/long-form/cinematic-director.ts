@@ -19,7 +19,7 @@
  * - Entrega: la política de bloqueo está CONGELADA en DELIVERY_POLICY. Si el
  *   sistema sabe que un visual es narrativamente falso, no se renderiza.
  */
-import type { SceneDirection, SceneLook } from "../../../../remotion/long-form-direction";
+import type { DocumentDirection, DocumentRegion, SceneDirection, SceneLook } from "../../../../remotion/long-form-direction";
 import type { AssetProvenanceKind } from "./durable-shot-assets";
 import type { ShotType } from "./types";
 import { requiresEvidence, requiresIdentity, type BeatVisual, type VisualBeatClass } from "./visual-intents";
@@ -180,14 +180,18 @@ export const RENDERER_CAPABILITIES = {
   "look:reframe": "SUPPORTED_NOW",
   "media:video_playback": "SUPPORTED_NOW",
   "card:passage": "SUPPORTED_NOW",
-  // Monocromo auténtico: el renderer solo admite saturación ≥ 0.6 (validateDirection); se aplica contraste, no B/N.
-  "grade:archival_monochrome": "PLANNED_NOT_SUPPORTED",
-  "grade:period_color": "NOT_APPLICABLE",
+  // Monocromo EXPLÍCITO y acotado: preset "schematic_mono" (solo archivo verificado o SVG curado; validateDirection).
+  "grade:archival_monochrome": "SUPPORTED_NOW",
+  // Color documental de los 90: preset "documentary_1990s" (contraste/saturación dentro de los límites; sin sepia ni VHS).
+  "grade:period_color": "SUPPORTED_NOW",
   "grade:neutral": "NOT_APPLICABLE",
   // El mapa existe como spec (diagram-map.ts) pero no hay datos cartográficos verificados que lo alimenten.
   "schematic_map": "PLANNED_NOT_SUPPORTED",
   "parallax": "PLANNED_NOT_SUPPORTED",
-  "document_animation": "PLANNED_NOT_SUPPORTED",
+  // Solo prueba VERIFICADA con regiones CURADAS del registro (nunca OCR/LLM/texto del proveedor).
+  "document_animation": "SUPPORTED_NOW",
+  // Primitiva del renderer para UN trazo + UNA etiqueta de un SVG curado (registro verificado); el planner aún no la elige.
+  "svg_reveal": "SUPPORTED_NOW",
   "map_animation": "PLANNED_NOT_SUPPORTED",
 } as const satisfies Record<string, RendererSupport>;
 export type Treatment = keyof typeof RENDERER_CAPABILITIES;
@@ -212,6 +216,9 @@ export type DirectorInput = {
   gap?: boolean;
   /** El recurso verificado ya ocupó otra escena (reutilización justificada). */
   reused?: boolean;
+  /** Regiones CURADAS del registro verificado (solo llegan de él) y tamaño de la fuente. */
+  documentRegions?: { label: string; x: number; y: number; w: number; h: number }[];
+  sourceSize?: { width: number; height: number };
 };
 
 /** Por qué una escena es tarjeta: no es lo mismo abstenerse con verdad que un fallo del planner. */
@@ -222,6 +229,8 @@ export type CinematicDecision = {
   tierSeconds: Record<CinematicTier, number>;
   camera: NonNullable<SceneDirection["camera"]>;
   look?: SceneLook;
+  /** Animación de documento (prueba verificada + regiones curadas). */
+  document?: DocumentDirection;
   motionClass: MotionClass;
   beatClass?: VisualBeatClass;
   era: EraPeriod;
@@ -308,8 +317,16 @@ export function directCinematic(scenes: DirectorInput[]): CinematicDecision[] {
       why = s.visual?.beatClass === "PLACE" ? `lugar: recorrido de presentación (${era.cadence === "archival" ? "cadencia de archivo" : "cadencia actual"})` : `imagen fija: movimiento de presentación (${era.cadence === "archival" ? "cadencia de archivo" : "cadencia actual"})`;
     }
     requested.push(`camera:${camera}`);
+    // Prueba verificada PRIMERO, animación DESPUÉS: solo con regiones curadas del registro (titular/fecha/detalle).
+    let document: DocumentDirection | undefined;
+    const regions = (s.documentRegions ?? []).filter((r): r is DocumentRegion => r.label === "headline" || r.label === "date" || r.label === "detail");
+    if (verifiedEvidence && s.kind === "image" && regions.length > 0 && s.sourceSize) {
+      document = { regions: regions.map((r) => ({ ...r })), sourceWidth: s.sourceSize.width, sourceHeight: s.sourceSize.height };
+      requested.push("document_animation");
+      why = `${why}; recorrido del documento por sus regiones curadas`;
+    }
     // Reutilización verificada: otro encuadre estático del MISMO recurso (nunca una acción nueva).
-    if (s.reused && s.kind === "image" && (verifiedIdentity || verifiedEvidence)) {
+    if (s.reused && s.kind === "image" && !document && (verifiedIdentity || verifiedEvidence)) {
       look = { ...REUSE_FRAMES[reframe++ % REUSE_FRAMES.length] };
       requested.push("look:reframe");
       why = `${why}; reutilización verificada con otro encuadre`;
@@ -318,8 +335,11 @@ export function directCinematic(scenes: DirectorInput[]): CinematicDecision[] {
     if (provenance === "archival_documentary" && s.kind !== "graphic") {
       requested.push(`grade:${era.grade}`);
       if (era.grade === "archival_monochrome") {
-        look = { ...(look ?? {}), contrast: 1.1 };
+        // B/N auténtico de la época fotográfica temprana: preset explícito (saturación 0 solo aquí).
+        look = { ...(look ?? {}), contrast: 1.1, preset: "schematic_mono" };
         requested.push("look:contrast");
+      } else if (era.grade === "period_color") {
+        look = { ...(look ?? {}), preset: "documentary_1990s" };
       }
     }
     const executed = requested.filter((t) => RENDERER_CAPABILITIES[t] === "SUPPORTED_NOW");
@@ -329,6 +349,7 @@ export function directCinematic(scenes: DirectorInput[]): CinematicDecision[] {
       tierSeconds: tierSeconds(s.startSec, s.endSec),
       camera,
       look,
+      ...(document ? { document } : {}),
       // Solo lo que el renderer ejecuta mueve la escena.
       motionClass: executed.includes("media:video_playback") ? "TRUE_MOTION" : executed.some((t) => t.startsWith("camera:") && t !== "camera:still") && s.kind === "image" ? "PRESENTATION_MOTION" : "STATIC",
       beatClass: s.visual?.beatClass,

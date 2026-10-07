@@ -238,6 +238,7 @@ async function resolveStockAnchored(shot: AllocatedShot, deps: ShotExecutionDeps
         author: record.creator,
         pageUrl: record.sourceUrl,
         ...(creditFor(record) ? { credit: creditFor(record) } : {}),
+        ...(record.regions?.length ? { regions: record.regions.map((r) => ({ ...r })), sourceWidth: record.width, sourceHeight: record.height } : {}),
       }
     : {
         kind: verified ? "archival_documentary" : "stock_illustrative",

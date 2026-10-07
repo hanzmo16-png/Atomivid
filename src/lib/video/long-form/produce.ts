@@ -667,7 +667,7 @@ export function directAnchoredScenes(
   executions: Pick<ShotExecution, "assetMeta">[],
   words: { startSeconds: number; endSeconds: number }[],
   /** v4: cámara y tratamiento decididos por el Cinematic Director (los mismos que mide el QA). */
-  cinematic?: { camera: SceneDirection["camera"]; look?: SceneDirection["look"]; provenance?: string }[],
+  cinematic?: { camera: SceneDirection["camera"]; look?: SceneDirection["look"]; document?: SceneDirection["document"]; provenance?: string }[],
 ): LongFormShotScene[] {
   if (scenes.length === 0) return scenes;
   const bounds = snapSceneBoundaries([...scenes.map((s) => s.startSeconds), scenes[scenes.length - 1].endSeconds], words);
@@ -683,7 +683,7 @@ export function directAnchoredScenes(
       ...scene,
       startSeconds: bounds[i],
       endSeconds: bounds[i + 1],
-      direction: cinematic?.[i] ? { ...directions[i], camera: cinematic[i].camera, ...(cinematic[i].look ? { look: cinematic[i].look } : {}) } : directions[i],
+      direction: cinematic?.[i] ? { ...directions[i], camera: cinematic[i].camera, ...(cinematic[i].look ? { look: cinematic[i].look } : {}), ...(cinematic[i].document ? { document: cinematic[i].document } : {}) } : directions[i],
       // v4: un video IA sin metadatos también se rotula "Recreación IA" (la decisión del Director lo sabe).
       provenance: executions[i]?.assetMeta?.provenance?.kind ?? (cinematic?.[i]?.provenance === "ai_recreation" ? "ai_recreation" : undefined),
       // v4: crédito visible del recurso verificado (CC BY lo exige) → SceneLabels.

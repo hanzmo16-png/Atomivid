@@ -287,7 +287,8 @@ test("M10-D/E: EVIDENCE debe probar su proposición; ABSENT sigue siendo legal",
 test("M7: el QA solo cuenta lo que el renderer ejecuta; lo no soportado se declara, nunca se finge", () => {
   const supported = Object.entries(RENDERER_CAPABILITIES).filter(([, v]) => v === "SUPPORTED_NOW").map(([k]) => k);
   const planned = Object.entries(RENDERER_CAPABILITIES).filter(([, v]) => v === "PLANNED_NOT_SUPPORTED").map(([k]) => k);
-  assert.ok(planned.includes("parallax") && planned.includes("schematic_map") && planned.includes("grade:archival_monochrome"));
+  assert.ok(planned.includes("parallax") && planned.includes("schematic_map") && planned.includes("map_animation"));
+  assert.ok(supported.includes("grade:archival_monochrome") && supported.includes("document_animation"), "B/N explícito y documento: ejecutados por el renderer real");
   // Cada cámara que el Director puede emitir la valida el renderer real.
   const cams = supported.filter((k) => k.startsWith("camera:")).map((k) => k.slice("camera:".length));
   assert.doesNotThrow(() => validateDirection(cams.map((c, i) => ({ id: `s${i}`, startSeconds: i, endSeconds: i + 1, direction: { camera: c as never, look: { contrast: 1.1 } } })), undefined, cams.length));
@@ -300,8 +301,9 @@ test("M7: el QA solo cuenta lo que el renderer ejecuta; lo no soportado se decla
     assert.ok(d.unsupported.every((t) => RENDERER_CAPABILITIES[t] === "PLANNED_NOT_SUPPORTED"));
     assert.ok(!d.executed.includes("parallax" as never));
   }
-  assert.deepEqual(decisions[0].unsupported, ["grade:archival_monochrome"], "B/N auténtico: pedido, no ejecutado (solo contraste)");
-  assert.ok(decisions[0].executed.includes("look:contrast"));
+  assert.deepEqual(decisions[0].unsupported, [], "B/N auténtico: pedido y ejecutado (preset explícito)");
+  assert.ok(decisions[0].executed.includes("look:contrast") && decisions[0].executed.includes("grade:archival_monochrome"));
+  assert.equal(decisions[0].look?.preset, "schematic_mono");
   assert.deepEqual(decisions[1].unsupported, ["schematic_map"], "esquema pedido; se ejecuta el pasaje");
   assert.equal(decisions[1].motionClass, "STATIC");
 });
