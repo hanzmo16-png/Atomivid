@@ -59,6 +59,8 @@ export type ShotExecutionDeps = {
   store: ShotAssetStore;
   budget: ProductionBudget;
   units: GenerativeUnitCosts;
+  /** Conservative image price checked against the production hard cap (defaults to units.imageUsd). */
+  conservativeImageUsd?: number;
   aiVideoCostConfig: AiVideoCostConfig;
   totalDurationSec: number;
   requireReal: boolean;
@@ -303,7 +305,8 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
   if (existing?.status === "FAILED_NO_CHARGE") {
     return { unavailable: "el proveedor ya rechazó esta imagen antes" };
   }
-  if (!(await deps.budget.reserveAiImage(deps.units.imageUsd))) {
+  const realUsd = Math.max(deps.units.imageUsd, deps.conservativeImageUsd ?? deps.units.imageUsd);
+  if (!(await deps.budget.reserveAiImage(deps.units.imageUsd, realUsd))) {
     return { unavailable: "presupuesto confirmado de imágenes IA agotado" };
   }
   await deps.store.write({ shotId: shot.id, kind: "ai_image", status: "STARTED", provider: deps.imageProvider.name, updatedAtIso: new Date().toISOString() });
@@ -311,7 +314,7 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
   const request = {
     prompt: deps.visualPipeline === "anchored_v1" ? aiImagePromptFor(shot) : documentaryImagePrompt(shot.visualIntent),
     aspectRatio: "16:9" as const,
-    maxCostUsd: deps.units.imageUsd,
+    maxCostUsd: realUsd,
   };
   const persistImage = async (asset: GenerativeAsset): Promise<MediaOutcome> => {
     if (deps.visualPipeline === "anchored_v1") {
@@ -359,7 +362,7 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
           model: deps.imageProvider.name,
           method: "generate_image",
           inputFingerprint: { prompt: request.prompt, aspectRatio: request.aspectRatio },
-          reservedUsd: Math.max(0, deps.units.imageUsd),
+          reservedUsd: Math.max(0, realUsd),
         },
         {
           call: async () => {
@@ -383,17 +386,19 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
         },
       );
       asset = guarded.result;
+      // The billed cost replaces the reservation; a higher bill is counted in full.
+      if (!guarded.reused) await deps.budget.settle(realUsd, guarded.costUsd);
     }
   } catch (err) {
     if (err instanceof SupplyUnavailableError) throw err;
     if (err instanceof PaidResultUnavailableError) {
       // Nada se envió ni se cobró en este intento: la reserva vuelve al presupuesto.
-      await deps.budget.releaseAiImage(deps.units.imageUsd);
+      await deps.budget.releaseAiImage(deps.units.imageUsd, realUsd);
       return { unavailable: "esta imagen ya se pagó en un intento anterior y su resultado no está disponible — no se regenera" };
     }
     if (err instanceof GenerativeProviderError && NO_CHARGE_IMAGE_REASONS.has(err.reason)) {
       await deps.store.write({ shotId: shot.id, kind: "ai_image", status: "FAILED_NO_CHARGE", provider: deps.imageProvider.name, updatedAtIso: new Date().toISOString() });
-      await deps.budget.releaseAiImage(deps.units.imageUsd);
+      await deps.budget.releaseAiImage(deps.units.imageUsd, realUsd);
       return { unavailable: `imagen IA rechazada sin costo (${err.reason})` };
     }
     // Costo incierto: queda STARTED (nunca se regenera) y la reserva queda contada.

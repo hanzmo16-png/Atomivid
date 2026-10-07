@@ -28,7 +28,10 @@ export type BudgetDeviation = {
 export type ProductionBudgetState = {
   version: 1;
   allocation: ProductionPlanAllocation;
-  used: { aiImageGenerations: number; aiVideoSubmits: number; generativeUsd: number };
+  used: { aiImageGenerations: number; aiVideoSubmits: number; generativeUsd: number; spentUsd?: number };
+  /** Per-production hard cap on REAL spend (conservative reservations, settled to
+   * billed cost). `fixedUsd` = spend committed outside this budget (narration). */
+  hardCap?: { capUsd: number; fixedUsd: number };
   deviations: BudgetDeviation[];
   updatedAtIso: string;
 };
@@ -52,7 +55,7 @@ export class ProductionBudget {
    * intento anterior conserva lo consumido; la allocation vigente es el
    * mínimo entre la guardada y la del snapshot — nunca se amplía.
    */
-  static async open(store: BudgetStore, allocation: ProductionPlanAllocation): Promise<ProductionBudget> {
+  static async open(store: BudgetStore, allocation: ProductionPlanAllocation, hardCap?: { capUsd: number; fixedUsd: number }): Promise<ProductionBudget> {
     const existing = await store.load();
     const now = new Date().toISOString();
     const state: ProductionBudgetState = existing
@@ -63,11 +66,15 @@ export class ProductionBudget {
             maxAiVideoClips: Math.min(existing.allocation.maxAiVideoClips, allocation.maxAiVideoClips),
             maxGenerativeUsd: Math.min(existing.allocation.maxGenerativeUsd, allocation.maxGenerativeUsd),
           },
+          // Never widened by a later attempt; spend already counted is kept.
+          hardCap: !hardCap ? existing.hardCap : !existing.hardCap ? hardCap
+            : { capUsd: Math.min(existing.hardCap.capUsd, hardCap.capUsd), fixedUsd: Math.max(existing.hardCap.fixedUsd, hardCap.fixedUsd) },
         }
       : {
           version: 1,
           allocation,
-          used: { aiImageGenerations: 0, aiVideoSubmits: 0, generativeUsd: 0 },
+          used: { aiImageGenerations: 0, aiVideoSubmits: 0, generativeUsd: 0, spentUsd: 0 },
+          ...(hardCap ? { hardCap } : {}),
           deviations: [],
           updatedAtIso: now,
         };
@@ -84,32 +91,52 @@ export class ProductionBudget {
     await this.store.save(this.state);
   }
 
-  async reserveAiImage(usd: number): Promise<boolean> {
+  /** Synchronous check-and-count (no await before the state change), so
+   * concurrent shots in one worker cannot both pass the same headroom. */
+  private fitsHardCap(realUsd: number): boolean {
+    const cap = this.state.hardCap;
+    if (!cap) return true;
+    return cap.fixedUsd + (this.state.used.spentUsd ?? 0) + realUsd <= cap.capUsd + EPSILON;
+  }
+
+  /** `usd` is the plan unit (confirmed allocation); `realUsd` the conservative price checked against the hard cap. */
+  async reserveAiImage(usd: number, realUsd = usd): Promise<boolean> {
     const { allocation, used } = this.state;
     if (used.aiImageGenerations + 1 > allocation.maxAiImageGenerations) return false;
     if (used.generativeUsd + usd > allocation.maxGenerativeUsd + EPSILON) return false;
-    this.state = { ...this.state, used: { ...used, aiImageGenerations: used.aiImageGenerations + 1, generativeUsd: used.generativeUsd + usd } };
+    if (!this.fitsHardCap(realUsd)) return false;
+    this.state = { ...this.state, used: { ...used, aiImageGenerations: used.aiImageGenerations + 1, generativeUsd: used.generativeUsd + usd, spentUsd: (used.spentUsd ?? 0) + realUsd } };
     await this.persist();
     return true;
   }
 
   /** Solo para fallos con costo conocido CERO — nunca para un fallo incierto. */
-  async releaseAiImage(usd: number): Promise<void> {
+  async releaseAiImage(usd: number, realUsd = usd): Promise<void> {
     const { used } = this.state;
     this.state = {
       ...this.state,
-      used: { ...used, aiImageGenerations: Math.max(0, used.aiImageGenerations - 1), generativeUsd: Math.max(0, used.generativeUsd - usd) },
+      used: { ...used, aiImageGenerations: Math.max(0, used.aiImageGenerations - 1), generativeUsd: Math.max(0, used.generativeUsd - usd), spentUsd: Math.max(0, (used.spentUsd ?? 0) - realUsd) },
     };
     await this.persist();
   }
 
-  async reserveAiVideoSubmit(usd: number): Promise<boolean> {
+  async reserveAiVideoSubmit(usd: number, realUsd = usd): Promise<boolean> {
     const { allocation, used } = this.state;
     if (used.aiVideoSubmits + 1 > allocation.maxAiVideoClips) return false;
     if (used.generativeUsd + usd > allocation.maxGenerativeUsd + EPSILON) return false;
-    this.state = { ...this.state, used: { ...used, aiVideoSubmits: used.aiVideoSubmits + 1, generativeUsd: used.generativeUsd + usd } };
+    if (!this.fitsHardCap(realUsd)) return false;
+    this.state = { ...this.state, used: { ...used, aiVideoSubmits: used.aiVideoSubmits + 1, generativeUsd: used.generativeUsd + usd, spentUsd: (used.spentUsd ?? 0) + realUsd } };
     await this.persist();
     return true;
+  }
+
+  /** Replace a reservation with the billed cost once known. A bill above the
+   * reservation is counted in full, so every later call sees the real total. */
+  async settle(reservedUsd: number, billedUsd: number): Promise<void> {
+    if (!Number.isFinite(billedUsd) || billedUsd < 0) return;
+    const { used } = this.state;
+    this.state = { ...this.state, used: { ...used, spentUsd: Math.max(0, (used.spentUsd ?? 0) - reservedUsd + billedUsd) } };
+    await this.persist();
   }
 
   async recordDeviation(deviation: Omit<BudgetDeviation, "atIso">): Promise<void> {
