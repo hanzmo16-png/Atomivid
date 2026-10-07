@@ -7,7 +7,8 @@
  *
  * Nada de lo que devuelve Commons (P180/depicts, título, categoría,
  * descripción) crea un vínculo de identidad o de prueba: eso solo lo hace
- * `curateProposal` con una decisión explícita del curador. Este módulo no
+ * la decisión de un curador humano sobre el par exacto (asset-curation.ts),
+ * rehidratada por el servidor. Este módulo no
  * se conecta al selector.
  */
 import type { BeatVisual } from "@/lib/video/long-form/visual-intents";

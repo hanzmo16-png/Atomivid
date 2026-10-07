@@ -71,6 +71,7 @@ import { DocumentAssetRegistry, type AssetIdentity } from "./asset-identity";
 import { assertVisualQuality, buildVisualReport, LongFormVisualQualityError, type VisualReport } from "./visual-report";
 import { planReleaseBlockers } from "./cinematic-director";
 import { heroCoverage, VerifiedAssetRegistry } from "./verified-assets";
+import { CURATION_FILE_PATH, isAuthorizedCurator, requestedContracts } from "./asset-curation";
 import { ProductionBudget, supabaseBudgetStore, type BudgetStore } from "./production-budget";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import { getLongFormBudget } from "./cost";
@@ -104,8 +105,8 @@ type OnProgress = (stage: LongFormStage, units?: LongFormProgressUnits) => void 
 /** Dependencias inyectables (pruebas / inyección de fallos). En producción se omiten todas. */
 export type LongFormRuntime = {
   /**
-   * v4: registro de recursos verificados (curados/licenciados) del SERVIDOR. Ausente = el
-   * de `{requestId}/state/verified-assets.json` en Storage (solo lo escribe el servidor), o vacío.
+   * v4: registro de recursos verificados del SERVIDOR (ya rehidratado). Ausente = se rehidrata
+   * desde `{requestId}/state/curation.json` (decisiones del curador; datos, no autoridad), o vacío.
    */
   verifiedAssets?: VerifiedAssetRegistry;
   paidCalls?: Pick<PaidCallDeps, "ledger" | "results">;
@@ -217,12 +218,14 @@ export async function generateLongFormVideoFromScript({
   // tarjetas seguras) se detiene ANTES de cualquier llamada pagada: voz, imágenes, video o render.
   // Además, la cobertura HERO con material verificado: si las reglas existentes (3 tarjetas en los primeros
   // 30 s, proporción máxima de tarjetas) hacen el fallo inevitable, no se gasta nada.
-  const verifiedAssets = usesVisualIdentity(plan) ? (runtime.verifiedAssets ?? (await loadVerifiedAssets(supabase, requestId))) : undefined;
+  let verifiedAssets: VerifiedAssetRegistry | undefined;
   if (usesVisualIdentity(plan)) {
     const plannedShots = planShotsFromScript(beats as ProductionPlanBeatInput[], topic, plan.strategy).shots;
+    verifiedAssets = runtime.verifiedAssets ?? (await loadVerifiedAssets(supabase, requestId, new Set(requestedContracts(plannedShots).keys())));
     const blockers = planReleaseBlockers(plannedShots).map((f) => `${f.code}: ${f.detail} (${f.shots.join(", ")})`);
     const coverage = heroCoverage(plannedShots, verifiedAssets, MAX_TEXT_FALLBACK_RATIO);
-    blockers.push(...coverage.blockers.map((b) => `HERO_COVERAGE ${b} (faltan: ${[...coverage.missingIdentities, ...coverage.missingEvidence].join(", ") || "—"})`));
+    const missing = [...coverage.heroMissingRequiredIdentities, ...coverage.heroMissingRequiredEvidence, ...coverage.missingIdentities, ...coverage.missingEvidence];
+    blockers.push(...coverage.blockers.map((b) => `HERO_COVERAGE ${b} (faltan: ${[...new Set(missing)].join(", ") || "—"})`));
     if (blockers.length > 0) throw new LongFormVisualQualityError(blockers);
   }
 
@@ -690,12 +693,18 @@ export function directAnchoredScenes(
   });
 }
 
-/** Registro verificado del servidor para esta solicitud (Storage, escrito solo por el servidor). Ausente o ilegible = vacío. */
-async function loadVerifiedAssets(supabase: SupabaseClient, requestId: string): Promise<VerifiedAssetRegistry> {
+/**
+ * Registro verificado de esta solicitud: el archivo de curaduría
+ * (`{requestId}/state/curation.json`, escrito solo por las acciones del curador)
+ * es un dato NO confiable; la confianza la recalcula aquí el servidor
+ * (licencia, calidad, crédito, huella, curador autorizado HOY, estado, contrato
+ * exacto que el plan pide). Ausente o ilegible = vacío.
+ */
+async function loadVerifiedAssets(supabase: SupabaseClient, requestId: string, contracts: ReadonlySet<string>): Promise<VerifiedAssetRegistry> {
   try {
-    const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(`${requestId}/state/verified-assets.json`);
+    const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(CURATION_FILE_PATH(requestId));
     if (error || !data) return VerifiedAssetRegistry.empty();
-    return VerifiedAssetRegistry.load(JSON.parse(await data.text()));
+    return VerifiedAssetRegistry.rehydrate(JSON.parse(await data.text()), { requestId, isAuthorizedCurator: (by) => isAuthorizedCurator(by), requestedContracts: contracts });
   } catch {
     return VerifiedAssetRegistry.empty();
   }

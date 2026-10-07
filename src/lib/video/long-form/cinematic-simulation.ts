@@ -15,8 +15,9 @@ import { allocateShotTypes, getGenerativeUnitCosts, planShotsFromScript, strateg
 import type { VisualStrategy } from "./shots";
 import { assertVisualQuality, buildVisualReport, LongFormVisualQualityError } from "./visual-report";
 import { directAnchoredScenes, MAX_TEXT_FALLBACK_RATIO } from "./produce";
-import { heroCoverage, VerifiedAssetRegistry, type VerifiedAssetRecord } from "./verified-assets";
-import { visualsForBeat } from "./visual-intents";
+import { assetFingerprint, contractKey, heroCoverage, VerifiedAssetRegistry, type CuratableAsset, type CurationFile, type RehydrationPolicy } from "./verified-assets";
+import { decideLink, emptyCurationFile, proposeAsset, requestedContracts, type RequestedContract } from "./asset-curation";
+import { visualsForBeat, type BeatVisual } from "./visual-intents";
 import { planReleaseBlockers } from "./cinematic-director";
 
 import fs from "node:fs";
@@ -327,9 +328,42 @@ export const WRONG_NEWSPAPER: Pooled = { id: "adv-wrong-newspaper", description:
 /** Falsos amigos de ALTA similitud: siguen en el pool en todos los escenarios. */
 export const gucciAdversarial: Pooled[] = [FEET, BELLBOY, BUSINESSMAN, WRONG_NEWSPAPER];
 
-const curation = { curatedBy: "fixture-curator", curatedAt: "2026-10-07T00:00:00Z", basis: "fixture offline: material legítimo del escenario de prueba" };
+// --------------------------------------------------------------------------
+// Curaduría del fixture: MISMA vía que producción (propuesta → decisión humana → JSON → rehidratación)
+// --------------------------------------------------------------------------
+
+export const FIXTURE_REQUEST_ID = "req-release-gate";
+export const FIXTURE_CURATOR = "curator@atomivid.test";
+/** Autoridad del servidor en las pruebas: solo este curador. */
+export const fixturePolicy = (requestId = FIXTURE_REQUEST_ID): RehydrationPolicy => ({ requestId, isAuthorizedCurator: (by) => by === FIXTURE_CURATOR });
+
+/** Contratos que piden unas escenas sueltas (pruebas unitarias del selector). */
+export const requestedFor = (visuals: BeatVisual[]) => requestedContracts(visuals.map((v, i) => ({ id: `v${i}`, startSec: 0, endSec: 5, type: "ken_burns_image", anchoredVisual: v })));
+export const gucciRequested = () => requestedContracts(planShotsFromScript(gucciBeats, GUCCI_TOPIC, "cinematic").shots);
+
+export type FixtureApproval = { asset: CuratableAsset; key: string; creditText?: string };
+
+/** Un curador humano aprueba, UNO A UNO, cada par recurso ↔ contrato pedido. Lanza si la vía lo impide. */
+export function curateFixture(approvals: FixtureApproval[], requested: Map<string, RequestedContract>, requestId = FIXTURE_REQUEST_ID): CurationFile {
+  let file = emptyCurationFile(requestId);
+  for (const a of approvals) {
+    const proposed = proposeAsset(file, { asset: a.asset, contractKey: a.key, origin: a.asset.source === "commons" ? "commons" : "manual", now: "2026-10-07T00:00:00Z" }, requested);
+    if ("error" in proposed) throw new Error(`${a.asset.id}: ${proposed.error}`);
+    file = proposed.file;
+    const proposal = file.proposals.find((p) => p.assetId === a.asset.id && contractKey(p.contract) === a.key)!;
+    const decided = decideLink(file, { proposalId: proposal.id, verdict: "APPROVED", curator: FIXTURE_CURATOR, now: "2026-10-07T00:00:00Z", expectedFingerprint: assetFingerprint(file.assets.find((x) => x.id === a.asset.id)!), creditText: a.creditText }, requested);
+    if ("error" in decided) throw new Error(`${a.asset.id}: ${decided.error}`);
+    file = decided.file;
+  }
+  return file;
+}
+
+/** Persistir y recargar como JSON plano: la confianza se reconstruye en el servidor, nunca viaja en el archivo. */
+export const rehydrateFixture = (file: CurationFile, requestId = FIXTURE_REQUEST_ID, requested?: Map<string, RequestedContract>) =>
+  VerifiedAssetRegistry.rehydrate(JSON.parse(JSON.stringify(file)), { ...fixturePolicy(requestId), ...(requested ? { requestedContracts: new Set(requested.keys()) } : {}) });
+
 const licensed = (ref: string) => ({ kind: "LICENSED" as const, rightsReference: ref });
-const rec = (id: string, description: string, link: Pick<VerifiedAssetRecord, "entityLink" | "evidenceLink">, width = 2400, height = 1600): VerifiedAssetRecord => ({
+const asset = (id: string, description: string, width = 2400, height = 1600): CuratableAsset => ({
   id,
   source: "licensed_archive",
   sourceUrl: `https://archive.example/record/${id}`,
@@ -342,33 +376,35 @@ const rec = (id: string, description: string, link: Pick<VerifiedAssetRecord, "e
   creator: "Archivio (fixture)",
   creditText: "Archivio fotografico (fixture)",
   description,
-  ...link,
-  curation,
 });
 
+export const MAURIZIO_KEY = "IDENTITY:maurizio gucci";
+
 /**
- * Material LEGÍTIMO del fixture como registros curados del servidor (con menor
- * similitud que los falsos amigos: no compiten por ranking, los habilita la verificación).
+ * Material LEGÍTIMO del fixture (archivo licenciado, con menor similitud que
+ * los falsos amigos: no compiten por ranking, los habilita la curaduría) y el
+ * contrato EXACTO para el que un curador lo aprueba.
  */
-export const gucciVerifiedRecords: VerifiedAssetRecord[] = [
-  rec("ver-portrait", "Maurizio Gucci archival portrait photograph, Milan", { entityLink: { name: "Maurizio Gucci" } }),
-  rec("ver-press", "Maurizio Gucci at a press conference in Milan", { entityLink: { name: "Maurizio Gucci" } }, 2000, 1333),
-  rec("ev-murder-1", "Corriere della Sera front page of 28 March 1995 on the murder", { evidenceLink: { sourceIds: ["web-2"] } }),
-  rec("ev-murder-2", "police photograph of the stairwell on Via Palestro, March 1995", { evidenceLink: { sourceIds: ["web-2"] } }),
-  rec("ev-licences", "1980s advertisement for licensed Gucci products", { evidenceLink: { sourceIds: ["web-4"] } }),
-  rec("ev-debt-1", "1993 financial press report on the company debt", { evidenceLink: { sourceIds: ["web-5"] } }),
-  rec("ev-debt-2", "Investcorp share purchase announcement, 1993", { evidenceLink: { sourceIds: ["web-5"] } }),
-  rec("ev-trial-1", "Milan court ruling of 1998 in the murder case", { evidenceLink: { sourceIds: ["web-6"] } }),
-  rec("ev-trial-2", "Italian newspapers of November 1998 on the verdict", { evidenceLink: { sourceIds: ["web-6"] } }),
+export const gucciVerifiedAssets: FixtureApproval[] = [
+  { asset: asset("ver-portrait", "Maurizio Gucci archival portrait photograph, Milan"), key: MAURIZIO_KEY },
+  { asset: asset("ver-press", "Maurizio Gucci at a press conference in Milan", 2000, 1333), key: MAURIZIO_KEY },
+  { asset: asset("ev-murder-1", "Corriere della Sera front page of 28 March 1995 on the murder"), key: "EVIDENCE:web-2" },
+  { asset: asset("ev-murder-2", "police photograph of the stairwell on Via Palestro, March 1995"), key: "EVIDENCE:web-2" },
+  { asset: asset("ev-licences", "1980s advertisement for licensed Gucci products"), key: "EVIDENCE:web-4" },
+  { asset: asset("ev-debt-1", "1993 financial press report on the company debt"), key: "EVIDENCE:web-5" },
+  { asset: asset("ev-debt-2", "Investcorp share purchase announcement, 1993"), key: "EVIDENCE:web-5" },
+  { asset: asset("ev-trial-1", "Milan court ruling of 1998 in the murder case"), key: "EVIDENCE:web-6" },
+  { asset: asset("ev-trial-2", "Italian newspapers of November 1998 on the verdict"), key: "EVIDENCE:web-6" },
 ];
 
-/** Registros que NO deben entrar: baja resolución y CC BY-SA (fuera de V1). */
-export const gucciRegistryDecoys: VerifiedAssetRecord[] = [
-  { ...rec("lowres-portrait", "Maurizio Gucci photograph (small)", { entityLink: { name: "Maurizio Gucci" } }, 442, 590) },
-  { ...rec("bysa-portrait", "Maurizio Gucci at an event", { entityLink: { name: "Maurizio Gucci" } }), source: "commons", rights: { kind: "CC_BY_SA" as never }, creditText: "x" },
+/** Recursos que NUNCA llegan a aprobación: baja resolución y CC BY-SA (fuera de V1). */
+export const gucciRegistryDecoys: CuratableAsset[] = [
+  asset("lowres-portrait", "Maurizio Gucci photograph (small)", 442, 590),
+  { ...asset("bysa-portrait", "Maurizio Gucci at an event"), source: "commons", rights: { kind: "CC_BY_SA" as never }, licenseEvidence: { code: "cc-by-sa-4.0" }, creditText: "x" },
 ];
 
-export const gucciRegistry = () => VerifiedAssetRegistry.load([...gucciVerifiedRecords, ...gucciRegistryDecoys]);
+export const gucciCurationFile = () => curateFixture(gucciVerifiedAssets, gucciRequested());
+export const gucciRegistry = () => rehydrateFixture(gucciCurationFile());
 
 // --------------------------------------------------------------------------
 // produce() real, offline (proveedores falsos que registran cada llamada)
@@ -422,8 +458,11 @@ export function countingProviders(events: string[], failDownloads?: RegExp) {
   return { voiceProvider, footageProvider, imageProvider, musicProvider };
 }
 
-export async function produceOffline(beats: ProductionPlanBeatInput[], plan: ProductionPlan, opts: { verifiedAssets?: VerifiedAssetRegistry; failDownloads?: RegExp } = {}) {
+export async function produceOffline(beats: ProductionPlanBeatInput[], plan: ProductionPlan, opts: { verifiedAssets?: VerifiedAssetRegistry; failDownloads?: RegExp; curationFile?: unknown } = {}) {
   const events: string[] = [];
+  const storage = makeStorage();
+  // Archivo de curaduría persistido (JSON plano): produce() lo rehidrata con su propia validación.
+  if (opts.curationFile !== undefined) await storage.from().upload(`${FIXTURE_REQUEST_ID}/state/curation.json`, Buffer.from(JSON.stringify(opts.curationFile)));
   const out = memoryOutputDeps({ durationSeconds: 60 });
   const runtime: LongFormRuntime = {
     paidCalls: { ledger: memoryLedgerStore(), results: memoryResultStore() },
@@ -458,8 +497,8 @@ export async function produceOffline(beats: ProductionPlanBeatInput[], plan: Pro
   try {
     await generateLongFormVideoFromScript({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      supabase: { storage: makeStorage() } as any,
-      requestId: "req-release-gate",
+      supabase: { storage } as any,
+      requestId: FIXTURE_REQUEST_ID,
       artifactPrefix: "req-release-gate/attempt-1",
       topic: GUCCI_TOPIC,
       beats: beats as never,

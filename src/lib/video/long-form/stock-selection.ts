@@ -234,6 +234,8 @@ export type StockSelectionDeps = {
   verifyEntityLink?: (candidate: FootageCandidate, providerName: string) => TrustedEntityLink | null;
   /** Verificador de pruebas del servidor (archivo/registro de confianza). Ausente hoy: ningún recurso prueba una proposición. */
   verifyEvidenceLink?: (candidate: FootageCandidate, providerName: string) => TrustedEvidenceLink | null;
+  /** Tras la descarga: el servidor confirma que el contenido es el aprobado (null) o explica el rechazo. */
+  verifyContent?: (candidate: FootageCandidate, sha256: string) => string | null;
 };
 
 function describeDuplicate(match: DuplicateMatch): string {
@@ -363,6 +365,11 @@ export async function selectStockForShot(
         continue;
       }
       const content = await identify(buffer, candidate.mediaType);
+      const mutated = deps.verifyContent?.(candidate, content.sha256 ?? "") ?? null;
+      if (mutated) {
+        rejected.push({ sourceId: reference.sourceId, query, reason: mutated });
+        continue;
+      }
       const contentDup = deps.registry.findByContent(content, input.shotId);
       if (contentDup) {
         if (!verifiedReuse) {

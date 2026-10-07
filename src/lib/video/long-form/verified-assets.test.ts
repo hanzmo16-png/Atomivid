@@ -16,27 +16,36 @@ import { directAnchoredScenes, MAX_TEXT_FALLBACK_RATIO } from "./produce";
 import { assertVisualQuality, buildVisualReport } from "./visual-report";
 import { normalizeDeclaredVisuals, type BeatVisual } from "./visual-intents";
 import {
-  curateProposal,
+  assetFromProposal,
+  contractForVisual,
+  contractKey,
   heroCoverage,
   licenseEligibility,
-  manualVerifiedRecord,
   qualityEligibility,
-  validateVerifiedRecord,
+  validateAsset,
   VerifiedAssetRegistry,
   type AssetProposal,
+  type CuratableAsset,
 } from "./verified-assets";
+import { proposeAsset, emptyCurationFile } from "./asset-curation";
 import {
   BELLBOY,
   BUSINESSMAN,
   FEET,
   GUCCI_TOPIC,
   MAURIZIO,
+  MAURIZIO_KEY,
   WRONG_NEWSPAPER,
   gucciAdversarial,
   gucciBeats,
+  curateFixture,
+  fixturePolicy,
   gucciRegistry,
   gucciRegistryDecoys,
-  gucciVerifiedRecords,
+  gucciRequested,
+  gucciVerifiedAssets,
+  rehydrateFixture,
+  requestedFor,
   identify,
   planFor,
   poolProvider,
@@ -57,7 +66,6 @@ globalThis.fetch = (async () => {
   throw new Error("verified assets: red prohibida en las pruebas");
 }) as typeof fetch;
 
-const CURATOR = { curatedBy: "curator@atomivid", curatedAt: "2026-10-07T00:00:00Z", basis: "registro de archivo contrastado con la fuente" };
 const MAURIZIO_VISUAL = normalizeDeclaredVisuals(
   [{ description: "Maurizio Gucci at his wedding", motion: false, subject: "Maurizio Gucci", era: "1972", beatClass: "IDENTITY", identity: MAURIZIO }],
   { identity: true },
@@ -79,6 +87,21 @@ function commonsPage(over: { title?: string; width?: number; height?: number; mi
 }
 
 const WEDDING = commonsPage({ license: "cc-by-4.0", shortName: "CC BY 4.0" });
+
+/** Un curador aprueba ESTE recurso para el contrato EXACTO que pide la escena; se persiste y se rehidrata. */
+function approveFor(visual: BeatVisual, asset: CuratableAsset, creditText?: string): VerifiedAssetRegistry {
+  return rehydrateFixture(curateFixture([{ asset, key: contractKey(contractForVisual(visual)!), creditText }], requestedFor([visual])));
+}
+
+function commonsAsset(page: CommonsPage): CuratableAsset {
+  const out = assetFromProposal(proposalOf(page));
+  assert.ok("asset" in out, JSON.stringify(out));
+  return out.asset;
+}
+
+const portrait = gucciVerifiedAssets[0].asset;
+const press = gucciVerifiedAssets[1].asset;
+const assetById = (id: string) => gucciVerifiedAssets.find((a) => a.asset.id === id)!.asset;
 
 function proposalOf(page: CommonsPage): AssetProposal {
   const out = proposalFromCommonsPage(page);
@@ -187,10 +210,8 @@ test("J1-J2: la foto correcta de la boda (CC BY, 2400 px) es una PROPUESTA; solo
   // Sin curaduría: ni la propuesta ni su metadata (categoría, descripción) verifican nada.
   const uncurated = await selectWith(MAURIZIO_VISUAL, poolProvider([{ id: "commons-wedding", description: proposal.description!, similarity: 0.9, media: "image" }]).provider, VerifiedAssetRegistry.empty());
   assert.equal(uncurated.status, "gap", "encontrado por Commons ≠ confiable");
-  // Con curaduría del servidor.
-  const curated = curateProposal(proposal, { ...CURATOR, entityLink: { name: "Maurizio Gucci" } });
-  assert.ok(curated.ok, JSON.stringify(curated));
-  const registry = VerifiedAssetRegistry.load([curated.ok ? curated.record : null]);
+  // Con la decisión humana sobre el par exacto (boda ↔ Maurizio), persistida y rehidratada.
+  const registry = approveFor(MAURIZIO_VISUAL, commonsAsset(WEDDING));
   const out = await selectWith(MAURIZIO_VISUAL, poolProvider([FEET, BELLBOY]).provider, registry);
   assert.equal(out.status, "selected");
   if (out.status === "selected") {
@@ -210,9 +231,11 @@ test("J3-J6: 442 px (calidad), CC BY-NC, CC BY-SA (V1) y licencia desconocida no
   }
   const restricted = proposalFromCommonsPage(commonsPage({ license: "pd", restrictions: "personality" }));
   assert.ok("rejected" in restricted);
-  // El registro tampoco los acepta por la vía manual.
-  const reg = gucciRegistry();
-  assert.deepEqual(reg.rejected.map((r) => r.id).sort(), gucciRegistryDecoys.map((d) => d.id).sort());
+  // Tampoco por la vía manual: nunca entran al archivo de curaduría.
+  for (const decoy of gucciRegistryDecoys) {
+    const out = proposeAsset(emptyCurationFile("r"), { asset: decoy, contractKey: MAURIZIO_KEY, origin: "manual", now: "t" }, gucciRequested());
+    assert.ok("error" in out, decoy.id);
+  }
 });
 
 test("J7: unas escaleras de licencia libre son LEGALES y aun así no pueden representar a Maurizio", async () => {
@@ -220,16 +243,16 @@ test("J7: unas escaleras de licencia libre son LEGALES y aun así no pueden repr
   const stairs: Pooled = { id: "pd-stairs", description: "Maurizio Gucci stairs public domain photograph", similarity: 0.97, media: "image" };
   const out = await selectWith(MAURIZIO_VISUAL, poolProvider([stairs]).provider, VerifiedAssetRegistry.empty());
   assert.equal(out.status, "gap");
-  // Y sin vínculo curado no puede entrar al registro.
-  const noLink = validateVerifiedRecord({ ...gucciVerifiedRecords[0], id: "stairs", entityLink: undefined, rights: { kind: "PD" } });
-  assert.ok(!noLink.ok && noLink.reasons.some((r) => /vínculo/.test(r)));
+  // Y sin decisión humana sobre ese par, ni siquiera estando en el archivo, es de confianza.
+  const file = { ...emptyCurationFile("req-release-gate"), assets: [{ ...portrait, id: "stairs", rights: { kind: "PD" as const } }] };
+  assert.equal(rehydrateFixture(file).size, 0);
 });
 
 test("J8, J16: un candidato o proveedor no puede autocrear confianza (nombre, entityReference, id 'verified:', misma URL)", async () => {
   const registry = gucciRegistry();
   const spoof: FootageCandidate = {
-    url: gucciVerifiedRecords[0].mediaUrl,
-    sourceId: `verified:${gucciVerifiedRecords[0].id}`,
+    url: portrait.mediaUrl,
+    sourceId: `verified:${portrait.id}`,
     description: "Maurizio Gucci archival portrait photograph, Milan",
     entityReference: { name: "Maurizio Gucci" },
     mediaType: "image",
@@ -238,14 +261,12 @@ test("J8, J16: un candidato o proveedor no puede autocrear confianza (nombre, en
   };
   assert.equal(registry.verifyEntityLink(spoof), null, "solo los objetos EMITIDOS por el registro son de confianza");
   assert.equal(registry.verifyEvidenceLink(spoof), null);
-  // Una propuesta (o cualquier objeto sin curaduría) no se carga como registro.
-  const asRecord = VerifiedAssetRegistry.load([{ ...proposalOf(WEDDING), id: "x", entityLink: { name: "Maurizio Gucci" } }]);
-  assert.equal(asRecord.size, 0);
-  assert.ok(asRecord.rejected[0].reasons.some((r) => /curaduría/.test(r)));
+  // Una propuesta con vínculo y "curaduría" autodeclarados no se rehidrata.
+  const selfAsserted = { ...emptyCurationFile("req-release-gate"), assets: [{ ...commonsAsset(WEDDING), entityLink: { name: "Maurizio Gucci" }, curation: { curatedBy: "fixture" } }] };
+  assert.equal(VerifiedAssetRegistry.rehydrate(selfAsserted, fixturePolicy()).size, 0);
   // Commons trae depicts/categoría/descripción con el nombre: no crean vínculo.
-  const proposal = { ...proposalOf(WEDDING), depicts: ["Maurizio Gucci"] };
-  const noDecision = curateProposal(proposal, { ...CURATOR });
-  assert.ok(!noDecision.ok, "sin decisión de vínculo del curador no hay registro");
+  const withDepicts = assetFromProposal({ ...proposalOf(WEDDING), depicts: ["Maurizio Gucci"] });
+  assert.ok("asset" in withDepicts && !("entityLink" in withDepicts.asset), "sin decisión de vínculo del curador no hay registro");
 });
 
 const DEBT_VISUAL = normalizeDeclaredVisuals(
@@ -254,8 +275,8 @@ const DEBT_VISUAL = normalizeDeclaredVisuals(
 )[0];
 
 test("J9-J10: el periódico equivocado (0.94) se rechaza; la prueba correcta (menor similitud) solo es elegible con evidenceLink", async () => {
-  const debtRecord = gucciVerifiedRecords.find((r) => r.id === "ev-debt-1")!;
-  const withLink = await selectWith(DEBT_VISUAL, poolProvider([WRONG_NEWSPAPER]).provider, VerifiedAssetRegistry.load([debtRecord]));
+  const debtRecord = assetById("ev-debt-1");
+  const withLink = await selectWith(DEBT_VISUAL, poolProvider([WRONG_NEWSPAPER]).provider, approveFor(DEBT_VISUAL, debtRecord));
   assert.equal(withLink.status, "selected");
   if (withLink.status === "selected") {
     assert.equal(withLink.candidate.url, debtRecord.mediaUrl);
@@ -266,7 +287,7 @@ test("J9-J10: el periódico equivocado (0.94) se rechaza; la prueba correcta (me
 });
 
 test("J11-J13: reutilización — retrato verificado SÍ (justificada); stock genérico NO; identidad distinta NO", async () => {
-  const registry = VerifiedAssetRegistry.load([gucciVerifiedRecords[0]]);
+  const registry = approveFor(MAURIZIO_VISUAL, portrait);
   const doc = new DocumentAssetRegistry();
   const first = await selectWith(MAURIZIO_VISUAL, poolProvider([]).provider, registry, doc, "s1");
   assert.equal(first.status, "selected");
@@ -294,7 +315,7 @@ test("J11-J13: reutilización — retrato verificado SÍ (justificada); stock ge
 });
 
 test("J11b: el informe justifica la reutilización verificada y el render no se bloquea; con otro encuadre", async () => {
-  const registry = VerifiedAssetRegistry.load([gucciVerifiedRecords[0]]);
+  const registry = approveFor(MAURIZIO_VISUAL, portrait);
   const shots = [shotFor("s1", MAURIZIO_VISUAL), shotFor("s2", { ...MAURIZIO_VISUAL })];
   shots[1] = { ...shots[1], startSec: 5, endSec: 10 };
   const executions = await executeWith(shots, [], registry);
@@ -309,9 +330,7 @@ test("J11b: el informe justifica la reutilización verificada y el render no se 
 });
 
 test("J14: el crédito CC BY llega a la escena renderizada (SceneLabels), no solo al JSON", async () => {
-  const curated = curateProposal(proposalOf(WEDDING), { ...CURATOR, entityLink: { name: "Maurizio Gucci" } });
-  assert.ok(curated.ok);
-  const registry = VerifiedAssetRegistry.load([curated.ok ? curated.record : null]);
+  const registry = approveFor(MAURIZIO_VISUAL, commonsAsset(WEDDING));
   const shots = [shotFor("s1", MAURIZIO_VISUAL)];
   const executions = await executeWith(shots, [], registry);
   const credit = executions[0].assetMeta?.provenance?.credit;
@@ -325,24 +344,23 @@ test("J14: el crédito CC BY llega a la escena renderizada (SceneLabels), no sol
 });
 
 test("J15: un registro manual de archivo licenciado sigue EXACTAMENTE la misma vía (y CC BY sin crédito no entra)", async () => {
-  const manual = manualVerifiedRecord({ ...gucciVerifiedRecords[1], source: "licensed_archive" });
-  assert.ok(manual.ok);
-  const registry = VerifiedAssetRegistry.load([manual.ok ? manual.record : null]);
+  const registry = approveFor(MAURIZIO_VISUAL, { ...press, source: "licensed_archive" });
   const [ex] = await executeWith([shotFor("s1", MAURIZIO_VISUAL)], [], registry);
   assert.equal(ex.executedType, "ken_burns_image");
   assert.equal(ex.assetMeta?.provenance?.kind, "archival_documentary");
   assert.match(ex.assetMeta?.provenance?.license ?? "", /^LICENSED: /);
-  const noCredit = validateVerifiedRecord({ ...gucciVerifiedRecords[1], rights: { kind: "CC_BY" }, creditText: undefined });
-  assert.ok(!noCredit.ok && noCredit.reasons.some((r) => /CC BY exige/.test(r)));
-  const commonsLicensed = validateVerifiedRecord({ ...gucciVerifiedRecords[1], source: "commons" });
-  assert.ok(!commonsLicensed.ok, "Commons nunca entra con derechos 'LICENSED'");
+  const noCredit = validateAsset({ ...press, source: "manual", rights: { kind: "CC_BY" }, creditText: undefined }, { forApproval: true });
+  assert.ok(noCredit.some((r) => /CC BY exige/.test(r)));
+  const commonsLicensed = validateAsset({ ...press, source: "commons" });
+  assert.ok(commonsLicensed.length > 0, "Commons nunca entra con derechos 'LICENSED'");
 });
 
 test("regiones curadas (0–1) viajan con la prueba junto al crédito y la procedencia; fuera de rango se rechazan", () => {
-  const withRegions = validateVerifiedRecord({ ...gucciVerifiedRecords[2], regions: [{ label: "headline", x: 0.1, y: 0.05, w: 0.8, h: 0.2 }, { label: "date", x: 0.7, y: 0.01, w: 0.25, h: 0.05 }] });
-  assert.ok(withRegions.ok && withRegions.record.regions?.length === 2 && withRegions.record.creditText && withRegions.record.evidenceLink);
-  const bad = validateVerifiedRecord({ ...gucciVerifiedRecords[2], regions: [{ label: "headline", x: 0.5, y: 0.5, w: 0.8, h: 0.2 }] });
-  assert.ok(!bad.ok);
+  const regions = [{ label: "headline" as const, x: 0.1, y: 0.05, w: 0.8, h: 0.2 }, { label: "date" as const, x: 0.7, y: 0.01, w: 0.25, h: 0.05 }];
+  const registry = approveFor(DEBT_VISUAL, { ...assetById("ev-debt-1"), regions });
+  const [record] = registry.recordsFor(DEBT_VISUAL);
+  assert.ok(record.regions?.length === 2 && record.creditText && record.evidenceLink);
+  assert.ok(validateAsset({ ...assetById("ev-debt-1"), regions: [{ label: "headline", x: 0.5, y: 0.5, w: 0.8, h: 0.2 }] }).length > 0);
 });
 
 test("Commons: consulta por identidad (nunca su acción), EVIDENCE solo con proposición; búsqueda simulada sin red", async () => {
@@ -381,7 +399,8 @@ test("J18: cobertura HERO con el registro mínimo refleja la reutilización (ide
   const { shots } = planShotsFromScript(gucciBeats, GUCCI_TOPIC, "cinematic");
   const coverage = heroCoverage(shots, gucciRegistry(), MAX_TEXT_FALLBACK_RATIO);
   assert.deepEqual(coverage.missingIdentities, []);
-  assert.ok(coverage.verifiedIdentitySeconds > 0);
+  assert.deepEqual(coverage.heroMissingRequiredIdentities, []);
+  assert.ok(coverage.heroIdentitySeconds > 0);
   assert.deepEqual(coverage.blockers, []);
 });
 
@@ -426,9 +445,9 @@ test("K: Gucci offline — A sin registro (fallo verdadero), B registro mínimo 
   for (const adv of [FEET, BELLBOY, BUSINESSMAN, WRONG_NEWSPAPER]) assert.ok(!bSim.report.scenes.some((s) => s.candidateDescription === adv.description), adv.id);
 
   // C: un único retrato CC BY de Commons, curado. Las pruebas (portada 1995, juicio 1998, deuda 1993) no tienen licencia abierta.
-  const commonsOnly = curateProposal(proposalOf(WEDDING), { ...CURATOR, entityLink: { name: "Maurizio Gucci" } });
-  const cSim = await simulate(gucciBeats, GUCCI_TOPIC, gucciAdversarial, "cinematic", { registry: VerifiedAssetRegistry.load([commonsOnly.ok ? commonsOnly.record : null]) });
+  const cSim = await simulate(gucciBeats, GUCCI_TOPIC, gucciAdversarial, "cinematic", { registry: approveFor(MAURIZIO_VISUAL, commonsAsset(WEDDING)) });
   const c = summary("C", cSim);
   assert.ok(c.coverage.missingEvidence.length > 0, "las proposiciones de prueba quedan sin cubrir");
+  assert.equal(c.deliverable, false, "un retrato no es cobertura de prueba: HERO_EVIDENCE_COVERAGE_MISSING");
   assert.equal(networkCalls, 0);
 });

@@ -220,6 +220,7 @@ async function resolveStockAnchored(shot: AllocatedShot, deps: ShotExecutionDeps
       identify: deps.identify,
       verifyEntityLink: deps.verifiedAssets?.verifyEntityLink ?? deps.verifyEntityLink,
       verifyEvidenceLink: deps.verifiedAssets?.verifyEvidenceLink ?? deps.verifyEvidenceLink,
+      ...(deps.verifiedAssets ? { verifyContent: deps.verifiedAssets.verifyContent } : {}),
     },
   );
   if (outcome.status === "gap") {

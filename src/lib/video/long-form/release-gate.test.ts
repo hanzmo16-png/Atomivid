@@ -20,11 +20,13 @@ import {
   type CinematicQaScene,
   type DirectorInput,
 } from "./cinematic-director";
-import { VerifiedAssetRegistry } from "./verified-assets";
 import {
   planFor,
   produceOffline,
-  gucciVerifiedRecords,
+  curateFixture,
+  gucciRequested,
+  gucciVerifiedAssets,
+  rehydrateFixture,
   BELLBOY,
   BUSINESSMAN,
   FEET,
@@ -380,7 +382,7 @@ test("M9: v4 + bloqueante conocido en el PLAN (clasificación incierta en HERO) 
 test("M9: v4 + bloqueante conocido tras resolver los recursos (3 tarjetas en los primeros 30 s) → el render NO empieza y nada se llama después", async () => {
   // El registro cubre a la persona (el plan parece entregable), pero el archivo no se puede descargar al ejecutar:
   // el bloqueante solo aparece tras resolver los recursos.
-  const registry = VerifiedAssetRegistry.load([gucciVerifiedRecords[0]]);
+  const registry = rehydrateFixture(curateFixture([gucciVerifiedAssets[0]], gucciRequested()));
   const run = await produceOffline(openingIdentityBeats, planFor(openingIdentityBeats), { verifiedAssets: registry, failDownloads: /archive\.example/ });
   assert.ok(run.error instanceof LongFormVisualQualityError, String(run.error));
   assert.match((run.error as Error).message, /OPENING_TEXT_CARD_RUN/);
