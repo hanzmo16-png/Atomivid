@@ -40,7 +40,7 @@ async function main() {
   check(names.voice === "elevenlabs" && names.footage === "pexels-video-first" && names.music === "curated-library", "worker providers match the plan");
   check(process.env.RUNWAY_KEY_PRESENT === "true", "Runway connection configured");
   // Spend projection with the observed OpenAI image price and the hard allocation counts.
-  const voiceUsd = plan.estimatedVoiceCostUsd ?? 0, imagesUsd = plan.allocation.maxAiImageGenerations * OPENAI_IMAGE_OBSERVED_USD, videoUsd = plan.estimatedAiVideoCostUsd ?? 0;
+  const voiceUsd = plan.estimatedVoiceCostUsd ?? 0, imagesUsd = (plan.allocation?.maxAiImageGenerations ?? 0) * OPENAI_IMAGE_OBSERVED_USD, videoUsd = plan.estimatedAiVideoCostUsd ?? 0;
   const projected = +(voiceUsd + imagesUsd + videoUsd).toFixed(4);
   check(projected <= CAP_USD, `projected spend ${projected} <= ${CAP_USD}`);
   const demands = jobSupplyDemands(row as never, plan.providers.voice);
