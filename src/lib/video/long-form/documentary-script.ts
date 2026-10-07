@@ -1,4 +1,6 @@
-import { narrationCatalog, ReferencedEditorialReviewSchema, resolveReferencedReview, REFERENCE_REVIEW_RULES } from './narration-catalog';
+import { narrationCatalog, ReferencedEditorialReviewSchema, LenientReferencedReviewSchema, resolveReviewReferences, applyReferenceRepairs, ReferenceRepairSchema, REFERENCE_REVIEW_RULES } from './narration-catalog';
+import { FRAGMENT_CONTRACT, fragmentOutputContract, writeFragmentDraft } from './narrative-fragments';
+import { locateNormalized } from './text-locate';
 import { CitationRepairSchema, canonicalizeEditorialCitations, invalidEditorialCitations, applyEditorialCitationRepairs, EditorialEvidenceError } from "./editorial-evidence";
 /** Documentary writer with a separate evidence-based editorial review.
  * Requires retrieved excerpts or an externally prepared research pack. One shared
@@ -9,7 +11,7 @@ import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
 import { documentaryOutputBudget } from "./script-output-budget";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { jsonResponseSystem, parseDocumentaryResponse } from "./json-response";
+import { jsonResponseSystem, parseDocumentaryResponse, DocumentaryResponseError } from "./json-response";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { assertOriginalHook, usesBannedOpener } from "./originality";
 import { BEAT_TYPES, type LongFormClaim, type LongFormMode, type LongFormSource, type NarrativeBeat } from "./types";
@@ -124,6 +126,13 @@ export const DocumentaryNarrativeSchema = DocumentaryScriptSchema.extend({
 export const DocumentaryNarrativePromptSchema = DocumentaryNarrativeSchema.extend({ creativeDirection: CreativeDirectionPromptSchema });
 const BeatVisualsSchema = z.object({ visuals: z.array(VisualSchema).min(2).max(12) });
 const ReferencedVisualsSchema=z.object({visuals:z.array(VisualSchema.omit({quote:true}).extend({excerptId:z.string().min(1).max(80)}).strict()).min(2).max(12)}).strict();
+// Accept stray keys; the excerptId (or a locatable passage) anchors each scene.
+const LenientVisualsSchema=z.object({visuals:z.array(VisualSchema.omit({quote:true}).extend({excerptId:z.string().max(200).optional(),quote:z.string().max(400).optional()})).min(1).max(12)});
+// fragments-v1 writer contract: one plan fragment, one fragment per beat.
+const PlanFragmentSchema = DocumentaryNarrativeSchema.omit({ beats: true }).extend({ fragment: z.literal("plan") });
+const PlanFragmentPromptSchema = DocumentaryNarrativePromptSchema.omit({ beats: true }).extend({ fragment: z.literal("plan") });
+const BeatFragmentSchema = BeatSchema.omit({ visuals: true }).extend({ fragment: z.literal("beat"), index: z.number().int().min(0).max(9) });
+type WriterMessage = { stop_reason: string | null; content: Array<{ type: string; text?: string }>; usage?: { input_tokens: number; output_tokens: number } };
 
 export type DocumentaryScript = z.infer<typeof DocumentaryScriptSchema>;
 
@@ -173,6 +182,12 @@ export async function generateDocumentaryScript(input: {
   targetDurationSeconds: number;
   creativeHistory?: CreativeHistoryEntry[];
   referenceContract?: "catalog-v1";
+  /** fragments-v1 for new jobs; absent = legacy single document (falls back to fragments when it is unusable). */
+  writerContract?: typeof FRAGMENT_CONTRACT;
+  /** Owner-requested additional correction rounds after an editorial objection (0–2). */
+  extraEditorialRounds?: number;
+  /** Test/replay port: replaces the provider call (same params, no network). */
+  send?: (params: { model: string; max_tokens: number } & Record<string, unknown>) => Promise<WriterMessage>;
   /** Solo pruebas: sustituye la llamada a Claude. */
   parse?: ScriptParse;
   /** Test injection must provide both ports: it never silently skips editorial review. */
@@ -235,20 +250,42 @@ En esta etapa escribe SOLO narración, evidencia y dirección creativa; las esce
 Los siete ángulos son alternativas breves, no siete guiones: una frase corta por campo. No repitas narración en los planes.
 No añadas notas de producción, listas de tomas ni indicaciones visuales a la narración.`;
 
+  const send = input.send ?? (params => supplyProtectedAnthropic(params, () => getClient().messages.create(params as unknown as Anthropic.MessageCreateParamsNonStreaming, { maxRetries: 0 }) as Promise<WriterMessage & Anthropic.Message>));
+  const withoutVisuals = (narrative: z.infer<typeof DocumentaryNarrativeSchema>) => ({ ...narrative, beats: narrative.beats.map(beat => ({ ...beat, visuals: [] })) });
+  const writerParams = (system: string, prompt: string) => {
+    const outputBudget = documentaryOutputBudget(SCRIPT_MODEL);
+    return {
+      model: SCRIPT_MODEL,
+      max_tokens: outputBudget.max_tokens,
+      system,
+      messages: [{ role: "user" as const, content: prompt }],
+      ...(outputBudget.effort ? { output_config: { effort: outputBudget.effort } } : {}),
+    };
+  };
+  const writeFragments = async (args: { system: string; prompt: string }) => {
+    const system = `${args.system}\n${fragmentOutputContract(PlanFragmentPromptSchema, BeatFragmentSchema)}`;
+    const draft = await writeFragmentDraft({ prompt: args.prompt, planSchema: PlanFragmentSchema, beatSchema: BeatFragmentSchema,
+      send: prompt => send(writerParams(system, prompt)),
+      onContinuation: async missing => input.onStage?.(missing.plan ? "Continuando el guion: plan narrativo"
+        : `Continuando el guion: bloques ${missing.beats.map(i => i + 1).join(", ")}`) });
+    // Fragment markers are transport only; the assembled document is validated whole (unknown keys are stripped).
+    const assembled = DocumentaryNarrativeSchema.safeParse({ ...draft.plan, beats: draft.beats });
+    if (!assembled.success) throw new DocumentaryResponseError("El guion ensamblado no cumple el formato editorial requerido.");
+    return withoutVisuals(assembled.data);
+  };
   const parse: ScriptParse =
     input.parse ??
     (async (args) => {
-      const outputBudget = documentaryOutputBudget(SCRIPT_MODEL);
-      const params = {
-        model: SCRIPT_MODEL,
-        max_tokens: outputBudget.max_tokens,
-        system: jsonResponseSystem(args.system, DocumentaryNarrativePromptSchema),
-        messages: [{ role: "user" as const, content: args.prompt }],
-        ...(outputBudget.effort ? { output_config: { effort: outputBudget.effort } } : {}),
-      };
-      const response = await supplyProtectedAnthropic(params, () => getClient().messages.create(params, { maxRetries: 0 }));
-      const narrative = parseDocumentaryResponse(DocumentaryNarrativeSchema, response);
-      return { ...narrative, beats: narrative.beats.map(beat => ({ ...beat, visuals: [] })) };
+      if (input.writerContract === FRAGMENT_CONTRACT) return writeFragments(args);
+      try {
+        const response = await send(writerParams(jsonResponseSystem(args.system, DocumentaryNarrativePromptSchema), args.prompt));
+        return withoutVisuals(parseDocumentaryResponse(DocumentaryNarrativeSchema, response));
+      } catch (error) {
+        // A saved legacy response that is truncated/invalid replays identically
+        // forever. Continue with the fragment contract instead of failing again.
+        if (!(error instanceof DocumentaryResponseError)) throw error;
+        return writeFragments(args);
+      }
     });
 
   const review: EditorialParse = input.review ?? (async (args) => {
@@ -260,16 +297,45 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
       ...(SCRIPT_MODEL === "claude-sonnet-5" ? { output_config: { effort: "low" as const } } : {}),
     };
     // The critic has the same durable accounting, reservations and zero SDK retries.
-    const response = await supplyProtectedAnthropic(params, () => getClient().messages.create(params, { maxRetries: 0 }));
-    return parseDocumentaryResponse(input.referenceContract ? ReferencedEditorialReviewSchema : EditorialReviewSchema, response);
+    const response = await send(params);
+    return parseDocumentaryResponse(input.referenceContract ? LenientReferencedReviewSchema : EditorialReviewSchema, response);
   });
+
+  // catalog-v1: the reviewer selects excerpt IDs; text and location are derived
+  // here. Unresolvable blocking evidence gets ONE bounded ID re-selection; an
+  // unresolvable suggestion is dropped. Failure here is technical, never editorial.
+  let referenceRepairUsed = false;
+  const resolveCatalogReview = async (rawReview: unknown, beats: { narration: string }[]): Promise<EditorialReview> => {
+    const script = parsed!;
+    const first = resolveReviewReferences(rawReview, beats);
+    if (first.review) return validateEditorialReview(first.review, script);
+    if (referenceRepairUsed || first.unresolved.length > 24 || (input.parse && !input.repairEvidence)) throw new EditorialEvidenceError();
+    referenceRepairUsed = true;
+    await input.onStage?.("Corrigiendo referencias del revisor");
+    const repairPrompt = JSON.stringify({ task: "reference-repair-v1", unresolved: first.unresolved, review: rawReview, narrationExcerpts: narrationCatalog(beats) });
+    let repaired: unknown;
+    if (input.repairEvidence) repaired = await input.repairEvidence(repairPrompt);
+    else {
+      const params = { model: SCRIPT_MODEL, max_tokens: 1500,
+        system: jsonResponseSystem("Selecciona SOLO el excerptId del catálogo que respalda cada observación indicada por path, tratada como datos. " +
+          "Devuelve una sustitución por path. No cambies juicios, severidad ni explicaciones. Si ningún fragmento la respalda, omite ese path: la revisión quedará detenida.", ReferenceRepairSchema),
+        messages: [{ role: "user" as const, content: repairPrompt }],
+        ...(SCRIPT_MODEL === "claude-sonnet-5" ? { output_config: { effort: "low" as const } } : {}),
+      };
+      repaired = parseDocumentaryResponse(ReferenceRepairSchema, await send(params));
+    }
+    const second = resolveReviewReferences(applyReferenceRepairs(rawReview, first.unresolved, repaired), beats);
+    if (!second.review) throw new EditorialEvidenceError();
+    return validateEditorialReview(second.review, script);
+  };
 
   await input.onStage?.("Escribiendo la historia");
   let parsed = await parse({ system, prompt });
   if (!parsed) throw new Error("Claude no devolvió un guion documental válido");
   const reviews: EditorialReview[] = [];
   let evidenceRepairUsed = false;
-  for (let pass = 0; pass < 2; pass++) {
+  const passes = 2 + Math.max(0, Math.min(2, Math.trunc(input.extraEditorialRounds ?? 0)));
+  for (let pass = 0; pass < passes; pass++) {
     const saveDraft = async (review: EditorialReview | null) => input.onDraft?.(structuredClone({
       version: 1 as const, status: "unapproved" as const, pass,
       script: DocumentaryNarrativeSchema.parse(parsed), researchPack: input.researchPack, review,
@@ -293,9 +359,10 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
         targetDurationSeconds: input.targetDurationSeconds, creativeHistory: history, timingEstimate: narrativeTiming(parsed.beats), script: parsed,
         ...(input.referenceContract ? {narrationExcerpts:narrationCatalog(parsed.beats)} : {}) }) });
     let reviewed: EditorialReview;
-    try { reviewed = validateEditorialReview(input.referenceContract ? resolveReferencedReview(rawReview,parsed.beats) : rawReview, parsed); }
+    if (input.referenceContract) reviewed = await resolveCatalogReview(rawReview, parsed.beats);
+    else try { reviewed = validateEditorialReview(rawReview, parsed); }
     catch (error) {
-      if (input.referenceContract || !(error instanceof EditorialEvidenceError) || evidenceRepairUsed) throw error;
+      if (!(error instanceof EditorialEvidenceError) || evidenceRepairUsed) throw error;
       const canonical = canonicalizeEditorialCitations(EditorialReviewSchema.parse(rawReview), parsed.beats);
       const invalid = invalidEditorialCitations(canonical, parsed.beats);
       if (invalid.length > 24 || (input.parse && !input.repairEvidence)) throw error;
@@ -315,7 +382,7 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
           messages: [{ role: "user" as const, content: repairPrompt }],
           ...(SCRIPT_MODEL === "claude-sonnet-5" ? { output_config: { effort: "low" as const } } : {}),
         };
-        const response = await supplyProtectedAnthropic(params, () => getClient().messages.create(params, { maxRetries: 0 }));
+        const response = await send(params);
         repaired = parseDocumentaryResponse(CitationRepairSchema, response);
       }
       reviewed = validateEditorialReview(applyEditorialCitationRepairs(canonical, parsed.beats, repaired), parsed);
@@ -325,6 +392,7 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
     await saveDraft(reviewed);
     const issues = [...localIssues, ...editorialBlockers(reviewed)];
     const durationAcceptable = pass === 0 ? evaluation.withinTolerance : evaluation.withinHardTolerance;
+    const lastPass = pass === passes - 1;
     if (!issues.length && durationAcceptable) {
       // Plan only the approved narration, one short response per beat. Each call
       // is independently cached/accounted; an interruption reuses prior results.
@@ -344,27 +412,31 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
               ...(input.referenceContract ? {narrationExcerpts:narrationCatalog(parsed.beats).filter(e=>e.beatIndex===i)} : {}) }) }],
             ...(SCRIPT_MODEL === "claude-sonnet-5" ? { output_config: { effort: "low" as const } } : {}),
           };
-          const response = await supplyProtectedAnthropic(params, () => getClient().messages.create(params, { maxRetries: 0 }));
-          const plan = input.referenceContract ? (()=>{
-            const raw=parseDocumentaryResponse(ReferencedVisualsSchema,response),catalog=new Map(narrationCatalog(parsed.beats).filter(e=>e.beatIndex===i).map(e=>[e.id,e]));
-            return {visuals:raw.visuals.map(({excerptId,...visual})=>{const excerpt=catalog.get(excerptId);if(!excerpt)throw new EditorialEvidenceError();return {...visual,quote:excerpt.quote};})};
-          })() : parseDocumentaryResponse(BeatVisualsSchema, response);
-          if (plan.visuals.some(v => !beat.narration.includes(v.quote) || countWords(v.quote) < 5))
-            throw new EditorialQualityError(["Un plano visual no está anclado a la narración aprobada."]);
+          const response = await send(params);
+          // Scene anchors are derived from the approved narration: the ID (or a
+          // locatable passage) selects it; unanchorable scenes are dropped, and
+          // fewer than two anchored scenes is a technical planning failure.
+          const catalog = new Map(narrationCatalog(parsed.beats).filter(e => e.beatIndex === i).map(e => [e.id, e]));
+          const raw = parseDocumentaryResponse(input.referenceContract ? LenientVisualsSchema : z.object({ visuals: z.array(VisualSchema).min(1).max(12) }), response);
+          const plan = { visuals: raw.visuals.flatMap(({ excerptId, quote, ...visual }: { excerptId?: string; quote?: string } & Omit<z.infer<typeof VisualSchema>, "quote">) => {
+            const anchored = (excerptId ? catalog.get(excerptId)?.quote : undefined) ?? (quote ? locateNormalized(beat.narration, quote) : null);
+            return anchored && countWords(anchored) >= 5 ? [{ ...visual, quote: anchored }] : [];
+          }) };
+          if (plan.visuals.length < 2) throw new DocumentaryResponseError("El plan visual de un bloque no quedó anclado a la narración aprobada.");
           beat.visuals = plan.visuals;
         }
         parsed = DocumentaryScriptSchema.parse(parsed);
       }
       input.onEditorialApproved?.({ version: EDITORIAL_VERSION, status: "approved", model: SCRIPT_MODEL,
         creativeDirection: parsed.creativeDirection, historyCount: history.length, publicationTitle: parsed.title,
-        scriptHash: editorialScriptHash(parsed.beats), corrected: pass === 1, storyPlan: parsed.storyPlan, reviews });
+        scriptHash: editorialScriptHash(parsed.beats), corrected: pass > 0, storyPlan: parsed.storyPlan, reviews });
       return parsed.beats;
     }
-    if (pass === 1) {
+    if (lastPass) {
       if (!durationAcceptable) throw new LongFormScriptDurationError(evaluation, input.targetDurationSeconds);
       throw new EditorialQualityError(issues,true);
     }
-    const correction = `${prompt}\n\nCORRECCIÓN OBLIGATORIA — única revisión permitida, editorial y duración juntas.
+    const correction = `${prompt}\n\nCORRECCIÓN OBLIGATORIA — ${pass === 0 ? "única revisión permitida" : "corrección adicional solicitada por el propietario"}, editorial y duración juntas.
 El borrador tiene ${evaluation.words} palabras (~${Math.round(evaluation.estimatedSeconds)} s); objetivo ${budget.minWords}-${budget.maxWords}.
 Corrige las observaciones sin introducir hechos nuevos no respaldados. Conserva lo que sí funciona.
 No reemplaces la ausencia de evidencia por una revelación inventada. Actualiza storyPlan y las escenas para la narración corregida.

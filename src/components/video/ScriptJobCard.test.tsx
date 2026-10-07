@@ -9,8 +9,10 @@ test("running and failed preparations remain visible without a media/generate re
   const html=renderToStaticMarkup(<ScriptJobCard job={state} nowMs={now}/>);
   assert.ok(html.includes("Documentary"));assert.ok(!html.includes("Iniciar producción"));assert.ok(!html.includes("Reactivar trabajo guardado"));
  }
- const html=renderToStaticMarkup(<ScriptJobCard job={job} nowMs={now+360001}/>);
- assert.ok(html.includes("Necesita revisión"));assert.ok(html.includes("resultado incierto"));
+ const html=renderToStaticMarkup(<ScriptJobCard job={job} nowMs={now+600001}/>);
+ assert.ok(html.includes("Interrumpido"));assert.ok(html.includes("no confirmó su resultado"));
+ const failed=renderToStaticMarkup(<ScriptJobCard job={{...job,status:"failed",failure_kind:"editorial",error_message:"Objeción"}} nowMs={now}/>);
+ assert.ok(failed.includes("Objeción editorial"));assert.ok(failed.includes("Pedir otra corrección editorial"));
 });
 test("completed preparation offers only the approved production configuration link",()=>{
  const html=renderToStaticMarkup(<ScriptJobCard job={{...job,status:"completed"}} nowMs={now}/>);

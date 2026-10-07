@@ -3,13 +3,16 @@ import { createClient } from "@/lib/supabase/server";
 import { ScriptJobCard } from "@/components/video/ScriptJobCard";
 import { DocumentaryDraftView } from "@/components/video/DocumentaryDraftView";
 import { AutoRefresh } from "@/app/dashboard/AutoRefresh";
-import { scriptJobView, type ScriptJobSummary } from "@/lib/video/long-form/script-job-types";
+import { scriptJobView, SCRIPT_JOB_COLUMNS, type ScriptJobSummary } from "@/lib/video/long-form/script-job-types";
+import { reconcileStaleScriptJobs } from "@/lib/video/long-form/script-jobs";
 export default async function ScriptJobPage({params}:{params:Promise<{id:string}>}) {
  const {id}=await params, client=await createClient();
  const {data:{user}}=await client.auth.getUser();
  if(!user) redirect("/login");
+ // A dead worker becomes a persisted "interrupted" state, never endless loading.
+ await reconcileStaleScriptJobs(user.id).catch(()=>{});
  const {data,error}=await client.from("documentary_script_jobs")
-  .select("id,topic,status,stage,error_message,request_id,created_at,updated_at,editorial_checkpoint").eq("id",id).eq("user_id",user.id).maybeSingle();
+  .select(`${SCRIPT_JOB_COLUMNS},editorial_checkpoint`).eq("id",id).eq("user_id",user.id).maybeSingle();
  if(error) return <p role="alert">No se pudo consultar el estado. El trabajo guardado no se reinicia; vuelve al historial en un momento.</p>;
  if(!data) notFound();
  const job=data as ScriptJobSummary;

@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
-import { enqueueScriptJob } from "@/lib/video/long-form/script-jobs";
+import { enqueueScriptJob, retryScriptJob } from "@/lib/video/long-form/script-jobs";
 import { dispatchScriptJob } from "@/lib/video/long-form/script-job-dispatch";
 
 const MIN_DURATION_MINUTES = 3;
@@ -94,4 +94,16 @@ export async function resumeQueuedScriptJob(formData: FormData) {
   const {data:job}=await client.from("documentary_script_jobs").select("id,status,updated_at,error_message").eq("id",id).eq("user_id",user.id).maybeSingle();
   if(job?.status==="queued" && (job.error_message || Date.now()-Date.parse(job.updated_at)>90000)) after(()=>dispatchScriptJob(job.id));
   redirect("/dashboard");
+}
+
+/** Owner retry/resume/extra correction of a FAILED job (see retryPatch). The
+ * same row is requeued once via compare-and-swap; nothing new is created. */
+export async function retryFailedScriptJob(formData: FormData) {
+  const client=await createClient();
+  const {data:{user}}=await client.auth.getUser();
+  if(!user) redirect("/login");
+  if(!canAccessLongFormBeta(user)) redirect("/dashboard");
+  const id=String(formData.get("job_id")??"");
+  if(await retryScriptJob(user.id,id)==="queued") after(()=>dispatchScriptJob(id));
+  redirect(`/dashboard/long-form/jobs/${encodeURIComponent(id)}`);
 }

@@ -1,0 +1,1250 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Sub,DejaVu Sans,50,&H00FFFFFF,&H00FFFFFF,&H00000000,&H90000000,-1,0,0,0,100,100,0,0,1,3,1.5,2,160,160,64,1
+Style: Title,DejaVu Serif,104,&H00F2F2F2,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,14,0,1,2,3,5,100,100,0,1
+Style: Note,DejaVu Sans,34,&H00D8D8D8,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,1,0,1,2,1.5,2,100,100,150,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.40,0:00:00.62,Sub,,0,0,0,,{\c&H0048C8FF&}For{\c&H00FFFFFF&} decades, a story has circulated
+Dialogue: 0,0:00:00.62,0:00:01.67,Sub,,0,0,0,,For {\c&H0048C8FF&}decades,{\c&H00FFFFFF&} a story has circulated
+Dialogue: 0,0:00:01.67,0:00:01.83,Sub,,0,0,0,,For decades, {\c&H0048C8FF&}a{\c&H00FFFFFF&} story has circulated
+Dialogue: 0,0:00:01.83,0:00:02.26,Sub,,0,0,0,,For decades, a {\c&H0048C8FF&}story{\c&H00FFFFFF&} has circulated
+Dialogue: 0,0:00:02.26,0:00:02.40,Sub,,0,0,0,,For decades, a story {\c&H0048C8FF&}has{\c&H00FFFFFF&} circulated
+Dialogue: 0,0:00:02.40,0:00:02.98,Sub,,0,0,0,,For decades, a story has {\c&H0048C8FF&}circulated{\c&H00FFFFFF&}
+Dialogue: 0,0:00:02.98,0:00:03.30,Sub,,0,0,0,,{\c&H0048C8FF&}around{\c&H00FFFFFF&} a small town in northern New
+Dialogue: 0,0:00:03.30,0:00:03.42,Sub,,0,0,0,,around {\c&H0048C8FF&}a{\c&H00FFFFFF&} small town in northern New
+Dialogue: 0,0:00:03.42,0:00:03.85,Sub,,0,0,0,,around a {\c&H0048C8FF&}small{\c&H00FFFFFF&} town in northern New
+Dialogue: 0,0:00:03.85,0:00:04.23,Sub,,0,0,0,,around a small {\c&H0048C8FF&}town{\c&H00FFFFFF&} in northern New
+Dialogue: 0,0:00:04.23,0:00:04.37,Sub,,0,0,0,,around a small town {\c&H0048C8FF&}in{\c&H00FFFFFF&} northern New
+Dialogue: 0,0:00:04.37,0:00:04.68,Sub,,0,0,0,,around a small town in {\c&H0048C8FF&}northern{\c&H00FFFFFF&} New
+Dialogue: 0,0:00:04.68,0:00:04.80,Sub,,0,0,0,,around a small town in northern {\c&H0048C8FF&}New{\c&H00FFFFFF&}
+Dialogue: 0,0:00:04.80,0:00:06.08,Sub,,0,0,0,,{\c&H0048C8FF&}Mexico.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:06.08,0:00:06.25,Sub,,0,0,0,,{\c&H0048C8FF&}A{\c&H00FFFFFF&} military facility that,
+Dialogue: 0,0:00:06.25,0:00:06.81,Sub,,0,0,0,,A {\c&H0048C8FF&}military{\c&H00FFFFFF&} facility that,
+Dialogue: 0,0:00:06.81,0:00:07.46,Sub,,0,0,0,,A military {\c&H0048C8FF&}facility{\c&H00FFFFFF&} that,
+Dialogue: 0,0:00:07.46,0:00:08.25,Sub,,0,0,0,,A military facility {\c&H0048C8FF&}that,{\c&H00FFFFFF&}
+Dialogue: 0,0:00:08.25,0:00:09.34,Sub,,0,0,0,,{\c&H0048C8FF&}officially,{\c&H00FFFFFF&} does not exist.
+Dialogue: 0,0:00:09.34,0:00:09.60,Sub,,0,0,0,,officially, {\c&H0048C8FF&}does{\c&H00FFFFFF&} not exist.
+Dialogue: 0,0:00:09.60,0:00:09.78,Sub,,0,0,0,,officially, does {\c&H0048C8FF&}not{\c&H00FFFFFF&} exist.
+Dialogue: 0,0:00:09.78,0:00:10.98,Sub,,0,0,0,,officially, does not {\c&H0048C8FF&}exist.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:10.98,0:00:11.49,Sub,,0,0,0,,{\c&H0048C8FF&}Miles{\c&H00FFFFFF&} of tunnels underground.
+Dialogue: 0,0:00:11.49,0:00:11.60,Sub,,0,0,0,,Miles {\c&H0048C8FF&}of{\c&H00FFFFFF&} tunnels underground.
+Dialogue: 0,0:00:11.60,0:00:12.14,Sub,,0,0,0,,Miles of {\c&H0048C8FF&}tunnels{\c&H00FFFFFF&} underground.
+Dialogue: 0,0:00:12.14,0:00:13.47,Sub,,0,0,0,,Miles of tunnels {\c&H0048C8FF&}underground.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:13.47,0:00:13.84,Sub,,0,0,0,,{\c&H0048C8FF&}Seven{\c&H00FFFFFF&} levels.
+Dialogue: 0,0:00:13.84,0:00:14.91,Sub,,0,0,0,,Seven {\c&H0048C8FF&}levels.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:14.91,0:00:16.27,Sub,,0,0,0,,{\c&H0048C8FF&}Laboratories.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:16.27,0:00:16.85,Sub,,0,0,0,,{\c&H0048C8FF&}Restricted{\c&H00FFFFFF&} zones.
+Dialogue: 0,0:00:16.85,0:00:18.08,Sub,,0,0,0,,Restricted {\c&H0048C8FF&}zones.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:18.08,0:00:18.85,Sub,,0,0,0,,{\c&H0048C8FF&}And,{\c&H00FFFFFF&} according to some accounts,
+Dialogue: 0,0:00:18.85,0:00:19.28,Sub,,0,0,0,,And, {\c&H0048C8FF&}according{\c&H00FFFFFF&} to some accounts,
+Dialogue: 0,0:00:19.28,0:00:19.39,Sub,,0,0,0,,And, according {\c&H0048C8FF&}to{\c&H00FFFFFF&} some accounts,
+Dialogue: 0,0:00:19.39,0:00:19.59,Sub,,0,0,0,,And, according to {\c&H0048C8FF&}some{\c&H00FFFFFF&} accounts,
+Dialogue: 0,0:00:19.59,0:00:20.51,Sub,,0,0,0,,And, according to some {\c&H0048C8FF&}accounts,{\c&H00FFFFFF&}
+Dialogue: 0,0:00:20.51,0:00:20.93,Sub,,0,0,0,,{\c&H0048C8FF&}something{\c&H00FFFFFF&} that should never have been
+Dialogue: 0,0:00:20.93,0:00:21.09,Sub,,0,0,0,,something {\c&H0048C8FF&}that{\c&H00FFFFFF&} should never have been
+Dialogue: 0,0:00:21.09,0:00:21.38,Sub,,0,0,0,,something that {\c&H0048C8FF&}should{\c&H00FFFFFF&} never have been
+Dialogue: 0,0:00:21.38,0:00:21.67,Sub,,0,0,0,,something that should {\c&H0048C8FF&}never{\c&H00FFFFFF&} have been
+Dialogue: 0,0:00:21.67,0:00:21.81,Sub,,0,0,0,,something that should never {\c&H0048C8FF&}have{\c&H00FFFFFF&} been
+Dialogue: 0,0:00:21.81,0:00:21.97,Sub,,0,0,0,,something that should never have {\c&H0048C8FF&}been{\c&H00FFFFFF&}
+Dialogue: 0,0:00:21.97,0:00:22.15,Sub,,0,0,0,,{\c&H0048C8FF&}there{\c&H00FFFFFF&} at all.
+Dialogue: 0,0:00:22.15,0:00:22.24,Sub,,0,0,0,,there {\c&H0048C8FF&}at{\c&H00FFFFFF&} all.
+Dialogue: 0,0:00:22.24,0:00:23.09,Sub,,0,0,0,,there at {\c&H0048C8FF&}all.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:23.09,0:00:23.30,Sub,,0,0,0,,{\c&H0048C8FF&}But{\c&H00FFFFFF&} much of what we now call
+Dialogue: 0,0:00:23.30,0:00:23.51,Sub,,0,0,0,,But {\c&H0048C8FF&}much{\c&H00FFFFFF&} of what we now call
+Dialogue: 0,0:00:23.51,0:00:23.60,Sub,,0,0,0,,But much {\c&H0048C8FF&}of{\c&H00FFFFFF&} what we now call
+Dialogue: 0,0:00:23.60,0:00:23.74,Sub,,0,0,0,,But much of {\c&H0048C8FF&}what{\c&H00FFFFFF&} we now call
+Dialogue: 0,0:00:23.74,0:00:23.89,Sub,,0,0,0,,But much of what {\c&H0048C8FF&}we{\c&H00FFFFFF&} now call
+Dialogue: 0,0:00:23.89,0:00:24.17,Sub,,0,0,0,,But much of what we {\c&H0048C8FF&}now{\c&H00FFFFFF&} call
+Dialogue: 0,0:00:24.17,0:00:24.50,Sub,,0,0,0,,But much of what we now {\c&H0048C8FF&}call{\c&H00FFFFFF&}
+Dialogue: 0,0:00:24.50,0:00:24.67,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} Dulce Base legend traces back to
+Dialogue: 0,0:00:24.67,0:00:25.43,Sub,,0,0,0,,the {\c&H0048C8FF&}Dulce{\c&H00FFFFFF&} Base legend traces back to
+Dialogue: 0,0:00:25.43,0:00:25.77,Sub,,0,0,0,,the Dulce {\c&H0048C8FF&}Base{\c&H00FFFFFF&} legend traces back to
+Dialogue: 0,0:00:25.77,0:00:26.53,Sub,,0,0,0,,the Dulce Base {\c&H0048C8FF&}legend{\c&H00FFFFFF&} traces back to
+Dialogue: 0,0:00:26.53,0:00:27.02,Sub,,0,0,0,,the Dulce Base legend {\c&H0048C8FF&}traces{\c&H00FFFFFF&} back to
+Dialogue: 0,0:00:27.02,0:00:27.24,Sub,,0,0,0,,the Dulce Base legend traces {\c&H0048C8FF&}back{\c&H00FFFFFF&} to
+Dialogue: 0,0:00:27.24,0:00:27.38,Sub,,0,0,0,,the Dulce Base legend traces back {\c&H0048C8FF&}to{\c&H00FFFFFF&}
+Dialogue: 0,0:00:27.38,0:00:27.50,Sub,,0,0,0,,{\c&H0048C8FF&}a{\c&H00FFFFFF&} single man's testimony.
+Dialogue: 0,0:00:27.50,0:00:27.89,Sub,,0,0,0,,a {\c&H0048C8FF&}single{\c&H00FFFFFF&} man's testimony.
+Dialogue: 0,0:00:27.89,0:00:28.23,Sub,,0,0,0,,a single {\c&H0048C8FF&}man's{\c&H00FFFFFF&} testimony.
+Dialogue: 0,0:00:28.23,0:00:29.48,Sub,,0,0,0,,a single man's {\c&H0048C8FF&}testimony.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:29.48,0:00:29.63,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} name attached to it is Thomas
+Dialogue: 0,0:00:29.63,0:00:29.81,Sub,,0,0,0,,The {\c&H0048C8FF&}name{\c&H00FFFFFF&} attached to it is Thomas
+Dialogue: 0,0:00:29.81,0:00:30.19,Sub,,0,0,0,,The name {\c&H0048C8FF&}attached{\c&H00FFFFFF&} to it is Thomas
+Dialogue: 0,0:00:30.19,0:00:30.33,Sub,,0,0,0,,The name attached {\c&H0048C8FF&}to{\c&H00FFFFFF&} it is Thomas
+Dialogue: 0,0:00:30.33,0:00:30.42,Sub,,0,0,0,,The name attached to {\c&H0048C8FF&}it{\c&H00FFFFFF&} is Thomas
+Dialogue: 0,0:00:30.42,0:00:30.55,Sub,,0,0,0,,The name attached to it {\c&H0048C8FF&}is{\c&H00FFFFFF&} Thomas
+Dialogue: 0,0:00:30.55,0:00:30.92,Sub,,0,0,0,,The name attached to it is {\c&H0048C8FF&}Thomas{\c&H00FFFFFF&}
+Dialogue: 0,0:00:30.92,0:00:31.21,Sub,,0,0,0,,{\c&H0048C8FF&}Edwin{\c&H00FFFFFF&} Castello.
+Dialogue: 0,0:00:31.21,0:00:32.46,Sub,,0,0,0,,Edwin {\c&H0048C8FF&}Castello.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:32.46,0:00:32.62,Sub,,0,0,0,,{\c&H0048C8FF&}And{\c&H00FFFFFF&} he claimed he worked inside.
+Dialogue: 0,0:00:32.62,0:00:32.72,Sub,,0,0,0,,And {\c&H0048C8FF&}he{\c&H00FFFFFF&} claimed he worked inside.
+Dialogue: 0,0:00:32.72,0:00:33.33,Sub,,0,0,0,,And he {\c&H0048C8FF&}claimed{\c&H00FFFFFF&} he worked inside.
+Dialogue: 0,0:00:33.33,0:00:33.50,Sub,,0,0,0,,And he claimed {\c&H0048C8FF&}he{\c&H00FFFFFF&} worked inside.
+Dialogue: 0,0:00:33.50,0:00:33.77,Sub,,0,0,0,,And he claimed he {\c&H0048C8FF&}worked{\c&H00FFFFFF&} inside.
+Dialogue: 0,0:00:33.77,0:00:35.16,Sub,,0,0,0,,And he claimed he worked {\c&H0048C8FF&}inside.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:36.77,0:00:37.65,Sub,,0,0,0,,{\c&H0048C8FF&}Castello{\c&H00FFFFFF&} said he was a security
+Dialogue: 0,0:00:37.65,0:00:37.85,Sub,,0,0,0,,Castello {\c&H0048C8FF&}said{\c&H00FFFFFF&} he was a security
+Dialogue: 0,0:00:37.85,0:00:37.95,Sub,,0,0,0,,Castello said {\c&H0048C8FF&}he{\c&H00FFFFFF&} was a security
+Dialogue: 0,0:00:37.95,0:00:38.21,Sub,,0,0,0,,Castello said he {\c&H0048C8FF&}was{\c&H00FFFFFF&} a security
+Dialogue: 0,0:00:38.21,0:00:38.32,Sub,,0,0,0,,Castello said he was {\c&H0048C8FF&}a{\c&H00FFFFFF&} security
+Dialogue: 0,0:00:38.32,0:00:38.89,Sub,,0,0,0,,Castello said he was a {\c&H0048C8FF&}security{\c&H00FFFFFF&}
+Dialogue: 0,0:00:38.89,0:00:39.92,Sub,,0,0,0,,{\c&H0048C8FF&}specialist.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:39.92,0:00:40.11,Sub,,0,0,0,,{\c&H0048C8FF&}In{\c&H00FFFFFF&} the account attributed to him,
+Dialogue: 0,0:00:40.11,0:00:40.21,Sub,,0,0,0,,In {\c&H0048C8FF&}the{\c&H00FFFFFF&} account attributed to him,
+Dialogue: 0,0:00:40.21,0:00:40.55,Sub,,0,0,0,,In the {\c&H0048C8FF&}account{\c&H00FFFFFF&} attributed to him,
+Dialogue: 0,0:00:40.55,0:00:41.02,Sub,,0,0,0,,In the account {\c&H0048C8FF&}attributed{\c&H00FFFFFF&} to him,
+Dialogue: 0,0:00:41.02,0:00:41.18,Sub,,0,0,0,,In the account attributed {\c&H0048C8FF&}to{\c&H00FFFFFF&} him,
+Dialogue: 0,0:00:41.18,0:00:41.61,Sub,,0,0,0,,In the account attributed to {\c&H0048C8FF&}him,{\c&H00FFFFFF&}
+Dialogue: 0,0:00:41.61,0:00:41.87,Sub,,0,0,0,,{\c&H0048C8FF&}that{\c&H00FFFFFF&} career eventually brought him to an
+Dialogue: 0,0:00:41.87,0:00:42.25,Sub,,0,0,0,,that {\c&H0048C8FF&}career{\c&H00FFFFFF&} eventually brought him to an
+Dialogue: 0,0:00:42.25,0:00:42.73,Sub,,0,0,0,,that career {\c&H0048C8FF&}eventually{\c&H00FFFFFF&} brought him to an
+Dialogue: 0,0:00:42.73,0:00:43.00,Sub,,0,0,0,,that career eventually {\c&H0048C8FF&}brought{\c&H00FFFFFF&} him to an
+Dialogue: 0,0:00:43.00,0:00:43.14,Sub,,0,0,0,,that career eventually brought {\c&H0048C8FF&}him{\c&H00FFFFFF&} to an
+Dialogue: 0,0:00:43.14,0:00:43.29,Sub,,0,0,0,,that career eventually brought him {\c&H0048C8FF&}to{\c&H00FFFFFF&} an
+Dialogue: 0,0:00:43.29,0:00:43.38,Sub,,0,0,0,,that career eventually brought him to {\c&H0048C8FF&}an{\c&H00FFFFFF&}
+Dialogue: 0,0:00:43.38,0:00:43.91,Sub,,0,0,0,,{\c&H0048C8FF&}underground{\c&H00FFFFFF&} installation near Dulce,
+Dialogue: 0,0:00:43.91,0:00:44.68,Sub,,0,0,0,,underground {\c&H0048C8FF&}installation{\c&H00FFFFFF&} near Dulce,
+Dialogue: 0,0:00:44.68,0:00:44.96,Sub,,0,0,0,,underground installation {\c&H0048C8FF&}near{\c&H00FFFFFF&} Dulce,
+Dialogue: 0,0:00:44.96,0:00:45.62,Sub,,0,0,0,,underground installation near {\c&H0048C8FF&}Dulce,{\c&H00FFFFFF&}
+Dialogue: 0,0:00:45.62,0:00:45.79,Sub,,0,0,0,,{\c&H0048C8FF&}New{\c&H00FFFFFF&} Mexico.
+Dialogue: 0,0:00:45.79,0:00:46.79,Sub,,0,0,0,,New {\c&H0048C8FF&}Mexico.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:46.79,0:00:46.99,Sub,,0,0,0,,{\c&H0048C8FF&}At{\c&H00FFFFFF&} first, none of it had to
+Dialogue: 0,0:00:46.99,0:00:47.68,Sub,,0,0,0,,At {\c&H0048C8FF&}first,{\c&H00FFFFFF&} none of it had to
+Dialogue: 0,0:00:47.68,0:00:47.89,Sub,,0,0,0,,At first, {\c&H0048C8FF&}none{\c&H00FFFFFF&} of it had to
+Dialogue: 0,0:00:47.89,0:00:47.99,Sub,,0,0,0,,At first, none {\c&H0048C8FF&}of{\c&H00FFFFFF&} it had to
+Dialogue: 0,0:00:47.99,0:00:48.11,Sub,,0,0,0,,At first, none of {\c&H0048C8FF&}it{\c&H00FFFFFF&} had to
+Dialogue: 0,0:00:48.11,0:00:48.27,Sub,,0,0,0,,At first, none of it {\c&H0048C8FF&}had{\c&H00FFFFFF&} to
+Dialogue: 0,0:00:48.27,0:00:48.39,Sub,,0,0,0,,At first, none of it had {\c&H0048C8FF&}to{\c&H00FFFFFF&}
+Dialogue: 0,0:00:48.39,0:00:48.63,Sub,,0,0,0,,{\c&H0048C8FF&}look{\c&H00FFFFFF&} alien.
+Dialogue: 0,0:00:48.63,0:00:49.47,Sub,,0,0,0,,look {\c&H0048C8FF&}alien.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:49.47,0:00:50.26,Sub,,0,0,0,,{\c&H0048C8FF&}Classified{\c&H00FFFFFF&} facilities.
+Dialogue: 0,0:00:50.26,0:00:51.35,Sub,,0,0,0,,Classified {\c&H0048C8FF&}facilities.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:51.35,0:00:51.80,Sub,,0,0,0,,{\c&H0048C8FF&}Staff{\c&H00FFFFFF&} with different levels of
+Dialogue: 0,0:00:51.80,0:00:51.96,Sub,,0,0,0,,Staff {\c&H0048C8FF&}with{\c&H00FFFFFF&} different levels of
+Dialogue: 0,0:00:51.96,0:00:52.32,Sub,,0,0,0,,Staff with {\c&H0048C8FF&}different{\c&H00FFFFFF&} levels of
+Dialogue: 0,0:00:52.32,0:00:52.64,Sub,,0,0,0,,Staff with different {\c&H0048C8FF&}levels{\c&H00FFFFFF&} of
+Dialogue: 0,0:00:52.64,0:00:52.73,Sub,,0,0,0,,Staff with different levels {\c&H0048C8FF&}of{\c&H00FFFFFF&}
+Dialogue: 0,0:00:52.73,0:00:53.57,Sub,,0,0,0,,{\c&H0048C8FF&}clearance.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:53.57,0:00:54.08,Sub,,0,0,0,,{\c&H0048C8FF&}Controlled{\c&H00FFFFFF&} doors.
+Dialogue: 0,0:00:54.08,0:00:54.95,Sub,,0,0,0,,Controlled {\c&H0048C8FF&}doors.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:54.95,0:00:55.98,Sub,,0,0,0,,{\c&H0048C8FF&}Cameras.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:55.98,0:00:56.91,Sub,,0,0,0,,{\c&H0048C8FF&}Identification{\c&H00FFFFFF&} systems.
+Dialogue: 0,0:00:56.91,0:00:57.82,Sub,,0,0,0,,Identification {\c&H0048C8FF&}systems.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:57.82,0:00:58.83,Sub,,0,0,0,,{\c&H0048C8FF&}Secrets.{\c&H00FFFFFF&}
+Dialogue: 0,0:00:58.83,0:00:59.13,Sub,,0,0,0,,{\c&H0048C8FF&}All{\c&H00FFFFFF&} of it fits comfortably inside the
+Dialogue: 0,0:00:59.13,0:00:59.26,Sub,,0,0,0,,All {\c&H0048C8FF&}of{\c&H00FFFFFF&} it fits comfortably inside the
+Dialogue: 0,0:00:59.26,0:00:59.37,Sub,,0,0,0,,All of {\c&H0048C8FF&}it{\c&H00FFFFFF&} fits comfortably inside the
+Dialogue: 0,0:00:59.37,0:00:59.66,Sub,,0,0,0,,All of it {\c&H0048C8FF&}fits{\c&H00FFFFFF&} comfortably inside the
+Dialogue: 0,0:00:59.66,0:01:00.17,Sub,,0,0,0,,All of it fits {\c&H0048C8FF&}comfortably{\c&H00FFFFFF&} inside the
+Dialogue: 0,0:01:00.17,0:01:00.64,Sub,,0,0,0,,All of it fits comfortably {\c&H0048C8FF&}inside{\c&H00FFFFFF&} the
+Dialogue: 0,0:01:00.64,0:01:00.76,Sub,,0,0,0,,All of it fits comfortably inside {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:01:00.76,0:01:01.19,Sub,,0,0,0,,{\c&H0048C8FF&}world{\c&H00FFFFFF&} of military security.
+Dialogue: 0,0:01:01.19,0:01:01.37,Sub,,0,0,0,,world {\c&H0048C8FF&}of{\c&H00FFFFFF&} military security.
+Dialogue: 0,0:01:01.37,0:01:02.01,Sub,,0,0,0,,world of {\c&H0048C8FF&}military{\c&H00FFFFFF&} security.
+Dialogue: 0,0:01:02.01,0:01:03.08,Sub,,0,0,0,,world of military {\c&H0048C8FF&}security.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:03.08,0:01:03.35,Sub,,0,0,0,,{\c&H0048C8FF&}But{\c&H00FFFFFF&} Dulce, Castello said,
+Dialogue: 0,0:01:03.35,0:01:04.62,Sub,,0,0,0,,But {\c&H0048C8FF&}Dulce,{\c&H00FFFFFF&} Castello said,
+Dialogue: 0,0:01:04.62,0:01:05.37,Sub,,0,0,0,,But Dulce, {\c&H0048C8FF&}Castello{\c&H00FFFFFF&} said,
+Dialogue: 0,0:01:05.37,0:01:06.01,Sub,,0,0,0,,But Dulce, Castello {\c&H0048C8FF&}said,{\c&H00FFFFFF&}
+Dialogue: 0,0:01:06.01,0:01:06.36,Sub,,0,0,0,,{\c&H0048C8FF&}was{\c&H00FFFFFF&} different.
+Dialogue: 0,0:01:06.36,0:01:07.51,Sub,,0,0,0,,was {\c&H0048C8FF&}different.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:07.51,0:01:07.95,Sub,,0,0,0,,{\c&H0048C8FF&}Because{\c&H00FFFFFF&} the deeper you went… the less
+Dialogue: 0,0:01:07.95,0:01:08.13,Sub,,0,0,0,,Because {\c&H0048C8FF&}the{\c&H00FFFFFF&} deeper you went… the less
+Dialogue: 0,0:01:08.13,0:01:08.50,Sub,,0,0,0,,Because the {\c&H0048C8FF&}deeper{\c&H00FFFFFF&} you went… the less
+Dialogue: 0,0:01:08.50,0:01:08.67,Sub,,0,0,0,,Because the deeper {\c&H0048C8FF&}you{\c&H00FFFFFF&} went… the less
+Dialogue: 0,0:01:08.67,0:01:09.55,Sub,,0,0,0,,Because the deeper you {\c&H0048C8FF&}went…{\c&H00FFFFFF&} the less
+Dialogue: 0,0:01:09.55,0:01:09.75,Sub,,0,0,0,,Because the deeper you went… {\c&H0048C8FF&}the{\c&H00FFFFFF&} less
+Dialogue: 0,0:01:09.75,0:01:10.03,Sub,,0,0,0,,Because the deeper you went… the {\c&H0048C8FF&}less{\c&H00FFFFFF&}
+Dialogue: 0,0:01:10.03,0:01:10.45,Sub,,0,0,0,,{\c&H0048C8FF&}human{\c&H00FFFFFF&} the facility seemed.
+Dialogue: 0,0:01:10.45,0:01:10.56,Sub,,0,0,0,,human {\c&H0048C8FF&}the{\c&H00FFFFFF&} facility seemed.
+Dialogue: 0,0:01:10.56,0:01:11.16,Sub,,0,0,0,,human the {\c&H0048C8FF&}facility{\c&H00FFFFFF&} seemed.
+Dialogue: 0,0:01:11.16,0:01:12.74,Sub,,0,0,0,,human the facility {\c&H0048C8FF&}seemed.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:14.33,0:01:14.55,Sub,,0,0,0,,{\c&H0048C8FF&}He{\c&H00FFFFFF&} described a structure divided into
+Dialogue: 0,0:01:14.55,0:01:15.04,Sub,,0,0,0,,He {\c&H0048C8FF&}described{\c&H00FFFFFF&} a structure divided into
+Dialogue: 0,0:01:15.04,0:01:15.11,Sub,,0,0,0,,He described {\c&H0048C8FF&}a{\c&H00FFFFFF&} structure divided into
+Dialogue: 0,0:01:15.11,0:01:15.54,Sub,,0,0,0,,He described a {\c&H0048C8FF&}structure{\c&H00FFFFFF&} divided into
+Dialogue: 0,0:01:15.54,0:01:16.02,Sub,,0,0,0,,He described a structure {\c&H0048C8FF&}divided{\c&H00FFFFFF&} into
+Dialogue: 0,0:01:16.02,0:01:16.31,Sub,,0,0,0,,He described a structure divided {\c&H0048C8FF&}into{\c&H00FFFFFF&}
+Dialogue: 0,0:01:16.31,0:01:16.73,Sub,,0,0,0,,{\c&H0048C8FF&}several{\c&H00FFFFFF&} underground levels.
+Dialogue: 0,0:01:16.73,0:01:17.22,Sub,,0,0,0,,several {\c&H0048C8FF&}underground{\c&H00FFFFFF&} levels.
+Dialogue: 0,0:01:17.22,0:01:18.27,Sub,,0,0,0,,several underground {\c&H0048C8FF&}levels.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:18.27,0:01:18.65,Sub,,0,0,0,,{\c&H0048C8FF&}Getting{\c&H00FFFFFF&} in
+Dialogue: 0,0:01:18.65,0:01:19.48,Sub,,0,0,0,,Getting {\c&H0048C8FF&}in{\c&H00FFFFFF&}
+Dialogue: 0,0:01:19.48,0:01:19.87,Sub,,0,0,0,,{\c&H0048C8FF&}wasn't{\c&H00FFFFFF&} just a matter of carrying the
+Dialogue: 0,0:01:19.87,0:01:20.09,Sub,,0,0,0,,wasn't {\c&H0048C8FF&}just{\c&H00FFFFFF&} a matter of carrying the
+Dialogue: 0,0:01:20.09,0:01:20.22,Sub,,0,0,0,,wasn't just {\c&H0048C8FF&}a{\c&H00FFFFFF&} matter of carrying the
+Dialogue: 0,0:01:20.22,0:01:20.58,Sub,,0,0,0,,wasn't just a {\c&H0048C8FF&}matter{\c&H00FFFFFF&} of carrying the
+Dialogue: 0,0:01:20.58,0:01:20.73,Sub,,0,0,0,,wasn't just a matter {\c&H0048C8FF&}of{\c&H00FFFFFF&} carrying the
+Dialogue: 0,0:01:20.73,0:01:21.17,Sub,,0,0,0,,wasn't just a matter of {\c&H0048C8FF&}carrying{\c&H00FFFFFF&} the
+Dialogue: 0,0:01:21.17,0:01:21.33,Sub,,0,0,0,,wasn't just a matter of carrying {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:01:21.33,0:01:21.61,Sub,,0,0,0,,{\c&H0048C8FF&}right{\c&H00FFFFFF&} badge.
+Dialogue: 0,0:01:21.61,0:01:22.66,Sub,,0,0,0,,right {\c&H0048C8FF&}badge.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:23.06,0:01:23.42,Sub,,0,0,0,,{\c&H0048C8FF&}Every{\c&H00FFFFFF&} zone required its own clearance.
+Dialogue: 0,0:01:23.42,0:01:23.74,Sub,,0,0,0,,Every {\c&H0048C8FF&}zone{\c&H00FFFFFF&} required its own clearance.
+Dialogue: 0,0:01:23.74,0:01:24.20,Sub,,0,0,0,,Every zone {\c&H0048C8FF&}required{\c&H00FFFFFF&} its own clearance.
+Dialogue: 0,0:01:24.20,0:01:24.35,Sub,,0,0,0,,Every zone required {\c&H0048C8FF&}its{\c&H00FFFFFF&} own clearance.
+Dialogue: 0,0:01:24.35,0:01:24.54,Sub,,0,0,0,,Every zone required its {\c&H0048C8FF&}own{\c&H00FFFFFF&} clearance.
+Dialogue: 0,0:01:24.54,0:01:25.62,Sub,,0,0,0,,Every zone required its own {\c&H0048C8FF&}clearance.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:25.62,0:01:25.90,Sub,,0,0,0,,{\c&H0048C8FF&}Some{\c&H00FFFFFF&} employees could enter certain
+Dialogue: 0,0:01:25.90,0:01:26.50,Sub,,0,0,0,,Some {\c&H0048C8FF&}employees{\c&H00FFFFFF&} could enter certain
+Dialogue: 0,0:01:26.50,0:01:26.66,Sub,,0,0,0,,Some employees {\c&H0048C8FF&}could{\c&H00FFFFFF&} enter certain
+Dialogue: 0,0:01:26.66,0:01:26.92,Sub,,0,0,0,,Some employees could {\c&H0048C8FF&}enter{\c&H00FFFFFF&} certain
+Dialogue: 0,0:01:26.92,0:01:27.22,Sub,,0,0,0,,Some employees could enter {\c&H0048C8FF&}certain{\c&H00FFFFFF&}
+Dialogue: 0,0:01:27.22,0:01:28.30,Sub,,0,0,0,,{\c&H0048C8FF&}areas.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:28.30,0:01:29.09,Sub,,0,0,0,,{\c&H0048C8FF&}Others,{\c&H00FFFFFF&} even while working inside the
+Dialogue: 0,0:01:29.09,0:01:29.38,Sub,,0,0,0,,Others, {\c&H0048C8FF&}even{\c&H00FFFFFF&} while working inside the
+Dialogue: 0,0:01:29.38,0:01:29.59,Sub,,0,0,0,,Others, even {\c&H0048C8FF&}while{\c&H00FFFFFF&} working inside the
+Dialogue: 0,0:01:29.59,0:01:29.94,Sub,,0,0,0,,Others, even while {\c&H0048C8FF&}working{\c&H00FFFFFF&} inside the
+Dialogue: 0,0:01:29.94,0:01:30.34,Sub,,0,0,0,,Others, even while working {\c&H0048C8FF&}inside{\c&H00FFFFFF&} the
+Dialogue: 0,0:01:30.34,0:01:30.49,Sub,,0,0,0,,Others, even while working inside {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:01:30.49,0:01:30.76,Sub,,0,0,0,,{\c&H0048C8FF&}same{\c&H00FFFFFF&} facility, were never supposed to
+Dialogue: 0,0:01:30.76,0:01:32.00,Sub,,0,0,0,,same {\c&H0048C8FF&}facility,{\c&H00FFFFFF&} were never supposed to
+Dialogue: 0,0:01:32.00,0:01:32.24,Sub,,0,0,0,,same facility, {\c&H0048C8FF&}were{\c&H00FFFFFF&} never supposed to
+Dialogue: 0,0:01:32.24,0:01:32.56,Sub,,0,0,0,,same facility, were {\c&H0048C8FF&}never{\c&H00FFFFFF&} supposed to
+Dialogue: 0,0:01:32.56,0:01:33.01,Sub,,0,0,0,,same facility, were never {\c&H0048C8FF&}supposed{\c&H00FFFFFF&} to
+Dialogue: 0,0:01:33.01,0:01:33.18,Sub,,0,0,0,,same facility, were never supposed {\c&H0048C8FF&}to{\c&H00FFFFFF&}
+Dialogue: 0,0:01:33.18,0:01:33.44,Sub,,0,0,0,,{\c&H0048C8FF&}know{\c&H00FFFFFF&} those areas existed.
+Dialogue: 0,0:01:33.44,0:01:33.66,Sub,,0,0,0,,know {\c&H0048C8FF&}those{\c&H00FFFFFF&} areas existed.
+Dialogue: 0,0:01:33.66,0:01:34.12,Sub,,0,0,0,,know those {\c&H0048C8FF&}areas{\c&H00FFFFFF&} existed.
+Dialogue: 0,0:01:34.12,0:01:35.25,Sub,,0,0,0,,know those areas {\c&H0048C8FF&}existed.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:35.56,0:01:36.69,Sub,,0,0,0,,{\c&H0048C8FF&}Elevators{\c&H00FFFFFF&} linked one section to the
+Dialogue: 0,0:01:36.69,0:01:37.04,Sub,,0,0,0,,Elevators {\c&H0048C8FF&}linked{\c&H00FFFFFF&} one section to the
+Dialogue: 0,0:01:37.04,0:01:37.34,Sub,,0,0,0,,Elevators linked {\c&H0048C8FF&}one{\c&H00FFFFFF&} section to the
+Dialogue: 0,0:01:37.34,0:01:37.80,Sub,,0,0,0,,Elevators linked one {\c&H0048C8FF&}section{\c&H00FFFFFF&} to the
+Dialogue: 0,0:01:37.80,0:01:37.93,Sub,,0,0,0,,Elevators linked one section {\c&H0048C8FF&}to{\c&H00FFFFFF&} the
+Dialogue: 0,0:01:37.93,0:01:38.05,Sub,,0,0,0,,Elevators linked one section to {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:01:38.05,0:01:38.98,Sub,,0,0,0,,{\c&H0048C8FF&}next.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:39.39,0:01:39.93,Sub,,0,0,0,,{\c&H0048C8FF&}Corridors{\c&H00FFFFFF&} that seemed to go on forever
+Dialogue: 0,0:01:39.93,0:01:40.10,Sub,,0,0,0,,Corridors {\c&H0048C8FF&}that{\c&H00FFFFFF&} seemed to go on forever
+Dialogue: 0,0:01:40.10,0:01:40.35,Sub,,0,0,0,,Corridors that {\c&H0048C8FF&}seemed{\c&H00FFFFFF&} to go on forever
+Dialogue: 0,0:01:40.35,0:01:40.44,Sub,,0,0,0,,Corridors that seemed {\c&H0048C8FF&}to{\c&H00FFFFFF&} go on forever
+Dialogue: 0,0:01:40.44,0:01:40.65,Sub,,0,0,0,,Corridors that seemed to {\c&H0048C8FF&}go{\c&H00FFFFFF&} on forever
+Dialogue: 0,0:01:40.65,0:01:40.87,Sub,,0,0,0,,Corridors that seemed to go {\c&H0048C8FF&}on{\c&H00FFFFFF&} forever
+Dialogue: 0,0:01:40.87,0:01:41.76,Sub,,0,0,0,,Corridors that seemed to go on {\c&H0048C8FF&}forever{\c&H00FFFFFF&}
+Dialogue: 0,0:01:41.76,0:01:42.26,Sub,,0,0,0,,{\c&H0048C8FF&}connected{\c&H00FFFFFF&} laboratories, offices,
+Dialogue: 0,0:01:42.26,0:01:43.61,Sub,,0,0,0,,connected {\c&H0048C8FF&}laboratories,{\c&H00FFFFFF&} offices,
+Dialogue: 0,0:01:43.61,0:01:44.91,Sub,,0,0,0,,connected laboratories, {\c&H0048C8FF&}offices,{\c&H00FFFFFF&}
+Dialogue: 0,0:01:44.91,0:01:45.40,Sub,,0,0,0,,{\c&H0048C8FF&}technical{\c&H00FFFFFF&} spaces and security posts.
+Dialogue: 0,0:01:45.40,0:01:46.37,Sub,,0,0,0,,technical {\c&H0048C8FF&}spaces{\c&H00FFFFFF&} and security posts.
+Dialogue: 0,0:01:46.37,0:01:46.71,Sub,,0,0,0,,technical spaces {\c&H0048C8FF&}and{\c&H00FFFFFF&} security posts.
+Dialogue: 0,0:01:46.71,0:01:47.27,Sub,,0,0,0,,technical spaces and {\c&H0048C8FF&}security{\c&H00FFFFFF&} posts.
+Dialogue: 0,0:01:47.27,0:01:48.31,Sub,,0,0,0,,technical spaces and security {\c&H0048C8FF&}posts.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:48.83,0:01:49.11,Sub,,0,0,0,,{\c&H0048C8FF&}And{\c&H00FFFFFF&} some levels were guarded far more
+Dialogue: 0,0:01:49.11,0:01:49.35,Sub,,0,0,0,,And {\c&H0048C8FF&}some{\c&H00FFFFFF&} levels were guarded far more
+Dialogue: 0,0:01:49.35,0:01:49.78,Sub,,0,0,0,,And some {\c&H0048C8FF&}levels{\c&H00FFFFFF&} were guarded far more
+Dialogue: 0,0:01:49.78,0:01:49.98,Sub,,0,0,0,,And some levels {\c&H0048C8FF&}were{\c&H00FFFFFF&} guarded far more
+Dialogue: 0,0:01:49.98,0:01:50.41,Sub,,0,0,0,,And some levels were {\c&H0048C8FF&}guarded{\c&H00FFFFFF&} far more
+Dialogue: 0,0:01:50.41,0:01:50.73,Sub,,0,0,0,,And some levels were guarded {\c&H0048C8FF&}far{\c&H00FFFFFF&} more
+Dialogue: 0,0:01:50.73,0:01:50.94,Sub,,0,0,0,,And some levels were guarded far {\c&H0048C8FF&}more{\c&H00FFFFFF&}
+Dialogue: 0,0:01:50.94,0:01:51.47,Sub,,0,0,0,,{\c&H0048C8FF&}heavily{\c&H00FFFFFF&} than others.
+Dialogue: 0,0:01:51.47,0:01:51.68,Sub,,0,0,0,,heavily {\c&H0048C8FF&}than{\c&H00FFFFFF&} others.
+Dialogue: 0,0:01:51.68,0:01:52.57,Sub,,0,0,0,,heavily than {\c&H0048C8FF&}others.{\c&H00FFFFFF&}
+Dialogue: 0,0:01:52.96,0:01:53.23,Sub,,0,0,0,,{\c&H0048C8FF&}To{\c&H00FFFFFF&} someone whose job was security,
+Dialogue: 0,0:01:53.23,0:01:53.56,Sub,,0,0,0,,To {\c&H0048C8FF&}someone{\c&H00FFFFFF&} whose job was security,
+Dialogue: 0,0:01:53.56,0:01:53.80,Sub,,0,0,0,,To someone {\c&H0048C8FF&}whose{\c&H00FFFFFF&} job was security,
+Dialogue: 0,0:01:53.80,0:01:54.16,Sub,,0,0,0,,To someone whose {\c&H0048C8FF&}job{\c&H00FFFFFF&} was security,
+Dialogue: 0,0:01:54.16,0:01:54.33,Sub,,0,0,0,,To someone whose job {\c&H0048C8FF&}was{\c&H00FFFFFF&} security,
+Dialogue: 0,0:01:54.33,0:01:55.80,Sub,,0,0,0,,To someone whose job was {\c&H0048C8FF&}security,{\c&H00FFFFFF&}
+Dialogue: 0,0:01:55.80,0:01:56.06,Sub,,0,0,0,,{\c&H0048C8FF&}that{\c&H00FFFFFF&} meant one thing:
+Dialogue: 0,0:01:56.06,0:01:56.32,Sub,,0,0,0,,that {\c&H0048C8FF&}meant{\c&H00FFFFFF&} one thing:
+Dialogue: 0,0:01:56.32,0:01:56.55,Sub,,0,0,0,,that meant {\c&H0048C8FF&}one{\c&H00FFFFFF&} thing:
+Dialogue: 0,0:01:56.55,0:01:57.44,Sub,,0,0,0,,that meant one {\c&H0048C8FF&}thing:{\c&H00FFFFFF&}
+Dialogue: 0,0:01:57.76,0:01:58.28,Sub,,0,0,0,,{\c&H0048C8FF&}whatever{\c&H00FFFFFF&} mattered most
+Dialogue: 0,0:01:58.28,0:01:58.65,Sub,,0,0,0,,whatever {\c&H0048C8FF&}mattered{\c&H00FFFFFF&} most
+Dialogue: 0,0:01:58.65,0:01:59.43,Sub,,0,0,0,,whatever mattered {\c&H0048C8FF&}most{\c&H00FFFFFF&}
+Dialogue: 0,0:01:59.74,0:02:00.03,Sub,,0,0,0,,{\c&H0048C8FF&}was{\c&H00FFFFFF&} further down.
+Dialogue: 0,0:02:00.03,0:02:00.46,Sub,,0,0,0,,was {\c&H0048C8FF&}further{\c&H00FFFFFF&} down.
+Dialogue: 0,0:02:00.46,0:02:02.61,Sub,,0,0,0,,was further {\c&H0048C8FF&}down.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:04.20,0:02:04.44,Sub,,0,0,0,,{\c&H0048C8FF&}But{\c&H00FFFFFF&} the strangest part of his story
+Dialogue: 0,0:02:04.44,0:02:04.56,Sub,,0,0,0,,But {\c&H0048C8FF&}the{\c&H00FFFFFF&} strangest part of his story
+Dialogue: 0,0:02:04.56,0:02:05.09,Sub,,0,0,0,,But the {\c&H0048C8FF&}strangest{\c&H00FFFFFF&} part of his story
+Dialogue: 0,0:02:05.09,0:02:05.30,Sub,,0,0,0,,But the strangest {\c&H0048C8FF&}part{\c&H00FFFFFF&} of his story
+Dialogue: 0,0:02:05.30,0:02:05.40,Sub,,0,0,0,,But the strangest part {\c&H0048C8FF&}of{\c&H00FFFFFF&} his story
+Dialogue: 0,0:02:05.40,0:02:05.51,Sub,,0,0,0,,But the strangest part of {\c&H0048C8FF&}his{\c&H00FFFFFF&} story
+Dialogue: 0,0:02:05.51,0:02:06.31,Sub,,0,0,0,,But the strangest part of his {\c&H0048C8FF&}story{\c&H00FFFFFF&}
+Dialogue: 0,0:02:06.31,0:02:06.70,Sub,,0,0,0,,{\c&H0048C8FF&}wasn't{\c&H00FFFFFF&} the doors.
+Dialogue: 0,0:02:06.70,0:02:06.82,Sub,,0,0,0,,wasn't {\c&H0048C8FF&}the{\c&H00FFFFFF&} doors.
+Dialogue: 0,0:02:06.82,0:02:07.95,Sub,,0,0,0,,wasn't the {\c&H0048C8FF&}doors.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:07.95,0:02:08.16,Sub,,0,0,0,,{\c&H0048C8FF&}It{\c&H00FFFFFF&} was who walked behind them.
+Dialogue: 0,0:02:08.16,0:02:08.32,Sub,,0,0,0,,It {\c&H0048C8FF&}was{\c&H00FFFFFF&} who walked behind them.
+Dialogue: 0,0:02:08.32,0:02:08.53,Sub,,0,0,0,,It was {\c&H0048C8FF&}who{\c&H00FFFFFF&} walked behind them.
+Dialogue: 0,0:02:08.53,0:02:08.87,Sub,,0,0,0,,It was who {\c&H0048C8FF&}walked{\c&H00FFFFFF&} behind them.
+Dialogue: 0,0:02:08.87,0:02:09.31,Sub,,0,0,0,,It was who walked {\c&H0048C8FF&}behind{\c&H00FFFFFF&} them.
+Dialogue: 0,0:02:09.31,0:02:10.03,Sub,,0,0,0,,It was who walked behind {\c&H0048C8FF&}them.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:10.41,0:02:10.89,Sub,,0,0,0,,{\c&H0048C8FF&}According{\c&H00FFFFFF&} to the interview attributed to
+Dialogue: 0,0:02:10.89,0:02:11.00,Sub,,0,0,0,,According {\c&H0048C8FF&}to{\c&H00FFFFFF&} the interview attributed to
+Dialogue: 0,0:02:11.00,0:02:11.13,Sub,,0,0,0,,According to {\c&H0048C8FF&}the{\c&H00FFFFFF&} interview attributed to
+Dialogue: 0,0:02:11.13,0:02:11.50,Sub,,0,0,0,,According to the {\c&H0048C8FF&}interview{\c&H00FFFFFF&} attributed to
+Dialogue: 0,0:02:11.50,0:02:11.94,Sub,,0,0,0,,According to the interview {\c&H0048C8FF&}attributed{\c&H00FFFFFF&} to
+Dialogue: 0,0:02:11.94,0:02:12.05,Sub,,0,0,0,,According to the interview attributed {\c&H0048C8FF&}to{\c&H00FFFFFF&}
+Dialogue: 0,0:02:12.05,0:02:13.45,Sub,,0,0,0,,{\c&H0048C8FF&}Castello,{\c&H00FFFFFF&} humans were not the only ones
+Dialogue: 0,0:02:13.45,0:02:13.95,Sub,,0,0,0,,Castello, {\c&H0048C8FF&}humans{\c&H00FFFFFF&} were not the only ones
+Dialogue: 0,0:02:13.95,0:02:14.15,Sub,,0,0,0,,Castello, humans {\c&H0048C8FF&}were{\c&H00FFFFFF&} not the only ones
+Dialogue: 0,0:02:14.15,0:02:14.34,Sub,,0,0,0,,Castello, humans were {\c&H0048C8FF&}not{\c&H00FFFFFF&} the only ones
+Dialogue: 0,0:02:14.34,0:02:14.52,Sub,,0,0,0,,Castello, humans were not {\c&H0048C8FF&}the{\c&H00FFFFFF&} only ones
+Dialogue: 0,0:02:14.52,0:02:14.92,Sub,,0,0,0,,Castello, humans were not the {\c&H0048C8FF&}only{\c&H00FFFFFF&} ones
+Dialogue: 0,0:02:14.92,0:02:15.22,Sub,,0,0,0,,Castello, humans were not the only {\c&H0048C8FF&}ones{\c&H00FFFFFF&}
+Dialogue: 0,0:02:15.22,0:02:16.60,Sub,,0,0,0,,{\c&H0048C8FF&}inside.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:16.60,0:02:16.81,Sub,,0,0,0,,{\c&H0048C8FF&}He{\c&H00FFFFFF&} spoke of small grey beings.
+Dialogue: 0,0:02:16.81,0:02:17.19,Sub,,0,0,0,,He {\c&H0048C8FF&}spoke{\c&H00FFFFFF&} of small grey beings.
+Dialogue: 0,0:02:17.19,0:02:17.33,Sub,,0,0,0,,He spoke {\c&H0048C8FF&}of{\c&H00FFFFFF&} small grey beings.
+Dialogue: 0,0:02:17.33,0:02:17.85,Sub,,0,0,0,,He spoke of {\c&H0048C8FF&}small{\c&H00FFFFFF&} grey beings.
+Dialogue: 0,0:02:17.85,0:02:18.20,Sub,,0,0,0,,He spoke of small {\c&H0048C8FF&}grey{\c&H00FFFFFF&} beings.
+Dialogue: 0,0:02:18.20,0:02:19.35,Sub,,0,0,0,,He spoke of small grey {\c&H0048C8FF&}beings.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:19.35,0:02:19.61,Sub,,0,0,0,,{\c&H0048C8FF&}And{\c&H00FFFFFF&} of others
+Dialogue: 0,0:02:19.61,0:02:19.76,Sub,,0,0,0,,And {\c&H0048C8FF&}of{\c&H00FFFFFF&} others
+Dialogue: 0,0:02:19.76,0:02:20.71,Sub,,0,0,0,,And of {\c&H0048C8FF&}others{\c&H00FFFFFF&}
+Dialogue: 0,0:02:20.71,0:02:20.93,Sub,,0,0,0,,{\c&H0048C8FF&}he{\c&H00FFFFFF&} described as reptilian.
+Dialogue: 0,0:02:20.93,0:02:21.63,Sub,,0,0,0,,he {\c&H0048C8FF&}described{\c&H00FFFFFF&} as reptilian.
+Dialogue: 0,0:02:21.63,0:02:22.34,Sub,,0,0,0,,he described {\c&H0048C8FF&}as{\c&H00FFFFFF&} reptilian.
+Dialogue: 0,0:02:22.34,0:02:23.87,Sub,,0,0,0,,he described as {\c&H0048C8FF&}reptilian.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:23.87,0:02:24.05,Sub,,0,0,0,,{\c&H0048C8FF&}He{\c&H00FFFFFF&} didn't describe them as prisoners.
+Dialogue: 0,0:02:24.05,0:02:24.32,Sub,,0,0,0,,He {\c&H0048C8FF&}didn't{\c&H00FFFFFF&} describe them as prisoners.
+Dialogue: 0,0:02:24.32,0:02:24.84,Sub,,0,0,0,,He didn't {\c&H0048C8FF&}describe{\c&H00FFFFFF&} them as prisoners.
+Dialogue: 0,0:02:24.84,0:02:25.07,Sub,,0,0,0,,He didn't describe {\c&H0048C8FF&}them{\c&H00FFFFFF&} as prisoners.
+Dialogue: 0,0:02:25.07,0:02:25.27,Sub,,0,0,0,,He didn't describe them {\c&H0048C8FF&}as{\c&H00FFFFFF&} prisoners.
+Dialogue: 0,0:02:25.27,0:02:26.60,Sub,,0,0,0,,He didn't describe them as {\c&H0048C8FF&}prisoners.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:26.60,0:02:26.79,Sub,,0,0,0,,{\c&H0048C8FF&}In{\c&H00FFFFFF&} his telling,
+Dialogue: 0,0:02:26.79,0:02:26.96,Sub,,0,0,0,,In {\c&H0048C8FF&}his{\c&H00FFFFFF&} telling,
+Dialogue: 0,0:02:26.96,0:02:28.00,Sub,,0,0,0,,In his {\c&H0048C8FF&}telling,{\c&H00FFFFFF&}
+Dialogue: 0,0:02:28.00,0:02:28.27,Sub,,0,0,0,,{\c&H0048C8FF&}some{\c&H00FFFFFF&} of them worked there.
+Dialogue: 0,0:02:28.27,0:02:28.37,Sub,,0,0,0,,some {\c&H0048C8FF&}of{\c&H00FFFFFF&} them worked there.
+Dialogue: 0,0:02:28.37,0:02:28.55,Sub,,0,0,0,,some of {\c&H0048C8FF&}them{\c&H00FFFFFF&} worked there.
+Dialogue: 0,0:02:28.55,0:02:28.81,Sub,,0,0,0,,some of them {\c&H0048C8FF&}worked{\c&H00FFFFFF&} there.
+Dialogue: 0,0:02:28.81,0:02:29.74,Sub,,0,0,0,,some of them worked {\c&H0048C8FF&}there.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:29.74,0:02:29.99,Sub,,0,0,0,,{\c&H0048C8FF&}They{\c&H00FFFFFF&} shared certain areas with human
+Dialogue: 0,0:02:29.99,0:02:30.35,Sub,,0,0,0,,They {\c&H0048C8FF&}shared{\c&H00FFFFFF&} certain areas with human
+Dialogue: 0,0:02:30.35,0:02:30.69,Sub,,0,0,0,,They shared {\c&H0048C8FF&}certain{\c&H00FFFFFF&} areas with human
+Dialogue: 0,0:02:30.69,0:02:31.14,Sub,,0,0,0,,They shared certain {\c&H0048C8FF&}areas{\c&H00FFFFFF&} with human
+Dialogue: 0,0:02:31.14,0:02:31.30,Sub,,0,0,0,,They shared certain areas {\c&H0048C8FF&}with{\c&H00FFFFFF&} human
+Dialogue: 0,0:02:31.30,0:02:31.60,Sub,,0,0,0,,They shared certain areas with {\c&H0048C8FF&}human{\c&H00FFFFFF&}
+Dialogue: 0,0:02:31.60,0:02:32.65,Sub,,0,0,0,,{\c&H0048C8FF&}staff.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:32.96,0:02:33.20,Sub,,0,0,0,,{\c&H0048C8FF&}They{\c&H00FFFFFF&} took part in technical work.
+Dialogue: 0,0:02:33.20,0:02:33.43,Sub,,0,0,0,,They {\c&H0048C8FF&}took{\c&H00FFFFFF&} part in technical work.
+Dialogue: 0,0:02:33.43,0:02:33.71,Sub,,0,0,0,,They took {\c&H0048C8FF&}part{\c&H00FFFFFF&} in technical work.
+Dialogue: 0,0:02:33.71,0:02:33.86,Sub,,0,0,0,,They took part {\c&H0048C8FF&}in{\c&H00FFFFFF&} technical work.
+Dialogue: 0,0:02:33.86,0:02:34.38,Sub,,0,0,0,,They took part in {\c&H0048C8FF&}technical{\c&H00FFFFFF&} work.
+Dialogue: 0,0:02:34.38,0:02:35.42,Sub,,0,0,0,,They took part in technical {\c&H0048C8FF&}work.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:35.42,0:02:35.71,Sub,,0,0,0,,{\c&H0048C8FF&}Their{\c&H00FFFFFF&} presence, he claimed,
+Dialogue: 0,0:02:35.71,0:02:36.29,Sub,,0,0,0,,Their {\c&H0048C8FF&}presence,{\c&H00FFFFFF&} he claimed,
+Dialogue: 0,0:02:36.29,0:02:36.45,Sub,,0,0,0,,Their presence, {\c&H0048C8FF&}he{\c&H00FFFFFF&} claimed,
+Dialogue: 0,0:02:36.45,0:02:37.44,Sub,,0,0,0,,Their presence, he {\c&H0048C8FF&}claimed,{\c&H00FFFFFF&}
+Dialogue: 0,0:02:37.44,0:02:37.68,Sub,,0,0,0,,{\c&H0048C8FF&}was{\c&H00FFFFFF&} simply part of how Dulce ran
+Dialogue: 0,0:02:37.68,0:02:38.10,Sub,,0,0,0,,was {\c&H0048C8FF&}simply{\c&H00FFFFFF&} part of how Dulce ran
+Dialogue: 0,0:02:38.10,0:02:38.43,Sub,,0,0,0,,was simply {\c&H0048C8FF&}part{\c&H00FFFFFF&} of how Dulce ran
+Dialogue: 0,0:02:38.43,0:02:38.53,Sub,,0,0,0,,was simply part {\c&H0048C8FF&}of{\c&H00FFFFFF&} how Dulce ran
+Dialogue: 0,0:02:38.53,0:02:38.78,Sub,,0,0,0,,was simply part of {\c&H0048C8FF&}how{\c&H00FFFFFF&} Dulce ran
+Dialogue: 0,0:02:38.78,0:02:39.37,Sub,,0,0,0,,was simply part of how {\c&H0048C8FF&}Dulce{\c&H00FFFFFF&} ran
+Dialogue: 0,0:02:39.37,0:02:39.70,Sub,,0,0,0,,was simply part of how Dulce {\c&H0048C8FF&}ran{\c&H00FFFFFF&}
+Dialogue: 0,0:02:39.70,0:02:39.97,Sub,,0,0,0,,{\c&H0048C8FF&}from{\c&H00FFFFFF&} one day to the next.
+Dialogue: 0,0:02:39.97,0:02:40.25,Sub,,0,0,0,,from {\c&H0048C8FF&}one{\c&H00FFFFFF&} day to the next.
+Dialogue: 0,0:02:40.25,0:02:40.81,Sub,,0,0,0,,from one {\c&H0048C8FF&}day{\c&H00FFFFFF&} to the next.
+Dialogue: 0,0:02:40.81,0:02:41.04,Sub,,0,0,0,,from one day {\c&H0048C8FF&}to{\c&H00FFFFFF&} the next.
+Dialogue: 0,0:02:41.04,0:02:41.17,Sub,,0,0,0,,from one day to {\c&H0048C8FF&}the{\c&H00FFFFFF&} next.
+Dialogue: 0,0:02:41.17,0:02:42.16,Sub,,0,0,0,,from one day to the {\c&H0048C8FF&}next.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:42.47,0:02:42.75,Sub,,0,0,0,,{\c&H0048C8FF&}For{\c&H00FFFFFF&} Castello, the impossible had become
+Dialogue: 0,0:02:42.75,0:02:43.94,Sub,,0,0,0,,For {\c&H0048C8FF&}Castello,{\c&H00FFFFFF&} the impossible had become
+Dialogue: 0,0:02:43.94,0:02:44.10,Sub,,0,0,0,,For Castello, {\c&H0048C8FF&}the{\c&H00FFFFFF&} impossible had become
+Dialogue: 0,0:02:44.10,0:02:44.82,Sub,,0,0,0,,For Castello, the {\c&H0048C8FF&}impossible{\c&H00FFFFFF&} had become
+Dialogue: 0,0:02:44.82,0:02:44.98,Sub,,0,0,0,,For Castello, the impossible {\c&H0048C8FF&}had{\c&H00FFFFFF&} become
+Dialogue: 0,0:02:44.98,0:02:45.36,Sub,,0,0,0,,For Castello, the impossible had {\c&H0048C8FF&}become{\c&H00FFFFFF&}
+Dialogue: 0,0:02:45.36,0:02:47.04,Sub,,0,0,0,,{\c&H0048C8FF&}routine.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:48.63,0:02:48.94,Sub,,0,0,0,,{\c&H0048C8FF&}Try{\c&H00FFFFFF&} to imagine working somewhere like
+Dialogue: 0,0:02:48.94,0:02:49.07,Sub,,0,0,0,,Try {\c&H0048C8FF&}to{\c&H00FFFFFF&} imagine working somewhere like
+Dialogue: 0,0:02:49.07,0:02:49.57,Sub,,0,0,0,,Try to {\c&H0048C8FF&}imagine{\c&H00FFFFFF&} working somewhere like
+Dialogue: 0,0:02:49.57,0:02:49.99,Sub,,0,0,0,,Try to imagine {\c&H0048C8FF&}working{\c&H00FFFFFF&} somewhere like
+Dialogue: 0,0:02:49.99,0:02:50.33,Sub,,0,0,0,,Try to imagine working {\c&H0048C8FF&}somewhere{\c&H00FFFFFF&} like
+Dialogue: 0,0:02:50.33,0:02:50.51,Sub,,0,0,0,,Try to imagine working somewhere {\c&H0048C8FF&}like{\c&H00FFFFFF&}
+Dialogue: 0,0:02:50.51,0:02:51.32,Sub,,0,0,0,,{\c&H0048C8FF&}that.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:51.32,0:02:51.49,Sub,,0,0,0,,{\c&H0048C8FF&}On{\c&H00FFFFFF&} the first day,
+Dialogue: 0,0:02:51.49,0:02:51.61,Sub,,0,0,0,,On {\c&H0048C8FF&}the{\c&H00FFFFFF&} first day,
+Dialogue: 0,0:02:51.61,0:02:51.87,Sub,,0,0,0,,On the {\c&H0048C8FF&}first{\c&H00FFFFFF&} day,
+Dialogue: 0,0:02:51.87,0:02:52.63,Sub,,0,0,0,,On the first {\c&H0048C8FF&}day,{\c&H00FFFFFF&}
+Dialogue: 0,0:02:52.63,0:02:52.78,Sub,,0,0,0,,{\c&H0048C8FF&}it{\c&H00FFFFFF&} would be impossible to ignore.
+Dialogue: 0,0:02:52.78,0:02:52.94,Sub,,0,0,0,,it {\c&H0048C8FF&}would{\c&H00FFFFFF&} be impossible to ignore.
+Dialogue: 0,0:02:52.94,0:02:53.05,Sub,,0,0,0,,it would {\c&H0048C8FF&}be{\c&H00FFFFFF&} impossible to ignore.
+Dialogue: 0,0:02:53.05,0:02:53.61,Sub,,0,0,0,,it would be {\c&H0048C8FF&}impossible{\c&H00FFFFFF&} to ignore.
+Dialogue: 0,0:02:53.61,0:02:53.73,Sub,,0,0,0,,it would be impossible {\c&H0048C8FF&}to{\c&H00FFFFFF&} ignore.
+Dialogue: 0,0:02:53.73,0:02:54.75,Sub,,0,0,0,,it would be impossible to {\c&H0048C8FF&}ignore.{\c&H00FFFFFF&}
+Dialogue: 0,0:02:54.75,0:02:54.96,Sub,,0,0,0,,{\c&H0048C8FF&}But{\c&H00FFFFFF&} after weeks… after months…
+Dialogue: 0,0:02:54.96,0:02:55.32,Sub,,0,0,0,,But {\c&H0048C8FF&}after{\c&H00FFFFFF&} weeks… after months…
+Dialogue: 0,0:02:55.32,0:02:56.39,Sub,,0,0,0,,But after {\c&H0048C8FF&}weeks…{\c&H00FFFFFF&} after months…
+Dialogue: 0,0:02:56.39,0:02:56.80,Sub,,0,0,0,,But after weeks… {\c&H0048C8FF&}after{\c&H00FFFFFF&} months…
+Dialogue: 0,0:02:56.80,0:02:57.86,Sub,,0,0,0,,But after weeks… after {\c&H0048C8FF&}months…{\c&H00FFFFFF&}
+Dialogue: 0,0:02:57.86,0:02:58.28,Sub,,0,0,0,,{\c&H0048C8FF&}even{\c&H00FFFFFF&} the extraordinary can start to feel
+Dialogue: 0,0:02:58.28,0:02:58.47,Sub,,0,0,0,,even {\c&H0048C8FF&}the{\c&H00FFFFFF&} extraordinary can start to feel
+Dialogue: 0,0:02:58.47,0:02:59.63,Sub,,0,0,0,,even the {\c&H0048C8FF&}extraordinary{\c&H00FFFFFF&} can start to feel
+Dialogue: 0,0:02:59.63,0:02:59.85,Sub,,0,0,0,,even the extraordinary {\c&H0048C8FF&}can{\c&H00FFFFFF&} start to feel
+Dialogue: 0,0:02:59.85,0:03:00.13,Sub,,0,0,0,,even the extraordinary can {\c&H0048C8FF&}start{\c&H00FFFFFF&} to feel
+Dialogue: 0,0:03:00.13,0:03:00.27,Sub,,0,0,0,,even the extraordinary can start {\c&H0048C8FF&}to{\c&H00FFFFFF&} feel
+Dialogue: 0,0:03:00.27,0:03:00.66,Sub,,0,0,0,,even the extraordinary can start to {\c&H0048C8FF&}feel{\c&H00FFFFFF&}
+Dialogue: 0,0:03:00.66,0:03:01.88,Sub,,0,0,0,,{\c&H0048C8FF&}ordinary.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:01.88,0:03:02.18,Sub,,0,0,0,,{\c&H0048C8FF&}That{\c&H00FFFFFF&} may be the most unsettling part
+Dialogue: 0,0:03:02.18,0:03:02.43,Sub,,0,0,0,,That {\c&H0048C8FF&}may{\c&H00FFFFFF&} be the most unsettling part
+Dialogue: 0,0:03:02.43,0:03:02.96,Sub,,0,0,0,,That may {\c&H0048C8FF&}be{\c&H00FFFFFF&} the most unsettling part
+Dialogue: 0,0:03:02.96,0:03:03.15,Sub,,0,0,0,,That may be {\c&H0048C8FF&}the{\c&H00FFFFFF&} most unsettling part
+Dialogue: 0,0:03:03.15,0:03:03.45,Sub,,0,0,0,,That may be the {\c&H0048C8FF&}most{\c&H00FFFFFF&} unsettling part
+Dialogue: 0,0:03:03.45,0:03:04.13,Sub,,0,0,0,,That may be the most {\c&H0048C8FF&}unsettling{\c&H00FFFFFF&} part
+Dialogue: 0,0:03:04.13,0:03:04.34,Sub,,0,0,0,,That may be the most unsettling {\c&H0048C8FF&}part{\c&H00FFFFFF&}
+Dialogue: 0,0:03:04.34,0:03:04.41,Sub,,0,0,0,,{\c&H0048C8FF&}of{\c&H00FFFFFF&} his account.
+Dialogue: 0,0:03:04.41,0:03:04.53,Sub,,0,0,0,,of {\c&H0048C8FF&}his{\c&H00FFFFFF&} account.
+Dialogue: 0,0:03:04.53,0:03:05.48,Sub,,0,0,0,,of his {\c&H0048C8FF&}account.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:05.82,0:03:06.64,Sub,,0,0,0,,{\c&H0048C8FF&}Castello{\c&H00FFFFFF&} doesn't describe every shift as
+Dialogue: 0,0:03:06.64,0:03:06.92,Sub,,0,0,0,,Castello {\c&H0048C8FF&}doesn't{\c&H00FFFFFF&} describe every shift as
+Dialogue: 0,0:03:06.92,0:03:07.42,Sub,,0,0,0,,Castello doesn't {\c&H0048C8FF&}describe{\c&H00FFFFFF&} every shift as
+Dialogue: 0,0:03:07.42,0:03:07.77,Sub,,0,0,0,,Castello doesn't describe {\c&H0048C8FF&}every{\c&H00FFFFFF&} shift as
+Dialogue: 0,0:03:07.77,0:03:08.07,Sub,,0,0,0,,Castello doesn't describe every {\c&H0048C8FF&}shift{\c&H00FFFFFF&} as
+Dialogue: 0,0:03:08.07,0:03:08.20,Sub,,0,0,0,,Castello doesn't describe every shift {\c&H0048C8FF&}as{\c&H00FFFFFF&}
+Dialogue: 0,0:03:08.20,0:03:08.27,Sub,,0,0,0,,{\c&H0048C8FF&}a{\c&H00FFFFFF&} horror film.
+Dialogue: 0,0:03:08.27,0:03:08.56,Sub,,0,0,0,,a {\c&H0048C8FF&}horror{\c&H00FFFFFF&} film.
+Dialogue: 0,0:03:08.56,0:03:09.66,Sub,,0,0,0,,a horror {\c&H0048C8FF&}film.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:09.66,0:03:09.85,Sub,,0,0,0,,{\c&H0048C8FF&}He{\c&H00FFFFFF&} describes a job.
+Dialogue: 0,0:03:09.85,0:03:10.31,Sub,,0,0,0,,He {\c&H0048C8FF&}describes{\c&H00FFFFFF&} a job.
+Dialogue: 0,0:03:10.31,0:03:10.40,Sub,,0,0,0,,He describes {\c&H0048C8FF&}a{\c&H00FFFFFF&} job.
+Dialogue: 0,0:03:10.40,0:03:11.44,Sub,,0,0,0,,He describes a {\c&H0048C8FF&}job.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:11.44,0:03:12.54,Sub,,0,0,0,,{\c&H0048C8FF&}Shifts.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:12.54,0:03:13.91,Sub,,0,0,0,,{\c&H0048C8FF&}Procedures.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:13.91,0:03:15.32,Sub,,0,0,0,,{\c&H0048C8FF&}Restrictions.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:15.32,0:03:15.74,Sub,,0,0,0,,{\c&H0048C8FF&}People{\c&H00FFFFFF&} coming and going.
+Dialogue: 0,0:03:15.74,0:03:16.08,Sub,,0,0,0,,People {\c&H0048C8FF&}coming{\c&H00FFFFFF&} and going.
+Dialogue: 0,0:03:16.08,0:03:16.22,Sub,,0,0,0,,People coming {\c&H0048C8FF&}and{\c&H00FFFFFF&} going.
+Dialogue: 0,0:03:16.22,0:03:17.15,Sub,,0,0,0,,People coming and {\c&H0048C8FF&}going.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:17.40,0:03:17.88,Sub,,0,0,0,,{\c&H0048C8FF&}Systems{\c&H00FFFFFF&} that had to keep running.
+Dialogue: 0,0:03:17.88,0:03:18.01,Sub,,0,0,0,,Systems {\c&H0048C8FF&}that{\c&H00FFFFFF&} had to keep running.
+Dialogue: 0,0:03:18.01,0:03:18.17,Sub,,0,0,0,,Systems that {\c&H0048C8FF&}had{\c&H00FFFFFF&} to keep running.
+Dialogue: 0,0:03:18.17,0:03:18.30,Sub,,0,0,0,,Systems that had {\c&H0048C8FF&}to{\c&H00FFFFFF&} keep running.
+Dialogue: 0,0:03:18.30,0:03:18.54,Sub,,0,0,0,,Systems that had to {\c&H0048C8FF&}keep{\c&H00FFFFFF&} running.
+Dialogue: 0,0:03:18.54,0:03:19.51,Sub,,0,0,0,,Systems that had to keep {\c&H0048C8FF&}running.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:19.51,0:03:19.77,Sub,,0,0,0,,{\c&H0048C8FF&}And{\c&H00FFFFFF&} beings that,
+Dialogue: 0,0:03:19.77,0:03:20.22,Sub,,0,0,0,,And {\c&H0048C8FF&}beings{\c&H00FFFFFF&} that,
+Dialogue: 0,0:03:20.22,0:03:20.61,Sub,,0,0,0,,And beings {\c&H0048C8FF&}that,{\c&H00FFFFFF&}
+Dialogue: 0,0:03:20.61,0:03:20.81,Sub,,0,0,0,,{\c&H0048C8FF&}as{\c&H00FFFFFF&} he told it,
+Dialogue: 0,0:03:20.81,0:03:20.93,Sub,,0,0,0,,as {\c&H0048C8FF&}he{\c&H00FFFFFF&} told it,
+Dialogue: 0,0:03:20.93,0:03:21.22,Sub,,0,0,0,,as he {\c&H0048C8FF&}told{\c&H00FFFFFF&} it,
+Dialogue: 0,0:03:21.22,0:03:21.90,Sub,,0,0,0,,as he told {\c&H0048C8FF&}it,{\c&H00FFFFFF&}
+Dialogue: 0,0:03:21.90,0:03:22.09,Sub,,0,0,0,,{\c&H0048C8FF&}were{\c&H00FFFFFF&} simply part of the place.
+Dialogue: 0,0:03:22.09,0:03:22.74,Sub,,0,0,0,,were {\c&H0048C8FF&}simply{\c&H00FFFFFF&} part of the place.
+Dialogue: 0,0:03:22.74,0:03:23.02,Sub,,0,0,0,,were simply {\c&H0048C8FF&}part{\c&H00FFFFFF&} of the place.
+Dialogue: 0,0:03:23.02,0:03:23.10,Sub,,0,0,0,,were simply part {\c&H0048C8FF&}of{\c&H00FFFFFF&} the place.
+Dialogue: 0,0:03:23.10,0:03:23.22,Sub,,0,0,0,,were simply part of {\c&H0048C8FF&}the{\c&H00FFFFFF&} place.
+Dialogue: 0,0:03:23.22,0:03:24.79,Sub,,0,0,0,,were simply part of the {\c&H0048C8FF&}place.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:26.37,0:03:26.63,Sub,,0,0,0,,{\c&H0048C8FF&}But{\c&H00FFFFFF&} perhaps the hardest part didn't
+Dialogue: 0,0:03:26.63,0:03:27.01,Sub,,0,0,0,,But {\c&H0048C8FF&}perhaps{\c&H00FFFFFF&} the hardest part didn't
+Dialogue: 0,0:03:27.01,0:03:27.17,Sub,,0,0,0,,But perhaps {\c&H0048C8FF&}the{\c&H00FFFFFF&} hardest part didn't
+Dialogue: 0,0:03:27.17,0:03:27.54,Sub,,0,0,0,,But perhaps the {\c&H0048C8FF&}hardest{\c&H00FFFFFF&} part didn't
+Dialogue: 0,0:03:27.54,0:03:28.15,Sub,,0,0,0,,But perhaps the hardest {\c&H0048C8FF&}part{\c&H00FFFFFF&} didn't
+Dialogue: 0,0:03:28.15,0:03:28.49,Sub,,0,0,0,,But perhaps the hardest part {\c&H0048C8FF&}didn't{\c&H00FFFFFF&}
+Dialogue: 0,0:03:28.49,0:03:28.80,Sub,,0,0,0,,{\c&H0048C8FF&}happen{\c&H00FFFFFF&} inside Dulce.
+Dialogue: 0,0:03:28.80,0:03:29.28,Sub,,0,0,0,,happen {\c&H0048C8FF&}inside{\c&H00FFFFFF&} Dulce.
+Dialogue: 0,0:03:29.28,0:03:30.53,Sub,,0,0,0,,happen inside {\c&H0048C8FF&}Dulce.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:30.53,0:03:30.74,Sub,,0,0,0,,{\c&H0048C8FF&}It{\c&H00FFFFFF&} happened when Thomas went home.
+Dialogue: 0,0:03:30.74,0:03:31.32,Sub,,0,0,0,,It {\c&H0048C8FF&}happened{\c&H00FFFFFF&} when Thomas went home.
+Dialogue: 0,0:03:31.32,0:03:31.58,Sub,,0,0,0,,It happened {\c&H0048C8FF&}when{\c&H00FFFFFF&} Thomas went home.
+Dialogue: 0,0:03:31.58,0:03:32.03,Sub,,0,0,0,,It happened when {\c&H0048C8FF&}Thomas{\c&H00FFFFFF&} went home.
+Dialogue: 0,0:03:32.03,0:03:32.24,Sub,,0,0,0,,It happened when Thomas {\c&H0048C8FF&}went{\c&H00FFFFFF&} home.
+Dialogue: 0,0:03:32.24,0:03:33.06,Sub,,0,0,0,,It happened when Thomas went {\c&H0048C8FF&}home.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:33.37,0:03:33.81,Sub,,0,0,0,,{\c&H0048C8FF&}According{\c&H00FFFFFF&} to his account,
+Dialogue: 0,0:03:33.81,0:03:33.95,Sub,,0,0,0,,According {\c&H0048C8FF&}to{\c&H00FFFFFF&} his account,
+Dialogue: 0,0:03:33.95,0:03:34.08,Sub,,0,0,0,,According to {\c&H0048C8FF&}his{\c&H00FFFFFF&} account,
+Dialogue: 0,0:03:34.08,0:03:35.00,Sub,,0,0,0,,According to his {\c&H0048C8FF&}account,{\c&H00FFFFFF&}
+Dialogue: 0,0:03:35.00,0:03:35.18,Sub,,0,0,0,,{\c&H0048C8FF&}he{\c&H00FFFFFF&} was required to stay silent about
+Dialogue: 0,0:03:35.18,0:03:35.38,Sub,,0,0,0,,he {\c&H0048C8FF&}was{\c&H00FFFFFF&} required to stay silent about
+Dialogue: 0,0:03:35.38,0:03:35.92,Sub,,0,0,0,,he was {\c&H0048C8FF&}required{\c&H00FFFFFF&} to stay silent about
+Dialogue: 0,0:03:35.92,0:03:36.03,Sub,,0,0,0,,he was required {\c&H0048C8FF&}to{\c&H00FFFFFF&} stay silent about
+Dialogue: 0,0:03:36.03,0:03:36.32,Sub,,0,0,0,,he was required to {\c&H0048C8FF&}stay{\c&H00FFFFFF&} silent about
+Dialogue: 0,0:03:36.32,0:03:37.08,Sub,,0,0,0,,he was required to stay {\c&H0048C8FF&}silent{\c&H00FFFFFF&} about
+Dialogue: 0,0:03:37.08,0:03:37.52,Sub,,0,0,0,,he was required to stay silent {\c&H0048C8FF&}about{\c&H00FFFFFF&}
+Dialogue: 0,0:03:37.52,0:03:38.05,Sub,,0,0,0,,{\c&H0048C8FF&}everything{\c&H00FFFFFF&} he saw there.
+Dialogue: 0,0:03:38.05,0:03:38.19,Sub,,0,0,0,,everything {\c&H0048C8FF&}he{\c&H00FFFFFF&} saw there.
+Dialogue: 0,0:03:38.19,0:03:38.45,Sub,,0,0,0,,everything he {\c&H0048C8FF&}saw{\c&H00FFFFFF&} there.
+Dialogue: 0,0:03:38.45,0:03:39.23,Sub,,0,0,0,,everything he saw {\c&H0048C8FF&}there.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:39.76,0:03:40.25,Sub,,0,0,0,,{\c&H0048C8FF&}Picture{\c&H00FFFFFF&} sitting down to dinner across
+Dialogue: 0,0:03:40.25,0:03:40.58,Sub,,0,0,0,,Picture {\c&H0048C8FF&}sitting{\c&H00FFFFFF&} down to dinner across
+Dialogue: 0,0:03:40.58,0:03:40.83,Sub,,0,0,0,,Picture sitting {\c&H0048C8FF&}down{\c&H00FFFFFF&} to dinner across
+Dialogue: 0,0:03:40.83,0:03:41.01,Sub,,0,0,0,,Picture sitting down {\c&H0048C8FF&}to{\c&H00FFFFFF&} dinner across
+Dialogue: 0,0:03:41.01,0:03:41.33,Sub,,0,0,0,,Picture sitting down to {\c&H0048C8FF&}dinner{\c&H00FFFFFF&} across
+Dialogue: 0,0:03:41.33,0:03:41.76,Sub,,0,0,0,,Picture sitting down to dinner {\c&H0048C8FF&}across{\c&H00FFFFFF&}
+Dialogue: 0,0:03:41.76,0:03:41.92,Sub,,0,0,0,,{\c&H0048C8FF&}from{\c&H00FFFFFF&} your wife,
+Dialogue: 0,0:03:41.92,0:03:42.09,Sub,,0,0,0,,from {\c&H0048C8FF&}your{\c&H00FFFFFF&} wife,
+Dialogue: 0,0:03:42.09,0:03:42.83,Sub,,0,0,0,,from your {\c&H0048C8FF&}wife,{\c&H00FFFFFF&}
+Dialogue: 0,0:03:42.83,0:03:43.22,Sub,,0,0,0,,{\c&H0048C8FF&}after{\c&H00FFFFFF&} a day in a place that,
+Dialogue: 0,0:03:43.22,0:03:43.34,Sub,,0,0,0,,after {\c&H0048C8FF&}a{\c&H00FFFFFF&} day in a place that,
+Dialogue: 0,0:03:43.34,0:03:43.56,Sub,,0,0,0,,after a {\c&H0048C8FF&}day{\c&H00FFFFFF&} in a place that,
+Dialogue: 0,0:03:43.56,0:03:43.67,Sub,,0,0,0,,after a day {\c&H0048C8FF&}in{\c&H00FFFFFF&} a place that,
+Dialogue: 0,0:03:43.67,0:03:43.76,Sub,,0,0,0,,after a day in {\c&H0048C8FF&}a{\c&H00FFFFFF&} place that,
+Dialogue: 0,0:03:43.76,0:03:44.21,Sub,,0,0,0,,after a day in a {\c&H0048C8FF&}place{\c&H00FFFFFF&} that,
+Dialogue: 0,0:03:44.21,0:03:44.81,Sub,,0,0,0,,after a day in a place {\c&H0048C8FF&}that,{\c&H00FFFFFF&}
+Dialogue: 0,0:03:44.81,0:03:45.00,Sub,,0,0,0,,{\c&H0048C8FF&}if{\c&H00FFFFFF&} your story were true,
+Dialogue: 0,0:03:45.00,0:03:45.19,Sub,,0,0,0,,if {\c&H0048C8FF&}your{\c&H00FFFFFF&} story were true,
+Dialogue: 0,0:03:45.19,0:03:45.57,Sub,,0,0,0,,if your {\c&H0048C8FF&}story{\c&H00FFFFFF&} were true,
+Dialogue: 0,0:03:45.57,0:03:45.74,Sub,,0,0,0,,if your story {\c&H0048C8FF&}were{\c&H00FFFFFF&} true,
+Dialogue: 0,0:03:45.74,0:03:46.60,Sub,,0,0,0,,if your story were {\c&H0048C8FF&}true,{\c&H00FFFFFF&}
+Dialogue: 0,0:03:46.60,0:03:46.85,Sub,,0,0,0,,{\c&H0048C8FF&}would{\c&H00FFFFFF&} change everything she believes
+Dialogue: 0,0:03:46.85,0:03:47.23,Sub,,0,0,0,,would {\c&H0048C8FF&}change{\c&H00FFFFFF&} everything she believes
+Dialogue: 0,0:03:47.23,0:03:47.82,Sub,,0,0,0,,would change {\c&H0048C8FF&}everything{\c&H00FFFFFF&} she believes
+Dialogue: 0,0:03:47.82,0:03:48.07,Sub,,0,0,0,,would change everything {\c&H0048C8FF&}she{\c&H00FFFFFF&} believes
+Dialogue: 0,0:03:48.07,0:03:48.63,Sub,,0,0,0,,would change everything she {\c&H0048C8FF&}believes{\c&H00FFFFFF&}
+Dialogue: 0,0:03:48.63,0:03:48.92,Sub,,0,0,0,,{\c&H0048C8FF&}about{\c&H00FFFFFF&} the world.
+Dialogue: 0,0:03:48.92,0:03:49.05,Sub,,0,0,0,,about {\c&H0048C8FF&}the{\c&H00FFFFFF&} world.
+Dialogue: 0,0:03:49.05,0:03:50.11,Sub,,0,0,0,,about the {\c&H0048C8FF&}world.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:50.11,0:03:50.56,Sub,,0,0,0,,{\c&H0048C8FF&}Watching{\c&H00FFFFFF&} her talk about ordinary things.
+Dialogue: 0,0:03:50.56,0:03:50.71,Sub,,0,0,0,,Watching {\c&H0048C8FF&}her{\c&H00FFFFFF&} talk about ordinary things.
+Dialogue: 0,0:03:50.71,0:03:51.01,Sub,,0,0,0,,Watching her {\c&H0048C8FF&}talk{\c&H00FFFFFF&} about ordinary things.
+Dialogue: 0,0:03:51.01,0:03:51.29,Sub,,0,0,0,,Watching her talk {\c&H0048C8FF&}about{\c&H00FFFFFF&} ordinary things.
+Dialogue: 0,0:03:51.29,0:03:51.86,Sub,,0,0,0,,Watching her talk about {\c&H0048C8FF&}ordinary{\c&H00FFFFFF&} things.
+Dialogue: 0,0:03:51.86,0:03:52.85,Sub,,0,0,0,,Watching her talk about ordinary {\c&H0048C8FF&}things.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:52.85,0:03:53.06,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} family.
+Dialogue: 0,0:03:53.06,0:03:54.11,Sub,,0,0,0,,The {\c&H0048C8FF&}family.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:54.11,0:03:55.02,Sub,,0,0,0,,{\c&H0048C8FF&}Work.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:55.02,0:03:56.34,Sub,,0,0,0,,{\c&H0048C8FF&}Tomorrow.{\c&H00FFFFFF&}
+Dialogue: 0,0:03:56.34,0:03:56.59,Sub,,0,0,0,,{\c&H0048C8FF&}And{\c&H00FFFFFF&} knowing that a few miles away,
+Dialogue: 0,0:03:56.59,0:03:56.92,Sub,,0,0,0,,And {\c&H0048C8FF&}knowing{\c&H00FFFFFF&} that a few miles away,
+Dialogue: 0,0:03:56.92,0:03:57.07,Sub,,0,0,0,,And knowing {\c&H0048C8FF&}that{\c&H00FFFFFF&} a few miles away,
+Dialogue: 0,0:03:57.07,0:03:57.17,Sub,,0,0,0,,And knowing that {\c&H0048C8FF&}a{\c&H00FFFFFF&} few miles away,
+Dialogue: 0,0:03:57.17,0:03:57.40,Sub,,0,0,0,,And knowing that a {\c&H0048C8FF&}few{\c&H00FFFFFF&} miles away,
+Dialogue: 0,0:03:57.40,0:03:57.77,Sub,,0,0,0,,And knowing that a few {\c&H0048C8FF&}miles{\c&H00FFFFFF&} away,
+Dialogue: 0,0:03:57.77,0:03:58.83,Sub,,0,0,0,,And knowing that a few miles {\c&H0048C8FF&}away,{\c&H00FFFFFF&}
+Dialogue: 0,0:03:58.83,0:03:59.06,Sub,,0,0,0,,{\c&H0048C8FF&}there{\c&H00FFFFFF&} is another reality you can never
+Dialogue: 0,0:03:59.06,0:03:59.19,Sub,,0,0,0,,there {\c&H0048C8FF&}is{\c&H00FFFFFF&} another reality you can never
+Dialogue: 0,0:03:59.19,0:03:59.63,Sub,,0,0,0,,there is {\c&H0048C8FF&}another{\c&H00FFFFFF&} reality you can never
+Dialogue: 0,0:03:59.63,0:04:00.48,Sub,,0,0,0,,there is another {\c&H0048C8FF&}reality{\c&H00FFFFFF&} you can never
+Dialogue: 0,0:04:00.48,0:04:00.65,Sub,,0,0,0,,there is another reality {\c&H0048C8FF&}you{\c&H00FFFFFF&} can never
+Dialogue: 0,0:04:00.65,0:04:00.88,Sub,,0,0,0,,there is another reality you {\c&H0048C8FF&}can{\c&H00FFFFFF&} never
+Dialogue: 0,0:04:00.88,0:04:01.23,Sub,,0,0,0,,there is another reality you can {\c&H0048C8FF&}never{\c&H00FFFFFF&}
+Dialogue: 0,0:04:01.23,0:04:01.51,Sub,,0,0,0,,{\c&H0048C8FF&}share{\c&H00FFFFFF&} with her.
+Dialogue: 0,0:04:01.51,0:04:01.68,Sub,,0,0,0,,share {\c&H0048C8FF&}with{\c&H00FFFFFF&} her.
+Dialogue: 0,0:04:01.68,0:04:02.50,Sub,,0,0,0,,share with {\c&H0048C8FF&}her.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:02.50,0:04:02.74,Sub,,0,0,0,,{\c&H0048C8FF&}Not{\c&H00FFFFFF&} because you don't want to.
+Dialogue: 0,0:04:02.74,0:04:03.27,Sub,,0,0,0,,Not {\c&H0048C8FF&}because{\c&H00FFFFFF&} you don't want to.
+Dialogue: 0,0:04:03.27,0:04:03.41,Sub,,0,0,0,,Not because {\c&H0048C8FF&}you{\c&H00FFFFFF&} don't want to.
+Dialogue: 0,0:04:03.41,0:04:03.62,Sub,,0,0,0,,Not because you {\c&H0048C8FF&}don't{\c&H00FFFFFF&} want to.
+Dialogue: 0,0:04:03.62,0:04:03.88,Sub,,0,0,0,,Not because you don't {\c&H0048C8FF&}want{\c&H00FFFFFF&} to.
+Dialogue: 0,0:04:03.88,0:04:04.80,Sub,,0,0,0,,Not because you don't want {\c&H0048C8FF&}to.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:04.80,0:04:05.31,Sub,,0,0,0,,{\c&H0048C8FF&}Because{\c&H00FFFFFF&} revealing classified information
+Dialogue: 0,0:04:05.31,0:04:05.88,Sub,,0,0,0,,Because {\c&H0048C8FF&}revealing{\c&H00FFFFFF&} classified information
+Dialogue: 0,0:04:05.88,0:04:06.57,Sub,,0,0,0,,Because revealing {\c&H0048C8FF&}classified{\c&H00FFFFFF&} information
+Dialogue: 0,0:04:06.57,0:04:07.26,Sub,,0,0,0,,Because revealing classified {\c&H0048C8FF&}information{\c&H00FFFFFF&}
+Dialogue: 0,0:04:07.26,0:04:07.48,Sub,,0,0,0,,{\c&H0048C8FF&}could{\c&H00FFFFFF&} carry consequences.
+Dialogue: 0,0:04:07.48,0:04:07.81,Sub,,0,0,0,,could {\c&H0048C8FF&}carry{\c&H00FFFFFF&} consequences.
+Dialogue: 0,0:04:07.81,0:04:09.30,Sub,,0,0,0,,could carry {\c&H0048C8FF&}consequences.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:09.30,0:04:09.54,Sub,,0,0,0,,{\c&H0048C8FF&}For{\c&H00FFFFFF&} your job.
+Dialogue: 0,0:04:09.54,0:04:09.82,Sub,,0,0,0,,For {\c&H0048C8FF&}your{\c&H00FFFFFF&} job.
+Dialogue: 0,0:04:09.82,0:04:10.96,Sub,,0,0,0,,For your {\c&H0048C8FF&}job.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:10.96,0:04:11.22,Sub,,0,0,0,,{\c&H0048C8FF&}For{\c&H00FFFFFF&} you.
+Dialogue: 0,0:04:11.22,0:04:12.12,Sub,,0,0,0,,For {\c&H0048C8FF&}you.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:12.12,0:04:13.07,Sub,,0,0,0,,{\c&H0048C8FF&}And,{\c&H00FFFFFF&} at least from the point of
+Dialogue: 0,0:04:13.07,0:04:13.34,Sub,,0,0,0,,And, {\c&H0048C8FF&}at{\c&H00FFFFFF&} least from the point of
+Dialogue: 0,0:04:13.34,0:04:13.63,Sub,,0,0,0,,And, at {\c&H0048C8FF&}least{\c&H00FFFFFF&} from the point of
+Dialogue: 0,0:04:13.63,0:04:13.80,Sub,,0,0,0,,And, at least {\c&H0048C8FF&}from{\c&H00FFFFFF&} the point of
+Dialogue: 0,0:04:13.80,0:04:13.93,Sub,,0,0,0,,And, at least from {\c&H0048C8FF&}the{\c&H00FFFFFF&} point of
+Dialogue: 0,0:04:13.93,0:04:14.21,Sub,,0,0,0,,And, at least from the {\c&H0048C8FF&}point{\c&H00FFFFFF&} of
+Dialogue: 0,0:04:14.21,0:04:14.32,Sub,,0,0,0,,And, at least from the point {\c&H0048C8FF&}of{\c&H00FFFFFF&}
+Dialogue: 0,0:04:14.32,0:04:14.64,Sub,,0,0,0,,{\c&H0048C8FF&}view{\c&H00FFFFFF&} of someone living under that kind
+Dialogue: 0,0:04:14.64,0:04:14.81,Sub,,0,0,0,,view {\c&H0048C8FF&}of{\c&H00FFFFFF&} someone living under that kind
+Dialogue: 0,0:04:14.81,0:04:15.28,Sub,,0,0,0,,view of {\c&H0048C8FF&}someone{\c&H00FFFFFF&} living under that kind
+Dialogue: 0,0:04:15.28,0:04:15.62,Sub,,0,0,0,,view of someone {\c&H0048C8FF&}living{\c&H00FFFFFF&} under that kind
+Dialogue: 0,0:04:15.62,0:04:15.85,Sub,,0,0,0,,view of someone living {\c&H0048C8FF&}under{\c&H00FFFFFF&} that kind
+Dialogue: 0,0:04:15.85,0:04:16.08,Sub,,0,0,0,,view of someone living under {\c&H0048C8FF&}that{\c&H00FFFFFF&} kind
+Dialogue: 0,0:04:16.08,0:04:16.37,Sub,,0,0,0,,view of someone living under that {\c&H0048C8FF&}kind{\c&H00FFFFFF&}
+Dialogue: 0,0:04:16.37,0:04:16.49,Sub,,0,0,0,,{\c&H0048C8FF&}of{\c&H00FFFFFF&} secrecy, perhaps for the people you
+Dialogue: 0,0:04:16.49,0:04:17.75,Sub,,0,0,0,,of {\c&H0048C8FF&}secrecy,{\c&H00FFFFFF&} perhaps for the people you
+Dialogue: 0,0:04:17.75,0:04:18.19,Sub,,0,0,0,,of secrecy, {\c&H0048C8FF&}perhaps{\c&H00FFFFFF&} for the people you
+Dialogue: 0,0:04:18.19,0:04:18.31,Sub,,0,0,0,,of secrecy, perhaps {\c&H0048C8FF&}for{\c&H00FFFFFF&} the people you
+Dialogue: 0,0:04:18.31,0:04:18.42,Sub,,0,0,0,,of secrecy, perhaps for {\c&H0048C8FF&}the{\c&H00FFFFFF&} people you
+Dialogue: 0,0:04:18.42,0:04:18.81,Sub,,0,0,0,,of secrecy, perhaps for the {\c&H0048C8FF&}people{\c&H00FFFFFF&} you
+Dialogue: 0,0:04:18.81,0:04:18.99,Sub,,0,0,0,,of secrecy, perhaps for the people {\c&H0048C8FF&}you{\c&H00FFFFFF&}
+Dialogue: 0,0:04:18.99,0:04:19.27,Sub,,0,0,0,,{\c&H0048C8FF&}love{\c&H00FFFFFF&} most.
+Dialogue: 0,0:04:19.27,0:04:20.26,Sub,,0,0,0,,love {\c&H0048C8FF&}most.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:20.67,0:04:20.94,Sub,,0,0,0,,{\c&H0048C8FF&}So{\c&H00FFFFFF&} Thomas did something that,
+Dialogue: 0,0:04:20.94,0:04:21.39,Sub,,0,0,0,,So {\c&H0048C8FF&}Thomas{\c&H00FFFFFF&} did something that,
+Dialogue: 0,0:04:21.39,0:04:21.62,Sub,,0,0,0,,So Thomas {\c&H0048C8FF&}did{\c&H00FFFFFF&} something that,
+Dialogue: 0,0:04:21.62,0:04:22.09,Sub,,0,0,0,,So Thomas did {\c&H0048C8FF&}something{\c&H00FFFFFF&} that,
+Dialogue: 0,0:04:22.09,0:04:22.62,Sub,,0,0,0,,So Thomas did something {\c&H0048C8FF&}that,{\c&H00FFFFFF&}
+Dialogue: 0,0:04:22.62,0:04:22.89,Sub,,0,0,0,,{\c&H0048C8FF&}by{\c&H00FFFFFF&} his own account,
+Dialogue: 0,0:04:22.89,0:04:23.07,Sub,,0,0,0,,by {\c&H0048C8FF&}his{\c&H00FFFFFF&} own account,
+Dialogue: 0,0:04:23.07,0:04:23.25,Sub,,0,0,0,,by his {\c&H0048C8FF&}own{\c&H00FFFFFF&} account,
+Dialogue: 0,0:04:23.25,0:04:24.33,Sub,,0,0,0,,by his own {\c&H0048C8FF&}account,{\c&H00FFFFFF&}
+Dialogue: 0,0:04:24.33,0:04:24.66,Sub,,0,0,0,,{\c&H0048C8FF&}grew{\c&H00FFFFFF&} harder every day.
+Dialogue: 0,0:04:24.66,0:04:25.25,Sub,,0,0,0,,grew {\c&H0048C8FF&}harder{\c&H00FFFFFF&} every day.
+Dialogue: 0,0:04:25.25,0:04:25.65,Sub,,0,0,0,,grew harder {\c&H0048C8FF&}every{\c&H00FFFFFF&} day.
+Dialogue: 0,0:04:25.65,0:04:26.61,Sub,,0,0,0,,grew harder every {\c&H0048C8FF&}day.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:27.02,0:04:27.25,Sub,,0,0,0,,{\c&H0048C8FF&}He{\c&H00FFFFFF&} came home…
+Dialogue: 0,0:04:27.25,0:04:27.55,Sub,,0,0,0,,He {\c&H0048C8FF&}came{\c&H00FFFFFF&} home…
+Dialogue: 0,0:04:27.55,0:04:28.62,Sub,,0,0,0,,He came {\c&H0048C8FF&}home…{\c&H00FFFFFF&}
+Dialogue: 0,0:04:28.93,0:04:29.12,Sub,,0,0,0,,{\c&H0048C8FF&}and{\c&H00FFFFFF&} pretended he knew nothing.
+Dialogue: 0,0:04:29.12,0:04:30.20,Sub,,0,0,0,,and {\c&H0048C8FF&}pretended{\c&H00FFFFFF&} he knew nothing.
+Dialogue: 0,0:04:30.20,0:04:30.43,Sub,,0,0,0,,and pretended {\c&H0048C8FF&}he{\c&H00FFFFFF&} knew nothing.
+Dialogue: 0,0:04:30.43,0:04:30.67,Sub,,0,0,0,,and pretended he {\c&H0048C8FF&}knew{\c&H00FFFFFF&} nothing.
+Dialogue: 0,0:04:30.67,0:04:31.64,Sub,,0,0,0,,and pretended he knew {\c&H0048C8FF&}nothing.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:32.04,0:04:32.23,Sub,,0,0,0,,{\c&H0048C8FF&}The{\c&H00FFFFFF&} next morning,
+Dialogue: 0,0:04:32.23,0:04:32.50,Sub,,0,0,0,,The {\c&H0048C8FF&}next{\c&H00FFFFFF&} morning,
+Dialogue: 0,0:04:32.50,0:04:33.47,Sub,,0,0,0,,The next {\c&H0048C8FF&}morning,{\c&H00FFFFFF&}
+Dialogue: 0,0:04:33.47,0:04:33.62,Sub,,0,0,0,,{\c&H0048C8FF&}he{\c&H00FFFFFF&} drove back to Dulce.
+Dialogue: 0,0:04:33.62,0:04:33.95,Sub,,0,0,0,,he {\c&H0048C8FF&}drove{\c&H00FFFFFF&} back to Dulce.
+Dialogue: 0,0:04:33.95,0:04:34.19,Sub,,0,0,0,,he drove {\c&H0048C8FF&}back{\c&H00FFFFFF&} to Dulce.
+Dialogue: 0,0:04:34.19,0:04:34.35,Sub,,0,0,0,,he drove back {\c&H0048C8FF&}to{\c&H00FFFFFF&} Dulce.
+Dialogue: 0,0:04:34.35,0:04:35.45,Sub,,0,0,0,,he drove back to {\c&H0048C8FF&}Dulce.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:35.45,0:04:35.75,Sub,,0,0,0,,{\c&H0048C8FF&}Back{\c&H00FFFFFF&} to the checkpoints.
+Dialogue: 0,0:04:35.75,0:04:35.89,Sub,,0,0,0,,Back {\c&H0048C8FF&}to{\c&H00FFFFFF&} the checkpoints.
+Dialogue: 0,0:04:35.89,0:04:35.99,Sub,,0,0,0,,Back to {\c&H0048C8FF&}the{\c&H00FFFFFF&} checkpoints.
+Dialogue: 0,0:04:35.99,0:04:37.37,Sub,,0,0,0,,Back to the {\c&H0048C8FF&}checkpoints.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:37.37,0:04:37.71,Sub,,0,0,0,,{\c&H0048C8FF&}Back{\c&H00FFFFFF&} to the corridors.
+Dialogue: 0,0:04:37.71,0:04:37.83,Sub,,0,0,0,,Back {\c&H0048C8FF&}to{\c&H00FFFFFF&} the corridors.
+Dialogue: 0,0:04:37.83,0:04:37.95,Sub,,0,0,0,,Back to {\c&H0048C8FF&}the{\c&H00FFFFFF&} corridors.
+Dialogue: 0,0:04:37.95,0:04:39.24,Sub,,0,0,0,,Back to the {\c&H0048C8FF&}corridors.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:39.24,0:04:39.60,Sub,,0,0,0,,{\c&H0048C8FF&}Back{\c&H00FFFFFF&} to the beings he claimed to
+Dialogue: 0,0:04:39.60,0:04:39.75,Sub,,0,0,0,,Back {\c&H0048C8FF&}to{\c&H00FFFFFF&} the beings he claimed to
+Dialogue: 0,0:04:39.75,0:04:39.92,Sub,,0,0,0,,Back to {\c&H0048C8FF&}the{\c&H00FFFFFF&} beings he claimed to
+Dialogue: 0,0:04:39.92,0:04:40.39,Sub,,0,0,0,,Back to the {\c&H0048C8FF&}beings{\c&H00FFFFFF&} he claimed to
+Dialogue: 0,0:04:40.39,0:04:40.55,Sub,,0,0,0,,Back to the beings {\c&H0048C8FF&}he{\c&H00FFFFFF&} claimed to
+Dialogue: 0,0:04:40.55,0:04:41.03,Sub,,0,0,0,,Back to the beings he {\c&H0048C8FF&}claimed{\c&H00FFFFFF&} to
+Dialogue: 0,0:04:41.03,0:04:41.17,Sub,,0,0,0,,Back to the beings he claimed {\c&H0048C8FF&}to{\c&H00FFFFFF&}
+Dialogue: 0,0:04:41.17,0:04:41.32,Sub,,0,0,0,,{\c&H0048C8FF&}have{\c&H00FFFFFF&} seen.
+Dialogue: 0,0:04:41.32,0:04:42.45,Sub,,0,0,0,,have {\c&H0048C8FF&}seen.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:42.45,0:04:42.78,Sub,,0,0,0,,{\c&H0048C8FF&}And{\c&H00FFFFFF&} back to silence.
+Dialogue: 0,0:04:42.78,0:04:43.40,Sub,,0,0,0,,And {\c&H0048C8FF&}back{\c&H00FFFFFF&} to silence.
+Dialogue: 0,0:04:43.40,0:04:43.69,Sub,,0,0,0,,And back {\c&H0048C8FF&}to{\c&H00FFFFFF&} silence.
+Dialogue: 0,0:04:43.69,0:04:46.17,Sub,,0,0,0,,And back to {\c&H0048C8FF&}silence.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:47.77,0:04:48.05,Sub,,0,0,0,,{\c&H0048C8FF&}There{\c&H00FFFFFF&} were rules.
+Dialogue: 0,0:04:48.05,0:04:48.22,Sub,,0,0,0,,There {\c&H0048C8FF&}were{\c&H00FFFFFF&} rules.
+Dialogue: 0,0:04:48.22,0:04:49.28,Sub,,0,0,0,,There were {\c&H0048C8FF&}rules.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:49.68,0:04:49.91,Sub,,0,0,0,,{\c&H0048C8FF&}In{\c&H00FFFFFF&} certain areas,
+Dialogue: 0,0:04:49.91,0:04:50.23,Sub,,0,0,0,,In {\c&H0048C8FF&}certain{\c&H00FFFFFF&} areas,
+Dialogue: 0,0:04:50.23,0:04:51.24,Sub,,0,0,0,,In certain {\c&H0048C8FF&}areas,{\c&H00FFFFFF&}
+Dialogue: 0,0:04:51.24,0:04:52.14,Sub,,0,0,0,,{\c&H0048C8FF&}conversations{\c&H00FFFFFF&} between different groups
+Dialogue: 0,0:04:52.14,0:04:52.56,Sub,,0,0,0,,conversations {\c&H0048C8FF&}between{\c&H00FFFFFF&} different groups
+Dialogue: 0,0:04:52.56,0:04:52.89,Sub,,0,0,0,,conversations between {\c&H0048C8FF&}different{\c&H00FFFFFF&} groups
+Dialogue: 0,0:04:52.89,0:04:53.18,Sub,,0,0,0,,conversations between different {\c&H0048C8FF&}groups{\c&H00FFFFFF&}
+Dialogue: 0,0:04:53.18,0:04:53.33,Sub,,0,0,0,,{\c&H0048C8FF&}were{\c&H00FFFFFF&} restricted.
+Dialogue: 0,0:04:53.33,0:04:54.41,Sub,,0,0,0,,were {\c&H0048C8FF&}restricted.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:54.72,0:04:55.00,Sub,,0,0,0,,{\c&H0048C8FF&}Some{\c&H00FFFFFF&} information was never to be shared.
+Dialogue: 0,0:04:55.00,0:04:55.74,Sub,,0,0,0,,Some {\c&H0048C8FF&}information{\c&H00FFFFFF&} was never to be shared.
+Dialogue: 0,0:04:55.74,0:04:56.01,Sub,,0,0,0,,Some information {\c&H0048C8FF&}was{\c&H00FFFFFF&} never to be shared.
+Dialogue: 0,0:04:56.01,0:04:56.31,Sub,,0,0,0,,Some information was {\c&H0048C8FF&}never{\c&H00FFFFFF&} to be shared.
+Dialogue: 0,0:04:56.31,0:04:56.40,Sub,,0,0,0,,Some information was never {\c&H0048C8FF&}to{\c&H00FFFFFF&} be shared.
+Dialogue: 0,0:04:56.40,0:04:56.54,Sub,,0,0,0,,Some information was never to {\c&H0048C8FF&}be{\c&H00FFFFFF&} shared.
+Dialogue: 0,0:04:56.54,0:04:57.59,Sub,,0,0,0,,Some information was never to be {\c&H0048C8FF&}shared.{\c&H00FFFFFF&}
+Dialogue: 0,0:04:57.99,0:04:58.31,Sub,,0,0,0,,{\c&H0048C8FF&}Some{\c&H00FFFFFF&} questions were better left unasked.
+Dialogue: 0,0:04:58.31,0:04:58.82,Sub,,0,0,0,,Some {\c&H0048C8FF&}questions{\c&H00FFFFFF&} were better left unasked.
+Dialogue: 0,0:04:58.82,0:04:59.00,Sub,,0,0,0,,Some questions {\c&H0048C8FF&}were{\c&H00FFFFFF&} better left unasked.
+Dialogue: 0,0:04:59.00,0:04:59.28,Sub,,0,0,0,,Some questions were {\c&H0048C8FF&}better{\c&H00FFFFFF&} left unasked.
+Dialogue: 0,0:04:59.28,0:04:59.57,Sub,,0,0,0,,Some questions were better {\c&H0048C8FF&}left{\c&H00FFFFFF&} unasked.
+Dialogue: 0,0:04:59.57,0:05:00.77,Sub,,0,0,0,,Some questions were better left {\c&H0048C8FF&}unasked.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:00.77,0:05:01.04,Sub,,0,0,0,,{\c&H0048C8FF&}And{\c&H00FFFFFF&} some places could not be entered
+Dialogue: 0,0:05:01.04,0:05:01.28,Sub,,0,0,0,,And {\c&H0048C8FF&}some{\c&H00FFFFFF&} places could not be entered
+Dialogue: 0,0:05:01.28,0:05:01.80,Sub,,0,0,0,,And some {\c&H0048C8FF&}places{\c&H00FFFFFF&} could not be entered
+Dialogue: 0,0:05:01.80,0:05:02.02,Sub,,0,0,0,,And some places {\c&H0048C8FF&}could{\c&H00FFFFFF&} not be entered
+Dialogue: 0,0:05:02.02,0:05:02.26,Sub,,0,0,0,,And some places could {\c&H0048C8FF&}not{\c&H00FFFFFF&} be entered
+Dialogue: 0,0:05:02.26,0:05:02.44,Sub,,0,0,0,,And some places could not {\c&H0048C8FF&}be{\c&H00FFFFFF&} entered
+Dialogue: 0,0:05:02.44,0:05:02.78,Sub,,0,0,0,,And some places could not be {\c&H0048C8FF&}entered{\c&H00FFFFFF&}
+Dialogue: 0,0:05:02.78,0:05:03.14,Sub,,0,0,0,,{\c&H0048C8FF&}without{\c&H00FFFFFF&} the right clearance.
+Dialogue: 0,0:05:03.14,0:05:03.30,Sub,,0,0,0,,without {\c&H0048C8FF&}the{\c&H00FFFFFF&} right clearance.
+Dialogue: 0,0:05:03.30,0:05:03.53,Sub,,0,0,0,,without the {\c&H0048C8FF&}right{\c&H00FFFFFF&} clearance.
+Dialogue: 0,0:05:03.53,0:05:04.62,Sub,,0,0,0,,without the right {\c&H0048C8FF&}clearance.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:04.62,0:05:05.48,Sub,,0,0,0,,{\c&H0048C8FF&}Castello{\c&H00FFFFFF&} was there to help keep that
+Dialogue: 0,0:05:05.48,0:05:05.69,Sub,,0,0,0,,Castello {\c&H0048C8FF&}was{\c&H00FFFFFF&} there to help keep that
+Dialogue: 0,0:05:05.69,0:05:06.06,Sub,,0,0,0,,Castello was {\c&H0048C8FF&}there{\c&H00FFFFFF&} to help keep that
+Dialogue: 0,0:05:06.06,0:05:06.26,Sub,,0,0,0,,Castello was there {\c&H0048C8FF&}to{\c&H00FFFFFF&} help keep that
+Dialogue: 0,0:05:06.26,0:05:06.52,Sub,,0,0,0,,Castello was there to {\c&H0048C8FF&}help{\c&H00FFFFFF&} keep that
+Dialogue: 0,0:05:06.52,0:05:06.81,Sub,,0,0,0,,Castello was there to help {\c&H0048C8FF&}keep{\c&H00FFFFFF&} that
+Dialogue: 0,0:05:06.81,0:05:07.04,Sub,,0,0,0,,Castello was there to help keep {\c&H0048C8FF&}that{\c&H00FFFFFF&}
+Dialogue: 0,0:05:07.04,0:05:07.43,Sub,,0,0,0,,{\c&H0048C8FF&}system{\c&H00FFFFFF&} in place.
+Dialogue: 0,0:05:07.43,0:05:07.55,Sub,,0,0,0,,system {\c&H0048C8FF&}in{\c&H00FFFFFF&} place.
+Dialogue: 0,0:05:07.55,0:05:08.61,Sub,,0,0,0,,system in {\c&H0048C8FF&}place.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:08.61,0:05:08.88,Sub,,0,0,0,,{\c&H0048C8FF&}And{\c&H00FFFFFF&} for a while,
+Dialogue: 0,0:05:08.88,0:05:09.07,Sub,,0,0,0,,And {\c&H0048C8FF&}for{\c&H00FFFFFF&} a while,
+Dialogue: 0,0:05:09.07,0:05:09.14,Sub,,0,0,0,,And for {\c&H0048C8FF&}a{\c&H00FFFFFF&} while,
+Dialogue: 0,0:05:09.14,0:05:10.01,Sub,,0,0,0,,And for a {\c&H0048C8FF&}while,{\c&H00FFFFFF&}
+Dialogue: 0,0:05:10.01,0:05:10.21,Sub,,0,0,0,,{\c&H0048C8FF&}it{\c&H00FFFFFF&} seems, he did.
+Dialogue: 0,0:05:10.21,0:05:11.18,Sub,,0,0,0,,it {\c&H0048C8FF&}seems,{\c&H00FFFFFF&} he did.
+Dialogue: 0,0:05:11.18,0:05:11.39,Sub,,0,0,0,,it seems, {\c&H0048C8FF&}he{\c&H00FFFFFF&} did.
+Dialogue: 0,0:05:11.39,0:05:12.37,Sub,,0,0,0,,it seems, he {\c&H0048C8FF&}did.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:12.37,0:05:12.75,Sub,,0,0,0,,{\c&H0048C8FF&}Until{\c&H00FFFFFF&} he began to see things he
+Dialogue: 0,0:05:12.75,0:05:12.86,Sub,,0,0,0,,Until {\c&H0048C8FF&}he{\c&H00FFFFFF&} began to see things he
+Dialogue: 0,0:05:12.86,0:05:13.23,Sub,,0,0,0,,Until he {\c&H0048C8FF&}began{\c&H00FFFFFF&} to see things he
+Dialogue: 0,0:05:13.23,0:05:13.37,Sub,,0,0,0,,Until he began {\c&H0048C8FF&}to{\c&H00FFFFFF&} see things he
+Dialogue: 0,0:05:13.37,0:05:13.63,Sub,,0,0,0,,Until he began to {\c&H0048C8FF&}see{\c&H00FFFFFF&} things he
+Dialogue: 0,0:05:13.63,0:05:14.35,Sub,,0,0,0,,Until he began to see {\c&H0048C8FF&}things{\c&H00FFFFFF&} he
+Dialogue: 0,0:05:14.35,0:05:14.57,Sub,,0,0,0,,Until he began to see things {\c&H0048C8FF&}he{\c&H00FFFFFF&}
+Dialogue: 0,0:05:14.57,0:05:14.81,Sub,,0,0,0,,{\c&H0048C8FF&}could{\c&H00FFFFFF&} no longer explain away as military
+Dialogue: 0,0:05:14.81,0:05:15.05,Sub,,0,0,0,,could {\c&H0048C8FF&}no{\c&H00FFFFFF&} longer explain away as military
+Dialogue: 0,0:05:15.05,0:05:15.44,Sub,,0,0,0,,could no {\c&H0048C8FF&}longer{\c&H00FFFFFF&} explain away as military
+Dialogue: 0,0:05:15.44,0:05:15.91,Sub,,0,0,0,,could no longer {\c&H0048C8FF&}explain{\c&H00FFFFFF&} away as military
+Dialogue: 0,0:05:15.91,0:05:16.69,Sub,,0,0,0,,could no longer explain {\c&H0048C8FF&}away{\c&H00FFFFFF&} as military
+Dialogue: 0,0:05:16.69,0:05:17.06,Sub,,0,0,0,,could no longer explain away {\c&H0048C8FF&}as{\c&H00FFFFFF&} military
+Dialogue: 0,0:05:17.06,0:05:17.77,Sub,,0,0,0,,could no longer explain away as {\c&H0048C8FF&}military{\c&H00FFFFFF&}
+Dialogue: 0,0:05:17.77,0:05:19.37,Sub,,0,0,0,,{\c&H0048C8FF&}secrets.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:20.97,0:05:21.71,Sub,,0,0,0,,{\c&H0048C8FF&}Laboratories{\c&H00FFFFFF&} take up a large part of
+Dialogue: 0,0:05:21.71,0:05:21.92,Sub,,0,0,0,,Laboratories {\c&H0048C8FF&}take{\c&H00FFFFFF&} up a large part of
+Dialogue: 0,0:05:21.92,0:05:22.05,Sub,,0,0,0,,Laboratories take {\c&H0048C8FF&}up{\c&H00FFFFFF&} a large part of
+Dialogue: 0,0:05:22.05,0:05:22.13,Sub,,0,0,0,,Laboratories take up {\c&H0048C8FF&}a{\c&H00FFFFFF&} large part of
+Dialogue: 0,0:05:22.13,0:05:22.46,Sub,,0,0,0,,Laboratories take up a {\c&H0048C8FF&}large{\c&H00FFFFFF&} part of
+Dialogue: 0,0:05:22.46,0:05:22.68,Sub,,0,0,0,,Laboratories take up a large {\c&H0048C8FF&}part{\c&H00FFFFFF&} of
+Dialogue: 0,0:05:22.68,0:05:22.79,Sub,,0,0,0,,Laboratories take up a large part {\c&H0048C8FF&}of{\c&H00FFFFFF&}
+Dialogue: 0,0:05:22.79,0:05:22.92,Sub,,0,0,0,,{\c&H0048C8FF&}his{\c&H00FFFFFF&} story.
+Dialogue: 0,0:05:22.92,0:05:23.94,Sub,,0,0,0,,his {\c&H0048C8FF&}story.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:23.94,0:05:25.13,Sub,,0,0,0,,{\c&H0048C8FF&}Castello{\c&H00FFFFFF&} spoke of biological and medical
+Dialogue: 0,0:05:25.13,0:05:25.52,Sub,,0,0,0,,Castello {\c&H0048C8FF&}spoke{\c&H00FFFFFF&} of biological and medical
+Dialogue: 0,0:05:25.52,0:05:25.62,Sub,,0,0,0,,Castello spoke {\c&H0048C8FF&}of{\c&H00FFFFFF&} biological and medical
+Dialogue: 0,0:05:25.62,0:05:26.48,Sub,,0,0,0,,Castello spoke of {\c&H0048C8FF&}biological{\c&H00FFFFFF&} and medical
+Dialogue: 0,0:05:26.48,0:05:26.64,Sub,,0,0,0,,Castello spoke of biological {\c&H0048C8FF&}and{\c&H00FFFFFF&} medical
+Dialogue: 0,0:05:26.64,0:05:27.05,Sub,,0,0,0,,Castello spoke of biological and {\c&H0048C8FF&}medical{\c&H00FFFFFF&}
+Dialogue: 0,0:05:27.05,0:05:28.12,Sub,,0,0,0,,{\c&H0048C8FF&}research.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:28.12,0:05:28.56,Sub,,0,0,0,,{\c&H0048C8FF&}Equipment{\c&H00FFFFFF&} he didn't fully understand.
+Dialogue: 0,0:05:28.56,0:05:28.64,Sub,,0,0,0,,Equipment {\c&H0048C8FF&}he{\c&H00FFFFFF&} didn't fully understand.
+Dialogue: 0,0:05:28.64,0:05:28.84,Sub,,0,0,0,,Equipment he {\c&H0048C8FF&}didn't{\c&H00FFFFFF&} fully understand.
+Dialogue: 0,0:05:28.84,0:05:29.09,Sub,,0,0,0,,Equipment he didn't {\c&H0048C8FF&}fully{\c&H00FFFFFF&} understand.
+Dialogue: 0,0:05:29.09,0:05:30.08,Sub,,0,0,0,,Equipment he didn't fully {\c&H0048C8FF&}understand.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:30.08,0:05:31.10,Sub,,0,0,0,,{\c&H0048C8FF&}Chambers.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:31.10,0:05:31.79,Sub,,0,0,0,,{\c&H0048C8FF&}Observation{\c&H00FFFFFF&} areas.
+Dialogue: 0,0:05:31.79,0:05:32.59,Sub,,0,0,0,,Observation {\c&H0048C8FF&}areas.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:32.59,0:05:32.98,Sub,,0,0,0,,{\c&H0048C8FF&}Human{\c&H00FFFFFF&} staff working close to non-human
+Dialogue: 0,0:05:32.98,0:05:33.39,Sub,,0,0,0,,Human {\c&H0048C8FF&}staff{\c&H00FFFFFF&} working close to non-human
+Dialogue: 0,0:05:33.39,0:05:33.70,Sub,,0,0,0,,Human staff {\c&H0048C8FF&}working{\c&H00FFFFFF&} close to non-human
+Dialogue: 0,0:05:33.70,0:05:34.03,Sub,,0,0,0,,Human staff working {\c&H0048C8FF&}close{\c&H00FFFFFF&} to non-human
+Dialogue: 0,0:05:34.03,0:05:34.23,Sub,,0,0,0,,Human staff working close {\c&H0048C8FF&}to{\c&H00FFFFFF&} non-human
+Dialogue: 0,0:05:34.23,0:05:34.76,Sub,,0,0,0,,Human staff working close to {\c&H0048C8FF&}non-human{\c&H00FFFFFF&}
+Dialogue: 0,0:05:34.76,0:05:35.91,Sub,,0,0,0,,{\c&H0048C8FF&}beings.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:35.91,0:05:36.16,Sub,,0,0,0,,{\c&H0048C8FF&}At{\c&H00FFFFFF&} first, by his account,
+Dialogue: 0,0:05:36.16,0:05:36.84,Sub,,0,0,0,,At {\c&H0048C8FF&}first,{\c&H00FFFFFF&} by his account,
+Dialogue: 0,0:05:36.84,0:05:37.07,Sub,,0,0,0,,At first, {\c&H0048C8FF&}by{\c&H00FFFFFF&} his account,
+Dialogue: 0,0:05:37.07,0:05:37.23,Sub,,0,0,0,,At first, by {\c&H0048C8FF&}his{\c&H00FFFFFF&} account,
+Dialogue: 0,0:05:37.23,0:05:37.57,Sub,,0,0,0,,At first, by his {\c&H0048C8FF&}account,{\c&H00FFFFFF&}
+Dialogue: 0,0:05:37.57,0:05:37.75,Sub,,0,0,0,,{\c&H0048C8FF&}there{\c&H00FFFFFF&} were explanations.
+Dialogue: 0,0:05:37.75,0:05:37.96,Sub,,0,0,0,,there {\c&H0048C8FF&}were{\c&H00FFFFFF&} explanations.
+Dialogue: 0,0:05:37.96,0:05:39.31,Sub,,0,0,0,,there were {\c&H0048C8FF&}explanations.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:39.31,0:05:40.07,Sub,,0,0,0,,{\c&H0048C8FF&}Classified{\c&H00FFFFFF&} research.
+Dialogue: 0,0:05:40.07,0:05:41.23,Sub,,0,0,0,,Classified {\c&H0048C8FF&}research.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:41.23,0:05:41.92,Sub,,0,0,0,,{\c&H0048C8FF&}Experimental{\c&H00FFFFFF&} medicine.
+Dialogue: 0,0:05:41.92,0:05:43.15,Sub,,0,0,0,,Experimental {\c&H0048C8FF&}medicine.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:43.15,0:05:43.75,Sub,,0,0,0,,{\c&H0048C8FF&}Projects{\c&H00FFFFFF&} sensitive enough to justify
+Dialogue: 0,0:05:43.75,0:05:44.19,Sub,,0,0,0,,Projects {\c&H0048C8FF&}sensitive{\c&H00FFFFFF&} enough to justify
+Dialogue: 0,0:05:44.19,0:05:44.43,Sub,,0,0,0,,Projects sensitive {\c&H0048C8FF&}enough{\c&H00FFFFFF&} to justify
+Dialogue: 0,0:05:44.43,0:05:44.62,Sub,,0,0,0,,Projects sensitive enough {\c&H0048C8FF&}to{\c&H00FFFFFF&} justify
+Dialogue: 0,0:05:44.62,0:05:45.16,Sub,,0,0,0,,Projects sensitive enough to {\c&H0048C8FF&}justify{\c&H00FFFFFF&}
+Dialogue: 0,0:05:45.16,0:05:45.52,Sub,,0,0,0,,{\c&H0048C8FF&}extreme{\c&H00FFFFFF&} security.
+Dialogue: 0,0:05:45.52,0:05:46.81,Sub,,0,0,0,,extreme {\c&H0048C8FF&}security.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:46.81,0:05:46.98,Sub,,0,0,0,,{\c&H0048C8FF&}It{\c&H00FFFFFF&} was possible to work there and
+Dialogue: 0,0:05:46.98,0:05:47.17,Sub,,0,0,0,,It {\c&H0048C8FF&}was{\c&H00FFFFFF&} possible to work there and
+Dialogue: 0,0:05:47.17,0:05:47.62,Sub,,0,0,0,,It was {\c&H0048C8FF&}possible{\c&H00FFFFFF&} to work there and
+Dialogue: 0,0:05:47.62,0:05:47.75,Sub,,0,0,0,,It was possible {\c&H0048C8FF&}to{\c&H00FFFFFF&} work there and
+Dialogue: 0,0:05:47.75,0:05:47.98,Sub,,0,0,0,,It was possible to {\c&H0048C8FF&}work{\c&H00FFFFFF&} there and
+Dialogue: 0,0:05:47.98,0:05:48.76,Sub,,0,0,0,,It was possible to work {\c&H0048C8FF&}there{\c&H00FFFFFF&} and
+Dialogue: 0,0:05:48.76,0:05:48.99,Sub,,0,0,0,,It was possible to work there {\c&H0048C8FF&}and{\c&H00FFFFFF&}
+Dialogue: 0,0:05:48.99,0:05:49.25,Sub,,0,0,0,,{\c&H0048C8FF&}still{\c&H00FFFFFF&} believe that,
+Dialogue: 0,0:05:49.25,0:05:49.64,Sub,,0,0,0,,still {\c&H0048C8FF&}believe{\c&H00FFFFFF&} that,
+Dialogue: 0,0:05:49.64,0:05:50.26,Sub,,0,0,0,,still believe {\c&H0048C8FF&}that,{\c&H00FFFFFF&}
+Dialogue: 0,0:05:50.26,0:05:50.67,Sub,,0,0,0,,{\c&H0048C8FF&}however{\c&H00FFFFFF&} strange it all looked,
+Dialogue: 0,0:05:50.67,0:05:51.09,Sub,,0,0,0,,however {\c&H0048C8FF&}strange{\c&H00FFFFFF&} it all looked,
+Dialogue: 0,0:05:51.09,0:05:51.18,Sub,,0,0,0,,however strange {\c&H0048C8FF&}it{\c&H00FFFFFF&} all looked,
+Dialogue: 0,0:05:51.18,0:05:51.35,Sub,,0,0,0,,however strange it {\c&H0048C8FF&}all{\c&H00FFFFFF&} looked,
+Dialogue: 0,0:05:51.35,0:05:52.15,Sub,,0,0,0,,however strange it all {\c&H0048C8FF&}looked,{\c&H00FFFFFF&}
+Dialogue: 0,0:05:52.15,0:05:52.52,Sub,,0,0,0,,{\c&H0048C8FF&}someone{\c&H00FFFFFF&} higher up knew exactly what they
+Dialogue: 0,0:05:52.52,0:05:52.79,Sub,,0,0,0,,someone {\c&H0048C8FF&}higher{\c&H00FFFFFF&} up knew exactly what they
+Dialogue: 0,0:05:52.79,0:05:52.89,Sub,,0,0,0,,someone higher {\c&H0048C8FF&}up{\c&H00FFFFFF&} knew exactly what they
+Dialogue: 0,0:05:52.89,0:05:53.06,Sub,,0,0,0,,someone higher up {\c&H0048C8FF&}knew{\c&H00FFFFFF&} exactly what they
+Dialogue: 0,0:05:53.06,0:05:53.50,Sub,,0,0,0,,someone higher up knew {\c&H0048C8FF&}exactly{\c&H00FFFFFF&} what they
+Dialogue: 0,0:05:53.50,0:05:53.64,Sub,,0,0,0,,someone higher up knew exactly {\c&H0048C8FF&}what{\c&H00FFFFFF&} they
+Dialogue: 0,0:05:53.64,0:05:53.81,Sub,,0,0,0,,someone higher up knew exactly what {\c&H0048C8FF&}they{\c&H00FFFFFF&}
+Dialogue: 0,0:05:53.81,0:05:53.97,Sub,,0,0,0,,{\c&H0048C8FF&}were{\c&H00FFFFFF&} doing.
+Dialogue: 0,0:05:53.97,0:05:54.81,Sub,,0,0,0,,were {\c&H0048C8FF&}doing.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:55.22,0:05:55.38,Sub,,0,0,0,,{\c&H0048C8FF&}But{\c&H00FFFFFF&} there was a problem.
+Dialogue: 0,0:05:55.38,0:05:55.60,Sub,,0,0,0,,But {\c&H0048C8FF&}there{\c&H00FFFFFF&} was a problem.
+Dialogue: 0,0:05:55.60,0:05:55.86,Sub,,0,0,0,,But there {\c&H0048C8FF&}was{\c&H00FFFFFF&} a problem.
+Dialogue: 0,0:05:55.86,0:05:55.94,Sub,,0,0,0,,But there was {\c&H0048C8FF&}a{\c&H00FFFFFF&} problem.
+Dialogue: 0,0:05:55.94,0:05:56.89,Sub,,0,0,0,,But there was a {\c&H0048C8FF&}problem.{\c&H00FFFFFF&}
+Dialogue: 0,0:05:57.42,0:05:58.43,Sub,,0,0,0,,{\c&H0048C8FF&}Castello{\c&H00FFFFFF&} hadn't yet seen the lower
+Dialogue: 0,0:05:58.43,0:05:58.76,Sub,,0,0,0,,Castello {\c&H0048C8FF&}hadn't{\c&H00FFFFFF&} yet seen the lower
+Dialogue: 0,0:05:58.76,0:05:58.95,Sub,,0,0,0,,Castello hadn't {\c&H0048C8FF&}yet{\c&H00FFFFFF&} seen the lower
+Dialogue: 0,0:05:58.95,0:05:59.21,Sub,,0,0,0,,Castello hadn't yet {\c&H0048C8FF&}seen{\c&H00FFFFFF&} the lower
+Dialogue: 0,0:05:59.21,0:05:59.31,Sub,,0,0,0,,Castello hadn't yet seen {\c&H0048C8FF&}the{\c&H00FFFFFF&} lower
+Dialogue: 0,0:05:59.31,0:05:59.56,Sub,,0,0,0,,Castello hadn't yet seen the {\c&H0048C8FF&}lower{\c&H00FFFFFF&}
+Dialogue: 0,0:05:59.56,0:06:01.07,Sub,,0,0,0,,{\c&H0048C8FF&}levels.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:02.67,0:06:03.08,Sub,,0,0,0,,{\c&H0048C8FF&}Over{\c&H00FFFFFF&} time, other workers began to tell
+Dialogue: 0,0:06:03.08,0:06:03.99,Sub,,0,0,0,,Over {\c&H0048C8FF&}time,{\c&H00FFFFFF&} other workers began to tell
+Dialogue: 0,0:06:03.99,0:06:04.36,Sub,,0,0,0,,Over time, {\c&H0048C8FF&}other{\c&H00FFFFFF&} workers began to tell
+Dialogue: 0,0:06:04.36,0:06:04.86,Sub,,0,0,0,,Over time, other {\c&H0048C8FF&}workers{\c&H00FFFFFF&} began to tell
+Dialogue: 0,0:06:04.86,0:06:05.26,Sub,,0,0,0,,Over time, other workers {\c&H0048C8FF&}began{\c&H00FFFFFF&} to tell
+Dialogue: 0,0:06:05.26,0:06:05.41,Sub,,0,0,0,,Over time, other workers began {\c&H0048C8FF&}to{\c&H00FFFFFF&} tell
+Dialogue: 0,0:06:05.41,0:06:05.69,Sub,,0,0,0,,Over time, other workers began to {\c&H0048C8FF&}tell{\c&H00FFFFFF&}
+Dialogue: 0,0:06:05.69,0:06:05.84,Sub,,0,0,0,,{\c&H0048C8FF&}him{\c&H00FFFFFF&} things.
+Dialogue: 0,0:06:05.84,0:06:06.81,Sub,,0,0,0,,him {\c&H0048C8FF&}things.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:06.81,0:06:08.12,Sub,,0,0,0,,{\c&H0048C8FF&}Comments.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:08.12,0:06:09.38,Sub,,0,0,0,,{\c&H0048C8FF&}Rumors.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:09.38,0:06:10.69,Sub,,0,0,0,,{\c&H0048C8FF&}Warnings.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:10.69,0:06:11.26,Sub,,0,0,0,,{\c&H0048C8FF&}Stories{\c&H00FFFFFF&} about people inside the facility
+Dialogue: 0,0:06:11.26,0:06:11.55,Sub,,0,0,0,,Stories {\c&H0048C8FF&}about{\c&H00FFFFFF&} people inside the facility
+Dialogue: 0,0:06:11.55,0:06:11.90,Sub,,0,0,0,,Stories about {\c&H0048C8FF&}people{\c&H00FFFFFF&} inside the facility
+Dialogue: 0,0:06:11.90,0:06:12.27,Sub,,0,0,0,,Stories about people {\c&H0048C8FF&}inside{\c&H00FFFFFF&} the facility
+Dialogue: 0,0:06:12.27,0:06:12.38,Sub,,0,0,0,,Stories about people inside {\c&H0048C8FF&}the{\c&H00FFFFFF&} facility
+Dialogue: 0,0:06:12.38,0:06:13.00,Sub,,0,0,0,,Stories about people inside the {\c&H0048C8FF&}facility{\c&H00FFFFFF&}
+Dialogue: 0,0:06:13.00,0:06:13.17,Sub,,0,0,0,,{\c&H0048C8FF&}who{\c&H00FFFFFF&} didn't seem to be part of
+Dialogue: 0,0:06:13.17,0:06:13.45,Sub,,0,0,0,,who {\c&H0048C8FF&}didn't{\c&H00FFFFFF&} seem to be part of
+Dialogue: 0,0:06:13.45,0:06:13.75,Sub,,0,0,0,,who didn't {\c&H0048C8FF&}seem{\c&H00FFFFFF&} to be part of
+Dialogue: 0,0:06:13.75,0:06:13.88,Sub,,0,0,0,,who didn't seem {\c&H0048C8FF&}to{\c&H00FFFFFF&} be part of
+Dialogue: 0,0:06:13.88,0:06:14.03,Sub,,0,0,0,,who didn't seem to {\c&H0048C8FF&}be{\c&H00FFFFFF&} part of
+Dialogue: 0,0:06:14.03,0:06:14.25,Sub,,0,0,0,,who didn't seem to be {\c&H0048C8FF&}part{\c&H00FFFFFF&} of
+Dialogue: 0,0:06:14.25,0:06:14.36,Sub,,0,0,0,,who didn't seem to be part {\c&H0048C8FF&}of{\c&H00FFFFFF&}
+Dialogue: 0,0:06:14.36,0:06:14.47,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} staff.
+Dialogue: 0,0:06:14.47,0:06:15.57,Sub,,0,0,0,,the {\c&H0048C8FF&}staff.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:15.57,0:06:16.08,Sub,,0,0,0,,{\c&H0048C8FF&}According{\c&H00FFFFFF&} to the account,
+Dialogue: 0,0:06:16.08,0:06:16.19,Sub,,0,0,0,,According {\c&H0048C8FF&}to{\c&H00FFFFFF&} the account,
+Dialogue: 0,0:06:16.19,0:06:16.32,Sub,,0,0,0,,According to {\c&H0048C8FF&}the{\c&H00FFFFFF&} account,
+Dialogue: 0,0:06:16.32,0:06:17.13,Sub,,0,0,0,,According to the {\c&H0048C8FF&}account,{\c&H00FFFFFF&}
+Dialogue: 0,0:06:17.13,0:06:17.45,Sub,,0,0,0,,{\c&H0048C8FF&}one{\c&H00FFFFFF&} encounter mattered more than the
+Dialogue: 0,0:06:17.45,0:06:18.11,Sub,,0,0,0,,one {\c&H0048C8FF&}encounter{\c&H00FFFFFF&} mattered more than the
+Dialogue: 0,0:06:18.11,0:06:18.55,Sub,,0,0,0,,one encounter {\c&H0048C8FF&}mattered{\c&H00FFFFFF&} more than the
+Dialogue: 0,0:06:18.55,0:06:19.03,Sub,,0,0,0,,one encounter mattered {\c&H0048C8FF&}more{\c&H00FFFFFF&} than the
+Dialogue: 0,0:06:19.03,0:06:19.20,Sub,,0,0,0,,one encounter mattered more {\c&H0048C8FF&}than{\c&H00FFFFFF&} the
+Dialogue: 0,0:06:19.20,0:06:19.35,Sub,,0,0,0,,one encounter mattered more than {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:06:19.35,0:06:20.12,Sub,,0,0,0,,{\c&H0048C8FF&}rest.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:20.12,0:06:20.95,Sub,,0,0,0,,{\c&H0048C8FF&}Castello{\c&H00FFFFFF&} spoke of a man he identified
+Dialogue: 0,0:06:20.95,0:06:21.35,Sub,,0,0,0,,Castello {\c&H0048C8FF&}spoke{\c&H00FFFFFF&} of a man he identified
+Dialogue: 0,0:06:21.35,0:06:21.45,Sub,,0,0,0,,Castello spoke {\c&H0048C8FF&}of{\c&H00FFFFFF&} a man he identified
+Dialogue: 0,0:06:21.45,0:06:21.56,Sub,,0,0,0,,Castello spoke of {\c&H0048C8FF&}a{\c&H00FFFFFF&} man he identified
+Dialogue: 0,0:06:21.56,0:06:21.95,Sub,,0,0,0,,Castello spoke of a {\c&H0048C8FF&}man{\c&H00FFFFFF&} he identified
+Dialogue: 0,0:06:21.95,0:06:22.10,Sub,,0,0,0,,Castello spoke of a man {\c&H0048C8FF&}he{\c&H00FFFFFF&} identified
+Dialogue: 0,0:06:22.10,0:06:22.96,Sub,,0,0,0,,Castello spoke of a man he {\c&H0048C8FF&}identified{\c&H00FFFFFF&}
+Dialogue: 0,0:06:22.96,0:06:23.75,Sub,,0,0,0,,{\c&H0048C8FF&}only{\c&H00FFFFFF&} as George.
+Dialogue: 0,0:06:23.75,0:06:24.19,Sub,,0,0,0,,only {\c&H0048C8FF&}as{\c&H00FFFFFF&} George.
+Dialogue: 0,0:06:24.19,0:06:25.09,Sub,,0,0,0,,only as {\c&H0048C8FF&}George.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:25.09,0:06:25.47,Sub,,0,0,0,,{\c&H0048C8FF&}George{\c&H00FFFFFF&} didn't say he worked there.
+Dialogue: 0,0:06:25.47,0:06:25.74,Sub,,0,0,0,,George {\c&H0048C8FF&}didn't{\c&H00FFFFFF&} say he worked there.
+Dialogue: 0,0:06:25.74,0:06:25.92,Sub,,0,0,0,,George didn't {\c&H0048C8FF&}say{\c&H00FFFFFF&} he worked there.
+Dialogue: 0,0:06:25.92,0:06:26.04,Sub,,0,0,0,,George didn't say {\c&H0048C8FF&}he{\c&H00FFFFFF&} worked there.
+Dialogue: 0,0:06:26.04,0:06:26.28,Sub,,0,0,0,,George didn't say he {\c&H0048C8FF&}worked{\c&H00FFFFFF&} there.
+Dialogue: 0,0:06:26.28,0:06:26.75,Sub,,0,0,0,,George didn't say he worked {\c&H0048C8FF&}there.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:26.75,0:06:26.93,Sub,,0,0,0,,{\c&H0048C8FF&}He{\c&H00FFFFFF&} said he had been taken there.
+Dialogue: 0,0:06:26.93,0:06:27.12,Sub,,0,0,0,,He {\c&H0048C8FF&}said{\c&H00FFFFFF&} he had been taken there.
+Dialogue: 0,0:06:27.12,0:06:27.20,Sub,,0,0,0,,He said {\c&H0048C8FF&}he{\c&H00FFFFFF&} had been taken there.
+Dialogue: 0,0:06:27.20,0:06:27.31,Sub,,0,0,0,,He said he {\c&H0048C8FF&}had{\c&H00FFFFFF&} been taken there.
+Dialogue: 0,0:06:27.31,0:06:27.50,Sub,,0,0,0,,He said he had {\c&H0048C8FF&}been{\c&H00FFFFFF&} taken there.
+Dialogue: 0,0:06:27.50,0:06:27.86,Sub,,0,0,0,,He said he had been {\c&H0048C8FF&}taken{\c&H00FFFFFF&} there.
+Dialogue: 0,0:06:27.86,0:06:28.45,Sub,,0,0,0,,He said he had been taken {\c&H0048C8FF&}there.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:28.45,0:06:29.01,Sub,,0,0,0,,{\c&H0048C8FF&}Against{\c&H00FFFFFF&} his will.
+Dialogue: 0,0:06:29.01,0:06:29.21,Sub,,0,0,0,,Against {\c&H0048C8FF&}his{\c&H00FFFFFF&} will.
+Dialogue: 0,0:06:29.21,0:06:30.37,Sub,,0,0,0,,Against his {\c&H0048C8FF&}will.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:31.97,0:06:32.34,Sub,,0,0,0,,{\c&H0048C8FF&}Until{\c&H00FFFFFF&} then, Castello could justify a
+Dialogue: 0,0:06:32.34,0:06:33.37,Sub,,0,0,0,,Until {\c&H0048C8FF&}then,{\c&H00FFFFFF&} Castello could justify a
+Dialogue: 0,0:06:33.37,0:06:34.13,Sub,,0,0,0,,Until then, {\c&H0048C8FF&}Castello{\c&H00FFFFFF&} could justify a
+Dialogue: 0,0:06:34.13,0:06:34.32,Sub,,0,0,0,,Until then, Castello {\c&H0048C8FF&}could{\c&H00FFFFFF&} justify a
+Dialogue: 0,0:06:34.32,0:06:34.89,Sub,,0,0,0,,Until then, Castello could {\c&H0048C8FF&}justify{\c&H00FFFFFF&} a
+Dialogue: 0,0:06:34.89,0:06:34.97,Sub,,0,0,0,,Until then, Castello could justify {\c&H0048C8FF&}a{\c&H00FFFFFF&}
+Dialogue: 0,0:06:34.97,0:06:35.22,Sub,,0,0,0,,{\c&H0048C8FF&}great{\c&H00FFFFFF&} deal.
+Dialogue: 0,0:06:35.22,0:06:36.09,Sub,,0,0,0,,great {\c&H0048C8FF&}deal.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:36.09,0:06:36.65,Sub,,0,0,0,,{\c&H0048C8FF&}Military{\c&H00FFFFFF&} secrets.
+Dialogue: 0,0:06:36.65,0:06:37.62,Sub,,0,0,0,,Military {\c&H0048C8FF&}secrets.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:37.62,0:06:38.64,Sub,,0,0,0,,{\c&H0048C8FF&}Research.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:38.64,0:06:39.32,Sub,,0,0,0,,{\c&H0048C8FF&}Classified{\c&H00FFFFFF&} technology.
+Dialogue: 0,0:06:39.32,0:06:40.69,Sub,,0,0,0,,Classified {\c&H0048C8FF&}technology.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:40.69,0:06:40.96,Sub,,0,0,0,,{\c&H0048C8FF&}Even{\c&H00FFFFFF&} the presence of beings that,
+Dialogue: 0,0:06:40.96,0:06:41.08,Sub,,0,0,0,,Even {\c&H0048C8FF&}the{\c&H00FFFFFF&} presence of beings that,
+Dialogue: 0,0:06:41.08,0:06:41.51,Sub,,0,0,0,,Even the {\c&H0048C8FF&}presence{\c&H00FFFFFF&} of beings that,
+Dialogue: 0,0:06:41.51,0:06:41.65,Sub,,0,0,0,,Even the presence {\c&H0048C8FF&}of{\c&H00FFFFFF&} beings that,
+Dialogue: 0,0:06:41.65,0:06:42.09,Sub,,0,0,0,,Even the presence of {\c&H0048C8FF&}beings{\c&H00FFFFFF&} that,
+Dialogue: 0,0:06:42.09,0:06:42.53,Sub,,0,0,0,,Even the presence of beings {\c&H0048C8FF&}that,{\c&H00FFFFFF&}
+Dialogue: 0,0:06:42.53,0:06:42.74,Sub,,0,0,0,,{\c&H0048C8FF&}if{\c&H00FFFFFF&} his story were true,
+Dialogue: 0,0:06:42.74,0:06:42.88,Sub,,0,0,0,,if {\c&H0048C8FF&}his{\c&H00FFFFFF&} story were true,
+Dialogue: 0,0:06:42.88,0:06:43.23,Sub,,0,0,0,,if his {\c&H0048C8FF&}story{\c&H00FFFFFF&} were true,
+Dialogue: 0,0:06:43.23,0:06:43.40,Sub,,0,0,0,,if his story {\c&H0048C8FF&}were{\c&H00FFFFFF&} true,
+Dialogue: 0,0:06:43.40,0:06:44.45,Sub,,0,0,0,,if his story were {\c&H0048C8FF&}true,{\c&H00FFFFFF&}
+Dialogue: 0,0:06:44.45,0:06:44.67,Sub,,0,0,0,,{\c&H0048C8FF&}would{\c&H00FFFFFF&} upend our understanding of the
+Dialogue: 0,0:06:44.67,0:06:45.14,Sub,,0,0,0,,would {\c&H0048C8FF&}upend{\c&H00FFFFFF&} our understanding of the
+Dialogue: 0,0:06:45.14,0:06:45.32,Sub,,0,0,0,,would upend {\c&H0048C8FF&}our{\c&H00FFFFFF&} understanding of the
+Dialogue: 0,0:06:45.32,0:06:45.93,Sub,,0,0,0,,would upend our {\c&H0048C8FF&}understanding{\c&H00FFFFFF&} of the
+Dialogue: 0,0:06:45.93,0:06:46.01,Sub,,0,0,0,,would upend our understanding {\c&H0048C8FF&}of{\c&H00FFFFFF&} the
+Dialogue: 0,0:06:46.01,0:06:46.14,Sub,,0,0,0,,would upend our understanding of {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:06:46.14,0:06:47.07,Sub,,0,0,0,,{\c&H0048C8FF&}world.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:47.38,0:06:47.58,Sub,,0,0,0,,{\c&H0048C8FF&}But{\c&H00FFFFFF&} a person held against his will
+Dialogue: 0,0:06:47.58,0:06:47.70,Sub,,0,0,0,,But {\c&H0048C8FF&}a{\c&H00FFFFFF&} person held against his will
+Dialogue: 0,0:06:47.70,0:06:48.14,Sub,,0,0,0,,But a {\c&H0048C8FF&}person{\c&H00FFFFFF&} held against his will
+Dialogue: 0,0:06:48.14,0:06:48.41,Sub,,0,0,0,,But a person {\c&H0048C8FF&}held{\c&H00FFFFFF&} against his will
+Dialogue: 0,0:06:48.41,0:06:48.80,Sub,,0,0,0,,But a person held {\c&H0048C8FF&}against{\c&H00FFFFFF&} his will
+Dialogue: 0,0:06:48.80,0:06:49.00,Sub,,0,0,0,,But a person held against {\c&H0048C8FF&}his{\c&H00FFFFFF&} will
+Dialogue: 0,0:06:49.00,0:06:49.89,Sub,,0,0,0,,But a person held against his {\c&H0048C8FF&}will{\c&H00FFFFFF&}
+Dialogue: 0,0:06:49.89,0:06:50.12,Sub,,0,0,0,,{\c&H0048C8FF&}was{\c&H00FFFFFF&} different.
+Dialogue: 0,0:06:50.12,0:06:51.06,Sub,,0,0,0,,was {\c&H0048C8FF&}different.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:51.46,0:06:51.70,Sub,,0,0,0,,{\c&H0048C8FF&}That{\c&H00FFFFFF&} was no longer a question of
+Dialogue: 0,0:06:51.70,0:06:51.88,Sub,,0,0,0,,That {\c&H0048C8FF&}was{\c&H00FFFFFF&} no longer a question of
+Dialogue: 0,0:06:51.88,0:06:52.10,Sub,,0,0,0,,That was {\c&H0048C8FF&}no{\c&H00FFFFFF&} longer a question of
+Dialogue: 0,0:06:52.10,0:06:52.42,Sub,,0,0,0,,That was no {\c&H0048C8FF&}longer{\c&H00FFFFFF&} a question of
+Dialogue: 0,0:06:52.42,0:06:52.50,Sub,,0,0,0,,That was no longer {\c&H0048C8FF&}a{\c&H00FFFFFF&} question of
+Dialogue: 0,0:06:52.50,0:06:52.91,Sub,,0,0,0,,That was no longer a {\c&H0048C8FF&}question{\c&H00FFFFFF&} of
+Dialogue: 0,0:06:52.91,0:06:53.03,Sub,,0,0,0,,That was no longer a question {\c&H0048C8FF&}of{\c&H00FFFFFF&}
+Dialogue: 0,0:06:53.03,0:06:53.53,Sub,,0,0,0,,{\c&H0048C8FF&}security{\c&H00FFFFFF&} clearance.
+Dialogue: 0,0:06:53.53,0:06:54.54,Sub,,0,0,0,,security {\c&H0048C8FF&}clearance.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:54.94,0:06:55.11,Sub,,0,0,0,,{\c&H0048C8FF&}It{\c&H00FFFFFF&} was a moral question.
+Dialogue: 0,0:06:55.11,0:06:55.24,Sub,,0,0,0,,It {\c&H0048C8FF&}was{\c&H00FFFFFF&} a moral question.
+Dialogue: 0,0:06:55.24,0:06:55.34,Sub,,0,0,0,,It was {\c&H0048C8FF&}a{\c&H00FFFFFF&} moral question.
+Dialogue: 0,0:06:55.34,0:06:55.69,Sub,,0,0,0,,It was a {\c&H0048C8FF&}moral{\c&H00FFFFFF&} question.
+Dialogue: 0,0:06:55.69,0:06:56.86,Sub,,0,0,0,,It was a moral {\c&H0048C8FF&}question.{\c&H00FFFFFF&}
+Dialogue: 0,0:06:56.86,0:06:57.03,Sub,,0,0,0,,{\c&H0048C8FF&}And{\c&H00FFFFFF&} he began to wonder what was
+Dialogue: 0,0:06:57.03,0:06:57.17,Sub,,0,0,0,,And {\c&H0048C8FF&}he{\c&H00FFFFFF&} began to wonder what was
+Dialogue: 0,0:06:57.17,0:06:57.53,Sub,,0,0,0,,And he {\c&H0048C8FF&}began{\c&H00FFFFFF&} to wonder what was
+Dialogue: 0,0:06:57.53,0:06:57.71,Sub,,0,0,0,,And he began {\c&H0048C8FF&}to{\c&H00FFFFFF&} wonder what was
+Dialogue: 0,0:06:57.71,0:06:58.44,Sub,,0,0,0,,And he began to {\c&H0048C8FF&}wonder{\c&H00FFFFFF&} what was
+Dialogue: 0,0:06:58.44,0:06:58.67,Sub,,0,0,0,,And he began to wonder {\c&H0048C8FF&}what{\c&H00FFFFFF&} was
+Dialogue: 0,0:06:58.67,0:06:58.91,Sub,,0,0,0,,And he began to wonder what {\c&H0048C8FF&}was{\c&H00FFFFFF&}
+Dialogue: 0,0:06:58.91,0:06:59.33,Sub,,0,0,0,,{\c&H0048C8FF&}really{\c&H00FFFFFF&} happening
+Dialogue: 0,0:06:59.33,0:07:00.17,Sub,,0,0,0,,really {\c&H0048C8FF&}happening{\c&H00FFFFFF&}
+Dialogue: 0,0:07:00.85,0:07:01.04,Sub,,0,0,0,,{\c&H0048C8FF&}in{\c&H00FFFFFF&} the parts of the facility
+Dialogue: 0,0:07:01.04,0:07:01.17,Sub,,0,0,0,,in {\c&H0048C8FF&}the{\c&H00FFFFFF&} parts of the facility
+Dialogue: 0,0:07:01.17,0:07:01.50,Sub,,0,0,0,,in the {\c&H0048C8FF&}parts{\c&H00FFFFFF&} of the facility
+Dialogue: 0,0:07:01.50,0:07:01.60,Sub,,0,0,0,,in the parts {\c&H0048C8FF&}of{\c&H00FFFFFF&} the facility
+Dialogue: 0,0:07:01.60,0:07:01.71,Sub,,0,0,0,,in the parts of {\c&H0048C8FF&}the{\c&H00FFFFFF&} facility
+Dialogue: 0,0:07:01.71,0:07:02.83,Sub,,0,0,0,,in the parts of the {\c&H0048C8FF&}facility{\c&H00FFFFFF&}
+Dialogue: 0,0:07:02.83,0:07:03.05,Sub,,0,0,0,,{\c&H0048C8FF&}he{\c&H00FFFFFF&} still couldn't reach.
+Dialogue: 0,0:07:03.05,0:07:03.39,Sub,,0,0,0,,he {\c&H0048C8FF&}still{\c&H00FFFFFF&} couldn't reach.
+Dialogue: 0,0:07:03.39,0:07:03.73,Sub,,0,0,0,,he still {\c&H0048C8FF&}couldn't{\c&H00FFFFFF&} reach.
+Dialogue: 0,0:07:03.73,0:07:05.10,Sub,,0,0,0,,he still couldn't {\c&H0048C8FF&}reach.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:06.70,0:07:07.21,Sub,,0,0,0,,{\c&H0048C8FF&}According{\c&H00FFFFFF&} to his account,
+Dialogue: 0,0:07:07.21,0:07:07.35,Sub,,0,0,0,,According {\c&H0048C8FF&}to{\c&H00FFFFFF&} his account,
+Dialogue: 0,0:07:07.35,0:07:07.48,Sub,,0,0,0,,According to {\c&H0048C8FF&}his{\c&H00FFFFFF&} account,
+Dialogue: 0,0:07:07.48,0:07:08.34,Sub,,0,0,0,,According to his {\c&H0048C8FF&}account,{\c&H00FFFFFF&}
+Dialogue: 0,0:07:08.34,0:07:08.63,Sub,,0,0,0,,{\c&H0048C8FF&}other{\c&H00FFFFFF&} employees started showing him
+Dialogue: 0,0:07:08.63,0:07:09.29,Sub,,0,0,0,,other {\c&H0048C8FF&}employees{\c&H00FFFFFF&} started showing him
+Dialogue: 0,0:07:09.29,0:07:09.61,Sub,,0,0,0,,other employees {\c&H0048C8FF&}started{\c&H00FFFFFF&} showing him
+Dialogue: 0,0:07:09.61,0:07:09.92,Sub,,0,0,0,,other employees started {\c&H0048C8FF&}showing{\c&H00FFFFFF&} him
+Dialogue: 0,0:07:09.92,0:07:10.04,Sub,,0,0,0,,other employees started showing {\c&H0048C8FF&}him{\c&H00FFFFFF&}
+Dialogue: 0,0:07:10.04,0:07:11.18,Sub,,0,0,0,,{\c&H0048C8FF&}information.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:11.18,0:07:12.38,Sub,,0,0,0,,{\c&H0048C8FF&}Documents.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:12.38,0:07:13.52,Sub,,0,0,0,,{\c&H0048C8FF&}Names.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:13.52,0:07:14.12,Sub,,0,0,0,,{\c&H0048C8FF&}References{\c&H00FFFFFF&} to people who had gone
+Dialogue: 0,0:07:14.12,0:07:14.27,Sub,,0,0,0,,References {\c&H0048C8FF&}to{\c&H00FFFFFF&} people who had gone
+Dialogue: 0,0:07:14.27,0:07:14.56,Sub,,0,0,0,,References to {\c&H0048C8FF&}people{\c&H00FFFFFF&} who had gone
+Dialogue: 0,0:07:14.56,0:07:14.66,Sub,,0,0,0,,References to people {\c&H0048C8FF&}who{\c&H00FFFFFF&} had gone
+Dialogue: 0,0:07:14.66,0:07:14.79,Sub,,0,0,0,,References to people who {\c&H0048C8FF&}had{\c&H00FFFFFF&} gone
+Dialogue: 0,0:07:14.79,0:07:15.04,Sub,,0,0,0,,References to people who had {\c&H0048C8FF&}gone{\c&H00FFFFFF&}
+Dialogue: 0,0:07:15.04,0:07:15.86,Sub,,0,0,0,,{\c&H0048C8FF&}missing.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:15.86,0:07:16.37,Sub,,0,0,0,,{\c&H0048C8FF&}Fragments{\c&H00FFFFFF&} of a story much larger than
+Dialogue: 0,0:07:16.37,0:07:16.48,Sub,,0,0,0,,Fragments {\c&H0048C8FF&}of{\c&H00FFFFFF&} a story much larger than
+Dialogue: 0,0:07:16.48,0:07:16.56,Sub,,0,0,0,,Fragments of {\c&H0048C8FF&}a{\c&H00FFFFFF&} story much larger than
+Dialogue: 0,0:07:16.56,0:07:17.17,Sub,,0,0,0,,Fragments of a {\c&H0048C8FF&}story{\c&H00FFFFFF&} much larger than
+Dialogue: 0,0:07:17.17,0:07:17.47,Sub,,0,0,0,,Fragments of a story {\c&H0048C8FF&}much{\c&H00FFFFFF&} larger than
+Dialogue: 0,0:07:17.47,0:07:17.83,Sub,,0,0,0,,Fragments of a story much {\c&H0048C8FF&}larger{\c&H00FFFFFF&} than
+Dialogue: 0,0:07:17.83,0:07:17.96,Sub,,0,0,0,,Fragments of a story much larger {\c&H0048C8FF&}than{\c&H00FFFFFF&}
+Dialogue: 0,0:07:17.96,0:07:18.08,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} facility he walked through every
+Dialogue: 0,0:07:18.08,0:07:18.61,Sub,,0,0,0,,the {\c&H0048C8FF&}facility{\c&H00FFFFFF&} he walked through every
+Dialogue: 0,0:07:18.61,0:07:18.73,Sub,,0,0,0,,the facility {\c&H0048C8FF&}he{\c&H00FFFFFF&} walked through every
+Dialogue: 0,0:07:18.73,0:07:18.98,Sub,,0,0,0,,the facility he {\c&H0048C8FF&}walked{\c&H00FFFFFF&} through every
+Dialogue: 0,0:07:18.98,0:07:19.35,Sub,,0,0,0,,the facility he walked {\c&H0048C8FF&}through{\c&H00FFFFFF&} every
+Dialogue: 0,0:07:19.35,0:07:19.88,Sub,,0,0,0,,the facility he walked through {\c&H0048C8FF&}every{\c&H00FFFFFF&}
+Dialogue: 0,0:07:19.88,0:07:20.86,Sub,,0,0,0,,{\c&H0048C8FF&}day.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:20.86,0:07:21.67,Sub,,0,0,0,,{\c&H0048C8FF&}Castello{\c&H00FFFFFF&} began to suspect that some of
+Dialogue: 0,0:07:21.67,0:07:22.07,Sub,,0,0,0,,Castello {\c&H0048C8FF&}began{\c&H00FFFFFF&} to suspect that some of
+Dialogue: 0,0:07:22.07,0:07:22.21,Sub,,0,0,0,,Castello began {\c&H0048C8FF&}to{\c&H00FFFFFF&} suspect that some of
+Dialogue: 0,0:07:22.21,0:07:22.77,Sub,,0,0,0,,Castello began to {\c&H0048C8FF&}suspect{\c&H00FFFFFF&} that some of
+Dialogue: 0,0:07:22.77,0:07:22.95,Sub,,0,0,0,,Castello began to suspect {\c&H0048C8FF&}that{\c&H00FFFFFF&} some of
+Dialogue: 0,0:07:22.95,0:07:23.14,Sub,,0,0,0,,Castello began to suspect that {\c&H0048C8FF&}some{\c&H00FFFFFF&} of
+Dialogue: 0,0:07:23.14,0:07:23.22,Sub,,0,0,0,,Castello began to suspect that some {\c&H0048C8FF&}of{\c&H00FFFFFF&}
+Dialogue: 0,0:07:23.22,0:07:23.35,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} subjects used in certain research
+Dialogue: 0,0:07:23.35,0:07:23.86,Sub,,0,0,0,,the {\c&H0048C8FF&}subjects{\c&H00FFFFFF&} used in certain research
+Dialogue: 0,0:07:23.86,0:07:24.09,Sub,,0,0,0,,the subjects {\c&H0048C8FF&}used{\c&H00FFFFFF&} in certain research
+Dialogue: 0,0:07:24.09,0:07:24.22,Sub,,0,0,0,,the subjects used {\c&H0048C8FF&}in{\c&H00FFFFFF&} certain research
+Dialogue: 0,0:07:24.22,0:07:24.52,Sub,,0,0,0,,the subjects used in {\c&H0048C8FF&}certain{\c&H00FFFFFF&} research
+Dialogue: 0,0:07:24.52,0:07:24.97,Sub,,0,0,0,,the subjects used in certain {\c&H0048C8FF&}research{\c&H00FFFFFF&}
+Dialogue: 0,0:07:24.97,0:07:25.17,Sub,,0,0,0,,{\c&H0048C8FF&}were{\c&H00FFFFFF&} not there by choice.
+Dialogue: 0,0:07:25.17,0:07:25.37,Sub,,0,0,0,,were {\c&H0048C8FF&}not{\c&H00FFFFFF&} there by choice.
+Dialogue: 0,0:07:25.37,0:07:25.58,Sub,,0,0,0,,were not {\c&H0048C8FF&}there{\c&H00FFFFFF&} by choice.
+Dialogue: 0,0:07:25.58,0:07:25.79,Sub,,0,0,0,,were not there {\c&H0048C8FF&}by{\c&H00FFFFFF&} choice.
+Dialogue: 0,0:07:25.79,0:07:26.70,Sub,,0,0,0,,were not there by {\c&H0048C8FF&}choice.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:26.70,0:07:26.94,Sub,,0,0,0,,{\c&H0048C8FF&}And{\c&H00FFFFFF&} then, a name started to come
+Dialogue: 0,0:07:26.94,0:07:27.70,Sub,,0,0,0,,And {\c&H0048C8FF&}then,{\c&H00FFFFFF&} a name started to come
+Dialogue: 0,0:07:27.70,0:07:27.89,Sub,,0,0,0,,And then, {\c&H0048C8FF&}a{\c&H00FFFFFF&} name started to come
+Dialogue: 0,0:07:27.89,0:07:28.17,Sub,,0,0,0,,And then, a {\c&H0048C8FF&}name{\c&H00FFFFFF&} started to come
+Dialogue: 0,0:07:28.17,0:07:28.52,Sub,,0,0,0,,And then, a name {\c&H0048C8FF&}started{\c&H00FFFFFF&} to come
+Dialogue: 0,0:07:28.52,0:07:28.64,Sub,,0,0,0,,And then, a name started {\c&H0048C8FF&}to{\c&H00FFFFFF&} come
+Dialogue: 0,0:07:28.64,0:07:28.88,Sub,,0,0,0,,And then, a name started to {\c&H0048C8FF&}come{\c&H00FFFFFF&}
+Dialogue: 0,0:07:28.88,0:07:29.53,Sub,,0,0,0,,{\c&H0048C8FF&}up.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:29.53,0:07:29.73,Sub,,0,0,0,,{\c&H0048C8FF&}What{\c&H00FFFFFF&} a few of the workers called
+Dialogue: 0,0:07:29.73,0:07:29.82,Sub,,0,0,0,,What {\c&H0048C8FF&}a{\c&H00FFFFFF&} few of the workers called
+Dialogue: 0,0:07:29.82,0:07:30.01,Sub,,0,0,0,,What a {\c&H0048C8FF&}few{\c&H00FFFFFF&} of the workers called
+Dialogue: 0,0:07:30.01,0:07:30.09,Sub,,0,0,0,,What a few {\c&H0048C8FF&}of{\c&H00FFFFFF&} the workers called
+Dialogue: 0,0:07:30.09,0:07:30.21,Sub,,0,0,0,,What a few of {\c&H0048C8FF&}the{\c&H00FFFFFF&} workers called
+Dialogue: 0,0:07:30.21,0:07:30.70,Sub,,0,0,0,,What a few of the {\c&H0048C8FF&}workers{\c&H00FFFFFF&} called
+Dialogue: 0,0:07:30.70,0:07:31.06,Sub,,0,0,0,,What a few of the workers {\c&H0048C8FF&}called{\c&H00FFFFFF&}
+Dialogue: 0,0:07:31.06,0:07:31.20,Sub,,0,0,0,,{\c&H0048C8FF&}one{\c&H00FFFFFF&} of the lower areas.
+Dialogue: 0,0:07:31.20,0:07:31.28,Sub,,0,0,0,,one {\c&H0048C8FF&}of{\c&H00FFFFFF&} the lower areas.
+Dialogue: 0,0:07:31.28,0:07:31.43,Sub,,0,0,0,,one of {\c&H0048C8FF&}the{\c&H00FFFFFF&} lower areas.
+Dialogue: 0,0:07:31.43,0:07:31.79,Sub,,0,0,0,,one of the {\c&H0048C8FF&}lower{\c&H00FFFFFF&} areas.
+Dialogue: 0,0:07:31.79,0:07:32.86,Sub,,0,0,0,,one of the lower {\c&H0048C8FF&}areas.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:32.86,0:07:33.41,Sub,,0,0,0,,{\c&H0048C8FF&}Nightmare{\c&H00FFFFFF&} Hall.
+Dialogue: 0,0:07:33.41,0:07:34.68,Sub,,0,0,0,,Nightmare {\c&H0048C8FF&}Hall.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:36.27,0:07:36.73,Sub,,0,0,0,,{\c&H0048C8FF&}According{\c&H00FFFFFF&} to the story,
+Dialogue: 0,0:07:36.73,0:07:36.82,Sub,,0,0,0,,According {\c&H0048C8FF&}to{\c&H00FFFFFF&} the story,
+Dialogue: 0,0:07:36.82,0:07:36.94,Sub,,0,0,0,,According to {\c&H0048C8FF&}the{\c&H00FFFFFF&} story,
+Dialogue: 0,0:07:36.94,0:07:37.76,Sub,,0,0,0,,According to the {\c&H0048C8FF&}story,{\c&H00FFFFFF&}
+Dialogue: 0,0:07:37.76,0:07:37.97,Sub,,0,0,0,,{\c&H0048C8FF&}it{\c&H00FFFFFF&} lay on one of the most
+Dialogue: 0,0:07:37.97,0:07:38.18,Sub,,0,0,0,,it {\c&H0048C8FF&}lay{\c&H00FFFFFF&} on one of the most
+Dialogue: 0,0:07:38.18,0:07:38.30,Sub,,0,0,0,,it lay {\c&H0048C8FF&}on{\c&H00FFFFFF&} one of the most
+Dialogue: 0,0:07:38.30,0:07:38.43,Sub,,0,0,0,,it lay on {\c&H0048C8FF&}one{\c&H00FFFFFF&} of the most
+Dialogue: 0,0:07:38.43,0:07:38.51,Sub,,0,0,0,,it lay on one {\c&H0048C8FF&}of{\c&H00FFFFFF&} the most
+Dialogue: 0,0:07:38.51,0:07:38.67,Sub,,0,0,0,,it lay on one of {\c&H0048C8FF&}the{\c&H00FFFFFF&} most
+Dialogue: 0,0:07:38.67,0:07:38.99,Sub,,0,0,0,,it lay on one of the {\c&H0048C8FF&}most{\c&H00FFFFFF&}
+Dialogue: 0,0:07:38.99,0:07:39.62,Sub,,0,0,0,,{\c&H0048C8FF&}restricted{\c&H00FFFFFF&} levels of Dulce.
+Dialogue: 0,0:07:39.62,0:07:40.02,Sub,,0,0,0,,restricted {\c&H0048C8FF&}levels{\c&H00FFFFFF&} of Dulce.
+Dialogue: 0,0:07:40.02,0:07:40.16,Sub,,0,0,0,,restricted levels {\c&H0048C8FF&}of{\c&H00FFFFFF&} Dulce.
+Dialogue: 0,0:07:40.16,0:07:41.60,Sub,,0,0,0,,restricted levels of {\c&H0048C8FF&}Dulce.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:41.60,0:07:42.50,Sub,,0,0,0,,{\c&H0048C8FF&}Castello{\c&H00FFFFFF&} still didn't fully understand
+Dialogue: 0,0:07:42.50,0:07:42.79,Sub,,0,0,0,,Castello {\c&H0048C8FF&}still{\c&H00FFFFFF&} didn't fully understand
+Dialogue: 0,0:07:42.79,0:07:43.04,Sub,,0,0,0,,Castello still {\c&H0048C8FF&}didn't{\c&H00FFFFFF&} fully understand
+Dialogue: 0,0:07:43.04,0:07:43.34,Sub,,0,0,0,,Castello still didn't {\c&H0048C8FF&}fully{\c&H00FFFFFF&} understand
+Dialogue: 0,0:07:43.34,0:07:43.96,Sub,,0,0,0,,Castello still didn't fully {\c&H0048C8FF&}understand{\c&H00FFFFFF&}
+Dialogue: 0,0:07:43.96,0:07:44.13,Sub,,0,0,0,,{\c&H0048C8FF&}what{\c&H00FFFFFF&} was down there.
+Dialogue: 0,0:07:44.13,0:07:44.30,Sub,,0,0,0,,what {\c&H0048C8FF&}was{\c&H00FFFFFF&} down there.
+Dialogue: 0,0:07:44.30,0:07:44.58,Sub,,0,0,0,,what was {\c&H0048C8FF&}down{\c&H00FFFFFF&} there.
+Dialogue: 0,0:07:44.58,0:07:45.53,Sub,,0,0,0,,what was down {\c&H0048C8FF&}there.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:45.53,0:07:45.74,Sub,,0,0,0,,{\c&H0048C8FF&}But{\c&H00FFFFFF&} the warnings were enough.
+Dialogue: 0,0:07:45.74,0:07:45.87,Sub,,0,0,0,,But {\c&H0048C8FF&}the{\c&H00FFFFFF&} warnings were enough.
+Dialogue: 0,0:07:45.87,0:07:46.32,Sub,,0,0,0,,But the {\c&H0048C8FF&}warnings{\c&H00FFFFFF&} were enough.
+Dialogue: 0,0:07:46.32,0:07:46.48,Sub,,0,0,0,,But the warnings {\c&H0048C8FF&}were{\c&H00FFFFFF&} enough.
+Dialogue: 0,0:07:46.48,0:07:47.45,Sub,,0,0,0,,But the warnings were {\c&H0048C8FF&}enough.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:47.45,0:07:48.57,Sub,,0,0,0,,{\c&H0048C8FF&}People.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:48.57,0:07:49.85,Sub,,0,0,0,,{\c&H0048C8FF&}Beings.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:49.85,0:07:51.28,Sub,,0,0,0,,{\c&H0048C8FF&}Containment.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:51.28,0:07:53.09,Sub,,0,0,0,,{\c&H0048C8FF&}Experimentation.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:53.09,0:07:53.69,Sub,,0,0,0,,{\c&H0048C8FF&}Projects{\c&H00FFFFFF&} that supposedly went far beyond
+Dialogue: 0,0:07:53.69,0:07:53.87,Sub,,0,0,0,,Projects {\c&H0048C8FF&}that{\c&H00FFFFFF&} supposedly went far beyond
+Dialogue: 0,0:07:53.87,0:07:54.48,Sub,,0,0,0,,Projects that {\c&H0048C8FF&}supposedly{\c&H00FFFFFF&} went far beyond
+Dialogue: 0,0:07:54.48,0:07:54.70,Sub,,0,0,0,,Projects that supposedly {\c&H0048C8FF&}went{\c&H00FFFFFF&} far beyond
+Dialogue: 0,0:07:54.70,0:07:55.00,Sub,,0,0,0,,Projects that supposedly went {\c&H0048C8FF&}far{\c&H00FFFFFF&} beyond
+Dialogue: 0,0:07:55.00,0:07:55.42,Sub,,0,0,0,,Projects that supposedly went far {\c&H0048C8FF&}beyond{\c&H00FFFFFF&}
+Dialogue: 0,0:07:55.42,0:07:55.68,Sub,,0,0,0,,{\c&H0048C8FF&}any{\c&H00FFFFFF&} research he had seen so far.
+Dialogue: 0,0:07:55.68,0:07:56.18,Sub,,0,0,0,,any {\c&H0048C8FF&}research{\c&H00FFFFFF&} he had seen so far.
+Dialogue: 0,0:07:56.18,0:07:56.26,Sub,,0,0,0,,any research {\c&H0048C8FF&}he{\c&H00FFFFFF&} had seen so far.
+Dialogue: 0,0:07:56.26,0:07:56.41,Sub,,0,0,0,,any research he {\c&H0048C8FF&}had{\c&H00FFFFFF&} seen so far.
+Dialogue: 0,0:07:56.41,0:07:56.71,Sub,,0,0,0,,any research he had {\c&H0048C8FF&}seen{\c&H00FFFFFF&} so far.
+Dialogue: 0,0:07:56.71,0:07:56.94,Sub,,0,0,0,,any research he had seen {\c&H0048C8FF&}so{\c&H00FFFFFF&} far.
+Dialogue: 0,0:07:56.94,0:07:57.90,Sub,,0,0,0,,any research he had seen so {\c&H0048C8FF&}far.{\c&H00FFFFFF&}
+Dialogue: 0,0:07:57.90,0:07:58.12,Sub,,0,0,0,,{\c&H0048C8FF&}At{\c&H00FFFFFF&} some point,
+Dialogue: 0,0:07:58.12,0:07:58.38,Sub,,0,0,0,,At {\c&H0048C8FF&}some{\c&H00FFFFFF&} point,
+Dialogue: 0,0:07:58.38,0:07:59.15,Sub,,0,0,0,,At some {\c&H0048C8FF&}point,{\c&H00FFFFFF&}
+Dialogue: 0,0:07:59.15,0:07:59.30,Sub,,0,0,0,,{\c&H0048C8FF&}he{\c&H00FFFFFF&} had to make a decision.
+Dialogue: 0,0:07:59.30,0:07:59.49,Sub,,0,0,0,,he {\c&H0048C8FF&}had{\c&H00FFFFFF&} to make a decision.
+Dialogue: 0,0:07:59.49,0:07:59.60,Sub,,0,0,0,,he had {\c&H0048C8FF&}to{\c&H00FFFFFF&} make a decision.
+Dialogue: 0,0:07:59.60,0:07:59.81,Sub,,0,0,0,,he had to {\c&H0048C8FF&}make{\c&H00FFFFFF&} a decision.
+Dialogue: 0,0:07:59.81,0:07:59.89,Sub,,0,0,0,,he had to make {\c&H0048C8FF&}a{\c&H00FFFFFF&} decision.
+Dialogue: 0,0:07:59.89,0:08:01.02,Sub,,0,0,0,,he had to make a {\c&H0048C8FF&}decision.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:01.02,0:08:01.23,Sub,,0,0,0,,{\c&H0048C8FF&}He{\c&H00FFFFFF&} could keep doing his job.
+Dialogue: 0,0:08:01.23,0:08:01.44,Sub,,0,0,0,,He {\c&H0048C8FF&}could{\c&H00FFFFFF&} keep doing his job.
+Dialogue: 0,0:08:01.44,0:08:01.75,Sub,,0,0,0,,He could {\c&H0048C8FF&}keep{\c&H00FFFFFF&} doing his job.
+Dialogue: 0,0:08:01.75,0:08:02.11,Sub,,0,0,0,,He could keep {\c&H0048C8FF&}doing{\c&H00FFFFFF&} his job.
+Dialogue: 0,0:08:02.11,0:08:02.30,Sub,,0,0,0,,He could keep doing {\c&H0048C8FF&}his{\c&H00FFFFFF&} job.
+Dialogue: 0,0:08:02.30,0:08:03.32,Sub,,0,0,0,,He could keep doing his {\c&H0048C8FF&}job.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:03.32,0:08:03.68,Sub,,0,0,0,,{\c&H0048C8FF&}Keep{\c&H00FFFFFF&} his head down.
+Dialogue: 0,0:08:03.68,0:08:03.85,Sub,,0,0,0,,Keep {\c&H0048C8FF&}his{\c&H00FFFFFF&} head down.
+Dialogue: 0,0:08:03.85,0:08:04.07,Sub,,0,0,0,,Keep his {\c&H0048C8FF&}head{\c&H00FFFFFF&} down.
+Dialogue: 0,0:08:04.07,0:08:04.97,Sub,,0,0,0,,Keep his head {\c&H0048C8FF&}down.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:04.97,0:08:05.50,Sub,,0,0,0,,{\c&H0048C8FF&}Respect{\c&H00FFFFFF&} the clearances.
+Dialogue: 0,0:08:05.50,0:08:05.60,Sub,,0,0,0,,Respect {\c&H0048C8FF&}the{\c&H00FFFFFF&} clearances.
+Dialogue: 0,0:08:05.60,0:08:06.80,Sub,,0,0,0,,Respect the {\c&H0048C8FF&}clearances.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:06.80,0:08:07.10,Sub,,0,0,0,,{\c&H0048C8FF&}And{\c&H00FFFFFF&} go home every night.
+Dialogue: 0,0:08:07.10,0:08:07.44,Sub,,0,0,0,,And {\c&H0048C8FF&}go{\c&H00FFFFFF&} home every night.
+Dialogue: 0,0:08:07.44,0:08:07.86,Sub,,0,0,0,,And go {\c&H0048C8FF&}home{\c&H00FFFFFF&} every night.
+Dialogue: 0,0:08:07.86,0:08:08.21,Sub,,0,0,0,,And go home {\c&H0048C8FF&}every{\c&H00FFFFFF&} night.
+Dialogue: 0,0:08:08.21,0:08:09.05,Sub,,0,0,0,,And go home every {\c&H0048C8FF&}night.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:09.05,0:08:09.41,Sub,,0,0,0,,{\c&H0048C8FF&}Or{\c&H00FFFFFF&} he could find out what was
+Dialogue: 0,0:08:09.41,0:08:09.53,Sub,,0,0,0,,Or {\c&H0048C8FF&}he{\c&H00FFFFFF&} could find out what was
+Dialogue: 0,0:08:09.53,0:08:09.74,Sub,,0,0,0,,Or he {\c&H0048C8FF&}could{\c&H00FFFFFF&} find out what was
+Dialogue: 0,0:08:09.74,0:08:10.12,Sub,,0,0,0,,Or he could {\c&H0048C8FF&}find{\c&H00FFFFFF&} out what was
+Dialogue: 0,0:08:10.12,0:08:10.37,Sub,,0,0,0,,Or he could find {\c&H0048C8FF&}out{\c&H00FFFFFF&} what was
+Dialogue: 0,0:08:10.37,0:08:10.56,Sub,,0,0,0,,Or he could find out {\c&H0048C8FF&}what{\c&H00FFFFFF&} was
+Dialogue: 0,0:08:10.56,0:08:10.82,Sub,,0,0,0,,Or he could find out what {\c&H0048C8FF&}was{\c&H00FFFFFF&}
+Dialogue: 0,0:08:10.82,0:08:11.17,Sub,,0,0,0,,{\c&H0048C8FF&}really{\c&H00FFFFFF&} below.
+Dialogue: 0,0:08:11.17,0:08:12.56,Sub,,0,0,0,,really {\c&H0048C8FF&}below.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:14.13,0:08:14.61,Sub,,0,0,0,,{\c&H0048C8FF&}According{\c&H00FFFFFF&} to the account attributed to
+Dialogue: 0,0:08:14.61,0:08:14.70,Sub,,0,0,0,,According {\c&H0048C8FF&}to{\c&H00FFFFFF&} the account attributed to
+Dialogue: 0,0:08:14.70,0:08:14.82,Sub,,0,0,0,,According to {\c&H0048C8FF&}the{\c&H00FFFFFF&} account attributed to
+Dialogue: 0,0:08:14.82,0:08:15.19,Sub,,0,0,0,,According to the {\c&H0048C8FF&}account{\c&H00FFFFFF&} attributed to
+Dialogue: 0,0:08:15.19,0:08:15.67,Sub,,0,0,0,,According to the account {\c&H0048C8FF&}attributed{\c&H00FFFFFF&} to
+Dialogue: 0,0:08:15.67,0:08:15.81,Sub,,0,0,0,,According to the account attributed {\c&H0048C8FF&}to{\c&H00FFFFFF&}
+Dialogue: 0,0:08:15.81,0:08:16.20,Sub,,0,0,0,,{\c&H0048C8FF&}Thomas{\c&H00FFFFFF&} Castello… he chose to go down.
+Dialogue: 0,0:08:16.20,0:08:17.38,Sub,,0,0,0,,Thomas {\c&H0048C8FF&}Castello…{\c&H00FFFFFF&} he chose to go down.
+Dialogue: 0,0:08:17.38,0:08:17.57,Sub,,0,0,0,,Thomas Castello… {\c&H0048C8FF&}he{\c&H00FFFFFF&} chose to go down.
+Dialogue: 0,0:08:17.57,0:08:17.95,Sub,,0,0,0,,Thomas Castello… he {\c&H0048C8FF&}chose{\c&H00FFFFFF&} to go down.
+Dialogue: 0,0:08:17.95,0:08:18.09,Sub,,0,0,0,,Thomas Castello… he chose {\c&H0048C8FF&}to{\c&H00FFFFFF&} go down.
+Dialogue: 0,0:08:18.09,0:08:18.31,Sub,,0,0,0,,Thomas Castello… he chose to {\c&H0048C8FF&}go{\c&H00FFFFFF&} down.
+Dialogue: 0,0:08:18.31,0:08:19.02,Sub,,0,0,0,,Thomas Castello… he chose to go {\c&H0048C8FF&}down.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:19.02,0:08:19.21,Sub,,0,0,0,,{\c&H0048C8FF&}And{\c&H00FFFFFF&} what he claimed to find on
+Dialogue: 0,0:08:19.21,0:08:19.37,Sub,,0,0,0,,And {\c&H0048C8FF&}what{\c&H00FFFFFF&} he claimed to find on
+Dialogue: 0,0:08:19.37,0:08:19.49,Sub,,0,0,0,,And what {\c&H0048C8FF&}he{\c&H00FFFFFF&} claimed to find on
+Dialogue: 0,0:08:19.49,0:08:19.82,Sub,,0,0,0,,And what he {\c&H0048C8FF&}claimed{\c&H00FFFFFF&} to find on
+Dialogue: 0,0:08:19.82,0:08:19.93,Sub,,0,0,0,,And what he claimed {\c&H0048C8FF&}to{\c&H00FFFFFF&} find on
+Dialogue: 0,0:08:19.93,0:08:20.23,Sub,,0,0,0,,And what he claimed to {\c&H0048C8FF&}find{\c&H00FFFFFF&} on
+Dialogue: 0,0:08:20.23,0:08:20.32,Sub,,0,0,0,,And what he claimed to find {\c&H0048C8FF&}on{\c&H00FFFFFF&}
+Dialogue: 0,0:08:20.32,0:08:20.43,Sub,,0,0,0,,{\c&H0048C8FF&}the{\c&H00FFFFFF&} lower levels changed his story
+Dialogue: 0,0:08:20.43,0:08:20.68,Sub,,0,0,0,,the {\c&H0048C8FF&}lower{\c&H00FFFFFF&} levels changed his story
+Dialogue: 0,0:08:20.68,0:08:21.27,Sub,,0,0,0,,the lower {\c&H0048C8FF&}levels{\c&H00FFFFFF&} changed his story
+Dialogue: 0,0:08:21.27,0:08:21.85,Sub,,0,0,0,,the lower levels {\c&H0048C8FF&}changed{\c&H00FFFFFF&} his story
+Dialogue: 0,0:08:21.85,0:08:21.98,Sub,,0,0,0,,the lower levels changed {\c&H0048C8FF&}his{\c&H00FFFFFF&} story
+Dialogue: 0,0:08:21.98,0:08:22.38,Sub,,0,0,0,,the lower levels changed his {\c&H0048C8FF&}story{\c&H00FFFFFF&}
+Dialogue: 0,0:08:22.38,0:08:23.36,Sub,,0,0,0,,{\c&H0048C8FF&}completely.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:23.36,0:08:23.99,Sub,,0,0,0,,{\c&H0048C8FF&}Containment{\c&H00FFFFFF&} chambers.
+Dialogue: 0,0:08:23.99,0:08:24.86,Sub,,0,0,0,,Containment {\c&H0048C8FF&}chambers.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:24.86,0:08:25.22,Sub,,0,0,0,,{\c&H0048C8FF&}People{\c&H00FFFFFF&} being held.
+Dialogue: 0,0:08:25.22,0:08:25.50,Sub,,0,0,0,,People {\c&H0048C8FF&}being{\c&H00FFFFFF&} held.
+Dialogue: 0,0:08:25.50,0:08:26.14,Sub,,0,0,0,,People being {\c&H0048C8FF&}held.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:26.14,0:08:27.32,Sub,,0,0,0,,{\c&H0048C8FF&}Experiments.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:27.32,0:08:27.81,Sub,,0,0,0,,{\c&H0048C8FF&}Beings{\c&H00FFFFFF&} he couldn't identify.
+Dialogue: 0,0:08:27.81,0:08:27.93,Sub,,0,0,0,,Beings {\c&H0048C8FF&}he{\c&H00FFFFFF&} couldn't identify.
+Dialogue: 0,0:08:27.93,0:08:28.26,Sub,,0,0,0,,Beings he {\c&H0048C8FF&}couldn't{\c&H00FFFFFF&} identify.
+Dialogue: 0,0:08:28.26,0:08:29.53,Sub,,0,0,0,,Beings he couldn't {\c&H0048C8FF&}identify.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:29.53,0:08:29.71,Sub,,0,0,0,,{\c&H0048C8FF&}And{\c&H00FFFFFF&} the place some workers had learned
+Dialogue: 0,0:08:29.71,0:08:29.82,Sub,,0,0,0,,And {\c&H0048C8FF&}the{\c&H00FFFFFF&} place some workers had learned
+Dialogue: 0,0:08:29.82,0:08:30.21,Sub,,0,0,0,,And the {\c&H0048C8FF&}place{\c&H00FFFFFF&} some workers had learned
+Dialogue: 0,0:08:30.21,0:08:30.47,Sub,,0,0,0,,And the place {\c&H0048C8FF&}some{\c&H00FFFFFF&} workers had learned
+Dialogue: 0,0:08:30.47,0:08:30.98,Sub,,0,0,0,,And the place some {\c&H0048C8FF&}workers{\c&H00FFFFFF&} had learned
+Dialogue: 0,0:08:30.98,0:08:31.15,Sub,,0,0,0,,And the place some workers {\c&H0048C8FF&}had{\c&H00FFFFFF&} learned
+Dialogue: 0,0:08:31.15,0:08:31.47,Sub,,0,0,0,,And the place some workers had {\c&H0048C8FF&}learned{\c&H00FFFFFF&}
+Dialogue: 0,0:08:31.47,0:08:31.62,Sub,,0,0,0,,{\c&H0048C8FF&}to{\c&H00FFFFFF&} call Nightmare Hall.
+Dialogue: 0,0:08:31.62,0:08:32.08,Sub,,0,0,0,,to {\c&H0048C8FF&}call{\c&H00FFFFFF&} Nightmare Hall.
+Dialogue: 0,0:08:32.08,0:08:32.67,Sub,,0,0,0,,to call {\c&H0048C8FF&}Nightmare{\c&H00FFFFFF&} Hall.
+Dialogue: 0,0:08:32.67,0:08:33.78,Sub,,0,0,0,,to call Nightmare {\c&H0048C8FF&}Hall.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:33.78,0:08:33.99,Sub,,0,0,0,,{\c&H0048C8FF&}But{\c&H00FFFFFF&} that is only part of the
+Dialogue: 0,0:08:33.99,0:08:34.17,Sub,,0,0,0,,But {\c&H0048C8FF&}that{\c&H00FFFFFF&} is only part of the
+Dialogue: 0,0:08:34.17,0:08:34.34,Sub,,0,0,0,,But that {\c&H0048C8FF&}is{\c&H00FFFFFF&} only part of the
+Dialogue: 0,0:08:34.34,0:08:34.66,Sub,,0,0,0,,But that is {\c&H0048C8FF&}only{\c&H00FFFFFF&} part of the
+Dialogue: 0,0:08:34.66,0:08:34.90,Sub,,0,0,0,,But that is only {\c&H0048C8FF&}part{\c&H00FFFFFF&} of the
+Dialogue: 0,0:08:34.90,0:08:34.99,Sub,,0,0,0,,But that is only part {\c&H0048C8FF&}of{\c&H00FFFFFF&} the
+Dialogue: 0,0:08:34.99,0:08:35.09,Sub,,0,0,0,,But that is only part of {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:08:35.09,0:08:36.00,Sub,,0,0,0,,{\c&H0048C8FF&}problem.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:36.00,0:08:36.41,Sub,,0,0,0,,{\c&H0048C8FF&}Because{\c&H00FFFFFF&} when we try to find out
+Dialogue: 0,0:08:36.41,0:08:36.56,Sub,,0,0,0,,Because {\c&H0048C8FF&}when{\c&H00FFFFFF&} we try to find out
+Dialogue: 0,0:08:36.56,0:08:36.70,Sub,,0,0,0,,Because when {\c&H0048C8FF&}we{\c&H00FFFFFF&} try to find out
+Dialogue: 0,0:08:36.70,0:08:36.96,Sub,,0,0,0,,Because when we {\c&H0048C8FF&}try{\c&H00FFFFFF&} to find out
+Dialogue: 0,0:08:36.96,0:08:37.07,Sub,,0,0,0,,Because when we try {\c&H0048C8FF&}to{\c&H00FFFFFF&} find out
+Dialogue: 0,0:08:37.07,0:08:37.38,Sub,,0,0,0,,Because when we try to {\c&H0048C8FF&}find{\c&H00FFFFFF&} out
+Dialogue: 0,0:08:37.38,0:08:37.54,Sub,,0,0,0,,Because when we try to find {\c&H0048C8FF&}out{\c&H00FFFFFF&}
+Dialogue: 0,0:08:37.54,0:08:37.76,Sub,,0,0,0,,{\c&H0048C8FF&}who{\c&H00FFFFFF&} Thomas Edwin Castello really was,
+Dialogue: 0,0:08:37.76,0:08:38.20,Sub,,0,0,0,,who {\c&H0048C8FF&}Thomas{\c&H00FFFFFF&} Edwin Castello really was,
+Dialogue: 0,0:08:38.20,0:08:38.49,Sub,,0,0,0,,who Thomas {\c&H0048C8FF&}Edwin{\c&H00FFFFFF&} Castello really was,
+Dialogue: 0,0:08:38.49,0:08:39.39,Sub,,0,0,0,,who Thomas Edwin {\c&H0048C8FF&}Castello{\c&H00FFFFFF&} really was,
+Dialogue: 0,0:08:39.39,0:08:39.71,Sub,,0,0,0,,who Thomas Edwin Castello {\c&H0048C8FF&}really{\c&H00FFFFFF&} was,
+Dialogue: 0,0:08:39.71,0:08:40.67,Sub,,0,0,0,,who Thomas Edwin Castello really {\c&H0048C8FF&}was,{\c&H00FFFFFF&}
+Dialogue: 0,0:08:40.67,0:08:40.87,Sub,,0,0,0,,{\c&H0048C8FF&}an{\c&H00FFFFFF&} even more uncomfortable question
+Dialogue: 0,0:08:40.87,0:08:41.19,Sub,,0,0,0,,an {\c&H0048C8FF&}even{\c&H00FFFFFF&} more uncomfortable question
+Dialogue: 0,0:08:41.19,0:08:41.45,Sub,,0,0,0,,an even {\c&H0048C8FF&}more{\c&H00FFFFFF&} uncomfortable question
+Dialogue: 0,0:08:41.45,0:08:42.07,Sub,,0,0,0,,an even more {\c&H0048C8FF&}uncomfortable{\c&H00FFFFFF&} question
+Dialogue: 0,0:08:42.07,0:08:42.49,Sub,,0,0,0,,an even more uncomfortable {\c&H0048C8FF&}question{\c&H00FFFFFF&}
+Dialogue: 0,0:08:42.49,0:08:43.72,Sub,,0,0,0,,{\c&H0048C8FF&}appears.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:43.72,0:08:43.95,Sub,,0,0,0,,{\c&H0048C8FF&}Can{\c&H00FFFFFF&} we prove this man ever existed?
+Dialogue: 0,0:08:43.95,0:08:44.11,Sub,,0,0,0,,Can {\c&H0048C8FF&}we{\c&H00FFFFFF&} prove this man ever existed?
+Dialogue: 0,0:08:44.11,0:08:44.46,Sub,,0,0,0,,Can we {\c&H0048C8FF&}prove{\c&H00FFFFFF&} this man ever existed?
+Dialogue: 0,0:08:44.46,0:08:44.68,Sub,,0,0,0,,Can we prove {\c&H0048C8FF&}this{\c&H00FFFFFF&} man ever existed?
+Dialogue: 0,0:08:44.68,0:08:45.28,Sub,,0,0,0,,Can we prove this {\c&H0048C8FF&}man{\c&H00FFFFFF&} ever existed?
+Dialogue: 0,0:08:45.28,0:08:46.14,Sub,,0,0,0,,Can we prove this man {\c&H0048C8FF&}ever{\c&H00FFFFFF&} existed?
+Dialogue: 0,0:08:46.14,0:08:48.20,Sub,,0,0,0,,Can we prove this man ever {\c&H0048C8FF&}existed?{\c&H00FFFFFF&}
+Dialogue: 0,0:08:49.80,0:08:50.00,Sub,,0,0,0,,{\c&H0048C8FF&}In{\c&H00FFFFFF&} Part Two,
+Dialogue: 0,0:08:50.00,0:08:50.21,Sub,,0,0,0,,In {\c&H0048C8FF&}Part{\c&H00FFFFFF&} Two,
+Dialogue: 0,0:08:50.21,0:08:51.17,Sub,,0,0,0,,In Part {\c&H0048C8FF&}Two,{\c&H00FFFFFF&}
+Dialogue: 0,0:08:51.17,0:08:51.39,Sub,,0,0,0,,{\c&H0048C8FF&}we{\c&H00FFFFFF&} go inside Nightmare Hall.
+Dialogue: 0,0:08:51.39,0:08:51.60,Sub,,0,0,0,,we {\c&H0048C8FF&}go{\c&H00FFFFFF&} inside Nightmare Hall.
+Dialogue: 0,0:08:51.60,0:08:52.06,Sub,,0,0,0,,we go {\c&H0048C8FF&}inside{\c&H00FFFFFF&} Nightmare Hall.
+Dialogue: 0,0:08:52.06,0:08:52.46,Sub,,0,0,0,,we go inside {\c&H0048C8FF&}Nightmare{\c&H00FFFFFF&} Hall.
+Dialogue: 0,0:08:52.46,0:08:53.30,Sub,,0,0,0,,we go inside Nightmare {\c&H0048C8FF&}Hall.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:53.61,0:08:53.94,Sub,,0,0,0,,{\c&H0048C8FF&}We'll{\c&H00FFFFFF&} reconstruct what Castello said he
+Dialogue: 0,0:08:53.94,0:08:54.90,Sub,,0,0,0,,We'll {\c&H0048C8FF&}reconstruct{\c&H00FFFFFF&} what Castello said he
+Dialogue: 0,0:08:54.90,0:08:55.15,Sub,,0,0,0,,We'll reconstruct {\c&H0048C8FF&}what{\c&H00FFFFFF&} Castello said he
+Dialogue: 0,0:08:55.15,0:08:55.84,Sub,,0,0,0,,We'll reconstruct what {\c&H0048C8FF&}Castello{\c&H00FFFFFF&} said he
+Dialogue: 0,0:08:55.84,0:08:56.06,Sub,,0,0,0,,We'll reconstruct what Castello {\c&H0048C8FF&}said{\c&H00FFFFFF&} he
+Dialogue: 0,0:08:56.06,0:08:56.16,Sub,,0,0,0,,We'll reconstruct what Castello said {\c&H0048C8FF&}he{\c&H00FFFFFF&}
+Dialogue: 0,0:08:56.16,0:08:56.39,Sub,,0,0,0,,{\c&H0048C8FF&}saw{\c&H00FFFFFF&} there.
+Dialogue: 0,0:08:56.39,0:08:57.14,Sub,,0,0,0,,saw {\c&H0048C8FF&}there.{\c&H00FFFFFF&}
+Dialogue: 0,0:08:57.45,0:08:57.64,Sub,,0,0,0,,{\c&H0048C8FF&}What{\c&H00FFFFFF&} he claimed was happening to the
+Dialogue: 0,0:08:57.64,0:08:57.73,Sub,,0,0,0,,What {\c&H0048C8FF&}he{\c&H00FFFFFF&} claimed was happening to the
+Dialogue: 0,0:08:57.73,0:08:58.43,Sub,,0,0,0,,What he {\c&H0048C8FF&}claimed{\c&H00FFFFFF&} was happening to the
+Dialogue: 0,0:08:58.43,0:08:58.67,Sub,,0,0,0,,What he claimed {\c&H0048C8FF&}was{\c&H00FFFFFF&} happening to the
+Dialogue: 0,0:08:58.67,0:08:59.03,Sub,,0,0,0,,What he claimed was {\c&H0048C8FF&}happening{\c&H00FFFFFF&} to the
+Dialogue: 0,0:08:59.03,0:08:59.13,Sub,,0,0,0,,What he claimed was happening {\c&H0048C8FF&}to{\c&H00FFFFFF&} the
+Dialogue: 0,0:08:59.13,0:08:59.25,Sub,,0,0,0,,What he claimed was happening to {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:08:59.25,0:08:59.56,Sub,,0,0,0,,{\c&H0048C8FF&}people{\c&H00FFFFFF&} being held.
+Dialogue: 0,0:08:59.56,0:08:59.83,Sub,,0,0,0,,people {\c&H0048C8FF&}being{\c&H00FFFFFF&} held.
+Dialogue: 0,0:08:59.83,0:09:00.82,Sub,,0,0,0,,people being {\c&H0048C8FF&}held.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:00.82,0:09:01.04,Sub,,0,0,0,,{\c&H0048C8FF&}And{\c&H00FFFFFF&} what, in his version of events,
+Dialogue: 0,0:09:01.04,0:09:01.79,Sub,,0,0,0,,And {\c&H0048C8FF&}what,{\c&H00FFFFFF&} in his version of events,
+Dialogue: 0,0:09:01.79,0:09:02.01,Sub,,0,0,0,,And what, {\c&H0048C8FF&}in{\c&H00FFFFFF&} his version of events,
+Dialogue: 0,0:09:02.01,0:09:02.20,Sub,,0,0,0,,And what, in {\c&H0048C8FF&}his{\c&H00FFFFFF&} version of events,
+Dialogue: 0,0:09:02.20,0:09:02.54,Sub,,0,0,0,,And what, in his {\c&H0048C8FF&}version{\c&H00FFFFFF&} of events,
+Dialogue: 0,0:09:02.54,0:09:02.65,Sub,,0,0,0,,And what, in his version {\c&H0048C8FF&}of{\c&H00FFFFFF&} events,
+Dialogue: 0,0:09:02.65,0:09:03.45,Sub,,0,0,0,,And what, in his version of {\c&H0048C8FF&}events,{\c&H00FFFFFF&}
+Dialogue: 0,0:09:03.45,0:09:03.72,Sub,,0,0,0,,{\c&H0048C8FF&}set{\c&H00FFFFFF&} off the conflict inside Dulce.
+Dialogue: 0,0:09:03.72,0:09:03.87,Sub,,0,0,0,,set {\c&H0048C8FF&}off{\c&H00FFFFFF&} the conflict inside Dulce.
+Dialogue: 0,0:09:03.87,0:09:04.02,Sub,,0,0,0,,set off {\c&H0048C8FF&}the{\c&H00FFFFFF&} conflict inside Dulce.
+Dialogue: 0,0:09:04.02,0:09:04.54,Sub,,0,0,0,,set off the {\c&H0048C8FF&}conflict{\c&H00FFFFFF&} inside Dulce.
+Dialogue: 0,0:09:04.54,0:09:04.94,Sub,,0,0,0,,set off the conflict {\c&H0048C8FF&}inside{\c&H00FFFFFF&} Dulce.
+Dialogue: 0,0:09:04.94,0:09:05.83,Sub,,0,0,0,,set off the conflict inside {\c&H0048C8FF&}Dulce.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:05.83,0:09:06.02,Sub,,0,0,0,,{\c&H0048C8FF&}Then{\c&H00FFFFFF&} we'll step outside his story,
+Dialogue: 0,0:09:06.02,0:09:06.20,Sub,,0,0,0,,Then {\c&H0048C8FF&}we'll{\c&H00FFFFFF&} step outside his story,
+Dialogue: 0,0:09:06.20,0:09:06.55,Sub,,0,0,0,,Then we'll {\c&H0048C8FF&}step{\c&H00FFFFFF&} outside his story,
+Dialogue: 0,0:09:06.55,0:09:07.07,Sub,,0,0,0,,Then we'll step {\c&H0048C8FF&}outside{\c&H00FFFFFF&} his story,
+Dialogue: 0,0:09:07.07,0:09:07.19,Sub,,0,0,0,,Then we'll step outside {\c&H0048C8FF&}his{\c&H00FFFFFF&} story,
+Dialogue: 0,0:09:07.19,0:09:08.02,Sub,,0,0,0,,Then we'll step outside his {\c&H0048C8FF&}story,{\c&H00FFFFFF&}
+Dialogue: 0,0:09:08.02,0:09:08.18,Sub,,0,0,0,,{\c&H0048C8FF&}to{\c&H00FFFFFF&} investigate something that may be
+Dialogue: 0,0:09:08.18,0:09:08.83,Sub,,0,0,0,,to {\c&H0048C8FF&}investigate{\c&H00FFFFFF&} something that may be
+Dialogue: 0,0:09:08.83,0:09:09.18,Sub,,0,0,0,,to investigate {\c&H0048C8FF&}something{\c&H00FFFFFF&} that may be
+Dialogue: 0,0:09:09.18,0:09:09.33,Sub,,0,0,0,,to investigate something {\c&H0048C8FF&}that{\c&H00FFFFFF&} may be
+Dialogue: 0,0:09:09.33,0:09:09.55,Sub,,0,0,0,,to investigate something that {\c&H0048C8FF&}may{\c&H00FFFFFF&} be
+Dialogue: 0,0:09:09.55,0:09:09.68,Sub,,0,0,0,,to investigate something that may {\c&H0048C8FF&}be{\c&H00FFFFFF&}
+Dialogue: 0,0:09:09.68,0:09:09.93,Sub,,0,0,0,,{\c&H0048C8FF&}even{\c&H00FFFFFF&} stranger:
+Dialogue: 0,0:09:09.93,0:09:10.84,Sub,,0,0,0,,even {\c&H0048C8FF&}stranger:{\c&H00FFFFFF&}
+Dialogue: 0,0:09:10.84,0:09:11.12,Sub,,0,0,0,,{\c&H0048C8FF&}where{\c&H00FFFFFF&} the Dulce legend actually came
+Dialogue: 0,0:09:11.12,0:09:11.28,Sub,,0,0,0,,where {\c&H0048C8FF&}the{\c&H00FFFFFF&} Dulce legend actually came
+Dialogue: 0,0:09:11.28,0:09:11.79,Sub,,0,0,0,,where the {\c&H0048C8FF&}Dulce{\c&H00FFFFFF&} legend actually came
+Dialogue: 0,0:09:11.79,0:09:12.17,Sub,,0,0,0,,where the Dulce {\c&H0048C8FF&}legend{\c&H00FFFFFF&} actually came
+Dialogue: 0,0:09:12.17,0:09:12.65,Sub,,0,0,0,,where the Dulce legend {\c&H0048C8FF&}actually{\c&H00FFFFFF&} came
+Dialogue: 0,0:09:12.65,0:09:12.95,Sub,,0,0,0,,where the Dulce legend actually {\c&H0048C8FF&}came{\c&H00FFFFFF&}
+Dialogue: 0,0:09:12.95,0:09:13.74,Sub,,0,0,0,,{\c&H0048C8FF&}from.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:13.74,0:09:14.20,Sub,,0,0,0,,{\c&H0048C8FF&}Because{\c&H00FFFFFF&} Thomas Castello wasn't the
+Dialogue: 0,0:09:14.20,0:09:14.81,Sub,,0,0,0,,Because {\c&H0048C8FF&}Thomas{\c&H00FFFFFF&} Castello wasn't the
+Dialogue: 0,0:09:14.81,0:09:16.02,Sub,,0,0,0,,Because Thomas {\c&H0048C8FF&}Castello{\c&H00FFFFFF&} wasn't the
+Dialogue: 0,0:09:16.02,0:09:16.51,Sub,,0,0,0,,Because Thomas Castello {\c&H0048C8FF&}wasn't{\c&H00FFFFFF&} the
+Dialogue: 0,0:09:16.51,0:09:16.68,Sub,,0,0,0,,Because Thomas Castello wasn't {\c&H0048C8FF&}the{\c&H00FFFFFF&}
+Dialogue: 0,0:09:16.68,0:09:17.77,Sub,,0,0,0,,{\c&H0048C8FF&}beginning.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:18.30,0:09:18.67,Sub,,0,0,0,,{\c&H0048C8FF&}Follow{\c&H00FFFFFF&} the story back far enough,
+Dialogue: 0,0:09:18.67,0:09:18.79,Sub,,0,0,0,,Follow {\c&H0048C8FF&}the{\c&H00FFFFFF&} story back far enough,
+Dialogue: 0,0:09:18.79,0:09:19.16,Sub,,0,0,0,,Follow the {\c&H0048C8FF&}story{\c&H00FFFFFF&} back far enough,
+Dialogue: 0,0:09:19.16,0:09:19.39,Sub,,0,0,0,,Follow the story {\c&H0048C8FF&}back{\c&H00FFFFFF&} far enough,
+Dialogue: 0,0:09:19.39,0:09:19.65,Sub,,0,0,0,,Follow the story back {\c&H0048C8FF&}far{\c&H00FFFFFF&} enough,
+Dialogue: 0,0:09:19.65,0:09:20.55,Sub,,0,0,0,,Follow the story back far {\c&H0048C8FF&}enough,{\c&H00FFFFFF&}
+Dialogue: 0,0:09:20.55,0:09:20.76,Sub,,0,0,0,,{\c&H0048C8FF&}and{\c&H00FFFFFF&} another name appears.
+Dialogue: 0,0:09:20.76,0:09:21.05,Sub,,0,0,0,,and {\c&H0048C8FF&}another{\c&H00FFFFFF&} name appears.
+Dialogue: 0,0:09:21.05,0:09:21.25,Sub,,0,0,0,,and another {\c&H0048C8FF&}name{\c&H00FFFFFF&} appears.
+Dialogue: 0,0:09:21.25,0:09:22.37,Sub,,0,0,0,,and another name {\c&H0048C8FF&}appears.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:22.68,0:09:23.28,Sub,,0,0,0,,{\c&H0048C8FF&}Paul{\c&H00FFFFFF&} Bennewitz.
+Dialogue: 0,0:09:23.28,0:09:24.80,Sub,,0,0,0,,Paul {\c&H0048C8FF&}Bennewitz.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:25.12,0:09:25.33,Sub,,0,0,0,,{\c&H0048C8FF&}And{\c&H00FFFFFF&} with him,
+Dialogue: 0,0:09:25.33,0:09:25.52,Sub,,0,0,0,,And {\c&H0048C8FF&}with{\c&H00FFFFFF&} him,
+Dialogue: 0,0:09:25.52,0:09:26.39,Sub,,0,0,0,,And with {\c&H0048C8FF&}him,{\c&H00FFFFFF&}
+Dialogue: 0,0:09:26.39,0:09:26.58,Sub,,0,0,0,,{\c&H0048C8FF&}a{\c&H00FFFFFF&} very different possibility.
+Dialogue: 0,0:09:26.58,0:09:26.99,Sub,,0,0,0,,a {\c&H0048C8FF&}very{\c&H00FFFFFF&} different possibility.
+Dialogue: 0,0:09:26.99,0:09:27.40,Sub,,0,0,0,,a very {\c&H0048C8FF&}different{\c&H00FFFFFF&} possibility.
+Dialogue: 0,0:09:27.40,0:09:28.95,Sub,,0,0,0,,a very different {\c&H0048C8FF&}possibility.{\c&H00FFFFFF&}
+Dialogue: 0,0:09:28.95,0:09:29.23,Sub,,0,0,0,,{\c&H0048C8FF&}That{\c&H00FFFFFF&} part of the Dulce story didn't
+Dialogue: 0,0:09:29.23,0:09:29.42,Sub,,0,0,0,,That {\c&H0048C8FF&}part{\c&H00FFFFFF&} of the Dulce story didn't
+Dialogue: 0,0:09:29.42,0:09:29.51,Sub,,0,0,0,,That part {\c&H0048C8FF&}of{\c&H00FFFFFF&} the Dulce story didn't
+Dialogue: 0,0:09:29.51,0:09:29.62,Sub,,0,0,0,,That part of {\c&H0048C8FF&}the{\c&H00FFFFFF&} Dulce story didn't
+Dialogue: 0,0:09:29.62,0:09:30.09,Sub,,0,0,0,,That part of the {\c&H0048C8FF&}Dulce{\c&H00FFFFFF&} story didn't
+Dialogue: 0,0:09:30.09,0:09:30.82,Sub,,0,0,0,,That part of the Dulce {\c&H0048C8FF&}story{\c&H00FFFFFF&} didn't
+Dialogue: 0,0:09:30.82,0:09:31.12,Sub,,0,0,0,,That part of the Dulce story {\c&H0048C8FF&}didn't{\c&H00FFFFFF&}
+Dialogue: 0,0:09:31.12,0:09:31.39,Sub,,0,0,0,,{\c&H0048C8FF&}begin{\c&H00FFFFFF&} with aliens…
+Dialogue: 0,0:09:31.39,0:09:31.55,Sub,,0,0,0,,begin {\c&H0048C8FF&}with{\c&H00FFFFFF&} aliens…
+Dialogue: 0,0:09:31.55,0:09:32.69,Sub,,0,0,0,,begin with {\c&H0048C8FF&}aliens…{\c&H00FFFFFF&}
+Dialogue: 0,0:09:33.09,0:09:33.43,Sub,,0,0,0,,{\c&H0048C8FF&}but{\c&H00FFFFFF&} with disinformation.
+Dialogue: 0,0:09:33.43,0:09:33.67,Sub,,0,0,0,,but {\c&H0048C8FF&}with{\c&H00FFFFFF&} disinformation.
+Dialogue: 0,0:09:33.67,0:09:35.52,Sub,,0,0,0,,but with {\c&H0048C8FF&}disinformation.{\c&H00FFFFFF&}
+Dialogue: 1,0:00:30.00,0:00:32.77,Note,,0,0,0,,{\fad(500,600)\an7\pos(90,80)}Thomas Edwin Castello · dramatized reconstruction
+Dialogue: 1,0:00:33.37,0:00:36.17,Title,,0,0,0,,{\fad(500,600)}DULCE\N{\fs52\fsp8}PART I
+Dialogue: 1,0:07:26.97,0:07:30.47,Title,,0,0,0,,{\fad(500,600)}NIGHTMARE HALL
+Dialogue: 1,0:08:41.43,0:08:47.03,Note,,0,0,0,,{\fad(500,600)\an7\pos(90,80)}Thomas Edwin Castello · existence unverified
+Dialogue: 1,0:09:15.93,0:09:22.30,Note,,0,0,0,,{\fad(500,600)\an7\pos(90,80)}Paul Bennewitz
+Dialogue: 1,0:09:37.00,0:09:42.40,Title,,0,0,0,,{\fad(500,600)}DULCE\N{\fs52\fsp8}PART II: NIGHTMARE HALL
+Dialogue: 1,0:09:37.00,0:09:42.40,Note,,0,0,0,,{\fad(500,600)}Dramatized reconstruction of claims attributed to Thomas Castello. Not verified.
