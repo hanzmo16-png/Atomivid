@@ -12,6 +12,7 @@ import { jobSupplyDemands, reserveJobSupply } from "../src/lib/supply/job";
 import { getMusicProvider } from "../src/lib/providers/music";
 import { getFootageProvider } from "../src/lib/providers/footage";
 import { getVoiceProvider } from "../src/lib/providers/voice";
+import { ensureJobSupplyReady } from "../src/lib/supply/readiness";
 import { getVideoProvider } from "../src/lib/providers/video-gen";
 import { getGenerativeUnitCosts, executionAllocation } from "../src/lib/video/long-form/production-plan";
 import { getPricingConfig } from "../src/lib/billing/pricing";
@@ -65,6 +66,14 @@ async function main() {
   check(clipProvider === "runway", "clip resolves to Runway");
   console.log("HARD_CAP", JSON.stringify({ observedMax: observed, conservative, allocation, voiceCharacters: plan.voiceCharacters, worstCaseUsd: worstCase, hardCapUsd: hardCap,
     ceilingUsd: getLongFormBudget().maxTotalUsd, authorizedUsd: CAP_USD, clipProvider }));
+  // Same readiness function as the real click, WITHOUT refreshing (no observation
+  // is written before the owner's click). Stale providers are the ones the click refreshes.
+  const supply = await ensureJobSupplyReady(db, demands, { refresh: false });
+  const blockingNonStale = supply.providers.filter(p => !p.ok && !(p.level === "UNKNOWN" && ["elevenlabs", "runway", "heygen"].includes(p.provider)));
+  check(blockingNonStale.length === 0, `supply ready or refreshable at click (${blockingNonStale.map(p => `${p.provider}:${p.failure}`).join(",")})`);
+  console.log("SUPPLY_READINESS", JSON.stringify({ readyNowWithoutRefresh: supply.ready, failure: supply.failure ?? null,
+    providers: supply.providers.map(p => ({ provider: p.provider, level: p.level, reason: p.reason, free: p.free, units: p.units, usd: p.usd, ok: p.ok, failure: p.failure ?? null,
+      atClick: p.ok ? "ready" : p.level === "UNKNOWN" ? "refreshed just in time, then re-evaluated" : "blocked" })) }));
   console.log("GATES", JSON.stringify({ passed: fail.length === 0, failed: fail, providers: names, projected: { voiceUsd, imagesUsd: +imagesUsd.toFixed(4), videoUsd, totalUsd: projected, capUsd: CAP_USD }, supplyDemands: demands }));
   if (fail.length) throw Error("STOP: gate failed");
   if (!start) return;

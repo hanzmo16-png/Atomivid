@@ -12,37 +12,9 @@ export async function monitorSupply(service: SupabaseClient, opts: {
   const env = opts.env ?? process.env, fetchImpl = opts.fetchImpl ?? fetch, now = opts.now ?? Date.now;
   const { data: policies, error } = await service.from("pi_supply_policies").select("provider,enabled").neq("provider", "__global__");
   if (error || !policies) throw new Error("SUPPLY_MONITOR_POLICIES_UNAVAILABLE");
-  if (env.ELEVENLABS_API_KEY) {
-    // Timestamp is BEFORE the GET: a concurrent commit cannot be erased by its response.
-    const checkedAt = new Date(now()).toISOString();
-    const snapshot = await elevenLabsSnapshot(fetchImpl, env, 0, 0, checkedAt);
-    const { error: savedError } = await service.from("pi_capacity_snapshots").insert({
-      provider: snapshot.provider, unit: snapshot.unit, available: snapshot.available,
-      reserved: 0, pending: 0, renewal_date: snapshot.renewalDate, health: snapshot.health,
-      reliability: snapshot.reliability, derived_estimate: snapshot.derivedEstimate ?? null,
-      status: assessCapacity(snapshot).status, checked_at: checkedAt,
-    });
-    if (savedError) throw new Error("SUPPLY_MONITOR_SNAPSHOT_UNAVAILABLE");
-  }
-  if ((env.RUNWAY_API_KEY || env.RUNWAYML_API_SECRET) && policies.some(p => p.provider === "runway" && p.enabled)) {
-    const checkedAt = new Date(now()).toISOString();
-    const snapshot = await runwayApiSnapshot(fetchImpl, env, checkedAt);
-    const { error: savedError } = await service.from("pi_capacity_snapshots").insert({
-      provider: snapshot.provider, unit: snapshot.unit, available: snapshot.available, reserved: 0, pending: 0,
-      renewal_date: null, health: snapshot.health, reliability: snapshot.reliability,
-      status: assessCapacity(snapshot).status, checked_at: checkedAt,
-    });
-    if (savedError) throw new Error("SUPPLY_MONITOR_RUNWAY_SNAPSHOT_UNAVAILABLE");
-  }
-  if (env.HEYGEN_API_KEY && policies.some(p => p.provider === "heygen" && p.enabled)) {
-    const checkedAt = new Date(now()).toISOString();
-    const snapshot = await heygenApiSnapshot(fetchImpl, env, checkedAt);
-    const { error: savedError } = await service.from("pi_capacity_snapshots").insert({
-      provider: snapshot.provider, unit: snapshot.unit, available: snapshot.available, reserved: 0, pending: 0,
-      renewal_date: null, health: snapshot.health, reliability: snapshot.reliability,
-      status: assessCapacity(snapshot).status, checked_at: checkedAt,
-    });
-    if (savedError) throw new Error("SUPPLY_MONITOR_HEYGEN_SNAPSHOT_UNAVAILABLE");
+  for (const provider of REFRESHABLE_PROVIDERS) {
+    if (provider !== "elevenlabs" && !policies.some(p => p.provider === provider && p.enabled)) continue;
+    await refreshProviderSnapshot(service, provider, { env, fetchImpl, now });
   }
   const states: SupplyState[] = [];
   for (const policy of policies as { provider: string; enabled: boolean }[]) {
@@ -59,4 +31,37 @@ export async function monitorSupply(service: SupabaseClient, opts: {
   const { data: pending, error: pendingError } = await service.from("pi_supply_alerts").select("id,provider,level,payload").is("delivered_at", null).order("created_at").limit(5);
   if (pendingError) throw new Error("SUPPLY_MONITOR_OUTBOX_UNAVAILABLE");
   return { states, pendingAlerts: pending?.length ?? 0 };
+}
+
+export const REFRESHABLE_PROVIDERS = ["elevenlabs", "runway", "heygen"] as const;
+export type RefreshableProvider = (typeof REFRESHABLE_PROVIDERS)[number];
+
+/** One official balance observation (billing GET only, never generation) persisted
+ * as a capacity snapshot. Returns false when the credential is not configured. */
+export async function refreshProviderSnapshot(service: SupabaseClient, provider: RefreshableProvider, opts: {
+  env?: Record<string, string | undefined>; fetchImpl?: typeof fetch; now?: () => number;
+} = {}): Promise<boolean> {
+  const env = opts.env ?? process.env, fetchImpl = opts.fetchImpl ?? fetch, now = opts.now ?? Date.now;
+  // Timestamp is BEFORE the GET: a concurrent commit cannot be erased by its response.
+  const checkedAt = new Date(now()).toISOString();
+  let row: Record<string, unknown>;
+  if (provider === "elevenlabs") {
+    if (!env.ELEVENLABS_API_KEY) return false;
+    const snapshot = await elevenLabsSnapshot(fetchImpl, env, 0, 0, checkedAt);
+    row = { provider: snapshot.provider, unit: snapshot.unit, available: snapshot.available, reserved: 0, pending: 0, renewal_date: snapshot.renewalDate,
+      health: snapshot.health, reliability: snapshot.reliability, derived_estimate: snapshot.derivedEstimate ?? null, status: assessCapacity(snapshot).status, checked_at: checkedAt };
+  } else if (provider === "runway") {
+    if (!(env.RUNWAY_API_KEY || env.RUNWAYML_API_SECRET)) return false;
+    const snapshot = await runwayApiSnapshot(fetchImpl, env, checkedAt);
+    row = { provider: snapshot.provider, unit: snapshot.unit, available: snapshot.available, reserved: 0, pending: 0, renewal_date: null,
+      health: snapshot.health, reliability: snapshot.reliability, status: assessCapacity(snapshot).status, checked_at: checkedAt };
+  } else {
+    if (!env.HEYGEN_API_KEY) return false;
+    const snapshot = await heygenApiSnapshot(fetchImpl, env, checkedAt);
+    row = { provider: snapshot.provider, unit: snapshot.unit, available: snapshot.available, reserved: 0, pending: 0, renewal_date: null,
+      health: snapshot.health, reliability: snapshot.reliability, status: assessCapacity(snapshot).status, checked_at: checkedAt };
+  }
+  const { error } = await service.from("pi_capacity_snapshots").insert(row);
+  if (error) throw new Error(`SUPPLY_MONITOR_${provider.toUpperCase()}_SNAPSHOT_UNAVAILABLE`);
+  return true;
 }
