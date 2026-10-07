@@ -1,1 +1,1 @@
-{"start":false,"check":"jit-readiness"}
+{"start":false,"refreshBalances":true,"check":"post-deploy-jit-preflight"}

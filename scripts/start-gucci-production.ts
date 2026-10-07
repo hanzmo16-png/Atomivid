@@ -68,10 +68,10 @@ async function main() {
     ceilingUsd: getLongFormBudget().maxTotalUsd, authorizedUsd: CAP_USD, clipProvider }));
   // Same readiness function as the real click, WITHOUT refreshing (no observation
   // is written before the owner's click). Stale providers are the ones the click refreshes.
-  const supply = await ensureJobSupplyReady(db, demands, { refresh: false });
-  const blockingNonStale = supply.providers.filter(p => !p.ok && !(p.level === "UNKNOWN" && ["elevenlabs", "runway", "heygen"].includes(p.provider)));
+  const supply = await ensureJobSupplyReady(db, demands, { refresh: process.env.REFRESH_BALANCES === "true" }); // billing GETs + snapshots only
+  const blockingNonStale = process.env.REFRESH_BALANCES === "true" ? supply.providers.filter(p => !p.ok) : supply.providers.filter(p => !p.ok && !(p.level === "UNKNOWN" && ["elevenlabs", "runway", "heygen"].includes(p.provider)));
   check(blockingNonStale.length === 0, `supply ready or refreshable at click (${blockingNonStale.map(p => `${p.provider}:${p.failure}`).join(",")})`);
-  console.log("SUPPLY_READINESS", JSON.stringify({ readyNowWithoutRefresh: supply.ready, failure: supply.failure ?? null,
+  console.log("SUPPLY_READINESS", JSON.stringify({ refreshed: process.env.REFRESH_BALANCES === "true", readyNow: supply.ready, refreshedProviders: supply.providers.filter(p => p.refreshed).map(p => p.provider), failure: supply.failure ?? null,
     providers: supply.providers.map(p => ({ provider: p.provider, level: p.level, reason: p.reason, free: p.free, units: p.units, usd: p.usd, ok: p.ok, failure: p.failure ?? null,
       atClick: p.ok ? "ready" : p.level === "UNKNOWN" ? "refreshed just in time, then re-evaluated" : "blocked" })) }));
   console.log("GATES", JSON.stringify({ passed: fail.length === 0, failed: fail, providers: names, projected: { voiceUsd, imagesUsd: +imagesUsd.toFixed(4), videoUsd, totalUsd: projected, capUsd: CAP_USD }, supplyDemands: demands }));
