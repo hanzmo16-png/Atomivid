@@ -2,7 +2,7 @@ name: Gucci post-deploy check and cost preflight (read-only, no providers)
 on:
   push:
     branches: [claude/hola-sn3dxy]
-    paths: [scripts/gucci-preflight.ts, .github/workflows/gucci-preflight.yml]
+    paths: [scripts/openai-image-cost-history.ts, scripts/gucci-preflight.ts, .github/workflows/gucci-preflight.yml]
 permissions:
   contents: read
 jobs:
@@ -25,6 +25,11 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       - name: Cost preflight of the confirmed plan
         run: npx tsx scripts/gucci-preflight.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Real per-call cost history (OpenAI images, ElevenLabs, Runway)
+        run: npx tsx scripts/openai-image-cost-history.ts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
