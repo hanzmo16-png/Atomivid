@@ -128,8 +128,16 @@ export function editorialBlockers(review: EditorialReview): string[] {
     ...(!review.firstAnswer.delivered ? ["La apertura demora la primera respuesta: " + review.firstAnswer.explanation] : []),
     ...(!review.ending.resolvesPromise ? ["La promesa principal queda sin resolver: " + review.ending.explanation] : []),
     ...review.findings.filter(f => f.severity === "blocking").map(f => `${f.explanation} ${f.repair}`),
-    ...review.sections.filter(s => s.function === "restatement").map(s => `El bloque ${s.beatIndex + 1} repite sin avanzar: ${s.contribution}`),
+    ...review.sections.filter(s => s.function === "restatement" && !closingCallback(review, s.beatIndex))
+      .map(s => `El bloque ${s.beatIndex + 1} repite sin avanzar: ${s.contribution}`),
   ];
+}
+/** The same review cannot both accept the close as the promised resolution and
+ * reject it as repetition: a final block that the reviewer says resolves the
+ * promise is a callback. Explicit blocking findings still apply to it. */
+function closingCallback(review: EditorialReview, beatIndex: number): boolean {
+  const last = Math.max(...review.sections.map(s => s.beatIndex));
+  return beatIndex === last && review.ending.resolvesPromise && review.ending.evidence.beatIndex === last;
 }
 export function editorialScriptHash(beats: EditorialScript["beats"]): string {
   // IDs assigned at persistence are excluded. Bind all authored content used downstream.

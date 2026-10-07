@@ -1,5 +1,6 @@
 import { ScriptJobCard } from "@/components/video/ScriptJobCard";
-import { scriptJobView, type ScriptJobSummary } from "@/lib/video/long-form/script-job-types";
+import { scriptJobView, SCRIPT_JOB_COLUMNS, type ScriptJobSummary } from "@/lib/video/long-form/script-job-types";
+import { reconcileStaleScriptJobs } from "@/lib/video/long-form/script-jobs";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { isSubscriptionActive } from "@/lib/billing/subscription";
@@ -35,8 +36,9 @@ export default async function DashboardPage({
     .order("created_at", { ascending: false })
     .returns<VideoRequestSummary[]>();
 
+  if (user) await reconcileStaleScriptJobs(user.id).catch(() => {});
   const { data: scriptJobs, error: scriptJobsError } = await supabase.from("documentary_script_jobs")
-    .select("id,topic,status,stage,error_message,request_id,created_at,updated_at")
+    .select(SCRIPT_JOB_COLUMNS)
     .eq("user_id", user?.id ?? "").neq("status","completed").order("created_at",{ascending:false}).limit(30)
     .returns<ScriptJobSummary[]>();
 

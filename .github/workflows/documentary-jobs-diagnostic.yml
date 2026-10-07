@@ -4,7 +4,7 @@ name: Read-only documentary jobs diagnosis
 on:
   push:
     branches: [claude/hola-sn3dxy]
-    paths: [scripts/diagnose-documentary-jobs.ts, .github/workflows/documentary-jobs-diagnostic.yml]
+    paths: [scripts/diagnose-documentary-jobs.ts, scripts/replay-documentary-job.ts, .github/workflows/documentary-jobs-diagnostic.yml]
 permissions:
   contents: read
 jobs:
@@ -19,6 +19,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx tsx scripts/diagnose-documentary-jobs.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Offline replay of saved jobs against the current pipeline (no provider calls)
+        run: npx tsx scripts/replay-documentary-job.ts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

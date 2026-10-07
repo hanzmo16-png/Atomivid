@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { EditorialReview } from './editorial';
+import { locateNormalized } from './text-locate';
 type Beats = { narration: string; claims?: unknown }[];
 type Citation = { beatIndex: number; quote: string };
 export function editorialCitations(review: EditorialReview): { path: string; citation: Citation }[] {
@@ -14,7 +15,9 @@ export function resolveEditorialQuote(narration:string, quote:string):string|nul
  if(words(quote)<3)return null;
  if(narration.includes(quote))return quote;
  const fragments=quote.split(/\.{3}|…/).map(s=>s.trim());
- if(fragments.length<2 || fragments.some(s=>words(s)<3))return null;
+ // Typography/whitespace/edge punctuation never invalidate a real passage.
+ if(fragments.length<2)return locateNormalized(narration,quote);
+ if(fragments.some(s=>words(s)<3))return null;
  let first=-1,end=0;
  for(const fragment of fragments){
   const at=narration.indexOf(fragment);
@@ -78,7 +81,9 @@ export function applyEditorialCitationRepairs(review:EditorialReview,beats:Beats
  for(const patch of replacements){
   const target=expected.get(patch.path);
   if(!target || words(patch.quote)<3)throw new EditorialEvidenceError();
-  if(!beats[target.beatIndex]?.narration.includes(patch.quote)){
+  const literal=locateNormalized(beats[target.beatIndex]?.narration??'',patch.quote);
+  if(literal!==null)patch.quote=literal;
+  else {
    // Legacy correction responses can contain a real quote with a wrong block.
    // Repair the pointer only for ONE exact occurrence in the entire draft;
    // retain the original location and quote for audit. No fuzzy text matching.

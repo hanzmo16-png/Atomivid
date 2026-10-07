@@ -22,20 +22,26 @@ test('catalog contains only exact excerpts bound to immutable narration, includi
 test('referenced critic cannot invent quotes, locations, stale IDs, missing coverage or hide blockers',()=>{
  const {script,raw,catalog}=fixture();const validated=validateEditorialReview(resolveReferencedReview(raw,script.beats),script);
  assert.equal(validated.sections.length,script.beats.length);
- for(const patch of [{excerptId:'unknown'},{quote:'invented',excerptId:catalog[0].id},{beatIndex:2,excerptId:catalog[0].id}]){
+ for(const patch of [{excerptId:'unknown'},{excerptId:'unknown',quote:'invented words that never appear'}]){
   const bad=structuredClone(raw);Object.assign(bad.sections[0],patch);assert.throws(()=>resolveReferencedReview(bad,script.beats));
+ }
+ // The ID is authoritative: a stray copied quote or beatIndex is ignored, never trusted.
+ for(const patch of [{quote:'invented',excerptId:catalog[0].id},{beatIndex:2,excerptId:catalog[0].id}]){
+  const extra=structuredClone(raw);Object.assign(extra.sections[0],patch);const resolved=resolveReferencedReview(extra,script.beats);
+  assert.equal(resolved.sections[0].beatIndex,0);assert.equal(resolved.sections[0].quote,catalog[0].quote);
  }
  const changed=structuredClone(script);changed.beats[0].narration+=' Changed draft.';assert.throws(()=>resolveReferencedReview(raw,changed.beats));
  const missing=structuredClone(raw);missing.sections[4]=missing.sections[3];assert.throws(()=>validateEditorialReview(resolveReferencedReview(missing,script.beats),script));
  const blocked={...raw,findings:[{kind:'padding',severity:'blocking',evidence:[{excerptId:catalog[0].id}],explanation:'No new information.',repair:'Add a consequence.'}]};
  assert.equal(editorialBlockers(validateEditorialReview(resolveReferencedReview(blocked,script.beats),script)).length,1);
 });
-test('catalog contract flows through actual generator and refuses malformed references without a repair call',async()=>{
+test('catalog contract flows through actual generator; malformed references get one bounded ID repair, never approval',async()=>{
  const {script,raw}=fixture();let repairs=0,approved=false;
  const input={researchPack:{topic:'Archive',sources:[{id:'s1',title:'Archive',kind:'primary' as const}],openQuestions:[]},referenceContract:'catalog-v1' as const,mode:'curiosity_documentary' as const,targetDurationSeconds:180,parse:async()=>script,review:async({prompt}:{prompt:string})=>{assert.ok(JSON.parse(prompt).narrationExcerpts.length);return raw;},repairEvidence:async()=>{repairs++;return {};},onEditorialApproved:()=>{approved=true;}};
  await generateDocumentaryScript(input);assert.equal(approved,true);assert.equal(repairs,0);
  approved=false;const invalid=structuredClone(raw);invalid.sections[0].excerptId='invented';
- await assert.rejects(generateDocumentaryScript({...input,review:async()=>invalid}));assert.equal(approved,false);assert.equal(repairs,0);
+ // One bounded ID re-selection; an empty/invalid answer keeps it stopped and unapproved.
+ await assert.rejects(generateDocumentaryScript({...input,review:async()=>invalid}));assert.equal(approved,false);assert.equal(repairs,1);
 });
 
 test('real SDK completes writer, referenced critic and every visual block with no paid/network calls',async()=>{
