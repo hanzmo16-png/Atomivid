@@ -19,12 +19,13 @@ const issues = (schema: z.ZodType, v: unknown) => {
 async function main() {
   if (process.env.ANTHROPIC_API_KEY) throw Error("Provider credential must not be present");
   const db = createClient(process.env.SUPABASE_URL!.trim(), process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(), { auth: { persistSession: false, autoRefreshToken: false } });
-  const jobs = await db.from("documentary_script_jobs").select("id,user_id,topic,status,stage,error_message,run_token,created_at,updated_at,editorial_checkpoint,input").order("created_at", { ascending: true });
-  if (jobs.error) throw Error("jobs read");
+  const jobs = await db.from("documentary_script_jobs").select("id,user_id,topic,status,stage,error_message,run_token,created_at,updated_at,editorial_checkpoint,input,failure_kind,error_code,retry_count,editorial_rounds,resubmit_allowance").order("created_at", { ascending: true });
+  if (jobs.error) throw Error(`jobs read: ${jobs.error.code ?? ""} ${jobs.error.message ?? ""}`.slice(0, 200));
+  console.log("SCHEMA", JSON.stringify({ newColumnsReadable: true }));
   for (const j of jobs.data ?? []) {
     const cp = j.editorial_checkpoint as { pass?: number; review?: unknown; script?: { beats?: { narration: string }[] } } | null;
     console.log("JOB", JSON.stringify({ id: j.id.slice(0, 8), owner: h(j.user_id), topicHash: h(j.topic), gucci: /gucci/i.test(j.topic), status: j.status, stage: j.stage,
-      error: j.error_message, running: !!j.run_token, created: j.created_at, updated: j.updated_at,
+      error: j.error_message, running: !!j.run_token, failureKind: j.failure_kind, errorCode: j.error_code, retries: j.retry_count, rounds: j.editorial_rounds, resubmits: j.resubmit_allowance, created: j.created_at, updated: j.updated_at,
       minutes: j.input?.fields?.durationMinutes, language: j.input?.fields?.language, sourcesChars: j.input?.fields?.sources?.length, contract: j.input?.referenceContract ?? null,
       checkpoint: cp ? { pass: cp.pass, reviewed: !!cp.review, beats: cp.script?.beats?.length, words: cp.script?.beats?.reduce((n, b) => n + b.narration.split(/\s+/).length, 0) } : null }));
   }
