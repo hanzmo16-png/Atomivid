@@ -49,7 +49,7 @@ export type StrategyPreflight = {
   globalNote: string | null;
 };
 
-const LABEL: Record<string, string> = { elevenlabs: "ElevenLabs (voz)", openai: "OpenAI (imágenes)", runway: "Runway (video IA)", veo: "Veo (video IA)", beatoven: "Beatoven (música)", anthropic: "Anthropic (guion)", bfl: "BFL (imágenes)", luma: "Luma (video IA)", ltx: "LTX (video IA)" };
+const LABEL: Record<string, string> = { heygen: "HeyGen (avatar)", elevenlabs: "ElevenLabs (voz)", openai: "OpenAI (imágenes)", runway: "Runway (video IA)", veo: "Veo (video IA)", beatoven: "Beatoven (música)", anthropic: "Anthropic (guion)", bfl: "BFL (imágenes)", luma: "Luma (video IA)", ltx: "LTX (video IA)" };
 const UNIT: Record<string, string> = { character: "caracteres", usd: "USD", credit: "créditos" };
 const label = (p: string) => LABEL[p] ?? p;
 const ceil2 = (n: number) => Math.ceil(n * 100) / 100;
@@ -61,6 +61,8 @@ export function providerCheck(row: ProviderReadiness, unit: string): ProviderChe
   const perUnitUsd = row.units && row.units > 0 ? row.usd / row.units : null;
   if (row.failure === "supplier balance unavailable" && row.level !== "UNKNOWN" && row.free !== null && row.units !== null) {
     const shortfall = Math.max(0, row.units - row.free);
+    // USD-denominated balances: exact cents, never rounded to whole dollars.
+    if (unit === "usd") return { ...base, verdict: "Insuficiente", action: `Recarga al menos ${ceil2(shortfall).toFixed(2)} USD en ${label(row.provider)}. Disponible: ${(Math.floor(row.free * 100) / 100).toFixed(2)} USD; necesario: ${ceil2(row.units).toFixed(2)} USD.` };
     const usd = perUnitUsd !== null ? ` (≈ ${ceil2(shortfall * perUnitUsd).toFixed(2)} USD)` : "";
     return { ...base, verdict: "Insuficiente", action: `Recarga al menos ${Math.ceil(shortfall).toLocaleString("es-MX")} ${UNIT[unit] ?? unit}${usd} en ${label(row.provider)}. Disponible: ${Math.floor(row.free).toLocaleString("es-MX")}; necesario: ${Math.ceil(row.units).toLocaleString("es-MX")}.` };
   }

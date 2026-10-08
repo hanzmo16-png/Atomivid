@@ -24,6 +24,9 @@ test("capacidad: Suficiente / Insuficiente con monto exacto / Sin verificar / to
   // Credit-priced providers convert the shortfall to USD with the demand's own rate.
   const credits = providerCheck(row({ provider: "runway", units: 50, free: 20, usd: 0.5, level: "GREEN", failure: "supplier balance unavailable" }), "credit");
   assert.match(credits.action!, /Recarga al menos 30 créditos \(≈ 0\.30 USD\) en Runway/);
+  // USD wallets (HeyGen avatar case): cents, not whole dollars.
+  const wallet = providerCheck(row({ provider: "heygen", units: 2, free: 1.23, usd: 2, level: "GREEN", failure: "supplier balance unavailable" }), "usd");
+  assert.equal(wallet.action, "Recarga al menos 0.77 USD en HeyGen (avatar). Disponible: 1.23 USD; necesario: 2.00 USD.");
 });
 
 test("bloqueo visual: mensaje accionable con identidades, pruebas y proporción de tarjetas (caso Bigfoot)", () => {
