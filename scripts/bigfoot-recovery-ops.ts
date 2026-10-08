@@ -280,7 +280,16 @@ async function visualAnchorDiagnostic() {
  const expected=catalog.filter(e=>e.beatIndex===2);
  log("VISUAL_ANCHORS",{visuals:raw.visuals.map((v,i)=>({index:i,id:/^[a-f0-9]{16}:b[0-9]+:w[0-9]+$/.test(v.excerptId)?v.excerptId:"non-catalog-shape",validId:expected.some(e=>e.id===v.excerptId),knownOtherBeat:catalog.find(e=>e.id===v.excerptId)?.beatIndex,quoteSupplied:typeof v.quote==="string",class:v.beatClass,impact:v.impact,hasReason:typeof v.impactReason==="string"})),expectedIds:expected.map(e=>e.id),referencesToApprovedDraftOnly:true});
 }
-const modes: Record<string, () => Promise<unknown>> = { "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+async function recoverVisualAnchors() {
+ const {db,job,projectId,ops}=await inspect();
+ if(job.status!=="failed"||job.failure_kind!=="technical"||job.error_code!=="d156ef2c"||job.run_token||job.retry_count!==3||job.editorial_rounds!==2||stableHash(job.editorial_checkpoint,16)!=="b8e5818d5d9e611b"||ops.length!==19||ops.some(o=>o.status!=="COMMITTED"))throw Error("exact approved visual incident required");
+ const {editorialBlockers}=await import("../src/lib/video/long-form/editorial");if(!job.editorial_checkpoint.review||editorialBlockers(job.editorial_checkpoint.review).length)throw Error("editorial blockers present");
+ const {client}=await connectResolved();try{const u=(await client.query("select public.pi_recovery_budget_usage($1) u",[projectId])).rows[0].u;if(u.status!=="ACTIVE"||Number(u.capUsd)!==2.1||u.baselineOperations!==5||Number(u.pendingUsd)!==0)throw Error("same original cap required");}finally{await client.end();}
+ const {data,error}=await db.from("documentary_script_jobs").update({status:"queued",run_token:null,failure_kind:null,error_code:null,error_message:null,stage:"Reanudando referencias del plan V6",updated_at:new Date().toISOString()}).eq("id",JOB_ID).eq("user_id",job.user_id).eq("status","failed").is("run_token",null).eq("updated_at",job.updated_at).select("id");
+ if(error||data?.length!==1)throw Error("incident lease lost");
+ log("ANCHOR_RECOVERY",{result:"queued",savedResponses:19,retryCountPreserved:3,editorialRoundPreserved:2,approvedNarrationPreserved:true,capPreserved:2.10,authorization:"owner 2026-10-08 consolidate V6; deployed anchor repair required"});
+}
+const modes: Record<string, () => Promise<unknown>> = { "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
