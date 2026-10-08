@@ -1,2 +1,2 @@
-heygen-policy
-# OWNER-AUTHORIZED 2026-10-08: configure HeyGen supply policy in production (guarded CAS; caps 20/150 and per-production cap unchanged; no spend, no generation)
+provider-config
+# signed probe: avatar start admission from Vercel (billing GET only; no reservation; amounts sealed)
