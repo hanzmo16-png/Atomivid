@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supplyGuardRequired } from "./server";
-import { reserveJobSupply, jobSupplyDemands } from "./job";
+import { reserveJobSupply, jobSupplyDemands, JobEnvelopeMismatchError } from "./job";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { SupplyUnavailableError } from "./policy";
 
@@ -26,7 +26,12 @@ export async function resumeSupplyQueue(service: SupabaseClient, trigger: (input
       || op.idempotency_key === `owner_pilot_grant:${row.id}`
       || ["SUBMITTED", "PROVIDER_JOB_RECORDED", "RECONCILIATION_REQUIRED"].includes(op.status))) continue;
     try { await reserveJobSupply(service, row.id, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name)); }
-    catch (error) { if (error instanceof SupplyUnavailableError) continue; throw error; }
+    catch (error) {
+      if (error instanceof SupplyUnavailableError) continue;
+      // Configuration inconsistency: never re-dispatch it (it would fail again); the others still resume.
+      if (error instanceof JobEnvelopeMismatchError) { console.error(`[atomivid:supply] envelope mismatch on ${error.provider}; not resumed`); continue; }
+      throw error;
+    }
     const { data: claimed, error: claimError } = await service.from("video_requests")
       .update({ supply_not_before: new Date(now + 600_000).toISOString() })
       .eq("id", row.id).eq("status", "processing").eq("progress_stage", "queued")
