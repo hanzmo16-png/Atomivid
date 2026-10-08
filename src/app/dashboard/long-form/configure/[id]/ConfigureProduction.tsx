@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -23,7 +23,7 @@ export type PreflightSummary = { modality: string; engine: string; requestedSeco
 const VERDICT_CLASS: Record<string, string> = { Suficiente: "text-success", Insuficiente: "text-danger", "Sin verificar": "text-warning" };
 
 /** What the user sees BEFORE starting; the same rules are enforced on the server (confirm + render). */
-export function PreflightPanel({ summary, preflight, visual, visualBlockText }: { summary: PreflightSummary; preflight: StrategyPreflight; visual: VisualCheck; visualBlockText: string | null }) {
+export function PreflightPanel({ summary, preflight, visual, visualBlockText, refresh }: { summary: PreflightSummary; preflight: StrategyPreflight; visual: VisualCheck; visualBlockText: string | null; refresh?: RefreshControl }) {
   return (
     <div className="mt-3 text-sm">
       <dl>
@@ -45,12 +45,25 @@ export function PreflightPanel({ summary, preflight, visual, visualBlockText }: 
               <span className="text-ink">{p.label}</span>
               <span className={`font-medium ${VERDICT_CLASS[p.verdict] ?? ""}`}>{p.verdict}</span>
             </div>
+            <p className="mt-1 text-xs text-ink-muted">{balanceProvenance(p)}</p>
+            {p.refreshError && <p className="mt-1 text-xs text-danger">{p.refreshError}</p>}
             {p.action && <p className="mt-1 text-xs text-ink-muted">{p.action}</p>}
           </li>
         ))}
         {preflight.providers.length === 0 && !preflight.globalNote && <li className="text-xs text-ink-muted">Este plan no requiere proveedores de pago adicionales.</li>}
       </ul>
       {preflight.globalNote && <p className="mt-2 text-xs text-warning">{preflight.globalNote}</p>}
+      {refresh && preflight.providers.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Button type="button" variant="secondary" onClick={refresh.onRefresh} loading={refresh.loading} disabled={refresh.cooldownSeconds > 0}>
+            {refresh.cooldownSeconds > 0 ? `Actualizar disponibilidad (${refresh.cooldownSeconds} s)` : "Actualizar disponibilidad"}
+          </Button>
+          <span className="text-xs text-ink-muted">
+            {refresh.checkedAt ? `Comprobado: ${formatWhen(refresh.checkedAt)}. ` : ""}Consulta el saldo al proveedor; no genera ni cobra nada. Un saldo consultado vale 5 minutos y se vuelve a comprobar al iniciar.
+          </span>
+          {refresh.error && <p role="alert" className="w-full text-xs text-danger">{refresh.error}</p>}
+        </div>
+      )}
       {visual.applies && (
         <>
           <h3 className="mt-3 text-xs font-medium uppercase tracking-wide text-ink-muted">Material visual verificado</h3>
@@ -68,6 +81,23 @@ export function PreflightPanel({ summary, preflight, visual, visualBlockText }: 
       )}
     </div>
   );
+}
+
+export type RefreshControl = { onRefresh: () => void; loading: boolean; cooldownSeconds: number; checkedAt: string | null; error: string | null };
+
+const WHEN = new Intl.DateTimeFormat("es-MX", { dateStyle: "short", timeStyle: "short" });
+function formatWhen(iso: string): string {
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? WHEN.format(new Date(t)) : iso;
+}
+
+/** Where the balance came from and when: the user can tell a provider reading from a manual entry. */
+export function balanceProvenance(p: StrategyPreflight["providers"][number]): string {
+  if (!p.snapshotAt) return "Saldo: sin lecturas registradas.";
+  const when = formatWhen(p.snapshotAt);
+  if (p.source === "provider_api") return `Saldo consultado al proveedor el ${when} (vale 5 minutos).`;
+  if (p.source === "manual_entry") return `Saldo registrado manualmente el ${when}; no se consulta al proveedor. Si recargaste, actualiza el registro.`;
+  return `Saldo: ${p.sourceLabel ?? "origen desconocido"}, ${when}.`;
 }
 
 const USD = new Intl.NumberFormat("es-MX", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -158,9 +188,41 @@ export function ConfigureProduction({
   const [packaging, setPackaging] = useState<LongFormPackaging | undefined>(defaultPackaging);
   const [packagingValid, setPackagingValid] = useState(true);
   const onValidityChange = useCallback((valid: boolean) => setPackagingValid(valid), []);
+  const [livePreflight, setLivePreflight] = useState(preflight);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [checkedAt, setCheckedAt] = useState<string | null>(null);
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [nowMs, setNowMs] = useState(0);
+  useEffect(() => {
+    if (cooldownUntil <= Date.now()) return;
+    const t = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [cooldownUntil]);
+  const cooldownSeconds = Math.max(0, Math.ceil((cooldownUntil - nowMs) / 1000));
+
+  async function handleRefresh() {
+    if (refreshing || cooldownSeconds > 0) return;
+    setRefreshing(true);
+    setRefreshError(null);
+    const started = Date.now();
+    setCooldownUntil(started + 60_000);
+    setNowMs(started);
+    try {
+      const res = await fetch(`/api/generate/${requestId}/refresh-capacity`, { method: "POST" });
+      const result = await safeParseJsonResponse<{ preflight: Record<VisualStrategy, StrategyPreflight>; checkedAt: string }>(res);
+      if (!result.ok) throw new Error(result.error);
+      setLivePreflight(result.data.preflight);
+      setCheckedAt(result.data.checkedAt);
+    } catch (err) {
+      setRefreshError(`No se pudo actualizar la disponibilidad: ${classifyClientFetchError(err)}`);
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   // Known, certain refusals are shown here and enforced on the server; "Sin verificar" is checked at the click.
-  const selectedPreflight = preflight?.[strategy];
+  const selectedPreflight = livePreflight?.[strategy];
   const blockedReason = !selectedPreflight ? null
     : !selectedPreflight.withinLimit ? "El costo estimado supera el límite autorizado."
     : visual && !visual.ready ? "Falta material visual verificado (ver Comprobación previa)."
@@ -233,7 +295,8 @@ export function ConfigureProduction({
       {summary && selectedPreflight && visual && (
         <Card className="mt-4 p-4">
           <h2 className="text-sm font-medium text-ink">Comprobación previa</h2>
-          <PreflightPanel summary={summary} preflight={selectedPreflight} visual={visual} visualBlockText={visualBlockText} />
+          <PreflightPanel summary={summary} preflight={selectedPreflight} visual={visual} visualBlockText={visualBlockText}
+            refresh={{ onRefresh: handleRefresh, loading: refreshing, cooldownSeconds, checkedAt, error: refreshError }} />
         </Card>
       )}
 

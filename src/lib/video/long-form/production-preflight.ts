@@ -23,6 +23,11 @@ export type ProviderCheck = {
   freeUnits: number | null;
   /** Actionable, exact when computable: what to top up or what will happen at the click. */
   action: string | null;
+  /** Latest balance observation: when, and whether the provider API or a manual entry reported it. */
+  snapshotAt?: string | null;
+  source?: "provider_api" | "manual_entry" | null;
+  sourceLabel?: string | null;
+  refreshError?: string | null;
 };
 export type VisualCheck = {
   applies: boolean;
@@ -71,13 +76,34 @@ export function providerCheck(row: ProviderReadiness, unit: string): ProviderChe
   return { ...base, verdict: "Sin verificar", action: `El saldo de ${label(row.provider)} no está verificado ahora. Se consulta al proveedor al iniciar (sin generar nada); si no se confirma, no se inicia ni se cobra.` };
 }
 
-export async function strategyPreflight(service: SupabaseClient, input: { strategy: VisualStrategy; plan: ProductionPlan; scriptJson: unknown; env?: Record<string, string | undefined> }): Promise<StrategyPreflight> {
+/** Latest capacity snapshot per provider (time + source), read-only. */
+export async function latestSnapshots(service: SupabaseClient, providers: string[]): Promise<Map<string, { checkedAt: string; reliability: string; health: string | null }>> {
+  const out = new Map<string, { checkedAt: string; reliability: string; health: string | null }>();
+  for (const provider of providers) {
+    const { data } = await service.from("pi_capacity_snapshots").select("checked_at,reliability,health").eq("provider", provider).order("checked_at", { ascending: false }).limit(1).maybeSingle();
+    if (data) out.set(provider, { checkedAt: data.checked_at, reliability: data.reliability, health: data.health ?? null });
+  }
+  return out;
+}
+
+export function sourceLabel(reliability: string | null | undefined): string | null {
+  if (reliability === "provider_api") return "consultado al proveedor";
+  if (reliability === "manual_entry") return "saldo registrado manualmente (no consultado al proveedor)";
+  return reliability ? reliability : null;
+}
+
+export async function strategyPreflight(service: SupabaseClient, input: { strategy: VisualStrategy; plan: ProductionPlan; scriptJson: unknown; env?: Record<string, string | undefined>; refreshErrors?: Record<string, string> }): Promise<StrategyPreflight> {
   const limitUsd = getLongFormBudget(input.env).maxTotalUsd;
   const out: StrategyPreflight = { strategy: input.strategy, estimatedUsd: input.plan.estimatedProviderCostUsd, limitUsd, withinLimit: input.plan.estimatedProviderCostUsd <= limitUsd, providers: [], capacityReady: false, globalNote: null };
   try {
     const demands = jobSupplyDemands({ mode: "long_form", script_json: input.scriptJson, recorded_audio_path: null, long_form_production_plan: input.plan }, input.plan.providers.voice);
     const readiness = await ensureJobSupplyReady(service, demands, { refresh: false });
-    out.providers = readiness.providers.map((r) => providerCheck(r, demands.find((d) => d.provider === r.provider)?.unit ?? "usd"));
+    const snaps = await latestSnapshots(service, readiness.providers.map((r) => r.provider)).catch(() => new Map());
+    out.providers = readiness.providers.map((r) => {
+      const snap = snaps.get(r.provider);
+      return { ...providerCheck(r, demands.find((d) => d.provider === r.provider)?.unit ?? "usd"),
+        snapshotAt: snap?.checkedAt ?? null, source: (snap?.reliability as ProviderCheck["source"]) ?? null, sourceLabel: sourceLabel(snap?.reliability), refreshError: input.refreshErrors?.[r.provider] ?? null };
+    });
     out.capacityReady = readiness.ready;
     if (!readiness.ready && readiness.failure?.provider === "production") {
       out.globalNote = readiness.failure.reason === "global funded spend ceiling"

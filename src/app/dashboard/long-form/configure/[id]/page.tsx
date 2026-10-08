@@ -5,7 +5,6 @@ import { lookupConfigurableRequest } from "@/lib/video/long-form/configure-looku
 import { narrativeTiming } from "@/lib/video/long-form/creative-direction";
 import { editorialApprovalError } from "@/lib/video/long-form/editorial";
 import {
-  getRealLongFormProviderNames,
   VISUAL_STRATEGIES,
   type ProductionPlan,
   type VisualStrategy,
@@ -13,7 +12,7 @@ import {
 import { ConfigureProduction } from "./ConfigureProduction";
 import { defaultPackaging, isOwnChannelAccount } from "@/lib/video/long-form/packaging";
 import { PRODUCT_DEFAULT_PLAN_VERSION, usesAnchoredVisuals } from "@/lib/video/long-form/production-plan-types";
-import { productPlan, type ProductPlanResult } from "@/lib/video/long-form/product-plan";
+import { configurePlans } from "@/lib/video/long-form/product-plan";
 import { cinematicV6Enabled } from "@/lib/video/long-form/cinematic-v6-access";
 import { createServiceClient } from "@/lib/supabase/service";
 import { canCurateAssets } from "@/lib/video/long-form/asset-curation";
@@ -50,19 +49,7 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
   const beats = script.beats.map((b) => ({ id: b.id, type: b.type, purpose: b.purpose, narration: b.narration, visuals: b.visuals }));
   // Misma decisión de versión que confirm-production: v3 por defecto, v6 solo para cuentas habilitadas.
   const cinematicV6 = cinematicV6Enabled(user);
-  const results = Object.fromEntries(
-    VISUAL_STRATEGIES.map((strategy) => [
-      strategy,
-      productPlan({
-        beats,
-        topic: script.topic || data.topic,
-        strategy,
-        providers: getRealLongFormProviderNames(),
-        requestedDurationSeconds: data.duration_seconds ?? undefined,
-        cinematicV6,
-      }),
-    ]),
-  ) as Record<VisualStrategy, ProductPlanResult>;
+  const results = configurePlans({ script, topic: data.topic, durationSeconds: data.duration_seconds, cinematicV6 });
   const plans = Object.fromEntries(VISUAL_STRATEGIES.map((s) => [s, results[s].plan])) as Record<VisualStrategy, ProductionPlan>;
   const engine = results.balanced;
   // Pre-flight (read-only, server-side): same capacity rule as the start click and same visual gate as the worker.
