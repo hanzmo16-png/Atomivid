@@ -496,7 +496,23 @@ async function altBScenarios() {
   }
 }
 
-const modes: Record<string, () => Promise<unknown>> = { "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+/** Signed probe of the RUNNING production deployment (presence/counts only; never a value). Waits for the route to go live. */
+async function providerConfig() {
+  const { randomUUID } = await import("node:crypto");
+  const { PROVIDER_CONFIG_PATH, providerConfigSignature } = await import("../src/lib/ops/provider-config");
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!.trim();
+  for (let attempt = 1; attempt <= 30; attempt++) {
+    const nonce = randomUUID(), timestamp = String(Date.now());
+    const res = await fetch(`https://atomivid.vercel.app${PROVIDER_CONFIG_PATH}`, { method: "POST", redirect: "error", signal: AbortSignal.timeout(30_000),
+      headers: { "x-probe-nonce": nonce, "x-probe-time": timestamp, "x-probe-signature": providerConfigSignature(key, nonce, timestamp) } }).catch(() => null);
+    if (res?.ok) { log("PROVIDER_CONFIG", await res.json()); return; }
+    log("PROVIDER_CONFIG_WAIT", { attempt, status: res?.status ?? "network" });
+    await new Promise((r) => setTimeout(r, 20_000));
+  }
+  throw Error("probe route not live");
+}
+
+const modes: Record<string, () => Promise<unknown>> = { "provider-config": providerConfig, "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
