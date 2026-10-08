@@ -1,2 +1,2 @@
 coverage-scenarios
-# read-only: existing preflight with in-memory hypothetical approvals; nothing proposed, approved or written
+# read-only rerun with shot-level types
