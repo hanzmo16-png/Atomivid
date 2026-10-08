@@ -526,6 +526,13 @@ async function heygenDbState() {
   }
 }
 
+/** Read-only: every supply policy's parameters (no secrets) to validate a proposed HeyGen policy against existing conventions. */
+async function supplyPolicies() {
+  const db = service();
+  const { data } = await db.from("pi_supply_policies").select("provider,enabled,unit,unit_cost_usd,baseline,daily_forecast,max_concurrent,max_daily_calls,daily_cap_usd,monthly_cap_usd,timezone,evidence").order("provider");
+  log("SUPPLY_POLICIES", (data ?? []).map((p) => ({ ...p, evidence: String(p.evidence ?? "").trim() ? `present(${String(p.evidence).trim().length} chars)` : "empty" })));
+}
+
 /** Signed probe of the RUNNING production deployment (presence/counts only; never a value). Waits for the route to go live. */
 async function providerConfig() {
   const { randomUUID } = await import("node:crypto");
@@ -556,7 +563,7 @@ async function providerConfig() {
   throw Error("probe route not live");
 }
 
-const modes: Record<string, () => Promise<unknown>> = { "provider-config": providerConfig, "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+const modes: Record<string, () => Promise<unknown>> = { "supply-policies": supplyPolicies, "provider-config": providerConfig, "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });

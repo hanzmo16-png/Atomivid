@@ -1,2 +1,2 @@
-provider-config
-# signed probe: ElevenLabs + HeyGen runtime state, read-only HeyGen admission (no values, no spend)
+supply-policies
+# read-only: list supply policy parameters to validate the HeyGen proposal
