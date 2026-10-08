@@ -2,7 +2,7 @@ name: Read-only documentary jobs diagnosis
 on:
   push:
     branches: [claude/hola-sn3dxy]
-    paths: [.github/workflows/documentary-jobs-diagnostic.yml, scripts/replay-bigfoot-job.ts]
+    paths: [.github/workflows/documentary-jobs-diagnostic.yml, scripts/replay-bigfoot-job.ts, scripts/diagnose-bigfoot-fragments.ts]
 permissions:
   contents: read
 jobs:
@@ -76,3 +76,8 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           CINEMATIC_V6_ENABLED_EMAILS: ${{ secrets.CINEMATIC_V6_ENABLED_EMAILS }}
           CINEMATIC_V6_ALL_USERS: ${{ vars.CINEMATIC_V6_ALL_USERS }}
+      - name: Writer fragment structure of the Bigfoot responses (read only, no content)
+        run: npx tsx scripts/diagnose-bigfoot-fragments.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
