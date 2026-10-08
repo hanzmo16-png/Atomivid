@@ -14,9 +14,12 @@ function anchored(v:Visual,catalog:NarrationExcerpt[],narration:string){return !
 export function applyVisualAnchorRepair(raw:{visuals:Visual[]},catalog:NarrationExcerpt[],targets:number[],value:unknown){
  const repair=RepairSchema.parse(value),wanted=new Set(targets),seen=new Set<number>();
  for(const r of repair.replacements){if(!wanted.has(r.index)||seen.has(r.index)||!catalog.some(e=>e.id===r.excerptId))throw new DocumentaryResponseError('La reparación visual eligió una referencia inválida.');seen.add(r.index);}
- if(seen.size!==wanted.size)throw new DocumentaryResponseError('La reparación visual no pudo respaldar todas las escenas.');
  const copy=structuredClone(raw);
  for(const r of repair.replacements)copy.visuals[r.index].excerptId=r.excerptId;
+ // The existing visual reader drops unanchorable scenes and requires at least
+ // two backed scenes. An omitted pointer never becomes guessed evidence.
+ copy.visuals=copy.visuals.filter((_,index)=>!wanted.has(index)||seen.has(index));
+ if(copy.visuals.length<2)throw new DocumentaryResponseError('La reparación visual no pudo respaldar suficientes escenas.');
  return copy;
 }
 
