@@ -1,0 +1,23 @@
+name: Read-only Bigfoot progress
+on:
+  push:
+    branches: [claude/hola-sn3dxy]
+    paths: [ops/bigfoot-progress.mode]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/bigfoot-recovery-ops.ts
+        env:
+          BIGFOOT_OPS_MODE: inspect
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

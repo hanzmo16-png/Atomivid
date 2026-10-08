@@ -23,6 +23,9 @@ import {
 import { getLongFormBudget } from "./cost";
 import { validatePackagingInput } from "./packaging";
 import { productPlan } from "./product-plan";
+import { usesVisualIdentity } from "./production-plan-types";
+import type { ProductionPlanBeatInput } from "./production-plan";
+import { visualBlockMessage, visualCheck, type VisualCheck } from "./production-preflight";
 
 export function isVisualStrategyValue(value: unknown): value is VisualStrategy {
   return typeof value === "string" && (VISUAL_STRATEGIES as readonly string[]).includes(value);
@@ -54,6 +57,8 @@ export async function confirmLongFormProduction(
     nowIso?: string;
     /** Cuenta con Cinematic V6 (cinematic-v6-access.ts, decidido server-side). Sin él, el plan es v3. */
     cinematicV6?: boolean;
+    /** Tests only: replaces the visual release check (production always uses visualCheck). */
+    visualGate?: (plan: ProductionPlan) => Promise<VisualCheck>;
   },
 ): Promise<ConfirmProductionResult> {
   if (!isVisualStrategyValue(input.strategy)) return { ok: false, status: 400, error: "Estrategia visual inválida" };
@@ -107,6 +112,13 @@ export async function confirmLongFormProduction(
       status: 409,
       error: `El costo estimado ($${plan.estimatedProviderCostUsd.toFixed(2)}) supera el tope de producción configurado ($${budget.maxTotalUsd.toFixed(2)}). Elige una estrategia más económica.`,
     };
+  }
+
+  // Visual release gate (v4+): the plan is never locked while the worker would refuse it before spending.
+  if (usesVisualIdentity(plan)) {
+    const script = data.script_json as unknown as { topic: string; beats: ProductionPlanBeatInput[] };
+    const visual = await (input.visualGate ?? ((p: ProductionPlan) => visualCheck(service, { requestId: input.requestId, plan: p, beats: script.beats, topic: script.topic || data.topic || "" })))(plan);
+    if (!visual.ready) return { ok: false, status: 409, error: visualBlockMessage(visual) };
   }
 
   const confirmedAt = input.nowIso ?? new Date().toISOString();

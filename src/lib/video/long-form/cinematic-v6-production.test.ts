@@ -174,14 +174,22 @@ function fakeService(initial: Record<string, unknown>) {
 test("confirm-production: v6 solo con cinematicV6 del servidor; sin él, v3; una confirmación existente nunca cambia de versión", async () => {
   const script = { topic: SHOWCASE_TOPIC, beats: withImpact(showcaseBeats) };
   const base = { id: "req-1", mode: "long_form", user_id: "user-1", status: "script_ready", topic: SHOWCASE_TOPIC, script_json: script, long_form_production_plan: null, long_form_confirmed_at: null };
+  // Sin material verificado curado, el plan v6 NO se fija (el worker lo rechazaría antes de gastar): 409 y nada escrito.
+  const blocked = fakeService(base);
+  const rb = await confirmLongFormProduction(blocked.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", cinematicV6: true });
+  assert.equal(rb.ok, false);
+  if (!rb.ok) { assert.equal(rb.status, 409); assert.match(rb.error, /no puede iniciar todavía.*no se confirmó, reservó ni cobró nada/); }
+  assert.equal(blocked.row.long_form_confirmed_at, null);
+  // Con la verificación visual superada, se confirma en v6.
+  const ready = { applies: true, ready: true, codes: [], missingHeroIdentities: 0, missingHeroEvidence: 0, textCardRatio: 0, maxTextCardRatio: 0.25, verifiedAssets: 6 };
   const owner = fakeService(base);
-  const r6 = await confirmLongFormProduction(owner.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", cinematicV6: true });
+  const r6 = await confirmLongFormProduction(owner.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", cinematicV6: true, visualGate: async () => ready });
   assert.equal(r6.ok && r6.plan.version, 6);
   const other = fakeService(base);
   const r3 = await confirmLongFormProduction(other.client, { requestId: "req-1", userId: "user-1", strategy: "balanced" });
   assert.equal(r3.ok && r3.plan.version, 3);
   // Ya confirmado en v3: activar V6 después no lo reescribe.
-  const again = await confirmLongFormProduction(other.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", cinematicV6: true });
+  const again = await confirmLongFormProduction(other.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", cinematicV6: true, visualGate: async () => ready });
   assert.equal(again.ok && again.alreadyConfirmed && again.plan.version, 3);
   // Guion anterior (sin impacto) de una cuenta habilitada: v3.
   const legacy = fakeService({ ...base, script_json: documentary180sFixture(), topic: documentary180sFixture().topic });

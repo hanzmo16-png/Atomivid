@@ -63,6 +63,7 @@ async function inspect() {
     ledger: ops.map((o) => ({ key: h10(o.idempotency_key), status: o.status, reserved: o.reserved_usd, committed: o.committed_usd })),
     committed: ops.filter((o) => o.status === "COMMITTED").length,
     uncertain: ops.filter((o) => UNCERTAIN.includes(o.status)).length,
+    editorial: job.editorial_checkpoint?.review ? {firstDelivered:job.editorial_checkpoint.review.firstAnswer?.delivered,endingResolved:job.editorial_checkpoint.review.ending?.resolvesPromise,sectionFunctions:job.editorial_checkpoint.review.sections?.map((x:any)=>x.function),findings:job.editorial_checkpoint.review.findings?.map((x:any)=>({kind:x.kind,severity:x.severity}))}:null,
     checkpoint: cp ? { status: cp.status, pass: cp.pass, reviewed: !!cp.review, hash: stableHash(cp, 16) } : null,
   };
   log("INSPECT", summary);
@@ -199,13 +200,149 @@ async function v6Check() {
       workerAdmission = `admitted (plan v${plan.version})`;
     } catch (e) { workerAdmission = `refused: ${e instanceof Error ? e.message.slice(0, 120) : "error"}`; }
   }
-  log("V6_CHECK", { request: { status: req.status, mode: req.mode, confirmed: !!req.long_form_confirmed_at, editorial: script.editorial?.status },
+  let visualReadiness:unknown={checked:false};
+  if(v6){const [{planSequenceShots},{resolveSequences,PLAN_ESTIMATE_AVAILABILITY,registryAvailability},{heroCoverage,VerifiedAssetRegistry},{requestedContracts,isAuthorizedCurator},{planReleaseBlockers},{containsFixtureOnlyMaterial}]=await Promise.all([import("../src/lib/video/long-form/sequence-direction"),import("../src/lib/video/long-form/sequence-intent"),import("../src/lib/video/long-form/verified-assets"),import("../src/lib/video/long-form/asset-curation"),import("../src/lib/video/long-form/cinematic-director"),import("../src/lib/video/long-form/fixture-only")]);
+  const estimate=planSequenceShots(beats,resolveSequences(v6.plan.sequences!,PLAN_ESTIMATE_AVAILABILITY)).shots;
+  const f=await db.storage.from("videos").download(req.id+"/state/curation.json");let registry=VerifiedAssetRegistry.empty();let assetState="no curated asset file";
+  if(!f.error&&f.data){const raw=JSON.parse(await f.data.text());if(containsFixtureOnlyMaterial(raw))throw Error("fixture assets in real request");registry=VerifiedAssetRegistry.rehydrate(raw,{requestId:req.id,isAuthorizedCurator,requestedContracts:new Set(requestedContracts(estimate).keys())});assetState=process.env.ASSET_CURATOR_EMAILS?"curation checked":"file present; curator authority unavailable in this diagnostic";}
+  const shots=planSequenceShots(beats,resolveSequences(v6.plan.sequences!,registryAvailability(registry))).shots;
+  const coverage=heroCoverage(shots,registry,0.25);const blockers=planReleaseBlockers(shots).map(x=>x.code);
+  visualReadiness={checked:true,assetState,verifiedAssets:registry.size,blockerCodes:[...blockers,...coverage.blockers],missingHeroIdentities:coverage.heroMissingRequiredIdentities.length,missingHeroEvidence:coverage.heroMissingRequiredEvidence.length,ready:blockers.length===0&&coverage.blockers.length===0};
+  }
+  log("TRANSITION_FIELDS",{scenes:script.beats.flatMap((b,beatIndex)=>(b.visuals??[]).flatMap((v,visualIndex)=>v.beatClass==="TRANSITION"?[{beatIndex,visualIndex,motion:v.motion,actionType:typeof v.action,actionLength:typeof v.action==="string"?(v.action as string).trim().length:null,hasIdentity:!!v.identity,hasEvidence:!!v.evidence}]:[]))});
+  log("V6_CHECK", { curatorEnvConfigured: !!process.env.ASSET_CURATOR_EMAILS, curatorConfigHash: process.env.ASSET_CURATOR_EMAILS ? h10(process.env.ASSET_CURATOR_EMAILS.split(",").map(s=>s.trim().toLowerCase()).sort().join(",")) : null, visualReadiness, request: { status: req.status, mode: req.mode, confirmed: !!req.long_form_confirmed_at, editorial: script.editorial?.status },
     beats: script.beats.length, visuals: visuals.length, visualsWithImpact: withImpact.length, visualsWithClass: withClass.length,
     workerEnvEnabled: enabled, plans: results.map((r) => ({ strategy: r.strategy, version: r.plan.version, engine: r.engine, reason: r.reason, sequences: r.plan.sequences?.length ?? 0, estimatedUsd: r.plan.estimatedProviderCostUsd })),
     workerAdmission, configurePath: `/dashboard/long-form/configure/${job.request_id}` });
 }
 
-const modes: Record<string, () => Promise<unknown>> = { "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+
+async function applyReviewedResumeMigration() {
+  // Explicit owner-authorized operator route for this reviewed function definition.
+  // Generic migration safety scanning stays unchanged. No recovery budget is reopened here.
+  const { readFile } = await import("node:fs/promises");
+  const name = "20261008131541_documentary_recovery_resume.sql";
+  const sql = await readFile(`supabase/migrations/${name}`, "utf8");
+  if (createHash("sha256").update(sql).digest("hex") !== "07dcca76b4cf7d03fe33e5003c6259cc5a6bace76f97e056929d0288e4ffcfcd") throw Error("reviewed migration hash mismatch");
+  const { client } = await connectResolved();
+  try {
+    const before = (await client.query("select public.pi_recovery_budget_usage($1) u", [projectOf((await loadJob()).job)])).rows[0].u;
+    if (Number(before?.capUsd) !== 2.10 || before.baselineOperations !== 5 || before.status !== "CLOSED" || Number(before.pendingUsd) !== 0) throw Error("migration preconditions not met");
+    await client.query("begin");
+    try {
+      const applied = (await client.query("select 1 from public._migrations_applied where name=$1", [name])).rows.length;
+      if (!applied) { await client.query(sql); await client.query("insert into public._migrations_applied(name) values($1)", [name]); }
+      const perms = (await client.query("select has_function_privilege('service_role','public.pi_resume_recovery_budget(uuid,text)','execute') app_exec, has_function_privilege('anon','public.pi_resume_recovery_budget(uuid,text)','execute') anon_exec")).rows[0];
+      if (perms.app_exec || perms.anon_exec) throw Error("operator function exposed");
+      const after = (await client.query("select public.pi_recovery_budget_usage($1) u", [projectOf((await loadJob()).job)])).rows[0].u;
+      if (JSON.stringify(before) !== JSON.stringify(after)) throw Error("migration changed budget");
+      await client.query("commit");
+      log("REVIEWED_MIGRATION", { name, applied: !applied, operatorOnly: true, budgetUnchanged: true, hashVerified: true });
+    } catch(error) { await client.query("rollback"); throw error; }
+  } finally { await client.end(); }
+}
+
+async function reviewFormatDiagnostic() {
+ const { db, job } = await loadJob(); const projectId=projectOf(job);
+ if(h10(projectId)!==EXPECTED_PROJECT_HASH) throw Error("scope mismatch");
+ const ops=await ledger(db,projectId); const o=ops.filter(x=>x.status==="COMMITTED").at(-1);
+ if(!o?.result_ref) throw Error("missing saved response");
+ const f=await db.storage.from("videos").download(o.result_ref); if(f.error||!f.data) throw Error("download");
+ const r=JSON.parse(await f.data.text()); const t=r.content.filter((b:any)=>b.type==="text").map((b:any)=>b.text??"").join("").trim();
+ const j=t.replace(/^\x60\x60\x60(?:json)?\\s*\\n([\\s\\S]*?)\\n\x60\x60\x60$/i,"$1");
+ let valid=false,offset:number|null=null;try{JSON.parse(j);valid=true;}catch(e){const m=(e instanceof Error?e.message:"").match(/position (\\d+)/);offset=m?Number(m[1]):null;const lc=(e instanceof Error?e.message:"").match(/line (\d+) column (\d+)/);if(offset===null&&lc){const lines=j.split("\\n");offset=lines.slice(0,Number(lc[1])-1).reduce((n:number,l:string)=>n+l.length+1,0)+Number(lc[2])-1;} log("JSON_ERROR_KIND",{knownReason:["Expected property name","Expected ',' or '}'","Expected ',' or ']'","Unterminated string","Bad control character","Unexpected non-whitespace character","Unexpected token","Expected ':'"].find(k=>(e instanceof Error?e.message:"").startsWith(k))??"other",line:lc?Number(lc[1]):null,column:lc?Number(lc[2]):null});}
+ if(offset!==null){const {LenientReferencedReviewSchema}=await import("../src/lib/video/long-form/narration-catalog");for(const [kind,x] of [["insert-object-end",j.slice(0,offset)+"}"+j.slice(offset)],["replace-array-end",j.slice(0,offset)+"}"+j.slice(offset+1)],["delete-array-end",j.slice(0,offset)+j.slice(offset+1)]] as const){try{const v=JSON.parse(x);const p=LenientReferencedReviewSchema.safeParse(v);log("SYNTAX_CANDIDATE",{kind,validJson:true,validSchema:p.success,issues:p.success?[]:p.error.issues.map(i=>({code:i.code,path:i.path}))});}catch{log("SYNTAX_CANDIDATE",{kind,validJson:false});}}}
+ const c=offset===null?"":j[offset]; const classify=(c:string)=>!c?"end":/[{}\\[\\]:,"]/.test(c)?c:/\\s/.test(c)?"whitespace":/[0-9]/.test(c)?"digit":/[A-Za-z]/.test(c)?"letter":"other";
+ const {readEditorialJson}=await import("../src/lib/video/long-form/editorial-json");const {LenientReferencedReviewSchema}=await import("../src/lib/video/long-form/narration-catalog");try{readEditorialJson(r,LenientReferencedReviewSchema);log("STRICT_READER",{acceptedComplete:true});}catch{log("STRICT_READER",{acceptedComplete:false});}
+ log("REVIEW_FORMAT",{key:h10(o.idempotency_key),stopReason:r.stop_reason,textLength:t.length,startsObject:j.startsWith("{"),endsObject:j.endsWith("}"),fenceWrapped:t.startsWith("\x60\x60\x60"),validJson:valid,offset,codePoint:c.codePointAt(0),syntaxWindow:offset===null?null:[...j.slice(Math.max(0,offset-35),offset+35)].map(x=>/[A-Za-z0-9]/.test(x)?"x":/\s/.test(x)?" ":x).join(""),character:classify(c),previous:offset===null?null:classify(j[offset-1]),next:offset===null?null:classify(j[offset+1]),braceBalance:[...j].reduce((n,c)=>n+(c==="{"?1:c==="}"?-1:0),0)});
+}
+async function recoverAfterFormatFix() {
+ const {db,job,projectId,ops}=await inspect();
+ if(job.status!=="failed"||job.failure_kind!=="technical"||job.error_code!=="c5a8f5bc"||job.run_token||job.retry_count!==3||job.editorial_rounds!==1||stableHash(job.editorial_checkpoint,16)!=="11c480c175465e40"||ops.length!==13||ops.some(o=>o.status!=="COMMITTED")) throw Error("exact saved format incident required");
+ const {client}=await connectResolved();
+ try {const usage=(await client.query("select public.pi_recovery_budget_usage($1) u",[projectId])).rows[0].u;
+ if(usage.status!=="ACTIVE"||Number(usage.capUsd)!==2.1||usage.baselineOperations!==5||Number(usage.pendingUsd)!==0)throw Error("same active cap required");}finally{await client.end();}
+ const o=ops.at(-1)!;const f=await db.storage.from("videos").download(o.result_ref);if(f.error||!f.data)throw Error("saved review unavailable");
+ const {readEditorialJson}=await import("../src/lib/video/long-form/editorial-json");
+ const {LenientReferencedReviewSchema}=await import("../src/lib/video/long-form/narration-catalog");
+ const {sectionFunctionRepairTargets}=await import("../src/lib/video/long-form/editorial-function-repair");
+ const value=readEditorialJson(JSON.parse(await f.data.text()),LenientReferencedReviewSchema);
+ const targets=sectionFunctionRepairTargets(value,LenientReferencedReviewSchema);
+ if(!targets||targets.length!==1||targets[0]!==3)throw Error("saved syntax repair mismatch");
+ const {data,error}=await db.from("documentary_script_jobs").update({status:"queued",run_token:null,failure_kind:null,error_code:null,error_message:null,stage:"Reanudando tras corregir el formato guardado",updated_at:new Date().toISOString()}).eq("id",JOB_ID).eq("user_id",job.user_id).eq("status","failed").is("run_token",null).eq("updated_at",job.updated_at).select("id");
+ if(error||data?.length!==1)throw Error("incident lease lost");
+ log("FORMAT_RECOVERY",{result:"queued",savedResponses:13,retryCountPreserved:3,editorialRoundPreserved:1,capPreserved:2.10,originalCheckpointPreserved:true,ownerAuthorization:"2026-10-08 consolidate V6 and produce; after deployed format fix only"});
+}
+async function visualAnchorDiagnostic() {
+ const {db,job,projectId,ops}=await inspect();if(h10(projectId)!==EXPECTED_PROJECT_HASH)throw Error("scope mismatch");
+ const {narrationCatalog}=await import("../src/lib/video/long-form/narration-catalog");const catalog=narrationCatalog(job.editorial_checkpoint.script.beats);const o=ops.at(-1)!;
+ const f=await db.storage.from("videos").download(o.result_ref);if(f.error||!f.data)throw Error("download");
+ const {readDocumentaryJson}=await import("../src/lib/video/long-form/json-response");const raw=readDocumentaryJson(JSON.parse(await f.data.text())) as {visuals:any[]};
+ const expected=catalog.filter(e=>e.beatIndex===2);
+ log("VISUAL_ANCHORS",{visuals:raw.visuals.map((v,i)=>({index:i,id:/^[a-f0-9]{16}:b[0-9]+:w[0-9]+$/.test(v.excerptId)?v.excerptId:"non-catalog-shape",validId:expected.some(e=>e.id===v.excerptId),knownOtherBeat:catalog.find(e=>e.id===v.excerptId)?.beatIndex,quoteSupplied:typeof v.quote==="string",class:v.beatClass,impact:v.impact,hasReason:typeof v.impactReason==="string"})),expectedIds:expected.map(e=>e.id),referencesToApprovedDraftOnly:true});
+}
+async function recoverVisualAnchors() {
+ const {db,job,projectId,ops}=await inspect();
+ if(job.status!=="failed"||job.failure_kind!=="technical"||!((job.error_code==="d156ef2c"&&ops.length===19)||(job.error_code==="e6f2edd6"&&ops.length===20))||job.run_token||job.retry_count!==3||job.editorial_rounds!==2||stableHash(job.editorial_checkpoint,16)!=="b8e5818d5d9e611b"||ops.some(o=>o.status!=="COMMITTED"))throw Error("exact approved visual incident required");
+ if(ops.length===20){const f=await db.storage.from("videos").download(ops.at(-1)!.result_ref);if(f.error||!f.data)throw Error("saved repair missing");const {readDocumentaryJson}=await import("../src/lib/video/long-form/json-response");const {narrationCatalog}=await import("../src/lib/video/long-form/narration-catalog");const ids=new Set(narrationCatalog(job.editorial_checkpoint.script.beats).filter(e=>e.beatIndex===2).map(e=>e.id));const r=readDocumentaryJson(JSON.parse(await f.data.text())) as {replacements:{index:number;excerptId:string}[]};if(JSON.stringify(r.replacements.map(x=>x.index))!=="[0,1,4,5,7]"||r.replacements.some(x=>!ids.has(x.excerptId)))throw Error("exact five backed scenes required");}
+ const {editorialBlockers}=await import("../src/lib/video/long-form/editorial");if(!job.editorial_checkpoint.review||editorialBlockers(job.editorial_checkpoint.review).length)throw Error("editorial blockers present");
+ const {client}=await connectResolved();try{const u=(await client.query("select public.pi_recovery_budget_usage($1) u",[projectId])).rows[0].u;if(u.status!=="ACTIVE"||Number(u.capUsd)!==2.1||u.baselineOperations!==5||Number(u.pendingUsd)!==0)throw Error("same original cap required");}finally{await client.end();}
+ const {data,error}=await db.from("documentary_script_jobs").update({status:"queued",run_token:null,failure_kind:null,error_code:null,error_message:null,stage:"Reanudando referencias del plan V6",updated_at:new Date().toISOString()}).eq("id",JOB_ID).eq("user_id",job.user_id).eq("status","failed").is("run_token",null).eq("updated_at",job.updated_at).select("id");
+ if(error||data?.length!==1)throw Error("incident lease lost");
+ log("ANCHOR_RECOVERY",{result:"queued",savedResponses:ops.length,retryCountPreserved:3,editorialRoundPreserved:2,approvedNarrationPreserved:true,capPreserved:2.10,authorization:"owner 2026-10-08 consolidate V6; deployed anchor repair required"});
+}
+async function visualRepairDiagnostic(){
+ const {db,job,ops}=await inspect();const {narrationCatalog}=await import("../src/lib/video/long-form/narration-catalog");const ids=new Set(narrationCatalog(job.editorial_checkpoint.script.beats).filter(e=>e.beatIndex===2).map(e=>e.id));
+ const {readDocumentaryJson}=await import("../src/lib/video/long-form/json-response");const f=await db.storage.from("videos").download(ops.at(-1)!.result_ref);if(f.error||!f.data)throw Error("download");const r=readDocumentaryJson(JSON.parse(await f.data.text())) as {replacements:{index:number;excerptId:string}[]};
+ log("VISUAL_REPAIR",{selected:r.replacements.map(x=>({index:x.index,validId:ids.has(x.excerptId)})),omitted:Array.from({length:8},(_,i)=>i).filter(i=>!r.replacements.some(x=>x.index===i))});
+}
+async function verifyBackedScenes(){
+ const {db,job,ops}=await inspect();if(ops.length!==20||job.error_code!=="e6f2edd6")throw Error("exact incident required");
+ const {readDocumentaryJson}=await import("../src/lib/video/long-form/json-response");const {narrationCatalog}=await import("../src/lib/video/long-form/narration-catalog");const {applyVisualAnchorRepair}=await import("../src/lib/video/long-form/visual-anchor-repair");
+ const read=async(o:any)=>{const f=await db.storage.from("videos").download(o.result_ref);if(f.error||!f.data)throw Error("download");return readDocumentaryJson(JSON.parse(await f.data.text()));};
+ const original=await read(ops[18]) as {visuals:any[]};const repair=await read(ops[19]);const catalog=narrationCatalog(job.editorial_checkpoint.script.beats).filter(e=>e.beatIndex===2);
+ const result=applyVisualAnchorRepair(original,catalog,Array.from({length:8},(_,i)=>i),repair);const indices=[0,1,4,5,7];
+ const unchanged=result.visuals.every((v,i)=>stableHash({...v,excerptId:original.visuals[indices[i]].excerptId},16)===stableHash(original.visuals[indices[i]],16));
+ if(result.visuals.length!==5||!unchanged)throw Error("preservation failed");
+ log("BACKED_SCENES",{kept:5,discardedUnsupported:3,allRetainedFieldsUnchanged:unchanged,approvedNarrationUnchanged:true,cachedRepairReused:true,newPaidCalls:0,productionWrites:0});
+}
+/** Read-only provider capacity: the same pi_supply_state the paid-call gate uses, plus the latest balance snapshot time. */
+async function supplyCheck() {
+  const db = service();
+  const { data: policies, error } = await db.from("pi_supply_policies").select("provider,enabled,unit,unit_cost_usd,daily_cap_usd,monthly_cap_usd,max_concurrent,timezone").order("provider");
+  if (error) throw Error(`policies read failed ${error.code ?? ""}`);
+  const rows = [];
+  for (const p of policies ?? []) {
+    const { data: state, error: se } = await db.rpc("pi_supply_state", { p_provider: p.provider });
+    const { data: snap } = await db.from("pi_capacity_snapshots").select("checked_at,health,status,reliability,available,unit").eq("provider", p.provider).order("checked_at", { ascending: false }).limit(1).maybeSingle();
+    const st = (state ?? {}) as Record<string, unknown>;
+    const level = se ? "UNKNOWN" : String(st.level ?? "UNKNOWN");
+    rows.push({ provider: p.provider, enabled: p.enabled, level, verdict: level === "GREEN" || level === "YELLOW" ? "Suficiente" : level === "RED" ? "Insuficiente" : "Sin verificar",
+      reason: st.reason ?? (se ? `rpc ${se.code}` : null), unit: p.unit, free: st.free ?? null, unreserved: st.unreserved ?? null, activeCalls: st.activeCalls ?? null,
+      dailyCapUsd: p.daily_cap_usd, monthlyCapUsd: p.monthly_cap_usd, snapshotAt: snap?.checked_at ?? null, snapshotHealth: snap?.health ?? null, snapshotSource: snap?.reliability ?? null });
+  }
+  log("SUPPLY", { checkedAt: new Date().toISOString(), providers: rows });
+}
+async function readiness() { await supplyCheck(); await v6Check(); }
+
+/** Read-only: exactly what the Configure pre-flight panel computes for Bigfoot (same functions, no writes, no refresh). */
+async function preflightPreview() {
+  const { db, job } = await loadJob();
+  const { productPlan } = await import("../src/lib/video/long-form/product-plan");
+  const { getRealLongFormProviderNames } = await import("../src/lib/video/long-form/production-plan");
+  const { strategyPreflight, visualCheck, visualBlockMessage } = await import("../src/lib/video/long-form/production-preflight");
+  const { data: req } = await db.from("video_requests").select("id,topic,duration_seconds,script_json").eq("id", job.request_id).single();
+  const script = req!.script_json as { topic?: string; beats: never[] };
+  const plans = Object.fromEntries((["economical", "balanced", "cinematic"] as const).map((s) => [s, productPlan({ beats: script.beats, topic: script.topic || req!.topic, strategy: s, providers: getRealLongFormProviderNames(), requestedDurationSeconds: req!.duration_seconds ?? undefined, cinematicV6: true }).plan]));
+  const strategies = [];
+  for (const s of ["economical", "balanced", "cinematic"] as const) strategies.push(await strategyPreflight(db, { strategy: s, plan: plans[s], scriptJson: req!.script_json }));
+  const visual = await visualCheck(db, { requestId: req!.id, plan: plans.balanced, beats: script.beats, topic: script.topic || req!.topic });
+  log("PREFLIGHT", { checkedAt: new Date().toISOString(), strategies: strategies.map((p) => ({ strategy: p.strategy, estimatedUsd: p.estimatedUsd, limitUsd: p.limitUsd, withinLimit: p.withinLimit, capacityReady: p.capacityReady, globalNote: p.globalNote,
+    providers: p.providers.map((x) => ({ provider: x.provider, verdict: x.verdict, needUnits: x.needUnits, unit: x.unit, needUsd: Math.round(x.needUsd * 10000) / 10000, freeUnits: x.freeUnits, action: x.action })) })),
+    visual, visualMessage: visual.ready ? null : visualBlockMessage(visual) });
+}
+
+const modes: Record<string, () => Promise<unknown>> = { "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });

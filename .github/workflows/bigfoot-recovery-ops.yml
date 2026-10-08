@@ -41,8 +41,9 @@ jobs:
           SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
           CINEMATIC_V6_ENABLED_EMAILS: ${{ secrets.CINEMATIC_V6_ENABLED_EMAILS }}
           CINEMATIC_V6_ALL_USERS: ${{ vars.CINEMATIC_V6_ALL_USERS }}
+          ASSET_CURATOR_EMAILS: ${{ secrets.ASSET_CURATOR_EMAILS }}
       - name: Drive the queued job on the deployed app (same signed worker as the dispatch)
-        if: steps.op.outputs.mode == 'recover'
+        if: steps.op.outputs.mode == 'recover' || steps.op.outputs.mode == 'recover-format' || steps.op.outputs.mode == 'recover-anchors'
         run: npx tsx scripts/documentary-script-worker.ts
         env:
           SCRIPT_JOB_ID: 03738404-02ce-440a-a588-cb51ae4a0e9f

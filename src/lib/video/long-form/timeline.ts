@@ -25,21 +25,41 @@ import type { BeatType, NarrativeBeat } from "./types";
  */
 export const MAX_TTS_CHARS_PER_CALL = 9000;
 
-/** Parte una narración larga en trozos que respetan límites de oración, nunca cortan una palabra. */
+/**
+ * Parte una narración larga en trozos que respetan límites de oración y nunca cortan una palabra.
+ * Invariante (probado): unir los trozos reproduce el texto (sin omisiones ni duplicados, salvo espacios
+ * en las uniones) y ningún trozo supera `maxChars`. Una oración más larga que el límite se parte por
+ * palabras; puntuación inicial (p. ej. "…") se conserva. Para texto normal el resultado no cambia.
+ */
 export function splitNarrationIntoSafeChunks(text: string, maxChars = MAX_TTS_CHARS_PER_CALL): string[] {
   if (text.length <= maxChars) return [text];
-  const sentences = text.match(/[^.!?…]+[.!?…]*\s*/g) ?? [text];
+  const sentences = text.match(/[^.!?…]*[.!?…]+\s*|[^.!?…]+$/g) ?? [text];
+  const pieces: string[] = [];
+  for (const sentence of sentences) {
+    if (sentence.length <= maxChars) { pieces.push(sentence); continue; }
+    // Oración más larga que el límite: por palabras (un "palabra" mayor que el límite se corta en bloques).
+    let current = "";
+    for (const word of sentence.match(/\S+\s*|\s+/g) ?? [sentence]) {
+      for (let w = word; w.length > 0; ) {
+        if (current.length + w.length <= maxChars) { current += w; w = ""; continue; }
+        if (current) { pieces.push(current); current = ""; continue; }
+        pieces.push(w.slice(0, maxChars));
+        w = w.slice(maxChars);
+      }
+    }
+    if (current) pieces.push(current);
+  }
   const chunks: string[] = [];
   let current = "";
-  for (const sentence of sentences) {
-    if (current.length + sentence.length > maxChars && current) {
+  for (const piece of pieces) {
+    if (current.length + piece.length > maxChars && current) {
       chunks.push(current.trim());
       current = "";
     }
-    current += sentence;
+    current += piece;
   }
   if (current.trim()) chunks.push(current.trim());
-  return chunks.length > 0 ? chunks : [text];
+  return chunks.length > 0 ? chunks.filter((c) => c.length > 0) : [text];
 }
 
 export type NarrationPart = {
