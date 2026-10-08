@@ -205,7 +205,33 @@ async function v6Check() {
     workerAdmission, configurePath: `/dashboard/long-form/configure/${job.request_id}` });
 }
 
-const modes: Record<string, () => Promise<unknown>> = { "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+
+async function applyReviewedResumeMigration() {
+  // Explicit owner-authorized operator route for this reviewed function definition.
+  // Generic migration safety scanning stays unchanged. No recovery budget is reopened here.
+  const { readFile } = await import("node:fs/promises");
+  const name = "20261008131541_documentary_recovery_resume.sql";
+  const sql = await readFile(`supabase/migrations/${name}`, "utf8");
+  if (createHash("sha256").update(sql).digest("hex") !== "07dcca76b4cf7d03fe33e5003c6259cc5a6bace76f97e056929d0288e4ffcfcd") throw Error("reviewed migration hash mismatch");
+  const { client } = await connectResolved();
+  try {
+    const before = (await client.query("select public.pi_recovery_budget_usage($1) u", [projectOf((await loadJob()).job)])).rows[0].u;
+    if (Number(before?.capUsd) !== 2.10 || before.baselineOperations !== 5 || before.status !== "CLOSED" || Number(before.pendingUsd) !== 0) throw Error("migration preconditions not met");
+    await client.query("begin");
+    try {
+      const applied = (await client.query("select 1 from public._migrations_applied where name=$1", [name])).rows.length;
+      if (!applied) { await client.query(sql); await client.query("insert into public._migrations_applied(name) values($1)", [name]); }
+      const perms = (await client.query("select has_function_privilege('service_role','public.pi_resume_recovery_budget(uuid,text)','execute') app_exec, has_function_privilege('anon','public.pi_resume_recovery_budget(uuid,text)','execute') anon_exec")).rows[0];
+      if (perms.app_exec || perms.anon_exec) throw Error("operator function exposed");
+      const after = (await client.query("select public.pi_recovery_budget_usage($1) u", [projectOf((await loadJob()).job)])).rows[0].u;
+      if (JSON.stringify(before) !== JSON.stringify(after)) throw Error("migration changed budget");
+      await client.query("commit");
+      log("REVIEWED_MIGRATION", { name, applied: !applied, operatorOnly: true, budgetUnchanged: true, hashVerified: true });
+    } catch(error) { await client.query("rollback"); throw error; }
+  } finally { await client.end(); }
+}
+
+const modes: Record<string, () => Promise<unknown>> = { "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
