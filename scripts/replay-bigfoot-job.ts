@@ -1,4 +1,4 @@
-/** (2c686020 check: weakness acceptance) Offline replay of ONE saved documentary job (Bigfoot, 03738404) against the CURRENT code.
+/** (a1a4453c check) Offline replay of ONE saved documentary job (Bigfoot, 03738404) against the CURRENT code.
  * - No provider key: the SDK transport is replaced by an adapter that ONLY returns responses
  *   already COMMITTED (paid) in the ledger for this job, matched by the exact request
  *   fingerprint (stableHash(params, 16)) that production uses as the ledger key.
@@ -132,7 +132,8 @@ async function main() {
       const hit = run.boundary;
       outcome = hit ? { result: "stopped_at_uncached_call", ...hit }
         : { result: "stopped", kind: scriptFailureKind(err), error: err instanceof Error ? err.name : "unknown", detail: err instanceof Error ? err.message.slice(0, 160) : undefined,
-          reasons: err instanceof EditorialQualityError ? err.reasons.length : undefined, schemaIssues: err instanceof DocumentaryResponseError ? err.issues : undefined };
+          reasons: err instanceof EditorialQualityError ? err.reasons.length : undefined, schemaIssues: err instanceof DocumentaryResponseError ? err.issues : undefined,
+          at: err instanceof Error ? (err.stack ?? "").split("\n").slice(1, 6).map((l) => l.trim().replace(/\(.*\/(src|scripts|node_modules)\//, "($1/")) : undefined };
     }
     console.log("REPLAY", JSON.stringify({ run: label, savedResponses: responses.size, reused: run.used.size, unusedSaved: responses.size - run.used.size, simulatedRepairCalls,
       repairReused: run.repairReused, simulatedRepairLabel: SIMULATED_REPAIR_LABEL, cinematicV6, stages, drafts, approved, ...outcome }));
