@@ -52,7 +52,11 @@ async function main() {
   }
   const { data: owner } = await db.auth.admin.getUserById(job.user_id);
   const cinematicV6 = cinematicV6Enabled(owner?.user);
+  console.log("V6_VERCEL_CONFIG_MATCH",JSON.stringify({ownerConfirmed:!!owner?.user?.email_confirmed_at,ownerIncludedInVercelProductionAllowlist:["8dcc0bfc5e69efb6c156c7972579693e10c2ff3c72ca363fc6d1fb79d58fdaac"].includes(createHash("sha256").update(owner?.user?.email?.trim().toLowerCase()??"").digest("hex"))}));
 
+  let diagnosticDraft: any = null;
+  let diagnosticReview: any = null;
+  let diagnosticRepair: any = null;
   const simulatedRepairs = new Map<string, unknown>();
   let simulatedRepairCalls = 0, repairReservation = 0;
   const kindOf = (params: { max_tokens: number; system?: unknown }) => {
@@ -106,6 +110,8 @@ async function main() {
       throw Error("OFFLINE_CACHE_BOUNDARY");
     }
     run.used.add(key);
+    if(kind === "editorial-review") diagnosticReview = saved;
+    if(kind === "function-repair") diagnosticRepair = saved;
     return new Response(JSON.stringify(saved), { status: 200, headers: { "content-type": "application/json" } });
   }) as typeof fetch;
 
@@ -121,6 +127,7 @@ async function main() {
         extraEditorialRounds: job.editorial_rounds ?? 0, mode: "curiosity_documentary", language: fields.language, targetDurationSeconds: Number(fields.durationMinutes) * 60, cinematicV6,
         onStage: async (l) => { run.stage = l; stages.push(l); },
         onDraft: async (d) => {
+          diagnosticDraft = d.script;
           const r = d.review as EditorialReview | null;
           sizes.draftBytes = Buffer.byteLength(JSON.stringify(d.script));
           sizes.maxBeatNarrationBytes = Math.max(...d.script.beats.map((b) => Buffer.byteLength(b.narration)));
@@ -137,6 +144,29 @@ async function main() {
     }
     console.log("REPLAY", JSON.stringify({ run: label, savedResponses: responses.size, reused: run.used.size, unusedSaved: responses.size - run.used.size, simulatedRepairCalls,
       repairReused: run.repairReused, simulatedRepairLabel: SIMULATED_REPAIR_LABEL, cinematicV6, stages, drafts, approved, ...outcome }));
+    
+    if(diagnosticDraft && diagnosticReview) {
+      const { readDocumentaryValue } = await import("../src/lib/video/long-form/json-response");
+      const { LenientReferencedReviewSchema, resolveReviewReferences, narrationCatalog } = await import("../src/lib/video/long-form/narration-catalog");
+      const { sectionFunctionRepairTargets, applyFunctionRepair } = await import("../src/lib/video/long-form/editorial-function-repair");
+      let raw:any = readDocumentaryValue(diagnosticReview);
+      const targets = sectionFunctionRepairTargets(raw,LenientReferencedReviewSchema);
+      if(targets && diagnosticRepair) raw=applyFunctionRepair(raw,targets,readDocumentaryValue(diagnosticRepair));
+      const resolved=resolveReviewReferences(raw,diagnosticDraft.beats);
+      if(resolved.review) {
+        const ev=resolved.review.firstAnswer.evidence;
+        const b=diagnosticDraft.beats[ev.beatIndex].narration;
+        const at=b.indexOf(ev.quote);
+        const prior=diagnosticDraft.beats.slice(0,ev.beatIndex).reduce((n:any,x:any)=>n+x.narration.trim().split(/\\s+/).length,0);
+        const start=prior+(at>=0?b.slice(0,at).trim().split(/\\s+/).filter(Boolean).length:0)+1;
+        const end=start+ev.quote.trim().split(/\\s+/).length-1;
+        const all=diagnosticDraft.beats.map((x:any)=>x.narration).join(" ");
+        const answer=diagnosticDraft.storyPlan.firstAnswer;
+        const answerAt=all.indexOf(answer);
+        console.log("FIRST_ANSWER_DIAG",JSON.stringify({run:label,delivered:resolved.review.firstAnswer.delivered,beatIndex:ev.beatIndex,quoteLocated:at>=0,wordStart:start,wordEnd:end,crossesBoundary:start<=150&&end>150,fullQuoteInsideOpening:end<=150,storyPlanAnswerLiteral:answerAt>=0,storyPlanAnswerWordStart:answerAt>=0?all.slice(0,answerAt).trim().split(/\\s+/).filter(Boolean).length+1:null,findings:resolved.review.findings.map(x=>({kind:x.kind,severity:x.severity})),blockers:editorialBlockers(resolved.review).length,firstBeatWords:diagnosticDraft.beats[0].narration.trim().split(/\\s+/).length}));
+      }
+    }
+
     console.log("CALLS", JSON.stringify({ run: label, calls: run.calls }));
     console.log("BUDGET", JSON.stringify({ run: label, capUsd: RECOVERY_CAP_UNITS / 1e4, simulated: true, newCalls: run.budget }));
   };
