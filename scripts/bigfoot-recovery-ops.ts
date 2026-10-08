@@ -244,7 +244,24 @@ async function reviewFormatDiagnostic() {
  const c=offset===null?"":j[offset]; const classify=(c:string)=>!c?"end":/[{}\\[\\]:,"]/.test(c)?c:/\\s/.test(c)?"whitespace":/[0-9]/.test(c)?"digit":/[A-Za-z]/.test(c)?"letter":"other";
  log("REVIEW_FORMAT",{key:h10(o.idempotency_key),stopReason:r.stop_reason,textLength:t.length,startsObject:j.startsWith("{"),endsObject:j.endsWith("}"),fenceWrapped:t.startsWith("\x60\x60\x60"),validJson:valid,offset,codePoint:c.codePointAt(0),syntaxWindow:offset===null?null:[...j.slice(Math.max(0,offset-35),offset+35)].map(x=>/[A-Za-z0-9]/.test(x)?"x":/\s/.test(x)?" ":x).join(""),character:classify(c),previous:offset===null?null:classify(j[offset-1]),next:offset===null?null:classify(j[offset+1]),braceBalance:[...j].reduce((n,c)=>n+(c==="{"?1:c==="}"?-1:0),0)});
 }
-const modes: Record<string, () => Promise<unknown>> = { "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+async function recoverAfterFormatFix() {
+ const {db,job,projectId,ops}=await inspect();
+ if(job.status!=="failed"||job.failure_kind!=="technical"||job.error_code!=="c5a8f5bc"||job.run_token||job.retry_count!==3||job.editorial_rounds!==1||stableHash(job.editorial_checkpoint,16)!=="11c480c175465e40"||ops.length!==13||ops.some(o=>o.status!=="COMMITTED")) throw Error("exact saved format incident required");
+ const {client}=await connectResolved();
+ try {const usage=(await client.query("select public.pi_recovery_budget_usage($1) u",[projectId])).rows[0].u;
+ if(usage.status!=="ACTIVE"||Number(usage.capUsd)!==2.1||usage.baselineOperations!==5||Number(usage.pendingUsd)!==0)throw Error("same active cap required");}finally{await client.end();}
+ const o=ops.at(-1)!;const f=await db.storage.from("videos").download(o.result_ref);if(f.error||!f.data)throw Error("saved review unavailable");
+ const {readEditorialJson}=await import("../src/lib/video/long-form/editorial-json");
+ const {LenientReferencedReviewSchema}=await import("../src/lib/video/long-form/narration-catalog");
+ const {sectionFunctionRepairTargets}=await import("../src/lib/video/long-form/editorial-function-repair");
+ const value=readEditorialJson(JSON.parse(await f.data.text()),LenientReferencedReviewSchema);
+ const targets=sectionFunctionRepairTargets(value,LenientReferencedReviewSchema);
+ if(!targets||targets.length!==1||targets[0]!==3)throw Error("saved syntax repair mismatch");
+ const {data,error}=await db.from("documentary_script_jobs").update({status:"queued",run_token:null,failure_kind:null,error_code:null,error_message:null,stage:"Reanudando tras corregir el formato guardado",updated_at:new Date().toISOString()}).eq("id",JOB_ID).eq("user_id",job.user_id).eq("status","failed").is("run_token",null).eq("updated_at",job.updated_at).select("id");
+ if(error||data?.length!==1)throw Error("incident lease lost");
+ log("FORMAT_RECOVERY",{result:"queued",savedResponses:13,retryCountPreserved:3,editorialRoundPreserved:1,capPreserved:2.10,originalCheckpointPreserved:true,ownerAuthorization:"2026-10-08 consolidate V6 and produce; after deployed format fix only"});
+}
+const modes: Record<string, () => Promise<unknown>> = { "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
