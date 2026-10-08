@@ -1,2 +1,2 @@
 contracts-sealed
-# read-only; script content is printed only encrypted to this session's public key (public repo)
+# read-only; script content is printed only encrypted to this session public key (public repo). Retry: key file is now tracked.

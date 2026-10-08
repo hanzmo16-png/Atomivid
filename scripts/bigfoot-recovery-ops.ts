@@ -345,7 +345,7 @@ async function preflightPreview() {
 /** Public repo => public logs: script content leaves the runner ONLY encrypted to this session's public key. */
 function sealed(tag: string, value: unknown) {
   const { publicEncrypt, randomBytes, createCipheriv, constants } = require("node:crypto") as typeof import("node:crypto");
-  const pub = require("node:fs").readFileSync("ops/session-public-key.pem", "utf8");
+  const pub = require("node:fs").readFileSync("ops/session-public-key.txt", "utf8");
   const key = randomBytes(32), iv = randomBytes(12);
   const c = createCipheriv("aes-256-gcm", key, iv);
   const ct = Buffer.concat([c.update(JSON.stringify(value), "utf8"), c.final()]);
