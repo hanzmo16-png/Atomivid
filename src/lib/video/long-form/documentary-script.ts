@@ -207,9 +207,9 @@ const CinematicParseVisualsSchema = z.object({ visuals: z.array(tolerant(VisualS
 const CinematicLenientVisualsSchema = z.object({ visuals: z.array(tolerant(VisualSchema.omit({ quote: true }).extend({ excerptId: z.string().max(200).optional(), quote: z.string().max(400).optional() }))).min(1).max(12) });
 const ProductParseVisualsSchema = z.object({ visuals: z.array(ProductVisualSchema).min(1).max(12) });
 // fragments-v1 writer contract: one plan fragment, one fragment per beat.
-const PlanFragmentSchema = DocumentaryNarrativeSchema.omit({ beats: true }).extend({ fragment: z.literal("plan") });
+export const PlanFragmentSchema = DocumentaryNarrativeSchema.omit({ beats: true }).extend({ fragment: z.literal("plan") });
 const PlanFragmentPromptSchema = DocumentaryNarrativePromptSchema.omit({ beats: true }).extend({ fragment: z.literal("plan") });
-const BeatFragmentSchema = BeatSchema.omit({ visuals: true }).extend({ fragment: z.literal("beat"), index: z.number().int().min(0).max(9) });
+export const BeatFragmentSchema = BeatSchema.omit({ visuals: true }).extend({ fragment: z.literal("beat"), index: z.number().int().min(0).max(9) });
 type WriterMessage = { stop_reason: string | null; content: Array<{ type: string; text?: string }>; usage?: { input_tokens: number; output_tokens: number } };
 
 export type DocumentaryScript = z.infer<typeof DocumentaryScriptSchema>;
