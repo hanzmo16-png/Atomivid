@@ -496,6 +496,36 @@ async function altBScenarios() {
   }
 }
 
+/** Read-only DB side of HeyGen admission: policy validity, latest snapshots, supply state, and the
+ * existing avatar request's readiness (no refresh, no reservation). Ids hashed; amounts sealed. */
+async function heygenDbState() {
+  const db = service();
+  const { data: p } = await db.from("pi_supply_policies").select("*").eq("provider", "heygen").maybeSingle();
+  const pol = p as Record<string, unknown> | null;
+  log("HEYGEN_POLICY", pol ? { enabled: pol.enabled, unit: pol.unit, baselinePositive: Number(pol.baseline) > 0, unitCostPositive: Number(pol.unit_cost_usd) > 0,
+    maxConcurrentPositive: Number(pol.max_concurrent) > 0, maxDailyCallsPositive: Number(pol.max_daily_calls) > 0, dailyCapUsd: pol.daily_cap_usd, monthlyCapUsd: pol.monthly_cap_usd,
+    evidencePresent: String(pol.evidence ?? "").trim().length > 0 } : null);
+  const { data: snaps } = await db.from("pi_capacity_snapshots").select("unit,reliability,health,available,checked_at").eq("provider", "heygen").order("checked_at", { ascending: false }).limit(5);
+  log("HEYGEN_SNAPSHOTS", (snaps ?? []).map((x) => ({ unit: x.unit, reliability: x.reliability, health: x.health, availablePresent: x.available !== null, checkedAt: x.checked_at })));
+  const { data: state } = await db.rpc("pi_supply_state", { p_provider: "heygen" });
+  const st = state as Record<string, unknown> | null;
+  log("HEYGEN_STATE", st ? { level: st.level, reason: st.reason } : null);
+  const { data: reqs } = await db.from("video_requests").select("*").eq("mode", "avatar").order("created_at", { ascending: false }).limit(3);
+  const { jobSupplyDemands } = await import("../src/lib/supply/job");
+  const { ensureJobSupplyReady } = await import("../src/lib/supply/readiness");
+  for (const r of (reqs ?? []) as Record<string, any>[]) {
+    let demands: { provider: string; unit: string }[] = [], readiness: unknown = null;
+    try {
+      const d = jobSupplyDemands(r as never, "elevenlabs");
+      demands = d.map((x) => ({ provider: x.provider, unit: x.unit }));
+      const rd = await ensureJobSupplyReady(db, d, { refresh: false });
+      readiness = { ready: rd.ready, failure: rd.failure, providers: rd.providers.map((x) => ({ provider: x.provider, level: x.level, ok: x.ok, failure: x.failure ?? null })) };
+    } catch (e) { readiness = { error: e instanceof Error ? e.message.slice(0, 120) : "error" }; }
+    log("AVATAR_REQUEST", { request: h10(String(r.id)), createdAt: r.created_at, status: r.status, renderAttempts: r.render_attempts, recordedAudio: !!r.recorded_audio_path,
+      narrationSource: r.narration_source ?? null, supplyWait: !!r.supply_wait_started_at, demands, readiness });
+  }
+}
+
 /** Signed probe of the RUNNING production deployment (presence/counts only; never a value). Waits for the route to go live. */
 async function providerConfig() {
   const { randomUUID } = await import("node:crypto");
@@ -505,7 +535,16 @@ async function providerConfig() {
     const nonce = randomUUID(), timestamp = String(Date.now());
     const res = await fetch(`https://atomivid.vercel.app${PROVIDER_CONFIG_PATH}`, { method: "POST", redirect: "error", signal: AbortSignal.timeout(30_000),
       headers: { "x-probe-nonce": nonce, "x-probe-time": timestamp, "x-probe-signature": providerConfigSignature(key, nonce, timestamp) } }).catch(() => null);
-    if (res?.ok) { log("PROVIDER_CONFIG", await res.json()); return; }
+    if (res?.ok) {
+      const report = await res.json() as { heygen?: { sealed?: unknown } };
+      if (!report.heygen) { log("PROVIDER_CONFIG_WAIT", { attempt, status: "previous deployment" }); await new Promise((r) => setTimeout(r, 20_000)); continue; }
+      const sealedPart = report.heygen?.sealed ?? null;
+      if (report.heygen) delete report.heygen.sealed;
+      log("PROVIDER_CONFIG", report);
+      if (sealedPart) sealed("HEYGEN_ACCOUNT", sealedPart);
+      await heygenDbState();
+      return;
+    }
     log("PROVIDER_CONFIG_WAIT", { attempt, status: res?.status ?? "network" });
     await new Promise((r) => setTimeout(r, 20_000));
   }
