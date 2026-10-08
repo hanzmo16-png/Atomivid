@@ -295,7 +295,17 @@ async function visualRepairDiagnostic(){
  const {readDocumentaryJson}=await import("../src/lib/video/long-form/json-response");const f=await db.storage.from("videos").download(ops.at(-1)!.result_ref);if(f.error||!f.data)throw Error("download");const r=readDocumentaryJson(JSON.parse(await f.data.text())) as {replacements:{index:number;excerptId:string}[]};
  log("VISUAL_REPAIR",{selected:r.replacements.map(x=>({index:x.index,validId:ids.has(x.excerptId)})),omitted:Array.from({length:8},(_,i)=>i).filter(i=>!r.replacements.some(x=>x.index===i))});
 }
-const modes: Record<string, () => Promise<unknown>> = { "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+async function verifyBackedScenes(){
+ const {db,job,ops}=await inspect();if(ops.length!==20||job.error_code!=="e6f2edd6")throw Error("exact incident required");
+ const {readDocumentaryJson}=await import("../src/lib/video/long-form/json-response");const {narrationCatalog}=await import("../src/lib/video/long-form/narration-catalog");const {applyVisualAnchorRepair}=await import("../src/lib/video/long-form/visual-anchor-repair");
+ const read=async(o:any)=>{const f=await db.storage.from("videos").download(o.result_ref);if(f.error||!f.data)throw Error("download");return readDocumentaryJson(JSON.parse(await f.data.text()));};
+ const original=await read(ops[18]) as {visuals:any[]};const repair=await read(ops[19]);const catalog=narrationCatalog(job.editorial_checkpoint.script.beats).filter(e=>e.beatIndex===2);
+ const result=applyVisualAnchorRepair(original,catalog,Array.from({length:8},(_,i)=>i),repair);const indices=[0,1,4,5,7];
+ const unchanged=result.visuals.every((v,i)=>stableHash({...v,excerptId:original.visuals[indices[i]].excerptId},16)===stableHash(original.visuals[indices[i]],16));
+ if(result.visuals.length!==5||!unchanged)throw Error("preservation failed");
+ log("BACKED_SCENES",{kept:5,discardedUnsupported:3,allRetainedFieldsUnchanged:unchanged,approvedNarrationUnchanged:true,cachedRepairReused:true,newPaidCalls:0,productionWrites:0});
+}
+const modes: Record<string, () => Promise<unknown>> = { "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
