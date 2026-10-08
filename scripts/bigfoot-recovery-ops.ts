@@ -289,7 +289,12 @@ async function recoverVisualAnchors() {
  if(error||data?.length!==1)throw Error("incident lease lost");
  log("ANCHOR_RECOVERY",{result:"queued",savedResponses:19,retryCountPreserved:3,editorialRoundPreserved:2,approvedNarrationPreserved:true,capPreserved:2.10,authorization:"owner 2026-10-08 consolidate V6; deployed anchor repair required"});
 }
-const modes: Record<string, () => Promise<unknown>> = { "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+async function visualRepairDiagnostic(){
+ const {db,job,ops}=await inspect();const {narrationCatalog}=await import("../src/lib/video/long-form/narration-catalog");const ids=new Set(narrationCatalog(job.editorial_checkpoint.script.beats).filter(e=>e.beatIndex===2).map(e=>e.id));
+ const {readDocumentaryJson}=await import("../src/lib/video/long-form/json-response");const f=await db.storage.from("videos").download(ops.at(-1)!.result_ref);if(f.error||!f.data)throw Error("download");const r=readDocumentaryJson(JSON.parse(await f.data.text())) as {replacements:{index:number;excerptId:string}[]};
+ log("VISUAL_REPAIR",{selected:r.replacements.map(x=>({index:x.index,validId:ids.has(x.excerptId)})),omitted:Array.from({length:8},(_,i)=>i).filter(i=>!r.replacements.some(x=>x.index===i))});
+}
+const modes: Record<string, () => Promise<unknown>> = { "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
