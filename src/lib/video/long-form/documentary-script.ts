@@ -1,3 +1,4 @@
+import { validateOrRepairOpeningReview } from "./editorial-opening-repair";
 import { narrationCatalog, ReferencedEditorialReviewSchema, LenientReferencedReviewSchema, resolveReviewReferences, applyReferenceRepairs, ReferenceRepairSchema, REFERENCE_REVIEW_RULES } from './narration-catalog';
 import { FRAGMENT_CONTRACT, fragmentOutputContract, writeFragmentDraft } from './narrative-fragments';
 import { locateNormalized } from './text-locate';
@@ -395,7 +396,7 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
   const resolveCatalogReview = async (rawReview: unknown, beats: { narration: string }[]): Promise<EditorialReview> => {
     const script = parsed!;
     const first = resolveReviewReferences(rawReview, beats);
-    if (first.review) return validateEditorialReview(first.review, script);
+    if (first.review) return validateOrRepairOpeningReview({ rawReview, script, model: SCRIPT_MODEL, send, onStage: input.onStage });
     if (referenceRepairUsed || first.unresolved.length > 24 || (input.parse && !input.repairEvidence)) throw new EditorialEvidenceError();
     referenceRepairUsed = true;
     await input.onStage?.("Corrigiendo referencias del revisor");
@@ -413,7 +414,7 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
     }
     const second = resolveReviewReferences(applyReferenceRepairs(rawReview, first.unresolved, repaired), beats);
     if (!second.review) throw new EditorialEvidenceError();
-    return validateEditorialReview(second.review, script);
+    return validateOrRepairOpeningReview({ rawReview: applyReferenceRepairs(rawReview, first.unresolved, repaired), script, model: SCRIPT_MODEL, send, onStage: input.onStage });
   };
 
   await input.onStage?.("Escribiendo la historia");

@@ -183,3 +183,11 @@ How to reproduce:
 | Stop | editorial-validation rejection on the last pass, deterministic on replay. No approval forced, no extra rounds; the remaining retry was not used |
 | New spend | **USD 0.2548 of 2.10** (5 new COMMITTED operations, 0 uncertain); 10 COMMITTED in total, the original 5 reused |
 | Budget | closed after the recovery (one-way); committed results stay reusable |
+
+
+## Authorized continuation (2026-10-08 08:13 Cancun)
+The critic cited words 145–156 but justified its decision by the first block (207 words). The existing 150-word gate remains unchanged. A new bounded, deterministic `opening-payoff-evidence-repair-v1` call rechecks only `firstAnswer` against complete catalog excerpts ending by word 150. No eligible reward produces an editorial blocker, not approval. Other judgments and findings remain unchanged; reservations and cached responses use the existing ledger.
+
+`20261008131541_documentary_recovery_resume.sql` adds operator-only, single-use authorization to resume the SAME budget after it was closed prematurely. Original cap USD2.10, baseline five, and all accumulated spend remain immutable. The application cannot call the resume function. `resume-budget` records the owner's new explicit authorization; it does not reset spend. Keep the budget active while resolving a failure; close only after completion or intentional cancellation.
+
+Validation: 108 editorial tests, 97 spend tests, typecheck and lint; PostgreSQL WASM verification covers preserved spend/baseline/cap, unauthorized reopening, idempotency, uncertain-operation refusal and the exact cap boundary. Reproduce via `scripts/verify-recovery-resume.mjs` with a separately installed `@electric-sql/pglite` and PGLITE_MODULE pointing to its module.

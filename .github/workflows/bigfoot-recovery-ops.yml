@@ -26,7 +26,11 @@ jobs:
         run: |
           MODE="$(head -1 ops/bigfoot-recovery.mode | tr -d '[:space:]')"
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
-          BIGFOOT_OPS_MODE="$MODE" npx tsx scripts/bigfoot-recovery-ops.ts
+          if [ "$MODE" = "apply-resume-migration" ]; then
+            npx tsx scripts/apply-supabase-migration.ts 20261008131541_documentary_recovery_resume.sql
+          else
+            BIGFOOT_OPS_MODE="$MODE" npx tsx scripts/bigfoot-recovery-ops.ts
+          fi
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

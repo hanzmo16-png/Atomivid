@@ -1,7 +1,7 @@
 import { EditorialEvidenceError } from "./editorial-evidence";
 import { DocumentaryResponseError } from "./json-response";
 import { DocumentaryResearchError } from "./research";
-import { EditorialQualityError } from "./editorial";
+import { EditorialTimingEvidenceError, EditorialQualityError } from "./editorial";
 import { LongFormScriptDurationError } from "./documentary-script";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { RecoveryBudgetExceededError } from "@/lib/supply/recovery-budget";
@@ -13,6 +13,7 @@ export function documentaryFormError(error: unknown, diagnosticId: string): stri
   if (error instanceof RecoveryBudgetExceededError) return error.customerMessage + suffix;
   if (error instanceof DocumentaryResponseError || error instanceof DocumentaryResearchError)
     return error.message + suffix;
+  if (error instanceof EditorialTimingEvidenceError) return "El revisor citó una recompensa fuera de las primeras 150 palabras. Conservamos el guion; necesita una comprobación válida de su apertura antes de producir." + suffix;
   if (error instanceof EditorialEvidenceError) return "El revisor no pudo respaldar sus observaciones con citas válidas. El guion sigue guardado, pendiente de revisión; no se inició la producción audiovisual." + suffix;
   if (error instanceof EditorialQualityError) {
     const repeated=error.reasons.some(r=>/^El bloque \d+ repite sin avanzar:/.test(r));
