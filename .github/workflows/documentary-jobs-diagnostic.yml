@@ -29,8 +29,8 @@ jobs:
            if (["ANTHROPIC_API_KEY","OPENAI_API_KEY","RUNWAY_API_KEY"].some(k=>process.env[k])) throw Error("Provider key present");
            const db=createClient(process.env.SUPABASE_URL!.trim(),process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(),{auth:{persistSession:false,autoRefreshToken:false}});
            const {data:j,error}=await db.from("documentary_script_jobs").select("id,user_id,topic,status,stage,error_code,failure_kind,input,editorial_checkpoint,retry_count,editorial_rounds,resubmit_allowance").eq("id","03738404-02ce-440a-a588-cb51ae4a0e9f").single();
-           if(error||!j) throw Error("Target job unavailable");
-           if(!/bigfoot|pie grande|sasquatch/i.test(j.topic)) throw Error("Target topic does not match Bigfoot");
+           if(error||!j) {console.log("JOB_READ_ERROR",JSON.stringify({code:error?.code}));throw Error("Target job unavailable");}
+           if(!/bigfoot|pie grande|sasquatch|piegrande|pies grandes|big foot/i.test(j.topic)) {console.log("TOPIC_MATCH false");throw Error("Target topic does not match Bigfoot");}
            console.log("JOB",JSON.stringify({bigfoot:true,status:j.status,stage:j.stage,errorCode:j.error_code,failureKind:j.failure_kind,retries:j.retry_count,rounds:j.editorial_rounds,resubmits:j.resubmit_allowance,contract:j.input?.referenceContract,checkpointPresent:!!j.editorial_checkpoint,checkpointPass:j.editorial_checkpoint?.pass,checkpointReviewed:!!j.editorial_checkpoint?.review}));
            const {data:u,error:ue}=await db.auth.admin.getUserById(j.user_id);
            console.log("V6_WORKER",JSON.stringify({userRead:!ue,confirmed:!!u?.user?.email_confirmed_at,allowlistPresent:!!process.env.CINEMATIC_V6_ENABLED_EMAILS,enabled:!ue&&cinematicV6Enabled(u.user)}));
