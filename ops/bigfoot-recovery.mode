@@ -1,2 +1,2 @@
 provider-config
-# signed probe of the running production deployment: presence/names/counts only
+# signed probe: ElevenLabs + HeyGen runtime state, read-only HeyGen admission (no values, no spend)
