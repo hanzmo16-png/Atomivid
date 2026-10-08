@@ -1,4 +1,4 @@
-import { Easing } from "remotion";
+import { Easing, interpolate } from "remotion";
 
 /** Optional, serializable editorial controls. No provider calls or shared Reel changes. */
 export type SceneDirection = {
@@ -106,7 +106,21 @@ export function easedProgress(progress: number): number {
   return cameraEasing(clamp(progress));
 }
 
-export function cameraTransform(camera: NonNullable<SceneDirection["camera"]>, progress: number): string {
+/**
+ * eased=false: the linear move production renders for v1–v3 plans (exact same CSS).
+ * eased=true: directed shots (v5+) ease in and out within the same caps.
+ */
+export function cameraTransform(camera: NonNullable<SceneDirection["camera"]>, progress: number, eased = true): string {
+  if (!eased) {
+    const p = clamp(progress);
+    switch (camera) {
+      case "still": return "none";
+      case "push": return `scale(${1 + 0.08 * p})`;
+      case "pull": return `scale(${1.08 - 0.08 * p})`;
+      case "left": return `translateX(${2 - 4 * p}%) scale(1.08)`;
+      case "right": return `translateX(${-2 + 4 * p}%) scale(1.08)`;
+    }
+  }
   const p = easedProgress(progress);
   const d = CAMERA_MAX_SCALE - 1;
   switch (camera) {
@@ -119,7 +133,12 @@ export function cameraTransform(camera: NonNullable<SceneDirection["camera"]>, p
   }
 }
 /** Default Ken Burns when no camera was directed: same caps as before (1.08; hook 1.16 over its first 40 %), now eased. */
-export function kenBurnsTransform(progress: number, isHook: boolean): { scale: number; translateX: number } {
+export function kenBurnsTransform(progress: number, isHook: boolean, eased = true): { scale: number; translateX: number } {
+  if (!eased) {
+    // Production's linear Ken Burns (v1–v3), identical to interpolate(progress, [0, 1], [1, 1.08]) / [0, -14].
+    if (isHook) return { scale: interpolate(Math.min(1, progress / 0.4), [0, 1], [1, 1.16], { extrapolateRight: "clamp" }), translateX: 0 };
+    return { scale: interpolate(progress, [0, 1], [1, 1.08]), translateX: interpolate(progress, [0, 1], [0, -14]) };
+  }
   if (isHook) return { scale: 1 + (OPENING_MAX_SCALE - 1) * easedProgress(Math.min(1, clamp(progress) / 0.4)), translateX: 0 };
   const p = easedProgress(progress);
   return { scale: 1 + (CAMERA_MAX_SCALE - 1) * p, translateX: -14 * p };

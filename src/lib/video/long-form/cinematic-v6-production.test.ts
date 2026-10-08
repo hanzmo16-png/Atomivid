@@ -214,3 +214,41 @@ test("ruta real de producción (offline): el v3 por defecto del producto se sigu
   assert.ok(run.events.includes("render"));
   assert.equal(networkCalls, 0);
 });
+
+test("guion: sin V6 el plan visual pide el contrato de producción (sin clase ni impacto, sin personas reales identificables)", async () => {
+  const { z } = await import("zod");
+  const { ProductBeatVisualsSchema, ProductReferencedVisualsSchema } = await import("./documentary-script");
+  for (const schema of [ProductBeatVisualsSchema, ProductReferencedVisualsSchema]) {
+    const json = JSON.stringify(z.toJSONSchema(schema, { reused: "ref" }));
+    for (const field of ["beatClass", "identity", "evidence", "impact", "impactReason"]) assert.equal(json.includes(`"${field}"`), false, field);
+    assert.match(json, /ni personas reales identificables/);
+  }
+  const src = readFileSync(path.join(__dirname, "script-jobs.ts"), "utf8");
+  assert.match(src, /cinematicV6:cinematicV6Enabled\(owner\.user\)/, "el worker de guiones decide V6 con la cuenta dueña del trabajo");
+});
+
+test("guion V6: un campo opcional inválido del guionista se descarta, nunca hace fallar el guion", async () => {
+  const { dropInvalidOptionalVisualFields, VisualSchema } = await import("./documentary-script");
+  const base = { description: "a quiet street", motion: false, quote: "the street was quiet that morning", subject: "street" };
+  const bad = dropInvalidOptionalVisualFields({ ...base, beatClass: "identity", impact: 4, impactReason: "x".repeat(200), identity: "Maurizio", evidence: { sourceIds: ["s1"] } }) as Record<string, unknown>;
+  assert.deepEqual(Object.keys(bad).sort(), [...Object.keys(base), "evidence"].sort());
+  assert.ok(VisualSchema.safeParse(bad).success);
+  const good = dropInvalidOptionalVisualFields({ ...base, beatClass: "PLACE", impact: 2, impactReason: "sets the place" }) as Record<string, unknown>;
+  assert.equal(good.impact, 2);
+  assert.equal(good.beatClass, "PLACE");
+});
+
+test("render: v1–v3 (sin plano dirigido) conservan el movimiento lineal de producción; solo los planos dirigidos usan easing", async () => {
+  const { cameraTransform, kenBurnsTransform } = await import("../../../../remotion/long-form-direction");
+  const { interpolate } = await import("remotion");
+  for (const p of [0, 0.25, 0.5, 0.75, 1]) {
+    assert.equal(cameraTransform("push", p, false), `scale(${1 + 0.08 * p})`);
+    assert.equal(cameraTransform("pull", p, false), `scale(${1.08 - 0.08 * p})`);
+    assert.equal(cameraTransform("left", p, false), `translateX(${2 - 4 * p}%) scale(1.08)`);
+    assert.deepEqual(kenBurnsTransform(p, false, false), { scale: interpolate(p, [0, 1], [1, 1.08]), translateX: interpolate(p, [0, 1], [0, -14]) });
+  }
+  assert.equal(kenBurnsTransform(0.2, true, false).scale, 1.08);
+  assert.notEqual(cameraTransform("push", 0.25, true), cameraTransform("push", 0.25, false));
+  const doc = readFileSync(path.join(__dirname, "../../../../remotion/LongFormDoc.tsx"), "utf8");
+  assert.match(doc, /const eased = scene\.direction\?\.shot !== undefined;/);
+});

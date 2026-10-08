@@ -246,7 +246,9 @@ function SceneRenderer({
   // marcado en el gancho de apertura), mismos topes (1.08; gancho 1.16), con
   // aceleración y frenado suaves (long-form-direction.ts: cámara compartida).
   const kenBurnsActive = scene.motion === "ken_burns" || scene.motion === "pan";
-  const { scale, translateX } = kenBurnsActive ? kenBurnsTransform(progress, isHook) : { scale: 1, translateX: 0 };
+  // Eased camera only for directed shots (v5+); v1–v3 keep production's linear move exactly.
+  const eased = scene.direction?.shot !== undefined;
+  const { scale, translateX } = kenBurnsActive ? kenBurnsTransform(progress, isHook, eased) : { scale: 1, translateX: 0 };
 
   let opacity = 1;
   if (fadeInFrames > 0) {
@@ -267,7 +269,7 @@ function SceneRenderer({
 
   const look = lookStyle(
     scene.direction?.look,
-    scene.direction?.camera ? cameraTransform(scene.direction.camera, progress) : `scale(${scale}) translateX(${translateX}px)`,
+    scene.direction?.camera ? cameraTransform(scene.direction.camera, progress, eased) : `scale(${scale}) translateX(${translateX}px)`,
   );
   const mediaStyle = {
     width: "100%",
