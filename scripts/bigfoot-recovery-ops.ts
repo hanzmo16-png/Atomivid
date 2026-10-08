@@ -460,7 +460,43 @@ async function coverageScenarios() {
   }
 }
 
-const modes: Record<string, () => Promise<unknown>> = { "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+/**
+ * Alternative B, simulated in memory only (the approved script is NOT modified): the scenes that ask
+ * for the film / the 1967 identities are reclassified as PLACE (Bluff Creek setting), dropping their
+ * identity/evidence contract, and the EXISTING gate is evaluated on that variant with no approvals.
+ */
+async function altBScenarios() {
+  const { db, job } = await loadJob();
+  const { productPlan } = await import("../src/lib/video/long-form/product-plan");
+  const { getRealLongFormProviderNames } = await import("../src/lib/video/long-form/production-plan");
+  const { contractForVisual, contractKey } = await import("../src/lib/video/long-form/verified-assets");
+  const { visualReleasePreflight } = await import("../src/lib/video/long-form/visual-release-preflight");
+  const { VerifiedAssetRegistry } = await import("../src/lib/video/long-form/verified-assets");
+  const { data: req } = await db.from("video_requests").select("id,topic,duration_seconds,script_json").eq("id", job.request_id).single();
+  const script = req!.script_json as { topic?: string; beats: { visuals?: Record<string, unknown>[] }[] };
+  const topic = script.topic || req!.topic;
+  const LABEL: Record<string, string> = { "IDENTITY:roger patterson and bob gimlin": "I1", "IDENTITY:roger patterson": "I2", "IDENTITY:bob heironimus": "I3",
+    "EVIDENCE:web-2+web-5": "E1", "EVIDENCE:web-2": "E2", "EVIDENCE:web-2+web-4": "E3", "EVIDENCE:web-1": "E4", "EVIDENCE:web-5": "E5" };
+  const variants: Record<string, string[]> = { B1_sin_pelicula_ni_identidades: ["I1", "I2", "E1", "E2", "E3"], B2_B1_mas_periodico: ["I1", "I2", "E1", "E2", "E3", "E4"] };
+  for (const [name, labels] of Object.entries(variants)) {
+    let changed = 0;
+    const beats = script.beats.map((b) => ({ ...b, visuals: (b.visuals ?? []).map((v) => {
+      const c = contractForVisual(v as never);
+      if (!c || !labels.includes(LABEL[contractKey(c)] ?? "")) return v;
+      changed++;
+      const { identity: _i, evidence: _e, ...rest } = v as Record<string, unknown>; void _i; void _e;
+      return { ...rest, beatClass: "PLACE" };
+    }) }));
+    const res = productPlan({ beats: beats as never, topic, strategy: "balanced", providers: getRealLongFormProviderNames(), requestedDurationSeconds: req!.duration_seconds ?? undefined, cinematicV6: true });
+    const pre = await visualReleasePreflight({ supabase: db, requestId: req!.id, plan: res.plan, beats: beats as never, topic, verifiedAssets: VerifiedAssetRegistry.empty() });
+    const codes = [...new Set(pre.blockers.map((b) => b.replace(/^HERO_COVERAGE\s+/, "").split(":")[0].trim()))];
+    log("ALT_B", { variant: name, reclassifiedScenes: changed, engine: res.engine, planVersion: res.plan.version, pass: pre.blockers.length === 0, codes,
+      heroMissingIdentities: pre.coverage?.heroMissingRequiredIdentities.length, heroMissingEvidence: pre.coverage?.heroMissingRequiredEvidence.length,
+      textCardRatio: pre.coverage?.estimatedTextCardRatio, plannedShots: pre.plannedShotCount, estimatedUsd: res.plan.estimatedProviderCostUsd });
+  }
+}
+
+const modes: Record<string, () => Promise<unknown>> = { "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
