@@ -11,10 +11,18 @@ export function jsonResponseSystem(system: string, schema: z.ZodType): string {
 }
 
 export class DocumentaryResponseError extends Error {
-  constructor(detail: string) {
+  /** Structural schema issues ("code@path", e.g. "invalid_value@sections.2.function"); never values or text. For logs only. */
+  readonly issues: string[];
+  constructor(detail: string, issues: string[] = []) {
     super(`${detail} La respuesta y su consumo quedaron registrados; no se repite la llamada automáticamente.`);
     this.name = "DocumentaryResponseError";
+    this.issues = issues;
   }
+}
+
+/** Zod issues as "code@path" (indices kept, values never included). */
+export function schemaIssuePaths(error: z.ZodError, limit = 12): string[] {
+  return error.issues.slice(0, limit).map(i => `${i.code}@${i.path.map(String).join(".")}`);
 }
 
 export function parseDocumentaryResponse<T extends z.ZodType>(schema: T, response: {
@@ -35,7 +43,7 @@ export function parseDocumentaryResponse<T extends z.ZodType>(schema: T, respons
   catch { throw new DocumentaryResponseError("El modelo devolvió un documento que no se pudo leer."); }
   const parsed = schema.safeParse(value);
   if (!parsed.success) {
-    throw new DocumentaryResponseError("La respuesta no cumple el formato editorial requerido.");
+    throw new DocumentaryResponseError("La respuesta no cumple el formato editorial requerido.", schemaIssuePaths(parsed.error));
   }
   return parsed.data;
 }

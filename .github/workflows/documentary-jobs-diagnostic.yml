@@ -2,7 +2,7 @@ name: Read-only documentary jobs diagnosis
 on:
   push:
     branches: [claude/hola-sn3dxy]
-    paths: [.github/workflows/documentary-jobs-diagnostic.yml]
+    paths: [.github/workflows/documentary-jobs-diagnostic.yml, scripts/replay-bigfoot-job.ts]
 permissions:
   contents: read
 jobs:
@@ -63,6 +63,14 @@ jobs:
           main().catch(()=>{console.error("Read-only diagnostic failed; no content disclosed");process.exitCode=1;});
           TS
           npx tsx diagnostic-bigfoot-readonly.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CINEMATIC_V6_ENABLED_EMAILS: ${{ secrets.CINEMATIC_V6_ENABLED_EMAILS }}
+          CINEMATIC_V6_ALL_USERS: ${{ vars.CINEMATIC_V6_ALL_USERS }}
+      - name: Offline replay of the Bigfoot job with saved responses only (no provider, no writes)
+        # No provider key is passed; the replay refuses to run if one is present and stops at the first uncached call.
+        run: npx tsx scripts/replay-bigfoot-job.ts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

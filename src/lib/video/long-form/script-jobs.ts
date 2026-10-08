@@ -1,4 +1,5 @@
 import { cinematicV6Enabled } from "./cinematic-v6-access";
+import { DocumentaryResponseError } from "./json-response";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -76,6 +77,8 @@ export async function runScriptJobStep(id:string, service=createServiceClient())
   }
   const code=randomUUID().slice(0,8), kind=scriptFailureKind(error);
   console.error(`[atomivid:script-job:${code}:${kind}]`,error);
+  // Schema rejections name the exact field (code@path, no values) so an incident never needs a separate diagnosis.
+  if(error instanceof DocumentaryResponseError && error.issues.length) console.error(`[atomivid:script-job:${code}:schema]`,JSON.stringify(error.issues));
   await update({status:"failed",run_token:null,failure_kind:kind,error_code:code,error_message:documentaryFormError(error,code)});
   return {state:"failed"};
  }
