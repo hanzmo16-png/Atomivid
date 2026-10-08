@@ -10,6 +10,24 @@ import { getAiVideoCostConfig } from "./ai-video-cost-guard";
 
 const BALANCED = getAiVideoCostConfig("balanced");
 
+test("declared physical actions qualify without construction words; camera-only or static depictions do not", () => {
+  for (const visualIntent of [
+    "Mongol horsemen wheel at a distance from a shield line",
+    "Mounted archers turn away in a controlled withdrawal",
+    "An empty corridor with drifting fog and a rotating red alarm beacon",
+    "A fighter shifts his shield before a hypothetical duel",
+  ]) {
+    const shot = { id: "physical", type: "ai_video" as const, visualIntent, durationSec: 4 };
+    assert.equal(scoreAiVideoEligibility({ ...shot, motionRequired: true }).recommendedAssetType, "ai_video");
+    assert.notEqual(scoreAiVideoEligibility({ ...shot, motionRequired: false }).recommendedAssetType, "ai_video");
+    assert.notEqual(scoreAiVideoEligibility({ ...shot, visualIntent: `Painting of ${visualIntent}`, motionRequired: true }).recommendedAssetType, "ai_video");
+    assert.equal(scoreAiVideoEligibility({ ...shot, type: "diagram", motionRequired: true }).recommendedAssetType, "real_image");
+  }
+  for (const visualIntent of ["Slow tracking shot past empty windows", "A rider in a dramatic landscape", "A static rotating beacon illustration"]) {
+    assert.notEqual(scoreAiVideoEligibility({ id: "camera", visualIntent, durationSec: 4, motionRequired: true }).recommendedAssetType, "ai_video");
+  }
+});
+
 test("declared maritime motion remains animated without unrelated action keywords", () => {
   for (const visualIntent of [
     "Lone messenger rowing a small boat across dark water at night",

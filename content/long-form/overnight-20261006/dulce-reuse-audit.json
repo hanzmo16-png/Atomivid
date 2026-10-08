@@ -1,0 +1,598 @@
+{
+  "status": "manifest-audit-only; binary availability and checksums not rechecked",
+  "sourceCommit": "0873a9ce5c0f5d0ab7f0fb09c5e2b8a509119dd1",
+  "style": "Photorealistic cinematic film still, 35mm, restrained practical lighting, muted desaturated palette, subtle film grain, 1980s New Mexico. No text, no letters, no numbers, no logos, no signs with writing, no watermark. Natural anatomy. Keep every essential subject inside the central 80% of the frame (it will be cropped to 16:9 with a safety margin).",
+  "bible": {
+    "Thomas": "THOMAS: man about 45, angular face, short brown hair grey at the temples, light stubble, charcoal zipped work coverall with a small blank rectangular badge. Match the attached Thomas references exactly (face, hair, coverall).",
+    "grey": "GREY BEING: adult grey humanoid about 1.5 m tall, slender, large elongated head, large dark almond eyes, smooth grey skin. Match the attached reference.",
+    "reptilian": "REPTILIAN BEING: adult reptilian humanoid about 2 m tall, dark olive scales, plain dark workwear. Match the attached reference.",
+    "technician": "TECHNICIAN: human man about 55, thinning grey hair, rectangular glasses, muted grey lab coat over dark clothes. Match the attached reference.",
+    "George": "GEORGE: civilian man about 55, thin face, short grey beard, tired eyes, faded brown flannel shirt, clearly not facility staff; looks nothing like Thomas."
+  },
+  "referencePaths": {
+    "pilot:d01": "dulce-001/samples/pilot/ai/dulce-d01-v1-still.png",
+    "pilot:d02": "dulce-001/samples/pilot/ai/dulce-d02-v1-still.png",
+    "pilot:d03": "dulce-001/samples/pilot/ai/dulce-d03-v1-still.png",
+    "pilot:d04": "dulce-001/samples/pilot/ai/dulce-d04-v1-still.png",
+    "v1:*": "dulce-001/full-v1/refs/<shot>.png",
+    "asset:*": "dulce-part1/stills/<asset>.png (approved)"
+  },
+  "candidates": [
+    {
+      "id": "N01",
+      "asset": {
+        "imagePrompt": "Wide aerial view at dusk over a flat-topped mesa and canyons in northern New Mexico, sagebrush plain, long shadows, cold blue sky with the last amber light on the rim. No roads, no vehicles, no buildings. No people anywhere in the frame, not even small or distant figures.",
+        "references": [],
+        "characters": [],
+        "animationPrompt": "Slow aerial drone push forward over the mesa at dusk; high clouds drift slowly. No vehicles, no people, nothing appears.",
+        "clipSeconds": 5,
+        "imageRevision": "v2"
+      },
+      "stillApproval": {
+        "asset": "N01",
+        "sha256": "d0fbf5400723d27265ebbea436e37ee8ffd09c7699d3587331ec76766ebb21d3",
+        "note": "v2: empty mesa at dusk, no people."
+      },
+      "clipApprovals": [
+        {
+          "asset": "N01",
+          "sha256": "0e0d3fd65db73910ea872aa95e14df7ac74730fc1f464e1d8af4ab79522c5e14",
+          "result": "PASS",
+          "note": "Slow aerial push, empty landscape."
+        }
+      ],
+      "allowedClipReuse": true
+    },
+    {
+      "id": "N04",
+      "asset": {
+        "imagePrompt": "An endless straight underground vehicle tunnel with a curved concrete ceiling, a line of cold overhead lights receding to a vanishing point, wet reflective floor. Empty. No people anywhere in the frame, not even small or distant figures.",
+        "references": [
+          "pilot:d01"
+        ],
+        "characters": [],
+        "animationPrompt": "Slow steady dolly forward down the empty tunnel; overhead lights pass above. The tunnel stays empty for the entire shot.",
+        "clipSeconds": 5,
+        "imageRevision": "v2"
+      },
+      "stillApproval": {
+        "asset": "N04",
+        "sha256": "4f4abaf4084739d40e930f25d4ca086d0c5056cc67afe9a6178338bcc850a3a0",
+        "note": "v2: empty tunnel."
+      },
+      "clipApprovals": [
+        {
+          "asset": "N04",
+          "sha256": "bbad0d4f66b3d7441723659299dde053b6cf461f022f367ae10e3d2276d77f5e",
+          "result": "PASS",
+          "note": "Slow dolly, empty tunnel."
+        }
+      ],
+      "allowedClipReuse": true
+    },
+    {
+      "id": "N05",
+      "asset": {
+        "imagePrompt": "Security control room: Thomas sits at a console facing a wall of small CRT monitors showing grey corridor views, lit by their glow. Medium shot from his side, three-quarter profile, hands resting still on the desk edge.",
+        "references": [
+          "pilot:d02",
+          "v1:D07-03"
+        ],
+        "characters": [
+          "Thomas"
+        ],
+        "animationPrompt": "Thomas watches the monitors, breathes slowly and blinks once; the monitor screens flicker softly. Locked-off camera with a very slow push-in. He is the only person in the room and his hands stay still.",
+        "clipSeconds": 5
+      },
+      "stillApproval": {
+        "asset": "N05",
+        "sha256": "17d13586d753e3342412aed5392e847847cfea4a410fb97edd5995ae34e3ab88",
+        "note": "Thomas matches references (face, grey temples, coverall, blank badge); monitors show corridors; hands still."
+      },
+      "clipApprovals": [
+        {
+          "asset": "N05",
+          "sha256": "e59814551d696f574b6844b0d6d7a4b755e2e637eccf9e071d566a5f3a5f7c6f",
+          "result": "PASS",
+          "note": "Thomas identity stable over 12 frames; breathes; hands still; L1 face spike = monitors (false positive)."
+        }
+      ],
+      "allowedClipReuse": true
+    },
+    {
+      "id": "N26",
+      "asset": {
+        "imagePrompt": "A clean clinical medical bay: an empty examination table, instrument trays, white-green light, tiled walls. No people. Different from the chamber laboratory. No people anywhere in the frame, not even small or distant figures.",
+        "references": [],
+        "characters": [],
+        "animationPrompt": "Slow dolly forward through the empty medical bay; a ceiling light flickers faintly. The room stays empty.",
+        "clipSeconds": 5
+      },
+      "stillApproval": {
+        "asset": "N26",
+        "sha256": "9d809f1cb7b87e96daf4daa94fc4b4e70d54df798a5a22c88f0a0028133b9a40",
+        "note": "Empty clinical bay, distinct from chamber lab."
+      },
+      "clipApprovals": [
+        {
+          "asset": "N26",
+          "sha256": "aaf34b457146e88f66d1ba13762baac629bec40bb3a8e361abf54752d05fb518",
+          "result": "PASS",
+          "note": "Slow dolly, empty room, table stable."
+        }
+      ],
+      "allowedClipReuse": true
+    },
+    {
+      "id": "N33",
+      "asset": {
+        "imagePrompt": "Seen through the small wired-glass window of a heavy door: George sits on a simple cot in a bare holding room, head slightly down.",
+        "references": [
+          "asset:N35"
+        ],
+        "characters": [
+          "George"
+        ],
+        "animationPrompt": "George breathes slowly and lowers his head slightly. Locked-off camera through the door window. He is the only person; nothing else moves.",
+        "clipSeconds": 5
+      },
+      "stillApproval": {
+        "asset": "N33",
+        "sha256": "cc1d039554fae62caa6d4465fd42461772d095521d07035435b368864c5bc751",
+        "note": "George matches N35 (beard, flannel) seen through wired window; alone."
+      },
+      "clipApprovals": [
+        {
+          "asset": "N33",
+          "sha256": "9352f2d80fcb708ab555f0b877017b0cb9cbc7d4941b3dcc0eeaa5b092c80b34",
+          "result": "PASS",
+          "note": "George consistent; raises his head instead of lowering it (fits the narration); L1 face spikes = wire mesh (false positive)."
+        }
+      ],
+      "allowedClipReuse": true
+    },
+    {
+      "id": "N35",
+      "asset": {
+        "imagePrompt": "Portrait of George seated in a bare holding room, looking up toward the camera with tired eyes, cold light.",
+        "references": [],
+        "characters": [
+          "George"
+        ],
+        "animationPrompt": "George slowly lifts his eyes to the lens. Very slow push-in. He stays seated, his hands do not move, and he is the only person in the frame.",
+        "clipSeconds": 5
+      },
+      "stillApproval": {
+        "asset": "N35",
+        "sha256": "bed5691ea8aaba709bee314abe7ac5f580e2b53badb604ef398345c45b6e54e0",
+        "note": "George: distinct civilian (grey beard, flannel), clearly not Thomas; alone."
+      },
+      "clipApprovals": [
+        {
+          "asset": "N35",
+          "sha256": "ac0aef677ac4e7c13295c57abf8487f3212fd2381ad33f6795507ba72a333d54",
+          "result": "PASS",
+          "note": "George identical across 12 frames; breathes, eyes on lens; alone; no hand motion."
+        }
+      ],
+      "allowedClipReuse": true
+    },
+    {
+      "id": "N41",
+      "asset": {
+        "imagePrompt": "A lower-level concrete corridor filled with low fog, red emergency lights along the walls, the far end disappearing into darkness. Empty. No people anywhere in the frame, not even small or distant figures.",
+        "references": [
+          "pilot:d01"
+        ],
+        "characters": [],
+        "animationPrompt": "Fog drifts slowly along the floor and the red emergency lights pulse softly. Slow dolly forward. The corridor stays empty for the entire shot.",
+        "clipSeconds": 10
+      },
+      "stillApproval": {
+        "asset": "N41",
+        "sha256": "f7325629e8d9d30fd65f297a8ca58a37675c0083df4be53d6ae60f3bf4c5dcf6",
+        "note": "Empty fog corridor, red emergency lights, far end dark."
+      },
+      "clipApprovals": [
+        {
+          "asset": "N41",
+          "sha256": "444bc3f7f926bf4cefc2d80fd61cab6b975aea9990ff32aea12dfe9af2d2a58c",
+          "result": "PASS",
+          "note": "Fog drifts, lights steady, corridor empty for 10 s; no figures."
+        }
+      ],
+      "allowedClipReuse": true
+    },
+    {
+      "id": "N46",
+      "asset": {
+        "imagePrompt": "A rotating red emergency beacon mounted on a concrete corridor wall, casting red light, empty corridor. No people anywhere in the frame, not even small or distant figures.",
+        "references": [],
+        "characters": [],
+        "animationPrompt": "The red emergency beacon rotates, sweeping red light across the empty corridor walls. Locked-off camera. The corridor stays empty.",
+        "clipSeconds": 5
+      },
+      "stillApproval": {
+        "asset": "N46",
+        "sha256": "8d39a57c5caa416aea1b0e760b8eee7f640309f3a124a38772de2a29c8915097",
+        "note": "Beacon on wall, empty corridor."
+      },
+      "clipApprovals": [
+        {
+          "asset": "N46",
+          "sha256": "9df6a4d44b0ae1f3e8420d89b92e2d8dc03a085ccf5f3f58d1f7cde7eef0a0f6",
+          "result": "PASS",
+          "note": "Beacon rotates and sweeps the wall; corridor empty."
+        }
+      ],
+      "allowedClipReuse": true
+    },
+    {
+      "id": "N48",
+      "asset": {
+        "imagePrompt": "A home office at night with 1970s-80s radio receiving equipment, an oscilloscope with a green trace, reel-to-reel recorder, warm desk lamp. No people. No people anywhere in the frame, not even small or distant figures.",
+        "references": [],
+        "characters": [],
+        "animationPrompt": "The green oscilloscope trace moves and small indicator lights flicker on the radio equipment. Locked-off camera with a very slow push-in. No people appear.",
+        "clipSeconds": 5
+      },
+      "stillApproval": {
+        "asset": "N48",
+        "sha256": "e5d5cb67cbaa3fb2775d783d3e20cd0b3db63bb956c919a5ee48d03073fe9144",
+        "note": "Radio equipment and oscilloscope, no people."
+      },
+      "clipApprovals": [
+        {
+          "asset": "N48",
+          "sha256": "fcbea86f39acafc06259c7462d33bb2af3228ba63d2ed8f2a00ad39bf06242ec",
+          "result": "PASS",
+          "note": "Subtle trace/light motion; no people."
+        }
+      ],
+      "allowedClipReuse": true
+    },
+    {
+      "id": "N20",
+      "asset": {
+        "imagePrompt": "Close-up of Thomas seated at his kitchen dinner table in the evening, silent, eyes slightly lowered, warm lamp light, soft kitchen background out of focus. Only Thomas in frame; no hands, no food in focus.",
+        "references": [
+          "pilot:d02",
+          "v1:D07-03",
+          "v1:D12-01"
+        ],
+        "characters": [
+          "Thomas"
+        ],
+        "animationPrompt": "Thomas sits completely still at the table and breathes slowly. Very slow push-in. He is the only person in the frame; his hands and head stay still.",
+        "clipSeconds": 5,
+        "animationRevision": "v2"
+      },
+      "stillApproval": {
+        "asset": "N20",
+        "sha256": "db4d612acef7c8f08b7b8ccfa8ef7fd13e5b30c569958752104b28b18348a353",
+        "note": "Thomas consistent; alone at kitchen table; no hands in action."
+      },
+      "clipApprovals": [
+        {
+          "asset": "N20",
+          "sha256": "",
+          "revision": "v1",
+          "result": "FAIL",
+          "reasons": [
+            "provider-no-output"
+          ],
+          "note": "Runway ended the task without a video.",
+          "fallback": "retry"
+        },
+        {
+          "asset": "N20",
+          "sha256": "",
+          "revision": "v2",
+          "result": "FAIL",
+          "reasons": [
+            "provider-no-output"
+          ],
+          "note": "Second failure with a simpler prompt: fall back to the approved still + camera motion.",
+          "fallback": "approved-still-camera-motion"
+        }
+      ],
+      "allowedClipReuse": false
+    },
+    {
+      "id": "N43",
+      "asset": {
+        "imagePrompt": "Thomas alone inside a small steel elevator, facing the doors, a red light glowing on his face from below.",
+        "references": [
+          "pilot:d02",
+          "v1:D07-03"
+        ],
+        "characters": [
+          "Thomas"
+        ],
+        "animationPrompt": "Red light slowly rises across Thomas's face as the elevator descends; he stays still and breathes. Locked-off camera. He is alone in the elevator.",
+        "clipSeconds": 5
+      },
+      "stillApproval": {
+        "asset": "N43",
+        "sha256": "887534eb5e95ddfbce715e28ec27b734df355b0019289a3219163193d9b3f21e",
+        "note": "Thomas consistent; alone in elevator; red light from below."
+      },
+      "clipApprovals": [
+        {
+          "asset": "N43",
+          "sha256": "cf27f835716e48dc5c9165344c0f030ebd38378f5d1f7e08affd57aa37ab0f4b",
+          "result": "FAIL",
+          "reasons": [
+            "identity-drift"
+          ],
+          "note": "Thomas's face changes after ~2.3 s as the red light rises. Fallback down the ladder: approved still + camera motion (no retry: identity has priority)."
+        }
+      ],
+      "allowedClipReuse": false
+    },
+    {
+      "id": "N22",
+      "asset": {
+        "imagePrompt": "Close-up of Thomas standing in a concrete corridor under cold light, silent, looking down the corridor.",
+        "references": [
+          "pilot:d02",
+          "v1:D07-03",
+          "pilot:d01"
+        ],
+        "characters": [
+          "Thomas"
+        ],
+        "animationPrompt": null,
+        "clipSeconds": 0
+      },
+      "stillApproval": {
+        "asset": "N22",
+        "sha256": "5a7f6dad6501a5e960f952ac1f5439490c5f9a981ebb70f7fcd9c2b25c207afb",
+        "note": "Thomas consistent in corridor."
+      },
+      "clipApprovals": [],
+      "allowedClipReuse": false
+    },
+    {
+      "id": "N25",
+      "asset": {
+        "imagePrompt": "Thomas stands before a large observation window, seen from the side; the dim laboratory with two cylindrical chambers is reflected faintly in the glass.",
+        "references": [
+          "pilot:d02",
+          "v1:D07-03",
+          "pilot:d04"
+        ],
+        "characters": [
+          "Thomas"
+        ],
+        "animationPrompt": null,
+        "clipSeconds": 0
+      },
+      "stillApproval": {
+        "asset": "N25",
+        "sha256": "2d89e0902970ff10213bbf4f0722404fec759b9e40c3216a8700e90a0f58ffb9",
+        "note": "Thomas at observation window, lab reflected; minor: two flat monitors in dark lower right (period detail), accepted."
+      },
+      "clipApprovals": [],
+      "allowedClipReuse": false
+    },
+    {
+      "id": "N29",
+      "asset": {
+        "imagePrompt": "High angle from an observation gallery looking down into a large laboratory where a few small figures in lab coats stand still at stations.",
+        "references": [
+          "pilot:d04"
+        ],
+        "characters": [
+          "staff"
+        ],
+        "animationPrompt": null,
+        "clipSeconds": 0
+      },
+      "stillApproval": {
+        "asset": "N29",
+        "sha256": "0d362896ed4820dbebd2d4d40759af6c51ba7973faadd0fa37b11cbd62bc42f7",
+        "note": "High-angle lab, small still figures at stations as requested."
+      },
+      "clipApprovals": [],
+      "allowedClipReuse": false
+    },
+    {
+      "id": "N30",
+      "asset": {
+        "imagePrompt": "Thomas seen from behind standing before a closed steel elevator door that has no call button, in a bare concrete lobby.",
+        "references": [
+          "pilot:d02",
+          "v1:D07-03"
+        ],
+        "characters": [
+          "Thomas"
+        ],
+        "animationPrompt": null,
+        "clipSeconds": 0
+      },
+      "stillApproval": {
+        "asset": "N30",
+        "sha256": "450889dbf560a6e68a060fec9d3b0e617474a35f6509efd6ab54ec52af8e6468",
+        "note": "Thomas from behind at a buttonless steel elevator; wardrobe matches."
+      },
+      "clipApprovals": [],
+      "allowedClipReuse": false
+    },
+    {
+      "id": "N34",
+      "asset": {
+        "imagePrompt": "Profile close-up of Thomas looking through the small window of a heavy door, cold light on his face.",
+        "references": [
+          "pilot:d02",
+          "v1:D07-03"
+        ],
+        "characters": [
+          "Thomas"
+        ],
+        "animationPrompt": null,
+        "clipSeconds": 0
+      },
+      "stillApproval": {
+        "asset": "N34",
+        "sha256": "710c549d350bb963b2d5a380f34a85506f0f70a20f52c204615e9eedb1536832",
+        "note": "Thomas profile at door window; identity consistent with N37/N38 and wardrobe."
+      },
+      "clipApprovals": [],
+      "allowedClipReuse": false
+    },
+    {
+      "id": "N36",
+      "asset": {
+        "imagePrompt": "Close-up of George's face, tired eyes, cold light, bare wall behind.",
+        "references": [
+          "asset:N35"
+        ],
+        "characters": [
+          "George"
+        ],
+        "animationPrompt": null,
+        "clipSeconds": 0
+      },
+      "stillApproval": {
+        "asset": "N36",
+        "sha256": "38635febc3f2126919f82bbe87115aac8e313114eb823421a6ecf032bc9af560",
+        "note": "George close-up matches N35."
+      },
+      "clipApprovals": [],
+      "allowedClipReuse": false
+    },
+    {
+      "id": "N37",
+      "asset": {
+        "imagePrompt": "Thomas stands still in a long concrete corridor, head lowered, lost in thought, medium shot.",
+        "references": [
+          "pilot:d02",
+          "v1:D07-03",
+          "pilot:d01"
+        ],
+        "characters": [
+          "Thomas"
+        ],
+        "animationPrompt": null,
+        "clipSeconds": 0
+      },
+      "stillApproval": {
+        "asset": "N37",
+        "sha256": "9f3c3305fdcf5b16f4cdb25bf9440a0fdd2c2ba340dc1e4d20565eb97bb0bb98",
+        "note": "Thomas head lowered in corridor; identity consistent."
+      },
+      "clipApprovals": [],
+      "allowedClipReuse": false
+    },
+    {
+      "id": "N38",
+      "asset": {
+        "imagePrompt": "Close-up of Thomas in low hard light, conflicted, eyes looking off to the side, dark background.",
+        "references": [
+          "pilot:d02",
+          "v1:D07-03"
+        ],
+        "characters": [
+          "Thomas"
+        ],
+        "animationPrompt": null,
+        "clipSeconds": 0
+      },
+      "stillApproval": {
+        "asset": "N38",
+        "sha256": "b5cf118ff25f4b6f319afc30ab7c8c5574854b70a4fbd32da2089f685de3edb6",
+        "note": "Thomas close-up, conflicted, eyes aside; identity consistent."
+      },
+      "clipApprovals": [],
+      "allowedClipReuse": false
+    },
+    {
+      "id": "N39",
+      "asset": {
+        "imagePrompt": "A dim office desk under a single lamp with a closed manila folder lying on it. No hands, no people, no writing. No people anywhere in the frame, not even small or distant figures.",
+        "references": [],
+        "characters": [],
+        "animationPrompt": null,
+        "clipSeconds": 0
+      },
+      "stillApproval": {
+        "asset": "N39",
+        "sha256": "450bf4cc9c4181e0bb5f3e94948f52b195d5143b23daf74fef0a9477ead16309",
+        "note": "Desk, lamp, closed folder; no people, no text."
+      },
+      "clipApprovals": [],
+      "allowedClipReuse": false
+    },
+    {
+      "id": "N40",
+      "asset": {
+        "imagePrompt": "Top-down view of open files spread on a desk: faceless photo silhouettes, blank index cards and redacted blank pages. No readable text anywhere. No people anywhere in the frame, not even small or distant figures.",
+        "references": [],
+        "characters": [],
+        "animationPrompt": null,
+        "clipSeconds": 0
+      },
+      "stillApproval": {
+        "asset": "N40",
+        "sha256": "8560d317078855f53beec15a97a7333718078c9c5d339fe2fd31dbcc27dbe058",
+        "note": "Files top-down; redaction bars only, no readable text; faceless photo silhouettes."
+      },
+      "clipApprovals": [],
+      "allowedClipReuse": false
+    },
+    {
+      "id": "N44",
+      "asset": {
+        "imagePrompt": "A heavy blast door on the lowest level standing slightly ajar, fog seeping through the gap, red light beyond. No people. No people anywhere in the frame, not even small or distant figures.",
+        "references": [
+          "pilot:d01"
+        ],
+        "characters": [],
+        "animationPrompt": null,
+        "clipSeconds": 0
+      },
+      "stillApproval": {
+        "asset": "N44",
+        "sha256": "584f04aec9b5e0b4899b559bc5373355315ed87893d51450360bbe11b51b5909",
+        "note": "Lowest-level corridor ending in door ajar with red light beyond; fog light. Semantically acceptable."
+      },
+      "clipApprovals": [],
+      "allowedClipReuse": false
+    },
+    {
+      "id": "N45",
+      "asset": {
+        "imagePrompt": "An old metal filing cabinet with one drawer pulled open showing empty folders, dim light. No writing. No people anywhere in the frame, not even small or distant figures.",
+        "references": [],
+        "characters": [],
+        "animationPrompt": null,
+        "clipSeconds": 0
+      },
+      "stillApproval": {
+        "asset": "N45",
+        "sha256": "02369312de74dc1c3fe579aa037c3fb1ede7756df464d44cc50a61d6082e8b9c",
+        "note": "Open filing drawer, empty folders, no writing."
+      },
+      "clipApprovals": [],
+      "allowedClipReuse": false
+    },
+    {
+      "id": "N50",
+      "asset": {
+        "imagePrompt": "An old typewriter on a desk under a lamp beside a stack of pages with every line blacked out. No readable text. No people anywhere in the frame, not even small or distant figures.",
+        "references": [],
+        "characters": [],
+        "animationPrompt": null,
+        "clipSeconds": 0
+      },
+      "stillApproval": {
+        "asset": "N50",
+        "sha256": "56cd79a774f29477f785d137d19f75b18970f17af865f266234d2463bd28bde9",
+        "note": "Typewriter and blacked-out pages; no readable text."
+      },
+      "clipApprovals": [],
+      "allowedClipReuse": false
+    }
+  ]
+}
