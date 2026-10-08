@@ -536,12 +536,17 @@ async function providerConfig() {
     const res = await fetch(`https://atomivid.vercel.app${PROVIDER_CONFIG_PATH}`, { method: "POST", redirect: "error", signal: AbortSignal.timeout(30_000),
       headers: { "x-probe-nonce": nonce, "x-probe-time": timestamp, "x-probe-signature": providerConfigSignature(key, nonce, timestamp) } }).catch(() => null);
     if (res?.ok) {
-      const report = await res.json() as { heygen?: { sealed?: unknown } };
-      if (!report.heygen) { log("PROVIDER_CONFIG_WAIT", { attempt, status: "previous deployment" }); await new Promise((r) => setTimeout(r, 20_000)); continue; }
+      const report = await res.json() as { heygen?: { sealed?: unknown }; avatar?: { sealed?: unknown } | null };
+      if (!report.heygen || !("avatar" in report)) { log("PROVIDER_CONFIG_WAIT", { attempt, status: "previous deployment" }); await new Promise((r) => setTimeout(r, 20_000)); continue; }
       const sealedPart = report.heygen?.sealed ?? null;
-      if (report.heygen) delete report.heygen.sealed;
-      log("PROVIDER_CONFIG", report);
+      delete report.heygen.sealed;
+      const avatarSealed = report.avatar?.sealed ?? null;
+      if (report.avatar) delete report.avatar.sealed;
+      // Public lines carry no amounts: everything sensitive was removed above and is printed sealed only.
+      log("PROVIDER_CONFIG", { ...report, avatar: undefined });
+      log("AVATAR_START_READINESS", report.avatar ?? null);
       if (sealedPart) sealed("HEYGEN_ACCOUNT", sealedPart);
+      if (avatarSealed) sealed("AVATAR_AMOUNTS", avatarSealed);
       await heygenDbState();
       return;
     }

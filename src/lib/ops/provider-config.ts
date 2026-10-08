@@ -73,3 +73,43 @@ export async function providerConfigReport(env: Record<string, string | undefine
   return { vercelEnv: env.VERCEL_ENV ?? null, commit: env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null, elevenlabsKey,
     elevenEnvNames: Object.keys(env).filter((k) => /ELEVEN|HEYGEN/i.test(k)).sort(), voices, heygen: await heygenProbe(env, fetchImpl) };
 }
+
+/**
+ * The start click's own admission for the newest avatar request still waiting at review (status
+ * script_ready, never started): same demands and readiness rule as the render route, with the
+ * just-in-time balance refresh (billing GET only). Nothing is reserved, queued or generated.
+ * Public: verdict/reason. `sealed`: amounts and the user-facing action text.
+ */
+export type AvatarReadinessProbe = {
+  found: boolean;
+  avatarProvider: string;
+  demand: { provider: string; unit: string }[];
+  ready: boolean | null;
+  providers: { provider: string; level: string | null; refreshed: boolean; verdict: string; failure: string | null }[];
+  sealed: { capUsd: number; providers: { provider: string; free: number | null; units: number | null; usd: number; action: string | null }[] } | null;
+};
+
+export async function avatarReadinessProbe(): Promise<AvatarReadinessProbe> {
+  const { createServiceClient } = await import("@/lib/supabase/service");
+  const { jobSupplyDemands } = await import("@/lib/supply/job");
+  const { ensureJobSupplyReady } = await import("@/lib/supply/readiness");
+  const { providerCheck } = await import("@/lib/video/long-form/production-preflight");
+  const { getFeatureFlags } = await import("@/lib/video/feature-flags");
+  const { getVoiceProvider } = await import("@/lib/providers/voice");
+  const flags = getFeatureFlags();
+  const service = createServiceClient();
+  const { data } = await service.from("video_requests").select("id,mode,script_json,recorded_audio_path,long_form_production_plan,status,render_attempts")
+    .eq("mode", "avatar").eq("status", "script_ready").eq("render_attempts", 0).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const out: AvatarReadinessProbe = { found: !!data, avatarProvider: flags.avatarProvider, demand: [], ready: null, providers: [], sealed: null };
+  if (!data) return out;
+  let voice = "unconfigured";
+  try { voice = getVoiceProvider().name; } catch { /* recorded audio needs no voice */ }
+  const demands = jobSupplyDemands(data as never, voice, flags);
+  out.demand = demands.map((d) => ({ provider: d.provider, unit: d.unit }));
+  const r = await ensureJobSupplyReady(service, demands);
+  out.ready = r.ready;
+  const checks = r.providers.map((p) => ({ p, c: providerCheck(p, demands.find((d) => d.provider === p.provider)?.unit ?? "usd") }));
+  out.providers = checks.map(({ p, c }) => ({ provider: p.provider, level: p.level, refreshed: p.refreshed, verdict: c.verdict, failure: p.failure ?? null }));
+  out.sealed = { capUsd: flags.maxAvatarCostUsd, providers: checks.map(({ p, c }) => ({ provider: p.provider, free: p.free, units: p.units, usd: p.usd, action: c.action })) };
+  return out;
+}
