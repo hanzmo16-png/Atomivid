@@ -154,8 +154,6 @@ async function main() {
       if(targets && diagnosticRepair) raw=applyFunctionRepair(raw,targets,readDocumentaryJson(diagnosticRepair));
       const resolved=resolveReviewReferences(raw,diagnosticDraft.beats);
       if(resolved.review) {
-        if(label==="first"){ const {publicEncrypt,constants}=await import("node:crypto");const bytes=Buffer.from(JSON.stringify({opening:diagnosticDraft.beats[0].narration.split(/\s+/).slice(0,220).join(" "),firstAnswer:resolved.review.firstAnswer,storyPlanAnswer:diagnosticDraft.storyPlan.firstAnswer}));const chunks:string[]=[];for(let i=0;i<bytes.length;i+=180) chunks.push(publicEncrypt({key:"-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyg4XZHM7+C5BmqE2+6fM\nIoiA/XYJvFZPa59uZHxKciDzpMRedIUbR7WcreuWVw47dqsHz7X29stAJeBsZNcB\nnzpMVDUar0Q9tGoG0xao50wIWwDCcrvVxho+qJ0SSVpZ6gotz50RPbYuFJD9x9n6\nnf19Scg6Vr8Gq/tpSK3BUeJ11m/s6UUJh5W5nFhP5LeHe11LN+88CSmuip0L1K3a\nQbtOKvcu09IFGOLU5DsPed4YnJ/my6q9sbkluwo6QFMnnDeDIICuX+Lt32L46tOw\nOuyhPiH+6FKyWqG1RNx25zl2tqUT8r4dnjEhFpv86vgkCx2/PCXUSSYPJIjzwDp2\nSQIDAQAB\n-----END PUBLIC KEY-----",padding:constants.RSA_PKCS1_OAEP_PADDING,oaepHash:"sha256"},bytes.subarray(i,i+180)).toString("base64"));console.log("PRIVATE_DIAG_ENCRYPTED",JSON.stringify(chunks)); }
-
         const ev=resolved.review.firstAnswer.evidence;
         const b=diagnosticDraft.beats[ev.beatIndex].narration;
         const at=b.indexOf(ev.quote);
