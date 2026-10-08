@@ -1,10 +1,8 @@
 name: Read-only documentary jobs diagnosis
-# Structural facts only (statuses, stop reasons, token usage, schema issue paths).
-# No provider credential is exposed and nothing is written.
 on:
   push:
     branches: [claude/hola-sn3dxy]
-    paths: [scripts/diagnose-documentary-jobs.ts, scripts/replay-documentary-job.ts, .github/workflows/documentary-jobs-diagnostic.yml]
+    paths: [.github/workflows/documentary-jobs-diagnostic.yml, scripts/replay-bigfoot-job.ts]
 permissions:
   contents: read
 jobs:
@@ -18,12 +16,63 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx tsx scripts/diagnose-documentary-jobs.ts
+      - name: Bigfoot saved response schema and owner V6 gate (read only)
+        run: |
+          cat > diagnostic-bigfoot-readonly.ts <<'TS'
+          import { createClient } from "@supabase/supabase-js";
+          import { ReferencedEditorialReviewSchema, LenientReferencedReviewSchema } from "./src/lib/video/long-form/narration-catalog";
+          import { EditorialReviewSchema, EDITORIAL_VERSION } from "./src/lib/video/long-form/editorial";
+          import { RESEARCH_VERSION } from "./src/lib/video/long-form/research";
+          import { documentarySupplyScope } from "./src/lib/supply/anthropic";
+          import { cinematicV6Enabled } from "./src/lib/video/long-form/cinematic-v6-access";
+          async function main() {
+           if (["ANTHROPIC_API_KEY","OPENAI_API_KEY","RUNWAY_API_KEY"].some(k=>process.env[k])) throw Error("Provider key present");
+           const db=createClient(process.env.SUPABASE_URL!.trim(),process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(),{auth:{persistSession:false,autoRefreshToken:false}});
+           const {data:j,error}=await db.from("documentary_script_jobs").select("id,user_id,topic,status,stage,error_code,failure_kind,input,editorial_checkpoint,retry_count,editorial_rounds,resubmit_allowance").eq("id","03738404-02ce-440a-a588-cb51ae4a0e9f").single();
+           if(error||!j) {console.log("JOB_READ_ERROR",JSON.stringify({code:error?.code}));throw Error("Target job unavailable");}
+           if(!/bigfoot|pie grande|sasquatch|piegrande|pies grandes|big foot/i.test(j.topic)) {console.log("TOPIC_MATCH false");throw Error("Target topic does not match Bigfoot");}
+           console.log("JOB",JSON.stringify({bigfoot:true,status:j.status,stage:j.stage,errorCode:j.error_code,failureKind:j.failure_kind,retries:j.retry_count,rounds:j.editorial_rounds,resubmits:j.resubmit_allowance,contract:j.input?.referenceContract,checkpointPresent:!!j.editorial_checkpoint,checkpointPass:j.editorial_checkpoint?.pass,checkpointReviewed:!!j.editorial_checkpoint?.review}));
+           const {data:u,error:ue}=await db.auth.admin.getUserById(j.user_id);
+           console.log("V6_WORKER",JSON.stringify({userRead:!ue,confirmed:!!u?.user?.email_confirmed_at,allowlistPresent:!!process.env.CINEMATIC_V6_ENABLED_EMAILS,enabled:!ue&&cinematicV6Enabled(u.user)}));
+           const scope=documentarySupplyScope(j.user_id,{...j.input.fields,editorialVersion:EDITORIAL_VERSION,researchVersion:RESEARCH_VERSION,creativeHistory:j.input.creativeHistory,...(j.input.referenceContract?{referenceContract:j.input.referenceContract}:{})},false);
+           const {data:ops,error:oe}=await db.from("pi_paid_operations").select("status,result_ref,created_at,committed_usd").eq("provider","anthropic").eq("project_id",scope.projectId).order("created_at",{ascending:true});
+           if(oe) throw Error("Ledger read unavailable");
+           console.log("LEDGER",JSON.stringify({operations:ops?.length}));
+           for(const [index,o] of (ops??[]).entries()){
+            const row:any={index,status:o.status,created:o.created_at,committedUsd:o.committed_usd};
+            if(o.status==="COMMITTED"&&o.result_ref&&!o.result_ref.startsWith("rejected:")){
+             if(!o.result_ref.startsWith(scope.projectId+"/paid/"))throw Error("Unexpected result scope");
+             const {data:f,error:fe}=await db.storage.from("videos").download(o.result_ref);
+             if(fe||!f)throw Error("Saved response unavailable");
+             const r=JSON.parse(await f.text());row.stop=r.stop_reason;row.outputTokens=r.usage?.output_tokens;
+             const t=(r.content??[]).filter((b:any)=>b.type==="text").map((b:any)=>b.text??"").join("").trim();
+             let v:any;try{v=JSON.parse(t.replace(/^\x60\x60\x60(?:json)?\s*\n([\s\S]*?)\n\x60\x60\x60$/i,"$1"));row.json=true;}catch{row.json=false;}
+             if(v&&Array.isArray(v.sections)){
+              row.review=true;
+              for(const [label,schema] of [["requested",j.input.referenceContract?ReferencedEditorialReviewSchema:EditorialReviewSchema],["reader",j.input.referenceContract?LenientReferencedReviewSchema:EditorialReviewSchema]] as const){
+               const p=schema.safeParse(v);row[label]={valid:p.success};
+               if(!p.success)row[label].issues=p.error.issues.map((i:any)=>{let x:any=v;for(const k of i.path)x=x?.[k];return {code:i.code,path:i.path,type:x===null?"null":Array.isArray(x)?"array":typeof x,length:typeof x==="string"||Array.isArray(x)?x.length:undefined,minimum:i.minimum,maximum:i.maximum,expected:i.expected,allowed:i.values,label:i.code==="invalid_value"&&typeof x==="string"&&/^[A-Za-z_ -]{1,40}$/.test(x)?x:undefined};});
+               if(Array.isArray(v.sections))row.sectionFunctions=v.sections.map((s:any)=>typeof s?.function==="string"&&/^[A-Za-z_ -]{1,40}$/.test(s.function)?s.function:"(non-label)");
+              }
+             }
+            }
+            console.log("RESPONSE",JSON.stringify(row));
+           }
+           console.log("NEW_PAID_CALLS 0; CHECKPOINT_PRESERVED true; PRODUCTION_WRITES 0");
+          }
+          main().catch(()=>{console.error("Read-only diagnostic failed; no content disclosed");process.exitCode=1;});
+          TS
+          npx tsx diagnostic-bigfoot-readonly.ts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      - name: Offline replay of saved jobs against the current pipeline (no provider calls)
-        run: npx tsx scripts/replay-documentary-job.ts
+          CINEMATIC_V6_ENABLED_EMAILS: ${{ secrets.CINEMATIC_V6_ENABLED_EMAILS }}
+          CINEMATIC_V6_ALL_USERS: ${{ vars.CINEMATIC_V6_ALL_USERS }}
+      - name: Offline replay of the Bigfoot job with saved responses only (no provider, no writes)
+        # No provider key is passed; the replay refuses to run if one is present and stops at the first uncached call.
+        run: npx tsx scripts/replay-bigfoot-job.ts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CINEMATIC_V6_ENABLED_EMAILS: ${{ secrets.CINEMATIC_V6_ENABLED_EMAILS }}
+          CINEMATIC_V6_ALL_USERS: ${{ vars.CINEMATIC_V6_ALL_USERS }}

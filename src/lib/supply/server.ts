@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PaidOperation } from "@/lib/production-intelligence/ledger";
 import { isProductionRuntime } from "@/lib/providers/production";
 import { SupplyUnavailableError } from "./policy";
+import { isRecoveryBudgetRefusal, RecoveryBudgetExceededError } from "./recovery-budget";
 
 /** Explicit opt-in locally; mandatory in production. There is no production bypass flag. */
 export function supplyGuardRequired(): boolean {
@@ -15,8 +16,10 @@ export async function submitWithSupply(service: SupabaseClient, op: PaidOperatio
     throw new SupplyUnavailableError(op.provider, "paid cost and units unverified");
   const { data, error } = await service.rpc("pi_submit_with_supply", { p_key: op.idempotencyKey, p_units: op.capacityUnits ?? null });
   if (error || !data || typeof data !== "object") throw new SupplyUnavailableError(op.provider, "control unavailable");
-  const result = data as { submitted?: boolean; reason?: string };
+  const result = data as { submitted?: boolean; reason?: string; capUsd?: unknown; committedUsd?: unknown; pendingUsd?: unknown; requestedUsd?: unknown };
   if (result.reason === "already_claimed") return false;
+  // A job's recovery budget refused this call (atomically, before the provider): terminal, never "wait for supply".
+  if (!result.submitted && isRecoveryBudgetRefusal(result.reason)) throw new RecoveryBudgetExceededError(result as { reason: string });
   if (!result.submitted) throw new SupplyUnavailableError(op.provider, result.reason ?? "unverified supply");
   return true;
 }

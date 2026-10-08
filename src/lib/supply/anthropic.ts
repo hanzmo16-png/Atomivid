@@ -7,7 +7,7 @@ import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
 import { supabaseResultStore, paidResultPath } from "@/lib/paid-calls/result-store";
 import { stableHash } from "@/lib/production-intelligence/canonical";
 import { supplyGuardRequired } from "./server";
-import { anthropicReservation, anthropicActualCost, type ScriptUsage } from "./anthropic-cost";
+import { anthropicReservation, anthropicActualCost, ceilLedgerUsd, type ScriptUsage } from "./anthropic-cost";
 import { classifyAnthropicError } from "./anthropic-error";
 
 import { admitDocumentaryCall } from "./documentary-step";
@@ -36,7 +36,8 @@ export async function supplyProtectedAnthropic<T extends { usage?: ScriptUsage }
 ): Promise<T> {
   if (!supplyGuardRequired()) return invoke();
   const pricing = getPricingConfig();
-  const upperUsd = anthropicReservation(params, pricing);
+  // Rounded UP to the ledger's precision: the database budget/caps compare stored amounts.
+  const upperUsd = ceilLedgerUsd(anthropicReservation(params, pricing));
   const scope = context.getStore() ?? { projectId: "operator-script", intentId: randomUUID() };
   const service = createServiceClient(), results = supabaseResultStore(service);
   // Older owner-only form submissions used operator-script. Reuse only an exact
@@ -65,7 +66,7 @@ export async function supplyProtectedAnthropic<T extends { usage?: ScriptUsage }
   admitDocumentaryCall(existing?.status);
   const paid = await guardPaidCall<T>(store, spec, { async call({ key }) {
     const result = await invoke();
-    const costUsd = anthropicActualCost(params, pricing, result.usage, upperUsd);
+    const costUsd = ceilLedgerUsd(anthropicActualCost(params, pricing, result.usage, upperUsd));
     const resultRef = paidResultPath(scope.projectId, key, "script.json");
     await results.putJson(resultRef, result);
     return { result, costUsd, resultRef };

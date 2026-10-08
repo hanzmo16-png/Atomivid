@@ -34,3 +34,10 @@ export function anthropicActualCost(params: Params, rates: Rates, usage: ScriptU
   return (usage.input_tokens * rates.scriptInputUsdPer1MTokens + usage.output_tokens * rates.scriptOutputUsdPer1MTokens) / 1e6
     + (searches ?? 0) * .01;
 }
+
+/** The ledger stores USD with 4 decimals (numeric(12,4)). Round UP so a stored reservation or cost is never
+ * below the computed one: budget and cap checks in the database can then never under-count. */
+export function ceilLedgerUsd(usd: number): number {
+  if (!Number.isFinite(usd) || usd < 0) throw new Error("SCRIPT_SUPPLY_COST_UNVERIFIED");
+  return Math.ceil(Number((usd * 1e4).toFixed(6))) / 1e4;
+}
