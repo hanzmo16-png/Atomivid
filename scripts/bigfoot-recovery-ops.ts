@@ -200,7 +200,16 @@ async function v6Check() {
       workerAdmission = `admitted (plan v${plan.version})`;
     } catch (e) { workerAdmission = `refused: ${e instanceof Error ? e.message.slice(0, 120) : "error"}`; }
   }
-  log("V6_CHECK", { request: { status: req.status, mode: req.mode, confirmed: !!req.long_form_confirmed_at, editorial: script.editorial?.status },
+  let visualReadiness:unknown={checked:false};
+  if(v6){const [{planSequenceShots},{resolveSequences,PLAN_ESTIMATE_AVAILABILITY,registryAvailability},{heroCoverage,VerifiedAssetRegistry},{requestedContracts,isAuthorizedCurator},{planReleaseBlockers},{containsFixtureOnlyMaterial}]=await Promise.all([import("../src/lib/video/long-form/sequence-direction"),import("../src/lib/video/long-form/sequence-intent"),import("../src/lib/video/long-form/verified-assets"),import("../src/lib/video/long-form/asset-curation"),import("../src/lib/video/long-form/cinematic-director"),import("../src/lib/video/long-form/fixture-only")]);
+  const estimate=planSequenceShots(beats,resolveSequences(v6.plan.sequences!,PLAN_ESTIMATE_AVAILABILITY)).shots;
+  const f=await db.storage.from("videos").download(req.id+"/state/curation.json");let registry=VerifiedAssetRegistry.empty();let assetState="no curated asset file";
+  if(!f.error&&f.data){const raw=JSON.parse(await f.data.text());if(containsFixtureOnlyMaterial(raw))throw Error("fixture assets in real request");registry=VerifiedAssetRegistry.rehydrate(raw,{requestId:req.id,isAuthorizedCurator,requestedContracts:new Set(requestedContracts(estimate).keys())});assetState=process.env.ASSET_CURATOR_EMAILS?"curation checked":"file present; curator authority unavailable in this diagnostic";}
+  const shots=planSequenceShots(beats,resolveSequences(v6.plan.sequences!,registryAvailability(registry))).shots;
+  const coverage=heroCoverage(shots,registry,0.25);const blockers=planReleaseBlockers(shots).map(x=>x.code);
+  visualReadiness={checked:true,assetState,verifiedAssets:registry.size,blockerCodes:[...blockers,...coverage.blockers],missingHeroIdentities:coverage.heroMissingRequiredIdentities.length,missingHeroEvidence:coverage.heroMissingRequiredEvidence.length,ready:blockers.length===0&&coverage.blockers.length===0};
+  }
+  log("V6_CHECK", { visualReadiness, request: { status: req.status, mode: req.mode, confirmed: !!req.long_form_confirmed_at, editorial: script.editorial?.status },
     beats: script.beats.length, visuals: visuals.length, visualsWithImpact: withImpact.length, visualsWithClass: withClass.length,
     workerEnvEnabled: enabled, plans: results.map((r) => ({ strategy: r.strategy, version: r.plan.version, engine: r.engine, reason: r.reason, sequences: r.plan.sequences?.length ?? 0, estimatedUsd: r.plan.estimatedProviderCostUsd })),
     workerAdmission, configurePath: `/dashboard/long-form/configure/${job.request_id}` });
