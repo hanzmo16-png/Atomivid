@@ -306,7 +306,26 @@ async function verifyBackedScenes(){
  if(result.visuals.length!==5||!unchanged)throw Error("preservation failed");
  log("BACKED_SCENES",{kept:5,discardedUnsupported:3,allRetainedFieldsUnchanged:unchanged,approvedNarrationUnchanged:true,cachedRepairReused:true,newPaidCalls:0,productionWrites:0});
 }
-const modes: Record<string, () => Promise<unknown>> = { "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+/** Read-only provider capacity: the same pi_supply_state the paid-call gate uses, plus the latest balance snapshot time. */
+async function supplyCheck() {
+  const db = service();
+  const { data: policies, error } = await db.from("pi_supply_policies").select("provider,enabled,unit,unit_cost_usd,daily_cap_usd,monthly_cap_usd,max_concurrent,timezone").order("provider");
+  if (error) throw Error(`policies read failed ${error.code ?? ""}`);
+  const rows = [];
+  for (const p of policies ?? []) {
+    const { data: state, error: se } = await db.rpc("pi_supply_state", { p_provider: p.provider });
+    const { data: snap } = await db.from("pi_capacity_snapshots").select("checked_at,health,status,reliability,available,unit").eq("provider", p.provider).order("checked_at", { ascending: false }).limit(1).maybeSingle();
+    const st = (state ?? {}) as Record<string, unknown>;
+    const level = se ? "UNKNOWN" : String(st.level ?? "UNKNOWN");
+    rows.push({ provider: p.provider, enabled: p.enabled, level, verdict: level === "GREEN" || level === "YELLOW" ? "Suficiente" : level === "RED" ? "Insuficiente" : "Sin verificar",
+      reason: st.reason ?? (se ? `rpc ${se.code}` : null), unit: p.unit, free: st.free ?? null, unreserved: st.unreserved ?? null, activeCalls: st.activeCalls ?? null,
+      dailyCapUsd: p.daily_cap_usd, monthlyCapUsd: p.monthly_cap_usd, snapshotAt: snap?.checked_at ?? null, snapshotHealth: snap?.health ?? null, snapshotSource: snap?.reliability ?? null });
+  }
+  log("SUPPLY", { checkedAt: new Date().toISOString(), providers: rows });
+}
+async function readiness() { await supplyCheck(); await v6Check(); }
+
+const modes: Record<string, () => Promise<unknown>> = { "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });

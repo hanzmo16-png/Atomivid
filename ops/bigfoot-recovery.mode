@@ -1,2 +1,2 @@
-close-budget
-# Close completed Bigfoot recovery; preserve committed responses and exact spend.
+readiness
+# read-only: provider capacity + Bigfoot V6/asset readiness (no writes, no provider calls)
