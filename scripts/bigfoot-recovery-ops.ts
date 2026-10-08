@@ -149,6 +149,21 @@ async function recover() {
   if (result !== "queued") throw Error("retry refused");
 }
 
+async function resumeBudget() {
+  const { job, projectId, summary } = await inspect();
+  if (!summary.project.matchesExpected || summary.uncertain !== 0 || job.status !== "failed") throw Error("resume preconditions not met");
+  const { client } = await connectResolved();
+  try {
+    const before = (await client.query(`select public.pi_recovery_budget_usage($1) u`, [projectId])).rows[0].u;
+    if (!before || Number(before.capUsd) !== 2.10 || before.baselineOperations !== 5) throw Error("original capped budget required");
+    const r = (await client.query(`select public.pi_resume_recovery_budget($1,$2) r`, [JOB_ID,
+      "owner authorization 2026-10-08 08:13 Cancun: consolidate V6 and continue Bigfoot within original USD2.10 cap; accumulated spend retained"])).rows[0].r;
+    const after = (await client.query(`select public.pi_recovery_budget_usage($1) u`, [projectId])).rows[0].u;
+    if (Number(after.capUsd) !== 2.10 || after.committedUsd !== before.committedUsd || after.baselineOperations !== 5 || after.status !== "ACTIVE") throw Error("resume invariant failed");
+    log("RESUME_BUDGET", { resumed: r.resumed, usage: after, originalSpendPreserved: true });
+  } finally { await client.end(); }
+}
+
 async function closeBudget() {
   const { client } = await connectResolved();
   try {
@@ -190,7 +205,7 @@ async function v6Check() {
     workerAdmission, configurePath: `/dashboard/long-form/configure/${job.request_id}` });
 }
 
-const modes: Record<string, () => Promise<unknown>> = { "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+const modes: Record<string, () => Promise<unknown>> = { "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });

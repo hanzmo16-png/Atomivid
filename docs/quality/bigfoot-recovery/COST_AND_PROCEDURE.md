@@ -168,3 +168,26 @@ How to reproduce:
 - The test is intermittent **on the base branch too**, at an indistinguishable rate.
 - It depends on the ffmpeg AAC encode and measurement, not on this change.
 - No audio code is modified here; fixing it is a separate task.
+
+## Execution 2026-10-08 (owner-authorized)
+
+| Step | Evidence |
+|---|---|
+| Migration `20261008120000` applied (only that file) | ops `verify-rpc`: `pi_submit_with_supply_core` present. `service_role` can execute the wrapper but not the core nor the opener; `anon`/`authenticated` none. Registered. Functional refusal inside a rolled-back transaction: "recovery budget exceeded", op stays RESERVED, cap raise blocked |
+| PR #61 merged; production `f6f93ee` | Vercel Production deployment success |
+| Job and project verified | real `project_id` recomputed (hash `012ff073f3`); 5 COMMITTED, 0 uncertain; owner confirmed |
+| Budget opened once | cap 2.10, ACTIVE, baseline = exactly the 5 COMMITTED operations |
+| Recovery 1 | real repair 0.0059, correction 0.1195, continuation 0.0735. Then `2c686020`: the plan fragment was refused only on `creativeDirection.weakness` (307–312 > 300 chars) |
+| PR #62 (accept explanatory metadata up to 1600, request unchanged), production `e57266a` | offline replay against the saved responses: completes the correction and stops at review pass 1 |
+| Recovery 2 | review pass 1 0.0501; repair 0.0058 (the review again had an out-of-contract function). Then `a1a4453c`: `validateEditorialReview` refused the review: "La primera recompensa marcada aparece después de la apertura" (the reviewer marked the first answer delivered, with evidence after the first 150 words) |
+| Stop | editorial-validation rejection on the last pass, deterministic on replay. No approval forced, no extra rounds; the remaining retry was not used |
+| New spend | **USD 0.2548 of 2.10** (5 new COMMITTED operations, 0 uncertain); 10 COMMITTED in total, the original 5 reused |
+| Budget | closed after the recovery (one-way); committed results stay reusable |
+
+
+## Authorized continuation (2026-10-08 08:13 Cancun)
+The critic cited words 145–156 but justified its decision by the first block (207 words). The existing 150-word gate remains unchanged. A new bounded, deterministic `opening-payoff-evidence-repair-v1` call rechecks only `firstAnswer` against complete catalog excerpts ending by word 150. No eligible reward produces an editorial blocker, not approval. Other judgments and findings remain unchanged; reservations and cached responses use the existing ledger.
+
+`20261008131541_documentary_recovery_resume.sql` adds operator-only, single-use authorization to resume the SAME budget after it was closed prematurely. Original cap USD2.10, baseline five, and all accumulated spend remain immutable. The application cannot call the resume function. `resume-budget` records the owner's new explicit authorization; it does not reset spend. Keep the budget active while resolving a failure; close only after completion or intentional cancellation.
+
+Validation: 108 editorial tests, 97 spend tests, typecheck and lint; PostgreSQL WASM verification covers preserved spend/baseline/cap, unauthorized reopening, idempotency, uncertain-operation refusal and the exact cap boundary. Reproduce via `scripts/verify-recovery-resume.mjs` with a separately installed `@electric-sql/pglite` and PGLITE_MODULE pointing to its module.

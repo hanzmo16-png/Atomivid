@@ -117,7 +117,7 @@ export function validateEditorialReview(value: unknown, script: EditorialScript)
     const preceding = script.beats.slice(0, beatIndex).map(b => b.narration).join(" ");
     const prefix = script.beats[beatIndex].narration.split(quote)[0];
     if (`${preceding} ${prefix} ${quote}`.trim().split(/\s+/).length > 150)
-      throw new Error("La primera recompensa marcada aparece después de la apertura.");
+      throw new EditorialTimingEvidenceError();
   }
   if (review.ending.resolvesPromise && review.ending.evidence.beatIndex < Math.floor(script.beats.length / 2))
     throw new Error("La revisión no identifica la resolución en la segunda parte del guion.");
@@ -171,4 +171,9 @@ export function editorialApprovalError(script: { beats: unknown[]; editorial?: u
     if (editorialBlockers(last).length) return "El guion mantiene problemas editoriales pendientes.";
   } catch { return "La revisión editorial guardada está incompleta o no corresponde al guion."; }
   return null;
+}
+
+/** The critic's early-payoff claim contradicts its citation; this is not proof of a bad script. */
+export class EditorialTimingEvidenceError extends Error {
+  constructor() { super("La primera recompensa marcada aparece después de la apertura."); this.name = "EditorialTimingEvidenceError"; }
 }

@@ -41,7 +41,17 @@ jobs:
         run: npm run test:spend
       - name: Verify editorial gate without provider calls
         run: npm run test:editorial
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Use installed ffmpeg or the lockfile-pinned bundled executable
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            test -x node_modules/@ffmpeg-installer/linux-x64/ffmpeg
+            echo "$PWD/node_modules/@ffmpeg-installer/linux-x64" >> "$GITHUB_PATH"
+          fi
+          if ! command -v ffprobe >/dev/null 2>&1; then
+            test -f node_modules/@ffprobe-installer/linux-x64/ffprobe
+            chmod +x node_modules/@ffprobe-installer/linux-x64/ffprobe
+            echo "$PWD/node_modules/@ffprobe-installer/linux-x64" >> "$GITHUB_PATH"
+          fi
       - run: npx remotion browser ensure
       - name: Prepare synthetic test image (no personal photo)
         run: |
