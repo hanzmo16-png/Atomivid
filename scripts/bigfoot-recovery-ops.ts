@@ -447,6 +447,14 @@ async function coverageScenarios() {
     const registry = rehydrateFixture(curateFixture(approvals, requested, req!.id), req!.id, requested);
     const pre = await visualReleasePreflight({ supabase: db, requestId: req!.id, plan, beats: script.beats as never, topic, verifiedAssets: registry });
     const codes = [...new Set(pre.blockers.map((b) => b.replace(/^HERO_COVERAGE\s+/, "").split(":")[0].trim()))];
+    if (name === "S0_actual" || name === "S1_pelicula") {
+      const { registryAvailability, resolveSequences } = await import("../src/lib/video/long-form/sequence-intent");
+      const { planSequenceShots } = await import("../src/lib/video/long-form/sequence-direction");
+      const { contractForVisual, contractKey } = await import("../src/lib/video/long-form/verified-assets");
+      const shots = planSequenceShots(script.beats as never, resolveSequences((plan as { sequences: never }).sequences, registryAvailability(registry))).shots;
+      log("SIM_SHOTS", { scenario: name, shots: shots.map((sh) => { const v = (sh as { anchoredVisual?: { beatClass?: string } }).anchoredVisual; const c = contractForVisual(v as never);
+        return [Math.round(sh.startSec), Math.round(sh.endSec), sh.type, v?.beatClass ?? null, c ? (LABEL[contractKey(c)] ?? "?") : null]; }) });
+    }
     log("SIM", { scenario: name, approved: labels, verifiedInRegistry: registry.size, pass: pre.blockers.length === 0, codes, heroMissingIdentities: pre.coverage?.heroMissingRequiredIdentities.length,
       heroMissingEvidence: pre.coverage?.heroMissingRequiredEvidence.length, textCardRatio: pre.coverage?.estimatedTextCardRatio, plannedShots: pre.plannedShotCount });
   }
