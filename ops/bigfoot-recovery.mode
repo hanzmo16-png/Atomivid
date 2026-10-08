@@ -1,2 +1,2 @@
-provider-config
-# signed probe of the running production deployment: presence/names/counts only
+heygen-policy
+# OWNER-AUTHORIZED 2026-10-08: configure HeyGen supply policy in production (guarded CAS; caps 20/150 and per-production cap unchanged; no spend, no generation)

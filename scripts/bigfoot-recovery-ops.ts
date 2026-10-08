@@ -526,6 +526,45 @@ async function heygenDbState() {
   }
 }
 
+/** Read-only: every supply policy's parameters (no secrets) to validate a proposed HeyGen policy against existing conventions. */
+async function supplyPolicies() {
+  const db = service();
+  const { data } = await db.from("pi_supply_policies").select("provider,enabled,unit,unit_cost_usd,baseline,daily_forecast,max_concurrent,max_daily_calls,daily_cap_usd,monthly_cap_usd,timezone,evidence").order("provider");
+  log("SUPPLY_POLICIES", (data ?? []).map((p) => ({ ...p, evidence: String(p.evidence ?? "").trim() ? `present(${String(p.evidence).trim().length} chars)` : "empty" })));
+}
+
+/**
+ * Owner authorization 2026-10-08: configure the HeyGen supply policy in production (it was seeded but
+ * never configured, so pi_supply_state always answered "policy unconfigured"). Follows the existing
+ * policies' convention: baseline = provider-observed funded balance at configuration, daily_forecast 0,
+ * unit_cost_usd 1 for usd, max_concurrent 1. Caps (20/day, 150/month) and the per-production cap are
+ * NOT touched and are re-checked after the write. Compare-and-set on the exact observed row.
+ */
+async function heygenPolicy() {
+  const db = service();
+  const { data: snap } = await db.from("pi_capacity_snapshots").select("unit,reliability,health,available,checked_at").eq("provider", "heygen")
+    .order("checked_at", { ascending: false }).limit(1).maybeSingle();
+  const ageH = snap ? (Date.now() - Date.parse(snap.checked_at)) / 3_600_000 : Infinity;
+  if (!snap || snap.unit !== "usd" || snap.reliability !== "provider_api" || snap.health !== "OK" || !(Number(snap.available) >= 0) || ageH > 6)
+    throw Error("VALIDATION: no recent provider_api usd snapshot for heygen; nothing changed");
+  const evidence = `Configured 2026-10-08 by owner authorization (Atomivid avatar test). Balance source: HeyGen GET /v3/users/me read in production `
+    + `(billing_type=wallet, currency usd, reliability provider_api, snapshot ${snap.checked_at}). Convention of configured policies: baseline = provider-observed `
+    + `funded balance at configuration; daily_forecast 0; unit_cost_usd 1 (usd unit); max_concurrent 1. max_daily_calls 4 = 2 avatar videos/day `
+    + `(create_avatar + generate_video ledger calls). Caps unchanged: daily 20 USD, monthly 150 USD; per-production cap MAX_AVATAR_COST_USD unchanged.`;
+  const patch = { enabled: true, unit_cost_usd: 1, baseline: Number(snap.available), daily_forecast: 0, max_concurrent: 1, max_daily_calls: 4, evidence, updated_at: new Date().toISOString() };
+  const { data, error } = await db.from("pi_supply_policies").update(patch).eq("provider", "heygen").eq("unit", "usd").eq("enabled", false)
+    .eq("baseline", 0).eq("unit_cost_usd", 0).eq("max_concurrent", 0).eq("max_daily_calls", 0).eq("daily_cap_usd", 20).eq("monthly_cap_usd", 150)
+    .select("provider,enabled,unit,unit_cost_usd,daily_forecast,max_concurrent,max_daily_calls,daily_cap_usd,monthly_cap_usd,baseline");
+  if (error) throw Error(`policy update failed ${error.code ?? ""}`);
+  const row = data?.[0] as Record<string, unknown> | undefined;
+  const capsKept = !!row && Number(row.daily_cap_usd) === 20 && Number(row.monthly_cap_usd) === 150;
+  log("HEYGEN_POLICY_SET", { applied: (data ?? []).length === 1, capsKept, row: row ? { ...row, baseline: undefined } : null });
+  if (row) sealed("HEYGEN_BASELINE", { baseline: row.baseline, snapshotAt: snap.checked_at });
+  const { data: state } = await db.rpc("pi_supply_state", { p_provider: "heygen" });
+  const st = state as Record<string, unknown> | null;
+  log("HEYGEN_STATE_AFTER", st ? { level: st.level, reason: st.reason } : null);
+}
+
 /** Signed probe of the RUNNING production deployment (presence/counts only; never a value). Waits for the route to go live. */
 async function providerConfig() {
   const { randomUUID } = await import("node:crypto");
@@ -536,12 +575,17 @@ async function providerConfig() {
     const res = await fetch(`https://atomivid.vercel.app${PROVIDER_CONFIG_PATH}`, { method: "POST", redirect: "error", signal: AbortSignal.timeout(30_000),
       headers: { "x-probe-nonce": nonce, "x-probe-time": timestamp, "x-probe-signature": providerConfigSignature(key, nonce, timestamp) } }).catch(() => null);
     if (res?.ok) {
-      const report = await res.json() as { heygen?: { sealed?: unknown } };
-      if (!report.heygen) { log("PROVIDER_CONFIG_WAIT", { attempt, status: "previous deployment" }); await new Promise((r) => setTimeout(r, 20_000)); continue; }
+      const report = await res.json() as { heygen?: { sealed?: unknown }; avatar?: { sealed?: unknown } | null };
+      if (!report.heygen || !("avatar" in report)) { log("PROVIDER_CONFIG_WAIT", { attempt, status: "previous deployment" }); await new Promise((r) => setTimeout(r, 20_000)); continue; }
       const sealedPart = report.heygen?.sealed ?? null;
-      if (report.heygen) delete report.heygen.sealed;
-      log("PROVIDER_CONFIG", report);
+      delete report.heygen.sealed;
+      const avatarSealed = report.avatar?.sealed ?? null;
+      if (report.avatar) delete report.avatar.sealed;
+      // Public lines carry no amounts: everything sensitive was removed above and is printed sealed only.
+      log("PROVIDER_CONFIG", { ...report, avatar: undefined });
+      log("AVATAR_START_READINESS", report.avatar ?? null);
       if (sealedPart) sealed("HEYGEN_ACCOUNT", sealedPart);
+      if (avatarSealed) sealed("AVATAR_AMOUNTS", avatarSealed);
       await heygenDbState();
       return;
     }
@@ -551,7 +595,7 @@ async function providerConfig() {
   throw Error("probe route not live");
 }
 
-const modes: Record<string, () => Promise<unknown>> = { "provider-config": providerConfig, "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+const modes: Record<string, () => Promise<unknown>> = { "heygen-policy": heygenPolicy, "supply-policies": supplyPolicies, "provider-config": providerConfig, "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
