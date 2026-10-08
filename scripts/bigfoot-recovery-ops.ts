@@ -63,6 +63,7 @@ async function inspect() {
     ledger: ops.map((o) => ({ key: h10(o.idempotency_key), status: o.status, reserved: o.reserved_usd, committed: o.committed_usd })),
     committed: ops.filter((o) => o.status === "COMMITTED").length,
     uncertain: ops.filter((o) => UNCERTAIN.includes(o.status)).length,
+    editorial: job.editorial_checkpoint?.review ? {firstDelivered:job.editorial_checkpoint.review.firstAnswer?.delivered,endingResolved:job.editorial_checkpoint.review.ending?.resolvesPromise,sectionFunctions:job.editorial_checkpoint.review.sections?.map((x:any)=>x.function),findings:job.editorial_checkpoint.review.findings?.map((x:any)=>({kind:x.kind,severity:x.severity}))}:null,
     checkpoint: cp ? { status: cp.status, pass: cp.pass, reviewed: !!cp.review, hash: stableHash(cp, 16) } : null,
   };
   log("INSPECT", summary);
