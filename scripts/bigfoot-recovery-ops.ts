@@ -209,7 +209,7 @@ async function v6Check() {
   const coverage=heroCoverage(shots,registry,0.25);const blockers=planReleaseBlockers(shots).map(x=>x.code);
   visualReadiness={checked:true,assetState,verifiedAssets:registry.size,blockerCodes:[...blockers,...coverage.blockers],missingHeroIdentities:coverage.heroMissingRequiredIdentities.length,missingHeroEvidence:coverage.heroMissingRequiredEvidence.length,ready:blockers.length===0&&coverage.blockers.length===0};
   }
-  log("V6_CHECK", { visualReadiness, request: { status: req.status, mode: req.mode, confirmed: !!req.long_form_confirmed_at, editorial: script.editorial?.status },
+  log("V6_CHECK", { curatorEnvConfigured: !!process.env.ASSET_CURATOR_EMAILS, curatorConfigHash: process.env.ASSET_CURATOR_EMAILS ? h10(process.env.ASSET_CURATOR_EMAILS.split(",").map(s=>s.trim().toLowerCase()).sort().join(",")) : null, visualReadiness, request: { status: req.status, mode: req.mode, confirmed: !!req.long_form_confirmed_at, editorial: script.editorial?.status },
     beats: script.beats.length, visuals: visuals.length, visualsWithImpact: withImpact.length, visualsWithClass: withClass.length,
     workerEnvEnabled: enabled, plans: results.map((r) => ({ strategy: r.strategy, version: r.plan.version, engine: r.engine, reason: r.reason, sequences: r.plan.sequences?.length ?? 0, estimatedUsd: r.plan.estimatedProviderCostUsd })),
     workerAdmission, configurePath: `/dashboard/long-form/configure/${job.request_id}` });
