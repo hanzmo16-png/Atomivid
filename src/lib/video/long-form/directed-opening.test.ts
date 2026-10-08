@@ -132,7 +132,7 @@ test("resolver: en una secuencia sobre una persona, CONTEXT hereda el filtro de 
 
 test("v4 inmutable: sin secuencias el plan sigue siendo v4 idéntico; v5 no es ejecutable por el worker", () => {
   assert.equal(PRODUCTION_PLAN_VERSION, 4);
-  assert.deepEqual([...EXECUTABLE_PLAN_VERSIONS], [1, 2, 3, 4], "el worker no ejecuta v5 todavía (activación explícita futura)");
+  assert.deepEqual([...EXECUTABLE_PLAN_VERSIONS], [1, 2, 3, 4, 6], "el worker no ejecuta v5 (solo v6, para cuentas habilitadas)");
   const v4 = computeProductionPlan({ beats: gucciBeats, topic: GUCCI_TOPIC, strategy: "economical", providers: REAL_LONG_FORM_PROVIDER_NAMES, aiVideoEnabled: false });
   assert.equal(v4.version, 4);
   assert.equal("sequences" in v4, false);

@@ -60,11 +60,11 @@ async function showcase(sequences?: SequenceIntent[]) {
   return input!;
 }
 
-test("versión: v6 solo si la intención declara impacto; v5 sigue siendo v5; el worker no ejecuta v6", () => {
+test("versión: v6 solo si la intención declara impacto; v5 sigue siendo v5; el worker ejecuta v6 (con cuenta habilitada)", () => {
   assert.equal(planFor(showcaseBeats, "economical", showcaseSequencesV6, SHOWCASE_TOPIC).version, 6);
   assert.equal(planFor(showcaseBeats, "economical", showcaseSequences, SHOWCASE_TOPIC).version, 5);
   assert.equal(planFor(gucciBeats).version, 4);
-  assert.deepEqual([...EXECUTABLE_PLAN_VERSIONS], [1, 2, 3, 4], "REAL_WORKER_V6_ENABLED: NO");
+  assert.deepEqual([...EXECUTABLE_PLAN_VERSIONS], [1, 2, 3, 4, 6], "el worker ejecuta v6; la cuenta se comprueba en run-job (cinematic-v6-production.test.ts)");
   // Un plan v6 a medias (un slot sin impacto o sin razón) no existe.
   const partial = JSON.parse(JSON.stringify(showcaseSequencesV6)) as SequenceIntent[];
   delete partial[1].slots[2].impact;

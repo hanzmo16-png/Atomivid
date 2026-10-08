@@ -121,6 +121,10 @@ jobs:
           # Vacío = se intenta subir tal cual y, si Storage rechaza por
           # tamaño, se ajusta desde el mismo archivo al límite demostrado.
           LONG_FORM_STORAGE_MAX_OBJECT_BYTES: ${{ vars.LONG_FORM_STORAGE_MAX_OBJECT_BYTES }}
+          # Cinematic V6 (plan v6): el worker vuelve a comprobar la cuenta dueña del trabajo.
+          # Vacío = ningún plan v6 se ejecuta (falla cerrado). Mismos valores que en Vercel.
+          CINEMATIC_V6_ENABLED_EMAILS: ${{ secrets.CINEMATIC_V6_ENABLED_EMAILS }}
+          CINEMATIC_V6_ALL_USERS: ${{ vars.CINEMATIC_V6_ALL_USERS }}
 
       - name: Marcar como fallido si el render no terminó
         if: failure()

@@ -14,7 +14,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isLongFormScriptJson } from "./script-json";
 import { editorialApprovalError } from "./editorial";
 import {
-  computeProductionPlan,
   isProductionPlan,
   getRealLongFormProviderNames,
   VISUAL_STRATEGIES,
@@ -23,6 +22,7 @@ import {
 } from "./production-plan";
 import { getLongFormBudget } from "./cost";
 import { validatePackagingInput } from "./packaging";
+import { productPlan } from "./product-plan";
 
 export function isVisualStrategyValue(value: unknown): value is VisualStrategy {
   return typeof value === "string" && (VISUAL_STRATEGIES as readonly string[]).includes(value);
@@ -46,7 +46,15 @@ export type ConfirmProductionResult =
 
 export async function confirmLongFormProduction(
   service: SupabaseClient,
-  input: { requestId: string; userId: string; strategy: unknown; packaging?: unknown; nowIso?: string },
+  input: {
+    requestId: string;
+    userId: string;
+    strategy: unknown;
+    packaging?: unknown;
+    nowIso?: string;
+    /** Cuenta con Cinematic V6 (cinematic-v6-access.ts, decidido server-side). Sin él, el plan es v3. */
+    cinematicV6?: boolean;
+  },
 ): Promise<ConfirmProductionResult> {
   if (!isVisualStrategyValue(input.strategy)) return { ok: false, status: 400, error: "Estrategia visual inválida" };
   const strategy = input.strategy;
@@ -77,10 +85,11 @@ export async function confirmLongFormProduction(
     return { ok: false, status: 409, error: "El guion guardado no tiene la forma esperada para Long Form." };
   }
 
-  const plan = computeProductionPlan({
+  const { plan } = productPlan({
     beats: data.script_json.beats.map((b) => ({
       id: b.id,
       type: b.type,
+      purpose: b.purpose,
       narration: b.narration,
       visuals: (b as { visuals?: unknown }).visuals,
     })),
@@ -88,6 +97,7 @@ export async function confirmLongFormProduction(
     strategy,
     providers: getRealLongFormProviderNames(),
     requestedDurationSeconds: data.duration_seconds ?? undefined,
+    cinematicV6: input.cinematicV6 === true,
   });
   if (packagingCheck.packaging) plan.packaging = packagingCheck.packaging;
   const budget = getLongFormBudget();

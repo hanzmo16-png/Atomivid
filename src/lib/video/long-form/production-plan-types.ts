@@ -21,7 +21,14 @@ export type { VisualStrategy };
  */
 export const PRODUCTION_PLAN_VERSION = 4;
 /** Versiones que el worker sabe ejecutar (v1 con allocation conservadora derivada, ver executionAllocation). */
-export const EXECUTABLE_PLAN_VERSIONS = [1, 2, 3, 4] as const;
+export const EXECUTABLE_PLAN_VERSIONS = [1, 2, 3, 4, 6] as const;
+
+/**
+ * Versión que el PRODUCTO confirma por defecto (Configurar/Confirmar): v3, la que producción
+ * ejecuta hoy. v4 (preflight HERO) y v5 no se ofrecen; v6 solo para cuentas con Cinematic V6
+ * (cinematic-v6-access.ts), y el worker vuelve a comprobar la cuenta antes de ejecutarlo.
+ */
+export const PRODUCT_DEFAULT_PLAN_VERSION = 3;
 
 /** Planes que usan escenas ancladas + selección con identidad de contenido (v3+). */
 export function usesAnchoredVisuals(plan: { version: number }): boolean {
@@ -36,7 +43,7 @@ export function usesVisualIdentity(plan: { version: number }): boolean {
 /** v5: el plan dirige por secuencias (sequence-intent.ts). Solo existe si el plan las trae; v1–v4 nunca. */
 export const SEQUENCE_PLAN_VERSION = 5;
 
-/** v6 (Cinematic Opening): impacto narrativo dentro de las secuencias v5. Prueba OFFLINE: el worker no lo ejecuta. */
+/** v6 (Cinematic V6): impacto narrativo dentro de las secuencias v5. Ejecutable solo para cuentas habilitadas (run-job.ts). */
 export const IMPACT_PLAN_VERSION = 6;
 
 export function usesImpactDirection(plan: { version: number }): boolean {

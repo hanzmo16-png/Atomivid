@@ -5,7 +5,6 @@ import { lookupConfigurableRequest } from "@/lib/video/long-form/configure-looku
 import { narrativeTiming } from "@/lib/video/long-form/creative-direction";
 import { editorialApprovalError } from "@/lib/video/long-form/editorial";
 import {
-  computeProductionPlan,
   getRealLongFormProviderNames,
   VISUAL_STRATEGIES,
   type ProductionPlan,
@@ -13,7 +12,9 @@ import {
 } from "@/lib/video/long-form/production-plan";
 import { ConfigureProduction } from "./ConfigureProduction";
 import { defaultPackaging, isOwnChannelAccount } from "@/lib/video/long-form/packaging";
-import { PRODUCTION_PLAN_VERSION, usesAnchoredVisuals } from "@/lib/video/long-form/production-plan-types";
+import { PRODUCT_DEFAULT_PLAN_VERSION, usesAnchoredVisuals } from "@/lib/video/long-form/production-plan-types";
+import { productPlan, type ProductPlanResult } from "@/lib/video/long-form/product-plan";
+import { cinematicV6Enabled } from "@/lib/video/long-form/cinematic-v6-access";
 
 
 /**
@@ -42,19 +43,24 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
   const direction = script.editorial?.version === "editorial-v2" ? script.editorial.creativeDirection : undefined;
   // Portada y miniatura: activadas por defecto solo en los canales propios de Hans (ver packaging.ts).
   const ownChannel = isOwnChannelAccount(user);
-  const beats = script.beats.map((b) => ({ id: b.id, type: b.type, narration: b.narration, visuals: b.visuals }));
-  const plans = Object.fromEntries(
+  const beats = script.beats.map((b) => ({ id: b.id, type: b.type, purpose: b.purpose, narration: b.narration, visuals: b.visuals }));
+  // Misma decisión de versión que confirm-production: v3 por defecto, v6 solo para cuentas habilitadas.
+  const cinematicV6 = cinematicV6Enabled(user);
+  const results = Object.fromEntries(
     VISUAL_STRATEGIES.map((strategy) => [
       strategy,
-      computeProductionPlan({
+      productPlan({
         beats,
         topic: script.topic || data.topic,
         strategy,
         providers: getRealLongFormProviderNames(),
         requestedDurationSeconds: data.duration_seconds ?? undefined,
+        cinematicV6,
       }),
     ]),
-  ) as Record<VisualStrategy, ProductionPlan>;
+  ) as Record<VisualStrategy, ProductPlanResult>;
+  const plans = Object.fromEntries(VISUAL_STRATEGIES.map((s) => [s, results[s].plan])) as Record<VisualStrategy, ProductionPlan>;
+  const engine = results.balanced;
 
   return (
     <div className="mx-auto w-full max-w-2xl">
@@ -116,11 +122,17 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
         </ol>
       </details>
 
+      {cinematicV6 && <p role="status" className="mt-4 rounded-lg border border-border p-4 text-sm">
+        {engine.engine === "cinematic-v6"
+          ? "Cinematic V6 activo para este guion (plan v6). Requiere material verificado y curado para las escenas de identidad y prueba; si falta, la producción se detiene antes de cualquier gasto."
+          : `Este guion se producirá con el plan estándar (v${PRODUCT_DEFAULT_PLAN_VERSION}): ${engine.reason}.`}
+      </p>}
+
       <ConfigureProduction
         requestId={id}
         plans={plans}
         ownChannel={ownChannel}
-        defaultPackaging={usesAnchoredVisuals({ version: PRODUCTION_PLAN_VERSION }) ? defaultPackaging({ topic: script.topic || data.topic, ownChannel }) : undefined}
+        defaultPackaging={usesAnchoredVisuals(plans.balanced) ? defaultPackaging({ topic: script.topic || data.topic, ownChannel }) : undefined}
       />
     </div>
   );

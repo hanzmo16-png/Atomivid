@@ -13,6 +13,7 @@ import {
 } from "./long-form/produce";
 import type { LongFormStage } from "./long-form/stages";
 import { resolveExecutablePlan, type ProductionPlan } from "./long-form/production-plan";
+import { assertCinematicV6Account } from "./long-form/cinematic-v6-access";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { attemptState } from "./attempt-state";
 import type { RenderStage } from "./stages";
@@ -150,6 +151,12 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
             beats: (row.script_json as unknown as { beats: LongFormScriptBeatInput[] }).beats,
           })
         : null;
+    // Cinematic V6: la cuenta dueña del trabajo se vuelve a comprobar aquí (falla cerrado), antes de reservar nada.
+    await assertCinematicV6Account(longFormPlan, async () => {
+      const { data, error } = await service.auth.admin.getUserById(row.user_id);
+      if (error) throw error;
+      return data.user;
+    });
     await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name));
     const { videoPath } =
       mode === "avatar"

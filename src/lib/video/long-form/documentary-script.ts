@@ -120,6 +120,18 @@ export const VisualSchema = z.object({
       "OBLIGATORIO si beatClass es EVIDENCE; ausente en cualquier otra clase. Un periódico, documento o expediente genérico NO prueba un hecho: " +
         "si solo ilustras el tipo de objeto, usa PLACE, PROCESS o METAPHOR.",
     ),
+  // Cinematic V6 (opcionales; solo los lee un plan v6 de una cuenta habilitada): el PESO narrativo del momento.
+  impact: z
+    .number()
+    .int()
+    .min(1)
+    .max(3)
+    .optional()
+    .describe(
+      "Peso narrativo de ESTE momento (no de su clase): 3 = gancho, revelación, giro o presentación del protagonista; 2 = desarrollo de contexto, " +
+        "lugar o cronología; 1 = prueba que se lee, explicación o pausa. Sin cuotas ni rotación: puede haber dos 3 seguidos o ninguno.",
+    ),
+  impactReason: z.string().max(160).optional().describe("Por qué este momento lleva ese peso, en una frase narrativa (nunca estética)."),
 });
 
 const BeatSchema = z.object({
@@ -441,7 +453,8 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
               "Declara beatClass en cada escena; una persona real concreta solo en una escena IDENTITY con identity (sourceIds de las fuentes dadas). " +
               "En un beat con una persona, su movimiento físico (entra, sube, camina) es IDENTITY, nunca TRANSITION. " +
               "EVIDENCE solo para la prueba de ESTE hecho, con evidence.sourceIds; la ilustración genérica es PLACE, PROCESS o METAPHOR. " +
-              "Hasta dos búsquedas alternativas del mismo contenido. Descripciones de máximo 15 palabras.", input.referenceContract ? ReferencedVisualsSchema : BeatVisualsSchema),
+              "Hasta dos búsquedas alternativas del mismo contenido. Descripciones de máximo 15 palabras. " +
+              "Declara impact (1–3) e impactReason según el peso narrativo de cada momento, no según su clase; sin cuotas ni rotación.", input.referenceContract ? ReferencedVisualsSchema : BeatVisualsSchema),
             messages: [{ role: "user" as const, content: JSON.stringify({ topic: input.researchPack.topic,
               narration: beat.narration, purpose: beat.purpose, sources: input.researchPack.sources,
               ...(input.referenceContract ? {narrationExcerpts:narrationCatalog(parsed.beats).filter(e=>e.beatIndex===i)} : {}) }) }],

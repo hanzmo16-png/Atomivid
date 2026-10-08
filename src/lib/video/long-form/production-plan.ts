@@ -319,10 +319,12 @@ export function planShotsFromScript(
   strategy: VisualStrategy,
   /** true (planes v3+) = escenas ancladas a su pasaje narrado; false = reparto histórico (v1/v2). */
   anchored = true,
+  /** Lee clase e identidad de cada escena (v4+). Por omisión, lo que diga PRODUCTION_PLAN_VERSION. */
+  identityPlan: boolean = usesVisualIdentity({ version: PRODUCTION_PLAN_VERSION }),
 ): { shots: Shot[]; narrationSeconds: number } {
   let cursor = 0;
   const shots: Shot[] = [];
-  const identity = anchored && usesVisualIdentity({ version: PRODUCTION_PLAN_VERSION });
+  const identity = anchored && identityPlan;
   const personActions = identity ? personActionIndex(beats) : undefined;
   beats.forEach((beat, i) => {
     const startSec = cursor;
@@ -356,8 +358,13 @@ export function computeProductionPlan(input: {
   requestedDurationSeconds?: number;
   /** v5: intención por secuencia del planner. Sin ella el plan es v4, exactamente como antes. */
   sequences?: SequenceIntent[];
+  /** Versión sin secuencias (v3 o v4). El producto pide PRODUCT_DEFAULT_PLAN_VERSION; por omisión PRODUCTION_PLAN_VERSION. */
+  version?: number;
 }): ProductionPlan {
   const topic = input.topic ?? "";
+  if (input.version !== undefined && input.sequences) throw new LongFormPlanNotExecutableError("version y sequences son excluyentes");
+  if (input.version !== undefined && input.version !== 3 && input.version !== 4) throw new LongFormPlanNotExecutableError(`versión de plan sin secuencias no soportada: ${input.version}`);
+  const version = input.sequences ? (declaresImpact(input.sequences) ? IMPACT_PLAN_VERSION : SEQUENCE_PLAN_VERSION) : (input.version ?? PRODUCTION_PLAN_VERSION);
   let sequenced: { shots: Shot[]; narrationSeconds: number } | undefined;
   if (input.sequences) {
     const check = validateSequenceIntents(input.sequences, input.beats, estimateNarrationSeconds);
@@ -366,19 +373,19 @@ export function computeProductionPlan(input: {
     // Estimación del plan: cada rol se cuenta como ocupable; la ejecución lo resuelve contra el registro real.
     sequenced = planSequenceShots(input.beats, resolveSequences(input.sequences, PLAN_ESTIMATE_AVAILABILITY));
   }
-  const { shots, narrationSeconds } = sequenced ?? planShotsFromScript(input.beats, topic, input.strategy);
+  const { shots, narrationSeconds } = sequenced ?? planShotsFromScript(input.beats, topic, input.strategy, true, usesVisualIdentity({ version }));
   const voiceCharacters = input.beats.reduce((sum, b) => sum + b.narration.length, 0);
   const voiceCostUsd = round4((voiceCharacters / 1000) * getPricingConfig().elevenLabsUsdPer1kChars);
   const aiVideoAvailable = input.aiVideoEnabled ?? isLongFormAiVideoConfigured();
   const limits = {
     ...strategyLimits(input.strategy, voiceCostUsd, { aiVideoEnabled: aiVideoAvailable, units: getGenerativeUnitCosts(input.providers.aiVideo) }),
-    cinematic: usesVisualIdentity({ version: PRODUCTION_PLAN_VERSION }),
+    cinematic: usesVisualIdentity({ version }),
   };
   const allocation = allocateShotTypes(shots, narrationSeconds, limits);
   const generativeUsd = round4(allocation.imageUsd + allocation.aiVideoUsd);
 
   return {
-    version: input.sequences ? (declaresImpact(input.sequences) ? IMPACT_PLAN_VERSION : SEQUENCE_PLAN_VERSION) : PRODUCTION_PLAN_VERSION,
+    version,
     ...(input.sequences ? { sequences: input.sequences } : {}),
     strategy: input.strategy,
     durationSeconds: Math.round(narrationSeconds + VIDEO_TAIL_SECONDS),
