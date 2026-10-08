@@ -137,3 +137,34 @@ All steps fit under 2.10 even in the worst case. Expected actual spend is about 
 8. "Guion listo" requires editorial approval under the normal rules.
    - If pass 1 is blocked, the job ends as an editorial failure; extra rounds are a new decision.
    - Close the budget afterwards: `update pi_recovery_budgets set status='CLOSED', closed_at=now() where project_id=…`.
+
+## Verification of the hard cap (local Postgres 16, no Supabase, no provider)
+
+How to reproduce:
+- Load the stub schema and the Supabase roles (`anon`, `authenticated`, `service_role`).
+- Apply all repository migrations, plus `0023`–`0025` (`pi_paid_operations` and the supply tables). These come from commit `9dccd68`; they are applied in production but are not in this branch's tree.
+- Then run:
+  - `verify/documentary_recovery_budget.sql` inside `BEGIN … ROLLBACK`;
+  - `verify/documentary_recovery_budget_concurrency.sh` (two real sessions).
+
+| Check | Result |
+|---|---|
+| `documentary_recovery_budget.sql` | PASS. Baseline excluded; 2.10 admitted at the limit; +0.0001 refused before the provider (row stays RESERVED); committed, pending and uncertain spend counted; COMMITTED reuse not double counted; immutable across a job retry; closed budget stops; unbudgeted project unchanged; the application role cannot call the core or open a budget |
+| Concurrency (2 sessions, 0.60 + 0.60, cap 1.00) | PASS. The second session waited for the lock (about 1.5 s) and was refused; one admission |
+| Negative control (same migration without `FOR UPDATE`) | FAIL, as expected: both admitted. The test detects the missing lock |
+| Re-applying the migration | idempotent |
+| Existing supply checks, before and after the migration | identical. `provider_supply_calls` and `provider_supply_twenty_dollar_cap` PASS on both. The other four fail identically on both, from fixture problems in the local harness (missing auth user, balance) |
+
+## Audio loudness test (`src/lib/video/audio-master.test.ts`): base vs PR
+
+- Same machine and same `node_modules`, one run at a time, alternating base (`ff095b6`, a worktree of `claude/atomivid-mvp-setup-0079jv`) and PR, 30 runs each.
+- `audio-master.ts` and its test are byte-identical between base and PR, and import only `node:child_process`. No PR code reaches them.
+
+| Branch | Failing runs | Failure |
+|---|---|---|
+| base `ff095b6` | **4 / 30** | the same test ("masterización con margen…"), lines 116–117 |
+| PR | **5 / 30** | the same test; e.g. `sonoridad -18.07 / -18.18 LUFS` (±2 tolerance), `con margen: -1.45 dBTP` |
+
+- The test is intermittent **on the base branch too**, at an indistinguishable rate.
+- It depends on the ffmpeg AAC encode and measurement, not on this change.
+- No audio code is modified here; fixing it is a separate task.
