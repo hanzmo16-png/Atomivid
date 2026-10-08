@@ -451,7 +451,7 @@ async function coverageScenarios() {
       const { registryAvailability, resolveSequences } = await import("../src/lib/video/long-form/sequence-intent");
       const { planSequenceShots } = await import("../src/lib/video/long-form/sequence-direction");
       const { contractForVisual, contractKey } = await import("../src/lib/video/long-form/verified-assets");
-      const shots = planSequenceShots(script.beats as never, resolveSequences((plan as { sequences: never }).sequences, registryAvailability(registry))).shots;
+      const shots = planSequenceShots(script.beats as never, resolveSequences(plan.sequences!, registryAvailability(registry))).shots;
       log("SIM_SHOTS", { scenario: name, shots: shots.map((sh) => { const v = (sh as { anchoredVisual?: { beatClass?: string } }).anchoredVisual; const c = contractForVisual(v as never);
         return [Math.round(sh.startSec), Math.round(sh.endSec), sh.type, v?.beatClass ?? null, c ? (LABEL[contractKey(c)] ?? "?") : null]; }) });
     }
