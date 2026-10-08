@@ -12,9 +12,17 @@ test('only invalid pointers change; all scene claims and original response remai
  const before=structuredClone(raw),fixed=applyVisualAnchorRepair(raw,catalog,[0,1],{replacements});assert.deepEqual(raw,before);
  for(let i=0;i<2;i++)assert.deepEqual({...fixed.visuals[i],excerptId:raw.visuals[i].excerptId},raw.visuals[i]);
 });
-test('unknown or wrong-block references, missing, extra and duplicate indices are rejected',()=>{
+test('unknown or wrong-block references, insufficient, extra and duplicate indices are rejected',()=>{
  for(const bad of [[replacements[0]],[...replacements,replacements[0]],[...replacements,{index:2,excerptId:catalog[0].id}],[replacements[0],{index:1,excerptId:'wrong-block'}]])assert.throws(()=>applyVisualAnchorRepair(raw,catalog,[0,1],{replacements:bad}));
  assert.throws(()=>applyVisualAnchorRepair(raw,catalog,[0,1],{replacements,visuals:[]}));
+});
+test('keep five backed scenes and discard three unsupported scenes without guessed references',()=>{
+ const plan={visuals:Array.from({length:8},(_,index)=>({...raw.visuals[index%2],description:`Scene ${index}`}))};
+ const selected=[0,1,4,5,7];const fixed=applyVisualAnchorRepair(plan,catalog,Array.from({length:8},(_,i)=>i),{replacements:selected.map(index=>({index,excerptId:catalog[index%catalog.length].id}))});
+ assert.equal(fixed.visuals.length,5);
+ assert.deepEqual(fixed.visuals.map(v=>v.description),selected.map(i=>plan.visuals[i].description));
+ for(let i=0;i<5;i++)assert.deepEqual({...fixed.visuals[i],excerptId:plan.visuals[selected[i]].excerptId},plan.visuals[selected[i]]);
+ assert.equal(plan.visuals.length,8);
 });
 test('valid existing anchors never request a repair',async()=>{
  const valid=applyVisualAnchorRepair(raw,catalog,[0,1],{replacements});let calls=0;
