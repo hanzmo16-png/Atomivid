@@ -14,14 +14,40 @@ export type { VisualStrategy };
  * selección de archivo por pertinencia + deduplicación de contenido en todo el documental, y
  * procedencia/informe previo al render. v1/v2 se siguen ejecutando EXACTAMENTE como antes
  * (recuperación cache-only intacta).
+ * v4 (Visual Excellence V1): cada escena declara su clase (IDENTITY, PLACE...) y,
+ * si representa a una persona concreta, su identidad; la selección y la
+ * generación IA la respetan. Las escenas se re-derivan del guion en cada
+ * ejecución, así que v1-v3 NO leen esos campos (usesVisualIdentity).
  */
-export const PRODUCTION_PLAN_VERSION = 3;
+export const PRODUCTION_PLAN_VERSION = 4;
 /** Versiones que el worker sabe ejecutar (v1 con allocation conservadora derivada, ver executionAllocation). */
-export const EXECUTABLE_PLAN_VERSIONS = [1, 2, 3] as const;
+export const EXECUTABLE_PLAN_VERSIONS = [1, 2, 3, 4, 6] as const;
+
+/**
+ * Versión que el PRODUCTO confirma por defecto (Configurar/Confirmar): v3, la que producción
+ * ejecuta hoy. v4 (preflight HERO) y v5 no se ofrecen; v6 solo para cuentas con Cinematic V6
+ * (cinematic-v6-access.ts), y el worker vuelve a comprobar la cuenta antes de ejecutarlo.
+ */
+export const PRODUCT_DEFAULT_PLAN_VERSION = 3;
 
 /** Planes que usan escenas ancladas + selección con identidad de contenido (v3+). */
 export function usesAnchoredVisuals(plan: { version: number }): boolean {
   return plan.version >= 3;
+}
+
+/** Planes que leen clase e identidad de cada escena (v4+). La única compuerta de Visual Excellence V1. */
+export function usesVisualIdentity(plan: { version: number }): boolean {
+  return plan.version >= 4;
+}
+
+/** v5: el plan dirige por secuencias (sequence-intent.ts). Solo existe si el plan las trae; v1–v4 nunca. */
+export const SEQUENCE_PLAN_VERSION = 5;
+
+/** v6 (Cinematic V6): impacto narrativo dentro de las secuencias v5. Ejecutable solo para cuentas habilitadas (run-job.ts). */
+export const IMPACT_PLAN_VERSION = 6;
+
+export function usesImpactDirection(plan: { version: number }): boolean {
+  return plan.version >= IMPACT_PLAN_VERSION;
 }
 
 export const VISUAL_STRATEGY_LABEL: Record<VisualStrategy, string> = {
@@ -87,6 +113,11 @@ export type ProductionPlan = {
   /** Todavía no existe un sistema de créditos real — nunca se inventa un saldo. */
   estimatedCredits: number | null;
   confirmedAt: string | null;
+  /**
+   * v5 (Directed Opening V1): intención narrativa por SECUENCIA, propuesta por el planner
+   * ANTES de elegir recursos (roles + escala justificada). Ausente en v1–v4.
+   */
+  sequences?: import("./sequence-intent").SequenceIntent[];
 };
 
 export function isProductionPlan(value: unknown): value is ProductionPlan {

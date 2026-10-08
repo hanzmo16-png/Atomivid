@@ -49,10 +49,11 @@ import { provenanceLabel } from "../../../../remotion/long-form-card-fit";
 import { defaultDirections, snapSceneBoundaries } from "./montage-direction";
 import { captionsWithinScenes } from "./scene-captions";
 import type { LongFormShotScene } from "../../../../remotion/LongFormDoc";
+import type { SceneDirection } from "../../../../remotion/long-form-direction";
 import { wrapDurableVideoProvider } from "./ai-video-durable-provider";
 import { emptyAiVideoLedgerState } from "./ai-video-cost-guard";
 import { loadProductionCachedBeatNarration, synthesizeBeatNarrationProductionCached } from "./production-tts-cache";
-import { visualsForBeat } from "./visual-intents";
+import { personActionIndex, visualsForBeat } from "./visual-intents";
 import {
   allocateShotTypes,
   executionAllocation,
@@ -61,10 +62,23 @@ import {
   limitsWithinAllocation,
   strategyLimits,
   usesAnchoredVisuals,
+  usesVisualIdentity,
   type ProductionPlan,
+  planShotsFromScript,
+  type ProductionPlanBeatInput,
 } from "./production-plan";
 import { DocumentAssetRegistry, type AssetIdentity } from "./asset-identity";
-import { assertVisualQuality, buildVisualReport, type VisualReport } from "./visual-report";
+import { assertVisualQuality, buildVisualReport, LongFormVisualQualityError, type VisualReport } from "./visual-report";
+import { planReleaseBlockers } from "./cinematic-director";
+import { heroCoverage, VerifiedAssetRegistry } from "./verified-assets";
+import { usesImpactDirection } from "./production-plan-types";
+import { CURATION_FILE_PATH, isAuthorizedCurator, requestedContracts } from "./asset-curation";
+import { containsFixtureOnlyMaterial } from "./fixture-only";
+import { curatedSvgGraphic } from "./premium-composition";
+import type { LongFormCuratedSvgGraphic } from "../../../../remotion/LongFormDoc";
+import { PLAN_ESTIMATE_AVAILABILITY, registryAvailability, resolveSequences, usesSequences, validateImpactIntents, validateSequenceIntents, type ExecutableSequence } from "./sequence-intent";
+import { directSequenceScenes, planSequenceShots, sequenceShotsForSpan } from "./sequence-direction";
+import { directImpactScenes, hookStatus } from "./impact-direction";
 import { ProductionBudget, supabaseBudgetStore, type BudgetStore } from "./production-budget";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import { getLongFormBudget } from "./cost";
@@ -97,6 +111,11 @@ type OnProgress = (stage: LongFormStage, units?: LongFormProgressUnits) => void 
 
 /** Dependencias inyectables (pruebas / inyección de fallos). En producción se omiten todas. */
 export type LongFormRuntime = {
+  /**
+   * v4: registro de recursos verificados del SERVIDOR (ya rehidratado). Ausente = se rehidrata
+   * desde `{requestId}/state/curation.json` (decisiones del curador; datos, no autoridad), o vacío.
+   */
+  verifiedAssets?: VerifiedAssetRegistry;
   paidCalls?: Pick<PaidCallDeps, "ledger" | "results">;
   store?: ShotAssetStore;
   budgetStore?: BudgetStore;
@@ -127,6 +146,11 @@ export type LongFormRuntime = {
   attempt?: number | null;
   /** Destino del informe visual previo al render (por defecto `${requestId}/state/visual-report.json`). */
   saveVisualReport?: (report: VisualReport) => Promise<void>;
+  /**
+   * v5 GEOGRAPHY: lee el SVG CURADO ya persistido por el ejecutor (ruta del objeto) para revelar su trazo.
+   * Ausente (producción hoy) = el esquema se muestra completo, quieto, sin revelado.
+   */
+  curatedSvgMarkup?: (objectPath: string) => Promise<string | null>;
   /** Inyectable en pruebas: identidad de contenido sin ffmpeg/sharp. */
   identify?: (buffer: Buffer, mediaType: "image" | "video") => Promise<Pick<AssetIdentity, "sha256" | "dhash" | "dhashUnavailable">>;
   /**
@@ -202,6 +226,32 @@ export async function generateLongFormVideoFromScript({
     return { videoPath: existingOutput.videoPath, deviations: 0, spentUsd: 0, reconciled: true, output: existingOutput.state };
   }
   const replayOnly = runtime.replayOnly === true;
+  // v4: lo que el PLAN ya revela como no entregable (clasificación incierta en HERO, apertura de
+  // tarjetas seguras) se detiene ANTES de cualquier llamada pagada: voz, imágenes, video o render.
+  // Además, la cobertura HERO con material verificado: si las reglas existentes (3 tarjetas en los primeros
+  // 30 s, proporción máxima de tarjetas) hacen el fallo inevitable, no se gasta nada.
+  let verifiedAssets: VerifiedAssetRegistry | undefined;
+  // v5: la intención por secuencia existe ANTES de elegir recursos; aquí se resuelve contra el registro real.
+  let sequences: ExecutableSequence[] | undefined;
+  if (usesVisualIdentity(plan)) {
+    const v5 = usesSequences(plan);
+    if (v5) {
+      const check = validateSequenceIntents(plan.sequences, beats as ProductionPlanBeatInput[]);
+      if (usesImpactDirection(plan)) check.errors.push(...validateImpactIntents(plan.sequences!));
+      if (check.errors.length > 0) throw new LongFormVisualQualityError(check.errors.map((e) => `SEQUENCE_CONTRACT: ${e}`));
+    }
+    const estimate = v5
+      ? planSequenceShots(beats as ProductionPlanBeatInput[], resolveSequences(plan.sequences!, PLAN_ESTIMATE_AVAILABILITY)).shots
+      : planShotsFromScript(beats as ProductionPlanBeatInput[], topic, plan.strategy).shots;
+    verifiedAssets = runtime.verifiedAssets ?? (await loadVerifiedAssets(supabase, requestId, new Set(requestedContracts(estimate).keys())));
+    if (v5) sequences = resolveSequences(plan.sequences!, registryAvailability(verifiedAssets));
+    const plannedShots = sequences ? planSequenceShots(beats as ProductionPlanBeatInput[], sequences).shots : estimate;
+    const blockers = planReleaseBlockers(plannedShots).map((f) => `${f.code}: ${f.detail} (${f.shots.join(", ")})`);
+    const coverage = heroCoverage(plannedShots, verifiedAssets, MAX_TEXT_FALLBACK_RATIO);
+    const missing = [...coverage.heroMissingRequiredIdentities, ...coverage.heroMissingRequiredEvidence, ...coverage.missingIdentities, ...coverage.missingEvidence];
+    blockers.push(...coverage.blockers.map((b) => `HERO_COVERAGE ${b} (faltan: ${[...new Set(missing)].join(", ") || "—"})`));
+    if (blockers.length > 0) throw new LongFormVisualQualityError(blockers);
+  }
 
   const resolvedProviders = providers ?? resolveLongFormProviders("real");
   const requireReal = !providers;
@@ -261,11 +311,15 @@ export async function generateLongFormVideoFromScript({
   // tiempos reales por palabra (scene-anchoring.ts). v1/v2: sin cambios.
   const anchored = usesAnchoredVisuals(plan);
   const shotsForPlannedSpan = (spanInput: Parameters<typeof shotsForSpan>[0] & { words?: import("@/lib/providers/types").WordTiming[] }) =>
-    shotsForSpan({
-      ...spanInput,
-      targetCount: plannedShotCounts?.[spanInput.beatId],
-      anchoring: anchored ? { words: spanInput.words } : undefined,
-    });
+    sequences
+      ? // v5: los planos salen de los ROLES resueltos (no del reparto de 3–8 s por duración).
+        sequenceShotsForSpan({ beatId: spanInput.beatId, startSec: spanInput.startSec, endSec: spanInput.endSec, narration: spanInput.narration, words: spanInput.words, sequences })
+      : shotsForSpan({
+          ...spanInput,
+          targetCount: plannedShotCounts?.[spanInput.beatId],
+          anchoring: anchored ? { words: spanInput.words } : undefined,
+        });
+  const personActions = usesVisualIdentity(plan) ? personActionIndex(beats as { visuals?: unknown }[]) : undefined;
   const timeline = await buildLongFormTimeline(
     resolvedProviders.voiceProvider,
     beats,
@@ -273,7 +327,8 @@ export async function generateLongFormVideoFromScript({
     shotsForPlannedSpan,
     synthesizeWithProgress,
     plan.strategy,
-    (beat) => visualsForBeat(beat as { narration: string; visuals?: unknown }, topic),
+    // Las escenas se re-derivan del guion: solo un plan v4 lee clase e identidad.
+    (beat) => visualsForBeat(beat as { narration: string; visuals?: unknown }, topic, { identity: usesVisualIdentity(plan), personActions }),
   );
 
   // Proveedor de video IA real (solo si el plan confirmado tiene clips). Si
@@ -290,10 +345,11 @@ export async function generateLongFormVideoFromScript({
     baseVideoProvider = candidate.name === "fixture" && requireReal ? null : candidate;
   }
   const aiVideoEnabled = baseVideoProvider !== null && (runtime.aiVideoEnabled ?? true);
-  const limits = limitsWithinAllocation(
-    strategyLimits(plan.strategy, plan.estimatedVoiceCostUsd ?? 0, { aiVideoEnabled, units }),
-    allocation,
-  );
+  const limits = {
+    ...limitsWithinAllocation(strategyLimits(plan.strategy, plan.estimatedVoiceCostUsd ?? 0, { aiVideoEnabled, units }), allocation),
+    // v4: el asignador no pide lo que el Director prohíbe (mismas reglas que al calcular el plan).
+    cinematic: usesVisualIdentity(plan),
+  };
   const allShots = timeline.beats.flatMap((b) => b.shots);
   const allocated = allocateShotTypes(allShots, timeline.durationSeconds, limits);
   if (plannedShotCounts && allShots.length !== plan.shotCount && !replayOnly) {
@@ -383,6 +439,7 @@ export async function generateLongFormVideoFromScript({
         visualPipeline: anchored ? "anchored_v1" : undefined,
         registry,
         identify: runtime.identify,
+        verifiedAssets,
       },
       aiVideoLedger,
     );
@@ -442,7 +499,28 @@ export async function generateLongFormVideoFromScript({
   // v3: cortes alineados a la voz real, dirección de montaje editorial,
   // procedencia visible y carencias marcadas (nunca pasan por terminadas).
   // v1/v2 y la recuperación de planes anteriores: sin cambios.
-  const shotScenes = anchored ? directAnchoredScenes(baseScenes, executions, timeline.words) : baseScenes;
+  const anchoredScenes = anchored ? directAnchoredScenes(baseScenes, executions, timeline.words, visualReport.cinematic?.scenes) : baseScenes;
+  // v5: escala y encuadre por ROL sobre escenas que ya pasaron por la verdad (mismo recurso, procedencia y crédito).
+  const geography = new Map<number, LongFormCuratedSvgGraphic>();
+  if (sequences && verifiedAssets && runtime.curatedSvgMarkup) {
+    for (let i = 0; i < allocated.shots.length; i++) {
+      const shot = allocated.shots[i];
+      const meta = executions[i]?.assetMeta;
+      if (shot.sequenceSlot?.role !== "GEOGRAPHY" || !shot.anchoredVisual || !meta?.objectPath) continue;
+      // Solo el registro de CONFIANZA que el ejecutor usó (misma página de origen) y su SVG intacto.
+      const record = verifiedAssets.recordsFor(shot.anchoredVisual).find((r) => r.sourceUrl === meta.provenance?.pageUrl);
+      const markup = await runtime.curatedSvgMarkup(meta.objectPath);
+      const graphic = markup ? curatedSvgGraphic(record, markup) : null;
+      if (graphic) geography.set(i, graphic);
+    }
+  }
+  const sequenceScenes = sequences ? directSequenceScenes(anchoredScenes, allocated.shots, executions, { geography: (i) => geography.get(i) ?? null }) : anchoredScenes;
+  // v6 (offline): peso del momento DESPUÉS de la verdad — solo presentación de lo ya ejecutado.
+  const shotScenes = sequences && usesImpactDirection(plan) ? directImpactScenes(sequenceScenes, allocated.shots, executions) : sequenceScenes;
+  if (sequences && usesImpactDirection(plan)) {
+    const hook = hookStatus(shotScenes);
+    console.info(`[atomivid:long-form:produce] ${requestId} — gancho v6: ${hook.status} (${hook.reason})`);
+  }
 
   const emphasisSet = buildEmphasisSet([]);
   // v3: ningún subtítulo cruza un corte de escena; v1/v2 sin cambios.
@@ -636,6 +714,8 @@ export function directAnchoredScenes(
   scenes: LongFormShotScene[],
   executions: Pick<ShotExecution, "assetMeta">[],
   words: { startSeconds: number; endSeconds: number }[],
+  /** v4: cámara y tratamiento decididos por el Cinematic Director (los mismos que mide el QA). */
+  cinematic?: { camera: SceneDirection["camera"]; look?: SceneDirection["look"]; document?: SceneDirection["document"]; provenance?: string }[],
 ): LongFormShotScene[] {
   if (scenes.length === 0) return scenes;
   const bounds = snapSceneBoundaries([...scenes.map((s) => s.startSeconds), scenes[scenes.length - 1].endSeconds], words);
@@ -651,9 +731,33 @@ export function directAnchoredScenes(
       ...scene,
       startSeconds: bounds[i],
       endSeconds: bounds[i + 1],
-      direction: directions[i],
-      provenance: executions[i]?.assetMeta?.provenance?.kind,
+      direction: cinematic?.[i] ? { ...directions[i], camera: cinematic[i].camera, ...(cinematic[i].look ? { look: cinematic[i].look } : {}), ...(cinematic[i].document ? { document: cinematic[i].document } : {}) } : directions[i],
+      // v4: un video IA sin metadatos también se rotula "Recreación IA" (la decisión del Director lo sabe).
+      provenance: executions[i]?.assetMeta?.provenance?.kind ?? (cinematic?.[i]?.provenance === "ai_recreation" ? "ai_recreation" : undefined),
+      // v4: crédito visible del recurso verificado (CC BY lo exige) → SceneLabels.
+      ...(cinematic && executions[i]?.assetMeta?.provenance?.credit ? { creditText: executions[i].assetMeta!.provenance!.credit } : {}),
       pending: gap ? `carencia de material pertinente: ${gap.reason}` : undefined,
     };
   });
+}
+
+/**
+ * Registro verificado de esta solicitud: el archivo de curaduría
+ * (`{requestId}/state/curation.json`, escrito solo por las acciones del curador)
+ * es un dato NO confiable; la confianza la recalcula aquí el servidor
+ * (licencia, calidad, crédito, huella, curador autorizado HOY, estado, contrato
+ * exacto que el plan pide). Ausente o ilegible = vacío.
+ */
+async function loadVerifiedAssets(supabase: SupabaseClient, requestId: string, contracts: ReadonlySet<string>): Promise<VerifiedAssetRegistry> {
+  let raw: unknown;
+  try {
+    const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(CURATION_FILE_PATH(requestId));
+    if (error || !data) return VerifiedAssetRegistry.empty();
+    raw = JSON.parse(await data.text());
+  } catch {
+    return VerifiedAssetRegistry.empty();
+  }
+  // Material de benchmark (FIXTURE_ONLY / TEST_ONLY) nunca entra en una solicitud real, aunque lo apruebe un curador.
+  if (containsFixtureOnlyMaterial(raw)) throw new LongFormVisualQualityError(["FIXTURE_ONLY_MATERIAL: el archivo de curaduría contiene material de prueba; una solicitud real nunca lo usa"]);
+  return VerifiedAssetRegistry.rehydrate(raw, { requestId, isAuthorizedCurator: (by) => isAuthorizedCurator(by), requestedContracts: contracts });
 }

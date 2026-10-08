@@ -14,6 +14,9 @@ import type { AssetIdentity } from "./asset-identity";
 import { hammingHex, PERCEPTUAL_DUPLICATE_MAX_DISTANCE } from "./asset-identity";
 import type { ShotExecution } from "./shot-executor";
 import type { Shot, ShotType } from "./types";
+import { cinematicQa, directCinematic, type CinematicDecision, type CinematicQa } from "./cinematic-director";
+import { usesVisualIdentity } from "./production-plan-types";
+import { personSubstitute } from "./stock-selection";
 
 export const OPENING_WINDOW_SECONDS = 60;
 
@@ -69,6 +72,8 @@ export type VisualReport = {
     openingWindow: { seconds: number; scenes: number; repeatedScenes: string[]; titleCards: string[]; uncertainScenes: string[]; gaps: string[] };
   };
   limitations: string[];
+  /** Solo planes v4: decisión del Cinematic Director por escena y su QA (mide; nunca cambia un recurso ni gasta). */
+  cinematic?: { scenes: (CinematicDecision & { shotId: string })[]; qa: CinematicQa };
 };
 
 function round2(n: number): number {
@@ -193,6 +198,12 @@ export function buildVisualReport(input: {
       assetRef: s.assetRef,
     })),
   );
+  // Reutilización VERIFICADA (v4): justificada solo si cada repetición la registró el selector con el mismo motivo.
+  const reuseOf = new Map(input.shots.map((s, i) => [s.id, input.executions[i]?.assetMeta?.selection?.reuse?.justification]));
+  for (const g of repeatedAssets) {
+    const reasons = g.shots.slice(1).map((id) => reuseOf.get(id));
+    if (reasons.every(Boolean) && new Set(reasons).size === 1) g.justification = reasons[0];
+  }
   const repeatedExtra = repeatedAssets.reduce((sum, g) => sum + g.shots.length - 1, 0);
   const coverage = { video: 0, image: 0, card: 0 };
   for (const s of scenes) coverage[s.display] += s.durationSec;
@@ -215,12 +226,15 @@ export function buildVisualReport(input: {
     limitations.push("Plan anterior a v3: los registros no traen identidad de contenido; los duplicados de contenido NO se pueden detectar sin la auditoría de hashes.");
   }
 
+  const cinematic = usesVisualIdentity({ version: input.planVersion }) ? cinematicSection(input.shots, input.executions, scenes) : undefined;
+
   return {
     version: 1,
     requestId: input.requestId,
     planVersion: input.planVersion,
     pipeline,
     generatedAtIso: new Date((input.now ?? Date.now)()).toISOString(),
+    ...(cinematic ? { cinematic } : {}),
     scenes,
     summary: {
       scenes: scenes.length,
@@ -244,6 +258,49 @@ export function buildVisualReport(input: {
   };
 }
 
+/** Decisión del Director (la misma que dirige el render) y QA cinematográfico de cada escena. */
+function cinematicSection(shots: Shot[], executions: ShotExecution[], scenes: VisualReportScene[]): NonNullable<VisualReport["cinematic"]> {
+  const decisions = directCinematic(
+    shots.map((shot, i) => {
+      const ex = executions[i];
+      const meta = ex?.assetMeta;
+      return {
+        startSec: shot.startSec,
+        endSec: shot.endSec,
+        durationSec: shot.durationSec,
+        executedType: ex?.executedType ?? shot.type,
+        kind: ex?.asset.kind === "graphic" ? "graphic" : ex?.asset.kind === "media" && ex.asset.mediaType === "video" ? "video" : "image",
+        provenance: meta?.provenance?.kind,
+        visual: shot.anchoredVisual,
+        entityLink: meta?.selection?.entityLink,
+        evidenceLink: meta?.selection?.evidenceLink,
+        reused: !!meta?.selection?.reuse,
+        gap: !!meta?.gap,
+        ...(meta?.provenance?.kind === "archival_documentary" && meta.provenance.regions?.length && meta.provenance.sourceWidth && meta.provenance.sourceHeight
+          ? { documentRegions: meta.provenance.regions, sourceSize: { width: meta.provenance.sourceWidth, height: meta.provenance.sourceHeight } }
+          : {}),
+      };
+    }),
+  );
+  const qa = cinematicQa(
+    decisions.map((d, i) => ({
+      ...d,
+      shotId: scenes[i].shotId,
+      startSec: scenes[i].startSec,
+      endSec: scenes[i].endSec,
+      durationSec: scenes[i].durationSec,
+      executedType: scenes[i].executedType,
+      display: scenes[i].display,
+      relevance: scenes[i].relevance,
+      classificationGap: shots[i].anchoredVisual?.classificationGap,
+      gap: !!scenes[i].gap,
+      // Recomprobación sobre el recurso FINAL: el selector ya lo excluye; si llegara, la entrega se bloquea.
+      substitutesPerson: !!(shots[i].anchoredVisual && scenes[i].display !== "card" && personSubstitute(shots[i].anchoredVisual!, scenes[i].candidateDescription)),
+    })),
+  );
+  return { scenes: decisions.map((d, i) => ({ shotId: scenes[i].shotId, ...d })), qa };
+}
+
 export class LongFormVisualQualityError extends Error {
   constructor(readonly problems: string[]) {
     super(`El control visual previo al render no pasó: ${problems.join("; ")}. Los recursos ya obtenidos quedan guardados; un reintento no los vuelve a pagar.`);
@@ -263,6 +320,9 @@ export function assertVisualQuality(report: VisualReport): void {
   const unjustified = report.summary.repeatedAssets.filter((g) => !g.justification);
   if (unjustified.length > 0) problems.push(`${unjustified.length} recurso(s) repetido(s) sin justificación (${unjustified.map((g) => g.shots.join("=")).join(", ")})`);
   if (report.summary.titleCards.length > 0) problems.push(`${report.summary.titleCards.length} tarjeta(s) que repiten el título`);
+  // v4: puerta de entrega con la política CONGELADA (DELIVERY_POLICY). Si el sistema sabe que un visual es
+  // narrativamente falso, no se renderiza. Movimiento, variedad y ritmo son diagnóstico.
+  for (const f of report.cinematic?.qa.findings ?? []) if (f.severity === "BLOCK") problems.push(`${f.code}: ${f.detail} (${f.shots.join(", ")})`);
   if (problems.length > 0) throw new LongFormVisualQualityError(problems);
 }
 

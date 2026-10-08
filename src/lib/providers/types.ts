@@ -105,6 +105,13 @@ export type FootageCandidate = FootageResult & {
   description?: string;
   /** Página pública del recurso (procedencia/atribución). Aditivo, opcional. */
   pageUrl?: string;
+  /**
+   * Entidad que el PROVEEDOR afirma que muestra el recurso. Es una
+   * afirmación, nunca una verificación: la selección solo confía en un
+   * vínculo confirmado por un verificador del servidor (ver
+   * StockSelectionDeps.verifyEntityLink en stock-selection.ts).
+   */
+  entityReference?: { name: string };
 };
 
 export interface FootageProvider {

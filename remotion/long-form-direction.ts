@@ -1,3 +1,5 @@
+import { Easing, interpolate } from "remotion";
+
 /** Optional, serializable editorial controls. No provider calls or shared Reel changes. */
 export type SceneDirection = {
   transition?: { type: "cut" | "dissolve"; seconds?: number };
@@ -10,7 +12,60 @@ export type SceneDirection = {
    * Absent = the scene renders exactly as before.
    */
   look?: SceneLook;
+  /**
+   * Verified document with CURATED regions (from the verified record, never OCR/LLM/provider text):
+   * full page → eased move to the headline → optional date/detail → back to the full page.
+   */
+  document?: DocumentDirection;
+  /**
+   * Plan v5 (dirección por secuencia): escala y encuadre decididos por el ROL del plano.
+   * Ausente = v1–v4 exactamente como antes.
+   */
+  shot?: ShotDirection;
 };
+export type ShotScaleName = "WIDE" | "MEDIUM" | "DETAIL";
+export type ShotDirection = {
+  role: "ANCHOR" | "CONTEXT" | "EVIDENCE" | "DETAIL" | "GEOGRAPHY" | "TRANSITION" | "ATMOSPHERE";
+  scale: ShotScaleName;
+  /** WIDE: imagen dentro de un campo negro diseñado ("field") o a sangre, quieta ("bleed"). */
+  wide?: "field" | "bleed";
+  /** MEDIUM: origen (0–1) del empuje lento: la región "subject" curada, o un tercio fijo. */
+  focus?: { x: number; y: number };
+  /** DETAIL: región CURADA (0–1 de la fuente) y tamaño de la fuente. */
+  region?: { label: string; x: number; y: number; w: number; h: number };
+  sourceWidth?: number;
+  sourceHeight?: number;
+  /** Rótulo de apertura de la secuencia: año (serif) y lugar (sans). */
+  slug?: { year?: string; place?: string };
+  /** Tarjeta (transición de tipo o ausencia dirigida): año opcional en serif. */
+  card?: { year?: string };
+  /** v6: peso del momento (1/2/3). Ausente en v5. */
+  impact?: 1 | 2 | 3;
+  /** v6, impacto 3 en un plano general: año (serif grande) y lugar como declaración de apertura sobre la imagen. */
+  statement?: { year?: string; place?: string };
+  /** v6, presentación del protagonista: nombre (serif) del vínculo de identidad VERIFICADO. */
+  name?: string;
+  /** v6, DETAIL de impacto 3: movimiento continuo de la página completa a la región curada. */
+  reveal?: boolean;
+};
+
+/**
+ * v6: revelación del documento. Del rectángulo de la página completa (el mismo del plano general en campo)
+ * al encuadre final del DETAIL, sin superar nunca la escala final (≤ 1 px de fuente por px).
+ * 0–0.12 quieto (corte invisible desde el plano general), 0.12–0.55 movimiento suave, luego se sostiene.
+ */
+export function revealLayout(region: { x: number; y: number; w: number; h: number }, srcW: number, srcH: number, width: number, height: number, progress: number) {
+  const end = detailLayout(region, srcW, srcH, width, height, 1);
+  const start = containRect(wideFieldBox(width, height), srcW, srcH);
+  const p = clamp(progress);
+  const t = p <= 0.12 ? 0 : p >= 0.55 ? 1 : easedProgress((p - 0.12) / 0.43);
+  const mix = (a: number, b: number) => a + (b - a) * t;
+  const page = { x: mix(start.x, end.page.x), y: mix(start.y, end.page.y), w: mix(start.w, end.page.w), h: mix(start.h, end.page.h) };
+  const focus = { x: page.x + region.x * page.w, y: page.y + region.y * page.h, w: region.w * page.w, h: region.h * page.h };
+  return { page, focus, dim: 0.62 * t, t, final: end.final };
+}
+/** Only two era looks exist (no era engine): documentary colour and explicit, scoped monochrome. */
+export type LookPreset = "documentary_1990s" | "schematic_mono";
 export type SceneLook = {
   scale?: number;
   originX?: number;
@@ -18,7 +73,11 @@ export type SceneLook = {
   contrast?: number;
   saturation?: number;
   vignette?: number;
+  preset?: LookPreset;
 };
+export type DocumentRegionLabel = "headline" | "date" | "detail";
+export type DocumentRegion = { label: DocumentRegionLabel; x: number; y: number; w: number; h: number };
+export type DocumentDirection = { regions: DocumentRegion[]; sourceWidth: number; sourceHeight: number };
 export type SoundCue = {
   id: string;
   src: string;
@@ -33,28 +92,302 @@ export type SoundCue = {
 };
 
 const clamp = (n: number) => Math.min(1, Math.max(0, n));
-export function cameraTransform(camera: NonNullable<SceneDirection["camera"]>, progress: number): string {
-  const p = clamp(progress);
+
+// --------------------------------------------------------------------------
+// Shared camera: deterministic ease-in-out (Remotion's own Easing), existing caps unchanged.
+// --------------------------------------------------------------------------
+
+/** Existing caps — never raised: a push/pull/pan reaches at most 1.08; only the opening hook reaches 1.16. */
+export const CAMERA_MAX_SCALE = 1.08;
+export const OPENING_MAX_SCALE = 1.16;
+const cameraEasing = Easing.inOut(Easing.sin);
+/** Linear scene progress → eased camera progress (0→0, 0.5→0.5, 1→1; slow start and slow landing). */
+export function easedProgress(progress: number): number {
+  return cameraEasing(clamp(progress));
+}
+
+/**
+ * eased=false: the linear move production renders for v1–v3 plans (exact same CSS).
+ * eased=true: directed shots (v5+) ease in and out within the same caps.
+ */
+export function cameraTransform(camera: NonNullable<SceneDirection["camera"]>, progress: number, eased = true): string {
+  if (!eased) {
+    const p = clamp(progress);
+    switch (camera) {
+      case "still": return "none";
+      case "push": return `scale(${1 + 0.08 * p})`;
+      case "pull": return `scale(${1.08 - 0.08 * p})`;
+      case "left": return `translateX(${2 - 4 * p}%) scale(1.08)`;
+      case "right": return `translateX(${-2 + 4 * p}%) scale(1.08)`;
+    }
+  }
+  const p = easedProgress(progress);
+  const d = CAMERA_MAX_SCALE - 1;
   switch (camera) {
     case "still": return "none";
-    case "push": return `scale(${1 + 0.08 * p})`;
-    case "pull": return `scale(${1.08 - 0.08 * p})`;
+    case "push": return `scale(${1 + d * p})`;
+    case "pull": return `scale(${CAMERA_MAX_SCALE - d * p})`;
     // Overscan exceeds translation at either edge, so no black borders appear.
-    case "left": return `translateX(${2 - 4 * p}%) scale(1.08)`;
-    case "right": return `translateX(${-2 + 4 * p}%) scale(1.08)`;
+    case "left": return `translateX(${2 - 4 * p}%) scale(${CAMERA_MAX_SCALE})`;
+    case "right": return `translateX(${-2 + 4 * p}%) scale(${CAMERA_MAX_SCALE})`;
   }
 }
+/** Default Ken Burns when no camera was directed: same caps as before (1.08; hook 1.16 over its first 40 %), now eased. */
+export function kenBurnsTransform(progress: number, isHook: boolean, eased = true): { scale: number; translateX: number } {
+  if (!eased) {
+    // Production's linear Ken Burns (v1–v3), identical to interpolate(progress, [0, 1], [1, 1.08]) / [0, -14].
+    if (isHook) return { scale: interpolate(Math.min(1, progress / 0.4), [0, 1], [1, 1.16], { extrapolateRight: "clamp" }), translateX: 0 };
+    return { scale: interpolate(progress, [0, 1], [1, 1.08]), translateX: interpolate(progress, [0, 1], [0, -14]) };
+  }
+  if (isHook) return { scale: 1 + (OPENING_MAX_SCALE - 1) * easedProgress(Math.min(1, clamp(progress) / 0.4)), translateX: 0 };
+  const p = easedProgress(progress);
+  return { scale: 1 + (CAMERA_MAX_SCALE - 1) * p, translateX: -14 * p };
+}
+
+// --------------------------------------------------------------------------
+// Looks: two presets only. Saturation 0 exists ONLY inside "schematic_mono".
+// --------------------------------------------------------------------------
+
+export const LOOK_PRESETS: Record<LookPreset, { contrast: number; saturation: number }> = {
+  // Colour documentary grade: slightly firmer contrast, slightly calmer colour. No sepia, no degradation, no VHS.
+  documentary_1990s: { contrast: 1.06, saturation: 0.9 },
+  // Historical/schematic monochrome: explicit preset only (validateDirection scopes it).
+  schematic_mono: { contrast: 1.08, saturation: 0 },
+};
+
 /** CSS for a SceneLook, composed after the camera move so both apply. Pure. */
 export function lookStyle(look: SceneLook | undefined, cameraCss: string): { transform: string; transformOrigin?: string; filter?: string; vignette: number } {
   if (!look) return { transform: cameraCss, vignette: 0 };
   const parts = [cameraCss === "none" ? "" : cameraCss, look.scale && look.scale !== 1 ? `scale(${look.scale})` : ""].filter(Boolean);
-  const filters = [look.contrast !== undefined ? `contrast(${look.contrast})` : "", look.saturation !== undefined ? `saturate(${look.saturation})` : ""].filter(Boolean);
+  const preset = look.preset ? LOOK_PRESETS[look.preset] : undefined;
+  const contrast = look.contrast ?? preset?.contrast;
+  const saturation = look.preset === "schematic_mono" ? 0 : (look.saturation ?? preset?.saturation);
+  const filters = [contrast !== undefined ? `contrast(${contrast})` : "", saturation !== undefined ? `saturate(${saturation})` : ""].filter(Boolean);
   return {
     transform: parts.length ? parts.join(" ") : "none",
     transformOrigin: look.originX !== undefined || look.originY !== undefined ? `${(look.originX ?? 0.5) * 100}% ${(look.originY ?? 0.5) * 100}%` : undefined,
     filter: filters.length ? filters.join(" ") : undefined,
     vignette: look.vignette ?? 0,
   };
+}
+
+// --------------------------------------------------------------------------
+// Verified document animation over CURATED regions (deterministic, no new content)
+// --------------------------------------------------------------------------
+
+/** Hard cap shared with the existing static reframe (look.scale ≤ 1.5); also never past the source's native resolution. */
+export const DOCUMENT_MAX_ZOOM = 1.5;
+const DOCUMENT_LABELS: DocumentRegionLabel[] = ["headline", "date", "detail"];
+
+export type DocumentFrame = {
+  /** Uniform zoom about the frame centre, then translation in frame pixels. */
+  scale: number;
+  translateX: number;
+  translateY: number;
+  /** Highlighted region in FRAME pixels (null on the full page). */
+  focus: { x: number; y: number; w: number; h: number } | null;
+  /** Dimming outside the focus (0 on the full page). */
+  dim: number;
+  phase: "full" | DocumentRegionLabel | "move" | "exit";
+};
+
+/** The curated stops, in order: headline first, then ONE of date/detail. Missing regions are never invented. */
+export function documentStops(doc: DocumentDirection): DocumentRegion[] {
+  const by = (label: DocumentRegionLabel) => doc.regions.find((r) => r.label === label);
+  const first = by("headline") ?? by("date") ?? by("detail");
+  if (!first) return [];
+  const second = first.label === "headline" ? (by("date") ?? by("detail")) : first.label === "date" ? by("detail") : undefined;
+  return second ? [first, second] : [first];
+}
+
+/** Where the page sits in the frame ("contain": the whole document is visible). */
+export function documentLayout(doc: DocumentDirection, frameW: number, frameH: number) {
+  const s = Math.min(frameW / doc.sourceWidth, frameH / doc.sourceHeight);
+  const w = doc.sourceWidth * s;
+  const h = doc.sourceHeight * s;
+  return { s, x: (frameW - w) / 2, y: (frameH - h) / 2, w, h, maxZoom: Math.min(DOCUMENT_MAX_ZOOM, Math.max(1, 1 / s)) };
+}
+
+function regionState(doc: DocumentDirection, r: DocumentRegion, frameW: number, frameH: number) {
+  const L = documentLayout(doc, frameW, frameH);
+  const box = { x: L.x + r.x * L.w, y: L.y + r.y * L.h, w: r.w * L.w, h: r.h * L.h };
+  const scale = Math.min(L.maxZoom, Math.max(1, 0.82 * Math.min(frameW / box.w, frameH / box.h)));
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  return { scale, translateX: -scale * (cx - frameW / 2), translateY: -scale * (cy - frameH / 2), box, dim: 0.5 };
+}
+
+/**
+ * Document camera at a linear scene progress. Timeline (eased between stops):
+ * one stop:  full 0–0.15 → move 0.15–0.40 → hold → exit 0.78–1.0
+ * two stops: full 0–0.15 → move 0.15–0.35 → hold → move 0.55–0.70 → hold → exit 0.82–1.0
+ */
+export function documentFrame(doc: DocumentDirection, progress: number, frameW: number, frameH: number): DocumentFrame {
+  const stops = documentStops(doc);
+  const full = { scale: 1, translateX: 0, translateY: 0, box: null as DocumentFrame["focus"], dim: 0 };
+  if (stops.length === 0) return { ...full, focus: null, phase: "full" };
+  const states = stops.map((r) => regionState(doc, r, frameW, frameH));
+  const keys: { at: number; state: typeof full; phase: DocumentFrame["phase"] }[] =
+    stops.length === 1
+      ? [
+          { at: 0.15, state: full, phase: "full" },
+          { at: 0.4, state: states[0], phase: stops[0].label },
+          { at: 0.78, state: states[0], phase: stops[0].label },
+          { at: 1, state: full, phase: "exit" },
+        ]
+      : [
+          { at: 0.15, state: full, phase: "full" },
+          { at: 0.35, state: states[0], phase: stops[0].label },
+          { at: 0.55, state: states[0], phase: stops[0].label },
+          { at: 0.7, state: states[1], phase: stops[1].label },
+          { at: 0.82, state: states[1], phase: stops[1].label },
+          { at: 1, state: full, phase: "exit" },
+        ];
+  const p = clamp(progress);
+  if (p <= keys[0].at) return { ...full, focus: null, phase: "full" };
+  for (let i = 1; i < keys.length; i++) {
+    const a = keys[i - 1];
+    const b = keys[i];
+    if (p > b.at) continue;
+    const t = easedProgress((p - a.at) / (b.at - a.at));
+    const mix = (x: number, y: number) => x + (y - x) * t;
+    const focusBox = b.state.box ?? a.state.box;
+    const box = a.state.box && b.state.box ? { x: mix(a.state.box.x, b.state.box.x), y: mix(a.state.box.y, b.state.box.y), w: mix(a.state.box.w, b.state.box.w), h: mix(a.state.box.h, b.state.box.h) } : focusBox;
+    const scale = mix(a.state.scale, b.state.scale);
+    const translateX = mix(a.state.translateX, b.state.translateX);
+    const translateY = mix(a.state.translateY, b.state.translateY);
+    // Focus box in frame pixels after the zoom/translation (p' = C + scale·(p − C) + t).
+    const focus = box ? { x: frameW / 2 + scale * (box.x - frameW / 2) + translateX, y: frameH / 2 + scale * (box.y - frameH / 2) + translateY, w: box.w * scale, h: box.h * scale } : null;
+    const holding = a.state === b.state;
+    return { scale, translateX, translateY, focus, dim: mix(a.state.dim, b.state.dim), phase: holding ? a.phase : b.phase === "exit" ? "exit" : "move" };
+  }
+  return { ...full, focus: null, phase: "exit" };
+}
+
+// --------------------------------------------------------------------------
+// Curated SVG reveal: ONE path + ONE label that already exist in an approved SVG.
+// --------------------------------------------------------------------------
+
+export type CuratedSvgReveal = {
+  viewBox: string;
+  /** The approved SVG without the two revealed elements (drawn statically). */
+  baseMarkup: string;
+  path: { d: string; stroke: string; strokeWidth: number };
+  label: { text: string; x: number; y: number; fontSize: number; fill: string };
+};
+
+const attr = (tag: string, name: string) => new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1];
+const escapeId = (id: string) => id.replace(/[^A-Za-z0-9_-]/g, "");
+
+/**
+ * Parse a CURATED SVG for the reveal. Fails closed (null) on any active content
+ * or when the named path/label do not exist: the renderer never invents geometry.
+ */
+export function prepareCuratedSvg(markup: string, reveal: { pathId: string; labelId: string }): CuratedSvgReveal | null {
+  if (/<script|<foreignObject|<image|<style|\son[a-z]+=|href=|url\(|<!ENTITY/i.test(markup)) return null;
+  const root = /<svg\b[^>]*>/i.exec(markup);
+  const close = markup.lastIndexOf("</svg>");
+  const viewBox = root ? attr(root[0], "viewBox") : undefined;
+  if (!root || close < 0 || !viewBox) return null;
+  const inner = markup.slice(root.index + root[0].length, close);
+  const pathTag = new RegExp(`<path\\b[^>]*\\sid="${escapeId(reveal.pathId)}"[^>]*/>`).exec(inner)?.[0];
+  const labelMatch = new RegExp(`<text\\b([^>]*\\sid="${escapeId(reveal.labelId)}"[^>]*)>([^<]*)</text>`).exec(inner);
+  const d = pathTag ? attr(pathTag, "d") : undefined;
+  if (!pathTag || !d || !labelMatch || !labelMatch[2].trim()) return null;
+  const labelTag = ` ${labelMatch[1]}`;
+  const x = Number(attr(labelTag, "x"));
+  const y = Number(attr(labelTag, "y"));
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return {
+    viewBox,
+    baseMarkup: inner.replace(pathTag, "").replace(labelMatch[0], ""),
+    path: { d, stroke: attr(pathTag, "stroke") ?? "#e24b4b", strokeWidth: Number(attr(pathTag, "stroke-width") ?? 6) || 6 },
+    label: { text: labelMatch[2].trim(), x, y, fontSize: Number(attr(labelTag, "font-size") ?? 40) || 40, fill: attr(labelTag, "fill") ?? "#ffffff" },
+  };
+}
+
+/** Deterministic reveal: the path draws 0.10–0.65 (eased), the label fades in 0.65–0.80. */
+export function svgRevealState(progress: number): { pathDrawn: number; labelOpacity: number } {
+  const p = clamp(progress);
+  return { pathDrawn: easedProgress((p - 0.1) / 0.55), labelOpacity: easedProgress((p - 0.65) / 0.15) };
+}
+
+// --------------------------------------------------------------------------
+// Plan v5 — una sola familia tipográfica y un solo sistema de márgenes (16:9 y 9:16)
+// --------------------------------------------------------------------------
+
+/** Una serif (nombres, años) y una sans (créditos, "Recreación IA", lugar, mapa, metadatos). */
+export const TYPE = {
+  serif: "Georgia, 'Liberation Serif', 'DejaVu Serif', serif",
+  sans: "'Helvetica Neue', Helvetica, Arial, 'Liberation Sans', sans-serif",
+} as const;
+
+/** Escala tipográfica a partir del lado corto del cuadro: la misma lógica en 16:9 y 9:16. */
+export function typeScale(width: number, height: number) {
+  const u = Math.min(width, height);
+  return { credit: Math.round(u * 0.022), label: Math.round(u * 0.024), place: Math.round(u * 0.022), year: Math.round(u * 0.07), cardYear: Math.round(u * 0.12), cardLine: Math.round(u * 0.036), caption: Math.round(u * (height > width ? 0.046 : 0.04)) };
+}
+
+/** Altura reservada a los subtítulos (dos líneas) encima del margen inferior. */
+export function captionBand(width: number, height: number): number {
+  return Math.round(typeScale(width, height).caption * 1.3 * 2 + 32);
+}
+
+/**
+ * Caja de la imagen en un plano general "field": centrada, con margen negro
+ * diseñado, por debajo de la banda de rótulos y por encima de los subtítulos.
+ */
+export function wideFieldBox(width: number, height: number) {
+  const safe = safeAreas(width, height);
+  const t = typeScale(width, height);
+  const top = safe.top + Math.round(t.label * 2.4);
+  const bottom = height - safe.bottom - captionBand(width, height);
+  const side = height > width ? safe.side : Math.round(width * 0.11);
+  return { x: side, y: top, w: width - 2 * side, h: Math.max(1, bottom - top) };
+}
+
+/** Rectángulo (px) que ocupa una imagen "contain" dentro de una caja. */
+export function containRect(box: { x: number; y: number; w: number; h: number }, srcW: number, srcH: number) {
+  const s = Math.min(box.w / srcW, box.h / srcH);
+  return { x: box.x + (box.w - srcW * s) / 2, y: box.y + (box.h - srcH * s) / 2, w: srcW * s, h: srcH * s, s };
+}
+
+/** Empuje MEDIUM (v5): mismo tope 1.08, con aceleración, desde un origen fuera del centro. */
+export function mediumTransform(progress: number, focus: { x: number; y: number }): { transform: string; transformOrigin: string } {
+  return { transform: `scale(${1 + (CAMERA_MAX_SCALE - 1) * easedProgress(progress)})`, transformOrigin: `${(focus.x * 100).toFixed(2)}% ${(focus.y * 100).toFixed(2)}%` };
+}
+
+/**
+ * DETAIL sobre una región CURADA: la región domina el cuadro (≈80 % del ancho útil),
+ * sin pasar nunca de 1 px de fuente por px de cuadro (sin ampliar), con un movimiento
+ * corto dentro del tope de 1.08 y el resto de la página visible pero atenuado.
+ */
+export function detailLayout(region: { x: number; y: number; w: number; h: number }, srcW: number, srcH: number, width: number, height: number, progress: number) {
+  const box = wideFieldBox(width, height);
+  // 9:16: 82 % (no 92 %) para que los dos bordes de la página sigan a la vista con el titular dominante.
+  const targetW = (height > width ? 0.82 : 0.8) * width;
+  const targetH = box.h * 0.62;
+  const final = Math.min(targetW / (region.w * srcW), targetH / (region.h * srcH), 1);
+  const s = final * (1 / CAMERA_MAX_SCALE + (1 - 1 / CAMERA_MAX_SCALE) * easedProgress(Math.min(1, clamp(progress) / 0.4)));
+  const cx = width / 2;
+  const cy = box.y + box.h / 2;
+  const rx = (region.x + region.w / 2) * srcW;
+  const ry = (region.y + region.h / 2) * srcH;
+  const page = { x: cx - rx * s, y: cy - ry * s, w: srcW * s, h: srcH * s };
+  const focus = { x: page.x + region.x * srcW * s, y: page.y + region.y * srcH * s, w: region.w * srcW * s, h: region.h * srcH * s };
+  return { s, final, page, focus };
+}
+
+// --------------------------------------------------------------------------
+// Safe areas: the same composition in 16:9 and 9:16 (no Reels-specific copy of the rules).
+// --------------------------------------------------------------------------
+
+export type SafeAreas = { top: number; side: number; bottom: number; captionMaxWidth: number; captionFontSize: number; labelFontSize: number };
+export function safeAreas(width: number, height: number): SafeAreas {
+  if (height <= width) return { top: 44, side: 56, bottom: 120, captionMaxWidth: 1400, captionFontSize: 46, labelFontSize: 28 };
+  // Vertical: clear the platform chrome (top status/title band, bottom actions/description band).
+  const side = Math.round(width * 0.07);
+  return { top: Math.round(height * 0.085), side, bottom: Math.round(height * 0.2), captionMaxWidth: width - 2 * side, captionFontSize: Math.round(width * 0.048), labelFontSize: Math.round(width * 0.03) };
 }
 export function transitionFrames(direction: SceneDirection | undefined, fps: number, duration: number): number {
   if (!direction) return Math.min(15, Math.floor(duration * fps / 2));
@@ -79,7 +412,7 @@ export function soundCueVolume(cue: SoundCue, t: number, all: SoundCue[], gaps: 
 }
 
 export function validateDirection(
-  scenes: {id: string; startSeconds: number; endSeconds: number; direction?: SceneDirection}[],
+  scenes: {id: string; startSeconds: number; endSeconds: number; direction?: SceneDirection; provenance?: string; asset?: {kind: string; mediaType?: string; graphic?: {kind: string}}}[],
   cues: SoundCue[] | undefined,
   duration: number,
 ): void {
@@ -97,6 +430,35 @@ export function validateDirection(
       // Conservative bounds: a reframe/grade, never a different picture.
       if (!within(l.scale, 1, 1.5) || !within(l.originX, 0, 1) || !within(l.originY, 0, 1) || !within(l.contrast, 0.8, 1.4) || !within(l.saturation, 0.6, 1.5) || !within(l.vignette, 0, 0.8)) {
         throw new Error(`Invalid look: ${s.id}`);
+      }
+      if (l.preset !== undefined && !(l.preset in LOOK_PRESETS)) throw new Error(`Invalid look preset: ${s.id}`);
+      // Era looks only grade verified archive (or, for mono, a curated schematic SVG): never disguise other material as period.
+      const curatedSvg = s.asset?.kind === "graphic" && s.asset.graphic?.kind === "curated_svg";
+      if (l.preset === "documentary_1990s" && s.provenance !== "archival_documentary") throw new Error(`Era look on non-archival scene: ${s.id}`);
+      if (l.preset === "schematic_mono" && !(s.provenance === "archival_documentary" || curatedSvg)) throw new Error(`Monochrome on non-archival scene: ${s.id}`);
+    }
+    if (d.shot) {
+      const sh = d.shot;
+      if (!["WIDE", "MEDIUM", "DETAIL"].includes(sh.scale)) throw new Error(`Invalid shot scale: ${s.id}`);
+      if (sh.focus && ![sh.focus.x, sh.focus.y].every((v) => finite(v) && v >= 0 && v <= 1)) throw new Error(`Invalid shot focus: ${s.id}`);
+      if (sh.scale === "DETAIL") {
+        // DETAIL solo sobre una región CURADA de un recurso verificado (nunca un recorte arbitrario).
+        const r = sh.region;
+        if (s.provenance !== "archival_documentary" || !r || !finite(sh.sourceWidth ?? NaN) || !finite(sh.sourceHeight ?? NaN) || ![r.x, r.y, r.w, r.h].every((v) => finite(v) && v >= 0 && v <= 1) || r.w <= 0 || r.h <= 0) {
+          throw new Error(`DETAIL needs a curated region of a verified asset: ${s.id}`);
+        }
+      }
+      if (sh.impact !== undefined && ![1, 2, 3].includes(sh.impact)) throw new Error(`Invalid impact: ${s.id}`);
+      if (sh.reveal && sh.scale !== "DETAIL") throw new Error(`Reveal only on a curated DETAIL: ${s.id}`);
+      if (sh.name !== undefined && (s.provenance !== "archival_documentary" || !sh.name.trim() || sh.name.length > 60)) throw new Error(`Name only for a verified archival anchor: ${s.id}`);
+      for (const t of [sh.statement?.year, sh.statement?.place]) if (t !== undefined && t.length > 40) throw new Error(`Statement too long: ${s.id}`);
+    }
+    if (d.document) {
+      const doc = d.document;
+      if (s.provenance !== "archival_documentary" || (s.asset && !(s.asset.kind === "media" && s.asset.mediaType === "image"))) throw new Error(`Document animation needs a verified archival image: ${s.id}`);
+      if (!finite(doc.sourceWidth) || !finite(doc.sourceHeight) || doc.sourceWidth <= 0 || doc.sourceHeight <= 0 || !Array.isArray(doc.regions) || doc.regions.length === 0) throw new Error(`Invalid document: ${s.id}`);
+      for (const r of doc.regions) {
+        if (!DOCUMENT_LABELS.includes(r.label) || ![r.x, r.y, r.w, r.h].every((v) => finite(v) && v >= 0 && v <= 1) || r.w <= 0 || r.h <= 0 || r.x + r.w > 1 + 1e-9 || r.y + r.h > 1 + 1e-9) throw new Error(`Invalid document region: ${s.id}`);
       }
     }
   }

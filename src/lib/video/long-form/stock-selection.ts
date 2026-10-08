@@ -21,7 +21,7 @@
  *   nunca material ajeno en silencio.
  */
 import type { FootageCandidate, FootageProvider } from "@/lib/providers/types";
-import type { BeatVisual } from "./visual-intents";
+import { requiresEvidence, requiresIdentity, type BeatVisual } from "./visual-intents";
 import { canonicalizeUrl, contentIdentity, type AssetIdentity, type DocumentAssetRegistry, type DuplicateMatch } from "./asset-identity";
 
 const EN_STOPWORDS = new Set(
@@ -113,12 +113,85 @@ export function assessRelevance(visual: BeatVisual, candidateText: string | unde
 
 /** Consultas por niveles de la MISMA intención — nunca el tema del documental solo. */
 export function selectionQueries(visual: BeatVisual): string[] {
+  if (visual.identity) {
+    // Con identidad exigida la acción/transición (subir, entrar, caminar) no
+    // busca nada: solo trae cuerpos anónimos haciéndola. Se busca a la
+    // persona en su lugar y época; la descripción y las alternativas, que
+    // narran la acción, no se usan.
+    const name = visual.identity.name;
+    return [...new Set([[name, visual.place, visual.era], [name, visual.place], [name]].map((q) => q.filter(Boolean).join(" ").trim()).filter(Boolean))];
+  }
+  if (visual.beatClass === "TRANSITION") {
+    // Una transición (v4) no convierte el verbo narrado en material literal:
+    // se busca su sujeto en su lugar y época, nunca la acción ni la descripción.
+    return [...new Set([[visual.subject, visual.place, visual.era], [visual.subject, visual.place]].map((q) => q.filter(Boolean).join(" ").trim()).filter(Boolean))];
+  }
   const queries = [visual.description, ...(visual.alternates ?? [])];
   if (visual.subject) queries.push([visual.subject, visual.place].filter(Boolean).join(" "));
   return [...new Set(queries.map((q) => q.trim()).filter(Boolean))];
 }
 
 export type RejectedCandidate = { sourceId?: string; query: string; reason: string };
+
+/** Reutilización justificada de un recurso VERIFICADO para la misma identidad/proposición (nunca genérica). */
+export type SelectionReuse = { of: string; justification: "verified_identity_reuse" | "verified_evidence_reuse" };
+
+/** Términos de la acción de la persona del beat que aparecen en el candidato (solo escenas de contexto v4). */
+export function personSubstitute(visual: BeatVisual, candidateText: string | undefined): string | null {
+  if (!visual.personActions || visual.personActions.length === 0 || !candidateText) return null;
+  const actions = new Set(englishTerms(visual.personActions.join(" ")));
+  const hits = englishTerms(candidateText).filter((t) => actions.has(t));
+  return hits.length > 0 ? hits.join(", ") : null;
+}
+
+/** Vínculo de entidad confirmado por el servidor (nunca por el texto del candidato). */
+export type TrustedEntityLink = { name: string };
+/** Fuentes que el servidor confirma que el recurso documenta (nunca por su texto, su URL ni su tipo de objeto). */
+export type TrustedEvidenceLink = { sourceIds: string[] };
+
+/**
+ * Filtro duro de PRUEBA (v4): una escena EVIDENCE solo admite un recurso que el
+ * verificador del servidor vincula a la MISMA proposición (sus fuentes). La
+ * similitud nomina; nunca prueba: un periódico sobre otro hecho comparte el
+ * objeto ("newspaper"), no la proposición.
+ */
+export function evidenceEligibility(
+  visual: BeatVisual,
+  link: TrustedEvidenceLink | null,
+): { eligible: true; link?: TrustedEvidenceLink } | { eligible: false; why: string } {
+  if (!requiresEvidence(visual)) return { eligible: true };
+  if (!visual.evidence) return { eligible: false, why: "EVIDENCE sin proposición declarada" };
+  if (!link) return { eligible: false, why: `sin vínculo de prueba de confianza con la proposición (${visual.evidence.sourceIds.join(", ")})` };
+  const required = new Set(visual.evidence.sourceIds);
+  if (!link.sourceIds.some((id) => required.has(id))) return { eligible: false, why: `documenta otro hecho (${link.sourceIds.join(", ")}), no la proposición (${visual.evidence.sourceIds.join(", ")})` };
+  return { eligible: true, link };
+}
+
+function sameIdentity(a: string, b: string): boolean {
+  const norm = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
+  return norm(a) === norm(b);
+}
+
+/**
+ * Filtro duro de identidad (previo a cualquier aprobación por pertinencia).
+ * Con identidad exigida, solo es ELEGIBLE un candidato cuyo vínculo con esa
+ * misma persona confirma el verificador del servidor. Descripción, alt
+ * text, `entityReference` y orden del proveedor son afirmaciones, no
+ * pruebas: un humano genérico, una parte del cuerpo, una profesión, un
+ * homónimo o un nombre auto-declarado quedan fuera sin importar su score.
+ * Hoy ningún proveedor aporta metadata estructurada "sin personas", así
+ * que el contexto no humano tampoco es elegible aquí: sin vínculo, carencia.
+ */
+export function identityEligibility(
+  visual: BeatVisual,
+  link: TrustedEntityLink | null,
+): { eligible: true; link?: TrustedEntityLink } | { eligible: false; why: string } {
+  if (!requiresIdentity(visual)) return { eligible: true };
+  if (!visual.identity) return { eligible: false, why: visual.classificationGap ? "CLASSIFICATION_INTEGRITY_GAP" : "escena IDENTITY sin identidad válida" };
+  if (!link) return { eligible: false, why: `sin vínculo de confianza con ${visual.identity.name}` };
+  if (!sameIdentity(link.name, visual.identity.name)) return { eligible: false, why: `vinculado a otra entidad (${link.name}), no a ${visual.identity.name}` };
+  return { eligible: true, link };
+}
 
 export type StockSelection = {
   status: "selected";
@@ -128,6 +201,12 @@ export type StockSelection = {
   query: string;
   tier: number;
   assessment: RelevanceAssessment;
+  /** Presente cuando la escena exige identidad: el vínculo de confianza que la habilitó. */
+  entityLink?: TrustedEntityLink;
+  /** Presente cuando la escena es EVIDENCE: el vínculo de prueba de confianza que la habilitó. */
+  evidenceLink?: TrustedEvidenceLink;
+  /** Presente si el recurso ya ocupa otra escena: reutilización verificada y justificada. */
+  reuse?: SelectionReuse;
   candidatesConsidered: number;
   rejected: RejectedCandidate[];
 };
@@ -147,6 +226,16 @@ export type StockSelectionDeps = {
   identify?: (buffer: Buffer, mediaType: "image" | "video") => Promise<Pick<AssetIdentity, "sha256" | "dhash" | "dhashUnavailable">>;
   /** Tope de descargas por escena (cada descarga rechazada cuesta tiempo, no dinero). */
   maxDownloads?: number;
+  /**
+   * Verificador de vínculos de entidad controlado por el servidor (p. ej. el
+   * catálogo de un archivo de confianza). Es la ÚNICA fuente de confianza
+   * de identidad. Sin él (producción hoy), ningún candidato está vinculado.
+   */
+  verifyEntityLink?: (candidate: FootageCandidate, providerName: string) => TrustedEntityLink | null;
+  /** Verificador de pruebas del servidor (archivo/registro de confianza). Ausente hoy: ningún recurso prueba una proposición. */
+  verifyEvidenceLink?: (candidate: FootageCandidate, providerName: string) => TrustedEvidenceLink | null;
+  /** Tras la descarga: el servidor confirma que el contenido es el aprobado (null) o explica el rechazo. */
+  verifyContent?: (candidate: FootageCandidate, sha256: string) => string | null;
 };
 
 function describeDuplicate(match: DuplicateMatch): string {
@@ -170,6 +259,14 @@ export async function selectStockForShot(
   input: { shotId: string; visual: BeatVisual; preferVideo: boolean; minDurationSec: number },
   deps: StockSelectionDeps,
 ): Promise<StockSelection | StockGap> {
+  if (requiresIdentity(input.visual) && !input.visual.identity) {
+    // Fail-closed (v4): IDENTITY sin persona declarada, o clasificación incierta, no busca material de ningún tipo.
+    const reason = input.visual.classificationGap ? "CLASSIFICATION_INTEGRITY_GAP: clasificación incierta, no se busca material" : "PLANNING_FAILURE: escena IDENTITY sin identidad válida, no se busca material";
+    return { status: "gap", reason, queries: [], candidatesConsidered: 0, rejected: [] };
+  }
+  if (requiresEvidence(input.visual) && !input.visual.evidence) {
+    return { status: "gap", reason: "PLANNING_FAILURE: escena EVIDENCE sin proposición declarada, no se busca material", queries: [], candidatesConsidered: 0, rejected: [] };
+  }
   const queries = selectionQueries(input.visual);
   const identify = deps.identify ?? contentIdentity;
   const maxDownloads = deps.maxDownloads ?? 6;
@@ -189,13 +286,56 @@ export async function selectStockForShot(
       if (seen.has(key)) continue;
       seen.add(key);
       considered += 1;
+      const identity = identityEligibility(input.visual, deps.verifyEntityLink?.(candidate, deps.footageProvider.name) ?? null);
+      const evidenceVerdict = evidenceEligibility(input.visual, deps.verifyEvidenceLink?.(candidate, deps.footageProvider.name) ?? null);
+      // Reutilización legítima (v4): SOLO un recurso con vínculo verificado que coincide con la identidad/proposición
+      // de ESTA escena. Cualquier otra repetición sigue rechazándose.
+      const verifiedReuse: SelectionReuse["justification"] | null =
+        identity.eligible && identity.link ? "verified_identity_reuse" : evidenceVerdict.eligible && evidenceVerdict.link ? "verified_evidence_reuse" : null;
+      let reuse: SelectionReuse | undefined;
       const refDup = deps.registry.findByReference(reference, input.shotId);
       if (refDup) {
-        rejected.push({ sourceId: reference.sourceId, query, reason: describeDuplicate(refDup) });
-        continue;
+        if (!verifiedReuse) {
+          rejected.push({ sourceId: reference.sourceId, query, reason: describeDuplicate(refDup) });
+          continue;
+        }
+        reuse = { of: refDup.shotId, justification: verifiedReuse };
       }
       const assessment = assessRelevance(input.visual, candidate.description);
-      if (assessment.relevance === "irrelevant") {
+      const substitute = personSubstitute(input.visual, candidate.description);
+      if (substitute) {
+        // Contexto de un beat con persona: el candidato muestra lo que hace la persona → la sustituiría.
+        rejected.push({ sourceId: reference.sourceId, query, reason: `FALSE_FRIEND: muestra la acción de la persona del beat (${substitute}) sin ser ella (pertinencia ${assessment.relevance}, score ${assessment.score}; ${candidate.description})` });
+        continue;
+      }
+      if (!identity.eligible) {
+        // El score no se toca: se rechaza A PESAR de su pertinencia léxica.
+        const falseFriend = assessment.relevance !== "irrelevant";
+        rejected.push({
+          sourceId: reference.sourceId,
+          query,
+          reason: `${falseFriend ? "FALSE_FRIEND" : "IDENTITY_UNVERIFIED"}: ${identity.why} (pertinencia ${assessment.relevance}, score ${assessment.score}; ${candidate.description ?? "sin descripción"})`,
+        });
+        continue;
+      }
+      const evidence = evidenceVerdict;
+      if (!evidence.eligible) {
+        // El score no se toca: mismo objeto/medio no es la misma proposición.
+        const falseFriend = assessment.relevance !== "irrelevant";
+        rejected.push({
+          sourceId: reference.sourceId,
+          query,
+          reason: `${falseFriend ? "FALSE_FRIEND" : "EVIDENCE_UNGROUNDED"}: ${evidence.why} (pertinencia ${assessment.relevance}, score ${assessment.score}; ${candidate.description ?? "sin descripción"})`,
+        });
+        continue;
+      }
+      if (identity.link || evidence.link) {
+        // Elegible por identidad/prueba, no aceptado: las contradicciones de época/lugar siguen descartando.
+        if (assessment.conflicts.length > 0) {
+          rejected.push({ sourceId: reference.sourceId, query, reason: `contradicción ${assessment.conflicts.join(", ")}` });
+          continue;
+        }
+      } else if (assessment.relevance === "irrelevant") {
         rejected.push({
           sourceId: reference.sourceId,
           query,
@@ -204,7 +344,7 @@ export async function selectStockForShot(
         continue;
       }
       // Sin texto descriptivo solo se acepta desde la consulta principal, y queda como incierto.
-      if (assessment.relevance === "unverified" && tier > 0) {
+      if (!identity.link && !evidence.link && assessment.relevance === "unverified" && tier > 0) {
         rejected.push({ sourceId: reference.sourceId, query, reason: "sin descripción del proveedor en una consulta secundaria" });
         continue;
       }
@@ -225,10 +365,18 @@ export async function selectStockForShot(
         continue;
       }
       const content = await identify(buffer, candidate.mediaType);
+      const mutated = deps.verifyContent?.(candidate, content.sha256 ?? "") ?? null;
+      if (mutated) {
+        rejected.push({ sourceId: reference.sourceId, query, reason: mutated });
+        continue;
+      }
       const contentDup = deps.registry.findByContent(content, input.shotId);
       if (contentDup) {
-        rejected.push({ sourceId: reference.sourceId, query, reason: describeDuplicate(contentDup) });
-        continue;
+        if (!verifiedReuse) {
+          rejected.push({ sourceId: reference.sourceId, query, reason: describeDuplicate(contentDup) });
+          continue;
+        }
+        reuse ??= { of: contentDup.shotId, justification: verifiedReuse };
       }
       return {
         status: "selected",
@@ -238,6 +386,9 @@ export async function selectStockForShot(
         query,
         tier,
         assessment,
+        ...(identity.link ? { entityLink: identity.link } : {}),
+        ...(evidence.link ? { evidenceLink: evidence.link } : {}),
+        ...(reuse ? { reuse } : {}),
         candidatesConsidered: considered,
         rejected,
       };

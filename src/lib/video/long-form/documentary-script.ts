@@ -14,6 +14,7 @@ import { z } from "zod";
 import { jsonResponseSystem, parseDocumentaryResponse, DocumentaryResponseError } from "./json-response";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { assertOriginalHook, usesBannedOpener } from "./originality";
+import { VISUAL_BEAT_CLASSES } from "./visual-intents";
 import { BEAT_TYPES, type LongFormClaim, type LongFormMode, type LongFormSource, type NarrativeBeat } from "./types";
 import { countWords, evaluateNarrationDuration, narrationWordBudget, type DurationEvaluation } from "./duration-budget";
 import { StoryPlanSchema, EditorialReviewSchema, EDITORIAL_VERSION, EDITORIAL_WRITER_RULES, EDITORIAL_REVIEWER_SYSTEM,
@@ -67,7 +68,8 @@ export const VisualSchema = z.object({
     .string()
     .describe(
       "EN INGLÉS, máximo ~15 palabras. Una escena concreta y filmable para este beat (sujeto + lugar + acción visible), apta para buscar " +
-        "video de archivo o generar una imagen documental — nunca texto en pantalla, logos ni personas reales identificables. " +
+        "video de archivo o generar una imagen documental — nunca texto en pantalla ni logos. Una persona real concreta solo aparece en una escena " +
+        "beatClass IDENTITY con su identity; nunca la sustituyas por una persona genérica, partes del cuerpo, una profesión o un parecido. " +
         "Si hay acción, nómbrala con verbos concretos (p. ej. walking, building, digging, carrying, working, gathering, " +
         "crowd, procession, construction, moving through); si es estática, descríbela como tal (ruins, map, portrait...).",
     ),
@@ -88,6 +90,48 @@ export const VisualSchema = z.object({
     .max(2)
     .optional()
     .describe("Hasta 2 búsquedas alternativas EN INGLÉS del MISMO contenido (sinónimos del sujeto/acción), nunca de otro tema."),
+  // Visual Excellence V1 (planes v4). Opcionales en el esquema para no romper
+  // guiones anteriores: el normalizador v4 valida y falla cerrado.
+  beatClass: z
+    .enum(VISUAL_BEAT_CLASSES)
+    .optional()
+    .describe(
+      "Qué AFIRMA la escena: IDENTITY (muestra a una persona real concreta), PLACE (lugar o espacio), EVIDENCE (el documento, registro u objeto " +
+        "que PRUEBA este hecho concreto — no un objeto genérico del mismo tipo; declara su evidence), " +
+        "PROCESS (actividad sin una persona concreta), TRANSITION (paso de tiempo o lugar), METAPHOR (imagen simbólica). " +
+        "Si la narración dice que una persona concreta hace algo (entra, sube, camina, llega), la escena de esa persona es IDENTITY, nunca un cuerpo " +
+        "anónimo haciendo la acción; el lugar, edificio o documento va en OTRA escena PLACE/EVIDENCE sin identity.",
+    ),
+  identity: z
+    .object({
+      name: z.string().optional().describe("Nombre completo de la persona tal como lo establece la narración."),
+      kind: z.string().optional().describe("Siempre 'person'."),
+      sourceIds: z.array(z.string()).optional().describe("IDs de las fuentes del research pack que sustentan que la narración habla de esta persona."),
+    })
+    .optional()
+    .describe("OBLIGATORIO si beatClass es IDENTITY; ausente en cualquier otra clase. Solo la persona que ESTA escena muestra."),
+  evidence: z
+    .object({
+      sourceIds: z.array(z.string()).optional().describe("IDs de las fuentes del research pack que sostienen el hecho que esta prueba muestra."),
+      claimIds: z.array(z.string()).optional().describe("IDs de las afirmaciones (claims) de este beat que la prueba respalda."),
+    })
+    .optional()
+    .describe(
+      "OBLIGATORIO si beatClass es EVIDENCE; ausente en cualquier otra clase. Un periódico, documento o expediente genérico NO prueba un hecho: " +
+        "si solo ilustras el tipo de objeto, usa PLACE, PROCESS o METAPHOR.",
+    ),
+  // Cinematic V6 (opcionales; solo los lee un plan v6 de una cuenta habilitada): el PESO narrativo del momento.
+  impact: z
+    .number()
+    .int()
+    .min(1)
+    .max(3)
+    .optional()
+    .describe(
+      "Peso narrativo de ESTE momento (no de su clase): 3 = gancho, revelación, giro o presentación del protagonista; 2 = desarrollo de contexto, " +
+        "lugar o cronología; 1 = prueba que se lee, explicación o pausa. Sin cuotas ni rotación: puede haber dos 3 seguidos o ninguno.",
+    ),
+  impactReason: z.string().max(160).optional().describe("Por qué este momento lleva ese peso, en una frase narrativa (nunca estética)."),
 });
 
 const BeatSchema = z.object({
@@ -126,8 +170,41 @@ export const DocumentaryNarrativeSchema = DocumentaryScriptSchema.extend({
 export const DocumentaryNarrativePromptSchema = DocumentaryNarrativeSchema.extend({ creativeDirection: CreativeDirectionPromptSchema });
 const BeatVisualsSchema = z.object({ visuals: z.array(VisualSchema).min(2).max(12) });
 const ReferencedVisualsSchema=z.object({visuals:z.array(VisualSchema.omit({quote:true}).extend({excerptId:z.string().min(1).max(80)}).strict()).min(2).max(12)}).strict();
-// Accept stray keys; the excerptId (or a locatable passage) anchors each scene.
-const LenientVisualsSchema=z.object({visuals:z.array(VisualSchema.omit({quote:true}).extend({excerptId:z.string().max(200).optional(),quote:z.string().max(400).optional()})).min(1).max(12)});
+// Accept stray keys; the excerptId (or a locatable passage) anchors each scene (Product/CinematicLenientVisualsSchema).
+
+// Contrato de planificación visual de PRODUCCIÓN (byte a byte): cuentas sin Cinematic V6. Sin clase,
+// identidad, prueba ni impacto, y sin personas reales identificables en la descripción.
+const PRODUCT_VISUAL_FIELDS = { beatClass: true, identity: true, evidence: true, impact: true, impactReason: true } as const;
+const ProductVisualSchema = VisualSchema.omit(PRODUCT_VISUAL_FIELDS).extend({
+  description: z
+    .string()
+    .describe(
+      "EN INGLÉS, máximo ~15 palabras. Una escena concreta y filmable para este beat (sujeto + lugar + acción visible), apta para buscar " +
+        "video de archivo o generar una imagen documental — nunca texto en pantalla, logos ni personas reales identificables. " +
+        "Si hay acción, nómbrala con verbos concretos (p. ej. walking, building, digging, carrying, working, gathering, " +
+        "crowd, procession, construction, moving through); si es estática, descríbela como tal (ruins, map, portrait...).",
+    ),
+});
+export const ProductBeatVisualsSchema = z.object({ visuals: z.array(ProductVisualSchema).min(2).max(12) });
+export const ProductReferencedVisualsSchema = z.object({ visuals: z.array(ProductVisualSchema.omit({ quote: true }).extend({ excerptId: z.string().min(1).max(80) }).strict()).min(2).max(12) }).strict();
+const ProductLenientVisualsSchema = z.object({ visuals: z.array(ProductVisualSchema.omit({ quote: true }).extend({ excerptId: z.string().max(200).optional(), quote: z.string().max(400).optional() })).min(1).max(12) });
+/**
+ * Cinematic V6: los campos opcionales del guionista (clase, identidad, prueba, impacto) nunca
+ * hacen fallar el guion. Un valor inválido se descarta; la escena queda sin ese campo y el plan
+ * de esa escena no es v6 (se queda en el plan por defecto).
+ */
+export function dropInvalidOptionalVisualFields(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const out: Record<string, unknown> = { ...(value as Record<string, unknown>) };
+  for (const key of Object.keys(PRODUCT_VISUAL_FIELDS) as (keyof typeof PRODUCT_VISUAL_FIELDS)[]) {
+    if (key in out && !VisualSchema.shape[key].safeParse(out[key]).success) delete out[key];
+  }
+  return out;
+}
+const tolerant = <T extends z.ZodType>(schema: T) => z.preprocess(dropInvalidOptionalVisualFields, schema);
+const CinematicParseVisualsSchema = z.object({ visuals: z.array(tolerant(VisualSchema)).min(1).max(12) });
+const CinematicLenientVisualsSchema = z.object({ visuals: z.array(tolerant(VisualSchema.omit({ quote: true }).extend({ excerptId: z.string().max(200).optional(), quote: z.string().max(400).optional() }))).min(1).max(12) });
+const ProductParseVisualsSchema = z.object({ visuals: z.array(ProductVisualSchema).min(1).max(12) });
 // fragments-v1 writer contract: one plan fragment, one fragment per beat.
 const PlanFragmentSchema = DocumentaryNarrativeSchema.omit({ beats: true }).extend({ fragment: z.literal("plan") });
 const PlanFragmentPromptSchema = DocumentaryNarrativePromptSchema.omit({ beats: true }).extend({ fragment: z.literal("plan") });
@@ -197,6 +274,8 @@ export async function generateDocumentaryScript(input: {
   onStage?: (label: string) => Promise<void>;
   onDraft?: (draft: DocumentaryDraft) => Promise<void>;
   onEditorialApproved?: (report: EditorialReport) => void;
+  /** Cuenta con Cinematic V6 (decidido server-side): el plan visual declara clase, identidad, prueba e impacto. Sin él, el contrato de producción. */
+  cinematicV6?: boolean;
 }): Promise<(Pick<NarrativeBeat, "type" | "purpose" | "narration" | "claims" | "emotionalTone"> & { visuals?: { description: string; motion: boolean }[] })[]> {
   if (input.researchPack.sources.length === 0) {
     throw new Error(
@@ -397,6 +476,7 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
       // Plan only the approved narration, one short response per beat. Each call
       // is independently cached/accounted; an interruption reuses prior results.
       if (!input.parse) {
+        const cinematic = input.cinematicV6 === true;
         for (let i = 0; i < parsed.beats.length; i++) {
           await input.onStage?.(`Planificando imágenes: bloque ${i + 1} de ${parsed.beats.length}`);
           const beat = parsed.beats[i];
@@ -406,7 +486,14 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
               "Una escena por idea, aproximadamente cada 8–10 segundos, mínimo 2 y máximo 12. " +
               (input.referenceContract ? "Elige excerptId del catálogo de este bloque para cada escena. No devuelvas quote ni inventes referencias. " : "quote debe copiar LITERALMENTE entre 5 y 12 palabras de esta narración. ") +
               "motion solo si requiere acción física real; no confundir zoom con animación. " +
-              "Hasta dos búsquedas alternativas del mismo contenido. Descripciones de máximo 15 palabras.", input.referenceContract ? ReferencedVisualsSchema : BeatVisualsSchema),
+              (cinematic
+                ? "Declara beatClass en cada escena; una persona real concreta solo en una escena IDENTITY con identity (sourceIds de las fuentes dadas). " +
+                  "En un beat con una persona, su movimiento físico (entra, sube, camina) es IDENTITY, nunca TRANSITION. " +
+                  "EVIDENCE solo para la prueba de ESTE hecho, con evidence.sourceIds; la ilustración genérica es PLACE, PROCESS o METAPHOR. " +
+                  "Hasta dos búsquedas alternativas del mismo contenido. Descripciones de máximo 15 palabras. " +
+                  "Declara impact (1–3) e impactReason según el peso narrativo de cada momento, no según su clase; sin cuotas ni rotación."
+                : "Hasta dos búsquedas alternativas del mismo contenido. Descripciones de máximo 15 palabras."),
+              cinematic ? (input.referenceContract ? ReferencedVisualsSchema : BeatVisualsSchema) : (input.referenceContract ? ProductReferencedVisualsSchema : ProductBeatVisualsSchema)),
             messages: [{ role: "user" as const, content: JSON.stringify({ topic: input.researchPack.topic,
               narration: beat.narration, purpose: beat.purpose, sources: input.researchPack.sources,
               ...(input.referenceContract ? {narrationExcerpts:narrationCatalog(parsed.beats).filter(e=>e.beatIndex===i)} : {}) }) }],
@@ -417,7 +504,9 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
           // locatable passage) selects it; unanchorable scenes are dropped, and
           // fewer than two anchored scenes is a technical planning failure.
           const catalog = new Map(narrationCatalog(parsed.beats).filter(e => e.beatIndex === i).map(e => [e.id, e]));
-          const raw = parseDocumentaryResponse(input.referenceContract ? LenientVisualsSchema : z.object({ visuals: z.array(VisualSchema).min(1).max(12) }), response);
+          const raw = parseDocumentaryResponse(cinematic
+            ? (input.referenceContract ? CinematicLenientVisualsSchema : CinematicParseVisualsSchema)
+            : (input.referenceContract ? ProductLenientVisualsSchema : ProductParseVisualsSchema), response) as z.infer<typeof CinematicLenientVisualsSchema>;
           const plan = { visuals: raw.visuals.flatMap(({ excerptId, quote, ...visual }: { excerptId?: string; quote?: string } & Omit<z.infer<typeof VisualSchema>, "quote">) => {
             const anchored = (excerptId ? catalog.get(excerptId)?.quote : undefined) ?? (quote ? locateNormalized(beat.narration, quote) : null);
             return anchored && countWords(anchored) >= 5 ? [{ ...visual, quote: anchored }] : [];

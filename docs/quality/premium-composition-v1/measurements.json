@@ -1,0 +1,197 @@
+{
+  "A": {
+    "direction": {
+      "transition": {
+        "type": "cut"
+      },
+      "camera": "push",
+      "look": {
+        "preset": "documentary_1990s"
+      }
+    },
+    "samples": [
+      {
+        "progress": 0,
+        "eased": 0,
+        "scale": 1,
+        "linearScale": 1
+      },
+      {
+        "progress": 0.25,
+        "eased": 0.1464,
+        "scale": 1.0117,
+        "linearScale": 1.02
+      },
+      {
+        "progress": 0.5,
+        "eased": 0.5,
+        "scale": 1.04,
+        "linearScale": 1.04
+      },
+      {
+        "progress": 0.75,
+        "eased": 0.8536,
+        "scale": 1.0683,
+        "linearScale": 1.06
+      },
+      {
+        "progress": 1,
+        "eased": 1,
+        "scale": 1.08,
+        "linearScale": 1.08
+      }
+    ]
+  },
+  "B": {
+    "regions": [
+      {
+        "label": "headline",
+        "x": 0.06,
+        "y": 0.15,
+        "w": 0.88,
+        "h": 0.14
+      },
+      {
+        "label": "date",
+        "x": 0.12,
+        "y": 0.105,
+        "w": 0.76,
+        "h": 0.035
+      },
+      {
+        "label": "detail",
+        "x": 0.06,
+        "y": 0.62,
+        "w": 0.42,
+        "h": 0.2
+      }
+    ],
+    "samples": [
+      {
+        "progress": 0,
+        "phase": "full",
+        "scale": 1,
+        "dim": 0
+      },
+      {
+        "progress": 0.2,
+        "phase": "move",
+        "scale": 1.073,
+        "dim": 0.07
+      },
+      {
+        "progress": 0.45,
+        "phase": "headline",
+        "scale": 1.5,
+        "dim": 0.5
+      },
+      {
+        "progress": 0.62,
+        "phase": "move",
+        "scale": 1.5,
+        "dim": 0.5
+      },
+      {
+        "progress": 0.76,
+        "phase": "date",
+        "scale": 1.5,
+        "dim": 0.5
+      },
+      {
+        "progress": 0.9,
+        "phase": "exit",
+        "scale": 1.293,
+        "dim": 0.29
+      },
+      {
+        "progress": 1,
+        "phase": "exit",
+        "scale": 1,
+        "dim": 0
+      }
+    ]
+  },
+  "C": {
+    "look": {
+      "preset": "documentary_1990s"
+    }
+  },
+  "E": [
+    {
+      "progress": 0,
+      "pathDrawn": 0,
+      "labelOpacity": 0
+    },
+    {
+      "progress": 0.375,
+      "pathDrawn": 0.5,
+      "labelOpacity": 0
+    },
+    {
+      "progress": 0.7,
+      "pathDrawn": 1,
+      "labelOpacity": 0.24999999999999944
+    },
+    {
+      "progress": 1,
+      "pathDrawn": 1,
+      "labelOpacity": 1
+    }
+  ],
+  "vertical": {
+    "safe": {
+      "top": 163,
+      "side": 76,
+      "bottom": 384,
+      "captionMaxWidth": 928,
+      "captionFontSize": 52,
+      "labelFontSize": 32
+    },
+    "F": {
+      "credit": {
+        "x": 76,
+        "y": 163,
+        "w": 668,
+        "h": 45
+      },
+      "caption": {
+        "x": 76,
+        "y": 1376,
+        "w": 928,
+        "h": 160
+      },
+      "checks": {
+        "labelVisible": true,
+        "captionVisible": true,
+        "labelInsideFrame": true,
+        "captionInsideFrame": true,
+        "noOverlap": true,
+        "labelClearsTopChrome": true,
+        "captionClearsBottomChrome": true
+      }
+    },
+    "G": {
+      "label": {
+        "x": 76,
+        "y": 163,
+        "w": 243,
+        "h": 51
+      },
+      "caption": {
+        "x": 76,
+        "y": 1376,
+        "w": 928,
+        "h": 160
+      },
+      "checks": {
+        "labelVisible": true,
+        "captionVisible": true,
+        "labelInsideFrame": true,
+        "captionInsideFrame": true,
+        "noOverlap": true,
+        "labelClearsTopChrome": true,
+        "captionClearsBottomChrome": true
+      }
+    }
+  }
+}

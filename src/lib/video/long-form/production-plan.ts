@@ -29,15 +29,21 @@ import {
 } from "./ai-video-cost-guard";
 import { scoreAiVideoEligibility } from "./ai-video-eligibility";
 import { getLongFormBudget, type LongFormBudget } from "./cost";
-import { visualsForBeat } from "./visual-intents";
+import { personActionIndex, visualsForBeat } from "./visual-intents";
+import { generativeVerdict, HERO_END_SEC, HERO_RECONSTRUCTION_CAP, requiresSchematic, tierSeconds } from "./cinematic-director";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import { ESTIMATED_COST_USD as OPENAI_IMAGE_ESTIMATED_COST_USD } from "@/lib/providers/image/openai";
 import { VEO_DURATION_SECONDS_1080P, getVeoCostUsdPerSecond } from "@/lib/providers/video-gen/veo";
 import { RUNWAY_COST_USD_PER_SECOND } from "@/lib/providers/video-gen/runway";
 import type { BeatType, Shot, ShotType } from "./types";
+import { PLAN_ESTIMATE_AVAILABILITY, declaresImpact, resolveSequences, validateImpactIntents, validateSequenceIntents, type SequenceIntent } from "./sequence-intent";
+import { planSequenceShots } from "./sequence-direction";
 import {
   PRODUCTION_PLAN_VERSION,
+  SEQUENCE_PLAN_VERSION,
+  IMPACT_PLAN_VERSION,
   isExecutablePlanVersion as isExecutablePlanVersionValue,
+  usesVisualIdentity,
   isProductionPlan as isProductionPlanValue,
   type ProductionPlan,
   type ProductionPlanAllocation,
@@ -122,6 +128,14 @@ export type AllocationLimits = {
   aiVideoEnabled: boolean;
   aiVideoCostConfig: AiVideoCostConfig;
   units: GenerativeUnitCosts;
+  /**
+   * Planes v4 (Cinematic Director): no se pide ninguna estrategia que el
+   * Director prohíbe (figura generada para una identidad, fotorrealismo de
+   * acción en épocas sin registro, video IA que fabricaría metraje de época,
+   * reconstrucción por encima del 30 % de HERO). Solo RESTRINGE: nunca
+   * asciende un shot ni añade movimiento. Ausente = v1-v3 sin cambios.
+   */
+  cinematic?: boolean;
 };
 
 /** Topes por estrategia (antes de aplicar el snapshot confirmado). */
@@ -194,8 +208,48 @@ export function allocateShotTypes(shots: Shot[], totalDurationSec: number, limit
   const canAffordImage = () =>
     aiImageGenerations + 1 <= limits.maxAiImageGenerations &&
     imageUsd + aiVideoUsd + limits.units.imageUsd <= limits.maxGenerativeUsd + 1e-9;
+  const imageOrStock = (shot: Shot, plannedType: ShotType, reason?: string) => {
+    if (canAffordImage()) {
+      aiImageGenerations += 1;
+      imageUsd += limits.units.imageUsd;
+      out.push({ ...shot, type: "generated_placeholder", motion: "ken_burns", plannedType, ...(reason ? { degradeReason: reason } : {}) });
+    } else {
+      out.push({ ...shot, type: "ken_burns_image", motion: "ken_burns", source: "stock", plannedType, degradeReason: reason ?? "tope de imágenes IA alcanzado" });
+    }
+  };
+  const heroSeconds = Math.min(HERO_END_SEC, totalDurationSec);
+  let heroReconstruction = 0;
 
   for (const shot of shots) {
+    if (limits.cinematic) {
+      const visual = shot.anchoredVisual;
+      if (requiresSchematic(visual) && shot.type !== "text") {
+        // Acción física sin registro de época: solo un esquema la representa; sin datos cartográficos verificados, el pasaje.
+        out.push({ ...shot, type: "text", source: "local", motion: "static", plannedType: shot.type, degradeReason: "representación esquemática requerida (sin datos cartográficos verificados): nunca fotorrealismo" });
+        continue;
+      }
+      if (shot.type === "generated_placeholder" || shot.type === "ai_video") {
+        const image = generativeVerdict(visual, "image");
+        const hero = tierSeconds(shot.startSec, shot.endSec).HERO;
+        const overCap = hero > 0 && heroReconstruction + hero > HERO_RECONSTRUCTION_CAP * heroSeconds + 1e-9;
+        const refusal = !image.allowed ? image.reason : overCap ? `reconstrucción en HERO limitada al ${HERO_RECONSTRUCTION_CAP * 100} %` : undefined;
+        if (refusal) {
+          // Nunca se reserva lo que el Director prohíbe: archivo con la guarda de identidad, o la ausencia.
+          out.push({ ...shot, type: "ken_burns_image", motion: "ken_burns", source: "stock", plannedType: shot.type, degradeReason: refusal });
+          continue;
+        }
+        const video = generativeVerdict(visual, "video");
+        const before = aiImageGenerations;
+        if (shot.type === "ai_video" && !video.allowed) imageOrStock(shot, "ai_video", video.reason);
+        else allocateDefault(shot);
+        if (aiImageGenerations > before) heroReconstruction += hero;
+        continue;
+      }
+    }
+    allocateDefault(shot);
+  }
+
+  function allocateDefault(shot: Shot): void {
     if (shot.type === "ai_video") {
       let reason: string | undefined;
       if (!limits.aiVideoEnabled || limits.maxAiVideoClips <= 0) {
@@ -224,17 +278,11 @@ export function allocateShotTypes(shots: Shot[], totalDurationSec: number, limit
           imageUsd += limits.units.imageUsd;
           aiVideoUsd += clipCost;
           out.push({ ...shot, plannedType: "ai_video" });
-          continue;
+          return;
         }
       }
-      if (canAffordImage()) {
-        aiImageGenerations += 1;
-        imageUsd += limits.units.imageUsd;
-        out.push({ ...shot, type: "generated_placeholder", motion: "ken_burns", plannedType: "ai_video", degradeReason: reason });
-      } else {
-        out.push({ ...shot, type: "ken_burns_image", motion: "ken_burns", source: "stock", plannedType: "ai_video", degradeReason: reason });
-      }
-      continue;
+      imageOrStock(shot, "ai_video", reason);
+      return;
     }
     if (shot.type === "generated_placeholder") {
       if (canAffordImage()) {
@@ -244,7 +292,7 @@ export function allocateShotTypes(shots: Shot[], totalDurationSec: number, limit
       } else {
         out.push({ ...shot, type: "ken_burns_image", motion: "ken_burns", source: "stock", plannedType: shot.type, degradeReason: "tope de imágenes IA alcanzado" });
       }
-      continue;
+      return;
     }
     out.push({ ...shot, plannedType: shot.type });
   }
@@ -271,9 +319,13 @@ export function planShotsFromScript(
   strategy: VisualStrategy,
   /** true (planes v3+) = escenas ancladas a su pasaje narrado; false = reparto histórico (v1/v2). */
   anchored = true,
+  /** Lee clase e identidad de cada escena (v4+). Por omisión, lo que diga PRODUCTION_PLAN_VERSION. */
+  identityPlan: boolean = usesVisualIdentity({ version: PRODUCTION_PLAN_VERSION }),
 ): { shots: Shot[]; narrationSeconds: number } {
   let cursor = 0;
   const shots: Shot[] = [];
+  const identity = anchored && identityPlan;
+  const personActions = identity ? personActionIndex(beats) : undefined;
   beats.forEach((beat, i) => {
     const startSec = cursor;
     const endSec = cursor + estimateNarrationSeconds(beat.narration);
@@ -287,7 +339,7 @@ export function planShotsFromScript(
         narration: beat.narration,
         typeOffset: i * 2,
         strategy,
-        visuals: visualsForBeat(beat, topic),
+        visuals: visualsForBeat(beat, topic, { identity, personActions }),
         anchoring: anchored ? {} : undefined,
       }),
     );
@@ -304,18 +356,37 @@ export function computeProductionPlan(input: {
   aiVideoEnabled?: boolean;
   /** Duración pedida por el usuario (video_requests.duration_seconds). */
   requestedDurationSeconds?: number;
+  /** v5: intención por secuencia del planner. Sin ella el plan es v4, exactamente como antes. */
+  sequences?: SequenceIntent[];
+  /** Versión sin secuencias (v3 o v4). El producto pide PRODUCT_DEFAULT_PLAN_VERSION; por omisión PRODUCTION_PLAN_VERSION. */
+  version?: number;
 }): ProductionPlan {
   const topic = input.topic ?? "";
-  const { shots, narrationSeconds } = planShotsFromScript(input.beats, topic, input.strategy);
+  if (input.version !== undefined && input.sequences) throw new LongFormPlanNotExecutableError("version y sequences son excluyentes");
+  if (input.version !== undefined && input.version !== 3 && input.version !== 4) throw new LongFormPlanNotExecutableError(`versión de plan sin secuencias no soportada: ${input.version}`);
+  const version = input.sequences ? (declaresImpact(input.sequences) ? IMPACT_PLAN_VERSION : SEQUENCE_PLAN_VERSION) : (input.version ?? PRODUCTION_PLAN_VERSION);
+  let sequenced: { shots: Shot[]; narrationSeconds: number } | undefined;
+  if (input.sequences) {
+    const check = validateSequenceIntents(input.sequences, input.beats, estimateNarrationSeconds);
+    if (declaresImpact(input.sequences)) check.errors.push(...validateImpactIntents(input.sequences));
+    if (check.errors.length > 0) throw new LongFormPlanNotExecutableError(`secuencias inválidas: ${check.errors.join("; ")}`);
+    // Estimación del plan: cada rol se cuenta como ocupable; la ejecución lo resuelve contra el registro real.
+    sequenced = planSequenceShots(input.beats, resolveSequences(input.sequences, PLAN_ESTIMATE_AVAILABILITY));
+  }
+  const { shots, narrationSeconds } = sequenced ?? planShotsFromScript(input.beats, topic, input.strategy, true, usesVisualIdentity({ version }));
   const voiceCharacters = input.beats.reduce((sum, b) => sum + b.narration.length, 0);
   const voiceCostUsd = round4((voiceCharacters / 1000) * getPricingConfig().elevenLabsUsdPer1kChars);
   const aiVideoAvailable = input.aiVideoEnabled ?? isLongFormAiVideoConfigured();
-  const limits = strategyLimits(input.strategy, voiceCostUsd, { aiVideoEnabled: aiVideoAvailable, units: getGenerativeUnitCosts(input.providers.aiVideo) });
+  const limits = {
+    ...strategyLimits(input.strategy, voiceCostUsd, { aiVideoEnabled: aiVideoAvailable, units: getGenerativeUnitCosts(input.providers.aiVideo) }),
+    cinematic: usesVisualIdentity({ version }),
+  };
   const allocation = allocateShotTypes(shots, narrationSeconds, limits);
   const generativeUsd = round4(allocation.imageUsd + allocation.aiVideoUsd);
 
   return {
-    version: PRODUCTION_PLAN_VERSION,
+    version,
+    ...(input.sequences ? { sequences: input.sequences } : {}),
     strategy: input.strategy,
     durationSeconds: Math.round(narrationSeconds + VIDEO_TAIL_SECONDS),
     shotCount: allocation.shots.length,

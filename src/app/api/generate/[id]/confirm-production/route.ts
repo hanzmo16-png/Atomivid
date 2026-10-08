@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { confirmLongFormProduction } from "@/lib/video/long-form/confirm-production";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
+import { cinematicV6Enabled } from "@/lib/video/long-form/cinematic-v6-access";
 import { generateDiagnosticId, logRenderError } from "@/lib/video/render-error";
 
 /**
@@ -34,6 +35,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       userId: user.id,
       strategy: (body as { strategy?: unknown } | null)?.strategy,
       packaging: (body as { packaging?: unknown } | null)?.packaging,
+      cinematicV6: cinematicV6Enabled(user),
     });
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
     return NextResponse.json({ plan: result.plan, confirmedAt: result.confirmedAt, alreadyConfirmed: result.alreadyConfirmed });

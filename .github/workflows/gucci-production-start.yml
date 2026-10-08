@@ -23,7 +23,7 @@ jobs:
       - run: npm ci
       - name: Resolve request
         id: req
-        run: node -e "const r=require('./content/acceptance/gucci-production.json');require('fs').appendFileSync(process.env.GITHUB_OUTPUT,'start='+(r.start===true)+'\n')"
+        run: node -e "const r=require('./content/acceptance/gucci-production.json');require('fs').appendFileSync(process.env.GITHUB_OUTPUT,'start='+(r.start===true)+'\nrefresh='+(r.refreshBalances===true)+'\n')"
       - name: Detail page with Gucci's real row (start button)
         run: npx tsx scripts/diagnose-configure-404.tsx
         env:
@@ -33,6 +33,7 @@ jobs:
         run: npx tsx scripts/start-gucci-production.ts
         env:
           START: ${{ steps.req.outputs.start }}
+          REFRESH_BALANCES: ${{ steps.req.outputs.refresh }}
           ATOMIVID_RUNTIME: production
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

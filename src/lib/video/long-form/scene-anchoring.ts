@@ -21,7 +21,7 @@
  */
 import type { WordTiming } from "@/lib/providers/types";
 import type { BeatVisual } from "./visual-intents";
-import { splitSentences } from "./visual-intents";
+import { contractRestrictiveness, splitSentences } from "./visual-intents";
 
 export type AnchoredIntent = {
   visual: BeatVisual;
@@ -145,6 +145,30 @@ export function intentWordSpans(narration: string, visuals: BeatVisual[]): { sta
   return visuals.map((_, i) => ({ start: bounds[i], end: bounds[i + 1], anchoredBy: "order" as const }));
 }
 
+/** Palabras [inicio, fin) que cubre LITERALMENTE la cita de cada intención (null si no se localiza). */
+function quoteExtents(narration: string, visuals: BeatVisual[]): ({ start: number; end: number } | null)[] {
+  return visuals.map((v) => {
+    const start = quoteStart(narration, v.quote);
+    return start === null ? null : { start, end: start + narrationWords(v.quote ?? "").length };
+  });
+}
+
+/**
+ * Contratos solapados (v4): si el punto de la escena cae en palabras que las
+ * citas de VARIAS intenciones cubren a la vez, gana el contrato más restrictivo
+ * (identidad > prueba > lugar > proceso) SOLO en ese tramo compartido. Fuera de
+ * él, el anclaje no cambia. Intenciones sin clase (v1-v3) tienen restrictividad 0:
+ * nunca desplazan a nadie.
+ */
+function mostRestrictiveCovering(extents: ({ start: number; end: number } | null)[], visuals: BeatVisual[], mid: number, current: number): number {
+  let best = current;
+  visuals.forEach((visual, i) => {
+    const e = extents[i];
+    if (e && mid >= e.start && mid < e.end && contractRestrictiveness(visual) > contractRestrictiveness(visuals[best])) best = i;
+  });
+  return best;
+}
+
 /** Intención anclada para cada escena (por el punto medio de su tramo narrado). */
 export function anchorIntents(
   ranges: { first: number; last: number }[],
@@ -152,11 +176,13 @@ export function anchorIntents(
   visuals: BeatVisual[],
 ): AnchoredIntent[] {
   const spans = intentWordSpans(narration, visuals);
+  const extents = quoteExtents(narration, visuals);
   const uses = new Map<number, number>();
   return ranges.map((range) => {
     const mid = range.last >= range.first ? (range.first + range.last) / 2 : range.first;
     let index = spans.findIndex((s) => mid >= s.start && mid < s.end);
     if (index === -1) index = mid < (spans[0]?.start ?? 0) ? 0 : spans.length - 1;
+    index = mostRestrictiveCovering(extents, visuals, mid, index);
     const reuseIndex = uses.get(index) ?? 0;
     uses.set(index, reuseIndex + 1);
     return { visual: visuals[index], visualIndex: index, reuseIndex, anchoredBy: spans[index].anchoredBy };
