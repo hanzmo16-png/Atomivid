@@ -231,7 +231,19 @@ async function applyReviewedResumeMigration() {
   } finally { await client.end(); }
 }
 
-const modes: Record<string, () => Promise<unknown>> = { "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+async function reviewFormatDiagnostic() {
+ const { db, job } = await loadJob(); const projectId=projectOf(job);
+ if(h10(projectId)!==EXPECTED_PROJECT_HASH) throw Error("scope mismatch");
+ const ops=await ledger(db,projectId); const o=ops.filter(x=>x.status==="COMMITTED").at(-1);
+ if(!o?.result_ref) throw Error("missing saved response");
+ const f=await db.storage.from("videos").download(o.result_ref); if(f.error||!f.data) throw Error("download");
+ const r=JSON.parse(await f.data.text()); const t=r.content.filter((b:any)=>b.type==="text").map((b:any)=>b.text??"").join("").trim();
+ const j=t.replace(/^\x60\x60\x60(?:json)?\\s*\\n([\\s\\S]*?)\\n\x60\x60\x60$/i,"$1");
+ let valid=false,offset:number|null=null;try{JSON.parse(j);valid=true;}catch(e){const m=(e instanceof Error?e.message:"").match(/position (\\d+)/);offset=m?Number(m[1]):null;}
+ const c=offset===null?"":j[offset]; const classify=(c:string)=>!c?"end":/[{}\\[\\]:,"]/.test(c)?c:/\\s/.test(c)?"whitespace":/[0-9]/.test(c)?"digit":/[A-Za-z]/.test(c)?"letter":"other";
+ log("REVIEW_FORMAT",{key:h10(o.idempotency_key),stopReason:r.stop_reason,textLength:t.length,startsObject:j.startsWith("{"),endsObject:j.endsWith("}"),fenceWrapped:t.startsWith("\x60\x60\x60"),validJson:valid,offset,character:classify(c),previous:offset===null?null:classify(j[offset-1]),next:offset===null?null:classify(j[offset+1]),braceBalance:[...j].reduce((n,c)=>n+(c==="{"?1:c==="}"?-1:0),0)});
+}
+const modes: Record<string, () => Promise<unknown>> = { "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
