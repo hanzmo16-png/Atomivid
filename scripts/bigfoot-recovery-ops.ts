@@ -375,7 +375,45 @@ async function contractsSealed() {
     missingAll: { identities: pre.coverage?.missingIdentities, evidence: pre.coverage?.missingEvidence }, coverage: pre.coverage, blockers: pre.blockers, sources: (script.sources ?? []).map((x) => ({ id: x.id, title: x.title, locator: x.locator, kind: x.kind })) });
 }
 
-const modes: Record<string, () => Promise<unknown>> = { "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+/**
+ * $0 real-voice check of the podcast pipeline: takes ONE narration already generated and paid
+ * (an existing COMMITTED ElevenLabs result, real speech), runs it through the podcast's own-recording
+ * path (byte sniff, full decode, -16 LUFS master) and stores it as an episode of the Bigfoot owner,
+ * so it can be played and downloaded in the app. No provider call, no new spend. Prints numbers only.
+ */
+async function podcastRealVoice() {
+  const db = service();
+  process.env.FFMPEG_BIN ||= require("@ffmpeg-installer/ffmpeg").path;
+  const { masterRecording } = await import("../src/lib/podcast/recording");
+  const { measureNarrationSeconds } = await import("../src/lib/video/avatar/measure-narration");
+  const { data: req } = await db.from("video_requests").select("user_id").eq("id", "5bc99f47-7759-48c7-a2a2-92a282d97f78").maybeSingle();
+  if (!req) throw Error("owner not found");
+  const { data: ops } = await db.from("pi_paid_operations").select("result_ref,project_id,committed_usd,updated_at").eq("provider", "elevenlabs").eq("status", "COMMITTED").like("result_ref", "%.json").order("updated_at", { ascending: false }).limit(25);
+  for (const op of ops ?? []) {
+    const { data: metaBlob } = await db.storage.from("videos").download(op.result_ref);
+    if (!metaBlob) continue;
+    const meta = JSON.parse(await metaBlob.text()) as { audioPath?: string; durationSeconds?: number; sha256?: string };
+    if (!meta.audioPath || !(Number(meta.durationSeconds) >= 15 && Number(meta.durationSeconds) <= 900)) continue;
+    const { data: audio } = await db.storage.from("videos").download(meta.audioPath);
+    if (!audio) continue;
+    const buf = Buffer.from(await audio.arrayBuffer());
+    if (createHash("sha256").update(buf).digest("hex") !== meta.sha256) continue;
+    const m = await masterRecording(buf, measureNarrationSeconds);
+    if ("error" in m) { log("PODCAST_REAL_VOICE_SKIP", { project: h10(op.project_id), error: m.error }); continue; }
+    const { data: ep, error } = await db.from("podcast_episodes").insert({ user_id: req.user_id, title: "Prueba de voz real (audio ya pagado, costo 0)", language: "es", source: "upload", status: "generating" }).select("id").single();
+    if (error || !ep) throw Error(`episode insert failed ${error?.code ?? ""}`);
+    const audioPath = `${req.user_id}/podcasts/${ep.id}/episode.m4a`;
+    const up = await db.storage.from("videos").upload(audioPath, m.bytes, { contentType: "audio/mp4", upsert: true });
+    if (up.error) throw Error("upload failed");
+    await db.from("podcast_episodes").update({ status: "ready", audio_path: audioPath, audio_mime: "audio/mp4", duration_seconds: m.durationSeconds, audio_sha256: m.sha256, audio_bytes: m.bytes.length, loudness: m.loudness, cost_usd: 0 }).eq("id", ep.id);
+    const signed = await db.storage.from("videos").createSignedUrl(audioPath, 60);
+    log("PODCAST_REAL_VOICE", { episodeId: ep.id, sourceProject: h10(op.project_id), sourceSeconds: meta.durationSeconds, masteredSeconds: Math.round(m.durationSeconds), lufs: m.loudness.integratedLufs, truePeak: m.loudness.truePeakDbtp, bytes: m.bytes.length, signedUrlOk: !!signed.data?.signedUrl, newSpendUsd: 0 });
+    return;
+  }
+  throw Error("no stored real narration usable");
+}
+
+const modes: Record<string, () => Promise<unknown>> = { "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
