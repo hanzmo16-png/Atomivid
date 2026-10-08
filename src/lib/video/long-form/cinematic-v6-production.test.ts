@@ -89,6 +89,21 @@ test("cuenta habilitada + impacto incompleto: se queda en v3 con el motivo", () 
   assert.match(r.reason, /impacto/);
 });
 
+test("V6: an empty optional action is absence, while physical transition actions still reject", () => {
+  const beats=withImpact(showcaseBeats);
+  const visual=(beats[0].visuals as Record<string, unknown>[])[0];
+  visual.beatClass="TRANSITION";visual.motion=false;
+  for(const action of ["", "  ", undefined]) {
+    if(action===undefined)delete visual.action;else visual.action=action;
+    const result=productPlan({beats,topic:SHOWCASE_TOPIC,strategy:"balanced",providers,cinematicV6:true});
+    assert.equal(result.plan.version,6,result.reason);
+  }
+  visual.action="walking";
+  const rejected=productPlan({beats,topic:SHOWCASE_TOPIC,strategy:"balanced",providers,cinematicV6:true});
+  assert.equal(rejected.plan.version,3);
+  assert.match(rejected.reason,/TRANSITION nunca es un plano de acción/);
+});
+
 test("sequencesFromScript: una secuencia por beat; la prueba de impacto 3 se sostiene y revela su titular", () => {
   const seqs = sequencesFromScript(withImpact(showcaseBeats));
   assert.ok(seqs);

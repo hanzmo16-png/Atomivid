@@ -126,7 +126,7 @@ export function validateSequenceIntents(
           if (!hasEvidence) errors.push(`${at}: GEOGRAPHY exige un esquema curado vinculado a su fuente`);
           break;
         case "TRANSITION":
-          if (hasIdentity || v.beatClass === "IDENTITY" || typeof (v as { action?: unknown }).action === "string") errors.push(`${at}: TRANSITION nunca es un plano de acción`);
+          if (hasIdentity || v.beatClass === "IDENTITY" || (typeof (v as { action?: unknown }).action === "string" && (v as { action: string }).action.trim().length > 0)) errors.push(`${at}: TRANSITION nunca es un plano de acción`);
           break;
         case "DETAIL": {
           const d = slot.detail;
