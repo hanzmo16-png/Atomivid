@@ -17,6 +17,12 @@ import { RESEARCH_VERSION } from "../src/lib/video/long-form/research";
 import { documentarySupplyScope } from "../src/lib/supply/anthropic";
 import { scriptFailureKind } from "../src/lib/video/long-form/script-jobs";
 import { cinematicV6Enabled } from "../src/lib/video/long-form/cinematic-v6-access";
+import { FUNCTION_REPAIR_CONTRACT } from "../src/lib/video/long-form/editorial-function-repair";
+import { anthropicReservation } from "../src/lib/supply/anthropic-cost";
+import { getPricingConfig } from "../src/lib/billing/pricing";
+
+/** SIMULATED repair label (test adapter only; the real choice belongs to the model under the repair contract). */
+const SIMULATED_REPAIR_LABEL = "consequence";
 
 const JOB_ID = "03738404-02ce-440a-a588-cb51ae4a0e9f";
 
@@ -44,18 +50,33 @@ async function main() {
   const { data: owner } = await db.auth.admin.getUserById(job.user_id);
   const cinematicV6 = cinematicV6Enabled(owner?.user);
 
-  let stage = "Investigando fuentes", boundary: { stage: string; call: string } | null = null, approved = false;
+  const simulatedRepairs = new Map<string, unknown>();
+  let simulatedRepairCalls = 0;
+  const runOnce = async (label: string) => {
+  let stage = "Investigando fuentes", boundary: { stage: string; call: string; maxTokens: number; reservationUsd: number } | null = null, approved = false;
   const used = new Set<string>(), stages: string[] = [], drafts: { pass: number; reviewed: boolean; blockers?: number; findings?: number }[] = [];
+  let repairReused = 0;
   process.env.ANTHROPIC_API_KEY = "offline-replay-no-provider-key"; // the SDK requires a value; the transport below never reaches the network
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async (_url: unknown, init?: { body?: unknown }) => {
     const params = JSON.parse(String(init?.body));
     const key = stableHash(params, 16);
+    const sys = typeof params.system === "string" ? params.system : "";
+    if (sys.includes(FUNCTION_REPAIR_CONTRACT)) {
+      // SIMULATED adapter for the bounded repair (never a provider): one stored answer per exact request.
+      if (!simulatedRepairs.has(key)) {
+        simulatedRepairCalls++;
+        const prompt = JSON.parse(params.messages[0].content) as { targets: { path: string }[] };
+        simulatedRepairs.set(key, { id: "simulated", type: "message", role: "assistant", model: params.model, stop_reason: "end_turn", stop_sequence: null,
+          usage: { input_tokens: 0, output_tokens: 0 }, content: [{ type: "text", text: JSON.stringify({ replacements: prompt.targets.map((t) => ({ path: t.path, function: SIMULATED_REPAIR_LABEL })) }) }] });
+        repairReservation = anthropicReservation(params, getPricingConfig());
+      } else repairReused++;
+      return new Response(JSON.stringify(simulatedRepairs.get(key)), { status: 200, headers: { "content-type": "application/json" } });
+    }
     const saved = responses.get(key);
     if (!saved) {
-      const sys = typeof params.system === "string" ? params.system : "";
-      const call = /Planifica escenas/.test(sys) ? "visual-plan" : /revisor|reviewer|EDITOR/i.test(sys) && /sections/.test(sys) ? "editorial-review" : /excerptId del catálogo que respalda/.test(sys) ? "reference-repair" : "writer-or-other";
-      boundary = { stage, call };
+      const call = /Planifica escenas/.test(sys) ? "visual-plan" : /excerptId del catálogo que respalda/.test(sys) ? "reference-repair" : /sections/.test(sys) && /firstAnswer/.test(sys) ? "editorial-review" : "writer-or-correction";
+      boundary = { stage, call, maxTokens: params.max_tokens, reservationUsd: Math.round(anthropicReservation(params, getPricingConfig()) * 10000) / 10000 };
       throw Error("OFFLINE_CACHE_BOUNDARY");
     }
     used.add(key);
@@ -76,9 +97,15 @@ async function main() {
       : { result: "stopped", kind: scriptFailureKind(err), error: err instanceof Error ? err.name : "unknown", detail: err instanceof Error ? err.message.slice(0, 160) : undefined,
         reasons: err instanceof EditorialQualityError ? err.reasons.length : undefined, schemaIssues: err instanceof DocumentaryResponseError ? err.issues : undefined };
   } finally { globalThis.fetch = originalFetch; delete process.env.ANTHROPIC_API_KEY; }
+  console.log("REPLAY", JSON.stringify({ run: label, savedResponses: responses.size, reused: used.size, unusedSaved: responses.size - used.size, simulatedRepairCalls, repairReused,
+    simulatedRepairLabel: SIMULATED_REPAIR_LABEL, cinematicV6, stages, drafts, approved, ...outcome }));
+  };
+  let repairReservation = 0;
+  await runOnce("first");
+  await runOnce("resume");
+  console.log("REPAIR", JSON.stringify({ contract: FUNCTION_REPAIR_CONTRACT, simulatedRepairCalls, reservationUsd: Math.round(repairReservation * 10000) / 10000 }));
 
   const { data: after } = await db.from("documentary_script_jobs").select("status,stage,editorial_checkpoint").eq("id", JOB_ID).single();
-  console.log("REPLAY", JSON.stringify({ savedResponses: responses.size, reused: used.size, unusedSaved: responses.size - used.size, cinematicV6, stages, drafts, approved, ...outcome }));
   console.log("INVARIANTS", JSON.stringify({ newPaidCalls: 0, productionWrites: 0, checkpointUnchanged: stableHash(after?.editorial_checkpoint ?? null, 16) === checkpointBefore, jobStatus: after?.status, jobStage: after?.stage }));
 }
 main().catch((e) => { console.error("Offline replay failed:", e instanceof Error ? e.message.slice(0, 160) : "unknown"); process.exitCode = 1; });

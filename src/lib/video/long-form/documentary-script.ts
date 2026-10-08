@@ -11,7 +11,8 @@ import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
 import { documentaryOutputBudget } from "./script-output-budget";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { jsonResponseSystem, parseDocumentaryResponse, DocumentaryResponseError } from "./json-response";
+import { jsonResponseSystem, parseDocumentaryResponse, readDocumentaryJson, validateDocumentaryValue, DocumentaryResponseError } from "./json-response";
+import { repairSectionFunctions, sectionFunctionRepairTargets } from "./editorial-function-repair";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { assertOriginalHook, usesBannedOpener } from "./originality";
 import { VISUAL_BEAT_CLASSES } from "./visual-intents";
@@ -377,7 +378,14 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
     };
     // The critic has the same durable accounting, reservations and zero SDK retries.
     const response = await send(params);
-    return parseDocumentaryResponse(input.referenceContract ? LenientReferencedReviewSchema : EditorialReviewSchema, response);
+    const schema = input.referenceContract ? LenientReferencedReviewSchema : EditorialReviewSchema;
+    const value = readDocumentaryJson(response);
+    // Only an out-of-contract sections[].function label gets ONE bounded, ledgered re-classification
+    // (editorial-function-repair.ts). Every other defect keeps the original rejection.
+    const targets = sectionFunctionRepairTargets(value, schema);
+    if (!targets) return validateDocumentaryValue(schema, value);
+    return repairSectionFunctions({ response, value, targets, schema, beats: parsed!.beats, model: SCRIPT_MODEL, send, onStage: input.onStage,
+      extraParams: SCRIPT_MODEL === "claude-sonnet-5" ? { output_config: { effort: "low" as const } } : undefined });
   });
 
   // catalog-v1: the reviewer selects excerpt IDs; text and location are derived
