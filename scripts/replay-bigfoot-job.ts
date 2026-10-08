@@ -157,13 +157,13 @@ async function main() {
         const ev=resolved.review.firstAnswer.evidence;
         const b=diagnosticDraft.beats[ev.beatIndex].narration;
         const at=b.indexOf(ev.quote);
-        const prior=diagnosticDraft.beats.slice(0,ev.beatIndex).reduce((n:any,x:any)=>n+x.narration.trim().split(/\\s+/).length,0);
-        const start=prior+(at>=0?b.slice(0,at).trim().split(/\\s+/).filter(Boolean).length:0)+1;
-        const end=start+ev.quote.trim().split(/\\s+/).length-1;
+        const prior=diagnosticDraft.beats.slice(0,ev.beatIndex).reduce((n:any,x:any)=>n+x.narration.trim().split(/\s+/).length,0);
+        const start=prior+(at>=0?b.slice(0,at).trim().split(/\s+/).filter(Boolean).length:0)+1;
+        const end=start+ev.quote.trim().split(/\s+/).length-1;
         const all=diagnosticDraft.beats.map((x:any)=>x.narration).join(" ");
         const answer=diagnosticDraft.storyPlan.firstAnswer;
         const answerAt=all.indexOf(answer);
-        console.log("FIRST_ANSWER_DIAG",JSON.stringify({run:label,delivered:resolved.review.firstAnswer.delivered,beatIndex:ev.beatIndex,quoteLocated:at>=0,wordStart:start,wordEnd:end,crossesBoundary:start<=150&&end>150,fullQuoteInsideOpening:end<=150,storyPlanAnswerLiteral:answerAt>=0,storyPlanAnswerWordStart:answerAt>=0?all.slice(0,answerAt).trim().split(/\\s+/).filter(Boolean).length+1:null,findings:resolved.review.findings.map(x=>({kind:x.kind,severity:x.severity})),blockers:editorialBlockers(resolved.review).length,firstBeatWords:diagnosticDraft.beats[0].narration.trim().split(/\\s+/).length}));
+        console.log("FIRST_ANSWER_DIAG",JSON.stringify({run:label,delivered:resolved.review.firstAnswer.delivered,beatIndex:ev.beatIndex,quoteLocated:at>=0,wordStart:start,wordEnd:end,crossesBoundary:start<=150&&end>150,fullQuoteInsideOpening:end<=150,storyPlanAnswerLiteral:answerAt>=0,storyPlanAnswerWordStart:answerAt>=0?all.slice(0,answerAt).trim().split(/\s+/).filter(Boolean).length+1:null,findings:resolved.review.findings.map(x=>({kind:x.kind,severity:x.severity})),blockers:editorialBlockers(resolved.review).length,firstBeatWords:diagnosticDraft.beats[0].narration.trim().split(/\s+/).length}));
       }
     }
 
