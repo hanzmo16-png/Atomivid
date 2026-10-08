@@ -6,6 +6,20 @@ import { getPricingConfig } from "@/lib/billing/pricing";
 import { SupplyUnavailableError } from "./policy";
 import { supplyGuardRequired } from "./server";
 
+/**
+ * The attempt already holds an envelope smaller than what this process now demands: the per-production
+ * caps of the starter (Vercel) and the worker disagree. A configuration inconsistency, NOT a balance
+ * wait: retrying later can never succeed, so it must fail loudly instead of queueing forever.
+ */
+export class JobEnvelopeMismatchError extends Error {
+  readonly customerMessage = "La configuración de límites de producción no coincide entre el inicio y el procesamiento. No se generó ni se cobró nada; avisa a soporte para corregirla antes de reintentar.";
+  readonly diagnosticId = "SUPPLY-ENVELOPE";
+  constructor(readonly provider: string) {
+    super(`SUPPLY_ENVELOPE_MISMATCH:${provider}`);
+    this.name = "JobEnvelopeMismatchError";
+  }
+}
+
 export type JobSupplyDemand = { provider: string; unit: "usd" | "character"; units: number; usd: number };
 export type SupplyJobInput = { mode: string | null; script_json: unknown; recorded_audio_path: string | null; long_form_production_plan: ProductionPlan | null };
 
@@ -49,6 +63,7 @@ export async function reserveJobSupply(service: SupabaseClient, requestId: strin
   if (!supplyGuardRequired()) return;
   const { data, error } = await service.rpc("pi_reserve_job_supply", { p_request_id: requestId, p_attempt: attempt, p_demands: demands });
   const result = data as { reserved?: boolean; reason?: string; provider?: string } | null;
+  if (!error && result?.reserved === false && result.reason === "job envelope changed") throw new JobEnvelopeMismatchError(result.provider ?? "production");
   if (error || !result?.reserved) throw new SupplyUnavailableError(result?.provider ?? "production", result?.reason ?? "job reservation unavailable");
 }
 export async function releaseUnusedJobSupply(service: SupabaseClient, requestId: string, attempt: number): Promise<void> {

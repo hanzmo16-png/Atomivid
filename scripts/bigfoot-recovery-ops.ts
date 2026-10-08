@@ -565,6 +565,29 @@ async function heygenPolicy() {
   log("HEYGEN_STATE_AFTER", st ? { level: st.level, reason: st.reason } : null);
 }
 
+const AVATAR_TEST_ID = "6dad04ec-c77f-4df7-9391-73382ac8d9f5";
+/** Read-only state of the avatar test request: lifecycle, reservation envelope, paid ledger, provider job, media. Ids hashed; amounts sealed. */
+async function avatarState() {
+  const db = service();
+  const { data: r } = await db.from("video_requests").select("*").eq("id", AVATAR_TEST_ID).maybeSingle();
+  if (!r) throw Error("request not found");
+  const row = r as Record<string, any>;
+  const photo = row.avatar_id ? (await db.from("avatars").select("*").eq("id", row.avatar_id).maybeSingle()).data as Record<string, any> | null : null;
+  const { data: env } = await db.from("pi_supply_job_reservations").select("provider,render_attempt,status,reserved_units,reserved_usd,consumed_units,consumed_usd,created_at,updated_at").eq("project_id", AVATAR_TEST_ID).order("render_attempt");
+  const { data: ops } = await db.from("pi_paid_operations").select("idempotency_key,provider,method,status,reserved_usd,committed_usd,provider_job_id,updated_at").eq("project_id", AVATAR_TEST_ID);
+  log("AVATAR_STATE", { request: h10(AVATAR_TEST_ID), status: row.status, progressStage: row.progress_stage, renderAttempts: row.render_attempts,
+    supplyWaitSince: row.supply_wait_started_at, supplyNotBefore: row.supply_not_before, renderStartedAt: row.render_started_at, updatedAt: row.updated_at,
+    errorMessage: typeof row.error_message === "string" ? row.error_message.slice(0, 160) : null, providerVideoJob: !!row.avatar_provider_video_job_id,
+    videoPath: !!row.video_path, recordedAudio: !!row.recorded_audio_path, narrationSource: row.avatar_narration_source ?? null, avatarId: row.avatar_id ? h10(String(row.avatar_id)) : null,
+    avatarRow: photo ? Object.fromEntries(Object.entries(photo).filter(([k]) => /status|provider|photo|image|path/i.test(k)).map(([k, v]) => [k, typeof v === "string" ? (v.length > 0 ? (/(path|url)/i.test(k) ? "present" : v.slice(0, 40)) : "") : v])) : null,
+    envelopes: (env ?? []).map((e) => ({ provider: e.provider, attempt: e.render_attempt, status: e.status, consumedZero: Number(e.consumed_usd) === 0 && Number(e.consumed_units) === 0, createdAt: e.created_at })),
+    ledger: (ops ?? []).map((o) => ({ key: h10(String(o.idempotency_key)), provider: o.provider, method: o.method, status: o.status, providerJob: !!o.provider_job_id, updatedAt: o.updated_at })) });
+  sealed("AVATAR_ENVELOPE_AMOUNTS", { envelopes: env, ops: (ops ?? []).map((o) => ({ method: o.method, status: o.status, reserved: o.reserved_usd, committed: o.committed_usd })) });
+  const { data: st } = await db.rpc("pi_supply_state", { p_provider: "heygen" });
+  log("HEYGEN_STATE", st ? { level: (st as any).level, reason: (st as any).reason } : null);
+  if (st) sealed("HEYGEN_FREE", { free: (st as any).free, unreserved: (st as any).unreserved });
+}
+
 /** Signed probe of the RUNNING production deployment (presence/counts only; never a value). Waits for the route to go live. */
 async function providerConfig() {
   const { randomUUID } = await import("node:crypto");
@@ -595,7 +618,7 @@ async function providerConfig() {
   throw Error("probe route not live");
 }
 
-const modes: Record<string, () => Promise<unknown>> = { "heygen-policy": heygenPolicy, "supply-policies": supplyPolicies, "provider-config": providerConfig, "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+const modes: Record<string, () => Promise<unknown>> = { "avatar-state": avatarState, "heygen-policy": heygenPolicy, "supply-policies": supplyPolicies, "provider-config": providerConfig, "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
