@@ -57,7 +57,16 @@ jobs:
       # suscripción. No viene preinstalado en la imagen ubuntu-latest
       # (verificado contra el inventario de software del runner).
       - name: Instalar ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            test -x node_modules/@ffmpeg-installer/linux-x64/ffmpeg
+            echo "$PWD/node_modules/@ffmpeg-installer/linux-x64" >> "$GITHUB_PATH"
+          fi
+          if ! command -v ffprobe >/dev/null 2>&1; then
+            test -f node_modules/@ffprobe-installer/linux-x64/ffprobe
+            chmod +x node_modules/@ffprobe-installer/linux-x64/ffprobe
+            echo "$PWD/node_modules/@ffprobe-installer/linux-x64" >> "$GITHUB_PATH"
+          fi
 
       - name: Renderizar video
         timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 120 || 12 }}
@@ -125,6 +134,9 @@ jobs:
           # Vacío = ningún plan v6 se ejecuta (falla cerrado). Mismos valores que en Vercel.
           CINEMATIC_V6_ENABLED_EMAILS: ${{ secrets.CINEMATIC_V6_ENABLED_EMAILS }}
           CINEMATIC_V6_ALL_USERS: ${{ vars.CINEMATIC_V6_ALL_USERS }}
+          # Revalidate curator authority in the renderer, using the same configured allowlist as Vercel.
+          # Empty configuration remains fail-closed; V6 access never grants curator authority.
+          ASSET_CURATOR_EMAILS: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && secrets.ASSET_CURATOR_EMAILS || '' }}
 
       - name: Marcar como fallido si el render no terminó
         if: failure()

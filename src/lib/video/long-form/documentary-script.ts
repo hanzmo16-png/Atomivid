@@ -12,7 +12,9 @@ import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
 import { documentaryOutputBudget } from "./script-output-budget";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { jsonResponseSystem, parseDocumentaryResponse, readDocumentaryJson, validateDocumentaryValue, DocumentaryResponseError } from "./json-response";
+import { jsonResponseSystem, parseDocumentaryResponse, validateDocumentaryValue, DocumentaryResponseError } from "./json-response";
+import { repairVisualAnchors } from "./visual-anchor-repair";
+import { readEditorialJson } from "./editorial-json";
 import { repairSectionFunctions, sectionFunctionRepairTargets } from "./editorial-function-repair";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { assertOriginalHook, usesBannedOpener } from "./originality";
@@ -380,7 +382,7 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
     // The critic has the same durable accounting, reservations and zero SDK retries.
     const response = await send(params);
     const schema = input.referenceContract ? LenientReferencedReviewSchema : EditorialReviewSchema;
-    const value = readDocumentaryJson(response);
+    const value = readEditorialJson(response, schema);
     // Only an out-of-contract sections[].function label gets ONE bounded, ledgered re-classification
     // (editorial-function-repair.ts). Every other defect keeps the original rejection.
     const targets = sectionFunctionRepairTargets(value, schema);
@@ -513,13 +515,18 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
           // locatable passage) selects it; unanchorable scenes are dropped, and
           // fewer than two anchored scenes is a technical planning failure.
           const catalog = new Map(narrationCatalog(parsed.beats).filter(e => e.beatIndex === i).map(e => [e.id, e]));
-          const raw = parseDocumentaryResponse(cinematic
+          let raw = parseDocumentaryResponse(cinematic
             ? (input.referenceContract ? CinematicLenientVisualsSchema : CinematicParseVisualsSchema)
             : (input.referenceContract ? ProductLenientVisualsSchema : ProductParseVisualsSchema), response) as z.infer<typeof CinematicLenientVisualsSchema>;
-          const plan = { visuals: raw.visuals.flatMap(({ excerptId, quote, ...visual }: { excerptId?: string; quote?: string } & Omit<z.infer<typeof VisualSchema>, "quote">) => {
+          const resolveAnchors = () => ({ visuals: raw.visuals.flatMap(({ excerptId, quote, ...visual }: { excerptId?: string; quote?: string } & Omit<z.infer<typeof VisualSchema>, "quote">) => {
             const anchored = (excerptId ? catalog.get(excerptId)?.quote : undefined) ?? (quote ? locateNormalized(beat.narration, quote) : null);
             return anchored && countWords(anchored) >= 5 ? [{ ...visual, quote: anchored }] : [];
-          }) };
+          }) });
+          let plan = resolveAnchors();
+          if (plan.visuals.length < 2 && input.referenceContract) {
+            raw = await repairVisualAnchors({ raw, catalog: [...catalog.values()], narration: beat.narration, model: SCRIPT_MODEL, send, onStage: input.onStage }) as typeof raw;
+            plan = resolveAnchors();
+          }
           if (plan.visuals.length < 2) throw new DocumentaryResponseError("El plan visual de un bloque no quedó anclado a la narración aprobada.");
           beat.visuals = plan.visuals;
         }
