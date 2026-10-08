@@ -272,7 +272,15 @@ async function recoverAfterFormatFix() {
  if(error||data?.length!==1)throw Error("incident lease lost");
  log("FORMAT_RECOVERY",{result:"queued",savedResponses:13,retryCountPreserved:3,editorialRoundPreserved:1,capPreserved:2.10,originalCheckpointPreserved:true,ownerAuthorization:"2026-10-08 consolidate V6 and produce; after deployed format fix only"});
 }
-const modes: Record<string, () => Promise<unknown>> = { "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+async function visualAnchorDiagnostic() {
+ const {db,job,projectId,ops}=await inspect();if(h10(projectId)!==EXPECTED_PROJECT_HASH)throw Error("scope mismatch");
+ const {narrationCatalog}=await import("../src/lib/video/long-form/narration-catalog");const catalog=narrationCatalog(job.editorial_checkpoint.script.beats);const o=ops.at(-1)!;
+ const f=await db.storage.from("videos").download(o.result_ref);if(f.error||!f.data)throw Error("download");
+ const {readDocumentaryJson}=await import("../src/lib/video/long-form/json-response");const raw=readDocumentaryJson(JSON.parse(await f.data.text())) as {visuals:any[]};
+ const expected=catalog.filter(e=>e.beatIndex===2);
+ log("VISUAL_ANCHORS",{visuals:raw.visuals.map((v,i)=>({index:i,id:/^[a-f0-9]{16}:b[0-9]+:w[0-9]+$/.test(v.excerptId)?v.excerptId:"non-catalog-shape",validId:expected.some(e=>e.id===v.excerptId),knownOtherBeat:catalog.find(e=>e.id===v.excerptId)?.beatIndex,quoteSupplied:typeof v.quote==="string",class:v.beatClass,impact:v.impact,hasReason:typeof v.impactReason==="string"})),expectedIds:expected.map(e=>e.id),referencesToApprovedDraftOnly:true});
+}
+const modes: Record<string, () => Promise<unknown>> = { "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
