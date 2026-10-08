@@ -1,2 +1,2 @@
-v6-check
-# Correct validator; synchronized existing curator allowlist; no data writes or provider calls
+close-budget
+# Close completed Bigfoot recovery; preserve committed responses and exact spend.
