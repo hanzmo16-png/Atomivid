@@ -1,2 +1,2 @@
 review-format
-# Single punctuation candidate validation; read-only
+# Verify strict reader against committed response before production resume
