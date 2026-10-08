@@ -165,3 +165,54 @@ test("buildLongFormTimeline: las palabras de captions cubren toda la duración r
 test("buildLongFormTimeline exige al menos un beat", async () => {
   await assert.rejects(() => buildLongFormTimeline(stubVoiceProvider, [], "es"));
 });
+
+// Partición TTS: sin omisiones ni duplicados (unir los trozos reproduce el texto) y ningún trozo excede el límite.
+const norm = (s: string) => s.replace(/\s+/g, " ").trim();
+function lcg(seed: number) { let x = seed; return () => (x = (x * 1103515245 + 12345) % 2147483648) / 2147483648; }
+const word = (r: () => number) => "abcdefghijklmnñopqrstuvwxyz".split("").slice(0, 2 + Math.floor(r() * 8)).sort(() => r() - 0.5).join("");
+
+test("splitNarrationIntoSafeChunks: conserva la puntuación inicial (antes se perdía «…»)", () => {
+  const text = "… " + "Hubo un rastro en el barro. ".repeat(40);
+  const chunks = splitNarrationIntoSafeChunks(text, 200);
+  assert.equal(norm(chunks.join(" ")), norm(text));
+  assert.ok(chunks[0].startsWith("…"));
+  assert.ok(chunks.every((c) => c.length <= 200 && c.length > 0));
+});
+
+test("splitNarrationIntoSafeChunks: una oración más larga que el límite se parte por palabras, sin perder ni repetir", () => {
+  const r = lcg(7);
+  const longSentence = Array.from({ length: 400 }, () => word(r)).join(" ") + ".";
+  const text = "Primera frase corta. " + longSentence + " Final.";
+  const chunks = splitNarrationIntoSafeChunks(text, 300);
+  assert.equal(norm(chunks.join(" ")), norm(text));
+  assert.ok(chunks.every((c) => c.length <= 300 && c.length > 0));
+  assert.ok(chunks.every((c) => !/^\S+$/.test(c) || c.length <= 300));
+});
+
+test("splitNarrationIntoSafeChunks: propiedad en 300 textos aleatorios (incluye «…», «¿?», saltos de línea)", () => {
+  const r = lcg(42);
+  for (let n = 0; n < 300; n++) {
+    const parts: string[] = [];
+    if (r() < 0.3) parts.push(["…", "...", "¿", "—"][Math.floor(r() * 4)]);
+    const sentences = 5 + Math.floor(r() * 60);
+    for (let i = 0; i < sentences; i++) {
+      const len = r() < 0.05 ? 150 : 3 + Math.floor(r() * 25);
+      parts.push(Array.from({ length: len }, () => word(r)).join(" ") + ["." , "?", "!", "…", "?!", ".\n"][Math.floor(r() * 6)]);
+    }
+    const text = parts.join(" ");
+    const max = 120 + Math.floor(r() * 900);
+    const chunks = splitNarrationIntoSafeChunks(text, max);
+    assert.equal(norm(chunks.join(" ")), norm(text), `seed ${n}`);
+    assert.ok(chunks.every((c) => c.length > 0 && c.length <= max), `seed ${n}`);
+  }
+});
+
+test("splitNarrationIntoSafeChunks: para texto normal el resultado es idéntico al anterior (cachés TTS y huellas intactas)", async () => {
+  const { oldSplit } = await import("../../../../" + "scripts/fixtures/split-narration-v1");
+  const r = lcg(3);
+  for (let n = 0; n < 200; n++) {
+    const text = Array.from({ length: 10 + Math.floor(r() * 80) }, () => Array.from({ length: 3 + Math.floor(r() * 20) }, () => word(r)).join(" ") + [".", "?", "!"][Math.floor(r() * 3)]).join(" ");
+    const max = 200 + Math.floor(r() * 2000);
+    assert.deepEqual(splitNarrationIntoSafeChunks(text, max), oldSplit(text, max), `seed ${n}`);
+  }
+});

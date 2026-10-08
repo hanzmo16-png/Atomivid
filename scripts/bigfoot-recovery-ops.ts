@@ -325,7 +325,24 @@ async function supplyCheck() {
 }
 async function readiness() { await supplyCheck(); await v6Check(); }
 
-const modes: Record<string, () => Promise<unknown>> = { "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+/** Read-only: exactly what the Configure pre-flight panel computes for Bigfoot (same functions, no writes, no refresh). */
+async function preflightPreview() {
+  const { db, job } = await loadJob();
+  const { productPlan } = await import("../src/lib/video/long-form/product-plan");
+  const { getRealLongFormProviderNames } = await import("../src/lib/video/long-form/production-plan");
+  const { strategyPreflight, visualCheck, visualBlockMessage } = await import("../src/lib/video/long-form/production-preflight");
+  const { data: req } = await db.from("video_requests").select("id,topic,duration_seconds,script_json").eq("id", job.request_id).single();
+  const script = req!.script_json as { topic?: string; beats: never[] };
+  const plans = Object.fromEntries((["economical", "balanced", "cinematic"] as const).map((s) => [s, productPlan({ beats: script.beats, topic: script.topic || req!.topic, strategy: s, providers: getRealLongFormProviderNames(), requestedDurationSeconds: req!.duration_seconds ?? undefined, cinematicV6: true }).plan]));
+  const strategies = [];
+  for (const s of ["economical", "balanced", "cinematic"] as const) strategies.push(await strategyPreflight(db, { strategy: s, plan: plans[s], scriptJson: req!.script_json }));
+  const visual = await visualCheck(db, { requestId: req!.id, plan: plans.balanced, beats: script.beats, topic: script.topic || req!.topic });
+  log("PREFLIGHT", { checkedAt: new Date().toISOString(), strategies: strategies.map((p) => ({ strategy: p.strategy, estimatedUsd: p.estimatedUsd, limitUsd: p.limitUsd, withinLimit: p.withinLimit, capacityReady: p.capacityReady, globalNote: p.globalNote,
+    providers: p.providers.map((x) => ({ provider: x.provider, verdict: x.verdict, needUnits: x.needUnits, unit: x.unit, needUsd: Math.round(x.needUsd * 10000) / 10000, freeUnits: x.freeUnits, action: x.action })) })),
+    visual, visualMessage: visual.ready ? null : visualBlockMessage(visual) });
+}
+
+const modes: Record<string, () => Promise<unknown>> = { "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });

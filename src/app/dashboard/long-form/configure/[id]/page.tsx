@@ -15,6 +15,10 @@ import { defaultPackaging, isOwnChannelAccount } from "@/lib/video/long-form/pac
 import { PRODUCT_DEFAULT_PLAN_VERSION, usesAnchoredVisuals } from "@/lib/video/long-form/production-plan-types";
 import { productPlan, type ProductPlanResult } from "@/lib/video/long-form/product-plan";
 import { cinematicV6Enabled } from "@/lib/video/long-form/cinematic-v6-access";
+import { createServiceClient } from "@/lib/supabase/service";
+import { canCurateAssets } from "@/lib/video/long-form/asset-curation";
+import type { ProductionPlanBeatInput } from "@/lib/video/long-form/production-plan";
+import { strategyPreflight, visualBlockMessage, visualCheck, type StrategyPreflight, type VisualCheck } from "@/lib/video/long-form/production-preflight";
 
 
 /**
@@ -61,6 +65,19 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
   ) as Record<VisualStrategy, ProductPlanResult>;
   const plans = Object.fromEntries(VISUAL_STRATEGIES.map((s) => [s, results[s].plan])) as Record<VisualStrategy, ProductionPlan>;
   const engine = results.balanced;
+  // Pre-flight (read-only, server-side): same capacity rule as the start click and same visual gate as the worker.
+  const service = createServiceClient();
+  const preflight = Object.fromEntries(await Promise.all(VISUAL_STRATEGIES.map(async (strategy) =>
+    [strategy, await strategyPreflight(service, { strategy, plan: plans[strategy], scriptJson: script })]))) as Record<VisualStrategy, StrategyPreflight>;
+  const visual = await visualCheck(service, { requestId: id, plan: plans.balanced, beats: beats as ProductionPlanBeatInput[], topic: script.topic || data.topic })
+    .catch((): VisualCheck => ({ applies: true, ready: false, codes: ["VISUAL_CHECK_UNAVAILABLE"], missingHeroIdentities: 0, missingHeroEvidence: 0, textCardRatio: null, maxTextCardRatio: 0.25, verifiedAssets: 0 }));
+  const summary = {
+    modality: "Documental largo (Long Form, 16:9)",
+    engine: engine.engine === "cinematic-v6" ? "Cinematic V6 (plan v6)" : `Plan estándar (v${plans.balanced.version})`,
+    requestedSeconds: data.duration_seconds ?? null,
+    voice: plans.balanced.providers.voice === "elevenlabs" ? "ElevenLabs · voz de narración configurada del producto" : plans.balanced.providers.voice,
+    curationPath: visual.applies && canCurateAssets(user) ? `/dashboard/admin/curation/${id}` : null,
+  };
 
   return (
     <div className="mx-auto w-full max-w-2xl">
@@ -131,6 +148,10 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
       <ConfigureProduction
         requestId={id}
         plans={plans}
+        preflight={preflight}
+        visual={visual}
+        summary={summary}
+        visualBlockText={visual.ready ? null : visualBlockMessage(visual)}
         ownChannel={ownChannel}
         defaultPackaging={usesAnchoredVisuals(plans.balanced) ? defaultPackaging({ topic: script.topic || data.topic, ownChannel }) : undefined}
       />

@@ -62,7 +62,7 @@ test("interfaz: la configuración ofrece Portada de apertura y Miniatura como op
   const page = readFileSync("src/app/dashboard/long-form/configure/[id]/page.tsx", "utf8");
   assert.match(page, /isOwnChannelAccount\(user\)/);
   const configure = readFileSync("src/app/dashboard/long-form/configure/[id]/ConfigureProduction.tsx", "utf8");
-  assert.match(configure, /disabled=\{!packagingValid\}/, "no se confirma con una opción ilegible");
+  assert.match(configure, /disabled=\{!packagingValid(?: \|\| !!blockedReason)?\}/, "no se confirma con una opción ilegible");
 });
 
 test("Shorts y Avatar no cambian: la composición vertical y su pipeline no conocen la portada", () => {

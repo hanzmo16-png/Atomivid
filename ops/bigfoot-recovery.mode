@@ -1,2 +1,2 @@
-readiness
-# read-only: provider capacity + Bigfoot V6/asset readiness (no writes, no provider calls)
+preflight-preview
+# read-only: what the Configure pre-flight panel shows for Bigfoot (no writes, no balance refresh)

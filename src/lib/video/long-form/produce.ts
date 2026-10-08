@@ -64,20 +64,17 @@ import {
   usesAnchoredVisuals,
   usesVisualIdentity,
   type ProductionPlan,
-  planShotsFromScript,
   type ProductionPlanBeatInput,
 } from "./production-plan";
 import { DocumentAssetRegistry, type AssetIdentity } from "./asset-identity";
 import { assertVisualQuality, buildVisualReport, LongFormVisualQualityError, type VisualReport } from "./visual-report";
-import { planReleaseBlockers } from "./cinematic-director";
-import { heroCoverage, VerifiedAssetRegistry } from "./verified-assets";
+import { VerifiedAssetRegistry } from "./verified-assets";
+import { MAX_TEXT_FALLBACK_RATIO, visualReleasePreflight } from "./visual-release-preflight";
 import { usesImpactDirection } from "./production-plan-types";
-import { CURATION_FILE_PATH, isAuthorizedCurator, requestedContracts } from "./asset-curation";
-import { containsFixtureOnlyMaterial } from "./fixture-only";
 import { curatedSvgGraphic } from "./premium-composition";
 import type { LongFormCuratedSvgGraphic } from "../../../../remotion/LongFormDoc";
-import { PLAN_ESTIMATE_AVAILABILITY, registryAvailability, resolveSequences, usesSequences, validateImpactIntents, validateSequenceIntents, type ExecutableSequence } from "./sequence-intent";
-import { directSequenceScenes, planSequenceShots, sequenceShotsForSpan } from "./sequence-direction";
+import type { ExecutableSequence } from "./sequence-intent";
+import { directSequenceScenes, sequenceShotsForSpan } from "./sequence-direction";
 import { directImpactScenes, hookStatus } from "./impact-direction";
 import { ProductionBudget, supabaseBudgetStore, type BudgetStore } from "./production-budget";
 import { getPricingConfig } from "@/lib/billing/pricing";
@@ -99,7 +96,7 @@ import { recordVideoGeneration } from "@/lib/billing/usage";
 const STORAGE_BUCKET = "videos";
 const ASSET_SIGNED_URL_TTL_SECONDS = 60 * 60;
 /** Por encima de esta fracción de shots degradados a tarjeta de texto, el documental no se entrega (calidad insuficiente). */
-export const MAX_TEXT_FALLBACK_RATIO = 0.25;
+export { MAX_TEXT_FALLBACK_RATIO };
 
 /**
  * `units` lleva progreso REAL por unidad de trabajo dentro de la etapa:
@@ -234,23 +231,11 @@ export async function generateLongFormVideoFromScript({
   // v5: la intención por secuencia existe ANTES de elegir recursos; aquí se resuelve contra el registro real.
   let sequences: ExecutableSequence[] | undefined;
   if (usesVisualIdentity(plan)) {
-    const v5 = usesSequences(plan);
-    if (v5) {
-      const check = validateSequenceIntents(plan.sequences, beats as ProductionPlanBeatInput[]);
-      if (usesImpactDirection(plan)) check.errors.push(...validateImpactIntents(plan.sequences!));
-      if (check.errors.length > 0) throw new LongFormVisualQualityError(check.errors.map((e) => `SEQUENCE_CONTRACT: ${e}`));
-    }
-    const estimate = v5
-      ? planSequenceShots(beats as ProductionPlanBeatInput[], resolveSequences(plan.sequences!, PLAN_ESTIMATE_AVAILABILITY)).shots
-      : planShotsFromScript(beats as ProductionPlanBeatInput[], topic, plan.strategy).shots;
-    verifiedAssets = runtime.verifiedAssets ?? (await loadVerifiedAssets(supabase, requestId, new Set(requestedContracts(estimate).keys())));
-    if (v5) sequences = resolveSequences(plan.sequences!, registryAvailability(verifiedAssets));
-    const plannedShots = sequences ? planSequenceShots(beats as ProductionPlanBeatInput[], sequences).shots : estimate;
-    const blockers = planReleaseBlockers(plannedShots).map((f) => `${f.code}: ${f.detail} (${f.shots.join(", ")})`);
-    const coverage = heroCoverage(plannedShots, verifiedAssets, MAX_TEXT_FALLBACK_RATIO);
-    const missing = [...coverage.heroMissingRequiredIdentities, ...coverage.heroMissingRequiredEvidence, ...coverage.missingIdentities, ...coverage.missingEvidence];
-    blockers.push(...coverage.blockers.map((b) => `HERO_COVERAGE ${b} (faltan: ${[...new Set(missing)].join(", ") || "—"})`));
-    if (blockers.length > 0) throw new LongFormVisualQualityError(blockers);
+    // Shared with the Configure page (visual-release-preflight.ts): the user sees this same verdict before starting.
+    const pre = await visualReleasePreflight({ supabase, requestId, plan, beats: beats as ProductionPlanBeatInput[], topic, verifiedAssets: runtime.verifiedAssets });
+    if (pre.blockers.length > 0) throw new LongFormVisualQualityError(pre.blockers);
+    verifiedAssets = pre.verifiedAssets;
+    sequences = pre.sequences;
   }
 
   const resolvedProviders = providers ?? resolveLongFormProviders("real");
@@ -741,23 +726,3 @@ export function directAnchoredScenes(
   });
 }
 
-/**
- * Registro verificado de esta solicitud: el archivo de curaduría
- * (`{requestId}/state/curation.json`, escrito solo por las acciones del curador)
- * es un dato NO confiable; la confianza la recalcula aquí el servidor
- * (licencia, calidad, crédito, huella, curador autorizado HOY, estado, contrato
- * exacto que el plan pide). Ausente o ilegible = vacío.
- */
-async function loadVerifiedAssets(supabase: SupabaseClient, requestId: string, contracts: ReadonlySet<string>): Promise<VerifiedAssetRegistry> {
-  let raw: unknown;
-  try {
-    const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(CURATION_FILE_PATH(requestId));
-    if (error || !data) return VerifiedAssetRegistry.empty();
-    raw = JSON.parse(await data.text());
-  } catch {
-    return VerifiedAssetRegistry.empty();
-  }
-  // Material de benchmark (FIXTURE_ONLY / TEST_ONLY) nunca entra en una solicitud real, aunque lo apruebe un curador.
-  if (containsFixtureOnlyMaterial(raw)) throw new LongFormVisualQualityError(["FIXTURE_ONLY_MATERIAL: el archivo de curaduría contiene material de prueba; una solicitud real nunca lo usa"]);
-  return VerifiedAssetRegistry.rehydrate(raw, { requestId, isAuthorizedCurator: (by) => isAuthorizedCurator(by), requestedContracts: contracts });
-}

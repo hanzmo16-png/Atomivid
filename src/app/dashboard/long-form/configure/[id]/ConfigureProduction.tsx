@@ -16,6 +16,59 @@ import {
 import { LONG_FORM_DURATION_TOLERANCE } from "@/lib/video/long-form/duration-budget";
 import type { LongFormPackaging } from "@/lib/video/long-form/packaging";
 import { PackagingOptions } from "./PackagingOptions";
+import type { StrategyPreflight, VisualCheck } from "@/lib/video/long-form/production-preflight";
+
+export type PreflightSummary = { modality: string; engine: string; requestedSeconds: number | null; voice: string; curationPath: string | null };
+
+const VERDICT_CLASS: Record<string, string> = { Suficiente: "text-success", Insuficiente: "text-danger", "Sin verificar": "text-warning" };
+
+/** What the user sees BEFORE starting; the same rules are enforced on the server (confirm + render). */
+export function PreflightPanel({ summary, preflight, visual, visualBlockText }: { summary: PreflightSummary; preflight: StrategyPreflight; visual: VisualCheck; visualBlockText: string | null }) {
+  return (
+    <div className="mt-3 text-sm">
+      <dl>
+        <Row label="Modalidad" value={summary.modality} />
+        <Row label="Motor" value={summary.engine} />
+        {summary.requestedSeconds !== null && <Row label="Duración pedida" value={formatDuration(summary.requestedSeconds)} />}
+        <Row label="Voz" value={summary.voice} />
+        <Row label="Costo estimado" value={USD.format(preflight.estimatedUsd)} />
+        <Row label="Límite autorizado por producción" value={USD.format(preflight.limitUsd)} />
+      </dl>
+      {!preflight.withinLimit && (
+        <p className="mt-2 text-danger" role="alert">El costo estimado supera el límite autorizado. Elige una estrategia más económica.</p>
+      )}
+      <h3 className="mt-3 text-xs font-medium uppercase tracking-wide text-ink-muted">Capacidad de proveedores</h3>
+      <ul className="mt-1 grid gap-1.5">
+        {preflight.providers.map((p) => (
+          <li key={p.provider} className="rounded-md border border-border px-3 py-2">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+              <span className="text-ink">{p.label}</span>
+              <span className={`font-medium ${VERDICT_CLASS[p.verdict] ?? ""}`}>{p.verdict}</span>
+            </div>
+            {p.action && <p className="mt-1 text-xs text-ink-muted">{p.action}</p>}
+          </li>
+        ))}
+        {preflight.providers.length === 0 && !preflight.globalNote && <li className="text-xs text-ink-muted">Este plan no requiere proveedores de pago adicionales.</li>}
+      </ul>
+      {preflight.globalNote && <p className="mt-2 text-xs text-warning">{preflight.globalNote}</p>}
+      {visual.applies && (
+        <>
+          <h3 className="mt-3 text-xs font-medium uppercase tracking-wide text-ink-muted">Material visual verificado</h3>
+          {visual.ready ? (
+            <p className="mt-1 text-success">Listo: {visual.verifiedAssets} recurso(s) verificado(s); tarjetas de texto previstas dentro del límite.</p>
+          ) : (
+            <div className="mt-1 rounded-md border border-danger px-3 py-2" role="alert">
+              <p className="text-danger">{visualBlockText}</p>
+              {summary.curationPath
+                ? <a className="mt-1 inline-block text-sm font-medium underline" href={summary.curationPath}>Abrir curaduría de recursos</a>
+                : <p className="mt-1 text-xs text-ink-muted">Un curador autorizado debe aprobar el material antes de producir.</p>}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 const USD = new Intl.NumberFormat("es-MX", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -81,11 +134,19 @@ export function PlanSummary({ plan }: { plan: ProductionPlan }) {
 export function ConfigureProduction({
   requestId,
   plans,
+  preflight,
+  visual,
+  summary,
+  visualBlockText = null,
   defaultPackaging,
   ownChannel = false,
 }: {
   requestId: string;
   plans: Record<VisualStrategy, ProductionPlan>;
+  preflight?: Record<VisualStrategy, StrategyPreflight>;
+  visual?: VisualCheck;
+  summary?: PreflightSummary;
+  visualBlockText?: string | null;
   /** Presentación para YouTube inicial (activada por defecto solo en los canales propios). */
   defaultPackaging?: LongFormPackaging;
   ownChannel?: boolean;
@@ -98,8 +159,16 @@ export function ConfigureProduction({
   const [packagingValid, setPackagingValid] = useState(true);
   const onValidityChange = useCallback((valid: boolean) => setPackagingValid(valid), []);
 
+  // Known, certain refusals are shown here and enforced on the server; "Sin verificar" is checked at the click.
+  const selectedPreflight = preflight?.[strategy];
+  const blockedReason = !selectedPreflight ? null
+    : !selectedPreflight.withinLimit ? "El costo estimado supera el límite autorizado."
+    : visual && !visual.ready ? "Falta material visual verificado (ver Comprobación previa)."
+    : selectedPreflight.providers.some((p) => p.verdict === "Insuficiente") ? "Un proveedor no tiene capacidad suficiente (ver Comprobación previa)."
+    : null;
+
   async function handleConfirm() {
-    if (loading) return;
+    if (loading || blockedReason) return;
     setLoading(true);
     setError(null);
     try {
@@ -161,15 +230,23 @@ export function ConfigureProduction({
         <PlanSummary plan={plans[strategy]} />
       </Card>
 
+      {summary && selectedPreflight && visual && (
+        <Card className="mt-4 p-4">
+          <h2 className="text-sm font-medium text-ink">Comprobación previa</h2>
+          <PreflightPanel summary={summary} preflight={selectedPreflight} visual={visual} visualBlockText={visualBlockText} />
+        </Card>
+      )}
+
       {packaging && (
         <PackagingOptions value={packaging} onChange={setPackaging} onValidityChange={onValidityChange} disabled={loading} ownChannel={ownChannel} />
       )}
 
       <div className="mt-6 flex flex-col gap-2 pb-8 sm:items-start">
-        <Button type="button" onClick={handleConfirm} loading={loading} disabled={!packagingValid} className="w-full sm:w-auto">
+        <Button type="button" onClick={handleConfirm} loading={loading} disabled={!packagingValid || !!blockedReason} className="w-full sm:w-auto">
           {loading ? "Confirmando…" : "Confirmar y generar video"}
         </Button>
         <p className="text-xs text-ink-faint">Nada se genera ni se cobra hasta que confirmes.</p>
+        {blockedReason && <p className="text-sm text-danger" role="alert">No se puede iniciar todavía: {blockedReason} Tu guion sigue guardado.</p>}
         {!packagingValid && (
           <p className="text-sm text-danger" role="alert">
             Corrige la portada o la miniatura (o desactívala) para continuar.

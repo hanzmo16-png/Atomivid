@@ -1,8 +1,10 @@
-import type { ProductionPlan } from "@/lib/video/long-form/production-plan-types";
+import { usesVisualIdentity, type ProductionPlan } from "@/lib/video/long-form/production-plan-types";
+import type { ProductionPlanBeatInput } from "@/lib/video/long-form/production-plan";
+import { providerCheck, visualBlockMessage, visualCheck } from "@/lib/video/long-form/production-preflight";
 import { isLongFormScriptJson } from "@/lib/video/long-form/script-json";
 import { editorialApprovalError } from "@/lib/video/long-form/editorial";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
-import { jobSupplyDemands, reserveJobSupply } from "@/lib/supply/job";
+import { jobSupplyDemands, releaseUnusedJobSupply, reserveJobSupply } from "@/lib/supply/job";
 import { ensureJobSupplyReady, START_SUPPLY_UNAVAILABLE } from "@/lib/supply/readiness";
 import { supplyGuardRequired } from "@/lib/supply/server";
 import { getVoiceProvider } from "@/lib/providers/voice";
@@ -165,6 +167,15 @@ export async function POST(
       return NextResponse.json({ error: check.reason }, { status: 402 });
     }
 
+    // Visual release gate of v4+ plans, BEFORE reserving anything or spending an attempt: the worker
+    // would stop on it anyway (visual-release-preflight.ts), so a missing curation never burns an attempt.
+    if (videoRequest.mode === "long_form" && videoRequest.long_form_production_plan && usesVisualIdentity(videoRequest.long_form_production_plan)
+        && isLongFormScriptJson(videoRequest.script_json)) {
+      const sj = videoRequest.script_json as unknown as { topic: string; beats: ProductionPlanBeatInput[] };
+      const visual = await visualCheck(service, { requestId: id, plan: videoRequest.long_form_production_plan, beats: sj.beats, topic: sj.topic || "" });
+      if (!visual.ready) return NextResponse.json({ error: visualBlockMessage(visual) }, { status: 409 });
+    }
+
     try {
       const demands = jobSupplyDemands(videoRequest, videoRequest.mode === "long_form"
         ? videoRequest.long_form_production_plan?.providers.voice ?? "unconfigured"
@@ -173,7 +184,12 @@ export async function POST(
         // Same readiness rule as the preflight: stale balances of THIS job's
         // providers are re-read (billing GET only) before the atomic reservation.
         const readiness = await ensureJobSupplyReady(service, demands);
-        if (!readiness.ready) throw new SupplyUnavailableError(readiness.failure!.provider, readiness.failure!.reason);
+        if (!readiness.ready) {
+          // Actionable: which provider, how much is missing and what to top up (nothing was reserved or charged).
+          const failing = readiness.providers.find((r) => !r.ok);
+          const action = failing ? providerCheck(failing, demands.find((d) => d.provider === failing.provider)?.unit ?? "usd").action : null;
+          return NextResponse.json({ error: action ? `${START_SUPPLY_UNAVAILABLE} ${action}` : START_SUPPLY_UNAVAILABLE }, { status: 503, headers: { "Retry-After": "300" } });
+        }
       }
       await reserveJobSupply(service, id, videoRequest.render_attempts + 1, demands);
     } catch (error) {
@@ -242,15 +258,20 @@ export async function POST(
       // aparte con el mismo diagnosticId, pero nunca debe reemplazar ni
       // perder el mensaje original ya calculado.
       try {
-        const { error: failUpdateError } = await service
+        const { data: failed, error: failUpdateError } = await service
           .from("video_requests")
           .update({ status: "failed", error_message: message, progress_stage: null })
           .eq("id", id)
           .eq("status", "processing")
           .eq("render_attempts", videoRequest.render_attempts + 1)
-          .eq("progress_stage", "queued");
+          .eq("progress_stage", "queued")
+          .select("id");
         if (failUpdateError) {
           logRenderError("POST /render (restaurar estado a failed)", failUpdateError, diagnosticId);
+        } else if (failed?.length === 1) {
+          // The attempt provably never started (still queued, now failed): free its reservation.
+          // Never on a lost CAS or an uncertain update: a concurrent winner shares the same reservation key.
+          await releaseUnusedJobSupply(service, id, videoRequest.render_attempts + 1).catch(() => logRenderError("POST /render (liberar reserva)", new Error("release unconfirmed"), diagnosticId));
         }
       } catch (restoreError) {
         logRenderError(
