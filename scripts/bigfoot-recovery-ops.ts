@@ -413,7 +413,46 @@ async function podcastRealVoice() {
   throw Error("no stored real narration usable");
 }
 
-const modes: Record<string, () => Promise<unknown>> = { "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+/**
+ * Read-only "what would it take" check with the EXISTING preflight (visualReleasePreflight): the
+ * Bigfoot plan is evaluated with hypothetical approvals built in memory through the same
+ * propose → curator decision → rehydrate path as the tests. Placeholder assets only; nothing is
+ * proposed, approved or written. Prints contract labels and blocker codes only (no script text).
+ */
+async function coverageScenarios() {
+  const { db, job } = await loadJob();
+  const { productPlan } = await import("../src/lib/video/long-form/product-plan");
+  const { getRealLongFormProviderNames } = await import("../src/lib/video/long-form/production-plan");
+  const { curationPlanShots } = await import("../src/lib/video/long-form/curation-plan");
+  const { requestedContracts } = await import("../src/lib/video/long-form/asset-curation");
+  const { visualReleasePreflight } = await import("../src/lib/video/long-form/visual-release-preflight");
+  const { curateFixture, rehydrateFixture } = await import("../src/lib/video/long-form/cinematic-simulation");
+  const { data: req } = await db.from("video_requests").select("id,topic,duration_seconds,script_json").eq("id", job.request_id).single();
+  const script = req!.script_json as { topic?: string; beats: unknown[] };
+  const topic = script.topic || req!.topic;
+  const plan = productPlan({ beats: script.beats as never, topic, strategy: "balanced", providers: getRealLongFormProviderNames(), requestedDurationSeconds: req!.duration_seconds ?? undefined, cinematicV6: true }).plan;
+  const requested = requestedContracts(curationPlanShots(script.beats as never, topic, plan));
+  const LABEL: Record<string, string> = { "IDENTITY:roger patterson and bob gimlin": "I1", "IDENTITY:roger patterson": "I2", "IDENTITY:bob heironimus": "I3",
+    "EVIDENCE:web-2+web-5": "E1", "EVIDENCE:web-2": "E2", "EVIDENCE:web-2+web-4": "E3", "EVIDENCE:web-1": "E4", "EVIDENCE:web-5": "E5" };
+  const keyOf = (label: string) => Object.entries(LABEL).find(([, l]) => l === label)?.[0];
+  log("SIM_CONTRACTS", [...requested.keys()].map((k) => LABEL[k] ?? `unlabeled:${h10(k)}`));
+  const placeholder = (label: string) => ({ id: `sim-${label}`, source: "licensed_archive" as const, sourceUrl: `https://simulation.invalid/${label}`, mediaUrl: `https://simulation.invalid/${label}.jpg`,
+    mediaType: "image" as const, mime: "image/jpeg", width: 2400, height: 1600, rights: { kind: "LICENSED" as const, rightsReference: `simulation-${label}` }, creditText: "simulation", description: "simulation placeholder" });
+  const scenarios: Record<string, string[]> = {
+    S0_actual: [], S1_pelicula: ["E1", "E2", "E3"], S2_pelicula_periodico: ["E1", "E2", "E3", "E4"], S3_pelicula_foto1967: ["E1", "E2", "E3", "I1", "I2"],
+    S4_todo_HERO: ["I1", "I2", "E1", "E2", "E3", "E4"], S5_todo: ["I1", "I2", "I3", "E1", "E2", "E3", "E4", "E5"],
+  };
+  for (const [name, labels] of Object.entries(scenarios)) {
+    const approvals = labels.map((l) => ({ asset: placeholder(l), key: keyOf(l)! })).filter((a) => a.key && requested.has(a.key));
+    const registry = rehydrateFixture(curateFixture(approvals, requested, req!.id), req!.id, requested);
+    const pre = await visualReleasePreflight({ supabase: db, requestId: req!.id, plan, beats: script.beats as never, topic, verifiedAssets: registry });
+    const codes = [...new Set(pre.blockers.map((b) => b.replace(/^HERO_COVERAGE\s+/, "").split(":")[0].trim()))];
+    log("SIM", { scenario: name, approved: labels, verifiedInRegistry: registry.size, pass: pre.blockers.length === 0, codes, heroMissingIdentities: pre.coverage?.heroMissingRequiredIdentities.length,
+      heroMissingEvidence: pre.coverage?.heroMissingRequiredEvidence.length, textCardRatio: pre.coverage?.estimatedTextCardRatio, plannedShots: pre.plannedShotCount });
+  }
+}
+
+const modes: Record<string, () => Promise<unknown>> = { "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
