@@ -57,7 +57,7 @@ async function inspect() {
   const { data: owner } = await db.auth.admin.getUserById(job.user_id);
   const cp = job.editorial_checkpoint as { pass?: number; review?: unknown; status?: string } | null;
   const summary = {
-    job: { status: job.status, stage: job.stage, failureKind: job.failure_kind, errorCode: job.error_code, retries: job.retry_count, rounds: job.editorial_rounds, running: !!job.run_token },
+    job: { status: job.status, stage: job.stage, failureKind: job.failure_kind, errorCode: job.error_code, errorMessage: String(job.error_message ?? "").slice(0, 300), retries: job.retry_count, rounds: job.editorial_rounds, running: !!job.run_token },
     owner: { confirmed: !!owner?.user?.email_confirmed_at, ownerMatchesProject: projectId.startsWith(`documentary:${job.user_id}:`) },
     project: { hash: h10(projectId), matchesExpected: h10(projectId) === EXPECTED_PROJECT_HASH, operations: ops.length },
     ledger: ops.map((o) => ({ key: h10(o.idempotency_key), status: o.status, reserved: o.reserved_usd, committed: o.committed_usd })),

@@ -85,7 +85,7 @@ async function main() {
   globalThis.fetch = (async (_url: unknown, init?: { body?: unknown }) => {
     const params = JSON.parse(String(init?.body));
     const key = stableHash(params, 16), kind = kindOf(params);
-    if (kind === "function-repair") {
+    if (kind === "function-repair" && !responses.has(key)) {
       // SIMULATED adapter for the bounded repair (never a provider): one stored answer per exact request.
       if (!simulatedRepairs.has(key)) {
         if (!admit(kind, usd(params), true)) { run.boundary = { stage: run.stage, call: `${kind} (blocked by recovery budget)`, maxTokens: params.max_tokens, reservationUsd: usd(params) }; throw Error("RECOVERY_BUDGET_BLOCKED"); }
