@@ -64,3 +64,22 @@ test("el diagnóstico nunca expone el valor rechazado ni texto del guion; el men
   const jobs = readFileSync(path.join(__dirname, "script-jobs.ts"), "utf8");
   assert.match(jobs, /error instanceof DocumentaryResponseError && error\.issues\.length/);
 });
+
+test("regresión Bigfoot 2c686020: creativeDirection.weakness de 307–312 caracteres se acepta; se sigue PIDIENDO 300 (fingerprint intacto)", async () => {
+  const { z } = await import("zod");
+  const { CreativeDirectionSchema, CreativeDirectionPromptSchema } = await import("./creative-direction");
+  const { DocumentaryNarrativePromptSchema } = await import("./documentary-script");
+  for (const field of ["weakness", "evidenceThatWouldHelp"] as const) {
+    assert.equal(CreativeDirectionSchema.shape[field].safeParse("x".repeat(312)).success, true, field);
+    assert.equal(CreativeDirectionSchema.shape[field].safeParse("x".repeat(1601)).success, false, `${field}: still bounded`);
+    assert.equal(CreativeDirectionSchema.shape[field].safeParse("").success, false, `${field}: still required`);
+    assert.equal(CreativeDirectionPromptSchema.shape[field].safeParse("x".repeat(301)).success, false, `${field}: the request is unchanged`);
+  }
+  // The writer prompt contract still asks for 300 (so the paid writer fingerprints do not change).
+  const prompt = z.toJSONSchema(DocumentaryNarrativePromptSchema, { reused: "ref" }) as unknown as { properties: { creativeDirection: { properties: Record<string, { maxLength?: number; $ref?: string }> } }; $defs?: Record<string, { maxLength?: number }> };
+  const weak = prompt.properties.creativeDirection.properties.weakness;
+  const max = weak.maxLength ?? prompt.$defs?.[String(weak.$ref).split("/").pop()!]?.maxLength;
+  assert.equal(max, 300);
+  // Fields that are not explanatory metadata keep their acceptance limit.
+  assert.equal(CreativeDirectionSchema.shape.audience.safeParse("x".repeat(301)).success, false);
+});

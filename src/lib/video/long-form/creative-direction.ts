@@ -27,6 +27,10 @@ const explanation = z.string().min(1).max(1600);
 export const CreativeDirectionSchema = CreativeDirectionPromptSchema.extend({
   selectionReason: explanation,
   cloneTest: CreativeDirectionPromptSchema.shape.cloneTest.extend({ whyThisStoryBreaks: explanation }),
+  // Same rule for the other explanatory metadata (Bigfoot 2c686020: weakness came back at 307–312 chars and the
+  // whole plan fragment was refused, deterministically on every replay). Still requested at 300; never narration.
+  weakness: explanation,
+  evidenceThatWouldHelp: explanation,
 });
 export type CreativeDirection = z.infer<typeof CreativeDirectionSchema>;
 export type CreativeHistoryEntry = { topic: string; opening: string; ending: string; device?: string; promise?: string; structure: string[] };

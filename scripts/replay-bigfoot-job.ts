@@ -1,4 +1,4 @@
-/** Offline replay of ONE saved documentary job (Bigfoot, 03738404) against the CURRENT code.
+/** (2c686020 check: weakness acceptance) Offline replay of ONE saved documentary job (Bigfoot, 03738404) against the CURRENT code.
  * - No provider key: the SDK transport is replaced by an adapter that ONLY returns responses
  *   already COMMITTED (paid) in the ledger for this job, matched by the exact request
  *   fingerprint (stableHash(params, 16)) that production uses as the ledger key.
