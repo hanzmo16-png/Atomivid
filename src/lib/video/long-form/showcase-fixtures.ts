@@ -178,3 +178,25 @@ export function showcaseFootageProvider(base: string, download: (url: string) =>
     downloadFootage: download,
   };
 }
+
+/**
+ * V6 (V6-IMPACT-BOARD.md): la MISMA narración y los MISMOS cuatro archivos; cambia dónde cae el peso.
+ * Los cortes caen en la palabra que cambia el estado narrativo, no en el final de una oración.
+ */
+export const showcaseSequencesV6: SequenceIntent[] = [
+  {
+    ...showcaseSequences[0],
+    slots: [
+      { ...showcaseSequences[0].slots[0], visual: { ...V.district, quote: "In the spring of 1995" }, impact: 3, impactReason: "opening visual statement: the first frame says where and when" },
+      { ...showcaseSequences[0].slots[1], visual: { ...V.portrait, quote: "the subject of our test story" }, impact: 3, impactReason: "protagonist introduction: the cut lands on the word that names the subject" },
+    ],
+  },
+  {
+    ...showcaseSequences[1],
+    slots: [
+      { ...showcaseSequences[1].slots[0], scaleReason: "breath: the viewer reads it as one whole page before anything is singled out", impact: 1, impactReason: "restraint before the reveal" },
+      { ...showcaseSequences[1].slots[1], visual: { ...V.headline, quote: "headline put the event in plain words" }, impact: 3, impactReason: "evidence reveal: the curated headline takes the screen on the word 'headline'" },
+      { ...showcaseSequences[1].slots[2], impact: 2, impactReason: "development: where the record leads" },
+    ],
+  },
+];

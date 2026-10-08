@@ -37,7 +37,19 @@ export type RoleSlot = {
   visual: Record<string, unknown>;
   /** Solo DETAIL: plano de la secuencia del que es detalle y región curada a la que va. Nunca prueba nueva. */
   detail?: { of: number; region: DetailRegion };
+  /**
+   * Plan v6: PESO visual/narrativo de este momento (independiente del rol). 3 = golpe/gancho/revelación,
+   * 2 = desarrollo, 1 = prueba/respiro. Lo propone el planner; nunca aprueba un recurso. Ausente en v5.
+   */
+  impact?: ImpactLevel;
+  /** Por qué este momento lleva ese peso (narrativo, no estético). */
+  impactReason?: string;
+  /** Solo diseño (v6): un futuro material de ambiente que mejoraría el plano. Nunca se ejecuta aquí. */
+  futureAtmosphere?: { description: string };
 };
+
+export const IMPACT_LEVELS = [1, 2, 3] as const;
+export type ImpactLevel = (typeof IMPACT_LEVELS)[number];
 
 export type SequenceIntent = {
   id: string;
@@ -177,6 +189,9 @@ export type ResolvedSlot = {
   visual: BeatVisual;
   detail?: { of: number; region: DetailRegion };
   reason?: string;
+  /** v6: peso del momento (copiado de la intención; no cambia el estado de verdad del rol). */
+  impact?: ImpactLevel;
+  impactReason?: string;
 };
 
 export type ExecutableSequence = {
@@ -234,7 +249,8 @@ export function resolveSequences(sequences: SequenceIntent[], availability: Slot
     const visuals = normalized[sequenceIndex];
     const out: ResolvedSlot[] = [];
     seq.slots.forEach((slot, index) => {
-      const base = { sequenceId: seq.id, index, role: slot.role, scale: slot.scale, scaleReason: slot.scaleReason, beatId: slot.beatId };
+      // El impacto viaja con el rol pero NUNCA interviene en si el rol se ocupa: la verdad decide antes.
+      const base = { sequenceId: seq.id, index, role: slot.role, scale: slot.scale, scaleReason: slot.scaleReason, beatId: slot.beatId, ...(slot.impact ? { impact: slot.impact, impactReason: slot.impactReason } : {}) };
       const v = visuals[index];
       const recomposeFromSequence = (why: string): ResolvedSlot => {
         // Escalera verdadera: otra prueba VERIFICADA de esta misma secuencia (el documento, en plano general); si no, tarjeta de año/texto.
@@ -284,6 +300,28 @@ export function resolveSequences(sequences: SequenceIntent[], availability: Slot
     });
     return { id: seq.id, purpose: seq.purpose, viewerTakeaway: seq.viewerTakeaway, ...(seq.slug ? { slug: seq.slug } : {}), slots: out };
   });
+}
+
+/**
+ * Contrato v6 (además del de v5): cada plano declara su impacto (1/2/3) y por qué. Sin cuotas ni
+ * rotación: puede haber dos 3 seguidos o ninguno. Cualquier slot sin impacto en un plan v6 es un error.
+ */
+export function validateImpactIntents(sequences: SequenceIntent[]): string[] {
+  const errors: string[] = [];
+  for (const seq of sequences) {
+    seq.slots.forEach((slot, k) => {
+      const at = `${seq.id}#${k}`;
+      if (!(IMPACT_LEVELS as readonly number[]).includes(slot.impact as number)) errors.push(`${at}: impacto v6 ausente o fuera de 1/2/3`);
+      if (!slot.impactReason?.trim()) errors.push(`${at}: el impacto necesita una razón narrativa`);
+      if (slot.futureAtmosphere && slot.role !== "ATMOSPHERE" && slot.role !== "CONTEXT") errors.push(`${at}: un futuro ambiente solo puede servir a CONTEXT/ATMOSPHERE`);
+    });
+  }
+  return errors;
+}
+
+/** ¿La intención es v6? (todas las secuencias declaran impacto). */
+export function declaresImpact(sequences: SequenceIntent[] | undefined): boolean {
+  return !!sequences?.length && sequences.some((s) => s.slots.some((slot) => slot.impact !== undefined));
 }
 
 /** Estimación del PLAN (antes de cargar el registro): cada rol se cuenta como ocupable; la ejecución lo resuelve de verdad. */

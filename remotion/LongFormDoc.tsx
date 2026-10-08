@@ -11,6 +11,7 @@ import {
 import {
   TYPE,
   detailLayout,
+  revealLayout,
   mediumTransform,
   typeScale,
   wideFieldBox,
@@ -374,6 +375,24 @@ function DirectedShot({ scene, shot, progress, filter }: { scene: LongFormShotSc
     ) : (
       <Img src={asset.url} style={{ ...style, ...(filter ? { filter } : {}) }} />
     );
+  if (shot.scale === "DETAIL" && shot.reveal && shot.region && shot.sourceWidth && shot.sourceHeight) {
+    // v6: la página completa se mueve hacia el titular curado, que termina dominando el cuadro; la página sigue ahí.
+    const R = revealLayout(shot.region, shot.sourceWidth, shot.sourceHeight, width, height, progress);
+    const box = wideFieldBox(width, height);
+    const f = { ...R.focus, y: R.focus.y - box.y };
+    const dim = `rgba(0,0,0,${R.dim.toFixed(3)})`;
+    return (
+      <AbsoluteFill>
+        <div style={{ position: "absolute", left: 0, top: box.y, width: "100%", height: box.h, overflow: "hidden" }}>
+          {media({ position: "absolute", left: R.page.x, top: R.page.y - box.y, width: R.page.w, height: R.page.h })}
+          <div style={{ position: "absolute", left: 0, top: 0, width: "100%", height: Math.max(0, f.y), backgroundColor: dim }} />
+          <div style={{ position: "absolute", left: 0, top: f.y + f.h, width: "100%", bottom: 0, backgroundColor: dim }} />
+          <div style={{ position: "absolute", left: 0, top: f.y, width: Math.max(0, f.x), height: f.h, backgroundColor: dim }} />
+          <div style={{ position: "absolute", left: f.x + f.w, top: f.y, right: 0, height: f.h, backgroundColor: dim }} />
+        </div>
+      </AbsoluteFill>
+    );
+  }
   if (shot.scale === "DETAIL" && shot.region && shot.sourceWidth && shot.sourceHeight) {
     // La región CURADA toma el cuadro; la página sigue ahí (bordes y contexto), atenuada.
     const L = detailLayout(shot.region, shot.sourceWidth, shot.sourceHeight, width, height, progress);
@@ -450,12 +469,41 @@ export function DirectedLabels({ scene, shot }: { scene: LongFormShotScene; shot
           </div>
         )}
       </div>
+      {(shot.statement || shot.name) && (
+        <ImpactType statement={shot.statement} name={shot.name} />
+      )}
       {scene.creditText && (
         <div style={{ position: "absolute", right: safe.side, top: safe.top, maxWidth: Math.round(width * (height > width ? 0.5 : 0.36)), textAlign: "right", fontFamily: TYPE.sans, fontSize: t.credit, lineHeight: 1.3, color: "rgba(255,255,255,0.8)", textShadow: shadow, overflowWrap: "anywhere" }}>
           {scene.creditText}
         </div>
       )}
     </AbsoluteFill>
+  );
+}
+
+/**
+ * v6: la tipografía de impacto vive SOBRE la imagen, abajo a la izquierda y por encima de la banda de
+ * subtítulos: año en serif grande + lugar en sans (declaración de apertura), o el nombre verificado en serif.
+ */
+function ImpactType({ statement, name }: { statement?: { year?: string; place?: string }; name?: string }) {
+  const { width, height, fps } = useVideoConfig();
+  const frame = useCurrentFrame();
+  const safe = safeAreas(width, height);
+  const t = typeScale(width, height);
+  const u = Math.min(width, height);
+  const bottom = height - (safe.bottom + Math.round(t.caption * 1.3 * 2 + 32) + Math.round(u * 0.03));
+  const seconds = frame / fps;
+  const opacity = statement
+    ? interpolate(seconds, [0.3, 1.1, 6.2, 7.2], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })
+    : interpolate(seconds, [0.8, 1.5, 5.4, 6.2], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  if (opacity <= 0) return null;
+  const shadow = "0 2px 18px rgba(0,0,0,0.75), 0 1px 3px rgba(0,0,0,0.9)";
+  return (
+    <div style={{ position: "absolute", left: safe.side, top: 0, height: bottom, display: "flex", flexDirection: "column", justifyContent: "flex-end", opacity }}>
+      {statement?.year && <div style={{ fontFamily: TYPE.serif, fontSize: Math.round(u * 0.15), lineHeight: 0.95, color: "#f6f1e7", textShadow: shadow }}>{statement.year}</div>}
+      {statement?.place && <div style={{ fontFamily: TYPE.sans, fontSize: Math.round(u * 0.03), fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#ffffff", textShadow: "0 0 2px rgba(0,0,0,0.95), 0 1px 4px rgba(0,0,0,0.9), 0 2px 16px rgba(0,0,0,0.8)", marginTop: Math.round(u * 0.012) }}>{statement.place}</div>}
+      {name && <div style={{ fontFamily: TYPE.serif, fontSize: Math.round(u * 0.056), lineHeight: 1.05, color: "#f6f1e7", textShadow: shadow }}>{name}</div>}
+    </div>
   );
 }
 

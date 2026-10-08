@@ -330,6 +330,22 @@ export function gucciSequences(beats: ProductionPlanBeatInput[] = gucciBeats): S
   });
 }
 
+/**
+ * HONEST-GUCCI v6: las mismas secuencias con impacto narrativo. El gancho (impacto 3) es la llegada de
+ * Maurizio; la portada del asesinato es una revelación (titular, nunca la violencia). Ningún recurso nuevo.
+ */
+export function gucciSequencesV6(beats: ProductionPlanBeatInput[] = gucciBeats): SequenceIntent[] {
+  return gucciSequences(beats).map((seq, s) => ({
+    ...seq,
+    slots: seq.slots.map((slot, k) => {
+      const evidence = (slot.visual.evidence as { sourceIds?: string[] } | undefined)?.sourceIds ?? [];
+      const impact: 1 | 2 | 3 = (s === 0 && k === 0) || evidence.includes("web-2") || slot.role === "DETAIL" ? 3 : slot.role === "CONTEXT" ? 2 : 1;
+      const impactReason = impact === 3 ? (s === 0 && k === 0 ? "hook: the protagonist on the morning of the murder" : "reveal: the headline of the record") : impact === 2 ? "context development" : "restraint: evidence or explanation";
+      return { ...slot, impact, impactReason };
+    }),
+  }));
+}
+
 /** El MISMO guion con el planner que NO cumple: la subida por la escalera de Maurizio declarada como TRANSITION sin identidad. */
 export const gucciBeatsMisclassified: ProductionPlanBeatInput[] = gucciBeats.map((b) =>
   b.id !== "b1"

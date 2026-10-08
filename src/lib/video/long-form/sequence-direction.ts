@@ -34,6 +34,9 @@ export type SequenceSlotRef = {
   opensSequence: boolean;
   detail?: { of: number; region: DetailRegion };
   slug?: { year?: string; place?: string };
+  /** v6: peso del momento (ausente en v5). */
+  impact?: 1 | 2 | 3;
+  impactReason?: string;
 };
 
 /** Planos de UN beat a partir de los roles resueltos (no del reparto por duración). Un DETAIL descartado no se emite: el anterior se sostiene. */
@@ -107,6 +110,7 @@ export function sequenceShotsForSpan(input: {
         opensSequence,
         ...(slot.detail ? { detail: slot.detail } : {}),
         ...(slug ? { slug } : {}),
+        ...(slot.impact ? { impact: slot.impact, impactReason: slot.impactReason } : {}),
       },
     } satisfies Shot;
   });

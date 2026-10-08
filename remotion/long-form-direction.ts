@@ -39,7 +39,31 @@ export type ShotDirection = {
   slug?: { year?: string; place?: string };
   /** Tarjeta (transición de tipo o ausencia dirigida): año opcional en serif. */
   card?: { year?: string };
+  /** v6: peso del momento (1/2/3). Ausente en v5. */
+  impact?: 1 | 2 | 3;
+  /** v6, impacto 3 en un plano general: año (serif grande) y lugar como declaración de apertura sobre la imagen. */
+  statement?: { year?: string; place?: string };
+  /** v6, presentación del protagonista: nombre (serif) del vínculo de identidad VERIFICADO. */
+  name?: string;
+  /** v6, DETAIL de impacto 3: movimiento continuo de la página completa a la región curada. */
+  reveal?: boolean;
 };
+
+/**
+ * v6: revelación del documento. Del rectángulo de la página completa (el mismo del plano general en campo)
+ * al encuadre final del DETAIL, sin superar nunca la escala final (≤ 1 px de fuente por px).
+ * 0–0.12 quieto (corte invisible desde el plano general), 0.12–0.55 movimiento suave, luego se sostiene.
+ */
+export function revealLayout(region: { x: number; y: number; w: number; h: number }, srcW: number, srcH: number, width: number, height: number, progress: number) {
+  const end = detailLayout(region, srcW, srcH, width, height, 1);
+  const start = containRect(wideFieldBox(width, height), srcW, srcH);
+  const p = clamp(progress);
+  const t = p <= 0.12 ? 0 : p >= 0.55 ? 1 : easedProgress((p - 0.12) / 0.43);
+  const mix = (a: number, b: number) => a + (b - a) * t;
+  const page = { x: mix(start.x, end.page.x), y: mix(start.y, end.page.y), w: mix(start.w, end.page.w), h: mix(start.h, end.page.h) };
+  const focus = { x: page.x + region.x * page.w, y: page.y + region.y * page.h, w: region.w * page.w, h: region.h * page.h };
+  return { page, focus, dim: 0.62 * t, t, final: end.final };
+}
 /** Only two era looks exist (no era engine): documentary colour and explicit, scoped monochrome. */
 export type LookPreset = "documentary_1990s" | "schematic_mono";
 export type SceneLook = {
@@ -405,6 +429,10 @@ export function validateDirection(
           throw new Error(`DETAIL needs a curated region of a verified asset: ${s.id}`);
         }
       }
+      if (sh.impact !== undefined && ![1, 2, 3].includes(sh.impact)) throw new Error(`Invalid impact: ${s.id}`);
+      if (sh.reveal && sh.scale !== "DETAIL") throw new Error(`Reveal only on a curated DETAIL: ${s.id}`);
+      if (sh.name !== undefined && (s.provenance !== "archival_documentary" || !sh.name.trim() || sh.name.length > 60)) throw new Error(`Name only for a verified archival anchor: ${s.id}`);
+      for (const t of [sh.statement?.year, sh.statement?.place]) if (t !== undefined && t.length > 40) throw new Error(`Statement too long: ${s.id}`);
     }
     if (d.document) {
       const doc = d.document;

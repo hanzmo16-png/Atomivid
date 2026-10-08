@@ -1,0 +1,571 @@
+{
+  "sameSourceFiles": {
+    "sha256": {
+      "portrait.png": "386b0ff4105e2a5a729e4adf61e33b9d290cd9c9d123d5ef394605c45c9b34d1",
+      "district.png": "4d76bce32e183a13fc1b40377ac2a0ea20cd9e88ee4044fa580ce42c18fc81e3",
+      "document.png": "12c5dc845e2b336781836eae806e617b6de571c67e26019437f12a7f965e58cc",
+      "schematic.svg": "2a2d9d519aa4814aa2de3515cf3329ff3e03d69d0c93d91f7709b14ccead78fe"
+    },
+    "v4": {
+      "downloaded": [
+        "/fixture-only/district.png",
+        "/fixture-only/document.png",
+        "/fixture-only/portrait.png",
+        "/fixture-only/schematic.svg"
+      ],
+      "rendered": [
+        "district.png",
+        "document.png",
+        "portrait.png",
+        "schematic.svg"
+      ]
+    },
+    "v5": {
+      "downloaded": [
+        "/fixture-only/district.png",
+        "/fixture-only/document.png",
+        "/fixture-only/portrait.png",
+        "/fixture-only/schematic.svg"
+      ],
+      "rendered": [
+        "district.png",
+        "document.png",
+        "portrait.png",
+        "schematic.svg"
+      ]
+    },
+    "v6": {
+      "downloaded": [
+        "/fixture-only/district.png",
+        "/fixture-only/document.png",
+        "/fixture-only/portrait.png",
+        "/fixture-only/schematic.svg"
+      ],
+      "rendered": [
+        "district.png",
+        "document.png",
+        "portrait.png",
+        "schematic.svg"
+      ]
+    }
+  },
+  "planVersions": {
+    "v4": 4,
+    "v5": 5,
+    "v6": 6
+  },
+  "duration": {
+    "v4": 43.714285714285715,
+    "v5": 43.714285714285715,
+    "v6": 43.714285714285715
+  },
+  "narrationWords": {
+    "v4": 121,
+    "v5": 121,
+    "v6": 121,
+    "identical": true
+  },
+  "hook": {
+    "v6": {
+      "status": "HOOK_FILLED",
+      "shotId": "s1-S1-1",
+      "reason": "CONTEXT verdadero"
+    }
+  },
+  "shots": {
+    "v4": [
+      {
+        "id": "s1-shot-1",
+        "start": 0,
+        "end": 3.93,
+        "kind": "media",
+        "camera": "push",
+        "document": false,
+        "transition": "cut"
+      },
+      {
+        "id": "s1-shot-2",
+        "start": 3.93,
+        "end": 7.86,
+        "kind": "graphic",
+        "camera": "still",
+        "document": false,
+        "transition": "cut"
+      },
+      {
+        "id": "s1-shot-3",
+        "start": 7.86,
+        "end": 11.43,
+        "kind": "media",
+        "camera": "still",
+        "document": false,
+        "transition": "dissolve"
+      },
+      {
+        "id": "s1-shot-4",
+        "start": 11.43,
+        "end": 15.36,
+        "kind": "media",
+        "camera": "still",
+        "document": false,
+        "transition": "cut"
+      },
+      {
+        "id": "s1-shot-5",
+        "start": 15.36,
+        "end": 19.29,
+        "kind": "media",
+        "camera": "still",
+        "document": false,
+        "transition": "cut"
+      },
+      {
+        "id": "s2-shot-1",
+        "start": 19.29,
+        "end": 22.86,
+        "kind": "media",
+        "camera": "push",
+        "document": true,
+        "transition": "cut"
+      },
+      {
+        "id": "s2-shot-2",
+        "start": 22.86,
+        "end": 26.07,
+        "kind": "media",
+        "camera": "push",
+        "document": true,
+        "transition": "cut"
+      },
+      {
+        "id": "s2-shot-3",
+        "start": 26.07,
+        "end": 29.64,
+        "kind": "media",
+        "camera": "push",
+        "document": true,
+        "transition": "cut"
+      },
+      {
+        "id": "s2-shot-4",
+        "start": 29.64,
+        "end": 32.86,
+        "kind": "media",
+        "camera": "push",
+        "document": true,
+        "transition": "cut"
+      },
+      {
+        "id": "s2-shot-5",
+        "start": 32.86,
+        "end": 36.43,
+        "kind": "media",
+        "camera": "push",
+        "document": false,
+        "transition": "cut"
+      },
+      {
+        "id": "s2-shot-6",
+        "start": 36.43,
+        "end": 39.64,
+        "kind": "media",
+        "camera": "push",
+        "document": false,
+        "transition": "cut"
+      },
+      {
+        "id": "s2-shot-7",
+        "start": 39.64,
+        "end": 43.21,
+        "kind": "media",
+        "camera": "push",
+        "document": false,
+        "transition": "cut"
+      }
+    ],
+    "v5": [
+      {
+        "id": "s1-S1-1",
+        "start": 0,
+        "end": 8.93,
+        "kind": "media",
+        "camera": "still",
+        "shot": {
+          "role": "CONTEXT",
+          "scale": "WIDE",
+          "wide": "field"
+        },
+        "document": false,
+        "transition": "cut"
+      },
+      {
+        "id": "s1-S1-2",
+        "start": 8.93,
+        "end": 19.29,
+        "kind": "media",
+        "camera": "push",
+        "shot": {
+          "role": "ANCHOR",
+          "scale": "MEDIUM"
+        },
+        "document": false,
+        "transition": "cut"
+      },
+      {
+        "id": "s2-S2-1",
+        "start": 19.29,
+        "end": 25.71,
+        "kind": "media",
+        "camera": "still",
+        "shot": {
+          "role": "EVIDENCE",
+          "scale": "WIDE",
+          "wide": "field"
+        },
+        "document": false,
+        "transition": "dissolve"
+      },
+      {
+        "id": "s2-S2-2",
+        "start": 25.71,
+        "end": 33.93,
+        "kind": "media",
+        "camera": "still",
+        "shot": {
+          "role": "DETAIL",
+          "scale": "DETAIL"
+        },
+        "document": false,
+        "transition": "cut"
+      },
+      {
+        "id": "s2-S2-3",
+        "start": 33.93,
+        "end": 43.21,
+        "kind": "graphic",
+        "camera": "still",
+        "shot": {
+          "role": "GEOGRAPHY",
+          "scale": "WIDE"
+        },
+        "document": false,
+        "transition": "cut"
+      }
+    ],
+    "v6": [
+      {
+        "id": "s1-S1-1",
+        "start": 0,
+        "end": 9.64,
+        "kind": "media",
+        "camera": "still",
+        "shot": {
+          "role": "CONTEXT",
+          "scale": "WIDE",
+          "impact": 3,
+          "wide": "bleed",
+          "statement": {
+            "year": "1995",
+            "place": "Fixture district"
+          }
+        },
+        "document": false,
+        "transition": "cut"
+      },
+      {
+        "id": "s1-S1-2",
+        "start": 9.64,
+        "end": 19.29,
+        "kind": "media",
+        "camera": "push",
+        "shot": {
+          "role": "ANCHOR",
+          "scale": "MEDIUM",
+          "impact": 3,
+          "name": "Fixture Person"
+        },
+        "document": false,
+        "transition": "cut"
+      },
+      {
+        "id": "s2-S2-1",
+        "start": 19.29,
+        "end": 26.07,
+        "kind": "media",
+        "camera": "still",
+        "shot": {
+          "role": "EVIDENCE",
+          "scale": "WIDE",
+          "impact": 1,
+          "wide": "field"
+        },
+        "document": false,
+        "transition": "dissolve"
+      },
+      {
+        "id": "s2-S2-2",
+        "start": 26.07,
+        "end": 33.93,
+        "kind": "media",
+        "camera": "still",
+        "shot": {
+          "role": "DETAIL",
+          "scale": "DETAIL",
+          "impact": 3,
+          "reveal": true
+        },
+        "document": false,
+        "transition": "cut"
+      },
+      {
+        "id": "s2-S2-3",
+        "start": 33.93,
+        "end": 43.21,
+        "kind": "graphic",
+        "camera": "still",
+        "shot": {
+          "role": "GEOGRAPHY",
+          "scale": "WIDE",
+          "impact": 2
+        },
+        "document": false,
+        "transition": "cut"
+      }
+    ]
+  },
+  "findings": {
+    "v4": [
+      {
+        "code": "IDENTICAL_PUSH_RUN",
+        "detail": "4 planos idénticos seguidos",
+        "scenes": [
+          "s2-shot-1",
+          "s2-shot-2",
+          "s2-shot-3",
+          "s2-shot-4"
+        ]
+      }
+    ],
+    "v5": [],
+    "v6": []
+  },
+  "collisions": [
+    {
+      "aspect": "16:9",
+      "scene": "2 ANCHOR/MEDIUM",
+      "credit": {
+        "x": 1397,
+        "y": 50,
+        "w": 468,
+        "h": 25
+      },
+      "caption": {
+        "x": 631,
+        "y": 884,
+        "w": 658,
+        "h": 76
+      },
+      "content": {
+        "x": 742.272,
+        "y": 212.54399999999998,
+        "w": 435.456,
+        "h": 525.3120000000001
+      },
+      "touchesContent": false,
+      "touchesSubtitles": false,
+      "touchesFrameEdge": false
+    },
+    {
+      "aspect": "16:9",
+      "scene": "3 EVIDENCE/WIDE",
+      "credit": {
+        "x": 1398,
+        "y": 51,
+        "w": 467,
+        "h": 22
+      },
+      "caption": {
+        "x": 597,
+        "y": 905,
+        "w": 726,
+        "h": 40
+      },
+      "content": {
+        "x": 693.75,
+        "y": 106,
+        "w": 532.5,
+        "h": 710
+      },
+      "touchesContent": false,
+      "touchesSubtitles": false,
+      "touchesFrameEdge": false
+    },
+    {
+      "aspect": "16:9",
+      "scene": "4 DETAIL/DETAIL",
+      "credit": {
+        "x": 1398,
+        "y": 51,
+        "w": 467,
+        "h": 22
+      },
+      "caption": {
+        "x": 672,
+        "y": 905,
+        "w": 577,
+        "h": 40
+      },
+      "content": {
+        "x": 87.27272727272725,
+        "y": 106,
+        "w": 1745.4545454545455,
+        "h": 710
+      },
+      "touchesContent": false,
+      "touchesSubtitles": false,
+      "touchesFrameEdge": false
+    },
+    {
+      "aspect": "16:9",
+      "scene": "5 GEOGRAPHY/WIDE",
+      "credit": {
+        "x": 1398,
+        "y": 51,
+        "w": 467,
+        "h": 22
+      },
+      "caption": {
+        "x": 598,
+        "y": 905,
+        "w": 722,
+        "h": 40
+      },
+      "content": {
+        "x": 211,
+        "y": 106,
+        "w": 1498,
+        "h": 710
+      },
+      "touchesContent": false,
+      "touchesSubtitles": false,
+      "touchesFrameEdge": false
+    },
+    {
+      "aspect": "9:16",
+      "scene": "2 ANCHOR/MEDIUM",
+      "credit": {
+        "x": 537,
+        "y": 169,
+        "w": 468,
+        "h": 25
+      },
+      "caption": {
+        "x": 161,
+        "y": 1451,
+        "w": 758,
+        "h": 85
+      },
+      "content": {
+        "x": 213.4079999999999,
+        "y": 470.01599999999996,
+        "w": 653.184,
+        "h": 787.968
+      },
+      "touchesContent": false,
+      "touchesSubtitles": false,
+      "touchesFrameEdge": false
+    },
+    {
+      "aspect": "9:16",
+      "scene": "3 EVIDENCE/WIDE",
+      "credit": {
+        "x": 538,
+        "y": 170,
+        "w": 467,
+        "h": 22
+      },
+      "caption": {
+        "x": 119,
+        "y": 1474,
+        "w": 842,
+        "h": 46
+      },
+      "content": {
+        "x": 109.125,
+        "y": 225,
+        "w": 861.75,
+        "h": 1149
+      },
+      "touchesContent": false,
+      "touchesSubtitles": false,
+      "touchesFrameEdge": false
+    },
+    {
+      "aspect": "9:16",
+      "scene": "4 DETAIL/DETAIL",
+      "credit": {
+        "x": 538,
+        "y": 170,
+        "w": 467,
+        "h": 22
+      },
+      "caption": {
+        "x": 206,
+        "y": 1474,
+        "w": 670,
+        "h": 46
+      },
+      "content": {
+        "x": 36.81818181818181,
+        "y": 504.3,
+        "w": 1006.3636363636364,
+        "h": 869.7
+      },
+      "touchesContent": false,
+      "touchesSubtitles": false,
+      "touchesFrameEdge": false
+    },
+    {
+      "aspect": "9:16",
+      "scene": "5 GEOGRAPHY/WIDE",
+      "credit": {
+        "x": 538,
+        "y": 170,
+        "w": 467,
+        "h": 22
+      },
+      "caption": {
+        "x": 120,
+        "y": 1474,
+        "w": 838,
+        "h": 46
+      },
+      "content": {
+        "x": 76,
+        "y": 225,
+        "w": 928,
+        "h": 1149
+      },
+      "touchesContent": false,
+      "touchesSubtitles": false,
+      "touchesFrameEdge": false
+    }
+  ],
+  "verticalAiLabel": {
+    "label": {
+      "x": 75,
+      "y": 167,
+      "w": 195,
+      "h": 33
+    },
+    "caption": {
+      "x": 76,
+      "y": 1386,
+      "w": 928,
+      "h": 150
+    },
+    "labelTouchesSubtitles": false,
+    "labelEdge": false,
+    "captionEdge": false
+  }
+}

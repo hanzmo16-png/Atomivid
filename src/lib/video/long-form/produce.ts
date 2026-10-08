@@ -71,12 +71,14 @@ import { DocumentAssetRegistry, type AssetIdentity } from "./asset-identity";
 import { assertVisualQuality, buildVisualReport, LongFormVisualQualityError, type VisualReport } from "./visual-report";
 import { planReleaseBlockers } from "./cinematic-director";
 import { heroCoverage, VerifiedAssetRegistry } from "./verified-assets";
+import { usesImpactDirection } from "./production-plan-types";
 import { CURATION_FILE_PATH, isAuthorizedCurator, requestedContracts } from "./asset-curation";
 import { containsFixtureOnlyMaterial } from "./fixture-only";
 import { curatedSvgGraphic } from "./premium-composition";
 import type { LongFormCuratedSvgGraphic } from "../../../../remotion/LongFormDoc";
-import { PLAN_ESTIMATE_AVAILABILITY, registryAvailability, resolveSequences, usesSequences, validateSequenceIntents, type ExecutableSequence } from "./sequence-intent";
+import { PLAN_ESTIMATE_AVAILABILITY, registryAvailability, resolveSequences, usesSequences, validateImpactIntents, validateSequenceIntents, type ExecutableSequence } from "./sequence-intent";
 import { directSequenceScenes, planSequenceShots, sequenceShotsForSpan } from "./sequence-direction";
+import { directImpactScenes, hookStatus } from "./impact-direction";
 import { ProductionBudget, supabaseBudgetStore, type BudgetStore } from "./production-budget";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import { getLongFormBudget } from "./cost";
@@ -235,6 +237,7 @@ export async function generateLongFormVideoFromScript({
     const v5 = usesSequences(plan);
     if (v5) {
       const check = validateSequenceIntents(plan.sequences, beats as ProductionPlanBeatInput[]);
+      if (usesImpactDirection(plan)) check.errors.push(...validateImpactIntents(plan.sequences!));
       if (check.errors.length > 0) throw new LongFormVisualQualityError(check.errors.map((e) => `SEQUENCE_CONTRACT: ${e}`));
     }
     const estimate = v5
@@ -511,7 +514,13 @@ export async function generateLongFormVideoFromScript({
       if (graphic) geography.set(i, graphic);
     }
   }
-  const shotScenes = sequences ? directSequenceScenes(anchoredScenes, allocated.shots, executions, { geography: (i) => geography.get(i) ?? null }) : anchoredScenes;
+  const sequenceScenes = sequences ? directSequenceScenes(anchoredScenes, allocated.shots, executions, { geography: (i) => geography.get(i) ?? null }) : anchoredScenes;
+  // v6 (offline): peso del momento DESPUÉS de la verdad — solo presentación de lo ya ejecutado.
+  const shotScenes = sequences && usesImpactDirection(plan) ? directImpactScenes(sequenceScenes, allocated.shots, executions) : sequenceScenes;
+  if (sequences && usesImpactDirection(plan)) {
+    const hook = hookStatus(shotScenes);
+    console.info(`[atomivid:long-form:produce] ${requestId} — gancho v6: ${hook.status} (${hook.reason})`);
+  }
 
   const emphasisSet = buildEmphasisSet([]);
   // v3: ningún subtítulo cruza un corte de escena; v1/v2 sin cambios.

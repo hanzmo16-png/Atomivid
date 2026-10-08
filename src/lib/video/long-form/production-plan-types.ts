@@ -36,6 +36,13 @@ export function usesVisualIdentity(plan: { version: number }): boolean {
 /** v5: el plan dirige por secuencias (sequence-intent.ts). Solo existe si el plan las trae; v1–v4 nunca. */
 export const SEQUENCE_PLAN_VERSION = 5;
 
+/** v6 (Cinematic Opening): impacto narrativo dentro de las secuencias v5. Prueba OFFLINE: el worker no lo ejecuta. */
+export const IMPACT_PLAN_VERSION = 6;
+
+export function usesImpactDirection(plan: { version: number }): boolean {
+  return plan.version >= IMPACT_PLAN_VERSION;
+}
+
 export const VISUAL_STRATEGY_LABEL: Record<VisualStrategy, string> = {
   economical: "Económico / archivo",
   balanced: "Equilibrado",
