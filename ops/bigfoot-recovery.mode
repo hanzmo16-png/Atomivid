@@ -1,2 +1,2 @@
-review-format
-# Verify strict reader against committed response before production resume
+recover-format
+# Production READY 2877db3; exact saved c5a8f5bc incident, counters and USD2.10 cap preserved
