@@ -5,7 +5,7 @@
  *   - Cuenta habilitada cuyo guion no es v6 (guion anterior, impacto incompleto, contrato inválido): v3.
  * Ningún trabajo persistido cambia: el worker ejecuta el plan confirmado tal cual.
  */
-import { computeProductionPlan, type ProductionPlan, type ProductionPlanBeatInput } from "./production-plan";
+import { computeProductionPlan, getRealLongFormProviderNames, VISUAL_STRATEGIES, type ProductionPlan, type ProductionPlanBeatInput } from "./production-plan";
 import { PRODUCT_DEFAULT_PLAN_VERSION } from "./production-plan-types";
 import { sequencesFromScript } from "./script-sequences";
 import type { VisualStrategy } from "./shots";
@@ -33,4 +33,13 @@ export function productPlan(input: {
     return { plan: computeProductionPlan({ ...base, version: PRODUCT_DEFAULT_PLAN_VERSION }), engine: "default", reason: "el guion no declara impacto en todas sus escenas (guion anterior a V6)" };
   }
   return { plan: computeProductionPlan({ ...base, version: PRODUCT_DEFAULT_PLAN_VERSION }), engine: "default", reason: "Cinematic V6 no está habilitado para esta cuenta" };
+}
+
+/** The three plans Configure shows (and the refresh route re-checks), computed exactly as the page does. */
+export function configurePlans(input: { script: { topic?: string; beats: (ProductionPlanBeatInput & { purpose?: string })[] }; topic: string; durationSeconds: number | null; cinematicV6: boolean }): Record<VisualStrategy, ProductPlanResult> {
+  const beats = input.script.beats.map((b) => ({ id: b.id, type: b.type, purpose: b.purpose, narration: b.narration, visuals: b.visuals }));
+  return Object.fromEntries(VISUAL_STRATEGIES.map((strategy) => [strategy, productPlan({
+    beats, topic: input.script.topic || input.topic, strategy, providers: getRealLongFormProviderNames(),
+    requestedDurationSeconds: input.durationSeconds ?? undefined, cinematicV6: input.cinematicV6,
+  })])) as Record<VisualStrategy, ProductPlanResult>;
 }

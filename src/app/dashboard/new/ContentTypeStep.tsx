@@ -7,7 +7,8 @@ import { NewVideoForm } from "./NewVideoForm";
 type ContentType = "reel" | "avatar" | "long_form";
 
 type Option = {
-  type: ContentType;
+  /** "podcast" only navigates (href); it is never a selectable form type. */
+  type: ContentType | "podcast";
   title: string;
   description: string;
   icon: ReactNode;
@@ -144,6 +145,13 @@ export function ContentTypeStep({
             icon: <DocumentaryIcon />,
             href: "/dashboard/long-form/new",
           },
+          {
+            type: "podcast" as const,
+            title: "Podcast (solo audio)",
+            description: "Narra tu guion con una voz de tu cuenta o sube tu grabación. Beta.",
+            icon: <DocumentaryIcon />,
+            href: "/dashboard/podcast",
+          },
         ]
       : []),
   ];
@@ -163,7 +171,7 @@ export function ContentTypeStep({
             <button
               key={opt.type}
               type="button"
-              onClick={() => setSelected(opt.type)}
+              onClick={() => opt.type !== "podcast" && setSelected(opt.type)}
               className={CARD_CLASS}
             >
               <span className={ICON_WRAP_CLASS}>{opt.icon}</span>

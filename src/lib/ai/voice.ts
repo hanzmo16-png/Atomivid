@@ -51,12 +51,13 @@ const VOICE_SETTINGS = {
  * caché por beat: si cambia cualquiera de estos valores, debe tratarse
  * como una síntesis nueva, nunca reutilizar audio de una voz distinta.
  */
-export function getVoiceIdentity(language: "es" | "en" = "es"): {
+export function getVoiceIdentity(language: "es" | "en" = "es", voiceIdOverride?: string): {
   voiceId: string;
   modelId: string;
   voiceSettingsJson: string;
 } {
-  const voiceId = VOICE_ID_BY_LANGUAGE[language] || DEFAULT_VOICE_ID;
+  // Override: a voice the user picked from their own account (podcast); never a silent fallback.
+  const voiceId = voiceIdOverride?.trim() || VOICE_ID_BY_LANGUAGE[language] || DEFAULT_VOICE_ID;
   const identitySettings = {
     stability: VOICE_SETTINGS.stability,
     similarity_boost: VOICE_SETTINGS.similarity_boost,
@@ -122,6 +123,8 @@ export async function synthesizeVoice(
   language: "es" | "en" = "es",
   /** Ajuste de ritmo de habla (ver VoiceProvider.synthesize en providers/types.ts). */
   speed?: number,
+  /** Voz elegida por el usuario de su propia cuenta (podcast). Sin ella, la voz configurada del producto. */
+  voiceIdOverride?: string,
 ): Promise<{
   audioBuffer: Buffer;
   durationSeconds: number;
@@ -131,7 +134,7 @@ export async function synthesizeVoice(
     throw new Error("Falta configurar ELEVENLABS_API_KEY");
   }
 
-  const voiceId = VOICE_ID_BY_LANGUAGE[language] || DEFAULT_VOICE_ID;
+  const voiceId = voiceIdOverride?.trim() || VOICE_ID_BY_LANGUAGE[language] || DEFAULT_VOICE_ID;
   const voiceSettings =
     speed === undefined
       ? VOICE_SETTINGS

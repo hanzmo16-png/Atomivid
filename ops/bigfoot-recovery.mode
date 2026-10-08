@@ -1,2 +1,2 @@
-preflight-preview
-# read-only: what the Configure pre-flight panel shows for Bigfoot (no writes, no balance refresh)
+supply-check
+# read-only provider capacity for the consolidated budget

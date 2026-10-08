@@ -4,6 +4,7 @@ import { activeApprovals, canCurateAssets, curationOperational, contractSentence
 import { contractKey } from "@/lib/video/long-form/verified-assets";
 import { decideAction, proposeManualAction, revokeAction, searchCommonsAction } from "./actions";
 import { loadCurationContext } from "./store";
+import { UploadAsset } from "./UploadAsset";
 
 /**
  * Curador mínimo (ADMIN/INTERNO): UN par recurso ↔ contrato cada vez. El
@@ -128,6 +129,7 @@ export default async function AssetCurationPage({ params }: { params: Promise<{ 
                 Proponer recurso manual para este contrato
               </button>
             </form>
+            <UploadAsset requestId={requestId} contractKey={req.key} inputClass={input} />
           </details>
         ))}
       </section>

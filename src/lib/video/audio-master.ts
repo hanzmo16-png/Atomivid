@@ -35,9 +35,10 @@ export type LoudnessMeasurement = {
   threshold: number;
 };
 
+/** ffmpeg binary: PATH by default (workers); FFMPEG_BIN where it is bundled instead (Vercel functions). */
 function runFfmpeg(args: string[]): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const proc = spawn("ffmpeg", args);
+    const proc = spawn(process.env.FFMPEG_BIN || "ffmpeg", args);
     let stdout = "";
     let stderr = "";
     proc.stdout.on("data", (chunk) => (stdout += chunk.toString()));

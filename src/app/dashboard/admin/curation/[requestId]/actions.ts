@@ -6,6 +6,8 @@ import { searchCommonsProposals } from "@/lib/providers/footage/commons";
 import { canCurateAssets, curationOperational, decideLink, proposeAsset, revokeDecision } from "@/lib/video/long-form/asset-curation";
 import { assetFromProposal, ASSET_SOURCES, type AssetSource, type CuratableAsset } from "@/lib/video/long-form/verified-assets";
 import { loadCurationContext, saveCurationFile } from "./store";
+import { createServiceClient } from "@/lib/supabase/service";
+import { isUploadPathFor, newUploadPath, UPLOAD_MAX_BYTES, UPLOAD_MEDIA_URL_TTL_SECONDS, UPLOAD_MIME, validateUpload, type UploadMime } from "@/lib/video/long-form/curation-upload";
 
 /**
  * Acciones del curador. Cada una vuelve a comprobar la sesión (nunca confía
@@ -102,4 +104,75 @@ export async function searchCommonsAction(requestId: string, contractKey: string
   }
   await saveCurationFile(file);
   refresh();
+}
+
+const UPLOAD_RIGHTS = ["PD", "CC0", "CC_BY", "LICENSED", "OWNED"] as const;
+const UPLOAD_SOURCE: Record<(typeof UPLOAD_RIGHTS)[number], AssetSource> = { PD: "manual", CC0: "manual", CC_BY: "manual", LICENSED: "licensed_archive", OWNED: "owned" };
+const BUCKET = "videos";
+
+/** Paso 1 de la subida: URL de subida firmada, de un solo uso, a una ruta que este servidor elige. */
+export async function createUploadTicketAction(requestId: string, contractKey: string, mime: string, size: number): Promise<{ path: string; token: string } | { error: string }> {
+  await curator();
+  const ctx = await context(requestId);
+  if (!ctx.requested.has(contractKey)) return { error: "Contrato que el plan no pide." };
+  if (!(UPLOAD_MIME as readonly string[]).includes(mime)) return { error: "Solo se aceptan imágenes JPEG, PNG o WebP." };
+  if (!(size > 0) || size > UPLOAD_MAX_BYTES) return { error: `El archivo debe pesar entre 1 byte y ${UPLOAD_MAX_BYTES / 1024 / 1024} MB.` };
+  const path = newUploadPath(requestId, mime as UploadMime);
+  const { data, error } = await createServiceClient().storage.from(BUCKET).createSignedUploadUrl(path);
+  if (error || !data) return { error: "No se pudo preparar la subida. Inténtalo de nuevo." };
+  return { path, token: data.token };
+}
+
+/**
+ * Paso 2: el servidor relee lo guardado y decide (tipo real, dimensiones, tamaño, SHA-256). Si pasa, se
+ * PROPONE para este contrato con la procedencia y los derechos declarados. Nunca aprueba: la aprobación
+ * es la decisión separada del curador sobre el par.
+ */
+export async function finalizeUploadAction(requestId: string, contractKey: string, path: string, formData: FormData): Promise<{ ok: true } | { error: string }> {
+  await curator();
+  const ctx = await context(requestId);
+  if (!ctx.requested.has(contractKey)) return { error: "Contrato que el plan no pide." };
+  if (!isUploadPathFor(requestId, path)) return { error: "Ruta de subida inválida." };
+  const storage = createServiceClient().storage.from(BUCKET);
+  const discard = async (error: string) => { await storage.remove([path]).catch(() => undefined); return { error }; };
+  const rightsKind = str(formData, "rightsKind") as (typeof UPLOAD_RIGHTS)[number];
+  if (!(UPLOAD_RIGHTS as readonly string[]).includes(rightsKind)) return discard("Tipo de derechos inválido.");
+  const sourceUrl = str(formData, "sourceUrl"), licenseUrl = str(formData, "licenseUrl"), rightsReference = str(formData, "rightsReference");
+  const httpsOk = (u: string) => /^https:\/\/[^\s]+$/i.test(u);
+  if (rightsKind !== "OWNED" && !httpsOk(sourceUrl)) return discard("Indica la página de procedencia (https://…) donde se publica este archivo.");
+  if (sourceUrl && !httpsOk(sourceUrl)) return discard("La procedencia debe ser una URL https://.");
+  if (licenseUrl && !httpsOk(licenseUrl)) return discard("La URL de licencia debe ser https://.");
+  if ((rightsKind === "LICENSED" || rightsKind === "OWNED") && !rightsReference) return discard("Indica la referencia del contrato o de la autoría (derechos licenciados/propios).");
+  if (rightsKind === "CC_BY" && !str(formData, "creditText")) return discard("CC BY exige el crédito visible (autor y licencia).");
+  const { data: blob, error: dlError } = await storage.download(path);
+  if (dlError || !blob) return { error: "No se encontró el archivo subido. Vuelve a subirlo." };
+  const checked = validateUpload(Buffer.from(await blob.arrayBuffer()));
+  if ("error" in checked) return discard(`Archivo rechazado: ${checked.error}.`);
+  const { data: signed, error: signError } = await storage.createSignedUrl(path, UPLOAD_MEDIA_URL_TTL_SECONDS);
+  if (signError || !signed) return discard("No se pudo registrar el archivo. Inténtalo de nuevo.");
+  const asset: CuratableAsset = {
+    id: `upload:${checked.sha256.slice(0, 24)}`,
+    source: UPLOAD_SOURCE[rightsKind],
+    sourceUrl: sourceUrl || `storage:${BUCKET}/${path}`,
+    mediaUrl: signed.signedUrl,
+    mediaType: "image",
+    mime: checked.mime,
+    width: checked.width,
+    height: checked.height,
+    rights: rightsKind === "LICENSED" || rightsKind === "OWNED"
+      ? { kind: rightsKind, rightsReference, ...(licenseUrl ? { licenseUrl } : {}) }
+      : { kind: rightsKind, ...(licenseUrl ? { licenseUrl } : {}) },
+    contentSha256: checked.sha256,
+    ...(str(formData, "creator") ? { creator: str(formData, "creator") } : {}),
+    ...(str(formData, "creditText") ? { creditText: str(formData, "creditText") } : {}),
+    ...(str(formData, "description") ? { description: str(formData, "description") } : {}),
+  };
+  // Same bytes already proposed (same id): reuse that asset instead of a second copy.
+  const existing = ctx.file.assets.find((a) => a.id === asset.id);
+  const out = proposeAsset(ctx.file, { asset: existing ?? asset, contractKey, origin: "manual", now: new Date().toISOString() }, ctx.requested);
+  if ("error" in out) return discard(`Archivo rechazado: ${out.error}.`);
+  if (existing) await storage.remove([path]).catch(() => undefined);
+  await saveCurationFile(out.file);
+  refresh();
+  return { ok: true };
 }

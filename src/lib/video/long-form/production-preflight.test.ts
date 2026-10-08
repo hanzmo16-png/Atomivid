@@ -78,3 +78,47 @@ test("servidor: la verificación visual corre antes de reservar; la reserva solo
   const produce = readFileSync(path.join(__dirname, "produce.ts"), "utf8");
   assert.match(produce, /await visualReleasePreflight\(/, "the worker and the page share one implementation");
 });
+
+test("actualizar disponibilidad: reutiliza lecturas < 60 s, errores claros sin detalles, manuales no se consultan", async () => {
+  const { refreshDemandedCapacity, REFRESH_MIN_INTERVAL_MS } = await import("./refresh-capacity");
+  const now = Date.parse("2026-10-08T12:00:00Z");
+  const lastApi: Record<string, string> = { elevenlabs: new Date(now - 20_000).toISOString(), runway: new Date(now - REFRESH_MIN_INTERVAL_MS - 1).toISOString() };
+  const svc = { from: () => { let p = ""; const q = { select: () => q, eq: (k: string, v: string) => { if (k === "provider") p = v; return q; }, order: () => q, limit: () => q, maybeSingle: async () => ({ data: lastApi[p] ? { checked_at: lastApi[p] } : null }) }; return q; } } as never;
+  const calls: string[] = [];
+  const out = await refreshDemandedCapacity(svc, ["elevenlabs", "elevenlabs", "runway", "heygen", "openai", "anthropic"], { now: () => now,
+    refresh: async (_s, p) => { calls.push(p); if (p === "runway") throw new Error("401 account acct_secret@example.com"); return false; } });
+  assert.deepEqual(calls, ["runway", "heygen"], "elevenlabs read 20 s ago is reused; duplicates collapse");
+  assert.deepEqual(out.reused, ["elevenlabs"]);
+  assert.deepEqual(out.manual, ["openai", "anthropic"]);
+  assert.match(out.errors.runway, /Runway no respondió/);
+  assert.doesNotMatch(JSON.stringify(out), /secret|401|@/);
+  assert.match(out.errors.heygen, /credencial de HeyGen no está configurada/);
+});
+
+test("origen del saldo: API del proveedor vs registro manual, y el error de actualización llega al panel", async () => {
+  const { sourceLabel } = await import("./production-preflight");
+  assert.equal(sourceLabel("provider_api"), "consultado al proveedor");
+  assert.match(sourceLabel("manual_entry")!, /manualmente \(no consultado al proveedor\)/);
+  const svc = fakeService({ elevenlabs: { level: "UNKNOWN", free: null }, openai: { level: "GREEN", free: 10 } }) as unknown as { from: unknown };
+  const base = svc.from as () => unknown;
+  const snapRows: Record<string, { checked_at: string; reliability: string; health: string }> = { elevenlabs: { checked_at: "2026-10-08T11:00:00Z", reliability: "provider_api", health: "ok" }, openai: { checked_at: "2026-10-06T05:05:00Z", reliability: "manual_entry", health: "ok" } };
+  (svc as { from: unknown }).from = (table: string) => {
+    if (table !== "pi_capacity_snapshots") return base();
+    let p = ""; const q = { select: () => q, eq: (_k: string, v: string) => { p = v; return q; }, order: () => q, limit: () => q, maybeSingle: async () => ({ data: snapRows[p] ?? null }) };
+    return q;
+  };
+  const r = await strategyPreflight(svc as never, { strategy: "balanced", plan, scriptJson, refreshErrors: { elevenlabs: "ElevenLabs no respondió" } });
+  const el = r.providers.find((p) => p.provider === "elevenlabs")!, oa = r.providers.find((p) => p.provider === "openai")!;
+  assert.deepEqual([el.verdict, el.source, el.refreshError], ["Sin verificar", "provider_api", "ElevenLabs no respondió"], "UNKNOWN never becomes sufficient");
+  assert.deepEqual([oa.source, oa.snapshotAt], ["manual_entry", "2026-10-06T05:05:00Z"]);
+});
+
+test("ruta de actualización: solo dueño, solo consulta saldos, nunca reserva ni cobra", () => {
+  const src = readFileSync(path.join(__dirname, "../../../app/api/generate/[id]/refresh-capacity/route.ts"), "utf8");
+  assert.match(src, /lookupConfigurableRequest\(supabase, user, id/);
+  assert.match(src, /refreshDemandedCapacity\(service, providers\)/);
+  assert.doesNotMatch(src, /reserveJobSupply|pi_reserve_job_supply|guardPaidCall|synthesize|\.insert\(|\.update\(/);
+  const ui = readFileSync(path.join(__dirname, "../../../app/dashboard/long-form/configure/[id]/ConfigureProduction.tsx"), "utf8");
+  assert.match(ui, /setCooldownUntil\(started \+ 60_000\)/);
+  assert.match(ui, /disabled=\{refresh\.cooldownSeconds > 0\}/);
+});

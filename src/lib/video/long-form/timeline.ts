@@ -315,7 +315,7 @@ function concatWithFfmpeg(
     writeFileSync(listPath, files.map((f) => `file '${f}'`).join("\n"));
     const outPath = join(dir, `out.${extension}`);
 
-    const result = spawnSync("ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", outPath], {
+    const result = spawnSync(process.env.FFMPEG_BIN || "ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", outPath], {
       encoding: "utf8",
     });
     if (result.status !== 0) {
