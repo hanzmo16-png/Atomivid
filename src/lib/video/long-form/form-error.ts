@@ -4,11 +4,13 @@ import { DocumentaryResearchError } from "./research";
 import { EditorialQualityError } from "./editorial";
 import { LongFormScriptDurationError } from "./documentary-script";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
+import { RecoveryBudgetExceededError } from "@/lib/supply/recovery-budget";
 
 /** Never send raw SDK JSON, ledger identifiers or database details to the form. */
 export function documentaryFormError(error: unknown, diagnosticId: string): string {
   const suffix = ` (Código: ${diagnosticId})`;
   if (error instanceof SupplyUnavailableError) return error.customerMessage + suffix;
+  if (error instanceof RecoveryBudgetExceededError) return error.customerMessage + suffix;
   if (error instanceof DocumentaryResponseError || error instanceof DocumentaryResearchError)
     return error.message + suffix;
   if (error instanceof EditorialEvidenceError) return "El revisor no pudo respaldar sus observaciones con citas válidas. El guion sigue guardado, pendiente de revisión; no se inició la producción audiovisual." + suffix;

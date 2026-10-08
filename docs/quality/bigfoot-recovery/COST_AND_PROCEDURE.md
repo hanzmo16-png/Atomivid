@@ -52,22 +52,88 @@ Structural limits in the code:
 
 If pass 1 still has blockers, the job stops as an **editorial** failure, not "Guion listo". Visual planning is not spent in that case.
 
-Proposed ceiling for the authorization: **USD 2.10** for recovery up to "Guion listo" with the existing passes.
-Each extra editorial round (USD 1.52 maximum) needs a separate decision.
-The ceiling can be checked by summing `committed_usd` (and open reservations) in `pi_paid_operations` for this job's `project_id`. The read-only diagnostic already prints them.
-The existing per-provider daily and monthly caps (`pi_supply_policies`) still apply.
+Proposed ceiling: **USD 2.10** of NEW spend for this recovery, now **enforced by the database** (next section).
+Each extra editorial round (USD 1.52 maximum) needs a separate decision. The cap is never raised automatically.
 
-## Procedure after deploy and spend are approved
+## Hard cap (migration `20261008120000_documentary_recovery_budget.sql`, prepared, NOT applied)
 
-1. Merge PR #61 and deploy. Confirm the production deploy SHA.
-2. Run the read-only diagnostic. Confirm the job is still `failed` / `technical` with `retry_count` 0, and the ledger still holds 5 COMMITTED entries.
-3. The owner presses **Reintentar** once.
-   - `retryScriptJob` is fenced on `updated_at` (double clicks are ignored).
-   - The worker claim uses `run_token` (job ownership).
-   - The retry does not change the ledger scope, so the 5 responses are reused.
-4. Each worker invocation makes at most one new call: the repair, then the correction fragments, then review pass 1, then the 5 visual plans. Everything else replays from the ledger.
-5. After each invocation, check the ledger total against the USD 2.10 ceiling with the read-only diagnostic.
-   - Stop (do not press Reintentar) if a reservation would exceed it.
-   - Stop if any operation is `SUBMITTED` or `RECONCILIATION_REQUIRED`. Never resubmit; reconcile first.
-6. "Guion listo" requires editorial approval by the normal rules. A repaired label never approves anything.
-   - If pass 1 is blocked, the job ends as an editorial failure. More rounds are a new owner decision.
+**Mechanism.**
+- `pi_recovery_budgets` holds one row per job.
+  - Key: the job's ledger `project_id`.
+  - Bound to `job_id` and `owner_id`; the `project_id` must be `documentary:<owner>:…`.
+  - Stores `cap_usd` (`numeric`), the `baseline_keys`, and an authorization reference.
+- The row is immutable: a trigger forbids changing the cap or baseline, deleting the row, or reopening a closed one.
+- `pi_open_recovery_budget` is idempotent.
+  - Opening again returns the existing budget unchanged: no reset, no raise.
+  - It refuses a job that is not `failed`, a project of another owner, or a project with uncertain operations.
+- The original `pi_submit_with_supply` is kept **byte-identical** as `pi_submit_with_supply_core`. A new `pi_submit_with_supply` with the same name and signature runs first and works in three steps:
+  1. It locks the budget row (`FOR UPDATE`).
+  2. It re-reads the operation and computes the spend in exact `numeric`.
+  3. It admits the call only if `committed + pending/uncertain + this reservation ≤ cap`; otherwise it refuses **before** the provider and the operation stays `RESERVED`.
+  4. If admitted, it delegates to the unchanged core, so all existing supply/cap/concurrency/reconciliation checks still apply.
+- Projects without a budget behave exactly as before.
+- The application role can no longer call the core directly. Opening a budget is not granted to the application; it is an operator action.
+
+**What counts against the USD 2.10.** All ledger operations of the job's project **except** the baseline (the five already-paid responses, frozen when the budget is opened):
+
+| Ledger status | Counted as |
+|---|---|
+| `COMMITTED` | its committed (actual) cost |
+| `SUBMITTED`, `PROVIDER_JOB_RECORDED`, `RECONCILIATION_REQUIRED` | its full reservation (uncertain spend is never released without reconciliation evidence) |
+| `REFUNDED` | 0 |
+| `RESERVED` (not admitted) | 0. It can reach the provider only through this same locked check |
+
+- Reusing a COMMITTED response never calls the check again, so it never reserves or charges twice.
+- This covers every pending step: function repair, writer correction, editorial review(s), reference repair and visual planning. They all share the job's project.
+
+**Atomicity.** Two workers serialize on the budget row lock. Two reservations that each fit but together exceed the cap cannot both be admitted. This was verified with two real Postgres sessions: 0.60 + 0.60 under a 1.00 cap, and the second worker waited for the first one's lock and was refused. Removing the lock makes the same test fail, so the test detects it.
+
+**Precision.**
+- Exact `numeric` in the database. 0.7 + 0.7 + 0.7 = 2.10 is admitted, where a JS double gives 2.0999999999999996; 0.0001 more is refused.
+- The ledger column keeps 4 decimals, so the application now rounds reservations and committed costs **up** to 0.0001 before storing them (`ceilLedgerUsd`). A stored amount is never below the computed one.
+- The ledger key does not include the amount, so the five paid fingerprints are unaffected.
+
+**Budget projection (worst case, one call at a time).**
+
+| Step | Max reservation | Cumulative |
+|---|---|---|
+| Repair | 0.038 | 0.038 |
+| Correction (up to 4 writer calls) | ≤ 1.20 | 1.238 |
+| Review, pass 1 | 0.19 | 1.428 |
+| Repair, pass 1 | 0.04 | 1.468 |
+| Reference repair | 0.09 | 1.558 |
+| 5 visual plans | 0.50 | 2.058 |
+
+All steps fit under 2.10 even in the worst case. Expected actual spend is about 0.35–0.55.
+
+## Procedure after deploy and spend are approved (nothing here has been executed)
+
+1. Review and merge PR #61.
+2. **Apply the migration** `20261008120000_documentary_recovery_budget.sql` in Supabase. Do this before or with the deploy; the code works with or without it.
+   - Verify: `pi_submit_with_supply_core` exists, and `service_role` can execute `pi_submit_with_supply` but not the core.
+3. Deploy, then confirm the production deploy SHA.
+4. Run the read-only diagnostic. Check:
+   - the job is still `failed` / `technical`, with `retry_count` 0;
+   - there are 5 COMMITTED ledger operations;
+   - there are no uncertain operations;
+   - the `projectHash` printed by the replay.
+5. **Open the budget once** in the Supabase SQL editor, as the owner (not the application role):
+
+   ```sql
+   select public.pi_open_recovery_budget(
+     '03738404-02ce-440a-a588-cb51ae4a0e9f',
+     (select project_id from public.pi_paid_operations
+       where left(encode(sha256(convert_to(project_id,'UTF8')),'hex'),10) = '<projectHash>' limit 1),
+     2.10, '<authorization reference>');
+   ```
+
+   Expect `opened: true` and `baselineOperations: 5`. `pi_recovery_budget_usage(project_id)` must show remaining 2.10.
+6. The owner presses **Reintentar** once.
+   - Fenced on `updated_at` and on the worker `run_token`.
+   - The same ledger project is reused, so the 5 responses replay for free.
+7. Each worker invocation makes at most one new call. The database refuses any call that would exceed 2.10, before the provider.
+   - On refusal the job fails with "Se alcanzó el presupuesto autorizado…". Never raise the cap without a new authorization.
+   - On any uncertain operation, stop and reconcile; never resubmit.
+8. "Guion listo" requires editorial approval under the normal rules.
+   - If pass 1 is blocked, the job ends as an editorial failure; extra rounds are a new decision.
+   - Close the budget afterwards: `update pi_recovery_budgets set status='CLOSED', closed_at=now() where project_id=…`.

@@ -7,6 +7,7 @@
  * - Writes are disabled: this script never updates rows, files, the checkpoint or the ledger.
  * Only structure is printed (stages, hit counts, counts of findings), never script content. */
 import { createClient } from "@supabase/supabase-js";
+import { createHash } from "node:crypto";
 import { stableHash } from "../src/lib/production-intelligence/canonical";
 import { researchDocumentary } from "../src/lib/video/long-form/research";
 import { generateDocumentaryScript } from "../src/lib/video/long-form/documentary-script";
@@ -18,11 +19,13 @@ import { documentarySupplyScope } from "../src/lib/supply/anthropic";
 import { scriptFailureKind } from "../src/lib/video/long-form/script-jobs";
 import { cinematicV6Enabled } from "../src/lib/video/long-form/cinematic-v6-access";
 import { FUNCTION_REPAIR_CONTRACT } from "../src/lib/video/long-form/editorial-function-repair";
-import { anthropicReservation } from "../src/lib/supply/anthropic-cost";
+import { anthropicReservation, ceilLedgerUsd } from "../src/lib/supply/anthropic-cost";
 import { getPricingConfig } from "../src/lib/billing/pricing";
 
 /** SIMULATED repair label (test adapter only; the real choice belongs to the model under the repair contract). */
 const SIMULATED_REPAIR_LABEL = "consequence";
+/** Proposed recovery cap; the replay only SIMULATES its admission (integer 0.0001 units, worst case = full reservation). */
+const RECOVERY_CAP_UNITS = 21000;
 
 const JOB_ID = "03738404-02ce-440a-a588-cb51ae4a0e9f";
 
@@ -63,9 +66,20 @@ async function main() {
   };
   // ONE transport for the whole replay: the SDK client is cached across runs, so per-run state lives in `run`.
   type RunState = { stage: string; boundary: { stage: string; call: string; maxTokens: number; reservationUsd: number } | null; used: Set<string>; repairReused: number;
-    calls: { kind: string; cached: boolean; maxTokens: number; reservationUsd: number }[] };
+    calls: { kind: string; cached: boolean; maxTokens: number; reservationUsd: number }[];
+    budget: { kind: string; reservationUsd: number; cumulativeUsd: number; fits: boolean }[] };
   let run: RunState;
-  const usd = (params: Parameters<typeof anthropicReservation>[0]) => Math.round(anthropicReservation(params, getPricingConfig()) * 10000) / 10000;
+  const usd = (params: Parameters<typeof anthropicReservation>[0]) => ceilLedgerUsd(anthropicReservation(params, getPricingConfig()));
+  /** New calls only (baseline responses are free). Simulated repairs count as committed at their full reservation
+   * (worst case) across runs, exactly once; the boundary call is only evaluated, never added. */
+  let committedNewUnits = 0;
+  const admit = (kind: string, reservationUsd: number, commit: boolean) => {
+    const units = Math.round(reservationUsd * 1e4);
+    const fits = committedNewUnits + units <= RECOVERY_CAP_UNITS;
+    if (fits && commit) committedNewUnits += units;
+    run.budget.push({ kind, reservationUsd, cumulativeUsd: (committedNewUnits + (commit ? 0 : units)) / 1e4, fits });
+    return fits;
+  };
   process.env.ANTHROPIC_API_KEY = "offline-replay-no-provider-key"; // the SDK requires a value; the transport below never reaches the network
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async (_url: unknown, init?: { body?: unknown }) => {
@@ -74,6 +88,7 @@ async function main() {
     if (kind === "function-repair") {
       // SIMULATED adapter for the bounded repair (never a provider): one stored answer per exact request.
       if (!simulatedRepairs.has(key)) {
+        if (!admit(kind, usd(params), true)) { run.boundary = { stage: run.stage, call: `${kind} (blocked by recovery budget)`, maxTokens: params.max_tokens, reservationUsd: usd(params) }; throw Error("RECOVERY_BUDGET_BLOCKED"); }
         simulatedRepairCalls++;
         repairReservation = usd(params);
         const prompt = JSON.parse(params.messages[0].content) as { targets: { path: string }[] };
@@ -86,6 +101,7 @@ async function main() {
     const saved = responses.get(key);
     run.calls.push({ kind, cached: !!saved, maxTokens: params.max_tokens, reservationUsd: usd(params) });
     if (!saved) {
+      admit(kind, usd(params), false);
       run.boundary = { stage: run.stage, call: kind, maxTokens: params.max_tokens, reservationUsd: usd(params) };
       throw Error("OFFLINE_CACHE_BOUNDARY");
     }
@@ -95,7 +111,7 @@ async function main() {
 
   let sizes: Record<string, number> = {};
   const runOnce = async (label: string) => {
-    run = { stage: "Investigando fuentes", boundary: null, used: new Set(), repairReused: 0, calls: [] };
+    run = { stage: "Investigando fuentes", boundary: null, used: new Set(), repairReused: 0, calls: [], budget: [] };
     const stages: string[] = [], drafts: { pass: number; reviewed: boolean; blockers?: number; findings?: number }[] = [];
     let approved = false, outcome: Record<string, unknown>;
     try {
@@ -121,6 +137,7 @@ async function main() {
     console.log("REPLAY", JSON.stringify({ run: label, savedResponses: responses.size, reused: run.used.size, unusedSaved: responses.size - run.used.size, simulatedRepairCalls,
       repairReused: run.repairReused, simulatedRepairLabel: SIMULATED_REPAIR_LABEL, cinematicV6, stages, drafts, approved, ...outcome }));
     console.log("CALLS", JSON.stringify({ run: label, calls: run.calls }));
+    console.log("BUDGET", JSON.stringify({ run: label, capUsd: RECOVERY_CAP_UNITS / 1e4, simulated: true, newCalls: run.budget }));
   };
   try {
     await runOnce("first");
@@ -128,6 +145,9 @@ async function main() {
   } finally { globalThis.fetch = originalFetch; delete process.env.ANTHROPIC_API_KEY; }
   console.log("REPAIR", JSON.stringify({ contract: FUNCTION_REPAIR_CONTRACT, simulatedRepairCalls, reservationUsd: repairReservation }));
   console.log("SIZES", JSON.stringify(sizes));
+  // Identifies the ledger project for pi_open_recovery_budget without printing the owner id:
+  // left(encode(sha256(convert_to(project_id,'UTF8')),'hex'),10) in SQL gives the same value.
+  console.log("PROJECT", JSON.stringify({ projectHash: createHash("sha256").update(scope.projectId).digest("hex").slice(0, 10), baselineOperations: responses.size }));
 
   const { data: after } = await db.from("documentary_script_jobs").select("status,stage,editorial_checkpoint").eq("id", JOB_ID).single();
   console.log("INVARIANTS", JSON.stringify({ newPaidCalls: 0, productionWrites: 0, checkpointUnchanged: stableHash(after?.editorial_checkpoint ?? null, 16) === checkpointBefore, jobStatus: after?.status, jobStage: after?.stage }));
