@@ -146,12 +146,12 @@ async function main() {
       repairReused: run.repairReused, simulatedRepairLabel: SIMULATED_REPAIR_LABEL, cinematicV6, stages, drafts, approved, ...outcome }));
     
     if(diagnosticDraft && diagnosticReview) {
-      const { readDocumentaryValue } = await import("../src/lib/video/long-form/json-response");
+      const { readDocumentaryJson } = await import("../src/lib/video/long-form/json-response");
       const { LenientReferencedReviewSchema, resolveReviewReferences, narrationCatalog } = await import("../src/lib/video/long-form/narration-catalog");
       const { sectionFunctionRepairTargets, applyFunctionRepair } = await import("../src/lib/video/long-form/editorial-function-repair");
-      let raw:any = readDocumentaryValue(diagnosticReview);
+      let raw:any = readDocumentaryJson(diagnosticReview);
       const targets = sectionFunctionRepairTargets(raw,LenientReferencedReviewSchema);
-      if(targets && diagnosticRepair) raw=applyFunctionRepair(raw,targets,readDocumentaryValue(diagnosticRepair));
+      if(targets && diagnosticRepair) raw=applyFunctionRepair(raw,targets,readDocumentaryJson(diagnosticRepair));
       const resolved=resolveReviewReferences(raw,diagnosticDraft.beats);
       if(resolved.review) {
         const ev=resolved.review.firstAnswer.evidence;
