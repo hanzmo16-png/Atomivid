@@ -12,7 +12,8 @@ import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
 import { documentaryOutputBudget } from "./script-output-budget";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { jsonResponseSystem, parseDocumentaryResponse, readDocumentaryJson, validateDocumentaryValue, DocumentaryResponseError } from "./json-response";
+import { jsonResponseSystem, parseDocumentaryResponse, validateDocumentaryValue, DocumentaryResponseError } from "./json-response";
+import { readEditorialJson } from "./editorial-json";
 import { repairSectionFunctions, sectionFunctionRepairTargets } from "./editorial-function-repair";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { assertOriginalHook, usesBannedOpener } from "./originality";
@@ -380,7 +381,7 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
     // The critic has the same durable accounting, reservations and zero SDK retries.
     const response = await send(params);
     const schema = input.referenceContract ? LenientReferencedReviewSchema : EditorialReviewSchema;
-    const value = readDocumentaryJson(response);
+    const value = readEditorialJson(response, schema);
     // Only an out-of-contract sections[].function label gets ONE bounded, ledgered re-classification
     // (editorial-function-repair.ts). Every other defect keeps the original rejection.
     const targets = sectionFunctionRepairTargets(value, schema);
