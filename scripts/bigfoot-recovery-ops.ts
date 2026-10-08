@@ -209,6 +209,7 @@ async function v6Check() {
   const coverage=heroCoverage(shots,registry,0.25);const blockers=planReleaseBlockers(shots).map(x=>x.code);
   visualReadiness={checked:true,assetState,verifiedAssets:registry.size,blockerCodes:[...blockers,...coverage.blockers],missingHeroIdentities:coverage.heroMissingRequiredIdentities.length,missingHeroEvidence:coverage.heroMissingRequiredEvidence.length,ready:blockers.length===0&&coverage.blockers.length===0};
   }
+  log("TRANSITION_FIELDS",{scenes:script.beats.flatMap((b,beatIndex)=>(b.visuals??[]).flatMap((v,visualIndex)=>v.beatClass==="TRANSITION"?[{beatIndex,visualIndex,motion:v.motion,actionType:typeof v.action,actionLength:typeof v.action==="string"?(v.action as string).trim().length:null,hasIdentity:!!v.identity,hasEvidence:!!v.evidence}]:[]))});
   log("V6_CHECK", { curatorEnvConfigured: !!process.env.ASSET_CURATOR_EMAILS, curatorConfigHash: process.env.ASSET_CURATOR_EMAILS ? h10(process.env.ASSET_CURATOR_EMAILS.split(",").map(s=>s.trim().toLowerCase()).sort().join(",")) : null, visualReadiness, request: { status: req.status, mode: req.mode, confirmed: !!req.long_form_confirmed_at, editorial: script.editorial?.status },
     beats: script.beats.length, visuals: visuals.length, visualsWithImpact: withImpact.length, visualsWithClass: withClass.length,
     workerEnvEnabled: enabled, plans: results.map((r) => ({ strategy: r.strategy, version: r.plan.version, engine: r.engine, reason: r.reason, sequences: r.plan.sequences?.length ?? 0, estimatedUsd: r.plan.estimatedProviderCostUsd })),
