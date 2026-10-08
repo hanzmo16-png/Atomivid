@@ -51,7 +51,8 @@ jobs:
               row.review=true;
               for(const [label,schema] of [["requested",j.input.referenceContract?ReferencedEditorialReviewSchema:EditorialReviewSchema],["reader",j.input.referenceContract?LenientReferencedReviewSchema:EditorialReviewSchema]] as const){
                const p=schema.safeParse(v);row[label]={valid:p.success};
-               if(!p.success)row[label].issues=p.error.issues.map((i:any)=>{let x:any=v;for(const k of i.path)x=x?.[k];return {code:i.code,path:i.path,type:x===null?"null":Array.isArray(x)?"array":typeof x,length:typeof x==="string"||Array.isArray(x)?x.length:undefined,minimum:i.minimum,maximum:i.maximum,expected:i.expected};});
+               if(!p.success)row[label].issues=p.error.issues.map((i:any)=>{let x:any=v;for(const k of i.path)x=x?.[k];return {code:i.code,path:i.path,type:x===null?"null":Array.isArray(x)?"array":typeof x,length:typeof x==="string"||Array.isArray(x)?x.length:undefined,minimum:i.minimum,maximum:i.maximum,expected:i.expected,allowed:i.values,label:i.code==="invalid_value"&&typeof x==="string"&&/^[A-Za-z_ -]{1,40}$/.test(x)?x:undefined};});
+               if(Array.isArray(v.sections))row.sectionFunctions=v.sections.map((s:any)=>typeof s?.function==="string"&&/^[A-Za-z_ -]{1,40}$/.test(s.function)?s.function:"(non-label)");
               }
              }
             }
