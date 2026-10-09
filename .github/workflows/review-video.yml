@@ -1,0 +1,68 @@
+name: Review an existing video (read-only, sealed outputs)
+# Measures an ALREADY produced video and extracts frames for review. Generates nothing, calls no paid
+# provider. Least privilege, two jobs: "measure" has the database secret but a read-only token and
+# encrypts everything private (frames, script, numbers tied to the owner) to the operator session key;
+# "publish" has NO secrets and only commits those encrypted files to the ops-sealed-out branch.
+on:
+  push:
+    branches: [claude/video-review]
+    paths: [ops/review-video.mode]
+permissions:
+  contents: read
+concurrency:
+  group: review-video
+  cancel-in-progress: false
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg imagemagick > /dev/null
+      - name: Measure and extract (sealed)
+        run: npx tsx scripts/review/review-video.ts "$(head -1 ops/review-video.mode | tr -d '[:space:]')"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Hand over encrypted outputs only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sealed-review
+          path: sealed-out/*.sealed
+          if-no-files-found: ignore
+          retention-days: 3
+  publish:
+    needs: measure
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: sealed-review
+          path: sealed-out
+      - name: Commit encrypted files to ops-sealed-out
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls sealed-out/*.sealed >/dev/null 2>&1 || { echo "nothing sealed"; exit 0; }
+          for f in sealed-out/*; do case "$f" in *.sealed) ;; *) echo "refusing non-sealed file"; exit 1;; esac; done
+          git init -q so && cd so
+          git config user.name "atomivid-ops" && git config user.email "ops@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch -q --depth 1 origin ops-sealed-out; then git checkout -q -B ops-sealed-out FETCH_HEAD; else git checkout -q --orphan ops-sealed-out; fi
+          mkdir -p "review-$GITHUB_RUN_ID" && cp ../sealed-out/*.sealed "review-$GITHUB_RUN_ID/"
+          git add -A && git commit -qm "sealed review outputs of run $GITHUB_RUN_ID" && git push -q origin ops-sealed-out
