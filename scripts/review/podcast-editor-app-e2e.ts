@@ -10,7 +10,7 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { connectResolved } from "../lib/supabase-db";
 
 const APP = (process.env.E2E_APP ?? "").replace(/\/$/, "");
@@ -19,6 +19,7 @@ const URL_ = process.env.SUPABASE_URL!.trim(), KEY = process.env.SUPABASE_SERVIC
 const log = (tag: string, v: unknown) => console.log(tag, JSON.stringify(v));
 const results: { check: string; ok: boolean }[] = [];
 const openedSessions: string[] = [];
+const createdAccounts: string[] = [];
 const check = (name: string, ok: boolean, detail?: unknown) => { results.push({ check: name, ok }); log(ok ? "PASS" : "FAIL", { check: name, detail }); };
 const admin = createClient(URL_, KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 
@@ -38,18 +39,31 @@ async function sessionCookies(userId: string) {
   return jar;
 }
 
+async function cleanupAccounts() {
+  for (const id of createdAccounts.splice(0)) {
+    const { error } = await admin.auth.admin.deleteUser(id);
+    check("throwaway QA account deleted", !error);
+  }
+}
+
 async function main() {
   if (!APP) throw new Error("E2E_APP not set");
   if (process.env.OWNER_SESSION_AUTHORIZED !== "yes") { log("BLOCKED", { reason: "owner sign-in not authorised for this run" }); process.exitCode = 1; return; }
   const { client } = await connectResolved();
   const owners = (await client.query("select user_id::text as id from podcast_editor.propietarios order by created_at")).rows as { id: string }[];
-  const delivered = (await client.query(`select name from storage.objects where bucket_id = 'podcast-editor' and name ~ '^episodios/[^/]+/v[0-9]+/salida/COMPLETO\\.json$' order by created_at desc limit 1`)).rows[0]?.name as string | undefined;
-  // Use only the dedicated editor assigned to this delivery, never an unrelated customer.
-  const deliveryParts = delivered?.split("/");
-  const other = deliveryParts ? (await client.query(`select distinct u.id::text from auth.users u join podcast_editor.asignaciones a on a.user_id=u.id where u.email_confirmed_at is not null and u.id not in (select user_id from podcast_editor.propietarios) and a.episode_id=$1 and a.version=$2 and not a.revoked and a.expires_at>now() order by u.id::text limit 1`, [deliveryParts[1], Number(deliveryParts[2].slice(1))])).rows[0]?.id as string | undefined : undefined;
+  // A pinned delivery (E2E_EPISODE + E2E_VERSION) or else the newest COMPLETO.json.
+  const pinEp = process.env.E2E_EPISODE?.trim(), pinV = process.env.E2E_VERSION?.trim();
+  const delivered = (pinEp && pinV
+    ? await client.query(`select name from storage.objects where bucket_id = 'podcast-editor' and name = $1`, [`episodios/${pinEp}/v${pinV}/salida/COMPLETO.json`])
+    : await client.query(`select name from storage.objects where bucket_id = 'podcast-editor' and name ~ '^episodios/[^/]+/v[0-9]+/salida/COMPLETO\\.json$' order by created_at desc limit 1`)).rows[0]?.name as string | undefined;
   await client.end();
-  log("PRECONDITIONS", { owners: owners.length, deliveryPresent: Boolean(delivered), ordinaryAccount: Boolean(other) });
-  if (owners.length !== 1 || !delivered || !other) { log("BLOCKED", { reason: owners.length !== 1 ? "expected exactly one enrolled owner" : !delivered ? "no COMPLETO.json in the bucket" : "no assigned dedicated editor" }); process.exitCode = 1; return; }
+  // Negative case: a throwaway QA account created for this run and deleted at the end. The dedicated editor
+  // account belongs to Grok and is never used here; no real customer is touched.
+  const { data: qa } = await admin.auth.admin.createUser({ email: `qa.editor-negativo.${Date.now()}@example.com`, password: `Qa-${randomUUID()}`, email_confirm: true });
+  const other = qa?.user?.id;
+  if (other) createdAccounts.push(other);
+  log("PRECONDITIONS", { owners: owners.length, deliveryPresent: Boolean(delivered), delivery: delivered?.split("/").slice(1, 3).join("/") ?? null, throwawayQaAccount: Boolean(other) });
+  if (owners.length !== 1 || !delivered || !other) { log("BLOCKED", { reason: owners.length !== 1 ? "expected exactly one enrolled owner" : !delivered ? "no COMPLETO.json for the requested delivery" : "QA account could not be created" }); process.exitCode = 1; await cleanupAccounts(); return; }
   const [, ep, vSeg] = delivered.split("/");
   const versionPath = `/dashboard/podcast/editor/${ep}/${vSeg}`;
 
@@ -145,9 +159,9 @@ async function main() {
     if (other) {
       const o = await open(await sessionCookies(other));
       const r = await o.page.goto(`${APP}${versionPath}`, { waitUntil: "domcontentloaded" });
-      check("ordinary account: version page is 404", r?.status() === 404, { status: r?.status() });
+      check("non-owner account: version page is 404", r?.status() === 404, { status: r?.status() });
       const api = await o.page.evaluate(async (p: string) => (await fetch(p, { method: "POST" })).status, `/api/podcast-editor/${ep}/${vSeg}/verify`);
-      check("ordinary account: verify API is 404", api === 404, { status: api });
+      check("non-owner account: verify API is 404", api === 404, { status: api });
       await o.ctx.close();
     }
     const anon = await open([]);
@@ -161,6 +175,7 @@ async function main() {
       check("temporary session logout", !error);
       if (error) process.exitCode = 1;
     }
+    await cleanupAccounts();
     if (results.some((r) => !r.ok)) process.exitCode = 1;
   }
 }
