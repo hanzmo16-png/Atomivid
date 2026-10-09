@@ -109,5 +109,11 @@ async function storeDocs() {
 }
 
 const modes: Record<string, () => Promise<void>> = { keygen, "verify-rate": verifyRate, inspect, "store-docs": storeDocs };
-const mode = process.argv[2] ?? "";
-(modes[mode] ?? (async () => { throw Error(`unknown step ${mode}`); }))().catch((e) => { console.error("STEP_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
+// Several $0 steps may be chained with commas; each runs only if the previous one succeeded.
+(async () => {
+  for (const mode of (process.argv[2] ?? "").split(",").filter(Boolean)) {
+    if (!modes[mode]) throw Error(`unknown step ${mode}`);
+    log("STEP", { mode });
+    await modes[mode]();
+  }
+})().catch((e) => { console.error("STEP_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
