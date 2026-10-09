@@ -4,6 +4,7 @@ import { isProductionRuntime } from "@/lib/providers/production";
 import { SupplyUnavailableError } from "./policy";
 import { isRecoveryBudgetRefusal, RecoveryBudgetExceededError } from "./recovery-budget";
 import { REFRESHABLE_PROVIDERS, refreshProviderSnapshot, type RefreshableProvider } from "./monitor";
+import { JobEnvelopeMismatchError } from "./job";
 
 /** Explicit opt-in locally; mandatory in production. There is no production bypass flag. */
 export function supplyGuardRequired(): boolean {
@@ -35,6 +36,9 @@ export async function submitWithSupply(service: SupabaseClient, op: PaidOperatio
   if (result.reason === "already_claimed") return false;
   // A job's recovery budget refused this call (atomically, before the provider): terminal, never "wait for supply".
   if (!result.submitted && isRecoveryBudgetRefusal(result.reason)) throw new RecoveryBudgetExceededError(result as { reason: string });
+  // The attempt's envelope cannot cover this call (worker sized it above what the start reserved, or the
+  // job already consumed it). Waiting never fixes it: fail clearly instead of queueing forever.
+  if (!result.submitted && result.reason === "job envelope exhausted") throw new JobEnvelopeMismatchError(op.provider);
   if (!result.submitted) throw new SupplyUnavailableError(op.provider, result.reason ?? "unverified supply");
   return true;
 }

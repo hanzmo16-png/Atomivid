@@ -10,6 +10,9 @@ import type { VideoRequestSummary } from "@/lib/video/request-view";
 import { resolveHistoryViewState } from "@/lib/video/history-view";
 import { AutoRefresh } from "./AutoRefresh";
 import { RequestCard } from "@/components/video/RequestCard";
+import { createServiceClient } from "@/lib/supabase/service";
+import { isRenderStale } from "@/lib/video/render-guard";
+import { loadAvatarRecoveries } from "@/lib/video/avatar/recovery";
 import { Alert } from "@/components/ui/Alert";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LinkButton } from "@/components/ui/Button";
@@ -30,7 +33,7 @@ export default async function DashboardPage({
   const { data: requests, error: requestsError } = await supabase
     .from("video_requests")
     .select(
-      "id, mode, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage, long_form_progress, long_form_confirmed_at, recorded_audio_path, supply_wait_started_at",
+      "id, mode, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage, long_form_progress, long_form_confirmed_at, recorded_audio_path, supply_wait_started_at, avatar_provider_video_job_id",
     )
     .eq("user_id", user?.id ?? "")
     .order("created_at", { ascending: false })
@@ -86,6 +89,11 @@ export default async function DashboardPage({
   // Date.now() aquí es seguro pese a la regla de pureza de React.
   /* eslint-disable-next-line react-hooks/purity -- ver comentario arriba */
   const nowMs = Date.now();
+  // Avatar recovery is decided from each request's real state + its paid ledger (rows above already
+  // passed the owner filter), with the same rule the render route enforces.
+  const avatarRecoveries = await loadAvatarRecoveries(createServiceClient(), (requests ?? [])
+    .filter((r) => r.mode === "avatar" && (r.status === "failed" || (r.status === "processing" && isRenderStale(r, nowMs))))
+    .map((r) => ({ id: r.id, status: r.status, render_attempts: r.render_attempts, avatar_provider_video_job_id: r.avatar_provider_video_job_id ?? null, video_path: r.video_path })));
 
   return (
     <div>
@@ -160,6 +168,7 @@ export default async function DashboardPage({
                 request={req}
                 videoUrl={req.video_path ? videoUrlByPath.get(req.video_path) : null}
                 nowMs={nowMs}
+                avatarRecovery={avatarRecoveries.get(req.id)}
               />
             </li>
           ))}

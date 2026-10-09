@@ -7,6 +7,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { RECORDING_BUCKET, isOwnedRecordingPath } from "@/lib/video/avatar/recording";
 import { avatarEntitlementPreview } from "@/lib/billing/quota";
 import { ScriptReview } from "./ScriptReview";
+import { loadAvatarRecovery } from "@/lib/video/avatar/recovery";
 
 type VideoRequestRow = {
   id: string;
@@ -17,6 +18,7 @@ type VideoRequestRow = {
   status: string;
   render_attempts: number;
   avatar_provider_video_job_id: string | null;
+  video_path: string | null;
   script_json: GeneratedScript | null;
   error_message: string | null;
   recorded_audio_path: string | null;
@@ -40,7 +42,7 @@ export default async function ReviewPage({
 
   const { data } = await supabase
     .from("video_requests")
-    .select("id, mode, topic, style, duration_seconds, status, script_json, error_message, recorded_audio_path, render_attempts, avatar_provider_video_job_id")
+    .select("id, mode, topic, style, duration_seconds, status, script_json, error_message, recorded_audio_path, render_attempts, avatar_provider_video_job_id, video_path")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle<VideoRequestRow>();
@@ -67,6 +69,13 @@ export default async function ReviewPage({
   if (data.mode === "avatar") {
     const preview = await avatarEntitlementPreview(createServiceClient(), user.id, user);
     if (preview.blocked) avatarEntitlementBlockedReason = preview.reason;
+  }
+
+  // Failed avatar: offer the safe recovery right here (same rule the render route enforces).
+  let recovery: { kind: "action"; label: string; note: string } | { kind: "blocked"; message: string } | undefined;
+  if (data.mode === "avatar" && data.status === "failed") {
+    const r = await loadAvatarRecovery(createServiceClient(), data.id, data);
+    recovery = r.action === "none" ? { kind: "blocked", message: r.message } : { kind: "action", label: r.label, note: r.note };
   }
 
   return (
@@ -107,6 +116,7 @@ export default async function ReviewPage({
         errorMessage={data.error_message}
         usesRecording={Boolean(data.recorded_audio_path)}
         entitlementBlockedReason={avatarEntitlementBlockedReason}
+        recovery={recovery}
       />
     </div>
   );

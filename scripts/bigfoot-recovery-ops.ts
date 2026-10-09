@@ -582,6 +582,10 @@ async function avatarState() {
     avatarRow: photo ? Object.fromEntries(Object.entries(photo).filter(([k]) => /status|provider|photo|image|path/i.test(k)).map(([k, v]) => [k, typeof v === "string" ? (v.length > 0 ? (/(path|url)/i.test(k) ? "present" : v.slice(0, 40)) : "") : v])) : null,
     envelopes: (env ?? []).map((e) => ({ provider: e.provider, attempt: e.render_attempt, status: e.status, consumedZero: Number(e.consumed_usd) === 0 && Number(e.consumed_units) === 0, createdAt: e.created_at })),
     ledger: (ops ?? []).map((o) => ({ key: h10(String(o.idempotency_key)), provider: o.provider, method: o.method, status: o.status, providerJob: !!o.provider_job_id, updatedAt: o.updated_at })) });
+  const { decideAvatarRecovery } = await import("../src/lib/video/avatar/recovery");
+  const decision = decideAvatarRecovery({ status: row.status, render_attempts: row.render_attempts, avatar_provider_video_job_id: row.avatar_provider_video_job_id ?? null, video_path: row.video_path ?? null },
+    (ops ?? []).map((o) => ({ status: o.status, method: o.method, provider_job_id: o.provider_job_id })));
+  log("AVATAR_RECOVERY_DECISION", decision.action === "none" ? { action: decision.action, reason: decision.reason } : { action: decision.action, label: decision.label });
   sealed("AVATAR_ENVELOPE_AMOUNTS", { envelopes: env, ops: (ops ?? []).map((o) => ({ method: o.method, status: o.status, reserved: o.reserved_usd, committed: o.committed_usd })) });
   const { data: st } = await db.rpc("pi_supply_state", { p_provider: "heygen" });
   log("HEYGEN_STATE", st ? { level: (st as any).level, reason: (st as any).reason } : null);
@@ -660,15 +664,27 @@ async function providerConfig() {
     if (res?.ok) {
       const report = await res.json() as { heygen?: { sealed?: unknown }; avatar?: { sealed?: unknown } | null };
       const rec = (report as { heygenReconcile?: { listed?: unknown } | null }).heygenReconcile;
-      if (!report.heygen || !("avatar" in report) || !("heygenReconcile" in report) || (rec && !("listed" in rec))) { log("PROVIDER_CONFIG_WAIT", { attempt, status: "previous deployment" }); await new Promise((r) => setTimeout(r, 20_000)); continue; }
+      if (!report.heygen || !("avatar" in report) || !("heygenReconcile" in report) || (rec && !("listed" in rec)) || !("reservationConfig" in report)) { log("PROVIDER_CONFIG_WAIT", { attempt, status: "previous deployment" }); await new Promise((r) => setTimeout(r, 20_000)); continue; }
       const sealedPart = report.heygen?.sealed ?? null;
       delete report.heygen.sealed;
       const avatarSealed = report.avatar?.sealed ?? null;
       if (report.avatar) delete report.avatar.sealed;
       // Public lines carry no amounts: everything sensitive was removed above and is printed sealed only.
-      log("PROVIDER_CONFIG", { ...report, avatar: undefined, heygenReconcile: undefined });
+      log("PROVIDER_CONFIG", { ...report, avatar: undefined, heygenReconcile: undefined, reservationConfig: undefined });
       log("AVATAR_START_READINESS", report.avatar ?? null);
       log("HEYGEN_RECONCILE", (report as { heygenReconcile?: unknown }).heygenReconcile ?? null);
+      const vercelCfg = (report as { reservationConfig?: Record<string, string | number | boolean> }).reservationConfig;
+      if (vercelCfg) {
+        const { workflowLiteralEnv, reservationConfig, configDiff } = await import("../src/lib/ops/config-parity");
+        const { literals, opaque } = workflowLiteralEnv(require("node:fs").readFileSync(".github/workflows/render.yml", "utf8"), "name: Renderizar video");
+        const saved = { ...process.env };
+        for (const k of Object.keys(process.env)) if (/^(PRICING_|MAX_|AVATAR_|IMAGE_|VIDEO_|MUSIC_|PREMIUM_|VISUAL_|OPENAI_IMAGE|SUPPLY_STORYBOARD)/.test(k)) delete process.env[k];
+        Object.assign(process.env, literals);
+        const workerCfg = reservationConfig();
+        for (const k of Object.keys(process.env)) delete process.env[k];
+        Object.assign(process.env, saved);
+        log("CONFIG_PARITY", { differences: configDiff(vercelCfg, workerCfg), workerOpaque: opaque.filter((k) => /PRICING|MAX_|AVATAR|IMAGE|VIDEO|MUSIC|PREMIUM|VISUAL|STORYBOARD/.test(k)) });
+      }
       if (sealedPart) sealed("HEYGEN_ACCOUNT", sealedPart);
       if (avatarSealed) sealed("AVATAR_AMOUNTS", avatarSealed);
       await heygenDbState();

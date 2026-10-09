@@ -10,6 +10,7 @@ import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
 import { STATUS_LABEL, STATUS_TONE, pendingRequestCta, type VideoRequestSummary } from "@/lib/video/request-view";
 import { computeProductionProgress, isLongFormProgress, type ProgressStageKey } from "@/lib/video/long-form/progress";
 import { GenerateButton } from "@/app/dashboard/GenerateButton";
+import type { AvatarRecovery } from "@/lib/video/avatar/recovery";
 
 /**
  * Tarjeta de una solicitud en el historial. Puramente presentacional —
@@ -26,10 +27,13 @@ export function RequestCard({
    * impura evaluada en cada render). En producción el caller pasa la hora
    * real; /dev/states inyecta una fija. */
   nowMs,
+  avatarRecovery,
 }: {
   request: VideoRequestSummary;
   videoUrl?: string | null;
   nowMs: number;
+  /** Avatar only: decided server-side from the request + paid ledger (decideAvatarRecovery). Absent = not offered. */
+  avatarRecovery?: AvatarRecovery;
 }) {
   const isStaleProcessing = isRenderStale(request, nowMs);
   const attemptsExhausted = request.render_attempts >= MAX_RENDER_ATTEMPTS;
@@ -38,7 +42,11 @@ export function RequestCard({
   // primera prueba real) no tiene confirmación y su guion ya no está en
   // "script_ready": ofrecer "Reintentar" ahí solo devolvería un error.
   const longFormUnconfirmed = request.mode === "long_form" && !request.long_form_confirmed_at;
-  const canRetry = !attemptsExhausted && request.mode !== "avatar" && !longFormUnconfirmed;
+  // Avatar: offered only when its ledger proves it is safe (retry, or recover the job HeyGen already accepted).
+  const avatarAction = request.mode === "avatar" && avatarRecovery && avatarRecovery.action !== "none" ? avatarRecovery : null;
+  const canRetry = !attemptsExhausted && !longFormUnconfirmed && (request.mode !== "avatar" || avatarAction !== null);
+  const retryLabel = avatarAction?.label ?? "Reintentar";
+  const avatarBlockedMessage = request.mode === "avatar" && avatarRecovery?.action === "none" && avatarRecovery.reason !== "completed" && avatarRecovery.reason !== "exhausted" ? avatarRecovery.message : null;
   const detailHref = `/dashboard/videos/${request.id}`;
   const isLongForm = request.mode === "long_form";
   const isLandscape = request.aspect_ratio === "16:9";
@@ -141,7 +149,13 @@ export function RequestCard({
               </Link>
             ))}
           {request.status === "processing" && isStaleProcessing && canRetry && (
-            <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Reintentar" />
+            <GenerateButton endpoint={`/api/generate/${request.id}/render`} label={retryLabel} />
+          )}
+          {(request.status === "failed" || (request.status === "processing" && isStaleProcessing)) && avatarBlockedMessage && (
+            <p role="status" className="max-w-[260px] text-left text-xs text-ink-muted sm:text-right">{avatarBlockedMessage}</p>
+          )}
+          {avatarAction && (request.status === "failed" || (request.status === "processing" && isStaleProcessing)) && canRetry && (
+            <p className="max-w-[260px] text-left text-xs text-ink-faint sm:text-right">{avatarAction.note}</p>
           )}
           {request.status === "failed" && longFormUnconfirmed && (
             <p className="max-w-[220px] text-left text-xs text-ink-faint sm:text-right">
@@ -157,7 +171,7 @@ export function RequestCard({
             !longFormUnconfirmed &&
             (request.script_json ? (
               canRetry && (
-                <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Reintentar" />
+                <GenerateButton endpoint={`/api/generate/${request.id}/render`} label={retryLabel} />
               )
             ) : (
               <GenerateButton

@@ -17,6 +17,7 @@ export function ScriptReview({
   usesRecording = false,
   diagnosticRetry = false,
   entitlementBlockedReason,
+  recovery,
 }: {
   requestId: string;
   status: string;
@@ -36,6 +37,12 @@ export function ScriptReview({
    * desde aquí.
    */
   entitlementBlockedReason?: string;
+  /**
+   * Failed avatar only, decided server-side from the request + its paid ledger (decideAvatarRecovery):
+   * either the safe action offered right here (retry / recover the job HeyGen already accepted), or why
+   * it is not offered. The render route enforces the same rule.
+   */
+  recovery?: { kind: "action"; label: string; note: string } | { kind: "blocked"; message: string };
 }) {
   const router = useRouter();
   const [script, setScript] = useState(initialScript);
@@ -47,8 +54,10 @@ export function ScriptReview({
   const [error, setError] = useState<string | null>(null);
   const [needsSubscription, setNeedsSubscription] = useState(false);
 
-  const canGenerate = status === "script_ready" || diagnosticRetry;
-  const editable = canGenerate && !usesRecording;
+  const recoveryAction = status === "failed" && recovery?.kind === "action" ? recovery : null;
+  const canGenerate = status === "script_ready" || diagnosticRetry || recoveryAction !== null;
+  // A recovery reuses exactly what was approved: no edits (they would change paid inputs).
+  const editable = canGenerate && !usesRecording && !recoveryAction;
   const entitlementBlocked = Boolean(entitlementBlockedReason);
 
   function updateScene(index: number, field: "text" | "visualQuery", value: string) {
@@ -163,7 +172,13 @@ export function ScriptReview({
             "El video ya se está generando a partir de este guion. Esta vista es de solo lectura."}
           {status === "completed" && "Este guion ya generó un video. Puedes verlo en el historial."}
           {status === "failed" &&
-            `La generación falló${errorMessage ? `: ${errorMessage}` : ""}. Vuelve al historial para reintentar.`}
+            `La generación falló${errorMessage ? `: ${errorMessage}` : ""}. ${recovery?.kind === "blocked" ? recovery.message : "Vuelve al historial para reintentar."}`}
+        </Alert>
+      )}
+
+      {recoveryAction && (
+        <Alert tone="danger">
+          {`La generación falló${errorMessage ? `: ${errorMessage}` : ""}.`} {recoveryAction.note}
         </Alert>
       )}
 
@@ -272,7 +287,7 @@ export function ScriptReview({
             loading={generating}
             title={entitlementBlocked ? entitlementBlockedReason : undefined}
           >
-            {generating ? "Generando video…" : "Generar video final"}
+            {generating ? "Generando video…" : recoveryAction ? recoveryAction.label : "Generar video final"}
           </Button>
         </div>
       )}

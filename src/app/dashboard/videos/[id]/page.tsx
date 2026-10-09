@@ -6,6 +6,8 @@ import { isProductionPlan } from "@/lib/video/long-form/production-plan-types";
 import { getSignedVideoUrl } from "@/lib/storage/signed-url";
 import { selectIfOwned, type OwnedRequestRow } from "@/lib/video/access";
 import { ResultView } from "@/components/video/ResultView";
+import { createServiceClient } from "@/lib/supabase/service";
+import { loadAvatarRecovery } from "@/lib/video/avatar/recovery";
 import { Alert } from "@/components/ui/Alert";
 import { AutoRefresh } from "@/app/dashboard/AutoRefresh";
 
@@ -34,7 +36,7 @@ export default async function VideoResultPage({
   const { data, error } = await supabase
     .from("video_requests")
     .select(
-      "id, mode, user_id, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage, long_form_progress, long_form_production_plan, long_form_confirmed_at, recorded_audio_path",
+      "id, mode, user_id, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage, long_form_progress, long_form_production_plan, long_form_confirmed_at, recorded_audio_path, avatar_provider_video_job_id",
     )
     .eq("id", id)
     .eq("user_id", user.id)
@@ -79,10 +81,15 @@ export default async function VideoResultPage({
   // base de datos, nunca de estado del navegador.
   // eslint-disable-next-line react-hooks/purity -- ver comentario arriba
   const nowMs = Date.now();
+  // Failed avatar: same server-side recovery rule as the history card and the render route.
+  const avatarRecovery = request.mode === "avatar" && request.status === "failed"
+    ? await loadAvatarRecovery(createServiceClient(), request.id, { status: request.status, render_attempts: request.render_attempts,
+        avatar_provider_video_job_id: request.avatar_provider_video_job_id ?? null, video_path: request.video_path })
+    : undefined;
   return (
     <div className="mx-auto max-w-md">
       <AutoRefresh active={request.status === "processing"} />
-      <ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} thumbnailRequested={thumbnailRequested} nowMs={nowMs} />
+      <ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} thumbnailRequested={thumbnailRequested} nowMs={nowMs} avatarRecovery={avatarRecovery} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { heygenAudio } from "./heygen-audio";
 import { validatePhotoBuffer } from "./photo-validation";
 import fs from "node:fs/promises";
 import { isOwnedRecordingPath, recordingFormat, RECORDING_BUCKET, MAX_RECORDING_BYTES } from "./recording";
+import { PROVIDER_TOUCHED_STATUSES } from "./recovery";
 import { measureNarrationSeconds } from "./measure-narration";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
@@ -495,7 +496,6 @@ export async function generateAvatarVideo({
 }
 
 
-const PROVIDER_TOUCHED = ["SUBMITTED", "PROVIDER_JOB_RECORDED", "RECONCILIATION_REQUIRED", "COMMITTED"];
 
 /**
  * The single-attempt guard (avatar_generation_started_at) is never cleared. It may be RE-CLAIMED only
@@ -510,7 +510,7 @@ export async function reclaimUnsubmittedAvatarAttempt(supabase: SupabaseClient, 
   if (error || !row?.avatar_generation_started_at || row.avatar_provider_video_job_id) return false;
   const { data: ops, error: opsError } = await supabase.from("pi_paid_operations").select("status,method,provider_job_id").eq("project_id", requestId);
   if (opsError || !ops) return false;
-  if (ops.some((o: { status: string; provider_job_id: string | null }) => PROVIDER_TOUCHED.includes(o.status) || o.provider_job_id)) return false;
+  if (ops.some((o: { status: string; provider_job_id: string | null }) => (PROVIDER_TOUCHED_STATUSES as readonly string[]).includes(o.status) || o.provider_job_id)) return false;
   const { data: claimed, error: claimError } = await supabase.from("video_requests")
     .update({ avatar_generation_started_at: new Date().toISOString() })
     .eq("id", requestId).eq("user_id", userId)

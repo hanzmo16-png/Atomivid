@@ -7,6 +7,8 @@ import type { BadgeTone } from "@/components/ui/Badge";
  */
 export type VideoRequestSummary = {
   id: string;
+  /** Avatar: the provider already accepted a video for this request (recover it, never request another). */
+  avatar_provider_video_job_id?: string | null;
   mode?: string;
   topic: string;
   style: string;
