@@ -588,6 +588,20 @@ async function avatarState() {
   if (st) sealed("HEYGEN_FREE", { free: (st as any).free, unreserved: (st as any).unreserved });
 }
 
+/** Read-only: why would pi_submit_with_supply refuse a HeyGen call now? Counters and every non-refunded HeyGen op (hashed). */
+async function heygenSubmitDiag() {
+  const db = service();
+  const { data: st } = await db.rpc("pi_supply_state", { p_provider: "heygen" });
+  const s = (st ?? {}) as Record<string, unknown>;
+  const { data: p } = await db.from("pi_supply_policies").select("max_concurrent,max_daily_calls,enabled,timezone").eq("provider", "heygen").maybeSingle();
+  log("HEYGEN_COUNTERS", { level: s.level, reason: s.reason, activeCalls: s.activeCalls, todayCalls: s.todayCalls, maxConcurrent: p?.max_concurrent, maxDailyCalls: p?.max_daily_calls, timezone: p?.timezone });
+  const { data: ops } = await db.from("pi_paid_operations").select("idempotency_key,project_id,method,status,supply_pool,provider_job_id,created_at,updated_at")
+    .eq("provider", "heygen").neq("status", "REFUNDED").order("created_at", { ascending: false }).limit(30);
+  log("HEYGEN_OPS", (ops ?? []).map((o) => ({ key: h10(String(o.idempotency_key)), project: h10(String(o.project_id)), thisTest: o.project_id === AVATAR_TEST_ID, method: o.method, status: o.status, pool: o.supply_pool, providerJob: !!o.provider_job_id, createdAt: o.created_at, updatedAt: o.updated_at })));
+  const { data: g } = await db.from("pi_supply_policies").select("enabled,daily_cap_usd,monthly_cap_usd,free_daily_cap_usd").eq("provider", "__global__").maybeSingle();
+  log("GLOBAL_POLICY", g);
+}
+
 /** Signed probe of the RUNNING production deployment (presence/counts only; never a value). Waits for the route to go live. */
 async function providerConfig() {
   const { randomUUID } = await import("node:crypto");
@@ -618,7 +632,7 @@ async function providerConfig() {
   throw Error("probe route not live");
 }
 
-const modes: Record<string, () => Promise<unknown>> = { "avatar-state": avatarState, "heygen-policy": heygenPolicy, "supply-policies": supplyPolicies, "provider-config": providerConfig, "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+const modes: Record<string, () => Promise<unknown>> = { "heygen-submit-diag": heygenSubmitDiag, "avatar-state": avatarState, "heygen-policy": heygenPolicy, "supply-policies": supplyPolicies, "provider-config": providerConfig, "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
