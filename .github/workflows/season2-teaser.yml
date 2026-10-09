@@ -1,0 +1,47 @@
+name: Season two teaser preparation
+on:
+  push:
+    branches: [codex/cronicas-season2-teaser]
+    paths: [scripts/season2-teaser/prepare.ts, scripts/season2-teaser/delivery-public.pem, .github/workflows/season2-teaser.yml]
+permissions:
+  contents: write
+concurrency:
+  group: cronicas-season2-teaser-v1
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx tsx scripts/season2-teaser/prepare.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          SUPPLY_GUARD_ENFORCED: 'true'
+      - name: Preserve encrypted delivery only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json,base64,os,urllib.request,urllib.error
+          path='ops/season2-teaser/delivery.sealed'
+          url='https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']+'/contents/'+path
+          headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'}
+          body={'message':'Encrypted season two teaser delivery','branch':'codex/cronicas-season2-teaser','content':base64.b64encode(open('season2-delivery.sealed','rb').read()).decode()}
+          try:
+              with urllib.request.urlopen(urllib.request.Request(url+'?ref=codex/cronicas-season2-teaser',headers=headers)) as r: body['sha']=json.load(r)['sha']
+          except urllib.error.HTTPError as e:
+              if e.code!=404: raise
+          with urllib.request.urlopen(urllib.request.Request(url,data=json.dumps(body).encode(),headers=headers,method='PUT')) as r:
+              print('Encrypted delivery preserved:',r.status)
+          PY
