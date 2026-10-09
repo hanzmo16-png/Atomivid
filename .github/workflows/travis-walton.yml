@@ -1,0 +1,70 @@
+name: Travis Walton episode production
+on:
+  push:
+    branches: [codex/travis-walton-episode-02]
+    paths: [ops/travis-walton/mode]
+permissions:
+  contents: read
+concurrency:
+  group: travis-walton-episode-02
+  cancel-in-progress: false
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx tsx scripts/travis-walton/run.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
+          RUNWAY_API_KEY: ${{ secrets.RUNWAY_API_KEY }}
+          RUNWAYML_API_SECRET: ${{ secrets.RUNWAYML_API_SECRET }}
+          PRICING_ELEVENLABS_USD_PER_1K_CHARS: '0.2'
+          SUPPLY_GUARD_ENFORCED: 'true'
+      - name: Encrypted output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: travis-sealed-out
+          path: sealed-out/*.sealed
+          if-no-files-found: ignore
+          retention-days: 7
+  publish:
+    needs: produce
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: travis-sealed-out
+          path: sealed-out
+      - name: Preserve encrypted output
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls sealed-out/*.sealed >/dev/null 2>&1 || exit 0
+          for f in sealed-out/*; do case "$f" in *.sealed) ;; *) exit 1;; esac; done
+          git init -q output && cd output
+          git config user.name "atomivid-ops"
+          git config user.email "ops@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch -q --depth 1 origin travis-sealed-out; then git checkout -q -B travis-sealed-out FETCH_HEAD; else git checkout -q --orphan travis-sealed-out; fi
+          mkdir -p "$GITHUB_RUN_ID"
+          cp ../sealed-out/*.sealed "$GITHUB_RUN_ID/"
+          git add -A
+          git commit -qm "Encrypted episode assets $GITHUB_RUN_ID"
+          git push -q origin travis-sealed-out
