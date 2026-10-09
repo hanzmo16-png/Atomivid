@@ -3,7 +3,7 @@ Usage: python render_episode.py ASSET_DIRECTORY [--previews | --visuals | --avat
 No network or paid-provider calls. Rebuilds are deterministic.
 """
 from pathlib import Path
-import json, math, random, subprocess, sys, re, unicodedata, wave
+import json, math, random, subprocess, sys, re, unicodedata, wave, tempfile, shutil, os
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from concurrent.futures import ProcessPoolExecutor
@@ -434,9 +434,9 @@ def credits(seconds):
   p.stdin.write(im.tobytes())
  p.stdin.close();assert p.wait()==0;return dest
 
-def music(seconds):
+def music(seconds, destination=None):
  # Original, continuously evolving ambient bed. No samples or external recordings.
- path=OUT/'original-score.wav';sr=48000
+ path=destination or OUT/'original-score.wav';sr=48000
  chords=[(130.81,155.56,196),(116.54,146.83,174.61),(103.83,130.81,155.56),(98,123.47,146.83),(116.54,155.56,185),(130.81,164.81,196),(110,138.59,164.81),(98,130.81,155.56)]
  with wave.open(str(path),'wb') as out:
   out.setnchannels(2);out.setsampwidth(2);out.setframerate(sr)
@@ -455,13 +455,27 @@ def music(seconds):
 def assemble():
  files=[OUT/(b['id']+'.mp4') for b in BLOCKS]
  if not all(p.exists() for p in files):raise RuntimeError('missing render blocks')
- total=sum(float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0',str(p)])) for p in files)
- outro=max(30,1800-total);files.append(credits(round(outro*25)/25));lst=OUT/'concat.txt';lst.write_text(''.join("file '"+str(p)+"'\n" for p in files))
- joined=OUT/'joined.mp4';subprocess.run(['ffmpeg','-v','error','-y','-f','concat','-safe','0','-i',str(lst),'-c','copy','-movflags','+faststart',str(joined)],check=True)
- length=float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0',str(joined)]));score=music(length)
- final=ROOT/'Cronicas-y-Misterios-Episodio-01-1080p.mp4'
- fc='[0:a]aformat=channel_layouts=stereo[voice];[1:a]volume=0.35[bed];[voice][bed]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-16:TP=-1:LRA=11[a]'
- subprocess.run(['ffmpeg','-v','warning','-y','-i',str(joined),'-i',str(score),'-filter_complex',fc,'-map','0:v','-map','[a]','-c:v','copy','-c:a','aac','-b:a','192k','-ar','48000','-movflags','+faststart',str(final)],check=True)
+ durations=[float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0',str(p)])) for p in files]
+ total=sum(durations);outro=round(max(30,1800-total)*25)/25
+ files.append(credits(outro));length=round((total+outro)*25)/25
+ with tempfile.TemporaryDirectory(prefix='podcast-final-') as tmp:
+  work=Path(tmp);lst=work/'concat.txt';lst.write_text(''.join("file '"+str(p)+"'\n" for p in files))
+  joined=work/'video.mp4';subprocess.run(['ffmpeg','-v','error','-y','-f','concat','-safe','0','-i',str(lst),'-map','0:v:0','-c:v','copy','-an',str(joined)],check=True)
+  sr=48000;count=0;voice=work/'narration.wav'
+  with wave.open(str(voice),'wb') as w:
+   w.setnchannels(1);w.setsampwidth(2);w.setframerate(sr)
+   for block,dur in zip(BLOCKS,durations):
+    data=subprocess.check_output(['ffmpeg','-v','error','-i',str(ROOT/('audio-'+block['id']+'.mp3')),'-ac','1','-ar',str(sr),'-f','s16le','-'])
+    samples=round(dur*sr)
+    if len(data)>samples*2:raise RuntimeError('narration exceeds visual segment')
+    w.writeframes(data+b'\0'*(samples*2-len(data)));count+=samples
+   w.writeframes(b'\0'*((round(length*sr)-count)*2))
+  score=music(length,work/'score.wav');staged=work/'final.mp4'
+  fc='[1:a]aformat=channel_layouts=stereo[voice];[2:a]volume=0.35[bed];[voice][bed]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-16:TP=-1:LRA=11[a]'
+  subprocess.run(['ffmpeg','-v','warning','-y','-i',str(joined),'-i',str(voice),'-i',str(score),'-filter_complex',fc,'-map','0:v:0','-map','[a]','-c:v','copy','-c:a','aac','-b:a','192k','-ar','48000','-t',str(length),'-movflags','+faststart',str(staged)],check=True)
+  subprocess.run(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0',str(staged)],check=True)
+  final=ROOT/'Cronicas-y-Misterios-Episodio-01-1080p.mp4'
+  shutil.copyfile(staged,ROOT/'final.staging');os.replace(ROOT/'final.staging',final)
  print('FINAL',final,flush=True)
 
 if __name__=='__main__':
