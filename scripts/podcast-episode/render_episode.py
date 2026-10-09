@@ -33,6 +33,7 @@ def lines(d,xy,s,size=42,width=700,fill=WHITE,gap=1.35,bold=False,serif=False):
 def ease(x):return .5-.5*math.cos(math.pi*max(0,min(1,x)))
 def norm(s):return ''.join(c for c in unicodedata.normalize('NFD',s.lower()) if unicodedata.category(c)!='Mn' and c.isalnum())
 M=json.loads((ROOT/'manifest.json').read_text());BLOCKS=M['blocks'];BM={b['id']:b for b in BLOCKS}
+VISUAL_OVERRIDES={'a09','a09b','a10','a11','a13','a14','a15'}
 def duration(b):
  return float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0',str(ROOT/f"audio-{b['id']}.mp3")]))
 DUR={b['id']:duration(b) for b in BLOCKS}
@@ -156,8 +157,40 @@ PHOTO={
 
 def frame(b,t,dur):
  bid=b['id'];p=t/max(dur,.1);phase=min(3,int(p*4));kind='GRÁFICO EXPLICATIVO'
+ if bid=='a09':
+  im=back(t);d=header(im,'Tres imágenes, una pregunta')
+  for i,(title,body) in enumerate([('SOMBRAS','La caverna'),('SECCIONES','Planilandia'),('ÍCONOS','Una interfaz')]):
+   xx=110+i*595;panel(d,(xx,240,xx+550,770),title,body,GOLD if phase==i else BLUE)
+  cube(d,t,3,(385,590),85);d.ellipse((900,500,1045,645),outline=BLUE,width=4)
+  for k in range(3):d.rounded_rectangle((1360+k*90,540,1420+k*90,605),8,fill=BLUE)
+  label(d,'¿Y si vemos solo una parte de lo que hay?',835,35);return im
+ if bid=='a09b':
+  im=back(t);d=header(im,'Mover el foco de la conciencia','EXPERIMENTO DE ATENCIÓN')
+  radius=150+20*math.sin(t*.65)
+  for k in range(6):
+   rr=radius+k*28;d.ellipse((960-rr,465-rr,960+rr,465+rr),outline=(45+k*5,95+k*10,125+k*11),width=2)
+  txt(d,(960,460),'ATENCIÓN',48,GOLD,True,anchor='mm')
+  label(d,'Solo si estás en un lugar seguro y no estás conduciendo',825,30)
+  text='Escucha · siente · observa' if p<.57 else 'No cambió el mundo. Cambió tu foco.'
+  txt(d,(960,748),text,38,WHITE,True,anchor='mm');return im
+ if bid=='a10':
+  im=back(t);d=header(im,'Una pregunta exige buenos datos')
+  for i,(title,body) in enumerate([('RESPETO','Escuchar los testimonios'),('MÉTODO','Examinar la evidencia'),('PRUDENCIA','Reconocer lo que falta')]):
+   xx=110+i*595;panel(d,(xx,250,xx+550,765),title,body,GOLD if phase==i else BLUE)
+   d.ellipse((xx+220,515,xx+330,625),outline=GOLD,width=3);txt(d,(xx+275,570),str(i+1),45,WHITE,True,anchor='mm')
+  return im
+ if bid in ['a14','a15']:
+  im=photo('archive-westerlund.jpg',t,dur);d=header(im,'Seguir preguntando','IMAGEN ASTRONÓMICA · NASA / ESA')
+  d.rectangle((110,260,1450,790),fill=(9,19,32))
+  if bid=='a14':
+   lines(d,(155,325),'Un universo más grande que nuestras certezas',67,1190,WHITE,1.18,True,True)
+   txt(d,(165,700),'Curiosidad · humildad · evidencia',31,GOLD)
+  else:
+   title='Gracias por acompañarnos' if p<.35 else 'Próximo episodio: el interior de un agujero negro' if p<.78 else 'Sigue mirando hacia arriba. Sigue preguntando.'
+   lines(d,(155,325),title,67,1190,WHITE,1.18,True,True);txt(d,(165,700),'CRÓNICAS Y MISTERIOS DEL UNIVERSO · CON HANS',25,GOLD,True)
+  txt(d,(80,875),'Westerlund 2 · NASA, ESA y equipo científico · Créditos completos al final',21,MUTED);return im
  photo_duration=.42 if bid not in ['v12','v19','v26'] else .65
- if bid in PHOTO and p<photo_duration:
+ if bid in PHOTO and (ROOT/('visual-'+PHOTO[bid][0]+'.png')).exists() and p<photo_duration:
   name,kind=PHOTO[bid];im=photo('visual-'+name+'.png',t,dur);d=header(im,TITLES[bid],kind.upper())
   if bid=='v12':
    for n in range(4):
@@ -234,6 +267,17 @@ def frame(b,t,dur):
   elif bid=='a13':
    for k,(a,bb) in enumerate([('PERCEPCIÓN','Una ventana limitada'),('DIMENSIONES EXTRA','Posibilidad, no detección'),('CONCIENCIA','Investigación en marcha'),('VISITANTES','Sin prueba científica confirmada')]):
     x=140+(k%2)*855;y=230+(k//2)*290;panel(d,(x,y,x+805,y+250),a,bb,GOLD if k%2 else BLUE)
+  elif bid=='v15':
+   lines(d,(120,315),'Orch OR',62,700,WHITE,1.22,True);lines(d,(130,555),'Penrose y Hameroff · hipótesis discutida',34,620,MUTED)
+   # Schematic cylindrical lattice, explicitly not an observed quantum event.
+   for j in range(13):
+    a=j*math.tau/13+t*.12
+    if math.sin(a)<0:continue
+    for k in range(17):
+     x=1060+k*34;y=495+155*math.cos(a);rr=11+3*math.sin(a)
+     d.ellipse((x-rr,y-rr,x+rr,y+rr),fill=BLUE if (j+k)%2 else GOLD)
+   d.ellipse((1030,325,1088,665),outline=MUTED,width=2)
+   txt(d,(1340,740),'Microtúbulo · esquema simplificado',26,MUTED,anchor='mm')
   else:
    graph(d,t,(1220,495),300,42)
    a,bb={'v10':('86 mil millones','de neuronas, aproximadamente'), 'v11':('Mecanismo ≠ experiencia','David Chalmers · 1995'), 'v15':('Orch OR','Penrose y Hameroff · hipótesis discutida')}[bid]
@@ -256,6 +300,11 @@ def frame(b,t,dur):
  elif bid=='v19':
   panel(d,(130,225,915,775),'FENÓMENO','El mundo tal como se nos aparece',GOLD);panel(d,(1005,225,1790,775),'NOÚMENO','El mundo considerado en sí mismo',BLUE)
   for i in range(12):d.line((950+i*2,250,950+i*2,750),fill=(33,63,87),width=1)
+  # Moving silhouette and the object behind it: a diagram of appearance.
+  a=t*.15;cx,cy=510,585
+  pts=[(cx+120*math.cos(a+i*math.tau/3),cy+120*math.sin(a+i*math.tau/3)) for i in range(3)]
+  d.polygon(pts,fill=(75,103,120));d.line(pts+[pts[0]],fill=BLUE,width=3)
+  cube(d,t,3,(1390,580),95)
   label(d,'Immanuel Kant · una distinción filosófica',850,32)
  elif bid in ['v20','v21']:
   rr=random.Random(71)
@@ -270,7 +319,7 @@ def frame(b,t,dur):
    d.ellipse((x-10,490,x+10,510),fill=GOLD);txt(d,(x,390),date,48,GOLD,True,anchor='mm');lines(d,(x-190,560),title,32,400)
   txt(d,(160,820),'Jacques Vallée · hipótesis interpretativa, no prueba de visitantes',25,MUTED)
  elif bid=='v23':
-  sphere(d,t-dur*.65,dur*.35);d.rectangle((290,759,1630,871),fill=(14,30,43));label(d,'Analogía ≠ prueba',815,52)
+  sphere(d,t,dur);d.rectangle((290,759,1630,871),fill=(14,30,43));label(d,'Analogía ≠ prueba',815,52)
  elif bid in ['v24','a11']:
   entries=[('2021','ODNI','144 reportes · datos limitados'),('2023','NASA','Mejores instrumentos y metodología'),('2024','AARO','Sin prueba de tecnología extraterrestre')]
   for i,(year,org,body) in enumerate(entries):
@@ -289,6 +338,12 @@ def frame(b,t,dur):
  elif bid=='v26':
   panel(d,(190,260,870,780),'HIPÓTESIS','“Todos los cisnes son blancos”',BLUE);panel(d,(1050,260,1730,780),'CONTRAEJEMPLO','Un cisne negro basta para refutarla',GOLD)
   txt(d,(960,510),'→',90,GOLD,anchor='mm');txt(d,(220,855),'Karl Popper · falsabilidad',26,MUTED)
+  for cx,col in [(450,WHITE),(660,WHITE),(1370,(27,33,41))]:
+   cy=610+6*math.sin(t*.6+cx);d.ellipse((cx-74,cy-28,cx+74,cy+34),fill=col,outline=MUTED,width=2)
+   d.arc((cx+13,cy-124,cx+82,cy+5),170,345,fill=col,width=20)
+   d.ellipse((cx+13,cy-124,cx+43,cy-95),fill=col,outline=MUTED,width=1)
+   d.polygon([(cx+14,cy-115),(cx-5,cy-107),(cx+14,cy-101)],fill=GOLD)
+   for k in range(3):d.arc((cx-92-k*13,cy+15,cx+94+k*13,cy+55+k*13),0,180,fill=(47,90,111),width=2)
  return im
 
 def ass_time(t):
@@ -351,7 +406,7 @@ def render_avatar(b):
 def previews():
  images=[]
  for b in BLOCKS:
-  if b['kind']=='V' or b['id'] in ['a11','a13']:
+  if b['kind']=='V' or b['id'] in VISUAL_OVERRIDES:
    for frac in [.20,.78]:
     im=frame(b,DUR[b['id']]*frac,DUR[b['id']]);im.thumbnail((480,270));d=ImageDraw.Draw(im);d.rectangle((0,242,480,270),fill=(0,0,0));d.text((10,247),b['id']+' / '+str(frac),font=ft(15),fill='white');images.append(im)
  sheet=Image.new('RGB',(480*4,270*math.ceil(len(images)/4)),NAVY)
@@ -371,7 +426,7 @@ def credits(seconds):
    lines(d,(150,310),'Westerlund 2: NASA, ESA, the Hubble Heritage Team (STScI/AURA), A. Nota (ESA/STScI), and the Westerlund 2 Science Team',29,1570)
    txt(d,(150,470),'ESA/Hubble · CC BY 4.0 · esahubble.org/images/heic1509a/',25,MUTED)
    txt(d,(150,555),'Pale Blue Dot Revisited: NASA/JPL-Caltech · Voyager 1',28,WHITE)
-   lines(d,(150,652),'Presentador virtual y voz clonada utilizados con autorización de Hans. Ilustraciones conceptuales generadas con IA e identificadas en pantalla. Gráficos y música originales.',26,1570,MUTED)
+   lines(d,(150,652),'Presentador virtual y voz clonada utilizados con autorización de Hans. Estudio generado con IA. Gráficos explicativos y música originales; recreaciones identificadas en pantalla.',26,1570,MUTED)
   else:
    txt(d,(150,220),'LECTURAS Y DOCUMENTOS',31,GOLD,True)
    sources=['Edwin A. Abbott · Planilandia (1884)','Thomas Nagel (1974) · David Chalmers (1995)','Cogitate Consortium · Nature (2025) · doi:10.1038/s41586-025-08888-1','ODNI · Evaluación preliminar de UAP (2021)','NASA · UAP Independent Study Team Report (2023)','AARO · Historical Record Report, Vol. 1 (2024)']
@@ -413,10 +468,10 @@ if __name__=='__main__':
  mode=sys.argv[2] if len(sys.argv)>2 else '--previews'
  if mode=='--previews':previews()
  elif mode in ['--visuals','--diagrams']:
-  chosen=[b for b in BLOCKS if (b['kind']=='V' or b['id'] in ['a11','a13']) and (mode=='--visuals' or b['id'] not in PHOTO and b['id'] not in ['v01','v27','v28'])]
+  chosen=[b for b in BLOCKS if (b['kind']=='V' or b['id'] in VISUAL_OVERRIDES) and (mode=='--visuals' or b['id'] not in PHOTO and b['id'] not in ['v01','v27','v28'])]
   with ProcessPoolExecutor(max_workers=3) as ex:list(ex.map(render_visual,chosen))
  elif mode=='--avatars':
-  chosen=[b for b in BLOCKS if b['kind']=='A' and b['id'] not in ['a11','a13']]
+  chosen=[b for b in BLOCKS if b['kind']=='A' and b['id'] not in VISUAL_OVERRIDES]
   with ProcessPoolExecutor(max_workers=3) as ex:list(ex.map(render_avatar,chosen))
  elif mode=='--assemble':assemble()
  elif mode.startswith('--one='):render_visual(BM[mode.split('=',1)[1]])
