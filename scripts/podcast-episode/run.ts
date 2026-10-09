@@ -190,7 +190,76 @@ async function narrate() {
   log("NARRATION_DONE", { episode: ep.id.slice(0, 8), blocks: manifest.length, reusedBlocks: reused, newCharacters: paidChars, creditsHeldTotal: await elevenCreditsUsed(project), avatarSeconds: secs("A"), visualSeconds: secs("V"), totalSeconds: secs("") });
 }
 
-const modes: Record<string, () => Promise<void>> = { keygen, "verify-rate": verifyRate, inspect, "store-docs": storeDocs, narrate };
+const STUDIO_PROMPT = "Photorealistic interior of an elegant, modern, futuristic podcast studio with a space aesthetic, photographed for a high-end documentary series. " +
+  "Behind the presenter area: a large curved panoramic window showing the soft blue limb of the Earth and a deep starfield with a faint nebula. " +
+  "Dark graphite walls with thin, warm amber and cool blue LED accent lines, a few minimalist shelves with subtle objects (a small brass armillary sphere, books), " +
+  "soft volumetric light. Main soft light comes from the left side of the frame, warm neutral, like a large window softbox; gentle cool fill on the right. " +
+  "Shot at chest height with a 35mm lens, shallow depth of field, the background slightly out of focus, cinematic color grading, realistic materials. " +
+  "The center of the frame is empty, reserved for a seated presenter. No people, no text, no logos, no watermarks, no screens with writing.";
+
+/** Paid (images cap): studio plates through the paid-call gate, then the free composite. Reruns reuse stored plates. */
+async function studio() {
+  process.env.OPENAI_IMAGE_QUALITY = "high";
+  const ep = await episodeRow();
+  const project = `podcast-${ep.id}`;
+  const { openaiImageProvider } = await import("../../src/lib/providers/image/openai");
+  const { guardPaidCall } = await import("../../src/lib/paid-calls/gate");
+  const { supabaseLedgerStore } = await import("../../src/lib/paid-calls/supabase-ledger-store");
+  const s = db().storage.from("videos");
+  const prefix = `${ep.user_id}/podcasts/${ep.id}/studio`;
+  const variants = [
+    { n: "1", extra: " Color palette: deep navy and graphite with amber accents." },
+    { n: "2", extra: " Color palette: deep teal-blue and charcoal with soft violet and amber accents." },
+  ];
+  for (const v of variants) {
+    const path = `${prefix}/plate-${v.n}.png`;
+    let bytes: Buffer | null = null;
+    const { data: existing } = await s.download(path);
+    if (existing) bytes = Buffer.from(await existing.arrayBuffer());
+    else {
+      const spent = await imagesSpentUsd(project);
+      if (spent + 0.4 > AUTH.imagesMaxUsd) throw Error(`images cap would be exceeded (spent ${spent.toFixed(2)}); stopped`);
+      const g = await guardPaidCall<{ path: string }>(supabaseLedgerStore(db()), { projectId: project, shotId: `studio-plate-${v.n}`, provider: "openai", model: "gpt-image-2", method: "generate_image",
+        inputFingerprint: { prompt: STUDIO_PROMPT + v.extra, aspectRatio: "16:9", quality: "high" }, reservedUsd: 0.4 }, {
+        call: async () => {
+          const a = await openaiImageProvider.generateImage({ prompt: STUDIO_PROMPT + v.extra, aspectRatio: "16:9", maxCostUsd: 0.4, disableRetries: true });
+          const up = await s.upload(path, a.buffer, { contentType: "image/png", upsert: false });
+          if (up.error) throw Error("plate upload failed");
+          return { result: { path }, costUsd: a.costUsd, resultRef: path };
+        },
+        load: async () => null,
+        maxRejectedRetries: 0,
+      });
+      const { data } = await s.download(g.result.path);
+      bytes = Buffer.from(await data!.arrayBuffer());
+    }
+    writeFileSync(`${WORK}/plate-${v.n}.png`, bytes);
+    log("PLATE", { n: v.n, bytes: bytes.length, reused: !!existing });
+  }
+  const { data: cut } = await s.download(`${prefix}/cutout.png`);
+  if (cut) writeFileSync(`${WORK}/cutout.png`, Buffer.from(await cut.arrayBuffer()));
+  else {
+    const { a } = await testRequest();
+    const { data: photo } = await db().storage.from("avatar-uploads").download(a.source_photo_path);
+    writeFileSync(`${WORK}/photo`, Buffer.from(await photo!.arrayBuffer()));
+    writeFileSync(`${WORK}/test.mp4`, Buffer.alloc(0));
+    execFileSync("python3", ["-c", "import sys;sys.argv=['x','x',sys.argv[1]];from pathlib import Path;import importlib.util as u;s=u.spec_from_file_location('m','scripts/podcast-episode/media.py');m=u.module_from_spec(s);s.loader.exec_module(m);from rembg import new_session,remove;from PIL import Image,ImageOps;im=ImageOps.exif_transpose(Image.open(Path(sys.argv[2])/'photo')).convert('RGB');remove(im,session=new_session('birefnet-portrait')).save(Path(sys.argv[2])/'cutout.png')", WORK], { stdio: "inherit" });
+    await s.upload(`${prefix}/cutout.png`, readFileSync(`${WORK}/cutout.png`), { contentType: "image/png", upsert: true });
+  }
+  execFileSync("python3", ["scripts/podcast-episode/media.py", "composite", WORK], { stdio: "inherit" });
+  for (const n of ["1", "2"]) {
+    await s.upload(`${prefix}/composite-${n}.png`, readFileSync(`${WORK}/composite-${n}.png`), { contentType: "image/png", upsert: true });
+    seal(`composite-${n}.jpg`, readFileSync(`${WORK}/out/composite-${n}.jpg`));
+  }
+  log("IMAGES_SPENT", { usd: Math.round((await imagesSpentUsd(project)) * 10000) / 10000, capUsd: AUTH.imagesMaxUsd });
+}
+
+async function imagesSpentUsd(project: string) {
+  const { data } = await db().from("pi_paid_operations").select("status,reserved_usd,committed_usd").eq("project_id", project).eq("provider", "openai").neq("status", "REFUNDED");
+  return (data ?? []).reduce((a, o) => a + Number(o.status === "COMMITTED" ? o.committed_usd : o.reserved_usd), 0);
+}
+
+const modes: Record<string, () => Promise<void>> = { keygen, "verify-rate": verifyRate, inspect, "store-docs": storeDocs, narrate, studio };
 // Several $0 steps may be chained with commas; each runs only if the previous one succeeded.
 (async () => {
   for (const mode of (process.argv[2] ?? "").split(",").filter(Boolean)) {

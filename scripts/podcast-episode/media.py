@@ -51,6 +51,56 @@ def inspect(work: Path) -> None:
     print("INSPECT", json.dumps({"photo": list(full.size), "personBBox": bbox, "alphaCoverage": round(sum(alpha.histogram()[128:]) / (full.size[0] * full.size[1]), 3)}))
 
 
+def composite(work: Path) -> None:
+    """Person cut-out (from the approved photo, face untouched) over each studio plate, 1920x1080."""
+    import numpy as np
+    from PIL import ImageFilter
+
+    out = work / "out"
+    out.mkdir(exist_ok=True)
+    cut = Image.open(work / "cutout.png").convert("RGBA")
+    W, H = 1920, 1080
+    # The approved photo clips the jacket at its left/right borders below some row. Scale so that row
+    # lands just below the frame: the silhouette stays natural and no straight cut edge is visible.
+    alpha_full = np.asarray(cut.split()[-1])
+    touching = np.where((alpha_full[:, :3].max(1) > 127) | (alpha_full[:, -3:].max(1) > 127))[0]
+    clip_row = int(touching.min()) if touching.size else cut.height
+    visible = min(cut.height, clip_row - 6)
+    scale = H / visible
+    person = cut.resize((round(cut.width * scale), round(cut.height * scale)), Image.LANCZOS).crop((0, 0, round(cut.width * scale), H))
+    report = []
+    for plate_path in sorted(work.glob("plate-*.png")):
+        n = plate_path.stem.split("-")[1]
+        plate = Image.open(plate_path).convert("RGB")
+        # Fill 16:9 (plates are 3:2), then a gentle lens blur: the set sits behind the presenter.
+        r = max(W / plate.width, H / plate.height)
+        plate = plate.resize((round(plate.width * r), round(plate.height * r)), Image.LANCZOS)
+        left, top = (plate.width - W) // 2, (plate.height - H) // 2
+        bg = plate.crop((left, top, left + W, top + H)).filter(ImageFilter.GaussianBlur(2.2))
+        x = (W - person.width) // 2
+        rgb = np.asarray(person.convert("RGB")).astype(np.float32)
+        a = np.asarray(person.split()[-1]).astype(np.float32) / 255.0
+        # Colour coherence: pull the presenter 18% toward the set's mean tone (keeps skin natural).
+        region = np.asarray(bg.crop((x, 0, x + person.width, H))).astype(np.float32)
+        set_mean = region.reshape(-1, 3).mean(0)
+        p_mean = rgb[a > 0.5].mean(0)
+        rgb = np.clip(rgb + (set_mean - p_mean) * 0.18, 0, 255)
+        # Cool rim light on the silhouette edge, like the studio's blue accents.
+        edge = np.asarray(Image.fromarray((a * 255).astype(np.uint8)).filter(ImageFilter.FIND_EDGES).filter(ImageFilter.GaussianBlur(6))).astype(np.float32) / 255.0
+        rim = np.array([120, 170, 255], np.float32)
+        rgb = np.clip(rgb + edge[..., None] * a[..., None] * rim * 0.22, 0, 255)
+        canvas = np.asarray(bg).astype(np.float32)
+        sl = canvas[:, x:x + person.width]
+        canvas[:, x:x + person.width] = sl * (1 - a[..., None]) + rgb * a[..., None]
+        comp = Image.fromarray(canvas.astype(np.uint8))
+        comp.save(work / f"composite-{n}.png")
+        prev = comp.copy()
+        prev.thumbnail((1280, 720))
+        prev.save(out / f"composite-{n}.jpg", quality=90)
+        report.append({"plate": n, "clipRow": clip_row, "scale": round(scale, 3), "personX": x, "personW": person.width, "setMean": [round(v) for v in set_mean]})
+    print("COMPOSITE", json.dumps(report))
+
+
 if __name__ == "__main__":
     step, work = sys.argv[1], Path(sys.argv[2])
-    {"inspect": inspect}[step](work)
+    {"inspect": inspect, "composite": composite}[step](work)
