@@ -1,0 +1,34 @@
+name: App flow diagnostics (read-only)
+# Read-only production checks for the in-app YouTube production flow. Prints structure and counts
+# only (hashed ids, statuses, timestamps); no topics, scripts, emails, keys or amounts.
+on:
+  push:
+    branches: [claude/youtube-flow-from-app]
+    paths: [ops/app-flow.mode]
+permissions:
+  contents: read
+concurrency:
+  group: app-flow-diag
+  cancel-in-progress: false
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/app-flow-diag.ts "$(head -1 ops/app-flow.mode | tr -d '[:space:]')"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+          SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
