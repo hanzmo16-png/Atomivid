@@ -29,10 +29,13 @@ jobs:
       - run: npm ci
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg imagemagick > /dev/null
       - name: Measure and extract (sealed)
-        run: npx tsx scripts/review/review-video.ts "$(head -1 ops/review-video.mode | tr -d '[:space:]')"
+        run: |
+          MODE="$(head -1 ops/review-video.mode | tr -d '[:space:]')"
+          if [ "$MODE" = "owner-identity" ]; then npx tsx scripts/review/owner-identity.ts; else npx tsx scripts/review/review-video.ts "$MODE"; fi
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          INTERNAL_PRODUCTION_OWNER_USER_ID: ${{ secrets.INTERNAL_PRODUCTION_OWNER_USER_ID }}
       - name: Hand over encrypted outputs only
         if: always()
         uses: actions/upload-artifact@v4
