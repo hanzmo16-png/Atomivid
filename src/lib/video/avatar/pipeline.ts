@@ -280,10 +280,14 @@ export async function generateAvatarVideo({
       .select("id")
       .maybeSingle();
     if (claimError || !claimed) {
-      throw new AvatarPipelineError(
-        "No se pudo reservar un intento único. Revisa el intento anterior antes de volver a generar.",
-        "attempt_blocked",
-      );
+      // A previous holder that stopped BEFORE any provider submission (e.g. refused by supply admission
+      // and queued) may be resumed: proven by the ledger, re-claimed by compare-and-set. Otherwise blocked.
+      if (claimError || !(await reclaimUnsubmittedAvatarAttempt(supabase, requestId, userId))) {
+        throw new AvatarPipelineError(
+          "No se pudo reservar un intento único. Revisa el intento anterior antes de volver a generar.",
+          "attempt_blocked",
+        );
+      }
     }
 
     if (heygenPhoto) {
@@ -488,4 +492,30 @@ export async function generateAvatarVideo({
   });
 
   return { videoPath: `${requestId}/final.mp4` };
+}
+
+
+const PROVIDER_TOUCHED = ["SUBMITTED", "PROVIDER_JOB_RECORDED", "RECONCILIATION_REQUIRED", "COMMITTED"];
+
+/**
+ * The single-attempt guard (avatar_generation_started_at) is never cleared. It may be RE-CLAIMED only
+ * when the ledger proves the previous holder never reached the provider: no provider video job on the
+ * request, and no paid operation of this request in a submitted/uncertain/committed state (a
+ * generate_video still RESERVED was refused before any HTTP). Compare-and-set on the exact previous
+ * timestamp: of two concurrent workers, only one wins. Any read error fails closed.
+ */
+export async function reclaimUnsubmittedAvatarAttempt(supabase: SupabaseClient, requestId: string, userId: string): Promise<boolean> {
+  const { data: row, error } = await supabase.from("video_requests").select("avatar_generation_started_at,avatar_provider_video_job_id")
+    .eq("id", requestId).eq("user_id", userId).maybeSingle();
+  if (error || !row?.avatar_generation_started_at || row.avatar_provider_video_job_id) return false;
+  const { data: ops, error: opsError } = await supabase.from("pi_paid_operations").select("status,method,provider_job_id").eq("project_id", requestId);
+  if (opsError || !ops) return false;
+  if (ops.some((o: { status: string; provider_job_id: string | null }) => PROVIDER_TOUCHED.includes(o.status) || o.provider_job_id)) return false;
+  const { data: claimed, error: claimError } = await supabase.from("video_requests")
+    .update({ avatar_generation_started_at: new Date().toISOString() })
+    .eq("id", requestId).eq("user_id", userId)
+    .eq("avatar_generation_started_at", row.avatar_generation_started_at)
+    .is("avatar_provider_video_job_id", null)
+    .select("id").maybeSingle();
+  return !claimError && !!claimed;
 }
