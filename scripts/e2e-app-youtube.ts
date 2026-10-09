@@ -68,7 +68,7 @@ async function main() {
     await page.fill("#topic", TOPIC);
     await page.selectOption("#language", "es");
     await page.fill("#duration_minutes", "3");
-    const submit = page.locator('button[type="submit"]');
+    const submit = page.locator('form:has(#topic) button[type="submit"]');
     await Promise.all([page.waitForURL(/script_job=/, { timeout: 60000 }), submit.click(), submit.click({ timeout: 2000 }).catch(() => undefined)]);
     const jobId = new URL(page.url()).searchParams.get("script_job");
     check("create → redirected with a script job", Boolean(jobId), { path: new URL(page.url()).pathname });
