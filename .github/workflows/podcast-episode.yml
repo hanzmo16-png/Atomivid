@@ -1,0 +1,82 @@
+name: Podcast episode production (owner-authorized)
+# One audited step per commit; the step name is the first line of ops/podcast-episode.mode.
+# Least privilege, split in two jobs:
+#  - "step" holds the provider/database secrets but only a READ-ONLY repository token. Anything
+#    private it produces (script, photo, voice, frames, amounts, links) is encrypted on the runner
+#    to the operator session key (ops/session-public-key.txt) before it is handed to the next job.
+#  - "publish" has NO secrets; its write token only commits those already-encrypted files to the
+#    ops-sealed-out branch. Plain logs carry no private data.
+# Paid steps are capped by ops/podcast-episode.authorization.json AND by the supply ledger.
+on:
+  push:
+    branches: [claude/hola-sn3dxy]
+    paths: [ops/podcast-episode.mode]
+permissions:
+  contents: read
+concurrency:
+  group: podcast-episode
+  cancel-in-progress: false
+jobs:
+  step:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: npm ci
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core > /dev/null
+      - run: pip install -q -r scripts/podcast-episode/requirements.txt
+      - name: Step
+        run: npx tsx scripts/podcast-episode/run.ts "$(head -1 ops/podcast-episode.mode | tr -d '[:space:]')"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PRICING_ELEVENLABS_USD_PER_1K_CHARS: '0.2'
+      - name: Hand over encrypted outputs only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sealed-out
+          path: sealed-out/*.sealed
+          if-no-files-found: ignore
+          retention-days: 3
+  publish:
+    needs: step
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: sealed-out
+          path: sealed-out
+      - name: Commit encrypted files to ops-sealed-out
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls sealed-out/*.sealed >/dev/null 2>&1 || { echo "nothing sealed"; exit 0; }
+          for f in sealed-out/*; do case "$f" in *.sealed) ;; *) echo "refusing non-sealed file"; exit 1;; esac; done
+          git init -q so && cd so
+          git config user.name "atomivid-ops" && git config user.email "ops@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch -q --depth 1 origin ops-sealed-out; then git checkout -q -B ops-sealed-out FETCH_HEAD; else git checkout -q --orphan ops-sealed-out; fi
+          mkdir -p "$GITHUB_RUN_ID" && cp ../sealed-out/*.sealed "$GITHUB_RUN_ID/"
+          git add -A && git commit -qm "sealed outputs of run $GITHUB_RUN_ID" && git push -q origin ops-sealed-out
+          echo "published $(ls "$GITHUB_RUN_ID" | wc -l) sealed file(s) under $GITHUB_RUN_ID"
