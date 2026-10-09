@@ -260,7 +260,8 @@ async function studio() {
 }
 
 async function imagesSpentUsd(project: string) {
-  const { data } = await db().from("pi_paid_operations").select("status,reserved_usd,committed_usd").eq("project_id", project).eq("provider", "openai").neq("status", "REFUNDED");
+  const { data, error } = await db().from("pi_paid_operations").select("status,reserved_usd,committed_usd").eq("project_id", project).eq("provider", "openai").neq("status", "REFUNDED");
+  if (error || !data) throw Error("image ledger unavailable; nothing sent");
   return (data ?? []).reduce((a, o) => a + Number(o.status === "COMMITTED" ? o.committed_usd : o.reserved_usd), 0);
 }
 
@@ -572,7 +573,80 @@ async function exportProduction() {
   sealOwner("studio.png", await get(prefix + "/studio/composite-wide-2.png"));
 }
 
-const modes: Record<string, () => Promise<void>> = { "export-production": exportProduction, "export-probe": exportProbe, keygen, "verify-rate": verifyRate, inspect, "store-docs": storeDocs, narrate, studio, extend };
+
+/** Conceptual illustrations are always labelled as such in the edit, never presented as archival evidence. */
+async function visualAssets() {
+  process.env.SUPPLY_GUARD_ENFORCED = "true";
+  process.env.OPENAI_IMAGE_TIMEOUT_MS = "300000";
+  process.env.OPENAI_IMAGE_QUALITY = "medium";
+  process.env.OPENAI_IMAGE_ESTIMATED_COST_USD = "0.12";
+  const ep = await episodeRow(), project = "podcast-" + ep.id;
+  const s = db().storage.from("videos"), prefix = `${ep.user_id}/podcasts/${ep.id}/visuals`;
+  const { openaiImageProvider } = await import("../../src/lib/providers/image/openai");
+  const { guardPaidCall } = await import("../../src/lib/paid-calls/gate");
+  const { supabaseLedgerStore } = await import("../../src/lib/paid-calls/supabase-ledger-store");
+  const common = "Cinematic documentary conceptual illustration, panoramic landscape composition, premium photographic realism, restrained deep navy and warm amber palette, delicate volumetric light, natural detailed textures. No text, no logos, no labels. Main subject clearly legible, full scene, avoid collages. ";
+  const shots = [
+    ["neuron", "Macro view of a branching neuron with delicate dendrites and tiny glowing synaptic connections, scientific visualization, dimensional depth, dark background."],
+    ["bat", "A single anatomically realistic small insectivorous bat in side profile flying through a limestone cave at dusk, natural wings, softly lit stone walls."],
+    ["theatre", "Empty elegant theatre viewed from the back of the auditorium, a single warm spotlight on the central stage, surrounding darkness, metaphor for conscious attention."],
+    ["laboratory", "Modern neuroscience laboratory with a magnetic resonance scanner visible through a glass observation wall, no people, no brand logos, realistic clinical equipment."],
+    ["flower", "Extreme macro of a yellow flower with a small honeybee approaching its center, natural daylight, detailed pollen and petals, accurate insect anatomy."],
+    ["eye", "Close side profile of an anonymous adult's eye looking through a rain covered window at a soft blue city, realistic skin and iris, contemplative intimate scene."],
+    ["circuits", "Extreme macro photograph of intricate copper traces on a dark blue circuit board, tiny electrical components, side lighting, shallow but controlled depth of field."],
+    ["cave", "Philosophical illustration of Plato's allegory: a wide stone cave, three seated human silhouettes in the foreground facing a wall, a small fire behind them casts large shadows on the wall, clearly understandable lighting geometry."],
+    ["desert", "Wide New Mexico desert landscape at night with low mesas and a brilliant Milky Way arch, dark foreground, realistic astronomy photography aesthetic, no spacecraft."],
+    ["radio", "Large parabolic radio telescope dish seen from below at blue hour in a quiet desert, distant dishes and stars, realistic engineering."],
+    ["archive", "Historically inspired 1950s researcher's desk with a closed notebook, slide rule and telescope diagram without readable text, amber desk lamp, no claim of actual archival photography."],
+    ["swans", "Three white swans and a single black swan swimming calmly on a dark reflective lake at dawn, accurate long neck anatomy, all four birds distinct and fully visible."],
+    ["threshold", "An ordinary empty corridor ending in a translucent curved geometric surface of blue light, restrained speculative physics conceptual illustration, no creatures, no spacecraft."],
+    ["microtubule", "Scientific conceptual visualization of a hollow cylindrical microtubule built from many small blue and gold protein units, cutaway view, dark background, molecule-scale representation."]
+  ];
+  for (const [id, detail] of shots) {
+    const path = `${prefix}/${id}.png`, prompt = common + detail;
+    const prior = await s.download(path);
+    let bytes: Buffer;
+    if (prior.data) bytes = Buffer.from(await prior.data.arrayBuffer());
+    else {
+      if (await imagesSpentUsd(project) + 0.12 > AUTH.imagesMaxUsd) throw Error("illustration image cap reached; no further calls");
+      const result = await guardPaidCall<{ path: string }>(supabaseLedgerStore(db()), {
+        projectId: project, shotId: "episode-visual-" + id, provider: "openai", model: "gpt-image-2", method: "generate_image",
+        inputFingerprint: { prompt, quality: "medium", aspectRatio: "16:9" }, reservedUsd: 0.12
+      }, {
+        call: async () => {
+          const image = await openaiImageProvider.generateImage({ prompt, aspectRatio: "16:9", maxCostUsd: 0.12, disableRetries: true });
+          const up = await s.upload(path, image.buffer, { contentType: "image/png", upsert: false });
+          if (up.error) throw Error("illustration upload failed");
+          return { result: { path }, costUsd: image.costUsd, resultRef: path };
+        },
+        load: async () => ({ path }), maxRejectedRetries: 0
+      });
+      const stored = await s.download(result.result.path);
+      if (!stored.data) throw Error("paid illustration missing");
+      bytes = Buffer.from(await stored.data.arrayBuffer());
+    }
+    sealOwner("visual-" + id + ".png", bytes);
+    log("ILLUSTRATION_SAVED", { id, reused: !!prior.data, spent: await imagesSpentUsd(project), cap: AUTH.imagesMaxUsd });
+  }
+}
+async function archiveAssets() {
+  const list = [
+    { id: "pale-blue-dot", url: "https://assets.science.nasa.gov/dynamicimage/assets/science/psd/photojournal/pia/pia23/pia23645/PIA23645.jpg?crop=faces%2Cfocalpoint&fit=clip&h=5175&w=5230", source: "https://science.nasa.gov/resource/voyager-pale-blue-dot-download/", credit: "NASA/JPL-Caltech", license: "NASA media usage guidelines" },
+    { id: "westerlund", url: "https://cdn.esahubble.org/archives/images/publicationjpg/heic1509a.jpg", source: "https://esahubble.org/images/heic1509a/", credit: "NASA, ESA, the Hubble Heritage Team (STScI/AURA), A. Nota (ESA/STScI), and the Westerlund 2 Science Team", license: "CC BY 4.0; https://esahubble.org/copyright/" }
+  ];
+  const manifest = [];
+  for (const item of list) {
+    const r = await fetch(item.url, { signal: AbortSignal.timeout(90000), redirect: "follow" });
+    if (!r.ok || !(r.headers.get("content-type") ?? "").includes("image")) throw Error("archive download failed: " + item.id);
+    const b = Buffer.from(await r.arrayBuffer());
+    sealOwner("archive-" + item.id + ".jpg", b);
+    manifest.push({ ...item, sha256: sha(b) });
+  }
+  sealOwner("archive-credits.json", Buffer.from(JSON.stringify(manifest)));
+  log("ARCHIVE_SAVED", { count: manifest.length, paidCalls: 0 });
+}
+
+const modes: Record<string, () => Promise<void>> = { "archive-assets": archiveAssets, "visual-assets": visualAssets, "export-production": exportProduction, "export-probe": exportProbe, keygen, "verify-rate": verifyRate, inspect, "store-docs": storeDocs, narrate, studio, extend };
 // Several $0 steps may be chained with commas; each runs only if the previous one succeeded.
 (async () => {
   for (const mode of (process.argv[2] ?? "").split(",").filter(Boolean)) {
