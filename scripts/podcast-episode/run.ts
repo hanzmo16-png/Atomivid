@@ -335,6 +335,10 @@ async function extend() {
 const SEGMENTS: Record<string, { blocks: string[]; resolution: "720p" | "1080p"; worstUsdPerSec: number }> = {
   // 1080p rate probe on a real block of the episode (a12, ~15 s). Worst published figure: USD 4/min.
   probe: { blocks: ["a12"], resolution: "1080p", worstUsdPerSec: 4 / 60 },
+  // Measured on the approved probe: USD 0.59 / 15.44 s, consistent with USD 2.31/min.
+  "batch-1": { blocks: ["a01", "a02", "a03", "a03b", "a04", "a05"], resolution: "1080p", worstUsdPerSec: 2.31 / 60 },
+  "batch-2": { blocks: ["a06", "a07", "a08b", "a08"], resolution: "1080p", worstUsdPerSec: 2.31 / 60 },
+  "batch-3": { blocks: ["a09", "a09b", "a10", "a11", "a14", "a15"], resolution: "1080p", worstUsdPerSec: 2.31 / 60 },
 };
 const PAD_S = 0.3;
 
@@ -355,7 +359,8 @@ async function heygenUpload(bytes: Buffer, mime: string, name: string) {
   return id as string;
 }
 async function heygenSpentUsd(project: string) {
-  const { data } = await db().from("pi_paid_operations").select("status,reserved_usd,committed_usd").eq("project_id", project).eq("provider", "heygen").neq("status", "REFUNDED");
+  const { data, error } = await db().from("pi_paid_operations").select("status,reserved_usd,committed_usd").eq("project_id", project).eq("provider", "heygen").neq("status", "REFUNDED");
+  if (error || !data) throw Error("HeyGen ledger unavailable; nothing sent");
   return (data ?? []).reduce((a, o) => a + Number(o.status === "COMMITTED" ? o.committed_usd : o.reserved_usd), 0);
 }
 
@@ -393,6 +398,7 @@ async function avatarSegment(segId: string) {
   const worst = Math.ceil(seconds * seg.worstUsdPerSec * 100) / 100;
   const { data: recBlob } = await s.download(recPath);
   const rec = recBlob ? JSON.parse(Buffer.from(await recBlob.arrayBuffer()).toString("utf8")) as Record<string, any> : null;
+  let ledgerKey: string | undefined = rec?.ledgerKey;
   log("SEGMENT_PLAN", { seg: segId, blocks: seg.blocks, seconds: Math.round(seconds * 10) / 10, resolution: seg.resolution, worstCaseUsd: worst, recorded: !!rec?.jobId });
 
   // Wait for the render, download it, and measure the wallet charge (polled until it moves, up to 3 min).
@@ -406,14 +412,24 @@ async function avatarSegment(segId: string) {
     }
     if (d.status !== "completed" || typeof d.video_url !== "string") throw Error(`segment ${segId} status=${String(d.status).slice(0, 20)} code=${String(d.failure_code ?? "").slice(0, 30)}`);
     const vr = await fetch(d.video_url, { signal: AbortSignal.timeout(300000), redirect: "error" });
+    if (!vr.ok) throw Error("provider video download failed");
     const video = Buffer.from(await vr.arrayBuffer());
-    const up = await s.upload(`${prefix}/avatar/${segId}.mp4`, video, { contentType: "video/mp4", upsert: true });
-    if (up.error) throw Error("segment video upload failed");
+    // Preserve the source bytes. Parts stay below the storage per-object limit.
+    const storageParts: string[] = [];
+    const chunkSize = 32 * 1024 * 1024;
+    for (let offset = 0; offset < video.length; offset += chunkSize) {
+      const n = storageParts.length;
+      const path = video.length <= chunkSize ? `${prefix}/avatar/${segId}.mp4` : `${prefix}/avatar/${segId}.part-${n}`;
+      const up = await s.upload(path, video.subarray(offset, offset + chunkSize), { contentType: "application/octet-stream", upsert: true });
+      if (up.error) throw Error("segment video part upload failed");
+      storageParts.push(path);
+    }
     writeFileSync(`${WORK}/${segId}.mp4`, video);
     let walletAfter = await wallet();
     for (let i = 0; i < 9 && walletBefore !== null && walletAfter === walletBefore; i++) { await new Promise((r) => setTimeout(r, 20000)); walletAfter = await wallet(); }
     const charged = walletBefore !== null ? Math.round((walletBefore - walletAfter) * 100) / 100 : null;
-    await s.upload(recPath, Buffer.from(JSON.stringify({ ...(rec ?? {}), jobId, walletBefore, seconds, timeline, resolution: seg.resolution, chargedUsd: charged, completedAt: new Date().toISOString() })), { contentType: "application/json", upsert: true });
+    const saved = await s.upload(recPath, Buffer.from(JSON.stringify({ ...(rec ?? {}), jobId, ledgerKey, walletBefore, walletAfter, seconds, timeline, storageParts, videoSha256: sha(video), resolution: seg.resolution, chargedUsd: charged, completedAt: new Date().toISOString() })), { contentType: "application/json", upsert: true });
+    if (saved.error) throw Error("completed segment record could not be saved");
     return { walletAfter, charged };
   };
 
@@ -422,7 +438,25 @@ async function avatarSegment(segId: string) {
   let outcome: { walletAfter: number; charged: number | null };
   if (jobId) {
     // Recovery of an already submitted segment: no new submission, no new charge.
-    outcome = await finish(jobId, walletBefore);
+    if (rec?.completedAt) {
+      const buffers: Buffer[] = [];
+      for (const path of rec.storageParts ?? [`${prefix}/avatar/${segId}.mp4`]) {
+        const { data, error } = await s.download(path);
+        if (error || !data) throw Error("stored paid segment missing; no regeneration");
+        buffers.push(Buffer.from(await data.arrayBuffer()));
+      }
+      const bytes = Buffer.concat(buffers);
+      if (rec.videoSha256 && sha(bytes) !== rec.videoSha256) throw Error("stored segment hash mismatch");
+      writeFileSync(`${WORK}/${segId}.mp4`, bytes);
+      outcome = { walletAfter: rec.walletAfter ?? walletBefore! - rec.chargedUsd, charged: rec.chargedUsd };
+    } else {
+      outcome = await finish(jobId, walletBefore);
+    }
+    if (ledgerKey) {
+      const { commitRecordedPaidJob } = await import("../../src/lib/paid-calls/gate");
+      const { supabaseLedgerStore } = await import("../../src/lib/paid-calls/supabase-ledger-store");
+      await commitRecordedPaidJob(supabaseLedgerStore(db()), ledgerKey, { costUsd: outcome.charged !== null && outcome.charged > 0 ? outcome.charged : worst, resultRef: `avatar-job:${jobId}` });
+    }
   } else {
     const spent = await heygenSpentUsd(project);
     if (spent + worst > AUTH.heygenMaxUsd) throw Error(`HeyGen cap would be exceeded (spent ${spent.toFixed(2)} + ${worst}); nothing sent`);
@@ -436,11 +470,12 @@ async function avatarSegment(segId: string) {
     let accepted: string | undefined;
     const g = await guardPaidCall<{ jobId: string; walletAfter: number; charged: number | null }>(supabaseLedgerStore(db()), { projectId: project, shotId: `avatar:${segId}`, provider: "heygen", model: "avatar-iv-photo", method: "generate_video",
       inputFingerprint: { seg: segId, blocks: seg.blocks, audioSha: sha(wav), imageSha: sha(readFileSync(`${WORK}/composite.png`)), resolution: seg.resolution }, reservedUsd: worst }, {
-      call: async () => {
+      call: async ({ key }) => {
+        ledgerKey = key;
         const d = await heygenApi("/v3/videos", { method: "POST", body: JSON.stringify({ type: "image", image: { type: "asset_id", asset_id: imageId }, audio_asset_id: audioId, aspect_ratio: "16:9", resolution: seg.resolution }) });
         if (typeof d.video_id !== "string") throw Error("no video_id; do not resubmit");
         accepted = d.video_id;
-        const up = await s.upload(recPath, Buffer.from(JSON.stringify({ jobId: d.video_id, walletBefore, seconds, timeline, resolution: seg.resolution, submittedAt: new Date().toISOString() })), { contentType: "application/json", upsert: true });
+        const up = await s.upload(recPath, Buffer.from(JSON.stringify({ jobId: d.video_id, ledgerKey, walletBefore, seconds, timeline, resolution: seg.resolution, submittedAt: new Date().toISOString() })), { contentType: "application/json", upsert: true });
         if (up.error) throw Error("job id not stored; do not resubmit");
         const o = await finish(d.video_id, walletBefore);
         // The ledger commits the measured wallet charge; the worst case only if the wallet has not moved yet.
@@ -460,11 +495,19 @@ async function avatarSegment(segId: string) {
   execFileSync("python3", ["-c", `import sys;sys.path.insert(0,'scripts/podcast-episode');import media;from pathlib import Path;w=Path('${WORK}');(w/'out').mkdir(exist_ok=True);media.sheet(media.frames(w/'${segId}.mp4',w/'out',8,480),4).save(w/'out'/'${segId}-frames.jpg',quality=86)`], { stdio: "inherit" });
   seal(`${segId}-frames.jpg`, readFileSync(`${WORK}/out/${segId}-frames.jpg`));
   sealed_json(`${segId}-heygen.json`, { walletBefore, walletAfter: outcome.walletAfter, charged: outcome.charged, perMin, seconds });
+  const source = readFileSync(`${WORK}/${segId}.mp4`);
+  for (let offset = 0, n = 0; offset < source.length; offset += 32 * 1024 * 1024, n++)
+    sealOwner(`${segId}-part-${n}.bin`, source.subarray(offset, offset + 32 * 1024 * 1024));
+  sealOwner(`${segId}-record.json`, Buffer.from(JSON.stringify({ segId, seconds, timeline, videoSha256: sha(source), chargedUsd: outcome.charged, width: v?.width, height: v?.height })));
+  if (!Number.isFinite(outcome.charged) || outcome.charged! <= 0 || outcome.charged! > worst)
+    throw Error("charge requires reconciliation before the next paid segment");
 }
 function sealed_json(name: string, v: unknown) { seal(name, Buffer.from(JSON.stringify(v))); }
 
 /** Avatar step: "avatar:<segment>" — loads the chosen composite (studio plate 2) first. */
 async function avatarStep(segId: string) {
+  // Operator workflow is a production caller too: enforce existing daily/monthly/concurrency limits.
+  process.env.SUPPLY_GUARD_ENFORCED = "true";
   const ep = await episodeRow();
   const { data } = await db().storage.from("videos").download(`${ep.user_id}/podcasts/${ep.id}/studio/composite-wide-2.png`);
   if (!data) throw Error("composite missing");
@@ -515,18 +558,18 @@ async function exportProduction() {
   const manifestBytes = await get(prefix + "/narration-manifest.json");
   const manifest = JSON.parse(manifestBytes.toString("utf8"));
   sealOwner("manifest.json", manifestBytes);
-  for (const name of ["guion.md", "plan-y-presupuesto.md"])
-    sealOwner(name, await get(`${ep.user_id}/podcasts/episodio-01/${name}`));
-  for (const b of manifest.blocks) {
-    if (!/^[av][0-9]+$/.test(b.id)) throw Error("invalid block id");
-    sealOwner("audio-" + b.id + ".mp3", await get(b.audioPath));
-  }
-  sealOwner("studio.png", await get(prefix + "/studio/composite-wide-2.png"));
   const balance = await wallet();
   const spent = await heygenSpentUsd("podcast-" + ep.id);
   const images = await imagesSpentUsd("podcast-" + ep.id);
   sealOwner("production-state.json", Buffer.from(JSON.stringify({ episodeId: ep.id, userId: ep.user_id, balance, spent, images })));
   log("PRODUCTION_INVENTORY", { balance, spent, images, blocks: manifest.blocks.map((b: any) => ({ id: b.id, kind: b.kind, seconds: b.seconds })), providerCalls: 0 });
+  for (const name of ["guion.md", "plan-y-presupuesto.md"])
+    sealOwner(name, await get(`${ep.user_id}/podcasts/episodio-01/${name}`));
+  for (const b of manifest.blocks) {
+    if (!/^[av][a-z0-9]+$/.test(b.id)) throw Error("invalid block id");
+    sealOwner("audio-" + b.id + ".mp3", await get(b.audioPath));
+  }
+  sealOwner("studio.png", await get(prefix + "/studio/composite-wide-2.png"));
 }
 
 const modes: Record<string, () => Promise<void>> = { "export-production": exportProduction, "export-probe": exportProbe, keygen, "verify-rate": verifyRate, inspect, "store-docs": storeDocs, narrate, studio, extend };
@@ -539,3 +582,4 @@ const modes: Record<string, () => Promise<void>> = { "export-production": export
     await modes[mode]();
   }
 })().catch((e) => { console.error("STEP_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
+
