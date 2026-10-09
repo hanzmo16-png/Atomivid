@@ -31,11 +31,18 @@ jobs:
       - name: Measure and extract (sealed)
         run: |
           MODE="$(head -1 ops/review-video.mode | tr -d '[:space:]')"
-          if [ "$MODE" = "owner-identity" ]; then npx tsx scripts/review/owner-identity.ts; else npx tsx scripts/review/review-video.ts "$MODE"; fi
+          if [ "$MODE" = "owner-identity" ]; then npx tsx scripts/review/owner-identity.ts;
+          elif [ "$MODE" = "podcast-editor-live" ]; then npx tsx scripts/review/podcast-editor-live.ts;
+          else npx tsx scripts/review/review-video.ts "$MODE"; fi
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           INTERNAL_PRODUCTION_OWNER_USER_ID: ${{ secrets.INTERNAL_PRODUCTION_OWNER_USER_ID }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+          SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
       - name: Hand over encrypted outputs only
         if: always()
         uses: actions/upload-artifact@v4
