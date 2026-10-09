@@ -582,6 +582,10 @@ async function avatarState() {
     avatarRow: photo ? Object.fromEntries(Object.entries(photo).filter(([k]) => /status|provider|photo|image|path/i.test(k)).map(([k, v]) => [k, typeof v === "string" ? (v.length > 0 ? (/(path|url)/i.test(k) ? "present" : v.slice(0, 40)) : "") : v])) : null,
     envelopes: (env ?? []).map((e) => ({ provider: e.provider, attempt: e.render_attempt, status: e.status, consumedZero: Number(e.consumed_usd) === 0 && Number(e.consumed_units) === 0, createdAt: e.created_at })),
     ledger: (ops ?? []).map((o) => ({ key: h10(String(o.idempotency_key)), provider: o.provider, method: o.method, status: o.status, providerJob: !!o.provider_job_id, updatedAt: o.updated_at })) });
+  const { decideAvatarRecovery } = await import("../src/lib/video/avatar/recovery");
+  const decision = decideAvatarRecovery({ status: row.status, render_attempts: row.render_attempts, avatar_provider_video_job_id: row.avatar_provider_video_job_id ?? null, video_path: row.video_path ?? null },
+    (ops ?? []).map((o) => ({ status: o.status, method: o.method, provider_job_id: o.provider_job_id })));
+  log("AVATAR_RECOVERY_DECISION", decision.action === "none" ? { action: decision.action, reason: decision.reason } : { action: decision.action, label: decision.label });
   sealed("AVATAR_ENVELOPE_AMOUNTS", { envelopes: env, ops: (ops ?? []).map((o) => ({ method: o.method, status: o.status, reserved: o.reserved_usd, committed: o.committed_usd })) });
   const { data: st } = await db.rpc("pi_supply_state", { p_provider: "heygen" });
   log("HEYGEN_STATE", st ? { level: (st as any).level, reason: (st as any).reason } : null);
