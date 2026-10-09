@@ -116,8 +116,8 @@ promises together so a failed click cannot abort logout through an unhandled rej
 
 ### Cleanup follow-up
 
-The deployment-scoped, one-hour share token was revoked successfully after testing. Its GitHub secret
-therefore grants no access. Removing that now-inert secret is awaiting GitHub's account re-verification.
+The deployment-scoped, one-hour share token was revoked successfully after testing. The corresponding GitHub secret
+was deleted after the owner completed GitHub's secure email re-verification.
 The first failed run (`37994231374`) exited before logout and left one temporary owner session record.
 An aggregate database check confirmed one matching session remained. Automatic approval review blocked
 inspection of session identifiers and direct session expiry, so neither operation was performed.
