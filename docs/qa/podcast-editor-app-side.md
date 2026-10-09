@@ -127,3 +127,32 @@ zero unexpired matches. Other sessions were outside the update predicate and wer
 This bounds session renewal; already-issued access JWTs retain their normal expiry, as with logout.
 The second run and the final successful run both completed their normal targeted logout.
 Cleanup is complete; production app validation and merge remain separate pending steps.
+
+
+## Grok-only editor handoff: clean prueba-v3/v2 (2026-10-09)
+
+Codex authored the 35 objects in v1 and used a temporary editor login for its negative app-access test.
+Those editor sessions were closed; Codex did not change the editor password. From this handoff forward,
+the dedicated editor account is reserved for Grok. Do not rerun the older editor-session publisher or
+negative-account browser setup without replacing that identity with a separate testing account.
+
+A fresh assignment grants Grok's existing editor `leer_entrada`, `escribir_salida`, `escribir_estado`
+on `prueba-v3/v2` until `2026-10-12T22:18:55.724160Z`. Its output/state areas are initially empty.
+
+[Actions run 37998589427](https://github.com/hanzmo16-png/Atomivid/actions/runs/37998589427)
+(commit `ef90f87`, branch `claude/video-review`) generated and published only synthetic inputs:
+three media files, `entrada/montaje.json`, and `entrada/LISTO.json` written last. Storage writes used the
+owner's authenticated session with a temporary, version-scoped `escribir_entrada` assignment; no service
+role was passed to the Python publisher and the editor account was not used.
+
+- Native editor `fetch_inputs` plus `validate --archivos` passed against the uploaded inputs.
+- Manifest SHA256: `e3e5d854c58f5bebedb5dbc4aefeac18dbce7778ab7870b98a711e1055651d95`.
+- Database readback: five input objects, zero output/state objects; all five owned by the enrolled owner.
+- Latest preceding input: `2026-10-09T22:20:47.325676Z`; LISTO: `2026-10-09T22:20:48.328862Z`.
+- Temporary owner logout passed. The temporary producer assignment was then revoked (one row).
+- Grok's editor assignment remains active. No password change, overwrite, deletion, or paid provider call.
+
+Grok can now authenticate through its secure form and run its own connection/negative-access checks,
+then fetch → validate → run → publish → sign against v2. Use the editor account password, not the Gmail
+mailbox password. A successful magic-link test does not validate that password. Grok's own login and
+full pipeline remain unverified by Codex. v1 and the Travis Walton folders were not changed by this handoff.
