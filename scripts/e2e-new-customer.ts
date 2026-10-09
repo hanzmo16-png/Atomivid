@@ -28,7 +28,19 @@ async function dismissTour(page: Page) {
 }
 const bodyText = async (page: Page) => (await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ");
 
+/** Raw Supabase sign-up outcome (code/status only) for two kinds of address; no form, no secrets logged. */
+async function signupDiag() {
+  for (const domain of ["example.com", "mailinator.com"]) {
+    const email = `qa.atomivid.${Date.now()}@${domain}`;
+    const { data, error } = await db.auth.signUp({ email, password: `Qa-${randomUUID()}`, options: { emailRedirectTo: `${APP}/auth/callback` } });
+    log("SIGNUP_DIAG", { domain, ok: !error, userCreated: Boolean(data?.user?.id), identities: data?.user?.identities?.length ?? null,
+      code: (error as { code?: string } | null)?.code ?? null, status: (error as { status?: number } | null)?.status ?? null, message: error?.message?.slice(0, 120) ?? null });
+    if (data?.user?.id) log("SIGNUP_DIAG_ACCOUNT", { domain, confirmed: Boolean(data.user.email_confirmed_at) });
+  }
+}
+
 async function main() {
+  if (mode === "signup-diag") return signupDiag();
   const email = `qa.cliente.${Date.now()}@example.com`;
   const password = `Qa-${randomUUID()}`;
   const browser = await chromium.launch({ channel: "chrome" }).catch(() => chromium.launch());
