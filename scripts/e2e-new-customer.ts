@@ -11,7 +11,11 @@
  * Logs: statuses and booleans only (no emails, cookies or tokens).
  */
 import { createClient } from "@supabase/supabase-js";
-import { chromium, type Page } from "playwright";
+// playwright is installed only on the E2E runner (not a project dependency): loaded at runtime, untyped,
+// so the app's build never needs it.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Page = any;
+const loadPlaywright = async () => (await import(["play", "wright"].join(""))) as { chromium: { launch: (o?: object) => Promise<any> } }; // eslint-disable-line @typescript-eslint/no-explicit-any
 import { randomUUID } from "node:crypto";
 
 const APP = "https://atomivid.vercel.app";
@@ -68,6 +72,7 @@ async function main() {
   if (mode === "db-check") return dbCheck();
   const email = `qa.cliente.${Date.now()}@example.com`;
   const password = `Qa-${randomUUID()}`;
+  const { chromium } = await loadPlaywright();
   const browser = await chromium.launch({ channel: "chrome" }).catch(() => chromium.launch());
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await ctx.newPage();
@@ -124,7 +129,7 @@ async function main() {
       check(`private page refused: ${path.replace(OWNER_REQUEST, "<owner-request>")}`, status === 404 || /no encontr|404|not found/i.test(text), { status });
     }
     for (const path of [`/api/generate/${OWNER_REQUEST}/render`, `/api/generate/${OWNER_REQUEST}/resume`, `/api/generate/${OWNER_REQUEST}/confirm-production`, "/api/podcast"]) {
-      const status = await page.evaluate(async (p) => (await fetch(p, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })).status, path);
+      const status = await page.evaluate(async (p: string) => (await fetch(p, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })).status, path);
       check(`private API refused: ${path.replace(OWNER_REQUEST, "<owner-request>")}`, [400, 401, 403, 404, 409].includes(status), { status });
     }
     const { data: ownerRow } = await db.from("video_requests").select("status,video_path").eq("id", OWNER_REQUEST).single();
