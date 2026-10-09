@@ -205,6 +205,8 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     await releaseUnusedJobSupply(service, requestId, row.render_attempts).catch(() => console.error("[atomivid:supply] unused reservation release unconfirmed"));
   } catch (error) {
     if (error instanceof SupplyUnavailableError) {
+      // Fixed reason codes only (no amounts/ids): the admission refusal that started this wait.
+      console.error(`[atomivid:supply] waiting provider=${error.provider} reason=${error.reason}`);
       const waiting = await update({ progress_stage: "queued", supply_wait_started_at: new Date().toISOString(),
         supply_not_before: new Date(Date.now() + 300_000).toISOString(),
         error_message: "Estamos esperando disponibilidad de producción. Tu solicitud y sus avances están guardados." });

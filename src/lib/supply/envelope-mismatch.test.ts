@@ -29,7 +29,7 @@ test("falta real de saldo sigue siendo espera por disponibilidad", async () => {
 
 test("worker: solo SupplyUnavailableError espera; el desajuste va a fallo claro y la cola no lo reenvía", () => {
   const runJob = readFileSync(path.join(__dirname, "../video/run-job.ts"), "utf8");
-  assert.match(runJob, /if \(error instanceof SupplyUnavailableError\) \{\s*const waiting/);
+  assert.match(runJob, /if \(error instanceof SupplyUnavailableError\) \{[\s\S]{0,300}?const waiting/);
   const queue = readFileSync(path.join(__dirname, "queue.ts"), "utf8");
   assert.match(queue, /error instanceof JobEnvelopeMismatchError\) \{[\s\S]{0,200}?continue; \}/);
   const yml = readFileSync(path.join(__dirname, "../../../.github/workflows/render.yml"), "utf8");
