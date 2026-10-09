@@ -200,16 +200,21 @@ const STUDIO_PROMPT = "Photorealistic interior of an elegant, modern, futuristic
 /** Paid (images cap): studio plates through the paid-call gate, then the free composite. Reruns reuse stored plates. */
 async function studio() {
   process.env.OPENAI_IMAGE_QUALITY = "high";
+  // High quality 1536x1024 can take > 60 s; a client timeout leaves the charge uncertain (as on the first try).
+  process.env.OPENAI_IMAGE_TIMEOUT_MS = "300000";
   const ep = await episodeRow();
   const project = `podcast-${ep.id}`;
+  const { data: prior } = await db().from("pi_paid_operations").select("method,status,reserved_usd,committed_usd,created_at").eq("project_id", project).eq("provider", "openai");
+  log("IMAGE_LEDGER_BEFORE", (prior ?? []).map((o) => ({ status: o.status, reserved: o.reserved_usd, committed: o.committed_usd, at: o.created_at })));
   const { openaiImageProvider } = await import("../../src/lib/providers/image/openai");
   const { guardPaidCall } = await import("../../src/lib/paid-calls/gate");
   const { supabaseLedgerStore } = await import("../../src/lib/paid-calls/supabase-ledger-store");
   const s = db().storage.from("videos");
   const prefix = `${ep.user_id}/podcasts/${ep.id}/studio`;
   const variants = [
-    { n: "1", extra: " Color palette: deep navy and graphite with amber accents." },
-    { n: "2", extra: " Color palette: deep teal-blue and charcoal with soft violet and amber accents." },
+    // Attempt 1 of plate 1 timed out client-side (charge uncertain, held at its reservation); this is attempt 2.
+    { n: "1", attempt: 2, extra: " Color palette: deep navy and graphite with amber accents." },
+    { n: "2", attempt: 1, extra: " Color palette: deep teal-blue and charcoal with soft violet and amber accents." },
   ];
   for (const v of variants) {
     const path = `${prefix}/plate-${v.n}.png`;
@@ -219,8 +224,8 @@ async function studio() {
     else {
       const spent = await imagesSpentUsd(project);
       if (spent + 0.4 > AUTH.imagesMaxUsd) throw Error(`images cap would be exceeded (spent ${spent.toFixed(2)}); stopped`);
-      const g = await guardPaidCall<{ path: string }>(supabaseLedgerStore(db()), { projectId: project, shotId: `studio-plate-${v.n}`, provider: "openai", model: "gpt-image-2", method: "generate_image",
-        inputFingerprint: { prompt: STUDIO_PROMPT + v.extra, aspectRatio: "16:9", quality: "high" }, reservedUsd: 0.4 }, {
+      const g = await guardPaidCall<{ path: string }>(supabaseLedgerStore(db()), { projectId: project, shotId: `studio-plate-${v.n}${v.attempt > 1 ? `-attempt-${v.attempt}` : ""}`, provider: "openai", model: "gpt-image-2", method: "generate_image",
+        inputFingerprint: { prompt: STUDIO_PROMPT + v.extra, aspectRatio: "16:9", quality: "high", ...(v.attempt > 1 ? { attempt: v.attempt } : {}) }, reservedUsd: 0.4 }, {
         call: async () => {
           const a = await openaiImageProvider.generateImage({ prompt: STUDIO_PROMPT + v.extra, aspectRatio: "16:9", maxCostUsd: 0.4, disableRetries: true });
           const up = await s.upload(path, a.buffer, { contentType: "image/png", upsert: false });
