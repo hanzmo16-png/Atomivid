@@ -96,7 +96,7 @@ test("margen de pico real (opt-in): techo pedido a loudnorm y ganancia correctiv
 });
 
 test(
-  "masterización con margen: el pico real tras codificar AAC queda por debajo del objetivo (sin margen lo supera)",
+  "masterización con margen: el pico real del AAC final cumple en señales reproducibles",
   { skip: !hasFfmpeg && "ffmpeg no está disponible en este entorno" },
   async () => {
     const os = await import("node:os");
@@ -105,16 +105,23 @@ test(
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "atomivid-tp-test-"));
     const input = path.join(dir, "in.mp4");
     try {
-      // Ruido rosa silencioso con transitorios: exige ganancia alta y limitación (el caso real de Long Form).
-      const gen = spawnSync("ffmpeg", [
-        "-y", "-f", "lavfi", "-i", "color=c=black:s=160x90:d=12",
-        "-f", "lavfi", "-i", "anoisesrc=color=pink:amplitude=0.12:d=12,aformat=channel_layouts=stereo,volume='if(lt(mod(t,0.37),0.02),4.5,1)':eval=frame",
-        "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k", "-shortest", input,
-      ]);
-      assert.equal(gen.status, 0, String(gen.stderr));
-      const guarded = await masterAudioLoudness(input, path.join(dir, "b.mp4"), { truePeakMarginDb: 1.0 });
-      assert.ok(guarded.after.truePeakDbtp <= LOUDNESS_TARGET.TRUE_PEAK_DBTP, `con margen: ${guarded.after.truePeakDbtp} dBTP`);
-      assert.ok(Math.abs(guarded.after.integratedLufs - LOUDNESS_TARGET.INTEGRATED_LUFS) <= 2, `sonoridad ${guarded.after.integratedLufs} LUFS`);
+      // Fixed seeds retain transient stress without a different random test on every run.
+      for (const seed of [1, 42, 314159]) {
+        const gen = spawnSync("ffmpeg", [
+          "-y", "-f", "lavfi", "-i", "color=c=black:s=160x90:d=12",
+          "-f", "lavfi", "-i", `anoisesrc=seed=${seed}:color=pink:amplitude=0.12:d=12,aformat=channel_layouts=stereo,volume='if(lt(mod(t,0.37),0.02),4.5,1)':eval=frame`,
+          "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k", "-shortest", input,
+        ]);
+        assert.equal(gen.status, 0, String(gen.stderr));
+        const guarded = await masterAudioLoudness(input, path.join(dir, "b.mp4"), { truePeakMarginDb: 1.0 });
+        assert.ok(guarded.after.truePeakDbtp <= LOUDNESS_TARGET.TRUE_PEAK_DBTP, `con margen: ${guarded.after.truePeakDbtp} dBTP`);
+        assert.ok(Math.abs(guarded.after.integratedLufs - LOUDNESS_TARGET.INTEGRATED_LUFS) <= 2, `sonoridad ${guarded.after.integratedLufs} LUFS`);
+        const duration = spawnSync("ffprobe", ["-v", "error", "-select_streams", "a:0", "-show_entries", "stream=duration", "-of", "csv=p=0", path.join(dir, "b.mp4")]);
+        assert.equal(duration.status, 0, String(duration.stderr));
+        const inputDuration = spawnSync("ffprobe", ["-v", "error", "-select_streams", "a:0", "-show_entries", "stream=duration", "-of", "csv=p=0", input]);
+        assert.equal(inputDuration.status, 0, String(inputDuration.stderr));
+        assert.ok(Math.abs(Number(duration.stdout.toString().trim()) - Number(inputDuration.stdout.toString().trim())) < 0.03, `mastering preserves audio duration: seed=${seed}, duration=${duration.stdout.toString().trim()}, input=${inputDuration.stdout.toString().trim()}`);
+      }
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }

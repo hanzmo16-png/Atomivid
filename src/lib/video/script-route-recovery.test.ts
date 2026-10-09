@@ -80,7 +80,7 @@ test("script/route.ts envuelve toda la ruta en un try/catch que siempre devuelve
   const source = fs.readFileSync(ROUTE_PATH, "utf-8");
   assert.match(
     source,
-    /catch \(error\) \{\s*const diagnosticId = generateDiagnosticId\(\);\s*logScriptError\("POST \/script \(inesperado\)", error, diagnosticId\);\s*return NextResponse\.json\(\{ error: classifyScriptError\(error, diagnosticId\) \}, \{ status: 500 \}\);\s*\}/,
+    /catch \(error\) \{\s*const diagnosticId = generateDiagnosticId\(\);\s*logScriptError\("POST \/script \(inesperado\)", error, diagnosticId\);\s*return NextResponse\.json\(\{ error: classifyScriptError\(error, diagnosticId\) \}, \{ status: error instanceof ScriptPersistenceError \? error.status : 500 \}\);\s*\}/,
     "cualquier fallo inesperado (no solo del proveedor de guion) debe seguir devolviendo JSON clasificado con su código de diagnóstico, nunca una excepción sin manejar",
   );
 });

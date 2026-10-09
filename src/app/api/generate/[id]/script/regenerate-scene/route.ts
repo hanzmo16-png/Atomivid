@@ -1,3 +1,4 @@
+import { persistScriptChange, ScriptPersistenceError } from "@/lib/video/script-persistence";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { withSupplyContext } from "@/lib/supply/anthropic";
 import { NextResponse } from "next/server";
@@ -22,6 +23,7 @@ type VideoRequestRow = {
   topic: string;
   style: string;
   status: string;
+  render_attempts: number;
   script_json: GeneratedScript | null;
 };
 
@@ -54,7 +56,7 @@ export async function POST(
 
     const { data: videoRequest, error } = await service
       .from("video_requests")
-      .select("id, user_id, topic, style, status, script_json, recorded_audio_path")
+      .select("id, user_id, topic, style, status, script_json, recorded_audio_path, render_attempts")
       .eq("id", id)
       .single<VideoRequestRow>();
 
@@ -109,20 +111,14 @@ export async function POST(
     } catch (err) {
       if (err instanceof SupplyUnavailableError) return NextResponse.json({ error: err.customerMessage }, { status: 503, headers: { "Retry-After": "300" } });
       logScriptError("POST /script/regenerate-scene", err);
-      return NextResponse.json({ error: classifyScriptError(err) }, { status: 500 });
+      return NextResponse.json({ error: classifyScriptError(err) }, { status: err instanceof ScriptPersistenceError ? err.status : 500 });
     }
 
     const segments = [...videoRequest.script_json.segments];
     segments[sceneIndex] = newScene;
     const script: GeneratedScript = { ...videoRequest.script_json, segments };
 
-    const { error: updateError } = await service
-      .from("video_requests")
-      .update({ script_json: script })
-      .eq("id", id);
-    if (updateError) {
-      console.warn(`No se pudo guardar la escena regenerada de ${id}:`, updateError.code);
-    }
+    await persistScriptChange(service, videoRequest, { script_json: script });
 
     const inputChars = videoRequest.topic.length + videoRequest.style.length + current.text.length;
     const outputChars = newScene.text.length + newScene.visualQuery.length;
@@ -135,6 +131,6 @@ export async function POST(
     return NextResponse.json({ scene: newScene, script });
   } catch (err) {
     logScriptError("POST /script/regenerate-scene (inesperado)", err);
-    return NextResponse.json({ error: classifyScriptError(err) }, { status: 500 });
+    return NextResponse.json({ error: classifyScriptError(err) }, { status: err instanceof ScriptPersistenceError ? err.status : 500 });
   }
 }

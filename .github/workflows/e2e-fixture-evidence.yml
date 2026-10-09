@@ -52,6 +52,8 @@ jobs:
             chmod +x node_modules/@ffprobe-installer/linux-x64/ffprobe
             echo "$PWD/node_modules/@ffprobe-installer/linux-x64" >> "$GITHUB_PATH"
           fi
+      - name: Verify billing, access and durable saves without provider calls
+        run: npm run test:saas
       - run: npx remotion browser ensure
       - name: Prepare synthetic test image (no personal photo)
         run: |

@@ -124,15 +124,17 @@ export async function assertCanGenerate(
   }
 
   const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
+  startOfMonth.setUTCDate(1);
+  startOfMonth.setUTCHours(0, 0, 0, 0);
 
   let countQuery = service
     .from("video_requests")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .in("status", ["processing", "completed"])
-    .gte("created_at", startOfMonth.toISOString());
+    // Charge usage to the month production started, not when the draft was made.
+    // Legacy rows without a render timestamp keep their creation-date fallback.
+    .or(`render_started_at.gte.${startOfMonth.toISOString()},and(render_started_at.is.null,created_at.gte.${startOfMonth.toISOString()})`);
 
   // "hybrid" (mode en video_requests admite 'visual'/'avatar'/'hybrid' —
   // ver migración 0011) todavía no está implementado; cuando exista, su
@@ -142,8 +144,9 @@ export async function assertCanGenerate(
 
   const { count, error: countError } = await countQuery;
   if (countError) throw countError;
+  if (count === null || !Number.isSafeInteger(count) || count < 0) throw new Error("No se pudo comprobar el consumo mensual.");
 
-  if ((count ?? 0) >= limit) {
+  if (count >= limit) {
     return {
       allowed: false,
       reason: `Alcanzaste el límite de ${limit} videos ${isAvatar ? "con avatar " : ""}este mes en tu plan (${plan.name}). Vuelve a intentarlo el próximo mes o mejora tu plan.`,
