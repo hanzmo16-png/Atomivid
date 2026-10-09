@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
 import { LinkButton } from "@/components/ui/Button";
 import { GenerateButton } from "@/app/dashboard/GenerateButton";
+import type { AvatarRecovery } from "@/lib/video/avatar/recovery";
 import { ModeBadge } from "./ModeBadge";
 import { ProductionProgressCard } from "./ProductionProgressCard";
 import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
@@ -29,6 +30,7 @@ export function ResultView({
   thumbnailUrl,
   thumbnailRequested = false,
   nowMs,
+  avatarRecovery,
 }: {
   request: VideoRequestSummary;
   /** null si status=completed pero no se pudo firmar la URL (reportar el error, no ocultarlo). */
@@ -38,6 +40,8 @@ export function ResultView({
   thumbnailRequested?: boolean;
   /** Reloj inyectado por el caller (solo lo usa el ETA de Long Form). */
   nowMs: number;
+  /** Failed avatar only: decided server-side (decideAvatarRecovery). Absent = no recovery offered. */
+  avatarRecovery?: AvatarRecovery;
 }) {
   const meta = [
     request.language && LANGUAGE_LABEL[request.language],
@@ -121,6 +125,15 @@ export function ResultView({
             {request.error_message && <p className="mt-1">{renderFailureMessage(request.error_message)}</p>}
           </Alert>
         )}
+        {/* Avatar recovery decided server-side from the request + paid ledger (same rule as the render route). */}
+        {request.status === "failed" && request.mode === "avatar" && avatarRecovery && (avatarRecovery.action === "none" ? (
+          avatarRecovery.reason !== "completed" && <p role="status" className="mt-3 text-sm text-ink-muted">{avatarRecovery.message}</p>
+        ) : (
+          <div className="mt-4 flex flex-col items-center gap-2 text-center">
+            <p className="text-sm text-ink-muted">{avatarRecovery.note}</p>
+            <GenerateButton endpoint={`/api/generate/${request.id}/render`} label={avatarRecovery.label} />
+          </div>
+        ))}
 
         {request.status === "completed" && videoUrl && (
           <div className="flex flex-col items-center gap-4">

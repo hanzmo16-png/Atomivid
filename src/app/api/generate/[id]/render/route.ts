@@ -15,6 +15,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getRenderWorker } from "@/lib/worker";
 import { assertCanGenerate } from "@/lib/billing/quota";
+import { loadAvatarRecovery } from "@/lib/video/avatar/recovery";
 import { evaluateRenderStart } from "@/lib/video/render-guard";
 import {
   classifyRenderError,
@@ -155,6 +156,14 @@ export async function POST(
     const decision = evaluateRenderStart(videoRequest);
     if (!decision.allowed) {
       return NextResponse.json({ error: decision.error }, { status: decision.status });
+    }
+    // Avatar recovery (failed or stale attempt): only when the request + its paid ledger prove it is
+    // safe — the same rule the history and review screens use to show the button. Checked BEFORE
+    // any reservation or attempt is spent.
+    if (videoRequest.mode === "avatar" && videoRequest.status !== "script_ready") {
+      const recovery = await loadAvatarRecovery(service, id, { status: videoRequest.status, render_attempts: videoRequest.render_attempts,
+        avatar_provider_video_job_id: videoRequest.avatar_provider_video_job_id, video_path: null });
+      if (recovery.action === "none") return NextResponse.json({ error: recovery.message }, { status: 409 });
     }
 
     let check: Awaited<ReturnType<typeof assertCanGenerate>>;

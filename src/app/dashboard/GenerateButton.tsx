@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
@@ -21,8 +21,13 @@ export function GenerateButton({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsSubscription, setNeedsSubscription] = useState(false);
+  // Synchronous guard: a second click before React re-renders the disabled button sends nothing.
+  // (The server's conditional UPDATE remains the real protection against two tabs.)
+  const inFlight = useRef(false);
 
   async function handleClick() {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setLoading(true);
     setError(null);
     setNeedsSubscription(false);
@@ -46,6 +51,7 @@ export function GenerateButton({
     } catch (err) {
       setError(classifyClientFetchError(err));
       setLoading(false);
+      inFlight.current = false;
       // Refresca en cualquier caso: si la petición sí llegó al servidor,
       // este ya marcó la solicitud como fallida (rutas /api/generate/[id]/
       // script y /render) y sin este refresh la insignia de estado se
