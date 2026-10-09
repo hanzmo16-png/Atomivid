@@ -331,12 +331,154 @@ async function extend() {
   log("IMAGES_SPENT", { usd: Math.round((await imagesSpentUsd(project)) * 10000) / 10000, capUsd: AUTH.imagesMaxUsd });
 }
 
+/** Avatar segments: which A blocks go in each HeyGen call (in episode order), and at what resolution. */
+const SEGMENTS: Record<string, { blocks: string[]; resolution: "720p" | "1080p"; worstUsdPerSec: number }> = {
+  // 1080p rate probe on a real block of the episode (a12, ~15 s). Worst published figure: USD 4/min.
+  probe: { blocks: ["a12"], resolution: "1080p", worstUsdPerSec: 4 / 60 },
+};
+const PAD_S = 0.3;
+
+async function heygenApi(path: string, init: RequestInit = {}) {
+  const r = await fetch("https://api.heygen.com" + path, { ...init, redirect: "error", signal: AbortSignal.timeout(120000),
+    headers: { "X-Api-Key": process.env.HEYGEN_API_KEY!.trim(), ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }), ...init.headers } });
+  const j = await r.json().catch(() => null) as { data?: Record<string, any>; error?: { code?: string } } | null;
+  if (!r.ok || !j?.data) throw Error(`HeyGen HTTP ${r.status} code=${String(j?.error?.code ?? "").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 40)}`);
+  return j.data;
+}
+const wallet = async () => { const d = await heygenApi("/v3/users/me"); if (d.wallet?.currency !== "usd") throw Error("wallet not usd"); return Number(d.wallet.remaining_balance); };
+async function heygenUpload(bytes: Buffer, mime: string, name: string) {
+  const form = new FormData();
+  form.append("file", new Blob([new Uint8Array(bytes)], { type: mime }), name);
+  const d = await heygenApi("/v3/assets", { method: "POST", body: form });
+  const id = d.asset_id ?? d.id;
+  if (typeof id !== "string") throw Error("no asset id");
+  return id as string;
+}
+async function heygenSpentUsd(project: string) {
+  const { data } = await db().from("pi_paid_operations").select("status,reserved_usd,committed_usd").eq("project_id", project).eq("provider", "heygen").neq("status", "REFUNDED");
+  return (data ?? []).reduce((a, o) => a + Number(o.status === "COMMITTED" ? o.committed_usd : o.reserved_usd), 0);
+}
+
+/**
+ * Paid (HeyGen cap): one avatar segment = the segment's blocks joined with short silences, animated on the
+ * approved composite. The provider job id is stored privately BEFORE waiting, so an interrupted run recovers
+ * the same video instead of paying for another. Wallet must cover the worst case before submitting.
+ */
+async function avatarSegment(segId: string) {
+  const seg = SEGMENTS[segId];
+  if (!seg) throw Error(`unknown segment ${segId}`);
+  const ep = await episodeRow();
+  const project = `podcast-${ep.id}`;
+  const s = db().storage.from("videos");
+  const prefix = `${ep.user_id}/podcasts/${ep.id}`;
+  const recPath = `${prefix}/avatar/${segId}.json`;
+  const manifest = JSON.parse(Buffer.from(await (await s.download(`${prefix}/narration-manifest.json`)).data!.arrayBuffer()).toString("utf8")) as { blocks: { id: string; kind: string; seconds: number; audioPath: string }[] };
+  const blocks = seg.blocks.map((id) => { const b = manifest.blocks.find((x) => x.id === id); if (!b || b.kind !== "A") throw Error(`block ${id} missing or not avatar`); return b; });
+  // Segment audio: pad + block + pad ..., timings recorded for the cut.
+  const parts: string[] = [];
+  const timeline: { id: string; start: number; end: number }[] = [];
+  let t = 0;
+  for (const b of blocks) {
+    const f = `${WORK}/${b.id}.mp3`;
+    writeFileSync(f, Buffer.from(await (await s.download(b.audioPath)).data!.arrayBuffer()));
+    const dur = Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString().trim());
+    parts.push(f);
+    timeline.push({ id: b.id, start: t + PAD_S, end: t + PAD_S + dur });
+    t += dur + 2 * PAD_S;
+  }
+  const filter = parts.map((_, i) => `[${i}:a]aresample=44100,aformat=channel_layouts=mono,adelay=${PAD_S * 1000},apad=pad_dur=${PAD_S}[a${i}]`).join(";") + ";" + parts.map((_, i) => `[a${i}]`).join("") + `concat=n=${parts.length}:v=0:a=1[out]`;
+  execFileSync("ffmpeg", ["-v", "error", "-y", ...parts.flatMap((p) => ["-i", p]), "-filter_complex", filter, "-map", "[out]", "-c:a", "pcm_s16le", `${WORK}/${segId}.wav`]);
+  const wav = readFileSync(`${WORK}/${segId}.wav`);
+  const seconds = Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", `${WORK}/${segId}.wav`]).toString().trim());
+  const worst = Math.ceil(seconds * seg.worstUsdPerSec * 100) / 100;
+  const { data: recBlob } = await s.download(recPath);
+  const rec = recBlob ? JSON.parse(Buffer.from(await recBlob.arrayBuffer()).toString("utf8")) as Record<string, any> : null;
+  log("SEGMENT_PLAN", { seg: segId, blocks: seg.blocks, seconds: Math.round(seconds * 10) / 10, resolution: seg.resolution, worstCaseUsd: worst, recorded: !!rec?.jobId });
+
+  // Wait for the render, download it, and measure the wallet charge (polled until it moves, up to 3 min).
+  const finish = async (jobId: string, walletBefore: number | null) => {
+    const deadline = Date.now() + 100 * 60_000;
+    let d: Record<string, any> = {};
+    while (Date.now() < deadline) {
+      d = await heygenApi(`/v3/videos/${encodeURIComponent(jobId)}`);
+      if (d.status === "completed" || d.status === "failed" || d.status === "cancelled") break;
+      await new Promise((r) => setTimeout(r, 20000));
+    }
+    if (d.status !== "completed" || typeof d.video_url !== "string") throw Error(`segment ${segId} status=${String(d.status).slice(0, 20)} code=${String(d.failure_code ?? "").slice(0, 30)}`);
+    const vr = await fetch(d.video_url, { signal: AbortSignal.timeout(300000), redirect: "error" });
+    const video = Buffer.from(await vr.arrayBuffer());
+    const up = await s.upload(`${prefix}/avatar/${segId}.mp4`, video, { contentType: "video/mp4", upsert: true });
+    if (up.error) throw Error("segment video upload failed");
+    writeFileSync(`${WORK}/${segId}.mp4`, video);
+    let walletAfter = await wallet();
+    for (let i = 0; i < 9 && walletBefore !== null && walletAfter === walletBefore; i++) { await new Promise((r) => setTimeout(r, 20000)); walletAfter = await wallet(); }
+    const charged = walletBefore !== null ? Math.round((walletBefore - walletAfter) * 100) / 100 : null;
+    await s.upload(recPath, Buffer.from(JSON.stringify({ ...(rec ?? {}), jobId, walletBefore, seconds, timeline, resolution: seg.resolution, chargedUsd: charged, completedAt: new Date().toISOString() })), { contentType: "application/json", upsert: true });
+    return { walletAfter, charged };
+  };
+
+  let jobId: string | undefined = rec?.jobId;
+  let walletBefore: number | null = rec?.walletBefore ?? null;
+  let outcome: { walletAfter: number; charged: number | null };
+  if (jobId) {
+    // Recovery of an already submitted segment: no new submission, no new charge.
+    outcome = await finish(jobId, walletBefore);
+  } else {
+    const spent = await heygenSpentUsd(project);
+    if (spent + worst > AUTH.heygenMaxUsd) throw Error(`HeyGen cap would be exceeded (spent ${spent.toFixed(2)} + ${worst}); nothing sent`);
+    walletBefore = await wallet();
+    if (walletBefore < worst) throw Error(`wallet ${walletBefore.toFixed(2)} cannot complete this segment (needs up to ${worst}); nothing sent`);
+    log("HEYGEN_PRECHECK", { spentUsd: Math.round(spent * 100) / 100, worstCaseUsd: worst, walletCovers: true });
+    const imageId = await heygenUpload(readFileSync(`${WORK}/composite.png`), "image/png", "composite.png");
+    const audioId = await heygenUpload(wav, "audio/wav", "segment.wav");
+    const { guardPaidCall } = await import("../../src/lib/paid-calls/gate");
+    const { supabaseLedgerStore } = await import("../../src/lib/paid-calls/supabase-ledger-store");
+    let accepted: string | undefined;
+    const g = await guardPaidCall<{ jobId: string; walletAfter: number; charged: number | null }>(supabaseLedgerStore(db()), { projectId: project, shotId: `avatar:${segId}`, provider: "heygen", model: "avatar-iv-photo", method: "generate_video",
+      inputFingerprint: { seg: segId, blocks: seg.blocks, audioSha: sha(wav), imageSha: sha(readFileSync(`${WORK}/composite.png`)), resolution: seg.resolution }, reservedUsd: worst }, {
+      call: async () => {
+        const d = await heygenApi("/v3/videos", { method: "POST", body: JSON.stringify({ type: "image", image: { type: "asset_id", asset_id: imageId }, audio_asset_id: audioId, aspect_ratio: "16:9", resolution: seg.resolution }) });
+        if (typeof d.video_id !== "string") throw Error("no video_id; do not resubmit");
+        accepted = d.video_id;
+        const up = await s.upload(recPath, Buffer.from(JSON.stringify({ jobId: d.video_id, walletBefore, seconds, timeline, resolution: seg.resolution, submittedAt: new Date().toISOString() })), { contentType: "application/json", upsert: true });
+        if (up.error) throw Error("job id not stored; do not resubmit");
+        const o = await finish(d.video_id, walletBefore);
+        // The ledger commits the measured wallet charge; the worst case only if the wallet has not moved yet.
+        return { result: { jobId: d.video_id, ...o }, costUsd: o.charged !== null && o.charged > 0 ? o.charged : worst, resultRef: `avatar-job:${d.video_id}`, providerJobId: d.video_id };
+      },
+      load: async () => null,
+      classify: () => (accepted ? { kind: "accepted", providerJobId: accepted } : { kind: "uncertain" }),
+      maxRejectedRetries: 0,
+    });
+    jobId = g.result.jobId;
+    outcome = { walletAfter: g.result.walletAfter, charged: g.result.charged };
+  }
+  const probe = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration:stream=codec_type,width,height,r_frame_rate", "-of", "json", `${WORK}/${segId}.mp4`]).toString());
+  const v = probe.streams.find((x: any) => x.codec_type === "video");
+  const perMin = outcome.charged !== null ? Math.round((outcome.charged / seconds) * 60 * 1000) / 1000 : null;
+  log("SEGMENT_DONE", { seg: segId, videoSeconds: Math.round(Number(probe.format.duration) * 10) / 10, width: v?.width, height: v?.height, fps: v?.r_frame_rate, audioSeconds: Math.round(seconds * 10) / 10, chargedUsd: outcome.charged, usdPerMinute: perMin });
+  execFileSync("python3", ["-c", `import sys;sys.path.insert(0,'scripts/podcast-episode');import media;from pathlib import Path;w=Path('${WORK}');(w/'out').mkdir(exist_ok=True);media.sheet(media.frames(w/'${segId}.mp4',w/'out',8,480),4).save(w/'out'/'${segId}-frames.jpg',quality=86)`], { stdio: "inherit" });
+  seal(`${segId}-frames.jpg`, readFileSync(`${WORK}/out/${segId}-frames.jpg`));
+  sealed_json(`${segId}-heygen.json`, { walletBefore, walletAfter: outcome.walletAfter, charged: outcome.charged, perMin, seconds });
+}
+function sealed_json(name: string, v: unknown) { seal(name, Buffer.from(JSON.stringify(v))); }
+
+/** Avatar step: "avatar:<segment>" — loads the chosen composite (studio plate 2) first. */
+async function avatarStep(segId: string) {
+  const ep = await episodeRow();
+  const { data } = await db().storage.from("videos").download(`${ep.user_id}/podcasts/${ep.id}/studio/composite-wide-2.png`);
+  if (!data) throw Error("composite missing");
+  writeFileSync(`${WORK}/composite.png`, Buffer.from(await data.arrayBuffer()));
+  await avatarSegment(segId);
+}
+
 const modes: Record<string, () => Promise<void>> = { keygen, "verify-rate": verifyRate, inspect, "store-docs": storeDocs, narrate, studio, extend };
 // Several $0 steps may be chained with commas; each runs only if the previous one succeeded.
 (async () => {
   for (const mode of (process.argv[2] ?? "").split(",").filter(Boolean)) {
-    if (!modes[mode]) throw Error(`unknown step ${mode}`);
     log("STEP", { mode });
+    if (mode.startsWith("avatar:")) { await avatarStep(mode.slice(7)); continue; }
+    if (!modes[mode]) throw Error(`unknown step ${mode}`);
     await modes[mode]();
   }
 })().catch((e) => { console.error("STEP_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
