@@ -8,5 +8,8 @@
   "elevenlabsMaxCredits": 31000,
   "includesRetries": true,
   "dailyLimitsUnchanged": true,
-  "heygenTopUpConfirmed": false
+  "heygenTopUpConfirmed": true,
+  "approvedLook": "1080p studio composite-wide-2; owner approved 2026-10-09",
+  "visualRecapBlock": "a13",
+  "heygenPlannedReserveUsd": 19.63
 }
