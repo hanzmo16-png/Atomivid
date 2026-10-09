@@ -165,6 +165,18 @@ test("reconciliación: un estado UPLOADED cuyo tamaño no coincide con el objeto
   fs.rmSync(file, { force: true });
 });
 
+test("reconciliación: un objeto sin entrega validada que no se reproduce NO se da por entregado", async () => {
+  const out = memoryOutputDeps({ durationSeconds: 180, failWriteState: true, unplayableObjects: true });
+  const file = tmpFile(1 * MiB);
+  await finalizeLongFormOutput({ requestId: REQ, attempt: 1, filePath: file }, out.deps);
+  assert.equal(out.states.size, 0, "sin estado validado");
+  assert.equal(await reconcileExistingOutput(REQ, out.deps), null, "no se reutiliza un archivo sin pista de video");
+  const { probeObject: _omit, ...withoutProbe } = out.deps;
+  void _omit;
+  assert.equal(await reconcileExistingOutput(REQ, withoutProbe), null, "sin forma de medirlo, tampoco se reutiliza");
+  fs.rmSync(file, { force: true });
+});
+
 test("el cliente nunca ve la ruta cruda: el error_message histórico de Panamá queda sin rutas internas", () => {
   const raw = `No se pudo subir ${REQ}/attempt-1/final.mp4: The object exceeded the maximum allowed size`;
   const scrubbed = scrubInternalPaths(raw);

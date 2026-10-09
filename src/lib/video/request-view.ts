@@ -45,6 +45,9 @@ export type VideoRequestSummary = {
   long_form_progress?: unknown;
   /** Confirmación humana del plan de producción (migración 0019) — sin ella, Long Form nunca produce. */
   long_form_confirmed_at?: string | null;
+  /** Set while the worker parked this attempt waiting for provider capacity (same attempt resumes). */
+  supply_wait_started_at?: string | null;
+  supply_not_before?: string | null;
   /**
    * Presente solo para avatar con narración propia/grabada (own_audio) o
    * "Voz IA desde texto" (tts) — ver dashboard/new/actions.ts. Copy fix
@@ -54,7 +57,6 @@ export type VideoRequestSummary = {
    * RequestCard.tsx.
    */
   recorded_audio_path?: string | null;
-  supply_wait_started_at?: string | null;
 };
 
 export const STATUS_LABEL: Record<string, string> = {

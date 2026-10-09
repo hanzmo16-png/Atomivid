@@ -148,6 +148,10 @@ export function RequestCard({
                 {request.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}
               </Link>
             ))}
+          {request.status === "processing" && request.supply_wait_started_at && (
+            // Parked by the worker waiting for provider capacity: same attempt resumes (no new charge).
+            <GenerateButton endpoint={`/api/generate/${request.id}/resume`} label="Reanudar" />
+          )}
           {request.status === "processing" && isStaleProcessing && canRetry && (
             <GenerateButton endpoint={`/api/generate/${request.id}/render`} label={retryLabel} />
           )}

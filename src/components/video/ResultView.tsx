@@ -10,6 +10,8 @@ import { ModeBadge } from "./ModeBadge";
 import { ProductionProgressCard } from "./ProductionProgressCard";
 import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
 import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
+import { isRenderStale } from "@/lib/video/render-guard";
+import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
 import {
   LANGUAGE_LABEL,
   STATUS_LABEL,
@@ -49,6 +51,12 @@ export function ResultView({
     new Date(request.created_at).toLocaleString("es-MX"),
   ].filter(Boolean);
   const isLongForm = request.mode === "long_form";
+  // Long Form recovery, same rule as the history card (RequestCard) and the render route: a confirmed
+  // plan, attempts left, and a failed or stalled attempt. Already paid results are reused by the ledger.
+  const waitingForSupply = request.status === "processing" && Boolean(request.supply_wait_started_at);
+  const stalled = isRenderStale(request, nowMs);
+  const longFormRetry = isLongForm && Boolean(request.long_form_confirmed_at) && request.render_attempts < MAX_RENDER_ATTEMPTS
+    && (request.status === "failed" || stalled);
   const isLandscape = request.aspect_ratio === "16:9";
   const stageLabel = isLongForm
     ? request.long_form_stage &&
@@ -93,7 +101,18 @@ export function ResultView({
           </div>
         ))}
 
-        {request.status === "processing" && isLongForm && (
+        {waitingForSupply && (
+          <Card className="flex flex-col items-center gap-3 p-8 text-center">
+            <p className="font-medium text-ink">En espera de capacidad de producción</p>
+            <p className="text-sm text-ink-muted">
+              {request.error_message ? renderFailureMessage(request.error_message) : "Tu solicitud y sus avances están guardados."}{" "}
+              No se generó ningún cargo nuevo. Cuando haya capacidad, reanuda la misma producción: lo ya pagado se reutiliza.
+            </p>
+            <GenerateButton endpoint={`/api/generate/${request.id}/resume`} label="Reanudar ahora" />
+          </Card>
+        )}
+
+        {request.status === "processing" && isLongForm && !waitingForSupply && (
           <ProductionProgressCard
             longFormStage={request.long_form_stage ?? null}
             longFormProgress={request.long_form_progress}
@@ -101,7 +120,7 @@ export function ResultView({
           />
         )}
 
-        {request.status === "processing" && !isLongForm && (
+        {request.status === "processing" && !isLongForm && !waitingForSupply && (
           <Card className="flex flex-col items-center gap-4 p-10 text-center">
             <span
               className="size-8 animate-spin rounded-full border-2 border-accent border-t-transparent motion-reduce:animate-none"
@@ -124,6 +143,18 @@ export function ResultView({
             <p className="font-medium">No se pudo generar este video.</p>
             {request.error_message && <p className="mt-1">{renderFailureMessage(request.error_message)}</p>}
           </Alert>
+        )}
+        {longFormRetry && (
+          <div className="mt-4 flex flex-col items-center gap-2 text-center">
+            <p className="text-sm text-ink-muted">
+              {request.status === "failed" ? "Puedes reintentar la misma producción." : "La producción dejó de dar señales de avance."}{" "}
+              Lo que ya se pagó se reutiliza; no se cobra dos veces.
+            </p>
+            <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Reintentar" />
+          </div>
+        )}
+        {isLongForm && request.status === "failed" && request.render_attempts >= MAX_RENDER_ATTEMPTS && (
+          <p role="status" className="mt-3 text-center text-sm text-ink-muted">Se alcanzó el máximo de intentos. Crea un documental nuevo.</p>
         )}
         {/* Avatar recovery decided server-side from the request + paid ledger (same rule as the render route). */}
         {request.status === "failed" && request.mode === "avatar" && avatarRecovery && (avatarRecovery.action === "none" ? (

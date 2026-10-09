@@ -1,3 +1,4 @@
+import { StartErrorNotice } from "@/components/video/StartErrorNotice";
 import { randomUUID } from "node:crypto";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -36,7 +37,7 @@ export default async function VideoResultPage({
   const { data, error } = await supabase
     .from("video_requests")
     .select(
-      "id, mode, user_id, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage, long_form_progress, long_form_production_plan, long_form_confirmed_at, recorded_audio_path, avatar_provider_video_job_id",
+      "id, mode, user_id, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage, long_form_progress, long_form_production_plan, long_form_confirmed_at, recorded_audio_path, avatar_provider_video_job_id, supply_wait_started_at, supply_not_before",
     )
     .eq("id", id)
     .eq("user_id", user.id)
@@ -89,6 +90,7 @@ export default async function VideoResultPage({
   return (
     <div className="mx-auto max-w-md">
       <AutoRefresh active={request.status === "processing"} />
+      <StartErrorNotice requestId={request.id} />
       <ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} thumbnailRequested={thumbnailRequested} nowMs={nowMs} avatarRecovery={avatarRecovery} />
     </div>
   );

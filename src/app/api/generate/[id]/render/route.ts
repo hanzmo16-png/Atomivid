@@ -185,6 +185,8 @@ export async function POST(
       if (!visual.ready) return NextResponse.json({ error: visualBlockMessage(visual) }, { status: 409 });
     }
 
+    // Resolved BEFORE reserving: a missing worker configuration must not leave a held reservation behind.
+    const worker = getRenderWorker();
     try {
       const demands = jobSupplyDemands(videoRequest, videoRequest.mode === "long_form"
         ? videoRequest.long_form_production_plan?.providers.voice ?? "unconfigured"
@@ -206,7 +208,6 @@ export async function POST(
       if (error instanceof SupplyUnavailableError) return NextResponse.json({ error: START_SUPPLY_UNAVAILABLE }, { status: 503, headers: { "Retry-After": "300" } });
       throw error;
     }
-    const worker = getRenderWorker();
 
     // Guarda de concurrencia: la transición a "processing" solo aplica si
     // el estado sigue siendo el que acabamos de leer. Si otra request
