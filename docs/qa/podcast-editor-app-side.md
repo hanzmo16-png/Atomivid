@@ -119,7 +119,11 @@ promises together so a failed click cannot abort logout through an unhandled rej
 The deployment-scoped, one-hour share token was revoked successfully after testing. The corresponding GitHub secret
 was deleted after the owner completed GitHub's secure email re-verification.
 The first failed run (`37994231374`) exited before logout and left one temporary owner session record.
-An aggregate database check confirmed one matching session remained. Automatic approval review blocked
-inspection of session identifiers and direct session expiry, so neither operation was performed.
-The second run and the final successful run both completed their normal targeted logout. Selective cleanup
-of the first run's session still needs explicit approval; do not log out unrelated owner sessions.
+An aggregate database check confirmed one matching session remained. After the owner's explicit
+follow-up authorization on 2026-10-09, the session was identified by its exact ID, creation timestamp,
+Node user agent and enrolled-owner membership. Only that session's `not_after` was set to the current time.
+The mutation affected exactly one row; an independent read verified one expired matching session and
+zero unexpired matches. Other sessions were outside the update predicate and were not modified.
+This bounds session renewal; already-issued access JWTs retain their normal expiry, as with logout.
+The second run and the final successful run both completed their normal targeted logout.
+Cleanup is complete; production app validation and merge remain separate pending steps.
