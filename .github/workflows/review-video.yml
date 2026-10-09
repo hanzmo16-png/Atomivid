@@ -47,6 +47,14 @@ jobs:
             git archive d4a9b2ee384cb971dc535614a8b0964487d0de99 scripts/podcast-editor-v3 src/lib/podcast/editor/fixtures/editor-v3 | tar -x
             npx tsx scripts/review/publish-editor-fixture.ts;
           elif [ "$MODE" = "podcast-editor-live" ]; then npx tsx scripts/review/podcast-editor-live.ts;
+          elif [ "$MODE" = "podcast-editor-consume" ]; then
+            # App modules from the PR head commit given on line "app_commit=<sha>".
+            APP_SHA="$(sed -n 's/^app_commit=//p' ops/review-video.mode | head -1)"
+            git fetch --depth=1 origin "$APP_SHA" && mkdir -p app-under-test && git archive "$APP_SHA" src/lib/podcast/editor | tar -x -C app-under-test
+            grep -q '^owner_session=yes$' ops/review-video.mode && export OWNER_SESSION_AUTHORIZED=yes
+            export E2E_EPISODE="$(sed -n 's/^episode=//p' ops/review-video.mode | head -1)"
+            export E2E_VERSION="$(sed -n 's/^version=//p' ops/review-video.mode | head -1)"
+            npx tsx scripts/review/podcast-editor-consume.ts;
           elif [ "$MODE" = "podcast-editor-app" ]; then
             # Line 2: target=<https URL>; line 3: owner_session=yes only when the owner sign-in is authorised.
             export E2E_BYPASS_MODE="$(sed -n 's/^bypass_mode=//p' ops/review-video.mode | head -1)"

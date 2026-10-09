@@ -44,8 +44,10 @@ async function main() {
         (select count(*)::int from storage.objects where bucket_id = 'podcast-editor' and name like 'episodios/%/salida/COMPLETO.json') as completos,
         (select public from storage.buckets where id = 'podcast-editor') as bucket_public`)).rows[0];
     // An ordinary account for the negative case: the newest confirmed account that is not an owner.
+    // Neither owner nor holder of any assignment (the dedicated editor is excluded).
     const other = (await client.query(`select id::text from auth.users where email_confirmed_at is not null
-        and id not in (select user_id from podcast_editor.propietarios) order by created_at desc limit 1`)).rows[0]?.id as string | undefined;
+        and id not in (select user_id from podcast_editor.propietarios)
+        and id not in (select user_id from podcast_editor.asignaciones) order by created_at desc limit 1`)).rows[0]?.id as string | undefined;
     // The owner's link to existing private work (counts only).
     const travis = owners.length ? (await client.query(`select count(*)::int as n from public.video_requests where user_id = $1`, [owners[0].id])).rows[0].n : null;
     // Per episode/version: object counts per area and whether the final marker exists (names of synthetic test
