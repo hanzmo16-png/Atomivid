@@ -664,7 +664,7 @@ async function providerConfig() {
     if (res?.ok) {
       const report = await res.json() as { heygen?: { sealed?: unknown }; avatar?: { sealed?: unknown } | null };
       const rec = (report as { heygenReconcile?: { listed?: unknown } | null }).heygenReconcile;
-      if (!report.heygen || !("avatar" in report) || !("heygenReconcile" in report) || (rec && !("listed" in rec)) || !("reservationConfig" in report)) { log("PROVIDER_CONFIG_WAIT", { attempt, status: "previous deployment" }); await new Promise((r) => setTimeout(r, 20_000)); continue; }
+      if (!report.heygen || !("avatar" in report) || !("heygenReconcile" in report) || (rec && !("listed" in rec)) || !("reservationConfig" in report) || !("keys" in report)) { log("PROVIDER_CONFIG_WAIT", { attempt, status: "previous deployment" }); await new Promise((r) => setTimeout(r, 20_000)); continue; }
       const sealedPart = report.heygen?.sealed ?? null;
       delete report.heygen.sealed;
       const avatarSealed = report.avatar?.sealed ?? null;
