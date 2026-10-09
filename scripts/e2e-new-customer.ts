@@ -23,8 +23,9 @@ const check = (name: string, ok: boolean, detail?: unknown) => { results.push({ 
 const mode = (process.env.E2E_MODE ?? "verify").trim();
 
 async function dismissTour(page: Page) {
+  // The tour mounts after hydration: wait for it briefly instead of sampling visibility once.
   const skip = page.getByRole("button", { name: "Omitir" });
-  if (await skip.isVisible({ timeout: 4000 }).catch(() => false)) await skip.click();
+  if (await skip.waitFor({ state: "visible", timeout: 6000 }).then(() => true).catch(() => false)) await skip.click();
 }
 const bodyText = async (page: Page) => (await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ");
 
@@ -107,6 +108,7 @@ async function main() {
 
     // 4. Billing.
     await page.goto(`${APP}/dashboard/billing`, { waitUntil: "networkidle" });
+    await dismissTour(page);
     const billing = await bodyText(page);
     const plans = ["Starter", "Pro", "Business"].filter((p) => billing.includes(p));
     check("billing shows the current plans", plans.length === 3, { plans, prices: billing.match(/\$\s?\d+\s?\/mes/g) });
