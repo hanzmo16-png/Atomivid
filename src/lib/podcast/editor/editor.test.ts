@@ -41,7 +41,7 @@ const objs = [
 ];
 const v3 = (over: Record<string, unknown> = {}) => ({
   episode_id: EP, assembly_version: V, editor_version: "0.3.0", job_key: "abc123def4567890", manifest_sha256: "b".repeat(64),
-  objetos: objs, verificacion: { ok: true }, publicado_en: "2026-10-09T20:00:05Z", estado: "completo", ...over,
+  objetos: objs, verificacion: "completa", publicado_en: "2026-10-09T20:00:05Z", estado: "completo", ...over,
 });
 function delivery(over: { manifest?: unknown; videoBody?: Uint8Array; markerAt?: string; extra?: Record<string, { body: Uint8Array | string; at: string }> } = {}) {
   return fakeStorage({
@@ -107,10 +107,12 @@ test("v3 header must match: estado, episode, assembly_version and required field
   const exp = { episodeId: EP, version: V };
   const parse = (m: unknown) => parseCompleteManifest(JSON.stringify(m), exp).ok;
   assert.equal(parse(v3()), true);
+  assert.equal(parse(v3({ verificacion: "sidecar" })), true);
   assert.equal(parseCompleteManifest("{", exp).ok, false);
   for (const over of [
     { estado: "parcial" }, { estado: undefined }, { episode_id: "otro" }, { assembly_version: 1 }, { assembly_version: "2" },
     { editor_version: "" }, { job_key: undefined }, { manifest_sha256: "ABC" }, { publicado_en: "ayer" }, { verificacion: null },
+    { verificacion: { ok: true } }, { verificacion: [] }, { verificacion: "no-verificado" },
     { objetos: [] }, { objetos: [objs[0], objs[0]] }, { objetos: [objs[0], { ...objs[0], key: `${BASE}/salida/episodio.mp4` }] },
     { objetos: [{ ...objs[0], key: "../../ep-b/v1/salida/x.mp4" }] }, { objetos: [{ ...objs[0], key: "entrada/montaje.json" }] },
     { objetos: [{ ...objs[0], sha256: "A".repeat(64) }] }, { objetos: [{ ...objs[0], size: 0 }] }, { objetos: [{ ...objs[0], size: "10" }] },
@@ -151,7 +153,8 @@ test("app reads the bucket with the owner's session, never the service role; rou
  * the editor-generated salida/COMPLETO.json. Skipped (reported as skipped, not passed) until it is committed.
  */
 const FIXTURE = "src/lib/podcast/editor/fixtures/editor-v3";
-test("editor v3 generated delivery verifies end to end", { skip: existsSync(FIXTURE) ? false : `missing ${FIXTURE} (editor-generated COMPLETO.json + objects)` }, async () => {
+test("editor v3 generated delivery verifies end to end", async () => {
+  assert.ok(existsSync(FIXTURE), "the committed editor-generated fixture is required");
   const files: Record<string, { body: Uint8Array; at: string }> = {};
   const walk = (dir: string) => { for (const n of readdirSync(dir)) { const p = join(dir, n); if (statSync(p).isDirectory()) walk(p); else files[relative(FIXTURE, p)] = { body: readFileSync(p), at: "" }; } };
   walk(FIXTURE);
@@ -165,4 +168,5 @@ test("editor v3 generated delivery verifies end to end", { skip: existsSync(FIXT
   assert.ok(parsed.ok, parsed.ok ? "" : parsed.reason);
   const result = await checkDelivery(fakeStorage(files), ep, version, { hashes: true });
   assert.equal(result.state, "terminado", JSON.stringify(result));
+  assert.equal(result.state === "terminado" && result.primary?.key, "salida/episodio.mp4", "show video first even when editor lists MP3 first");
 });

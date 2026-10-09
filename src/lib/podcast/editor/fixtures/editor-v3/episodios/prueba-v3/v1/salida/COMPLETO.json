@@ -1,0 +1,97 @@
+{
+  "episode_id": "prueba-v3",
+  "assembly_version": 1,
+  "editor_version": "0.3.0",
+  "job_key": "2551784ecff845e9bc10b4a6bf794ca1ac6f4afbf84999c004b78f5f55fd8c8a",
+  "manifest_sha256": "d0c3f9151d5641c5f5490c9189328b8c2555687e6fa8879f482a468500554001",
+  "objetos": [
+    {
+      "key": "episodios/prueba-v3/v1/salida/creditos.json",
+      "size": 40,
+      "sha256": "cc76f18a990ddfd9110a70c18c358e943978d1695aaebb45c683c9bb7bb7c14f"
+    },
+    {
+      "key": "episodios/prueba-v3/v1/salida/episodio.mp3",
+      "size": 229344,
+      "sha256": "7ff0c0944ea18797a68c2cd142134e318c93bc3e01074915297eed0987c107e3"
+    },
+    {
+      "key": "episodios/prueba-v3/v1/salida/episodio.mp4",
+      "size": 508427,
+      "sha256": "d76ebdf7f7a4b8158d3150de9a364626b5b7b6999e152254a75fde977eff9b91"
+    },
+    {
+      "key": "episodios/prueba-v3/v1/salida/muestras/hoja_contactos.jpg",
+      "size": 201738,
+      "sha256": "03f5c3e05d9e2f39bf87ca5dfbcc15ff8d52321663f1ee6d3115520988d7b221"
+    },
+    {
+      "key": "episodios/prueba-v3/v1/salida/muestras/muestra_01_0000.40s.jpg",
+      "size": 8687,
+      "sha256": "1f74760f6e32b582c0270bfd13cd79c376cf1539becdaf825df8897791d694fe"
+    },
+    {
+      "key": "episodios/prueba-v3/v1/salida/muestras/muestra_02_0001.19s.jpg",
+      "size": 8687,
+      "sha256": "1f74760f6e32b582c0270bfd13cd79c376cf1539becdaf825df8897791d694fe"
+    },
+    {
+      "key": "episodios/prueba-v3/v1/salida/muestras/muestra_03_0001.98s.jpg",
+      "size": 8517,
+      "sha256": "5927fa45c4ae41b4c68fd372cb10d2a51142be6d3b2115c038e95c3fc46a1bb5"
+    },
+    {
+      "key": "episodios/prueba-v3/v1/salida/muestras/muestra_04_0002.78s.jpg",
+      "size": 8516,
+      "sha256": "17cf1d9be84b4a09e9330ea8c9d4fa06c5b1993f60aaa9e69369c77ad1c14030"
+    },
+    {
+      "key": "episodios/prueba-v3/v1/salida/muestras/muestra_05_0003.57s.jpg",
+      "size": 9678,
+      "sha256": "39bd7c60906f48415bcd86454c9f1f47e982444835260374073b8bfcb20eae4e"
+    },
+    {
+      "key": "episodios/prueba-v3/v1/salida/muestras/muestra_06_0004.36s.jpg",
+      "size": 10677,
+      "sha256": "7dfbd8bba75eafe67a86914910f8185accff58bf3371cfd619585cecf4b99726"
+    },
+    {
+      "key": "episodios/prueba-v3/v1/salida/muestras/muestra_07_0005.16s.jpg",
+      "size": 10535,
+      "sha256": "74c4f6d7efb7e55bce57adf51ea02d1ef9449f20873e89caf24c199201656bcc"
+    },
+    {
+      "key": "episodios/prueba-v3/v1/salida/muestras/muestra_08_0005.95s.jpg",
+      "size": 10220,
+      "sha256": "f663d3ebc135a9a70286f3d5134d756a66f0c06a728450928792ccb4e3eb5578"
+    },
+    {
+      "key": "episodios/prueba-v3/v1/salida/muestras/muestra_09_0006.74s.jpg",
+      "size": 11325,
+      "sha256": "39f3d78d5c732aafeb9be5184e48b0429040cfd23d1074162272556e08d764f3"
+    },
+    {
+      "key": "episodios/prueba-v3/v1/salida/muestras/muestra_10_0007.54s.jpg",
+      "size": 10541,
+      "sha256": "c8e1f3672e55e58f70c8da99ab7c156609487611f49a36e3cb9e89da4f0b7fcc"
+    },
+    {
+      "key": "episodios/prueba-v3/v1/salida/muestras/muestra_11_0008.33s.jpg",
+      "size": 8687,
+      "sha256": "1f74760f6e32b582c0270bfd13cd79c376cf1539becdaf825df8897791d694fe"
+    },
+    {
+      "key": "episodios/prueba-v3/v1/salida/muestras/muestra_12_0009.12s.jpg",
+      "size": 8687,
+      "sha256": "1f74760f6e32b582c0270bfd13cd79c376cf1539becdaf825df8897791d694fe"
+    },
+    {
+      "key": "episodios/prueba-v3/v1/estado/reporte-2551784ecff8.json",
+      "size": 5659,
+      "sha256": "e69cd9845e41a65576a7636e679acfec7cdf1176084add74ca62cdd6056fcd01"
+    }
+  ],
+  "verificacion": "completa",
+  "publicado_en": "2026-10-09T17:03:45-03:00",
+  "estado": "completo"
+}

@@ -1,0 +1,29 @@
+{
+  "source": "podcast-editor-entrega-v3.zip",
+  "editor_version": "0.3.0",
+  "source_zip_sha256": "9e402d8e8a52dc5997e54006ecbff9024574229162bfe92086508c3a29347b8d",
+  "files": {
+    "editor.py": "534afe2ef7992c4e2ef5113c1309621a474af3faacb26aaf31c656698e9f2b6f",
+    "podcast_editor/media.py": "7caf1d43bb34af568384d94143fc31b21c5d8417297403449bc7b1649b44da5e",
+    "podcast_editor/schema.py": "34cc5b0d6426126d52f59c185b1b34bcb21a18af32807f30af24c8a041861f05",
+    "podcast_editor/storage.py": "c6400d96ba74b7088b7c92e74c135ce20a555ef32131a68646d72324bc4c67e6",
+    "podcast_editor/subs.py": "464a7a6e1ec02d3b3a3c6cd46a55c6df9c13b4b2ac05dc9424e992ad6c022988",
+    "podcast_editor/supabase_backend.py": "be73e668083a0d9cf5c0a82c6f07631ce4847c6abd9b5e702753fd71fa593913",
+    "tests/fixtures.py": "b34456c2aa28bf5bdc8f5359902a99bf64906687c6e695301895920a27692f22",
+    "requirements.txt": "730bbf35c84c76c02ebf5365cf3f4863d72cd59daa799b98e8c32eb73cd117c8",
+    "docs/montaje.schema.json": "4c634ef5c9ac749fa74686de2378c6234e8f5642d1e49350aaadaad5f9608647"
+  },
+  "media": "FFmpeg lavfi synthetic test patterns and tones only; no Hans media or voice",
+  "transport": "local backend; real Supabase Auth/Storage/TUS not exercised",
+  "consumer_before_fix": {
+    "passed": 10,
+    "failed": 1,
+    "skipped": 0,
+    "reason": "COMPLETO.json sin verificacion"
+  },
+  "consumer_after_fix": {
+    "passed": 11,
+    "failed": 0,
+    "skipped": 0
+  }
+}

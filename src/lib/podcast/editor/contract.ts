@@ -10,7 +10,7 @@
  *
  *   { "episode_id": "<same as path>", "assembly_version": <same as path>, "estado": "completo",
  *     "editor_version": "…", "job_key": "…", "manifest_sha256": "<64 hex>", "publicado_en": "<ISO date>",
- *     "verificacion": { … },
+ *     "verificacion": "completa" | "sidecar",
  *     "objetos": [ { "key": "<path inside the episode/version>", "size": <bytes>, "sha256": "<64 hex>" } ] }
  *
  * Object keys may be full bucket keys (episodios/<ep>/v<n>/…) or relative to the version folder; both are
@@ -89,7 +89,7 @@ export function parseCompleteManifest(raw: string, expected: { episodeId: string
   if (typeof d.job_key !== "string" || !d.job_key.trim() || d.job_key.length > 200) return { ok: false, reason: "COMPLETO.json sin job_key" };
   if (typeof d.manifest_sha256 !== "string" || !SHA256.test(d.manifest_sha256)) return { ok: false, reason: "COMPLETO.json con manifest_sha256 inválido" };
   if (typeof d.publicado_en !== "string" || Number.isNaN(Date.parse(d.publicado_en))) return { ok: false, reason: "COMPLETO.json sin publicado_en válido" };
-  if (!d.verificacion || typeof d.verificacion !== "object") return { ok: false, reason: "COMPLETO.json sin verificacion" };
+  if (d.verificacion !== "completa" && d.verificacion !== "sidecar") return { ok: false, reason: "COMPLETO.json con verificacion inválida" };
   if (!Array.isArray(d.objetos) || d.objetos.length === 0) return { ok: false, reason: "COMPLETO.json no declara objetos" };
   if (d.objetos.length > 500) return { ok: false, reason: "COMPLETO.json declara demasiados objetos" };
   const seen = new Set<string>();
@@ -111,7 +111,8 @@ export function parseCompleteManifest(raw: string, expected: { episodeId: string
   } };
 }
 
-/** The object the owner plays first: the first media file directly in salida/ (not a sample, not a report). */
+/** Prefer the episode video; editor publish sorts episodio.mp3 before episodio.mp4. Audio is a fallback. */
 export function primaryMedia(objetos: DeclaredOutput[]): DeclaredOutput | null {
-  return objetos.find((o) => /^salida\/[^/]+\.(mp4|m4a|mp3|wav|webm)$/i.test(o.key)) ?? null;
+  return objetos.find((o) => /^salida\/[^/]+\.(mp4|webm)$/i.test(o.key))
+    ?? objetos.find((o) => /^salida\/[^/]+\.(m4a|mp3|wav)$/i.test(o.key)) ?? null;
 }

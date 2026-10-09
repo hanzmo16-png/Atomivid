@@ -1,0 +1,231 @@
+{
+  "editor_version": "0.3.0",
+  "episode_id": "prueba-v3",
+  "assembly_version": 1,
+  "manifest_sha256": "d0c3f9151d5641c5f5490c9189328b8c2555687e6fa8879f482a468500554001",
+  "job_key": "2551784ecff845e9bc10b4a6bf794ca1ac6f4afbf84999c004b78f5f55fd8c8a",
+  "started_at": "2026-10-09T17:03:42-03:00",
+  "host": "4dd79f391085",
+  "pid": 196,
+  "chunks": {
+    "reused": [],
+    "rendered": [
+      "s1",
+      "s2",
+      "s3"
+    ],
+    "invalidated": []
+  },
+  "chunks_seconds": 0.46,
+  "assemble_seconds": 0.48,
+  "verification": {
+    "checks": [
+      {
+        "check": "video_stream",
+        "ok": true,
+        "detail": "h264"
+      },
+      {
+        "check": "audio_stream_present",
+        "ok": true,
+        "detail": "aac"
+      },
+      {
+        "check": "resolution",
+        "ok": true,
+        "detail": "320x180"
+      },
+      {
+        "check": "fps",
+        "ok": true,
+        "detail": 25.0
+      },
+      {
+        "check": "video_vs_expected",
+        "ok": true,
+        "detail": {
+          "video": 9.52,
+          "expected": 9.52,
+          "tol": 0.1
+        }
+      },
+      {
+        "check": "premix_mp4_duration_vs_source",
+        "ok": true,
+        "detail": {
+          "source_s": 9.5,
+          "out_s": 9.514667,
+          "diff_s": 0.014667,
+          "tol_s": 0.04,
+          "source_samples": 456000,
+          "out_samples": 456704,
+          "sample_rate": [
+            48000,
+            48000
+          ]
+        }
+      },
+      {
+        "check": "premix_mp4_level_unchanged",
+        "ok": true,
+        "detail": {
+          "source_rms_db": -16.79,
+          "out_rms_db": -16.8,
+          "note": "no loudnorm/ducking/music: global RMS must match within 0.5 dB"
+        }
+      },
+      {
+        "check": "premix_mp4_ending_not_truncated",
+        "ok": true,
+        "detail": {
+          "start": 7.5,
+          "src_samples": 96000,
+          "out_samples": 96000,
+          "windows": [
+            {
+              "src_db": -33.66,
+              "out_db": -33.67,
+              "ok": true
+            },
+            {
+              "src_db": -9.03,
+              "out_db": -9.04,
+              "ok": true
+            },
+            {
+              "src_db": -9.03,
+              "out_db": -9.03,
+              "ok": true
+            },
+            {
+              "src_db": -9.03,
+              "out_db": -9.03,
+              "ok": true
+            }
+          ],
+          "ok": true
+        }
+      },
+      {
+        "check": "premix_mp3_duration_vs_source",
+        "ok": true,
+        "detail": {
+          "source_s": 9.5,
+          "out_s": 9.5,
+          "diff_s": 0.0,
+          "tol_s": 0.04,
+          "source_samples": 456000,
+          "out_samples": 456000,
+          "sample_rate": [
+            48000,
+            48000
+          ]
+        }
+      },
+      {
+        "check": "premix_mp3_level_unchanged",
+        "ok": true,
+        "detail": {
+          "source_rms_db": -16.79,
+          "out_rms_db": -17.06,
+          "note": "no loudnorm/ducking/music: global RMS must match within 0.5 dB"
+        }
+      },
+      {
+        "check": "premix_mp3_ending_not_truncated",
+        "ok": true,
+        "detail": {
+          "start": 7.5,
+          "src_samples": 96000,
+          "out_samples": 96000,
+          "windows": [
+            {
+              "src_db": -33.66,
+              "out_db": -34.0,
+              "ok": true
+            },
+            {
+              "src_db": -9.03,
+              "out_db": -9.29,
+              "ok": true
+            },
+            {
+              "src_db": -9.03,
+              "out_db": -9.29,
+              "ok": true
+            },
+            {
+              "src_db": -9.03,
+              "out_db": -9.29,
+              "ok": true
+            }
+          ],
+          "ok": true
+        }
+      },
+      {
+        "check": "premix_video_vs_audio",
+        "ok": true,
+        "detail": {
+          "video_s": 9.52,
+          "audio_s": 9.5,
+          "diff_s": 0.02,
+          "tol_s": 0.04,
+          "rule": "extender_ultimo"
+        }
+      },
+      {
+        "check": "full_decode_mp4",
+        "ok": true,
+        "detail": {
+          "errors": "",
+          "seconds": 0.1
+        }
+      },
+      {
+        "check": "full_decode_mp3",
+        "ok": true,
+        "detail": {
+          "errors": ""
+        }
+      }
+    ],
+    "ok": true
+  },
+  "verify_seconds": 0.75,
+  "outputs": {
+    "mp4": "/workspace/scratch/e0f653bf6e27/editor-v3-review/render-work/prueba-v3/v1/salida/episodio.mp4",
+    "mp3": "/workspace/scratch/e0f653bf6e27/editor-v3-review/render-work/prueba-v3/v1/salida/episodio.mp3",
+    "srt": null,
+    "audio_carry": {
+      "source_codec": "pcm_s16le",
+      "mp4": "aac",
+      "mp3": "libmp3lame"
+    },
+    "mp4_size": 508427,
+    "mp4_sha256": "d76ebdf7f7a4b8158d3150de9a364626b5b7b6999e152254a75fde977eff9b91",
+    "mp3_size": 229344,
+    "mp3_sha256": "7ff0c0944ea18797a68c2cd142134e318c93bc3e01074915297eed0987c107e3"
+  },
+  "samples": {
+    "dir": "/workspace/scratch/e0f653bf6e27/editor-v3-review/render-work/prueba-v3/v1/salida/muestras",
+    "frames": [
+      "muestra_01_0000.40s.jpg",
+      "muestra_02_0001.19s.jpg",
+      "muestra_03_0001.98s.jpg",
+      "muestra_04_0002.78s.jpg",
+      "muestra_05_0003.57s.jpg",
+      "muestra_06_0004.36s.jpg",
+      "muestra_07_0005.16s.jpg",
+      "muestra_08_0005.95s.jpg",
+      "muestra_09_0006.74s.jpg",
+      "muestra_10_0007.54s.jpg",
+      "muestra_11_0008.33s.jpg",
+      "muestra_12_0009.12s.jpg"
+    ],
+    "contact_sheet": "hoja_contactos.jpg"
+  },
+  "status": "done",
+  "finished_at": "2026-10-09T17:03:45-03:00",
+  "wall_seconds": 2.93
+}
