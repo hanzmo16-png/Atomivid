@@ -1,6 +1,6 @@
-name: Review an existing video (read-only, sealed outputs)
-# Measures an ALREADY produced video and extracts frames for review. Generates nothing, calls no paid
-# provider. Least privilege, two jobs: "measure" has the database secret but a read-only token and
+name: Video review and synthetic editor validation
+# Review modes measure existing media without paid provider calls. The explicit podcast-editor-publish
+# mode uploads only the committed synthetic fixture through its assigned editor session. Two jobs: "measure" has the database secret but a read-only token and
 # encrypts everything private (frames, script, numbers tied to the owner) to the operator session key;
 # "publish" has NO secrets and only commits those encrypted files to the ops-sealed-out branch.
 on:
@@ -31,7 +31,7 @@ jobs:
       - name: Browser for the app check
         run: |
           if [ "$(head -1 ops/review-video.mode | tr -d '[:space:]')" = "podcast-editor-app" ]; then npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium; fi
-      - name: Measure and extract (sealed)
+      - name: Run selected review or synthetic publication
         run: |
           MODE="$(head -1 ops/review-video.mode | tr -d '[:space:]')"
           if [ "$MODE" = "owner-identity" ]; then npx tsx scripts/review/owner-identity.ts;
