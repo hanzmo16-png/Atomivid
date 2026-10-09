@@ -1,0 +1,30 @@
+name: Authorized dedicated editor account
+on:
+  push:
+    branches: [codex/editor-account-provision]
+    paths:
+      - scripts/editor-account/provision.mjs
+      - ops/editor-account/mode
+      - ops/editor-account/account.sealed
+      - .github/workflows/editor-account-provision.yml
+permissions:
+  contents: write
+concurrency:
+  group: dedicated-editor-account-provision
+  cancel-in-progress: false
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/editor-account/provision.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GH_TOKEN: ${{ github.token }}
