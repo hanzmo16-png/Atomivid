@@ -68,13 +68,27 @@ async function main() {
     await page.fill("#topic", TOPIC);
     await page.selectOption("#language", "es");
     await page.fill("#duration_minutes", "3");
-    const submit = page.locator('form:has(#topic) button[type="submit"]');
-    await Promise.all([page.waitForURL(/script_job=/, { timeout: 60000 }), submit.click(), submit.click({ timeout: 2000 }).catch(() => undefined)]);
+    await page.locator('form:has(#topic) button[type="submit"]').waitFor({ state: "visible" });
+    // Two submissions in the same tick = a real double click before React disables the button.
+    const navigated = page.waitForURL(/script_job=|error=/, { timeout: 120000 }).then(() => true).catch(() => false);
+    await page.evaluate(() => {
+      const form = document.querySelector("form:has(#topic)") as HTMLFormElement | null;
+      if (!form) throw new Error("create form not found");
+      form.requestSubmit();
+      form.requestSubmit();
+    });
+    const arrived = await navigated;
+    const after = new URL(page.url());
+    if (!after.searchParams.get("script_job")) {
+      const alert = await page.locator('[role="alert"]').first().innerText().catch(() => null);
+      log("CREATE_RESULT", { navigated: arrived, path: after.pathname, error: after.searchParams.get("error"), alert });
+    }
     const jobId = new URL(page.url()).searchParams.get("script_job");
     check("create → redirected with a script job", Boolean(jobId), { path: new URL(page.url()).pathname });
     const { data: jobs } = await db.from("documentary_script_jobs").select("id,request_id,status").eq("user_id", session.ownerId).eq("topic", TOPIC).gte("created_at", startIso);
     check("double submit created exactly one script job", (jobs ?? []).length === 1, { jobs: (jobs ?? []).length });
-    const job = jobs![0];
+    if (!jobs?.length) return;
+    const job = jobs[0];
     requestId = job.request_id;
 
     // 3. Script generation: follow it in the app, reloading (progress must survive reloads).
