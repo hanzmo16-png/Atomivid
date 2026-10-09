@@ -1,2 +1,2 @@
-provider-config
-# signed probe incl. HeyGen video list around the uncertain op (read-only, hashed)
+avatar-state
+# read-only state after failed resume
