@@ -35,6 +35,10 @@ jobs:
         run: |
           MODE="$(head -1 ops/review-video.mode | tr -d '[:space:]')"
           if [ "$MODE" = "owner-identity" ]; then npx tsx scripts/review/owner-identity.ts;
+          elif [ "$MODE" = "podcast-editor-publish" ]; then
+            git fetch --depth=1 origin d4a9b2ee384cb971dc535614a8b0964487d0de99
+            git archive d4a9b2ee384cb971dc535614a8b0964487d0de99 scripts/podcast-editor-v3 src/lib/podcast/editor/fixtures/editor-v3 | tar -x
+            npx tsx scripts/review/publish-editor-fixture.ts;
           elif [ "$MODE" = "podcast-editor-live" ]; then npx tsx scripts/review/podcast-editor-live.ts;
           elif [ "$MODE" = "podcast-editor-app" ]; then
             # Line 2: target=<https URL>; line 3: owner_session=yes only when the owner sign-in is authorised.
