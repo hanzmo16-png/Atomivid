@@ -142,7 +142,15 @@ async function main() {
       return;
     }
     check("estimate fits the remaining authorized budget", true, { cheapest, remaining: Math.round(remaining * 100) / 100 });
-    await page.locator(`input[name="strategy"][value="${cheapest.value}"]`).check();
+    const radio = page.locator(`input[name="strategy"][value="${cheapest.value}"]`);
+    const diag = async () => ({ path: new URL(page.url()).pathname, radioDisabled: await radio.isDisabled().catch(() => null), radioVisible: await radio.isVisible().catch(() => null),
+      fieldsetDisabled: await page.locator("fieldset").first().isDisabled().catch(() => null), alerts: (await page.locator('[role="alert"]').allInnerTexts().catch(() => [])).map((t) => t.slice(0, 200)) });
+    if (!(await radio.isChecked().catch(() => false))) {
+      await page.locator("label", { has: radio }).click({ timeout: 15000 }).catch(async () => log("STRATEGY_CLICK_FAILED", await diag()));
+    }
+    const chosen = await radio.isChecked().catch(() => false);
+    check("strategy selected in the UI", chosen, chosen ? { strategy: cheapest.value } : await diag());
+    if (!chosen) return;
     const confirmBtn = page.getByRole("button", { name: /Confirmar y generar video/ });
     if (!(await confirmBtn.isEnabled())) {
       const blocked = (await text(page)).match(/No se puede iniciar todavía:[^\n]*/)?.[0] ?? "disabled";

@@ -57,11 +57,11 @@ async function e2eState() {
   const s = db();
   const { data: jobs } = await s.from("documentary_script_jobs").select("id,request_id,user_id,status,stage,error_message,created_at,updated_at").eq("topic", "Cómo se forman las auroras boreales").order("created_at", { ascending: false }).limit(3);
   for (const j of (jobs ?? []) as Record<string, any>[]) {
-    const { data: r } = await s.from("video_requests").select("status,render_attempts,long_form_stage,long_form_progress,supply_wait_started_at,video_path,error_message,long_form_confirmed_at,updated_at").eq("id", j.request_id).maybeSingle();
+    const { data: r } = await s.from("video_requests").select("status,render_attempts,long_form_stage,long_form_progress,supply_wait_started_at,video_path,error_message,long_form_confirmed_at,render_started_at").eq("id", j.request_id).maybeSingle();
     const { data: ops } = await s.from("pi_paid_operations").select("provider,status,reserved_usd,committed_usd,created_at").or(`project_id.eq.${j.request_id},project_id.like.documentary:${j.user_id}:%`).gte("created_at", j.created_at);
     const usd = (ops ?? []).reduce((a, o) => a + Number(o.status === "COMMITTED" ? o.committed_usd : o.status === "REFUNDED" ? 0 : o.reserved_usd), 0);
     log("E2E_JOB", { job: String(j.id).slice(0, 8), status: j.status, stage: j.stage, created: j.created_at, updated: j.updated_at, error: j.error_message ? String(j.error_message).slice(0, 160) : null });
-    log("E2E_REQUEST", r ? { status: r.status, attempts: r.render_attempts, stage: r.long_form_stage, waiting: !!r.supply_wait_started_at, video: !!r.video_path, confirmed: !!r.long_form_confirmed_at, updated: r.updated_at, error: r.error_message ? String(r.error_message).slice(0, 200) : null } : null);
+    log("E2E_REQUEST", r ? { status: r.status, attempts: r.render_attempts, stage: r.long_form_stage, waiting: !!r.supply_wait_started_at, video: !!r.video_path, confirmed: !!r.long_form_confirmed_at, startedAt: r.render_started_at, progressAt: (r.long_form_progress as { updatedAt?: string } | null)?.updatedAt ?? null, error: r.error_message ? String(r.error_message).slice(0, 200) : null } : null);
     log("E2E_SPEND", { usd: Math.round(usd * 10000) / 10000, ops: (ops ?? []).length, uncertain: (ops ?? []).filter((o) => ["SUBMITTED", "PROVIDER_JOB_RECORDED", "RECONCILIATION_REQUIRED"].includes(o.status)).length });
   }
 }
