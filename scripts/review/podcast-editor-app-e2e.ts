@@ -80,6 +80,13 @@ async function main() {
     check("owner: delivery list page opens", listRes?.status() === 200, { status: listRes?.status() });
     check("owner: the real delivery is listed as delivered (pending verification)", list.includes(`${ep} · ${vSeg}`) && /falta verificar integridad/.test(list));
     const versionRes = await page.goto(`${APP}${versionPath}`, { waitUntil: "networkidle" });
+    // A fresh browser shows the app's normal first-visit guide above the editor.
+    const onboarding = page.getByRole("dialog", { name: "Escribe tu idea", exact: true });
+    if (await onboarding.isVisible()) {
+      await onboarding.getByRole("button", { name: "Omitir", exact: true }).click();
+      await onboarding.waitFor({ state: "hidden" });
+      log("ONBOARDING", { dismissedThroughUi: true });
+    }
     const versionText = await text(page);
     const verifyButton = page.getByRole("button", { name: /Verificar integridad/ });
     const buttonPresent = await verifyButton.count() === 1;
