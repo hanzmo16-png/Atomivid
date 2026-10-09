@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { monitorSupply } from "./monitor";
-import { resumeSupplyQueue } from "./queue";
+import { resumeSupplyQueue, resumeSupplyRequest } from "./queue";
 import { jobSupplyDemands, reserveJobSupply } from "./job";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { SupplyUnavailableError } from "./policy";
@@ -66,6 +66,23 @@ test("supply queue excludes expired/private trials and uncertain supplier submis
   assert.deepEqual(dispatched, ["normal"]);
   assert.equal(await resumeSupplyQueue(db as never, async r => { dispatched.push(r.requestId); }, fixed), 0);
   assert.equal(db.rows.video_requests[2].render_attempts, 1);
+});
+test("owner resume: only the owner's waiting request, once per window, never over an uncertain paid call", async () => {
+  const db = database(); const started = "2026-10-05T14:00:00Z";
+  const row = (id: string, extra: Record<string, unknown> = {}) => ({ id, user_id: "owner", mode: "visual", render_attempts: 1, status: "processing", progress_stage: "queued", supply_wait_started_at: started, supply_not_before: started, ...extra });
+  db.rows.video_requests.push(row("waiting"), row("later", { supply_not_before: "2026-10-05T16:00:00Z" }), row("done", { status: "completed", progress_stage: null, supply_wait_started_at: null }), row("paid"));
+  db.rows.pi_paid_operations.push({ project_id: "paid", idempotency_key: "voice", status: "PROVIDER_JOB_RECORDED" });
+  const dispatched: string[] = [];
+  const trigger = async (r: { requestId: string }) => { dispatched.push(r.requestId); };
+  assert.equal(await resumeSupplyRequest(db as never, "waiting", "someone-else", trigger, fixed), "not_waiting", "another user's request is invisible");
+  assert.equal(await resumeSupplyRequest(db as never, "done", "owner", trigger, fixed), "not_waiting");
+  assert.equal(await resumeSupplyRequest(db as never, "later", "owner", trigger, fixed), "too_soon");
+  assert.equal(await resumeSupplyRequest(db as never, "paid", "owner", trigger, fixed), "uncertain_paid_call", "never replays over an unconfirmed charge");
+  assert.equal(await resumeSupplyRequest(db as never, "waiting", "owner", trigger, fixed), "dispatched");
+  assert.equal(await resumeSupplyRequest(db as never, "waiting", "owner", trigger, fixed), "too_soon", "a double click inside the window dispatches nothing");
+  assert.equal(await resumeSupplyQueue(db as never, trigger, fixed), 0, "the cron does not dispatch it again either");
+  assert.deepEqual(dispatched, ["waiting"]);
+  assert.equal(db.rows.video_requests[0].render_attempts, 1, "same attempt: no new attempt, quota or permission");
 });
 test("whole reel reserves a pacing correction and images; recorded avatar needs no paid voice", () => {
   const flags = { ...getFeatureFlags(), imageGenerationEnabled: true, imageProvider: "openai", avatarProvider: "heygen" };

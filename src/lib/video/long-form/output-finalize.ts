@@ -15,6 +15,7 @@
  *   LONG_FORM_OUTPUT_KEEP_DIR (render.yml lo publica como artifact).
  */
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -64,6 +65,8 @@ export type OutputFinalizeDeps = {
   writeState: (state: LongFormOutputState) => Promise<void>;
   /** Tamaño del objeto en Storage, o null si no existe. */
   objectSize: (objectPath: string) => Promise<number | null>;
+  /** Mide un objeto ya subido (descarga + ffprobe). Sin esta dependencia, un objeto sin estado validado no se reutiliza. */
+  probeObject?: (objectPath: string) => Promise<OutputMediaMetrics>;
   sha256: (filePath: string) => Promise<string>;
   keepDir?: string | null;
   storageMaxBytes?: number | null;
@@ -113,6 +116,18 @@ export function supabaseOutputDeps(supabase: SupabaseClient, env: Record<string,
       if (!entry) return null;
       return Number((entry.metadata as { size?: number } | null)?.size ?? 0);
     },
+    probeObject: async (objectPath) => {
+      const { data, error } = await storage().download(objectPath);
+      if (error || !data) throw new Error("output_download_failed");
+      const dir = await fs.mkdtemp(path.join(os.tmpdir(), "lf-probe-"));
+      const file = path.join(dir, "existing.mp4");
+      try {
+        await fs.writeFile(file, Buffer.from(await data.arrayBuffer()));
+        return await probeOutput(file);
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+      }
+    },
     keepDir: env.LONG_FORM_OUTPUT_KEEP_DIR?.trim() || null,
     storageMaxBytes: configuredStorageMaxBytes(env),
   };
@@ -125,14 +140,23 @@ export function supabaseOutputDeps(supabase: SupabaseClient, env: Record<string,
  * que su presencia en la ruta canónica basta aunque el estado no se haya
  * podido escribir.
  */
-export async function reconcileExistingOutput(requestId: string, deps: Pick<OutputFinalizeDeps, "readState" | "objectSize">): Promise<{ videoPath: string; state: LongFormOutputState | null } | null> {
+export async function reconcileExistingOutput(requestId: string, deps: Pick<OutputFinalizeDeps, "readState" | "objectSize" | "probeObject">): Promise<{ videoPath: string; state: LongFormOutputState | null } | null> {
   const objectPath = canonicalOutputPath(requestId);
   const state = await deps.readState(requestId).catch(() => null);
   const size = await deps.objectSize(objectPath);
   if (size === null || size <= 0) return null;
-  if (state?.status === "UPLOADED" && state.delivered && state.delivered.bytes !== size) return null;
-  return { videoPath: objectPath, state };
+  if (state?.status === "UPLOADED" && state.delivered) {
+    // Measured with ffprobe when it was delivered: reuse only the same object.
+    return state.delivered.bytes === size && playable(state.delivered) ? { videoPath: objectPath, state } : null;
+  }
+  // No validated delivery record (state write failed, or the object was placed by a recovery):
+  // "completed" must never point at something that does not play, so measure it before reusing it.
+  if (!deps.probeObject) return null;
+  const measured = await deps.probeObject(objectPath).catch(() => null);
+  return measured && measured.bytes === size && playable(measured) ? { videoPath: objectPath, state } : null;
 }
+
+const playable = (m: Pick<OutputMediaMetrics, "bytes" | "durationSeconds" | "videoCodec">) => m.bytes > 0 && m.durationSeconds > 0 && Boolean(m.videoCodec);
 
 async function keepCopy(filePath: string, keepDir: string | null | undefined, requestId: string): Promise<string | null> {
   if (!keepDir) return null;
@@ -319,6 +343,8 @@ export function memoryOutputDeps(opts: {
   /** Falla transitoria en las primeras N subidas. */
   transientUploadFailures?: number;
   failWriteState?: boolean;
+  /** Los objetos subidos no tienen pista de video legible (p. ej. un archivo truncado colocado por una recuperación). */
+  unplayableObjects?: boolean;
 } = {}) {
   const objects = new Map<string, number>();
   const states = new Map<string, LongFormOutputState>();
@@ -369,6 +395,13 @@ export function memoryOutputDeps(opts: {
     },
     async objectSize(objectPath) {
       return objects.get(objectPath) ?? null;
+    },
+    async probeObject(objectPath) {
+      calls.probe += 1;
+      const bytes = objects.get(objectPath);
+      if (bytes === undefined) throw new Error("missing");
+      return { bytes, durationSeconds: opts.unplayableObjects ? 0 : durationSeconds, width: 1920, height: 1080, fps: 30,
+        videoCodec: opts.unplayableObjects ? null : "h264", audioCodec: "aac", totalKbps: 0, videoKbps: null, audioKbps: null };
     },
     async sha256() {
       return "memory-sha256";

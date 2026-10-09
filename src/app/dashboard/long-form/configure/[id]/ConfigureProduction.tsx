@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -17,6 +17,7 @@ import { LONG_FORM_DURATION_TOLERANCE } from "@/lib/video/long-form/duration-bud
 import type { LongFormPackaging } from "@/lib/video/long-form/packaging";
 import { PackagingOptions } from "./PackagingOptions";
 import type { StrategyPreflight, VisualCheck } from "@/lib/video/long-form/production-preflight";
+import { rememberStartError } from "@/components/video/StartErrorNotice";
 
 export type PreflightSummary = { modality: string; engine: string; requestedSeconds: number | null; voice: string; curationPath: string | null };
 
@@ -192,6 +193,7 @@ export function ConfigureProduction({
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
+  const inFlight = useRef(false);
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [nowMs, setNowMs] = useState(0);
   useEffect(() => {
@@ -230,9 +232,12 @@ export function ConfigureProduction({
     : null;
 
   async function handleConfirm() {
-    if (loading || blockedReason) return;
+    // Synchronous guard: a second click before React re-renders sends nothing (the server stays the real guard).
+    if (inFlight.current || loading || blockedReason) return;
+    inFlight.current = true;
     setLoading(true);
     setError(null);
+    let confirmed = false;
     try {
       const confirmRes = await fetch(`/api/generate/${requestId}/confirm-production`, {
         method: "POST",
@@ -241,6 +246,7 @@ export function ConfigureProduction({
       });
       const confirmResult = await safeParseJsonResponse(confirmRes);
       if (!confirmResult.ok) throw new Error(confirmResult.error);
+      confirmed = true;
 
       const renderRes = await fetch(`/api/generate/${requestId}/render`, { method: "POST" });
       const renderResult = await safeParseJsonResponse(renderRes);
@@ -248,8 +254,17 @@ export function ConfigureProduction({
 
       router.push(`/dashboard/videos/${requestId}`);
     } catch (err) {
-      setError(classifyClientFetchError(err));
+      const message = classifyClientFetchError(err);
+      if (confirmed) {
+        // The plan is confirmed, so this page now redirects to the video page: carry the reason there,
+        // where "Iniciar producción" starts the same confirmed plan again (nothing was started or charged).
+        rememberStartError(requestId, message);
+        router.push(`/dashboard/videos/${requestId}`);
+        return;
+      }
+      setError(message);
       setLoading(false);
+      inFlight.current = false;
       router.refresh();
     }
   }

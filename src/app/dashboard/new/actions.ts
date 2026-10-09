@@ -290,7 +290,9 @@ export async function createVideoRequest(formData: FormData) {
       redirect(`/dashboard/new?error=${encodeURIComponent(message)}`);
     }
 
-    const { data: inserted, error: insertError } = await supabase
+    // Server-owned write (migration 20261009040743 revokes client-role writes on avatars);
+    // user_id comes from the verified session above, never from the form.
+    const { data: inserted, error: insertError } = await service
       .from("avatars")
       .insert({
         user_id: user.id,
