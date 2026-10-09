@@ -664,15 +664,27 @@ async function providerConfig() {
     if (res?.ok) {
       const report = await res.json() as { heygen?: { sealed?: unknown }; avatar?: { sealed?: unknown } | null };
       const rec = (report as { heygenReconcile?: { listed?: unknown } | null }).heygenReconcile;
-      if (!report.heygen || !("avatar" in report) || !("heygenReconcile" in report) || (rec && !("listed" in rec))) { log("PROVIDER_CONFIG_WAIT", { attempt, status: "previous deployment" }); await new Promise((r) => setTimeout(r, 20_000)); continue; }
+      if (!report.heygen || !("avatar" in report) || !("heygenReconcile" in report) || (rec && !("listed" in rec)) || !("reservationConfig" in report)) { log("PROVIDER_CONFIG_WAIT", { attempt, status: "previous deployment" }); await new Promise((r) => setTimeout(r, 20_000)); continue; }
       const sealedPart = report.heygen?.sealed ?? null;
       delete report.heygen.sealed;
       const avatarSealed = report.avatar?.sealed ?? null;
       if (report.avatar) delete report.avatar.sealed;
       // Public lines carry no amounts: everything sensitive was removed above and is printed sealed only.
-      log("PROVIDER_CONFIG", { ...report, avatar: undefined, heygenReconcile: undefined });
+      log("PROVIDER_CONFIG", { ...report, avatar: undefined, heygenReconcile: undefined, reservationConfig: undefined });
       log("AVATAR_START_READINESS", report.avatar ?? null);
       log("HEYGEN_RECONCILE", (report as { heygenReconcile?: unknown }).heygenReconcile ?? null);
+      const vercelCfg = (report as { reservationConfig?: Record<string, string | number | boolean> }).reservationConfig;
+      if (vercelCfg) {
+        const { workflowLiteralEnv, reservationConfig, configDiff } = await import("../src/lib/ops/config-parity");
+        const { literals, opaque } = workflowLiteralEnv(require("node:fs").readFileSync(".github/workflows/render.yml", "utf8"), "name: Renderizar video");
+        const saved = { ...process.env };
+        for (const k of Object.keys(process.env)) if (/^(PRICING_|MAX_|AVATAR_|IMAGE_|VIDEO_|MUSIC_|PREMIUM_|VISUAL_|OPENAI_IMAGE|SUPPLY_STORYBOARD)/.test(k)) delete process.env[k];
+        Object.assign(process.env, literals);
+        const workerCfg = reservationConfig();
+        for (const k of Object.keys(process.env)) delete process.env[k];
+        Object.assign(process.env, saved);
+        log("CONFIG_PARITY", { differences: configDiff(vercelCfg, workerCfg), workerOpaque: opaque.filter((k) => /PRICING|MAX_|AVATAR|IMAGE|VIDEO|MUSIC|PREMIUM|VISUAL|STORYBOARD/.test(k)) });
+      }
       if (sealedPart) sealed("HEYGEN_ACCOUNT", sealedPart);
       if (avatarSealed) sealed("AVATAR_AMOUNTS", avatarSealed);
       await heygenDbState();

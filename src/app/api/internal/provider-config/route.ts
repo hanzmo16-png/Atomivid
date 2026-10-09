@@ -1,3 +1,4 @@
+import { reservationConfig } from "@/lib/ops/config-parity";
 import { avatarReadinessProbe, heygenReconcileProbe, providerConfigReport, validProviderConfigSignature } from "@/lib/ops/provider-config";
 
 export const runtime = "nodejs";
@@ -10,5 +11,5 @@ export async function POST(request: Request) {
   const report = await providerConfigReport();
   const avatar = await avatarReadinessProbe().catch(() => null);
   const heygenReconcile = await heygenReconcileProbe().catch(() => null);
-  return Response.json({ ...report, avatar, heygenReconcile });
+  return Response.json({ ...report, avatar, heygenReconcile, reservationConfig: reservationConfig() });
 }
