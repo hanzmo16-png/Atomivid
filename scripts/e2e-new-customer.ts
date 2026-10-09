@@ -40,11 +40,15 @@ async function main() {
     await page.goto(`${APP}/register`, { waitUntil: "networkidle" });
     await page.fill('input[name="email"]', email);
     await page.fill('input[name="password"]', password);
-    await Promise.all([page.waitForURL(/\/(login|register)/, { timeout: 60000 }), page.locator('form:has(input[name="email"]) button[type="submit"]').click()]);
+    await Promise.all([page.waitForURL(/\/login\?message=|\/register\?error=/, { timeout: 60000 }).catch(() => undefined), page.locator('form:has(input[name="email"]) button[type="submit"]').click()]);
     const after = new URL(page.url());
     check("register form → 'check your email' message", after.pathname === "/login" && (after.searchParams.get("message") ?? "").includes("correo"), { path: after.pathname, error: after.searchParams.get("error") });
-    const { data: list } = await db.auth.admin.listUsers({ page: 1, perPage: 200 });
-    const created = list?.users.find((u) => u.email === email);
+    let created: { id: string; email_confirmed_at?: string | null } | undefined;
+    for (let pageNo = 1; pageNo <= 10 && !created; pageNo++) {
+      const { data: list } = await db.auth.admin.listUsers({ page: pageNo, perPage: 200 });
+      created = list?.users.find((u) => u.email === email);
+      if (!list?.users.length) break;
+    }
     if (!created) { check("account exists after register", false); return; }
     userId = created.id;
     check("new account is unconfirmed until the email link", !created.email_confirmed_at);
