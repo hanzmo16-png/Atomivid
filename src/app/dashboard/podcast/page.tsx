@@ -24,6 +24,7 @@ export default async function PodcastPage() {
     <div className="mx-auto w-full max-w-2xl">
       <h1 className="text-2xl font-bold text-ink">Podcast</h1>
       <p className="mt-1 text-sm text-ink-muted">Solo audio. Pega tu guion, elige una voz de tu cuenta y genera el episodio; o sube tu propia grabación. No se publica en ninguna plataforma.</p>
+      <p className="mt-2 text-sm"><Link href="/dashboard/podcast/editor" className="text-accent underline">Ver entregas del editor externo</Link></p>
       <NewEpisode voices={voices} voicesError={voicesError} usdPer1kChars={getPricingConfig().elevenLabsUsdPer1kChars} maxChars={PODCAST_MAX_CHARS} />
       <h2 className="mt-8 text-lg font-semibold text-ink">Tus episodios</h2>
       {episodes.length === 0 ? <p className="mt-2 text-sm text-ink-muted">Todavía no hay episodios.</p> : (
