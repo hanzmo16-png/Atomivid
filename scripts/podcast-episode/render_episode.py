@@ -142,7 +142,7 @@ def spectrum(d,t):
 def label(d,s,y=785,size=42):txt(d,(960,y),s,size,WHITE,True,anchor='mm')
 
 TITLES={
-'v01':'Crónicas y Misterios del Universo','v02':'¿Qué es una dimensión?','v03':'La sombra de algo mayor','v04':'Una esfera en Planilandia','v05':'Espacio y tiempo','v07':'Una dimensión enrollada','v08':'Cuerdas y dimensiones extra','v09':'La prueba experimental','v10':'El cerebro y la experiencia','v11':'El problema difícil','v12':'¿Qué se siente ser un murciélago?','v13':'Dos teorías, una pregunta','v14':'Poner las teorías a prueba','v15':'Una hipótesis cuántica','v16':'La ventana de nuestros sentidos','v17':'Cada especie, un mundo','v18':'La realidad como interfaz','v19':'Sombras y apariencias','v20':'¿Dónde está todo el mundo?','v21':'El silencio del cosmos','v22':'La hipótesis interdimensional','v23':'Una analogía no es una prueba','v24':'Lo que dicen los informes','v25':'No identificado ≠ extraterrestre','v26':'El valor de un contraejemplo','v27':'Curiosidad con rigor','a13':'Lo que sabemos — y lo que no','v28':'Nuestro pálido punto azul'}
+'v01':'Crónicas y Misterios del Universo','v02':'¿Qué es una dimensión?','v03':'La sombra de algo mayor','v04':'Una esfera en Planilandia','v05':'Espacio y tiempo','v07':'Una dimensión enrollada','v08':'Cuerdas y dimensiones extra','v09':'La prueba experimental','v10':'El cerebro y la experiencia','v11':'El problema difícil','v12':'¿Qué se siente ser un murciélago?','v13':'Dos teorías, una pregunta','v14':'Poner las teorías a prueba','v15':'Una hipótesis cuántica','v16':'La ventana de nuestros sentidos','v17':'Cada especie, un mundo','v18':'La realidad como interfaz','v19':'Sombras y apariencias','v20':'¿Dónde está todo el mundo?','v21':'El silencio del cosmos','v22':'La hipótesis interdimensional','v23':'Una analogía no es una prueba','v24':'Lo que dicen los informes','v25':'No identificado ≠ extraterrestre','v26':'El valor de un contraejemplo','v27':'Curiosidad con rigor','a11':'¿Qué dice la evidencia?','a13':'Lo que sabemos — y lo que no','v28':'Nuestro pálido punto azul'}
 
 # Video sequence selection, each plate is an explicitly labelled illustration.
 PHOTO={
@@ -271,7 +271,7 @@ def frame(b,t,dur):
   txt(d,(160,820),'Jacques Vallée · hipótesis interpretativa, no prueba de visitantes',25,MUTED)
  elif bid=='v23':
   sphere(d,t-dur*.65,dur*.35);d.rectangle((290,759,1630,871),fill=(14,30,43));label(d,'Analogía ≠ prueba',815,52)
- elif bid=='v24':
+ elif bid in ['v24','a11']:
   entries=[('2021','ODNI','144 reportes · datos limitados'),('2023','NASA','Mejores instrumentos y metodología'),('2024','AARO','Sin prueba de tecnología extraterrestre')]
   for i,(year,org,body) in enumerate(entries):
    x=100+i*600;panel(d,(x,235,x+555,815),org,body,GOLD if p>i/3 else BLUE);txt(d,(x+38,650),year,72,GOLD,True)
@@ -335,6 +335,14 @@ def render_avatar(b):
    if seg:found=(ROOT/(rec['segId']+'.mp4'),seg['start']);break
   if not found:raise RuntimeError('missing avatar '+bid)
   source,start=found
+  decoded=json.loads((ROOT/'decoded-durations.json').read_text())
+  cursor=0.0
+  for item in rec['timeline']:
+   if item['id']==bid:
+    start=cursor+.3;break
+   cursor+=decoded[item['id']]+.6
+  lagfile=ROOT/'sync-lag.json'
+  if lagfile.exists():start+=json.loads(lagfile.read_text()).get(rec['segId'],0)
  dur=DUR[bid];length=math.ceil((dur+.4)*FPS)/FPS;ass=subtitles(b)
  filters=f"fps=25,scale=1920:1080,setsar=1,tpad=stop_mode=clone:stop_duration=0.6,ass={ass}"
  cmd=['ffmpeg','-v','error','-y','-ss',str(start),'-i',str(source),'-i',str(ROOT/f'audio-{bid}.mp3'),'-map','0:v:0','-map','1:a:0','-vf',filters,'-af','apad=pad_dur=0.6','-t',str(length),'-c:v','libx264','-preset','fast','-crf','18','-pix_fmt','yuv420p','-threads','2','-c:a','aac','-b:a','192k','-ar','48000','-movflags','+faststart',str(dest)]
@@ -343,7 +351,7 @@ def render_avatar(b):
 def previews():
  images=[]
  for b in BLOCKS:
-  if b['kind']=='V' or b['id']=='a13':
+  if b['kind']=='V' or b['id'] in ['a11','a13']:
    for frac in [.20,.78]:
     im=frame(b,DUR[b['id']]*frac,DUR[b['id']]);im.thumbnail((480,270));d=ImageDraw.Draw(im);d.rectangle((0,242,480,270),fill=(0,0,0));d.text((10,247),b['id']+' / '+str(frac),font=ft(15),fill='white');images.append(im)
  sheet=Image.new('RGB',(480*4,270*math.ceil(len(images)/4)),NAVY)
@@ -405,10 +413,10 @@ if __name__=='__main__':
  mode=sys.argv[2] if len(sys.argv)>2 else '--previews'
  if mode=='--previews':previews()
  elif mode in ['--visuals','--diagrams']:
-  chosen=[b for b in BLOCKS if (b['kind']=='V' or b['id']=='a13') and (mode=='--visuals' or b['id'] not in PHOTO and b['id'] not in ['v01','v27','v28'])]
+  chosen=[b for b in BLOCKS if (b['kind']=='V' or b['id'] in ['a11','a13']) and (mode=='--visuals' or b['id'] not in PHOTO and b['id'] not in ['v01','v27','v28'])]
   with ProcessPoolExecutor(max_workers=3) as ex:list(ex.map(render_visual,chosen))
  elif mode=='--avatars':
-  chosen=[b for b in BLOCKS if b['kind']=='A' and b['id']!='a13']
+  chosen=[b for b in BLOCKS if b['kind']=='A' and b['id'] not in ['a11','a13']]
   with ProcessPoolExecutor(max_workers=3) as ex:list(ex.map(render_avatar,chosen))
  elif mode=='--assemble':assemble()
  elif mode.startswith('--one='):render_visual(BM[mode.split('=',1)[1]])
