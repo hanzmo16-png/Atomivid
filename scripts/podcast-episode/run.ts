@@ -108,7 +108,89 @@ async function storeDocs() {
   }
 }
 
-const modes: Record<string, () => Promise<void>> = { keygen, "verify-rate": verifyRate, inspect, "store-docs": storeDocs };
+type Block = { kind: "A" | "V"; id: string; note: string; text: string };
+const AUTH = JSON.parse(readFileSync("ops/podcast-episode.authorization.json", "utf8")) as { elevenlabsMaxCredits: number; heygenMaxUsd: number; imagesMaxUsd: number; maxTotalUsd: number; heygenTopUpConfirmed: boolean };
+const EPISODE_TITLE = "Crónicas y Misterios del Universo — Ep. 1: Las dimensiones de la conciencia";
+
+export function parseScript(md: string): Block[] {
+  const out: Block[] = [];
+  const re = /^## ([AV]) (\w+)([^\n]*)\n([\s\S]*?)(?=^## |(?![\s\S]))/gm;
+  for (const m of md.matchAll(re)) out.push({ kind: m[1] as "A" | "V", id: m[2], note: m[3].replace(/^\s*\|\s*/, "").trim(), text: m[4].trim() });
+  if (out.length < 10 || new Set(out.map((b) => b.id)).size !== out.length) throw Error("script parse failed");
+  return out;
+}
+
+/** The owner's episode row (created once, idempotent by title) whose id keys the paid ledger. */
+async function episodeRow() {
+  const { r } = await testRequest();
+  const s = db();
+  const { data: found } = await s.from("podcast_episodes").select("id,user_id,status").eq("user_id", r.user_id).eq("title", EPISODE_TITLE).maybeSingle();
+  if (found) return found as { id: string; user_id: string; status: string };
+  const { data, error } = await s.from("podcast_episodes").insert({ user_id: r.user_id, title: EPISODE_TITLE, language: "es", source: "upload", status: "draft" }).select("id,user_id,status").single();
+  if (error || !data) throw Error(`episode insert failed ${error?.code ?? ""}`);
+  return data as { id: string; user_id: string; status: string };
+}
+
+/** Voice of the approved sample episode (the owner's "Atomivid 2485ab5a"), never a fallback. */
+async function approvedVoiceId(userId: string) {
+  const { data } = await db().from("podcast_episodes").select("voice_id,voice_name,created_at").eq("user_id", userId).eq("source", "tts").eq("status", "ready").order("created_at", { ascending: true });
+  const v = (data ?? []).find((e) => typeof e.voice_name === "string" && e.voice_name.includes("Atomivid 2485ab5a"));
+  if (!v?.voice_id) throw Error("approved voice not found on the sample episode");
+  return v.voice_id as string;
+}
+
+/** Credits already consumed or held by this episode's ElevenLabs ledger rows. */
+async function elevenCreditsUsed(project: string) {
+  const { data } = await db().from("pi_paid_operations").select("status,capacity_units").eq("project_id", project).eq("provider", "elevenlabs").neq("status", "REFUNDED");
+  return (data ?? []).reduce((a, o) => a + Number(o.capacity_units ?? 0), 0);
+}
+
+/** Paid (subscription credits): every block through the product's gated TTS; reruns reuse stored results at 0. */
+async function narrate() {
+  const script = (await unsealWithRunnerKey(`${OPS_PREFIX}/guion.md.sealed`)).toString("utf8");
+  const blocks = parseScript(script);
+  const ep = await episodeRow();
+  const project = `podcast-${ep.id}`;
+  const voiceId = await approvedVoiceId(ep.user_id);
+  const { getVoiceIdentity, synthesizeVoice } = await import("../../src/lib/ai/voice");
+  const { gatedVoiceSynthesize } = await import("../../src/lib/paid-calls/gated-providers");
+  const { supabaseLedgerStore } = await import("../../src/lib/paid-calls/supabase-ledger-store");
+  const { supabaseResultStore } = await import("../../src/lib/paid-calls/result-store");
+  const { ensureJobSupplyReady } = await import("../../src/lib/supply/readiness");
+  const { podcastDemand, ceil4 } = await import("../../src/lib/podcast/episode");
+  const { getPricingConfig } = await import("../../src/lib/billing/pricing");
+  const identity = getVoiceIdentity("es", voiceId);
+  const total = blocks.reduce((a, b) => a + b.text.length, 0);
+  const used = await elevenCreditsUsed(project);
+  log("NARRATION_PLAN", { blocks: blocks.length, avatarBlocks: blocks.filter((b) => b.kind === "A").length, characters: total, creditsAlreadyHeld: used, cap: AUTH.elevenlabsMaxCredits, model: identity.modelId });
+  // Worst case: nothing is reusable. Never start a run that could cross the owner's credit cap.
+  if (used + total > AUTH.elevenlabsMaxCredits && used === 0) throw Error("credit cap would be exceeded; nothing sent");
+  const rate = getPricingConfig().elevenLabsUsdPer1kChars;
+  const ready = await ensureJobSupplyReady(db(), [podcastDemand({ characters: total, usd: ceil4((total / 1000) * rate) })], { refresh: true });
+  log("ELEVENLABS_READY", { ready: ready.ready, failure: ready.failure ?? null });
+  if (!ready.ready) throw Error("ElevenLabs capacity not ready; nothing sent");
+  const provider = { name: "elevenlabs", synthesize: async (text: string, language: "es" | "en" = "es", speed?: number) => ({ ...(await synthesizeVoice(text, language, speed, voiceId)), mimeType: "audio/mpeg", extension: "mp3" }) };
+  const deps = { ledger: supabaseLedgerStore(db()), results: supabaseResultStore(db(), "videos"), voiceProvider: provider as never, voiceIdentity: identity, requestId: project };
+  const manifest: Record<string, unknown>[] = [];
+  let reused = 0, paidChars = 0;
+  for (const b of blocks) {
+    const before = await elevenCreditsUsed(project);
+    if (before + b.text.length > AUTH.elevenlabsMaxCredits) throw Error(`credit cap reached before block ${b.id}; stopped`);
+    const r = await gatedVoiceSynthesize({ ...deps, estimatedCostUsd: ceil4((b.text.length / 1000) * rate) }, b.text, "es");
+    if (r.reused) reused++; else paidChars += b.text.length;
+    const path = `${ep.user_id}/podcasts/${ep.id}/blocks/${b.id}.${r.extension}`;
+    const up = await db().storage.from("videos").upload(path, r.audioBuffer, { contentType: r.mimeType, upsert: true });
+    if (up.error) throw Error("block upload failed");
+    manifest.push({ id: b.id, kind: b.kind, note: b.note, chars: b.text.length, seconds: Math.round(r.durationSeconds * 100) / 100, audioPath: path, words: r.words });
+    log("BLOCK", { id: b.id, kind: b.kind, chars: b.text.length, seconds: Math.round(r.durationSeconds * 10) / 10, reused: r.reused });
+  }
+  const mpath = `${ep.user_id}/podcasts/${ep.id}/narration-manifest.json`;
+  await db().storage.from("videos").upload(mpath, Buffer.from(JSON.stringify({ episodeId: ep.id, voiceIdHash: sha(Buffer.from(voiceId)).slice(0, 10), blocks: manifest })), { contentType: "application/json", upsert: true });
+  const secs = (k: string) => Math.round((manifest as { kind: string; seconds: number }[]).filter((m) => !k || m.kind === k).reduce((a, m) => a + m.seconds, 0));
+  log("NARRATION_DONE", { episode: ep.id.slice(0, 8), blocks: manifest.length, reusedBlocks: reused, newCharacters: paidChars, creditsHeldTotal: await elevenCreditsUsed(project), avatarSeconds: secs("A"), visualSeconds: secs("V"), totalSeconds: secs("") });
+}
+
+const modes: Record<string, () => Promise<void>> = { keygen, "verify-rate": verifyRate, inspect, "store-docs": storeDocs, narrate };
 // Several $0 steps may be chained with commas; each runs only if the previous one succeeded.
 (async () => {
   for (const mode of (process.argv[2] ?? "").split(",").filter(Boolean)) {
