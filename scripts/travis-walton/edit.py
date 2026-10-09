@@ -90,25 +90,33 @@ for chapter,plan in zip(chapters,plans):
 (OUT/'timeline.json').write_text(json.dumps(shots,ensure_ascii=False,indent=2))
 def render(shot):
  idx=shot['index'];out=OUT/f'shot-{idx:03}.mp4'
- if out.exists() and out.stat().st_size>10000:return idx
+ if out.exists() and out.stat().st_size>10000:
+  try:
+   if abs(duration(out)-(shot['end']-shot['start']))<.061:return idx
+  except Exception:pass
  start=shot['start'];end=shot['end'];length=end-start;src=Path(shot['src']);kind=shot['kind']
  if not src.exists():return None
  ass=OUT/f'shot-{idx:03}.ass';ass.write_text(subtitles(start,end,shot['label'],kind))
- args=['ffmpeg','-v','error','-y','-threads','2','-filter_threads','1']
+ args=['ffmpeg','-nostdin','-v','error','-y','-threads','2','-filter_threads','1']
  if kind in ('still','portrait'):args+=['-loop','1','-framerate',str(FPS),'-i',str(src)]
  else:
   d=duration(src);offset=min(max(0,d-length-.15),shot['use']*6)
   args+=['-ss',str(offset),'-i',str(src)]
  filters=[f'scale={W}:{H}:force_original_aspect_ratio=decrease',f'pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=0x101719','setsar=1',f'fps={FPS}']
  if kind not in ('still','portrait'):
-  filters.insert(0,f'setpts={max(1,length/duration(src)):.6f}*(PTS-STARTPTS)')
+  filters.insert(0,f'setpts={max(1,(length+.12)/max(.01,duration(src)-offset)):.6f}*(PTS-STARTPTS)')
  filters+=[f'ass={ass}']
  args+=['-vf',','.join(filters),'-frames:v',str(shot['frames']),'-an','-c:v','libx264','-preset','veryfast','-crf','23','-pix_fmt','yuv420p','-threads','2',str(out)]
- run(args);print('SHOT',idx,flush=True);return idx
+ run(args)
+ if abs(duration(out)-length)>.061:raise RuntimeError(f'Shot {idx} has incomplete duration')
+ print('SHOT',idx,flush=True);return idx
 if sys.argv[-1]=='plan':print('PLAN',len(shots),'shots',TOTAL,'seconds');sys.exit()
 with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:results=list(pool.map(render,shots))
 if any(x is None for x in results):
  print('Waiting for motion assets. Available shots rendered.');sys.exit()
 (OUT/'concat.txt').write_text(''.join(f"file '{OUT}/shot-{s['index']:03}.mp4'\n" for s in shots))
-run(['ffmpeg','-v','error','-y','-f','concat','-safe','0','-i',str(OUT/'concat.txt'),'-i',str(ROOT/'Travis-Walton-podcast-Hans.mp3'),'-map','0:v','-map','1:a','-c:v','copy','-c:a','aac','-b:a','192k','-t',str(TOTAL),'-movflags','+faststart',str(ROOT/'Travis-Walton-montaje-narrado-1080p.mp4')])
+run(['ffmpeg','-nostdin','-v','error','-y','-f','concat','-safe','0','-i',str(OUT/'concat.txt'),'-i',str(ROOT/'Travis-Walton-podcast-Hans.mp3'),'-map','0:v','-map','1:a','-c:v','copy','-c:a','aac','-b:a','192k','-t',str(TOTAL),'-movflags','+faststart',str(ROOT/'Travis-Walton-montaje-narrado-1080p.mp4')])
+probe=json.loads(run(['ffprobe','-v','error','-show_streams','-of','json',str(ROOT/'Travis-Walton-montaje-narrado-1080p.mp4')]))
+for stream in probe['streams']:
+ if stream['codec_type'] in ('video','audio') and abs(float(stream['duration'])-TOTAL)>.12:raise RuntimeError('Master stream duration mismatch')
 print('VIDEO_READY',TOTAL,flush=True)
