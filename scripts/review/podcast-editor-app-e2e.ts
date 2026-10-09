@@ -79,10 +79,27 @@ async function main() {
     const list = await text(page);
     check("owner: delivery list page opens", listRes?.status() === 200, { status: listRes?.status() });
     check("owner: the real delivery is listed as delivered (pending verification)", list.includes(`${ep} · ${vSeg}`) && /falta verificar integridad/.test(list));
-    await page.goto(`${APP}${versionPath}`, { waitUntil: "networkidle" });
-    const verifyResponse = page.waitForResponse((r: any) => r.url().includes("/verify") && r.request().method() === "POST", { timeout: 300_000 }); // eslint-disable-line @typescript-eslint/no-explicit-any
-    await page.getByRole("button", { name: /Verificar integridad/ }).click();
-    const vr = await verifyResponse;
+    const versionRes = await page.goto(`${APP}${versionPath}`, { waitUntil: "networkidle" });
+    const versionText = await text(page);
+    const verifyButton = page.getByRole("button", { name: /Verificar integridad/ });
+    const buttonPresent = await verifyButton.count() === 1;
+    check("owner: version page exposes verification", versionRes?.status() === 200 && buttonPresent, {
+      status: versionRes?.status(), buttonPresent,
+      deliveryUnreadable: versionText.includes("No se pudo leer la entrega"),
+      invalid: versionText.includes("Entrega inválida"),
+    });
+    if (!buttonPresent) {
+      const diagnostic = await page.evaluate(async (p: string) => {
+        const r = await fetch(p, { method: "POST" });
+        const b = await r.json().catch(() => ({}));
+        return {status:r.status,state:b.status?.state,reason:b.status?.reason,error:b.error};
+      }, `/api/podcast-editor/${ep}/${vSeg}/verify`);
+      log("VERIFY_DIAGNOSTIC", diagnostic);
+      throw new Error("verification button unavailable");
+    }
+    const [vr] = await Promise.all([page.waitForResponse((r: any) => r.url().includes("/verify") && r.request().method() === "POST", { timeout: 300_000 }), // eslint-disable-line @typescript-eslint/no-explicit-any
+      verifyButton.click(),
+    ]);
     const body = await vr.json() as { status: { state: string; primary?: string; reason?: string }; files?: { key: string; size: number; download: string; play: string }[] };
     check("owner: server verification returns terminado", body.status.state === "terminado", { state: body.status.state, reason: body.status.reason ?? null });
     if (body.status.state === "terminado") {
@@ -134,7 +151,8 @@ async function main() {
     await browser.close().catch(() => undefined);
     for (const token of openedSessions) {
       const { error } = await admin.auth.admin.signOut(token, "local");
-      if (error) { log("FAIL", { check: "temporary session logout" }); process.exitCode = 1; }
+      check("temporary session logout", !error);
+      if (error) process.exitCode = 1;
     }
     if (results.some((r) => !r.ok)) process.exitCode = 1;
   }
