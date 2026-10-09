@@ -588,6 +588,45 @@ async function avatarState() {
   if (st) sealed("HEYGEN_FREE", { free: (st as any).free, unreserved: (st as any).unreserved });
 }
 
+/** Read-only: why would pi_submit_with_supply refuse a HeyGen call now? Counters and every non-refunded HeyGen op (hashed). */
+async function heygenSubmitDiag() {
+  const db = service();
+  const { data: st } = await db.rpc("pi_supply_state", { p_provider: "heygen" });
+  const s = (st ?? {}) as Record<string, unknown>;
+  const { data: p } = await db.from("pi_supply_policies").select("max_concurrent,max_daily_calls,enabled,timezone").eq("provider", "heygen").maybeSingle();
+  log("HEYGEN_COUNTERS", { level: s.level, reason: s.reason, activeCalls: s.activeCalls, todayCalls: s.todayCalls, maxConcurrent: p?.max_concurrent, maxDailyCalls: p?.max_daily_calls, timezone: p?.timezone });
+  const { data: ops } = await db.from("pi_paid_operations").select("idempotency_key,project_id,method,status,supply_pool,provider_job_id,created_at,updated_at")
+    .eq("provider", "heygen").neq("status", "REFUNDED").order("created_at", { ascending: false }).limit(30);
+  log("HEYGEN_OPS", (ops ?? []).map((o) => ({ key: h10(String(o.idempotency_key)), project: h10(String(o.project_id)), thisTest: o.project_id === AVATAR_TEST_ID, method: o.method, status: o.status, pool: o.supply_pool, providerJob: !!o.provider_job_id, createdAt: o.created_at, updatedAt: o.updated_at })));
+  const { data: g } = await db.from("pi_supply_policies").select("enabled,daily_cap_usd,monthly_cap_usd,free_daily_cap_usd").eq("provider", "__global__").maybeSingle();
+  log("GLOBAL_POLICY", g);
+}
+
+/** Read-only evidence for the uncertain HeyGen op (2026-10-02 15:49): ledger row, its project, and the provider error the pipeline stored privately. */
+async function heygenUncertainEvidence() {
+  const db = service();
+  const { data: ops } = await db.from("pi_paid_operations").select("*").eq("provider", "heygen").eq("status", "RECONCILIATION_REQUIRED");
+  for (const o of (ops ?? []) as Record<string, any>[]) {
+    const { data: req } = await db.from("video_requests").select("id,user_id,status,mode,render_attempts,avatar_provider_video_job_id,video_path,updated_at").eq("id", o.project_id).maybeSingle();
+    const { data: siblings } = await db.from("pi_paid_operations").select("method,status,provider_job_id,created_at").eq("project_id", o.project_id).eq("provider", "heygen");
+    let stored: Record<string, unknown> | null = null;
+    if (req) {
+      for (const bucket of ["avatar-uploads", "videos"]) {
+        const { data } = await db.storage.from(bucket).download(`${req.user_id}/${req.id}/heygen-error.json`);
+        if (data) { try { const j = JSON.parse(await data.text()); stored = { bucket, http: j?.http ?? null, code: typeof j?.body?.error?.code === "string" ? j.body.error.code.slice(0, 60) : null, message: typeof j?.body?.error?.message === "string" ? j.body.error.message.slice(0, 120) : null }; } catch { stored = { bucket, unreadable: true }; } break; }
+      }
+    }
+    const committedJob = (siblings ?? []).find((x) => x.status === "COMMITTED")?.provider_job_id ?? null;
+    log("UNCERTAIN_OP", { key: h10(String(o.idempotency_key)), project: h10(String(o.project_id)), method: o.method, createdAt: o.created_at, updatedAt: o.updated_at, providerJob: !!o.provider_job_id,
+      resultRefKind: typeof o.result_ref === "string" ? o.result_ref.split(":")[0] : null, inputFingerprint: o.input_fingerprint ? h10(JSON.stringify(o.input_fingerprint)) : null,
+      request: req ? { status: req.status, attempts: req.render_attempts, providerJob: req.avatar_provider_video_job_id ? h10(String(req.avatar_provider_video_job_id)) : null, videoPath: !!req.video_path } : null,
+      siblings: (siblings ?? []).map((x) => ({ method: x.method, status: x.status, providerJob: x.provider_job_id ? h10(String(x.provider_job_id)) : null, createdAt: x.created_at })),
+      committedJobMatchesRequest: !!committedJob && !!req?.avatar_provider_video_job_id && committedJob === req.avatar_provider_video_job_id });
+    if (stored) sealed("UNCERTAIN_STORED_ERROR", stored);
+    log("UNCERTAIN_STORED_ERROR_PRESENT", { present: !!stored, http: (stored as { http?: unknown } | null)?.http ?? null });
+  }
+}
+
 /** Signed probe of the RUNNING production deployment (presence/counts only; never a value). Waits for the route to go live. */
 async function providerConfig() {
   const { randomUUID } = await import("node:crypto");
@@ -599,14 +638,15 @@ async function providerConfig() {
       headers: { "x-probe-nonce": nonce, "x-probe-time": timestamp, "x-probe-signature": providerConfigSignature(key, nonce, timestamp) } }).catch(() => null);
     if (res?.ok) {
       const report = await res.json() as { heygen?: { sealed?: unknown }; avatar?: { sealed?: unknown } | null };
-      if (!report.heygen || !("avatar" in report)) { log("PROVIDER_CONFIG_WAIT", { attempt, status: "previous deployment" }); await new Promise((r) => setTimeout(r, 20_000)); continue; }
+      if (!report.heygen || !("avatar" in report) || !("heygenReconcile" in report)) { log("PROVIDER_CONFIG_WAIT", { attempt, status: "previous deployment" }); await new Promise((r) => setTimeout(r, 20_000)); continue; }
       const sealedPart = report.heygen?.sealed ?? null;
       delete report.heygen.sealed;
       const avatarSealed = report.avatar?.sealed ?? null;
       if (report.avatar) delete report.avatar.sealed;
       // Public lines carry no amounts: everything sensitive was removed above and is printed sealed only.
-      log("PROVIDER_CONFIG", { ...report, avatar: undefined });
+      log("PROVIDER_CONFIG", { ...report, avatar: undefined, heygenReconcile: undefined });
       log("AVATAR_START_READINESS", report.avatar ?? null);
+      log("HEYGEN_RECONCILE", (report as { heygenReconcile?: unknown }).heygenReconcile ?? null);
       if (sealedPart) sealed("HEYGEN_ACCOUNT", sealedPart);
       if (avatarSealed) sealed("AVATAR_AMOUNTS", avatarSealed);
       await heygenDbState();
@@ -618,7 +658,7 @@ async function providerConfig() {
   throw Error("probe route not live");
 }
 
-const modes: Record<string, () => Promise<unknown>> = { "avatar-state": avatarState, "heygen-policy": heygenPolicy, "supply-policies": supplyPolicies, "provider-config": providerConfig, "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+const modes: Record<string, () => Promise<unknown>> = { "heygen-uncertain-evidence": heygenUncertainEvidence, "heygen-submit-diag": heygenSubmitDiag, "avatar-state": avatarState, "heygen-policy": heygenPolicy, "supply-policies": supplyPolicies, "provider-config": providerConfig, "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
