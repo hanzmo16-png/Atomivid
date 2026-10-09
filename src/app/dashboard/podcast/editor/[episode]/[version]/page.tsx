@@ -26,7 +26,7 @@ export default async function PodcastEditorVersionPage({ params }: { params: Pro
       {status?.state === "pendiente_verificar" && (
         <>
           <ul className="mt-4 grid gap-1 text-sm text-ink-muted">
-            {status.salidas.map((s) => <li key={s.archivo}>{s.archivo} · {(s.bytes / 1_048_576).toFixed(1)} MB</li>)}
+            {status.objetos.map((o) => <li key={o.key}>{o.key} · {(o.size / 1_048_576).toFixed(1)} MB</li>)}
           </ul>
           <VerifyDelivery endpoint={`/api/podcast-editor/${episode}/v${version}/verify`} />
         </>

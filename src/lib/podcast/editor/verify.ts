@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { COMPLETE_MARKER, outputFolder, parseCompleteManifest, primaryMedia, type DeclaredOutput } from "./contract";
+import { COMPLETE_MARKER, outputFolder, parseCompleteManifest, primaryMedia, versionFolder, type DeclaredOutput } from "./contract";
 
 /**
  * Minimal view of Storage used here, always bound to the OWNER's own session (never service role): the
@@ -18,43 +18,48 @@ export type EditorStorage = {
 export type DeliveryStatus =
   | { state: "sin_entrega" }                                           // no COMPLETO.json yet (editor still working)
   | { state: "entrega_invalida"; reason: string }                      // COMPLETO.json present but fails the contract
-  | { state: "pendiente_verificar"; salidas: DeclaredOutput[] }        // structure and sizes match; hashes not checked
-  | { state: "terminado"; salidas: DeclaredOutput[]; primary: DeclaredOutput | null }; // every hash verified
+  | { state: "pendiente_verificar"; objetos: DeclaredOutput[] }        // structure and sizes match; hashes not checked
+  | { state: "terminado"; objetos: DeclaredOutput[]; primary: DeclaredOutput | null }; // every hash verified
 
 /**
- * Reads COMPLETO.json and checks it against the actual objects in salida/:
- *  - every declared output exists with exactly the declared size;
- *  - COMPLETO.json was written last (the editor's contract: outputs first, marker last);
- *  - with { hashes: true }, every output's sha256 is recomputed from Storage and must match.
+ * Reads salida/COMPLETO.json and checks it against the actual objects of that episode/version:
+ *  - every declared object (salida/, salida/muestras/, estado/reporte-*.json) exists with exactly the declared size;
+ *  - COMPLETO.json was written last (editor contract: objects first, marker last);
+ *  - with { hashes: true }, every object's sha256 is recomputed from Storage and must match.
  * Only the last case returns "terminado". Nothing is written anywhere.
  */
 export async function checkDelivery(storage: EditorStorage, episodeId: string, version: number, opts: { hashes: boolean; deadline?: number } = { hashes: false }): Promise<DeliveryStatus> {
-  const folder = outputFolder(episodeId, version);
-  const files = await storage.list(folder);
-  const marker = files.find((f) => f.name === COMPLETE_MARKER);
+  const base = versionFolder(episodeId, version);
+  const listings = new Map<string, Awaited<ReturnType<EditorStorage["list"]>>>();
+  const listFolder = async (folder: string) => {
+    if (!listings.has(folder)) listings.set(folder, await storage.list(folder));
+    return listings.get(folder)!;
+  };
+  const marker = (await listFolder(outputFolder(episodeId, version))).find((f) => f.name === COMPLETE_MARKER);
   if (!marker) return { state: "sin_entrega" };
 
-  const parsed = parseCompleteManifest(await storage.readText(`${folder}/${COMPLETE_MARKER}`), { episodeId, version });
+  const parsed = parseCompleteManifest(await storage.readText(`${outputFolder(episodeId, version)}/${COMPLETE_MARKER}`), { episodeId, version });
   if (!parsed.ok) return { state: "entrega_invalida", reason: parsed.reason };
-  const { salidas } = parsed.manifest;
+  const { objetos } = parsed.manifest;
 
-  const byName = new Map(files.map((f) => [f.name, f]));
-  for (const s of salidas) {
-    const f = byName.get(s.archivo);
-    if (!f) return { state: "entrega_invalida", reason: `falta la salida ${s.archivo}` };
-    if (f.bytes !== s.bytes) return { state: "entrega_invalida", reason: `tamaño distinto en ${s.archivo}` };
+  for (const o of objetos) {
+    const folder = `${base}/${o.key.slice(0, o.key.lastIndexOf("/"))}`;
+    const name = o.key.slice(o.key.lastIndexOf("/") + 1);
+    const f = (await listFolder(folder)).find((x) => x.name === name);
+    if (!f) return { state: "entrega_invalida", reason: `falta el objeto ${o.key}` };
+    if (f.bytes !== o.size) return { state: "entrega_invalida", reason: `tamaño distinto en ${o.key}` };
     if (marker.createdAt && f.createdAt && Date.parse(f.createdAt) > Date.parse(marker.createdAt)) {
-      return { state: "entrega_invalida", reason: `${s.archivo} se subió después de COMPLETO.json` };
+      return { state: "entrega_invalida", reason: `${o.key} se subió después de COMPLETO.json` };
     }
   }
-  if (!opts.hashes) return { state: "pendiente_verificar", salidas };
+  if (!opts.hashes) return { state: "pendiente_verificar", objetos };
 
-  for (const s of salidas) {
-    const digest = await sha256Of(await storage.stream(`${folder}/${s.archivo}`), s.bytes, opts.deadline);
-    if (digest === "timeout") return { state: "pendiente_verificar", salidas };
-    if (digest !== s.sha256) return { state: "entrega_invalida", reason: `sha256 distinto en ${s.archivo}` };
+  for (const o of objetos) {
+    const digest = await sha256Of(await storage.stream(`${base}/${o.key}`), o.size, opts.deadline);
+    if (digest === "timeout") return { state: "pendiente_verificar", objetos };
+    if (digest !== o.sha256) return { state: "entrega_invalida", reason: `sha256 distinto en ${o.key}` };
   }
-  return { state: "terminado", salidas, primary: primaryMedia(salidas) };
+  return { state: "terminado", objetos, primary: primaryMedia(objetos) };
 }
 
 /** sha256 of a stream; also enforces the declared length. "timeout" when the deadline passes first. */
