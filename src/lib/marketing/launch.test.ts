@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { attributionFromSearch, cleanToken, decodeAttribution, encodeAttribution, recordMarketingEvent, validVisitorId } from "./events";
-import { joinEarlyAccess, validateEarlyAccess } from "./early-access";
-import { PLAN_CONFIGS, PLAN_ORDER, isPlanPurchasable } from "@/lib/billing/plans";
+import { MARKETING_CTAS, attributionFromSearch, cleanToken, decodeAttribution, encodeAttribution, recordMarketingEvent, validVisitorId } from "./events";
+import { EARLY_ACCESS_PRODUCTS, joinEarlyAccess, validateEarlyAccess } from "./early-access";
+import { salesOpen } from "@/lib/billing/sales";
+import { PLAN_CONFIGS, PLAN_ORDER, isPlanPurchasable, stripeMode } from "@/lib/billing/plans";
 
 /** Minimal Supabase double: per-table rows, unique keys honoured on upsert(ignoreDuplicates). */
 function fakeDb(opts: { failWrites?: boolean } = {}) {
@@ -84,4 +85,24 @@ test("landing copy: no free trial or speed promise; early access and 'Próximame
   assert.match(page, /Próximamente/);
   assert.match(page, /Acceso anticipado/);
   assert.match(page, /No\. Crear la cuenta no tiene costo/);
+});
+
+test("sales gate: purchase CTAs only when a plan can be bought; otherwise the launch list", () => {
+  assert.equal(salesOpen({} as Record<string, string | undefined>), false);
+  assert.equal(salesOpen({ STRIPE_SECRET_KEY: "sk_test_x" }), false, "a key without prices does not open sales");
+  assert.equal(salesOpen({ STRIPE_SECRET_KEY: "sk_test_x", STRIPE_PRICE_ID_STARTER: "price_1" }), true);
+  // Production never sells with a test key (test cards would buy real production); preview may.
+  assert.equal(salesOpen({ VERCEL_ENV: "production", STRIPE_SECRET_KEY: "sk_test_x", STRIPE_PRICE_ID_STARTER: "price_1" }), false);
+  assert.equal(salesOpen({ VERCEL_ENV: "preview", STRIPE_SECRET_KEY: "sk_test_x", STRIPE_PRICE_ID_STARTER: "price_1" }), true);
+  assert.equal(salesOpen({ VERCEL_ENV: "production", STRIPE_SECRET_KEY: "sk_live_x", STRIPE_PRICE_ID_STARTER: "price_1" }), true);
+  assert.equal(stripeMode({ STRIPE_SECRET_KEY: "rk_test_x" }), "test");
+  assert.equal(stripeMode({}), "none");
+  const page = readFileSync("src/app/page.tsx", "utf8");
+  // Every register CTA on the landing sits behind salesOpen() with a launch-list alternative.
+  const registerCtas = page.match(/href="\/register"/g) ?? [];
+  const waitlistCtas = page.match(/href="\/avisame"/g) ?? [];
+  assert.ok(registerCtas.length > 0);
+  assert.equal(waitlistCtas.length, registerCtas.length, "one launch-list alternative per register CTA");
+  assert.ok(EARLY_ACCESS_PRODUCTS.includes("reels"));
+  for (const cta of ["header_waitlist", "hero_waitlist", "pricing_waitlist", "final_waitlist"] as const) assert.ok(MARKETING_CTAS.includes(cta));
 });

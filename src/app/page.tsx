@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/Card";
 import { Logo } from "@/components/ui/Logo";
 import { HeroVisual } from "@/components/ui/HeroVisual";
 import { LandingView, TrackCta } from "@/components/marketing/Tracking";
-import { PLAN_CONFIGS, PLAN_ORDER, isPlanPurchasable } from "@/lib/billing/plans";
+import { PLAN_CONFIGS, PLAN_ORDER } from "@/lib/billing/plans";
+import { salesOpen } from "@/lib/billing/sales";
 
 const FLOW_STEPS = [
   { label: "Idea", detail: "Escribes el tema en una frase" },
@@ -131,11 +132,19 @@ function SiteHeader() {
               Iniciar sesión
             </Link>
           </TrackCta>
-          <TrackCta cta="header_register">
-            <LinkButton href="/register" size="sm">
-              Crear cuenta
-            </LinkButton>
-          </TrackCta>
+          {salesOpen() ? (
+            <TrackCta cta="header_register">
+              <LinkButton href="/register" size="sm">
+                Crear cuenta
+              </LinkButton>
+            </TrackCta>
+          ) : (
+            <TrackCta cta="header_waitlist">
+              <LinkButton href="/avisame" size="sm">
+                Avisarme
+              </LinkButton>
+            </TrackCta>
+          )}
         </nav>
       </div>
     </header>
@@ -163,11 +172,19 @@ function Hero() {
             1080×1920. Para creadores y marcas que necesitan contenido constante.
           </p>
           <div className="flex flex-col items-center gap-3 sm:flex-row">
-            <TrackCta cta="hero_register">
-              <LinkButton href="/register" size="lg">
-                Crear cuenta
-              </LinkButton>
-            </TrackCta>
+            {salesOpen() ? (
+              <TrackCta cta="hero_register">
+                <LinkButton href="/register" size="lg">
+                  Crear cuenta
+                </LinkButton>
+              </TrackCta>
+            ) : (
+              <TrackCta cta="hero_waitlist">
+                <LinkButton href="/avisame" size="lg">
+                  Avisarme cuando abran los pagos
+                </LinkButton>
+              </TrackCta>
+            )}
             <TrackCta cta="hero_pricing">
               <LinkButton href="#planes" size="lg" variant="secondary">
                 Ver planes
@@ -175,8 +192,9 @@ function Hero() {
             </TrackCta>
           </div>
           <p className="text-xs text-ink-faint">
-            Crear la cuenta no pide tarjeta. Para generar videos necesitas un plan de pago (desde {PLAN_CONFIGS.starter.priceUsdPerMonth} USD al mes)
-            {paymentsEnabled() ? "." : "; los pagos todavía no están habilitados."}
+            {salesOpen()
+              ? `Crear la cuenta no pide tarjeta. Para generar videos necesitas un plan de pago (desde ${PLAN_CONFIGS.starter.priceUsdPerMonth} USD al mes).`
+              : `Todavía no aceptamos pagos. Los planes empezarán en ${PLAN_CONFIGS.starter.priceUsdPerMonth} USD al mes; apúntate y te avisamos cuando puedas contratar.`}
           </p>
         </div>
         <HeroVisual />
@@ -325,23 +343,34 @@ function FinalCta() {
   return (
     <section className="px-5 py-16 sm:py-20">
       <Card className="mx-auto flex max-w-4xl flex-col items-center gap-5 p-10 text-center">
-        <h2 className="text-2xl font-bold text-ink sm:text-3xl">Empieza con tu primer Reel</h2>
-        <p className="max-w-md text-sm text-ink-muted">
-          Crea tu cuenta, elige un plan y genera tu primer guion. Lo revisas antes de que se produzca el video final.
-        </p>
-        <TrackCta cta="final_register">
-          <LinkButton href="/register" size="lg">
-            Crear cuenta
-          </LinkButton>
-        </TrackCta>
+        {salesOpen() ? (
+          <>
+            <h2 className="text-2xl font-bold text-ink sm:text-3xl">Empieza con tu primer Reel</h2>
+            <p className="max-w-md text-sm text-ink-muted">
+              Crea tu cuenta, elige un plan y genera tu primer guion. Lo revisas antes de que se produzca el video final.
+            </p>
+            <TrackCta cta="final_register">
+              <LinkButton href="/register" size="lg">
+                Crear cuenta
+              </LinkButton>
+            </TrackCta>
+          </>
+        ) : (
+          <>
+            <h2 className="text-2xl font-bold text-ink sm:text-3xl">Te avisamos cuando abran los planes</h2>
+            <p className="max-w-md text-sm text-ink-muted">
+              Todavía no aceptamos pagos. Deja tu correo y te escribimos cuando puedas contratar tu plan de Reels/Shorts.
+            </p>
+            <TrackCta cta="final_waitlist">
+              <LinkButton href="/avisame" size="lg">
+                Avisarme
+              </LinkButton>
+            </TrackCta>
+          </>
+        )}
       </Card>
     </section>
   );
-}
-
-/** True when at least one plan can actually be bought (its Stripe price and the Stripe key are configured). */
-function paymentsEnabled() {
-  return PLAN_ORDER.some((id) => isPlanPurchasable(id));
 }
 
 function Pricing() {
@@ -353,9 +382,9 @@ function Pricing() {
           Precios en USD por mes, cobrados con Stripe. Sin prueba gratuita: crear la cuenta no tiene costo y generar
           videos requiere un plan activo. Cancelas cuando quieras desde tu cuenta.
         </p>
-        {!paymentsEnabled() && (
+        {!salesOpen() && (
           <p className="mt-3 max-w-2xl rounded-md border border-border bg-surface px-4 py-3 text-sm text-ink">
-            Todavía no aceptamos pagos. Puedes crear tu cuenta, pero aún no generar videos; no se te cobrará nada.
+            Todavía no aceptamos pagos, así que aún no se pueden contratar estos planes ni generar videos. No se te cobrará nada.
           </p>
         )}
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
@@ -378,9 +407,15 @@ function Pricing() {
           })}
         </div>
         <div className="mt-6">
-          <TrackCta cta="pricing_register">
-            <LinkButton href="/register">Crear cuenta y elegir plan</LinkButton>
-          </TrackCta>
+          {salesOpen() ? (
+            <TrackCta cta="pricing_register">
+              <LinkButton href="/register">Crear cuenta y elegir plan</LinkButton>
+            </TrackCta>
+          ) : (
+            <TrackCta cta="pricing_waitlist">
+              <LinkButton href="/avisame">Avisarme cuando abran los pagos</LinkButton>
+            </TrackCta>
+          )}
         </div>
       </div>
     </section>
@@ -394,10 +429,10 @@ function Roadmap() {
         <SectionHeading eyebrow="Disponibilidad" title="Qué puedes usar hoy y qué viene" />
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
           <Card className="p-6">
-            <p className="text-xs font-semibold uppercase tracking-wider text-accent">Disponible</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-accent">{salesOpen() ? "Disponible" : "Apertura de pagos pendiente"}</p>
             <p className="mt-2 text-base font-semibold text-ink">Reels/Shorts verticales</p>
             <p className="mt-1.5 text-sm text-ink-muted">
-              {paymentsEnabled() ? "Con cualquiera de los planes de arriba." : "Requiere un plan de pago; los pagos todavía no están habilitados."}
+              {salesOpen() ? "Con cualquiera de los planes de arriba." : "Requiere un plan de pago y todavía no aceptamos pagos. Puedes apuntarte para que te avisemos."}
             </p>
           </Card>
           <Card className="p-6">

@@ -5,6 +5,7 @@ import { Field, INPUT_CLASS } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { AuthCard } from "@/components/ui/AuthCard";
 import { PLAN_CONFIGS } from "@/lib/billing/plans";
+import { salesOpen } from "@/lib/billing/sales";
 
 export default async function RegisterPage({
   searchParams,
@@ -16,6 +17,12 @@ export default async function RegisterPage({
   return (
     <AuthCard subtitle="Crea tu cuenta">
       {error && <Alert tone="danger">{error}</Alert>}
+      {!salesOpen() && (
+        <Alert tone="info">
+          Todavía no aceptamos pagos, así que una cuenta nueva aún no puede generar videos.{" "}
+          <Link href="/avisame" className="font-medium underline">Avísame cuando abran los pagos</Link>.
+        </Alert>
+      )}
 
       <form action={signUp} className="mt-5 space-y-4">
         <Field id="email" label="Correo electrónico">
