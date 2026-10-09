@@ -48,23 +48,32 @@ async function main() {
   const page = await ctx.newPage();
   let userId: string | null = null;
   try {
-    // 1. Register through the real form.
+    // 1. Register through the real form. When Supabase cannot send the confirmation email (its built-in
+    //    sender has a tiny project-wide quota), the account is created with the admin API instead, already
+    //    confirmed, so the rest of the journey can still be verified; the email step is reported apart.
     await page.goto(`${APP}/register`, { waitUntil: "networkidle" });
     await page.fill('input[name="email"]', email);
     await page.fill('input[name="password"]', password);
     await Promise.all([page.waitForURL(/\/login\?message=|\/register\?error=/, { timeout: 60000 }).catch(() => undefined), page.locator('form:has(input[name="email"]) button[type="submit"]').click()]);
     const after = new URL(page.url());
-    check("register form → 'check your email' message", after.pathname === "/login" && (after.searchParams.get("message") ?? "").includes("correo"), { path: after.pathname, error: after.searchParams.get("error") });
+    const registered = after.pathname === "/login" && (after.searchParams.get("message") ?? "").includes("correo");
+    check("register form → 'check your email' message", registered, { path: after.pathname, error: after.searchParams.get("error") });
     let created: { id: string; email_confirmed_at?: string | null } | undefined;
     for (let pageNo = 1; pageNo <= 10 && !created; pageNo++) {
       const { data: list } = await db.auth.admin.listUsers({ page: pageNo, perPage: 200 });
       created = list?.users.find((u) => u.email === email);
       if (!list?.users.length) break;
     }
-    if (!created) { check("account exists after register", false); return; }
+    if (created) {
+      check("new account is unconfirmed until the email link", !created.email_confirmed_at);
+      await db.auth.admin.updateUserById(created.id, { email_confirm: true });
+    } else {
+      const { data: made, error: makeError } = await db.auth.admin.createUser({ email, password, email_confirm: true });
+      if (makeError || !made.user) { check("QA account created (admin fallback)", false); return; }
+      created = made.user;
+      log("QA_ACCOUNT_FALLBACK", { reason: "register form did not create the account; created confirmed via admin to continue" });
+    }
     userId = created.id;
-    check("new account is unconfirmed until the email link", !created.email_confirmed_at);
-    await db.auth.admin.updateUserById(userId, { email_confirm: true });
 
     // Sign in through the real login form.
     await page.goto(`${APP}/login`, { waitUntil: "networkidle" });
