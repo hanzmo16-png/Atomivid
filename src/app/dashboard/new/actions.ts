@@ -83,7 +83,9 @@ export async function createVideoRequest(formData: FormData) {
   }
 
   if (mode === "visual") {
-    const { error } = await supabase.from("video_requests").insert({
+    // Only the server can insert requests. Never let a browser write output paths,
+    // paid-production approvals or worker state through the Data API.
+    const { error } = await createServiceClient().from("video_requests").insert({
       user_id: user.id,
       topic,
       style,
@@ -330,7 +332,7 @@ export async function createVideoRequest(formData: FormData) {
       .upload(audioPath, recording.audioBuffer, { contentType: recording.mimeType, upsert: false });
     if (audioError) redirect("/dashboard/new?error=No+se+pudo+guardar+la+grabación+privada");
   }
-  const { error } = await supabase.from("video_requests").insert({
+  const { error } = await createServiceClient().from("video_requests").insert({
     id: requestId,
     recorded_audio_path: audioPath,
     avatar_narration_source: narrationSourceForDb,

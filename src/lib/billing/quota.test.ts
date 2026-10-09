@@ -52,6 +52,7 @@ function fakeService(responses: {
       neq: () => builder,
       in: () => builder,
       gte: () => builder,
+      or: () => builder,
       maybeSingle: async () => response,
       then: (resolve: (v: typeof response) => unknown) => resolve(response),
     };
@@ -290,4 +291,34 @@ test("avatarEntitlementPreview: refleja el mismo resultado que assertCanGenerate
     BETA_USER,
   );
   assert.equal(betaAllowed.blocked, false);
+});
+
+test("an unknown count never bypasses the monthly quota", async () => {
+  const service = fakeService({
+    subscriptions: { data: { status: "active", price_id: null }, error: null },
+    video_requests: { data: null, count: null, error: null },
+  });
+  await assert.rejects(assertCanGenerate(service, "u", "visual"), /consumo mensual/);
+});
+
+test("a draft from last month rendered this month consumes this month's quota", async () => {
+  const now = new Date();
+  const previous = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15));
+  let filter = "";
+  const rows = Array.from({ length: 15 }, () => ({ created_at: previous.toISOString(), render_started_at: now.toISOString() }));
+  const q = {
+    select: () => q, eq: () => q, neq: () => q, in: () => q,
+    gte: (_key: string, value: string) => { filter = `created:${value}`; return q; },
+    or: (value: string) => { filter = value; return q; },
+    then: (resolve: (value: unknown) => unknown) => {
+      const byRender = filter.startsWith("render_started_at.gte.");
+      const cutoff = byRender ? filter.split(",")[0].slice("render_started_at.gte.".length) : filter.slice("created:".length);
+      resolve({ error: null, count: rows.filter(r => (byRender ? r.render_started_at : r.created_at) >= cutoff).length });
+    },
+  };
+  const service = { from: (table: string) => table === "subscriptions"
+    ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ error: null, data: { status: "active", price_id: null } }) }) }) }
+    : q } as unknown as Parameters<typeof assertCanGenerate>[0];
+  assert.equal((await assertCanGenerate(service, "u", "visual")).allowed, false);
+  assert.match(filter, /T00:00:00.000Z/);
 });

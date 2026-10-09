@@ -1,3 +1,4 @@
+import { ScriptPersistenceError } from "./script-persistence";
 import Anthropic from "@anthropic-ai/sdk";
 import { ProviderConfigurationError } from "@/lib/providers/production";
 import { MissingEnvVarError } from "@/lib/env-errors";
@@ -74,6 +75,7 @@ export function scriptErrorCode(error: unknown): ScriptErrorCode {
  * sensible en la UI.
  */
 export function classifyScriptError(error: unknown, diagnosticId: string = generateDiagnosticId()): string {
+  if (error instanceof ScriptPersistenceError) return error.message;
   const suffix = ` (Código: ${diagnosticId})`;
 
   if (error instanceof ProviderConfigurationError) return error.message + suffix;

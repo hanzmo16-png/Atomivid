@@ -1,3 +1,4 @@
+import { persistScriptChange, ScriptPersistenceError } from "@/lib/video/script-persistence";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { withSupplyContext } from "@/lib/supply/anthropic";
 import { NextResponse } from "next/server";
@@ -33,6 +34,8 @@ type VideoRequestRow = {
   duration_seconds: number;
   status: string;
   language: ScriptLanguage;
+  render_attempts: number;
+  script_json: GeneratedScript | null;
 };
 
 // Coincide con targetScenes en src/lib/ai/script.ts (máximo 10 para la
@@ -47,7 +50,7 @@ async function loadOwnedRequest(id: string, userId: string) {
 
   const { data: videoRequest, error } = await service
     .from("video_requests")
-    .select("id, user_id, mode, topic, style, duration_seconds, status, language, recorded_audio_path")
+    .select("id, user_id, mode, topic, style, duration_seconds, status, language, recorded_audio_path, render_attempts, script_json")
     .eq("id", id)
     .single<VideoRequestRow>();
 
@@ -147,24 +150,12 @@ export async function POST(
       // interprete como "el render falló, el guion sigue siendo válido" y
       // ofrezca reintentar el render en vez del guion — justo el guion que
       // acabamos de rechazar.
-      const { error: updateError } = await service
-        .from("video_requests")
-        .update({ status: "failed", error_message: message, script_json: null })
-        .eq("id", id);
-      if (updateError) {
-        console.warn(`No se pudo marcar como fallida la solicitud ${id}:`, updateError.code);
-      }
+      await persistScriptChange(service, videoRequest, { status: "failed", error_message: message, script_json: null });
 
       return NextResponse.json({ error: message }, { status: 500 });
     }
 
-    const { error: updateError } = await service
-      .from("video_requests")
-      .update({ status: "script_ready", script_json: script, error_message: null })
-      .eq("id", id);
-    if (updateError) {
-      console.warn(`No se pudo actualizar la solicitud ${id} a script_ready:`, updateError.code);
-    }
+    await persistScriptChange(service, videoRequest, { status: "script_ready", script_json: script, error_message: null });
 
     const inputChars = videoRequest.topic.length + videoRequest.style.length;
     const outputChars = JSON.stringify(script).length;
@@ -176,7 +167,7 @@ export async function POST(
   } catch (error) {
     const diagnosticId = generateDiagnosticId();
     logScriptError("POST /script (inesperado)", error, diagnosticId);
-    return NextResponse.json({ error: classifyScriptError(error, diagnosticId) }, { status: 500 });
+    return NextResponse.json({ error: classifyScriptError(error, diagnosticId) }, { status: error instanceof ScriptPersistenceError ? error.status : 500 });
   }
 }
 
@@ -240,7 +231,12 @@ export async function PATCH(
   }
 
   const service = createServiceClient();
-  await service.from("video_requests").update({ script_json: body }).eq("id", id);
+  try {
+    await persistScriptChange(service, videoRequest, { script_json: body });
+  } catch (error) {
+    if (error instanceof ScriptPersistenceError) return NextResponse.json({ error: error.message }, { status: error.status });
+    throw error;
+  }
 
   return NextResponse.json({ status: "script_ready", script: body });
 }

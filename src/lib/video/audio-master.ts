@@ -1,4 +1,6 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { promisify } from "node:util";
+import ffprobe from "@ffprobe-installer/ffprobe";
 
 /**
  * Masterización de loudness del video final — causa raíz confirmada del
@@ -33,6 +35,7 @@ export type LoudnessMeasurement = {
   truePeakDbtp: number;
   lra: number;
   threshold: number;
+  targetOffset?: number;
 };
 
 /** ffmpeg binary: PATH by default (workers); FFMPEG_BIN where it is bundled instead (Vercel functions). */
@@ -76,6 +79,7 @@ export async function measureLoudness(filePath: string): Promise<LoudnessMeasure
     truePeakDbtp: Number(json.input_tp),
     lra: Number(json.input_lra),
     threshold: Number(json.input_thresh),
+    targetOffset: Number(json.target_offset),
   };
 }
 
@@ -97,7 +101,7 @@ export function masteringFilter(before: LoudnessMeasurement, ceilingDbtp: number
   return (
     `loudnorm=I=${LOUDNESS_TARGET.INTEGRATED_LUFS}:TP=${ceilingDbtp}:` +
     `LRA=${LOUDNESS_TARGET.LRA}:measured_I=${before.integratedLufs}:measured_TP=${before.truePeakDbtp}:` +
-    `measured_LRA=${before.lra}:measured_thresh=${before.threshold}:linear=true:print_format=summary`
+    `measured_LRA=${before.lra}:measured_thresh=${before.threshold}:offset=${before.targetOffset ?? 0}:linear=true:print_format=summary`
   );
 }
 
@@ -124,21 +128,36 @@ export async function masterAudioLoudness(
      * Opt-in (Long Form, calidad M3): techo pedido a loudnorm `margin` dB por
      * debajo del objetivo, salida explícita a 48 kHz y, si el pico real medido
      * TRAS codificar aún supera el objetivo, una pasada correctiva de ganancia.
-     * Sin esta opción el comportamiento es exactamente el anterior (Shorts/Avatar).
+     * Sin esta opción no se aplica el limitador adicional (Shorts/Avatar).
      */
     truePeakMarginDb?: number;
   } = {},
 ): Promise<MasteringResult> {
+  const probe = await promisify(execFile)(ffprobe.path, [
+    "-v", "error", "-select_streams", "a:0", "-show_entries",
+    "stream=duration:format=duration", "-of", "json", inputPath,
+  ], { timeout: 15000, maxBuffer: 16384 });
+  const metadata = JSON.parse(probe.stdout);
+  const duration = Number(metadata.streams?.[0]?.duration ?? metadata.format?.duration);
+  if (!Number.isFinite(duration) || duration <= 0) throw new Error("No se pudo verificar la duración del audio.");
   const before = await measureLoudness(inputPath);
   const guarded = opts.truePeakMarginDb !== undefined;
-  const filter = masteringFilter(before, guarded ? LOUDNESS_TARGET.TRUE_PEAK_DBTP - (opts.truePeakMarginDb as number) : LOUDNESS_TARGET.TRUE_PEAK_DBTP);
+  const ceiling = guarded ? LOUDNESS_TARGET.TRUE_PEAK_DBTP - (opts.truePeakMarginDb as number) : LOUDNESS_TARGET.TRUE_PEAK_DBTP;
+  const peakGuardFilter = `aformat=sample_rates=48000:channel_layouts=stereo,apad=pad_len=240,alimiter=limit=${Math.pow(10, ceiling / 20)}:attack=5:level=false,atrim=start_sample=240,asetpts=PTS-STARTPTS`;
+  const filter = masteringFilter(before, ceiling) + (guarded
+    // Limit transients after resampling, before AAC. Automatic gain must be OFF:
+    // otherwise the limiter raises the result back to full scale.
+    // Pad/trim the 5 ms lookahead explicitly: the bundled FFmpeg used by podcast
+    // does not support alimiter's newer latency option. Keep A/V timing intact.
+    ? `,${peakGuardFilter}`
+    : "");
   const encode = (input: string, af: string, output: string) =>
     runFfmpeg([
       "-y",
       "-i",
       input,
       "-af",
-      af,
+      `${af},atrim=duration=${duration}`,
       "-c:v",
       "copy",
       "-c:a",
@@ -150,16 +169,54 @@ export async function masterAudioLoudness(
       output,
     ]);
 
-  await encode(inputPath, filter, outputPath);
+  let appliedFilter = filter;
+  await encode(inputPath, appliedFilter, outputPath);
   let after = await measureLoudness(outputPath);
+  // Older bundled loudnorm can under-normalize short/quiet recordings. Correct
+  // measured loudness, with limiting where requested, rather than trusting exit 0.
+  const { rename, rm } = await import("node:fs/promises");
+  const loudnessCorrected = outputPath.replace(/(\.[^.]+)?$/, ".ln$1");
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (!Number.isFinite(after.integratedLufs) || !Number.isFinite(after.truePeakDbtp)) {
+        throw new Error("No se pudo verificar la sonoridad del audio.");
+      }
+      const difference = LOUDNESS_TARGET.INTEGRATED_LUFS - after.integratedLufs;
+      if (Math.abs(difference) < 1) break;
+      const gain = guarded ? difference : Math.min(difference, LOUDNESS_TARGET.TRUE_PEAK_DBTP - after.truePeakDbtp - 0.2);
+      if (Math.abs(gain) < 0.01) break;
+      appliedFilter += `,volume=${gain}dB${guarded ? `,${peakGuardFilter}` : ""}`;
+      // Always encode from the original: repeated AAC decoding adds padding
+      // and generation loss, which can desynchronize a talking avatar.
+      await encode(inputPath, appliedFilter, loudnessCorrected);
+      await rename(loudnessCorrected, outputPath);
+      after = await measureLoudness(outputPath);
+    }
+  } finally {
+    await rm(loudnessCorrected, { force: true });
+  }
   if (!guarded) return { before, after };
 
-  const correction = truePeakCorrectionDb(after.truePeakDbtp);
-  if (correction === 0) return { before, after, truePeakCorrectionDb: 0 };
+  // AAC can introduce a new overshoot during the corrective encode itself.
+  // Re-measure every correction; never label an out-of-limit master successful.
+  let totalCorrection = 0;
   const corrected = outputPath.replace(/(\.[^.]+)?$/, ".tp$1");
-  await encode(outputPath, `volume=${correction}dB`, corrected);
-  const { rename } = await import("node:fs/promises");
-  await rename(corrected, outputPath);
-  after = await measureLoudness(outputPath);
-  return { before, after, truePeakCorrectionDb: correction };
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (!Number.isFinite(after.truePeakDbtp)) throw new Error("No se pudo verificar el pico real del audio.");
+      const correction = truePeakCorrectionDb(after.truePeakDbtp);
+      if (correction === 0) return { before, after, truePeakCorrectionDb: totalCorrection };
+      appliedFilter += `,volume=${correction}dB`;
+      await encode(inputPath, appliedFilter, corrected);
+      await rename(corrected, outputPath);
+      totalCorrection = Math.round((totalCorrection + correction) * 100) / 100;
+      after = await measureLoudness(outputPath);
+    }
+    if (!Number.isFinite(after.truePeakDbtp) || after.truePeakDbtp > LOUDNESS_TARGET.TRUE_PEAK_DBTP) {
+      throw new Error("El audio no cumple el límite de pico real después de la masterización.");
+    }
+    return { before, after, truePeakCorrectionDb: totalCorrection };
+  } finally {
+    await rm(corrected, { force: true });
+  }
 }
