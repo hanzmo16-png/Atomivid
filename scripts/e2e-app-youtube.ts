@@ -51,6 +51,7 @@ async function text(page: Page) { return (await page.locator("main").innerText()
 
 async function main() {
   const startIso = new Date().toISOString();
+  let spendStart = startIso;
   const session = await ownerSessionCookies();
   const browser = await chromium.launch();
   const cookieList = session.cookies.map((c) => ({ name: c.name, value: c.value, domain: "atomivid.vercel.app", path: "/", httpOnly: false, secure: true, sameSite: "Lax" as const }));
@@ -63,6 +64,17 @@ async function main() {
     await page.goto(`${APP}/dashboard`, { waitUntil: "networkidle" });
     check("signed-in dashboard (no redirect to login)", !page.url().includes("/login"), { path: new URL(page.url()).pathname });
 
+    // Reuse the test project of a previous run if its script is ready and nothing was confirmed yet:
+    // the script it already paid for is not generated (or charged) again.
+    const { data: prior } = await db.from("documentary_script_jobs").select("id,request_id,status,created_at").eq("user_id", session.ownerId).eq("topic", TOPIC).eq("status", "completed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const { data: priorReq } = prior ? await db.from("video_requests").select("status,long_form_confirmed_at").eq("id", prior.request_id).maybeSingle() : { data: null };
+    let job: { id: string; request_id: string; status: string };
+    if (prior && priorReq?.status === "script_ready" && !priorReq.long_form_confirmed_at) {
+      job = prior;
+      requestId = prior.request_id;
+      spendStart = prior.created_at;
+      log("REUSING_TEST_PROJECT", { job: prior.id.slice(0, 8), request: prior.request_id.slice(0, 8) });
+    } else {
     // 2. Create the YouTube project; the submit button is clicked twice (double submit).
     await page.goto(`${APP}/dashboard/long-form/new`, { waitUntil: "networkidle" });
     await page.fill("#topic", TOPIC);
@@ -88,8 +100,9 @@ async function main() {
     const { data: jobs } = await db.from("documentary_script_jobs").select("id,request_id,status").eq("user_id", session.ownerId).eq("topic", TOPIC).gte("created_at", startIso);
     check("double submit created exactly one script job", (jobs ?? []).length === 1, { jobs: (jobs ?? []).length });
     if (!jobs?.length) return;
-    const job = jobs[0];
+    job = jobs[0];
     requestId = job.request_id;
+    }
 
     // 3. Script generation: follow it in the app, reloading (progress must survive reloads).
     const scriptDeadline = Date.now() + 40 * 60_000;
@@ -100,14 +113,14 @@ async function main() {
       if (jobRow.status === "completed" || jobRow.status === "failed") break;
       await page.goto(`${APP}/dashboard/long-form/jobs/${job.id}`, { waitUntil: "networkidle" }).catch(() => undefined);
       reloads++;
-      const spend = await spentSince(startIso, session.ownerId, requestId);
+      const spend = await spentSince(spendStart, session.ownerId, requestId);
       if (spend.usd > BUDGET_USD) throw Error(`budget exceeded during script (${spend.usd})`);
       await sleep(30000);
     }
     log("SCRIPT_JOB", { status: jobRow.status, stage: jobRow.stage, reloads, error: jobRow.error_message ? String(jobRow.error_message).slice(0, 160) : null });
     check("script job completed", jobRow.status === "completed");
     if (jobRow.status !== "completed") return;
-    const afterScript = await spentSince(startIso, session.ownerId, requestId);
+    const afterScript = await spentSince(spendStart, session.ownerId, requestId);
     log("SPEND_AFTER_SCRIPT", afterScript);
     await page.goto(`${APP}/dashboard/long-form/jobs/${job.id}`, { waitUntil: "networkidle" });
     check("job page offers the configure step", (await page.locator(`a[href*="/dashboard/long-form/configure/${requestId}"]`).count()) > 0);
@@ -117,8 +130,9 @@ async function main() {
     const strategies: { value: string; usd: number }[] = [];
     for (const value of ["economical", "balanced", "cinematic"]) {
       const label = page.locator("label", { has: page.locator(`input[name="strategy"][value="${value}"]`) });
-      const m = (await label.innerText()).match(/\$\s?([\d.,]+)/);
-      strategies.push({ value, usd: m ? Number(m[1].replace(",", "")) : NaN });
+      // es-MX currency format, e.g. "~USD 0.61" (thousands separator ",").
+      const m = (await label.innerText()).match(/~[^\d]*([\d,]+(?:\.\d+)?)/);
+      strategies.push({ value, usd: m ? Number(m[1].replace(/,/g, "")) : NaN });
     }
     log("ESTIMATES", strategies);
     const cheapest = strategies.filter((s) => Number.isFinite(s.usd)).sort((a, b) => a.usd - b.usd)[0];
@@ -159,7 +173,7 @@ async function main() {
         const t = await text(phone);
         if (/Produciendo|progreso|En espera de capacidad|Preparando|etapa/i.test(t)) sawProgressOnPhone = true;
       }
-      const spend = await spentSince(startIso, session.ownerId, requestId);
+      const spend = await spentSince(spendStart, session.ownerId, requestId);
       if (spend.usd > BUDGET_USD) log("BUDGET_ALERT", spend);
       log("PRODUCTION", { status: row.status, stage: row.long_form_stage, waiting: !!row.supply_wait_started_at, spendUsd: spend.usd });
       await sleep(60000);
@@ -192,7 +206,7 @@ async function main() {
     }
     await mobile.close();
   } finally {
-    const spend = await spentSince(startIso, session.ownerId, requestId).catch(() => null);
+    const spend = await spentSince(spendStart, session.ownerId, requestId).catch(() => null);
     if (requestId) {
       const { data: ops } = await db.from("pi_paid_operations").select("idempotency_key,provider,method,status").eq("project_id", requestId);
       const keys = (ops ?? []).map((o) => o.idempotency_key);
