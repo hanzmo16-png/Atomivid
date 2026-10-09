@@ -40,7 +40,19 @@ async function longForm() {
   log("COUNTS", counts);
 }
 
-const steps: Record<string, () => Promise<void>> = { grants, "long-form": longForm };
+/** Unauthenticated HTTP smoke of the deployed app: routes exist and refuse without a session. */
+async function smoke() {
+  const base = "https://atomivid.vercel.app";
+  const probe = async (path: string, init: RequestInit = {}) => {
+    const r = await fetch(base + path, { ...init, redirect: "manual", signal: AbortSignal.timeout(30000) }).catch(() => null);
+    return { path, method: init.method ?? "GET", status: r?.status ?? null, location: r?.headers.get("location")?.replace(base, "") ?? null };
+  };
+  const fake = "00000000-0000-4000-8000-000000000000";
+  for (const r of await Promise.all([probe("/"), probe("/login"), probe("/dashboard"), probe("/dashboard/long-form/new"), probe(`/dashboard/videos/${fake}`),
+    probe(`/api/generate/${fake}/resume`, { method: "POST" }), probe(`/api/generate/${fake}/render`, { method: "POST" }), probe(`/api/generate/${fake}/confirm-production`, { method: "POST", body: "{}" })])) log("HTTP", r);
+}
+
+const steps: Record<string, () => Promise<void>> = { grants, "long-form": longForm, smoke };
 (async () => {
   for (const m of (process.argv[2] ?? "").split(",").filter(Boolean)) { if (!steps[m]) throw Error(`unknown ${m}`); log("STEP", m); await steps[m]().catch((e) => log("STEP_ERROR", { step: m, error: String(e?.message ?? e).slice(0, 160) })); }
 })().catch((e) => { console.error("FAILED", String(e?.message ?? e).slice(0, 200)); process.exitCode = 1; });
