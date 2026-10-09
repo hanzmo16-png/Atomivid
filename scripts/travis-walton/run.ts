@@ -43,6 +43,8 @@ async function main(){
  const avatarReady=await ensureJobSupplyReady(db,[{provider:'heygen',unit:'usd',units:5,usd:5}]);
  log('PREFLIGHT',{voice:voiceReady,motion:motionReady,avatar:avatarReady,characters:total,voiceCapUsd:cfg.maxVoiceUsd});
  if(mode==='preflight'){seal('studio.png',await get(`${cfg.ownerId}/podcasts/${cfg.previousEpisodeId}/studio/composite-wide-2.png`));return;}
+ if(mode==='prepare-assets'){const {prepareAssets}=await import('./assets');await prepareAssets(cfg,{db,bucket,seal});return;}
+ if(mode==='motion'){const {motion}=await import('./motion');await motion(cfg,{db,bucket,get,seal,unseal});return;}
  if(mode!=='narrate')throw Error('UNKNOWN_MODE');
  if(!voiceReady.ready)throw Error('VOICE_CAPACITY_UNAVAILABLE');
  const {error:ee}=await db.from('podcast_episodes').upsert({id:cfg.episodeId,user_id:cfg.ownerId,title:'Crónicas y Misterios del Universo — Ep. 2: Travis Walton',language:'es',source:'upload',status:'draft'},{onConflict:'id',ignoreDuplicates:true});
