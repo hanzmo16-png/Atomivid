@@ -627,6 +627,27 @@ async function heygenUncertainEvidence() {
   }
 }
 
+/**
+ * Owner-instructed reconciliation (2026-10-09: "si aparece una operación de cobro incierto, reconcilia
+ * antes de reintentar"). Only for the single uncertain HeyGen generate_video of 2026-10-02 15:49:51,
+ * AFTER HeyGen's own video list (read from production, coverage proven) showed no video created in its
+ * window. Compare-and-set on key hash + status + creation time; RECONCILIATION_REQUIRED -> REFUNDED with
+ * committed_usd 0 and supply_reconciled (no charge happened). Nothing is sent to any provider.
+ */
+async function heygenReconcile() {
+  const db = service();
+  const { data: ops } = await db.from("pi_paid_operations").select("idempotency_key,project_id,status,created_at,method,provider").eq("provider", "heygen").eq("status", "RECONCILIATION_REQUIRED");
+  const target = (ops ?? []).filter((o) => h10(String(o.idempotency_key)) === "9d3aab346a" && o.method === "generate_video" && o.created_at.startsWith("2026-10-02T15:49:51"));
+  if (target.length !== 1) throw Error(`VALIDATION: expected exactly one matching uncertain op, found ${target.length}; nothing changed`);
+  const { data, error } = await db.from("pi_paid_operations")
+    .update({ status: "REFUNDED", committed_usd: 0, supply_reconciled: true, result_ref: "reconciled:heygen-video-list-no-video-in-window" })
+    .eq("idempotency_key", target[0].idempotency_key).eq("status", "RECONCILIATION_REQUIRED").select("status,committed_usd,supply_reconciled");
+  if (error) throw Error(`reconcile failed ${error.code ?? ""}`);
+  log("HEYGEN_RECONCILED", { key: "9d3aab346a", applied: (data ?? []).length === 1, row: data?.[0] ?? null });
+  const { data: st } = await db.rpc("pi_supply_state", { p_provider: "heygen" });
+  log("HEYGEN_STATE_AFTER", st ? { level: (st as any).level, reason: (st as any).reason, activeCalls: (st as any).activeCalls ?? null, todayCalls: (st as any).todayCalls ?? null } : null);
+}
+
 /** Signed probe of the RUNNING production deployment (presence/counts only; never a value). Waits for the route to go live. */
 async function providerConfig() {
   const { randomUUID } = await import("node:crypto");
@@ -658,7 +679,7 @@ async function providerConfig() {
   throw Error("probe route not live");
 }
 
-const modes: Record<string, () => Promise<unknown>> = { "heygen-uncertain-evidence": heygenUncertainEvidence, "heygen-submit-diag": heygenSubmitDiag, "avatar-state": avatarState, "heygen-policy": heygenPolicy, "supply-policies": supplyPolicies, "provider-config": providerConfig, "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+const modes: Record<string, () => Promise<unknown>> = { "heygen-reconcile": heygenReconcile, "heygen-uncertain-evidence": heygenUncertainEvidence, "heygen-submit-diag": heygenSubmitDiag, "avatar-state": avatarState, "heygen-policy": heygenPolicy, "supply-policies": supplyPolicies, "provider-config": providerConfig, "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
