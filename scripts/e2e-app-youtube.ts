@@ -63,7 +63,7 @@ async function main() {
   const startIso = new Date().toISOString();
   let spendStart = startIso;
   const session = await ownerSessionCookies();
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(process.env.E2E_BROWSER_CHANNEL ? { channel: process.env.E2E_BROWSER_CHANNEL } : {});
   const cookieList = session.cookies.map((c) => ({ name: c.name, value: c.value, domain: "atomivid.vercel.app", path: "/", httpOnly: false, secure: true, sameSite: "Lax" as const }));
   const desktop = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await desktop.addCookies(cookieList);
@@ -80,6 +80,22 @@ async function main() {
     const { data: prior } = await db.from("documentary_script_jobs").select("id,request_id,status,created_at").eq("user_id", session.ownerId).eq("topic", TOPIC).eq("status", "completed").order("created_at", { ascending: false }).limit(1).maybeSingle();
     const { data: priorReq } = prior ? await db.from("video_requests").select("status,long_form_confirmed_at").eq("id", prior.request_id).maybeSingle() : { data: null };
     let job: { id: string; request_id: string; status: string };
+    if (prior && priorReq?.status === "completed") {
+      // Playback-only re-check of the finished test production: nothing is generated or charged.
+      requestId = prior.request_id;
+      spendStart = prior.created_at;
+      log("PLAYBACK_ONLY", { request: prior.request_id.slice(0, 8) });
+      await page.goto(`${APP}/dashboard/videos/${requestId}`, { waitUntil: "networkidle" });
+      const meta = await page.evaluate(async () => {
+        const v = document.querySelector("video");
+        if (!v) return null;
+        const support = { h264: v.canPlayType('video/mp4; codecs="avc1.640028"'), aac: v.canPlayType('audio/mp4; codecs="mp4a.40.2"') };
+        if (v.readyState < 1) await new Promise((r) => { v.addEventListener("loadedmetadata", r, { once: true }); v.addEventListener("error", r, { once: true }); setTimeout(r, 30000); });
+        return { duration: v.duration, width: v.videoWidth, height: v.videoHeight, error: v.error?.code ?? null, support };
+      });
+      check(`video plays in the page (${process.env.E2E_BROWSER_CHANNEL || "chromium"})`, Boolean(meta && meta.duration > 0 && meta.width > 0), meta);
+      return;
+    }
     if (prior && priorReq?.status === "script_ready" && !priorReq.long_form_confirmed_at) {
       job = prior;
       requestId = prior.request_id;
@@ -208,8 +224,8 @@ async function main() {
       const meta = await page.evaluate(async () => {
         const v = document.querySelector("video");
         if (!v) return null;
-        if (v.readyState < 1) await new Promise((r) => { v.addEventListener("loadedmetadata", r, { once: true }); setTimeout(r, 20000); });
-        return { duration: v.duration, width: v.videoWidth, height: v.videoHeight };
+        if (v.readyState < 1) await new Promise((r) => { v.addEventListener("loadedmetadata", r, { once: true }); v.addEventListener("error", r, { once: true }); setTimeout(r, 30000); });
+        return { duration: v.duration, width: v.videoWidth, height: v.videoHeight, error: v.error?.code ?? null };
       });
       check("video plays in the page (metadata loaded)", Boolean(meta && meta.duration > 0 && meta.width > 0), meta);
       const href = await page.getByRole("link", { name: /Descargar video/ }).getAttribute("href");
