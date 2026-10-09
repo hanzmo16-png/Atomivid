@@ -40,8 +40,32 @@ async function signupDiag() {
   }
 }
 
+/** Launch tables exist for the server, and an ordinary signed-in session can neither read nor write them. */
+async function dbCheck() {
+  for (const t of ["marketing_events", "early_access_requests"]) {
+    const { error } = await db.from(t).select("*", { count: "exact", head: true });
+    log("SERVER_TABLE", { table: t, readable: !error, code: error?.code ?? null });
+  }
+  const { data: f, error: fErr } = await db.rpc("marketing_funnel", { p_from: "2026-10-01T00:00:00Z", p_to: "2030-01-01T00:00:00Z" });
+  log("FUNNEL_RPC", { ok: !fErr, keys: f ? Object.keys(f as object) : null, code: fErr?.code ?? null });
+  const email = `qa.rls.${Date.now()}@example.com`, password = `Qa-${randomUUID()}`;
+  const { data: made } = await db.auth.admin.createUser({ email, password, email_confirm: true });
+  const anonish = createClient(process.env.SUPABASE_URL!.trim(), process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(), { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: s } = await anonish.auth.signInWithPassword({ email, password });
+  const asUser = createClient(process.env.SUPABASE_URL!.trim(), process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(), { auth: { persistSession: false, autoRefreshToken: false }, global: { headers: { Authorization: `Bearer ${s.session?.access_token}` } } });
+  for (const t of ["marketing_events", "early_access_requests"]) {
+    const r = await asUser.from(t).select("*").limit(1);
+    const w = await asUser.from(t).insert(t === "marketing_events" ? { event: "landing_view", dedupe_key: `rls-probe-${Date.now()}` } : { product: "documentales", email: `rls${Date.now()}@example.com`, consent_at: new Date().toISOString() });
+    log("USER_SESSION_ACCESS", { table: t, readRows: r.data?.length ?? null, readCode: r.error?.code ?? null, writeRefused: Boolean(w.error), writeCode: w.error?.code ?? null });
+  }
+  const fu = await asUser.rpc("marketing_funnel", { p_from: "2026-10-01T00:00:00Z", p_to: "2030-01-01T00:00:00Z" });
+  log("USER_SESSION_FUNNEL", { refused: Boolean(fu.error), code: fu.error?.code ?? null });
+  if (made?.user) await db.auth.admin.deleteUser(made.user.id);
+}
+
 async function main() {
   if (mode === "signup-diag") return signupDiag();
+  if (mode === "db-check") return dbCheck();
   const email = `qa.cliente.${Date.now()}@example.com`;
   const password = `Qa-${randomUUID()}`;
   const browser = await chromium.launch({ channel: "chrome" }).catch(() => chromium.launch());
