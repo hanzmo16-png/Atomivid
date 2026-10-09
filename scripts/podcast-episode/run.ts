@@ -491,7 +491,45 @@ async function exportProbe() {
   log("PROBE_EXPORTED", { bytes: bytes.length, sha256: sha(bytes), providerCalls: 0 });
 }
 
-const modes: Record<string, () => Promise<void>> = { "export-probe": exportProbe, keygen, "verify-rate": verifyRate, inspect, "store-docs": storeDocs, narrate, studio, extend };
+
+/** Existing production assets and balances, read-only; encrypted for the owner. */
+function sealOwner(name: string, bytes: Buffer) {
+  if (!/^[a-z0-9-]+\.[a-z0-9]+$/.test(name)) throw Error("bad export name");
+  const key = randomBytes(32), iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ct = Buffer.concat([cipher.update(bytes), cipher.final()]);
+  const ek = publicEncrypt({ key: "-----BEGIN PUBLIC KEY-----\nMIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAuMOMunpUAccUO6WKqZ1W\n5W5wXLHDeJ8VY3CWdjr/HgmBM2xnjua/reRysYUHbRlo7+XFlwAQ5YglnnO2JnlN\nVUEnpqx994fWm0LitTYNsAYwHIN6sDWe12VcGrT9aLZU2KYCyJjbKVHJUOPPowoZ\nCMwHVt/KOxF5yMCEfzL0yK9qHk3NWxkejq4RepXwUk8H1w5VIh7yq99M66XQ3vk2\nZ4kbLreO1+CZKkyFv8UTA+2fO3A4beh1+bVwBjWw2nrchUtu//6e9qIzLpnTF9yl\ndegjvnZJy4uCujWn27geiFZfdXWKFQZ46tHDGmuQJCtsAe9LLLnjgPOwjAlixXjS\nQ3fYk3OVpU3ojEIh4BWmlX4KyecKprhn4JO5fVdbzZTYcE3RIATGOyeoBRAEM6ZR\nJ1+tmM5K5Yrc8WJM4PjNbZwBZa5413k6B/xBBOQLGnFOUhPrQ0CURtSM+IB9N/4s\n38My+ZqIBJY62fq7l53Jit8UNZoiy4GUs7lWaXgKBetVAgMBAAE=\n-----END PUBLIC KEY-----\n", padding: constants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha256" }, key);
+  writeFileSync(`sealed-out/${name}.sealed`, [ek, iv, cipher.getAuthTag(), ct].map(b => b.toString("base64")).join("."));
+}
+async function exportProduction() {
+  const { r } = await testRequest();
+  const { data: ep, error } = await db().from("podcast_episodes").select("id,user_id").eq("user_id", r.user_id).eq("title", EPISODE_TITLE).single();
+  if (error || !ep) throw Error("existing episode missing");
+  const s = db().storage.from("videos");
+  const prefix = `${ep.user_id}/podcasts/${ep.id}`;
+  const get = async (path: string) => {
+    const { data, error } = await s.download(path);
+    if (error || !data) throw Error("asset download failed");
+    return Buffer.from(await data.arrayBuffer());
+  };
+  const manifestBytes = await get(prefix + "/narration-manifest.json");
+  const manifest = JSON.parse(manifestBytes.toString("utf8"));
+  sealOwner("manifest.json", manifestBytes);
+  for (const name of ["guion.md", "plan-y-presupuesto.md"])
+    sealOwner(name, await get(`${ep.user_id}/podcasts/episodio-01/${name}`));
+  for (const b of manifest.blocks) {
+    if (!/^[av][0-9]+$/.test(b.id)) throw Error("invalid block id");
+    sealOwner("audio-" + b.id + ".mp3", await get(b.audioPath));
+  }
+  sealOwner("studio.png", await get(prefix + "/studio/composite-wide-2.png"));
+  const balance = await wallet();
+  const spent = await heygenSpentUsd("podcast-" + ep.id);
+  const images = await imagesSpentUsd("podcast-" + ep.id);
+  sealOwner("production-state.json", Buffer.from(JSON.stringify({ episodeId: ep.id, userId: ep.user_id, balance, spent, images })));
+  log("PRODUCTION_INVENTORY", { balance, spent, images, blocks: manifest.blocks.map((b: any) => ({ id: b.id, kind: b.kind, seconds: b.seconds })), providerCalls: 0 });
+}
+
+const modes: Record<string, () => Promise<void>> = { "export-production": exportProduction, "export-probe": exportProbe, keygen, "verify-rate": verifyRate, inspect, "store-docs": storeDocs, narrate, studio, extend };
 // Several $0 steps may be chained with commas; each runs only if the previous one succeeded.
 (async () => {
   for (const mode of (process.argv[2] ?? "").split(",").filter(Boolean)) {
