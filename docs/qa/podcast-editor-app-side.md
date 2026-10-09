@@ -80,14 +80,46 @@ The temporary session was signed out. No owner session or paid provider call was
 - A local publish attempt uploaded the data but was interrupted before completion. The runner resumed
   idempotently, comparing existing files without overwriting them, and wrote the final marker.
 
-## Preview preparation and remaining gate
+## Preview preparation (before browser validation)
 
 The owner ID variable is configured for Preview specifically on `claude/podcast-editor-results`.
 The public Supabase URL/key variables also target Preview. A deployment of `eab061e` with that
 configuration is READY (`dpl_9qgPkFt7wm7ax2pcz6ug94fni388`); its protected `/login` route returned 200
 through the Vercel authenticated fetch tool. This checks deployment availability, not owner access.
 
-No owner browser test has run. It still requires explicit authorization for a temporary owner session
-and protected-preview access for the browser runner. No password is needed. The automated check must
-pass listing, verification, playback, every download and negative-access assertions before merge.
-PR #86 remains draft and unmerged. Production app routes have not been validated.
+The owner subsequently authorized temporary sign-in and protected-preview access. See the completed
+validation below. PR #86 remains draft and unmerged; production app routes have not been validated.
+
+
+## Completed owner browser validation (2026-10-09)
+
+[Actions run 37994993707](https://github.com/hanzmo16-png/Atomivid/actions/runs/37994993707)
+passed against deployment `dpl_ED4DjXU9XrWjeSnRrWtmooqzaEdg`, app commit `40d9764`.
+The test runner is commit `6049d4f` on `claude/video-review`.
+
+| Assertion | Result |
+|---|---|
+| Owner opens list and sees the real delivery pending verification | PASS |
+| Version page exposes the verification control | PASS |
+| UI verification returns `terminado` | PASS |
+| Primary MP4 actually plays in the browser | PASS |
+| All 17 downloads match declared bytes and sha256, with attachment disposition | PASS |
+| Signed playback links have a lifetime of at most 15 minutes | PASS |
+| Dedicated non-owner account: page / verification API | 404 / 404 |
+| Anonymous verification API | 401 |
+| Both temporary sessions in successful run logged out | PASS / PASS |
+
+Ten functional assertions passed, plus two logout checks. No paid provider calls.
+The initial failures were in the harness: the app's first-visit guide intercepted the verification click.
+The runner now dismisses the guide using its normal Omitir button. It also handles the response/click
+promises together so a failed click cannot abort logout through an unhandled rejection.
+
+### Cleanup follow-up
+
+The deployment-scoped, one-hour share token was revoked successfully after testing. Its GitHub secret
+therefore grants no access. Removing that now-inert secret is awaiting GitHub's account re-verification.
+The first failed run (`37994231374`) exited before logout and left one temporary owner session record.
+An aggregate database check confirmed one matching session remained. Automatic approval review blocked
+inspection of session identifiers and direct session expiry, so neither operation was performed.
+The second run and the final successful run both completed their normal targeted logout. Selective cleanup
+of the first run's session still needs explicit approval; do not log out unrelated owner sessions.
