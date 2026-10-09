@@ -42,6 +42,7 @@ jobs:
           elif [ "$MODE" = "podcast-editor-live" ]; then npx tsx scripts/review/podcast-editor-live.ts;
           elif [ "$MODE" = "podcast-editor-app" ]; then
             # Line 2: target=<https URL>; line 3: owner_session=yes only when the owner sign-in is authorised.
+            export E2E_BYPASS_MODE="$(sed -n 's/^bypass_mode=//p' ops/review-video.mode | head -1)"
             export E2E_APP="$(sed -n 's/^target=//p' ops/review-video.mode | head -1)"
             grep -q '^owner_session=yes$' ops/review-video.mode && export OWNER_SESSION_AUTHORIZED=yes
             npx tsx scripts/review/podcast-editor-app-e2e.ts;

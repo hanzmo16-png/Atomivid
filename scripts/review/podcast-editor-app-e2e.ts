@@ -61,7 +61,13 @@ async function main() {
     const open = async (cookies: { name: string; value: string }[]) => {
       const ctx = await browser.newContext({ acceptDownloads: true });
       const page = await ctx.newPage();
-      if (BYPASS) await page.goto(`${APP}/?x-vercel-protection-bypass=${encodeURIComponent(BYPASS)}&x-vercel-set-bypass-cookie=samesitenone`, { waitUntil: "domcontentloaded" });
+      if (BYPASS) {
+        // The approved check uses a deployment-scoped share token expiring in one hour.
+        const query = process.env.E2E_BYPASS_MODE === "share"
+          ? `_vercel_share=${encodeURIComponent(BYPASS)}`
+          : `x-vercel-protection-bypass=${encodeURIComponent(BYPASS)}&x-vercel-set-bypass-cookie=samesitenone`;
+        await page.goto(`${APP}/?${query}`, { waitUntil: "domcontentloaded" });
+      }
       await ctx.addCookies(cookies.map((c) => ({ ...c, domain: host, path: "/", secure: true, sameSite: "Lax" as const })));
       return { ctx, page };
     };

@@ -1,1 +1,4 @@
-podcast-editor-publish
+podcast-editor-app
+target=https://atomivid-id8vf1d1l-atomivid.vercel.app
+owner_session=yes
+bypass_mode=share
