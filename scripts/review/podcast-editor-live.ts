@@ -48,6 +48,17 @@ async function main() {
         and id not in (select user_id from podcast_editor.propietarios) order by created_at desc limit 1`)).rows[0]?.id as string | undefined;
     // The owner's link to existing private work (counts only).
     const travis = owners.length ? (await client.query(`select count(*)::int as n from public.video_requests where user_id = $1`, [owners[0].id])).rows[0].n : null;
+    // Per episode/version: object counts per area and whether the final marker exists (names of synthetic test
+    // episodes only; other folders are summarised as a count).
+    const perVersion = (await client.query(`select split_part(name,'/',2) as ep, split_part(name,'/',3) as v,
+        count(*) filter (where split_part(name,'/',4) = 'entrada')::int as entrada,
+        count(*) filter (where split_part(name,'/',4) = 'salida')::int as salida,
+        count(*) filter (where split_part(name,'/',4) = 'estado')::int as estado,
+        bool_or(name like '%/salida/COMPLETO.json') as completo,
+        max(created_at) filter (where name like '%/salida/COMPLETO.json') as completo_at
+      from storage.objects where bucket_id = 'podcast-editor' and name like 'episodios/%' group by 1, 2 order by 1, 2`)).rows as { ep: string }[];
+    for (const r of perVersion.filter((r) => r.ep.startsWith("prueba-"))) log("VERSION", r);
+    log("OTHER_VERSIONS", { count: perVersion.filter((r) => !r.ep.startsWith("prueba-")).length });
     await client.query("rollback");
     log("LIVE_TOTALS", { owners: owners.length, ...totals, ownerVideoRequests: travis });
     for (const [i, o] of owners.entries()) log("AS_OWNER", { owner: i + 1, ...(await asUser(client, o.id)) });
