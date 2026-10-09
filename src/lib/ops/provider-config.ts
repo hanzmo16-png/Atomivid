@@ -23,7 +23,9 @@ export type ProviderConfigReport = {
   commit: string | null;
   elevenlabsKey: "present" | "blank" | "missing";
   elevenEnvNames: string[];
-  voices: { ok: true; count: number; hansPodcast: boolean } | { ok: false; error: string };
+  voices: { ok: true; count: number; hansPodcast: boolean; userVoice: { found: boolean; category: string | null } } | { ok: false; error: string };
+  /** Which provider credentials this runtime has (presence only). */
+  keys: Record<string, "present" | "blank" | "missing">;
   heygen: HeygenProbe;
 };
 
@@ -66,11 +68,14 @@ export async function providerConfigReport(env: Record<string, string | undefine
   let voices: ProviderConfigReport["voices"];
   try {
     const list = await listAccountVoices({ env, fetchImpl, fresh: true });
-    voices = { ok: true, count: list.length, hansPodcast: list.some((v) => /hans\s*podcast/i.test(v.name)) };
+    const user = list.find((v) => v.name.trim().toLowerCase() === "atomivid 2485ab5a");
+    voices = { ok: true, count: list.length, hansPodcast: list.some((v) => /hans\s*podcast/i.test(v.name)), userVoice: { found: !!user, category: user?.category ?? null } };
   } catch (e) {
     voices = { ok: false, error: e instanceof VoicesUnavailableError ? e.customerMessage : "error" };
   }
-  return { vercelEnv: env.VERCEL_ENV ?? null, commit: env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null, elevenlabsKey,
+  const state = (k: string) => (env[k] === undefined ? "missing" : env[k]!.trim() ? "present" : "blank") as "present" | "blank" | "missing";
+  const keys = Object.fromEntries(["ELEVENLABS_API_KEY", "HEYGEN_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "RUNWAY_API_KEY", "PEXELS_API_KEY", "GH_WORKER_TOKEN", "GH_WORKER_REPO", "SUPABASE_SERVICE_ROLE_KEY"].map((k) => [k, state(k)]));
+  return { keys, vercelEnv: env.VERCEL_ENV ?? null, commit: env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null, elevenlabsKey,
     elevenEnvNames: Object.keys(env).filter((k) => /ELEVEN|HEYGEN/i.test(k)).sort(), voices, heygen: await heygenProbe(env, fetchImpl) };
 }
 

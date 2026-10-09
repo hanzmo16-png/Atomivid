@@ -19,8 +19,10 @@ test("informe: presencia sin valor, nombres de variables, voz Hans podcast; nunc
   const key = "sk_" + "a".repeat(40);
   const fetchImpl = (async () => new Response(JSON.stringify({ voices: [{ voice_id: "abcdefgh12345678", name: "Hans podcast", category: "cloned" }, { voice_id: "zzzzzzzz12345678", name: "Mateo" }] }))) as typeof fetch;
   const r = await providerConfigReport({ ELEVENLABS_API_KEY: ` ${key} `, ELEVENLABS_VOICE_ID: "v", VERCEL_ENV: "production", VERCEL_GIT_COMMIT_SHA: "0123456789" }, fetchImpl);
-  const { heygen, ...rest } = r;
-  assert.deepEqual(rest, { vercelEnv: "production", commit: "0123456", elevenlabsKey: "present", elevenEnvNames: ["ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID"], voices: { ok: true, count: 2, hansPodcast: true } });
+  const { heygen, keys, ...rest } = r;
+  assert.deepEqual(rest, { vercelEnv: "production", commit: "0123456", elevenlabsKey: "present", elevenEnvNames: ["ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID"], voices: { ok: true, count: 2, hansPodcast: true, userVoice: { found: false, category: null } } });
+  assert.equal(keys.ELEVENLABS_API_KEY, "present");
+  assert.equal(keys.ANTHROPIC_API_KEY, "missing");
   assert.equal(heygen.key, "missing");
   assert.doesNotMatch(JSON.stringify(r), /sk_|abcdefgh/);
   resetVoiceCache();
