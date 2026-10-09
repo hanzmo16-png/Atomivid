@@ -13,9 +13,12 @@ const subscription = {
 function fixture(options: { writeError?: boolean; lookupError?: boolean; stale?: boolean; replacement?: boolean } = {}) {
   const sdk = new Stripe("sk_test_local_only");
   const writes: unknown[] = [];
+  const marketing: { dedupe_key: string; event: string }[] = [];
   let reads = 0;
   const service = {
-    from: () => ({
+    from: (table: string) => table === "marketing_events" ? ({
+      upsert: async (value: { dedupe_key: string; event: string }) => { marketing.push(value); return { error: null }; },
+    }) : ({
       select: () => ({ eq: () => ({ maybeSingle: async () => ({
         data: options.lookupError ? null : { user_id: "user-test" },
         error: options.lookupError ? { code: "08006", message: "private database detail" } : null,
@@ -47,7 +50,7 @@ function fixture(options: { writeError?: boolean; lookupError?: boolean; stale?:
       headers: { "stripe-signature": sdk.webhooks.generateTestHeaderString({ payload, secret: "whsec_local_only" }) },
     });
   }
-  return { deps, request, writes, reads: () => reads };
+  return { deps, request, writes, marketing, reads: () => reads };
 }
 
 test("a failed subscription write returns 500 so Stripe can redeliver", async () => {
@@ -95,6 +98,8 @@ test("repeated active events safely persist the same subscription without creati
   for (let i = 0; i < 2; i++) assert.equal((await handleStripeWebhook(f.request(), f.deps)).status, 200);
   assert.equal(f.writes.length, 2);
   assert.equal((f.writes[0] as { stripe_subscription_id: string }).stripe_subscription_id, "sub_test");
+  // The funnel counts the payment once: every redelivery carries the same dedupe key (unique in the table).
+  assert.deepEqual([...new Set(f.marketing.map((m) => m.dedupe_key))], ["payment_confirmed:sub_test"]);
 });
 
 test("unsupported events are acknowledged without subscription writes", async () => {

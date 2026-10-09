@@ -11,6 +11,9 @@ const KNOWN_PATTERNS: Array<{ match: RegExp; message: string }> = [
   { match: /user already registered/i, message: "Ya existe una cuenta con ese correo. Intenta iniciar sesión." },
   { match: /password should be at least/i, message: "La contraseña debe tener al menos 6 caracteres." },
   { match: /unable to validate email address/i, message: "Ese correo no es válido." },
+  // Must precede the generic rate-limit pattern: the account was not created because the confirmation
+  // email could not be sent (project-wide email quota or SMTP failure) — not the visitor's fault.
+  { match: /email rate limit|over_email_send_rate_limit|error sending (confirmation|magic link|recovery) email/i, message: "No pudimos enviar el correo de confirmación en este momento, así que la cuenta no se creó. Intenta de nuevo más tarde." },
   { match: /rate limit/i, message: "Demasiados intentos. Espera un momento y vuelve a intentarlo." },
   { match: /network/i, message: "No se pudo conectar. Revisa tu conexión e intenta de nuevo." },
 ];

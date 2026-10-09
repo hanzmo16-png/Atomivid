@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { STATUS_LABEL, isSubscriptionActive } from "@/lib/billing/subscription";
-import { PLAN_CONFIGS, PLAN_ORDER, getPlanByPriceId, type PlanConfig } from "@/lib/billing/plans";
+import { PLAN_CONFIGS, PLAN_ORDER, getPlanByPriceId, isPlanPurchasable, type PlanConfig } from "@/lib/billing/plans";
 import { createCheckoutSession, createPortalSession } from "./actions";
 import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
@@ -163,11 +163,20 @@ function PlanCard({ plan }: { plan: PlanConfig }) {
           ))}
         </ul>
 
-        <form action={createCheckoutSessionForPlan} className="mt-6">
-          <Button type="submit" className="w-full">
-            Elegir {plan.name}
-          </Button>
-        </form>
+        {isPlanPurchasable(plan.id) ? (
+          <form action={createCheckoutSessionForPlan} className="mt-6">
+            <Button type="submit" className="w-full">
+              Elegir {plan.name}
+            </Button>
+          </form>
+        ) : (
+          <div className="mt-6">
+            <Button type="button" className="w-full" disabled>
+              Pagos aún no habilitados
+            </Button>
+            <p className="mt-2 text-xs text-ink-faint">Todavía no aceptamos pagos para este plan. No se te cobrará nada.</p>
+          </div>
+        )}
       </div>
     </Card>
   );

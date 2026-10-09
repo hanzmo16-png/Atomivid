@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getStripe } from "@/lib/stripe/client";
@@ -10,6 +10,7 @@ import { SupabaseQueryError, classifyBillingError, logBillingError } from "@/lib
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { getPlanPriceId, planPriceIdEnvVar, type PlanId } from "@/lib/billing/plans";
 import { isInternalProductionOwner } from "@/lib/billing/internal-production";
+import { ATTRIBUTION_COOKIE, VISITOR_COOKIE, decodeAttribution, recordMarketingEvent, utcDay } from "@/lib/marketing/events";
 
 /**
  * No es un error real — es una señal interna para salir del try/catch de
@@ -87,6 +88,12 @@ export async function createCheckoutSession(planId: PlanId) {
     redirect(`/dashboard/billing?error=${encodeURIComponent(classifyBillingError(err))}`);
   }
 
+  // Counted once per account, plan and UTC day (a second click or a back-and-forth is not a new start).
+  const store = await cookies();
+  await recordMarketingEvent(createServiceClient(), {
+    event: "checkout_started", dedupeKey: `checkout_started:${user.id}:${planId}:${utcDay(new Date())}`, userId: user.id,
+    visitorId: store.get(VISITOR_COOKIE)?.value, attribution: decodeAttribution(store.get(ATTRIBUTION_COOKIE)?.value),
+  });
   redirect(checkoutUrl);
 }
 

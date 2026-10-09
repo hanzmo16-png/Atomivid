@@ -4,6 +4,8 @@ import { jobSupplyDemands, reserveJobSupply, releaseUnusedJobSupply } from "@/li
 import { withSupplyContext } from "@/lib/supply/anthropic";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { createServiceClient } from "@/lib/supabase/service";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { recordMarketingEvent } from "@/lib/marketing/events";
 import { generateVideoFromScript } from "./generate-video";
 import { generateAvatarVideo } from "./avatar/pipeline";
 import {
@@ -203,6 +205,7 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     }).select("id").maybeSingle();
     if (completed.error || !completed.data) throw new Error("No se pudo confirmar el resultado de este intento. No vuelvas a generar sin revisar su estado.");
     await releaseUnusedJobSupply(service, requestId, row.render_attempts).catch(() => console.error("[atomivid:supply] unused reservation release unconfirmed"));
+    await recordFirstProduction(service, row.user_id);
   } catch (error) {
     if (error instanceof SupplyUnavailableError) {
       // Fixed reason codes only (no amounts/ids): the admission refusal that started this wait.
@@ -256,4 +259,17 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
 
     throw error;
   }
+}
+
+/**
+ * Funnel measurement: the account's FIRST finished video (counted once per account; a later video, a
+ * retry or a recovery never counts again). Best effort: it can never fail or delay a delivered video.
+ */
+async function recordFirstProduction(service: SupabaseClient, userId: string) {
+  try {
+    const { count, error } = await service.from("video_requests").select("id", { count: "exact", head: true })
+      .eq("user_id", userId).eq("status", "completed");
+    if (error || count !== 1) return;
+    await recordMarketingEvent(service, { event: "first_production_completed", dedupeKey: `first_production_completed:${userId}`, userId });
+  } catch { /* measurement only */ }
 }
