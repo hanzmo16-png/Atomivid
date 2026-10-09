@@ -472,7 +472,26 @@ async function avatarStep(segId: string) {
   await avatarSegment(segId);
 }
 
-const modes: Record<string, () => Promise<void>> = { keygen, "verify-rate": verifyRate, inspect, "store-docs": storeDocs, narrate, studio, extend };
+
+/** Read-only export of the existing paid probe to the requesting owner's session. No provider calls. */
+async function exportProbe() {
+  const { r } = await testRequest();
+  const { data: ep, error } = await db().from("podcast_episodes").select("id,user_id")
+    .eq("user_id", r.user_id).eq("title", EPISODE_TITLE).single();
+  if (error || !ep) throw Error("existing episode missing");
+  const { data: video, error: downloadError } = await db().storage.from("videos")
+    .download(`${ep.user_id}/podcasts/${ep.id}/avatar/probe.mp4`);
+  if (downloadError || !video) throw Error("existing probe missing");
+  const bytes = Buffer.from(await video.arrayBuffer());
+  const key = randomBytes(32), iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(bytes), cipher.final()]);
+  const encryptedKey = publicEncrypt({ key: "-----BEGIN PUBLIC KEY-----\nMIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAuMOMunpUAccUO6WKqZ1W\n5W5wXLHDeJ8VY3CWdjr/HgmBM2xnjua/reRysYUHbRlo7+XFlwAQ5YglnnO2JnlN\nVUEnpqx994fWm0LitTYNsAYwHIN6sDWe12VcGrT9aLZU2KYCyJjbKVHJUOPPowoZ\nCMwHVt/KOxF5yMCEfzL0yK9qHk3NWxkejq4RepXwUk8H1w5VIh7yq99M66XQ3vk2\nZ4kbLreO1+CZKkyFv8UTA+2fO3A4beh1+bVwBjWw2nrchUtu//6e9qIzLpnTF9yl\ndegjvnZJy4uCujWn27geiFZfdXWKFQZ46tHDGmuQJCtsAe9LLLnjgPOwjAlixXjS\nQ3fYk3OVpU3ojEIh4BWmlX4KyecKprhn4JO5fVdbzZTYcE3RIATGOyeoBRAEM6ZR\nJ1+tmM5K5Yrc8WJM4PjNbZwBZa5413k6B/xBBOQLGnFOUhPrQ0CURtSM+IB9N/4s\n38My+ZqIBJY62fq7l53Jit8UNZoiy4GUs7lWaXgKBetVAgMBAAE=\n-----END PUBLIC KEY-----\n", padding: constants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha256" }, key);
+  writeFileSync("sealed-out/probe-video.mp4.sealed", [encryptedKey, iv, cipher.getAuthTag(), encrypted].map(b => b.toString("base64")).join("."));
+  log("PROBE_EXPORTED", { bytes: bytes.length, sha256: sha(bytes), providerCalls: 0 });
+}
+
+const modes: Record<string, () => Promise<void>> = { "export-probe": exportProbe, keygen, "verify-rate": verifyRate, inspect, "store-docs": storeDocs, narrate, studio, extend };
 // Several $0 steps may be chained with commas; each runs only if the previous one succeeded.
 (async () => {
   for (const mode of (process.argv[2] ?? "").split(",").filter(Boolean)) {
