@@ -27,6 +27,16 @@ export default function PrivacyPage() {
           Si te suscribes, datos de facturación gestionados directamente por Stripe —
           Atomivid no almacena números de tarjeta.
         </li>
+        <li>
+          Si te apuntas a la lista de acceso anticipado, tu correo y la fecha en que diste tu consentimiento,
+          solo para escribirte sobre ese acceso.
+        </li>
+        <li>
+          Medición propia de uso: un identificador aleatorio en una cookie de este sitio (sin tu nombre ni tu
+          correo), la campaña de origen si llegaste por un enlace con parámetros UTM, y pasos como visitar la
+          página, crear la cuenta, iniciar un pago o terminar tu primer video. No usamos cookies ni píxeles
+          publicitarios de terceros y no enviamos guiones, contraseñas ni datos de pago a herramientas de medición.
+        </li>
       </ul>
 
       <h2>Cómo se usa</h2>

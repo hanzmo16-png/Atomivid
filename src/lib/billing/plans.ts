@@ -31,6 +31,18 @@ export type PlanConfig = {
 
 export const PLAN_ORDER: PlanId[] = ["starter", "pro", "business"];
 
+/**
+ * What every plan delivers today, as a customer can use it. Avatar videos are NOT listed: avatar is a
+ * private beta (canPrepareAvatar) and is not sold as available; monthlyAvatarLimit stays only as the
+ * quota the server would apply if that ever changes. Durations match the form (30, 60 or 90 s).
+ */
+const REEL_INCLUDES = [
+  "Videos de 30, 60 o 90 segundos en 1080×1920",
+  "Revisas y editas el guion antes del video final",
+  "Narración con IA en español o inglés",
+  "Cancela cuando quieras",
+];
+
 export const PLAN_CONFIGS: Record<PlanId, PlanConfig> = {
   starter: {
     id: "starter",
@@ -39,10 +51,8 @@ export const PLAN_CONFIGS: Record<PlanId, PlanConfig> = {
     monthlyNormalLimit: 15,
     monthlyAvatarLimit: 0,
     includes: [
-      "15 videos normales al mes (hasta 60s)",
-      "Revisa y edita el guion antes del video final",
-      "Narración en español e inglés",
-      "Cancela cuando quieras",
+      "15 Reels/Shorts verticales al mes",
+      ...REEL_INCLUDES,
     ],
   },
   pro: {
@@ -52,11 +62,8 @@ export const PLAN_CONFIGS: Record<PlanId, PlanConfig> = {
     monthlyNormalLimit: 30,
     monthlyAvatarLimit: 5,
     includes: [
-      "30 videos normales al mes",
-      "5 videos con avatar al mes (hasta 45s)",
-      "Revisa y edita el guion antes del video final",
-      "Narración en español e inglés",
-      "Cancela cuando quieras",
+      "30 Reels/Shorts verticales al mes",
+      ...REEL_INCLUDES,
     ],
   },
   business: {
@@ -66,11 +73,8 @@ export const PLAN_CONFIGS: Record<PlanId, PlanConfig> = {
     monthlyNormalLimit: 60,
     monthlyAvatarLimit: 15,
     includes: [
-      "60 videos normales al mes",
-      "15 videos con avatar al mes (hasta 60s)",
-      "Revisa y edita el guion antes del video final",
-      "Narración en español e inglés",
-      "Cancela cuando quieras",
+      "60 Reels/Shorts verticales al mes",
+      ...REEL_INCLUDES,
     ],
   },
 };
@@ -82,6 +86,14 @@ export function planPriceIdEnvVar(id: PlanId): string {
 
 export function getPlanPriceId(id: PlanId): string | undefined {
   return process.env[planPriceIdEnvVar(id)]?.trim() || undefined;
+}
+
+/**
+ * A plan can be bought only when the server has both its Stripe price and the Stripe key. Pages use this
+ * to show a real purchase button or an honest "not enabled yet" state instead of a checkout that fails.
+ */
+export function isPlanPurchasable(id: PlanId, env: Record<string, string | undefined> = process.env): boolean {
+  return Boolean(env[planPriceIdEnvVar(id)]?.trim() && env.STRIPE_SECRET_KEY?.trim());
 }
 
 /**

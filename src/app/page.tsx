@@ -5,6 +5,8 @@ import { LinkButton } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Logo } from "@/components/ui/Logo";
 import { HeroVisual } from "@/components/ui/HeroVisual";
+import { LandingView, TrackCta } from "@/components/marketing/Tracking";
+import { PLAN_CONFIGS, PLAN_ORDER, isPlanPurchasable } from "@/lib/billing/plans";
 
 const FLOW_STEPS = [
   { label: "Idea", detail: "Escribes el tema en una frase" },
@@ -12,23 +14,23 @@ const FLOW_STEPS = [
   { label: "Voz", detail: "Narración con voz natural" },
   { label: "Clips", detail: "Video real por escena" },
   { label: "Edición", detail: "Música, ritmo y subtítulos" },
-  { label: "Video final", detail: "Vertical, listo para publicar" },
+  { label: "Video final", detail: "Vertical 9:16, para descargar" },
 ];
 
 const BENEFITS = [
   {
-    title: "De idea a video en minutos",
-    body: "Sin cámara, sin edición manual, sin equipo de producción. Escribes el tema y el resto del proceso lo hace la IA.",
+    title: "De idea a video sin editar",
+    body: "Sin cámara ni edición manual. Escribes el tema, revisas el guion y Atomivid arma narración, clips, música y subtítulos.",
     icon: IconBolt,
   },
   {
-    title: "Narración con voz natural",
-    body: "Voz en español latinoamericano con ritmo y calidez pensados para retener la atención, no una síntesis robótica.",
+    title: "Narración con IA",
+    body: "Voz sintética en español o inglés; eliges el idioma al crear cada video.",
     icon: IconWave,
   },
   {
     title: "Formato listo para redes",
-    body: "Video vertical 9:16, subtítulos incrustados y recursos visuales reales — pensado para publicarse tal cual.",
+    body: "Video vertical 9:16 de 30, 60 o 90 segundos, con subtítulos incrustados y clips o imágenes por escena.",
     icon: IconPhone,
   },
 ];
@@ -43,10 +45,10 @@ const USE_CASES = [
 
 const QUALITY_ITEMS = [
   { title: "Video vertical", body: "1080×1920 — el formato nativo de Reels, TikTok y Shorts." },
-  { title: "Narración con IA", body: "Voz elegida y calibrada específicamente para narración comercial en español." },
+  { title: "Narración con IA", body: "Voz sintética en español o inglés, a tu elección en cada video." },
   { title: "Subtítulos incluidos", body: "Se incrustan automáticamente en cada video, cortados por frase natural." },
-  { title: "Recursos visuales reales", body: "Clips e imágenes reales por escena, no plantillas genéricas repetidas." },
-  { title: "Música con licencia", body: "Música de fondo con licencia de uso comercial, elegida por el tono del video." },
+  { title: "Recursos visuales", body: "Clips e imágenes de archivo elegidos para cada escena." },
+  { title: "Música de fondo", body: "Una pista de fondo elegida según el tono del video." },
 ];
 
 const FAQ = [
@@ -67,8 +69,16 @@ const FAQ = [
     a: "Español e inglés. Tú eliges el idioma de la narración al crear la solicitud.",
   },
   {
+    q: "¿Hay prueba gratis?",
+    a: "No. Crear la cuenta no tiene costo y no pide tarjeta, pero generar guiones y videos requiere un plan de pago activo. Puedes cancelar cuando quieras desde tu cuenta.",
+  },
+  {
+    q: "¿Hacen videos horizontales para YouTube?",
+    a: "Los documentales 16:9 están en acceso anticipado para un grupo reducido. Puedes apuntarte a la lista; no tienen precio ni fecha de apertura todavía.",
+  },
+  {
     q: "¿Atomivid está en beta?",
-    a: "Sí. El pipeline de generación (guion, voz, clips, música, subtítulos y render) ya es real y funcional, y seguimos puliendo la experiencia.",
+    a: "Sí. Seguimos mejorando el producto y la calidad de los videos; si algo falla, tu solicitud queda guardada y lo ya generado no se cobra dos veces.",
   },
 ];
 
@@ -92,11 +102,14 @@ export default async function Home() {
         <Benefits />
         <UseCases />
         <Quality />
+        <Pricing />
+        <Roadmap />
         <Faq />
         <FinalCta />
       </main>
 
       <SiteFooter />
+      <LandingView />
     </div>
   );
 }
@@ -107,15 +120,22 @@ function SiteHeader() {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
         <Logo />
         <nav className="flex items-center gap-2 sm:gap-3">
-          <Link
-            href="/login"
-            className="rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
-          >
-            Iniciar sesión
+          <Link href="#planes" className="rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink">
+            Planes
           </Link>
-          <LinkButton href="/register" size="sm">
-            Crear cuenta
-          </LinkButton>
+          <TrackCta cta="header_login">
+            <Link
+              href="/login"
+              className="rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
+            >
+              Iniciar sesión
+            </Link>
+          </TrackCta>
+          <TrackCta cta="header_register">
+            <LinkButton href="/register" size="sm">
+              Crear cuenta
+            </LinkButton>
+          </TrackCta>
         </nav>
       </div>
     </header>
@@ -139,18 +159,25 @@ function Hero() {
           </h1>
           <p className="max-w-lg text-balance text-base text-ink-muted sm:text-lg">
             Atomivid convierte un tema en un reel vertical completo — guion, narración,
-            clips, música y subtítulos — listo para publicar en minutos. Pensado para
-            creadores y marcas que necesitan contenido constante sin producción manual.
+            clips, música y subtítulos — que revisas antes de producir y descargas en
+            1080×1920. Para creadores y marcas que necesitan contenido constante.
           </p>
           <div className="flex flex-col items-center gap-3 sm:flex-row">
-            <LinkButton href="/register" size="lg">
-              Crear mi primer video
-            </LinkButton>
-            <LinkButton href="/login" size="lg" variant="secondary">
-              Ya tengo cuenta
-            </LinkButton>
+            <TrackCta cta="hero_register">
+              <LinkButton href="/register" size="lg">
+                Crear cuenta
+              </LinkButton>
+            </TrackCta>
+            <TrackCta cta="hero_pricing">
+              <LinkButton href="#planes" size="lg" variant="secondary">
+                Ver planes
+              </LinkButton>
+            </TrackCta>
           </div>
-          <p className="text-xs text-ink-faint">Sin tarjeta para explorar la cuenta. Cancela cuando quieras.</p>
+          <p className="text-xs text-ink-faint">
+            Crear la cuenta no pide tarjeta. Para generar videos necesitas un plan de pago (desde {PLAN_CONFIGS.starter.priceUsdPerMonth} USD al mes)
+            {paymentsEnabled() ? "." : "; los pagos todavía no están habilitados."}
+          </p>
         </div>
         <HeroVisual />
       </div>
@@ -254,7 +281,7 @@ function Quality() {
   return (
     <section className="border-b border-border px-5 py-16 sm:py-20">
       <div className="mx-auto max-w-6xl">
-        <SectionHeading eyebrow="Calidad" title="Cada video incluye lo mismo, sin excepciones" />
+        <SectionHeading eyebrow="Qué incluye" title="Qué trae cada Reel" />
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {QUALITY_ITEMS.map((q) => (
             <div key={q.title} className="rounded-lg border border-border bg-surface p-5">
@@ -298,14 +325,98 @@ function FinalCta() {
   return (
     <section className="px-5 py-16 sm:py-20">
       <Card className="mx-auto flex max-w-4xl flex-col items-center gap-5 p-10 text-center">
-        <h2 className="text-2xl font-bold text-ink sm:text-3xl">Tu primer video puede estar listo hoy</h2>
+        <h2 className="text-2xl font-bold text-ink sm:text-3xl">Empieza con tu primer Reel</h2>
         <p className="max-w-md text-sm text-ink-muted">
-          Crea una cuenta y genera tu primera solicitud — revisas el guion antes de que se produzca el video final.
+          Crea tu cuenta, elige un plan y genera tu primer guion. Lo revisas antes de que se produzca el video final.
         </p>
-        <LinkButton href="/register" size="lg">
-          Crear cuenta gratis
-        </LinkButton>
+        <TrackCta cta="final_register">
+          <LinkButton href="/register" size="lg">
+            Crear cuenta
+          </LinkButton>
+        </TrackCta>
       </Card>
+    </section>
+  );
+}
+
+/** True when at least one plan can actually be bought (its Stripe price and the Stripe key are configured). */
+function paymentsEnabled() {
+  return PLAN_ORDER.some((id) => isPlanPurchasable(id));
+}
+
+function Pricing() {
+  return (
+    <section id="planes" className="scroll-mt-20 border-b border-border px-5 py-16 sm:py-20">
+      <div className="mx-auto max-w-6xl">
+        <SectionHeading eyebrow="Planes" title="Precios de Reels/Shorts" />
+        <p className="mt-3 max-w-2xl text-sm text-ink-muted">
+          Precios en USD por mes, cobrados con Stripe. Sin prueba gratuita: crear la cuenta no tiene costo y generar
+          videos requiere un plan activo. Cancelas cuando quieras desde tu cuenta.
+        </p>
+        {!paymentsEnabled() && (
+          <p className="mt-3 max-w-2xl rounded-md border border-border bg-surface px-4 py-3 text-sm text-ink">
+            Todavía no aceptamos pagos. Puedes crear tu cuenta, pero aún no generar videos; no se te cobrará nada.
+          </p>
+        )}
+        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+          {PLAN_ORDER.map((id) => {
+            const plan = PLAN_CONFIGS[id];
+            return (
+              <Card key={id} className="flex flex-col p-6">
+                <p className="text-sm font-semibold uppercase tracking-wide text-ink-faint">{plan.name}</p>
+                <p className="mt-1 text-3xl font-bold text-ink">
+                  ${plan.priceUsdPerMonth}
+                  <span className="text-sm font-normal text-ink-muted">/mes</span>
+                </p>
+                <ul className="mt-4 flex-1 space-y-2 text-sm text-ink-muted">
+                  {plan.includes.map((item) => (
+                    <li key={item}>· {item}</li>
+                  ))}
+                </ul>
+              </Card>
+            );
+          })}
+        </div>
+        <div className="mt-6">
+          <TrackCta cta="pricing_register">
+            <LinkButton href="/register">Crear cuenta y elegir plan</LinkButton>
+          </TrackCta>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Roadmap() {
+  return (
+    <section className="border-b border-border px-5 py-16 sm:py-20">
+      <div className="mx-auto max-w-6xl">
+        <SectionHeading eyebrow="Disponibilidad" title="Qué puedes usar hoy y qué viene" />
+        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+          <Card className="p-6">
+            <p className="text-xs font-semibold uppercase tracking-wider text-accent">Disponible</p>
+            <p className="mt-2 text-base font-semibold text-ink">Reels/Shorts verticales</p>
+            <p className="mt-1.5 text-sm text-ink-muted">
+              {paymentsEnabled() ? "Con cualquiera de los planes de arriba." : "Requiere un plan de pago; los pagos todavía no están habilitados."}
+            </p>
+          </Card>
+          <Card className="p-6">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">Acceso anticipado</p>
+            <p className="mt-2 text-base font-semibold text-ink">Documentales para YouTube (16:9)</p>
+            <p className="mt-1.5 text-sm text-ink-muted">Para un grupo reducido, sin precio ni fecha de apertura todavía.</p>
+            <div className="mt-4">
+              <TrackCta cta="early_access_open">
+                <LinkButton href="/acceso-anticipado" size="sm" variant="secondary">Apuntarme a la lista</LinkButton>
+              </TrackCta>
+            </div>
+          </Card>
+          <Card className="p-6">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">Próximamente</p>
+            <p className="mt-2 text-base font-semibold text-ink">Podcast Creator</p>
+            <p className="mt-1.5 text-sm text-ink-muted">En desarrollo. Todavía no está disponible.</p>
+          </Card>
+        </div>
+      </div>
     </section>
   );
 }

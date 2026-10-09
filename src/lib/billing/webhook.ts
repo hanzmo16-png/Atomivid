@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import type { createServiceClient } from "@/lib/supabase/service";
 import { logBillingError, SupabaseQueryError } from "./checkout-error";
+import { recordMarketingEvent } from "@/lib/marketing/events";
 
 type ServiceClient = ReturnType<typeof createServiceClient>;
 
@@ -131,4 +132,8 @@ async function upsertSubscription(
     ? await service.from("subscriptions").update(row).eq("user_id", userId).eq("stripe_subscription_id", subscription.id)
     : await service.from("subscriptions").upsert(row, { onConflict: "user_id" });
   if (error) throw new SupabaseQueryError(error.code);
+  // Measured only after the subscription is persisted, once per subscription; never fails the webhook.
+  if (subscription.status === "active") {
+    await recordMarketingEvent(service, { event: "payment_confirmed", dedupeKey: `payment_confirmed:${subscription.id}`, userId });
+  }
 }
