@@ -1,0 +1,32 @@
+name: E2E new customer (ordinary account, no provider spend)
+# Real browser against the deployed app with an ordinary QA account: register, dashboard, isolation from
+# the owner's data, plans and Stripe Checkout. Payment is attempted ONLY when the checkout session is a
+# Stripe TEST session (cs_test_) and the mode file asks for it; a live session stops before any card.
+on:
+  push:
+    branches: [claude/limited-launch]
+    paths: [ops/e2e-new-customer.mode]
+permissions:
+  contents: read
+concurrency:
+  group: e2e-new-customer
+  cancel-in-progress: false
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium
+      - name: Ordinary customer journey
+        run: E2E_MODE="$(head -1 ops/e2e-new-customer.mode | tr -d '[:space:]')" npx tsx scripts/e2e-new-customer.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
