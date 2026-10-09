@@ -696,7 +696,75 @@ async function providerConfig() {
   throw Error("probe route not live");
 }
 
-const modes: Record<string, () => Promise<unknown>> = { "heygen-reconcile": heygenReconcile, "heygen-uncertain-evidence": heygenUncertainEvidence, "heygen-submit-diag": heygenSubmitDiag, "avatar-state": avatarState, "heygen-policy": heygenPolicy, "supply-policies": supplyPolicies, "provider-config": providerConfig, "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
+/**
+ * Read-only inventory for the first full avatar podcast episode (owner request 2026-10-09):
+ * every avatar request with its media (probed on the runner; files never leave it except as a
+ * sealed short-lived signed URL), HeyGen ledger per project, avatar photo rows, podcast episodes,
+ * candidate topics, and the latest provider balance snapshots. Topics, titles, amounts: sealed.
+ */
+async function episodeMaterials() {
+  const db = service();
+  const { execFileSync } = require("node:child_process") as typeof import("node:child_process");
+  const ffprobe = require("@ffprobe-installer/ffprobe").path as string;
+  const { writeFileSync, mkdtempSync } = require("node:fs") as typeof import("node:fs");
+  const dir = mkdtempSync("/tmp/ep-");
+  const probe = (buf: Buffer, name: string) => {
+    const f = `${dir}/${name}`; writeFileSync(f, buf);
+    try {
+      const j = JSON.parse(execFileSync(ffprobe, ["-v", "error", "-show_entries", "format=duration:stream=codec_type,width,height,r_frame_rate", "-of", "json", f]).toString());
+      const v = (j.streams ?? []).find((s: any) => s.codec_type === "video");
+      return { seconds: Math.round(Number(j.format?.duration) * 10) / 10, width: v?.width ?? null, height: v?.height ?? null, fps: v?.r_frame_rate ?? null, audio: (j.streams ?? []).some((s: any) => s.codec_type === "audio") };
+    } catch { return { probeFailed: true }; }
+  };
+  const { data: reqs } = await db.from("video_requests").select("*").eq("mode", "avatar").order("created_at", { ascending: true });
+  const priv: Record<string, unknown>[] = [];
+  for (const r of (reqs ?? []) as Record<string, any>[]) {
+    const { data: ops } = await db.from("pi_paid_operations").select("provider,method,status,committed_usd,provider_job_id,created_at").eq("project_id", r.id);
+    let media: unknown = null, audio: unknown = null, signed: string | null = null;
+    if (r.video_path) {
+      const { data } = await db.storage.from("videos").download(r.video_path);
+      if (data) media = probe(Buffer.from(await data.arrayBuffer()), `${h10(String(r.id))}.mp4`);
+      signed = (await db.storage.from("videos").createSignedUrl(r.video_path, 7 * 86400)).data?.signedUrl ?? null;
+    }
+    if (r.recorded_audio_path) {
+      for (const b of ["avatar-uploads", "videos"]) {
+        const { data } = await db.storage.from(b).download(r.recorded_audio_path);
+        if (data) { audio = { bucket: b, ...probe(Buffer.from(await data.arrayBuffer()), `${h10(String(r.id))}.audio`) }; break; }
+      }
+    }
+    log("AVATAR_REQ", { request: h10(String(r.id)), createdAt: r.created_at, status: r.status, attempts: r.render_attempts, worker: r.render_worker ?? null, durationRequested: r.duration_seconds,
+      avatar: r.avatar_id ? h10(String(r.avatar_id)) : null, providerJob: !!r.avatar_provider_video_job_id, videoPath: !!r.video_path, media, recordedAudio: audio,
+      ledger: (ops ?? []).map((o) => ({ provider: o.provider, method: o.method, status: o.status, providerJob: !!o.provider_job_id, createdAt: o.created_at })) });
+    priv.push({ id: r.id, topic: r.topic, style: r.style, language: r.language, script: r.script_json, signedVideoUrl: signed, ledger: (ops ?? []).map((o) => ({ provider: o.provider, method: o.method, status: o.status, committed: o.committed_usd })) });
+  }
+  const { data: avatars } = await db.from("avatars").select("*").order("created_at", { ascending: true });
+  for (const a of (avatars ?? []) as Record<string, any>[]) {
+    let photo: unknown = null;
+    const path = a.photo_path ?? a.source_photo_path ?? a.image_path ?? null;
+    if (typeof path === "string") {
+      for (const b of ["avatar-uploads", "videos"]) {
+        const { data } = await db.storage.from(b).download(path);
+        if (data) { photo = { bucket: b, ...probe(Buffer.from(await data.arrayBuffer()), `${h10(String(a.id))}.img`) }; break; }
+      }
+    }
+    log("AVATAR_ROW", { avatar: h10(String(a.id)), createdAt: a.created_at, status: a.status ?? null, provider: a.provider ?? null, providerAvatarKind: typeof a.provider_avatar_id === "string" ? a.provider_avatar_id.split(":")[0] : null, columns: Object.keys(a), photo });
+  }
+  const { data: eps } = await db.from("podcast_episodes").select("id,title,status,source,language,duration_seconds,cost_usd,created_at,script").order("created_at", { ascending: true });
+  log("PODCAST_EPISODES", (eps ?? []).map((e) => ({ id: h10(String(e.id)), status: e.status, source: e.source, seconds: e.duration_seconds, createdAt: e.created_at, scriptChars: typeof e.script === "string" ? e.script.length : 0 })));
+  const { data: topics } = await db.from("video_requests").select("id,topic,mode,status,created_at").or("topic.ilike.%podcast%,topic.ilike.%episodio%").order("created_at", { ascending: false }).limit(30);
+  log("PODCAST_TOPIC_CANDIDATES", { count: (topics ?? []).length });
+  const snaps: Record<string, unknown> = {};
+  for (const p of ["elevenlabs", "heygen"]) {
+    const { data } = await db.from("pi_capacity_snapshots").select("unit,reliability,health,available,baseline,renewal_date,details,checked_at").eq("provider", p).order("checked_at", { ascending: false }).limit(1).maybeSingle();
+    log("SNAPSHOT", { provider: p, unit: data?.unit, reliability: data?.reliability, health: data?.health, checkedAt: data?.checked_at });
+    snaps[p] = data;
+  }
+  const { data: committedHeygen } = await db.from("pi_paid_operations").select("project_id,method,status,committed_usd,created_at").eq("provider", "heygen").eq("status", "COMMITTED");
+  log("HEYGEN_COMMITTED", (committedHeygen ?? []).map((o) => ({ project: h10(String(o.project_id)), method: o.method, createdAt: o.created_at })));
+  sealed("EPISODE_MATERIALS", { requests: priv, episodes: eps, topics, snapshots: snaps, heygenCommitted: committedHeygen });
+}
+
+const modes: Record<string, () => Promise<unknown>> = { "episode-materials": episodeMaterials, "heygen-reconcile": heygenReconcile, "heygen-uncertain-evidence": heygenUncertainEvidence, "heygen-submit-diag": heygenSubmitDiag, "avatar-state": avatarState, "heygen-policy": heygenPolicy, "supply-policies": supplyPolicies, "provider-config": providerConfig, "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
 const mode = (process.env.BIGFOOT_OPS_MODE ?? "").trim();
 if (process.env.ANTHROPIC_API_KEY) throw Error("provider key must not be present in the operator job");
 (modes[mode] ?? (async () => { throw Error(`unknown mode ${mode}`); }))().catch((e) => { console.error("OPS_FAILED", e instanceof Error ? e.message.slice(0, 200) : "error"); process.exitCode = 1; });
