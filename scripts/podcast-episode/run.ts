@@ -339,7 +339,7 @@ const SEGMENTS: Record<string, { blocks: string[]; resolution: "720p" | "1080p";
   // Measured on the approved probe: USD 0.59 / 15.44 s, consistent with USD 2.31/min.
   "batch-1": { blocks: ["a01", "a02", "a03", "a03b", "a04", "a05"], resolution: "1080p", worstUsdPerSec: 2.31 / 60 },
   "batch-2": { blocks: ["a06", "a07", "a08b", "a08"], resolution: "1080p", worstUsdPerSec: 2.31 / 60 },
-  "batch-3": { blocks: ["a09", "a09b", "a10", "a11", "a14", "a15"], resolution: "1080p", worstUsdPerSec: 2.31 / 60 },
+  "batch-3": { blocks: ["a09", "a09b", "a10", "a14", "a15"], resolution: "1080p", worstUsdPerSec: 2.31 / 60 },
 };
 const PAD_S = 0.3;
 
@@ -629,6 +629,24 @@ async function visualAssets() {
     log("ILLUSTRATION_SAVED", { id, reused: !!prior.data, spent: await imagesSpentUsd(project), cap: AUTH.imagesMaxUsd });
   }
 }
+async function releaseUnsubmittedRecut() {
+  // The daily supply gate rejected this reservation BEFORE submission. Release only
+  // this exact, unused hold via the normal ledger CAS; never alter paid operations.
+  const { supabaseLedgerStore } = await import("../../src/lib/paid-calls/supabase-ledger-store");
+  const ledger = supabaseLedgerStore(db());
+  const key = "op_3184ad7171c474b4770eb0a65d6f1559";
+  const op = await ledger.get(key);
+  if (!op || op.projectId !== "podcast-84b2c44a-8463-4ebc-8b7d-0335df2cd5b2" || op.shotId !== "avatar:batch-3" || op.provider !== "heygen") throw Error("recut reservation mismatch");
+  const reason = "cancelled-before-submission:editorial-recut-a11-to-visual";
+  if (op.status === "REFUNDED" && op.resultRef === reason && op.committedUsd === 0) return;
+  if (op.status !== "RESERVED" || op.providerJobId || op.resultRef || op.committedUsd !== null) throw Error("reservation may have been submitted; reconcile first");
+  const ep = await episodeRow();
+  const { data, error } = await db().storage.from("videos").list(`${ep.user_id}/podcasts/${ep.id}/avatar`, { search: "batch-3.json" });
+  if (error || !data || data.some(x => x.name === "batch-3.json")) throw Error("recorded job check failed; reservation unchanged");
+  if (!await ledger.update(key, "RESERVED", { status: "REFUNDED", committedUsd: 0, resultRef: reason, updatedAt: new Date().toISOString() })) throw Error("reservation changed concurrently");
+  log("UNSUBMITTED_RESERVATION_RELEASED", { key, releasedUsd: op.reservedUsd, providerCharge: 0, visualBlock: "a11" });
+}
+
 async function archiveAssets() {
   const list = [
     { id: "pale-blue-dot", url: "https://assets.science.nasa.gov/dynamicimage/assets/science/psd/photojournal/pia/pia23/pia23645/PIA23645.jpg?crop=faces%2Cfocalpoint&fit=clip&h=5175&w=5230", source: "https://science.nasa.gov/resource/voyager-pale-blue-dot-download/", credit: "NASA/JPL-Caltech", license: "NASA media usage guidelines" },
@@ -651,6 +669,7 @@ const modes: Record<string, () => Promise<void>> = { "archive-assets": archiveAs
 (async () => {
   for (const mode of (process.argv[2] ?? "").split(",").filter(Boolean)) {
     log("STEP", { mode });
+    if (mode === "recut-final") { await releaseUnsubmittedRecut(); continue; }
     if (mode.startsWith("avatar:")) { await avatarStep(mode.slice(7)); continue; }
     if (!modes[mode]) throw Error(`unknown step ${mode}`);
     await modes[mode]();
