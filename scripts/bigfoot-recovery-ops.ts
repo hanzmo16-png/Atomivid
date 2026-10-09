@@ -755,13 +755,19 @@ async function episodeMaterials() {
   log("PODCAST_TOPIC_CANDIDATES", { count: (topics ?? []).length });
   const snaps: Record<string, unknown> = {};
   for (const p of ["elevenlabs", "heygen"]) {
-    const { data } = await db.from("pi_capacity_snapshots").select("unit,reliability,health,available,baseline,renewal_date,details,checked_at").eq("provider", p).order("checked_at", { ascending: false }).limit(1).maybeSingle();
+    const { data } = await db.from("pi_capacity_snapshots").select("unit,reliability,health,available,renewal_date,status,checked_at").eq("provider", p).order("checked_at", { ascending: false }).limit(1).maybeSingle();
     log("SNAPSHOT", { provider: p, unit: data?.unit, reliability: data?.reliability, health: data?.health, checkedAt: data?.checked_at });
     snaps[p] = data;
   }
   const { data: committedHeygen } = await db.from("pi_paid_operations").select("project_id,method,status,committed_usd,created_at").eq("provider", "heygen").eq("status", "COMMITTED");
   log("HEYGEN_COMMITTED", (committedHeygen ?? []).map((o) => ({ project: h10(String(o.project_id)), method: o.method, createdAt: o.created_at })));
-  sealed("EPISODE_MATERIALS", { requests: priv, episodes: eps, topics, snapshots: snaps, heygenCommitted: committedHeygen });
+  // Compact on purpose: the sealed line is copied by hand into the operator session.
+  const test = priv.find((x) => x.id === AVATAR_TEST_ID) as Record<string, any> | undefined;
+  sealed("EPISODE_COMPACT", { test: test ? { topic: test.topic, style: test.style, ledger: test.ledger, scriptTitle: test.script?.title ?? null } : null,
+    topics: (topics ?? []).map((t) => ({ topic: String(t.topic).slice(0, 160), mode: t.mode, status: t.status, at: String(t.created_at).slice(0, 10) })),
+    episodes: (eps ?? []).map((e) => ({ title: e.title, source: e.source, script: typeof e.script === "string" ? e.script.slice(0, 220) : null })),
+    snapshots: Object.fromEntries(Object.entries(snaps).map(([k, v]: [string, any]) => [k, v ? { available: v.available, renewal: v.renewal_date, level: v.status, at: v.checked_at } : null])),
+    heygenCommitted: (committedHeygen ?? []).map((o) => ({ p: h10(String(o.project_id)), usd: o.committed_usd })) });
 }
 
 const modes: Record<string, () => Promise<unknown>> = { "episode-materials": episodeMaterials, "heygen-reconcile": heygenReconcile, "heygen-uncertain-evidence": heygenUncertainEvidence, "heygen-submit-diag": heygenSubmitDiag, "avatar-state": avatarState, "heygen-policy": heygenPolicy, "supply-policies": supplyPolicies, "provider-config": providerConfig, "alt-b-scenarios": altBScenarios, "coverage-scenarios": coverageScenarios, "podcast-real-voice": podcastRealVoice, "contracts-sealed": contractsSealed, "preflight-preview": preflightPreview, "supply-check": supplyCheck, readiness, "verify-backed": verifyBackedScenes, "visual-repair": visualRepairDiagnostic, "recover-anchors": recoverVisualAnchors, "visual-anchors": visualAnchorDiagnostic, "recover-format": recoverAfterFormatFix, "review-format": reviewFormatDiagnostic, "apply-reviewed-resume-migration": applyReviewedResumeMigration, "resume-budget": resumeBudget, "v6-check": v6Check,  "verify-rpc": verifyRpc, inspect, "open-budget": openBudget, recover, status, "close-budget": closeBudget };
