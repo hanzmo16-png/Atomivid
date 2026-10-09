@@ -47,6 +47,16 @@ async function ownerSessionCookies() {
   return { ownerId: ref!.user_id as string, cookies: jar, signOut: () => ssr.auth.signOut({ scope: "local" }) };
 }
 
+/** First visit in a fresh browser shows the welcome tour over the page; a person closes it once ("Omitir"). */
+async function dismissOnboarding(page: Page, where: string) {
+  const skip = page.getByRole("button", { name: "Omitir" });
+  if (await skip.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await skip.click();
+    const closed = await page.locator('[aria-labelledby="onboarding-title"]').isHidden({ timeout: 5000 }).catch(() => false);
+    check(`welcome tour can be dismissed (${where})`, closed);
+  }
+}
+
 async function text(page: Page) { return (await page.locator("main").innerText().catch(() => "")) || (await page.locator("body").innerText()); }
 
 async function main() {
@@ -63,6 +73,7 @@ async function main() {
     // 1. Access.
     await page.goto(`${APP}/dashboard`, { waitUntil: "networkidle" });
     check("signed-in dashboard (no redirect to login)", !page.url().includes("/login"), { path: new URL(page.url()).pathname });
+    await dismissOnboarding(page, "desktop");
 
     // Reuse the test project of a previous run if its script is ready and nothing was confirmed yet:
     // the script it already paid for is not generated (or charged) again.
@@ -178,6 +189,7 @@ async function main() {
       await page.reload({ waitUntil: "networkidle" }).catch(() => undefined);
       if (polls % 4 === 1) {
         await phone.goto(`${APP}/dashboard/videos/${requestId}`, { waitUntil: "networkidle" }).catch(() => undefined);
+        if (polls === 1) await dismissOnboarding(phone, "phone");
         const t = await text(phone);
         if (/Produciendo|progreso|En espera de capacidad|Preparando|etapa/i.test(t)) sawProgressOnPhone = true;
       }
@@ -210,6 +222,7 @@ async function main() {
         check("download is a playable MP4", r.ok && bytes.length > 0 && Number(probe.format.duration) > 0 && !!vstream, { http: r.status, bytes: bytes.length, seconds: Math.round(Number(probe.format.duration)), width: vstream?.width, height: vstream?.height, audio: probe.streams.some((s: any) => s.codec_type === "audio") });
       } else check("download link present", false);
       await phone.goto(`${APP}/dashboard/videos/${requestId}`, { waitUntil: "networkidle" });
+      await dismissOnboarding(phone, "phone");
       check("phone shows the player and download", (await phone.locator("video").count()) > 0 && (await phone.getByRole("link", { name: /Descargar video/ }).count()) > 0);
     }
     await mobile.close();
