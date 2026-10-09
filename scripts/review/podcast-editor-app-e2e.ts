@@ -18,6 +18,7 @@ const BYPASS = process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim() ?? "";
 const URL_ = process.env.SUPABASE_URL!.trim(), KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!.trim();
 const log = (tag: string, v: unknown) => console.log(tag, JSON.stringify(v));
 const results: { check: string; ok: boolean }[] = [];
+const openedSessions: string[] = [];
 const check = (name: string, ok: boolean, detail?: unknown) => { results.push({ check: name, ok }); log(ok ? "PASS" : "FAIL", { check: name, detail }); };
 const admin = createClient(URL_, KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 
@@ -30,6 +31,7 @@ async function sessionCookies(userId: string) {
   const otp = createClient(URL_, KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: s, error: e2 } = await otp.auth.verifyOtp({ type: "magiclink", token_hash: link.properties.hashed_token });
   if (e2 || !s.session) throw new Error("sign-in link not accepted");
+  openedSessions.push(s.session.access_token);
   const jar: { name: string; value: string }[] = [];
   const ssr = createServerClient(URL_, KEY, { cookies: { getAll: () => jar, setAll: (list) => { for (const c of list) { const i = jar.findIndex((x) => x.name === c.name); if (i >= 0) jar.splice(i, 1); if (c.value) jar.push({ name: c.name, value: c.value }); } } } });
   await ssr.auth.setSession({ access_token: s.session.access_token, refresh_token: s.session.refresh_token });
@@ -38,14 +40,16 @@ async function sessionCookies(userId: string) {
 
 async function main() {
   if (!APP) throw new Error("E2E_APP not set");
-  if (process.env.OWNER_SESSION_AUTHORIZED !== "yes") { log("BLOCKED", { reason: "owner sign-in not authorised for this run" }); return; }
+  if (process.env.OWNER_SESSION_AUTHORIZED !== "yes") { log("BLOCKED", { reason: "owner sign-in not authorised for this run" }); process.exitCode = 1; return; }
   const { client } = await connectResolved();
   const owners = (await client.query("select user_id::text as id from podcast_editor.propietarios order by created_at")).rows as { id: string }[];
   const delivered = (await client.query(`select name from storage.objects where bucket_id = 'podcast-editor' and name ~ '^episodios/[^/]+/v[0-9]+/salida/COMPLETO\\.json$' order by created_at desc limit 1`)).rows[0]?.name as string | undefined;
-  const other = (await client.query(`select id::text from auth.users where email_confirmed_at is not null and id not in (select user_id from podcast_editor.propietarios) order by created_at desc limit 1`)).rows[0]?.id as string | undefined;
+  // Use only the dedicated editor assigned to this delivery, never an unrelated customer.
+  const deliveryParts = delivered?.split("/");
+  const other = deliveryParts ? (await client.query(`select distinct u.id::text from auth.users u join podcast_editor.asignaciones a on a.user_id=u.id where u.email_confirmed_at is not null and u.id not in (select user_id from podcast_editor.propietarios) and a.episode_id=$1 and a.version=$2 and not a.revoked and a.expires_at>now() order by u.id::text limit 1`, [deliveryParts[1], Number(deliveryParts[2].slice(1))])).rows[0]?.id as string | undefined : undefined;
   await client.end();
   log("PRECONDITIONS", { owners: owners.length, deliveryPresent: Boolean(delivered), ordinaryAccount: Boolean(other) });
-  if (owners.length !== 1 || !delivered) { log("BLOCKED", { reason: owners.length !== 1 ? "expected exactly one enrolled owner" : "no COMPLETO.json in the bucket" }); return; }
+  if (owners.length !== 1 || !delivered || !other) { log("BLOCKED", { reason: owners.length !== 1 ? "expected exactly one enrolled owner" : !delivered ? "no COMPLETO.json in the bucket" : "no assigned dedicated editor" }); process.exitCode = 1; return; }
   const [, ep, vSeg] = delivered.split("/");
   const versionPath = `/dashboard/podcast/editor/${ep}/${vSeg}`;
 
@@ -96,8 +100,14 @@ async function main() {
         if (r.ok && d && buf.length === d.size && createHash("sha256").update(buf).digest("hex") === d.sha256 && /attachment/i.test(r.headers.get("content-disposition") ?? "")) ok++;
       }
       check("owner: every download link returns the declared bytes and sha256 as an attachment", ok === (body.files ?? []).length && ok === declared.size, { files: body.files?.length ?? 0, ok, declared: declared.size });
-      const signedTtl = (body.files ?? []).every((f) => /[?&]token=/.test(f.play));
-      check("owner: links are signed (token-bearing, short-lived)", signedTtl);
+      const signedTtl = (body.files ?? []).length > 0 && (body.files ?? []).every((f) => {
+        try {
+          const token = new URL(f.play).searchParams.get("token");
+          const payload = JSON.parse(Buffer.from(token!.split(".")[1], "base64url").toString());
+          return Number.isFinite(payload.iat) && Number.isFinite(payload.exp) && payload.exp > payload.iat && payload.exp - payload.iat <= 905;
+        } catch { return false; }
+      });
+      check("owner: signed links expire within 15 minutes", signedTtl);
     }
     await ctx.close();
 
@@ -116,6 +126,12 @@ async function main() {
   } finally {
     log("SUMMARY", { target: APP, passed: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).map((r) => r.check) });
     await browser.close().catch(() => undefined);
+    for (const token of openedSessions) {
+      const { error } = await admin.auth.admin.signOut(token, "local");
+      if (error) { log("FAIL", { check: "temporary session logout" }); process.exitCode = 1; }
+    }
+    if (results.some((r) => !r.ok)) process.exitCode = 1;
   }
 }
-main().catch((e) => { console.error("FAILED", e instanceof Error ? e.message.slice(0, 300) : "error"); process.exitCode = 1; });
+// Browser errors can contain bypass URLs. Never emit raw exceptions from this credentialed run.
+main().catch(() => { console.error("FAILED: podcast editor app validation; review the boolean checks above"); process.exitCode = 1; });
