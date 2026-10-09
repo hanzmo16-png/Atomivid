@@ -93,7 +93,20 @@ export function getPlanPriceId(id: PlanId): string | undefined {
  * to show a real purchase button or an honest "not enabled yet" state instead of a checkout that fails.
  */
 export function isPlanPurchasable(id: PlanId, env: Record<string, string | undefined> = process.env): boolean {
-  return Boolean(env[planPriceIdEnvVar(id)]?.trim() && env.STRIPE_SECRET_KEY?.trim());
+  const key = env.STRIPE_SECRET_KEY?.trim();
+  if (!env[planPriceIdEnvVar(id)]?.trim() || !key) return false;
+  // Production only sells with a live key: a test key there would hand out real production for test cards.
+  // Test keys belong to the separate preview environment (see stripeMode).
+  if (env.VERCEL_ENV === "production" && stripeMode(env) !== "live") return false;
+  return true;
+}
+
+/** Stripe mode from the documented key prefix (sk_/rk_ + test_/live_); never exposes the key itself. */
+export function stripeMode(env: Record<string, string | undefined> = process.env): "test" | "live" | "none" {
+  const key = env.STRIPE_SECRET_KEY?.trim() ?? "";
+  if (/^(sk|rk)_live_/.test(key)) return "live";
+  if (/^(sk|rk)_test_/.test(key)) return "test";
+  return "none";
 }
 
 /**

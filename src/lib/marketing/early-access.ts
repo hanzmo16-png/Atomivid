@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordMarketingEvent, type Attribution } from "./events";
 
-export const EARLY_ACCESS_PRODUCTS = ["documentales"] as const;
+export const EARLY_ACCESS_PRODUCTS = ["documentales", "reels"] as const;
 export type EarlyAccessProduct = (typeof EARLY_ACCESS_PRODUCTS)[number];
 
 export type EarlyAccessInput = { email: unknown; consent: unknown; website: unknown };

@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AuthCard } from "@/components/ui/AuthCard";
-import { Alert } from "@/components/ui/Alert";
-import { Button } from "@/components/ui/Button";
-import { Field, INPUT_CLASS } from "@/components/ui/Field";
+import { InterestForm } from "@/components/marketing/InterestForm";
 import { joinDocumentariesEarlyAccess } from "./actions";
 
 export const metadata: Metadata = {
@@ -17,7 +15,6 @@ export const metadata: Metadata = {
  */
 export default async function EarlyAccessPage({ searchParams }: { searchParams: Promise<{ error?: string; registrado?: string }> }) {
   const { error, registrado } = await searchParams;
-  const done = registrado === "1" || registrado === "ya";
   return (
     <AuthCard subtitle="Documentales para YouTube · acceso anticipado">
       <div className="space-y-3 text-sm text-ink-muted">
@@ -31,33 +28,10 @@ export default async function EarlyAccessPage({ searchParams }: { searchParams: 
         </p>
       </div>
 
-      {done ? (
-        <div className="mt-5">
-          <Alert tone="success" role="status">
-            {registrado === "ya" ? "Este correo ya estaba en la lista. No tienes que hacer nada más." : "Tu solicitud quedó registrada. Te escribiremos cuando haya lugar."}
-          </Alert>
-        </div>
-      ) : (
-        <form action={joinDocumentariesEarlyAccess} className="mt-5 space-y-4">
-          {error && <Alert tone="danger">{error}</Alert>}
-          <Field id="email" label="Correo electrónico">
-            <input id="email" name="email" type="email" required autoComplete="email" className={INPUT_CLASS} placeholder="tu@correo.com" />
-          </Field>
-          {/* Honeypot: hidden from people and assistive tech; automated form fillers tend to complete it. */}
-          <div className="hidden" aria-hidden="true">
-            <label htmlFor="website">Sitio web</label>
-            <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" />
-          </div>
-          <label className="flex items-start gap-2 text-sm text-ink-muted">
-            <input type="checkbox" name="consent" required className="mt-1" />
-            <span>
-              Acepto que Atomivid me escriba sobre el acceso anticipado a documentales. Puedo pedir que borren mi correo
-              cuando quiera (ver <Link href="/privacy" className="text-accent hover:text-accent-hover">privacidad</Link>).
-            </span>
-          </label>
-          <Button type="submit" className="w-full">Apuntarme a la lista</Button>
-        </form>
-      )}
+      <InterestForm action={joinDocumentariesEarlyAccess} registrado={registrado} error={error} consent={<>
+        Acepto que Atomivid me escriba sobre el acceso anticipado a documentales. Puedo pedir que borren mi correo
+        cuando quiera (ver <Link href="/privacy" className="text-accent hover:text-accent-hover">privacidad</Link>).
+      </>} />
 
       <p className="mt-6 text-center text-sm text-ink-muted">
         <Link href="/" className="font-medium text-accent hover:text-accent-hover">Volver al inicio</Link>

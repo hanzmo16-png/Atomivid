@@ -10,7 +10,7 @@ export const MARKETING_EVENTS = ["landing_view", "cta_click", "early_access_join
 export type MarketingEvent = (typeof MARKETING_EVENTS)[number];
 
 /** Calls to action that the public pages may report (anything else is ignored). */
-export const MARKETING_CTAS = ["header_register", "header_login", "hero_register", "hero_pricing", "pricing_register", "early_access_open", "final_register"] as const;
+export const MARKETING_CTAS = ["header_register", "header_login", "hero_register", "hero_pricing", "pricing_register", "early_access_open", "final_register", "header_waitlist", "hero_waitlist", "pricing_waitlist", "final_waitlist"] as const;
 export type MarketingCta = (typeof MARKETING_CTAS)[number];
 
 export const VISITOR_COOKIE = "atv_vid";

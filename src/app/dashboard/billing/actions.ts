@@ -8,7 +8,7 @@ import { getStripe } from "@/lib/stripe/client";
 import { buildCheckoutUrl } from "@/lib/billing/checkout";
 import { SupabaseQueryError, classifyBillingError, logBillingError } from "@/lib/billing/checkout-error";
 import { MissingEnvVarError } from "@/lib/env-errors";
-import { getPlanPriceId, planPriceIdEnvVar, type PlanId } from "@/lib/billing/plans";
+import { getPlanPriceId, isPlanPurchasable, planPriceIdEnvVar, type PlanId } from "@/lib/billing/plans";
 import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import { ATTRIBUTION_COOKIE, VISITOR_COOKIE, decodeAttribution, recordMarketingEvent, utcDay } from "@/lib/marketing/events";
 
@@ -21,6 +21,9 @@ import { ATTRIBUTION_COOKIE, VISITOR_COOKIE, decodeAttribution, recordMarketingE
 class NoSubscriptionError extends Error {}
 
 async function getSiteUrl(): Promise<string> {
+  // The Stripe test environment runs on a preview branch: send the customer back there, not to production.
+  const branchUrl = process.env.VERCEL_ENV === "preview" ? process.env.VERCEL_BRANCH_URL?.trim() : undefined;
+  if (branchUrl) return `https://${branchUrl}`;
   const envUrl = process.env.NEXT_PUBLIC_SITE_URL;
   if (envUrl) return envUrl;
   const origin = (await headers()).get("origin");
@@ -62,6 +65,8 @@ export async function createCheckoutSession(planId: PlanId) {
   }
   // An internal owner must not accidentally purchase the retail subscription.
   if (isInternalProductionOwner(user)) redirect("/dashboard/billing");
+  // Same gate as the page, enforced on the server: no checkout while this deployment cannot sell the plan.
+  if (!isPlanPurchasable(planId)) redirect(`/dashboard/billing?error=${encodeURIComponent("Todavía no aceptamos pagos para este plan. No se te cobró nada.")}`);
 
   let checkoutUrl: string;
   try {

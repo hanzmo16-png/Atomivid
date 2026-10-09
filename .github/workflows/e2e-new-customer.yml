@@ -2,6 +2,8 @@ name: E2E new customer (ordinary account, no provider spend)
 # Real browser against the deployed app with an ordinary QA account: register, dashboard, isolation from
 # the owner's data, plans and Stripe Checkout. Payment is attempted ONLY when the checkout session is a
 # Stripe TEST session (cs_test_) and the mode file asks for it; a live session stops before any card.
+# Mode "journey+reel" also produces ONE ~30 s Reel as that customer (provider spend capped at USD 0.50 in the
+# script, single attempt).
 on:
   push:
     branches: [claude/limited-launch]
@@ -14,7 +16,7 @@ concurrency:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,8 +27,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
       - name: Ordinary customer journey
-        run: E2E_MODE="$(head -1 ops/e2e-new-customer.mode | tr -d '[:space:]')" npx tsx scripts/e2e-new-customer.ts
+        # Line 1: mode. Optional line 2: "target=preview" runs against the Stripe TEST preview branch.
+        run: |
+          E2E_MODE="$(head -1 ops/e2e-new-customer.mode | tr -d '[:space:]')"
+          if grep -q '^target=preview' ops/e2e-new-customer.mode; then export E2E_APP="https://atomivid-git-qa-stripe-test-atomivid.vercel.app"; fi
+          E2E_MODE="$E2E_MODE" npx tsx scripts/e2e-new-customer.ts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}

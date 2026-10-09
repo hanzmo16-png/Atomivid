@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { STATUS_LABEL, isSubscriptionActive } from "@/lib/billing/subscription";
-import { PLAN_CONFIGS, PLAN_ORDER, getPlanByPriceId, isPlanPurchasable, type PlanConfig } from "@/lib/billing/plans";
+import { PLAN_CONFIGS, PLAN_ORDER, getPlanByPriceId, isPlanPurchasable, stripeMode, type PlanConfig } from "@/lib/billing/plans";
 import { createCheckoutSession, createPortalSession } from "./actions";
 import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
@@ -75,6 +75,9 @@ export default async function BillingPage({
       </p>
 
       <div className="mt-4 space-y-3">
+        {stripeMode() === "test" && (
+          <Alert tone="warning">Entorno de prueba de Stripe: aquí no se cobra dinero real y las suscripciones son de prueba.</Alert>
+        )}
         {checkout === "success" && (
           <Alert tone="success">¡Listo! Tu suscripción está siendo procesada.</Alert>
         )}
