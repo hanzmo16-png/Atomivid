@@ -3,7 +3,7 @@
  * It reports presence only (never a value), env var NAMES matching ELEVEN, the deployment's
  * commit, and the account's voice count / whether "Hans podcast" exists (free GET, no audio).
  */
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { listAccountVoices, VoicesUnavailableError } from "@/lib/podcast/voices";
 import { heygenApiSnapshot } from "@/lib/supply/heygen";
 
@@ -111,5 +111,55 @@ export async function avatarReadinessProbe(): Promise<AvatarReadinessProbe> {
   const checks = r.providers.map((p) => ({ p, c: providerCheck(p, demands.find((d) => d.provider === p.provider)?.unit ?? "usd") }));
   out.providers = checks.map(({ p, c }) => ({ provider: p.provider, level: p.level, refreshed: p.refreshed, verdict: c.verdict, failure: p.failure ?? null }));
   out.sealed = { capUsd: flags.maxAvatarCostUsd, providers: checks.map(({ p, c }) => ({ provider: p.provider, free: p.free, units: p.units, usd: p.usd, action: c.action })) };
+  return out;
+}
+
+/**
+ * Reconciliation evidence for an uncertain HeyGen generate_video (status RECONCILIATION_REQUIRED):
+ * HeyGen's own video list (GET /v1/video.list, read-only) around the uncertain submission. Ids are
+ * hashed; only counts, statuses and times leave the runtime. Nothing is created or charged.
+ */
+export type HeygenReconcileProbe = {
+  http: number | null;
+  pages: number;
+  uncertain: { opCreatedAt: string; windowVideos: { id: string; status: string | null; createdAt: string | null }[]; committedJobInWindow: boolean; committedJob: string | null }[];
+};
+
+const h10 = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 10);
+
+export async function heygenReconcileProbe(fetchImpl: typeof fetch = fetch): Promise<HeygenReconcileProbe | null> {
+  const key = process.env.HEYGEN_API_KEY?.trim();
+  if (!key) return null;
+  const { createServiceClient } = await import("@/lib/supabase/service");
+  const service = createServiceClient();
+  const { data: ops } = await service.from("pi_paid_operations").select("project_id,created_at,updated_at").eq("provider", "heygen").eq("method", "generate_video").eq("status", "RECONCILIATION_REQUIRED");
+  const out: HeygenReconcileProbe = { http: null, pages: 0, uncertain: [] };
+  if (!ops?.length) return out;
+  // All account videos (paged), oldest window first needs the full list: stop once past the earliest op − 1 day.
+  const earliest = Math.min(...ops.map((o) => Date.parse(o.created_at))) - 86_400_000;
+  const videos: { video_id?: string; status?: string; created_at?: number }[] = [];
+  let token: string | undefined;
+  for (let page = 0; page < 20; page++) {
+    const url = `https://api.heygen.com/v1/video.list?limit=100${token ? `&token=${encodeURIComponent(token)}` : ""}`;
+    const r = await fetchImpl(url, { headers: { "X-Api-Key": key }, redirect: "error", cache: "no-store", signal: AbortSignal.timeout(15_000) });
+    out.http = r.status;
+    if (!r.ok) break;
+    const body = await r.json().catch(() => null) as { data?: { videos?: typeof videos; token?: string | null } } | null;
+    const batch = body?.data?.videos ?? [];
+    videos.push(...batch);
+    out.pages = page + 1;
+    token = body?.data?.token ?? undefined;
+    const oldest = Math.min(...batch.map((v) => (v.created_at ?? Infinity) * 1000));
+    if (!token || !batch.length || oldest < earliest) break;
+  }
+  for (const o of ops) {
+    const t = Date.parse(o.created_at);
+    // Same project's committed job (the later successful retry), to tell it apart from an extra video.
+    const { data: sib } = await service.from("pi_paid_operations").select("provider_job_id").eq("project_id", o.project_id).eq("provider", "heygen").eq("status", "COMMITTED").maybeSingle();
+    const committed = sib?.provider_job_id ? String(sib.provider_job_id) : null;
+    const win = videos.filter((v) => v.created_at && v.created_at * 1000 >= t - 120_000 && v.created_at * 1000 <= t + 3_600_000);
+    out.uncertain.push({ opCreatedAt: o.created_at, committedJob: committed ? h10(committed) : null, committedJobInWindow: !!committed && win.some((v) => v.video_id === committed),
+      windowVideos: win.map((v) => ({ id: h10(String(v.video_id)), status: v.status ?? null, createdAt: v.created_at ? new Date(v.created_at * 1000).toISOString() : null })) });
+  }
   return out;
 }

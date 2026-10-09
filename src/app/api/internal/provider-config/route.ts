@@ -1,4 +1,4 @@
-import { avatarReadinessProbe, providerConfigReport, validProviderConfigSignature } from "@/lib/ops/provider-config";
+import { avatarReadinessProbe, heygenReconcileProbe, providerConfigReport, validProviderConfigSignature } from "@/lib/ops/provider-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,5 +9,6 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   const report = await providerConfigReport();
   const avatar = await avatarReadinessProbe().catch(() => null);
-  return Response.json({ ...report, avatar });
+  const heygenReconcile = await heygenReconcileProbe().catch(() => null);
+  return Response.json({ ...report, avatar, heygenReconcile });
 }
