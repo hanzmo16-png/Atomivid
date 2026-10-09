@@ -46,3 +46,19 @@ Adapted to the format published by editor v3 (reported by Codex from `editor.py`
   this session.
 - Not verified: real Auth/Storage listing as an enrolled owner, signed URLs from the real bucket, playback in
   the browser, the 300 s hashing budget on a real multi-GB file.
+
+## Live checks (2026-10-09, production database; no write, no provider call)
+Run `37987926465` (branch `claude/video-review`, `scripts/review/podcast-editor-live.ts`), evaluated as the
+`authenticated` role with request JWT claims inside a rolled-back read-only transaction:
+
+| Check | Result |
+|---|---|
+| Enrolled owners | 1 |
+| `es_propietario()` as that owner / an ordinary account / unknown sub | true / false / false |
+| Bucket `podcast-editor` public | false |
+| Objects / COMPLETO.json / assignments | 0 / 0 / 0 |
+
+Not yet testable: listing, verification, playback and download need a real delivery in the bucket.
+Browser validation is prepared (`scripts/review/podcast-editor-app-e2e.ts`, mode `podcast-editor-app`):
+owner list → verify → `terminado` → playback → every download byte-exact with the declared sha256; ordinary
+account 404; anonymous 401. It runs against the PR preview first, then production after merge.
