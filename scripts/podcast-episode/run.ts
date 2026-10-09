@@ -264,7 +264,74 @@ async function imagesSpentUsd(project: string) {
   return (data ?? []).reduce((a, o) => a + Number(o.status === "COMMITTED" ? o.committed_usd : o.reserved_usd), 0);
 }
 
-const modes: Record<string, () => Promise<void>> = { keygen, "verify-rate": verifyRate, inspect, "store-docs": storeDocs, narrate, studio };
+const EXTEND_PROMPT = "Outpaint only the transparent areas on the left and right. Continue the same man's navy blue blazer, shoulders, sleeves and arms naturally " +
+  "beyond the original photo edges, resting in a relaxed seated posture, with the same fabric, color, soft daylight and camera perspective. " +
+  "Continue the same softly blurred interior background. Do not alter the face, hair, beard, or anything inside the original photo area. Photorealistic.";
+
+/** gpt-image edit (transparent bands = mask). Usage-based cost with the product's published token rates. */
+async function openaiEdit(png: Buffer): Promise<{ buffer: Buffer; costUsd: number }> {
+  const form = new FormData();
+  form.append("model", process.env.OPENAI_IMAGE_MODEL || "gpt-image-2");
+  form.append("prompt", EXTEND_PROMPT);
+  form.append("size", "1024x1024");
+  form.append("quality", "high");
+  form.append("image", new Blob([new Uint8Array(png)], { type: "image/png" }), "extend-in.png");
+  const r = await fetch("https://api.openai.com/v1/images/edits", { method: "POST", body: form, redirect: "error", signal: AbortSignal.timeout(300000), headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY!.trim()}` } });
+  const j = await r.json().catch(() => null) as { data?: { b64_json?: string }[]; usage?: { input_tokens_details?: { text_tokens?: number; image_tokens?: number }; output_tokens?: number }; error?: { code?: string } } | null;
+  if (!r.ok || !j?.data?.[0]?.b64_json) throw Error(`OpenAI edit HTTP ${r.status} code=${String(j?.error?.code ?? "").slice(0, 40)}`);
+  const u = j.usage;
+  const cost = u ? (u.input_tokens_details?.text_tokens ?? 0) * 5e-6 + (u.input_tokens_details?.image_tokens ?? 0) * 10e-6 + (u.output_tokens ?? 0) * 40e-6 : 0.4;
+  return { buffer: Buffer.from(j.data[0].b64_json, "base64"), costUsd: Math.round(cost * 10000) / 10000 };
+}
+
+/** Paid (images cap): extend the jacket beyond the photo borders; the original pixels are restored on top. */
+async function extend() {
+  const ep = await episodeRow();
+  const project = `podcast-${ep.id}`;
+  const s = db().storage.from("videos");
+  const prefix = `${ep.user_id}/podcasts/${ep.id}/studio`;
+  const { a } = await testRequest();
+  const { data: photo } = await db().storage.from("avatar-uploads").download(a.source_photo_path);
+  writeFileSync(`${WORK}/photo`, Buffer.from(await photo!.arrayBuffer()));
+  mkdirSync(`${WORK}/out`, { recursive: true });
+  execFileSync("python3", ["scripts/podcast-episode/media.py", "extend-prep", WORK], { stdio: "inherit" });
+  const outPath = `${prefix}/extend-out.png`;
+  const { data: existing } = await s.download(outPath);
+  let gen: Buffer;
+  if (existing) gen = Buffer.from(await existing.arrayBuffer());
+  else {
+    const spent = await imagesSpentUsd(project);
+    if (spent + 0.4 > AUTH.imagesMaxUsd) throw Error(`images cap would be exceeded (spent ${spent.toFixed(2)}); stopped`);
+    const { guardPaidCall } = await import("../../src/lib/paid-calls/gate");
+    const { supabaseLedgerStore } = await import("../../src/lib/paid-calls/supabase-ledger-store");
+    const input = readFileSync(`${WORK}/extend-in.png`);
+    const g = await guardPaidCall<{ path: string }>(supabaseLedgerStore(db()), { projectId: project, shotId: "presenter-extend-1", provider: "openai", model: "gpt-image-2", method: "edit_image",
+      inputFingerprint: { prompt: EXTEND_PROMPT, inputSha: sha(input), size: "1024x1024", quality: "high" }, reservedUsd: 0.4 }, {
+      call: async () => {
+        const e = await openaiEdit(input);
+        const up = await s.upload(outPath, e.buffer, { contentType: "image/png", upsert: false });
+        if (up.error) throw Error("edit upload failed");
+        return { result: { path: outPath }, costUsd: e.costUsd, resultRef: outPath };
+      },
+      load: async () => null,
+      maxRejectedRetries: 0,
+    });
+    gen = Buffer.from(await (await s.download(g.result.path)).data!.arrayBuffer());
+  }
+  writeFileSync(`${WORK}/extend-out.png`, gen);
+  execFileSync("python3", ["scripts/podcast-episode/media.py", "extend-merge", WORK], { stdio: "inherit" });
+  await s.upload(`${prefix}/cutout-wide.png`, readFileSync(`${WORK}/cutout-wide.png`), { contentType: "image/png", upsert: true });
+  seal("extended.jpg", readFileSync(`${WORK}/out/extended.jpg`));
+  for (const n of ["1", "2"]) writeFileSync(`${WORK}/plate-${n}.png`, Buffer.from(await (await s.download(`${prefix}/plate-${n}.png`)).data!.arrayBuffer()));
+  execFileSync("python3", ["scripts/podcast-episode/media.py", "composite", WORK], { stdio: "inherit" });
+  for (const n of ["1", "2"]) {
+    await s.upload(`${prefix}/composite-wide-${n}.png`, readFileSync(`${WORK}/composite-${n}.png`), { contentType: "image/png", upsert: true });
+    seal(`composite-wide-${n}.jpg`, readFileSync(`${WORK}/out/composite-${n}.jpg`));
+  }
+  log("IMAGES_SPENT", { usd: Math.round((await imagesSpentUsd(project)) * 10000) / 10000, capUsd: AUTH.imagesMaxUsd });
+}
+
+const modes: Record<string, () => Promise<void>> = { keygen, "verify-rate": verifyRate, inspect, "store-docs": storeDocs, narrate, studio, extend };
 // Several $0 steps may be chained with commas; each runs only if the previous one succeeded.
 (async () => {
   for (const mode of (process.argv[2] ?? "").split(",").filter(Boolean)) {

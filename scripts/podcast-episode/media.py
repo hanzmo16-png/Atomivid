@@ -58,7 +58,8 @@ def composite(work: Path) -> None:
 
     out = work / "out"
     out.mkdir(exist_ok=True)
-    cut = Image.open(work / "cutout.png").convert("RGBA")
+    wide = work / "cutout-wide.png"
+    cut = Image.open(wide if wide.exists() else work / "cutout.png").convert("RGBA")
     W, H = 1920, 1080
     # The approved photo clips the jacket at its left/right borders below some row. Scale so that row
     # lands just below the frame: the silhouette stays natural and no straight cut edge is visible.
@@ -101,6 +102,47 @@ def composite(work: Path) -> None:
     print("COMPOSITE", json.dumps(report))
 
 
+def extend_prep(work: Path) -> None:
+    """Square canvas: the approved photo in the centre, transparent side bands for the jacket extension."""
+    photo = ImageOps.exif_transpose(Image.open(work / "photo")).convert("RGBA")
+    side = photo.height
+    canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    x = (side - photo.width) // 2
+    canvas.paste(photo, (x, 0))
+    canvas.resize((1024, 1024), Image.LANCZOS).save(work / "extend-in.png")
+    (work / "extend-geom.json").write_text(json.dumps({"side": side, "x": x, "w": photo.width}))
+    print("EXTEND_PREP", json.dumps({"side": side, "x": x}))
+
+
+def extend_merge(work: Path) -> None:
+    """Generated side bands + the ORIGINAL photo pixels pasted back on top (face and original area untouched)."""
+    import numpy as np
+    from rembg import new_session, remove
+
+    g = json.loads((work / "extend-geom.json").read_text())
+    side, x, w = g["side"], g["x"], g["w"]
+    gen = Image.open(work / "extend-out.png").convert("RGB").resize((side, side), Image.LANCZOS)
+    photo = ImageOps.exif_transpose(Image.open(work / "photo")).convert("RGB")
+    merged = np.asarray(gen).astype(np.float32)
+    orig = np.asarray(photo).astype(np.float32)
+    feather = 28
+    ramp = np.ones(w, np.float32)
+    ramp[:feather] = np.linspace(0, 1, feather)
+    ramp[-feather:] = np.linspace(1, 0, feather)
+    region = merged[:, x:x + w]
+    merged[:, x:x + w] = region * (1 - ramp[None, :, None]) + orig * ramp[None, :, None]
+    out = Image.fromarray(merged.astype(np.uint8))
+    out.save(work / "extended.png")
+    cut = remove(out, session=new_session("birefnet-portrait"))
+    cut.save(work / "cutout-wide.png")
+    prev = out.copy()
+    prev.thumbnail((900, 900))
+    prev.save(work / "out" / "extended.jpg", quality=88)
+    # Identity check: the original photo area must be pixel-identical outside the feather band.
+    inner = np.abs(np.asarray(out).astype(np.int16)[:, x + feather:x + w - feather] - orig.astype(np.int16)[:, feather:w - feather]).max()
+    print("EXTEND_MERGE", json.dumps({"side": side, "originalAreaMaxDiff": int(inner)}))
+
+
 if __name__ == "__main__":
     step, work = sys.argv[1], Path(sys.argv[2])
-    {"inspect": inspect, "composite": composite}[step](work)
+    {"inspect": inspect, "composite": composite, "extend-prep": extend_prep, "extend-merge": extend_merge}[step](work)
