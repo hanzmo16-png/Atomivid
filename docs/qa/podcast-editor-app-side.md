@@ -26,7 +26,7 @@ Adapted to the format published by editor v3 (reported by Codex from `editor.py`
 ```json
 { "episode_id": "<same as path>", "assembly_version": <same as path>, "estado": "completo",
   "editor_version": "…", "job_key": "…", "manifest_sha256": "<64 hex>", "publicado_en": "<ISO date>",
-  "verificacion": { … },
+  "verificacion": "completa",
   "objetos": [ { "key": "<path inside the episode/version>", "size": <bytes>, "sha256": "<64 hex>" } ] }
 ```
 
@@ -34,16 +34,16 @@ Adapted to the format published by editor v3 (reported by Codex from `editor.py`
   `salida/muestras/<file>` and `estado/reporte-*.json`. Keys may be full bucket keys of this episode/version or
   relative to it; any other episode/version, `entrada/`, traversal, empty or odd segments, the marker itself or
   a duplicate (also after normalisation) rejects the whole delivery.
-- Not checked by the app: `manifest_sha256` against the input manifest and the content of `verificacion`
-  (required present; their semantics belong to the editor).
+- `verificacion` must be `completa` or `sidecar`; the app always recomputes every declared object's sha256
+  before reporting `terminado`. It does not compare `manifest_sha256` with the input manifest.
 
 ## Verified vs pending
-- Verified: 10 tests with an in-memory Storage and real sha256, using deliveries built in the v3 shape as
-  described (not editor-generated).
-- Integration test `editor v3 generated delivery verifies end to end` is in place but SKIPPED until an
-  editor-generated version folder (synthetic media, with its COMPLETO.json) is committed under
-  `src/lib/podcast/editor/fixtures/editor-v3/episodios/<ep>/v<n>/…`. The editor package was not available to
-  this session.
+- Verified: all 11 editor tests pass, including the mandatory integration test against output generated
+  by editor v0.3.0 from synthetic media. No editor test is skipped. The real fixture and original publisher
+  source were committed in `d4a9b2e`; its 17 declared objects are byte-for-byte editor output.
+- Source: `scripts/podcast-editor-v3/`; fixture: `src/lib/podcast/editor/fixtures/editor-v3/episodios/prueba-v3/v1/`.
+- The publisher inserts outputs and hash sidecars, downloads every declared output to verify its hash in
+  `completa` mode, then writes `salida/COMPLETO.json` last. Existing outputs must match; no overwrite.
 - Not verified: real Auth/Storage listing as an enrolled owner, signed URLs from the real bucket, playback in
   the browser, the 300 s hashing budget on a real multi-GB file.
 
@@ -58,7 +58,36 @@ Run `37987926465` (branch `claude/video-review`, `scripts/review/podcast-editor-
 | Bucket `podcast-editor` public | false |
 | Objects / COMPLETO.json / assignments | 0 / 0 / 0 |
 
-Not yet testable: listing, verification, playback and download need a real delivery in the bucket.
+These counts describe the earlier read-only run, not the current bucket contents.
 Browser validation is prepared (`scripts/review/podcast-editor-app-e2e.ts`, mode `podcast-editor-app`):
 owner list → verify → `terminado` → playback → every download byte-exact with the declared sha256; ordinary
 account 404; anonymous 401. It runs against the PR preview first, then production after merge.
+
+## Real synthetic publication (2026-10-09)
+
+Completed in [Actions run 37993513622](https://github.com/hanzmo16-png/Atomivid/actions/runs/37993513622),
+commit `1aaf99f` on `claude/video-review`. The runner called the unchanged v3 publisher against real
+Supabase Storage using the dedicated assigned editor's authenticated session. Administrative Auth access
+was used only to obtain that temporary editor session; the Python publisher received no service role key.
+The temporary session was signed out. No owner session or paid provider call was used.
+
+- Delivery: `episodios/prueba-v3/v1/salida/COMPLETO.json`.
+- All 17 declared output/report objects were downloaded and verified in `completa` mode.
+- Marker object list exactly matches the committed editor-generated fixture.
+- Database readback: 35 objects = 17 declared objects + 17 hash sidecars + 1 marker; bucket remains private.
+- Latest data object: `2026-10-09T21:18:00.961279Z`; marker: `2026-10-09T21:28:32.674967Z`.
+  Thus the marker was created after every data object and sidecar.
+- A local publish attempt uploaded the data but was interrupted before completion. The runner resumed
+  idempotently, comparing existing files without overwriting them, and wrote the final marker.
+
+## Preview preparation and remaining gate
+
+The owner ID variable is configured for Preview specifically on `claude/podcast-editor-results`.
+The public Supabase URL/key variables also target Preview. A deployment of `eab061e` with that
+configuration is READY (`dpl_9qgPkFt7wm7ax2pcz6ug94fni388`); its protected `/login` route returned 200
+through the Vercel authenticated fetch tool. This checks deployment availability, not owner access.
+
+No owner browser test has run. It still requires explicit authorization for a temporary owner session
+and protected-preview access for the browser runner. No password is needed. The automated check must
+pass listing, verification, playback, every download and negative-access assertions before merge.
+PR #86 remains draft and unmerged. Production app routes have not been validated.
