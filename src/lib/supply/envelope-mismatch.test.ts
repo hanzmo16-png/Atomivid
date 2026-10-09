@@ -54,3 +54,11 @@ test("envío pagado con saldo vencido: una sola relectura del proveedor y nueva 
   await assert.rejects(submitWithSupply(stale, { ...(op as object), provider: "openai" } as never, { refresh: async () => { touched = true; return true; } }));
   assert.equal(touched, false);
 });
+
+test("envío pagado sin sobre suficiente («job envelope exhausted»): error de configuración, nunca espera por saldo", async () => {
+  const { submitWithSupply } = await import("./server");
+  const svc = { rpc: async () => ({ data: { submitted: false, reason: "job envelope exhausted" }, error: null }) } as never;
+  const err = await submitWithSupply(svc, { idempotencyKey: "k", provider: "heygen", reservedUsd: 5, capacityUnits: 5 } as never).catch((e) => e);
+  assert.ok(err instanceof JobEnvelopeMismatchError);
+  assert.ok(!(err instanceof SupplyUnavailableError));
+});
