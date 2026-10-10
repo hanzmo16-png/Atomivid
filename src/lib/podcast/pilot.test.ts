@@ -151,3 +151,44 @@ test("worker: comprobación previa antes de cualquier cobro, bloqueo distinto de
   assert.match(mig, /publish_status text not null default 'held'/);
   assert.match(mig, /unique \(episode_id, kind, run_key\)/);
 });
+
+/** Query-builder fake: every chain resolves to `answer(table, ops)`; records updates per table. */
+function scriptedService(answer: (table: string, ops: string[]) => unknown) {
+  const updates: { table: string; patch: Record<string, unknown>; ops: string[] }[] = [];
+  const from = (table: string) => {
+    const ops: string[] = [];
+    let patch: Record<string, unknown> | null = null;
+    const b: Record<string, unknown> = new Proxy({}, { get: (_t, k: string) => {
+      if (k === "then") return (r: (v: unknown) => unknown) => { if (patch) updates.push({ table, patch, ops }); return r(answer(table, ops)); };
+      if (k === "maybeSingle" || k === "single") return async () => answer(table, [...ops, k]);
+      if (k === "update") return (p: Record<string, unknown>) => { patch = p; ops.push("update"); return b; };
+      if (k === "insert") return (row: Record<string, unknown>) => { ops.push("insert"); updates.push({ table, patch: row, ops }); return b; };
+      return (...a: unknown[]) => { ops.push(`${k}:${JSON.stringify(a)}`); return b; };
+    } });
+    return b;
+  };
+  return { service: { from } as never, updates };
+}
+
+test("tick programado: token en tabla de servicio, reclama y despacha; si el despacho falla vuelve a programada; bloqueo con un aviso", async () => {
+  const { authorizedSchedulerTick, runSchedulerTick } = await import("./pilot-server");
+  const token = "a".repeat(64);
+  const auth = scriptedService(() => ({ data: { token }, error: null }));
+  assert.equal(await authorizedSchedulerTick(auth.service, token), true);
+  assert.equal(await authorizedSchedulerTick(auth.service, "b".repeat(64)), false);
+  assert.equal(await authorizedSchedulerTick(auth.service, null), false);
+  const due = [episode({ id: "e1", video_status: "scheduled", budget_usd: 6 }), episode({ id: "e2", video_status: "scheduled", budget_usd: 1 })];
+  const s = scriptedService((table, ops) => {
+    if (table === "podcast_episodes" && ops.some((o) => o.startsWith("lte:"))) return { data: due };
+    if (table === "podcast_episodes" && ops.includes("update")) return { data: [{ id: "x" }] };
+    if (table === "production_notices" && ops.includes("insert")) return { data: { id: "n" }, error: null };
+    return { data: null };
+  });
+  const dispatched: string[] = [];
+  const out = await runSchedulerTick(s.service, "*", async (id) => { dispatched.push(id); return false; }, {});
+  assert.deepEqual(out, { due: 2, dispatched: 0, blocked: 1, requeued: 1 });
+  assert.deepEqual(dispatched, ["e1"], "the over-budget production is never dispatched");
+  const eps = s.updates.filter((u) => u.table === "podcast_episodes").map((u) => u.patch.video_status);
+  assert.deepEqual(eps, ["queued", "scheduled", "blocked"], "claimed → dispatch failed → back to scheduled; e2 blocked");
+  assert.equal(s.updates.filter((u) => u.table === "production_notices" && u.ops.includes("insert")).length, 1);
+});
