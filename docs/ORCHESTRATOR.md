@@ -87,7 +87,21 @@ Pasos de Hans para la opción recomendada (una vez, sin pegar claves en chats):
    - activa la API de Google Drive;
    - pantalla de consentimiento externa, publicada «En producción» (en modo de prueba los tokens caducan a los 7 días);
    - crea un cliente OAuth de tipo «Desktop app».
-2. **Asistente de consentimiento:** en su computadora, ejecuta `GOOGLE_OAUTH_CLIENT_ID=… GOOGLE_OAUTH_CLIENT_SECRET=… npx tsx scripts/orchestrator/google-oauth-consent.ts`. Abre el consentimiento de Google y guarda los 3 secretos en GitHub con `gh secret set`, sin mostrarlos en pantalla.
+2. **Secretos del cliente en GitHub** (Settings → Secrets and variables → Actions, desde el teléfono o la computadora): `GOOGLE_OAUTH_CLIENT_ID` y `GOOGLE_OAUTH_CLIENT_SECRET`.
+3. **Autorización única desde el teléfono (recomendada): workflow `drive-oauth.yml`.**
+   - Requisito: el secreto `ORCH_SECRETS_WRITER_TOKEN`, un token de GitHub de grano fino limitado a este repositorio con el permiso «Secrets: read and write». Sirve para que el workflow guarde el token de Google sin que nadie lo vea. Se puede borrar después.
+   - **`start`:** el resumen de la ejecución muestra el enlace de consentimiento. Solo contiene datos públicos: el id del cliente, un nonce y el reto PKCE.
+   - **En el teléfono:** Hans inicia sesión y acepta. Si aparece «Google no verificó esta app», toca «Configuración avanzada» → «Ir a…»: la app es suya. El navegador termina en una página de error `127.0.0.1`, como se espera. Hans copia la dirección completa.
+   - **`finish`:** se pega esa dirección en `redirect_url`. El workflow la lee del evento, nunca de variables de entorno que se impriman.
+   - El workflow canjea el código. El código sirve una vez, dura minutos y no funciona sin el secreto del cliente y el verificador PKCE, que se deriva de ese secreto.
+   - Comprueba que la cuenta es **dueña** de la carpeta de coordinación y que puede escribir en ella. Si no lo es, revoca el token.
+   - Guarda `GOOGLE_OAUTH_REFRESH_TOKEN` con `gh secret set`, pasando el valor por la entrada estándar. Nunca se muestra.
+   - Los workflows manuales solo se pueden lanzar cuando están en la rama por defecto.
+   - **Descartado, según la documentación oficial de Google:**
+     - el flujo de dispositivo no admite el alcance `drive`; solo `drive.file`, que no ve los archivos creados por los conectores de ChatGPT o Claude;
+     - una cuenta de servicio o Workload Identity Federation no puede actuar como un usuario de Gmail;
+     - el OAuth Playground obligaría a copiar el token a mano.
+4. **Alternativa con computadora:** `GOOGLE_OAUTH_CLIENT_ID=… GOOGLE_OAUTH_CLIENT_SECRET=… npx tsx scripts/orchestrator/google-oauth-consent.ts`. Abre el consentimiento y guarda los secretos con `gh secret set`.
 
 ## Ejecutor de Claude
 
@@ -104,13 +118,27 @@ El workflow `orchestrator.yml` en modo `smoke` hace una sola auditoría real de 
 
 - tope de USD 0.05;
 - 1 llamada, sin reintentos;
-- sin Drive y sin almacén durable.
+- sin Drive y sin almacén durable;
+- **una sola vez por repositorio:**
+  - la ejecución con la frase se titula «Orchestrator smoke (paid)»;
+  - termina en «success» solo si la llamada se envió (cobrada o con resultado incierto);
+  - una segunda ejecución lee el historial y se niega;
+  - si el historial no se puede leer, no envía nada.
 
-Usa las mismas compuertas: `ORCH_ALLOW_PAID_CALLS=true` y la frase `GASTAR-HASTA-5USD` al lanzarlo. El costo esperado es de unos USD 0.001, y el peor caso reservado ronda USD 0.003.
+Compuertas:
+- `ORCH_ALLOW_PAID_CALLS=true`;
+- la frase **propia** `HUMO-0.05USD` escrita al lanzarlo. La frase del piloto (`GASTAR-HASTA-5USD`) no autoriza el humo, y viceversa.
+
+Costo: se esperan unos USD 0.001; el peor caso reservado es USD 0.0025 con `gpt-5.6-luna`.
+
+**Proyecto de la clave:** la llamada registra, enmascarados, los encabezados `openai-project` y `openai-organization` de la respuesta, más el id de la petición. Sirven para que Hans confirme que la clave es del proyecto donde fijó el límite de gasto.
+
+**Comprobación previa (USD 0):** el modo `preflight` evalúa todas las compuertas y el peor caso sin enviar nada. No recibe la clave, solo si existe. Puede lanzarse aunque `ORCHESTRATOR_ENABLED` no esté activado.
 
 ## Qué falta para activarlo (acciones de Hans, gratuitas)
 
-1. **Google:** seguir los dos pasos de OAuth de usuario descritos arriba. Así quedan los secretos `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` y `GOOGLE_OAUTH_REFRESH_TOKEN` en GitHub.
+1. **Google:** seguir los pasos de OAuth de usuario descritos arriba: el proyecto, los dos secretos del cliente y `drive-oauth.yml` desde el teléfono, que estará disponible una vez fusionado este PR. Así quedan `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` y `GOOGLE_OAUTH_REFRESH_TOKEN` en GitHub.
+   - **Antes de la llamada de humo:** lanzar `orchestrator.yml` en modo `preflight` (USD 0) y confirmar `wouldCall: true`.
 2. **Variable `ORCHESTRATOR_ENABLED=true`:** permite ejecuciones manuales a USD 0 con el auditor simulado.
 3. **Gasto del piloto:**
    - aprobar la migración pendiente y exponer el esquema `orchestrator`;

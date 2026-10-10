@@ -1,4 +1,6 @@
 name: Orchestrator (manual, gated)
+# The smoke run with its phrase gets a fixed title: run.ts reads this repository's history and refuses a second one.
+run-name: ${{ (inputs.mode == 'smoke' && inputs.paid_approval == 'HUMO-0.05USD' && 'Orchestrator smoke (paid)') || format('Orchestrator {0}', inputs.mode) }}
 # Manual only (no schedule yet). Runs one cycle over the Drive channel. Every paid call is gated server-side:
 # ORCHESTRATOR_ENABLED, ORCH_ALLOW_PAID_CALLS (repository variables Hans controls), the exact approval phrase typed
 # at dispatch time, a durable store, and the budget ledger (pilot cap USD 5). Without them the simulated auditor
@@ -7,18 +9,20 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "live = un ciclo sobre Drive; smoke = UNA auditoría real de una entrega fija (tope USD 0.05, sin Drive)"
+        description: "live = un ciclo sobre Drive; preflight = comprobar las compuertas del humo sin enviar nada (USD 0); smoke = UNA auditoría real de una entrega fija (tope USD 0.05, una sola vez)"
         required: true
         default: live
         type: choice
-        options: [live, smoke]
+        options: [live, preflight, smoke]
       paid_approval:
-        description: "Para permitir llamadas pagadas escribe exactamente GASTAR-HASTA-5USD (vacío = USD 0)"
+        description: "Vacío = USD 0. Piloto: escribe exactamente GASTAR-HASTA-5USD. Humo: escribe exactamente HUMO-0.05USD"
         required: false
         default: ""
 permissions:
   contents: read
   issues: write
+  # The smoke run's one-time guard reads this workflow's run history.
+  actions: read
 concurrency:
   group: orchestrator
   cancel-in-progress: false
@@ -26,7 +30,7 @@ jobs:
   cycle:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: vars.ORCHESTRATOR_ENABLED == 'true'
+    if: vars.ORCHESTRATOR_ENABLED == 'true' || inputs.mode == 'preflight'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,7 +54,8 @@ jobs:
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
           GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
-          OPENAI_API_KEY: ${{ (vars.ORCH_ALLOW_PAID_CALLS == 'true' && secrets.OPENAI_API_KEY) || '' }}
+          OPENAI_API_KEY: ${{ (vars.ORCH_ALLOW_PAID_CALLS == 'true' && inputs.mode != 'preflight' && secrets.OPENAI_API_KEY) || '' }}
+          OPENAI_KEY_PRESENT: ${{ secrets.OPENAI_API_KEY != '' }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ (vars.ORCH_STORE == 'supabase' && secrets.SUPABASE_URL) || '' }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ (vars.ORCH_STORE == 'supabase' && secrets.SUPABASE_SERVICE_ROLE_KEY) || '' }}
           GITHUB_TOKEN: ${{ github.token }}

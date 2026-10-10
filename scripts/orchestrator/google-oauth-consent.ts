@@ -46,5 +46,5 @@ server.listen(0, "127.0.0.1", () => {
   const redirect = `http://127.0.0.1:${(server.address() as { port: number }).port}/callback`;
   const auth = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   auth.search = new URLSearchParams({ client_id: clientId, redirect_uri: redirect, response_type: "code", scope: "https://www.googleapis.com/auth/drive", access_type: "offline", prompt: "consent", state, code_challenge: challenge, code_challenge_method: "S256" }).toString();
-  console.log(`Abre esta dirección en tu navegador e inicia sesión con hansgtav777@gmail.com:\n\n${auth}\n`);
+  console.log(`Abre esta dirección en tu navegador e inicia sesión con la cuenta dueña de la carpeta de coordinación:\n\n${auth}\n`);
 });

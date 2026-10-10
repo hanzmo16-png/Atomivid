@@ -1,6 +1,8 @@
 /**
  * Orchestrator runner. Modes (ORCH_MODE):
  *  - demo (default): self-contained simulated loop in memory (USD 0, no network) — evidence that the cycle works.
+ *  - smoke: ONE real audit of a fixed delivery (USD 0.05 cap, own approval phrase, at most once per repository);
+ *  - preflight: the smoke gates and worst case, nothing sent (USD 0);
  *  - live: the real Drive channel (DriveRestChannel; needs DRIVE_ACCESS_TOKEN + folder ids) and the configured
  *    store. The auditor is the OpenAI one ONLY when every paid gate passes (see src/lib/orchestrator/config.ts);
  *    otherwise the simulated one. Never merges, deploys or touches Atomivid's production data.
@@ -10,30 +12,61 @@ export {};
 import path from "node:path";
 
 const log = (tag: string, v: unknown) => console.log(tag, JSON.stringify(v));
+const SMOKE_ID = "T-20261011-0000-hans-01";
+
+/** true/false from this repository's run history of orchestrator.yml; null when it cannot be read (fail closed). */
+async function previousSmokeDone(): Promise<boolean | null> {
+  const repo = process.env.GITHUB_REPOSITORY, token = process.env.GITHUB_TOKEN;
+  if (!repo || !token) return null;
+  const { smokeAlreadyDone } = await import("../../src/lib/orchestrator/smoke");
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/orchestrator.yml/runs?status=success&per_page=100`, { headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" }, signal: AbortSignal.timeout(15_000) });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { workflow_runs?: { id: number; display_title?: string; conclusion?: string | null }[] };
+    return smokeAlreadyDone(body.workflow_runs ?? [], Number(process.env.GITHUB_RUN_ID) || null);
+  } catch { return null; }
+}
 
 async function main() {
-  const { loadConfig } = await import("../../src/lib/orchestrator/config");
+  const { loadConfig, SMOKE_APPROVAL } = await import("../../src/lib/orchestrator/config");
   const { runCycle } = await import("../../src/lib/orchestrator/engine");
   const { MemoryChannel, DriveRestChannel, serviceAccountTokenProvider, oauthRefreshTokenProvider } = await import("../../src/lib/orchestrator/channel");
   const { MemoryStore, JsonFileStore, SupabaseStore } = await import("../../src/lib/orchestrator/store");
   const { SimulatedAuditor } = await import("../../src/lib/orchestrator/simulated-auditor");
-  const { OpenAIAuditor } = await import("../../src/lib/orchestrator/openai-auditor");
+  const { OpenAIAuditor, buildRequest } = await import("../../src/lib/orchestrator/openai-auditor");
   const { DriveHandoffExecutor, ClaudeCodeActionExecutor, GitHubIssueNotifier, NoopNotifier } = await import("../../src/lib/orchestrator/executors");
-  const mode = process.env.ORCH_MODE === "live" ? "live" : process.env.ORCH_MODE === "smoke" ? "smoke" : "demo";
+  const mode = (["live", "smoke", "preflight"] as const).find((m) => m === process.env.ORCH_MODE) ?? "demo";
 
-  if (mode === "smoke") {
-    // First real OpenAI call, if approved: ONE audit of a fixed, harmless delivery; cap USD 0.05; no Drive.
+  if (mode === "smoke" || mode === "preflight") {
+    // First real OpenAI call, if approved: ONE audit of a fixed, harmless delivery; cap USD 0.05; no Drive; at most
+    // once (run history). "preflight" evaluates the same gates and worst case and sends nothing (USD 0).
+    const smoke = await import("../../src/lib/orchestrator/smoke");
+    const SMOKE_TASK = `id: ${SMOKE_ID}\nde: hans\npara: claude\norquestar: si\npide: escribe la palabra «listo» y una línea de verificación\ncriterio_de_hecho: aparece «listo» y una línea «verificación:»`;
+    const SMOKE_DELIVERY = "listo\nverificación: la palabra pedida aparece en la primera línea.";
+    const done = await previousSmokeDone();
+    if (mode === "preflight") {
+      // The phrase is typed only when launching the smoke run, and the key is not passed here: evaluate the rest.
+      const env = { ...process.env, ORCH_PAID_APPROVAL: SMOKE_APPROVAL, OPENAI_API_KEY: process.env.OPENAI_KEY_PRESENT === "true" ? "present" : "" };
+      const cfg = { ...loadConfig(env, { durableStore: false, smoke: true }), maxHttpRetries: 0 };
+      const chars = buildRequest(cfg, { task: SMOKE_TASK, delivery: SMOKE_DELIVERY, attempt: 1, maxAttempts: cfg.maxAttempts }).input.reduce((n, m) => n + m.content.length, 0);
+      log("PREFLIGHT", { ...smoke.smokePreflight(cfg, chars), keyPresent: process.env.OPENAI_KEY_PRESENT === "true", previousSmokeDone: done, approvalPhrase: `se escribe al lanzar smoke: ${SMOKE_APPROVAL}`, sent: false, costUsd: 0 });
+      return;
+    }
     const cfg = { ...loadConfig(process.env, { durableStore: false, smoke: true }), maxHttpRetries: 0 };
-    log("CONFIG", { mode, paidCalls: cfg.paidCalls, paidBlockedReason: cfg.paidBlockedReason, model: cfg.model, capUsd: cfg.budgetCapUsd, maxCalls: cfg.maxCallsPerRun });
-    if (!cfg.paidCalls) { log("SMOKE_SKIPPED", { reason: cfg.paidBlockedReason }); return; }
+    log("CONFIG", { mode, paidCalls: cfg.paidCalls, paidBlockedReason: cfg.paidBlockedReason, model: cfg.model, capUsd: cfg.budgetCapUsd, maxCalls: cfg.maxCallsPerRun, previousSmokeDone: done });
+    // Exit code 3 = nothing was sent: the run ends "failure" and does not count as the one smoke call.
+    if (done !== false) { log("SMOKE_SKIPPED", { reason: done ? "la llamada de humo ya se hizo (una sola vez)" : "no se pudo leer el historial de ejecuciones" }); process.exitCode = 3; return; }
+    if (!cfg.paidCalls) { log("SMOKE_SKIPPED", { reason: cfg.paidBlockedReason }); process.exitCode = 3; return; }
     const ch = new MemoryChannel();
-    const id = "T-20261011-0000-hans-01";
-    ch.add("solicitudes", `${id}__para-claude__smoke.md`, `id: ${id}\nde: hans\npara: claude\norquestar: si\npide: escribe la palabra «listo» y una línea de verificación\ncriterio_de_hecho: aparece «listo» y una línea «verificación:»`);
-    ch.add("entregas", `${id}__claude__hecha.md`, "listo\nverificación: la palabra pedida aparece en la primera línea.");
+    ch.add("solicitudes", `${SMOKE_ID}__para-claude__smoke.md`, SMOKE_TASK);
+    ch.add("entregas", `${SMOKE_ID}__claude__hecha.md`, SMOKE_DELIVERY);
     const store = new JsonFileStore(path.resolve(".orchestrator/smoke-state.json"));
-    const r = await runCycle({ channel: ch, store, auditor: new OpenAIAuditor(cfg, process.env.OPENAI_API_KEY!), cfg, executor: new DriveHandoffExecutor(), notifier: new NoopNotifier() });
+    let identity: import("../../src/lib/orchestrator/smoke").KeyIdentity | null = null;
+    const capture = async (url: string, init: RequestInit) => { const res = await fetch(url, init); identity = smoke.identityFromHeaders(res.headers); return res; };
+    const r = await runCycle({ channel: ch, store, auditor: new OpenAIAuditor(cfg, process.env.OPENAI_API_KEY!, capture), cfg, executor: new DriveHandoffExecutor(), notifier: new NoopNotifier() });
     const st = await store.read();
-    log("SMOKE", { outcome: r.processed.map((p) => p.outcome), errors: r.errors, calls: r.calls, spentUsd: r.spentUsd, ledger: st.ledger.map((e) => ({ state: e.state, reservedUsd: e.reservedUsd, actualUsd: e.actualUsd })), files: ch.files.map((f) => f.name) });
+    log("SMOKE", { outcome: r.processed.map((p) => p.outcome), errors: r.errors, calls: r.calls, spentUsd: r.spentUsd, keyIdentity: identity, ledger: st.ledger.map((e) => ({ state: e.state, reservedUsd: e.reservedUsd, actualUsd: e.actualUsd })), files: ch.files.map((f) => f.name) });
+    if (!smoke.smokeCallSent(st.ledger)) process.exitCode = 3;
     return;
   }
 

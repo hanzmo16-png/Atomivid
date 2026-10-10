@@ -4,7 +4,8 @@
  * Three independent gates protect money:
  *  1. Kill switch: nothing runs unless ORCHESTRATOR_ENABLED === "true"; a store-level "kill" flag also stops it.
  *  2. Paid calls: the OpenAI auditor is only used when ORCH_ALLOW_PAID_CALLS === "true" AND the run was approved
- *     (ORCH_PAID_APPROVAL === "GASTAR-HASTA-<cap>USD" with the exact cap), AND a durable store is configured.
+ *     (ORCH_PAID_APPROVAL === "GASTAR-HASTA-5USD" for the pilot, "HUMO-0.05USD" for the single smoke call), AND a
+ *     durable store is configured (the smoke call excepted: it is one call, at most once, see smoke.ts).
  *     Otherwise the simulated auditor (USD 0) is used.
  *  3. Budget: a separate ledger (not Atomivid's production pi_paid_operations) with a hard cap, per-call and daily
  *     limits, reserved before every call with the worst case and settled with the real usage.
@@ -49,6 +50,9 @@ export const MODELS: Record<string, { in: number; out: number; reasoning: boolea
 export const PILOT_BUDGET_USD = 5;
 /** First real call ("smoke"): one audit of a fixed delivery, hard cap USD 0.05, no Drive, no durable store needed. */
 export const SMOKE_CAP_USD = 0.05;
+/** The smoke run has its own approval phrase: typing the USD 5 pilot phrase never authorises it, and vice versa. */
+export const SMOKE_APPROVAL = "HUMO-0.05USD";
+export const PILOT_APPROVAL = `GASTAR-HASTA-${PILOT_BUDGET_USD}USD`;
 
 const num = (v: string | undefined, d: number) => (v !== undefined && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : d);
 
@@ -77,8 +81,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     maxAttempts: 3,
     maxHttpRetries: 2,
   };
-  // The approval phrase names the pilot cap; a smoke run is bounded far below it (one call, USD 0.05).
-  const approval = `GASTAR-HASTA-${PILOT_BUDGET_USD}USD`;
+  // Each kind of run has its own phrase naming its own cap: the pilot (USD 5) or the smoke call (one call, USD 0.05).
+  const approval = opts.smoke ? SMOKE_APPROVAL : PILOT_APPROVAL;
   if (env.ORCH_ALLOW_PAID_CALLS !== "true") cfg.paidBlockedReason = "ORCH_ALLOW_PAID_CALLS no está activado";
   else if (env.ORCH_PAID_APPROVAL !== approval) cfg.paidBlockedReason = `falta la aprobación explícita de Hans (${approval}) para esta ejecución`;
   else if (!env.OPENAI_API_KEY?.trim()) cfg.paidBlockedReason = "OPENAI_API_KEY no está configurada";
