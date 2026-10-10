@@ -138,9 +138,9 @@ pools=[
  [stock(i) for i in [13,14,18,19,7,8,9,16,17]]+['asset_24','asset_27'],
  [stock(i) for i in [11,12,15,13,14,18,19]]+['asset_26','asset_28'],
 ]
-usage={};stock_durations={s['fid']:s['decodedDuration'] for s in stocks};repeated=[]
+usage={};stock_durations={s['fid']:s['decodedDuration'] for s in stocks};repeated=[];revisit_counts={}
 for j,(b,pool) in enumerate(zip(insertions,pools)):
-    remaining=b['frames'];position=round(b['start']*FPS);index=0
+    remaining=b['frames'];position=round(b['start']*FPS);index=0;last_source=None
     # Chapter title is brief and over the moving first shot, never a black card.
     while remaining:
         candidates=[]
@@ -150,12 +150,15 @@ for j,(b,pool) in enumerate(zip(insertions,pools)):
             if avail>=min(remaining,3*FPS):candidates.append((used/max(1,stock_durations[fid]),rank,fid,avail))
         if not candidates:
             # Deliberate revisit of illustrative stock, never a freeze or slow-down.
-            fid=min(pool,key=lambda f:usage.get(f,0)/stock_durations[f]);usage[fid]=0;repeated.append({'section':b['id'],'source':fid});continue
+            eligible=[f for f in pool if f!=last_source] or pool
+            fid=min(eligible,key=lambda f:(revisit_counts.get(f,0),usage.get(f,0)/stock_durations[f]))
+            usage[fid]=0;revisit_counts[fid]=revisit_counts.get(fid,0)+1
+            repeated.append({'section':b['id'],'source':fid});continue
         _,_,fid,available=min(candidates);frames=min(remaining,available,10*FPS)
         if 0<remaining-frames<3*FPS and available>=remaining:frames=remaining
         at=usage.get(fid,0);duration=frames/FPS
         s={'id':f"{b['id']}_shot_{index:03}",'type':'broll','source':fid,'duration':duration,'in':at,'out':at+duration,'fit':'contain','fit_mode':'trim','use_audio':False,'label':('Imágenes de apoyo · no son archivo del caso' if index else b['title']+' | Imágenes de apoyo')}
-        pieces.append((position,s));position+=frames;remaining-=frames;usage[fid]=at+duration;index+=1
+        pieces.append((position,s));position+=frames;remaining-=frames;usage[fid]=at+duration;index+=1;last_source=fid
     assert position==round(b['end']*FPS)
 pieces.sort(key=lambda x:x[0]);cursor=0
 for at,s in pieces:assert at==cursor,(at,cursor,s['id']);cursor+=round(s['duration']*FPS)
