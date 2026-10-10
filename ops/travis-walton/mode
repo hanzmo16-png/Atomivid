@@ -1,2 +1,2 @@
 close-prepare-30
-# All eight expansion voice blocks complete; prepare and fully validate inputs only, without output rendering.
+# Retry input validation after fixing zero-frame splices at exact frame boundaries; no paid calls.

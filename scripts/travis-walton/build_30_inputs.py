@@ -104,18 +104,22 @@ new_words.sort(key=lambda w:w['start']);assert all(a['start']<=z['start'] for a,
 word_path=MEDIA/'30-words-30min.json';word_path.write_text(json.dumps(new_words,ensure_ascii=False,indent=2)+'\n');add_file('asset_30',word_path,'subtitles_words')
 
 # Split original visuals only at the insertion boundaries, preserving source speed.
-pieces=[];cursor=0
+pieces=[];cursor_frames=0
 for shot in original['timeline']:
-    start=cursor;end=start+round(shot['duration']*FPS)/FPS;cursor=end
-    cuts=[start]+[b['oldAt'] for b in insertions if start<b['oldAt']<end]+[end]
-    for k,(a,z) in enumerate(zip(cuts,cuts[1:])):
-        s=copy.deepcopy(shot);s['duration']=round((z-a)*FPS)/FPS
+    start_frame=cursor_frames;end_frame=start_frame+round(shot['duration']*FPS);cursor_frames=end_frame
+    # Compare frame integers: floating accumulation at an exact boundary used to
+    # create a phantom zero-frame splice (for example 397.079999999 vs 397.08).
+    cuts=[start_frame]+[round(b['oldAt']*FPS) for b in insertions if start_frame<round(b['oldAt']*FPS)<end_frame]+[end_frame]
+    for k,(a_frame,z_frame) in enumerate(zip(cuts,cuts[1:])):
+        assert z_frame>a_frame
+        a=a_frame/FPS;z=z_frame/FPS;start=start_frame/FPS;end=end_frame/FPS
+        s=copy.deepcopy(shot);s['duration']=(z_frame-a_frame)/FPS
         if len(cuts)>2:s['id']+='_splice_'+str(k)
-        if s['type'] in ('broll','animation','avatar') and (a!=start or z!=end):
+        if s['type'] in ('broll','animation','avatar') and (a_frame!=start_frame or z_frame!=end_frame):
             speed=(shot['out']-shot.get('in',0))/shot['duration'] if shot.get('insuficiente',{}).get('modo')=='ajustar_velocidad' else 1
             s['in']=shot.get('in',0)+(a-start)*speed;s['out']=s['in']+s['duration']*speed
-        shift=sum(b['duration'] for b in insertions if a>=b['oldAt']-.00001)
-        pieces.append((round((a+shift)*FPS),s))
+        shift_frames=sum(b['frames'] for b in insertions if a_frame>=round(b['oldAt']*FPS))
+        pieces.append((a_frame+shift_frames,s))
 
 for i,s in enumerate(stocks):
     fid='stock_'+s['sourceId'].split('-')[-1];path=MEDIA/(s['sourceId']+'.mp4');s['fid']=fid;s['decodedDuration']=seconds(path)
