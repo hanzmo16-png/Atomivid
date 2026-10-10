@@ -15,7 +15,7 @@ concurrency:
 jobs:
   measure:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
     steps:
@@ -32,7 +32,7 @@ jobs:
           if [ "$(head -1 ops/review-video.mode | tr -d '[:space:]')" != "podcast-editor-app" ]; then sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg imagemagick > /dev/null; fi
       - name: Browser for the app check
         run: |
-          if [ "$(head -1 ops/review-video.mode | tr -d '[:space:]')" = "podcast-editor-app" ]; then npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium; fi
+          case "$(head -1 ops/review-video.mode | tr -d '[:space:]')" in podcast-editor-app|platform-owner) npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium;; esac
       - name: Run selected review or synthetic publication
         run: |
           MODE="$(head -1 ops/review-video.mode | tr -d '[:space:]')"
@@ -48,6 +48,9 @@ jobs:
             npx tsx scripts/review/publish-editor-fixture.ts;
           elif [ "$MODE" = "podcast-editor-live" ]; then npx tsx scripts/review/podcast-editor-live.ts;
           elif [ "$MODE" = "platform-state" ]; then npx tsx scripts/review/platform-state.ts;
+          elif [ "$MODE" = "platform-owner" ]; then
+            grep -q '^owner_session=yes$' ops/review-video.mode && export OWNER_SESSION_AUTHORIZED=yes
+            npx tsx scripts/review/platform-owner-e2e.ts;
           elif [ "$MODE" = "storage-size-probe" ]; then PROBE_MIB="$(sed -n "s/^mib=//p" ops/review-video.mode | head -1)" npx tsx scripts/review/storage-size-probe.ts;
           elif [ "$MODE" = "podcast-editor-consume" ]; then
             # App modules from the PR head commit given on line "app_commit=<sha>".
