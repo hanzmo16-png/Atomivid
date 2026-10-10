@@ -95,3 +95,43 @@ export async function claimScheduled(service: SupabaseClient, episode: PodcastEp
     .eq("id", episode.id).eq("video_status", "scheduled").eq("video_attempts", episode.video_attempts ?? 0).select("id");
   return data?.length === 1 ? { claimed: true, token } : { claimed: false };
 }
+
+/** Constant-time comparison of the scheduler tick token with the one stored in the service-only table. */
+export async function authorizedSchedulerTick(service: SupabaseClient, presented: string | null): Promise<boolean> {
+  if (!presented || presented.length < 48) return false;
+  const { data } = await service.from("pilot_scheduler_secret").select("token").eq("id", 1).maybeSingle();
+  const expected = (data as { token?: string } | null)?.token;
+  if (!expected || expected.length !== presented.length) return false;
+  const { timingSafeEqual } = await import("node:crypto");
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(presented));
+}
+
+/**
+ * One scheduler tick (called by the database every minute while something is due): claims each due production
+ * and dispatches the worker. A failed dispatch puts it back to "scheduled" (the claim counted an attempt, so a
+ * dispatch that keeps failing ends blocked by the attempt limit); a budget/attempt refusal blocks it with ONE notice.
+ */
+export async function runSchedulerTick(service: SupabaseClient, columns: string, dispatch: (episodeId: string) => Promise<boolean>, env: Record<string, string | undefined> = process.env) {
+  const due = await dueScheduled(service, columns, new Date(), 3);
+  const out = { due: due.length, dispatched: 0, blocked: 0, requeued: 0 };
+  for (const ep of due) {
+    const claim = await claimScheduled(service, ep);
+    if (claim.claimed) {
+      if (await dispatch(ep.id)) { out.dispatched++; continue; }
+      await service.from("podcast_episodes").update({ video_status: "scheduled", scheduled_at: new Date().toISOString(), video_stage: null, updated_at: new Date().toISOString() })
+        .eq("id", ep.id).eq("video_run_token", claim.token).eq("video_status", "queued");
+      out.requeued++;
+    } else if (claim.blocked) {
+      out.blocked++;
+      const notice = await recordNotice(service, ep, claim.blocked.kind, `scheduled-${ep.video_requested_at ?? ep.id}`, claim.blocked.message);
+      if (notice) await deliverGithubNotice(service, notice, env);
+    }
+  }
+  return out;
+}
+
+/** The app's GitHub credentials (already used to dispatch the worker) as the notice channel config. */
+export function appNoticeEnv(env: Record<string, string | undefined> = process.env): Record<string, string | undefined> {
+  const repo = env.GH_WORKER_REPO;
+  return { GITHUB_TOKEN: env.GH_WORKER_TOKEN, GITHUB_REPOSITORY: repo, NOTICE_MENTION: env.NOTICE_MENTION || repo?.split("/")[0], APP_URL: env.APP_URL };
+}
