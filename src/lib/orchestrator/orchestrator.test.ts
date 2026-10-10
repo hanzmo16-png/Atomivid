@@ -245,3 +245,12 @@ test("cuenta de servicio de Google: JWT RS256 firmado, token en caché hasta cas
   assert.ok(createVerify("RSA-SHA256").update(`${h}.${p}`).verify(publicKey, Buffer.from(sig, "base64url")));
   assert.equal(JSON.parse(Buffer.from(p, "base64url").toString()).scope, "https://www.googleapis.com/auth/drive");
 });
+
+test("modo humo: una sola llamada, tope USD 0.05, sin almacén durable, mismas compuertas de aprobación", () => {
+  const base = { ORCHESTRATOR_ENABLED: "true", ORCH_ALLOW_PAID_CALLS: "true", OPENAI_API_KEY: "sk-x" };
+  const off = loadConfig(base, { durableStore: false, smoke: true });
+  assert.equal(off.paidCalls, false, "still needs the approval phrase");
+  const on = loadConfig({ ...base, ORCH_PAID_APPROVAL: "GASTAR-HASTA-5USD" }, { durableStore: false, smoke: true });
+  assert.deepEqual([on.paidCalls, on.budgetCapUsd, on.maxCallsPerRun], [true, 0.05, 1]);
+  assert.equal(loadConfig({ ...base, ORCH_PAID_APPROVAL: "GASTAR-HASTA-5USD" }, { durableStore: false }).paidCalls, false, "the full loop still needs a durable store");
+});

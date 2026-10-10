@@ -19,7 +19,23 @@ async function main() {
   const { SimulatedAuditor } = await import("../../src/lib/orchestrator/simulated-auditor");
   const { OpenAIAuditor } = await import("../../src/lib/orchestrator/openai-auditor");
   const { DriveHandoffExecutor, ClaudeCodeActionExecutor, GitHubIssueNotifier, NoopNotifier } = await import("../../src/lib/orchestrator/executors");
-  const mode = process.env.ORCH_MODE === "live" ? "live" : "demo";
+  const mode = process.env.ORCH_MODE === "live" ? "live" : process.env.ORCH_MODE === "smoke" ? "smoke" : "demo";
+
+  if (mode === "smoke") {
+    // First real OpenAI call, if approved: ONE audit of a fixed, harmless delivery; cap USD 0.05; no Drive.
+    const cfg = { ...loadConfig(process.env, { durableStore: false, smoke: true }), maxHttpRetries: 0 };
+    log("CONFIG", { mode, paidCalls: cfg.paidCalls, paidBlockedReason: cfg.paidBlockedReason, model: cfg.model, capUsd: cfg.budgetCapUsd, maxCalls: cfg.maxCallsPerRun });
+    if (!cfg.paidCalls) { log("SMOKE_SKIPPED", { reason: cfg.paidBlockedReason }); return; }
+    const ch = new MemoryChannel();
+    const id = "T-20261011-0000-hans-01";
+    ch.add("solicitudes", `${id}__para-claude__smoke.md`, `id: ${id}\nde: hans\npara: claude\norquestar: si\npide: escribe la palabra «listo» y una línea de verificación\ncriterio_de_hecho: aparece «listo» y una línea «verificación:»`);
+    ch.add("entregas", `${id}__claude__hecha.md`, "listo\nverificación: la palabra pedida aparece en la primera línea.");
+    const store = new JsonFileStore(path.resolve(".orchestrator/smoke-state.json"));
+    const r = await runCycle({ channel: ch, store, auditor: new OpenAIAuditor(cfg, process.env.OPENAI_API_KEY!), cfg, executor: new DriveHandoffExecutor(), notifier: new NoopNotifier() });
+    const st = await store.read();
+    log("SMOKE", { outcome: r.processed.map((p) => p.outcome), errors: r.errors, calls: r.calls, spentUsd: r.spentUsd, ledger: st.ledger.map((e) => ({ state: e.state, reservedUsd: e.reservedUsd, actualUsd: e.actualUsd })), files: ch.files.map((f) => f.name) });
+    return;
+  }
 
   if (mode === "demo") {
     const { simulatedClaudeTurn } = await import("../../src/lib/orchestrator/simulated-claude");

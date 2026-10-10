@@ -47,16 +47,18 @@ export const MODELS: Record<string, { in: number; out: number; reasoning: boolea
   "gpt-4.1-nano": { in: 0.1, out: 0.4, reasoning: false, shutdown: "2026-10-23" },
 };
 export const PILOT_BUDGET_USD = 5;
+/** First real call ("smoke"): one audit of a fixed delivery, hard cap USD 0.05, no Drive, no durable store needed. */
+export const SMOKE_CAP_USD = 0.05;
 
 const num = (v: string | undefined, d: number) => (v !== undefined && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : d);
 
-export function loadConfig(env: Record<string, string | undefined> = process.env, opts: { durableStore: boolean; now?: Date } = { durableStore: false }): OrchestratorConfig {
+export function loadConfig(env: Record<string, string | undefined> = process.env, opts: { durableStore: boolean; now?: Date; smoke?: boolean } = { durableStore: false }): OrchestratorConfig {
   const model = env.ORCH_OPENAI_MODEL?.trim() || DEFAULT_MODEL;
   const known = MODELS[model];
   const priceInputPerM = num(env.ORCH_PRICE_INPUT_PER_M, known?.in ?? NaN);
   const priceOutputPerM = num(env.ORCH_PRICE_OUTPUT_PER_M, known?.out ?? NaN);
   // The pilot cap can only be lowered by configuration, never raised above Hans's authorisation.
-  const budgetCapUsd = Math.min(PILOT_BUDGET_USD, Math.max(0, num(env.ORCH_BUDGET_CAP_USD, PILOT_BUDGET_USD)));
+  const budgetCapUsd = Math.min(opts.smoke ? SMOKE_CAP_USD : PILOT_BUDGET_USD, Math.max(0, num(env.ORCH_BUDGET_CAP_USD, PILOT_BUDGET_USD)));
   const cfg: OrchestratorConfig = {
     enabled: env.ORCHESTRATOR_ENABLED === "true",
     paidCalls: false,
@@ -71,17 +73,18 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     budgetCapUsd,
     maxCallUsd: Math.min(0.05, Math.max(0.001, num(env.ORCH_MAX_CALL_USD, 0.01))),
     maxCallsPerDay: Math.min(200, Math.max(1, num(env.ORCH_MAX_CALLS_PER_DAY, 40))),
-    maxCallsPerRun: Math.min(20, Math.max(1, num(env.ORCH_MAX_CALLS_PER_RUN, 5))),
+    maxCallsPerRun: opts.smoke ? 1 : Math.min(20, Math.max(1, num(env.ORCH_MAX_CALLS_PER_RUN, 5))),
     maxAttempts: 3,
     maxHttpRetries: 2,
   };
-  const approval = `GASTAR-HASTA-${budgetCapUsd}USD`;
+  // The approval phrase names the pilot cap; a smoke run is bounded far below it (one call, USD 0.05).
+  const approval = `GASTAR-HASTA-${PILOT_BUDGET_USD}USD`;
   if (env.ORCH_ALLOW_PAID_CALLS !== "true") cfg.paidBlockedReason = "ORCH_ALLOW_PAID_CALLS no está activado";
   else if (env.ORCH_PAID_APPROVAL !== approval) cfg.paidBlockedReason = `falta la aprobación explícita de Hans (${approval}) para esta ejecución`;
   else if (!env.OPENAI_API_KEY?.trim()) cfg.paidBlockedReason = "OPENAI_API_KEY no está configurada";
   else if (known?.shutdown && (opts.now ?? new Date()).toISOString().slice(0, 10) >= known.shutdown) cfg.paidBlockedReason = `${model} se apagó en la API el ${known.shutdown}; usa ${DEFAULT_MODEL}`;
   else if (!Number.isFinite(priceInputPerM) || !Number.isFinite(priceOutputPerM)) cfg.paidBlockedReason = `faltan los precios de ${model} (ORCH_PRICE_INPUT_PER_M / ORCH_PRICE_OUTPUT_PER_M)`;
-  else if (!opts.durableStore) cfg.paidBlockedReason = "el gasto necesita un almacén durable (Supabase del orquestador) para que el presupuesto persista entre ejecuciones";
+  else if (!opts.durableStore && !opts.smoke) cfg.paidBlockedReason = "el gasto necesita un almacén durable (Supabase del orquestador) para que el presupuesto persista entre ejecuciones";
   else cfg.paidCalls = true;
   return cfg;
 }

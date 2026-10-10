@@ -98,6 +98,16 @@ Pasos de Hans para la opción recomendada (una vez, sin pegar claves en chats):
 - **Sin ese token no corre.** No hay respaldo con la API de pago.
 - **Alternativa sin costo:** traspaso por Drive. Claude atiende `Solicitudes/` cuando Hans abre una sesión, o mediante una rutina que Hans programe en claude.ai.
 
+## Primera llamada real (modo humo)
+
+El workflow `orchestrator.yml` en modo `smoke` hace una sola auditoría real de una entrega fija e inocua:
+
+- tope de USD 0.05;
+- 1 llamada, sin reintentos;
+- sin Drive y sin almacén durable.
+
+Usa las mismas compuertas: `ORCH_ALLOW_PAID_CALLS=true` y la frase `GASTAR-HASTA-5USD` al lanzarlo. El costo esperado es de unos USD 0.001, y el peor caso reservado ronda USD 0.003.
+
 ## Qué falta para activarlo (acciones de Hans, gratuitas)
 
 1. **Google:** seguir los dos pasos de OAuth de usuario descritos arriba. Así quedan los secretos `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` y `GOOGLE_OAUTH_REFRESH_TOKEN` en GitHub.

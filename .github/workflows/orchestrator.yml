@@ -6,6 +6,12 @@ name: Orchestrator (manual, gated)
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: "live = un ciclo sobre Drive; smoke = UNA auditoría real de una entrega fija (tope USD 0.05, sin Drive)"
+        required: true
+        default: live
+        type: choice
+        options: [live, smoke]
       paid_approval:
         description: "Para permitir llamadas pagadas escribe exactamente GASTAR-HASTA-5USD (vacío = USD 0)"
         required: false
@@ -32,7 +38,7 @@ jobs:
       - run: npm ci
       - run: npx tsx scripts/orchestrator/run.ts
         env:
-          ORCH_MODE: live
+          ORCH_MODE: ${{ inputs.mode }}
           ORCHESTRATOR_ENABLED: ${{ vars.ORCHESTRATOR_ENABLED }}
           ORCH_ALLOW_PAID_CALLS: ${{ vars.ORCH_ALLOW_PAID_CALLS }}
           ORCH_PAID_APPROVAL: ${{ inputs.paid_approval }}
