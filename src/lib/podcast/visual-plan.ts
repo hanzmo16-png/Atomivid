@@ -2,9 +2,10 @@
  * Podcast → video visual plan (pure, no I/O, no paid calls).
  *  - Scenes follow the narration: cut at sentence ends close to `targetSeconds` (8–18 s), using the word timings of
  *    the paid narration when available, or an even split otherwise.
- *  - Each scene gets stock searches built from its own words (stopwords removed), ranked by how often each word
- *    recurs in the whole episode (its topic; title words count extra), so a scene about "the third and fourth kind"
- *    searches the episode's subject rather than a one-off abstract word; the title is the last fallback.
+ *  - Each scene gets stock searches anchored to the episode's subject (its most recurrent word in the script): first
+ *    the scene's own leading term together with that anchor, then the anchor alone, then the title. A keyword alone
+ *    drifts on a stock site ("encuentros" returns street meetings), the anchor keeps every picture on topic while the
+ *    scene term gives variety.
  */
 import type { WordTiming } from "@/lib/providers/types";
 
@@ -44,16 +45,24 @@ export function sceneQuery(text: string, title: string, topic?: Topic): string {
   return [...terms, ...salient(title, 2)].slice(0, 3).join(" ") || title.slice(0, 40);
 }
 
-function withQueries(scene: Omit<Scene, "query" | "queries">, title: string, topic: Topic): Scene {
+/** The episode's subject: its most recurrent content word in the script (5+ letters; ties → longer). */
+export function anchorOf(script: string): string | null {
+  const t = topicOf(script, "");
+  const best = [...t.entries()].filter(([w]) => w.length >= 5).sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)[0];
+  return best && best[1] >= 2 ? best[0] : null;
+}
+
+function withQueries(scene: Omit<Scene, "query" | "queries">, title: string, topic: Topic, anchor: string | null): Scene {
   const text = scene.text || title;
   const s = { ...scene, query: sceneQuery(text, title, topic) };
-  return { ...s, queries: sceneQueries({ text, query: s.query }, title, topic) };
+  return { ...s, queries: sceneQueries({ text, query: s.query }, title, topic, anchor) };
 }
 
 /** Scenes from word timings (preferred): cut after a sentence end once >= min, or forcibly at max. */
 export function scenesFromWords(words: WordTiming[], durationSeconds: number, title: string, opts: { min?: number; target?: number; max?: number } = {}): Scene[] {
   const min = opts.min ?? 8, target = opts.target ?? 12, max = opts.max ?? 18;
-  const topic = topicOf(words.map((w) => w.text).join(" "), title);
+  const spoken = words.map((w) => w.text).join(" ");
+  const topic = topicOf(spoken, title), anchor = anchorOf(spoken);
   const scenes: Omit<Scene, "query" | "queries">[] = [];
   let start = 0, bucket: string[] = [];
   const push = (end: number) => {
@@ -73,7 +82,7 @@ export function scenesFromWords(words: WordTiming[], durationSeconds: number, ti
     } else push(durationSeconds);
   }
   scenes[scenes.length - 1].end = durationSeconds;
-  return scenes.filter((s) => s.end - s.start > 0.05).map((s, i) => withQueries({ ...s, index: i }, title, topic));
+  return scenes.filter((s) => s.end - s.start > 0.05).map((s, i) => withQueries({ ...s, index: i }, title, topic, anchor));
 }
 
 /** Scene lengths: ~12 s for short episodes; ~15 s past 10 minutes (fewer stock searches over a 30-minute episode). */
@@ -86,10 +95,10 @@ export function evenScenes(durationSeconds: number, title: string, script: strin
   const n = Math.max(1, Math.round(durationSeconds / target));
   const len = durationSeconds / n;
   const sentences = (script ?? "").split(/(?<=[.!?])\s+/).filter(Boolean);
-  const topic = topicOf(script ?? "", title);
+  const topic = topicOf(script ?? "", title), anchor = anchorOf(script ?? "");
   return Array.from({ length: n }, (_, i) => {
     const text = sentences.length ? sentences.slice(Math.floor((i * sentences.length) / n), Math.floor(((i + 1) * sentences.length) / n)).join(" ") : "";
-    return withQueries({ index: i, start: i * len, end: i === n - 1 ? durationSeconds : (i + 1) * len, text }, title, topic);
+    return withQueries({ index: i, start: i * len, end: i === n - 1 ? durationSeconds : (i + 1) * len, text }, title, topic, anchor);
   });
 }
 
@@ -110,15 +119,17 @@ export function wordsJson(words: WordTiming[], durationSeconds: number) {
   return { words: out };
 }
 
-/** Searches for one scene, most specific first; the episode title is the coherent fallback. Deduplicated. */
-export function sceneQueries(scene: Pick<Scene, "text" | "query">, title: string, topic?: Topic): string[] {
+/** Searches for one scene, most specific first; the episode title is the last fallback. Deduplicated. */
+export function sceneQueries(scene: Pick<Scene, "text" | "query">, title: string, topic?: Topic, anchor?: string | null): string[] {
   // Two terms find footage far more often than three on a stock site; each extra search costs rate-limit quota.
-  // With a topic, a second term joins only when it recurs in the episode: a one-off abstract word narrows the search
-  // away from the subject.
+  const titleQuery = salient(title, 2).join(" ") || scene.query;
+  if (anchor) {
+    const lead = salient(scene.text, 3, topic).find((w) => w !== anchor);
+    return [...new Set([lead ? `${lead} ${anchor}` : "", anchor, titleQuery].map((q) => q.trim()).filter(Boolean))];
+  }
+  // Without a recurrent subject (very short text): the scene's own terms, a second one only when it recurs.
   const terms = salient(scene.text, 2, topic).filter((w, i) => i === 0 || !topic || (topic.get(w) ?? 0) >= 2);
-  const out = [terms.join(" "), terms[0] ?? "", salient(title, 2).join(" ") || scene.query]
-    .map((q) => q.trim()).filter(Boolean);
-  return [...new Set(out)];
+  return [...new Set([terms.join(" "), terms[0] ?? "", titleQuery].map((q) => q.trim()).filter(Boolean))];
 }
 
 export type ClipCandidate = { sourceId: string; durationSeconds?: number };
