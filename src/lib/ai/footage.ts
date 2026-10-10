@@ -83,6 +83,55 @@ export function selectLandscapeVideoFile(files: PexelsVideoFile[]): PexelsVideoF
  * selector (src/lib/video/footage-select.ts) es quien decide cuál usar,
  * comparando entre varias consultas y contra lo ya usado en el video.
  */
+/** Longest wait for a Pexels rate-limit window (their hourly quota resets within the hour). */
+const PEXELS_MAX_WAIT_MS = 65 * 60 * 1000;
+
+/**
+ * Pexels search with its documented rate limit honoured: on 429 it waits until X-Ratelimit-Reset (or Retry-After)
+ * and retries, instead of failing a long production after ~200 searches in an hour. Transient 5xx get a short
+ * retry. Identical searches within one process are answered from memory (no repeated quota use).
+ */
+let footageWaitBeat: (() => unknown) | null = null;
+/** Lets a long production keep its heartbeat alive while a search waits for the Pexels rate-limit window. */
+export function setFootageWaitBeat(beat: (() => unknown) | null) { footageWaitBeat = beat; }
+const sleepWithBeat = async (ms: number, sleep: (ms: number) => Promise<void>) => {
+  for (let left = ms; left > 0; left -= 60_000) {
+    await sleep(Math.min(60_000, left));
+    try { await footageWaitBeat?.(); } catch { /* a failed beat never fails the search */ }
+  }
+};
+const pexelsCache = new Map<string, Promise<{ ok: boolean; status: number; body: string }>>();
+export async function pexelsFetch(url: string, apiKey: string, deps: { sleep?: (ms: number) => Promise<void>; now?: () => number; fetchImpl?: typeof fetch } = {}): Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }> {
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const now = deps.now ?? Date.now;
+  const doFetch = deps.fetchImpl ?? fetch;
+  const run = async () => {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const res = await doFetch(url, { headers: { Authorization: apiKey } });
+      if (res.status === 429) {
+        const reset = Number(res.headers.get("x-ratelimit-reset"));
+        const retryAfter = Number(res.headers.get("retry-after"));
+        const waitMs = Number.isFinite(reset) && reset > 0 ? reset * 1000 - now() + 2000 : Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 60_000;
+        if (waitMs > PEXELS_MAX_WAIT_MS) return { ok: false, status: 429, body: "" };
+        console.warn(`[atomivid:footage] límite de Pexels alcanzado; esperando ${Math.ceil(Math.max(waitMs, 1000) / 1000)} s`);
+        await sleepWithBeat(Math.max(waitMs, 1000), sleep);
+        continue;
+      }
+      if (res.status >= 500 && attempt < 3) { await sleep(2000 * (attempt + 1)); continue; }
+      return { ok: res.ok, status: res.status, body: res.ok ? await res.text() : "" };
+    }
+    return { ok: false, status: 429, body: "" };
+  };
+  let pending = deps.fetchImpl ? undefined : pexelsCache.get(url);
+  if (!pending) {
+    pending = run();
+    if (!deps.fetchImpl) pexelsCache.set(url, pending);
+    pending.then((r) => { if (!r.ok) pexelsCache.delete(url); }, () => pexelsCache.delete(url));
+  }
+  const r = await pending;
+  return { ok: r.ok, status: r.status, json: async () => JSON.parse(r.body) };
+}
+
 export async function searchSceneVideos(
   query: string,
   minimumDurationSeconds = 0,
@@ -99,9 +148,7 @@ export async function searchSceneVideos(
     size: "medium",
   });
 
-  const res = await fetch(`https://api.pexels.com/videos/search?${params}`, {
-    headers: { Authorization: PEXELS_API_KEY },
-  });
+  const res = await pexelsFetch(`https://api.pexels.com/videos/search?${params}`, PEXELS_API_KEY);
 
   if (!res.ok) {
     throw new Error(`Pexels Videos respondió ${res.status}`);
@@ -151,9 +198,7 @@ export async function searchScenePhotos(query: string, orientation: FootageOrien
     per_page: "8",
   });
 
-  const res = await fetch(`https://api.pexels.com/v1/search?${params}`, {
-    headers: { Authorization: PEXELS_API_KEY },
-  });
+  const res = await pexelsFetch(`https://api.pexels.com/v1/search?${params}`, PEXELS_API_KEY);
 
   if (!res.ok) {
     throw new Error(`Pexels respondió ${res.status}`);

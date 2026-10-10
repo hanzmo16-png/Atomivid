@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DocumentaryResponseError } from "./json-response";
+import { LONG_FORM_MAX_BEATS } from "./duration-budget";
 
 /** fragments-v1: the writer emits the narrative as independent, numbered
  * fragments (one plan + one object per beat). Each fragment is validated on its
@@ -57,7 +58,7 @@ export function collectFragments<P, B extends { narration: string }>(
     } else if (kind === "beat") {
       const parsed = beatSchema.safeParse(value);
       const index = (value as { index?: unknown }).index;
-      if (!parsed.success || !Number.isInteger(index) || (index as number) < 0 || (index as number) > 9) { next.rejected++; continue; }
+      if (!parsed.success || !Number.isInteger(index) || (index as number) < 0 || (index as number) > LONG_FORM_MAX_BEATS - 1) { next.rejected++; continue; }
       if (next.beats.has(index as number)) continue;
       const key = narrationKey(parsed.data.narration);
       if ([...next.beats.values()].some(b => narrationKey(b.narration) === key)) { next.rejected++; continue; }

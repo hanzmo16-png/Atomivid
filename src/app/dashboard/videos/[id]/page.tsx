@@ -68,7 +68,8 @@ export default async function VideoResultPage({
 
   const videoUrl =
     request.status === "completed" && request.video_path
-      ? await getSignedVideoUrl(request.video_path)
+      // A documentary can be ~0.5 GB: give a slow phone time to watch or download it before the link expires.
+      ? await getSignedVideoUrl(request.video_path, request.mode === "long_form" ? 6 * 3600 : 3600)
       : null;
   // Miniatura de YouTube de Long Form (opcional): solo existe si se pidió al confirmar la producción.
   const plan = data?.long_form_production_plan;

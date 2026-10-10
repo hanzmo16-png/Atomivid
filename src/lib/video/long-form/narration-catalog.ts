@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { EditorialReviewSchema, type EditorialReview } from './editorial';
 import { EditorialEvidenceError } from './editorial-evidence';
 import { locateNormalized } from './text-locate';
+import { LONG_FORM_MAX_BEATS, LONG_FORM_MIN_BEATS } from "./duration-budget";
 
 type Beat = { narration: string };
 export type NarrationExcerpt = { id: string; beatIndex: number; quote: string };
@@ -24,7 +25,7 @@ export function narrationCatalog(beats: Beat[]): NarrationExcerpt[] {
 }
 const ref=z.object({excerptId:z.string().min(1).max(80)}).strict();
 export const ReferencedEditorialReviewSchema=EditorialReviewSchema.extend({
- sections:z.array(EditorialReviewSchema.shape.sections.element.omit({beatIndex:true,quote:true}).extend(ref.shape).strict()).min(5).max(10),
+ sections:z.array(EditorialReviewSchema.shape.sections.element.omit({beatIndex:true,quote:true}).extend(ref.shape).strict()).min(LONG_FORM_MIN_BEATS).max(LONG_FORM_MAX_BEATS),
  firstAnswer:EditorialReviewSchema.shape.firstAnswer.extend({evidence:ref}).strict(),
  ending:EditorialReviewSchema.shape.ending.extend({evidence:ref}).strict(),
  findings:z.array(EditorialReviewSchema.shape.findings.element.extend({evidence:z.array(ref).min(1).max(10)}).strict()).max(16),
@@ -34,7 +35,7 @@ export const ReferencedEditorialReviewSchema=EditorialReviewSchema.extend({
 // supplied passage in the original narration; the text is always derived here.
 const evidenceRef=z.object({excerptId:z.string().max(200).optional(),quote:z.string().max(1600).optional(),beatIndex:z.number().int().optional()});
 export const LenientReferencedReviewSchema=z.object({
- sections:z.array(EditorialReviewSchema.shape.sections.element.omit({beatIndex:true,quote:true}).extend(evidenceRef.shape)).min(5).max(10),
+ sections:z.array(EditorialReviewSchema.shape.sections.element.omit({beatIndex:true,quote:true}).extend(evidenceRef.shape)).min(LONG_FORM_MIN_BEATS).max(LONG_FORM_MAX_BEATS),
  firstAnswer:EditorialReviewSchema.shape.firstAnswer.extend({evidence:evidenceRef}),
  ending:EditorialReviewSchema.shape.ending.extend({evidence:evidenceRef}),
  findings:z.array(EditorialReviewSchema.shape.findings.element.extend({evidence:z.array(evidenceRef).min(1).max(10)})).max(16),

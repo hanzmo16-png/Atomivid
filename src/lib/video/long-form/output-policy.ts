@@ -47,11 +47,14 @@ export const LONG_FORM_OUTPUT_POLICY = {
    */
   policyMaxBytes: 1024 * MiB,
   /**
-   * Límite de Storage demostrado HOY (50 MiB, global del proyecto). Se usa
-   * solo como techo de respaldo cuando Storage rechaza por tamaño y no hay
-   * un valor configurado (LONG_FORM_STORAGE_MAX_OBJECT_BYTES).
+   * Límite de Storage demostrado (global del proyecto): sonda del 2026-10-10 (review-video runs 38022758327 y
+   * 38022889489) — 500 MiB aceptado, 600 MiB rechazado con "The object exceeded the maximum allowed size".
+   * Techo por defecto cuando no hay un valor configurado (LONG_FORM_STORAGE_MAX_OBJECT_BYTES): se usa desde el
+   * preflight y para fijar el bitrate del render, de modo que un documental de 30 min nunca se rechace.
    */
-  demonstratedStorageMaxBytes: 50 * MiB,
+  demonstratedStorageMaxBytes: 500 * MiB,
+  /** Límite anterior demostrado (50 MiB, valor por defecto de Supabase): respaldo si Storage rechaza algo que ya cabía en el demostrado. */
+  historicalStorageFloorBytes: 50 * MiB,
   /** Margen bajo el techo para el ajuste de tamaño (contenedor, VBV, desviación del 2-pass). */
   fitSafetyRatio: 0.94,
   /** Por debajo de este bitrate de video a 1080p la calidad ya no es entregable: se diagnostica, no se degrada más. */
@@ -59,6 +62,22 @@ export const LONG_FORM_OUTPUT_POLICY = {
   /** Audio en el archivo ajustado de tamaño. */
   fitAudioKbps: 128,
 } as const;
+
+/**
+ * Tope de bitrate de video para RENDERIZAR `durationSeconds` sin superar `ceilingBytes` (con el margen del ajuste),
+ * nunca por encima del tope del perfil ni por debajo del mínimo entregable. A 30 min con el techo de 500 MiB queda
+ * en ~1.9 Mbps: el archivo cabe sin re-codificar en 2 pasadas.
+ */
+export function renderMaxVideoKbps(durationSeconds: number, ceilingBytes: number): number {
+  const totalKbps = (ceilingBytes * LONG_FORM_OUTPUT_POLICY.fitSafetyRatio * 8) / Math.max(1, durationSeconds) / 1000;
+  const fit = Math.floor(totalKbps - LONG_FORM_ENCODING_PROFILE.audioKbps);
+  return Math.max(LONG_FORM_OUTPUT_POLICY.minFitVideoKbps, Math.min(LONG_FORM_ENCODING_PROFILE.maxVideoKbps, fit));
+}
+
+/** Techo de Storage a usar: el configurado, o el demostrado. */
+export function storageCeilingBytes(env: Record<string, string | undefined> = process.env): number {
+  return configuredStorageMaxBytes(env) ?? LONG_FORM_OUTPUT_POLICY.demonstratedStorageMaxBytes;
+}
 
 /** Techo configurado explícitamente para el Storage real (bytes), o null si no hay. */
 export function configuredStorageMaxBytes(env: Record<string, string | undefined> = process.env): number | null {

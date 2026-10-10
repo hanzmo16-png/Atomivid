@@ -1,0 +1,59 @@
+name: Podcast video (in-app production)
+# Dispatched by the app (POST /api/podcast/[id]/video or a long narration) with ONLY the episode id and the job
+# kind. Narration goes through the same gated, resumable code as the web route (paid chunks are never paid twice);
+# the video is rendered by the editor v3 engine on this runner and stored in the private "videos" bucket.
+# The external editor exchange (bucket podcast-editor, Grok's account) is not used here.
+on:
+  repository_dispatch:
+    types: [podcast-video]
+  workflow_dispatch:
+    inputs:
+      episode_id:
+        description: "podcast_episodes.id"
+        required: true
+      kind:
+        description: "video | narration"
+        required: true
+        default: video
+permissions:
+  contents: read
+concurrency:
+  group: podcast-${{ github.event.client_payload.episodeId || inputs.episode_id }}
+  cancel-in-progress: false
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core > /dev/null
+      - name: Produce
+        timeout-minutes: 95
+        run: npx tsx scripts/podcast-video-worker.ts
+        env:
+          ATOMIVID_RUNTIME: production
+          EPISODE_ID: ${{ github.event.client_payload.episodeId || inputs.episode_id }}
+          JOB_KIND: ${{ github.event.client_payload.kind || inputs.kind }}
+          FFMPEG_BIN: ffmpeg
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          # Same allocation rate as the production app and the render worker.
+          PRICING_ELEVENLABS_USD_PER_1K_CHARS: '0.2'
+      - name: Mark failed if the step died
+        if: failure() || cancelled()
+        run: npx tsx scripts/podcast-video-mark-failed.ts
+        env:
+          EPISODE_ID: ${{ github.event.client_payload.episodeId || inputs.episode_id }}
+          JOB_KIND: ${{ github.event.client_payload.kind || inputs.kind }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

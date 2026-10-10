@@ -33,12 +33,14 @@ jobs:
   render:
     runs-on: ubuntu-latest
     # Reel/Avatar: el paso de render tiene 12 minutos y el job deja margen
-    # para la limpieza. Long Form (documental 3-15 min, 16:9): evidencia
+    # para la limpieza. Long Form (documental 3-30 min, 16:9): evidencia
     # real de VIDEO #001 (~11 min de video) = 32 min solo en el paso de
-    # producción — 120 min de paso cubren 15 min de documental con margen.
+    # producción; 30 min de documental ≈ 90 min + masterizado/subida, más
+    # posibles esperas por límite de búsquedas de stock. 300 min de paso
+    # dejan margen dentro del máximo de 360 min de un runner alojado.
     # Un timeout del job entero no ejecutaría la limpieza, por eso el job
     # siempre deja ~15 min más que el paso.
-    timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 135 || 18 }}
+    timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 330 || 18 }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -69,7 +71,7 @@ jobs:
           fi
 
       - name: Renderizar video
-        timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 120 || 12 }}
+        timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 300 || 12 }}
         run: npx tsx scripts/render-worker.ts
         env:
           ATOMIVID_RUNTIME: production

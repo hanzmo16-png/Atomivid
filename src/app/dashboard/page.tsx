@@ -65,7 +65,7 @@ export default async function DashboardPage({
     (r) => r.status === "completed" && r.video_path,
   );
   const signedUrls = await Promise.all(
-    completedRequests.map((r) => getSignedVideoUrl(r.video_path!)),
+    completedRequests.map((r) => getSignedVideoUrl(r.video_path!, r.mode === "long_form" ? 6 * 3600 : 3600)),
   );
   const videoUrlByPath = new Map(
     completedRequests.map((r, i) => [r.video_path!, signedUrls[i]]),

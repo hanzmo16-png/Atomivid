@@ -7,7 +7,7 @@ import { CitationRepairSchema, canonicalizeEditorialCitations, invalidEditorialC
  * Requires retrieved excerpts or an externally prepared research pack. One shared
  * rewrite budget covers duration and editorial defects; no audiovisual work here.
  */
-import { CreativeDirectionPromptSchema, CreativeDirectionSchema, creativeDirectionIssues, CREATIVE_WRITER_RULES, CREATIVE_REVIEWER_RULES, narrativeTiming, type CreativeHistoryEntry } from "./creative-direction";
+import { CreativeDirectionPromptSchema, LegacyCreativeDirectionPromptSchema, CreativeDirectionSchema, creativeDirectionIssues, CREATIVE_WRITER_RULES, CREATIVE_REVIEWER_RULES, narrativeTiming, type CreativeHistoryEntry } from "./creative-direction";
 import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
 import { documentaryOutputBudget } from "./script-output-budget";
 import Anthropic from "@anthropic-ai/sdk";
@@ -20,8 +20,8 @@ import { MissingEnvVarError } from "@/lib/env-errors";
 import { assertOriginalHook, usesBannedOpener } from "./originality";
 import { VISUAL_BEAT_CLASSES } from "./visual-intents";
 import { BEAT_TYPES, type LongFormClaim, type LongFormMode, type LongFormSource, type NarrativeBeat } from "./types";
-import { countWords, evaluateNarrationDuration, narrationWordBudget, type DurationEvaluation } from "./duration-budget";
-import { StoryPlanSchema, EditorialReviewSchema, EDITORIAL_VERSION, EDITORIAL_WRITER_RULES, EDITORIAL_REVIEWER_SYSTEM,
+import { countWords, evaluateNarrationDuration, narrationWordBudget, type DurationEvaluation, LONG_FORM_MAX_BEATS, LONG_FORM_MIN_BEATS } from "./duration-budget";
+import { StoryPlanSchema, LegacyStoryPlanSchema, EditorialReviewSchema, EDITORIAL_VERSION, EDITORIAL_WRITER_RULES, EDITORIAL_REVIEWER_SYSTEM,
   validateStoryPlan, validateEditorialReview, editorialBlockers, editorialScriptHash, EditorialQualityError,
   type EditorialReport, type EditorialReview } from "./editorial";
 
@@ -163,15 +163,21 @@ export const DocumentaryScriptSchema = z.object({
   title: z.string(),
   workingTitleOptions: z.array(z.string()).min(1).max(3),
   hook: z.string(),
-  beats: z.array(BeatSchema).min(5).max(10),
+  beats: z.array(BeatSchema).min(LONG_FORM_MIN_BEATS).max(LONG_FORM_MAX_BEATS),
 });
 
 // Narration and its evidence are authored/reviewed before any per-beat visual plan.
 export const DocumentaryNarrativeSchema = DocumentaryScriptSchema.extend({
-  beats: z.array(BeatSchema.omit({ visuals: true })).min(5).max(10),
+  beats: z.array(BeatSchema.omit({ visuals: true })).min(LONG_FORM_MIN_BEATS).max(LONG_FORM_MAX_BEATS),
 });
-// Preserve the exact generation contract/fingerprint so paid drafts replay free.
-export const DocumentaryNarrativePromptSchema = DocumentaryNarrativeSchema.extend({ creativeDirection: CreativeDirectionPromptSchema });
+// Preserve the exact generation contract/fingerprint so paid drafts replay free. This legacy whole-document
+// contract keeps its original 5–10 beats (it is only replayed for saved responses); new scripts, including 30-min
+// ones with up to LONG_FORM_MAX_BEATS beats, are written through the fragment contract and validated above.
+export const DocumentaryNarrativePromptSchema = DocumentaryNarrativeSchema.extend({
+  beats: z.array(BeatSchema.omit({ visuals: true })).min(5).max(10),
+  storyPlan: LegacyStoryPlanSchema,
+  creativeDirection: LegacyCreativeDirectionPromptSchema,
+});
 const BeatVisualsSchema = z.object({ visuals: z.array(VisualSchema).min(2).max(12) });
 const ReferencedVisualsSchema=z.object({visuals:z.array(VisualSchema.omit({quote:true}).extend({excerptId:z.string().min(1).max(80)}).strict()).min(2).max(12)}).strict();
 // Accept stray keys; the excerptId (or a locatable passage) anchors each scene (Product/CinematicLenientVisualsSchema).
@@ -211,8 +217,8 @@ const CinematicLenientVisualsSchema = z.object({ visuals: z.array(tolerant(Visua
 const ProductParseVisualsSchema = z.object({ visuals: z.array(ProductVisualSchema).min(1).max(12) });
 // fragments-v1 writer contract: one plan fragment, one fragment per beat.
 export const PlanFragmentSchema = DocumentaryNarrativeSchema.omit({ beats: true }).extend({ fragment: z.literal("plan") });
-const PlanFragmentPromptSchema = DocumentaryNarrativePromptSchema.omit({ beats: true }).extend({ fragment: z.literal("plan") });
-export const BeatFragmentSchema = BeatSchema.omit({ visuals: true }).extend({ fragment: z.literal("beat"), index: z.number().int().min(0).max(9) });
+const PlanFragmentPromptSchema = DocumentaryNarrativeSchema.extend({ creativeDirection: CreativeDirectionPromptSchema }).omit({ beats: true }).extend({ fragment: z.literal("plan") });
+export const BeatFragmentSchema = BeatSchema.omit({ visuals: true }).extend({ fragment: z.literal("beat"), index: z.number().int().min(0).max(LONG_FORM_MAX_BEATS - 1) });
 type WriterMessage = { stop_reason: string | null; content: Array<{ type: string; text?: string }>; usage?: { input_tokens: number; output_tokens: number } };
 
 export type DocumentaryScript = z.infer<typeof DocumentaryScriptSchema>;
@@ -374,7 +380,8 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
   const review: EditorialParse = input.review ?? (async (args) => {
     const params = {
       model: SCRIPT_MODEL,
-      max_tokens: 6000,
+      // One section per beat plus findings: 6000 tokens covered 10 beats; scale with the beat count (30 min = 20 beats).
+      max_tokens: Math.max(6000, 600 * targetBeats),
       system: jsonResponseSystem(args.system, input.referenceContract ? ReferencedEditorialReviewSchema : EditorialReviewSchema),
       messages: [{ role: "user" as const, content: args.prompt }],
       ...(SCRIPT_MODEL === "claude-sonnet-5" ? { output_config: { effort: "low" as const } } : {}),

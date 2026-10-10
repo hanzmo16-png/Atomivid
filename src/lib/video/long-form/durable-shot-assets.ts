@@ -83,7 +83,9 @@ export interface ShotAssetStore {
   objectPathFor(shotId: string, kind: ShotAssetKind, extension: string): string;
 }
 
-const SIGNED_URL_TTL_SECONDS = 60 * 60;
+// Shots are signed when they execute and fetched by Remotion during the final render. A 30-min documentary runs
+// hundreds of shots plus a long render inside one job (up to ~5 h), so the link must outlive the whole job.
+const SIGNED_URL_TTL_SECONDS = 8 * 60 * 60;
 
 export function supabaseShotAssetStore(supabase: SupabaseClient, requestId: string, bucket = "videos"): ShotAssetStore {
   const recordPath = (shotId: string, kind: ShotAssetKind) => `${requestId}/state/shots/${shotId}.${kind}.json`;

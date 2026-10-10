@@ -8,7 +8,7 @@ import { enqueueScriptJob, retryScriptJob } from "@/lib/video/long-form/script-j
 import { dispatchScriptJob } from "@/lib/video/long-form/script-job-dispatch";
 
 const MIN_DURATION_MINUTES = 3;
-const MAX_DURATION_MINUTES = 15;
+const MAX_DURATION_MINUTES = 30;
 
 /**
  * QA real (2026-09-25, "duration_seconds CHECK CONSTRAINT + FORM STATE
