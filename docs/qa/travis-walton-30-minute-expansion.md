@@ -1,5 +1,38 @@
 # Thirty-minute expansion — preparation checkpoint
 
+## 2026-10-10 narration continuation
+
+The daily call window was checked after the Cancun reset: 0 used of 14;
+provider and global policies were not changed. Run 38048048582 on commit
+e9328977cd63c27439633695818cd5a777c1fdf8 completed all eight expansion blocks,
+reusing x01 and x02. They total 1,090.733 seconds before pacing.
+The ledger has 14 COMMITTED voice operations, no pending or uncertain voice
+operations, and USD 5.5715 total committed voice cost. The eight new blocks
+cost USD 3.1291, within the authorized USD 5.58 total / USD 3.13 additional.
+Encrypted narration evidence is under that run ID in travis-sealed-out.
+
+Run 38048310659 assembled real media successfully, then caught a zero-frame
+splice caused by floating-point accumulation at an existing shot boundary.
+The preparation code now compares integer frame positions. A regression check
+against every boundary in the actual v4 timeline preserves all 20,348 original
+frames and all four avatar shots without phantom segments. Full input
+validation passed in run 38048764940: 1,800 seconds, 45,000 frames,
+52 files fully decoded and hashed, 20 chapters, four avatar interventions and
+4,367 aligned words. The last word ends at 1,799.941632 seconds.
+The original 39,068,160 PCM samples are retained in order. New voice tempo is
+1.10613158 (within 0.90–1.12). The private 48-second audio sample fully decodes;
+its measured level is -17.2 LUFS with -4.8 dBFS true peak.
+
+Editorial review of the report and stock contact sheet caught repeated reuse
+of one short stock source. The selector now rotates revisits across sources
+and avoids immediately resetting the last source. This changes only visual
+selection; no new paid generation. Final validation passed in run 38049139357. The final manifest hash is
+`d7ad6d3751f9f9cb11ab1e1e3f960ca952d6f93b634e3ba125792159ee7b2455`.
+All 52 media/data hashes match the reviewed files, including the voice sample
+source mix and 20 stock clips. There are no adjacent stock loopbacks.
+The final timeline has 176 segments. v5 was confirmed empty with no assignments
+before publication. Grok still owns the final render and output publication.
+
 The owner clarified that the agreed episode is 30 minutes. Version 4 is a verified
 13:33.92 short edit, not completion of that duration requirement. Preserve it.
 
