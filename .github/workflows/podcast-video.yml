@@ -42,6 +42,7 @@ jobs:
           ATOMIVID_RUNTIME: production
           EPISODE_ID: ${{ github.event.client_payload.episodeId || inputs.episode_id }}
           JOB_KIND: ${{ github.event.client_payload.kind || inputs.kind }}
+          PODCAST_TOKEN_FILE: ${{ runner.temp }}/podcast-run-token
           FFMPEG_BIN: ffmpeg
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -57,5 +58,6 @@ jobs:
         env:
           EPISODE_ID: ${{ github.event.client_payload.episodeId || inputs.episode_id }}
           JOB_KIND: ${{ github.event.client_payload.kind || inputs.kind }}
+          PODCAST_TOKEN_FILE: ${{ runner.temp }}/podcast-run-token
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

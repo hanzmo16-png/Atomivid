@@ -94,6 +94,8 @@ async function main() {
     return (data?.length ?? 0) === 1;
   };
   if (!(await fenced({ video_status: "running", video_stage: "Preparando", video_heartbeat_at: now() }))) { log("SKIP", { reason: "superseded" }); return; }
+  // Lets the workflow's mark-failed step fence a cancelled/timed-out run by its own token.
+  if (process.env.PODCAST_TOKEN_FILE) await writeFile(process.env.PODCAST_TOKEN_FILE, token).catch(() => undefined);
   const heartbeat = setInterval(() => { void fenced({ video_heartbeat_at: now() }).catch(() => undefined); }, 60_000);
   const stage = (s: string) => fenced({ video_stage: s, video_heartbeat_at: now() });
   try {
