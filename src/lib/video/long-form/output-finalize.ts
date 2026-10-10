@@ -260,9 +260,9 @@ export async function finalizeLongFormOutput(
     return fitPath;
   };
 
-  // Preflight: techo conocido (configurado) o el de la política (1 GiB).
+  // Preflight: techo configurado o, si no hay, el demostrado (nunca subir algo que Storage va a rechazar).
   const configured = deps.storageMaxBytes ?? null;
-  let uploadPath = await fitFrom(Math.min(policy.policyMaxBytes, configured ?? Number.POSITIVE_INFINITY), "preflight");
+  let uploadPath = await fitFrom(Math.min(policy.policyMaxBytes, configured ?? policy.demonstratedStorageMaxBytes), "preflight");
   if (uploadPath === input.filePath) {
     delivered = rendered;
     fit = { action: "upload" };
@@ -291,7 +291,9 @@ export async function finalizeLongFormOutput(
   // Storage rechazó por tamaño un archivo que no se ajustó: ajustar al techo
   // demostrado (o configurado) desde el MISMO archivo y subir una vez más.
   if (uploadError?.category === "size_rejected" && uploadPath === input.filePath) {
-    const ceiling = Math.min(configured ?? policy.demonstratedStorageMaxBytes, rendered.bytes - 1);
+    // Rejected although it was within the believed ceiling: the real limit is lower — fall back to the historical floor.
+    const believed = configured ?? (rendered.bytes <= policy.demonstratedStorageMaxBytes ? policy.historicalStorageFloorBytes : policy.demonstratedStorageMaxBytes);
+    const ceiling = Math.min(believed, rendered.bytes - 1);
     uploadPath = await fitFrom(ceiling, "storage_size_rejected");
     uploadError = await tryUpload();
   }

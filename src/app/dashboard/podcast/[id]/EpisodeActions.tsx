@@ -18,6 +18,7 @@ export function EpisodeActions(props: { episodeId: string; source: "tts" | "uplo
   const [busy, setBusy] = useState<null | "generate" | "refresh" | "upload">(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [background, setBackground] = useState(false);
   const [nowMs, setNowMs] = useState(0);
   useEffect(() => {
     if (cooldownUntil <= Date.now()) return;
@@ -26,10 +27,10 @@ export function EpisodeActions(props: { episodeId: string; source: "tts" | "uplo
   }, [cooldownUntil]);
   // While another tab/run is generating, re-read the page every 10 s.
   useEffect(() => {
-    if (props.status !== "generating" || props.stalled || busy) return;
+    if (!(props.status === "generating" || (background && props.status !== "ready")) || props.stalled || busy) return;
     const t = setInterval(() => router.refresh(), 10_000);
     return () => clearInterval(t);
-  }, [props.status, props.stalled, busy, router]);
+  }, [props.status, props.stalled, busy, router, background]);
   const cooldown = Math.max(0, Math.ceil((cooldownUntil - nowMs) / 1000));
 
   async function call<T>(url: string, body?: unknown): Promise<T> {
@@ -52,8 +53,13 @@ export function EpisodeActions(props: { episodeId: string; source: "tts" | "uplo
     if (busy) return;
     setBusy("generate"); setMessage(null);
     try {
-      const out = await call<{ costUsd: number }>(`/api/podcast/${props.episodeId}/generate`);
-      setMessage({ ok: true, text: `Episodio listo. Costo registrado: ${Number(out.costUsd).toFixed(4)} USD.` });
+      const out = await call<{ costUsd?: number; background?: boolean }>(`/api/podcast/${props.episodeId}/generate`);
+      if (out.background) {
+        setBackground(true);
+        setMessage({ ok: true, text: "La narración se está generando en segundo plano. Puedes cerrar la app y volver: el avance y lo ya pagado se conservan." });
+      } else {
+        setMessage({ ok: true, text: `Episodio listo. Costo registrado: ${Number(out.costUsd).toFixed(4)} USD.` });
+      }
     } catch (e) { setMessage({ ok: false, text: classifyClientFetchError(e) }); }
     finally { setBusy(null); router.refresh(); }
   }

@@ -23,6 +23,7 @@ import { stableHash } from "@/lib/production-intelligence/canonical";
 import { DocumentaryResponseError, jsonResponseSystem, parseDocumentaryResponse, validateDocumentaryValue } from "./json-response";
 import { EditorialReviewSchema } from "./editorial";
 import { narrationCatalog } from "./narration-catalog";
+import { LONG_FORM_MAX_BEATS } from "./duration-budget";
 
 export const FUNCTION_REPAIR_CONTRACT = "section-function-repair-v1" as const;
 export const SECTION_FUNCTIONS = EditorialReviewSchema.shape.sections.element.shape.function.options;
@@ -44,7 +45,7 @@ export const FunctionRepairSchema = z
     replacements: z
       .array(z.object({ path: z.string().regex(PATH), function: z.enum(SECTION_FUNCTIONS) }).strict())
       .min(1)
-      .max(10),
+      .max(LONG_FORM_MAX_BEATS),
   })
   .strict();
 

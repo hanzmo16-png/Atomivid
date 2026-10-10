@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 const INPUT_CLASS =
-  "w-full rounded-md border border-border-strong bg-surface-raised px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-faint transition-colors focus:border-accent focus:outline-none";
+  "w-full rounded-md border border-border-strong bg-surface-raised px-3.5 py-2.5 text-base sm:text-sm text-ink placeholder:text-ink-faint transition-colors focus:border-accent focus:outline-none";
 
 export function Field({
   id,

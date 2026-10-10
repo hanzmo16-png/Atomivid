@@ -19,7 +19,7 @@ import type { LongFormCaption, LongFormShotScene } from "../../../../remotion/Lo
 import type { NarrationGap } from "../../../../remotion/audio-mix";
 import { assertRenderInputValid } from "./render-preflight";
 import { assertApprovalReady, assertCardsFit } from "./render-approval";
-import { LEGACY_LONG_FORM_ENCODING, LONG_FORM_ENCODING_PROFILE } from "./output-policy";
+import { LEGACY_LONG_FORM_ENCODING, LONG_FORM_ENCODING_PROFILE, renderMaxVideoKbps, storageCeilingBytes } from "./output-policy";
 
 const COMPOSITION_ID = "LongFormDoc";
 
@@ -135,8 +135,9 @@ export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<
       ? { crf: LEGACY_LONG_FORM_ENCODING.crf }
       : {
           crf: LONG_FORM_ENCODING_PROFILE.crf,
-          encodingMaxRate: `${LONG_FORM_ENCODING_PROFILE.maxVideoKbps}k`,
-          encodingBufferSize: `${LONG_FORM_ENCODING_PROFILE.bufferKbps}k`,
+          // Long episodes get a lower cap so the delivered file fits Storage's real ceiling without a 2-pass refit.
+          encodingMaxRate: `${renderMaxVideoKbps(composition.durationInFrames / composition.fps, storageCeilingBytes())}k`,
+          encodingBufferSize: `${2 * renderMaxVideoKbps(composition.durationInFrames / composition.fps, storageCeilingBytes())}k`,
           x264Preset: LONG_FORM_ENCODING_PROFILE.x264Preset,
         }),
     onProgress: input.onFrameProgress

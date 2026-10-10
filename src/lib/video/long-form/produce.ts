@@ -1,3 +1,4 @@
+import { setFootageWaitBeat } from "@/lib/ai/footage";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { gatedMusicTrack, type PaidCallDeps } from "@/lib/paid-calls/gated-providers";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
@@ -94,7 +95,16 @@ import {
 import { recordVideoGeneration } from "@/lib/billing/usage";
 
 const STORAGE_BUCKET = "videos";
-const ASSET_SIGNED_URL_TTL_SECONDS = 60 * 60;
+// Must outlive the whole production job (shot execution + render of up to 30 min of video); see durable-shot-assets.
+const ASSET_SIGNED_URL_TTL_SECONDS = 8 * 60 * 60;
+
+/** Runs `work` while calling `beat` every `everyMs` (best effort; a failed beat never fails the work). */
+export function withHeartbeat(beat: () => unknown, everyMs = 120_000) {
+  return async <T>(work: () => Promise<T>): Promise<T> => {
+    const timer = setInterval(() => { void Promise.resolve().then(beat).catch(() => undefined); }, everyMs);
+    try { return await work(); } finally { clearInterval(timer); }
+  };
+}
 /** Por encima de esta fracción de shots degradados a tarjeta de texto, el documental no se entrega (calidad insuficiente). */
 export { MAX_TEXT_FALLBACK_RATIO };
 
@@ -393,6 +403,9 @@ export async function generateLongFormVideoFromScript({
   }
 
   await onProgress?.("assets", { completed: 0, total: allocated.shots.length, label: "escenas" });
+  let shotsDone = 0;
+  // A stock search waiting for the Pexels rate-limit window keeps the production's heartbeat alive.
+  setFootageWaitBeat(() => onProgress?.("assets", { completed: shotsDone, total: allocated.shots.length, label: "escenas" }));
   let aiVideoLedger = emptyAiVideoLedgerState();
   let spentUsd = 0;
   let storageBytes = 0;
@@ -453,6 +466,7 @@ export async function generateLongFormVideoFromScript({
       if (execution.deviation.executed === "text") degradedToText += 1;
       await budget.recordDeviation({ shotId: shot.id, ...execution.deviation });
     }
+    shotsDone = index + 1;
     await onProgress?.("assets", { completed: index + 1, total: allocated.shots.length, label: "escenas" });
   }
   // Informe visual PREVIO al render (se guarda siempre, antes de cualquier
@@ -591,9 +605,13 @@ export async function generateLongFormVideoFromScript({
   const renderMs = Date.now() - renderStartedAt;
 
   let outputPath = rawOutputPath;
+  // Mastering, the size fit and the resumable upload of a 30-min file can each run for many minutes without any
+  // frame progress. Keep the heartbeat alive so the app never mistakes a working job for a stalled one.
+  const keepAlive = () =>
+    withHeartbeat(() => onProgress?.("rendering", { completed: lastReportedFrames, total: Math.max(lastReportedFrames, 1), label: "fotogramas" }));
   try {
     const masteredPath = rawOutputPath.replace(/\.mp4$/, ".mastered.mp4");
-    const mastering = await masterAudioLoudness(rawOutputPath, masteredPath, { faststart: true, truePeakMarginDb: LONG_FORM_TRUE_PEAK_MARGIN_DB });
+    const mastering = await keepAlive()(() => masterAudioLoudness(rawOutputPath, masteredPath, { faststart: true, truePeakMarginDb: LONG_FORM_TRUE_PEAK_MARGIN_DB }));
     outputPath = masteredPath;
     console.log("[atomivid:long-form:produce] masterización de loudness", JSON.stringify({ requestId, target: LOUDNESS_TARGET, ...mastering }));
   } catch (err) {
@@ -609,10 +627,10 @@ export async function generateLongFormVideoFromScript({
   // nunca vuelve a renderizar ni llama a proveedores; el archivo se
   // conserva (LONG_FORM_OUTPUT_KEEP_DIR) y el cliente ve un mensaje seguro.
   if (outputPath !== rawOutputPath) await fs.unlink(rawOutputPath).catch(() => {});
-  const { videoPath, state: outputState } = await finalizeLongFormOutput(
+  const { videoPath, state: outputState } = await keepAlive()(() => finalizeLongFormOutput(
     { requestId, attempt: runtime.attempt ?? null, filePath: outputPath, profile: runtime.encoding },
     outputDeps,
-  );
+  ));
   storageBytes += outputState.delivered?.bytes ?? 0;
   await fs.unlink(outputPath).catch(() => {});
 

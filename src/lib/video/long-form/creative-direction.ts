@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { countWords, LONG_FORM_NARRATION_WORDS_PER_SECOND } from "./duration-budget";
+import { countWords, LONG_FORM_NARRATION_WORDS_PER_SECOND, LONG_FORM_MAX_BEATS } from "./duration-budget";
 
 const brief = z.string().min(1).max(300);
 export const NARRATIVE_DEVICES = ["in_medias_res", "contradiction", "mistake", "experiment", "myth_evidence",
   "timeline", "character_case", "disagreement", "sensory", "counterfactual", "observational", "clue_mystery", "thesis"] as const;
-const passage = z.object({ beatIndex: z.number().int().min(0).max(9), quote: z.string().min(1).max(350) });
-export const CreativeDirectionPromptSchema = z.object({
+const passageUpTo = (maxBeats: number) => z.object({ beatIndex: z.number().int().min(0).max(maxBeats - 1), quote: z.string().min(1).max(350) });
+const promptSchema = (passage: ReturnType<typeof passageUpTo>) => z.object({
   audience: brief, emotionalPromise: brief, beliefToChallenge: brief, finalFeeling: brief,
   angles: z.array(z.object({ premise: brief, device: z.enum(NARRATIVE_DEVICES), hook: brief, genericRisk: brief })).length(7),
   finalists: z.array(z.number().int().min(0).max(6)).length(3),
@@ -21,6 +21,10 @@ export const CreativeDirectionPromptSchema = z.object({
   weakness: brief,
   evidenceThatWouldHelp: brief,
 });
+/** Current contract: passages may point at any of up to LONG_FORM_MAX_BEATS beats (30-minute scripts). */
+export const CreativeDirectionPromptSchema = promptSchema(passageUpTo(LONG_FORM_MAX_BEATS));
+/** Deployed v1 contract (10 beats), kept byte-identical for the legacy whole-document writer replay. */
+export const LegacyCreativeDirectionPromptSchema = promptSchema(passageUpTo(10));
 // Generation stays concise (300 chars); acceptance allows complete editorial
 // explanations. These are metadata, never narration, evidence or approval.
 const explanation = z.string().min(1).max(1600);

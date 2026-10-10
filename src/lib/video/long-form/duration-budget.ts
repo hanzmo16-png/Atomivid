@@ -40,10 +40,17 @@ export type NarrationWordBudget = {
   wordsPerBeat: number;
 };
 
-/** Palabras de narración para `targetSeconds` y su reparto en beats (5-10). */
+/**
+ * Beats por guion: ~90 s de narración cada uno, entre 5 y LONG_FORM_MAX_BEATS. 20 beats cubren 30 minutos
+ * sin alargar los beats (cada beat conserva su tope de visuales y su ritmo de ~8–10 s por escena).
+ */
+export const LONG_FORM_MIN_BEATS = 5;
+export const LONG_FORM_MAX_BEATS = 20;
+
+/** Palabras de narración para `targetSeconds` y su reparto en beats (5-20). */
 export function narrationWordBudget(targetSeconds: number): NarrationWordBudget {
   const totalWords = Math.round(targetSeconds * LONG_FORM_NARRATION_WORDS_PER_SECOND);
-  const beats = Math.max(5, Math.min(10, Math.round(targetSeconds / 90)));
+  const beats = Math.max(LONG_FORM_MIN_BEATS, Math.min(LONG_FORM_MAX_BEATS, Math.round(targetSeconds / 90)));
   return {
     targetSeconds,
     totalWords,

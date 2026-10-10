@@ -2,30 +2,34 @@ import { canonicalizeEditorialCitations, invalidEditorialCitations, EditorialEvi
 import { creativeDirectionIssues, type CreativeDirection } from "./creative-direction";
 import { z } from "zod";
 import { stableHash } from "@/lib/production-intelligence/canonical";
+import { LONG_FORM_MAX_BEATS, LONG_FORM_MIN_BEATS } from "./duration-budget";
 
 export const EDITORIAL_VERSION = "editorial-v2" as const;
 const text = z.string().min(1).max(1600);
-export const StoryPlanSchema = z.object({
+const storyPlanUpTo = (maxBeats: number) => z.object({
   centralQuestion: text,
   openingPromise: text,
   firstAnswer: text,
   endingAnswer: text,
   sections: z.array(z.object({
-    beatIndex: z.number().int().min(0).max(9),
+    beatIndex: z.number().int().min(0).max(maxBeats - 1),
     newInformation: text,
     consequence: text,
     tension: z.enum(["rise", "release", "reflection"]),
-  })).min(5).max(10),
+  })).min(LONG_FORM_MIN_BEATS).max(maxBeats),
 });
-const EvidenceSchema = z.object({ beatIndex: z.number().int().min(0).max(9), quote: text });
+export const StoryPlanSchema = storyPlanUpTo(LONG_FORM_MAX_BEATS);
+/** Deployed v1 story plan (10 beats), kept byte-identical for the legacy whole-document writer replay. */
+export const LegacyStoryPlanSchema = storyPlanUpTo(10);
+const EvidenceSchema = z.object({ beatIndex: z.number().int().min(0).max(LONG_FORM_MAX_BEATS - 1), quote: text });
 export const EditorialReviewSchema = z.object({
   // No model-generated grade or success/retention prediction decides admission.
   sections: z.array(z.object({
-    beatIndex: z.number().int().min(0).max(9),
+    beatIndex: z.number().int().min(0).max(LONG_FORM_MAX_BEATS - 1),
     quote: text,
     contribution: text,
     function: z.enum(["setup", "new_information", "consequence", "reversal", "resolution", "restatement"]),
-  })).min(5).max(10),
+  })).min(LONG_FORM_MIN_BEATS).max(LONG_FORM_MAX_BEATS),
   firstAnswer: z.object({ delivered: z.boolean(), evidence: EvidenceSchema, explanation: text }),
   ending: z.object({ resolvesPromise: z.boolean(), evidence: EvidenceSchema, explanation: text }),
   findings: z.array(z.object({
@@ -39,10 +43,10 @@ export const EditorialReviewSchema = z.object({
 // Provider prompt contract stays unchanged. These references are derived and
 // verified locally; a claim identifier is never treated as a narrated quotation.
 const ClaimReferenceSchema = z.object({ findingIndex: z.number().int().min(0).max(15),
-  claimId: z.string().min(1).max(100), beatIndex: z.number().int().min(0).max(9),
-  originalBeatIndex: z.number().int().min(0).max(9) });
+  claimId: z.string().min(1).max(100), beatIndex: z.number().int().min(0).max(LONG_FORM_MAX_BEATS - 1),
+  originalBeatIndex: z.number().int().min(0).max(LONG_FORM_MAX_BEATS - 1) });
 export const ResolvedEditorialReviewSchema = EditorialReviewSchema.extend({ claimReferences: z.array(ClaimReferenceSchema).max(160).optional(),
- citationLocations: z.array(z.object({ path:z.string().max(80), originalBeatIndex:z.number().int().min(0).max(9), beatIndex:z.number().int().min(0).max(9), quote:text })).max(24).optional() });
+ citationLocations: z.array(z.object({ path:z.string().max(80), originalBeatIndex:z.number().int().min(0).max(LONG_FORM_MAX_BEATS - 1), beatIndex:z.number().int().min(0).max(LONG_FORM_MAX_BEATS - 1), quote:text })).max(24).optional() });
 export type EditorialReview = z.infer<typeof ResolvedEditorialReviewSchema>;
 export type StoryPlan = z.infer<typeof StoryPlanSchema>;
 export type EditorialScript = {

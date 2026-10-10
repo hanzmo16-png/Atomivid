@@ -111,6 +111,8 @@ test("saved jobs navigate to durable history, not a long-running browser respons
  * migración en sí ya se demostró contra Postgres real (ver arriba).
  */
 const MIGRATION_0018_PATH = path.join(__dirname, "..", "..", "..", "..", "..", "supabase", "migrations", "0018_long_form_duration_check.sql");
+// The current long_form ceiling (30 min) lives in the migration that supersedes 0018's upper bound.
+const MIGRATION_30_MIN_PATH = path.join(__dirname, "..", "..", "..", "..", "..", "supabase", "migrations", "20261010050000_long_form_30_minutes.sql");
 const REEL_VALIDATION_PATH = path.join(__dirname, "..", "..", "new", "validation.ts");
 
 test("migración 0018: el CHECK por modo cubre exactamente 180-900s para long_form y preserva <=120s para los demás modos", () => {
@@ -125,13 +127,14 @@ test("migración 0018: el CHECK por modo cubre exactamente 180-900s para long_fo
   );
 });
 
-test("coherencia: MIN/MAX_DURATION_MINUTES de Long Form (actions.ts) equivalen exactamente al rango 180-900s de la migración 0018", () => {
+test("coherencia: MIN/MAX_DURATION_MINUTES de Long Form (actions.ts) equivalen exactamente al rango 180-1800s vigente", () => {
   const actionsSource = readActions();
   assert.match(actionsSource, /const MIN_DURATION_MINUTES = 3/);
-  assert.match(actionsSource, /const MAX_DURATION_MINUTES = 15/);
-  // 3 min * 60 = 180s, 15 min * 60 = 900s — deben coincidir con la migración.
-  assert.equal(3 * 60, 180);
-  assert.equal(15 * 60, 900);
+  assert.match(actionsSource, /const MAX_DURATION_MINUTES = 30/);
+  const migration = fs.readFileSync(MIGRATION_30_MIN_PATH, "utf-8");
+  assert.match(migration, /mode = 'long_form' and duration_seconds >= 180 and duration_seconds <= 1800/);
+  assert.match(migration, /mode <> 'long_form' and duration_seconds > 0 and duration_seconds <= 120/);
+  assert.equal(30 * 60, 1800);
 });
 
 test("coherencia: ALLOWED_DURATIONS de Reel (validation.ts) caben todas dentro del límite <=120s que la migración 0018 preserva para modos distintos de long_form", () => {

@@ -17,7 +17,7 @@ import { estimatePodcast, podcastDemand, normalizeScript, PODCAST_STALE_RUN_MS, 
 import { listAccountVoices, VoicesUnavailableError } from "./voices";
 
 const BUCKET = "videos";
-export const EPISODE_COLUMNS = "id,user_id,title,language,source,script,voice_id,voice_name,characters,estimated_usd,status,run_token,run_started_at,audio_path,audio_mime,duration_seconds,audio_sha256,audio_bytes,loudness,cost_usd,error,created_at,updated_at";
+export const EPISODE_COLUMNS = "id,user_id,title,language,source,script,voice_id,voice_name,characters,estimated_usd,status,run_token,run_started_at,audio_path,audio_mime,duration_seconds,audio_sha256,audio_bytes,loudness,cost_usd,error,created_at,updated_at,video_status,video_stage,video_attempts,video_run_token,video_requested_at,video_heartbeat_at,video_path,video_bytes,video_sha256,video_duration_seconds,video_error";
 
 /** Vercel functions have no ffmpeg on PATH: use the bundled binary (workers keep their own). */
 export function ensureBundledFfmpeg() {
@@ -87,6 +87,9 @@ export async function runGeneration(service: SupabaseClient, episode: PodcastEpi
   const voiceId = episode.voice_id;
   const provider: VoiceProvider = { name: "elevenlabs", synthesize: async (text, language = "es", speed) => ({ ...(await synthesizeVoice(text, language, speed, voiceId)), mimeType: "audio/mpeg", extension: "mp3" }) };
   const fenced = (patch: Record<string, unknown>) => service.from("podcast_episodes").update({ ...patch, updated_at: new Date(now()).toISOString() }).eq("id", episode.id).eq("run_token", token);
+  // A long narration (up to ~33 min of audio) can outlast PODCAST_STALE_RUN_MS: keep this run visibly alive so
+  // nobody can claim it concurrently while it is still working. Fenced by the run token.
+  const heartbeat = setInterval(() => { void Promise.resolve(fenced({ run_started_at: new Date(now()).toISOString() })).catch(() => undefined); }, 120_000);
   try {
     if (!process.env.ELEVENLABS_API_KEY?.trim()) throw new VoicesUnavailableError("La voz sintética no está configurada en el servidor.");
     // Same admission as a production start: a stale balance is re-read (billing GET), never assumed.
@@ -102,5 +105,7 @@ export async function runGeneration(service: SupabaseClient, episode: PodcastEpi
     const message = err instanceof VoicesUnavailableError ? err.customerMessage : publicError(err);
     await fenced({ status: "failed", run_token: null, error: message });
     return { error: message, status: err instanceof SupplyUnavailableError ? 503 : 500 };
+  } finally {
+    clearInterval(heartbeat);
   }
 }

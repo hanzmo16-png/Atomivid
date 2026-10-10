@@ -24,7 +24,23 @@ export type PodcastEpisode = {
   voice_id: string | null; voice_name: string | null; characters: number; estimated_usd: number; status: "draft" | "generating" | "ready" | "failed";
   run_token: string | null; run_started_at: string | null; audio_path: string | null; audio_mime: string | null; duration_seconds: number | null;
   audio_sha256: string | null; audio_bytes: number | null; loudness: unknown; cost_usd: number | null; error: string | null; created_at: string; updated_at: string;
+  /** Video produced in-app by the worker (editor v3 engine). Absent on rows read before the video migration. */
+  video_status?: PodcastVideoStatus; video_stage?: string | null; video_attempts?: number; video_run_token?: string | null;
+  video_requested_at?: string | null; video_heartbeat_at?: string | null; video_path?: string | null; video_bytes?: number | null;
+  video_sha256?: string | null; video_duration_seconds?: number | null; video_error?: string | null;
 };
+
+export type PodcastVideoStatus = "none" | "queued" | "running" | "ready" | "failed";
+/** A queued/running video job without a heartbeat for this long is considered dead and may be retried. */
+export const PODCAST_VIDEO_STALE_MS = 12 * 60 * 1000;
+/** Above this many characters the narration runs in the background worker instead of the 300 s web request. */
+export const PODCAST_BACKGROUND_NARRATION_CHARS = 6000;
+
+export function isStalledVideo(e: Pick<PodcastEpisode, "video_status" | "video_heartbeat_at" | "video_requested_at">, now = Date.now()): boolean {
+  if (e.video_status !== "queued" && e.video_status !== "running") return false;
+  const last = Date.parse(e.video_heartbeat_at ?? e.video_requested_at ?? "");
+  return !Number.isFinite(last) || now - last > PODCAST_VIDEO_STALE_MS;
+}
 
 export function normalizeScript(text: string): string {
   return text.replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();

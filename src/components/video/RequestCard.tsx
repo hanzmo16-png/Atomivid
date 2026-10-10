@@ -79,7 +79,7 @@ export function RequestCard({
             {(request.mode === "avatar" || isLongForm) && <ModeBadge mode={request.mode as "avatar" | "long_form"} />}
           </div>
           <p className="mt-1 text-sm text-ink-muted">
-            {request.style} · {request.duration_seconds}s ·{" "}
+            {request.style} · {request.duration_seconds >= 120 ? `${Math.round(request.duration_seconds / 60)} min` : `${request.duration_seconds}s`} ·{" "}
             {new Date(request.created_at).toLocaleString("es-MX")}
           </p>
           {request.status === "failed" && request.error_message && (

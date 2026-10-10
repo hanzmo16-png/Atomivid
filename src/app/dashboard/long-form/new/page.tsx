@@ -93,14 +93,14 @@ export default async function NewLongFormVideoPage({
             </select>
           </Field>
 
-          <Field id="duration_minutes" label="Duración objetivo (minutos)" hint="Entre 3 y 15 minutos. Empieza con 7: prioriza una historia completa, sin relleno.">
+          <Field id="duration_minutes" label="Duración objetivo (minutos)" hint="Entre 3 y 30 minutos. Empieza con 7: prioriza una historia completa, sin relleno. Los episodios largos tardan más en producirse y cuestan más.">
             <input
               id="duration_minutes"
               name="duration_minutes"
               type="number"
               required
               min={3}
-              max={15}
+              max={30}
               defaultValue={durationMinutes ?? "7"}
               className={INPUT_CLASS}
             />
@@ -117,7 +117,7 @@ export default async function NewLongFormVideoPage({
               maxLength={12000}
               rows={6}
               defaultValue={sources ?? ""}
-              className={`${INPUT_CLASS} font-mono text-xs`}
+              className={`${INPUT_CLASS} font-mono text-base sm:text-xs`}
               placeholder={
                 "Göbekli Tepe UNESCO World Heritage listing | https://whc.unesco.org/en/list/1572\n" +
                 "Schmidt, K. — excavation reports | | resumen de hallazgos 1995-2014"
@@ -132,7 +132,7 @@ export default async function NewLongFormVideoPage({
               maxLength={4000}
               rows={3}
               defaultValue={openQuestions ?? ""}
-              className={`${INPUT_CLASS} font-mono text-xs`}
+              className={`${INPUT_CLASS} font-mono text-base sm:text-xs`}
             />
           </Field>
 
