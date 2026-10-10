@@ -176,6 +176,8 @@ async function main() {
       await o.ctx.close();
     }
     const anon = await open([]);
+    await anon.page.goto(`${APP}${versionPath}`, { waitUntil: "domcontentloaded" });
+    check("anonymous: version page redirects to login", new URL(anon.page.url()).pathname === "/login");
     const anonApi = await anon.page.evaluate(async (p: string) => (await fetch(p, { method: "POST" })).status, `/api/podcast-editor/${ep}/${vSeg}/verify`);
     check("anonymous: verify API is 401", anonApi === 401, { status: anonApi });
   } finally {
