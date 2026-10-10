@@ -50,8 +50,10 @@ test("gasto: comprometido + entregado; un cargo abierto sin resultado guardado e
 });
 
 test("reintentos acotados y programación de un solo disparo", () => {
-  assert.equal(attemptsDecision(episode({ video_attempts: MAX_PRODUCTION_ATTEMPTS - 1 })).ok, true);
-  assert.equal(attemptsDecision(episode({ video_attempts: MAX_PRODUCTION_ATTEMPTS })).ok, false);
+  assert.deepEqual(attemptsDecision(episode({ video_status: "ready", retry_count: 3, video_attempts: 40 })), { ok: true, retryCount: 0 }, "a new production after a delivery starts from zero, whatever the history");
+  assert.deepEqual(attemptsDecision(episode({ video_status: "failed", retry_count: 2 })), { ok: true, retryCount: 3 });
+  assert.equal(attemptsDecision(episode({ video_status: "blocked", retry_count: MAX_PRODUCTION_ATTEMPTS - 1 })).ok, false);
+  assert.equal(attemptsDecision(episode({ video_status: "running", retry_count: MAX_PRODUCTION_ATTEMPTS - 1 }), true).ok, false, "retaking a dead run is a retry");
   const now = Date.parse("2026-10-11T10:00:00Z");
   assert.deepEqual(scheduleDecision(null, now), { ok: true, at: null });
   assert.equal(scheduleDecision("2026-10-11T10:01:00Z", now).ok, false, "too soon");
@@ -74,7 +76,11 @@ test("solicitud: presupuesto insuficiente → 402 sin tocar la fila; programada 
   assert.equal(f.updates[0].publish_status, "held");
   assert.equal(f.updates[0].review_status, "pending");
   f = fakeService();
-  assert.equal((await requestPodcastVideo(f.service, episode({ video_attempts: MAX_PRODUCTION_ATTEMPTS }), { budgetUsd: 6 }) as { status: number }).status, 429);
+  assert.equal((await requestPodcastVideo(f.service, episode({ video_status: "failed", retry_count: MAX_PRODUCTION_ATTEMPTS - 1 }), { budgetUsd: 6 }) as { status: number }).status, 429);
+  f = fakeService();
+  await requestPodcastVideo(f.service, episode({ status: "ready", video_status: "ready", video_attempts: 30, retry_count: 0 }), {});
+  assert.equal(f.updates[0].video_status, "queued", "not refused by a history of 30 attempts");
+  assert.equal(f.updates[0].retry_count, 0);
 });
 
 test("programación: el tick reclama una vez (CAS) y re-chequea presupuesto al iniciar", async () => {
@@ -141,7 +147,8 @@ test("worker: comprobación previa antes de cualquier cobro, bloqueo distinto de
   assert.ok(pre > 0 && narr > pre, "spend/uncertain/budget preflight runs before the narration");
   assert.match(w, /spendBefore\.uncertain > 0\) throw new BlockError\(UNCERTAIN_CHARGE_MESSAGE\)/);
   assert.match(w, /video_status: blocked \? "blocked" : "failed"/);
-  assert.match(w, /review_status: "pending", publish_status: "held"/);
+  assert.match(w, /review_status: "pending", publish_status: "held", retry_count: 0/);
+  assert.match(w, /kind === "notices"[\s\S]*deliverPendingNotices\(service\)/, "app-recorded notices are delivered by the Actions bot");
   assert.match(w, /dueScheduled\(service, EPISODE_COLUMNS, new Date\(\), 1\)/, "one production per scheduled tick");
   const wf = readFileSync(".github/workflows/podcast-video.yml", "utf8");
   assert.match(wf, /schedule:\n\s+- cron: "7,22,37,52 \* \* \* \*"/);
@@ -185,9 +192,9 @@ test("tick programado: token en tabla de servicio, reclama y despacha; si el des
     return { data: null };
   });
   const dispatched: string[] = [];
-  const out = await runSchedulerTick(s.service, "*", async (id) => { dispatched.push(id); return false; }, {});
+  const out = await runSchedulerTick(s.service, "*", async (id, kind) => { dispatched.push(`${id}:${kind}`); return false; });
   assert.deepEqual(out, { due: 2, dispatched: 0, blocked: 1, requeued: 1 });
-  assert.deepEqual(dispatched, ["e1"], "the over-budget production is never dispatched");
+  assert.deepEqual(dispatched, ["e1:video", "e2:notices"], "the over-budget production is never dispatched; its notice goes through the Actions bot");
   const eps = s.updates.filter((u) => u.table === "podcast_episodes").map((u) => u.patch.video_status);
   assert.deepEqual(eps, ["queued", "scheduled", "blocked"], "claimed → dispatch failed → back to scheduled; e2 blocked");
   assert.equal(s.updates.filter((u) => u.table === "production_notices" && u.ops.includes("insert")).length, 1);

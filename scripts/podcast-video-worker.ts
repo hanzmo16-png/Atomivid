@@ -65,11 +65,16 @@ async function probeSeconds(p: string): Promise<number> {
 }
 
 async function main() {
-  const kind = process.env.JOB_KIND === "narration" ? "narration" : process.env.JOB_KIND === "scheduler" ? "scheduler" : "video";
+  const kind = process.env.JOB_KIND === "narration" ? "narration" : process.env.JOB_KIND === "scheduler" ? "scheduler" : process.env.JOB_KIND === "notices" ? "notices" : "video";
   const { createServiceClient } = await import("../src/lib/supabase/service");
   const { EPISODE_COLUMNS } = await import("../src/lib/podcast/server");
   const pilot = await import("../src/lib/podcast/pilot-server");
   const service = createServiceClient();
+  if (kind === "notices") {
+    // Notices recorded by the app (e.g. a scheduled start refused for budget), delivered here as the Actions bot.
+    log("NOTICES", await pilot.deliverPendingNotices(service));
+    return;
+  }
   if (kind === "scheduler") {
     // One production per tick: each one may take long; the next tick picks the next one.
     const due = await pilot.dueScheduled(service, EPISODE_COLUMNS, new Date(), 1);
@@ -256,7 +261,7 @@ async function produce(episodeId: string) {
       shots: { videos: shots.filter((x) => x?.kind === "video").length, photos: shots.filter((x) => x?.kind === "photo").length, cards, total: scenes.length },
       credits: creditSources, spend, budgetUsd: ep.budget_usd == null ? null : Number(ep.budget_usd),
     });
-    const ok = await fenced({ video_status: "ready", video_stage: null, video_path: objectPath, video_bytes: size, video_sha256: sha256, video_duration_seconds: seconds, video_error: null, video_checks: checks, review_status: "pending", publish_status: "held" });
+    const ok = await fenced({ video_status: "ready", video_stage: null, video_path: objectPath, video_bytes: size, video_sha256: sha256, video_duration_seconds: seconds, video_error: null, video_checks: checks, review_status: "pending", publish_status: "held", retry_count: 0 });
     log("VIDEO", { ok, bytes: size, seconds: Math.round(seconds), defects: checks.defects.length });
     if (ok) await notify("delivered");
   } catch (err) {

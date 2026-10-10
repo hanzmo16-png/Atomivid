@@ -8,7 +8,7 @@ import { attemptsDecision, budgetDecision, scheduleDecision } from "./pilot";
  * (.github/workflows/podcast-video.yml); narration (gated, resumable) and the editor v3 render run there.
  * Only the episode id travels in the public dispatch event.
  */
-export type PodcastJobKind = "video" | "narration";
+export type PodcastJobKind = "video" | "narration" | "notices";
 
 export async function dispatchPodcastJob(episodeId: string, kind: PodcastJobKind, env = process.env): Promise<boolean> {
   const token = env.GH_WORKER_TOKEN, repo = env.GH_WORKER_REPO;
@@ -44,12 +44,12 @@ export async function requestPodcastVideo(service: SupabaseClient, episode: Podc
   const budgetUsd = options.budgetUsd !== undefined ? options.budgetUsd : (episode.budget_usd ?? null);
   const budget = budgetDecision(episode, budgetUsd == null ? null : Number(budgetUsd));
   if (!budget.ok) return { error: budget.message, status: 402 };
-  const attempts = attemptsDecision(episode);
+  const attempts = attemptsDecision(episode, (state === "queued" || state === "running") && isStalledVideo(episode, now));
   if (!attempts.ok) return { error: attempts.message, status: 429 };
   const schedule = scheduleDecision(options.scheduleAt, now);
   if (!schedule.ok) return { error: schedule.message, status: 400 };
   const at = new Date(now).toISOString();
-  const common = { budget_usd: budgetUsd, video_error: null, video_checks: null, review_status: "pending", review_note: null, reviewed_at: null, publish_status: "held", updated_at: at };
+  const common = { budget_usd: budgetUsd, retry_count: attempts.retryCount, video_error: null, video_checks: null, review_status: "pending", review_note: null, reviewed_at: null, publish_status: "held", updated_at: at };
   let q = service.from("podcast_episodes").update(schedule.at
     // Scheduled: no run token or attempt yet; the scheduled tick claims it like a fresh request.
     ? { ...common, video_status: "scheduled", video_stage: null, scheduled_at: schedule.at, video_requested_at: at }

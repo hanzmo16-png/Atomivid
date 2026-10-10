@@ -63,10 +63,18 @@ export function summarizeSpend(rows: LedgerRow[], storedKeys: ReadonlySet<string
 
 export const UNCERTAIN_CHARGE_MESSAGE = "Hay un cargo de narración cuyo resultado no se pudo confirmar. La producción se detuvo para no cobrarlo dos veces: hay que conciliarlo con el historial de ElevenLabs antes de repetirla.";
 
-export function attemptsDecision(episode: Pick<PodcastEpisode, "video_attempts">): { ok: true } | { ok: false; message: string } {
-  return (episode.video_attempts ?? 0) >= MAX_PRODUCTION_ATTEMPTS
-    ? { ok: false, message: `Esta producción ya se intentó ${MAX_PRODUCTION_ATTEMPTS} veces. Revisa el último error antes de reintentar; se detuvo para no repetir trabajo sin control.` }
-    : { ok: true };
+/** A start after a failure, a block or a dead run is a retry; any other start is a new production. */
+export function isRetry(episode: Pick<PodcastEpisode, "video_status">, stalled = false): boolean {
+  return episode.video_status === "failed" || episode.video_status === "blocked" || stalled;
+}
+
+/** Consecutive unsuccessful attempts since the last delivery: at most MAX_PRODUCTION_ATTEMPTS, then the owner must look. */
+export function attemptsDecision(episode: Pick<PodcastEpisode, "video_status" | "retry_count">, stalled = false): { ok: true; retryCount: number } | { ok: false; message: string } {
+  if (!isRetry(episode, stalled)) return { ok: true, retryCount: 0 };
+  const next = (episode.retry_count ?? 0) + 1;
+  return next >= MAX_PRODUCTION_ATTEMPTS
+    ? { ok: false, message: `Esta producción ya falló ${MAX_PRODUCTION_ATTEMPTS - 1} veces seguidas. Revisa el último error antes de reintentar; se detuvo para no repetir trabajo ni cargos sin control.` }
+    : { ok: true, retryCount: next };
 }
 
 export function scheduleDecision(scheduleAt: string | null | undefined, now = Date.now()): { ok: true; at: string | null } | { ok: false; message: string } {
