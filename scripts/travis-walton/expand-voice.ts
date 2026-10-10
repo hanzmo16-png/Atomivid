@@ -25,7 +25,10 @@ export async function expandVoice(cfg:any,seal:(name:string,b:Buffer)=>void){
  const bytes=Buffer.concat([d.update(ct),d.final()]),plan=JSON.parse(bytes.toString());
  if(plan.episodeId!==cfg.episodeId||plan.targetVersion!==5||plan.targetSeconds!==1800||plan.chapters.length!==8)throw Error('EXPANSION_PLAN_INVALID');
  const total=plan.chapters.reduce((s:number,c:any)=>s+c.text.length,0),cost=total*.0002;
- if(total>17000||cost>plan.maxNewVoiceUsd||plan.maxNewVoiceUsd>4)throw Error('EXPANSION_BUDGET_INVALID');
+ // Hans explicitly authorized this episode's total voice envelope on 2026-10-09.
+ // This does not alter provider, daily or platform-wide spending limits.
+ const voiceCapUsd=plan.authorizedTotalVoiceCapUsd;
+ if(voiceCapUsd!==5.58||total>17000||cost>plan.maxNewVoiceUsd||plan.maxNewVoiceUsd>3.13)throw Error('EXPANSION_BUDGET_INVALID');
  const {data:v,error:ve}=await db.from('podcast_episodes').select('voice_id,user_id').eq('id','a3b35bfb-6be5-4881-bd22-9a61a8598dfb').single();
  if(ve||v?.user_id!==cfg.ownerId||v?.voice_id!==cfg.voiceId)throw Error('EXPANSION_VOICE_MISMATCH');
  const {data:ops,error:oe}=await db.from('pi_paid_operations').select('status,reserved_usd,committed_usd').eq('project_id',project).eq('provider','elevenlabs').neq('status','REFUNDED');
@@ -36,8 +39,8 @@ export async function expandVoice(cfg:any,seal:(name:string,b:Buffer)=>void){
  for(const c of plan.chapters){const old=await bucket.download(`${prefix}/${c.id}.json`);if(old.data){const m=JSON.parse(await old.data.text());if(m.textSha256!==sha(Buffer.from(c.text)))throw Error('EXPANSION_TEXT_MISMATCH');completed.push(m);}}
  const todo=plan.chapters.filter((c:any)=>!completed.some(m=>m.id===c.id));
  const remaining=todo.reduce((s:number,c:any)=>s+c.text.length*.0002,0);
- console.log('EXPANSION_VOICE_PREFLIGHT',JSON.stringify({characters:total,newVoiceEstimateUsd:cost,spentVoiceUsd:spent,originalVoiceCapUsd:cfg.maxVoiceUsd,remainingEstimateUsd:remaining,reusableBlocks:completed.length}));
- if(spent+remaining>cfg.maxVoiceUsd+.00001)throw Error('ORIGINAL_VOICE_CAP_WOULD_BE_EXCEEDED');
+ console.log('EXPANSION_VOICE_PREFLIGHT',JSON.stringify({characters:total,newVoiceEstimateUsd:cost,spentVoiceUsd:spent,originalVoiceCapUsd:cfg.maxVoiceUsd,authorizedVoiceCapUsd:voiceCapUsd,remainingEstimateUsd:remaining,reusableBlocks:completed.length}));
+ if(spent+remaining>voiceCapUsd+.00001)throw Error('AUTHORIZED_VOICE_CAP_WOULD_BE_EXCEEDED');
  await refreshProviderSnapshot(db,'elevenlabs');
  const ready=await ensureJobSupplyReady(db,[{provider:'elevenlabs',unit:'character',units:todo.reduce((s:number,c:any)=>s+c.text.length,0),usd:remaining}]);
  if(todo.length&&!ready.ready)throw Error('EXPANSION_SUPPLY_UNAVAILABLE');
@@ -56,5 +59,5 @@ export async function expandVoice(cfg:any,seal:(name:string,b:Buffer)=>void){
  }
  const manifest={...plan,privatePrefix:prefix,blocks,totalSeconds:blocks.reduce((s,b)=>s+b.seconds,0),estimatedVoiceUsd:cost};
  const output=Buffer.from(JSON.stringify(manifest));await put(`${prefix}/manifest.json`,output);seal('expansion-voice-manifest.json',output);
- console.log('EXPANSION_VOICE_COMPLETE',JSON.stringify({blocks:blocks.length,seconds:manifest.totalSeconds,newVoiceEstimateUsd:cost,capUnchanged:true}));
+ console.log('EXPANSION_VOICE_COMPLETE',JSON.stringify({blocks:blocks.length,seconds:manifest.totalSeconds,newVoiceEstimateUsd:cost,authorizedVoiceCapUsd:voiceCapUsd,otherCapsUnchanged:true}));
 }
