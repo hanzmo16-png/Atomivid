@@ -1,0 +1,36 @@
+name: Claude executor (official Claude Code Action, off by default)
+# Optional executor for orchestrator follow-up tasks. Uses the official anthropics/claude-code-action with the
+# Claude Pro/Max subscription token (CLAUDE_CODE_OAUTH_TOKEN, from `claude setup-token`). It does not use the paid
+# Anthropic API. It runs only when Hans sets ORCH_CLAUDE_ACTION_ENABLED=true and adds that secret. It works on a branch
+# and opens a draft PR at most: it never merges or deploys.
+on:
+  repository_dispatch:
+    types: [claude-task]
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+concurrency:
+  group: claude-executor
+  cancel-in-progress: false
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: vars.ORCH_CLAUDE_ACTION_ENABLED == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse without the subscription token
+        env:
+          T: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: '[ -n "$T" ] || { echo "CLAUDE_CODE_OAUTH_TOKEN missing: not running (no paid API fallback)"; exit 1; }'
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Tarea del orquestador de Atomivid: ${{ github.event.client_payload.taskId }}.
+            Lee la solicitud con ese ID en la carpeta de coordinación (protocolo v2) que se te indique, haz SOLO lo pedido,
+            trabaja en una rama nueva, abre como mucho un PR en borrador y entrega el resultado como
+            <ID>__claude__hecha.md. Prohibido: fusionar, desplegar, gastar dinero, tocar producción, Travis Walton o la
+            cuenta del editor de Grok. Si hace falta algo de eso, entrega <ID>__claude__bloqueada.md.

@@ -1,0 +1,46 @@
+name: Orchestrator probe (free, read-only)
+# Free checks for the orchestrator pilot: unit tests + simulated demo (USD 0) and presence of the credentials it
+# would use (booleans only, never values). The OpenAI check is GET /v1/models, which lists models and is not billed;
+# no generation endpoint is called. Runs only on pushes to the isolated orchestrator branch.
+on:
+  push:
+    branches: [claude/orchestrator-v1]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Orchestrator tests and simulated demo (USD 0)
+        run: |
+          node --import tsx --test src/lib/orchestrator/orchestrator.test.ts 2>&1 | grep -E "^# (pass|fail)"
+          npx tsx scripts/orchestrator/run.ts
+      - name: Credential presence and free OpenAI model listing
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          DRIVE_ACCESS_TOKEN: ${{ secrets.DRIVE_ACCESS_TOKEN }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          has() { [ -n "$1" ] && echo true || echo false; }
+          echo "PRESENCE openai=$(has "$OPENAI_API_KEY") anthropic_api=$(has "$ANTHROPIC_API_KEY") claude_oauth=$(has "$CLAUDE_CODE_OAUTH_TOKEN") drive_token=$(has "$DRIVE_ACCESS_TOKEN") google_sa=$(has "$GOOGLE_SERVICE_ACCOUNT_JSON")"
+          if [ -n "$OPENAI_API_KEY" ]; then
+            case "$OPENAI_API_KEY" in sk-proj-*) KIND=project;; sk-svcacct-*) KIND=service_account;; sk-admin-*) KIND=admin;; sk-*) KIND=user_or_legacy;; *) KIND=unknown;; esac
+            CODE=$(curl -s -o /tmp/models.json -w '%{http_code}' https://api.openai.com/v1/models -H "Authorization: Bearer $OPENAI_API_KEY")
+            node -e '
+              const fs=require("fs"); let ids=[]; try { ids=(JSON.parse(fs.readFileSync("/tmp/models.json","utf8")).data||[]).map(m=>m.id); } catch {}
+              const want=["gpt-4.1-nano","gpt-4.1-mini","gpt-4o-mini","gpt-5-nano","gpt-5-mini","gpt-5.4-nano","gpt-5.4-mini"];
+              console.log("OPENAI", JSON.stringify({ keyKind: process.argv[1], modelsHttp: Number(process.argv[2]), modelCount: ids.length, cheapModels: Object.fromEntries(want.map(w=>[w, ids.includes(w)])) }));
+            ' "$KIND" "$CODE"
+            rm -f /tmp/models.json
+          fi
