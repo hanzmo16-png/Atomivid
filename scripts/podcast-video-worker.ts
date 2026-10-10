@@ -80,7 +80,7 @@ async function main() {
     const due = await pilot.dueScheduled(service, EPISODE_COLUMNS, new Date(), 1);
     log("SCHEDULER", { due: due.length });
     for (const ep of due) {
-      const claim = await pilot.claimScheduled(service, ep);
+      const claim = await pilot.claimScheduled(service, ep, await pilot.episodeSpentUsd(service, ep.id));
       log("SCHEDULED_CLAIM", { claimed: claim.claimed, blocked: !claim.claimed && !!claim.blocked });
       if (claim.claimed) await produce(ep.id);
       else if (claim.blocked) {
@@ -115,7 +115,7 @@ async function produce(episodeId: string) {
   const { supabaseResultStore } = await import("../src/lib/paid-calls/result-store");
   const { getVoiceIdentity } = await import("../src/lib/ai/voice");
   const { searchSceneVideos, searchScenePhotos, setFootageWaitBeat } = await import("../src/lib/ai/footage");
-  const { budgetDecision, buildVideoChecks, UNCERTAIN_CHARGE_MESSAGE } = await import("../src/lib/podcast/pilot");
+  const { budgetDecision, buildVideoChecks, historicalSpendUsd, UNCERTAIN_CHARGE_MESSAGE } = await import("../src/lib/podcast/pilot");
   const pilot = await import("../src/lib/podcast/pilot-server");
   type Episode = import("../src/lib/podcast/episode").PodcastEpisode;
   const service = createServiceClient();
@@ -148,12 +148,12 @@ async function produce(episodeId: string) {
     } catch { log("NOTICE", { kind, delivered: false }); }
   };
   try {
-    // Pilot preflight, before any paid call: an uncertain charge stops the run until reconciled; the remaining cost
-    // must fit the owner's budget for this production (the admission inside the narration re-reads the balance).
+    // Pilot preflight, before any paid call: an uncertain charge stops the run until reconciled; what the episode
+    // already spent plus the remaining cost must fit its total budget (the narration admission re-reads the balance).
     const spendBefore = await pilot.productionSpend(service, episodeId).catch(() => null);
     if (!spendBefore) throw new BlockError("No se pudo leer el registro de gastos; la producción se detuvo para no cobrar a ciegas. Pulsa «Reintentar» más tarde.");
     if (spendBefore.uncertain > 0) throw new BlockError(UNCERTAIN_CHARGE_MESSAGE);
-    const budget = budgetDecision(episode, episode.budget_usd == null ? null : Number(episode.budget_usd));
+    const budget = budgetDecision(episode, episode.budget_usd == null ? null : Number(episode.budget_usd), historicalSpendUsd(spendBefore));
     if (!budget.ok) throw new BlockError(budget.message, "budget");
     if (episode.status !== "ready") {
       if (episode.source !== "tts") throw new BlockError("Sube y termina la grabación antes de producir el video.");
@@ -259,7 +259,7 @@ async function produce(episodeId: string) {
     const checks = buildVideoChecks({
       editorOk: true, editorChecks: repChecks, videoSeconds: seconds, audioSeconds, bytes: size, maxBytes: STORAGE_MAX_BYTES, subtitles: !!subtitles,
       shots: { videos: shots.filter((x) => x?.kind === "video").length, photos: shots.filter((x) => x?.kind === "photo").length, cards, total: scenes.length },
-      credits: creditSources, spend, budgetUsd: ep.budget_usd == null ? null : Number(ep.budget_usd),
+      credits: creditSources, spend, budgetUsd: ep.budget_usd == null ? null : Number(ep.budget_usd), spentBeforeUsd: budget.spentUsd, pendingEstimateUsd: budget.remainingUsd,
     });
     const ok = await fenced({ video_status: "ready", video_stage: null, video_path: objectPath, video_bytes: size, video_sha256: sha256, video_duration_seconds: seconds, video_error: null, video_checks: checks, review_status: "pending", publish_status: "held", retry_count: 0 });
     log("VIDEO", { ok, bytes: size, seconds: Math.round(seconds), defects: checks.defects.length });

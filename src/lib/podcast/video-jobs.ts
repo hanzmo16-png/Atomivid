@@ -29,10 +29,11 @@ export async function dispatchPodcastJob(episodeId: string, kind: PodcastJobKind
 export const DISPATCH_UNCONFIRMED = "La solicitud quedó guardada, pero no pudimos confirmar el inicio del trabajo. Pulsa «Reintentar»: no se cobra nada dos veces.";
 
 export type VideoRequestResult = { ok: true; status: "queued" | "scheduled" } | { error: string; status: number };
-export type ProductionOptions = { budgetUsd?: number | null; scheduleAt?: string | null };
+/** `spentUsd`: the episode's historical spend from the ledger (null/absent = unreadable → a budget-dependent start is refused). */
+export type ProductionOptions = { budgetUsd?: number | null; scheduleAt?: string | null; spentUsd?: number | null };
 
 /**
- * Owner asked for the production (narration if needed + video): checks the per-production budget, the attempt
+ * Owner asked for the production (narration if needed + video): checks the episode's total budget, the attempt
  * limit and the schedule; then either queues it and dispatches the worker now, or leaves it scheduled for the
  * worker's scheduled tick (one-shot). Compare-and-set on the row: two requests never start two runs.
  */
@@ -42,7 +43,7 @@ export async function requestPodcastVideo(service: SupabaseClient, episode: Podc
   const state = episode.video_status ?? "none";
   if ((state === "queued" || state === "running") && !isStalledVideo(episode, now)) return { error: "El video ya se está produciendo. Puedes cerrar la app y volver más tarde.", status: 409 };
   const budgetUsd = options.budgetUsd !== undefined ? options.budgetUsd : (episode.budget_usd ?? null);
-  const budget = budgetDecision(episode, budgetUsd == null ? null : Number(budgetUsd));
+  const budget = budgetDecision(episode, budgetUsd == null ? null : Number(budgetUsd), options.spentUsd ?? null);
   if (!budget.ok) return { error: budget.message, status: 402 };
   const attempts = attemptsDecision(episode, (state === "queued" || state === "running") && isStalledVideo(episode, now));
   if (!attempts.ok) return { error: attempts.message, status: 429 };

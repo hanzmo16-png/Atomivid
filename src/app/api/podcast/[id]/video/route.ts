@@ -3,10 +3,11 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { podcastUser } from "@/lib/podcast/auth";
 import { loadOwnedEpisode } from "@/lib/podcast/server";
 import { cancelScheduledProduction, requestPodcastVideo } from "@/lib/podcast/video-jobs";
+import { episodeSpentUsd } from "@/lib/podcast/pilot-server";
 
 /**
- * Owner-only production (narration if needed, then the editor render) in the background, with the maximum budget
- * for this production and an optional one-shot scheduled start. Body: { budgetUsd?, scheduleAt?, cancel? }.
+ * Owner-only production (narration if needed, then the editor render) in the background, within the episode's total
+ * budget (historical spend + pending cost) and an optional one-shot scheduled start. Body: { budgetUsd?, scheduleAt?, cancel? }.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,6 +24,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const budgetUsd = body.budgetUsd === undefined || body.budgetUsd === null || body.budgetUsd === "" ? undefined : Number(body.budgetUsd);
   if (budgetUsd !== undefined && !Number.isFinite(budgetUsd)) return NextResponse.json({ error: "El presupuesto no es un número válido." }, { status: 400 });
   const scheduleAt = typeof body.scheduleAt === "string" && body.scheduleAt ? body.scheduleAt : null;
-  const out = await requestPodcastVideo(service, episode, { ...(budgetUsd === undefined ? {} : { budgetUsd }), scheduleAt });
+  const spentUsd = await episodeSpentUsd(service, episode.id);
+  const out = await requestPodcastVideo(service, episode, { ...(budgetUsd === undefined ? {} : { budgetUsd }), scheduleAt, spentUsd });
   return "error" in out ? NextResponse.json({ error: out.error }, { status: out.status }) : NextResponse.json(out, { status: 202 });
 }

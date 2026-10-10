@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { paidResultPath, supabaseResultStore } from "@/lib/paid-calls/result-store";
 import { podcastLedgerProject, type PodcastEpisode } from "./episode";
-import { budgetDecision, MAX_PRODUCTION_ATTEMPTS, noticeText, summarizeSpend, type LedgerRow, type NoticeKind, type SpendSummary } from "./pilot";
+import { budgetDecision, historicalSpendUsd, MAX_PRODUCTION_ATTEMPTS, noticeText, summarizeSpend, type LedgerRow, type NoticeKind, type SpendSummary } from "./pilot";
 
 export async function productionSpend(service: SupabaseClient, episodeId: string): Promise<SpendSummary> {
   const projectId = podcastLedgerProject(episodeId);
@@ -22,6 +22,11 @@ export async function productionSpend(service: SupabaseClient, episodeId: string
     if (await results.getJson(paidResultPath(projectId, r.idempotency_key, "json")).catch(() => null)) stored.add(r.idempotency_key);
   }
   return summarizeSpend(rows, stored);
+}
+
+/** Historical spend of the episode for its total budget (uncertain charges included); null when the ledger is unreadable. */
+export async function episodeSpentUsd(service: SupabaseClient, episodeId: string): Promise<number | null> {
+  return productionSpend(service, episodeId).then(historicalSpendUsd, () => null);
 }
 
 export type Notice = { id: string; kind: NoticeKind; message: string };
@@ -80,9 +85,11 @@ export type ClaimOutcome = { claimed: true; token: string } | { claimed: false; 
  * Claims a due scheduled production (compare-and-set scheduled → queued with a fresh run token), re-checking the
  * budget and the attempt limit at start time. A failed check leaves it blocked with the reason (no charge).
  */
-export async function claimScheduled(service: SupabaseClient, episode: PodcastEpisode): Promise<ClaimOutcome> {
+export async function claimScheduled(service: SupabaseClient, episode: PodcastEpisode, spentUsd: number | null): Promise<ClaimOutcome> {
   const at = new Date().toISOString();
-  const budget = budgetDecision(episode, episode.budget_usd == null ? null : Number(episode.budget_usd));
+  const budget = budgetDecision(episode, episode.budget_usd == null ? null : Number(episode.budget_usd), spentUsd);
+  // Ledger unreadable: not a refusal by the owner's budget; leave it scheduled for the next tick (nothing claimed).
+  if (!budget.ok && spentUsd == null) return { claimed: false };
   // The request already decided new production vs retry (retry_count); failed dispatches add to it.
   const attempts = (episode.retry_count ?? 0) >= MAX_PRODUCTION_ATTEMPTS
     ? { ok: false as const, message: `La producción programada no se pudo iniciar tras ${MAX_PRODUCTION_ATTEMPTS} intentos. Revisa el estado antes de reprogramarla.` }
@@ -118,7 +125,7 @@ export async function runSchedulerTick(service: SupabaseClient, columns: string,
   const due = await dueScheduled(service, columns, new Date(), 3);
   const out = { due: due.length, dispatched: 0, blocked: 0, requeued: 0 };
   for (const ep of due) {
-    const claim = await claimScheduled(service, ep);
+    const claim = await claimScheduled(service, ep, await episodeSpentUsd(service, ep.id));
     if (claim.claimed) {
       if (await dispatch(ep.id, "video")) { out.dispatched++; continue; }
       await service.from("podcast_episodes").update({ video_status: "scheduled", scheduled_at: new Date().toISOString(), video_stage: null, retry_count: (ep.retry_count ?? 0) + 1, updated_at: new Date().toISOString() })

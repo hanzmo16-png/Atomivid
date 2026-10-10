@@ -7,9 +7,13 @@ El piloto se monta sobre el flujo de podcast, que es el único validado de punta
 ## Recorrido
 
 1. **Solicitud y guion.** En `/dashboard/podcast`, Hans pega su guion y elige una voz de su cuenta, o sube su propia grabación. Crear el episodio no tiene costo.
-2. **Presupuesto.** En la página del episodio, «Producción supervisada» muestra el costo pendiente:
-   - Es la narración aún no pagada. Si la narración ya está pagada, el costo es USD 0. El video no tiene costo de proveedores.
-   - Hans fija un máximo por producción. Si el costo pendiente no cabe, la producción no empieza y no se cobra nada.
+2. **Presupuesto total del episodio.** En la página del episodio, «Producción supervisada» muestra tres cifras:
+   - **Ya gastado:** el gasto histórico del episodio según el registro de pagos. Los cargos inciertos cuentan como gastados.
+   - **Pendiente:** la narración aún no pagada. Si ya está pagada, es USD 0. El video no tiene costo de proveedores.
+   - **Mínimo total:** ya gastado + pendiente, redondeado hacia arriba al centavo.
+   - Hans fija el presupuesto **total** del episodio. Si lo ya gastado más lo pendiente no cabe, la producción no empieza y no se cobra nada; el mensaje dice el mínimo necesario.
+   - La revisión compara el mismo total, así que una producción aceptada al iniciar no puede fallar la comprobación de presupuesto salvo que el costo real supere la estimación. Ese caso se marca aparte como defecto («costó más que su estimación»).
+   - Si el registro de pagos no se puede leer, no empieza nada que dependa del presupuesto. Una producción programada sigue programada hasta el siguiente tick, sin bloquearse.
 3. **Producción.** Puede producir ahora o programar un inicio único.
    - El worker de GitHub Actions narra si hace falta, busca los clips y fotos, monta y verifica.
    - El avance se guarda: Hans puede salir y volver.

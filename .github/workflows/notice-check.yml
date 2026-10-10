@@ -1,0 +1,38 @@
+name: Notice check (GitHub notifications on the owner's phone)
+# Free, manual. "send": the Actions bot posts ONE generic test comment on the notices issue mentioning the owner
+# (at most one every 10 minutes; no link, id or data). "verify": reads the owner's 👍 on that comment, which is the
+# only evidence of reception on the phone. Emission and reception are reported separately.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "send | verify"
+        required: true
+        default: send
+        type: choice
+        options: [send, verify]
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: notice-check
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/notice-check.ts
+        env:
+          MODE: ${{ inputs.mode }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          NOTICE_MENTION: ${{ github.repository_owner }}

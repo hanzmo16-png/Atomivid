@@ -2,8 +2,10 @@
  * Supervised production pilot (pure, no I/O). The owner configures a production with a maximum budget, may
  * schedule its start and close the app; the worker leaves a reviewable delivery or a clear block. Publication stays
  * held until the owner approves. Rules here:
- *  - budget: the remaining narration cost (what is not already paid and stored) must fit the owner's maximum, checked
- *    when the production is requested and again by the worker before any paid call;
+ *  - budget: `budget_usd` is the TOTAL budget of the episode. What the episode already spent (historical, from the
+ *    paid-call ledger; uncertain charges count as spent) plus the pending incremental cost (what is not already paid
+ *    and stored) must fit it. Checked when the production is requested, when a scheduled start is claimed and again
+ *    by the worker before any paid call; the review check compares the same total, so both always agree;
  *  - uncertain charge: a paid call whose outcome is unknown (no stored result) stops the production until it is
  *    reconciled; a call whose result is stored is reused at no cost and is not uncertain;
  *  - bounded retries: a production can be (re)started at most MAX_PRODUCTION_ATTEMPTS times;
@@ -18,8 +20,12 @@ export const SCHEDULE_MIN_LEAD_MS = 2 * 60_000;
 export const SCHEDULE_MAX_LEAD_MS = 14 * 24 * 3600_000;
 
 const usd = (n: number) => `USD ${n.toFixed(2)}`;
+const usd4 = (n: number) => `USD ${n.toFixed(4)}`;
+const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
 
-export type BudgetDecision = { ok: true; remainingUsd: number } | { ok: false; remainingUsd: number; message: string };
+/** The three amounts of an episode's budget: what it already spent, what this production may still cost, and the sum. */
+export type BudgetFigures = { spentUsd: number; remainingUsd: number; projectedUsd: number; minimumBudgetUsd: number };
+export type BudgetDecision = ({ ok: true } | { ok: false; message: string }) & BudgetFigures;
 
 /** Remaining cost of a production: zero once the narration is paid (ready); otherwise the narration estimate. */
 export function remainingCostUsd(episode: Pick<PodcastEpisode, "status" | "source" | "estimated_usd">): number {
@@ -27,16 +33,30 @@ export function remainingCostUsd(episode: Pick<PodcastEpisode, "status" | "sourc
   return Math.max(0, Number(episode.estimated_usd) || 0);
 }
 
-export function budgetDecision(episode: Pick<PodcastEpisode, "status" | "source" | "estimated_usd">, budgetUsd: number | null | undefined): BudgetDecision {
+/** Historical spend of an episode for budgeting: spent + uncertain (an unconfirmed charge may have been billed). */
+export const historicalSpendUsd = (spend: Pick<SpendSummary, "spentUsd" | "uncertainUsd">) => round4(spend.spentUsd + spend.uncertainUsd);
+
+/** Smallest total budget (whole cents, rounded up) that covers what was spent plus what is pending. */
+export const minimumBudgetUsd = (spentUsd: number, remainingUsd: number) => Math.ceil(round4(spentUsd + remainingUsd) * 100 - 1e-6) / 100;
+
+/**
+ * Episode total budget: historical spend + pending incremental cost ≤ budget. `spentUsd` null = the ledger could not
+ * be read: nothing that depends on the budget starts (fail closed). Without a budget a production may start only if
+ * it cannot charge anything new.
+ */
+export function budgetDecision(episode: Pick<PodcastEpisode, "status" | "source" | "estimated_usd">, budgetUsd: number | null | undefined, spentUsd: number | null): BudgetDecision {
   const remainingUsd = remainingCostUsd(episode);
-  if (budgetUsd == null || !Number.isFinite(budgetUsd)) {
-    return remainingUsd === 0 ? { ok: true, remainingUsd } : { ok: false, remainingUsd, message: `Fija un presupuesto máximo para esta producción (costo estimado ${usd(remainingUsd)}).` };
+  const spent = spentUsd == null ? 0 : Math.max(0, spentUsd);
+  const figures: BudgetFigures = { spentUsd: round4(spent), remainingUsd, projectedUsd: round4(spent + remainingUsd), minimumBudgetUsd: minimumBudgetUsd(spent, remainingUsd) };
+  const noBudget = budgetUsd == null || !Number.isFinite(budgetUsd);
+  if (noBudget && remainingUsd === 0) return { ok: true, ...figures };
+  if (spentUsd == null) return { ok: false, ...figures, message: "No se pudo leer el registro de gastos del episodio; no se inició nada para no gastar a ciegas. Inténtalo más tarde." };
+  if (noBudget) return { ok: false, ...figures, message: `Fija un presupuesto total para el episodio: ya gastó ${usd4(spent)} y esta producción puede costar hasta ${usd(remainingUsd)} más (mínimo ${usd(figures.minimumBudgetUsd)}).` };
+  if (budgetUsd < 0 || budgetUsd > MAX_BUDGET_USD) return { ok: false, ...figures, message: `El presupuesto debe estar entre USD 0 y USD ${MAX_BUDGET_USD}.` };
+  if (figures.projectedUsd > budgetUsd + 1e-9) {
+    return { ok: false, ...figures, message: `Presupuesto total insuficiente: el episodio ya gastó ${usd4(spent)} y esta producción puede costar hasta ${usd(remainingUsd)} más (total ${usd4(figures.projectedUsd)}), pero el presupuesto total es ${usd(budgetUsd)}. Fija al menos ${usd(figures.minimumBudgetUsd)}. No se cobró nada.` };
   }
-  if (budgetUsd < 0 || budgetUsd > MAX_BUDGET_USD) return { ok: false, remainingUsd, message: `El presupuesto debe estar entre USD 0 y USD ${MAX_BUDGET_USD}.` };
-  if (remainingUsd > budgetUsd + 1e-9) {
-    return { ok: false, remainingUsd, message: `Presupuesto insuficiente: la producción cuesta hasta ${usd(remainingUsd)} y el máximo fijado es ${usd(budgetUsd)}. No se cobró nada.` };
-  }
-  return { ok: true, remainingUsd };
+  return { ok: true, ...figures };
 }
 
 export type LedgerRow = { idempotency_key: string; status: string; reserved_usd: number | string; committed_usd: number | string | null };
@@ -57,8 +77,7 @@ export function summarizeSpend(rows: LedgerRow[], storedKeys: ReadonlySet<string
       else { uncertain++; uncertainUsd += Number(r.reserved_usd) || 0; }
     }
   }
-  const round = (n: number) => Math.round(n * 10_000) / 10_000;
-  return { calls: rows.length, committedUsd: round(committedUsd), deliveredOpenUsd: round(deliveredOpenUsd), uncertain, uncertainUsd: round(uncertainUsd), spentUsd: round(committedUsd + deliveredOpenUsd) };
+  return { calls: rows.length, committedUsd: round4(committedUsd), deliveredOpenUsd: round4(deliveredOpenUsd), uncertain, uncertainUsd: round4(uncertainUsd), spentUsd: round4(committedUsd + deliveredOpenUsd) };
 }
 
 export const UNCERTAIN_CHARGE_MESSAGE = "Hay un cargo de narración cuyo resultado no se pudo confirmar. La producción se detuvo para no cobrarlo dos veces: hay que conciliarlo con el historial de ElevenLabs antes de repetirla.";
@@ -88,13 +107,17 @@ export function scheduleDecision(scheduleAt: string | null | undefined, now = Da
 
 export type CheckItem = { id: string; label: string; ok: boolean; detail?: string };
 export type Defect = { id: string; severity: "alta" | "media" | "baja"; text: string };
-export type VideoChecks = { checks: CheckItem[]; defects: Defect[]; spend?: SpendSummary; budgetUsd?: number | null; computedAt: string };
+/** Budget breakdown of a delivery: episode total vs historical spend (before this run) vs what this run added. */
+export type BudgetBreakdown = { totalBudgetUsd: number | null; spentBeforeUsd: number; incrementalUsd: number; pendingEstimateUsd: number; spentUsd: number };
+export type VideoChecks = { checks: CheckItem[]; defects: Defect[]; spend?: SpendSummary; budgetUsd?: number | null; budget?: BudgetBreakdown; computedAt: string };
 
 /** Technical checks and detected defects of a delivered video. Integrity only: it never approves anything. */
 export function buildVideoChecks(input: {
   editorOk: boolean; editorChecks: { name: string; ok: boolean }[]; videoSeconds: number; audioSeconds: number; bytes: number; maxBytes: number;
   subtitles: boolean; shots: { videos: number; photos: number; cards: number; total: number }; credits: number;
-  spend?: SpendSummary; budgetUsd?: number | null; now?: Date;
+  spend?: SpendSummary; budgetUsd?: number | null;
+  /** Historical spend read by the worker's preflight (before any paid call of this run) and the pending estimate then. */
+  spentBeforeUsd?: number; pendingEstimateUsd?: number; now?: Date;
 }): VideoChecks {
   const { shots } = input;
   const checks: CheckItem[] = [
@@ -105,9 +128,18 @@ export function buildVideoChecks(input: {
     { id: "picture", label: "Imagen en movimiento en todas las escenas", ok: shots.cards === 0, detail: `${shots.videos} clips, ${shots.photos} fotos animadas, ${shots.cards} tarjetas` },
     { id: "credits", label: "Recursos con licencia acreditados", ok: input.credits > 0 || shots.videos + shots.photos === 0, detail: `${input.credits} fuentes` },
   ];
+  let budget: BudgetBreakdown | undefined;
   if (input.spend) {
-    const within = input.budgetUsd == null || input.spend.spentUsd <= input.budgetUsd + 1e-9;
-    checks.push({ id: "budget", label: "Gasto dentro del presupuesto", ok: within && input.spend.uncertain === 0, detail: `USD ${input.spend.spentUsd.toFixed(4)} de ${input.budgetUsd == null ? "sin máximo" : `USD ${input.budgetUsd.toFixed(2)}`}${input.spend.uncertain ? `, ${input.spend.uncertain} cargo(s) incierto(s)` : ""}` });
+    // Same total as the start rule: everything the episode spent (uncertain included) against its total budget.
+    const total = historicalSpendUsd(input.spend);
+    const before = Math.min(total, Math.max(0, input.spentBeforeUsd ?? total));
+    budget = { totalBudgetUsd: input.budgetUsd ?? null, spentBeforeUsd: round4(before), incrementalUsd: round4(total - before), pendingEstimateUsd: round4(input.pendingEstimateUsd ?? 0), spentUsd: total };
+    const within = input.budgetUsd == null || total <= input.budgetUsd + 1e-9;
+    checks.push({ id: "budget", label: "Gasto total del episodio dentro de su presupuesto total", ok: within && input.spend.uncertain === 0,
+      detail: `${usd4(total)} de ${input.budgetUsd == null ? "sin presupuesto (sin costo nuevo)" : usd(input.budgetUsd)}: ${usd4(budget.spentBeforeUsd)} ya gastado antes + ${usd4(budget.incrementalUsd)} en esta producción${input.spend.uncertain ? `, ${input.spend.uncertain} cargo(s) incierto(s)` : ""}` });
+    if (input.pendingEstimateUsd !== undefined) {
+      checks.push({ id: "estimate", label: "El costo de esta producción no superó su estimación", ok: budget.incrementalUsd <= budget.pendingEstimateUsd + 1e-9, detail: `${usd4(budget.incrementalUsd)} de ${usd4(budget.pendingEstimateUsd)} estimados` });
+    }
   }
   for (const c of input.editorChecks) if (!c.ok) checks.push({ id: `editor:${c.name}`, label: `Editor: ${c.name}`, ok: false });
   const defects: Defect[] = [];
@@ -116,10 +148,11 @@ export function buildVideoChecks(input: {
   if (shots.cards > 0) defects.push({ id: "cards", severity: shots.cards / Math.max(1, shots.total) > 0.2 ? "alta" : "media", text: `${shots.cards} de ${shots.total} escenas sin imagen de banco: se usó una tarjeta.` });
   if (!input.subtitles) defects.push({ id: "subtitles", severity: "media", text: "Sin subtítulos (grabación propia o narración sin tiempos guardados)." });
   if (shots.total > 0 && shots.photos / shots.total > 0.5) defects.push({ id: "photos", severity: "baja", text: `Más de la mitad de las escenas son fotos animadas (${shots.photos}/${shots.total}): poco video real disponible para el tema.` });
-  if (input.spend && input.budgetUsd != null && input.spend.spentUsd > input.budgetUsd + 1e-9) defects.push({ id: "budget", severity: "alta", text: "El gasto superó el presupuesto fijado." });
+  if (budget && budget.totalBudgetUsd != null && budget.spentUsd > budget.totalBudgetUsd + 1e-9) defects.push({ id: "budget", severity: "alta", text: "El gasto total del episodio superó su presupuesto total." });
+  if (budget && input.pendingEstimateUsd !== undefined && budget.incrementalUsd > budget.pendingEstimateUsd + 1e-9) defects.push({ id: "estimate", severity: "media", text: "Esta producción costó más que su estimación." });
   if (input.spend?.uncertain) defects.push({ id: "uncertain", severity: "alta", text: "Hay cargos inciertos sin conciliar." });
   defects.push({ id: "relevance", severity: "baja", text: "La pertinencia de cada clip se elige por palabras clave (sin análisis semántico): revisa que las imágenes acompañen lo que se dice." });
-  return { checks, defects, spend: input.spend, budgetUsd: input.budgetUsd ?? null, computedAt: (input.now ?? new Date()).toISOString() };
+  return { checks, defects, spend: input.spend, budgetUsd: input.budgetUsd ?? null, ...(budget ? { budget } : {}), computedAt: (input.now ?? new Date()).toISOString() };
 }
 
 export type NoticeKind = "delivered" | "blocked" | "budget";

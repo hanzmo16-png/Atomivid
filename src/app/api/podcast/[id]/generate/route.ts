@@ -4,6 +4,7 @@ import { podcastUser } from "@/lib/podcast/auth";
 import { loadOwnedEpisode, runGeneration } from "@/lib/podcast/server";
 import { narrationRunsInBackground, requestBackgroundNarration } from "@/lib/podcast/video-jobs";
 import { budgetDecision } from "@/lib/podcast/pilot";
+import { episodeSpentUsd } from "@/lib/podcast/pilot-server";
 
 // Short narrations run here (+ mastering). Long scripts (up to ~33 min of audio) are narrated by the background
 // worker instead: a single 300 s request cannot hold them. Either way every chunk already generated is stored and
@@ -17,9 +18,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const service = createServiceClient();
   const episode = await loadOwnedEpisode(service, user.id, id);
   if (!episode) return NextResponse.json({ error: "Episodio no encontrado." }, { status: 404 });
-  // A budget fixed for this production also bounds a narration started on its own.
+  // The episode's total budget, when set, also bounds a narration started on its own.
   if (episode.budget_usd != null) {
-    const budget = budgetDecision(episode, Number(episode.budget_usd));
+    const budget = budgetDecision(episode, Number(episode.budget_usd), await episodeSpentUsd(service, episode.id));
     if (!budget.ok) return NextResponse.json({ error: budget.message }, { status: 402 });
   }
   if (narrationRunsInBackground(episode)) {

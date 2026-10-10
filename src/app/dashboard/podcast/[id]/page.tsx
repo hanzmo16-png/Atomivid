@@ -5,6 +5,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
 import { estimatePodcast, isStalledRun, isStalledVideo, podcastCapacity } from "@/lib/podcast/episode";
 import { loadOwnedEpisode } from "@/lib/podcast/server";
+import { episodeSpentUsd } from "@/lib/podcast/pilot-server";
 import { EpisodeActions } from "./EpisodeActions";
 import { VideoPanel } from "./VideoPanel";
 import { remainingCostUsd, type VideoChecks } from "@/lib/podcast/pilot";
@@ -27,6 +28,7 @@ export default async function PodcastEpisodePage({ params }: { params: Promise<{
   const playUrl = episode.status === "ready" && episode.audio_path ? (await storage.createSignedUrl(episode.audio_path, 3600)).data?.signedUrl ?? null : null;
   const downloadUrl = playUrl && episode.audio_path ? (await storage.createSignedUrl(episode.audio_path, 3600, { download: `${safeName}.m4a` })).data?.signedUrl ?? null : null;
   const stalled = isStalledRun(episode);
+  const historicalUsd = await episodeSpentUsd(service, episode.id);
   const videoStatus = episode.video_status ?? "none";
   const VIDEO_TTL = 6 * 3600;
   const videoPlayUrl = videoStatus === "ready" && episode.video_path ? (await storage.createSignedUrl(episode.video_path, VIDEO_TTL)).data?.signedUrl ?? null : null;
@@ -71,6 +73,7 @@ export default async function PodcastEpisodePage({ params }: { params: Promise<{
         budgetUsd={episode.budget_usd == null ? null : Number(episode.budget_usd)}
         scheduledAt={episode.scheduled_at ?? null}
         spentUsd={episode.cost_usd == null ? null : Number(episode.cost_usd)}
+        historicalUsd={historicalUsd}
         seconds={episode.video_duration_seconds ? Number(episode.video_duration_seconds) : null}
         checks={(episode.video_checks as VideoChecks | null) ?? null}
         reviewStatus={episode.review_status ?? "pending"}
