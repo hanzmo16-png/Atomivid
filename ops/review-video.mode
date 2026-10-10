@@ -1,5 +1,5 @@
 podcast-editor-app
 target=https://atomivid.vercel.app
-owner_session=yes
 episode=prueba-v3
 version=2
+anon_only=yes

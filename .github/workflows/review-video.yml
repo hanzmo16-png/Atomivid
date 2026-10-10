@@ -62,6 +62,7 @@ jobs:
             grep -q '^owner_session=yes$' ops/review-video.mode && export OWNER_SESSION_AUTHORIZED=yes
             export E2E_EPISODE="$(sed -n 's/^episode=//p' ops/review-video.mode | head -1)"
             export E2E_VERSION="$(sed -n 's/^version=//p' ops/review-video.mode | head -1)"
+            grep -q '^anon_only=yes$' ops/review-video.mode && export ANON_ONLY=yes
             npx tsx scripts/review/podcast-editor-app-e2e.ts;
           else npx tsx scripts/review/review-video.ts "$MODE"; fi
         env:

@@ -48,6 +48,17 @@ async function cleanupAccounts() {
 
 async function main() {
   if (!APP) throw new Error("E2E_APP not set");
+  if (process.env.ANON_ONLY === "yes") {
+    // Unauthenticated request to the verify API of the pinned delivery: must be refused before any Storage read.
+    const ep = process.env.E2E_EPISODE?.trim(), v = process.env.E2E_VERSION?.trim();
+    const r = await fetch(`${APP}/api/podcast-editor/${ep}/v${v}/verify`, { method: "POST" });
+    const page = await fetch(`${APP}/dashboard/podcast/editor/${ep}/v${v}`, { redirect: "manual" });
+    check("anonymous: verify API is 401", r.status === 401, { status: r.status });
+    check("anonymous: version page redirects to login", page.status >= 300 && page.status < 400 && /\/login/.test(page.headers.get("location") ?? ""), { status: page.status });
+    log("SUMMARY", { target: APP, passed: results.filter((x) => x.ok).length, failed: results.filter((x) => !x.ok).map((x) => x.check) });
+    if (results.some((x) => !x.ok)) process.exitCode = 1;
+    return;
+  }
   if (process.env.OWNER_SESSION_AUTHORIZED !== "yes") { log("BLOCKED", { reason: "owner sign-in not authorised for this run" }); process.exitCode = 1; return; }
   const { client } = await connectResolved();
   const owners = (await client.query("select user_id::text as id from podcast_editor.propietarios order by created_at")).rows as { id: string }[];
@@ -82,7 +93,7 @@ async function main() {
           : `x-vercel-protection-bypass=${encodeURIComponent(BYPASS)}&x-vercel-set-bypass-cookie=samesitenone`;
         await page.goto(`${APP}/?${query}`, { waitUntil: "domcontentloaded" });
       }
-      await ctx.addCookies(cookies.map((c) => ({ ...c, domain: host, path: "/", secure: true, sameSite: "Lax" as const })));
+      if (cookies.length) await ctx.addCookies(cookies.map((c) => ({ ...c, domain: host, path: "/", secure: true, sameSite: "Lax" as const })));
       return { ctx, page };
     };
     const text = async (page: any) => (await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " "); // eslint-disable-line @typescript-eslint/no-explicit-any
