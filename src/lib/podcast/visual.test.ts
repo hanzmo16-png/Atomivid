@@ -54,7 +54,8 @@ test("coherencia: cada búsqueda va anclada al tema del episodio; el título es 
   assert.deepEqual(last.queries, ["encuentros ovnis", "ovnis", "misterios universo"]);
   assert.ok(scenes.every((s) => s.queries?.every((q, i, a) => i === a.length - 1 || q.includes("ovnis"))), "every stock search stays on the subject");
   assert.equal(topicOf("ovni ovni", "Ovni").get("ovni"), 5, "title words weigh extra in the ranking");
-  assert.equal(anchorOf("Una sola frase sin repeticiones."), null, "no recurrent subject → scene terms");
+  assert.equal(anchorOf("Una sola frase sin repeticiones."), null, "no recurrent subject and no title → scene terms");
+  assert.equal(anchorOf("Una sola frase sin repeticiones.", "Misterios del universo"), "misterios", "short script → the title's subject");
 });
 
 test("subtítulos: palabras ordenadas, sin solaparse y dentro del audio", () => {
