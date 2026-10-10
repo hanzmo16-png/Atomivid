@@ -1,0 +1,39 @@
+{
+  "fecha": "2026-10-09T14:41:25-03:00",
+  "nota": "Medios sintéticos (ffmpeg lavfi) y servidor Supabase SIMULADO local. Supabase real: NO probado.",
+  "unittest": {
+    "ejecutadas": 42,
+    "fallos": 0,
+    "errores": 0,
+    "omitidas": 0,
+    "segundos": 47.1,
+    "por_modulo": {
+      "test_e2e_mock": {
+        "ok": 1,
+        "fail": 0
+      },
+      "test_insuficiente": {
+        "ok": 11,
+        "fail": 0
+      },
+      "test_mezcla_final": {
+        "ok": 7,
+        "fail": 0
+      },
+      "test_schema": {
+        "ok": 4,
+        "fail": 0
+      },
+      "test_storage": {
+        "ok": 19,
+        "fail": 0
+      }
+    },
+    "detalles_fallos": []
+  },
+  "runtime": {
+    "python": "3",
+    "ffmpeg": "6.1.1-3ubuntu5",
+    "scope": "42 included tests; synthetic media and local mock only"
+  }
+}
