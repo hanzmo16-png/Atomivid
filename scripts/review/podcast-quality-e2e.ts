@@ -101,10 +101,8 @@ async function main() {
   try {
     // 1. Double tap: two simultaneous requests from the owner's phone session.
     let page = await open();
-    const statuses: number[] = await page.evaluate(async (id: string) => {
-      const go = () => fetch(`/api/podcast/${id}/video`, { method: "POST" }).then((r) => r.status);
-      return Promise.all([go(), go()]);
-    }, ep);
+    // A plain string: tsx would inject helpers into a function body that do not exist in the page.
+    const statuses: number[] = await page.evaluate(`Promise.all([0, 1].map(() => fetch("/api/podcast/${ep}/video", { method: "POST" }).then((r) => r.status)))`);
     check("double tap: exactly one production accepted, the other refused", [...statuses].sort().join(",") === "202,409", { statuses });
     await page.close(); // the owner leaves
 
