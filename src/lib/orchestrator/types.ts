@@ -35,6 +35,6 @@ export interface Auditor {
 export type AuditEvent =
   | "cycle_started" | "skipped_kill_switch" | "delivery_seen" | "already_processed" | "audit_ok" | "audit_failed"
   | "budget_refused" | "guard_escalated" | "followup_created" | "task_completed" | "approval_requested" | "attempts_exhausted"
-  | "cycle_finished";
+  | "cycle_finished" | "recovered" | "delivery_error";
 
 export type AuditLogEntry = { at: string; event: AuditEvent; taskId?: string; key?: string; detail?: Record<string, unknown> };

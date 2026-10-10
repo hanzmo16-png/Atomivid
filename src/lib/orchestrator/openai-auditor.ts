@@ -36,13 +36,14 @@ export class ProviderError extends Error { constructor(message: string, readonly
 
 type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
-export function buildRequest(cfg: Pick<OrchestratorConfig, "model" | "maxOutputTokens" | "maxInputChars">, input: { task: string; delivery: string; attempt: number; maxAttempts: number }) {
+export function buildRequest(cfg: Pick<OrchestratorConfig, "model" | "maxOutputTokens" | "maxInputChars" | "reasoning">, input: { task: string; delivery: string; attempt: number; maxAttempts: number }) {
   const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}\n[…recortado…]` : s);
   const half = Math.floor(cfg.maxInputChars / 2);
   return {
     model: cfg.model,
     store: false,
     max_output_tokens: cfg.maxOutputTokens,
+    ...(cfg.reasoning ? { reasoning: { effort: "low" } } : {}),
     input: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: `Intento ${input.attempt} de ${input.maxAttempts}.\n\n<tarea>\n${clip(input.task, half)}\n</tarea>\n\n<entrega>\n${clip(input.delivery, half)}\n</entrega>` },

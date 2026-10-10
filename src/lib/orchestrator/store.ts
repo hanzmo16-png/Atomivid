@@ -8,14 +8,20 @@
  */
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { AuditLogEntry, ChainInfo } from "./types";
+import type { AuditLogEntry, AuditUsage, AuditVerdict, ChainInfo } from "./types";
+
+/** Per delivery version: "audited" = verdict persisted, files may be incomplete (replayed); "done" = finished. */
+export type ProcessedRecord = {
+  at: string; outcome: string; stage?: "audited" | "done"; taskId?: string; rootId?: string; attempt?: number;
+  verdict?: AuditVerdict; usage?: AuditUsage; notified?: boolean;
+};
 
 export type LedgerEntry = { id: string; at: string; state: "reserved" | "settled" | "released"; reservedUsd: number; actualUsd: number; taskId: string; model: string };
 
 export type OrchestratorState = {
   version: 1;
   killed: boolean;
-  processed: Record<string, { at: string; outcome: string }>;
+  processed: Record<string, ProcessedRecord>;
   chains: Record<string, ChainInfo>;
   ledger: LedgerEntry[];
   audit: AuditLogEntry[];

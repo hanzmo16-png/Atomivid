@@ -22,7 +22,7 @@ jobs:
       - run: npm ci
       - name: Orchestrator tests and simulated demo (USD 0)
         run: |
-          node --import tsx --test src/lib/orchestrator/orchestrator.test.ts 2>&1 | grep -E "^# (pass|fail)"
+          node --import tsx --test src/lib/orchestrator/orchestrator.test.ts src/lib/orchestrator/e2e.test.ts 2>&1 | grep -E "^# (pass|fail)"
           npx tsx scripts/orchestrator/run.ts
       - name: Credential presence and free OpenAI model listing
         env:
@@ -31,16 +31,22 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           DRIVE_ACCESS_TOKEN: ${{ secrets.DRIVE_ACCESS_TOKEN }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
         run: |
           has() { [ -n "$1" ] && echo true || echo false; }
-          echo "PRESENCE openai=$(has "$OPENAI_API_KEY") anthropic_api=$(has "$ANTHROPIC_API_KEY") claude_oauth=$(has "$CLAUDE_CODE_OAUTH_TOKEN") drive_token=$(has "$DRIVE_ACCESS_TOKEN") google_sa=$(has "$GOOGLE_SERVICE_ACCOUNT_JSON")"
+          echo "PRESENCE openai=$(has "$OPENAI_API_KEY") anthropic_api=$(has "$ANTHROPIC_API_KEY") claude_oauth=$(has "$CLAUDE_CODE_OAUTH_TOKEN") drive_token=$(has "$DRIVE_ACCESS_TOKEN") google_sa=$(has "$GOOGLE_SERVICE_ACCOUNT_JSON") google_oauth=$(has "$GOOGLE_OAUTH_REFRESH_TOKEN")"
           if [ -n "$OPENAI_API_KEY" ]; then
             case "$OPENAI_API_KEY" in sk-proj-*) KIND=project;; sk-svcacct-*) KIND=service_account;; sk-admin-*) KIND=admin;; sk-*) KIND=user_or_legacy;; *) KIND=unknown;; esac
-            CODE=$(curl -s -o /tmp/models.json -w '%{http_code}' https://api.openai.com/v1/models -H "Authorization: Bearer $OPENAI_API_KEY")
+            CODE=$(curl -s -D /tmp/models.h -o /tmp/models.json -w '%{http_code}' https://api.openai.com/v1/models -H "Authorization: Bearer $OPENAI_API_KEY")
+            # Which organization/project the key belongs to (identifiers, partially masked: the log is public).
+            ORG=$(grep -i '^openai-organization:' /tmp/models.h | tr -d '\r' | awk '{print $2}')
+            PROJ=$(grep -i '^openai-project:' /tmp/models.h | tr -d '\r' | awk '{print $2}')
+            mask() { [ -z "$1" ] && echo "(no enviado)" || echo "${1:0:4}…${1: -4} (${#1} caracteres)"; }
+            echo "OPENAI_IDENTITY org=$(mask "$ORG") project=$(mask "$PROJ")"
             node -e '
               const fs=require("fs"); let ids=[]; try { ids=(JSON.parse(fs.readFileSync("/tmp/models.json","utf8")).data||[]).map(m=>m.id); } catch {}
-              const want=["gpt-4.1-nano","gpt-4.1-mini","gpt-4o-mini","gpt-5-nano","gpt-5-mini","gpt-5.4-nano","gpt-5.4-mini"];
+              const want=["gpt-5.6-luna","gpt-5.4-nano","gpt-4.1-nano","gpt-5-nano"];
               console.log("OPENAI", JSON.stringify({ keyKind: process.argv[1], modelsHttp: Number(process.argv[2]), modelCount: ids.length, cheapModels: Object.fromEntries(want.map(w=>[w, ids.includes(w)])) }));
             ' "$KIND" "$CODE"
-            rm -f /tmp/models.json
+            rm -f /tmp/models.json /tmp/models.h
           fi

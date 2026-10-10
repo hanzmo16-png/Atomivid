@@ -15,6 +15,8 @@ export type OrchestratorConfig = {
   /** Why paid calls are off (for logs/reports), null when on. */
   paidBlockedReason: string | null;
   model: string;
+  /** Reasoning model: the request carries reasoning.effort = "low" to keep reasoning tokens small. */
+  reasoning: boolean;
   /** USD per 1M tokens. Must be set explicitly for any non-default model. */
   priceInputPerM: number;
   priceOutputPerM: number;
@@ -30,16 +32,27 @@ export type OrchestratorConfig = {
   maxHttpRetries: number;
 };
 
-/** Defaults: a cheap non-reasoning model; prices as listed by trackers in 2026 (verify on openai.com before paying). */
-export const DEFAULT_MODEL = "gpt-4.1-nano";
-const DEFAULT_PRICES: Record<string, { in: number; out: number }> = { "gpt-4.1-nano": { in: 0.1, out: 0.4 } };
+/**
+ * Known models (USD per 1M tokens, standard tier) from OpenAI's official model pages, checked 2026-10-10:
+ *  - gpt-5.6-luna: $0.20 input / $1.20 output — the replacement OpenAI names for gpt-4.1-nano; default.
+ *  - gpt-5.4-nano: $0.20 / $1.25 (marked deprecated, no shutdown date found yet).
+ *  - gpt-4.1-nano: $0.10 / $0.40, but its API shutdown is 2026-10-23 (deprecations page): refused after that date.
+ * Reasoning models (gpt-5 family) bill reasoning tokens as output; max_output_tokens bounds them and the budget
+ * reserves max_output_tokens at the output price, so the worst case stays bounded.
+ */
+export const DEFAULT_MODEL = "gpt-5.6-luna";
+export const MODELS: Record<string, { in: number; out: number; reasoning: boolean; shutdown?: string }> = {
+  "gpt-5.6-luna": { in: 0.2, out: 1.2, reasoning: true },
+  "gpt-5.4-nano": { in: 0.2, out: 1.25, reasoning: true },
+  "gpt-4.1-nano": { in: 0.1, out: 0.4, reasoning: false, shutdown: "2026-10-23" },
+};
 export const PILOT_BUDGET_USD = 5;
 
 const num = (v: string | undefined, d: number) => (v !== undefined && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : d);
 
-export function loadConfig(env: Record<string, string | undefined> = process.env, opts: { durableStore: boolean } = { durableStore: false }): OrchestratorConfig {
+export function loadConfig(env: Record<string, string | undefined> = process.env, opts: { durableStore: boolean; now?: Date } = { durableStore: false }): OrchestratorConfig {
   const model = env.ORCH_OPENAI_MODEL?.trim() || DEFAULT_MODEL;
-  const known = DEFAULT_PRICES[model];
+  const known = MODELS[model];
   const priceInputPerM = num(env.ORCH_PRICE_INPUT_PER_M, known?.in ?? NaN);
   const priceOutputPerM = num(env.ORCH_PRICE_OUTPUT_PER_M, known?.out ?? NaN);
   // The pilot cap can only be lowered by configuration, never raised above Hans's authorisation.
@@ -49,9 +62,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     paidCalls: false,
     paidBlockedReason: null,
     model,
+    reasoning: known?.reasoning ?? /^(gpt-5|o\d)/.test(model),
     priceInputPerM,
     priceOutputPerM,
-    maxOutputTokens: Math.min(4000, Math.max(200, num(env.ORCH_MAX_OUTPUT_TOKENS, 1200))),
+    // Reasoning models need room for reasoning tokens before the JSON; still bounded and fully reserved.
+    maxOutputTokens: Math.min(4000, Math.max(200, num(env.ORCH_MAX_OUTPUT_TOKENS, known?.reasoning ?? true ? 2000 : 1200))),
     maxInputChars: Math.min(60_000, Math.max(2_000, num(env.ORCH_MAX_INPUT_CHARS, 24_000))),
     budgetCapUsd,
     maxCallUsd: Math.min(0.05, Math.max(0.001, num(env.ORCH_MAX_CALL_USD, 0.01))),
@@ -64,6 +79,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   if (env.ORCH_ALLOW_PAID_CALLS !== "true") cfg.paidBlockedReason = "ORCH_ALLOW_PAID_CALLS no está activado";
   else if (env.ORCH_PAID_APPROVAL !== approval) cfg.paidBlockedReason = `falta la aprobación explícita de Hans (${approval}) para esta ejecución`;
   else if (!env.OPENAI_API_KEY?.trim()) cfg.paidBlockedReason = "OPENAI_API_KEY no está configurada";
+  else if (known?.shutdown && (opts.now ?? new Date()).toISOString().slice(0, 10) >= known.shutdown) cfg.paidBlockedReason = `${model} se apagó en la API el ${known.shutdown}; usa ${DEFAULT_MODEL}`;
   else if (!Number.isFinite(priceInputPerM) || !Number.isFinite(priceOutputPerM)) cfg.paidBlockedReason = `faltan los precios de ${model} (ORCH_PRICE_INPUT_PER_M / ORCH_PRICE_OUTPUT_PER_M)`;
   else if (!opts.durableStore) cfg.paidBlockedReason = "el gasto necesita un almacén durable (Supabase del orquestador) para que el presupuesto persista entre ejecuciones";
   else cfg.paidCalls = true;

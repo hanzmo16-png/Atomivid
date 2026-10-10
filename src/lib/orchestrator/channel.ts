@@ -6,7 +6,7 @@
  *    credential that Hans creates (free) and stores as a GitHub secret — never in Drive.
  * Files are only ever created (append-only protocol); existence is checked first so re-runs never duplicate.
  */
-export type ChannelFile = { id: string; name: string; modifiedTime: string; createdTime: string };
+export type ChannelFile = { id: string; name: string; modifiedTime: string; createdTime: string; mimeType?: string };
 export type Folder = "solicitudes" | "entregas";
 
 export interface Channel {
@@ -38,6 +38,7 @@ export class MemoryChannel implements Channel {
 type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
 export class DriveRestChannel implements Channel {
+  private mimes = new Map<string, string>();
   constructor(private folders: Record<Folder, string>, private token: () => Promise<string>, private fetchImpl: FetchLike = fetch) {}
   private async api(url: string, init: RequestInit = {}) {
     const res = await this.fetchImpl(url, { ...init, headers: { ...(init.headers ?? {}), authorization: `Bearer ${await this.token()}` }, signal: AbortSignal.timeout(30_000) });
@@ -49,14 +50,19 @@ export class DriveRestChannel implements Channel {
     let pageToken = "";
     do {
       const q = encodeURIComponent(`'${this.folders[folder]}' in parents and trashed = false`);
-      const res = await this.api(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name,modifiedTime,createdTime)&pageSize=200${pageToken ? `&pageToken=${pageToken}` : ""}`);
+      const res = await this.api(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name,modifiedTime,createdTime,mimeType)&pageSize=200${pageToken ? `&pageToken=${pageToken}` : ""}`);
       const body = (await res.json()) as { files: ChannelFile[]; nextPageToken?: string };
       out.push(...body.files);
+      for (const f of body.files) if (f.mimeType) this.mimes.set(f.id, f.mimeType);
       pageToken = body.nextPageToken ?? "";
     } while (pageToken);
     return out;
   }
-  async read(fileId: string) { return (await this.api(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`)).text(); }
+  /** Text files are downloaded; native Google Docs are exported as plain text (alt=media does not work for them). */
+  async read(fileId: string) {
+    const native = this.mimes.get(fileId) === "application/vnd.google-apps.document";
+    return (await this.api(native ? `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text%2Fplain` : `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`)).text();
+  }
   async createIfAbsent(folder: Folder, name: string, content: string) {
     const existing = (await this.list(folder)).find((f) => f.name === name);
     if (existing) return { created: false, id: existing.id };
@@ -68,7 +74,27 @@ export class DriveRestChannel implements Channel {
 }
 
 /**
- * Access token for a Google service account (JSON key stored as a GitHub secret, never in Drive): signed JWT
+ * Access token for Hans's own Google account (OAuth 2.0 "installed app" refresh token, scope drive). This is the
+ * option that can WRITE in a personal My Drive: a service account has no storage quota there and cannot create files
+ * in a folder that is merely shared with it. The refresh token, client id and client secret live only in GitHub
+ * secrets (entered by Hans in GitHub's UI, never in chats or Drive); revocable at myaccount.google.com/permissions.
+ */
+export function oauthRefreshTokenProvider(creds: { clientId: string; clientSecret: string; refreshToken: string }, fetchImpl: FetchLike = fetch, now = () => Date.now()) {
+  let cached: { token: string; exp: number } | null = null;
+  return async () => {
+    if (cached && cached.exp - 60_000 > now()) return cached.token;
+    const body = new URLSearchParams({ client_id: creds.clientId, client_secret: creds.clientSecret, refresh_token: creds.refreshToken, grant_type: "refresh_token" });
+    const res = await fetchImpl("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: body.toString() });
+    if (!res.ok) throw new Error(`GOOGLE_TOKEN_HTTP_${res.status}`);
+    const json = (await res.json()) as { access_token: string; expires_in: number };
+    cached = { token: json.access_token, exp: now() + json.expires_in * 1000 };
+    return cached.token;
+  };
+}
+
+/**
+ * READ-ONLY on a personal Drive (no storage quota to create files there; writes work only in a Workspace shared
+ * drive). Kept for Workspace setups. Access token for a Google service account (JSON key stored as a GitHub secret, never in Drive): signed JWT
  * (RS256) exchanged at oauth2.googleapis.com/token, scope drive (the folder must be shared with the account e-mail).
  * Cached until shortly before expiry. Free.
  */

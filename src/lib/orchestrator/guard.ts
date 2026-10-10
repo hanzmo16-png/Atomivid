@@ -9,7 +9,8 @@
 const SENSITIVE: { id: string; re: RegExp }[] = [
   { id: "gasto", re: /\b(gast(o|ar)|pag(o|ar)|cobr(o|ar)|compra(r)?|contrat(ar|o)|factur|tarjeta|billing|purchase|pay(ment)?|subscribe|suscrib|usd|d[oó]lares)\b|\$\s?\d/i },
   { id: "produccion", re: /\b(producci[oó]n|production|deploy|desplieg|merge|fusion(ar|a)|migraci[oó]n|migration|vercel|release|publica(r|ción) en (youtube|spotify))\b/i },
-  { id: "credenciales", re: /\b(contrase[nñ]a|password|api[ _-]?key|secret|token|service[_ ]role|credencial)/i },
+  // Credentials (not "tokens de entrada/salida", which are usage counts).
+  { id: "credenciales", re: /\b(contrase[nñ]a|password|api[ _-]?key|secret(o|os)?\b|service[_ ]role|credencial|clave privada|private key|access[_ ]token|refresh[_ ]token|token de (acceso|api|github|google)|oauth)/i },
   { id: "protegido", re: /\b(travis|walton|cuenta del editor)\b/i },
 ];
 

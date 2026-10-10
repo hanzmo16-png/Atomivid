@@ -120,6 +120,10 @@ test("pago bloqueado por defecto; requiere aprobación exacta, clave, precios y 
   assert.equal(loadConfig({ ...base, ORCH_PAID_APPROVAL: "GASTAR-HASTA-5USD" }, { durableStore: true }).paidCalls, true);
   assert.equal(loadConfig({ ORCH_BUDGET_CAP_USD: "500" }).budgetCapUsd, 5, "cannot exceed the pilot authorisation");
   assert.match(loadConfig({ ...base, ORCH_PAID_APPROVAL: "GASTAR-HASTA-5USD", ORCH_OPENAI_MODEL: "otro-modelo" }, { durableStore: true }).paidBlockedReason!, /faltan los precios/);
+  const approved = { ...base, ORCH_PAID_APPROVAL: "GASTAR-HASTA-5USD", ORCH_OPENAI_MODEL: "gpt-4.1-nano" };
+  assert.equal(loadConfig(approved, { durableStore: true, now: new Date("2026-10-15T00:00:00Z") }).paidCalls, true, "usable before its shutdown");
+  assert.match(loadConfig(approved, { durableStore: true, now: new Date("2026-10-23T00:00:00Z") }).paidBlockedReason!, /se apagó en la API el 2026-10-23/);
+  assert.equal(loadConfig(ENABLED).model, "gpt-5.6-luna");
 });
 
 test("el motor se niega a usar un auditor de pago sin autorización", async () => {
@@ -144,7 +148,8 @@ test("adaptador Responses API: esquema estricto, store false, tokens limitados; 
   const cfg = cfgPaid();
   const req = buildRequest(cfg, { task: "t", delivery: "d".repeat(100_000), attempt: 1, maxAttempts: 3 });
   assert.equal(req.store, false);
-  assert.equal(req.max_output_tokens, 1200);
+  assert.equal(req.max_output_tokens, 2000);
+  assert.deepEqual((req as { reasoning?: unknown }).reasoning, { effort: "low" }, "reasoning model: low effort");
   assert.equal((req.text.format as { strict: boolean }).strict, true);
   assert.ok(JSON.stringify(req.input).length < cfg.maxInputChars + 4000, "input clipped");
   const ch = new MemoryChannel(); seed(ch);
@@ -152,8 +157,8 @@ test("adaptador Responses API: esquema estricto, store false, tokens limitados; 
   const f = fakeOpenAI([ok(approve)]);
   const r = await runCycle(deps(ch, store, new OpenAIAuditor(cfg, "sk-test", f.fetchImpl), cfg));
   assert.equal(f.calls[0].url, "https://api.openai.com/v1/responses");
-  assert.equal(f.calls[0].body.model, "gpt-4.1-nano");
-  const expected = (1200 * 0.1 + 180 * 0.4) / 1e6;
+  assert.equal(f.calls[0].body.model, "gpt-5.6-luna");
+  const expected = (1200 * 0.2 + 180 * 1.2) / 1e6;
   assert.ok(Math.abs(r.spentUsd - expected) < 1e-12, `${r.spentUsd}`);
   const st = await store.read();
   assert.deepEqual(st.ledger.map((e) => e.state), ["settled"]);
@@ -170,7 +175,7 @@ test("presupuesto: se reserva el peor caso; sin saldo no se llama al proveedor y
   // Pure reservation math: worst case = input estimate + max output.
   const s = (await new MemoryStore().read());
   const res = reserve(s, cfgPaid(), { inputChars: 3000, taskId: "t", callsThisRun: 0 });
-  assert.ok(res.ok && Math.abs(res.reservedUsd - (estimateTokens(3000) * 0.1 + 1200 * 0.4) / 1e6) < 1e-12);
+  assert.ok(res.ok && Math.abs(res.reservedUsd - (estimateTokens(3000) * 0.2 + 2000 * 1.2) / 1e6) < 1e-12);
   assert.equal(reserve(s, cfgPaid(), { inputChars: 10, taskId: "t", callsThisRun: 5 }).ok, false, "per-run call limit");
 });
 
