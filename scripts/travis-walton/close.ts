@@ -49,6 +49,9 @@ async function exportEditorInput(ownerId:string,episodeId:string){
 }
 async function main(){
  const cfg=await config();
+ if(readFileSync(`${ROOT}/mode`,'utf8').split('\n')[0]==='close-avatar'){
+  const {finalAvatar}=await import('./final-avatar');await finalAvatar(cfg,seal);return;
+ }
  const prefix=`${cfg.ownerId}/podcasts/${cfg.episodeId}`,out=`${prefix}/avatar-final`;
  const bytes=await get(`${prefix}/narration-manifest.json`),m=JSON.parse(bytes.toString());
  if(m.episodeId!==cfg.episodeId||m.blocks.length!==6)throw Error('NARRATION_IDENTITY_MISMATCH');
@@ -90,4 +93,4 @@ async function main(){
  const ready=await ensureJobSupplyReady(db,[{provider:'heygen',unit:'usd',units:estimatedUsd,usd:estimatedUsd}]);
  log('AVATAR_PREPARED',{cuts:cuts.length,seconds,estimatedUsd,paidCalls:0,ready:ready.ready,failure:ready.failure??null});
 }
-main().catch(()=>{console.error('CLOSE_PREPARATION_FAILED: no paid calls submitted; inspect private outputs');process.exitCode=1;});
+main().catch(()=>{console.error('CLOSE_STEP_FAILED: inspect ledger and private receipts before retrying; never resubmit an accepted job');process.exitCode=1;});
