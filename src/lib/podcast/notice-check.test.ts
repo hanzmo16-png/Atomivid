@@ -47,3 +47,10 @@ test("flujo de prueba de avisos: manual, permisos mínimos, publica como el bot"
   assert.doesNotMatch(wf, /contents: write|SUPABASE|OPENAI|ACTIONS_TOKEN/, "no app data, no owner token (the owner would not be notified)");
   assert.match(wf, /GITHUB_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
 });
+
+test("prueba de avisos: acción fijada a SHA completo, npm ci sin scripts de instalación, sin caché", () => {
+  const wf = readFileSync(".github/workflows/notice-check.yml", "utf8");
+  for (const m of wf.matchAll(/uses: ([^\s#]+)/g)) assert.match(m[1], /@[0-9a-f]{40}$/, `${m[1]} must be pinned`);
+  assert.match(wf, /npm ci --ignore-scripts/);
+  assert.doesNotMatch(wf, /cache: npm/);
+});

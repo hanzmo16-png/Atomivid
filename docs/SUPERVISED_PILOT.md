@@ -19,6 +19,8 @@ El piloto se monta sobre el flujo de podcast, que es el único validado de punta
      - Debe cubrir la cota superior de la ejecución: la estimación más el redondeo de la reserva de cada fragmento.
      - La narración se detiene **antes** de cualquier fragmento pagado que pasaría del menor de dos montos: ese límite, o lo que queda del presupuesto total.
      - La narración suelta, corta o en segundo plano, queda limitada a su propia estimación.
+   - **Producciones solicitadas antes del límite:** la columna está vacía, porque toda solicitud nueva la escribe. Conservan la autorización que el propietario dio entonces: con las reglas anteriores, `budget_usd` era el máximo de gasto nuevo de esa producción. Siguen limitadas también por el presupuesto total.
+   - **Orden de activación sin interrupciones:** primero aplicar la migración, que es aditiva e inocua para el código actual; después desplegar este cambio.
    - **Migración `20261011040000_pilot_run_budget.sql`:** preparada, **no aplicada**. La app lee la columna por separado, así que todo lo demás funciona antes de aplicarla. Sin ella, ninguna producción que necesite pagar narración puede empezar; las que no tienen costo nuevo siguen funcionando.
    - **Cargos inciertos:** un cargo sin confirmar se rechaza al solicitar y al iniciar una programada, además de en el worker.
    - Si el registro de pagos no se puede leer, no empieza nada que dependa del presupuesto. Una producción programada se reintenta en cada tick; pasadas 6 horas sin poder verificarse, se bloquea con un aviso.

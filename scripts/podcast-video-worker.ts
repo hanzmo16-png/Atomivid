@@ -164,7 +164,7 @@ async function produce(episodeId: string) {
     if (!budget.ok) throw new BlockError(budget.message, "budget");
     // Independent limit of NEW spend for this run (stored with the request); never inferred from the total budget.
     const runBudget = await pilot.readRunBudget(service, episodeId);
-    const runCheck = runBudgetDecision(budget.remainingUsd, pending.chunks, runBudget);
+    const runCheck = runBudgetDecision(budget.remainingUsd, pending.chunks, runBudget, episode.budget_usd == null ? null : Number(episode.budget_usd));
     if (!runCheck.ok) throw new BlockError(runCheck.message, "budget");
     if (episode.status !== "ready") {
       if (episode.source !== "tts") throw new BlockError("Sube y termina la grabación antes de producir el video.");

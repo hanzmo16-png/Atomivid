@@ -39,7 +39,7 @@ test("narración: se detiene ANTES de un fragmento pagado que superaría el lím
   const src = readFileSync("src/lib/podcast/narrate.ts", "utf8");
   assert.match(src, /deps\.capUsd != null && newSpendUsd \+ estimatedCostUsd > deps\.capUsd[\s\S]*storedVoiceResult[\s\S]*throw new NarrationCapError[\s\S]*gatedVoiceSynthesize/, "cap check precedes the paid call; a stored chunk never blocks");
   const worker = readFileSync("scripts/podcast-video-worker.ts", "utf8");
-  assert.match(worker, /runBudgetDecision\(budget\.remainingUsd, pending\.chunks, runBudget\)[\s\S]*runGeneration\(service, episode, Date\.now, \{ capUsd: narrationCapUsd/);
+  assert.match(worker, /runBudgetDecision\(budget\.remainingUsd, pending\.chunks, runBudget, [^)]*\)\)?;[\s\S]*runGeneration\(service, episode, Date\.now, \{ capUsd: narrationCapUsd/);
   assert.match(worker, /kind === "narration"[\s\S]*runGeneration\(service, episode, Date\.now, \{ capUsd \}\)/, "background narration is capped too");
   assert.match(readFileSync("src/app/api/podcast/[id]/generate/route.ts", "utf8"), /runGeneration\(service, episode, Date\.now, \{ capUsd \}\)/, "short narration is capped too");
 });
@@ -81,4 +81,26 @@ test("migración del límite por ejecución: aditiva, acotada y leída aparte (l
   assert.match(sql, /add column if not exists run_budget_usd numeric\(10,4\) check \(run_budget_usd is null or \(run_budget_usd >= 0 and run_budget_usd <= 100\)\)/);
   assert.doesNotMatch(sql, /\b(drop|delete|truncate|update)\b/i);
   assert.doesNotMatch(readFileSync("src/lib/podcast/server.ts", "utf8").match(/EPISODE_COLUMNS = "[^"]*"/)![0], /run_budget_usd/, "never in the shared column list: queries keep working before the migration");
+});
+
+test("compatibilidad: una producción solicitada antes del límite por ejecución conserva la autorización que el propietario dio entonces", () => {
+  // Column readable, value empty (request older than the column): the old per-production maximum is the run limit.
+  assert.deepEqual(runBudgetDecision(5.4, 30, { available: true, value: null }, 6), { ok: true, capUsd: 6 });
+  assert.match((runBudgetDecision(5.4, 30, { available: true, value: null }, 5) as { message: string }).message, /insuficiente/, "an old authorisation below the run's upper bound still refuses");
+  assert.match((runBudgetDecision(5.4, 30, { available: true, value: null }, null) as { message: string }).message, /máximo de gasto nuevo/);
+  assert.match((runBudgetDecision(5.4, 30, { available: false, value: null }, 6) as { message: string }).message, /migración/, "never without the column");
+  assert.deepEqual(runBudgetDecision(5.4, 30, { available: true, value: 5.41 }, 99), { ok: true, capUsd: 5.41 }, "a stored run limit always wins");
+  // New requests always write the column (0 when nothing new can be charged), so "empty" only means "older".
+  const jobs = readFileSync("src/lib/podcast/video-jobs.ts", "utf8");
+  assert.match(jobs, /options\.runBudgetColumn \? \{ run_budget_usd: runBudgetUsd \?\? 0 \}/);
+  assert.doesNotMatch(jobs, /runBudgetDecision\([^)]*budgetUsd\)/, "the request never falls back to the total budget");
+  assert.match(readFileSync("scripts/podcast-video-worker.ts", "utf8"), /runBudgetDecision\(budget\.remainingUsd, pending\.chunks, runBudget, episode\.budget_usd/);
+});
+
+test("migración del límite: no la detiene el detector de SQL destructivo del aplicador", () => {
+  const re = /\b(drop\s+table|drop\s+column|truncate|delete\s+from|update\s+public\.|alter\s+column\s+\w+\s+type|rename\s+(table|column))\b/i;
+  const src = readFileSync("scripts/apply-supabase-migration.ts", "utf8");
+  assert.ok(src.includes(re.source), "same pattern as the applier");
+  const sql = readFileSync("supabase/migrations/20261011040000_pilot_run_budget.sql", "utf8");
+  assert.deepEqual(sql.split("\n").filter((l) => re.test(l.split("--")[0])), []);
 });

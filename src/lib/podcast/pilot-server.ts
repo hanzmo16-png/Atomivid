@@ -149,7 +149,7 @@ export const SCHEDULE_VERIFY_GRACE_MS = 6 * 3600_000;
 export async function claimScheduled(service: SupabaseClient, episode: PodcastEpisode, spend: EpisodeSpend | null, run: RunBudget, pending?: { usd: number; chunks: number }, now = Date.now()): Promise<ClaimOutcome> {
   const at = new Date(now).toISOString();
   const budget = budgetDecision(episode, episode.budget_usd == null ? null : Number(episode.budget_usd), spend?.spentUsd ?? null, pending?.usd);
-  const runCheck = runBudgetDecision(budget.remainingUsd, pending?.chunks ?? narrationChunks(episode), run);
+  const runCheck = runBudgetDecision(budget.remainingUsd, pending?.chunks ?? narrationChunks(episode), run, episode.budget_usd == null ? null : Number(episode.budget_usd));
   // Ledger or run limit unreadable: not the owner's refusal. Retry on the next tick; after the grace period, block it
   // with a notice so it never stays scheduled forever.
   const unverifiable = (!budget.ok && spend == null) || (!runCheck.ok && !run.available);

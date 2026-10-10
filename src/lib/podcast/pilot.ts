@@ -48,10 +48,14 @@ export type RunBudget = { available: boolean; value: number | null };
  * Independent per-run limit of NEW spend. A run that cannot charge anything new needs none. Otherwise the owner's
  * authorisation for this run must exist and cover the run's upper bound; never inferred from the total budget.
  */
-export function runBudgetDecision(remainingUsd: number, chunks: number, run: RunBudget): { ok: true; capUsd: number | null } | { ok: false; message: string } {
+export function runBudgetDecision(remainingUsd: number, chunks: number, run: RunBudget, legacyAuthorizationUsd?: number | null): { ok: true; capUsd: number | null } | { ok: false; message: string } {
   if (remainingUsd <= 0) return { ok: true, capUsd: null };
   const min = minimumRunBudgetUsd(remainingUsd, chunks);
   if (!run.available) return { ok: false, message: "No se pudo leer el límite de gasto por ejecución (¿falta aplicar su migración?). No se inició ningún gasto nuevo." };
+  // A request made before the run limit existed (column empty: every newer request writes it) keeps the owner's
+  // explicit authorisation of that time: under the previous rules `budget_usd` WAS the maximum new spend of that
+  // production. Never inferred for new requests (they always carry their own limit).
+  if (run.value == null && legacyAuthorizationUsd != null && Number.isFinite(legacyAuthorizationUsd)) run = { available: true, value: legacyAuthorizationUsd };
   if (run.value == null || !Number.isFinite(run.value)) return { ok: false, message: `Fija el máximo de gasto nuevo autorizado para esta ejecución: puede costar hasta ${usd4(runUpperBoundUsd(remainingUsd, chunks))} (mínimo ${usd(min)}).` };
   if (run.value < 0 || run.value > MAX_BUDGET_USD) return { ok: false, message: `El límite por ejecución debe estar entre USD 0 y USD ${MAX_BUDGET_USD}.` };
   if (runUpperBoundUsd(remainingUsd, chunks) > run.value + 1e-9) return { ok: false, message: `Límite de esta ejecución insuficiente: puede costar hasta ${usd4(runUpperBoundUsd(remainingUsd, chunks))} y autorizaste ${usd(run.value)}. Fija al menos ${usd(min)}. No se cobró nada.` };
