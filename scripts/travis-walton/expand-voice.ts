@@ -8,6 +8,8 @@ import { gatedVoiceSynthesize } from '../../src/lib/paid-calls/gated-providers';
 import { supabaseLedgerStore } from '../../src/lib/paid-calls/supabase-ledger-store';
 import { supabaseResultStore } from '../../src/lib/paid-calls/result-store';
 import { getVoiceIdentity, synthesizeVoice } from '../../src/lib/ai/voice';
+import { paidCallKey } from '../../src/lib/paid-calls/gate';
+import { stableHash } from '../../src/lib/production-intelligence/canonical';
 
 export async function expandVoice(cfg:any,seal:(name:string,b:Buffer)=>void){
  const db=createClient(process.env.SUPABASE_URL!.trim(),process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(),{auth:{persistSession:false,autoRefreshToken:false}});
@@ -31,13 +33,20 @@ export async function expandVoice(cfg:any,seal:(name:string,b:Buffer)=>void){
  if(voiceCapUsd!==5.58||total>17000||cost>plan.maxNewVoiceUsd||plan.maxNewVoiceUsd>3.13)throw Error('EXPANSION_BUDGET_INVALID');
  const {data:v,error:ve}=await db.from('podcast_episodes').select('voice_id,user_id').eq('id','a3b35bfb-6be5-4881-bd22-9a61a8598dfb').single();
  if(ve||v?.user_id!==cfg.ownerId||v?.voice_id!==cfg.voiceId)throw Error('EXPANSION_VOICE_MISMATCH');
- const {data:ops,error:oe}=await db.from('pi_paid_operations').select('status,reserved_usd,committed_usd').eq('project_id',project).eq('provider','elevenlabs').neq('status','REFUNDED');
+ const {data:ops,error:oe}=await db.from('pi_paid_operations').select('idempotency_key,status,reserved_usd,committed_usd').eq('project_id',project).eq('provider','elevenlabs').neq('status','REFUNDED');
  if(oe)throw Error('EXPANSION_LEDGER_UNAVAILABLE');
- const spent=(ops??[]).reduce((a,o)=>a+Number(o.status==='COMMITTED'?o.committed_usd:o.reserved_usd),0);
  const prefix=`${cfg.ownerId}/podcasts/${cfg.episodeId}/expansion-30/${sha(bytes).slice(0,16)}`;
  const completed:any[]=[];
  for(const c of plan.chapters){const old=await bucket.download(`${prefix}/${c.id}.json`);if(old.data){const m=JSON.parse(await old.data.text());if(m.textSha256!==sha(Buffer.from(c.text)))throw Error('EXPANSION_TEXT_MISMATCH');completed.push(m);}}
  const todo=plan.chapters.filter((c:any)=>!completed.some(m=>m.id===c.id));
+ const identity=getVoiceIdentity('es',cfg.voiceId);
+ const pendingKeys=new Set(todo.map((c:any)=>{
+  const fingerprint={text:c.text,language:'es',speed:null,...identity};
+  return paidCallKey({projectId:project,shotId:`voice:${stableHash(fingerprint,16)}`,provider:'elevenlabs',model:identity.modelId,method:'tts_with_timestamps',capacityUnits:c.text.length,inputFingerprint:fingerprint,reservedUsd:Math.ceil(c.text.length*.0002*10000)/10000});
+ }));
+ // A pre-submit reservation for one of the exact remaining calls is already in
+ // the remaining envelope. Count it once; preserve every other held operation.
+ const spent=(ops??[]).reduce((a,o)=>a+(o.status==='RESERVED'&&pendingKeys.has(o.idempotency_key)?0:Number(o.status==='COMMITTED'?o.committed_usd:o.reserved_usd)),0);
  const remaining=todo.reduce((s:number,c:any)=>s+c.text.length*.0002,0);
  console.log('EXPANSION_VOICE_PREFLIGHT',JSON.stringify({characters:total,newVoiceEstimateUsd:cost,spentVoiceUsd:spent,originalVoiceCapUsd:cfg.maxVoiceUsd,authorizedVoiceCapUsd:voiceCapUsd,remainingEstimateUsd:remaining,reusableBlocks:completed.length}));
  if(spent+remaining>voiceCapUsd+.00001)throw Error('AUTHORIZED_VOICE_CAP_WOULD_BE_EXCEEDED');
@@ -46,7 +55,7 @@ export async function expandVoice(cfg:any,seal:(name:string,b:Buffer)=>void){
  if(todo.length&&!ready.ready)throw Error('EXPANSION_SUPPLY_UNAVAILABLE');
  await put(`${prefix}/plan.json`,bytes);
  const provider={name:'elevenlabs',synthesize:async(text:string,language:'es'|'en'='es',speed?:number)=>({...await synthesizeVoice(text,language,speed,cfg.voiceId),mimeType:'audio/mpeg',extension:'mp3'})};
- const deps={ledger:supabaseLedgerStore(db),results:supabaseResultStore(db,'videos'),voiceProvider:provider,voiceIdentity:getVoiceIdentity('es',cfg.voiceId),requestId:project};
+ const deps={ledger:supabaseLedgerStore(db),results:supabaseResultStore(db,'videos'),voiceProvider:provider,voiceIdentity:identity,requestId:project};
  const blocks=[];
  for(const c of plan.chapters){
   const prior=completed.find(m=>m.id===c.id);

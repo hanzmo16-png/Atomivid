@@ -49,6 +49,9 @@ async function exportEditorInput(ownerId:string,episodeId:string,version=3){
 }
 async function main(){
  const cfg=await config();
+ if(['close-prepare-30','close-publish-30'].includes(readFileSync(`${ROOT}/mode`,'utf8').split('\n')[0])){
+  const {prepareThirty}=await import('./prepare-30');await prepareThirty(cfg,seal,readFileSync(`${ROOT}/mode`,'utf8').split('\n')[0]==='close-publish-30');return;
+ }
  if(readFileSync(`${ROOT}/mode`,'utf8').split('\n')[0]==='close-narrate-30'){
   const {expandVoice}=await import('./expand-voice');await expandVoice(cfg,seal);return;
  }
@@ -115,4 +118,4 @@ async function main(){
  const ready=await ensureJobSupplyReady(db,[{provider:'heygen',unit:'usd',units:estimatedUsd,usd:estimatedUsd}]);
  log('AVATAR_PREPARED',{cuts:cuts.length,seconds,estimatedUsd,paidCalls:0,ready:ready.ready,failure:ready.failure??null});
 }
-main().catch(()=>{console.error('CLOSE_STEP_FAILED: inspect ledger and private receipts before retrying; never resubmit an accepted job');process.exitCode=1;});
+main().catch(e=>{seal('close-failure.txt',Buffer.from(e instanceof Error?`${e.name}: ${e.message}\n${e.stack??''}`:'unknown error'));console.error('CLOSE_STEP_FAILED: inspect ledger and private receipts before retrying; never resubmit an accepted job');process.exitCode=1;});
