@@ -188,3 +188,48 @@ Costo: se esperan unos USD 0.001; el peor caso reservado es USD 0.0025 con `gpt-
    - lanzar con `GASTAR-HASTA-5USD`.
    - Recomendado: un límite de gasto del proyecto en el panel de OpenAI (USD 5) como respaldo independiente.
 4. **Ejecutor automático de Claude (opcional):** ejecutar `claude setup-token`, guardar el resultado como `CLAUDE_CODE_OAUTH_TOKEN` y fijar `ORCH_CLAUDE_ACTION_ENABLED=true`.
+
+## Secuencia de activación (cada paso lo autoriza Hans; en orden; con reversión)
+
+Regla: no se pasa al siguiente paso hasta verificar el anterior. Todo es gratis salvo C3 (≤ USD 0.05) y D (≤ USD 5, aún NO-GO).
+
+### A. PR #98: presupuesto del piloto (producción audiovisual)
+| Paso | Qué autoriza Hans | Verificación | Reversión |
+|---|---|---|---|
+| A1 | Aplicar la migración `20261011040000_pilot_run_budget.sql` con el workflow «Aplicar migración de Supabase». Es aditiva y el código actual la ignora. | El workflow verifica el esquema antes y después. | Columna anulable y sin uso por el código anterior. Solo si hiciera falta, a mano en el editor SQL: `alter table public.podcast_episodes drop column run_budget_usd;` |
+| A2 | Marcar #98 como listo y fusionarlo. Vercel despliega producción. Debe ir **después** de A1, para no frenar narraciones pagadas. | La página del episodio muestra «Máximo nuevo de esta ejecución». Una producción con la narración ya pagada arranca sin límite. Las programadas antes conservan su autorización. | «Instant Rollback» de Vercel al despliegue anterior, o revertir la fusión. Los datos son compatibles en ambos sentidos. |
+| A3 | Opcional: `notice-check.yml`, `send` y luego `verify` (USD 0). | Que llegue la notificación al teléfono y Hans reaccione con 👍. | Nada que revertir: es un solo comentario. |
+
+### B. PR #97: orquestador sin gasto
+| Paso | Qué autoriza Hans | Verificación | Reversión |
+|---|---|---|---|
+| B1 | Crear el entorno `orchestrator`: solo la rama por defecto, y Hans como revisor obligatorio (recomendado). | Los workflows comprueban la política por API antes de usarlo. | Borrar el entorno, lo que borra también sus secretos. |
+| B2 | Crear el proyecto de Google Cloud: API de Drive, pantalla de consentimiento «En producción» y cliente «Desktop app». Guardar sus dos secretos en el entorno. | — | Borrar el cliente OAuth, lo que invalida todos sus tokens. |
+| B3 | Crear el token de grano fino `ORCH_SECRETS_WRITER_TOKEN`: solo este repositorio, «Secrets» y «Environments» de lectura y escritura, 7 días de vida. Guardarlo en el entorno. | `drive-oauth` rechaza un token sin caducidad o de más de 30 días. | Revocarlo en GitHub → Settings → Developer settings. |
+| B4 | Fusionar #97. Probado: no afecta a producción. | La compilación no incluye ni ejecuta código del orquestador. | Revertir la fusión. |
+| B5 | `drive-oauth` en modo `start` → consentimiento en el teléfono → guardar el secreto `GOOGLE_OAUTH_REDIRECT` en el entorno → `finish`. Al terminar, revocar el token de B3. | Resultado «LISTO». `GOOGLE_OAUTH_PENDING` y `GOOGLE_OAUTH_REDIRECT` quedan borrados. | Cuenta de Google → Seguridad → Acceso de terceros → quitar la app (revoca el token). Borrar el secreto del entorno. |
+| B6 | Fijar la variable `ORCHESTRATOR_ENABLED=true` y lanzar `orchestrator.yml` en modo `live` con el auditor simulado (USD 0). | Lee `Solicitudes/` y escribe en `Entregas/`; registro con 0 llamadas pagadas. | Interruptor de emergencia: `ORCHESTRATOR_ENABLED=false`. |
+
+### C. Llamada de humo (≤ USD 0.05, una sola vez)
+| Paso | Qué autoriza Hans | Verificación | Reversión |
+|---|---|---|---|
+| C1 | Crear un proyecto **dedicado** en OpenAI con límite de gasto. Guardar su clave como `ORCH_OPENAI_API_KEY` en el entorno. | — | Revocar la clave en el panel de OpenAI. |
+| C2 | Fijar la variable `ORCH_ALLOW_PAID_CALLS=true` y lanzar el modo `preflight` (USD 0). | `wouldCall: true`, peor caso ≈ USD 0.0025, `previousSmokeDone: false`. | `ORCH_ALLOW_PAID_CALLS=false`. |
+| C3 | **Autoriza el gasto:** lanzar `smoke` escribiendo `HUMO-0.05USD` y aprobar como revisor. | `SMOKE_CLAIM: claimed`, gasto ≤ USD 0.05, el proyecto enmascarado coincide con el de C1 y queda creada la etiqueta `orchestrator-smoke-claimed`. | `ORCH_ALLOW_PAID_CALLS=false`; revocar la clave. La etiqueta impide cualquier repetición. |
+
+### D. Bucle pagado del piloto (≤ USD 5): todavía NO-GO
+Requiere tres decisiones de Hans:
+- dónde vive el almacén durable (recomendado: un proyecto de Supabase separado);
+- su migración;
+- `ORCH_STORE=supabase`.
+
+Cada ejecución pagada lleva la frase `GASTAR-HASTA-5USD`.
+
+### E. Ejecutor de Claude (opcional, USD 0 de API)
+Hans guarda `CLAUDE_CODE_OAUTH_TOKEN` (de `claude setup-token`) en el entorno y fija `ORCH_CLAUDE_ACTION_ENABLED=true`. Reversión: poner la variable en `false` y borrar el secreto.
+
+### Parada total, en cualquier momento
+1. `ORCHESTRATOR_ENABLED=false` y `ORCH_ALLOW_PAID_CALLS=false`.
+2. Borrar el entorno `orchestrator`.
+3. Revocar la clave de OpenAI y el acceso de la app de Google.
+
