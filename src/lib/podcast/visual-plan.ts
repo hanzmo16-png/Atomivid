@@ -2,44 +2,62 @@
  * Podcast → video visual plan (pure, no I/O, no paid calls).
  *  - Scenes follow the narration: cut at sentence ends close to `targetSeconds` (8–18 s), using the word timings of
  *    the paid narration when available, or an even split otherwise.
- *  - Each scene gets a stock search built from its own words (salient terms, stopwords removed) with the episode
- *    title as fallback, so the picture follows what is being said.
+ *  - Each scene gets stock searches built from its own words (stopwords removed), ranked by how often each word
+ *    recurs in the whole episode (its topic; title words count extra), so a scene about "the third and fourth kind"
+ *    searches the episode's subject rather than a one-off abstract word; the title is the last fallback.
  */
 import type { WordTiming } from "@/lib/providers/types";
 
-export type Scene = { index: number; start: number; end: number; text: string; query: string };
+export type Scene = { index: number; start: number; end: number; text: string; query: string; queries?: string[] };
+/** Word → occurrences across the whole episode (title words weigh extra). */
+export type Topic = ReadonlyMap<string, number>;
+const TITLE_WEIGHT = 3;
 
 const STOP = new Set(("a al algo algunas algunos ante antes aquel aquella aquellas aquellos aqui así aunque cada casi como con contra cual cuales cuando de del desde donde dos el ella ellas ello ellos en entre era eran es esa esas ese eso esos esta estaba estado estan estar este esto estos fue fueron ha había hace hacia han hasta hay la las le les lo los más mas me mi mientras mismo mucho muy nada ni no nos nosotros o otra otras otro otros para pero poco por porque que quien quienes se sea según ser si sí sin sobre solo son su sus también tan tanto te tiene tienen todo todos tras tu tú un una uno unos usted ya yo the a an and are as at be but by for from has have he her his i in is it its of on or our she that the their them they this to was we were what when which who will with you your").split(" "));
 
-function salient(text: string, max = 3): string[] {
+const contentWords = (text: string) => (text.toLowerCase().normalize("NFC").match(/[\p{L}][\p{L}\p{N}'-]*/gu) ?? []).filter((w) => w.length >= 4 && !STOP.has(w));
+
+export function topicOf(script: string, title: string): Topic {
+  const t = new Map<string, number>();
+  for (const w of contentWords(script)) t.set(w, (t.get(w) ?? 0) + 1);
+  for (const w of contentWords(title)) t.set(w, (t.get(w) ?? 0) + TITLE_WEIGHT);
+  return t;
+}
+
+function salient(text: string, max = 3, topic?: Topic): string[] {
   const counts = new Map<string, { n: number; first: number }>();
-  const words = text.toLowerCase().normalize("NFC").match(/[\p{L}][\p{L}\p{N}'-]*/gu) ?? [];
-  words.forEach((w, i) => {
-    if (w.length < 4 || STOP.has(w)) return;
+  contentWords(text).forEach((w, i) => {
     const c = counts.get(w) ?? { n: 0, first: i };
     c.n++;
     counts.set(w, c);
   });
+  const weight = (w: string) => topic?.get(w) ?? 0;
   return [...counts.entries()]
-    .sort((a, b) => b[1].n - a[1].n || b[0].length - a[0].length || a[1].first - b[1].first)
+    .sort((a, b) => weight(b[0]) - weight(a[0]) || b[1].n - a[1].n || b[0].length - a[0].length || a[1].first - b[1].first)
     .slice(0, max)
     .map(([w]) => w);
 }
 
-export function sceneQuery(text: string, title: string): string {
-  const terms = salient(text, 3);
+export function sceneQuery(text: string, title: string, topic?: Topic): string {
+  const terms = salient(text, 3, topic);
   if (terms.length >= 2) return terms.join(" ");
   return [...terms, ...salient(title, 2)].slice(0, 3).join(" ") || title.slice(0, 40);
+}
+
+function withQueries(scene: Omit<Scene, "query" | "queries">, title: string, topic: Topic): Scene {
+  const text = scene.text || title;
+  const s = { ...scene, query: sceneQuery(text, title, topic) };
+  return { ...s, queries: sceneQueries({ text, query: s.query }, title, topic) };
 }
 
 /** Scenes from word timings (preferred): cut after a sentence end once >= min, or forcibly at max. */
 export function scenesFromWords(words: WordTiming[], durationSeconds: number, title: string, opts: { min?: number; target?: number; max?: number } = {}): Scene[] {
   const min = opts.min ?? 8, target = opts.target ?? 12, max = opts.max ?? 18;
-  const scenes: Scene[] = [];
+  const topic = topicOf(words.map((w) => w.text).join(" "), title);
+  const scenes: Omit<Scene, "query" | "queries">[] = [];
   let start = 0, bucket: string[] = [];
   const push = (end: number) => {
-    const text = bucket.join(" ");
-    scenes.push({ index: scenes.length, start, end, text, query: sceneQuery(text, title) });
+    scenes.push({ index: scenes.length, start, end, text: bucket.join(" ") });
     start = end; bucket = [];
   };
   for (const w of words) {
@@ -51,11 +69,11 @@ export function scenesFromWords(words: WordTiming[], durationSeconds: number, ti
   if (bucket.length || start < durationSeconds) {
     if (scenes.length && durationSeconds - start < min / 2) {
       const last = scenes[scenes.length - 1];
-      last.end = durationSeconds; last.text = [last.text, ...bucket].join(" ").trim(); last.query = sceneQuery(last.text, title);
+      last.end = durationSeconds; last.text = [last.text, ...bucket].join(" ").trim();
     } else push(durationSeconds);
   }
   scenes[scenes.length - 1].end = durationSeconds;
-  return scenes.filter((s) => s.end - s.start > 0.05).map((s, i) => ({ ...s, index: i }));
+  return scenes.filter((s) => s.end - s.start > 0.05).map((s, i) => withQueries({ ...s, index: i }, title, topic));
 }
 
 /** Scene lengths: ~12 s for short episodes; ~15 s past 10 minutes (fewer stock searches over a 30-minute episode). */
@@ -68,9 +86,10 @@ export function evenScenes(durationSeconds: number, title: string, script: strin
   const n = Math.max(1, Math.round(durationSeconds / target));
   const len = durationSeconds / n;
   const sentences = (script ?? "").split(/(?<=[.!?])\s+/).filter(Boolean);
+  const topic = topicOf(script ?? "", title);
   return Array.from({ length: n }, (_, i) => {
     const text = sentences.length ? sentences.slice(Math.floor((i * sentences.length) / n), Math.floor(((i + 1) * sentences.length) / n)).join(" ") : "";
-    return { index: i, start: i * len, end: i === n - 1 ? durationSeconds : (i + 1) * len, text, query: sceneQuery(text || title, title) };
+    return withQueries({ index: i, start: i * len, end: i === n - 1 ? durationSeconds : (i + 1) * len, text }, title, topic);
   });
 }
 
@@ -92,9 +111,11 @@ export function wordsJson(words: WordTiming[], durationSeconds: number) {
 }
 
 /** Searches for one scene, most specific first; the episode title is the coherent fallback. Deduplicated. */
-export function sceneQueries(scene: Pick<Scene, "text" | "query">, title: string): string[] {
+export function sceneQueries(scene: Pick<Scene, "text" | "query">, title: string, topic?: Topic): string[] {
   // Two terms find footage far more often than three on a stock site; each extra search costs rate-limit quota.
-  const terms = salient(scene.text, 2);
+  // With a topic, a second term joins only when it recurs in the episode: a one-off abstract word narrows the search
+  // away from the subject.
+  const terms = salient(scene.text, 2, topic).filter((w, i) => i === 0 || !topic || (topic.get(w) ?? 0) >= 2);
   const out = [terms.join(" "), terms[0] ?? "", salient(title, 2).join(" ") || scene.query]
     .map((q) => q.trim()).filter(Boolean);
   return [...new Set(out)];

@@ -9,7 +9,7 @@ import { memoryResultStore } from "@/lib/paid-calls/result-store";
 import { fixtureVoiceProvider } from "@/lib/providers/voice/fixture";
 import type { VoiceProvider, WordTiming } from "@/lib/providers/types";
 import type { FootageCandidateRaw } from "@/lib/ai/footage";
-import { evenScenes, MIN_CLIP_SPEED, pickClip, sceneLengths, sceneQueries, scenesFromWords, wordsJson } from "./visual-plan";
+import { evenScenes, topicOf, MIN_CLIP_SPEED, pickClip, sceneLengths, sceneQueries, scenesFromWords, wordsJson } from "./visual-plan";
 import { buildSceneShots, SHOT_MARGIN_SECONDS } from "./visual-assets";
 import { buildPodcastMontage, type MontageScene } from "./video-montage";
 import { narrateEpisode, storedNarrationWords } from "./narrate";
@@ -42,6 +42,18 @@ test("plan visual: escenas contiguas que siguen la narración y cubren todo el a
   const even = evenScenes(95, "Mi episodio", "Uno. Dos. Tres. Cuatro.", 12);
   assert.equal(even[even.length - 1].end, 95);
   assert.deepEqual(sceneQueries({ text: "el desierto de Arizona y el desierto", query: "x" }, "Luces"), ["desierto arizona", "desierto", "luces"]);
+});
+
+test("coherencia: las búsquedas priorizan el tema del episodio sobre palabras sueltas abstractas", () => {
+  const script = "Los encuentros cercanos con ovnis. Hubo encuentros en el desierto. Los encuentros del primer tipo y los ovnis. " +
+    "¿Qué significan realmente los encuentros de la tercera, la cuarta? Acompáñame a descubrir sus diferencias, sus contradicciones.";
+  const scenes = evenScenes(40, "Misterios del universo", script, 10);
+  const last = scenes[scenes.length - 1];
+  assert.match(last.text, /contradicciones/);
+  assert.equal(last.queries?.[0].split(" ")[0], "encuentros", `queries ${JSON.stringify(last.queries)}`);
+  assert.ok(!last.queries?.[0].includes("contradicciones"));
+  assert.equal(last.queries?.[last.queries.length - 1], "misterios universo", "title as the last fallback");
+  assert.equal(topicOf("ovni ovni", "Ovni").get("ovni"), 5, "title words weigh extra");
 });
 
 test("subtítulos: palabras ordenadas, sin solaparse y dentro del audio", () => {
