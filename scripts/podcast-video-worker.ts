@@ -107,7 +107,7 @@ async function main() {
       episode = await load();
       if (!episode || episode.status !== "ready" || !episode.audio_path) throw new PublicError("La narración no quedó lista. Pulsa «Reintentar»: lo ya narrado no se vuelve a cobrar.");
     }
-    await stage("Montando video");
+    await stage("Preparando audio");
     const work = path.join(os.tmpdir(), `podcast-${episodeId}-${episode.video_attempts ?? 1}`);
     const input = path.join(work, "entrada");
     await mkdir(path.join(input, "audio"), { recursive: true });

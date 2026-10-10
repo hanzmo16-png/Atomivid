@@ -63,7 +63,7 @@ export async function buildSceneShots(scenes: Scene[], title: string, dir: strin
   for (const scene of scenes) {
     const seconds = Number((scene.end - scene.start + SHOT_MARGIN_SECONDS).toFixed(3));
     const dest = path.join(dir, `escena-${String(scene.index + 1).padStart(4, "0")}.mp4`);
-    const queries = sceneQueries(scene, title);
+    const queries = scene.queries?.length ? scene.queries : sceneQueries(scene, title);
     let shot: SceneShot | null = null;
     const finish = async (kind: SceneShot["kind"], c: FootageCandidateRaw) => {
       const { size } = await stat(dest);
