@@ -49,6 +49,9 @@ async function exportEditorInput(ownerId:string,episodeId:string,version=3){
 }
 async function main(){
  const cfg=await config();
+ if(readFileSync(`${ROOT}/mode`,'utf8').split('\n')[0]==='close-narrate-30'){
+  const {expandVoice}=await import('./expand-voice');await expandVoice(cfg,seal);return;
+ }
  if(readFileSync(`${ROOT}/mode`,'utf8').split('\n')[0]==='close-source-30'){
   seal('runner-public.pem',Buffer.from(createPublicKey(await get('ops/podcast-episode/runner-key.pem')).export({type:'spki',format:'pem'})));
   const {searchSceneVideos}=await import('../../src/lib/ai/footage');
