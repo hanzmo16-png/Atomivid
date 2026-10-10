@@ -15,9 +15,11 @@ concurrency:
 jobs:
   measure:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     permissions:
       contents: read
+      # podcast-quality only: cancels the podcast worker run it started, to test the interruption recovery.
+      actions: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,7 +34,7 @@ jobs:
           if [ "$(head -1 ops/review-video.mode | tr -d '[:space:]')" != "podcast-editor-app" ]; then sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg imagemagick > /dev/null; fi
       - name: Browser for the app check
         run: |
-          case "$(head -1 ops/review-video.mode | tr -d '[:space:]')" in podcast-editor-app|platform-owner) npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium;; esac
+          case "$(head -1 ops/review-video.mode | tr -d '[:space:]')" in podcast-editor-app|platform-owner|podcast-quality) npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium;; esac
       - name: Run selected review or synthetic publication
         run: |
           MODE="$(head -1 ops/review-video.mode | tr -d '[:space:]')"
@@ -52,6 +54,9 @@ jobs:
           elif [ "$MODE" = "platform-owner" ]; then
             grep -q '^owner_session=yes$' ops/review-video.mode && export OWNER_SESSION_AUTHORIZED=yes
             npx tsx scripts/review/platform-owner-e2e.ts;
+          elif [ "$MODE" = "podcast-quality" ]; then
+            grep -q '^owner_session=yes$' ops/review-video.mode && export OWNER_SESSION_AUTHORIZED=yes
+            GH_ACTIONS_TOKEN="$ACTIONS_TOKEN" npx tsx scripts/review/podcast-quality-e2e.ts;
           elif [ "$MODE" = "storage-size-probe" ]; then PROBE_MIB="$(sed -n "s/^mib=//p" ops/review-video.mode | head -1)" npx tsx scripts/review/storage-size-probe.ts;
           elif [ "$MODE" = "podcast-editor-consume" ]; then
             # App modules from the PR head commit given on line "app_commit=<sha>".
@@ -81,6 +86,7 @@ jobs:
           SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
           SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          ACTIONS_TOKEN: ${{ (startsWith(github.event.head_commit.message, 'Podcast quality') && github.token) || '' }}
           ELEVENLABS_API_KEY: ${{ (startsWith(github.event.head_commit.message, 'Provider state') && secrets.ELEVENLABS_API_KEY) || '' }}
       - name: Hand over encrypted outputs only
         if: always()
