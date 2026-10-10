@@ -49,6 +49,9 @@ async function exportEditorInput(ownerId:string,episodeId:string){
 }
 async function main(){
  const cfg=await config();
+ if(readFileSync(`${ROOT}/mode`,'utf8').split('\n')[0]==='close-edit'){
+  const {finalEdit}=await import('./final-edit');await finalEdit(cfg,seal);return;
+ }
  if(readFileSync(`${ROOT}/mode`,'utf8').split('\n')[0]==='close-avatar'){
   const {finalAvatar}=await import('./final-avatar');await finalAvatar(cfg,seal);return;
  }

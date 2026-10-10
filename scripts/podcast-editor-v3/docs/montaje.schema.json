@@ -1,0 +1,840 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://podcast-editor.local/montaje.schema.json",
+  "title": "podcast-editor montaje.json (v2)",
+  "description": "Manifiesto de montaje. Las claves que empiezan por '_' son comentarios y se ignoran. El esquema valida la ESTRUCTURA; 'editor.py validate' añade las reglas semánticas (ids referenciados, capítulos, duraciones) y, con --archivos, las que necesitan los medios.",
+  "type": "object",
+  "required": [
+    "schema",
+    "episode_id",
+    "assembly_version",
+    "files",
+    "timeline"
+  ],
+  "patternProperties": {
+    "^_": {}
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "enum": [
+        "podcast-editor/montaje@2",
+        "podcast-editor/montaje@1"
+      ]
+    },
+    "episode_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,80}$"
+    },
+    "assembly_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expected_total_seconds": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/file"
+      }
+    },
+    "output": {
+      "$ref": "#/$defs/output"
+    },
+    "chapters": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/chapter"
+      }
+    },
+    "timeline": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/segment"
+      }
+    },
+    "transitions": {
+      "type": "object",
+      "properties": {
+        "default_in": {
+          "$ref": "#/$defs/transition"
+        },
+        "default_out": {
+          "$ref": "#/$defs/transition"
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false
+    },
+    "labels": {
+      "type": "object",
+      "properties": {
+        "style": {
+          "type": "string"
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false
+    },
+    "audio": {
+      "$ref": "#/$defs/audio"
+    },
+    "narration": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "id de un elemento de files[]"
+        },
+        "offset": {
+          "type": "number",
+          "minimum": 0
+        },
+        "loudnorm": {
+          "$ref": "#/$defs/loudnorm"
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "source"
+      ]
+    },
+    "music": {
+      "type": "object",
+      "properties": {
+        "cues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cue"
+          }
+        },
+        "loudnorm": {
+          "$ref": "#/$defs/loudnorm"
+        },
+        "ducking": {
+          "$ref": "#/$defs/ducking"
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false
+    },
+    "subtitles": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "id de un elemento de files[]"
+        },
+        "format": {
+          "enum": [
+            "srt",
+            "words_json"
+          ]
+        },
+        "mode": {
+          "enum": [
+            "burn",
+            "mux",
+            "sidecar"
+          ]
+        },
+        "style": {
+          "type": "object"
+        },
+        "group_max_words": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "highlight_colour": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "source"
+      ]
+    },
+    "title_card": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "start": {
+          "type": "number",
+          "minimum": 0
+        },
+        "end": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "pos": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "start",
+        "end"
+      ]
+    },
+    "avatar": {
+      "type": "object",
+      "properties": {
+        "placement": {
+          "$ref": "#/$defs/placement"
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false
+    },
+    "sources_credits": {
+      "type": "object",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            },
+            "patternProperties": {
+              "^_": {}
+            },
+            "additionalProperties": true,
+            "required": [
+              "text"
+            ]
+          }
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "audio": {
+            "properties": {
+              "modo": {
+                "const": "mezcla_final"
+              }
+            },
+            "required": [
+              "modo"
+            ]
+          }
+        },
+        "required": [
+          "audio"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "narration"
+              ]
+            },
+            {
+              "required": [
+                "music"
+              ]
+            }
+          ]
+        },
+        "properties": {
+          "timeline": {
+            "items": {
+              "properties": {
+                "use_audio": {
+                  "const": false
+                },
+                "type": {
+                  "not": {
+                    "const": "voice"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "file": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$)).+$",
+          "description": "relativa a la carpeta de montaje.json"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "role": {
+          "enum": [
+            "narration",
+            "avatar",
+            "animation",
+            "broll",
+            "image",
+            "music",
+            "subtitles",
+            "subtitles_words",
+            "credits",
+            "metadata",
+            "mezcla_final"
+          ]
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "path",
+        "size",
+        "sha256",
+        "role"
+      ]
+    },
+    "loudnorm": {
+      "type": "object",
+      "properties": {
+        "integrated": {
+          "type": "number"
+        },
+        "true_peak": {
+          "type": "number"
+        },
+        "lra": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 16
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 16
+        },
+        "fps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120
+        },
+        "video_codec": {
+          "const": "libx264"
+        },
+        "crf": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 51
+        },
+        "preset": {
+          "type": "string"
+        },
+        "pix_fmt": {
+          "type": "string"
+        },
+        "audio_codec": {
+          "const": "aac"
+        },
+        "audio_bitrate": {
+          "type": "string"
+        },
+        "sample_rate": {
+          "type": "integer"
+        },
+        "channels": {
+          "type": "integer"
+        },
+        "mp3_bitrate": {
+          "type": "string"
+        },
+        "loudness": {
+          "$ref": "#/$defs/loudnorm"
+        },
+        "pad_color": {
+          "type": "string"
+        },
+        "threads": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false
+    },
+    "chapter": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "start": {
+          "type": "number",
+          "minimum": 0
+        },
+        "end": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "start"
+      ]
+    },
+    "transition": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": [
+            "none",
+            "fade"
+          ]
+        },
+        "duration": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "color": {
+          "type": "string"
+        },
+        "audio": {
+          "type": "boolean"
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ]
+    },
+    "placement": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "enum": [
+            "full",
+            "pip"
+          ]
+        },
+        "corner": {
+          "enum": [
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right"
+          ]
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 16
+        },
+        "margin": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "x": {
+          "type": [
+            "string",
+            "integer"
+          ]
+        },
+        "y": {
+          "type": [
+            "string",
+            "integer"
+          ]
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false
+    },
+    "insuficiente": {
+      "description": "Qué hacer si la fuente no cubre la duración pedida. Por defecto 'rechazar' (no hay congelado implícito).",
+      "oneOf": [
+        {
+          "const": "rechazar"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "modo": {
+              "const": "rechazar"
+            }
+          },
+          "patternProperties": {
+            "^_": {}
+          },
+          "additionalProperties": false,
+          "required": [
+            "modo"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "modo": {
+              "const": "congelar"
+            },
+            "max_segundos": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "patternProperties": {
+            "^_": {}
+          },
+          "additionalProperties": false,
+          "required": [
+            "modo",
+            "max_segundos"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "modo": {
+              "const": "ajustar_velocidad"
+            },
+            "factor_min": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "factor_max": {
+              "type": "number",
+              "minimum": 1
+            }
+          },
+          "patternProperties": {
+            "^_": {}
+          },
+          "additionalProperties": false,
+          "required": [
+            "modo",
+            "factor_min",
+            "factor_max"
+          ]
+        }
+      ]
+    },
+    "segment": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "enum": [
+            "voice",
+            "avatar",
+            "image",
+            "animation",
+            "broll",
+            "card"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "id de un elemento de files[]"
+        },
+        "in": {
+          "type": "number",
+          "minimum": 0
+        },
+        "out": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "const": "auto"
+            }
+          ]
+        },
+        "chapter": {
+          "type": "string"
+        },
+        "fit": {
+          "enum": [
+            "contain",
+            "cover"
+          ]
+        },
+        "fit_mode": {
+          "const": "trim",
+          "description": "'stretch' se eliminó en v2: usar insuficiente.ajustar_velocidad"
+        },
+        "use_audio": {
+          "type": "boolean"
+        },
+        "background": {
+          "type": "string"
+        },
+        "placement": {
+          "$ref": "#/$defs/placement"
+        },
+        "label": {
+          "type": "string"
+        },
+        "credit": {
+          "type": "string"
+        },
+        "transition_in": {
+          "$ref": "#/$defs/transition"
+        },
+        "transition_out": {
+          "$ref": "#/$defs/transition"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "insuficiente": {
+          "$ref": "#/$defs/insuficiente"
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ]
+    },
+    "audio": {
+      "type": "object",
+      "properties": {
+        "modo": {
+          "enum": [
+            "editor",
+            "mezcla_final"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "id de un elemento de files[]"
+        },
+        "timeline": {
+          "enum": [
+            "exacto",
+            "extender_ultimo"
+          ],
+          "description": "mezcla_final: 'exacto' = el timeline debe durar lo mismo que el audio (±1 cuadro); 'extender_ultimo' = el último segmento se alarga/acorta hasta el final del audio"
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "modo"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "modo": {
+                "const": "mezcla_final"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "modo",
+              "source"
+            ]
+          }
+        }
+      ]
+    },
+    "cue": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "id de un elemento de files[]"
+        },
+        "start": {
+          "type": "number",
+          "minimum": 0
+        },
+        "end": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "volume_db": {
+          "type": "number"
+        },
+        "fade_in": {
+          "type": "number",
+          "minimum": 0
+        },
+        "fade_out": {
+          "type": "number",
+          "minimum": 0
+        },
+        "loop": {
+          "type": "boolean"
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "start",
+        "end"
+      ]
+    },
+    "ducking": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "enum": [
+            "envelope",
+            "sidechain",
+            "none"
+          ]
+        },
+        "threshold_rms": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "duck_gain": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "attack": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "release": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "window_ms": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "patternProperties": {
+        "^_": {}
+      },
+      "additionalProperties": false
+    }
+  }
+}
