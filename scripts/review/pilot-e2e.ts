@@ -1,14 +1,16 @@
 /**
- * Supervised pilot, PRODUCTION validation with the owner account on a phone, zero provider cost:
- *  A. Insufficient budget (real UI): a fresh draft (no paid call to create it) with a budget below its estimate →
- *     "Producir ahora" is refused with the reason; nothing recorded in the paid-call ledger.
- *  B. Insufficient budget found by the scheduled tick (staged state): the same draft is put in "scheduled" with a
- *     budget below its estimate directly in the DB; the real scheduled worker tick must block it before any call and
- *     send ONE notice (in-app + GitHub comment).
- *  C. Scheduled production (real UI): on the already-narrated episode (narration reused, $0), set a budget and
- *     schedule the start, close the app; the scheduled tick claims it, a manual "produce now" meanwhile is refused,
- *     the worker delivers; back on the phone: review panel (duration, cost, checks, defects), approve, publication
- *     becomes manual, download = stored bytes; one "delivered" notice; ledger rows unchanged.
+ * Supervised pilot, PRODUCTION validation with the owner account on a phone (real UI), zero provider cost: every
+ * production reuses the already-paid narration of the owner's narrated episode; stock is free-licence; the editor
+ * runs on the worker. No row is inserted or edited by hand: every state comes from the UI, the app and the worker.
+ *  A. Insufficient budget on a fresh draft (creating it is free): refused with the reason, nothing charged.
+ *  B. "Producir ahora" + a second start while it is active → the second is refused (409).
+ *  C. Retries: the run is cancelled twice mid-production (real interruption) and retried from the UI: retry_count
+ *     goes 1, 2 (consecutive); each interruption leaves ONE "blocked" notice posted by github-actions[bot]; the third
+ *     run delivers and retry_count returns to 0, with ONE "delivered" notice from the bot.
+ *  D. Scheduling from the UI: start in ~3 min with a budget, close the app; the database tick claims it, the worker
+ *     delivers; review screen (duration, cost, checks, defects), approval → publication manual, download = stored.
+ *  E. Public notices audit: every comment since the start is by github-actions[bot] and carries no private data,
+ *     signed links, ids or credentials.
  * Owner session: one-time admin sign-in link in the runner (no password), always signed out. Public log: states only.
  */
 import { createClient } from "@supabase/supabase-js";
@@ -26,6 +28,7 @@ const admin = createClient(URL_, KEY, { auth: { persistSession: false, autoRefre
 const opened: string[] = [];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const redact = (m: string) => m.replace(/https?:\/\/\S+/g, "<url>").replace(/[0-9a-f]{8}-[0-9a-f-]{27}/gi, "<id>").slice(0, 300);
+type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 async function sessionCookies(userId: string) {
   const { data: u } = await admin.auth.admin.getUserById(userId);
@@ -40,12 +43,10 @@ async function sessionCookies(userId: string) {
   return jar;
 }
 
-async function ghComments(since: string) {
-  const r = await fetch(`https://api.github.com/repos/${REPO}/issues/comments?since=${since}&per_page=50`, { headers: { authorization: `Bearer ${GH}`, accept: "application/vnd.github+json" } });
-  return r.ok ? ((await r.json()) as { body: string; user: { login: string } }[]) : [];
+async function gh(path: string, method = "GET") {
+  const r = await fetch(`https://api.github.com/repos/${REPO}${path}`, { method, headers: { authorization: `Bearer ${GH}`, accept: "application/vnd.github+json" } });
+  return { status: r.status, json: r.status === 202 || r.status === 204 ? null : await r.json().catch(() => null) };
 }
-
-type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 async function main() {
   if (process.env.OWNER_SESSION_AUTHORIZED !== "yes") { log("BLOCKED", { reason: "owner sign-in not authorised" }); process.exitCode = 1; return; }
@@ -54,14 +55,15 @@ async function main() {
   const owner = (await client.query("select user_id::text id from podcast_editor.propietarios limit 1")).rows[0]?.id as string;
   const narrated = (await client.query(`select id::text id, voice_id from public.podcast_episodes where user_id=$1 and status='ready' and source='tts' and audio_path is not null and duration_seconds >= 20 order by created_at desc limit 1`, [owner])).rows[0] as { id: string; voice_id: string } | undefined;
   const ledger = async (ep: string) => (await client.query(`select count(*)::int n from public.pi_paid_operations where project_id=$1`, [`podcast-${ep}`])).rows[0].n as number;
-  const pilotCols = (await client.query(`select count(*)::int n from information_schema.columns where table_schema='public' and table_name='podcast_episodes' and column_name in ('budget_usd','scheduled_at','video_checks','review_status','publish_status')`)).rows[0].n;
-  log("PRECONDITIONS", { owner: Boolean(owner), narratedEpisode: Boolean(narrated), pilotColumns: pilotCols, actionsToken: Boolean(GH) });
-  if (!owner || !narrated || pilotCols !== 5) { process.exitCode = 1; await client.end(); return; }
+  const cols = (await client.query(`select count(*)::int n from information_schema.columns where table_schema='public' and table_name='podcast_episodes' and column_name in ('budget_usd','scheduled_at','video_checks','review_status','publish_status','retry_count')`)).rows[0].n;
+  log("PRECONDITIONS", { owner: Boolean(owner), narratedEpisode: Boolean(narrated), pilotColumns: cols, actionsToken: Boolean(GH) });
+  if (!owner || !narrated || cols !== 6 || !GH) { process.exitCode = 1; await client.end(); return; }
   const db = createClient(URL_, KEY, { auth: { persistSession: false } });
   const read = async (id: string) => (await db.from("podcast_episodes").select("*").eq("id", id).single()).data as Row;
-  const notices = async (id: string) => ((await db.from("production_notices").select("kind,run_key,delivered_at,channel,delivery_error").eq("episode_id", id)).data ?? []) as Row[];
-  const narratedLedgerBefore = await ledger(narrated.id);
-  const before = await read(narrated.id);
+  const notices = async (id: string, since: string) => ((await db.from("production_notices").select("kind,run_key,delivered_at,channel,delivery_error,created_at").eq("episode_id", id).gte("created_at", since)).data ?? []) as Row[];
+  const ep = narrated.id;
+  const ledgerBefore = await ledger(ep);
+  const before = await read(ep);
   if (["queued", "running", "scheduled"].includes(before.video_status)) { check("precondition: narrated episode idle", false); await client.end(); process.exitCode = 1; return; }
 
   const pw = ["play", "wright"].join("");
@@ -72,104 +74,121 @@ async function main() {
   await phone.addCookies(cookies.map((c) => ({ ...c, domain: "atomivid.vercel.app", path: "/", secure: true, sameSite: "Lax" as const })));
   const dismiss = async (page: any) => { const b = page.getByRole("button", { name: "Omitir", exact: true }); if (await b.waitFor({ state: "visible", timeout: 5000 }).then(() => true).catch(() => false)) await b.click(); }; // eslint-disable-line @typescript-eslint/no-explicit-any
   const open = async (id: string) => { const p = await phone.newPage(); await p.goto(`${APP}/dashboard/podcast/${id}`, { waitUntil: "networkidle" }); await dismiss(p); return p; };
-  let draftId: string | null = null;
+  const clickPost = async (page: any, button: RegExp | string, suffix = "/video") => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    const [res] = await Promise.all([page.waitForResponse((r: any) => r.url().endsWith(suffix) && r.request().method() === "POST", { timeout: 60_000 }), page.getByRole("button", { name: button }).first().click()]); // eslint-disable-line @typescript-eslint/no-explicit-any
+    await page.waitForTimeout(1500);
+    return res.status() as number;
+  };
+  const waitRow = async (pred: (r: Row) => boolean, maxMs: number) => { const end = Date.now() + maxMs; let r = await read(ep); while (!pred(r) && Date.now() < end) { await sleep(5000); r = await read(ep); } return r; };
+  const cancelActiveRun = async () => {
+    const runs = await gh(`/actions/workflows/podcast-video.yml/runs?status=in_progress&per_page=5`);
+    const run = (runs.json as { workflow_runs?: { id: number; event: string }[] } | null)?.workflow_runs?.find((r) => r.event === "repository_dispatch");
+    return run ? (await gh(`/actions/runs/${run.id}/cancel`, "POST")).status : 0;
+  };
   try {
-    // A. Insufficient budget from the UI (fresh draft: creating it is free).
+    // A. Insufficient budget on a fresh draft.
     let page = await phone.newPage();
     await page.goto(`${APP}/dashboard/podcast`, { waitUntil: "networkidle" });
     await dismiss(page);
-    const created = await page.evaluate(`fetch("/api/podcast", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "Prueba piloto (presupuesto)", language: "es", source: "tts", voiceId: ${JSON.stringify(narrated.voice_id)}, script: "Este es un guion de prueba del piloto supervisado. No debe narrarse: su presupuesto es menor que su costo estimado." }) }).then(async (r) => ({ status: r.status, body: await r.json() }))`) as { status: number; body: { id?: string } };
-    draftId = created.body.id ?? null;
-    check("A. draft created from the owner session (no paid call)", created.status === 200 && !!draftId, { status: created.status });
-    if (!draftId) throw new Error("no draft");
+    const created = await page.evaluate(`fetch("/api/podcast", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "Prueba piloto (presupuesto)", language: "es", source: "tts", voiceId: ${JSON.stringify(narrated.voice_id)}, script: "Guion de prueba del piloto supervisado. No debe narrarse: su presupuesto es menor que su costo estimado." }) }).then(async (r) => ({ status: r.status, body: await r.json() }))`) as { status: number; body: { id?: string } };
+    const draftId = created.body.id ?? null;
     await page.close();
-    page = await open(draftId);
-    const budgetInput = page.locator('input[name="budget_usd"]');
-    check("A. the production panel asks for a maximum budget (16 px input)", (await budgetInput.count()) === 1 && (await budgetInput.evaluate((el: Element) => getComputedStyle(el).fontSize)) === "16px");
-    await budgetInput.fill("0.001");
-    const [resA] = await Promise.all([page.waitForResponse((r: any) => r.url().endsWith("/video") && r.request().method() === "POST"), page.getByRole("button", { name: "Producir ahora" }).click()]); // eslint-disable-line @typescript-eslint/no-explicit-any
-    await page.waitForTimeout(1500);
-    const shown = await page.getByText(/Presupuesto insuficiente/).first().textContent().catch(() => null);
-    const draftA = await read(draftId);
-    check("A. insufficient budget refused with the reason, nothing started or charged", resA.status() === 402 && !!shown && /No se cobró nada/.test(shown) && draftA.video_status === "none" && (await ledger(draftId)) === 0, { status: resA.status(), videoStatus: draftA.video_status });
-    await page.close();
+    if (draftId) {
+      page = await open(draftId);
+      await page.locator('input[name="budget_usd"]').fill("0.001");
+      const st = await clickPost(page, "Producir ahora");
+      const shown = await page.getByText(/Presupuesto insuficiente/).first().textContent().catch(() => null);
+      const d = await read(draftId);
+      check("A. insufficient budget refused with the reason; nothing started or charged", st === 402 && !!shown && /No se cobró nada/.test(shown) && d.video_status === "none" && (await ledger(draftId)) === 0, { status: st, videoStatus: d.video_status });
+      await page.close();
+    } else check("A. draft created", false, { status: created.status });
 
-    // B. Insufficient budget at the scheduled start (state staged in the DB; tick + notice are real).
-    await db.from("podcast_episodes").update({ video_status: "scheduled", budget_usd: 0.0001, scheduled_at: new Date(Date.now() - 60_000).toISOString(), video_requested_at: new Date().toISOString() }).eq("id", draftId);
-    log("STAGED", { scenario: "B", note: "scheduled draft with a budget below its estimate set directly in the DB" });
-
-    // C. Scheduled production of the narrated episode from the UI.
-    page = await open(narrated.id);
-    const scheduleAt = new Date(Date.now() + 3 * 60_000);
-    const local = scheduleAt.toISOString().slice(0, 16); // context timezone is UTC
+    // B. Produce now + a second start while active.
+    page = await open(ep);
     await page.locator('input[name="budget_usd"]').fill("0.10");
-    await page.locator('input[name="schedule_at"]').fill(local);
-    const [resC] = await Promise.all([page.waitForResponse((r: any) => r.url().endsWith("/video") && r.request().method() === "POST"), page.getByRole("button", { name: "Programar" }).click()]); // eslint-disable-line @typescript-eslint/no-explicit-any
-    await page.waitForTimeout(1500);
-    const sched = await read(narrated.id);
-    check("C. production scheduled from the phone with its budget (one-shot, no run yet)", resC.status() === 202 && sched.video_status === "scheduled" && Number(sched.budget_usd) === 0.1 && sched.publish_status === "held", { status: resC.status(), videoStatus: sched.video_status });
-    check("C. the page shows the scheduled start and a cancel option", (await page.getByText(/Programada para/).count()) > 0 && (await page.getByRole("button", { name: "Cancelar programación" }).count()) === 1);
-    await page.close(); // the owner closes the app
+    const st1 = await clickPost(page, /Volver a producir|Producir ahora|Reintentar/);
+    const second = await page.evaluate(`fetch("/api/podcast/${ep}/video", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ budgetUsd: 0.1 }) }).then((r) => r.status)`) as number;
+    const r1 = await read(ep);
+    check("B. production started from the phone with its budget", st1 === 202 && ["queued", "running"].includes(r1.video_status) && Number(r1.budget_usd) === 0.1 && r1.retry_count === 0, { status: st1, retryCount: r1.retry_count });
+    check("B. a second start while the production is active is refused (409)", second === 409, { status: second });
+    await page.close();
 
-    // Wait for the real scheduled ticks (GitHub cron, every 15 min, may be late).
-    const end = Date.now() + 55 * 60_000;
-    let draftB = await read(draftId), row = await read(narrated.id), refusedWhileRunning: number | null = null;
-    while (Date.now() < end && !(draftB.video_status === "blocked" && ["ready", "failed", "blocked"].includes(row.video_status) && row.video_status !== "scheduled" && !(row.video_status === "ready" && row.video_sha256 === before.video_sha256))) {
-      await sleep(20_000);
-      draftB = await read(draftId); row = await read(narrated.id);
-      if (refusedWhileRunning === null && (row.video_status === "queued" || row.video_status === "running")) {
-        const p = await open(narrated.id);
-        refusedWhileRunning = await p.evaluate(`fetch("/api/podcast/${narrated.id}/video", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ budgetUsd: 0.1 }) }).then((r) => r.status)`) as number;
-        await p.close();
-      }
+    // C. Two real interruptions with retries from the UI, then delivery.
+    const retryCounts: number[] = [];
+    for (let round = 1; round <= 2; round++) {
+      const running = await waitRow((r) => r.video_status === "running" && /Buscando|Montando|Preparando/.test(r.video_stage ?? ""), 8 * 60_000);
+      const token = running.video_run_token;
+      const cancel = await cancelActiveRun();
+      const failed = await waitRow((r) => r.video_status === "failed", 6 * 60_000);
+      const n = (await notices(ep, startedAt)).filter((x) => x.run_key === token);
+      check(`C${round}. interruption: run cancelled mid-production, episode failed, one 'blocked' notice delivered`, cancel === 202 && failed.video_status === "failed" && n.length === 1 && n[0].kind === "blocked" && !!n[0].delivered_at && n[0].channel === "github",
+        { cancel, status: failed.video_status, notices: n.map((x) => ({ kind: x.kind, delivered: !!x.delivered_at, error: x.delivery_error })) });
+      page = await open(ep);
+      const st = await clickPost(page, "Reintentar");
+      const rr = await read(ep);
+      retryCounts.push(rr.retry_count);
+      check(`C${round}. retry from the UI accepted; consecutive retry count = ${round}`, st === 202 && rr.retry_count === round, { status: st, retryCount: rr.retry_count });
+      await page.close();
     }
-    const nB = await notices(draftId);
-    check("B. scheduled tick blocked the production for insufficient budget before any call", draftB.video_status === "blocked" && /Presupuesto insuficiente/.test(draftB.video_error ?? "") && (await ledger(draftId)) === 0, { status: draftB.video_status });
-    check("B. exactly one 'budget' notice, delivered to GitHub", nB.length === 1 && nB[0].kind === "budget" && !!nB[0].delivered_at && nB[0].channel === "github", nB.map((n) => ({ kind: n.kind, delivered: !!n.delivered_at, error: n.delivery_error })));
-    check("C. a manual start while the scheduled run works is refused (no duplicate run)", refusedWhileRunning === 409, { status: refusedWhileRunning });
-    check("C. the scheduled tick produced and delivered the video", row.video_status === "ready" && row.video_sha256 !== before.video_sha256 && (row.video_attempts ?? 0) === (before.video_attempts ?? 0) + 1, { status: row.video_status, error: row.video_error ? redact(row.video_error) : null });
-    if (row.video_status === "ready") {
-      const nC = await notices(narrated.id);
-      const delivered = nC.filter((n) => n.kind === "delivered" && n.run_key === row.video_run_token);
-      check("C. exactly one 'delivered' notice for this run, sent to GitHub", delivered.length === 1 && !!delivered[0].delivered_at, delivered.map((n) => ({ delivered: !!n.delivered_at, error: n.delivery_error })));
-      const checks = row.video_checks as { checks: { id: string; ok: boolean }[]; defects: { id: string; severity: string }[]; spend?: { spentUsd: number; uncertain: number } } | null;
-      check("C. technical checks and defects stored, review pending, publication held", !!checks && checks.checks.length >= 6 && Array.isArray(checks.defects) && row.review_status === "pending" && row.publish_status === "held",
+    const delivered = await waitRow((r) => r.video_status === "ready" || r.video_status === "failed" || r.video_status === "blocked", 30 * 60_000);
+    const dn = (await notices(ep, startedAt)).filter((x) => x.run_key === delivered.video_run_token && x.kind === "delivered");
+    check("C. third run delivered; retry count reset to 0; one 'delivered' notice from the bot", delivered.video_status === "ready" && delivered.retry_count === 0 && dn.length === 1 && !!dn[0].delivered_at,
+      { status: delivered.video_status, retryCounts, retryAfter: delivered.retry_count, error: delivered.video_error ? redact(delivered.video_error) : null });
+
+    // D. Scheduling from the UI.
+    page = await open(ep);
+    const at = new Date(Date.now() + 3 * 60_000).toISOString().slice(0, 16); // context timezone UTC
+    await page.locator('input[name="budget_usd"]').fill("0.10");
+    await page.locator('input[name="schedule_at"]').fill(at);
+    const stS = await clickPost(page, "Programar");
+    const sched = await read(ep);
+    check("D. production scheduled from the phone (one-shot) with its budget", stS === 202 && sched.video_status === "scheduled" && !!sched.scheduled_at && sched.publish_status === "held", { status: stS, videoStatus: sched.video_status });
+    check("D. the page shows the scheduled start and a cancel option", (await page.getByText(/Programada para/).count()) > 0 && (await page.getByRole("button", { name: "Cancelar programación" }).count()) === 1);
+    await page.close(); // the owner closes the app
+    const prevSha = delivered.video_sha256;
+    const claimed = await waitRow((r) => r.video_status !== "scheduled", 15 * 60_000);
+    const lateBy = claimed.video_heartbeat_at ? Math.round((Date.parse(claimed.video_heartbeat_at) - Date.parse(sched.scheduled_at)) / 1000) : null;
+    check("D. the scheduled start was claimed by the database tick (no manual action)", ["queued", "running", "ready"].includes(claimed.video_status), { status: claimed.video_status, secondsAfterSchedule: lateBy });
+    const done = await waitRow((r) => (r.video_status === "ready" && r.video_sha256 !== prevSha) || r.video_status === "failed" || r.video_status === "blocked", 30 * 60_000);
+    const sn = (await notices(ep, sched.scheduled_at)).filter((x) => x.run_key === done.video_run_token && x.kind === "delivered");
+    check("D. scheduled production delivered with one 'delivered' notice from the bot", done.video_status === "ready" && done.video_sha256 !== prevSha && sn.length === 1 && !!sn[0].delivered_at, { status: done.video_status });
+    if (done.video_status === "ready") {
+      const checks = done.video_checks as { checks: { id: string; ok: boolean }[]; defects: { id: string; severity: string }[]; spend?: { spentUsd: number; uncertain: number } } | null;
+      check("D. checks and defects stored; review pending; publication held", !!checks && checks.checks.length >= 6 && done.review_status === "pending" && done.publish_status === "held",
         { failedChecks: checks?.checks.filter((c) => !c.ok).map((c) => c.id), defects: checks?.defects.map((d) => `${d.id}:${d.severity}`), spentUsd: checks?.spend?.spentUsd, uncertain: checks?.spend?.uncertain });
-      page = await open(narrated.id);
-      const panel = await page.locator('section[aria-label="Revisión de la entrega"]').textContent().catch(() => "");
-      check("C. review screen shows video, duration, cost, checks, defects and the integrity-vs-approval note", /Duración/.test(panel ?? "") && /Costo/.test(panel ?? "") && /Comprobaciones técnicas/.test(panel ?? "") && /Defectos detectados/.test(panel ?? "") && /no la calidad creativa/.test(panel ?? ""));
+      page = await open(ep);
+      const panel = (await page.locator('section[aria-label="Revisión de la entrega"]').textContent().catch(() => "")) ?? "";
+      check("D. review screen: video, duration, cost, checks, defects, integrity ≠ approval", /Duración/.test(panel) && /Costo/.test(panel) && /Comprobaciones técnicas/.test(panel) && /Defectos detectados/.test(panel) && /no la calidad creativa/.test(panel));
       const playback = await page.evaluate(async () => {
         const v = document.querySelector("video") as HTMLVideoElement | null;
         if (!v) return { found: false, played: false, w: 0 };
         v.muted = true; await v.play().catch(() => undefined); await new Promise((r) => setTimeout(r, 4000));
         return { found: true, played: v.currentTime > 1, w: v.videoWidth };
       });
-      check("C. the video plays on the phone (1920 wide)", playback.found && playback.played && playback.w === 1920, playback);
+      check("D. plays on the phone (1920 wide)", playback.found && playback.played && playback.w === 1920, playback);
       const href = await page.getByRole("link", { name: /Descargar video/ }).getAttribute("href");
       const r = await fetch(href!);
       const buf = Buffer.from(await r.arrayBuffer());
-      check("C. download returns the stored MP4 (sha256) as an attachment", r.ok && createHash("sha256").update(buf).digest("hex") === row.video_sha256 && /attachment/i.test(r.headers.get("content-disposition") ?? ""), { bytes: buf.length });
-      const [resR] = await Promise.all([page.waitForResponse((x: any) => x.url().endsWith("/review")), page.getByRole("button", { name: "Aprobar para publicar" }).click()]); // eslint-disable-line @typescript-eslint/no-explicit-any
-      await page.waitForTimeout(1500);
-      const approved = await read(narrated.id);
-      check("C. owner approval recorded; publication becomes manual (no upload integration)", resR.status() === 200 && approved.review_status === "approved" && approved.publish_status === "manual" && !!approved.reviewed_at);
+      check("D. download = stored MP4 (sha256), as an attachment", r.ok && createHash("sha256").update(buf).digest("hex") === done.video_sha256 && /attachment/i.test(r.headers.get("content-disposition") ?? ""), { bytes: buf.length });
+      const stR = await clickPost(page, "Aprobar para publicar", "/review");
+      const ap = await read(ep);
+      check("D. approval recorded by the owner; publication becomes manual (no upload integration)", stR === 200 && ap.review_status === "approved" && ap.publish_status === "manual");
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-      check("phone: episode page has no horizontal overflow", overflow <= 1, { overflow });
-      await page.close();
-      page = await phone.newPage();
-      await page.goto(`${APP}/dashboard/podcast`, { waitUntil: "networkidle" });
-      check("in-app notices listed on the podcast page", (await page.locator('section[aria-label="Avisos"] li').count()) >= 2);
+      check("phone: no horizontal overflow", overflow <= 1, { overflow });
       await page.close();
     }
-    check("no new paid call on the narrated episode (narration reused)", (await ledger(narrated.id)) === narratedLedgerBefore, { before: narratedLedgerBefore });
-    const comments = (await ghComments(startedAt)).filter((c) => c.user.login === "github-actions[bot]" && /^@\S+ /.test(c.body));
-    check("GitHub: owner mentioned in notice comments, generic text only", comments.length >= 2 && comments.every((c) => !/Prueba piloto|USD/.test(c.body)), { comments: comments.length });
+    check("no new paid call: ledger rows of the narrated episode unchanged", (await ledger(ep)) === ledgerBefore, { before: ledgerBefore });
+
+    // E. Public notices audit.
+    const cm = await gh(`/issues/comments?since=${startedAt}&per_page=100`);
+    const comments = ((cm.json ?? []) as { body: string; user: { login: string }; issue_url: string }[]).filter((c) => /\/issues\/\d+$/.test(c.issue_url) && /Atomivid|producción/i.test(c.body));
+    const leaks = comments.filter((c) => /sig=|token=|eyJ[\w-]{10,}|[0-9a-f]{8}-[0-9a-f]{4}-|supabase\.co|Prueba piloto|USD|apikey|Bearer|\.mp4/i.test(c.body) || (c.body.match(/https?:\/\/\S+/g) ?? []).some((u) => !u.startsWith(`${APP}/dashboard/podcast`)));
+    check("E. notices posted by github-actions[bot], mentioning the owner", comments.length >= 4 && comments.every((c) => c.user.login === "github-actions[bot]" && /^@\S+ /.test(c.body)), { comments: comments.length, authors: [...new Set(comments.map((c) => c.user.login))] });
+    check("E. public notices carry no private data, ids, signed links or credentials", leaks.length === 0, { leaks: leaks.length });
     await phone.close();
   } finally {
     log("SUMMARY", { passed: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).map((r) => r.check) });
     await browser.close().catch(() => undefined);
-    // Leave no scheduled test production behind.
-    if (draftId) await db.from("podcast_episodes").update({ video_status: "blocked", scheduled_at: null }).eq("id", draftId).eq("video_status", "scheduled");
     await client.end().catch(() => undefined);
     for (const t of opened) { const { error } = await admin.auth.admin.signOut(t, "local"); check("temporary owner session logout", !error); }
     if (results.some((r) => !r.ok)) process.exitCode = 1;
