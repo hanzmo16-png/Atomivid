@@ -37,18 +37,24 @@ function locate(words:Word[],phrase:string){
  for(let i=0;i<=words.length-wanted.length;i++) if(wanted.every((w,j)=>normalize(words[i+j].text)===w))hits.push(i);
  if(hits.length!==1)throw Error('PHRASE_NOT_UNIQUE');return {first:hits[0],last:hits[0]+wanted.length-1};
 }
-async function exportEditorInput(ownerId:string,episodeId:string){
+async function exportEditorInput(ownerId:string,episodeId:string,version=3){
  const u=await db.auth.admin.getUserById(ownerId);if(!u.data.user?.email)throw Error('OWNER_NOT_FOUND');
  const link=await db.auth.admin.generateLink({type:'magiclink',email:u.data.user.email});if(link.error)throw Error('OWNER_LINK_FAILED');
  const owner=createClient(process.env.SUPABASE_URL!.trim(),process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(),{auth:{persistSession:false,autoRefreshToken:false}});
  const signed=await owner.auth.verifyOtp({type:'magiclink',token_hash:link.data.properties.hashed_token});if(signed.error||!signed.data.session)throw Error('OWNER_SESSION_FAILED');
  try{
-  const r=await owner.storage.from('podcast-editor').download(`episodios/${episodeId}/v3/entrada/montaje.json`);
-  if(r.error||!r.data)throw Error('V3_MANIFEST_UNAVAILABLE');seal('v3-montaje.json',Buffer.from(await r.data.arrayBuffer()));
+  const r=await owner.storage.from('podcast-editor').download(`episodios/${episodeId}/v${version}/entrada/montaje.json`);
+  if(r.error||!r.data)throw Error('SOURCE_MANIFEST_UNAVAILABLE');seal(`v${version}-montaje.json`,Buffer.from(await r.data.arrayBuffer()));
  }finally{const r=await db.auth.admin.signOut(signed.data.session.access_token,'local');if(r.error)throw Error('OWNER_LOGOUT_FAILED');}
 }
 async function main(){
  const cfg=await config();
+ if(readFileSync(`${ROOT}/mode`,'utf8').split('\n')[0]==='close-inspect-30'){
+  seal('story-source.json',Buffer.from(JSON.stringify({chapters:cfg.chapters})));
+  seal('narration-manifest.json',await get(`${cfg.ownerId}/podcasts/${cfg.episodeId}/narration-manifest.json`));
+  await exportEditorInput(cfg.ownerId,cfg.episodeId,4);
+  console.log('THIRTY_MINUTE_SOURCE_EXPORTED: read-only; owner session closed; paid calls zero');return;
+ }
  if(readFileSync(`${ROOT}/mode`,'utf8').split('\n')[0]==='close-edit'){
   const {finalEdit}=await import('./final-edit');await finalEdit(cfg,seal);return;
  }
