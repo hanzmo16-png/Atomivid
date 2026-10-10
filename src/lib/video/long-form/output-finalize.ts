@@ -292,7 +292,9 @@ export async function finalizeLongFormOutput(
   // demostrado (o configurado) desde el MISMO archivo y subir una vez más.
   if (uploadError?.category === "size_rejected" && uploadPath === input.filePath) {
     // Rejected although it was within the believed ceiling: the real limit is lower — fall back to the historical floor.
-    const believed = configured ?? (rendered.bytes <= policy.demonstratedStorageMaxBytes ? policy.historicalStorageFloorBytes : policy.demonstratedStorageMaxBytes);
+    // Next lower limit this project is known to have had (900 MiB working ceiling → 480 MiB → Supabase's 50 MiB default).
+    const known = [policy.demonstratedStorageMaxBytes, policy.historicalStorageFloorBytes, policy.legacyDefaultStorageBytes];
+    const believed = configured ?? (known.find((limit) => limit < rendered.bytes) ?? policy.legacyDefaultStorageBytes);
     const ceiling = Math.min(believed, rendered.bytes - 1);
     uploadPath = await fitFrom(ceiling, "storage_size_rejected");
     uploadError = await tryUpload();

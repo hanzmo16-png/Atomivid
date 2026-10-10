@@ -85,4 +85,10 @@ test("worker: delivers only an editor-verified video, stores it privately, never
   const wf = readFileSync(".github/workflows/podcast-video.yml", "utf8");
   assert.match(wf, /types: \[podcast-video\]/);
   assert.doesNotMatch(wf, /PODCAST_EDITOR_/);
+  // A cancelled run is marked failed by its own token at once (not after the 12-minute stall), never a newer one.
+  assert.match(w, /writeFile\(process\.env\.PODCAST_TOKEN_FILE, token\)/);
+  const mf = readFileSync("scripts/podcast-video-mark-failed.ts", "utf8");
+  assert.match(mf, /query\.eq\("video_run_token", token\)/);
+  assert.match(mf, /\.in\("video_status", \["queued", "running"\]\)/);
+  assert.equal(wf.match(/PODCAST_TOKEN_FILE: \$\{\{ runner\.temp \}\}\/podcast-run-token/g)?.length, 2, "worker and mark-failed share the file");
 });

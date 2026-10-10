@@ -42,7 +42,7 @@ export function VideoPanel(props: {
   return (
     <Card className="mt-4 p-4 text-sm">
       <h2 className="text-base font-semibold text-ink">Video del episodio</h2>
-      <p className="mt-1 text-ink-muted">Video 16:9 en 1080p con la narración del episodio y títulos por capítulo, montado por el editor de Atomivid. El montaje no tiene costo de proveedores.</p>
+      <p className="mt-1 text-ink-muted">Video 16:9 en 1080p con la narración del episodio: clips y fotos en movimiento con licencia de Pexels que siguen lo que se dice y subtítulos sincronizados con la voz. El montaje no tiene costo de proveedores ni vuelve a cobrar la narración.</p>
       {working && <p className="mt-3 text-ink">En producción: {props.stage ?? "en cola"}… Puedes cerrar la app; el avance se guarda.</p>}
       {props.stalled && <p className="mt-3 text-warning">La producción dejó de responder. Puedes reintentarla: la narración y lo ya pagado se conservan.</p>}
       {props.status === "failed" && props.error && <p className="mt-3 text-danger">{props.error}</p>}

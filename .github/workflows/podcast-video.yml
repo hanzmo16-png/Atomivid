@@ -23,7 +23,8 @@ concurrency:
 jobs:
   produce:
     runs-on: ubuntu-latest
-    timeout-minutes: 110
+    # Up to ~1 h may be a Pexels rate-limit wait on a 30-minute episode (~120 scenes); the run stays alive.
+    timeout-minutes: 200
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,18 +36,20 @@ jobs:
       - run: npm ci
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core > /dev/null
       - name: Produce
-        timeout-minutes: 95
+        timeout-minutes: 185
         run: npx tsx scripts/podcast-video-worker.ts
         env:
           ATOMIVID_RUNTIME: production
           EPISODE_ID: ${{ github.event.client_payload.episodeId || inputs.episode_id }}
           JOB_KIND: ${{ github.event.client_payload.kind || inputs.kind }}
+          PODCAST_TOKEN_FILE: ${{ runner.temp }}/podcast-run-token
           FFMPEG_BIN: ffmpeg
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
           ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           # Same allocation rate as the production app and the render worker.
           PRICING_ELEVENLABS_USD_PER_1K_CHARS: '0.2'
       - name: Mark failed if the step died
@@ -55,5 +58,6 @@ jobs:
         env:
           EPISODE_ID: ${{ github.event.client_payload.episodeId || inputs.episode_id }}
           JOB_KIND: ${{ github.event.client_payload.kind || inputs.kind }}
+          PODCAST_TOKEN_FILE: ${{ runner.temp }}/podcast-run-token
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

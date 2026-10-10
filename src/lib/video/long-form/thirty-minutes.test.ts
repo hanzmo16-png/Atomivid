@@ -23,9 +23,9 @@ test("30 minutes: 20 beats of ~90 s (4500 words), every fragment index up to 19 
 
 test("30 minutes: the render bitrate keeps the delivered file under the demonstrated Storage ceiling (no 2-pass refit)", () => {
   const ceiling = storageCeilingBytes({});
-  assert.equal(ceiling, 500 * MiB);
+  assert.equal(ceiling, 900 * MiB);
   const kbps = renderMaxVideoKbps(1800, ceiling);
-  assert.ok(kbps >= LONG_FORM_OUTPUT_POLICY.minFitVideoKbps && kbps < 2200, `kbps=${kbps}`);
+  assert.ok(kbps >= LONG_FORM_OUTPUT_POLICY.minFitVideoKbps && kbps > 3500 && kbps < 4000, `kbps=${kbps}`);
   const worstBytes = ((kbps + 192) * 1000 * 1800) / 8;
   assert.equal(decideOutputFit({ bytes: worstBytes, durationSeconds: 1800, ceilingBytes: ceiling }).action, "upload");
   assert.equal(renderMaxVideoKbps(300, ceiling), 5000, "short videos keep the full quality cap");
