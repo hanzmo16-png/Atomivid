@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 async function main() {
   const fromFile = process.env.PODCAST_TOKEN_FILE ? (await readFile(`${process.env.PODCAST_TOKEN_FILE}.episode`, "utf8").catch(() => "")).trim() : "";
   const id = process.env.EPISODE_ID?.trim() || fromFile;
-  if (!/^[0-9a-f-]{36}$/i.test(id) || process.env.JOB_KIND === "narration") return;
+  if (!/^[0-9a-f-]{36}$/i.test(id) || process.env.JOB_KIND === "narration" || process.env.JOB_KIND === "notices") return;
   const { createServiceClient } = await import("../src/lib/supabase/service");
   // The run token this job claimed (written by the worker right after its claim), when it got that far.
   const token = process.env.PODCAST_TOKEN_FILE ? (await readFile(process.env.PODCAST_TOKEN_FILE, "utf8").catch(() => "")).trim() : "";

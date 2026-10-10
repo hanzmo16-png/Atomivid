@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { paidResultPath, supabaseResultStore } from "@/lib/paid-calls/result-store";
 import { podcastLedgerProject, type PodcastEpisode } from "./episode";
-import { attemptsDecision, budgetDecision, noticeText, summarizeSpend, type LedgerRow, type NoticeKind, type SpendSummary } from "./pilot";
+import { budgetDecision, MAX_PRODUCTION_ATTEMPTS, noticeText, summarizeSpend, type LedgerRow, type NoticeKind, type SpendSummary } from "./pilot";
 
 export async function productionSpend(service: SupabaseClient, episodeId: string): Promise<SpendSummary> {
   const projectId = podcastLedgerProject(episodeId);
@@ -52,7 +52,7 @@ export async function deliverGithubNotice(service: SupabaseClient, notice: Notic
   if (!token || !repo || !mention || !/^[A-Za-z0-9-]{1,39}$/.test(mention)) return fail("canal sin configurar (token, repositorio o usuario a mencionar)");
   const gh = (p: string, init?: RequestInit) => fetchImpl(`https://api.github.com/repos/${repo}${p}`, { ...init, headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "content-type": "application/json" }, signal: AbortSignal.timeout(15000) });
   try {
-    const list = await gh(`/issues?state=open&per_page=50&creator=${encodeURIComponent("github-actions[bot]")}`);
+    const list = await gh(`/issues?state=open&per_page=100`);
     let issue = list.ok ? ((await list.json()) as { number: number; title: string }[]).find((i) => i.title === NOTICE_ISSUE_TITLE)?.number : undefined;
     if (!issue) {
       const created = await gh("/issues", { method: "POST", body: JSON.stringify({ title: NOTICE_ISSUE_TITLE, body: `Avisos automáticos de entrega, bloqueo y presupuesto de las producciones de @${mention}. Los detalles están en la app (requiere iniciar sesión).` }) });
@@ -83,7 +83,10 @@ export type ClaimOutcome = { claimed: true; token: string } | { claimed: false; 
 export async function claimScheduled(service: SupabaseClient, episode: PodcastEpisode): Promise<ClaimOutcome> {
   const at = new Date().toISOString();
   const budget = budgetDecision(episode, episode.budget_usd == null ? null : Number(episode.budget_usd));
-  const attempts = attemptsDecision(episode);
+  // The request already decided new production vs retry (retry_count); failed dispatches add to it.
+  const attempts = (episode.retry_count ?? 0) >= MAX_PRODUCTION_ATTEMPTS
+    ? { ok: false as const, message: `La producción programada no se pudo iniciar tras ${MAX_PRODUCTION_ATTEMPTS} intentos. Revisa el estado antes de reprogramarla.` }
+    : { ok: true as const };
   const refusal = !budget.ok ? { kind: "budget" as const, message: budget.message } : !attempts.ok ? { kind: "blocked" as const, message: attempts.message } : null;
   if (refusal) {
     const { data } = await service.from("podcast_episodes").update({ video_status: "blocked", video_error: refusal.message.slice(0, 500), scheduled_at: null, updated_at: at })
@@ -111,27 +114,32 @@ export async function authorizedSchedulerTick(service: SupabaseClient, presented
  * and dispatches the worker. A failed dispatch puts it back to "scheduled" (the claim counted an attempt, so a
  * dispatch that keeps failing ends blocked by the attempt limit); a budget/attempt refusal blocks it with ONE notice.
  */
-export async function runSchedulerTick(service: SupabaseClient, columns: string, dispatch: (episodeId: string) => Promise<boolean>, env: Record<string, string | undefined> = process.env) {
+export async function runSchedulerTick(service: SupabaseClient, columns: string, dispatch: (episodeId: string, kind?: "video" | "notices") => Promise<boolean>) {
   const due = await dueScheduled(service, columns, new Date(), 3);
   const out = { due: due.length, dispatched: 0, blocked: 0, requeued: 0 };
   for (const ep of due) {
     const claim = await claimScheduled(service, ep);
     if (claim.claimed) {
-      if (await dispatch(ep.id)) { out.dispatched++; continue; }
-      await service.from("podcast_episodes").update({ video_status: "scheduled", scheduled_at: new Date().toISOString(), video_stage: null, updated_at: new Date().toISOString() })
+      if (await dispatch(ep.id, "video")) { out.dispatched++; continue; }
+      await service.from("podcast_episodes").update({ video_status: "scheduled", scheduled_at: new Date().toISOString(), video_stage: null, retry_count: (ep.retry_count ?? 0) + 1, updated_at: new Date().toISOString() })
         .eq("id", ep.id).eq("video_run_token", claim.token).eq("video_status", "queued");
       out.requeued++;
     } else if (claim.blocked) {
       out.blocked++;
       const notice = await recordNotice(service, ep, claim.blocked.kind, `scheduled-${ep.video_requested_at ?? ep.id}`, claim.blocked.message);
-      if (notice) await deliverGithubNotice(service, notice, env);
+      // Delivered by the worker as the Actions bot: a comment written with the owner's own token never notifies them.
+      if (notice) await dispatch(ep.id, "notices");
     }
   }
   return out;
 }
 
-/** The app's GitHub credentials (already used to dispatch the worker) as the notice channel config. */
-export function appNoticeEnv(env: Record<string, string | undefined> = process.env): Record<string, string | undefined> {
-  const repo = env.GH_WORKER_REPO;
-  return { GITHUB_TOKEN: env.GH_WORKER_TOKEN, GITHUB_REPOSITORY: repo, NOTICE_MENTION: env.NOTICE_MENTION || repo?.split("/")[0], APP_URL: env.APP_URL };
+
+/** Delivers every notice not yet delivered (last 7 days). Run by the worker, i.e. as the GitHub Actions bot. */
+export async function deliverPendingNotices(service: SupabaseClient, env: Record<string, string | undefined> = process.env, fetchImpl: typeof fetch = fetch): Promise<{ pending: number; delivered: number }> {
+  const since = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
+  const { data } = await service.from("production_notices").select("id,kind,message").is("delivered_at", null).gte("created_at", since).order("created_at", { ascending: true }).limit(20);
+  let delivered = 0;
+  for (const n of (data ?? []) as Notice[]) if (await deliverGithubNotice(service, n, env, fetchImpl)) delivered++;
+  return { pending: data?.length ?? 0, delivered };
 }

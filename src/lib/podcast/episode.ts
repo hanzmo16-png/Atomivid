@@ -30,7 +30,7 @@ export type PodcastEpisode = {
   video_sha256?: string | null; video_duration_seconds?: number | null; video_error?: string | null;
   /** Supervised pilot (budget, one-shot schedule, review, held publication). Absent before its migration. */
   budget_usd?: number | null; scheduled_at?: string | null; video_checks?: unknown; review_status?: "pending" | "approved" | "rejected";
-  review_note?: string | null; reviewed_at?: string | null; publish_status?: "held" | "manual";
+  review_note?: string | null; reviewed_at?: string | null; publish_status?: "held" | "manual"; retry_count?: number;
 };
 
 export type PodcastVideoStatus = "none" | "scheduled" | "queued" | "running" | "ready" | "failed" | "blocked";
