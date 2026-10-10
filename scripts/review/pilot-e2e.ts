@@ -120,7 +120,13 @@ async function main() {
       const token = running.video_run_token;
       const cancel = await cancelActiveRun();
       const failed = await waitRow((r) => r.video_status === "failed", 6 * 60_000);
-      const n = (await notices(ep, startedAt)).filter((x) => x.run_key === token);
+      // The failed status is written before the notice is recorded and posted: wait (≤ 90 s) for the delivery outcome.
+      let n: Row[] = [];
+      for (let i = 0; i < 30; i++) {
+        n = (await notices(ep, startedAt)).filter((x) => x.run_key === token);
+        if (n.length > 0 && n.every((x) => x.delivered_at || x.delivery_error)) break;
+        await new Promise((r) => setTimeout(r, 3000));
+      }
       check(`C${round}. interruption: run cancelled mid-production, episode failed, one 'blocked' notice delivered`, cancel === 202 && failed.video_status === "failed" && n.length === 1 && n[0].kind === "blocked" && !!n[0].delivered_at && n[0].channel === "github",
         { cancel, status: failed.video_status, notices: n.map((x) => ({ kind: x.kind, delivered: !!x.delivered_at, error: x.delivery_error })) });
       page = await open(ep);
