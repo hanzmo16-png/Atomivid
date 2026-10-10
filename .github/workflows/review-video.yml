@@ -47,6 +47,7 @@ jobs:
             git archive d4a9b2ee384cb971dc535614a8b0964487d0de99 scripts/podcast-editor-v3 src/lib/podcast/editor/fixtures/editor-v3 | tar -x
             npx tsx scripts/review/publish-editor-fixture.ts;
           elif [ "$MODE" = "podcast-editor-live" ]; then npx tsx scripts/review/podcast-editor-live.ts;
+          elif [ "$MODE" = "platform-state" ]; then npx tsx scripts/review/platform-state.ts;
           elif [ "$MODE" = "podcast-editor-consume" ]; then
             # App modules from the PR head commit given on line "app_commit=<sha>".
             APP_SHA="$(sed -n 's/^app_commit=//p' ops/review-video.mode | head -1)"
