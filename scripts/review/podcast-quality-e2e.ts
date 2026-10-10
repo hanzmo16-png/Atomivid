@@ -173,4 +173,6 @@ async function main() {
     if (results.some((r) => !r.ok)) process.exitCode = 1;
   }
 }
-main().catch((e) => { console.error("FAILED: podcast quality validation", e instanceof Error ? e.constructor.name : "unknown"); process.exitCode = 1; });
+// Message redacted (ids, URLs, tokens) so the public log only says what failed.
+const redact = (m: string) => m.replace(/https?:\/\/\S+/g, "<url>").replace(/[0-9a-f]{8}-[0-9a-f-]{27}/gi, "<id>").replace(/eyJ[\w.-]+/g, "<jwt>").slice(0, 300);
+main().catch((e) => { console.error("FAILED: podcast quality validation", e instanceof Error ? `${e.constructor.name}: ${redact(e.message)}` : "unknown"); process.exitCode = 1; });
