@@ -21,6 +21,9 @@ async function main() {
   const { client } = await connectResolved();
   try {
     await client.query("begin read only");
+    const videoCols = (await client.query(`select count(*)::int n from information_schema.columns where table_schema='public' and table_name='podcast_episodes' and column_name like 'video_%'`)).rows[0].n;
+    const durationCheck = (await client.query(`select pg_get_constraintdef(oid) d from pg_constraint where conname='video_requests_duration_seconds_check'`)).rows[0]?.d ?? null;
+    log("SCHEMA", { podcastVideoColumns: videoCols, longFormMax1800: /<= 1800/.test(durationCheck ?? "") });
     const owner = (await client.query("select user_id from podcast_editor.propietarios limit 1")).rows[0]?.user_id;
     const agg = (await client.query(`select mode, status, count(*)::int n, max(duration_seconds)::int max_s
       from public.video_requests where user_id=$1 and created_at > now() - interval '30 days' group by 1,2 order by 1,2`, [owner])).rows;
