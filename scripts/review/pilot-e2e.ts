@@ -151,13 +151,21 @@ async function main() {
     check("D. production scheduled from the phone (one-shot) with its budget", stS === 202 && sched.video_status === "scheduled" && !!sched.scheduled_at && sched.publish_status === "held", { status: stS, videoStatus: sched.video_status });
     check("D. the page shows the scheduled start and a cancel option", (await page.getByText(/Programada para/).count()) > 0 && (await page.getByRole("button", { name: "Cancelar programación" }).count()) === 1);
     await page.close(); // the owner closes the app
-    const prevSha = delivered.video_sha256;
+    // Same inputs render the same MP4 (identical sha256), so the scheduled run is identified by its own run token.
+    const prevToken = delivered.video_run_token;
     const claimed = await waitRow((r) => r.video_status !== "scheduled", 15 * 60_000);
     const lateBy = claimed.video_heartbeat_at ? Math.round((Date.parse(claimed.video_heartbeat_at) - Date.parse(sched.scheduled_at)) / 1000) : null;
     check("D. the scheduled start was claimed by the database tick (no manual action)", ["queued", "running", "ready"].includes(claimed.video_status), { status: claimed.video_status, secondsAfterSchedule: lateBy });
-    const done = await waitRow((r) => (r.video_status === "ready" && r.video_sha256 !== prevSha) || r.video_status === "failed" || r.video_status === "blocked", 30 * 60_000);
-    const sn = (await notices(ep, sched.scheduled_at)).filter((x) => x.run_key === done.video_run_token && x.kind === "delivered");
-    check("D. scheduled production delivered with one 'delivered' notice from the bot", done.video_status === "ready" && done.video_sha256 !== prevSha && sn.length === 1 && !!sn[0].delivered_at, { status: done.video_status });
+    const runToken = claimed.video_run_token;
+    const done = await waitRow((r) => (r.video_status === "ready" && r.video_run_token === runToken) || r.video_status === "failed" || r.video_status === "blocked", 30 * 60_000);
+    let sn: Row[] = [];
+    for (let i = 0; i < 30; i++) {
+      sn = (await notices(ep, sched.scheduled_at)).filter((x) => x.run_key === done.video_run_token && x.kind === "delivered");
+      if (sn.length > 0 && sn.every((x) => x.delivered_at || x.delivery_error)) break;
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    check("D. scheduled production delivered with one 'delivered' notice from the bot", done.video_status === "ready" && !!runToken && runToken !== prevToken && done.video_run_token === runToken && sn.length === 1 && !!sn[0].delivered_at,
+      { status: done.video_status, newRun: !!runToken && runToken !== prevToken, notices: sn.map((x) => ({ delivered: !!x.delivered_at, error: x.delivery_error })) });
     if (done.video_status === "ready") {
       const checks = done.video_checks as { checks: { id: string; ok: boolean }[]; defects: { id: string; severity: string }[]; spend?: { spentUsd: number; uncertain: number } } | null;
       check("D. checks and defects stored; review pending; publication held", !!checks && checks.checks.length >= 6 && done.review_status === "pending" && done.publish_status === "held",
