@@ -1,0 +1,5 @@
+# Python >= 3.10, stdlib only (no pip packages).
+# System tools (already on the box):
+#   ffmpeg / ffprobe 7.1 with libx264, libmp3lame, aac, libass (ass filter), loudnorm, astats, amultiply
+#   fonts: DejaVu Sans (fontconfig) for burned subtitles/labels
+# mix.py's numpy dependency was removed on purpose (see docs/PORTADO.md).
