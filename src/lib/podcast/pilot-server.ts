@@ -5,15 +5,34 @@
  */
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getVoiceIdentity } from "@/lib/ai/voice";
+import { getPricingConfig } from "@/lib/billing/pricing";
+import { hasStoredVoiceMeta } from "@/lib/paid-calls/gated-providers";
 import { paidResultPath, supabaseResultStore } from "@/lib/paid-calls/result-store";
-import { podcastLedgerProject, type PodcastEpisode } from "./episode";
-import { budgetDecision, historicalSpendUsd, MAX_PRODUCTION_ATTEMPTS, noticeText, summarizeSpend, type LedgerRow, type NoticeKind, type SpendSummary } from "./pilot";
+import { splitNarrationIntoSafeChunks } from "@/lib/video/long-form/timeline";
+import { ceil4, estimatePodcast, podcastLedgerProject, type PodcastEpisode } from "./episode";
+import { isNoticeIssue, NOTICE_ISSUE_TITLE } from "./notice-check";
+import { budgetDecision, historicalSpendUsd, MAX_PRODUCTION_ATTEMPTS, noticeText, remainingCostUsd, runBudgetDecision, summarizeSpend, UNCERTAIN_CHARGE_MESSAGE, type LedgerRow, type NoticeKind, type RunBudget, type SpendSummary } from "./pilot";
+
+const LEDGER_PAGE = 1000, LEDGER_MAX_PAGES = 20;
+
+/** Every paid-call row of the episode, paged (a truncated read would undercount the spend: it fails closed instead). */
+async function ledgerRows(service: SupabaseClient, projectId: string): Promise<LedgerRow[]> {
+  const rows: LedgerRow[] = [];
+  for (let page = 0; page < LEDGER_MAX_PAGES; page++) {
+    const { data, error } = await service.from("pi_paid_operations").select("idempotency_key,status,reserved_usd,committed_usd").eq("project_id", projectId)
+      .order("idempotency_key", { ascending: true }).range(page * LEDGER_PAGE, page * LEDGER_PAGE + LEDGER_PAGE - 1);
+    if (error) throw new Error("LEDGER_UNAVAILABLE");
+    const batch = (data ?? []) as LedgerRow[];
+    rows.push(...batch);
+    if (batch.length < LEDGER_PAGE) return rows;
+  }
+  throw new Error("LEDGER_TOO_LARGE");
+}
 
 export async function productionSpend(service: SupabaseClient, episodeId: string): Promise<SpendSummary> {
   const projectId = podcastLedgerProject(episodeId);
-  const { data, error } = await service.from("pi_paid_operations").select("idempotency_key,status,reserved_usd,committed_usd").eq("project_id", projectId);
-  if (error) throw new Error("LEDGER_UNAVAILABLE");
-  const rows = (data ?? []) as LedgerRow[];
+  const rows = await ledgerRows(service, projectId);
   const results = supabaseResultStore(service, "videos");
   const stored = new Set<string>();
   for (const r of rows) {
@@ -24,9 +43,47 @@ export async function productionSpend(service: SupabaseClient, episodeId: string
   return summarizeSpend(rows, stored);
 }
 
-/** Historical spend of the episode for its total budget (uncertain charges included); null when the ledger is unreadable. */
+/**
+ * The run limit stored with the request (`run_budget_usd`), read on its own so that every other query keeps working
+ * before its migration is applied. Unreadable (column missing or read error) → available: false → no new spend.
+ */
+export async function readRunBudget(service: SupabaseClient, episodeId: string): Promise<RunBudget> {
+  try {
+    const { data, error } = await service.from("podcast_episodes").select("run_budget_usd").eq("id", episodeId).maybeSingle();
+    if (error) return { available: false, value: null };
+    const v = (data as { run_budget_usd?: unknown } | null)?.run_budget_usd;
+    return { available: true, value: v == null ? null : Number(v) };
+  } catch { return { available: false, value: null }; }
+}
+
+/** Number of paid chunks of a synthetic narration (each one is a separate reservation). */
+export const narrationChunks = (episode: Pick<PodcastEpisode, "source" | "script">) => (episode.source === "tts" && episode.script ? estimatePodcast(episode.script).chunks : 1);
+
+/** Historical spend for the total budget (uncertain charges included) and how many charges are uncertain; null = unreadable. */
+export type EpisodeSpend = { spentUsd: number; uncertain: number };
+export async function episodeSpend(service: SupabaseClient, episodeId: string): Promise<EpisodeSpend | null> {
+  return productionSpend(service, episodeId).then((s) => ({ spentUsd: historicalSpendUsd(s), uncertain: s.uncertain }), () => null);
+}
 export async function episodeSpentUsd(service: SupabaseClient, episodeId: string): Promise<number | null> {
-  return productionSpend(service, episodeId).then(historicalSpendUsd, () => null);
+  return (await episodeSpend(service, episodeId))?.spentUsd ?? null;
+}
+
+/**
+ * What a synthetic narration still has to pay: the reservation of every chunk whose paid result is not stored yet
+ * (chunks already paid are in the historical spend and are reused at USD 0, so they are not counted twice).
+ * A chunk whose metadata cannot be read counts as unpaid (conservative).
+ */
+export async function pendingNarration(service: SupabaseClient, episode: PodcastEpisode): Promise<{ usd: number; chunks: number }> {
+  if (episode.source !== "tts" || episode.status === "ready" || !episode.script || !episode.voice_id) return { usd: remainingCostUsd(episode), chunks: 1 };
+  const deps = { results: supabaseResultStore(service, "videos"), requestId: podcastLedgerProject(episode.id), voiceProvider: { name: "elevenlabs" }, voiceIdentity: getVoiceIdentity(episode.language, episode.voice_id) };
+  const rate = getPricingConfig().elevenLabsUsdPer1kChars;
+  let usd = 0, chunks = 0;
+  for (const chunk of splitNarrationIntoSafeChunks(episode.script)) {
+    if (await hasStoredVoiceMeta(deps, chunk, episode.language).catch(() => false)) continue;
+    usd += ceil4((chunk.length / 1000) * rate);
+    chunks++;
+  }
+  return { usd: ceil4(usd), chunks: Math.max(1, chunks) };
 }
 
 export type Notice = { id: string; kind: NoticeKind; message: string };
@@ -39,7 +96,7 @@ export async function recordNotice(service: SupabaseClient, episode: Pick<Podcas
   return { id: (data as { id: string }).id, kind, message };
 }
 
-export const NOTICE_ISSUE_TITLE = "Avisos de producción de Atomivid";
+export { isNoticeIssue, NOTICE_ISSUE_TITLE } from "./notice-check";
 const GENERIC: Record<NoticeKind, string> = {
   delivered: "Una producción está lista para tu revisión. La publicación sigue detenida hasta que la apruebes.",
   blocked: "Una producción se detuvo y necesita tu atención.",
@@ -57,8 +114,9 @@ export async function deliverGithubNotice(service: SupabaseClient, notice: Notic
   if (!token || !repo || !mention || !/^[A-Za-z0-9-]{1,39}$/.test(mention)) return fail("canal sin configurar (token, repositorio o usuario a mencionar)");
   const gh = (p: string, init?: RequestInit) => fetchImpl(`https://api.github.com/repos/${repo}${p}`, { ...init, headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "content-type": "application/json" }, signal: AbortSignal.timeout(15000) });
   try {
-    const list = await gh(`/issues?state=open&per_page=100`);
-    let issue = list.ok ? ((await list.json()) as { number: number; title: string }[]).find((i) => i.title === NOTICE_ISSUE_TITLE)?.number : undefined;
+    // Oldest trusted issue with the title (a later look-alike by someone else is ignored).
+    const list = await gh(`/issues?state=open&per_page=100&sort=created&direction=asc`);
+    let issue = list.ok ? ((await list.json()) as { number: number; title: string; user?: { login?: string } }[]).find((i) => isNoticeIssue(i, mention))?.number : undefined;
     if (!issue) {
       const created = await gh("/issues", { method: "POST", body: JSON.stringify({ title: NOTICE_ISSUE_TITLE, body: `Avisos automáticos de entrega, bloqueo y presupuesto de las producciones de @${mention}. Los detalles están en la app (requiere iniciar sesión).` }) });
       if (!created.ok) return fail(`no se pudo crear el issue de avisos (${created.status})`);
@@ -85,16 +143,25 @@ export type ClaimOutcome = { claimed: true; token: string } | { claimed: false; 
  * Claims a due scheduled production (compare-and-set scheduled → queued with a fresh run token), re-checking the
  * budget and the attempt limit at start time. A failed check leaves it blocked with the reason (no charge).
  */
-export async function claimScheduled(service: SupabaseClient, episode: PodcastEpisode, spentUsd: number | null): Promise<ClaimOutcome> {
-  const at = new Date().toISOString();
-  const budget = budgetDecision(episode, episode.budget_usd == null ? null : Number(episode.budget_usd), spentUsd);
-  // Ledger unreadable: not a refusal by the owner's budget; leave it scheduled for the next tick (nothing claimed).
-  if (!budget.ok && spentUsd == null) return { claimed: false };
+/** A scheduled start whose spend cannot be verified this long after its time is blocked (the owner is told), not left stuck. */
+export const SCHEDULE_VERIFY_GRACE_MS = 6 * 3600_000;
+
+export async function claimScheduled(service: SupabaseClient, episode: PodcastEpisode, spend: EpisodeSpend | null, run: RunBudget, pending?: { usd: number; chunks: number }, now = Date.now()): Promise<ClaimOutcome> {
+  const at = new Date(now).toISOString();
+  const budget = budgetDecision(episode, episode.budget_usd == null ? null : Number(episode.budget_usd), spend?.spentUsd ?? null, pending?.usd);
+  const runCheck = runBudgetDecision(budget.remainingUsd, pending?.chunks ?? narrationChunks(episode), run);
+  // Ledger or run limit unreadable: not the owner's refusal. Retry on the next tick; after the grace period, block it
+  // with a notice so it never stays scheduled forever.
+  const unverifiable = (!budget.ok && spend == null) || (!runCheck.ok && !run.available);
+  const late = now - Date.parse(episode.scheduled_at ?? at) > SCHEDULE_VERIFY_GRACE_MS;
+  if (unverifiable && !late) return { claimed: false };
   // The request already decided new production vs retry (retry_count); failed dispatches add to it.
   const attempts = (episode.retry_count ?? 0) >= MAX_PRODUCTION_ATTEMPTS
     ? { ok: false as const, message: `La producción programada no se pudo iniciar tras ${MAX_PRODUCTION_ATTEMPTS} intentos. Revisa el estado antes de reprogramarla.` }
     : { ok: true as const };
-  const refusal = !budget.ok ? { kind: "budget" as const, message: budget.message } : !attempts.ok ? { kind: "blocked" as const, message: attempts.message } : null;
+  const refusal = unverifiable ? { kind: "blocked" as const, message: "No se pudo verificar el gasto ni el límite de la producción programada durante 6 horas; no se inició nada. Revisa el estado y vuelve a programarla." }
+    : spend && spend.uncertain > 0 ? { kind: "blocked" as const, message: UNCERTAIN_CHARGE_MESSAGE }
+    : !budget.ok ? { kind: "budget" as const, message: budget.message } : !runCheck.ok ? { kind: "budget" as const, message: runCheck.message } : !attempts.ok ? { kind: "blocked" as const, message: attempts.message } : null;
   if (refusal) {
     const { data } = await service.from("podcast_episodes").update({ video_status: "blocked", video_error: refusal.message.slice(0, 500), scheduled_at: null, updated_at: at })
       .eq("id", episode.id).eq("video_status", "scheduled").select("id");
@@ -125,7 +192,7 @@ export async function runSchedulerTick(service: SupabaseClient, columns: string,
   const due = await dueScheduled(service, columns, new Date(), 3);
   const out = { due: due.length, dispatched: 0, blocked: 0, requeued: 0 };
   for (const ep of due) {
-    const claim = await claimScheduled(service, ep, await episodeSpentUsd(service, ep.id));
+    const claim = await claimScheduled(service, ep, await episodeSpend(service, ep.id), await readRunBudget(service, ep.id), await pendingNarration(service, ep));
     if (claim.claimed) {
       if (await dispatch(ep.id, "video")) { out.dispatched++; continue; }
       await service.from("podcast_episodes").update({ video_status: "scheduled", scheduled_at: new Date().toISOString(), video_stage: null, retry_count: (ep.retry_count ?? 0) + 1, updated_at: new Date().toISOString() })

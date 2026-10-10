@@ -33,6 +33,12 @@ test("recepción: solo el 👍 del propietario confirma; emisión y recepción p
   assert.deepEqual(reception(c, own, "hanzmo16-png"), { emitted: true, received: true, reactedAt: "2026-10-10T22:01:30Z", secondsAfterEmission: 90 });
 });
 
+test("prueba de avisos: el script usa el issue de confianza y lee los comentarios del más nuevo al más viejo", () => {
+  const sc = readFileSync("scripts/notice-check.ts", "utf8");
+  assert.match(sc, /find\(\(i\) => isNoticeIssue\(i, owner\)\)/);
+  assert.match(sc, /\/issues\/comments\?sort=created&direction=desc/);
+});
+
 test("flujo de prueba de avisos: manual, permisos mínimos, publica como el bot", () => {
   const wf = readFileSync(".github/workflows/notice-check.yml", "utf8");
   assert.match(wf, /on:\n\s+workflow_dispatch:/);

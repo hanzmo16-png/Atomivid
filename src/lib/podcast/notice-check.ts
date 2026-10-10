@@ -8,6 +8,14 @@
  * The comment carries no link, id, data or credential (the repository is public), and sends are rate limited.
  */
 export const TEST_MARKER = "Prueba de aviso de Atomivid";
+export const NOTICE_ISSUE_TITLE = "Avisos de producción de Atomivid";
+
+/**
+ * The notices issue: the title AND an author that can be trusted (the owner or the Actions bot). Anyone can open an
+ * issue with the same title in a public repository; the bot must never post the owner's notices there.
+ */
+export const isNoticeIssue = (i: { title?: string; user?: { login?: string } | null; pull_request?: unknown }, owner: string) =>
+  i.title === NOTICE_ISSUE_TITLE && !i.pull_request && (i.user?.login?.toLowerCase() === owner.toLowerCase() || i.user?.login === "github-actions[bot]");
 export const MIN_GAP_MS = 10 * 60_000;
 
 export const testCode = (now: Date) => `NC-${now.toISOString().slice(0, 16).replace(/[-:T]/g, "")}`;

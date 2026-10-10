@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isStalledRun, isStalledVideo, PODCAST_BACKGROUND_NARRATION_CHARS, type PodcastEpisode } from "./episode";
-import { attemptsDecision, budgetDecision, scheduleDecision } from "./pilot";
+import { attemptsDecision, budgetDecision, runBudgetDecision, scheduleDecision, UNCERTAIN_CHARGE_MESSAGE } from "./pilot";
+import { estimatePodcast } from "./episode";
 
 /**
  * In-app podcast production jobs. The web request only records the request and dispatches the worker
@@ -30,7 +31,9 @@ export const DISPATCH_UNCONFIRMED = "La solicitud quedó guardada, pero no pudim
 
 export type VideoRequestResult = { ok: true; status: "queued" | "scheduled" } | { error: string; status: number };
 /** `spentUsd`: the episode's historical spend from the ledger (null/absent = unreadable → a budget-dependent start is refused). */
-export type ProductionOptions = { budgetUsd?: number | null; scheduleAt?: string | null; spentUsd?: number | null };
+/** `runBudgetUsd`: NEW spend the owner authorises for this run; `runBudgetColumn`: whether its column is readable (migration applied). */
+/** `pendingUsd`/`pendingChunks`: what is still unpaid (server-computed, net of stored chunks); `uncertainCharges` from the ledger. */
+export type ProductionOptions = { budgetUsd?: number | null; scheduleAt?: string | null; spentUsd?: number | null; runBudgetUsd?: number | null; runBudgetColumn?: boolean; pendingUsd?: number; pendingChunks?: number; uncertainCharges?: number };
 
 /**
  * Owner asked for the production (narration if needed + video): checks the episode's total budget, the attempt
@@ -43,14 +46,21 @@ export async function requestPodcastVideo(service: SupabaseClient, episode: Podc
   const state = episode.video_status ?? "none";
   if ((state === "queued" || state === "running") && !isStalledVideo(episode, now)) return { error: "El video ya se está produciendo. Puedes cerrar la app y volver más tarde.", status: 409 };
   const budgetUsd = options.budgetUsd !== undefined ? options.budgetUsd : (episode.budget_usd ?? null);
-  const budget = budgetDecision(episode, budgetUsd == null ? null : Number(budgetUsd), options.spentUsd ?? null);
+  // An unconfirmed charge stops everything until it is reconciled (the worker would block it anyway).
+  if ((options.uncertainCharges ?? 0) > 0) return { error: UNCERTAIN_CHARGE_MESSAGE, status: 409 };
+  const budget = budgetDecision(episode, budgetUsd == null ? null : Number(budgetUsd), options.spentUsd ?? null, options.pendingUsd);
   if (!budget.ok) return { error: budget.message, status: 402 };
+  const runBudgetUsd = options.runBudgetUsd ?? null;
+  const chunks = options.pendingChunks ?? (episode.source === "tts" && episode.script ? estimatePodcast(episode.script).chunks : 1);
+  const run = runBudgetDecision(budget.remainingUsd, chunks, { available: options.runBudgetColumn === true, value: runBudgetUsd });
+  if (!run.ok) return { error: run.message, status: 402 };
   const attempts = attemptsDecision(episode, (state === "queued" || state === "running") && isStalledVideo(episode, now));
   if (!attempts.ok) return { error: attempts.message, status: 429 };
   const schedule = scheduleDecision(options.scheduleAt, now);
   if (!schedule.ok) return { error: schedule.message, status: 400 };
   const at = new Date(now).toISOString();
-  const common = { budget_usd: budgetUsd, retry_count: attempts.retryCount, video_error: null, video_checks: null, review_status: "pending", review_note: null, reviewed_at: null, publish_status: "held", updated_at: at };
+  // The run limit is written only where its column exists; without it, only runs with no new spend get here.
+  const common = { budget_usd: budgetUsd, ...(options.runBudgetColumn ? { run_budget_usd: runBudgetUsd ?? 0 } : {}), retry_count: attempts.retryCount, video_error: null, video_checks: null, review_status: "pending", review_note: null, reviewed_at: null, publish_status: "held", updated_at: at };
   let q = service.from("podcast_episodes").update(schedule.at
     // Scheduled: no run token or attempt yet; the scheduled tick claims it like a fresh request.
     ? { ...common, video_status: "scheduled", video_stage: null, scheduled_at: schedule.at, video_requested_at: at }

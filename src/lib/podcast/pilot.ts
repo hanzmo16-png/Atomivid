@@ -6,6 +6,9 @@
  *    paid-call ledger; uncertain charges count as spent) plus the pending incremental cost (what is not already paid
  *    and stored) must fit it. Checked when the production is requested, when a scheduled start is claimed and again
  *    by the worker before any paid call; the review check compares the same total, so both always agree;
+ *  - run limit: independently, each run carries the NEW spend the owner authorised for it (`run_budget_usd`). It must
+ *    cover the run's upper bound (pending estimate + the per-chunk rounding of the reservations) and the narration
+ *    stops BEFORE any paid chunk that would pass min(run limit, what is left of the total budget);
  *  - uncertain charge: a paid call whose outcome is unknown (no stored result) stops the production until it is
  *    reconciled; a call whose result is stored is reused at no cost and is not uncertain;
  *  - bounded retries: a production can be (re)started at most MAX_PRODUCTION_ATTEMPTS times;
@@ -33,6 +36,34 @@ export function remainingCostUsd(episode: Pick<PodcastEpisode, "status" | "sourc
   return Math.max(0, Number(episode.estimated_usd) || 0);
 }
 
+/** Upper bound of a run's new spend: the pending estimate plus the per-chunk rounding of the paid-call reservations. */
+export const runUpperBoundUsd = (remainingUsd: number, chunks: number) => (remainingUsd > 0 ? Math.ceil((remainingUsd + Math.max(1, chunks) * 0.0001) * 10_000 - 1e-6) / 10_000 : 0);
+/** Smallest run limit the owner can authorise (whole cents, rounded up). */
+export const minimumRunBudgetUsd = (remainingUsd: number, chunks: number) => Math.ceil(runUpperBoundUsd(remainingUsd, chunks) * 100 - 1e-6) / 100;
+
+/** `available` false = the column is not readable (migration not applied, or a read error): fail closed for new spend. */
+export type RunBudget = { available: boolean; value: number | null };
+
+/**
+ * Independent per-run limit of NEW spend. A run that cannot charge anything new needs none. Otherwise the owner's
+ * authorisation for this run must exist and cover the run's upper bound; never inferred from the total budget.
+ */
+export function runBudgetDecision(remainingUsd: number, chunks: number, run: RunBudget): { ok: true; capUsd: number | null } | { ok: false; message: string } {
+  if (remainingUsd <= 0) return { ok: true, capUsd: null };
+  const min = minimumRunBudgetUsd(remainingUsd, chunks);
+  if (!run.available) return { ok: false, message: "No se pudo leer el límite de gasto por ejecución (¿falta aplicar su migración?). No se inició ningún gasto nuevo." };
+  if (run.value == null || !Number.isFinite(run.value)) return { ok: false, message: `Fija el máximo de gasto nuevo autorizado para esta ejecución: puede costar hasta ${usd4(runUpperBoundUsd(remainingUsd, chunks))} (mínimo ${usd(min)}).` };
+  if (run.value < 0 || run.value > MAX_BUDGET_USD) return { ok: false, message: `El límite por ejecución debe estar entre USD 0 y USD ${MAX_BUDGET_USD}.` };
+  if (runUpperBoundUsd(remainingUsd, chunks) > run.value + 1e-9) return { ok: false, message: `Límite de esta ejecución insuficiente: puede costar hasta ${usd4(runUpperBoundUsd(remainingUsd, chunks))} y autorizaste ${usd(run.value)}. Fija al menos ${usd(min)}. No se cobró nada.` };
+  return { ok: true, capUsd: run.value };
+}
+
+/** Hard cap handed to the narration: the run limit and what is left of the episode's total budget, whichever is lower. */
+export function narrationCapUsd(runCapUsd: number | null, budgetUsd: number | null | undefined, spentUsd: number): number | null {
+  const caps = [runCapUsd, budgetUsd == null || !Number.isFinite(budgetUsd) ? null : Math.max(0, budgetUsd - spentUsd)].filter((c): c is number => c != null);
+  return caps.length ? round4(Math.min(...caps)) : null;
+}
+
 /** Historical spend of an episode for budgeting: spent + uncertain (an unconfirmed charge may have been billed). */
 export const historicalSpendUsd = (spend: Pick<SpendSummary, "spentUsd" | "uncertainUsd">) => round4(spend.spentUsd + spend.uncertainUsd);
 
@@ -44,12 +75,15 @@ export const minimumBudgetUsd = (spentUsd: number, remainingUsd: number) => Math
  * be read: nothing that depends on the budget starts (fail closed). Without a budget a production may start only if
  * it cannot charge anything new.
  */
-export function budgetDecision(episode: Pick<PodcastEpisode, "status" | "source" | "estimated_usd">, budgetUsd: number | null | undefined, spentUsd: number | null): BudgetDecision {
-  const remainingUsd = remainingCostUsd(episode);
+export function budgetDecision(episode: Pick<PodcastEpisode, "status" | "source" | "estimated_usd">, budgetUsd: number | null | undefined, spentUsd: number | null, pendingUsd?: number): BudgetDecision {
+  // `pendingUsd` (server): what is still unpaid, net of chunks already paid and stored; otherwise the full estimate.
+  const remainingUsd = pendingUsd === undefined ? remainingCostUsd(episode) : Math.max(0, round4(pendingUsd));
   const spent = spentUsd == null ? 0 : Math.max(0, spentUsd);
   const figures: BudgetFigures = { spentUsd: round4(spent), remainingUsd, projectedUsd: round4(spent + remainingUsd), minimumBudgetUsd: minimumBudgetUsd(spent, remainingUsd) };
   const noBudget = budgetUsd == null || !Number.isFinite(budgetUsd);
-  if (noBudget && remainingUsd === 0) return { ok: true, ...figures };
+  // Nothing new can be charged: no money is at stake, so no budget can refuse it (a free re-render after an old,
+  // lower budget). The review still reports a past overrun, as a low-severity note.
+  if (remainingUsd === 0) return { ok: true, ...figures };
   if (spentUsd == null) return { ok: false, ...figures, message: "No se pudo leer el registro de gastos del episodio; no se inició nada para no gastar a ciegas. Inténtalo más tarde." };
   if (noBudget) return { ok: false, ...figures, message: `Fija un presupuesto total para el episodio: ya gastó ${usd4(spent)} y esta producción puede costar hasta ${usd(remainingUsd)} más (mínimo ${usd(figures.minimumBudgetUsd)}).` };
   if (budgetUsd < 0 || budgetUsd > MAX_BUDGET_USD) return { ok: false, ...figures, message: `El presupuesto debe estar entre USD 0 y USD ${MAX_BUDGET_USD}.` };
@@ -108,7 +142,7 @@ export function scheduleDecision(scheduleAt: string | null | undefined, now = Da
 export type CheckItem = { id: string; label: string; ok: boolean; detail?: string };
 export type Defect = { id: string; severity: "alta" | "media" | "baja"; text: string };
 /** Budget breakdown of a delivery: episode total vs historical spend (before this run) vs what this run added. */
-export type BudgetBreakdown = { totalBudgetUsd: number | null; spentBeforeUsd: number; incrementalUsd: number; pendingEstimateUsd: number; spentUsd: number };
+export type BudgetBreakdown = { totalBudgetUsd: number | null; runBudgetUsd?: number | null; spentBeforeUsd: number; incrementalUsd: number; pendingEstimateUsd: number; spentUsd: number };
 export type VideoChecks = { checks: CheckItem[]; defects: Defect[]; spend?: SpendSummary; budgetUsd?: number | null; budget?: BudgetBreakdown; computedAt: string };
 
 /** Technical checks and detected defects of a delivered video. Integrity only: it never approves anything. */
@@ -117,7 +151,7 @@ export function buildVideoChecks(input: {
   subtitles: boolean; shots: { videos: number; photos: number; cards: number; total: number }; credits: number;
   spend?: SpendSummary; budgetUsd?: number | null;
   /** Historical spend read by the worker's preflight (before any paid call of this run) and the pending estimate then. */
-  spentBeforeUsd?: number; pendingEstimateUsd?: number; now?: Date;
+  spentBeforeUsd?: number; pendingEstimateUsd?: number; runBudgetUsd?: number | null; now?: Date;
 }): VideoChecks {
   const { shots } = input;
   const checks: CheckItem[] = [
@@ -132,11 +166,16 @@ export function buildVideoChecks(input: {
   if (input.spend) {
     // Same total as the start rule: everything the episode spent (uncertain included) against its total budget.
     const total = historicalSpendUsd(input.spend);
-    const before = Math.min(total, Math.max(0, input.spentBeforeUsd ?? total));
-    budget = { totalBudgetUsd: input.budgetUsd ?? null, spentBeforeUsd: round4(before), incrementalUsd: round4(total - before), pendingEstimateUsd: round4(input.pendingEstimateUsd ?? 0), spentUsd: total };
+    // Unknown "before" counts everything as this run's (conservative).
+    const before = Math.min(total, Math.max(0, input.spentBeforeUsd ?? 0));
+    budget = { totalBudgetUsd: input.budgetUsd ?? null, ...(input.runBudgetUsd !== undefined ? { runBudgetUsd: input.runBudgetUsd } : {}), spentBeforeUsd: round4(before), incrementalUsd: round4(total - before), pendingEstimateUsd: round4(input.pendingEstimateUsd ?? 0), spentUsd: total };
     const within = input.budgetUsd == null || total <= input.budgetUsd + 1e-9;
-    checks.push({ id: "budget", label: "Gasto total del episodio dentro de su presupuesto total", ok: within && input.spend.uncertain === 0,
+    // Same rule as the start: a run that added no new spend cannot break the budget (no money was at stake).
+    checks.push({ id: "budget", label: "Gasto total del episodio dentro de su presupuesto total", ok: (within || budget.incrementalUsd === 0) && input.spend.uncertain === 0,
       detail: `${usd4(total)} de ${input.budgetUsd == null ? "sin presupuesto (sin costo nuevo)" : usd(input.budgetUsd)}: ${usd4(budget.spentBeforeUsd)} ya gastado antes + ${usd4(budget.incrementalUsd)} en esta producción${input.spend.uncertain ? `, ${input.spend.uncertain} cargo(s) incierto(s)` : ""}` });
+    if (input.runBudgetUsd != null) {
+      checks.push({ id: "run_budget", label: "Gasto nuevo de esta ejecución dentro de su límite autorizado", ok: budget.incrementalUsd <= input.runBudgetUsd + 1e-9, detail: `${usd4(budget.incrementalUsd)} de ${usd(input.runBudgetUsd)} autorizados` });
+    }
     if (input.pendingEstimateUsd !== undefined) {
       checks.push({ id: "estimate", label: "El costo de esta producción no superó su estimación", ok: budget.incrementalUsd <= budget.pendingEstimateUsd + 1e-9, detail: `${usd4(budget.incrementalUsd)} de ${usd4(budget.pendingEstimateUsd)} estimados` });
     }
@@ -148,7 +187,12 @@ export function buildVideoChecks(input: {
   if (shots.cards > 0) defects.push({ id: "cards", severity: shots.cards / Math.max(1, shots.total) > 0.2 ? "alta" : "media", text: `${shots.cards} de ${shots.total} escenas sin imagen de banco: se usó una tarjeta.` });
   if (!input.subtitles) defects.push({ id: "subtitles", severity: "media", text: "Sin subtítulos (grabación propia o narración sin tiempos guardados)." });
   if (shots.total > 0 && shots.photos / shots.total > 0.5) defects.push({ id: "photos", severity: "baja", text: `Más de la mitad de las escenas son fotos animadas (${shots.photos}/${shots.total}): poco video real disponible para el tema.` });
-  if (budget && budget.totalBudgetUsd != null && budget.spentUsd > budget.totalBudgetUsd + 1e-9) defects.push({ id: "budget", severity: "alta", text: "El gasto total del episodio superó su presupuesto total." });
+  if (budget && budget.totalBudgetUsd != null && budget.spentUsd > budget.totalBudgetUsd + 1e-9) {
+    defects.push(budget.incrementalUsd > 0
+      ? { id: "budget", severity: "alta", text: "El gasto total del episodio superó su presupuesto total." }
+      : { id: "budget_history", severity: "baja", text: "El gasto anterior del episodio ya superaba su presupuesto total; esta ejecución no gastó nada nuevo." });
+  }
+  if (budget && input.runBudgetUsd != null && budget.incrementalUsd > input.runBudgetUsd + 1e-9) defects.push({ id: "run_budget", severity: "alta", text: "Esta ejecución gastó más que su límite autorizado." });
   if (budget && input.pendingEstimateUsd !== undefined && budget.incrementalUsd > budget.pendingEstimateUsd + 1e-9) defects.push({ id: "estimate", severity: "media", text: "Esta producción costó más que su estimación." });
   if (input.spend?.uncertain) defects.push({ id: "uncertain", severity: "alta", text: "Hay cargos inciertos sin conciliar." });
   defects.push({ id: "relevance", severity: "baja", text: "La pertinencia de cada clip se elige por palabras clave (sin análisis semántico): revisa que las imágenes acompañen lo que se dice." });

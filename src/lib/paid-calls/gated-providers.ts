@@ -87,6 +87,24 @@ export async function storedVoiceResult(
 }
 
 /**
+ * Light existence check (metadata only, no audio download) of a narration chunk already paid and stored, with the
+ * same key as storedVoiceResult. Used to estimate what a narration still has to pay; reuse itself stays verified.
+ */
+export async function hasStoredVoiceMeta(
+  deps: Pick<PaidCallDeps, "results" | "requestId"> & { voiceProvider: Pick<VoiceProvider, "name">; voiceIdentity: { voiceId: string; modelId: string; voiceSettingsJson: string } },
+  text: string,
+  language: ScriptLanguage,
+): Promise<boolean> {
+  const fingerprint = { text, language, speed: null, voiceId: deps.voiceIdentity.voiceId, modelId: deps.voiceIdentity.modelId, voiceSettingsJson: deps.voiceIdentity.voiceSettingsJson };
+  const spec: PaidCallSpec = {
+    projectId: deps.requestId, shotId: `voice:${stableHash(fingerprint, 16)}`, provider: deps.voiceProvider.name, model: deps.voiceIdentity.modelId,
+    method: "tts_with_timestamps", capacityUnits: text.length, inputFingerprint: fingerprint, reservedUsd: 0,
+  };
+  for (const ordinal of [0, 1]) if (await deps.results.getJson(paidResultPath(deps.requestId, paidCallKey(spec, ordinal), "json"))) return true;
+  return false;
+}
+
+/**
  * ElevenLabs on Generate (Reel voice ×2 incl. the speed correction, Avatar narration). The key
  * is the text + language + speed + voice identity; render_attempts is not part of it.
  *

@@ -5,10 +5,10 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
 import { estimatePodcast, isStalledRun, isStalledVideo, podcastCapacity } from "@/lib/podcast/episode";
 import { loadOwnedEpisode } from "@/lib/podcast/server";
-import { episodeSpentUsd } from "@/lib/podcast/pilot-server";
+import { episodeSpentUsd, pendingNarration, readRunBudget } from "@/lib/podcast/pilot-server";
 import { EpisodeActions } from "./EpisodeActions";
 import { VideoPanel } from "./VideoPanel";
-import { remainingCostUsd, type VideoChecks } from "@/lib/podcast/pilot";
+import { minimumRunBudgetUsd, type VideoChecks } from "@/lib/podcast/pilot";
 
 const USD = new Intl.NumberFormat("es-MX", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 4 });
 
@@ -29,6 +29,8 @@ export default async function PodcastEpisodePage({ params }: { params: Promise<{
   const downloadUrl = playUrl && episode.audio_path ? (await storage.createSignedUrl(episode.audio_path, 3600, { download: `${safeName}.m4a` })).data?.signedUrl ?? null : null;
   const stalled = isStalledRun(episode);
   const historicalUsd = await episodeSpentUsd(service, episode.id);
+  const pending = await pendingNarration(service, episode);
+  const runBudget = await readRunBudget(service, episode.id);
   const videoStatus = episode.video_status ?? "none";
   const VIDEO_TTL = 6 * 3600;
   const videoPlayUrl = videoStatus === "ready" && episode.video_path ? (await storage.createSignedUrl(episode.video_path, VIDEO_TTL)).data?.signedUrl ?? null : null;
@@ -69,11 +71,14 @@ export default async function PodcastEpisodePage({ params }: { params: Promise<{
         downloadUrl={videoDownloadUrl}
         sizeMb={episode.video_bytes ? Math.round(Number(episode.video_bytes) / 1_048_576) : null}
         minutes={episode.video_duration_seconds ? Math.round(Number(episode.video_duration_seconds) / 60) : null}
-        remainingUsd={remainingCostUsd(episode)}
+        remainingUsd={pending.usd}
         budgetUsd={episode.budget_usd == null ? null : Number(episode.budget_usd)}
         scheduledAt={episode.scheduled_at ?? null}
         spentUsd={episode.cost_usd == null ? null : Number(episode.cost_usd)}
         historicalUsd={historicalUsd}
+        runBudgetUsd={runBudget.value}
+        minimumRunUsd={minimumRunBudgetUsd(pending.usd, pending.chunks)}
+        runColumn={runBudget.available}
         seconds={episode.video_duration_seconds ? Number(episode.video_duration_seconds) : null}
         checks={(episode.video_checks as VideoChecks | null) ?? null}
         reviewStatus={episode.review_status ?? "pending"}

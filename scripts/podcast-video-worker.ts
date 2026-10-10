@@ -7,7 +7,7 @@
  *    a new voice call); the editor v3 engine renders it over the mastered audio and verifies it; stored in the
  *    private "videos" bucket with its credits.
  *  - scheduler (scheduled tick): claims productions whose one-shot scheduled start has come and produces them here.
- * Supervised pilot: before any paid call the per-production budget is re-checked and a production with an uncertain
+ * Supervised pilot: before any paid call the episode total budget and the run limit are re-checked and a production with an uncertain
  * paid call (no stored result) is blocked until reconciled; a delivery stores its technical checks and defects for
  * the owner's review (publication stays held); delivery and blocks send ONE notice per run (GitHub mention).
  * Every step is fenced by the episode's run tokens; a failure leaves a clear message and keeps the audio and every
@@ -80,7 +80,7 @@ async function main() {
     const due = await pilot.dueScheduled(service, EPISODE_COLUMNS, new Date(), 1);
     log("SCHEDULER", { due: due.length });
     for (const ep of due) {
-      const claim = await pilot.claimScheduled(service, ep, await pilot.episodeSpentUsd(service, ep.id));
+      const claim = await pilot.claimScheduled(service, ep, await pilot.episodeSpend(service, ep.id), await pilot.readRunBudget(service, ep.id), await pilot.pendingNarration(service, ep));
       log("SCHEDULED_CLAIM", { claimed: claim.claimed, blocked: !claim.claimed && !!claim.blocked });
       if (claim.claimed) await produce(ep.id);
       else if (claim.blocked) {
@@ -97,7 +97,13 @@ async function main() {
     const episode = (await service.from("podcast_episodes").select(EPISODE_COLUMNS).eq("id", episodeId).single()).data as import("../src/lib/podcast/episode").PodcastEpisode | null;
     if (!episode) { log("SKIP", { reason: "episode not found" }); return; }
     if (episode.status === "ready") { log("SKIP", { reason: "already narrated" }); return; }
-    const out = await runGeneration(service, episode);
+    // Background narration started from the page: same authorisation as the short one (its estimate, as an upper
+    // bound, and what is left of the total budget), checked before every paid chunk.
+    const { narrationCapUsd, runUpperBoundUsd } = await import("../src/lib/podcast/pilot");
+    const spentUsd = await pilot.episodeSpentUsd(service, episodeId);
+    if (spentUsd == null) { log("NARRATION", { ok: false, status: "ledger unreadable" }); process.exitCode = 1; return; }
+    const capUsd = narrationCapUsd(runUpperBoundUsd(Number(episode.estimated_usd) || 0, pilot.narrationChunks(episode)), episode.budget_usd == null ? null : Number(episode.budget_usd), spentUsd);
+    const out = await runGeneration(service, episode, Date.now, { capUsd });
     log("NARRATION", { ok: !("error" in out), status: "error" in out ? out.status : "ready" });
     return;
   }
@@ -115,7 +121,7 @@ async function produce(episodeId: string) {
   const { supabaseResultStore } = await import("../src/lib/paid-calls/result-store");
   const { getVoiceIdentity } = await import("../src/lib/ai/voice");
   const { searchSceneVideos, searchScenePhotos, setFootageWaitBeat } = await import("../src/lib/ai/footage");
-  const { budgetDecision, buildVideoChecks, historicalSpendUsd, UNCERTAIN_CHARGE_MESSAGE } = await import("../src/lib/podcast/pilot");
+  const { budgetDecision, buildVideoChecks, historicalSpendUsd, narrationCapUsd, runBudgetDecision, UNCERTAIN_CHARGE_MESSAGE } = await import("../src/lib/podcast/pilot");
   const pilot = await import("../src/lib/podcast/pilot-server");
   type Episode = import("../src/lib/podcast/episode").PodcastEpisode;
   const service = createServiceClient();
@@ -153,14 +159,20 @@ async function produce(episodeId: string) {
     const spendBefore = await pilot.productionSpend(service, episodeId).catch(() => null);
     if (!spendBefore) throw new BlockError("No se pudo leer el registro de gastos; la producción se detuvo para no cobrar a ciegas. Pulsa «Reintentar» más tarde.");
     if (spendBefore.uncertain > 0) throw new BlockError(UNCERTAIN_CHARGE_MESSAGE);
-    const budget = budgetDecision(episode, episode.budget_usd == null ? null : Number(episode.budget_usd), historicalSpendUsd(spendBefore));
+    const pending = await pilot.pendingNarration(service, episode);
+    const budget = budgetDecision(episode, episode.budget_usd == null ? null : Number(episode.budget_usd), historicalSpendUsd(spendBefore), pending.usd);
     if (!budget.ok) throw new BlockError(budget.message, "budget");
+    // Independent limit of NEW spend for this run (stored with the request); never inferred from the total budget.
+    const runBudget = await pilot.readRunBudget(service, episodeId);
+    const runCheck = runBudgetDecision(budget.remainingUsd, pending.chunks, runBudget);
+    if (!runCheck.ok) throw new BlockError(runCheck.message, "budget");
     if (episode.status !== "ready") {
       if (episode.source !== "tts") throw new BlockError("Sube y termina la grabación antes de producir el video.");
       await stage("Narrando");
-      const out = await runGeneration(service, episode);
-      // 503 = provider balance or spend ceiling refused before any call: the owner must act, not retry blindly.
-      if ("error" in out) throw out.status === 503 ? new BlockError(out.error) : new PublicError(out.error);
+      // Hard cap checked before every paid chunk: min(run limit, what is left of the total budget).
+      const out = await runGeneration(service, episode, Date.now, { capUsd: narrationCapUsd(runCheck.capUsd, episode.budget_usd == null ? null : Number(episode.budget_usd), budget.spentUsd) });
+      // 503 = provider balance or spend ceiling refused before any call; 402 = the run limit stopped it: the owner must act.
+      if ("error" in out) throw out.status === 503 ? new BlockError(out.error) : out.status === 402 ? new BlockError(out.error, "budget") : new PublicError(out.error);
       episode = await load();
       if (!episode || episode.status !== "ready" || !episode.audio_path) throw new PublicError("La narración no quedó lista. Pulsa «Reintentar»: lo ya narrado no se vuelve a cobrar.");
     }
@@ -260,6 +272,7 @@ async function produce(episodeId: string) {
       editorOk: true, editorChecks: repChecks, videoSeconds: seconds, audioSeconds, bytes: size, maxBytes: STORAGE_MAX_BYTES, subtitles: !!subtitles,
       shots: { videos: shots.filter((x) => x?.kind === "video").length, photos: shots.filter((x) => x?.kind === "photo").length, cards, total: scenes.length },
       credits: creditSources, spend, budgetUsd: ep.budget_usd == null ? null : Number(ep.budget_usd), spentBeforeUsd: budget.spentUsd, pendingEstimateUsd: budget.remainingUsd,
+      runBudgetUsd: runBudget.available ? runBudget.value : null,
     });
     const ok = await fenced({ video_status: "ready", video_stage: null, video_path: objectPath, video_bytes: size, video_sha256: sha256, video_duration_seconds: seconds, video_error: null, video_checks: checks, review_status: "pending", publish_status: "held", retry_count: 0 });
     log("VIDEO", { ok, bytes: size, seconds: Math.round(seconds), defects: checks.defects.length });

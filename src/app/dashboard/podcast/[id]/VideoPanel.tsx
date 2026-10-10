@@ -22,6 +22,8 @@ export function VideoPanel(props: {
   remainingUsd: number; budgetUsd: number | null; scheduledAt: string | null; spentUsd: number | null; seconds: number | null;
   /** Historical spend of the episode from the paid-call ledger (uncertain charges included); null when unreadable. */
   historicalUsd: number | null;
+  /** Per-run limit of new spend: stored value, smallest allowed, whether its column is readable. */
+  runBudgetUsd: number | null; minimumRunUsd: number; runColumn: boolean;
   checks: VideoChecks | null; reviewStatus: "pending" | "approved" | "rejected"; reviewNote: string | null; publishStatus: "held" | "manual";
 }) {
   const router = useRouter();
@@ -29,6 +31,7 @@ export function VideoPanel(props: {
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const minimum = minimumBudgetUsd(props.historicalUsd ?? 0, props.remainingUsd);
   const [budget, setBudget] = useState(String(props.budgetUsd ?? minimum));
+  const [runBudget, setRunBudget] = useState(String(props.minimumRunUsd));
   const [when, setWhen] = useState("");
   const [note, setNote] = useState(props.reviewNote ?? "");
   const working = (props.status === "queued" || props.status === "running") && !props.stalled;
@@ -49,7 +52,7 @@ export function VideoPanel(props: {
     } catch (e) { setMessage({ ok: false, text: e instanceof Error && e.message ? e.message : classifyClientFetchError(e) }); }
     finally { setBusy(false); router.refresh(); }
   }
-  const produce = (schedule: boolean) => post("video", { budgetUsd: budget === "" ? null : Number(budget), scheduleAt: schedule && when ? new Date(when).toISOString() : null },
+  const produce = (schedule: boolean) => post("video", { budgetUsd: budget === "" ? null : Number(budget), runBudgetUsd: props.remainingUsd > 0 && runBudget !== "" ? Number(runBudget) : null, scheduleAt: schedule && when ? new Date(when).toISOString() : null },
     schedule ? "Producción programada. Puedes cerrar la app: te avisaremos al entregar o si se detiene." : "Producción iniciada. Puedes cerrar la app: te avisaremos al entregar o si se detiene.");
 
   const retry = props.status === "failed" || props.status === "blocked" || props.stalled;
@@ -77,12 +80,21 @@ export function VideoPanel(props: {
             <div><dt className="inline">Pendiente: </dt><dd className="inline text-ink">{props.remainingUsd > 0 ? `hasta ${fmt(props.remainingUsd)} (narración)` : "USD 0 (narración pagada; el video no tiene costo de proveedores)"}</dd></div>
             <div><dt className="inline">Mínimo total: </dt><dd className="inline text-ink">{fmt(minimum)}</dd></div>
           </dl>
+          {props.historicalUsd == null && <p className="text-warning">No se pudo leer el registro de gastos: no se iniciará ningún gasto nuevo hasta que vuelva a estar disponible.</p>}
+          {props.remainingUsd > 0 && !props.runColumn && <p className="text-warning">El límite de gasto por ejecución todavía no está disponible en el servidor: no se iniciará ninguna narración pagada.</p>}
           {props.budgetUsd != null && props.budgetUsd + 1e-9 < minimum && <p className="text-warning">El presupuesto total guardado ({fmt(props.budgetUsd)}) no cubre lo ya gastado más lo pendiente: súbelo al menos a {fmt(minimum)}.</p>}
           <div className="flex flex-wrap items-end gap-3">
             <label className="flex flex-col gap-1">
               <span className="text-ink">Presupuesto total del episodio (USD)</span>
               <input name="budget_usd" type="number" min={0} max={100} step={0.01} inputMode="decimal" value={budget} onChange={(e) => setBudget(e.target.value)} className="w-36 rounded-md border border-border bg-surface px-3 py-2 text-base" />
             </label>
+            {props.remainingUsd > 0 && (
+              <label className="flex flex-col gap-1">
+                <span className="text-ink">Máximo nuevo de esta ejecución (USD)</span>
+                <input name="run_budget_usd" type="number" min={0} max={100} step={0.01} inputMode="decimal" value={runBudget} onChange={(e) => setRunBudget(e.target.value)} className="w-36 rounded-md border border-border bg-surface px-3 py-2 text-base" />
+                <span className="text-ink-muted">Mínimo {fmt(props.minimumRunUsd)}; la narración se detiene antes de superarlo.</span>
+              </label>
+            )}
             <label className="flex flex-col gap-1">
               <span className="text-ink">Programar inicio (opcional)</span>
               <input name="schedule_at" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className="rounded-md border border-border bg-surface px-3 py-2 text-base" />

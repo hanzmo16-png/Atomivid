@@ -5,9 +5,7 @@
  */
 export {};
 import { appendFile } from "node:fs/promises";
-import { latestTest, reception, sendDecision, testCode, testComment, type BotComment, type Reaction } from "../src/lib/podcast/notice-check";
-
-const NOTICE_ISSUE_TITLE = "Avisos de producción de Atomivid"; // same issue as src/lib/podcast/pilot-server.ts
+import { isNoticeIssue, latestTest, reception, sendDecision, testCode, testComment, type BotComment, type Reaction } from "../src/lib/podcast/notice-check";
 
 async function main() {
   const token = process.env.GITHUB_TOKEN, repo = process.env.GITHUB_REPOSITORY, owner = process.env.NOTICE_MENTION ?? "", mode = process.env.MODE;
@@ -18,9 +16,17 @@ async function main() {
     return res.json();
   };
   const report = async (line: string) => { console.log(line); if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `${line}\n`); };
-  const issue = ((await gh("/issues?state=open&per_page=100")) as { number: number; title: string }[]).find((i) => i.title === NOTICE_ISSUE_TITLE);
+  // Same trusted issue as the production notices (owner's or the bot's, oldest first): a look-alike is ignored.
+  const issue = ((await gh("/issues?state=open&per_page=100&sort=created&direction=asc")) as { number: number; title: string; user?: { login?: string } }[]).find((i) => isNoticeIssue(i, owner));
   if (!issue) { await report("No hay un issue abierto de avisos; no se envió nada."); process.exitCode = 1; return; }
-  const comments = (await gh(`/issues/${issue.number}/comments?per_page=100&since=${new Date(Date.now() - 30 * 24 * 3600_000).toISOString()}`)) as BotComment[];
+  // Newest first, repository-wide, filtered to that issue: the latest test comment is never missed behind older ones.
+  const since = new Date(Date.now() - 30 * 24 * 3600_000).toISOString();
+  const comments: BotComment[] = [];
+  for (let page = 1; page <= 5; page++) {
+    const batch = (await gh(`/issues/comments?sort=created&direction=desc&per_page=100&page=${page}&since=${since}`)) as (BotComment & { issue_url?: string })[];
+    comments.push(...batch.filter((c) => c.issue_url?.endsWith(`/issues/${issue.number}`)));
+    if (batch.length < 100 || latestTest(comments)) break;
+  }
   if (mode === "send") {
     const now = new Date();
     const d = sendDecision(comments, now);
