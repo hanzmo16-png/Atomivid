@@ -32,7 +32,7 @@ export async function expandVoice(cfg:any,seal:(name:string,b:Buffer)=>void){
  if(oe)throw Error('EXPANSION_LEDGER_UNAVAILABLE');
  const spent=(ops??[]).reduce((a,o)=>a+Number(o.status==='COMMITTED'?o.committed_usd:o.reserved_usd),0);
  const prefix=`${cfg.ownerId}/podcasts/${cfg.episodeId}/expansion-30/${sha(bytes).slice(0,16)}`;
- const completed=[];
+ const completed:any[]=[];
  for(const c of plan.chapters){const old=await bucket.download(`${prefix}/${c.id}.json`);if(old.data){const m=JSON.parse(await old.data.text());if(m.textSha256!==sha(Buffer.from(c.text)))throw Error('EXPANSION_TEXT_MISMATCH');completed.push(m);}}
  const todo=plan.chapters.filter((c:any)=>!completed.some(m=>m.id===c.id));
  const remaining=todo.reduce((s:number,c:any)=>s+c.text.length*.0002,0);
