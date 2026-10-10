@@ -56,6 +56,20 @@ async function gh(path: string, method = "GET") {
 
 type Row = { video_status: string | null; video_stage: string | null; video_path: string | null; video_bytes: number | null; video_sha256: string | null; video_duration_seconds: number | null; video_error: string | null; duration_seconds: number | null; cost_usd: number | null; video_attempts: number | null };
 
+/** Read-only launch state: are sales open on the public site, auth e-mail settings, new customers' first productions. */
+async function launchState(client: { query: (q: string, v?: unknown[]) => Promise<{ rows: any[] }> }, owner: string) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const home = await fetch(APP).then((r) => r.text()).catch(() => "");
+  const settings = await fetch(`${URL_}/auth/v1/settings`, { headers: { apikey: KEY } }).then((r) => r.json()).catch(() => null) as { disable_signup?: boolean; mailer_autoconfirm?: boolean; external?: Record<string, boolean> } | null;
+  const users = (await client.query(`select count(*)::int n, count(*) filter (where email_confirmed_at is not null)::int confirmed from auth.users where id <> $1 and created_at > now() - interval '60 days'`, [owner])).rows[0];
+  const prods = (await client.query(`select count(*)::int n, count(*) filter (where status='completed')::int completed from public.video_requests where user_id <> $1`, [owner])).rows[0];
+  const subs = (await client.query(`select count(*)::int n from public.subscriptions where status in ('active','trialing')`).catch(() => ({ rows: [{ n: null }] }))).rows[0];
+  log("LAUNCH_STATE", {
+    salesOpenOnSite: home ? !/Apertura de pagos pendiente/.test(home) : null,
+    signupDisabled: settings?.disable_signup ?? null, emailAutoconfirm: settings?.mailer_autoconfirm ?? null, emailProvider: settings?.external?.email ?? null,
+    newUsers60d: users.n, newUsersConfirmed: users.confirmed, nonOwnerProductions: prods.n, nonOwnerCompleted: prods.completed, activeSubscriptions: subs.n,
+  });
+}
+
 async function main() {
   if (process.env.OWNER_SESSION_AUTHORIZED !== "yes") { log("BLOCKED", { reason: "owner sign-in not authorised" }); process.exitCode = 1; return; }
   const { client } = await connectResolved();
@@ -150,6 +164,7 @@ async function main() {
     const after = { ledger: await ledger(), row: await read() };
     check("no new paid call: ledger rows unchanged and episode cost unchanged", after.ledger.n === before.ledger.n && Number(after.row.cost_usd) === Number(before.row.cost_usd), { rowsBefore: before.ledger.n, rowsAfter: after.ledger.n });
     await phone.close();
+    await launchState(client, owner).catch((e) => log("LAUNCH_STATE", { error: e instanceof Error ? e.constructor.name : "unknown" }));
   } finally {
     log("SUMMARY", { passed: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).map((r) => r.check) });
     await browser.close().catch(() => undefined);
