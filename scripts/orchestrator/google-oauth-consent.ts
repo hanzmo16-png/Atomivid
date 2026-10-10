@@ -32,13 +32,13 @@ const server = http.createServer(async (req, res) => {
   const gh = spawnSync("gh", ["--version"], { stdio: "ignore" });
   if (gh.status === 0) {
     for (const [name, value] of secrets) {
-      const r = spawnSync("gh", ["secret", "set", name, "--repo", process.env.GH_REPO || "hanzmo16-png/Atomivid"], { input: value, stdio: ["pipe", "ignore", "inherit"] });
+      const r = spawnSync("gh", ["secret", "set", name, "--env", "orchestrator", "--repo", process.env.GH_REPO || "hanzmo16-png/Atomivid"], { input: value, stdio: ["pipe", "ignore", "inherit"] });
       console.log(`${name}: ${r.status === 0 ? "guardado en los secretos de GitHub" : "ERROR al guardar"}`);
     }
   } else {
     const file = "orquestador-google-secretos.txt";
     writeFileSync(file, secrets.map(([n, v]) => `${n}=${v}`).join("\n") + "\n", { mode: 0o600 });
-    console.log(`No hay gh CLI: se guardó ${file} (permisos 600). Copia cada valor en GitHub → Settings → Secrets and variables → Actions y borra el archivo.`);
+    console.log(`No hay gh CLI: se guardó ${file} (permisos 600). Copia cada valor en GitHub → Settings → Environments → orchestrator → secretos, y borra el archivo.`);
   }
   server.close();
 });

@@ -214,7 +214,7 @@ test("almacén JSON persistente entre ejecuciones (idempotencia tras reiniciar)"
 });
 
 test("ejecutor de Claude Code Action desactivado por defecto; aviso de GitHub genérico sin datos privados", async () => {
-  assert.deepEqual(await new ClaudeCodeActionExecutor({}).dispatch({ taskId: "T-20261010-2100-hans-01" }), { ok: false, detail: "ejecutor de Claude Code Action desactivado (ORCH_CLAUDE_ACTION_ENABLED)" });
+  assert.deepEqual(await new ClaudeCodeActionExecutor({}).dispatch({ taskId: "T-20261010-2100-hans-01", sha256: "a".repeat(64) }), { ok: false, detail: "ejecutor de Claude Code Action desactivado (ORCH_CLAUDE_ACTION_ENABLED)" });
   const bodies: string[] = [];
   const fetchImpl = (async (url: string, init?: RequestInit) => {
     if (init?.body) bodies.push(String(init.body));

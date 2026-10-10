@@ -20,11 +20,25 @@ async function previousSmokeDone(): Promise<boolean | null> {
   if (!repo || !token) return null;
   const { smokeAlreadyDone } = await import("../../src/lib/orchestrator/smoke");
   try {
-    const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/orchestrator.yml/runs?status=success&per_page=100`, { headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" }, signal: AbortSignal.timeout(15_000) });
-    if (!res.ok) return null;
-    const body = (await res.json()) as { workflow_runs?: { id: number; display_title?: string; conclusion?: string | null }[] };
-    return smokeAlreadyDone(body.workflow_runs ?? [], Number(process.env.GITHUB_RUN_ID) || null);
+    // Every page (a successful smoke run must not fall off the first page); more than 20 pages → unreadable.
+    const runs: { id: number; display_title?: string; conclusion?: string | null }[] = [];
+    for (let page = 1; page <= 20; page++) {
+      const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/orchestrator.yml/runs?status=success&per_page=100&page=${page}`, { headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" }, signal: AbortSignal.timeout(15_000) });
+      if (!res.ok) return null;
+      const batch = ((await res.json()) as { workflow_runs?: typeof runs }).workflow_runs ?? [];
+      runs.push(...batch);
+      if (batch.length < 100) return smokeAlreadyDone(runs, Number(process.env.GITHUB_RUN_ID) || null);
+    }
+    return null;
   } catch { return null; }
+}
+
+/** Atomic claim of the one smoke call: creating a label is unique (201 for exactly one run, 422 for the rest). */
+async function claimSmokeLabel(): Promise<"claimed" | "taken" | "error"> {
+  const repo = process.env.GITHUB_REPOSITORY, token = process.env.GITHUB_TOKEN;
+  if (!repo || !token) return "error";
+  const { claimSmoke } = await import("../../src/lib/orchestrator/smoke");
+  return claimSmoke((body) => fetch(`https://api.github.com/repos/${repo}/labels`, { method: "POST", headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "content-type": "application/json" }, body, signal: AbortSignal.timeout(15_000) }), process.env.GITHUB_RUN_ID ?? "local");
 }
 
 async function main() {
@@ -55,8 +69,13 @@ async function main() {
     const cfg = { ...loadConfig(process.env, { durableStore: false, smoke: true }), maxHttpRetries: 0 };
     log("CONFIG", { mode, paidCalls: cfg.paidCalls, paidBlockedReason: cfg.paidBlockedReason, model: cfg.model, capUsd: cfg.budgetCapUsd, maxCalls: cfg.maxCallsPerRun, previousSmokeDone: done });
     // Exit code 3 = nothing was sent: the run ends "failure" and does not count as the one smoke call.
+    if (!smoke.firstAttempt(process.env.GITHUB_RUN_ATTEMPT)) { log("SMOKE_SKIPPED", { reason: "una re-ejecución nunca envía la llamada de humo" }); process.exitCode = 3; return; }
     if (done !== false) { log("SMOKE_SKIPPED", { reason: done ? "la llamada de humo ya se hizo (una sola vez)" : "no se pudo leer el historial de ejecuciones" }); process.exitCode = 3; return; }
     if (!cfg.paidCalls) { log("SMOKE_SKIPPED", { reason: cfg.paidBlockedReason }); process.exitCode = 3; return; }
+    // Last step before sending: the atomic claim. Never released automatically (even if the call then fails).
+    const claim = await claimSmokeLabel();
+    log("SMOKE_CLAIM", { result: claim });
+    if (claim !== "claimed") { log("SMOKE_SKIPPED", { reason: claim === "taken" ? "otra ejecución ya reclamó la llamada de humo" : "no se pudo reclamar la llamada de humo de forma atómica" }); process.exitCode = 3; return; }
     const ch = new MemoryChannel();
     ch.add("solicitudes", `${SMOKE_ID}__para-claude__smoke.md`, SMOKE_TASK);
     ch.add("entregas", `${SMOKE_ID}__claude__hecha.md`, SMOKE_DELIVERY);

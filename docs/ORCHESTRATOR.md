@@ -81,27 +81,54 @@ La sonda gratuita (`GET /v1/models`, que no se factura) lee las cabeceras `opena
 | Cuenta de servicio (con o sin Workload Identity) | sí | **no** | Las cuentas de servicio no tienen cuota de almacenamiento en un Drive personal: solo sirven para escribir en una unidad compartida de Workspace. |
 | Conector de Drive de claude.ai | sí | sí | Solo funciona dentro de sesiones de Claude, no en GitHub Actions. |
 
-Pasos de Hans para la opción recomendada (una vez, sin pegar claves en chats):
+Pasos de Hans para la opción recomendada (una vez, sin pegar claves en chats ni en campos de workflows):
 
 1. **Proyecto en Google Cloud** (gratis):
    - activa la API de Google Drive;
    - pantalla de consentimiento externa, publicada «En producción» (en modo de prueba los tokens caducan a los 7 días);
    - crea un cliente OAuth de tipo «Desktop app».
-2. **Secretos del cliente en GitHub** (Settings → Secrets and variables → Actions, desde el teléfono o la computadora): `GOOGLE_OAUTH_CLIENT_ID` y `GOOGLE_OAUTH_CLIENT_SECRET`.
-3. **Autorización única desde el teléfono (recomendada): workflow `drive-oauth.yml`.**
-   - Requisito: el secreto `ORCH_SECRETS_WRITER_TOKEN`, un token de GitHub de grano fino limitado a este repositorio con el permiso «Secrets: read and write». Sirve para que el workflow guarde el token de Google sin que nadie lo vea. Se puede borrar después.
-   - **`start`:** el resumen de la ejecución muestra el enlace de consentimiento. Solo contiene datos públicos: el id del cliente, un nonce y el reto PKCE.
-   - **En el teléfono:** Hans inicia sesión y acepta. Si aparece «Google no verificó esta app», toca «Configuración avanzada» → «Ir a…»: la app es suya. El navegador termina en una página de error `127.0.0.1`, como se espera. Hans copia la dirección completa.
-   - **`finish`:** se pega esa dirección en `redirect_url`. El workflow la lee del evento, nunca de variables de entorno que se impriman.
-   - El workflow canjea el código. El código sirve una vez, dura minutos y no funciona sin el secreto del cliente y el verificador PKCE, que se deriva de ese secreto.
-   - Comprueba que la cuenta es **dueña** de la carpeta de coordinación y que puede escribir en ella. Si no lo es, revoca el token.
-   - Guarda `GOOGLE_OAUTH_REFRESH_TOKEN` con `gh secret set`, pasando el valor por la entrada estándar. Nunca se muestra.
+   - Opcional, para reducir el alcance: una cuenta de Google dedicada que sea dueña solo de la carpeta de coordinación, compartida con la cuenta principal. Si el token se filtrara, solo expondría esa cuenta.
+2. **Entorno protegido de GitHub `orchestrator`** (Settings → Environments → New environment):
+   - «Deployment branches»: solo la rama por defecto. Un workflow subido en cualquier otra rama no podrá leer estos secretos.
+   - Recomendado: «Required reviewers» con Hans, para aprobar cada ejecución que los use.
+   - Secretos del entorno:
+     - `GOOGLE_OAUTH_CLIENT_ID` y `GOOGLE_OAUTH_CLIENT_SECRET`;
+     - `ORCH_OPENAI_API_KEY`, una clave **dedicada** de un proyecto de OpenAI propio con límite de gasto; nunca la `OPENAI_API_KEY` compartida de la app;
+     - `ORCH_SECRETS_WRITER_TOKEN`, un token de GitHub de grano fino:
+       - solo este repositorio;
+       - permisos «Secrets» y «Environments» de lectura y escritura, y nada más;
+       - caducidad de 7 días. Se borra al terminar.
+3. **Autorización única desde el teléfono: workflow `drive-oauth.yml`.** Ninguna entrada del workflow lleva datos secretos.
+   - **`start`:**
+     - crea un intento aleatorio: un estado anti-CSRF y un verificador PKCE de 64 caracteres;
+     - lo guarda como secreto del entorno `GOOGLE_OAUTH_PENDING`, válido 15 minutos y de un solo uso;
+     - muestra el enlace de consentimiento, que solo lleva datos públicos: id del cliente, estado y reto PKCE.
+   - **En el teléfono:**
+     - Hans acepta. Si aparece «Google no verificó esta app», toca «Configuración avanzada» → «Ir a…»: la app es suya.
+     - El navegador termina en una página de error `127.0.0.1`, como se espera.
+     - Hans guarda la dirección completa como **secreto del entorno** `GOOGLE_OAUTH_REDIRECT`: cifrado y enmascarado, nunca un campo del workflow ni un chat.
+   - **`finish`:**
+     - exige un intento de menos de 15 minutos y el **mismo estado**, para que un código de otro consentimiento se rechace;
+     - canjea el código con el verificador;
+     - exige que la cuenta sea **dueña** de la carpeta de coordinación y pueda escribir en ella;
+     - guarda `GOOGLE_OAUTH_REFRESH_TOKEN` en el entorno, pasando el valor por la entrada estándar;
+     - revoca el token anterior;
+     - **siempre** borra `GOOGLE_OAUTH_REDIRECT` y `GOOGLE_OAUTH_PENDING`.
+     - Si algo falla, revoca el token nuevo y no guarda nada.
+   - **Amenazas cubiertas:**
+     - el código no aparece en entradas públicas, registros ni resúmenes;
+     - un código interceptado no sirve sin el verificador y el secreto del cliente, que solo existen como secretos;
+     - no hay reutilización: el código es de un solo uso en Google y el intento se borra;
+     - un estado que no corresponde, por mezcla de sesiones, se rechaza;
+     - el token que escribe secretos tiene permisos mínimos y vida corta;
+     - el token de renovación queda en un entorno limitado a la rama por defecto.
    - Los workflows manuales solo se pueden lanzar cuando están en la rama por defecto.
    - **Descartado, según la documentación oficial de Google:**
      - el flujo de dispositivo no admite el alcance `drive`; solo `drive.file`, que no ve los archivos creados por los conectores de ChatGPT o Claude;
      - una cuenta de servicio o Workload Identity Federation no puede actuar como un usuario de Gmail;
-     - el OAuth Playground obligaría a copiar el token a mano.
-4. **Alternativa con computadora:** `GOOGLE_OAUTH_CLIENT_ID=… GOOGLE_OAUTH_CLIENT_SECRET=… npx tsx scripts/orchestrator/google-oauth-consent.ts`. Abre el consentimiento y guarda los secretos con `gh secret set`.
+     - el OAuth Playground obligaría a copiar el token a mano;
+     - pegar el código en una entrada de un workflow público, que fue el diseño anterior.
+4. **Alternativa con computadora:** `GOOGLE_OAUTH_CLIENT_ID=… GOOGLE_OAUTH_CLIENT_SECRET=… npx tsx scripts/orchestrator/google-oauth-consent.ts`. Hace el retorno local en la propia computadora y guarda los secretos en el entorno `orchestrator` con `gh secret set`.
 
 ## Ejecutor de Claude
 
@@ -110,6 +137,12 @@ Pasos de Hans para la opción recomendada (una vez, sin pegar claves en chats):
 - **Uso compartido:** el consumo comparte los límites de uso del plan Max de Hans.
 - **Riesgo conocido:** hay reportes públicos de errores 401 con este token en `claude -p`. Debe probarse en la primera ejecución.
 - **Sin ese token no corre.** No hay respaldo con la API de pago.
+- **Aislamiento (revisión de seguridad):**
+  - El orquestador lo despacha con `workflow_dispatch`, pasando el id de la tarea y la **huella sha256** del archivo que escribió.
+  - El ejecutor solo corre esa tarea si hay exactamente un archivo con ese id, escrito por `de: orquestador`, con esa misma huella. Un archivo plantado o editado en Drive se rechaza.
+  - Los secretos de Google solo llegan a los dos pasos de entrada y salida de Drive, nunca al paso de Claude.
+  - Claude no tiene shell ni web, y el token del repositorio es de solo lectura.
+  - La salida que se escribe en Drive pasa por un redactor de secretos: OpenAI, GitHub, Google (`GOCSPX-`, `ya29.`, `AIza`), Slack y claves privadas.
 - **Alternativa sin costo:** traspaso por Drive. Claude atiende `Solicitudes/` cuando Hans abre una sesión, o mediante una rutina que Hans programe en claude.ai.
 
 ## Primera llamada real (modo humo)
@@ -119,11 +152,15 @@ El workflow `orchestrator.yml` en modo `smoke` hace una sola auditoría real de 
 - tope de USD 0.05;
 - 1 llamada, sin reintentos;
 - sin Drive y sin almacén durable;
-- **una sola vez por repositorio:**
-  - la ejecución con la frase se titula «Orchestrator smoke (paid)»;
-  - termina en «success» solo si la llamada se envió (cobrada o con resultado incierto);
-  - una segunda ejecución lee el historial y se niega;
-  - si el historial no se puede leer, no envía nada.
+- **una sola vez por repositorio, con un control atómico:**
+  - Justo antes de enviar, la ejecución **crea** la etiqueta `orchestrator-smoke-claimed`.
+  - GitHub hace únicos los nombres de etiqueta: de dos ejecuciones concurrentes, solo una recibe 201 y la otra recibe 422. Cualquier otra respuesta también impide el envío.
+  - La etiqueta nunca se borra sola. Borrarla a mano es la forma explícita de Hans para permitir otra llamada de humo.
+  - **Capas adicionales:**
+    - una re-ejecución (`GITHUB_RUN_ATTEMPT` > 1) nunca envía;
+    - el grupo de concurrencia corre una sola ejecución a la vez;
+    - se lee el historial completo, todas las páginas, y una ejecución titulada «Orchestrator smoke (paid)» que terminó en «success» bloquea las siguientes;
+    - si el historial no se puede leer, no se envía nada.
 
 Compuertas:
 - `ORCH_ALLOW_PAID_CALLS=true`;
@@ -137,11 +174,16 @@ Costo: se esperan unos USD 0.001; el peor caso reservado es USD 0.0025 con `gpt-
 
 ## Qué falta para activarlo (acciones de Hans, gratuitas)
 
-1. **Google:** seguir los pasos de OAuth de usuario descritos arriba: el proyecto, los dos secretos del cliente y `drive-oauth.yml` desde el teléfono, que estará disponible una vez fusionado este PR. Así quedan `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` y `GOOGLE_OAUTH_REFRESH_TOKEN` en GitHub.
+1. **Google y entorno:** seguir los pasos de OAuth de usuario descritos arriba:
+   - el proyecto de Google Cloud;
+   - el entorno `orchestrator` con sus secretos;
+   - `drive-oauth.yml` desde el teléfono, disponible una vez fusionado este PR.
+
+   Así quedan `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN` y `ORCH_OPENAI_API_KEY` en el entorno protegido.
    - **Antes de la llamada de humo:** lanzar `orchestrator.yml` en modo `preflight` (USD 0) y confirmar `wouldCall: true`.
 2. **Variable `ORCHESTRATOR_ENABLED=true`:** permite ejecuciones manuales a USD 0 con el auditor simulado.
 3. **Gasto del piloto:**
-   - aprobar la migración pendiente y exponer el esquema `orchestrator`;
+   - aprobar la migración pendiente y exponer el esquema `orchestrator`. Recomendado: un proyecto de Supabase **separado**, o un rol dedicado limitado a `orchestrator.state`. No conviene usar la clave de servicio del proyecto de producción de Atomivid.
    - fijar `ORCH_STORE=supabase` y `ORCH_ALLOW_PAID_CALLS=true`;
    - lanzar con `GASTAR-HASTA-5USD`.
    - Recomendado: un límite de gasto del proyecto en el panel de OpenAI (USD 5) como respaldo independiente.

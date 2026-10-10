@@ -4,6 +4,7 @@
  *  - Entregas/<ID>__<agente>__<estado>.md                 (state change / result)
  * The orchestrator signs as "orquestador". Follow-up tasks carry `raiz:` (first task of the chain) and `intento:`.
  */
+import { createHash } from "node:crypto";
 export const AGENT = "orquestador";
 const ID_RE = /^(T-\d{8}-\d{4}-[a-z]+-\d{2,})/;
 
@@ -44,3 +45,9 @@ export function followUpId(rootId: string, attempt: number): string {
 }
 
 export const slug = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "tarea";
+
+/** Digest of a task file as written by the orchestrator (line endings and trailing space normalised). The executor
+ *  only runs a task whose Drive file has exactly this digest: a planted or edited file with the same id is refused. */
+export function taskDigest(text: string): string {
+  return createHash("sha256").update(text.replace(/\r\n/g, "\n").trimEnd()).digest("hex");
+}

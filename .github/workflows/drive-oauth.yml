@@ -1,21 +1,18 @@
 name: Drive OAuth (one-time owner authorization)
-# Manual, free. Two runs from the phone: "start" shows Google's consent link; "finish" takes the address the browser
-# landed on (http://127.0.0.1…), exchanges it here and stores GOOGLE_OAUTH_REFRESH_TOKEN as a repository secret.
-# The token is never printed; the pasted address is read from the event payload, not from env. A token for an account
-# that does not own the coordination folder is revoked. See docs/ORCHESTRATOR.md.
+# Manual, free. "start" shows Google's consent link and keeps a random, single-use attempt (state + PKCE verifier) as
+# an environment secret; the owner stores the address the phone's browser landed on as the environment secret
+# GOOGLE_OAUTH_REDIRECT; "finish" exchanges it, stores GOOGLE_OAUTH_REFRESH_TOKEN in the environment and deletes the
+# attempt and the address. No workflow input carries anything secret. Everything runs in the GitHub environment
+# "orchestrator", restricted to the default branch (configure it in Settings → Environments). See docs/ORCHESTRATOR.md.
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "start = enlace de consentimiento; finish = guardar el token"
+        description: "start = enlace de consentimiento; finish = guardar el token (después de crear GOOGLE_OAUTH_REDIRECT)"
         required: true
         default: start
         type: choice
         options: [start, finish]
-      redirect_url:
-        description: "Solo en finish: la dirección completa que mostró el navegador (http://127.0.0.1:8765/callback?...)"
-        required: false
-        default: ""
 permissions:
   contents: read
 concurrency:
@@ -23,7 +20,10 @@ concurrency:
   cancel-in-progress: false
 jobs:
   authorize:
+    # Default branch only (the environment's branch policy enforces it too).
+    if: github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
+    environment: orchestrator
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +39,9 @@ jobs:
           MODE: ${{ inputs.mode }}
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_PENDING: ${{ secrets.GOOGLE_OAUTH_PENDING }}
+          GOOGLE_OAUTH_REDIRECT: ${{ secrets.GOOGLE_OAUTH_REDIRECT }}
+          GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
           GH_TOKEN: ${{ secrets.ORCH_SECRETS_WRITER_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           ORCH_DRIVE_ROOT: 17GzExKZIgjOTF1Ods0H1AapuRssQ9m8Z

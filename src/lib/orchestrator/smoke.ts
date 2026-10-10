@@ -1,9 +1,11 @@
 /**
  * The single smoke call (first real OpenAI call): pure helpers for its one-time guard, its USD 0 preflight and the
  * key's project confirmation.
- *  - Once only: the smoke run has no durable store, so its guard is the repository's own run history. A run titled
- *    SMOKE_RUN_TITLE ends "success" only when a call was really sent (charged or uncertain); a later smoke run sees
- *    it and refuses. A run that sent nothing ends "failure" and does not count.
+ *  - Once only, atomically: right before the call the run CREATES the repository label SMOKE_CLAIM_LABEL. GitHub
+ *    makes label names unique, so of two concurrent runs exactly one gets 201 and the other 422; any other answer
+ *    refuses too (fail closed). The label is never removed automatically: deleting it by hand is Hans's explicit way
+ *    to allow another smoke call. Layers on top: a re-run (GITHUB_RUN_ATTEMPT > 1) is refused, the workflow's
+ *    concurrency group runs one job at a time, and the whole run history is read (every page) as a second check.
  *  - Preflight: evaluates every gate and the worst-case reservation without sending anything.
  *  - Project: the Responses API answers with openai-project / openai-organization headers; they are logged masked,
  *    so Hans can confirm the key belongs to the project where he set the spend limit.
@@ -13,6 +15,21 @@ import type { OrchestratorConfig } from "./config";
 import { emptyState } from "./store";
 
 export const SMOKE_RUN_TITLE = "Orchestrator smoke (paid)";
+export const SMOKE_CLAIM_LABEL = "orchestrator-smoke-claimed";
+
+/** The label creation answer: 201 = this run owns the one smoke call; 422 = already claimed; anything else = refuse. */
+export const claimOutcome = (status: number): "claimed" | "taken" | "error" => (status === 201 ? "claimed" : status === 422 ? "taken" : "error");
+
+/** A re-run keeps the same run id (the history check would skip it): only the first attempt may send. */
+export const firstAttempt = (runAttempt: string | undefined) => (runAttempt ?? "1") === "1";
+
+/** Atomic claim against the GitHub labels API; `post` is injectable for tests. */
+export async function claimSmoke(post: (body: string) => Promise<{ status: number }>, runId: string, now = new Date()): Promise<"claimed" | "taken" | "error"> {
+  try {
+    const res = await post(JSON.stringify({ name: SMOKE_CLAIM_LABEL, color: "b60205", description: `Llamada de humo reclamada por la ejecución ${runId.slice(0, 20)} el ${now.toISOString().slice(0, 16)}Z` }));
+    return claimOutcome(res.status);
+  } catch { return "error"; }
+}
 
 export type RunInfo = { id: number; display_title?: string; status?: string; conclusion?: string | null };
 

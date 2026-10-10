@@ -11,12 +11,12 @@
  */
 export interface ClaudeExecutor {
   readonly mode: "drive" | "claude-code-action";
-  dispatch(task: { taskId: string }): Promise<{ ok: boolean; detail: string }>;
+  dispatch(task: { taskId: string; sha256: string }): Promise<{ ok: boolean; detail: string }>;
 }
 
 export class DriveHandoffExecutor implements ClaudeExecutor {
   readonly mode = "drive" as const;
-  async dispatch(task: { taskId: string }) { return { ok: true, detail: `tarea ${task.taskId} publicada en Solicitudes/ para Claude` }; }
+  async dispatch(task: { taskId: string; sha256: string }) { return { ok: true, detail: `tarea ${task.taskId} publicada en Solicitudes/ para Claude` }; }
 }
 
 type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
@@ -24,14 +24,19 @@ type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 export class ClaudeCodeActionExecutor implements ClaudeExecutor {
   readonly mode = "claude-code-action" as const;
   constructor(private env: Record<string, string | undefined> = process.env, private fetchImpl: FetchLike = fetch) {}
-  async dispatch(task: { taskId: string }) {
+  /**
+   * workflow_dispatch of claude-executor.yml on the default branch (the orchestrator's token has `actions: write`;
+   * repository_dispatch would need `contents: write`). Inputs are public: only the task id and its digest.
+   */
+  async dispatch(task: { taskId: string; sha256: string }) {
     if (this.env.ORCH_CLAUDE_ACTION_ENABLED !== "true") return { ok: false, detail: "ejecutor de Claude Code Action desactivado (ORCH_CLAUDE_ACTION_ENABLED)" };
-    const token = this.env.GITHUB_TOKEN, repo = this.env.GITHUB_REPOSITORY;
-    if (!token || !repo) return { ok: false, detail: "sin credenciales de GitHub para despachar" };
-    const res = await this.fetchImpl(`https://api.github.com/repos/${repo}/dispatches`, {
+    const token = this.env.GITHUB_TOKEN, repo = this.env.GITHUB_REPOSITORY, ref = this.env.GITHUB_REF_NAME;
+    if (!token || !repo || !ref) return { ok: false, detail: "sin credenciales de GitHub para despachar" };
+    if (!/^[0-9a-f]{64}$/.test(task.sha256)) return { ok: false, detail: "huella de la tarea inválida" };
+    const res = await this.fetchImpl(`https://api.github.com/repos/${repo}/actions/workflows/claude-executor.yml/dispatches`, {
       method: "POST",
       headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "content-type": "application/json" },
-      body: JSON.stringify({ event_type: "claude-task", client_payload: { taskId: task.taskId } }),
+      body: JSON.stringify({ ref, inputs: { task_id: task.taskId, task_sha256: task.sha256 } }),
     });
     return { ok: res.ok, detail: res.ok ? "despachado a claude-executor" : `despacho rechazado (${res.status})` };
   }

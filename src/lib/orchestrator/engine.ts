@@ -22,9 +22,14 @@ import type { OrchestratorConfig } from "./config";
 import type { ApprovalNotifier, ClaudeExecutor } from "./executors";
 import { checkDelivery, checkInstructions } from "./guard";
 import { ProviderError, TransientProviderError } from "./openai-auditor";
-import { AGENT, followUpId, parseDeliveryName, parseHeader, parseRequestName, renderHeader } from "./protocol";
+import { AGENT, followUpId, parseDeliveryName, parseHeader, parseRequestName, renderHeader, taskDigest } from "./protocol";
 import { appendAudit, type OrchestratorStore, type ProcessedRecord } from "./store";
 import type { AuditVerdict, Auditor, AuditUsage } from "./types";
+
+
+/** What a charged call costs in the ledger: the provider's usage when it reports tokens, else the reserved worst case. */
+export const billedUsd = (usage: AuditUsage | undefined, reservedUsd: number | undefined) =>
+  usage && usage.inputTokens + usage.outputTokens > 0 ? usage.costUsd : reservedUsd ?? usage?.costUsd ?? 0;
 
 export const PROMPT_VERSION = "audit-v1";
 const MAX_DELIVERIES_PER_RUN = 5;
@@ -112,12 +117,14 @@ export async function runCycle(deps: CycleDeps): Promise<CycleReport> {
           return { outcome: "bloqueada", kind: "blocked" };
         }
         const nextId = followUpId(ctx.rootId, ctx.attempt + 1);
-        await channel.createIfAbsent("solicitudes", `${nextId}__para-claude__revision-${ctx.attempt + 1}.md`, `${renderHeader({
+        const nextText = `${renderHeader({
           id: nextId, de: AGENT, para: "claude", estado: "nueva", creado: iso(now()), orquestar: "si", raiz: ctx.rootId, intento: ctx.attempt + 1, anterior: p.taskId,
           archivos: `${f.name}; ${p.taskId}__${AGENT}__auditada.md`, requiere_gasto_o_produccion: "no",
           criterio_de_hecho: "cada instrucción queda resuelta con evidencia verificable en la entrega",
-        })}\npide:\n${verdict.instructions.map((x, i) => `${i + 1}. ${x}`).join("\n")}\n\nContexto: revisión automática ${ctx.attempt + 1} de ${cfg.maxAttempts} de la tarea ${ctx.rootId}. Entrega el resultado como Entregas/${nextId}__claude__hecha.md.\n`);
-        const d = await deps.executor.dispatch({ taskId: nextId }).catch(() => ({ ok: false, detail: "despacho fallido" }));
+        })}\npide:\n${verdict.instructions.map((x, i) => `${i + 1}. ${x}`).join("\n")}\n\nContexto: revisión automática ${ctx.attempt + 1} de ${cfg.maxAttempts} de la tarea ${ctx.rootId}. Entrega el resultado como Entregas/${nextId}__claude__hecha.md.\n`;
+        await channel.createIfAbsent("solicitudes", `${nextId}__para-claude__revision-${ctx.attempt + 1}.md`, nextText);
+        // The digest binds the dispatch to this exact file: the executor refuses any other content under this id.
+        const d = await deps.executor.dispatch({ taskId: nextId, sha256: taskDigest(nextText) }).catch(() => ({ ok: false, detail: "despacho fallido" }));
         await store.update((s) => { s.chains[ctx.rootId] = { rootId: ctx.rootId, attempt: Math.max(s.chains[ctx.rootId]?.attempt ?? 0, ctx.attempt + 1) }; appendAudit(s, { event: "followup_created", taskId: nextId, detail: { executor: deps.executor.mode, dispatched: d.ok, detail: d.detail } }, now()); });
         return { outcome: `revision-${ctx.attempt + 1}` };
       };
@@ -181,9 +188,17 @@ export async function runCycle(deps: CycleDeps): Promise<CycleReport> {
         }
         calls++;
         try {
-          result = await auditor.audit({ task, delivery, attempt, maxAttempts: cfg.maxAttempts });
-          if (resId) { const c = result.usage.costUsd; await store.update((s) => settle(s, resId!, c)); }
-          cost += result.usage.costUsd;
+          const out = await auditor.audit({ task, delivery, attempt, maxAttempts: cfg.maxAttempts });
+          // ONE store write: settle the charge AND persist the verdict (a crash in between can no longer lead to a
+          // second paid audit). A response without usable usage settles at the reserved worst case, never at $0.
+          cost += await store.update((s) => {
+            const billed = resId ? billedUsd(out.usage, s.ledger.find((e) => e.id === resId)?.reservedUsd) : out.usage.costUsd;
+            if (resId) settle(s, resId, billed);
+            s.processed[key] = { at: now().toISOString(), outcome: "auditada", stage: "audited", taskId: p.taskId, rootId, attempt, verdict: out.verdict, usage: { ...out.usage, costUsd: billed } };
+            appendAudit(s, { event: "audit_ok", taskId: p.taskId, detail: { decision: out.verdict.decision, costUsd: billed, inputTokens: out.usage.inputTokens, outputTokens: out.usage.outputTokens } }, now());
+            return billed;
+          });
+          result = out;
         } catch (err) {
           if (err instanceof TransientProviderError) {
             // 429: not processed → release. Network/5xx: may have been processed → keep the reservation (fail closed).
@@ -192,7 +207,7 @@ export async function runCycle(deps: CycleDeps): Promise<CycleReport> {
             failure = `proveedor no disponible (${err.message}) tras ${cfg.maxHttpRetries + 1} intentos`;
           } else if (err instanceof ProviderError) {
             const usage = (err as ProviderError & { usage?: AuditUsage }).usage;
-            if (resId) await store.update((s) => (err.charged ? settle(s, resId!, usage?.costUsd ?? s.ledger.find((e) => e.id === resId)!.reservedUsd) : release(s, resId!)));
+            if (resId) await store.update((s) => (err.charged ? settle(s, resId!, billedUsd(usage, s.ledger.find((e) => e.id === resId)?.reservedUsd)) : release(s, resId!)));
             cost += usage?.costUsd ?? 0;
             failure = `auditoría inválida (${err.message})`;
           } else {
@@ -207,12 +222,9 @@ export async function runCycle(deps: CycleDeps): Promise<CycleReport> {
         await markDone("bloqueada", cost);
         continue;
       }
-      const { verdict, usage } = result;
-      // 3. Persist the verdict BEFORE writing anything (crash-safe replay), then apply it.
-      await store.update((s) => {
-        s.processed[key] = { at: now().toISOString(), outcome: "auditada", stage: "audited", taskId: p.taskId, rootId, attempt, verdict, usage };
-        appendAudit(s, { event: "audit_ok", taskId: p.taskId, detail: { decision: verdict.decision, costUsd: usage.costUsd, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens } }, now());
-      });
+      // 3. The verdict was persisted with the settle, BEFORE writing anything to Drive (crash-safe replay); apply it.
+      const { verdict } = result;
+      const usage = (await store.read()).processed[key]?.usage ?? result.usage;
       const d = await applyDecision(ctx, verdict, usage);
       if (d.kind) await notifyOnce(d.kind);
       await markDone(d.outcome, usage.costUsd);
