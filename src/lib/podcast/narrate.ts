@@ -14,7 +14,14 @@ export type NarrationDeps = Omit<PaidCallDeps, "requestId"> & {
   voiceProvider: VoiceProvider;
   voiceIdentity: { voiceId: string; modelId: string; voiceSettingsJson: string };
   putAudio: (path: string, bytes: Buffer, contentType: string) => Promise<void>;
+  /** Hard limit of NEW spend for this run: the run stops before a paid chunk whose reservation would pass it. */
+  capUsd?: number | null;
 };
+
+/** The run stopped before a paid chunk that would pass its authorised limit (nothing of that chunk was charged). */
+export class NarrationCapError extends Error {
+  constructor(readonly capUsd: number, readonly spentUsd: number) { super("NARRATION_CAP"); }
+}
 
 export type NarrationOutcome = { audioPath: string; bytes: number; sha256: string; durationSeconds: number; costUsd: number; reusedChunks: number; chunks: number; loudness: LoudnessMeasurement };
 
@@ -28,11 +35,18 @@ export async function narrateEpisode(deps: NarrationDeps, episode: Pick<PodcastE
   const chunks = splitNarrationIntoSafeChunks(episode.script);
   const rate = getPricingConfig().elevenLabsUsdPer1kChars;
   const parts: NarrationPart[] = [];
-  let costUsd = 0, reusedChunks = 0;
+  let costUsd = 0, reusedChunks = 0, newSpendUsd = 0;
+  const requestId = podcastLedgerProject(episode.id);
   for (const chunk of chunks) {
-    const r = await gatedVoiceSynthesize({ ...deps, requestId: podcastLedgerProject(episode.id), estimatedCostUsd: ceil4((chunk.length / 1000) * rate) }, chunk, episode.language);
+    const estimatedCostUsd = ceil4((chunk.length / 1000) * rate);
+    // Checked before the paid call with the reservation amount: a stored chunk is reused at USD 0 and never blocks.
+    if (deps.capUsd != null && newSpendUsd + estimatedCostUsd > deps.capUsd + 1e-9 && !(await storedVoiceResult({ ...deps, requestId }, chunk, episode.language))) {
+      throw new NarrationCapError(deps.capUsd, ceil4(newSpendUsd));
+    }
+    const r = await gatedVoiceSynthesize({ ...deps, requestId, estimatedCostUsd }, chunk, episode.language);
     costUsd += r.costUsd;
     if (r.reused) reusedChunks++;
+    else newSpendUsd += Math.max(estimatedCostUsd, r.costUsd);
     parts.push({ audioBuffer: r.audioBuffer, mimeType: r.mimeType, extension: r.extension, durationSeconds: r.durationSeconds, words: r.words });
   }
   const stitched = stitchNarrationParts(parts);

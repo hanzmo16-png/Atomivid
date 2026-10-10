@@ -12,7 +12,7 @@ import { ensureJobSupplyReady } from "@/lib/supply/readiness";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
 import { supabaseResultStore } from "@/lib/paid-calls/result-store";
 import type { VoiceProvider } from "@/lib/providers/types";
-import { narrateEpisode } from "./narrate";
+import { narrateEpisode, NarrationCapError } from "./narrate";
 import { estimatePodcast, podcastDemand, normalizeScript, PODCAST_STALE_RUN_MS, validateScript, type PodcastEpisode } from "./episode";
 import { listAccountVoices, VoicesUnavailableError } from "./voices";
 
@@ -74,7 +74,7 @@ function publicError(err: unknown): string {
  * One generation run. Claim (CAS) → narrate (gated) → store → ready. Any failure leaves the episode
  * 'failed' with a clear message; chunks already paid stay stored for the next run.
  */
-export async function runGeneration(service: SupabaseClient, episode: PodcastEpisode, now: () => number = Date.now): Promise<{ ok: true; episode: PodcastEpisode } | { error: string; status: number }> {
+export async function runGeneration(service: SupabaseClient, episode: PodcastEpisode, now: () => number = Date.now, opts: { capUsd?: number | null } = {}): Promise<{ ok: true; episode: PodcastEpisode } | { error: string; status: number }> {
   if (episode.source !== "tts" || !episode.script || !episode.voice_id) return { error: "Este episodio no se genera con voz sintética.", status: 409 };
   if (episode.status === "ready") return { error: "El episodio ya está listo.", status: 409 };
   const stale = new Date(now() - PODCAST_STALE_RUN_MS).toISOString();
@@ -96,15 +96,18 @@ export async function runGeneration(service: SupabaseClient, episode: PodcastEpi
     const ready = await ensureJobSupplyReady(service, [podcastDemand({ characters: episode.characters, usd: Number(episode.estimated_usd) })], { refresh: true });
     if (!ready.ready) throw new SupplyUnavailableError(ready.failure?.provider ?? "elevenlabs", ready.failure?.reason ?? "unavailable");
     const out = await narrateEpisode({ ledger: supabaseLedgerStore(service), results: supabaseResultStore(service, BUCKET), voiceProvider: provider, voiceIdentity: getVoiceIdentity(episode.language, voiceId),
-      putAudio: async (p, bytes, contentType) => { const { error } = await service.storage.from(BUCKET).upload(p, bytes, { contentType, upsert: true }); if (error) throw new Error("STORAGE"); } }, episode);
+      putAudio: async (p, bytes, contentType) => { const { error } = await service.storage.from(BUCKET).upload(p, bytes, { contentType, upsert: true }); if (error) throw new Error("STORAGE"); }, capUsd: opts.capUsd ?? null }, episode);
     const { data } = await fenced({ status: "ready", audio_path: out.audioPath, audio_mime: "audio/mp4", duration_seconds: out.durationSeconds, audio_sha256: out.sha256, audio_bytes: out.bytes,
       loudness: out.loudness, cost_usd: out.costUsd, run_token: null, error: null }).select(EPISODE_COLUMNS);
     const row = (data?.[0] as PodcastEpisode | undefined);
     return row ? { ok: true, episode: row } : { error: "Otra ejecución tomó este episodio.", status: 409 };
   } catch (err) {
-    const message = err instanceof VoicesUnavailableError ? err.customerMessage : publicError(err);
+    const capped = err instanceof NarrationCapError;
+    const message = err instanceof VoicesUnavailableError ? err.customerMessage
+      : capped ? `La narración se detuvo antes de superar el límite autorizado (USD ${err.capUsd.toFixed(2)}; gastado en esta ejecución USD ${err.spentUsd.toFixed(4)}). Lo ya narrado se conserva y no se vuelve a cobrar.`
+      : publicError(err);
     await fenced({ status: "failed", run_token: null, error: message });
-    return { error: message, status: err instanceof SupplyUnavailableError ? 503 : 500 };
+    return { error: message, status: capped ? 402 : err instanceof SupplyUnavailableError ? 503 : 500 };
   } finally {
     clearInterval(heartbeat);
   }

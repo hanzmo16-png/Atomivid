@@ -6,7 +6,8 @@
       "claude/video-review": false,
       "claude/pilot-diag": false,
       "ops-sealed-out": false,
-      "claude/pilot-deploy": false
+      "claude/pilot-deploy": false,
+      "claude/pilot-budget-total": false
     }
   }
 }
