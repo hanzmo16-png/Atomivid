@@ -16,8 +16,8 @@ on:
         description: "Huella sha256 del archivo de la tarea que escribió el orquestador"
         required: true
 permissions:
+  # Read-only, and no OIDC: the action gets this read-only token explicitly instead of exchanging one for an app token.
   contents: read
-  id-token: write
 concurrency:
   group: claude-executor
   cancel-in-progress: false
@@ -40,23 +40,23 @@ jobs:
           [ -n "$T" ] || { echo "CLAUDE_CODE_OAUTH_TOKEN missing: not running (no paid API fallback)"; exit 1; }
           echo "$TASK_ID" | grep -Eq '^T-[0-9]{8}-[0-9]{4}-orquestador-[0-9]{2,}$' || { echo "invalid task id"; exit 1; }
           echo "$TASK_SHA256" | grep -Eq '^[0-9a-f]{64}$' || { echo "invalid digest"; exit 1; }
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts --no-audit --no-fund
       - id: fetch
         run: npx tsx scripts/orchestrator/executor-io.ts fetch "$TASK_ID" "$TASK_SHA256"
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
           GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
-      - uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1.0.248
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
           # No shell, no web: Claude reads the repository and writes its delivery file only.
           claude_args: '--allowedTools "Read,Glob,Grep,Write" --disallowedTools "Bash,WebFetch,WebSearch"'
           prompt: |

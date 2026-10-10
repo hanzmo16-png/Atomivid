@@ -12,6 +12,7 @@ import { MemoryChannel } from "./channel";
 import { MemoryStore } from "./store";
 import type { Auditor } from "./types";
 import { redactSecrets } from "../../../scripts/orchestrator/executor-io";
+import { environmentGuard, parseTokenExpiration, writerTokenGuard } from "./github-env";
 
 const wf = (name: string) => readFileSync(`.github/workflows/${name}`, "utf8");
 
@@ -111,7 +112,8 @@ test("ejecutor de Claude: secretos de Google solo en los pasos de Drive; sin she
   assert.doesNotMatch(claudeStep, /GOOGLE_OAUTH/, "the Claude step never sees Google credentials");
   assert.doesNotMatch(w.slice(0, w.indexOf("steps:")), /GOOGLE_OAUTH/, "not in job-level env");
   assert.match(claudeStep, /--disallowedTools "Bash,WebFetch,WebSearch"/);
-  assert.match(w, /permissions:\n\s+contents: read\n\s+id-token: write/);
+  assert.match(w, /permissions:\n\s+# [^\n]*\n\s+contents: read\n(?!\s+id-token)/);
+  assert.doesNotMatch(w, /id-token: write/, "no OIDC token for the executor");
   assert.doesNotMatch(w, /pull-requests: write|contents: write|repository_dispatch/);
   assert.match(w, /executor-io\.ts fetch "\$TASK_ID" "\$TASK_SHA256"/);
   assert.match(w, /environment: orchestrator/);
@@ -172,4 +174,57 @@ test("fusionar el orquestador no toca producción: nada en la app lo importa, si
   assert.deepEqual(Object.keys(vercel), ["git"]);
   assert.ok(Object.values(vercel.git.deploymentEnabled).every((v) => v === false), "vercel.json only disables branch previews");
   assert.doesNotMatch(readFileSync("package.json", "utf8").match(/"build": "[^"]*"/)?.[0] ?? "", /orchestrator/);
+});
+
+test("cadena de suministro: acciones fijadas a SHA completo, npm ci sin scripts de instalación, sin caché compartida en trabajos con secretos", () => {
+  for (const name of ["orchestrator.yml", "drive-oauth.yml", "claude-executor.yml", "orchestrator-probe.yml"]) {
+    const w = wf(name);
+    const uses = [...w.matchAll(/uses: ([^\s#]+)/g)].map((m) => m[1]);
+    assert.ok(uses.length > 0);
+    for (const u of uses) assert.match(u, /^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/, `${name}: ${u} must be pinned to a full commit SHA`);
+    assert.doesNotMatch(w, /run: npm ci\s*$/m, `${name}: npm ci must run with --ignore-scripts`);
+    assert.match(w, /npm ci --ignore-scripts/);
+    assert.doesNotMatch(w, /cache: npm/, `${name}: no shared dependency cache next to secrets`);
+    assert.match(w, /persist-credentials: false/);
+  }
+});
+
+test("entorno protegido: solo la rama por defecto; sin política, con ramas extra o inexistente → se rechaza", () => {
+  assert.match((environmentGuard(null, null, "main") as { reason: string }).reason, /no existe/);
+  assert.match((environmentGuard({ deployment_branch_policy: null }, null, "main") as { reason: string }).reason, /no limita las ramas/);
+  assert.deepEqual(environmentGuard({ deployment_branch_policy: { custom_branch_policies: true }, protection_rules: [{ type: "required_reviewers" }] }, [{ name: "main", type: "branch" }], "main"), { ok: true, reviewers: true });
+  assert.match((environmentGuard({ deployment_branch_policy: { custom_branch_policies: true } }, [{ name: "main" }, { name: "claude/*" }], "main") as { reason: string }).reason, /otras ramas/);
+  assert.match((environmentGuard({ deployment_branch_policy: { custom_branch_policies: true } }, [{ name: "main", type: "tag" }], "main") as { reason: string }).reason, /otras ramas/);
+  assert.equal(environmentGuard({ deployment_branch_policy: { custom_branch_policies: true } }, [], "main").ok, false);
+  assert.deepEqual(environmentGuard({ deployment_branch_policy: { protected_branches: true } }, null, "main"), { ok: true, reviewers: false });
+});
+
+test("token que escribe secretos: debe caducar, y en 30 días o menos", () => {
+  const now = Date.parse("2026-10-11T00:00:00Z");
+  assert.equal(parseTokenExpiration("2026-10-18 00:00:00 UTC"), Date.parse("2026-10-18T00:00:00Z"));
+  assert.equal(parseTokenExpiration("2026-10-18 00:00:00 -0500"), Date.parse("2026-10-18T05:00:00Z"));
+  assert.equal(parseTokenExpiration(null), null);
+  assert.deepEqual(writerTokenGuard("2026-10-18 00:00:00 UTC", now), { ok: true, daysLeft: 7 });
+  assert.match((writerTokenGuard(null, now) as { reason: string }).reason, /no tiene caducidad/);
+  assert.match((writerTokenGuard("2027-10-18 00:00:00 UTC", now) as { reason: string }).reason, /más de 30 días/);
+  assert.match((writerTokenGuard("2026-10-01 00:00:00 UTC", now) as { reason: string }).reason, /caducó/);
+});
+
+test("los guardas de GitHub se ejecutan ANTES de escribir secretos o de llamar a un proveedor de pago", () => {
+  const oauth = readFileSync("scripts/orchestrator/google-oauth-actions.ts", "utf8");
+  assert.match(oauth, /checkEnvironment\(\)[\s\S]*checkWriterToken\(\)[\s\S]*if \(mode === "start"\) return start/);
+  const run = readFileSync("scripts/orchestrator/run.ts", "utf8");
+  assert.match(run, /checkEnvironment\(\)[\s\S]*claimSmokeLabel\(\)/, "smoke: protected environment before the claim");
+  assert.match(run, /if \(paid\) \{[\s\S]*checkEnvironment\(\)[\s\S]*paid = false[\s\S]*const auditor = paid \? new OpenAIAuditor/, "live: unprotected environment → simulated auditor (USD 0)");
+  const w = wf("drive-oauth.yml");
+  assert.match(w, /actions: read/);
+  assert.match(w, /DEFAULT_BRANCH: \$\{\{ github\.event\.repository\.default_branch \}\}/);
+});
+
+test("humo: tope de USD 0.05, una llamada, sin reintentos (se mantiene)", () => {
+  const cfg = loadConfig({ ORCHESTRATOR_ENABLED: "true", ORCH_ALLOW_PAID_CALLS: "true", ORCH_PAID_APPROVAL: SMOKE_APPROVAL, OPENAI_API_KEY: "k", ORCH_BUDGET_CAP_USD: "99", ORCH_MAX_CALL_USD: "9" }, { durableStore: false, smoke: true });
+  assert.equal(cfg.budgetCapUsd, 0.05, "configuration can never raise it");
+  assert.ok(cfg.maxCallUsd <= 0.05);
+  assert.equal(cfg.maxCallsPerRun, 1);
+  assert.match(readFileSync("scripts/orchestrator/run.ts", "utf8"), /smoke: true \}\), maxHttpRetries: 0 \}/);
 });

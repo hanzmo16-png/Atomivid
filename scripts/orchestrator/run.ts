@@ -72,6 +72,10 @@ async function main() {
     if (!smoke.firstAttempt(process.env.GITHUB_RUN_ATTEMPT)) { log("SMOKE_SKIPPED", { reason: "una re-ejecución nunca envía la llamada de humo" }); process.exitCode = 3; return; }
     if (done !== false) { log("SMOKE_SKIPPED", { reason: done ? "la llamada de humo ya se hizo (una sola vez)" : "no se pudo leer el historial de ejecuciones" }); process.exitCode = 3; return; }
     if (!cfg.paidCalls) { log("SMOKE_SKIPPED", { reason: cfg.paidBlockedReason }); process.exitCode = 3; return; }
+    // The dedicated key lives in the "orchestrator" environment: refuse if any branch could read it.
+    const { checkEnvironment } = await import("./github-checks");
+    const env = await checkEnvironment();
+    if (!env.ok) { log("SMOKE_SKIPPED", { reason: env.reason }); process.exitCode = 3; return; }
     // Last step before sending: the atomic claim. Never released automatically (even if the call then fails).
     const claim = await claimSmokeLabel();
     log("SMOKE_CLAIM", { result: claim });
@@ -127,7 +131,14 @@ async function main() {
   log("DRIVE", { credential });
   if (!token || !folders.solicitudes || !folders.entregas) { log("BLOCKED", { reason: "falta la credencial de Google Drive (GOOGLE_OAUTH_*) o los IDs de las carpetas" }); process.exitCode = 1; return; }
   const channel = new DriveRestChannel(folders, token);
-  const auditor = cfg.paidCalls ? new OpenAIAuditor(cfg, process.env.OPENAI_API_KEY!) : new SimulatedAuditor();
+  // Paid calls only from a protected environment (its dedicated key must not be readable by other branches).
+  let paid = cfg.paidCalls;
+  if (paid) {
+    const { checkEnvironment } = await import("./github-checks");
+    const env = await checkEnvironment();
+    if (!env.ok) { log("PAID_BLOCKED", { reason: env.reason }); paid = false; }
+  }
+  const auditor = paid ? new OpenAIAuditor(cfg, process.env.OPENAI_API_KEY!) : new SimulatedAuditor();
   const executor = process.env.ORCH_CLAUDE_ACTION_ENABLED === "true" ? new ClaudeCodeActionExecutor() : new DriveHandoffExecutor();
   const notifier = process.env.GITHUB_TOKEN ? new GitHubIssueNotifier() : new NoopNotifier();
   const r = await runCycle({ channel, store, auditor, cfg, executor, notifier });

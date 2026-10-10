@@ -11,12 +11,14 @@
  *    the new token is revoked and nothing is stored.
  * Env: GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_PENDING, GOOGLE_OAUTH_REDIRECT,
  * GOOGLE_OAUTH_REFRESH_TOKEN (previous, optional), GH_TOKEN (fine-grained: this repository only, "Secrets" and
- * "Environments" read & write, short expiry), GITHUB_REPOSITORY, ORCH_DRIVE_ROOT, MODE.
+ * "Environments" read & write, expiring within 30 days), GITHUB_TOKEN (run token, to verify the environment's branch
+ * policy), DEFAULT_BRANCH, GITHUB_REPOSITORY, ORCH_DRIVE_ROOT, MODE.
  */
 export {};
 import { spawnSync } from "node:child_process";
 import { appendFile } from "node:fs/promises";
 import { checkTokenResponse, consentUrl, newPending, OAUTH_ENVIRONMENT, parsePending, parseRedirect, tokenRequestBody } from "../../src/lib/orchestrator/google-oauth";
+import { checkEnvironment, checkWriterToken } from "./github-checks";
 
 const say = async (line: string) => { console.log(line); if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `${line}\n\n`); };
 const fail = async (line: string) => { await say(`NO SE COMPLETÓ: ${line}`); process.exitCode = 1; };
@@ -75,6 +77,12 @@ async function main() {
   if (!clientId || !clientSecret) return fail("faltan los secretos GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET en el entorno «orchestrator» (cliente OAuth «Desktop app»)");
   if (!process.env.GH_TOKEN) return fail("falta el secreto ORCH_SECRETS_WRITER_TOKEN en el entorno «orchestrator» (token de grano fino de este repositorio, «Secrets» y «Environments» lectura y escritura)");
   if (!repo || !root) return fail("falta el repositorio o la carpeta de coordinación");
+  // Never write a secret into an environment any branch could read, nor with a writer token that does not expire.
+  const env = await checkEnvironment();
+  if (!env.ok) return fail(env.reason);
+  const writer = await checkWriterToken();
+  if (!writer.ok) return fail(writer.reason);
+  await say(`Comprobado: el entorno «${OAUTH_ENVIRONMENT}» solo lo usa la rama por defecto${env.reviewers ? " y exige revisión" : " (recomendado: añadir revisor obligatorio)"}; el token de escritura caduca en ${writer.daysLeft} día(s).`);
   if (mode === "start") return start(clientId);
   if (mode === "finish") return finish(clientId, clientSecret, root);
   return fail("modo desconocido");
