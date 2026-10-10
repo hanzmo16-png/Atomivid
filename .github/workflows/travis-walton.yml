@@ -21,7 +21,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: npx tsx scripts/travis-walton/run.ts
+      - name: Media tools for final editing
+        run: |
+          if head -1 ops/travis-walton/mode | grep -q '^close-'; then sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core > /dev/null; fi
+      - run: |
+          if head -1 ops/travis-walton/mode | grep -q '^close-'; then npx tsx scripts/travis-walton/close.ts; else npx tsx scripts/travis-walton/run.ts; fi
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
