@@ -48,6 +48,7 @@ jobs:
             npx tsx scripts/review/publish-editor-fixture.ts;
           elif [ "$MODE" = "podcast-editor-live" ]; then npx tsx scripts/review/podcast-editor-live.ts;
           elif [ "$MODE" = "platform-state" ]; then npx tsx scripts/review/platform-state.ts;
+          elif [ "$MODE" = "provider-state" ]; then PROBE_MIB="$(sed -n 's/^mib=//p' ops/review-video.mode | head -1)" npx tsx scripts/review/provider-state.ts;
           elif [ "$MODE" = "platform-owner" ]; then
             grep -q '^owner_session=yes$' ops/review-video.mode && export OWNER_SESSION_AUTHORIZED=yes
             npx tsx scripts/review/platform-owner-e2e.ts;
@@ -80,6 +81,7 @@ jobs:
           SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
           SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          ELEVENLABS_API_KEY: ${{ (startsWith(github.event.head_commit.message, 'Provider state') && secrets.ELEVENLABS_API_KEY) || '' }}
       - name: Hand over encrypted outputs only
         if: always()
         uses: actions/upload-artifact@v4
