@@ -2,8 +2,10 @@
  * Podcast worker (GitHub Actions, .github/workflows/podcast-video.yml). Dispatched by the app with only the
  * episode id. Two jobs:
  *  - narration: background narration of a long script (same gated, resumable runGeneration as the web route);
- *  - video: narration first if needed, then the editor v3 engine renders the video (title cards per chapter over
- *    the mastered audio), verified by the editor itself, then stored in the private "videos" bucket.
+ *  - video: narration first if needed; then the visual plan (scenes that follow the narration), a licensed Pexels clip
+ *    or animated photo per scene, subtitles from the word timings of the narration already paid (reuse-only, never
+ *    a new voice call); the editor v3 engine renders it over the mastered audio and verifies it; stored in the
+ *    private "videos" bucket with its credits.
  * Every step is fenced by the episode's run tokens; a failure leaves a clear message and keeps the audio and every
  * paid narration chunk. Logs carry stages and exit codes only (no script, title, URLs or credentials).
  * Usage: EPISODE_ID=<uuid> JOB_KIND=video|narration npx tsx scripts/podcast-video-worker.ts
@@ -18,7 +20,7 @@ import os from "node:os";
 import path from "node:path";
 
 const log = (tag: string, v: unknown) => console.log(tag, JSON.stringify(v));
-const STORAGE_MAX_BYTES = 480 * 1024 * 1024; // under the project's demonstrated Storage ceiling (500 MiB accepted)
+const STORAGE_MAX_BYTES = 900 * 1024 * 1024; // working ceiling under the project's 1 GB Storage limit (1000 MiB accepted)
 
 class PublicError extends Error {}
 
@@ -64,6 +66,12 @@ async function main() {
   const { EPISODE_COLUMNS, runGeneration } = await import("../src/lib/podcast/server");
   const { isStalledVideo } = await import("../src/lib/podcast/episode");
   const { buildPodcastMontage, readySignal } = await import("../src/lib/podcast/video-montage");
+  const { scenesFromWords, evenScenes, sceneLengths, wordsJson } = await import("../src/lib/podcast/visual-plan");
+  const { buildSceneShots, downloadToFile, renderClipFfmpeg, renderPhotoFfmpeg } = await import("../src/lib/podcast/visual-assets");
+  const { storedNarrationWords } = await import("../src/lib/podcast/narrate");
+  const { supabaseResultStore } = await import("../src/lib/paid-calls/result-store");
+  const { getVoiceIdentity } = await import("../src/lib/ai/voice");
+  const { searchSceneVideos, searchScenePhotos, setFootageWaitBeat } = await import("../src/lib/ai/footage");
   type Episode = import("../src/lib/podcast/episode").PodcastEpisode;
   const service = createServiceClient();
   const load = async () => (await service.from("podcast_episodes").select(EPISODE_COLUMNS).eq("id", episodeId).single()).data as Episode | null;
@@ -106,10 +114,55 @@ async function main() {
     const audioPath = path.join(input, "audio", "episode.m4a");
     await writeFile(audioPath, Buffer.from(await audioBlob.arrayBuffer()));
     const audioStat = await stat(audioPath);
-    const audioSeconds = Number(episode.duration_seconds) || (await probeSeconds(audioPath));
+    const audioSeconds = (await probeSeconds(audioPath)) || Number(episode.duration_seconds);
+    const ep = episode;
+
+    // Subtitles: word timings of the narration chunks already paid and stored (reuse-only; null → no subtitles).
+    let words: Awaited<ReturnType<typeof storedNarrationWords>> = null;
+    if (ep.source === "tts") {
+      try {
+        words = await storedNarrationWords({ results: supabaseResultStore(service, "videos"), voiceProvider: { name: "elevenlabs" }, voiceIdentity: getVoiceIdentity(ep.language, ep.voice_id ?? undefined) }, ep);
+      } catch {
+        words = null;
+      }
+    }
+    log("NARRATION_WORDS", { available: !!words, count: words?.length ?? 0 });
+    const scenes = words?.length ? scenesFromWords(words, audioSeconds, ep.title, sceneLengths(audioSeconds)) : evenScenes(audioSeconds, ep.title, ep.script, sceneLengths(audioSeconds).target);
+
+    await stage(`Buscando imágenes (0/${scenes.length})`);
+    const media = path.join(input, "medios");
+    await mkdir(media, { recursive: true });
+    const locale = ep.language === "en" ? "en-US" : "es-ES";
+    // A Pexels rate-limit wait (up to an hour) keeps the run visibly alive instead of looking stalled.
+    setFootageWaitBeat(() => stage("Esperando al banco de imágenes"));
+    let shots: Awaited<ReturnType<typeof buildSceneShots>> = scenes.map(() => null);
+    if (process.env.PEXELS_API_KEY?.trim()) {
+      shots = await buildSceneShots(scenes, ep.title, media, {
+        searchVideos: (q) => searchSceneVideos(q, 0, "landscape", locale),
+        searchPhotos: (q) => searchScenePhotos(q, "landscape", locale),
+        download: downloadToFile, renderClip: renderClipFfmpeg, renderPhoto: renderPhotoFfmpeg,
+        onProgress: (done, total) => (done % 5 === 0 || done === total ? stage(`Buscando imágenes (${done}/${total})`) : undefined),
+        log,
+      });
+    } else log("SHOTS", { skipped: "no stock key" });
+    setFootageWaitBeat(null);
+
+    let subtitles = null;
+    if (words?.length) {
+      const subsPath = path.join(input, "subtitulos.json");
+      const bytes = Buffer.from(JSON.stringify(wordsJson(words, audioSeconds)));
+      await writeFile(subsPath, bytes);
+      subtitles = { path: "subtitulos.json", size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") };
+    }
+    await stage("Montando video");
     const montage = buildPodcastMontage({
-      episodeId, version: Math.max(1, episode.video_attempts ?? 1), title: episode.title, durationSeconds: audioSeconds,
+      episodeId, version: Math.max(1, ep.video_attempts ?? 1), title: ep.title, durationSeconds: audioSeconds,
       audio: { path: "audio/episode.m4a", size: audioStat.size, sha256: await sha256File(audioPath) },
+      scenes: scenes.map((sc, i) => {
+        const shot = shots[i];
+        return { start: sc.start, end: sc.end, shot: shot ? { path: path.relative(input, shot.file), size: shot.size, sha256: shot.sha256, seconds: shot.seconds, credit: shot.credit, pageUrl: shot.pageUrl } : null };
+      }),
+      subtitles,
     });
     const manifest = path.join(input, "montaje.json");
     const manifestBytes = Buffer.from(JSON.stringify(montage, null, 2));
@@ -118,7 +171,7 @@ async function main() {
     const editor = path.resolve("scripts/podcast-editor-v3/editor.py");
     if (await run("python3", [editor, "validate", manifest, "--archivos"], 120_000) !== 0) throw new PublicError("El montaje no pasó la validación del editor. Pulsa «Reintentar»; si se repite, revisa el audio del episodio.");
     const renderWork = path.join(work, "render");
-    const renderCode = await run("python3", [editor, "run", manifest, "--work", renderWork, "--retries", "1"], 75 * 60_000);
+    const renderCode = await run("python3", [editor, "run", manifest, "--work", renderWork, "--retries", "1"], 90 * 60_000);
     if (renderCode !== 0) throw new PublicError(`El montaje del video falló (código ${renderCode}). La narración está guardada; pulsa «Reintentar».`);
     const mp4 = await findFile(renderWork, "episodio.mp4");
     const report = await findFile(renderWork, "reporte.json");
@@ -136,6 +189,9 @@ async function main() {
     const sha256 = await sha256File(mp4);
     const { error: upErr } = await service.storage.from("videos").upload(objectPath, await readFile(mp4), { contentType: "video/mp4", upsert: true });
     if (upErr) throw new PublicError("No se pudo guardar el video. El montaje está hecho; pulsa «Reintentar».");
+    // Stock credits (Pexels licence) next to the video; best effort, never blocks the delivery.
+    const credits = await findFile(renderWork, "creditos.json");
+    if (credits) await service.storage.from("videos").upload(objectPath.replace(/episodio\.mp4$/, "creditos.json"), await readFile(credits), { contentType: "application/json", upsert: true }).catch(() => undefined);
     const ok = await fenced({ video_status: "ready", video_stage: null, video_path: objectPath, video_bytes: size, video_sha256: sha256, video_duration_seconds: seconds, video_error: null });
     log("VIDEO", { ok, bytes: size, seconds: Math.round(seconds) });
   } catch (err) {

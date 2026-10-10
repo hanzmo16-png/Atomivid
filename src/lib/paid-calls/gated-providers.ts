@@ -58,6 +58,35 @@ async function loadStoredResult<T>(results: PaidResultStore, requestId: string, 
 }
 
 /**
+ * Reuse-only lookup of a narration chunk that was ALREADY paid and stored (same fingerprint as
+ * gatedVoiceSynthesize). Never calls the provider and never writes the ledger: returns null when the chunk was
+ * not stored. Used to rebuild word timings (subtitles) for an episode at no cost.
+ */
+export async function storedVoiceResult(
+  deps: Pick<PaidCallDeps, "results" | "requestId"> & { voiceProvider: Pick<VoiceProvider, "name">; voiceIdentity: { voiceId: string; modelId: string; voiceSettingsJson: string } },
+  text: string,
+  language: ScriptLanguage,
+  speed?: number,
+  opts: { aliases?: readonly PronunciationAlias[] } = {},
+): Promise<VoiceResult | null> {
+  const aliases = opts.aliases ?? [];
+  const ttsText = spokenText(text, aliases);
+  const fingerprint = { text: ttsText, language, speed: speed ?? null, voiceId: deps.voiceIdentity.voiceId, modelId: deps.voiceIdentity.modelId, voiceSettingsJson: deps.voiceIdentity.voiceSettingsJson };
+  const spec: PaidCallSpec = {
+    projectId: deps.requestId, shotId: `voice:${stableHash(fingerprint, 16)}`, provider: deps.voiceProvider.name, model: deps.voiceIdentity.modelId,
+    method: "tts_with_timestamps", capacityUnits: ttsText.length, inputFingerprint: fingerprint, reservedUsd: 0,
+  };
+  const load = async (resultRef: string): Promise<VoiceResult | null> => {
+    const stored = await loadAudio<StoredVoice>(deps.results, resultRef);
+    if (!stored) return null;
+    const { meta, audioBuffer } = stored;
+    return { audioBuffer, durationSeconds: meta.durationSeconds, words: meta.words, mimeType: meta.mimeType, extension: meta.extension };
+  };
+  const stored = await loadStoredResult(deps.results, deps.requestId, spec, load);
+  return stored ? { ...stored, words: restoreDisplayWords(stored.words, aliases) } : null;
+}
+
+/**
  * ElevenLabs on Generate (Reel voice ×2 incl. the speed correction, Avatar narration). The key
  * is the text + language + speed + voice identity; render_attempts is not part of it.
  *

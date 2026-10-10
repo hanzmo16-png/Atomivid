@@ -47,14 +47,16 @@ export const LONG_FORM_OUTPUT_POLICY = {
    */
   policyMaxBytes: 1024 * MiB,
   /**
-   * Límite de Storage demostrado (global del proyecto): sonda del 2026-10-10 (review-video runs 38022758327 y
-   * 38022889489) — 500 MiB aceptado, 600 MiB rechazado con "The object exceeded the maximum allowed size".
-   * Techo por defecto cuando no hay un valor configurado (LONG_FORM_STORAGE_MAX_OBJECT_BYTES): se usa desde el
-   * preflight y para fijar el bitrate del render, de modo que un documental de 30 min nunca se rechace.
+   * Techo de trabajo bajo el límite global de Storage. El proyecto subió el límite a 1 GB; la sonda del
+   * 2026-10-10 (review-video run 38053154827) aceptó objetos de 600, 900 y 1000 MiB. Se usa 900 MiB (~10 % de
+   * margen) cuando no hay un valor configurado (LONG_FORM_STORAGE_MAX_OBJECT_BYTES): fija el bitrate del render y
+   * el preflight, así un documental de 30 min sale a ~3.7 Mbps sin re-codificar y nunca se rechaza.
    */
-  demonstratedStorageMaxBytes: 500 * MiB,
-  /** Límite anterior demostrado (50 MiB, valor por defecto de Supabase): respaldo si Storage rechaza algo que ya cabía en el demostrado. */
-  historicalStorageFloorBytes: 50 * MiB,
+  demonstratedStorageMaxBytes: 900 * MiB,
+  /** Respaldo si Storage rechaza algo que cabía en el techo de trabajo: el límite anterior demostrado (500 MiB aceptado). */
+  historicalStorageFloorBytes: 480 * MiB,
+  /** Supabase's default upload limit (50 MB), the project's limit until 2026-10-10. */
+  legacyDefaultStorageBytes: 50 * MiB,
   /** Margen bajo el techo para el ajuste de tamaño (contenedor, VBV, desviación del 2-pass). */
   fitSafetyRatio: 0.94,
   /** Por debajo de este bitrate de video a 1080p la calidad ya no es entregable: se diagnostica, no se degrada más. */

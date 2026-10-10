@@ -136,6 +136,7 @@ export async function searchSceneVideos(
   query: string,
   minimumDurationSeconds = 0,
   orientation: FootageOrientation = "portrait",
+  locale?: string,
 ): Promise<FootageCandidateRaw[]> {
   if (!PEXELS_API_KEY) {
     throw new Error("Falta configurar PEXELS_API_KEY");
@@ -147,6 +148,7 @@ export async function searchSceneVideos(
     per_page: "12",
     size: "medium",
   });
+  if (locale) params.set("locale", locale);
 
   const res = await pexelsFetch(`https://api.pexels.com/videos/search?${params}`, PEXELS_API_KEY);
 
@@ -187,7 +189,7 @@ export async function fetchSceneVideo(
 }
 
 /** Igual que searchSceneVideos pero para fotos — último recurso cuando ningún concepto encuentra video. */
-export async function searchScenePhotos(query: string, orientation: FootageOrientation = "portrait"): Promise<FootageCandidateRaw[]> {
+export async function searchScenePhotos(query: string, orientation: FootageOrientation = "portrait", locale?: string): Promise<FootageCandidateRaw[]> {
   if (!PEXELS_API_KEY) {
     throw new Error("Falta configurar PEXELS_API_KEY");
   }
@@ -197,6 +199,7 @@ export async function searchScenePhotos(query: string, orientation: FootageOrien
     orientation,
     per_page: "8",
   });
+  if (locale) params.set("locale", locale);
 
   const res = await pexelsFetch(`https://api.pexels.com/v1/search?${params}`, PEXELS_API_KEY);
 
