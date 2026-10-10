@@ -45,11 +45,15 @@ export function sceneQuery(text: string, title: string, topic?: Topic): string {
   return [...terms, ...salient(title, 2)].slice(0, 3).join(" ") || title.slice(0, 40);
 }
 
-/** The episode's subject: its most recurrent content word in the script (5+ letters; ties → longer). */
-export function anchorOf(script: string): string | null {
+/**
+ * The episode's subject: its most recurrent content word in the script (5+ letters; ties → longer). A script too
+ * short to repeat anything falls back to the title's leading term (the show's subject), never to no anchor.
+ */
+export function anchorOf(script: string, title = ""): string | null {
   const t = topicOf(script, "");
   const best = [...t.entries()].filter(([w]) => w.length >= 5).sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)[0];
-  return best && best[1] >= 2 ? best[0] : null;
+  if (best && best[1] >= 2) return best[0];
+  return salient(title, 1)[0] ?? null;
 }
 
 function withQueries(scene: Omit<Scene, "query" | "queries">, title: string, topic: Topic, anchor: string | null): Scene {
@@ -62,7 +66,7 @@ function withQueries(scene: Omit<Scene, "query" | "queries">, title: string, top
 export function scenesFromWords(words: WordTiming[], durationSeconds: number, title: string, opts: { min?: number; target?: number; max?: number } = {}): Scene[] {
   const min = opts.min ?? 8, target = opts.target ?? 12, max = opts.max ?? 18;
   const spoken = words.map((w) => w.text).join(" ");
-  const topic = topicOf(spoken, title), anchor = anchorOf(spoken);
+  const topic = topicOf(spoken, title), anchor = anchorOf(spoken, title);
   const scenes: Omit<Scene, "query" | "queries">[] = [];
   let start = 0, bucket: string[] = [];
   const push = (end: number) => {
@@ -95,7 +99,7 @@ export function evenScenes(durationSeconds: number, title: string, script: strin
   const n = Math.max(1, Math.round(durationSeconds / target));
   const len = durationSeconds / n;
   const sentences = (script ?? "").split(/(?<=[.!?])\s+/).filter(Boolean);
-  const topic = topicOf(script ?? "", title), anchor = anchorOf(script ?? "");
+  const topic = topicOf(script ?? "", title), anchor = anchorOf(script ?? "", title);
   return Array.from({ length: n }, (_, i) => {
     const text = sentences.length ? sentences.slice(Math.floor((i * sentences.length) / n), Math.floor(((i + 1) * sentences.length) / n)).join(" ") : "";
     return withQueries({ index: i, start: i * len, end: i === n - 1 ? durationSeconds : (i + 1) * len, text }, title, topic, anchor);
