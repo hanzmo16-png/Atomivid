@@ -40,51 +40,62 @@ async function start(clientId: string) {
   await say("5. Ejecuta este flujo con modo «finish». Borrará ese secreto y el intento, pase lo que pase.");
 }
 
+/**
+ * Google revokes the whole grant (this client + this account), not one token: revoking any token of the owner's
+ * account would also kill the one already stored. So a token is revoked ONLY when it belongs to an account that is
+ * NOT the folder owner; a replaced token of the owner is never revoked automatically (Hans can remove access by hand).
+ */
 async function finish(clientId: string, clientSecret: string, root: string) {
-  const previous = process.env.GOOGLE_OAUTH_REFRESH_TOKEN?.trim() || undefined;
-  let fresh: string | undefined;
-  try {
-    const p = parsePending(process.env.GOOGLE_OAUTH_PENDING);
-    if (!p.ok) return fail(p.reason);
-    mask(p.pending.verifier);
-    const r = parseRedirect(process.env.GOOGLE_OAUTH_REDIRECT, p.pending.state);
-    if (!r.ok) return fail(r.reason);
-    mask(r.code);
-    const tok = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: tokenRequestBody({ code: r.code, verifier: p.pending.verifier, clientId, clientSecret }), signal: AbortSignal.timeout(20_000) });
-    const body = (await tok.json().catch(() => null)) as { refresh_token?: string; access_token?: string; scope?: string; error?: string } | null;
-    mask(body?.access_token); mask(body?.refresh_token);
-    fresh = body?.refresh_token;
-    const check = checkTokenResponse(tok.status, body);
-    if (!check.ok) return fail(check.reason);
-    // The token must belong to the owner of the coordination folder (not any account that happened to consent).
-    const f = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(root)}?fields=id,ownedByMe,capabilities(canAddChildren)`, { headers: { authorization: `Bearer ${body!.access_token}` }, signal: AbortSignal.timeout(20_000) });
-    const folder = (await f.json().catch(() => null)) as { ownedByMe?: boolean; capabilities?: { canAddChildren?: boolean } } | null;
-    if (!f.ok || folder?.ownedByMe !== true || folder.capabilities?.canAddChildren !== true) return fail("la cuenta autorizada no es la dueña de la carpeta de coordinación; el token se revocó y no se guardó nada");
-    if (!secret(["set", "GOOGLE_OAUTH_REFRESH_TOKEN"], check.refreshToken)) return fail("GitHub no aceptó guardar el secreto en el entorno «orchestrator»; el token se revocó");
-    fresh = undefined; // stored: keep it
-    if (previous && previous !== check.refreshToken) await revoke(previous);
-    await say(`LISTO: GOOGLE_OAUTH_REFRESH_TOKEN guardado en el entorno «${OAUTH_ENVIRONMENT}» (solo la rama por defecto puede leerlo). La cuenta es dueña de la carpeta y puede escribir en ella.${previous ? " El token anterior se revocó." : ""} Ningún token se mostró.`);
-  } finally {
-    await revoke(fresh); // a token obtained but not stored never stays valid
-    const cleaned = secret(["delete", "GOOGLE_OAUTH_REDIRECT"]) && secret(["delete", "GOOGLE_OAUTH_PENDING"]);
-    if (!cleaned) await say("Aviso: no se pudieron borrar GOOGLE_OAUTH_REDIRECT / GOOGLE_OAUTH_PENDING; bórralos a mano (ya no sirven: el código es de un solo uso).");
+  const p = parsePending(process.env.GOOGLE_OAUTH_PENDING);
+  if (!p.ok) return fail(p.reason);
+  mask(p.pending.verifier);
+  const r = parseRedirect(process.env.GOOGLE_OAUTH_REDIRECT, p.pending.state);
+  if (!r.ok) return fail(r.reason);
+  mask(r.code);
+  const tok = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: tokenRequestBody({ code: r.code, verifier: p.pending.verifier, clientId, clientSecret }), signal: AbortSignal.timeout(20_000) });
+  const body = (await tok.json().catch(() => null)) as { refresh_token?: string; access_token?: string; scope?: string; error?: string } | null;
+  mask(body?.access_token); mask(body?.refresh_token);
+  const check = checkTokenResponse(tok.status, body);
+  if (!check.ok) return fail(check.reason);
+  // The token must belong to the owner of the coordination folder (not any account that happened to consent).
+  const f = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(root)}?fields=id,ownedByMe,capabilities(canAddChildren)`, { headers: { authorization: `Bearer ${body!.access_token}` }, signal: AbortSignal.timeout(20_000) });
+  const folder = (await f.json().catch(() => null)) as { ownedByMe?: boolean; capabilities?: { canAddChildren?: boolean } } | null;
+  if (f.status === 404 || (f.ok && folder?.ownedByMe !== true)) {
+    await revoke(check.refreshToken); // another account: its grant can go, the owner's stored token is untouched
+    return fail("la cuenta autorizada no es la dueña de la carpeta de coordinación; su acceso se revocó y no se guardó nada");
   }
+  if (!f.ok || folder?.capabilities?.canAddChildren !== true) return fail("no se pudo comprobar la carpeta de coordinación; no se guardó nada (repite «start»)");
+  if (!secret(["set", "GOOGLE_OAUTH_REFRESH_TOKEN"], check.refreshToken)) return fail("GitHub no aceptó guardar el secreto en el entorno «orchestrator»; no se guardó nada");
+  // The writer token is not needed any more: remove it from the environment (Hans revokes it in GitHub, or it expires).
+  const writerRemoved = secret(["delete", "ORCH_SECRETS_WRITER_TOKEN"]);
+  await say(`LISTO: GOOGLE_OAUTH_REFRESH_TOKEN guardado en el entorno «${OAUTH_ENVIRONMENT}» (solo la rama por defecto puede leerlo). La cuenta es dueña de la carpeta y puede escribir en ella. Ningún token se mostró.${writerRemoved ? " ORCH_SECRETS_WRITER_TOKEN se borró del entorno; revócalo también en GitHub." : " Borra ORCH_SECRETS_WRITER_TOKEN del entorno y revócalo en GitHub."}`);
+}
+
+/** Always runs in "finish" mode, whatever happened: each secret deleted on its own (one failing never skips the other). */
+async function cleanupFinish() {
+  const redirect = secret(["delete", "GOOGLE_OAUTH_REDIRECT"]);
+  const pending = secret(["delete", "GOOGLE_OAUTH_PENDING"]);
+  if (!redirect || !pending) await say("Aviso: no se pudo borrar algún secreto temporal (GOOGLE_OAUTH_REDIRECT / GOOGLE_OAUTH_PENDING); el paso de limpieza lo reintenta, o bórralo a mano.");
 }
 
 async function main() {
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID?.trim(), clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim();
   const root = process.env.ORCH_DRIVE_ROOT?.trim(), mode = process.env.MODE;
-  if (!clientId || !clientSecret) return fail("faltan los secretos GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET en el entorno «orchestrator» (cliente OAuth «Desktop app»)");
-  if (!process.env.GH_TOKEN) return fail("falta el secreto ORCH_SECRETS_WRITER_TOKEN en el entorno «orchestrator» (token de grano fino de este repositorio, «Secrets» y «Environments» lectura y escritura)");
-  if (!repo || !root) return fail("falta el repositorio o la carpeta de coordinación");
-  // Never write a secret into an environment any branch could read, nor with a writer token that does not expire.
-  const env = await checkEnvironment();
-  if (!env.ok) return fail(env.reason);
-  const writer = await checkWriterToken();
-  if (!writer.ok) return fail(writer.reason);
-  await say(`Comprobado: el entorno «${OAUTH_ENVIRONMENT}» solo lo usa la rama por defecto${env.reviewers ? " y exige revisión" : " (recomendado: añadir revisor obligatorio)"}; el token de escritura caduca en ${writer.daysLeft} día(s).`);
-  if (mode === "start") return start(clientId);
-  if (mode === "finish") return finish(clientId, clientSecret, root);
-  return fail("modo desconocido");
+  try {
+    if (!clientId || !clientSecret) return fail("faltan los secretos GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET en el entorno «orchestrator» (cliente OAuth «Desktop app»)");
+    if (!process.env.GH_TOKEN) return fail("falta el secreto ORCH_SECRETS_WRITER_TOKEN en el entorno «orchestrator» (token de grano fino de este repositorio, «Secrets» y «Environments» lectura y escritura)");
+    if (!repo || !root) return fail("falta el repositorio o la carpeta de coordinación");
+    // Never write a secret into an environment any branch could read, nor with a writer token that does not expire.
+    const env = await checkEnvironment();
+    if (!env.ok) return fail(env.reason);
+    const writer = await checkWriterToken();
+    if (!writer.ok) return fail(writer.reason);
+    await say(`Comprobado: el entorno «${OAUTH_ENVIRONMENT}» solo lo usa la rama por defecto${env.reviewers ? " y exige revisión" : " (recomendado: añadir revisor obligatorio)"}; el token de escritura es de grano fino y caduca en ${writer.daysLeft} día(s).`);
+    if (mode === "start") return await start(clientId);
+    if (mode === "finish") return await finish(clientId, clientSecret, root);
+    return fail("modo desconocido");
+  } finally {
+    if (mode === "finish" && process.env.GH_TOKEN && repo) await cleanupFinish();
+  }
 }
 main().catch(async () => { await fail("error inesperado (sin detalles para no exponer datos)"); });

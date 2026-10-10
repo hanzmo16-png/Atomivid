@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Default branch only; Google secrets live in the "orchestrator" environment (restricted to that branch).
-    if: (vars.ORCHESTRATOR_ENABLED == 'true' || inputs.mode == 'preflight') && github.ref_name == github.event.repository.default_branch
+    if: (vars.ORCHESTRATOR_ENABLED == 'true' || inputs.mode == 'preflight') && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     environment: orchestrator
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -60,8 +60,9 @@ jobs:
           # the app's shared OPENAI_API_KEY, which any branch workflow could read.
           OPENAI_API_KEY: ${{ (vars.ORCH_ALLOW_PAID_CALLS == 'true' && inputs.mode != 'preflight' && secrets.ORCH_OPENAI_API_KEY) || '' }}
           OPENAI_KEY_PRESENT: ${{ secrets.ORCH_OPENAI_API_KEY != '' }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ (vars.ORCH_STORE == 'supabase' && secrets.SUPABASE_URL) || '' }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ (vars.ORCH_STORE == 'supabase' && secrets.SUPABASE_SERVICE_ROLE_KEY) || '' }}
+          # Durable store: a dedicated project/key in the "orchestrator" environment, never the app's production keys.
+          ORCH_SUPABASE_URL: ${{ (vars.ORCH_STORE == 'supabase' && secrets.ORCH_SUPABASE_URL) || '' }}
+          ORCH_SUPABASE_SERVICE_ROLE_KEY: ${{ (vars.ORCH_STORE == 'supabase' && secrets.ORCH_SUPABASE_SERVICE_ROLE_KEY) || '' }}
           GITHUB_TOKEN: ${{ github.token }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           NOTICE_MENTION: ${{ github.repository_owner }}

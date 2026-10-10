@@ -115,8 +115,11 @@ async function main() {
   const supabaseStore = process.env.ORCH_STORE === "supabase";
   let store;
   if (supabaseStore) {
-    const { createServiceClient } = await import("../../src/lib/supabase/service");
-    store = new SupabaseStore(createServiceClient() as never);
+    // Its own project/key (ORCH_SUPABASE_*, environment "orchestrator"), never Atomivid's production service key.
+    const url = process.env.ORCH_SUPABASE_URL?.trim(), key = process.env.ORCH_SUPABASE_SERVICE_ROLE_KEY?.trim();
+    if (!url || !key) { log("STORE_REFUSED", { reason: "faltan ORCH_SUPABASE_URL / ORCH_SUPABASE_SERVICE_ROLE_KEY (proyecto dedicado del orquestador)" }); process.exitCode = 1; return; }
+    const { createClient } = await import("@supabase/supabase-js");
+    store = new SupabaseStore(createClient(url, key, { auth: { persistSession: false } }) as never);
   } else store = new JsonFileStore(path.resolve(process.env.ORCH_STATE_FILE || ".orchestrator/state.json"));
   const cfg = loadConfig(process.env, { durableStore: store.durable });
   log("CONFIG", { enabled: cfg.enabled, paidCalls: cfg.paidCalls, paidBlockedReason: cfg.paidBlockedReason, model: cfg.model, budgetCapUsd: cfg.budgetCapUsd, maxCallsPerRun: cfg.maxCallsPerRun, store: supabaseStore ? "supabase" : "json" });

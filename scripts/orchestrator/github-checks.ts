@@ -32,6 +32,6 @@ export async function checkWriterToken(): Promise<{ ok: true; daysLeft: number }
   try {
     const res = await api("", token);
     if (!res.ok) return { ok: false, reason: `el token ORCH_SECRETS_WRITER_TOKEN no puede leer este repositorio (${res.status})` };
-    return writerTokenGuard(res.headers.get("github-authentication-token-expiration"));
+    return writerTokenGuard(res.headers.get("github-authentication-token-expiration"), Date.now(), res.headers.get("x-oauth-scopes"));
   } catch { return { ok: false, reason: "no se pudo verificar el token ORCH_SECRETS_WRITER_TOKEN (red)" }; }
 }

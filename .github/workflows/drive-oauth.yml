@@ -23,7 +23,7 @@ concurrency:
 jobs:
   authorize:
     # Default branch only (the environment's branch policy enforces it too).
-    if: github.ref_name == github.event.repository.default_branch
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
     environment: orchestrator
     timeout-minutes: 10
@@ -48,3 +48,13 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           ORCH_DRIVE_ROOT: 17GzExKZIgjOTF1Ods0H1AapuRssQ9m8Z
+      # Also on cancel or timeout (Node never reaches its own cleanup then): the single-use code never stays stored.
+      - name: Remove the temporary secrets (finish)
+        if: always() && inputs.mode == 'finish'
+        env:
+          GH_TOKEN: ${{ secrets.ORCH_SECRETS_WRITER_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          [ -n "$GH_TOKEN" ] || exit 0
+          gh secret delete GOOGLE_OAUTH_REDIRECT --env orchestrator --repo "$REPO" >/dev/null 2>&1 || true
+          gh secret delete GOOGLE_OAUTH_PENDING --env orchestrator --repo "$REPO" >/dev/null 2>&1 || true

@@ -89,7 +89,8 @@ Pasos de Hans para la opción recomendada (una vez, sin pegar claves en chats ni
    - crea un cliente OAuth de tipo «Desktop app».
    - Opcional, para reducir el alcance: una cuenta de Google dedicada que sea dueña solo de la carpeta de coordinación, compartida con la cuenta principal. Si el token se filtrara, solo expondría esa cuenta.
 2. **Entorno protegido de GitHub `orchestrator`** (Settings → Environments → New environment):
-   - «Deployment branches»: solo la rama por defecto. Un workflow subido en cualquier otra rama no podrá leer estos secretos.
+   - «Deployment branches»: **«Selected branches»** con solo la rama por defecto. «Protected branches» se rechaza porque puede incluir otras ramas. Los workflows lo comprueban por API antes de escribir o usar un secreto. Un workflow subido en cualquier otra rama no podrá leer estos secretos.
+   - Recomendado también: proteger la rama por defecto contra empujes directos. Quien pueda empujar a esa rama podría añadir un workflow que lea el entorno.
    - Recomendado: «Required reviewers» con Hans, para aprobar cada ejecución que los use.
    - Secretos del entorno:
      - `GOOGLE_OAUTH_CLIENT_ID` y `GOOGLE_OAUTH_CLIENT_SECRET`;
@@ -112,15 +113,16 @@ Pasos de Hans para la opción recomendada (una vez, sin pegar claves en chats ni
      - canjea el código con el verificador;
      - exige que la cuenta sea **dueña** de la carpeta de coordinación y pueda escribir en ella;
      - guarda `GOOGLE_OAUTH_REFRESH_TOKEN` en el entorno, pasando el valor por la entrada estándar;
-     - revoca el token anterior;
-     - **siempre** borra `GOOGLE_OAUTH_REDIRECT` y `GOOGLE_OAUTH_PENDING`.
-     - Si algo falla, revoca el token nuevo y no guarda nada.
+     - borra `ORCH_SECRETS_WRITER_TOKEN` del entorno; Hans lo revoca también en GitHub;
+     - **siempre** borra `GOOGLE_OAUTH_REDIRECT` y `GOOGLE_OAUTH_PENDING`: también si un control falla antes y, con un paso `if: always()`, si el trabajo se cancela o caduca.
+   - **Revocación:** Google revoca la concesión completa (este cliente y esta cuenta), no un token suelto. Por eso solo se revoca automáticamente el token de una cuenta que **no** es la dueña de la carpeta. Si algo falla con la cuenta dueña, no se guarda nada y el token ya guardado sigue funcionando. Para cortar el acceso: Cuenta de Google → Seguridad → Acceso de terceros.
+   - **Token que escribe secretos:** se rechaza si es clásico (GitHub responde con `X-OAuth-Scopes`), si no caduca o si caduca dentro de más de 30 días.
    - **Amenazas cubiertas:**
      - el código no aparece en entradas públicas, registros ni resúmenes;
      - un código interceptado no sirve sin el verificador y el secreto del cliente, que solo existen como secretos;
      - no hay reutilización: el código es de un solo uso en Google y el intento se borra;
      - un estado que no corresponde, por mezcla de sesiones, se rechaza;
-     - el token que escribe secretos tiene permisos mínimos y vida corta;
+     - el token que escribe secretos es de grano fino, con permisos mínimos y vida corta, y se borra tras usarse;
      - el token de renovación queda en un entorno limitado a la rama por defecto.
    - Los workflows manuales solo se pueden lanzar cuando están en la rama por defecto.
    - **Descartado, según la documentación oficial de Google:**
@@ -141,6 +143,8 @@ Pasos de Hans para la opción recomendada (una vez, sin pegar claves en chats ni
   - El orquestador lo despacha con `workflow_dispatch`, pasando el id de la tarea y la **huella sha256** del archivo que escribió.
   - El ejecutor solo corre esa tarea si hay exactamente un archivo con ese id, escrito por `de: orquestador`, con esa misma huella. Un archivo plantado o editado en Drive se rechaza.
   - Los secretos de Google solo llegan a los dos pasos de entrada y salida de Drive, nunca al paso de Claude.
+  - La entrega corre en **otro trabajo**, con checkout e instalación limpios. Solo pasa `result.md` como salida del trabajo; no hay artefacto público. Nada de lo que Claude escriba en su espacio de trabajo se ejecuta junto al token de Drive.
+  - El token del repositorio es de solo lectura y no se pide token OIDC (`id-token`).
   - Claude no tiene shell ni web, y el token del repositorio es de solo lectura.
   - La salida que se escribe en Drive pasa por un redactor de secretos: OpenAI, GitHub, Google (`GOCSPX-`, `ya29.`, `AIza`), Slack y claves privadas.
 - **Alternativa sin costo:** traspaso por Drive. Claude atiende `Solicitudes/` cuando Hans abre una sesión, o mediante una rutina que Hans programe en claude.ai.
@@ -183,7 +187,7 @@ Costo: se esperan unos USD 0.001; el peor caso reservado es USD 0.0025 con `gpt-
    - **Antes de la llamada de humo:** lanzar `orchestrator.yml` en modo `preflight` (USD 0) y confirmar `wouldCall: true`.
 2. **Variable `ORCHESTRATOR_ENABLED=true`:** permite ejecuciones manuales a USD 0 con el auditor simulado.
 3. **Gasto del piloto:**
-   - aprobar la migración pendiente y exponer el esquema `orchestrator`. Recomendado: un proyecto de Supabase **separado**, o un rol dedicado limitado a `orchestrator.state`. No conviene usar la clave de servicio del proyecto de producción de Atomivid.
+   - aprobar la migración pendiente en un proyecto de Supabase **separado** y guardar `ORCH_SUPABASE_URL` y `ORCH_SUPABASE_SERVICE_ROLE_KEY` en el entorno. El orquestador ya no acepta las claves de producción de la app.
    - fijar `ORCH_STORE=supabase` y `ORCH_ALLOW_PAID_CALLS=true`;
    - lanzar con `GASTAR-HASTA-5USD`.
    - Recomendado: un límite de gasto del proyecto en el panel de OpenAI (USD 5) como respaldo independiente.
@@ -203,11 +207,11 @@ Regla: no se pasa al siguiente paso hasta verificar el anterior. Todo es gratis 
 ### B. PR #97: orquestador sin gasto
 | Paso | Qué autoriza Hans | Verificación | Reversión |
 |---|---|---|---|
-| B1 | Crear el entorno `orchestrator`: solo la rama por defecto, y Hans como revisor obligatorio (recomendado). | Los workflows comprueban la política por API antes de usarlo. | Borrar el entorno, lo que borra también sus secretos. |
+| B1 | Crear el entorno `orchestrator` con «Selected branches» limitado a la rama por defecto, y Hans como revisor obligatorio (recomendado). Comprobar que **no** queda ninguna copia de los secretos de Google a nivel de repositorio. | Los workflows comprueban la política por API antes de usarlo. | Borrar el entorno, lo que borra también sus secretos. |
 | B2 | Crear el proyecto de Google Cloud: API de Drive, pantalla de consentimiento «En producción» y cliente «Desktop app». Guardar sus dos secretos en el entorno. | — | Borrar el cliente OAuth, lo que invalida todos sus tokens. |
 | B3 | Crear el token de grano fino `ORCH_SECRETS_WRITER_TOKEN`: solo este repositorio, «Secrets» y «Environments» de lectura y escritura, 7 días de vida. Guardarlo en el entorno. | `drive-oauth` rechaza un token sin caducidad o de más de 30 días. | Revocarlo en GitHub → Settings → Developer settings. |
 | B4 | Fusionar #97. Probado: no afecta a producción. | La compilación no incluye ni ejecuta código del orquestador. | Revertir la fusión. |
-| B5 | `drive-oauth` en modo `start` → consentimiento en el teléfono → guardar el secreto `GOOGLE_OAUTH_REDIRECT` en el entorno → `finish`. Al terminar, revocar el token de B3. | Resultado «LISTO». `GOOGLE_OAUTH_PENDING` y `GOOGLE_OAUTH_REDIRECT` quedan borrados. | Cuenta de Google → Seguridad → Acceso de terceros → quitar la app (revoca el token). Borrar el secreto del entorno. |
+| B5 | `drive-oauth` en modo `start` → consentimiento en el teléfono → guardar el secreto `GOOGLE_OAUTH_REDIRECT` en el entorno → `finish`. El flujo borra el token de B3 del entorno; Hans lo revoca también en GitHub. | Resultado «LISTO». `GOOGLE_OAUTH_PENDING` y `GOOGLE_OAUTH_REDIRECT` quedan borrados. | Cuenta de Google → Seguridad → Acceso de terceros → quitar la app (revoca el token). Borrar el secreto del entorno. |
 | B6 | Fijar la variable `ORCHESTRATOR_ENABLED=true` y lanzar `orchestrator.yml` en modo `live` con el auditor simulado (USD 0). | Lee `Solicitudes/` y escribe en `Entregas/`; registro con 0 llamadas pagadas. | Interruptor de emergencia: `ORCHESTRATOR_ENABLED=false`. |
 
 ### C. Llamada de humo (≤ USD 0.05, una sola vez)

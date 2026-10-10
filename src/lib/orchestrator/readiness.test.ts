@@ -56,15 +56,20 @@ test("OAuth: ningún código en entradas públicas; secretos en el entorno prote
   assert.doesNotMatch(w, /redirect_url|schedule:|push:|pull_request/, "no input carries a code; never automatic");
   assert.match(w, /options: \[start, finish\]/);
   assert.match(w, /environment: orchestrator/);
-  assert.match(w, /if: github\.ref_name == github\.event\.repository\.default_branch/);
+  assert.match(w, /if: github\.ref == format\('refs\/heads\/\{0\}', github\.event\.repository\.default_branch\)/, "a tag named like the branch never matches");
   assert.match(w, /GOOGLE_OAUTH_REDIRECT: \$\{\{ secrets\.GOOGLE_OAUTH_REDIRECT \}\}/);
   const sc = readFileSync("scripts/orchestrator/google-oauth-actions.ts", "utf8");
   assert.doesNotMatch(sc, /GITHUB_EVENT_PATH|inputs\./, "nothing read from the public event payload");
   assert.match(sc, /"--env", OAUTH_ENVIRONMENT/, "secrets written to the protected environment");
   assert.match(sc, /input === undefined \? "ignore" : "pipe"/, "values on stdin, never argv");
-  assert.match(sc, /finally \{[\s\S]*revoke\(fresh\)[\s\S]*delete", "GOOGLE_OAUTH_REDIRECT"[\s\S]*delete", "GOOGLE_OAUTH_PENDING"/, "always cleaned up; an unstored token is revoked");
+  assert.match(sc, /const redirect = secret\(\["delete", "GOOGLE_OAUTH_REDIRECT"\]\);\n\s+const pending = secret\(\["delete", "GOOGLE_OAUTH_PENDING"\]\);/, "each temporary secret deleted on its own");
+  assert.match(sc, /\} finally \{\n\s+if \(mode === "finish" && process\.env\.GH_TOKEN && repo\) await cleanupFinish\(\);/, "cleanup also after an early guard failure");
+  assert.match(w, /if: always\(\) && inputs\.mode == 'finish'[\s\S]*gh secret delete GOOGLE_OAUTH_REDIRECT[\s\S]*gh secret delete GOOGLE_OAUTH_PENDING/, "and on cancel/timeout");
   assert.match(sc, /ownedByMe !== true/);
-  assert.match(sc, /previous && previous !== check\.refreshToken\) await revoke\(previous\)/, "the replaced token is revoked");
+  // Google revokes the whole grant: never revoke a token of the owner's account (it would kill the stored one).
+  assert.doesNotMatch(sc, /revoke\(previous\)|revoke\(fresh\)/);
+  assert.match(sc, /ownedByMe !== true\)\) \{\n\s+await revoke\(check\.refreshToken\); \/\/ another account/, "only another account's grant is revoked");
+  assert.match(sc, /secret\(\["delete", "ORCH_SECRETS_WRITER_TOKEN"\]\)/, "the writer token is removed after use");
   assert.doesNotMatch(sc, /console\.log\([^)]*(refreshToken|access_token|verifier|\.code)\b/);
   assert.doesNotMatch(readFileSync("scripts/orchestrator/google-oauth-consent.ts", "utf8"), /@gmail\.com/, "no personal address");
 });
@@ -196,7 +201,7 @@ test("entorno protegido: solo la rama por defecto; sin política, con ramas extr
   assert.match((environmentGuard({ deployment_branch_policy: { custom_branch_policies: true } }, [{ name: "main" }, { name: "claude/*" }], "main") as { reason: string }).reason, /otras ramas/);
   assert.match((environmentGuard({ deployment_branch_policy: { custom_branch_policies: true } }, [{ name: "main", type: "tag" }], "main") as { reason: string }).reason, /otras ramas/);
   assert.equal(environmentGuard({ deployment_branch_policy: { custom_branch_policies: true } }, [], "main").ok, false);
-  assert.deepEqual(environmentGuard({ deployment_branch_policy: { protected_branches: true } }, null, "main"), { ok: true, reviewers: false });
+  assert.match((environmentGuard({ deployment_branch_policy: { protected_branches: true } }, null, "main") as { reason: string }).reason, /Selected branches/, "protected branches may include others: refused");
 });
 
 test("token que escribe secretos: debe caducar, y en 30 días o menos", () => {
@@ -208,11 +213,12 @@ test("token que escribe secretos: debe caducar, y en 30 días o menos", () => {
   assert.match((writerTokenGuard(null, now) as { reason: string }).reason, /no tiene caducidad/);
   assert.match((writerTokenGuard("2027-10-18 00:00:00 UTC", now) as { reason: string }).reason, /más de 30 días/);
   assert.match((writerTokenGuard("2026-10-01 00:00:00 UTC", now) as { reason: string }).reason, /caducó/);
+  assert.match((writerTokenGuard("2026-10-18 00:00:00 UTC", now, "repo, workflow") as { reason: string }).reason, /clásico/, "a classic PAT is refused even with an expiry");
 });
 
 test("los guardas de GitHub se ejecutan ANTES de escribir secretos o de llamar a un proveedor de pago", () => {
   const oauth = readFileSync("scripts/orchestrator/google-oauth-actions.ts", "utf8");
-  assert.match(oauth, /checkEnvironment\(\)[\s\S]*checkWriterToken\(\)[\s\S]*if \(mode === "start"\) return start/);
+  assert.match(oauth, /checkEnvironment\(\)[\s\S]*checkWriterToken\(\)[\s\S]*if \(mode === "start"\) return await start/);
   const run = readFileSync("scripts/orchestrator/run.ts", "utf8");
   assert.match(run, /checkEnvironment\(\)[\s\S]*claimSmokeLabel\(\)/, "smoke: protected environment before the claim");
   assert.match(run, /if \(paid\) \{[\s\S]*checkEnvironment\(\)[\s\S]*paid = false[\s\S]*const auditor = paid \? new OpenAIAuditor/, "live: unprotected environment → simulated auditor (USD 0)");
@@ -227,4 +233,27 @@ test("humo: tope de USD 0.05, una llamada, sin reintentos (se mantiene)", () => 
   assert.ok(cfg.maxCallUsd <= 0.05);
   assert.equal(cfg.maxCallsPerRun, 1);
   assert.match(readFileSync("scripts/orchestrator/run.ts", "utf8"), /smoke: true \}\), maxHttpRetries: 0 \}/);
+});
+
+test("ejecutor: lo que escribe Claude nunca se ejecuta junto al token de Drive (entrega en otro trabajo, checkout limpio)", () => {
+  const w = wf("claude-executor.yml");
+  const execute = w.slice(w.indexOf("  execute:"), w.indexOf("  deliver:"));
+  const deliver = w.slice(w.indexOf("  deliver:"));
+  assert.match(execute, /uses: anthropics\/claude-code-action/);
+  assert.doesNotMatch(execute.slice(execute.indexOf("uses: anthropics/claude-code-action")), /GOOGLE_OAUTH|npx |node /, "after Claude, only system tools run in that job");
+  assert.match(execute, /\/usr\/bin\/base64 -w0/);
+  assert.match(execute, /\[ ! -L "\$f" \]/, "a symlink planted as result.md is ignored");
+  assert.match(deliver, /needs: execute/);
+  assert.match(deliver, /uses: actions\/checkout@[0-9a-f]{40}[\s\S]*npm ci --ignore-scripts[\s\S]*base64 -d > orchestrator-out\/result\.md[\s\S]*executor-io\.ts deliver/, "fresh checkout and install; only result.md crosses over");
+  assert.doesNotMatch(w, /upload-artifact|download-artifact/, "no public artifact with the result");
+});
+
+test("almacén durable: proyecto propio del orquestador, nunca las claves de producción; la sonda no lee secretos", () => {
+  const o = wf("orchestrator.yml");
+  assert.doesNotMatch(o, /secrets\.SUPABASE_URL|secrets\.SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(o, /secrets\.ORCH_SUPABASE_SERVICE_ROLE_KEY/);
+  const run = readFileSync("scripts/orchestrator/run.ts", "utf8");
+  assert.doesNotMatch(run, /lib\/supabase\/service/, "never the app's service client");
+  assert.match(run, /ORCH_SUPABASE_URL[\s\S]*ORCH_SUPABASE_SERVICE_ROLE_KEY/);
+  assert.doesNotMatch(wf("orchestrator-probe.yml"), /secrets\./, "a branch workflow reads no secret");
 });

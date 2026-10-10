@@ -1,7 +1,7 @@
 /**
  * Guards on the GitHub side before any secret is written or a paid call is made (pure; the scripts fetch the data):
  *  - the "orchestrator" environment must exist and be restricted to the default branch, either by a custom
- *    deployment-branch policy listing ONLY that branch, or by "protected branches only". Without that, a workflow
+ *    deployment-branch policy listing ONLY that branch ("protected branches" is refused: it may cover others). Without that, a workflow
  *    pushed on any branch could declare the environment and read its secrets: the refresh token is never stored in
  *    an unprotected environment and the dedicated OpenAI key is never used from one.
  *  - the fine-grained token that writes secrets must expire, at most MAX_WRITER_TOKEN_DAYS ahead (GitHub reports it
@@ -23,7 +23,8 @@ export function environmentGuard(env: EnvironmentInfo | null, policies: BranchPo
   const reviewers = (env.protection_rules ?? []).some((r) => r.type === "required_reviewers");
   const p = env.deployment_branch_policy;
   if (!p) return { ok: false, reason: "el entorno «orchestrator» no limita las ramas: cualquier rama podría leer sus secretos. Limítalo a la rama por defecto" };
-  if (p.protected_branches) return { ok: true, reviewers };
+  // "Protected branches" could include other protected branches: only an explicit list naming the default branch counts.
+  if (p.protected_branches) return { ok: false, reason: "el entorno «orchestrator» usa «Protected branches»: cámbialo a «Selected branches» con solo la rama por defecto" };
   if (!p.custom_branch_policies) return { ok: false, reason: "el entorno «orchestrator» no tiene una política de ramas válida" };
   if (!policies || policies.length === 0) return { ok: false, reason: "la política de ramas del entorno «orchestrator» está vacía" };
   const onlyDefault = policies.every((x) => (x.type ?? "branch") === "branch" && x.name === defaultBranch);
@@ -40,7 +41,10 @@ export function parseTokenExpiration(header: string | null | undefined): number 
   return Number.isFinite(t) ? t : null;
 }
 
-export function writerTokenGuard(header: string | null | undefined, now = Date.now()): { ok: true; daysLeft: number } | { ok: false; reason: string } {
+export function writerTokenGuard(header: string | null | undefined, now = Date.now(), oauthScopes?: string | null): { ok: true; daysLeft: number } | { ok: false; reason: string } {
+  // A classic token answers with X-OAuth-Scopes (and can also carry an expiration): only fine-grained tokens, scoped to
+  // this repository and to Secrets/Environments, are accepted.
+  if (oauthScopes != null) return { ok: false, reason: "ORCH_SECRETS_WRITER_TOKEN es un token clásico: usa uno de grano fino limitado a este repositorio" };
   const t = parseTokenExpiration(header);
   if (t == null) return { ok: false, reason: "el token ORCH_SECRETS_WRITER_TOKEN no tiene caducidad (o no es un token de grano fino): crea uno que caduque en 7 días" };
   const days = (t - now) / 86_400_000;
