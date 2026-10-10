@@ -1,5 +1,5 @@
-podcast-editor-consume
-app_commit=d6daf88cc20a7e5f6deaba946b115df99487e2ce
+podcast-editor-app
+target=https://atomivid.vercel.app
+owner_session=yes
 episode=prueba-v3
 version=2
-owner_session=yes
