@@ -86,7 +86,8 @@ async function main() {
 
   const pw = ["play", "wright"].join("");
   const { chromium, devices } = (await import(pw)) as { chromium: { launch: (o?: object) => Promise<any> }; devices: Record<string, object> }; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const browser = await chromium.launch();
+  // Google Chrome (H.264, like phones); the open-source Chromium build cannot decode the MP4.
+  const browser = await chromium.launch({ channel: "chrome" }).catch(() => chromium.launch());
   const cookies = await sessionCookies(owner);
   const phone = await browser.newContext({ acceptDownloads: true, ...devices["iPhone 13"] });
   await phone.addCookies(cookies.map((c) => ({ ...c, domain: "atomivid.vercel.app", path: "/", secure: true, sameSite: "Lax" as const })));
