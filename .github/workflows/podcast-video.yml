@@ -3,7 +3,12 @@ name: Podcast video (in-app production)
 # kind. Narration goes through the same gated, resumable code as the web route (paid chunks are never paid twice);
 # the video is rendered by the editor v3 engine on this runner and stored in the private "videos" bucket.
 # The external editor exchange (bucket podcast-editor, Grok's account) is not used here.
+# Supervised pilot: a scheduled tick starts productions whose ONE-SHOT start time has come (set by the owner in the
+# app with a budget); it never creates productions by itself. Notices (delivery / block / budget) are one comment per
+# run on the repository's notices issue, mentioning the owner.
 on:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
   repository_dispatch:
     types: [podcast-video]
   workflow_dispatch:
@@ -17,8 +22,10 @@ on:
         default: video
 permissions:
   contents: read
+  # Owner notices: a comment on the notices issue (no other write).
+  issues: write
 concurrency:
-  group: podcast-${{ github.event.client_payload.episodeId || inputs.episode_id }}
+  group: podcast-${{ github.event.client_payload.episodeId || inputs.episode_id || 'scheduler' }}
   cancel-in-progress: false
 jobs:
   produce:
@@ -29,20 +36,37 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Anything scheduled is due?
+        id: due
+        # Cheap check before installing anything: only a scheduled tick with a due production goes on.
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ]; then echo "go=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          N="$(curl -sf "$SUPABASE_URL/rest/v1/podcast_episodes?select=id&video_status=eq.scheduled&scheduled_at=lte.$NOW&limit=1" -H "apikey: $KEY" -H "Authorization: Bearer $KEY" | grep -o '"id"' | wc -l || echo 0)"
+          echo "go=$([ "$N" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       - uses: actions/setup-node@v4
+        if: steps.due.outputs.go == 'true'
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+        if: steps.due.outputs.go == 'true'
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core > /dev/null
+        if: steps.due.outputs.go == 'true'
       - name: Produce
+        if: steps.due.outputs.go == 'true'
         timeout-minutes: 185
         run: npx tsx scripts/podcast-video-worker.ts
         env:
           ATOMIVID_RUNTIME: production
           EPISODE_ID: ${{ github.event.client_payload.episodeId || inputs.episode_id }}
-          JOB_KIND: ${{ github.event.client_payload.kind || inputs.kind }}
+          JOB_KIND: ${{ (github.event_name == 'schedule' && 'scheduler') || github.event.client_payload.kind || inputs.kind }}
           PODCAST_TOKEN_FILE: ${{ runner.temp }}/podcast-run-token
+          GITHUB_TOKEN: ${{ github.token }}
+          NOTICE_MENTION: ${{ github.repository_owner }}
           FFMPEG_BIN: ffmpeg
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -53,11 +77,13 @@ jobs:
           # Same allocation rate as the production app and the render worker.
           PRICING_ELEVENLABS_USD_PER_1K_CHARS: '0.2'
       - name: Mark failed if the step died
-        if: failure() || cancelled()
+        if: (failure() || cancelled()) && steps.due.outputs.go == 'true'
         run: npx tsx scripts/podcast-video-mark-failed.ts
         env:
           EPISODE_ID: ${{ github.event.client_payload.episodeId || inputs.episode_id }}
           JOB_KIND: ${{ github.event.client_payload.kind || inputs.kind }}
           PODCAST_TOKEN_FILE: ${{ runner.temp }}/podcast-run-token
+          GITHUB_TOKEN: ${{ github.token }}
+          NOTICE_MENTION: ${{ github.repository_owner }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

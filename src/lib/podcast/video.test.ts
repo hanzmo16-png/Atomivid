@@ -60,11 +60,11 @@ test("video request: queues once, fenced by status/attempts, increments attempts
 test("video request: refuses while a live job runs; allows retry when the job stopped beating", async () => {
   const now = Date.now();
   const live = episode({ video_status: "running", video_heartbeat_at: new Date(now - 60_000).toISOString(), video_attempts: 1 });
-  assert.equal((await requestPodcastVideo(fakeService().service, live, now) as { status: number }).status, 409);
+  assert.equal((await requestPodcastVideo(fakeService().service, live, {}, now) as { status: number }).status, 409);
   const dead = episode({ video_status: "running", video_heartbeat_at: new Date(now - PODCAST_VIDEO_STALE_MS - 1000).toISOString(), video_attempts: 1 });
   assert.equal(isStalledVideo(dead, now), true);
   const f = fakeService();
-  await requestPodcastVideo(f.service, dead, now);
+  await requestPodcastVideo(f.service, dead, {}, now);
   assert.ok(f.filters.some((x) => x.startsWith("eq:") && x.includes("video_attempts")), "a stale run is retaken only if nobody else retook it");
   assert.equal((await requestPodcastVideo(fakeService().service, episode({ source: "upload", status: "draft" })) as { status: number }).status, 409);
   assert.equal((await requestPodcastVideo(fakeService(0).service, episode()) as { status: number }).status, 409, "lost race → no dispatch");

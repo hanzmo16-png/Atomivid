@@ -7,6 +7,7 @@ import { estimatePodcast, isStalledRun, isStalledVideo, podcastCapacity } from "
 import { loadOwnedEpisode } from "@/lib/podcast/server";
 import { EpisodeActions } from "./EpisodeActions";
 import { VideoPanel } from "./VideoPanel";
+import { remainingCostUsd, type VideoChecks } from "@/lib/podcast/pilot";
 
 const USD = new Intl.NumberFormat("es-MX", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 4 });
 
@@ -66,6 +67,15 @@ export default async function PodcastEpisodePage({ params }: { params: Promise<{
         downloadUrl={videoDownloadUrl}
         sizeMb={episode.video_bytes ? Math.round(Number(episode.video_bytes) / 1_048_576) : null}
         minutes={episode.video_duration_seconds ? Math.round(Number(episode.video_duration_seconds) / 60) : null}
+        remainingUsd={remainingCostUsd(episode)}
+        budgetUsd={episode.budget_usd == null ? null : Number(episode.budget_usd)}
+        scheduledAt={episode.scheduled_at ?? null}
+        spentUsd={episode.cost_usd == null ? null : Number(episode.cost_usd)}
+        seconds={episode.video_duration_seconds ? Number(episode.video_duration_seconds) : null}
+        checks={(episode.video_checks as VideoChecks | null) ?? null}
+        reviewStatus={episode.review_status ?? "pending"}
+        reviewNote={episode.review_note ?? null}
+        publishStatus={episode.publish_status ?? "held"}
       />
     </div>
   );
