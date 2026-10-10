@@ -15,7 +15,7 @@ async function main() {
   log("BUCKET", { public: bucket?.public ?? null, fileSizeLimit: bucket?.file_size_limit ?? null });
   const created: string[] = [];
   try {
-    for (const mb of [60, 350, 800, 1300]) {
+    for (const mb of (process.env.PROBE_MIB ?? "60,350,800,1300").split(",").map(Number)) {
       const path = `ops/size-probe/${Date.now()}-${mb}mib.bin`;
       const body = Buffer.alloc(mb * MiB);
       const t = Date.now();

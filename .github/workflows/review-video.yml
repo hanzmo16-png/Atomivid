@@ -48,7 +48,7 @@ jobs:
             npx tsx scripts/review/publish-editor-fixture.ts;
           elif [ "$MODE" = "podcast-editor-live" ]; then npx tsx scripts/review/podcast-editor-live.ts;
           elif [ "$MODE" = "platform-state" ]; then npx tsx scripts/review/platform-state.ts;
-          elif [ "$MODE" = "storage-size-probe" ]; then npx tsx scripts/review/storage-size-probe.ts;
+          elif [ "$MODE" = "storage-size-probe" ]; then PROBE_MIB="$(sed -n "s/^mib=//p" ops/review-video.mode | head -1)" npx tsx scripts/review/storage-size-probe.ts;
           elif [ "$MODE" = "podcast-editor-consume" ]; then
             # App modules from the PR head commit given on line "app_commit=<sha>".
             APP_SHA="$(sed -n 's/^app_commit=//p' ops/review-video.mode | head -1)"
