@@ -1,6 +1,6 @@
 /** Final avatar preparation. Private media stays in private Storage or encrypted exports. */
 import { createClient } from '@supabase/supabase-js';
-import { createHash, privateDecrypt, publicEncrypt, randomBytes, createCipheriv, createDecipheriv, constants } from 'node:crypto';
+import { createHash, createPublicKey, privateDecrypt, publicEncrypt, randomBytes, createCipheriv, createDecipheriv, constants } from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { refreshProviderSnapshot } from '../../src/lib/supply/monitor';
@@ -49,6 +49,16 @@ async function exportEditorInput(ownerId:string,episodeId:string,version=3){
 }
 async function main(){
  const cfg=await config();
+ if(readFileSync(`${ROOT}/mode`,'utf8').split('\n')[0]==='close-source-30'){
+  seal('runner-public.pem',Buffer.from(createPublicKey(await get('ops/podcast-episode/runner-key.pem')).export({type:'spki',format:'pem'})));
+  const {searchSceneVideos}=await import('../../src/lib/ai/footage');
+  const candidates=[];
+  for(const query of ['pine forest mountains aerial','search flashlight forest','old documents magnifying glass','telephone booth night','observatory telescope stars','scientist laboratory instruments']){
+   try{candidates.push({query,results:await searchSceneVideos(query,6,'landscape')});}catch{candidates.push({query,results:[]});}
+  }
+  seal('expansion-stock-candidates.json',Buffer.from(JSON.stringify(candidates)));
+  console.log('THIRTY_MINUTE_REFERENCE_EXPORT: no paid calls');return;
+ }
  if(readFileSync(`${ROOT}/mode`,'utf8').split('\n')[0]==='close-inspect-30'){
   seal('story-source.json',Buffer.from(JSON.stringify({chapters:cfg.chapters})));
   seal('narration-manifest.json',await get(`${cfg.ownerId}/podcasts/${cfg.episodeId}/narration-manifest.json`));
