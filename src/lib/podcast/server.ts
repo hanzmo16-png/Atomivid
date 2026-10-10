@@ -17,7 +17,7 @@ import { estimatePodcast, podcastDemand, normalizeScript, PODCAST_STALE_RUN_MS, 
 import { listAccountVoices, VoicesUnavailableError } from "./voices";
 
 const BUCKET = "videos";
-export const EPISODE_COLUMNS = "id,user_id,title,language,source,script,voice_id,voice_name,characters,estimated_usd,status,run_token,run_started_at,audio_path,audio_mime,duration_seconds,audio_sha256,audio_bytes,loudness,cost_usd,error,created_at,updated_at,video_status,video_stage,video_attempts,video_run_token,video_requested_at,video_heartbeat_at,video_path,video_bytes,video_sha256,video_duration_seconds,video_error";
+export const EPISODE_COLUMNS = "id,user_id,title,language,source,script,voice_id,voice_name,characters,estimated_usd,status,run_token,run_started_at,audio_path,audio_mime,duration_seconds,audio_sha256,audio_bytes,loudness,cost_usd,error,created_at,updated_at,video_status,video_stage,video_attempts,video_run_token,video_requested_at,video_heartbeat_at,video_path,video_bytes,video_sha256,video_duration_seconds,video_error,budget_usd,scheduled_at,video_checks,review_status,review_note,reviewed_at,publish_status";
 
 /** Vercel functions have no ffmpeg on PATH: use the bundled binary (workers keep their own). */
 export function ensureBundledFfmpeg() {

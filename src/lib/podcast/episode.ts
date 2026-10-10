@@ -28,9 +28,12 @@ export type PodcastEpisode = {
   video_status?: PodcastVideoStatus; video_stage?: string | null; video_attempts?: number; video_run_token?: string | null;
   video_requested_at?: string | null; video_heartbeat_at?: string | null; video_path?: string | null; video_bytes?: number | null;
   video_sha256?: string | null; video_duration_seconds?: number | null; video_error?: string | null;
+  /** Supervised pilot (budget, one-shot schedule, review, held publication). Absent before its migration. */
+  budget_usd?: number | null; scheduled_at?: string | null; video_checks?: unknown; review_status?: "pending" | "approved" | "rejected";
+  review_note?: string | null; reviewed_at?: string | null; publish_status?: "held" | "manual";
 };
 
-export type PodcastVideoStatus = "none" | "queued" | "running" | "ready" | "failed";
+export type PodcastVideoStatus = "none" | "scheduled" | "queued" | "running" | "ready" | "failed" | "blocked";
 /** A queued/running video job without a heartbeat for this long is considered dead and may be retried. */
 export const PODCAST_VIDEO_STALE_MS = 12 * 60 * 1000;
 /** Above this many characters the narration runs in the background worker instead of the 300 s web request. */
