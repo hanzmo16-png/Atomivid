@@ -1,7 +1,7 @@
 """Re-cut the v5 30-minute mix so every inserted block sits at a sentence boundary (works on a COPY; USD 0).
 
 Why: build_30_inputs.py chose each insertion point as the nearest inter-word gap to the chapter end, without looking
-at punctuation, so six blocks landed one word into a sentence ("…todavía no. En | block | el relato…"). Because the
+at punctuation, so six blocks landed one word into a sentence ("…end of sentence. First | block | rest of that sentence…"). Because the
 original PCM was copied in order, the stranded word and the words after the block are contiguous original audio.
 Rotating the window [cut, resume) puts them back together: no word surgery, no new voice, same total length.
 
