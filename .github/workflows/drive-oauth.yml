@@ -1,5 +1,6 @@
 name: Drive OAuth (one-time owner authorization)
-# Manual, free. "start" shows Google's consent link and keeps a random, single-use attempt (state + PKCE verifier) as
+# Manual, free. "verify" (default) needs no GitHub token: it reports which secrets exist (booleans), checks the
+# environment's branch policy and, once a refresh token is stored, the real connection to Drive. "start" shows Google's consent link and keeps a random, single-use attempt (state + PKCE verifier) as
 # an environment secret; the owner stores the address the phone's browser landed on as the environment secret
 # GOOGLE_OAUTH_REDIRECT; "finish" exchanges it, stores GOOGLE_OAUTH_REFRESH_TOKEN in the environment and deletes the
 # attempt and the address. No workflow input carries anything secret. Everything runs in the GitHub environment
@@ -8,11 +9,11 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "start = enlace de consentimiento; finish = guardar el token (después de crear GOOGLE_OAUTH_REDIRECT)"
+        description: "verify = comprobar secretos, entorno y conexión real con Drive (sin token de GitHub); start / finish = autorización con token de escritura temporal"
         required: true
-        default: start
+        default: verify
         type: choice
-        options: [start, finish]
+        options: [verify, start, finish]
 permissions:
   contents: read
   # Reads the "orchestrator" environment's branch policy before any secret is written.
@@ -48,6 +49,8 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           ORCH_DRIVE_ROOT: 17GzExKZIgjOTF1Ods0H1AapuRssQ9m8Z
+          ORCH_DRIVE_SOLICITUDES: 1WJ4FpKjMvOpn60i3diyy7sL7uDQfZp9W
+          ORCH_DRIVE_ENTREGAS: 1z8C1ZnE8rh9iUUiEYQrNU-x7VMzCI4SJ
       # Also on cancel or timeout (Node never reaches its own cleanup then): the single-use code never stays stored.
       - name: Remove the temporary secrets (finish)
         if: always() && inputs.mode == 'finish'

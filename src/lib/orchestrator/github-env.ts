@@ -43,7 +43,7 @@ export function parseTokenExpiration(header: string | null | undefined): number 
 
 export function writerTokenGuard(header: string | null | undefined, now = Date.now(), oauthScopes?: string | null): { ok: true; daysLeft: number } | { ok: false; reason: string } {
   // A classic token answers with X-OAuth-Scopes (and can also carry an expiration): only fine-grained tokens, scoped to
-  // this repository and to Secrets/Environments, are accepted.
+  // this repository and to the "Environments" permission (the only one GitHub requires for environment secrets).
   if (oauthScopes != null) return { ok: false, reason: "ORCH_SECRETS_WRITER_TOKEN es un token clásico: usa uno de grano fino limitado a este repositorio" };
   const t = parseTokenExpiration(header);
   if (t == null) return { ok: false, reason: "el token ORCH_SECRETS_WRITER_TOKEN no tiene caducidad (o no es un token de grano fino): crea uno que caduque en 7 días" };

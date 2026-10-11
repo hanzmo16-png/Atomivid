@@ -14,6 +14,7 @@ import type { Auditor } from "./types";
 import { redactSecrets } from "../../../scripts/orchestrator/executor-io";
 import { environmentGuard, parseTokenExpiration, writerTokenGuard } from "./github-env";
 import { FakeDrive } from "./fake-drive";
+import { checkDriveConnection } from "./drive-check";
 import { DriveRestChannel, oauthRefreshTokenProvider } from "./channel";
 import { SimulatedAuditor } from "./simulated-auditor";
 import { simulatedClaudeTurn } from "./simulated-claude";
@@ -59,7 +60,7 @@ test("OAuth: ningún código en entradas públicas; secretos en el entorno prote
   const w = wf("drive-oauth.yml");
   assert.match(w, /on:\n\s+workflow_dispatch:/);
   assert.doesNotMatch(w, /redirect_url|schedule:|push:|pull_request/, "no input carries a code; never automatic");
-  assert.match(w, /options: \[start, finish\]/);
+  assert.match(w, /options: \[verify, start, finish\]/);
   assert.match(w, /environment: orchestrator/);
   assert.match(w, /if: github\.ref == format\('refs\/heads\/\{0\}', github\.event\.repository\.default_branch\)/, "a tag named like the branch never matches");
   assert.match(w, /GOOGLE_OAUTH_REDIRECT: \$\{\{ secrets\.GOOGLE_OAUTH_REDIRECT \}\}/);
@@ -298,4 +299,40 @@ test("modo simulate: sin red, sin secretos y sin proveedor de pago; en la sonda 
   const o = wf("orchestrator.yml");
   assert.match(o, /options: \[simulate, live, preflight, smoke\]/);
   assert.match(o, /default: simulate/);
+});
+
+test("verify (sin token de GitHub): conexión real comprobada contra Google simulado — dueño, escritura, subcarpetas, alcance", async () => {
+  const creds = { clientId: "c", clientSecret: "s", refreshToken: "1//r" };
+  const T = { root: "ROOT", solicitudes: "SOL", entregas: "ENT" };
+  const make = (over: { owned?: boolean; write?: boolean; parent?: string; scope?: string } = {}) => {
+    const d = new FakeDrive(creds, 2, over.scope);
+    d.folders.set("ROOT", { parents: ["MYDRIVE"], ownedByMe: over.owned ?? true, canAddChildren: over.write ?? true });
+    d.folders.set("SOL", { parents: [over.parent ?? "ROOT"], ownedByMe: true, canAddChildren: true });
+    d.folders.set("ENT", { parents: ["ROOT"], ownedByMe: true, canAddChildren: true });
+    d.add("SOL", "T-20261011-0100-hans-01__para-claude__a.md", "x"); d.add("SOL", "T-20261011-0101-hans-02__para-claude__b.md", "y"); d.add("SOL", "T-20261011-0102-hans-03__para-claude__c.md", "z");
+    return d;
+  };
+  const ok = await checkDriveConnection(creds, T, make().fetch);
+  assert.deepEqual(ok, { ok: true, checks: { tokenRefreshes: true, fullDriveScope: true, ownsCoordinationFolder: true, canWriteThere: true, subfoldersInside: true }, counts: { solicitudes: 3, entregas: 0 }, reason: null }, "paging included (page size 2)");
+  assert.match((await checkDriveConnection(creds, T, make({ owned: false }).fetch)).reason!, /no es la dueña/, "another account is refused");
+  assert.match((await checkDriveConnection(creds, T, make({ write: false }).fetch)).reason!, /no puede escribir/);
+  assert.match((await checkDriveConnection(creds, T, make({ parent: "OTRA" }).fetch)).reason!, /no están dentro/);
+  assert.match((await checkDriveConnection(creds, T, make({ scope: "https://www.googleapis.com/auth/drive.file" }).fetch)).reason!, /Drive completo/);
+  assert.match((await checkDriveConnection({ ...creds, refreshToken: "revocado" }, T, make().fetch)).reason!, /no funciona/);
+  const r = await checkDriveConnection(creds, T, make().fetch);
+  assert.doesNotMatch(JSON.stringify(r), /1\/\/r|ya29|__para-claude__/, "no token, no file name in the result");
+});
+
+test("verify en el workflow: modo por defecto, sin token de escritura, comprueba el entorno antes que nada", () => {
+  const w = wf("drive-oauth.yml");
+  assert.match(w, /options: \[verify, start, finish\]/);
+  assert.match(w, /default: verify/);
+  assert.match(w, /ORCH_DRIVE_SOLICITUDES: 1WJ4FpKjMvOpn60i3diyy7sL7uDQfZp9W/);
+  const sc = readFileSync("scripts/orchestrator/google-oauth-actions.ts", "utf8");
+  const v = sc.slice(sc.indexOf("async function verify("), sc.indexOf("async function main("));
+  assert.match(v, /checkEnvironment\(\)[\s\S]*checkDriveConnection\(/, "environment checked before touching Drive");
+  assert.doesNotMatch(v, /secret\(\[|checkWriterToken/, "verify never writes a secret nor needs the writer token");
+  assert.match(v, /GOOGLE_OAUTH_CLIENT_ID=\$\{!!clientId\}/, "presence as booleans only");
+  assert.match(sc, /if \(mode === "verify"\) return verify\(/);
+  assert.match(sc, /solo el permiso «Environments»/, "writer token reduced to the one permission GitHub requires");
 });

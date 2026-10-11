@@ -10,8 +10,8 @@
  *    previous refresh token, and ALWAYS deletes GOOGLE_OAUTH_PENDING and GOOGLE_OAUTH_REDIRECT. On any failed check
  *    the new token is revoked and nothing is stored.
  * Env: GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_PENDING, GOOGLE_OAUTH_REDIRECT,
- * GOOGLE_OAUTH_REFRESH_TOKEN (previous, optional), GH_TOKEN (fine-grained: this repository only, "Secrets" and
- * "Environments" read & write, expiring within 30 days), GITHUB_TOKEN (run token, to verify the environment's branch
+ * GOOGLE_OAUTH_REFRESH_TOKEN (previous, optional), GH_TOKEN (fine-grained: this repository only, ONLY the
+ * "Environments" permission read & write — the one GitHub requires for environment secrets — expiring within 30 days), GITHUB_TOKEN (run token, to verify the environment's branch
  * policy), DEFAULT_BRANCH, GITHUB_REPOSITORY, ORCH_DRIVE_ROOT, MODE.
  */
 export {};
@@ -19,6 +19,7 @@ import { spawnSync } from "node:child_process";
 import { appendFile } from "node:fs/promises";
 import { checkTokenResponse, consentUrl, newPending, OAUTH_ENVIRONMENT, parsePending, parseRedirect, tokenRequestBody } from "../../src/lib/orchestrator/google-oauth";
 import { checkEnvironment, checkWriterToken } from "./github-checks";
+import { checkDriveConnection } from "../../src/lib/orchestrator/drive-check";
 
 const say = async (line: string) => { console.log(line); if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `${line}\n\n`); };
 const fail = async (line: string) => { await say(`NO SE COMPLETÓ: ${line}`); process.exitCode = 1; };
@@ -31,7 +32,7 @@ const revoke = async (token: string | undefined) => { if (token) await fetch(`ht
 async function start(clientId: string) {
   const pending = newPending();
   mask(pending.verifier);
-  if (!secret(["set", "GOOGLE_OAUTH_PENDING"], JSON.stringify(pending))) return fail("GitHub no aceptó guardar el intento (revisa los permisos «Secrets» y «Environments» del token y que exista el entorno «orchestrator»)");
+  if (!secret(["set", "GOOGLE_OAUTH_PENDING"], JSON.stringify(pending))) return fail("GitHub no aceptó guardar el intento (revisa que el token tenga el permiso «Environments» de lectura y escritura sobre este repositorio y que exista el entorno «orchestrator»)");
   await say("1. Abre este enlace en el navegador del teléfono e inicia sesión con la cuenta dueña de la carpeta de coordinación (válido 15 minutos):");
   await say(`   ${consentUrl(clientId, pending)}`);
   await say("2. Si aparece «Google no verificó esta app», toca «Configuración avanzada» → «Ir a … (no seguro)»: la app es tuya. Marca el permiso de Google Drive.");
@@ -78,12 +79,32 @@ async function cleanupFinish() {
   if (!redirect || !pending) await say("Aviso: no se pudo borrar algún secreto temporal (GOOGLE_OAUTH_REDIRECT / GOOGLE_OAUTH_PENDING); el paso de limpieza lo reintenta, o bórralo a mano.");
 }
 
+/**
+ * verify: no GitHub writer token needed. Reports which secrets exist in the environment (booleans), checks the
+ * environment's branch policy, and, when a refresh token is stored, checks the real connection to Drive.
+ */
+async function verify(clientId: string | undefined, clientSecret: string | undefined, root: string | undefined) {
+  const refresh = process.env.GOOGLE_OAUTH_REFRESH_TOKEN?.trim();
+  await say(`Secretos en el entorno «${OAUTH_ENVIRONMENT}»: GOOGLE_OAUTH_CLIENT_ID=${!!clientId} · GOOGLE_OAUTH_CLIENT_SECRET=${!!clientSecret} · GOOGLE_OAUTH_REFRESH_TOKEN=${!!refresh} · ORCH_SECRETS_WRITER_TOKEN=${!!process.env.GH_TOKEN}`);
+  const env = await checkEnvironment();
+  if (!env.ok) return fail(env.reason);
+  await say(`Entorno: solo la rama por defecto puede usarlo${env.reviewers ? "; exige revisión" : "; sin revisor obligatorio"}.`);
+  if (!clientId || !clientSecret) return fail("faltan GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET en el entorno");
+  if (!refresh) { await say("Aún no hay GOOGLE_OAUTH_REFRESH_TOKEN: completa la autorización (docs/ORCHESTRATOR.md) y vuelve a ejecutar «verify»."); return; }
+  if (!root || !process.env.ORCH_DRIVE_SOLICITUDES || !process.env.ORCH_DRIVE_ENTREGAS) return fail("faltan los identificadores de las carpetas");
+  const r = await checkDriveConnection({ clientId, clientSecret, refreshToken: refresh }, { root, solicitudes: process.env.ORCH_DRIVE_SOLICITUDES, entregas: process.env.ORCH_DRIVE_ENTREGAS });
+  await say(`Conexión real con Drive: ${JSON.stringify({ ok: r.ok, ...r.checks, ...(r.counts ?? {}) })}`);
+  if (!r.ok) return fail(r.reason ?? "la conexión con Drive no pasó las comprobaciones");
+  await say("LISTO: la cuenta autorizada es la dueña de la carpeta de coordinación, puede escribir en ella y ve Solicitudes/Entregas.");
+}
+
 async function main() {
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID?.trim(), clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim();
   const root = process.env.ORCH_DRIVE_ROOT?.trim(), mode = process.env.MODE;
+  if (mode === "verify") return verify(clientId, clientSecret, root);
   try {
     if (!clientId || !clientSecret) return fail("faltan los secretos GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET en el entorno «orchestrator» (cliente OAuth «Desktop app»)");
-    if (!process.env.GH_TOKEN) return fail("falta el secreto ORCH_SECRETS_WRITER_TOKEN en el entorno «orchestrator» (token de grano fino de este repositorio, «Secrets» y «Environments» lectura y escritura)");
+    if (!process.env.GH_TOKEN) return fail("falta el secreto ORCH_SECRETS_WRITER_TOKEN en el entorno «orchestrator» (token de grano fino de este repositorio con solo el permiso «Environments» de lectura y escritura, 7 días)");
     if (!repo || !root) return fail("falta el repositorio o la carpeta de coordinación");
     // Never write a secret into an environment any branch could read, nor with a writer token that does not expire.
     const env = await checkEnvironment();

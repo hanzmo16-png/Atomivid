@@ -10,12 +10,16 @@
  */
 export type FakeFile = { id: string; name: string; parent: string; mimeType: string; content: string; createdTime: string };
 
+export type FakeFolder = { parents: string[]; ownedByMe: boolean; canAddChildren: boolean };
+
 export class FakeDrive {
   files: FakeFile[] = [];
+  /** Folder metadata for files.get (ownership, parents), like the coordination folder and its two subfolders. */
+  folders = new Map<string, FakeFolder>();
   calls: { method: string; kind: string }[] = [];
   private seq = 0;
   private tokens = new Set<string>();
-  constructor(private creds: { clientId: string; clientSecret: string; refreshToken: string }, private pageSize = 2) {}
+  constructor(private creds: { clientId: string; clientSecret: string; refreshToken: string }, private pageSize = 2, public scope = "https://www.googleapis.com/auth/drive") {}
 
   add(parent: string, name: string, content: string, mimeType = "text/markdown") {
     const f = { id: `f${++this.seq}`, name, parent, mimeType, content, createdTime: new Date(Date.UTC(2026, 9, 11, 0, this.seq)).toISOString() };
@@ -32,7 +36,7 @@ export class FakeDrive {
       if (p.get("grant_type") !== "refresh_token" || p.get("refresh_token") !== this.creds.refreshToken || p.get("client_id") !== this.creds.clientId || p.get("client_secret") !== this.creds.clientSecret) return json({ error: "invalid_grant" }, 400);
       const token = `ya29.fake-${++this.seq}`;
       this.tokens.add(token);
-      return json({ access_token: token, expires_in: 3599, token_type: "Bearer" });
+      return json({ access_token: token, expires_in: 3599, token_type: "Bearer", scope: this.scope });
     }
     const auth = new Headers(init.headers).get("authorization") ?? "";
     if (!this.tokens.has(auth.replace(/^Bearer /, ""))) return json({ error: "unauthenticated" }, 401);
@@ -57,6 +61,11 @@ export class FakeDrive {
       return json({ files: page, ...(start + this.pageSize < all.length ? { nextPageToken: String(start + this.pageSize) } : {}) });
     }
     if (method === "GET" && m && m[1]) {
+      const folder = this.folders.get(m[1]);
+      if (folder && !m[2] && u.searchParams.get("alt") !== "media") {
+        this.calls.push({ method, kind: "metadata" });
+        return json({ id: m[1], mimeType: "application/vnd.google-apps.folder", parents: folder.parents, ownedByMe: folder.ownedByMe, capabilities: { canAddChildren: folder.canAddChildren } });
+      }
       const f = this.files.find((x) => x.id === m[1]);
       if (!f) return json({ error: "not found" }, 404);
       const native = f.mimeType === "application/vnd.google-apps.document";

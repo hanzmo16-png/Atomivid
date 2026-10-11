@@ -97,7 +97,7 @@ Pasos de Hans para la opción recomendada (una vez, sin pegar claves en chats ni
      - `ORCH_OPENAI_API_KEY`, una clave **dedicada** de un proyecto de OpenAI propio con límite de gasto; nunca la `OPENAI_API_KEY` compartida de la app;
      - `ORCH_SECRETS_WRITER_TOKEN`, un token de GitHub de grano fino:
        - solo este repositorio;
-       - permisos «Secrets» y «Environments» de lectura y escritura, y nada más;
+       - solo el permiso «Environments» de lectura y escritura (el único que GitHub exige para los secretos de un entorno), y nada más;
        - caducidad de 7 días. Se borra al terminar.
 3. **Autorización única desde el teléfono: workflow `drive-oauth.yml`.** Ninguna entrada del workflow lleva datos secretos.
    - **`start`:**
@@ -130,7 +130,12 @@ Pasos de Hans para la opción recomendada (una vez, sin pegar claves en chats ni
      - una cuenta de servicio o Workload Identity Federation no puede actuar como un usuario de Gmail;
      - el OAuth Playground obligaría a copiar el token a mano;
      - pegar el código en una entrada de un workflow público, que fue el diseño anterior.
-4. **Alternativa con computadora:** `GOOGLE_OAUTH_CLIENT_ID=… GOOGLE_OAUTH_CLIENT_SECRET=… npx tsx scripts/orchestrator/google-oauth-consent.ts`. Hace el retorno local en la propia computadora y guarda los secretos en el entorno `orchestrator` con `gh secret set`.
+4. **Alternativa sin ningún token de GitHub (OAuth Playground):**
+   - Crear un cliente OAuth de tipo **«Aplicación web»** con el URI de redirección `https://developers.google.com/oauthplayground`, y sustituir con él los secretos `GOOGLE_OAUTH_CLIENT_ID` y `GOOGLE_OAUTH_CLIENT_SECRET`.
+   - En el Playground: engranaje → «Use your own OAuth credentials» → alcance `https://www.googleapis.com/auth/drive` → autorizar con la cuenta de trabajo → «Exchange authorization code for tokens».
+   - Guardar el token de renovación como secreto del entorno `GOOGLE_OAUTH_REFRESH_TOKEN` y ejecutar `verify`.
+   - Contrapartida: Hans copia a mano un token de Drive de larga vida, en vez de un token de GitHub de 7 días. Por eso la opción recomendada sigue siendo `start`/`finish`.
+5. **Alternativa con computadora:** `GOOGLE_OAUTH_CLIENT_ID=… GOOGLE_OAUTH_CLIENT_SECRET=… npx tsx scripts/orchestrator/google-oauth-consent.ts`. Hace el retorno local en la propia computadora y guarda los secretos en el entorno `orchestrator` con `gh secret set`.
 
 ## Ejecutor de Claude
 
@@ -219,9 +224,9 @@ Regla: no se pasa al siguiente paso hasta verificar el anterior. Todo es gratis 
 |---|---|---|---|
 | B1 | Crear el entorno `orchestrator` **antes** de fusionar. GitHub crea uno sin protección la primera vez que un trabajo lo nombra; nuestros controles lo rechazarían, pero es mejor que nazca protegido. Configuración: «Selected branches» con **exactamente** `claude/atomivid-mvp-setup-0079jv`, que es la rama por defecto real (no `main`), y Hans como revisor obligatorio (recomendado). Comprobado el 2026-10-11: no existe ninguna credencial de Google a nivel de repositorio. | Los workflows comprueban la política por API antes de usarlo. | Borrar el entorno, lo que borra también sus secretos. |
 | B2 | Crear el proyecto de Google Cloud: API de Drive, pantalla de consentimiento «En producción» y cliente «Desktop app». Guardar sus dos secretos en el entorno. | — | Borrar el cliente OAuth, lo que invalida todos sus tokens. |
-| B3 | Crear el token de grano fino `ORCH_SECRETS_WRITER_TOKEN`: solo este repositorio, «Secrets» y «Environments» de lectura y escritura, 7 días de vida. Guardarlo en el entorno. | `drive-oauth` rechaza un token sin caducidad o de más de 30 días. | Revocarlo en GitHub → Settings → Developer settings. |
+| B3 | Crear el token de grano fino `ORCH_SECRETS_WRITER_TOKEN`: solo este repositorio, solo el permiso «Environments» de lectura y escritura, 7 días de vida. Guardarlo en el entorno. | `drive-oauth` rechaza un token sin caducidad o de más de 30 días. | Revocarlo en GitHub → Settings → Developer settings. |
 | B4 | Fusionar #97. Probado: no afecta a producción. | La compilación no incluye ni ejecuta código del orquestador. | Revertir la fusión. |
-| B5 | `drive-oauth` en modo `start` → consentimiento en el teléfono → guardar el secreto `GOOGLE_OAUTH_REDIRECT` en el entorno → `finish`. El flujo borra el token de B3 del entorno; Hans lo revoca también en GitHub. | Resultado «LISTO». `GOOGLE_OAUTH_PENDING` y `GOOGLE_OAUTH_REDIRECT` quedan borrados. | Cuenta de Google → Seguridad → Acceso de terceros → quitar la app (revoca el token). Borrar el secreto del entorno. |
+| B5 | `drive-oauth` en modo `verify` (sin token de GitHub): confirma que los secretos existen y que el entorno está protegido. Luego `start` → consentimiento en el teléfono con la **cuenta de trabajo dueña de la carpeta de coordinación** → guardar el secreto `GOOGLE_OAUTH_REDIRECT` en el entorno → `finish`. El flujo borra el token de B3 del entorno; Hans lo revoca también en GitHub. Por último `verify` otra vez, que comprueba la conexión real: dueño, escritura, subcarpetas y alcance. | Resultado «LISTO» en `finish` y en `verify`. | Cuenta de Google → Seguridad → Acceso de terceros → quitar la app. Borrar el secreto del entorno. |
 | B6 | Primero `orchestrator.yml` en modo `simulate` (USD 0, sin secretos): es el ciclo completo contra un Drive simulado y termina con `SIMULATE ok: true`. Después fijar `ORCHESTRATOR_ENABLED=true` y lanzar `live` con el auditor simulado (USD 0), ya sobre el Drive real. | Lee `Solicitudes/` y escribe en `Entregas/`; registro con 0 llamadas pagadas. | Interruptor de emergencia: `ORCHESTRATOR_ENABLED=false`. |
 
 ### C. Llamada de humo (≤ USD 0.05, una sola vez)
