@@ -24,6 +24,9 @@ permissions:
   issues: write
   # Reads this workflow's run history (smoke guard) and dispatches claude-executor.yml (workflow_dispatch).
   actions: write
+  # GitHub OIDC token for the Drive token endpoint of «Conectar Google Drive» (no Google secret in GitHub). The server
+  # accepts it only from this workflow, on the default branch, in the "orchestrator" environment.
+  id-token: write
 concurrency:
   group: orchestrator
   cancel-in-progress: false
@@ -52,6 +55,7 @@ jobs:
           ORCH_OPENAI_MODEL: ${{ vars.ORCH_OPENAI_MODEL }}
           ORCH_CLAUDE_ACTION_ENABLED: ${{ vars.ORCH_CLAUDE_ACTION_ENABLED }}
           ORCH_DRIVE_SOLICITUDES: 1WJ4FpKjMvOpn60i3diyy7sL7uDQfZp9W
+          ORCH_DRIVE_TOKEN_URL: https://atomivid.vercel.app/api/orchestrator/drive/token
           ORCH_DRIVE_ENTREGAS: 1z8C1ZnE8rh9iUUiEYQrNU-x7VMzCI4SJ
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}

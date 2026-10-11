@@ -172,7 +172,15 @@ test("presupuesto: un cobro sin uso reportado se liquida al peor caso reservado,
 test("fusionar el orquestador no toca producción: nada en la app lo importa, sin migraciones, sin disparadores automáticos", () => {
   const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? walk(`${dir}/${d.name}`) : [`${dir}/${d.name}`]));
   const app = [...walk("src/app"), ...walk("src/lib").filter((f) => !f.startsWith("src/lib/orchestrator/"))].filter((f) => /\.(ts|tsx)$/.test(f));
-  for (const f of app) assert.doesNotMatch(readFileSync(f, "utf8"), /lib\/orchestrator|from "\.\.?\/orchestrator/, `${f} must not import the orchestrator`);
+  // Only «Conectar Google Drive» (B5) reaches the app, and only through its three OAuth/OIDC modules: never the engine,
+  // the auditor, the executors or anything that can spend.
+  const webSurface = new Set(["src/app/api/orchestrator/drive/connect/route.ts", "src/app/api/orchestrator/drive/callback/route.ts", "src/app/api/orchestrator/drive/token/route.ts", "src/app/dashboard/command-center/page.tsx"]);
+  for (const f of app) {
+    const src = readFileSync(f, "utf8");
+    if (!webSurface.has(f)) { assert.doesNotMatch(src, /lib\/orchestrator|from "\.\.?\/orchestrator/, `${f} must not import the orchestrator`); continue; }
+    for (const m of src.matchAll(/from "@\/lib\/orchestrator\/([\w-]+)"/g)) assert.ok(["drive-web-connect", "github-oidc", "google-oauth"].includes(m[1]), `${f} imports only the Drive connection modules (got ${m[1]})`);
+  }
+  for (const m of ["drive-web-connect", "github-oidc"]) assert.doesNotMatch(readFileSync(`src/lib/orchestrator/${m}.ts`, "utf8"), /from "\.\/(engine|openai|executors|budget|store|smoke)"/, `${m} stays away from paid paths`);
   assert.equal(readdirSync("supabase/migrations").some((f) => /orchestrator/i.test(f)), false, "its schema stays in supabase/pending (not applied)");
   for (const name of ["orchestrator.yml", "drive-oauth.yml", "claude-executor.yml"]) {
     const w = wf(name);

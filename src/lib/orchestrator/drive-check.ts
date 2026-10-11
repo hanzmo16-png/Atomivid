@@ -16,12 +16,21 @@ export type DriveCheckResult = {
 };
 type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
-export async function checkDriveConnection(creds: { clientId: string; clientSecret: string; refreshToken: string }, target: DriveTarget, fetchImpl: FetchLike = fetch): Promise<DriveCheckResult> {
-  const checks = { tokenRefreshes: false, fullDriveScope: false, ownsCoordinationFolder: false, canWriteThere: false, subfoldersInside: false };
-  const done = (reason: string | null, counts: DriveCheckResult["counts"] = null): DriveCheckResult => ({ ok: reason === null && Object.values(checks).every(Boolean), checks, counts, reason });
+export type RefreshCreds = { clientId: string; clientSecret: string; refreshToken: string };
+/** Where the short-lived access token comes from: a refresh token here, or the web connection's token endpoint (OIDC). */
+export type TokenSource = () => Promise<{ access_token?: string; scope?: string } | null>;
+
+export const refreshTokenSource = (creds: RefreshCreds, fetchImpl: FetchLike = fetch): TokenSource => async () => {
   const tok = await fetchImpl("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: creds.refreshToken, client_id: creds.clientId, client_secret: creds.clientSecret }).toString() }).catch(() => null);
-  const body = tok && tok.ok ? ((await tok.json().catch(() => null)) as { access_token?: string; scope?: string } | null) : null;
+  return tok && tok.ok ? ((await tok.json().catch(() => null)) as { access_token?: string; scope?: string } | null) : null;
+};
+
+export async function checkDriveConnection(creds: RefreshCreds | TokenSource, target: DriveTarget, fetchImpl: FetchLike = fetch): Promise<DriveCheckResult> {
+  const checks = { tokenRefreshes: false, fullDriveScope: false, ownsCoordinationFolder: false, canWriteThere: false, subfoldersInside: false };
+  const done = (reason: string | null, counts: DriveCheckResult["counts"] = null): DriveCheckResult => ({ ok: reason === null && Object.values(checks).every(Boolean), checks, counts, reason });
+  const source = typeof creds === "function" ? creds : refreshTokenSource(creds, fetchImpl);
+  const body = await source().catch(() => null);
   if (!body?.access_token) return done("el token de renovación no funciona (revocado, de otro cliente o con la app en «Prueba» y caducado): repite la autorización");
   checks.tokenRefreshes = true;
   checks.fullDriveScope = (body.scope ?? "").split(" ").includes(DRIVE_SCOPE);

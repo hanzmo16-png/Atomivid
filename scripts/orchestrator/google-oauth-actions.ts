@@ -20,6 +20,7 @@ import { appendFile } from "node:fs/promises";
 import { checkTokenResponse, consentUrl, newPending, OAUTH_ENVIRONMENT, parsePending, parseRedirect, tokenRequestBody } from "../../src/lib/orchestrator/google-oauth";
 import { checkEnvironment, checkWriterToken } from "./github-checks";
 import { checkDriveConnection } from "../../src/lib/orchestrator/drive-check";
+import { oidcDriveTokenSource } from "../../src/lib/orchestrator/channel";
 
 const say = async (line: string) => { console.log(line); if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `${line}\n\n`); };
 const fail = async (line: string) => { await say(`NO SE COMPLETÓ: ${line}`); process.exitCode = 1; };
@@ -89,6 +90,16 @@ async function verify(clientId: string | undefined, clientSecret: string | undef
   const env = await checkEnvironment();
   if (!env.ok) return fail(env.reason);
   await say(`Entorno: solo la rama por defecto puede usarlo${env.reviewers ? "; exige revisión" : "; sin revisor obligatorio"}.`);
+  const webTokenUrl = process.env.ORCH_DRIVE_TOKEN_URL?.trim();
+  if (!refresh && webTokenUrl) {
+    // Web connection («Conectar Google Drive»): no Google secret needed here, only the OIDC exchange.
+    if (!root || !process.env.ORCH_DRIVE_SOLICITUDES || !process.env.ORCH_DRIVE_ENTREGAS) return fail("faltan los identificadores de las carpetas");
+    const w = await checkDriveConnection(oidcDriveTokenSource(webTokenUrl), { root, solicitudes: process.env.ORCH_DRIVE_SOLICITUDES, entregas: process.env.ORCH_DRIVE_ENTREGAS });
+    await say(`Conexión web con Drive (token corto vía OIDC): ${JSON.stringify({ ok: w.ok, ...w.checks, ...(w.counts ?? {}) })}`);
+    if (!w.ok) return fail(w.reason ?? "la conexión web con Drive no pasó las comprobaciones (¿se pulsó «Conectar Google Drive» y está desplegado?)");
+    await say("LISTO: la conexión web funciona; la cuenta es la dueña de la carpeta de coordinación y puede escribir en ella.");
+    return;
+  }
   if (!clientId || !clientSecret) return fail("faltan GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET en el entorno");
   if (!refresh) { await say("Aún no hay GOOGLE_OAUTH_REFRESH_TOKEN: completa la autorización (docs/ORCHESTRATOR.md) y vuelve a ejecutar «verify»."); return; }
   if (!root || !process.env.ORCH_DRIVE_SOLICITUDES || !process.env.ORCH_DRIVE_ENTREGAS) return fail("faltan los identificadores de las carpetas");

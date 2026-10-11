@@ -93,6 +93,40 @@ export function oauthRefreshTokenProvider(creds: { clientId: string; clientSecre
 }
 
 /**
+ * Access token from the web connection («Conectar Google Drive»): the job asks GitHub for an OIDC token with the
+ * audience of the Drive token endpoint and exchanges it there for a Drive access token (≤ 1 h). No Google secret and no
+ * refresh token exist in GitHub. Needs `permissions: id-token: write` (GitHub then sets ACTIONS_ID_TOKEN_REQUEST_*).
+ * `fetchSource` also returns the granted scope (drive-check verifies it).
+ */
+export function oidcDriveTokenSource(tokenUrl: string, env: Record<string, string | undefined> = process.env, fetchImpl: FetchLike = fetch) {
+  return async (): Promise<{ access_token?: string; expires_in?: number; scope?: string } | null> => {
+    const reqUrl = env.ACTIONS_ID_TOKEN_REQUEST_URL, reqToken = env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+    if (!reqUrl || !reqToken) throw new Error("OIDC_NOT_AVAILABLE (falta permissions: id-token: write)");
+    const u = new URL(reqUrl);
+    u.searchParams.set("audience", "atomivid-drive-token");
+    const id = await fetchImpl(u.toString(), { headers: { authorization: `bearer ${reqToken}` } });
+    if (!id.ok) throw new Error(`OIDC_HTTP_${id.status}`);
+    const jwt = ((await id.json()) as { value?: string }).value;
+    if (!jwt) throw new Error("OIDC_EMPTY");
+    const res = await fetchImpl(tokenUrl, { method: "POST", headers: { authorization: `Bearer ${jwt}` } });
+    if (!res.ok) throw new Error(`DRIVE_TOKEN_ENDPOINT_HTTP_${res.status}`);
+    return (await res.json()) as { access_token?: string; expires_in?: number; scope?: string };
+  };
+}
+
+export function oidcDriveTokenProvider(tokenUrl: string, env: Record<string, string | undefined> = process.env, fetchImpl: FetchLike = fetch, now = () => Date.now()) {
+  const source = oidcDriveTokenSource(tokenUrl, env, fetchImpl);
+  let cached: { token: string; exp: number } | null = null;
+  return async () => {
+    if (cached && cached.exp - 60_000 > now()) return cached.token;
+    const j = await source();
+    if (!j?.access_token) throw new Error("DRIVE_TOKEN_ENDPOINT_EMPTY");
+    cached = { token: j.access_token, exp: now() + Math.min(3600, Number(j.expires_in) || 3600) * 1000 };
+    return cached.token;
+  };
+}
+
+/**
  * READ-ONLY on a personal Drive (no storage quota to create files there; writes work only in a Workspace shared
  * drive). Kept for Workspace setups. Access token for a Google service account (JSON key stored as a GitHub secret, never in Drive): signed JWT
  * (RS256) exchanged at oauth2.googleapis.com/token, scope drive (the folder must be shared with the account e-mail).
