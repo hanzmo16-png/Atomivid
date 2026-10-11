@@ -174,6 +174,16 @@ Costo: se esperan unos USD 0.001; el peor caso reservado es USD 0.0025 con `gpt-
 
 **Proyecto de la clave:** la llamada registra, enmascarados, los encabezados `openai-project` y `openai-organization` de la respuesta, más el id de la petición. Sirven para que Hans confirme que la clave es del proyecto donde fijó el límite de gasto.
 
+**Simulación completa (USD 0):** el modo `simulate` recorre el ciclo entero con el canal REST de Drive y el proveedor OAuth reales, contra un Drive simulado dentro del proceso, sin red ni secretos. Un Claude simulado entrega; el motor, el control determinista y el auditor simulado deciden. Se comprueba:
+- una revisión que termina cerrada;
+- un Google Doc nativo exportado;
+- una tarea sin `orquestar: si` que no se toca;
+- una autorización falsa que se escala a Hans;
+- paginación y token OAuth;
+- 0 llamadas pagadas.
+
+Corre en la sonda de CI en cada empuje.
+
 **Comprobación previa (USD 0):** el modo `preflight` evalúa todas las compuertas y el peor caso sin enviar nada. No recibe la clave, solo si existe. Puede lanzarse aunque `ORCHESTRATOR_ENABLED` no esté activado.
 
 ## Qué falta para activarlo (acciones de Hans, gratuitas)
@@ -207,12 +217,12 @@ Regla: no se pasa al siguiente paso hasta verificar el anterior. Todo es gratis 
 ### B. PR #97: orquestador sin gasto
 | Paso | Qué autoriza Hans | Verificación | Reversión |
 |---|---|---|---|
-| B1 | Crear el entorno `orchestrator` con «Selected branches» limitado a la rama por defecto, y Hans como revisor obligatorio (recomendado). Comprobar que **no** queda ninguna copia de los secretos de Google a nivel de repositorio. | Los workflows comprueban la política por API antes de usarlo. | Borrar el entorno, lo que borra también sus secretos. |
+| B1 | Crear el entorno `orchestrator` **antes** de fusionar. GitHub crea uno sin protección la primera vez que un trabajo lo nombra; nuestros controles lo rechazarían, pero es mejor que nazca protegido. Configuración: «Selected branches» con **exactamente** `claude/atomivid-mvp-setup-0079jv`, que es la rama por defecto real (no `main`), y Hans como revisor obligatorio (recomendado). Comprobado el 2026-10-11: no existe ninguna credencial de Google a nivel de repositorio. | Los workflows comprueban la política por API antes de usarlo. | Borrar el entorno, lo que borra también sus secretos. |
 | B2 | Crear el proyecto de Google Cloud: API de Drive, pantalla de consentimiento «En producción» y cliente «Desktop app». Guardar sus dos secretos en el entorno. | — | Borrar el cliente OAuth, lo que invalida todos sus tokens. |
 | B3 | Crear el token de grano fino `ORCH_SECRETS_WRITER_TOKEN`: solo este repositorio, «Secrets» y «Environments» de lectura y escritura, 7 días de vida. Guardarlo en el entorno. | `drive-oauth` rechaza un token sin caducidad o de más de 30 días. | Revocarlo en GitHub → Settings → Developer settings. |
 | B4 | Fusionar #97. Probado: no afecta a producción. | La compilación no incluye ni ejecuta código del orquestador. | Revertir la fusión. |
 | B5 | `drive-oauth` en modo `start` → consentimiento en el teléfono → guardar el secreto `GOOGLE_OAUTH_REDIRECT` en el entorno → `finish`. El flujo borra el token de B3 del entorno; Hans lo revoca también en GitHub. | Resultado «LISTO». `GOOGLE_OAUTH_PENDING` y `GOOGLE_OAUTH_REDIRECT` quedan borrados. | Cuenta de Google → Seguridad → Acceso de terceros → quitar la app (revoca el token). Borrar el secreto del entorno. |
-| B6 | Fijar la variable `ORCHESTRATOR_ENABLED=true` y lanzar `orchestrator.yml` en modo `live` con el auditor simulado (USD 0). | Lee `Solicitudes/` y escribe en `Entregas/`; registro con 0 llamadas pagadas. | Interruptor de emergencia: `ORCHESTRATOR_ENABLED=false`. |
+| B6 | Primero `orchestrator.yml` en modo `simulate` (USD 0, sin secretos): es el ciclo completo contra un Drive simulado y termina con `SIMULATE ok: true`. Después fijar `ORCHESTRATOR_ENABLED=true` y lanzar `live` con el auditor simulado (USD 0), ya sobre el Drive real. | Lee `Solicitudes/` y escribe en `Entregas/`; registro con 0 llamadas pagadas. | Interruptor de emergencia: `ORCHESTRATOR_ENABLED=false`. |
 
 ### C. Llamada de humo (≤ USD 0.05, una sola vez)
 | Paso | Qué autoriza Hans | Verificación | Reversión |

@@ -22,3 +22,4 @@ jobs:
         run: |
           node --import tsx --test src/lib/orchestrator/orchestrator.test.ts src/lib/orchestrator/e2e.test.ts src/lib/orchestrator/readiness.test.ts 2>&1 | grep -E "^# (pass|fail)"
           npx tsx scripts/orchestrator/run.ts
+          ORCH_MODE=simulate npx tsx scripts/orchestrator/run.ts

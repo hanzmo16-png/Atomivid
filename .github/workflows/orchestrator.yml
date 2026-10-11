@@ -9,11 +9,11 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "live = un ciclo sobre Drive; preflight = comprobar las compuertas del humo sin enviar nada (USD 0); smoke = UNA auditoría real de una entrega fija (tope USD 0.05, una sola vez)"
+        description: "simulate = ciclo completo contra un Drive simulado (USD 0, sin secretos); live = un ciclo sobre Drive; preflight = compuertas del humo sin enviar (USD 0); smoke = UNA auditoría real (tope USD 0.05, una sola vez)"
         required: true
-        default: live
+        default: simulate
         type: choice
-        options: [live, preflight, smoke]
+        options: [simulate, live, preflight, smoke]
       paid_approval:
         description: "Vacío = USD 0. Piloto: escribe exactamente GASTAR-HASTA-5USD. Humo: escribe exactamente HUMO-0.05USD"
         required: false
@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Default branch only; Google secrets live in the "orchestrator" environment (restricted to that branch).
-    if: (vars.ORCHESTRATOR_ENABLED == 'true' || inputs.mode == 'preflight') && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    if: (vars.ORCHESTRATOR_ENABLED == 'true' || inputs.mode == 'preflight' || inputs.mode == 'simulate') && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     environment: orchestrator
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0

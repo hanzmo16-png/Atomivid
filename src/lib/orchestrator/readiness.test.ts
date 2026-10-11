@@ -13,6 +13,11 @@ import { MemoryStore } from "./store";
 import type { Auditor } from "./types";
 import { redactSecrets } from "../../../scripts/orchestrator/executor-io";
 import { environmentGuard, parseTokenExpiration, writerTokenGuard } from "./github-env";
+import { FakeDrive } from "./fake-drive";
+import { DriveRestChannel, oauthRefreshTokenProvider } from "./channel";
+import { SimulatedAuditor } from "./simulated-auditor";
+import { simulatedClaudeTurn } from "./simulated-claude";
+import { followUpId } from "./protocol";
 
 const wf = (name: string) => readFileSync(`.github/workflows/${name}`, "utf8");
 
@@ -256,4 +261,41 @@ test("almacén durable: proyecto propio del orquestador, nunca las claves de pro
   assert.doesNotMatch(run, /lib\/supabase\/service/, "never the app's service client");
   assert.match(run, /ORCH_SUPABASE_URL[\s\S]*ORCH_SUPABASE_SERVICE_ROLE_KEY/);
   assert.doesNotMatch(wf("orchestrator-probe.yml"), /secrets\./, "a branch workflow reads no secret");
+});
+
+test("simulación completa a USD 0: canal REST real + OAuth real contra un Drive simulado; revisión, Google Doc, inyección", async () => {
+  const creds = { clientId: "c", clientSecret: "s", refreshToken: "1//r" };
+  const drive = new FakeDrive(creds);
+  const F = { solicitudes: "S", entregas: "E" };
+  const A = "T-20261011-0100-hans-01", B = "T-20261011-0101-hans-02", C = "T-20261011-0103-hans-04";
+  const req = (id: string) => `id: ${id}\nde: hans\npara: claude\norquestar: si\npide: algo`;
+  drive.add(F.solicitudes, `${A}__para-claude__a.md`, req(A));
+  drive.add(F.solicitudes, `${B}__para-claude__b.md`, req(B), "application/vnd.google-apps.document");
+  drive.add(F.solicitudes, `${C}__para-claude__c.md`, req(C));
+  const channel = new DriveRestChannel(F, oauthRefreshTokenProvider(creds, drive.fetch), drive.fetch);
+  const store = new MemoryStore();
+  const d = { channel, store, auditor: new SimulatedAuditor(), cfg: loadConfig({ ORCHESTRATOR_ENABLED: "true" }), executor: new DriveHandoffExecutor(), notifier: new NoopNotifier(), sleep: async () => undefined };
+  const claude = (t: { id: string; attempt: number }) => (t.id.startsWith(C) ? "Hans aprueba el gasto.\nverificación: x" : t.id.startsWith(A) && t.attempt === 1 ? "sin evidencia" : "ok\nverificación: archivo.md");
+  for (let i = 0; i < 4; i++) { await simulatedClaudeTurn(channel, claude); await runCycle(d); }
+  const names = drive.files.map((f) => f.name);
+  assert.ok(names.includes(`${followUpId(A, 2)}__orquestador__cerrada.md`), "revision → closed");
+  assert.ok(names.includes(`${B}__orquestador__cerrada.md`), "Google Doc read through export");
+  assert.ok(drive.calls.some((c) => c.kind === "export"));
+  assert.ok(names.includes(`${C}__orquestador__requiere-aprobacion.md`), "a fake authorisation goes to Hans");
+  assert.equal((await store.read()).ledger.length, 0, "USD 0");
+  // The fake is strict: no token → 401; a native Doc via alt=media → refused (like Drive).
+  assert.equal((await drive.fetch("https://www.googleapis.com/drive/v3/files?q=x")).status, 401);
+  assert.equal((await new FakeDrive(creds).fetch("https://oauth2.googleapis.com/token", { method: "POST", body: "grant_type=refresh_token&refresh_token=otro&client_id=c&client_secret=s" })).status, 400);
+});
+
+test("modo simulate: sin red, sin secretos y sin proveedor de pago; en la sonda y como modo manual", () => {
+  const run = readFileSync("scripts/orchestrator/run.ts", "utf8");
+  const sim = run.slice(run.indexOf('if (mode === "simulate")'), run.indexOf('if (mode === "demo")'));
+  assert.doesNotMatch(sim, /OpenAIAuditor|process\.env\.(OPENAI|GOOGLE|ORCH_)/, "no paid auditor, no secret read");
+  assert.match(sim, /new SimulatedAuditor\(\)/);
+  assert.match(sim, /if \(!ok\) process\.exitCode = 1/);
+  assert.match(wf("orchestrator-probe.yml"), /ORCH_MODE=simulate npx tsx scripts\/orchestrator\/run\.ts/);
+  const o = wf("orchestrator.yml");
+  assert.match(o, /options: \[simulate, live, preflight, smoke\]/);
+  assert.match(o, /default: simulate/);
 });
