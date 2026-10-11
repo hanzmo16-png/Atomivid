@@ -62,7 +62,7 @@ test("script/route.ts genera un diagnosticId propio por intento y lo pasa a la v
   const source = fs.readFileSync(ROUTE_PATH, "utf-8");
   assert.match(
     source,
-    /const diagnosticId = generateDiagnosticId\(\);\s*logScriptError\("POST \/script", error, diagnosticId\);\s*const message = classifyScriptError\(error, diagnosticId\);/,
+    /const diagnosticId = generateDiagnosticId\(\);\s*logScriptError\("POST \/script", error, diagnosticId\);\s*const message = classifyScriptError\((?:blocked \?\? )?error, diagnosticId\);/,
     'el catch de generación real debe generar UN diagnosticId y reutilizarlo en log + mensaje, para que el "(Código: X)" que ve el usuario sea buscable en los logs',
   );
 });

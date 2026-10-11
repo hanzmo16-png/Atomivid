@@ -1,6 +1,8 @@
 import { persistScriptChange, ScriptPersistenceError } from "@/lib/video/script-persistence";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
-import { withSupplyContext } from "@/lib/supply/anthropic";
+import { loadScriptOperations, withScriptGenerationContext } from "@/lib/supply/anthropic";
+import { supplyGuardRequired } from "@/lib/supply/server";
+import { scriptBlockState, ScriptLedgerUnavailableError, ScriptReconciliationRequiredError } from "@/lib/supply/script-intent";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -121,7 +123,7 @@ export async function POST(
 
     let script: GeneratedScript;
     try {
-      const result = await withSupplyContext(id, () => generateScriptForRequest({
+      const result = await withScriptGenerationContext(id, () => generateScriptForRequest({
         topic: videoRequest.topic,
         style: videoRequest.style,
         durationSeconds: videoRequest.duration_seconds,
@@ -140,9 +142,15 @@ export async function POST(
       script = result.script;
     } catch (error) {
       if (error instanceof SupplyUnavailableError) return NextResponse.json({ error: error.customerMessage }, { status: 503, headers: { "Retry-After": "300" } });
+      if (error instanceof ScriptLedgerUnavailableError) return NextResponse.json({ error: "El servicio de guiones no está disponible en este momento. No se hizo ningún cobro; intenta de nuevo en unos minutos." }, { status: 503, headers: { "Retry-After": "300" } });
+      // A failure AFTER the provider call (parse, storage, network cut) leaves the ledger RECONCILIATION_REQUIRED
+      // even when the error itself is generic: classify by the ledger, so the customer is told not to retry.
+      const blocked = error instanceof ScriptReconciliationRequiredError ? error : await uncertainAfterFailure(id);
       const diagnosticId = generateDiagnosticId();
       logScriptError("POST /script", error, diagnosticId);
-      const message = classifyScriptError(error, diagnosticId);
+      const message = classifyScriptError(blocked ?? error, diagnosticId);
+      // Double click while the first generation runs: leave the request alone (the first one will settle it).
+      if (blocked?.state === "in_flight") return NextResponse.json({ error: message, reconciliation: "in_flight" }, { status: 409 });
 
       // script_json se limpia explícitamente: si esto fue una regeneración
       // completa desde "script_ready" que falló, dejar el guion anterior
@@ -152,6 +160,7 @@ export async function POST(
       // acabamos de rechazar.
       await persistScriptChange(service, videoRequest, { status: "failed", error_message: message, script_json: null });
 
+      if (blocked) return NextResponse.json({ error: message, reconciliation: blocked.state }, { status: 409 });
       return NextResponse.json({ error: message }, { status: 500 });
     }
 
@@ -169,6 +178,15 @@ export async function POST(
     logScriptError("POST /script (inesperado)", error, diagnosticId);
     return NextResponse.json({ error: classifyScriptError(error, diagnosticId) }, { status: error instanceof ScriptPersistenceError ? error.status : 500 });
   }
+}
+
+/** Reads the ledger after a failed generation; a read failure is not hidden as "settled". */
+async function uncertainAfterFailure(id: string): Promise<ScriptReconciliationRequiredError | null> {
+  if (!supplyGuardRequired()) return null;
+  const rows = await loadScriptOperations(id).catch(() => null);
+  if (!rows) return new ScriptReconciliationRequiredError("requires_reconciliation", "ledger unreadable after a failed call");
+  const state = scriptBlockState(rows, Date.now());
+  return state ? new ScriptReconciliationRequiredError(state, "ledger state after a failed call") : null;
 }
 
 // Guarda ediciones manuales del guion (texto/búsqueda visual por escena)
