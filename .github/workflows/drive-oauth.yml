@@ -18,6 +18,9 @@ permissions:
   contents: read
   # Reads the "orchestrator" environment's branch policy before any secret is written.
   actions: read
+  # GitHub OIDC token for the Drive token endpoint of «Conectar Google Drive» (no Google secret in GitHub). The server
+  # accepts it only from this workflow, on the default branch, in the "orchestrator" environment.
+  id-token: write
 concurrency:
   group: drive-oauth
   cancel-in-progress: false
@@ -50,6 +53,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           ORCH_DRIVE_ROOT: 17GzExKZIgjOTF1Ods0H1AapuRssQ9m8Z
           ORCH_DRIVE_SOLICITUDES: 1WJ4FpKjMvOpn60i3diyy7sL7uDQfZp9W
+          ORCH_DRIVE_TOKEN_URL: https://atomivid.vercel.app/api/orchestrator/drive/token
           ORCH_DRIVE_ENTREGAS: 1z8C1ZnE8rh9iUUiEYQrNU-x7VMzCI4SJ
       # Also on cancel or timeout (Node never reaches its own cleanup then): the single-use code never stays stored.
       - name: Remove the temporary secrets (finish)

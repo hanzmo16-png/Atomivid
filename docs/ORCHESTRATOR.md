@@ -73,6 +73,73 @@ Fuentes: las páginas oficiales de cada modelo y la página de deprecaciones de 
 
 La sonda gratuita (`GET /v1/models`, que no se factura) lee las cabeceras `openai-organization` y `openai-project` de la respuesta y las muestra enmascaradas, porque el registro es público. Hans puede comparar los primeros y últimos 4 caracteres con los del panel de OpenAI.
 
+## «Conectar Google Drive» desde la web (B5, recomendado)
+
+Hans conecta Drive con **un botón** del Centro de mando (`/dashboard/command-center`). No copia códigos, tokens ni direcciones, y no hace falta el token de escritura de GitHub.
+
+1. **Botón:** `POST /api/orchestrator/drive/connect`, solo para el propietario (`isCommandCenterAdmin`).
+   - Crea un intento con estado aleatorio y verificador PKCE.
+   - Lo sella con AES-256-GCM en una cookie `httpOnly`, `SameSite=Lax`, limitada a `/api/orchestrator/drive` y válida 15 minutos.
+   - Devuelve la URL de consentimiento de Google, con alcance `drive`, acceso sin conexión y `prompt=consent`.
+2. **Retorno:** `GET /api/orchestrator/drive/callback`. Nada se guarda si falla cualquiera de estas condiciones:
+   - el usuario es el propietario;
+   - el `state` coincide con la cookie;
+   - el canje con PKCE funciona;
+   - Google concede Drive completo con token de renovación;
+   - la comprobación real (`drive-check.ts`) confirma que la cuenta es **dueña** de la carpeta de coordinación, puede escribir en ella y Solicitudes/Entregas están dentro.
+
+   Si todo pasa, el token de renovación se guarda **cifrado** (mismo sobre que YouTube) en `videos/orchestrator/drive-connection.v1.json`. Ese bucket es privado y solo la service role lo lee. El navegador vuelve con `?drive=<código>`, sin datos.
+3. **GitHub Actions nunca recibe el token de renovación.** `orchestrator.yml` y `drive-oauth.yml` piden a GitHub un token OIDC (`id-token: write`, audiencia `atomivid-drive-token`) y lo canjean en `POST /api/orchestrator/drive/token` por un acceso a Drive de **una hora como máximo**. El servidor verifica:
+   - la firma RS256 con las claves publicadas por GitHub;
+   - el emisor, la audiencia y la vigencia;
+   - el repositorio y la rama por defecto;
+   - el entorno `orchestrator`;
+   - que el claim `workflow_ref` sea exactamente `hanzmo16-png/Atomivid/.github/workflows/orchestrator.yml@refs/heads/<rama por defecto>` o lo mismo con `drive-oauth.yml`. Los dos son jobs normales, con pasos y sin workflow reutilizable. Según la referencia OIDC de GitHub, `workflow_ref` es la ruta del workflow, mientras que `job_workflow_ref` solo existe «para jobs que usan un workflow reutilizable»;
+   - que no haya `job_workflow_ref`, o que sea igual a `workflow_ref`. Si un job permitido llamara a un workflow reutilizable, se rechaza. No hay ningún respaldo a otros claims;
+   - que el evento no sea un PR.
+
+   No existe ningún secreto compartido entre Vercel y GitHub.
+4. **Precedencia en `run.ts`:**
+   1. `GOOGLE_OAUTH_REFRESH_TOKEN`, si sigue en el entorno: el flujo anterior sigue funcionando;
+   2. la conexión web (`ORCH_DRIVE_TOKEN_URL`);
+   3. las demás opciones.
+
+   `drive-oauth.yml` en modo `verify` comprueba la conexión web real sin ningún secreto de Google.
+
+**Configuración única del propietario (gratuita, nada de tokens):**
+- Un cliente OAuth de tipo **«Aplicación web»**, porque un cliente de escritorio no admite un retorno https. Sirve el cliente web que ya usa YouTube, añadiéndole este URI de redirección autorizado: `https://atomivid.vercel.app/api/orchestrator/drive/callback`.
+- La API de Drive activada en ese proyecto de Google Cloud. La pantalla de consentimiento debe estar «En producción»: en «Prueba» el token caduca a los 7 días.
+- En Vercel, `DRIVE_OAUTH_REDIRECT_URI` con ese URI. Si se usa un cliente distinto del de YouTube, también `DRIVE_OAUTH_CLIENT_ID`/`DRIVE_OAUTH_CLIENT_SECRET`. Para la clave de cifrado se puede usar `DRIVE_TOKEN_ENC_KEY` (32 bytes en base64); si no existe, se reutiliza `YOUTUBE_TOKEN_ENC_KEY`.
+- Desplegar. Requiere la autorización de Hans: la rama de B5 no se fusiona ni se despliega sin su revisión.
+
+**Reversión:** borrar el objeto `orchestrator/drive-connection.v1.json`, o revocar el acceso en myaccount.google.com/permissions. Quitar `id-token: write` y `ORCH_DRIVE_TOKEN_URL` de los dos workflows desactiva el canje.
+
+## Ejecución periódica (B6): estado real y ruta viable
+
+**El ciclo autónomo NO está operativo.** No se ha comprobado ninguna solicitud real atendida y entregada sin intervención de Hans.
+
+| Ruta | Qué hace | Bloqueo real | Quién lo resuelve |
+|---|---|---|---|
+| **A. Rutina de Claude** (recomendada, USD 0 de API) | Una sesión de Claude cada hora: lee Solicitudes/ con el conector de Drive, ejecuta lo permitido en el repositorio (rama + PR en borrador) y escribe en Entregas/ según el protocolo v3. | La rutina `trig_01Pz8jcNuHwtfAd2cDizojvD` existe pero está **pausada**. No tiene el conector Google Drive ni el repositorio: la API de rutinas no permite asociar conectores desde una sesión de esta organización. Una ejecución real (2026-10-11 06:00 UTC) confirmó que corre sola pero sin herramientas de Drive. | Hans, en claude.ai → Routines: añadir el conector Google Drive y el repositorio, activar y pulsar «Run now». |
+| B. GitHub Actions (`orchestrator.yml`) | Sondea Drive, audita y despacha `claude-executor.yml`. | 1) Solo tiene `workflow_dispatch`. Para que sea periódico hace falta `schedule:` y que `ORCH_MODE` sea `live` cuando no hay entradas (hoy, sin entradas, el modo sería `demo`). 2) Conexión con Drive: B5, pendiente de configuración y despliegue. 3) El ejecutor necesita `CLAUDE_CODE_OAUTH_TOKEN` (suscripción Max, `claude setup-token`) en el entorno y `ORCH_CLAUDE_ACTION_ENABLED=true`. 4) Sin llamadas pagadas, el auditor es el simulado. | Hans: configuración de B5, el token del ejecutor y autorizar el cambio de disparador. Claude puede preparar el cambio, pero no está aplicado. |
+
+Cambio preparado para la ruta B, **no aplicado** (activarlo es decisión de Hans):
+```yaml
+on:
+  schedule:
+    - cron: "17 * * * *"   # cada hora; no corre nada mientras ORCHESTRATOR_ENABLED != 'true'
+# en el paso run.ts:
+          ORCH_MODE: ${{ inputs.mode || 'live' }}
+```
+`readiness.test.ts` exige hoy que no haya disparadores automáticos. Habría que cambiar esa prueba a propósito, en un PR aparte.
+
+Criterio para declarar el ciclo operativo:
+1. Conexión real con Drive verificada (`verify` correcto).
+2. Una solicitud válida (protocolo v3) en Solicitudes/.
+3. Una ejecución sin intervención de Hans.
+4. Una entrega no vacía en Entregas/.
+5. La auditoría posterior.
+
 ## Google Drive: autenticación
 
 | Opción | Lee | Escribe en el Drive personal de Hans | Credencial |

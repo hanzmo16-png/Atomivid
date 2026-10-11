@@ -46,7 +46,7 @@ async function claimSmokeLabel(): Promise<"claimed" | "taken" | "error"> {
 async function main() {
   const { loadConfig, SMOKE_APPROVAL } = await import("../../src/lib/orchestrator/config");
   const { runCycle } = await import("../../src/lib/orchestrator/engine");
-  const { MemoryChannel, DriveRestChannel, serviceAccountTokenProvider, oauthRefreshTokenProvider } = await import("../../src/lib/orchestrator/channel");
+  const { MemoryChannel, DriveRestChannel, serviceAccountTokenProvider, oauthRefreshTokenProvider, oidcDriveTokenProvider } = await import("../../src/lib/orchestrator/channel");
   const { MemoryStore, JsonFileStore, SupabaseStore } = await import("../../src/lib/orchestrator/store");
   const { SimulatedAuditor } = await import("../../src/lib/orchestrator/simulated-auditor");
   const { OpenAIAuditor, buildRequest } = await import("../../src/lib/orchestrator/openai-auditor");
@@ -177,9 +177,12 @@ async function main() {
   // (e.g. from google-github-actions/auth) > service account (read-only on a personal Drive).
   const o = { clientId: process.env.GOOGLE_OAUTH_CLIENT_ID?.trim(), clientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim(), refreshToken: process.env.GOOGLE_OAUTH_REFRESH_TOKEN?.trim() };
   const sa = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim(), staticToken = process.env.DRIVE_ACCESS_TOKEN?.trim();
+  // Web connection («Conectar Google Drive»): short-lived token through OIDC, when no refresh token is stored here.
+  const webTokenUrl = process.env.ORCH_DRIVE_TOKEN_URL?.trim();
   const token = o.clientId && o.clientSecret && o.refreshToken ? oauthRefreshTokenProvider(o as { clientId: string; clientSecret: string; refreshToken: string })
+    : webTokenUrl ? oidcDriveTokenProvider(webTokenUrl)
     : staticToken ? async () => staticToken : sa ? serviceAccountTokenProvider(sa) : null;
-  const credential = o.refreshToken ? "oauth-usuario" : staticToken ? "token-temporal" : sa ? "cuenta-de-servicio (solo lectura en Drive personal)" : "ninguna";
+  const credential = o.refreshToken ? "oauth-usuario" : webTokenUrl ? "conexion-web (token corto via OIDC)" : staticToken ? "token-temporal" : sa ? "cuenta-de-servicio (solo lectura en Drive personal)" : "ninguna";
   log("DRIVE", { credential });
   if (!token || !folders.solicitudes || !folders.entregas) { log("BLOCKED", { reason: "falta la credencial de Google Drive (GOOGLE_OAUTH_*) o los IDs de las carpetas" }); process.exitCode = 1; return; }
   const channel = new DriveRestChannel(folders, token);

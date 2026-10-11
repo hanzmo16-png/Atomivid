@@ -32,11 +32,12 @@ export const newPending = (now = new Date()): Pending => ({ v: 1, state: randomB
 
 export const pkceChallenge = (verifier: string) => createHash("sha256").update(verifier).digest("base64url");
 
-export function consentUrl(clientId: string, pending: Pick<Pending, "state" | "verifier">): string {
+/** `redirectUri`: the loopback address (GitHub Actions flow) or the web callback of «Conectar Google Drive». */
+export function consentUrl(clientId: string, pending: Pick<Pending, "state" | "verifier">, redirectUri = LOOPBACK_REDIRECT): string {
   if (!STATE_RE.test(pending.state) || !VERIFIER_RE.test(pending.verifier)) throw new Error("intento inválido");
   const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   u.search = new URLSearchParams({
-    client_id: clientId, redirect_uri: LOOPBACK_REDIRECT, response_type: "code", scope: DRIVE_SCOPE,
+    client_id: clientId, redirect_uri: redirectUri, response_type: "code", scope: DRIVE_SCOPE,
     access_type: "offline", prompt: "consent", state: pending.state, code_challenge: pkceChallenge(pending.verifier), code_challenge_method: "S256",
   }).toString();
   return u.toString();
@@ -67,9 +68,9 @@ export function parseRedirect(raw: string | undefined, expectedState: string): P
   return { ok: true, code };
 }
 
-export function tokenRequestBody(input: { code: string; verifier: string; clientId: string; clientSecret: string }): string {
+export function tokenRequestBody(input: { code: string; verifier: string; clientId: string; clientSecret: string; redirectUri?: string }): string {
   return new URLSearchParams({
-    code: input.code, client_id: input.clientId, client_secret: input.clientSecret, redirect_uri: LOOPBACK_REDIRECT,
+    code: input.code, client_id: input.clientId, client_secret: input.clientSecret, redirect_uri: input.redirectUri ?? LOOPBACK_REDIRECT,
     grant_type: "authorization_code", code_verifier: input.verifier,
   }).toString();
 }
