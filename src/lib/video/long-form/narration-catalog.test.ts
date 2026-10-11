@@ -4,10 +4,12 @@ import {narrationCatalog,resolveReferencedReview} from './narration-catalog';
 import {editorialFixture,passingReview} from './editorial.test-fixtures';
 import {validateEditorialReview,editorialBlockers} from './editorial';
 import {generateDocumentaryScript,DocumentaryScriptSchema} from './documentary-script';
+/** Drops `quote` (the model answers with excerpt ids instead). */
+const withoutQuote=<T extends {quote?:unknown}>(o:T)=>{const c={...o};delete c.quote;return c as Omit<T,"quote">;};
 function fixture(){
  const script=editorialFixture(),review=passingReview(script),catalog=narrationCatalog(script.beats);
  const ref=(beat:number)=>({excerptId:catalog.find(e=>e.beatIndex===beat)!.id});
- const raw={...review,sections:review.sections.map(({beatIndex,quote,...rest})=>({...rest,...ref(beatIndex)})),firstAnswer:{...review.firstAnswer,evidence:ref(0)},ending:{...review.ending,evidence:ref(4)}};
+ const raw={...review,sections:review.sections.map(({beatIndex,...rest})=>({...withoutQuote(rest),...ref(beatIndex)})),firstAnswer:{...review.firstAnswer,evidence:ref(0)},ending:{...review.ending,evidence:ref(4)}};
  return {script,raw,catalog};
 }
 test('catalog contains only exact excerpts bound to immutable narration, including punctuation and short tails',()=>{
@@ -54,7 +56,7 @@ test('real SDK completes writer, referenced critic and every visual block with n
   let data:unknown=script;
   if(requests===2){const prompt=JSON.parse(body.messages[0].content);assert.ok(prompt.narrationExcerpts.length);data=raw;}
   if(requests>2){const prompt=JSON.parse(body.messages[0].content),index=requests-3;assert.ok(prompt.narrationExcerpts.every((e:{beatIndex:number})=>e.beatIndex===index));
-   data={visuals:script.beats[index].visuals.map(({quote,...v},i)=>({...v,excerptId:prompt.narrationExcerpts[i].id}))};}
+   data={visuals:script.beats[index].visuals.map((v,i)=>({...withoutQuote(v),excerptId:prompt.narrationExcerpts[i].id}))};}
   return new Response(JSON.stringify({id:'msg_fixture',type:'message',role:'assistant',model:body.model,stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify(data)}],usage:{input_tokens:10,output_tokens:10}}),{status:200,headers:{'content-type':'application/json'}});
  };
  try{

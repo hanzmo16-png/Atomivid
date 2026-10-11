@@ -37,7 +37,7 @@ test("real SDK serialization uses no compiled grammar for writer AND critic; edi
   const script = editorialFixture();
   const critic = passingReview(script), originalQuote = critic.sections[1].quote;
   critic.sections[1].quote = 'Missing';
-  const requests: Record<string, any>[] = [];
+  const requests: { system: string }[] = [];
   globalThis.fetch = async (_url, init) => {
     const body = JSON.parse(String(init?.body)); requests.push(body);
     assert.equal(body.output_config?.format, undefined);

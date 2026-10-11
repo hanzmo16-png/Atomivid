@@ -54,6 +54,11 @@ jobs:
           fi
       - name: Verify billing, access and durable saves without provider calls
         run: npm run test:saas
+      - name: Full unit suite, types and lint (no provider calls)
+        run: |
+          npm run test:unit
+          npx tsc --noEmit -p .
+          npx eslint .
       - run: npx remotion browser ensure
       - name: Prepare synthetic test image (no personal photo)
         run: |
