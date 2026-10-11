@@ -16,7 +16,7 @@
  */
 import type { LedgerStore, PaidOperation, PaidOpStatus } from "@/lib/production-intelligence/ledger";
 
-export type ScriptOpRow = { status: PaidOpStatus; shot_id: string; updated_at: string };
+export type ScriptOpRow = { status: PaidOpStatus; shot_id: string; updated_at: string; idempotency_key?: string };
 export type ScriptIntentBlock = "in_flight" | "requires_reconciliation";
 
 /** A submission older than this cannot still be running inside a 60 s route (maxDuration). */
@@ -63,6 +63,32 @@ export async function claimScriptOperation(store: Pick<LedgerStore, "get" | "ins
   if (!cur) throw new ScriptReconciliationRequiredError("requires_reconciliation", "ledger row vanished");
   if (cur.status === "COMMITTED" || cur.status === "REFUNDED") return;
   decideScriptIntent([{ status: cur.status, shot_id: cur.shotId, updated_at: cur.updatedAt }], nowMs, staleMs);
+}
+
+/** resultRef of a reservation released because it never reached the provider (not a refund of a real call). */
+export const RELEASED_STALE_REF = "released:stale-reserved-never-submitted";
+
+/**
+ * A RESERVED row older than the in-flight window never reached the provider (the engine moves it to SUBMITTED,
+ * atomically, BEFORE calling) and no live request can still own it. Left alone it would stay reserved forever (an
+ * orphan counted against caps) whenever the next attempt has a different key, e.g. after an edited topic. It is
+ * released with a compare-and-set RESERVED → REFUNDED (committedUsd 0, RELEASED_STALE_REF), so the next generation
+ * gets gen-N+1 and exactly one live reservation. If the CAS loses (someone submitted it meanwhile) the row's real
+ * status is used instead, so a submission is never mistaken for a released reservation.
+ */
+export async function releaseStaleReservations(store: Pick<LedgerStore, "get" | "update">, rows: readonly ScriptOpRow[], nowMs: number, staleMs = SCRIPT_IN_FLIGHT_STALE_MS): Promise<ScriptOpRow[]> {
+  const out: ScriptOpRow[] = [];
+  for (const r of rows) {
+    if (r.status !== "RESERVED" || !r.idempotency_key || nowMs - Date.parse(r.updated_at) < staleMs) { out.push(r); continue; }
+    const updated_at = new Date(nowMs).toISOString();
+    if (await store.update(r.idempotency_key, "RESERVED", { status: "REFUNDED", committedUsd: 0, resultRef: RELEASED_STALE_REF, updatedAt: updated_at })) {
+      out.push({ ...r, status: "REFUNDED", updated_at });
+      continue;
+    }
+    const cur = await store.get(r.idempotency_key);
+    out.push(cur ? { ...r, status: cur.status, updated_at: cur.updatedAt } : r);
+  }
+  return out;
 }
 
 /** After a failed generation: is a call of this request now uncertain or still running? null = settled. */

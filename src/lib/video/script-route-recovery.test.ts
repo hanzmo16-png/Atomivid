@@ -40,7 +40,9 @@ test('script/route.ts POST sigue permitiendo generar/regenerar el guion desde "p
 });
 
 test("script/route.ts sigue marcando la solicitud como failed (con mensaje clasificado) si la generación real falla, nunca la deja en un estado indefinido", () => {
-  const source = fs.readFileSync(ROUTE_PATH, "utf-8");
+  // Persisted through runScriptGeneration (script-generation.ts) with the route's persistScriptChange.
+  assert.match(fs.readFileSync(ROUTE_PATH, "utf-8"), /persist: \(patch\) => persistScriptChange\(service, videoRequest, patch\)/);
+  const source = fs.readFileSync(path.join(__dirname, "script-generation.ts"), "utf-8");
   assert.match(
     source,
     /status:\s*"failed",\s*error_message:\s*message,\s*script_json:\s*null/,
@@ -59,7 +61,9 @@ test("script/route.ts sigue marcando la solicitud como failed (con mensaje clasi
  * técnica completa (status/type de Anthropic, ver script-error.test.ts).
  */
 test("script/route.ts genera un diagnosticId propio por intento y lo pasa a la vez a logScriptError y classifyScriptError (nunca solo a uno de los dos)", () => {
-  const source = fs.readFileSync(ROUTE_PATH, "utf-8");
+  // The generation catch lives in script-generation.ts (runScriptGeneration), which the route delegates to.
+  assert.match(fs.readFileSync(ROUTE_PATH, "utf-8"), /await runScriptGeneration\(\{/);
+  const source = fs.readFileSync(path.join(__dirname, "script-generation.ts"), "utf-8");
   assert.match(
     source,
     /const diagnosticId = generateDiagnosticId\(\);\s*logScriptError\("POST \/script", error, diagnosticId\);\s*const message = classifyScriptError\((?:blocked \?\? )?error, diagnosticId\);/,

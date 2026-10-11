@@ -11,7 +11,7 @@ import { anthropicReservation, anthropicActualCost, ceilLedgerUsd, type ScriptUs
 import { classifyAnthropicError } from "./anthropic-error";
 
 import { admitDocumentaryCall } from "./documentary-step";
-import { claimScriptOperation, decideScriptIntent, ScriptLedgerUnavailableError, type ScriptOpRow } from "./script-intent";
+import { claimScriptOperation, decideScriptIntent, releaseStaleReservations, ScriptLedgerUnavailableError, type ScriptOpRow } from "./script-intent";
 
 const context = new AsyncLocalStorage<{ projectId: string; intentId: string; recoverLegacyOperator?: boolean; uncertainResubmits?: number; claimBeforeCall?: boolean }>();
 export function withSupplyContext<T>(projectId: string, fn: () => Promise<T>): Promise<T> {
@@ -19,7 +19,7 @@ export function withSupplyContext<T>(projectId: string, fn: () => Promise<T>): P
 }
 /** Every guarded script call of this video request (any intent, legacy random ones included). */
 export async function loadScriptOperations(projectId: string): Promise<ScriptOpRow[]> {
-  const { data, error } = await createServiceClient().from("pi_paid_operations").select("status, shot_id, updated_at")
+  const { data, error } = await createServiceClient().from("pi_paid_operations").select("status, shot_id, updated_at, idempotency_key")
     .eq("project_id", projectId).eq("provider", "anthropic").eq("method", "generate_script");
   if (error) throw new ScriptLedgerUnavailableError("script ledger read failed");
   return (data ?? []) as ScriptOpRow[];
@@ -28,9 +28,17 @@ export async function loadScriptOperations(projectId: string): Promise<ScriptOpR
  * so a retry after an uncertain call hits the same ledger state and never pays twice. Throws
  * ScriptReconciliationRequiredError (no provider call, no reservation) while a call is uncertain or in flight. */
 export async function withScriptGenerationContext<T>(projectId: string, fn: () => Promise<T>,
-  deps: { guard?: boolean; load?: (projectId: string) => Promise<ScriptOpRow[]>; now?: () => number } = {}): Promise<T> {
+  deps: { guard?: boolean; load?: (projectId: string) => Promise<ScriptOpRow[]>; store?: Pick<LedgerStore, "get" | "update">; now?: () => number } = {}): Promise<T> {
   if (!(deps.guard ?? supplyGuardRequired())) return withSupplyContext(projectId, fn);
-  const { intentId } = decideScriptIntent(await (deps.load ?? loadScriptOperations)(projectId), (deps.now ?? Date.now)());
+  const nowMs = (deps.now ?? Date.now)();
+  let rows: ScriptOpRow[];
+  try {
+    rows = await releaseStaleReservations(deps.store ?? supabaseLedgerStore(createServiceClient()), await (deps.load ?? loadScriptOperations)(projectId), nowMs);
+  } catch {
+    // Nothing was reserved or sent yet: a ledger outage before the call is "try later", never "reconcile".
+    throw new ScriptLedgerUnavailableError("script ledger read failed");
+  }
+  const { intentId } = decideScriptIntent(rows, nowMs);
   return context.run({ projectId, intentId, claimBeforeCall: true }, fn);
 }
 /** A failed documentary form resumes the same paid work, scoped to its authenticated owner. */

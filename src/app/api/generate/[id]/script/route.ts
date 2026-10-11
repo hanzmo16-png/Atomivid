@@ -1,8 +1,7 @@
 import { persistScriptChange, ScriptPersistenceError } from "@/lib/video/script-persistence";
-import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { loadScriptOperations, withScriptGenerationContext } from "@/lib/supply/anthropic";
 import { supplyGuardRequired } from "@/lib/supply/server";
-import { scriptBlockState, ScriptLedgerUnavailableError, ScriptReconciliationRequiredError } from "@/lib/supply/script-intent";
+import { runScriptGeneration } from "@/lib/video/script-generation";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -121,50 +120,31 @@ export async function POST(
       return NextResponse.json({ error: check.reason }, { status: 402 });
     }
 
-    let script: GeneratedScript;
-    try {
-      const result = await withScriptGenerationContext(id, () => generateScriptForRequest({
-        topic: videoRequest.topic,
-        style: videoRequest.style,
-        durationSeconds: videoRequest.duration_seconds,
-        language: videoRequest.language,
-      }));
+    const outcome = await runScriptGeneration({
+      generate: async () => {
+        const result = await withScriptGenerationContext(id, () => generateScriptForRequest({
+          topic: videoRequest.topic,
+          style: videoRequest.style,
+          durationSeconds: videoRequest.duration_seconds,
+          language: videoRequest.language,
+        }));
 
-      const quality = checkScriptQuality(result.script, {
-        topic: videoRequest.topic,
-        targetWords: targetWordsFor(videoRequest.duration_seconds),
-        providerName: result.providerName,
-      });
-      if (!quality.ok) {
-        throw new ScriptQualityError(quality);
-      }
-
-      script = result.script;
-    } catch (error) {
-      if (error instanceof SupplyUnavailableError) return NextResponse.json({ error: error.customerMessage }, { status: 503, headers: { "Retry-After": "300" } });
-      if (error instanceof ScriptLedgerUnavailableError) return NextResponse.json({ error: "El servicio de guiones no está disponible en este momento. No se hizo ningún cobro; intenta de nuevo en unos minutos." }, { status: 503, headers: { "Retry-After": "300" } });
-      // A failure AFTER the provider call (parse, storage, network cut) leaves the ledger RECONCILIATION_REQUIRED
-      // even when the error itself is generic: classify by the ledger, so the customer is told not to retry.
-      const blocked = error instanceof ScriptReconciliationRequiredError ? error : await uncertainAfterFailure(id);
-      const diagnosticId = generateDiagnosticId();
-      logScriptError("POST /script", error, diagnosticId);
-      const message = classifyScriptError(blocked ?? error, diagnosticId);
-      // Double click while the first generation runs: leave the request alone (the first one will settle it).
-      if (blocked?.state === "in_flight") return NextResponse.json({ error: message, reconciliation: "in_flight" }, { status: 409 });
-
-      // script_json se limpia explícitamente: si esto fue una regeneración
-      // completa desde "script_ready" que falló, dejar el guion anterior
-      // haría que el botón "Reintentar" del historial (RequestCard) lo
-      // interprete como "el render falló, el guion sigue siendo válido" y
-      // ofrezca reintentar el render en vez del guion — justo el guion que
-      // acabamos de rechazar.
-      await persistScriptChange(service, videoRequest, { status: "failed", error_message: message, script_json: null });
-
-      if (blocked) return NextResponse.json({ error: message, reconciliation: blocked.state }, { status: 409 });
-      return NextResponse.json({ error: message }, { status: 500 });
-    }
-
-    await persistScriptChange(service, videoRequest, { status: "script_ready", script_json: script, error_message: null });
+        const quality = checkScriptQuality(result.script, {
+          topic: videoRequest.topic,
+          targetWords: targetWordsFor(videoRequest.duration_seconds),
+          providerName: result.providerName,
+        });
+        if (!quality.ok) {
+          throw new ScriptQualityError(quality);
+        }
+        return result.script;
+      },
+      persist: (patch) => persistScriptChange(service, videoRequest, patch),
+      guard: supplyGuardRequired(),
+      loadRows: () => loadScriptOperations(id),
+    });
+    if (outcome.status !== 200) return NextResponse.json(outcome.body, { status: outcome.status, headers: "headers" in outcome ? outcome.headers : undefined });
+    const script = outcome.body.script;
 
     const inputChars = videoRequest.topic.length + videoRequest.style.length;
     const outputChars = JSON.stringify(script).length;
@@ -172,21 +152,12 @@ export async function POST(
       console.warn(`No se pudo registrar el costo de guion de ${id}:`, err);
     });
 
-    return NextResponse.json({ status: "script_ready", script });
+    return NextResponse.json(outcome.body);
   } catch (error) {
     const diagnosticId = generateDiagnosticId();
     logScriptError("POST /script (inesperado)", error, diagnosticId);
     return NextResponse.json({ error: classifyScriptError(error, diagnosticId) }, { status: error instanceof ScriptPersistenceError ? error.status : 500 });
   }
-}
-
-/** Reads the ledger after a failed generation; a read failure is not hidden as "settled". */
-async function uncertainAfterFailure(id: string): Promise<ScriptReconciliationRequiredError | null> {
-  if (!supplyGuardRequired()) return null;
-  const rows = await loadScriptOperations(id).catch(() => null);
-  if (!rows) return new ScriptReconciliationRequiredError("requires_reconciliation", "ledger unreadable after a failed call");
-  const state = scriptBlockState(rows, Date.now());
-  return state ? new ScriptReconciliationRequiredError(state, "ledger state after a failed call") : null;
 }
 
 // Guarda ediciones manuales del guion (texto/búsqueda visual por escena)
