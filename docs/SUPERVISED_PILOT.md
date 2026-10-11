@@ -7,9 +7,23 @@ El piloto se monta sobre el flujo de podcast, que es el único validado de punta
 ## Recorrido
 
 1. **Solicitud y guion.** En `/dashboard/podcast`, Hans pega su guion y elige una voz de su cuenta, o sube su propia grabación. Crear el episodio no tiene costo.
-2. **Presupuesto.** En la página del episodio, «Producción supervisada» muestra el costo pendiente:
-   - Es la narración aún no pagada. Si la narración ya está pagada, el costo es USD 0. El video no tiene costo de proveedores.
-   - Hans fija un máximo por producción. Si el costo pendiente no cabe, la producción no empieza y no se cobra nada.
+2. **Presupuesto total del episodio.** En la página del episodio, «Producción supervisada» muestra tres cifras:
+   - **Ya gastado:** el gasto histórico del episodio según el registro de pagos. Los cargos inciertos cuentan como gastados.
+   - **Pendiente:** la narración aún no pagada. Si ya está pagada, es USD 0. El video no tiene costo de proveedores.
+   - **Mínimo total:** ya gastado + pendiente, redondeado hacia arriba al centavo.
+   - Hans fija el presupuesto **total** del episodio. Si lo ya gastado más lo pendiente no cabe, la producción no empieza y no se cobra nada; el mensaje dice el mínimo necesario.
+   - La revisión compara el mismo total, así que una producción aceptada al iniciar no puede fallar la comprobación de presupuesto salvo que el costo real supere la estimación. Ese caso se marca aparte como defecto («costó más que su estimación»).
+   - **Pendiente neto:** los fragmentos de narración ya pagados y guardados no cuentan como pendientes. Ya están en lo gastado y se reutilizan a USD 0, así que una narración que falló a medias no se cuenta dos veces.
+   - **Sin costo nuevo, sin rechazo:** si no queda nada por pagar, ningún presupuesto bloquea, porque no hay dinero en juego. Es el caso de un nuevo montaje con la narración ya pagada. La revisión anota un exceso anterior como nota de severidad baja.
+   - **Límite por ejecución (independiente):** cada ejecución que pueda gastar algo nuevo lleva su propio máximo de gasto nuevo autorizado (`run_budget_usd`).
+     - Debe cubrir la cota superior de la ejecución: la estimación más el redondeo de la reserva de cada fragmento.
+     - La narración se detiene **antes** de cualquier fragmento pagado que pasaría del menor de dos montos: ese límite, o lo que queda del presupuesto total.
+     - La narración suelta, corta o en segundo plano, queda limitada a su propia estimación.
+   - **Producciones solicitadas antes del límite:** la columna está vacía, porque toda solicitud nueva la escribe. Conservan la autorización que el propietario dio entonces: con las reglas anteriores, `budget_usd` era el máximo de gasto nuevo de esa producción. Siguen limitadas también por el presupuesto total.
+   - **Orden de activación sin interrupciones:** primero aplicar la migración, que es aditiva e inocua para el código actual; después desplegar este cambio.
+   - **Migración `20261011040000_pilot_run_budget.sql`:** preparada, **no aplicada**. La app lee la columna por separado, así que todo lo demás funciona antes de aplicarla. Sin ella, ninguna producción que necesite pagar narración puede empezar; las que no tienen costo nuevo siguen funcionando.
+   - **Cargos inciertos:** un cargo sin confirmar se rechaza al solicitar y al iniciar una programada, además de en el worker.
+   - Si el registro de pagos no se puede leer, no empieza nada que dependa del presupuesto. Una producción programada se reintenta en cada tick; pasadas 6 horas sin poder verificarse, se bloquea con un aviso.
 3. **Producción.** Puede producir ahora o programar un inicio único.
    - El worker de GitHub Actions narra si hace falta, busca los clips y fotos, monta y verifica.
    - El avance se guarda: Hans puede salir y volver.

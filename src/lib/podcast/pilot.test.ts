@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { attemptsDecision, budgetDecision, buildVideoChecks, MAX_PRODUCTION_ATTEMPTS, noticeText, remainingCostUsd, scheduleDecision, summarizeSpend } from "./pilot";
+import { attemptsDecision, budgetDecision, buildVideoChecks, historicalSpendUsd, MAX_PRODUCTION_ATTEMPTS, minimumBudgetUsd, noticeText, remainingCostUsd, scheduleDecision, summarizeSpend } from "./pilot";
 import { claimScheduled, deliverGithubNotice, recordNotice } from "./pilot-server";
 import { requestPodcastVideo } from "./video-jobs";
 import type { PodcastEpisode } from "./episode";
@@ -25,17 +25,79 @@ function fakeService(rowsMatched = 1, insertDuplicate = false) {
   return { service: { from: () => self } as never, updates, inserts, filters };
 }
 
-test("presupuesto: el costo pendiente debe caber en el máximo; narración pagada = USD 0; sin máximo no empieza un gasto", () => {
+test("presupuesto total del episodio: gasto histórico + costo pendiente ≤ presupuesto; narración pagada = USD 0 pendiente", () => {
   assert.equal(remainingCostUsd(episode()), 5.4);
   assert.equal(remainingCostUsd(episode({ status: "ready" })), 0, "narration already paid and stored");
   assert.equal(remainingCostUsd(episode({ source: "upload" })), 0);
-  assert.deepEqual(budgetDecision(episode(), 6), { ok: true, remainingUsd: 5.4 });
-  const short = budgetDecision(episode(), 5);
+  assert.deepEqual(budgetDecision(episode(), 6, 0), { ok: true, spentUsd: 0, remainingUsd: 5.4, projectedUsd: 5.4, minimumBudgetUsd: 5.4 });
+  const short = budgetDecision(episode(), 5, 0);
   assert.equal(short.ok, false);
-  assert.match((short as { message: string }).message, /Presupuesto insuficiente: .*USD 5\.40.*USD 5\.00\. No se cobró nada/);
-  assert.equal(budgetDecision(episode(), null).ok, false, "a paid production needs an explicit maximum");
-  assert.equal(budgetDecision(episode({ status: "ready" }), null).ok, true, "nothing left to pay → no maximum needed");
-  assert.equal(budgetDecision(episode(), 101).ok, false);
+  assert.match((short as { message: string }).message, /Presupuesto total insuficiente: .*USD 5\.40 más .*USD 5\.00\. Fija al menos USD 5\.40\. No se cobró nada/);
+  assert.equal(budgetDecision(episode(), null, 0).ok, false, "a paid production needs an explicit total budget");
+  assert.equal(budgetDecision(episode({ status: "ready" }), null, 0.5).ok, true, "nothing left to pay → no budget needed");
+  assert.equal(budgetDecision(episode(), 101, 0).ok, false);
+  // History counts: 1.00 already spent on this episode + 5.40 pending does not fit a 6.00 total.
+  const hist = budgetDecision(episode(), 6, 1);
+  assert.equal(hist.ok, false);
+  assert.equal(hist.projectedUsd, 6.4);
+  assert.equal(hist.minimumBudgetUsd, 6.4);
+  assert.equal(budgetDecision(episode(), 6.4, 1).ok, true);
+  // Ledger unreadable: a start that depends on the budget is refused (fail closed); nothing new to pay and no budget → allowed.
+  assert.match((budgetDecision(episode(), 6, null) as { message: string }).message, /registro de gastos/);
+  assert.equal(budgetDecision(episode({ status: "ready" }), 6, null).ok, true, "nothing new to pay: no money at stake even if the ledger is unreadable");
+  assert.equal(budgetDecision(episode({ status: "ready" }), null, null).ok, true);
+  // Partly paid narration: the server passes what is still unpaid (net of stored chunks), never the full estimate again.
+  assert.equal(budgetDecision(episode(), 5.4, 2.7, 2.7).ok, true, "2.70 paid + 2.70 still unpaid fits 5.40 (no double count)");
+  assert.equal(budgetDecision(episode(), 5.4, 2.7).ok, false, "without the net pending it would need 8.10");
+});
+
+test("regresión piloto 21/21 (escenario D): USD 0.1028 ya gastados, presupuesto 0.10 y nada nuevo que pagar → inicio y revisión coinciden", () => {
+  const ready = episode({ status: "ready", cost_usd: 0.1028 });
+  const spend = { calls: 1, committedUsd: 0.1028, deliveredOpenUsd: 0, uncertain: 0, uncertainUsd: 0, spentUsd: 0.1028 };
+  // Before: the start passed and the review then failed its budget check with a high defect. Now both agree: no new
+  // money is at stake, so it starts, the review check passes and the past overrun is a low-severity note.
+  const free = budgetDecision(ready, 0.1, historicalSpendUsd(spend));
+  assert.equal(free.ok, true);
+  assert.equal(free.minimumBudgetUsd, 0.11);
+  const c10 = buildVideoChecks({ editorOk: true, editorChecks: [], videoSeconds: 30, audioSeconds: 30, bytes: 1, maxBytes: 2, subtitles: true, shots: { videos: 3, photos: 0, cards: 0, total: 3 }, credits: 3,
+    spend, budgetUsd: 0.1, spentBeforeUsd: free.spentUsd, pendingEstimateUsd: free.remainingUsd });
+  assert.equal(c10.checks.find((c) => c.id === "budget")?.ok, true);
+  assert.equal(c10.defects.some((d) => d.id === "budget"), false, "no high defect for a run that spent nothing");
+  assert.ok(c10.defects.some((d) => d.id === "budget_history" && d.severity === "baja"));
+  // With anything new to pay, the total rule bites at the start (0.1028 spent + 0.05 pending > 0.10).
+  const paid = budgetDecision(episode({ estimated_usd: 0.05 }), 0.1, historicalSpendUsd(spend));
+  assert.equal(paid.ok, false);
+  assert.match((paid as { message: string }).message, /ya gastó USD 0\.1028 .*Fija al menos USD 0\.16/);
+  const accepted = budgetDecision(ready, 0.11, historicalSpendUsd(spend));
+  assert.equal(accepted.ok, true);
+  const checks = buildVideoChecks({ editorOk: true, editorChecks: [], videoSeconds: 30, audioSeconds: 30, bytes: 1, maxBytes: 2, subtitles: true, shots: { videos: 3, photos: 0, cards: 0, total: 3 }, credits: 3,
+    spend, budgetUsd: 0.11, spentBeforeUsd: accepted.spentUsd, pendingEstimateUsd: accepted.remainingUsd });
+  assert.equal(checks.checks.find((c) => c.id === "budget")?.ok, true);
+  assert.equal(checks.checks.find((c) => c.id === "estimate")?.ok, true);
+  assert.equal(checks.defects.some((d) => d.id === "budget"), false);
+  assert.deepEqual(checks.budget, { totalBudgetUsd: 0.11, spentBeforeUsd: 0.1028, incrementalUsd: 0, pendingEstimateUsd: 0, spentUsd: 0.1028 });
+});
+
+test("presupuesto: lo que acepta el inicio siempre pasa la comprobación de la revisión si el gasto real no supera la estimación", () => {
+  for (const spent of [0, 0.0001, 0.1028, 1, 4.99]) for (const pending of [0, 0.01, 0.5, 5.4]) for (const delta of [-0.01, 0, 0.004, 0.01, 1]) {
+    const ep = pending === 0 ? episode({ status: "ready" }) : episode({ estimated_usd: pending });
+    const budget = Math.max(0, minimumBudgetUsd(spent, pending) + delta);
+    const d = budgetDecision(ep, budget, spent);
+    assert.equal(d.ok, pending === 0 || spent + pending <= budget + 1e-9, `spent ${spent} pending ${pending} budget ${budget}`);
+    if (!d.ok) continue;
+    const real = { calls: 1, committedUsd: spent + pending, deliveredOpenUsd: 0, uncertain: 0, uncertainUsd: 0, spentUsd: Math.round((spent + pending) * 10_000) / 10_000 };
+    const c = buildVideoChecks({ editorOk: true, editorChecks: [], videoSeconds: 30, audioSeconds: 30, bytes: 1, maxBytes: 2, subtitles: true, shots: { videos: 1, photos: 0, cards: 0, total: 1 }, credits: 1,
+      spend: real, budgetUsd: budget, spentBeforeUsd: d.spentUsd, pendingEstimateUsd: d.remainingUsd });
+    assert.equal(c.checks.find((x) => x.id === "budget")?.ok, true, `start accepted but review failed: spent ${spent} pending ${pending} budget ${budget}`);
+  }
+  // A real cost above the estimate is reported (this production), and an over-budget total is a high defect.
+  const over = buildVideoChecks({ editorOk: true, editorChecks: [], videoSeconds: 30, audioSeconds: 30, bytes: 1, maxBytes: 2, subtitles: true, shots: { videos: 1, photos: 0, cards: 0, total: 1 }, credits: 1,
+    spend: { calls: 2, committedUsd: 1.3, deliveredOpenUsd: 0, uncertain: 0, uncertainUsd: 0, spentUsd: 1.3 }, budgetUsd: 1.2, spentBeforeUsd: 0.2, pendingEstimateUsd: 1 });
+  assert.equal(over.budget?.incrementalUsd, 1.1);
+  assert.ok(over.defects.some((d) => d.id === "estimate" && d.severity === "media"));
+  assert.ok(over.defects.some((d) => d.id === "budget" && d.severity === "alta"));
+  // Uncertain charges count against the total budget (fail closed).
+  assert.equal(historicalSpendUsd({ spentUsd: 1, uncertainUsd: 0.5 }), 1.5);
 });
 
 test("gasto: comprometido + entregado; un cargo abierto sin resultado guardado es incierto", () => {
@@ -64,35 +126,66 @@ test("reintentos acotados y programación de un solo disparo", () => {
 
 test("solicitud: presupuesto insuficiente → 402 sin tocar la fila; programada → sin despacho ni intento; tope de intentos", async () => {
   let f = fakeService();
-  assert.equal((await requestPodcastVideo(f.service, episode(), { budgetUsd: 5 }) as { status: number }).status, 402);
+  assert.equal((await requestPodcastVideo(f.service, episode(), { budgetUsd: 5, spentUsd: 0 }) as { status: number }).status, 402);
   assert.equal(f.updates.length, 0, "nothing recorded, nothing charged");
+  assert.equal((await requestPodcastVideo(f.service, episode(), { budgetUsd: 6, spentUsd: 1 }) as { status: number }).status, 402, "history + pending over the total");
+  assert.equal((await requestPodcastVideo(f.service, episode(), { budgetUsd: 6 }) as { error: string; status: number }).status, 402, "ledger unknown → refused");
+  assert.equal(f.updates.length, 0);
+  // Per-run limit: required for new spend, must cover the run's upper bound, and its column must be readable.
+  assert.match((await requestPodcastVideo(f.service, episode(), { budgetUsd: 6, spentUsd: 0, runBudgetColumn: true }) as { error: string }).error, /máximo de gasto nuevo/);
+  assert.match((await requestPodcastVideo(f.service, episode(), { budgetUsd: 6, spentUsd: 0, runBudgetColumn: true, runBudgetUsd: 5 }) as { error: string }).error, /Límite de esta ejecución insuficiente/);
+  assert.match((await requestPodcastVideo(f.service, episode(), { budgetUsd: 6, spentUsd: 0, runBudgetUsd: 6 }) as { error: string }).error, /migración/, "column missing → no paid start");
+  assert.equal((await requestPodcastVideo(f.service, episode(), { budgetUsd: 6, spentUsd: 0, runBudgetColumn: true, runBudgetUsd: 6, uncertainCharges: 1 }) as { status: number }).status, 409, "uncertain charge → refused at request time");
+  assert.equal(f.updates.length, 0);
   f = fakeService();
   const at = new Date(Date.now() + 3600_000).toISOString();
-  const out = await requestPodcastVideo(f.service, episode(), { budgetUsd: 6, scheduleAt: at });
+  const out = await requestPodcastVideo(f.service, episode(), { budgetUsd: 6, scheduleAt: at, spentUsd: 0, runBudgetColumn: true, runBudgetUsd: 5.41 });
   assert.deepEqual(out, { ok: true, status: "scheduled" });
   assert.equal(f.updates[0].video_status, "scheduled");
   assert.equal(f.updates[0].budget_usd, 6);
+  assert.equal(f.updates[0].run_budget_usd, 5.41);
   assert.equal(f.updates[0].video_attempts, undefined, "the attempt is counted when it really starts");
   assert.equal(f.updates[0].publish_status, "held");
   assert.equal(f.updates[0].review_status, "pending");
   f = fakeService();
-  assert.equal((await requestPodcastVideo(f.service, episode({ video_status: "failed", retry_count: MAX_PRODUCTION_ATTEMPTS - 1 }), { budgetUsd: 6 }) as { status: number }).status, 429);
+  assert.equal((await requestPodcastVideo(f.service, episode({ video_status: "failed", retry_count: MAX_PRODUCTION_ATTEMPTS - 1 }), { budgetUsd: 6, spentUsd: 0, runBudgetColumn: true, runBudgetUsd: 6 }) as { status: number }).status, 429);
   f = fakeService();
   await requestPodcastVideo(f.service, episode({ status: "ready", video_status: "ready", video_attempts: 30, retry_count: 0 }), {});
   assert.equal(f.updates[0].video_status, "queued", "not refused by a history of 30 attempts");
   assert.equal(f.updates[0].retry_count, 0);
+  assert.equal("run_budget_usd" in f.updates[0], false, "before the migration the column is never written (free runs keep working)");
 });
 
 test("programación: el tick reclama una vez (CAS) y re-chequea presupuesto al iniciar", async () => {
   let f = fakeService();
-  const claim = await claimScheduled(f.service, episode({ video_status: "scheduled", budget_usd: 6 }));
+  const RUN = { available: true, value: 6 };
+  const S0 = { spentUsd: 0, uncertain: 0 };
+  const claim = await claimScheduled(f.service, episode({ video_status: "scheduled", budget_usd: 6 }), S0, RUN);
   assert.equal(claim.claimed, true);
   assert.equal(f.updates[0].video_status, "queued");
   assert.equal(f.updates[0].video_attempts, 1);
   assert.ok(f.filters.some((x) => x === 'eq:["video_status","scheduled"]'));
-  assert.equal((await claimScheduled(fakeService(0).service, episode({ video_status: "scheduled", budget_usd: 6 }))).claimed, false, "another tick or request won");
+  assert.equal((await claimScheduled(fakeService(0).service, episode({ video_status: "scheduled", budget_usd: 6 }), S0, RUN)).claimed, false, "another tick or request won");
   f = fakeService();
-  const blocked = await claimScheduled(f.service, episode({ video_status: "scheduled", budget_usd: 1 }));
+  const now = Date.parse("2026-10-11T10:00:00Z");
+  const due = episode({ video_status: "scheduled", budget_usd: 6, scheduled_at: "2026-10-11T09:59:00Z" });
+  const unread = await claimScheduled(f.service, due, null, RUN, undefined, now);
+  assert.deepEqual(unread, { claimed: false }, "ledger unreadable → stays scheduled for the next tick");
+  assert.deepEqual(await claimScheduled(f.service, due, S0, { available: false, value: null }, undefined, now), { claimed: false }, "run limit unreadable → stays scheduled");
+  assert.equal(f.updates.length, 0);
+  const stuck = await claimScheduled(f.service, episode({ video_status: "scheduled", budget_usd: 6, scheduled_at: "2026-10-11T03:00:00Z" }), null, RUN, undefined, now);
+  assert.equal((stuck as { blocked?: { kind: string; message: string } }).blocked?.kind, "blocked", "unverifiable for 6 h → blocked with a notice, never stuck forever");
+  f = fakeService();
+  assert.equal((await claimScheduled(f.service, episode({ video_status: "scheduled", budget_usd: 6 }), { spentUsd: 0, uncertain: 1 }, RUN)).claimed, false, "uncertain charge → blocked at claim time");
+  assert.equal(f.updates[0].video_status, "blocked");
+  f = fakeService();
+  assert.equal((await claimScheduled(f.service, episode({ video_status: "scheduled", budget_usd: 6 }), { spentUsd: 0, uncertain: 0 }, { available: true, value: 1 })).claimed, false, "run limit below the run's upper bound");
+  assert.equal(f.updates[0].video_status, "blocked");
+  f = fakeService();
+  assert.equal((await claimScheduled(f.service, episode({ video_status: "scheduled", budget_usd: 6 }), { spentUsd: 1, uncertain: 0 }, RUN)).claimed, false, "1.00 already spent + 5.40 pending > 6.00");
+  assert.equal(f.updates[0].video_status, "blocked");
+  f = fakeService();
+  const blocked = await claimScheduled(f.service, episode({ video_status: "scheduled", budget_usd: 1 }), S0, RUN);
   assert.equal(blocked.claimed, false);
   assert.equal((blocked as { blocked?: { kind: string } }).blocked?.kind, "budget");
   assert.equal(f.updates[0].video_status, "blocked");
@@ -143,7 +236,7 @@ test("avisos: uno por ejecución y tipo; GitHub recibe solo un texto genérico c
 
 test("worker: comprobación previa antes de cualquier cobro, bloqueo distinto de error, aviso único y publicación detenida", () => {
   const w = readFileSync("scripts/podcast-video-worker.ts", "utf8");
-  const pre = w.indexOf("productionSpend(service, episodeId)"), narr = w.indexOf("await runGeneration(service, episode)", w.indexOf("async function produce"));
+  const pre = w.indexOf("productionSpend(service, episodeId)"), narr = w.indexOf("await runGeneration(service, episode, Date.now", w.indexOf("async function produce"));
   assert.ok(pre > 0 && narr > pre, "spend/uncertain/budget preflight runs before the narration");
   assert.match(w, /spendBefore\.uncertain > 0\) throw new BlockError\(UNCERTAIN_CHARGE_MESSAGE\)/);
   assert.match(w, /video_status: blocked \? "blocked" : "failed"/);
@@ -184,8 +277,9 @@ test("tick programado: token en tabla de servicio, reclama y despacha; si el des
   assert.equal(await authorizedSchedulerTick(auth.service, token), true);
   assert.equal(await authorizedSchedulerTick(auth.service, "b".repeat(64)), false);
   assert.equal(await authorizedSchedulerTick(auth.service, null), false);
-  const due = [episode({ id: "e1", video_status: "scheduled", budget_usd: 6 }), episode({ id: "e2", video_status: "scheduled", budget_usd: 1 })];
+  const due = [episode({ id: "e1", video_status: "scheduled", budget_usd: 6 }), episode({ id: "e2", video_status: "scheduled", budget_usd: 0 })];
   const s = scriptedService((table, ops) => {
+    if (table === "podcast_episodes" && ops.includes('select:["run_budget_usd"]')) return { data: { run_budget_usd: 6 }, error: null };
     if (table === "podcast_episodes" && ops.some((o) => o.startsWith("lte:"))) return { data: due };
     if (table === "podcast_episodes" && ops.includes("update")) return { data: [{ id: "x" }] };
     if (table === "production_notices" && ops.includes("insert")) return { data: { id: "n" }, error: null };
@@ -198,4 +292,20 @@ test("tick programado: token en tabla de servicio, reclama y despacha; si el des
   const eps = s.updates.filter((u) => u.table === "podcast_episodes").map((u) => u.patch.video_status);
   assert.deepEqual(eps, ["queued", "scheduled", "blocked"], "claimed → dispatch failed → back to scheduled; e2 blocked");
   assert.equal(s.updates.filter((u) => u.table === "production_notices" && u.ops.includes("insert")).length, 1);
+});
+
+test("presupuesto: leer el gasto histórico nunca escribe en el registro de pagos", async () => {
+  const { episodeSpentUsd } = await import("./pilot-server");
+  const rows = [{ idempotency_key: "k1", status: "COMMITTED", reserved_usd: "0.1028", committed_usd: "0.1028" }, { idempotency_key: "k2", status: "SUBMITTED", reserved_usd: "0.05", committed_usd: null }];
+  const ops: string[] = [];
+  const b: Record<string, unknown> = new Proxy({}, { get: (_t, k: string) => {
+    if (k === "then") return (r: (v: unknown) => unknown) => r({ data: rows, error: null });
+    return (...a: unknown[]) => { ops.push(`${k}:${JSON.stringify(a)}`); return b; };
+  } });
+  const storage = { from: () => ({ download: async () => ({ data: null, error: { message: "not found" } }) }) };
+  const spent = await episodeSpentUsd({ from: (t: string) => { ops.push(`from:${t}`); return b; }, storage } as never, "11111111-1111-4111-8111-111111111111");
+  assert.equal(spent, 0.1528, "committed + uncertain open charge");
+  assert.ok(ops.every((o) => /^(from|select|eq|order|range):/.test(o)), `only reads: ${ops.join(" ")}`);
+  const broken = await episodeSpentUsd({ from: () => ({ select: () => ({ eq: async () => ({ data: null, error: { message: "down" } }) }) }), storage } as never, "x");
+  assert.equal(broken, null, "unreadable ledger → null (callers fail closed)");
 });
