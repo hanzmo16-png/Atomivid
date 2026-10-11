@@ -1,0 +1,42 @@
+name: Orchestrator environment check (temporary, presence only)
+# Temporary, free, read-only. Job "policy" (no environment) reads the "orchestrator" environment's branch policy
+# through the API and checks that the two OAuth secrets are NOT stored at repository level (booleans only).
+# Job "from-unauthorized-branch" asks for the environment from THIS branch: GitHub must reject it (proof that only the
+# authorised branch can read the environment's secrets). Never prints a secret value. Removed right after its run.
+on:
+  push:
+    branches: [claude/ops-env-check]
+    paths: [.github/workflows/orchestrator-env-check.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Environment branch policy (names only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          api() { curl -s -w '\n%{http_code}' -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/$1"; }
+          r=$(api environments/orchestrator); echo "ENV_HTTP $(echo "$r" | tail -1)"
+          echo "$r" | head -n -1 | jq -c '{name, deployment_branch_policy, rules: [.protection_rules[]?.type]}'
+          r=$(api environments/orchestrator/deployment-branch-policies); echo "POLICIES_HTTP $(echo "$r" | tail -1)"
+          echo "$r" | head -n -1 | jq -c '{total_count, branch_policies: [.branch_policies[]? | {name, type}]}'
+          echo "DEFAULT_BRANCH ${{ github.event.repository.default_branch }}"
+      - name: OAuth secrets at repository level (must be false)
+        env:
+          A: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          B: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+        run: echo "REPO_LEVEL GOOGLE_OAUTH_CLIENT_ID=$([ -n "$A" ] && echo true || echo false) GOOGLE_OAUTH_CLIENT_SECRET=$([ -n "$B" ] && echo true || echo false)"
+  from-unauthorized-branch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: orchestrator
+    steps:
+      - name: Should never run (this branch is not allowed by the environment)
+        env:
+          A: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+        run: echo "UNEXPECTED_ACCESS client_id_present=$([ -n "$A" ] && echo true || echo false)"
