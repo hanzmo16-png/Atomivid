@@ -94,7 +94,8 @@ Hans conecta Drive con **un botón** del Centro de mando (`/dashboard/command-ce
    - el emisor, la audiencia y la vigencia;
    - el repositorio y la rama por defecto;
    - el entorno `orchestrator`;
-   - que el archivo de workflow sea `orchestrator.yml` o `drive-oauth.yml` (`job_workflow_ref`);
+   - que el claim `workflow_ref` sea exactamente `hanzmo16-png/Atomivid/.github/workflows/orchestrator.yml@refs/heads/<rama por defecto>` o lo mismo con `drive-oauth.yml`. Los dos son jobs normales, con pasos y sin workflow reutilizable. Según la referencia OIDC de GitHub, `workflow_ref` es la ruta del workflow, mientras que `job_workflow_ref` solo existe «para jobs que usan un workflow reutilizable»;
+   - que no haya `job_workflow_ref`, o que sea igual a `workflow_ref`. Si un job permitido llamara a un workflow reutilizable, se rechaza. No hay ningún respaldo a otros claims;
    - que el evento no sea un PR.
 
    No existe ningún secreto compartido entre Vercel y GitHub.
@@ -112,6 +113,32 @@ Hans conecta Drive con **un botón** del Centro de mando (`/dashboard/command-ce
 - Desplegar. Requiere la autorización de Hans: la rama de B5 no se fusiona ni se despliega sin su revisión.
 
 **Reversión:** borrar el objeto `orchestrator/drive-connection.v1.json`, o revocar el acceso en myaccount.google.com/permissions. Quitar `id-token: write` y `ORCH_DRIVE_TOKEN_URL` de los dos workflows desactiva el canje.
+
+## Ejecución periódica (B6): estado real y ruta viable
+
+**El ciclo autónomo NO está operativo.** No se ha comprobado ninguna solicitud real atendida y entregada sin intervención de Hans.
+
+| Ruta | Qué hace | Bloqueo real | Quién lo resuelve |
+|---|---|---|---|
+| **A. Rutina de Claude** (recomendada, USD 0 de API) | Una sesión de Claude cada hora: lee Solicitudes/ con el conector de Drive, ejecuta lo permitido en el repositorio (rama + PR en borrador) y escribe en Entregas/ según el protocolo v3. | La rutina `trig_01Pz8jcNuHwtfAd2cDizojvD` existe pero está **pausada**. No tiene el conector Google Drive ni el repositorio: la API de rutinas no permite asociar conectores desde una sesión de esta organización. Una ejecución real (2026-10-11 06:00 UTC) confirmó que corre sola pero sin herramientas de Drive. | Hans, en claude.ai → Routines: añadir el conector Google Drive y el repositorio, activar y pulsar «Run now». |
+| B. GitHub Actions (`orchestrator.yml`) | Sondea Drive, audita y despacha `claude-executor.yml`. | 1) Solo tiene `workflow_dispatch`. Para que sea periódico hace falta `schedule:` y que `ORCH_MODE` sea `live` cuando no hay entradas (hoy, sin entradas, el modo sería `demo`). 2) Conexión con Drive: B5, pendiente de configuración y despliegue. 3) El ejecutor necesita `CLAUDE_CODE_OAUTH_TOKEN` (suscripción Max, `claude setup-token`) en el entorno y `ORCH_CLAUDE_ACTION_ENABLED=true`. 4) Sin llamadas pagadas, el auditor es el simulado. | Hans: configuración de B5, el token del ejecutor y autorizar el cambio de disparador. Claude puede preparar el cambio, pero no está aplicado. |
+
+Cambio preparado para la ruta B, **no aplicado** (activarlo es decisión de Hans):
+```yaml
+on:
+  schedule:
+    - cron: "17 * * * *"   # cada hora; no corre nada mientras ORCHESTRATOR_ENABLED != 'true'
+# en el paso run.ts:
+          ORCH_MODE: ${{ inputs.mode || 'live' }}
+```
+`readiness.test.ts` exige hoy que no haya disparadores automáticos. Habría que cambiar esa prueba a propósito, en un PR aparte.
+
+Criterio para declarar el ciclo operativo:
+1. Conexión real con Drive verificada (`verify` correcto).
+2. Una solicitud válida (protocolo v3) en Solicitudes/.
+3. Una ejecución sin intervención de Hans.
+4. Una entrega no vacía en Entregas/.
+5. La auditoría posterior.
 
 ## Google Drive: autenticación
 

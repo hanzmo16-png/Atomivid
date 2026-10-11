@@ -144,28 +144,73 @@ const jwks = async () => ({ keys: [jwk] });
 const NOW = 1_791_700_000;
 const REPO = "hanzmo16-png/Atomivid", BRANCH = "claude/atomivid-mvp-setup-0079jv";
 const policy: OidcPolicy = { repository: REPO, defaultBranch: BRANCH, environment: "orchestrator", audience: DRIVE_TOKEN_AUDIENCE, workflows: ALLOWED_WORKFLOWS };
-const goodClaims = { iss: GITHUB_OIDC_ISSUER, aud: DRIVE_TOKEN_AUDIENCE, iat: NOW - 5, nbf: NOW - 5, exp: NOW + 300, repository: REPO, ref: `refs/heads/${BRANCH}`, environment: "orchestrator", event_name: "workflow_dispatch", run_id: "123",
-  job_workflow_ref: `${REPO}/.github/workflows/orchestrator.yml@refs/heads/${BRANCH}` };
+/**
+ * Claims of a token requested by an ordinary job (steps, no reusable workflow) of orchestrator.yml, dispatched by hand on
+ * the default branch in the «orchestrator» environment. Only claims GitHub documents for that case (OIDC reference,
+ * "Custom claims provided by GitHub"): workflow_ref / workflow_sha, NO job_workflow_ref (that one is "for jobs using a
+ * reusable workflow"). With an environment, sub is "repo:<owner>/<repo>:environment:<name>".
+ */
+const WF = (file: string, branch = BRANCH) => `${REPO}/.github/workflows/${file}@refs/heads/${branch}`;
+const goodClaims: Record<string, unknown> = {
+  jti: "6f4c1d2e-0000-4000-8000-000000000001", sub: `repo:${REPO}:environment:orchestrator`, aud: DRIVE_TOKEN_AUDIENCE, iss: GITHUB_OIDC_ISSUER,
+  iat: NOW - 5, nbf: NOW - 5, exp: NOW + 300,
+  ref: `refs/heads/${BRANCH}`, ref_type: "branch", ref_protected: "false", sha: "d11f531" + "0".repeat(33),
+  repository: REPO, repository_id: "1000001", repository_owner: "hanzmo16-png", repository_owner_id: "2000002", repository_visibility: "public",
+  run_id: "123", run_number: "7", run_attempt: "1", runner_environment: "github-hosted", actor: "hanzmo16-png", actor_id: "2000002",
+  workflow: "Orchestrator (manual, gated)", workflow_ref: WF("orchestrator.yml"), workflow_sha: "d11f531" + "0".repeat(33),
+  head_ref: "", base_ref: "", event_name: "workflow_dispatch", environment: "orchestrator", environment_node_id: "EN_kwDOtest",
+};
 const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
 function sign(claims: Record<string, unknown>, header: Record<string, unknown> = { alg: "RS256", kid: "k1", typ: "JWT" }, key = privateKey) {
   const head = `${b64(header)}.${b64(claims)}`;
   return `${head}.${createSign("RSA-SHA256").update(head).sign(key).toString("base64url")}`;
 }
 
-test("OIDC: solo este repositorio, la rama por defecto, el entorno protegido y un workflow permitido, con firma de GitHub válida", async () => {
+test("OIDC: un job normal de orchestrator.yml o drive-oauth.yml (workflow_ref, sin job_workflow_ref) en la rama y el entorno autorizados", async () => {
+  assert.equal("job_workflow_ref" in goodClaims, false, "the representative token has no job_workflow_ref");
   assert.deepEqual(await verifyGithubOidc(sign(goodClaims), policy, jwks, NOW), { ok: true, workflow: "orchestrator.yml", runId: "123" });
-  assert.equal((await verifyGithubOidc(sign({ ...goodClaims, job_workflow_ref: `${REPO}/.github/workflows/drive-oauth.yml@refs/heads/${BRANCH}` }), policy, jwks, NOW)).ok, true);
+  assert.deepEqual(await verifyGithubOidc(sign({ ...goodClaims, workflow: "Drive OAuth (one-time owner authorization)", workflow_ref: WF("drive-oauth.yml") }), policy, jwks, NOW),
+    { ok: true, workflow: "drive-oauth.yml", runId: "123" });
+  // Should GitHub also send job_workflow_ref for a direct job, it can only be the same workflow: still accepted.
+  assert.equal((await verifyGithubOidc(sign({ ...goodClaims, job_workflow_ref: WF("orchestrator.yml") }), policy, jwks, NOW)).ok, true);
+  // The YAML really are ordinary jobs: steps, no `uses:` at job level (no reusable workflow) and id-token for OIDC.
+  for (const w of ALLOWED_WORKFLOWS) {
+    const y = readFileSync(`.github/workflows/${w}`, "utf8");
+    assert.match(y, /id-token: write/);
+    assert.match(y, /^ {4}environment: orchestrator$/m);
+    assert.doesNotMatch(y, /^ {4}uses: /m, `${w}: no job calls a reusable workflow`);
+    assert.match(y, /^ {4}steps:/m);
+  }
+});
+
+test("OIDC: rechaza workflow ajeno, rama ajena, repositorio ajeno, entorno incorrecto, PR, caducado, reutilizable y firma inválida", async () => {
   const refuse: [Record<string, unknown>, RegExp][] = [
-    [{ iss: "https://evil.example" }, /emisor/],
-    [{ aud: "otra" }, /audiencia/],
+    // Another workflow of this repository, on the authorized branch (e.g. the Claude executor or any new file).
+    [{ workflow_ref: WF("claude-executor.yml") }, /workflow no permitido/],
+    [{ workflow_ref: WF("orchestrator-probe.yml") }, /workflow no permitido/],
+    // An allowed file name, but from another branch: both the ref claim and workflow_ref name that branch.
+    [{ ref: "refs/heads/claude/ops-env-check", workflow_ref: WF("orchestrator.yml", "claude/ops-env-check") }, /rama/],
+    // Even if only workflow_ref pointed at another branch, it does not match the authorized one.
+    [{ workflow_ref: WF("orchestrator.yml", "claude/otra") }, /workflow no permitido/],
+    // A fork or another repository with the same workflow file.
+    [{ repository: "otro/Atomivid", workflow_ref: `otro/Atomivid/.github/workflows/orchestrator.yml@refs/heads/${BRANCH}`, sub: "repo:otro/Atomivid:environment:orchestrator" }, /repositorio/],
+    // No environment, or another one.
+    [{ environment: undefined, sub: `repo:${REPO}:ref:refs/heads/${BRANCH}` }, /entorno/],
+    [{ environment: "production" }, /entorno/],
+    // Pull request events.
+    [{ event_name: "pull_request", ref: "refs/pull/5/merge" }, /rama/],
+    [{ event_name: "pull_request_target" }, /evento/],
+    // Missing workflow_ref (no fallback to any other claim).
+    [{ workflow_ref: undefined }, /workflow no permitido/],
+    [{ workflow_ref: undefined, job_workflow_ref: WF("orchestrator.yml") }, /workflow no permitido/],
+    // An allowed workflow whose job runs a reusable workflow (here or elsewhere): not one of the two files.
+    [{ job_workflow_ref: "otra-org/automatizacion/.github/workflows/drive.yml@refs/heads/main" }, /reutilizable/],
+    [{ job_workflow_ref: WF("claude-executor.yml") }, /reutilizable/],
+    // Time, issuer and audience.
     [{ exp: NOW - 120 }, /caducado/],
     [{ nbf: NOW + 600, iat: NOW + 600 }, /aún no/],
-    [{ repository: "otro/Atomivid" }, /repositorio/],
-    [{ ref: "refs/heads/claude/ops-env-check" }, /rama/],
-    [{ environment: undefined }, /entorno/],
-    [{ event_name: "pull_request_target" }, /evento/],
-    [{ job_workflow_ref: `${REPO}/.github/workflows/claude-executor.yml@refs/heads/${BRANCH}` }, /workflow/],
-    [{ job_workflow_ref: `${REPO}/.github/workflows/orchestrator.yml@refs/heads/claude/otra` }, /workflow/],
+    [{ iss: "https://evil.example" }, /emisor/],
+    [{ aud: "sts.amazonaws.com" }, /audiencia/],
   ];
   for (const [over, re] of refuse) {
     const r = await verifyGithubOidc(sign({ ...goodClaims, ...over }), policy, jwks, NOW);

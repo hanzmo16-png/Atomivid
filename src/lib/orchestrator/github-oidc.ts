@@ -2,8 +2,8 @@
  * Verifies a GitHub Actions OIDC token (RS256 JWT signed by token.actions.githubusercontent.com) for the Drive token
  * endpoint of «Conectar Google Drive». No shared secret exists between Vercel and GitHub: the workflow asks GitHub for
  * a token with our audience and the server checks the signature (GitHub's published JWKS) and the claims below.
- * Only a job of an allowed workflow, on the default branch, running in the protected environment «orchestrator» of
- * this repository, gets a Drive access token. Pure apart from the injected JWKS fetch.
+ * Only a job of an allowed workflow (checked on `workflow_ref`; reusable workflows are refused), on the default branch,
+ * running in the protected environment «orchestrator» of this repository, gets a Drive access token. Pure apart from the injected JWKS fetch.
  */
 import { createPublicKey, createVerify, type JsonWebKey } from "node:crypto";
 
@@ -44,10 +44,15 @@ export async function verifyGithubOidc(jwt: string, policy: OidcPolicy, jwks: ()
   if (claims.ref !== ref) return { ok: false, reason: "rama no permitida" };
   if (claims.environment !== policy.environment) return { ok: false, reason: "el job no corre en el entorno protegido" };
   if (claims.event_name === "pull_request" || claims.event_name === "pull_request_target") return { ok: false, reason: "evento no permitido" };
-  // job_workflow_ref = "<owner>/<repo>/.github/workflows/<file>@<ref>": the workflow file itself, not the caller.
-  const jwr = String(claims.job_workflow_ref ?? "");
-  const workflow = policy.workflows.find((w) => jwr.toLowerCase() === `${policy.repository}/.github/workflows/${w}@${ref}`.toLowerCase());
+  // orchestrator.yml and drive-oauth.yml run ordinary jobs (steps, no `uses:` of a reusable workflow). GitHub's OIDC
+  // reference: `workflow_ref` = "the ref path to the workflow" (<owner>/<repo>/.github/workflows/<file>@<ref>);
+  // `job_workflow_ref` exists "for jobs using a reusable workflow". So the allowed file is checked on workflow_ref.
+  const wr = String(claims.workflow_ref ?? "");
+  const workflow = policy.workflows.find((w) => wr.toLowerCase() === `${policy.repository}/.github/workflows/${w}@${ref}`.toLowerCase());
   if (!workflow) return { ok: false, reason: "workflow no permitido" };
+  // No reusable workflows: if a job_workflow_ref is present it must be that same workflow. A job of an allowed workflow
+  // that calls a reusable workflow (here or in another repository) runs code that is not one of the two files: refused.
+  if (claims.job_workflow_ref !== undefined && String(claims.job_workflow_ref).toLowerCase() !== wr.toLowerCase()) return { ok: false, reason: "workflow reutilizable no permitido" };
   return { ok: true, workflow, runId: String(claims.run_id ?? "") };
 }
 
