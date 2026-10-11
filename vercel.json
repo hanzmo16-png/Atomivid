@@ -7,7 +7,8 @@
       "claude/pilot-diag": false,
       "ops-sealed-out": false,
       "claude/pilot-deploy": false,
-      "claude/pilot-budget-total": false
+      "claude/pilot-budget-total": false,
+      "claude/orchestrator-v1": false
     }
   }
 }
