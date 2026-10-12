@@ -124,7 +124,9 @@ async function check() {
   const signed = up.error ? null : await svc.storage.from("videos").createSignedUrl(probePath, 60);
   const viaSigned = signed?.data?.signedUrl ? await fetch(signed.data.signedUrl).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null) : null;
   await svc.storage.from("videos").remove([probePath]);
-  report.privateChannel = { uploadOk: !up.error, readBackOk: Boolean(back && back.equals(probe)), signedUrlOk: Boolean(viaSigned && Buffer.from(viaSigned).equals(probe)) };
+  const after = await svc.storage.from("videos").download(probePath);
+  report.privateChannel = { uploadOk: !up.error, readBackOk: Boolean(back && back.equals(probe)), signedUrlOk: Boolean(viaSigned && Buffer.from(viaSigned).equals(probe)),
+    probeDeleted: Boolean(after.error || !after.data) };
   report.estimate = { chars: TEXT.length, voiceMaxUsd: r4(TEXT.length * ELEVEN_USD_PER_CHAR_MAX), heygenMaxUsdFor12s: r4(12 * HEYGEN_USD_PER_SECOND_MAX) };
   report.photoSha256 = sha256(photo);
   const ap = await approvedPhoto(svc);
@@ -331,16 +333,44 @@ async function generate() {
   report.result = "generated_and_delivered";
 }
 
+// Correction 3 (chatgpt-25): bounded, read-only inventory of the two accounts' private photos vs the approved one.
+async function inventoryMode() {
+  const svc = service();
+  const { collectCandidates, inventory } = await import("./inventory");
+  const { data: v } = await svc.from("user_voices").select("user_id").eq("id", VOICE_ROW).maybeSingle();
+  const { data: a } = await svc.from("avatars").select("user_id").eq("id", AVATAR_ROW).maybeSingle();
+  if (!v || !a) throw new Error("owner_rows_missing");
+  const owners = [{ id: v.user_id as string, label: "cuenta_voz" as const }, { id: a.user_id as string, label: "cuenta_avatar" as const }];
+  const extra = [];
+  for (const o of owners) {
+    const { data: rows } = await svc.from("avatars").select("source_photo_path").eq("user_id", o.id);
+    for (const r of rows ?? []) if (r.source_photo_path) extra.push({ path: r.source_photo_path as string, owner: o.label, source: "avatars.source_photo_path" });
+  }
+  extra.push({ path: APPROVED_PHOTO.path, owner: "cuenta_avatar" as const, source: "ruta_aprobada" });
+  const bucket = svc.storage.from(APPROVED_PHOTO.bucket);
+  const store = {
+    async list(prefix: string) {
+      const { data } = await bucket.list(prefix, { limit: 100 });
+      return (data ?? []).map(e => ({ name: e.name, isFolder: e.id === null }));
+    },
+    async download(path: string) { const r = await bucket.download(path); return r.data ? Buffer.from(await r.data.arrayBuffer()) : null; },
+  };
+  const cands = await collectCandidates(store, owners.map(o => ({ prefix: o.id, owner: o.label })), extra);
+  report.inventory = await inventory(store, cands);
+  report.result = "inventory_ok_no_spend";
+}
+
 async function main() {
   await mkdir(OUT, { recursive: true });
   if (MODE === "check") await check();
   else if (MODE === "generate") await generate();
+  else if (MODE === "inventory") await inventoryMode();
   else throw new Error("invalid_mode");
 }
 main()
   .catch(e => { report.result = "stopped"; report.error = e instanceof Error ? e.message.slice(0, 200) : "unknown"; process.exitCode = 1; })
   .finally(async () => { report.finishedAt = new Date().toISOString(); await save(); const a = report.avatar as Record<string, unknown> | undefined, vo = report.voice as Record<string, unknown> | undefined;
-    console.log("HANS01_SUMMARY " + JSON.stringify({ result: report.result, error: report.error ?? null, photoSha256: a?.photoSha256, photoFingerprint: report.photoFingerprint, approvedPhoto: report.approvedPhoto, photo: a && { w: a.photoWidth, h: a.photoHeight, codec: a.photoCodec, bytes: a.photoBytes },
+    console.log("HANS01_SUMMARY " + JSON.stringify({ result: report.result, error: report.error ?? null, photoSha256: a?.photoSha256, photoFingerprint: report.photoFingerprint, approvedPhoto: report.approvedPhoto, inventory: report.inventory, photo: a && { w: a.photoWidth, h: a.photoHeight, codec: a.photoCodec, bytes: a.photoBytes },
       voice: vo && { status: vo.rowStatus, provider: vo.provider, needsReview: vo.needsReview }, elevenlabsVoice: report.elevenlabsVoice, elevenlabs: report.elevenlabs, heygenWalletUsd: report.heygenWalletUsd,
       owners: report.owners, appUsage: report.appUsage, videoRequestColumns: report.videoRequestColumns, privateChannel: report.privateChannel, estimate: report.estimate, ledger: report.ledger, deliveryRouteApproved: report.deliveryRouteApproved,
       before: report.before, voiceResult: report.voiceResult, cuts: report.cuts, budget: report.budget, clips: report.clips && Object.fromEntries(Object.entries(report.clips as Record<string, Record<string, unknown>>).map(([k, c]) => [k, { reused: c.reused, seconds: c.seconds, walletDeltaUsd: c.walletDeltaUsd, streams: c.streams }])),
