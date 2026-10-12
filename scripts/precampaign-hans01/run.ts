@@ -3,7 +3,7 @@
  *
  * MODE=check     USD 0: verifies the cloned voice row, the approved avatar photo (private thumbnail for review),
  *                ElevenLabs plan/credits, HeyGen wallet and a private-bucket round trip. No generation.
- * MODE=generate  only with APPROVED_PHOTO_SHA256 (the photo Claude reviewed in `check`):
+ * MODE=generate  only with the photo Hans approved (APPROVED_PHOTO: exact sha256, private storage path):
  *                1) full narration with Hans's cloned ElevenLabs voice (one paid call, ledger-guarded);
  *                2) opening/closing lines cut from THAT audio at word timestamps (lip-sync uses the same samples);
  *                3) budget recomputed from the real cut durations BEFORE any HeyGen call; stop if > cap;
@@ -26,6 +26,20 @@ const PROJECT = "precampaign-hans01-20261012";
 const VOICE_ROW = "2485ab5a-4975-4e9a-a6dd-30f6723d99b2";
 const AVATAR_ROW = "245a8a51-a699-4f69-a387-7c11246a0b7f";
 const CAP_USD = 1.2;
+// Hans chose (2026-10-12, option a) the navy-jacket photo recovered in Drive (1i1JxePYjDLrME85wrEsI53eI1houVNSt),
+// inspected by Claude and Codex. The avatar row's own photo (5446139c…) is a DIFFERENT image (perceptual distance
+// 27/64 dHash) and is never used. The workflow cannot read Drive from this branch and the repository is public, so the
+// exact bytes must be placed privately at this path; anything with another sha256 is refused.
+const APPROVED_PHOTO = { bucket: "avatar-uploads", path: "hans01-precampaign/foto-chaqueta-azul-marino.jpg", mime: "image/jpeg",
+  sha256: "d00818a82ded6325b00128e818eb771fe9e4763230cafc75315a5606d18ad3cc", bytes: 191382 } as const;
+
+async function approvedPhoto(svc: SupabaseClient) {
+  const f = await svc.storage.from(APPROVED_PHOTO.bucket).download(APPROVED_PHOTO.path);
+  if (f.error || !f.data) return { ok: false as const, reason: "approved_photo_not_uploaded" };
+  const b = Buffer.from(await f.data.arrayBuffer());
+  if (sha256(b) !== APPROVED_PHOTO.sha256) return { ok: false as const, reason: "approved_photo_sha_mismatch", sha256: sha256(b), bytes: b.length };
+  return { ok: true as const, photo: b };
+}
 const TEXT = "¿Tienes buenas ideas, pero hacer un video te toma demasiado tiempo? Estamos preparando Atomivid para ayudarte a convertir esas ideas en contenido. Guion, voz, imágenes, subtítulos y la opción de presentar con tu propio avatar. Mira algunos resultados de nuestras pruebas. Estamos afinando la experiencia para que tú también puedas crear. ¿Quieres enterarte del lanzamiento? Síguenos. Atomivid. Tu idea. Tu video. Próximamente.";
 const OPENING_LAST = "tiempo?";
 const CLOSING_FIRST = "¿Quieres", CLOSING_LAST = "Síguenos.";
@@ -113,6 +127,8 @@ async function check() {
   report.privateChannel = { uploadOk: !up.error, readBackOk: Boolean(back && back.equals(probe)), signedUrlOk: Boolean(viaSigned && Buffer.from(viaSigned).equals(probe)) };
   report.estimate = { chars: TEXT.length, voiceMaxUsd: r4(TEXT.length * ELEVEN_USD_PER_CHAR_MAX), heygenMaxUsdFor12s: r4(12 * HEYGEN_USD_PER_SECOND_MAX) };
   report.photoSha256 = sha256(photo);
+  const ap = await approvedPhoto(svc);
+  report.approvedPhoto = ap.ok ? { present: true, sha256Ok: true, bytes: ap.photo.length } : { present: ap.reason !== "approved_photo_not_uploaded", sha256Ok: false, reason: ap.reason };
   // Perceptual fingerprint only (hashes + 3x3 mean colours): compared privately with the Drive copy, never the image.
   const { photoFingerprint } = await import("./fingerprint");
   report.photoFingerprint = await photoFingerprint(join(OUT, "photo-original"));
@@ -145,11 +161,13 @@ type VoiceOut = { audioBuffer: Buffer; durationSeconds: number; words: Word[] };
 type ClipAudio = { file: string; seconds: number; bytes: Buffer };
 
 async function generate() {
-  const approved = process.env.APPROVED_PHOTO_SHA256?.trim();
-  if (!approved || !/^[0-9a-f]{64}$/.test(approved)) throw new Error("photo_not_approved");
   const svc = service();
-  const { voiceId, photo, photoMime } = await identity(svc);
-  if (sha256(photo) !== approved) throw new Error("photo_changed_since_review");
+  const { voiceId } = await identity(svc);
+  // Only the photo Hans approved (exact sha256); the avatar row's photo is never sent to HeyGen.
+  const ap = await approvedPhoto(svc);
+  if (!ap.ok) throw new Error(ap.reason);
+  const photo = ap.photo, photoMime = APPROVED_PHOTO.mime;
+  report.photoUsed = { source: "hans-approved-drive-copy", sha256: APPROVED_PHOTO.sha256, bytes: photo.length };
 
   const { getHeygenWallet, estimateHeygenCost } = await import("../../src/lib/providers/avatar/heygen");
   const { synthesizeVoice, getVoiceIdentity } = await import("../../src/lib/ai/voice");
@@ -261,7 +279,7 @@ async function generate() {
         inputFingerprint: { photo: sha256(photo), audio: sha256(a.bytes), resolution: "720p", aspect: "auto" }, reservedUsd: a.seconds * HEYGEN_USD_PER_SECOND_MAX },
       hooks: {
         call: async ({ key }) => {
-          photoAsset ??= await assetUpload(photo, photoMime, photoMime === "image/png" ? "photo.png" : "photo.jpeg");
+          photoAsset ??= await assetUpload(photo, photoMime, "photo.jpeg");
           const audioAsset = await assetUpload(a.bytes, "audio/wav", `${k}.wav`);
           const created = await heygen("/v3/videos", { method: "POST", body: JSON.stringify({ type: "image", image: { type: "asset_id", asset_id: photoAsset }, audio_asset_id: audioAsset, aspect_ratio: "auto", resolution: "720p" }) });
           const videoId = created.video_id as string;
@@ -322,7 +340,7 @@ async function main() {
 main()
   .catch(e => { report.result = "stopped"; report.error = e instanceof Error ? e.message.slice(0, 200) : "unknown"; process.exitCode = 1; })
   .finally(async () => { report.finishedAt = new Date().toISOString(); await save(); const a = report.avatar as Record<string, unknown> | undefined, vo = report.voice as Record<string, unknown> | undefined;
-    console.log("HANS01_SUMMARY " + JSON.stringify({ result: report.result, error: report.error ?? null, photoSha256: a?.photoSha256, photoFingerprint: report.photoFingerprint, photo: a && { w: a.photoWidth, h: a.photoHeight, codec: a.photoCodec, bytes: a.photoBytes },
+    console.log("HANS01_SUMMARY " + JSON.stringify({ result: report.result, error: report.error ?? null, photoSha256: a?.photoSha256, photoFingerprint: report.photoFingerprint, approvedPhoto: report.approvedPhoto, photo: a && { w: a.photoWidth, h: a.photoHeight, codec: a.photoCodec, bytes: a.photoBytes },
       voice: vo && { status: vo.rowStatus, provider: vo.provider, needsReview: vo.needsReview }, elevenlabsVoice: report.elevenlabsVoice, elevenlabs: report.elevenlabs, heygenWalletUsd: report.heygenWalletUsd,
       owners: report.owners, appUsage: report.appUsage, videoRequestColumns: report.videoRequestColumns, privateChannel: report.privateChannel, estimate: report.estimate, ledger: report.ledger, deliveryRouteApproved: report.deliveryRouteApproved,
       before: report.before, voiceResult: report.voiceResult, cuts: report.cuts, budget: report.budget, clips: report.clips && Object.fromEntries(Object.entries(report.clips as Record<string, Record<string, unknown>>).map(([k, c]) => [k, { reused: c.reused, seconds: c.seconds, walletDeltaUsd: c.walletDeltaUsd, streams: c.streams }])),
