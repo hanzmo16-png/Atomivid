@@ -2,14 +2,14 @@
  * T-20261012-0648-hans-01 — precampaign voice + two avatar clips, authorised directly by Hans (≤ USD 1.20 total).
  *
  * MODE=check     USD 0: verifies the cloned voice row, the approved avatar photo (private thumbnail for review),
- *                ElevenLabs plan/credits, HeyGen wallet and Drive write access. No generation.
+ *                ElevenLabs plan/credits, HeyGen wallet and a private-bucket round trip. No generation.
  * MODE=generate  only with APPROVED_PHOTO_SHA256 (the photo Claude reviewed in `check`):
  *                1) full narration with Hans's cloned ElevenLabs voice (one paid call, ledger-guarded);
  *                2) opening/closing lines cut from THAT audio at word timestamps (lip-sync uses the same samples);
  *                3) budget recomputed from the real cut durations BEFORE any HeyGen call; stop if > cap;
  *                4) two HeyGen Avatar IV photo clips, 720p, each ledger-guarded (never resubmitted after an
  *                   uncertain outcome: the ledger turns it into RECONCILIATION_REQUIRED and the run stops);
- *                5) real cost from wallet/credit deltas; files uploaded to Drive «Entregas» and verified by md5.
+ *                5) real cost from wallet/credit deltas; files stored in the private bucket "videos" and verified by sha256.
  * Never prints secrets, provider voice ids or signed URLs. Never publishes anything.
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -26,8 +26,6 @@ const PROJECT = "precampaign-hans01-20261012";
 const VOICE_ROW = "2485ab5a-4975-4e9a-a6dd-30f6723d99b2";
 const AVATAR_ROW = "245a8a51-a699-4f69-a387-7c11246a0b7f";
 const CAP_USD = 1.2;
-const ENTREGAS = "1z8C1ZnE8rh9iUUiEYQrNU-x7VMzCI4SJ";
-const PREFIX = "T-20261012-0648-hans-01__claude__";
 const TEXT = "¿Tienes buenas ideas, pero hacer un video te toma demasiado tiempo? Estamos preparando Atomivid para ayudarte a convertir esas ideas en contenido. Guion, voz, imágenes, subtítulos y la opción de presentar con tu propio avatar. Mira algunos resultados de nuestras pruebas. Estamos afinando la experiencia para que tú también puedas crear. ¿Quieres enterarte del lanzamiento? Síguenos. Atomivid. Tu idea. Tu video. Próximamente.";
 const OPENING_LAST = "tiempo?";
 const CLOSING_FIRST = "¿Quieres", CLOSING_LAST = "Síguenos.";
@@ -36,7 +34,6 @@ const ELEVEN_USD_PER_CHAR_MAX = 0.0003;
 const HEYGEN_USD_PER_SECOND_MAX = 0.05;
 
 const sha256 = (b: Buffer) => createHash("sha256").update(b).digest("hex");
-const md5 = (b: Buffer) => createHash("md5").update(b).digest("hex");
 const r4 = (x: number) => Math.round(x * 10000) / 10000;
 const report: Record<string, unknown> = { request: "T-20261012-0648-hans-01", mode: MODE, project: PROJECT, capUsd: CAP_USD, startedAt: new Date().toISOString() };
 const save = () => writeFile(join(OUT, "report.json"), JSON.stringify(report, null, 2) + "\n");
@@ -59,41 +56,6 @@ async function eleven(path: string) {
 async function elevenCredits() {
   const s = await eleven("/v1/user/subscription");
   return { tier: s.tier, used: Number(s.character_count), limit: Number(s.character_limit), resetUnix: s.next_character_count_reset_unix ?? null };
-}
-
-// ---------- Drive (Hans's OAuth refresh token, scope drive) ----------
-async function driveToken() {
-  const body = new URLSearchParams({ client_id: process.env.GOOGLE_OAUTH_CLIENT_ID ?? "", client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET ?? "", refresh_token: process.env.GOOGLE_OAUTH_REFRESH_TOKEN ?? "", grant_type: "refresh_token" });
-  const res = await fetch("https://oauth2.googleapis.com/token", { method: "POST", body, signal: AbortSignal.timeout(30000) });
-  if (!res.ok) throw new Error(`drive_token_${res.status}`);
-  return ((await res.json()) as { access_token: string }).access_token;
-}
-async function driveList(token: string, name?: string) {
-  const q = encodeURIComponent(`'${ENTREGAS}' in parents and trashed = false${name ? ` and name = '${name}'` : ""}`);
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,size,md5Checksum,parents,createdTime)&pageSize=10`, { headers: { authorization: `Bearer ${token}` } });
-  if (!res.ok) throw new Error(`drive_list_${res.status}`);
-  return ((await res.json()) as { files: { id: string; name: string; size?: string; md5Checksum?: string; parents?: string[]; createdTime: string }[] }).files;
-}
-async function driveUpload(token: string, name: string, bytes: Buffer, mime: string) {
-  const existing = await driveList(token, name);
-  if (existing.length) {
-    // Never overwrite or duplicate: an identical earlier upload is reused, a different one stops the run.
-    const same = existing.find(f => f.md5Checksum === md5(bytes));
-    if (same) return { ...same, reused: true };
-    throw new Error(`drive_name_conflict:${name}`);
-  }
-  const boundary = `hans01${Date.now()}`;
-  const head = Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, parents: [ENTREGAS], mimeType: mime })}\r\n--${boundary}\r\nContent-Type: ${mime}\r\n\r\n`);
-  const tail = Buffer.from(`\r\n--${boundary}--`);
-  const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,size,md5Checksum,parents,createdTime", {
-    method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": `multipart/related; boundary=${boundary}` }, body: Buffer.concat([head, bytes, tail]) });
-  if (!res.ok) throw new Error(`drive_upload_${res.status}`);
-  const f = (await res.json()) as { id: string; name: string; size: string; md5Checksum: string; parents: string[]; createdTime: string };
-  // Verify the stored object, not the upload response.
-  const check = await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}?fields=id,name,size,md5Checksum,parents,createdTime`, { headers: { authorization: `Bearer ${token}` } });
-  const v = (await check.json()) as typeof f;
-  if (Number(v.size) !== bytes.length || v.md5Checksum !== md5(bytes) || !v.parents?.includes(ENTREGAS)) throw new Error(`drive_verify_failed:${name}`);
-  return { ...v, reused: false };
 }
 
 // ---------- shared checks ----------
@@ -122,17 +84,34 @@ async function identity(svc: SupabaseClient) {
 
 async function check() {
   const svc = service();
-  const { voiceId } = await identity(svc);
-  // Review copy stays on the runner (public repo: never uploaded as an artifact). Claude must SEE the photo before any spend.
-  await sh("ffmpeg", ["-y", "-v", "error", "-i", join(OUT, "photo-original"), "-vf", "scale=480:-2", "-frames:v", "1", join(OUT, "photo-review.jpg")]);
+  const { voiceId, photo } = await identity(svc);
   const v = await eleven(`/v1/voices/${encodeURIComponent(voiceId)}`);
-  report.elevenlabsVoice = { category: v.category, name: v.name };
+  report.elevenlabsVoice = { category: v.category, cloned: v.category === "cloned" || v.category === "professional" };
   report.elevenlabs = await elevenCredits();
   const { getHeygenWallet } = await import("../../src/lib/providers/avatar/heygen");
   report.heygenWalletUsd = await getHeygenWallet();
-  const token = await driveToken();
-  report.drive = { tokenOk: true, entregasListable: (await driveList(token)).length >= 0, existingOutputs: (await driveList(token)).filter(f => f.name.startsWith(PREFIX)).map(f => f.name) };
+  // Which of the two accounts uses the app (private download channel = an owned video_requests row). Counts only.
+  const { data: rows } = await svc.from("user_voices").select("user_id").eq("id", VOICE_ROW).maybeSingle();
+  const { data: arow } = await svc.from("avatars").select("user_id").eq("id", AVATAR_ROW).maybeSingle();
+  const usage = async (uid: string) => {
+    const { count } = await svc.from("video_requests").select("id", { count: "exact", head: true }).eq("user_id", uid);
+    const { count: done } = await svc.from("video_requests").select("id", { count: "exact", head: true }).eq("user_id", uid).eq("status", "completed");
+    return { videoRequests: count ?? 0, completed: done ?? 0 };
+  };
+  report.appUsage = { voiceOwner: await usage(rows!.user_id), avatarOwner: await usage(arow!.user_id) };
+  const { data: sample } = await svc.from("video_requests").select("*").limit(1);
+  report.videoRequestColumns = sample?.[0] ? Object.keys(sample[0]).sort() : [];
+  // Private channel round trip at USD 0: write, read back and delete a tiny probe in the private "videos" bucket.
+  const probePath = `${PROJECT}/entrega/probe.txt`, probe = Buffer.from(`hans-01 probe ${new Date().toISOString()}`);
+  const up = await svc.storage.from("videos").upload(probePath, probe, { contentType: "text/plain", upsert: true });
+  const down = up.error ? null : await svc.storage.from("videos").download(probePath);
+  const back = down?.data ? Buffer.from(await down.data.arrayBuffer()) : null;
+  const signed = up.error ? null : await svc.storage.from("videos").createSignedUrl(probePath, 60);
+  const viaSigned = signed?.data?.signedUrl ? await fetch(signed.data.signedUrl).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null) : null;
+  await svc.storage.from("videos").remove([probePath]);
+  report.privateChannel = { uploadOk: !up.error, readBackOk: Boolean(back && back.equals(probe)), signedUrlOk: Boolean(viaSigned && Buffer.from(viaSigned).equals(probe)) };
   report.estimate = { chars: TEXT.length, voiceMaxUsd: r4(TEXT.length * ELEVEN_USD_PER_CHAR_MAX), heygenMaxUsdFor12s: r4(12 * HEYGEN_USD_PER_SECOND_MAX) };
+  report.photoSha256 = sha256(photo);
   report.result = "check_ok_no_spend";
 }
 
@@ -285,20 +264,24 @@ async function generate() {
     void k;
   }
 
-  // ---- 6) Drive «Entregas» (verified by size + md5 + parent)
-  const token = await driveToken();
+  // ---- 6) delivery in the private Supabase bucket "videos" (Hans accepted this channel; no Drive, no artifacts)
   const uploads = [
-    [`${PREFIX}voz_completa.mp3`, mp3, "audio/mpeg"], [`${PREFIX}voz_completa.wav`, wav, "audio/wav"],
-    [`${PREFIX}avatar_apertura_720p.mp4`, clips.apertura.file, "video/mp4"], [`${PREFIX}avatar_cierre_720p.mp4`, clips.cierre.file, "video/mp4"],
-    [`${PREFIX}corte_apertura.wav`, clipAudio.apertura.file, "audio/wav"], [`${PREFIX}corte_cierre.wav`, clipAudio.cierre.file, "audio/wav"],
+    ["voz_completa.mp3", mp3, "audio/mpeg"], ["voz_completa.wav", wav, "audio/wav"],
+    ["avatar_apertura_720p.mp4", clips.apertura.file, "video/mp4"], ["avatar_cierre_720p.mp4", clips.cierre.file, "video/mp4"],
+    ["corte_apertura.wav", clipAudio.apertura.file, "audio/wav"], ["corte_cierre.wav", clipAudio.cierre.file, "audio/wav"],
   ] as const;
-  const drive: unknown[] = [];
+  const delivery: unknown[] = [];
   for (const [name, file, mime] of uploads) {
     const bytes = await readFile(file);
-    const f = await driveUpload(token, name, bytes, mime);
-    drive.push({ name, id: f.id, size: Number(f.size), md5: f.md5Checksum, sha256: sha256(bytes), parentOk: f.parents?.includes(ENTREGAS), createdTime: f.createdTime, reused: f.reused });
+    const path = `${PROJECT}/entrega/${name}`;
+    const up = await svc.storage.from("videos").upload(path, bytes, { contentType: mime, upsert: true });
+    if (up.error) throw new Error(`delivery_upload_failed:${name}`);
+    const back = await svc.storage.from("videos").download(path);
+    const ok = back.data ? sha256(Buffer.from(await back.data.arrayBuffer())) === sha256(bytes) : false;
+    if (!ok) throw new Error(`delivery_verify_failed:${name}`);
+    delivery.push({ name, bytes: bytes.length, sha256: sha256(bytes), verified: ok });
   }
-  report.drive = drive;
+  report.delivery = delivery;
   report.result = "generated_and_delivered";
 }
 
@@ -310,4 +293,9 @@ async function main() {
 }
 main()
   .catch(e => { report.result = "stopped"; report.error = e instanceof Error ? e.message.slice(0, 200) : "unknown"; process.exitCode = 1; })
-  .finally(async () => { report.finishedAt = new Date().toISOString(); await save(); console.log(JSON.stringify({ result: report.result, error: report.error ?? null })); });
+  .finally(async () => { report.finishedAt = new Date().toISOString(); await save(); const a = report.avatar as Record<string, unknown> | undefined, vo = report.voice as Record<string, unknown> | undefined;
+    console.log("HANS01_SUMMARY " + JSON.stringify({ result: report.result, error: report.error ?? null, photoSha256: a?.photoSha256, photo: a && { w: a.photoWidth, h: a.photoHeight, codec: a.photoCodec, bytes: a.photoBytes },
+      voice: vo && { status: vo.rowStatus, provider: vo.provider, needsReview: vo.needsReview }, elevenlabsVoice: report.elevenlabsVoice, elevenlabs: report.elevenlabs, heygenWalletUsd: report.heygenWalletUsd,
+      owners: report.owners, appUsage: report.appUsage, videoRequestColumns: report.videoRequestColumns, privateChannel: report.privateChannel, estimate: report.estimate,
+      before: report.before, voiceResult: report.voiceResult, cuts: report.cuts, budget: report.budget, clips: report.clips && Object.fromEntries(Object.entries(report.clips as Record<string, Record<string, unknown>>).map(([k, c]) => [k, { reused: c.reused, seconds: c.seconds, walletDeltaUsd: c.walletDeltaUsd, streams: c.streams }])),
+      after: report.after, realCost: report.realCost, delivery: report.delivery })); });
