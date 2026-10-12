@@ -6,6 +6,7 @@
  */
 import { hammingHex, PERCEPTUAL_DUPLICATE_MAX_DISTANCE } from "@/lib/video/long-form/asset-identity";
 import { DirectorInputSchema, DirectorPlanSchema, type DirectorInputRaw, type InventoryAsset, type PlannedShot, type RecipeCatalog } from "./contract";
+import { assetTopics, assetVisualType, topicsOf, treatmentAllowed, unitPolicy, visualFromTopics } from "./policy";
 
 export type IssueCode =
   | "CONTRACT_INVALID" | "PAID_EXECUTION" | "DURATION_MISMATCH" | "GAP_OR_OVERLAP" | "SEGMENT_NOT_COVERED"
@@ -15,13 +16,16 @@ export type IssueCode =
   // Correction 1 (Codex audit of PR #105): referential integrity, rights, provenance, recomputed budget, timeline.
   | "DUPLICATE_ID" | "UNKNOWN_SEGMENT" | "UNKNOWN_ASSET" | "INCONSISTENT_ASSET_STATUS" | "NO_MATERIAL"
   | "RECIPE_VERSION_MISMATCH" | "CATALOG_MISMATCH" | "LICENSE_NOT_CLEARED" | "LICENSE_PENDING"
-  | "PROVENANCE_MISMATCH" | "LABEL_MISMATCH" | "COST_INCONSISTENT" | "AI_VIDEO_NOT_ALLOWED" | "SHOT_OUTSIDE_SEGMENT";
+  | "PROVENANCE_MISMATCH" | "LABEL_MISMATCH" | "COST_INCONSISTENT" | "AI_VIDEO_NOT_ALLOWED" | "SHOT_OUTSIDE_SEGMENT"
+  // Correction 2 (Codex editorial audit): documentary policy, recipe/asset compatibility, honest pending decisions.
+  | "POLICY_MISMATCH" | "POLICY_VIOLATION" | "POLICY_REVIEW" | "DECISION_PENDING" | "RECIPE_INCOMPATIBLE" | "MOVEMENT_INCOMPATIBLE";
 export type Issue = { code: IssueCode; shotId?: string; detail: string };
 
 export type AuditMetrics = {
   shots: number; coveragePct: number; durationOk: boolean; duplicates: number; shortShots: number;
   intentVerifiablePct: number; recipeVariety: number; maxSameRecipeRun: number; labelsOk: boolean; needsNew: number;
   licensePending: number; estimatedMaxUsd: number; paidCalls: 0; semanticQuality: "estimado/no validado";
+  pendingDecisions: number; policyReview: number; policyViolations: number; realMotionShots: number;
 };
 
 const EPS = 0.05;
@@ -133,7 +137,11 @@ export function auditPlan(planRaw: unknown, inputRaw: DirectorInputRaw, catalog:
 
     if (asset && a.status === "chosen") {
       licenseIssue(asset, s.id);
-      const dup = seen.find(u => u.id === asset.id || (asset.sha256 && u.sha === asset.sha256) || (asset.dhash && u.dhash && hammingHex(asset.dhash, u.dhash) <= PERCEPTUAL_DUPLICATE_MAX_DISTANCE));
+      // A deterministic graphic may continue over the immediately preceding shot of the same segment; nothing else repeats.
+      const prevShot = shots[shots.indexOf(s) - 1];
+      const legitContinuation = a.continuation === true && asset.provenance === "data_graphic" && prevShot?.segmentId === s.segmentId && prevShot.asset.assetId === asset.id;
+      if (a.continuation && !legitContinuation) add("DUPLICATE_ASSET", `${asset.id}: continuation only for a deterministic graphic right after the same graphic in the same segment`, s.id);
+      const dup = legitContinuation ? undefined : seen.find(u => u.id === asset.id || (asset.sha256 && u.sha === asset.sha256) || (asset.dhash && u.dhash && hammingHex(asset.dhash, u.dhash) <= PERCEPTUAL_DUPLICATE_MAX_DISTANCE));
       if (dup) add("DUPLICATE_ASSET", `${asset.id} repeats ${dup.shot}`, s.id);
       seen.push({ id: asset.id, sha: asset.sha256, dhash: asset.dhash, shot: s.id });
       if (s.movement.realMotion && asset.motion !== "real") add("FAKE_MOTION", "a still with a zoom is not a real motion clip", s.id);
@@ -146,6 +154,36 @@ export function auditPlan(planRaw: unknown, inputRaw: DirectorInputRaw, catalog:
     }
     if (recipe?.evidence_policy === "authentic_only" && a.status === "chosen" && derived !== "archival_documentary" && derived !== "data_graphic")
       add("AUTHENTIC_RECIPE_WITHOUT_EVIDENCE", `${recipe.id} with ${derived}`, s.id);
+
+    // ---- Correction 2: documentary policy recomputed from the input (never from the plan), compatibility, pending.
+    if (seg && !seg.locked) {
+      const pol = unitPolicy(input, seg, s.anchorText), unitTopics = topicsOf(s.anchorText);
+      if (pol.class !== s.policy.class || pol.unconfirmed !== s.policy.unconfirmed) add("POLICY_MISMATCH", `plan says ${s.policy.class}${s.policy.unconfirmed ? " (no confirmado)" : ""}, recomputed ${pol.class}${pol.unconfirmed ? " (no confirmado)" : ""}`, s.id);
+      const hasText = input.inventory.some(x => x.kind === "text" && x.tags.includes(`segment:${seg.id}`) && x.license !== "NOT_CLEARED");
+      const neutral = s.decision.neutral === true;
+      if (neutral && recipe && !recipe.select.neutral) add("RECIPE_INCOMPATIBLE", `neutral atmosphere declared with non-neutral recipe ${recipe.id}`, s.id);
+      if (!neutral && recipe?.select.neutral) add("RECIPE_INCOMPATIBLE", `${recipe.id} is only for a declared neutral atmosphere`, s.id);
+      let visual: ReturnType<typeof assetVisualType> | undefined, verdict: ReturnType<typeof treatmentAllowed> | undefined;
+      if (asset && a.status === "chosen") {
+        visual = assetVisualType(asset);
+        const at = assetTopics(asset);
+        verdict = treatmentAllowed(pol, { provenance: asset.provenance, visual, isNew: false, plannedForSegment: asset.tags.includes(`segment:${seg.id}`),
+          topicMatch: unitTopics.some(t => at.includes(t)), neutral: false, showsRemains: at.includes("remains") }, hasText);
+      } else if (a.status === "needs_new") {
+        visual = neutral ? "landscape" : visualFromTopics(unitTopics);
+        verdict = treatmentAllowed(pol, { provenance: "ai_recreation", visual, isNew: true, plannedForSegment: false, topicMatch: false, neutral }, hasText);
+      }
+      if (verdict && !verdict.allowed) add("POLICY_VIOLATION", `${pol.class}: ${verdict.reason}`, s.id);
+      else if (verdict?.review || pol.status === "review_required") add("POLICY_REVIEW", verdict?.review ?? pol.signals.join("; "), s.id);
+      if (recipe && visual) {
+        if (!recipe.select.visual.includes("*") && !recipe.select.visual.includes(visual)) add("RECIPE_INCOMPATIBLE", `${recipe.id} does not accept visual type ${visual}`, s.id);
+        if (recipe.select.provenance.length && derived && !recipe.select.provenance.includes(derived)) add("RECIPE_INCOMPATIBLE", `${recipe.id} cannot dress ${derived}`, s.id);
+        if (recipe.select.topics_none.some(t => unitTopics.includes(t))) add("RECIPE_INCOMPATIBLE", `${recipe.id} excludes topic ${recipe.select.topics_none.filter(t => unitTopics.includes(t)).join(", ")}`, s.id);
+      }
+      if (!s.recipeId || a.status === "none" || s.decision.status === "pending") add("DECISION_PENDING", s.decision.pendingReason ?? "no recipe or no material: human direction required", s.id);
+      if (s.movement.kind === "graphic_animation" && derived !== "data_graphic") add("MOVEMENT_INCOMPATIBLE", "graphic animation on a non-graphic asset", s.id);
+      if (s.movement.realMotion && a.status === "needs_new" && s.newMaterial?.kind !== "ai_video") add("FAKE_MOTION", "an AI still is not a motion clip", s.id);
+    }
 
     if (s.newMaterial) {
       const unit = input.budget.unitCostsUsd[s.newMaterial.kind];
@@ -175,6 +213,10 @@ export function auditPlan(planRaw: unknown, inputRaw: DirectorInputRaw, catalog:
     needsNew: shots.filter(s => s.asset.status === "needs_new").length,
     licensePending: issues.filter(i => i.code === "LICENSE_PENDING").length,
     estimatedMaxUsd: recomputed, paidCalls: 0, semanticQuality: "estimado/no validado",
+    pendingDecisions: issues.filter(i => i.code === "DECISION_PENDING").length,
+    policyReview: issues.filter(i => i.code === "POLICY_REVIEW").length,
+    policyViolations: issues.filter(i => i.code === "POLICY_VIOLATION").length,
+    realMotionShots: shots.filter(s => s.movement.realMotion).length,
   };
   return { ok: issues.length === 0, issues, metrics };
 }

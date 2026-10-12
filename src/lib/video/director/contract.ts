@@ -7,16 +7,45 @@
  */
 import { z } from "zod";
 
-export const DIRECTOR_INPUT_VERSION = "director-input@1";
-export const DIRECTOR_PLAN_VERSION = "director-plan@1";
-export const RECIPE_CATALOG_SCHEMA = "atomivid/cinematic-recipes@1";
+export const DIRECTOR_INPUT_VERSION = "director-input@2";
+export const DIRECTOR_PLAN_VERSION = "director-plan@2";
+export const RECIPE_CATALOG_SCHEMA = "atomivid/cinematic-recipes@2";
+/** Versioned documentary policy (visual bible v1 made operable); see policy.ts. */
+export const DOCUMENTARY_POLICY_VERSION = "documentary-policy@1";
 
 export const GENRES = ["misterio", "documental", "reel"] as const;
-export const MOVEMENTS = ["static", "real_motion", "push_in_still", "handheld", "pan"] as const;
+/** graphic_animation = a deterministic graphic built up in stages (never presented as filmed motion). */
+export const MOVEMENTS = ["static", "real_motion", "push_in_still", "handheld", "pan", "graphic_animation"] as const;
 export const EVIDENCE_POLICIES = ["authentic_only", "recreation_ok", "either"] as const;
 /** Same vocabulary as remotion/long-form-card-fit.ts SceneProvenance. */
 export const PROVENANCES = ["archival_documentary", "stock_illustrative", "ai_recreation", "data_graphic"] as const;
 export const LABELS = ["recreacion_ia", "ilustrativa"] as const;
+/** What an asset shows, as a coarse visual type (derived from storyboard metadata; never from pixels). */
+export const VISUAL_TYPES = ["landscape", "structure", "relief", "artifact", "people", "hands_work", "excavation", "remains", "map", "timeline", "diagram", "text", "concept"] as const;
+/** Policy classes per narrative unit, most restrictive first. */
+export const POLICY_CLASSES = ["human_remains", "specific_evidence", "measurable_data", "hypothesis", "atmosphere"] as const;
+/** Storyboard asset classification (visual bible §2). */
+export const BIBLE_CLASSES = ["REAL_DOCUMENTARY", "STOCK_REAL", "DETERMINISTIC", "AI_RECREATION", "TEXT"] as const;
+
+/**
+ * Operable selection rule of a recipe. A recipe is only proposed automatically when its rule matches: the asset's
+ * visual type must be accepted, and when topics/keywords are listed the narrative unit must hit at least one.
+ * Rotation only breaks ties between compatible recipes. `still` says what to do when the recipe asks for real
+ * motion but the asset is a still: hold it static, zoom (declared), or leave the movement pending.
+ */
+export const RecipeSelectSchema = z.object({
+  visual: z.array(z.union([z.enum(VISUAL_TYPES), z.literal("*")])).min(1),
+  topics_any: z.array(z.string()).default([]),
+  keywords_any: z.array(z.string()).default([]),
+  topics_none: z.array(z.string()).default([]),
+  still: z.enum(["static", "push_in_still", "pending"]).default("static"),
+  position: z.enum(["any", "first", "last"]).default("any"),
+  /** Provenances this recipe may dress (empty = any allowed by evidence_policy). A reconstruction never dresses a real photo. */
+  provenance: z.array(z.enum(PROVENANCES)).default([]),
+  /** Neutral atmosphere: allowed next to sensitive narration only because it explicitly does not depict the finding. */
+  neutral: z.boolean().default(false),
+}).strict();
+export type RecipeSelect = z.infer<typeof RecipeSelectSchema>;
 
 export const RecipeSchema = z.object({
   id: z.string().regex(/^[a-z]+(-[a-z0-9]+)+$/),
@@ -41,6 +70,7 @@ export const RecipeSchema = z.object({
   evidence_policy: z.enum(EVIDENCE_POLICIES),
   label: z.enum(LABELS).nullable(),
   example: z.string().min(10),
+  select: RecipeSelectSchema,
 }).strict()
   // A recipe that may only show authentic evidence can never carry the AI-recreation label.
   .refine(r => !(r.evidence_policy === "authentic_only" && r.label === "recreacion_ia"), "authentic_only recipes cannot be labelled recreacion_ia")
@@ -59,13 +89,25 @@ export type RecipeCatalog = z.infer<typeof RecipeCatalogSchema>;
 
 export const InventoryAssetSchema = z.object({
   id: z.string().min(1),
-  kind: z.enum(["video", "image", "graphic", "avatar"]),
+  kind: z.enum(["video", "image", "graphic", "avatar", "text"]),
   provenance: z.enum(PROVENANCES),
   motion: z.enum(["real", "still"]),
   sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
   dhash: z.string().regex(/^[0-9a-f]{16}$/).optional(),
   license: z.enum(["CLEARED", "NEEDS_REVIEW", "NOT_CLEARED"]).default("NEEDS_REVIEW"),
   tags: z.array(z.string()).default([]),
+  /** Editorial metadata (from an approved storyboard when available). Absent = unknown, never assumed safe. */
+  content: z.object({
+    visualType: z.enum(VISUAL_TYPES).optional(),
+    topics: z.array(z.string()).default([]),
+    visualIntent: z.string().optional(),
+    description: z.string().optional(),
+    sensitivity: z.enum(["high", "medium", "low"]).optional(),
+    bibleClass: z.enum(BIBLE_CLASSES).optional(),
+    bibleReason: z.string().optional(),
+    /** Planned window inside its segment, as fractions 0..1 of the segment duration. */
+    window: z.object({ segmentId: z.string(), from: z.number().min(0).max(1), to: z.number().min(0).max(1) }).optional(),
+  }).optional(),
 });
 export type InventoryAsset = z.infer<typeof InventoryAssetSchema>;
 
@@ -79,6 +121,10 @@ export const SegmentSchema = z.object({
   evidenceAssetId: z.string().optional(),
   /** A locked segment (approved avatar, signed lip-sync) is passed through untouched. */
   locked: z.object({ reason: z.enum(["avatar", "approved"]), assetId: z.string() }).optional(),
+  /** Script claims of this segment with their support level (from the approved script). */
+  claims: z.array(z.object({ id: z.string(), text: z.string(), support: z.enum(["sourced", "inference", "unverified"]) })).default([]),
+  /** Existing word timestamps (one per whitespace token of `text`). Never generated here. */
+  wordTimes: z.array(z.object({ start: z.number().min(0), end: z.number().min(0) })).optional(),
 }).refine(s => s.end > s.start, "segment end must be > start");
 
 export const DirectorInputSchema = z.object({
@@ -123,10 +169,44 @@ export const PlannedShotSchema = z.object({
     provenance: z.enum(PROVENANCES).optional(),
     alternatives: z.array(z.string()),
     label: z.enum(LABELS).nullable(),
+    /** Same deterministic graphic held across consecutive shots of one segment (built up in stages). */
+    continuation: z.boolean().optional(),
   }),
   /** Why new material would be needed; never executed by the plan. */
   newMaterial: z.object({ reason: z.string(), kind: z.enum(["ai_image", "ai_video"]), estimatedMaxUsd: z.number().min(0) }).optional(),
   uncertainty: z.array(z.string()),
+  // ---- Correction 2: the module emits its own, auditable decision record (nothing is reconstructed afterwards).
+  /** How the anchor was cut and how its time was obtained. */
+  unit: z.object({
+    boundary: z.enum(["sentence", "clause", "word"]),
+    timing: z.enum(["estimated_proportional", "word_timestamps"]),
+    cutReason: z.string(),
+  }),
+  /** Documentary policy of the narrative unit (recomputed by the gate, never trusted). */
+  policy: z.object({
+    version: z.string(),
+    class: z.enum(POLICY_CLASSES),
+    sources: z.array(z.enum(["storyboard", "script_claims", "lexicon", "default"])),
+    signals: z.array(z.string()),
+    status: z.enum(["ok", "review_required"]),
+    unconfirmed: z.boolean(),
+  }),
+  /** What the shot shows, in words (asset intent or declared neutral theme). Not a generation prompt. */
+  visualTheme: z.string(),
+  decision: z.object({
+    status: z.enum(["proposed", "weak", "pending"]),
+    unitTopics: z.array(z.string()),
+    assetBasis: z.array(z.string()),
+    recipeBasis: z.array(z.string()),
+    sources: z.array(z.enum(["storyboard", "script_claims", "lexicon", "catalog_rule", "rotation", "catalog_order"])),
+    pendingReason: z.string().optional(),
+    neutral: z.boolean().default(false),
+  }),
+  /** Catalog suggestions compatible with the recipe; to be reviewed, never executed. */
+  suggestions: z.object({
+    transitionIn: z.string().nullable(), transitionOut: z.string().nullable(), composition: z.string().nullable(), sound: z.string().nullable(),
+    status: z.literal("sugerencia_revisable"),
+  }),
 }).refine(s => s.end > s.start, "shot end must be > start");
 export type PlannedShot = z.infer<typeof PlannedShotSchema>;
 

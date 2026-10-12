@@ -8,6 +8,8 @@ import { loadRecipeCatalog } from "@/lib/video/director/recipes";
 import { proposePlan } from "@/lib/video/director/propose";
 import { auditPlan } from "@/lib/video/director/audit";
 import { inputFromStoryboard, storyboardBaseline } from "@/lib/video/director/from-storyboard";
+import { editorialReport } from "@/lib/video/director/report";
+import { DirectorInputSchema } from "@/lib/video/director/contract";
 import { getGenerativeUnitCosts } from "@/lib/video/long-form/production-plan";
 
 const DIR = "content/long-form/gobekli-tepe-001";
@@ -27,7 +29,8 @@ export function compareAll() {
     const input = inputFromStoryboard(sb.shots, sc.beats, unitCosts);
     const plan = proposePlan(input, catalog);
     const audit = auditPlan(plan, input, catalog);
-    return { fixture: f.name, programmeSeconds: input.totalSeconds, unitCosts, baseline: storyboardBaseline(sb.shots), proposal: audit.metrics, issues: audit.issues.map(i => i.code), catalogVersion: plan.catalogVersion };
+    return { fixture: f.name, programmeSeconds: input.totalSeconds, unitCosts, baseline: storyboardBaseline(sb.shots), proposal: audit.metrics,
+      editorial: editorialReport(plan, DirectorInputSchema.parse(input)).totals, issues: audit.issues.map(i => i.code), catalogVersion: plan.catalogVersion };
   });
 }
 

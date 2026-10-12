@@ -2,10 +2,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadRecipeCatalog } from "./recipes";
-import { proposePlan, splitSpan, anchorFor } from "./propose";
+import { readFileSync } from "node:fs";
+import { proposePlan, splitSpan, anchorFor, unitsFor, compatibleRecipes } from "./propose";
+import { assetVisualType } from "./policy";
+import { editorialReport } from "./report";
+import { inputFromStoryboard } from "./from-storyboard";
 import { auditPlan } from "./audit";
 import { cinematicDirectorV2Enabled } from "./flag";
-import { DIRECTOR_INPUT_VERSION, RecipeSchema, type DirectorInputRaw, type DirectorPlan } from "./contract";
+import { DIRECTOR_INPUT_VERSION, DirectorInputSchema, InventoryAssetSchema, RecipeSchema, type DirectorInputRaw, type DirectorPlan } from "./contract";
 import { compareAll } from "../../../../scripts/cinematic-director-compare";
 
 const catalog = loadRecipeCatalog();
@@ -29,11 +33,13 @@ function input(over: Partial<DirectorInputRaw> = {}): DirectorInputRaw {
   };
 }
 
-test("catalog: 30 versioned recipes (12 mystery, 10 documentary, 8 reel), unique, no universal 8K look", () => {
-  assert.equal(catalog.recipes.length, 30);
+test("catalog: 33 versioned recipes (12 mystery, 13 documentary, 8 reel), unique, operable rules, no universal 8K look", () => {
+  assert.equal(catalog.recipes.length, 33);
   const by = (g: string) => catalog.recipes.filter(r => r.genre === g).length;
-  assert.deepEqual([by("misterio"), by("documental"), by("reel")], [12, 10, 8]);
-  for (const r of catalog.recipes) assert.ok(r.negatives.length && r.version === 1, r.id);
+  assert.deepEqual([by("misterio"), by("documental"), by("reel")], [12, 13, 8]);
+  for (const r of catalog.recipes) assert.ok(r.negatives.length && r.version >= 1 && r.select.visual.length, r.id);
+  // Graphics are animated deterministically; they are never "a clip with real motion".
+  for (const id of ["doc-map-route", "doc-timeline-graphic"]) assert.equal(catalog.recipes.find(r => r.id === id)!.movement.kind, "graphic_animation");
   const bad = { ...catalog.recipes[0], lighting: "8K anamorphic 35mm" };
   assert.equal(RecipeSchema.safeParse(bad).success, false);
   assert.equal(RecipeSchema.safeParse({ ...catalog.recipes[3], label: "recreacion_ia" }).success, false, "authentic_only can never be labelled AI recreation");
@@ -220,4 +226,195 @@ test("timeline: end<=start, shot outside its segment, empty anchor, split or mov
   assert.ok(codes(split).includes("LOCKED_SEGMENT_ALTERED"));
   const moved = { ...p, shots: p.shots.map(x => x === locked ? { ...x, start: 21 } : x.id === p.shots[p.shots.indexOf(locked) - 1]?.id ? { ...x, end: 21 } : x) };
   assert.ok(codes(moved).includes("LOCKED_SEGMENT_ALTERED"));
+});
+
+// ---- Correction 2 (Codex editorial audit, T-20261012-0555-chatgpt-20): policy, compatibility, anchoring, reasons. ----
+
+const DOC_DIR = "content/long-form/gobekli-tepe-001";
+const fixture = (sbFile: string, scFile: string) => {
+  const sb = JSON.parse(readFileSync(`${DOC_DIR}/${sbFile}`, "utf8")), sc = JSON.parse(readFileSync(`${DOC_DIR}/${scFile}`, "utf8"));
+  const inp = inputFromStoryboard(sb.shots, sc.beats, { ai_image: 0.05, ai_video: 0.96 });
+  return { inp, plan: proposePlan(inp, catalog) };
+};
+const SB003 = fixture("gobekli-storyboard-003.json", "gobekli-script-003-current.json");
+const SB002H = fixture("gobekli-storyboard-002-hybrid.json", "gobekli-script-002-final.json");
+const SB001 = fixture("gobekli-storyboard-001.json", "gobekli-script-002-final.json");
+const at = (p: DirectorPlan, segmentId: string, needle: string) => p.shots.find(s => s.segmentId === segmentId && s.anchorText.includes(needle))!;
+const docInput = (text: string, inventory: DirectorInputRaw["inventory"] = [], claims: { id: string; text: string; support: "sourced" | "inference" | "unverified" }[] = []): DirectorInputRaw => ({
+  version: DIRECTOR_INPUT_VERSION, genre: "documental", aspect: "16:9", totalSeconds: 6,
+  segments: [{ id: "s1", start: 0, end: 6, text, claims }], inventory, budget: { remainingUsd: 5, unitCostsUsd: { ai_image: 0.04, ai_video: 0.5 } } });
+
+test("policy regressions sb003: units about human remains never get fabricated or illustrative material", () => {
+  const { plan, inp } = SB003;
+  const remains = plan.shots.filter(s => s.policy.class === "human_remains");
+  assert.ok(remains.length >= 4, "the beat-10 units about remains are classified as such");
+  for (const s of remains) {
+    assert.notEqual(s.asset.status, "needs_new", `${s.id} must not generate`);
+    assert.ok(!s.asset.provenance || s.asset.provenance === "data_graphic" || s.asset.provenance === "archival_documentary", `${s.id} ${s.asset.provenance}`);
+  }
+  // The 2017 study of skull fragments: schematic diagram or text, never AI; the rumour unit: text card only.
+  const skulls = at(plan, "beat-10", "fragmentos de cráneos");
+  assert.ok(skulls.asset.provenance === "data_graphic" || skulls.asset.status === "none");
+  const rumour = at(plan, "beat-10", "restos humanos y posibles enterramientos");
+  assert.ok(rumour.policy.unconfirmed && rumour.policy.class === "human_remains");
+  assert.ok(rumour.asset.status === "none" || inp.inventory!.find(a => a.id === rumour.asset.assetId)!.kind === "text");
+  const neg = at(plan, "beat-10", "no fue posible confirmarla");
+  assert.ok(neg.policy.unconfirmed && neg.asset.status !== "chosen" || neg.asset.provenance === "data_graphic");
+  if (neg.asset.status === "needs_new") assert.ok(neg.decision.neutral && neg.recipeId === "doc-neutral-atmosphere");
+  for (const p of [SB003, SB002H, SB001]) assert.ok(!codes(p.plan, p.inp).includes("POLICY_VIOLATION"));
+});
+
+test("policy: «restos de plantas» and a bare «hueso» are not human remains; negations keep their nuance", () => {
+  const plants = proposePlan(docInput("Análisis de fitolitos, diminutos restos de plantas, respaldan esa idea."), catalog).shots[0];
+  assert.notEqual(plants.policy.class, "human_remains");
+  assert.ok(plants.policy.signals.some(x => x.includes("restos de plantas")));
+  const bone = proposePlan(docInput("Encontraron un hueso de gacela junto al muro."), catalog).shots[0];
+  assert.notEqual(bone.policy.class, "human_remains");
+  assert.ok(bone.policy.signals.some(x => x.includes("hueso")));
+  const neg = proposePlan(docInput("No pudimos confirmar esa publicación sobre el sitio."), catalog).shots[0];
+  assert.equal(neg.policy.class, "hypothesis");
+  assert.ok(neg.policy.unconfirmed);
+  // Without a text card in the segment, a hypothesis/negation gets no generated image at all: honest pending.
+  assert.equal(neg.asset.status, "none");
+  assert.equal(neg.decision.status, "pending");
+  assert.ok(codes(proposePlan(docInput("No pudimos confirmar esa publicación sobre el sitio."), catalog), docInput("No pudimos confirmar esa publicación sobre el sitio.")).includes("DECISION_PENDING"));
+});
+
+test("policy: a neutral landscape next to sensitive narration is possible only declared, with a text card, and under review", () => {
+  const card = { id: "card", kind: "text" as const, provenance: "data_graphic" as const, motion: "still" as const, license: "CLEARED" as const, tags: ["segment:s2"],
+    content: { visualType: "text" as const, topics: ["research"], window: { segmentId: "s2", from: 0, to: 0.5 } } };
+  const inp = { ...docInput("x"), totalSeconds: 18, segments: [
+    { id: "s1", start: 0, end: 6, text: "Se habría publicado un estudio que nadie pudo confirmar." },
+    { id: "s2", start: 6, end: 18, text: "No pudimos confirmar esa publicación. No hay otra fuente que lo respalde." }], inventory: [card] };
+  const plan = proposePlan(inp, catalog);
+  // Without a text card (s1) nothing is generated; with one (s2) the card leads and a declared neutral shot may follow.
+  assert.ok(plan.shots.filter(s => s.segmentId === "s1").every(s => s.asset.status === "none" && s.decision.status === "pending"));
+  const withCard = plan.shots.filter(s => s.segmentId === "s2");
+  assert.equal(withCard[0].asset.assetId, "card");
+  const neutral = withCard.find(s => s.decision.neutral)!;
+  assert.ok(neutral && neutral.asset.status === "needs_new" && neutral.recipeId === "doc-neutral-atmosphere" && neutral.policy.status === "review_required");
+  assert.ok(neutral.visualTheme.includes("no representa el hallazgo"));
+  assert.ok(codes(plan, inp).includes("POLICY_REVIEW") && !codes(plan, inp).includes("POLICY_VIOLATION"));
+  // Pretending a neutral shot is a normal recreation, or a normal recreation is neutral, is caught.
+  {
+    assert.ok(codes(mapShot(plan, neutral, s => ({ ...s, decision: { ...s.decision, neutral: false } })), inp).some(c => c === "RECIPE_INCOMPATIBLE" || c === "POLICY_VIOLATION"));
+    assert.ok(codes(mapShot(plan, neutral, s => ({ ...s, recipeId: "doc-reconstruction-wide", recipeVersion: 1, decision: { ...s.decision, neutral: false } })), inp).includes("POLICY_VIOLATION"));
+  }
+});
+
+test("gate: forcing a fabricated image, a stock photo or a remains diagram onto the wrong unit is a POLICY_VIOLATION", () => {
+  const { plan, inp } = SB003;
+  const skulls = at(plan, "beat-10", "fragmentos de cráneos");
+  const asNew = mapShot(plan, skulls, s => ({ ...s, recipeId: "doc-reconstruction-wide", recipeVersion: 1, asset: { status: "needs_new", provenance: "ai_recreation", alternatives: [], label: "recreacion_ia" },
+    newMaterial: { reason: "x", kind: "ai_image", estimatedMaxUsd: 0.05 } }));
+  assert.ok(codes(asNew, inp).includes("POLICY_VIOLATION"));
+  const stock = inp.inventory!.find(a => a.provenance === "stock_illustrative")!;
+  assert.ok(codes(mapShot(plan, skulls, s => ({ ...s, asset: { status: "chosen", assetId: stock.id, provenance: "stock_illustrative", alternatives: [], label: "ilustrativa" } })), inp).includes("POLICY_VIOLATION"));
+  const rumour = at(plan, "beat-10", "restos humanos y posibles enterramientos");
+  assert.ok(codes(mapShot(plan, rumour, s => ({ ...s, recipeId: "doc-schematic-diagram", recipeVersion: 1, asset: { status: "chosen", assetId: "b10-s2", provenance: "data_graphic", alternatives: [], label: null } })), inp).includes("POLICY_VIOLATION"));
+  assert.ok(codes(mapShot(plan, rumour, s => ({ ...s, policy: { ...s.policy, class: "atmosphere" } })), inp).includes("POLICY_MISMATCH"));
+});
+
+test("compatibility: the three audited mismatches are gone and every recipe accepts its asset's visual type", () => {
+  const p3 = at(SB003.plan, "beat-3", "Lo primero que impresiona son los pilares");
+  assert.notEqual(p3.recipeId, "doc-map-route");
+  const p2 = at(SB002H.plan, "beat-3", "Lo primero que impresiona son los pilares");
+  assert.notEqual(p2.recipeId, "doc-hands-at-work");
+  const s1 = SB001.plan.shots.find(s => s.segmentId === "beat-1" && s.id.endsWith("-s2"))!;
+  const s1Asset = SB001.inp.inventory!.find(a => a.id === s1.asset.assetId);
+  assert.ok(!(s1.recipeId === "doc-hands-at-work" && s1Asset && assetVisualType(InventoryAssetSchema.parse(s1Asset)) === "landscape"));
+  for (const { plan, inp } of [SB003, SB002H, SB001]) {
+    assert.ok(!codes(plan, inp).includes("RECIPE_INCOMPATIBLE"));
+    for (const s of plan.shots.filter(x => x.recipeId && x.asset.assetId && x.asset.status === "chosen")) {
+      const r = catalog.recipes.find(x => x.id === s.recipeId)!, a = InventoryAssetSchema.parse(inp.inventory!.find(x => x.id === s.asset.assetId));
+      assert.ok(r.select.visual.includes("*") || r.select.visual.includes(assetVisualType(a)), `${s.id}: ${r.id} vs ${assetVisualType(a)}`);
+    }
+  }
+  // Negative: the old pairs are rejected by the gate.
+  assert.ok(codes(mapShot(SB003.plan, p3, s => ({ ...s, recipeId: "doc-map-route", recipeVersion: 2, movement: { kind: "graphic_animation", realMotion: false } })), SB003.inp).includes("RECIPE_INCOMPATIBLE"));
+  const landscape = SB001.inp.inventory!.find(a => InventoryAssetSchema.parse(a).content?.visualType === "landscape" && a.provenance !== "data_graphic")!;
+  const forced = mapShot(SB001.plan, s1, s => ({ ...s, recipeId: "doc-hands-at-work", recipeVersion: 1, asset: { status: "chosen", assetId: landscape.id, provenance: landscape.provenance, alternatives: [], label: landscape.provenance === "ai_recreation" ? "recreacion_ia" : "ilustrativa" } }));
+  assert.ok(codes(forced, SB001.inp).includes("RECIPE_INCOMPATIBLE"));
+});
+
+test("rotation only breaks ties: the chosen recipe always has the best rule score among compatible recipes", () => {
+  for (const { plan } of [SB003, SB002H, SB001]) for (const s of plan.shots.filter(x => x.recipeId && x.decision.status !== "pending")) {
+    assert.ok(s.decision.recipeBasis.length > 0 && s.decision.sources.includes("catalog_rule"), s.id);
+    if (s.decision.sources.includes("rotation")) assert.ok(s.decision.recipeBasis.some(b => b.includes("desempate")), s.id);
+  }
+  const pool = catalog.recipes.filter(r => r.genre === "documental");
+  const m = compatibleRecipes(pool, "structure", "stock_illustrative", "Lo primero que impresiona son los pilares.", ["pillar"], "middle", false);
+  assert.ok(m.length && !m.some(x => x.recipe.id === "doc-map-route" || x.recipe.id === "doc-hands-at-work"));
+});
+
+test("anchoring: units follow sentence/clause boundaries, cover the text, respect lengths; word timestamps are used when present", () => {
+  const text = "Primera idea completa aquí. Segunda idea, con una cláusula, que sigue. Tercera idea breve y final.";
+  const u = unitsFor({ start: 0, end: 18, text }, 3, 8);
+  assert.equal(u.map(x => x.text).join(" "), text);
+  for (const x of u) assert.ok(x.end - x.start >= 3 - 1e-6 && x.end - x.start <= 8 + 1e-6 && x.timing === "estimated_proportional");
+  assert.ok(u.every(x => x.boundary !== "word"));
+  const tokens = text.split(/\s+/);
+  const wordTimes = tokens.map((_, i) => ({ start: i * 1.1, end: i * 1.1 + 1 }));
+  const timed = unitsFor({ start: 0, end: 18, text, wordTimes }, 3, 8);
+  assert.ok(timed.every(x => x.timing === "word_timestamps"));
+  for (const x of timed.slice(0, -1)) assert.ok(wordTimes.some(w => Math.abs(w.end - x.end) < 1e-3), "cuts land on real word ends");
+  for (const { plan, inp } of [SB003, SB002H, SB001]) {
+    for (const seg of inp.segments) {
+      const own = plan.shots.filter(s => s.segmentId === seg.id);
+      assert.equal(own.map(s => s.anchorText).join(" "), seg.text.trim().split(/\s+/).join(" "));
+    }
+    const m = auditPlan(plan, inp, catalog).metrics!;
+    assert.ok(m.coveragePct === 100 && m.durationOk && m.shortShots === 0 && m.paidCalls === 0);
+    assert.ok(plan.shots.every(s => s.unit.timing === "estimated_proportional" && s.uncertainty.some(x => x.includes("estimada"))));
+  }
+});
+
+test("movement is honest: no real motion from stills, graphic animation only on deterministic graphics", () => {
+  for (const { plan, inp } of [SB003, SB002H, SB001]) {
+    for (const s of plan.shots) {
+      const a = inp.inventory!.find(x => x.id === s.asset.assetId);
+      if (s.movement.realMotion) assert.ok(a?.motion === "real" || s.newMaterial?.kind === "ai_video", s.id);
+      if (s.movement.kind === "graphic_animation") assert.equal(s.asset.provenance, "data_graphic");
+    }
+    assert.ok(!codes(plan, inp).some(c => c === "FAKE_MOTION" || c === "MOVEMENT_INCOMPATIBLE"));
+  }
+  const { plan, inp } = SB003;
+  const stockShot = plan.shots.find(s => s.asset.provenance === "stock_illustrative" && s.asset.status === "chosen")!;
+  assert.ok(codes(mapShot(plan, stockShot, s => ({ ...s, movement: { kind: "graphic_animation", realMotion: false } })), inp).includes("MOVEMENT_INCOMPATIBLE"));
+});
+
+test("continuation: a deterministic graphic may be held only right after itself, in its segment and within its planned time", () => {
+  const { plan, inp } = SB003;
+  for (const s of plan.shots.filter(x => x.asset.continuation)) {
+    const prev = plan.shots[plan.shots.indexOf(s) - 1];
+    assert.ok(prev.segmentId === s.segmentId && prev.asset.assetId === s.asset.assetId && s.asset.provenance === "data_graphic");
+  }
+  assert.ok(!codes(plan, inp).includes("DUPLICATE_ASSET"));
+  const stockShot = plan.shots.find(s => s.asset.provenance === "stock_illustrative" && s.asset.status === "chosen")!;
+  const next = plan.shots[plan.shots.indexOf(stockShot) + 1];
+  const forced = mapShot(plan, next, s => ({ ...s, recipeId: stockShot.recipeId, recipeVersion: stockShot.recipeVersion, asset: { ...stockShot.asset, continuation: true } }));
+  assert.ok(codes(forced, inp).includes("DUPLICATE_ASSET"));
+  // No storyboard text card or diagram is ever used outside its own beat.
+  for (const s of plan.shots) {
+    const a = InventoryAssetSchema.parse(inp.inventory!.find(x => x.id === s.asset.assetId) ?? { id: "-", kind: "image", provenance: "stock_illustrative", motion: "still" });
+    if (a.provenance === "data_graphic" && a.content?.window) assert.equal(a.content.window.segmentId, s.segmentId);
+  }
+});
+
+test("the module emits its own decision record; pending is explicit and never filled by rotation", () => {
+  for (const { plan, inp } of [SB003, SB002H, SB001]) {
+    for (const s of plan.shots.filter(x => x.asset.status !== "locked")) {
+      assert.ok(s.visualTheme.length > 0 && s.decision.unitTopics && s.suggestions.status === "sugerencia_revisable", s.id);
+      if (s.decision.status === "pending") {
+        assert.ok(s.decision.pendingReason && !s.newMaterial, s.id);
+        assert.ok(codes(plan, inp).includes("DECISION_PENDING"));
+      }
+      if (s.recipeId) assert.ok(s.suggestions.transitionIn && s.suggestions.composition, s.id);
+      if (s.suggestions.sound) assert.ok(s.suggestions.sound.includes("sugerencia"), "no sound asset is invented");
+    }
+    const rep = editorialReport(plan, DirectorInputSchema.parse(inp));
+    assert.equal(rep.sequences.length, inp.segments.length);
+    assert.equal(rep.totals.shots, plan.shots.length);
+    assert.ok(rep.sequences.every(q => q.movement.note.includes("no verificado")));
+  }
 });

@@ -1,6 +1,6 @@
 # Director Cinematográfico Inteligente V1 — arquitectura y contrato
 
-Estado: **MVP en modo propuesta, apagado por defecto y no conectado a producción.** Solicitud T-20261012-0142-chatgpt-18.
+Estado: **MVP en modo propuesta, apagado por defecto y no conectado a producción.** Solicitud T-20261012-0142-chatgpt-18; correcciones T-20261012-0318-chatgpt-19 y T-20261012-0555-chatgpt-20.
 
 Este módulo no genera medios, no llama a ningún LLM y no gasta. Por contrato, todo plan lleva `executable: false` y `paidCalls: 0`.
 
@@ -37,8 +37,8 @@ Este módulo no genera medios, no llama a ningún LLM y no gasta. Por contrato, 
 flowchart LR
   G[Guion + tiempos por segmento] --> D[Director V1<br/>modo propuesta<br/>reglas + recetas]
   I[Inventario: hash, licencia,<br/>procedencia, movimiento] --> D
-  R[(recipes.v1.json<br/>versionado)] --> D
-  D --> P[director-plan@1<br/>executable=false, paidCalls=0]
+  R[(recipes.v2.json<br/>versionado)] --> D
+  D --> P[director-plan@2<br/>executable=false, paidCalls=0]
   P --> A{auditPlan<br/>puerta determinista}
   A -- issues --> H[Revisión humana /<br/>override manual]
   A -- ok --> X[Pipeline existente<br/>sin cambios: production-plan →<br/>shot-executor con guardas de gasto]
@@ -50,7 +50,7 @@ Hoy el pipeline existente **no lee** el plan. La flecha hacia X marca el punto d
 
 ## 3. Contrato (Zod, `src/lib/video/director/contract.ts`)
 
-### `director-input@1`
+### `director-input@2`
 
 | Campo | Contenido |
 |---|---|
@@ -61,8 +61,11 @@ Hoy el pipeline existente **no lee** el plan. La flecha hacia X marca el punto d
 | Restricciones | 3–8 s por plano, rótulos de 3 s como máximo, 2 líneas de subtítulos |
 | Presupuesto | Restante, costes unitarios y `allowAiVideo=false` por defecto |
 | Continuidad | Época y vestuario |
+| Afirmaciones del guion (corrección 2) | Por segmento, con su nivel de apoyo (`sourced`, `inference`, `unverified`) |
+| Marcas de palabra (corrección 2) | Opcionales; si existen se usan para cortar, si no la alineación se declara estimada |
+| Metadatos editoriales del recurso (corrección 2) | Tipo visual, temas, intención visual, sensibilidad, clase de la biblia y ventana planificada en el storyboard. Si faltan, nada se presume seguro |
 
-### `director-plan@1`
+### `director-plan@2`
 
 Cada shot del plan incluye:
 - **Ancla exacta:** subcadena literal del texto del segmento.
@@ -71,25 +74,32 @@ Cada shot del plan incluye:
 - **Recurso:** el elegido y sus alternativas, o `needs_new` con el motivo y el coste máximo estimado.
 - **Etiqueta:** `recreacion_ia` o `ilustrativa`.
 - **Incertidumbres** declaradas.
+- **Corrección 2 — registro de decisión emitido por el propio módulo** (no se reconstruye después):
+  - `unit`: tipo de corte (oración, cláusula o palabra), su motivo y si el tiempo es estimado o viene de marcas de palabra;
+  - `policy`: clase documental de la frase (`documentary-policy@1`), fuentes, señales, si es una afirmación no confirmada y si requiere revisión;
+  - `visualTheme`: qué se ve, en palabras (no es un prompt);
+  - `decision`: estado (`proposed`, `weak` o `pending`), temas de la frase, bases del recurso y de la receta, fuentes y motivo del pendiente;
+  - `suggestions`: transición, composición y sonido del catálogo como sugerencias revisables (sin assets sonoros).
 
 El contrato fija estos literales: `mode: "proposal"`, `executable: false`, `paidCalls: 0`, y `qualityNote` «estimado/no validado».
 
-### Catálogo `atomivid/cinematic-recipes@1`
+### Catálogo `atomivid/cinematic-recipes@2`
 
 - Los ids son únicos.
 - Una receta `authentic_only` nunca puede llevar `recreacion_ia`.
 - Está prohibido el sufijo universal «8K anamorphic» como instrucción positiva.
+- Corrección 2: cada receta lleva una regla `select` operable (tipos visuales aceptados, temas o palabras requeridos, temas excluidos, procedencias permitidas, qué hacer con una imagen fija, posición y si es atmósfera neutral). `use_when` y `avoid_when` quedan como descripción humana; la decisión automática usa solo `select`.
 
 ### Ejemplo real generado por `proposePlan`
 
 ```json
 {
-  "version": "director-plan@1",
+  "version": "director-plan@2",
   "mode": "proposal",
   "executable": false,
   "paidCalls": 0,
   "genre": "misterio",
-  "catalogVersion": "1.0.0",
+  "catalogVersion": "2.0.0",
   "totalSeconds": 12,
   "shots": [
     {
@@ -111,9 +121,53 @@ El contrato fija estos literales: `mode: "proposal"`, `executable: false`, `paid
         "assetId": "road",
         "provenance": "stock_illustrative",
         "alternatives": [],
-        "label": "ilustrativa"
+        "label": "ilustrativa",
+        "continuation": false
       },
-      "uncertainty": []
+      "uncertainty": [
+        "alineación temporal estimada (sin marcas de palabra): no validada contra la locución"
+      ],
+      "unit": {
+        "boundary": "word",
+        "timing": "estimated_proportional",
+        "cutReason": "oración más larga que 8 s: corte entre palabras (revisar)"
+      },
+      "policy": {
+        "version": "documentary-policy@1",
+        "class": "atmosphere",
+        "sources": [
+          "default"
+        ],
+        "signals": [],
+        "status": "ok",
+        "unconfirmed": false
+      },
+      "visualTheme": "recurso road",
+      "decision": {
+        "status": "proposed",
+        "unitTopics": [],
+        "assetBasis": [
+          "palabras compartidas: carretera, noche",
+          "política atmosphere: atmósfera: sin afirmación factual específica"
+        ],
+        "recipeBasis": [
+          "regla de la receta acepta el tipo visual «concept»",
+          "coincide: palabra:carretera, palabra:noche",
+          "alternativas compatibles: mys-night-sky-stars, mys-tree-line-glow, mys-empty-site-today"
+        ],
+        "sources": [
+          "lexicon",
+          "catalog_rule"
+        ],
+        "neutral": false
+      },
+      "suggestions": {
+        "transitionIn": "fade_from_black",
+        "transitionOut": "cut",
+        "composition": "horizonte bajo, carretera en fuga hacia el tercio superior",
+        "sound": "motor lejano, grillos, sin música al inicio (sugerencia; no hay asset sonoro)",
+        "status": "sugerencia_revisable"
+      }
     },
     {
       "id": "s1-s2",
@@ -133,14 +187,57 @@ El contrato fija estos literales: `mode: "proposal"`, `executable: false`, `paid
         "status": "needs_new",
         "provenance": "ai_recreation",
         "alternatives": [],
-        "label": "recreacion_ia"
+        "label": "recreacion_ia",
+        "continuation": false
       },
       "newMaterial": {
-        "reason": "sin recurso en el inventario para «los testigos vieron una luz detrás de los árboles.»",
+        "reason": "sin recurso compatible en el inventario para «los testigos vieron una luz detrás de los árboles.»",
         "kind": "ai_image",
         "estimatedMaxUsd": 0.04
       },
-      "uncertainty": []
+      "uncertainty": [
+        "alineación temporal estimada (sin marcas de palabra): no validada contra la locución"
+      ],
+      "unit": {
+        "boundary": "sentence",
+        "timing": "estimated_proportional",
+        "cutReason": "fin de oración"
+      },
+      "policy": {
+        "version": "documentary-policy@1",
+        "class": "atmosphere",
+        "sources": [
+          "default"
+        ],
+        "signals": [],
+        "status": "ok",
+        "unconfirmed": false
+      },
+      "visualTheme": "recreación genérica (concept) de: atmósfera",
+      "decision": {
+        "status": "proposed",
+        "unitTopics": [],
+        "assetBasis": [
+          "sin recurso compatible en el inventario"
+        ],
+        "recipeBasis": [
+          "regla de la receta acepta el tipo visual «concept»",
+          "coincide: palabra:luz, palabra:arboles",
+          "alternativas compatibles: mys-witness-pov-windshield, mys-closing-unresolved, mys-empty-site-today"
+        ],
+        "sources": [
+          "lexicon",
+          "catalog_rule"
+        ],
+        "neutral": false
+      },
+      "suggestions": {
+        "transitionIn": "cut",
+        "transitionOut": "cut",
+        "composition": "árboles en silueta ocupando el tercio inferior; resplandor fuera de cuadro",
+        "sound": "zumbido grave muy bajo (sugerencia; no hay asset sonoro)",
+        "status": "sugerencia_revisable"
+      }
     }
   ],
   "estimatedMaxUsd": 0.04,
@@ -164,10 +261,12 @@ Si no hay evidencia de un clip, se marca la incertidumbre en vez de inventar.
 
 ## 5. Biblioteca de recetas
 
-`content/cinematic-director/recipes.v1.json` contiene 30 recetas originales:
+`content/cinematic-director/recipes.v2.json` (catálogo 2.0.0) contiene 33 recetas originales:
 - 12 de misterio/OVNI;
-- 10 de documental/historia;
+- 13 de documental/historia (corrección 2 añade `doc-schematic-diagram`, `doc-data-card` y `doc-neutral-atmosphere`);
 - 8 de Reel/anuncio vertical.
+
+Las fichas de abajo son las de la v1. La versión vigente añade a cada receta la regla `select` y cambia el movimiento de `doc-map-route` y `doc-timeline-graphic` a `graphic_animation`; el archivo JSON es la referencia.
 
 Cada género tiene sus presets y sus antimotivos. La política de evidencia impide aplicar el mismo look a la evidencia auténtica y a la recreación IA.
 
@@ -498,10 +597,37 @@ Cobertura, duplicados, variedad, material nuevo y coste estimado no cambian. Lo 
   - **Línea de tiempo:** cada shot debe cumplir end > start y quedar dentro de su segmento; las anclas no pueden estar vacías.
   - **Avatar bloqueado:** se mantiene en un único shot con sus límites exactos y conserva su etiqueta de IA.
 
+### Corrección 2 (T-20261012-0555-chatgpt-20): política documental, compatibilidad y anclaje
+
+Responde a la auditoría editorial de Codex. Lo que cambia en el módulo:
+
+- **Política documental por unidad narrativa** (`policy.ts`, `documentary-policy@1`). Clases, de la más restrictiva a la menos: restos humanos, evidencia específica, dato medible, hipótesis/negación y atmósfera. Primero cuentan los metadatos del storyboard y las afirmaciones del guion; el léxico solo alerta o restringe, nunca aprueba. Una afirmación no verificada, una negación o un matiz marcan la frase como no confirmada.
+  - Restos humanos: evidencia real o tarjeta de texto; un diagrama esquemático aprobado en el storyboard queda en revisión; si la frase no está confirmada, solo tarjeta de texto. Nunca recreación ni material ilustrativo.
+  - Evidencia específica y dato medible: evidencia real, gráfico o tarjeta deterministas; un ilustrativo planificado en el storyboard para ese tema queda en revisión; nunca material nuevo generado.
+  - Hipótesis o negación: tarjeta o gráfico; una atmósfera neutral declarada solo si hay tarjeta de texto en el mismo tramo, y siempre en revisión.
+  - «restos de plantas» no son restos humanos y «hueso» suelto solo genera una alerta.
+- **Primero el recurso, después la receta.** El recurso se elige por los temas de la frase y por el plan del storyboard (beat y ventana temporal). La receta debe aceptar el tipo visual de ese recurso según su regla `select`. La rotación solo desempata recetas igual de compatibles. Si no hay recurso o receta compatibles, el plano queda **pendiente** con su motivo; nunca se rellena por rotación.
+- **Tarjetas y diagramas del storyboard** no se usan fuera de su beat. Un gráfico puede sostenerse en planos consecutivos solo dentro del tiempo que el storyboard le asignó.
+- **Anclaje por unidades de sentido.** Programa dinámico sobre límites de palabra que prefiere fin de oración, luego cláusula, y solo corta entre palabras si una oración excede el máximo (y lo declara). Usa marcas de palabra si existen; si no, la alineación queda como estimada y no validada.
+- **Movimiento honesto.** Movimiento real solo con un clip real o con vídeo IA autorizado. Con una imagen fija, la regla de la receta decide entre fijo justificado, zoom declarado o pendiente. Mapas y líneas de tiempo usan `graphic_animation`, solo sobre gráficos deterministas.
+- **La puerta recalcula la política** desde la entrada y añade `POLICY_MISMATCH`, `POLICY_VIOLATION`, `POLICY_REVIEW`, `DECISION_PENDING`, `RECIPE_INCOMPATIBLE` y `MOVEMENT_INCOMPATIBLE`. `POLICY_REVIEW` y `DECISION_PENDING` bloquean `ok`.
+- **Informe por secuencia** (`report.ts`): repetición conceptual, tipos de plano, movimiento propuesto frente al declarado en el inventario, pendientes y revisiones.
+
+| Fixture | Planos | Propuestos / débiles / pendientes | Restos / evidencia / dato / hipótesis / atmósfera | Violaciones de política | Revisiones | Atmósferas neutrales | Material nuevo | Movimiento real | Cortes oración / cláusula / palabra | Repeticiones conceptuales | USD estimado |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| gobekli-storyboard-003 + script-003 | 106 | 74 / 9 / 23 | 5 / 26 / 16 / 20 / 39 | 0 | 15 | 17 | 26 | 2 | 66 / 38 / 2 | 33 | 1.3 |
+| gobekli-storyboard-002-hybrid + script-002 | 80 | 57 / 8 / 15 | 0 / 19 / 11 / 14 / 36 | 0 | 11 | 14 | 23 | 3 | 54 / 25 / 1 | 17 | 1.15 |
+| gobekli-storyboard-001 + script-002 | 80 | 55 / 10 / 15 | 0 / 17 / 11 / 16 / 36 | 0 | 17 | 14 | 23 | 3 | 54 / 25 / 1 | 19 | 1.15 |
+
+Cómo leer esta tabla:
+- **Más pendientes y revisiones no es un empeoramiento:** son los planos que antes se rellenaban por coincidencia léxica o rotación y ahora se declaran.
+- **sb002h y sb001** comparten casi todos los recursos (74 de 80 planos con el mismo recurso), así que sus recetas coinciden en 73 de 80 planos: ahora la receta sigue al recurso, no al guion.
+- **Nada de esto es calidad cinematográfica validada.** Los temas salen de un léxico, los tiempos son estimados y no hay bytes de imagen. La puerta sigue en `ok=false` por licencias, presupuesto, revisiones y pendientes.
+
 ## 7. Impacto esperado (estimaciones, no facturación)
 
 - **Latencia del modo propuesta:** milisegundos (O(segmentos × recetas)); no usa red.
-- **Coste con `allowAiVideo=false`:** con los costes unitarios del plan de producción (imagen IA USD 0,05; clip Veo USD 0,96), las tres comparaciones estiman entre USD 1,95 y 3,10 de imágenes nuevas para 8–11 minutos.
+- **Coste con `allowAiVideo=false`:** con los costes unitarios del plan de producción (imagen IA USD 0,05; clip Veo USD 0,96), tras la corrección 2, las tres comparaciones estiman entre USD 1,15 y 1,30 de imágenes nuevas para 8–11 minutos (antes 1,95–3,10). Baja porque las frases sensibles ya no generan material: quedan pendientes.
 - **Escalado a 15–30 minutos:** unos USD 4–9, solo en imágenes, si el inventario es tan escaso como el del storyboard.
 - **Con vídeo IA permitido:** un orden de magnitud más; en el peor caso, unos USD 80–160 para 15–30 minutos.
 - **Topes reales:** los siguen imponiendo `spend-cap.ts`, `production-budget.ts` y `paid-calls/gate.ts`.
