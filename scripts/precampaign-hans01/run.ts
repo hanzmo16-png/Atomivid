@@ -121,7 +121,7 @@ async function identity(svc: SupabaseClient) {
 async function check() {
   const svc = service();
   const { voiceId } = await identity(svc);
-  // Private review copy (workflow artifact, 1 day): Claude must SEE the photo before any spend.
+  // Review copy stays on the runner (public repo: never uploaded as an artifact). Claude must SEE the photo before any spend.
   await sh("ffmpeg", ["-y", "-v", "error", "-i", join(OUT, "photo-original"), "-vf", "scale=480:-2", "-frames:v", "1", join(OUT, "photo-review.jpg")]);
   const v = await eleven(`/v1/voices/${encodeURIComponent(voiceId)}`);
   report.elevenlabsVoice = { category: v.category, name: v.name };

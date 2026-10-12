@@ -46,16 +46,5 @@ jobs:
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
           GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
-      - name: Private artifact (report, review photo, outputs)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: precampaign-hans01-${{ steps.mode.outputs.mode }}
-          path: |
-            hans01-output/report.json
-            hans01-output/photo-review.jpg
-            hans01-output/*.mp3
-            hans01-output/*.wav
-            hans01-output/*.mp4
-          if-no-files-found: ignore
-          retention-days: 2
+      # No artifact upload: this repository is public, so artifacts would expose Hans's photo, voice and clips.
+      # Outputs stay in the private Supabase bucket "videos" (paid-result store) and go to Drive only via the API.
