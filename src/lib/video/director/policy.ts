@@ -21,17 +21,17 @@ export const words = (t: string) => normalize(t).split(/[^a-z0-9ñ]+/).filter(w 
 export const TOPIC_LEXICON: Record<string, RegExp> = {
   remains: /\brestos humanos\b|\bcraneos?\b|\besqueletos?\b|\benterramientos?\b|\btumbas?\b|\bcadaver(es)?\b|\bhuesos humanos\b/,
   pillar: /\bpilar(es)?\b|\bmonolitos?\b|\bforma de t\b/,
-  structure: /\brecintos?\b|\bestructuras?\b|\bmuros?\b|\bviviendas?\b|\bcasas?\b|\btemplos?\b|\bsantuarios?\b|\bconstruccion(es)?\b|\bedificios?\b|\bmonumentales?\b/,
+  structure: /\brecintos?\b|\bestructuras?\b|\bmuros?\b|\bviviendas?\b|\bcasas?\b|\btemplos?\b|\bsantuarios?\b|\bconstruccion(es)?\b|\bedificios?\b|\bmonumental(es)?\b/,
   relief: /\brelieves?\b|\btallad[oa]s?\b|\bgrabad[oa]s?\b|\bzorros?\b|\bjabalies\b|\bjabali\b|\bserpientes?\b|\baves\b|\bsimbolos?\b|\bfigura humana\b/,
   landscape: /\bpaisajes?\b|\bcolinas?\b|\bmontanas?\b|\bvalles?\b|\bllanuras?\b|\bcima\b|\bhorizonte\b|\bregion(es)?\b|\bterritorio\b|\bamanecer\b|\batardecer\b|\bmeseta\b/,
   geo: /\bturquia\b|\banatolia\b|\bsanl.?urfa\b|\bgermus\b|\bmapas?\b|\bsureste\b|\bkilometros?\b|\bal norte\b|\bal sur\b|\bnucleo protegido\b/,
-  chrono: /\b\d{3,5}\b|\bsiglos?\b|\bmilenios?\b|\bmil anos\b|\bantes de nuestra era\b|\bneolitico\b|\bprecermico\b|\bceramica\b|\bperiodo\b|\bcronologia\b|\bfechas?\b|\banos atras\b/,
+  chrono: /\b\d{3,5}\b|\bsiglos?\b|\bmilenios?\b|\bmil anos\b|\bantes de nuestra era\b|\bneolitico\b|\bpreceramico\b|\bceramica\b|\bperiodo\b|\bcronologia\b|\bfechas?\b|\banos atras\b/,
   data: /\b\d+([.,]\d+)?\b|\bmetros?\b|\btoneladas?\b|\bcifras?\b|\bpor ciento\b|\bkilos?\b/,
   people: /\bcazadores\b|\brecolectores\b|\bcomunidad(es)?\b|\bpersonas\b|\bgente\b|\bgrupos?\b|\bsociedad(es)?\b|\bcooper\w*/,
   hands_work: /\btallar\w*|\bherramientas?\b|\btrabaj\w*|\bconstruir\b|\blevantar\w*|\boficios?\b|\btecnicas?\b|\bmoler\b|\bmolienda\b|\btransport\w*|\barrastr\w*/,
   excavation: /\bexcavac\w*|\barqueolog\w*|\bexcavad\w*|\bequipo de excavacion\b|\bcampanas? de excavacion\b|\bhallazgos?\b|\bdescubri\w*/,
   artifact: /\bartefactos?\b|\bpiedras? de moler\b|\bmorteros?\b|\bobjetos?\b|\bvasijas?\b|\bcuchillas?\b|\bpuntas? de flecha\b|\bherramientas de piedra\b/,
-  food: /\bcereales?\b|\btrigo\b|\bgranos?\b|\balimentos?\b|\bfitolitos?\b|\bplantas?\b|\bcerveza\b|\bgachas\b/,
+  food: /\bcereal(es)?\b|\btrigo\b|\bgranos?\b|\balimentos?\b|\bfitolitos?\b|\bplantas?\b|\bcerveza\b|\bgachas\b/,
   research: /\bestudios?\b|\bpublica\w*|\bfuentes?\b|\bverific\w*|\bconfirm\w*|\binvestigador\w*|\banalisis\b|\barticulos?\b|\brevistas?\b|\bdoi\b/,
 };
 /** Alert-only vocabulary: reported as a signal, never escalates the policy class. */

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { loadRecipeCatalog } from "./recipes";
 import { readFileSync } from "node:fs";
 import { proposePlan, splitSpan, anchorFor, unitsFor, compatibleRecipes } from "./propose";
-import { assetVisualType } from "./policy";
+import { assetVisualType, topicsOf } from "./policy";
 import { editorialReport } from "./report";
 import { inputFromStoryboard } from "./from-storyboard";
 import { auditPlan } from "./audit";
@@ -262,6 +262,12 @@ test("policy regressions sb003: units about human remains never get fabricated o
   assert.ok(neg.policy.unconfirmed && neg.asset.status !== "chosen" || neg.asset.provenance === "data_graphic");
   if (neg.asset.status === "needs_new") assert.ok(neg.decision.neutral && neg.recipeId === "doc-neutral-atmosphere");
   for (const p of [SB003, SB002H, SB001]) assert.ok(!codes(p.plan, p.inp).includes("POLICY_VIOLATION"));
+});
+
+test("lexicon: singular and plural forms are recognised (monumental/es, cereal/es, precerámico)", () => {
+  assert.ok(topicsOf("la arquitectura monumental").includes("structure") && topicsOf("estructuras monumentales").includes("structure"));
+  assert.ok(topicsOf("un cereal silvestre").includes("food") && topicsOf("procesar cereales").includes("food"));
+  assert.ok(topicsOf("el Neolítico Precerámico").includes("chrono"));
 });
 
 test("policy: «restos de plantas» and a bare «hueso» are not human remains; negations keep their nuance", () => {

@@ -615,19 +615,19 @@ Responde a la auditoría editorial de Codex. Lo que cambia en el módulo:
 
 | Fixture | Planos | Propuestos / débiles / pendientes | Restos / evidencia / dato / hipótesis / atmósfera | Violaciones de política | Revisiones | Atmósferas neutrales | Material nuevo | Movimiento real | Cortes oración / cláusula / palabra | Repeticiones conceptuales | USD estimado |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| gobekli-storyboard-003 + script-003 | 106 | 74 / 9 / 23 | 5 / 26 / 16 / 20 / 39 | 0 | 15 | 17 | 26 | 2 | 66 / 38 / 2 | 33 | 1.3 |
-| gobekli-storyboard-002-hybrid + script-002 | 80 | 57 / 8 / 15 | 0 / 19 / 11 / 14 / 36 | 0 | 11 | 14 | 23 | 3 | 54 / 25 / 1 | 17 | 1.15 |
-| gobekli-storyboard-001 + script-002 | 80 | 55 / 10 / 15 | 0 / 17 / 11 / 16 / 36 | 0 | 17 | 14 | 23 | 3 | 54 / 25 / 1 | 19 | 1.15 |
+| gobekli-storyboard-003 + script-003 | 106 | 73 / 9 / 24 | 5 / 27 / 16 / 20 / 38 | 0 | 15 | 16 | 25 | 2 | 66 / 38 / 2 | 35 | 1.25 |
+| gobekli-storyboard-002-hybrid + script-002 | 80 | 55 / 8 / 17 | 0 / 21 / 11 / 14 / 34 | 0 | 10 | 14 | 22 | 3 | 54 / 25 / 1 | 19 | 1.1 |
+| gobekli-storyboard-001 + script-002 | 80 | 56 / 8 / 16 | 0 / 18 / 11 / 16 / 35 | 0 | 17 | 15 | 23 | 3 | 54 / 25 / 1 | 20 | 1.15 |
 
 Cómo leer esta tabla:
 - **Más pendientes y revisiones no es un empeoramiento:** son los planos que antes se rellenaban por coincidencia léxica o rotación y ahora se declaran.
-- **sb002h y sb001** comparten casi todos los recursos (74 de 80 planos con el mismo recurso), así que sus recetas coinciden en 73 de 80 planos: ahora la receta sigue al recurso, no al guion.
+- **sb002h y sb001** comparten casi todos los recursos (78 de 80 planos con el mismo recurso, o sin recurso en ambos), así que sus recetas coinciden en 77 de 80 planos: ahora la receta sigue al recurso, no al guion.
 - **Nada de esto es calidad cinematográfica validada.** Los temas salen de un léxico, los tiempos son estimados y no hay bytes de imagen. La puerta sigue en `ok=false` por licencias, presupuesto, revisiones y pendientes.
 
 ## 7. Impacto esperado (estimaciones, no facturación)
 
 - **Latencia del modo propuesta:** milisegundos (O(segmentos × recetas)); no usa red.
-- **Coste con `allowAiVideo=false`:** con los costes unitarios del plan de producción (imagen IA USD 0,05; clip Veo USD 0,96), tras la corrección 2, las tres comparaciones estiman entre USD 1,15 y 1,30 de imágenes nuevas para 8–11 minutos (antes 1,95–3,10). Baja porque las frases sensibles ya no generan material: quedan pendientes.
+- **Coste con `allowAiVideo=false`:** con los costes unitarios del plan de producción (imagen IA USD 0,05; clip Veo USD 0,96), tras la corrección 2, las tres comparaciones estiman entre USD 1,10 y 1,25 de imágenes nuevas para 8–11 minutos (antes 1,95–3,10). Baja porque las frases sensibles ya no generan material: quedan pendientes.
 - **Escalado a 15–30 minutos:** unos USD 4–9, solo en imágenes, si el inventario es tan escaso como el del storyboard.
 - **Con vídeo IA permitido:** un orden de magnitud más; en el peor caso, unos USD 80–160 para 15–30 minutos.
 - **Topes reales:** los siguen imponiendo `spend-cap.ts`, `production-budget.ts` y `paid-calls/gate.ts`.
