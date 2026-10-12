@@ -43,6 +43,12 @@ export class ProjectBudgetExceededError extends Error {
     this.name = "ProjectBudgetExceededError";
   }
 }
+export class ProjectReservationMismatchError extends Error {
+  constructor(readonly forKey: string, readonly coveredUsd: number, readonly requestedUsd: number) {
+    super(`project_reservation_mismatch: ${forKey} is covered for ${coveredUsd} but the call now needs ${requestedUsd}; reconcile first`);
+    this.name = "ProjectReservationMismatchError";
+  }
+}
 export class ProjectUncertainStateError extends Error {
   constructor(readonly keys: string[]) {
     super(`project_uncertain_state: ${keys.length} paid call(s) await reconciliation; no other call is admitted`);
@@ -80,7 +86,8 @@ export type BudgetAdmission = { holdKey: string | null; reused: boolean; exposur
 
 /**
  * Admit one paid call (identified by its paid-call gate key) under the project cap.
- * - The call already has a ledger row or a live hold → no new hold (resume / reuse never resets the total).
+ * - The call already has a final or uncertain ledger row → no new hold: replay/resume never pays again and never
+ *   resets the total. A row still RESERVED or a hold without a row is only accepted if it already covers the call.
  * - Another call is uncertain → refused (no new fingerprint while something awaits reconciliation).
  * - exposure + usd > cap → refused before any provider call.
  */
@@ -91,7 +98,20 @@ export async function admitPaidCall(store: ProjectBudgetStore, a: { projectId: s
     const [holds, ops] = await Promise.all([store.listHolds(a.projectId), store.listOps(a.projectId)]);
     const exposure = projectExposure(holds, ops);
     const own = holds.find((h) => h.forKey === a.forKey && h.status !== "REFUNDED");
-    if (own || ops.some((o) => o.idempotencyKey === a.forKey)) return { holdKey: own?.key ?? null, reused: true, exposureUsd: exposure.usd };
+    const op = ops.find((o) => o.idempotencyKey === a.forKey);
+    if (op && op.status !== "RESERVED") {
+      // COMMITTED → the gate returns the stored result; REFUNDED → the gate refuses (no rejected retries are
+      // allowed by callers of this module); SUBMITTED / PROVIDER_JOB_RECORDED / RECONCILIATION_REQUIRED → resume
+      // the same job or stop for reconciliation. None of them submits a new paid request: nothing new to admit.
+      return { holdKey: own?.key ?? null, reused: true, exposureUsd: exposure.usd };
+    }
+    if (op || own) {
+      // RESERVED row (crash before submit) or a hold without a row: the gate WILL submit and pay now. That is only
+      // covered by what is already counted; a more expensive call than the earlier reservation is refused.
+      const covered = Math.max(op?.reservedUsd ?? 0, own?.usd ?? 0);
+      if (usd > covered + EPS) throw new ProjectReservationMismatchError(a.forKey, covered, usd);
+      return { holdKey: own?.key ?? null, reused: true, exposureUsd: exposure.usd };
+    }
     const others = exposure.uncertainKeys.filter((k) => k !== a.forKey);
     if (others.length) throw new ProjectUncertainStateError(others);
     if (exposure.usd + usd > a.capUsd + EPS) throw new ProjectBudgetExceededError(exposure.usd, usd, a.capUsd);

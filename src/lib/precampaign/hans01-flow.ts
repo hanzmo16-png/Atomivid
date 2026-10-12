@@ -53,7 +53,8 @@ async function paidStep<T>(d: Pick<Hans01Deps<unknown, { seconds: number }, unkn
   const before = d.observeAccountUsd ? await d.observeAccountUsd() : null;
   let g;
   try {
-    g = await guardPaidCall(d.ledger, spec, step.hooks);
+    // One admitted key per call: a rejected request is never retried under another (unadmitted) ordinal.
+    g = await guardPaidCall(d.ledger, spec, { ...step.hooks, maxRejectedRetries: 0 });
   } catch (err) {
     // Release the hold only when the call provably cost nothing (never reached the ledger, or refused with 0).
     const op = await d.ledger.get(forKey);
@@ -80,9 +81,12 @@ async function planFits(d: Pick<Hans01Deps<unknown, { seconds: number }, unknown
 export async function runHans01<V, A extends { seconds: number }, C, D>(d: Hans01Deps<V, A, C, D>) {
   await d.deliveryPreflight();
   const voiceKey = paidCallKey({ ...d.voice.spec, reservedUsd: ceilCents(d.voice.spec.reservedUsd) }, 0);
-  const voiceDone = (await d.ledger.get(voiceKey))?.status === "COMMITTED";
-  const allowance = ceilCents(d.avatarAllowanceSeconds * d.avatarUsdPerSecond);
-  const exposureAtStart = await planFits(d, d.projectId, (voiceDone ? 0 : ceilCents(d.voice.spec.reservedUsd)) + allowance, [voiceKey]);
+  // Only INCREMENTAL work is admitted. A committed voice is recovered for free and the clips are then checked on
+  // their own keys (a full replay of a delivered run makes no call and needs no room under the cap). Before the
+  // voice exists the clips cannot exist either (their fingerprint is the cut audio), so the allowance applies.
+  const voiceOp = await d.ledger.get(voiceKey);
+  const allowance = voiceOp?.status === "COMMITTED" ? 0 : ceilCents(d.avatarAllowanceSeconds * d.avatarUsdPerSecond);
+  const exposureAtStart = await planFits(d, d.projectId, (voiceOp ? 0 : ceilCents(d.voice.spec.reservedUsd)) + allowance, [voiceKey]);
 
   const voice = await paidStep(d, "voice", d.voice);
   const audio = await d.cut(voice.result);

@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { memoryLedgerStore, type PaidOperation } from "@/lib/production-intelligence/ledger";
 import { paidCallKey, type PaidCallSpec } from "@/lib/paid-calls/gate";
-import { admitPaidCall, ceilCents, memoryProjectBudgetStore, projectExposure, ProjectBudgetExceededError, ProjectUncertainStateError } from "@/lib/paid-calls/project-budget";
+import { admitPaidCall, budgetHoldKey, ceilCents, memoryProjectBudgetStore, projectExposure, ProjectBudgetExceededError, ProjectReservationMismatchError, ProjectUncertainStateError } from "@/lib/paid-calls/project-budget";
 import { runHans01, SpendAboveReservationError, type ClipKey, type Hans01Deps } from "./hans01-flow";
 
 const P = "precampaign-hans01-test";
@@ -139,4 +139,94 @@ test("reservations round UP to the cent; avatar plan re-checked with the real du
   const w = world({ clipSeconds: { apertura: 10, cierre: 12 } }); // 1.10 of avatar after a 0.13 voice > 1.20
   await assert.rejects(runHans01(w.deps), ProjectBudgetExceededError);
   assert.deepEqual(w.calls, { voice: 1, apertura: 0, cierre: 0, delivered: 0 });
+});
+
+// ---- Correction 2 (chatgpt-24): replay of a delivered run with high history; reuse never hides a new payment.
+
+test("full replay of a delivered run that spent USD 0.90 recovers everything: zero calls, zero new holds, same exposure", async () => {
+  const w = world({ clipSeconds: { apertura: 8, cierre: 7.4 } }); // 0.13 voice + 0.40 + 0.37 = 0.90
+  const first = await runHans01(w.deps);
+  assert.equal(first.exposureAtEndUsd, 0.9);
+  const holds = w.budget.holds.size;
+  const again = await runHans01(w.deps); // e63090c refused this: 0.90 + 0.60 allowance > 1.20
+  assert.deepEqual(w.calls, { voice: 1, apertura: 1, cierre: 1, delivered: 2 });
+  assert.equal(w.budget.holds.size, holds);
+  assert.equal(again.exposureAtStartUsd, 0.9);
+  assert.equal(again.exposureAtEndUsd, 0.9);
+  assert.ok(again.voice.reused && again.clips.apertura.reused && again.clips.cierre.reused);
+});
+
+test("replay of a run that ended exactly at the USD 1.20 cap (with unrelated history) makes no call and is not refused", async () => {
+  const w = world({ clipSeconds: { apertura: 8, cierre: 7.4 } });
+  seed(w.ledger.ops, "op_other_history", "COMMITTED", 0.3, 0.3); // 0.30 + 0.13 + 0.40 + 0.37 = 1.20
+  const r = await runHans01(w.deps);
+  assert.equal(r.exposureAtEndUsd, 1.2);
+  const again = await runHans01(w.deps);
+  assert.equal(again.exposureAtEndUsd, 1.2);
+  assert.deepEqual(w.calls, { voice: 1, apertura: 1, cierre: 1, delivered: 2 });
+});
+
+test("partial replay (voice + opening committed, closing missing) admits only the missing clip", async () => {
+  const w = world({ clipSeconds: { apertura: 8, cierre: 7.4 } });
+  const clip = w.deps.clip;
+  let crash = true;
+  w.deps.clip = (k, a) => {
+    const s = clip(k, a);
+    // The closing clip's first attempt is refused by the provider before acceptance (REFUNDED, cost 0).
+    return k === "cierre" && crash ? { ...s, hooks: { ...s.hooks, classify: () => ({ kind: "rejected" }), call: async () => { crash = false; throw new Error("http 400"); } } } : s;
+  };
+  await assert.rejects(runHans01(w.deps));
+  assert.deepEqual({ v: w.calls.voice, a: w.calls.apertura }, { v: 1, a: 1 });
+  const exposureAfterFailure = projectExposure(await w.budget.listHolds(P), await w.budget.listOps(P)).usd;
+  assert.equal(exposureAfterFailure, 0.53, "voice 0.13 + opening 0.40; the refused closing call counts 0");
+  // The refused key is final (never re-paid). A changed closing input (new audio) is a new, admitted call.
+  w.deps.cut = async () => ({ apertura: { seconds: 8, id: "a" }, cierre: { seconds: 7.4, id: "c2" } });
+  const r = await runHans01(w.deps);
+  assert.deepEqual({ v: w.calls.voice, a: w.calls.apertura, c: w.calls.cierre }, { v: 1, a: 1, c: 1 });
+  assert.equal(r.exposureAtEndUsd, 0.9);
+});
+
+test("a REFUNDED (refused) call is never paid again: real gate, zero calls, zero exposure added", async () => {
+  const w = world();
+  const key = paidCallKey(w.voiceSpec, 0);
+  seed(w.ledger.ops, key, "REFUNDED", 0.13, 0);
+  w.ledger.ops.get(key)!.resultRef = "rejected:rejected:http 400";
+  await assert.rejects(runHans01(w.deps));
+  assert.equal(paidCalls(w.calls), 0);
+  assert.equal(projectExposure(await w.budget.listHolds(P), await w.budget.listOps(P)).usd, 0);
+  assert.equal(w.budget.holds.size, 0);
+});
+
+test("an earlier, cheaper reservation never covers a more expensive call (hold without row, or RESERVED row)", async () => {
+  const w = world();
+  const key = paidCallKey(w.voiceSpec, 0);
+  await w.budget.insertHold({ key: budgetHoldKey(P, 0), projectId: P, forKey: key, usd: 0.05, createdAt: NOW() });
+  await assert.rejects(runHans01(w.deps), ProjectReservationMismatchError);
+  assert.equal(paidCalls(w.calls), 0);
+
+  const v = world();
+  const k = paidCallKey(v.voiceSpec, 0);
+  seed(v.ledger.ops, k, "RESERVED", 0.05, null);
+  await assert.rejects(runHans01(v.deps), ProjectReservationMismatchError);
+  assert.equal(paidCalls(v.calls), 0);
+});
+
+test("a RESERVED row that already covers the call (crash before submit) is paid once and counted once", async () => {
+  const w = world();
+  const key = paidCallKey({ ...w.voiceSpec, reservedUsd: 0.13 }, 0);
+  seed(w.ledger.ops, key, "RESERVED", 0.13, null);
+  const r = await runHans01(w.deps);
+  assert.equal(w.calls.voice, 1);
+  assert.equal(r.exposureAtEndUsd, 0.13 + 0.26 + 0.17, "voice counted once, not row + new hold");
+});
+
+test("rejected retries are never attempted under an unadmitted ordinal", async () => {
+  const w = world();
+  const orig = w.deps.voice.hooks;
+  let calls = 0;
+  w.deps.voice = { ...w.deps.voice, hooks: { ...orig, maxRejectedRetries: 3, classify: () => ({ kind: "rejected" }), call: async () => { calls++; throw new Error("http 400"); } } };
+  await assert.rejects(runHans01(w.deps));
+  assert.equal(calls, 1);
+  assert.equal(w.ledger.ops.size, 1);
+  assert.equal(projectExposure(await w.budget.listHolds(P), await w.budget.listOps(P)).usd, 0);
 });
