@@ -161,7 +161,12 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
     let prevAsset: InventoryAsset | undefined, prevRecipe: Recipe | undefined, heldSeconds = 0, neutralInSeq = 0;
 
     units.forEach((u, i) => {
-      const position = units.length === 1 ? "only" : i === 0 ? "first" : i === units.length - 1 ? "last" : "middle";
+      // Documentary genres place hook/closing recipes per sequence. A Reel is ONE sequence split into scene
+      // segments: its hook is the first unit of the video and its call to action the last one.
+      const position = input.genre === "reel"
+        ? (() => { const segIdx = input.segments.indexOf(seg), first = segIdx === 0 && i === 0, last = segIdx === input.segments.length - 1 && i === units.length - 1;
+          return first && last ? "only" : first ? "first" : last ? "last" : "middle"; })()
+        : units.length === 1 ? "only" : i === 0 ? "first" : i === units.length - 1 ? "last" : "middle";
       const policy: UnitPolicy = unitPolicy(input, seg, u.text);
       const unitTopics = topicsOf(u.text), unitWords = new Set(words(u.text));
       const mid = ((u.start + u.end) / 2 - seg.start) / (seg.end - seg.start);

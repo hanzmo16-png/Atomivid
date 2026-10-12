@@ -229,9 +229,11 @@ export function auditPlan(planRaw: unknown, inputRaw: DirectorInputRaw, catalog:
     duplicates: issues.filter(i => i.code === "DUPLICATE_ASSET").length,
     shortShots: issues.filter(i => i.code === "SHOT_TOO_SHORT").length,
     intentVerifiablePct: unlocked.length ? Math.round((unlocked.filter(s => s.recipeId && s.anchorText.trim()).length / unlocked.length) * 1000) / 10 : 100,
-    // Distinct recipes used / recipes that could have been used (genre pool, capped by the number of shots).
-    recipeVariety: unlocked.length ? Math.round((new Set(unlocked.map(s => s.recipeId)).size / Math.min(unlocked.length, catalog.recipes.filter(r => r.genre === plan.genre).length)) * 100) / 100 : 0,
-    maxSameRecipeRun: unlocked.reduce((acc, s, i) => { const run = i && unlocked[i - 1].recipeId === s.recipeId ? acc.run + 1 : 1; return { run, max: Math.max(acc.max, run) }; }, { run: 0, max: 0 }).max,
+    // Distinct recipes used / recipes that could have been used (genre pool, capped by the shots that HAVE a recipe).
+    // A pending shot (recipeId null) is the absence of a recipe: it is neither a distinct recipe in the numerator
+    // nor a slot in the denominator, so the ratio stays within 0..1. Pending shots are reported by DECISION_PENDING.
+    recipeVariety: recipeVariety(unlocked.map(s => s.recipeId), catalog.recipes.filter(r => r.genre === plan.genre).length),
+    maxSameRecipeRun: maxSameRecipeRun(unlocked.map(s => s.recipeId)),
     labelsOk: !issues.some(i => ["RECREATION_WITHOUT_LABEL", "AUTHENTIC_WITH_RECREATION_LOOK", "LABEL_MISMATCH", "PROVENANCE_MISMATCH"].includes(i.code)),
     needsNew: shots.filter(s => s.asset.status === "needs_new").length,
     licensePending: issues.filter(i => i.code === "LICENSE_PENDING").length,
@@ -246,4 +248,19 @@ export function auditPlan(planRaw: unknown, inputRaw: DirectorInputRaw, catalog:
     factualMismatches: issues.filter(i => i.code === "FACTUAL_MISMATCH").length,
   };
   return { ok: issues.length === 0, issues, metrics };
+}
+
+/** Distinct non-null recipes / min(shots with a recipe, genre pool). 0 when no shot has a recipe. Always 0..1. */
+export function recipeVariety(recipeIds: (string | null)[], poolSize: number): number {
+  const used = recipeIds.filter((r): r is string => r !== null);
+  const slots = Math.min(used.length, poolSize);
+  // Distinct ids beyond the pool can only be unknown recipes (reported as UNKNOWN_RECIPE): never above 1.
+  return slots ? Math.round((Math.min(new Set(used).size, slots) / slots) * 100) / 100 : 0;
+}
+
+/** Longest run of the SAME recipe on consecutive shots; a pending shot (null) breaks the run and is not a run. */
+export function maxSameRecipeRun(recipeIds: (string | null)[]): number {
+  let run = 0, max = 0;
+  recipeIds.forEach((r, i) => { run = r === null ? 0 : i && recipeIds[i - 1] === r ? run + 1 : 1; max = Math.max(max, run); });
+  return max;
 }

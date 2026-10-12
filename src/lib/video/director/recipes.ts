@@ -10,3 +10,13 @@ export function loadRecipeCatalog(file = RECIPE_CATALOG_PATH): RecipeCatalog {
 }
 
 export const recipesFor = (catalog: RecipeCatalog, genre: Recipe["genre"]) => catalog.recipes.filter(r => r.genre === genre);
+
+/**
+ * Same catalog, bundled as a module import: a server component (the Reels review page) must not depend on
+ * `process.cwd()` file tracing on the hosting platform. Parsed and validated on first use only.
+ */
+import bundledCatalogJson from "../../../../content/cinematic-director/recipes.v2.json";
+let bundled: RecipeCatalog | null = null;
+export function bundledRecipeCatalog(): RecipeCatalog {
+  return (bundled ??= RecipeCatalogSchema.parse(bundledCatalogJson));
+}
