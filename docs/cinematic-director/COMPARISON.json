@@ -1,0 +1,116 @@
+{
+  "generatedFrom": "repo files only; 0 provider calls; 0 USD",
+  "results": [
+    {
+      "fixture": "gobekli-storyboard-003 + script-003",
+      "programmeSeconds": 660,
+      "unitCosts": {
+        "ai_image": 0.05,
+        "ai_video": 0.96
+      },
+      "baseline": {
+        "shots": 45,
+        "longerThanMax": 45,
+        "shorterThanMin": 0,
+        "textCardsOverTitleLimit": 17,
+        "repeatedQueries": 0,
+        "aiRecreationShots": 11,
+        "labelsDeclared": "no declarado en el storyboard (el render aplica provenance)",
+        "note": "los shots del storyboard son unidades de planeación que el pipeline subdivide (shotsForSpan); la comparación no es 1:1"
+      },
+      "proposal": {
+        "shots": 90,
+        "coveragePct": 100,
+        "durationOk": true,
+        "duplicates": 0,
+        "shortShots": 0,
+        "intentVerifiablePct": 100,
+        "recipeVariety": 0.7,
+        "maxSameRecipeRun": 1,
+        "labelsOk": true,
+        "needsNew": 62,
+        "estimatedMaxUsd": 3.1,
+        "paidCalls": 0,
+        "semanticQuality": "estimado/no validado"
+      },
+      "issues": [
+        "BUDGET_EXCEEDED"
+      ],
+      "catalogVersion": "1.0.0"
+    },
+    {
+      "fixture": "gobekli-storyboard-002-hybrid + script-002",
+      "programmeSeconds": 501.5,
+      "unitCosts": {
+        "ai_image": 0.05,
+        "ai_video": 0.96
+      },
+      "baseline": {
+        "shots": 44,
+        "longerThanMax": 39,
+        "shorterThanMin": 0,
+        "textCardsOverTitleLimit": 15,
+        "repeatedQueries": 0,
+        "aiRecreationShots": 8,
+        "labelsDeclared": "no declarado en el storyboard (el render aplica provenance)",
+        "note": "los shots del storyboard son unidades de planeación que el pipeline subdivide (shotsForSpan); la comparación no es 1:1"
+      },
+      "proposal": {
+        "shots": 68,
+        "coveragePct": 100,
+        "durationOk": true,
+        "duplicates": 0,
+        "shortShots": 0,
+        "intentVerifiablePct": 100,
+        "recipeVariety": 0.6,
+        "maxSameRecipeRun": 1,
+        "labelsOk": true,
+        "needsNew": 46,
+        "estimatedMaxUsd": 2.3,
+        "paidCalls": 0,
+        "semanticQuality": "estimado/no validado"
+      },
+      "issues": [
+        "BUDGET_EXCEEDED"
+      ],
+      "catalogVersion": "1.0.0"
+    },
+    {
+      "fixture": "gobekli-storyboard-001 + script-002",
+      "programmeSeconds": 501.5,
+      "unitCosts": {
+        "ai_image": 0.05,
+        "ai_video": 0.96
+      },
+      "baseline": {
+        "shots": 44,
+        "longerThanMax": 39,
+        "shorterThanMin": 0,
+        "textCardsOverTitleLimit": 15,
+        "repeatedQueries": 0,
+        "aiRecreationShots": 0,
+        "labelsDeclared": "no declarado en el storyboard (el render aplica provenance)",
+        "note": "los shots del storyboard son unidades de planeación que el pipeline subdivide (shotsForSpan); la comparación no es 1:1"
+      },
+      "proposal": {
+        "shots": 68,
+        "coveragePct": 100,
+        "durationOk": true,
+        "duplicates": 0,
+        "shortShots": 0,
+        "intentVerifiablePct": 100,
+        "recipeVariety": 0.6,
+        "maxSameRecipeRun": 1,
+        "labelsOk": true,
+        "needsNew": 39,
+        "estimatedMaxUsd": 1.95,
+        "paidCalls": 0,
+        "semanticQuality": "estimado/no validado"
+      },
+      "issues": [
+        "BUDGET_EXCEEDED"
+      ],
+      "catalogVersion": "1.0.0"
+    }
+  ]
+}
