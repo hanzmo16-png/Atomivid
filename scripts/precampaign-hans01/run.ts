@@ -114,7 +114,9 @@ async function identity(svc: SupabaseClient) {
     mime: avatar.source_photo_path?.endsWith(".png") ? "image/png" : "image/jpeg" };
   if (voice.provider !== "elevenlabs" || voice.status !== "ready" || !voice.provider_voice_id || voice.needs_review) throw new Error("voice_not_ready");
   if (!avatar.consent_given) throw new Error("avatar_consent_missing");
-  if (voice.user_id !== avatar.user_id) throw new Error("voice_avatar_owner_mismatch");
+  // Hans confirmed directly (2026-10-12) that both rows are his although they sit in two accounts, and authorised
+  // combining them ONLY for this precampaign and ONLY these two row ids (hard-coded above).
+  report.owners = { crossAccount: voice.user_id !== avatar.user_id, combinationConfirmedByHans: true };
   return { voiceId: voice.provider_voice_id as string, photo, photoMime: (report.avatar as { mime: string }).mime };
 }
 
@@ -246,6 +248,9 @@ async function generate() {
       return paidResultPath(PROJECT, key, "json");
     };
     const before = await getHeygenWallet();
+    // Cap counts everything this request consumed so far (measured), plus this clip's conservative reservation.
+    const spentSoFar = voiceUsd + r4(walletBefore - before);
+    if (spentSoFar + spec.reservedUsd > CAP_USD) throw new Error(`cap_exceeded_before_${k}`);
     const g = await guardPaidCall<Buffer>(ledger, spec, {
       call: async ({ key }) => {
         photoAsset ??= await assetUpload(photo, photoMime, photoMime === "image/png" ? "photo.png" : "photo.jpeg");
