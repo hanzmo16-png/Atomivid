@@ -145,7 +145,7 @@ async function check() {
 // Delivery route for the generated files. Hans accepted the private bucket "videos" (2026-10-12) but asked that a route
 // recoverable by him, Codex and Grok be verified BEFORE any spend. Until that is confirmed this stays null and
 // generate() stops before the first paid call. Changing it is an explicit, reviewable commit.
-const APPROVED_DELIVERY_ROUTE: "private-bucket-videos" | null = null;
+const APPROVED_DELIVERY_ROUTE: "private-bucket-videos" | null = "private-bucket-videos"; // Hans, 2026-10-12 ~20:00 UTC in chat: «Adelante»
 
 async function deliveryPreflight(svc: SupabaseClient) {
   if (APPROVED_DELIVERY_ROUTE !== "private-bucket-videos") throw new Error("delivery_route_not_approved");
