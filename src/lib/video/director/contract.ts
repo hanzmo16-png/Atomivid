@@ -127,7 +127,7 @@ export const PlannedShotSchema = z.object({
   /** Why new material would be needed; never executed by the plan. */
   newMaterial: z.object({ reason: z.string(), kind: z.enum(["ai_image", "ai_video"]), estimatedMaxUsd: z.number().min(0) }).optional(),
   uncertainty: z.array(z.string()),
-});
+}).refine(s => s.end > s.start, "shot end must be > start");
 export type PlannedShot = z.infer<typeof PlannedShotSchema>;
 
 export const DirectorPlanSchema = z.object({

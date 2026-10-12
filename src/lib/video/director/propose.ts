@@ -44,6 +44,8 @@ function isDuplicate(a: InventoryAsset, used: InventoryAsset[]): boolean {
     || (a.dhash && u.dhash && hammingHex(a.dhash, u.dhash) <= PERCEPTUAL_DUPLICATE_MAX_DISTANCE));
 }
 
+const labelFor = (p: InventoryAsset["provenance"] | undefined) => p === "ai_recreation" ? "recreacion_ia" as const : p === "stock_illustrative" ? "ilustrativa" as const : null;
+
 export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): DirectorPlan {
   const input: DirectorInput = DirectorInputSchema.parse(raw);
   const { minShotSeconds: minS, maxShotSeconds: maxS } = input.constraints;
@@ -60,11 +62,16 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
       shots.push({ id: `${seg.id}-locked`, segmentId: seg.id, start: seg.start, end: seg.end, anchorText: "", recipeId: null, recipeVersion: null,
         intent: `segmento bloqueado (${seg.locked.reason}): se conserva tal cual`, shotType: "bloqueado",
         movement: { kind: "static", realMotion: a?.motion === "real" },
-        asset: { status: "locked", assetId: seg.locked.assetId, provenance: a?.provenance, alternatives: [], label: null }, uncertainty: a ? [] : ["el recurso bloqueado no está en el inventario"] });
+        // The locked asset keeps its own provenance and the label that provenance requires (an AI avatar stays labelled).
+        asset: { status: "locked", assetId: seg.locked.assetId, provenance: a?.provenance, alternatives: [], label: labelFor(a?.provenance) },
+        uncertainty: [...(a ? [] : ["el recurso bloqueado no está en el inventario"]), ...(a?.license === "NEEDS_REVIEW" ? ["licencia del recurso bloqueado pendiente de revisión"] : []),
+          ...(a?.license === "NOT_CLEARED" ? ["licencia del recurso bloqueado NOT_CLEARED: no se puede aprobar"] : [])] });
       if (a) used.push(a);
       continue;
     }
-    const evidence = seg.evidenceAssetId ? byId.get(seg.evidenceAssetId) : undefined;
+    // Evidence goes through the same licence control as any other asset: NOT_CLEARED is never used.
+    const evidenceRaw = seg.evidenceAssetId ? byId.get(seg.evidenceAssetId) : undefined;
+    const evidence = evidenceRaw && evidenceRaw.license !== "NOT_CLEARED" ? evidenceRaw : undefined;
     const spans = splitSpan(seg.start, seg.end, minS, maxS);
     spans.forEach(([start, end], i) => {
       const anchor = anchorFor(seg.text, i, spans.length);
@@ -81,6 +88,7 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
       const recipe = (ranked.find(x => x.r.id !== recent[recent.length - 1]) ?? ranked[0])?.r;
       const uncertainty: string[] = [];
       if (!recipe) { uncertainty.push("ninguna receta compatible"); }
+      if (i === 0 && evidenceRaw && !evidence) uncertainty.push(`evidencia ${evidenceRaw.id} NOT_CLEARED: no se usa`);
       const wantsMotion = recipe?.movement.kind === "real_motion";
       const segWords = new Set(words(seg.text));
       const authenticOnly = recipe?.evidence_policy === "authentic_only";
@@ -114,7 +122,8 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
       }
       if (chosen) used.push(chosen);
       const provenance = chosen?.provenance ?? (newMaterial ? "ai_recreation" : undefined);
-      const label = provenance === "ai_recreation" ? "recreacion_ia" : provenance === "stock_illustrative" ? "ilustrativa" : null;
+      const label = labelFor(provenance);
+      if (chosen?.license === "NEEDS_REVIEW") uncertainty.push(`licencia de ${chosen.id} pendiente de revisión: no aprobable hasta revisarla`);
       shots.push({ id: `${seg.id}-s${i + 1}`, segmentId: seg.id, start, end, anchorText: anchor, recipeId: recipe?.id ?? null, recipeVersion: recipe?.version ?? null,
         intent: recipe?.intent ?? "sin intención asignada", shotType: recipe?.shot.type ?? "sin receta", movement: { kind: movement, realMotion },
         asset: { status: chosen ? "chosen" : newMaterial ? "needs_new" : "none", assetId: chosen?.id, provenance, alternatives: candidates.slice(1, 4).map(a => a.id), label },

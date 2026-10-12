@@ -19,10 +19,10 @@ function input(over: Partial<DirectorInputRaw> = {}): DirectorInputRaw {
       { id: "s2", start: 20, end: 30, text: "Hans presenta el caso.", locked: { reason: "avatar", assetId: "avatar-1" } },
     ],
     inventory: [
-      { id: "road", kind: "video", provenance: "stock_illustrative", motion: "real", tags: ["carretera", "noche"], dhash: "ffffffff00000000" },
-      { id: "road-copy", kind: "video", provenance: "stock_illustrative", motion: "real", tags: ["carretera", "noche"], dhash: "ffffffff00000001" },
-      { id: "trees", kind: "image", provenance: "stock_illustrative", motion: "still", tags: ["arboles", "bosque", "luz"] },
-      { id: "avatar-1", kind: "avatar", provenance: "stock_illustrative", motion: "real", tags: [] },
+      { id: "road", kind: "video", provenance: "stock_illustrative", motion: "real", license: "CLEARED", tags: ["carretera", "noche"], dhash: "ffffffff00000000" },
+      { id: "road-copy", kind: "video", provenance: "stock_illustrative", motion: "real", license: "CLEARED", tags: ["carretera", "noche"], dhash: "ffffffff00000001" },
+      { id: "trees", kind: "image", provenance: "stock_illustrative", motion: "still", license: "CLEARED", tags: ["arboles", "bosque", "luz"] },
+      { id: "avatar-1", kind: "avatar", provenance: "ai_recreation", motion: "real", license: "CLEARED", tags: [] },
     ],
     budget: { remainingUsd: 5, unitCostsUsd: { ai_image: 0.04, ai_video: 0.5 } },
     ...over,
@@ -115,7 +115,8 @@ test("authentic evidence never gets the recreation look; authentic-only shots ar
 
 test("AI recreation without its label is caught; the plan can never become executable or paid", () => {
   const plan = proposePlan(input(), catalog);
-  const unlabelled: DirectorPlan = { ...plan, shots: plan.shots.map((s, i) => i === 0 ? { ...s, asset: { ...s.asset, provenance: "ai_recreation", label: null } } : s) };
+  const target = plan.shots.find(s => s.asset.status === "needs_new")!;
+  const unlabelled: DirectorPlan = { ...plan, shots: plan.shots.map(s => s === target ? { ...s, asset: { ...s.asset, label: null } } : s) };
   assert.ok(auditPlan(unlabelled, input(), catalog).issues.some(i => i.code === "RECREATION_WITHOUT_LABEL"));
   for (const bad of [{ ...plan, executable: true }, { ...plan, paidCalls: 1 }]) {
     const r = auditPlan(bad, input(), catalog);
@@ -141,4 +142,82 @@ test("reproducible comparison on three approved storyboards: same result twice, 
     assert.equal(r.proposal!.paidCalls, 0);
     assert.equal(r.proposal!.semanticQuality, "estimado/no validado");
   }
+});
+
+// ---- Correction 1 (Codex audit of PR #105): one negative regression per bypass. ----
+
+const base = () => proposePlan(input(), catalog);
+const codes = (plan: unknown, inp: DirectorInputRaw = input()) => auditPlan(plan, inp, catalog).issues.map(i => i.code);
+const free = (p: DirectorPlan) => p.shots.find(s => s.segmentId === "s1")!;
+const mapShot = (p: DirectorPlan, target: { id: string }, f: (s: DirectorPlan["shots"][number]) => DirectorPlan["shots"][number]): DirectorPlan =>
+  ({ ...p, shots: p.shots.map(s => s.id === target.id ? f(s) : s) });
+
+test("the AI avatar locked segment keeps its provenance and the recreation label", () => {
+  const locked = base().shots.find(s => s.segmentId === "s2")!;
+  assert.deepEqual([locked.asset.provenance, locked.asset.label], ["ai_recreation", "recreacion_ia"]);
+  const stripped = mapShot(base(), locked, s => ({ ...s, asset: { ...s.asset, label: null } }));
+  assert.ok(codes(stripped).includes("RECREATION_WITHOUT_LABEL"));
+});
+
+test("integrity: unknown asset, chosen without id, none without material, unknown segment and duplicate ids are rejected", () => {
+  const p = base(), s = free(p);
+  assert.ok(codes(mapShot(p, s, x => ({ ...x, asset: { ...x.asset, status: "chosen", assetId: "ghost", provenance: undefined, label: null }, newMaterial: undefined }))).includes("UNKNOWN_ASSET"));
+  assert.ok(codes(mapShot(p, s, x => ({ ...x, asset: { status: "chosen", alternatives: [], label: null }, newMaterial: undefined }))).includes("INCONSISTENT_ASSET_STATUS"));
+  assert.ok(codes(mapShot(p, s, x => ({ ...x, asset: { status: "none", alternatives: [], label: null }, newMaterial: undefined }))).includes("NO_MATERIAL"));
+  assert.ok(codes(mapShot(p, s, x => ({ ...x, segmentId: "s9" }))).includes("UNKNOWN_SEGMENT"));
+  assert.ok(codes({ ...p, shots: [...p.shots, p.shots[0]] }).includes("DUPLICATE_ID"));
+  assert.ok(codes(mapShot(p, s, x => ({ ...x, recipeVersion: 99 }))).includes("RECIPE_VERSION_MISMATCH"));
+  assert.ok(codes({ ...p, catalogVersion: "0.0.1" }).includes("CATALOG_MISMATCH"));
+});
+
+test("rights: NOT_CLEARED evidence is never used; NEEDS_REVIEW stays pending (never approved); locked assets too", () => {
+  const ev = input({ genre: "documental", totalSeconds: 6, segments: [{ id: "s1", start: 0, end: 6, text: "El informe lo confirma.", evidenceAssetId: "doc" }],
+    inventory: [{ id: "doc", kind: "image", provenance: "archival_documentary", motion: "still", license: "NOT_CLEARED", tags: [] }] });
+  const plan = proposePlan(ev, catalog);
+  assert.notEqual(plan.shots[0].asset.assetId, "doc");
+  assert.ok(plan.shots[0].uncertainty.some(u => u.includes("NOT_CLEARED")));
+  const forced = mapShot(plan, plan.shots[0], s => ({ ...s, asset: { status: "chosen", assetId: "doc", provenance: "archival_documentary", alternatives: [], label: null }, newMaterial: undefined }));
+  assert.ok(codes(forced, ev).includes("LICENSE_NOT_CLEARED"));
+  const pending = input({ inventory: input().inventory!.map(a => a.id === "road" ? { ...a, license: "NEEDS_REVIEW" as const } : a) });
+  const pp = proposePlan(pending, catalog);
+  if (pp.shots.some(s => s.asset.assetId === "road")) {
+    const r = auditPlan(pp, pending, catalog);
+    assert.ok(!r.ok && r.issues.some(i => i.code === "LICENSE_PENDING"));
+  }
+  const lockedPending = input({ inventory: input().inventory!.map(a => a.id === "avatar-1" ? { ...a, license: "NEEDS_REVIEW" as const } : a) });
+  assert.ok(codes(proposePlan(lockedPending, catalog), lockedPending).includes("LICENSE_PENDING"));
+});
+
+test("provenance is derived from the inventory: a plan cannot hide an AI recreation", () => {
+  const inp = input({ inventory: [...input().inventory!.filter(a => a.id !== "road" && a.id !== "road-copy"),
+    { id: "gen", kind: "image", provenance: "ai_recreation", motion: "still", license: "CLEARED", tags: ["carretera", "noche", "bosque"] }] });
+  const plan = proposePlan(inp, catalog);
+  const s = plan.shots.find(x => x.asset.assetId === "gen")!;
+  assert.equal(s.asset.label, "recreacion_ia");
+  const hidden = mapShot(plan, s, x => ({ ...x, asset: { ...x.asset, provenance: "stock_illustrative", label: "ilustrativa" } }));
+  const c = codes(hidden, inp);
+  assert.ok(c.includes("PROVENANCE_MISMATCH") && c.includes("RECREATION_WITHOUT_LABEL"));
+});
+
+test("budget is recomputed: forged total, forged shot cost and disallowed AI video are rejected", () => {
+  const p = base(), s = p.shots.find(x => x.newMaterial)!;
+  assert.ok(codes({ ...p, estimatedMaxUsd: 0 }).includes("COST_INCONSISTENT"));
+  assert.ok(codes(mapShot(p, s, x => ({ ...x, newMaterial: { ...x.newMaterial!, estimatedMaxUsd: 0 } }))).includes("COST_INCONSISTENT"));
+  const video = mapShot(p, s, x => ({ ...x, newMaterial: { ...x.newMaterial!, kind: "ai_video", estimatedMaxUsd: 0.5 } }));
+  const fixedTotal = { ...video, estimatedMaxUsd: Math.round((p.estimatedMaxUsd - 0.04 + 0.5) * 100) / 100 };
+  assert.ok(codes(fixedTotal).includes("AI_VIDEO_NOT_ALLOWED"));
+  const poor = input({ budget: { remainingUsd: 0, unitCostsUsd: { ai_image: 0.04, ai_video: 0.5 } } });
+  assert.ok(codes({ ...proposePlan(poor, catalog), estimatedMaxUsd: 0 }, poor).includes("BUDGET_EXCEEDED"), "a forged zero total cannot hide the real cost");
+});
+
+test("timeline: end<=start, shot outside its segment, empty anchor, split or moved avatar are rejected", () => {
+  const p = base(), s = free(p), locked = p.shots.find(x => x.segmentId === "s2")!;
+  assert.ok(codes(mapShot(p, s, x => ({ ...x, end: x.start }))).includes("CONTRACT_INVALID"));
+  assert.ok(codes(mapShot(p, s, x => ({ ...x, segmentId: "s2" }))).includes("SHOT_OUTSIDE_SEGMENT"));
+  assert.ok(codes(mapShot(p, s, x => ({ ...x, anchorText: "" }))).includes("EMPTY_ANCHOR"));
+  const split: DirectorPlan = { ...p, shots: [...p.shots.filter(x => x !== locked),
+    { ...locked, id: "s2-a", end: 25 }, { ...locked, id: "s2-b", start: 25 }] };
+  assert.ok(codes(split).includes("LOCKED_SEGMENT_ALTERED"));
+  const moved = { ...p, shots: p.shots.map(x => x === locked ? { ...x, start: 21 } : x.id === p.shots[p.shots.indexOf(locked) - 1]?.id ? { ...x, end: 21 } : x) };
+  assert.ok(codes(moved).includes("LOCKED_SEGMENT_ALTERED"));
 });

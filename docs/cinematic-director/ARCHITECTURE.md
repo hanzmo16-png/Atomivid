@@ -471,17 +471,32 @@ Cada género tiene sus presets y sus antimotivos. La política de evidencia impi
 
 Comando: `npx tsx scripts/cinematic-director-compare.ts`. Se ejecuta sobre tres storyboards aprobados del repositorio (Göbekli Tepe), en solo lectura y sin datos privados. Usa los costes unitarios de `getGenerativeUnitCosts()`. El resultado está en `docs/cinematic-director/COMPARISON.json`.
 
-| Fixture | Programa | Storyboard actual: shots | Shots de más de 8 s | Rótulos de texto de más de 3 s | Propuesta: shots | Cobertura | Duplicados | Variedad | Máx. misma receta seguida | Material nuevo | Coste máx. estimado (USD) | Issues |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| gobekli-storyboard-003 + script-003 | 660 s | 45 (planeación) | 45 | 17 | 90 | 100% | 0 | 0.7 | 1 | 62 | 3.1 | BUDGET_EXCEEDED |
-| gobekli-storyboard-002-hybrid + script-002 | 502 s | 44 (planeación) | 39 | 15 | 68 | 100% | 0 | 0.6 | 1 | 46 | 2.3 | BUDGET_EXCEEDED |
-| gobekli-storyboard-001 + script-002 | 502 s | 44 (planeación) | 39 | 15 | 68 | 100% | 0 | 0.6 | 1 | 39 | 1.95 | BUDGET_EXCEEDED |
+| Fixture | Programa | Storyboard actual: shots | Shots de más de 8 s | Rótulos de texto de más de 3 s | Propuesta: shots | Cobertura | Duplicados | Variedad | Máx. misma receta seguida | Material nuevo | Licencias pendientes | Coste máx. estimado (USD) | Issues |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| gobekli-storyboard-003 + script-003 | 660 s | 45 (planeación) | 45 | 17 | 90 | 100% | 0 | 0.7 | 1 | 62 | 11 | 3.1 | LICENSE_PENDING×11, BUDGET_EXCEEDED |
+| gobekli-storyboard-002-hybrid + script-002 | 502 s | 44 (planeación) | 39 | 15 | 68 | 100% | 0 | 0.6 | 1 | 46 | 16 | 2.3 | LICENSE_PENDING×16, BUDGET_EXCEEDED |
+| gobekli-storyboard-001 + script-002 | 502 s | 44 (planeación) | 39 | 15 | 68 | 100% | 0 | 0.6 | 1 | 39 | 23 | 1.95 | LICENSE_PENDING×23, BUDGET_EXCEEDED |
 
 Cómo leer esta tabla:
 - **Los conteos no son comparables 1:1.** Los shots del storyboard son unidades de planeación que el pipeline subdivide después (`shotsForSpan`).
 - **Objetivos alcanzados:** 100 % de contrato, duración y cobertura; 0 duplicados; 0 llamadas y 0 cargos.
 - **`BUDGET_EXCEEDED` es el resultado correcto.** La comparación no autoriza presupuesto (0 USD), y el inventario derivado del storyboard tiene menos recursos que planos de 8 s o menos sin repetir. El director **no reutiliza** recursos para rellenar: declara lo que falta como material nuevo.
 - **Variedad, alineación frase-imagen y calidad visual son estimaciones** sin validar, porque no hay anotación humana. Que el JSON valide no demuestra una mejor calidad visual.
+
+### Diferencias tras la corrección 1 (T-20261012-0318-chatgpt-19)
+
+Cobertura, duplicados, variedad, material nuevo y coste estimado no cambian. Lo que sí cambia:
+
+- **Licencias pendientes.** La puerta ahora informa `LICENSE_PENDING` en cada recurso elegido con licencia `NEEDS_REVIEW`: 11, 16 y 23 planos según el storyboard. Esos planos quedan pendientes, nunca aprobados.
+- **Gráficos internos.** Los diagramas y mapas deterministas se consideran material interno, sin licencia de terceros, porque se dibujan desde el guion y no dependen de ningún archivo externo (lo dice el propio storyboard).
+- **Más comprobaciones en la puerta.** No confía en los campos del plan:
+  - **Referencias:** recursos, segmentos, recetas, versiones y catálogo deben existir.
+  - **Licencias:** NOT_CLEARED se rechaza; NEEDS_REVIEW queda pendiente.
+  - **Procedencia:** se deriva del inventario, y cada procedencia exige su etiqueta.
+  - **Coste:** se recalcula desde `newMaterial` y los costes unitarios de entrada.
+  - **Vídeo IA:** se rechaza si `allowAiVideo=false`.
+  - **Línea de tiempo:** cada shot debe cumplir end > start y quedar dentro de su segmento; las anclas no pueden estar vacías.
+  - **Avatar bloqueado:** se mantiene en un único shot con sus límites exactos y conserva su etiqueta de IA.
 
 ## 7. Impacto esperado (estimaciones, no facturación)
 

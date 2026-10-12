@@ -29,7 +29,11 @@ export function inputFromStoryboard(shots: StoryboardShot[], beats: ScriptBeat[]
     return seg;
   });
   const inventory = shots.filter(s => s.assetType !== "text").map(s => {
-    const status = s.licensing?.status;
+    // Deterministic diagrams/maps are drawn in-house from the script (no external file, see the storyboard
+    // meta note), so they need no third-party licence. Everything else keeps its recorded status, or
+    // NEEDS_REVIEW when none is recorded — the gate then reports it as pending, never as approved.
+    const inHouse = s.assetType === "diagram" || s.assetType === "map";
+    const status = inHouse ? "CLEARED" : s.licensing?.status;
     return {
       id: s.shotId,
       kind: s.assetType === "stock_video" ? "video" : s.assetType === "diagram" || s.assetType === "map" ? "graphic" : "image",
