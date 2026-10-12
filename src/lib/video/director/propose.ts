@@ -98,6 +98,12 @@ const labelFor = (p: InventoryAsset["provenance"] | undefined) => p === "ai_recr
 
 type RecipeMatch = { recipe: Recipe; base: number; hits: string[]; generic: boolean };
 
+/** Keyword match on normalised words, tolerant to the simple Spanish plural («resultado» ↔ «resultados», «app» ↔ «apps»). */
+export function hasKeyword(unitWords: Set<string>, keyword: string): boolean {
+  const k = normalize(keyword);
+  return unitWords.has(k) || unitWords.has(`${k}s`) || unitWords.has(`${k}es`) || (k.endsWith("es") && unitWords.has(k.slice(0, -2))) || (k.endsWith("s") && unitWords.has(k.slice(0, -1)));
+}
+
 /** Recipes whose operable rule accepts this visual type, provenance and unit. Sorted by rule score only. */
 export function compatibleRecipes(pool: Recipe[], visual: VisualType, provenance: InventoryAsset["provenance"], unitText: string, unitTopics: string[],
   position: "first" | "middle" | "last" | "only", neutral: boolean): RecipeMatch[] {
@@ -113,8 +119,10 @@ export function compatibleRecipes(pool: Recipe[], visual: VisualType, provenance
     if (r.evidence_policy === "authentic_only" && provenance !== "archival_documentary" && provenance !== "data_graphic") continue;
     if (r.evidence_policy === "recreation_ok" && provenance === "archival_documentary") continue;
     if (s.provenance.length && !s.provenance.includes(provenance)) continue;
-    const hits = [...s.topics_any.filter(t => unitTopics.includes(t)).map(t => `tema:${t}`), ...s.keywords_any.filter(k => kw.has(normalize(k))).map(k => `palabra:${k}`)];
-    const constrained = s.topics_any.length + s.keywords_any.length > 0;
+    const hits = [...s.topics_any.filter(t => unitTopics.includes(t)).map(t => `tema:${t}`), ...s.keywords_any.filter(k => hasKeyword(kw, k)).map(k => `palabra:${k}`)];
+    // A recipe written for this exact slot (opening hook, closing CTA) is the slot's own rule: it counts as a hit.
+    if (s.position !== "any") hits.push(`posición:${s.position}`);
+    const constrained = s.topics_any.length + s.keywords_any.length > 0 || s.position !== "any";
     out.push({ recipe: r, base: hits.length * 3 + (s.visual.includes("*") ? 0 : 1), hits, generic: constrained && hits.length === 0 });
   }
   // A recipe whose rule asks for topics/keywords that the unit does not have is only a fallback.

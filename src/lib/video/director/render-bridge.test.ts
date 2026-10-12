@@ -71,9 +71,20 @@ test("blocks instead of filling gaps: pending licence, missing media, still for 
   const r3 = planToVerticalReel(still.b);
   assert.ok(!r3.ok && r3.blockers.some(x => x.code === "REAL_MOTION_WITHOUT_CLIP"));
 
+  // An AI recreation is now renderable ONLY because its mandatory label travels to the scene and is drawn.
   const ai = fixture(sb => { sb.scenes[1].resourceType = "generated_image"; });
   const r4 = planToVerticalReel(ai.b);
-  assert.ok(!r4.ok && r4.blockers.some(x => x.code === "LABEL_NOT_RENDERABLE"));
+  assert.ok(r4.ok, !r4.ok ? JSON.stringify(r4.blockers) : "");
+  if (r4.ok) {
+    const aiShot = r4.applied.find(a => a.planned.label === "recreacion_ia")!;
+    assert.equal(aiShot.applied.label, "recreacion_ia");
+    assert.ok(r4.props.scenes.some(sc => sc.direction?.label === "recreacion_ia"));
+  }
+  // A label the composition cannot draw still blocks (the gate stays).
+  const odd = fixture();
+  odd.b.plan = { ...(odd.plan as object), shots: odd.plan.shots.map((s, i) => (i === 1 ? { ...s, asset: { ...s.asset, label: "sin_soporte" } } : s)) };
+  const r5 = planToVerticalReel(odd.b);
+  assert.ok(!r5.ok && r5.blockers.some(x => x.code === "CONTRACT_INVALID" || x.code === "LABEL_NOT_RENDERABLE"));
 });
 
 test("material that would have to be created is never authorised here; missing timings block; tampered plans block", () => {
@@ -149,7 +160,7 @@ test("segmentTimes with NaN / ±Infinity / negative start or end / end ≤ start
   }
 });
 
-test("captions with non-finite or negative times block; LABEL_NOT_RENDERABLE and the licence/material blocks are unchanged", () => {
+test("captions with non-finite or negative times block; the AI-recreation label is carried to the render", () => {
   for (const [s, e] of [[NaN, 1], [0, Infinity], [-1, 1]] as const) {
     const { b } = fixture();
     b.captions = [{ text: "x", startSeconds: s, endSeconds: e }];
@@ -158,5 +169,40 @@ test("captions with non-finite or negative times block; LABEL_NOT_RENDERABLE and
   }
   const ai = fixture(sb => { sb.scenes[1].resourceType = "generated_image"; });
   const r = planToVerticalReel(ai.b);
-  assert.ok(!r.ok && r.blockers.some(x => x.code === "LABEL_NOT_RENDERABLE"));
+  assert.ok(r.ok && r.props.scenes.filter(sc => sc.direction?.label === "recreacion_ia").length >= 1);
+});
+
+test("recipes drive the render: per-shot direction (motion, transitions, label) is in the props and in the applied record", () => {
+  const { b } = fixture();
+  const r = planToVerticalReel(b);
+  assert.ok(r.ok);
+  if (!r.ok) return;
+  assert.equal(r.applied.length, r.props.scenes.length);
+  r.props.scenes.forEach((sc, i) => {
+    const a = r.applied[i];
+    assert.ok(sc.direction, "every Director scene carries a direction");
+    assert.equal(sc.direction!.recipeId, a.recipeId);
+    assert.equal(sc.direction!.motion, a.applied.motion);
+    // A real clip never gets a synthetic zoom; a still never claims real motion.
+    if (sc.mediaType === "video" && a.planned.movement === "real_motion") assert.equal(sc.direction!.motion, "real");
+    if (sc.mediaType === "image") assert.notEqual(sc.direction!.motion, "real");
+  });
+  // The closing CTA recipe asks for fade_to_black: applied as a fade, not as the historic crossfade.
+  const cta = r.applied.find(a => a.recipeId === "reel-cta-follow");
+  if (cta) assert.equal(cta.applied.transitionOut, "fade");
+  // The opening slot takes the hook recipe.
+  assert.equal(r.applied[0].recipeId, "reel-hook-face-or-avatar");
+});
+
+test("an approved avatar segment keeps its exact measured window, plays as filmed and is entered/left by cuts", () => {
+  const { b, input } = fixture(undefined, true);
+  b.media["avatar-sintetico"] = { url: "http://127.0.0.1/sintetico/avatar.mp4", mediaType: "video", license: "CLEARED" };
+  const r = planToVerticalReel(b);
+  assert.ok(r.ok, !r.ok ? JSON.stringify(r.blockers) : "");
+  if (!r.ok) return;
+  const i = r.shots.findIndex(s => s.assetId === "avatar-sintetico");
+  const sc = r.props.scenes.find(x => x.mediaUrl.endsWith("avatar.mp4"))!;
+  const seg0 = input.segments[0].id;
+  assert.ok(i >= 0 && Math.abs(sc.startSeconds - b.segmentTimes[seg0].start) < 1e-3 && Math.abs(sc.endSeconds - b.segmentTimes[seg0].end) < 1e-3, "window = measured segment");
+  assert.deepEqual([sc.direction!.motion, sc.direction!.transitionIn, sc.direction!.transitionOut], ["real", "cut", "cut"]);
 });

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadRecipeCatalog } from "./recipes";
 import { readFileSync } from "node:fs";
-import { proposePlan, splitSpan, anchorFor, unitsFor, compatibleRecipes } from "./propose";
+import { proposePlan, splitSpan, anchorFor, unitsFor, compatibleRecipes, hasKeyword } from "./propose";
 import { assetVisualType, claimFor, topicsOf } from "./policy";
 import { editorialReport } from "./report";
 import { inputFromStoryboard } from "./from-storyboard";
@@ -498,4 +498,17 @@ test("all earlier controls stay green on the three plans after correction 3", ()
     assert.ok(plan.shots.filter(s => s.policy.class === "human_remains").every(s => s.asset.provenance !== "ai_recreation" && s.asset.provenance !== "stock_illustrative"));
   }
   assert.equal(cinematicDirectorV2Enabled({}), false);
+});
+
+test("recipe keywords tolerate the simple Spanish plural; slot recipes (first/last) win their own slot", () => {
+  const w = new Set(["mira", "algunos", "resultados", "apps"]);
+  assert.ok(hasKeyword(w, "resultado") && hasKeyword(w, "app") && !hasKeyword(w, "pantalla"));
+  assert.ok(hasKeyword(new Set(["resultado"]), "resultados"));
+  const reel = catalog.recipes.filter(r => r.genre === "reel");
+  const first = compatibleRecipes(reel, "people", "stock_illustrative", "¿Hacer un video te toma demasiado tiempo?", [], "first", false);
+  assert.equal(first[0].recipe.id, "reel-hook-face-or-avatar", "the opening hook recipe owns the first slot");
+  const last = compatibleRecipes(reel, "people", "stock_illustrative", "Síguenos para enterarte del lanzamiento.", [], "last", false);
+  assert.equal(last[0].recipe.id, "reel-cta-follow");
+  // Authentic-only recipes (real UI capture, real results) never dress stock material, whatever the words say.
+  assert.ok(!compatibleRecipes(reel, "concept", "stock_illustrative", "Mira algunos resultados", [], "middle", false).some(m => m.recipe.id === "reel-result-montage"));
 });
