@@ -46,6 +46,16 @@ export function planToVerticalReel(b: BridgeInput): BridgeResult {
   }
   const plan = parsedPlan.data;
   if (parsedInput.data.aspect !== "9:16") blockers.push({ code: "ASPECT_MISMATCH", detail: "VerticalReel es 9:16" });
+  // Times must be finite and non-negative before any comparison: NaN/±Infinity make comparisons silently false.
+  const finite = (x: number) => Number.isFinite(x) && x >= 0;
+  if (!finite(b.durationSeconds) || b.durationSeconds <= 0) blockers.push({ code: "INVALID_TIME", detail: `durationSeconds no válido: ${b.durationSeconds}` });
+  for (const [id, t] of Object.entries(b.segmentTimes)) {
+    if (!finite(t.start) || !finite(t.end) || !(t.end > t.start)) blockers.push({ code: "INVALID_TIME", detail: `segmentTimes.${id} no válido: ${t.start}..${t.end}` });
+  }
+  b.captions.forEach((c, i) => {
+    if (!finite(c.startSeconds) || !finite(c.endSeconds) || c.endSeconds < c.startSeconds) blockers.push({ code: "INVALID_TIME", detail: `caption ${i} no válido: ${c.startSeconds}..${c.endSeconds}` });
+  });
+  if (blockers.some(x => x.code === "INVALID_TIME")) return { ok: false, paidCalls: 0, blockers };
 
   // Licences come from the media that really exists, never from the plan; the gate is re-run with them.
   const licensed: DirectorInputRaw = { ...b.input, inventory: b.input.inventory.map(a => (b.media[a.id] ? { ...a, license: b.media[a.id].license } : a)) };
@@ -80,6 +90,8 @@ export function planToVerticalReel(b: BridgeInput): BridgeResult {
     if (Math.abs(scenes[scenes.length - 1].endSeconds - narrationEnd) > EPS) blockers.push({ code: "TIMELINE_GAP", detail: "los planos no terminan con la narración" });
     if (b.durationSeconds + EPS < narrationEnd) blockers.push({ code: "DURATION_SHORT", detail: "la duración es menor que la narración" });
   }
+  // Last line of defence: no non-finite or negative scene time ever reaches the props.
+  for (const sc of scenes) if (!finite(sc.startSeconds) || !finite(sc.endSeconds) || !(sc.endSeconds > sc.startSeconds)) blockers.push({ code: "INVALID_TIME", detail: `escena ${sc.startSeconds}..${sc.endSeconds}` });
   if (blockers.length) return { ok: false, paidCalls: 0, blockers };
   return { ok: true, paidCalls: 0, shots,
     props: { audioUrl: b.audioUrl, durationSeconds: b.durationSeconds, scenes, captions: b.captions, narrationGaps: b.narrationGaps ?? [] } };

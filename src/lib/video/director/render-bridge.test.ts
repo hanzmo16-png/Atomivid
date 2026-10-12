@@ -111,3 +111,52 @@ test("the bridge is not wired into production: only tests and the local harness 
   assert.ok(out.includes("src/lib/video/director/render-bridge.test.ts"), "the search itself works");
   for (const f of out) assert.ok(f.endsWith(".test.ts") || f.startsWith("scripts/director-bridge-") || f === "src/lib/video/director/render-bridge.ts", f);
 });
+
+// ---- Correction 1 (chatgpt-26): non-finite or negative times must block, never reach the props.
+const finiteNonNeg = (x: number) => Number.isFinite(x) && x >= 0;
+function assertNoBadTimes(r: ReturnType<typeof planToVerticalReel>, label: string) {
+  if (!r.ok) return;
+  assert.ok(finiteNonNeg(r.props.durationSeconds), `${label}: durationSeconds ${r.props.durationSeconds}`);
+  for (const s of r.props.scenes) assert.ok(finiteNonNeg(s.startSeconds) && finiteNonNeg(s.endSeconds) && s.endSeconds > s.startSeconds, `${label}: scene ${s.startSeconds}-${s.endSeconds}`);
+  for (const c of r.props.captions) assert.ok(finiteNonNeg(c.startSeconds) && finiteNonNeg(c.endSeconds), `${label}: caption`);
+}
+
+test("durationSeconds NaN / ±Infinity / negative blocks explicitly; a valid value still renders", () => {
+  for (const d of [NaN, Infinity, -Infinity, -1]) {
+    const { b } = fixture();
+    b.durationSeconds = d;
+    const r = planToVerticalReel(b);
+    assertNoBadTimes(r, `duration=${d}`);
+    assert.equal(r.ok, false, `duration=${d} must block`);
+    assert.ok(!r.ok && r.blockers.some(x => x.code === "INVALID_TIME"), `duration=${d}: ${!r.ok ? r.blockers.map(x => x.code) : ""}`);
+  }
+  const { b } = fixture();
+  const ok = planToVerticalReel(b);
+  assert.equal(ok.ok, true);
+  assertNoBadTimes(ok, "valid");
+});
+
+test("segmentTimes with NaN / ±Infinity / negative start or end / end ≤ start blocks; never produces bad props", () => {
+  const cases: [string, number, number][] = [["NaN start", NaN, 3], ["NaN end", 0, NaN], ["+Inf end", 0, Infinity], ["-Inf start", -Infinity, 3],
+    ["negative start", -5, 3], ["negative end", -5, -1], ["end = start", 2, 2], ["end < start", 3, 1]];
+  for (const [label, start, end] of cases) {
+    const { b } = fixture();
+    // Shift the first segment only; the rest stay valid so partial checks are exercised.
+    b.segmentTimes["scene-0"] = { start, end };
+    const r = planToVerticalReel(b);
+    assertNoBadTimes(r, label);
+    assert.equal(r.ok, false, `${label} must block`);
+  }
+});
+
+test("captions with non-finite or negative times block; LABEL_NOT_RENDERABLE and the licence/material blocks are unchanged", () => {
+  for (const [s, e] of [[NaN, 1], [0, Infinity], [-1, 1]] as const) {
+    const { b } = fixture();
+    b.captions = [{ text: "x", startSeconds: s, endSeconds: e }];
+    const r = planToVerticalReel(b);
+    assert.ok(!r.ok && r.blockers.some(x => x.code === "INVALID_TIME"), `caption ${s}-${e}`);
+  }
+  const ai = fixture(sb => { sb.scenes[1].resourceType = "generated_image"; });
+  const r = planToVerticalReel(ai.b);
+  assert.ok(!r.ok && r.blockers.some(x => x.code === "LABEL_NOT_RENDERABLE"));
+});
