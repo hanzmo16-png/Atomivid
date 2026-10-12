@@ -1,0 +1,61 @@
+name: Precampaign hans-01 (voz clonada + 2 clips avatar, autorizado por Hans ≤ USD 1.20)
+
+# T-20261012-0648-hans-01. Hans authorised this directly to Claude (≤ USD 1.20 total, approved navy-jacket photo).
+# ops/precampaign-hans01.mode line 1 = check | generate; line 2 (generate only) = sha256 of the photo Claude reviewed.
+# check: USD 0 (reads only). generate: ledger-guarded paid calls; stops before any call that would exceed the cap.
+on:
+  push:
+    branches: [claude/hola-sn3dxy]
+    paths: [ops/precampaign-hans01.mode]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atomivid-precampaign-hans01
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Read mode
+        id: mode
+        run: |
+          echo "mode=$(sed -n 1p ops/precampaign-hans01.mode | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+          echo "sha=$(sed -n 2p ops/precampaign-hans01.mode | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+      - name: Run (no secrets or ids on stdout)
+        run: npx tsx scripts/precampaign-hans01/run.ts
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
+          APPROVED_PHOTO_SHA256: ${{ steps.mode.outputs.sha }}
+          OUT_DIR: hans01-output
+          ATOMIVID_RUNTIME: production
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+      - name: Private artifact (report, review photo, outputs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: precampaign-hans01-${{ steps.mode.outputs.mode }}
+          path: |
+            hans01-output/report.json
+            hans01-output/photo-review.jpg
+            hans01-output/*.mp3
+            hans01-output/*.wav
+            hans01-output/*.mp4
+          if-no-files-found: ignore
+          retention-days: 2
