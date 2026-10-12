@@ -360,10 +360,50 @@ async function inventoryMode() {
   report.result = "inventory_ok_no_spend";
 }
 
+// Final edit (USD 0, no provider call): animatic retimed to the real narration + the two clips, delivered privately.
+const ANIMATIC = { path: `${PROJECT}/insumos/animatic_v4.mp4`, sha256: "c88a3368a192fd5aa7503c06d7f9956fbdbf2ff12844f13979b908a3ebc3bd3d", bytes: 2913839 } as const;
+const FINAL_NAME = "hans01_precampana_final_720x1280.mp4";
+
+async function composeMode() {
+  const svc = service();
+  const { planCompose, buildAss, ffmpegArgs } = await import("./compose");
+  const bucket = svc.storage.from("videos");
+  const get = async (path: string) => { const r = await bucket.download(path); if (r.error || !r.data) throw new Error(`compose_missing:${path.split("/").slice(1).join("/")}`); return Buffer.from(await r.data.arrayBuffer()); };
+  const animatic = await get(ANIMATIC.path);
+  if (sha256(animatic) !== ANIMATIC.sha256) throw new Error("compose_animatic_sha_mismatch");
+  // The voice result stored by the paid-call gate carries the word timestamps of the master narration.
+  const { data: paid } = await bucket.list(`${PROJECT}/paid`, { limit: 100 });
+  let words: Word[] | null = null;
+  for (const o of paid ?? []) {
+    if (!o.name.endsWith(".json")) continue;
+    const j = JSON.parse((await get(`${PROJECT}/paid/${o.name}`)).toString("utf8")) as { mp3Path?: string; words?: Word[] };
+    if (j.mp3Path && Array.isArray(j.words)) { words = j.words; break; }
+  }
+  if (!words) throw new Error("compose_voice_words_missing");
+  const files = { animatic: join(OUT, "animatic_v4.mp4"), voice: join(OUT, "voz_completa.wav"), apertura: join(OUT, "avatar_apertura_720p.mp4"), cierre: join(OUT, "avatar_cierre_720p.mp4"), ass: join(OUT, "subtitulos.ass"), out: join(OUT, FINAL_NAME) };
+  await writeFile(files.animatic, animatic);
+  for (const k of ["voice", "apertura", "cierre"] as const) await writeFile(files[k], await get(`${PROJECT}/entrega/${k === "voice" ? "voz_completa.wav" : `avatar_${k}_720p.mp4`}`));
+  const voiceSeconds = await probeSeconds(files.voice);
+  const plan = planCompose(words, voiceSeconds, { apertura: await probeSeconds(files.apertura), cierre: await probeSeconds(files.cierre) });
+  report.composePlan = { totalSeconds: plan.total, voiceSeconds: r4(voiceSeconds), segments: plan.segs.map(s => ({ kind: s.kind, start: r4(s.start), end: r4(s.end) })) };
+  await writeFile(files.ass, buildAss(words));
+  await sh("ffmpeg", ffmpegArgs(files, plan), { maxBuffer: 1 << 26 });
+  const mp4 = await readFile(files.out);
+  const probe = JSON.parse((await sh("ffprobe", ["-v", "error", "-show_entries", "format=duration:stream=codec_type,codec_name,width,height,r_frame_rate,sample_rate,channels", "-of", "json", files.out])).stdout);
+  const path = `${PROJECT}/entrega/${FINAL_NAME}`;
+  const up = await bucket.upload(path, mp4, { contentType: "video/mp4", upsert: true });
+  if (up.error) throw new Error("compose_upload_failed");
+  const back = Buffer.from(await (await bucket.download(path)).data!.arrayBuffer());
+  if (sha256(back) !== sha256(mp4)) throw new Error("compose_verify_failed");
+  report.final = { bucket: "videos", path, bytes: mp4.length, sha256: sha256(mp4), md5: md5(mp4), durationSeconds: Number(probe.format?.duration), streams: probe.streams };
+  report.result = "composed_and_delivered";
+}
+
 async function main() {
   await mkdir(OUT, { recursive: true });
   if (MODE === "check") await check();
   else if (MODE === "generate") await generate();
+  else if (MODE === "compose") await composeMode();
   else if (MODE === "inventory") await inventoryMode();
   else throw new Error("invalid_mode");
 }
@@ -374,4 +414,4 @@ main()
       voice: vo && { status: vo.rowStatus, provider: vo.provider, needsReview: vo.needsReview }, elevenlabsVoice: report.elevenlabsVoice, elevenlabs: report.elevenlabs, heygenWalletUsd: report.heygenWalletUsd,
       owners: report.owners, appUsage: report.appUsage, videoRequestColumns: report.videoRequestColumns, privateChannel: report.privateChannel, estimate: report.estimate, ledger: report.ledger, deliveryRouteApproved: report.deliveryRouteApproved,
       before: report.before, voiceResult: report.voiceResult, cuts: report.cuts, budget: report.budget, clips: report.clips && Object.fromEntries(Object.entries(report.clips as Record<string, Record<string, unknown>>).map(([k, c]) => [k, { reused: c.reused, seconds: c.seconds, walletDeltaUsd: c.walletDeltaUsd, streams: c.streams }])),
-      after: report.after, realCost: report.realCost, delivery: report.delivery })); });
+      after: report.after, realCost: report.realCost, delivery: report.delivery, composePlan: report.composePlan, final: report.final })); });
