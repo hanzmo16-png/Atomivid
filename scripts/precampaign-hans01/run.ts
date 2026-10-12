@@ -34,6 +34,7 @@ const ELEVEN_USD_PER_CHAR_MAX = 0.0003;
 const HEYGEN_USD_PER_SECOND_MAX = 0.05;
 
 const sha256 = (b: Buffer) => createHash("sha256").update(b).digest("hex");
+const md5 = (b: Buffer) => createHash("md5").update(b).digest("hex");
 const r4 = (x: number) => Math.round(x * 10000) / 10000;
 const report: Record<string, unknown> = { request: "T-20261012-0648-hans-01", mode: MODE, project: PROJECT, capUsd: CAP_USD, startedAt: new Date().toISOString() };
 const save = () => writeFile(join(OUT, "report.json"), JSON.stringify(report, null, 2) + "\n");
@@ -56,6 +57,16 @@ async function eleven(path: string) {
 async function elevenCredits() {
   const s = await eleven("/v1/user/subscription");
   return { tier: s.tier, used: Number(s.character_count), limit: Number(s.character_limit), resetUnix: s.next_character_count_reset_unix ?? null };
+}
+
+// Cumulative spend of ALL hans-01 attempts, from the paid-call ledger. Conservative: every row counts at
+// max(committed, reserved), so uncertain / reconciliation-required calls count at their full reservation.
+async function ledgerSpentUsd(svc: SupabaseClient) {
+  const { data, error } = await svc.from("pi_paid_operations").select("status,reserved_usd,committed_usd").eq("project_id", PROJECT);
+  if (error) throw new Error("ledger_unreadable");
+  const rows = data ?? [];
+  return { rows: rows.length, byStatus: rows.reduce<Record<string, number>>((m, r) => ({ ...m, [r.status]: (m[r.status] ?? 0) + 1 }), {}),
+    usd: r4(rows.reduce((t, r) => t + Math.max(Number(r.committed_usd ?? 0), Number(r.reserved_usd ?? 0)), 0)) };
 }
 
 // ---------- shared checks ----------
@@ -112,6 +123,7 @@ async function check() {
   report.privateChannel = { uploadOk: !up.error, readBackOk: Boolean(back && back.equals(probe)), signedUrlOk: Boolean(viaSigned && Buffer.from(viaSigned).equals(probe)) };
   report.estimate = { chars: TEXT.length, voiceMaxUsd: r4(TEXT.length * ELEVEN_USD_PER_CHAR_MAX), heygenMaxUsdFor12s: r4(12 * HEYGEN_USD_PER_SECOND_MAX) };
   report.photoSha256 = sha256(photo);
+  report.ledger = await ledgerSpentUsd(svc);
   report.result = "check_ok_no_spend";
 }
 
@@ -136,7 +148,9 @@ async function generate() {
   const creditsBefore = await elevenCredits();
   report.before = { heygenWalletUsd: walletBefore, elevenlabs: creditsBefore };
   const voiceMax = r4(TEXT.length * ELEVEN_USD_PER_CHAR_MAX);
-  if (voiceMax + 12 * HEYGEN_USD_PER_SECOND_MAX > CAP_USD) throw new Error("cap_exceeded_before_voice");
+  const prior = await ledgerSpentUsd(svc);
+  report.ledgerBefore = prior;
+  if (prior.usd + voiceMax + 12 * HEYGEN_USD_PER_SECOND_MAX > CAP_USD) throw new Error("cap_exceeded_before_voice");
   if (creditsBefore.limit - creditsBefore.used < TEXT.length) throw new Error("elevenlabs_credits_insufficient");
 
   // ---- 1) voice (ledger-guarded; a stored result is reused at zero cost)
@@ -177,7 +191,7 @@ async function generate() {
   const avatarMax = r4(avatarSeconds * HEYGEN_USD_PER_SECOND_MAX);
   const voiceUsd = voice.reused ? 0 : voiceMax;
   report.budget = { voiceUsdUpperBound: voiceUsd, avatarSeconds: r4(avatarSeconds), avatarUsdUpperBound: avatarMax, heygenTariffEstimateUsd: r4(estimateHeygenCost(clipAudio.apertura.seconds) + estimateHeygenCost(clipAudio.cierre.seconds)), totalUpperBound: r4(voiceUsd + avatarMax) };
-  if (voiceUsd + avatarMax > CAP_USD) throw new Error("cap_exceeded_before_avatar");
+  if ((await ledgerSpentUsd(svc)).usd + avatarMax > CAP_USD) throw new Error("cap_exceeded_before_avatar");
   if (walletBefore < avatarMax) throw new Error("heygen_wallet_insufficient");
   await save();
 
@@ -228,7 +242,7 @@ async function generate() {
     };
     const before = await getHeygenWallet();
     // Cap counts everything this request consumed so far (measured), plus this clip's conservative reservation.
-    const spentSoFar = voiceUsd + r4(walletBefore - before);
+    const spentSoFar = Math.max((await ledgerSpentUsd(svc)).usd, prior.usd + voiceUsd + r4(walletBefore - before));
     if (spentSoFar + spec.reservedUsd > CAP_USD) throw new Error(`cap_exceeded_before_${k}`);
     const g = await guardPaidCall<Buffer>(ledger, spec, {
       call: async ({ key }) => {
@@ -279,7 +293,7 @@ async function generate() {
     const back = await svc.storage.from("videos").download(path);
     const ok = back.data ? sha256(Buffer.from(await back.data.arrayBuffer())) === sha256(bytes) : false;
     if (!ok) throw new Error(`delivery_verify_failed:${name}`);
-    delivery.push({ name, bytes: bytes.length, sha256: sha256(bytes), verified: ok });
+    delivery.push({ name, bytes: bytes.length, sha256: sha256(bytes), md5: md5(bytes), verified: ok });
   }
   report.delivery = delivery;
   report.result = "generated_and_delivered";
@@ -296,6 +310,6 @@ main()
   .finally(async () => { report.finishedAt = new Date().toISOString(); await save(); const a = report.avatar as Record<string, unknown> | undefined, vo = report.voice as Record<string, unknown> | undefined;
     console.log("HANS01_SUMMARY " + JSON.stringify({ result: report.result, error: report.error ?? null, photoSha256: a?.photoSha256, photo: a && { w: a.photoWidth, h: a.photoHeight, codec: a.photoCodec, bytes: a.photoBytes },
       voice: vo && { status: vo.rowStatus, provider: vo.provider, needsReview: vo.needsReview }, elevenlabsVoice: report.elevenlabsVoice, elevenlabs: report.elevenlabs, heygenWalletUsd: report.heygenWalletUsd,
-      owners: report.owners, appUsage: report.appUsage, videoRequestColumns: report.videoRequestColumns, privateChannel: report.privateChannel, estimate: report.estimate,
+      owners: report.owners, appUsage: report.appUsage, videoRequestColumns: report.videoRequestColumns, privateChannel: report.privateChannel, estimate: report.estimate, ledger: report.ledger, ledgerBefore: report.ledgerBefore,
       before: report.before, voiceResult: report.voiceResult, cuts: report.cuts, budget: report.budget, clips: report.clips && Object.fromEntries(Object.entries(report.clips as Record<string, Record<string, unknown>>).map(([k, c]) => [k, { reused: c.reused, seconds: c.seconds, walletDeltaUsd: c.walletDeltaUsd, streams: c.streams }])),
       after: report.after, realCost: report.realCost, delivery: report.delivery })); });
