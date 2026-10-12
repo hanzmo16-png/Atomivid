@@ -59,16 +59,6 @@ async function elevenCredits() {
   return { tier: s.tier, used: Number(s.character_count), limit: Number(s.character_limit), resetUnix: s.next_character_count_reset_unix ?? null };
 }
 
-// Cumulative spend of ALL hans-01 attempts, from the paid-call ledger. Conservative: every row counts at
-// max(committed, reserved), so uncertain / reconciliation-required calls count at their full reservation.
-async function ledgerSpentUsd(svc: SupabaseClient) {
-  const { data, error } = await svc.from("pi_paid_operations").select("status,reserved_usd,committed_usd").eq("project_id", PROJECT);
-  if (error) throw new Error("ledger_unreadable");
-  const rows = data ?? [];
-  return { rows: rows.length, byStatus: rows.reduce<Record<string, number>>((m, r) => ({ ...m, [r.status]: (m[r.status] ?? 0) + 1 }), {}),
-    usd: r4(rows.reduce((t, r) => t + Math.max(Number(r.committed_usd ?? 0), Number(r.reserved_usd ?? 0)), 0)) };
-}
-
 // ---------- shared checks ----------
 async function identity(svc: SupabaseClient) {
   const { data: voice, error: ve } = await svc.from("user_voices").select("id,user_id,name,status,provider,provider_voice_id,needs_review").eq("id", VOICE_ROW).maybeSingle();
@@ -123,9 +113,33 @@ async function check() {
   report.privateChannel = { uploadOk: !up.error, readBackOk: Boolean(back && back.equals(probe)), signedUrlOk: Boolean(viaSigned && Buffer.from(viaSigned).equals(probe)) };
   report.estimate = { chars: TEXT.length, voiceMaxUsd: r4(TEXT.length * ELEVEN_USD_PER_CHAR_MAX), heygenMaxUsdFor12s: r4(12 * HEYGEN_USD_PER_SECOND_MAX) };
   report.photoSha256 = sha256(photo);
-  report.ledger = await ledgerSpentUsd(svc);
+  const { supabaseProjectBudgetStore, projectExposure } = await import("../../src/lib/paid-calls/project-budget");
+  const bs = supabaseProjectBudgetStore(svc);
+  const exp = projectExposure(await bs.listHolds(PROJECT), await bs.listOps(PROJECT));
+  report.ledger = { exposureUsd: exp.usd, uncertain: exp.uncertainKeys.length };
+  report.deliveryRouteApproved = APPROVED_DELIVERY_ROUTE !== null;
   report.result = "check_ok_no_spend";
 }
+
+// Delivery route for the generated files. Hans accepted the private bucket "videos" (2026-10-12) but asked that a route
+// recoverable by him, Codex and Grok be verified BEFORE any spend. Until that is confirmed this stays null and
+// generate() stops before the first paid call. Changing it is an explicit, reviewable commit.
+const APPROVED_DELIVERY_ROUTE: "private-bucket-videos" | null = null;
+
+async function deliveryPreflight(svc: SupabaseClient) {
+  if (APPROVED_DELIVERY_ROUTE !== "private-bucket-videos") throw new Error("delivery_route_not_approved");
+  const path = `${PROJECT}/entrega/preflight.txt`, probe = Buffer.from(`hans-01 preflight ${new Date().toISOString()}`);
+  const up = await svc.storage.from("videos").upload(path, probe, { contentType: "text/plain", upsert: true });
+  if (up.error) throw new Error("delivery_preflight_upload_failed");
+  const back = await svc.storage.from("videos").download(path);
+  const ok = back.data ? Buffer.from(await back.data.arrayBuffer()).equals(probe) : false;
+  await svc.storage.from("videos").remove([path]);
+  if (!ok) throw new Error("delivery_preflight_readback_failed");
+}
+
+type Word = { text: string; startSeconds: number; endSeconds: number };
+type VoiceOut = { audioBuffer: Buffer; durationSeconds: number; words: Word[] };
+type ClipAudio = { file: string; seconds: number; bytes: Buffer };
 
 async function generate() {
   const approved = process.env.APPROVED_PHOTO_SHA256?.trim();
@@ -136,66 +150,20 @@ async function generate() {
 
   const { getHeygenWallet, estimateHeygenCost } = await import("../../src/lib/providers/avatar/heygen");
   const { synthesizeVoice, getVoiceIdentity } = await import("../../src/lib/ai/voice");
-  const { gatedVoiceSynthesize } = await import("../../src/lib/paid-calls/gated-providers");
-  const { guardPaidCall } = await import("../../src/lib/paid-calls/gate");
   const { supabaseLedgerStore } = await import("../../src/lib/paid-calls/supabase-ledger-store");
   const { supabaseResultStore, paidResultPath } = await import("../../src/lib/paid-calls/result-store");
+  const { supabaseProjectBudgetStore } = await import("../../src/lib/paid-calls/project-budget");
+  const { runHans01 } = await import("../../src/lib/precampaign/hans01-flow");
   const { GenerativeProviderError } = await import("../../src/lib/providers/types");
-  const ledger = supabaseLedgerStore(svc), results = supabaseResultStore(svc, "videos");
+  const ledger = supabaseLedgerStore(svc), results = supabaseResultStore(svc, "videos"), budget = supabaseProjectBudgetStore(svc);
 
-  // ---- budget gate 1 (before any paid call): voice max + generous avatar allowance must fit.
   const walletBefore = await getHeygenWallet();
   const creditsBefore = await elevenCredits();
   report.before = { heygenWalletUsd: walletBefore, elevenlabs: creditsBefore };
-  const voiceMax = r4(TEXT.length * ELEVEN_USD_PER_CHAR_MAX);
-  const prior = await ledgerSpentUsd(svc);
-  report.ledgerBefore = prior;
-  if (prior.usd + voiceMax + 12 * HEYGEN_USD_PER_SECOND_MAX > CAP_USD) throw new Error("cap_exceeded_before_voice");
   if (creditsBefore.limit - creditsBefore.used < TEXT.length) throw new Error("elevenlabs_credits_insufficient");
+  const identityV = getVoiceIdentity("es", voiceId);
 
-  // ---- 1) voice (ledger-guarded; a stored result is reused at zero cost)
-  const voiceProvider = { name: "elevenlabs", async synthesize(text: string, language?: "es" | "en", speed?: number) {
-    const r = await synthesizeVoice(text, language ?? "es", speed, voiceId);
-    return { ...r, mimeType: "audio/mpeg", extension: "mp3" };
-  } };
-  const voice = await gatedVoiceSynthesize({ ledger, results, requestId: PROJECT, voiceProvider, voiceIdentity: getVoiceIdentity("es", voiceId), estimatedCostUsd: voiceMax }, TEXT, "es");
-  const creditsAfterVoice = await elevenCredits();
-  const mp3 = join(OUT, "voz_completa.mp3"), wav = join(OUT, "voz_completa.wav");
-  await writeFile(mp3, voice.audioBuffer);
-  await sh("ffmpeg", ["-y", "-v", "error", "-i", mp3, "-ar", "48000", "-ac", "1", "-c:a", "pcm_s16le", wav]);
-  const charsUsed = creditsAfterVoice.used - creditsBefore.used;
-  report.voiceResult = { reused: voice.reused, durationSecondsAlignment: voice.durationSeconds, durationSecondsDecoded: await probeSeconds(wav), creditsUsed: charsUsed,
-    words: voice.words.length };
-
-  // ---- 2) cut the avatar lines from the SAME audio at word boundaries (keeps sync with the full narration)
-  const w = voice.words;
-  const iOpenEnd = w.findIndex(x => x.text.endsWith(OPENING_LAST));
-  const iCloseStart = w.findIndex(x => x.text === CLOSING_FIRST), iCloseEnd = w.findIndex(x => x.text === CLOSING_LAST);
-  if (iOpenEnd < 0 || iCloseStart < 0 || iCloseEnd < iCloseStart) throw new Error("word_alignment_not_found");
-  const pad = 0.2;
-  const cuts = {
-    apertura: { start: 0, end: Math.min(w[iOpenEnd].endSeconds + pad, w[iOpenEnd + 1].startSeconds - 0.02) },
-    cierre: { start: Math.max(w[iCloseStart].startSeconds - pad, w[iCloseStart - 1].endSeconds + 0.02), end: Math.min(w[iCloseEnd].endSeconds + pad, w[iCloseEnd + 1].startSeconds - 0.02) },
-  };
-  const clipAudio: Record<string, { file: string; seconds: number; bytes: Buffer }> = {};
-  for (const [k, c] of Object.entries(cuts)) {
-    const file = join(OUT, `corte_${k}.wav`);
-    await sh("ffmpeg", ["-y", "-v", "error", "-i", wav, "-af", `atrim=start=${c.start.toFixed(3)}:end=${c.end.toFixed(3)},asetpts=PTS-STARTPTS`, "-ar", "48000", "-ac", "1", "-c:a", "pcm_s16le", file]);
-    clipAudio[k] = { file, seconds: await probeSeconds(file), bytes: await readFile(file) };
-  }
-  report.cuts = Object.fromEntries(Object.entries(cuts).map(([k, c]) => [k, { startSeconds: r4(c.start), endSeconds: r4(c.end), seconds: r4(clipAudio[k].seconds),
-    text: k === "apertura" ? w.slice(0, iOpenEnd + 1).map(x => x.text).join(" ") : w.slice(iCloseStart, iCloseEnd + 1).map(x => x.text).join(" ") }]));
-
-  // ---- 3) budget gate 2 with the REAL durations, before HeyGen
-  const avatarSeconds = clipAudio.apertura.seconds + clipAudio.cierre.seconds;
-  const avatarMax = r4(avatarSeconds * HEYGEN_USD_PER_SECOND_MAX);
-  const voiceUsd = voice.reused ? 0 : voiceMax;
-  report.budget = { voiceUsdUpperBound: voiceUsd, avatarSeconds: r4(avatarSeconds), avatarUsdUpperBound: avatarMax, heygenTariffEstimateUsd: r4(estimateHeygenCost(clipAudio.apertura.seconds) + estimateHeygenCost(clipAudio.cierre.seconds)), totalUpperBound: r4(voiceUsd + avatarMax) };
-  if ((await ledgerSpentUsd(svc)).usd + avatarMax > CAP_USD) throw new Error("cap_exceeded_before_avatar");
-  if (walletBefore < avatarMax) throw new Error("heygen_wallet_insufficient");
-  await save();
-
-  // ---- 4) HeyGen Avatar IV photo clips (each ledger-guarded; no replay after an uncertain outcome)
+  // ---- HeyGen (asset upload + Avatar IV photo video). Errors carry the job id once accepted (resume, never resubmit).
   const heygen = async (path: string, init: RequestInit = {}) => {
     const res = await fetch("https://api.heygen.com" + path, { ...init, redirect: "error", signal: AbortSignal.timeout(60000),
       headers: { "X-Api-Key": process.env.HEYGEN_API_KEY!, ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }) } });
@@ -229,73 +197,116 @@ async function generate() {
     throw new GenerativeProviderError("heygen_still_processing", "heygen", "timeout", undefined, videoId);
   };
   let photoAsset: string | null = null;
-  const clips: Record<string, { file: string; reused: boolean; providerJobId?: string; seconds?: number; walletDeltaUsd?: number }> = {};
-  for (const k of ["apertura", "cierre"] as const) {
-    const a = clipAudio[k];
-    const spec = { projectId: PROJECT, shotId: `avatar:${k}`, provider: "heygen", model: "avatar-iv-photo", method: "image_audio_video",
-      inputFingerprint: { photo: sha256(photo), audio: sha256(a.bytes), resolution: "720p", aspect: "auto" }, reservedUsd: r4(a.seconds * HEYGEN_USD_PER_SECOND_MAX) };
-    const storeMp4 = async (key: string, mp4: Buffer, providerJobId: string) => {
-      const p = paidResultPath(PROJECT, key, "mp4");
-      await results.putBytes(p, mp4, "video/mp4");
-      await results.putJson(paidResultPath(PROJECT, key, "json"), { mp4Path: p, sha256: sha256(mp4), bytes: mp4.length, providerJobId });
-      return paidResultPath(PROJECT, key, "json");
-    };
-    const before = await getHeygenWallet();
-    // Cap counts everything this request consumed so far (measured), plus this clip's conservative reservation.
-    const spentSoFar = Math.max((await ledgerSpentUsd(svc)).usd, prior.usd + voiceUsd + r4(walletBefore - before));
-    if (spentSoFar + spec.reservedUsd > CAP_USD) throw new Error(`cap_exceeded_before_${k}`);
-    const g = await guardPaidCall<Buffer>(ledger, spec, {
-      call: async ({ key }) => {
-        photoAsset ??= await assetUpload(photo, photoMime, photoMime === "image/png" ? "photo.png" : "photo.jpeg");
-        const audioAsset = await assetUpload(a.bytes, "audio/wav", `${k}.wav`);
-        const created = await heygen("/v3/videos", { method: "POST", body: JSON.stringify({ type: "image", image: { type: "asset_id", asset_id: photoAsset }, audio_asset_id: audioAsset, aspect_ratio: "auto", resolution: "720p" }) });
-        const videoId = created.video_id as string;
-        if (!videoId) throw new GenerativeProviderError("heygen_no_video_id", "heygen", "invalid_response");
-        const mp4 = await waitVideo(videoId);
-        return { result: mp4, costUsd: spec.reservedUsd, resultRef: await storeMp4(key, mp4, videoId), providerJobId: videoId };
-      },
-      resume: async (videoId, { key }) => { const mp4 = await waitVideo(videoId); return { result: mp4, costUsd: spec.reservedUsd, resultRef: await storeMp4(key, mp4, videoId), providerJobId: videoId }; },
-      load: async (ref) => { const m = await results.getJson<{ mp4Path: string; sha256: string }>(ref); if (!m) return null; const b = await results.getBytes(m.mp4Path); return b && sha256(b) === m.sha256 ? b : null; },
-    });
-    const after = await getHeygenWallet();
-    const file = join(OUT, `avatar_${k}_720p.mp4`);
-    await writeFile(file, g.result);
-    clips[k] = { file, reused: g.reused, seconds: await probeSeconds(file), walletDeltaUsd: r4(before - after) };
-    report.clips = clips;
-    await save();
-  }
+  const storeMp4 = async (key: string, mp4: Buffer, providerJobId: string) => {
+    const p = paidResultPath(PROJECT, key, "mp4");
+    await results.putBytes(p, mp4, "video/mp4");
+    await results.putJson(paidResultPath(PROJECT, key, "json"), { mp4Path: p, sha256: sha256(mp4), bytes: mp4.length, providerJobId });
+    return paidResultPath(PROJECT, key, "json");
+  };
 
-  // ---- 5) real cost and balances
+  const voiceMax = TEXT.length * ELEVEN_USD_PER_CHAR_MAX;
+  const out = await runHans01<VoiceOut, ClipAudio, Buffer, unknown[]>({
+    projectId: PROJECT, capUsd: CAP_USD, ledger, budget,
+    deliveryPreflight: () => deliveryPreflight(svc),
+    voice: {
+      spec: { projectId: PROJECT, shotId: "voice:full", provider: "elevenlabs", model: identityV.modelId, method: "tts_with_timestamps", capacityUnits: TEXT.length,
+        inputFingerprint: { text: TEXT, language: "es", voiceId, modelId: identityV.modelId, voiceSettingsJson: identityV.voiceSettingsJson }, reservedUsd: voiceMax },
+      hooks: {
+        call: async ({ key }) => {
+          const r = await synthesizeVoice(TEXT, "es", undefined, voiceId);
+          const mp3Path = paidResultPath(PROJECT, key, "mp3");
+          await results.putBytes(mp3Path, r.audioBuffer, "audio/mpeg");
+          await results.putJson(paidResultPath(PROJECT, key, "json"), { mp3Path, sha256: sha256(r.audioBuffer), durationSeconds: r.durationSeconds, words: r.words });
+          return { result: { audioBuffer: r.audioBuffer, durationSeconds: r.durationSeconds, words: r.words }, costUsd: voiceMax, resultRef: paidResultPath(PROJECT, key, "json") };
+        },
+        load: async (ref) => {
+          const m = await results.getJson<{ mp3Path: string; sha256: string; durationSeconds: number; words: Word[] }>(ref);
+          const b = m ? await results.getBytes(m.mp3Path) : null;
+          return m && b && sha256(b) === m.sha256 ? { audioBuffer: b, durationSeconds: m.durationSeconds, words: m.words } : null;
+        },
+      },
+    },
+    avatarUsdPerSecond: HEYGEN_USD_PER_SECOND_MAX, avatarAllowanceSeconds: 12,
+    // Cut the avatar lines from the SAME audio at word timestamps (lip-sync uses the same samples).
+    cut: async (voice) => {
+      const mp3 = join(OUT, "voz_completa.mp3"), wav = join(OUT, "voz_completa.wav");
+      await writeFile(mp3, voice.audioBuffer);
+      await sh("ffmpeg", ["-y", "-v", "error", "-i", mp3, "-ar", "48000", "-ac", "1", "-c:a", "pcm_s16le", wav]);
+      report.voiceResult = { durationSecondsAlignment: voice.durationSeconds, durationSecondsDecoded: await probeSeconds(wav), words: voice.words.length };
+      const w = voice.words;
+      const iOpenEnd = w.findIndex(x => x.text.endsWith(OPENING_LAST));
+      const iCloseStart = w.findIndex(x => x.text === CLOSING_FIRST), iCloseEnd = w.findIndex(x => x.text === CLOSING_LAST);
+      if (iOpenEnd < 0 || iCloseStart < 0 || iCloseEnd < iCloseStart) throw new Error("word_alignment_not_found");
+      const pad = 0.2;
+      const cuts = {
+        apertura: { start: 0, end: Math.min(w[iOpenEnd].endSeconds + pad, w[iOpenEnd + 1].startSeconds - 0.02) },
+        cierre: { start: Math.max(w[iCloseStart].startSeconds - pad, w[iCloseStart - 1].endSeconds + 0.02), end: Math.min(w[iCloseEnd].endSeconds + pad, w[iCloseEnd + 1].startSeconds - 0.02) },
+      };
+      const audio = {} as Record<"apertura" | "cierre", ClipAudio>;
+      for (const [k, c] of Object.entries(cuts) as ["apertura" | "cierre", { start: number; end: number }][]) {
+        const file = join(OUT, `corte_${k}.wav`);
+        await sh("ffmpeg", ["-y", "-v", "error", "-i", wav, "-af", `atrim=start=${c.start.toFixed(3)}:end=${c.end.toFixed(3)},asetpts=PTS-STARTPTS`, "-ar", "48000", "-ac", "1", "-c:a", "pcm_s16le", file]);
+        audio[k] = { file, seconds: await probeSeconds(file), bytes: await readFile(file) };
+      }
+      report.cuts = Object.fromEntries(Object.entries(cuts).map(([k, c]) => [k, { startSeconds: r4(c.start), endSeconds: r4(c.end), seconds: r4(audio[k as "apertura"].seconds) }]));
+      report.budget = { avatarSeconds: r4(audio.apertura.seconds + audio.cierre.seconds), heygenTariffEstimateUsd: r4(estimateHeygenCost(audio.apertura.seconds) + estimateHeygenCost(audio.cierre.seconds)) };
+      await save();
+      return audio;
+    },
+    clip: (k, a) => ({
+      spec: { projectId: PROJECT, shotId: `avatar:${k}`, provider: "heygen", model: "avatar-iv-photo", method: "image_audio_video",
+        inputFingerprint: { photo: sha256(photo), audio: sha256(a.bytes), resolution: "720p", aspect: "auto" }, reservedUsd: a.seconds * HEYGEN_USD_PER_SECOND_MAX },
+      hooks: {
+        call: async ({ key }) => {
+          photoAsset ??= await assetUpload(photo, photoMime, photoMime === "image/png" ? "photo.png" : "photo.jpeg");
+          const audioAsset = await assetUpload(a.bytes, "audio/wav", `${k}.wav`);
+          const created = await heygen("/v3/videos", { method: "POST", body: JSON.stringify({ type: "image", image: { type: "asset_id", asset_id: photoAsset }, audio_asset_id: audioAsset, aspect_ratio: "auto", resolution: "720p" }) });
+          const videoId = created.video_id as string;
+          if (!videoId) throw new GenerativeProviderError("heygen_no_video_id", "heygen", "invalid_response");
+          const mp4 = await waitVideo(videoId);
+          return { result: mp4, costUsd: a.seconds * HEYGEN_USD_PER_SECOND_MAX, resultRef: await storeMp4(key, mp4, videoId), providerJobId: videoId };
+        },
+        resume: async (videoId, { key }) => { const mp4 = await waitVideo(videoId); return { result: mp4, costUsd: a.seconds * HEYGEN_USD_PER_SECOND_MAX, resultRef: await storeMp4(key, mp4, videoId), providerJobId: videoId }; },
+        load: async (ref) => { const m = await results.getJson<{ mp4Path: string; sha256: string }>(ref); if (!m) return null; const b = await results.getBytes(m.mp4Path); return b && sha256(b) === m.sha256 ? b : null; },
+      },
+    }),
+    observeAccountUsd: getHeygenWallet,
+    // Delivery in the private bucket "videos", each object read back and verified (sha256 + md5 for a later Drive check).
+    deliver: async ({ voice, audio, clips }) => {
+      const files: [string, Buffer, string][] = [
+        ["voz_completa.mp3", voice.audioBuffer, "audio/mpeg"], ["voz_completa.wav", await readFile(join(OUT, "voz_completa.wav")), "audio/wav"],
+        ["avatar_apertura_720p.mp4", clips.apertura, "video/mp4"], ["avatar_cierre_720p.mp4", clips.cierre, "video/mp4"],
+        ["corte_apertura.wav", audio.apertura.bytes, "audio/wav"], ["corte_cierre.wav", audio.cierre.bytes, "audio/wav"],
+      ];
+      const delivery: unknown[] = [];
+      for (const [name, bytes, mime] of files) {
+        const path = `${PROJECT}/entrega/${name}`;
+        const up = await svc.storage.from("videos").upload(path, bytes, { contentType: mime, upsert: true });
+        if (up.error) throw new Error(`delivery_upload_failed:${name}`);
+        const back = await svc.storage.from("videos").download(path);
+        const ok = back.data ? sha256(Buffer.from(await back.data.arrayBuffer())) === sha256(bytes) : false;
+        if (!ok) throw new Error(`delivery_verify_failed:${name}`);
+        let streams: unknown = null;
+        if (mime === "video/mp4") {
+          const f = join(OUT, name);
+          await writeFile(f, bytes);
+          streams = JSON.parse((await sh("ffprobe", ["-v", "error", "-show_entries", "stream=codec_type,width,height,duration", "-of", "json", f])).stdout).streams;
+        }
+        delivery.push({ name, bytes: bytes.length, sha256: sha256(bytes), md5: md5(bytes), verified: ok, streams });
+      }
+      return delivery;
+    },
+  });
+
+  // Real cost: HeyGen wallet delta is an observation of the account (not an exact attribution if anything else ran);
+  // ElevenLabs is a subscription, so the run consumes plan characters rather than a separate charge.
   const walletAfter = await getHeygenWallet();
   const creditsAfter = await elevenCredits();
-  const elevenCreditsUsed = creditsAfter.used - creditsBefore.used;
   report.after = { heygenWalletUsd: walletAfter, elevenlabs: creditsAfter };
-  report.realCost = { heygenUsd: r4(walletBefore - walletAfter), elevenlabsCredits: elevenCreditsUsed,
-    note: "ElevenLabs is a subscription: the run consumes plan credits (characters), not a separate charge; USD equivalent depends on the plan price." };
-  for (const [k, c] of Object.entries(clips)) {
-    const { stdout } = await sh("ffprobe", ["-v", "error", "-show_entries", "stream=codec_type,width,height,duration", "-of", "json", c.file]);
-    (c as Record<string, unknown>).streams = JSON.parse(stdout).streams;
-    void k;
-  }
-
-  // ---- 6) delivery in the private Supabase bucket "videos" (Hans accepted this channel; no Drive, no artifacts)
-  const uploads = [
-    ["voz_completa.mp3", mp3, "audio/mpeg"], ["voz_completa.wav", wav, "audio/wav"],
-    ["avatar_apertura_720p.mp4", clips.apertura.file, "video/mp4"], ["avatar_cierre_720p.mp4", clips.cierre.file, "video/mp4"],
-    ["corte_apertura.wav", clipAudio.apertura.file, "audio/wav"], ["corte_cierre.wav", clipAudio.cierre.file, "audio/wav"],
-  ] as const;
-  const delivery: unknown[] = [];
-  for (const [name, file, mime] of uploads) {
-    const bytes = await readFile(file);
-    const path = `${PROJECT}/entrega/${name}`;
-    const up = await svc.storage.from("videos").upload(path, bytes, { contentType: mime, upsert: true });
-    if (up.error) throw new Error(`delivery_upload_failed:${name}`);
-    const back = await svc.storage.from("videos").download(path);
-    const ok = back.data ? sha256(Buffer.from(await back.data.arrayBuffer())) === sha256(bytes) : false;
-    if (!ok) throw new Error(`delivery_verify_failed:${name}`);
-    delivery.push({ name, bytes: bytes.length, sha256: sha256(bytes), md5: md5(bytes), verified: ok });
-  }
-  report.delivery = delivery;
+  report.clips = Object.fromEntries(Object.entries(out.clips).map(([k, c]) => [k, { reused: c.reused, reservedUsd: c.reservedUsd, attributedUsd: c.attributedUsd, walletDeltaUsd: c.observedAccountDeltaUsd }]));
+  report.realCost = { heygenWalletDeltaUsd: r4(walletBefore - walletAfter), elevenlabsCreditsUsed: creditsAfter.used - creditsBefore.used, voiceReused: out.voice.reused,
+    projectExposureStartUsd: out.exposureAtStartUsd, projectExposureEndUsd: out.exposureAtEndUsd };
+  report.delivery = out.delivered;
   report.result = "generated_and_delivered";
 }
 
@@ -310,6 +321,6 @@ main()
   .finally(async () => { report.finishedAt = new Date().toISOString(); await save(); const a = report.avatar as Record<string, unknown> | undefined, vo = report.voice as Record<string, unknown> | undefined;
     console.log("HANS01_SUMMARY " + JSON.stringify({ result: report.result, error: report.error ?? null, photoSha256: a?.photoSha256, photo: a && { w: a.photoWidth, h: a.photoHeight, codec: a.photoCodec, bytes: a.photoBytes },
       voice: vo && { status: vo.rowStatus, provider: vo.provider, needsReview: vo.needsReview }, elevenlabsVoice: report.elevenlabsVoice, elevenlabs: report.elevenlabs, heygenWalletUsd: report.heygenWalletUsd,
-      owners: report.owners, appUsage: report.appUsage, videoRequestColumns: report.videoRequestColumns, privateChannel: report.privateChannel, estimate: report.estimate, ledger: report.ledger, ledgerBefore: report.ledgerBefore,
+      owners: report.owners, appUsage: report.appUsage, videoRequestColumns: report.videoRequestColumns, privateChannel: report.privateChannel, estimate: report.estimate, ledger: report.ledger, deliveryRouteApproved: report.deliveryRouteApproved,
       before: report.before, voiceResult: report.voiceResult, cuts: report.cuts, budget: report.budget, clips: report.clips && Object.fromEntries(Object.entries(report.clips as Record<string, Record<string, unknown>>).map(([k, c]) => [k, { reused: c.reused, seconds: c.seconds, walletDeltaUsd: c.walletDeltaUsd, streams: c.streams }])),
       after: report.after, realCost: report.realCost, delivery: report.delivery })); });
