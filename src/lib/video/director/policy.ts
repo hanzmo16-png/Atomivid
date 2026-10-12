@@ -182,3 +182,35 @@ export function treatmentAllowed(p: UnitPolicy, t: Treatment, hasTextCompanion: 
       return { allowed: true, reason: "atmósfera: sin afirmación factual específica" };
   }
 }
+
+/**
+ * Factual correspondence (correction 3). A deterministic storyboard asset with specific content (text card,
+ * quote, map, timeline, diagram — data_graphic with a planned window) may only illustrate the narration it was
+ * planned for: the shot must overlap its planned window, and when both the asset and the unit map to script
+ * claims they must be the same claim. A true card next to a different statement would look like its support.
+ * The only exception is an explicit continuation (checked by the caller: contiguous, same segment, within the
+ * planned duration).
+ */
+export const MIN_WINDOW_OVERLAP = 0.3;
+export function factualCorrespondence(seg: Segment, a: InventoryAsset, start: number, end: number, unit: string, continuation: boolean):
+  { applies: boolean; ok: boolean; basis: string[]; reason?: string } {
+  const w = a.content?.window;
+  if (a.provenance !== "data_graphic" || !w) return { applies: false, ok: true, basis: [] };
+  const len = seg.end - seg.start, wFrom = seg.start + w.from * len, wTo = seg.start + w.to * len;
+  const overlap = Math.max(0, Math.min(end, wTo) - Math.max(start, wFrom));
+  const r = (x: number) => Math.round(x * 10) / 10;
+  const basis = [`ventana del storyboard ${r(wFrom)}–${r(wTo)} s; solape ${r(overlap)} s de ${r(end - start)} s`];
+  if (w.segmentId !== seg.id) return { applies: true, ok: false, basis, reason: `planificado para ${w.segmentId}, no para ${seg.id}` };
+  const assetClaim = claimFor(seg, `${a.content?.visualIntent ?? ""} ${a.content?.description ?? ""}`), unitClaim = claimFor(seg, unit);
+  if (assetClaim) basis.push(`afirmación del recurso: ${assetClaim.id}`);
+  if (unitClaim) basis.push(`afirmación de la frase: ${unitClaim.id}`);
+  if (assetClaim && unitClaim && assetClaim.id !== unitClaim.id)
+    return { applies: true, ok: false, basis, reason: `el recurso corresponde a ${assetClaim.id} y la frase a ${unitClaim.id}: una verdad de otra afirmación no la respalda` };
+  if (!continuation && overlap < MIN_WINDOW_OVERLAP * (end - start) - 1e-9)
+    return { applies: true, ok: false, basis, reason: "fuera de la ventana narrativa del recurso" };
+  return { applies: true, ok: true, basis: continuation ? [...basis, "continuación contigua dentro de la duración planificada"] : basis };
+}
+
+/** Neutral atmosphere caps (correction 3): a declared pause, never dominant filler. */
+export const NEUTRAL_MAX_SHARE = 0.1;
+export const NEUTRAL_MAX_PER_SEQUENCE = 1;

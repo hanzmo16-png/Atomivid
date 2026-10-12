@@ -1,6 +1,6 @@
 # Director Cinematográfico Inteligente V1 — arquitectura y contrato
 
-Estado: **MVP en modo propuesta, apagado por defecto y no conectado a producción.** Solicitud T-20261012-0142-chatgpt-18; correcciones T-20261012-0318-chatgpt-19 y T-20261012-0555-chatgpt-20.
+Estado: **MVP en modo propuesta, apagado por defecto y no conectado a producción.** Solicitud T-20261012-0142-chatgpt-18; correcciones T-20261012-0318-chatgpt-19, T-20261012-0555-chatgpt-20 y T-20261012-0712-chatgpt-21.
 
 Este módulo no genera medios, no llama a ningún LLM y no gasta. Por contrato, todo plan lleva `executable: false` y `paidCalls: 0`.
 
@@ -624,10 +624,40 @@ Cómo leer esta tabla:
 - **sb002h y sb001** comparten casi todos los recursos (78 de 80 planos con el mismo recurso, o sin recurso en ambos), así que sus recetas coinciden en 77 de 80 planos: ahora la receta sigue al recurso, no al guion.
 - **Nada de esto es calidad cinematográfica validada.** Los temas salen de un léxico, los tiempos son estimados y no hay bytes de imagen. La puerta sigue en `ok=false` por licencias, presupuesto, revisiones y pendientes.
 
+### Corrección 3 (T-20261012-0712-chatgpt-21): correspondencia factual y tope de atmósfera neutral
+
+Esta corrección cierra los dos defectos que dejó abiertos la corrección 2.
+
+- **Correspondencia factual.** Una tarjeta, cita, mapa, cronología o diagrama determinista del storyboard (un `data_graphic` con ventana planificada) solo puede ilustrar la narración para la que se planificó. Lo comprueba `factualCorrespondence` en `policy.ts`, y tanto el módulo como la puerta usan esa misma función:
+  - El plano debe solaparse con la ventana del recurso en al menos el 30 % de su duración.
+  - Si el recurso y la frase corresponden a afirmaciones distintas del guion, se rechaza. Los años cuentan como clave fuerte.
+  - La única excepción es una continuación explícita: contigua, en el mismo segmento y dentro de la duración que el storyboard le asignó.
+  - Si no hay un recurso compatible, el plano queda pendiente.
+  - La base de la decisión (ventana, solape y afirmación) queda registrada en `decision.assetBasis`.
+  - La puerta emite `FACTUAL_MISMATCH` si se fuerza un recurso fuera de su ventana, contra otra afirmación o sostenido más tiempo del planificado.
+- **Caso sb003 beat-10.**
+  - El rumor no confirmado de 2026 (`beat-10-s3`) ya no recibe la cita de 2017 (`b10-s3`). Ahora muestra la tarjeta de transparencia `b10-s1`, que continúa sin cortes dentro de su ventana de 469 a 485 s.
+  - La cita de 2017 solo aparece en los planos sobre el estudio de 2017.
+- **Atmósfera neutral.** Sigue siendo una pausa declarada y revisable, con dos topes: como máximo el 10 % de los planos del plan y una por secuencia.
+  - Si se supera un tope, el plano queda pendiente; no se rellena con otra recreación.
+  - El módulo no emite justificaciones para superar el tope. La puerta emite `NEUTRAL_EXCESS`, y las métricas `neutralShots`, `neutralPct` y `maxNeutralPerSequence` registran los recuentos.
+- **Continuidad de receta.** Una continuación conserva la receta del plano al que continúa.
+
+| Fixture | Planos | Propuestos / débiles / pendientes | Atmósfera neutral | Máx. por secuencia | Desajustes factuales | Violaciones de política | Revisiones | Material nuevo | Repeticiones conceptuales | USD estimado |
+|---|---|---|---|---|---|---|---|---|---|---|
+| gobekli-storyboard-003 + script-003 | 106 | 68 / 11 / 27 | 9 (8.5 %) | 1 | 0 | 0 | 10 | 17 | 45 | 0.85 |
+| gobekli-storyboard-002-hybrid + script-002 | 80 | 49 / 11 / 20 | 7 (8.8 %) | 1 | 0 | 0 | 6 | 14 | 20 | 0.7 |
+| gobekli-storyboard-001 + script-002 | 80 | 49 / 11 / 20 | 7 (8.8 %) | 1 | 0 | 0 | 12 | 14 | 22 | 0.7 |
+
+Cómo leer la tabla:
+- Hay más pendientes que en la corrección 2: el exceso de relleno neutral ahora queda pendiente.
+- Las repeticiones conceptuales cuentan también las continuaciones de una misma tarjeta, que el informe marca con `continuation`.
+- La calidad cinematográfica sigue sin validar.
+
 ## 7. Impacto esperado (estimaciones, no facturación)
 
 - **Latencia del modo propuesta:** milisegundos (O(segmentos × recetas)); no usa red.
-- **Coste con `allowAiVideo=false`:** con los costes unitarios del plan de producción (imagen IA USD 0,05; clip Veo USD 0,96), tras la corrección 2, las tres comparaciones estiman entre USD 1,10 y 1,25 de imágenes nuevas para 8–11 minutos (antes 1,95–3,10). Baja porque las frases sensibles ya no generan material: quedan pendientes.
+- **Coste con `allowAiVideo=false`:** con los costes unitarios del plan de producción (imagen IA USD 0,05; clip Veo USD 0,96), tras la corrección 3, las tres comparaciones estiman entre USD 0,70 y 0,85 de imágenes nuevas para 8–11 minutos (antes 1,95–3,10). Baja porque las frases sensibles y el exceso de relleno neutral ya no generan material: quedan pendientes.
 - **Escalado a 15–30 minutos:** unos USD 4–9, solo en imágenes, si el inventario es tan escaso como el del storyboard.
 - **Con vídeo IA permitido:** un orden de magnitud más; en el peor caso, unos USD 80–160 para 15–30 minutos.
 - **Topes reales:** los siguen imponiendo `spend-cap.ts`, `production-budget.ts` y `paid-calls/gate.ts`.

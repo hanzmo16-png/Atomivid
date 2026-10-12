@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { loadRecipeCatalog } from "./recipes";
 import { readFileSync } from "node:fs";
 import { proposePlan, splitSpan, anchorFor, unitsFor, compatibleRecipes } from "./propose";
-import { assetVisualType, topicsOf } from "./policy";
+import { assetVisualType, claimFor, topicsOf } from "./policy";
 import { editorialReport } from "./report";
 import { inputFromStoryboard } from "./from-storyboard";
 import { auditPlan } from "./audit";
@@ -289,9 +289,13 @@ test("policy: «restos de plantas» and a bare «hueso» are not human remains; 
 test("policy: a neutral landscape next to sensitive narration is possible only declared, with a text card, and under review", () => {
   const card = { id: "card", kind: "text" as const, provenance: "data_graphic" as const, motion: "still" as const, license: "CLEARED" as const, tags: ["segment:s2"],
     content: { visualType: "text" as const, topics: ["research"], window: { segmentId: "s2", from: 0, to: 0.5 } } };
-  const inp = { ...docInput("x"), totalSeconds: 18, segments: [
+  // Eight ordinary landscape segments make the plan large enough (11 shots) for one neutral pause under the 10% cap.
+  const filler = Array.from({ length: 8 }, (_, k) => ({ id: `f${k}`, start: 18 + k * 6, end: 24 + k * 6, text: "Una colina al amanecer en la región." }));
+  const fillerAssets = filler.map(f => ({ id: `land-${f.id}`, kind: "image" as const, provenance: "stock_illustrative" as const, motion: "still" as const, license: "CLEARED" as const,
+    tags: [`segment:${f.id}`, "colina", "amanecer"], content: { visualType: "landscape" as const, topics: ["landscape"] } }));
+  const inp = { ...docInput("x"), totalSeconds: 66, segments: [
     { id: "s1", start: 0, end: 6, text: "Se habría publicado un estudio que nadie pudo confirmar." },
-    { id: "s2", start: 6, end: 18, text: "No pudimos confirmar esa publicación. No hay otra fuente que lo respalde." }], inventory: [card] };
+    { id: "s2", start: 6, end: 18, text: "No pudimos confirmar esa publicación. No hay otra fuente que lo respalde." }, ...filler], inventory: [card, ...fillerAssets] };
   const plan = proposePlan(inp, catalog);
   // Without a text card (s1) nothing is generated; with one (s2) the card leads and a declared neutral shot may follow.
   assert.ok(plan.shots.filter(s => s.segmentId === "s1").every(s => s.asset.status === "none" && s.decision.status === "pending"));
@@ -423,4 +427,75 @@ test("the module emits its own decision record; pending is explicit and never fi
     assert.equal(rep.totals.shots, plan.shots.length);
     assert.ok(rep.sequences.every(q => q.movement.note.includes("no verificado")));
   }
+});
+
+// ---- Correction 3 (T-20261012-0712-chatgpt-21): factual correspondence by window/claim; neutral atmosphere caps. ----
+
+test("sb003 beat-10-s3 (unconfirmed 2026 rumour) never uses the 2017 quote b10-s3; the quote stays with the 2017 claim", () => {
+  const { plan, inp } = SB003;
+  const rumour = plan.shots.find(s => s.id === "beat-10-s3")!;
+  assert.ok(rumour.anchorText.includes("restos humanos y posibles enterramientos"));
+  assert.notEqual(rumour.asset.assetId, "b10-s3");
+  assert.ok(rumour.asset.assetId === "b10-s1" || rumour.decision.status === "pending", `${rumour.asset.assetId}`);
+  if (rumour.asset.assetId === "b10-s1") assert.ok(rumour.decision.assetBasis.some(b => b.includes("correspondencia factual")));
+  const seg = DirectorInputSchema.parse(inp).segments.find(s => s.id === "beat-10")!;
+  for (const s of plan.shots.filter(x => x.asset.assetId === "b10-s3")) {
+    assert.equal(claimFor(seg, s.anchorText)?.id ?? "b10-c2", "b10-c2", `${s.id} «${s.anchorText}»`);
+    assert.ok(s.start >= 469 + 32 - 8, `${s.id} starts at ${s.start}, the quote is planned for 501–517 s`);
+  }
+});
+
+test("gate: a factual card, quote or diagram forced outside its window or onto another claim is FACTUAL_MISMATCH", () => {
+  const { plan, inp } = SB003;
+  const rumour = plan.shots.find(s => s.id === "beat-10-s3")!;
+  const quote = mapShot(plan, rumour, s => ({ ...s, recipeId: "doc-expert-quote-text", recipeVersion: 2,
+    asset: { status: "chosen", assetId: "b10-s3", provenance: "data_graphic", alternatives: [], label: null, continuation: false }, newMaterial: undefined }));
+  assert.ok(codes(quote, inp).includes("FACTUAL_MISMATCH"));
+  // The pillar diagram b3-s1 (planned for the first window of beat-3) moved onto the last shot of beat-3.
+  const lastBeat3 = [...plan.shots].reverse().find(s => s.segmentId === "beat-3")!;
+  const moved = mapShot(plan, lastBeat3, s => ({ ...s, recipeId: "doc-schematic-diagram", recipeVersion: 1, movement: { kind: "graphic_animation", realMotion: false },
+    asset: { status: "chosen", assetId: "b3-s1", provenance: "data_graphic", alternatives: [], label: null, continuation: false }, newMaterial: undefined }));
+  assert.ok(codes(moved, inp).includes("FACTUAL_MISMATCH"));
+  // A "continuation" held longer than the storyboard planned is also caught.
+  const held = plan.shots.filter(s => s.segmentId === "beat-10");
+  const forcedHold: DirectorPlan = { ...plan, shots: plan.shots.map(s => held.includes(s) && s !== held[0]
+    ? { ...s, recipeId: held[0].recipeId, recipeVersion: held[0].recipeVersion, movement: { kind: "static", realMotion: false },
+        asset: { ...held[0].asset, continuation: true }, newMaterial: undefined } : s) };
+  assert.ok(codes(forcedHold, inp).includes("FACTUAL_MISMATCH"));
+});
+
+test("neutral atmosphere is capped: ≤10% of the plan and ≤1 per sequence; beyond that the shot stays pending", () => {
+  for (const { plan, inp } of [SB003, SB002H, SB001]) {
+    const m = auditPlan(plan, inp, catalog).metrics!;
+    assert.ok(m.neutralPct <= 10 && m.maxNeutralPerSequence <= 1, `${m.neutralPct}% / ${m.maxNeutralPerSequence}`);
+    assert.ok(!codes(plan, inp).includes("NEUTRAL_EXCESS"));
+    for (const s of plan.shots.filter(x => x.decision.pendingReason?.includes("tope de atmósfera neutral"))) assert.ok(!s.newMaterial && s.asset.status === "none");
+  }
+  const { plan, inp } = SB003;
+  const asNeutral = (s: DirectorPlan["shots"][number]): DirectorPlan["shots"][number] => ({ ...s, recipeId: "doc-neutral-atmosphere", recipeVersion: 1, movement: { kind: "static", realMotion: false },
+    asset: { status: "needs_new", provenance: "ai_recreation", alternatives: [], label: "recreacion_ia" }, newMaterial: { reason: "x", kind: "ai_image", estimatedMaxUsd: 0.05 },
+    decision: { ...s.decision, neutral: true, status: "proposed" } });
+  // Over 10%: one extra neutral pause in each of 12 sequences (no explicit justification exists).
+  const firstPerSeq = [...new Map(plan.shots.filter(s => s.asset.status !== "locked" && !s.decision.neutral).map(s => [s.segmentId, s])).values()].slice(0, 12);
+  const many: DirectorPlan = { ...plan, shots: plan.shots.map(s => firstPerSeq.includes(s) ? asNeutral(s) : s) };
+  assert.ok(codes(many, inp).includes("NEUTRAL_EXCESS"));
+  // Two pauses in one sequence, even separated by other shots.
+  const seq = plan.shots.filter(s => s.segmentId === "beat-4");
+  const two: DirectorPlan = { ...plan, shots: plan.shots.map(s => s === seq[0] || s === seq[seq.length - 1] ? asNeutral(s) : s) };
+  assert.ok(codes(two, inp).some(c => c === "NEUTRAL_EXCESS"));
+  assert.ok(auditPlan(two, inp, catalog).issues.some(i => i.code === "NEUTRAL_EXCESS" && i.detail.includes("sequence beat-4")));
+});
+
+test("all earlier controls stay green on the three plans after correction 3", () => {
+  for (const { plan, inp } of [SB003, SB002H, SB001]) {
+    const c = codes(plan, inp), m = auditPlan(plan, inp, catalog).metrics!;
+    for (const bad of ["POLICY_VIOLATION", "POLICY_MISMATCH", "FACTUAL_MISMATCH", "NEUTRAL_EXCESS", "FAKE_MOTION", "MOVEMENT_INCOMPATIBLE", "DUPLICATE_ASSET",
+      "RECIPE_INCOMPATIBLE", "COST_INCONSISTENT", "AI_VIDEO_NOT_ALLOWED", "LOCKED_SEGMENT_ALTERED", "PROVENANCE_MISMATCH", "LABEL_MISMATCH", "RECREATION_WITHOUT_LABEL",
+      "UNKNOWN_ASSET", "INCONSISTENT_ASSET_STATUS", "GAP_OR_OVERLAP", "SEGMENT_NOT_COVERED", "ANCHOR_NOT_IN_TEXT", "CONTRACT_INVALID", "PAID_EXECUTION"])
+      assert.ok(!c.includes(bad as never), bad);
+    assert.ok(m.coveragePct === 100 && m.durationOk && m.paidCalls === 0 && m.factualMismatches === 0);
+    assert.ok(plan.executable === false && plan.paidCalls === 0);
+    assert.ok(plan.shots.filter(s => s.policy.class === "human_remains").every(s => s.asset.provenance !== "ai_recreation" && s.asset.provenance !== "stock_illustrative"));
+  }
+  assert.equal(cinematicDirectorV2Enabled({}), false);
 });

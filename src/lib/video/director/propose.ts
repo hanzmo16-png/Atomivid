@@ -18,7 +18,10 @@ import {
   type DirectorInput, type DirectorInputRaw, type DirectorPlan, type InventoryAsset, type PlannedShot, type Recipe, type RecipeCatalog,
 } from "./contract";
 import { recipesFor } from "./recipes";
-import { assetTopics, assetVisualType, normalize, topicsOf, treatmentAllowed, unitPolicy, visualFromTopics, words, type UnitPolicy, type VisualType } from "./policy";
+import {
+  assetTopics, assetVisualType, factualCorrespondence, normalize, NEUTRAL_MAX_PER_SEQUENCE, NEUTRAL_MAX_SHARE, topicsOf, treatmentAllowed, unitPolicy,
+  visualFromTopics, words, type UnitPolicy, type VisualType,
+} from "./policy";
 
 export { normalize, words };
 
@@ -127,6 +130,10 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
   const shots: PlannedShot[] = [];
   const recent: string[] = [];
   let estimated = 0;
+  // Neutral atmosphere is a declared pause, never dominant filler: at most 10% of the free shots, one per sequence.
+  const unitsBySeg = new Map(input.segments.filter(s => !s.locked).map(s => [s.id, unitsFor(s, minS, maxS)]));
+  const neutralCap = Math.floor(NEUTRAL_MAX_SHARE * [...unitsBySeg.values()].reduce((n, u) => n + u.length, 0));
+  let neutralTotal = 0;
 
   for (const seg of input.segments) {
     if (seg.locked) {
@@ -149,9 +156,9 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
     // Evidence goes through the same licence control as any other asset: NOT_CLEARED is never used.
     const evidenceRaw = seg.evidenceAssetId ? byId.get(seg.evidenceAssetId) : undefined;
     const evidence = evidenceRaw && evidenceRaw.license !== "NOT_CLEARED" ? evidenceRaw : undefined;
-    const units = unitsFor(seg, minS, maxS);
+    const units = unitsBySeg.get(seg.id)!;
     const hasTextCompanion = input.inventory.some(a => a.kind === "text" && a.tags.includes(`segment:${seg.id}`) && a.license !== "NOT_CLEARED");
-    let prevAsset: InventoryAsset | undefined, heldSeconds = 0, prevNeutral = false;
+    let prevAsset: InventoryAsset | undefined, prevRecipe: Recipe | undefined, heldSeconds = 0, neutralInSeq = 0;
 
     units.forEach((u, i) => {
       const position = units.length === 1 ? "only" : i === 0 ? "first" : i === units.length - 1 ? "last" : "middle";
@@ -181,7 +188,11 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
         const at = assetTopics(a), hitsT = unitTopics.filter(t => at.includes(t));
         const wordHits = a.tags.filter(t => !t.includes(":") && unitWords.has(normalize(t)));
         const inWindow = !!a.content?.window && a.content.window.segmentId === seg.id && mid >= a.content.window.from - 1e-9 && mid <= a.content.window.to + 1e-9;
-        const eligible = a === useEvidence || hitsT.length > 0 || wordHits.length >= 2 || (planned && inWindow && unitTopics.length === 0);
+        // A factual deterministic asset must match this unit's window and claim (correction 3); a true card next to
+        // another statement would look like its support. A valid continuation of the same card is the exception.
+        const fc = factualCorrespondence(seg, a, u.start, u.end, u.text, continuation);
+        if (!fc.ok) continue;
+        const eligible = a === useEvidence || continuation || hitsT.length > 0 || wordHits.length >= 2 || (planned && inWindow && unitTopics.length === 0);
         if (!eligible) continue;
         const visual = assetVisualType(a);
         const verdict = treatmentAllowed(policy, { provenance: a.provenance, visual, isNew: false, plannedForSegment: planned, topicMatch: hitsT.length > 0, neutral: false, showsRemains: at.includes("remains") }, hasTextCompanion);
@@ -193,6 +204,7 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
           ...(planned ? ["planificado en el storyboard para este beat"] : []),
           ...(inWindow ? ["su ventana temporal del storyboard cubre este plano"] : []),
           ...(continuation ? ["continuación del mismo gráfico (se construye por etapas)"] : []),
+          ...fc.basis.map(b => `correspondencia factual: ${b}`),
           `política ${policy.class}: ${verdict.reason}`,
         ];
         const score = (a === useEvidence ? 100 : 0) + hitsT.length * 3 + Math.min(wordHits.length, 3) + (planned ? 2 : 0) + (inWindow ? 2 : 0) - (continuation ? 1.5 : 0);
@@ -212,7 +224,15 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
       };
 
       let chosen: Cand | undefined, match: ReturnType<typeof pickRecipe>;
-      for (const c of cands) { const m = pickRecipe(assetVisualType(c.a), c.a.provenance, false); if (m) { chosen = c; match = m; break; } }
+      for (const c of cands) {
+        let m = pickRecipe(assetVisualType(c.a), c.a.provenance, false);
+        // A continuation keeps the recipe of the shot it continues when that recipe is still compatible.
+        if (m && c.continuation && prevRecipe && m.recipe.id !== prevRecipe.id) {
+          const same = compatibleRecipes(pool, assetVisualType(c.a), c.a.provenance, u.text, unitTopics, position, false).find(x => x.recipe.id === prevRecipe!.id);
+          if (same) m = { ...same, tieBreak: null, alternatives: m.alternatives };
+        }
+        if (m) { chosen = c; match = m; break; }
+      }
       const recipeless = !chosen ? cands[0] : undefined;
 
       // ---- 3. No compatible asset: new generic material only where the policy allows it; otherwise pending.
@@ -222,8 +242,9 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
         const generic = treatmentAllowed(policy, { provenance: "ai_recreation", visual: visualFromTopics(unitTopics), isNew: true, plannedForSegment: false, topicMatch: false, neutral: false }, hasTextCompanion);
         const asNeutral = treatmentAllowed(policy, { provenance: "ai_recreation", visual: "landscape", isNew: true, plannedForSegment: false, topicMatch: false, neutral: true }, hasTextCompanion);
         if (generic.allowed) { newVisual = visualFromTopics(unitTopics); match = pickRecipe(newVisual, "ai_recreation", false); }
-        // One declared neutral shot is a pause; two in a row are filler: the second one stays pending.
-        if (!match && asNeutral.allowed && !prevNeutral) { neutral = true; newVisual = "landscape"; match = pickRecipe("landscape", "ai_recreation", true); review = asNeutral.review; }
+        // One declared neutral shot is a pause; more is filler: beyond the caps the shot stays pending.
+        const neutralRoom = neutralInSeq < NEUTRAL_MAX_PER_SEQUENCE && neutralTotal < neutralCap;
+        if (!match && asNeutral.allowed && neutralRoom) { neutral = true; newVisual = "landscape"; match = pickRecipe("landscape", "ai_recreation", true); review = asNeutral.review; }
         if (match) {
           const wantsMotion = match.recipe.movement.kind === "real_motion";
           const kind = wantsMotion && input.budget.allowAiVideo ? "ai_video" : "ai_image";
@@ -235,7 +256,7 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
           newVisual = null;
           pendingReason = !generic.allowed && !asNeutral.allowed
             ? `política ${policy.class}: ${generic.reason}; no hay evidencia real ni tarjeta compatible en el inventario → revisión humana (no se genera)`
-            : asNeutral.allowed && prevNeutral ? "ya hay una atmósfera neutral justo antes: no se encadena relleno → revisión humana"
+            : asNeutral.allowed && !neutralRoom ? `tope de atmósfera neutral alcanzado (${NEUTRAL_MAX_PER_SEQUENCE} por secuencia, ${neutralCap} en el plan = ${NEUTRAL_MAX_SHARE * 100} %): no se añade relleno → revisión humana`
             : "ninguna receta del catálogo acepta este tipo de material para esta frase → revisión humana";
         }
       } else if (recipeless) {
@@ -262,7 +283,8 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
       if (asset && !(chosen?.continuation || recipeless?.continuation)) used.push(asset);
       heldSeconds = asset && asset.id === prevAsset?.id ? heldSeconds + (u.end - u.start) : u.end - u.start;
       prevAsset = asset;
-      prevNeutral = neutral;
+      if (neutral) { neutralInSeq++; neutralTotal++; }
+      prevRecipe = match?.recipe;
       const provenance = asset?.provenance ?? (newMaterial ? "ai_recreation" : undefined);
       if (asset?.license === "NEEDS_REVIEW") uncertainty.push(`licencia de ${asset.id} pendiente de revisión: no aprobable hasta revisarla`);
       if (review) uncertainty.push(review);

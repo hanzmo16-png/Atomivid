@@ -6,7 +6,7 @@
  */
 import { hammingHex, PERCEPTUAL_DUPLICATE_MAX_DISTANCE } from "@/lib/video/long-form/asset-identity";
 import { DirectorInputSchema, DirectorPlanSchema, type DirectorInputRaw, type InventoryAsset, type PlannedShot, type RecipeCatalog } from "./contract";
-import { assetTopics, assetVisualType, topicsOf, treatmentAllowed, unitPolicy, visualFromTopics } from "./policy";
+import { assetTopics, assetVisualType, factualCorrespondence, NEUTRAL_MAX_PER_SEQUENCE, NEUTRAL_MAX_SHARE, topicsOf, treatmentAllowed, unitPolicy, visualFromTopics } from "./policy";
 
 export type IssueCode =
   | "CONTRACT_INVALID" | "PAID_EXECUTION" | "DURATION_MISMATCH" | "GAP_OR_OVERLAP" | "SEGMENT_NOT_COVERED"
@@ -18,7 +18,9 @@ export type IssueCode =
   | "RECIPE_VERSION_MISMATCH" | "CATALOG_MISMATCH" | "LICENSE_NOT_CLEARED" | "LICENSE_PENDING"
   | "PROVENANCE_MISMATCH" | "LABEL_MISMATCH" | "COST_INCONSISTENT" | "AI_VIDEO_NOT_ALLOWED" | "SHOT_OUTSIDE_SEGMENT"
   // Correction 2 (Codex editorial audit): documentary policy, recipe/asset compatibility, honest pending decisions.
-  | "POLICY_MISMATCH" | "POLICY_VIOLATION" | "POLICY_REVIEW" | "DECISION_PENDING" | "RECIPE_INCOMPATIBLE" | "MOVEMENT_INCOMPATIBLE";
+  | "POLICY_MISMATCH" | "POLICY_VIOLATION" | "POLICY_REVIEW" | "DECISION_PENDING" | "RECIPE_INCOMPATIBLE" | "MOVEMENT_INCOMPATIBLE"
+  // Correction 3: factual deterministic assets bound to their window/claim; neutral atmosphere caps.
+  | "FACTUAL_MISMATCH" | "NEUTRAL_EXCESS";
 export type Issue = { code: IssueCode; shotId?: string; detail: string };
 
 export type AuditMetrics = {
@@ -26,6 +28,7 @@ export type AuditMetrics = {
   intentVerifiablePct: number; recipeVariety: number; maxSameRecipeRun: number; labelsOk: boolean; needsNew: number;
   licensePending: number; estimatedMaxUsd: number; paidCalls: 0; semanticQuality: "estimado/no validado";
   pendingDecisions: number; policyReview: number; policyViolations: number; realMotionShots: number;
+  neutralShots: number; neutralPct: number; maxNeutralPerSequence: number; factualMismatches: number;
 };
 
 const EPS = 0.05;
@@ -101,6 +104,7 @@ export function auditPlan(planRaw: unknown, inputRaw: DirectorInputRaw, catalog:
 
   // ---- Budget: recomputed from newMaterial and the INPUT unit costs; the declared total is only cross-checked.
   let recomputed = 0;
+  const held = new Map<string, number>();
   const seen: { id: string; sha?: string; dhash?: string; shot: string }[] = [];
   for (const s of shots) {
     const seg = segs.get(s.segmentId), dur = s.end - s.start;
@@ -140,6 +144,15 @@ export function auditPlan(planRaw: unknown, inputRaw: DirectorInputRaw, catalog:
       // A deterministic graphic may continue over the immediately preceding shot of the same segment; nothing else repeats.
       const prevShot = shots[shots.indexOf(s) - 1];
       const legitContinuation = a.continuation === true && asset.provenance === "data_graphic" && prevShot?.segmentId === s.segmentId && prevShot.asset.assetId === asset.id;
+      // Factual correspondence (correction 3): window + claim, recomputed; a continuation stays within the planned duration.
+      held.set(s.id, legitContinuation ? (held.get(prevShot!.id) ?? 0) + dur : dur);
+      if (seg && asset.provenance === "data_graphic" && asset.content?.window) {
+        const plannedSeconds = (asset.content.window.to - asset.content.window.from) * (seg.end - seg.start);
+        const contOk = legitContinuation && held.get(s.id)! <= plannedSeconds + EPS;
+        if (legitContinuation && !contOk) add("FACTUAL_MISMATCH", `${asset.id} held ${held.get(s.id)!.toFixed(1)} s > planned ${plannedSeconds.toFixed(1)} s`, s.id);
+        const fc = factualCorrespondence(seg, asset, s.start, s.end, s.anchorText, contOk);
+        if (!fc.ok) add("FACTUAL_MISMATCH", `${asset.id}: ${fc.reason}`, s.id);
+      }
       if (a.continuation && !legitContinuation) add("DUPLICATE_ASSET", `${asset.id}: continuation only for a deterministic graphic right after the same graphic in the same segment`, s.id);
       const dup = legitContinuation ? undefined : seen.find(u => u.id === asset.id || (asset.sha256 && u.sha === asset.sha256) || (asset.dhash && u.dhash && hammingHex(asset.dhash, u.dhash) <= PERCEPTUAL_DUPLICATE_MAX_DISTANCE));
       if (dup) add("DUPLICATE_ASSET", `${asset.id} repeats ${dup.shot}`, s.id);
@@ -199,6 +212,16 @@ export function auditPlan(planRaw: unknown, inputRaw: DirectorInputRaw, catalog:
   if (budgetBasis > input.budget.remainingUsd + 1e-9) add("BUDGET_EXCEEDED", `${budgetBasis} > ${input.budget.remainingUsd} (estimates, never an authorisation)`);
 
   const unlocked = shots.filter((s: PlannedShot) => s.asset.status !== "locked");
+  // ---- Neutral atmosphere caps (correction 3): a declared pause, never dominant filler.
+  const neutralShots = unlocked.filter(s => s.decision.neutral && s.asset.status === "needs_new");
+  const neutralCap = Math.floor(NEUTRAL_MAX_SHARE * unlocked.length);
+  const perSeq = new Map<string, number>();
+  neutralShots.forEach((s, i) => {
+    const n = (perSeq.get(s.segmentId) ?? 0) + 1;
+    perSeq.set(s.segmentId, n);
+    if (n > NEUTRAL_MAX_PER_SEQUENCE) add("NEUTRAL_EXCESS", `neutral atmosphere #${n} in sequence ${s.segmentId} (max ${NEUTRAL_MAX_PER_SEQUENCE})`, s.id);
+    if (i + 1 > neutralCap) add("NEUTRAL_EXCESS", `neutral atmosphere #${i + 1} exceeds ${NEUTRAL_MAX_SHARE * 100}% of ${unlocked.length} shots (cap ${neutralCap})`, s.id);
+  });
   const metrics: AuditMetrics = {
     shots: shots.length,
     coveragePct: Math.round((covered / input.segments.length) * 1000) / 10,
@@ -217,6 +240,10 @@ export function auditPlan(planRaw: unknown, inputRaw: DirectorInputRaw, catalog:
     policyReview: issues.filter(i => i.code === "POLICY_REVIEW").length,
     policyViolations: issues.filter(i => i.code === "POLICY_VIOLATION").length,
     realMotionShots: shots.filter(s => s.movement.realMotion).length,
+    neutralShots: neutralShots.length,
+    neutralPct: unlocked.length ? Math.round((neutralShots.length / unlocked.length) * 1000) / 10 : 0,
+    maxNeutralPerSequence: Math.max(0, ...perSeq.values()),
+    factualMismatches: issues.filter(i => i.code === "FACTUAL_MISMATCH").length,
   };
   return { ok: issues.length === 0, issues, metrics };
 }
