@@ -350,3 +350,29 @@ test("apertura: proveedor sin candidatos verificables no puede saltar la comprob
   delete provider.searchVideoCandidates;
   await assert.rejects(() => selectFootageForScene(openingArgs(provider)), { name: "OpeningFootageUnavailableError" });
 });
+
+test("apertura: a igualdad de relevancia prefiere detalle útil tras recortar a vertical", async () => {
+  const outcome = await selectFootageForScene(openingArgs(openingProvider([
+    makeCandidate("horizontal", { width: 1920, height: 1080, description: "Woman filming with a smartphone" }),
+    makeCandidate("vertical", { width: 720, height: 1280, description: "Woman filming with a smartphone" }),
+  ])));
+  assert.equal(outcome.sourceId, "vertical");
+});
+
+test("apertura: exclusiones usan los mismos sinónimos que la aceptación", async () => {
+  const args = openingArgs(openingProvider([
+    makeCandidate("excluded", { description: "Woman filming with a smartphone" }),
+  ]));
+  await assert.rejects(() => selectFootageForScene({ ...args, excludedTerms: ["phone"] }),
+    { name: "OpeningFootageUnavailableError" });
+  assert.equal(args.state.usedSourceIds.size, 0);
+});
+
+test("apertura: excluir phone no excluye headphones por coincidencia parcial", async () => {
+  const outcome = await selectFootageForScene({
+    ...openingArgs(openingProvider([
+      makeCandidate("headphones", { description: "Musician recording with headphones" }),
+    ]), ["musician recording headphones"]), excludedTerms: ["phone"],
+  });
+  assert.equal(outcome.sourceId, "headphones");
+});

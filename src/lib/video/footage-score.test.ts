@@ -93,3 +93,26 @@ test("rankCandidates ordena de mayor a menor score", () => {
     ["b", "c", "a"],
   );
 });
+
+test("vertical: 720x1280 conserva más detalle que un horizontal 1920x1080 recortado", () => {
+  const opts = { conceptTier: 0, photographerUseCount: new Map(), minimumDurationSeconds: 3 };
+  const portrait = scoreCandidate(candidate({ width: 720, height: 1280 }), opts);
+  const landscape = scoreCandidate(candidate({ width: 1920, height: 1080 }), opts);
+  assert.ok(portrait.score > landscape.score);
+});
+
+test("vertical: un horizontal 4K sí puede cubrir 1080x1920 sin ampliar", () => {
+  const opts = { conceptTier: 0, photographerUseCount: new Map(), minimumDurationSeconds: 3 };
+  const fullHdPortrait = scoreCandidate(candidate(), opts);
+  const fourKLandscape = scoreCandidate(candidate({ width: 3840, height: 2160 }), opts);
+  assert.equal(fourKLandscape.score, fullHdPortrait.score);
+});
+
+test("dimensiones incompletas o inválidas no acreditan resolución", () => {
+  const opts = { conceptTier: 0, photographerUseCount: new Map(), minimumDurationSeconds: 3 };
+  const unknown = scoreCandidate(candidate({ width: undefined, height: undefined }), opts);
+  for (const dimensions of [
+    { width: 3840, height: undefined }, { width: Infinity, height: 2160 },
+    { width: 1080, height: 0 }, { width: -1, height: 1920 },
+  ]) assert.equal(scoreCandidate(candidate(dimensions), opts).score, unknown.score);
+});
