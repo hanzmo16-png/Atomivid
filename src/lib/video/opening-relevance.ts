@@ -26,12 +26,16 @@ export function assessOpeningRelevance(candidate: FootageCandidate, concepts: st
   const description = candidate.description?.trim();
   if (!description) return result(false, [], "descripción del proveedor ausente; contenido sin comprobar");
   const candidateRaw = rawTerms(description).join(" ");
+  // Use the same known aliases on both sides of an exclusion as on positive
+  // evidence. Keep every token and phrase boundary: "phone" must catch
+  // "smartphone", but never a substring in "headphones".
+  const candidateCanonical = rawTerms(description).map(t => ALIASES[t] ?? t).join(" ");
   const intendedRaw = rawTerms(concepts.join(" ")).join(" ");
   for (const reaction of REACTIONS) if (reaction.test(candidateRaw) && !reaction.test(intendedRaw))
     return result(false, [], "reacción exagerada no solicitada en la apertura");
   for (const excluded of excludedTerms) {
-    const phrase = rawTerms(excluded).join(" ");
-    if (phrase && ` ${candidateRaw} `.includes(` ${phrase} `)) return result(false, [], "contenido excluido por el guion");
+    const phrase = rawTerms(excluded).map(t => ALIASES[t] ?? t).join(" ");
+    if (phrase && ` ${candidateCanonical} `.includes(` ${phrase} `)) return result(false, [], "contenido excluido por el guion");
   }
   const groups = concepts.map(terms).filter(g => g.length);
   if (!groups.length) return result(false, [], "la apertura necesita un objeto o actividad concretos");
