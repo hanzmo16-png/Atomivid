@@ -1,5 +1,5 @@
 clips
 GASTAR
-mirror=s08
+only=s08
 use=s02@2,s03@m,s04@m,s08@m
-# run 7: 8 Veo clips (one per planned shot) from the reviewed keyframes; s08 mirrored (cost 0) so the final shot keeps the journey direction
+# run 8: retry s08 only — run 7 got HTTP 429 at submit (refused before acceptance: no charge)
