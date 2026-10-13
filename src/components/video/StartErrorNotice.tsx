@@ -13,7 +13,20 @@ export function rememberStartError(requestId: string, message: string) {
   try { sessionStorage.setItem(key(requestId), message.slice(0, 600)); } catch { /* best effort */ }
 }
 
-export function StartErrorNotice({ requestId }: { requestId: string }) {
+/**
+ * The next step the notice names must exist on the page for the request's CURRENT status: a confirmed plan
+ * that never left `script_ready` shows «Iniciar producción»; a start whose worker trigger failed is already
+ * `failed` (the attempt counts) and the page offers «Reintentar». Any other status: the notice is stale.
+ */
+export function startErrorNextStep(status: string, retryAvailable: boolean): string | null {
+  if (status === "script_ready") return "No se generó ningún cargo. Puedes volver a pulsar «Iniciar producción».";
+  if (status === "failed") return retryAvailable
+    ? "No se generó ningún cargo. Puedes volver a intentarlo con «Reintentar» (usa uno de los intentos disponibles)."
+    : "No se generó ningún cargo. Ya no quedan intentos para este plan.";
+  return null;
+}
+
+export function StartErrorNotice({ requestId, status, retryAvailable }: { requestId: string; status: string; retryAvailable: boolean }) {
   const [message, setMessage] = useState<string | null>(null);
   useEffect(() => {
     try {
@@ -26,12 +39,13 @@ export function StartErrorNotice({ requestId }: { requestId: string }) {
       }
     } catch { /* storage unavailable */ }
   }, [requestId]);
-  if (!message) return null;
+  const nextStep = startErrorNextStep(status, retryAvailable);
+  if (!message || !nextStep) return null;
   return (
     <Alert tone="warning" role="alert">
       <p className="font-medium">El plan quedó confirmado, pero la producción no se inició.</p>
       <p className="mt-1">{message}</p>
-      <p className="mt-1">No se generó ningún cargo. Puedes volver a pulsar «Iniciar producción».</p>
+      <p className="mt-1">{nextStep}</p>
     </Alert>
   );
 }

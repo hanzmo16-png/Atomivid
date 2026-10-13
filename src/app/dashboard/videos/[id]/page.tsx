@@ -1,4 +1,5 @@
 import { StartErrorNotice } from "@/components/video/StartErrorNotice";
+import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
 import { randomUUID } from "node:crypto";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -98,7 +99,7 @@ export default async function VideoResultPage({
   return (
     <div className="mx-auto max-w-md">
       <AutoRefresh active={request.status === "processing"} />
-      <StartErrorNotice requestId={request.id} />
+      <StartErrorNotice requestId={request.id} status={request.status} retryAvailable={request.render_attempts < MAX_RENDER_ATTEMPTS} />
       <ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} thumbnailRequested={thumbnailRequested} nowMs={nowMs} avatarRecovery={avatarRecovery} />
       {directorRows && directorRows.length > 0 && <DirectorAppliedPanel rows={directorRows} />}
     </div>

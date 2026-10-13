@@ -3,10 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import { ScriptJobCard } from "@/components/video/ScriptJobCard";
 import { DocumentaryDraftView } from "@/components/video/DocumentaryDraftView";
 import { AutoRefresh } from "@/app/dashboard/AutoRefresh";
+import { Alert } from "@/components/ui/Alert";
 import { scriptJobView, SCRIPT_JOB_COLUMNS, type ScriptJobSummary } from "@/lib/video/long-form/script-job-types";
 import { reconcileStaleScriptJobs } from "@/lib/video/long-form/script-jobs";
-export default async function ScriptJobPage({params}:{params:Promise<{id:string}>}) {
- const {id}=await params, client=await createClient();
+export default async function ScriptJobPage({params,searchParams}:{params:Promise<{id:string}>;searchParams:Promise<{existing?:string}>}) {
+ const {id}=await params, {existing}=await searchParams, client=await createClient();
  const {data:{user}}=await client.auth.getUser();
  if(!user) redirect("/login");
  // A dead worker becomes a persisted "interrupted" state, never endless loading.
@@ -20,6 +21,7 @@ export default async function ScriptJobPage({params}:{params:Promise<{id:string}
  // eslint-disable-next-line react-hooks/purity
  const now=Date.now();
  return <div><h1 className="mb-4 text-2xl font-bold">Preparación del documental</h1>
+  {existing==="1" && <div className="mb-4"><Alert tone="info">Ya tenías una preparación con exactamente estos datos: es esta. No se creó otra ni se cobró nada. Para un guion distinto, cambia el tema, la duración o las referencias.</Alert></div>}
   <AutoRefresh active={scriptJobView(job,now).refresh}/><ScriptJobCard job={job} nowMs={now}/>
   {job.status!=="completed" && <DocumentaryDraftView value={data.editorial_checkpoint}/>}</div>;
 }
