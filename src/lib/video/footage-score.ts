@@ -1,15 +1,10 @@
 import type { FootageCandidate } from "@/lib/providers/types";
 
 /**
- * Puntuación de candidatos de footage — aproximación explícita, no
- * "relevancia semántica" real: Pexels no expone tags/descripciones ricas
- * por candidato en su respuesta de búsqueda (solo dimensiones, duración y
- * fotógrafo), así que no hay forma de medir con este proveedor si el
- * CONTENIDO visual de un candidato corresponde de verdad a la idea de la
- * escena — eso requeriría un modelo de visión o embeddings sobre miniaturas,
- * un paso pagado que no está autorizado sin aprobación explícita (ver
- * comparación de proveedores en el reporte de esta fase). Lo que SÍ se
- * puede medir y puntuar con los datos disponibles:
+ * Puntuación técnica y de diversidad, no inspección del contenido visual.
+ * La apertura pasa antes por opening-relevance.ts usando la descripción
+ * pública del proveedor. Esa comprobación textual tampoco inspecciona píxeles.
+ * Aquí se puntúa:
  *
  * - qué tan directo es el concepto que produjo el candidato (el primero
  *   de la lista es la interpretación principal de la escena; los
