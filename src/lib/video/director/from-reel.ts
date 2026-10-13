@@ -22,6 +22,10 @@ export type ReelAdapterOptions = {
   avatarScenes?: { sceneId: string; assetId: string }[];
   /** Planning costs used only to estimate what NEW material would cost (no budget is authorised here). */
   unitCostsUsd?: { ai_image: number; ai_video: number };
+  /** Shot-length bounds; a shot list passes its own (one planned shot per segment). Default: Reel 1.5–6 s. */
+  shotSeconds?: { min: number; max: number };
+  /** Declared AI fiction: plan with the fiction recipe set. */
+  style?: "fiction";
 };
 
 export function inputFromReel(storyboard: Storyboard, opts: ReelAdapterOptions = {}): DirectorInputRaw {
@@ -62,8 +66,9 @@ export function inputFromReel(storyboard: Storyboard, opts: ReelAdapterOptions =
   return {
     version: DIRECTOR_INPUT_VERSION, genre: "reel", aspect: "9:16", totalSeconds: Math.round(cursor * 1000) / 1000, segments, inventory,
     // Reels are short: 1.5-6 s units read better on a phone than the documentary 3-8 s default.
-    constraints: { minShotSeconds: 1.5, maxShotSeconds: 6, maxTitleSeconds: 3, subtitleLines: 2 },
+    constraints: { minShotSeconds: opts.shotSeconds?.min ?? 1.5, maxShotSeconds: opts.shotSeconds?.max ?? 6, maxTitleSeconds: 3, subtitleLines: 2 },
     budget: { remainingUsd: 0, unitCostsUsd: opts.unitCostsUsd ?? { ai_image: 0.04, ai_video: 0.5 } },
     continuity: { wardrobe: storyboard.visualIdentity.wardrobe },
+    ...(opts.style ? { style: opts.style } : {}),
   };
 }

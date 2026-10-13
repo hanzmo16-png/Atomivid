@@ -134,7 +134,7 @@ export function compatibleRecipes(pool: Recipe[], visual: VisualType, provenance
 export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): DirectorPlan {
   const input: DirectorInput = DirectorInputSchema.parse(raw);
   const { minShotSeconds: minS, maxShotSeconds: maxS } = input.constraints;
-  const pool = recipesFor(catalog, input.genre);
+  const pool = recipesFor(catalog, input.genre, input.style);
   const byId = new Map(input.inventory.map(a => [a.id, a]));
   const used: InventoryAsset[] = [];
   const shots: PlannedShot[] = [];

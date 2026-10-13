@@ -14,7 +14,7 @@ import type { Storyboard } from "@/lib/video/storyboard/types";
 import { simulateStoryboard } from "@/lib/video/storyboard/simulate";
 import type { Caption, VerticalReelProps } from "../../../../remotion/VerticalReel";
 import type { DirectorInputRaw, DirectorPlan, RecipeCatalog } from "./contract";
-import { inputFromReel } from "./from-reel";
+import { inputFromReel, type ReelAdapterOptions } from "./from-reel";
 import { proposePlan } from "./propose";
 import { bundledRecipeCatalog } from "./recipes";
 import { planToVerticalReel, type BridgeBlocker, type ExistingMedia, type ShotApplication } from "./render-bridge";
@@ -28,12 +28,16 @@ export type DirectedReel =
 export function directReel(a: {
   script: GeneratedScript; storyboard?: Storyboard; beatsBySegment: ResolvedBeat[][]; sceneTimings: { start: number; end: number }[];
   audioUrl: string; captions: Caption[]; narrationGaps: VerticalReelProps["narrationGaps"]; durationSeconds: number; catalog?: RecipeCatalog;
+  /** Optional adapter settings (e.g. a shot list's own shot-length bounds). Absent = historic Reel defaults. */
+  adapter?: ReelAdapterOptions;
+  /** Render options forwarded to the bridge (clip sound, label wording). Absent = historic behaviour. */
+  clipAudio?: "off" | "recipe"; labelText?: Partial<Record<string, string>>;
 }): DirectedReel {
   const storyboardSource = a.storyboard ? "real" as const : "simulated" as const;
   let input: DirectorInputRaw | null = null, plan: DirectorPlan | null = null;
   try {
     const sb = a.storyboard ?? simulateStoryboard(a.script);
-    const raw = inputFromReel(sb);
+    const raw = inputFromReel(sb, a.adapter);
     const scenes = [...sb.scenes].sort((x, y) => x.order - y.order);
     const media: Record<string, ExistingMedia> = {};
     const inventory: DirectorInputRaw["inventory"] = raw.inventory.flatMap(planned => {
@@ -62,7 +66,7 @@ export function directReel(a: {
     plan = proposePlan(input, catalog);
     const segmentTimes = Object.fromEntries(scenes.map((s, i) => [s.id, a.sceneTimings[i]]).filter(([, t]) => t));
     const bridged = planToVerticalReel({ plan, input, catalog, media, segmentTimes, audioUrl: a.audioUrl, captions: a.captions,
-      durationSeconds: a.durationSeconds, narrationGaps: a.narrationGaps });
+      durationSeconds: a.durationSeconds, narrationGaps: a.narrationGaps, clipAudio: a.clipAudio, labelText: a.labelText });
     if (!bridged.ok) return { ok: false, blockers: bridged.blockers, plan, input, storyboardSource };
     return { ok: true, props: bridged.props, applied: bridged.applied, plan, input, storyboardSource };
   } catch (err) {

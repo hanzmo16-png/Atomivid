@@ -9,7 +9,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import { type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from "./audio-mix";
-import { LABEL_TEXT, type SceneDirection, type SceneTiming, sceneOpacity, sceneTiming, sceneTransform } from "./reel-direction";
+import { clipAudible, labelTextFor, type SceneDirection, type SceneTiming, sceneOpacity, sceneTiming, sceneTransform } from "./reel-direction";
 
 export type Scene = {
   mediaUrl: string;
@@ -64,7 +64,7 @@ export function VerticalReel({
         return (
           <Sequence key={i} from={timing.from} durationInFrames={timing.durationInFrames}>
             <SceneMedia scene={scene} timing={timing} isFirst={i === 0} />
-            {scene.direction?.label && <SceneLabelBadge text={LABEL_TEXT[scene.direction.label]} />}
+            {labelTextFor(scene.direction) && <SceneLabelBadge text={labelTextFor(scene.direction)!} />}
           </Sequence>
         );
       })}
@@ -117,7 +117,9 @@ function SceneMedia({ scene, timing, isFirst }: { scene: Scene; timing: SceneTim
   return (
     <AbsoluteFill style={{ overflow: "hidden", opacity }}>
       {scene.mediaType === "video" ? (
-        <OffthreadVideo src={scene.mediaUrl} muted style={mediaStyle} />
+        // A clip's own sound is heard only when its direction asks for it; its volume follows the scene's fades.
+        <OffthreadVideo src={scene.mediaUrl} muted={!clipAudible(scene.direction, "video")}
+          volume={clipAudible(scene.direction, "video") ? (f: number) => sceneOpacity(timing, f) : undefined} style={mediaStyle} />
       ) : (
         <Img src={scene.mediaUrl} style={mediaStyle} />
       )}

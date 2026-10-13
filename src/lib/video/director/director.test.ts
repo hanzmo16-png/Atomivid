@@ -33,10 +33,14 @@ function input(over: Partial<DirectorInputRaw> = {}): DirectorInputRaw {
   };
 }
 
-test("catalog: 35 versioned recipes (12 mystery, 13 documentary, 10 reel), unique, operable rules, no universal 8K look", () => {
-  assert.equal(catalog.recipes.length, 35);
-  const by = (g: string) => catalog.recipes.filter(r => r.genre === g).length;
+test("catalog: 43 versioned recipes (12 mystery, 13 documentary, 10 reel + 8 reel fiction), unique, operable rules, no universal 8K look", () => {
+  assert.equal(catalog.recipes.length, 43);
+  const by = (g: string) => catalog.recipes.filter(r => r.genre === g && !r.select.style).length;
   assert.deepEqual([by("misterio"), by("documental"), by("reel")], [12, 13, 10]);
+  // The fiction set is isolated: generated material only, always labelled, sound from the clip.
+  const fiction = catalog.recipes.filter(r => r.select.style === "fiction");
+  assert.equal(fiction.length, 8);
+  for (const r of fiction) assert.ok(r.genre === "reel" && r.label === "recreacion_ia" && r.clip_audio === true && r.select.provenance.join() === "ai_recreation", r.id);
   for (const r of catalog.recipes) assert.ok(r.negatives.length && r.version >= 1 && r.select.visual.length, r.id);
   // Graphics are animated deterministically; they are never "a clip with real motion".
   for (const id of ["doc-map-route", "doc-timeline-graphic"]) assert.equal(catalog.recipes.find(r => r.id === id)!.movement.kind, "graphic_animation");

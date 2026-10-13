@@ -44,6 +44,8 @@ export const RecipeSelectSchema = z.object({
   provenance: z.array(z.enum(PROVENANCES)).default([]),
   /** Neutral atmosphere: allowed next to sensitive narration only because it explicitly does not depict the finding. */
   neutral: z.boolean().default(false),
+  /** Recipe set: "fiction" recipes are offered ONLY to an input that declares style "fiction" (and only they are). */
+  style: z.enum(["fiction"]).optional(),
 }).strict();
 export type RecipeSelect = z.infer<typeof RecipeSelectSchema>;
 
@@ -65,6 +67,8 @@ export const RecipeSchema = z.object({
   continuity: z.string().min(3),
   transitions: z.object({ in: z.array(z.string()).min(1), out: z.array(z.string()).min(1) }),
   sfx: z.string(),
+  /** The recipe's sound design is the clip's own sound (e.g. generated ambience/impacts). Applied only when the render opts in. */
+  clip_audio: z.boolean().optional(),
   placeholders: z.array(z.string().regex(/^\{[a-z_]+\}$/)),
   negatives: z.array(z.string().min(3)).min(1),
   evidence_policy: z.enum(EVIDENCE_POLICIES),
@@ -147,6 +151,8 @@ export const DirectorInputSchema = z.object({
     allowAiVideo: z.boolean().default(false),
   }),
   continuity: z.object({ era: z.string().optional(), wardrobe: z.string().optional() }).default({}),
+  /** Declared AI fiction (no factual claims): the Director plans with the fiction recipe set. Absent = historic sets. */
+  style: z.enum(["fiction"]).optional(),
 });
 export type DirectorInput = z.infer<typeof DirectorInputSchema>;
 export type DirectorInputRaw = z.input<typeof DirectorInputSchema>;

@@ -9,7 +9,9 @@ export function loadRecipeCatalog(file = RECIPE_CATALOG_PATH): RecipeCatalog {
   return RecipeCatalogSchema.parse(JSON.parse(readFileSync(file, "utf8")));
 }
 
-export const recipesFor = (catalog: RecipeCatalog, genre: Recipe["genre"]) => catalog.recipes.filter(r => r.genre === genre);
+/** Recipes of a genre and recipe set: the fiction set only for a fiction input, the historic sets otherwise. */
+export const recipesFor = (catalog: RecipeCatalog, genre: Recipe["genre"], style?: "fiction") =>
+  catalog.recipes.filter(r => r.genre === genre && (r.select.style ?? null) === (style ?? null));
 
 /**
  * Same catalog, bundled as a module import: a server component (the Reels review page) must not depend on

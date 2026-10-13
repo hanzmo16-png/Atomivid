@@ -31,12 +31,19 @@ export type BridgeInput = {
   captions: Caption[];
   durationSeconds: number;
   narrationGaps?: VerticalReelProps["narrationGaps"];
+  /**
+   * Clip sound: "off" (default, historic: every clip muted) or "recipe" (a video shot whose recipe declares
+   * `clip_audio` keeps its own sound). Nothing else changes with this option.
+   */
+  clipAudio?: "off" | "recipe";
+  /** Visible wording per label (e.g. { recreacion_ia: "Ficción creada con IA" }); defaults to the composition's text. */
+  labelText?: Partial<Record<string, string>>;
 };
 /** What the plan asked for vs what the VerticalReel really applies, per shot (unsupported properties are declared). */
 export type ShotApplication = {
   shotId: string; anchorText: string; recipeId: string | null;
   planned: { movement: string; transitionIn: string | null; transitionOut: string | null; label: string | null; shotType: string; composition: string | null };
-  applied: { motion: SceneMotion; transitionIn: SceneTransitionIn; transitionOut: SceneTransitionOut; label: string | null; startSeconds: number; endSeconds: number };
+  applied: { motion: SceneMotion; transitionIn: SceneTransitionIn; transitionOut: SceneTransitionOut; label: string | null; labelText?: string | null; audio?: "clip" | "muted"; startSeconds: number; endSeconds: number };
   unsupported: string[];
 };
 export type BridgeResult =
@@ -90,11 +97,19 @@ export function planToVerticalReel(b: BridgeInput): BridgeResult {
     const startSeconds = t.start + ((s.start - seg.start) / span) * real;
     const endSeconds = t.start + ((s.end - seg.start) / span) * real;
     const { direction, unsupported } = directionFor(s, m.mediaType);
+    const recipe = s.recipeId ? b.catalog.recipes.find(r => r.id === s.recipeId) : undefined;
+    if (b.clipAudio === "recipe" && recipe?.clip_audio) {
+      if (m.mediaType === "video") direction.audio = "clip";
+      else unsupported.push("audio del clip pedido por la receta sobre una imagen fija: sin sonido propio");
+    }
+    if (direction.label && b.labelText?.[direction.label]) direction.labelText = b.labelText[direction.label];
     scenes.push({ mediaUrl: m.url, mediaType: m.mediaType, startSeconds: round3(startSeconds), endSeconds: round3(endSeconds), direction });
     shots.push({ shotId: s.id, assetId, mediaType: m.mediaType, label: s.asset.label });
     applied.push({ shotId: s.id, anchorText: s.anchorText, recipeId: s.recipeId,
       planned: { movement: s.movement.kind, transitionIn: s.suggestions.transitionIn, transitionOut: s.suggestions.transitionOut, label: s.asset.label, shotType: s.shotType, composition: s.suggestions.composition },
-      applied: { motion: direction.motion, transitionIn: direction.transitionIn, transitionOut: direction.transitionOut, label: direction.label ?? null, startSeconds: round3(startSeconds), endSeconds: round3(endSeconds) },
+      applied: { motion: direction.motion, transitionIn: direction.transitionIn, transitionOut: direction.transitionOut, label: direction.label ?? null,
+        ...(b.labelText || b.clipAudio ? { labelText: direction.labelText ?? null, audio: direction.audio ?? "muted" } : {}),
+        startSeconds: round3(startSeconds), endSeconds: round3(endSeconds) },
       unsupported });
   }
   scenes.sort((x, y) => x.startSeconds - y.startSeconds);

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { crossfadeAt, DIP_FRAMES, FADE_FRAMES, sceneOpacity, sceneTiming, sceneTransform, type SceneDirection } from "./reel-direction";
+import { clipAudible, crossfadeAt, DIP_FRAMES, FADE_FRAMES, labelTextFor, sceneOpacity, sceneTiming, sceneTransform, type SceneDirection } from "./reel-direction";
 
 const FPS = 30;
 const legacy = [{ startSeconds: 0, endSeconds: 3 }, { startSeconds: 3, endSeconds: 6 }, { startSeconds: 6, endSeconds: 9 }];
@@ -59,4 +59,15 @@ test("motion follows the recipe: real clips and static shots never get a synthet
   assert.equal(sceneTransform(d({ motion: "push_in" }), false, 1).scale, 1.15);
   assert.equal(sceneTransform(d({ motion: "pan" }), false, 0).translateX, 40);
   assert.equal(sceneTransform(d({ motion: "pan" }), false, 1).translateX, -40);
+});
+
+test("clip sound only when a video scene's direction asks for it; label wording can change but never disappear", () => {
+  assert.equal(clipAudible(undefined, "video"), false, "legacy scenes stay muted");
+  assert.equal(clipAudible(d({}), "video"), false, "directed scenes stay muted by default");
+  assert.equal(clipAudible(d({ audio: "clip" }), "video"), true);
+  assert.equal(clipAudible(d({ audio: "clip" }), "image"), false, "a still has no sound");
+  assert.equal(labelTextFor(d({ label: "recreacion_ia" })), "Recreación IA");
+  assert.equal(labelTextFor(d({ label: "recreacion_ia", labelText: "Ficción creada con IA" })), "Ficción creada con IA");
+  assert.equal(labelTextFor(d({ label: "recreacion_ia", labelText: "  " })), "Recreación IA", "an empty override never removes the label");
+  assert.equal(labelTextFor(d({ labelText: "x" })), null, "no label, no badge");
 });

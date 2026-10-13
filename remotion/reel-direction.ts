@@ -5,7 +5,10 @@
  *  - motion:   static (no camera move), push_in (declared zoom on a still), pan (declared lateral move on a still),
  *              real (a real clip plays as filmed: no synthetic zoom on top), hook (the historic opening zoom);
  *  - transitions at each boundary: cut, crossfade (0.5 s overlap) or fade (from/to black, no overlap);
- *  - label: a visible badge for AI recreations / illustrative material, drawn at the top-left, away from captions.
+ *  - label: a visible badge for AI recreations / illustrative material, drawn at the top-left, away from captions;
+ *    `labelText` may override the wording (e.g. «Ficción creada con IA»), never remove a required label;
+ *  - audio: "clip" keeps the clip's own sound (e.g. generated sound design); absent or "muted" = historic behaviour
+ *    (every clip muted; only narration and music are heard).
  * Pure functions only, so the frame math is unit-tested without rendering.
  */
 export type SceneMotion = "static" | "push_in" | "pan" | "real" | "hook";
@@ -20,6 +23,10 @@ export type SceneDirection = {
   transitionIn: SceneTransitionIn;
   transitionOut: SceneTransitionOut;
   label?: SceneLabel | null;
+  /** Visible wording of the label; defaults to LABEL_TEXT[label]. */
+  labelText?: string | null;
+  /** "clip" plays the clip's own audio track; default muted (historic). */
+  audio?: "clip" | "muted";
 };
 
 export const FADE_FRAMES = 15; // 0.5 s at 30 fps (historic crossfade)
@@ -73,4 +80,15 @@ export function sceneTransform(direction: SceneDirection | undefined, isFirst: b
     case "pan": return { scale: 1.12, translateX: lerp(40, -40, p) };
     default: return { scale: lerp(1, 1.12, p), translateX: lerp(0, -18, p) }; // legacy Ken Burns
   }
+}
+
+/** Whether a scene's clip is heard. Only an explicit "clip" direction on a video unmutes it; everything else stays muted. */
+export function clipAudible(direction: SceneDirection | undefined, mediaType: "image" | "video"): boolean {
+  return mediaType === "video" && direction?.audio === "clip";
+}
+
+/** Visible label text for a scene (null when the scene carries no label). */
+export function labelTextFor(direction: SceneDirection | undefined): string | null {
+  if (!direction?.label) return null;
+  return direction.labelText?.trim() || LABEL_TEXT[direction.label];
 }

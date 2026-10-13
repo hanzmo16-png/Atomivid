@@ -4,6 +4,7 @@
  * provenance, labels, licences and costs are re-derived from the inventory, the input and the catalog, and every
  * reference must resolve. Semantic/visual quality is NOT judged here: the metrics say so ("estimado/no validado").
  */
+import { recipesFor } from "./recipes";
 import { hammingHex, PERCEPTUAL_DUPLICATE_MAX_DISTANCE } from "@/lib/video/long-form/asset-identity";
 import { DirectorInputSchema, DirectorPlanSchema, type DirectorInputRaw, type InventoryAsset, type PlannedShot, type RecipeCatalog } from "./contract";
 import { assetTopics, assetVisualType, factualCorrespondence, NEUTRAL_MAX_PER_SEQUENCE, NEUTRAL_MAX_SHARE, reelPlannedStockCorresponds, hasTextCompanionFor, topicsOf, treatmentAllowed, unitPolicy, visualFromTopics } from "./policy";
@@ -232,7 +233,7 @@ export function auditPlan(planRaw: unknown, inputRaw: DirectorInputRaw, catalog:
     // Distinct recipes used / recipes that could have been used (genre pool, capped by the shots that HAVE a recipe).
     // A pending shot (recipeId null) is the absence of a recipe: it is neither a distinct recipe in the numerator
     // nor a slot in the denominator, so the ratio stays within 0..1. Pending shots are reported by DECISION_PENDING.
-    recipeVariety: recipeVariety(unlocked.map(s => s.recipeId), catalog.recipes.filter(r => r.genre === plan.genre).length),
+    recipeVariety: recipeVariety(unlocked.map(s => s.recipeId), recipesFor(catalog, plan.genre, input.style).length),
     maxSameRecipeRun: maxSameRecipeRun(unlocked.map(s => s.recipeId)),
     labelsOk: !issues.some(i => ["RECREATION_WITHOUT_LABEL", "AUTHENTIC_WITH_RECREATION_LOOK", "LABEL_MISMATCH", "PROVENANCE_MISMATCH"].includes(i.code)),
     needsNew: shots.filter(s => s.asset.status === "needs_new").length,

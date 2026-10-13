@@ -1,8 +1,8 @@
 {
   "schema": "atomivid/cinematic-recipes@2",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "generated_by": "claude (T-20261012-0142-chatgpt-18; corrección 2: T-20261012-0555-chatgpt-20)",
-  "notes": "Recetas originales, sin copiar películas. Las descripciones de 'example' son ilustrativas. 'evidence_policy' impide aplicar el look de recreación a evidencia auténtica. v2: cada receta lleva una regla 'select' operable (tipo visual aceptado, temas/palabras requeridos, temas excluidos, qué hacer con una imagen fija). use_when/avoid_when quedan como descripción humana; la decisión automática usa solo 'select'. Mapa y línea de tiempo pasan a animación de gráfico determinista (no 'clip con movimiento real'). v2.1: dos recetas de B-roll ilustrativo para Reels (detalle y contexto) para que los planos intermedios con stock no repitan una sola receta.",
+  "notes": "Recetas originales, sin copiar películas. Las descripciones de 'example' son ilustrativas. 'evidence_policy' impide aplicar el look de recreación a evidencia auténtica. v2: cada receta lleva una regla 'select' operable (tipo visual aceptado, temas/palabras requeridos, temas excluidos, qué hacer con una imagen fija). use_when/avoid_when quedan como descripción humana; la decisión automática usa solo 'select'. Mapa y línea de tiempo pasan a animación de gráfico determinista (no 'clip con movimiento real'). v2.1: dos recetas de B-roll ilustrativo para Reels (detalle y contexto) para que los planos intermedios con stock no repitan una sola receta. v2.2: conjunto de ficción (select.style='fiction', solo material generado y etiquetado): se ofrece únicamente a una entrada que declara estilo ficción; sus recetas declaran clip_audio (el diseño sonoro es el audio del clip).",
   "recipes": [
     {
       "id": "mys-night-road-approach",
@@ -2241,6 +2241,554 @@
         "position": "any",
         "provenance": [],
         "neutral": true
+      }
+    },
+    {
+      "id": "reel-fic-establishing-scale",
+      "version": 1,
+      "genre": "reel",
+      "name": "Ficción: plano de escala",
+      "use_when": [
+        "abrir mostrando la escala del mundo y al protagonista diminuto"
+      ],
+      "avoid_when": [
+        "el sujeto no se distingue"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "situar al espectador y revelar la escala",
+      "shot": {
+        "type": "gran plano general"
+      },
+      "composition": "sujeto pequeño en un tercio, el entorno domina el encuadre; horizonte estable",
+      "movement": {
+        "kind": "real_motion",
+        "note": "grúa o avance lento generado en el clip (no zoom sintético)"
+      },
+      "lighting": "luz natural direccional entre la niebla",
+      "continuity": "mismo diseño del vehículo en toda la pieza; dirección de pantalla izquierda→derecha",
+      "transitions": {
+        "in": [
+          "fade_in_short"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "viento, rugido lejano del agua (sonido del clip)",
+      "clip_audio": true,
+      "placeholders": [],
+      "negatives": [
+        "cámara temblorosa",
+        "sujeto cortado"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "Nave diminuta cruzando entre montañas gigantes con cascadas.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "montana",
+          "cascada",
+          "niebla",
+          "paisaje",
+          "mundo"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [
+          "ai_recreation"
+        ],
+        "neutral": false,
+        "style": "fiction"
+      }
+    },
+    {
+      "id": "reel-fic-tracking-maneuver",
+      "version": 1,
+      "genre": "reel",
+      "name": "Ficción: seguimiento de maniobra",
+      "use_when": [
+        "seguir una maniobra o un vuelo manteniendo velocidad y dirección"
+      ],
+      "avoid_when": [
+        "el sujeto cambia de dirección de pantalla"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "energía y continuidad espacial",
+      "shot": {
+        "type": "plano de seguimiento"
+      },
+      "composition": "sujeto en el tercio izquierdo con aire hacia la derecha; fondo con paralaje",
+      "movement": {
+        "kind": "real_motion",
+        "note": "travelling lateral que acompaña al sujeto (movimiento del clip)"
+      },
+      "lighting": "contraluz y reflejos sobre el casco",
+      "continuity": "conservar la dirección izquierda→derecha entre cortes",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "motores y eco en la roca (sonido del clip)",
+      "clip_audio": true,
+      "placeholders": [],
+      "negatives": [
+        "salto de eje",
+        "cambio de diseño del vehículo"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "La nave se inclina entre paredes de roca y sale al océano.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "maniobra",
+          "roca",
+          "emerge",
+          "vuelo",
+          "sigue",
+          "oceano"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [
+          "ai_recreation"
+        ],
+        "neutral": false,
+        "style": "fiction"
+      }
+    },
+    {
+      "id": "reel-fic-element-crossing",
+      "version": 1,
+      "genre": "reel",
+      "name": "Ficción: cruce de elemento",
+      "use_when": [
+        "mostrar el paso de un medio a otro (aire→agua) en una acción continua"
+      ],
+      "avoid_when": [
+        "no hay cambio de medio"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "transición física creíble",
+      "shot": {
+        "type": "plano general a nivel del agua"
+      },
+      "composition": "el impacto en el centro del encuadre; espacio para la salpicadura",
+      "movement": {
+        "kind": "real_motion",
+        "note": "la acción ocurre dentro del clip: impacto, espuma, burbujas y cambio de luz"
+      },
+      "lighting": "de luz de superficie a azul verdoso profundo",
+      "continuity": "misma nave; la luz cambia de forma continua",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "dissolve"
+        ]
+      },
+      "sfx": "impacto, salpicadura y burbujas (sonido del clip)",
+      "clip_audio": true,
+      "placeholders": [],
+      "negatives": [
+        "corte que oculte el impacto",
+        "agua sin física"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "La nave cae al mar y la cámara la acompaña bajo la superficie.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "desciende",
+          "hunde",
+          "mar",
+          "agua",
+          "impacto",
+          "burbuja",
+          "espuma"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [
+          "ai_recreation"
+        ],
+        "neutral": false,
+        "style": "fiction"
+      }
+    },
+    {
+      "id": "reel-fic-tension-darkness",
+      "version": 1,
+      "genre": "reel",
+      "name": "Ficción: tensión en la oscuridad",
+      "use_when": [
+        "crear tensión con luz escasa y una amenaza lejana"
+      ],
+      "avoid_when": [
+        "la amenaza ya se ve claramente"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "inquietud por lo que no se ve",
+      "shot": {
+        "type": "plano general oscuro"
+      },
+      "composition": "la luz del protagonista recorta un espacio pequeño; la amenaza en el fondo, apenas visible",
+      "movement": {
+        "kind": "real_motion",
+        "note": "movimiento lento del sujeto; la sombra cruza al fondo"
+      },
+      "lighting": "haces de luz entre partículas en suspensión",
+      "continuity": "la sombra conserva la forma de la criatura",
+      "transitions": {
+        "in": [
+          "dissolve"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "zumbido grave, sonar lejano (sonido del clip)",
+      "clip_audio": true,
+      "placeholders": [],
+      "negatives": [
+        "revelar la criatura completa",
+        "iluminación plana"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "Los faros de la nave barren el fondo mientras una sombra enorme pasa lejos.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "oscuridad",
+          "sombra",
+          "luces",
+          "lejos",
+          "profundidad"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [
+          "ai_recreation"
+        ],
+        "neutral": false,
+        "style": "fiction"
+      }
+    },
+    {
+      "id": "reel-fic-scale-reveal",
+      "version": 1,
+      "genre": "reel",
+      "name": "Ficción: revelación de escala",
+      "use_when": [
+        "presentar una criatura o estructura colosal frente al protagonista"
+      ],
+      "avoid_when": [
+        "no hay contraste de tamaño"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "asombro por la escala",
+      "shot": {
+        "type": "gran plano general"
+      },
+      "composition": "criatura domina el encuadre; el protagonista diminuto en una esquina como referencia",
+      "movement": {
+        "kind": "real_motion",
+        "note": "cámara contenida; el movimiento lo pone la criatura (clip)"
+      },
+      "lighting": "luz del protagonista sobre una parte de la piel de la criatura",
+      "continuity": "misma criatura (forma, color, ojos) en toda la pieza",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "llamada grave y resonante (sonido del clip)",
+      "clip_audio": true,
+      "placeholders": [],
+      "negatives": [
+        "cámara nerviosa",
+        "criatura cambiando de diseño"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "Una criatura colosal emerge de la oscuridad ante la nave diminuta.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "criatura",
+          "colosal",
+          "gigante",
+          "aparece"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [
+          "ai_recreation"
+        ],
+        "neutral": false,
+        "style": "fiction"
+      }
+    },
+    {
+      "id": "reel-fic-detail-insert",
+      "version": 1,
+      "genre": "reel",
+      "name": "Ficción: inserto de detalle",
+      "use_when": [
+        "un detalle que cambia la lectura (una mirada, un mecanismo)"
+      ],
+      "avoid_when": [
+        "el detalle no aporta información"
+      ],
+      "duration_s": {
+        "min": 3,
+        "typical": 4,
+        "max": 6
+      },
+      "intent": "intimidad y amenaza",
+      "shot": {
+        "type": "primerísimo plano"
+      },
+      "composition": "el detalle llena el encuadre; reflejo del protagonista si es posible",
+      "movement": {
+        "kind": "real_motion",
+        "note": "movimiento mínimo del detalle (un ojo que se abre)"
+      },
+      "lighting": "luz rasante y reflejos",
+      "continuity": "detalle coherente con el diseño de la criatura",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "pulso grave (sonido del clip)",
+      "clip_audio": true,
+      "placeholders": [],
+      "negatives": [
+        "detalle genérico sin relación"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "El ojo ámbar de la criatura se fija en la nave reflejada.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "mirada",
+          "ojo",
+          "detalle",
+          "posa"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [
+          "ai_recreation"
+        ],
+        "neutral": false,
+        "style": "fiction"
+      }
+    },
+    {
+      "id": "reel-fic-action-evasion",
+      "version": 1,
+      "genre": "reel",
+      "name": "Ficción: acción y esquiva",
+      "use_when": [
+        "un ataque y una esquiva en una acción legible"
+      ],
+      "avoid_when": [
+        "no hay acción física"
+      ],
+      "duration_s": {
+        "min": 3,
+        "typical": 5,
+        "max": 7
+      },
+      "intent": "clímax de acción",
+      "shot": {
+        "type": "plano medio dinámico"
+      },
+      "composition": "amenaza entrando desde un lado; el protagonista escapa hacia el lado opuesto (derecha)",
+      "movement": {
+        "kind": "real_motion",
+        "note": "acción rápida dentro del clip; cámara estable"
+      },
+      "lighting": "turbulencia y burbujas iluminadas por los motores",
+      "continuity": "dirección de escape coherente con la pieza (hacia la derecha)",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "rugido, motores y agua revuelta (sonido del clip)",
+      "clip_audio": true,
+      "placeholders": [],
+      "negatives": [
+        "acción ilegible",
+        "cortes dentro de la acción"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "La criatura se lanza y la nave esquiva por muy poco.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "esquiva",
+          "lanza",
+          "ataque",
+          "huye"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [
+          "ai_recreation"
+        ],
+        "neutral": false,
+        "style": "fiction"
+      }
+    },
+    {
+      "id": "reel-fic-closing-intrigue",
+      "version": 1,
+      "genre": "reel",
+      "name": "Ficción: cierre con intriga",
+      "use_when": [
+        "terminar con una imagen que deje una pregunta abierta"
+      ],
+      "avoid_when": [
+        "la historia queda cerrada"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "intriga final memorable",
+      "shot": {
+        "type": "plano general final"
+      },
+      "composition": "protagonista pequeño en el centro; la revelación aparece alrededor",
+      "movement": {
+        "kind": "real_motion",
+        "note": "avance muy lento generado en el clip"
+      },
+      "lighting": "oscuridad casi total con puntos de luz",
+      "continuity": "mismo protagonista y misma especie de criatura",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "fade_to_black"
+        ]
+      },
+      "sfx": "silencio y una llamada lejana (sonido del clip)",
+      "clip_audio": true,
+      "placeholders": [],
+      "negatives": [
+        "explicar el final",
+        "cierre alegre"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "Alrededor de la nave se encienden decenas de luces de otras criaturas.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "despierta",
+          "final"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "last",
+        "provenance": [
+          "ai_recreation"
+        ],
+        "neutral": false,
+        "style": "fiction"
       }
     }
   ]
