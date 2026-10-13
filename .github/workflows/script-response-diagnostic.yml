@@ -1,0 +1,33 @@
+name: Inspect stored script response metadata
+on:
+  push:
+    branches: [codex/script-response-diagnostic-20261013]
+    paths: [.github/workflows/script-response-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Read four known paid responses, metadata only
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node --input-type=module <<'JS'
+          const base = process.env.SUPABASE_URL;
+          const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+          if (!base || !key) throw new Error('Missing configured storage access');
+          const project = '5addab87-c6b8-401d-bf8c-204c126c3fb0';
+          for (const id of ['op_3d67afbeb06d23cd140c4a7d8b6d1e33','op_f251de38541b4ed6db9a05046c374241','op_6967a3d9f3a045f8460ea820fa249757','op_d0fcfde3a25e5177fb5cd798dc4dcb11']) {
+            const r = await fetch(base + '/storage/v1/object/authenticated/videos/' + project + '/paid/' + id + '.script.json', {headers:{apikey:key, Authorization:'Bearer ' + key}});
+            if (!r.ok) throw new Error('Stored response fetch HTTP ' + r.status);
+            const body = await r.json();
+            const blocks = (body.content ?? []).filter(x => x.type === 'text');
+            let decoded = null; let parseError = false;
+            try { decoded = JSON.parse(blocks.map(x => x.text).join('')); } catch { parseError = true; }
+            const s = body.parsed_output ?? decoded;
+            console.log(JSON.stringify({operation:id,stop:body.stop_reason,usage:body.usage,hasParsed:!!body.parsed_output,parseError,fields:Object.keys(body),textLengths:blocks.map(x=>x.text.length),scenes:s?.segments?.length,words:s?.segments?.reduce((n,x)=>n+x.text.trim().split(/\s+/).filter(Boolean).length,0)}));
+          }
+          JS
