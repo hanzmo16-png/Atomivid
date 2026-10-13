@@ -75,8 +75,8 @@ jobs:
           ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
           ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-          # Same allocation rate as the production app and the render worker.
-          PRICING_ELEVENLABS_USD_PER_1K_CHARS: '0.2'
+          # Voice rate: single source in src/lib/billing/pricing.ts (ELEVENLABS_USD_PER_1K_CHARS_DEFAULT, 0.2).
+          # No literal here any more, so the worker and the app read the same value.
       - name: Mark failed if the step died
         if: (failure() || cancelled()) && steps.due.outputs.go == 'true' && github.event.client_payload.kind != 'notices'
         run: npx tsx scripts/podcast-video-mark-failed.ts

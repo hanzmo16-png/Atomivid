@@ -34,6 +34,15 @@
  * estimado por video normal (sin avatar), no lo suben.
  */
 
+/**
+ * Tarifa de voz (USD por 1.000 caracteres) — ÚNICA fuente para Vercel y para los workers de GitHub Actions
+ * (render.yml y podcast-video.yml ya no la repiten como literal; leen este valor). Se fija al valor que el
+ * worker usaba hasta ahora (0.2) para no cambiar ninguna reserva de producción.
+ * TODO: confirmar con el plan real de ElevenLabs (Hans). PRICING_ELEVENLABS_USD_PER_1K_CHARS sigue pudiendo
+ * sobrescribirlo por entorno; si Vercel lo define, debe coincidir con este valor (ver src/lib/ops/config-parity.ts).
+ */
+export const ELEVENLABS_USD_PER_1K_CHARS_DEFAULT = 0.2;
+
 function rate(envVar: string, fallback: number): number {
   const raw = process.env[envVar];
   if (!raw) return fallback;
@@ -44,7 +53,7 @@ function rate(envVar: string, fallback: number): number {
 export function getPricingConfig() {
   return {
     /** USD por 1,000 caracteres enviados a síntesis de voz (eleven_multilingual_v2). */
-    elevenLabsUsdPer1kChars: rate("PRICING_ELEVENLABS_USD_PER_1K_CHARS", 0.1),
+    elevenLabsUsdPer1kChars: rate("PRICING_ELEVENLABS_USD_PER_1K_CHARS", ELEVENLABS_USD_PER_1K_CHARS_DEFAULT),
     /** USD por 1,000,000 de tokens de entrada del modelo de guion (claude-sonnet-5). */
     scriptInputUsdPer1MTokens: rate("PRICING_SCRIPT_INPUT_USD_PER_1M_TOKENS", 2),
     /** USD por 1,000,000 de tokens de salida del modelo de guion (claude-sonnet-5). */

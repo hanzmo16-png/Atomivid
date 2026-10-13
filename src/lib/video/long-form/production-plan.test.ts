@@ -1,3 +1,4 @@
+import { ELEVENLABS_USD_PER_1K_CHARS_DEFAULT } from "@/lib/billing/pricing";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -90,7 +91,7 @@ test("costos del plan salen de las tarifas reales configuradas (voz, imagen, Veo
   assert.equal(plan.allocation?.maxAiImageGenerations, imageGenerations);
   assert.equal(Math.round((plan.estimatedImageCostUsd ?? 0) * 1e4), Math.round(imageGenerations * 0.05 * 1e4));
   assert.equal(Math.round((plan.estimatedAiVideoCostUsd ?? 0) * 1e4), Math.round(plan.aiVideoClipCount * 8 * 0.12 * 1e4));
-  const voice = (plan.voiceCharacters / 1000) * 0.1;
+  const voice = (plan.voiceCharacters / 1000) * ELEVENLABS_USD_PER_1K_CHARS_DEFAULT; // fuente única (pricing.ts)
   assert.equal(Math.round((plan.estimatedVoiceCostUsd ?? 0) * 1e4), Math.round(voice * 1e4));
   assert.equal(
     Math.round(plan.estimatedProviderCostUsd * 1e4),
