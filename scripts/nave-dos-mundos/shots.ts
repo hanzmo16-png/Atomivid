@@ -15,7 +15,8 @@ export const CREATURE =
 export const STYLE =
   "photorealistic cinematic film still, anamorphic lens, natural film grain, high dynamic range, physically accurate lighting, " +
   "vertical 9:16 composition, no text, no logos, no watermark";
-export const NEGATIVE = "text, captions, subtitles, logos, watermark, cartoon, low detail, distorted ship, extra wings, morphing ship design, humans, people";
+// "HUD … ECG line" added after run 8: s06 asked for a heartbeat-like *sound* and Veo drew a glowing ECG trace beside the eye.
+export const NEGATIVE = "text, captions, subtitles, logos, watermark, cartoon, low detail, distorted ship, extra wings, morphing ship design, humans, people, HUD, on-screen graphics, user interface overlay, heartbeat monitor, ECG line";
 
 export type RefId = "ship" | "creature";
 export type Shot = {
@@ -76,7 +77,7 @@ export const SHOTS: Shot[] = [
     subject: "one amber eye of the creature", action: "the eye opens and focuses, the ship's lights reflected in it", environment: "close to the creature's head", shotType: "extreme close-up", camera: "static", lighting: "raking light, reflections",
     concepts: ["giant amber eye close up", "ship lights reflected in eye"],
     keyframe: `Extreme close-up of the head of ${CREATURE}: one of its four amber eyes, wet textured skin, turquoise bioluminescent spots, two small white lights of a ship reflected in the eye.`,
-    motion: "The amber eye slowly opens wider and its pupil contracts, focusing; the skin ripples; particles drift. Low heartbeat-like pulse." },
+    motion: "The amber eye slowly opens wider and its pupil contracts, focusing; the skin ripples; particles drift. Sound: a deep, slow underwater rumble and the creature's low breathing; no on-screen graphics." },
   { id: "s07", beat: 6, seconds: 6.5, refs: ["ship", "creature"], energy: "high",
     text: "La criatura se lanza; la nave esquiva.",
     subject: "the creature's open maw and the ship", action: "the creature lunges, the ship veers away to the right", environment: "turbulent dark water", shotType: "dynamic medium shot", camera: "stable, the action moves", lighting: "engine glow and bubbles lit cyan",

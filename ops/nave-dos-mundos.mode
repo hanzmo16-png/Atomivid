@@ -1,5 +1,5 @@
 clips
 GASTAR
-only=s08
+only=s06@2
 use=s02@2,s03@m,s04@m,s08@m
-# run 8: retry s08 only — run 7 got HTTP 429 at submit (refused before acceptance: no charge)
+# run 9: redo s06 only (USD 0.96) from the same paid keyframe: run 8 s06 shows a glowing ECG-line graphic beside the eye (prompt asked for a heartbeat-like sound). Prompt fixed, HUD/ECG added to the negative prompt.
