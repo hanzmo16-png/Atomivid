@@ -35,7 +35,10 @@ export function storyboardFromShotList(shots: PlannedShot[], identity: ShotListI
     return {
       id: `shot-${s.id}`, order: i, narrationText: s.text, estimatedDurationSeconds: s.seconds,
       literalMeaning: s.text, emotionalSubtext: identity.tone, narrativeGoal: first ? "gancho inicial" : last ? "cierre memorable" : "desarrollo",
-      dominantEmotion: identity.tone, energy: s.energy ?? "medium", subject: s.subject, visibleAction: s.action, environment: s.environment,
+      dominantEmotion: identity.tone, energy: s.energy ?? "medium", subject: s.subject,
+      // The shot's own line travels with its action: the material is made FOR this line, so its topics (derived from
+      // the action by the Director's lexicon) must be the line's, whatever language the visual description uses.
+      visibleAction: `${s.action} — ${s.text}`, environment: s.environment,
       timeOfDay: "según el plano", shotType: s.shotType, cameraMovement: s.camera, lighting: s.lighting, colorPalette: identity.palette,
       visualStyle: "photorealistic cinematic fiction", imagePrompt: `${s.subject}, ${s.action}, ${s.environment}`,
       negativePrompt: "text overlay, watermark, logo", stockQueries: concepts, resourceType: "generated_video",

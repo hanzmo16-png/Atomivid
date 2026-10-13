@@ -65,3 +65,14 @@ test("without the fiction style the fiction recipes are never offered (historic 
   const ids = r.plan?.shots.map(s => s.recipeId) ?? [];
   assert.ok(ids.every(id => !id?.startsWith("reel-fic-")), JSON.stringify(ids));
 });
+
+test("shot list with English visual descriptions (as written for generators) still matches each clip to its own line", () => {
+  const english = SHOTS.map((s, i) => ({ ...s, action: ["flies over giant mountains", "banks between canyon walls", "dives into the ocean", "glides in the dark",
+    "colossal creature slides past", "amber eye opens", "creature lunges, ship dodges", "lights appear around the ship"][i], concepts: ["futuristic ship", "cinematic scene"] }));
+  const timings = shotListTimings(english);
+  const r = directReel({ script: scriptFromShotList("x", english), storyboard: storyboardFromShotList(english, IDENTITY),
+    beatsBySegment: english.map((s, i) => [{ url: `https://sim.local/${s.id}.mp4`, mediaType: "video" as const, source: "generated" as const, start: timings[i].start, end: timings[i].end }]),
+    sceneTimings: timings, audioUrl: "", captions: [], narrationGaps: [], durationSeconds: 55, adapter: { ...shotListAdapter(english), style: "fiction" }, clipAudio: "recipe" });
+  assert.ok(r.ok, r.ok ? "" : JSON.stringify(r.blockers));
+  if (r.ok) r.props.scenes.forEach((sc, i) => assert.equal(sc.mediaUrl, `https://sim.local/${english[i].id}.mp4`));
+});
