@@ -106,7 +106,8 @@ export function ResultView({
             <p className="font-medium text-ink">En espera de capacidad de producción</p>
             <p className="text-sm text-ink-muted">
               {request.error_message ? renderFailureMessage(request.error_message) : "Tu solicitud y sus avances están guardados."}{" "}
-              No se generó ningún cargo nuevo. Cuando haya capacidad, reanuda la misma producción: lo ya pagado se reutiliza.
+              Mientras espera no se inicia ningún cobro nuevo. Al reanudar la misma producción se reutiliza lo que ya quedó guardado;
+              lo que falte se genera dentro del plan confirmado.
             </p>
             <GenerateButton endpoint={`/api/generate/${request.id}/resume`} label="Reanudar ahora" />
           </Card>
@@ -148,7 +149,8 @@ export function ResultView({
           <div className="mt-4 flex flex-col items-center gap-2 text-center">
             <p className="text-sm text-ink-muted">
               {request.status === "failed" ? "Puedes reintentar la misma producción." : "La producción dejó de dar señales de avance."}{" "}
-              Lo que ya se pagó se reutiliza; no se cobra dos veces.
+              Se reutiliza lo que ya quedó guardado de este plan; lo que falte puede tener un costo nuevo, siempre dentro
+              del límite confirmado. Cada reintento usa uno de los intentos disponibles.
             </p>
             <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Reintentar" />
           </div>

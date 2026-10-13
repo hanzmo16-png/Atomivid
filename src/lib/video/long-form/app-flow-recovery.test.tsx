@@ -21,7 +21,8 @@ test("YouTube en espera de capacidad: explica la espera y ofrece reanudar la MIS
   const page = wrap(<ResultView request={waiting} nowMs={NOW} />);
   assert.match(page, /En espera de capacidad de producción/);
   assert.match(page, /Reanudar ahora/);
-  assert.match(page, /lo ya pagado se reutiliza/);
+  assert.match(page, /se reutiliza lo que ya quedó guardado/);
+  assert.match(page, /no se inicia ningún cobro nuevo/);
   assert.doesNotMatch(page, /Reintentar/, "waiting is not a failure: no new attempt is offered");
   assert.match(wrap(<RequestCard request={waiting} nowMs={NOW} />), /Reanudar/);
 });
@@ -31,7 +32,10 @@ test("YouTube fallido con plan confirmado: la página del video ofrece Reintenta
   const page = wrap(<ResultView request={failed} nowMs={NOW} />);
   assert.match(page, /No se pudo generar este video/);
   assert.match(page, /Reintentar/);
-  assert.match(page, /no se cobra dos veces/);
+  // Never a promise of a free retry: reuse covers only what is already stored; the rest may cost, within the cap.
+  assert.doesNotMatch(page, /no se cobra dos veces/);
+  assert.match(page, /lo que falte puede tener un costo nuevo/);
+  assert.match(page, /usa uno de los intentos disponibles/);
   const exhausted = wrap(<ResultView request={{ ...failed, render_attempts: 99 }} nowMs={NOW} />);
   assert.doesNotMatch(exhausted, /Reintentar/);
   assert.match(exhausted, /máximo de intentos/);
