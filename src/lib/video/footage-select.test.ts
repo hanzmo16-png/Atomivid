@@ -251,3 +251,102 @@ test("buildFallbackQuery toma como máximo las 2 primeras palabras", () => {
   assert.equal(buildFallbackQuery("runner"), "runner");
   assert.equal(buildFallbackQuery("   "), "b-roll");
 });
+
+// Production regression: a phone-recording hook previously chose an angry man
+// because technical rank was used as evidence of subject relevance.
+const phoneOpening = [
+  "person frustrated phone recording",
+  "confused creator looking at phone screen",
+  "blurry dark video playback on phone",
+];
+function openingProvider(candidates: FootageCandidate[], calls: string[] = []): FootageProvider {
+  return {
+    name: "fake",
+    async fetchFootage() { throw new Error("unverified legacy selection must not run"); },
+    async downloadFootage() { return Buffer.from(""); },
+    async searchVideoCandidates(query) { calls.push(query); return candidates; },
+  };
+}
+const openingArgs = (provider: FootageProvider, concepts = phoneOpening) => ({
+  provider, concepts, minimumDurationSeconds: 3,
+  state: createFootageSelectionState(), isOpening: true,
+});
+
+test("apertura: el objeto y la actividad ganan a una reacción genérica en 4K", async () => {
+  const outcome = await selectFootageForScene(openingArgs(openingProvider([
+    makeCandidate("angry", { width: 2160, description: "Angry man in a blue shirt" }),
+    makeCandidate("filming", { width: 720, description: "Woman filming with a smartphone" }),
+    makeCandidate("studio", { description: "Man recording audio in a studio" }),
+  ])));
+  assert.equal(outcome.sourceId, "filming");
+  assert.deepEqual(outcome.openingRelevance?.matchedTerms, ["phone", "record"]);
+  assert.equal(outcome.openingRelevance?.visualInspection, false);
+  assert.equal(outcome.providerDescription, "Woman filming with a smartphone");
+});
+
+test("apertura: búsqueda exacta y resolución no validan un clip sin descripción", async () => {
+  const calls: string[] = [];
+  const args = openingArgs(openingProvider([makeCandidate("unverified", { width: 2160 })], calls));
+  await assert.rejects(() => selectFootageForScene(args), { name: "OpeningFootageUnavailableError" });
+  assert.deepEqual(calls, [...phoneOpening, "phone recording"]);
+  assert.equal(args.state.usedSourceIds.size, 0);
+  assert.equal(args.state.photographerUseCount.size, 0);
+});
+
+test("apertura: reacciones exageradas o contenido excluido no se cuelan por mencionar el objeto", async () => {
+  const args = openingArgs(openingProvider([
+    makeCandidate("scream", { description: "Man screaming while recording on a phone" }),
+    makeCandidate("excluded", { description: "Woman filming with a smartphone in a studio" }),
+  ]));
+  await assert.rejects(() => selectFootageForScene({ ...args, excludedTerms: ["studio"] }), { name: "OpeningFootageUnavailableError" });
+  assert.equal(args.state.usedSourceIds.size, 0);
+});
+
+test("apertura: permite reacciones cuando sí son el asunto explícito", async () => {
+  const outcome = await selectFootageForScene(openingArgs(openingProvider([
+    makeCandidate("acting", { description: "Actor screaming in a theater" }),
+  ]), ["actor screaming theater"]));
+  assert.equal(outcome.sourceId, "acting");
+});
+
+test("apertura: el respaldo conserva la actividad y funciona para otros temas", async () => {
+  const calls: string[] = [];
+  const provider = openingProvider([], calls);
+  provider.searchVideoCandidates = async query => {
+    calls.push(query);
+    return query === "chopping vegetables" ? [makeCandidate("cook", { description: "Chef chopping fresh vegetables" })] : [];
+  };
+  const outcome = await selectFootageForScene(openingArgs(provider, ["happy person chopping vegetables"]));
+  assert.equal(outcome.sourceId, "cook");
+  assert.equal(outcome.queryUsed, "chopping vegetables");
+  assert.equal(outcome.usedFallbackQuery, true);
+  assert.deepEqual(calls, ["happy person chopping vegetables", "chopping vegetables"]);
+});
+
+test("apertura: imagen de respaldo también necesita relación comprobable", async () => {
+  const provider = openingProvider([]);
+  provider.searchImageCandidates = async () => [
+    makeCandidate("generic-photo", { mediaType: "image", description: "Angry man" }),
+    makeCandidate("phone-photo", { mediaType: "image", description: "Smartphone recording on a tripod" }),
+  ];
+  const outcome = await selectFootageForScene(openingArgs(provider));
+  assert.equal(outcome.sourceId, "phone-photo");
+  assert.equal(outcome.result.mediaType, "image");
+  assert.equal(outcome.openingRelevance?.accepted, true);
+});
+
+test("apertura: un candidato más descriptivo bajo el umbral no oculta otro válido", async () => {
+  const args = openingArgs(openingProvider([
+    makeCandidate("overused", { description: "Phone recording screen blurry dark playback", photographer: "overused" }),
+    makeCandidate("valid", { description: "Woman filming with a smartphone" }),
+  ]));
+  args.state.photographerUseCount.set("overused", 20);
+  const outcome = await selectFootageForScene(args);
+  assert.equal(outcome.sourceId, "valid");
+});
+
+test("apertura: proveedor sin candidatos verificables no puede saltar la comprobación", async () => {
+  const provider = openingProvider([]);
+  delete provider.searchVideoCandidates;
+  await assert.rejects(() => selectFootageForScene(openingArgs(provider)), { name: "OpeningFootageUnavailableError" });
+});

@@ -197,6 +197,10 @@ export async function generateVideoFromScript({
     usedFallbackQuery: boolean;
     candidatesConsidered: number;
     reason: string;
+    sourceId: string;
+    providerDescription?: string;
+    providerPageUrl?: string;
+    openingRelevance?: import("./opening-relevance").OpeningRelevance;
   }> = [];
   // Planificador visual (imagen generada vs. stock) — ver
   // visual-resource-planner.ts para la política completa. Con
@@ -311,6 +315,8 @@ export async function generateVideoFromScript({
         concepts: beatConcepts,
         minimumDurationSeconds: beatDuration + 0.5,
         state: footageState,
+        isOpening: i === 0,
+        excludedTerms: segment.excludedTerms,
       });
 
       footageSelections.push({
@@ -321,6 +327,10 @@ export async function generateVideoFromScript({
         usedFallbackQuery: outcome.usedFallbackQuery,
         candidatesConsidered: outcome.candidatesConsidered,
         reason: outcome.reason,
+        sourceId: outcome.sourceId,
+        providerDescription: outcome.providerDescription,
+        providerPageUrl: outcome.providerPageUrl,
+        openingRelevance: outcome.openingRelevance,
       });
 
       // Clip de stock: si este id de Pexels con la misma resolución ya está guardado (stock/…), se reutiliza esa
@@ -482,6 +492,7 @@ export async function generateVideoFromScript({
     const { directReel, directorBlockMessage } = await import("@/lib/video/director/reel-render");
     const directed = directReel({ script, storyboard, beatsBySegment: directorBeats, sceneTimings, audioUrl, captions, narrationGaps, durationSeconds: finalDurationSeconds });
     const evidence = Buffer.from(JSON.stringify({
+      footageSelections,
       ok: directed.ok, storyboardSource: directed.storyboardSource, input: directed.input, plan: directed.plan,
       ...(directed.ok ? { applied: directed.applied, props: directed.props } : { blockers: directed.blockers }),
     }, null, 2));

@@ -177,7 +177,7 @@ Reglas estrictas:
 - Nunca copies el tema tal cual dentro de una frase de plantilla — el tema es el asunto del video, no texto literal a repetir en cada escena.
 - Cada escena avanza el arco narrativo; no repitas la misma idea con otras palabras entre escenas.
 - Narración natural y motivacional, sin frases de relleno ni acotaciones/emojis/marcas de tiempo.
-- La escena de apertura necesita un gancho visual fuerte — no un plano contemplativo ni introducción lenta.
+- La escena de apertura debe mostrar desde el inicio el objeto o la actividad central de la primera frase. Sus conceptos visuales deben describir una acción observable y su contexto; una persona frustrada o sorprendida por sí sola no demuestra el tema. Evita gestos exagerados, gritos o caras cómicas salvo que sean explícitamente el asunto del video. Mantén el objeto/actividad central en todas las alternativas de apertura.
 - La escena de cierre debe sentirse como una resolución, con conceptos visuales que NO se hayan usado antes en el guion. ${AVOID_STOCK_TEXT_CLICHES}
 
 Para cada escena, interpreta el SIGNIFICADO de la narración, no la conviertas literalmente en palabras clave. Ejemplo: para "y ahí es donde la mayoría abandona sus sueños", NO busques variantes de "dreams" — interpreta la idea (alguien rindiéndose) y da conceptos como "exhausted athlete stopping mid run", "person quitting a workout", "runner falling behind and giving up".
@@ -271,6 +271,7 @@ export async function regenerateScene({
 
 ${previous ? `Escena anterior: "${previous}"\n` : ""}Escena actual (a reescribir): "${current.text}"
 ${next ? `Escena siguiente: "${next}"\n` : ""}
+${sceneIndex === 0 ? "Esta es la apertura: muestra el objeto o actividad central desde el inicio y conserva ese objeto/actividad en todas las alternativas visuales. Evita personas reaccionando sin contexto, gritos y caras exageradas salvo que sean el tema explícito." : ""}
 Reescribe SOLO la escena actual. Da:
 - "text": nueva narración (~${targetWords} palabras, sin emojis ni acotaciones).
 - "visualQuery": el concepto visual principal (2-4 palabras en inglés) — igual a visualConcepts[0].
