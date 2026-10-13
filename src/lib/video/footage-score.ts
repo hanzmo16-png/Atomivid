@@ -54,16 +54,25 @@ export function scoreCandidate(
     reasons.push("es imagen estática (sin bonus de movimiento)");
   }
 
-  if (typeof candidate.width === "number") {
-    if (candidate.width >= 1080) {
+  // VerticalReel fills 9:16 with objectFit: cover. A landscape file's full
+  // width is not usable resolution: 1920x1080 leaves only ~608x1080 after
+  // that crop, whereas 720x1280 portrait retains all its pixels. This is a
+  // resolution estimate, not subject/framing inspection or a hard rejection.
+  const { width, height } = candidate;
+  if (typeof width === "number" && typeof height === "number" &&
+      Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+    const usableWidth = Math.min(width, height * 9 / 16);
+    if (usableWidth >= 1080) {
       score += 2;
-      reasons.push("resolución ≥1080px (+2)");
-    } else if (candidate.width >= 720) {
+      reasons.push("resolución útil 9:16 ≥1080x1920 (+2)");
+    } else if (usableWidth >= 720) {
       score += 1;
-      reasons.push("resolución ≥720px (+1)");
+      reasons.push("resolución útil 9:16 ≥720x1280 (+1)");
     } else {
-      reasons.push("resolución por debajo de 720px (sin bonus)");
+      reasons.push("resolución útil 9:16 por debajo de 720x1280 (sin bonus)");
     }
+  } else {
+    reasons.push("resolución útil 9:16 sin comprobar (dimensiones incompletas o inválidas)");
   }
 
   if (candidate.mediaType === "video" && typeof candidate.durationSeconds === "number") {
