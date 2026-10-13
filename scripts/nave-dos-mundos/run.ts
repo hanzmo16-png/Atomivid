@@ -205,4 +205,11 @@ async function main() {
   log("done; total spent USD (incl. uncertain)", total(ledger));
 }
 
-main().catch(e => { console.error("[nave] fatal:", e instanceof Error ? e.message : e); process.exit(1); });
+main().catch(async e => {
+  const message = (e instanceof Error ? e.message : String(e)).slice(0, 500);
+  console.error("[nave] fatal:", message);
+  // The CI log is not readable from Claude's session: the error travels in the encrypted bundle (message only, never env).
+  await mkdir(OUT, { recursive: true }).catch(() => {});
+  await writeFile(join(OUT, "fatal.json"), JSON.stringify({ at: new Date().toISOString(), message, stack: e instanceof Error ? e.stack?.split("\n").slice(0, 6) : null }, null, 2)).catch(() => {});
+  process.exit(1);
+});
