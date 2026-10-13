@@ -1,7 +1,5 @@
 import type { FootageCandidate, FootageProvider } from "../types";
 
-const COLORS = ["334155", "7c3aed", "b91c1c", "0f766e", "b45309", "1d4ed8"];
-
 function wrapLabel(label: string, maxCharsPerLine: number): string[] {
   const words = label.split(/\s+/);
   const lines: string[] = [];
@@ -21,8 +19,17 @@ function wrapLabel(label: string, maxCharsPerLine: number): string[] {
   return lines.slice(0, 3);
 }
 
-function svgDataUri(label: string, colorIndex: number): string {
-  const color = COLORS[colorIndex % COLORS.length];
+// Color from the label, not from the global call counter: each scene consumes a fixed number of
+// candidates, so a counter-based color repeated on consecutive scenes and hid every cut locally.
+// A continuous hue (instead of a 6-color palette) keeps different searches visibly distinct.
+function colorFor(label: string): string {
+  let h = 0;
+  for (const ch of label) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return `hsl(${h % 360},65%,38%)`;
+}
+
+function svgDataUri(label: string): string {
+  const color = colorFor(label);
   const safeLabel = label.replace(/[<>&]/g, "").slice(0, 60);
   const lines = wrapLabel(safeLabel, 18);
   const fontSize = 52;
@@ -35,7 +42,7 @@ function svgDataUri(label: string, colorIndex: number): string {
 
   const svg =
     `<svg xmlns='http://www.w3.org/2000/svg' width='1080' height='1920'>` +
-    `<rect width='100%' height='100%' fill='#${color}'/>` +
+    `<rect width='100%' height='100%' fill='${color}'/>` +
     `<text font-size='${fontSize}' fill='white' text-anchor='middle' ` +
     `font-family='sans-serif'>${tspans}</text>` +
     `</svg>`;
@@ -52,7 +59,7 @@ export const fixtureFootageProvider: FootageProvider = {
   async fetchFootage(query) {
     counter += 1;
     return {
-      url: svgDataUri(query, counter),
+      url: svgDataUri(query),
       mediaType: "image",
       photographer: "fixture",
       mimeType: "image/svg+xml",
@@ -85,7 +92,7 @@ export const fixtureFootageProvider: FootageProvider = {
       counter += 1;
       const label = `${query} #${i + 1}`;
       return {
-        url: svgDataUri(label, counter),
+        url: svgDataUri(label),
         sourceId: `fixture-${counter}`,
         mediaType: "image" as const,
         photographer: `fixture-photographer-${counter}`,
@@ -93,6 +100,10 @@ export const fixtureFootageProvider: FootageProvider = {
         extension: "svg",
         width: 1080,
         height: 1920,
+        // The synthetic image literally shows the search text, so that text is its honest provider
+        // description. Without it the opening relevance gate (opening-relevance.ts) rejects every
+        // fixture candidate and no local Reel can render.
+        description: query,
       };
     });
   },

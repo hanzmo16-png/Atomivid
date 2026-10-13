@@ -376,3 +376,17 @@ test("apertura: excluir phone no excluye headphones por coincidencia parcial", a
   });
   assert.equal(outcome.sourceId, "headphones");
 });
+
+// Local run (chatgpt-09): since the opening relevance gate, a Reel rendered with the development
+// fixture provider stopped at OPENING_FOOTAGE_UNVERIFIED because fixture candidates carried no
+// description. The fixture image shows its search text, so that text is its description.
+test("apertura: el proveedor fixture de desarrollo supera la puerta con la descripción de su búsqueda", async () => {
+  const { fixtureFootageProvider } = await import("@/lib/providers/footage/fixture");
+  const outcome = await selectFootageForScene({
+    provider: fixtureFootageProvider, concepts: phoneOpening, minimumDurationSeconds: 3,
+    state: createFootageSelectionState(), isOpening: true,
+  });
+  assert.equal(outcome.result.mediaType, "image");
+  assert.equal(outcome.openingRelevance?.accepted, true);
+  assert.equal(outcome.openingRelevance?.visualInspection, false);
+});
