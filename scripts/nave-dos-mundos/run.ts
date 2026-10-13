@@ -28,7 +28,7 @@ const IMAGE_ESTIMATE_USD = 0.25; // high quality, portrait/landscape, with refer
 const CLIP_ESTIMATE_USD = 8 * Number(process.env.VEO_COST_USD_PER_SECOND || "0.12");
 const CONCURRENCY = 4;
 
-type Status = "reserved" | "spent" | "failed" | "uncertain";
+type Status = "reserved" | "spent" | "failed" | "uncertain" | "released";
 type Entry = { attempt?: string; finishedAt?: string; key: string; kind: "image" | "video"; status: Status; usd: number; at: string; model: string; job?: string; note?: string; usage?: unknown; sha256?: string; bytes?: number };
 type Ledger = { entries: Entry[] };
 
@@ -106,10 +106,20 @@ async function openaiImage(prompt: string, size: string, inputs: { name: string;
   return { bytes: Buffer.from(json.data[0].b64_json, "base64"), usage: json.usage };
 }
 
+/**
+ * Mode file: line 1 phase, line 2 confirm, then optional lines:
+ *   only=<key,...>
+ *   release=<ledger key>|<evidence>   — a reservation proven never to reach the provider (no charge)
+ *   spent=<ledger key>|<usd>|<evidence> — a generation proven charged that the ledger recorded wrongly
+ * Every reconciliation is a new ledger entry carrying its evidence; nothing is deleted.
+ */
 function parseMode(raw: string) {
   const lines = raw.split("\n").map(l => l.trim());
-  const only = (lines[2] ?? "").startsWith("only=") ? lines[2].slice(5).split(",").map(s => s.trim()).filter(Boolean) : [];
-  return { phase: lines[0], confirm: lines[1], only };
+  const rest = lines.slice(2);
+  const only = rest.find(l => l.startsWith("only="))?.slice(5).split(",").map(x => x.trim()).filter(Boolean) ?? [];
+  const release = rest.filter(l => l.startsWith("release=")).map(l => { const [key, why] = l.slice(8).split("|"); return { key: key.trim(), why: (why ?? "").trim() }; });
+  const spent = rest.filter(l => l.startsWith("spent=")).map(l => { const [key, usd, why] = l.slice(6).split("|"); return { key: key.trim(), usd: Number(usd), why: (why ?? "").trim() }; });
+  return { phase: lines[0], confirm: lines[1], only, release, spent };
 }
 const baseId = (key: string) => key.split("@")[0];
 
@@ -120,7 +130,7 @@ async function pool<T>(items: T[], n: number, fn: (t: T) => Promise<void>) {
 }
 
 async function main() {
-  const { phase, confirm, only } = parseMode(await readFile(MODE, "utf8"));
+  const { phase, confirm, only, release, spent } = parseMode(await readFile(MODE, "utf8"));
   await mkdir(OUT, { recursive: true });
   const svc = service();
   const ledger = await loadLedger(svc);
@@ -129,6 +139,16 @@ async function main() {
   log("phase", phase, "only", only.join(",") || "(all)", "spent so far USD", total(ledger));
 
   try {
+  // Reconciliations first (evidence-backed, append-only).
+  for (const r of [...release.map(x => ({ ...x, status: "released" as const, usd: 0 })), ...spent.map(x => ({ ...x, status: "spent" as const }))]) {
+    if (!r.key || !r.why || !Number.isFinite(r.usd)) throw new Error(`invalid reconciliation line for ${r.key}`);
+    const last = ledger.entries.filter(e => e.key === r.key).at(-1);
+    if (!last) throw new Error(`nothing to reconcile for ${r.key}`);
+    if (last.note?.includes(`reconciled: ${r.why}`)) { log(r.key, "already reconciled"); continue; }
+    const e: Entry = { ...last, attempt: undefined, status: r.status, usd: r.usd, at: new Date().toISOString(), note: `reconciled: ${r.why}` };
+    ledger.entries.push(e); await saveEntry(svc, e);
+    results.push({ key: r.key, status: `reconciled_${r.status}`, usd: r.usd }); log(r.key, "reconciled →", r.status, r.usd);
+  }
   const paid = phase === "refs" || phase === "keyframes" || phase === "clips";
   if (paid && confirm !== "GASTAR") throw new Error("paid phase without GASTAR on line 2");
 
@@ -138,6 +158,7 @@ async function main() {
     const prior = ledger.entries.filter(e => e.key === key).at(-1);
     let resumeJob: string | undefined;
     if (prior && (prior.status === "reserved" || prior.status === "uncertain")) {
+      // (a "released" or "spent" last entry is not blocking: released = never charged, spent without output = see note)
       if (kind === "video" && prior.job) { resumeJob = prior.job; log(key, "resuming submitted operation (no new charge)"); }
       else { results.push({ key, status: "blocked_uncertain" }); log(key, "BLOCKED: previous attempt uncertain, needs review"); return; }
     }
