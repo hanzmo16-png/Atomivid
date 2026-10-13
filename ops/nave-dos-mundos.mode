@@ -1,6 +1,5 @@
-keyframes
+clips
 GASTAR
-only=s02@2
-mirror=s03,s04
-# run 6: review of run 5 — s02/s03/s04 faced left (breaks left→right). s03/s04 mirrored (cost 0);
-# s02 regenerated once with an explicit nose-right prompt (mirroring would put the ocean behind the ship).
+mirror=s08
+use=s02@2,s03@m,s04@m,s08@m
+# run 7: 8 Veo clips (one per planned shot) from the reviewed keyframes; s08 mirrored (cost 0) so the final shot keeps the journey direction
