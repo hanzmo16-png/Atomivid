@@ -1,4 +1,5 @@
 import { ScriptPersistenceError } from "./script-persistence";
+import { ScriptOutputError } from "./script-output";
 import Anthropic from "@anthropic-ai/sdk";
 import { ProviderConfigurationError } from "@/lib/providers/production";
 import { MissingEnvVarError } from "@/lib/env-errors";
@@ -39,9 +40,12 @@ export type ScriptErrorCode =
   | "anthropic_api_error"
   | "script_in_flight"
   | "script_reconciliation_required"
+  | "script_output_limit"
+  | "script_missing_output"
   | "unknown";
 
 export function scriptErrorCode(error: unknown): ScriptErrorCode {
+  if (error instanceof ScriptOutputError) return error.reason === "output_limit" ? "script_output_limit" : "script_missing_output";
   if (error instanceof ScriptReconciliationRequiredError) return error.state === "in_flight" ? "script_in_flight" : "script_reconciliation_required";
   if (error instanceof ReconciliationRequiredError) return "script_reconciliation_required";
   if (error instanceof ProviderConfigurationError) return "provider_not_configured";
@@ -102,6 +106,9 @@ export function classifyScriptError(error: unknown, diagnosticId: string = gener
   }
 
   const code = scriptErrorCode(error);
+  if (code === "script_output_limit" || code === "script_missing_output") {
+    return `${SCRIPT_NO_RETRY_PREFIX} el servicio respondió sin un guion completo. Conservamos el resultado para revisión; contacta al soporte con este código antes de generar otro.${suffix}`;
+  }
   // Uncertain provider outcome: never "intenta de nuevo" — a retry is exactly what could charge twice.
   if (code === "script_reconciliation_required") return SCRIPT_RECONCILIATION_MESSAGE + suffix;
   if (code === "script_in_flight") return SCRIPT_IN_FLIGHT_MESSAGE + suffix;

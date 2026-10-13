@@ -4,6 +4,7 @@ import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { targetWordsFor } from "@/lib/video/script-pacing";
+import { requireScriptOutput } from "@/lib/video/script-output";
 
 // Instanciado de forma perezosa, mismo patrón que getStripe() en
 // src/lib/stripe/client.ts: así ANTHROPIC_API_KEY se valida explícitamente
@@ -206,6 +207,10 @@ Tu intento anterior tuvo ${lastWordCount} palabras narradas en total, fuera del 
     const params = {
       model: SCRIPT_MODEL,
       max_tokens: 2000,
+      // Sonnet 5 thinks by default. On short scripts, length corrections can
+      // consume the entire output budget before producing any JSON (2026-10-13).
+      // Keep the same token/spend limits; other model configurations are unchanged.
+      ...(SCRIPT_MODEL === "claude-sonnet-5" ? { thinking: { type: "disabled" as const } } : {}),
       system,
       messages: [{ role: "user" as const, content }],
       output_config: {
@@ -214,10 +219,7 @@ Tu intento anterior tuvo ${lastWordCount} palabras narradas en total, fuera del 
     };
     const response = await supplyProtectedAnthropic(params, () => getClient().messages.parse(params, { maxRetries: 0 }));
 
-    const parsed = response.parsed_output;
-    if (!parsed) {
-      throw new Error("Claude no devolvió un guion válido");
-    }
+    const parsed = requireScriptOutput(response);
 
     lastScript = parsed;
     lastWordCount = countScriptWords(parsed);
@@ -255,6 +257,7 @@ export async function regenerateScene({
   const params = {
     model: SCRIPT_MODEL,
     max_tokens: 500,
+    ...(SCRIPT_MODEL === "claude-sonnet-5" ? { thinking: { type: "disabled" as const } } : {}),
     system:
       "Eres guionista de reels 'faceless' para redes sociales. Reescribes " +
       "UNA SOLA escena de un guion ya existente, manteniendo el mismo " +
@@ -283,9 +286,5 @@ Reescribe SOLO la escena actual. Da:
   };
   const response = await supplyProtectedAnthropic(params, () => getClient().messages.parse(params, { maxRetries: 0 }));
 
-  if (!response.parsed_output) {
-    throw new Error("Claude no devolvió una escena válida");
-  }
-
-  return response.parsed_output;
+  return requireScriptOutput(response);
 }

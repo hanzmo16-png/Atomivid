@@ -17,7 +17,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { getFootageProvider } from "@/lib/providers/footage";
 import { getMusicProvider } from "@/lib/providers/music";
-import type { GeneratedScript, MusicResult, ScriptLanguage, WordTiming } from "@/lib/providers/types";
+import type { GeneratedScript, MusicResult, ScriptLanguage } from "@/lib/providers/types";
+import { alignScenesToWords } from "./scene-timings";
 import type { RenderStage } from "@/lib/video/stages";
 import type { Caption, Scene } from "../../../remotion/VerticalReel";
 import { computeNarrationGaps, type NarrationGap } from "../../../remotion/audio-mix";
@@ -177,7 +178,7 @@ export async function generateVideoFromScript({
   }
 
   // 2. Repartir el tiempo de la narración real entre las escenas del guion
-  const sceneTimings = alignScenesToWords(script.segments, voice.words);
+  const sceneTimings = alignScenesToWords(script.segments, voice.words, voice.durationSeconds);
 
   // 3. Footage: varios candidatos por escena (y por "beat" visual dentro
   // de escenas largas), puntuados y deduplicados contra todo lo ya usado
@@ -585,35 +586,6 @@ export async function generateVideoFromScript({
   });
 
   return { videoPath };
-}
-
-function alignScenesToWords(
-  segments: { text: string }[],
-  words: WordTiming[],
-): { start: number; end: number }[] {
-  const result: { start: number; end: number }[] = [];
-  let wordIndex = 0;
-
-  for (const segment of segments) {
-    const wordCount = Math.max(
-      segment.text.split(/\s+/).filter(Boolean).length,
-      1,
-    );
-    const startIdx = Math.max(0, Math.min(wordIndex, words.length - 1));
-    const endIdx = Math.max(
-      0,
-      Math.min(wordIndex + wordCount - 1, words.length - 1),
-    );
-
-    result.push({
-      start: words[startIdx]?.startSeconds ?? 0,
-      end: words[endIdx]?.endSeconds ?? words[startIdx]?.startSeconds ?? 0,
-    });
-
-    wordIndex += wordCount;
-  }
-
-  return result;
 }
 
 /**
