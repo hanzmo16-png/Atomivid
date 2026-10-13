@@ -671,3 +671,44 @@ Cómo leer la tabla:
   - un adaptador que traduzca los shots aprobados a `AllocatedShot` (largos) o a segmentos de `montaje.json` (podcast);
   - pruebas con anotación humana;
   - cualquier LLM o generación, solo con permiso de presupuesto.
+
+### Actualización (continuación funcional chatgpt-26): el plan ya puede dirigir el render de Reels
+
+Detrás de un segundo flag, `CINEMATIC_DIRECTOR_RENDER_ENABLED` (apagado por defecto e independiente de `CINEMATIC_DIRECTOR_V2_ENABLED`), `generate-video.ts` hace lo siguiente:
+- vuelve a planificar con el material **real** del render (`reel-render.ts`);
+- traduce el plan a escenas de `VerticalReel` (`render-bridge.ts`);
+- guarda `director.json` junto al MP4, con lo previsto y lo aplicado por plano y lo no soportado;
+- si el auditor bloquea, falla con un mensaje legible (no inventa material).
+
+Sin el flag, el render es el de siempre (lo prueban `reel-direction.test.ts` y `render-bridge.test.ts`). La reversión consiste en apagar el flag.
+
+## 9. FR-PODCAST-1 — Podcast audiovisual con voz continua y avatar breve (NO IMPLEMENTADO)
+
+Requisito de diseño futuro registrado desde la adenda T-20261012-1442-chatgpt-26 (diseño podcast/avatar breve; instrucción de Hans del 12/oct/2026). **Nada de esta sección está implementado** ni autoriza generación, render 16:9, gasto o cambios en episodios ya editados. Es una dependencia del diseño del Director, no una tarea ejecutiva.
+
+**Preferencia editorial**
+- La voz maestra de Hans narra de forma continua.
+- La mayor parte de la imagen es material relacionado con lo que se dice.
+- El avatar entra solo en segmentos cortos y justificados (apertura personal, reflexión o pregunta, transición importante, cierre). Ningún uso es obligatorio.
+- No se alterna por intervalos fijos ni se convierte un episodio en avatar continuo.
+
+**Propuesta orientativa (no es presupuesto aprobado ni resultado garantizado)**
+- De 8 a 10 s por intervención, cortando por frase y pausa reales, sin acelerar la voz ni cortar palabras.
+- Para 30 minutos: de 3 a 5 intervenciones, unos 30–50 s en total. Se planifican menos si no hacen falta y las excepciones se justifican antes de ejecutar.
+
+**Requisitos para la etapa futura**
+1. La propuesta muestra, por cada segmento de avatar: frase, motivo editorial, duración prevista y medida. Muestra además los segundos totales y el coste estimado con el proveedor y modelo vigentes.
+2. El tope económico se aprueba por episodio antes de cualquier generación. No se transfiere el tope de hans-01 ni se asumen precios de memoria. Si no hay coste o capacidad verificables, el plan queda pendiente.
+3. La narración maestra es una sola, y los cortes de avatar usan ese mismo audio. No se regenera la voz por corte ni se mezclan dos voces. La sincronía se preserva al entrar y al salir.
+4. Un clip de avatar existente solo se reutiliza si corresponde exactamente al texto y al audio y está autorizado. Nunca se hace un lip-sync con otro discurso.
+5. Los segmentos aprobados están protegidos: no se alteran en silencio sus tiempos, identidad, foto ni voz. Un cambio que afecte a la sincronía requiere revisión.
+6. Cada plano corresponde a la frase exacta del guion. Hay variedad y continuidad, sin diapositivas arbitrarias, sin recursos repetidos y sin cartelas largas que compitan con los subtítulos. Un movimiento de cámara sobre una foto se declara como tal.
+7. El plan sigue siendo una propuesta. La generación y la ejecución quedan separadas, detrás del presupuesto, el ledger, la idempotencia y los permisos existentes.
+8. El resultado se revisa, reproduce, descarga y recupera desde la cuenta correcta. La calidad visual requiere una prueba real: un fixture sintético no la acredita.
+
+**Lo que ya existe y sirve de base, solo para Reels 9:16**
+- Los segmentos con `locked: true` conservan su ventana y entran y salen por corte. Lo prueba `render-bridge.test.ts` («avatar locked window and cuts»).
+- La etiqueta «Recreación IA» se dibuja.
+- Un zoom sobre una imagen fija nunca se declara como movimiento real.
+
+Nada de esto se ha extendido a podcast ni a 16:9.

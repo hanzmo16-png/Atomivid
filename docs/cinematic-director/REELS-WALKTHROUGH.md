@@ -76,3 +76,34 @@ Para volver al flujo actual, quita el flag o déjalo en 0. El panel desaparece y
   - Con el storyboard simulado, varias escenas pueden recibir la misma receta (p. ej. 3 seguidas de `reel-problem-relatable`). Las palabras clave del catálogo exigen coincidencia exacta, por ejemplo «resultado» frente a «resultados».
   - Es afinado de catálogo pendiente. No se declara calidad.
 - **Reversión:** apagar el flag o revertir el PR. No hay migraciones ni datos escritos.
+
+## Director en el render (opcional, segundo flag)
+
+`CINEMATIC_DIRECTOR_RENDER_ENABLED=1` hace que «Generar video final» monte el Reel con el plan del Director. Es independiente de `CINEMATIC_DIRECTOR_V2_ENABLED` (que solo muestra la inspección) y está apagado por defecto.
+
+Con el flag activado:
+- **Planificación:** el Director vuelve a planificar con el material que el render resolvió de verdad, no con el storyboard simulado.
+- **Recetas:** cada receta decide el movimiento (fijo, zoom lento o paneo declarados sobre foto; un clip se reproduce tal cual), las transiciones (corte, fundido cruzado, fundido a negro) y la etiqueta visible («Imagen ilustrativa» / «Recreación IA», arriba a la izquierda, lejos de los subtítulos).
+- **Registro:** se guarda `director.json` junto al MP4. La página del video muestra «Director: recetas aplicadas», con frase, receta, movimiento, transiciones, etiqueta y propiedades no soportadas por plano.
+- **Bloqueos:** si el Director no puede montar sin material nuevo (o con huecos), el render falla con un mensaje legible y los códigos. Nunca inventa material ni gasta.
+
+**Reversión:** quita el flag. El render vuelve a ser exactamente el anterior; lo prueban `reel-direction.test.ts` y `render-bridge.test.ts`.
+
+### Prueba local comprobada (2026-10-13, USD 0)
+
+- **Entorno:** Supabase local, `next dev`, proveedores fixture (voz, imágenes y música sintéticas), `RENDER_WORKER=inline`, ambos flags a 1.
+- **Recorrido en la interfaz:** login → revisión (inspección del Director) → «Generar video final» / «Reintentar» → página del video → «Descargar video» → panel de recetas aplicadas.
+  - Resultado: MP4 1080×1920 H.264/AAC de 60,5 s, con 9 planos.
+  - La copia descargada es idéntica (sha256) a la guardada.
+- **Medidas** (`scripts/director-reel-evidence.py`):
+  - SSIM entre el primer y el último fotograma: ≈1,0 en planos fijos, 0,96–0,98 con zoom y 0,94–0,95 con paneo.
+  - El fundido a negro final llega a negro en 0,3 s.
+
+**No comprobado:**
+- La generación del guion desde la interfaz: requiere la IA de pago, y el control de calidad rechaza el guion fixture, como debe. Hans autorizó cargar un guion de prueba en la base local.
+- La reproducción dentro del navegador de pruebas: ese Chromium no trae H.264. El MP4 se decodifica completo con ffmpeg.
+- La calidad visual con material real: los fixtures son tarjetas SVG.
+- Clips con movimiento real.
+- Un avatar dentro del Reel.
+
+**Para probarlo tú:** una preview de esta rama con los dos flags. Se necesitan proveedores reales para guion y material (gasto que autorizas aparte) o un entorno local como el descrito.
