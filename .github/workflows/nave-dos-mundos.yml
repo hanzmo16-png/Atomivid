@@ -1,0 +1,63 @@
+name: Nave entre dos mundos (ficción IA, gasto autorizado por Hans 2026-10-13)
+
+# ops/nave-dos-mundos.mode line 1 = check | refs | keyframes | clips; line 2 = GASTAR (paid phases); line 3 = only=<keys>.
+# Paid calls (OpenAI images, Veo) are ledger-guarded in scripts/nave-dos-mundos/run.ts and reuse stored outputs.
+# The repository is public: outputs are uploaded ONLY encrypted (AES-256 + RSA-OAEP to ops/nave-dos-mundos.pub.pem);
+# the private key never leaves Claude's session. Nothing is published or deployed.
+on:
+  push:
+    branches: [claude/hola-sn3dxy]
+    paths: [ops/nave-dos-mundos.mode]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atomivid-nave-dos-mundos
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Read mode
+        id: mode
+        run: |
+          echo "phase=$(sed -n 1p ops/nave-dos-mundos.mode | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+          echo "confirm=$(sed -n 2p ops/nave-dos-mundos.mode | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+      - name: Run (no secrets or signed URLs on stdout)
+        run: npx tsx scripts/nave-dos-mundos/run.ts
+        env:
+          OUT_DIR: nave-output
+          ATOMIVID_RUNTIME: production
+          VEO_COST_USD_PER_SECOND: '0.12'
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ steps.mode.outputs.confirm == 'GASTAR' && secrets.OPENAI_API_KEY || '' }}
+          VEO_API_KEY: ${{ steps.mode.outputs.confirm == 'GASTAR' && secrets.VEO_API_KEY || '' }}
+      - name: Encrypt outputs (only ciphertext leaves the runner)
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p sealed
+          test -d nave-output || mkdir nave-output
+          tar -C nave-output -cf bundle.tar .
+          openssl rand -out k.bin 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in bundle.tar -out sealed/bundle.tar.enc -pass file:k.bin
+          openssl pkeyutl -encrypt -pubin -inkey ops/nave-dos-mundos.pub.pem -pkeyopt rsa_padding_mode:oaep -in k.bin -out sealed/key.enc
+          rm -f k.bin bundle.tar
+          rm -rf nave-output
+          ls -l sealed
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nave-sealed-${{ github.run_id }}
+          path: sealed/
+          retention-days: 14
