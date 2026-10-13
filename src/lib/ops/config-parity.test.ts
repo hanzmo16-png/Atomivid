@@ -8,8 +8,7 @@ test("render.yml: valores literales del worker y variables opacas (secretos/expr
   const yml = readFileSync(path.join(__dirname, "../../../.github/workflows/render.yml"), "utf8");
   const { literals, opaque } = workflowLiteralEnv(yml, "name: Renderizar video");
   assert.equal(literals.MAX_AVATAR_COST_USD, "2");
-  // La tarifa de voz ya no se repite como literal en el worker: la lee de pricing.ts (fuente única).
-  assert.ok(!("PRICING_ELEVENLABS_USD_PER_1K_CHARS" in literals));
+  assert.ok("PRICING_ELEVENLABS_USD_PER_1K_CHARS" in literals);
   assert.ok(opaque.includes("HEYGEN_API_KEY") && !("HEYGEN_API_KEY" in literals), "secrets are never read as values");
 });
 

@@ -23,7 +23,6 @@
 export {};
 
 import fs from "node:fs/promises";
-import { getPricingConfig } from "../src/lib/billing/pricing";
 
 const COMPARISON_TEXT =
   "Nadie te muestra lo que hay detrás del éxito. Solo ven la victoria, pero no las horas perdidas, " +
@@ -241,7 +240,8 @@ async function main() {
     await fs.writeFile(fileName, audioBuffer);
 
     const estimatedCostUsd =
-      (COMPARISON_TEXT.length / 1000) * getPricingConfig().elevenLabsUsdPer1kChars;
+      (COMPARISON_TEXT.length / 1000) *
+      Number(process.env.PRICING_ELEVENLABS_USD_PER_1K_CHARS || 0.18);
 
     comparison.push({
       file: fileName,

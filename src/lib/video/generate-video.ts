@@ -38,7 +38,6 @@ import { decideResourceStrategy, buildScenePlanEntry, type ScenePlanEntry } from
 import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resolver";
 import { cinematicDirectorRenderEnabled } from "@/lib/video/director/flag";
 import { compressAudioForStorage } from "@/lib/video/audio-storage";
-import { placeStockClip } from "@/lib/video/stock-cache";
 import type { ResolvedBeat } from "@/lib/video/director/reel-render";
 
 // Deliberadamente separado de generate-script.ts — ver el comentario ahí
@@ -333,24 +332,14 @@ export async function generateVideoFromScript({
         openingRelevance: outcome.openingRelevance,
       });
 
-      // Clip de stock: si este id de Pexels con la misma resolución ya está guardado (stock/…), se reutiliza esa
-      // ruta sin descargarlo ni subirlo de nuevo; si no, se sube una sola vez ahí. Ids no estables o un fallo de
-      // búsqueda → exactamente como antes (carpeta del intento). Ver stock-cache.ts.
-      const placement = await placeStockClip(supabase, STORAGE_BUCKET, {
-        sourceId: outcome.sourceId,
-        media: outcome.result as { extension: string; width?: number; height?: number },
-        perRequestPath: `${artifactPrefix}/scene-${i}-${b}.${outcome.result.extension}`,
-      });
-      let mediaUrl: string;
-      if (placement.reuse) {
-        mediaUrl = await signStoredObject(supabase, placement.path);
-      } else {
-        const footageBuffer = await footageProvider.downloadFootage(outcome.result.url);
-        storageBytes += footageBuffer.byteLength;
-        ({ url: mediaUrl } = await uploadToStorage(supabase, placement.path, footageBuffer, outcome.result.mimeType));
-      }
-      console.log("[atomivid:stock-cache]", JSON.stringify({ requestId, scene: `${i}-${b}`, reuse: placement.reuse,
-        ...(placement.reuse ? {} : { shared: placement.shared, lookup: placement.lookup }) }));
+      const footageBuffer = await footageProvider.downloadFootage(outcome.result.url);
+      storageBytes += footageBuffer.byteLength;
+      const { url: mediaUrl } = await uploadToStorage(
+        supabase,
+        `${artifactPrefix}/scene-${i}-${b}.${outcome.result.extension}`,
+        footageBuffer,
+        outcome.result.mimeType,
+      );
       scenes.push({
         mediaUrl,
         mediaType: outcome.result.mediaType,
@@ -605,13 +594,6 @@ export async function generateVideoFromScript({
  * corta duración (para que este mismo proceso de render pueda leerlo de
  * inmediato, p. ej. Remotion descargando una imagen o un audio).
  */
-/** Signed URL for an object that already exists (shared stock clip), with the same TTL as freshly uploaded assets. */
-async function signStoredObject(supabase: SupabaseClient, objectPath: string): Promise<string> {
-  const { data, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(objectPath, ASSET_SIGNED_URL_TTL_SECONDS);
-  if (error || !data) throw new Error(`No se pudo firmar la URL de ${objectPath}: ${error?.message ?? "desconocido"}`);
-  return data.signedUrl;
-}
-
 async function uploadToStorage(
   supabase: SupabaseClient,
   objectPath: string,
