@@ -16,6 +16,7 @@ import {
 import type { LongFormStage } from "./long-form/stages";
 import { resolveExecutablePlan, type ProductionPlan } from "./long-form/production-plan";
 import { assertCinematicV6Account } from "./long-form/cinematic-v6-access";
+import { resolveDirectorRender } from "./director/render-access";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { attemptState } from "./attempt-state";
 import type { RenderStage } from "./stages";
@@ -160,6 +161,14 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
       return data.user;
     });
     await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name));
+    // Director (chatgpt-06): decided here from the worker's own configuration and the stored row/owner, never from
+    // the dispatch payload. Off unless CINEMATIC_DIRECTOR_RENDER_ENABLED + pilot account + visual Reel.
+    const directorRender = mode === "visual" && await resolveDirectorRender(row, async () => {
+      const { data, error } = await service.auth.admin.getUserById(row.user_id);
+      if (error) throw error;
+      return data.user;
+    });
+    if (mode === "visual") console.log("[atomivid:director]", JSON.stringify({ requestId, directorRender }));
     const { videoPath } =
       mode === "avatar"
         ? await generateAvatarVideo({
@@ -197,6 +206,7 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
               language: row.language ?? undefined,
               targetDurationSeconds: row.duration_seconds ?? undefined,
               onProgress,
+              directorRender,
             });
 
     const completed = await update({

@@ -69,8 +69,11 @@ export async function generateVideoFromScript({
   targetDurationSeconds,
   onProgress,
   paidCalls,
+  directorRender = false,
 }: {
   supabase: SupabaseClient;
+  /** Montar con el plan del Director. Lo decide SOLO el worker (run-job.ts → resolveDirectorRender): flag global + piloto + Reel visual. */
+  directorRender?: boolean;
   paidCalls?: Pick<PaidCallDeps, "ledger" | "results">;
   requestId: string;
   artifactPrefix?: string;
@@ -453,13 +456,14 @@ export async function generateVideoFromScript({
   const captions = buildCaptions(voice.words, emphasisSet);
   const narrationGaps = computeNarrationGaps(voice.words);
 
-  // 6b. Director cinematográfico (solo con CINEMATIC_DIRECTOR_RENDER_ENABLED; apagado = flujo idéntico al anterior).
+  // 6b. Director cinematográfico (solo si el worker lo decidió: CINEMATIC_DIRECTOR_RENDER_ENABLED + cuenta piloto + Reel visual;
+  // en cualquier otro caso, flujo idéntico al anterior).
   // Las recetas ordenan el material YA resuelto (movimiento, transiciones, etiqueta por plano). El plan, las
   // props y la tabla por plano se guardan junto al MP4. Si el plan no se puede montar sin inventar material,
   // el render se detiene con un error explícito: nunca cae en silencio al montaje sin Director.
   let renderScenes = scenes;
   let renderCaptions = captions;
-  if (cinematicDirectorRenderEnabled()) {
+  if (directorRender && cinematicDirectorRenderEnabled()) {
     const { directReel, directorBlockMessage } = await import("@/lib/video/director/reel-render");
     const directed = directReel({ script, storyboard, beatsBySegment: directorBeats, sceneTimings, audioUrl, captions, narrationGaps, durationSeconds: finalDurationSeconds });
     const evidence = Buffer.from(JSON.stringify({

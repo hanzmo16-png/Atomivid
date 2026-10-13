@@ -127,7 +127,7 @@ test("the bridge reaches production only through reel-render, lazily, behind CIN
   // generate-video.ts: only a type import plus a dynamic import inside the flag check (flag off = nothing loaded).
   const gv = readFileSync("src/lib/video/generate-video.ts", "utf8");
   assert.doesNotMatch(gv, /^import \{[^}]*\} from "@\/lib\/video\/director\/reel-render"/m, "no static value import of reel-render");
-  const gate = gv.indexOf("if (cinematicDirectorRenderEnabled()) {"), dyn = gv.indexOf('await import("@/lib/video/director/reel-render")');
+  const gate = gv.indexOf("if (directorRender && cinematicDirectorRenderEnabled()) {"), dyn = gv.indexOf('await import("@/lib/video/director/reel-render")');
   assert.ok(gate > 0 && dyn > gate && dyn - gate < 200, "the dynamic import sits right inside the flag check");
   assert.equal(cinematicDirectorRenderEnabled({}), false, "off by default");
   assert.equal(cinematicDirectorRenderEnabled({ CINEMATIC_DIRECTOR_V2_ENABLED: "1" }), false, "the inspection flag does not turn the render on");

@@ -33,7 +33,8 @@ test("flag off by default; the review page computes the inspection only behind t
   assert.equal(cinematicDirectorV2Enabled({ CINEMATIC_DIRECTOR_V2_ENABLED: "0" }), false);
   assert.equal(cinematicDirectorV2Enabled({ CINEMATIC_DIRECTOR_V2_ENABLED: "true" }), true);
   const page = src("src/app/dashboard/review/[id]/page.tsx");
-  assert.match(page, /const directorInspection = cinematicDirectorV2Enabled\(\) && data\.mode !== "avatar" && data\.mode !== "long_form" && !data\.recorded_audio_path\s*\?\s*inspectReel\(data\.script_json, \{ renderEnabled: cinematicDirectorRenderEnabled\(\) \}\)\s*:\s*null;/);
+  // chatgpt-06: the same gate now also requires a pilot account (render-access.ts: V2 flag + visual Reel + pilot list).
+  assert.match(page, /const directorInspection = directorInspectionAllowed\(user, data\)\s*\?\s*inspectReel\(data\.script_json, \{ renderEnabled: directorRenderAllowed\(user, data\) \}\)\s*:\s*null;/);
   assert.match(page, /\{directorInspection && <DirectorInspectionPanel inspection=\{directorInspection\} \/>\}/);
   const review = page.slice(page.indexOf("<ScriptReview"));
   assert.doesNotMatch(review.slice(0, review.indexOf("/>")), /director/i, "ScriptReview (and its generate button) gets no Director input");
