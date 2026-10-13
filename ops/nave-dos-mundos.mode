@@ -1,3 +1,6 @@
 keyframes
 GASTAR
-# run 5: 8 keyframes from the two reference sheets
+only=s02@2
+mirror=s03,s04
+# run 6: review of run 5 — s02/s03/s04 faced left (breaks left→right). s03/s04 mirrored (cost 0);
+# s02 regenerated once with an explicit nose-right prompt (mirroring would put the ocean behind the ship).

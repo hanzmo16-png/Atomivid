@@ -51,7 +51,7 @@ export const SHOTS: Shot[] = [
     text: "Maniobra entre paredes de roca y emerge sobre un océano inmenso.",
     subject: "futuristic scout ship", action: "banks between canyon walls and bursts out over the ocean, left to right", environment: "narrow rock canyon opening to an immense ocean", shotType: "tracking shot", camera: "fast lateral follow, then pull back", lighting: "sunlight from above, bright ocean ahead",
     concepts: ["ship maneuvering in canyon", "ship emerging over ocean"],
-    keyframe: `Dynamic tracking shot: ${SHIP} banking hard between two towering wet rock walls of a narrow canyon, moving left to right; ahead on the right the canyon opens onto an immense bright ocean. Engines flaring cyan, sunlight from above.`,
+    keyframe: `Dynamic tracking shot inside a narrow canyon of towering wet rock walls. ${SHIP} banks hard while flying toward the RIGHT side of the frame: its pointed nose and dark canopy face RIGHT, toward a gap in the canyon on the right edge where an immense bright ocean is visible; its two cyan engines glow on the LEFT end of the hull, pointing back toward the left edge. Sunlight from above.`,
     motion: "The ship weaves between the canyon walls from left to right, the camera follows close with a fast lateral move, then the ship bursts out of the canyon over the endless ocean and the camera pulls back to reveal the vast sea, keeping the same left-to-right direction. Engine roar echoing off rock, then wind over the sea." },
   { id: "s03", beat: 3, seconds: 7.5, refs: ["ship"], energy: "high",
     text: "Desciende y se hunde en el mar: impacto, espuma y burbujas.",

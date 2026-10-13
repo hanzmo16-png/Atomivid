@@ -119,7 +119,10 @@ function parseMode(raw: string) {
   const only = rest.find(l => l.startsWith("only="))?.slice(5).split(",").map(x => x.trim()).filter(Boolean) ?? [];
   const release = rest.filter(l => l.startsWith("release=")).map(l => { const [key, why] = l.slice(8).split("|"); return { key: key.trim(), why: (why ?? "").trim() }; });
   const spent = rest.filter(l => l.startsWith("spent=")).map(l => { const [key, usd, why] = l.slice(6).split("|"); return { key: key.trim(), usd: Number(usd), why: (why ?? "").trim() }; });
-  return { phase: lines[0], confirm: lines[1], only, release, spent };
+  const mirror = rest.find(l => l.startsWith("mirror="))?.slice(7).split(",").map(x => x.trim()).filter(Boolean) ?? [];
+  // use=<shot>@<variant>,...: the keyframe variant each shot's clip starts from (default: keyframes/<shot>.png).
+  const use = Object.fromEntries((rest.find(l => l.startsWith("use="))?.slice(4).split(",") ?? []).map(x => x.trim()).filter(Boolean).map(v => [baseId(v), v]));
+  return { phase: lines[0], confirm: lines[1], only, release, spent, mirror, use };
 }
 const baseId = (key: string) => key.split("@")[0];
 
@@ -130,7 +133,7 @@ async function pool<T>(items: T[], n: number, fn: (t: T) => Promise<void>) {
 }
 
 async function main() {
-  const { phase, confirm, only, release, spent } = parseMode(await readFile(MODE, "utf8"));
+  const { phase, confirm, only, release, spent, mirror, use } = parseMode(await readFile(MODE, "utf8"));
   await mkdir(OUT, { recursive: true });
   const svc = service();
   const ledger = await loadLedger(svc);
@@ -149,6 +152,17 @@ async function main() {
     ledger.entries.push(e); await saveEntry(svc, e);
     results.push({ key: r.key, status: `reconciled_${r.status}`, usd: r.usd }); log(r.key, "reconciled →", r.status, r.usd);
   }
+  // Horizontal mirror of a keyframe (cost 0): keeps the established screen direction (left → right). The ship design is
+  // left/right symmetric, so the mirror changes direction only; recorded as an intervention on generated material.
+  for (const id of mirror) {
+    const src = `${PREFIX}/keyframes/${id}.png`, dst = `${PREFIX}/keyframes/${id}@m.png`;
+    await unit(`kf:${id}@m`, "image", dst, 0, "sharp.flop (mirror, no provider)", async () => {
+      if (!(await exists(svc, src))) throw new Error(`no keyframe ${id} to mirror`);
+      const { default: sharp } = await import("sharp");
+      return { bytes: await sharp(await download(svc, src)).flop().png().toBuffer(), contentType: "image/png" };
+    });
+  }
+  report.keyframeChoice = use;
   const paid = phase === "refs" || phase === "keyframes" || phase === "clips";
   if (paid && confirm !== "GASTAR") throw new Error("paid phase without GASTAR on line 2");
 
@@ -208,9 +222,8 @@ async function main() {
     const keys = only.length ? only : SHOTS.map(s => s.id);
     await pool(keys, CONCURRENCY, async key => {
       const shot = SHOTS.find(s => s.id === baseId(key)) as Shot;
-      const kf = `${PREFIX}/keyframes/${key.includes("@") ? key : shot.id}.png`;
-      const kfAlt = `${PREFIX}/keyframes/${shot.id}.png`;
-      const kfPath = (await exists(svc, kf)) ? kf : kfAlt;
+      // The clip starts from the keyframe variant chosen in review (use=), else the shot's own keyframe; never a guess.
+      const kfPath = `${PREFIX}/keyframes/${use[shot.id] ?? shot.id}.png`;
       if (!(await exists(svc, kfPath))) { results.push({ key, status: "no_keyframe" }); log(key, "no keyframe"); return; }
       const signed = await svc.storage.from("videos").createSignedUrl(kfPath, 3600);
       if (!signed.data?.signedUrl) throw new Error(`cannot sign keyframe for ${key}`);
