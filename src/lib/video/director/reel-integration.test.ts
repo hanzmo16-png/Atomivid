@@ -15,6 +15,7 @@ import { inputFromReel } from "./from-reel";
 import { proposePlan } from "./propose";
 import { bundledRecipeCatalog, loadRecipeCatalog } from "./recipes";
 import { inspectReel } from "./reel-inspection";
+import { directorRecordPath, parseDirectorRecord } from "@/lib/video/director-applied";
 
 const SCRIPT: GeneratedScript = {
   title: "Tu idea en video",
@@ -32,7 +33,7 @@ test("flag off by default; the review page computes the inspection only behind t
   assert.equal(cinematicDirectorV2Enabled({ CINEMATIC_DIRECTOR_V2_ENABLED: "0" }), false);
   assert.equal(cinematicDirectorV2Enabled({ CINEMATIC_DIRECTOR_V2_ENABLED: "true" }), true);
   const page = src("src/app/dashboard/review/[id]/page.tsx");
-  assert.match(page, /const directorInspection = cinematicDirectorV2Enabled\(\) && data\.mode !== "avatar" && data\.mode !== "long_form" && !data\.recorded_audio_path\s*\?\s*inspectReel\(data\.script_json\)\s*:\s*null;/);
+  assert.match(page, /const directorInspection = cinematicDirectorV2Enabled\(\) && data\.mode !== "avatar" && data\.mode !== "long_form" && !data\.recorded_audio_path\s*\?\s*inspectReel\(data\.script_json, \{ renderEnabled: cinematicDirectorRenderEnabled\(\) \}\)\s*:\s*null;/);
   assert.match(page, /\{directorInspection && <DirectorInspectionPanel inspection=\{directorInspection\} \/>\}/);
   const review = page.slice(page.indexOf("<ScriptReview"));
   assert.doesNotMatch(review.slice(0, review.indexOf("/>")), /director/i, "ScriptReview (and its generate button) gets no Director input");
@@ -125,4 +126,23 @@ test("recipeVariety excludes the absence of a recipe and stays within 0..1; pend
   const raw = inputFromReel(simulateStoryboard(SCRIPT));
   const m = auditPlan(proposePlan(raw, catalog), raw, catalog).metrics!;
   assert.ok(m.recipeVariety >= 0 && m.recipeVariety <= 1);
+});
+
+test("inspection note tells the truth about the render: proposal-only when the render flag is off, plan drives the montage when on", () => {
+  const off = inspectReel(SCRIPT), on = inspectReel(SCRIPT, { renderEnabled: true });
+  assert.ok(off.status !== "error" && on.status !== "error");
+  assert.match(off.note, /No cambia el guion ni el render/);
+  assert.doesNotMatch(on.note, /ni el render/);
+  assert.match(on.note, /ese plan dirige el montaje/);
+});
+
+test("applied record: the video page reads only a well-formed ok record and the path sits next to the MP4", () => {
+  assert.equal(directorRecordPath("videos/abc/attempt-2/final.mp4"), "videos/abc/attempt-2/director.json");
+  const row = { shotId: "s1", anchorText: "Hola", recipeId: "reel-hook", unsupported: ["x"],
+    planned: { movement: "push_in_still" }, applied: { motion: "push_in", transitionIn: "cut", transitionOut: "crossfade", label: null, startSeconds: 0, endSeconds: 2.5 } };
+  assert.deepEqual(parseDirectorRecord({ ok: true, applied: [row] })?.[0], { shotId: "s1", anchorText: "Hola", recipeId: "reel-hook", startSeconds: 0, endSeconds: 2.5,
+    plannedMovement: "push_in_still", motion: "push_in", transitionIn: "cut", transitionOut: "crossfade", label: null, unsupported: ["x"] });
+  assert.equal(parseDirectorRecord({ ok: false, blockers: [] }), null, "a blocked plan never shows as applied");
+  assert.equal(parseDirectorRecord({ ok: true, applied: [{ shotId: "s1" }] }), null, "malformed rows show nothing instead of guessing");
+  assert.equal(parseDirectorRecord(null), null);
 });

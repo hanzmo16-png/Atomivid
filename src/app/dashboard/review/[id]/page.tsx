@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { GeneratedScript } from "@/lib/providers/types";
 import { createServiceClient } from "@/lib/supabase/service";
 import { RECORDING_BUCKET, isOwnedRecordingPath } from "@/lib/video/avatar/recording";
-import { cinematicDirectorV2Enabled } from "@/lib/video/director/flag";
+import { cinematicDirectorRenderEnabled, cinematicDirectorV2Enabled } from "@/lib/video/director/flag";
 import { inspectReel } from "@/lib/video/director/reel-inspection";
 import { DirectorInspectionPanel } from "@/components/video/DirectorInspectionPanel";
 import { avatarEntitlementPreview } from "@/lib/billing/quota";
@@ -84,7 +84,7 @@ export default async function ReviewPage({
   // Director (chatgpt-23): read-only proposal for visual Reels, behind CINEMATIC_DIRECTOR_V2_ENABLED (off by default).
   // Pure computation over the saved script (simulated storyboard, no provider call); it never gates generation.
   const directorInspection = cinematicDirectorV2Enabled() && data.mode !== "avatar" && data.mode !== "long_form" && !data.recorded_audio_path
-    ? inspectReel(data.script_json)
+    ? inspectReel(data.script_json, { renderEnabled: cinematicDirectorRenderEnabled() })
     : null;
 
   return (

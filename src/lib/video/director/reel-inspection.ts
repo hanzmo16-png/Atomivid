@@ -25,10 +25,12 @@ export type ReelInspection =
       sequences: ReturnType<typeof editorialReport>["sequences"]; note: string }
   | { status: "error"; mode: "proposal"; executable: false; paidCalls: 0; message: string };
 
-const NOTE = "Propuesta del Director sobre un storyboard simulado (sin IA). Semántica y calidad visual: estimado/no validado. " +
-  "No cambia el guion ni el render: «Generar video final» sigue siendo el flujo actual.";
+const NOTE_BASE = "Propuesta del Director sobre un storyboard simulado (sin IA). Semántica y calidad visual: estimado/no validado. ";
+const NOTE_PROPOSAL_ONLY = NOTE_BASE + "No cambia el guion ni el render: «Generar video final» sigue siendo el flujo actual.";
+// With the render flag on, «Generar video final» re-plans on the REAL footage and that plan drives the render; this panel stays a preview.
+const NOTE_RENDER = NOTE_BASE + "No cambia el guion. Al pulsar «Generar video final», el Director vuelve a planificar con el material real y ese plan dirige el montaje; las recetas aplicadas se ven en la página del video.";
 
-export function inspectReel(script: GeneratedScript, opts: ReelAdapterOptions & { catalog?: RecipeCatalog } = {}): ReelInspection {
+export function inspectReel(script: GeneratedScript, opts: ReelAdapterOptions & { catalog?: RecipeCatalog; renderEnabled?: boolean } = {}): ReelInspection {
   try {
     if (!script?.segments?.length) return { status: "error", mode: "proposal", executable: false, paidCalls: 0, message: "El guion no tiene segmentos." };
     const catalog = opts.catalog ?? bundledRecipeCatalog();
@@ -42,7 +44,7 @@ export function inspectReel(script: GeneratedScript, opts: ReelAdapterOptions & 
       shots: plan.shots.map(s => ({ id: s.id, segmentId: s.segmentId, start: s.start, end: s.end, anchorText: s.anchorText, recipeId: s.recipeId,
         movement: s.movement.kind, realMotion: s.movement.realMotion, assetStatus: s.asset.status, label: s.asset.label,
         decision: s.decision.status, pendingReason: s.decision.pendingReason })),
-      issues: audit.issues, metrics: audit.metrics, sequences: report.sequences, note: NOTE,
+      issues: audit.issues, metrics: audit.metrics, sequences: report.sequences, note: opts.renderEnabled ? NOTE_RENDER : NOTE_PROPOSAL_ONLY,
     };
   } catch (err) {
     // Inspection must never break the review page: an error is shown as such, generation is unaffected.
