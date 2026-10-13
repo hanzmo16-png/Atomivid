@@ -53,7 +53,10 @@ export function jobSupplyDemands(row: SupplyJobInput, voiceProvider: string, fla
     if (flags.imageGenerationEnabled) add(flags.imageProvider, flags.maxVisualCostUsd);
     // Includes the existing one repair call. This is a ceiling, never an automatic purchase.
     if (flags.visualDirectorEnabled) add("anthropic", Number(process.env.SUPPLY_STORYBOARD_RESERVATION_USD || "2"));
-    if (flags.premiumClipsEnabled) add(flags.videoProvider, flags.maxPremiumVideoCostUsd);
+    // generateVideoFromScript currently uses stock footage and optional images;
+    // it never invokes VideoProvider. Global premium flags must not reserve or
+    // require an unused video provider. Long-form AI clips are covered above by
+    // the confirmed plan; any future Reel integration must add its demand here.
   }
   if (flags.musicProvider === "beatoven") add("beatoven", flags.maxMusicCostUsd);
   return [...demands.values()].sort((a, b) => a.provider.localeCompare(b.provider));

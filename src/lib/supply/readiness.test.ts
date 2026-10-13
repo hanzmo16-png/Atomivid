@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ensureJobSupplyReady, periodStart } from "./readiness";
 import { jobSupplyDemands } from "./job";
+import { getFeatureFlags } from "@/lib/video/feature-flags";
 
 const NOW = Date.parse("2026-10-07T14:40:00Z");
 const BILLING = new Set(["https://api.elevenlabs.io/v1/user/subscription", "https://api.dev.runwayml.com/v1/organization"]);
@@ -53,6 +54,38 @@ const GUCCI_ROW = { mode: "long_form", script_json: { beats: [{ narration: "x".r
   long_form_production_plan: { providers: { voice: "elevenlabs", image: "openai", aiVideo: "runway" }, allocation: { maxAiImageGenerations: 40, maxAiVideoClips: 1, maxGenerativeUsd: 2.5 }, aiImageCount: 39, aiVideoClipCount: 1, estimatedProviderCostUsd: 3.5328, estimatedVoiceCostUsd: 1.0328 } };
 const gucciDemands = () => jobSupplyDemands(GUCCI_ROW as never, "elevenlabs", { musicProvider: "curated-library" } as never);
 const BALANCES = { "https://api.elevenlabs.io/v1/user/subscription": { character_limit: 63002, character_count: 45546 }, "https://api.dev.runwayml.com/v1/organization": { creditBalance: 5250 } };
+
+// Production regression: the web app enables global premium flags, but the Reel
+// worker only renders stock footage (and optional images), never AI video clips.
+test("stock Reel uses the same supply envelope on web and worker, without requiring unused Runway", async () => {
+  const row = { mode: "visual", script_json: { segments: [{ text: "hola mundo" }] }, recorded_audio_path: null, long_form_production_plan: null };
+  const flags = { ...getFeatureFlags(), imageGenerationEnabled: false, visualDirectorEnabled: false,
+    musicProvider: "curated-library" as const, premiumClipsEnabled: true, videoProvider: "runway" as const };
+  const demands = jobSupplyDemands(row, "elevenlabs", flags);
+  assert.deepEqual(demands, jobSupplyDemands(row, "elevenlabs", { ...flags, premiumClipsEnabled: false, videoProvider: "fixture" }));
+  assert.deepEqual(demands.map(d => [d.provider, d.units]), [["elevenlabs", 20]], "voice still includes its pacing correction");
+  const calls: string[] = [];
+  const s = fakeSupply([{ provider: "elevenlabs", available: 17456, reliability: "provider_api", checked_at: at(358) },
+    { provider: "runway", available: 4800, reliability: "provider_api", checked_at: at(358) }]);
+  const r = await ensureJobSupplyReady(s as unknown as SupabaseClient, demands, {
+    env: { ELEVENLABS_API_KEY: "k" }, fetchImpl: billingFetch(BALANCES, calls), now: () => NOW,
+  });
+  assert.equal(r.ready, true, JSON.stringify(r));
+  assert.deepEqual(calls, ["GET https://api.elevenlabs.io/v1/user/subscription"]);
+  assert.deepEqual(s.writes, ["pi_capacity_snapshots:elevenlabs"]);
+
+  const unavailableVoice = await ensureJobSupplyReady(fakeSupply([]) as unknown as SupabaseClient, demands, { env: {}, now: () => NOW });
+  assert.equal(unavailableVoice.ready, false);
+  assert.equal(unavailableVoice.failure?.provider, "elevenlabs", "a used provider remains mandatory");
+});
+
+test("confirmed long-form AI video still requires verified Runway even with fresh voice and image balances", async () => {
+  const s = fakeSupply([{ provider: "elevenlabs", available: 17456, reliability: "provider_api", checked_at: at(1) },
+    { provider: "openai", available: 12.97, reliability: "manual_entry", checked_at: at(1) }]);
+  const r = await ensureJobSupplyReady(s as unknown as SupabaseClient, gucciDemands(), { env: {}, now: () => NOW });
+  assert.equal(r.ready, false);
+  assert.deepEqual(r.failure, { provider: "runway", reason: "supplier balance unavailable" });
+});
 
 test("A: fresh readings with enough capacity are ready without any refresh", async () => {
   const calls: string[] = [];
