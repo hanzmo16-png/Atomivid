@@ -123,7 +123,9 @@ export function compatibleRecipes(pool: Recipe[], visual: VisualType, provenance
     // A recipe written for this exact slot (opening hook, closing CTA) is the slot's own rule: it counts as a hit.
     if (s.position !== "any") hits.push(`posición:${s.position}`);
     const constrained = s.topics_any.length + s.keywords_any.length > 0 || s.position !== "any";
-    out.push({ recipe: r, base: hits.length * 3 + (s.visual.includes("*") ? 0 : 1), hits, generic: constrained && hits.length === 0 });
+    // The slot rule outweighs a single keyword: a recipe written for the opening/closing slot is not displaced there
+    // by a generic B-roll recipe that happens to share one word with the sentence.
+    out.push({ recipe: r, base: hits.length * 3 + (s.position !== "any" ? 2 : 0) + (s.visual.includes("*") ? 0 : 1), hits, generic: constrained && hits.length === 0 });
   }
   // A recipe whose rule asks for topics/keywords that the unit does not have is only a fallback.
   return out.sort((a, b) => Number(a.generic) - Number(b.generic) || b.base - a.base);

@@ -1,8 +1,8 @@
 {
   "schema": "atomivid/cinematic-recipes@2",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "generated_by": "claude (T-20261012-0142-chatgpt-18; corrección 2: T-20261012-0555-chatgpt-20)",
-  "notes": "Recetas originales, sin copiar películas. Las descripciones de 'example' son ilustrativas. 'evidence_policy' impide aplicar el look de recreación a evidencia auténtica. v2: cada receta lleva una regla 'select' operable (tipo visual aceptado, temas/palabras requeridos, temas excluidos, qué hacer con una imagen fija). use_when/avoid_when quedan como descripción humana; la decisión automática usa solo 'select'. Mapa y línea de tiempo pasan a animación de gráfico determinista (no 'clip con movimiento real').",
+  "notes": "Recetas originales, sin copiar películas. Las descripciones de 'example' son ilustrativas. 'evidence_policy' impide aplicar el look de recreación a evidencia auténtica. v2: cada receta lleva una regla 'select' operable (tipo visual aceptado, temas/palabras requeridos, temas excluidos, qué hacer con una imagen fija). use_when/avoid_when quedan como descripción humana; la decisión automática usa solo 'select'. Mapa y línea de tiempo pasan a animación de gráfico determinista (no 'clip con movimiento real'). v2.1: dos recetas de B-roll ilustrativo para Reels (detalle y contexto) para que los planos intermedios con stock no repitan una sola receta.",
   "recipes": [
     {
       "id": "mys-night-road-approach",
@@ -1921,6 +1921,138 @@
         "topics_none": [],
         "still": "static",
         "position": "last",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "version": 1,
+      "genre": "reel",
+      "lighting": "natural, coherente con el resto del Reel",
+      "sfx": "",
+      "placeholders": [],
+      "evidence_policy": "either",
+      "label": "ilustrativa",
+      "id": "reel-broll-detail",
+      "name": "Detalle ilustrativo",
+      "use_when": [
+        "ilustrar una idea con un detalle concreto (manos, objeto, pantalla genérica)"
+      ],
+      "avoid_when": [
+        "la frase promete un resultado real de la app (usar material auténtico)"
+      ],
+      "duration_s": {
+        "min": 2,
+        "typical": 3,
+        "max": 5
+      },
+      "intent": "concretar la idea con un detalle",
+      "shot": {
+        "type": "plano detalle"
+      },
+      "composition": "detalle centrado, fondo simple, sin rostros identificables ni logotipos",
+      "movement": {
+        "kind": "real_motion",
+        "note": "clip con movimiento real; sobre foto fija, zoom lento declarado (nunca se presenta como clip)"
+      },
+      "continuity": "stock rotulado como ilustrativo",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "negatives": [
+        "logotipos de terceros",
+        "rostros reconocibles",
+        "texto incrustado que compita con los subtítulos"
+      ],
+      "example": "Primer plano de unas manos escribiendo una idea en una libreta.",
+      "select": {
+        "visual": [
+          "people",
+          "concept",
+          "hands_work"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "idea",
+          "escribe",
+          "detalle",
+          "manos"
+        ],
+        "topics_none": [],
+        "still": "push_in_still",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "version": 1,
+      "genre": "reel",
+      "lighting": "natural, coherente con el resto del Reel",
+      "sfx": "",
+      "placeholders": [],
+      "evidence_policy": "either",
+      "label": "ilustrativa",
+      "id": "reel-broll-context",
+      "name": "Contexto ilustrativo",
+      "use_when": [
+        "situar la frase en un contexto general (lugar, ambiente, rutina)"
+      ],
+      "avoid_when": [
+        "la frase necesita una prueba concreta o un dato"
+      ],
+      "duration_s": {
+        "min": 2,
+        "typical": 4,
+        "max": 6
+      },
+      "intent": "dar contexto y respiro entre frases",
+      "shot": {
+        "type": "plano general"
+      },
+      "composition": "plano abierto, horizonte estable, zona inferior despejada para subtítulos",
+      "movement": {
+        "kind": "pan",
+        "note": "paneo lento declarado sobre foto fija; un clip se reproduce tal cual"
+      },
+      "continuity": "stock rotulado como ilustrativo",
+      "transitions": {
+        "in": [
+          "crossfade"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "negatives": [
+        "paneos rápidos que mareen",
+        "rostros reconocibles",
+        "texto incrustado"
+      ],
+      "example": "Plano general de un escritorio al amanecer con la ciudad al fondo.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "proceso",
+          "camino",
+          "dia",
+          "rutina",
+          "constante",
+          "mundo"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
         "provenance": [],
         "neutral": false
       }

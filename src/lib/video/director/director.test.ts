@@ -33,10 +33,10 @@ function input(over: Partial<DirectorInputRaw> = {}): DirectorInputRaw {
   };
 }
 
-test("catalog: 33 versioned recipes (12 mystery, 13 documentary, 8 reel), unique, operable rules, no universal 8K look", () => {
-  assert.equal(catalog.recipes.length, 33);
+test("catalog: 35 versioned recipes (12 mystery, 13 documentary, 10 reel), unique, operable rules, no universal 8K look", () => {
+  assert.equal(catalog.recipes.length, 35);
   const by = (g: string) => catalog.recipes.filter(r => r.genre === g).length;
-  assert.deepEqual([by("misterio"), by("documental"), by("reel")], [12, 13, 8]);
+  assert.deepEqual([by("misterio"), by("documental"), by("reel")], [12, 13, 10]);
   for (const r of catalog.recipes) assert.ok(r.negatives.length && r.version >= 1 && r.select.visual.length, r.id);
   // Graphics are animated deterministically; they are never "a clip with real motion".
   for (const id of ["doc-map-route", "doc-timeline-graphic"]) assert.equal(catalog.recipes.find(r => r.id === id)!.movement.kind, "graphic_animation");
