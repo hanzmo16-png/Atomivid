@@ -408,6 +408,12 @@ nada de ese presupuesto todavía.
 - **Stripe**: sin costo fijo, comisión por transacción.
 - **Música de fondo**: sin costo — playlist curada manualmente por el
   usuario desde bancos gratuitos (ver sección de música arriba).
+- **Render (GitHub Actions)**: gratis **solo mientras el repositorio sea
+  público** (runners estándar). Si pasa a privado, se pagan los minutos que
+  excedan la cuota del plan: estimación de ≈USD 17/mes a 10 Reels/día y
+  ≈USD 104/mes a 40/día. Ver `docs/costos/GITHUB-ACTIONS-PUBLICO.md`.
+- **Almacenamiento (Supabase Storage)**: el código no borra intermedios. Hay
+  una propuesta de retención **no aplicada** en `docs/costos/RETENCION-PROPUESTA.md`.
 
 ### Costo estimado por video
 

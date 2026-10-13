@@ -37,6 +37,7 @@ import { getImageProvider } from "@/lib/providers/image";
 import { decideResourceStrategy, buildScenePlanEntry, type ScenePlanEntry } from "@/lib/video/visual-resource-planner";
 import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resolver";
 import { cinematicDirectorRenderEnabled } from "@/lib/video/director/flag";
+import { compressAudioForStorage } from "@/lib/video/audio-storage";
 import type { ResolvedBeat } from "@/lib/video/director/reel-render";
 
 // Deliberadamente separado de generate-script.ts — ver el comentario ahí
@@ -400,13 +401,14 @@ export async function generateVideoFromScript({
     );
   }
 
-  // 4. Subir la narración generada
-  storageBytes += voice.audioBuffer.byteLength;
+  // 4. Subir la narración generada (WAV → MP3 192 kbps solo para almacenamiento; un MP3 real no se recodifica).
+  const storedVoice = await compressAudioForStorage(voice);
+  storageBytes += storedVoice.audioBuffer.byteLength;
   const { url: audioUrl } = await uploadToStorage(
     supabase,
-    `${artifactPrefix}/voice.${voice.extension}`,
-    voice.audioBuffer,
-    voice.mimeType,
+    `${artifactPrefix}/voice.${storedVoice.extension}`,
+    storedVoice.audioBuffer,
+    storedVoice.mimeType,
   );
 
   // 5. Música de fondo, seleccionada por tono (tema + estilo + guion) y
@@ -441,12 +443,13 @@ export async function generateVideoFromScript({
 
   let musicUrl: string | undefined;
   if (music) {
-    storageBytes += music.audioBuffer.byteLength;
+    const storedMusic = await compressAudioForStorage(music);
+    storageBytes += storedMusic.audioBuffer.byteLength;
     const uploaded = await uploadToStorage(
       supabase,
-      `${artifactPrefix}/music.${music.extension}`,
-      music.audioBuffer,
-      music.mimeType,
+      `${artifactPrefix}/music.${storedMusic.extension}`,
+      storedMusic.audioBuffer,
+      storedMusic.mimeType,
     );
     musicUrl = uploaded.url;
     console.log(
