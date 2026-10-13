@@ -1,8 +1,8 @@
 {
   "schema": "atomivid/cinematic-recipes@2",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "generated_by": "claude (T-20261012-0142-chatgpt-18; corrección 2: T-20261012-0555-chatgpt-20)",
-  "notes": "Recetas originales, sin copiar películas. Las descripciones de 'example' son ilustrativas. 'evidence_policy' impide aplicar el look de recreación a evidencia auténtica. v2: cada receta lleva una regla 'select' operable (tipo visual aceptado, temas/palabras requeridos, temas excluidos, qué hacer con una imagen fija). use_when/avoid_when quedan como descripción humana; la decisión automática usa solo 'select'. Mapa y línea de tiempo pasan a animación de gráfico determinista (no 'clip con movimiento real'). v2.1: dos recetas de B-roll ilustrativo para Reels (detalle y contexto) para que los planos intermedios con stock no repitan una sola receta. v2.2: conjunto de ficción (select.style='fiction', solo material generado y etiquetado): se ofrece únicamente a una entrada que declara estilo ficción; sus recetas declaran clip_audio (el diseño sonoro es el audio del clip).",
+  "notes": "Recetas originales, sin copiar películas. Las descripciones de 'example' son ilustrativas. 'evidence_policy' impide aplicar el look de recreación a evidencia auténtica. v2: cada receta lleva una regla 'select' operable (tipo visual aceptado, temas/palabras requeridos, temas excluidos, qué hacer con una imagen fija). use_when/avoid_when quedan como descripción humana; la decisión automática usa solo 'select'. Mapa y línea de tiempo pasan a animación de gráfico determinista (no 'clip con movimiento real'). v2.1: dos recetas de B-roll ilustrativo para Reels (detalle y contexto) para que los planos intermedios con stock no repitan una sola receta. v2.2: conjunto de ficción (select.style='fiction', solo material generado y etiquetado): se ofrece únicamente a una entrada que declara estilo ficción; sus recetas declaran clip_audio (el diseño sonoro es el audio del clip). v2.3 (corrección 3/3 chatgpt-26): 'reel-hook-face-or-avatar' exige select.requires='approved_presenter' (solo un avatar/presentador aprobado y CLEARED); sin él, el gancho seguro es 'reel-hook-visual'.",
   "recipes": [
     {
       "id": "mys-night-road-approach",
@@ -1495,6 +1495,68 @@
         "keywords_any": [],
         "topics_none": [],
         "still": "static",
+        "position": "first",
+        "provenance": [],
+        "neutral": false,
+        "requires": "approved_presenter"
+      }
+    },
+    {
+      "id": "reel-hook-visual",
+      "version": 1,
+      "genre": "reel",
+      "name": "Gancho visual sin presentador",
+      "use_when": [
+        "primeros segundos de un Reel sin presentador ni avatar aprobado"
+      ],
+      "avoid_when": [
+        "hay un presentador o avatar aprobado para abrir"
+      ],
+      "duration_s": {
+        "min": 2,
+        "typical": 3,
+        "max": 4
+      },
+      "intent": "captar en el primer fotograma con la imagen que ilustra la pregunta",
+      "shot": {
+        "type": "plano medio"
+      },
+      "composition": "sujeto claro en el tercio superior, zona inferior despejada para subtítulos",
+      "movement": {
+        "kind": "real_motion",
+        "note": "un clip se reproduce tal cual; una foto recibe un zoom lento declarado"
+      },
+      "lighting": "limpia, alto contraste",
+      "continuity": "material rotulado según su procedencia (ilustrativo o recreación)",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "golpe sutil al empezar",
+      "placeholders": [],
+      "negatives": [
+        "simular un presentador",
+        "texto grande permanente",
+        "rostro presentado como si fuera el creador"
+      ],
+      "evidence_policy": "either",
+      "label": null,
+      "example": "Manos que dejan el móvil sobre la mesa mientras aparece la pregunta en subtítulo.",
+      "select": {
+        "visual": [
+          "people",
+          "concept",
+          "landscape",
+          "hands_work"
+        ],
+        "topics_any": [],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "push_in_still",
         "position": "first",
         "provenance": [],
         "neutral": false

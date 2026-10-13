@@ -200,8 +200,10 @@ test("recipes drive the render: per-shot direction (motion, transitions, label) 
   // The closing CTA recipe asks for fade_to_black: applied as a fade, not as the historic crossfade.
   const cta = r.applied.find(a => a.recipeId === "reel-cta-follow");
   if (cta) assert.equal(cta.applied.transitionOut, "fade");
-  // The opening slot takes the hook recipe.
-  assert.equal(r.applied[0].recipeId, "reel-hook-face-or-avatar");
+  // The opening slot takes the safe visual hook: there is no approved presenter/avatar in this fixture (correction 3/3).
+  assert.equal(r.applied[0].recipeId, "reel-hook-visual");
+  assert.ok(r.applied.every(a => a.recipeId !== "reel-hook-face-or-avatar"));
+  assert.equal(r.applied[0].applied.label, "ilustrativa", "stock keeps its illustrative label");
 });
 
 test("an approved avatar segment keeps its exact measured window, plays as filmed and is entered/left by cuts", () => {
@@ -215,4 +217,7 @@ test("an approved avatar segment keeps its exact measured window, plays as filme
   const seg0 = input.segments[0].id;
   assert.ok(i >= 0 && Math.abs(sc.startSeconds - b.segmentTimes[seg0].start) < 1e-3 && Math.abs(sc.endSeconds - b.segmentTimes[seg0].end) < 1e-3, "window = measured segment");
   assert.deepEqual([sc.direction!.motion, sc.direction!.transitionIn, sc.direction!.transitionOut], ["real", "cut", "cut"]);
+  // An approved, locked avatar opening the Reel carries the presenter hook recipe, and nothing about the segment changes.
+  assert.equal(r.applied.find(a => a.shotId === r.shots[i].shotId)!.recipeId, "reel-hook-face-or-avatar");
+  assert.equal(r.applied.filter(a => a.recipeId === "reel-hook-face-or-avatar").length, 1, "only the approved avatar carries it");
 });

@@ -20,8 +20,7 @@ import {
 import { recipesFor } from "./recipes";
 import {
   assetTopics, assetVisualType, factualCorrespondence, normalize, reelPlannedStockCorresponds, hasTextCompanionFor, NEUTRAL_MAX_PER_SEQUENCE, NEUTRAL_MAX_SHARE, topicsOf, treatmentAllowed, unitPolicy,
-  visualFromTopics, words, type UnitPolicy, type VisualType,
-} from "./policy";
+  visualFromTopics, words, type UnitPolicy, type VisualType, isApprovedPresenter } from "./policy";
 
 export { normalize, words };
 
@@ -106,7 +105,7 @@ export function hasKeyword(unitWords: Set<string>, keyword: string): boolean {
 
 /** Recipes whose operable rule accepts this visual type, provenance and unit. Sorted by rule score only. */
 export function compatibleRecipes(pool: Recipe[], visual: VisualType, provenance: InventoryAsset["provenance"], unitText: string, unitTopics: string[],
-  position: "first" | "middle" | "last" | "only", neutral: boolean): RecipeMatch[] {
+  position: "first" | "middle" | "last" | "only", neutral: boolean, presenter = false): RecipeMatch[] {
   const kw = new Set(words(unitText));
   const out: RecipeMatch[] = [];
   for (const r of pool) {
@@ -119,6 +118,8 @@ export function compatibleRecipes(pool: Recipe[], visual: VisualType, provenance
     if (r.evidence_policy === "authentic_only" && provenance !== "archival_documentary" && provenance !== "data_graphic") continue;
     if (r.evidence_policy === "recreation_ok" && provenance === "archival_documentary") continue;
     if (s.provenance.length && !s.provenance.includes(provenance)) continue;
+    // A recipe that promises a presenter/avatar on screen never dresses anything else (correction 3/3, chatgpt-26).
+    if (s.requires === "approved_presenter" && !presenter) continue;
     const hits = [...s.topics_any.filter(t => unitTopics.includes(t)).map(t => `tema:${t}`), ...s.keywords_any.filter(k => hasKeyword(kw, k)).map(k => `palabra:${k}`)];
     // A recipe written for this exact slot (opening hook, closing CTA) is the slot's own rule: it counts as a hit.
     if (s.position !== "any") hits.push(`posición:${s.position}`);
@@ -148,7 +149,11 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
   for (const seg of input.segments) {
     if (seg.locked) {
       const a = byId.get(seg.locked.assetId);
-      shots.push({ id: `${seg.id}-locked`, segmentId: seg.id, start: seg.start, end: seg.end, anchorText: "", recipeId: null, recipeVersion: null,
+      // An approved presenter/avatar opening the piece is what the presenter hook recipe describes: it is recorded for
+      // traceability; the locked segment itself is untouched (exact window, cuts, no re-planning).
+      const hook = input.segments[0]?.id === seg.id && isApprovedPresenter(a)
+        ? pool.find(r => r.select.requires === "approved_presenter" && r.select.position === "first") : undefined;
+      shots.push({ id: `${seg.id}-locked`, segmentId: seg.id, start: seg.start, end: seg.end, anchorText: "", recipeId: hook?.id ?? null, recipeVersion: hook?.version ?? null,
         intent: `segmento bloqueado (${seg.locked.reason}): se conserva tal cual`, shotType: "bloqueado",
         movement: { kind: "static", realMotion: a?.motion === "real" },
         // The locked asset keeps its own provenance and the label that provenance requires (an AI avatar stays labelled).
@@ -232,8 +237,8 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
       cands.sort((x, y) => y.score - x.score || Number(x.continuation) - Number(y.continuation) || x.a.id.localeCompare(y.a.id));
 
       // ---- 2. Recipe compatible with the chosen asset (rotation only breaks ties among compatible recipes).
-      const pickRecipe = (visual: VisualType, provenance: InventoryAsset["provenance"], neutral: boolean) => {
-        const m = compatibleRecipes(pool, visual, provenance, u.text, unitTopics, position, neutral);
+      const pickRecipe = (visual: VisualType, provenance: InventoryAsset["provenance"], neutral: boolean, presenter = false) => {
+        const m = compatibleRecipes(pool, visual, provenance, u.text, unitTopics, position, neutral, presenter);
         if (!m.length) return undefined;
         const top = m.filter(x => x.generic === m[0].generic && x.base === m[0].base);
         const uses = (id: string) => recent.filter(r => r === id).length;
@@ -244,10 +249,10 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
 
       let chosen: Cand | undefined, match: ReturnType<typeof pickRecipe>;
       for (const c of cands) {
-        let m = pickRecipe(assetVisualType(c.a), c.a.provenance, false);
+        let m = pickRecipe(assetVisualType(c.a), c.a.provenance, false, isApprovedPresenter(c.a));
         // A continuation keeps the recipe of the shot it continues when that recipe is still compatible.
         if (m && c.continuation && prevRecipe && m.recipe.id !== prevRecipe.id) {
-          const same = compatibleRecipes(pool, assetVisualType(c.a), c.a.provenance, u.text, unitTopics, position, false).find(x => x.recipe.id === prevRecipe!.id);
+          const same = compatibleRecipes(pool, assetVisualType(c.a), c.a.provenance, u.text, unitTopics, position, false, isApprovedPresenter(c.a)).find(x => x.recipe.id === prevRecipe!.id);
           if (same) m = { ...same, tieBreak: null, alternatives: m.alternatives };
         }
         if (m) { chosen = c; match = m; break; }

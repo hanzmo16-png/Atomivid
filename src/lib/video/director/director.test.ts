@@ -33,10 +33,10 @@ function input(over: Partial<DirectorInputRaw> = {}): DirectorInputRaw {
   };
 }
 
-test("catalog: 43 versioned recipes (12 mystery, 13 documentary, 10 reel + 8 reel fiction), unique, operable rules, no universal 8K look", () => {
-  assert.equal(catalog.recipes.length, 43);
+test("catalog: 44 versioned recipes (12 mystery, 13 documentary, 11 reel + 8 reel fiction), unique, operable rules, no universal 8K look", () => {
+  assert.equal(catalog.recipes.length, 44);
   const by = (g: string) => catalog.recipes.filter(r => r.genre === g && !r.select.style).length;
-  assert.deepEqual([by("misterio"), by("documental"), by("reel")], [12, 13, 10]);
+  assert.deepEqual([by("misterio"), by("documental"), by("reel")], [12, 13, 11]);
   // The fiction set is isolated: generated material only, always labelled, sound from the clip.
   const fiction = catalog.recipes.filter(r => r.select.style === "fiction");
   assert.equal(fiction.length, 8);
@@ -510,7 +510,7 @@ test("recipe keywords tolerate the simple Spanish plural; slot recipes (first/la
   assert.ok(hasKeyword(new Set(["resultado"]), "resultados"));
   const reel = catalog.recipes.filter(r => r.genre === "reel");
   const first = compatibleRecipes(reel, "people", "stock_illustrative", "¿Hacer un video te toma demasiado tiempo?", [], "first", false);
-  assert.equal(first[0].recipe.id, "reel-hook-face-or-avatar", "the opening hook recipe owns the first slot");
+  assert.equal(first[0].recipe.id, "reel-hook-visual", "without an approved presenter the safe visual hook owns the first slot");
   const last = compatibleRecipes(reel, "people", "stock_illustrative", "Síguenos para enterarte del lanzamiento.", [], "last", false);
   assert.equal(last[0].recipe.id, "reel-cta-follow");
   // Authentic-only recipes (real UI capture, real results) never dress stock material, whatever the words say.
@@ -530,4 +530,32 @@ test("reel-only policy rules: subtitles are the text companion; planned illustra
   assert.equal(hasTextCompanionFor({ genre: "documental", inventory: [] }, "seg-1"), false);
   // The documentary plans of PR105 are unchanged by these rules (same issue codes as before; checked above too).
   for (const { plan, inp } of [SB003, SB002H, SB001]) assert.ok(!codes(plan, inp).includes("POLICY_VIOLATION" as never));
+});
+
+// ---- Correction 3/3 (chatgpt-26 continuation, Codex): the presenter hook only with an approved presenter/avatar. ----
+
+test("presenter hook: never selected without an approved presenter/avatar; allowed (and audited) only with one", () => {
+  const reel = catalog.recipes.filter(r => r.genre === "reel");
+  for (const visual of ["people", "concept", "landscape"] as const) for (const prov of ["stock_illustrative", "ai_recreation"] as const) {
+    const ids = compatibleRecipes(reel, visual, prov, "¿Cuántas ideas has dejado sin publicar?", [], "first", false).map(m => m.recipe.id);
+    assert.ok(!ids.includes("reel-hook-face-or-avatar"), `${visual}/${prov}: ${ids.join(",")}`);
+  }
+  assert.equal(compatibleRecipes(reel, "people", "stock_illustrative", "¿Cuántas ideas has dejado sin publicar?", [], "first", false, true)[0].recipe.id, "reel-hook-face-or-avatar",
+    "an approved presenter may open with the presenter hook");
+  // The audit rejects the presenter hook on anything that is not an approved presenter/avatar (no silent relabelling).
+  const inp: DirectorInputRaw = { version: DIRECTOR_INPUT_VERSION, genre: "reel", aspect: "9:16", totalSeconds: 3,
+    segments: [{ id: "s1", start: 0, end: 3, text: "¿Cuántas ideas has dejado sin publicar?" }],
+    inventory: [{ id: "stk", kind: "image", provenance: "stock_illustrative", motion: "still", license: "CLEARED", tags: ["segment:s1"],
+      content: { visualType: "people", topics: [], window: { segmentId: "s1", from: 0, to: 1 } } }],
+    constraints: { minShotSeconds: 1.5, maxShotSeconds: 6, maxTitleSeconds: 3, subtitleLines: 2 }, budget: { remainingUsd: 0, unitCostsUsd: { ai_image: 0.04, ai_video: 0.5 } } };
+  const plan = proposePlan(inp, catalog);
+  assert.equal(plan.shots[0].recipeId, "reel-hook-visual");
+  assert.equal(plan.shots[0].asset.label, "ilustrativa", "stock keeps its illustrative label");
+  const forced = { ...plan, shots: plan.shots.map(s => ({ ...s, recipeId: "reel-hook-face-or-avatar", recipeVersion: 1 })) };
+  assert.ok(auditPlan(forced, inp, catalog).issues.some(i => i.code === "RECIPE_INCOMPATIBLE" && /approved presenter/.test(i.detail)));
+});
+
+test("documentary plans are unchanged by the presenter rule (same shots as with the previous reel catalog)", () => {
+  const previous = { ...catalog, recipes: catalog.recipes.filter(r => r.id !== "reel-hook-visual").map(r => ({ ...r, select: { ...r.select, requires: undefined } })) };
+  for (const { inp, plan } of [SB003, SB002H, SB001]) assert.deepEqual(plan.shots, proposePlan(inp, previous).shots);
 });

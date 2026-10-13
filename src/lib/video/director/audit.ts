@@ -7,7 +7,7 @@
 import { recipesFor } from "./recipes";
 import { hammingHex, PERCEPTUAL_DUPLICATE_MAX_DISTANCE } from "@/lib/video/long-form/asset-identity";
 import { DirectorInputSchema, DirectorPlanSchema, type DirectorInputRaw, type InventoryAsset, type PlannedShot, type RecipeCatalog } from "./contract";
-import { assetTopics, assetVisualType, factualCorrespondence, NEUTRAL_MAX_PER_SEQUENCE, NEUTRAL_MAX_SHARE, reelPlannedStockCorresponds, hasTextCompanionFor, topicsOf, treatmentAllowed, unitPolicy, visualFromTopics } from "./policy";
+import { assetTopics, assetVisualType, factualCorrespondence, NEUTRAL_MAX_PER_SEQUENCE, NEUTRAL_MAX_SHARE, reelPlannedStockCorresponds, hasTextCompanionFor, isApprovedPresenter, topicsOf, treatmentAllowed, unitPolicy, visualFromTopics } from "./policy";
 
 export type IssueCode =
   | "CONTRACT_INVALID" | "PAID_EXECUTION" | "DURATION_MISMATCH" | "GAP_OR_OVERLAP" | "SEGMENT_NOT_COVERED"
@@ -115,6 +115,9 @@ export function auditPlan(planRaw: unknown, inputRaw: DirectorInputRaw, catalog:
     if (s.recipeId && !recipe) add("UNKNOWN_RECIPE", s.recipeId, s.id);
     if (recipe && s.recipeVersion !== recipe.version) add("RECIPE_VERSION_MISMATCH", `${recipe.id} v${s.recipeVersion} vs catalog v${recipe.version}`, s.id);
     if (!seg?.locked && (s.recipeId === null) !== (s.recipeVersion === null)) add("RECIPE_VERSION_MISMATCH", "recipeId and recipeVersion must be set together", s.id);
+    // The presenter hook promises a presenter/avatar on screen: only an approved presenter/avatar asset may carry it.
+    if (recipe?.select.requires === "approved_presenter" && !isApprovedPresenter(s.asset.assetId ? assets.get(s.asset.assetId) : undefined))
+      add("RECIPE_INCOMPATIBLE", `${recipe.id} requires an approved presenter/avatar asset`, s.id);
     const segLen = seg ? seg.end - seg.start : dur;
     if (dur < c.minShotSeconds - EPS && segLen >= c.minShotSeconds) add("SHOT_TOO_SHORT", `${dur.toFixed(2)}s`, s.id);
     if (dur > c.maxShotSeconds + EPS && !seg?.locked) add("SHOT_TOO_LONG", `${dur.toFixed(2)}s`, s.id);

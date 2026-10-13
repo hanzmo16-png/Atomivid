@@ -237,3 +237,8 @@ export function factualCorrespondence(seg: Segment, a: InventoryAsset, start: nu
 /** Neutral atmosphere caps (correction 3): a declared pause, never dominant filler. */
 export const NEUTRAL_MAX_SHARE = 0.1;
 export const NEUTRAL_MAX_PER_SEQUENCE = 1;
+
+/** An approved presenter/avatar asset: an avatar take or an asset tagged "presenter", with a CLEARED licence. */
+export function isApprovedPresenter(a: Pick<InventoryAsset, "kind" | "tags" | "license"> | undefined): boolean {
+  return !!a && (a.kind === "avatar" || a.tags.includes("presenter")) && a.license === "CLEARED";
+}

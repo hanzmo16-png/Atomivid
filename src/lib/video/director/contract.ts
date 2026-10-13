@@ -46,6 +46,8 @@ export const RecipeSelectSchema = z.object({
   neutral: z.boolean().default(false),
   /** Recipe set: "fiction" recipes are offered ONLY to an input that declares style "fiction" (and only they are). */
   style: z.enum(["fiction"]).optional(),
+  /** "approved_presenter": the recipe promises a presenter/avatar on screen, so it may only dress an APPROVED presenter or avatar asset. */
+  requires: z.enum(["approved_presenter"]).optional(),
 }).strict();
 export type RecipeSelect = z.infer<typeof RecipeSelectSchema>;
 
