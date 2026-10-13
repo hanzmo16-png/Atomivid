@@ -207,13 +207,13 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
         // another statement would look like its support. A valid continuation of the same card is the exception.
         const fc = factualCorrespondence(seg, a, u.start, u.end, u.text, continuation);
         if (!fc.ok) continue;
-        const eligible = a === useEvidence || continuation || hitsT.length > 0 || wordHits.length >= 2 || (planned && inWindow && unitTopics.length === 0);
-        if (!eligible) continue;
-        const visual = assetVisualType(a);
         // Reels: the storyboard derives each planned stock asset from THAT sentence's own visual concepts, so planned
         // illustrative stock corresponds to its sentence by construction (it is drawn with the visible «ilustrativa»
         // label). Documentaries keep the topic-match requirement; AI recreations are never covered by this rule.
         const reelPlannedStock = reelPlannedStockCorresponds(input.genre, a, seg, u.start, u.end);
+        const eligible = a === useEvidence || continuation || hitsT.length > 0 || wordHits.length >= 2 || (planned && inWindow && unitTopics.length === 0) || reelPlannedStock;
+        if (!eligible) continue;
+        const visual = assetVisualType(a);
         const verdict = treatmentAllowed(policy, { provenance: a.provenance, visual, isNew: false, plannedForSegment: planned, topicMatch: hitsT.length > 0 || reelPlannedStock, neutral: false, showsRemains: at.includes("remains") }, hasTextCompanion);
         if (!verdict.allowed) continue;
         const basis = [
