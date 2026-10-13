@@ -29,7 +29,7 @@ const CLIP_ESTIMATE_USD = 8 * Number(process.env.VEO_COST_USD_PER_SECOND || "0.1
 const CONCURRENCY = 4;
 
 type Status = "reserved" | "spent" | "failed" | "uncertain";
-type Entry = { key: string; kind: "image" | "video"; status: Status; usd: number; at: string; model: string; job?: string; note?: string; usage?: unknown; sha256?: string; bytes?: number };
+type Entry = { attempt?: string; finishedAt?: string; key: string; kind: "image" | "video"; status: Status; usd: number; at: string; model: string; job?: string; note?: string; usage?: unknown; sha256?: string; bytes?: number };
 type Ledger = { entries: Entry[] };
 
 const log = (...a: unknown[]) => console.log(`[nave ${new Date().toISOString()}]`, ...a);
@@ -57,15 +57,29 @@ async function upload(svc: SupabaseClient, path: string, bytes: Buffer, contentT
   if (!back.equals(bytes)) throw new Error(`read-back mismatch: ${path}`);
 }
 
-// ---- ledger (single job, serialised writes)
-let ledgerChain = Promise.resolve();
+// ---- ledger: append-only. Every state change is a NEW immutable object under state/ledger/ (an overwritten object
+// can be served stale by the storage cache, which made a read-back of state/ledger.json fail in runs 1-2).
+let ledgerChain: Promise<unknown> = Promise.resolve();
+let seq = 0;
 async function loadLedger(svc: SupabaseClient): Promise<Ledger> {
-  const p = `${PREFIX}/state/ledger.json`;
-  return (await exists(svc, p)) ? JSON.parse((await download(svc, p)).toString("utf8")) : { entries: [] };
+  const entries = new Map<string, Entry>();
+  // Runs 1-2 wrote a single overwritten file; it is read once as history (it may be stale; the bucket objects are the truth).
+  if (await exists(svc, `${PREFIX}/state/ledger.json`)) {
+    const legacy = JSON.parse((await download(svc, `${PREFIX}/state/ledger.json`)).toString("utf8")) as Ledger;
+    for (const e of legacy.entries) entries.set(`${e.key}#${e.at}`, { ...e, note: [e.note, "legacy ledger.json (runs 1-2)"].filter(Boolean).join("; ") });
+  }
+  const { data } = await svc.storage.from("videos").list(`${PREFIX}/state/ledger`, { limit: 1000, sortBy: { column: "name", order: "asc" } });
+  for (const o of (data ?? []).filter(o => o.name.endsWith(".json")).sort((a, b) => a.name.localeCompare(b.name))) {
+    const e = JSON.parse((await download(svc, `${PREFIX}/state/ledger/${o.name}`)).toString("utf8")) as Entry & { attempt: string };
+    entries.set(e.attempt, e);
+  }
+  return { entries: [...entries.values()] };
 }
-function saveLedger(svc: SupabaseClient, l: Ledger) {
-  // Each save runs after the previous one settles (a failed save never silently skips the next) and reports its own error.
-  const next = ledgerChain.catch(() => {}).then(() => upload(svc, `${PREFIX}/state/ledger.json`, Buffer.from(JSON.stringify(l, null, 2)), "application/json"));
+function saveEntry(svc: SupabaseClient, e: Entry & { attempt?: string }) {
+  e.attempt ??= `${e.key}#${e.at}`;
+  const name = `${new Date().toISOString().replace(/[:.]/g, "-")}-${String(seq++).padStart(4, "0")}.json`;
+  const snapshot = Buffer.from(JSON.stringify(e, null, 2));
+  const next = ledgerChain.catch(() => {}).then(() => upload(svc, `${PREFIX}/state/ledger/${name}`, snapshot, "application/json"));
   ledgerChain = next;
   return next;
 }
@@ -114,6 +128,7 @@ async function main() {
   const results = report.results as unknown[];
   log("phase", phase, "only", only.join(",") || "(all)", "spent so far USD", total(ledger));
 
+  try {
   const paid = phase === "refs" || phase === "keyframes" || phase === "clips";
   if (paid && confirm !== "GASTAR") throw new Error("paid phase without GASTAR on line 2");
 
@@ -127,12 +142,12 @@ async function main() {
       else { results.push({ key, status: "blocked_uncertain" }); log(key, "BLOCKED: previous attempt uncertain, needs review"); return; }
     }
     const entry: Entry = resumeJob ? prior! : { key, kind, status: "reserved", usd, at: new Date().toISOString(), model };
-    if (!resumeJob) { ledger.entries.push(entry); await saveLedger(svc, ledger); }
+    if (!resumeJob) { ledger.entries.push(entry); await saveEntry(svc, entry); }
     try {
-      const out = await run(async job => { entry.job = job; await saveLedger(svc, ledger); }, resumeJob);
+      const out = await run(async job => { entry.job = job; await saveEntry(svc, entry); }, resumeJob);
       await upload(svc, outPath, out.bytes, out.contentType);
-      Object.assign(entry, { status: "spent", usage: out.usage, sha256: createHash("sha256").update(out.bytes).digest("hex"), bytes: out.bytes.length, at: new Date().toISOString() });
-      await saveLedger(svc, ledger);
+      Object.assign(entry, { status: "spent", usage: out.usage, sha256: createHash("sha256").update(out.bytes).digest("hex"), bytes: out.bytes.length, finishedAt: new Date().toISOString() });
+      await saveEntry(svc, entry);
       results.push({ key, status: resumeJob ? "resumed" : "generated", usd: entry.usd, bytes: out.bytes.length });
       log(key, resumeJob ? "resumed" : "generated", out.bytes.length, "bytes, USD", entry.usd);
     } catch (e) {
@@ -140,7 +155,7 @@ async function main() {
       // A refusal before acceptance is not charged; anything after a provider accepted the job is uncertain.
       const charged = (e as { charged?: boolean }).charged === true || !!entry.job;
       Object.assign(entry, { status: charged ? "uncertain" : "failed", note: msg.slice(0, 300), usd: charged ? entry.usd : 0 });
-      await saveLedger(svc, ledger);
+      await saveEntry(svc, entry).catch(err => log(key, "ledger write failed after an error:", err instanceof Error ? err.message : err));
       results.push({ key, status: entry.status, error: msg.slice(0, 300) });
       log(key, "FAILED", entry.status, msg.slice(0, 300));
     }
@@ -189,11 +204,19 @@ async function main() {
     });
   }
 
-  // Copy every stored output (refs, keyframes, clips) + ledger to OUT for the encrypted bundle.
-  for (const dir of ["refs", "keyframes", "clips", "state"]) {
+  } finally {
+    // Always: whatever exists in the bucket (and the ledger) travels in the encrypted bundle, even after a fatal error.
+    await collect(svc, report, ledger).catch(e => log("collect failed:", e instanceof Error ? e.message : e));
+  }
+  log("done; total spent USD (incl. uncertain)", total(ledger));
+}
+
+/** Copies every stored output (refs, keyframes, clips) and the ledger into OUT for the encrypted bundle. */
+async function collect(svc: SupabaseClient, report: Record<string, unknown>, ledger: Ledger) {
+  for (const dir of ["refs", "keyframes", "clips", "state", "state/ledger"]) {
     const { data } = await svc.storage.from("videos").list(`${PREFIX}/${dir}`, { limit: 200 });
     for (const o of data ?? []) {
-      if (!o.name || o.name.endsWith("/")) continue;
+      if (!o.id || !o.name) continue; // folders have no id
       const bytes = await download(svc, `${PREFIX}/${dir}/${o.name}`);
       await mkdir(join(OUT, dir), { recursive: true });
       await writeFile(join(OUT, dir, o.name), bytes);
@@ -202,7 +225,6 @@ async function main() {
   report.finishedAt = new Date().toISOString();
   report.spentUsdTotal = total(ledger);
   await writeFile(join(OUT, "report.json"), JSON.stringify(report, null, 2));
-  log("done; total spent USD (incl. uncertain)", total(ledger));
 }
 
 main().catch(async e => {
