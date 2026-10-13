@@ -6,7 +6,7 @@
  */
 import { hammingHex, PERCEPTUAL_DUPLICATE_MAX_DISTANCE } from "@/lib/video/long-form/asset-identity";
 import { DirectorInputSchema, DirectorPlanSchema, type DirectorInputRaw, type InventoryAsset, type PlannedShot, type RecipeCatalog } from "./contract";
-import { assetTopics, assetVisualType, factualCorrespondence, NEUTRAL_MAX_PER_SEQUENCE, NEUTRAL_MAX_SHARE, topicsOf, treatmentAllowed, unitPolicy, visualFromTopics } from "./policy";
+import { assetTopics, assetVisualType, factualCorrespondence, NEUTRAL_MAX_PER_SEQUENCE, NEUTRAL_MAX_SHARE, reelPlannedStockCorresponds, hasTextCompanionFor, topicsOf, treatmentAllowed, unitPolicy, visualFromTopics } from "./policy";
 
 export type IssueCode =
   | "CONTRACT_INVALID" | "PAID_EXECUTION" | "DURATION_MISMATCH" | "GAP_OR_OVERLAP" | "SEGMENT_NOT_COVERED"
@@ -172,7 +172,7 @@ export function auditPlan(planRaw: unknown, inputRaw: DirectorInputRaw, catalog:
     if (seg && !seg.locked) {
       const pol = unitPolicy(input, seg, s.anchorText), unitTopics = topicsOf(s.anchorText);
       if (pol.class !== s.policy.class || pol.unconfirmed !== s.policy.unconfirmed) add("POLICY_MISMATCH", `plan says ${s.policy.class}${s.policy.unconfirmed ? " (no confirmado)" : ""}, recomputed ${pol.class}${pol.unconfirmed ? " (no confirmado)" : ""}`, s.id);
-      const hasText = input.inventory.some(x => x.kind === "text" && x.tags.includes(`segment:${seg.id}`) && x.license !== "NOT_CLEARED");
+      const hasText = hasTextCompanionFor(input, seg.id);
       const neutral = s.decision.neutral === true;
       if (neutral && recipe && !recipe.select.neutral) add("RECIPE_INCOMPATIBLE", `neutral atmosphere declared with non-neutral recipe ${recipe.id}`, s.id);
       if (!neutral && recipe?.select.neutral) add("RECIPE_INCOMPATIBLE", `${recipe.id} is only for a declared neutral atmosphere`, s.id);
@@ -181,7 +181,7 @@ export function auditPlan(planRaw: unknown, inputRaw: DirectorInputRaw, catalog:
         visual = assetVisualType(asset);
         const at = assetTopics(asset);
         verdict = treatmentAllowed(pol, { provenance: asset.provenance, visual, isNew: false, plannedForSegment: asset.tags.includes(`segment:${seg.id}`),
-          topicMatch: unitTopics.some(t => at.includes(t)), neutral: false, showsRemains: at.includes("remains") }, hasText);
+          topicMatch: unitTopics.some(t => at.includes(t)) || reelPlannedStockCorresponds(input.genre, asset, seg, s.start, s.end), neutral: false, showsRemains: at.includes("remains") }, hasText);
       } else if (a.status === "needs_new") {
         visual = neutral ? "landscape" : visualFromTopics(unitTopics);
         verdict = treatmentAllowed(pol, { provenance: "ai_recreation", visual, isNew: true, plannedForSegment: false, topicMatch: false, neutral }, hasText);

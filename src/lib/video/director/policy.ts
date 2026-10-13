@@ -151,6 +151,29 @@ export type Treatment = { provenance: InventoryAsset["provenance"]; visual: Visu
  * Whether a treatment respects the unit policy. `review` = allowed only pending human confirmation.
  * New AI material is never allowed to stand in for evidence, remains or measurable data.
  */
+/**
+ * Reels only: the storyboard derives each planned stock asset from that sentence's own visual concepts, so a planned
+ * illustrative stock asset whose window covers the shot corresponds to its sentence by construction (and it is drawn
+ * with the visible «ilustrativa» label). Documentaries keep the topic-match requirement; AI recreations never qualify.
+ * Shared by the planner and the gate so both decide the same way.
+ */
+export function reelPlannedStockCorresponds(genre: string, a: InventoryAsset, seg: { id: string; start: number; end: number }, start: number, end: number): boolean {
+  if (genre !== "reel" || a.provenance !== "stock_illustrative" || !a.tags.includes(`segment:${seg.id}`)) return false;
+  const w = a.content?.window;
+  if (!w || w.segmentId !== seg.id) return false;
+  const len = seg.end - seg.start, mid = len > 0 ? ((start + end) / 2 - seg.start) / len : 0;
+  return mid >= w.from - 1e-9 && mid <= w.to + 1e-9;
+}
+
+/**
+ * A text companion carries the nuance of a hypothesis/negation next to its image. In a Reel every sentence is burned
+ * in as a subtitle over the image (VerticalReel always draws the captions), so the narration's own words are that
+ * companion. Elsewhere it must be an explicit text card planned for the segment. Shared by planner and gate.
+ */
+export function hasTextCompanionFor(input: { genre: string; inventory: InventoryAsset[] }, segId: string): boolean {
+  return input.genre === "reel" || input.inventory.some(a => a.kind === "text" && a.tags.includes(`segment:${segId}`) && a.license !== "NOT_CLEARED");
+}
+
 export function treatmentAllowed(p: UnitPolicy, t: Treatment, hasTextCompanion: boolean): { allowed: boolean; review?: string; reason: string } {
   // Material about human remains is never used to illustrate a unit that is not about them (e.g. a rumour).
   if (t.showsRemains && p.class !== "human_remains") return { allowed: false, reason: "material sobre restos humanos solo junto a una frase sobre esos restos" };

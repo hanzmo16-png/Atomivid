@@ -19,7 +19,7 @@ import {
 } from "./contract";
 import { recipesFor } from "./recipes";
 import {
-  assetTopics, assetVisualType, factualCorrespondence, normalize, NEUTRAL_MAX_PER_SEQUENCE, NEUTRAL_MAX_SHARE, topicsOf, treatmentAllowed, unitPolicy,
+  assetTopics, assetVisualType, factualCorrespondence, normalize, reelPlannedStockCorresponds, hasTextCompanionFor, NEUTRAL_MAX_PER_SEQUENCE, NEUTRAL_MAX_SHARE, topicsOf, treatmentAllowed, unitPolicy,
   visualFromTopics, words, type UnitPolicy, type VisualType,
 } from "./policy";
 
@@ -165,7 +165,7 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
     const evidenceRaw = seg.evidenceAssetId ? byId.get(seg.evidenceAssetId) : undefined;
     const evidence = evidenceRaw && evidenceRaw.license !== "NOT_CLEARED" ? evidenceRaw : undefined;
     const units = unitsBySeg.get(seg.id)!;
-    const hasTextCompanion = input.inventory.some(a => a.kind === "text" && a.tags.includes(`segment:${seg.id}`) && a.license !== "NOT_CLEARED");
+    const hasTextCompanion = hasTextCompanionFor(input, seg.id);
     let prevAsset: InventoryAsset | undefined, prevRecipe: Recipe | undefined, heldSeconds = 0, neutralInSeq = 0;
 
     units.forEach((u, i) => {
@@ -208,7 +208,11 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
         const eligible = a === useEvidence || continuation || hitsT.length > 0 || wordHits.length >= 2 || (planned && inWindow && unitTopics.length === 0);
         if (!eligible) continue;
         const visual = assetVisualType(a);
-        const verdict = treatmentAllowed(policy, { provenance: a.provenance, visual, isNew: false, plannedForSegment: planned, topicMatch: hitsT.length > 0, neutral: false, showsRemains: at.includes("remains") }, hasTextCompanion);
+        // Reels: the storyboard derives each planned stock asset from THAT sentence's own visual concepts, so planned
+        // illustrative stock corresponds to its sentence by construction (it is drawn with the visible «ilustrativa»
+        // label). Documentaries keep the topic-match requirement; AI recreations are never covered by this rule.
+        const reelPlannedStock = reelPlannedStockCorresponds(input.genre, a, seg, u.start, u.end);
+        const verdict = treatmentAllowed(policy, { provenance: a.provenance, visual, isNew: false, plannedForSegment: planned, topicMatch: hitsT.length > 0 || reelPlannedStock, neutral: false, showsRemains: at.includes("remains") }, hasTextCompanion);
         if (!verdict.allowed) continue;
         const basis = [
           ...(a === useEvidence ? ["evidencia auténtica del segmento"] : []),

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { loadRecipeCatalog } from "./recipes";
 import { readFileSync } from "node:fs";
 import { proposePlan, splitSpan, anchorFor, unitsFor, compatibleRecipes, hasKeyword } from "./propose";
-import { assetVisualType, claimFor, topicsOf } from "./policy";
+import { assetVisualType, claimFor, hasTextCompanionFor, reelPlannedStockCorresponds, topicsOf } from "./policy";
 import { editorialReport } from "./report";
 import { inputFromStoryboard } from "./from-storyboard";
 import { auditPlan } from "./audit";
@@ -511,4 +511,19 @@ test("recipe keywords tolerate the simple Spanish plural; slot recipes (first/la
   assert.equal(last[0].recipe.id, "reel-cta-follow");
   // Authentic-only recipes (real UI capture, real results) never dress stock material, whatever the words say.
   assert.ok(!compatibleRecipes(reel, "concept", "stock_illustrative", "Mira algunos resultados", [], "middle", false).some(m => m.recipe.id === "reel-result-montage"));
+});
+
+test("reel-only policy rules: subtitles are the text companion; planned illustrative stock corresponds to its own sentence", () => {
+  const stock = InventoryAssetSchema.parse({ id: "s1", kind: "video", provenance: "stock_illustrative", motion: "real", license: "CLEARED", tags: ["segment:seg-1"],
+    content: { visualType: "concept", topics: [], window: { segmentId: "seg-1", from: 0, to: 1 } } });
+  const seg = { id: "seg-1", start: 0, end: 4 };
+  assert.equal(reelPlannedStockCorresponds("reel", stock, seg, 0, 2), true);
+  assert.equal(reelPlannedStockCorresponds("documental", stock, seg, 0, 2), false, "documentaries keep the topic-match requirement");
+  assert.equal(reelPlannedStockCorresponds("reel", { ...stock, provenance: "ai_recreation" }, seg, 0, 2), false, "AI recreations never qualify");
+  assert.equal(reelPlannedStockCorresponds("reel", { ...stock, tags: ["segment:seg-2"] }, seg, 0, 2), false, "only the asset planned for this segment");
+  assert.equal(reelPlannedStockCorresponds("reel", { ...stock, content: { ...stock.content!, window: { segmentId: "seg-1", from: 0, to: 0.4 } } }, seg, 3, 4), false, "outside its window");
+  assert.equal(hasTextCompanionFor({ genre: "reel", inventory: [] }, "seg-1"), true);
+  assert.equal(hasTextCompanionFor({ genre: "documental", inventory: [] }, "seg-1"), false);
+  // The documentary plans of PR105 are unchanged by these rules (same issue codes as before; checked above too).
+  for (const { plan, inp } of [SB003, SB002H, SB001]) assert.ok(!codes(plan, inp).includes("POLICY_VIOLATION" as never));
 });

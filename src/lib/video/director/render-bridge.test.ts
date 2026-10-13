@@ -5,6 +5,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { cinematicDirectorRenderEnabled } from "./flag";
 import type { GeneratedScript } from "@/lib/providers/types";
 import { simulateStoryboard } from "@/lib/video/storyboard/simulate";
 import { inputFromReel } from "./from-reel";
@@ -115,12 +117,20 @@ test("an approved avatar segment passes through untouched and uses its existing 
   if (r.ok) assert.ok(r.shots.some(s => s.assetId === "avatar-sintetico" && s.mediaType === "video"));
 });
 
-test("the bridge is not wired into production: only tests and the local harness import it", () => {
+test("the bridge reaches production only through reel-render, lazily, behind CINEMATIC_DIRECTOR_RENDER_ENABLED", () => {
   let raw = "";
   try { raw = execFileSync("git", ["grep", "--untracked", "-l", "render-bridge", "--", "src", "remotion", "scripts"], { encoding: "utf8" }); } catch { raw = ""; }
   const out = raw.trim().split("\n").filter(Boolean);
   assert.ok(out.includes("src/lib/video/director/render-bridge.test.ts"), "the search itself works");
-  for (const f of out) assert.ok(f.endsWith(".test.ts") || f.startsWith("scripts/director-bridge-") || f === "src/lib/video/director/render-bridge.ts", f);
+  const allowed = new Set(["src/lib/video/director/render-bridge.ts", "src/lib/video/director/reel-render.ts"]);
+  for (const f of out) assert.ok(f.endsWith(".test.ts") || f.startsWith("scripts/director-") || allowed.has(f), f);
+  // generate-video.ts: only a type import plus a dynamic import inside the flag check (flag off = nothing loaded).
+  const gv = readFileSync("src/lib/video/generate-video.ts", "utf8");
+  assert.doesNotMatch(gv, /^import \{[^}]*\} from "@\/lib\/video\/director\/reel-render"/m, "no static value import of reel-render");
+  const gate = gv.indexOf("if (cinematicDirectorRenderEnabled()) {"), dyn = gv.indexOf('await import("@/lib/video/director/reel-render")');
+  assert.ok(gate > 0 && dyn > gate && dyn - gate < 200, "the dynamic import sits right inside the flag check");
+  assert.equal(cinematicDirectorRenderEnabled({}), false, "off by default");
+  assert.equal(cinematicDirectorRenderEnabled({ CINEMATIC_DIRECTOR_V2_ENABLED: "1" }), false, "the inspection flag does not turn the render on");
 });
 
 // ---- Correction 1 (chatgpt-26): non-finite or negative times must block, never reach the props.
