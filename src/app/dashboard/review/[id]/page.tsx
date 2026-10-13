@@ -5,6 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import type { GeneratedScript } from "@/lib/providers/types";
 import { createServiceClient } from "@/lib/supabase/service";
 import { RECORDING_BUCKET, isOwnedRecordingPath } from "@/lib/video/avatar/recording";
+import { directorInspectionAllowed, directorRenderAllowed } from "@/lib/video/director/render-access";
+import { inspectReel } from "@/lib/video/director/reel-inspection";
+import { DirectorInspectionPanel } from "@/components/video/DirectorInspectionPanel";
 import { avatarEntitlementPreview } from "@/lib/billing/quota";
 import { ScriptReview } from "./ScriptReview";
 import { loadAvatarRecovery } from "@/lib/video/avatar/recovery";
@@ -78,6 +81,13 @@ export default async function ReviewPage({
     recovery = r.action === "none" ? { kind: "blocked", message: r.message } : { kind: "action", label: r.label, note: r.note };
   }
 
+  // Director (chatgpt-23): read-only proposal for visual Reels, behind CINEMATIC_DIRECTOR_V2_ENABLED (off by default).
+  // Pure computation over the saved script (simulated storyboard, no provider call); it never gates generation.
+  // chatgpt-06: only for pilot accounts (CINEMATIC_DIRECTOR_PILOT_EMAILS); the render flag shown is this user's real decision.
+  const directorInspection = directorInspectionAllowed(user, data)
+    ? inspectReel(data.script_json, { renderEnabled: directorRenderAllowed(user, data) })
+    : null;
+
   return (
     <div className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-bold text-ink">{data.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}</h1>
@@ -104,6 +114,7 @@ export default async function ReviewPage({
           (no hay re-render en el cliente que pueda desincronizarse), así que
           Date.now() aquí es seguro pese a la regla de pureza de React — mismo
           patrón ya usado en dashboard/page.tsx. */}
+      {directorInspection && <DirectorInspectionPanel inspection={directorInspection} />}
       <ScriptReview
         // eslint-disable-next-line react-hooks/purity -- ver comentario arriba
         diagnosticRetry={canPrepareAvatar(user) && Date.now() < Date.parse("2026-09-19T02:00:00Z")

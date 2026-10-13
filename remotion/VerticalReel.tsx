@@ -9,12 +9,15 @@ import {
   useVideoConfig,
 } from "remotion";
 import { type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from "./audio-mix";
+import { clipAudible, labelTextFor, type SceneDirection, type SceneTiming, sceneOpacity, sceneTiming, sceneTransform } from "./reel-direction";
 
 export type Scene = {
   mediaUrl: string;
   mediaType: "image" | "video";
   startSeconds: number;
   endSeconds: number;
+  /** Optional per-scene direction from a Director plan (see reel-direction.ts). Absent = historic look. */
+  direction?: SceneDirection;
 };
 
 export type Caption = {
@@ -39,8 +42,6 @@ export type VerticalReelProps = {
   showLogo?: boolean;
 };
 
-// Duración del crossfade entre escenas. A 30fps, 15 frames = 0.5s.
-const FADE_FRAMES = 15;
 const DEFAULT_ACCENT_COLOR = "#8f7ff5";
 
 export function VerticalReel({
@@ -58,24 +59,12 @@ export function VerticalReel({
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
       {scenes.map((scene, i) => {
-        const isFirst = i === 0;
-        const isLast = i === scenes.length - 1;
-        const from = Math.round(scene.startSeconds * fps);
-        const rawTo = isLast ? durationInFrames : Math.round(scene.endSeconds * fps);
-        // Cada escena (salvo la última) se extiende un poco más allá de su
-        // fin para solaparse con la siguiente y poder cruzar (crossfade).
-        const extendedTo = Math.min(durationInFrames, rawTo + (isLast ? 0 : FADE_FRAMES));
-        const sequenceDuration = Math.max(1, extendedTo - from);
-
+        // Crossfade overlaps (0.5 s) by default; a Director scene may ask for a cut or a fade from/to black instead.
+        const timing = sceneTiming(scenes, i, fps, durationInFrames);
         return (
-          <Sequence key={i} from={from} durationInFrames={sequenceDuration}>
-            <SceneMedia
-              scene={scene}
-              durationInFrames={sequenceDuration}
-              fadeInFrames={isFirst ? 0 : FADE_FRAMES}
-              fadeOutFrames={isLast ? 0 : FADE_FRAMES}
-              isHook={isFirst}
-            />
+          <Sequence key={i} from={timing.from} durationInFrames={timing.durationInFrames}>
+            <SceneMedia scene={scene} timing={timing} isFirst={i === 0} />
+            {labelTextFor(scene.direction) && <SceneLabelBadge text={labelTextFor(scene.direction)!} />}
           </Sequence>
         );
       })}
@@ -108,56 +97,15 @@ export function VerticalReel({
   );
 }
 
-function SceneMedia({
-  scene,
-  durationInFrames,
-  fadeInFrames,
-  fadeOutFrames,
-  isHook,
-}: {
-  scene: Scene;
-  durationInFrames: number;
-  fadeInFrames: number;
-  fadeOutFrames: number;
-  /** El primer plano del video — recibe un impulso de zoom más rápido y marcado ("gancho") en vez del mismo Ken Burns parejo de las demás escenas. */
-  isHook: boolean;
-}) {
+function SceneMedia({ scene, timing, isFirst }: { scene: Scene; timing: SceneTiming; isFirst: boolean }) {
   const frame = useCurrentFrame();
-  const progress = durationInFrames > 1 ? frame / (durationInFrames - 1) : 0;
+  const progress = timing.durationInFrames > 1 ? frame / (timing.durationInFrames - 1) : 0;
 
-  // Ken Burns aplicado a TODO plano (antes solo a imágenes estáticas — los
-  // videos se mostraban completamente inmóviles en cámara, aplanando el
-  // ritmo justo cuando la mayoría de los planos ahora son video real, no
-  // foto). El gancho de apertura usa una curva más rápida y perceptible
-  // (todo el impulso ocurre en el primer ~40% del plano, no repartido en
-  // todo su rango) para captar atención de inmediato en vez de un
-  // zoom uniforme e imperceptible.
-  const hookProgress = Math.min(1, progress / 0.4);
-  const scale = isHook
-    ? interpolate(hookProgress, [0, 1], [1, 1.22], { extrapolateRight: "clamp" })
-    : interpolate(progress, [0, 1], [1, 1.12]);
-  const translateX = isHook
-    ? 0
-    : interpolate(progress, [0, 1], [0, -18]);
-
-  let opacity = 1;
-  if (fadeInFrames > 0) {
-    opacity = Math.min(opacity, interpolate(frame, [0, fadeInFrames], [0, 1], {
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-    }));
-  }
-  if (fadeOutFrames > 0) {
-    opacity = Math.min(
-      opacity,
-      interpolate(
-        frame,
-        [durationInFrames - fadeOutFrames, durationInFrames],
-        [1, 0],
-        { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
-      ),
-    );
-  }
+  // Sin dirección: Ken Burns en todo plano y un gancho de zoom más rápido en el primero (comportamiento histórico).
+  // Con dirección (plan del Director): la receta decide — un clip real se muestra tal cual se filmó (sin zoom
+  // sintético encima), un zoom o paneo sobre foto se declara como tal, y un plano estático no se mueve.
+  const { scale, translateX } = sceneTransform(scene.direction, isFirst, progress);
+  const opacity = sceneOpacity(timing, frame);
 
   const mediaStyle = {
     width: "100%",
@@ -169,10 +117,38 @@ function SceneMedia({
   return (
     <AbsoluteFill style={{ overflow: "hidden", opacity }}>
       {scene.mediaType === "video" ? (
-        <OffthreadVideo src={scene.mediaUrl} muted style={mediaStyle} />
+        // A clip's own sound is heard only when its direction asks for it; its volume follows the scene's fades.
+        <OffthreadVideo src={scene.mediaUrl} muted={!clipAudible(scene.direction, "video")}
+          volume={clipAudible(scene.direction, "video") ? (f: number) => sceneOpacity(timing, f) : undefined} style={mediaStyle} />
       ) : (
         <Img src={scene.mediaUrl} style={mediaStyle} />
       )}
+    </AbsoluteFill>
+  );
+}
+
+// Etiqueta obligatoria de procedencia (recreación IA / ilustrativa): arriba a la izquierda, lejos de la franja de
+// subtítulos y del badge de logo (arriba a la derecha). Visible durante todo el plano que la requiere.
+function SceneLabelBadge({ text }: { text: string }) {
+  return (
+    <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "flex-start" }}>
+      <div
+        style={{
+          marginTop: 64,
+          marginLeft: 32,
+          padding: "8px 14px",
+          borderRadius: 10,
+          backgroundColor: "rgba(10,10,14,0.62)",
+          border: "1px solid rgba(255,255,255,0.22)",
+          fontFamily: "Arial, Helvetica, sans-serif",
+          fontWeight: 700,
+          fontSize: 26,
+          color: "white",
+          letterSpacing: 0.3,
+        }}
+      >
+        {text}
+      </div>
     </AbsoluteFill>
   );
 }

@@ -1,0 +1,2857 @@
+{
+  "schema": "atomivid/cinematic-recipes@2",
+  "version": "2.3.0",
+  "generated_by": "claude (T-20261012-0142-chatgpt-18; corrección 2: T-20261012-0555-chatgpt-20)",
+  "notes": "Recetas originales, sin copiar películas. Las descripciones de 'example' son ilustrativas. 'evidence_policy' impide aplicar el look de recreación a evidencia auténtica. v2: cada receta lleva una regla 'select' operable (tipo visual aceptado, temas/palabras requeridos, temas excluidos, qué hacer con una imagen fija). use_when/avoid_when quedan como descripción humana; la decisión automática usa solo 'select'. Mapa y línea de tiempo pasan a animación de gráfico determinista (no 'clip con movimiento real'). v2.1: dos recetas de B-roll ilustrativo para Reels (detalle y contexto) para que los planos intermedios con stock no repitan una sola receta. v2.2: conjunto de ficción (select.style='fiction', solo material generado y etiquetado): se ofrece únicamente a una entrada que declara estilo ficción; sus recetas declaran clip_audio (el diseño sonoro es el audio del clip). v2.3 (corrección 3/3 chatgpt-26): 'reel-hook-face-or-avatar' exige select.requires='approved_presenter' (solo un avatar/presentador aprobado y CLEARED); sin él, el gancho seguro es 'reel-hook-visual'.",
+  "recipes": [
+    {
+      "id": "mys-night-road-approach",
+      "version": 1,
+      "genre": "misterio",
+      "name": "Carretera nocturna, aproximación",
+      "use_when": [
+        "el relato sitúa a testigos conduciendo de noche",
+        "apertura de un caso"
+      ],
+      "avoid_when": [
+        "la evidencia es una foto auténtica del lugar"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "instalar inquietud y lugar antes del evento",
+      "shot": {
+        "type": "plano general"
+      },
+      "composition": "horizonte bajo, carretera en fuga hacia el tercio superior",
+      "movement": {
+        "kind": "real_motion",
+        "note": "clip con movimiento real (no un zoom sobre imagen fija)"
+      },
+      "lighting": "faros como única fuente; cielo casi negro",
+      "continuity": "mismo vehículo y hora en todo el bloque",
+      "transitions": {
+        "in": [
+          "fade_from_black",
+          "cut"
+        ],
+        "out": [
+          "cut",
+          "dip_to_black"
+        ]
+      },
+      "sfx": "motor lejano, grillos, sin música al inicio",
+      "placeholders": [
+        "{lugar}",
+        "{ano}",
+        "{vehiculo}"
+      ],
+      "negatives": [
+        "rótulos permanentes",
+        "luces de neón",
+        "drones",
+        "8K anamorphic como sufijo"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "Pickup de los setenta avanza por una pista forestal; solo los faros recortan pinos.",
+      "lens": "24-35 mm equivalente",
+      "select": {
+        "visual": [
+          "*"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "carretera",
+          "noche",
+          "conduciendo",
+          "coche",
+          "camino"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "mys-tree-line-glow",
+      "version": 1,
+      "genre": "misterio",
+      "name": "Resplandor tras la línea de árboles",
+      "use_when": [
+        "primer indicio de luz descrita por testigos"
+      ],
+      "avoid_when": [
+        "el testimonio no menciona luz"
+      ],
+      "duration_s": {
+        "min": 3,
+        "typical": 5,
+        "max": 7
+      },
+      "intent": "anticipar sin mostrar el objeto",
+      "shot": {
+        "type": "plano general fijo"
+      },
+      "composition": "árboles en silueta ocupando el tercio inferior; resplandor fuera de cuadro",
+      "movement": {
+        "kind": "static",
+        "note": "plano fijo; el interés lo da la composición"
+      },
+      "lighting": "luz fría difusa detrás de los árboles, sin fuente visible",
+      "continuity": "el resplandor coincide en color con el relato",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut",
+          "flash_white_short"
+        ]
+      },
+      "sfx": "zumbido grave muy bajo",
+      "placeholders": [
+        "{color_luz}",
+        "{lugar}"
+      ],
+      "negatives": [
+        "mostrar nave completa",
+        "rayos láser",
+        "efectos de ciencia ficción"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "Pinos negros contra un halo ámbar que late detrás de una colina.",
+      "select": {
+        "visual": [
+          "*"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "luz",
+          "arboles",
+          "bosque",
+          "resplandor",
+          "brillo"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "mys-witness-pov-windshield",
+      "version": 1,
+      "genre": "misterio",
+      "name": "POV del testigo tras el parabrisas",
+      "use_when": [
+        "narración en primera persona del momento del avistamiento"
+      ],
+      "avoid_when": [
+        "no hay testimonio en primera persona"
+      ],
+      "duration_s": {
+        "min": 3,
+        "typical": 4,
+        "max": 6
+      },
+      "intent": "poner al espectador en el asiento del testigo",
+      "shot": {
+        "type": "plano subjetivo",
+        "pov": "testigo"
+      },
+      "composition": "marco del parabrisas como encuadre interno; reflejos suaves",
+      "movement": {
+        "kind": "handheld",
+        "note": "cámara en mano contenida, sin temblor exagerado"
+      },
+      "lighting": "interior oscuro, exterior más brillante",
+      "continuity": "mismo vehículo que el plano de aproximación",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "respiración contenida, motor al ralentí",
+      "placeholders": [
+        "{vehiculo}",
+        "{direccion_mirada}"
+      ],
+      "negatives": [
+        "caras reconocibles de personas reales",
+        "texto en pantalla"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "Manos sobre el volante, el limpiaparabrisas quieto, una luz que crece al fondo.",
+      "select": {
+        "visual": [
+          "*"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "vimos",
+          "vio",
+          "vieron",
+          "parabrisas",
+          "desde"
+        ],
+        "topics_none": [],
+        "still": "pending",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "mys-archive-document-insert",
+      "version": 1,
+      "genre": "misterio",
+      "name": "Inserto de documento de archivo",
+      "use_when": [
+        "se cita un informe, periódico o expediente real disponible"
+      ],
+      "avoid_when": [
+        "no hay documento auténtico con procedencia"
+      ],
+      "duration_s": {
+        "min": 3,
+        "typical": 5,
+        "max": 7
+      },
+      "intent": "anclar el relato en evidencia verificable",
+      "shot": {
+        "type": "inserto"
+      },
+      "composition": "documento centrado, margen para subtítulos abajo",
+      "movement": {
+        "kind": "push_in_still",
+        "note": "acercamiento lento sobre imagen fija; nunca se presenta como clip en movimiento"
+      },
+      "lighting": "neutra, sin tinte; textura del papel visible",
+      "continuity": "citar fecha y fuente reales",
+      "transitions": {
+        "in": [
+          "cut",
+          "dissolve_short"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "papel, máquina de escribir muy suave",
+      "placeholders": [
+        "{documento_id}",
+        "{fuente}",
+        "{fecha}"
+      ],
+      "negatives": [
+        "inventar titulares",
+        "añadir sellos falsos",
+        "aplicar look de recreación"
+      ],
+      "evidence_policy": "authentic_only",
+      "label": null,
+      "example": "Recorte de prensa escaneado, zoom lento hacia el titular citado por la narración.",
+      "select": {
+        "visual": [
+          "text",
+          "diagram",
+          "concept"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "informe",
+          "periodico",
+          "expediente",
+          "documento"
+        ],
+        "topics_none": [],
+        "still": "push_in_still",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "mys-empty-site-today",
+      "version": 1,
+      "genre": "misterio",
+      "name": "El lugar hoy, vacío",
+      "use_when": [
+        "comparar el pasado con el presente del lugar",
+        "transición a análisis"
+      ],
+      "avoid_when": [
+        "no hay material actual del lugar o equivalente ilustrativo rotulado"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "contraste temporal y pausa reflexiva",
+      "shot": {
+        "type": "plano general"
+      },
+      "composition": "composición simétrica, mucho aire",
+      "movement": {
+        "kind": "real_motion",
+        "note": "clip con movimiento real (no un zoom sobre imagen fija)"
+      },
+      "lighting": "luz natural diurna, colores sobrios",
+      "continuity": "rotular si es ilustrativo y no el lugar exacto",
+      "transitions": {
+        "in": [
+          "dissolve_short",
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "viento, silencio",
+      "placeholders": [
+        "{lugar}",
+        "{ano_actual}"
+      ],
+      "negatives": [
+        "insinuar que es el lugar exacto si no lo es"
+      ],
+      "evidence_policy": "either",
+      "label": "ilustrativa",
+      "example": "Claro de bosque a mediodía, hierba moviéndose; nada más.",
+      "select": {
+        "visual": [
+          "landscape",
+          "concept"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "hoy",
+          "actualmente",
+          "lugar",
+          "sitio"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "mys-search-party-dusk",
+      "version": 1,
+      "genre": "misterio",
+      "name": "Búsqueda al atardecer",
+      "use_when": [
+        "el relato describe la búsqueda de una persona"
+      ],
+      "avoid_when": [
+        "la búsqueda no aparece en el guion"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "urgencia colectiva",
+      "shot": {
+        "type": "plano medio-general"
+      },
+      "composition": "grupo de espaldas avanzando, línea de linternas",
+      "movement": {
+        "kind": "handheld",
+        "note": "cámara en mano contenida, sin temblor exagerado"
+      },
+      "lighting": "atardecer frío, linternas cálidas",
+      "continuity": "ropa de época coherente con el año",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "pasos en hojarasca, voces lejanas ininteligibles",
+      "placeholders": [
+        "{ano}",
+        "{numero_personas}"
+      ],
+      "negatives": [
+        "uniformes anacrónicos",
+        "rostros reconocibles"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "Siluetas con linternas peinan un bosque mientras cae la luz.",
+      "select": {
+        "visual": [
+          "*"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "busqueda",
+          "buscaron",
+          "buscar",
+          "desaparecido"
+        ],
+        "topics_none": [],
+        "still": "pending",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "mys-object-silhouette-brief",
+      "version": 1,
+      "genre": "misterio",
+      "name": "Silueta breve del objeto",
+      "use_when": [
+        "el testimonio describe forma del objeto y el guion lo menciona explícitamente"
+      ],
+      "avoid_when": [
+        "la forma no está descrita; inventarla"
+      ],
+      "duration_s": {
+        "min": 2,
+        "typical": 3,
+        "max": 4
+      },
+      "intent": "mostrar lo descrito sin detalle que no conste",
+      "shot": {
+        "type": "plano general"
+      },
+      "composition": "objeto pequeño en el tercio superior, árboles en primer término",
+      "movement": {
+        "kind": "static",
+        "note": "plano fijo; el interés lo da la composición"
+      },
+      "lighting": "contraluz; el objeto es fuente de luz",
+      "continuity": "forma y color exactamente como el testimonio",
+      "transitions": {
+        "in": [
+          "flash_white_short",
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "zumbido que sube y se corta",
+      "placeholders": [
+        "{forma}",
+        "{color}",
+        "{tamano_relativo}"
+      ],
+      "negatives": [
+        "detalles mecánicos inventados",
+        "alienígenas",
+        "escala exagerada"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "Disco luminoso apenas mayor que la luna, quieto sobre la copa de los pinos.",
+      "select": {
+        "visual": [
+          "*"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "objeto",
+          "forma",
+          "nave"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "mys-investigator-desk",
+      "version": 1,
+      "genre": "misterio",
+      "name": "Mesa del investigador",
+      "use_when": [
+        "se describe el análisis o las pruebas"
+      ],
+      "avoid_when": [
+        "no hay fase de investigación"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 5,
+        "max": 7
+      },
+      "intent": "pasar de la emoción al método",
+      "shot": {
+        "type": "plano medio cenital"
+      },
+      "composition": "mapa, notas y lupa en diagonal",
+      "movement": {
+        "kind": "push_in_still",
+        "note": "acercamiento lento sobre imagen fija; nunca se presenta como clip en movimiento"
+      },
+      "lighting": "flexo cálido, fondo en penumbra",
+      "continuity": "mismos objetos si se repite",
+      "transitions": {
+        "in": [
+          "cut",
+          "match_cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "lápiz, papeles",
+      "placeholders": [
+        "{mapa}",
+        "{fecha}"
+      ],
+      "negatives": [
+        "documentos falsos legibles presentados como reales"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "ilustrativa",
+      "example": "Mapa topográfico con chinchetas y anotaciones ilegibles bajo una lámpara.",
+      "select": {
+        "visual": [
+          "*"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "analisis",
+          "pruebas",
+          "investigador",
+          "investigacion"
+        ],
+        "topics_none": [],
+        "still": "push_in_still",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "mys-polygraph-detail",
+      "version": 1,
+      "genre": "misterio",
+      "name": "Detalle de polígrafo",
+      "use_when": [
+        "el guion menciona pruebas de polígrafo"
+      ],
+      "avoid_when": [
+        "no hay polígrafo en el relato"
+      ],
+      "duration_s": {
+        "min": 3,
+        "typical": 4,
+        "max": 5
+      },
+      "intent": "tensión de la verificación",
+      "shot": {
+        "type": "primer plano"
+      },
+      "composition": "aguja y papel en diagonal",
+      "movement": {
+        "kind": "real_motion",
+        "note": "clip con movimiento real (no un zoom sobre imagen fija)"
+      },
+      "lighting": "fluorescente frío",
+      "continuity": "aparato de época coherente",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "rasgueo de la aguja",
+      "placeholders": [
+        "{ano}"
+      ],
+      "negatives": [
+        "resultados inventados legibles"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "ilustrativa",
+      "example": "Aguja que dibuja picos sobre papel milimetrado.",
+      "select": {
+        "visual": [
+          "*"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "poligrafo"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "mys-night-sky-stars",
+      "version": 1,
+      "genre": "misterio",
+      "name": "Cielo estrellado, pausa",
+      "use_when": [
+        "respiro tras un momento intenso",
+        "preguntas abiertas"
+      ],
+      "avoid_when": [
+        "varias pausas seguidas"
+      ],
+      "duration_s": {
+        "min": 3,
+        "typical": 5,
+        "max": 7
+      },
+      "intent": "silencio y escala",
+      "shot": {
+        "type": "plano general"
+      },
+      "composition": "horizonte en el tercio inferior",
+      "movement": {
+        "kind": "real_motion",
+        "note": "clip con movimiento real (no un zoom sobre imagen fija)"
+      },
+      "lighting": "estrellas reales, sin estelas exageradas",
+      "continuity": "no colocar objetos inventados en el cielo",
+      "transitions": {
+        "in": [
+          "dissolve_short"
+        ],
+        "out": [
+          "dissolve_short",
+          "cut"
+        ]
+      },
+      "sfx": "silencio, viento muy bajo",
+      "placeholders": [],
+      "negatives": [
+        "OVNI añadido",
+        "auroras si no corresponden"
+      ],
+      "evidence_policy": "either",
+      "label": "ilustrativa",
+      "example": "Time-lapse lento de estrellas sobre una sierra oscura.",
+      "select": {
+        "visual": [
+          "landscape",
+          "concept"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "cielo",
+          "estrellas",
+          "preguntas",
+          "noche"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "mys-question-title-card",
+      "version": 1,
+      "genre": "misterio",
+      "name": "Pregunta de capítulo breve",
+      "use_when": [
+        "inicio de un capítulo con pregunta"
+      ],
+      "avoid_when": [
+        "la pregunta ya está en subtítulos"
+      ],
+      "duration_s": {
+        "min": 2,
+        "typical": 2,
+        "max": 3
+      },
+      "intent": "orientar al espectador sin competir con subtítulos",
+      "shot": {
+        "type": "rótulo"
+      },
+      "composition": "esquina superior izquierda, pequeño, fuera de la banda de subtítulos",
+      "movement": {
+        "kind": "static",
+        "note": "plano fijo; el interés lo da la composición"
+      },
+      "lighting": "sobre el plano subyacente",
+      "continuity": "desaparece en ≤3 s",
+      "transitions": {
+        "in": [
+          "fade_in_short"
+        ],
+        "out": [
+          "fade_out_short"
+        ]
+      },
+      "sfx": "ninguno",
+      "placeholders": [
+        "{pregunta}"
+      ],
+      "negatives": [
+        "título grande permanente",
+        "solapar subtítulos"
+      ],
+      "evidence_policy": "either",
+      "label": null,
+      "example": "«¿Qué vio realmente?» aparece 3 s y se desvanece.",
+      "select": {
+        "visual": [
+          "text"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "pregunta",
+          "capitulo"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "mys-closing-unresolved",
+      "version": 1,
+      "genre": "misterio",
+      "name": "Cierre sin resolver",
+      "use_when": [
+        "final de un caso abierto"
+      ],
+      "avoid_when": [
+        "el caso tiene resolución documentada"
+      ],
+      "duration_s": {
+        "min": 5,
+        "typical": 7,
+        "max": 10
+      },
+      "intent": "dejar la pregunta abierta con honestidad",
+      "shot": {
+        "type": "plano general"
+      },
+      "composition": "personaje o lugar pequeño en el encuadre",
+      "movement": {
+        "kind": "real_motion",
+        "note": "clip con movimiento real (no un zoom sobre imagen fija)"
+      },
+      "lighting": "luz que se apaga gradualmente",
+      "continuity": "volver a un lugar ya establecido",
+      "transitions": {
+        "in": [
+          "cut",
+          "dissolve_short"
+        ],
+        "out": [
+          "fade_to_black"
+        ]
+      },
+      "sfx": "ambiente que se apaga",
+      "placeholders": [
+        "{lugar}"
+      ],
+      "negatives": [
+        "insinuar conclusiones no sostenidas"
+      ],
+      "evidence_policy": "either",
+      "label": "ilustrativa",
+      "example": "La carretera del inicio, ahora vacía, mientras amanece.",
+      "select": {
+        "visual": [
+          "landscape",
+          "concept"
+        ],
+        "topics_any": [],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "static",
+        "position": "last",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "doc-establishing-landscape",
+      "version": 1,
+      "genre": "documental",
+      "name": "Paisaje de situación",
+      "use_when": [
+        "primera mención de un lugar"
+      ],
+      "avoid_when": [
+        "el lugar ya está establecido en este capítulo"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "situar geografía y escala",
+      "shot": {
+        "type": "plano general"
+      },
+      "composition": "horizonte en tercios, punto de interés visible",
+      "movement": {
+        "kind": "real_motion",
+        "note": "clip con movimiento real (no un zoom sobre imagen fija)"
+      },
+      "lighting": "luz natural; dorada si el tono lo permite",
+      "continuity": "mismo lugar en reapariciones",
+      "transitions": {
+        "in": [
+          "fade_from_black",
+          "cut"
+        ],
+        "out": [
+          "cut",
+          "dissolve_short"
+        ]
+      },
+      "sfx": "viento, fauna local",
+      "placeholders": [
+        "{lugar}",
+        "{estacion}"
+      ],
+      "negatives": [
+        "lugares equivocados presentados como el real"
+      ],
+      "evidence_policy": "either",
+      "label": "ilustrativa",
+      "example": "Colinas áridas al amanecer con un yacimiento al fondo.",
+      "select": {
+        "visual": [
+          "landscape",
+          "structure"
+        ],
+        "topics_any": [
+          "landscape",
+          "geo",
+          "structure",
+          "pillar"
+        ],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "doc-archival-photo-ken-burns",
+      "version": 1,
+      "genre": "documental",
+      "name": "Foto de archivo con desplazamiento",
+      "use_when": [
+        "se dispone de foto histórica con licencia"
+      ],
+      "avoid_when": [
+        "no hay licencia o procedencia"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "autenticidad",
+      "shot": {
+        "type": "inserto"
+      },
+      "composition": "foco en el sujeto citado",
+      "movement": {
+        "kind": "push_in_still",
+        "note": "acercamiento lento sobre imagen fija; nunca se presenta como clip en movimiento"
+      },
+      "lighting": "la de la foto; sin recolorear",
+      "continuity": "atribución en créditos",
+      "transitions": {
+        "in": [
+          "cut",
+          "dissolve_short"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "ninguno o ambiente suave",
+      "placeholders": [
+        "{foto_id}",
+        "{licencia}"
+      ],
+      "negatives": [
+        "colorear sin indicarlo",
+        "presentar como vídeo"
+      ],
+      "evidence_policy": "authentic_only",
+      "label": null,
+      "example": "Fotografía de 1890 del templo, acercamiento lento a la inscripción.",
+      "select": {
+        "visual": [
+          "structure",
+          "relief",
+          "artifact",
+          "people",
+          "excavation",
+          "landscape",
+          "remains"
+        ],
+        "topics_any": [],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "push_in_still",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "doc-map-route",
+      "version": 2,
+      "genre": "documental",
+      "name": "Mapa con ruta",
+      "use_when": [
+        "desplazamientos, rutas comerciales o expansión"
+      ],
+      "avoid_when": [
+        "no hay datos geográficos concretos"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 9
+      },
+      "intent": "claridad espacial",
+      "shot": {
+        "type": "gráfico"
+      },
+      "composition": "mapa limpio, ruta animada",
+      "movement": {
+        "kind": "graphic_animation",
+        "note": "animación por etapas de un gráfico determinista; nunca se presenta como clip filmado"
+      },
+      "lighting": "neutra",
+      "continuity": "mismo estilo de mapa en todo el vídeo",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "trazo suave",
+      "placeholders": [
+        "{origen}",
+        "{destino}",
+        "{fecha}"
+      ],
+      "negatives": [
+        "fronteras modernas en mapas antiguos sin aviso"
+      ],
+      "evidence_policy": "authentic_only",
+      "label": null,
+      "example": "Línea que avanza de Mesopotamia a Anatolia sobre relieve sobrio.",
+      "select": {
+        "visual": [
+          "map"
+        ],
+        "topics_any": [
+          "geo"
+        ],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "doc-artifact-macro",
+      "version": 1,
+      "genre": "documental",
+      "name": "Macro de artefacto",
+      "use_when": [
+        "se describe un objeto concreto"
+      ],
+      "avoid_when": [
+        "no hay imagen del objeto ni ilustración rotulada"
+      ],
+      "duration_s": {
+        "min": 3,
+        "typical": 5,
+        "max": 7
+      },
+      "intent": "detalle y tactilidad",
+      "shot": {
+        "type": "primer plano"
+      },
+      "composition": "objeto descentrado con espacio negativo",
+      "movement": {
+        "kind": "real_motion",
+        "note": "clip con movimiento real (no un zoom sobre imagen fija)"
+      },
+      "lighting": "luz rasante que revela textura",
+      "continuity": "mismo objeto si reaparece",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "ninguno",
+      "placeholders": [
+        "{objeto}",
+        "{museo}"
+      ],
+      "negatives": [
+        "inventar inscripciones"
+      ],
+      "evidence_policy": "either",
+      "label": "ilustrativa",
+      "example": "Relieve de piedra iluminado de lado, sombra revelando un zorro tallado.",
+      "select": {
+        "visual": [
+          "artifact",
+          "relief"
+        ],
+        "topics_any": [
+          "artifact",
+          "relief",
+          "food",
+          "hands_work"
+        ],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "doc-reconstruction-wide",
+      "version": 1,
+      "genre": "documental",
+      "name": "Reconstrucción amplia",
+      "use_when": [
+        "explicar cómo era un lugar en su época"
+      ],
+      "avoid_when": [
+        "no hay base académica citada"
+      ],
+      "duration_s": {
+        "min": 5,
+        "typical": 7,
+        "max": 9
+      },
+      "intent": "imaginar el pasado con base",
+      "shot": {
+        "type": "plano general"
+      },
+      "composition": "personas pequeñas, arquitectura dominante",
+      "movement": {
+        "kind": "real_motion",
+        "note": "clip con movimiento real (no un zoom sobre imagen fija)"
+      },
+      "lighting": "luz natural plausible para la época",
+      "continuity": "coherencia de vestimenta y materiales",
+      "transitions": {
+        "in": [
+          "dissolve_short"
+        ],
+        "out": [
+          "dissolve_short",
+          "cut"
+        ]
+      },
+      "sfx": "ambiente de época discreto",
+      "placeholders": [
+        "{epoca}",
+        "{lugar}"
+      ],
+      "negatives": [
+        "anacronismos",
+        "multitudes de película épica"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "Círculo de pilares de piedra con figuras trabajando al atardecer.",
+      "select": {
+        "visual": [
+          "structure",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [
+          "structure",
+          "pillar",
+          "people",
+          "landscape"
+        ],
+        "keywords_any": [],
+        "topics_none": [
+          "remains"
+        ],
+        "still": "push_in_still",
+        "position": "any",
+        "provenance": [
+          "ai_recreation"
+        ],
+        "neutral": false
+      }
+    },
+    {
+      "id": "doc-expert-quote-text",
+      "version": 2,
+      "genre": "documental",
+      "name": "Cita de experto en pantalla",
+      "use_when": [
+        "se cita textualmente a una fuente"
+      ],
+      "avoid_when": [
+        "la cita no está verificada"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 5,
+        "max": 7
+      },
+      "intent": "autoridad y fuente",
+      "shot": {
+        "type": "tarjeta de texto"
+      },
+      "composition": "texto corto, fuente legible, sin competir con subtítulos",
+      "movement": {
+        "kind": "static",
+        "note": "plano fijo; el interés lo da la composición"
+      },
+      "lighting": "sobre fondo neutro o desenfocado",
+      "continuity": "nombre y fuente correctos",
+      "transitions": {
+        "in": [
+          "fade_in_short"
+        ],
+        "out": [
+          "fade_out_short"
+        ]
+      },
+      "sfx": "ninguno",
+      "placeholders": [
+        "{cita}",
+        "{autor}",
+        "{fuente}"
+      ],
+      "negatives": [
+        "citas parafraseadas entre comillas"
+      ],
+      "evidence_policy": "authentic_only",
+      "label": null,
+      "example": "«Primero vino el templo, luego la ciudad» — autor, año.",
+      "select": {
+        "visual": [
+          "text"
+        ],
+        "topics_any": [
+          "research"
+        ],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "doc-timeline-graphic",
+      "version": 2,
+      "genre": "documental",
+      "name": "Línea de tiempo",
+      "use_when": [
+        "comparar fechas o épocas"
+      ],
+      "avoid_when": [
+        "una sola fecha"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "orden cronológico",
+      "shot": {
+        "type": "gráfico"
+      },
+      "composition": "línea horizontal, hitos legibles",
+      "movement": {
+        "kind": "graphic_animation",
+        "note": "animación por etapas de un gráfico determinista; nunca se presenta como clip filmado"
+      },
+      "lighting": "neutra",
+      "continuity": "mismas escalas y colores",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "tic suave por hito",
+      "placeholders": [
+        "{hitos}"
+      ],
+      "negatives": [
+        "escalas engañosas"
+      ],
+      "evidence_policy": "authentic_only",
+      "label": null,
+      "example": "Línea que salta de 9600 a. C. a Stonehenge y a las pirámides.",
+      "select": {
+        "visual": [
+          "timeline"
+        ],
+        "topics_any": [
+          "chrono"
+        ],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "doc-hands-at-work",
+      "version": 1,
+      "genre": "documental",
+      "name": "Manos trabajando",
+      "use_when": [
+        "se describe un oficio o técnica"
+      ],
+      "avoid_when": [
+        "no corresponde a la época descrita"
+      ],
+      "duration_s": {
+        "min": 3,
+        "typical": 4,
+        "max": 6
+      },
+      "intent": "humanizar la historia",
+      "shot": {
+        "type": "primer plano"
+      },
+      "composition": "manos centradas, herramienta visible",
+      "movement": {
+        "kind": "real_motion",
+        "note": "clip con movimiento real (no un zoom sobre imagen fija)"
+      },
+      "lighting": "cálida lateral",
+      "continuity": "herramientas de la época",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut",
+          "match_cut"
+        ]
+      },
+      "sfx": "golpes de herramienta",
+      "placeholders": [
+        "{oficio}",
+        "{epoca}"
+      ],
+      "negatives": [
+        "rostros reconocibles",
+        "herramientas modernas"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "Manos que tallan piedra con un percutor de sílex.",
+      "select": {
+        "visual": [
+          "hands_work"
+        ],
+        "topics_any": [
+          "hands_work"
+        ],
+        "keywords_any": [],
+        "topics_none": [
+          "remains"
+        ],
+        "still": "static",
+        "position": "any",
+        "provenance": [
+          "ai_recreation",
+          "stock_illustrative"
+        ],
+        "neutral": false
+      }
+    },
+    {
+      "id": "doc-present-day-excavation",
+      "version": 1,
+      "genre": "documental",
+      "name": "Excavación actual",
+      "use_when": [
+        "se habla de investigación presente"
+      ],
+      "avoid_when": [
+        "no hay material actual con procedencia"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "conectar con la ciencia de hoy",
+      "shot": {
+        "type": "plano medio"
+      },
+      "composition": "trabajo en curso, sin caras en primer plano",
+      "movement": {
+        "kind": "real_motion",
+        "note": "clip con movimiento real (no un zoom sobre imagen fija)"
+      },
+      "lighting": "diurna natural",
+      "continuity": "rotular año del material",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "pinceles, viento",
+      "placeholders": [
+        "{yacimiento}",
+        "{ano}"
+      ],
+      "negatives": [
+        "presentar stock genérico como el yacimiento real"
+      ],
+      "evidence_policy": "either",
+      "label": "ilustrativa",
+      "example": "Arqueólogos limpiando un pilar bajo una carpa.",
+      "select": {
+        "visual": [
+          "excavation"
+        ],
+        "topics_any": [
+          "excavation",
+          "research"
+        ],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "doc-chapter-close-reflection",
+      "version": 1,
+      "genre": "documental",
+      "name": "Reflexión de cierre de capítulo",
+      "use_when": [
+        "final de capítulo"
+      ],
+      "avoid_when": [
+        "no hay cierre de idea"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "asentar la idea antes de cambiar",
+      "shot": {
+        "type": "plano general"
+      },
+      "composition": "sujeto pequeño, mucho cielo",
+      "movement": {
+        "kind": "real_motion",
+        "note": "clip con movimiento real (no un zoom sobre imagen fija)"
+      },
+      "lighting": "hora dorada",
+      "continuity": "volver a un plano establecido",
+      "transitions": {
+        "in": [
+          "dissolve_short"
+        ],
+        "out": [
+          "fade_to_black",
+          "dissolve_short"
+        ]
+      },
+      "sfx": "música mínima, si la hay",
+      "placeholders": [
+        "{lugar}"
+      ],
+      "negatives": [
+        "frases épicas genéricas"
+      ],
+      "evidence_policy": "either",
+      "label": "ilustrativa",
+      "example": "El yacimiento al atardecer mientras la narración resume.",
+      "select": {
+        "visual": [
+          "landscape",
+          "structure",
+          "concept"
+        ],
+        "topics_any": [],
+        "keywords_any": [],
+        "topics_none": [
+          "remains"
+        ],
+        "still": "push_in_still",
+        "position": "last",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "reel-hook-face-or-avatar",
+      "version": 1,
+      "genre": "reel",
+      "name": "Gancho con presentador o avatar",
+      "use_when": [
+        "primeros 2 s de un Reel con presentador o avatar aprobado"
+      ],
+      "avoid_when": [
+        "no hay avatar aprobado ni presentador"
+      ],
+      "duration_s": {
+        "min": 2,
+        "typical": 3,
+        "max": 4
+      },
+      "intent": "captar en el primer fotograma",
+      "shot": {
+        "type": "primer plano"
+      },
+      "composition": "rostro en tercio superior, subtítulos abajo en zona segura",
+      "movement": {
+        "kind": "static",
+        "note": "plano fijo; el interés lo da la composición"
+      },
+      "lighting": "limpia, alto contraste",
+      "continuity": "avatar sin alterar labios ni rostro",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "golpe sutil al empezar",
+      "placeholders": [
+        "{pregunta_gancho}"
+      ],
+      "negatives": [
+        "alterar el avatar",
+        "texto grande permanente"
+      ],
+      "evidence_policy": "either",
+      "label": null,
+      "example": "El avatar pregunta «¿Cuántas ideas has dejado sin publicar?».",
+      "select": {
+        "visual": [
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "static",
+        "position": "first",
+        "provenance": [],
+        "neutral": false,
+        "requires": "approved_presenter"
+      }
+    },
+    {
+      "id": "reel-hook-visual",
+      "version": 1,
+      "genre": "reel",
+      "name": "Gancho visual sin presentador",
+      "use_when": [
+        "primeros segundos de un Reel sin presentador ni avatar aprobado"
+      ],
+      "avoid_when": [
+        "hay un presentador o avatar aprobado para abrir"
+      ],
+      "duration_s": {
+        "min": 2,
+        "typical": 3,
+        "max": 4
+      },
+      "intent": "captar en el primer fotograma con la imagen que ilustra la pregunta",
+      "shot": {
+        "type": "plano medio"
+      },
+      "composition": "sujeto claro en el tercio superior, zona inferior despejada para subtítulos",
+      "movement": {
+        "kind": "real_motion",
+        "note": "un clip se reproduce tal cual; una foto recibe un zoom lento declarado"
+      },
+      "lighting": "limpia, alto contraste",
+      "continuity": "material rotulado según su procedencia (ilustrativo o recreación)",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "golpe sutil al empezar",
+      "placeholders": [],
+      "negatives": [
+        "simular un presentador",
+        "texto grande permanente",
+        "rostro presentado como si fuera el creador"
+      ],
+      "evidence_policy": "either",
+      "label": null,
+      "example": "Manos que dejan el móvil sobre la mesa mientras aparece la pregunta en subtítulo.",
+      "select": {
+        "visual": [
+          "people",
+          "concept",
+          "landscape",
+          "hands_work"
+        ],
+        "topics_any": [],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "push_in_still",
+        "position": "first",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "reel-ui-screen-demo",
+      "version": 1,
+      "genre": "reel",
+      "name": "Demostración de interfaz real",
+      "use_when": [
+        "mostrar la app"
+      ],
+      "avoid_when": [
+        "no hay captura real de la interfaz"
+      ],
+      "duration_s": {
+        "min": 3,
+        "typical": 4,
+        "max": 6
+      },
+      "intent": "probar con producto real",
+      "shot": {
+        "type": "plano de pantalla"
+      },
+      "composition": "pantalla centrada en marco de móvil, margen para subtítulos",
+      "movement": {
+        "kind": "real_motion",
+        "note": "clip con movimiento real (no un zoom sobre imagen fija)"
+      },
+      "lighting": "la de la UI",
+      "continuity": "capturas reales, rotular «Demostración ilustrativa» si no es un flujo real",
+      "transitions": {
+        "in": [
+          "cut",
+          "zoom_cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "clics suaves",
+      "placeholders": [
+        "{pantalla}"
+      ],
+      "negatives": [
+        "inventar funciones",
+        "contadores falsos"
+      ],
+      "evidence_policy": "authentic_only",
+      "label": "ilustrativa",
+      "example": "Grabación real del formulario de idea y la revisión del guion.",
+      "select": {
+        "visual": [
+          "concept"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "app",
+          "pantalla",
+          "aplicacion"
+        ],
+        "topics_none": [],
+        "still": "pending",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "reel-result-montage",
+      "version": 1,
+      "genre": "reel",
+      "name": "Montaje de resultados",
+      "use_when": [
+        "mostrar ejemplos producidos"
+      ],
+      "avoid_when": [
+        "no hay resultados reales"
+      ],
+      "duration_s": {
+        "min": 3,
+        "typical": 5,
+        "max": 7
+      },
+      "intent": "mostrar calidad concreta",
+      "shot": {
+        "type": "mosaico/cortes rápidos"
+      },
+      "composition": "cada resultado ≥1 s, sin repetir",
+      "movement": {
+        "kind": "real_motion",
+        "note": "clip con movimiento real (no un zoom sobre imagen fija)"
+      },
+      "lighting": "la de cada pieza",
+      "continuity": "rotular «Resultados de pruebas»",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "ritmo de la música",
+      "placeholders": [
+        "{ejemplos}"
+      ],
+      "negatives": [
+        "presentar demos como clientes"
+      ],
+      "evidence_policy": "authentic_only",
+      "label": "ilustrativa",
+      "example": "Tres fragmentos de vídeos producidos, uno por segundo.",
+      "select": {
+        "visual": [
+          "concept"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "resultado",
+          "ejemplos",
+          "videos"
+        ],
+        "topics_none": [],
+        "still": "pending",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "reel-benefit-text-beat",
+      "version": 1,
+      "genre": "reel",
+      "name": "Beneficio en texto con ritmo",
+      "use_when": [
+        "comunicar un beneficio en una frase"
+      ],
+      "avoid_when": [
+        "el beneficio ya se dice con voz y subtítulos"
+      ],
+      "duration_s": {
+        "min": 2,
+        "typical": 2,
+        "max": 3
+      },
+      "intent": "refuerzo verbal breve",
+      "shot": {
+        "type": "rótulo"
+      },
+      "composition": "texto corto centrado arriba, sin solapar subtítulos",
+      "movement": {
+        "kind": "static",
+        "note": "plano fijo; el interés lo da la composición"
+      },
+      "lighting": "sobre plano subyacente",
+      "continuity": "≤ 6 palabras",
+      "transitions": {
+        "in": [
+          "fade_in_short"
+        ],
+        "out": [
+          "fade_out_short"
+        ]
+      },
+      "sfx": "ninguno",
+      "placeholders": [
+        "{beneficio}"
+      ],
+      "negatives": [
+        "promesas no verificadas",
+        "precios"
+      ],
+      "evidence_policy": "either",
+      "label": null,
+      "example": "«Tu idea, tu vídeo» aparece 2 s.",
+      "select": {
+        "visual": [
+          "text"
+        ],
+        "topics_any": [],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "reel-problem-relatable",
+      "version": 1,
+      "genre": "reel",
+      "name": "Problema reconocible",
+      "use_when": [
+        "plantear el problema del espectador"
+      ],
+      "avoid_when": [
+        "el problema no es el del público objetivo"
+      ],
+      "duration_s": {
+        "min": 2,
+        "typical": 3,
+        "max": 5
+      },
+      "intent": "identificación",
+      "shot": {
+        "type": "plano medio"
+      },
+      "composition": "persona de espaldas o manos, sin rostro identificable",
+      "movement": {
+        "kind": "real_motion",
+        "note": "clip con movimiento real (no un zoom sobre imagen fija)"
+      },
+      "lighting": "natural interior",
+      "continuity": "stock rotulado o generado y rotulado",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "notificación de móvil sutil",
+      "placeholders": [
+        "{problema}"
+      ],
+      "negatives": [
+        "actores con logotipos",
+        "rostros reconocibles"
+      ],
+      "evidence_policy": "either",
+      "label": "ilustrativa",
+      "example": "Manos que borran un borrador de vídeo en el móvil.",
+      "select": {
+        "visual": [
+          "people",
+          "concept"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "problema",
+          "cansado",
+          "tiempo"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "reel-transition-match",
+      "version": 1,
+      "genre": "reel",
+      "name": "Transición por coincidencia",
+      "use_when": [
+        "unir dos planos con forma o movimiento parecido"
+      ],
+      "avoid_when": [
+        "los planos no comparten forma ni movimiento"
+      ],
+      "duration_s": {
+        "min": 1,
+        "typical": 1,
+        "max": 2
+      },
+      "intent": "fluidez",
+      "shot": {
+        "type": "transición"
+      },
+      "composition": "coincidencia de forma/posición",
+      "movement": {
+        "kind": "real_motion",
+        "note": "clip con movimiento real (no un zoom sobre imagen fija)"
+      },
+      "lighting": "coherente entre ambos planos",
+      "continuity": "no usar más de 2 por Reel",
+      "transitions": {
+        "in": [
+          "match_cut"
+        ],
+        "out": [
+          "match_cut"
+        ]
+      },
+      "sfx": "whoosh discreto",
+      "placeholders": [],
+      "negatives": [
+        "transiciones llamativas en cadena"
+      ],
+      "evidence_policy": "either",
+      "label": null,
+      "example": "Un círculo de la UI se convierte en la lente de una cámara.",
+      "select": {
+        "visual": [
+          "*"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "transicion"
+        ],
+        "topics_none": [],
+        "still": "pending",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "reel-cta-follow",
+      "version": 1,
+      "genre": "reel",
+      "name": "Llamada a la acción: seguir",
+      "use_when": [
+        "cierre cuando no hay formulario verificado"
+      ],
+      "avoid_when": [
+        "existe un formulario verificado y activo"
+      ],
+      "duration_s": {
+        "min": 2,
+        "typical": 3,
+        "max": 4
+      },
+      "intent": "convertir atención en seguimiento",
+      "shot": {
+        "type": "primer plano"
+      },
+      "composition": "avatar o logo, CTA en zona segura",
+      "movement": {
+        "kind": "static",
+        "note": "plano fijo; el interés lo da la composición"
+      },
+      "lighting": "limpia",
+      "continuity": "texto exacto: «Síguenos para enterarte del lanzamiento»",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "fade_to_black"
+        ]
+      },
+      "sfx": "cierre musical",
+      "placeholders": [
+        "{marca}"
+      ],
+      "negatives": [
+        "fechas, precios o cupos no verificados",
+        "enlaces inventados"
+      ],
+      "evidence_policy": "either",
+      "label": null,
+      "example": "Logo y «Síguenos para enterarte del lanzamiento».",
+      "select": {
+        "visual": [
+          "people",
+          "text"
+        ],
+        "topics_any": [],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "static",
+        "position": "last",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "reel-end-card",
+      "version": 1,
+      "genre": "reel",
+      "name": "Tarjeta final de marca",
+      "use_when": [
+        "últimos 1-2 s"
+      ],
+      "avoid_when": [
+        "la tarjeta tapa contenido importante"
+      ],
+      "duration_s": {
+        "min": 1,
+        "typical": 2,
+        "max": 2
+      },
+      "intent": "recuerdo de marca",
+      "shot": {
+        "type": "rótulo"
+      },
+      "composition": "logo centrado",
+      "movement": {
+        "kind": "static",
+        "note": "plano fijo; el interés lo da la composición"
+      },
+      "lighting": "fondo de marca",
+      "continuity": "mismo end card en toda la campaña",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "fade_to_black"
+        ]
+      },
+      "sfx": "acorde final",
+      "placeholders": [
+        "{marca}"
+      ],
+      "negatives": [
+        "sellos «Hecho con» si no se puede demostrar"
+      ],
+      "evidence_policy": "either",
+      "label": null,
+      "example": "End card oficial de ATOMIVID 2 s.",
+      "select": {
+        "visual": [
+          "text"
+        ],
+        "topics_any": [],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "static",
+        "position": "last",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "version": 1,
+      "genre": "reel",
+      "lighting": "natural, coherente con el resto del Reel",
+      "sfx": "",
+      "placeholders": [],
+      "evidence_policy": "either",
+      "label": "ilustrativa",
+      "id": "reel-broll-detail",
+      "name": "Detalle ilustrativo",
+      "use_when": [
+        "ilustrar una idea con un detalle concreto (manos, objeto, pantalla genérica)"
+      ],
+      "avoid_when": [
+        "la frase promete un resultado real de la app (usar material auténtico)"
+      ],
+      "duration_s": {
+        "min": 2,
+        "typical": 3,
+        "max": 5
+      },
+      "intent": "concretar la idea con un detalle",
+      "shot": {
+        "type": "plano detalle"
+      },
+      "composition": "detalle centrado, fondo simple, sin rostros identificables ni logotipos",
+      "movement": {
+        "kind": "real_motion",
+        "note": "clip con movimiento real; sobre foto fija, zoom lento declarado (nunca se presenta como clip)"
+      },
+      "continuity": "stock rotulado como ilustrativo",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "negatives": [
+        "logotipos de terceros",
+        "rostros reconocibles",
+        "texto incrustado que compita con los subtítulos"
+      ],
+      "example": "Primer plano de unas manos escribiendo una idea en una libreta.",
+      "select": {
+        "visual": [
+          "people",
+          "concept",
+          "hands_work"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "idea",
+          "escribe",
+          "detalle",
+          "manos"
+        ],
+        "topics_none": [],
+        "still": "push_in_still",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "version": 1,
+      "genre": "reel",
+      "lighting": "natural, coherente con el resto del Reel",
+      "sfx": "",
+      "placeholders": [],
+      "evidence_policy": "either",
+      "label": "ilustrativa",
+      "id": "reel-broll-context",
+      "name": "Contexto ilustrativo",
+      "use_when": [
+        "situar la frase en un contexto general (lugar, ambiente, rutina)"
+      ],
+      "avoid_when": [
+        "la frase necesita una prueba concreta o un dato"
+      ],
+      "duration_s": {
+        "min": 2,
+        "typical": 4,
+        "max": 6
+      },
+      "intent": "dar contexto y respiro entre frases",
+      "shot": {
+        "type": "plano general"
+      },
+      "composition": "plano abierto, horizonte estable, zona inferior despejada para subtítulos",
+      "movement": {
+        "kind": "pan",
+        "note": "paneo lento declarado sobre foto fija; un clip se reproduce tal cual"
+      },
+      "continuity": "stock rotulado como ilustrativo",
+      "transitions": {
+        "in": [
+          "crossfade"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "negatives": [
+        "paneos rápidos que mareen",
+        "rostros reconocibles",
+        "texto incrustado"
+      ],
+      "example": "Plano general de un escritorio al amanecer con la ciudad al fondo.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "proceso",
+          "camino",
+          "dia",
+          "rutina",
+          "constante",
+          "mundo"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "doc-schematic-diagram",
+      "version": 1,
+      "genre": "documental",
+      "name": "Diagrama esquemático rotulado",
+      "use_when": [
+        "se describe la forma, las proporciones o la disposición de una estructura concreta"
+      ],
+      "avoid_when": [
+        "el diagrama se presentaría como fotografía o réplica exacta"
+      ],
+      "duration_s": {
+        "min": 3,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "mostrar escala y geometría con datos rotulados, sin inventar detalle",
+      "shot": {
+        "type": "gráfico"
+      },
+      "composition": "esquema centrado con cotas y una escala humana de referencia",
+      "movement": {
+        "kind": "graphic_animation",
+        "note": "las cotas aparecen por etapas; no es un clip filmado"
+      },
+      "lighting": "plano, alto contraste legible",
+      "continuity": "misma paleta y tipografía que el resto de gráficos",
+      "transitions": {
+        "in": [
+          "cut",
+          "dissolve_short"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "ninguno o trazo suave",
+      "placeholders": [
+        "{estructura}",
+        "{medida}"
+      ],
+      "negatives": [
+        "textura fotográfica que imite una foto real",
+        "detalle iconográfico no verificado"
+      ],
+      "evidence_policy": "authentic_only",
+      "label": null,
+      "example": "Esquema de un pilar en T con la altura aproximada rotulada y una silueta humana para la escala.",
+      "select": {
+        "visual": [
+          "diagram",
+          "map",
+          "timeline"
+        ],
+        "topics_any": [],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "doc-data-card",
+      "version": 1,
+      "genre": "documental",
+      "name": "Tarjeta de dato o de transparencia",
+      "use_when": [
+        "una cifra, una cita o un matiz de certeza debe leerse literal"
+      ],
+      "avoid_when": [
+        "el texto no está verificado"
+      ],
+      "duration_s": {
+        "min": 3,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "que el matiz o el dato se lea exactamente como en la fuente",
+      "shot": {
+        "type": "tarjeta de texto"
+      },
+      "composition": "texto corto en dos líneas como máximo, fuente visible si aplica",
+      "movement": {
+        "kind": "static",
+        "note": "fijo; el tiempo de lectura manda"
+      },
+      "lighting": "fondo sobrio, contraste AA",
+      "continuity": "misma tipografía que los rótulos del documental",
+      "transitions": {
+        "in": [
+          "fade_in_short",
+          "cut"
+        ],
+        "out": [
+          "fade_out_short",
+          "cut"
+        ]
+      },
+      "sfx": "ninguno",
+      "placeholders": [
+        "{texto}"
+      ],
+      "negatives": [
+        "texto quemado en una imagen generada",
+        "tipografía decorativa ilegible"
+      ],
+      "evidence_policy": "authentic_only",
+      "label": null,
+      "example": "«No pudimos confirmar esta fuente» sobre fondo neutro, con la fecha de la búsqueda.",
+      "select": {
+        "visual": [
+          "text"
+        ],
+        "topics_any": [],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "doc-neutral-atmosphere",
+      "version": 1,
+      "genre": "documental",
+      "name": "Atmósfera neutral declarada",
+      "use_when": [
+        "la narración es sensible o hipotética y solo se necesita un respiro visual que no muestre el hallazgo"
+      ],
+      "avoid_when": [
+        "la imagen podría leerse como la evidencia de la que habla la narración"
+      ],
+      "duration_s": {
+        "min": 3,
+        "typical": 5,
+        "max": 8
+      },
+      "intent": "sostener el tono sin afirmar visualmente nada que el texto no confirma",
+      "shot": {
+        "type": "plano general"
+      },
+      "composition": "paisaje amplio sin personas ni objetos identificables; horizonte bajo",
+      "movement": {
+        "kind": "static",
+        "note": "fijo; sin zoom que dirija la mirada a un detalle"
+      },
+      "lighting": "luz natural difusa",
+      "continuity": "paleta del documental; sin elementos modernos",
+      "transitions": {
+        "in": [
+          "dissolve_short"
+        ],
+        "out": [
+          "dissolve_short",
+          "cut"
+        ]
+      },
+      "sfx": "ambiente leve",
+      "placeholders": [
+        "{lugar}"
+      ],
+      "negatives": [
+        "restos humanos",
+        "objetos o estructuras concretas",
+        "texto incrustado"
+      ],
+      "evidence_policy": "either",
+      "label": "recreacion_ia",
+      "example": "Ladera vacía al atardecer mientras la narración explica que una fuente no pudo verificarse.",
+      "select": {
+        "visual": [
+          "landscape",
+          "concept"
+        ],
+        "topics_any": [],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [],
+        "neutral": true
+      }
+    },
+    {
+      "id": "reel-fic-establishing-scale",
+      "version": 1,
+      "genre": "reel",
+      "name": "Ficción: plano de escala",
+      "use_when": [
+        "abrir mostrando la escala del mundo y al protagonista diminuto"
+      ],
+      "avoid_when": [
+        "el sujeto no se distingue"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "situar al espectador y revelar la escala",
+      "shot": {
+        "type": "gran plano general"
+      },
+      "composition": "sujeto pequeño en un tercio, el entorno domina el encuadre; horizonte estable",
+      "movement": {
+        "kind": "real_motion",
+        "note": "grúa o avance lento generado en el clip (no zoom sintético)"
+      },
+      "lighting": "luz natural direccional entre la niebla",
+      "continuity": "mismo diseño del vehículo en toda la pieza; dirección de pantalla izquierda→derecha",
+      "transitions": {
+        "in": [
+          "fade_in_short"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "viento, rugido lejano del agua (sonido del clip)",
+      "clip_audio": true,
+      "placeholders": [],
+      "negatives": [
+        "cámara temblorosa",
+        "sujeto cortado"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "Nave diminuta cruzando entre montañas gigantes con cascadas.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "montana",
+          "cascada",
+          "niebla",
+          "paisaje",
+          "mundo"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [
+          "ai_recreation"
+        ],
+        "neutral": false,
+        "style": "fiction"
+      }
+    },
+    {
+      "id": "reel-fic-tracking-maneuver",
+      "version": 1,
+      "genre": "reel",
+      "name": "Ficción: seguimiento de maniobra",
+      "use_when": [
+        "seguir una maniobra o un vuelo manteniendo velocidad y dirección"
+      ],
+      "avoid_when": [
+        "el sujeto cambia de dirección de pantalla"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "energía y continuidad espacial",
+      "shot": {
+        "type": "plano de seguimiento"
+      },
+      "composition": "sujeto en el tercio izquierdo con aire hacia la derecha; fondo con paralaje",
+      "movement": {
+        "kind": "real_motion",
+        "note": "travelling lateral que acompaña al sujeto (movimiento del clip)"
+      },
+      "lighting": "contraluz y reflejos sobre el casco",
+      "continuity": "conservar la dirección izquierda→derecha entre cortes",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "motores y eco en la roca (sonido del clip)",
+      "clip_audio": true,
+      "placeholders": [],
+      "negatives": [
+        "salto de eje",
+        "cambio de diseño del vehículo"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "La nave se inclina entre paredes de roca y sale al océano.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "maniobra",
+          "roca",
+          "emerge",
+          "vuelo",
+          "sigue",
+          "oceano"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [
+          "ai_recreation"
+        ],
+        "neutral": false,
+        "style": "fiction"
+      }
+    },
+    {
+      "id": "reel-fic-element-crossing",
+      "version": 1,
+      "genre": "reel",
+      "name": "Ficción: cruce de elemento",
+      "use_when": [
+        "mostrar el paso de un medio a otro (aire→agua) en una acción continua"
+      ],
+      "avoid_when": [
+        "no hay cambio de medio"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "transición física creíble",
+      "shot": {
+        "type": "plano general a nivel del agua"
+      },
+      "composition": "el impacto en el centro del encuadre; espacio para la salpicadura",
+      "movement": {
+        "kind": "real_motion",
+        "note": "la acción ocurre dentro del clip: impacto, espuma, burbujas y cambio de luz"
+      },
+      "lighting": "de luz de superficie a azul verdoso profundo",
+      "continuity": "misma nave; la luz cambia de forma continua",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "dissolve"
+        ]
+      },
+      "sfx": "impacto, salpicadura y burbujas (sonido del clip)",
+      "clip_audio": true,
+      "placeholders": [],
+      "negatives": [
+        "corte que oculte el impacto",
+        "agua sin física"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "La nave cae al mar y la cámara la acompaña bajo la superficie.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "desciende",
+          "hunde",
+          "mar",
+          "agua",
+          "impacto",
+          "burbuja",
+          "espuma"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [
+          "ai_recreation"
+        ],
+        "neutral": false,
+        "style": "fiction"
+      }
+    },
+    {
+      "id": "reel-fic-tension-darkness",
+      "version": 1,
+      "genre": "reel",
+      "name": "Ficción: tensión en la oscuridad",
+      "use_when": [
+        "crear tensión con luz escasa y una amenaza lejana"
+      ],
+      "avoid_when": [
+        "la amenaza ya se ve claramente"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "inquietud por lo que no se ve",
+      "shot": {
+        "type": "plano general oscuro"
+      },
+      "composition": "la luz del protagonista recorta un espacio pequeño; la amenaza en el fondo, apenas visible",
+      "movement": {
+        "kind": "real_motion",
+        "note": "movimiento lento del sujeto; la sombra cruza al fondo"
+      },
+      "lighting": "haces de luz entre partículas en suspensión",
+      "continuity": "la sombra conserva la forma de la criatura",
+      "transitions": {
+        "in": [
+          "dissolve"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "zumbido grave, sonar lejano (sonido del clip)",
+      "clip_audio": true,
+      "placeholders": [],
+      "negatives": [
+        "revelar la criatura completa",
+        "iluminación plana"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "Los faros de la nave barren el fondo mientras una sombra enorme pasa lejos.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "oscuridad",
+          "sombra",
+          "luces",
+          "lejos",
+          "profundidad"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [
+          "ai_recreation"
+        ],
+        "neutral": false,
+        "style": "fiction"
+      }
+    },
+    {
+      "id": "reel-fic-scale-reveal",
+      "version": 1,
+      "genre": "reel",
+      "name": "Ficción: revelación de escala",
+      "use_when": [
+        "presentar una criatura o estructura colosal frente al protagonista"
+      ],
+      "avoid_when": [
+        "no hay contraste de tamaño"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "asombro por la escala",
+      "shot": {
+        "type": "gran plano general"
+      },
+      "composition": "criatura domina el encuadre; el protagonista diminuto en una esquina como referencia",
+      "movement": {
+        "kind": "real_motion",
+        "note": "cámara contenida; el movimiento lo pone la criatura (clip)"
+      },
+      "lighting": "luz del protagonista sobre una parte de la piel de la criatura",
+      "continuity": "misma criatura (forma, color, ojos) en toda la pieza",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "llamada grave y resonante (sonido del clip)",
+      "clip_audio": true,
+      "placeholders": [],
+      "negatives": [
+        "cámara nerviosa",
+        "criatura cambiando de diseño"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "Una criatura colosal emerge de la oscuridad ante la nave diminuta.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "criatura",
+          "colosal",
+          "gigante",
+          "aparece"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [
+          "ai_recreation"
+        ],
+        "neutral": false,
+        "style": "fiction"
+      }
+    },
+    {
+      "id": "reel-fic-detail-insert",
+      "version": 1,
+      "genre": "reel",
+      "name": "Ficción: inserto de detalle",
+      "use_when": [
+        "un detalle que cambia la lectura (una mirada, un mecanismo)"
+      ],
+      "avoid_when": [
+        "el detalle no aporta información"
+      ],
+      "duration_s": {
+        "min": 3,
+        "typical": 4,
+        "max": 6
+      },
+      "intent": "intimidad y amenaza",
+      "shot": {
+        "type": "primerísimo plano"
+      },
+      "composition": "el detalle llena el encuadre; reflejo del protagonista si es posible",
+      "movement": {
+        "kind": "real_motion",
+        "note": "movimiento mínimo del detalle (un ojo que se abre)"
+      },
+      "lighting": "luz rasante y reflejos",
+      "continuity": "detalle coherente con el diseño de la criatura",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "pulso grave (sonido del clip)",
+      "clip_audio": true,
+      "placeholders": [],
+      "negatives": [
+        "detalle genérico sin relación"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "El ojo ámbar de la criatura se fija en la nave reflejada.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "mirada",
+          "ojo",
+          "detalle",
+          "posa"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [
+          "ai_recreation"
+        ],
+        "neutral": false,
+        "style": "fiction"
+      }
+    },
+    {
+      "id": "reel-fic-action-evasion",
+      "version": 1,
+      "genre": "reel",
+      "name": "Ficción: acción y esquiva",
+      "use_when": [
+        "un ataque y una esquiva en una acción legible"
+      ],
+      "avoid_when": [
+        "no hay acción física"
+      ],
+      "duration_s": {
+        "min": 3,
+        "typical": 5,
+        "max": 7
+      },
+      "intent": "clímax de acción",
+      "shot": {
+        "type": "plano medio dinámico"
+      },
+      "composition": "amenaza entrando desde un lado; el protagonista escapa hacia el lado opuesto (derecha)",
+      "movement": {
+        "kind": "real_motion",
+        "note": "acción rápida dentro del clip; cámara estable"
+      },
+      "lighting": "turbulencia y burbujas iluminadas por los motores",
+      "continuity": "dirección de escape coherente con la pieza (hacia la derecha)",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "rugido, motores y agua revuelta (sonido del clip)",
+      "clip_audio": true,
+      "placeholders": [],
+      "negatives": [
+        "acción ilegible",
+        "cortes dentro de la acción"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "La criatura se lanza y la nave esquiva por muy poco.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "esquiva",
+          "lanza",
+          "ataque",
+          "huye"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [
+          "ai_recreation"
+        ],
+        "neutral": false,
+        "style": "fiction"
+      }
+    },
+    {
+      "id": "reel-fic-closing-intrigue",
+      "version": 1,
+      "genre": "reel",
+      "name": "Ficción: cierre con intriga",
+      "use_when": [
+        "terminar con una imagen que deje una pregunta abierta"
+      ],
+      "avoid_when": [
+        "la historia queda cerrada"
+      ],
+      "duration_s": {
+        "min": 4,
+        "typical": 6,
+        "max": 8
+      },
+      "intent": "intriga final memorable",
+      "shot": {
+        "type": "plano general final"
+      },
+      "composition": "protagonista pequeño en el centro; la revelación aparece alrededor",
+      "movement": {
+        "kind": "real_motion",
+        "note": "avance muy lento generado en el clip"
+      },
+      "lighting": "oscuridad casi total con puntos de luz",
+      "continuity": "mismo protagonista y misma especie de criatura",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "fade_to_black"
+        ]
+      },
+      "sfx": "silencio y una llamada lejana (sonido del clip)",
+      "clip_audio": true,
+      "placeholders": [],
+      "negatives": [
+        "explicar el final",
+        "cierre alegre"
+      ],
+      "evidence_policy": "recreation_ok",
+      "label": "recreacion_ia",
+      "example": "Alrededor de la nave se encienden decenas de luces de otras criaturas.",
+      "select": {
+        "visual": [
+          "concept",
+          "landscape",
+          "people"
+        ],
+        "topics_any": [],
+        "keywords_any": [
+          "despierta",
+          "final"
+        ],
+        "topics_none": [],
+        "still": "static",
+        "position": "last",
+        "provenance": [
+          "ai_recreation"
+        ],
+        "neutral": false,
+        "style": "fiction"
+      }
+    }
+  ]
+}
