@@ -1,5 +1,3 @@
-refs
+keyframes
 GASTAR
-spent=ref:ship|0.25|run 1 generated refs/ship.png (sha256 995fbcb1…, 5488 output image tokens) but the overwrite read-back failed and the ledger recorded failed/0; USD is the image estimate
-release=ref:creature|run 2 failed while saving the reservation (stack: reservation save, run.ts:130 @a90370d) before any OpenAI call; no output exists
-# run 4: reconcile runs 1-2, then generate the creature sheet
+# run 5: 8 keyframes from the two reference sheets
