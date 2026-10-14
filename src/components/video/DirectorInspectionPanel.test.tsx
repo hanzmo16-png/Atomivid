@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { GeneratedScript } from "@/lib/providers/types";
 import { DirectorInspectionPanel } from "./DirectorInspectionPanel";
@@ -40,4 +42,11 @@ test("the review panel never presents planned motion as real, verified motion", 
     const m = inspectionMotionSummary(inspection.shots);
     assert.equal(m.expectedClips + m.stillWithMove + m.still, inspection.shots.length);
   }
+});
+
+// chatgpt-10: this file was only in test:unit, which the CI workflow does not run.
+test("CI registration: these panel tests run in test:saas (the suite the CI workflow executes)", () => {
+  const scripts = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "..", "package.json"), "utf-8")).scripts as Record<string, string>;
+  assert.ok(scripts["test:saas"].split(/\s+/).includes("src/components/video/DirectorInspectionPanel.test.tsx"));
+  assert.match(fs.readFileSync(path.join(__dirname, "..", "..", "..", ".github", "workflows", "e2e-fixture-evidence.yml"), "utf-8"), /npm run test:saas/);
 });
