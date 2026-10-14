@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { safeParseJsonResponse } from "@/lib/http/safe-json";
 import { classifyClientFetchError } from "@/lib/http/client-error";
 import { parseStartOutcome } from "@/lib/video/start-outcome";
+import { useReportStartOutcome } from "@/components/video/StartErrorNotice";
 
 export function GenerateButton({
   endpoint,
@@ -19,6 +20,7 @@ export function GenerateButton({
   redirectTo?: string;
 }) {
   const router = useRouter();
+  const reportStart = useReportStartOutcome();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsSubscription, setNeedsSubscription] = useState(false);
@@ -43,7 +45,10 @@ export function GenerateButton({
         if (result.status === 402) {
           setNeedsSubscription(true);
         }
-        if (parseStartOutcome((result.body as { outcome?: unknown } | undefined)?.outcome)?.retry === "support") setSupportHold(true);
+        const outcome = parseStartOutcome((result.body as { outcome?: unknown } | undefined)?.outcome);
+        // Inside the video page the outcome goes to the page, so the notice and every start/retry action
+        // (with its "press «…»" text) follow it together; elsewhere this button just stops offering itself.
+        if (outcome?.retry === "support" && !reportStart?.(result.error, outcome)) setSupportHold(true);
         throw new Error(result.error);
       }
 

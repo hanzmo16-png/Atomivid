@@ -31,7 +31,26 @@ function readStored(raw: string, current: Current): StoredStart | null {
   } catch { return null; }
 }
 
-const StartContext = createContext<{ stored: StoredStart | null; current: Current } | null>(null);
+const StartContext = createContext<{ stored: StoredStart | null; current: Current; report: (stored: StoredStart) => void } | null>(null);
+
+/**
+ * A start pressed on this page that the server refused with a typed outcome for the CURRENT state: it becomes
+ * the page's outcome (same as one carried from the configure page). null when it does not describe this state.
+ */
+export function reportedStart(message: string, outcome: StartOutcome | null, current: Current): StoredStart | null {
+  return outcome && outcomeApplies(outcome, current) ? { message, outcome } : null;
+}
+
+/** For start buttons inside the page provider: hand a refused start's outcome to the page (no-op outside one). */
+export function useReportStartOutcome(): ((message: string, outcome: StartOutcome | null) => boolean) | null {
+  const ctx = useContext(StartContext);
+  if (!ctx) return null;
+  return (message, outcome) => {
+    const stored = reportedStart(message, outcome, ctx.current);
+    if (stored) ctx.report(stored);
+    return stored !== null;
+  };
+}
 
 /**
  * Reads the carried failure once per request and shares it with the notice and every start/retry action of the
@@ -54,7 +73,7 @@ export function StartOutcomeProvider({ requestId, status, attempts, initial = nu
     } catch { /* storage unavailable */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestId]);
-  return <StartContext.Provider value={{ stored, current: { status, attempts } }}>{children}</StartContext.Provider>;
+  return <StartContext.Provider value={{ stored, current: { status, attempts }, report: setStored }}>{children}</StartContext.Provider>;
 }
 
 /** The carried outcome, only while it still describes the request (same status and attempt). */

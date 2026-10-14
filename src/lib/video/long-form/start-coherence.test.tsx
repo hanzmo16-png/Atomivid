@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { ResultView } from "@/components/video/ResultView";
 import { RequestCard } from "@/components/video/RequestCard";
-import { StartErrorNotice, StartOutcomeProvider, captureOutcome, type StoredStart } from "@/components/video/StartErrorNotice";
+import { StartErrorNotice, StartOutcomeProvider, captureOutcome, reportedStart, type StoredStart } from "@/components/video/StartErrorNotice";
 import { classifyRenderError, classifyRenderFailure } from "@/lib/video/render-error";
 import { preReservationFailure } from "@/lib/video/start-failure";
 import { encodeStoredFailure } from "@/lib/video/failure-action";
@@ -172,4 +172,40 @@ test("route contract: zero charge only after the queued CAS and a confirmed rele
   assert.match(failPath, /failed\?\.length === 1\)[\s\S]*releaseUnusedJobSupply[\s\S]*if \(released\) outcome\.charge = "none_proven"/);
   assert.match(failPath, /NextResponse\.json\(\{ error: message, outcome \}/);
   assert.doesNotMatch(source, /requiresSupport|Contacta al soporte/, "the route never decides from wording");
+});
+
+// chatgpt-10 (local browser run of PR113+PR115): pressing «Iniciar producción» ON the video page and getting a support
+// outcome hid the button but left «El video se genera solo cuando pulses «Iniciar producción»» on screen. The button
+// now hands the outcome to the page provider, so the notice and the whole start block follow it together.
+test("C10. a support outcome from a start pressed on the page applies to the whole page, not only to the button", () => {
+  const { body } = preReservationFailure(new MissingEnvVarError("GH_WORKER_TOKEN"), { retry: "available", charge: "none_proven", status: "script_ready", attempts: 0 });
+  const reported = reportedStart(body.error, body.outcome, { status: "script_ready", attempts: 0 });
+  assert.ok(reported, "an outcome for the current state is taken by the page");
+  assert.equal(reportedStart(body.error, body.outcome, { status: "failed", attempts: 1 }), null, "an outcome for another state is not");
+  assert.equal(reportedStart(body.error, null, { status: "script_ready", attempts: 0 }), null, "no typed outcome, nothing reported");
+  const html = unescape(renderToStaticMarkup(
+    <AppRouterContext.Provider value={router}>
+      <StartOutcomeProvider requestId={ready.id} status="script_ready" attempts={0} initial={reported}>
+        <StartErrorNotice retryAvailable supportRequired={false} />
+        <ResultView request={ready} nowMs={NOW} />
+      </StartOutcomeProvider>
+    </AppRouterContext.Provider>,
+  ));
+  assert.doesNotMatch(html, /cuando pulses «Iniciar producción»/);
+  assert.doesNotMatch(html, START_OR_RETRY_BUTTON);
+  assert.match(html, /Repetir ahora no lo resolverá\. Contacta al soporte con el código/);
+  // The button really reports to the page (and only holds itself when no page provider takes the outcome).
+  const button = fs.readFileSync(path.join(__dirname, "..", "..", "..", "app", "dashboard", "GenerateButton.tsx"), "utf-8");
+  assert.match(button, /const reportStart = useReportStartOutcome\(\)/);
+  assert.match(button, /outcome\?\.retry === "support" && !reportStart\?\.\(result\.error, outcome\)\) setSupportHold\(true\)/);
+});
+
+test("CI registration: this PR's customer-message tests run in test:saas (the suite the CI workflow executes)", () => {
+  const scripts = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "..", "..", "package.json"), "utf-8")).scripts as Record<string, string>;
+  const saas = scripts["test:saas"].split(/\s+/);
+  for (const f of ["src/lib/video/long-form/start-coherence.test.tsx", "src/lib/video/customer-error.test.ts", "src/components/video/StartErrorNotice.test.ts"]) {
+    assert.ok(saas.includes(f), `${f} must be in test:saas`);
+  }
+  const workflow = fs.readFileSync(path.join(__dirname, "..", "..", "..", "..", ".github", "workflows", "e2e-fixture-evidence.yml"), "utf-8");
+  assert.match(workflow, /npm run test:saas/);
 });
