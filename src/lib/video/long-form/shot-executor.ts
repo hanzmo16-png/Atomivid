@@ -352,7 +352,6 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
   if (!(await deps.budget.reserveAiImage(deps.units.imageUsd, realUsd))) {
     return { unavailable: "presupuesto confirmado de imágenes IA agotado" };
   }
-  await deps.store.write({ shotId: shot.id, kind: "ai_image", status: "STARTED", provider: deps.imageProvider.name, updatedAtIso: new Date().toISOString() });
 
   const request = {
     prompt: deps.visualPipeline === "anchored_v1" ? aiImagePromptFor(shot) : documentaryImagePrompt(shot.visualIntent),
@@ -385,6 +384,14 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
   };
 
   let asset: GenerativeAsset;
+  let providerStarted = false;
+  const generate = async () => {
+    // Supply admission happens in guardPaidCall BEFORE this hook. A refused
+    // admission is resumable and must not leave an uncertain STARTED asset.
+    await deps.store.write({ shotId: shot.id, kind: "ai_image", status: "STARTED", provider: deps.imageProvider.name, updatedAtIso: new Date().toISOString() });
+    providerStarted = true;
+    return deps.imageProvider.generateImage({ ...request, disableRetries: true });
+  };
   // PI V2 COST-7: a paid image is made durable (object + COMPLETED record) BEFORE its ledger row
   // is committed, so a crash in between leaves a reusable asset instead of a paid, lost one. A
   // storage failure still commits the row (the provider charged) and then fails the shot as before.
@@ -392,7 +399,7 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
   let persistError: unknown;
   try {
     if (deps.imageProvider.name === "fixture") {
-      asset = await deps.imageProvider.generateImage(request);
+      asset = await generate();
     } else {
       // Puerta de llamadas pagadas (PI V2 B1, RB-01): fila en pi_paid_operations antes del HTTP;
       // COMMITTED sin registro COMPLETED (el reuso de arriba no lo encontró) no regenera.
@@ -409,7 +416,7 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
         },
         {
           call: async () => {
-            const a = await deps.imageProvider.generateImage({ ...request, disableRetries: true });
+            const a = await generate();
             // Same contract as Reel generated images: never trust "the call did not throw" as "the
             // file is usable". An invalid file is paid but unusable: the gate treats it as uncertain
             // (no new call) and the shot uses its existing fallback (ASSET-FINAL).
@@ -433,7 +440,10 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
       if (!guarded.reused) await deps.budget.settle(realUsd, guarded.costUsd);
     }
   } catch (err) {
-    if (err instanceof SupplyUnavailableError) throw err;
+    if (err instanceof SupplyUnavailableError) {
+      if (!providerStarted) await deps.budget.releaseAiImage(deps.units.imageUsd, realUsd);
+      throw err;
+    }
     if (err instanceof PaidResultUnavailableError) {
       // Nada se envió ni se cobró en este intento: la reserva vuelve al presupuesto.
       await deps.budget.releaseAiImage(deps.units.imageUsd, realUsd);
