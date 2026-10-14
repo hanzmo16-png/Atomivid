@@ -30,6 +30,8 @@ export type VisualPlanAnalysis = {
   /** Scenes that fail the acceptance schema on their own (first indices; invalidSceneCount is the total). */
   invalidScenes: number[];
   invalidSceneCount: number;
+  /** Scenes (all, not only the listed ones) whose excerptId resolves in this beat's catalog. */
+  resolvedSceneCount: number;
   /** Where unresolved excerptIds point, as counts: another narration revision, another beat, or not a catalog id. */
   unresolvedExcerptIds: { otherRevision: number; otherBeat: number; notCatalogFormat: number };
   duplicateExcerptIds: string[];
@@ -106,6 +108,7 @@ export function analyzeVisualPlan(stored: unknown, beatsInput: unknown, beatInde
     schema, editorialApproval: "not_evaluated", issues, shapes: sceneShapes(value, VISUAL_DIAGNOSTIC_KEYS), scenes: visuals.length,
     anchors: scenes.slice(0, SHAPE_LIMITS.scenes), omittedScenes: Math.max(0, scenes.length - SHAPE_LIMITS.scenes),
     invalidScenes: invalid.slice(0, SHAPE_LIMITS.scenes), invalidSceneCount: invalid.length,
+    resolvedSceneCount: scenes.filter(s => s.excerptId === "resolved").length,
     unresolvedExcerptIds: unresolved,
     duplicateExcerptIds: [...seen].filter(([, n]) => n > 1).map(([id]) => id),
     pipelineAnchoring: { anchoredValidScenes, minimumRequired: 2, meetsMinimum: anchoredValidScenes >= 2 },

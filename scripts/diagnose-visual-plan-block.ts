@@ -4,7 +4,8 @@
  *
  * Before reading the object it checks, in order: no provider key in the environment; the exact job row;
  * the owner-scoped documentary project recomputed exactly as the worker does; the exact ledger row
- * (provider, method, COMMITTED, project, result reference). It then downloads that single object, keeps
+ * (provider, method, COMMITTED, project, result reference); the object's stored size (refused above 64 KiB
+ * without transferring it). It then downloads that single object, keeps
  * its bytes in memory only, and prints a sanitized report: size/sha256, allow-listed shapes, issues and
  * anchor counts, plus whether the checkpoint narration is the one the response was planned against.
  * It never prints narration, scene text, unknown keys, owner ids, project ids or raw JSON; never calls a
@@ -27,13 +28,18 @@ export const TARGET = {
   beatIndex: 4,
   expectedBytes: 4269,
 } as const;
+/** Refuse to transfer anything far larger than a saved visual-plan response (checked BEFORE downloading). */
+export const MAX_OBJECT_BYTES = 65_536;
+/** Stop reasons the provider documents; anything else is reported as "other", never echoed. */
+const STOP_REASONS = new Set(["end_turn", "max_tokens", "stop_sequence", "tool_use", "pause_turn", "refusal"]);
 
 export type JobRow = { id: string; user_id: string; input: unknown; editorial_checkpoint: unknown };
 export type LedgerRow = { idempotency_key: string; project_id: string; provider: string; method: string; status: string; result_ref: string | null; committed_usd: number | null; created_at: string };
-/** The only three reads this diagnostic may perform. */
+/** The only four reads this diagnostic may perform. */
 export type ReadPort = {
   job(id: string): Promise<JobRow | null>;
   ledgerRow(idempotencyKey: string): Promise<LedgerRow | null>;
+  objectSize(ref: string): Promise<number | null>;
   download(ref: string): Promise<Uint8Array | null>;
 };
 
@@ -69,8 +75,12 @@ export async function diagnoseVisualPlanBlock(port: ReadPort, env: Record<string
   try { beats = validBeats(checkpoint?.script?.beats); } catch { throw new DiagnosticStop("checkpoint_narration_invalid"); }
   if (beats.length <= TARGET.beatIndex) throw new DiagnosticStop("checkpoint_beat_missing");
 
+  const size = await port.objectSize(ref);
+  if (size === null || !Number.isInteger(size) || size < 0) throw new DiagnosticStop("object_size_unavailable");
+  if (size > MAX_OBJECT_BYTES) throw new DiagnosticStop("object_too_large");
   const bytes = await port.download(ref);
   if (!bytes) throw new DiagnosticStop("object_unavailable");
+  if (bytes.length > MAX_OBJECT_BYTES) throw new DiagnosticStop("object_too_large");
   const object = { bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex"), sizeMatchesExpected: bytes.length === TARGET.expectedBytes };
   let stored: unknown;
   try { stored = JSON.parse(Buffer.from(bytes).toString("utf8")); } catch { return { target: targetLabel(), checks: CHECKS, object, readable: false }; }
@@ -79,16 +89,18 @@ export async function diagnoseVisualPlanBlock(port: ReadPort, env: Record<string
   try {
     const product = analyzeVisualPlan(stored, beats, TARGET.beatIndex, { ...opts, cinematic: false });
     const cinematic = analyzeVisualPlan(stored, beats, TARGET.beatIndex, { ...opts, cinematic: true });
-    const resolved = product.anchors.filter(a => a.excerptId === "resolved").length;
+    const resolved = product.resolvedSceneCount;
     return {
       target: targetLabel(), checks: CHECKS, object, readable: true,
-      response: { stopReason: typeof message.stop_reason === "string" && /^[a-z_]{1,20}$/.test(message.stop_reason) ? message.stop_reason : "other",
+      response: { stopReason: typeof message.stop_reason === "string" && STOP_REASONS.has(message.stop_reason) ? message.stop_reason : "other",
         contentBlocks: Array.isArray(message.content) ? message.content.length : 0,
         outputTokens: typeof message.usage?.output_tokens === "number" ? message.usage.output_tokens : null },
       ledger: { status: row.status, committedUsd: row.committed_usd, createdAt: row.created_at },
-      // The response's excerptIds carry the narration revision and beat they were planned against.
-      checkpointContext: resolved > 0 && product.unresolvedExcerptIds.otherRevision === 0 && product.unresolvedExcerptIds.otherBeat === 0
-        ? "matches_response" : resolved > 0 ? "partially_matches_response" : "unconfirmed",
+      // The response's excerptIds carry the narration revision and beat they were planned against. "all_excerpts_resolved"
+      // needs EVERY scene's excerptId to resolve in this checkpoint's catalog for this beat; it still is not proof that the
+      // whole narration is identical, only that every referenced excerpt exists in it.
+      checkpointContext: product.scenes > 0 && resolved === product.scenes ? "all_excerpts_resolved"
+        : resolved > 0 ? "some_excerpts_unresolved" : "unconfirmed",
       // Which planning contract produced it is not stored on the row; both readings are reported.
       product, cinematic,
       newProviderCalls: 0, writes: 0,
@@ -104,9 +116,9 @@ const targetLabel = () => ({ job: TARGET.jobId, operation: TARGET.operation, blo
 
 type ReadOnlyClient = {
   from(table: string): { select(columns: string): { eq(column: string, value: string): { maybeSingle(): PromiseLike<{ data: unknown; error: unknown }> } } };
-  storage: { from(bucket: string): { download(path: string): PromiseLike<{ data: Blob | null; error: unknown }> } };
+  storage: { from(bucket: string): { info(path: string): PromiseLike<{ data: { size?: number } | null; error: unknown }>; download(path: string): PromiseLike<{ data: Blob | null; error: unknown }> } };
 };
-/** Read port over a Supabase client: select/eq/maybeSingle and one Storage download; nothing else is reachable. */
+/** Read port over a Supabase client: select/eq/maybeSingle, one Storage info and one download; nothing else is reachable. */
 export function supabaseReadPort(db: ReadOnlyClient): ReadPort {
   return {
     async job(id) {
@@ -116,6 +128,10 @@ export function supabaseReadPort(db: ReadOnlyClient): ReadPort {
     async ledgerRow(key) {
       const { data, error } = await db.from("pi_paid_operations").select("idempotency_key,project_id,provider,method,status,result_ref,committed_usd,created_at").eq("idempotency_key", key).maybeSingle();
       return error ? null : data as LedgerRow | null;
+    },
+    async objectSize(ref) {
+      const { data, error } = await db.storage.from("videos").info(ref);
+      return error || typeof data?.size !== "number" ? null : data.size;
     },
     async download(ref) {
       const { data, error } = await db.storage.from("videos").download(ref);
