@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { ResultView } from "@/components/video/ResultView";
 import { RequestCard } from "@/components/video/RequestCard";
-import { StartErrorNotice, StartOutcomeProvider, captureOutcome, reportedStart, type StoredStart } from "@/components/video/StartErrorNotice";
+import { StartErrorNotice, StartOutcomeProvider, captureOutcome, reportedStart, resolveStoredStart, type StoredStart } from "@/components/video/StartErrorNotice";
 import { classifyRenderError, classifyRenderFailure } from "@/lib/video/render-error";
 import { preReservationFailure } from "@/lib/video/start-failure";
 import { encodeStoredFailure } from "@/lib/video/failure-action";
@@ -208,4 +208,61 @@ test("CI registration: this PR's customer-message tests run in test:saas (the su
   }
   const workflow = fs.readFileSync(path.join(__dirname, "..", "..", "..", "..", ".github", "workflows", "e2e-fixture-evidence.yml"), "utf-8");
   assert.match(workflow, /npm run test:saas/);
+});
+
+// chatgpt-08 C3: the support outcome lives in this tab under the request id until the state changes or the owner
+// clears it; before it has been read (server render / hydration) no start or retry action is offered.
+test("C3-a. stored outcome: kept for the same request state, dropped when stale, legacy entries pinned on first read", () => {
+  const support: StartOutcome = { retry: "support", charge: "none_proven", status: "script_ready", attempts: 0 };
+  const raw = JSON.stringify({ message: "config", outcome: support });
+  // Reload / navigation back with the same status and attempt: kept, nothing rewritten or removed.
+  assert.deepEqual(resolveStoredStart(raw, { status: "script_ready", attempts: 0 }), { stored: { message: "config", outcome: support }, write: false, remove: false });
+  // Status or attempt changed: stale, removed, nothing kept.
+  for (const later of [{ status: "processing", attempts: 1 }, { status: "failed", attempts: 1 }, { status: "script_ready", attempts: 1 }]) {
+    assert.deepEqual(resolveStoredStart(raw, later), { stored: null, write: false, remove: true }, JSON.stringify(later));
+  }
+  // Carried without a server outcome (network error): pinned to the first state it is read in, and rewritten so.
+  const legacy = resolveStoredStart(JSON.stringify({ message: "red", outcome: null }), { status: "failed", attempts: 2 });
+  assert.deepEqual(legacy, { stored: { message: "red", outcome: { retry: "available", charge: "unknown", status: "failed", attempts: 2 } }, write: true, remove: false });
+  // Nothing stored, or garbage.
+  assert.deepEqual(resolveStoredStart(null, { status: "script_ready", attempts: 0 }), { stored: null, write: false, remove: false });
+  assert.deepEqual(resolveStoredStart("{nope", { status: "script_ready", attempts: 0 }), { stored: null, write: false, remove: true });
+  // The key is per request: another request never reads A's entry.
+  const source = fs.readFileSync(path.join(__dirname, "..", "..", "..", "components", "video", "StartErrorNotice.tsx"), "utf-8");
+  assert.match(source, /const key = \(requestId: string\) => `atomivid:start-error:\$\{requestId\}`/);
+  assert.doesNotMatch(source, /localStorage/);
+  assert.match(source, /\}, \[requestId, status, attempts\]\);/);
+});
+
+test("C3-b. server render / hydration: before the stored outcome is read, no start or retry action is offered", () => {
+  const html = unescape(renderToStaticMarkup(
+    <AppRouterContext.Provider value={router}>
+      <StartOutcomeProvider requestId={ready.id} status="script_ready" attempts={0}>
+        <ResultView request={ready} nowMs={NOW} />
+      </StartOutcomeProvider>
+    </AppRouterContext.Provider>,
+  ));
+  assert.doesNotMatch(html, START_OR_RETRY_BUTTON);
+  assert.match(html, /aria-busy="true"[^>]*>Comprobando el estado de la producción/);
+  // Same for a failed request whose retry is gated.
+  const failedHtml = unescape(renderToStaticMarkup(
+    <AppRouterContext.Provider value={router}>
+      <StartOutcomeProvider requestId={failed.id} status="failed" attempts={1}>
+        <ResultView request={{ ...failed, error_message: "Fallo temporal (Código: 0a1b2c3d)" }} nowMs={NOW} />
+      </StartOutcomeProvider>
+    </AppRouterContext.Provider>,
+  ));
+  assert.doesNotMatch(failedHtml, START_OR_RETRY_BUTTON);
+});
+
+test("C3-c. support hold offers only a local «Soporte ya lo resolvió», which never starts work", () => {
+  const html = videoPage(ready, { message: "config", outcome: { retry: "support", charge: "none_proven", status: "script_ready", attempts: 0 } });
+  assert.doesNotMatch(html, START_OR_RETRY_BUTTON);
+  assert.match(html, /<button type="button"[^>]*>Soporte ya lo resolvió<\/button>/);
+  assert.match(html, /Solo vuelve a mostrar la acción en esta pestaña; no inicia nada/);
+  // The clear handler only forgets this request's entry: no fetch, no navigation.
+  const source = fs.readFileSync(path.join(__dirname, "..", "..", "..", "components", "video", "StartErrorNotice.tsx"), "utf-8");
+  const clear = source.slice(source.indexOf("const clear = () => {"), source.indexOf("return (", source.indexOf("const clear = () => {")));
+  assert.match(clear, /sessionStorage\.removeItem\(key\(requestId\)\)/);
+  assert.doesNotMatch(clear, /fetch|router|push|render/);
 });
