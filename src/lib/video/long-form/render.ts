@@ -33,6 +33,8 @@ export type RenderLongFormDocInput = {
   durationSeconds: number;
   accentColor?: string;
   showLogo?: boolean;
+  /** Opt-in closing credit for new owner productions, not a permanent watermark. */
+  closingCredit?: boolean;
   /** Progreso REAL del render (fotogramas renderizados / total de la composición) — nunca estimado. */
   onFrameProgress?: (progress: { renderedFrames: number; totalFrames: number }) => void;
   /**
@@ -103,6 +105,7 @@ export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<
     durationSeconds: input.durationSeconds,
     accentColor: input.accentColor,
     showLogo: input.showLogo ?? false,
+    closingCredit: input.closingCredit ?? false,
     ...(input.opening ? { opening: input.opening } : {}),
   };
 

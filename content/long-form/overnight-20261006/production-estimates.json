@@ -1,0 +1,101 @@
+{
+  "notice": "Pure local planning only. Does not include verified reuse discounts. No provider calls, reservations or approvals.",
+  "estimates": [
+    {
+      "slug": "dulce-part2",
+      "status": "draft-estimate-not-confirmed-or-dispatched",
+      "plan": {
+        "version": 3,
+        "strategy": "cinematic",
+        "durationSeconds": 573,
+        "shotCount": 143,
+        "stockVideoCount": 31,
+        "stockImageCount": 72,
+        "aiImageCount": 39,
+        "aiVideoClipCount": 1,
+        "aiVideoSeconds": 4.094,
+        "aiVideoBilledSeconds": 10,
+        "deterministicCount": 0,
+        "voiceCharacters": 8980,
+        "scriptHash": "8abd8f2f4e60cbd2bfe67ac0ce31412d",
+        "beatShotCounts": {
+          "b01": 17,
+          "b02": 20,
+          "b03": 21,
+          "b04": 20,
+          "b05": 20,
+          "b06": 22,
+          "b07": 23
+        },
+        "requestedDurationSeconds": 600,
+        "aiVideoAvailable": true,
+        "providers": {
+          "voice": "elevenlabs",
+          "footage": "pexels-video-first",
+          "image": "openai",
+          "aiVideo": "runway",
+          "music": "curated-library"
+        },
+        "estimatedVoiceCostUsd": 1.796,
+        "estimatedImageCostUsd": 2,
+        "estimatedAiVideoCostUsd": 0.5,
+        "estimatedProviderCostUsd": 4.296,
+        "allocation": {
+          "maxAiImageGenerations": 40,
+          "maxAiVideoClips": 1,
+          "maxGenerativeUsd": 2.5
+        },
+        "estimatedCredits": null,
+        "confirmedAt": null
+      }
+    },
+    {
+      "slug": "achilles-genghis",
+      "status": "draft-estimate-not-confirmed-or-dispatched",
+      "plan": {
+        "version": 3,
+        "strategy": "cinematic",
+        "durationSeconds": 581,
+        "shotCount": 146,
+        "stockVideoCount": 32,
+        "stockImageCount": 74,
+        "aiImageCount": 38,
+        "aiVideoClipCount": 2,
+        "aiVideoSeconds": 7.924,
+        "aiVideoBilledSeconds": 20,
+        "deterministicCount": 0,
+        "voiceCharacters": 9198,
+        "scriptHash": "0d18d73e26a9eddde9ad6d4223681104",
+        "beatShotCounts": {
+          "b01": 19,
+          "b02": 21,
+          "b03": 21,
+          "b04": 21,
+          "b05": 21,
+          "b06": 20,
+          "b07": 23
+        },
+        "requestedDurationSeconds": 600,
+        "aiVideoAvailable": true,
+        "providers": {
+          "voice": "elevenlabs",
+          "footage": "pexels-video-first",
+          "image": "openai",
+          "aiVideo": "runway",
+          "music": "curated-library"
+        },
+        "estimatedVoiceCostUsd": 1.8396,
+        "estimatedImageCostUsd": 2,
+        "estimatedAiVideoCostUsd": 1,
+        "estimatedProviderCostUsd": 4.8396,
+        "allocation": {
+          "maxAiImageGenerations": 40,
+          "maxAiVideoClips": 2,
+          "maxGenerativeUsd": 3
+        },
+        "estimatedCredits": null,
+        "confirmedAt": null
+      }
+    }
+  ]
+}
