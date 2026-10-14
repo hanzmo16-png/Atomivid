@@ -1,6 +1,7 @@
 {
   "git": {
     "deploymentEnabled": {
+      "codex/lunar-diagnosis-20261014": false,
       "codex/provider-monitor-ready": false,
       "codex/internal-readiness-isolated": false,
       "claude/video-review": false,

@@ -12,7 +12,7 @@ import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
 import { documentaryOutputBudget } from "./script-output-budget";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { jsonResponseSystem, parseDocumentaryResponse, validateDocumentaryValue, DocumentaryResponseError } from "./json-response";
+import { jsonResponseSystem, parseDocumentaryResponse, validateDocumentaryValue, DocumentaryResponseError, readDocumentaryJson, allowListedIssuePaths, sceneShapes, VisualPlanBlockedError } from "./json-response";
 import { repairVisualAnchors } from "./visual-anchor-repair";
 import { readEditorialJson } from "./editorial-json";
 import { repairSectionFunctions, sectionFunctionRepairTargets } from "./editorial-function-repair";
@@ -215,6 +215,24 @@ const tolerant = <T extends z.ZodType>(schema: T) => z.preprocess(dropInvalidOpt
 const CinematicParseVisualsSchema = z.object({ visuals: z.array(tolerant(VisualSchema)).min(1).max(12) });
 const CinematicLenientVisualsSchema = z.object({ visuals: z.array(tolerant(VisualSchema.omit({ quote: true }).extend({ excerptId: z.string().max(200).optional(), quote: z.string().max(400).optional() }))).min(1).max(12) });
 const ProductParseVisualsSchema = z.object({ visuals: z.array(ProductVisualSchema).min(1).max(12) });
+/** Contract field names a visual-plan diagnostic may name (scene keys, nested contract keys, excerptId). */
+export const VISUAL_DIAGNOSTIC_KEYS: ReadonlySet<string> = new Set(["visuals", "excerptId",
+  ...Object.keys(VisualSchema.shape), ...Object.keys(VisualSchema.shape.identity.unwrap().shape), ...Object.keys(VisualSchema.shape.evidence.unwrap().shape)]);
+/**
+ * Parse one beat's visual plan, all or nothing (same acceptance schemas as before). A malformed
+ * scene is never dropped or filled in: the whole block is blocked with VisualPlanBlockedError,
+ * which carries allow-listed "code@path" issues and bounded per-scene key/type shapes (never values,
+ * narration or unknown key names).
+ */
+export function parseVisualPlan(response: Parameters<typeof readDocumentaryJson>[0], opts: { cinematic: boolean; referenceContract: boolean }) {
+  const schema = opts.cinematic
+    ? (opts.referenceContract ? CinematicLenientVisualsSchema : CinematicParseVisualsSchema)
+    : (opts.referenceContract ? ProductLenientVisualsSchema : ProductParseVisualsSchema);
+  const value = readDocumentaryJson(response);
+  const parsed = schema.safeParse(value);
+  if (!parsed.success) throw new VisualPlanBlockedError(allowListedIssuePaths(parsed.error, VISUAL_DIAGNOSTIC_KEYS), sceneShapes(value, VISUAL_DIAGNOSTIC_KEYS));
+  return parsed.data as z.infer<typeof CinematicLenientVisualsSchema>;
+}
 // fragments-v1 writer contract: one plan fragment, one fragment per beat.
 export const PlanFragmentSchema = DocumentaryNarrativeSchema.omit({ beats: true }).extend({ fragment: z.literal("plan") });
 const PlanFragmentPromptSchema = DocumentaryNarrativeSchema.extend({ creativeDirection: CreativeDirectionPromptSchema }).omit({ beats: true }).extend({ fragment: z.literal("plan") });
@@ -522,9 +540,12 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
           // locatable passage) selects it; unanchorable scenes are dropped, and
           // fewer than two anchored scenes is a technical planning failure.
           const catalog = new Map(narrationCatalog(parsed.beats).filter(e => e.beatIndex === i).map(e => [e.id, e]));
-          let raw = parseDocumentaryResponse(cinematic
-            ? (input.referenceContract ? CinematicLenientVisualsSchema : CinematicParseVisualsSchema)
-            : (input.referenceContract ? ProductLenientVisualsSchema : ProductParseVisualsSchema), response) as z.infer<typeof CinematicLenientVisualsSchema>;
+          let raw: z.infer<typeof CinematicLenientVisualsSchema>;
+          try { raw = parseVisualPlan(response, { cinematic, referenceContract: Boolean(input.referenceContract) }); }
+          catch (error) {
+            if (error instanceof VisualPlanBlockedError) console.error("[documentary] visual plan blocked", { beat: i, issues: error.issues, shapes: error.shapes });
+            throw error;
+          }
           const resolveAnchors = () => ({ visuals: raw.visuals.flatMap(({ excerptId, quote, ...visual }: { excerptId?: string; quote?: string } & Omit<z.infer<typeof VisualSchema>, "quote">) => {
             const anchored = (excerptId ? catalog.get(excerptId)?.quote : undefined) ?? (quote ? locateNormalized(beat.narration, quote) : null);
             return anchored && countWords(anchored) >= 5 ? [{ ...visual, quote: anchored }] : [];
