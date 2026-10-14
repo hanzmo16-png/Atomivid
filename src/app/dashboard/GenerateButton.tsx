@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { safeParseJsonResponse } from "@/lib/http/safe-json";
 import { classifyClientFetchError } from "@/lib/http/client-error";
+import { parseStartOutcome } from "@/lib/video/start-outcome";
+import { useReportStartOutcome } from "@/components/video/StartErrorNotice";
 
 export function GenerateButton({
   endpoint,
@@ -18,9 +20,12 @@ export function GenerateButton({
   redirectTo?: string;
 }) {
   const router = useRouter();
+  const reportStart = useReportStartOutcome();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsSubscription, setNeedsSubscription] = useState(false);
+  // The server's typed outcome said only support can fix the cause: the same action is not offered again.
+  const [supportHold, setSupportHold] = useState(false);
   // Synchronous guard: a second click before React re-renders the disabled button sends nothing.
   // (The server's conditional UPDATE remains the real protection against two tabs.)
   const inFlight = useRef(false);
@@ -40,6 +45,10 @@ export function GenerateButton({
         if (result.status === 402) {
           setNeedsSubscription(true);
         }
+        const outcome = parseStartOutcome((result.body as { outcome?: unknown } | undefined)?.outcome);
+        // Inside the video page the outcome goes to the page, so the notice and every start/retry action
+        // (with its "press «…»" text) follow it together; elsewhere this button just stops offering itself.
+        if (outcome?.retry === "support" && !reportStart?.(result.error, outcome)) setSupportHold(true);
         throw new Error(result.error);
       }
 
@@ -66,9 +75,11 @@ export function GenerateButton({
 
   return (
     <div className="flex flex-col items-end gap-1.5">
-      <Button type="button" size="sm" onClick={handleClick} loading={loading}>
-        {loading ? "Generando…" : label}
-      </Button>
+      {!supportHold && (
+        <Button type="button" size="sm" onClick={handleClick} loading={loading}>
+          {loading ? "Generando…" : label}
+        </Button>
+      )}
       {error && <p className="max-w-[220px] text-right text-xs text-danger">{error}</p>}
       {needsSubscription && (
         <Link href="/dashboard/billing" className="text-right text-xs font-medium text-accent hover:text-accent-hover">

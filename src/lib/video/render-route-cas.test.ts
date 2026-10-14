@@ -92,7 +92,7 @@ test('render/route.ts nunca pierde el mensaje ya clasificado del worker si la re
   );
 
   const returnIndex = source.indexOf(
-    "NextResponse.json({ error: message }, { status: 500 })",
+    "NextResponse.json({ error: message, outcome }, { status: 500 })",
     restCatchIndex,
   );
   assert.ok(
