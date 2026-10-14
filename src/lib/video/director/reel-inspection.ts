@@ -30,6 +30,26 @@ const NOTE_PROPOSAL_ONLY = NOTE_BASE + "No cambia el guion ni el render: «Gener
 // With the render flag on, «Generar video final» re-plans on the REAL footage and that plan drives the render; this panel stays a preview.
 const NOTE_RENDER = NOTE_BASE + "No cambia el guion. Al pulsar «Generar video final», el Director vuelve a planificar con el material real y ese plan dirige el montaje; las recetas aplicadas se ven en la página del video.";
 
+/**
+ * How the review panel names a shot's movement. This inspection runs BEFORE any material is chosen (simulated
+ * storyboard), so `realMotion` only means the plan EXPECTS a clip; it is never presented as verified motion.
+ * Zoom/pan without a clip is movement applied over a still image, not motion in the footage.
+ */
+export function inspectionMotionText(shot: Pick<ReelInspectionShot, "movement" | "realMotion">): string {
+  if (shot.realMotion) return "clip con movimiento previsto (material por elegir)";
+  if (shot.movement === "push_in_still") return "zoom sobre imagen fija";
+  if (shot.movement === "pan") return "paneo sobre imagen fija";
+  if (shot.movement === "static") return "imagen fija";
+  return shot.movement;
+}
+
+/** Counts by kind, so the panel never adds expected clips and still images into one "motion" number. */
+export function inspectionMotionSummary(shots: Pick<ReelInspectionShot, "movement" | "realMotion">[]) {
+  const expectedClips = shots.filter(s => s.realMotion).length;
+  const stillWithMove = shots.filter(s => !s.realMotion && (s.movement === "push_in_still" || s.movement === "pan")).length;
+  return { expectedClips, stillWithMove, still: shots.length - expectedClips - stillWithMove };
+}
+
 export function inspectReel(script: GeneratedScript, opts: ReelAdapterOptions & { catalog?: RecipeCatalog; renderEnabled?: boolean } = {}): ReelInspection {
   try {
     if (!script?.segments?.length) return { status: "error", mode: "proposal", executable: false, paidCalls: 0, message: "El guion no tiene segmentos." };
