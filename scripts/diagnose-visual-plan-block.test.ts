@@ -6,7 +6,7 @@ import { paidResultPath } from "../src/lib/paid-calls/result-store";
 import { EDITORIAL_VERSION } from "../src/lib/video/long-form/editorial";
 import { RESEARCH_VERSION } from "../src/lib/video/long-form/research";
 import { narrationCatalog } from "../src/lib/video/long-form/narration-catalog";
-import { diagnoseVisualPlanBlock, supabaseReadPort, DiagnosticStop, TARGET, type ReadPort, type JobRow, type LedgerRow } from "./diagnose-visual-plan-block";
+import { diagnoseVisualPlanBlock, supabaseReadPort, DiagnosticStop, TARGET, MAX_OBJECT_BYTES, type ReadPort, type JobRow, type LedgerRow } from "./diagnose-visual-plan-block";
 
 // Synthetic fixtures only (no real job, owner, narration or object). SECRET must never reach the report.
 const owner = "00000000-0000-4000-8000-000000000001";
@@ -19,14 +19,15 @@ const ids = narrationCatalog(beats).filter(e => e.beatIndex === TARGET.beatIndex
 const plan = { visuals: [{ description: "SECRET", motion: true, subject: "s", excerptId: ids[0] }, { excerptId: ids[1], motion: null, SECRET_KEY: "SECRET" }] };
 const objectBytes = new TextEncoder().encode(JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify(plan) }], usage: { output_tokens: 321 } }));
 
-function fixture(over: { job?: Partial<JobRow> | null; row?: Partial<LedgerRow> | null } = {}) {
+function fixture(over: { job?: Partial<JobRow> | null; row?: Partial<LedgerRow> | null; size?: number | null; bytes?: Uint8Array } = {}) {
   const calls: string[] = [];
   const job: JobRow | null = over.job === null ? null : { id: TARGET.jobId, user_id: owner, input, editorial_checkpoint: { version: 1, status: "unapproved", script: { beats } }, ...over.job };
   const row: LedgerRow | null = over.row === null ? null : { idempotency_key: TARGET.operation, project_id: projectId, provider: "anthropic", method: "generate_script", status: "COMMITTED", result_ref: ref, committed_usd: 0.0253, created_at: "2026-10-14T14:07:27.768Z", ...over.row };
   const port: ReadPort = {
     async job(id) { calls.push(`job:${id}`); return job; },
     async ledgerRow(key) { calls.push(`ledger:${key}`); return row; },
-    async download(path) { calls.push(`download:${path}`); return objectBytes; },
+    async objectSize(path) { calls.push(`size:${path}`); return over.size === undefined ? (over.bytes ?? objectBytes).length : over.size; },
+    async download(path) { calls.push(`download:${path}`); return over.bytes ?? objectBytes; },
   };
   return { calls, port };
 }
@@ -37,12 +38,13 @@ test("exact job, owner, scope, ledger row and reference: one download, sanitized
   const { calls, port } = fixture();
   const before = createHash("sha256").update(objectBytes).digest("hex");
   const report = await diagnoseVisualPlanBlock(port, {});
-  assert.deepEqual(calls, [`job:${TARGET.jobId}`, `ledger:${TARGET.operation}`, `download:${ref}`]);
+  assert.deepEqual(calls, [`job:${TARGET.jobId}`, `ledger:${TARGET.operation}`, `size:${ref}`, `download:${ref}`]);
   assert.equal(createHash("sha256").update(objectBytes).digest("hex"), before);
   assert(report.readable && "product" in report);
   assert.equal(report.object.bytes, objectBytes.length);
   assert.equal(report.object.sha256, before);
-  assert.equal(report.checkpointContext, "matches_response");
+  assert.equal(report.checkpointContext, "all_excerpts_resolved");
+  assert.equal(report.response!.stopReason, "end_turn");
   assert.equal(report.product!.schema, "invalid");
   assert.deepEqual(report.product!.invalidScenes, [1]);
   assert.equal(report.target.block, 5);
@@ -64,6 +66,8 @@ test("stops BEFORE downloading when anything does not match exactly", async () =
     [{ row: { result_ref: `${projectId}/paid/op_other.script.json` } }, "ledger_reference_mismatch"],
     [{ job: { editorial_checkpoint: null } }, "checkpoint_narration_invalid"],
     [{ job: { editorial_checkpoint: { script: { beats: beats.slice(0, 4) } } } }, "checkpoint_beat_missing"],
+    [{ size: null }, "object_size_unavailable"],
+    [{ size: MAX_OBJECT_BYTES + 1 }, "object_too_large"],
   ];
   for (const [over, code] of cases) {
     const { calls, port } = fixture(over);
@@ -78,8 +82,31 @@ test("refuses to start with a provider key in the environment (no read at all)",
   assert.deepEqual(calls, []);
 });
 
-// The fake client exposes only select/eq/maybeSingle and storage download: any other call would throw a TypeError.
-test("Supabase read port only selects, filters by exact id and downloads one object from videos", async () => {
+test("stop reasons outside the documented set are reported as \"other\"; partial or foreign excerpts are not a checkpoint match", async () => {
+  const msg = (stop: string, visuals: unknown[]) => new TextEncoder().encode(JSON.stringify({ stop_reason: stop, content: [{ type: "text", text: JSON.stringify({ visuals }) }] }));
+  const ok = { description: "d", motion: true, subject: "s" };
+  const cases: Array<[string, unknown[], string, string]> = [
+    ["secret_reason_text", [{ ...ok, excerptId: ids[0] }, { ...ok, excerptId: ids[1] }], "other", "all_excerpts_resolved"],
+    ["max_tokens", [{ ...ok, excerptId: ids[0] }, { ...ok, excerptId: "SECRET-not-catalog" }], "max_tokens", "some_excerpts_unresolved"],
+    ["end_turn", [{ ...ok, excerptId: ids[0] }, { ...ok, quote: "SECRET quote only" }], "end_turn", "some_excerpts_unresolved"],
+    ["end_turn", [{ ...ok, excerptId: "0000000000000000:b4:w0" }], "end_turn", "unconfirmed"],
+  ];
+  for (const [stop, visuals, reason, context] of cases) {
+    const report = await diagnoseVisualPlanBlock(fixture({ bytes: msg(stop, visuals) }).port, {});
+    assert(report.readable && "response" in report);
+    assert.deepEqual([report.response!.stopReason, report.checkpointContext], [reason, context], stop);
+    noSecret(report);
+    assert(!JSON.stringify(report).includes("secret_reason_text"));
+  }
+});
+
+test("a downloaded object larger than declared is still refused", async () => {
+  const { port } = fixture({ size: 10, bytes: new Uint8Array(MAX_OBJECT_BYTES + 1) });
+  await assert.rejects(diagnoseVisualPlanBlock(port, {}), stop("object_too_large"));
+});
+
+// The fake client exposes only select/eq/maybeSingle and storage info/download: any other call would throw a TypeError.
+test("Supabase read port only selects, filters by exact id, reads one object's size and downloads it from videos", async () => {
   const used: string[] = [];
   const db = {
     from(table: string) {
@@ -90,14 +117,19 @@ test("Supabase read port only selects, filters by exact id and downloads one obj
         } };
       } };
     },
-    storage: { from(bucket: string) { return { async download(path: string) { used.push(`storage.${bucket}.download(${path === ref})`); return { data: new Blob([objectBytes]), error: null }; } }; } },
+    storage: { from(bucket: string) { return {
+      async info(path: string) { used.push(`storage.${bucket}.info(${path === ref})`); return { data: { size: objectBytes.length }, error: null }; },
+      async download(path: string) { used.push(`storage.${bucket}.download(${path === ref})`); return { data: new Blob([objectBytes]), error: null }; },
+    }; } },
   };
   const port = supabaseReadPort(db);
   await port.job(TARGET.jobId); await port.ledgerRow(TARGET.operation);
+  assert.equal(await port.objectSize(ref), objectBytes.length);
   assert.equal((await port.download(ref))!.length, objectBytes.length);
   assert.deepEqual(used, [
     "documentary_script_jobs.select(id,user_id,input,editorial_checkpoint).eq(id)",
     "pi_paid_operations.select(idempotency_key,project_id,provider,method,status,result_ref,committed_usd,created_at).eq(idempotency_key)",
+    "storage.videos.info(true)",
     "storage.videos.download(true)",
   ]);
 });
