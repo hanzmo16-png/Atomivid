@@ -17,10 +17,11 @@ test("classifyRenderError incluye el identificador de diagnóstico en el mensaje
   assert.ok(message.includes(id));
 });
 
-test("classifyRenderError menciona el nombre exacto de la variable ausente", () => {
+test("classifyRenderError explica una configuración ausente sin nombrar la variable interna", () => {
   const id = "abc12345";
   const message = classifyRenderError(new MissingEnvVarError("GH_WORKER_TOKEN"), id);
-  assert.ok(message.includes("GH_WORKER_TOKEN"));
+  assert.doesNotMatch(message, /GH_WORKER|_TOKEN|_REPO|[A-Z]+_[A-Z]+/);
+  assert.match(message, /configuración del servidor/);
   assert.ok(message.includes(id));
 });
 
@@ -77,7 +78,7 @@ test("classifyRenderError (el mensaje que sí ve el cliente) nunca expone un val
 test("classifyRenderError da un mensaje distinto y específico para 401 (credencial rechazada)", () => {
   const id = "abc12345";
   const message = classifyRenderError(new GitHubWorkerDispatchError(401, "Bad credentials"), id);
-  assert.ok(message.includes("GH_WORKER_TOKEN"));
+  assert.doesNotMatch(message, /GH_WORKER|_TOKEN|_REPO|[A-Z]+_[A-Z]+/);
   assert.ok(message.includes("401"));
   assert.ok(message.includes(id));
   assert.ok(!message.includes("Bad credentials"));
@@ -89,7 +90,7 @@ test("classifyRenderError da un mensaje distinto y específico para 403 (token r
     new GitHubWorkerDispatchError(403, "Resource not accessible by personal access token"),
     id,
   );
-  assert.ok(message.includes("GH_WORKER_TOKEN"));
+  assert.doesNotMatch(message, /GH_WORKER|_TOKEN|_REPO|[A-Z]+_[A-Z]+/);
   assert.ok(message.includes("403"));
   assert.ok(message.includes(id));
   assert.ok(!message.includes("Resource not accessible by personal access token"));
@@ -102,10 +103,10 @@ test("classifyRenderError da textos distintos para 401 y 403 (no deben ser el mi
   assert.notEqual(message401, message403);
 });
 
-test("classifyRenderError da un mensaje específico para GH_WORKER_REPO incorrecto (404)", () => {
+test("classifyRenderError da un mensaje específico para un destino del worker no encontrado (404), sin nombres internos", () => {
   const id = "abc12345";
   const message = classifyRenderError(new GitHubWorkerDispatchError(404, "Not Found"), id);
-  assert.ok(message.includes("GH_WORKER_REPO"));
+  assert.doesNotMatch(message, /GH_WORKER|_TOKEN|_REPO|[A-Z]+_[A-Z]+/);
   assert.ok(message.includes("404"));
   assert.ok(message.includes(id));
   assert.ok(!message.includes("Not Found"));
@@ -142,13 +143,14 @@ test("classifyRenderError cae al mensaje con status para un código HTTP no clas
   assert.ok(!message.includes("bad request detail"));
 });
 
-test("classifyRenderError reusa el mensaje seguro de InvalidEnvVarError (sin el valor real)", () => {
+test("classifyRenderError explica una configuración inválida sin nombrar la variable ni el formato", () => {
   const id = "abc12345";
   const message = classifyRenderError(
     new InvalidEnvVarError("GH_WORKER_REPO", '"owner/repo"'),
     id,
   );
-  assert.ok(message.includes("GH_WORKER_REPO"));
+  assert.doesNotMatch(message, /GH_WORKER|_TOKEN|_REPO|[A-Z]+_[A-Z]+/);
+  assert.ok(!message.includes("owner/repo"));
   assert.ok(message.includes(id));
 });
 

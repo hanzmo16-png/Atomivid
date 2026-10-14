@@ -18,6 +18,7 @@ import type { LongFormPackaging } from "@/lib/video/long-form/packaging";
 import { PackagingOptions } from "./PackagingOptions";
 import type { StrategyPreflight, VisualCheck } from "@/lib/video/long-form/production-preflight";
 import { rememberStartError } from "@/components/video/StartErrorNotice";
+import { parseStartOutcome } from "@/lib/video/start-outcome";
 
 export type PreflightSummary = { modality: string; engine: string; requestedSeconds: number | null; voice: string; curationPath: string | null };
 
@@ -250,14 +251,19 @@ export function ConfigureProduction({
 
       const renderRes = await fetch(`/api/generate/${requestId}/render`, { method: "POST" });
       const renderResult = await safeParseJsonResponse(renderRes);
-      if (!renderResult.ok) throw new Error(renderResult.error);
+      if (!renderResult.ok) {
+        // The server's typed outcome decides the next step and any zero-charge claim on the video page.
+        rememberStartError(requestId, renderResult.error, parseStartOutcome((renderResult.body as { outcome?: unknown } | undefined)?.outcome));
+        router.push(`/dashboard/videos/${requestId}`);
+        return;
+      }
 
       router.push(`/dashboard/videos/${requestId}`);
     } catch (err) {
       const message = classifyClientFetchError(err);
       if (confirmed) {
-        // The plan is confirmed, so this page now redirects to the video page: carry the reason there,
-        // where "Iniciar producción" starts the same confirmed plan again (nothing was started or charged).
+        // The plan is confirmed, so this page now redirects to the video page: carry the reason there. No server
+        // outcome arrived (network error, unreadable reply), so the notice makes no claim about charges.
         rememberStartError(requestId, message);
         router.push(`/dashboard/videos/${requestId}`);
         return;

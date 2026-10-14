@@ -1,5 +1,25 @@
+import { decodeStoredFailure, type FailureAction } from "./failure-action";
+
 /** Provider details stay in the owner's private request, never rendered as raw HTML/text. */
 export function renderFailureMessage(detail: string): string {
+  return describeStoredFailure(detail).message;
+}
+
+/**
+ * Customer text plus the typed action for a stored failure. The action comes from the server's tag; legacy
+ * raw provider text (no tag, no diagnostic code) is classified here by its raw cause, as before.
+ */
+export function describeStoredFailure(stored: string): { message: string; action: FailureAction } {
+  const decoded = decodeStoredFailure(stored);
+  const message = classifyStoredText(decoded.message);
+  if (decoded.action) return { message, action: decoded.action };
+  return { message, action: message === ACCESS_REVIEW_MESSAGE ? "support" : "retry" };
+}
+
+const ACCESS_REVIEW_MESSAGE =
+  "Un servicio de generación necesita revisión de acceso. Tu solicitud sigue guardada. Contacta al soporte; repetir ahora no resolverá el problema.";
+
+function classifyStoredText(detail: string): string {
   // Blocker real de QA (2026-09-25): esta función se aplica sin
   // distinción a error_message venga de donde venga, pero solo el fallo
   // crudo que persiste el worker de render (run-job.ts, texto directo de
@@ -20,7 +40,7 @@ export function renderFailureMessage(detail: string): string {
     return "El servicio está atendiendo demasiadas solicitudes. Tu guion sigue guardado; espera unos minutos antes de volver a intentarlo.";
   }
   if (/401|403|credential|api.?key|permis|not.configured/i.test(detail)) {
-    return "Un servicio de generación necesita revisión de acceso. Tu solicitud sigue guardada. Contacta al soporte; repetir ahora no resolverá el problema.";
+    return ACCESS_REVIEW_MESSAGE;
   }
   if (/duraci[oó]n|duration|integridad|integrity/i.test(detail)) {
     return "La validación del contenido no pasó. Revisa la duración y los archivos antes de otro intento.";

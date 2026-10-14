@@ -93,6 +93,12 @@ test("saved jobs navigate to durable history, not a long-running browser respons
  assert.match(readActions(),/job.status === "queued"/);
 });
 
+test("identical inputs for a finished or failed job open that job instead of a new 'in progress' banner",()=>{
+ // Local run (chatgpt-08): the input hash returns the SAME job; a completed one is hidden from the dashboard,
+ // so the old redirect showed "La preparación está guardada" with nothing being prepared.
+ assert.match(readActions(),/job.status === "completed" \|\| job.status === "failed"\) redirect\(`\/dashboard\/long-form\/jobs\/\$\{job.id\}\?existing=1`\)/);
+});
+
 /**
  * Regresión del QA real (2026-09-25, "duration_seconds CHECK CONSTRAINT +
  * FORM STATE LOST ON ERROR"): el intento real de Hans (3 min = 180s) fue

@@ -11,7 +11,8 @@ const GENERIC_ERROR_MESSAGE = "No se pudo completar la acción. Intenta de nuevo
 
 export type SafeJsonResult<T> =
   | { ok: true; status: number; data: T }
-  | { ok: false; status: number; error: string };
+  /** `body`: the parsed error reply, when there was one (typed fields beyond `error`, e.g. a start outcome). */
+  | { ok: false; status: number; error: string; body?: unknown };
 
 export async function safeParseJsonResponse<T = unknown>(
   response: Response,
@@ -39,7 +40,7 @@ export async function safeParseJsonResponse<T = unknown>(
   if (!response.ok) {
     const serverMessage = (parsed as { error?: unknown } | null)?.error;
     const error = typeof serverMessage === "string" && serverMessage ? serverMessage : GENERIC_ERROR_MESSAGE;
-    return { ok: false, status, error };
+    return { ok: false, status, error, body: parsed };
   }
 
   return { ok: true, status, data: parsed as T };

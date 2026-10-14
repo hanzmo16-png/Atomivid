@@ -23,6 +23,8 @@ import type { RenderStage } from "./stages";
 import { generateDiagnosticId } from "./render-error";
 import { ProviderConfigurationError } from "@/lib/providers/production";
 import { isCustomerSafeError } from "./long-form/output-policy";
+import { isServiceConfigurationError, scrubInternalNames, SERVICE_CONFIGURATION_MESSAGE } from "./customer-error";
+import { encodeStoredFailure } from "./failure-action";
 
 /** Rutas internas de Storage (`<uuid>/...`) nunca llegan al mensaje visible de Long Form. */
 export function scrubInternalPaths(message: string): string {
@@ -249,7 +251,11 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     // ninguna ruta interna de Storage llega al texto visible de Long Form.
     const safe = isCustomerSafeError(error) ? error : null;
     const diagnosticId = safe?.diagnosticId ?? generateDiagnosticId();
-    const detail = safe ? safe.customerMessage : error instanceof Error ? error.message : "Error desconocido";
+    // Configuration errors name environment variables: the customer gets a plain explanation, the log keeps the cause.
+    const configError = !safe && isServiceConfigurationError(error);
+    if (configError) console.error(`[atomivid:config] (Código: ${diagnosticId}) ${(error as Error).name}: ${(error as Error).message}`);
+    const detail = safe ? safe.customerMessage : configError ? SERVICE_CONFIGURATION_MESSAGE
+      : error instanceof Error ? scrubInternalNames(error.message) : "Error desconocido";
     const rawMessage = mode === "long_form" ? scrubInternalPaths(detail) : detail;
     const message = `${rawMessage} (Código: ${diagnosticId})`;
 
@@ -265,7 +271,9 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
       );
     }
 
-    await update({ status: "failed", error_message: message, progress_stage: null, long_form_stage: null, long_form_progress: null });
+    // Typed action stored with the text: a configuration failure needs support, not an immediate retry.
+    const action = configError || error instanceof ProviderConfigurationError ? "support" : "retry";
+    await update({ status: "failed", error_message: encodeStoredFailure(message, action), progress_stage: null, long_form_stage: null, long_form_progress: null });
 
     throw error;
   }
