@@ -1,4 +1,5 @@
 import type { GenerativeAsset, ImageGenerationRequest, ImageProvider } from "../types";
+import { fixturePatternSvg, seedFrom } from "../fixture-pattern";
 
 /**
  * Generador de imágenes determinístico (sin red): un rectángulo de color
@@ -22,6 +23,8 @@ function svgDataUri(prompt: string, seed: number, size: { width: number; height:
   const svg =
     `<svg xmlns='http://www.w3.org/2000/svg' width='${size.width}' height='${size.height}'>` +
     `<rect width='100%' height='100%' fill='#${color}'/>` +
+    fixturePatternSvg(seedFrom(`${seed}:${prompt}`), size.width, size.height) +
+    `<rect x='5%' y='44%' width='90%' height='10%' fill='#${color}' fill-opacity='0.85'/>` +
     `<text x='50%' y='50%' font-size='36' fill='white' text-anchor='middle' ` +
     `font-family='sans-serif'>${safePrompt}</text>` +
     `</svg>`;

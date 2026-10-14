@@ -93,6 +93,8 @@ export function preflightRenderInput(input: {
 }
 
 export class RenderPreflightFailedError extends Error {
+  /** Shown to the customer; the scene ids, timings and codes stay in the log under the same diagnostic code. */
+  readonly customerMessage = "El montaje final no pasó la verificación técnica previa al render. Tu guion y los recursos ya generados están guardados. Reintenta la misma producción; si vuelve a ocurrir, contacta al soporte con este código.";
   constructor(public readonly issues: RenderPreflightIssue[]) {
     super(`Render preflight falló con ${issues.length} problema(s):\n${issues.map((i) => `- [${i.code}] ${i.message}`).join("\n")}`);
     this.name = "RenderPreflightFailedError";

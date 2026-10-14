@@ -1,4 +1,5 @@
 import type { FootageCandidate, FootageProvider } from "../types";
+import { fixturePatternSvg, seedFrom } from "../fixture-pattern";
 
 function wrapLabel(label: string, maxCharsPerLine: number): string[] {
   const words = label.split(/\s+/);
@@ -43,6 +44,8 @@ function svgDataUri(label: string): string {
   const svg =
     `<svg xmlns='http://www.w3.org/2000/svg' width='1080' height='1920'>` +
     `<rect width='100%' height='100%' fill='${color}'/>` +
+    fixturePatternSvg(seedFrom(label), 1080, 1920) +
+    `<rect x='60' y='${startY - fontSize * 1.4}' width='960' height='${lines.length * lineHeight + fontSize}' fill='${color}' fill-opacity='0.85'/>` +
     `<text font-size='${fontSize}' fill='white' text-anchor='middle' ` +
     `font-family='sans-serif'>${tspans}</text>` +
     `</svg>`;

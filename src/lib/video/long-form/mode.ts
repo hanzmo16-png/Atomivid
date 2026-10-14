@@ -17,6 +17,7 @@ import { getMusicProvider } from "@/lib/providers/music";
 import { fixtureImageProvider } from "@/lib/providers/image/fixture";
 import { getImageProvider } from "@/lib/providers/image";
 import type { FootageProvider, ImageProvider, MusicProvider, VoiceProvider } from "@/lib/providers/types";
+import { isProductionRuntime } from "@/lib/providers/production";
 
 export type LongFormRunMode = "simulation" | "real";
 
@@ -60,6 +61,22 @@ export class LongFormRealProviderMissingError extends Error {
     );
     this.name = "LongFormRealProviderMissingError";
   }
+}
+
+/**
+ * Local development only: lets the app's own production run (produce.ts) use the simulation
+ * providers, so one request can be walked end to end at USD 0. Every condition is required:
+ * the explicit flag, a non-production runtime (not Vercel, not NODE_ENV=production, not the
+ * render worker), not GitHub Actions, and a loopback Supabase URL. Anything else keeps the
+ * real-provider gate below unchanged.
+ */
+export function localSimulationProvidersAllowed(env: Record<string, string | undefined> = process.env): boolean {
+  if (env.LONG_FORM_LOCAL_SIMULATION_PROVIDERS !== "1") return false;
+  if (env.NODE_ENV === "production" || env.VERCEL === "1" || env.ATOMIVID_RUNTIME === "production" || env.GITHUB_ACTIONS === "true") return false;
+  if (env === process.env && isProductionRuntime()) return false;
+  let host: string;
+  try { host = new URL(env.NEXT_PUBLIC_SUPABASE_URL ?? "").hostname; } catch { return false; }
+  return host === "127.0.0.1" || host === "localhost" || host === "[::1]";
 }
 
 export function isRealModeConfirmed(env: Record<string, string | undefined> = process.env): boolean {

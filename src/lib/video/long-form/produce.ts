@@ -41,7 +41,7 @@ import { computeNarrationGaps } from "../../../../remotion/audio-mix";
 import { getVideoProvider } from "@/lib/providers/video-gen";
 import { getVoiceIdentity } from "@/lib/ai/voice";
 import type { MusicResult, ScriptLanguage, VideoProvider } from "@/lib/providers/types";
-import { resolveLongFormProviders, type LongFormProviderSet } from "./mode";
+import { localSimulationProvidersAllowed, resolveLongFormProviders, type LongFormProviderSet } from "./mode";
 import { buildLongFormTimeline, type BeatSynthesizer } from "./timeline";
 import { shotsForSpan } from "./shots";
 import { assertOpeningValid, CoverValidationError, renderLongFormDoc, renderLongFormThumbnail, type RenderLongFormDocInput } from "./render";
@@ -248,8 +248,10 @@ export async function generateLongFormVideoFromScript({
     sequences = pre.sequences;
   }
 
-  const resolvedProviders = providers ?? resolveLongFormProviders("real");
-  const requireReal = !providers;
+  // Local development only (see localSimulationProvidersAllowed): simulated media, never in production.
+  const localSimulation = !providers && localSimulationProvidersAllowed();
+  const resolvedProviders = providers ?? resolveLongFormProviders(localSimulation ? "simulation" : "real");
+  const requireReal = !providers && !localSimulation;
   const store = runtime.store ?? supabaseShotAssetStore(supabase, requestId, STORAGE_BUCKET);
   const allocation = executionAllocation(plan);
   // Abrir el presupuesto (gratis) ANTES de cualquier llamada pagada: si el
@@ -582,7 +584,7 @@ export async function generateLongFormVideoFromScript({
     audioUrl: audioUpload.url,
     musicUrl: runtime.soundCues ? undefined : musicUrl,
     soundCues: runtime.soundCues,
-    scenes: shotScenes,
+    scenes: holdLastSceneToEnd(shotScenes, finalDurationSeconds),
     captions,
     narrationGaps,
     durationSeconds: finalDurationSeconds,
@@ -710,6 +712,18 @@ async function uploadToStorage(
   if (signError || !data) throw new Error(`No se pudo firmar la URL de ${objectPath}: ${signError?.message ?? "desconocido"}`);
 
   return { path: objectPath, url: data.signedUrl };
+}
+
+/**
+ * The composition already holds the last scene until the final frame (LongFormDoc `isLast`), through the
+ * VIDEO_TAIL_SECONDS tail. Say so in the render input too: the preflight compared the last shot's end
+ * (rounded to ms) with the unrounded narration + tail, and a sub-millisecond voice duration (e.g.
+ * 160.7142857 s) failed the render with a false "gap_at_end" of 0.5003 s.
+ */
+export function holdLastSceneToEnd<T extends { endSeconds: number }>(scenes: T[], durationSeconds: number): T[] {
+  if (scenes.length === 0) return scenes;
+  const last = scenes[scenes.length - 1];
+  return last.endSeconds >= durationSeconds ? scenes : [...scenes.slice(0, -1), { ...last, endSeconds: durationSeconds }];
 }
 
 /** Escenas v3 listas para renderizar: límites alineados a la voz, dirección, procedencia y carencias visibles. */

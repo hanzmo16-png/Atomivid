@@ -109,3 +109,24 @@ test("assertRenderInputValid lanza RenderPreflightFailedError con TODOS los prob
     assert.ok(codes.includes("no_captions"));
   }
 });
+
+test("sub-millisecond narration: holding the last scene to the end avoids a false gap_at_end (local walkthrough, 160.7142857 s + 0.5 s tail)", async () => {
+  const { holdLastSceneToEnd } = await import("./produce");
+  const narration = 160.7142857142857, duration = narration + 0.5;
+  const scenes = [{ id: "a", startSeconds: 0, endSeconds: 80 }, { id: "beat-5-shot-9", startSeconds: 80, endSeconds: Math.round(narration * 1000) / 1000 }];
+  const input = { scenes, captions: [{ startSeconds: 0, endSeconds: 4 }], durationSeconds: duration, audioUrl: "http://example.com/a.mp3" };
+  assert.ok(preflightRenderInput(input).some((i) => i.code === "gap_at_end"), "reproduces the failure");
+  const held = holdLastSceneToEnd(scenes, duration);
+  assert.deepEqual(preflightRenderInput({ ...input, scenes: held }), []);
+  assert.equal(held[0], scenes[0], "only the last scene changes");
+  assert.equal(held[1].endSeconds, duration);
+  assert.equal(holdLastSceneToEnd(held, duration), held, "idempotent");
+});
+
+test("a preflight failure has a customer message without scene ids, timings or issue codes", async () => {
+  const { isCustomerSafeError } = await import("./output-policy");
+  const error = new RenderPreflightFailedError([{ code: "gap_at_end", message: "la última escena (beat-5-shot-9) termina en 160.714s" }]);
+  assert.ok(isCustomerSafeError(error));
+  assert.doesNotMatch(error.customerMessage, /gap_at_end|beat-\d|shot-\d|\d+\.\d+s|preflight/i);
+  assert.match(error.message, /gap_at_end/, "the technical detail is kept for the log");
+});

@@ -255,6 +255,8 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     // Configuration errors name environment variables: the customer gets a plain explanation, the log keeps the cause.
     const configError = !safe && isServiceConfigurationError(error);
     if (configError) console.error(`[atomivid:config] (Código: ${diagnosticId}) ${(error as Error).name}: ${(error as Error).message}`);
+    // A customer-safe error hides its technical detail from the customer: keep it in the log under the same code.
+    if (safe && error instanceof Error && error.message !== safe.customerMessage) console.error(`[atomivid:job-failure] (Código: ${diagnosticId}) ${error.name}: ${error.message}`);
     const detail = safe ? safe.customerMessage : configError ? SERVICE_CONFIGURATION_MESSAGE
       : error instanceof Error ? scrubInternalNames(error.message) : "Error desconocido";
     const rawMessage = mode === "long_form" ? scrubInternalPaths(detail) : detail;

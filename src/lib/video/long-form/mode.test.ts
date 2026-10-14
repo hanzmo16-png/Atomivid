@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  localSimulationProvidersAllowed,
   assertRealModeConfirmed,
   computePaidApisCalled,
   isRealModeConfirmed,
@@ -139,4 +140,18 @@ test("computePaidApisCalled trata Pexels y la biblioteca curada como gratis, per
     computePaidApisCalled({ ...base, imageProvider: { name: "openai" } as never }),
     true,
   );
+});
+
+test("local simulation providers: only with the flag, off production/Actions, and against a loopback Supabase", () => {
+  const local = { LONG_FORM_LOCAL_SIMULATION_PROVIDERS: "1", NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321" };
+  assert.equal(localSimulationProvidersAllowed(local), true);
+  assert.equal(localSimulationProvidersAllowed({ ...local, NEXT_PUBLIC_SUPABASE_URL: "http://localhost:54321" }), true);
+  assert.equal(localSimulationProvidersAllowed({ ...local, LONG_FORM_LOCAL_SIMULATION_PROVIDERS: "true" }), false, "exact flag only");
+  assert.equal(localSimulationProvidersAllowed({ NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321" }), false);
+  for (const prod of [{ NODE_ENV: "production" }, { VERCEL: "1" }, { ATOMIVID_RUNTIME: "production" }, { GITHUB_ACTIONS: "true" }]) {
+    assert.equal(localSimulationProvidersAllowed({ ...local, ...prod }), false, JSON.stringify(prod));
+  }
+  for (const url of ["https://abc.supabase.co", "", "not a url", "http://127.0.0.1.evil.example"]) {
+    assert.equal(localSimulationProvidersAllowed({ ...local, NEXT_PUBLIC_SUPABASE_URL: url }), false, url);
+  }
 });
