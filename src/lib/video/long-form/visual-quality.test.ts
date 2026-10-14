@@ -403,3 +403,22 @@ test("Earth scenes that mention a meteorite are not treated as off-world", () =>
   const barringer = { description: "Meteor Crater from the air", motion: false, subject: "meteor crater", place: "Arizona" };
   assert.equal(assessRelevance(barringer, "Aerial view of Meteor Crater in the Arizona desert").relevance, "keyword_match");
 });
+
+test("retry: stock picked under looser rules is searched again when it no longer passes; a still-valid pick is reused", async () => {
+  const lunarShot = (id: string): AllocatedShot => ({ ...stockShot(id, "the craters of the Moon"), visualIntent: lunarCrater.description, anchoredVisual: lunarCrater });
+  const onTopic = provider({ byQuery: () => [candidate("moon-1", "Craters on the surface of the moon")] });
+  const deps = execDeps({ footageProvider: onTopic });
+  // A previous attempt stored a volcanic crater lake as a keyword match (old single-word rule).
+  await deps.store.putObject("req/shots/beat-1-shot-1/stock.jpg", Buffer.from("volcanic crater lake"), "image/jpeg");
+  await deps.store.write({ shotId: "beat-1-shot-1", kind: "stock", status: "COMPLETED", objectPath: "req/shots/beat-1-shot-1/stock.jpg", contentType: "image/jpeg",
+    mediaType: "image", costUsd: 0, provider: "pexels", bytes: 10, updatedAtIso: "2026-10-14T00:00:00Z",
+    selection: { relevance: "keyword_match", candidateDescription: "Volcanic crater lake in Oregon at sunset", query: "lunar crater" } });
+  const ex = await executeShot(lunarShot("beat-1-shot-1"), deps, emptyAiVideoLedgerState());
+  assert.equal(ex.reused, false, "the off-topic stored pick is not reused");
+  assert.ok(onTopic.searches.length > 0);
+  assert.equal(ex.assetMeta?.selection?.candidateDescription, "Craters on the surface of the moon");
+  // The new pick passes today's rules, so a further retry reuses it without searching.
+  const again = provider({ byQuery: () => { throw new Error("must not search"); } });
+  const ex2 = await executeShot(lunarShot("beat-1-shot-1"), { ...deps, footageProvider: again, registry: new DocumentAssetRegistry() }, emptyAiVideoLedgerState());
+  assert.equal(ex2.reused, true);
+});

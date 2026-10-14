@@ -25,7 +25,7 @@ import { resolveAiVideoForShot } from "./ai-video-resolver";
 import { recordAiVideoSpend, type AiVideoCostConfig, type AiVideoLedgerState } from "./ai-video-cost-guard";
 import type { AssetProvenance, AssetSelectionTrace, ShotAssetKind, ShotAssetStore } from "./durable-shot-assets";
 import { contentIdentity, type DocumentAssetRegistry, type AssetIdentity } from "./asset-identity";
-import { selectStockForShot, type StockSelectionDeps } from "./stock-selection";
+import { assessRelevance, selectStockForShot, type StockSelectionDeps } from "./stock-selection";
 import { creditFor, type VerifiedAssetRegistry } from "./verified-assets";
 import { clip, salientFact } from "./scene-anchoring";
 import type { ProductionBudget } from "./production-budget";
@@ -147,9 +147,10 @@ type MediaOutcome = {
 
 type GapOutcome = { gap: NonNullable<ShotAssetMeta["gap"]> };
 
-async function reuseCompleted(deps: ShotExecutionDeps, shotId: string, kind: ShotAssetKind): Promise<MediaOutcome | null> {
+async function reuseCompleted(deps: ShotExecutionDeps, shotId: string, kind: ShotAssetKind, stillValid?: (selection: AssetSelectionTrace | undefined) => boolean): Promise<MediaOutcome | null> {
   const record = await deps.store.read(shotId, kind);
   if (record?.status !== "COMPLETED" || !record.objectPath) return null;
+  if (stillValid && !deps.replayOnly && !stillValid(record.selection)) return null;
   try {
     const url = await deps.store.signedUrl(record.objectPath);
     if (record.identity) deps.registry?.register(shotId, record.identity);
@@ -206,11 +207,14 @@ async function persistMedia(
  * documental. Sin candidato pertinente y único → carencia explícita.
  */
 async function resolveStockAnchored(shot: AllocatedShot, deps: ShotExecutionDeps, preferVideo: boolean): Promise<MediaOutcome | GapOutcome | null> {
-  const cached = await reuseCompleted(deps, shot.id, "stock");
+  const visual = shot.anchoredVisual ?? { description: shot.visualIntent, motion: false };
+  // A retry must not keep stock picked under older, looser relevance rules (free to re-select): a stored
+  // keyword match whose provider text no longer passes for this scene is searched again.
+  const cached = await reuseCompleted(deps, shot.id, "stock", (selection) =>
+    selection?.relevance !== "keyword_match" || !selection.candidateDescription || assessRelevance(visual, selection.candidateDescription).relevance === "keyword_match");
   if (cached) return cached;
   if (deps.replayOnly) return null;
   if (!deps.registry) throw new Error("visualPipeline anchored_v1 requiere un DocumentAssetRegistry");
-  const visual = shot.anchoredVisual ?? { description: shot.visualIntent, motion: false };
   const outcome = await selectStockForShot(
     // Margen: el corte puede desplazarse hasta ±0.6 s al alinearse con la voz y un fundido añade cola.
     { shotId: shot.id, visual, preferVideo, minDurationSec: shot.durationSec + STOCK_CLIP_MARGIN_SEC },
