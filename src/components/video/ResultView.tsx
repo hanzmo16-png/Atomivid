@@ -12,6 +12,7 @@ import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
 import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
 import { isRenderStale } from "@/lib/video/render-guard";
 import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
+import { requiresSupport } from "@/lib/video/start-outcome";
 import {
   LANGUAGE_LABEL,
   STATUS_LABEL,
@@ -57,6 +58,8 @@ export function ResultView({
   const stalled = isRenderStale(request, nowMs);
   const longFormRetry = isLongForm && Boolean(request.long_form_confirmed_at) && request.render_attempts < MAX_RENDER_ATTEMPTS
     && (request.status === "failed" || stalled);
+  // A failure only an operator can fix (configuration, credentials, dispatch target): no immediate retry invitation.
+  const needsSupport = request.status === "failed" && Boolean(request.error_message) && requiresSupport(renderFailureMessage(request.error_message!));
   const isLandscape = request.aspect_ratio === "16:9";
   const stageLabel = isLongForm
     ? request.long_form_stage &&
@@ -148,11 +151,13 @@ export function ResultView({
         {longFormRetry && (
           <div className="mt-4 flex flex-col items-center gap-2 text-center">
             <p className="text-sm text-ink-muted">
-              {request.status === "failed" ? "Puedes reintentar la misma producción." : "La producción dejó de dar señales de avance."}{" "}
+              {needsSupport
+                ? "Repetir ahora no lo resolverá. Cuando el soporte confirme que el problema está resuelto, podrás reintentar la misma producción aquí."
+                : request.status === "failed" ? "Puedes reintentar la misma producción." : "La producción dejó de dar señales de avance."}{" "}
               Se reutiliza lo que ya quedó guardado de este plan; lo que falte puede tener un costo nuevo, siempre dentro
               del límite confirmado. Cada reintento usa uno de los intentos disponibles.
             </p>
-            <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Reintentar" />
+            <GenerateButton endpoint={`/api/generate/${request.id}/render`} label={needsSupport ? "Reintentar tras confirmarlo con soporte" : "Reintentar"} />
           </div>
         )}
         {isLongForm && request.status === "failed" && request.render_attempts >= MAX_RENDER_ATTEMPTS && (

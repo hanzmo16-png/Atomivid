@@ -9,6 +9,7 @@ import { ensureJobSupplyReady, START_SUPPLY_UNAVAILABLE } from "@/lib/supply/rea
 import { supplyGuardRequired } from "@/lib/supply/server";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { NextResponse } from "next/server";
+import { requiresSupport, type StartOutcome } from "@/lib/video/start-outcome";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { createClient } from "@/lib/supabase/server";
@@ -187,6 +188,8 @@ export async function POST(
 
     // Resolved BEFORE reserving: a missing worker configuration must not leave a held reservation behind.
     const worker = getRenderWorker();
+    // Before the reservation nothing ran or was held: the request is unchanged and can be started again.
+    const nothingReserved: StartOutcome = { retry: "available", charge: "none_proven", status: videoRequest.status, attempts: videoRequest.render_attempts };
     try {
       const demands = jobSupplyDemands(videoRequest, videoRequest.mode === "long_form"
         ? videoRequest.long_form_production_plan?.providers.voice ?? "unconfigured"
@@ -199,13 +202,13 @@ export async function POST(
           // Actionable: which provider, how much is missing and what to top up (nothing was reserved or charged).
           const failing = readiness.providers.find((r) => !r.ok);
           const action = failing ? providerCheck(failing, demands.find((d) => d.provider === failing.provider)?.unit ?? "usd").action : null;
-          return NextResponse.json({ error: action ? `${START_SUPPLY_UNAVAILABLE} ${action}` : START_SUPPLY_UNAVAILABLE }, { status: 503, headers: { "Retry-After": "300" } });
+          return NextResponse.json({ error: action ? `${START_SUPPLY_UNAVAILABLE} ${action}` : START_SUPPLY_UNAVAILABLE, outcome: nothingReserved }, { status: 503, headers: { "Retry-After": "300" } });
         }
       }
       await reserveJobSupply(service, id, videoRequest.render_attempts + 1, demands);
     } catch (error) {
       // Nothing was reserved, queued or charged; the request is unchanged and can be started again.
-      if (error instanceof SupplyUnavailableError) return NextResponse.json({ error: START_SUPPLY_UNAVAILABLE }, { status: 503, headers: { "Retry-After": "300" } });
+      if (error instanceof SupplyUnavailableError) return NextResponse.json({ error: START_SUPPLY_UNAVAILABLE, outcome: nothingReserved }, { status: 503, headers: { "Retry-After": "300" } });
       throw error;
     }
 
@@ -261,6 +264,8 @@ export async function POST(
       const diagnosticId = generateDiagnosticId();
       logRenderError(`POST /render (worker: ${worker.name})`, error, diagnosticId);
       const message = classifyRenderError(error, diagnosticId);
+      // Zero charge is claimed only when this attempt provably never ran AND its reservation was released.
+      const outcome: StartOutcome = { retry: requiresSupport(message) ? "support" : "available", charge: "unknown", status: "processing", attempts: videoRequest.render_attempts + 1 };
 
       // El mensaje ya clasificado del fallo del worker es lo único que
       // debe llegar al cliente — si esta actualización de estado (o la
@@ -279,9 +284,14 @@ export async function POST(
         if (failUpdateError) {
           logRenderError("POST /render (restaurar estado a failed)", failUpdateError, diagnosticId);
         } else if (failed?.length === 1) {
+          outcome.status = "failed";
           // The attempt provably never started (still queued, now failed): free its reservation.
           // Never on a lost CAS or an uncertain update: a concurrent winner shares the same reservation key.
-          await releaseUnusedJobSupply(service, id, videoRequest.render_attempts + 1).catch(() => logRenderError("POST /render (liberar reserva)", new Error("release unconfirmed"), diagnosticId));
+          const released = await releaseUnusedJobSupply(service, id, videoRequest.render_attempts + 1).then(() => true, () => {
+            logRenderError("POST /render (liberar reserva)", new Error("release unconfirmed"), diagnosticId);
+            return false;
+          });
+          if (released) outcome.charge = "none_proven";
         }
       } catch (restoreError) {
         logRenderError(
@@ -291,7 +301,7 @@ export async function POST(
         );
       }
 
-      return NextResponse.json({ error: message }, { status: 500 });
+      return NextResponse.json({ error: message, outcome }, { status: 500 });
     }
 
     return NextResponse.json({ status: "processing", worker: worker.name });

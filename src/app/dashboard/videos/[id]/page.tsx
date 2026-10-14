@@ -99,7 +99,7 @@ export default async function VideoResultPage({
   return (
     <div className="mx-auto max-w-md">
       <AutoRefresh active={request.status === "processing"} />
-      <StartErrorNotice requestId={request.id} status={request.status} retryAvailable={request.render_attempts < MAX_RENDER_ATTEMPTS} />
+      <StartErrorNotice requestId={request.id} status={request.status} attempts={request.render_attempts} retryAvailable={request.render_attempts < MAX_RENDER_ATTEMPTS} />
       <ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} thumbnailRequested={thumbnailRequested} nowMs={nowMs} avatarRecovery={avatarRecovery} />
       {directorRows && directorRows.length > 0 && <DirectorAppliedPanel rows={directorRows} />}
     </div>
