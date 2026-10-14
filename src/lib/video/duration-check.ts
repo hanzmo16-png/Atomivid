@@ -46,9 +46,22 @@ export function formatDurationWarning(result: DurationCheckResult): string {
   );
 }
 
+/** Both voice calls have finished and been recorded before this error is raised. */
+export class NarrationDurationError extends Error {
+  constructor(readonly targetSeconds: number, readonly actualSeconds: number) {
+    super(`La narración dura ${actualSeconds.toFixed(2)} s para un objetivo de ${targetSeconds} s. Ajusta el guion antes de otro intento; no se exportó un video fuera de duración.`);
+    this.name = "NarrationDurationError";
+  }
+}
+
+/** Only this completed, pre-footage Reel check can reopen the existing script. */
+export function needsNarrationEdit(error: unknown, mode: string): boolean {
+  return mode === "visual" && error instanceof NarrationDurationError;
+}
+
 /** Stops before footage/render; never stretches audio or silently regenerates TTS. */
 export function assertNarrationDuration(targetSeconds: number, actualSeconds: number): void {
   if (!Number.isFinite(targetSeconds) || targetSeconds <= 0 || !Number.isFinite(actualSeconds) || actualSeconds <= 0) throw new Error("Duración de narración inválida.");
   const result = checkDuration(targetSeconds, actualSeconds);
-  if (!result.withinTolerance) throw new Error(`La narración dura ${actualSeconds.toFixed(2)} s para un objetivo de ${targetSeconds} s. Ajusta el guion antes de otro intento; no se exportó un video fuera de duración.`);
+  if (!result.withinTolerance) throw new NarrationDurationError(targetSeconds, actualSeconds);
 }

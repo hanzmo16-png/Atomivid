@@ -47,6 +47,7 @@ export function ScriptReview({
   const router = useRouter();
   const [script, setScript] = useState(initialScript);
   const [dirty, setDirty] = useState(false);
+  const [recoveryNotice, setRecoveryNotice] = useState(errorMessage);
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -80,6 +81,7 @@ export function ScriptReview({
       const result = await safeParseJsonResponse(res);
       if (!result.ok) throw new Error(result.error);
       setDirty(false);
+      setRecoveryNotice(null);
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
@@ -166,6 +168,9 @@ export function ScriptReview({
 
   return (
     <div className="mt-6">
+      {status === "script_ready" && recoveryNotice && (
+        <Alert tone="info">{recoveryNotice} Puedes ajustar el texto aquí y guardar los cambios antes de producirlo de nuevo.</Alert>
+      )}
       {!canGenerate && (
         <Alert tone={status === "failed" ? "danger" : "info"}>
           {status === "processing" &&
@@ -294,6 +299,9 @@ export function ScriptReview({
 
       {!canGenerate && (
         <div className="mt-6">
+      {status === "script_ready" && recoveryNotice && (
+        <Alert tone="info">{recoveryNotice} Puedes ajustar el texto aquí y guardar los cambios antes de producirlo de nuevo.</Alert>
+      )}
           <LinkButton href="/dashboard">Volver al historial</LinkButton>
         </div>
       )}

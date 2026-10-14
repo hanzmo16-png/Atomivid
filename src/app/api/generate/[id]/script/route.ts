@@ -221,7 +221,7 @@ export async function PATCH(
 
   const service = createServiceClient();
   try {
-    await persistScriptChange(service, videoRequest, { script_json: body });
+    await persistScriptChange(service, videoRequest, { script_json: body, error_message: null });
   } catch (error) {
     if (error instanceof ScriptPersistenceError) return NextResponse.json({ error: error.message }, { status: error.status });
     throw error;
