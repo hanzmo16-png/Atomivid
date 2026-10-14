@@ -1,3 +1,4 @@
+import { needsNarrationEdit } from "./duration-check";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { editorialApprovalError } from "./long-form/editorial";
 import { jobSupplyDemands, reserveJobSupply, releaseUnusedJobSupply } from "@/lib/supply/job";
@@ -273,7 +274,12 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
 
     // Typed action stored with the text: a configuration failure needs support, not an immediate retry.
     const action = configError || error instanceof ProviderConfigurationError ? "support" : "retry";
-    await update({ status: "failed", error_message: encodeStoredFailure(message, action), progress_stage: null, long_form_stage: null, long_form_progress: null });
+    // A measured duration mismatch happens before footage/render and after the
+    // voice ledger is settled. Reopen editing; retain attempts and paid history.
+    const editNarration = needsNarrationEdit(error, mode);
+    const failed = await update({ status: editNarration ? "script_ready" : "failed", error_message: encodeStoredFailure(message, action), progress_stage: null, long_form_stage: null, long_form_progress: null }).select("id").maybeSingle();
+    if (failed.error || !failed.data) throw new Error("No se pudo guardar el resultado del intento.");
+    if (editNarration) return;
 
     throw error;
   }

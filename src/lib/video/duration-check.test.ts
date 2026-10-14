@@ -47,3 +47,17 @@ test("production regression: both observed off-target narrations must stop befor
   for (const seconds of [33.76, 21.589, NaN, Infinity, 0]) assert.throws(() => assertNarrationDuration(30, seconds));
   assert.doesNotThrow(() => assertNarrationDuration(30, 30));
 });
+
+
+test("measured Reel duration failures reopen editing, but uncertainty and other modes do not", async () => {
+  const { assertNarrationDuration, needsNarrationEdit, NarrationDurationError } = await import("./duration-check");
+  let measured: unknown;
+  try { assertNarrationDuration(30, 24.01); } catch (e) { measured = e; }
+  assert.ok(measured instanceof NarrationDurationError);
+  assert.equal(needsNarrationEdit(measured, "visual"), true);
+  assert.equal(needsNarrationEdit(measured, "avatar"), false);
+  assert.equal(needsNarrationEdit(measured, "long_form"), false);
+  assert.equal(needsNarrationEdit(new Error(measured.message), "visual"), false);
+  assert.equal(needsNarrationEdit(new Error("provider outcome uncertain"), "visual"), false);
+  try { assertNarrationDuration(30, NaN); } catch (e) { assert.equal(needsNarrationEdit(e, "visual"), false); }
+});
