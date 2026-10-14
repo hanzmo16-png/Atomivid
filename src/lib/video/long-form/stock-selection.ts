@@ -54,8 +54,36 @@ export type RelevanceAssessment = {
   conflicts: string[];
 };
 
+/**
+ * Plural/-ing folding only. Never strips "-er": it turned "crater" and "crates"
+ * into the same stem ("crat"), so wooden crates matched a lunar crater.
+ */
 function stem(word: string): string {
-  return word.replace(/(ing|ers|er|es|s)$/i, "");
+  if (/ing$/.test(word) && word.length > 5) return word.slice(0, -3);
+  if (/ies$/.test(word) && word.length > 4) return `${word.slice(0, -3)}y`;
+  if (/(ss|us|is)$/.test(word)) return word;
+  if (/(ches|shes|xes|zes|sses)$/.test(word)) return word.slice(0, -2);
+  if (/s$/.test(word) && word.length > 3) return word.slice(0, -1);
+  return word;
+}
+
+/** Adjective ↔ noun forms providers use interchangeably ("lunar crater" ↔ "crater on the moon"). */
+const EQUIVALENT_TERMS: Record<string, string[]> = {
+  lunar: ["moon"], moon: ["lunar"], solar: ["sun"], sun: ["solar"], martian: ["mars"], mars: ["martian"],
+  terrestrial: ["earth"], stellar: ["star"], star: ["stellar"],
+};
+
+/** Scenes set off Earth (Moon, space, planets): their footage must not show an Earth-bound or festive context. */
+// Only terms that place the scene itself off Earth; "meteorite" or "telescope" scenes can legitimately be on Earth.
+const CELESTIAL_TERMS = ["moon", "lunar", "outer space", "planet", "mars", "martian", "orbit", "astronaut", "apollo", "spacecraft", "galaxy"];
+const EARTHBOUND_CONTEXT = [
+  "volcano", "volcanic", "lake", "lagoon", "beach", "forest", "jungle", "desert road", "hiking", "hiker", "tourist", "tourists", "arizona", "hawaii", "iceland",
+  "oregon", "crater lake", "new year", "festival", "lantern", "lanterns", "celebration", "firework", "fireworks", "restaurant", "wedding",
+];
+
+function isCelestialScene(visual: BeatVisual): boolean {
+  const text = [visual.subject, visual.place, visual.description].filter(Boolean).join(" ").toLowerCase();
+  return CELESTIAL_TERMS.some((t) => new RegExp(`\\b${t}\\b`).test(text));
 }
 
 export function englishTerms(text: string | undefined): string[] {
@@ -85,6 +113,9 @@ export function assessRelevance(visual: BeatVisual, candidateText: string | unde
   if (isHistoricalEra(visual.era)) {
     for (const marker of MODERN_MARKERS) if (new RegExp(`\\b${marker}\\b`).test(text)) conflicts.push(`época: "${marker}"`);
   }
+  if (isCelestialScene(visual)) {
+    for (const marker of EARTHBOUND_CONTEXT) if (new RegExp(`\\b${marker}\\b`).test(text)) conflicts.push(`contexto terrestre: "${marker}"`);
+  }
   const place = visual.place?.toLowerCase();
   if (place) {
     for (const other of KNOWN_PLACES) {
@@ -106,7 +137,16 @@ export function assessRelevance(visual: BeatVisual, candidateText: string | unde
   weigh(englishTerms(visual.action), 2);
   weigh(englishTerms(visual.place), 2);
   weigh(englishTerms(visual.description), 1);
-  const hasCore = subject.length > 0 ? subject.some((t) => candidate.has(t)) : matched.length > 0;
+  // Every subject term (1-3 words) must appear, or an equivalent form: "lunar crater" needs both, so a
+  // volcanic crater or a Lunar New Year photo no longer passes on one shared word.
+  const present = (t: string) => candidate.has(t) || (EQUIVALENT_TERMS[t] ?? []).some((e) => candidate.has(e));
+  for (const t of subject) {
+    if (!candidate.has(t) && present(t) && !matched.includes(t)) {
+      matched.push(t);
+      score += 3;
+    }
+  }
+  const hasCore = subject.length > 0 ? subject.every(present) : matched.length > 0;
   const relevance: Relevance = conflicts.length === 0 && hasCore && score >= 2 ? "keyword_match" : "irrelevant";
   return { relevance, score, matchedTerms: matched, conflicts };
 }
