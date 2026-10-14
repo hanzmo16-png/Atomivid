@@ -10,13 +10,6 @@ export type StartRetry = "available" | "support";
 export type StartCharge = "none_proven" | "unknown";
 export type StartOutcome = { retry: StartRetry; charge: StartCharge; status: string; attempts: number };
 
-/** Every message that sends the customer to support says so with this phrase (render-error, customer-error). */
-export const SUPPORT_REQUIRED_PHRASE = "Contacta al soporte";
-
-export function requiresSupport(message: string | null | undefined): boolean {
-  return Boolean(message && message.includes(SUPPORT_REQUIRED_PHRASE));
-}
-
 export function parseStartOutcome(value: unknown): StartOutcome | null {
   const v = value as Partial<StartOutcome> | null;
   if (!v || typeof v !== "object") return null;
@@ -31,21 +24,28 @@ export const CHARGE_UNKNOWN = "Tu solicitud y el plan confirmado siguen guardado
 
 /**
  * The single next step for a failed start, for the request's CURRENT state. null = nothing to say (stale or
- * the page shows another state). Without a server outcome (network error, unreadable reply) the charge is unknown.
+ * the page shows another state). Decided only by the typed outcome, never by the message wording. Without a
+ * server outcome (network error, unreadable reply) the charge is unknown; support then comes only from the
+ * action stored with the request's failure (`supportRequired`).
  */
 export function startNoticeText(
-  current: { status: string; attempts: number; retryAvailable: boolean },
-  message: string,
+  current: { status: string; attempts: number; retryAvailable: boolean; supportRequired?: boolean },
   outcome: StartOutcome | null,
 ): string | null {
   if (outcome && (outcome.status !== current.status || outcome.attempts !== current.attempts)) return null;
   if (current.status !== "script_ready" && current.status !== "failed") return null;
   const charge = outcome?.charge === "none_proven" ? NO_CHARGE_PROVEN : CHARGE_UNKNOWN;
-  if (outcome?.retry === "support" || requiresSupport(message)) {
+  // Either typed source: this start's outcome, or the action the server stored with the failure.
+  if (outcome?.retry === "support" || current.supportRequired) {
     return `${charge} Repetir ahora no lo resolverá: contacta al soporte con el código antes de volver a intentarlo.`;
   }
   if (current.status === "script_ready") return `${charge} Puedes volver a pulsar «Iniciar producción».`;
   return current.retryAvailable
     ? `${charge} Puedes volver a intentarlo con «Reintentar» (usa uno de los intentos disponibles).`
     : `${charge} Ya no quedan intentos para este plan.`;
+}
+
+/** The outcome still describes the request as it is now (same status and attempt). */
+export function outcomeApplies(outcome: StartOutcome | null, current: { status: string; attempts: number }): outcome is StartOutcome {
+  return Boolean(outcome && outcome.status === current.status && outcome.attempts === current.attempts);
 }

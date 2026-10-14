@@ -1,4 +1,5 @@
-import { StartErrorNotice } from "@/components/video/StartErrorNotice";
+import { StartErrorNotice, StartOutcomeProvider } from "@/components/video/StartErrorNotice";
+import { describeStoredFailure } from "@/lib/video/job-error";
 import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
 import { randomUUID } from "node:crypto";
 import { notFound, redirect } from "next/navigation";
@@ -99,8 +100,12 @@ export default async function VideoResultPage({
   return (
     <div className="mx-auto max-w-md">
       <AutoRefresh active={request.status === "processing"} />
-      <StartErrorNotice requestId={request.id} status={request.status} attempts={request.render_attempts} retryAvailable={request.render_attempts < MAX_RENDER_ATTEMPTS} />
-      <ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} thumbnailRequested={thumbnailRequested} nowMs={nowMs} avatarRecovery={avatarRecovery} />
+      {/* One typed outcome for the notice and every start/retry action on this page. */}
+      <StartOutcomeProvider requestId={request.id} status={request.status} attempts={request.render_attempts}>
+        <StartErrorNotice retryAvailable={request.render_attempts < MAX_RENDER_ATTEMPTS}
+          supportRequired={request.status === "failed" && Boolean(request.error_message) && describeStoredFailure(request.error_message!).action === "support"} />
+        <ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} thumbnailRequested={thumbnailRequested} nowMs={nowMs} avatarRecovery={avatarRecovery} />
+      </StartOutcomeProvider>
       {directorRows && directorRows.length > 0 && <DirectorAppliedPanel rows={directorRows} />}
     </div>
   );

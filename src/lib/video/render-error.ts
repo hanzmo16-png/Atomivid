@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { MissingEnvVarError, InvalidEnvVarError } from "@/lib/env-errors";
 import { GitHubWorkerDispatchError, GitHubWorkerNetworkError } from "@/lib/worker/github-actions";
 import { isServiceConfigurationError, SERVICE_CONFIGURATION_MESSAGE } from "./customer-error";
+import type { FailureAction } from "./failure-action";
 
 /**
  * Mismo principio que src/lib/video/script-error.ts y
@@ -50,6 +51,21 @@ const STAGE_MESSAGES: Record<RenderStage, string> = {
 };
 
 export function classifyRenderError(error: unknown, diagnosticId: string): string {
+  return classifyRenderFailure(error, diagnosticId).message;
+}
+
+/**
+ * Same message plus the typed action, decided by the error's type: configuration and credential/target
+ * rejections (HTTP 401/403/404/422) need an operator; everything else can be retried.
+ */
+export function classifyRenderFailure(error: unknown, diagnosticId: string): { message: string; action: FailureAction } {
+  const message = renderErrorMessage(error, diagnosticId);
+  const support = error instanceof MissingEnvVarError || error instanceof InvalidEnvVarError || isServiceConfigurationError(error)
+    || (error instanceof GitHubWorkerDispatchError && [401, 403, 404, 422].includes(error.status));
+  return { message, action: support ? "support" : "retry" };
+}
+
+function renderErrorMessage(error: unknown, diagnosticId: string): string {
   if (error instanceof RenderStageError) {
     return `${STAGE_MESSAGES[error.stage]} Intenta de nuevo en un momento. (Código: ${diagnosticId})`;
   }

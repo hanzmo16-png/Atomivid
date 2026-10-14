@@ -12,7 +12,8 @@ import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
 import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
 import { isRenderStale } from "@/lib/video/render-guard";
 import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
-import { requiresSupport } from "@/lib/video/start-outcome";
+import { describeStoredFailure } from "@/lib/video/job-error";
+import { StartActionGate, SUPPORT_HOLD_TEXT } from "./StartErrorNotice";
 import {
   LANGUAGE_LABEL,
   STATUS_LABEL,
@@ -59,7 +60,9 @@ export function ResultView({
   const longFormRetry = isLongForm && Boolean(request.long_form_confirmed_at) && request.render_attempts < MAX_RENDER_ATTEMPTS
     && (request.status === "failed" || stalled);
   // A failure only an operator can fix (configuration, credentials, dispatch target): no immediate retry invitation.
-  const needsSupport = request.status === "failed" && Boolean(request.error_message) && requiresSupport(renderFailureMessage(request.error_message!));
+  // Typed action stored by the server with the failure (failure-action.ts), never read from the wording.
+  const needsSupport = request.status === "failed" && Boolean(request.error_message)
+    && describeStoredFailure(request.error_message!).action === "support";
   const isLandscape = request.aspect_ratio === "16:9";
   const stageLabel = isLongForm
     ? request.long_form_stage &&
@@ -95,8 +98,10 @@ export function ResultView({
           // Confirmed plan: the same explicit start the history card offers.
           // Nothing starts until the owner presses it (render route re-checks).
           <div className="mt-4 flex flex-col items-center gap-2 text-center">
-            <p className="text-sm text-ink-muted">Producción confirmada. El video se genera solo cuando pulses «Iniciar producción».</p>
-            <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Iniciar producción" />
+            <StartActionGate>
+              <p className="text-sm text-ink-muted">Producción confirmada. El video se genera solo cuando pulses «Iniciar producción».</p>
+              <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Iniciar producción" />
+            </StartActionGate>
           </div>
         )) : (
           <div className="mt-4 flex justify-center">
@@ -148,18 +153,21 @@ export function ResultView({
             {request.error_message && <p className="mt-1">{renderFailureMessage(request.error_message)}</p>}
           </Alert>
         )}
-        {longFormRetry && (
+        {longFormRetry && (needsSupport ? (
+          // Only an operator can fix this cause: no retry is offered until support resolves it.
+          <p role="status" className="mt-4 text-center text-sm text-ink-muted">{SUPPORT_HOLD_TEXT}</p>
+        ) : (
           <div className="mt-4 flex flex-col items-center gap-2 text-center">
-            <p className="text-sm text-ink-muted">
-              {needsSupport
-                ? "Repetir ahora no lo resolverá. Cuando el soporte confirme que el problema está resuelto, podrás reintentar la misma producción aquí."
-                : request.status === "failed" ? "Puedes reintentar la misma producción." : "La producción dejó de dar señales de avance."}{" "}
-              Se reutiliza lo que ya quedó guardado de este plan; lo que falte puede tener un costo nuevo, siempre dentro
-              del límite confirmado. Cada reintento usa uno de los intentos disponibles.
-            </p>
-            <GenerateButton endpoint={`/api/generate/${request.id}/render`} label={needsSupport ? "Reintentar tras confirmarlo con soporte" : "Reintentar"} />
+            <StartActionGate>
+              <p className="text-sm text-ink-muted">
+                {request.status === "failed" ? "Puedes reintentar la misma producción." : "La producción dejó de dar señales de avance."}{" "}
+                Se reutiliza lo que ya quedó guardado de este plan; lo que falte puede tener un costo nuevo, siempre dentro
+                del límite confirmado. Cada reintento usa uno de los intentos disponibles.
+              </p>
+              <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Reintentar" />
+            </StartActionGate>
           </div>
-        )}
+        ))}
         {isLongForm && request.status === "failed" && request.render_attempts >= MAX_RENDER_ATTEMPTS && (
           <p role="status" className="mt-3 text-center text-sm text-ink-muted">Se alcanzó el máximo de intentos. Crea un documental nuevo.</p>
         )}

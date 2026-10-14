@@ -9,7 +9,9 @@ import { ensureJobSupplyReady, START_SUPPLY_UNAVAILABLE } from "@/lib/supply/rea
 import { supplyGuardRequired } from "@/lib/supply/server";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { NextResponse } from "next/server";
-import { requiresSupport, type StartOutcome } from "@/lib/video/start-outcome";
+import type { StartOutcome } from "@/lib/video/start-outcome";
+import { preReservationFailure } from "@/lib/video/start-failure";
+import { encodeStoredFailure } from "@/lib/video/failure-action";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { createClient } from "@/lib/supabase/server";
@@ -20,6 +22,7 @@ import { loadAvatarRecovery } from "@/lib/video/avatar/recovery";
 import { evaluateRenderStart } from "@/lib/video/render-guard";
 import {
   classifyRenderError,
+  classifyRenderFailure,
   generateDiagnosticId,
   logRenderError,
   RenderStageError,
@@ -186,10 +189,16 @@ export async function POST(
       if (!visual.ready) return NextResponse.json({ error: visualBlockMessage(visual) }, { status: 409 });
     }
 
-    // Resolved BEFORE reserving: a missing worker configuration must not leave a held reservation behind.
-    const worker = getRenderWorker();
-    // Before the reservation nothing ran or was held: the request is unchanged and can be started again.
+    // Before the reservation nothing ran or was held: the request is unchanged (same status and attempts).
     const nothingReserved: StartOutcome = { retry: "available", charge: "none_proven", status: videoRequest.status, attempts: videoRequest.render_attempts };
+    // Resolved BEFORE reserving: a missing worker configuration must not leave a held reservation behind.
+    let worker: ReturnType<typeof getRenderWorker>;
+    try {
+      worker = getRenderWorker();
+    } catch (error) {
+      const failure = preReservationFailure(error, nothingReserved);
+      return NextResponse.json(failure.body, { status: failure.status });
+    }
     try {
       const demands = jobSupplyDemands(videoRequest, videoRequest.mode === "long_form"
         ? videoRequest.long_form_production_plan?.providers.voice ?? "unconfigured"
@@ -263,9 +272,9 @@ export async function POST(
     } catch (error) {
       const diagnosticId = generateDiagnosticId();
       logRenderError(`POST /render (worker: ${worker.name})`, error, diagnosticId);
-      const message = classifyRenderError(error, diagnosticId);
+      const { message, action } = classifyRenderFailure(error, diagnosticId);
       // Zero charge is claimed only when this attempt provably never ran AND its reservation was released.
-      const outcome: StartOutcome = { retry: requiresSupport(message) ? "support" : "available", charge: "unknown", status: "processing", attempts: videoRequest.render_attempts + 1 };
+      const outcome: StartOutcome = { retry: action === "support" ? "support" : "available", charge: "unknown", status: "processing", attempts: videoRequest.render_attempts + 1 };
 
       // El mensaje ya clasificado del fallo del worker es lo único que
       // debe llegar al cliente — si esta actualización de estado (o la
@@ -275,7 +284,7 @@ export async function POST(
       try {
         const { data: failed, error: failUpdateError } = await service
           .from("video_requests")
-          .update({ status: "failed", error_message: message, progress_stage: null })
+          .update({ status: "failed", error_message: encodeStoredFailure(message, action), progress_stage: null })
           .eq("id", id)
           .eq("status", "processing")
           .eq("render_attempts", videoRequest.render_attempts + 1)

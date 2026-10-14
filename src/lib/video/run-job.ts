@@ -24,6 +24,7 @@ import { generateDiagnosticId } from "./render-error";
 import { ProviderConfigurationError } from "@/lib/providers/production";
 import { isCustomerSafeError } from "./long-form/output-policy";
 import { isServiceConfigurationError, scrubInternalNames, SERVICE_CONFIGURATION_MESSAGE } from "./customer-error";
+import { encodeStoredFailure } from "./failure-action";
 
 /** Rutas internas de Storage (`<uuid>/...`) nunca llegan al mensaje visible de Long Form. */
 export function scrubInternalPaths(message: string): string {
@@ -270,7 +271,9 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
       );
     }
 
-    await update({ status: "failed", error_message: message, progress_stage: null, long_form_stage: null, long_form_progress: null });
+    // Typed action stored with the text: a configuration failure needs support, not an immediate retry.
+    const action = configError || error instanceof ProviderConfigurationError ? "support" : "retry";
+    await update({ status: "failed", error_message: encodeStoredFailure(message, action), progress_stage: null, long_form_stage: null, long_form_progress: null });
 
     throw error;
   }
