@@ -99,8 +99,10 @@ test("LongFormRealProviderMissingError nombra la etapa y la variable de entorno 
 });
 
 test("resolveLongFormProviders('real') con TODAS las credenciales reales presentes SÍ delega en los proveedores reales, sin lanzar", () => {
-  const keys = ["VOICE_PROVIDER", "ELEVENLABS_API_KEY", "FOOTAGE_PROVIDER", "PEXELS_API_KEY", "IMAGE_PROVIDER", "OPENAI_API_KEY"] as const;
+  const keys = ["VOICE_PROVIDER", "ELEVENLABS_API_KEY", "FOOTAGE_PROVIDER", "PEXELS_API_KEY", "IMAGE_PROVIDER", "OPENAI_API_KEY", "MUSIC_PROVIDER"] as const;
   const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  // Isolated from the caller's environment (CI forces MUSIC_PROVIDER=fixture): music falls back to its real default.
+  delete process.env.MUSIC_PROVIDER;
   process.env.VOICE_PROVIDER = "elevenlabs";
   process.env.ELEVENLABS_API_KEY = "fake-key-solo-para-resolver-el-proveedor";
   process.env.FOOTAGE_PROVIDER = "pexels";
