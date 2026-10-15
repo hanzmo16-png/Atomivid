@@ -5,7 +5,7 @@ on:
     branches: [claude/atomivid-mvp-setup-0079jv]
     paths:
       - 'scripts/**'
-      - 'src/lib/**'
+      - 'src/**'
       - 'remotion/**'
       - 'package*.json'
       - '.github/workflows/e2e-fixture-evidence.yml'
