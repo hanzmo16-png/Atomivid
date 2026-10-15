@@ -1,4 +1,6 @@
-import { StartErrorNotice } from "@/components/video/StartErrorNotice";
+import { StartErrorNotice, StartOutcomeProvider } from "@/components/video/StartErrorNotice";
+import { describeStoredFailure } from "@/lib/video/job-error";
+import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
 import { randomUUID } from "node:crypto";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -11,6 +13,9 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { loadAvatarRecovery } from "@/lib/video/avatar/recovery";
 import { Alert } from "@/components/ui/Alert";
 import { AutoRefresh } from "@/app/dashboard/AutoRefresh";
+import { cinematicDirectorRenderEnabled } from "@/lib/video/director/flag";
+import { loadDirectorApplied } from "@/lib/video/director-applied";
+import { DirectorAppliedPanel } from "@/components/video/DirectorAppliedPanel";
 
 export default async function VideoResultPage({
   params,
@@ -88,11 +93,20 @@ export default async function VideoResultPage({
     ? await loadAvatarRecovery(createServiceClient(), request.id, { status: request.status, render_attempts: request.render_attempts,
         avatar_provider_video_job_id: request.avatar_provider_video_job_id ?? null, video_path: request.video_path })
     : undefined;
+  // Director (only with CINEMATIC_DIRECTOR_RENDER_ENABLED): which recipe was applied to each shot of this video.
+  const directorRows = cinematicDirectorRenderEnabled() && request.status === "completed" && request.video_path && request.mode !== "long_form" && request.mode !== "avatar"
+    ? await loadDirectorApplied(createServiceClient(), request.video_path)
+    : null;
   return (
     <div className="mx-auto max-w-md">
       <AutoRefresh active={request.status === "processing"} />
-      <StartErrorNotice requestId={request.id} />
-      <ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} thumbnailRequested={thumbnailRequested} nowMs={nowMs} avatarRecovery={avatarRecovery} />
+      {/* One typed outcome for the notice and every start/retry action on this page. */}
+      <StartOutcomeProvider requestId={request.id} status={request.status} attempts={request.render_attempts}>
+        <StartErrorNotice retryAvailable={request.render_attempts < MAX_RENDER_ATTEMPTS}
+          supportRequired={request.status === "failed" && Boolean(request.error_message) && describeStoredFailure(request.error_message!).action === "support"} />
+        <ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} thumbnailRequested={thumbnailRequested} nowMs={nowMs} avatarRecovery={avatarRecovery} />
+      </StartOutcomeProvider>
+      {directorRows && directorRows.length > 0 && <DirectorAppliedPanel rows={directorRows} />}
     </div>
   );
 }

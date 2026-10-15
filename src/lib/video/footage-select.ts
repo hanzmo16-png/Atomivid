@@ -1,5 +1,6 @@
 import type { FootageCandidate, FootageProvider, FootageResult } from "@/lib/providers/types";
 import { MIN_ACCEPTABLE_SCORE, scoreCandidate, type ScoredCandidate } from "./footage-score";
+import { assessOpeningRelevance, openingFallbackQuery, OpeningFootageUnavailableError, type OpeningRelevance } from "./opening-relevance";
 
 /**
  * Selector de footage con candidatos múltiples, puntuación y
@@ -35,6 +36,9 @@ export type FootageSelectionOutcome = {
   queryUsed: string;
   conceptTier: number;
   candidatesConsidered: number;
+  openingRelevance?: OpeningRelevance;
+  providerDescription?: string;
+  providerPageUrl?: string;
 };
 
 export class FootageSelectionError extends Error {
@@ -53,13 +57,14 @@ export function buildFallbackQuery(primaryConcept: string): string {
   return words.slice(0, Math.min(2, words.length)).join(" ");
 }
 
-type TieredScoredCandidate = ScoredCandidate & { tier: number; query: string };
+type TieredScoredCandidate = ScoredCandidate & { tier: number; query: string; openingRelevance?: OpeningRelevance };
 
 async function collectScored(
   concepts: string[],
   search: (query: string, tier: number) => Promise<FootageCandidate[]>,
   minimumDurationSeconds: number,
   state: FootageSelectionState,
+  opening?: { concepts: string[]; excludedTerms: string[] },
 ): Promise<{ scored: TieredScoredCandidate[]; totalCandidates: number }> {
   const scored: TieredScoredCandidate[] = [];
   let totalCandidates = 0;
@@ -71,12 +76,15 @@ async function collectScored(
 
     for (const candidate of candidates) {
       if (state.usedSourceIds.has(candidate.sourceId)) continue; // nunca reutilizar el mismo clip
+      const openingRelevance = opening ? assessOpeningRelevance(candidate, opening.concepts, opening.excludedTerms) : undefined;
+      if (openingRelevance && !openingRelevance.accepted) continue;
       const result = scoreCandidate(candidate, {
         conceptTier: tier,
         photographerUseCount: state.photographerUseCount,
         minimumDurationSeconds,
       });
-      scored.push({ ...result, tier, query });
+      if (openingRelevance) result.reasons.push(openingRelevance.reason);
+      scored.push({ ...result, tier, query, openingRelevance });
     }
   }
 
@@ -84,7 +92,8 @@ async function collectScored(
 }
 
 function rankTiered(scored: TieredScoredCandidate[]): TieredScoredCandidate[] {
-  return [...scored].sort((a, b) => b.score - a.score);
+  return [...scored].sort((a, b) =>
+    (b.openingRelevance?.matchedTerms.length ?? 0) - (a.openingRelevance?.matchedTerms.length ?? 0) || b.score - a.score);
 }
 
 function commit(
@@ -106,8 +115,11 @@ function commit(
     reason: best.reasons.join("; ") + ` (score=${best.score})`,
     usedFallbackQuery,
     queryUsed: best.query,
+    providerDescription: best.candidate.description,
+    providerPageUrl: best.candidate.pageUrl,
     conceptTier: best.tier,
     candidatesConsidered,
+    ...(best.openingRelevance ? { openingRelevance: best.openingRelevance } : {}),
   };
 }
 
@@ -116,14 +128,19 @@ export async function selectFootageForScene({
   concepts,
   minimumDurationSeconds,
   state,
+  isOpening = false,
+  excludedTerms = [],
 }: {
   provider: FootageProvider;
   /** Ya debe incluir el concepto principal como primer elemento. */
   concepts: string[];
   minimumDurationSeconds: number;
   state: FootageSelectionState;
+  isOpening?: boolean;
+  excludedTerms?: string[];
 }): Promise<FootageSelectionOutcome> {
   const effectiveConcepts = concepts.length > 0 ? concepts : ["b-roll motivational"];
+  const opening = isOpening ? { concepts, excludedTerms } : undefined;
 
   const searchVideo = provider.searchVideoCandidates?.bind(provider);
   const searchImage = provider.searchImageCandidates?.bind(provider);
@@ -133,6 +150,7 @@ export async function selectFootageForScene({
   // sigue siendo válido para probar el pipeline sin Pexels, pero no
   // aplica ninguna de las mejoras de esta fase.
   if (!searchVideo && !searchImage) {
+    if (isOpening && provider.name !== "fixture") throw new OpeningFootageUnavailableError();
     const result = await provider.fetchFootage(effectiveConcepts[0], minimumDurationSeconds);
     const sourceId = `${provider.name}-${result.url}`;
     state.usedSourceIds.add(sourceId);
@@ -154,22 +172,24 @@ export async function selectFootageForScene({
       (query) => searchVideo(query, minimumDurationSeconds).then((c) => c ?? []),
       minimumDurationSeconds,
       state,
+      opening,
     );
-    const ranked = rankTiered(scored);
+    const ranked = rankTiered(isOpening ? scored.filter(c => c.score >= MIN_ACCEPTABLE_SCORE) : scored);
     const best = ranked[0];
     if (best && best.score >= MIN_ACCEPTABLE_SCORE) {
       return commit(best, state, false, totalCandidates);
     }
 
     // 2) Reformular el concepto principal y reintentar solo video, una vez.
-    const fallbackQuery = buildFallbackQuery(effectiveConcepts[0]);
+    const fallbackQuery = isOpening ? openingFallbackQuery(concepts) : buildFallbackQuery(effectiveConcepts[0]);
     const fallback = await collectScored(
-      [fallbackQuery],
+      fallbackQuery ? [fallbackQuery] : [],
       (query) => searchVideo(query, minimumDurationSeconds).then((c) => c ?? []),
       minimumDurationSeconds,
       state,
+      opening,
     );
-    const fallbackRanked = rankTiered(fallback.scored);
+    const fallbackRanked = rankTiered(isOpening ? fallback.scored.filter(c => c.score >= MIN_ACCEPTABLE_SCORE) : fallback.scored);
     const fallbackBest = fallbackRanked[0];
     if (fallbackBest && fallbackBest.score >= MIN_ACCEPTABLE_SCORE) {
       console.warn(
@@ -187,10 +207,11 @@ export async function selectFootageForScene({
       (query) => searchImage(query),
       minimumDurationSeconds,
       state,
+      opening,
     );
-    const ranked = rankTiered(scored);
+    const ranked = rankTiered(isOpening ? scored.filter(c => c.score >= MIN_ACCEPTABLE_SCORE) : scored);
     const best = ranked[0];
-    if (best) {
+    if (best && (!isOpening || best.score >= MIN_ACCEPTABLE_SCORE)) {
       console.warn(
         `[atomivid:footage] sin video aprovechable para [${effectiveConcepts.join(" | ")}] — se usa una imagen`,
       );
@@ -198,5 +219,6 @@ export async function selectFootageForScene({
     }
   }
 
+  if (isOpening) throw new OpeningFootageUnavailableError();
   throw new FootageSelectionError(effectiveConcepts);
 }

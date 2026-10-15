@@ -47,7 +47,7 @@ export async function runScriptJobStep(id:string, service=createServiceClient())
   if(error || data?.length!==1) throw new Error("Script job ownership lost");
  };
  try {
-  const {data:job,error}=await service.from("documentary_script_jobs").select("user_id,input,editorial_rounds,resubmit_allowance").eq("id",id).single();
+  const {data:job,error}=await service.from("documentary_script_jobs").select("user_id,input,editorial_rounds,resubmit_allowance,retry_count").eq("id",id).single();
   if(error || !job?.input) throw new Error("Script job input unavailable");
   const {data:owner,error:ownerError}=await service.auth.admin.getUserById(job.user_id);
   if(ownerError || !canAccessLongFormBeta(owner?.user)) throw new Error("Script job access unavailable");
@@ -61,7 +61,7 @@ export async function runScriptJobStep(id:string, service=createServiceClient())
     await update({stage:"Investigando fuentes"});
     const researchPack=await researchDocumentary({topic:fields.topic,references:parseSources(fields.sources),openQuestions:parseOpenQuestions(fields.openQuestions)});
     const beats=await generateDocumentaryScript({researchPack,creativeHistory:input.creativeHistory,referenceContract:input.referenceContract,writerContract:input.writerContract,extraEditorialRounds:job.editorial_rounds??0,mode:"curiosity_documentary",language:fields.language,
-     targetDurationSeconds:Number(fields.durationMinutes)*60,cinematicV6:cinematicV6Enabled(owner.user),onStage:stage=>update({stage}),
+     targetDurationSeconds:Number(fields.durationMinutes)*60,cinematicV6:cinematicV6Enabled(owner.user),allowVisualSceneRepair:(job.retry_count??0)>0,onStage:stage=>update({stage}),
      onDraft:draft=>update({editorial_checkpoint:draft}),onEditorialApproved:r=>{editorial=r;}});
     if(!editorial) throw new Error("Editorial approval missing");
     return {topic:fields.topic,beats:beats.map((b,i)=>({id:`beat-${i+1}`,...b})),editorial,sources:researchPack.sources};

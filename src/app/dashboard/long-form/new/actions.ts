@@ -80,6 +80,9 @@ export async function createLongFormVideoRequest(formData: FormData) {
     longFormFormRedirect("No se pudo guardar la preparación. No se inició ninguna generación; conserva los datos y vuelve al historial para comprobarlo.", submittedFields);
   }
   if (job.status === "queued") after(() => dispatchScriptJob(job.id));
+  // Identical inputs map to the SAME saved job (input hash). When that job already finished or failed,
+  // nothing new is prepared: show that job (its configure link or retry) instead of a "saved, in progress" banner.
+  if (job.status === "completed" || job.status === "failed") redirect(`/dashboard/long-form/jobs/${job.id}?existing=1`);
   redirect(`/dashboard?script_job=${job.id}`);
 }
 

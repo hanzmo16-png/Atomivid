@@ -1,3 +1,4 @@
+import { needsNarrationEdit } from "./duration-check";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { editorialApprovalError } from "./long-form/editorial";
 import { jobSupplyDemands, reserveJobSupply, releaseUnusedJobSupply } from "@/lib/supply/job";
@@ -16,12 +17,15 @@ import {
 import type { LongFormStage } from "./long-form/stages";
 import { resolveExecutablePlan, type ProductionPlan } from "./long-form/production-plan";
 import { assertCinematicV6Account } from "./long-form/cinematic-v6-access";
+import { resolveDirectorRender } from "./director/render-access";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { attemptState } from "./attempt-state";
 import type { RenderStage } from "./stages";
 import { generateDiagnosticId } from "./render-error";
 import { ProviderConfigurationError } from "@/lib/providers/production";
 import { isCustomerSafeError } from "./long-form/output-policy";
+import { isServiceConfigurationError, scrubInternalNames, SERVICE_CONFIGURATION_MESSAGE } from "./customer-error";
+import { encodeStoredFailure } from "./failure-action";
 
 /** Rutas internas de Storage (`<uuid>/...`) nunca llegan al mensaje visible de Long Form. */
 export function scrubInternalPaths(message: string): string {
@@ -160,6 +164,14 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
       return data.user;
     });
     await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name));
+    // Director (chatgpt-06): decided here from the worker's own configuration and the stored row/owner, never from
+    // the dispatch payload. Off unless CINEMATIC_DIRECTOR_RENDER_ENABLED + pilot account + visual Reel.
+    const directorRender = mode === "visual" && await resolveDirectorRender(row, async () => {
+      const { data, error } = await service.auth.admin.getUserById(row.user_id);
+      if (error) throw error;
+      return data.user;
+    });
+    if (mode === "visual") console.log("[atomivid:director]", JSON.stringify({ requestId, directorRender }));
     const { videoPath } =
       mode === "avatar"
         ? await generateAvatarVideo({
@@ -197,6 +209,7 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
               language: row.language ?? undefined,
               targetDurationSeconds: row.duration_seconds ?? undefined,
               onProgress,
+              directorRender,
             });
 
     const completed = await update({
@@ -239,7 +252,11 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     // ninguna ruta interna de Storage llega al texto visible de Long Form.
     const safe = isCustomerSafeError(error) ? error : null;
     const diagnosticId = safe?.diagnosticId ?? generateDiagnosticId();
-    const detail = safe ? safe.customerMessage : error instanceof Error ? error.message : "Error desconocido";
+    // Configuration errors name environment variables: the customer gets a plain explanation, the log keeps the cause.
+    const configError = !safe && isServiceConfigurationError(error);
+    if (configError) console.error(`[atomivid:config] (Código: ${diagnosticId}) ${(error as Error).name}: ${(error as Error).message}`);
+    const detail = safe ? safe.customerMessage : configError ? SERVICE_CONFIGURATION_MESSAGE
+      : error instanceof Error ? scrubInternalNames(error.message) : "Error desconocido";
     const rawMessage = mode === "long_form" ? scrubInternalPaths(detail) : detail;
     const message = `${rawMessage} (Código: ${diagnosticId})`;
 
@@ -255,7 +272,14 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
       );
     }
 
-    await update({ status: "failed", error_message: message, progress_stage: null, long_form_stage: null, long_form_progress: null });
+    // Typed action stored with the text: a configuration failure needs support, not an immediate retry.
+    const action = configError || error instanceof ProviderConfigurationError ? "support" : "retry";
+    // A measured duration mismatch happens before footage/render and after the
+    // voice ledger is settled. Reopen editing; retain attempts and paid history.
+    const editNarration = needsNarrationEdit(error, mode);
+    const failed = await update({ status: editNarration ? "script_ready" : "failed", error_message: encodeStoredFailure(message, action), progress_stage: null, long_form_stage: null, long_form_progress: null }).select("id").maybeSingle();
+    if (failed.error || !failed.data) throw new Error("No se pudo guardar el resultado del intento.");
+    if (editNarration) return;
 
     throw error;
   }

@@ -141,6 +141,12 @@ jobs:
           # Revalidate curator authority in the renderer, using the same configured allowlist as Vercel.
           # Empty configuration remains fail-closed; V6 access never grants curator authority.
           ASSET_CURATOR_EMAILS: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && secrets.ASSET_CURATOR_EMAILS || '' }}
+          # Director de Reels (chatgpt-06), piloto. Interruptor = variable del repositorio
+          # CINEMATIC_DIRECTOR_RENDER_ENABLED; cuentas = secret CINEMATIC_DIRECTOR_PILOT_EMAILS.
+          # Sin alguno de los dos (estado actual) el montaje es el clásico. Nunca para Long Form.
+          # run-job.ts vuelve a leer la modalidad y la cuenta dueña de la base: el payload no lo activa.
+          CINEMATIC_DIRECTOR_RENDER_ENABLED: ${{ (github.event.client_payload.mode != 'long_form' && inputs.mode != 'long_form') && vars.CINEMATIC_DIRECTOR_RENDER_ENABLED || '' }}
+          CINEMATIC_DIRECTOR_PILOT_EMAILS: ${{ (github.event.client_payload.mode != 'long_form' && inputs.mode != 'long_form') && secrets.CINEMATIC_DIRECTOR_PILOT_EMAILS || '' }}
 
       - name: Marcar como fallido si el render no terminó
         if: failure()

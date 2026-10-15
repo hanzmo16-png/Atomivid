@@ -1,9 +1,17 @@
 import { ScriptPersistenceError } from "./script-persistence";
+import { ScriptOutputError } from "./script-output";
 import Anthropic from "@anthropic-ai/sdk";
 import { ProviderConfigurationError } from "@/lib/providers/production";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { ScriptQualityError } from "@/lib/video/script-quality";
 import { generateDiagnosticId } from "@/lib/video/render-error";
+import { ScriptReconciliationRequiredError } from "@/lib/supply/script-intent";
+import { ReconciliationRequiredError } from "@/lib/production-intelligence/ledger";
+import { SCRIPT_NO_RETRY_PREFIX } from "./script-retry";
+export { SCRIPT_NO_RETRY_PREFIX, isNoRetryScriptMessage } from "./script-retry";
+
+export const SCRIPT_RECONCILIATION_MESSAGE = `${SCRIPT_NO_RETRY_PREFIX} no pudimos confirmar si el servicio de guiones completó el intento anterior. Lo dejamos en revisión para evitar un cobro duplicado; repetirlo ahora no generará otro guion. Si necesitas ayuda, contacta al soporte con este código.`;
+export const SCRIPT_IN_FLIGHT_MESSAGE = "Ya hay una generación de guion en curso para esta solicitud. Espera un minuto y recarga la página; no la repitas.";
 
 /**
  * Categoría estable para los logs del servidor — nunca se muestra al
@@ -30,9 +38,16 @@ export type ScriptErrorCode =
   | "anthropic_timeout"
   | "anthropic_server_error"
   | "anthropic_api_error"
+  | "script_in_flight"
+  | "script_reconciliation_required"
+  | "script_output_limit"
+  | "script_missing_output"
   | "unknown";
 
 export function scriptErrorCode(error: unknown): ScriptErrorCode {
+  if (error instanceof ScriptOutputError) return error.reason === "output_limit" ? "script_output_limit" : "script_missing_output";
+  if (error instanceof ScriptReconciliationRequiredError) return error.state === "in_flight" ? "script_in_flight" : "script_reconciliation_required";
+  if (error instanceof ReconciliationRequiredError) return "script_reconciliation_required";
   if (error instanceof ProviderConfigurationError) return "provider_not_configured";
   if (error instanceof MissingEnvVarError) return "missing_env_var";
   if (error instanceof ScriptQualityError) {
@@ -91,6 +106,12 @@ export function classifyScriptError(error: unknown, diagnosticId: string = gener
   }
 
   const code = scriptErrorCode(error);
+  if (code === "script_output_limit" || code === "script_missing_output") {
+    return `${SCRIPT_NO_RETRY_PREFIX} el servicio respondió sin un guion completo. Conservamos el resultado para revisión; contacta al soporte con este código antes de generar otro.${suffix}`;
+  }
+  // Uncertain provider outcome: never "intenta de nuevo" — a retry is exactly what could charge twice.
+  if (code === "script_reconciliation_required") return SCRIPT_RECONCILIATION_MESSAGE + suffix;
+  if (code === "script_in_flight") return SCRIPT_IN_FLIGHT_MESSAGE + suffix;
   if (
     code === "anthropic_authentication_error" ||
     code === "anthropic_permission_denied" ||
@@ -139,7 +160,9 @@ export function logScriptError(context: string, error: unknown, diagnosticId: st
     return;
   }
   if (error instanceof Error) {
-    console.error(prefix, { errorName: error.name });
+    // constructor.name tells apart subclasses that keep the default name "Error" (e.g. ledger/SDK parse errors);
+    // it is a class name, never message content.
+    console.error(prefix, { errorName: error.name, errorClass: error.constructor?.name ?? "?" });
     return;
   }
   console.error(prefix);

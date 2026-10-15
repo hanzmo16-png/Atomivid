@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { MissingEnvVarError, InvalidEnvVarError } from "@/lib/env-errors";
 import { GitHubWorkerDispatchError, GitHubWorkerNetworkError } from "@/lib/worker/github-actions";
+import { isServiceConfigurationError, SERVICE_CONFIGURATION_MESSAGE } from "./customer-error";
+import type { FailureAction } from "./failure-action";
 
 /**
  * Mismo principio que src/lib/video/script-error.ts y
@@ -49,17 +51,35 @@ const STAGE_MESSAGES: Record<RenderStage, string> = {
 };
 
 export function classifyRenderError(error: unknown, diagnosticId: string): string {
+  return classifyRenderFailure(error, diagnosticId).message;
+}
+
+/**
+ * Same message plus the typed action, decided by the error's type: configuration and credential/target
+ * rejections (HTTP 401/403/404/422) need an operator; everything else can be retried.
+ */
+export function classifyRenderFailure(error: unknown, diagnosticId: string): { message: string; action: FailureAction } {
+  const message = renderErrorMessage(error, diagnosticId);
+  const support = error instanceof MissingEnvVarError || error instanceof InvalidEnvVarError || isServiceConfigurationError(error)
+    || (error instanceof GitHubWorkerDispatchError && [401, 403, 404, 422].includes(error.status));
+  return { message, action: support ? "support" : "retry" };
+}
+
+function renderErrorMessage(error: unknown, diagnosticId: string): string {
   if (error instanceof RenderStageError) {
     return `${STAGE_MESSAGES[error.stage]} Intenta de nuevo en un momento. (Código: ${diagnosticId})`;
   }
   if (error instanceof MissingEnvVarError) {
-    return `Falta configurar ${error.varName} en el servidor. Contacta al soporte. (Código: ${diagnosticId})`;
+    return `Falta configuración del servidor para generar videos. No se inició la generación. Contacta al soporte. (Código: ${diagnosticId})`;
   }
-  // El mensaje de InvalidEnvVarError ya es seguro por construcción (solo
-  // nombre de variable + formato esperado, nunca el valor real) — se
-  // reusa tal cual en vez de duplicar el texto aquí.
+  // El cliente nunca ve nombres de variables ni del repositorio del worker:
+  // la causa exacta queda en logRenderError con el mismo código.
   if (error instanceof InvalidEnvVarError) {
-    return `${error.message} (Código: ${diagnosticId})`;
+    return `La configuración del servidor para generar videos no es válida. No se inició la generación. Contacta al soporte. (Código: ${diagnosticId})`;
+  }
+  // Long Form configuration errors raised by an inline worker: same explanation the worker stores on the request.
+  if (isServiceConfigurationError(error)) {
+    return `${SERVICE_CONFIGURATION_MESSAGE} (Código: ${diagnosticId})`;
   }
   if (error instanceof GitHubWorkerNetworkError) {
     return (
@@ -83,24 +103,20 @@ export function classifyRenderError(error: unknown, diagnosticId: string): strin
     // saber qué revisar primero.
     if (error.status === 401) {
       return (
-        `GitHub rechazó la credencial del worker de render (GH_WORKER_TOKEN) por no ser válida ` +
-        `(HTTP 401: no autenticado) — puede estar mal copiada, revocada, o no coincidir con el ` +
-        `token real configurado en GitHub. Contacta al soporte. (Código: ${diagnosticId})`
+        `El servicio de render rechazó la credencial del servidor (HTTP 401). No se inició la generación. ` +
+        `Contacta al soporte; repetir ahora no lo resolverá. (Código: ${diagnosticId})`
       );
     }
     if (error.status === 403) {
       return (
-        `GitHub reconoció el token del worker de render (GH_WORKER_TOKEN) pero denegó la acción ` +
-        `por falta de autorización (HTTP 403) — revisa que tenga permiso de repositorio ` +
-        `"Contents: Read and write" sobre GH_WORKER_REPO y que no esté bloqueado por una política ` +
-        `de la organización. Contacta al soporte. (Código: ${diagnosticId})`
+        `El servicio de render no autorizó iniciar la generación (HTTP 403). No se inició la generación. ` +
+        `Contacta al soporte; repetir ahora no lo resolverá. (Código: ${diagnosticId})`
       );
     }
     if (error.status === 404) {
       return (
-        `No se encontró el repositorio configurado para el worker de render (GH_WORKER_REPO) ` +
-        `(HTTP 404) — puede no existir, estar mal escrito, o el token no tener acceso a él. ` +
-        `Contacta al soporte. (Código: ${diagnosticId})`
+        `El servicio de render no encontró el destino configurado (HTTP 404). No se inició la generación. ` +
+        `Contacta al soporte; repetir ahora no lo resolverá. (Código: ${diagnosticId})`
       );
     }
     if (error.status === 422) {

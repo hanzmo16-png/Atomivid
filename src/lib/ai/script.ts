@@ -4,6 +4,7 @@ import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { targetWordsFor } from "@/lib/video/script-pacing";
+import { requireScriptOutput } from "@/lib/video/script-output";
 
 // Instanciado de forma perezosa, mismo patrón que getStripe() en
 // src/lib/stripe/client.ts: así ANTHROPIC_API_KEY se valida explícitamente
@@ -176,7 +177,7 @@ Reglas estrictas:
 - Nunca copies el tema tal cual dentro de una frase de plantilla — el tema es el asunto del video, no texto literal a repetir en cada escena.
 - Cada escena avanza el arco narrativo; no repitas la misma idea con otras palabras entre escenas.
 - Narración natural y motivacional, sin frases de relleno ni acotaciones/emojis/marcas de tiempo.
-- La escena de apertura necesita un gancho visual fuerte — no un plano contemplativo ni introducción lenta.
+- La escena de apertura debe mostrar desde el inicio el objeto o la actividad central de la primera frase. Sus conceptos visuales deben describir una acción observable y su contexto; una persona frustrada o sorprendida por sí sola no demuestra el tema. Evita gestos exagerados, gritos o caras cómicas salvo que sean explícitamente el asunto del video. Mantén el objeto/actividad central en todas las alternativas de apertura.
 - La escena de cierre debe sentirse como una resolución, con conceptos visuales que NO se hayan usado antes en el guion. ${AVOID_STOCK_TEXT_CLICHES}
 
 Para cada escena, interpreta el SIGNIFICADO de la narración, no la conviertas literalmente en palabras clave. Ejemplo: para "y ahí es donde la mayoría abandona sus sueños", NO busques variantes de "dreams" — interpreta la idea (alguien rindiéndose) y da conceptos como "exhausted athlete stopping mid run", "person quitting a workout", "runner falling behind and giving up".
@@ -206,6 +207,10 @@ Tu intento anterior tuvo ${lastWordCount} palabras narradas en total, fuera del 
     const params = {
       model: SCRIPT_MODEL,
       max_tokens: 2000,
+      // Sonnet 5 thinks by default. On short scripts, length corrections can
+      // consume the entire output budget before producing any JSON (2026-10-13).
+      // Keep the same token/spend limits; other model configurations are unchanged.
+      ...(SCRIPT_MODEL === "claude-sonnet-5" ? { thinking: { type: "disabled" as const } } : {}),
       system,
       messages: [{ role: "user" as const, content }],
       output_config: {
@@ -214,10 +219,7 @@ Tu intento anterior tuvo ${lastWordCount} palabras narradas en total, fuera del 
     };
     const response = await supplyProtectedAnthropic(params, () => getClient().messages.parse(params, { maxRetries: 0 }));
 
-    const parsed = response.parsed_output;
-    if (!parsed) {
-      throw new Error("Claude no devolvió un guion válido");
-    }
+    const parsed = requireScriptOutput(response);
 
     lastScript = parsed;
     lastWordCount = countScriptWords(parsed);
@@ -255,6 +257,7 @@ export async function regenerateScene({
   const params = {
     model: SCRIPT_MODEL,
     max_tokens: 500,
+    ...(SCRIPT_MODEL === "claude-sonnet-5" ? { thinking: { type: "disabled" as const } } : {}),
     system:
       "Eres guionista de reels 'faceless' para redes sociales. Reescribes " +
       "UNA SOLA escena de un guion ya existente, manteniendo el mismo " +
@@ -268,6 +271,7 @@ export async function regenerateScene({
 
 ${previous ? `Escena anterior: "${previous}"\n` : ""}Escena actual (a reescribir): "${current.text}"
 ${next ? `Escena siguiente: "${next}"\n` : ""}
+${sceneIndex === 0 ? "Esta es la apertura: muestra el objeto o actividad central desde el inicio y conserva ese objeto/actividad en todas las alternativas visuales. Evita personas reaccionando sin contexto, gritos y caras exageradas salvo que sean el tema explícito." : ""}
 Reescribe SOLO la escena actual. Da:
 - "text": nueva narración (~${targetWords} palabras, sin emojis ni acotaciones).
 - "visualQuery": el concepto visual principal (2-4 palabras en inglés) — igual a visualConcepts[0].
@@ -283,9 +287,5 @@ Reescribe SOLO la escena actual. Da:
   };
   const response = await supplyProtectedAnthropic(params, () => getClient().messages.parse(params, { maxRetries: 0 }));
 
-  if (!response.parsed_output) {
-    throw new Error("Claude no devolvió una escena válida");
-  }
-
-  return response.parsed_output;
+  return requireScriptOutput(response);
 }

@@ -17,7 +17,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { getFootageProvider } from "@/lib/providers/footage";
 import { getMusicProvider } from "@/lib/providers/music";
-import type { GeneratedScript, MusicResult, ScriptLanguage, WordTiming } from "@/lib/providers/types";
+import type { GeneratedScript, MusicResult, ScriptLanguage } from "@/lib/providers/types";
+import { alignScenesToWords } from "./scene-timings";
 import type { RenderStage } from "@/lib/video/stages";
 import type { Caption, Scene } from "../../../remotion/VerticalReel";
 import { computeNarrationGaps, type NarrationGap } from "../../../remotion/audio-mix";
@@ -35,6 +36,8 @@ import type { Storyboard } from "@/lib/video/storyboard/types";
 import { getImageProvider } from "@/lib/providers/image";
 import { decideResourceStrategy, buildScenePlanEntry, type ScenePlanEntry } from "@/lib/video/visual-resource-planner";
 import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resolver";
+import { cinematicDirectorRenderEnabled } from "@/lib/video/director/flag";
+import type { ResolvedBeat } from "@/lib/video/director/reel-render";
 
 // Deliberadamente separado de generate-script.ts — ver el comentario ahí
 // para la razón exacta (Remotion no debe cargarse en la ruta de guion).
@@ -67,8 +70,11 @@ export async function generateVideoFromScript({
   targetDurationSeconds,
   onProgress,
   paidCalls,
+  directorRender = false,
 }: {
   supabase: SupabaseClient;
+  /** Montar con el plan del Director. Lo decide SOLO el worker (run-job.ts → resolveDirectorRender): flag global + piloto + Reel visual. */
+  directorRender?: boolean;
   paidCalls?: Pick<PaidCallDeps, "ledger" | "results">;
   requestId: string;
   artifactPrefix?: string;
@@ -170,7 +176,7 @@ export async function generateVideoFromScript({
   }
 
   // 2. Repartir el tiempo de la narración real entre las escenas del guion
-  const sceneTimings = alignScenesToWords(script.segments, voice.words);
+  const sceneTimings = alignScenesToWords(script.segments, voice.words, voice.durationSeconds);
 
   // 3. Footage: varios candidatos por escena (y por "beat" visual dentro
   // de escenas largas), puntuados y deduplicados contra todo lo ya usado
@@ -189,6 +195,10 @@ export async function generateVideoFromScript({
     usedFallbackQuery: boolean;
     candidatesConsidered: number;
     reason: string;
+    sourceId: string;
+    providerDescription?: string;
+    providerPageUrl?: string;
+    openingRelevance?: import("./opening-relevance").OpeningRelevance;
   }> = [];
   // Planificador visual (imagen generada vs. stock) — ver
   // visual-resource-planner.ts para la política completa. Con
@@ -197,6 +207,8 @@ export async function generateVideoFromScript({
   // primer chequeo, así que este bloque nunca cambia el comportamiento
   // existente cuando el flag está apagado.
   const visualPlan: ScenePlanEntry[] = [];
+  // Material really resolved per segment and beat — what the Director may arrange (only read with its flag on).
+  const directorBeats: ResolvedBeat[][] = script.segments.map(() => []);
   let imagesRequestedCount = 0;
   let imagesGeneratedCount = 0;
   let imagesReusedCount = 0;
@@ -266,6 +278,7 @@ export async function generateVideoFromScript({
             startSeconds: beat.start,
             endSeconds: beat.end,
           });
+          directorBeats[i].push({ url: generated.url, mediaType: "image", source: "generated", start: beat.start, end: beat.end });
           visualPlan.push({
             ...buildScenePlanEntry(i, b, beatDuration, segment.text, beatConcepts[0], decision),
             provider: generated.provider,
@@ -300,6 +313,8 @@ export async function generateVideoFromScript({
         concepts: beatConcepts,
         minimumDurationSeconds: beatDuration + 0.5,
         state: footageState,
+        isOpening: i === 0,
+        excludedTerms: segment.excludedTerms,
       });
 
       footageSelections.push({
@@ -310,6 +325,10 @@ export async function generateVideoFromScript({
         usedFallbackQuery: outcome.usedFallbackQuery,
         candidatesConsidered: outcome.candidatesConsidered,
         reason: outcome.reason,
+        sourceId: outcome.sourceId,
+        providerDescription: outcome.providerDescription,
+        providerPageUrl: outcome.providerPageUrl,
+        openingRelevance: outcome.openingRelevance,
       });
 
       const footageBuffer = await footageProvider.downloadFootage(outcome.result.url);
@@ -326,6 +345,7 @@ export async function generateVideoFromScript({
         startSeconds: beat.start,
         endSeconds: beat.end,
       });
+      directorBeats[i].push({ url: mediaUrl, mediaType: outcome.result.mediaType, source: footageProvider.name === "fixture" ? "fixture" : "stock", start: beat.start, end: beat.end });
     }
   }
 
@@ -447,14 +467,36 @@ export async function generateVideoFromScript({
   const captions = buildCaptions(voice.words, emphasisSet);
   const narrationGaps = computeNarrationGaps(voice.words);
 
+  // 6b. Director cinematográfico (solo si el worker lo decidió: CINEMATIC_DIRECTOR_RENDER_ENABLED + cuenta piloto + Reel visual;
+  // en cualquier otro caso, flujo idéntico al anterior).
+  // Las recetas ordenan el material YA resuelto (movimiento, transiciones, etiqueta por plano). El plan, las
+  // props y la tabla por plano se guardan junto al MP4. Si el plan no se puede montar sin inventar material,
+  // el render se detiene con un error explícito: nunca cae en silencio al montaje sin Director.
+  let renderScenes = scenes;
+  let renderCaptions = captions;
+  if (directorRender && cinematicDirectorRenderEnabled()) {
+    const { directReel, directorBlockMessage } = await import("@/lib/video/director/reel-render");
+    const directed = directReel({ script, storyboard, beatsBySegment: directorBeats, sceneTimings, audioUrl, captions, narrationGaps, durationSeconds: finalDurationSeconds });
+    const evidence = Buffer.from(JSON.stringify({
+      footageSelections,
+      ok: directed.ok, storyboardSource: directed.storyboardSource, input: directed.input, plan: directed.plan,
+      ...(directed.ok ? { applied: directed.applied, props: directed.props } : { blockers: directed.blockers }),
+    }, null, 2));
+    await uploadToStorage(supabase, `${artifactPrefix}/director.json`, evidence, "application/json");
+    console.log("[atomivid:director]", JSON.stringify({ requestId, ok: directed.ok, shots: directed.ok ? directed.applied.map(a => ({ shot: a.shotId, recipe: a.recipeId, motion: a.applied.motion, in: a.applied.transitionIn, out: a.applied.transitionOut, label: a.applied.label })) : undefined, blockers: directed.ok ? undefined : directed.blockers.map(b => b.code) }));
+    if (!directed.ok) throw new Error(directorBlockMessage(directed.blockers));
+    renderScenes = directed.props.scenes;
+    renderCaptions = directed.props.captions;
+  }
+
   // 7. Ensamblar el video final con Remotion
   await onProgress?.("render");
   const renderStartedAt = Date.now();
   const rawOutputPath = await renderVerticalReel({
     audioUrl,
     musicUrl,
-    scenes,
-    captions,
+    scenes: renderScenes,
+    captions: renderCaptions,
     narrationGaps,
     durationSeconds: finalDurationSeconds,
   });
@@ -541,35 +583,6 @@ export async function generateVideoFromScript({
   });
 
   return { videoPath };
-}
-
-function alignScenesToWords(
-  segments: { text: string }[],
-  words: WordTiming[],
-): { start: number; end: number }[] {
-  const result: { start: number; end: number }[] = [];
-  let wordIndex = 0;
-
-  for (const segment of segments) {
-    const wordCount = Math.max(
-      segment.text.split(/\s+/).filter(Boolean).length,
-      1,
-    );
-    const startIdx = Math.max(0, Math.min(wordIndex, words.length - 1));
-    const endIdx = Math.max(
-      0,
-      Math.min(wordIndex + wordCount - 1, words.length - 1),
-    );
-
-    result.push({
-      start: words[startIdx]?.startSeconds ?? 0,
-      end: words[endIdx]?.endSeconds ?? words[startIdx]?.startSeconds ?? 0,
-    });
-
-    wordIndex += wordCount;
-  }
-
-  return result;
 }
 
 /**

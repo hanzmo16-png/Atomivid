@@ -253,3 +253,45 @@ test("tarjeta de texto: tema + oración real de la narración, sin marca de fixt
     assert.equal(result.asset.graphic.isFixture, false);
   }
 });
+
+
+test("supply refusal leaves no uncertain image and resumes the same ledger operation once", async () => {
+  const { memoryLedgerStore } = await import("@/lib/production-intelligence/ledger");
+  const { SupplyUnavailableError } = await import("@/lib/supply/policy");
+  const ledger = memoryLedgerStore();
+  let available = false;
+  const guardedLedger = { ...ledger, async submit(op: import("@/lib/production-intelligence/ledger").PaidOperation) {
+    if (!available) throw new SupplyUnavailableError("openai", "concurrency");
+    return ledger.update(op.idempotencyKey, "RESERVED", { status: "SUBMITTED" });
+  } };
+  const images = fakeImages(async () => pngAsset());
+  const { deps: d } = await deps({ ledger: guardedLedger, imageProvider: images.provider });
+  const target = shot("generated_placeholder");
+  await assert.rejects(executeShot(target, d, emptyAiVideoLedgerState()), SupplyUnavailableError);
+  assert.equal(images.calls(), 0);
+  assert.equal(await d.store.read(target.id, "ai_image"), null);
+  assert.equal(d.budget.snapshot().used.aiImageGenerations, 0);
+  assert.equal(d.budget.snapshot().used.spentUsd, 0);
+  assert.equal([...ledger.ops.values()][0].status, "RESERVED");
+  available = true;
+  const resumed = await executeShot(target, d, emptyAiVideoLedgerState());
+  assert.equal(resumed.costUsd, 0.05);
+  assert.equal(images.calls(), 1);
+  assert.equal(ledger.ops.size, 1);
+  const reused = await executeShot(target, d, emptyAiVideoLedgerState());
+  assert.equal(reused.reused, true);
+  assert.equal(images.calls(), 1);
+});
+
+test("an error after provider entry retains the uncertain image and reservation", async () => {
+  const { SupplyUnavailableError } = await import("@/lib/supply/policy");
+  const images = fakeImages(async () => { throw new SupplyUnavailableError("openai", "supplier unavailable"); });
+  const { deps: d } = await deps({ imageProvider: images.provider });
+  const target = shot("generated_placeholder");
+  await assert.rejects(executeShot(target, d, emptyAiVideoLedgerState()), SupplyUnavailableError);
+  assert.equal(images.calls(), 1);
+  assert.equal((await d.store.read(target.id, "ai_image"))?.status, "STARTED");
+  assert.equal(d.budget.snapshot().used.aiImageGenerations, 1);
+  await executeShot(target, d, emptyAiVideoLedgerState());
+  assert.equal(images.calls(), 1);
+});

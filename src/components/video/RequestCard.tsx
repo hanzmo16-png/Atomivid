@@ -1,5 +1,6 @@
 import { isRenderStale } from "@/lib/video/render-guard";
-import { renderFailureMessage } from "@/lib/video/job-error";
+import { describeStoredFailure, renderFailureMessage } from "@/lib/video/job-error";
+import { isNoRetryScriptMessage } from "@/lib/video/script-retry";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -174,9 +175,19 @@ export function RequestCard({
           {request.status === "failed" &&
             !longFormUnconfirmed &&
             (request.script_json ? (
-              canRetry && (
+              // Typed action stored with the failure: a cause only support can fix offers no retry here.
+              request.error_message && describeStoredFailure(request.error_message).action === "support" ? (
+                <p role="status" className="max-w-[260px] text-left text-xs text-ink-faint sm:text-right">
+                  Requiere soporte antes de otro intento.
+                </p>
+              ) : canRetry && (
                 <GenerateButton endpoint={`/api/generate/${request.id}/render`} label={retryLabel} />
               )
+            ) : isNoRetryScriptMessage(request.error_message) ? (
+              // Uncertain provider outcome: a retry could charge twice, so no button until it is reconciled.
+              <p role="status" className="max-w-[260px] text-left text-xs text-ink-faint sm:text-right">
+                Reintentar está desactivado mientras revisamos el intento anterior.
+              </p>
             ) : (
               <GenerateButton
                 endpoint={`/api/generate/${request.id}/script`}
