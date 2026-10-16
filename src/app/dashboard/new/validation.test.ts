@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { availableVideoDurations, avatarDurationError, avatarRenderDurationError, estimateAvatarNarrationSeconds } from "@/lib/video/avatar/duration";
 import {
   avatarDurationSelectorApplies,
   avatarStatusFromProviderStatus,
@@ -10,6 +11,28 @@ import {
 } from "./validation";
 
 const VALID_COMMON = { topic: "Un tema", style: "Educativo", durationSeconds: 30, language: "es" };
+
+test("Avatar respeta el límite configurado sin recortar las opciones de Reel", () => {
+  assert.deepEqual(availableVideoDurations("avatar", 45), [30]);
+  assert.deepEqual(availableVideoDurations("avatar", 90), [30, 60, 90]);
+  assert.deepEqual(availableVideoDurations("visual", 45), [30, 60, 90]);
+  assert.equal(avatarDurationError(45, 45), null);
+  assert.match(avatarDurationError(45.01, 45)!, /límite de Avatar es 45 segundos/);
+  for (const seconds of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) assert.match(avatarDurationError(seconds, 45)!, /No se pudo comprobar/);
+});
+
+test("incidente 5cb073e5: un objetivo de 30s no oculta un guion real estimado en 68.4s", () => {
+  const row = { mode: "avatar", duration_seconds: 30, recorded_audio_path: null, avatar_provider_video_job_id: null,
+    script_json: { segments: [{ text: Array(171).fill("palabra").join(" ") }] } };
+  assert.equal(estimateAvatarNarrationSeconds(row.script_json.segments[0].text), 68.4);
+  assert.match(avatarRenderDurationError(row, 45)!, /68.4 segundos/);
+  row.script_json.segments[0].text = Array(75).fill("palabra").join(" ");
+  assert.equal(avatarRenderDurationError(row, 45), null, "la edición manual permite continuar sin regenerar el guion");
+  assert.match(avatarRenderDurationError({ ...row, recorded_audio_path: "u/r/recording.m4a", duration_seconds: 68 }, 45)!, /68.0 segundos/);
+  assert.equal(avatarRenderDurationError({ ...row, mode: "visual", duration_seconds: 90 }, 45), null);
+  assert.equal(avatarRenderDurationError({ ...row, recorded_audio_path: "u/r/recording.m4a", duration_seconds: 68, avatar_provider_video_job_id: "accepted" }, 45), null,
+    "un resultado ya pagado permanece recuperable si cambia el límite");
+});
 
 test("validateCommonFields acepta campos válidos", () => {
   assert.equal(validateCommonFields(VALID_COMMON), null);

@@ -32,6 +32,15 @@ test("intento rechazado antes de enviar (generate_video RESERVED, sin job): se p
   assert.notEqual(row.avatar_generation_started_at, "2026-10-08T23:54:20Z");
 });
 
+test("un guion pagado no bloquea reclamar un intento que nunca envió el Avatar", async () => {
+  const scriptOp = { status: "COMMITTED", method: "generate_script", provider_job_id: "sync:script" };
+  const row = { avatar_generation_started_at: "t0", avatar_provider_video_job_id: null };
+  assert.equal(await reclaimUnsubmittedAvatarAttempt(fake(row, [scriptOp]), "r", "u"), true);
+  const blocked = { avatar_generation_started_at: "t0", avatar_provider_video_job_id: null };
+  assert.equal(await reclaimUnsubmittedAvatarAttempt(fake(blocked, [scriptOp, { status: "SUBMITTED", method: "generate_video", provider_job_id: null }]), "r", "u"), false);
+  assert.equal(blocked.avatar_generation_started_at, "t0");
+});
+
 test("cualquier rastro de envío al proveedor mantiene el bloqueo (nunca un segundo video pagado)", async () => {
   for (const status of ["SUBMITTED", "PROVIDER_JOB_RECORDED", "RECONCILIATION_REQUIRED", "COMMITTED"]) {
     const row = { avatar_generation_started_at: "t0", avatar_provider_video_job_id: null };

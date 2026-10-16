@@ -2,6 +2,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ContentTypeStep } from "./ContentTypeStep";
+import { NewVideoForm } from "./NewVideoForm";
+
+test("formulario Avatar muestra el límite real de 45s y solo ofrece el objetivo de 30s", () => {
+  const html = renderToStaticMarkup(<NewVideoForm action={() => {}} avatarModeEnabled existingAvatars={[]} initialMode="avatar" maxAvatarDurationSeconds={45} />);
+  assert.match(html, /Límite de Avatar: 45 segundos/);
+  assert.match(html, />30s<\/button>/);
+  assert.doesNotMatch(html, />(60|90)s<\/button>/);
+  const reel = renderToStaticMarkup(<NewVideoForm action={() => {}} avatarModeEnabled existingAvatars={[]} initialMode="visual" maxAvatarDurationSeconds={45} />);
+  for (const seconds of [30, 60, 90]) assert.ok(reel.includes(`>${seconds}s</button>`));
+});
 
 /**
  * Regresión del QA blocker real (2026-09-25): "Video con avatar" desapareció

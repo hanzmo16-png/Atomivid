@@ -13,25 +13,32 @@ export const PROVIDER_TOUCHED_STATUSES = ["SUBMITTED", "PROVIDER_JOB_RECORDED", 
 export type AvatarRecoveryRow = { status: string; render_attempts: number; avatar_provider_video_job_id: string | null; video_path: string | null };
 export type AvatarLedgerOp = { status: string; method: string; provider_job_id: string | null };
 
+/** Script generation precedes Avatar production; its payment/job is never an Avatar submission.
+ * Keep all other methods (including unknown ones) subject to the conservative paid-call guards. */
+export function avatarRenderOperations(ops: AvatarLedgerOp[]): AvatarLedgerOp[] {
+  return ops.filter(op => op.method !== "generate_script");
+}
+
 export type AvatarRecovery =
   | { action: "retry"; label: string; note: string }
   | { action: "recover_provider_job"; label: string; note: string }
   | { action: "none"; reason: "completed" | "reconcile" | "paid_result_missing" | "exhausted" | "not_failed"; message: string };
 
 export function decideAvatarRecovery(row: AvatarRecoveryRow, ops: AvatarLedgerOp[]): AvatarRecovery {
+  const renderOps = avatarRenderOperations(ops);
   if (row.video_path) return { action: "none", reason: "completed", message: "Este video ya está listo." };
   if (row.render_attempts >= MAX_RENDER_ATTEMPTS)
     return { action: "none", reason: "exhausted", message: `Se alcanzó el máximo de ${MAX_RENDER_ATTEMPTS} intentos. Crea una solicitud nueva.` };
   // The provider already accepted a video for this request: fetch THAT result; never request another one.
   if (row.avatar_provider_video_job_id)
     return { action: "recover_provider_job", label: "Recuperar video", note: "HeyGen ya aceptó este video: se recupera el resultado existente, sin pedir ni cobrar otro." };
-  const uncertain = ops.find((o) => o.status === "SUBMITTED" || o.status === "RECONCILIATION_REQUIRED");
+  const uncertain = renderOps.find((o) => o.status === "SUBMITTED" || o.status === "RECONCILIATION_REQUIRED");
   if (uncertain)
     return { action: "none", reason: "reconcile", message: "Hay un envío al proveedor con resultado incierto. Para no cobrar dos veces, debe conciliarse antes de reintentar; contacta a soporte." };
-  const touched = ops.find((o) => (PROVIDER_TOUCHED_STATUSES as readonly string[]).includes(o.status) || o.provider_job_id);
+  const touched = renderOps.find((o) => (PROVIDER_TOUCHED_STATUSES as readonly string[]).includes(o.status) || o.provider_job_id);
   if (touched)
     return { action: "none", reason: "paid_result_missing", message: "El proveedor ya procesó un envío de esta solicitud. Para no pagar otro video, su resultado debe recuperarse antes; contacta a soporte." };
-  return { action: "retry", label: "Reintentar", note: "Se reutilizan la misma foto y grabación. No se había enviado nada al proveedor, así que no hay cobro previo que repetir." };
+  return { action: "retry", label: "Reintentar", note: "Se reutilizan la misma foto y grabación o el guion guardado. No consta un envío previo del video al proveedor de Avatar. El guion puede tener un coste anterior independiente." };
 }
 
 /** Recovery for a request the caller already authorized (owner check done by the caller). Read errors fail closed. */

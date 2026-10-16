@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { safeParseJsonResponse } from "@/lib/http/safe-json";
+import { avatarDurationError, estimateAvatarNarrationSeconds } from "@/lib/video/avatar/duration";
 
 export function ScriptReview({
   requestId,
@@ -18,6 +19,8 @@ export function ScriptReview({
   diagnosticRetry = false,
   entitlementBlockedReason,
   recovery,
+  maxAvatarDurationSeconds,
+  recordingDurationSeconds,
 }: {
   requestId: string;
   status: string;
@@ -25,6 +28,8 @@ export function ScriptReview({
   errorMessage: string | null;
   usesRecording?: boolean;
   diagnosticRetry?: boolean;
+  maxAvatarDurationSeconds?: number;
+  recordingDurationSeconds?: number;
   /**
    * QA blocker real (2026-09-25): "Generar video final" quedaba
    * visualmente habilitado para avatar aunque el plan del usuario no
@@ -60,6 +65,10 @@ export function ScriptReview({
   // A recovery reuses exactly what was approved: no edits (they would change paid inputs).
   const editable = canGenerate && !usesRecording && !recoveryAction;
   const entitlementBlocked = Boolean(entitlementBlockedReason);
+  const durationBlockedReason = maxAvatarDurationSeconds === undefined ? null : avatarDurationError(
+    usesRecording ? (recordingDurationSeconds ?? Number.NaN) : estimateAvatarNarrationSeconds(script.segments.map(scene => scene.text).join(" ")),
+    maxAvatarDurationSeconds,
+  );
 
   function updateScene(index: number, field: "text" | "visualQuery", value: string) {
     setScript((prev) => ({
@@ -139,7 +148,7 @@ export function ScriptReview({
   }
 
   async function generateFinalVideo() {
-    if (entitlementBlocked) return;
+    if (entitlementBlocked || durationBlockedReason) return;
     setGenerating(true);
     setError(null);
     setNeedsSubscription(false);
@@ -205,6 +214,7 @@ export function ScriptReview({
       )}
 
       {usesRecording && <Alert tone="info">Se utilizará tu grabación completa. No se generará un guion ni otra voz. La duración se comprobará antes de solicitar el avatar.</Alert>}
+      {canGenerate && durationBlockedReason && <Alert tone="warning">{durationBlockedReason}</Alert>}
       {!usesRecording && <div className="mt-4 space-y-4">
         {script.segments.map((scene, i) => (
           <Card key={i} className="p-4">
@@ -288,9 +298,9 @@ export function ScriptReview({
           </Button>}
           <Button
             onClick={generateFinalVideo}
-            disabled={entitlementBlocked || generating || saving || regeneratingAll}
+            disabled={entitlementBlocked || Boolean(durationBlockedReason) || generating || saving || regeneratingAll}
             loading={generating}
-            title={entitlementBlocked ? entitlementBlockedReason : undefined}
+            title={entitlementBlocked ? entitlementBlockedReason : durationBlockedReason ?? undefined}
           >
             {generating ? "Generando video…" : recoveryAction ? recoveryAction.label : "Generar video final"}
           </Button>

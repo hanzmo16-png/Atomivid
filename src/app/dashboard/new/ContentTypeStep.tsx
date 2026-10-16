@@ -75,12 +75,14 @@ export function ContentTypeStep({
   existingAvatars,
   avatarAccess,
   longFormAccess,
+  maxAvatarDurationSeconds = 45,
 }: {
   createVideoRequestAction: (formData: FormData) => void;
   avatarModeEnabled: boolean;
   existingAvatars: { id: string; name: string }[];
   avatarAccess: boolean;
   longFormAccess: boolean;
+  maxAvatarDurationSeconds?: number;
 }) {
   const [selected, setSelected] = useState<ContentType | null>(null);
 
@@ -88,6 +90,7 @@ export function ContentTypeStep({
     <NewVideoForm
       action={createVideoRequestAction}
       avatarModeEnabled={avatarModeEnabled}
+      maxAvatarDurationSeconds={maxAvatarDurationSeconds}
       existingAvatars={existingAvatars}
       initialMode={mode === "avatar" ? "avatar" : "visual"}
     />

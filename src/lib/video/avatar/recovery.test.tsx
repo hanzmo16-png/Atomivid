@@ -14,6 +14,30 @@ const wrap = (el: React.ReactElement) => renderToStaticMarkup(<AppRouterContext.
 const REAL = { status: "failed", render_attempts: 1, avatar_provider_video_job_id: null, video_path: null };
 const RESERVED_ONLY = [{ status: "RESERVED", method: "generate_video", provider_job_id: null }];
 
+test("incidente 5cb073e5: dos guiones cobrados no prueban un envío de Avatar", () => {
+  const scripts = ["sync:script-1", "sync:script-2"].map(provider_job_id => ({ status: "COMMITTED", method: "generate_script", provider_job_id }));
+  assert.equal(decideAvatarRecovery(REAL, scripts).action, "retry");
+  for (const method of ["generate_video", "synthesize", "unknown"]) {
+    for (const status of ["SUBMITTED", "RECONCILIATION_REQUIRED", "COMMITTED", "PROVIDER_JOB_RECORDED"]) {
+      assert.equal(decideAvatarRecovery(REAL, [...scripts, { method, status, provider_job_id: null }]).action, "none", `${method}/${status}`);
+    }
+  }
+});
+
+test("revisión de Avatar: bloquea guion/audio demasiado largos antes de generar, pero permite editar el guion", () => {
+  const props = { requestId: "r", status: "script_ready", errorMessage: null, maxAvatarDurationSeconds: 45,
+    initialScript: { title: "prueba", segments: [{ text: Array(171).fill("palabra").join(" "), visualQuery: "x" }] } };
+  const long = wrap(<ScriptReview {...props} />);
+  assert.match(long, /68.4 segundos/);
+  assert.match(long, /<button[^>]*disabled=""[^>]*>Generar video final<\/button>/);
+  assert.doesNotMatch(long, /<textarea[^>]*disabled/);
+  const recording = wrap(<ScriptReview {...props} usesRecording recordingDurationSeconds={68} />);
+  assert.match(recording, /68.0 segundos/);
+  assert.match(recording, /<button[^>]*disabled=""[^>]*>Generar video final<\/button>/);
+  const short = wrap(<ScriptReview {...props} initialScript={{ ...props.initialScript, segments: [{ text: "Guion corto", visualQuery: "x" }] }} />);
+  assert.match(short, /<button(?:(?!disabled)[^>])*>Generar video final<\/button>/);
+});
+
 test("avatar fallido antes del proveedor (estado real 6dad04ec): reintento seguro", () => {
   const r = decideAvatarRecovery(REAL, RESERVED_ONLY);
   assert.equal(r.action, "retry");
