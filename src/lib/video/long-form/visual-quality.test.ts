@@ -370,3 +370,36 @@ test("hash perceptual de VIDEO con el índice (moov) al final — como los MP4 d
   assert.notEqual(ia.sha256, ib.sha256, "archivos distintos: solo el hash perceptual los une");
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+// Lunar-crater documentary (request 657b2c99): images unrelated to the narration. Synthetic provider texts.
+const lunarCrater = { description: "Close view of an impact crater on the lunar surface", motion: false, subject: "lunar crater", place: "Moon" };
+
+test("lunar crater: one shared word, a stem collision or an Earth/festive context no longer passes", () => {
+  for (const offTopic of [
+    "Volcanic crater lake in Oregon at sunset",
+    "Stacked wooden crates in a warehouse",
+    "Lunar New Year lanterns over a street",
+    "Hikers at the rim of a volcano crater in Iceland",
+    "Crater in the desert, Arizona",
+  ]) assert.equal(assessRelevance(lunarCrater, offTopic).relevance, "irrelevant", offTopic);
+  for (const onTopic of ["Craters on the surface of the moon", "Lunar crater seen from orbit", "Moon surface with many impact craters"]) {
+    assert.equal(assessRelevance(lunarCrater, onTopic).relevance, "keyword_match", onTopic);
+  }
+});
+
+test("stemming keeps distinct words apart and still folds plurals", () => {
+  assert.equal(assessRelevance({ description: "wooden crates", motion: false, subject: "crates" }, "crater on the moon").relevance, "irrelevant");
+  assert.equal(assessRelevance({ description: "cargo ships", motion: false, subject: "cargo ship" }, "cargo ships in a canal").relevance, "keyword_match");
+  assert.equal(assessRelevance({ description: "workers digging", motion: false, subject: "workers" }, "a worker with a shovel").relevance, "keyword_match");
+});
+
+test("a multi-word subject needs every word (or its equivalent form), not just one", () => {
+  const ironOre = { description: "iron ore train", motion: false, subject: "iron ore" };
+  assert.equal(assessRelevance(ironOre, "iron gate of a garden").relevance, "irrelevant");
+  assert.equal(assessRelevance(ironOre, "train carrying iron ore").relevance, "keyword_match");
+});
+
+test("Earth scenes that mention a meteorite are not treated as off-world", () => {
+  const barringer = { description: "Meteor Crater from the air", motion: false, subject: "meteor crater", place: "Arizona" };
+  assert.equal(assessRelevance(barringer, "Aerial view of Meteor Crater in the Arizona desert").relevance, "keyword_match");
+});

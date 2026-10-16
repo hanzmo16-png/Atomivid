@@ -54,8 +54,53 @@ export type RelevanceAssessment = {
   conflicts: string[];
 };
 
+/**
+ * Plural/-ing folding only. Never strips "-er": it turned "crater" and "crates"
+ * into the same stem ("crat"), so wooden crates matched a lunar crater.
+ */
 function stem(word: string): string {
-  return word.replace(/(ing|ers|er|es|s)$/i, "");
+  if (/ing$/.test(word) && word.length > 5) return word.slice(0, -3);
+  if (/ies$/.test(word) && word.length > 4) return `${word.slice(0, -3)}y`;
+  if (/(ss|us|is)$/.test(word)) return word;
+  if (/(ches|shes|xes|zes|sses)$/.test(word)) return word.slice(0, -2);
+  if (/s$/.test(word) && word.length > 3) return word.slice(0, -1);
+  return word;
+}
+
+/** Adjective ↔ noun forms providers use interchangeably ("lunar crater" ↔ "crater on the moon"). */
+const EQUIVALENT_TERMS: Record<string, string[]> = {
+  lunar: ["moon"], moon: ["lunar"], solar: ["sun"], sun: ["solar"], martian: ["mars"], mars: ["martian"],
+  terrestrial: ["earth"], stellar: ["star"], star: ["stellar"],
+};
+
+/**
+ * Scenes set off Earth (Moon, Mars, orbit, deep space): their footage must not show an Earth-bound or festive context.
+ * T-23 C1: decided ONLY from the declared `place`. A terrestrial documentary may name "planet Earth", a galaxy or an
+ * astronaut in its subject or description without leaving Earth, so those fields never open this gate; a scene with no
+ * place is not assumed to be off Earth either.
+ */
+const OFF_EARTH_PLACE = /\b(moon|lunar|mars|martian|venus|jupiter|saturn|mercury|neptune|uranus|pluto|asteroid|comet|orbit|orbital|outer space|deep space|space station|exoplanet)\b/;
+const EARTHBOUND_CONTEXT = [
+  "volcano", "volcanic", "lake", "lagoon", "beach", "forest", "jungle", "desert road", "hiking", "hiker", "tourist", "tourists", "arizona", "hawaii", "iceland",
+  "oregon", "crater lake", "new year", "festival", "lantern", "lanterns", "celebration", "firework", "fireworks", "restaurant", "wedding",
+];
+
+/**
+ * T-23: a scene set ON the Moon (surface, crater, base) cannot be shown by a photo taken FROM Earth with the Moon in
+ * its sky: "moon" in that text satisfies "lunar", so a moonlit desert passed as the lunar surface. Only phrases that
+ * fix the Earth vantage count (never "Earth rising over the lunar horizon"); a scene about the Moon itself (subject
+ * "moon"/"full moon") is not affected.
+ */
+const EARTH_VANTAGE = ["moon in the sky", "night sky", "under the moon", "moon rising", "rising moon", "moonrise", "full moon", "moonlit", "moonlight"];
+
+function isOnMoonScene(visual: BeatVisual): boolean {
+  const place = (visual.place ?? "").toLowerCase();
+  const subject = (visual.subject ?? "").toLowerCase().trim();
+  return /\b(moon|lunar)\b/.test(place) && !/^(the )?(full )?moon$/.test(subject);
+}
+
+function isCelestialScene(visual: BeatVisual): boolean {
+  return OFF_EARTH_PLACE.test((visual.place ?? "").toLowerCase());
 }
 
 export function englishTerms(text: string | undefined): string[] {
@@ -85,6 +130,12 @@ export function assessRelevance(visual: BeatVisual, candidateText: string | unde
   if (isHistoricalEra(visual.era)) {
     for (const marker of MODERN_MARKERS) if (new RegExp(`\\b${marker}\\b`).test(text)) conflicts.push(`época: "${marker}"`);
   }
+  if (isCelestialScene(visual)) {
+    for (const marker of EARTHBOUND_CONTEXT) if (new RegExp(`\\b${marker}\\b`).test(text)) conflicts.push(`contexto terrestre: "${marker}"`);
+  }
+  if (isOnMoonScene(visual)) {
+    for (const marker of EARTH_VANTAGE) if (new RegExp(`\\b${marker}\\b`).test(text)) conflicts.push(`vista desde la Tierra: "${marker}"`);
+  }
   const place = visual.place?.toLowerCase();
   if (place) {
     for (const other of KNOWN_PLACES) {
@@ -106,7 +157,16 @@ export function assessRelevance(visual: BeatVisual, candidateText: string | unde
   weigh(englishTerms(visual.action), 2);
   weigh(englishTerms(visual.place), 2);
   weigh(englishTerms(visual.description), 1);
-  const hasCore = subject.length > 0 ? subject.some((t) => candidate.has(t)) : matched.length > 0;
+  // Every subject term (1-3 words) must appear, or an equivalent form: "lunar crater" needs both, so a
+  // volcanic crater or a Lunar New Year photo no longer passes on one shared word.
+  const present = (t: string) => candidate.has(t) || (EQUIVALENT_TERMS[t] ?? []).some((e) => candidate.has(e));
+  for (const t of subject) {
+    if (!candidate.has(t) && present(t) && !matched.includes(t)) {
+      matched.push(t);
+      score += 3;
+    }
+  }
+  const hasCore = subject.length > 0 ? subject.every(present) : matched.length > 0;
   const relevance: Relevance = conflicts.length === 0 && hasCore && score >= 2 ? "keyword_match" : "irrelevant";
   return { relevance, score, matchedTerms: matched, conflicts };
 }
