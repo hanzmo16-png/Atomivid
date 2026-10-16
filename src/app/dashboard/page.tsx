@@ -17,13 +17,15 @@ import { Alert } from "@/components/ui/Alert";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LinkButton } from "@/components/ui/Button";
 import Link from "next/link";
+import { setHistoryArchived } from "./archive/actions";
 
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ created?: string; script_job?: string }>;
+  searchParams: Promise<{ created?: string; script_job?: string; archived?: string }>;
 }) {
-  const { created, script_job } = await searchParams;
+  const { created, script_job, archived } = await searchParams;
+  const showArchived = archived === "1";
   const supabase = await createClient();
 
   const {
@@ -33,9 +35,10 @@ export default async function DashboardPage({
   const { data: requests, error: requestsError } = await supabase
     .from("video_requests")
     .select(
-      "id, mode, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage, long_form_progress, long_form_confirmed_at, recorded_audio_path, supply_wait_started_at, avatar_provider_video_job_id",
+      "id, mode, topic, style, duration_seconds, language, status, video_path, error_message, script_json, progress_stage, render_attempts, render_started_at, created_at, aspect_ratio, long_form_stage, long_form_progress, long_form_confirmed_at, recorded_audio_path, supply_wait_started_at, avatar_provider_video_job_id, archived_at",
     )
     .eq("user_id", user?.id ?? "")
+    .filter("archived_at", showArchived ? "not.is" : "is", null)
     .order("created_at", { ascending: false })
     .returns<VideoRequestSummary[]>();
 
@@ -111,6 +114,8 @@ export default async function DashboardPage({
         </LinkButton>
       </div>
 
+      <nav className="mt-4 text-sm"><Link className="underline" href={showArchived ? "/dashboard" : "/dashboard?archived=1"}>{showArchived ? "Volver al historial" : "Ver proyectos archivados"}</Link></nav>
+
       <div className="mt-4 space-y-3">
         {internalOwner && (
           <Alert tone="info">
@@ -170,6 +175,11 @@ export default async function DashboardPage({
                 nowMs={nowMs}
                 avatarRecovery={avatarRecoveries.get(req.id)}
               />
+              {(showArchived || req.status === "failed") && <form action={setHistoryArchived} className="mt-2 ml-2">
+                <input type="hidden" name="request_id" value={req.id} />
+                <input type="hidden" name="archive" value={showArchived ? "0" : "1"} />
+                <button type="submit" className="text-xs underline text-ink-muted hover:text-ink">{showArchived ? "Restaurar al historial" : "Archivar este error"}</button>
+              </form>}
             </li>
           ))}
         </ul>
