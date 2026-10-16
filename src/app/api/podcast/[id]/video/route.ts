@@ -4,17 +4,20 @@ import { podcastUser } from "@/lib/podcast/auth";
 import { loadOwnedEpisode } from "@/lib/podcast/server";
 import { cancelScheduledProduction, requestPodcastVideo } from "@/lib/podcast/video-jobs";
 import { episodeSpend, pendingNarration, readRunBudget } from "@/lib/podcast/pilot-server";
+import { unsupportedOption } from "@/lib/podcast/production-contract";
+import { checkConfirmation } from "@/lib/podcast/production-confirm";
 
 /**
  * Owner-only production (narration if needed, then the editor render) in the background, within the episode's total
  * budget (historical spend + pending cost), its own limit of new spend for this run, and an optional one-shot scheduled
- * start. Body: { budgetUsd?, runBudgetUsd?, scheduleAt?, cancel? }.
+ * start. Body: { budgetUsd?, runBudgetUsd?, scheduleAt?, cancel?, confirm }. `confirm` is the fingerprint of the configuration
+ * the owner reviewed (productionFingerprint); a stale one is refused with 409 so nothing starts from an unseen setup.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await podcastUser();
   if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
-  const body = (await request.json().catch(() => ({}))) as { budgetUsd?: unknown; runBudgetUsd?: unknown; scheduleAt?: unknown; cancel?: unknown };
+  const body = (await request.json().catch(() => ({}))) as { budgetUsd?: unknown; runBudgetUsd?: unknown; scheduleAt?: unknown; cancel?: unknown; confirm?: unknown } & Record<string, unknown>;
   const service = createServiceClient();
   const episode = await loadOwnedEpisode(service, user.id, id);
   if (!episode) return NextResponse.json({ error: "Episodio no encontrado." }, { status: 404 });
@@ -22,6 +25,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const out = await cancelScheduledProduction(service, episode);
     return "error" in out ? NextResponse.json({ error: out.error }, { status: out.status }) : NextResponse.json(out);
   }
+  const unsupported = unsupportedOption(body);
+  if (unsupported) return NextResponse.json({ error: unsupported }, { status: 400 });
+  const confirmed = checkConfirmation(episode, body.confirm);
+  if ("error" in confirmed) return NextResponse.json({ error: confirmed.error }, { status: confirmed.status });
   const budgetUsd = body.budgetUsd === undefined || body.budgetUsd === null || body.budgetUsd === "" ? undefined : Number(body.budgetUsd);
   if (budgetUsd !== undefined && !Number.isFinite(budgetUsd)) return NextResponse.json({ error: "El presupuesto no es un número válido." }, { status: 400 });
   const runBudgetUsd = body.runBudgetUsd === undefined || body.runBudgetUsd === null || body.runBudgetUsd === "" ? null : Number(body.runBudgetUsd);

@@ -9,6 +9,7 @@ import { episodeSpentUsd, pendingNarration, readRunBudget } from "@/lib/podcast/
 import { EpisodeActions } from "./EpisodeActions";
 import { VideoPanel } from "./VideoPanel";
 import { minimumRunBudgetUsd, type VideoChecks } from "@/lib/podcast/pilot";
+import { productionFingerprint } from "@/lib/podcast/production-confirm";
 
 const USD = new Intl.NumberFormat("es-MX", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 4 });
 
@@ -84,6 +85,8 @@ export default async function PodcastEpisodePage({ params }: { params: Promise<{
         reviewStatus={episode.review_status ?? "pending"}
         reviewNote={episode.review_note ?? null}
         publishStatus={episode.publish_status ?? "held"}
+        review={{ id: episode.id, title: episode.title, language: episode.language, source: episode.source, script: null, voice_id: episode.voice_id, voice_name: episode.voice_name, status: episode.status }}
+        confirmToken={productionFingerprint(episode)}
       />
     </div>
   );
