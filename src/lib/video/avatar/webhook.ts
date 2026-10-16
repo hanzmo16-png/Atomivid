@@ -13,6 +13,23 @@ export function verifyWebhookSecret(expectedSecret: string | undefined, provided
   return Boolean(expectedSecret) && Boolean(providedSecret) && expectedSecret === providedSecret;
 }
 
+const STATUS_RANK: Record<AvatarJobStatus, number> = { queued: 0, processing: 1, completed: 2, failed: 2, cancelled: 2 };
+
+/**
+ * Estados previos desde los que un callback puede escribir `next` sin
+ * retroceder: queued → processing → (completed | failed | cancelled). Un
+ * estado terminal nunca se sobrescribe con otro distinto, y repetir el mismo
+ * estado es idempotente. La ruta lo aplica como condición del UPDATE
+ * (`.in("avatar_render_status", …)`), así la regla se evalúa de forma atómica
+ * en la base de datos aunque lleguen callbacks duplicados, tardíos o
+ * desordenados.
+ */
+export function avatarStatusesThatMayAdvanceTo(next: AvatarJobStatus): AvatarJobStatus[] {
+  return (Object.keys(STATUS_RANK) as AvatarJobStatus[]).filter(
+    (prev) => prev === next || STATUS_RANK[prev] < STATUS_RANK[next],
+  );
+}
+
 export type UpdateJobStatus = (providerJobId: string, status: AvatarJobStatus) => Promise<{ error: string | null }>;
 
 export type WebhookOutcome = { status: number; body: Record<string, unknown> };

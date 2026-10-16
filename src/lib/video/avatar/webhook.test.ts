@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { handleAvatarWebhook, verifyWebhookSecret } from "./webhook";
+import { avatarStatusesThatMayAdvanceTo, handleAvatarWebhook, verifyWebhookSecret } from "./webhook";
 import { fixtureAvatarProvider } from "@/lib/providers/avatar/fixture";
 
 test("verifyWebhookSecret rechaza si falta el secreto esperado (no configurado)", () => {
@@ -60,4 +60,33 @@ test("handleAvatarWebhook devuelve 500 sin exponer el detalle del error de la ba
   });
   assert.equal(outcome.status, 500);
   assert.equal(JSON.stringify(outcome.body).includes("sensible"), false);
+});
+
+test("avatarStatusesThatMayAdvanceTo: el estado solo avanza (queued → processing → terminal) y repetirlo es idempotente", () => {
+  assert.deepEqual(avatarStatusesThatMayAdvanceTo("queued").sort(), ["queued"]);
+  assert.deepEqual(avatarStatusesThatMayAdvanceTo("processing").sort(), ["processing", "queued"]);
+  assert.deepEqual(avatarStatusesThatMayAdvanceTo("completed").sort(), ["completed", "processing", "queued"]);
+  assert.deepEqual(avatarStatusesThatMayAdvanceTo("failed").sort(), ["failed", "processing", "queued"]);
+  assert.deepEqual(avatarStatusesThatMayAdvanceTo("cancelled").sort(), ["cancelled", "processing", "queued"]);
+});
+
+test("callbacks duplicados y tardíos no retroceden un trabajo completado (UPDATE condicionado como en la ruta)", async () => {
+  const row = { avatar_provider_video_job_id: "fixture-video-job-1", avatar_render_status: "processing" };
+  // Emula `.update(...).eq(job).in("avatar_render_status", avatarStatusesThatMayAdvanceTo(status))`.
+  const updateJobStatus = async (providerJobId: string, status: Parameters<typeof avatarStatusesThatMayAdvanceTo>[0]) => {
+    const allowed: string[] = avatarStatusesThatMayAdvanceTo(status);
+    if (row.avatar_provider_video_job_id === providerJobId && allowed.includes(row.avatar_render_status)) row.avatar_render_status = status;
+    return { error: null };
+  };
+  const seen: string[] = [];
+  for (const status of ["completed", "completed", "processing", "failed"]) {
+    const outcome = await handleAvatarWebhook({
+      provider: fixtureAvatarProvider,
+      rawPayload: { providerJobId: "fixture-video-job-1", status },
+      updateJobStatus,
+    });
+    assert.equal(outcome.status, 200);
+    seen.push(row.avatar_render_status);
+  }
+  assert.deepEqual(seen, ["completed", "completed", "completed", "completed"]);
 });

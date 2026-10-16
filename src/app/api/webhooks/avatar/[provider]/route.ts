@@ -4,7 +4,7 @@ import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { fixtureAvatarProvider } from "@/lib/providers/avatar/fixture";
 import { heygenAvatarProvider } from "@/lib/providers/avatar/heygen";
 import type { AvatarVideoProvider } from "@/lib/providers/avatar";
-import { handleAvatarWebhook, verifyWebhookSecret } from "@/lib/video/avatar/webhook";
+import { avatarStatusesThatMayAdvanceTo, handleAvatarWebhook, verifyWebhookSecret } from "@/lib/video/avatar/webhook";
 
 /**
  * Webhook para que un proveedor de avatar notifique que un video terminó
@@ -62,7 +62,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
       const { error } = await service
         .from("video_requests")
         .update({ avatar_render_status: status })
-        .eq("avatar_provider_video_job_id", providerJobId);
+        .eq("avatar_provider_video_job_id", providerJobId)
+        // Un callback tardío o desordenado nunca retrocede el estado (p. ej. completed → processing).
+        .in("avatar_render_status", avatarStatusesThatMayAdvanceTo(status));
       if (error) {
         // El detalle del error de Supabase nunca se expone al llamador externo.
         console.error(`[atomivid:avatar-webhook] no se pudo actualizar video_requests para el job ${providerJobId}:`, error.message);
