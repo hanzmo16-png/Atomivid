@@ -336,7 +336,8 @@ for (const invalid of [false, true]) {
 
 for (const storedJob of ["existing", "different", null]) {
   test(`recovery uses only the job owned by this request (stored=${storedJob})`, async () => {
-    await withEnv({ AVATAR_MODE_ENABLED: "true", AVATAR_PROVIDER: "fixture" }, async () => {
+    // Even if today's limit is below the old script, recover only the accepted job; never pay again.
+    await withEnv({ AVATAR_MODE_ENABLED: "true", AVATAR_PROVIDER: "fixture", MAX_AVATAR_DURATION_SECONDS: "1" }, async () => {
       const { fake, uploads, updates } = makeFakeSupabase({
         id: "a1", user_id: "u1", status: "ready", consent_given: true,
         provider_avatar_id: "fixture-avatar-existing", provider: "fixture",

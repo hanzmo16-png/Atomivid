@@ -8,6 +8,7 @@ import { SupplyUnavailableError } from "@/lib/supply/policy";
 
 import { recordingFormat, recordingPath, RECORDING_BUCKET, MAX_AVATAR_PHOTO_BYTES, MAX_RECORDING_BYTES } from "@/lib/video/avatar/recording";
 import { measureNarrationSeconds } from "@/lib/video/avatar/measure-narration";
+import { avatarDurationError, estimateAvatarNarrationSeconds } from "@/lib/video/avatar/duration";
 import { randomUUID } from "node:crypto";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
@@ -123,6 +124,10 @@ export async function createVideoRequest(formData: FormData) {
   // nunca se suman entre sí.
   const narrationSource = String(formData.get("narration_source") ?? "tts");
   if (!["tts", "recording", "tts_text"].includes(narrationSource)) redirect("/dashboard/new?error=Fuente+de+voz+inválida");
+  if (narrationSource === "tts") {
+    const durationError = avatarDurationError(durationSeconds, flags.maxAvatarDurationSeconds);
+    if (durationError) redirect(`/dashboard/new?error=${encodeURIComponent(durationError)}`);
+  }
   const audioFile = formData.get("recorded_audio");
   let recording: { audioBuffer: Buffer; extension: string; mimeType: string } | undefined;
   // "own_audio" cubre tanto grabar como subir un archivo (mismo mecanismo,
@@ -135,10 +140,9 @@ export async function createVideoRequest(formData: FormData) {
   // se muestra en el formulario — ver NewVideoForm.tsx). Se mide aquí con
   // el mismo mecanismo ya probado en producción por preparation.ts (la
   // prueba privada D-ID, que ya guarda `duration_seconds: Math.ceil(seconds)`
-  // con esta función) — puramente informativo (Historial, "Revisar
-  // grabación"); la validación que sí bloquea la generación si excede
-  // MAX_AVATAR_DURATION_SECONDS ocurre de forma autoritativa en
-  // pipeline.ts, que vuelve a medir el archivo ya guardado.
+  // con esta función). Una grabación no medible o demasiado larga se
+  // rechaza antes de subirla o crear el avatar. El worker vuelve a medir
+  // el archivo guardado antes de solicitar un video al proveedor.
   let measuredDurationSeconds: number | undefined;
   if (narrationSource === "recording") {
     // Antes esto solo se permitía para "did"/"fixture" — un resabio de
@@ -160,15 +164,18 @@ export async function createVideoRequest(formData: FormData) {
     try {
       measuredDurationSeconds = await measureNarrationSeconds(recording.audioBuffer);
     } catch {
-      // No bloquea la creación — solo se pierde el número informativo
-      // preciso y se cae al valor del selector como aproximación.
+      redirect("/dashboard/new?error=No+se+pudo+comprobar+la+duración+de+tu+audio.+Usa+otra+grabación.+No+se+ha+solicitado+el+avatar.");
     }
+    const durationError = avatarDurationError(measuredDurationSeconds, flags.maxAvatarDurationSeconds);
+    if (durationError) redirect(`/dashboard/new?error=${encodeURIComponent(durationError)}`);
   } else if (narrationSource === "tts_text") {
     const ttsText = String(formData.get("avatar_tts_text") ?? "").trim();
     if (!ttsText) redirect("/dashboard/new?error=Escribe+el+texto+que+quieres+narrar");
     if (ttsText.length > MAX_AVATAR_TTS_TEXT_LENGTH) {
       redirect(`/dashboard/new?error=${encodeURIComponent(`El texto no puede superar ${MAX_AVATAR_TTS_TEXT_LENGTH} caracteres`)}`);
     }
+    const durationError = avatarDurationError(estimateAvatarNarrationSeconds(ttsText), flags.maxAvatarDurationSeconds);
+    if (durationError) redirect(`/dashboard/new?error=${encodeURIComponent(durationError)}`);
     try {
       // Reutiliza el mismo provider ElevenLabs que ya usa Reel para
       // narración — nunca un cliente/pipeline TTS paralelo.

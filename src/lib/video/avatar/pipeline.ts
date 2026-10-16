@@ -4,7 +4,8 @@ import { heygenAudio } from "./heygen-audio";
 import { validatePhotoBuffer } from "./photo-validation";
 import fs from "node:fs/promises";
 import { isOwnedRecordingPath, recordingFormat, RECORDING_BUCKET, MAX_RECORDING_BYTES } from "./recording";
-import { PROVIDER_TOUCHED_STATUSES } from "./recovery";
+import { avatarRenderOperations, PROVIDER_TOUCHED_STATUSES } from "./recovery";
+import { estimateAvatarNarrationSeconds } from "./duration";
 import { measureNarrationSeconds } from "./measure-narration";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
@@ -188,10 +189,10 @@ export async function generateAvatarVideo({
   // que cada proveedor pueda imponer por su cuenta) — mismo criterio de
   // estimación (palabras/2.5s) que ya usa cada proveedor para el costo,
   // para no gastar ni un segundo de proveedor en un guion desproporcionado.
-  const estimatedNarrationSeconds = Math.max(1, fullText.split(/\s+/).filter(Boolean).length / 2.5);
-  if (!recordedAudioPath && estimatedNarrationSeconds > flags.maxAvatarDurationSeconds) {
+  const estimatedNarrationSeconds = estimateAvatarNarrationSeconds(fullText);
+  if (!existingProviderVideoJobId && !recordedAudioPath && estimatedNarrationSeconds > flags.maxAvatarDurationSeconds) {
     throw new AvatarPipelineError(
-      `La narración estimada (${estimatedNarrationSeconds.toFixed(1)}s) excede el máximo permitido (MAX_AVATAR_DURATION_SECONDS=${flags.maxAvatarDurationSeconds}s).`,
+      `La narración estimada (${estimatedNarrationSeconds.toFixed(1)}s) supera el límite de Avatar (${flags.maxAvatarDurationSeconds}s). Acorta el guion antes de generar el video.`,
       "duration_exceeded",
     );
   }
@@ -510,7 +511,7 @@ export async function reclaimUnsubmittedAvatarAttempt(supabase: SupabaseClient, 
   if (error || !row?.avatar_generation_started_at || row.avatar_provider_video_job_id) return false;
   const { data: ops, error: opsError } = await supabase.from("pi_paid_operations").select("status,method,provider_job_id").eq("project_id", requestId);
   if (opsError || !ops) return false;
-  if (ops.some((o: { status: string; provider_job_id: string | null }) => (PROVIDER_TOUCHED_STATUSES as readonly string[]).includes(o.status) || o.provider_job_id)) return false;
+  if (avatarRenderOperations(ops).some((o) => (PROVIDER_TOUCHED_STATUSES as readonly string[]).includes(o.status) || o.provider_job_id)) return false;
   const { data: claimed, error: claimError } = await supabase.from("video_requests")
     .update({ avatar_generation_started_at: new Date().toISOString() })
     .eq("id", requestId).eq("user_id", userId)

@@ -36,6 +36,16 @@ const ROUTE_PATH = path.join(
   "route.ts",
 );
 
+test("rechazo de duración de Avatar ocurre antes de reservar, gastar un intento o llamar al worker", () => {
+  const source = fs.readFileSync(ROUTE_PATH, "utf-8");
+  const guard = source.indexOf("const durationError = avatarRenderDurationError(");
+  assert.ok(guard > source.indexOf("if (videoRequest.user_id !== user.id)"));
+  for (const stage of ["await reserveJobSupply(", 'status: "processing"', "await worker.trigger("]) {
+    assert.ok(guard < source.indexOf(stage), stage);
+  }
+  assert.match(source.slice(guard), /if \(durationError\) return NextResponse.json\(\{ error: durationError \}, \{ status: 422 \}\)/);
+});
+
 test("render/route.ts protege la transición a processing con un UPDATE condicionado al status leído", () => {
   const source = fs.readFileSync(ROUTE_PATH, "utf-8");
 

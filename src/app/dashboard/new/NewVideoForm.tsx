@@ -5,6 +5,7 @@ import { Field, INPUT_CLASS } from "@/components/ui/Field";
 import { AvatarFields } from "./AvatarFields";
 import { SubmitButton } from "./SubmitButton";
 import { avatarDurationSelectorApplies } from "./validation";
+import { availableVideoDurations } from "@/lib/video/avatar/duration";
 
 const STYLES = [
   "Motivacional",
@@ -36,12 +37,14 @@ export function NewVideoForm({
   avatarModeEnabled,
   existingAvatars,
   initialMode = "visual",
+  maxAvatarDurationSeconds = 45,
 }: {
   action: (formData: FormData) => void;
   avatarModeEnabled: boolean;
   existingAvatars: { id: string; name: string }[];
   /** Preselecciona "Video con avatar" cuando se llega desde ese tipo en el selector "¿Qué quieres crear?" (ContentTypeStep) — solo tiene efecto si avatarModeEnabled también es true. */
   initialMode?: VideoMode;
+  maxAvatarDurationSeconds?: number;
 }) {
   const [mode, setMode] = useState<VideoMode>(avatarModeEnabled ? initialMode : "visual");
   const [language, setLanguage] = useState<"es" | "en">("es");
@@ -53,6 +56,9 @@ export function NewVideoForm({
   // como objetivo, sin cambios.
   const [avatarNarrationSource, setAvatarNarrationSource] = useState("tts");
   const durationSelectorApplies = avatarDurationSelectorApplies(mode, avatarNarrationSource);
+  const availableDurations = availableVideoDurations(mode, maxAvatarDurationSeconds);
+  // Switching from a longer Reel to Avatar cannot retain an invalid hidden target.
+  const selectedDuration = availableDurations.includes(duration) ? duration : (availableDurations[0] ?? 30);
 
   return (
     <form action={action} className="space-y-5">
@@ -95,27 +101,26 @@ export function NewVideoForm({
         </select>
       </Field>
 
-      {/* El hidden siempre se envía (fallback si la medición real del audio
-          falla en el servidor — ver dashboard/new/actions.ts), pero el
+      {/* El hidden siempre se envía para validar el objetivo del formulario, pero el
           selector visible solo tiene sentido cuando SÍ representa la
           duración objetivo real: Reel (mode visual) y Avatar con "Generar
           voz desde el guion". Con "Grabar o subir mi voz"/"Voz IA desde
           texto" el video dura lo que dure el audio real, nunca este valor
           — mostrarlo ahí invitaría a pensar que se puede truncar/rellenar
           a 30/60/90, que es exactamente el bug que este contrato corrige. */}
-      <input type="hidden" id="duration_seconds" name="duration_seconds" value={duration} />
+      <input type="hidden" id="duration_seconds" name="duration_seconds" value={selectedDuration} />
       {durationSelectorApplies ? (
         <Field id="duration_seconds_picker" label="Duración deseada">
           <div className="inline-flex rounded-md border border-border-strong bg-surface-raised p-1" role="radiogroup" aria-label="Duración deseada">
-            {DURATIONS.map((d) => (
+            {DURATIONS.filter(d => availableDurations.includes(d.value)).map((d) => (
               <button
                 key={d.value}
                 type="button"
                 role="radio"
-                aria-checked={duration === d.value}
+                aria-checked={selectedDuration === d.value}
                 onClick={() => setDuration(d.value)}
                 className={`rounded-sm px-4 py-1.5 text-sm font-medium transition-colors ${
-                  duration === d.value ? "bg-accent text-accent-ink" : "text-ink-muted hover:text-ink"
+                  selectedDuration === d.value ? "bg-accent text-accent-ink" : "text-ink-muted hover:text-ink"
                 }`}
               >
                 {d.label}
@@ -166,12 +171,15 @@ export function NewVideoForm({
       )}
 
       {avatarModeEnabled && mode === "avatar" && (
-        <AvatarFields
-          existingAvatars={existingAvatars}
-          language={language}
-          narrationSource={avatarNarrationSource}
-          onNarrationSourceChange={setAvatarNarrationSource}
-        />
+        <>
+          <p className="text-sm text-ink-muted">Límite de Avatar: {maxAvatarDurationSeconds} segundos. El guion o la grabación deben caber en ese tiempo.</p>
+          <AvatarFields
+            existingAvatars={existingAvatars}
+            language={language}
+            narrationSource={avatarNarrationSource}
+            onNarrationSourceChange={setAvatarNarrationSource}
+          />
+        </>
       )}
 
       <SubmitButton />

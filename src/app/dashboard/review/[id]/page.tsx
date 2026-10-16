@@ -11,6 +11,7 @@ import { DirectorInspectionPanel } from "@/components/video/DirectorInspectionPa
 import { avatarEntitlementPreview } from "@/lib/billing/quota";
 import { ScriptReview } from "./ScriptReview";
 import { loadAvatarRecovery } from "@/lib/video/avatar/recovery";
+import { getFeatureFlags } from "@/lib/video/feature-flags";
 
 type VideoRequestRow = {
   id: string;
@@ -126,6 +127,8 @@ export default async function ReviewPage({
         initialScript={data.script_json}
         errorMessage={data.error_message}
         usesRecording={Boolean(data.recorded_audio_path)}
+        maxAvatarDurationSeconds={data.mode === "avatar" && !data.avatar_provider_video_job_id ? getFeatureFlags().maxAvatarDurationSeconds : undefined}
+        recordingDurationSeconds={data.duration_seconds}
         entitlementBlockedReason={avatarEntitlementBlockedReason}
         recovery={recovery}
       />

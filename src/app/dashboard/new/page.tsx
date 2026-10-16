@@ -73,6 +73,7 @@ export default async function NewVideoPage({
           <ContentTypeStep
             createVideoRequestAction={createVideoRequest}
             avatarModeEnabled={avatarModeUiEnabled}
+            maxAvatarDurationSeconds={flags.maxAvatarDurationSeconds}
             existingAvatars={existingAvatars}
             // La tarjeta "Video con avatar" se ofrece a la cuenta beta
             // (privateAvatarAccess) sola — igual que siempre funcionó para

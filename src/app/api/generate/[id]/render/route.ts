@@ -19,6 +19,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { getRenderWorker } from "@/lib/worker";
 import { assertCanGenerate } from "@/lib/billing/quota";
 import { loadAvatarRecovery } from "@/lib/video/avatar/recovery";
+import { avatarRenderDurationError } from "@/lib/video/avatar/duration";
 import { evaluateRenderStart } from "@/lib/video/render-guard";
 import {
   classifyRenderError,
@@ -42,6 +43,7 @@ export const maxDuration = 300;
 type VideoRequestRow = {
   id: string;
   mode: string;
+  duration_seconds: number;
   user_id: string;
   status: string;
   script_json: GeneratedScript | null;
@@ -92,7 +94,7 @@ export async function POST(
     try {
       const { data, error: fetchError } = await service
         .from("video_requests")
-        .select("id, mode, user_id, status, script_json, render_attempts, render_started_at, created_at, error_message, avatar_provider_video_job_id, long_form_confirmed_at, long_form_progress, long_form_production_plan, recorded_audio_path, supply_wait_started_at")
+        .select("id, mode, duration_seconds, user_id, status, script_json, render_attempts, render_started_at, created_at, error_message, avatar_provider_video_job_id, long_form_confirmed_at, long_form_progress, long_form_production_plan, recorded_audio_path, supply_wait_started_at")
         .eq("id", id)
         .single<VideoRequestRow>();
 
@@ -169,6 +171,10 @@ export async function POST(
         avatar_provider_video_job_id: videoRequest.avatar_provider_video_job_id, video_path: null });
       if (recovery.action === "none") return NextResponse.json({ error: recovery.message }, { status: 409 });
     }
+
+    // Reject oversize Avatar narration before reserving supply, spending an attempt or dispatching.
+    const durationError = avatarRenderDurationError({ ...videoRequest, script_json: videoRequest.script_json }, getFeatureFlags().maxAvatarDurationSeconds);
+    if (durationError) return NextResponse.json({ error: durationError }, { status: 422 });
 
     let check: Awaited<ReturnType<typeof assertCanGenerate>>;
     try {
