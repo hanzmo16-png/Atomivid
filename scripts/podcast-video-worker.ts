@@ -35,6 +35,8 @@ export type ProduceInject = {
   buildSceneShots?: VisualAssetsModule["buildSceneShots"];
   pilot?: Partial<PilotServerModule>;
   gate?: Partial<GateDeps>;
+  /** Path of the editor entry point (default scripts/podcast-editor-v3/editor.py). */
+  editor?: string;
 };
 
 const log = (tag: string, v: unknown) => console.log(tag, JSON.stringify(v));
@@ -322,7 +324,7 @@ export async function produce(episodeId: string, inject: ProduceInject = {}) {
       const written = JSON.parse(await readFile(manifest, "utf8")) as { timeline?: unknown };
       timeline = Array.isArray(written.timeline) ? (written.timeline as { type: string }[]) : [];
     }
-    const editor = path.resolve("scripts/podcast-editor-v3/editor.py");
+    const editor = inject.editor ?? path.resolve("scripts/podcast-editor-v3/editor.py");
     if (await run("python3", [editor, "validate", manifest, "--archivos"], 120_000) !== 0) throw new PublicError("El montaje no pasó la validación del editor. Pulsa «Reintentar»; si se repite, revisa el audio del episodio.");
     const renderWork = path.join(work, "render");
     const renderCode = await run("python3", [editor, "run", manifest, "--work", renderWork, "--retries", "1"], 90 * 60_000);
