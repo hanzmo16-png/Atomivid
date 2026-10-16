@@ -1,5 +1,5 @@
 /**
- * Marca de Atomivid: núcleo + tres órbitas elípticas (átomo) — conecta con
+ * Marca de Atomicvid: núcleo + tres órbitas elípticas (átomo) — conecta con
  * el nombre (Átomo + Video) sin depender de un asset externo. `iconOnly`
  * se usa donde no cabe el wordmark (favicon, avatares compactos).
  */
@@ -13,7 +13,7 @@ export function Logo({
   return (
     <span className={`inline-flex items-center gap-2 ${className}`}>
       <LogoMark />
-      {!iconOnly && <span className="text-base font-semibold tracking-tight text-ink">Atomivid</span>}
+      {!iconOnly && <span className="text-base font-semibold tracking-tight text-ink">Atomicvid</span>}
     </span>
   );
 }

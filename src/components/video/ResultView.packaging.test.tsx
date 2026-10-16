@@ -15,9 +15,9 @@ const videoUrl = "https://example.com/storage/final.mp4?token=signed%2Btoken";
 const thumbnailUrl = "https://example.com/storage/thumbnail.jpg?token=thumbnail-token";
 
 test("descarga conserva la autorización y añade Content-Disposition sin alterar la vista previa", () => {
-  const result = new URL(asDownloadUrl(videoUrl, "atomivid-video.mp4"));
+  const result = new URL(asDownloadUrl(videoUrl, "atomicvid-video.mp4"));
   assert.equal(result.searchParams.get("token"), "signed+token");
-  assert.equal(result.searchParams.get("download"), "atomivid-video.mp4");
+  assert.equal(result.searchParams.get("download"), "atomicvid-video.mp4");
   assert.equal(new URL(videoUrl).searchParams.has("download"), false);
 });
 
@@ -25,8 +25,8 @@ test("resultado: video y miniatura se visualizan y descargan con enlaces separad
   const html = renderToStaticMarkup(<ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} thumbnailRequested nowMs={0} />);
   assert.ok(html.includes(`src="${videoUrl}"`));
   assert.ok(html.includes(`src="${thumbnailUrl}"`));
-  assert.match(html, /download=atomivid-video\.mp4/);
-  assert.match(html, /download=atomivid-miniatura\.jpg/);
+  assert.match(html, /download=atomicvid-video\.mp4/);
+  assert.match(html, /download=atomicvid-miniatura\.jpg/);
   assert.match(html, /href="\/dashboard\/long-form\/new"/);
   assert.doesNotMatch(html, /miniatura solicitada no está disponible/);
 });

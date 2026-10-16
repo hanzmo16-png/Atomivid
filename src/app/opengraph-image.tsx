@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Atomivid — Videos verticales con IA";
+export const alt = "Atomicvid — Videos verticales con IA";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -29,7 +29,7 @@ export default function Image() {
             </g>
             <circle cx="12" cy="12" r="2.8" fill="#7c6aef" />
           </svg>
-          <span style={{ fontSize: 84, fontWeight: 700, color: "#f5f5f7" }}>Atomivid</span>
+          <span style={{ fontSize: 84, fontWeight: 700, color: "#f5f5f7" }}>Atomicvid</span>
         </div>
         <span style={{ fontSize: 34, color: "#a3a3b0" }}>Videos verticales con IA</span>
       </div>

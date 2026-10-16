@@ -21,7 +21,7 @@ export function AuthCard({ subtitle, children }: { subtitle: string; children: R
           </span>
           <div>
             <Link href="/" className="inline-block">
-              <span className="text-base font-semibold tracking-tight text-ink">Atomivid</span>
+              <span className="text-base font-semibold tracking-tight text-ink">Atomicvid</span>
             </Link>
             <p className="mt-0.5 text-sm text-ink-muted">{subtitle}</p>
           </div>

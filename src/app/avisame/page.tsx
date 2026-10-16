@@ -6,8 +6,8 @@ import { PLAN_CONFIGS } from "@/lib/billing/plans";
 import { joinReelsLaunchList } from "./actions";
 
 export const metadata: Metadata = {
-  title: "Reels/Shorts — avísame cuando abran los pagos · Atomivid",
-  description: "Apúntate para saber cuándo puedes contratar Atomivid para Reels y Shorts verticales. Sin cobro y sin compromiso.",
+  title: "Reels/Shorts — avísame cuando abran los pagos · Atomicvid",
+  description: "Apúntate para saber cuándo puedes contratar Atomicvid para Reels y Shorts verticales. Sin cobro y sin compromiso.",
 };
 
 /** Launch list for Reels/Shorts while purchases are not open yet. Records an email with consent only. */
@@ -17,7 +17,7 @@ export default async function ReelsLaunchListPage({ searchParams }: { searchPara
     <AuthCard subtitle="Reels/Shorts · aviso de apertura">
       <div className="space-y-3 text-sm text-ink-muted">
         <p>
-          Atomivid produce Reels/Shorts verticales (1080×1920) a partir de un tema: guion que revisas antes de producir,
+          Atomicvid produce Reels/Shorts verticales (1080×1920) a partir de un tema: guion que revisas antes de producir,
           narración con IA, clips, música y subtítulos. Los planes empezarán en {PLAN_CONFIGS.starter.priceUsdPerMonth} USD al mes.
         </p>
         <p>
@@ -26,7 +26,7 @@ export default async function ReelsLaunchListPage({ searchParams }: { searchPara
         </p>
       </div>
       <InterestForm action={joinReelsLaunchList} registrado={registrado} error={error} consent={<>
-        Acepto que Atomivid me escriba cuando abran los planes de Reels/Shorts. Puedo pedir que borren mi correo cuando
+        Acepto que Atomicvid me escriba cuando abran los planes de Reels/Shorts. Puedo pedir que borren mi correo cuando
         quiera (ver <Link href="/privacy" className="text-accent hover:text-accent-hover">privacidad</Link>).
       </>} />
       <p className="mt-6 text-center text-sm text-ink-muted">

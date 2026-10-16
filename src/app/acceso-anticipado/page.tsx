@@ -5,7 +5,7 @@ import { InterestForm } from "@/components/marketing/InterestForm";
 import { joinDocumentariesEarlyAccess } from "./actions";
 
 export const metadata: Metadata = {
-  title: "Documentales para YouTube — acceso anticipado · Atomivid",
+  title: "Documentales para YouTube — acceso anticipado · Atomicvid",
   description: "Apúntate a la lista de acceso anticipado de documentales 16:9 para YouTube. Sin cobro y sin compromiso.",
 };
 
@@ -29,7 +29,7 @@ export default async function EarlyAccessPage({ searchParams }: { searchParams: 
       </div>
 
       <InterestForm action={joinDocumentariesEarlyAccess} registrado={registrado} error={error} consent={<>
-        Acepto que Atomivid me escriba sobre el acceso anticipado a documentales. Puedo pedir que borren mi correo
+        Acepto que Atomicvid me escriba sobre el acceso anticipado a documentales. Puedo pedir que borren mi correo
         cuando quiera (ver <Link href="/privacy" className="text-accent hover:text-accent-hover">privacidad</Link>).
       </>} />
 

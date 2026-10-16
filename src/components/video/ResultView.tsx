@@ -196,7 +196,7 @@ export function ResultView({
               Tu navegador no puede reproducir este video.
             </video>
             <a
-              href={asDownloadUrl(videoUrl, "atomivid-video.mp4")}
+              href={asDownloadUrl(videoUrl, "atomicvid-video.mp4")}
               download
               target="_blank"
               rel="noopener noreferrer"
@@ -209,7 +209,7 @@ export function ResultView({
                 {/* eslint-disable-next-line @next/next/no-img-element -- URL firmada y temporal de Storage */}
                 <img src={thumbnailUrl} alt="Miniatura de YouTube" className="aspect-16/9 w-full rounded-lg border border-border-strong object-cover" />
                 <a
-                  href={asDownloadUrl(thumbnailUrl, "atomivid-miniatura.jpg")}
+                  href={asDownloadUrl(thumbnailUrl, "atomicvid-miniatura.jpg")}
                   download
                   target="_blank"
                   rel="noopener noreferrer"
