@@ -1,5 +1,5 @@
 /**
- * Interfaz local (solo 127.0.0.1) para lanzar el ATOMIVID SIMULATOR V1 desde un navegador.
+ * Interfaz local (solo 127.0.0.1) para lanzar el simulador V1 de Atomicvid desde un navegador.
  *
  * No es parte de la app Next ni se despliega: es un script de desarrollo que reutiliza la CLI ya
  * auditada (`atomivid-simulator.ts`) y las pruebas de Long Form como procesos hijos. No importa
@@ -79,28 +79,92 @@ export function commandFor(mode: UiMode, outDir: string, repo: string): { cmd: s
 
 const sha256 = (file: string) => createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 
+/**
+ * Ruta real de un archivo contenido en `root`, o null. Resuelve enlaces simbólicos de ambos lados y compara con
+ * `path.relative`, así que rechaza `..`, rutas absolutas ajenas, directorios hermanos con el mismo prefijo
+ * (`job-1` frente a `job-10`) y enlaces que apunten fuera del directorio real de la corrida.
+ */
+export function containedFile(root: string, candidate: string): string | null {
+  try {
+    const realRoot = fs.realpathSync(root);
+    const real = fs.realpathSync(path.resolve(root, candidate));
+    const rel = path.relative(realRoot, real);
+    if (!rel || rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return null;
+    return fs.statSync(real).isFile() ? real : null;
+  } catch {
+    return null;
+  }
+}
+
+/** decodeURIComponent sin excepciones: null si la secuencia `%` no es válida. */
+export function safeDecode(s: string): string | null {
+  try { return decodeURIComponent(s); } catch { return null; }
+}
+
+type ReportArtifact = { path: string; sha256: string; bytes: number; ffprobe?: { durationSeconds?: number; video?: { codec: string; width: number; height: number } } };
+type Report = {
+  summary: Record<string, number>;
+  zero_paid_controls?: { actual_provider_spend_usd: number; blockedExternalAttempts: unknown[] };
+  scenarios: { id: string; status: string; title: string; reason: string; artifacts?: ReportArtifact[] }[];
+};
+
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** Valida la forma mínima de report.json; lanza un Error con mensaje legible si no la cumple. */
+export function parseReport(raw: string): Report {
+  const r: unknown = JSON.parse(raw);
+  if (!isObj(r)) throw new Error("no es un objeto");
+  if (!isObj(r.summary) || !Object.values(r.summary).every((v) => typeof v === "number")) throw new Error("summary ausente o no numérico");
+  if (!Array.isArray(r.scenarios)) throw new Error("scenarios ausente");
+  for (const s of r.scenarios) {
+    if (!isObj(s) || typeof s.id !== "string" || typeof s.status !== "string") throw new Error("escenario sin id/status");
+    if (s.artifacts !== undefined) {
+      if (!Array.isArray(s.artifacts)) throw new Error(`artifacts de ${s.id} no es una lista`);
+      for (const a of s.artifacts) if (!isObj(a) || typeof a.path !== "string" || typeof a.sha256 !== "string" || typeof a.bytes !== "number") throw new Error(`artefacto inválido en ${s.id}`);
+    }
+  }
+  const z = r.zero_paid_controls;
+  if (z !== undefined && (!isObj(z) || typeof z.actual_provider_spend_usd !== "number" || !Array.isArray(z.blockedExternalAttempts))) throw new Error("zero_paid_controls con forma inválida");
+  return r as Report;
+}
+
 /** Lee el resultado de una corrida terminada (report.json del simulador o salida TAP de las pruebas). */
 export function collectResult(job: Job, exitCode: number | null, log: string): Job {
   const done: Job = { ...job, exitCode, finishedAt: new Date().toISOString(), logTail: log.slice(-4000) };
   const reportFile = path.join(job.outDir, "report.json");
+  let r: Report | null = null;
+  let reportError = "";
   if (job.mode !== "longform" && fs.existsSync(reportFile)) {
-    const r = JSON.parse(fs.readFileSync(reportFile, "utf8")) as {
-      summary: Record<string, number>;
-      zero_paid_controls?: { actual_provider_spend_usd: number; blockedExternalAttempts: unknown[] };
-      scenarios: { id: string; status: string; title: string; reason: string; artifacts?: { path: string; sha256: string; bytes: number; ffprobe?: { durationSeconds: number; video?: { codec: string; width: number; height: number } } }[] }[];
-    };
+    try { r = parseReport(fs.readFileSync(reportFile, "utf8")); } catch (e) { reportError = e instanceof Error ? e.message : String(e); }
+  }
+  if (reportError) {
+    done.status = "failed";
+    done.error = `report.json ilegible o con forma inválida (${reportError}). Revisa el registro y vuelve a intentarlo.`;
+  } else if (r) {
     done.summary = r.summary;
     done.scenarios = r.scenarios.map((s) => ({ id: s.id, status: s.status, title: s.title, reason: s.reason }));
     const qa02 = r.scenarios.find((s) => s.id === "QA-02");
     done.zeroPaidControl = { actualProviderSpendUsd: r.zero_paid_controls?.actual_provider_spend_usd ?? -1, blockedExternalAttempts: r.zero_paid_controls?.blockedExternalAttempts?.length ?? -1, qa02: qa02?.status ?? "AUSENTE" };
     const seen = new Set<string>();
-    done.artifacts = r.scenarios.flatMap((s) => s.artifacts ?? []).filter((a) => a.path.endsWith(".mp4") && a.path.startsWith(job.outDir) && fs.existsSync(a.path) && !seen.has(a.path) && seen.add(a.path)).map((a) => ({
-      file: path.relative(job.outDir, a.path), sha256: a.sha256, bytes: a.bytes, durationSeconds: a.ffprobe?.durationSeconds,
-      video: a.ffprobe?.video ? `${a.ffprobe.video.codec} ${a.ffprobe.video.width}x${a.ffprobe.video.height}` : undefined,
-    }));
-    const ok = exitCode === 0 && (r.summary.FAIL ?? 0) === 0 && done.zeroPaidControl.qa02 === "PASS" && done.zeroPaidControl.actualProviderSpendUsd === 0;
+    const problems: string[] = [];
+    const realOut = fs.realpathSync(job.outDir);
+    done.artifacts = [];
+    for (const a of r.scenarios.flatMap((s) => s.artifacts ?? []).filter((x) => x.path.endsWith(".mp4"))) {
+      const real = containedFile(job.outDir, a.path);
+      if (!real) { problems.push(`artefacto fuera del directorio de la corrida o inexistente: ${path.basename(a.path)}`); continue; }
+      if (seen.has(real)) continue;
+      seen.add(real);
+      const bytes = fs.statSync(real).size;
+      if (bytes !== a.bytes) problems.push(`tamaño declarado ${a.bytes} B ≠ real ${bytes} B en ${path.basename(real)}`);
+      if (sha256(real) !== a.sha256) problems.push(`SHA-256 no coincide para ${path.basename(real)}`);
+      done.artifacts.push({
+        file: path.relative(realOut, real), sha256: a.sha256, bytes, durationSeconds: a.ffprobe?.durationSeconds,
+        video: a.ffprobe?.video ? `${a.ffprobe.video.codec} ${a.ffprobe.video.width}x${a.ffprobe.video.height}` : undefined,
+      });
+    }
+    const ok = exitCode === 0 && (r.summary.FAIL ?? 0) === 0 && done.zeroPaidControl.qa02 === "PASS" && done.zeroPaidControl.actualProviderSpendUsd === 0 && problems.length === 0;
     done.status = ok ? "passed" : "failed";
-    if (!ok) done.error = done.zeroPaidControl.qa02 !== "PASS" ? "El control de cero llamadas externas (QA-02) no pasó." : `${r.summary.FAIL ?? 0} escenario(s) en FAIL. Revisa la tabla y el informe.`;
+    if (!ok) done.error = done.zeroPaidControl.qa02 !== "PASS" ? "El control de cero llamadas externas (QA-02) no pasó." : problems.length ? `Artefactos rechazados: ${problems.join("; ")}.` : `${r.summary.FAIL ?? 0} escenario(s) en FAIL. Revisa la tabla y el informe.`;
   } else if (job.mode === "longform") {
     const pass = Number(log.match(/^# pass (\d+)/m)?.[1] ?? NaN);
     const fail = Number(log.match(/^# fail (\d+)/m)?.[1] ?? NaN);
@@ -112,7 +176,6 @@ export function collectResult(job: Job, exitCode: number | null, log: string): J
     done.status = "failed";
     done.error = `El simulador terminó (código ${exitCode}) sin report.json. Revisa el registro y vuelve a intentarlo.`;
   }
-  for (const a of done.artifacts ?? []) if (a.sha256 !== sha256(path.join(job.outDir, a.file))) { done.status = "failed"; done.error = `SHA-256 no coincide para ${a.file}`; }
   return done;
 }
 
@@ -145,8 +208,12 @@ export function createUiServer(opts: { repo: string; root: string; runner?: Runn
     child.stdout?.on("data", (d) => { log += d; });
     child.stderr?.on("data", (d) => { log += d; });
     child.on("exit", (code) => {
-      fs.writeFileSync(path.join(outDir, "run.log"), log);
-      Object.assign(job, collectResult(job, code, log));
+      try { fs.writeFileSync(path.join(outDir, "run.log"), log); } catch { /* el estado del job se guarda igualmente */ }
+      try {
+        Object.assign(job, collectResult(job, code, log));
+      } catch (e) {
+        Object.assign(job, { status: "failed", exitCode: code, finishedAt: new Date().toISOString(), logTail: log.slice(-4000), error: `No se pudo leer el resultado (${e instanceof Error ? e.message : String(e)}). Vuelve a intentarlo.` });
+      }
       save();
     });
     return job;
@@ -165,29 +232,34 @@ export function createUiServer(opts: { repo: string; root: string; runner?: Runn
     }
     if (req.method === "GET" && url.pathname === "/api/jobs") return send(res, 200, { jobs: jobs.map(publicJob) });
     if (req.method === "GET" && url.pathname.startsWith("/api/jobs/")) {
-      const j = jobs.find((x) => x.id === decodeURIComponent(url.pathname.slice("/api/jobs/".length)));
+      const id = safeDecode(url.pathname.slice("/api/jobs/".length));
+      if (id === null) return send(res, 400, { error: "Identificador mal codificado." });
+      const j = jobs.find((x) => x.id === id);
       return j ? send(res, 200, { job: publicJob(j) }) : send(res, 404, { error: "No existe esa corrida." });
     }
     if (req.method === "POST" && url.pathname === "/api/jobs") {
       if (req.headers["content-type"] !== "application/json") return send(res, 415, { error: "Se espera JSON." });
       let raw = "";
       for await (const c of req) { raw += c; if (raw.length > 2048) return send(res, 413, { error: "Petición demasiado grande." }); }
-      let body: { mode?: string; confirm600?: string };
+      let body: unknown;
       try { body = JSON.parse(raw || "{}"); } catch { return send(res, 400, { error: "JSON no válido." }); }
-      const mode = body.mode as UiMode;
-      if (!(mode in MODES)) return send(res, 400, { error: "Modo desconocido. Usa reel, longform, avatar o longform-600." });
+      if (!isObj(body)) return send(res, 400, { error: "Se espera un objeto JSON." });
+      const mode = body.mode;
+      // Lista cerrada: solo propiedades propias de MODES (rechaza toString, constructor, __proto__, "", números…).
+      if (typeof mode !== "string" || !Object.prototype.hasOwnProperty.call(MODES, mode)) return send(res, 400, { error: "Modo desconocido. Usa reel, longform, avatar o longform-600." });
       if (mode === "longform-600" && body.confirm600 !== "600") return send(res, 400, { error: "El render de 600 s exige confirmación explícita (confirm600: \"600\")." });
       const running = jobs.find((j) => j.status === "running");
       if (running) return send(res, 409, { error: `Ya hay una simulación en curso (${MODES[running.mode].label}). Espera a que termine; no se lanzó otra.`, job: publicJob(running) });
-      return send(res, 202, { job: publicJob(start(mode)) });
+      return send(res, 202, { job: publicJob(start(mode as UiMode)) });
     }
     if (req.method === "GET" && url.pathname.startsWith("/files/")) {
-      const [, , id, ...rest] = url.pathname.split("/");
-      const j = jobs.find((x) => x.id === decodeURIComponent(id ?? ""));
-      const rel = decodeURIComponent(rest.join("/"));
-      const file = j ? path.resolve(j.outDir, rel) : "";
-      const allowed = j && file.startsWith(j.outDir + path.sep) && /\.(mp4|json|md|txt|log)$/.test(file) && fs.existsSync(file) && fs.statSync(file).isFile();
-      if (!allowed) { res.writeHead(404); res.end("not found"); return; }
+      const [, , rawId, ...rest] = url.pathname.split("/");
+      const id = safeDecode(rawId ?? "");
+      const rel = safeDecode(rest.join("/"));
+      if (id === null || rel === null) { res.writeHead(400); res.end("bad request"); return; }
+      const j = jobs.find((x) => x.id === id);
+      const file = j && rel ? containedFile(j.outDir, rel) : null;
+      if (!file || !/\.(mp4|json|md|txt|log)$/.test(file)) { res.writeHead(404); res.end("not found"); return; }
       const type = file.endsWith(".mp4") ? "video/mp4" : file.endsWith(".json") ? "application/json" : "text/plain; charset=utf-8";
       res.writeHead(200, { "content-type": type, "content-length": fs.statSync(file).size, "x-atomivid-simulation": "fixture", ...(url.searchParams.has("download") ? { "content-disposition": `attachment; filename="SIMULACION-${path.basename(file)}"` } : {}) });
       fs.createReadStream(file).pipe(res); return;
@@ -208,7 +280,7 @@ const publicJob = (j: Job) => ({ ...j, outDir: undefined, label: MODES[j.mode].l
 function page() {
   const modes = Object.entries(MODES).map(([k, m]) => `<button data-mode="${k}"${k === "longform-600" ? ' class="slow"' : ""}>${m.label}</button><small>${m.detail}</small>`).join("");
   return `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${BANNER} · Simulador ATOMIVID</title>
+<title>${BANNER} · Simulador Atomicvid</title>
 <style>
 body{font:15px system-ui,sans-serif;margin:0;background:#f6f6f4;color:#1b1b1b}
 .banner{background:#b00020;color:#fff;font-weight:700;text-align:center;padding:10px 16px;position:sticky;top:0;letter-spacing:.02em}
@@ -227,7 +299,7 @@ pre{white-space:pre-wrap;max-height:160px;overflow:auto;background:#f0f0f0;paddi
 </style>
 <div class="banner" id="banner">${BANNER}</div>
 <main>
-<h1>Simulador ATOMIVID (local)</h1>
+<h1>Simulador Atomicvid (local)</h1>
 <p>Solo fixtures sintéticos y proveedores emulados en este equipo. USD 0. No usa tu cuenta, no escribe en producción y no cobra. Un resultado «PASS» aquí <strong>no</strong> es una producción real.</p>
 <div class="modes">${modes}</div>
 <p class="msg" id="msg" role="status"></p>

@@ -185,3 +185,113 @@ test("el servidor no importa Supabase, workers, rutas de la app ni proveedores",
   assert.deepEqual(imports.filter((i) => !i.startsWith("node:")), [], "solo módulos de Node");
   assert.doesNotMatch(src, /src\/lib\/(supabase|worker|providers)|api\/generate|createServiceClient|repository_dispatch/);
 });
+
+// ── Regresiones CORRECCIÓN-1 (H1–H4 y URI malformada) ──
+
+test("H1: la página muestra la marca Atomicvid y no el nombre anterior", async () => {
+  const f = fakeRunner({ exit: 0 });
+  await withServer(f.runner, async (port) => {
+    const home = await req(port, "GET", "/");
+    assert.match(home.text, /Simulador Atomicvid/);
+    assert.doesNotMatch(home.text, /ATOMIVID|Atomivid/);
+  });
+});
+
+for (const [name, write] of [
+  ["truncado", (d: string) => fs.writeFileSync(path.join(d, "report.json"), '{"summary":{"PASS":1,')],
+  ["con forma inválida", (d: string) => fs.writeFileSync(path.join(d, "report.json"), JSON.stringify({ summary: "x", scenarios: {} }))],
+  ["con artefacto sin sha", (d: string) => fs.writeFileSync(path.join(d, "report.json"), JSON.stringify({ summary: { PASS: 1, FAIL: 0 }, scenarios: [{ id: "A", status: "PASS", artifacts: [{ path: "x.mp4" }] }] }))],
+] as const) {
+  test(`H2: report.json ${name} → failed con mensaje, run.log y jobs.json guardados, servidor vivo y reintento`, async () => {
+    const f = fakeRunner({ exit: 0 });
+    // escribe el report.json dañado justo antes de que el servidor procese la salida del proceso
+    const runner: Runner = (cmd, args, opts) => {
+      const child = f.runner(cmd, args, opts);
+      const outDir = args.find((a) => a.startsWith("--out-dir="))!.slice(10);
+      (child as unknown as EventEmitter).prependListener("exit", () => write(outDir));
+      return child;
+    };
+    await withServer(runner, async (port, root) => {
+      const id = ((await req(port, "POST", "/api/jobs", { mode: "reel" })).json?.job as { id: string }).id;
+      f.finish();
+      await waitFor(async () => ((await req(port, "GET", `/api/jobs/${id}`)).json?.job as { status: string }).status !== "running");
+      const job = (await req(port, "GET", `/api/jobs/${id}`)).json?.job as { status: string; error: string };
+      assert.equal(job.status, "failed");
+      assert.match(job.error, /report\.json ilegible o con forma inválida/);
+      assert.ok(fs.existsSync(path.join(root, id, "run.log")));
+      assert.equal(JSON.parse(fs.readFileSync(path.join(root, "jobs.json"), "utf8"))[0].status, "failed");
+      assert.equal((await req(port, "POST", "/api/jobs", { mode: "reel" })).status, 202, "reintento posible");
+      f.finish();
+    });
+  });
+}
+
+test("H3: artefacto en directorio hermano, symlink hacia fuera y tamaño falso → rechazados, no servidos, job failed", async () => {
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "sim-ui-fuera-"));
+  fs.writeFileSync(path.join(outside, "secreto.mp4"), "fuera");
+  const sha = (s: string) => require("node:crypto").createHash("sha256").update(s).digest("hex");
+  const f = fakeRunner({
+    exit: 0,
+    report: (d) => {
+      const sibling = `${d}-otro`; // mismo prefijo textual que el directorio de la corrida
+      fs.mkdirSync(sibling, { recursive: true });
+      fs.writeFileSync(path.join(sibling, "x.mp4"), "hermano");
+      fs.symlinkSync(path.join(outside, "secreto.mp4"), path.join(d, "enlace.mp4"));
+      fs.writeFileSync(path.join(d, "bueno.mp4"), "bueno");
+      return {
+        summary: { PASS: 1, FAIL: 0 },
+        zero_paid_controls: { actual_provider_spend_usd: 0, blockedExternalAttempts: [] },
+        scenarios: [
+          { id: "QA-02", status: "PASS", title: "c", reason: "ok", artifacts: [
+            { path: path.join(sibling, "x.mp4"), sha256: sha("hermano"), bytes: 7 },
+            { path: path.join(d, "enlace.mp4"), sha256: sha("fuera"), bytes: 5 },
+            { path: path.join(d, "bueno.mp4"), sha256: sha("bueno"), bytes: 999 },
+          ] },
+        ],
+      };
+    },
+  });
+  try {
+    await withServer(f.runner, async (port) => {
+      const id = ((await req(port, "POST", "/api/jobs", { mode: "reel" })).json?.job as { id: string }).id;
+      f.finish();
+      await waitFor(async () => ((await req(port, "GET", `/api/jobs/${id}`)).json?.job as { status: string }).status !== "running");
+      const job = (await req(port, "GET", `/api/jobs/${id}`)).json?.job as { status: string; error: string; artifacts: { file: string; bytes: number }[] };
+      assert.equal(job.status, "failed");
+      assert.match(job.error, /fuera del directorio/);
+      assert.match(job.error, /tamaño declarado 999 B ≠ real 5 B/);
+      assert.deepEqual(job.artifacts.map((a) => a.file), ["bueno.mp4"], "solo queda el artefacto contenido");
+      assert.equal(job.artifacts[0].bytes, 5, "tamaño recalculado, no el declarado");
+      assert.equal((await req(port, "GET", `/files/${id}/enlace.mp4`)).status, 404, "symlink hacia fuera no se sirve");
+      assert.equal((await req(port, "GET", `/files/${id}/..%2F${encodeURIComponent(id)}-otro%2Fx.mp4`)).status, 404, "hermano no se sirve");
+      assert.equal((await req(port, "GET", `/files/${id}/bueno.mp4`)).text, "bueno");
+    });
+  } finally { fs.rmSync(outside, { recursive: true, force: true }); }
+});
+
+test("H4: modos heredados o no string → 400 y el runner no se llama", async () => {
+  const f = fakeRunner({ exit: 0 });
+  await withServer(f.runner, async (port) => {
+    for (const mode of ["toString", "constructor", "__proto__", "hasOwnProperty", "", {}, 1, null, ["reel"]]) {
+      assert.equal((await req(port, "POST", "/api/jobs", { mode } as object)).status, 400, JSON.stringify(mode));
+    }
+    for (const body of [["reel"], "reel", 5]) {
+      assert.equal((await req(port, "POST", "/api/jobs", body as unknown as object)).status, 400, JSON.stringify(body));
+    }
+    assert.equal(f.calls.length, 0);
+    assert.equal(((await req(port, "GET", "/api/jobs")).json?.jobs as unknown[]).length, 0, "no se creó ningún job");
+  });
+});
+
+test("URI malformada en /api/jobs/:id y /files/ → respuesta controlada y servidor vivo", async () => {
+  const f = fakeRunner({ exit: 0, report: okReport });
+  await withServer(f.runner, async (port) => {
+    const id = ((await req(port, "POST", "/api/jobs", { mode: "reel" })).json?.job as { id: string }).id;
+    f.finish();
+    assert.equal((await req(port, "GET", "/api/jobs/%E0%A4%A")).status, 400);
+    assert.equal((await req(port, "GET", "/api/jobs/%")).status, 400);
+    assert.equal((await req(port, "GET", `/files/${id}/%`)).status, 400);
+    assert.equal((await req(port, "GET", `/files/%ZZ/x.mp4`)).status, 400);
+    assert.equal((await req(port, "GET", "/api/jobs")).status, 200, "el servidor sigue respondiendo");
+  });
+});
