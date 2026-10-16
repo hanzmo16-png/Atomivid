@@ -4,11 +4,33 @@
 // Director package and calls materializeForWorker once. Lookups come only from the request (measured dimensions,
 // recorded rights); nothing is inferred. Prints one JSON line: {status:"ready",manifestSha256} | {status:"blocked"|"error",blockers}.
 // Exit: 0 ready, 2 blocked, 1 error. Usage: node podcast-director-step.cjs <PODCAST_DIRECTOR_DIR> <request.json>
+// --probe <PODCAST_DIRECTOR_DIR> <probe dir>: the worker's free pre-check of the SAME isolated launch, before any paid step.
+// Writes nothing outside <probe dir>. {status:"probe-ok",checks} exit 0 | {status:"probe-failed",failed,checks} exit 3.
 "use strict";
 const fs = require("fs"), path = require("path");
 const out = (code, v) => { process.stdout.write(JSON.stringify(v) + "\n"); process.exitCode = code; };
 const fail = (code, message) => out(1, { status: "error", blockers: [{ code, message }] });
+function probe(dir, probeDir) {
+  const checks = [], failed = [];
+  const check = (name, fn) => { let ok = false; try { ok = fn() === true; } catch { ok = false; } (ok ? checks : failed).push(name); };
+  check("rutas_absolutas", () => path.isAbsolute(dir) && path.isAbsolute(probeDir));
+  check("adaptador_legible", () => { const a = require(path.join(dir, "dist/adaptador/worker-adapter.js")); return typeof a.materializeForWorker === "function" && typeof a.toDirectorInput === "function"; });
+  check("proc_self_fd", () => fs.readdirSync("/proc/self/fd").length > 0);
+  check("escritura_en_trabajo", () => {
+    const f = path.join(probeDir, `.sonda-${process.pid}`);
+    fs.writeFileSync(f, "ok", { flag: "wx" }); const back = fs.readFileSync(f, "utf8"); fs.unlinkSync(f); return back === "ok";
+  });
+  check("solo_lectura_fuera_del_trabajo", () => {
+    const f = path.join(dir, `.sonda-${process.pid}`);
+    try { fs.writeFileSync(f, "x", { flag: "wx" }); } catch (e) { return ["EROFS", "EACCES", "EPERM"].includes(e && e.code); }
+    try { fs.unlinkSync(f); } catch { /* best effort */ }
+    return false;
+  });
+  out(failed.length ? 3 : 0, failed.length ? { status: "probe-failed", failed, checks } : { status: "probe-ok", checks });
+}
+
 try {
+  if (process.argv[2] === "--probe") return probe(String(process.argv[3] || ""), String(process.argv[4] || ""));
   const [dir, reqPath] = process.argv.slice(2);
   if (!dir || !reqPath || !path.isAbsolute(dir)) return fail("DIRECTOR_ENV_MISSING", "uso: podcast-director-step.cjs <dir absoluto> <request.json>");
   let req;

@@ -6,10 +6,12 @@
  *    under a dedicated UID. It writes montaje.json + LISTO.json into the same entrada/ folder; the editor step after it
  *    is the worker's own.
  * The director engine is never enabled by default: PODCAST_MONTAGE_ENGINE=director plus PODCAST_DIRECTOR_DIR (the built
- * Director package) plus every isolation barrier. Anything missing is a structured error the worker raises BEFORE any
- * paid call; there is no silent fallback to the other engine.
- * Inputs the worker does not produce today (rights per asset, aligned avatar) are not invented here: the adapter
- * blocks with WORKER_MISSING_RIGHTS / WORKER_MISSING_AVATAR_ALIGNMENT.
+ * Director package) plus every isolation barrier. montageGate() runs at the start of a production, before the
+ * narration and the stock search: the configuration, the inputs already known to be missing (rights for stock) and a
+ * functional launch of the isolation itself. Checks on media that do not exist yet (sample rate, dimensions) can only
+ * run later. There is no silent fallback to the other engine.
+ * Inputs the worker does not produce today (rights per asset, aligned avatar) are not invented here: rights come only
+ * from an explicit server-side RightsPolicy (none exists yet), never from pageUrl/credit or from the browser.
  */
 import path from "node:path";
 
@@ -22,6 +24,8 @@ export type EngineErrorCode =
   | "DIRECTOR_UID_NOT_DEDICATED"
   | "DIRECTOR_TEST_HOOKS_SET"
   | "DIRECTOR_PROC_MISSING"
+  | "DIRECTOR_RIGHTS_UNAVAILABLE"
+  | "DIRECTOR_ISOLATION_PROBE_FAILED"
   | "DIRECTOR_AUDIO_SAMPLE_RATE"
   | "DIRECTOR_OUTPUT_INVALID"
   | "DIRECTOR_EXIT";
@@ -73,7 +77,19 @@ export function engineBlockMessage(errors: EngineError[]): string {
   return `El montaje con el Director no está disponible (${codes}). No se ha hecho ningún gasto en este paso; revisa la configuración o usa el montaje estándar.`.slice(0, 500);
 }
 
-export type WorkerShot = { sceneIndex: number; file: string; seconds: number; size: number; sha256: string; kind: "video" | "photo"; credit: string; pageUrl?: string };
+export type WorkerShot = { sceneIndex: number; file: string; seconds: number; size: number; sha256: string; kind: "video" | "photo"; credit: string; pageUrl?: string; sourceId?: string };
+export type RightsBasis = { status: "cleared" | "unknown" | "restricted"; basis: string };
+/** Reviewed, versioned server-side decision on the rights of a stock asset. None exists yet: the worker passes null. */
+export type RightsPolicy = { id: string; version: string; basisFor: (p: ShotProvenance) => RightsBasis | null };
+/** What the server knows about where an asset came from (provider metadata + the worker's own derivative). Not a permit. */
+export type ShotProvenance = { asset: string; provider: "pexels"; sourceId: string | null; pageUrl: string | null; credit: string; derivative: string; size: number; sha256: string };
+
+export function shotProvenance(inputDir: string, sh: WorkerShot): ShotProvenance {
+  return {
+    asset: path.relative(inputDir, sh.file), provider: "pexels", sourceId: sh.sourceId ?? null, pageUrl: sh.pageUrl ?? null, credit: sh.credit,
+    derivative: sh.kind === "photo" ? "foto animada por el worker (renderPhotoFfmpeg)" : "clip recortado por el worker (renderClipFfmpeg)", size: sh.size, sha256: sh.sha256,
+  };
+}
 export type DirectorRequestInput = {
   episodeId: string; version: number; title: string; language: "es" | "en"; inputDir: string;
   audio: { path: string; size: number; sha256: string }; audioSeconds: number; sampleRate: number | null;
@@ -87,28 +103,88 @@ export type DirectorRequest = {
   schema: "atomivid/podcast-director-step@1";
   worker: Omit<DirectorRequestInput, "dimensions" | "sampleRate" | "shots"> & { sampleRate: 44100 | 48000; shots: Array<WorkerShot | null> };
   dimensions: Record<string, { width: number; height: number }>;
-  rights: Record<string, { status: "cleared" | "unknown" | "restricted"; basis: string }>;
+  rights: Record<string, RightsBasis>;
+  provenance: ShotProvenance[];
   requireAvatarSegments: string[];
 };
 
-/** Serialisable request for the child runner. Rights: none recorded by the worker today → empty (the adapter blocks). */
-export function directorRequest(w: DirectorRequestInput): { ok: true; request: DirectorRequest } | { ok: false; errors: EngineError[] } {
+/** Serialisable request for the child runner. Rights only from an explicit policy; without one they stay empty (the adapter blocks). */
+export function directorRequest(w: DirectorRequestInput, policy: RightsPolicy | null = null): { ok: true; request: DirectorRequest } | { ok: false; errors: EngineError[] } {
   if (w.sampleRate !== 44100 && w.sampleRate !== 48000) return { ok: false, errors: [{ code: "DIRECTOR_AUDIO_SAMPLE_RATE", message: "el audio debe ser de 44,1 o 48 kHz (medido con ffprobe)" }] };
   const dimensions: DirectorRequest["dimensions"] = {};
   for (const sh of w.shots) {
     const dim = sh ? w.dimensions[sh.file] : null;
     if (sh && dim && Number.isInteger(dim.width) && Number.isInteger(dim.height) && dim.width > 0 && dim.height > 0) dimensions[path.relative(w.inputDir, sh.file)] = { width: dim.width, height: dim.height };
   }
+  const provenance = w.shots.filter((sh): sh is WorkerShot => !!sh).map((sh) => shotProvenance(w.inputDir, sh));
+  const rights: DirectorRequest["rights"] = {};
+  if (policy) for (const p of provenance) { const b = policy.basisFor(p); if (b) rights[p.asset] = b; }
   const worker: DirectorRequest["worker"] = {
     episodeId: w.episodeId, version: Math.max(1, w.version), title: w.title, language: w.language, inputDir: w.inputDir,
     audio: w.audio, audioSeconds: w.audioSeconds, sampleRate: w.sampleRate, scenes: w.scenes, shots: w.shots, subtitles: w.subtitles,
   };
-  return { ok: true, request: { schema: "atomivid/podcast-director-step@1", worker, dimensions, rights: {}, requireAvatarSegments: [] } };
+  return { ok: true, request: { schema: "atomivid/podcast-director-step@1", worker, dimensions, rights, provenance, requireAvatarSegments: [] } };
 }
 
-/** Command that runs the runner inside the Director's isolation; the work root (mode 700) is the only writable path. */
+/**
+ * Command that runs the runner inside the Director's isolation. The work root (mode 700) is the only writable path; the
+ * package, the runner and node are bound read-only explicitly, so they stay visible even under the wrapper's tmpfs /tmp.
+ */
 export function directorCommand(rt: DirectorRuntime, workDir: string, requestPath: string): { cmd: string; args: string[] } {
-  return { cmd: "bash", args: [rt.isolate, "--rw", workDir, "--", process.execPath, rt.runner, rt.dir, requestPath] };
+  return { cmd: "bash", args: [rt.isolate, "--rw", workDir, ...readOnlyBinds(rt), "--", process.execPath, rt.runner, rt.dir, requestPath] };
+}
+
+/** Same launch as directorCommand, but the runner only checks it can run there (see podcast-director-step.cjs --probe). */
+export function directorProbeCommand(rt: DirectorRuntime, probeDir: string): { cmd: string; args: string[] } {
+  return { cmd: "bash", args: [rt.isolate, "--rw", probeDir, ...readOnlyBinds(rt), "--", process.execPath, rt.runner, "--probe", rt.dir, probeDir] };
+}
+
+function readOnlyBinds(rt: DirectorRuntime): string[] {
+  const dirs = [...new Set([rt.dir, path.dirname(rt.runner), path.dirname(process.execPath)])];
+  return dirs.flatMap((d) => ["--ro", d]);
+}
+
+export type GateDeps = EngineDeps & {
+  /** True when this production will search stock (the same condition the worker uses for buildSceneShots). */
+  stockEnabled: boolean;
+  rightsPolicy: RightsPolicy | null;
+  /** Fresh private (0700) directory for the probe, and its removal. */
+  makeProbeDir: () => Promise<string>;
+  removeProbeDir: (dir: string) => Promise<void>;
+  exec: (cmd: string, args: string[], env: Record<string, string>) => Promise<{ code: number; stdout: string }>;
+};
+
+/**
+ * Everything that can be decided before any paid step: engine choice, known missing inputs and a real launch of the
+ * isolation (bwrap executable, namespaces allowed, package readable inside, writes outside the work root refused).
+ */
+export async function montageGate(d: GateDeps): Promise<EngineChoice> {
+  const choice = resolveMontageEngine(d);
+  if (!choice.ok || choice.engine === "legacy") return choice;
+  if (d.stockEnabled && !d.rightsPolicy) {
+    return { ok: false, engine: "director", errors: [{ code: "DIRECTOR_RIGHTS_UNAVAILABLE", message: "no hay una política de derechos registrada para el material de stock; el Director lo rechazaría después de narrar" }] };
+  }
+  let probeDir: string | null = null;
+  try {
+    probeDir = await d.makeProbeDir();
+    const { cmd, args } = directorProbeCommand(choice.runtime, probeDir);
+    const res = await d.exec(cmd, args, directorChildEnv(d.env));
+    const probe = parseProbeOutput(res.code, res.stdout);
+    if (!probe.ok) return { ok: false, engine: "director", errors: [probe.error] };
+  } catch {
+    return { ok: false, engine: "director", errors: [{ code: "DIRECTOR_ISOLATION_PROBE_FAILED", message: "no se pudo lanzar la prueba de aislamiento" }] };
+  } finally {
+    if (probeDir) await d.removeProbeDir(probeDir).catch(() => undefined);
+  }
+  return choice;
+}
+
+export function parseProbeOutput(code: number, stdout: string): { ok: true } | { ok: false; error: EngineError } {
+  let j: { status?: unknown; checks?: unknown; failed?: unknown } = {};
+  try { j = JSON.parse(stdout.trim().split("\n").pop() ?? "") ?? {}; } catch { j = {}; }
+  if (code === 0 && j.status === "probe-ok") return { ok: true };
+  const failed = Array.isArray(j.failed) ? j.failed.filter((x): x is string => typeof x === "string").slice(0, 8).join(", ") : "";
+  return { ok: false, error: { code: "DIRECTOR_ISOLATION_PROBE_FAILED", message: failed ? `prueba de aislamiento fallida: ${failed}` : `la prueba de aislamiento terminó con código ${code}` } };
 }
 
 /** Child environment: no credentials, no test hooks; only what node and the wrapper need. */

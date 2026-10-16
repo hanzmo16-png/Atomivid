@@ -6,8 +6,8 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  DIRECTOR_FILES, directorChildEnv, directorCommand, directorRequest, engineBlockMessage, parseDirectorOutput, resolveMontageEngine,
-  type DirectorRequestInput, type EngineDeps,
+  DIRECTOR_FILES, directorChildEnv, directorCommand, directorProbeCommand, directorRequest, engineBlockMessage, montageGate, parseDirectorOutput,
+  parseProbeOutput, resolveMontageEngine, type DirectorRequestInput, type EngineDeps, type GateDeps, type RightsPolicy,
 } from "./montage-engine";
 
 const RUNNER = path.resolve("scripts/podcast-director-step.cjs");
@@ -90,8 +90,13 @@ test("orden aislada y entorno del hijo: solo la raíz de trabajo escribible; sin
   const rt = { dir: DIR, adapter: "", isolate: `${DIR}/scripts/ejecutar_aislado.sh`, runner: RUNNER };
   const { cmd, args } = directorCommand(rt, "/w", "/w/director-request.json");
   assert.equal(cmd, "bash");
-  assert.deepEqual(args.slice(0, 4), [rt.isolate, "--rw", "/w", "--"]);
-  assert.deepEqual(args.slice(-3), [RUNNER, DIR, "/w/director-request.json"]);
+  assert.deepEqual(args.slice(0, 3), [rt.isolate, "--rw", "/w"]);
+  const sep = args.indexOf("--");
+  assert.deepEqual(args.slice(3, sep), ["--ro", DIR, "--ro", path.dirname(RUNNER), "--ro", path.dirname(process.execPath)], "paquete, runner y node en solo lectura explícito (el tmpfs de /tmp no los oculta)");
+  assert.deepEqual(args.slice(sep + 1), [process.execPath, RUNNER, DIR, "/w/director-request.json"]);
+  const probe = directorProbeCommand(rt, "/p");
+  assert.deepEqual(probe.args.slice(0, sep), [rt.isolate, "--rw", "/p", ...args.slice(3, sep)], "la sonda usa el mismo lanzamiento");
+  assert.deepEqual(probe.args.slice(sep + 1), [process.execPath, RUNNER, "--probe", DIR, "/p"]);
   const env = directorChildEnv({ PATH: "/usr/bin", LANG: "C.UTF-8", SUPABASE_SERVICE_ROLE_KEY: "x", PEXELS_API_KEY: "y", DIRECTOR_PAUSA_EN: "z", GITHUB_TOKEN: "t" });
   assert.deepEqual(env, { PATH: "/usr/bin", LANG: "C.UTF-8" });
 });
@@ -155,4 +160,46 @@ test("aislamiento real: sin bwrap el envoltorio del Director se niega (código 7
   assert.equal(p.status, 70);
   assert.equal((parseDirectorOutput(p.status ?? -1, p.stdout) as { errors: { code: string }[] }).errors[0].code, "DIRECTOR_EXIT");
   assert.equal(readFileSync(path.join(REAL!, DIRECTOR_FILES.isolate), "utf8").includes("no se ejecuta sin aislamiento"), true);
+});
+
+const gateDeps = (env: Record<string, string | undefined>, over: Partial<GateDeps> = {}) => {
+  const calls = { exec: 0, made: 0, removed: 0 };
+  const d: GateDeps = {
+    ...deps(env), stockEnabled: false, rightsPolicy: null,
+    makeProbeDir: async () => { calls.made++; return "/p"; }, removeProbeDir: async () => { calls.removed++; },
+    exec: async () => { calls.exec++; return { code: 0, stdout: '{"status":"probe-ok"}' }; }, ...over,
+  };
+  return { d, calls };
+};
+
+test("compuerta: legacy no lanza nada; con stock y sin política de derechos bloquea ANTES de la sonda", async () => {
+  const l = gateDeps({}); assert.deepEqual(await montageGate(l.d), { ok: true, engine: "legacy" }); assert.equal(l.calls.exec, 0);
+  const r = gateDeps(DIRECTOR_ENV, { stockEnabled: true });
+  assert.deepEqual(codes(await montageGate(r.d)), ["DIRECTOR_RIGHTS_UNAVAILABLE"]); assert.equal(r.calls.exec, 0);
+  const cfg = gateDeps(DIRECTOR_ENV, { onPath: () => false });
+  assert.deepEqual(codes(await montageGate(cfg.d)), ["DIRECTOR_ISOLATION_MISSING"]); assert.equal(cfg.calls.exec, 0);
+});
+
+test("compuerta: la sonda funcional decide; su carpeta se borra siempre; error de lanzamiento → bloqueado", async () => {
+  const ok = gateDeps(DIRECTOR_ENV); const c = await montageGate(ok.d);
+  assert.ok(c.ok && c.engine === "director"); assert.deepEqual(ok.calls, { exec: 1, made: 1, removed: 1 });
+  for (const res of [{ code: 70, stdout: "" }, { code: 0, stdout: "basura" }, { code: 3, stdout: '{"status":"probe-failed","failed":["adaptador_legible"]}' }]) {
+    const g = gateDeps(DIRECTOR_ENV, { exec: async () => res }); const out = await montageGate(g.d);
+    assert.deepEqual(codes(out), ["DIRECTOR_ISOLATION_PROBE_FAILED"]); assert.equal(g.calls.removed, 1);
+  }
+  const boom = gateDeps(DIRECTOR_ENV, { exec: async () => { throw new Error("spawn"); } });
+  assert.deepEqual(codes(await montageGate(boom.d)), ["DIRECTOR_ISOLATION_PROBE_FAILED"]); assert.equal(boom.calls.removed, 1);
+  assert.match((parseProbeOutput(3, '{"status":"probe-failed","failed":["adaptador_legible"]}') as { error: { message: string } }).error.message, /adaptador_legible/);
+  assert.equal(parseProbeOutput(1, '{"status":"probe-ok"}').ok, false, "probe-ok con código ≠ 0 no cuenta");
+});
+
+test("derechos: solo desde una política explícita; pageUrl/crédito quedan como procedencia, nunca como permiso", () => {
+  const sin = directorRequest(base({ shots: [null, { ...base().shots[1]!, pageUrl: "https://www.pexels.com/photo/1", sourceId: "pexels-photo-1" }] }));
+  assert.ok(sin.ok); assert.deepEqual(sin.request.rights, {});
+  assert.deepEqual(sin.request.provenance, [{ asset: "medios/escena-2.mp4", provider: "pexels", sourceId: "pexels-photo-1", pageUrl: "https://www.pexels.com/photo/1", credit: "Pexels",
+    derivative: "foto animada por el worker (renderPhotoFfmpeg)", size: 5, sha256: "b".repeat(64) }]);
+  const seen: unknown[] = [];
+  const policy: RightsPolicy = { id: "politica-prueba", version: "0", basisFor: (p) => { seen.push(p.asset); return p.sourceId ? { status: "cleared", basis: `fixture de prueba ${p.sourceId}` } : null; } };
+  const con = directorRequest(base({ shots: [null, { ...base().shots[1]!, sourceId: "pexels-photo-1" }] }), policy);
+  assert.ok(con.ok); assert.deepEqual(con.request.rights, { "medios/escena-2.mp4": { status: "cleared", basis: "fixture de prueba pexels-photo-1" } }); assert.deepEqual(seen, ["medios/escena-2.mp4"]);
 });

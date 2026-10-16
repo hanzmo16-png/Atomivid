@@ -20,9 +20,22 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { existsSync } from "node:fs";
-import { chmod, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+
+type ServerModule = typeof import("../src/lib/podcast/server");
+type PilotServerModule = typeof import("../src/lib/podcast/pilot-server");
+type VisualAssetsModule = typeof import("../src/lib/podcast/visual-assets");
+type GateDeps = import("../src/lib/podcast/montage-engine").GateDeps;
+/** Seams of produce() for tests (scripts/podcast-video-worker.test.ts); each one defaults to the real module. */
+export type ProduceInject = {
+  service?: ReturnType<typeof import("../src/lib/supabase/service").createServiceClient>;
+  runGeneration?: ServerModule["runGeneration"];
+  buildSceneShots?: VisualAssetsModule["buildSceneShots"];
+  pilot?: Partial<PilotServerModule>;
+  gate?: Partial<GateDeps>;
+};
 
 const log = (tag: string, v: unknown) => console.log(tag, JSON.stringify(v));
 const STORAGE_MAX_BYTES = 900 * 1024 * 1024; // working ceiling under the project's 1 GB Storage limit (1000 MiB accepted)
@@ -135,22 +148,26 @@ async function main() {
   await produce(episodeId);
 }
 
-async function produce(episodeId: string) {
+export async function produce(episodeId: string, inject: ProduceInject = {}) {
   const { createServiceClient } = await import("../src/lib/supabase/service");
-  const { EPISODE_COLUMNS, runGeneration } = await import("../src/lib/podcast/server");
+  const server = await import("../src/lib/podcast/server");
+  const { EPISODE_COLUMNS } = server;
+  const runGeneration = inject.runGeneration ?? server.runGeneration;
   const { isStalledVideo } = await import("../src/lib/podcast/episode");
   const { buildPodcastMontage, readySignal } = await import("../src/lib/podcast/video-montage");
   const { scenesFromWords, evenScenes, sceneLengths, wordsJson } = await import("../src/lib/podcast/visual-plan");
-  const { buildSceneShots, downloadToFile, renderClipFfmpeg, renderPhotoFfmpeg } = await import("../src/lib/podcast/visual-assets");
+  const visualAssets = await import("../src/lib/podcast/visual-assets");
+  const { downloadToFile, renderClipFfmpeg, renderPhotoFfmpeg } = visualAssets;
+  const buildSceneShots = inject.buildSceneShots ?? visualAssets.buildSceneShots;
   const { storedNarrationWords } = await import("../src/lib/podcast/narrate");
   const { supabaseResultStore } = await import("../src/lib/paid-calls/result-store");
   const { getVoiceIdentity } = await import("../src/lib/ai/voice");
   const { searchSceneVideos, searchScenePhotos, setFootageWaitBeat } = await import("../src/lib/ai/footage");
   const { budgetDecision, buildVideoChecks, historicalSpendUsd, narrationCapUsd, runBudgetDecision, UNCERTAIN_CHARGE_MESSAGE } = await import("../src/lib/podcast/pilot");
-  const pilot = await import("../src/lib/podcast/pilot-server");
+  const pilot = { ...(await import("../src/lib/podcast/pilot-server")), ...inject.pilot };
   const engineLib = await import("../src/lib/podcast/montage-engine");
   type Episode = import("../src/lib/podcast/episode").PodcastEpisode;
-  const service = createServiceClient();
+  const service = inject.service ?? createServiceClient();
   const load = async () => (await service.from("podcast_episodes").select(EPISODE_COLUMNS).eq("id", episodeId).single()).data as Episode | null;
   let episode = await load();
   if (!episode) { log("SKIP", { reason: "episode not found" }); return; }
@@ -180,11 +197,18 @@ async function produce(episodeId: string) {
     } catch { log("NOTICE", { kind, delivered: false }); }
   };
   try {
-    // Montage engine, before any paid call: legacy unless PODCAST_MONTAGE_ENGINE=director with every barrier present.
-    const engine = engineLib.resolveMontageEngine({
+    // Montage engine, before the narration and the stock search: legacy unless PODCAST_MONTAGE_ENGINE=director with
+    // every barrier present, the inputs it is known to need (rights for stock) and a real free launch of the isolation.
+    const stockEnabled = !!process.env.PEXELS_API_KEY?.trim();
+    const engine = await engineLib.montageGate({
       env: process.env, uid: typeof process.getuid === "function" ? process.getuid() : null, exists: existsSync,
       onPath: (cmd) => (process.env.PATH ?? "").split(path.delimiter).some((d) => d && existsSync(path.join(d, cmd))),
       runner: path.resolve("scripts/podcast-director-step.cjs"),
+      stockEnabled, rightsPolicy: null,
+      makeProbeDir: () => mkdtemp(path.join(os.tmpdir(), "podcast-director-probe-")),
+      removeProbeDir: (d) => rm(d, { recursive: true, force: true }),
+      exec: (cmd, args, env) => runCapture(cmd, args, 60_000, env),
+      ...inject.gate,
     });
     log("MONTAGE_ENGINE", engine.ok ? { engine: engine.engine } : { engine: engine.engine, errors: engine.errors.map((e) => e.code) });
     if (!engine.ok) throw new BlockError(engineLib.engineBlockMessage(engine.errors));
@@ -241,7 +265,7 @@ async function produce(episodeId: string) {
     // A Pexels rate-limit wait (up to an hour) keeps the run visibly alive instead of looking stalled.
     setFootageWaitBeat(() => stage("Esperando al banco de imágenes"));
     let shots: Awaited<ReturnType<typeof buildSceneShots>> = scenes.map(() => null);
-    if (process.env.PEXELS_API_KEY?.trim()) {
+    if (stockEnabled) {
       shots = await buildSceneShots(scenes, ep.title, media, {
         searchVideos: (q) => searchSceneVideos(q, 0, "landscape", locale),
         searchPhotos: (q) => searchScenePhotos(q, "landscape", locale),
@@ -347,4 +371,4 @@ async function produce(episodeId: string) {
   }
 }
 
-main().catch(() => { console.error("PODCAST_WORKER_FAILED"); process.exitCode = 1; });
+if (require.main === module) main().catch(() => { console.error("PODCAST_WORKER_FAILED"); process.exitCode = 1; });
