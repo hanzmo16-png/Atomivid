@@ -30,12 +30,14 @@ test("revisión de Avatar: bloquea guion/audio demasiado largos antes de generar
   const long = wrap(<ScriptReview {...props} />);
   assert.match(long, /68.4 segundos/);
   assert.match(long, /<button[^>]*disabled=""[^>]*>Generar video final<\/button>/);
-  assert.doesNotMatch(long, /<textarea[^>]*disabled/);
+  assert.doesNotMatch(long, /<textarea[^>]*\sdisabled(?:=|[\s>])/);
   const recording = wrap(<ScriptReview {...props} usesRecording recordingDurationSeconds={68} />);
   assert.match(recording, /68.0 segundos/);
   assert.match(recording, /<button[^>]*disabled=""[^>]*>Generar video final<\/button>/);
   const short = wrap(<ScriptReview {...props} initialScript={{ ...props.initialScript, segments: [{ text: "Guion corto", visualQuery: "x" }] }} />);
-  assert.match(short, /<button(?:(?!disabled)[^>])*>Generar video final<\/button>/);
+  const button = short.match(/<button([^>]*)>Generar video final<\/button>/);
+  assert.ok(button);
+  assert.doesNotMatch(button[1], /\sdisabled(?:=|\s|$)/);
 });
 
 test("avatar fallido antes del proveedor (estado real 6dad04ec): reintento seguro", () => {
