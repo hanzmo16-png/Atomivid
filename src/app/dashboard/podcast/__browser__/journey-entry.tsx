@@ -17,7 +17,7 @@ window.fetch = (async (url: string, init?: RequestInit) => {
 const router = { back() {}, forward() {}, refresh() {}, prefetch() {}, push(u: string) { w.__pushes.push(u); }, replace(u: string) { w.__pushes.push(u); } };
 let root: Root | null = null;
 w.__mount = (kind, props) => {
-  act(() => { root?.unmount(); root = createRoot(document.getElementById("app")!); });
+  act(() => { if (!root) root = createRoot(document.getElementById("app")!); });
   const el = kind === "new" ? <NewEpisode {...(props as unknown as Parameters<typeof NewEpisode>[0])} />
     : kind === "panel" ? <VideoPanel {...(props as unknown as Parameters<typeof VideoPanel>[0])} />
     : <SignOutForm action={() => { w.__signedOut++; }}><button type="submit">Salir</button></SignOutForm>;

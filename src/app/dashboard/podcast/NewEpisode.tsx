@@ -19,13 +19,20 @@ const writeDraft = (owner: string, d: EpisodeDraft | null) => {
   try { if (d) window.sessionStorage.setItem(draftKey(owner), JSON.stringify(d)); else window.sessionStorage.removeItem(draftKey(owner)); } catch { /* storage unavailable: the form still works */ }
 };
 
-export function NewEpisode({ ownerId, voices, voicesError, usdPer1kChars, maxChars, initialDraft, initialStep }: {
-  /** Authenticated user id (server-validated): the draft belongs to this account only. */
+type NewEpisodeProps = {
+  /** Authenticated user id (server-validated): state must reset when the owner changes. */
   ownerId: string;
   voices: AccountVoice[]; voicesError: string | null; usdPer1kChars: number; maxChars: number;
   /** Test seams: start from a draft / on the review step. */
   initialDraft?: EpisodeDraft; initialStep?: "edit" | "review";
-}) {
+};
+
+/** Keep same-owner drafts across refreshes, but never carry component state across an owner change. */
+export function NewEpisode(props: NewEpisodeProps) {
+  return <NewEpisodeForm key={props.ownerId} {...props} />;
+}
+
+function NewEpisodeForm({ ownerId, voices, voicesError, usdPer1kChars, maxChars, initialDraft, initialStep }: NewEpisodeProps) {
   const router = useRouter();
   const [mode, setMode] = useState<"tts" | "upload">(initialDraft?.mode ?? "tts");
   const [title, setTitle] = useState(initialDraft?.title ?? "");

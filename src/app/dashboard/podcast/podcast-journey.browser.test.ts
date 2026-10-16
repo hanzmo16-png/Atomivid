@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -16,14 +16,16 @@ type Page = {
   getByText(t: string): Locator; textContent(sel: string): Promise<string | null>; waitForFunction(fn: () => boolean): Promise<unknown>; addInitScript(fn: () => void): Promise<void>; close(): Promise<void>;
 };
 type Browser = { newPage(): Promise<Page>; close(): Promise<void> };
-type PW = { chromium: { launch(o?: { executablePath?: string }): Promise<Browser> } };
+type PW = { chromium: { executablePath(): string; launch(o?: { executablePath?: string }): Promise<Browser> } };
 const req = createRequire(__filename);
 const pw: PW | null = (() => {
   const roots = [process.cwd(), process.env.PLAYWRIGHT_NODE_PATH, (() => { try { return execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim(); } catch { return undefined; } })(), "/opt/node-tools/node_modules"].filter(Boolean) as string[];
   for (const r of roots) { try { return req(req.resolve("playwright", { paths: [r] })) as PW; } catch { /* next */ } }
   return null;
 })();
-const skip = !pw && "Playwright no disponible";
+const chromiumPath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+  ?? (existsSync("/opt/pw-browsers/chromium") ? "/opt/pw-browsers/chromium" : pw?.chromium.executablePath());
+const skip = !pw ? "Playwright no disponible" : !chromiumPath || !existsSync(chromiumPath) ? "Chromium no disponible" : false;
 
 let server: Server, base = "", browser: Browser;
 const voices = [{ voiceId: "v1", name: "Lucía", language: "es", accent: null, gender: null, previewUrl: null }, { voiceId: "v2", name: "Mateo", language: "es", accent: null, gender: null, previewUrl: null }];
@@ -33,7 +35,7 @@ const panelProps = (over: Record<string, unknown> = {}) => ({ episodeId: "e1", s
   reviewStatus: "pending", reviewNote: null, publishStatus: "held", review: { id: "e1", title: "Caso Roswell", language: "es", source: "tts", script: null, voice_id: "v1", voice_name: "Lucía", status: "ready" }, confirmToken: "huella-1", ...over });
 
 before(async () => {
-  if (!pw) return;
+  if (skip || !pw) return;
   const out = mkdtempSync(path.join(tmpdir(), "podcast-ui-"));
   await (await import("esbuild")).build({ entryPoints: [path.join(__dirname, "__browser__/journey-entry.tsx")], bundle: true, outfile: path.join(out, "bundle.js"), platform: "browser", format: "iife",
     jsx: "automatic", tsconfig: "tsconfig.json", define: { "process.env.NODE_ENV": '"development"' }, banner: { js: "globalThis.process=globalThis.process||{env:{}};" }, logLevel: "error" });
@@ -41,7 +43,7 @@ before(async () => {
   server = createServer((r, s) => { if (r.url === "/bundle.js") { s.writeHead(200, { "content-type": "text/javascript" }); s.end(js); } else { s.writeHead(200, { "content-type": "text/html" }); s.end('<!doctype html><div id="app"></div><script src="/bundle.js"></script>'); } });
   await new Promise<void>((ok) => server.listen(0, "127.0.0.1", ok));
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}/`;
-  browser = await pw.chromium.launch(process.env.PLAYWRIGHT_BROWSERS_PATH ? {} : { executablePath: "/opt/pw-browsers/chromium" });
+  browser = await pw.chromium.launch({ executablePath: chromiumPath });
 });
 after(async () => { await browser?.close(); server?.close(); });
 
@@ -174,5 +176,34 @@ test("programar y cancelar: la revisión incluye el inicio programado; cancelar 
   await page.getByRole("button", { name: "Cancelar programación" }).click();
   await page.waitForFunction(() => (window as unknown as Hooks).__fetches.length === 1);
   assert.deepEqual((await fetches(page))[0].body, { cancel: true });
+  await page.close();
+});
+
+
+// Deliberately keep the same React root and component position: router refresh may update owner props without navigation.
+test("cambio de dueño sin recargar: conserva A con A; A→B reinicia formulario y revisión, sin copiar datos de A al borrador B", { skip }, async () => {
+  const page = await browser.newPage();
+  await open(page, "new", newProps("user-a"));
+  await page.getByLabel("Título").fill("Titulo privado A");
+  await page.getByLabel("Guion").fill("Guion privado de A con mas de veinte caracteres.");
+  await page.getByLabel(/^Voz/).selectOption("v2");
+  await page.getByRole("button", { name: "Revisar antes de crear" }).click();
+  await page.evaluate((p) => (window as unknown as Hooks).__mount("new", p), newProps("user-a"));
+  await page.getByText("Revisa el episodio").waitFor();
+  assert.match(await page.textContent("body") ?? "", /Titulo privado A/);
+  await page.evaluate((p) => (window as unknown as Hooks).__mount("new", p), newProps("user-b"));
+  assert.equal(await page.getByText("Revisa el episodio").count(), 0, "B no hereda el paso de revisión de A");
+  assert.equal(await page.getByLabel("Título").inputValue(), "");
+  assert.equal(await page.getByLabel("Guion").inputValue(), "");
+  assert.deepEqual(await storageKeys(page), [], "el estado A no se vuelve a guardar con el dueño B");
+  await page.getByLabel("Título").fill("Titulo de B");
+  await page.getByLabel("Guion").fill("Guion exclusivo de B, distinto del que escribio A.");
+  const stored = await page.evaluate(() => JSON.parse(sessionStorage.getItem("atomivid:podcast:borrador:v2:user-b") ?? "null"), null);
+  assert.equal(stored.owner, "user-b");
+  assert.equal(stored.script, "Guion exclusivo de B, distinto del que escribio A.");
+  await page.evaluate((p) => (window as unknown as Hooks).__mount("new", p), newProps("user-a"));
+  assert.equal(await page.getByLabel("Título").inputValue(), "", "se conserva la política de descartar el borrador de otra cuenta");
+  assert.deepEqual(await storageKeys(page), []);
+  assert.equal((await fetches(page)).length, 0, "la transición no crea ni produce episodios");
   await page.close();
 });
