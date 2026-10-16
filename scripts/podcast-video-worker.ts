@@ -19,7 +19,8 @@ export {};
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { chmod, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -61,6 +62,30 @@ async function probeSeconds(p: string): Promise<number> {
     let out = "";
     child.stdout.on("data", (d) => { out += d; });
     child.on("close", () => resolve(Number(out.trim()) || 0));
+  });
+}
+
+/** ffprobe of one stream field (csv); "" when unreadable. */
+async function probeStream(p: string, select: "v:0" | "a:0", entries: string): Promise<string> {
+  return new Promise((resolve) => {
+    const child = spawn("ffprobe", ["-v", "error", "-select_streams", select, "-show_entries", `stream=${entries}`, "-of", "csv=p=0", p]);
+    let out = "";
+    child.stdout.on("data", (d) => { out += d; });
+    child.on("error", () => resolve(""));
+    child.on("close", () => resolve(out.trim().split("\n")[0] ?? ""));
+  });
+}
+
+/** Like run(), but keeps stdout (bounded) for the Director step's JSON line; env is explicit (no inherited credentials). */
+function runCapture(cmd: string, args: string[], timeoutMs: number, env: Record<string, string>): Promise<{ code: number; stdout: string }> {
+  return new Promise((resolve) => {
+    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], env: env as NodeJS.ProcessEnv });
+    let stdout = "", stderrBytes = 0;
+    child.stdout.on("data", (d: Buffer) => { if (stdout.length < 1 << 20) stdout += d; });
+    child.stderr.on("data", (d: Buffer) => { stderrBytes += d.length; });
+    const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
+    child.on("error", () => undefined);
+    child.on("close", (code) => { clearTimeout(timer); log("STEP_EXIT", { cmd: "director", sub: null, code, stderrBytes }); resolve({ code: code ?? -1, stdout }); });
   });
 }
 
@@ -123,6 +148,7 @@ async function produce(episodeId: string) {
   const { searchSceneVideos, searchScenePhotos, setFootageWaitBeat } = await import("../src/lib/ai/footage");
   const { budgetDecision, buildVideoChecks, historicalSpendUsd, narrationCapUsd, runBudgetDecision, UNCERTAIN_CHARGE_MESSAGE } = await import("../src/lib/podcast/pilot");
   const pilot = await import("../src/lib/podcast/pilot-server");
+  const engineLib = await import("../src/lib/podcast/montage-engine");
   type Episode = import("../src/lib/podcast/episode").PodcastEpisode;
   const service = createServiceClient();
   const load = async () => (await service.from("podcast_episodes").select(EPISODE_COLUMNS).eq("id", episodeId).single()).data as Episode | null;
@@ -154,6 +180,14 @@ async function produce(episodeId: string) {
     } catch { log("NOTICE", { kind, delivered: false }); }
   };
   try {
+    // Montage engine, before any paid call: legacy unless PODCAST_MONTAGE_ENGINE=director with every barrier present.
+    const engine = engineLib.resolveMontageEngine({
+      env: process.env, uid: typeof process.getuid === "function" ? process.getuid() : null, exists: existsSync,
+      onPath: (cmd) => (process.env.PATH ?? "").split(path.delimiter).some((d) => d && existsSync(path.join(d, cmd))),
+      runner: path.resolve("scripts/podcast-director-step.cjs"),
+    });
+    log("MONTAGE_ENGINE", engine.ok ? { engine: engine.engine } : { engine: engine.engine, errors: engine.errors.map((e) => e.code) });
+    if (!engine.ok) throw new BlockError(engineLib.engineBlockMessage(engine.errors));
     // Pilot preflight, before any paid call: an uncertain charge stops the run until reconciled; what the episode
     // already spent plus the remaining cost must fit its total budget (the narration admission re-reads the balance).
     const spendBefore = await pilot.productionSpend(service, episodeId).catch(() => null);
@@ -226,19 +260,44 @@ async function produce(episodeId: string) {
       subtitles = { path: "subtitulos.json", size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") };
     }
     await stage("Montando video");
-    const montage = buildPodcastMontage({
-      episodeId, version: Math.max(1, ep.video_attempts ?? 1), title: ep.title, durationSeconds: audioSeconds,
-      audio: { path: "audio/episode.m4a", size: audioStat.size, sha256: await sha256File(audioPath) },
-      scenes: scenes.map((sc, i) => {
-        const shot = shots[i];
-        return { start: sc.start, end: sc.end, shot: shot ? { path: path.relative(input, shot.file), size: shot.size, sha256: shot.sha256, seconds: shot.seconds, credit: shot.credit, pageUrl: shot.pageUrl } : null };
-      }),
-      subtitles,
-    });
     const manifest = path.join(input, "montaje.json");
-    const manifestBytes = Buffer.from(JSON.stringify(montage, null, 2));
-    await writeFile(manifest, manifestBytes);
-    await writeFile(path.join(input, "LISTO.json"), JSON.stringify(readySignal(createHash("sha256").update(manifestBytes).digest("hex"), montage)));
+    const audioRef = { path: "audio/episode.m4a", size: audioStat.size, sha256: await sha256File(audioPath) };
+    let timeline: { type: string }[];
+    if (engine.engine === "legacy") {
+      const montage = buildPodcastMontage({
+        episodeId, version: Math.max(1, ep.video_attempts ?? 1), title: ep.title, durationSeconds: audioSeconds,
+        audio: audioRef,
+        scenes: scenes.map((sc, i) => {
+          const shot = shots[i];
+          return { start: sc.start, end: sc.end, shot: shot ? { path: path.relative(input, shot.file), size: shot.size, sha256: shot.sha256, seconds: shot.seconds, credit: shot.credit, pageUrl: shot.pageUrl } : null };
+        }),
+        subtitles,
+      });
+      const manifestBytes = Buffer.from(JSON.stringify(montage, null, 2));
+      await writeFile(manifest, manifestBytes);
+      await writeFile(path.join(input, "LISTO.json"), JSON.stringify(readySignal(createHash("sha256").update(manifestBytes).digest("hex"), montage)));
+      timeline = montage.timeline as { type: string }[];
+    } else {
+      // Director: measured inputs only (ffprobe); the adapter writes montaje.json + LISTO.json into entrada/ or blocks.
+      const dimensions: Record<string, { width: number; height: number } | null> = {};
+      for (const sh of shots) if (sh) { const [w, h] = (await probeStream(sh.file, "v:0", "width,height")).split(",").map(Number); dimensions[sh.file] = w > 0 && h > 0 ? { width: w, height: h } : null; }
+      const req = engineLib.directorRequest({
+        episodeId, version: ep.video_attempts ?? 1, title: ep.title, language: ep.language, inputDir: input, audio: audioRef, audioSeconds,
+        sampleRate: Number(await probeStream(audioPath, "a:0", "sample_rate")) || null,
+        scenes: scenes.map((sc) => ({ start: sc.start, end: sc.end, text: sc.text })), shots, subtitles, dimensions,
+      });
+      if (!req.ok) throw new BlockError(engineLib.engineBlockMessage(req.errors));
+      await chmod(work, 0o700);
+      const requestPath = path.join(work, "director-request.json");
+      await writeFile(requestPath, JSON.stringify(req.request));
+      const { cmd, args } = engineLib.directorCommand(engine.runtime, work, requestPath);
+      const res = await runCapture(cmd, args, 20 * 60_000, engineLib.directorChildEnv(process.env));
+      const outcome = engineLib.parseDirectorOutput(res.code, res.stdout);
+      log("DIRECTOR", outcome.ok ? { status: "ready" } : { status: "blocked", codes: outcome.errors.map((e) => e.code) });
+      if (!outcome.ok) throw new BlockError(engineLib.engineBlockMessage(outcome.errors));
+      const written = JSON.parse(await readFile(manifest, "utf8")) as { timeline?: unknown };
+      timeline = Array.isArray(written.timeline) ? (written.timeline as { type: string }[]) : [];
+    }
     const editor = path.resolve("scripts/podcast-editor-v3/editor.py");
     if (await run("python3", [editor, "validate", manifest, "--archivos"], 120_000) !== 0) throw new PublicError("El montaje no pasó la validación del editor. Pulsa «Reintentar»; si se repite, revisa el audio del episodio.");
     const renderWork = path.join(work, "render");
@@ -266,7 +325,7 @@ async function produce(episodeId: string) {
     // Technical checks and detected defects for the owner's review (integrity only; never an approval).
     const repChecks = ((rep.verification as { checks?: { check?: string; ok?: boolean }[] } | undefined)?.checks ?? []).map((c) => ({ name: String(c.check ?? "?"), ok: c.ok === true }));
     const creditSources = credits ? ((JSON.parse(await readFile(credits, "utf8")) as { sources?: unknown[] }).sources?.length ?? 0) : 0;
-    const cards = (montage.timeline as { type: string }[]).filter((t) => t.type === "card").length;
+    const cards = timeline.filter((t) => t?.type === "card").length;
     const spend = await pilot.productionSpend(service, episodeId).catch(() => undefined);
     const checks = buildVideoChecks({
       editorOk: true, editorChecks: repChecks, videoSeconds: seconds, audioSeconds, bytes: size, maxBytes: STORAGE_MAX_BYTES, subtitles: !!subtitles,
