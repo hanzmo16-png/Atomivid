@@ -43,7 +43,7 @@ export default async function PodcastPage() {
           </ul>
         </section>
       )}
-      <NewEpisode voices={voices} voicesError={voicesError} usdPer1kChars={getPricingConfig().elevenLabsUsdPer1kChars} maxChars={PODCAST_MAX_CHARS} />
+      <NewEpisode ownerId={user.id} voices={voices} voicesError={voicesError} usdPer1kChars={getPricingConfig().elevenLabsUsdPer1kChars} maxChars={PODCAST_MAX_CHARS} />
       <h2 className="mt-8 text-lg font-semibold text-ink">Tus episodios</h2>
       {episodes.length === 0 ? <p className="mt-2 text-sm text-ink-muted">Todavía no hay episodios.</p> : (
         <ul className="mt-2 grid gap-2">

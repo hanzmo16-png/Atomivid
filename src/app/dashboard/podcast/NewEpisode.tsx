@@ -7,14 +7,21 @@ import { Button } from "@/components/ui/Button";
 import { safeParseJsonResponse } from "@/lib/http/safe-json";
 import { classifyClientFetchError } from "@/lib/http/client-error";
 import type { AccountVoice } from "@/lib/podcast/voices";
-import { DRAFT_KEY, parseDraft, type EpisodeDraft } from "@/lib/podcast/production-contract";
+import { draftKey, parseDraft, purgeForeignDrafts, type EpisodeDraft } from "@/lib/podcast/production-contract";
 
 const USD = new Intl.NumberFormat("es-MX", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 4 });
 
-const readDraft = (maxChars: number) => { try { return parseDraft(window.sessionStorage.getItem(DRAFT_KEY), maxChars); } catch { return null; } };
-const writeDraft = (d: EpisodeDraft | null) => { try { if (d) window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d)); else window.sessionStorage.removeItem(DRAFT_KEY); } catch { /* storage unavailable: the form still works */ } };
+// Drafts live in this tab's sessionStorage under the owner's id: another account's or an ownerless one is discarded.
+const readDraft = (owner: string, maxChars: number) => {
+  try { purgeForeignDrafts(window.sessionStorage, owner); return parseDraft(window.sessionStorage.getItem(draftKey(owner)), maxChars, owner); } catch { return null; }
+};
+const writeDraft = (owner: string, d: EpisodeDraft | null) => {
+  try { if (d) window.sessionStorage.setItem(draftKey(owner), JSON.stringify(d)); else window.sessionStorage.removeItem(draftKey(owner)); } catch { /* storage unavailable: the form still works */ }
+};
 
-export function NewEpisode({ voices, voicesError, usdPer1kChars, maxChars, initialDraft, initialStep }: {
+export function NewEpisode({ ownerId, voices, voicesError, usdPer1kChars, maxChars, initialDraft, initialStep }: {
+  /** Authenticated user id (server-validated): the draft belongs to this account only. */
+  ownerId: string;
   voices: AccountVoice[]; voicesError: string | null; usdPer1kChars: number; maxChars: number;
   /** Test seams: start from a draft / on the review step. */
   initialDraft?: EpisodeDraft; initialStep?: "edit" | "review";
@@ -27,6 +34,7 @@ export function NewEpisode({ voices, voicesError, usdPer1kChars, maxChars, initi
   const [voiceId, setVoiceId] = useState(initialDraft?.voiceId ?? voices[0]?.voiceId ?? "");
   const [step, setStep] = useState<"edit" | "review">(initialStep ?? "edit");
   const [restored, setRestored] = useState(false);
+  const [voiceGone, setVoiceGone] = useState(false);
   const [hydrated, setHydrated] = useState(!!initialDraft);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,18 +44,21 @@ export function NewEpisode({ voices, voicesError, usdPer1kChars, maxChars, initi
   useEffect(() => {
     if (initialDraft) return;
     // sessionStorage only exists after mount (not during the server render), so the draft can only be restored here.
-    const d = readDraft(maxChars);
+    const d = readDraft(ownerId, maxChars);
     if (d) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- see the comment above
       setMode(d.mode); setTitle(d.title); setScript(d.script); setLanguage(d.language);
-      if (voices.some((v) => v.voiceId === d.voiceId)) setVoiceId(d.voiceId);
+      // A saved voice that is no longer in the account is never replaced silently: the owner must choose again.
+      const available = voices.some((v) => v.voiceId === d.voiceId);
+      setVoiceId(available ? d.voiceId : "");
+      setVoiceGone(!available && d.mode === "tts" && !!d.voiceId);
       setRestored(true);
     }
     setHydrated(true);
-  }, [initialDraft, maxChars, voices]);
+  }, [initialDraft, maxChars, voices, ownerId]);
   useEffect(() => {
-    if (hydrated) writeDraft(title || script ? { v: 1, mode, title, script, language, voiceId } : null);
-  }, [hydrated, mode, title, script, language, voiceId]);
+    if (hydrated) writeDraft(ownerId, title || script ? { v: 2, owner: ownerId, mode, title, script, language, voiceId } : null);
+  }, [hydrated, ownerId, mode, title, script, language, voiceId]);
   const canReview = !!title.trim() && !(mode === "tts" && (chars < 20 || !voice || !!voicesError));
 
   async function create() {
@@ -59,7 +70,7 @@ export function NewEpisode({ voices, voicesError, usdPer1kChars, maxChars, initi
         body: JSON.stringify(mode === "upload" ? { source: "upload", title, language } : { title, script, language, voiceId }) });
       const out = await safeParseJsonResponse<{ id: string }>(res);
       if (!out.ok) throw new Error(out.error);
-      writeDraft(null);
+      writeDraft(ownerId, null);
       router.push(`/dashboard/podcast/${out.data.id}`);
     } catch (e) {
       setError(classifyClientFetchError(e));
@@ -95,6 +106,7 @@ export function NewEpisode({ voices, voicesError, usdPer1kChars, maxChars, initi
   return (
     <Card className="mt-4 p-4">
       {restored && <p role="status" className="mb-2 text-xs text-ink-muted">Recuperamos el borrador que estabas escribiendo en esta pestaña.</p>}
+      {voiceGone && <p role="alert" className="mb-2 text-xs text-warning">La voz guardada en el borrador ya no está disponible en tu cuenta. Elige una voz antes de continuar.</p>}
       <div className="flex gap-4 text-sm" role="radiogroup" aria-label="Origen del audio">
         <label><input type="radio" checked={mode === "tts"} onChange={() => setMode("tts")} /> Voz sintética de mi cuenta</label>
         <label><input type="radio" checked={mode === "upload"} onChange={() => setMode("upload")} /> Mi propia grabación</label>
@@ -111,7 +123,8 @@ export function NewEpisode({ voices, voicesError, usdPer1kChars, maxChars, initi
           <p className="mt-1 text-xs text-ink-muted">{chars.toLocaleString("es-MX")} / {maxChars.toLocaleString("es-MX")} caracteres · costo estimado {USD.format((chars / 1000) * usdPer1kChars)} · ≈ {Math.max(1, Math.round(chars / 15 / 60))} min de audio. El costo exacto y la capacidad se muestran antes de generar.</p>
           {voicesError ? <p role="alert" className="mt-3 text-sm text-danger">{voicesError}</p> : (
             <label className="mt-3 block text-sm">Voz (disponibles en tu cuenta de ElevenLabs)
-              <select value={voiceId} onChange={(e) => setVoiceId(e.target.value)} className={input}>
+              <select value={voiceId} onChange={(e) => { setVoiceId(e.target.value); setVoiceGone(false); }} className={input}>
+                {!voice && <option value="">Elige una voz…</option>}
                 {voices.map((v) => <option key={v.voiceId} value={v.voiceId}>{v.name}{[v.language, v.accent, v.gender].filter(Boolean).length ? ` — ${[v.language, v.accent, v.gender].filter(Boolean).join(", ")}` : ""}</option>)}
               </select>
             </label>

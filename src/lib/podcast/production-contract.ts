@@ -22,10 +22,18 @@ export const PODCAST_CAPABILITIES = {
   } as Record<string, string>,
 };
 
+export const INVALID_BODY = "Cuerpo de la solicitud inválido";
+
+/** A request body the routes may read fields from: a plain JSON object (not null, not an array, not a primitive). */
+export function isJsonObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
 /** Early refusal of options the server cannot run (a request is never produced in a different mode than asked). */
-export function unsupportedOption(body: Record<string, unknown>): string | null {
+export function unsupportedOption(body: unknown): string | null {
+  if (!isJsonObject(body)) return INVALID_BODY;
   for (const [key, message] of Object.entries(PODCAST_CAPABILITIES.unavailable)) {
-    if (!(key in body) || body[key] === undefined || body[key] === null) continue;
+    if (!Object.prototype.hasOwnProperty.call(body, key) || body[key] === undefined || body[key] === null) continue;
     if (key === "narrationMode" && body[key] === "un_narrador") continue;
     return message;
   }
@@ -50,16 +58,37 @@ export function productionSummary(e: ReviewableEpisode, form: { budgetUsd: numbe
   ];
 }
 
-// ---- draft kept while going back (browser only; never contains anything the server did not show the owner)
-export type EpisodeDraft = { v: 1; mode: "tts" | "upload"; title: string; script: string; language: "es" | "en"; voiceId: string };
-export const DRAFT_KEY = "atomivid:podcast:nuevo-episodio:v1";
+// ---- draft kept while going back (browser only, sessionStorage of the tab), bound to the owner who wrote it.
+// Policy: a draft is restored only for the same account; drafts without an owner (older format) or of another account
+// are discarded when the form mounts, and every podcast draft of the tab is cleared on sign-out.
+export type EpisodeDraft = { v: 2; owner: string; mode: "tts" | "upload"; title: string; script: string; language: "es" | "en"; voiceId: string };
+export const DRAFT_PREFIX = "atomivid:podcast:borrador:";
+export const LEGACY_DRAFT_KEYS = ["atomivid:podcast:nuevo-episodio:v1"];
+export const draftKey = (owner: string) => `${DRAFT_PREFIX}v2:${owner}`;
+type DraftStorage = Pick<Storage, "length" | "key" | "getItem" | "setItem" | "removeItem">;
 
-export function parseDraft(raw: string | null, maxChars: number): EpisodeDraft | null {
-  if (!raw) return null;
+export function parseDraft(raw: string | null, maxChars: number, owner: string): EpisodeDraft | null {
+  if (!raw || !owner) return null;
   try {
     const d = JSON.parse(raw) as Partial<EpisodeDraft>;
-    if (d.v !== 1 || (d.mode !== "tts" && d.mode !== "upload") || (d.language !== "es" && d.language !== "en")) return null;
+    if (!isJsonObject(d) || d.v !== 2 || d.owner !== owner) return null;
+    if ((d.mode !== "tts" && d.mode !== "upload") || (d.language !== "es" && d.language !== "en")) return null;
     if (typeof d.title !== "string" || typeof d.script !== "string" || typeof d.voiceId !== "string") return null;
-    return { v: 1, mode: d.mode, language: d.language, title: d.title.slice(0, 200), script: d.script.slice(0, maxChars), voiceId: d.voiceId.slice(0, 100) };
+    return { v: 2, owner, mode: d.mode, language: d.language, title: d.title.slice(0, 200), script: d.script.slice(0, maxChars), voiceId: d.voiceId.slice(0, 100) };
   } catch { return null; }
+}
+
+/** Removes podcast drafts that are not this owner's (other accounts, older ownerless format). */
+export function purgeForeignDrafts(storage: DraftStorage, owner: string): void {
+  const mine = draftKey(owner);
+  const keys: string[] = [];
+  for (let i = 0; i < storage.length; i++) { const k = storage.key(i); if (k) keys.push(k); }
+  for (const k of keys) if ((k.startsWith(DRAFT_PREFIX) && k !== mine) || LEGACY_DRAFT_KEYS.includes(k)) storage.removeItem(k);
+}
+
+/** Sign-out: no podcast draft of any account stays in the tab. */
+export function clearAllDrafts(storage: DraftStorage): void {
+  const keys: string[] = [];
+  for (let i = 0; i < storage.length; i++) { const k = storage.key(i); if (k && (k.startsWith(DRAFT_PREFIX) || LEGACY_DRAFT_KEYS.includes(k))) keys.push(k); }
+  for (const k of keys) storage.removeItem(k);
 }

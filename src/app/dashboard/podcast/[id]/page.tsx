@@ -10,6 +10,7 @@ import { EpisodeActions } from "./EpisodeActions";
 import { VideoPanel } from "./VideoPanel";
 import { minimumRunBudgetUsd, type VideoChecks } from "@/lib/podcast/pilot";
 import { productionFingerprint } from "@/lib/podcast/production-confirm";
+import { deliveryLinks } from "@/lib/podcast/route-handlers";
 
 const USD = new Intl.NumberFormat("es-MX", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 4 });
 
@@ -34,8 +35,7 @@ export default async function PodcastEpisodePage({ params }: { params: Promise<{
   const runBudget = await readRunBudget(service, episode.id);
   const videoStatus = episode.video_status ?? "none";
   const VIDEO_TTL = 6 * 3600;
-  const videoPlayUrl = videoStatus === "ready" && episode.video_path ? (await storage.createSignedUrl(episode.video_path, VIDEO_TTL)).data?.signedUrl ?? null : null;
-  const videoDownloadUrl = videoPlayUrl && episode.video_path ? (await storage.createSignedUrl(episode.video_path, VIDEO_TTL, { download: `${safeName}.mp4` })).data?.signedUrl ?? null : null;
+  const { playUrl: videoPlayUrl, downloadUrl: videoDownloadUrl } = await deliveryLinks(storage, episode, VIDEO_TTL);
 
   return (
     <div className="mx-auto w-full max-w-2xl">

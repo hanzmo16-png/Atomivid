@@ -11,10 +11,10 @@ import { VideoPanel } from "./[id]/VideoPanel";
 const router = { back() {}, forward() {}, refresh() {}, push() {}, replace() {}, prefetch() {} };
 const render = (node: ReactNode) => renderToStaticMarkup(<AppRouterContext.Provider value={router as never}>{node}</AppRouterContext.Provider>);
 const voices = [{ voiceId: "v1", name: "Lucía", language: "es", accent: null, gender: null, previewUrl: null }] as never;
-const draft = { v: 1 as const, mode: "tts" as const, title: "Caso Roswell", script: "Este es el guion completo del episodio de prueba.", language: "es" as const, voiceId: "v1" };
+const draft = { v: 2 as const, owner: "user-a", mode: "tts" as const, title: "Caso Roswell", script: "Este es el guion completo del episodio de prueba.", language: "es" as const, voiceId: "v1" };
 
 test("crear: el formulario lleva a revisar (no crea directo) y declara un solo narrador", () => {
-  const html = render(<NewEpisode voices={voices} voicesError={null} usdPer1kChars={0.3} maxChars={50000} initialDraft={draft} />);
+  const html = render(<NewEpisode ownerId="user-a" voices={voices} voicesError={null} usdPer1kChars={0.3} maxChars={50000} initialDraft={draft} />);
   assert.match(html, /Revisar antes de crear/);
   assert.doesNotMatch(html, /Crear episodio \(no genera ni cobra\)/);
   assert.match(html, /un narrador/);
@@ -22,7 +22,7 @@ test("crear: el formulario lleva a revisar (no crea directo) y declara un solo n
 });
 
 test("crear → revisar: resumen con la configuración elegida, crear y volver sin perder datos", () => {
-  const html = render(<NewEpisode voices={voices} voicesError={null} usdPer1kChars={0.3} maxChars={50000} initialDraft={draft} initialStep="review" />);
+  const html = render(<NewEpisode ownerId="user-a" voices={voices} voicesError={null} usdPer1kChars={0.3} maxChars={50000} initialDraft={draft} initialStep="review" />);
   assert.match(html, /Revisa el episodio/);
   assert.match(html, /Caso Roswell/); assert.match(html, /voz guardada «Lucía»/); assert.match(html, /Español/);
   assert.ok(html.includes(draft.script), "el guion revisado es el escrito");
@@ -30,9 +30,9 @@ test("crear → revisar: resumen con la configuración elegida, crear y volver s
 });
 
 test("crear: sin voz válida o con guion corto no se puede pasar a revisar", () => {
-  const html = render(<NewEpisode voices={voices} voicesError={null} usdPer1kChars={0.3} maxChars={50000} initialDraft={{ ...draft, script: "corto" }} />);
+  const html = render(<NewEpisode ownerId="user-a" voices={voices} voicesError={null} usdPer1kChars={0.3} maxChars={50000} initialDraft={{ ...draft, script: "corto" }} />);
   assert.match(html, /<button[^>]*disabled[^>]*>Revisar antes de crear/);
-  const sinVoz = render(<NewEpisode voices={[] as never} voicesError="No se pudieron consultar las voces." usdPer1kChars={0.3} maxChars={50000} initialDraft={draft} />);
+  const sinVoz = render(<NewEpisode ownerId="user-a" voices={[] as never} voicesError="No se pudieron consultar las voces." usdPer1kChars={0.3} maxChars={50000} initialDraft={draft} />);
   assert.match(sinVoz, /No se pudieron consultar las voces/); assert.match(sinVoz, /<button[^>]*disabled[^>]*>Revisar antes de crear/);
 });
 
