@@ -8,7 +8,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordMarketingEvent } from "@/lib/marketing/events";
 import { generateVideoFromScript } from "./generate-video";
-import { generateAvatarVideo } from "./avatar/pipeline";
+import { AvatarPipelineError, generateAvatarVideo } from "./avatar/pipeline";
 import {
   generateLongFormVideoFromScript,
   isLongFormScriptJson,
@@ -276,7 +276,11 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     const action = configError || error instanceof ProviderConfigurationError ? "support" : "retry";
     // A measured duration mismatch happens before footage/render and after the
     // voice ledger is settled. Reopen editing; retain attempts and paid history.
-    const editNarration = needsNarrationEdit(error, mode);
+    // T-24 C1: same for an Avatar narrated from the script whose REAL audio exceeds the limit (no avatar job was
+    // requested): reopen the script with the duration cause, never leave the request failed and unrecoverable.
+    const avatarNarrationTooLong = mode === "avatar" && error instanceof AvatarPipelineError && error.code === "duration_exceeded"
+      && !row.avatar_provider_video_job_id && !row.recorded_audio_path && !row.avatar_narration_source;
+    const editNarration = needsNarrationEdit(error, mode) || avatarNarrationTooLong;
     const failed = await update({ status: editNarration ? "script_ready" : "failed", error_message: encodeStoredFailure(message, action), progress_stage: null, long_form_stage: null, long_form_progress: null }).select("id").maybeSingle();
     if (failed.error || !failed.data) throw new Error("No se pudo guardar el resultado del intento.");
     if (editNarration) return;
