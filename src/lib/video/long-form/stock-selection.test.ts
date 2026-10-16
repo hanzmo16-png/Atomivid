@@ -241,7 +241,8 @@ test("[CONTRATO] 1c Gucci: el token compartido con una marca no es un vínculo d
   const brandModel: Fixture = { id: "c-m", description: "Gucci fashion model posing on the stairs in Milan", similarity: 0.97, truth: { depicts: "generic_human" } };
   const { outcome, fake } = await select(beat, [brandModel, ...gucciFixtures]);
   assert.equal(contractViolation(beat, outcome, fake.truth), null);
-  assert.match(reasonsOf(outcome).get("c-m") ?? "", /^FALSE_FRIEND/);
+  // Rejected either as a false friend or, since the full subject ("Maurizio Gucci") is required, as not even lexically relevant.
+  assert.match(reasonsOf(outcome).get("c-m") ?? "", /^(FALSE_FRIEND|IDENTITY_UNVERIFIED)/);
   if (outcome.status === "selected") assert.equal(outcome.candidate.sourceId, "c-c");
 });
 
