@@ -34,10 +34,10 @@ export default async function BillingPage({
         <h1 className="text-2xl font-bold text-ink">Tu plan de producción</h1>
         <Card className="mt-6 p-6">
           <div className="flex items-center justify-between gap-4">
-            <h2 className="text-xl font-bold text-ink">Atomivid Propietario</h2>
+            <h2 className="text-xl font-bold text-ink">Atomicvid Propietario</h2>
             <Badge tone="success">Activo</Badge>
           </div>
-          <p className="mt-4 text-ink-muted">Cuenta interna con acceso de administrador. Sin mensualidad de cliente ni margen de Atomivid: la producción utiliza tus cuentas y créditos de proveedores.</p>
+          <p className="mt-4 text-ink-muted">Cuenta interna con acceso de administrador. Sin mensualidad de cliente ni margen de Atomicvid: la producción utiliza tus cuentas y créditos de proveedores.</p>
           <ul className="mt-4 list-disc space-y-2 pl-5 text-ink-muted">
             <li>Reels, documentales Long Form y videos con avatar.</li>
             <li>Narración con voz IA y las opciones de audio disponibles dentro de los videos.</li>
@@ -94,7 +94,7 @@ export default async function BillingPage({
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Plan actual</p>
                 <p className="text-xl font-bold text-ink">
-                  {currentPlan ? `Atomivid ${currentPlan.name}` : "Atomivid"}
+                  {currentPlan ? `Atomicvid ${currentPlan.name}` : "Atomicvid"}
                 </p>
               </div>
               <Badge tone="success">{STATUS_LABEL[status] ?? status}</Badge>

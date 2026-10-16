@@ -19,13 +19,13 @@ export default function TermsPage() {
       ]}
     >
       <p>
-        Atomivid es un producto en fase beta. Al usarlo, aceptas estas condiciones,
+        Atomicvid es un producto en fase beta. Al usarlo, aceptas estas condiciones,
         que pueden ajustarse antes del lanzamiento público.
       </p>
 
       <h2 id="servicio">Qué es el servicio</h2>
       <p>
-        Atomivid genera videos verticales a partir de un tema que tú proporcionas,
+        Atomicvid genera videos verticales a partir de un tema que tú proporcionas,
         combinando guion, narración, recursos visuales, música y subtítulos generados
         o seleccionados mediante inteligencia artificial.
       </p>
@@ -33,7 +33,7 @@ export default function TermsPage() {
       <h2 id="responsabilidad-contenido">Tu responsabilidad sobre el contenido</h2>
       <p>
         Eres responsable del tema y las instrucciones que envías, y del uso que le das
-        al video generado. No uses Atomivid para producir contenido ilegal, difamatorio
+        al video generado. No uses Atomicvid para producir contenido ilegal, difamatorio
         o que infrinja derechos de terceros.
       </p>
 
@@ -53,7 +53,7 @@ export default function TermsPage() {
 
       <h2 id="limites">Límites de responsabilidad</h2>
       <p>
-        Atomivid se ofrece &quot;tal cual&quot; durante esta fase. No garantizamos que el
+        Atomicvid se ofrece &quot;tal cual&quot; durante esta fase. No garantizamos que el
         servicio esté libre de errores en todo momento.
       </p>
 
@@ -83,7 +83,7 @@ export default function TermsPage() {
         </li>
       </ul>
       <p>
-        Este consentimiento es una condición de producto de Atomivid, exigida siempre
+        Este consentimiento es una condición de producto de Atomicvid, exigida siempre
         que uses el modo avatar. Es independiente de cualquier mecanismo de
         verificación de identidad que el proveedor externo que procesa el avatar
         (actualmente HeyGen) exija por su cuenta — un avatar personalizado creado a

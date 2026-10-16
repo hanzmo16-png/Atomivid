@@ -73,7 +73,7 @@ export function CommandCenterView({ vm, alerts }: { vm: CommandCenterViewModel; 
     <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-faint">ATOMIVID</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-faint">ATOMICVID</p>
           <h1 className="text-2xl font-semibold tracking-tight text-ink">Command Center</h1>
         </div>
         <div className="flex flex-col items-start gap-1 sm:items-end" data-overall={vm.overall.status}>

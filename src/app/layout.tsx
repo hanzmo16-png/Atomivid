@@ -13,19 +13,19 @@ const geistMono = Geist_Mono({
 });
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-const TITLE = "Atomivid — Videos verticales con IA";
+const TITLE = "Atomicvid — Videos verticales con IA";
 const DESCRIPTION =
   "Convierte una idea en un video vertical listo para publicar: guion, narración, clips y subtítulos generados con IA en minutos.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: TITLE, template: "%s · Atomivid" },
+  title: { default: TITLE, template: "%s · Atomicvid" },
   description: DESCRIPTION,
   robots: { index: true, follow: true },
   openGraph: {
     type: "website",
     locale: "es_ES",
-    siteName: "Atomivid",
+    siteName: "Atomicvid",
     title: TITLE,
     description: DESCRIPTION,
     url: "/",

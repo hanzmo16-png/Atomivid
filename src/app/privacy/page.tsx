@@ -11,7 +11,7 @@ export default function PrivacyPage() {
       crossLink={{ href: "/terms", label: "Términos de uso" }}
     >
       <p>
-        Atomivid está en fase beta. Este documento describe, de forma clara y sin
+        Atomicvid está en fase beta. Este documento describe, de forma clara y sin
         tecnicismos, qué datos maneja el producto hoy.
       </p>
 
@@ -25,7 +25,7 @@ export default function PrivacyPage() {
         <li>El video final generado, almacenado de forma privada y accesible solo por ti.</li>
         <li>
           Si te suscribes, datos de facturación gestionados directamente por Stripe —
-          Atomivid no almacena números de tarjeta.
+          Atomicvid no almacena números de tarjeta.
         </li>
         <li>
           Si te apuntas a la lista de acceso anticipado, tu correo y la fecha en que diste tu consentimiento,

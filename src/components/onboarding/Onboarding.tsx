@@ -101,7 +101,7 @@ export function Onboarding() {
         type="button"
         onClick={openFresh}
         className="fixed bottom-5 right-5 z-30 flex size-11 items-center justify-center rounded-full border border-border-strong bg-surface-raised text-ink-muted shadow-lg transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
-        aria-label="Ver cómo funciona Atomivid"
+        aria-label="Ver cómo funciona Atomicvid"
         title="Ayuda: cómo funciona"
       >
         <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

@@ -21,7 +21,7 @@ const FLOW_STEPS = [
 const BENEFITS = [
   {
     title: "De idea a video sin editar",
-    body: "Sin cámara ni edición manual. Escribes el tema, revisas el guion y Atomivid arma narración, clips, música y subtítulos.",
+    body: "Sin cámara ni edición manual. Escribes el tema, revisas el guion y Atomicvid arma narración, clips, música y subtítulos.",
     icon: IconBolt,
   },
   {
@@ -55,7 +55,7 @@ const QUALITY_ITEMS = [
 const FAQ = [
   {
     q: "¿Necesito experiencia editando video?",
-    a: "No. Describes el tema, revisas el guion generado y Atomivid arma el video completo — narración, clips, música y subtítulos.",
+    a: "No. Describes el tema, revisas el guion generado y Atomicvid arma el video completo — narración, clips, música y subtítulos.",
   },
   {
     q: "¿En qué formato se genera el video?",
@@ -78,7 +78,7 @@ const FAQ = [
     a: "Los documentales 16:9 están en acceso anticipado para un grupo reducido. Puedes apuntarte a la lista; no tienen precio ni fecha de apertura todavía.",
   },
   {
-    q: "¿Atomivid está en beta?",
+    q: "¿Atomicvid está en beta?",
     a: "Sí. Seguimos mejorando el producto y la calidad de los videos; si algo falla, tu solicitud queda guardada y lo ya generado no se cobra dos veces.",
   },
 ];
@@ -167,7 +167,7 @@ function Hero() {
             De una idea a un video vertical, sin cámara ni edición
           </h1>
           <p className="max-w-lg text-balance text-base text-ink-muted sm:text-lg">
-            Atomivid convierte un tema en un reel vertical completo — guion, narración,
+            Atomicvid convierte un tema en un reel vertical completo — guion, narración,
             clips, música y subtítulos — que revisas antes de producir y descargas en
             1080×1920. Para creadores y marcas que necesitan contenido constante.
           </p>
@@ -228,7 +228,7 @@ function Benefits() {
   return (
     <section className="border-b border-border px-5 py-16 sm:py-20">
       <div className="mx-auto max-w-6xl">
-        <SectionHeading eyebrow="Por qué Atomivid" title="Construido para publicar rápido, sin verse improvisado" />
+        <SectionHeading eyebrow="Por qué Atomicvid" title="Construido para publicar rápido, sin verse improvisado" />
         <div className="mt-10 grid gap-5 sm:grid-cols-3">
           {BENEFITS.map((b) => (
             <Card key={b.title} className="p-6 transition-colors hover:border-accent-border">
@@ -494,7 +494,7 @@ function SiteFooter() {
         </div>
       </div>
       <p className="mx-auto mt-8 max-w-6xl text-xs text-ink-faint">
-        © {new Date().getFullYear()} Atomivid. Todos los videos se generan con
+        © {new Date().getFullYear()} Atomicvid. Todos los videos se generan con
         proveedores de IA de terceros bajo licencias de uso comercial.
       </p>
     </footer>
