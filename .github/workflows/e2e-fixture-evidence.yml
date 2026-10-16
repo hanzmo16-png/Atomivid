@@ -61,6 +61,8 @@ jobs:
           npx next typegen
           npx tsc --noEmit -p .
           npx eslint .
+      - name: Verify simulator subtitle checks
+        run: npm run test:simulator
       - run: npx remotion browser ensure
       - name: Prepare synthetic test image (no personal photo)
         run: |
@@ -71,6 +73,11 @@ jobs:
         run: npx tsx scripts/test-pipeline-avatar.ts /tmp/avatar-test.jpg --out-dir evidence/avatar
       - name: Render generated-image and stock fixtures and validate MP4
         run: npx tsx scripts/test-pipeline-visual-mix.ts --out-dir evidence/visual-mix
+      - name: Exercise Reel, Avatar, voice and billing with the integrated simulator
+        run: |
+          npm run simulate -- --mode=billing,voice,avatar,reel --out-dir="$RUNNER_TEMP/atomivid-simulator"
+          mkdir -p evidence/simulator
+          cp "$RUNNER_TEMP/atomivid-simulator/report.json" "$RUNNER_TEMP/atomivid-simulator/report.md" evidence/simulator/
       - name: Publish verified simulated videos
         uses: actions/upload-artifact@v4
         with:
