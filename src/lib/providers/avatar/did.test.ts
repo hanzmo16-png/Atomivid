@@ -201,6 +201,75 @@ test("generateVideo exitoso: crea, sondea (started → done) y descarga con fetc
   }
 });
 
+test("generateVideo: un 503 transitorio en el GET de sondeo no aborta el talk ya aceptado (sigue sondeando, sin repetir el POST)", async () => {
+  const originalFetch = global.fetch;
+  let posts = 0;
+  let pollCount = 0;
+  global.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    const u = String(url);
+    if (u.endsWith("/talks") && init?.method === "POST") {
+      posts += 1;
+      return jsonResponse({ id: "talk-503" });
+    }
+    if (u.includes("/talks/talk-503")) {
+      pollCount += 1;
+      if (pollCount === 1) return jsonResponse({ status: "started" });
+      if (pollCount === 2) return jsonResponse({ kind: "ServiceUnavailable" }, 503);
+      return jsonResponse({ status: "done", result_url: "https://example.test/fake-video-503.mp4" });
+    }
+    if (u.includes("fake-video-503.mp4")) return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
+    throw new Error(`URL inesperada en el mock: ${u}`);
+  }) as typeof fetch;
+
+  try {
+    await withEnv({ DID_API_KEY: "fake-key", DID_POLL_TIMEOUT_MS: "60000" }, async () => {
+      const result = await didAvatarProvider.generateVideo({
+        providerAvatarId: "img-123", script: "", audioUrl: "https://example.test/audio.wav",
+        audioDurationSeconds: 1, maxCostUsd: 100,
+      });
+      assert.equal(result.providerJobId, "talk-503");
+      assert.equal(pollCount, 3);
+      assert.equal(posts, 1);
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("generateVideo: un error NO transitorio en el GET de sondeo (HTTP 404) sí aborta, sin repetir el POST", async () => {
+  const originalFetch = global.fetch;
+  let posts = 0;
+  let pollCount = 0;
+  global.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    const u = String(url);
+    if (u.endsWith("/talks") && init?.method === "POST") {
+      posts += 1;
+      return jsonResponse({ id: "talk-404" });
+    }
+    if (u.includes("/talks/talk-404")) {
+      pollCount += 1;
+      return jsonResponse({ kind: "NotFoundError" }, 404);
+    }
+    throw new Error(`URL inesperada en el mock: ${u}`);
+  }) as typeof fetch;
+
+  try {
+    await withEnv({ DID_API_KEY: "fake-key", DID_POLL_TIMEOUT_MS: "60000" }, async () => {
+      await assert.rejects(
+        () => didAvatarProvider.generateVideo({
+          providerAvatarId: "img-123", script: "", audioUrl: "https://example.test/audio.wav",
+          audioDurationSeconds: 1, maxCostUsd: 100,
+        }),
+        (err: unknown) => err instanceof AvatarProviderError && err.reason === "upstream_error" && /HTTP 404 \[talk_status;/.test(err.message),
+      );
+      assert.equal(pollCount, 1);
+      assert.equal(posts, 1);
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("deleteAvatar nunca finge éxito si el proveedor falla — reporta deleted:false con motivo", async () => {
   const originalFetch = global.fetch;
   global.fetch = (async () => new Response(null, { status: 404 })) as typeof fetch;
@@ -315,7 +384,11 @@ for (const failure of ["post", "persist", "poll"] as const) {
         return new Response(JSON.stringify({ id: "accepted-job" }), { status: 200 });
       }
       calls.push("poll");
-      return new Response(null, { status: 503 });
+      // Dos 503 transitorios (tolerados: el GET de sondeo es idempotente) y luego un
+      // error definitivo que sí aborta. Nunca se llega a 3 fallos recuperables
+      // seguidos, así el circuito compartido del módulo sigue cerrado.
+      const polls = calls.filter((c) => c === "poll").length;
+      return new Response(null, { status: polls <= 2 ? 503 : 404 });
     }) as typeof fetch;
     try {
       await withEnv({ DID_API_KEY: "test-key" }, async () => {
@@ -326,7 +399,7 @@ for (const failure of ["post", "persist", "poll"] as const) {
             if (failure === "persist") throw new Error("database down");
           },
         }));
-        assert.deepEqual(calls, failure === "post" ? ["post"] : failure === "persist" ? ["post", "persist"] : ["post", "persist", "poll"]);
+        assert.deepEqual(calls, failure === "post" ? ["post"] : failure === "persist" ? ["post", "persist"] : ["post", "persist", "poll", "poll", "poll"]);
         global.fetch = (async () => new Response(JSON.stringify({ status: "done" }), { status: 200 })) as typeof fetch;
         await didAvatarProvider.checkVideoStatus("reset-after-test");
       });

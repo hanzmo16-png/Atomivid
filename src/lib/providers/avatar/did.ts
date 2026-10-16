@@ -134,6 +134,18 @@ function basicAuthHeader(): string {
 
 const circuitBreaker = new CircuitBreaker(3);
 
+/** Errores de didFetch causados por un fallo transitorio (red o HTTP recuperable), no por una respuesta definitiva del proveedor. */
+const transientErrors = new WeakSet<AvatarProviderError>();
+
+function transient(error: AvatarProviderError): AvatarProviderError {
+  transientErrors.add(error);
+  return error;
+}
+
+function isTransientDidError(err: unknown): boolean {
+  return err instanceof AvatarProviderError && transientErrors.has(err);
+}
+
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -157,7 +169,7 @@ async function didFetch(path: string, init: RequestInit & { jsonBody?: boolean }
     });
   } catch (err) {
     circuitBreaker.recordFailure();
-    throw new AvatarProviderError("Error de red llamando a D-ID", "did", "upstream_error", err);
+    throw transient(new AvatarProviderError("Error de red llamando a D-ID", "did", "upstream_error", err));
   }
 
   if (!response.ok) {
@@ -176,7 +188,8 @@ async function didFetch(path: string, init: RequestInit & { jsonBody?: boolean }
     } catch { /* Non-JSON errors retain HTTP status without exposing response content. */ }
     const operation = path === "/talks" ? "create_talk" : path === "/images" ? "upload_image"
       : path.startsWith("/talks/") ? "talk_status" : "provider_request";
-    throw new AvatarProviderError(`D-ID respondió HTTP ${response.status} [${operation}; ${providerCode}]`, "did", "upstream_error");
+    const error = new AvatarProviderError(`D-ID respondió HTTP ${response.status} [${operation}; ${providerCode}]`, "did", "upstream_error");
+    throw RECOVERABLE_HTTP_STATUS.has(response.status) ? transient(error) : error;
   }
 
   circuitBreaker.recordSuccess();
@@ -352,7 +365,19 @@ export const didAvatarProvider: AvatarVideoProvider = {
       if (Date.now() > deadline) {
         throw new AvatarProviderError(`Tiempo de espera agotado sondeando el talk de D-ID (${POLL_TIMEOUT_MS}ms)`, "did", "timeout");
       }
-      const statusResponse = await didFetch(`/talks/${encodeURIComponent(createJson.id)}`, { method: "GET" });
+      let statusResponse: Response;
+      try {
+        statusResponse = await didFetch(`/talks/${encodeURIComponent(createJson.id)}`, { method: "GET" });
+      } catch (err) {
+        // El GET de sondeo es idempotente y el talk ya fue aceptado: un fallo
+        // transitorio (red, 408/429/5xx) consume un intento del presupuesto de
+        // sondeo en vez de abortar. El circuito (3 fallos seguidos), el plazo y
+        // MAX_POLL_ATTEMPTS siguen acotando la espera; nunca se repite el POST.
+        if (!isTransientDidError(err)) throw err;
+        await sleep(delay);
+        delay = Math.min(delay * 1.5, POLL_MAX_DELAY_MS);
+        continue;
+      }
       const statusJson = (await statusResponse.json()) as { status?: string; result_url?: string; error?: { description?: string } };
       const status = mapDidStatus(statusJson.status);
 
