@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import * as footage from "@/lib/providers/footage";
 import { realFootageProvider } from "@/lib/providers/footage/real";
 import { fixtureFootageProvider } from "@/lib/providers/footage/fixture";
-import { footageProviderLicense, footageResultLicense, GENERATED_IMAGE_LICENSE, REVIEWED_FOOTAGE_LICENSES, strictestLicense } from "./beat-license";
+import { footageProviderLicense, footageResultLicense, GENERATED_IMAGE_LICENSE, licenseBlockAfterVoiceMessage, REVIEWED_FOOTAGE_LICENSES, strictestLicense } from "./beat-license";
 import type { ResolvedBeat } from "./reel-render";
 
 const src = (p: string) => readFileSync(p, "utf8");
@@ -70,11 +70,80 @@ test("cableado: reel-render ya no fija CLEARED; generate-video propaga y corta; 
   const gen = src("src/lib/video/generate-video.ts");
   assert.match(gen, /source: "generated", license: GENERATED_IMAGE_LICENSE/);
   assert.match(gen, /const license = footageResultLicense\(footageProvider, outcome\.result\);/);
-  const cut = gen.indexOf('if (directorRender && license !== "CLEARED" && cinematicDirectorRenderEnabled()) throw new Error(licenseBlockMessage(i + 1, license));'), download = gen.indexOf("await footageProvider.downloadFootage(outcome.result.url)");
+  const cut = gen.indexOf('if (directorRender && license !== "CLEARED" && cinematicDirectorRenderEnabled()) {'), download = gen.indexOf("await footageProvider.downloadFootage(outcome.result.url)");
   assert.ok(cut > 0 && cut < download, "el corte por licencia ocurre antes de descargar/subir el material");
   const runJob = src("src/lib/video/run-job.ts");
   const decide = runJob.indexOf("const directorRender = mode === \"visual\" && await decideDirectorRender(row");
   const pre = runJob.indexOf('footageProviderLicense(getFootageProvider()) !== "CLEARED"');
   const reserve = runJob.indexOf("await reserveJobSupply(");
   assert.ok(decide > 0 && decide < pre && pre < reserve, "orden: decisión del Director → licencia del proveedor → reserva");
+});
+
+// ── T36 CORRECCIÓN-2 ────────────────────────────────────────────────────────────────────────────────────────────────
+test("C2: ningún valor explícito fuera del trío da CLEARED sobre un proveedor revisado (incluidos nombres heredados)", () => {
+  const hostile: unknown[] = ["toString", "constructor", "__proto__", "hasOwnProperty", "valueOf", "isPrototypeOf",
+    "arbitrary", "cleared", "CLEARED ", "CLEAR\u0415D" /* E cirílica */, "", null, {}, [], BigInt(1), Number.NaN, 0, true, Symbol("CLEARED")];
+  for (const provider of [realFootageProvider, fixtureFootageProvider]) {
+    for (const v of hostile) {
+      assert.equal(footageResultLicense(provider, { license: v as never }), "NEEDS_REVIEW", `${provider.name}: ${String(v)}`);
+      assert.equal(strictestLicense("CLEARED", v), "NEEDS_REVIEW", String(v));
+    }
+    assert.equal(footageResultLicense(provider, { license: "NOT_CLEARED" }), "NOT_CLEARED");
+    assert.equal(footageResultLicense(provider, { license: "NEEDS_REVIEW" }), "NEEDS_REVIEW");
+    assert.equal(footageResultLicense(provider, {}), "CLEARED", "ausencia = hereda el veredicto del proveedor (contrato)");
+    assert.equal(footageResultLicense(provider, { license: undefined }), "CLEARED");
+  }
+  assert.equal(footageProviderLicense({ name: "pexels-video-first", license: "toString" as never }), "NEEDS_REVIEW", "también la declaración del proveedor");
+});
+
+test("C2 mutación: el control de pertenencia debe ser estricto (una versión con `in` reproduce el bypass)", () => {
+  const RANK = { CLEARED: 0, NEEDS_REVIEW: 1, NOT_CLEARED: 2 };
+  const mutant = (x: unknown) => typeof x === "string" && x in RANK; // el código de C1
+  assert.equal(mutant("toString"), true, "el mutante acepta nombres heredados: por eso C1 daba CLEARED");
+  const src = readFileSync("src/lib/video/director/beat-license.ts", "utf8");
+  assert.doesNotMatch(src, /\bin RANK\b/, "beat-license.ts ya no usa `in RANK`");
+  assert.match(src, /x === "CLEARED" \|\| x === "NEEDS_REVIEW" \|\| x === "NOT_CLEARED"/);
+});
+
+test("C2: el mensaje de bloqueo por resultado dice la verdad sobre la voz ya generada; nunca «no se cobró nada»", () => {
+  const paid = licenseBlockAfterVoiceMessage(2, "NEEDS_REVIEW", { calls: 1, costUsd: 0.0291 });
+  assert.match(paid, /escena 2/);
+  assert.match(paid, /La narración de este intento ya se había generado antes de detectarlo/);
+  assert.match(paid, /USD 0\.03/);
+  assert.match(paid, /no se reembolsa automáticamente/);
+  assert.match(paid, /pendiente de conciliación con soporte/);
+  assert.match(paid, /licencia pendiente de revisión/);
+  assert.doesNotMatch(paid, /\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/, "sin códigos en mayúsculas: el sanitizador los cambia por «[configuración interna]»");
+  const free = licenseBlockAfterVoiceMessage(2, "NOT_CLEARED", { calls: 1, costUsd: 0 });
+  assert.match(free, /sin costo en este intento/);
+  assert.doesNotMatch(free, /conciliación/);
+  assert.match(free, /licencia no autorizada/);
+  for (const m of [paid, free]) {
+    assert.doesNotMatch(m, /no se (reservó|cobró)/i, "no promete gasto cero");
+    assert.match(m, /ni con Director ni con montaje clásico/);
+  }
+});
+
+test("C2 cableado: la voz se contabiliza y el bloqueo por resultado congela evidencia del intento antes de lanzar", () => {
+  const gen = readFileSync("src/lib/video/generate-video.ts", "utf8");
+  assert.equal(gen.match(/await synthesizeGated\(/g)?.length, 1, "todas las síntesis pasan por el contador");
+  const cut = gen.indexOf('if (directorRender && license !== "CLEARED" && cinematicDirectorRenderEnabled()) {');
+  const block = gen.indexOf("license-block.json", cut), thrown = gen.indexOf("throw new Error(licenseBlockAfterVoiceMessage(", cut);
+  assert.ok(cut > 0 && block > cut && thrown > block, "evidencia antes del throw");
+  assert.ok(gen.indexOf("await synthesizeCounted(fullText)") < cut, "la voz es anterior al corte (por eso el mensaje lo declara)");
+});
+
+test("C2 fixture local: FIXTURE_FOOTAGE_RESULT_LICENSE solo marca la búsqueda n-ésima", async () => {
+  const before = process.env.FIXTURE_FOOTAGE_RESULT_LICENSE;
+  try {
+    process.env.FIXTURE_FOOTAGE_RESULT_LICENSE = "NEEDS_REVIEW@2";
+    const a = await fixtureFootageProvider.searchImageCandidates!("uno");
+    const b = await fixtureFootageProvider.searchImageCandidates!("dos");
+    const c = await fixtureFootageProvider.searchImageCandidates!("tres");
+    assert.ok(a.every((x) => x.license === undefined) && c.every((x) => x.license === undefined));
+    assert.ok(b.every((x) => x.license === "NEEDS_REVIEW"));
+    assert.equal(footageProviderLicense(fixtureFootageProvider), "CLEARED", "el proveedor sigue revisado: el corte es por resultado");
+  } finally {
+    if (before === undefined) delete process.env.FIXTURE_FOOTAGE_RESULT_LICENSE; else process.env.FIXTURE_FOOTAGE_RESULT_LICENSE = before;
+  }
 });

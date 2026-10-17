@@ -14,10 +14,14 @@ export const REVIEWED_FOOTAGE_LICENSES: Readonly<Record<string, MediaLicense>> =
 });
 export const GENERATED_IMAGE_LICENSE: MediaLicense = "CLEARED";
 
-const RANK: Record<MediaLicense, number> = { CLEARED: 0, NEEDS_REVIEW: 1, NOT_CLEARED: 2 };
-const isLicense = (x: unknown): x is MediaLicense => typeof x === "string" && x in RANK;
+const RANK: Readonly<Record<MediaLicense, number>> = Object.freeze({ CLEARED: 0, NEEDS_REVIEW: 1, NOT_CLEARED: 2 });
+/** T36 C2: strict comparison with the three literals — the `in` operator also accepted inherited names (toString…). */
+const isLicense = (x: unknown): x is MediaLicense => x === "CLEARED" || x === "NEEDS_REVIEW" || x === "NOT_CLEARED";
 
-/** The strictest of the given verdicts; anything that is not a known verdict counts as NEEDS_REVIEW. */
+/**
+ * The strictest of the given verdicts; any explicit value that is not one of the three verdicts counts as NEEDS_REVIEW.
+ * An absent declaration (`undefined`) is not a verdict: it keeps the provider's (contract unchanged in C2).
+ */
 export function strictestLicense(base: MediaLicense, ...declared: unknown[]): MediaLicense {
   return declared.filter((d) => d !== undefined).reduce<MediaLicense>((acc, d) => {
     const v = isLicense(d) ? d : "NEEDS_REVIEW";
@@ -31,11 +35,22 @@ export function footageProviderLicense(provider: Pick<FootageProvider, "name" | 
   return strictestLicense(reviewed, provider.license);
 }
 
-/** Same wording family as directorBlockMessage (rights category), without loading the Director bridge. */
-export function licenseBlockMessage(scene: number, license: MediaLicense): string {
-  return `El Director no pudo montar este video sin inventar material (LICENSE_NOT_CLEARED_FOR_RENDER): el material de la escena ${scene} tiene la licencia en estado ${license}. `
-    + "Problema de derechos o licencia del material: no se usó. Qué hacer: cambia esa escena del guion para que use otro material, o pide soporte para revisar la licencia. "
-    + "No se publicó ningún video con montaje clásico.";
+/**
+ * T36 C2 — a per-result block happens AFTER the narration was synthesized (footage needs its timings). The message
+ * therefore never says "nothing was charged": it states what was already generated, its cost and that the attempt
+ * needs reconciliation. Nothing is refunded automatically.
+ */
+const LICENSE_WORDS: Readonly<Record<MediaLicense, string>> = Object.freeze({ CLEARED: "autorizada", NEEDS_REVIEW: "pendiente de revisión", NOT_CLEARED: "no autorizada" });
+
+/** Plain words only: the stored error message is sanitized and upper-case codes would show as "[configuración interna]". */
+export function licenseBlockAfterVoiceMessage(scene: number, license: MediaLicense, voice: { calls: number; costUsd: number }): string {
+  const spent = voice.costUsd > 0
+    ? `: ese consumo (aprox. USD ${voice.costUsd.toFixed(2)}) cuenta en tu saldo, no se reembolsa automáticamente y queda pendiente de conciliación con soporte.`
+    : " (sin costo en este intento).";
+  return `El Director no pudo montar este video sin inventar material: el material de la escena ${scene} tiene la licencia ${LICENSE_WORDS[license]} y no se usó. `
+    + `La narración de este intento ya se había generado antes de detectarlo${spent} `
+    + "Qué hacer: cambia esa escena del guion para que use otro material, o pide soporte para revisar la licencia. "
+    + "No se publicó ningún video, ni con Director ni con montaje clásico.";
 }
 
 export function footageResultLicense(provider: Pick<FootageProvider, "name" | "license"> | null | undefined, result: Pick<FootageResult, "license">): MediaLicense {

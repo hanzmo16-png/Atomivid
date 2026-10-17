@@ -38,7 +38,7 @@ import { decideResourceStrategy, buildScenePlanEntry, type ScenePlanEntry } from
 import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resolver";
 import { cinematicDirectorRenderEnabled } from "@/lib/video/director/flag";
 import type { ResolvedBeat } from "@/lib/video/director/reel-render";
-import { footageResultLicense, GENERATED_IMAGE_LICENSE, licenseBlockMessage } from "@/lib/video/director/beat-license";
+import { footageResultLicense, GENERATED_IMAGE_LICENSE, licenseBlockAfterVoiceMessage } from "@/lib/video/director/beat-license";
 
 // Deliberadamente separado de generate-script.ts — ver el comentario ahí
 // para la razón exacta (Remotion no debe cargarse en la ruta de guion).
@@ -142,7 +142,15 @@ export async function generateVideoFromScript({
   // palabra (así toda la narración usa la misma voz y ritmo).
   await onProgress?.("voice");
   const fullText = script.segments.map((s) => s.text).join(" ");
-  let voice = await synthesizeGated(fullText);
+  // T36 C2: what this attempt already spent on narration, so a later licence block can report it truthfully.
+  const voiceSpend = { calls: 0, costUsd: 0 };
+  const synthesizeCounted = async (text: string, speed?: number) => {
+    const r = await synthesizeGated(text, speed);
+    voiceSpend.calls += 1;
+    voiceSpend.costUsd += r.costUsd;
+    return r;
+  };
+  let voice = await synthesizeCounted(fullText);
 
   // Verificación de duración REAL (no estimada) contra el objetivo de la
   // solicitud — nunca estira ni recorta el audio ya grabado (eso sonaría
@@ -165,7 +173,7 @@ export async function generateVideoFromScript({
     let durationResult = checkDuration(targetDurationSeconds, voice.durationSeconds);
     if (!durationResult.withinTolerance) {
       const correctedSpeed = voice.durationSeconds / targetDurationSeconds;
-      const correctedVoice = await synthesizeGated(fullText, correctedSpeed);
+      const correctedVoice = await synthesizeCounted(fullText, correctedSpeed);
       const correctedResult = checkDuration(targetDurationSeconds, correctedVoice.durationSeconds);
       voice = correctedVoice;
       durationResult = correctedResult;
@@ -335,7 +343,14 @@ export async function generateVideoFromScript({
       // T36 C1: the licence travels with the beat. Under the Director a non-cleared result stops the render now,
       // before any further download, paid image or render — never a silent classic montage.
       const license = footageResultLicense(footageProvider, outcome.result);
-      if (directorRender && license !== "CLEARED" && cinematicDirectorRenderEnabled()) throw new Error(licenseBlockMessage(i + 1, license));
+      if (directorRender && license !== "CLEARED" && cinematicDirectorRenderEnabled()) {
+        // The narration is already synthesized at this point (footage needs its timings): freeze what was spent in
+        // this attempt's evidence and say so. The reservation of what was NOT used is released by run-job.
+        const block = { scene: i + 1, license, voiceCalls: voiceSpend.calls, voiceCostUsd: voiceSpend.costUsd, reconciliationRequired: voiceSpend.costUsd > 0 };
+        await uploadToStorage(supabase, `${artifactPrefix}/license-block.json`, Buffer.from(JSON.stringify(block, null, 2)), "application/json");
+        console.log("[atomivid:director]", JSON.stringify({ requestId, licenseBlock: block }));
+        throw new Error(licenseBlockAfterVoiceMessage(i + 1, license, voiceSpend));
+      }
       const footageBuffer = await footageProvider.downloadFootage(outcome.result.url);
       storageBytes += footageBuffer.byteLength;
       const { url: mediaUrl } = await uploadToStorage(

@@ -19,8 +19,10 @@
  *   8 licencia pendiente (T36 C1): el material del proveedor declara NEEDS_REVIEW ⇒ bloqueo antes de reservar, sin MP4,
  *     sin director.json, sin montaje clásico. Con --legacy-worktree=<árbol anterior> el MISMO escenario usa el worker
  *     antiguo y registra el ROJO (la licencia pendiente atravesaba el Reel).
+ *   9 licencia pendiente en UN resultado de un proveedor revisado (T36 C2): la voz ya se generó ⇒ el mensaje lo
+ *     declara (sin «no se cobró»), evidencia license-block.json con la contabilidad, sin MP4 ni montaje clásico.
  *   0 entrypoint: el modo fixture se niega sin interceptor o con Supabase no local.
- *   --only=license ejecuta solo 0 y 8. Salida: run.log, run.redacted.log y b3-report.json (redactado).
+ *   --only=license ejecuta solo 0, 8 y 9. Salida: run.log, run.redacted.log y b3-report.json (redactado).
  */
 import { createRequire } from "node:module";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -211,6 +213,25 @@ try {
     await shot(a.page, "8-licencia-video");
     const page8 = await a.page.locator("body").innerText();
     check("8-licencia: la página explica el motivo y qué hacer; nunca «recetas aplicadas» ni reproductor", /licencia revisada/.test(page8) && /Qué hacer/.test(page8) && !/recetas aplicadas/.test(page8) && (await a.page.locator("video").count()) === 0, page8.split("\n").find((l) => /licencia/.test(l))?.slice(0, 300));
+  }
+  // ── 9 licencia pendiente en UN resultado de un proveedor revisado (T36 C2) ───────────────────────────────────
+  // El proveedor sigue CLEARED (pasa el preflight); la búsqueda n.º 2 devuelve material NEEDS_REVIEW. La voz ya se
+  // sintetizó (el material necesita sus tiempos): el mensaje debe decirlo y el intento congela su contabilidad.
+  if (!LEGACY) {
+    const id9 = await startRender(a.page, "Cómo se forma la nieve", "9-licencia-resultado", true);
+    runWorker(id9, 1, { ...WORKER_ON, FIXTURE_FOOTAGE_RESULT_LICENSE: "NEEDS_REVIEW@2" });
+    const r9 = await requestRow(id9);
+    const files9 = await storageList(`${id9}/attempt-1`);
+    const res9 = await reservations(id9);
+    const blk = await admin(`/storage/v1/object/videos/${id9}/attempt-1/license-block.json`);
+    const block9 = blk.ok ? await blk.json() : null;
+    check("9-licencia-resultado: falla con el bloqueo por resultado; declara la voz ya generada y nunca promete «no se cobró»", r9.status === "failed" && !r9.video_path && /escena \d+ tiene la licencia pendiente de revisión/.test(r9.error_message ?? "") && !/configuración interna/.test(r9.error_message ?? "") && /La narración de este intento ya se había generado/.test(r9.error_message ?? "") && !/No se reservó ni se cobró/.test(r9.error_message ?? ""), { status: r9.status, msg: (r9.error_message ?? "").slice(0, 260) });
+    check("9-licencia-resultado: sin final.mp4 ni director.json; evidencia license-block.json con la contabilidad de voz", !files9.includes("final.mp4") && !files9.includes("director.json") && files9.includes("license-block.json") && block9?.voiceCalls >= 1 && block9?.voiceCostUsd === 0 && block9?.reconciliationRequired === false, { files: files9, block: block9 });
+    check("9-licencia-resultado: ninguna reserva queda abierta; lo no usado se libera", res9 !== null && res9.every((x) => x.status !== "OPEN"), res9);
+    await a.page.goto(`${APP}/dashboard/videos/${id9}`, { waitUntil: "networkidle" });
+    await shot(a.page, "9-licencia-resultado-video");
+    const page9 = await a.page.locator("body").innerText();
+    check("9-licencia-resultado: la página explica el motivo; nunca «recetas aplicadas» ni reproductor", /licencia/.test(page9) && !/recetas aplicadas/.test(page9) && (await a.page.locator("video").count()) === 0, page9.split("\n").find((l) => /licencia/.test(l))?.slice(0, 300));
   }
   if (ONLY === "license") throw Object.assign(new Error("only"), { only: true });
 
