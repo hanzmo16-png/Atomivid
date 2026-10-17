@@ -3,6 +3,61 @@ import assert from "node:assert/strict";
 import type { GeneratedScript } from "@/lib/providers/types";
 import { directReel, type ResolvedBeat } from "./reel-render";
 import { alignScenesToWords } from "../scene-timings";
+import { simulateStoryboard } from "../storyboard/simulate";
+
+test("render planning uses measured narration, not the longer storyboard estimate", () => {
+  // Pilot regression: 19 words estimate >6 s, but the voice resolves one 5 s stock beat.
+  // Planning against the estimate used that clip once, then requested a $0.04 AI image.
+  const script: GeneratedScript = { title: "Amanecer", segments: [{
+    text: "Esa mañana salí descalza a la arena fría, sin saber que algo en mí iba a romperse.",
+    visualQuery: "woman walking beach dawn",
+    visualConcepts: ["woman walking barefoot on beach at dawn", "bare feet stepping on wet sand sunrise"],
+  }] };
+  const storyboard = simulateStoryboard(script), original = structuredClone(storyboard);
+  assert.ok(storyboard.scenes[0].estimatedDurationSeconds > 6);
+  const r = directReel({ script, storyboard, sceneTimings: [{ start: 0, end: 5 }],
+    beatsBySegment: [[{ start: 0, end: 5, url: "https://fixture.local/dawn.mp4", mediaType: "video", source: "stock" }]],
+    audioUrl: "https://fixture.local/voice.mp3", captions: [], narrationGaps: [], durationSeconds: 5.4 });
+  assert.ok(r.ok, r.ok ? "" : JSON.stringify(r.blockers));
+  if (!r.ok) return;
+  assert.equal(r.plan.shots.length, 1);
+  assert.equal(r.plan.totalSeconds, 5);
+  assert.equal(r.input.budget.remainingUsd, 0);
+  assert.equal(r.plan.estimatedMaxUsd, 0);
+  assert.equal(r.props.scenes[0].mediaUrl, "https://fixture.local/dawn.mp4");
+  assert.equal(r.props.scenes[0].endSeconds, 5);
+  assert.deepEqual(storyboard, original);
+});
+
+test("a slower narration still splits at the shot limit and requires real material for every shot", () => {
+  const script: GeneratedScript = { title: "Mar", segments: [{
+    text: "El mar brilla al amanecer, las olas llegan a la arena.", visualQuery: "ocean sunrise waves",
+  }] };
+  const args = { script, sceneTimings: [{ start: 0, end: 8 }],
+    audioUrl: "https://fixture.local/voice.mp3", captions: [], narrationGaps: [], durationSeconds: 8.4 };
+  const beats: ResolvedBeat[] = [0, 4].map((start, i) => ({ start, end: start + 4,
+    url: `https://fixture.local/sea-${i}.mp4`, mediaType: "video", source: "stock" }));
+  const r = directReel({ ...args, beatsBySegment: [beats] });
+  assert.ok(r.ok, r.ok ? "" : JSON.stringify(r.blockers));
+  if (!r.ok) return;
+  assert.equal(r.plan.shots.length, 2);
+  assert.equal(r.plan.totalSeconds, 8);
+  assert.ok(r.props.scenes.every(s => s.endSeconds - s.startSeconds <= 6));
+  assert.equal(r.plan.estimatedMaxUsd, 0);
+  const missing = directReel({ ...args, beatsBySegment: [[{ ...beats[0], end: 8 }]] });
+  assert.ok(!missing.ok, "one clip must not be duplicated or replaced with unauthorised material");
+});
+
+test("render never falls back to storyboard estimates when measured scene times are absent or invalid", () => {
+  const script: GeneratedScript = { title: "Mar", segments: [{ text: "El mar al amanecer.", visualQuery: "ocean dawn" }] };
+  for (const sceneTimings of [[], [{ start: 0, end: NaN }], [{ start: -1, end: 5 }],
+    [{ start: 0, end: Infinity }], [{ start: 5, end: 5 }], [{ start: 0, end: 5 }, { start: 5, end: 6 }]]) {
+    const r = directReel({ script, sceneTimings, beatsBySegment: [],
+      audioUrl: "https://fixture.local/voice.mp3", captions: [], narrationGaps: [], durationSeconds: 5.4 });
+    assert.ok(!r.ok && r.blockers.some(b => b.code === "INVALID_TIME"));
+    assert.equal(r.plan, null);
+  }
+});
 
 // The 60 s Reel used in the first local UI run (only stills resolved, like the fixture/stock path). It used to block
 // with MATERIAL_NOT_AUTHORISED + TIMELINE_GAP: the last sentence has topics, its planned stock image has none, so the

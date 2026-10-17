@@ -39,6 +39,14 @@ export function directReel(a: {
     const sb = a.storyboard ?? simulateStoryboard(a.script);
     const raw = inputFromReel(sb, a.adapter);
     const scenes = [...sb.scenes].sort((x, y) => x.order - y.order);
+    // The storyboard estimate belongs to preflight. Once narration exists, both the cut count and
+    // inventory windows must use its measured clock. Otherwise a fast delivery can resolve one beat
+    // while the estimate requests two shots, exhausting existing material and proposing a paid image.
+    if (a.sceneTimings.length !== scenes.length || a.sceneTimings.some(t =>
+      !Number.isFinite(t.start) || !Number.isFinite(t.end) || t.start < 0 || t.end <= t.start)) {
+      return { ok: false, blockers: [{ code: "INVALID_TIME", detail: "faltan tiempos medidos válidos para las escenas" }], plan, input, storyboardSource };
+    }
+    const segments = raw.segments.map((seg, i) => ({ ...seg, start: a.sceneTimings[i].start, end: a.sceneTimings[i].end }));
     const media: Record<string, ExistingMedia> = {};
     const inventory: DirectorInputRaw["inventory"] = raw.inventory.flatMap(planned => {
       const segId = planned.content?.window?.segmentId ?? (planned.tags ?? []).find(t => t.startsWith("segment:"))?.slice(8);
@@ -61,7 +69,7 @@ export function directReel(a: {
         };
       });
     });
-    input = { ...raw, inventory };
+    input = { ...raw, segments, totalSeconds: segments.at(-1)?.end ?? 0, inventory };
     const catalog = a.catalog ?? bundledRecipeCatalog();
     plan = proposePlan(input, catalog);
     const segmentTimes = Object.fromEntries(scenes.map((s, i) => [s.id, a.sceneTimings[i]]).filter(([, t]) => t));
