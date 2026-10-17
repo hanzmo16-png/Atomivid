@@ -14,15 +14,9 @@ import { checkScriptQuality, ScriptQualityError } from "@/lib/video/script-quali
 import { targetWordsFor } from "@/lib/video/script-pacing";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 
-// Sin esto, la función queda al límite por defecto de la plataforma (tan
-// bajo como 10s en algunos planes de Vercel) — una llamada real a Claude
-// para generar un guion completo, más los reintentos ante fallos
-// transitorios (ver withRetry en providers/script/real.ts), puede
-// superarlo. Cuando eso pasa, Vercel corta la función a medias: el cliente
-// recibe un cuerpo vacío/truncado ("Unexpected end of JSON input" al
-// intentar parsearlo) y la solicitud se queda sin marcar como fallida,
-// visible en el historial como "Pendiente" para siempre. 60s da margen
-// generoso para una llamada + reintentos sin ser excesivo.
+// El generador comparte 40s entre sus llamadas para dejar margen al
+// guardado dentro de esta ruta. Un corte del proceso aún exige revisar
+// el ledger: un timeout no demuestra que el proveedor no haya cobrado.
 export const maxDuration = 60;
 
 type VideoRequestRow = {
