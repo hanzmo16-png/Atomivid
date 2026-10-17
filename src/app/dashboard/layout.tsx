@@ -6,6 +6,7 @@ import { Logo } from "@/components/ui/Logo";
 import { LinkButton } from "@/components/ui/Button";
 import { Onboarding } from "@/components/onboarding/Onboarding";
 import { NavLink } from "./NavLink";
+import { SignOutForm } from "@/components/auth/SignOutForm";
 import { isLongFormEnabled, isLongFormAllowlisted } from "@/lib/video/long-form/access";
 import { isCommandCenterAdmin } from "@/lib/command-center/access";
 
@@ -70,7 +71,7 @@ export default async function DashboardLayout({
             <LinkButton href="/dashboard/new" size="sm">
               Nuevo video
             </LinkButton>
-            <form action={signOut}>
+            <SignOutForm action={signOut}>
               <button
                 type="submit"
                 className="rounded-md px-2.5 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
@@ -79,7 +80,7 @@ export default async function DashboardLayout({
               >
                 Salir
               </button>
-            </form>
+            </SignOutForm>
           </nav>
         </div>
         <div className="border-t border-border px-4 py-2 sm:hidden">

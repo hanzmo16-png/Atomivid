@@ -8,6 +8,7 @@ import { safeParseJsonResponse } from "@/lib/http/safe-json";
 import { classifyClientFetchError } from "@/lib/http/client-error";
 import type { PodcastVideoStatus } from "@/lib/podcast/episode";
 import { minimumBudgetUsd, type VideoChecks } from "@/lib/podcast/pilot";
+import { productionSummary, type ReviewableEpisode } from "@/lib/podcast/production-contract";
 
 /**
  * Supervised production of the episode: the owner sets the episode's total budget (what it already spent plus what
@@ -25,6 +26,10 @@ export function VideoPanel(props: {
   /** Per-run limit of new spend: stored value, smallest allowed, whether its column is readable. */
   runBudgetUsd: number | null; minimumRunUsd: number; runColumn: boolean;
   checks: VideoChecks | null; reviewStatus: "pending" | "approved" | "rejected"; reviewNote: string | null; publishStatus: "held" | "manual";
+  /** What the owner reviews before producing, and the server's fingerprint of it (sent back as `confirm`). */
+  review: ReviewableEpisode; confirmToken: string;
+  /** Test seam: render the review step directly. */
+  initialReview?: { schedule: boolean } | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -34,6 +39,8 @@ export function VideoPanel(props: {
   const [runBudget, setRunBudget] = useState(String(props.minimumRunUsd));
   const [when, setWhen] = useState("");
   const [note, setNote] = useState(props.reviewNote ?? "");
+  // Review before producing: the form values stay in this component's state, so "Volver" keeps everything typed.
+  const [reviewing, setReviewing] = useState<{ schedule: boolean } | null>(props.initialReview ?? null);
   const working = (props.status === "queued" || props.status === "running") && !props.stalled;
   useEffect(() => {
     if (!working) return;
@@ -52,8 +59,12 @@ export function VideoPanel(props: {
     } catch (e) { setMessage({ ok: false, text: e instanceof Error && e.message ? e.message : classifyClientFetchError(e) }); }
     finally { setBusy(false); router.refresh(); }
   }
-  const produce = (schedule: boolean) => post("video", { budgetUsd: budget === "" ? null : Number(budget), runBudgetUsd: props.remainingUsd > 0 && runBudget !== "" ? Number(runBudget) : null, scheduleAt: schedule && when ? new Date(when).toISOString() : null },
-    schedule ? "Producción programada. Puedes cerrar la app: te avisaremos al entregar o si se detiene." : "Producción iniciada. Puedes cerrar la app: te avisaremos al entregar o si se detiene.");
+  const request = (schedule: boolean) => ({ budgetUsd: budget === "" ? null : Number(budget), runBudgetUsd: props.remainingUsd > 0 && runBudget !== "" ? Number(runBudget) : null, scheduleAt: schedule && when ? new Date(when).toISOString() : null });
+  const produce = async (schedule: boolean) => {
+    await post("video", { ...request(schedule), confirm: props.confirmToken },
+      schedule ? "Producción programada. Puedes cerrar la app: te avisaremos al entregar o si se detiene." : "Producción iniciada. Puedes cerrar la app: te avisaremos al entregar o si se detiene.");
+    setReviewing(null);
+  };
 
   const retry = props.status === "failed" || props.status === "blocked" || props.stalled;
   const canStart = props.canRequest && (props.status === "none" || retry || props.status === "ready");
@@ -73,7 +84,23 @@ export function VideoPanel(props: {
       {props.stalled && <p className="mt-3 text-warning">La producción dejó de responder. Puedes reintentarla: la narración y lo ya pagado se conservan.</p>}
       {(props.status === "failed" || props.status === "blocked") && props.error && <p className="mt-3 text-danger">{props.status === "blocked" ? "Detenida: " : ""}{props.error}</p>}
 
-      {canStart && (
+      {canStart && reviewing && (
+        <section aria-label="Revisión antes de producir" className="mt-3 space-y-3 rounded-md border border-border p-3">
+          <h3 className="font-semibold text-ink">Revisa antes de producir</h3>
+          <dl className="grid grid-cols-[11rem_1fr] gap-y-1">
+            {productionSummary(props.review, { ...request(reviewing.schedule), pendingUsd: props.remainingUsd }).map((r) => (
+              <div key={r.label} className="contents"><dt className="text-ink-muted">{r.label}</dt><dd className="text-ink">{r.value}</dd></div>
+            ))}
+          </dl>
+          <p className="text-ink-muted">Al confirmar se envía exactamente esta configuración. Si el episodio cambia antes, el servidor lo rechaza y vuelves aquí.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => produce(reviewing.schedule)} loading={busy}>{reviewing.schedule ? "Confirmar y programar" : "Confirmar y producir"}</Button>
+            <Button variant="secondary" onClick={() => setReviewing(null)} disabled={busy}>Volver a editar</Button>
+          </div>
+        </section>
+      )}
+
+      {canStart && !reviewing && (
         <div className="mt-3 space-y-3">
           <dl className="grid grid-cols-1 gap-1 text-ink-muted sm:grid-cols-3">
             <div><dt className="inline">Ya gastado: </dt><dd className="inline text-ink">{props.historicalUsd == null ? "no disponible" : fmt4(props.historicalUsd)}</dd></div>
@@ -101,8 +128,8 @@ export function VideoPanel(props: {
             </label>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => produce(false)} loading={busy}>{props.status === "ready" ? "Volver a producir" : retry ? "Reintentar" : "Producir ahora"}</Button>
-            {when && <Button variant="secondary" onClick={() => produce(true)} loading={busy}>Programar</Button>}
+            <Button onClick={() => setReviewing({ schedule: false })} disabled={busy}>{props.status === "ready" ? "Revisar y volver a producir" : retry ? "Revisar y reintentar" : "Revisar y producir"}</Button>
+            {when && <Button variant="secondary" onClick={() => setReviewing({ schedule: true })} disabled={busy}>Revisar y programar</Button>}
           </div>
         </div>
       )}
