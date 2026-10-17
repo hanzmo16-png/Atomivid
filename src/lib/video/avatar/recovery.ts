@@ -14,9 +14,12 @@ export type AvatarRecoveryRow = { status: string; render_attempts: number; avata
 export type AvatarLedgerOp = { status: string; method: string; provider_job_id: string | null };
 
 /** Script generation precedes Avatar production; its payment/job is never an Avatar submission.
+ * T-24 C1: a SETTLED voice synthesis (COMMITTED or REFUNDED) is not one either: its own ledger entry and stored
+ * result make a retry reuse it instead of paying again, and no avatar video was requested. An uncertain synthesis
+ * (SUBMITTED, RECONCILIATION_REQUIRED, ...) still counts, so it is never retried blindly.
  * Keep all other methods (including unknown ones) subject to the conservative paid-call guards. */
 export function avatarRenderOperations(ops: AvatarLedgerOp[]): AvatarLedgerOp[] {
-  return ops.filter(op => op.method !== "generate_script");
+  return ops.filter(op => op.method !== "generate_script" && !(op.method === "tts_with_timestamps" && (op.status === "COMMITTED" || op.status === "REFUNDED")));
 }
 
 export type AvatarRecovery =

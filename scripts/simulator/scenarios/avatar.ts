@@ -225,6 +225,49 @@ export async function runAvatarScenarios(fakes: Fakes, outDir: string): Promise<
     s.check("propietario B no puede usar el avatar de A (avatar_not_owned)", code(cross.error) === "avatar_not_owned", err(cross.error));
   });
 
+  // T-24: duración por encima del límite en la ruta del cliente (adaptadores HTTP reales contra los emuladores).
+  const narrationObjects = (db: FakeSupabase, requestId: string) => [...db.objects.keys()].filter((k) => k.startsWith(`videos/${requestId}/avatar-narration.`));
+  await scenario("AV-HG-12", "HeyGen: narración ESTIMADA por encima de MAX_AVATAR_DURATION_SECONDS → bloqueo antes de voz, assets o video", async (s) => {
+    process.env.MAX_AVATAR_DURATION_SECONDS = "5";
+    const r12: Req = { userId: "sim-user-1", requestId: "sim-av-hg-too-long-estimate", avatarId: "sim-avatar-1" };
+    const w = world("heygen", [r12]);
+    const heygenBefore = fakes.heygen.calls.length;
+    const elevenBefore = fakes.eleven.calls.length;
+    const a = await withVirtualTime(() => w.run(r12));
+    delete process.env.MAX_AVATAR_DURATION_SECONDS;
+    s.check("rechazado con duration_exceeded", code(a.error) === "duration_exceeded", err(a.error));
+    s.check("0 peticiones a ElevenLabs (la voz no se paga)", fakes.eleven.calls.length === elevenBefore, fakes.eleven.calls.length - elevenBefore);
+    s.check("0 peticiones a HeyGen (ni assets ni videos)", fakes.heygen.calls.length === heygenBefore);
+    s.check("ledger vacío para la solicitud (nada reservado ni cobrado)", w.opsOf(r12.requestId).length === 0, w.opsOf(r12.requestId));
+    s.check("la solicitud se conserva sin trabajo de proveedor", w.row(r12.requestId).avatar_provider_video_job_id === null, w.row(r12.requestId));
+    s.check("ningún audio de narración subido", narrationObjects(w.db, r12.requestId).length === 0);
+  });
+
+  await scenario("AV-HG-13", "HeyGen: la estimación pasa pero el AUDIO REAL supera el límite → voz pagada una vez, sin video; el reintento reutiliza la voz y repite la causa", async (s) => {
+    // Estimación de la app: 29 palabras / 2,5 = 11,6 s; audio emulado ≈ 13 s (2,6 palabras/s + pausas).
+    process.env.MAX_AVATAR_DURATION_SECONDS = "12";
+    const r13: Req = { userId: "sim-user-1", requestId: "sim-av-hg-too-long-audio", avatarId: "sim-avatar-1" };
+    const w = world("heygen", [r13]);
+    const heygenBefore = fakes.heygen.calls.length;
+    const elevenPostsBefore = fakes.eleven.billablePosts();
+    const first = await withVirtualTime(() => w.run(r13));
+    const elevenAfterFirst = fakes.eleven.billablePosts();
+    const second = await withVirtualTime(() => w.run(r13));
+    delete process.env.MAX_AVATAR_DURATION_SECONDS;
+    s.check("1er intento: duration_exceeded tras medir el audio real", code(first.error) === "duration_exceeded" && /audio real/i.test(err(first.error)), err(first.error));
+    s.check("1er intento: exactamente 1 síntesis ElevenLabs", elevenAfterFirst - elevenPostsBefore === 1, elevenAfterFirst - elevenPostsBefore);
+    // T-24 C1: una TTS liquidada no es un envío de avatar; el intento se reclama, la voz se reutiliza y la causa se repite.
+    // El recorrido completo del cliente (runRenderJob, recarga, edición, nuevo intento) está en avatar-duration-journey.test.ts.
+    s.check("reintento: misma causa (duration_exceeded), sin pedir el video", code(second.error) === "duration_exceeded", err(second.error));
+    s.data.retryError = err(second.error);
+    s.check("reintento: 0 síntesis nuevas (la voz no se vuelve a cobrar)", fakes.eleven.billablePosts() === elevenAfterFirst, fakes.eleven.billablePosts() - elevenAfterFirst);
+    s.check("0 POST /v3/videos (el avatar nunca se solicitó)", fakes.heygen.calls.slice(heygenBefore).filter((c) => c.path === "/v3/videos").length === 0, fakes.heygen.calls.slice(heygenBefore).map((c) => `${c.method} ${c.path}`));
+    s.check("ledger: ninguna operación generate_video", !w.opsOf(r13.requestId).some((o) => o.method === "generate_video"), w.opsOf(r13.requestId));
+    s.check("ningún audio de narración subido (el bloqueo es previo a la subida)", narrationObjects(w.db, r13.requestId).length === 0);
+    s.check("la solicitud se conserva sin trabajo de proveedor", w.row(r13.requestId).avatar_provider_video_job_id === null, w.row(r13.requestId));
+    s.data.ledger = w.opsOf(r13.requestId);
+  });
+
   // =========================== D-ID ===========================
   setEnv("did");
   const d1: Req = { userId: "sim-user-1", requestId: "sim-av-did-ok", avatarId: "sim-avatar-d" };

@@ -73,7 +73,8 @@ export function createFakeSupabase(opts: { signedUrlBase: string }) {
       insert(p: Row | Row[]) { op = "insert"; patch = p; return q; },
       upsert(p: Row | Row[]) { op = "upsert"; patch = p; return q; },
       delete() { op = "delete"; return q; },
-      eq(c: string, v: unknown) { filters.push((r) => r[c] === v); return q; },
+      // jsonb columns: PostgREST compares a JSON-text filter with the stored value (e.g. .eq("script_json", JSON.stringify(x))).
+      eq(c: string, v: unknown) { filters.push((r) => r[c] === v || (typeof v === "string" && r[c] !== null && typeof r[c] === "object" && JSON.stringify(r[c]) === v)); return q; },
       neq(c: string, v: unknown) { filters.push((r) => r[c] !== v); return q; },
       is(c: string, v: unknown) { filters.push((r) => (v === null ? r[c] === null || r[c] === undefined : r[c] === v)); return q; },
       in(c: string, v: unknown[]) { filters.push((r) => v.includes(r[c])); return q; },
