@@ -65,6 +65,8 @@ export type PaidCallHooks<T> = {
   classify?: (err: unknown) => PaidCallClassification;
   /** Retries after a pre-acceptance refusal. Default 0 (economically uncertain). Never applies to accepted/uncertain failures. */
   maxRejectedRetries?: number;
+  /** Wait before retry number `attempt` (1-based) of a pre-acceptance refusal; absent or 0 = immediate. */
+  retryDelayMs?: (attempt: number) => number;
   now?: () => string;
 };
 
@@ -167,6 +169,8 @@ export async function guardPaidCall<T>(store: LedgerStore, spec: PaidCallSpec, h
         await store.update(key, "SUBMITTED", { status: "REFUNDED", committedUsd: 0, resultRef: `${REJECTED_REF}${c.kind}:${message.slice(0, 200)}`, updatedAt: now() });
         if (c.kind === "rejected" && ordinal < maxRejectedRetries && !isBillingUncertainRefusal(err)) {
           lastRejection = err;
+          const delay = hooks.retryDelayMs?.(ordinal + 1) ?? 0;
+          if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
         throw err;

@@ -8,7 +8,7 @@ import { supabaseResultStore, paidResultPath, type PaidResultStore } from "@/lib
 import { stableHash } from "@/lib/production-intelligence/canonical";
 import { supplyGuardRequired } from "./server";
 import { anthropicReservation, anthropicActualCost, ceilLedgerUsd, type ScriptUsage } from "./anthropic-cost";
-import { classifyAnthropicError } from "./anthropic-error";
+import { classifyAnthropicError, SCRIPT_REJECTED_RETRIES, scriptRetryDelayMs } from "./anthropic-error";
 
 import { admitDocumentaryCall } from "./documentary-step";
 import { claimScriptOperation, decideScriptIntent, releaseStaleReservations, ScriptLedgerUnavailableError, type ScriptOpRow } from "./script-intent";
@@ -91,7 +91,7 @@ type SupplyScope = NonNullable<ReturnType<typeof context.getStore>>;
 export const currentSupplyScope = (): SupplyScope | undefined => context.getStore();
 
 /** The ledger part of supplyProtectedAnthropic, with injectable stores (memoryLedgerStore/memoryResultStore in tests). */
-export async function guardScriptLedgerCall<T>(deps: { store: LedgerStore; results: Pick<PaidResultStore, "putJson" | "getJson">; now?: () => number },
+export async function guardScriptLedgerCall<T>(deps: { store: LedgerStore; results: Pick<PaidResultStore, "putJson" | "getJson">; now?: () => number; maxRejectedRetries?: number; retryDelayMs?: (attempt: number) => number },
   scope: SupplyScope, params: { model: string } & Record<string, unknown>, upperUsd: number, actualCostUsd: (result: T) => number, invoke: () => Promise<T>) {
   const { store, results } = deps;
   const spec = {
@@ -111,7 +111,9 @@ export async function guardScriptLedgerCall<T>(deps: { store: LedgerStore; resul
     const resultRef = paidResultPath(scope.projectId, key, "script.json");
     await results.putJson(resultRef, result);
     return { result, costUsd, resultRef };
-  }, load: ref => results.getJson<T>(ref), classify: classifyAnthropicError, maxRejectedRetries: 0 });
+  }, load: ref => results.getJson<T>(ref), classify: classifyAnthropicError,
+  // Only pre-acceptance refusals (429/529, classified `rejected`) are retried, each under its own key; never 401/403/5xx.
+  maxRejectedRetries: deps.maxRejectedRetries ?? SCRIPT_REJECTED_RETRIES, retryDelayMs: deps.retryDelayMs ?? scriptRetryDelayMs });
 }
 
 /** Picks the ledger key for this request: the original, or — only within the

@@ -45,22 +45,18 @@ test("el 401 del SDK es la clase AuthenticationError y el producto ya lo nombra 
   assert.doesNotMatch(classifyScriptError(e, "90e3e91d"), /No reintentes: no pudimos confirmar/);
 });
 
-test("clasificación: 401 = rechazo final; 429, 5xx, 400 genérico, red, timeout y errores tras recibir datos siguen inciertos", () => {
+test("clasificación: 401 = rechazo final; 500, 400 genérico, red, timeout y errores tras recibir datos siguen inciertos", () => {
   assert.deepEqual(classifyAnthropicError(auth401()), { kind: "rejected_final" });
+  assert.deepEqual(classifyAnthropicError(sdkError(401, "api_error", "x")), { kind: "rejected_final" }, "401 by status is still a pre-generation rejection; body type is not what decides");
   const uncertain = [
-    sdkError(429, "rate_limit_error", "rate limited"),
     sdkError(500, "api_error", "internal"),
-    sdkError(529, "overloaded_error", "overloaded"),
     sdkError(400, "invalid_request_error", "Other invalid request"),
-    sdkError(401, "api_error", "x"), // still an AuthenticationError by status; body type is not what decides
     new Anthropic.APIConnectionError({ message: "socket hang up" }),
     new Anthropic.APIConnectionTimeoutError({ message: "timeout" }),
     new Error("synthetic: response arrived but could not be parsed"),
   ];
-  assert.deepEqual(classifyAnthropicError(uncertain[4]), { kind: "rejected_final" }, "401 by status is still a pre-generation rejection");
-  for (const e of uncertain.filter((_, i) => i !== 4)) assert.deepEqual(classifyAnthropicError(e), { kind: "uncertain" }, String(e));
-  // 403 permission_error is NOT converted here (no evidence in this incident); it stays uncertain on purpose.
-  assert.deepEqual(classifyAnthropicError(sdkError(403, "permission_error", "no permission")), { kind: "uncertain" });
+  for (const e of uncertain) assert.deepEqual(classifyAnthropicError(e), { kind: "uncertain" }, String(e));
+  // 403 (permission refused before generation) and 429/529 (admission refused) are covered by anthropic-http-policy.test.ts.
 });
 
 test("incidente 90e3e91d: 401 → fila REFUNDED (0 USD, trazable), error original hacia la UI, una sola llamada; el siguiente POST no queda bloqueado", async () => {
