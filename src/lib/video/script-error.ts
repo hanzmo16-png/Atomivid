@@ -42,10 +42,21 @@ export type ScriptErrorCode =
   | "script_reconciliation_required"
   | "script_output_limit"
   | "script_missing_output"
+  | "script_invalid_json"
+  | "script_invalid_schema"
+  | "script_refusal"
+  | "script_deadline_exceeded"
+  | "anthropic_structured_output_error"
   | "unknown";
 
 export function scriptErrorCode(error: unknown): ScriptErrorCode {
-  if (error instanceof ScriptOutputError) return error.reason === "output_limit" ? "script_output_limit" : "script_missing_output";
+  if (error instanceof ScriptOutputError) return {
+    output_limit: "script_output_limit", missing_output: "script_missing_output",
+    invalid_json: "script_invalid_json", invalid_schema: "script_invalid_schema",
+    refusal: "script_refusal", deadline_exceeded: "script_deadline_exceeded",
+  }[error.reason] as ScriptErrorCode;
+  // Stable SDK prefix, never log its suffix (it may contain provider text).
+  if (error instanceof Anthropic.AnthropicError && error.message.startsWith("Failed to parse structured output:")) return "anthropic_structured_output_error";
   if (error instanceof ScriptReconciliationRequiredError) return error.state === "in_flight" ? "script_in_flight" : "script_reconciliation_required";
   if (error instanceof ReconciliationRequiredError) return "script_reconciliation_required";
   if (error instanceof ProviderConfigurationError) return "provider_not_configured";
@@ -106,7 +117,9 @@ export function classifyScriptError(error: unknown, diagnosticId: string = gener
   }
 
   const code = scriptErrorCode(error);
-  if (code === "script_output_limit" || code === "script_missing_output") {
+  if (code === "anthropic_structured_output_error") return `${SCRIPT_NO_RETRY_PREFIX} no se pudo interpretar la respuesta del servicio. El intento requiere revisión; contacta al soporte con este código.${suffix}`;
+  if (code === "script_deadline_exceeded") return `${SCRIPT_NO_RETRY_PREFIX} se agotó el tiempo disponible para ajustar el guion. El intento requiere revisión antes de generar otro.${suffix}`;
+  if (error instanceof ScriptOutputError) {
     return `${SCRIPT_NO_RETRY_PREFIX} el servicio respondió sin un guion completo. Conservamos el resultado para revisión; contacta al soporte con este código antes de generar otro.${suffix}`;
   }
   // Uncertain provider outcome: never "intenta de nuevo" — a retry is exactly what could charge twice.
@@ -142,6 +155,11 @@ export function classifyScriptError(error: unknown, diagnosticId: string = gener
 export function logScriptError(context: string, error: unknown, diagnosticId: string = generateDiagnosticId()): void {
   const code = scriptErrorCode(error);
   const prefix = `[script] [${diagnosticId}] ${context}: ${code}`;
+
+  if (error instanceof ScriptOutputError) {
+    console.error(prefix, { reason: error.reason });
+    return;
+  }
 
   if (error instanceof Anthropic.APIError) {
     console.error(prefix, { status: error.status, type: error.type });

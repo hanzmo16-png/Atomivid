@@ -4,7 +4,7 @@ import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { targetWordsFor } from "@/lib/video/script-pacing";
-import { requireScriptOutput } from "@/lib/video/script-output";
+import { parseStoredScriptOutput, scriptCallBudget } from "@/lib/video/script-output";
 
 // Instanciado de forma perezosa, mismo patrón que getStripe() en
 // src/lib/stripe/client.ts: así ANTHROPIC_API_KEY se valida explícitamente
@@ -18,7 +18,7 @@ function getClient(): Anthropic {
     if (!apiKey) {
       throw new MissingEnvVarError("ANTHROPIC_API_KEY");
     }
-    cachedClient = new Anthropic({ apiKey, maxRetries: 0 });
+    cachedClient = new Anthropic({ apiKey, maxRetries: 0, timeout: 40_000 });
   }
   return cachedClient;
 }
@@ -50,13 +50,13 @@ const AVOID_STOCK_TEXT_CLICHES =
   "'success', usa 'entrepreneur smiling at laptop screen' o 'hands shaking after a deal').";
 
 const ScriptSchema = z.object({
-  title: z.string().describe("Título corto y llamativo para el video"),
+  title: z.string().trim().min(1).max(200).describe("Título corto y llamativo para el video"),
   segments: z
     .array(
       z.object({
-        text: z.string().describe("Narración en voz alta para esta escena"),
+        text: z.string().trim().min(1).max(800).describe("Narración en voz alta para esta escena"),
         visualQuery: z
-          .string()
+          .string().trim().min(1).max(200)
           .describe(
             "2-4 palabras en inglés para buscar una foto de stock que ilustre esta escena — el concepto visual principal, igual a visualConcepts[0].",
           ),
@@ -95,7 +95,7 @@ const ScriptSchema = z.object({
           ),
       }),
     )
-    .min(1)
+    .min(1).max(20)
     .describe("Escenas del video, en orden"),
 });
 
@@ -126,10 +126,8 @@ function countScriptWords(script: Pick<VideoScript, "segments">): number {
 // adicionales mostrándole su propio conteo y en qué dirección ajustar.
 // Confirmado en producción (2026-09-20) que 1 sola corrección (2 intentos
 // totales) no siempre basta — subido a 3 intentos totales. Sigue acotado
-// para no comprometer el límite de 60s de la ruta (ver maxDuration en
-// app/api/generate/[id]/script/route.ts) ni multiplicar demasiado las
-// llamadas cuando además se activa withRetry por fallos transitorios
-// (providers/script/real.ts). Si el último intento sigue fuera de rango,
+// por cantidad y por un presupuesto compartido de 40s; no hay reintentos
+// automáticos del SDK. Si el último intento sigue fuera de rango,
 // se devuelve tal cual — checkScriptQuality en la ruta sigue siendo quien
 // decide si se acepta o no, esto solo reduce cuántas veces llega a
 // rechazarlo.
@@ -147,6 +145,7 @@ export async function generateScript({
   /** Idioma elegido por el usuario — no se infiere del texto del tema. */
   language?: "es" | "en";
 }): Promise<VideoScript> {
+  const budget = scriptCallBudget();
   const targetWords = targetWordsFor(durationSeconds);
   const targetScenes = Math.max(3, Math.min(10, Math.round(durationSeconds / 5)));
   const minWords = Math.ceil(targetWords * 0.9);
@@ -217,9 +216,10 @@ Tu intento anterior tuvo ${lastWordCount} palabras narradas en total, fuera del 
         format: zodOutputFormat(ScriptSchema),
       },
     };
-    const response = await supplyProtectedAnthropic(params, () => getClient().messages.parse(params, { maxRetries: 0 }));
-
-    const parsed = requireScriptOutput(response);
+    budget.beforeCall();
+    // Capture raw response/usage before local JSON/Zod validation. No paid parse retry.
+    const response = await supplyProtectedAnthropic(params, () => getClient().messages.create(params, budget.options()));
+    const parsed = parseStoredScriptOutput(response, ScriptSchema);
 
     lastScript = parsed;
     lastWordCount = countScriptWords(parsed);
@@ -245,6 +245,7 @@ export async function regenerateScene({
   script: VideoScript;
   sceneIndex: number;
 }): Promise<VideoScriptScene> {
+  const budget = scriptCallBudget();
   const current = script.segments[sceneIndex];
   if (!current) {
     throw new Error(`No existe la escena ${sceneIndex}`);
@@ -285,7 +286,7 @@ Reescribe SOLO la escena actual. Da:
       format: zodOutputFormat(SceneSchema),
     },
   };
-  const response = await supplyProtectedAnthropic(params, () => getClient().messages.parse(params, { maxRetries: 0 }));
-
-  return requireScriptOutput(response);
+  budget.beforeCall();
+  const response = await supplyProtectedAnthropic(params, () => getClient().messages.create(params, budget.options()));
+  return parseStoredScriptOutput(response, SceneSchema);
 }

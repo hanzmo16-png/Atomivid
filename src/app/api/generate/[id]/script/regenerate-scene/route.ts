@@ -1,6 +1,11 @@
 import { persistScriptChange, ScriptPersistenceError } from "@/lib/video/script-persistence";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
-import { withSupplyContext } from "@/lib/supply/anthropic";
+import { loadScriptOperations, withScriptGenerationContext } from "@/lib/supply/anthropic";
+import { supplyGuardRequired } from "@/lib/supply/server";
+import { uncertainAfterFailure } from "@/lib/video/script-generation";
+import { ScriptLedgerUnavailableError } from "@/lib/supply/script-intent";
+import { SCRIPT_LEDGER_UNAVAILABLE_MESSAGE } from "@/lib/video/script-generation";
+import { generateDiagnosticId } from "@/lib/video/render-error";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -48,7 +53,7 @@ export async function POST(
   try {
     const body = (await request.json().catch(() => null)) as { sceneIndex?: number } | null;
     const sceneIndex = body?.sceneIndex;
-    if (typeof sceneIndex !== "number" || sceneIndex < 0) {
+    if (typeof sceneIndex !== "number" || !Number.isInteger(sceneIndex) || sceneIndex < 0) {
       return NextResponse.json({ error: "sceneIndex inválido" }, { status: 400 });
     }
 
@@ -91,7 +96,7 @@ export async function POST(
         });
       }
 
-      newScene = await withSupplyContext(id, () => scriptProvider.regenerateScene({
+      newScene = await withScriptGenerationContext(id, () => scriptProvider.regenerateScene({
         topic: videoRequest.topic,
         style: videoRequest.style,
         script: videoRequest.script_json as GeneratedScript,
@@ -110,8 +115,11 @@ export async function POST(
       }
     } catch (err) {
       if (err instanceof SupplyUnavailableError) return NextResponse.json({ error: err.customerMessage }, { status: 503, headers: { "Retry-After": "300" } });
-      logScriptError("POST /script/regenerate-scene", err);
-      return NextResponse.json({ error: classifyScriptError(err) }, { status: err instanceof ScriptPersistenceError ? err.status : 500 });
+      if (err instanceof ScriptLedgerUnavailableError) return NextResponse.json({ error: SCRIPT_LEDGER_UNAVAILABLE_MESSAGE }, { status: 503 });
+      const blocked = await uncertainAfterFailure({ guard: supplyGuardRequired(), loadRows: () => loadScriptOperations(id) });
+      const diagnosticId = generateDiagnosticId();
+      logScriptError("POST /script/regenerate-scene", err, diagnosticId);
+      return NextResponse.json({ error: classifyScriptError(blocked ?? err, diagnosticId) }, { status: blocked ? 409 : err instanceof ScriptPersistenceError ? err.status : 500 });
     }
 
     const segments = [...videoRequest.script_json.segments];
@@ -130,7 +138,8 @@ export async function POST(
 
     return NextResponse.json({ scene: newScene, script });
   } catch (err) {
-    logScriptError("POST /script/regenerate-scene (inesperado)", err);
-    return NextResponse.json({ error: classifyScriptError(err) }, { status: err instanceof ScriptPersistenceError ? err.status : 500 });
+    const diagnosticId = generateDiagnosticId();
+    logScriptError("POST /script/regenerate-scene (inesperado)", err, diagnosticId);
+    return NextResponse.json({ error: classifyScriptError(err, diagnosticId) }, { status: err instanceof ScriptPersistenceError ? err.status : 500 });
   }
 }
