@@ -132,7 +132,12 @@ async function startRender(page, topic, label, expectEligible) {
   } else {
     check(`${label}: Revisión sin panel del Director (cuenta no piloto)`, panelText === "");
   }
-  await page.getByRole("button", { name: "Generar video final" }).click();
+  const [renderResp] = await Promise.all([
+    page.waitForResponse((r) => r.url().endsWith(`/api/generate/${id}/render`) && r.request().method() === "POST", { timeout: 120_000 }),
+    page.getByRole("button", { name: "Generar video final" }).click(),
+  ]);
+  const renderBody = await renderResp.json().catch(() => null);
+  check(`${label}: POST /api/generate/<id>/render devuelve 200 {status:"processing", worker:"github-actions"}`, renderResp.status() === 200 && renderBody?.status === "processing" && renderBody?.worker === "github-actions", { status: renderResp.status(), body: renderBody });
   await page.waitForURL(/\/dashboard(\?|$)/, { timeout: 120_000 });
   const d = dispatchesFor(id);
   check(`${label}: la web despachó una vez (interceptado, sin red) con requestId e intento`, d.length === 1 && d[0].event === "render-video" && d[0].payload.renderAttempt === 1, d.map((x) => ({ event: x.event, attempt: x.payload.renderAttempt, hasDirectorField: JSON.stringify(x.payload).includes("director") })));
@@ -179,6 +184,17 @@ try {
   await shot(a.page, "1-positivo-video");
   const page1 = await a.page.locator("body").innerText();
   check("1-positivo: la página del video muestra «Director: recetas aplicadas (N planos)» con N = registro", new RegExp(`Director: recetas aplicadas \\(${rec?.applied?.length} planos\\)`).test(page1));
+  const vsrc = await a.page.locator("video").first().getAttribute("src");
+  const head = vsrc ? await a.page.request.get(vsrc, { headers: { Range: "bytes=0-1023" } }) : null;
+  check("1-positivo: el <video> usa una URL firmada local que sirve el MP4 (200/206, video/mp4)", !!head && [200, 206].includes(head.status()) && /video\/mp4/.test(head.headers()["content-type"] ?? "") && /token=|sign/.test(vsrc ?? "") && isLocal(vsrc), { status: head?.status(), host: vsrc ? new URL(vsrc).host : null });
+  const [dl] = await Promise.all([a.page.waitForEvent("download", { timeout: 120_000 }), a.page.locator("a[download]").first().click()]);
+  const dlPath = `${OUT}/1-descargado.mp4`;
+  await dl.saveAs(dlPath);
+  const dlProbe = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-count_frames", "-show_entries", "stream=codec_type,codec_name,width,height,nb_read_frames:format=duration", "-of", "json", dlPath], { encoding: "utf8" }));
+  const dlSha = (await import("node:crypto")).createHash("sha256").update(fs.readFileSync(dlPath)).digest("hex");
+  fs.rmSync(dlPath); // el MP4 sintético no se guarda en la evidencia
+  const dv = dlProbe.streams.find((x) => x.codec_type === "video"), da = dlProbe.streams.find((x) => x.codec_type === "audio");
+  check("1-positivo: descarga desde el botón de la UI = MP4 H264/AAC 1080x1920 con fotogramas", dv?.codec_name === "h264" && da?.codec_name === "aac" && dv.width === 1080 && dv.height === 1920 && Number(dv.nb_read_frames) > 0, { frames: Number(dv?.nb_read_frames), duration: Number(dlProbe.format?.duration), sha256: dlSha });
   const canPlay = await a.page.evaluate(() => document.createElement("video").canPlayType('video/mp4; codecs="avc1.640028, mp4a.40.2"'));
   if (!canPlay) notVerified.push({ name: "reproducción dentro de este Chromium", reason: "sin H264/AAC (canPlayType vacío); el MP4 se verificó con ffprobe" });
 
@@ -208,6 +224,48 @@ try {
   await b.page.goto(`${APP}/dashboard/videos/${id3}`, { waitUntil: "networkidle" });
   const page3 = await b.page.locator("body").innerText();
   check("3-no-piloto: sin panel ni aviso del Director", !/recetas aplicadas|Director solicitado/.test(page3));
+
+  // ── 5 doble clic en «Generar video final» ─────────────────────────────────────────────────────────────────────
+  await createReel(a.page, "Por qué brillan las luciérnagas");
+  const review5 = await scriptToReview(a.page, "Por qué brillan las luciérnagas");
+  const id5 = review5.split("/").pop();
+  await a.page.goto(`${APP}${review5}`, { waitUntil: "networkidle" });
+  const statuses5 = [];
+  a.page.on("response", (r) => { if (r.url().endsWith(`/api/generate/${id5}/render`)) statuses5.push(r.status()); });
+  await a.page.getByRole("button", { name: "Generar video final" }).evaluate((el) => { el.click(); el.click(); });
+  await a.page.waitForTimeout(8000);
+  const r5 = await requestRow(id5);
+  check("5-doble-clic: un solo intento y un solo despacho (CAS de estado/intento)", r5.render_attempts === 1 && dispatchesFor(id5).length === 1, { posts: statuses5, attempts: r5.render_attempts, dispatches: dispatchesFor(id5).length });
+  runWorker(id5, 1, WORKER_ON); // deja la solicitud terminada, sin rastros abiertos
+
+  // ── 6 usuario B frente a recursos de A ─────────────────────────────────────────────────────────────────────────
+  for (const path of [`/dashboard/review/${id1}`, `/dashboard/videos/${id1}`]) {
+    const resp = await b.page.goto(`${APP}${path}`, { waitUntil: "networkidle" });
+    // The mock script gives every request the same title, so the check looks for A's id in the VISIBLE text and links
+    // (Next's own payload repeats the requested path, which is not data from A); B's own panel may play B's own video.
+    const body = await b.page.locator("body").innerText();
+    const landed = new URL(b.page.url()).pathname;
+    check(`6-usuario-B: ${path.replace(id1, "<idA>")} no expone el recurso de A`, (resp?.status() === 404 || landed !== path || /no encontr|not found/i.test(body)) && !body.includes(id1) && (await b.page.locator(`a[href*="${id1}"]`).count()) === 0 && (await b.page.locator(`video[src*="${id1}"]`).count()) === 0, { status: resp?.status(), landed: landed.replace(id1, "<idA>") });
+  }
+  const bRender = await b.page.request.post(`${APP}/api/generate/${id1}/render`, { data: {} });
+  check("6-usuario-B: POST render sobre la solicitud de A rechazado", [401, 403, 404, 409].includes(bRender.status()), { status: bRender.status() });
+
+  // ── 7 créditos insuficientes (sin suscripción): rechazo antes de reservar o despachar ─────────────────────────────
+  await createReel(a.page, "Cómo se forma el arcoíris");
+  const review7 = await scriptToReview(a.page, "Cómo se forma el arcoíris");
+  const id7 = review7.split("/").pop();
+  await admin(`/rest/v1/subscriptions?user_id=eq.${owner.id}`, { method: "DELETE" });
+  await a.page.goto(`${APP}${review7}`, { waitUntil: "networkidle" });
+  const [resp7] = await Promise.all([
+    a.page.waitForResponse((r) => r.url().endsWith(`/api/generate/${id7}/render`), { timeout: 120_000 }),
+    a.page.getByRole("button", { name: "Generar video final" }).click(),
+  ]);
+  await a.page.waitForTimeout(1500);
+  await shot(a.page, "7-sin-creditos");
+  const r7 = await requestRow(id7);
+  const res7 = await reservations(id7);
+  check("7-sin-creditos: 402 visible, sin intento, sin despacho, sin reserva, sin director_requested", resp7.status() === 402 && r7.render_attempts === 0 && r7.status === "script_ready" && r7.director_requested === false && dispatchesFor(id7).length === 0 && (res7 ?? []).length === 0, { status: resp7.status(), row: r7, reservations: res7 });
+  await admin("/rest/v1/subscriptions", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: owner.id, status: "active", price_id: null }) });
 
   // ── 4 evidencia ausente ──────────────────────────────────────────────────────────────────────────────────────
   const del = await admin(`/storage/v1/object/videos`, { method: "DELETE", body: JSON.stringify({ prefixes: [`${prefix1}/director.json`] }) });
