@@ -27,48 +27,7 @@ export type ProviderConfigReport = {
   /** Which provider credentials this runtime has (presence only). */
   keys: Record<string, "present" | "blank" | "missing">;
   heygen: HeygenProbe;
-  githubWorker: GithubWorkerProbe;
 };
-
-/**
- * Read-only check of the render worker's GitHub credential AS THE RUNNING DEPLOYMENT SEES IT: one
- * `GET /repos/{GH_WORKER_REPO}` with `GH_WORKER_TOKEN` (the same header the dispatch sends). It never
- * creates a `repository_dispatch`, so no render and no spend. The verdict tells 401 (credential refused:
- * expired, revoked or wrong value), 403 (recognised but not allowed), 404 (repo unreachable with this
- * token or wrong GH_WORKER_REPO) and 200 apart; `permissions.push` is what GitHub reports for the token
- * on the repository (indicative of Contents write, which `POST /dispatches` needs), and `tokenExpiresAt`
- * is GitHub's own expiration header. Never the token, never the repo name.
- */
-export type GithubWorkerProbe = {
-  token: "present" | "blank" | "missing";
-  repo: "present" | "blank" | "missing" | "invalid";
-  http: number | null;
-  transportError: boolean;
-  permissions: { admin: boolean | null; push: boolean | null; pull: boolean | null } | null;
-  tokenExpiresAt: string | null;
-  verdict: "GO_READ" | "NO_GO_401" | "NO_GO_403" | "NO_GO_404" | "NOT_CONFIGURED" | "UNKNOWN";
-};
-
-export async function githubWorkerProbe(env: Record<string, string | undefined>, fetchImpl: typeof fetch = fetch): Promise<GithubWorkerProbe> {
-  const state = (v: string | undefined) => (v === undefined ? "missing" : v.trim() ? "present" : "blank") as "present" | "blank" | "missing";
-  const token = env.GH_WORKER_TOKEN?.trim(), repoRaw = env.GH_WORKER_REPO?.trim();
-  const repo: GithubWorkerProbe["repo"] = state(env.GH_WORKER_REPO) !== "present" ? state(env.GH_WORKER_REPO) : /^[^\s/]+\/[^\s/]+$/.test(repoRaw!) ? "present" : "invalid";
-  const out: GithubWorkerProbe = { token: state(env.GH_WORKER_TOKEN), repo, http: null, transportError: false, permissions: null, tokenExpiresAt: null, verdict: "NOT_CONFIGURED" };
-  if (out.token !== "present" || repo !== "present") return out;
-  try {
-    const r = await fetchImpl(`https://api.github.com/repos/${repoRaw}`, { method: "GET", redirect: "error", cache: "no-store", signal: AbortSignal.timeout(10_000),
-      headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" } });
-    out.http = r.status;
-    out.tokenExpiresAt = r.headers.get("github-authentication-token-expiration");
-    if (r.ok) {
-      const p = ((await r.json().catch(() => null)) as { permissions?: { admin?: unknown; push?: unknown; pull?: unknown } } | null)?.permissions;
-      const b = (x: unknown) => (typeof x === "boolean" ? x : null);
-      out.permissions = p ? { admin: b(p.admin), push: b(p.push), pull: b(p.pull) } : null;
-    }
-    out.verdict = r.status === 200 ? "GO_READ" : r.status === 401 ? "NO_GO_401" : r.status === 403 ? "NO_GO_403" : r.status === 404 ? "NO_GO_404" : "UNKNOWN";
-  } catch { out.transportError = true; out.verdict = "UNKNOWN"; }
-  return out;
-}
 
 /** Public part: categories/booleans only. `sealed` (balance, raw billing_type) must only be printed encrypted. */
 export type HeygenProbe = {
@@ -117,8 +76,7 @@ export async function providerConfigReport(env: Record<string, string | undefine
   const state = (k: string) => (env[k] === undefined ? "missing" : env[k]!.trim() ? "present" : "blank") as "present" | "blank" | "missing";
   const keys = Object.fromEntries(["ELEVENLABS_API_KEY", "HEYGEN_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "RUNWAY_API_KEY", "PEXELS_API_KEY", "GH_WORKER_TOKEN", "GH_WORKER_REPO", "SUPABASE_SERVICE_ROLE_KEY"].map((k) => [k, state(k)]));
   return { keys, vercelEnv: env.VERCEL_ENV ?? null, commit: env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null, elevenlabsKey,
-    elevenEnvNames: Object.keys(env).filter((k) => /ELEVEN|HEYGEN/i.test(k)).sort(), voices, heygen: await heygenProbe(env, fetchImpl),
-    githubWorker: await githubWorkerProbe(env, fetchImpl) };
+    elevenEnvNames: Object.keys(env).filter((k) => /ELEVEN|HEYGEN/i.test(k)).sort(), voices, heygen: await heygenProbe(env, fetchImpl) };
 }
 
 /**

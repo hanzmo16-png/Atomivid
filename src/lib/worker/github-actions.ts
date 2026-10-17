@@ -1,5 +1,6 @@
 import type { RenderWorker } from "./types";
 import { MissingEnvVarError, InvalidEnvVarError } from "@/lib/env-errors";
+import { isValidOwnerRepo } from "./github-repo";
 
 const GITHUB_API = "https://api.github.com";
 const DISPATCH_EVENT_TYPE = "render-video";
@@ -10,13 +11,6 @@ const DISPATCH_EVENT_TYPE = "render-video";
 // Un timeout corto falla rápido y da un mensaje claro en vez de una
 // espera larga que el usuario interpreta como que la página se congeló.
 const DISPATCH_TIMEOUT_MS = 15_000;
-
-// "owner/repo" de GitHub: sin espacios, sin protocolo/URL completa, un
-// solo "/". No valida caracteres exactos permitidos por GitHub (eso lo
-// hace la propia API) — solo descarta errores obvios de formato (URL
-// completa pegada por error, falta el "/", espacios) antes de gastar una
-// llamada de red.
-const OWNER_REPO_PATTERN = /^[^\s/]+\/[^\s/]+$/;
 
 /**
  * Error tipado para un fallo HTTP al disparar `repository_dispatch` —
@@ -83,7 +77,7 @@ export const githubActionsWorker: RenderWorker = {
     // de configuración permanente.
     if (!token) throw new MissingEnvVarError("GH_WORKER_TOKEN");
     if (!repo) throw new MissingEnvVarError("GH_WORKER_REPO");
-    if (!OWNER_REPO_PATTERN.test(repo)) {
+    if (!isValidOwnerRepo(repo)) {
       throw new InvalidEnvVarError("GH_WORKER_REPO", '"owner/repo", p. ej. "hanzmo16-png/Atomivid"');
     }
 
