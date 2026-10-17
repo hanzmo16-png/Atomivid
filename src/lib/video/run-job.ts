@@ -17,7 +17,7 @@ import {
 import type { LongFormStage } from "./long-form/stages";
 import { resolveExecutablePlan, type ProductionPlan } from "./long-form/production-plan";
 import { assertCinematicV6Account } from "./long-form/cinematic-v6-access";
-import { resolveDirectorRender } from "./director/render-access";
+import { decideDirectorRender, DirectorUnavailableError } from "./director/render-access";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { attemptState } from "./attempt-state";
 import type { RenderStage } from "./stages";
@@ -50,6 +50,8 @@ type JobRow = {
   avatar_provider_video_job_id: string | null;
   long_form_production_plan: ProductionPlan | null;
   long_form_confirmed_at: string | null;
+  /** T-34 B3: whether the web requested the Director for this attempt (migration 20261017140000). */
+  director_requested?: boolean | null;
 };
 
 /**
@@ -76,7 +78,7 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
   const { data: row, error: readError } = await service
     .from("video_requests")
     .select(
-      "status, render_attempts, progress_stage, user_id, script_json, style, topic, language, duration_seconds, mode, avatar_id, avatar_voice_id, avatar_provider_video_job_id, recorded_audio_path, avatar_narration_source, long_form_production_plan, long_form_confirmed_at",
+      "status, render_attempts, progress_stage, user_id, script_json, style, topic, language, duration_seconds, mode, avatar_id, avatar_voice_id, avatar_provider_video_job_id, recorded_audio_path, avatar_narration_source, long_form_production_plan, long_form_confirmed_at, director_requested",
     )
     .eq("id", requestId)
     .single<JobRow>();
@@ -163,15 +165,16 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
       if (error) throw error;
       return data.user;
     });
-    await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name));
-    // Director (chatgpt-06): decided here from the worker's own configuration and the stored row/owner, never from
-    // the dispatch payload. Off unless CINEMATIC_DIRECTOR_RENDER_ENABLED + pilot account + visual Reel.
-    const directorRender = mode === "visual" && await resolveDirectorRender(row, async () => {
+    // Director (chatgpt-06, T-34 B3): decided BEFORE reserving or paying, from the attempt's stored request
+    // (`director_requested`, written by the web) and the worker's own switch, pilot list and owner account; never from
+    // the dispatch payload. Requested but not applicable here ⇒ DirectorUnavailableError, never a silent classic montage.
+    const directorRender = mode === "visual" && await decideDirectorRender(row, async () => {
       const { data, error } = await service.auth.admin.getUserById(row.user_id);
       if (error) throw error;
       return data.user;
     });
-    if (mode === "visual") console.log("[atomivid:director]", JSON.stringify({ requestId, directorRender }));
+    if (mode === "visual") console.log("[atomivid:director]", JSON.stringify({ requestId, directorRequested: row.director_requested === true, directorRender }));
+    await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name));
     const { videoPath } =
       mode === "avatar"
         ? await generateAvatarVideo({
@@ -273,7 +276,8 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     }
 
     // Typed action stored with the text: a configuration failure needs support, not an immediate retry.
-    const action = configError || error instanceof ProviderConfigurationError ? "support" : "retry";
+    const action = configError || error instanceof ProviderConfigurationError
+      || (error instanceof DirectorUnavailableError && error.reason !== "owner_lookup_failed") ? "support" : "retry";
     // A measured duration mismatch happens before footage/render and after the
     // voice ledger is settled. Reopen editing; retain attempts and paid history.
     // T-24 C1: same for an Avatar narrated from the script whose REAL audio exceeds the limit (no avatar job was

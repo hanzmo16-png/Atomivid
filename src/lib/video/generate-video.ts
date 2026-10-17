@@ -478,6 +478,8 @@ export async function generateVideoFromScript({
     const { directReel, directorBlockMessage } = await import("@/lib/video/director/reel-render");
     const directed = directReel({ script, storyboard, beatsBySegment: directorBeats, sceneTimings, audioUrl, captions, narrationGaps, durationSeconds: finalDurationSeconds });
     const evidence = Buffer.from(JSON.stringify({
+      // T-34 B3: binds the record to THIS attempt's MP4 (same prefix) and its real duration; the video page checks both.
+      artifactPrefix, durationSeconds: finalDurationSeconds,
       footageSelections,
       ok: directed.ok, storyboardSource: directed.storyboardSource, input: directed.input, plan: directed.plan,
       ...(directed.ok ? { applied: directed.applied, props: directed.props } : { blockers: directed.blockers }),

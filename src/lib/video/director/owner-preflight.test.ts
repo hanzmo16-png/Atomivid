@@ -105,13 +105,13 @@ test("Reel NO-GO inverso (Vercel OFF, worker ON): Revisión no muestra nada, el 
   assert.equal(cinematicDirectorRenderEnabled(vercelOff), false, "la página del video condiciona el panel a este interruptor en Vercel");
 });
 
-test("Reel: la decisión del worker se toma del row y la cuenta, tras reservar suministro y antes de generar; el Director no añade llamadas pagadas", () => {
+test("Reel: la decisión del worker se toma del row y la cuenta, ANTES de reservar suministro y de generar (T-34 B3); el Director no añade llamadas pagadas", () => {
   const runJob = src("src/lib/video/run-job.ts");
   const reserve = runJob.indexOf("await reserveJobSupply(");
-  const decide = runJob.indexOf("const directorRender = mode === \"visual\" && await resolveDirectorRender(row");
+  const decide = runJob.indexOf("const directorRender = mode === \"visual\" && await decideDirectorRender(row");
   const generate = runJob.indexOf("await generateVideoFromScript({");
-  assert.ok(reserve > 0 && decide > reserve && generate > decide, "orden: reserva → decisión del Director → generación");
-  assert.match(runJob, /console\.log\("\[atomivid:director\]", JSON\.stringify\(\{ requestId, directorRender \}\)\)/, "observable en el log del worker");
+  assert.ok(decide > 0 && reserve > decide && generate > reserve, "orden: decisión del Director → reserva → generación");
+  assert.match(runJob, /console\.log\("\[atomivid:director\]", JSON\.stringify\(\{ requestId, directorRequested: row\.director_requested === true, directorRender \}\)\)/, "observable en el log del worker");
   const gv = src("src/lib/video/generate-video.ts");
   assert.match(gv, /if \(directorRender && cinematicDirectorRenderEnabled\(\)\) \{\n\s+const \{ directReel, directorBlockMessage \} = await import\("@\/lib\/video\/director\/reel-render"\);/, "el worker vuelve a leer su propio interruptor");
   assert.match(gv, /if \(!directed\.ok\) throw new Error\(directorBlockMessage\(directed\.blockers\)\);/, "un plan no montable detiene el render de forma explícita");

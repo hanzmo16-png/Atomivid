@@ -76,9 +76,23 @@ export function directReel(a: {
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
-/** One readable sentence for the user when the Director refuses to render (codes kept for support). */
+const RIGHTS_BLOCKERS = new Set(["LICENSE_NOT_CLEARED_FOR_RENDER", "MATERIAL_NOT_AUTHORISED"]);
+const CONTRACT_BLOCKERS = new Set(["CONTRACT_INVALID", "DIRECTOR_ERROR", "LABEL_NOT_RENDERABLE"]);
+
+/**
+ * One readable, actionable sentence when the Director refuses to render (codes kept for support). T-34 B3: by
+ * category — material and rights problems say which shot and what to change; contract/internal errors go to support.
+ * Never promises a refund: what this attempt already used is shown by the attempt state, not by this text.
+ */
 export function directorBlockMessage(blockers: BridgeBlocker[]): string {
   const codes = [...new Set(blockers.map(b => b.code))];
-  const first = blockers[0];
-  return `El Director no pudo montar este video sin inventar material (${codes.join(", ")}): ${first?.detail ?? "motivo desconocido"}`.slice(0, 400);
+  const first = blockers.find(b => RIGHTS_BLOCKERS.has(b.code)) ?? blockers[0];
+  const shot = first?.shotId ? ` (plano ${first.shotId})` : "";
+  const action = codes.some(c => CONTRACT_BLOCKERS.has(c))
+    ? "Qué hacer: es un fallo interno del Director; contacta a soporte con el código del intento."
+    : codes.some(c => RIGHTS_BLOCKERS.has(c))
+      ? `Problema de derechos o licencia del material${shot}: no se usó. Qué hacer: cambia esa escena del guion para que use otro material, o pide soporte para revisar la licencia.`
+      : `Falta material visual adecuado${shot}. Qué hacer: ajusta la escena (descripción visual más concreta o más breve) y vuelve a generar.`;
+  const head = `El Director no pudo montar este video sin inventar material (${codes.join(", ")}): ${(first?.detail ?? "motivo desconocido").slice(0, 160)}.`;
+  return `${head} ${action} No se publicó ningún video con montaje clásico.`.slice(0, 600);
 }
