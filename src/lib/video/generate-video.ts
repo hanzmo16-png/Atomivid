@@ -38,6 +38,7 @@ import { decideResourceStrategy, buildScenePlanEntry, type ScenePlanEntry } from
 import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resolver";
 import { cinematicDirectorRenderEnabled } from "@/lib/video/director/flag";
 import type { ResolvedBeat } from "@/lib/video/director/reel-render";
+import { footageResultLicense, GENERATED_IMAGE_LICENSE, licenseBlockMessage } from "@/lib/video/director/beat-license";
 
 // Deliberadamente separado de generate-script.ts — ver el comentario ahí
 // para la razón exacta (Remotion no debe cargarse en la ruta de guion).
@@ -278,7 +279,7 @@ export async function generateVideoFromScript({
             startSeconds: beat.start,
             endSeconds: beat.end,
           });
-          directorBeats[i].push({ url: generated.url, mediaType: "image", source: "generated", start: beat.start, end: beat.end });
+          directorBeats[i].push({ url: generated.url, mediaType: "image", source: "generated", license: GENERATED_IMAGE_LICENSE, start: beat.start, end: beat.end });
           visualPlan.push({
             ...buildScenePlanEntry(i, b, beatDuration, segment.text, beatConcepts[0], decision),
             provider: generated.provider,
@@ -331,6 +332,10 @@ export async function generateVideoFromScript({
         openingRelevance: outcome.openingRelevance,
       });
 
+      // T36 C1: the licence travels with the beat. Under the Director a non-cleared result stops the render now,
+      // before any further download, paid image or render — never a silent classic montage.
+      const license = footageResultLicense(footageProvider, outcome.result);
+      if (directorRender && license !== "CLEARED" && cinematicDirectorRenderEnabled()) throw new Error(licenseBlockMessage(i + 1, license));
       const footageBuffer = await footageProvider.downloadFootage(outcome.result.url);
       storageBytes += footageBuffer.byteLength;
       const { url: mediaUrl } = await uploadToStorage(
@@ -345,7 +350,7 @@ export async function generateVideoFromScript({
         startSeconds: beat.start,
         endSeconds: beat.end,
       });
-      directorBeats[i].push({ url: mediaUrl, mediaType: outcome.result.mediaType, source: footageProvider.name === "fixture" ? "fixture" : "stock", start: beat.start, end: beat.end });
+      directorBeats[i].push({ url: mediaUrl, mediaType: outcome.result.mediaType, source: footageProvider.name === "fixture" ? "fixture" : "stock", license, start: beat.start, end: beat.end });
     }
   }
 

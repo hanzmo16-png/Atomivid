@@ -12,6 +12,7 @@ import path from "node:path";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { directReel, type ResolvedBeat } from "@/lib/video/director/reel-render";
+import { GENERATED_IMAGE_LICENSE } from "@/lib/video/director/beat-license";
 import { scriptFromShotList, shotListAdapter, shotListTimings, storyboardFromShotList, type PlannedShot, type ShotListIdentity } from "@/lib/video/director/shot-list";
 
 type Job = { title: string; identity: ShotListIdentity; shots: PlannedShot[]; clips: Record<string, string>; style?: "fiction"; clipAudio?: "off" | "recipe"; labelText?: Record<string, string> };
@@ -40,7 +41,7 @@ async function main() {
     const timings = shotListTimings(job.shots);
     const missing = job.shots.filter(s => !job.clips[s.id]).map(s => s.id);
     const beatsBySegment: ResolvedBeat[][] = job.shots.map((s, i) => job.clips[s.id]
-      ? [{ url: `${base}/${s.id}.mp4`, mediaType: "video", source: "generated", start: timings[i].start, end: timings[i].end }] : []);
+      ? [{ url: `${base}/${s.id}.mp4`, mediaType: "video", source: "generated", license: GENERATED_IMAGE_LICENSE, start: timings[i].start, end: timings[i].end }] : []);
     const durationSeconds = timings[timings.length - 1].end;
     const directed = directReel({ script: scriptFromShotList(job.title, job.shots), storyboard: storyboardFromShotList(job.shots, job.identity), beatsBySegment,
       sceneTimings: timings, audioUrl: "", captions: [], narrationGaps: [], durationSeconds,

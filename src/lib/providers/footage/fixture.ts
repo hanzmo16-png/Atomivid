@@ -56,6 +56,12 @@ let counter = 0;
 // para probar el pipeline completo sin PEXELS_API_KEY.
 export const fixtureFootageProvider: FootageProvider = {
   name: "fixture",
+  // T36 C1 (local walkthrough only): FIXTURE_FOOTAGE_LICENSE=NEEDS_REVIEW|NOT_CLEARED makes the synthetic provider
+  // declare a stricter licence, as a real provider with unreviewed material would. It can never loosen one.
+  get license() {
+    const v = process.env.FIXTURE_FOOTAGE_LICENSE;
+    return v === "NEEDS_REVIEW" || v === "NOT_CLEARED" ? v : undefined;
+  },
   async fetchFootage(query) {
     counter += 1;
     return {

@@ -18,6 +18,8 @@ import type { LongFormStage } from "./long-form/stages";
 import { resolveExecutablePlan, type ProductionPlan } from "./long-form/production-plan";
 import { assertCinematicV6Account } from "./long-form/cinematic-v6-access";
 import { decideDirectorRender, DirectorUnavailableError } from "./director/render-access";
+import { footageProviderLicense } from "./director/beat-license";
+import { getFootageProvider } from "@/lib/providers/footage";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { attemptState } from "./attempt-state";
 import type { RenderStage } from "./stages";
@@ -174,6 +176,9 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
       return data.user;
     });
     if (mode === "visual") console.log("[atomivid:director]", JSON.stringify({ requestId, directorRequested: row.director_requested === true, directorRender }));
+    // T36 C1: the configured material provider's licence is known before anything is reserved or paid; if the
+    // Director would have to render material without a reviewed licence, stop here (no narration, no reservation).
+    if (directorRender && footageProviderLicense(getFootageProvider()) !== "CLEARED") throw new DirectorUnavailableError("material_license_not_cleared");
     await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name));
     const { videoPath } =
       mode === "avatar"

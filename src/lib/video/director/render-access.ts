@@ -56,12 +56,13 @@ export async function resolveDirectorRender(
 }
 
 /** Why a render that REQUESTED the Director cannot apply it in the worker (T-34 B3). Fixed codes, no values. */
-export type DirectorUnavailableReason = "not_eligible_reel" | "worker_switch_off" | "owner_lookup_failed" | "account_not_enabled";
+export type DirectorUnavailableReason = "not_eligible_reel" | "worker_switch_off" | "owner_lookup_failed" | "account_not_enabled" | "material_license_not_cleared";
 const UNAVAILABLE_ACTION: Record<DirectorUnavailableReason, string> = {
   not_eligible_reel: "El Director solo dirige Reels visuales sin narración grabada. Qué hacer: genera este video desde un Reel visual o pide soporte.",
   worker_switch_off: "El servidor de render tiene el Director apagado aunque la web lo ofrecía. Qué hacer: el administrador debe encender el Director también en el servidor de render (misma configuración que la web) antes de reintentar.",
   owner_lookup_failed: "El servidor de render no pudo comprobar tu cuenta. Qué hacer: reintenta en unos minutos; si se repite, pide soporte.",
   account_not_enabled: "Tu cuenta no está habilitada para el Director en el servidor de render (lista del piloto o correo sin confirmar). Qué hacer: el administrador debe incluir la misma cuenta en el servidor de render, o confirma tu correo, y luego reintenta.",
+  material_license_not_cleared: "El proveedor de material visual configurado en el servidor de render no tiene una licencia revisada para el Director. Qué hacer: el administrador debe usar un proveedor con licencia revisada (o revisarla) antes de reintentar.",
 };
 export class DirectorUnavailableError extends Error {
   readonly customerMessage: string;

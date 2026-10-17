@@ -9,7 +9,7 @@
  * 3. proposePlan (recipes) → planToVerticalReel (re-audit, measured timings, per-scene direction, blockers).
  * The plan stays a proposal (executable=false, paidCalls=0): it only arranges material that already exists.
  */
-import type { GeneratedScript } from "@/lib/providers/types";
+import type { GeneratedScript, MediaLicense } from "@/lib/providers/types";
 import type { Storyboard } from "@/lib/video/storyboard/types";
 import { simulateStoryboard } from "@/lib/video/storyboard/simulate";
 import type { Caption, VerticalReelProps } from "../../../../remotion/VerticalReel";
@@ -19,7 +19,8 @@ import { proposePlan } from "./propose";
 import { bundledRecipeCatalog } from "./recipes";
 import { planToVerticalReel, type BridgeBlocker, type ExistingMedia, type ShotApplication } from "./render-bridge";
 
-export type ResolvedBeat = { url: string; mediaType: "image" | "video"; source: "stock" | "fixture" | "generated"; start: number; end: number };
+/** `license` is REQUIRED (T36 C1): whoever resolves a beat must say what its licence is (beat-license.ts). */
+export type ResolvedBeat = { url: string; mediaType: "image" | "video"; source: "stock" | "fixture" | "generated"; license: MediaLicense; start: number; end: number };
 
 export type DirectedReel =
   | { ok: true; props: Omit<VerticalReelProps, "musicUrl" | "accentColor" | "showLogo">; applied: ShotApplication[]; plan: DirectorPlan; input: DirectorInputRaw; storyboardSource: "real" | "simulated" }
@@ -48,15 +49,15 @@ export function directReel(a: {
       const t = a.sceneTimings[idx], span = Math.max(1e-6, t.end - t.start);
       return beats.map((b, i) => {
         const id = i === 0 ? planned.id : `${planned.id}:b${i}`;
-        // Licence: stock comes from the configured stock provider's licence (Pexels: free to use, already the
-        // production basis); fixtures are synthetic; a generated image is ours. All three may be rendered.
-        media[id] = { url: b.url, mediaType: b.mediaType, license: "CLEARED" };
+        // Licence: the verdict resolved with the beat (beat-license.ts), never assumed. Anything but CLEARED makes the
+        // bridge refuse the shot (LICENSE_NOT_CLEARED_FOR_RENDER) instead of rendering it.
+        media[id] = { url: b.url, mediaType: b.mediaType, license: b.license };
         return {
           ...planned, id,
           kind: b.mediaType === "video" ? "video" as const : "image" as const,
           motion: b.mediaType === "video" ? "real" as const : "still" as const,
           provenance: b.source === "generated" ? "ai_recreation" as const : "stock_illustrative" as const,
-          license: "CLEARED" as const,
+          license: b.license,
           content: { ...planned.content!, topics: planned.content?.topics ?? [], window: { segmentId: segId!, from: clamp01((b.start - t.start) / span), to: clamp01((b.end - t.start) / span) } },
         };
       });
