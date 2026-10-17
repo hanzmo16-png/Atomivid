@@ -28,7 +28,7 @@ export function classifyAnthropicError(error: unknown): PaidCallClassification {
 }
 
 /** 529 is the SDK's InternalServerError with the provider's `overloaded_error` body: an admission refusal, not a crash. */
-function isOverloaded(error: Anthropic.APIError): boolean {
+function isOverloaded(error: InstanceType<typeof Anthropic.InternalServerError>): boolean {
   const body = error.error as { error?: { type?: unknown } } | undefined;
   return error.status === 529 || body?.error?.type === "overloaded_error";
 }
