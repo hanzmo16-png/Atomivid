@@ -38,6 +38,7 @@ import { decideResourceStrategy, buildScenePlanEntry, type ScenePlanEntry } from
 import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resolver";
 import { cinematicDirectorRenderEnabled } from "@/lib/video/director/flag";
 import type { ResolvedBeat } from "@/lib/video/director/reel-render";
+import { footageResultLicense, GENERATED_IMAGE_LICENSE, licenseBlockAfterVoiceMessage } from "@/lib/video/director/beat-license";
 
 // Deliberadamente separado de generate-script.ts — ver el comentario ahí
 // para la razón exacta (Remotion no debe cargarse en la ruta de guion).
@@ -141,7 +142,15 @@ export async function generateVideoFromScript({
   // palabra (así toda la narración usa la misma voz y ritmo).
   await onProgress?.("voice");
   const fullText = script.segments.map((s) => s.text).join(" ");
-  let voice = await synthesizeGated(fullText);
+  // T36 C2: what this attempt already spent on narration, so a later licence block can report it truthfully.
+  const voiceSpend = { calls: 0, costUsd: 0 };
+  const synthesizeCounted = async (text: string, speed?: number) => {
+    const r = await synthesizeGated(text, speed);
+    voiceSpend.calls += 1;
+    voiceSpend.costUsd += r.costUsd;
+    return r;
+  };
+  let voice = await synthesizeCounted(fullText);
 
   // Verificación de duración REAL (no estimada) contra el objetivo de la
   // solicitud — nunca estira ni recorta el audio ya grabado (eso sonaría
@@ -164,7 +173,7 @@ export async function generateVideoFromScript({
     let durationResult = checkDuration(targetDurationSeconds, voice.durationSeconds);
     if (!durationResult.withinTolerance) {
       const correctedSpeed = voice.durationSeconds / targetDurationSeconds;
-      const correctedVoice = await synthesizeGated(fullText, correctedSpeed);
+      const correctedVoice = await synthesizeCounted(fullText, correctedSpeed);
       const correctedResult = checkDuration(targetDurationSeconds, correctedVoice.durationSeconds);
       voice = correctedVoice;
       durationResult = correctedResult;
@@ -278,7 +287,7 @@ export async function generateVideoFromScript({
             startSeconds: beat.start,
             endSeconds: beat.end,
           });
-          directorBeats[i].push({ url: generated.url, mediaType: "image", source: "generated", start: beat.start, end: beat.end });
+          directorBeats[i].push({ url: generated.url, mediaType: "image", source: "generated", license: GENERATED_IMAGE_LICENSE, start: beat.start, end: beat.end });
           visualPlan.push({
             ...buildScenePlanEntry(i, b, beatDuration, segment.text, beatConcepts[0], decision),
             provider: generated.provider,
@@ -331,6 +340,17 @@ export async function generateVideoFromScript({
         openingRelevance: outcome.openingRelevance,
       });
 
+      // T36 C1: the licence travels with the beat. Under the Director a non-cleared result stops the render now,
+      // before any further download, paid image or render — never a silent classic montage.
+      const license = footageResultLicense(footageProvider, outcome.result);
+      if (directorRender && license !== "CLEARED" && cinematicDirectorRenderEnabled()) {
+        // The narration is already synthesized at this point (footage needs its timings): freeze what was spent in
+        // this attempt's evidence and say so. The reservation of what was NOT used is released by run-job.
+        const block = { scene: i + 1, license, voiceCalls: voiceSpend.calls, voiceCostUsd: voiceSpend.costUsd, reconciliationRequired: voiceSpend.costUsd > 0 };
+        await uploadToStorage(supabase, `${artifactPrefix}/license-block.json`, Buffer.from(JSON.stringify(block, null, 2)), "application/json");
+        console.log("[atomivid:director]", JSON.stringify({ requestId, licenseBlock: block }));
+        throw new Error(licenseBlockAfterVoiceMessage(i + 1, license, voiceSpend));
+      }
       const footageBuffer = await footageProvider.downloadFootage(outcome.result.url);
       storageBytes += footageBuffer.byteLength;
       const { url: mediaUrl } = await uploadToStorage(
@@ -345,7 +365,7 @@ export async function generateVideoFromScript({
         startSeconds: beat.start,
         endSeconds: beat.end,
       });
-      directorBeats[i].push({ url: mediaUrl, mediaType: outcome.result.mediaType, source: footageProvider.name === "fixture" ? "fixture" : "stock", start: beat.start, end: beat.end });
+      directorBeats[i].push({ url: mediaUrl, mediaType: outcome.result.mediaType, source: footageProvider.name === "fixture" ? "fixture" : "stock", license, start: beat.start, end: beat.end });
     }
   }
 
@@ -478,6 +498,8 @@ export async function generateVideoFromScript({
     const { directReel, directorBlockMessage } = await import("@/lib/video/director/reel-render");
     const directed = directReel({ script, storyboard, beatsBySegment: directorBeats, sceneTimings, audioUrl, captions, narrationGaps, durationSeconds: finalDurationSeconds });
     const evidence = Buffer.from(JSON.stringify({
+      // T-34 B3: binds the record to THIS attempt's MP4 (same prefix) and its real duration; the video page checks both.
+      artifactPrefix, durationSeconds: finalDurationSeconds,
       footageSelections,
       ok: directed.ok, storyboardSource: directed.storyboardSource, input: directed.input, plan: directed.plan,
       ...(directed.ok ? { applied: directed.applied, props: directed.props } : { blockers: directed.blockers }),

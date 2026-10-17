@@ -14,6 +14,12 @@ export function DirectorInspectionPanel({ inspection }: { inspection: ReelInspec
         Director (prueba): {inspection.status === "ok" ? "plan sin observaciones" : inspection.status === "issues" ? `${inspection.issues.length} observaciones` : "no disponible"}
       </summary>
       <p className="mt-2 text-ink-muted">Solo propuesta, antes de elegir el material · ejecutable: no · llamadas pagadas: {inspection.paidCalls}</p>
+      {/* chatgpt-30 C1: before the render the page can only say "eligible" (requested at generation); "applied" is the video page's word. */}
+      {inspection.status !== "error" && (
+        <p className="mt-1 text-ink-muted" data-testid="director-render-request">
+          Estado antes del render: {inspection.renderRequest === "eligible" ? "elegible · se solicitará al generar · se confirma solo con el video terminado" : "solo propuesta · el render no usa el Director"}
+        </p>
+      )}
       {inspection.status === "error" ? (
         <p className="mt-2 text-ink-muted">No se pudo calcular la propuesta: {inspection.message}. Puedes generar con el flujo actual.</p>
       ) : (

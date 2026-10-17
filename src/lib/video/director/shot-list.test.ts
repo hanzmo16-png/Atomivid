@@ -21,7 +21,7 @@ const IDENTITY = { place: "montañas y océano", palette: "grafito, naranja, azu
 
 function direct(opts: { clipAudio?: "off" | "recipe"; labelText?: Record<string, string>; style?: "fiction" }) {
   const timings = shotListTimings(SHOTS);
-  const beatsBySegment: ResolvedBeat[][] = SHOTS.map((s, i) => [{ url: `https://sim.local/${s.id}.mp4`, mediaType: "video", source: "generated", start: timings[i].start, end: timings[i].end }]);
+  const beatsBySegment: ResolvedBeat[][] = SHOTS.map((s, i) => [{ url: `https://sim.local/${s.id}.mp4`, mediaType: "video", source: "generated", license: "CLEARED", start: timings[i].start, end: timings[i].end }]);
   const end = timings[timings.length - 1].end;
   return directReel({ script: scriptFromShotList("Una nave entre dos mundos", SHOTS), storyboard: storyboardFromShotList(SHOTS, IDENTITY), beatsBySegment,
     sceneTimings: timings, audioUrl: "", captions: [], narrationGaps: [], durationSeconds: end,
@@ -71,7 +71,7 @@ test("shot list with English visual descriptions (as written for generators) sti
     "colossal creature slides past", "amber eye opens", "creature lunges, ship dodges", "lights appear around the ship"][i], concepts: ["futuristic ship", "cinematic scene"] }));
   const timings = shotListTimings(english);
   const r = directReel({ script: scriptFromShotList("x", english), storyboard: storyboardFromShotList(english, IDENTITY),
-    beatsBySegment: english.map((s, i) => [{ url: `https://sim.local/${s.id}.mp4`, mediaType: "video" as const, source: "generated" as const, start: timings[i].start, end: timings[i].end }]),
+    beatsBySegment: english.map((s, i) => [{ url: `https://sim.local/${s.id}.mp4`, mediaType: "video" as const, source: "generated" as const, license: "CLEARED" as const, start: timings[i].start, end: timings[i].end }]),
     sceneTimings: timings, audioUrl: "", captions: [], narrationGaps: [], durationSeconds: 55, adapter: { ...shotListAdapter(english), style: "fiction" }, clipAudio: "recipe" });
   assert.ok(r.ok, r.ok ? "" : JSON.stringify(r.blockers));
   if (r.ok) r.props.scenes.forEach((sc, i) => assert.equal(sc.mediaUrl, `https://sim.local/${english[i].id}.mp4`));

@@ -1,0 +1,373 @@
+/**
+ * T-34 B3 — recorrido REAL (Chromium + rutas de la app + Supabase LOCAL) de «Director solicitado vs aplicado» en Reels,
+ * con la separación web/worker reproducida en una máquina:
+ *   - web: `next dev` local con el Director encendido para la cuenta piloto sintética y el despacho a GitHub
+ *     interceptado en el propio proceso (gh-dispatch-intercept.mjs: nada sale de la máquina);
+ *   - worker: proceso aparte que ejecuta el entrypoint PRODUCTIVO (scripts/render-worker.ts → worker-cli.ts) en su modo
+ *     fixture local, con SU entorno (que puede coincidir o no con el de la web) y el interceptor de GitHub cargado.
+ * Proveedores fixture (material sintético), Anthropic emulado. Rechaza cualquier app o Supabase no local.
+ *
+ *   node scripts/qa/b3/director-walkthrough.mjs --out=<dir> [--app=http://localhost:3000] --dispatch-log=<archivo>
+ *
+ * Escenarios:
+ *   1 positivo: web ON + worker ON + cuenta piloto ⇒ MP4 + director.json del intento final + «recetas aplicadas».
+ *   2 divergencia: web ON + worker OFF ⇒ bloqueo antes de reservar/pagar, mensaje accionable, sin MP4 ni montaje clásico.
+ *   3 cuenta no piloto: la web no solicita ⇒ montaje clásico, sin panel ni aviso del Director.
+ *   4 evidencia ausente: se borra el director.json del escenario 1 ⇒ la página deja de decir «aplicado» y lo explica.
+ *   5 doble clic: exactamente una respuesta 200 y una 409, un intento, un despacho.
+ *   6 usuario B frente a recursos de A · 7 sin créditos (402, nada reservado ni despachado).
+ *   8 licencia pendiente (T36 C1): el material del proveedor declara NEEDS_REVIEW ⇒ bloqueo antes de reservar, sin MP4,
+ *     sin director.json, sin montaje clásico. Con --legacy-worktree=<árbol anterior> el MISMO escenario usa el worker
+ *     antiguo y registra el ROJO (la licencia pendiente atravesaba el Reel).
+ *   9 licencia pendiente en UN resultado de un proveedor revisado (T36 C2): la voz ya se generó ⇒ el mensaje lo
+ *     declara (sin «no se cobró»), evidencia license-block.json con la contabilidad, sin MP4 ni montaje clásico.
+ *   0 entrypoint: el modo fixture se niega sin interceptor o con Supabase no local.
+ *   --only=license ejecuta solo 0, 8 y 9. Salida: run.log, run.redacted.log y b3-report.json (redactado).
+ */
+import { createRequire } from "node:module";
+import { execFileSync, spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import fs from "node:fs";
+
+const arg = (k, d) => process.argv.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3) ?? d;
+const OUT = arg("out", "b3-out");
+const APP = arg("app", "http://localhost:3000").replace(/\/$/, "");
+const DISPATCH_LOG = arg("dispatch-log", "");
+const ONLY = arg("only", "");
+const LEGACY = arg("legacy-worktree", "");
+const INTERCEPT = new URL("./gh-dispatch-intercept.mjs", import.meta.url).href;
+const SB = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/$/, "");
+const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+const OWNER_EMAIL = process.env.B3_OWNER_EMAIL ?? "b3-owner@local.test";
+const isLocal = (u) => { try { return ["localhost", "127.0.0.1"].includes(new URL(u).hostname); } catch { return false; } };
+if (!isLocal(APP) || !isLocal(SB) || !ANON || !SERVICE || !DISPATCH_LOG) {
+  console.error("B3: REFUSED — app y Supabase locales, claves locales y --dispatch-log son obligatorios.");
+  process.exit(2);
+}
+fs.mkdirSync(OUT, { recursive: true });
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.PLAYWRIGHT_CORE ?? "playwright-core");
+const CHROMIUM = process.env.CHROMIUM ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+
+const results = [];
+const notVerified = [];
+const log = (...a) => { const l = `[${new Date().toISOString()}] ${a.join(" ")}`; console.log(l); fs.appendFileSync(`${OUT}/run.log`, l + "\n"); };
+const check = (name, ok, detail) => { results.push({ name, ok: !!ok, detail }); log(ok ? "PASS" : "FAIL", name, detail === undefined ? "" : JSON.stringify(detail)); };
+const admin = (path, init = {}) => fetch(`${SB}${path}`, { ...init, headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json", ...(init.headers ?? {}) } });
+const rows = async (path) => (await admin(path)).json();
+
+async function makeUser(email) {
+  const list = await rows(`/auth/v1/admin/users?per_page=1000`);
+  for (const u of list.users ?? []) if (u.email === email) await admin(`/auth/v1/admin/users/${u.id}`, { method: "DELETE" });
+  const password = `B3-${randomUUID()}`;
+  const r = await admin("/auth/v1/admin/users", { method: "POST", body: JSON.stringify({ email, password, email_confirm: true }) });
+  if (!r.ok) throw new Error(`crear usuario: HTTP ${r.status}`);
+  const id = (await r.json()).id;
+  // Suscripción SINTÉTICA solo en la base local (sin Stripe).
+  await admin("/rest/v1/subscriptions", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: id, status: "active", price_id: null }) });
+  return { email, password, id };
+}
+
+const browser = await chromium.launch({ executablePath: CHROMIUM });
+let shotN = 0;
+const shot = async (page, name) => { await page.screenshot({ path: `${OUT}/${String(++shotN).padStart(2, "0")}-${name}.png`, fullPage: true }).catch(() => {}); };
+async function login(u) {
+  const ctx = await browser.newContext({ viewport: { width: 430, height: 932 }, acceptDownloads: true });
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(180_000);
+  await page.goto(`${APP}/login`, { waitUntil: "networkidle" });
+  await page.fill("#email", u.email);
+  await page.fill("#password", u.password);
+  await Promise.all([page.waitForURL(/\/dashboard/), page.getByRole("button", { name: "Iniciar sesión" }).click()]);
+  return { ctx, page };
+}
+const dismissTour = async (page) => { const b = page.getByRole("button", { name: "Omitir" }); if (await b.count()) await b.first().click(); };
+async function createReel(page, topic) {
+  await page.goto(`${APP}/dashboard/new`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1000);
+  await dismissTour(page);
+  const reel = page.getByRole("button", { name: /Reel \/ Short/ });
+  if (await reel.count()) await reel.first().click();
+  await page.fill("#topic", topic);
+  await page.selectOption("#style", { index: 1 });
+  const dur = page.getByRole("radio", { name: "30s" });
+  if (await dur.count()) await dur.click();
+  await Promise.all([page.waitForURL(/\/dashboard\?created=1|\/dashboard\/new\?error=/), page.locator("form button[type=submit]").last().click()]);
+}
+async function scriptToReview(page, topic) {
+  const cardOf = () => page.locator("article, li, div").filter({ hasText: topic }).filter({ has: page.getByRole("button", { name: /Generar guion|Reintentar/ }).or(page.locator('a[href*="/dashboard/review/"]')) }).last();
+  await cardOf().getByRole("button", { name: /Generar guion/ }).click();
+  for (let i = 0; i < 60; i++) {
+    await page.waitForTimeout(2000);
+    if (/\/dashboard\/review\//.test(page.url())) return new URL(page.url()).pathname;
+    await page.reload({ waitUntil: "networkidle" });
+    const link = cardOf().locator('a[href*="/dashboard/review/"]');
+    if (await link.count()) return link.first().getAttribute("href");
+  }
+  throw new Error("sin guion");
+}
+const dispatchesFor = (id) => (fs.existsSync(DISPATCH_LOG) ? fs.readFileSync(DISPATCH_LOG, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : []).filter((d) => d.payload?.requestId === id);
+
+const WORKER_DISPATCH_LOG = `${OUT}/worker-dispatches.jsonl`;
+/**
+ * Worker as a separate process with its own environment (the Actions side), through the PRODUCTION entrypoint
+ * (scripts/render-worker.ts → worker-cli.ts) in local fixture mode, with the GitHub interceptor loaded in that process.
+ * `legacy` = the previous tree's own wrapper, only to record the RED of scenario 8.
+ */
+function workerEnvFor(id, attempt, workerEnv) {
+  const env = { ...process.env, ...workerEnv, REQUEST_ID: id, RENDER_ATTEMPT: String(attempt), ATOMIVID_WORKER_LOCAL_FIXTURE: "1",
+    B3_DISPATCH_LOG: WORKER_DISPATCH_LOG, GH_WORKER_REPO: "local-test/atomivid-worker" };
+  for (const k of ["NODE_OPTIONS", "CINEMATIC_DIRECTOR_V2_ENABLED", "GITHUB_ACTIONS", "GITHUB_EVENT_NAME"]) delete env[k];
+  for (const [k, v] of Object.entries(workerEnv)) if (v === null) delete env[k];
+  return env;
+}
+function runWorker(id, attempt, workerEnv, { legacy = "", withIntercept = true } = {}) {
+  const env = workerEnvFor(id, attempt, workerEnv);
+  const t0 = Date.now();
+  const argv = legacy ? ["--import", "tsx", "scripts/qa/b3/run-worker.ts", id, String(attempt)]
+    : [...(withIntercept ? ["--import", INTERCEPT] : []), "--import", "tsx", "scripts/render-worker.ts"];
+  const r = spawnSync(process.execPath, argv, { env, encoding: "utf8", timeout: 900_000, cwd: legacy || process.cwd() });
+  fs.rmSync(`${legacy || process.cwd()}/.render-attempt.json`, { force: true });
+  fs.writeFileSync(`${OUT}/worker-${id.slice(0, 8)}-${attempt}${legacy ? "-legacy" : ""}.log`, (r.stdout ?? "") + (r.stderr ?? ""));
+  log("worker", legacy ? "(legacy)" : "(scripts/render-worker.ts)", id.slice(0, 8), "attempt", attempt, "exit", r.status, `${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  return r;
+}
+async function requestRow(id) { return (await rows(`/rest/v1/video_requests?select=status,render_attempts,error_message,video_path,director_requested,progress_stage&id=eq.${id}`))[0]; }
+async function storageList(prefix) {
+  const r = await admin(`/storage/v1/object/list/videos`, { method: "POST", body: JSON.stringify({ prefix, limit: 100 }) });
+  return r.ok ? (await r.json()).map((o) => o.name) : [];
+}
+async function reservations(id) {
+  const r = await admin(`/rest/v1/pi_supply_job_reservations?select=provider,status,consumed_usd&project_id=eq.${id}`);
+  return r.ok ? await r.json() : null;
+}
+
+/** Create → script → review (checks the pre-render wording) → «Generar video final» → dispatch recorded. */
+async function startRender(page, topic, label, expectEligible) {
+  await createReel(page, topic);
+  const review = await scriptToReview(page, topic);
+  const id = review.split("/").pop();
+  await page.goto(`${APP}${review}`, { waitUntil: "networkidle" });
+  await shot(page, `${label}-revision`);
+  // The panel is a collapsed <details>: read its full text, not only what is visible.
+  const panel = page.locator('[data-testid="director-inspection"]');
+  const panelText = (await panel.count()) ? await panel.first().evaluate((el) => el.textContent ?? "") : "";
+  if (expectEligible) {
+    check(`${label}: Revisión dice «elegible · se solicitará», nunca «aplicado»`, /Estado antes del render: elegible · se solicitará al generar/.test(panelText) && !/\baplicado\b/i.test(panelText.replace(/recetas aplicadas/g, "")), panelText.match(/Estado antes del render:[^.]*/)?.[0]);
+  } else {
+    check(`${label}: Revisión sin panel del Director (cuenta no piloto)`, panelText === "");
+  }
+  const [renderResp] = await Promise.all([
+    page.waitForResponse((r) => r.url().endsWith(`/api/generate/${id}/render`) && r.request().method() === "POST", { timeout: 120_000 }),
+    page.getByRole("button", { name: "Generar video final" }).click(),
+  ]);
+  const renderBody = await renderResp.json().catch(() => null);
+  check(`${label}: POST /api/generate/<id>/render devuelve 200 {status:"processing", worker:"github-actions"}`, renderResp.status() === 200 && renderBody?.status === "processing" && renderBody?.worker === "github-actions", { status: renderResp.status(), body: renderBody });
+  await page.waitForURL(/\/dashboard(\?|$)/, { timeout: 120_000 });
+  const d = dispatchesFor(id);
+  check(`${label}: la web despachó una vez (mock 204 interceptado, sin red) con requestId e intento`, d.length === 1 && d[0].status === 204 && d[0].event === "render-video" && d[0].payload.renderAttempt === 1, d.map((x) => ({ status: x.status, event: x.event, attempt: x.payload.renderAttempt, hasDirectorField: JSON.stringify(x.payload).includes("director") })));
+  check(`${label}: el payload del despacho no transporta ningún campo del Director`, d.every((x) => !/director/i.test(JSON.stringify(x.payload))));
+  const row = await requestRow(id);
+  check(`${label}: la fila guarda director_requested=${expectEligible}`, row.director_requested === expectEligible && row.status === "processing", row);
+  return id;
+}
+async function probeMp4(path, label) {
+  const url = `${SB}/storage/v1/object/videos/${path}`;
+  const r = await admin(url.replace(SB, ""));
+  const file = `${OUT}/${label}.mp4`;
+  fs.writeFileSync(file, Buffer.from(await r.arrayBuffer()));
+  const probe = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-count_frames", "-show_entries", "stream=codec_type,codec_name,width,height,nb_read_frames,avg_frame_rate:format=duration", "-of", "json", file], { encoding: "utf8" }));
+  fs.rmSync(file); // material sintético, pero el MP4 no sale de la máquina ni se guarda en la evidencia
+  const v = probe.streams.find((s) => s.codec_type === "video"), au = probe.streams.find((s) => s.codec_type === "audio");
+  return { video: v?.codec_name, audio: au?.codec_name, w: v?.width, h: v?.height, frames: Number(v?.nb_read_frames), fps: v?.avg_frame_rate, duration: Number(probe.format?.duration) };
+}
+
+const WORKER_ON = { CINEMATIC_DIRECTOR_RENDER_ENABLED: "true", CINEMATIC_DIRECTOR_PILOT_EMAILS: OWNER_EMAIL };
+const WORKER_OFF = { CINEMATIC_DIRECTOR_RENDER_ENABLED: null, CINEMATIC_DIRECTOR_PILOT_EMAILS: OWNER_EMAIL };
+try {
+  const owner = await makeUser(OWNER_EMAIL);
+  const a = await login(owner);
+
+  // ── 0 entrypoint productivo: el modo fixture local se niega si falta una condición local ────────────────────
+  const noIntercept = runWorker(randomUUID(), 1, WORKER_ON, { withIntercept: false });
+  check("0-entrypoint: scripts/render-worker.ts en modo fixture sin interceptor de GitHub ⇒ se niega antes de leer nada", noIntercept.status === 1 && /RENDER_WORKER_REFUSED LOCAL_FIXTURE_DISPATCH_NOT_INTERCEPTED/.test(noIntercept.stderr ?? ""), { exit: noIntercept.status, out: (noIntercept.stderr ?? "").trim().slice(-120) });
+  const remote = runWorker(randomUUID(), 1, { ...WORKER_ON, NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co" });
+  check("0-entrypoint: modo fixture con Supabase no local ⇒ se niega", remote.status === 1 && /RENDER_WORKER_REFUSED LOCAL_FIXTURE_SUPABASE_NOT_LOOPBACK/.test(remote.stderr ?? ""), { exit: remote.status, out: (remote.stderr ?? "").trim().slice(-120) });
+  const realToken = runWorker(randomUUID(), 1, { ...WORKER_ON, GH_WORKER_TOKEN: "ghp_notlocal" });
+  check("0-entrypoint: modo fixture con un token que no es el ficticio local ⇒ se niega", realToken.status === 1 && /RENDER_WORKER_REFUSED LOCAL_FIXTURE_REAL_GITHUB_TOKEN/.test(realToken.stderr ?? ""), { exit: realToken.status, out: (realToken.stderr ?? "").trim().slice(-120) });
+
+  // ── 8 licencia pendiente del material (T36 C1) ──────────────────────────────────────────────────────────────
+  const id8 = await startRender(a.page, "Cómo se forman las nubes", "8-licencia", true);
+  runWorker(id8, 1, { ...WORKER_ON, FIXTURE_FOOTAGE_LICENSE: "NEEDS_REVIEW" }, { legacy: LEGACY });
+  const r8 = await requestRow(id8);
+  const files8 = await storageList(`${id8}/attempt-1`);
+  const res8 = await reservations(id8);
+  if (LEGACY) {
+    check("8-licencia ROJO (worker anterior): la licencia pendiente atravesaba el Reel y terminaba en MP4 «aplicado»", r8.status === "completed" && !!r8.video_path && files8.includes("director.json"), { status: r8.status, video_path: r8.video_path?.replace(id8, "<id>"), files: files8 });
+  } else {
+    check("8-licencia: el intento falla con un bloqueo de licencia explicado, sin MP4 ni montaje clásico", r8.status === "failed" && !r8.video_path && /licencia revisada/.test(r8.error_message ?? ""), { status: r8.status, video_path: r8.video_path, msg: (r8.error_message ?? "").slice(0, 220) });
+    check("8-licencia: ningún artefacto (voz, escenas, director.json, MP4) en el intento", files8.length === 0, { files: files8 });
+    check("8-licencia: ninguna reserva queda abierta ni consumida", res8 !== null && res8.every((x) => x.status !== "OPEN" && Number(x.consumed_usd) === 0), res8);
+    await a.page.goto(`${APP}/dashboard/videos/${id8}`, { waitUntil: "networkidle" });
+    await shot(a.page, "8-licencia-video");
+    const page8 = await a.page.locator("body").innerText();
+    check("8-licencia: la página explica el motivo y qué hacer; nunca «recetas aplicadas» ni reproductor", /licencia revisada/.test(page8) && /Qué hacer/.test(page8) && !/recetas aplicadas/.test(page8) && (await a.page.locator("video").count()) === 0, page8.split("\n").find((l) => /licencia/.test(l))?.slice(0, 300));
+  }
+  // ── 9 licencia pendiente en UN resultado de un proveedor revisado (T36 C2) ───────────────────────────────────
+  // El proveedor sigue CLEARED (pasa el preflight); la búsqueda n.º 2 devuelve material NEEDS_REVIEW. La voz ya se
+  // sintetizó (el material necesita sus tiempos): el mensaje debe decirlo y el intento congela su contabilidad.
+  if (!LEGACY) {
+    const id9 = await startRender(a.page, "Cómo se forma la nieve", "9-licencia-resultado", true);
+    runWorker(id9, 1, { ...WORKER_ON, FIXTURE_FOOTAGE_RESULT_LICENSE: "NEEDS_REVIEW@2" });
+    const r9 = await requestRow(id9);
+    const files9 = await storageList(`${id9}/attempt-1`);
+    const res9 = await reservations(id9);
+    const blk = await admin(`/storage/v1/object/videos/${id9}/attempt-1/license-block.json`);
+    const block9 = blk.ok ? await blk.json() : null;
+    check("9-licencia-resultado: falla con el bloqueo por resultado; declara la voz ya generada y nunca promete «no se cobró»", r9.status === "failed" && !r9.video_path && /escena \d+ tiene la licencia pendiente de revisión/.test(r9.error_message ?? "") && !/configuración interna/.test(r9.error_message ?? "") && /La narración de este intento ya se había generado/.test(r9.error_message ?? "") && !/No se reservó ni se cobró/.test(r9.error_message ?? ""), { status: r9.status, msg: (r9.error_message ?? "").slice(0, 260) });
+    check("9-licencia-resultado: sin final.mp4 ni director.json; evidencia license-block.json con la contabilidad de voz", !files9.includes("final.mp4") && !files9.includes("director.json") && files9.includes("license-block.json") && block9?.voiceCalls >= 1 && block9?.voiceCostUsd === 0 && block9?.reconciliationRequired === false, { files: files9, block: block9 });
+    check("9-licencia-resultado: ninguna reserva queda abierta; lo no usado se libera", res9 !== null && res9.every((x) => x.status !== "OPEN"), res9);
+    await a.page.goto(`${APP}/dashboard/videos/${id9}`, { waitUntil: "networkidle" });
+    await shot(a.page, "9-licencia-resultado-video");
+    const page9 = await a.page.locator("body").innerText();
+    check("9-licencia-resultado: la página explica el motivo; nunca «recetas aplicadas» ni reproductor", /licencia/.test(page9) && !/recetas aplicadas/.test(page9) && (await a.page.locator("video").count()) === 0, page9.split("\n").find((l) => /licencia/.test(l))?.slice(0, 300));
+  }
+  if (ONLY === "license") throw Object.assign(new Error("only"), { only: true });
+
+  const other = await makeUser(`b3-other-${Date.now()}@local.test`);
+
+  // ── 1 positivo ─────────────────────────────────────────────────────────────────────────────────────────────
+  const id1 = await startRender(a.page, "Por qué el cielo es azul", "1-positivo", true);
+  runWorker(id1, 1, WORKER_ON);
+  const r1 = await requestRow(id1);
+  check("1-positivo: el intento termina completed con video_path del intento 1", r1.status === "completed" && /\/attempt-1\/final\.mp4$/.test(r1.video_path ?? ""), { status: r1.status, path: r1.video_path?.replace(id1, "<id>") });
+  const files1 = await storageList(`${id1}/attempt-1`).catch(() => []);
+  const prefix1 = r1.video_path?.slice(0, r1.video_path.lastIndexOf("/"));
+  const recRes = await admin(`/storage/v1/object/videos/${prefix1}/director.json`);
+  const rec = recRes.ok ? await recRes.json() : null;
+  check("1-positivo: director.json del intento final, ok y vinculado al MP4 (prefijo y duración)", rec?.ok === true && rec.artifactPrefix === prefix1 && typeof rec.durationSeconds === "number" && Array.isArray(rec.applied) && rec.applied.length > 0, { ok: rec?.ok, prefixMatches: rec?.artifactPrefix === prefix1, durationSeconds: rec?.durationSeconds, shots: rec?.applied?.length, files: files1.length });
+  const intervals = (rec?.applied ?? []).map((x) => [x.shotId, x.recipeId, x.applied.startSeconds, x.applied.endSeconds]);
+  fs.writeFileSync(`${OUT}/1-recetas-aplicadas.json`, JSON.stringify(intervals, null, 2));
+  const mp4 = r1.video_path ? await probeMp4(r1.video_path, "1-positivo") : null;
+  check("1-positivo: MP4 H264/AAC 1080x1920 con fotogramas reales", mp4?.video === "h264" && mp4?.audio === "aac" && mp4.w === 1080 && mp4.h === 1920 && mp4.frames > 0, mp4);
+  const last = intervals.at(-1)?.[3];
+  check("1-positivo: cada receta tiene plano e intervalo dentro del MP4 (orden, sin solapes)", intervals.length > 0 && intervals.every(([, , s, e], i) => e > s && (i === 0 || s >= intervals[i - 1][3] - 0.05)) && last <= mp4.duration + 0.1, { shots: intervals.length, lastEnd: last, mp4Duration: mp4?.duration });
+  await a.page.goto(`${APP}/dashboard/videos/${id1}`, { waitUntil: "networkidle" });
+  await shot(a.page, "1-positivo-video");
+  const page1 = await a.page.locator("body").innerText();
+  check("1-positivo: la página del video muestra «Director: recetas aplicadas (N planos)» con N = registro", new RegExp(`Director: recetas aplicadas \\(${rec?.applied?.length} planos\\)`).test(page1));
+  const vsrc = await a.page.locator("video").first().getAttribute("src");
+  const head = vsrc ? await a.page.request.get(vsrc, { headers: { Range: "bytes=0-1023" } }) : null;
+  check("1-positivo: el <video> usa una URL firmada local que sirve el MP4 (200/206, video/mp4)", !!head && [200, 206].includes(head.status()) && /video\/mp4/.test(head.headers()["content-type"] ?? "") && /token=|sign/.test(vsrc ?? "") && isLocal(vsrc), { status: head?.status(), host: vsrc ? new URL(vsrc).host : null });
+  const [dl] = await Promise.all([a.page.waitForEvent("download", { timeout: 120_000 }), a.page.locator("a[download]").first().click()]);
+  const dlPath = `${OUT}/1-descargado.mp4`;
+  await dl.saveAs(dlPath);
+  const dlProbe = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-count_frames", "-show_entries", "stream=codec_type,codec_name,width,height,nb_read_frames:format=duration", "-of", "json", dlPath], { encoding: "utf8" }));
+  const dlSha = (await import("node:crypto")).createHash("sha256").update(fs.readFileSync(dlPath)).digest("hex");
+  fs.rmSync(dlPath); // el MP4 sintético no se guarda en la evidencia
+  const dv = dlProbe.streams.find((x) => x.codec_type === "video"), da = dlProbe.streams.find((x) => x.codec_type === "audio");
+  check("1-positivo: descarga desde el botón de la UI = MP4 H264/AAC 1080x1920 con fotogramas", dv?.codec_name === "h264" && da?.codec_name === "aac" && dv.width === 1080 && dv.height === 1920 && Number(dv.nb_read_frames) > 0, { frames: Number(dv?.nb_read_frames), duration: Number(dlProbe.format?.duration), sha256: dlSha });
+  const canPlay = await a.page.evaluate(() => document.createElement("video").canPlayType('video/mp4; codecs="avc1.640028, mp4a.40.2"'));
+  if (!canPlay) notVerified.push({ name: "reproducción dentro de este Chromium", reason: "sin H264/AAC (canPlayType vacío); el MP4 se verificó con ffprobe" });
+
+  // ── 2 divergencia: web ON, worker OFF ─────────────────────────────────────────────────────────────────────────
+  const id2 = await startRender(a.page, "Cómo vuelan los aviones", "2-divergencia", true);
+  runWorker(id2, 1, WORKER_OFF);
+  const r2 = await requestRow(id2);
+  check("2-divergencia: el intento falla con el bloqueo del Director (sin montaje clásico)", r2.status === "failed" && !r2.video_path && /Pediste el Director/.test(r2.error_message ?? ""), { status: r2.status, video_path: r2.video_path, msg: (r2.error_message ?? "").slice(0, 160) });
+  const files2 = await storageList(`${id2}/attempt-1`);
+  check("2-divergencia: ningún artefacto pagado (voz, escenas, música, MP4) en el almacenamiento del intento", files2.length === 0, { files: files2 });
+  const res2 = await reservations(id2);
+  if (res2 === null) notVerified.push({ name: "2-divergencia: estado de reservas", reason: "tabla de reservas no legible en esta base local" });
+  else check("2-divergencia: ninguna reserva de suministro queda abierta ni consumida", res2.every((x) => x.status !== "OPEN" && Number(x.consumed_usd) === 0), res2);
+  await a.page.goto(`${APP}/dashboard/videos/${id2}`, { waitUntil: "networkidle" });
+  await shot(a.page, "2-divergencia-video");
+  const page2 = await a.page.locator("body").innerText();
+  check("2-divergencia: la página explica qué pasó y qué hacer, sin nombres internos", /Pediste el Director/.test(page2) && /No se reservó ni se cobró nada/.test(page2) && /Qué hacer/.test(page2) && !/CINEMATIC_|PILOT_EMAILS/.test(page2) && (await a.page.locator("video").count()) === 0, page2.split("\n").find((l) => /Pediste el Director/.test(l))?.slice(0, 300));
+  check("2-divergencia: nunca «recetas aplicadas»", !/recetas aplicadas/.test(page2));
+
+  // ── 3 cuenta no piloto ───────────────────────────────────────────────────────────────────────────────────────
+  const b = await login(other);
+  const id3 = await startRender(b.page, "Por qué el mar es salado", "3-no-piloto", false);
+  runWorker(id3, 1, WORKER_ON);
+  const r3 = await requestRow(id3);
+  const recRes3 = r3.video_path ? await admin(`/storage/v1/object/videos/${r3.video_path.slice(0, r3.video_path.lastIndexOf("/"))}/director.json`) : null;
+  check("3-no-piloto: montaje clásico completado, sin director.json aunque el worker esté encendido", r3.status === "completed" && recRes3 && !recRes3.ok, { status: r3.status, directorJson: recRes3?.status });
+  await b.page.goto(`${APP}/dashboard/videos/${id3}`, { waitUntil: "networkidle" });
+  const page3 = await b.page.locator("body").innerText();
+  check("3-no-piloto: sin panel ni aviso del Director", !/recetas aplicadas|Director solicitado/.test(page3));
+
+  // ── 5 doble clic en «Generar video final» ─────────────────────────────────────────────────────────────────────
+  await createReel(a.page, "Por qué brillan las luciérnagas");
+  const review5 = await scriptToReview(a.page, "Por qué brillan las luciérnagas");
+  const id5 = review5.split("/").pop();
+  await a.page.goto(`${APP}${review5}`, { waitUntil: "networkidle" });
+  const statuses5 = [];
+  a.page.on("response", (r) => { if (r.url().endsWith(`/api/generate/${id5}/render`)) statuses5.push(r.status()); });
+  await a.page.getByRole("button", { name: "Generar video final" }).evaluate((el) => { el.click(); el.click(); });
+  await a.page.waitForTimeout(8000);
+  const r5 = await requestRow(id5);
+  const sorted5 = [...statuses5].sort((x, y) => x - y);
+  check("5-doble-clic: exactamente una 200 y una 409, un solo intento y un solo despacho (CAS de estado/intento)", sorted5.length === 2 && sorted5[0] === 200 && sorted5[1] === 409 && r5.render_attempts === 1 && dispatchesFor(id5).length === 1, { posts: statuses5, attempts: r5.render_attempts, dispatches: dispatchesFor(id5).length });
+  runWorker(id5, 1, WORKER_ON); // deja la solicitud terminada, sin rastros abiertos
+
+  // ── 6 usuario B frente a recursos de A ─────────────────────────────────────────────────────────────────────────
+  for (const path of [`/dashboard/review/${id1}`, `/dashboard/videos/${id1}`]) {
+    const resp = await b.page.goto(`${APP}${path}`, { waitUntil: "networkidle" });
+    // The mock script gives every request the same title, so the check looks for A's id in the VISIBLE text and links
+    // (Next's own payload repeats the requested path, which is not data from A); B's own panel may play B's own video.
+    const body = await b.page.locator("body").innerText();
+    const landed = new URL(b.page.url()).pathname;
+    check(`6-usuario-B: ${path.replace(id1, "<idA>")} no expone el recurso de A`, (resp?.status() === 404 || landed !== path || /no encontr|not found/i.test(body)) && !body.includes(id1) && (await b.page.locator(`a[href*="${id1}"]`).count()) === 0 && (await b.page.locator(`video[src*="${id1}"]`).count()) === 0, { status: resp?.status(), landed: landed.replace(id1, "<idA>") });
+  }
+  const bRender = await b.page.request.post(`${APP}/api/generate/${id1}/render`, { data: {} });
+  check("6-usuario-B: POST render sobre la solicitud de A rechazado", [401, 403, 404, 409].includes(bRender.status()), { status: bRender.status() });
+
+  // ── 7 créditos insuficientes (sin suscripción): rechazo antes de reservar o despachar ─────────────────────────────
+  await createReel(a.page, "Cómo se forma el arcoíris");
+  const review7 = await scriptToReview(a.page, "Cómo se forma el arcoíris");
+  const id7 = review7.split("/").pop();
+  await admin(`/rest/v1/subscriptions?user_id=eq.${owner.id}`, { method: "DELETE" });
+  await a.page.goto(`${APP}${review7}`, { waitUntil: "networkidle" });
+  const [resp7] = await Promise.all([
+    a.page.waitForResponse((r) => r.url().endsWith(`/api/generate/${id7}/render`), { timeout: 120_000 }),
+    a.page.getByRole("button", { name: "Generar video final" }).click(),
+  ]);
+  await a.page.waitForTimeout(1500);
+  await shot(a.page, "7-sin-creditos");
+  const r7 = await requestRow(id7);
+  const res7 = await reservations(id7);
+  check("7-sin-creditos: 402 visible, sin intento, sin despacho, sin reserva, sin director_requested", resp7.status() === 402 && r7.render_attempts === 0 && r7.status === "script_ready" && r7.director_requested === false && dispatchesFor(id7).length === 0 && (res7 ?? []).length === 0, { status: resp7.status(), row: r7, reservations: res7 });
+  await admin("/rest/v1/subscriptions", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: owner.id, status: "active", price_id: null }) });
+
+  // ── 4 evidencia ausente ──────────────────────────────────────────────────────────────────────────────────────
+  const del = await admin(`/storage/v1/object/videos`, { method: "DELETE", body: JSON.stringify({ prefixes: [`${prefix1}/director.json`] }) });
+  await a.page.goto(`${APP}/dashboard/videos/${id1}`, { waitUntil: "networkidle" });
+  await shot(a.page, "4-sin-evidencia");
+  const page4 = await a.page.locator("body").innerText();
+  check("4-sin-evidencia: sin director.json la página deja de decir «aplicado» y lo explica", del.ok && !/recetas aplicadas/.test(page4) && /Director solicitado, sin evidencia de aplicación en este video/.test(page4), { deleted: del.status });
+  await a.ctx.close();
+  await b.ctx.close();
+} catch (e) {
+  if (!e?.only) check("recorrido sin excepciones", false, String(e?.message ?? e).split("\n")[0].slice(0, 300));
+} finally {
+  await browser.close();
+}
+const workerDispatches = fs.existsSync(WORKER_DISPATCH_LOG) ? fs.readFileSync(WORKER_DISPATCH_LOG, "utf8").trim().split("\n").filter(Boolean).length : 0;
+check("worker: ningún proceso de worker intentó despachar a GitHub", workerDispatches === 0, { workerDispatches });
+const failed = results.filter((r) => !r.ok).length;
+/** Evidence for Drive: no secrets, real emails, tokens or signed URLs (synthetic .test accounts stay). */
+const redact = (s) => s
+  .replace(/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g, "<jwt>")
+  .replace(/([?&](token|sig|signature|X-Amz-[A-Za-z]+)=)[^&"\s]+/g, "$1<redacted>")
+  .replace(/\b(gh[pousr]_|github_pat_|sk-|sk_live_)[A-Za-z0-9_-]+/g, "<token>")
+  .replace(/[A-Za-z0-9._%+-]+@(?![A-Za-z0-9.-]*\.test\b)[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "<email>")
+  .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, (u) => `<uuid:${u.slice(0, 8)}>`);
+const report = { kind: "ATOMIVID_B3_DIRECTOR_WALKTHROUGH", at: new Date().toISOString(), app: APP, worker: LEGACY ? "legacy (RED)" : "scripts/render-worker.ts (local fixture mode)",
+  level: failed ? "FAIL" : "LOCAL_E2E_PASS", notClaimed: ["WORKER_AUTH_VERIFIED", "PRIVATE_REAL_PILOT_VERIFIED"],
+  label: failed ? "FAIL" : "LOCAL_E2E_PASS (rutas reales, material sintético; no verifica el token del worker ni un piloto real)", passed: results.length - failed, failed, notVerified, results };
+fs.writeFileSync(`${OUT}/b3-report.json`, redact(JSON.stringify(report, null, 2)));
+log(`B3: ${results.length - failed}/${results.length} PASS`);
+fs.writeFileSync(`${OUT}/run.redacted.log`, redact(fs.readFileSync(`${OUT}/run.log`, "utf8")));
+process.exitCode = failed ? 1 : 0;

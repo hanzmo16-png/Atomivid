@@ -29,6 +29,7 @@ import {
   RenderStageError,
 } from "@/lib/video/render-error";
 import type { GeneratedScript } from "@/lib/providers/types";
+import { directorRenderAllowed } from "@/lib/video/director/render-access";
 
 // El worker por defecto (GitHub Actions) solo dispara un webhook y
 // retorna — esta función ya no espera el render completo. maxDuration se
@@ -247,6 +248,8 @@ export async function POST(
           render_started_at: new Date().toISOString(),
           render_attempts: videoRequest.render_attempts + 1,
           render_worker: worker.name,
+          // T-34 B3: same rule as the review page; the worker blocks before spending if it cannot honour it.
+          director_requested: directorRenderAllowed(user, videoRequest),
         })
         .eq("id", id)
         .eq("status", videoRequest.status)
