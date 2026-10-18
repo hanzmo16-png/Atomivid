@@ -11,7 +11,7 @@ import { anthropicReservation, anthropicActualCost, ceilLedgerUsd, type ScriptUs
 import { classifyAnthropicError, SCRIPT_REJECTED_RETRIES, scriptRetryDelayMs } from "./anthropic-error";
 
 import { admitDocumentaryCall } from "./documentary-step";
-import { claimScriptOperation, decideScriptIntent, releaseStaleReservations, ScriptLedgerUnavailableError, type ScriptOpRow } from "./script-intent";
+import { claimScriptOperation, decideScriptIntent, releaseStaleReservations, scriptBlockState, ScriptLedgerUnavailableError, ScriptReconciliationRequiredError, type ScriptOpRow } from "./script-intent";
 
 const context = new AsyncLocalStorage<{ projectId: string; intentId: string; recoverLegacyOperator?: boolean; uncertainResubmits?: number; claimBeforeCall?: boolean }>();
 export function withSupplyContext<T>(projectId: string, fn: () => Promise<T>): Promise<T> {
@@ -81,7 +81,7 @@ export async function supplyProtectedAnthropic<T extends { usage?: ScriptUsage }
       return recovered;
     }
   }
-  const paid = await guardScriptLedgerCall({ store: supabaseLedgerStore(service), results }, scope, params, upperUsd,
+  const paid = await guardScriptLedgerCall({ store: supabaseLedgerStore(service), results, load: loadScriptOperations }, scope, params, upperUsd,
     result => ceilLedgerUsd(anthropicActualCost(params, pricing, result.usage, upperUsd)), invoke);
   return paid.result;
 }
@@ -91,9 +91,19 @@ type SupplyScope = NonNullable<ReturnType<typeof context.getStore>>;
 export const currentSupplyScope = (): SupplyScope | undefined => context.getStore();
 
 /** The ledger part of supplyProtectedAnthropic, with injectable stores (memoryLedgerStore/memoryResultStore in tests). */
-export async function guardScriptLedgerCall<T>(deps: { store: LedgerStore; results: Pick<PaidResultStore, "putJson" | "getJson">; now?: () => number; maxRejectedRetries?: number; retryDelayMs?: (attempt: number) => number },
+export async function guardScriptLedgerCall<T>(deps: { store: LedgerStore; results: Pick<PaidResultStore, "putJson" | "getJson">; now?: () => number; maxRejectedRetries?: number; retryDelayMs?: (attempt: number) => number;
+  /** Every guarded script call of the request (loadScriptOperations in production): re-checked before each retry. */
+  load?: (projectId: string) => Promise<ScriptOpRow[]> },
   scope: SupplyScope, params: { model: string } & Record<string, unknown>, upperUsd: number, actualCostUsd: (result: T) => number, invoke: () => Promise<T>) {
   const { store, results } = deps;
+  // Before a retry calls the provider (its row already reserved, so no new intent could start meanwhile): any OTHER
+  // operation of this request that is active or uncertain aborts the chain; nothing is called while it is unresolved.
+  const beforeRetry = deps.load ? async () => {
+    const rows = await deps.load!(scope.projectId);
+    const foreign = rows.filter(r => !r.shot_id.startsWith(`script:${scope.intentId}:`));
+    const state = scriptBlockState(foreign, (deps.now ?? Date.now)());
+    if (state) throw new ScriptReconciliationRequiredError(state, "another operation of this request became active or uncertain during the retry wait");
+  } : undefined;
   const spec = {
     projectId: scope.projectId, shotId: `script:${scope.intentId}:${stableHash(params, 16)}`,
     provider: "anthropic", model: params.model, method: "generate_script",
@@ -113,7 +123,7 @@ export async function guardScriptLedgerCall<T>(deps: { store: LedgerStore; resul
     return { result, costUsd, resultRef };
   }, load: ref => results.getJson<T>(ref), classify: classifyAnthropicError,
   // Only pre-acceptance refusals (429/529, classified `rejected`) are retried, each under its own key; never 401/403/5xx.
-  maxRejectedRetries: deps.maxRejectedRetries ?? SCRIPT_REJECTED_RETRIES, retryDelayMs: deps.retryDelayMs ?? scriptRetryDelayMs });
+  maxRejectedRetries: deps.maxRejectedRetries ?? SCRIPT_REJECTED_RETRIES, retryDelayMs: deps.retryDelayMs ?? scriptRetryDelayMs, beforeRetry });
 }
 
 /** Picks the ledger key for this request: the original, or — only within the

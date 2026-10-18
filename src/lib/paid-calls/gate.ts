@@ -67,8 +67,17 @@ export type PaidCallHooks<T> = {
   maxRejectedRetries?: number;
   /** Wait before retry number `attempt` (1-based) of a pre-acceptance refusal; absent or 0 = immediate. */
   retryDelayMs?: (attempt: number) => number;
+  /**
+   * Runs after the wait and BEFORE the retry calls the provider, with the retry's row already reserved. Throwing
+   * aborts the chain: the reserved retry row is released (REFUNDED, RELEASED_RETRY_REF) and the error propagates.
+   * Callers use it to re-check request-level state (another operation uncertain or active) with fresh data.
+   */
+  beforeRetry?: (ctx: { key: string; attemptOrdinal: number }) => Promise<void>;
   now?: () => string;
 };
+
+/** resultRef of a retry reservation released because its chain was aborted before calling the provider. */
+export const RELEASED_RETRY_REF = "released:retry-aborted-before-call";
 
 export type GuardedPaidCall<T> = { result: T; reused: boolean; costUsd: number; key: string; attemptOrdinal: number };
 
@@ -166,14 +175,35 @@ export async function guardPaidCall<T>(store: LedgerStore, spec: PaidCallSpec, h
       }
       if (c.kind === "rejected" || c.kind === "rejected_final") {
         const message = err instanceof Error ? err.message : String(err);
-        await store.update(key, "SUBMITTED", { status: "REFUNDED", committedUsd: 0, resultRef: `${REJECTED_REF}${c.kind}:${message.slice(0, 200)}`, updatedAt: now() });
-        if (c.kind === "rejected" && ordinal < maxRejectedRetries && !isBillingUncertainRefusal(err)) {
-          lastRejection = err;
-          const delay = hooks.retryDelayMs?.(ordinal + 1) ?? 0;
-          if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
-          continue;
+        const refund = { status: "REFUNDED" as const, committedUsd: 0, resultRef: `${REJECTED_REF}${c.kind}:${message.slice(0, 200)}`, updatedAt: now() };
+        if (!(c.kind === "rejected" && ordinal < maxRejectedRetries && !isBillingUncertainRefusal(err))) {
+          await store.update(key, "SUBMITTED", refund);
+          throw err;
         }
-        throw err;
+        // Exclusion across the wait: the NEXT attempt's row is reserved BEFORE this one is refunded, so at no instant
+        // is the request without a live (RESERVED/SUBMITTED) row; a concurrent intent of the same request is held
+        // off by the intent selector for the whole chain, not only while a call is in flight. The insert is unique:
+        // if the next key already exists, someone else owns that attempt and this chain stops without calling again.
+        const nextKey = paidCallKey(spec, ordinal + 1);
+        const reservedNext = await store.insert({
+          idempotencyKey: nextKey, projectId: spec.projectId, shotId: spec.shotId, provider: spec.provider, model: spec.model, method: spec.method,
+          attemptKind: "rejected_retry", reservedUsd: spec.reservedUsd, capacityUnits: spec.capacityUnits,
+          status: "RESERVED", providerJobId: null, resultRef: null, committedUsd: null, updatedAt: now(),
+        });
+        await store.update(key, "SUBMITTED", refund);
+        if (!reservedNext) throw err;
+        lastRejection = err;
+        const delay = hooks.retryDelayMs?.(ordinal + 1) ?? 0;
+        if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+        if (hooks.beforeRetry) {
+          try {
+            await hooks.beforeRetry({ key: nextKey, attemptOrdinal: ordinal + 1 });
+          } catch (guardErr) {
+            await store.update(nextKey, "RESERVED", { status: "REFUNDED", committedUsd: 0, resultRef: RELEASED_RETRY_REF, updatedAt: now() });
+            throw guardErr;
+          }
+        }
+        continue;
       }
       await store.update(key, "SUBMITTED", { status: "RECONCILIATION_REQUIRED", updatedAt: now() });
       throw err;
