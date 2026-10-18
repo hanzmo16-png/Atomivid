@@ -85,11 +85,24 @@ async function main() {
   const topic = ownScript ? "Mi guion propio" : "LOS RESULTADOS TIENEN UN PRECIO";
   const style = "motivacional, cinematográfico";
   const durationSeconds = ownScript ? 30 : 75;
-  const OWN_TEXT = "Cada mañana empieza igual: la alarma suena y piensas en quedarte. Pero hoy es distinto. "
-    + "Hoy decides levantarte antes que tus excusas. Preparas el café, abres la libreta y escribes tres cosas que harás sin falta. "
-    + "No son grandes hazañas, son pasos pequeños. Caminar veinte minutos. Llamar a esa persona. Terminar la tarea pendiente. "
-    + "Al final del día no cambiaste el mundo, pero cumpliste tu palabra contigo. Y eso, repetido cada día, lo cambia todo.";
-
+  // Includes what a naive sentence split corrupts (PR149 CORRECCIÓN-1): decimals, thousands, a domain,
+  // abbreviations, a dotted acronym and a paragraph break.
+  const OWN_TEXT = "Cada mañana empieza igual: la alarma suena y piensas en quedarte. Pero hoy es distinto, "
+    + "como explica el Dr. Pérez desde EE. UU. con datos de 2026.\n\nEl 3.14 por ciento de los días cuesta $1.500 de energía. "
+    + "Visita ejemplo.com si quieres el detalle. Preparas el café, abres la libreta y escribes tres cosas que harás sin falta. "
+    + "Caminar veinte minutos. Llamar a esa persona. Terminar la tarea pendiente. "
+    + "Al final del día no cambiaste el mundo, pero cumpliste tu palabra contigo.";
+  // What the voice receives, recorded from the provider itself; captions are built from these words.
+  const voiceInputs: { text: string; words: string[] }[] = [];
+  if (ownScript) {
+    const { fixtureVoiceProvider } = await import("../src/lib/providers/voice/fixture");
+    const original = fixtureVoiceProvider.synthesize.bind(fixtureVoiceProvider);
+    fixtureVoiceProvider.synthesize = async (text, language, speed) => {
+      const result = await original(text, language, speed);
+      voiceInputs.push({ text, words: result.words.map(w => w.text) });
+      return result;
+    };
+  }
   console.log(ownScript ? "Preparando escenas del guion propio con proveedores fixture..." : "Generando guion de prueba con proveedores fixture...");
   const start = Date.now();
   const draft = ownScript ? buildOwnScriptDraft(OWN_TEXT, topic, durationSeconds) : null;
@@ -124,6 +137,16 @@ async function main() {
     onProgress: (stage) => console.log(`  → etapa: ${stage}`),
   });
 
+  if (ownScript) {
+    const { canonicalNarration } = await import("../src/lib/video/narration-fit");
+    const expected = canonicalNarration(OWN_TEXT, "visual");
+    if (!voiceInputs.length) throw new Error("La voz no recibió ninguna narración.");
+    for (const input of voiceInputs) {
+      if (input.text !== expected) throw new Error(`La voz recibió un texto distinto del guion propio:\n${input.text}\n≠\n${expected}`);
+      if (input.words.join(" ") !== expected) throw new Error("Las palabras de los subtítulos no coinciden con el guion propio.");
+    }
+    console.log(`Guion propio intacto: ${voiceInputs.length} síntesis con el texto exacto (${expected.length} caracteres); subtítulos con las mismas palabras.`);
+  }
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
   console.log(`Video generado en ${elapsed}s: ${videoPath}`);
 

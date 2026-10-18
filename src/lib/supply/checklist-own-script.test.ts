@@ -288,3 +288,45 @@ test("el formulario se renderiza con ambas opciones, la comprobación previa y s
   assert.match(meter, /Usar 60 segundos/);
   assert.match(meter, /Recomendado para 30 s/);
 });
+
+// ---------------------------------------------------------------- PR149 CORRECCIÓN-1: partición exacta
+
+/** Cases a naive «split at every period» corrupts (auditor's table + ES/EN extensions). */
+const EXACT_CASES: [string, string][] = [
+  ["decimal", "El resultado fue 3.14 por ciento. Esto importa."],
+  ["miles", "En 2026 el precio fue $1.500. Escucha esto."],
+  ["dominio", "Visita ejemplo.com para conocer más."],
+  ["abreviatura y sigla", "El Dr. Pérez llegó a EE. UU. en 1999. Luego volvió."],
+  ["hora inglesa", "Mr. Smith arrived at 5 p.m. today. Then he left."],
+  ["iniciales", "J. R. R. Tolkien escribió mucho. ¿Lo leíste?"],
+  ["porcentaje y fecha", "El 12,5% subió el 18/10/2026. ¡Increíble! Nadie lo esperaba…"],
+  ["comillas y paréntesis", "Dijo «basta.» (Nadie respondió.) Luego habló otra vez."],
+  ["e.g. inglés", "Use short words, e.g. cat or dog. It helps a lot."],
+  ["saltos de línea", "Primera parte.\n\nSegunda parte con 2.5 litros.\nTercera parte."],
+  ["espacios raros", "Hola  mundo.   Fin\tdel texto."],
+  ["sin puntuación", "una sola frase sin signos finales"],
+];
+
+test("CORRECCIÓN-1 ROJO/VERDE: el guion propio llega a la voz carácter por carácter (cifras, dominios, abreviaturas, ES/EN)", async () => {
+  const { canonicalNarration } = await import("@/lib/video/narration-fit");
+  for (const [name, text] of EXACT_CASES) {
+    for (const d of OFFERED) {
+      const draft = buildOwnScriptDraft(text, "t", d);
+      const voiceInput = draft.segments.map(s => s.text).join(" "); // exactly what generate-video.ts sends
+      assert.equal(voiceInput, canonicalNarration(text, "visual"), `${name} @${d}s`);
+      assert.ok(draft.segments.every(s => s.text.length > 0 && s.text === s.text.trim()), `${name}: escenas sin bordes inventados`);
+      assert.equal(narrationPreserved(draft, draft), true);
+    }
+  }
+  // No cut inside figures, domains, abbreviations, initials or acronyms.
+  const at = (text: string) => buildOwnScriptDraft(text, "t", 90).segments.map(s => s.text);
+  assert.deepEqual(at("El Dr. Pérez llegó a EE. UU. en 1999. Luego volvió."), ["El Dr. Pérez llegó a EE. UU. en 1999.", "Luego volvió."]);
+  assert.deepEqual(at("Mr. Smith arrived at 5 p.m. today. Then he left."), ["Mr. Smith arrived at 5 p.m. today.", "Then he left."]);
+  assert.deepEqual(at("J. R. R. Tolkien escribió mucho. ¿Lo leíste?"), ["J. R. R. Tolkien escribió mucho.", "¿Lo leíste?"]);
+  // The check compares with the CUSTOMER's canonical text, not only with the stored draft.
+  const draft = buildOwnScriptDraft("El resultado fue 3.14 por ciento. Esto importa.", "t", 30);
+  const tampered = { ...draft, segments: [{ text: "El resultado fue 3.", visualQuery: "" }, { text: "14 por ciento. Esto importa.", visualQuery: "" }] };
+  assert.equal(narrationPreserved(tampered, tampered), false, "ROJO del auditor: un borrador ya alterado no pasa la verificación");
+  // Counter, draft and check share the same canonicaliser.
+  assert.equal(narrationStats("Hola\n\nmundo.").text, canonicalNarration("Hola\n\nmundo.", "visual"));
+});

@@ -7,7 +7,7 @@
  * Until those visuals exist the draft is NOT a renderable script: hasRenderableScript() is what the
  * render route and the history/result buttons use to choose between «preparar escenas» and the render.
  */
-import { fitForDuration, narrationStats, normalizeNarration, splitIntoScenes, type DurationFit } from "./narration-fit";
+import { canonicalNarration, fitForDuration, narrationStats, normalizeNarration, splitIntoScenes, type DurationFit } from "./narration-fit";
 import { availableVideoDurations } from "./avatar/duration";
 
 export type ScriptSource = "generated" | "own" | "adapt";
@@ -54,7 +54,12 @@ export function scriptSourceOf(json: unknown): ScriptSource {
   return s === "own" || s === "adapt" ? s : "generated";
 }
 
-/** The narration of a planned script is the draft's, verbatim: true when every scene text matches in order. */
+/**
+ * The narration of a planned script is the customer's, verbatim: every scene equals the draft's in order AND
+ * the text the voice will receive (scenes joined by one space, as generate-video.ts does) equals the
+ * canonical form of what the customer wrote — not merely the stored draft, which could itself be wrong.
+ */
 export function narrationPreserved(draft: OwnScriptDraft, script: { segments: { text: string }[] }): boolean {
-  return script.segments.length === draft.segments.length && script.segments.every((s, i) => s.text === draft.segments[i].text);
+  return script.segments.length === draft.segments.length && script.segments.every((s, i) => s.text === draft.segments[i].text)
+    && script.segments.map(s => s.text).join(" ") === canonicalNarration(draft.ownText, "visual");
 }

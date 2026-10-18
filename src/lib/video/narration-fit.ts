@@ -68,8 +68,7 @@ function spokenWordsForDigits(digits: string): number {
  * (generate-video.ts), so its line breaks are scene boundaries, not pauses; Avatar sends the text as written.
  */
 export function narrationStats(raw: string, language: NarrationLanguage = "es", mode: "visual" | "avatar" = "visual"): NarrationStats {
-  const normalized = normalizeNarration(raw);
-  const text = mode === "visual" ? normalized.replace(/\n+/g, " ") : normalized;
+  const text = canonicalNarration(raw, mode);
   const tokens = text ? text.split(/\s+/).filter(Boolean) : [];
   let spoken = 0, numbers = 0;
   for (const token of tokens) {
@@ -163,22 +162,66 @@ export function fitForMaximum(stats: NarrationStats, maxSeconds: number): Durati
 }
 
 /**
- * Deterministic scenes for an own script: sentences are grouped in order, at paragraph boundaries when
- * possible, never cut inside a sentence and never edited. Joining the scenes with a space gives back the
- * normalised text (line breaks become scene boundaries).
+ * The narration EXACTLY as the voice will receive it. A Reel narrates its scenes joined by one space
+ * (generate-video.ts), so line breaks become spaces; Avatar sends the normalised text as written. This is the
+ * single reference the counter, the scene split and the «narration untouched» check compare against.
+ */
+export function canonicalNarration(raw: string, mode: "visual" | "avatar" = "visual"): string {
+  const normalized = normalizeNarration(raw);
+  return mode === "visual" ? normalized.replace(/\n+/g, " ") : normalized;
+}
+
+/** Words whose trailing period is not a sentence end (ES/EN), compared without the period, lower case. */
+const ABBREVIATIONS = new Set(["sr", "sra", "srta", "sres", "dr", "dra", "dres", "lic", "ing", "prof", "profa", "arq", "gral", "cap", "av", "avda",
+  "núm", "nro", "pág", "págs", "ej", "aprox", "dpto", "depto", "ud", "uds", "vd", "vds", "art", "cía", "mr", "mrs", "ms", "st", "jr", "vs", "fig",
+  "vol", "no", "approx", "dept", "est", "inc", "ltd", "co", "corp", "p", "pp"]);
+
+/**
+ * True when the token (as written, with its punctuation) ends a sentence. Only «!», «?», «…» or a period that
+ * is not an abbreviation, an initial («J.») or a dotted acronym («EE.», «UU.», «e.g.», «p.m.») count.
+ */
+function endsSentence(token: string): boolean {
+  const core = token.replace(/["»”’')\]]+$/u, "");
+  if (/[!?…]$/u.test(core)) return true;
+  if (!core.endsWith(".")) return false;
+  if (/\.\.$/.test(core)) return true; // «...» written with periods
+  const word = core.slice(0, -1).replace(/^[«"“‘(¿¡[]+/u, "");
+  if (/^\p{L}$/u.test(word)) return false; // initial
+  if (/^(\p{L}{1,3}\.)+\p{L}{1,3}$/u.test(word) || /^\p{Lu}{2}$/u.test(word)) return false; // p.m. / e.g. / EE. UU.
+  return !ABBREVIATIONS.has(word.toLowerCase());
+}
+
+/**
+ * Deterministic scenes for an own script. Cuts happen ONLY at a space or line break that already exists in
+ * the text, right after a sentence end; nothing inside a word, figure, URL or abbreviation is ever a cut
+ * point («3.14», «$1.500», «ejemplo.com» contain no space). Every scene is a slice of canonicalNarration(),
+ * so joining the scenes with one space gives it back character for character — by construction, and
+ * re-checked at the end: if that ever failed, the whole text stays one scene rather than altered.
  */
 export function splitIntoScenes(text: string, targetSeconds: number, maxSceneChars = 800): string[] {
-  const sentences = normalizeNarration(text).split(/\n+/).flatMap(p => p.match(/[^.!?…]+(?:[.!?…]+["»”')\]]*|$)/g) ?? [p]).map(s => s.trim()).filter(Boolean);
-  const scenes = Math.max(1, Math.min(10, Math.round(targetSeconds / 5), sentences.length));
-  const total = sentences.reduce((s, x) => s + x.length, 0);
-  const out: string[] = [];
+  const canonical = canonicalNarration(text, "visual");
+  if (!canonical) return [];
+  // Tokens of the normalised text with their separator; a line break is always a sentence boundary.
+  const parts = normalizeNarration(text).split(/( |\n+)/);
+  const sentences: string[] = [];
   let current = "";
-  for (const sentence of sentences) {
-    const next = current ? `${current} ${sentence}` : sentence;
-    const remainingScenes = scenes - out.length;
-    if (current && (next.length > maxSceneChars || (remainingScenes > 1 && current.length >= total / scenes))) { out.push(current); current = sentence; }
-    else current = next;
+  for (let i = 0; i < parts.length; i += 2) {
+    const token = parts[i], separator = parts[i + 1] ?? "";
+    current = current ? `${current} ${token}` : token;
+    if (!separator || separator.includes("\n") || endsSentence(token)) { sentences.push(current); current = ""; }
   }
-  if (current) out.push(current);
-  return out;
+  if (current) sentences.push(current);
+
+  const scenes = Math.max(1, Math.min(10, Math.round(targetSeconds / 5), sentences.length));
+  const total = sentences.reduce((sum, x) => sum + x.length, 0);
+  const out: string[] = [];
+  let scene = "";
+  for (const sentence of sentences) {
+    const next = scene ? `${scene} ${sentence}` : sentence;
+    const remainingScenes = scenes - out.length;
+    if (scene && (next.length > maxSceneChars || (remainingScenes > 1 && scene.length >= total / scenes))) { out.push(scene); scene = sentence; }
+    else scene = next;
+  }
+  if (scene) out.push(scene);
+  return out.join(" ") === canonical ? out : [canonical];
 }
