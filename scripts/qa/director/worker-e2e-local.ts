@@ -26,6 +26,12 @@
  *   crash-recovery the web retry moved the row to attempt 2 ⇒ attempt 2 completes; every attempt-1 object is preserved
  *                 byte for byte
  *
+ *  T42/T44 (measurable data under the Director, data cards, preflight before spend):
+ *   data-card     a sentence with «90 por ciento» ⇒ a deterministic card instead of stock; static; «sin fuente verificada»
+ *   preflight-block  «restos humanos» ⇒ stops before narration/reservation; script_ready with the sentence to change
+ *   multi-claim   two claims in one scene ⇒ two cards on their own word-timed windows; «30 %» gone when «70 %» is said
+ *   preflight-values two values in one clause ⇒ refused before spend, asks to split the figures
+ *
  *   npx tsx scripts/qa/director/worker-e2e-local.ts --out-dir=<dir> [--only=positive,classic] [--red]
  *   --red runs the T40 fault scenarios WITHOUT their fault injection: their assertions must then FAIL (the render
  *   completes), which proves the assertions discriminate; the follow-up scenarios are skipped in that mode.
@@ -343,24 +349,74 @@ async function main() {
     const mp4 = path.join(r.dump, "objects", `videos/${id}/attempt-1/final.mp4`), dj = path.join(r.dump, "objects", `videos/${id}/attempt-1/director.json`);
     const checks: Check[] = [
       { name: "worker exit 0, row completed", ok: r.exit === 0 && v.status === "completed" && v.video_path === `${id}/attempt-1/final.mp4`, detail: { exit: r.exit, status: v.status, error: v.error_message, stderr: r.stderr.slice(-300) } },
-      { name: "the figure scene is a data card object (card-0.svg), no stock image was fetched for it; MP4 + director.json present", ok: r.objects.some((o) => o.endsWith("/attempt-1/card-0.svg")) && !r.objects.some((o) => /\/attempt-1\/scene-0-\d+\.svg$/.test(o)) && fs.existsSync(mp4) && fs.existsSync(dj), detail: r.objects },
+      { name: "the figure scene is a data card object (card-0-0.svg), no stock image was fetched for it; MP4 + director.json present", ok: r.objects.some((o) => o.endsWith("/attempt-1/card-0-0.svg")) && !r.objects.some((o) => /\/attempt-1\/scene-0-\d+\.svg$/.test(o)) && fs.existsSync(mp4) && fs.existsSync(dj), detail: r.objects },
     ];
     let artifacts: Record<string, unknown> = {};
     if (fs.existsSync(dj) && fs.existsSync(mp4)) {
       const d = JSON.parse(fs.readFileSync(dj, "utf8")) as { ok: boolean; applied?: { shotId: string; recipeId: string | null; applied: { motion: string; startSeconds: number; endSeconds: number } }[]; plan?: { shots?: { segmentId: string; asset: { provenance?: string; label: string | null } }[] } };
       const cardShots = (d.applied ?? []).filter((a) => a.recipeId === "reel-data-card");
-      const cardPlan = (d.plan?.shots ?? []).filter((s) => s.segmentId === "scene-0");
+      const cardPlan = (d.plan?.shots ?? []).filter((s) => s.segmentId.startsWith("scene-0"));
       checks.push({ name: "director.json ok=true; scene-0 shots use reel-data-card with provenance data_graphic and no «ilustrativa» label", ok: d.ok === true && cardShots.length >= 1 && cardPlan.length >= 1 && cardPlan.every((s) => s.asset.provenance === "data_graphic" && s.asset.label === null), detail: { ok: d.ok, cardShots: cardShots.map((a) => a.shotId), plan: cardPlan.map((s) => s.asset) } });
       const work = fs.mkdtempSync(path.join(os.tmpdir(), "frames-card-"));
       const card = cardShots[0];
-      const svg = fs.readFileSync(path.join(r.dump, "objects", `videos/${id}/attempt-1/card-0.svg`), "utf8");
+      const svg = fs.readFileSync(path.join(r.dump, "objects", `videos/${id}/attempt-1/card-0-0.svg`), "utf8");
       const diff = card && card.applied.endSeconds - card.applied.startSeconds > 1 ? frameDiff(mp4, card.applied.startSeconds + 0.3, card.applied.endSeconds - 0.3, work) : null;
-      checks.push({ name: "the card shows the figure as written (90 %) and stays static in the frames (Δluma ≤ 0.2)", ok: /90 %/.test(svg) && diff !== null && diff <= 0.2 && card.applied.motion === "static", detail: { lumaDiff: diff, motion: card?.applied.motion, figureInSvg: /90 %/.test(svg) } });
-      artifacts = { mp4: { sha256: sha256(mp4), ...ffprobe(mp4) }, cardSvg: { sha256: sha256(path.join(r.dump, "objects", `videos/${id}/attempt-1/card-0.svg`)) }, cardShots: cardShots.map((a) => ({ shot: a.shotId, motion: a.applied.motion, start: a.applied.startSeconds, end: a.applied.endSeconds })) };
+      checks.push({ name: "the card shows the figure as written (90 %), says it is an unverified script datum, and stays static in the frames (Δluma ≤ 0.2)", ok: /90 %/.test(svg) && /sin fuente verificada/.test(svg) && diff !== null && diff <= 0.2 && card.applied.motion === "static", detail: { lumaDiff: diff, motion: card?.applied.motion, figureInSvg: /90 %/.test(svg) } });
+      artifacts = { mp4: { sha256: sha256(mp4), ...ffprobe(mp4) }, cardSvg: { sha256: sha256(path.join(r.dump, "objects", `videos/${id}/attempt-1/card-0-0.svg`)) }, cardShots: cardShots.map((a) => ({ shot: a.shotId, motion: a.applied.motion, start: a.applied.startSeconds, end: a.applied.endSeconds })) };
       fs.copyFileSync(mp4, path.join(OUT, "data-card.mp4"));
-      fs.copyFileSync(path.join(r.dump, "objects", `videos/${id}/attempt-1/card-0.svg`), path.join(OUT, "data-card-0.svg"));
+      fs.copyFileSync(path.join(r.dump, "objects", `videos/${id}/attempt-1/card-0-0.svg`), path.join(OUT, "data-card-0.svg"));
     }
     finish("data-card", r, checks, artifacts);
+  }
+
+  // T44 (finding A of the PR #137 review): two claims in ONE scene ⇒ two cards, each on the narration window of its
+  // claim (word timestamps of the voice); while «70 %» is said the «30 %» card is no longer on screen. Verified in
+  // director.json (segments, shots, props) AND in the MP4 frames (the two windows show different cards; each is static).
+  if (want("multi-claim")) {
+    const two = { ...script, segments: script.segments.map((s: { text: string }, i: number) => i === 0 ? { ...s, text: "En 2019, el 30 % recordó la historia; en 2020, el 70 % recordó el dato." } : s) };
+    const id = randomUUID();
+    const r = runWorker("multi-claim", seedFor(id, two), {}, id);
+    const v = row(r, id);
+    const obj = (n: string) => path.join(r.dump, "objects", `videos/${id}/attempt-1/${n}`);
+    const mp4 = obj("final.mp4"), dj = obj("director.json");
+    const checks: Check[] = [
+      { name: "worker exit 0, row completed; two card objects for scene 0 and no stock image for it", ok: r.exit === 0 && v.status === "completed" && fs.existsSync(obj("card-0-0.svg")) && fs.existsSync(obj("card-0-1.svg")) && !r.objects.some((o) => /\/attempt-1\/scene-0-\d+\.svg$/.test(o)) && fs.existsSync(mp4) && fs.existsSync(dj), detail: { exit: r.exit, status: v.status, error: v.error_message, objects: r.objects, stderr: r.stderr.slice(-300) } },
+    ];
+    let artifacts: Record<string, unknown> = {};
+    if (fs.existsSync(dj) && fs.existsSync(mp4) && fs.existsSync(obj("card-0-1.svg"))) {
+      const svg0 = fs.readFileSync(obj("card-0-0.svg"), "utf8"), svg1 = fs.readFileSync(obj("card-0-1.svg"), "utf8");
+      checks.push({ name: "card 1 shows «2019 · 30 %» and never «70 %»; card 2 shows «2020 · 70 %» and never «30 %»; both say «sin fuente verificada»", ok: /2019 · 30 %/.test(svg0) && !/70 %/.test(svg0) && /2020 · 70 %/.test(svg1) && !/30 %/.test(svg1) && /sin fuente verificada/.test(svg0) && /sin fuente verificada/.test(svg1), detail: { hero0: (svg0.match(/font-weight="700"[^>]*>([^<]*)</) ?? [])[1], hero1: (svg1.match(/font-weight="700"[^>]*>([^<]*)</) ?? [])[1] } });
+      type DJ = { ok: boolean; input?: { segments: { id: string; start: number; end: number; text: string }[]; inventory: { id: string; content?: { visualIntent?: string } }[] }; plan?: { shots: { id: string; segmentId: string; recipeId: string | null; asset: { assetId?: string; provenance?: string } }[] }; applied?: { shotId: string; applied: { motion: string; startSeconds: number; endSeconds: number } }[]; props?: { scenes: { mediaUrl: string; startSeconds: number; endSeconds: number }[] } };
+      const d = JSON.parse(fs.readFileSync(dj, "utf8")) as DJ;
+      const segs = (d.input?.segments ?? []).filter((s) => s.id.startsWith("scene-0"));
+      const s1 = segs.find((s) => s.id === "scene-0#1"), s2 = segs.find((s) => s.id === "scene-0#2");
+      const intentOf = (segId: string) => (d.plan?.shots ?? []).filter((s) => s.segmentId === segId).map((s) => d.input?.inventory.find((a) => a.id === s.asset.assetId)?.content?.visualIntent ?? "");
+      checks.push({ name: "director.json: scene 0 is two Director segments (scene-0#1 «…30 %…», scene-0#2 «…70 %…») on the voice's word clock, each dressed only by its own card", ok: d.ok === true && !!s1 && !!s2 && s1.end === s2.start && /30 %/.test(s1.text) && /70 %/.test(s2.text) && intentOf("scene-0#1").length >= 1 && intentOf("scene-0#1").every((i) => /30 %/.test(i) && !/70 %/.test(i)) && intentOf("scene-0#2").length >= 1 && intentOf("scene-0#2").every((i) => /70 %/.test(i) && !/30 %/.test(i)) && (d.plan?.shots ?? []).filter((s) => s.segmentId.startsWith("scene-0")).every((s) => s.recipeId === "reel-data-card" && s.asset.provenance === "data_graphic"), detail: { segs, intents: { s1: intentOf("scene-0#1"), s2: intentOf("scene-0#2") } } });
+      if (s1 && s2) {
+        const t70 = s2.start + Math.min(0.5, (s2.end - s2.start) / 3);
+        const active = (d.props?.scenes ?? []).find((sc) => sc.startSeconds <= t70 && t70 < sc.endSeconds);
+        checks.push({ name: "the render props show card-0-1.svg (70 %) at the moment «70 %» starts, never card-0-0.svg", ok: !!active && /card-0-1\.svg/.test(active.mediaUrl), detail: { t70, active } });
+        const work = fs.mkdtempSync(path.join(os.tmpdir(), "frames-claims-"));
+        const within1 = frameDiff(mp4, s1.start + 0.3, s1.end - 0.3, work), within2 = frameDiff(mp4, s2.start + 0.3, s2.end - 0.3, work), across = frameDiff(mp4, s1.end - 0.3, s2.start + 0.3, work);
+        checks.push({ name: "MP4 frames: each card window is static (Δluma ≤ 0.2) and the picture changes exactly at the claim boundary (Δluma across > 0.5)", ok: within1 <= 0.2 && within2 <= 0.2 && across > 0.5, detail: { within1, within2, across, boundary: s1.end } });
+        artifacts = { mp4: { sha256: sha256(mp4), ...ffprobe(mp4) }, cards: { card0: sha256(obj("card-0-0.svg")), card1: sha256(obj("card-0-1.svg")) }, segments: segs, frames: { within1, within2, across } };
+        fs.copyFileSync(mp4, path.join(OUT, "multi-claim.mp4"));
+        fs.copyFileSync(obj("card-0-0.svg"), path.join(OUT, "multi-claim-card-0.svg"));
+        fs.copyFileSync(obj("card-0-1.svg"), path.join(OUT, "multi-claim-card-1.svg"));
+      }
+    }
+    finish("multi-claim", r, checks, artifacts);
+  }
+
+  if (want("preflight-values")) {
+    const packed = { ...script, segments: script.segments.map((s: { text: string }, i: number) => i === 0 ? { ...s, text: "El 30 % recordó la historia y el 70 % recordó el dato." } : s) };
+    const id = randomUUID();
+    const r = runWorker("preflight-values", seedFor(id, packed), {}, id);
+    const v = row(r, id);
+    finish("preflight-values", r, [
+      { name: "two values in one clause: the worker stops BEFORE narration or reservation (no pi_reserve_job_supply, no objects, nothing paid)", ok: !r.rpc.some((x) => x.name === "pi_reserve_job_supply") && r.objects.length === 0 && (r.tables.pi_paid_operations ?? []).length === 0 && reservations(r).length === 0, detail: { rpc: r.rpc.map((x) => x.name), objects: r.objects } },
+      { name: "the request reopens the script (script_ready) asking to split the figures, in plain words", ok: v.status === "script_ready" && /escena 1/.test(String(v.error_message)) && /reparte las cifras/.test(String(v.error_message)) && !/\[configuración interna\]/.test(String(v.error_message)), detail: { exit: r.exit, status: v.status, error: v.error_message } },
+    ]);
   }
 
   if (want("preflight-block")) {

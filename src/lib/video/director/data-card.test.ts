@@ -5,6 +5,9 @@
  * with stock only still blocks (the policy is respected, never loosened); VERDE = the deterministic data card renders
  * the figure as written and the plan passes; the preflight stops unsolvable sentences BEFORE any spend; the visible
  * message carries no code that the sanitiser would turn into «[configuración interna]».
+ *
+ * T44 (independent review of PR #137): a card per CLAIM on its own narration window (finding A), honest provenance on
+ * the card and in the plan (finding B), lexicon without false positives (list counters, «una cifra», bare units).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -12,8 +15,10 @@ import fs from "node:fs";
 import path from "node:path";
 import type { GeneratedScript } from "@/lib/providers/types";
 import { scrubInternalNames } from "@/lib/video/customer-error";
-import { DATA_CARD_HEIGHT, DATA_CARD_RECIPE_ID, DATA_CARD_WIDTH, dataCardAsset, dataCardSvg, directorReelPreflight, DirectorPreflightBlockedError, extractFigure, preflightBlockMessage, withDataCards } from "./data-card";
+import { cardAssetId, cardSegmentId, claimsOf, DATA_CARD_HEIGHT, DATA_CARD_PROVENANCE_TEXT, DATA_CARD_RECIPE_ID, DATA_CARD_WIDTH, dataCardAsset, dataCardSvg, directorReelPreflight, DirectorPreflightBlockedError, extractFigure, extractFigures, heroOf, preflightBlockMessage, withDataCards } from "./data-card";
 import { inputFromReel } from "./from-reel";
+import { topicsOf, unitPolicy } from "./policy";
+import { DirectorInputSchema } from "./contract";
 import { inspectReel } from "./reel-inspection";
 import { directReel, directorBlockMessage, type ResolvedBeat } from "./reel-render";
 import { simulateStoryboard } from "../storyboard/simulate";
@@ -31,6 +36,11 @@ const PLAIN: GeneratedScript = { title: "Historias", segments: [
   { text: "Una historia bien contada se queda con nosotros.", visualQuery: "grandmother telling story", visualConcepts: ["grandmother telling a story"] },
   { text: "Por eso las marcas cuentan historias.", visualQuery: "shop window", visualConcepts: ["shop window"] },
 ] };
+/** T44 adversarial case from the independent review: two claims, two years, two percentages in ONE scene. */
+const TWO_CLAIMS: GeneratedScript = { title: "Dos afirmaciones", segments: [
+  { text: "En 2019, el 30 % recordó la historia; en 2020, el 70 % recordó el dato.", visualQuery: "people remembering", visualConcepts: ["people remembering"] },
+  { text: "Por eso las marcas cuentan historias en vez de listar números.", visualQuery: "shop window", visualConcepts: ["shop window"] },
+] };
 
 const timings = (script: GeneratedScript) => {
   let t = 0;
@@ -38,17 +48,44 @@ const timings = (script: GeneratedScript) => {
 };
 const stockBeats = (script: GeneratedScript, times: { start: number; end: number }[], cardScenes: number[] = []): ResolvedBeat[][] =>
   script.segments.map((_, i) => [{ start: times[i].start, end: times[i].end, url: `https://fixture.local/scene-${i}.svg`, mediaType: "image", source: cardScenes.includes(i) ? "data_card" : "stock", license: "CLEARED" }]);
+/** Beats exactly as generate-video.ts derives them from the preflight cards, on a uniform synthetic word clock. */
+const cardBeats = (script: GeneratedScript, sceneIndex: number, wordSeconds: number, start: number): ResolvedBeat[] => {
+  const cards = directorReelPreflight(script).cards.filter(c => c.sceneIndex === sceneIndex);
+  return cards.map((c, k) => ({ url: `https://fixture.local/card-${sceneIndex}-${k}.svg`, mediaType: "image", source: "data_card", license: "CLEARED",
+    start: start + c.fromToken * wordSeconds, end: start + c.toToken * wordSeconds, card: { text: c.text, windowText: c.windowText, figures: c.figures } }));
+};
 
-test("figures are taken exactly as written: percent, times, quantities with unit, years, bare numbers; none when absent", () => {
+test("figures are taken exactly as written, in narration order: percent, times, quantities with unit, years, bare numbers; none when absent", () => {
   assert.deepEqual(extractFigure("Olvidamos el 90 por ciento de las cifras."), { kind: "percent", display: "90 %" });
   assert.deepEqual(extractFigure("Se recuerdan 22 veces más."), { kind: "times", display: "22 veces" });
   assert.deepEqual(extractFigure("Casi 3,5 millones de personas lo vieron."), { kind: "quantity", display: "3,5 millones" });
   assert.deepEqual(extractFigure("Todo empezó en 1998 en un garaje."), { kind: "year", display: "1998" });
   assert.deepEqual(extractFigure("Los 3 amigos volvieron."), { kind: "number", display: "3" });
   assert.equal(extractFigure("Una historia bien contada se queda con nosotros."), null);
+  // T44: every figure, in the order it is narrated (a year before its percentage), never reordered by pattern priority.
+  assert.deepEqual(extractFigures("En 2019, el 30 % recordó la historia.").map(f => f.display), ["2019", "30 %"]);
+  assert.equal(heroOf(extractFigures("En 2019, el 30 % recordó la historia.")), "2019 · 30 %");
+  assert.equal(heroOf([]), null);
 });
 
-test("the card is deterministic, 9:16, escapes the sentence and shows the figure as written", () => {
+test("claims: one per sentence; a sentence with two values is cut at its clauses (lead-ins join the next clause); two values in one clause are not representable", () => {
+  const c = claimsOf("En 2019, el 30 % recordó la historia; en 2020, el 70 % recordó el dato.");
+  assert.deepEqual(c.map(x => [x.text, x.figures.map(f => f.display), x.representable]), [
+    ["En 2019, el 30 % recordó la historia;", ["2019", "30 %"], true],
+    ["en 2020, el 70 % recordó el dato.", ["2020", "70 %"], true],
+  ]);
+  assert.deepEqual(c.map(x => [x.fromToken, x.toToken]), [[0, 8], [8, 16]]);
+  const comma = claimsOf("Según el estudio, el 30 % recordó la historia, pero el 70 % recordó el dato.");
+  assert.deepEqual(comma.map(x => [x.text, x.figures.map(f => f.display)]), [["Según el estudio, el 30 % recordó la historia,", ["30 %"]], ["pero el 70 % recordó el dato.", ["70 %"]]]);
+  const packed = claimsOf("El 30 % recordó la historia y el 70 % recordó el dato.");
+  assert.equal(packed.length, 1);
+  assert.equal(packed[0].representable, false, "two values in one clause: one card cannot show each when it is said");
+  // A year next to a value is context, not a second value.
+  assert.ok(claimsOf("En 2019 el 30 % recordó la historia.").every(x => x.representable));
+  assert.deepEqual(claimsOf("Sin cifras aquí.").map(x => x.figures), [[]]);
+});
+
+test("the card is deterministic, 9:16, escapes the sentence, shows the figures as written and says what it is (script datum, unverified)", () => {
   const a = dataCardSvg({ text: "Olvidamos el 90 por ciento <de> las \"cifras\" & más", figure: { kind: "percent", display: "90 %" } });
   const b = dataCardSvg({ text: "Olvidamos el 90 por ciento <de> las \"cifras\" & más", figure: { kind: "percent", display: "90 %" } });
   assert.equal(a, b, "same input, byte-identical SVG");
@@ -57,10 +94,48 @@ test("the card is deterministic, 9:16, escapes the sentence and shows the figure
   assert.match(a, /&lt;de&gt;/);
   assert.match(a, /&quot;cifras&quot;/);
   assert.doesNotMatch(a, /<de>|<script|https?:\/\/(?!www\.w3\.org\/2000\/svg")/);
-  assert.match(a, /Dato tal como aparece en el guion/);
+  assert.match(a, /DATO DEL GUION/);
+  assert.ok(a.includes(DATA_CARD_PROVENANCE_TEXT) && /sin fuente verificada/.test(a), "the card never presents itself as verified evidence");
   const noFigure = dataCardSvg({ text: "Sin cifra", figure: null });
-  assert.doesNotMatch(noFigure, /font-size="(240|170|120)"/);
+  assert.doesNotMatch(noFigure, /font-size="(240|170|120|84)"/);
   assert.match(noFigure, /Sin cifra/);
+  // T44: the hero line carries the claim's figures in narration order.
+  const two = dataCardSvg({ text: "En 2019, el 30 % recordó la historia;", figure: null, figures: extractFigures("En 2019, el 30 % recordó la historia;") });
+  assert.match(two, />2019 · 30 %</);
+});
+
+test("SVG safety: a hostile sentence cannot inject markup, scripts, external references or event handlers", () => {
+  const hostile = `<script>alert(1)</script><image href="https://evil.example/x.svg"/> onload="x()" url(https://evil.example) <![CDATA[x]]> </text><text>`;
+  const svg = dataCardSvg({ text: hostile, figure: null });
+  // Markup only (text-node contents removed): nothing hostile becomes an element, an attribute or a reference.
+  const markup = svg.replace(/>[^<]*</g, "><");
+  assert.doesNotMatch(markup, /<script|<image|<!\[CDATA|href=|url\(|onload=|<\/text><text>/);
+  assert.doesNotMatch(markup, /https?:\/\/(?!www\.w3\.org\/2000\/svg")/, "no external reference survives");
+  assert.deepEqual([...new Set(markup.match(/<\/?[a-z]+/g))].sort(), ["</svg", "</text", "<rect", "<svg", "<text"], "only the card's own elements exist");
+  assert.equal((svg.match(/<text /g) ?? []).length, (svg.match(/<\/text>/g) ?? []).length, "every text element is the card's own");
+  assert.match(svg, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/, "the hostile text is shown escaped, as text");
+  assert.ok(!/<[^>]*\son[a-z]+=/i.test(svg), "no event-handler attribute anywhere");
+});
+
+test("lexicon (T44): a datum needs a quantity; «una cifra», a bare unit or a list counter is not measurable data; negation/hedge stay hypothesis", () => {
+  const raw = inputFromReel(simulateStoryboard(PLAIN));
+  const input = DirectorInputSchema.parse(raw);
+  const cls = (text: string) => unitPolicy(input, input.segments[0], text).class;
+  assert.ok(!topicsOf("¿Por qué olvidas una cifra en minutos?").includes("data"));
+  assert.ok(!topicsOf("Estas son las 3 razones para contar historias.").includes("data"));
+  assert.ok(!topicsOf("Los 5 errores que cometes al presentar.").includes("data"));
+  assert.ok(!topicsOf("A pocos metros del lugar.").includes("data"));
+  assert.ok(!topicsOf("Pesaba toneladas, decían.").includes("data"));
+  assert.ok(topicsOf("Pesaba diez toneladas.").includes("data"));
+  assert.ok(topicsOf("Uno de cada cinco lo recuerda.").includes("data"));
+  assert.ok(topicsOf("Olvidamos el 90 por ciento de las cifras.").includes("data"));
+  assert.ok(topicsOf("A 20 metros del lugar.").includes("data"));
+  assert.ok(topicsOf("Tres razones y un 40 % de mejora.").includes("data"), "a real value next to a list counter still counts");
+  assert.equal(cls("Estas son las 3 razones para contar historias."), "atmosphere");
+  assert.equal(cls("Olvidamos el 90 por ciento de las cifras."), "measurable_data");
+  assert.equal(cls("Todo empezó en 1998 en un garaje."), "measurable_data", "a year is a measurable datum (chrono)");
+  assert.equal(cls("No fue el 90 por ciento, nunca se confirmó."), "hypothesis");
+  assert.equal(cls("Quizás el 90 por ciento lo olvide."), "hypothesis");
 });
 
 test("ROJO (pilot reproduced): with illustrative stock only, the Director still refuses the sentence with the figure — after narration, as a bridge blocker", () => {
@@ -76,11 +151,12 @@ test("ROJO (pilot reproduced): with illustrative stock only, the Director still 
   assert.ok(r.blockers.every((b) => b.code.startsWith("AUDIT_")), "only editorial audit blockers; no timing/material defects in the fixture");
 });
 
-test("VERDE: with a deterministic data card for the measurable scenes the same Reel is montable; the card shot uses the data-card recipe and carries no review", () => {
+test("VERDE: with a deterministic data card for the measurable scenes the same Reel is montable; the card shot uses the data-card recipe, carries no review and no evidence claim", () => {
   const times = timings(PILOT);
   const pre = directorReelPreflight(PILOT);
   assert.deepEqual(pre.cards.map((c) => c.sceneIndex), [0, 2]);
   assert.deepEqual(pre.cards.map((c) => c.figure?.display), ["90 %", "22 veces"]);
+  assert.deepEqual(pre.cards.map((c) => [c.index, c.count, c.from, c.to]), [[0, 1, 0, 1], [0, 1, 0, 1]]);
   assert.equal(pre.blockers.length, 0);
   const r = directReel({ script: PILOT, sceneTimings: times, beatsBySegment: stockBeats(PILOT, times, [0, 2]), audioUrl: "https://fixture.local/voice.wav", captions: [], narrationGaps: [], durationSeconds: times.at(-1)!.end + 0.4 });
   assert.ok(r.ok, r.ok ? "" : JSON.stringify(r.blockers));
@@ -93,29 +169,86 @@ test("VERDE: with a deterministic data card for the measurable scenes the same R
     assert.equal(s.asset.label, null, "a deterministic card carries no «ilustrativa» label");
     assert.equal(s.policy.status, "ok", "no review pending on a card");
     assert.ok(!s.uncertainty.some((u) => /solo acompaña/.test(u)));
+    assert.match(s.visualTheme, /sin fuente verificada/, "the plan records the card as a script transcription, not evidence");
   }
   const applied = r.applied.filter((a) => a.recipeId === DATA_CARD_RECIPE_ID);
   assert.ok(applied.every((a) => a.applied.motion === "static"), "a card stays legible: no zoom, no pan");
   assert.ok(r.plan.shots.filter((s) => s.segmentId === "scene-1").every((s) => s.asset.provenance === "stock_illustrative"), "scenes without figures keep their stock");
   assert.equal(r.plan.estimatedMaxUsd, 0);
+  assert.ok(r.input.inventory.filter(a => a.provenance === "data_graphic").every(a => (a.tags ?? []).includes("sin-fuente-verificada") && a.content?.bibleClass === "DETERMINISTIC"));
 });
 
-test("the card asset is a planned deterministic graphic of its own segment (window 0..1, CLEARED, diagram) so only the data-card recipe dresses it", () => {
+test("T44 finding A — ROJO/VERDE: two claims in one scene get two cards on their own narration windows; at the moment «70 %» is said the «30 %» card is gone", () => {
+  const WORD = 0.42;
+  const n0 = TWO_CLAIMS.segments[0].text.split(/\s+/).length, n1 = TWO_CLAIMS.segments[1].text.split(/\s+/).length;
+  const times = [{ start: 0, end: n0 * WORD }, { start: n0 * WORD, end: (n0 + n1) * WORD }];
+  const pre = directorReelPreflight(TWO_CLAIMS);
+  assert.equal(pre.blockers.length, 0);
+  assert.deepEqual(pre.cards.map(c => [c.index, c.count, c.fromToken, c.toToken, heroOf(c.figures)]), [[0, 2, 0, 8, "2019 · 30 %"], [1, 2, 8, 16, "2020 · 70 %"]]);
+  assert.deepEqual(pre.cards.map(c => c.windowText), ["En 2019, el 30 % recordó la historia;", "en 2020, el 70 % recordó el dato."]);
+  // ROJO shape (614b869): ONE card for the whole scene — the plan accepts it, but «30 %» is what is shown while «70 %» is said.
+  const oneCard: ResolvedBeat[] = [{ url: "https://fixture.local/card-0.svg", mediaType: "image", source: "data_card", license: "CLEARED", start: times[0].start, end: times[0].end,
+    card: { text: TWO_CLAIMS.segments[0].text, windowText: TWO_CLAIMS.segments[0].text, figures: extractFigures(TWO_CLAIMS.segments[0].text).slice(0, 2) } }];
+  const stock1: ResolvedBeat[] = [{ url: "https://fixture.local/scene-1.svg", mediaType: "image", source: "stock", license: "CLEARED", start: times[1].start, end: times[1].end }];
+  const t70 = TWO_CLAIMS.segments[0].text.split(/\s+/).indexOf("70") * WORD + WORD / 2;
+  const activeIntent = (r: ReturnType<typeof directReel>) => {
+    assert.ok(r.ok, r.ok ? "" : JSON.stringify(r.blockers)); if (!r.ok) return "";
+    const a = r.applied.find(x => x.applied.startSeconds <= t70 && t70 < x.applied.endSeconds)!;
+    const shot = r.plan.shots.find(s => s.id === a.shotId)!;
+    return r.input.inventory.find(x => x.id === shot.asset.assetId)?.content?.visualIntent ?? "";
+  };
+  const rojo = activeIntent(directReel({ script: TWO_CLAIMS, sceneTimings: times, beatsBySegment: [oneCard, stock1], audioUrl: "https://fixture.local/voice.wav", captions: [], narrationGaps: [], durationSeconds: times[1].end + 0.4 }));
+  assert.match(rojo, /30 %/, "ROJO shape reproduced: the single card still carries 30 % while 70 % is narrated");
+  // VERDE: the beats generate-video.ts now derives from the preflight (one per claim, cut at the next claim's first word).
+  const verde = directReel({ script: TWO_CLAIMS, sceneTimings: times, beatsBySegment: [cardBeats(TWO_CLAIMS, 0, WORD, 0), stock1], audioUrl: "https://fixture.local/voice.wav", captions: [], narrationGaps: [], durationSeconds: times[1].end + 0.4 });
+  const intent = activeIntent(verde);
+  assert.match(intent, /2020 · 70 %/);
+  assert.doesNotMatch(intent, /30 %/);
+  assert.ok(verde.ok); if (!verde.ok) return;
+  // Each card is its own Director segment: window, text and asset bound together; no card leaks into the other window.
+  assert.deepEqual(verde.input.segments.map(s => [s.id, Math.round(s.start * 100) / 100, Math.round(s.end * 100) / 100]), [["scene-0#1", 0, 3.36], ["scene-0#2", 3.36, 6.72], ["scene-1", 6.72, Math.round(times[1].end * 100) / 100]]);
+  for (const s of verde.plan.shots.filter(s => s.segmentId.startsWith("scene-0"))) {
+    assert.equal(s.recipeId, DATA_CARD_RECIPE_ID);
+    assert.equal(s.asset.assetId, cardAssetId("scene-0", s.segmentId.endsWith("#1") ? 0 : 1, 2));
+    const intent = verde.input.inventory.find(x => x.id === s.asset.assetId)!.content!.visualIntent!;
+    assert.ok(s.segmentId.endsWith("#1") ? /30 %/.test(intent) && !/70 %/.test(intent) : /70 %/.test(intent) && !/30 %/.test(intent), `${s.id}: ${intent}`);
+  }
+  assert.ok(verde.applied.filter(a => a.recipeId === DATA_CARD_RECIPE_ID).every(a => a.applied.motion === "static"));
+  assert.equal(cardSegmentId("scene-0", 0, 1), "scene-0", "a scene with one card keeps its id");
+});
+
+test("T44: a clause that packs two values is refused BEFORE spend with the sentence to split; nothing is invented", () => {
+  const packed: GeneratedScript = { title: "x", segments: [{ text: "El 30 % recordó la historia y el 70 % recordó el dato.", visualQuery: "a", visualConcepts: ["people"] }] };
+  const pre = directorReelPreflight(packed);
+  assert.deepEqual(pre.cards, []);
+  assert.equal(pre.blockers.length, 1);
+  assert.equal(pre.blockers[0].policyClass, "measurable_data");
+  assert.match(pre.blockers[0].hint, /reparte las cifras en frases separadas/);
+  const msg = preflightBlockMessage(pre.blockers);
+  assert.match(msg, /escena 1/);
+  assert.equal(scrubInternalNames(msg), msg);
+});
+
+test("the card asset is a planned deterministic graphic of its own segment (window 0..1, CLEARED, diagram) so only the data-card recipe dresses it; it declares itself unverified", () => {
   const a = dataCardAsset({ id: "scene-0", text: PILOT.segments[0].text });
   assert.equal(a.provenance, "data_graphic");
   assert.equal(a.kind, "graphic");
   assert.equal(a.license, "CLEARED");
   assert.equal(a.content?.visualType, "diagram");
   assert.deepEqual(a.content?.window, { segmentId: "scene-0", from: 0, to: 1 });
-  assert.ok(a.tags.includes("segment:scene-0"));
+  assert.ok(a.tags.includes("segment:scene-0") && a.tags.includes("sin-fuente-verificada"));
   assert.match(a.content?.visualIntent ?? "", /90 %/);
+  assert.match(a.content?.visualIntent ?? "", /sin fuente verificada: no acredita la cifra/);
   assert.equal(a.content?.description, PILOT.segments[0].text);
+  assert.equal(a.content?.bibleClass, "DETERMINISTIC", "deterministic, never REAL_DOCUMENTARY");
 });
 
-test("preflight: no figures → no cards and no blockers; a negated or hedged figure is a hypothesis, not a datum (no card); human remains and specific evidence stop BEFORE spend with the sentence to change", () => {
+test("preflight: no figures → no cards and no blockers; a negated or hedged figure is a hypothesis, not a datum (no card); human remains stop BEFORE spend with the sentence to change", () => {
   assert.deepEqual(directorReelPreflight(PLAIN), { cards: [], blockers: [] });
   const negated: GeneratedScript = { title: "x", segments: [{ text: "No fue el 90 por ciento, nunca se confirmó esa cifra.", visualQuery: "a", visualConcepts: ["a"] }] };
   assert.deepEqual(directorReelPreflight(negated).cards, []);
+  const counter: GeneratedScript = { title: "x", segments: [{ text: "Estas son las 3 razones para contar historias.", visualQuery: "a", visualConcepts: ["a"] }] };
+  assert.deepEqual(directorReelPreflight(counter), { cards: [], blockers: [] }, "a list counter gets no card (T44 lexicon)");
   const remains: GeneratedScript = { title: "x", segments: [
     { text: "Una historia bien contada se queda con nosotros.", visualQuery: "a", visualConcepts: ["grandmother telling a story"] },
     { text: "Encontraron restos humanos bajo el templo y nadie lo contó.", visualQuery: "b", visualConcepts: ["old temple"] },
@@ -137,7 +270,7 @@ test("preflight: no figures → no cards and no blockers; a negated or hedged fi
   assert.ok(preflightBlockMessage(pre.blockers).length <= 600);
 });
 
-test("the review page (inspectReel) plans the same cards: no POLICY_REVIEW on the figure sentences, cards listed", () => {
+test("the review page (inspectReel) plans the same cards, split per claim: no POLICY_REVIEW on the figure sentences, cards listed", () => {
   const r = inspectReel(PILOT, { renderEnabled: true });
   assert.ok(r.status !== "error", "inspection must not error");
   if (!("dataCards" in r)) return;
@@ -149,6 +282,15 @@ test("the review page (inspectReel) plans the same cards: no POLICY_REVIEW on th
   const withCards = withDataCards(raw, directorReelPreflight(PILOT).cards);
   assert.equal(withCards.inventory.filter((a) => a.provenance === "data_graphic").length, 2);
   assert.equal(withCards.inventory.length, raw.inventory.length, "the card replaces the planned stock of its segment");
+  // T44: two claims → two sub-segments with proportional windows before any voice exists, same ids as the render.
+  const two = inspectReel(TWO_CLAIMS, { renderEnabled: true });
+  assert.ok(two.status !== "error");
+  if (!("dataCards" in two)) return;
+  assert.deepEqual(two.dataCards, [{ segmentId: "scene-0", figure: "2019 · 30 %" }, { segmentId: "scene-0", figure: "2020 · 70 %" }]);
+  assert.deepEqual([...new Set(two.shots.map(s => s.segmentId))], ["scene-0#1", "scene-0#2", "scene-1"]);
+  // The only issue left is the planned stock of scene 1 whose licence is unknown before a clip is chosen (always pending here).
+  assert.ok(two.issues.every(i => i.code === "LICENSE_PENDING" && i.shotId?.startsWith("scene-1")), JSON.stringify(two.issues));
+  assert.ok(two.shots.filter(s => s.segmentId.startsWith("scene-0")).every(s => s.recipeId === DATA_CARD_RECIPE_ID && s.decision !== "pending"));
 });
 
 test("the stored Director message never contains a code the sanitiser would replace with «[configuración interna]»; editorial blocks say which sentence to rewrite", () => {
@@ -165,7 +307,7 @@ test("the stored Director message never contains a code the sanitiser would repl
   assert.equal(scrubInternalNames(directorBlockMessage([{ code: "LICENSE_NOT_CLEARED_FOR_RENDER", shotId: "s1", detail: "licencia NOT_CLEARED" }])).includes("[configuración interna]"), false);
 });
 
-test("source guard: the worker and the render route run the preflight BEFORE any reservation, attempt or dispatch, and the worker reopens the script on a block", () => {
+test("source guard: the worker and the render route run the preflight BEFORE any reservation, attempt or dispatch; the worker reopens the script on a block; cards are placed on the voice's word timestamps", () => {
   const job = src("src/lib/video/run-job.ts");
   const pre = job.indexOf("directorReelPreflight(row.script_json"), reserve = job.indexOf("await reserveJobSupply(service, requestId");
   assert.ok(pre > 0 && reserve > pre, "preflight before reserveJobSupply in run-job.ts");
@@ -174,4 +316,13 @@ test("source guard: the worker and the render route run the preflight BEFORE any
   const rp = route.indexOf("directorReelPreflight(videoRequest.script_json"), sub = route.indexOf("assertCanGenerate(service, user.id"), res = route.indexOf("await reserveJobSupply(service, id");
   assert.ok(rp > 0 && sub > rp && res > rp, "preflight before the subscription check and the reservation in the render route");
   assert.match(route, /charge: "none_proven", status: videoRequest\.status, attempts: videoRequest\.render_attempts \};\n\s+return NextResponse\.json\(\{ error: preflightBlockMessage\(preflight\.blockers\), outcome \}, \{ status: 422 \}\)/);
+  const gen = src("src/lib/video/generate-video.ts");
+  assert.match(gen, /sceneWords\[k\]\.startSeconds/, "card windows come from the real word timestamps");
+  assert.match(gen, /card-\$\{i\}-\$\{k\}\.svg/);
+  // Every paid step of a render (real storyboard, voice, footage, images) lives inside generateVideoFromScript, which
+  // run-job only calls AFTER its preflight and its reservation: a refused script never reaches any of them.
+  const call = job.indexOf("await generateVideoFromScript(");
+  assert.ok(call > reserve && reserve > pre, "run-job: preflight → reservation → generateVideoFromScript");
+  const fnStart = gen.indexOf("export async function generateVideoFromScript(");
+  assert.ok(fnStart > 0 && gen.indexOf("buildStoryboard(") > fnStart && gen.indexOf("synthesizeCounted(") > fnStart, "storyboard and voice calls are inside generateVideoFromScript");
 });

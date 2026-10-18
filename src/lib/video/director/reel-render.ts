@@ -14,15 +14,19 @@ import type { Storyboard } from "@/lib/video/storyboard/types";
 import { simulateStoryboard } from "@/lib/video/storyboard/simulate";
 import type { Caption, VerticalReelProps } from "../../../../remotion/VerticalReel";
 import type { DirectorInputRaw, DirectorPlan, RecipeCatalog } from "./contract";
-import { dataCardAsset } from "./data-card";
+import { cardAssetId, dataCardAsset, extractFigures, withDataCards, type DataCardPlan, type Figure } from "./data-card";
 import { inputFromReel, type ReelAdapterOptions } from "./from-reel";
 import { proposePlan } from "./propose";
 import { bundledRecipeCatalog } from "./recipes";
 import { planToVerticalReel, type BridgeBlocker, type ExistingMedia, type ShotApplication } from "./render-bridge";
 
 /** `license` is REQUIRED (T36 C1): whoever resolves a beat must say what its licence is (beat-license.ts).
- *  `data_card` (T42): a deterministic data card rendered by the pipeline itself (data-card.ts), never a provider asset. */
-export type ResolvedBeat = { url: string; mediaType: "image" | "video"; source: "stock" | "fixture" | "generated" | "data_card"; license: MediaLicense; start: number; end: number };
+ *  `data_card` (T42): a deterministic data card rendered by the pipeline itself (data-card.ts), never a provider asset;
+ *  `card` (T44) is the claim it shows and the narration it covers, so the Director binds the card to that window. */
+export type ResolvedBeat = {
+  url: string; mediaType: "image" | "video"; source: "stock" | "fixture" | "generated" | "data_card"; license: MediaLicense; start: number; end: number;
+  card?: { text: string; windowText: string; figures: Figure[] };
+};
 
 export type DirectedReel =
   | { ok: true; props: Omit<VerticalReelProps, "musicUrl" | "accentColor" | "showLogo">; applied: ShotApplication[]; plan: DirectorPlan; input: DirectorInputRaw; storyboardSource: "real" | "simulated" }
@@ -51,11 +55,29 @@ export function directReel(a: {
     }
     const segments = raw.segments.map((seg, i) => ({ ...seg, start: a.sceneTimings[i].start, end: a.sceneTimings[i].end }));
     const media: Record<string, ExistingMedia> = {};
+    // T44: a scene resolved entirely as data cards becomes one Director segment PER CARD (the claim and the measured
+    // narration window it covers), so a card is only ever planned next to its own claim: "30 %" cannot stay on screen
+    // while "70 %" is narrated. Its planned stock is replaced by the cards (withDataCards).
+    const cardPlans: DataCardPlan[] = [];
+    const cardTimes: Record<string, { start: number; end: number }[]> = {};
+    scenes.forEach((sc, idx) => {
+      const beats = a.beatsBySegment[idx] ?? [];
+      const seg = raw.segments[idx];
+      if (!seg || !beats.length || !beats.every(b => b.source === "data_card")) return;
+      const n = Math.max(1, (seg.text.match(/\S+/g) ?? []).length);
+      beats.forEach((b, k) => {
+        const text = b.card?.text ?? seg.text, windowText = b.card?.windowText ?? seg.text, figures = b.card?.figures ?? extractFigures(text);
+        cardPlans.push({ sceneIndex: idx, segmentId: sc.id, index: k, count: beats.length, text, figures, figure: figures[0] ?? null, windowText, fromToken: 0, toToken: n, tokenCount: n, from: 0, to: 1 });
+        media[cardAssetId(sc.id, k, beats.length)] = { url: b.url, mediaType: b.mediaType, license: b.license };
+      });
+      cardTimes[sc.id] = beats.map(b => ({ start: b.start, end: b.end }));
+    });
+    const cardScenes = new Set(cardPlans.map(c => c.segmentId));
     const inventory: DirectorInputRaw["inventory"] = raw.inventory.flatMap(planned => {
       const segId = planned.content?.window?.segmentId ?? (planned.tags ?? []).find(t => t.startsWith("segment:"))?.slice(8);
       const idx = scenes.findIndex(s => s.id === segId);
       const beats = idx >= 0 ? a.beatsBySegment[idx] ?? [] : [];
-      if (!beats.length || planned.kind === "avatar") return [planned];
+      if (!beats.length || planned.kind === "avatar" || (segId && cardScenes.has(segId))) return [planned];
       const t = a.sceneTimings[idx], span = Math.max(1e-6, t.end - t.start);
       return beats.map((b, i) => {
         const id = i === 0 ? planned.id : `${planned.id}:b${i}`;
@@ -77,10 +99,10 @@ export function directReel(a: {
         };
       });
     });
-    input = { ...raw, segments, totalSeconds: segments.at(-1)?.end ?? 0, inventory };
+    input = { ...withDataCards({ ...raw, segments, inventory }, cardPlans, cardTimes), totalSeconds: segments.at(-1)?.end ?? 0 };
     const catalog = a.catalog ?? bundledRecipeCatalog();
     plan = proposePlan(input, catalog);
-    const segmentTimes = Object.fromEntries(scenes.map((s, i) => [s.id, a.sceneTimings[i]]).filter(([, t]) => t));
+    const segmentTimes = Object.fromEntries(input.segments.map(s => [s.id, { start: s.start, end: s.end }]));
     const bridged = planToVerticalReel({ plan, input, catalog, media, segmentTimes, audioUrl: a.audioUrl, captions: a.captions,
       durationSeconds: a.durationSeconds, narrationGaps: a.narrationGaps, clipAudio: a.clipAudio, labelText: a.labelText });
     if (!bridged.ok) return { ok: false, blockers: bridged.blockers, plan, input, storyboardSource };

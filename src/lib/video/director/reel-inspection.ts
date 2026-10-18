@@ -9,7 +9,7 @@ import type { GeneratedScript } from "@/lib/providers/types";
 import { simulateStoryboard } from "@/lib/video/storyboard/simulate";
 import { DirectorInputSchema, type DirectorPlan } from "./contract";
 import { auditPlan, type AuditMetrics, type Issue } from "./audit";
-import { directorReelPreflight, withDataCards } from "./data-card";
+import { directorReelPreflight, heroOf, withDataCards } from "./data-card";
 import { inputFromReel, type ReelAdapterOptions } from "./from-reel";
 import { proposePlan } from "./propose";
 import { bundledRecipeCatalog } from "./recipes";
@@ -84,7 +84,7 @@ export function inspectReel(script: GeneratedScript, opts: ReelAdapterOptions & 
         decision: s.decision.status, pendingReason: s.decision.pendingReason })),
       issues: audit.issues, metrics: audit.metrics, sequences: report.sequences,
       renderRequest: opts.renderEnabled ? "eligible" : "proposal_only", note: opts.renderEnabled ? NOTE_ELIGIBLE : NOTE_PROPOSAL_ONLY,
-      dataCards: preflight.cards.map(c => ({ segmentId: c.segmentId, figure: c.figure?.display ?? null })),
+      dataCards: preflight.cards.map(c => ({ segmentId: c.segmentId, figure: heroOf(c.figures) })),
       preflightBlockers: preflight.blockers.map(b => ({ segmentId: b.segmentId, sentence: b.sentence, hint: b.hint })),
     };
   } catch (err) {
