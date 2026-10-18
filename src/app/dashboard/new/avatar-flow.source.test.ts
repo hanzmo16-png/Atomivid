@@ -213,3 +213,22 @@ test("actions.ts: reusar un avatar_id de OTRO proveedor (p. ej. \"did\" heredado
     "un avatar de otro proveedor debe rechazarse explícitamente, con un mensaje claro, en vez de dejar que pipeline.ts falle mucho más tarde",
   );
 });
+
+
+test("la ruta pública temporal /api/avatar/diagnostic ya no existe después de vencer la prueba privada", () => {
+  const diagnosticRoute = path.join(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "api",
+    "avatar",
+    "diagnostic",
+    "route.ts",
+  );
+  assert.equal(
+    fs.existsSync(diagnosticRoute),
+    false,
+    "un endpoint temporal que devuelve un JSON privado no debe permanecer desplegable sin una autorización vigente",
+  );
+});
