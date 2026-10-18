@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { GeneratedScript } from "@/lib/providers/types";
@@ -54,6 +54,12 @@ export function ScriptReview({
   const [dirty, setDirty] = useState(false);
   const [recoveryNotice, setRecoveryNotice] = useState(errorMessage);
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
+  const activeSceneProgressRef = useRef<HTMLDivElement>(null);
+  // The last scene can sit under the sticky action footer. Center the active progress indicator
+  // as soon as a scene request starts so mobile users see it without manual scrolling.
+  useEffect(() => {
+    if (savingIndex !== null) activeSceneProgressRef.current?.scrollIntoView({ block: "center", behavior: "auto" });
+  }, [savingIndex]);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [regeneratingAll, setRegeneratingAll] = useState(false);
@@ -240,7 +246,11 @@ export function ScriptReview({
                 </button>
               )}
             </div>
-            {savingIndex === i && <PendingOperationProgress label={`Regenerando escena ${i + 1}`} />}
+            {savingIndex === i && (
+              <div ref={activeSceneProgressRef} className="scroll-mb-44">
+                <PendingOperationProgress label={`Regenerando escena ${i + 1}`} />
+              </div>
+            )}
 
             <textarea
               value={scene.text}
