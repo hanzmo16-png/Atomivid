@@ -4,14 +4,6 @@ import { useId, useRef, useState } from "react";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
 import { MAX_AVATAR_PHOTO_BYTES, MAX_RECORDING_BYTES } from "@/lib/video/avatar/recording";
 
-// Lista PROVISIONAL — no viene de GET /v3/voices de HeyGen (no se pudo
-// verificar sin cuenta real, ver docs/AVATAR_MODE.md). Se muestra como
-// tal en la UI para no prometer opciones que no están confirmadas.
-const PROVISIONAL_VOICES: Record<"es" | "en", { id: string; label: string }[]> = {
-  es: [{ id: "default-es", label: "Voz predeterminada (español) — provisional" }],
-  en: [{ id: "default-en", label: "Default voice (English) — provisional" }],
-};
-
 // Debe coincidir con MAX_AVATAR_TTS_TEXT_LENGTH en dashboard/new/actions.ts
 // (la validación real, del lado del servidor) — este valor es solo para
 // el contador de caracteres en pantalla.
@@ -168,27 +160,15 @@ export function AvatarFields({
         </Field>
       )}
       {narrationSource === "tts_text" && <TtsTextField />}
-      {narrationSource === "tts" && <Field
-        id="avatar-voice"
-        label="Voz"
-        hint="Usa el idioma elegido arriba. Lista provisional — la lista real depende de la cuenta de HeyGen, todavía no verificada."
-      >
-        <select
-          id="avatar-voice"
-          name="avatar_voice_id"
-          className={INPUT_CLASS}
-          // key fuerza que React reinicie la selección si cambia el idioma
-          // (evita quedarse con un id de voz del idioma anterior).
-          key={language}
-          defaultValue={PROVISIONAL_VOICES[language][0]?.id}
-        >
-          {PROVISIONAL_VOICES[language].map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.label}
-            </option>
-          ))}
-        </select>
-      </Field>}
+      {narrationSource === "tts" && (
+        <div className="rounded-md border border-border-strong bg-surface-raised p-3 text-xs text-ink-muted">
+          <p className="font-medium text-ink">Voz de narración</p>
+          <p className="mt-1">
+            Usaremos la voz configurada en ATOMIVID para {language === "es" ? "español" : "inglés"}. La selección
+            individual de voz todavía no está habilitada; no se enviará una opción provisional al render.
+          </p>
+        </div>
+      )}
 
       <div className="rounded-md bg-surface-raised p-3 text-xs text-ink-muted">
         <p className="font-medium text-ink">Estimación de consumo</p>
