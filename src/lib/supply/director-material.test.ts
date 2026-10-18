@@ -12,6 +12,14 @@ import path from "node:path";
 import { directReel, type ResolvedBeat } from "@/lib/video/director/reel-render";
 import { approvedDirectorMaterialUsd, DirectorMaterialBudgetError, fillBeats, fillDirectorMaterial, fillPlan, MAX_DIRECTOR_MATERIAL_USD, productionProfile } from "@/lib/video/director/material-fill";
 import { jobSupplyDemands } from "./job";
+import { directorImageUnitCostUsd, imageVariant, openaiImageEstimatedCostUsd } from "@/lib/video/image-pricing";
+import { fillObjectKey } from "@/lib/video/director/material-fill";
+import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resolver";
+import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
+import type { ImageProvider } from "@/lib/providers/image";
+import type { StoryboardScene } from "@/lib/video/storyboard/types";
+
+const UNIT = directorImageUnitCostUsd();
 import { getFeatureFlags, type FeatureFlags } from "@/lib/video/feature-flags";
 
 const ROOT = path.resolve(__dirname, "../../..");
@@ -53,7 +61,7 @@ test("ROJO/VERDE f404ec4f: con una imagen por escena el Director pide planos nue
   assert.ok(plan.ok);
   if (!plan.ok) return;
   assert.equal(plan.shots.length, 3);
-  assert.equal(plan.totalUsd, 0.12, "3 images × USD 0.04 (the Director's unit cost), not the ceiling");
+  assert.equal(plan.totalUsd, Math.round(3 * UNIT * 10000) / 10000, "3 images × the Director's unit cost, not the ceiling");
   const filled = fillBeats(BEATS, TIMINGS, before.input!.segments.map(s => s.id), plan.shots.map(shot => ({ shot, url: `https://fixture.local/gen-${shot.shotId}` })));
   const after = direct(filled);
   assert.ok(after.ok, after.ok ? "" : JSON.stringify(after.blockers.map(b => b.code)));
@@ -67,12 +75,12 @@ test("ROJO/VERDE f404ec4f: con una imagen por escena el Director pide planos nue
 test("contadores: tope suficiente → exactamente una llamada por plano y un solo re-plan; gasta lo necesario, no el tope", async () => {
   let calls = 0; const maxPerCall: number[] = [];
   const out = await fillDirectorMaterial({ directed: direct(BEATS), approvedUsd: 2, beatsBySegment: BEATS, sceneTimings: TIMINGS,
-    generate: async (shot, _i, maxUsd) => { calls++; maxPerCall.push(maxUsd); return { url: `https://fixture.local/gen-${shot.shotId}`, costUsd: 0.04 }; } });
+    generate: async (shot, _i, maxUsd) => { calls++; maxPerCall.push(maxUsd); return { url: `https://fixture.local/gen-${shot.shotId}`, costUsd: 0.05 }; } });
   assert.ok(!("skipped" in out));
   if ("skipped" in out) return;
   assert.equal(calls, 3);
-  assert.deepEqual(maxPerCall, [0.04, 0.04, 0.04], "each call is capped at ITS unit cost, never at the whole ceiling");
-  assert.equal(out.spentUsd, 0.12, "a USD 2 ceiling spends USD 0.12: the ceiling is not a target");
+  assert.deepEqual(maxPerCall, [UNIT, UNIT, UNIT], "each call is capped at ITS unit cost, never at the whole ceiling");
+  assert.equal(out.spentUsd, 0.15, "a USD 2 ceiling spends what the 3 images really cost: the ceiling is not a target");
   assert.ok(direct(out.beatsBySegment).ok);
 });
 
@@ -80,11 +88,13 @@ test("ROJO/VERDE: tope insuficiente → se detiene ANTES de cualquier llamada de
   let calls = 0;
   const run = (approvedUsd: number, spentUsd = 0) => fillDirectorMaterial({ directed: direct(BEATS), approvedUsd, spentUsd, beatsBySegment: BEATS, sceneTimings: TIMINGS,
     generate: async () => { calls++; return { url: "x", costUsd: 0.04 }; } });
-  await assert.rejects(run(0.1), (e: unknown) => e instanceof DirectorMaterialBudgetError && e.neededUsd === 0.12 && e.approvedRemainingUsd === 0.1
+  const need = Math.round(3 * UNIT * 10000) / 10000;
+  const short = Math.round((need - 0.02) * 100) / 100;
+  await assert.rejects(run(short), (e: unknown) => e instanceof DirectorMaterialBudgetError && e.neededUsd === need && e.approvedRemainingUsd === short
     && /antes de cualquier llamada de pago nueva/.test(e.customerMessage) && /la voz y el material ya obtenidos se conservan/.test(e.customerMessage)
     && /al menos USD 0\.02 más/.test(e.customerMessage));
   // What was already spent in this production counts against the ceiling.
-  await assert.rejects(run(0.15, 0.05), (e: unknown) => e instanceof DirectorMaterialBudgetError && e.approvedRemainingUsd === 0.1);
+  await assert.rejects(run(need, 0.05), (e: unknown) => e instanceof DirectorMaterialBudgetError && Math.abs(e.approvedRemainingUsd - (need - 0.05)) < 1e-9);
   assert.equal(calls, 0, "zero paid calls in both refusals");
   assert.doesNotMatch(new DirectorMaterialBudgetError(0.12, 0.1).customerMessage, /no se cobró nada|ningún cargo/i, "the voice was paid: never claim zero charge");
 });
@@ -125,7 +135,7 @@ test("el worker solo usa el tope que el servidor reservó en el sobre de ESTE in
   assert.doesNotMatch(src("src/lib/worker/github-actions.ts"), /director|material/i, "the dispatch payload carries nothing about it");
   assert.match(src("src/app/api/generate/[id]/render/route.ts"), /await worker\.trigger\(\{ requestId: id, renderAttempt: videoRequest\.render_attempts \+ 1, mode: videoRequest\.mode \}\);/);
   const gv = src("src/lib/video/generate-video.ts");
-  assert.match(gv, /objectKey: `director-fill-\$\{shot\.shotId/, "own ledger row and object per shot: reused on retry, never paid twice");
+  assert.match(gv, /objectKey: fillObjectKey\(/, "own ledger row and object per shot and content: reused on retry, never paid twice");
   assert.match(src("src/lib/video/visual-resource-resolver.ts"), /shotId: `image:\$\{objectKey \?\? `scene-\$\{sceneIndex\}`\}`/);
   // The Reel's image key is switched on by an OWNER repository variable, never by the payload.
   const yml = src(".github/workflows/render.yml");
@@ -142,4 +152,92 @@ test("interfaz del propietario: distingue costo previsto, tope aprobado y cuota 
   assert.match(ui, /Es un tope, no un objetivo/);
   assert.match(ui, /no es la cuota de un plan comercial/);
   assert.match(src("src/app/dashboard/review/[id]/page.tsx"), /directorMaterialOffer=\{isInternalProductionOwner\(user\) && data\.mode === "visual"/);
+});
+
+// ---------------------------------------------------------------- Corrección 2
+
+test("C2 P0 ROJO/VERDE con OpenAI simulado (sin red): el antiguo 0.04 era rechazado antes de llamar; el costo unitario del Director pasa", async () => {
+  process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || "sk-test-not-real";
+  const { openaiImageProvider } = await import("@/lib/providers/image/openai");
+  const realFetch = globalThis.fetch;
+  let calls = 0;
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(300, 1)]);
+  globalThis.fetch = (async () => { calls++; return new Response(JSON.stringify({ data: [{ b64_json: png.toString("base64") }],
+    usage: { input_tokens: 60, output_tokens: 1300, input_tokens_details: { text_tokens: 60, image_tokens: 0 } } }), { status: 200, headers: { "Content-Type": "application/json" } }); }) as typeof fetch;
+  try {
+    const req = (maxCostUsd: number) => ({ prompt: "a cinematic photo", aspectRatio: "9:16" as const, maxCostUsd, disableRetries: true });
+    await assert.rejects(openaiImageProvider.generateImage(req(0.04)), (e: unknown) => (e as { reason?: string }).reason === "budget_exceeded", "ROJO: the fixed 0.04 is below the provider's own estimate");
+    assert.equal(calls, 0, "refused before any HTTP call");
+    assert.equal(openaiImageEstimatedCostUsd(), 0.05);
+    assert.equal(UNIT, 0.07, "estimate 0.05 × margin 1.25, rounded up to cents");
+    const asset = await openaiImageProvider.generateImage(req(UNIT));
+    assert.equal(calls, 1, "VERDE: exactly one call");
+    // The final cost comes from the reported tokens and can differ from the static estimate: the provider has no
+    // exact ceiling, which is why the Director plans with a margin and the ledger records the real cost.
+    assert.ok(asset.costUsd > 0 && asset.costUsd !== openaiImageEstimatedCostUsd(), `real cost from tokens: ${asset.costUsd}`);
+  } finally { globalThis.fetch = realFetch; }
+  // One source: the unit cost follows the provider's estimate.
+  assert.equal(directorImageUnitCostUsd({ OPENAI_IMAGE_ESTIMATED_COST_USD: "0.08" }), 0.1);
+  assert.match(src("src/lib/providers/image/openai.ts"), /export const ESTIMATED_COST_USD = openaiImageEstimatedCostUsd\(\);/);
+  assert.match(src("src/lib/video/director/from-reel.ts"), /ai_image: directorImageUnitCostUsd\(\)/);
+});
+
+function scene(over: Partial<StoryboardScene> = {}): StoryboardScene {
+  return { id: "scene-0", order: 0, narrationText: "x", estimatedDurationSeconds: 3, literalMeaning: "x", emotionalSubtext: "x", narrativeGoal: "x", dominantEmotion: "x",
+    energy: "low", subject: "x", visibleAction: "x", environment: "x", timeOfDay: "x", shotType: "x", cameraMovement: "x", lighting: "x", colorPalette: "x", visualStyle: "x",
+    imagePrompt: "a cinematic photo", negativePrompt: "text", stockQueries: ["a", "b"], resourceType: "generated_image", priority: 1, confidence: 0.8, selectionRationale: "x",
+    continuityWithPrevious: "none", continuityWithNext: "none", maxCostUsd: 0.1, fallbackStrategy: ["retry_prompt"], ...over } as StoryboardScene;
+}
+function storage(existing: string[] = []) {
+  const files = new Set(existing), uploads: string[] = [];
+  const supabase = { storage: { from() { return {
+    async list(dir: string, o?: { search?: string }) { return { data: [...files].filter(f => f.startsWith(`${dir}/`)).map(f => ({ name: f.slice(dir.length + 1) })).filter(f => !o?.search || f.name.startsWith(o.search)), error: null }; },
+    async upload(p: string) { uploads.push(p); files.add(p); return { error: null }; },
+    async createSignedUrl(p: string) { return { data: { signedUrl: `https://signed.test/${p}` }, error: null }; },
+  }; } } } as never;
+  return { supabase, uploads, files };
+}
+function provider(behaviour: "ok" | "throw" = "ok") {
+  let calls = 0;
+  const p: ImageProvider = { name: "openai", capabilities: { id: "openai", models: ["m"], formats: ["image/png"], aspectRatios: ["9:16"], timeoutMs: 0, maxRetries: 0 }, isAvailable: () => true,
+    async generateImage() { calls++; if (behaviour === "throw") throw new Error("socket hang up after send");
+      const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0, 0x49, 0x48, 0x44, 0x52]), Buffer.from([0, 0, 4, 0, 0, 0, 6, 0]), Buffer.alloc(200, 0x20)]);
+      return { buffer: png, mimeType: "image/png", extension: "png", width: 1024, height: 1536, model: "m", costUsd: 0.05 }; } };
+  return { p, calls: () => calls };
+}
+
+test("C2 P1 ROJO/VERDE: la clave del relleno sigue al contenido; un texto o modelo cambiado nunca hereda una imagen vieja", async () => {
+  const shot = { shotId: "scene-3-s2", segmentId: "scene-3", kind: "ai_image" as const, estimatedMaxUsd: UNIT, start: 0, end: 2, reason: "", anchorText: "Publica y vuelve a empezar.", visualTheme: "persona publicando" };
+  const k1 = fillObjectKey(shot, "prompt A", "text", imageVariant("openai", {}));
+  assert.equal(fillObjectKey(shot, "prompt A", "text", imageVariant("openai", {})), k1, "same content → same key (idempotent)");
+  assert.notEqual(fillObjectKey(shot, "prompt B", "text", imageVariant("openai", {})), k1, "changed prompt");
+  assert.notEqual(fillObjectKey({ ...shot, anchorText: "Otra frase distinta." }, "prompt A", "text", imageVariant("openai", {})), k1, "changed sentence");
+  assert.notEqual(fillObjectKey(shot, "prompt A", "text", imageVariant("openai", { OPENAI_IMAGE_MODEL: "otro-modelo" })), k1, "changed model");
+  // ROJO (7ba9e27): the key was only the shot id, so a stored image for the old sentence was reused at zero cost.
+  const old = `req/director-fill-scene-3-s2.png`;
+  const { supabase, uploads } = storage([old]);
+  const gen = provider();
+  const changed = fillObjectKey({ ...shot, anchorText: "Otra frase distinta." }, "prompt B", "text", imageVariant("openai", {}));
+  const r = await resolveGeneratedImageForScene({ supabase, bucket: "videos", requestId: "req", sceneIndex: 3, scene: scene({ imagePrompt: "prompt B" }), imageProvider: gen.p,
+    remainingBudgetUsd: UNIT, signedUrlTtlSeconds: 60, ledger: memoryLedgerStore(), objectKey: changed });
+  assert.equal(r.status, "generated", "VERDE: new content generates new material");
+  assert.equal(gen.calls(), 1);
+  assert.deepEqual(uploads, [`req/${changed}.png`]);
+  // Same content again (retry): reused, no call.
+  const again = await resolveGeneratedImageForScene({ supabase, bucket: "videos", requestId: "req", sceneIndex: 3, scene: scene({ imagePrompt: "prompt B" }), imageProvider: gen.p,
+    remainingBudgetUsd: UNIT, signedUrlTtlSeconds: 60, ledger: memoryLedgerStore(), objectKey: changed });
+  assert.equal(again.status, "reused");
+  assert.equal(gen.calls(), 1, "never paid twice");
+  assert.match(src("src/lib/video/generate-video.ts"), /objectKey: fillObjectKey\(shot, prompt, base\.negativePrompt, imageVariant\(fillProvider\.name\)\)/);
+});
+
+test("C2: una llamada de imagen con resultado incierto no se repite a ciegas en el reintento", async () => {
+  const ledger = memoryLedgerStore();
+  const { supabase } = storage();
+  const bad = provider("throw");
+  const args = { supabase, bucket: "videos", requestId: "req-u", sceneIndex: 1, scene: scene(), remainingBudgetUsd: UNIT, signedUrlTtlSeconds: 60, ledger, objectKey: "director-fill-x-abc" };
+  await assert.rejects(resolveGeneratedImageForScene({ ...args, imageProvider: bad.p }));
+  const good = provider();
+  await assert.rejects(resolveGeneratedImageForScene({ ...args, imageProvider: good.p }), "the second attempt refuses: the first outcome is unknown");
+  assert.equal(good.calls(), 0, "no blind regeneration while the first call is unreconciled");
 });

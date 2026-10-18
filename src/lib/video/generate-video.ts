@@ -75,6 +75,7 @@ export async function generateVideoFromScript({
   paidCalls,
   directorRender = false,
   directorMaterialBudgetUsd,
+  directorAdapter,
 }: {
   supabase: SupabaseClient;
   /** Montar con el plan del Director. Lo decide SOLO el worker (run-job.ts → resolveDirectorRender): flag global + piloto + Reel visual. */
@@ -84,6 +85,11 @@ export async function generateVideoFromScript({
    * when needed. Absent or 0 = none, the previous rule. See material-fill.ts.
    */
   directorMaterialBudgetUsd?: () => Promise<number>;
+  /**
+   * Test seam (local E2E only; no production caller): Director adapter options such as a faster-cut shot length,
+   * so a fixture run can reach «more shots than resolved material» and exercise the fill end to end.
+   */
+  directorAdapter?: import("@/lib/video/director/from-reel").ReelAdapterOptions;
   paidCalls?: Pick<PaidCallDeps, "ledger" | "results">;
   requestId: string;
   artifactPrefix?: string;
@@ -543,14 +549,15 @@ export async function generateVideoFromScript({
   let renderCaptions = captions;
   if (directorRender && cinematicDirectorRenderEnabled()) {
     const { directReel, directorBlockMessage } = await import("@/lib/video/director/reel-render");
-    let directed = directReel({ script, storyboard, beatsBySegment: directorBeats, sceneTimings, audioUrl, captions, narrationGaps, durationSeconds: finalDurationSeconds });
+    let directed = directReel({ script, storyboard, beatsBySegment: directorBeats, sceneTimings, audioUrl, captions, narrationGaps, durationSeconds: finalDurationSeconds, adapter: directorAdapter });
     // Anexo C1: the plan lacks material only (no licence/policy/timing issue) and the owner approved a ceiling for
     // this production → generate exactly those shots with the gated image call, then re-plan ONCE. Over the ceiling
     // → stop here, before any new paid call (DirectorMaterialBudgetError carries the delta).
     let fill: { approvedUsd: number; spentUsd: number; shots: string[] } | { approvedUsd: number; skipped: string } | null = null;
     const materialBudget = !directed.ok && directorMaterialBudgetUsd ? await directorMaterialBudgetUsd() : 0;
     if (!directed.ok && materialBudget > 0) {
-      const { fillDirectorMaterial, fillPrompt } = await import("@/lib/video/director/material-fill");
+      const { fillDirectorMaterial, fillObjectKey, fillPrompt } = await import("@/lib/video/director/material-fill");
+      const { imageVariant } = await import("@/lib/video/image-pricing");
       const { simulateStoryboard } = await import("@/lib/video/storyboard/simulate");
       const sb = storyboard ?? simulateStoryboard(script);
       const sbScenes = [...sb.scenes].sort((x, y) => x.order - y.order);
@@ -559,11 +566,13 @@ export async function generateVideoFromScript({
         directed, approvedUsd: materialBudget, beatsBySegment: directorBeats, sceneTimings,
         generate: async (shot, sceneIndex, maxUsd) => {
           const base = sbScenes[sceneIndex];
+          const prompt = fillPrompt(base.imagePrompt, shot);
           const generated = await resolveGeneratedImageForScene({
             ledger: gate.ledger, supabase, bucket: STORAGE_BUCKET, requestId, sceneIndex,
-            scene: { ...base, imagePrompt: fillPrompt(base.imagePrompt, shot) },
+            scene: { ...base, imagePrompt: prompt },
             imageProvider: fillProvider, remainingBudgetUsd: maxUsd, signedUrlTtlSeconds: ASSET_SIGNED_URL_TTL_SECONDS,
-            objectKey: `director-fill-${shot.shotId.replace(/[^a-zA-Z0-9-]/g, "-")}`,
+            // P1: the key follows the content (prompt, sentence, model), never only the shot id.
+            objectKey: fillObjectKey(shot, prompt, base.negativePrompt, imageVariant(fillProvider.name)),
           });
           storageBytes += generated.bufferBytes;
           visualCostSpentUsd += generated.costUsd;
@@ -575,7 +584,7 @@ export async function generateVideoFromScript({
       if ("skipped" in result) fill = { approvedUsd: materialBudget, skipped: result.skipped };
       else {
         fill = { approvedUsd: materialBudget, spentUsd: result.spentUsd, shots: result.shots.map(s => s.shotId) };
-        directed = directReel({ script, storyboard, beatsBySegment: result.beatsBySegment, sceneTimings, audioUrl, captions, narrationGaps, durationSeconds: finalDurationSeconds });
+        directed = directReel({ script, storyboard, beatsBySegment: result.beatsBySegment, sceneTimings, audioUrl, captions, narrationGaps, durationSeconds: finalDurationSeconds, adapter: directorAdapter });
       }
     }
     const evidence = Buffer.from(JSON.stringify({
