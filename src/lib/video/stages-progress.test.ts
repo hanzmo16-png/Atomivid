@@ -34,7 +34,10 @@ test("Regression: script requests and regenerations show indeterminate activity,
 test("Regression: review bars must be next to their clicked controls, not after the entire scene list", () => {
   const source = readFileSync("src/app/dashboard/review/[id]/ScriptReview.tsx", "utf8");
   assert.match(source, /regeneratingAll && <PendingOperationProgress label="Regenerando guion completo"/);
-  assert.match(source, /savingIndex === i && <PendingOperationProgress label=\{/);
+  assert.match(source, /savingIndex === i && \(/);
+  assert.match(source, /ref=\{activeSceneProgressRef\}/);
+  assert.match(source, /scrollIntoView\(\{ block: "center", behavior: "auto" \}\)/);
+  assert.match(source, /<PendingOperationProgress label=\{`Regenerando escena/);
   assert.match(source, /generating && <PendingOperationProgress label="Iniciando producción del video"/);
   const lastCard = source.lastIndexOf("</Card>");
   const sticky = source.indexOf('className="sticky bottom-4');
