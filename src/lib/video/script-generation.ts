@@ -57,7 +57,7 @@ export async function runScriptGeneration(deps: {
 }
 
 /** Reads the ledger after a failed generation; a read failure is not hidden as "settled". */
-async function uncertainAfterFailure(deps: { guard: boolean; loadRows: () => Promise<ScriptOpRow[]>; now?: () => number }): Promise<ScriptReconciliationRequiredError | null> {
+export async function uncertainAfterFailure(deps: { guard: boolean; loadRows: () => Promise<ScriptOpRow[]>; now?: () => number }): Promise<ScriptReconciliationRequiredError | null> {
   if (!deps.guard) return null;
   const rows = await deps.loadRows().catch(() => null);
   if (!rows) return new ScriptReconciliationRequiredError("requires_reconciliation", "ledger unreadable after a failed call");
