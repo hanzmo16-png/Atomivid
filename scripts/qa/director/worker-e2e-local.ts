@@ -31,9 +31,11 @@
  *   preflight-block  «restos humanos» ⇒ stops before narration/reservation; script_ready with the sentence to change
  *   multi-claim   two claims in one scene ⇒ two cards on their own word-timed windows; «30 %» gone when «70 %» is said
  *   preflight-values two values in one clause ⇒ refused before spend, asks to split the figures
- *  T44 correction 1 (no window merge; a short claim keeps its own card):
- *   short-later   a later claim narrated in < 250 ms (FIXTURE_VOICE_WORD_SECONDS) keeps its own card and window
- *   short-first   a first claim narrated in < 250 ms keeps its own card and window
+ *  T44 corrections 1+2 (no window merge; a short or ambiguous window is a NEUTRAL slate, never a foreign figure):
+ *   short-later   a later claim narrated in < 250 ms (FIXTURE_VOICE_WORD_SECONDS) keeps its window, neutral slate
+ *   short-first   a first claim narrated in < 250 ms keeps its window, neutral slate
+ *   ambiguous-clock the middle claim's words stamped at one instant (degenerate clock) ⇒ reliable boundaries kept,
+ *                 the ambiguous stretch neutral, the later card where the clock places it (GATE 2, P1)
  *   preflight-short a claim with fewer than 3 words ⇒ refused before spend, asks to extend the sentence
  *
  *   npx tsx scripts/qa/director/worker-e2e-local.ts --out-dir=<dir> [--only=positive,classic] [--red]
@@ -412,19 +414,25 @@ async function main() {
     finish("multi-claim", r, checks, artifacts);
   }
 
-  // T44 correction 1: a claim narrated in under 250 ms (real fixture word timestamps, FIXTURE_VOICE_WORD_SECONDS) keeps
-  // its own card for exactly its window; no neighbour is stretched over it. Checked in director.json, the render props
-  // and the MP4 frames, for a short LATER claim and a short FIRST claim.
-  const SHORT_CASES: { name: string; text: string; shortTokens: [number, number]; shortCard: number; figures: string[] }[] = [
-    { name: "short-later", text: "En 2019, el 30 % recordó la historia; el 70 % también; en 2021, el 50 % recordó el dato.", shortTokens: [8, 11], shortCard: 1, figures: ["2019 · 30 %", "70 %", "2021 · 50 %"] },
-    { name: "short-first", text: "El 70 % también; en 2019, el 30 % recordó la historia.", shortTokens: [0, 3], shortCard: 0, figures: ["70 %", "2019 · 30 %"] },
+  // T44 corrections 1+2: a claim narrated in under 250 ms (real fixture word timestamps, FIXTURE_VOICE_WORD_SECONDS)
+  // keeps its own window, dressed by the NEUTRAL slate (no figure of any claim) for exactly that time; no neighbour is
+  // stretched over it. `ambiguous-clock` (GATE 2, P1): the words of the middle claim stamped at ONE instant (0 s each:
+  // a degenerate but monotonic provider clock, accepted by alignScenesToWords) ⇒ every reliable boundary is kept, the
+  // ambiguous stretch is neutral and the later claim's card appears where the clock places it (never «70 %» while
+  // «2021» is narrated). Checked in director.json, the worker log, the render props and the MP4 frames.
+  const THREE = "En 2019, el 30 % recordó la historia; el 70 % también; en 2021, el 50 % recordó el dato.";
+  const SHORT_CASES: { name: string; text: string; tokens: [number, number]; seconds: number; neutralK: number; figures: (string | null)[]; reason: "short_window" | "ambiguous_clock"; line: string }[] = [
+    { name: "short-later", text: THREE, tokens: [8, 11], seconds: 0.05, neutralK: 1, figures: ["2019 · 30 %", null, "2021 · 50 %"], reason: "short_window", line: "menos de un cuarto de segundo" },
+    { name: "short-first", text: "El 70 % también; en 2019, el 30 % recordó la historia.", tokens: [0, 3], seconds: 0.05, neutralK: 0, figures: [null, "2019 · 30 %"], reason: "short_window", line: "menos de un cuarto de segundo" },
+    { name: "ambiguous-clock", text: THREE, tokens: [8, 11], seconds: 0, neutralK: 1, figures: ["2019 · 30 %", null, "2021 · 50 %"], reason: "ambiguous_clock", line: "no permite situar la cifra" },
   ];
+  const ALL_FIGURE_VALUES = ["30 %", "70 %", "50 %", "2019", "2021"];
   for (const sc of SHORT_CASES) {
     if (!want(sc.name)) continue;
     const scripted = { ...script, segments: script.segments.map((s: { text: string }, i: number) => i === 0 ? { ...s, text: sc.text } : s) };
     const id = randomUUID();
     // Scene 0 is the first narrated scene, so its token indexes are global word indexes of the narration.
-    const r = runWorker(sc.name, seedFor(id, scripted), { FIXTURE_VOICE_WORD_SECONDS: `${sc.shortTokens[0]}-${sc.shortTokens[1]}:0.05` }, id);
+    const r = runWorker(sc.name, seedFor(id, scripted), { FIXTURE_VOICE_WORD_SECONDS: `${sc.tokens[0]}-${sc.tokens[1]}:${sc.seconds}` }, id);
     const v = row(r, id);
     const obj = (n: string) => path.join(r.dump, "objects", `videos/${id}/attempt-1/${n}`);
     const mp4 = obj("final.mp4"), dj = obj("director.json");
@@ -436,26 +444,34 @@ async function main() {
     if (fs.existsSync(dj) && fs.existsSync(mp4) && sc.figures.every((_, k) => fs.existsSync(obj(`card-0-${k}.svg`)))) {
       const svgs = sc.figures.map((_, k) => fs.readFileSync(obj(`card-0-${k}.svg`), "utf8"));
       const heroOf = (svg: string) => (svg.match(/font-weight="700"[^>]*>([^<]*)</) ?? [])[1] ?? "";
-      checks.push({ name: `each card carries only its own figures (${sc.figures.join(" | ")})`, ok: svgs.every((svg, k) => heroOf(svg) === sc.figures[k] && sc.figures.every((f, j) => j === k || !svg.includes(f.split(" · ").pop()!))), detail: svgs.map(heroOf) });
+      const textNodes = (svg: string) => (svg.match(/>[^<]+</g) ?? []).map((t) => t.slice(1, -1));
+      const neutralSvg = (svg: string) => heroOf(svg) === "" && svg.includes("Cifra no mostrada") && svg.includes(sc.line) && svg.includes("Tarjeta neutral · sin cifra en pantalla") && textNodes(svg).every((t) => !/\d/.test(t)) && !ALL_FIGURE_VALUES.some((f) => svg.includes(f));
+      checks.push({ name: `each card carries only its own figures (${sc.figures.map((f) => f ?? "NEUTRAL").join(" | ")}); the neutral slate (card-0-${sc.neutralK}.svg) shows no figure and no digit in any text node and says why («${sc.line}»)`, ok: svgs.every((svg, k) => sc.figures[k] === null ? neutralSvg(svg) : heroOf(svg) === sc.figures[k] && sc.figures.every((f, j) => j === k || !f || !svg.includes(f.split(" · ").pop()!))), detail: svgs.map((s) => ({ hero: heroOf(s), text: textNodes(s) })) });
       type DJ = { ok: boolean; input?: { segments: { id: string; start: number; end: number; text: string }[]; inventory: { id: string; content?: { visualIntent?: string } }[] }; plan?: { shots: { id: string; segmentId: string; recipeId: string | null; asset: { assetId?: string } }[] }; props?: { scenes: { mediaUrl: string; startSeconds: number; endSeconds: number }[] } };
       const d = JSON.parse(fs.readFileSync(dj, "utf8")) as DJ;
       const segs = (d.input?.segments ?? []).filter((s) => s.id.startsWith("scene-0")).sort((a, b) => a.start - b.start);
-      const shortSeg = segs[sc.shortCard];
-      const shortLen = shortSeg ? shortSeg.end - shortSeg.start : NaN;
+      const neutralSeg = segs[sc.neutralK];
+      const neutralLen = neutralSeg ? neutralSeg.end - neutralSeg.start : NaN;
       const intentsOf = (segId: string) => (d.plan?.shots ?? []).filter((s) => s.segmentId === segId).map((s) => d.input?.inventory.find((a) => a.id === s.asset.assetId)?.content?.visualIntent ?? "");
-      checks.push({ name: `director.json: ${n} Director segments for scene 0 on the voice's word clock; the short claim keeps its own segment (< 0.25 s) dressed only by its own card`, ok: d.ok === true && segs.length === n && shortLen > 0 && shortLen < 0.25 && segs.every((s, k) => intentsOf(s.id).length >= 1 && intentsOf(s.id).every((i) => i.includes(sc.figures[k]) && sc.figures.every((f, j) => j === k || !i.includes(f)))) && segs.every((s, k) => k === 0 || Math.abs(s.start - segs[k - 1].end) < 1e-6), detail: { segs: segs.map((s) => ({ id: s.id, start: s.start, end: s.end, intents: intentsOf(s.id) })), shortLen } });
-      if (shortSeg && shortLen > 0) {
-        const probes = segs.map((s, k) => ({ k, t: k === sc.shortCard ? (s.start + s.end) / 2 : s.start + Math.min(0.3, (s.end - s.start) / 2) }));
+      // (The worker-cli silences console output in local fixture mode, so the Director log line is not asserted here;
+      // the reason reaches director.json through the neutral asset's intent, asserted below.)
+      const ownOnly = (i: string, k: number) => sc.figures[k] === null ? /tarjeta neutral/.test(i) && i.includes(sc.line) && !ALL_FIGURE_VALUES.some((f) => i.includes(f)) : i.includes(sc.figures[k]!) && sc.figures.every((f, j) => j === k || !f || !i.includes(f));
+      const lenOk = sc.reason === "short_window" ? neutralLen > 0 && neutralLen < 0.25 : neutralLen > 0.25;
+      checks.push({ name: `director.json: ${n} Director segments for scene 0 on the voice's word clock, contiguous; segment ${sc.neutralK} (${sc.reason === "short_window" ? "< 0.25 s" : "the ambiguous stretch, the words of claims 2 and 3 stamped together"}) is dressed only by the neutral slate that says why («${sc.line}»); every other segment only by its own card`, ok: d.ok === true && segs.length === n && lenOk && segs.every((s, k) => intentsOf(s.id).length >= 1 && intentsOf(s.id).every((i) => ownOnly(i, k))) && segs.every((s, k) => k === 0 || Math.abs(s.start - segs[k - 1].end) < 1e-6), detail: { segs: segs.map((s) => ({ id: s.id, start: s.start, end: s.end, text: s.text, intents: intentsOf(s.id) })), neutralLen } });
+      if (neutralSeg && neutralLen > 0) {
+        const probes = segs.map((s, k) => ({ k, t: k === sc.neutralK ? (s.start + s.end) / 2 : s.start + Math.min(0.3, (s.end - s.start) / 2) }));
+        if (sc.reason === "ambiguous_clock") probes.push({ k: 2, t: neutralSeg.end + 0.1 });
         const active = probes.map((p) => ({ ...p, scene: (d.props?.scenes ?? []).find((x) => x.startSeconds <= p.t && p.t < x.endSeconds) }));
-        checks.push({ name: "render props: at the middle of the short claim its own card is on screen, and at every probe the active card is the claim's own", ok: active.every((a) => !!a.scene && new RegExp(`card-0-${a.k}\\.svg`).test(a.scene.mediaUrl)), detail: active });
+        checks.push({ name: `render props: in the middle of the neutral window the slate is on screen, at every other probe the claim's own card${sc.reason === "ambiguous_clock" ? "; right after the ambiguous stretch («2021,» narrated) the «2021 · 50 %» card, never «70 %»" : ""}`, ok: active.every((a) => !!a.scene && new RegExp(`card-0-${a.k}\\.svg`).test(a.scene.mediaUrl)), detail: active });
         const work = fs.mkdtempSync(path.join(os.tmpdir(), "frames-short-"));
-        const midShort = (shortSeg.start + shortSeg.end) / 2;
-        const neighbours = segs.filter((_, k) => k !== sc.shortCard).map((s) => s.start + Math.min(0.3, (s.end - s.start) / 2));
-        const across = neighbours.map((t) => frameDiff(mp4, midShort, t, work));
-        const within = segs.filter((_, k) => k !== sc.shortCard).map((s) => frameDiff(mp4, s.start + 0.1, s.end - 0.1, work));
-        checks.push({ name: "MP4 frames: the frame at the middle of the short window differs from every neighbouring card (Δluma > 0.5); each long window is static (Δluma ≤ 0.2)", ok: across.every((x) => x > 0.5) && within.every((x) => x <= 0.2), detail: { midShort, across, within } });
+        const midNeutral = (neutralSeg.start + neutralSeg.end) / 2;
+        const neighbours = segs.filter((_, k) => k !== sc.neutralK).map((s) => s.start + Math.min(0.3, (s.end - s.start) / 2));
+        const across = neighbours.map((t) => frameDiff(mp4, midNeutral, t, work));
+        const within = segs.filter((_, k) => k !== sc.neutralK).map((s) => frameDiff(mp4, s.start + 0.1, s.end - 0.1, work));
+        checks.push({ name: "MP4 frames: the frame in the middle of the neutral window differs from every neighbouring card (Δluma > 0.5); each card window is static (Δluma ≤ 0.2)", ok: across.every((x) => x > 0.5) && within.every((x) => x <= 0.2), detail: { midNeutral, across, within } });
         artifacts = { mp4: { sha256: sha256(mp4), ...ffprobe(mp4) }, cards: svgs.map((_, k) => sha256(obj(`card-0-${k}.svg`))), segments: segs, frames: { across, within } };
         fs.copyFileSync(mp4, path.join(OUT, `${sc.name}.mp4`));
+        fs.copyFileSync(obj(`card-0-${sc.neutralK}.svg`), path.join(OUT, `${sc.name}-neutral.svg`));
       }
     }
     finish(sc.name, r, checks, artifacts);

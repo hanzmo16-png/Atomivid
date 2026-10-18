@@ -15,7 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { GeneratedScript } from "@/lib/providers/types";
 import { scrubInternalNames } from "@/lib/video/customer-error";
-import { cardAssetId, cardSegmentId, cardWindows, claimsOf, DATA_CARD_HEIGHT, DATA_CARD_PROVENANCE_TEXT, DATA_CARD_RECIPE_ID, DATA_CARD_WIDTH, dataCardAsset, dataCardSvg, directorReelPreflight, DirectorPreflightBlockedError, extractFigure, extractFigures, heroOf, MIN_CARD_SECONDS, MIN_CARD_TOKENS, preflightBlockMessage, withDataCards, type CardWindow, type DataCardPlan } from "./data-card";
+import { cardAssetId, cardSegmentId, cardWindows, claimsOf, DATA_CARD_HEIGHT, DATA_CARD_PROVENANCE_TEXT, DATA_CARD_RECIPE_ID, DATA_CARD_WIDTH, dataCardAsset, dataCardSvg, directorReelPreflight, DirectorPreflightBlockedError, extractFigure, extractFigures, heroOf, MIN_CARD_SECONDS, MIN_CARD_TOKENS, NEUTRAL_CARD_TEXT, neutralCardAsset, neutralCardSvg, preflightBlockMessage, tokenSlice, withDataCards, type CardWindow, type DataCardPlan } from "./data-card";
 import { inputFromReel } from "./from-reel";
 import { topicsOf, unitPolicy } from "./policy";
 import { DirectorInputSchema } from "./contract";
@@ -334,9 +334,22 @@ const legacyMerge = (windows: CardWindow[]): CardWindow[] => {
 };
 const activeAt = (windows: CardWindow[], t: number) => windows.find(w => w.start <= t && t < w.end)!;
 const figuresOf = (c: DataCardPlan) => c.figures.map(f => f.display).join(" · ");
+/** What is on screen at t: the figures of the active card, or «neutral» when the window shows the figure-less slate. */
+const shownAt = (windows: CardWindow[], t: number) => { const w = activeAt(windows, t); return w.treatment === "neutral" ? "neutral" : figuresOf(w.card); };
+/** Beats exactly as generate-video.ts derives them from the windows of a scene (neutral windows carry no figure). */
+const beatsOf = (text: string, windows: CardWindow[]): ResolvedBeat[] => windows.map((w, k) => ({
+  url: `https://fixture.local/card-0-${k}.svg`, mediaType: "image", source: "data_card", license: "CLEARED", start: w.start, end: w.end,
+  card: w.treatment === "neutral" ? { text: "", windowText: tokenSlice(text, w.fromToken, w.toToken), figures: [], treatment: "neutral", neutralReason: w.neutralReason }
+    : { text: w.card.text, windowText: tokenSlice(text, w.fromToken, w.toToken), figures: w.card.figures, treatment: "card" } }));
+/** The visual intent of the asset the Director applied at instant t. */
+const intentAt = (r: ReturnType<typeof directReel>, t: number) => {
+  if (!r.ok) return "";
+  const shot = r.applied.find(a => a.applied.startSeconds <= t && t < a.applied.endSeconds)!;
+  return r.input.inventory.find(x => x.id === r.plan.shots.find(s => s.id === shot.shotId)!.asset.assetId)!.content!.visualIntent!;
+};
 
 for (const [name, text, shortTokens] of [["a later claim shorter than 250 ms", THREE_CLAIMS, [8, 9, 10, 11]], ["a first claim shorter than 250 ms", SHORT_FIRST, [0, 1, 2, 3]]] as const) {
-  test(`T44 correction 1 — ROJO/VERDE with word timestamps, ${name}: the merge showed a foreign card; cardWindows never does`, () => {
+  test(`T44 corrections 1+2 — ROJO/VERDE with word timestamps, ${name}: the merge showed a foreign card; cardWindows never does, and the short window is neutral (no figure) for exactly its time`, () => {
     const script: GeneratedScript = { title: "x", segments: [{ text, visualQuery: "people", visualConcepts: ["people"] }] };
     const pre = directorReelPreflight(script);
     assert.equal(pre.blockers.length, 0, JSON.stringify(pre.blockers));
@@ -357,33 +370,113 @@ for (const [name, text, shortTokens] of [["a later claim shorter than 250 ms", T
     assert.equal(verde[0].start, 0); assert.equal(verde[verde.length - 1].end, end);
     for (let i = 1; i < verde.length; i++) assert.equal(verde[i].start, verde[i - 1].end);
     assert.ok(verde.every(w => w.timing === "word_timestamps" && w.end > w.start));
+    // Correction 2: the short window is NEUTRAL (criterion 2 of correction 1): no figure at all for exactly its time; the
+    // long windows keep their cards. At every instant the screen shows the narrated claim's own figures or nothing.
+    assert.equal(shortWindow.treatment, "neutral"); assert.equal(shortWindow.neutralReason, "short_window");
+    assert.ok(verde.filter(w => w !== shortWindow).every(w => w.treatment === "card"));
+    assert.deepEqual([shortWindow.fromToken, shortWindow.toToken], [shortCard.fromToken, shortCard.toToken]);
     for (let t = 0.005; t < end; t += 0.01) {
-      const shown = activeAt(verde, t).card, said = narratedCard(cards, starts, t);
-      assert.equal(figuresOf(shown), figuresOf(said), `at ${t.toFixed(3)} s the card shows «${figuresOf(shown)}» but the narration is at «${figuresOf(said)}»`);
+      const shown = shownAt(verde, t), said = narratedCard(cards, starts, t);
+      assert.ok(shown === figuresOf(said) || (shown === "neutral" && said === shortCard), `at ${t.toFixed(3)} s the screen shows «${shown}» but the narration is at «${figuresOf(said)}»`);
     }
-    // The real render path: the beats generate-video derives from these windows plan one Director segment per card.
-    const beats: ResolvedBeat[] = verde.map((w, k) => ({ url: `https://fixture.local/card-0-${k}.svg`, mediaType: "image", source: "data_card", license: "CLEARED", start: w.start, end: w.end, card: { text: w.card.text, windowText: w.card.windowText, figures: w.card.figures } }));
-    const r = directReel({ script, sceneTimings: [{ start: 0, end }], beatsBySegment: [beats], audioUrl: "https://fixture.local/voice.wav", captions: [], narrationGaps: [], durationSeconds: end + 0.4 });
+    // The real render path: the beats generate-video derives from these windows plan one Director segment per window;
+    // the short window is dressed by the neutral slate (no figure of ANY claim), the others by their own card.
+    const r = directReel({ script, sceneTimings: [{ start: 0, end }], beatsBySegment: [beatsOf(text, verde)], audioUrl: "https://fixture.local/voice.wav", captions: [], narrationGaps: [], durationSeconds: end + 0.4 });
     assert.ok(r.ok, r.ok ? "" : JSON.stringify(r.blockers));
     if (!r.ok) return;
+    const intent = intentAt(r, mid);
+    assert.ok(/tarjeta neutral/.test(intent) && !cards.some(c => intent.includes(figuresOf(c))), `the Director dresses the short window with the neutral slate only: ${intent}`);
+    for (const w of verde.filter(x => x.treatment === "card")) {
+      const i = intentAt(r, (w.start + w.end) / 2);
+      assert.ok(i.includes(figuresOf(w.card)) && !cards.filter(c => c !== w.card).some(c => i.includes(figuresOf(c))), `long window dressed by its own card: ${i}`);
+    }
     const short = r.applied.find(a => a.applied.startSeconds <= mid && mid < a.applied.endSeconds)!;
-    const shot = r.plan.shots.find(s => s.id === short.shotId)!;
-    const intent = r.input.inventory.find(x => x.id === shot.asset.assetId)!.content!.visualIntent!;
-    assert.ok(intent.includes(figuresOf(shortCard)) && !cards.filter(c => c !== shortCard).some(c => intent.includes(figuresOf(c))), `the Director dresses the short window with its own card only: ${intent}`);
     assert.equal(short.applied.motion, "static");
+    assert.ok(Math.abs(short.applied.startSeconds - shortWindow.start) < 1e-6 && Math.abs(short.applied.endSeconds - shortWindow.end) < 1e-6, "the neutral slate lasts exactly the short window");
+    // The Director itself refuses a NUMERIC card offered for that short window (another caller): fail-closed, never an
+    // ordinary card of 0.2 s, never stretched (independent probe of GATE 2).
+    const numeric = directReel({ script, sceneTimings: [{ start: 0, end }], beatsBySegment: [verde.map((w, k) => ({ url: `https://fixture.local/card-0-${k}.svg`, mediaType: "image" as const, source: "data_card" as const, license: "CLEARED" as const, start: w.start, end: w.end, card: { text: w.card.text, windowText: w.card.windowText, figures: w.card.figures } }))], audioUrl: "https://fixture.local/voice.wav", captions: [], narrationGaps: [], durationSeconds: end + 0.4 });
+    assert.equal(numeric.ok, false);
+    if (!numeric.ok) { assert.equal(numeric.blockers[0].code, "CARD_WINDOW_SHORT"); assert.match(numeric.blockers[0].detail, /tarjeta neutral/); assert.equal(scrubInternalNames(directorBlockMessage(numeric.blockers)).includes("[configuración interna]"), false); }
   });
 }
 
-test("T44 correction 1 — degenerate timestamps (two claims starting at the same instant) fall back to the proportional clock; no window is ever empty", () => {
+/**
+ * GATE 2, P1 (independent audit of 05e2d2b): a degenerate clock (the words of the middle claim all stamped at one
+ * instant, still accepted by alignScenesToWords) made the WHOLE scene fall back to the proportional clock, so at 3.7 s
+ * the «70 %» card was on screen while the clock narrates «2021,» (third claim). ROJO reproduces that fallback; VERDE:
+ * every reliable boundary is kept, the ambiguous stretch is neutral, and the Director's real props show it.
+ */
+test("T44 correction 2 — ROJO/VERDE degenerate clock: reliable boundaries are kept, the ambiguous stretch is neutral, no card is redistributed or stretched", () => {
   const script: GeneratedScript = { title: "x", segments: [{ text: THREE_CLAIMS, visualQuery: "people", visualConcepts: ["people"] }] };
   const cards = directorReelPreflight(script).cards;
   const n = cards[0].tokenCount;
   const starts = Array.from({ length: n }, (_, k) => k < 12 ? Math.min(k, 8) * 0.4 : 3.2 + (k - 12) * 0.4);
+  // ROJO: the proportional redistribution of 05e2d2b (reproduced verbatim) shows «70 %» at 3.7 s.
+  const rojo = cards.map((c, k) => ({ card: c, start: (c.fromToken / n) * 6.4, end: ((k === cards.length - 1 ? n : cards[k + 1].fromToken) / n) * 6.4 }));
+  const said37 = narratedCard(cards, starts, 3.7);
+  assert.equal(figuresOf(said37), "2021 · 50 %");
+  assert.equal(figuresOf(rojo.find(w => w.start <= 3.7 && 3.7 < w.end)!.card), "70 %", "ROJO: the proportional fallback shows a foreign figure");
+  // VERDE
   const w = cardWindows(cards, 0, 6.4, starts);
-  assert.ok(w.every(x => x.timing === "estimated_proportional" && x.end - x.start > 0));
-  assert.equal(w.length, cards.length);
-  assert.equal(cardWindows(cards, 0, 6.4, null).every(x => x.timing === "estimated_proportional"), true, "no timestamps → proportional");
+  assert.deepEqual(w.map(x => [x.treatment, x.neutralReason ?? null, x.ambiguousBetween ?? null, Math.round(x.start * 100) / 100, Math.round(x.end * 100) / 100, x.fromToken, x.toToken]), [
+    ["card", null, null, 0, 3.2, 0, 8],
+    ["neutral", "ambiguous_clock", [1, 2], 3.2, 3.6, 8, 13],
+    ["card", null, null, 3.6, 6.4, 13, 20],
+  ]);
+  assert.ok(w.every(x => x.timing === "word_timestamps"));
+  assert.equal(tokenSlice(THREE_CLAIMS, 8, 13), "el 70 % también; en");
+  // At no instant does the screen show a figure of a claim other than the one the clock narrates; the ambiguous stretch
+  // (tokens of claims 2 and 3 stamped together) shows nothing numeric.
+  for (let t = 0.005; t < 6.4; t += 0.01) {
+    const shown = shownAt(w, t), said = narratedCard(cards, starts, t);
+    assert.ok(shown === figuresOf(said) || shown === "neutral", `at ${t.toFixed(2)} s: «${shown}» vs narrated «${figuresOf(said)}»`);
+  }
+  assert.equal(shownAt(w, 3.7), "2021 · 50 %"); assert.equal(shownAt(w, 3.3), "neutral"); assert.equal(shownAt(w, 3.1), "2019 · 30 %");
+  // The Director's real props: accepted, the neutral slate between 3.2 and 3.6, «2021 · 50 %» from 3.6.
+  const r = directReel({ script, sceneTimings: [{ start: 0, end: 6.4 }], beatsBySegment: [beatsOf(THREE_CLAIMS, w)], audioUrl: "https://fixture.local/voice.wav", captions: [], narrationGaps: [], durationSeconds: 6.8 });
+  assert.ok(r.ok, r.ok ? "" : JSON.stringify(r.blockers));
+  if (!r.ok) return;
+  const scene = (t: number) => r.props.scenes.find(s => s.startSeconds <= t && t < s.endSeconds)!;
+  assert.match(scene(3.7).mediaUrl, /card-0-2\.svg/); assert.match(scene(3.3).mediaUrl, /card-0-1\.svg/); assert.match(scene(3.1).mediaUrl, /card-0-0\.svg/);
+  assert.ok(/tarjeta neutral/.test(intentAt(r, 3.3)) && !cards.some(c => intentAt(r, 3.3).includes(figuresOf(c))));
+  assert.ok(intentAt(r, 3.7).includes("2021 · 50 %") && !intentAt(r, 3.7).includes("70 %"));
+  assert.ok(intentAt(r, 3.1).includes("2019 · 30 %"));
+  assert.deepEqual(r.input.segments.filter(s => s.id.startsWith("scene-0")).map(s => [s.id, s.start, s.end, s.text]), [
+    ["scene-0#1", 0, 3.2, "En 2019, el 30 % recordó la historia;"], ["scene-0#2", 3.2, 3.6, "el 70 % también; en"], ["scene-0#3", 3.6, 6.4, "2021, el 50 % recordó el dato."],
+  ]);
+  // A claim fully swallowed by the ambiguity never shows (it has no reliable window): that is the only honest outcome.
+  assert.ok(!w.some(x => x.treatment === "card" && x.card.index === 1));
+  // No clock at all → proportional, declared; a non-monotonic clock has no reliable boundary → proportional too.
+  assert.equal(cardWindows(cards, 0, 6.4, null).every(x => x.timing === "estimated_proportional" && x.treatment === "card"), true, "no timestamps → proportional");
+  assert.equal(cardWindows(cards, 0, 6.4, starts.map((s, k) => k === 10 ? 0.1 : s)).every(x => x.timing === "estimated_proportional"), true, "non-monotonic clock → proportional");
   assert.deepEqual(cardWindows([], 0, 1, null), []);
+});
+
+test("T44 correction 2 — the neutral slate is deterministic, shows no figure and no claim, says what it is; its asset matches no claim (never the support of a statement)", () => {
+  const a = neutralCardSvg({ reason: "short_window" }), b = neutralCardSvg({ reason: "ambiguous_clock" });
+  assert.equal(a, neutralCardSvg({ reason: "short_window" }));
+  assert.notEqual(a, b);
+  for (const svg of [a, b]) {
+    assert.match(svg, new RegExp(`width="${DATA_CARD_WIDTH}" height="${DATA_CARD_HEIGHT}"`));
+    assert.doesNotMatch(svg, /font-weight="700"/, "no hero figure");
+    assert.doesNotMatch(svg, />[^<]*\d[^<]*</, "no digit in any text node (the only digits are SVG geometry)");
+    assert.ok(svg.includes("Cifra no mostrada") && svg.includes("DATO DEL GUION") && svg.includes(NEUTRAL_CARD_TEXT));
+    assert.doesNotMatch(svg, /<script|href=|url\(|on[a-z]+=/i);
+  }
+  assert.ok(a.includes("menos de un cuarto de segundo") && b.includes("no permite situar la cifra"));
+  const asset = neutralCardAsset({ id: "scene-0#2", text: "el 70 % también; en" }, "scene-0#2:card", "ambiguous_clock");
+  assert.equal(asset.provenance, "data_graphic"); assert.equal(asset.content?.bibleClass, "DETERMINISTIC"); assert.equal(asset.content?.visualType, "diagram");
+  assert.ok(asset.tags.includes("neutral") && asset.tags.includes("sin-cifra") && !asset.tags.includes("sin-fuente-verificada"));
+  assert.ok(!/\d/.test(asset.content!.visualIntent!) && !/\d/.test(asset.content!.description!), "intent and description carry no figure");
+  assert.deepEqual(asset.content?.window, { segmentId: "scene-0#2", from: 0, to: 1 });
+  // withDataCards dresses a neutral plan with the slate and a card plan with its card.
+  const script: GeneratedScript = { title: "x", segments: [{ text: THREE_CLAIMS, visualQuery: "people", visualConcepts: ["people"] }] };
+  const cards = directorReelPreflight(script).cards;
+  const plans: DataCardPlan[] = cards.map((c, k) => k === 1 ? { ...c, treatment: "neutral", neutralReason: "ambiguous_clock", text: "", figures: [], figure: null } : c);
+  const input = withDataCards(inputFromReel(simulateStoryboard(script)), plans);
+  const inv = input.inventory.filter(x => x.id.startsWith("scene-0#"));
+  assert.deepEqual(inv.map(x => [x.id, /tarjeta neutral/.test(x.content?.visualIntent ?? "")]), [["scene-0#1:card", false], ["scene-0#2:card", true], ["scene-0#3:card", false]]);
 });
 
 test("T44 correction 1 — a claim too short to own a card window is refused BEFORE spend with the sentence to extend (fail-closed, never stretched)", () => {
@@ -415,6 +508,11 @@ test("source guard: the worker and the render route run the preflight BEFORE any
   assert.match(gen, /cardWindows\(cards, timing\.start, timing\.end, [^)]*sceneWords\.map\(\(w\) => w\.startSeconds\)/, "card windows come from the real word timestamps through cardWindows");
   assert.doesNotMatch(gen, /merged\[|prev\.end = w\.end|merged\.shift\(\)/, "correction 1: no window merge anywhere in the worker");
   assert.match(gen, /card-\$\{i\}-\$\{k\}\.svg/);
+  // Correction 2: a neutral window gets the neutral slate (never a figure) and the beat says so; no proportional
+  // redistribution and no second voice anywhere in the worker.
+  assert.match(gen, /w\.treatment === "neutral"/); assert.match(gen, /neutralCardSvg\(\{ reason: w\.neutralReason/);
+  assert.match(gen, /treatment: "neutral", neutralReason: w\.neutralReason/);
+  assert.doesNotMatch(gen, /build\("estimated_proportional"\)/);
   // Every paid step of a render (real storyboard, voice, footage, images) lives inside generateVideoFromScript, which
   // run-job only calls AFTER its preflight and its reservation: a refused script never reaches any of them.
   const call = job.indexOf("await generateVideoFromScript(");

@@ -133,8 +133,51 @@ export function dataCardAsset(seg: { id: string; text: string }, id = `${seg.id}
   };
 }
 
+/** What the neutral slate is, in the words shown on screen and recorded in director.json. */
+export const NEUTRAL_CARD_TEXT = "Tarjeta neutral · sin cifra en pantalla · determinista";
+const NEUTRAL_LINES: Record<NeutralReason, string> = {
+  short_window: "la afirmación se dice en menos de un cuarto de segundo",
+  ambiguous_clock: "la locución no permite situar la cifra en el tiempo",
+};
+
+/**
+ * Correction 2 (T44): the neutral slate shown for exactly the window of a claim that cannot carry its card (narrated
+ * in under MIN_CARD_SECONDS, or inside a stretch where the voice's word clock cannot tell the claims apart). It shows
+ * NO figure and NO claim text (the captions carry the narration), only what it is and why. Deterministic and escaped
+ * like the card; same input → byte-identical SVG.
+ */
+export function neutralCardSvg(a: { reason: NeutralReason; accent?: string }): string {
+  const accent = /^#[0-9a-f]{6}$/i.test(a.accent ?? "") ? a.accent! : "#f2b705";
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${DATA_CARD_WIDTH}" height="${DATA_CARD_HEIGHT}" viewBox="0 0 ${DATA_CARD_WIDTH} ${DATA_CARD_HEIGHT}">`
+    + `<rect width="100%" height="100%" fill="#101418"/>`
+    + `<text x="540" y="470" font-size="36" fill="#9aa3ad" text-anchor="middle" font-family="sans-serif" letter-spacing="6">DATO DEL GUION</text>`
+    + `<rect x="120" y="640" width="60" height="10" fill="${accent}"/>`
+    + `<text x="540" y="760" font-size="56" fill="#f4f4f4" text-anchor="middle" font-family="sans-serif">Cifra no mostrada</text>`
+    + `<text x="540" y="832" font-size="40" fill="#9aa3ad" text-anchor="middle" font-family="sans-serif">${esc(NEUTRAL_LINES[a.reason])}</text>`
+    + `<text x="540" y="1700" font-size="34" fill="#9aa3ad" text-anchor="middle" font-family="sans-serif">${esc(NEUTRAL_CARD_TEXT)}</text>`
+    + `</svg>`;
+}
+
+/**
+ * The neutral slate as a Director inventory asset: a deterministic graphic planned for its own (sub)segment, so the
+ * policy accepts it for measurable data (data_graphic) and the data-card recipe dresses it, but it names no figure and
+ * no claim: its intent and description cannot be matched to any claim of the script (factualCorrespondence), so it can
+ * never read as the support of a statement.
+ */
+export function neutralCardAsset(seg: { id: string; text: string }, id: string, reason: NeutralReason): InventoryAsset {
+  return {
+    id, kind: "graphic", provenance: "data_graphic", motion: "still", license: "CLEARED",
+    tags: [`segment:${seg.id}`, "tarjeta", "neutral", "sin-cifra", ...words(seg.text)],
+    content: {
+      visualType: "diagram", topics: topicsOf(seg.text), bibleClass: "DETERMINISTIC",
+      visualIntent: `tarjeta neutral determinista sin cifra: ${NEUTRAL_LINES[reason]}; no muestra ningún dato`,
+      description: "rótulo neutral sin cifra", window: { segmentId: seg.id, from: 0, to: 1 },
+    },
+  };
+}
+
 /** One statement of a scene, with the figures it carries and its token span inside the scene text. */
-export type Claim = { text: string; fromToken: number; toToken: number; figures: Figure[]; representable: boolean };
+export type Claim ={ text: string; fromToken: number; toToken: number; figures: Figure[]; representable: boolean };
 
 const STRONG = /[.;:!?…]["»”)]?$/;
 const CLAUSE_END = /[,—–)]["»”]?$/;
@@ -185,6 +228,8 @@ export type DataCardPlan = {
   text: string; figures: Figure[]; figure: Figure | null;
   /** The narration covered by the card (the claim plus any figure-less lead-in), as text and as token span / fraction. */
   windowText: string; fromToken: number; toToken: number; tokenCount: number; from: number; to: number;
+  /** Correction 2: `neutral` = this window shows the figure-less slate (reason in `neutralReason`). Absent = the card. */
+  treatment?: "card" | "neutral"; neutralReason?: NeutralReason;
 };
 export type PreflightBlocker = { sceneIndex: number; segmentId: string; sentence: string; policyClass: string; reason: string; hint: string };
 export type ReelPreflight = { cards: DataCardPlan[]; blockers: PreflightBlocker[] };
@@ -194,7 +239,10 @@ export type ReelPreflight = { cards: DataCardPlan[]; blockers: PreflightBlocker[
  * before the next claim starts, so the script is refused BEFORE spend (never stretched over another claim's words).
  */
 export const MIN_CARD_TOKENS = 3;
-/** A measured window shorter than this is logged as short; the card still shows ONLY its own claim for exactly that time. */
+/**
+ * Correction 2: a measured window shorter than this cannot carry its card; it shows the neutral slate (no figure) for
+ * exactly its own time, never the card of a neighbour and never extended over the next claim.
+ */
 export const MIN_CARD_SECONDS = 0.25;
 
 const HINTS: Record<string, string> = {
@@ -257,27 +305,91 @@ export function directorReelPreflight(script: GeneratedScript): ReelPreflight {
   return { cards, blockers };
 }
 
-export type CardWindow = { card: DataCardPlan; start: number; end: number; timing: "word_timestamps" | "estimated_proportional" };
+/** Why a window shows the neutral slate instead of a figure. */
+export type NeutralReason = "short_window" | "ambiguous_clock";
+/**
+ * One window of the timeline of a card scene. `treatment: "card"`: the claim's own figures on screen for exactly this
+ * window. `treatment: "neutral"`: a figure-less deterministic slate for exactly this window, because the claim is
+ * narrated in under MIN_CARD_SECONDS (`short_window`) or because the voice's word clock cannot tell which claim is
+ * being said (`ambiguous_clock`, the cards it cannot tell apart in `ambiguousBetween`). `fromToken`/`toToken`: the
+ * scene tokens the clock places in this window (the narration the window covers).
+ */
+export type CardWindow = {
+  card: DataCardPlan; start: number; end: number; timing: "word_timestamps" | "estimated_proportional";
+  treatment: "card" | "neutral"; neutralReason?: NeutralReason; ambiguousBetween?: number[]; fromToken: number; toToken: number;
+};
 
 /**
- * Correction 1 (T44): the narration window of every card of a scene, on the voice's word clock when the scene's words
- * are all timed (`wordStarts[k]` = start of token k), proportional to the token span otherwise. NEVER merged: a card
- * keeps its identity and exactly its own window, however short, so no card is ever shown while another claim is
- * narrated. Degenerate timestamps (a window of zero or negative length) make the whole scene fall back to the
- * proportional clock, which cannot produce an empty window because every card owns at least one token.
+ * Correction 1 (T44): the timeline of a card scene, NEVER merged: a card keeps its identity and exactly its own window,
+ * so no card is ever shown while another claim is narrated.
+ * Correction 2 (GATE 2): every boundary the word clock knows is kept. With the voice's word clock (`wordStarts[k]` =
+ * start of token k), each token owns the span up to the next token; a stretch of the scene is a card window only
+ * while every token the clock places in it belongs to that one card. Where the clock is degenerate (several tokens
+ * stamped at one instant, so tokens of two claims share a stretch) that stretch is `ambiguous_clock`: neutral slate,
+ * no figure of either claim, and the neighbouring cards keep exactly their reliable windows (nothing is stretched,
+ * nothing is redistributed). A reliable window shorter than MIN_CARD_SECONDS is `short_window`: neutral slate for
+ * exactly that time, never extended over the next claim. The proportional clock is used only when the voice gave no
+ * usable word clock at all (declared as `estimated_proportional`).
  */
 export function cardWindows(cards: DataCardPlan[], sceneStart: number, sceneEnd: number, wordStarts: number[] | null): CardWindow[] {
   const ordered = [...cards].sort((a, b) => a.index - b.index);
   if (!ordered.length) return [];
   const n = Math.max(1, ordered[0].tokenCount);
-  const timed = !!wordStarts && wordStarts.length === n && n > 0;
-  const build = (clock: "word_timestamps" | "estimated_proportional"): CardWindow[] => {
-    const at = (k: number) => k <= 0 ? sceneStart : k >= n ? sceneEnd
-      : clock === "word_timestamps" ? Math.min(sceneEnd, Math.max(sceneStart, wordStarts![k])) : sceneStart + (k / n) * (sceneEnd - sceneStart);
-    return ordered.map((c, k) => ({ card: c, start: at(c.fromToken), end: k === ordered.length - 1 ? sceneEnd : at(ordered[k + 1].fromToken), timing: clock }));
-  };
-  const first = build(timed ? "word_timestamps" : "estimated_proportional");
-  return first.every(w => w.end - w.start > 1e-6) ? first : build("estimated_proportional");
+  // A usable clock: one finite, non-decreasing start per token (the worker never accepts anything else).
+  const timed = !!wordStarts && wordStarts.length === n && n > 0 && wordStarts.every((t, k) => Number.isFinite(t) && (k === 0 || t >= wordStarts[k - 1]));
+  const cardOf = (token: number) => ordered.find(c => c.fromToken <= token && token < c.toToken) ?? ordered[ordered.length - 1];
+  const finish = (w: Omit<CardWindow, "treatment">): CardWindow =>
+    w.end - w.start < MIN_CARD_SECONDS ? { ...w, treatment: "neutral", neutralReason: "short_window" } : { ...w, treatment: "card" };
+  if (!timed) {
+    const at = (k: number) => k <= 0 ? sceneStart : k >= n ? sceneEnd : sceneStart + (k / n) * (sceneEnd - sceneStart);
+    return ordered.map((c, k) => {
+      const toToken = k === ordered.length - 1 ? n : ordered[k + 1].fromToken;
+      return finish({ card: c, start: at(c.fromToken), end: at(toToken), timing: "estimated_proportional", fromToken: c.fromToken, toToken });
+    });
+  }
+  // Word clock: token k spans [at(k), at(k+1)); the scene is cut at every distinct instant the clock knows.
+  const at = (k: number) => k <= 0 ? sceneStart : k >= n ? sceneEnd : Math.min(sceneEnd, Math.max(sceneStart, wordStarts![k]));
+  const instants = [...new Set([sceneStart, sceneEnd, ...Array.from({ length: n }, (_, k) => at(k))])].sort((a, b) => a - b);
+  type Stretch = { start: number; end: number; tokens: number[] };
+  const stretches: Stretch[] = [];
+  for (let i = 0; i + 1 < instants.length; i++) {
+    const s = instants[i], e = instants[i + 1];
+    if (!(e > s)) continue;
+    const tokens: number[] = [];
+    // Tokens whose span covers the stretch, plus zero-length tokens stamped at its start (the clock places them here).
+    for (let k = 0; k < n; k++) if ((at(k) <= s && at(k + 1) >= e) || (at(k) === s && at(k + 1) === s)) tokens.push(k);
+    stretches.push({ start: s, end: e, tokens });
+  }
+  // A clock that leaves a stretch without any token is not monotonic (the worker never accepts one): no boundary of
+  // it is reliable, so the scene is placed on the proportional clock and says so.
+  if (stretches.some(st => !st.tokens.length)) return cardWindows(cards, sceneStart, sceneEnd, null);
+  // Zero-length tokens stamped exactly at the scene end belong to the last stretch.
+  const last = stretches[stretches.length - 1];
+  if (last) for (let k = 0; k < n; k++) if (at(k) === sceneEnd && at(k + 1) === sceneEnd && !last.tokens.includes(k)) last.tokens.push(k);
+  const out: CardWindow[] = [];
+  for (const st of stretches) {
+    const owners = [...new Set(st.tokens.map(k => cardOf(k).index))].sort((a, b) => a - b);
+    const prev = out[out.length - 1];
+    const sameOwners = (w: CardWindow) => (w.ambiguousBetween ?? [w.card.index]).join(",") === owners.join(",");
+    if (prev && sameOwners(prev) && Math.abs(prev.end - st.start) < 1e-9) {
+      // The same card (or the same ambiguous pair) continues: one window (a card is never split by its own clock).
+      prev.end = st.end; prev.toToken = Math.max(prev.toToken, ...st.tokens.map(k => k + 1));
+      continue;
+    }
+    const fromToken = Math.min(...st.tokens), toToken = Math.max(...st.tokens) + 1;
+    if (owners.length === 1) out.push({ card: ordered.find(c => c.index === owners[0])!, start: st.start, end: st.end, timing: "word_timestamps", treatment: "card", fromToken, toToken });
+    else out.push({ card: ordered.find(c => c.index === owners[0])!, start: st.start, end: st.end, timing: "word_timestamps", treatment: "neutral", neutralReason: "ambiguous_clock", ambiguousBetween: owners, fromToken, toToken });
+  }
+  // A reliable window too short to read its card shows the neutral slate for exactly its own time.
+  return out.map(w => w.treatment === "card" ? finish(w) : w);
+}
+
+/** The text of tokens [from, to) of a scene text (the narration a window covers). */
+export function tokenSlice(text: string, from: number, to: number): string {
+  const tokens = [...text.matchAll(/\S+/g)];
+  if (!tokens.length || to <= from) return "";
+  const a = tokens[Math.max(0, Math.min(from, tokens.length - 1))], b = tokens[Math.max(0, Math.min(to, tokens.length) - 1)];
+  return text.slice(a.index!, b.index! + b[0].length);
 }
 
 /** Director segment id of card `index` of a scene: the scene id itself when the scene has one card, `id#k` otherwise. */
@@ -312,7 +424,12 @@ export function withDataCards(raw: DirectorInputRaw, cards: DataCardPlan[], time
     if (!list || a.kind === "avatar") return [a];
     // The scene's planned stock is replaced by its cards (added once, with the first planned asset of the scene).
     if (raw.inventory.find(x => (x.content?.window?.segmentId ?? (x.tags ?? []).find(t => t.startsWith("segment:"))?.slice(8)) === segId && x.kind !== "avatar") !== a) return [];
-    return list.map(c => { const sid = cardSegmentId(segId!, c.index, c.count); return dataCardAsset({ id: sid, text: c.text }, cardAssetId(segId!, c.index, c.count), { windowText: c.windowText, figures: c.figures }); });
+    return list.map(c => {
+      const sid = cardSegmentId(segId!, c.index, c.count), aid = cardAssetId(segId!, c.index, c.count);
+      // Correction 2: a neutral window is dressed by the figure-less slate, never by any claim's card.
+      if (c.treatment === "neutral") return neutralCardAsset({ id: sid, text: c.windowText }, aid, c.neutralReason ?? "short_window");
+      return dataCardAsset({ id: sid, text: c.text }, aid, { windowText: c.windowText, figures: c.figures });
+    });
   });
   return { ...raw, segments, inventory };
 }

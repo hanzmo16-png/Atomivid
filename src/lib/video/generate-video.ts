@@ -39,7 +39,7 @@ import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resol
 import { cinematicDirectorRenderEnabled } from "@/lib/video/director/flag";
 import type { ResolvedBeat } from "@/lib/video/director/reel-render";
 import { footageResultLicense, GENERATED_IMAGE_LICENSE, licenseBlockAfterVoiceMessage } from "@/lib/video/director/beat-license";
-import { cardWindows, dataCardSvg, directorReelPreflight, DirectorPreflightBlockedError, MIN_CARD_SECONDS, type DataCardPlan } from "@/lib/video/director/data-card";
+import { cardWindows, dataCardSvg, directorReelPreflight, DirectorPreflightBlockedError, MIN_CARD_SECONDS, neutralCardSvg, tokenSlice, type DataCardPlan } from "@/lib/video/director/data-card";
 
 // Deliberadamente separado de generate-script.ts — ver el comentario ahí
 // para la razón exacta (Remotion no debe cargarse en la ruta de guion).
@@ -247,18 +247,25 @@ export async function generateVideoFromScript({
       // no provider: deterministic SVGs. A card switches exactly when the next claim starts being said.
       // Correction 1 (T44): windows are NEVER merged. A card keeps its identity and exactly its own window, however
       // short; a claim too short to own a window was refused by the preflight before any spend (MIN_CARD_TOKENS).
+      // Correction 2 (GATE 2): every boundary the voice's word clock knows is kept. A window the clock cannot attribute
+      // to one claim (degenerate timestamps) or shorter than MIN_CARD_SECONDS shows the NEUTRAL slate (no figure) for
+      // exactly its own time: nothing is stretched, nothing redistributed, no second voice is requested.
       const count = segment.text.split(/\s+/).filter(Boolean).length;
       const sceneWords = voice.words.slice(wordOffsets[i], wordOffsets[i] + count);
       const windows = cardWindows(cards, timing.start, timing.end, count > 0 && sceneWords.length === count ? sceneWords.map((w) => w.startSeconds) : null);
       for (let k = 0; k < windows.length; k++) {
         const w = windows[k];
-        const svg = Buffer.from(dataCardSvg({ text: w.card.text, figure: w.card.figure, figures: w.card.figures }), "utf8");
+        const neutral = w.treatment === "neutral";
+        const svg = Buffer.from(neutral ? neutralCardSvg({ reason: w.neutralReason ?? "short_window" }) : dataCardSvg({ text: w.card.text, figure: w.card.figure, figures: w.card.figures }), "utf8");
         storageBytes += svg.byteLength;
         const { url: cardUrl } = await uploadToStorage(supabase, `${artifactPrefix}/card-${i}-${k}.svg`, svg, "image/svg+xml");
         scenes.push({ mediaUrl: cardUrl, mediaType: "image", startSeconds: w.start, endSeconds: w.end });
+        const windowText = tokenSlice(segment.text, w.fromToken, w.toToken) || w.card.windowText;
         directorBeats[i].push({ url: cardUrl, mediaType: "image", source: "data_card", license: "CLEARED", start: w.start, end: w.end,
-          card: { text: w.card.text, windowText: w.card.windowText, figures: w.card.figures } });
-        console.log("[atomivid:director]", JSON.stringify({ requestId, sceneIndex: i, card: k, dataCard: w.card.figures.map((f) => f.display).join(" · ") || "(sin cifra)", timing: w.timing, start: w.start, end: w.end, shortWindow: w.end - w.start < MIN_CARD_SECONDS }));
+          card: neutral ? { text: "", windowText, figures: [], treatment: "neutral", neutralReason: w.neutralReason ?? "short_window" }
+            : { text: w.card.text, windowText, figures: w.card.figures, treatment: "card" } });
+        console.log("[atomivid:director]", JSON.stringify({ requestId, sceneIndex: i, card: k, dataCard: neutral ? "(tarjeta neutral, sin cifra)" : w.card.figures.map((f) => f.display).join(" · ") || "(sin cifra)",
+          treatment: w.treatment, neutralReason: w.neutralReason ?? null, ambiguousBetween: w.ambiguousBetween ?? null, timing: w.timing, start: w.start, end: w.end, shortWindow: w.end - w.start < MIN_CARD_SECONDS }));
       }
       continue;
     }

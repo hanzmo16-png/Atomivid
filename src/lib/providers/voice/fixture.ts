@@ -17,7 +17,9 @@ function injectedFailure(call: number): string | null {
 
 /**
  * T44 correction 1 (local E2E only): FIXTURE_VOICE_WORD_SECONDS="<i>:<s>,<i>-<j>:<s>" gives words i (or i..j, global
- * word index over the whole narration) a duration of s seconds. Fixture providers are refused in production.
+ * word index over the whole narration) a duration of s seconds. Correction 2: s may be 0, which reproduces a
+ * degenerate provider clock (several words stamped at one instant; still monotonic, still accepted by
+ * alignScenesToWords). Fixture providers are refused in production.
  */
 function wordSecondsOverrides(): Map<number, number> {
   const out = new Map<number, number>();
@@ -25,7 +27,7 @@ function wordSecondsOverrides(): Map<number, number> {
     const m = /^(\d+)(?:-(\d+))?:(\d+(?:\.\d+)?)$/.exec(part);
     if (!m) continue;
     const from = Number(m[1]), to = m[2] === undefined ? from : Number(m[2]), s = Number(m[3]);
-    if (!(s > 0)) continue;
+    if (!(s >= 0)) continue;
     for (let i = from; i <= to; i++) out.set(i, s);
   }
   return out;

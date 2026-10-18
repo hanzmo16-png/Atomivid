@@ -14,7 +14,7 @@ import type { Storyboard } from "@/lib/video/storyboard/types";
 import { simulateStoryboard } from "@/lib/video/storyboard/simulate";
 import type { Caption, VerticalReelProps } from "../../../../remotion/VerticalReel";
 import type { DirectorInputRaw, DirectorPlan, RecipeCatalog } from "./contract";
-import { cardAssetId, dataCardAsset, extractFigures, withDataCards, type DataCardPlan, type Figure } from "./data-card";
+import { cardAssetId, dataCardAsset, extractFigures, MIN_CARD_SECONDS, withDataCards, type DataCardPlan, type Figure, type NeutralReason } from "./data-card";
 import { inputFromReel, type ReelAdapterOptions } from "./from-reel";
 import { proposePlan } from "./propose";
 import { bundledRecipeCatalog } from "./recipes";
@@ -25,7 +25,8 @@ import { planToVerticalReel, type BridgeBlocker, type ExistingMedia, type ShotAp
  *  `card` (T44) is the claim it shows and the narration it covers, so the Director binds the card to that window. */
 export type ResolvedBeat = {
   url: string; mediaType: "image" | "video"; source: "stock" | "fixture" | "generated" | "data_card"; license: MediaLicense; start: number; end: number;
-  card?: { text: string; windowText: string; figures: Figure[] };
+  /** Correction 2: `treatment: "neutral"` = the figure-less slate for this window (no claim, no figure); absent = card. */
+  card?: { text: string; windowText: string; figures: Figure[]; treatment?: "card" | "neutral"; neutralReason?: NeutralReason };
 };
 
 export type DirectedReel =
@@ -60,18 +61,29 @@ export function directReel(a: {
     // while "70 %" is narrated. Its planned stock is replaced by the cards (withDataCards).
     const cardPlans: DataCardPlan[] = [];
     const cardTimes: Record<string, { start: number; end: number }[]> = {};
+    const shortCards: BridgeBlocker[] = [];
     scenes.forEach((sc, idx) => {
       const beats = a.beatsBySegment[idx] ?? [];
       const seg = raw.segments[idx];
       if (!seg || !beats.length || !beats.every(b => b.source === "data_card")) return;
       const n = Math.max(1, (seg.text.match(/\S+/g) ?? []).length);
       beats.forEach((b, k) => {
-        const text = b.card?.text ?? seg.text, windowText = b.card?.windowText ?? seg.text, figures = b.card?.figures ?? extractFigures(text);
-        cardPlans.push({ sceneIndex: idx, segmentId: sc.id, index: k, count: beats.length, text, figures, figure: figures[0] ?? null, windowText, fromToken: 0, toToken: n, tokenCount: n, from: 0, to: 1 });
+        const neutral = b.card?.treatment === "neutral";
+        // Correction 2 (GATE 2): a numeric card may not dress a window shorter than MIN_CARD_SECONDS; that window takes
+        // the neutral slate (generate-video builds it so). Any other caller offering a figure for it is refused here,
+        // fail-closed, never accepted as an ordinary card and never stretched.
+        if (!neutral && b.end - b.start < MIN_CARD_SECONDS) {
+          const figures = (b.card?.figures ?? extractFigures(b.card?.text ?? seg.text)).map(f => f.display).join(" · ");
+          shortCards.push({ code: "CARD_WINDOW_SHORT", shotId: `${sc.id}#${k + 1}`, detail: `tarjeta numérica «${figures || seg.text.slice(0, 40)}» en una ventana de ${Math.round((b.end - b.start) * 1000)} ms (< ${Math.round(MIN_CARD_SECONDS * 1000)} ms): esa ventana debe llevar la tarjeta neutral sin cifra` });
+        }
+        const text = neutral ? "" : b.card?.text ?? seg.text, windowText = b.card?.windowText ?? seg.text, figures = neutral ? [] : b.card?.figures ?? extractFigures(text);
+        cardPlans.push({ sceneIndex: idx, segmentId: sc.id, index: k, count: beats.length, text, figures, figure: figures[0] ?? null, windowText, fromToken: 0, toToken: n, tokenCount: n, from: 0, to: 1,
+          ...(neutral ? { treatment: "neutral" as const, neutralReason: b.card?.neutralReason ?? "short_window" as const } : {}) });
         media[cardAssetId(sc.id, k, beats.length)] = { url: b.url, mediaType: b.mediaType, license: b.license };
       });
       cardTimes[sc.id] = beats.map(b => ({ start: b.start, end: b.end }));
     });
+    if (shortCards.length) return { ok: false, blockers: shortCards, plan, input, storyboardSource };
     const cardScenes = new Set(cardPlans.map(c => c.segmentId));
     const inventory: DirectorInputRaw["inventory"] = raw.inventory.flatMap(planned => {
       const segId = planned.content?.window?.segmentId ?? (planned.tags ?? []).find(t => t.startsWith("segment:"))?.slice(8);
@@ -115,7 +127,7 @@ export function directReel(a: {
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
 const RIGHTS_BLOCKERS = new Set(["LICENSE_NOT_CLEARED_FOR_RENDER", "MATERIAL_NOT_AUTHORISED"]);
-const CONTRACT_BLOCKERS = new Set(["CONTRACT_INVALID", "DIRECTOR_ERROR", "LABEL_NOT_RENDERABLE"]);
+const CONTRACT_BLOCKERS = new Set(["CONTRACT_INVALID", "DIRECTOR_ERROR", "LABEL_NOT_RENDERABLE", "CARD_WINDOW_SHORT"]);
 const EDITORIAL_BLOCKERS = new Set(["AUDIT_POLICY_REVIEW", "AUDIT_POLICY_VIOLATION", "AUDIT_FACTUAL_MISMATCH", "AUDIT_DECISION_PENDING", "AUDIT_NO_MATERIAL"]);
 
 /**
@@ -129,6 +141,7 @@ const CODE_WORDS: Record<string, string> = {
   MEDIA_MISSING: "material faltante", MATERIAL_NOT_AUTHORISED: "material nuevo no autorizado", LICENSE_NOT_CLEARED_FOR_RENDER: "licencia no autorizada",
   REAL_MOTION_WITHOUT_CLIP: "movimiento prometido sin clip", INVALID_TIME: "tiempos no válidos", TIMING_MISSING: "tiempos no medidos", TIMELINE_GAP: "hueco en la línea de tiempo", DURATION_SHORT: "duración corta",
   CONTRACT_INVALID: "contrato inválido", DIRECTOR_ERROR: "error interno", LABEL_NOT_RENDERABLE: "etiqueta no representable", ASPECT_MISMATCH: "formato no compatible",
+  CARD_WINDOW_SHORT: "tarjeta numérica en una ventana demasiado breve",
 };
 export const plainWords = (s: string) => s.replace(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g, (m) => CODE_WORDS[m] ?? m.toLowerCase().replace(/_/g, " "));
 
