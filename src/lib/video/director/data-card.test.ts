@@ -531,7 +531,7 @@ test("T44 F3 traceability — ROJO/VERDE unit.timing reports where card boundari
     assert.deepEqual(verde.applied, rojo.applied, `${c.name}: identical applied shots`);
     assert.deepEqual(verde.input.segments.map(s => [s.id, s.start, s.end, s.text]), rojo.input.segments.map(s => [s.id, s.start, s.end, s.text]));
     assert.deepEqual(verde.input.inventory, rojo.input.inventory);
-    const core = (r: typeof verde) => r.plan.shots.map(({ unit, uncertainty, ...rest }) => ({ ...rest, unit: { boundary: unit.boundary, cutReason: unit.cutReason } }));
+    const core = (r: typeof verde) => r.plan.shots.map(s => ({ ...s, uncertainty: null, unit: { boundary: s.unit.boundary, cutReason: s.unit.cutReason } }));
     assert.deepEqual(core(verde), core(rojo), `${c.name}: identical plan apart from traceability`);
     const report = editorialReport(verde.plan, DirectorInputSchema.parse(verde.input));
     assert.equal(report.totals.timing[c.timing], cardShots(verde).length + (c.timing === "estimated_proportional" ? 1 : 0));

@@ -12,6 +12,7 @@ import { avatarDurationError, estimateAvatarNarrationSeconds } from "@/lib/video
 import { randomUUID } from "node:crypto";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
+import { checkProductionForRequest } from "@/lib/supply/production-check";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
@@ -115,7 +116,14 @@ export async function createVideoRequest(formData: FormData) {
   // Generado aquí (no al final) para poder asociar el costo real de una
   // síntesis TTS (si aplica, ver más abajo) con la MISMA solicitud que se
   // inserta al final de esta función — nunca un id descartable.
-  const requestId = randomUUID();
+  // Control de costos (2026-10-18): the form's own submission id, when valid, IS the request id, so a
+  // repeated submit of the same form is recognised before any paid call (below) and collides on insert.
+  const submissionId = String(formData.get("submission_id") ?? "");
+  const requestId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionId) ? submissionId.toLowerCase() : randomUUID();
+  {
+    const { data: existing } = await createServiceClient().from("video_requests").select("id").eq("id", requestId).maybeSingle();
+    if (existing) redirect("/dashboard?created=1");
+  }
 
   // QA blocker real (2026-09-25, Android/Samsung): un límite combinado
   // foto+audio <= 3 MB (heredado de la prueba privada D-ID) rechazaba una
@@ -176,6 +184,12 @@ export async function createVideoRequest(formData: FormData) {
     }
     const durationError = avatarDurationError(estimateAvatarNarrationSeconds(ttsText), flags.maxAvatarDurationSeconds);
     if (durationError) redirect(`/dashboard/new?error=${encodeURIComponent(durationError)}`);
+    // Control de costos (2026-10-18): text-to-speech is paid HERE, in the form, so the whole production
+    // (plan, voice and avatar capacity) is checked before it — it used to reach the first check at render.
+    const preCheck = await checkProductionForRequest({ service: createServiceClient(), user, ownerId: user.id, stage: "before_render",
+      request: { mode: "avatar", duration_seconds: Math.ceil(estimateAvatarNarrationSeconds(ttsText)), recorded_audio_path: null,
+        script_json: { segments: [{ text: ttsText }] } } });
+    if (preCheck.outcome !== "ready") redirect(`/dashboard/new?error=${encodeURIComponent(`${preCheck.title} ${preCheck.message} ${preCheck.next}`)}`);
     try {
       // Reutiliza el mismo provider ElevenLabs que ya usa Reel para
       // narración — nunca un cliente/pipeline TTS paralelo.

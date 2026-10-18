@@ -1,4 +1,5 @@
 import { SupplyUnavailableError } from "@/lib/supply/policy";
+import { verifyDeliverableMp4 } from "@/lib/video/deliverable-check";
 import { getVoiceIdentity } from "@/lib/ai/voice";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import { gatedMusicTrack, gatedVoiceSynthesize, type PaidCallDeps } from "@/lib/paid-calls/gated-providers";
@@ -590,6 +591,8 @@ export async function generateVideoFromScript({
   // 8. Subir el video renderizado (se referencia por su ruta; la URL para
   // verlo/descargarlo se firma bajo demanda, después de validar dueño).
   await onProgress?.("uploading");
+  // Control de costos (2026-10-18): only a playable file may become «completed».
+  await verifyDeliverableMp4(outputPath, { minSeconds: voice.durationSeconds * 0.5 });
   const videoBuffer = await fs.readFile(outputPath);
   storageBytes += videoBuffer.byteLength;
   const { path: videoPath } = await uploadToStorage(

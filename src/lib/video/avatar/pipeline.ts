@@ -1,4 +1,5 @@
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
+import { verifyDeliverableMp4 } from "@/lib/video/deliverable-check";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { heygenAudio } from "./heygen-audio";
 import { validatePhotoBuffer } from "./photo-validation";
@@ -454,6 +455,8 @@ export async function generateAvatarVideo({
     );
   }
 
+  // Control de costos (2026-10-18): only a playable file may become «completed».
+  await verifyDeliverableMp4(outputPath);
   const videoBuffer = await fs.readFile(outputPath);
   const { error: uploadError } = await supabase.storage
     .from(STORAGE_BUCKET)

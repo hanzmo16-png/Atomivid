@@ -11,6 +11,8 @@ import { REFRESHABLE_PROVIDERS, refreshProviderSnapshot, type RefreshableProvide
  * Anything not provable stays fail-closed. It never reserves anything. */
 /** Accurate for the start click: refused before any state change, reservation or charge. */
 export const START_SUPPLY_UNAVAILABLE = "No pudimos confirmar en este momento la capacidad de los proveedores. No se inició la producción ni se generó ningún cargo; tu solicitud sigue lista y puedes volver a intentarlo en unos minutos.";
+/** Resume of a production that already advanced: earlier steps may have been paid, so only «nothing new» is claimed. */
+export const RESUME_SUPPLY_UNAVAILABLE = "No pudimos confirmar en este momento la capacidad de los proveedores de Atomicvid. No se hizo ninguna llamada de pago nueva y tus avances se conservan; no tienes que recargar nada. Vuelve a intentarlo en unos minutos.";
 export type ProviderReadiness = { provider: string; refreshed: boolean; level: string | null; reason: string | null; free: number | null; units: number | null; usd: number; ok: boolean; failure?: string };
 export type SupplyReadiness = { ready: boolean; providers: ProviderReadiness[]; failure?: { provider: string; reason: string } };
 type Policy = { provider: string; enabled: boolean; unit: string; unit_cost_usd: number; daily_cap_usd: number; monthly_cap_usd: number; timezone: string; evidence?: string };

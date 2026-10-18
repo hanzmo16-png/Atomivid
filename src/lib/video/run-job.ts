@@ -1,7 +1,8 @@
 import { needsNarrationEdit } from "./duration-check";
+import { DeliverableUnverifiedError } from "@/lib/video/deliverable-check";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { editorialApprovalError } from "./long-form/editorial";
-import { jobSupplyDemands, reserveJobSupply, releaseUnusedJobSupply } from "@/lib/supply/job";
+import { jobSupplyDemands, reserveJobSupply, releaseUnusedJobSupply, JobEnvelopeMismatchError, JobEnvelopeExhaustedError } from "@/lib/supply/job";
 import { withSupplyContext } from "@/lib/supply/anthropic";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -288,7 +289,10 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     }
 
     // Typed action stored with the text: a configuration failure needs support, not an immediate retry.
+    // Control de costos (2026-10-18): an envelope that does not match or is used up never fixes itself by retrying
+    // (a retry would only spend attempts, and possibly money): support reviews it first.
     const action = configError || error instanceof ProviderConfigurationError
+      || error instanceof JobEnvelopeMismatchError || error instanceof JobEnvelopeExhaustedError || error instanceof DeliverableUnverifiedError
       || (error instanceof DirectorUnavailableError && error.reason !== "owner_lookup_failed") ? "support" : "retry";
     // A measured duration mismatch happens before footage/render and after the
     // voice ledger is settled. Reopen editing; retain attempts and paid history.

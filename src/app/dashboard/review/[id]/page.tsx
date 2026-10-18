@@ -1,3 +1,4 @@
+import { renderFailureMessage } from "@/lib/video/job-error";
 import { createHash } from "node:crypto";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
@@ -125,7 +126,9 @@ export default async function ReviewPage({
         requestId={data.id}
         status={data.status}
         initialScript={data.script_json}
-        errorMessage={data.error_message}
+        // Control de costos (2026-10-18): the stored failure is decoded exactly like the history and video
+        // pages do (typed action tag removed, raw provider text classified), never shown raw.
+        errorMessage={data.error_message ? renderFailureMessage(data.error_message) : null}
         usesRecording={Boolean(data.recorded_audio_path)}
         maxAvatarDurationSeconds={data.mode === "avatar" && !data.avatar_provider_video_job_id ? getFeatureFlags().maxAvatarDurationSeconds : undefined}
         recordingDurationSeconds={data.duration_seconds}

@@ -56,6 +56,28 @@ export function getPricingConfig() {
   };
 }
 
+/**
+ * Rates the pre-spend check cannot trust (control de costos, 2026-10-18). `rate()` above silently falls
+ * back to the documented default when an operator value is not a number; for an estimate that may block
+ * or admit spend, a value that was SET but is unusable is an unknown price, never the default. The
+ * documented script defaults are only valid for the model they were audited for (claude-sonnet-5): with
+ * another ANTHROPIC_SCRIPT_MODEL and no explicit rates, the price is unknown too.
+ */
+export function scriptPricingIssues(env: Record<string, string | undefined> = process.env): string[] {
+  const issues: string[] = [];
+  const names = ["PRICING_SCRIPT_INPUT_USD_PER_1M_TOKENS", "PRICING_SCRIPT_OUTPUT_USD_PER_1M_TOKENS", "PRICING_ELEVENLABS_USD_PER_1K_CHARS"];
+  for (const name of names) {
+    const raw = env[name];
+    if (raw === undefined || raw === "") continue;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || !(n > 0)) issues.push(`${name} no es un número positivo`);
+  }
+  const model = env.ANTHROPIC_SCRIPT_MODEL || "claude-sonnet-5";
+  if (model !== "claude-sonnet-5" && (!env.PRICING_SCRIPT_INPUT_USD_PER_1M_TOKENS || !env.PRICING_SCRIPT_OUTPUT_USD_PER_1M_TOKENS))
+    issues.push(`sin tarifa configurada para el modelo de guion ${model}`);
+  return issues;
+}
+
 // Aproximación gruesa (no exacta): ~4 caracteres por token en inglés/español.
 // Se usa solo para estimar costo cuando no tenemos el conteo real de tokens
 // que devuelve la API de Anthropic (ver nota en src/lib/billing/usage.ts).

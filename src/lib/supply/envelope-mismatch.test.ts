@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { JobEnvelopeMismatchError, reserveJobSupply } from "./job";
+import { JobEnvelopeExhaustedError, JobEnvelopeMismatchError, reserveJobSupply } from "./job";
 import { SupplyUnavailableError } from "./policy";
 import { isCustomerSafeError } from "@/lib/video/long-form/output-policy";
 
@@ -18,7 +18,8 @@ test("sobre de reserva menor que la demanda del worker: error de configuración,
   assert.ok(!(err instanceof SupplyUnavailableError), "must not take the supply-wait branch");
   assert.equal(err.provider, "heygen");
   assert.ok(isCustomerSafeError(err));
-  assert.match(err.customerMessage, /No se generó ni se cobró nada/);
+  // Control de costos (2026-10-18): a resumed attempt may hold earlier paid steps, so no zero-charge claim.
+  assert.match(err.customerMessage, /No se hizo ninguna llamada de pago nueva y tus avances se conservan/);
 });
 
 test("falta real de saldo sigue siendo espera por disponibilidad", async () => {
@@ -59,6 +60,8 @@ test("envío pagado sin sobre suficiente («job envelope exhausted»): error de 
   const { submitWithSupply } = await import("./server");
   const svc = { rpc: async () => ({ data: { submitted: false, reason: "job envelope exhausted" }, error: null }) } as never;
   const err = await submitWithSupply(svc, { idempotencyKey: "k", provider: "heygen", reservedUsd: 5, capacityUnits: 5 } as never).catch((e) => e);
-  assert.ok(err instanceof JobEnvelopeMismatchError);
+  // Control de costos (2026-10-18): own type, because earlier steps of this production may already have been paid.
+  assert.ok(err instanceof JobEnvelopeExhaustedError);
   assert.ok(!(err instanceof SupplyUnavailableError));
+  assert.match(err.customerMessage, /pueden haber tenido costo/);
 });

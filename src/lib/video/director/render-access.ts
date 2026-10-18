@@ -67,7 +67,7 @@ const UNAVAILABLE_ACTION: Record<DirectorUnavailableReason, string> = {
 export class DirectorUnavailableError extends Error {
   readonly customerMessage: string;
   constructor(readonly reason: DirectorUnavailableReason) {
-    const message = `Pediste el Director para este Reel, pero no se puede aplicar. No se reservó ni se cobró nada y no se hizo un montaje clásico en su lugar. ${UNAVAILABLE_ACTION[reason]}`;
+    const message = `Pediste el Director para este Reel, pero no se puede aplicar. Este intento se detuvo antes de cualquier llamada de pago nueva y no se hizo un montaje clásico en su lugar. ${UNAVAILABLE_ACTION[reason]}`;
     super(message);
     this.name = "DirectorUnavailableError";
     this.customerMessage = message;

@@ -19,7 +19,7 @@ async function main() {
   const { createServiceClient } = await import("../src/lib/supabase/service");
   const service = createServiceClient();
 
-  await service
+  const { data: closed } = await service
     .from("video_requests")
     .update({
       status: "failed",
@@ -29,7 +29,16 @@ async function main() {
     })
     .eq("id", requestId)
     .eq("status", "processing")
-    .eq("render_attempts", saved.attempt);
+    .eq("render_attempts", saved.attempt)
+    .select("id");
+  // Control de costos (2026-10-18): the timed-out attempt's envelope used to stay OPEN forever. Only its
+  // UNUSED part is released (pi_release_job_supply); a paid call left uncertain by the crash stays held in
+  // the ledger as SUBMITTED/RECONCILIATION_REQUIRED and is never released here. Only after this run closed
+  // the attempt (the CAS above), so a newer attempt's envelope is never touched.
+  if (closed?.length) {
+    const { releaseUnusedJobSupply } = await import("../src/lib/supply/job");
+    await releaseUnusedJobSupply(service, requestId, saved.attempt).catch(() => console.error("RENDER_CLEANUP_RELEASE_UNCONFIRMED"));
+  }
 }
 
 main().catch(() => {

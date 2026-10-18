@@ -73,7 +73,8 @@ test("servidor: la verificación visual corre antes de reservar; la reserva solo
   const src = readFileSync(path.join(__dirname, "../../../app/api/generate/[id]/render/route.ts"), "utf8");
   const visual = src.indexOf("await visualCheck(service"), reserve = src.indexOf("await reserveJobSupply("), cas = src.indexOf('.update({\n          supply_wait_started_at');
   assert.ok(visual > 0 && visual < reserve && reserve < cas);
-  const release = src.indexOf("await releaseUnusedJobSupply(");
+  // Control de costos (2026-10-18): the stalled previous attempt is released earlier; this is the new attempt's.
+  const release = src.indexOf("await releaseUnusedJobSupply(service, id, videoRequest.render_attempts + 1)");
   assert.ok(release > src.indexOf('.eq("progress_stage", "queued")\n          .select("id")'), "release only after the failed-CAS that proves the attempt never started");
   assert.match(src.slice(release - 400, release), /failed\?\.length === 1/);
   const confirm = readFileSync(path.join(__dirname, "confirm-production.ts"), "utf8");

@@ -12,11 +12,27 @@ import { supplyGuardRequired } from "./server";
  * wait: retrying later can never succeed, so it must fail loudly instead of queueing forever.
  */
 export class JobEnvelopeMismatchError extends Error {
-  readonly customerMessage = "La configuración de límites de producción no coincide entre el inicio y el procesamiento. No se generó ni se cobró nada; avisa a soporte para corregirla antes de reintentar.";
+  // Control de costos (2026-10-18): raised when the attempt's envelope is (re)reserved, before the run's first
+  // paid call — but a resumed attempt may hold earlier paid steps, so only «nothing new» is proven.
+  readonly customerMessage = "La configuración de límites de producción no coincide entre el inicio y el procesamiento. No se hizo ninguna llamada de pago nueva y tus avances se conservan; avisa a soporte para corregirla antes de reintentar.";
   readonly diagnosticId = "SUPPLY-ENVELOPE";
   constructor(readonly provider: string) {
     super(`SUPPLY_ENVELOPE_MISMATCH:${provider}`);
     this.name = "JobEnvelopeMismatchError";
+  }
+}
+
+/**
+ * Control de costos (2026-10-18): a paid call of a RUNNING production did not fit in what remains of its
+ * attempt's envelope ("job envelope exhausted"). The call was refused before reaching the provider, but
+ * earlier steps of the same attempt may already have been paid: never claim that nothing was charged.
+ */
+export class JobEnvelopeExhaustedError extends Error {
+  readonly customerMessage = "La producción se detuvo antes de superar el presupuesto reservado para este intento. Los pasos ya hechos se conservan y pueden haber tenido costo; no se repetirá ningún gasto sin revisión. Avisa a soporte para continuar.";
+  readonly diagnosticId = "SUPPLY-ENVELOPE-USED";
+  constructor(readonly provider: string) {
+    super(`SUPPLY_ENVELOPE_EXHAUSTED:${provider}`);
+    this.name = "JobEnvelopeExhaustedError";
   }
 }
 

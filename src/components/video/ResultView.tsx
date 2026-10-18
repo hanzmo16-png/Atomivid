@@ -1,4 +1,5 @@
 import { renderFailureMessage } from "@/lib/video/job-error";
+import { ProductionReadinessNotice } from "./ProductionReadinessNotice";
 import { asDownloadUrl } from "@/lib/storage/download-url";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -88,6 +89,9 @@ export function ResultView({
             title="Todavía no se generó el video"
             body="Esta solicitud está esperando el guion o tu revisión antes de producir el video final."
           />
+        )}
+        {(request.status === "pending" || request.status === "script_ready") && !isLongForm && (
+          <ProductionReadinessNotice requestId={request.id} />
         )}
         {/* Same next step the history card offers (RequestCard). Navigation only:
             configuring never starts production; confirmation is explicit there. */}
@@ -182,6 +186,13 @@ export function ResultView({
             <p className="font-medium">No se pudo generar este video.</p>
             {request.error_message && <p className="mt-1">{renderFailureMessage(request.error_message)}</p>}
           </Alert>
+        )}
+        {/* Control de costos (2026-10-18): the script of a failed attempt is kept and reviewable. Navigation only:
+            opening the review generates nothing and calls no provider. */}
+        {request.status === "failed" && Boolean(request.script_json) && !isLongForm && (
+          <div className="mt-4 flex justify-center">
+            <LinkButton href={`/dashboard/review/${request.id}`}>{request.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}</LinkButton>
+          </div>
         )}
         {longFormRetry && (needsSupport ? (
           // Only an operator can fix this cause: no retry is offered until support resolves it.

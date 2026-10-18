@@ -1,5 +1,6 @@
 "use client";
 
+import { ProductionReadinessNotice } from "@/components/video/ProductionReadinessNotice";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -65,6 +66,9 @@ export function ScriptReview({
   const [regeneratingAll, setRegeneratingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsSubscription, setNeedsSubscription] = useState(false);
+  // Control de costos (2026-10-18): the real script needs a higher provider ceiling than the one estimated
+  // before it. Nothing started; the script is kept. The customer accepts the new ceiling explicitly.
+  const [costChange, setCostChange] = useState<{ beforeUsd: number; afterUsd: number } | null>(null);
 
   const recoveryAction = status === "failed" && recovery?.kind === "action" ? recovery : null;
   const canGenerate = status === "script_ready" || diagnosticRetry || recoveryAction !== null;
@@ -153,11 +157,12 @@ export function ScriptReview({
     }
   }
 
-  async function generateFinalVideo() {
+  async function generateFinalVideo(acceptedCeilingUsd?: number) {
     if (entitlementBlocked || durationBlockedReason) return;
     setGenerating(true);
     setError(null);
     setNeedsSubscription(false);
+    setCostChange(null);
 
     if (dirty) {
       const ok = await saveChanges();
@@ -168,10 +173,18 @@ export function ScriptReview({
     }
 
     try {
-      const res = await fetch(`/api/generate/${requestId}/render`, { method: "POST" });
+      const res = await fetch(`/api/generate/${requestId}/render`, acceptedCeilingUsd
+        ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acceptedCeilingUsd }) }
+        : { method: "POST" });
       const result = await safeParseJsonResponse(res);
       if (!result.ok) {
         if (result.status === 402) setNeedsSubscription(true);
+        const change = (result.body as { costChange?: { beforeUsd?: unknown; afterUsd?: unknown } } | undefined)?.costChange;
+        if (result.status === 409 && change && typeof change.beforeUsd === "number" && typeof change.afterUsd === "number") {
+          setCostChange({ beforeUsd: change.beforeUsd, afterUsd: change.afterUsd });
+          setGenerating(false);
+          return;
+        }
         throw new Error(result.error);
       }
       router.push("/dashboard");
@@ -183,6 +196,7 @@ export function ScriptReview({
 
   return (
     <div className="mt-6">
+      {status === "script_ready" && !usesRecording && <ProductionReadinessNotice requestId={requestId} />}
       {status === "script_ready" && recoveryNotice && (
         <Alert tone="info">{recoveryNotice} Puedes ajustar el texto aquí y guardar los cambios antes de producirlo de nuevo.</Alert>
       )}
@@ -279,6 +293,21 @@ export function ScriptReview({
           <Alert tone="danger">{error}</Alert>
         </div>
       )}
+      {costChange && (
+        <div className="mt-4" data-testid="cost-change">
+          <Alert tone="warning">
+            <p className="font-medium">El video con tu guion final necesita un techo de proveedores mayor.</p>
+            <p className="mt-1">Antes del guion: hasta USD {costChange.beforeUsd.toFixed(2)}. Con tu guion: hasta USD {costChange.afterUsd.toFixed(2)}.
+              Son techos conservadores, no el precio exacto. No se inició nada ni se cobró; tu guion se conserva.</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button type="button" onClick={() => generateFinalVideo(costChange.afterUsd)} disabled={generating}>
+                Aceptar hasta USD {costChange.afterUsd.toFixed(2)} y generar
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setCostChange(null)} disabled={generating}>Revisar el guion</Button>
+            </div>
+          </Alert>
+        </div>
+      )}
       {needsSubscription && (
         <p className="mt-2 text-sm">
           <Link href="/dashboard/billing" className="font-medium text-accent hover:text-accent-hover">
@@ -309,7 +338,7 @@ export function ScriptReview({
             {saving ? "Guardando…" : dirty ? "Guardar cambios" : "Sin cambios pendientes"}
           </Button>}
           <Button
-            onClick={generateFinalVideo}
+            onClick={() => generateFinalVideo()}
             disabled={entitlementBlocked || Boolean(durationBlockedReason) || generating || saving || regeneratingAll}
             loading={generating}
             title={entitlementBlocked ? entitlementBlockedReason : durationBlockedReason ?? undefined}
