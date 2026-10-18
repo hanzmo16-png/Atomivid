@@ -211,7 +211,6 @@ export async function createVideoRequest(formData: FormData) {
   }
 
   const existingAvatarId = String(formData.get("existing_avatar_id") ?? "").trim();
-  const avatarVoiceId = String(formData.get("avatar_voice_id") ?? "").trim() || undefined;
 
   let avatarId: string;
 
@@ -366,7 +365,8 @@ export async function createVideoRequest(formData: FormData) {
     language,
     mode: "avatar",
     avatar_id: avatarId,
-    avatar_voice_id: recording ? null : avatarVoiceId ?? null,
+    // La UI no ofrece una voz hasta que exista catálogo autorizado y el pipeline pueda aplicarla de verdad.
+    avatar_voice_id: null,
     idempotency_key: randomUUID(),
     status: recording ? "script_ready" : "pending",
   });
