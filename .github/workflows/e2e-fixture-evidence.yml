@@ -10,6 +10,20 @@ on:
       - 'package*.json'
       - '.github/workflows/e2e-fixture-evidence.yml'
   workflow_dispatch:
+    inputs:
+      scope:
+        description: "all = general fixture evidence (as before) + Director worker E2E; director = Director worker E2E only"
+        type: choice
+        options: [all, director]
+        default: all
+      sha:
+        description: "Exact commit to render (full or short SHA reachable from the chosen branch); empty = head of the chosen branch"
+        type: string
+        default: ""
+      director_scenarios:
+        description: "Director scenarios, comma-separated (e.g. short-later,ambiguous-clock); empty = all"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -20,6 +34,7 @@ concurrency:
 
 jobs:
   evidence:
+    if: github.event_name != 'workflow_dispatch' || inputs.scope == 'all'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -84,4 +99,105 @@ jobs:
           name: simulated-video-evidence-${{ github.run_id }}
           path: evidence/
           if-no-files-found: error
+          retention-days: 14
+
+  # T44 Fase 3: the Director worker E2E battery (scripts/qa/director/worker-e2e-local.ts) on an exact commit, so an
+  # independent auditor renders its OWN MP4s and compares them with director.json. Manual only (workflow_dispatch):
+  # fixture providers, in-memory test database, no network service, no secret, nothing paid or published.
+  director-worker-e2e:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SCRIPT_PROVIDER: fixture
+      VOICE_PROVIDER: fixture
+      FOOTAGE_PROVIDER: fixture
+      MUSIC_PROVIDER: fixture
+      IMAGE_PROVIDER: fixture
+      AVATAR_PROVIDER: fixture
+      PREMIUM_CLIPS_ENABLED: 'false'
+      WANT_SHA: ${{ inputs.sha }}
+      SCENARIOS: ${{ inputs.director_scenarios }}
+    steps:
+      - name: Validate inputs (hex SHA, scenario names only)
+        run: |
+          [[ -z "$WANT_SHA" || "$WANT_SHA" =~ ^[0-9a-f]{7,40}$ ]] || { echo "sha must be 7-40 lowercase hex characters"; exit 1; }
+          [[ "$SCENARIOS" =~ ^[a-z0-9,-]*$ ]] || { echo "director_scenarios: lowercase names separated by commas"; exit 1; }
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+          fetch-depth: 0
+      - name: Pin and record the exact commit under test
+        run: |
+          head=$(git rev-parse HEAD)
+          if [ -n "$WANT_SHA" ] && [ "${head#"$WANT_SHA"}" = "$head" ]; then echo "checked out $head, expected $WANT_SHA"; exit 1; fi
+          mkdir -p director-evidence
+          {
+            echo "commit=$head"
+            echo "tree=$(git rev-parse 'HEAD^{tree}')"
+            echo "requested_sha=${WANT_SHA:-<head of $GITHUB_REF_NAME>}"
+            echo "workflow_ref=$GITHUB_REF"
+            echo "workflow_file_sha=$GITHUB_SHA"
+            echo "run=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID (attempt $GITHUB_RUN_ATTEMPT)"
+            echo "scenarios=${SCENARIOS:-all}"
+            echo "node=$(node -v)"
+            echo "providers=fixture (script, voice, footage, music, image, avatar); premium clips off; in-memory test database"
+          } > director-evidence/SHA.txt
+          cat director-evidence/SHA.txt
+          echo "SHORT_SHA=${head:0:7}" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Use installed ffmpeg or the lockfile-pinned bundled executable
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            test -x node_modules/@ffmpeg-installer/linux-x64/ffmpeg
+            echo "$PWD/node_modules/@ffmpeg-installer/linux-x64" >> "$GITHUB_PATH"
+          fi
+          if ! command -v ffprobe >/dev/null 2>&1; then
+            test -f node_modules/@ffprobe-installer/linux-x64/ffprobe
+            chmod +x node_modules/@ffprobe-installer/linux-x64/ffprobe
+            echo "$PWD/node_modules/@ffprobe-installer/linux-x64" >> "$GITHUB_PATH"
+          fi
+      - run: npx remotion browser ensure
+      - name: Director worker E2E (production entrypoint, fixture providers)
+        run: |
+          set -o pipefail
+          args=(--out-dir="$PWD/director-evidence/e2e")
+          if [ -n "$SCENARIOS" ]; then args+=(--only="$SCENARIOS"); fi
+          node --import tsx scripts/qa/director/worker-e2e-local.ts "${args[@]}" 2>&1 | tee director-evidence/e2e.log
+      - name: Collect MP4, director.json, worker logs and SHA-256 sums
+        if: always()
+        run: |
+          cd director-evidence
+          mkdir -p mp4 director-json logs
+          [ -d e2e ] || exit 0
+          cp e2e/report.md e2e/report.json . 2>/dev/null || true
+          for d in e2e/*/; do
+            s=$(basename "$d")
+            find "$d" -path '*/attempt-*/final.mp4' | while read -r f; do a=$(grep -o 'attempt-[0-9]*' <<<"$f" | tail -1); cp "$f" "mp4/$s-$a.mp4"; done
+            find "$d" -path '*/attempt-*/director.json' | while read -r f; do a=$(grep -o 'attempt-[0-9]*' <<<"$f" | tail -1); cp "$f" "director-json/$s-$a-director.json"; done
+            for l in worker.stdout.log worker.stderr.log; do [ -f "$d$l" ] && cp "$d$l" "logs/$s-$l"; done
+          done
+          find . -path ./e2e -prune -o -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+          { echo "## Director worker E2E — $(sed -n 's/^commit=//p' SHA.txt)"; echo; sed -n '3p' report.md 2>/dev/null; echo; echo '```'; cat SHA256SUMS.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish MP4, director.json, logs and SHA (evidence for the auditor)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: director-worker-e2e-${{ env.SHORT_SHA }}-${{ github.run_id }}
+          path: |
+            director-evidence/
+            !director-evidence/e2e/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish the full per-scenario dumps (objects, rows, RPC calls)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: director-worker-e2e-dumps-${{ env.SHORT_SHA }}-${{ github.run_id }}
+          path: director-evidence/e2e/
+          if-no-files-found: warn
           retention-days: 14
