@@ -151,6 +151,7 @@ export async function createVideoRequest(formData: FormData) {
   // con esta función). Una grabación no medible o demasiado larga se
   // rechaza antes de subirla o crear el avatar. El worker vuelve a medir
   // el archivo guardado antes de solicitar un video al proveedor.
+  let ttsTextForSynthesis: string | undefined;
   let measuredDurationSeconds: number | undefined;
   if (narrationSource === "recording") {
     // Antes esto solo se permitía para "did"/"fixture" — un resabio de
@@ -184,40 +185,17 @@ export async function createVideoRequest(formData: FormData) {
     }
     const durationError = avatarDurationError(estimateAvatarNarrationSeconds(ttsText), flags.maxAvatarDurationSeconds);
     if (durationError) redirect(`/dashboard/new?error=${encodeURIComponent(durationError)}`);
-    // Control de costos (2026-10-18): text-to-speech is paid HERE, in the form, so the whole production
-    // (plan, voice and avatar capacity) is checked before it — it used to reach the first check at render.
+    // Control de costos (2026-10-18): the whole production (plan, voice and avatar capacity) is checked
+    // here, before anything paid or provider-side happens; nothing is reserved by this check.
     const preCheck = await checkProductionForRequest({ service: createServiceClient(), user, ownerId: user.id, stage: "before_render",
       request: { mode: "avatar", duration_seconds: Math.ceil(estimateAvatarNarrationSeconds(ttsText)), recorded_audio_path: null,
         script_json: { segments: [{ text: ttsText }] } } });
     if (preCheck.outcome !== "ready") redirect(`/dashboard/new?error=${encodeURIComponent(`${preCheck.title} ${preCheck.message} ${preCheck.next}`)}`);
-    try {
-      // Reutiliza el mismo provider ElevenLabs que ya usa Reel para
-      // narración — nunca un cliente/pipeline TTS paralelo.
-      const service = createServiceClient();
-      const voiceResult = await gatedVoiceSynthesize({ requestId, ledger: supabaseLedgerStore(service),
-        results: supabaseResultStore(service), voiceProvider: getVoiceProvider(),
-        voiceIdentity: getVoiceIdentity(language as "es" | "en"),
-        estimatedCostUsd: ttsText.length / 1000 * getPricingConfig().elevenLabsUsdPer1kChars,
-      }, ttsText, language as "es" | "en");
-      recording = { audioBuffer: voiceResult.audioBuffer, extension: voiceResult.extension, mimeType: voiceResult.mimeType };
-      narrationSourceForDb = "tts";
-      // Costo real registrado AHORA (momento de la síntesis) — pipeline.ts
-      // nunca vuelve a llamar a ElevenLabs para una solicitud con
-      // recorded_audio_path ya presente (idempotente), así que este es el
-      // único lugar donde se genera y se cobra este audio.
-      await recordAvatarNarrationTts(createServiceClient(), requestId, {
-        voiceProvider: getVoiceProvider().name,
-        characters: ttsText.length,
-      }).catch(() => {});
-      try {
-        measuredDurationSeconds = await measureNarrationSeconds(voiceResult.audioBuffer);
-      } catch {
-        // Igual que en "recording": no bloquea, solo se pierde el número informativo preciso.
-      }
-    } catch (error) {
-      if (error instanceof SupplyUnavailableError) redirect(`/dashboard/new?error=${encodeURIComponent(error.customerMessage)}`);
-      redirect("/dashboard/new?error=No+se+pudo+generar+la+voz+a+partir+del+texto.+Intenta+de+nuevo.");
-    }
+    // Se valida ahora, pero se sintetiza solo después de comprobar que el avatar
+    // existente es utilizable o que la fotografía nueva pudo crear un avatar ready.
+    // Así un POST viejo/manipulado, una foto inválida o un fallo del proveedor de
+    // avatar no puede consumir ElevenLabs antes de ser rechazado.
+    ttsTextForSynthesis = ttsText;
   }
   const photoFileForSizeCheck = formData.get("avatar_photo");
   if (!String(formData.get("existing_avatar_id") ?? "").trim() && photoFileForSizeCheck instanceof File && photoFileForSizeCheck.size > MAX_AVATAR_PHOTO_BYTES) {
@@ -225,7 +203,6 @@ export async function createVideoRequest(formData: FormData) {
   }
 
   const existingAvatarId = String(formData.get("existing_avatar_id") ?? "").trim();
-  const avatarVoiceId = String(formData.get("avatar_voice_id") ?? "").trim() || undefined;
 
   let avatarId: string;
 
@@ -349,6 +326,34 @@ export async function createVideoRequest(formData: FormData) {
     avatarId = inserted.id;
   }
 
+
+  if (ttsTextForSynthesis) {
+    try {
+      // Operación potencialmente pagada: ocurre solo cuando avatarId ya apunta a
+      // un avatar ready y comprobado. Para una fotografía nueva, el avatar creado
+      // queda guardado y reutilizable aunque la síntesis falle después.
+      const service = createServiceClient();
+      const voiceResult = await gatedVoiceSynthesize({ requestId, ledger: supabaseLedgerStore(service),
+        results: supabaseResultStore(service), voiceProvider: getVoiceProvider(),
+        voiceIdentity: getVoiceIdentity(language as "es" | "en"),
+        estimatedCostUsd: ttsTextForSynthesis.length / 1000 * getPricingConfig().elevenLabsUsdPer1kChars,
+      }, ttsTextForSynthesis, language as "es" | "en");
+      recording = { audioBuffer: voiceResult.audioBuffer, extension: voiceResult.extension, mimeType: voiceResult.mimeType };
+      narrationSourceForDb = "tts";
+      await recordAvatarNarrationTts(createServiceClient(), requestId, {
+        voiceProvider: getVoiceProvider().name,
+        characters: ttsTextForSynthesis.length,
+      }).catch(() => {});
+      try {
+        measuredDurationSeconds = await measureNarrationSeconds(voiceResult.audioBuffer);
+      } catch {
+        // No bloquea: la duración estimada ya pasó el límite antes de crear el avatar.
+      }
+    } catch (error) {
+      if (error instanceof SupplyUnavailableError) redirect(`/dashboard/new?error=${encodeURIComponent(error.customerMessage)}`);
+      redirect("/dashboard/new?error=No+se+pudo+generar+la+voz+a+partir+del+texto.+Tu+avatar+queda+guardado+para+reintentar.");
+    }
+  }
   const audioPath = recording ? recordingPath(user.id, requestId, recording.extension) : null;
   if (recording && audioPath) {
     const { error: audioError } = await createServiceClient().storage.from(RECORDING_BUCKET)
@@ -380,7 +385,8 @@ export async function createVideoRequest(formData: FormData) {
     language,
     mode: "avatar",
     avatar_id: avatarId,
-    avatar_voice_id: recording ? null : avatarVoiceId ?? null,
+    // La UI no ofrece una voz hasta que exista catálogo autorizado y el pipeline pueda aplicarla de verdad.
+    avatar_voice_id: null,
     idempotency_key: randomUUID(),
     status: recording ? "script_ready" : "pending",
   });
