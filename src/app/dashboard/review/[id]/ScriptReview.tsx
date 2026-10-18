@@ -212,6 +212,7 @@ export function ScriptReview({
           </button>
         </div>
       )}
+      {regeneratingAll && <PendingOperationProgress label="Regenerando guion completo" />}
 
       {usesRecording && <Alert tone="info">Se utilizará tu grabación completa. No se generará un guion ni otra voz. La duración se comprobará antes de solicitar el avatar.</Alert>}
       {canGenerate && durationBlockedReason && <Alert tone="warning">{durationBlockedReason}</Alert>}
@@ -239,6 +240,7 @@ export function ScriptReview({
                 </button>
               )}
             </div>
+            {savingIndex === i && <PendingOperationProgress label={`Regenerando escena ${i + 1}`} />}
 
             <textarea
               value={scene.text}
@@ -262,21 +264,6 @@ export function ScriptReview({
         ))}
       </div>}
 
-      {(regeneratingAll || savingIndex !== null || generating) && (
-        <div className="mt-4" role="status" aria-live="polite">
-          <p className="mb-2 text-sm font-medium text-ink-muted">
-            {generating ? "Iniciando la producción…" : "Generando guion…"}
-          </p>
-          <div
-            role="progressbar"
-            aria-label={generating ? "Iniciando video" : "Generando guion"}
-            aria-valuetext="Operación en curso, porcentaje no disponible"
-            className="h-2 w-full overflow-hidden rounded-full bg-surface-raised"
-          >
-            <div className="h-full w-2/5 animate-pulse rounded-full bg-accent motion-reduce:animate-none" />
-          </div>
-        </div>
-      )}
       {error && (
         <div className="mt-4">
           <Alert tone="danger">{error}</Alert>
@@ -302,7 +289,7 @@ export function ScriptReview({
       )}
 
       {canGenerate && (
-        <div className="sticky bottom-4 mt-6 flex flex-col gap-2 rounded-lg border border-border-strong bg-surface-raised p-4 shadow-lg sm:flex-row sm:items-center sm:justify-between">
+        <div className="sticky bottom-4 mt-6 flex flex-col gap-2 rounded-lg border border-border-strong bg-surface-raised p-4 shadow-lg sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           {!usesRecording && <Button
             variant="secondary"
             onClick={saveChanges}
@@ -319,6 +306,7 @@ export function ScriptReview({
           >
             {generating ? "Generando video…" : recoveryAction ? recoveryAction.label : "Generar video final"}
           </Button>
+          {generating && <PendingOperationProgress label="Iniciando producción del video" />}
         </div>
       )}
 
@@ -330,6 +318,23 @@ export function ScriptReview({
           <LinkButton href="/dashboard">Volver al historial</LinkButton>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Shows feedback right next to the action the owner clicked; no invented numeric percentage. */
+function PendingOperationProgress({ label }: { label: string }) {
+  return (
+    <div className="mt-2 w-full" role="status" aria-live="polite">
+      <p className="mb-1.5 text-xs font-medium text-ink-muted">{label}…</p>
+      <div
+        role="progressbar"
+        aria-label={label}
+        aria-valuetext="Operación en curso, porcentaje no disponible"
+        className="h-2 w-full overflow-hidden rounded-full bg-surface-raised"
+      >
+        <div className="h-full w-2/5 animate-pulse rounded-full bg-accent motion-reduce:animate-none" />
+      </div>
     </div>
   );
 }
