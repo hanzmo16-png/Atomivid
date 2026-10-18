@@ -28,6 +28,7 @@ import {
   ReconciliationRequiredError,
   type LedgerStore,
   type PaidOperation,
+  type PaidOpStatus,
   type ProviderPort,
 } from "@/lib/production-intelligence/ledger";
 import { GenerativeProviderError } from "@/lib/providers/types";
@@ -78,6 +79,49 @@ export type PaidCallHooks<T> = {
 
 /** resultRef of a retry reservation released because its chain was aborted before calling the provider. */
 export const RELEASED_RETRY_REF = "released:retry-aborted-before-call";
+/** resultRef of a retry reservation released because the rejected attempt before it could not be settled (its CAS was lost). */
+export const RELEASED_SETTLEMENT_LOST_REF = "released:previous-attempt-settlement-lost";
+
+export type PaidCallBlockState = "in_flight" | "requires_reconciliation";
+type ReadStatus = PaidOpStatus | "missing" | "unreadable";
+
+/**
+ * CORRECCIÓN-2 (T32): the compare-and-set that settles a rejected attempt (SUBMITTED → REFUNDED) was lost, either because
+ * the row changed concurrently (`false`) or because the write failed. The chain stops without calling the provider again;
+ * the retry reservation it owned is released with RELEASED_SETTLEMENT_LOST_REF; both rows are re-read and left as they
+ * are. `block` is conservative: "in_flight" while any of the two rows is still live, else "requires_reconciliation".
+ */
+export class PaidCallSettlementLostError extends ReconciliationRequiredError {
+  override name = "PaidCallSettlementLostError";
+  constructor(
+    readonly block: PaidCallBlockState,
+    readonly key: string,
+    readonly nextKey: string,
+    readonly rows: { previous: ReadStatus; retry: ReadStatus; retryReleased: boolean | "write_failed" | "not_owned" },
+    readonly cause?: unknown,
+  ) {
+    super(`${key}: the settlement of the rejected attempt was not recorded (${cause instanceof Error ? `write failed: ${cause.message}` : "row changed concurrently"}); rows re-read: previous=${rows.previous}, retry=${rows.retry} (released=${String(rows.retryReleased)}); blocked as ${block}, no further provider call`);
+  }
+}
+
+const LIVE_STATUSES: ReadonlySet<string> = new Set<PaidOpStatus>(["RESERVED", "SUBMITTED", "PROVIDER_JOB_RECORDED"]);
+
+async function settlementLost(store: LedgerStore, key: string, nextKey: string, ownsRetry: boolean, now: () => string, cause: unknown): Promise<PaidCallSettlementLostError> {
+  let retryReleased: boolean | "write_failed" | "not_owned" = "not_owned";
+  if (ownsRetry) {
+    try {
+      retryReleased = await store.update(nextKey, "RESERVED", { status: "REFUNDED", committedUsd: 0, resultRef: RELEASED_SETTLEMENT_LOST_REF, updatedAt: now() });
+    } catch {
+      retryReleased = "write_failed";
+    }
+  }
+  // Re-read, never rewrite: whatever state the rows really have is preserved and reported.
+  const read = async (k: string): Promise<ReadStatus> => { try { return (await store.get(k))?.status ?? "missing"; } catch { return "unreadable"; } };
+  const previous = await read(key);
+  const retry = await read(nextKey);
+  const block: PaidCallBlockState = LIVE_STATUSES.has(previous) || LIVE_STATUSES.has(retry) ? "in_flight" : "requires_reconciliation";
+  return new PaidCallSettlementLostError(block, key, nextKey, { previous, retry, retryReleased }, cause);
+}
 
 export type GuardedPaidCall<T> = { result: T; reused: boolean; costUsd: number; key: string; attemptOrdinal: number };
 
@@ -190,7 +234,16 @@ export async function guardPaidCall<T>(store: LedgerStore, spec: PaidCallSpec, h
           attemptKind: "rejected_retry", reservedUsd: spec.reservedUsd, capacityUnits: spec.capacityUnits,
           status: "RESERVED", providerJobId: null, resultRef: null, committedUsd: null, updatedAt: now(),
         });
-        await store.update(key, "SUBMITTED", refund);
+        // CORRECCIÓN-2: the settlement is a compare-and-set. Losing it (false, or a write error) means the rejected row
+        // changed under this chain or the ledger is unreliable: no further provider call, release of the retry row
+        // this chain owns (with its own cause), re-read of both rows and a typed conservative block. Nothing is rewritten.
+        let settled: boolean;
+        try {
+          settled = await store.update(key, "SUBMITTED", refund);
+        } catch (writeErr) {
+          throw await settlementLost(store, key, nextKey, reservedNext, now, writeErr);
+        }
+        if (!settled) throw await settlementLost(store, key, nextKey, reservedNext, now, undefined);
         if (!reservedNext) throw err;
         lastRejection = err;
         const delay = hooks.retryDelayMs?.(ordinal + 1) ?? 0;

@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import Anthropic from "@anthropic-ai/sdk";
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 import { memoryResultStore } from "@/lib/paid-calls/result-store";
-import { RELEASED_RETRY_REF } from "@/lib/paid-calls/gate";
+import { RELEASED_RETRY_REF, RELEASED_SETTLEMENT_LOST_REF } from "@/lib/paid-calls/gate";
 import { currentSupplyScope, guardScriptLedgerCall, withScriptGenerationContext } from "./anthropic";
 import { scriptBlockState, ScriptReconciliationRequiredError, type ScriptOpRow } from "./script-intent";
 
@@ -113,6 +113,19 @@ test("sin huecos: en ningún muestreo durante la cadena el request aparece liqui
   assert.ok(samples.length >= 10, `sampled ${samples.length} times`);
   assert.ok(samples.every(s => s === "in_flight"), `every sample must be in_flight, got ${JSON.stringify([...new Set(samples)])}`);
   assert.equal(h.ops().filter(o => o.status === "COMMITTED").length, 1);
+});
+
+test("CORRECCIÓN-2: si se pierde el CAS que liquida el 429, el reintento no llama al proveedor, libera su reserva con causa propia y la ruta recibe un bloqueo tipado in_flight", async () => {
+  const h = harness();
+  const original = h.store.update.bind(h.store);
+  let lost = 0;
+  h.store.update = async (key, expected, patch) => { if (expected === "SUBMITTED" && patch.status === "REFUNDED" && lost++ === 0) return false; return original(key, expected, patch); };
+  await assert.rejects(h.post(async () => { throw e429(); }), (e: unknown) => e instanceof ScriptReconciliationRequiredError && e.state === "in_flight" && /settlement/.test(e.message));
+  assert.equal(h.calls(), 1, "the 429 was the only provider call");
+  assert.deepEqual(h.ops().map(o => [o.gen, o.kind, o.status]), [["gen-0", "initial", "SUBMITTED"], ["gen-0", "rejected_retry", "REFUNDED"]], "previous row untouched, retry released");
+  assert.equal(h.ops()[1].ref, RELEASED_SETTLEMENT_LOST_REF);
+  assert.equal(h.ops().filter(o => o.status === "COMMITTED").length, 0, "never SUBMITTED + COMMITTED for the same logical attempt");
+  assert.equal(scriptBlockState(await h.rows(REQUEST), Date.now()), "in_flight", "the request stays blocked until the stale SUBMITTED row is reconciled");
 });
 
 test("política conservada: 401 no se reintenta ni reserva un siguiente intento; 500 sigue incierto con una sola llamada", async () => {
