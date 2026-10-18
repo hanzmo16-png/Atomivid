@@ -17,6 +17,7 @@
 import type { DirectedReel, ResolvedBeat } from "./reel-render";
 import { topicsOf } from "./policy";
 import { GENERATED_IMAGE_LICENSE } from "./beat-license";
+import { stableHash } from "@/lib/production-intelligence/canonical";
 
 export type ProductionProfile = "owner_test" | "commercial";
 /** Hard last line of defence for one production's new Director material (owner tests). */
@@ -115,6 +116,17 @@ export function fillBeats(beatsBySegment: ResolvedBeat[][], sceneTimings: { star
     if (cursor < st.end) keep(cursor, st.end);
     return out;
   });
+}
+
+/**
+ * Storage object and ledger key of one fill image (corrección 2, P1). Bound to WHAT is generated — the exact prompt
+ * and negative prompt, the sentence fragment it illustrates, the provider variant (model, quality, size) and a schema
+ * version — not only to the shot id: the same content on a retry reuses its image (never paid twice); a changed
+ * sentence, prompt or model never inherits an image made for something else.
+ */
+export function fillObjectKey(shot: FillShot, prompt: string, negativePrompt: string | undefined, variant: string): string {
+  const safeShot = shot.shotId.replace(/[^a-zA-Z0-9-]/g, "-");
+  return `director-fill-${safeShot}-${stableHash({ v: 1, prompt, negativePrompt: negativePrompt ?? null, anchorText: shot.anchorText, variant, aspect: "9:16" }, 16)}`;
 }
 
 /** Image prompt for one fill shot: the scene's own prompt, focused on this shot's theme. Never adds facts. */
