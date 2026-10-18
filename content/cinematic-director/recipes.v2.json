@@ -1,6 +1,6 @@
 {
   "schema": "atomivid/cinematic-recipes@2",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "generated_by": "claude (T-20261012-0142-chatgpt-18; corrección 2: T-20261012-0555-chatgpt-20)",
   "notes": "Recetas originales, sin copiar películas. Las descripciones de 'example' son ilustrativas. 'evidence_policy' impide aplicar el look de recreación a evidencia auténtica. v2: cada receta lleva una regla 'select' operable (tipo visual aceptado, temas/palabras requeridos, temas excluidos, qué hacer con una imagen fija). use_when/avoid_when quedan como descripción humana; la decisión automática usa solo 'select'. Mapa y línea de tiempo pasan a animación de gráfico determinista (no 'clip con movimiento real'). v2.1: dos recetas de B-roll ilustrativo para Reels (detalle y contexto) para que los planos intermedios con stock no repitan una sola receta. v2.2: conjunto de ficción (select.style='fiction', solo material generado y etiquetado): se ofrece únicamente a una entrada que declara estilo ficción; sus recetas declaran clip_audio (el diseño sonoro es el audio del clip). v2.3 (corrección 3/3 chatgpt-26): 'reel-hook-face-or-avatar' exige select.requires='approved_presenter' (solo un avatar/presentador aprobado y CLEARED); sin él, el gancho seguro es 'reel-hook-visual'.",
   "recipes": [
@@ -1559,6 +1559,71 @@
         "still": "push_in_still",
         "position": "first",
         "provenance": [],
+        "neutral": false
+      }
+    },
+    {
+      "id": "reel-data-card",
+      "version": 1,
+      "genre": "reel",
+      "name": "Tarjeta de dato (Reel)",
+      "use_when": [
+        "la frase contiene una cifra, porcentaje, fecha o lugar medible (política measurable_data)",
+        "el único material honesto es una tarjeta determinista con el dato tal como lo dice el guion"
+      ],
+      "avoid_when": [
+        "la frase no contiene ningún dato medible",
+        "existe evidencia real (gráfico documental, mapa) ya aprobada para el segmento"
+      ],
+      "duration_s": {
+        "min": 1.5,
+        "typical": 3,
+        "max": 6
+      },
+      "intent": "Mostrar el dato exacto del guion en tipografía determinista, sin ilustrarlo con material que no lo respalda",
+      "shot": {
+        "type": "tarjeta de dato"
+      },
+      "composition": "cifra centrada en grande sobre fondo oscuro; la frase completa debajo; sin imagen ilustrativa",
+      "movement": {
+        "kind": "static",
+        "note": "tarjeta fija y legible: sin zoom ni paneo"
+      },
+      "lighting": "fondo oscuro uniforme, texto claro con un acento de color",
+      "continuity": "misma paleta y tipografía que los subtítulos del Reel",
+      "transitions": {
+        "in": [
+          "cut"
+        ],
+        "out": [
+          "cut"
+        ]
+      },
+      "sfx": "",
+      "placeholders": [
+        "{figure}",
+        "{sentence}"
+      ],
+      "negatives": [
+        "clip de stock presentado como prueba del dato",
+        "cifras redondeadas o calculadas que no estén en el guion",
+        "animación que sugiera más certeza que el texto"
+      ],
+      "evidence_policy": "authentic_only",
+      "label": null,
+      "example": "«Olvidamos el 90 % de las cifras en una semana» → tarjeta con «90 %» en grande y la frase debajo",
+      "select": {
+        "visual": [
+          "diagram"
+        ],
+        "topics_any": [],
+        "keywords_any": [],
+        "topics_none": [],
+        "still": "static",
+        "position": "any",
+        "provenance": [
+          "data_graphic"
+        ],
         "neutral": false
       }
     },

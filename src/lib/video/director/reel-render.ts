@@ -14,13 +14,15 @@ import type { Storyboard } from "@/lib/video/storyboard/types";
 import { simulateStoryboard } from "@/lib/video/storyboard/simulate";
 import type { Caption, VerticalReelProps } from "../../../../remotion/VerticalReel";
 import type { DirectorInputRaw, DirectorPlan, RecipeCatalog } from "./contract";
+import { dataCardAsset } from "./data-card";
 import { inputFromReel, type ReelAdapterOptions } from "./from-reel";
 import { proposePlan } from "./propose";
 import { bundledRecipeCatalog } from "./recipes";
 import { planToVerticalReel, type BridgeBlocker, type ExistingMedia, type ShotApplication } from "./render-bridge";
 
-/** `license` is REQUIRED (T36 C1): whoever resolves a beat must say what its licence is (beat-license.ts). */
-export type ResolvedBeat = { url: string; mediaType: "image" | "video"; source: "stock" | "fixture" | "generated"; license: MediaLicense; start: number; end: number };
+/** `license` is REQUIRED (T36 C1): whoever resolves a beat must say what its licence is (beat-license.ts).
+ *  `data_card` (T42): a deterministic data card rendered by the pipeline itself (data-card.ts), never a provider asset. */
+export type ResolvedBeat = { url: string; mediaType: "image" | "video"; source: "stock" | "fixture" | "generated" | "data_card"; license: MediaLicense; start: number; end: number };
 
 export type DirectedReel =
   | { ok: true; props: Omit<VerticalReelProps, "musicUrl" | "accentColor" | "showLogo">; applied: ShotApplication[]; plan: DirectorPlan; input: DirectorInputRaw; storyboardSource: "real" | "simulated" }
@@ -60,6 +62,11 @@ export function directReel(a: {
         // Licence: the verdict resolved with the beat (beat-license.ts), never assumed. Anything but CLEARED makes the
         // bridge refuse the shot (LICENSE_NOT_CLEARED_FOR_RENDER) instead of rendering it.
         media[id] = { url: b.url, mediaType: b.mediaType, license: b.license };
+        // T42: a data card is a deterministic graphic of this segment's own sentence (policy: measurable data).
+        if (b.source === "data_card") {
+          const card = dataCardAsset({ id: segId!, text: raw.segments.find(s => s.id === segId)?.text ?? "" }, id);
+          return { ...card, license: b.license, content: { ...card.content!, window: { segmentId: segId!, from: clamp01((b.start - t.start) / span), to: clamp01((b.end - t.start) / span) } } };
+        }
         return {
           ...planned, id,
           kind: b.mediaType === "video" ? "video" as const : "image" as const,
@@ -87,21 +94,40 @@ const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
 const RIGHTS_BLOCKERS = new Set(["LICENSE_NOT_CLEARED_FOR_RENDER", "MATERIAL_NOT_AUTHORISED"]);
 const CONTRACT_BLOCKERS = new Set(["CONTRACT_INVALID", "DIRECTOR_ERROR", "LABEL_NOT_RENDERABLE"]);
+const EDITORIAL_BLOCKERS = new Set(["AUDIT_POLICY_REVIEW", "AUDIT_POLICY_VIOLATION", "AUDIT_FACTUAL_MISMATCH", "AUDIT_DECISION_PENDING", "AUDIT_NO_MATERIAL"]);
 
 /**
- * One readable, actionable sentence when the Director refuses to render (codes kept for support). T-34 B3: by
- * category — material and rights problems say which shot and what to change; contract/internal errors go to support.
+ * T42: the stored message is sanitised for the customer (customer-error.ts replaces UPPER_CASE identifiers with
+ * «[configuración interna]»), so no code may appear in it. Codes travel in director.json and the worker log; here
+ * each one becomes plain words, and the detail text loses any upper-case identifier the same way.
+ */
+const CODE_WORDS: Record<string, string> = {
+  AUDIT_POLICY_REVIEW: "revisión editorial pendiente", AUDIT_POLICY_VIOLATION: "política editorial", AUDIT_FACTUAL_MISMATCH: "correspondencia factual",
+  AUDIT_DECISION_PENDING: "decisión editorial pendiente", AUDIT_NO_MATERIAL: "plano sin material", AUDIT_LICENSE_PENDING: "licencia pendiente", AUDIT_LICENSE_NOT_CLEARED: "licencia no autorizada",
+  MEDIA_MISSING: "material faltante", MATERIAL_NOT_AUTHORISED: "material nuevo no autorizado", LICENSE_NOT_CLEARED_FOR_RENDER: "licencia no autorizada",
+  REAL_MOTION_WITHOUT_CLIP: "movimiento prometido sin clip", INVALID_TIME: "tiempos no válidos", TIMING_MISSING: "tiempos no medidos", TIMELINE_GAP: "hueco en la línea de tiempo", DURATION_SHORT: "duración corta",
+  CONTRACT_INVALID: "contrato inválido", DIRECTOR_ERROR: "error interno", LABEL_NOT_RENDERABLE: "etiqueta no representable", ASPECT_MISMATCH: "formato no compatible",
+};
+export const plainWords = (s: string) => s.replace(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g, (m) => CODE_WORDS[m] ?? m.toLowerCase().replace(/_/g, " "));
+
+/**
+ * One readable, actionable sentence when the Director refuses to render (codes kept for support in director.json and
+ * the log, never in this text). T-34 B3: by category — material and rights problems say which shot and what to
+ * change; editorial blocks say which sentence to rewrite; contract/internal errors go to support.
  * Never promises a refund: what this attempt already used is shown by the attempt state, not by this text.
  */
 export function directorBlockMessage(blockers: BridgeBlocker[]): string {
   const codes = [...new Set(blockers.map(b => b.code))];
-  const first = blockers.find(b => RIGHTS_BLOCKERS.has(b.code)) ?? blockers[0];
+  const first = blockers.find(b => RIGHTS_BLOCKERS.has(b.code)) ?? blockers.find(b => EDITORIAL_BLOCKERS.has(b.code)) ?? blockers[0];
   const shot = first?.shotId ? ` (plano ${first.shotId})` : "";
   const action = codes.some(c => CONTRACT_BLOCKERS.has(c))
     ? "Qué hacer: es un fallo interno del Director; contacta a soporte con el código del intento."
     : codes.some(c => RIGHTS_BLOCKERS.has(c))
       ? `Problema de derechos o licencia del material${shot}: no se usó. Qué hacer: cambia esa escena del guion para que use otro material, o pide soporte para revisar la licencia.`
-      : `Falta material visual adecuado${shot}. Qué hacer: ajusta la escena (descripción visual más concreta o más breve) y vuelve a generar.`;
-  const head = `El Director no pudo montar este video sin inventar material (${codes.join(", ")}): ${(first?.detail ?? "motivo desconocido").slice(0, 160)}.`;
+      : codes.some(c => EDITORIAL_BLOCKERS.has(c))
+        ? `La frase de ese plano${shot} necesita evidencia real o una tarjeta determinista que este Reel no tiene. Qué hacer: reformula esa frase en el guion (o quita la cifra, fecha o referencia que no pueda verse en una tarjeta) y vuelve a generar.`
+        : `Falta material visual adecuado${shot}. Qué hacer: ajusta la escena (descripción visual más concreta o más breve) y vuelve a generar.`;
+  const why = codes.map(c => CODE_WORDS[c] ?? plainWords(c)).join(", ");
+  const head = `El Director no pudo montar este video sin inventar material (${why}): ${plainWords((first?.detail ?? "motivo desconocido").slice(0, 160))}.`;
   return `${head} ${action} No se publicó ningún video con montaje clásico.`.slice(0, 600);
 }

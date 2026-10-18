@@ -39,6 +39,7 @@ import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resol
 import { cinematicDirectorRenderEnabled } from "@/lib/video/director/flag";
 import type { ResolvedBeat } from "@/lib/video/director/reel-render";
 import { footageResultLicense, GENERATED_IMAGE_LICENSE, licenseBlockAfterVoiceMessage } from "@/lib/video/director/beat-license";
+import { dataCardSvg, directorReelPreflight, DirectorPreflightBlockedError } from "@/lib/video/director/data-card";
 
 // Deliberadamente separado de generate-script.ts — ver el comentario ahí
 // para la razón exacta (Remotion no debe cargarse en la ruta de guion).
@@ -218,6 +219,12 @@ export async function generateVideoFromScript({
   const visualPlan: ScenePlanEntry[] = [];
   // Material really resolved per segment and beat — what the Director may arrange (only read with its flag on).
   const directorBeats: ResolvedBeat[][] = script.segments.map(() => []);
+  // T42: under the Director a sentence with measurable data gets a deterministic data card (its exact figure and
+  // wording) instead of illustrative stock the policy would only accept "with review". Sentences the Director
+  // cannot honour at all were refused by run-job BEFORE narration; this re-check is defence in depth.
+  const directorCards = directorRender ? directorReelPreflight(script) : { cards: [], blockers: [] };
+  if (directorRender && directorCards.blockers.length) throw new DirectorPreflightBlockedError(directorCards.blockers);
+  const cardByScene = new Map(directorCards.cards.map((c) => [c.sceneIndex, c]));
   let imagesRequestedCount = 0;
   let imagesGeneratedCount = 0;
   let imagesReusedCount = 0;
@@ -229,6 +236,17 @@ export async function generateVideoFromScript({
   for (let i = 0; i < script.segments.length; i++) {
     const segment = script.segments[i];
     const timing = sceneTimings[i];
+    const card = directorRender ? cardByScene.get(i) : undefined;
+    if (card) {
+      // The card covers the whole scene: no footage search, no download, no provider; one deterministic SVG.
+      const svg = Buffer.from(dataCardSvg({ text: card.text, figure: card.figure }), "utf8");
+      storageBytes += svg.byteLength;
+      const { url: cardUrl } = await uploadToStorage(supabase, `${artifactPrefix}/card-${i}.svg`, svg, "image/svg+xml");
+      scenes.push({ mediaUrl: cardUrl, mediaType: "image", startSeconds: timing.start, endSeconds: timing.end });
+      directorBeats[i].push({ url: cardUrl, mediaType: "image", source: "data_card", license: "CLEARED", start: timing.start, end: timing.end });
+      console.log("[atomivid:director]", JSON.stringify({ requestId, sceneIndex: i, dataCard: card.figure?.display ?? "(sin cifra)" }));
+      continue;
+    }
     const beats = splitIntoBeats(timing.start, timing.end);
     const baseConcepts =
       segment.visualConcepts && segment.visualConcepts.length > 0

@@ -9,6 +9,7 @@ import type { GeneratedScript } from "@/lib/providers/types";
 import { simulateStoryboard } from "@/lib/video/storyboard/simulate";
 import { DirectorInputSchema, type DirectorPlan } from "./contract";
 import { auditPlan, type AuditMetrics, type Issue } from "./audit";
+import { directorReelPreflight, withDataCards } from "./data-card";
 import { inputFromReel, type ReelAdapterOptions } from "./from-reel";
 import { proposePlan } from "./propose";
 import { bundledRecipeCatalog } from "./recipes";
@@ -33,7 +34,9 @@ export type ReelRenderRequest = "proposal_only" | "eligible";
 export type ReelInspection =
   | { status: "ok" | "issues"; mode: "proposal"; executable: false; paidCalls: 0; storyboardSource: "simulated";
       totalSeconds: number; shots: ReelInspectionShot[]; issues: Issue[]; metrics: AuditMetrics | null;
-      sequences: ReturnType<typeof editorialReport>["sequences"]; renderRequest: ReelRenderRequest; note: string }
+      sequences: ReturnType<typeof editorialReport>["sequences"]; renderRequest: ReelRenderRequest; note: string;
+      /** T42: segments rendered as a deterministic data card (measurable data), and sentences the Director cannot honour. */
+      dataCards: { segmentId: string; figure: string | null }[]; preflightBlockers: { segmentId: string; sentence: string; hint: string }[] }
   | { status: "error"; mode: "proposal"; executable: false; paidCalls: 0; message: string };
 
 const NOTE_BASE = "Propuesta del Director sobre un storyboard simulado (sin IA). Semántica y calidad visual: estimado/no validado. ";
@@ -67,7 +70,9 @@ export function inspectReel(script: GeneratedScript, opts: ReelAdapterOptions & 
   try {
     if (!script?.segments?.length) return { status: "error", mode: "proposal", executable: false, paidCalls: 0, message: "El guion no tiene segmentos." };
     const catalog = opts.catalog ?? bundledRecipeCatalog();
-    const raw = inputFromReel(simulateStoryboard(script), opts);
+    // T42: the same data cards the render will build for measurable sentences, so the review shows the real plan.
+    const preflight = directorReelPreflight(script);
+    const raw = withDataCards(inputFromReel(simulateStoryboard(script), opts), preflight.cards);
     const plan: DirectorPlan = proposePlan(raw, catalog);
     const audit = auditPlan(plan, raw, catalog);
     const report = editorialReport(plan, DirectorInputSchema.parse(raw));
@@ -79,6 +84,8 @@ export function inspectReel(script: GeneratedScript, opts: ReelAdapterOptions & 
         decision: s.decision.status, pendingReason: s.decision.pendingReason })),
       issues: audit.issues, metrics: audit.metrics, sequences: report.sequences,
       renderRequest: opts.renderEnabled ? "eligible" : "proposal_only", note: opts.renderEnabled ? NOTE_ELIGIBLE : NOTE_PROPOSAL_ONLY,
+      dataCards: preflight.cards.map(c => ({ segmentId: c.segmentId, figure: c.figure?.display ?? null })),
+      preflightBlockers: preflight.blockers.map(b => ({ segmentId: b.segmentId, sentence: b.sentence, hint: b.hint })),
     };
   } catch (err) {
     // Inspection must never break the review page: an error is shown as such, generation is unaffected.

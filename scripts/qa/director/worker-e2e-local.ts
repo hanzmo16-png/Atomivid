@@ -332,6 +332,48 @@ async function main() {
     }
   }
 
+  // ---------------------------------------------------------------------------------------------------------------
+  // T42: a measurable sentence under the Director renders a deterministic data card; a sentence the Director cannot
+  // honour stops BEFORE narration or any reservation and reopens the script.
+  if (want("data-card")) {
+    const figured = { ...script, segments: script.segments.map((s: { text: string }, i: number) => i === 0 ? { ...s, text: `${s.text} El 90 por ciento lo olvida en una semana.` } : s) };
+    const id = randomUUID();
+    const r = runWorker("data-card", seedFor(id, figured), {}, id);
+    const v = row(r, id);
+    const mp4 = path.join(r.dump, "objects", `videos/${id}/attempt-1/final.mp4`), dj = path.join(r.dump, "objects", `videos/${id}/attempt-1/director.json`);
+    const checks: Check[] = [
+      { name: "worker exit 0, row completed", ok: r.exit === 0 && v.status === "completed" && v.video_path === `${id}/attempt-1/final.mp4`, detail: { exit: r.exit, status: v.status, error: v.error_message, stderr: r.stderr.slice(-300) } },
+      { name: "the figure scene is a data card object (card-0.svg), no stock image was fetched for it; MP4 + director.json present", ok: r.objects.some((o) => o.endsWith("/attempt-1/card-0.svg")) && !r.objects.some((o) => /\/attempt-1\/scene-0-\d+\.svg$/.test(o)) && fs.existsSync(mp4) && fs.existsSync(dj), detail: r.objects },
+    ];
+    let artifacts: Record<string, unknown> = {};
+    if (fs.existsSync(dj) && fs.existsSync(mp4)) {
+      const d = JSON.parse(fs.readFileSync(dj, "utf8")) as { ok: boolean; applied?: { shotId: string; recipeId: string | null; applied: { motion: string; startSeconds: number; endSeconds: number } }[]; plan?: { shots?: { segmentId: string; asset: { provenance?: string; label: string | null } }[] } };
+      const cardShots = (d.applied ?? []).filter((a) => a.recipeId === "reel-data-card");
+      const cardPlan = (d.plan?.shots ?? []).filter((s) => s.segmentId === "scene-0");
+      checks.push({ name: "director.json ok=true; scene-0 shots use reel-data-card with provenance data_graphic and no «ilustrativa» label", ok: d.ok === true && cardShots.length >= 1 && cardPlan.length >= 1 && cardPlan.every((s) => s.asset.provenance === "data_graphic" && s.asset.label === null), detail: { ok: d.ok, cardShots: cardShots.map((a) => a.shotId), plan: cardPlan.map((s) => s.asset) } });
+      const work = fs.mkdtempSync(path.join(os.tmpdir(), "frames-card-"));
+      const card = cardShots[0];
+      const svg = fs.readFileSync(path.join(r.dump, "objects", `videos/${id}/attempt-1/card-0.svg`), "utf8");
+      const diff = card && card.applied.endSeconds - card.applied.startSeconds > 1 ? frameDiff(mp4, card.applied.startSeconds + 0.3, card.applied.endSeconds - 0.3, work) : null;
+      checks.push({ name: "the card shows the figure as written (90 %) and stays static in the frames (Δluma ≤ 0.2)", ok: /90 %/.test(svg) && diff !== null && diff <= 0.2 && card.applied.motion === "static", detail: { lumaDiff: diff, motion: card?.applied.motion, figureInSvg: /90 %/.test(svg) } });
+      artifacts = { mp4: { sha256: sha256(mp4), ...ffprobe(mp4) }, cardSvg: { sha256: sha256(path.join(r.dump, "objects", `videos/${id}/attempt-1/card-0.svg`)) }, cardShots: cardShots.map((a) => ({ shot: a.shotId, motion: a.applied.motion, start: a.applied.startSeconds, end: a.applied.endSeconds })) };
+      fs.copyFileSync(mp4, path.join(OUT, "data-card.mp4"));
+      fs.copyFileSync(path.join(r.dump, "objects", `videos/${id}/attempt-1/card-0.svg`), path.join(OUT, "data-card-0.svg"));
+    }
+    finish("data-card", r, checks, artifacts);
+  }
+
+  if (want("preflight-block")) {
+    const remains = { ...script, segments: script.segments.map((s: { text: string }, i: number) => i === 1 ? { ...s, text: "Encontraron restos humanos bajo el templo y nadie lo contó." } : s) };
+    const id = randomUUID();
+    const r = runWorker("preflight-block", seedFor(id, remains), {}, id);
+    const v = row(r, id);
+    finish("preflight-block", r, [
+      { name: "the worker stops BEFORE narration or reservation: no pi_reserve_job_supply, no objects, no paid operation", ok: !r.rpc.some((x) => x.name === "pi_reserve_job_supply") && r.objects.length === 0 && (r.tables.pi_paid_operations ?? []).length === 0 && reservations(r).length === 0, detail: { rpc: r.rpc.map((x) => x.name), objects: r.objects } },
+      { name: "the request reopens the script (script_ready) with the scene and the sentence to change, in plain words", ok: v.status === "script_ready" && /escena 2/.test(String(v.error_message)) && /restos humanos/.test(String(v.error_message)) && /antes de generar voz/.test(String(v.error_message)) && !/\[configuración interna\]/.test(String(v.error_message)), detail: { exit: r.exit, status: v.status, error: v.error_message } },
+    ]);
+  }
+
   const summary = { PASS: results.filter((r) => r.status === "PASS").length, FAIL: results.filter((r) => r.status === "FAIL").length };
   const report = { generatedAt: new Date().toISOString(), commit: execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT }).toString().trim(), entrypoint: "scripts/render-worker.ts (child process, local fixture mode, supply guard enforced, in-memory test database)", summary, results };
   fs.writeFileSync(path.join(OUT, "report.json"), JSON.stringify(report, null, 2));
