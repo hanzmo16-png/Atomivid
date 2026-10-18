@@ -58,13 +58,11 @@ export async function POST(
       .from("video_requests")
       .select("id, user_id, topic, style, status, script_json, recorded_audio_path, render_attempts")
       .eq("id", id)
-      .single<VideoRequestRow>();
+      .eq("user_id", user.id)
+      .maybeSingle<VideoRequestRow>();
 
     if (error || !videoRequest) {
       return NextResponse.json({ error: "Solicitud no encontrada" }, { status: 404 });
-    }
-    if (videoRequest.user_id !== user.id) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
     if (videoRequest.recorded_audio_path) return NextResponse.json({ error: "La grabación no requiere regenerar escenas." }, { status: 409 });
     if (videoRequest.status !== "script_ready" || !videoRequest.script_json) {
