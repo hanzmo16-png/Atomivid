@@ -156,7 +156,7 @@ test("Avatar no ofrece ni persiste una voz provisional que el pipeline no aplica
   const actions = readFileSync("src/app/dashboard/new/actions.ts", "utf8");
   assert.doesNotMatch(fields, /name="avatar_voice_id"/);
   assert.match(fields, /voz configurada en ATOMIVID/i);
-  assert.match(fields, /selección individual de voz todavía no está habilitada/i);
+  assert.match(fields, /selección\s+individual de voz todavía no está habilitada/i);
   assert.doesNotMatch(actions, /formData\.get\("avatar_voice_id"\)/);
   assert.match(actions, /avatar_voice_id:\s*null/);
 });
