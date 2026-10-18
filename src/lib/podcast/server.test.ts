@@ -1,3 +1,5 @@
+// Included here so the established test:unit entrypoint runs the behavioral route suite.
+import "./recording-route.test";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
