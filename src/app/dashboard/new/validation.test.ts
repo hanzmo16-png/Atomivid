@@ -164,12 +164,16 @@ test("Avatar no ofrece ni persiste una voz provisional que el pipeline no aplica
 test("Avatar valida un avatar utilizable antes de sintetizar voz potencialmente pagada", () => {
   const actions = readFileSync("src/app/dashboard/new/actions.ts", "utf8");
   const existingAvatarReady = actions.indexOf("avatarId = avatar.id;");
+  const photoValidated = actions.indexOf("const validation = validatePhotoBuffer");
+  const avatarProviderCall = actions.indexOf("const result = await provider.createAvatar");
   const newAvatarReady = actions.indexOf("avatarId = inserted.id;");
   const paidVoice = actions.indexOf("const voiceResult = await gatedVoiceSynthesize");
 
   assert.ok(existingAvatarReady >= 0, "debe comprobar y seleccionar el avatar existente");
-  assert.ok(newAvatarReady >= 0, "debe confirmar y guardar el avatar nuevo");
+  assert.ok(photoValidated >= 0 && avatarProviderCall >= 0 && newAvatarReady >= 0, "debe validar y crear el avatar nuevo");
   assert.ok(paidVoice > existingAvatarReady, "una selección existente inválida debe fallar antes de ElevenLabs");
-  assert.ok(paidVoice > newAvatarReady, "foto/proveedor/avatar nuevo deben validarse antes de ElevenLabs");
+  assert.ok(paidVoice > photoValidated, "una fotografía inválida debe fallar antes de ElevenLabs");
+  assert.ok(paidVoice > avatarProviderCall, "un fallo al crear el avatar debe ocurrir antes de ElevenLabs");
+  assert.ok(paidVoice > newAvatarReady, "el avatar nuevo debe quedar listo antes de ElevenLabs");
   assert.match(actions, /Tu\+avatar\+queda\+guardado\+para\+reintentar/);
 });
