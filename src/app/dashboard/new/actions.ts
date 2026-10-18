@@ -143,7 +143,8 @@ export async function createVideoRequest(formData: FormData) {
   // con esta función). Una grabación no medible o demasiado larga se
   // rechaza antes de subirla o crear el avatar. El worker vuelve a medir
   // el archivo guardado antes de solicitar un video al proveedor.
-  let ttsTextForSynthesis: string | undefined;\n  let measuredDurationSeconds: number | undefined;
+  let ttsTextForSynthesis: string | undefined;
+  let measuredDurationSeconds: number | undefined;
   if (narrationSource === "recording") {
     // Antes esto solo se permitía para "did"/"fixture" — un resabio de
     // cuando HeyGen todavía no soportaba audio propio. pipeline.ts YA
