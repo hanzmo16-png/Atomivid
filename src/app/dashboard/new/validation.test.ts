@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { availableVideoDurations, avatarDurationError, avatarRenderDurationError, estimateAvatarNarrationSeconds } from "@/lib/video/avatar/duration";
 import {
   avatarDurationSelectorApplies,
@@ -147,4 +148,15 @@ test('avatarDurationSelectorApplies: Avatar + "Generar voz desde el guion" (tts)
 test('avatarDurationSelectorApplies: Avatar + "Grabar/subir mi voz" o "Voz IA desde texto" NO lo usa — duración real del audio', () => {
   assert.equal(avatarDurationSelectorApplies("avatar", "recording"), false);
   assert.equal(avatarDurationSelectorApplies("avatar", "tts_text"), false);
+});
+
+
+test("Avatar no ofrece ni persiste una voz provisional que el pipeline no aplica", () => {
+  const fields = readFileSync("src/app/dashboard/new/AvatarFields.tsx", "utf8");
+  const actions = readFileSync("src/app/dashboard/new/actions.ts", "utf8");
+  assert.doesNotMatch(fields, /name="avatar_voice_id"/);
+  assert.match(fields, /voz configurada en ATOMIVID/i);
+  assert.match(fields, /selección individual de voz todavía no está habilitada/i);
+  assert.doesNotMatch(actions, /formData\.get\("avatar_voice_id"\)/);
+  assert.match(actions, /avatar_voice_id:\s*null/);
 });
