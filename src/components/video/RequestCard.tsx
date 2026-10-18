@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { ModeBadge } from "./ModeBadge";
-import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
+import { RENDER_STAGE_LABEL, approximateRenderProgress, type RenderStage } from "@/lib/video/stages";
 import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
 import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
 import { STATUS_LABEL, STATUS_TONE, pendingRequestCta, type VideoRequestSummary } from "@/lib/video/request-view";
@@ -56,6 +56,7 @@ export function RequestCard({
       (LONG_FORM_STAGE_LABEL[request.long_form_stage as LongFormStage] ?? request.long_form_stage)
     : request.progress_stage &&
       (RENDER_STAGE_LABEL[request.progress_stage as RenderStage] ?? request.progress_stage);
+  const reelPercent = isLongForm ? null : approximateRenderProgress(request.progress_stage);
   const longFormProgress =
     isLongForm && isLongFormProgress(request.long_form_progress) && request.long_form_progress.stage === request.long_form_stage
       ? request.long_form_progress
@@ -198,6 +199,31 @@ export function RequestCard({
         </div>
       </div>
 
+      {request.status === "processing" && !isStaleProcessing && !request.supply_wait_started_at && !isLongForm && (
+        <div className="mt-4 border-t border-border pt-4" role="status" aria-live="polite">
+          <div className="mb-2 flex items-center justify-between gap-2 text-xs text-ink-muted">
+            <span>{stageLabel ?? "Preparando tu video"}</span>
+            <span className="tabular-nums">{reelPercent === null ? "En curso" : "≈ " + reelPercent + "%"}</span>
+          </div>
+          <div
+            className="h-2 w-full overflow-hidden rounded-full bg-surface-raised"
+            role="progressbar"
+            aria-label="Avance de la producción en historial"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={reelPercent ?? undefined}
+            aria-valuetext={reelPercent === null ? "Porcentaje no disponible" : "Aproximadamente " + reelPercent + "% según etapa"}
+          >
+            <div
+              className={reelPercent === null
+                ? "h-full w-2/5 animate-pulse rounded-full bg-accent motion-reduce:animate-none"
+                : "h-full rounded-full bg-accent transition-[width] duration-500"}
+              style={reelPercent === null ? undefined : { width: reelPercent + "%" }}
+            />
+          </div>
+          <p className="mt-1.5 text-xs text-ink-faint">Avance orientativo por etapas; no es tiempo restante.</p>
+        </div>
+      )}
       {request.status === "completed" && videoUrl && (
         <div className="mt-4 flex flex-col items-start gap-3 border-t border-border pt-4 sm:flex-row sm:items-center">
           <video

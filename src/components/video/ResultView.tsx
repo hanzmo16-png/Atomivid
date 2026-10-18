@@ -8,7 +8,7 @@ import { GenerateButton } from "@/app/dashboard/GenerateButton";
 import type { AvatarRecovery } from "@/lib/video/avatar/recovery";
 import { ModeBadge } from "./ModeBadge";
 import { ProductionProgressCard } from "./ProductionProgressCard";
-import { RENDER_STAGE_LABEL, type RenderStage } from "@/lib/video/stages";
+import { RENDER_STAGE_LABEL, approximateRenderProgress, type RenderStage } from "@/lib/video/stages";
 import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
 import { isRenderStale } from "@/lib/video/render-guard";
 import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
@@ -64,6 +64,7 @@ export function ResultView({
   const needsSupport = request.status === "failed" && Boolean(request.error_message)
     && describeStoredFailure(request.error_message!).action === "support";
   const isLandscape = request.aspect_ratio === "16:9";
+  const reelPercent = isLongForm ? null : approximateRenderProgress(request.progress_stage);
   const stageLabel = isLongForm
     ? request.long_form_stage &&
       (LONG_FORM_STAGE_LABEL[request.long_form_stage as LongFormStage] ?? request.long_form_stage)
@@ -129,22 +130,51 @@ export function ResultView({
           />
         )}
 
-        {request.status === "processing" && !isLongForm && !waitingForSupply && (
-          <Card className="flex flex-col items-center gap-4 p-10 text-center">
-            <span
-              className="size-8 animate-spin rounded-full border-2 border-accent border-t-transparent motion-reduce:animate-none"
-              aria-hidden="true"
-            />
-            <div>
+        {request.status === "processing" && !isLongForm && !waitingForSupply && !stalled && (
+          <Card className="p-6 sm:p-8">
+            <div role="status" aria-live="polite">
               <p className="font-medium text-ink">
                 {stageLabel ? stageLabel + "…" : "Preparando tu video…"}
               </p>
-              <p className="mt-1 text-sm text-ink-muted">
+              <div className="mt-4 flex items-center justify-between gap-2 text-xs text-ink-muted">
+                <span>Avance de producción</span>
+                <span className="tabular-nums">{reelPercent === null ? "En curso" : "≈ " + reelPercent + "%"}</span>
+              </div>
+              <div
+                className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-raised"
+                role="progressbar"
+                aria-label="Avance de la producción"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={reelPercent ?? undefined}
+                aria-valuetext={reelPercent === null ? "Operación en curso, porcentaje no disponible" : "Aproximadamente " + reelPercent + "% según etapa"}
+              >
+                <div
+                  className={reelPercent === null
+                    ? "h-full w-2/5 animate-pulse rounded-full bg-accent motion-reduce:animate-none"
+                    : "h-full rounded-full bg-accent transition-[width] duration-500"}
+                  style={reelPercent === null ? undefined : { width: reelPercent + "%" }}
+                />
+              </div>
+              <p className="mt-2 text-xs text-ink-faint">
+                {reelPercent === null
+                  ? "Esperando la primera actualización del worker. Aún no hay porcentaje medible."
+                  : "Porcentaje orientativo por etapas, no tiempo exacto ni fotogramas terminados."}
+              </p>
+              <p className="mt-3 text-sm text-ink-muted">
                 Esto puede tardar unos minutos. Puedes cerrar esta página — el progreso se
                 guarda y lo verás reflejado aquí al volver.
               </p>
             </div>
           </Card>
+        )}
+
+        {request.status === "processing" && !isLongForm && !waitingForSupply && stalled && (
+          <Alert tone="warning" role="status">
+            <p className="font-medium">Esta producción dejó de reportar avances.</p>
+            <p className="mt-1">No mostraremos un porcentaje antiguo como si siguiera avanzando.
+              Revisa su estado antes de reintentar para evitar operaciones o costos duplicados.</p>
+          </Alert>
         )}
 
         {request.status === "failed" && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { GeneratedScript } from "@/lib/providers/types";
@@ -54,6 +54,12 @@ export function ScriptReview({
   const [dirty, setDirty] = useState(false);
   const [recoveryNotice, setRecoveryNotice] = useState(errorMessage);
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
+  const activeSceneProgressRef = useRef<HTMLDivElement>(null);
+  // The last scene can sit under the sticky action footer. Center the active progress indicator
+  // as soon as a scene request starts so mobile users see it without manual scrolling.
+  useEffect(() => {
+    if (savingIndex !== null) activeSceneProgressRef.current?.scrollIntoView({ block: "center", behavior: "auto" });
+  }, [savingIndex]);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [regeneratingAll, setRegeneratingAll] = useState(false);
@@ -212,6 +218,7 @@ export function ScriptReview({
           </button>
         </div>
       )}
+      {regeneratingAll && <PendingOperationProgress label="Regenerando guion completo" />}
 
       {usesRecording && <Alert tone="info">Se utilizará tu grabación completa. No se generará un guion ni otra voz. La duración se comprobará antes de solicitar el avatar.</Alert>}
       {canGenerate && durationBlockedReason && <Alert tone="warning">{durationBlockedReason}</Alert>}
@@ -239,6 +246,11 @@ export function ScriptReview({
                 </button>
               )}
             </div>
+            {savingIndex === i && (
+              <div ref={activeSceneProgressRef} className="scroll-mb-44">
+                <PendingOperationProgress label={`Regenerando escena ${i + 1}`} />
+              </div>
+            )}
 
             <textarea
               value={scene.text}
@@ -287,7 +299,7 @@ export function ScriptReview({
       )}
 
       {canGenerate && (
-        <div className="sticky bottom-4 mt-6 flex flex-col gap-2 rounded-lg border border-border-strong bg-surface-raised p-4 shadow-lg sm:flex-row sm:items-center sm:justify-between">
+        <div className="sticky bottom-4 mt-6 flex flex-col gap-2 rounded-lg border border-border-strong bg-surface-raised p-4 shadow-lg sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           {!usesRecording && <Button
             variant="secondary"
             onClick={saveChanges}
@@ -304,6 +316,7 @@ export function ScriptReview({
           >
             {generating ? "Generando video…" : recoveryAction ? recoveryAction.label : "Generar video final"}
           </Button>
+          {generating && <PendingOperationProgress label="Iniciando producción del video" />}
         </div>
       )}
 
@@ -315,6 +328,23 @@ export function ScriptReview({
           <LinkButton href="/dashboard">Volver al historial</LinkButton>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Shows feedback right next to the action the owner clicked; no invented numeric percentage. */
+function PendingOperationProgress({ label }: { label: string }) {
+  return (
+    <div className="mt-2 w-full" role="status" aria-live="polite">
+      <p className="mb-1.5 text-xs font-medium text-ink-muted">{label}…</p>
+      <div
+        role="progressbar"
+        aria-label={label}
+        aria-valuetext="Operación en curso, porcentaje no disponible"
+        className="h-2 w-full overflow-hidden rounded-full bg-surface-raised"
+      >
+        <div className="h-full w-2/5 animate-pulse rounded-full bg-accent motion-reduce:animate-none" />
+      </div>
     </div>
   );
 }
