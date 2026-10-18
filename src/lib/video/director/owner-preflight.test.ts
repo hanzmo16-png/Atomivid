@@ -72,14 +72,15 @@ test("Reel NO-GO (cuenta no piloto): sin panel en Revisión y montaje clásico e
   assert.equal(await resolveDirectorRender(REEL, async () => OWNER, { ...WORKER_ON, CINEMATIC_DIRECTOR_PILOT_EMAILS: "" }), false, "lista vacía en el worker");
 });
 
-test("Reel NO-GO (Vercel ON, worker OFF): Revisión no puede prometer el Director; el worker monta en clásico; «aplicado» nunca aparece", async () => {
+test("Reel NO-GO (Vercel ON, worker OFF): Revisión no puede prometer el Director; el worker lo bloquea con causa (no monta en clásico); «aplicado» nunca aparece", async () => {
   // C1: the review page only knows Vercel's environment, so before the render it may say "eligible / requested",
   // never that the Director WILL drive the montage, and never "applied".
   const panel = inspectReel(SCRIPT, { renderEnabled: directorRenderAllowed(OWNER, REEL, VERCEL_ON) });
   assert.ok(panel.status !== "error");
   assert.equal(panel.renderRequest, "eligible", "nota de Revisión calculada con el entorno de Vercel: elegible, no aplicado");
   assert.doesNotMatch(panel.note, /dirige el montaje|dirigirá|\baplicado\b/, "sin promesa: el worker decide con su propia configuración");
-  assert.match(panel.note, /montaje (es el )?clásico/, "dice qué pasa si el worker no coincide");
+  assert.match(panel.note, /se detiene con una causa explícita antes de reservar o gastar/, "dice qué pasa si el worker no coincide: fail-closed, no fallback");
+  assert.doesNotMatch(panel.note, /el montaje es el clásico|montaje clásico en su lugar/, "un Director solicitado nunca se sustituye por montaje clásico");
   assert.match(panel.note, /solo se confirma después del render/);
   const html = renderToStaticMarkup(createElement(DirectorInspectionPanel, { inspection: panel }));
   assert.match(html, /elegible/);

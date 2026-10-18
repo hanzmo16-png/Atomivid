@@ -23,9 +23,11 @@ export type ReelInspectionShot = {
  * What this page can truthfully say about the render BEFORE it happens (chatgpt-30 C1):
  *  - "proposal_only": the render switch is off here; «Generar video final» is the classic flow.
  *  - "eligible": this account and Reel qualify in THIS server's configuration, so the render will REQUEST the
- *    Director. The worker re-decides with its own switch, pilot list and owner lookup (render-access.ts) and
- *    falls back to the classic montage when they do not match; "applied" exists only after a completed render
- *    with a valid director.json (video page, DirectorAppliedPanel). Never a promise.
+ *    Director (video_requests.director_requested = true). The worker re-decides with its own switch, pilot list and
+ *    owner lookup (render-access.ts): requested → applied (completed render with a valid director.json, shown by
+ *    DirectorAppliedPanel on the video page) or requested → failed with an explicit cause BEFORE reserving or
+ *    spending (DirectorUnavailableError). It never substitutes the classic montage for a requested Director.
+ *    "applied" exists only after the render; this note is never a promise that it already happened.
  */
 export type ReelRenderRequest = "proposal_only" | "eligible";
 export type ReelInspection =
@@ -36,8 +38,10 @@ export type ReelInspection =
 
 const NOTE_BASE = "Propuesta del Director sobre un storyboard simulado (sin IA). Semántica y calidad visual: estimado/no validado. ";
 const NOTE_PROPOSAL_ONLY = NOTE_BASE + "No cambia el guion ni el render: «Generar video final» sigue siendo el flujo actual.";
-// Eligible here ≠ applied: the worker decides again with its own configuration; only the finished video proves it.
-const NOTE_ELIGIBLE = NOTE_BASE + "No cambia el guion. Esta cuenta y este Reel son elegibles en esta página: al pulsar «Generar video final» se solicita que el Director planifique con el material real. El worker vuelve a comprobar su propia configuración y la cuenta; si no coinciden, el montaje es el clásico. La aplicación real solo se confirma después del render, en la página del video («Director: recetas aplicadas»).";
+// Eligible here ≠ applied: the worker decides again with its own configuration. A requested Director either gets
+// applied (proven by the finished video) or the render fails with an explicit cause before spending; it is never
+// silently replaced by the classic montage (render-access.ts, fail-closed).
+const NOTE_ELIGIBLE = NOTE_BASE + "No cambia el guion. Esta cuenta y este Reel son elegibles en esta página: al pulsar «Generar video final» se solicita que el Director planifique con el material real. El worker vuelve a comprobar su propia configuración y la cuenta; si no coinciden, el render se detiene con una causa explícita antes de reservar o gastar, y no se sustituye por el montaje clásico. La aplicación real solo se confirma después del render, en la página del video («Director: recetas aplicadas»).";
 
 /**
  * How the review panel names a shot's movement. This inspection runs BEFORE any material is chosen (simulated
