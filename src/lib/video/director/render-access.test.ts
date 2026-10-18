@@ -66,7 +66,8 @@ test("manipulated payload cannot enable it: the dispatch carries no Director fie
   const runJob = readFileSync("src/lib/video/run-job.ts", "utf8");
   assert.match(runJob, /const directorRender = mode === "visual" && await decideDirectorRender\(row, async \(\) => \{\n\s+const \{ data, error \} = await service\.auth\.admin\.getUserById\(row\.user_id\);/,
     "decided from the stored row and its owner account");
-  assert.match(runJob, /onProgress,\n\s+directorRender,\n\s+\}\);/, "passed only to the visual Reel generator");
+  // Anexo C1: the owner's material budget follows directorRender and is read from the attempt's envelope, never the payload.
+  assert.match(runJob, /onProgress,\n\s+directorRender,\n(?:\s+\/\/[^\n]*\n)?\s+\.\.\.\(ownerTest \? \{ directorMaterialBudgetUsd: [^\n]*\n\s+\}\);/, "passed only to the visual Reel generator");
   const gv = readFileSync("src/lib/video/generate-video.ts", "utf8");
   assert.match(gv, /directorRender = false,/, "default off for every other caller");
 });

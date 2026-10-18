@@ -40,7 +40,9 @@ export type JobSupplyDemand = { provider: string; unit: "usd" | "character"; uni
 export type SupplyJobInput = { mode: string | null; script_json: unknown; recorded_audio_path: string | null; long_form_production_plan: ProductionPlan | null };
 
 /** Conservative envelopes, not an account balance or a quote. Runtime rates must be verified. */
-export function jobSupplyDemands(row: SupplyJobInput, voiceProvider: string, flags: FeatureFlags = getFeatureFlags()): JobSupplyDemand[] {
+export function jobSupplyDemands(row: SupplyJobInput, voiceProvider: string, flags: FeatureFlags = getFeatureFlags(),
+  /** Anexo C1: new Director material the owner approved for this start (render route only; 0 elsewhere). */
+  opts: { directorMaterialUsd?: number } = {}): JobSupplyDemand[] {
   const demands = new Map<string, JobSupplyDemand>();
   const add = (provider: string, usd: number, units = usd, unit: JobSupplyDemand["unit"] = "usd") => {
     if (provider === "fixture" || provider === "curated-library" || usd === 0) return;
@@ -67,6 +69,10 @@ export function jobSupplyDemands(row: SupplyJobInput, voiceProvider: string, fla
     if (plan.allocation?.maxAiVideoClips || plan.aiVideoClipCount) add(plan.providers.aiVideo, cap);
   } else {
     if (flags.imageGenerationEnabled) add(flags.imageProvider, flags.maxVisualCostUsd);
+    // The owner's approved ceiling for new Director material is reserved in the SAME image envelope, so the atomic
+    // per-call admission (pi_submit_with_supply) bounds it. Recomputing without it (worker, resume) asks for less,
+    // which the reservation accepts (it only refuses a LARGER envelope).
+    if ((opts.directorMaterialUsd ?? 0) > 0) add(flags.imageProvider, opts.directorMaterialUsd!);
     // Includes the existing one repair call. This is a ceiling, never an automatic purchase.
     if (flags.visualDirectorEnabled) add("anthropic", Number(process.env.SUPPLY_STORYBOARD_RESERVATION_USD || "2"));
     // generateVideoFromScript currently uses stock footage and optional images;

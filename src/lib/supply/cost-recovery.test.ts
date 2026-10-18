@@ -133,6 +133,8 @@ test("D. a failed attempt keeps a visible «Revisar guion» (navigation only) an
   assert.doesNotMatch(page, /generateScriptForRequest|reserveJobSupply|fetch\(/);
   // The cost-change confirmation keeps the script (no reset) and sends the accepted ceiling explicitly.
   const review = src("src/app/dashboard/review/[id]/ScriptReview.tsx");
-  assert.match(review, /body: JSON\.stringify\(\{ acceptedCeilingUsd \}\)/);
+  // Anexo C1: the body may also carry the owner's material ceiling; the accepted cost ceiling is still sent.
+  assert.match(review, /const body = \{ \.\.\.\(acceptedCeilingUsd \? \{ acceptedCeilingUsd \} : \{\}\)/);
+  assert.match(review, /body: JSON\.stringify\(body\)/);
   assert.match(review, /onClick=\{\(\) => generateFinalVideo\(\)\}/, "the main button never passes the click event as an accepted ceiling");
 });

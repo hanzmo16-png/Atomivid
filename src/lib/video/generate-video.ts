@@ -74,10 +74,16 @@ export async function generateVideoFromScript({
   onProgress,
   paidCalls,
   directorRender = false,
+  directorMaterialBudgetUsd,
 }: {
   supabase: SupabaseClient;
   /** Montar con el plan del Director. Lo decide SOLO el worker (run-job.ts → resolveDirectorRender): flag global + piloto + Reel visual. */
   directorRender?: boolean;
+  /**
+   * Anexo C1: new Director material this attempt may still buy (owner tests only), read from its own image envelope
+   * when needed. Absent or 0 = none, the previous rule. See material-fill.ts.
+   */
+  directorMaterialBudgetUsd?: () => Promise<number>;
   paidCalls?: Pick<PaidCallDeps, "ledger" | "results">;
   requestId: string;
   artifactPrefix?: string;
@@ -537,12 +543,47 @@ export async function generateVideoFromScript({
   let renderCaptions = captions;
   if (directorRender && cinematicDirectorRenderEnabled()) {
     const { directReel, directorBlockMessage } = await import("@/lib/video/director/reel-render");
-    const directed = directReel({ script, storyboard, beatsBySegment: directorBeats, sceneTimings, audioUrl, captions, narrationGaps, durationSeconds: finalDurationSeconds });
+    let directed = directReel({ script, storyboard, beatsBySegment: directorBeats, sceneTimings, audioUrl, captions, narrationGaps, durationSeconds: finalDurationSeconds });
+    // Anexo C1: the plan lacks material only (no licence/policy/timing issue) and the owner approved a ceiling for
+    // this production → generate exactly those shots with the gated image call, then re-plan ONCE. Over the ceiling
+    // → stop here, before any new paid call (DirectorMaterialBudgetError carries the delta).
+    let fill: { approvedUsd: number; spentUsd: number; shots: string[] } | { approvedUsd: number; skipped: string } | null = null;
+    const materialBudget = !directed.ok && directorMaterialBudgetUsd ? await directorMaterialBudgetUsd() : 0;
+    if (!directed.ok && materialBudget > 0) {
+      const { fillDirectorMaterial, fillPrompt } = await import("@/lib/video/director/material-fill");
+      const { simulateStoryboard } = await import("@/lib/video/storyboard/simulate");
+      const sb = storyboard ?? simulateStoryboard(script);
+      const sbScenes = [...sb.scenes].sort((x, y) => x.order - y.order);
+      const fillProvider = imageProvider ?? getImageProvider();
+      const result = await fillDirectorMaterial({
+        directed, approvedUsd: materialBudget, beatsBySegment: directorBeats, sceneTimings,
+        generate: async (shot, sceneIndex, maxUsd) => {
+          const base = sbScenes[sceneIndex];
+          const generated = await resolveGeneratedImageForScene({
+            ledger: gate.ledger, supabase, bucket: STORAGE_BUCKET, requestId, sceneIndex,
+            scene: { ...base, imagePrompt: fillPrompt(base.imagePrompt, shot) },
+            imageProvider: fillProvider, remainingBudgetUsd: maxUsd, signedUrlTtlSeconds: ASSET_SIGNED_URL_TTL_SECONDS,
+            objectKey: `director-fill-${shot.shotId.replace(/[^a-zA-Z0-9-]/g, "-")}`,
+          });
+          storageBytes += generated.bufferBytes;
+          visualCostSpentUsd += generated.costUsd;
+          if (generated.status === "generated") imagesGeneratedCount += 1; else imagesReusedCount += 1;
+          console.log("[atomivid:director-fill]", JSON.stringify({ requestId, shot: shot.shotId, status: generated.status, provider: generated.provider, costUsd: generated.costUsd }));
+          return { url: generated.url, costUsd: generated.costUsd };
+        },
+      });
+      if ("skipped" in result) fill = { approvedUsd: materialBudget, skipped: result.skipped };
+      else {
+        fill = { approvedUsd: materialBudget, spentUsd: result.spentUsd, shots: result.shots.map(s => s.shotId) };
+        directed = directReel({ script, storyboard, beatsBySegment: result.beatsBySegment, sceneTimings, audioUrl, captions, narrationGaps, durationSeconds: finalDurationSeconds });
+      }
+    }
     const evidence = Buffer.from(JSON.stringify({
       // T-34 B3: binds the record to THIS attempt's MP4 (same prefix) and its real duration; the video page checks both.
       artifactPrefix, durationSeconds: finalDurationSeconds,
       footageSelections,
       ok: directed.ok, storyboardSource: directed.storyboardSource, input: directed.input, plan: directed.plan,
+      ...(fill ? { materialFill: fill } : {}),
       ...(directed.ok ? { applied: directed.applied, props: directed.props } : { blockers: directed.blockers }),
     }, null, 2));
     await uploadToStorage(supabase, `${artifactPrefix}/director.json`, evidence, "application/json");

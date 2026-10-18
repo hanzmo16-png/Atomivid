@@ -116,7 +116,14 @@ test("Reel: la decisión del worker se toma del row y la cuenta, ANTES de reserv
   const gv = src("src/lib/video/generate-video.ts");
   assert.match(gv, /if \(directorRender && cinematicDirectorRenderEnabled\(\)\) \{\n\s+const \{ directReel, directorBlockMessage \} = await import\("@\/lib\/video\/director\/reel-render"\);/, "el worker vuelve a leer su propio interruptor");
   assert.match(gv, /if \(!directed\.ok\) throw new Error\(directorBlockMessage\(directed\.blockers\)\);/, "un plan no montable detiene el render de forma explícita");
-  assert.doesNotMatch(gv.slice(gv.indexOf("6b. Director"), gv.indexOf("7. Ensamblar")), /ledger|paidCall|fetch\(/, "el bloque del Director no paga ni descarga");
+  // Anexo C1: the Director block pays ONLY through the owner's approved material fill — the same gated image call
+  // (gate.ledger) as the rest of the Reel, and only when the attempt's envelope holds an approved ceiling. Nothing
+  // else in the block pays or downloads.
+  const block = gv.slice(gv.indexOf("6b. Director"), gv.indexOf("7. Ensamblar"));
+  assert.doesNotMatch(block, /paidCall|fetch\(/, "el bloque del Director no descarga ni llama a proveedores por su cuenta");
+  assert.equal((block.match(/\bledger:/g) ?? []).length, 1, "un único uso del ledger: la imagen del relleno aprobado");
+  assert.match(block, /const materialBudget = !directed\.ok && directorMaterialBudgetUsd \? await directorMaterialBudgetUsd\(\) : 0;\n\s+if \(!directed\.ok && materialBudget > 0\) \{/, "solo con un tope aprobado (> 0) y un plan que no se puede montar");
+  assert.match(block, /ledger: gate\.ledger, supabase, bucket: STORAGE_BUCKET/, "pasa por la puerta de llamadas pagadas");
   assert.equal(directorRecordPath("u/req/attempt-2/reel-1080x1920.mp4"), "u/req/attempt-2/director.json");
 });
 

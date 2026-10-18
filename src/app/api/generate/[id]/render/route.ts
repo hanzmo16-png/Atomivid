@@ -6,6 +6,7 @@ import { editorialApprovalError } from "@/lib/video/long-form/editorial";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { jobSupplyDemands, releaseUnusedJobSupply, reserveJobSupply } from "@/lib/supply/job";
 import { isOwnScriptDraft } from "@/lib/video/own-script";
+import { approvedDirectorMaterialUsd, productionProfile } from "@/lib/video/director/material-fill";
 import { ensureJobSupplyReady, START_SUPPLY_UNAVAILABLE } from "@/lib/supply/readiness";
 import { supplyGuardRequired } from "@/lib/supply/server";
 import { getVoiceProvider } from "@/lib/providers/voice";
@@ -244,6 +245,20 @@ export async function POST(
       if (!visual.ready) return NextResponse.json({ error: visualBlockMessage(visual) }, { status: 409 });
     }
 
+    // Anexo C1: new Director material the OWNER approved for this production. Decided here, on the server, from the
+    // verified user (productionProfile), never from a browser flag alone; customers keep 0.
+    const materialRequest = await requestedDirectorMaterial(request);
+    const material = approvedDirectorMaterialUsd(productionProfile(isInternalProductionOwner(user)), materialRequest);
+    if (!material.ok) return NextResponse.json({ error: `${material.error} No se inició nada ni se cobró.`, outcome: nothingStarted(videoRequest) }, { status: 422 });
+    const directorMaterialUsd = material.usd > 0 && videoRequest.mode === "visual" && directorRenderAllowed(user, videoRequest) ? material.usd : 0;
+    // The ceiling only exists if it can be reserved in a real image provider's envelope (a fixture is never reserved).
+    if (directorMaterialUsd > 0 && ["fixture", "curated-library"].includes(getFeatureFlags().imageProvider)) {
+      return NextResponse.json({ error: "El material nuevo del Director no está disponible: Atomicvid no tiene configurado un proveedor de imágenes. Pon el tope en 0 o pide que se configure. No se inició nada ni se cobró.", outcome: nothingStarted(videoRequest) }, { status: 422 });
+    }
+    if (material.usd > 0 && !directorMaterialUsd) {
+      return NextResponse.json({ error: "Este video no se monta con el Director, así que no necesita tope de material nuevo. No se inició nada ni se cobró.", outcome: nothingStarted(videoRequest) }, { status: 422 });
+    }
+
     // Before the reservation nothing ran or was held: the request is unchanged (same status and attempts).
     let nothingReserved: StartOutcome = { retry: "available", charge: "none_proven", status: videoRequest.status, attempts: videoRequest.render_attempts };
     // Resolved BEFORE reserving: a missing worker configuration must not leave a held reservation behind.
@@ -275,7 +290,7 @@ export async function POST(
     try {
       const demands = jobSupplyDemands(videoRequest, videoRequest.mode === "long_form"
         ? videoRequest.long_form_production_plan?.providers.voice ?? "unconfigured"
-        : getVoiceProvider().name);
+        : getVoiceProvider().name, undefined, { directorMaterialUsd });
       if (supplyGuardRequired()) {
         // Same readiness rule as the preflight: stale balances of THIS job's
         // providers are re-read (billing GET only) before the atomic reservation.
@@ -344,6 +359,7 @@ export async function POST(
     }
 
     try {
+      // Anexo C1: nothing about the material travels in the dispatch; the worker reads it from the envelope reserved above.
       await worker.trigger({ requestId: id, renderAttempt: videoRequest.render_attempts + 1, mode: videoRequest.mode });
     } catch (error) {
       const diagnosticId = generateDiagnosticId();
@@ -403,6 +419,16 @@ function nothingStarted(row: { status: string; render_attempts: number }): Start
 }
 
 /** Optional `{ acceptedCeilingUsd }` body: the new ceiling the customer confirmed after a cost change. */
+/** Raw `directorMaterialUsd` from the JSON body (validated by approvedDirectorMaterialUsd); absent = undefined. */
+async function requestedDirectorMaterial(request: Request): Promise<unknown> {
+  try {
+    const body = await request.clone().json() as { directorMaterialUsd?: unknown };
+    return body?.directorMaterialUsd;
+  } catch {
+    return undefined;
+  }
+}
+
 async function acceptedCeiling(request: Request): Promise<number | null> {
   try {
     const body = await request.clone().json() as { acceptedCeilingUsd?: unknown };

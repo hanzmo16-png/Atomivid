@@ -1,3 +1,5 @@
+import { isInternalProductionOwner } from "@/lib/billing/internal-production";
+import { MAX_DIRECTOR_MATERIAL_USD } from "@/lib/video/director/material-fill";
 import { renderFailureMessage } from "@/lib/video/job-error";
 import { createHash } from "node:crypto";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
@@ -134,6 +136,10 @@ export default async function ReviewPage({
         recordingDurationSeconds={data.duration_seconds}
         entitlementBlockedReason={avatarEntitlementBlockedReason}
         recovery={recovery}
+        // Anexo C1: only the owner's private tests, only when this Reel is mounted by the Director. The server
+        // re-decides both (render route); this only offers the field.
+        directorMaterialOffer={isInternalProductionOwner(user) && data.mode === "visual" && !data.recorded_audio_path && directorRenderAllowed(user, data)
+          ? { simulatedUsd: directorInspection && "metrics" in directorInspection ? directorInspection.metrics?.estimatedMaxUsd ?? 0 : 0, maxUsd: MAX_DIRECTOR_MATERIAL_USD } : undefined}
       />
     </div>
   );

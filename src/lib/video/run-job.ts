@@ -1,3 +1,7 @@
+import { supplyGuardRequired } from "@/lib/supply/server";
+import { isInternalProductionOwner } from "@/lib/billing/internal-production";
+import { MAX_DIRECTOR_MATERIAL_USD } from "@/lib/video/director/material-fill";
+import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { needsNarrationEdit } from "./duration-check";
 import { DeliverableUnverifiedError } from "@/lib/video/deliverable-check";
 import { getVoiceProvider } from "@/lib/providers/voice";
@@ -172,11 +176,16 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     // Director (chatgpt-06, T-34 B3): decided BEFORE reserving or paying, from the attempt's stored request
     // (`director_requested`, written by the web) and the worker's own switch, pilot list and owner account; never from
     // the dispatch payload. Requested but not applicable here ⇒ DirectorUnavailableError, never a silent classic montage.
+    let requestOwner: Parameters<typeof isInternalProductionOwner>[0] | null = null;
     const directorRender = mode === "visual" && await decideDirectorRender(row, async () => {
       const { data, error } = await service.auth.admin.getUserById(row.user_id);
       if (error) throw error;
+      requestOwner = data.user;
       return data.user;
     });
+    // Anexo C1: new Director material only for the owner's private tests (same check the render route applied
+    // when it reserved the approved ceiling). Nothing from the dispatch payload decides it.
+    const ownerTest = directorRender && requestOwner !== null && isInternalProductionOwner(requestOwner);
     if (mode === "visual") console.log("[atomivid:director]", JSON.stringify({ requestId, directorRequested: row.director_requested === true, directorRender }));
     // T36 C1: the configured material provider's licence is known before anything is reserved or paid; if the
     // Director would have to render material without a reviewed licence, stop here (no narration, no reservation).
@@ -226,6 +235,8 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
               targetDurationSeconds: row.duration_seconds ?? undefined,
               onProgress,
               directorRender,
+              // Anexo C1: the approved ceiling exists only in THIS attempt's image envelope (reserved by the server).
+              ...(ownerTest ? { directorMaterialBudgetUsd: () => directorMaterialBudgetUsd(service, requestId, row.render_attempts) } : {}),
             });
 
     const completed = await update({
@@ -321,4 +332,22 @@ async function recordFirstProduction(service: SupabaseClient, userId: string) {
     if (error || count !== 1) return;
     await recordMarketingEvent(service, { event: "first_production_completed", dedupeKey: `first_production_completed:${userId}`, userId });
   } catch { /* measurement only */ }
+}
+
+/**
+ * Anexo C1: the new Director material this attempt may still buy, from its own image-provider envelope only (the
+ * durable, server-made reservation; never the dispatch). The owner's approved ceiling is what the render route added
+ * on top of the Reel's normal image cap (jobSupplyDemands), so: min(reserved − normal cap, reserved − consumed). No
+ * supply guard, an unreadable or closed envelope, or no surplus = 0 — never «unlimited».
+ */
+async function directorMaterialBudgetUsd(service: ReturnType<typeof createServiceClient>, requestId: string, attempt: number): Promise<number> {
+  if (!supplyGuardRequired()) return 0;
+  const flags = getFeatureFlags();
+  const { data, error } = await service.from("pi_supply_job_reservations").select("reserved_usd, consumed_usd, status")
+    .eq("project_id", requestId).eq("render_attempt", attempt).eq("provider", flags.imageProvider).maybeSingle<{ reserved_usd: number; consumed_usd: number; status: string }>();
+  if (error || !data || data.status !== "OPEN") return 0;
+  const reserved = Number(data.reserved_usd), consumed = Number(data.consumed_usd);
+  if (!Number.isFinite(reserved) || !Number.isFinite(consumed)) return 0;
+  const approved = reserved - (flags.imageGenerationEnabled ? flags.maxVisualCostUsd : 0);
+  return Math.max(0, Math.min(approved, reserved - consumed, MAX_DIRECTOR_MATERIAL_USD));
 }
