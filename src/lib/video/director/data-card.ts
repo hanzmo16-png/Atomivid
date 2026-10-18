@@ -177,7 +177,7 @@ export function neutralCardAsset(seg: { id: string; text: string }, id: string, 
 }
 
 /** One statement of a scene, with the figures it carries and its token span inside the scene text. */
-export type Claim ={ text: string; fromToken: number; toToken: number; figures: Figure[]; representable: boolean };
+export type Claim = { text: string; fromToken: number; toToken: number; figures: Figure[]; representable: boolean };
 
 const STRONG = /[.;:!?…]["»”)]?$/;
 const CLAUSE_END = /[,—–)]["»”]?$/;
