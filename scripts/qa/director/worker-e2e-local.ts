@@ -31,6 +31,10 @@
  *   preflight-block  «restos humanos» ⇒ stops before narration/reservation; script_ready with the sentence to change
  *   multi-claim   two claims in one scene ⇒ two cards on their own word-timed windows; «30 %» gone when «70 %» is said
  *   preflight-values two values in one clause ⇒ refused before spend, asks to split the figures
+ *  T44 correction 1 (no window merge; a short claim keeps its own card):
+ *   short-later   a later claim narrated in < 250 ms (FIXTURE_VOICE_WORD_SECONDS) keeps its own card and window
+ *   short-first   a first claim narrated in < 250 ms keeps its own card and window
+ *   preflight-short a claim with fewer than 3 words ⇒ refused before spend, asks to extend the sentence
  *
  *   npx tsx scripts/qa/director/worker-e2e-local.ts --out-dir=<dir> [--only=positive,classic] [--red]
  *   --red runs the T40 fault scenarios WITHOUT their fault injection: their assertions must then FAIL (the render
@@ -406,6 +410,66 @@ async function main() {
       }
     }
     finish("multi-claim", r, checks, artifacts);
+  }
+
+  // T44 correction 1: a claim narrated in under 250 ms (real fixture word timestamps, FIXTURE_VOICE_WORD_SECONDS) keeps
+  // its own card for exactly its window; no neighbour is stretched over it. Checked in director.json, the render props
+  // and the MP4 frames, for a short LATER claim and a short FIRST claim.
+  const SHORT_CASES: { name: string; text: string; shortTokens: [number, number]; shortCard: number; figures: string[] }[] = [
+    { name: "short-later", text: "En 2019, el 30 % recordó la historia; el 70 % también; en 2021, el 50 % recordó el dato.", shortTokens: [8, 11], shortCard: 1, figures: ["2019 · 30 %", "70 %", "2021 · 50 %"] },
+    { name: "short-first", text: "El 70 % también; en 2019, el 30 % recordó la historia.", shortTokens: [0, 3], shortCard: 0, figures: ["70 %", "2019 · 30 %"] },
+  ];
+  for (const sc of SHORT_CASES) {
+    if (!want(sc.name)) continue;
+    const scripted = { ...script, segments: script.segments.map((s: { text: string }, i: number) => i === 0 ? { ...s, text: sc.text } : s) };
+    const id = randomUUID();
+    // Scene 0 is the first narrated scene, so its token indexes are global word indexes of the narration.
+    const r = runWorker(sc.name, seedFor(id, scripted), { FIXTURE_VOICE_WORD_SECONDS: `${sc.shortTokens[0]}-${sc.shortTokens[1]}:0.05` }, id);
+    const v = row(r, id);
+    const obj = (n: string) => path.join(r.dump, "objects", `videos/${id}/attempt-1/${n}`);
+    const mp4 = obj("final.mp4"), dj = obj("director.json");
+    const n = sc.figures.length;
+    const checks: Check[] = [
+      { name: `worker exit 0, row completed; ${n} card objects for scene 0 and no stock image for it`, ok: r.exit === 0 && v.status === "completed" && sc.figures.every((_, k) => fs.existsSync(obj(`card-0-${k}.svg`))) && !fs.existsSync(obj(`card-0-${n}.svg`)) && !r.objects.some((o) => /\/attempt-1\/scene-0-\d+\.svg$/.test(o)) && fs.existsSync(mp4) && fs.existsSync(dj), detail: { exit: r.exit, status: v.status, error: v.error_message, objects: r.objects, stderr: r.stderr.slice(-300) } },
+    ];
+    let artifacts: Record<string, unknown> = {};
+    if (fs.existsSync(dj) && fs.existsSync(mp4) && sc.figures.every((_, k) => fs.existsSync(obj(`card-0-${k}.svg`)))) {
+      const svgs = sc.figures.map((_, k) => fs.readFileSync(obj(`card-0-${k}.svg`), "utf8"));
+      const heroOf = (svg: string) => (svg.match(/font-weight="700"[^>]*>([^<]*)</) ?? [])[1] ?? "";
+      checks.push({ name: `each card carries only its own figures (${sc.figures.join(" | ")})`, ok: svgs.every((svg, k) => heroOf(svg) === sc.figures[k] && sc.figures.every((f, j) => j === k || !svg.includes(f.split(" · ").pop()!))), detail: svgs.map(heroOf) });
+      type DJ = { ok: boolean; input?: { segments: { id: string; start: number; end: number; text: string }[]; inventory: { id: string; content?: { visualIntent?: string } }[] }; plan?: { shots: { id: string; segmentId: string; recipeId: string | null; asset: { assetId?: string } }[] }; props?: { scenes: { mediaUrl: string; startSeconds: number; endSeconds: number }[] } };
+      const d = JSON.parse(fs.readFileSync(dj, "utf8")) as DJ;
+      const segs = (d.input?.segments ?? []).filter((s) => s.id.startsWith("scene-0")).sort((a, b) => a.start - b.start);
+      const shortSeg = segs[sc.shortCard];
+      const shortLen = shortSeg ? shortSeg.end - shortSeg.start : NaN;
+      const intentsOf = (segId: string) => (d.plan?.shots ?? []).filter((s) => s.segmentId === segId).map((s) => d.input?.inventory.find((a) => a.id === s.asset.assetId)?.content?.visualIntent ?? "");
+      checks.push({ name: `director.json: ${n} Director segments for scene 0 on the voice's word clock; the short claim keeps its own segment (< 0.25 s) dressed only by its own card`, ok: d.ok === true && segs.length === n && shortLen > 0 && shortLen < 0.25 && segs.every((s, k) => intentsOf(s.id).length >= 1 && intentsOf(s.id).every((i) => i.includes(sc.figures[k]) && sc.figures.every((f, j) => j === k || !i.includes(f)))) && segs.every((s, k) => k === 0 || Math.abs(s.start - segs[k - 1].end) < 1e-6), detail: { segs: segs.map((s) => ({ id: s.id, start: s.start, end: s.end, intents: intentsOf(s.id) })), shortLen } });
+      if (shortSeg && shortLen > 0) {
+        const probes = segs.map((s, k) => ({ k, t: k === sc.shortCard ? (s.start + s.end) / 2 : s.start + Math.min(0.3, (s.end - s.start) / 2) }));
+        const active = probes.map((p) => ({ ...p, scene: (d.props?.scenes ?? []).find((x) => x.startSeconds <= p.t && p.t < x.endSeconds) }));
+        checks.push({ name: "render props: at the middle of the short claim its own card is on screen, and at every probe the active card is the claim's own", ok: active.every((a) => !!a.scene && new RegExp(`card-0-${a.k}\\.svg`).test(a.scene.mediaUrl)), detail: active });
+        const work = fs.mkdtempSync(path.join(os.tmpdir(), "frames-short-"));
+        const midShort = (shortSeg.start + shortSeg.end) / 2;
+        const neighbours = segs.filter((_, k) => k !== sc.shortCard).map((s) => s.start + Math.min(0.3, (s.end - s.start) / 2));
+        const across = neighbours.map((t) => frameDiff(mp4, midShort, t, work));
+        const within = segs.filter((_, k) => k !== sc.shortCard).map((s) => frameDiff(mp4, s.start + 0.1, s.end - 0.1, work));
+        checks.push({ name: "MP4 frames: the frame at the middle of the short window differs from every neighbouring card (Δluma > 0.5); each long window is static (Δluma ≤ 0.2)", ok: across.every((x) => x > 0.5) && within.every((x) => x <= 0.2), detail: { midShort, across, within } });
+        artifacts = { mp4: { sha256: sha256(mp4), ...ffprobe(mp4) }, cards: svgs.map((_, k) => sha256(obj(`card-0-${k}.svg`))), segments: segs, frames: { across, within } };
+        fs.copyFileSync(mp4, path.join(OUT, `${sc.name}.mp4`));
+      }
+    }
+    finish(sc.name, r, checks, artifacts);
+  }
+
+  if (want("preflight-short")) {
+    const short = { ...script, segments: script.segments.map((s: { text: string }, i: number) => i === 0 ? { ...s, text: "70 %. En 2019, el 30 % recordó la historia." } : s) };
+    const id = randomUUID();
+    const r = runWorker("preflight-short", seedFor(id, short), {}, id);
+    const v = row(r, id);
+    finish("preflight-short", r, [
+      { name: "a claim too short for its card: the worker stops BEFORE narration or reservation (no pi_reserve_job_supply, no objects, nothing paid)", ok: !r.rpc.some((x) => x.name === "pi_reserve_job_supply") && r.objects.length === 0 && (r.tables.pi_paid_operations ?? []).length === 0 && reservations(r).length === 0, detail: { rpc: r.rpc.map((x) => x.name), objects: r.objects } },
+      { name: "the request reopens the script (script_ready) asking to extend the claim, in plain words", ok: v.status === "script_ready" && /escena 1/.test(String(v.error_message)) && /demasiado corta/.test(String(v.error_message)) && !/\[configuración interna\]/.test(String(v.error_message)), detail: { exit: r.exit, status: v.status, error: v.error_message } },
+    ]);
   }
 
   if (want("preflight-values")) {

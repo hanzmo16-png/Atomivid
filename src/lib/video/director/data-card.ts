@@ -189,10 +189,19 @@ export type DataCardPlan = {
 export type PreflightBlocker = { sceneIndex: number; segmentId: string; sentence: string; policyClass: string; reason: string; hint: string };
 export type ReelPreflight = { cards: DataCardPlan[]; blockers: PreflightBlocker[] };
 
+/**
+ * T44 correction 1: a card needs a narration window of its own. Below this many words the card could not be read
+ * before the next claim starts, so the script is refused BEFORE spend (never stretched over another claim's words).
+ */
+export const MIN_CARD_TOKENS = 3;
+/** A measured window shorter than this is logged as short; the card still shows ONLY its own claim for exactly that time. */
+export const MIN_CARD_SECONDS = 0.25;
+
 const HINTS: Record<string, string> = {
   human_remains: "la frase habla de restos humanos y un Reel no dispone de evidencia real para mostrarlos: reformula la frase o quítala",
   specific_evidence: "la frase nombra evidencia concreta (pilares, estructuras, relieves u objetos) que el material ilustrativo no puede presentar como vista: reformula la frase sin mostrar esa evidencia",
   several_values: "la frase junta varias cifras en una misma cláusula y una tarjeta no puede mostrar cada una en el momento en que se dice: reparte las cifras en frases separadas (una cifra por frase)",
+  short_claim: `la afirmación es demasiado corta para mostrar su tarjeta el tiempo necesario: amplíala a una frase completa (al menos ${MIN_CARD_TOKENS} palabras) o únela a la frase anterior sin añadir otra cifra`,
 };
 
 /**
@@ -234,13 +243,41 @@ export function directorReelPreflight(script: GeneratedScript): ReelPreflight {
       cards.push({ sceneIndex, segmentId: seg.id, index: 0, count: 1, text: seg.text.trim(), figures: [], figure: null, windowText: seg.text.trim(), fromToken: 0, toToken: n, tokenCount: n, from: 0, to: 1 });
       return;
     }
-    figured.forEach((c, k) => {
+    const planned: DataCardPlan[] = figured.map((c, k) => {
       const fromToken = k === 0 ? 0 : c.fromToken, toToken = k === figured.length - 1 ? n : figured[k + 1].fromToken;
-      cards.push({ sceneIndex, segmentId: seg.id, index: k, count: figured.length, text: c.text, figures: c.figures, figure: c.figures[0] ?? null,
-        windowText: slice(fromToken, toToken), fromToken, toToken, tokenCount: n, from: fromToken / n, to: toToken / n });
+      return { sceneIndex, segmentId: seg.id, index: k, count: figured.length, text: c.text, figures: c.figures, figure: c.figures[0] ?? null,
+        windowText: slice(fromToken, toToken), fromToken, toToken, tokenCount: n, from: fromToken / n, to: toToken / n };
     });
+    // Correction 1: every card must own a window of at least MIN_CARD_TOKENS words; a shorter claim is refused here,
+    // before any spend, instead of being hidden under a neighbouring card at render time.
+    const short = planned.find(c => c.toToken - c.fromToken < MIN_CARD_TOKENS);
+    if (short) { blockers.push({ sceneIndex, segmentId: seg.id, sentence: short.text, policyClass: "measurable_data", reason: `ventana de ${short.toToken - short.fromToken} palabra(s) para la tarjeta`, hint: HINTS.short_claim }); return; }
+    cards.push(...planned);
   });
   return { cards, blockers };
+}
+
+export type CardWindow = { card: DataCardPlan; start: number; end: number; timing: "word_timestamps" | "estimated_proportional" };
+
+/**
+ * Correction 1 (T44): the narration window of every card of a scene, on the voice's word clock when the scene's words
+ * are all timed (`wordStarts[k]` = start of token k), proportional to the token span otherwise. NEVER merged: a card
+ * keeps its identity and exactly its own window, however short, so no card is ever shown while another claim is
+ * narrated. Degenerate timestamps (a window of zero or negative length) make the whole scene fall back to the
+ * proportional clock, which cannot produce an empty window because every card owns at least one token.
+ */
+export function cardWindows(cards: DataCardPlan[], sceneStart: number, sceneEnd: number, wordStarts: number[] | null): CardWindow[] {
+  const ordered = [...cards].sort((a, b) => a.index - b.index);
+  if (!ordered.length) return [];
+  const n = Math.max(1, ordered[0].tokenCount);
+  const timed = !!wordStarts && wordStarts.length === n && n > 0;
+  const build = (clock: "word_timestamps" | "estimated_proportional"): CardWindow[] => {
+    const at = (k: number) => k <= 0 ? sceneStart : k >= n ? sceneEnd
+      : clock === "word_timestamps" ? Math.min(sceneEnd, Math.max(sceneStart, wordStarts![k])) : sceneStart + (k / n) * (sceneEnd - sceneStart);
+    return ordered.map((c, k) => ({ card: c, start: at(c.fromToken), end: k === ordered.length - 1 ? sceneEnd : at(ordered[k + 1].fromToken), timing: clock }));
+  };
+  const first = build(timed ? "word_timestamps" : "estimated_proportional");
+  return first.every(w => w.end - w.start > 1e-6) ? first : build("estimated_proportional");
 }
 
 /** Director segment id of card `index` of a scene: the scene id itself when the scene has one card, `id#k` otherwise. */

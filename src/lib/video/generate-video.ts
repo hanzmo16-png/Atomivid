@@ -39,7 +39,7 @@ import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resol
 import { cinematicDirectorRenderEnabled } from "@/lib/video/director/flag";
 import type { ResolvedBeat } from "@/lib/video/director/reel-render";
 import { footageResultLicense, GENERATED_IMAGE_LICENSE, licenseBlockAfterVoiceMessage } from "@/lib/video/director/beat-license";
-import { dataCardSvg, directorReelPreflight, DirectorPreflightBlockedError, type DataCardPlan } from "@/lib/video/director/data-card";
+import { cardWindows, dataCardSvg, directorReelPreflight, DirectorPreflightBlockedError, MIN_CARD_SECONDS, type DataCardPlan } from "@/lib/video/director/data-card";
 
 // Deliberadamente separado de generate-script.ts — ver el comentario ahí
 // para la razón exacta (Remotion no debe cargarse en la ruta de guion).
@@ -245,25 +245,20 @@ export async function generateVideoFromScript({
       // T42/T44: the cards cover the whole scene, ONE PER CLAIM, each on the narration window of its claim measured on
       // the real voice (word timestamps; proportional only if the voice gave none). No footage search, no download,
       // no provider: deterministic SVGs. A card switches exactly when the next claim starts being said.
+      // Correction 1 (T44): windows are NEVER merged. A card keeps its identity and exactly its own window, however
+      // short; a claim too short to own a window was refused by the preflight before any spend (MIN_CARD_TOKENS).
       const count = segment.text.split(/\s+/).filter(Boolean).length;
       const sceneWords = voice.words.slice(wordOffsets[i], wordOffsets[i] + count);
-      const timed = count > 0 && sceneWords.length === count;
-      const at = (k: number) => k <= 0 ? timing.start : k >= count ? timing.end
-        : timed ? Math.min(timing.end, Math.max(timing.start, sceneWords[k].startSeconds)) : timing.start + (k / Math.max(1, count)) * (timing.end - timing.start);
-      const windows = cards.map((c, k) => ({ card: c, start: at(c.fromToken), end: k === cards.length - 1 ? timing.end : at(cards[k + 1].fromToken) }));
-      // A window too short to be seen (< 0.25 s) joins its neighbour; the narration itself is never altered.
-      const merged: typeof windows = [];
-      for (const w of windows) { const prev = merged[merged.length - 1]; if (prev && w.end - w.start < 0.25) prev.end = w.end; else merged.push({ ...w }); }
-      if (merged.length > 1 && merged[0].end - merged[0].start < 0.25) { merged[1].start = merged[0].start; merged.shift(); }
-      for (let k = 0; k < merged.length; k++) {
-        const w = merged[k];
+      const windows = cardWindows(cards, timing.start, timing.end, count > 0 && sceneWords.length === count ? sceneWords.map((w) => w.startSeconds) : null);
+      for (let k = 0; k < windows.length; k++) {
+        const w = windows[k];
         const svg = Buffer.from(dataCardSvg({ text: w.card.text, figure: w.card.figure, figures: w.card.figures }), "utf8");
         storageBytes += svg.byteLength;
         const { url: cardUrl } = await uploadToStorage(supabase, `${artifactPrefix}/card-${i}-${k}.svg`, svg, "image/svg+xml");
         scenes.push({ mediaUrl: cardUrl, mediaType: "image", startSeconds: w.start, endSeconds: w.end });
         directorBeats[i].push({ url: cardUrl, mediaType: "image", source: "data_card", license: "CLEARED", start: w.start, end: w.end,
           card: { text: w.card.text, windowText: w.card.windowText, figures: w.card.figures } });
-        console.log("[atomivid:director]", JSON.stringify({ requestId, sceneIndex: i, card: k, dataCard: w.card.figures.map((f) => f.display).join(" · ") || "(sin cifra)", timing: timed ? "word_timestamps" : "estimated_proportional", start: w.start, end: w.end }));
+        console.log("[atomivid:director]", JSON.stringify({ requestId, sceneIndex: i, card: k, dataCard: w.card.figures.map((f) => f.display).join(" · ") || "(sin cifra)", timing: w.timing, start: w.start, end: w.end, shortWindow: w.end - w.start < MIN_CARD_SECONDS }));
       }
       continue;
     }

@@ -15,7 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { GeneratedScript } from "@/lib/providers/types";
 import { scrubInternalNames } from "@/lib/video/customer-error";
-import { cardAssetId, cardSegmentId, claimsOf, DATA_CARD_HEIGHT, DATA_CARD_PROVENANCE_TEXT, DATA_CARD_RECIPE_ID, DATA_CARD_WIDTH, dataCardAsset, dataCardSvg, directorReelPreflight, DirectorPreflightBlockedError, extractFigure, extractFigures, heroOf, preflightBlockMessage, withDataCards } from "./data-card";
+import { cardAssetId, cardSegmentId, cardWindows, claimsOf, DATA_CARD_HEIGHT, DATA_CARD_PROVENANCE_TEXT, DATA_CARD_RECIPE_ID, DATA_CARD_WIDTH, dataCardAsset, dataCardSvg, directorReelPreflight, DirectorPreflightBlockedError, extractFigure, extractFigures, heroOf, MIN_CARD_SECONDS, MIN_CARD_TOKENS, preflightBlockMessage, withDataCards, type CardWindow, type DataCardPlan } from "./data-card";
 import { inputFromReel } from "./from-reel";
 import { topicsOf, unitPolicy } from "./policy";
 import { DirectorInputSchema } from "./contract";
@@ -307,6 +307,101 @@ test("the stored Director message never contains a code the sanitiser would repl
   assert.equal(scrubInternalNames(directorBlockMessage([{ code: "LICENSE_NOT_CLEARED_FOR_RENDER", shotId: "s1", detail: "licencia NOT_CLEARED" }])).includes("[configuración interna]"), false);
 });
 
+/**
+ * T44 correction 1 (independent audit of 554a0fb): the former <250 ms window merge in generate-video.ts discarded a
+ * card's identity and stretched its neighbour over another claim. ROJO reproduces that merge on real-shaped word
+ * timestamps; VERDE is `cardWindows`: at every instant the active card carries only the figures of the claim narrated.
+ */
+const THREE_CLAIMS = "En 2019, el 30 % recordó la historia; el 70 % también; en 2021, el 50 % recordó el dato.";
+const SHORT_FIRST = "El 70 % también; en 2019, el 30 % recordó la historia.";
+/** Word starts: 0.4 s per word except the words of `shortTokens`, which last `shortSeconds` each (a fast provider). */
+const wordClock = (n: number, shortTokens: number[], shortSeconds: number) => {
+  const starts: number[] = []; let t = 0;
+  for (let k = 0; k < n; k++) { starts.push(t); t += shortTokens.includes(k) ? shortSeconds : 0.4; }
+  return { starts, end: t };
+};
+/** The claim narrated at instant t: the card whose token span contains the word being said. */
+const narratedCard = (cards: DataCardPlan[], starts: number[], t: number) => {
+  let k = 0; while (k + 1 < starts.length && starts[k + 1] <= t) k++;
+  return cards.find(c => c.fromToken <= k && k < c.toToken)!;
+};
+/** The merge that 554a0fb applied (reproduced verbatim for the ROJO side). */
+const legacyMerge = (windows: CardWindow[]): CardWindow[] => {
+  const merged: CardWindow[] = [];
+  for (const w of windows) { const prev = merged[merged.length - 1]; if (prev && w.end - w.start < 0.25) prev.end = w.end; else merged.push({ ...w }); }
+  if (merged.length > 1 && merged[0].end - merged[0].start < 0.25) { merged[1].start = merged[0].start; merged.shift(); }
+  return merged;
+};
+const activeAt = (windows: CardWindow[], t: number) => windows.find(w => w.start <= t && t < w.end)!;
+const figuresOf = (c: DataCardPlan) => c.figures.map(f => f.display).join(" · ");
+
+for (const [name, text, shortTokens] of [["a later claim shorter than 250 ms", THREE_CLAIMS, [8, 9, 10, 11]], ["a first claim shorter than 250 ms", SHORT_FIRST, [0, 1, 2, 3]]] as const) {
+  test(`T44 correction 1 — ROJO/VERDE with word timestamps, ${name}: the merge showed a foreign card; cardWindows never does`, () => {
+    const script: GeneratedScript = { title: "x", segments: [{ text, visualQuery: "people", visualConcepts: ["people"] }] };
+    const pre = directorReelPreflight(script);
+    assert.equal(pre.blockers.length, 0, JSON.stringify(pre.blockers));
+    const cards = pre.cards;
+    const n = cards[0].tokenCount;
+    const { starts, end } = wordClock(n, [...shortTokens], 0.05);
+    const verde = cardWindows(cards, 0, end, starts);
+    const shortCard = cards.find(c => c.fromToken === shortTokens[0])!;
+    const shortWindow = verde.find(w => w.card === shortCard)!;
+    assert.ok(shortWindow.end - shortWindow.start < MIN_CARD_SECONDS, `the short claim really narrates in ${(shortWindow.end - shortWindow.start).toFixed(2)} s`);
+    // ROJO: the former merge hides the short card under a neighbour, so while its claim is narrated another figure shows.
+    const rojo = legacyMerge(verde);
+    assert.ok(!rojo.some(w => w.card === shortCard), "ROJO: the merge discarded the short card's identity");
+    const mid = (shortWindow.start + shortWindow.end) / 2;
+    assert.notEqual(figuresOf(activeAt(rojo, mid).card), figuresOf(shortCard), `ROJO: at ${mid.toFixed(2)} s the active card says «${figuresOf(activeAt(rojo, mid).card)}» while the narration says «${figuresOf(shortCard)}»`);
+    // VERDE: every card keeps its identity and exactly its window; windows are contiguous and cover the scene.
+    assert.deepEqual(verde.map(w => w.card.index), cards.map(c => c.index));
+    assert.equal(verde[0].start, 0); assert.equal(verde[verde.length - 1].end, end);
+    for (let i = 1; i < verde.length; i++) assert.equal(verde[i].start, verde[i - 1].end);
+    assert.ok(verde.every(w => w.timing === "word_timestamps" && w.end > w.start));
+    for (let t = 0.005; t < end; t += 0.01) {
+      const shown = activeAt(verde, t).card, said = narratedCard(cards, starts, t);
+      assert.equal(figuresOf(shown), figuresOf(said), `at ${t.toFixed(3)} s the card shows «${figuresOf(shown)}» but the narration is at «${figuresOf(said)}»`);
+    }
+    // The real render path: the beats generate-video derives from these windows plan one Director segment per card.
+    const beats: ResolvedBeat[] = verde.map((w, k) => ({ url: `https://fixture.local/card-0-${k}.svg`, mediaType: "image", source: "data_card", license: "CLEARED", start: w.start, end: w.end, card: { text: w.card.text, windowText: w.card.windowText, figures: w.card.figures } }));
+    const r = directReel({ script, sceneTimings: [{ start: 0, end }], beatsBySegment: [beats], audioUrl: "https://fixture.local/voice.wav", captions: [], narrationGaps: [], durationSeconds: end + 0.4 });
+    assert.ok(r.ok, r.ok ? "" : JSON.stringify(r.blockers));
+    if (!r.ok) return;
+    const short = r.applied.find(a => a.applied.startSeconds <= mid && mid < a.applied.endSeconds)!;
+    const shot = r.plan.shots.find(s => s.id === short.shotId)!;
+    const intent = r.input.inventory.find(x => x.id === shot.asset.assetId)!.content!.visualIntent!;
+    assert.ok(intent.includes(figuresOf(shortCard)) && !cards.filter(c => c !== shortCard).some(c => intent.includes(figuresOf(c))), `the Director dresses the short window with its own card only: ${intent}`);
+    assert.equal(short.applied.motion, "static");
+  });
+}
+
+test("T44 correction 1 — degenerate timestamps (two claims starting at the same instant) fall back to the proportional clock; no window is ever empty", () => {
+  const script: GeneratedScript = { title: "x", segments: [{ text: THREE_CLAIMS, visualQuery: "people", visualConcepts: ["people"] }] };
+  const cards = directorReelPreflight(script).cards;
+  const n = cards[0].tokenCount;
+  const starts = Array.from({ length: n }, (_, k) => k < 12 ? Math.min(k, 8) * 0.4 : 3.2 + (k - 12) * 0.4);
+  const w = cardWindows(cards, 0, 6.4, starts);
+  assert.ok(w.every(x => x.timing === "estimated_proportional" && x.end - x.start > 0));
+  assert.equal(w.length, cards.length);
+  assert.equal(cardWindows(cards, 0, 6.4, null).every(x => x.timing === "estimated_proportional"), true, "no timestamps → proportional");
+  assert.deepEqual(cardWindows([], 0, 1, null), []);
+});
+
+test("T44 correction 1 — a claim too short to own a card window is refused BEFORE spend with the sentence to extend (fail-closed, never stretched)", () => {
+  const packed: GeneratedScript = { title: "x", segments: [{ text: "70 %. En 2019, el 30 % recordó la historia.", visualQuery: "people", visualConcepts: ["people"] }] };
+  const pre = directorReelPreflight(packed);
+  assert.deepEqual(pre.cards, []);
+  assert.equal(pre.blockers.length, 1);
+  assert.equal(pre.blockers[0].sentence, "70 %.");
+  assert.match(pre.blockers[0].hint, new RegExp(`al menos ${MIN_CARD_TOKENS} palabras`));
+  assert.match(pre.blockers[0].reason, /2 palabra/);
+  assert.equal(scrubInternalNames(preflightBlockMessage(pre.blockers)), preflightBlockMessage(pre.blockers));
+  // Exactly MIN_CARD_TOKENS words is enough (the window is its own); the review page shows the blocker the same way.
+  const ok: GeneratedScript = { title: "x", segments: [{ text: "El 70 % también. En 2019, el 30 % recordó la historia.", visualQuery: "people", visualConcepts: ["people"] }] };
+  assert.equal(directorReelPreflight(ok).blockers.length, 0);
+  const inspected = inspectReel(packed, { renderEnabled: true });
+  assert.ok("preflightBlockers" in inspected && inspected.preflightBlockers.length === 1);
+});
+
 test("source guard: the worker and the render route run the preflight BEFORE any reservation, attempt or dispatch; the worker reopens the script on a block; cards are placed on the voice's word timestamps", () => {
   const job = src("src/lib/video/run-job.ts");
   const pre = job.indexOf("directorReelPreflight(row.script_json"), reserve = job.indexOf("await reserveJobSupply(service, requestId");
@@ -317,7 +412,8 @@ test("source guard: the worker and the render route run the preflight BEFORE any
   assert.ok(rp > 0 && sub > rp && res > rp, "preflight before the subscription check and the reservation in the render route");
   assert.match(route, /charge: "none_proven", status: videoRequest\.status, attempts: videoRequest\.render_attempts \};\n\s+return NextResponse\.json\(\{ error: preflightBlockMessage\(preflight\.blockers\), outcome \}, \{ status: 422 \}\)/);
   const gen = src("src/lib/video/generate-video.ts");
-  assert.match(gen, /sceneWords\[k\]\.startSeconds/, "card windows come from the real word timestamps");
+  assert.match(gen, /cardWindows\(cards, timing\.start, timing\.end, [^)]*sceneWords\.map\(\(w\) => w\.startSeconds\)/, "card windows come from the real word timestamps through cardWindows");
+  assert.doesNotMatch(gen, /merged\[|prev\.end = w\.end|merged\.shift\(\)/, "correction 1: no window merge anywhere in the worker");
   assert.match(gen, /card-\$\{i\}-\$\{k\}\.svg/);
   // Every paid step of a render (real storyboard, voice, footage, images) lives inside generateVideoFromScript, which
   // run-job only calls AFTER its preflight and its reservation: a refused script never reaches any of them.
