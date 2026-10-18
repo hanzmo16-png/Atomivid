@@ -160,3 +160,16 @@ test("Avatar no ofrece ni persiste una voz provisional que el pipeline no aplica
   assert.doesNotMatch(actions, /formData\.get\("avatar_voice_id"\)/);
   assert.match(actions, /avatar_voice_id:\s*null/);
 });
+
+test("Avatar valida un avatar utilizable antes de sintetizar voz potencialmente pagada", () => {
+  const actions = readFileSync("src/app/dashboard/new/actions.ts", "utf8");
+  const existingAvatarReady = actions.indexOf("avatarId = avatar.id;");
+  const newAvatarReady = actions.indexOf("avatarId = inserted.id;");
+  const paidVoice = actions.indexOf("const voiceResult = await gatedVoiceSynthesize");
+
+  assert.ok(existingAvatarReady >= 0, "debe comprobar y seleccionar el avatar existente");
+  assert.ok(newAvatarReady >= 0, "debe confirmar y guardar el avatar nuevo");
+  assert.ok(paidVoice > existingAvatarReady, "una selección existente inválida debe fallar antes de ElevenLabs");
+  assert.ok(paidVoice > newAvatarReady, "foto/proveedor/avatar nuevo deben validarse antes de ElevenLabs");
+  assert.match(actions, /Tu\+avatar\+queda\+guardado\+para\+reintentar/);
+});
