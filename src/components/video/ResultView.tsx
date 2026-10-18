@@ -130,7 +130,7 @@ export function ResultView({
           />
         )}
 
-        {request.status === "processing" && !isLongForm && !waitingForSupply && (
+        {request.status === "processing" && !isLongForm && !waitingForSupply && !stalled && (
           <Card className="p-6 sm:p-8">
             <div role="status" aria-live="polite">
               <p className="font-medium text-ink">
@@ -167,6 +167,14 @@ export function ResultView({
               </p>
             </div>
           </Card>
+        )}
+
+        {request.status === "processing" && !isLongForm && !waitingForSupply && stalled && (
+          <Alert tone="warning" role="status">
+            <p className="font-medium">Esta producción dejó de reportar avances.</p>
+            <p className="mt-1">No mostraremos un porcentaje antiguo como si siguiera avanzando.
+              Revisa su estado antes de reintentar para evitar operaciones o costos duplicados.</p>
+          </Alert>
         )}
 
         {request.status === "failed" && (
