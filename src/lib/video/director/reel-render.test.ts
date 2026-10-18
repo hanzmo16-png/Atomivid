@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { GeneratedScript } from "@/lib/providers/types";
-import { directReel, type ResolvedBeat } from "./reel-render";
+import { directReel, directorBlockMessage, type ResolvedBeat } from "./reel-render";
 import { alignScenesToWords } from "../scene-timings";
 import { simulateStoryboard } from "../storyboard/simulate";
 
@@ -16,7 +16,7 @@ test("render planning uses measured narration, not the longer storyboard estimat
   const storyboard = simulateStoryboard(script), original = structuredClone(storyboard);
   assert.ok(storyboard.scenes[0].estimatedDurationSeconds > 6);
   const r = directReel({ script, storyboard, sceneTimings: [{ start: 0, end: 5 }],
-    beatsBySegment: [[{ start: 0, end: 5, url: "https://fixture.local/dawn.mp4", mediaType: "video", source: "stock" }]],
+    beatsBySegment: [[{ start: 0, end: 5, url: "https://fixture.local/dawn.mp4", mediaType: "video", source: "stock", license: "CLEARED" }]],
     audioUrl: "https://fixture.local/voice.mp3", captions: [], narrationGaps: [], durationSeconds: 5.4 });
   assert.ok(r.ok, r.ok ? "" : JSON.stringify(r.blockers));
   if (!r.ok) return;
@@ -36,7 +36,7 @@ test("a slower narration still splits at the shot limit and requires real materi
   const args = { script, sceneTimings: [{ start: 0, end: 8 }],
     audioUrl: "https://fixture.local/voice.mp3", captions: [], narrationGaps: [], durationSeconds: 8.4 };
   const beats: ResolvedBeat[] = [0, 4].map((start, i) => ({ start, end: start + 4,
-    url: `https://fixture.local/sea-${i}.mp4`, mediaType: "video", source: "stock" }));
+    url: `https://fixture.local/sea-${i}.mp4`, mediaType: "video", source: "stock", license: "CLEARED" }));
   const r = directReel({ ...args, beatsBySegment: [beats] });
   assert.ok(r.ok, r.ok ? "" : JSON.stringify(r.blockers));
   if (!r.ok) return;
@@ -72,12 +72,12 @@ const SCRIPT: GeneratedScript = { title: "Videos cortos", segments: [
   { text: "La constancia vale más que la perfección. Publica, mira qué funciona y vuelve a empezar mañana.", visualQuery: "person smiling at camera", visualConcepts: ["creator smiling at camera", "person walking city"], energy: "low" },
 ] };
 
-function run(beatType: ResolvedBeat["mediaType"], source: ResolvedBeat["source"]) {
+function run(beatType: ResolvedBeat["mediaType"], source: ResolvedBeat["source"], license: ResolvedBeat["license"] = "CLEARED") {
   let t = 0;
   const sceneTimings = SCRIPT.segments.map(s => { const d = s.text.split(" ").length / 2.6; const r = { start: t, end: t + d }; t += d; return r; });
   const beatsBySegment = sceneTimings.map((st, i) => {
     const mid = (st.start + st.end) / 2;
-    return [{ url: `https://fixture.local/s${i}a`, mediaType: beatType, source, start: st.start, end: mid }, { url: `https://fixture.local/s${i}b`, mediaType: beatType, source, start: mid, end: st.end }];
+    return [{ url: `https://fixture.local/s${i}a`, mediaType: beatType, source, license, start: st.start, end: mid }, { url: `https://fixture.local/s${i}b`, mediaType: beatType, source, license, start: mid, end: st.end }];
   });
   const captions = SCRIPT.segments.map((s, i) => ({ text: s.text, startSeconds: sceneTimings[i].start, endSeconds: sceneTimings[i].end }));
   return { r: directReel({ script: SCRIPT, beatsBySegment, sceneTimings, audioUrl: "https://fixture.local/a.mp3", captions, narrationGaps: [], durationSeconds: t + 0.4 }), end: t };
@@ -116,7 +116,7 @@ test("spoken pauses, leading silence and trailing silence produce a continuous D
   const beatsBySegment = sceneTimings.map((s, i) => {
     const mid = (s.start + s.end) / 2;
     return [{ start: s.start, end: mid }, { start: mid, end: s.end }].map((b, j) => ({ ...b,
-      url: `https://fixture.local/${i}-${j}.mp4`, mediaType: "video" as const, source: "stock" as const }));
+      url: `https://fixture.local/${i}-${j}.mp4`, mediaType: "video" as const, source: "stock" as const, license: "CLEARED" as const }));
   });
   const captions = words.map(w => ({ text: w.text, startSeconds: w.startSeconds, endSeconds: w.endSeconds }));
   let offset = 0;
@@ -144,4 +144,19 @@ test("missing or invalid narration timings still block rather than inventing vis
   const words = [{ text: "uno", startSeconds: 0, endSeconds: 0.5 }, { text: "dos", startSeconds: 0.8, endSeconds: 1 }];
   for (const bad of [[], words.slice(0, 1), [words[0], { ...words[1], startSeconds: NaN }], [words[0], { ...words[1], endSeconds: 3 }]])
     assert.throws(() => alignScenesToWords(segments, bad, 1.2), /SCENE_TIMING_INVALID/);
+});
+
+test("T36 C1: material con licencia pendiente o no autorizada bloquea el montaje del Director (camino real, sin objetos del bridge)", () => {
+  for (const license of ["NEEDS_REVIEW", "NOT_CLEARED"] as const) {
+    const { r } = run("video", "stock", license);
+    assert.ok(!r.ok, license);
+    if (r.ok) continue;
+    // The planner already refuses non-cleared material (MATERIAL_NOT_AUTHORISED); the bridge would refuse it again
+    // (LICENSE_NOT_CLEARED_FOR_RENDER). Either is a rights block — never a render.
+    assert.ok(r.blockers.some(b => b.code === "LICENSE_NOT_CLEARED_FOR_RENDER" || b.code === "MATERIAL_NOT_AUTHORISED"), JSON.stringify(r.blockers.map(b => b.code)));
+    assert.match(directorBlockMessage(r.blockers), /derechos o licencia/);
+    assert.ok(r.input?.inventory.some(a => a.license === license), "el inventario del Director lleva la licencia real");
+  }
+  const ok = run("video", "stock").r;
+  assert.ok(ok.ok, "con licencia CLEARED el mismo Reel monta");
 });

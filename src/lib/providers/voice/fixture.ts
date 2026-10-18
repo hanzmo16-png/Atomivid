@@ -1,6 +1,19 @@
 import { generateToneWav } from "../wav";
 import type { VoiceProvider, WordTiming } from "../types";
 import { WORDS_PER_SECOND } from "@/lib/video/script-pacing";
+import { ProviderRejectedError } from "@/lib/paid-calls/errors";
+
+let synthesizeCalls = 0;
+/**
+ * T40 (local E2E only): FIXTURE_VOICE_FAIL=<http status>[@<n>] makes the synthetic provider refuse exactly like the real
+ * adapter does on an HTTP error (ProviderRejectedError, a pre-acceptance refusal): on every call, or only on the n-th
+ * call of this process. Fixture providers are refused in production (isProductionRuntime), so this can never run there.
+ */
+function injectedFailure(call: number): string | null {
+  const m = /^([1-5]\d{2})(?:@([1-9]\d*))?$/.exec(process.env.FIXTURE_VOICE_FAIL ?? "");
+  if (!m) return null;
+  return m[2] === undefined || Number(m[2]) === call ? m[1] : null;
+}
 
 // Proveedor determinístico (sin red): genera un tono en vez de narración
 // real, pero con timestamps por palabra realistas — sirve para probar
@@ -18,6 +31,8 @@ import { WORDS_PER_SECOND } from "@/lib/video/script-pacing";
 export const fixtureVoiceProvider: VoiceProvider = {
   name: "fixture",
   async synthesize(text, _language, speed = 1) {
+    const status = injectedFailure(++synthesizeCalls);
+    if (status) throw new ProviderRejectedError(`ElevenLabs respondió ${status}: Service Unavailable (fixture)`);
     const wordsRaw = text.split(/\s+/).filter(Boolean);
     // Simula el efecto de `speed` (ver VoiceProvider.synthesize en
     // providers/types.ts): más rápido → cada palabra dura menos.

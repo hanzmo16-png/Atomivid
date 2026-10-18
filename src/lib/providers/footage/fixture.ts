@@ -50,12 +50,39 @@ function svgDataUri(label: string): string {
 }
 
 let counter = 0;
+let imageSearches = 0;
+
+/**
+ * T36 C2 (local walkthrough only): FIXTURE_FOOTAGE_RESULT_LICENSE=<NEEDS_REVIEW|NOT_CLEARED>@<n> makes the n-th image
+ * search of this process return candidates that declare that licence, as a reviewed provider would for one result.
+ */
+function resultLicenseFor(search: number): "NEEDS_REVIEW" | "NOT_CLEARED" | undefined {
+  const m = /^(NEEDS_REVIEW|NOT_CLEARED)@([1-9][0-9]*)$/.exec(process.env.FIXTURE_FOOTAGE_RESULT_LICENSE ?? "");
+  return m && Number(m[2]) === search ? (m[1] as "NEEDS_REVIEW" | "NOT_CLEARED") : undefined;
+}
+
+/**
+ * T40 (local E2E only): FIXTURE_FOOTAGE_FAIL=<http status>[@<n>] makes the n-th image search of this process (or every
+ * search) fail exactly like the real adapter does after its own retries on a 5xx (`Pexels respondió <status>`, a plain
+ * Error that the selection does not catch). Never reachable in production: fixture providers are refused there.
+ */
+function injectedSearchFailure(search: number): string | null {
+  const m = /^([1-5]\d{2})(?:@([1-9]\d*))?$/.exec(process.env.FIXTURE_FOOTAGE_FAIL ?? "");
+  if (!m) return null;
+  return m[2] === undefined || Number(m[2]) === search ? m[1] : null;
+}
 
 // Proveedor determinístico (sin red): genera imágenes de color sólido con
 // el texto de búsqueda superpuesto, en vez de fotos reales de Pexels — sirve
 // para probar el pipeline completo sin PEXELS_API_KEY.
 export const fixtureFootageProvider: FootageProvider = {
   name: "fixture",
+  // T36 C1 (local walkthrough only): FIXTURE_FOOTAGE_LICENSE=NEEDS_REVIEW|NOT_CLEARED makes the synthetic provider
+  // declare a stricter licence, as a real provider with unreviewed material would. It can never loosen one.
+  get license() {
+    const v = process.env.FIXTURE_FOOTAGE_LICENSE;
+    return v === "NEEDS_REVIEW" || v === "NOT_CLEARED" ? v : undefined;
+  },
   async fetchFootage(query) {
     counter += 1;
     return {
@@ -88,6 +115,10 @@ export const fixtureFootageProvider: FootageProvider = {
     // penalización por diversidad de footage-score.ts escalaba sin límite
     // en videos largos, dando scores muy negativos que no representan lo
     // que pasaría con Pexels real, donde cada foto trae su propio autor).
+    const search = ++imageSearches;
+    const failure = injectedSearchFailure(search);
+    if (failure) throw new Error(`Pexels respondió ${failure}`);
+    const license = resultLicenseFor(search);
     return Array.from({ length: 3 }, (_, i) => {
       counter += 1;
       const label = `${query} #${i + 1}`;
@@ -104,6 +135,7 @@ export const fixtureFootageProvider: FootageProvider = {
         // description. Without it the opening relevance gate (opening-relevance.ts) rejects every
         // fixture candidate and no local Reel can render.
         description: query,
+        ...(license ? { license } : {}),
       };
     });
   },

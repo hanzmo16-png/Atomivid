@@ -64,7 +64,7 @@ test("manipulated payload cannot enable it: the dispatch carries no Director fie
   const dispatch = readFileSync("src/lib/worker/github-actions.ts", "utf8");
   assert.doesNotMatch(dispatch, /director|CINEMATIC|\bref\b/i, "dispatch payload has no Director switch or ref");
   const runJob = readFileSync("src/lib/video/run-job.ts", "utf8");
-  assert.match(runJob, /const directorRender = mode === "visual" && await resolveDirectorRender\(row, async \(\) => \{\n\s+const \{ data, error \} = await service\.auth\.admin\.getUserById\(row\.user_id\);/,
+  assert.match(runJob, /const directorRender = mode === "visual" && await decideDirectorRender\(row, async \(\) => \{\n\s+const \{ data, error \} = await service\.auth\.admin\.getUserById\(row\.user_id\);/,
     "decided from the stored row and its owner account");
   assert.match(runJob, /onProgress,\n\s+directorRender,\n\s+\}\);/, "passed only to the visual Reel generator");
   const gv = readFileSync("src/lib/video/generate-video.ts", "utf8");

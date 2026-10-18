@@ -129,12 +129,30 @@ test("recipeVariety excludes the absence of a recipe and stays within 0..1; pend
   assert.ok(m.recipeVariety >= 0 && m.recipeVariety <= 1);
 });
 
-test("inspection note tells the truth about the render: proposal-only when the render flag is off, plan drives the montage when on", () => {
+test("inspection note tells the truth about the render: proposal-only when the render flag is off, eligible/requested (never applied) when on", () => {
   const off = inspectReel(SCRIPT), on = inspectReel(SCRIPT, { renderEnabled: true });
   assert.ok(off.status !== "error" && on.status !== "error");
+  assert.equal(off.renderRequest, "proposal_only");
   assert.match(off.note, /No cambia el guion ni el render/);
+  assert.equal(on.renderRequest, "eligible");
   assert.doesNotMatch(on.note, /ni el render/);
-  assert.match(on.note, /ese plan dirige el montaje/);
+  // chatgpt-30 C1: the page only knows Vercel's flags; the worker re-decides with its own. No categorical promise.
+  assert.match(on.note, /se solicita/i);
+  assert.match(on.note, /solo se confirma después del render/);
+  assert.doesNotMatch(on.note, /ese plan dirige el montaje/);
+});
+
+test("inspection note matches the fail-closed contract: a requested Director is applied or the render stops with a cause; it is never replaced by the classic montage (proposal-only keeps the classic flow)", () => {
+  const off = inspectReel(SCRIPT), on = inspectReel(SCRIPT, { renderEnabled: true });
+  assert.ok(off.status !== "error" && on.status !== "error");
+  // requested → applied, or requested → failed with an explicit cause before reserving or spending (render-access.ts).
+  assert.match(on.note, /se detiene con una causa explícita antes de reservar o gastar/);
+  assert.match(on.note, /no se sustituye por el montaje clásico/);
+  assert.doesNotMatch(on.note, /el montaje es el clásico|montaje clásico en su lugar|vuelve al montaje clásico/, "never promises a classic fallback for a requested Director");
+  assert.doesNotMatch(on.note, /\baplicad[oa]\b(?! solo se confirma)/i, "before the render the note never claims the Director was applied");
+  // Not requested: the classic flow stays valid and the note says so, without mentioning any Director failure.
+  assert.match(off.note, /«Generar video final» sigue siendo el flujo actual/);
+  assert.doesNotMatch(off.note, /se detiene|causa explícita|montaje clásico/);
 });
 
 test("applied record: the video page reads only a well-formed ok record and the path sits next to the MP4", () => {
