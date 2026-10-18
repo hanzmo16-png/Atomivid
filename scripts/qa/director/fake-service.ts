@@ -25,8 +25,23 @@ function build() {
   const rpcLog: Rpc[] = [];
   const seedPath = process.env.ATOMIVID_FAKE_SEED;
   if (seedPath) {
-    const seed = JSON.parse(fs.readFileSync(seedPath, "utf8")) as { tables?: Record<string, Row[]> };
+    const seed = JSON.parse(fs.readFileSync(seedPath, "utf8")) as { tables?: Record<string, Row[]>; objects?: Record<string, string> };
     for (const [name, rows] of Object.entries(seed.tables ?? {})) fake.table(name).push(...rows.map((r) => ({ ...r })));
+    // T40: Storage objects left by a previous attempt (keys `<bucket>/<path>`, base64), so recovery can prove they survive.
+    for (const [key, b64] of Object.entries(seed.objects ?? {})) fake.objects.set(key, Buffer.from(b64, "base64"));
+  }
+  // T40: ATOMIVID_FAKE_CRASH_ON_STAGE=<stage> kills the worker process the moment it records that stage (the heartbeat
+  // write is applied first, exactly like a worker lost right after it): exit 137, no further writes, tables dumped.
+  const crashStage = process.env.ATOMIVID_FAKE_CRASH_ON_STAGE;
+  if (crashStage) {
+    for (const r of fake.table("video_requests")) {
+      let stage = r.progress_stage;
+      Object.defineProperty(r, "progress_stage", {
+        enumerable: true, configurable: true,
+        get: () => stage,
+        set: (v: unknown) => { stage = v; if (v === crashStage) { process.stderr.write(`fake-service: simulated worker crash at stage ${String(v)}\n`); process.exit(137); } },
+      });
+    }
   }
   // Loopback media server for signed URLs (keys are `<bucket>/<path>`, like the simulator's reel scenario).
   const server = http.createServer((req, res) => {

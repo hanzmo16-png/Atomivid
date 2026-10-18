@@ -14,8 +14,21 @@
  *   double        the completed request dispatched again (same attempt) ⇒ worker skips; objects untouched
  *   in-flight     a claim already taken (progress_stage=voice) ⇒ worker does not re-run the attempt
  *   isolation     the owner lookup fails (user missing) ⇒ no Director, no spend beyond what the row allows
+ *   recovery      the row already moved to attempt 2 (web retry) ⇒ attempt 2 completes under attempt-2/ only
+ *  T40 (provider unavailability and interruption inside the productive worker, fixtures only):
+ *   voice-503     the voice provider answers 503 (pre-acceptance refusal) ⇒ failed with cause, action retry, nothing stored
+ *   stale-after-fail  a late dispatch of that same attempt ⇒ ignored (row no longer processing)
+ *   footage-503   the 3rd footage search answers 503 ⇒ failed with cause; only scene images of the attempt exist, never
+ *                 final.mp4/director.json/voice; no classic fallback for a requested Director
+ *   crash         the worker dies when it records the "render" stage ⇒ row stays processing/render, no completed, assets
+ *                 uploaded so far remain, reservation still held
+ *   crash-stale   a dispatch while that dead claim is still held ⇒ ignored, nothing written
+ *   crash-recovery the web retry moved the row to attempt 2 ⇒ attempt 2 completes; every attempt-1 object is preserved
+ *                 byte for byte
  *
- *   npx tsx scripts/qa/director/worker-e2e-local.ts --out-dir=<dir> [--only=positive,classic]
+ *   npx tsx scripts/qa/director/worker-e2e-local.ts --out-dir=<dir> [--only=positive,classic] [--red]
+ *   --red runs the T40 fault scenarios WITHOUT their fault injection: their assertions must then FAIL (the render
+ *   completes), which proves the assertions discriminate; the follow-up scenarios are skipped in that mode.
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
@@ -56,7 +69,7 @@ function baseEnv(dumpDir: string, seedFile: string): Record<string, string> {
   };
 }
 
-type Seed = { tables: Record<string, Record<string, unknown>[]> };
+type Seed = { tables: Record<string, Record<string, unknown>[]>; objects?: Record<string, string> };
 function seedFor(id: string, script: unknown, over: Record<string, unknown> = {}, owner: Record<string, unknown> | null = OWNER): Seed {
   return { tables: {
     video_requests: [{ id, user_id: OWNER.id, mode: "visual", status: "processing", render_attempts: 1, progress_stage: null, script_json: script,
@@ -244,6 +257,79 @@ async function main() {
     finish("isolation", r, [
       { name: "owner lookup fails ⇒ Director never applied (requested ⇒ fail-closed), no director.json", ok: !r.objects.some((o) => o.endsWith("director.json")) && v.status !== "completed", detail: { exit: r.exit, status: v.status, error: v.error_message, objects: r.objects } },
     ]);
+  }
+
+  // ---------------------------------------------------------------------------------------------------------------
+  // T40: provider 503 inside the worker, interruption, late dispatch and recovery. `--red` removes the fault injection.
+  const RED = process.argv.includes("--red");
+  const fault = (env: Record<string, string>) => (RED ? {} : env);
+  const objectsOf = (r: ReturnType<typeof runWorker>) => Object.fromEntries(r.objects.map((o) => [o, fs.readFileSync(path.join(r.dump, "objects", o)).toString("base64")]));
+  const hashesOf = (r: ReturnType<typeof runWorker>) => Object.fromEntries(r.objects.map((o) => [o, sha256(path.join(r.dump, "objects", o))]));
+  // failure-action.ts: only "support" is tagged ([[action:support]]); an untagged stored failure means action = retry.
+  const failedWithRetry = (v: Record<string, unknown>) => v.status === "failed" && !v.video_path && v.progress_stage === null && !/^\[\[action:support\]\]/.test(String(v.error_message ?? "")) && /\(Código: [0-9a-f]{8}\)/.test(String(v.error_message ?? ""));
+
+  if (want("voice-503")) {
+    const id = randomUUID();
+    const r = runWorker("voice-503", seedFor(id, script), fault({ FIXTURE_VOICE_FAIL: "503" }), id);
+    const v = row(r, id);
+    finish("voice-503", r, [
+      { name: "worker exit 1: a 503 from the voice provider fails the attempt (never a silent success)", ok: r.exit === 1, detail: r.stderr.slice(-300) },
+      { name: "row failed with the provider status (503) in the cause, a diagnostic code and action=retry; stage cleared; no video_path", ok: failedWithRetry(v) && /503/.test(String(v.error_message)), detail: { status: v.status, stage: v.progress_stage, error: v.error_message } },
+      { name: "the refusal happened before acceptance: capacity reservation released, nothing paid, nothing stored", ok: reservations(r).length === 1 && reservations(r)[0].status === "released" && (r.tables.pi_paid_operations ?? []).length === 0 && r.objects.length === 0, detail: { reservations: reservations(r), objects: r.objects } },
+    ]);
+    if (!RED) {
+      // The same attempt dispatched again after the failure (a late or duplicated dispatch).
+      const r2 = runWorker("stale-after-fail", { tables: r.tables }, {}, id);
+      finish("stale-after-fail", r2, [
+        { name: "a late dispatch of the failed attempt is ignored: exit 0, no RPC, no reservation, no objects, row still failed", ok: r2.exit === 0 && r2.rpc.length === 0 && r2.objects.length === 0 && row(r2, id).status === "failed" && reservations(r2).every((x) => x.status === "released"), detail: { exit: r2.exit, rpc: r2.rpc.map((x) => x.name), status: row(r2, id).status } },
+      ]);
+    }
+  }
+
+  if (want("footage-503")) {
+    const id = randomUUID();
+    const r = runWorker("footage-503", seedFor(id, script), fault({ FIXTURE_FOOTAGE_FAIL: "503@3" }), id);
+    const v = row(r, id);
+    finish("footage-503", r, [
+      { name: "worker exit 1: a 503 from the footage provider (3rd search) fails the attempt", ok: r.exit === 1, detail: r.stderr.slice(-300) },
+      { name: "row failed with the provider status (503) in the cause and action=retry; never completed; no video_path", ok: failedWithRetry(v) && /503/.test(String(v.error_message)), detail: { status: v.status, error: v.error_message } },
+      { name: "no 'completed' with incomplete output and no classic fallback for the requested Director: whatever was stored are scene images only (no final.mp4, director.json or voice)", ok: r.objects.every((o) => /\/attempt-1\/scene-\d+-\d+\.svg$/.test(o)) && !r.objects.some((o) => /final\.mp4|director\.json|voice\.wav|music\.wav/.test(o)), detail: r.objects },
+      { name: "capacity reservation released, nothing paid", ok: reservations(r).length === 1 && reservations(r)[0].status === "released" && (r.tables.pi_paid_operations ?? []).length === 0, detail: reservations(r) },
+    ]);
+  }
+
+  if (want("crash")) {
+    const id = randomUUID();
+    const r = runWorker("crash", seedFor(id, script), fault({ ATOMIVID_FAKE_CRASH_ON_STAGE: "render" }), id);
+    const v = row(r, id);
+    finish("crash", r, [
+      { name: "worker lost at the render stage (exit 137): row stays processing/render, never completed, no video_path", ok: r.exit === 137 && v.status === "processing" && v.progress_stage === "render" && !v.video_path, detail: { exit: r.exit, status: v.status, stage: v.progress_stage } },
+      // generate-video.ts writes director.json (the plan→composition record) BEFORE the render stage, so it may exist for
+      // an attempt that never produced final.mp4; the video page only reads it for the attempt named by video_path.
+      { name: "assets uploaded before the crash exist under attempt-1 (voice, scenes, music, director.json); no final.mp4 (nothing presentable as a result)", ok: r.objects.some((o) => o.endsWith("/attempt-1/voice.wav")) && r.objects.some((o) => /scene-\d+-\d+\.svg$/.test(o)) && !r.objects.some((o) => o.endsWith("final.mp4")), detail: r.objects },
+      { name: "the dead attempt still holds its capacity reservation (nobody released it)", ok: reservations(r).length === 1 && reservations(r)[0].status === "reserved", detail: reservations(r) },
+    ]);
+    if (!RED) {
+      const before = hashesOf(r);
+      // A dispatch of the same attempt while the dead claim is still held.
+      const r2 = runWorker("crash-stale", { tables: r.tables, objects: objectsOf(r) }, {}, id);
+      const v2 = row(r2, id);
+      finish("crash-stale", r2, [
+        { name: "dispatch while the crashed claim is held: exit 0, no RPC, no new objects, row unchanged (processing/render)", ok: r2.exit === 0 && r2.rpc.length === 0 && v2.status === "processing" && v2.progress_stage === "render" && JSON.stringify(hashesOf(r2)) === JSON.stringify(before), detail: { exit: r2.exit, rpc: r2.rpc.map((x) => x.name), status: v2.status, stage: v2.progress_stage } },
+      ]);
+      // The web retry (render route) moves the row to attempt 2 / queued; attempt-1 objects stay in Storage.
+      const tables = JSON.parse(JSON.stringify(r.tables)) as Record<string, Record<string, unknown>[]>;
+      Object.assign(tables.video_requests.find((x) => x.id === id)!, { render_attempts: 2, progress_stage: "queued", error_message: "Intento 1 interrumpido (worker perdido)", supply_wait_started_at: null, supply_not_before: null });
+      const r3 = runWorker("crash-recovery", { tables, objects: objectsOf(r) }, {}, id, 2);
+      const v3 = row(r3, id);
+      const after = hashesOf(r3);
+      const mp4 = path.join(r3.dump, "objects", `videos/${id}/attempt-2/final.mp4`), dj = path.join(r3.dump, "objects", `videos/${id}/attempt-2/director.json`);
+      finish("crash-recovery", r3, [
+        { name: "attempt 2 completes (exit 0) with video_path under attempt-2 and the previous error cleared", ok: r3.exit === 0 && v3.status === "completed" && v3.video_path === `${id}/attempt-2/final.mp4` && !v3.error_message, detail: { exit: r3.exit, status: v3.status, video_path: v3.video_path, error: v3.error_message, stderr: r3.stderr.slice(-200) } },
+        { name: "every attempt-1 object is preserved byte for byte (same sha256) and nothing new was written under attempt-1", ok: Object.keys(before).length > 0 && Object.entries(before).every(([k, h]) => after[k] === h) && Object.keys(after).filter((k) => k.includes("/attempt-1/")).length === Object.keys(before).length, detail: { attempt1: Object.keys(before).length, preserved: Object.entries(before).filter(([k, h]) => after[k] === h).length } },
+        { name: "attempt-2 has final.mp4 + director.json; claim and reservation carry attempt 2; attempt-1 reservation untouched", ok: fs.existsSync(mp4) && fs.existsSync(dj) && r3.rpc.filter((x) => x.name === "pi_claim_render_supply" || x.name === "pi_reserve_job_supply").every((x) => (x as { args?: { p_attempt?: unknown } }).args?.p_attempt === 2) && reservations(r3).some((x) => x.attempt === 1 && x.status === "reserved") && reservations(r3).some((x) => x.attempt === 2 && x.status === "released"), detail: { rpc: r3.rpc.map((x) => [x.name, (x as { args?: { p_attempt?: unknown } }).args?.p_attempt]), reservations: reservations(r3) } },
+      ], fs.existsSync(mp4) ? { mp4: { sha256: sha256(mp4), ...ffprobe(mp4) } } : undefined);
+    }
   }
 
   const summary = { PASS: results.filter((r) => r.status === "PASS").length, FAIL: results.filter((r) => r.status === "FAIL").length };
