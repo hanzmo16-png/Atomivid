@@ -26,7 +26,9 @@ import { planToVerticalReel, type BridgeBlocker, type ExistingMedia, type ShotAp
 export type ResolvedBeat = {
   url: string; mediaType: "image" | "video"; source: "stock" | "fixture" | "generated" | "data_card"; license: MediaLicense; start: number; end: number;
   /** Correction 2: `treatment: "neutral"` = the figure-less slate for this window (no claim, no figure); absent = card. */
-  card?: { text: string; windowText: string; figures: Figure[]; treatment?: "card" | "neutral"; neutralReason?: NeutralReason };
+  card?: { text: string; windowText: string; figures: Figure[]; treatment?: "card" | "neutral"; neutralReason?: NeutralReason;
+    /** T44 F3: how start/end were obtained (cardWindows); absent = unknown, reported as estimated. */
+    timing?: "word_timestamps" | "estimated_proportional" };
 };
 
 export type DirectedReel =
@@ -78,6 +80,7 @@ export function directReel(a: {
         }
         const text = neutral ? "" : b.card?.text ?? seg.text, windowText = b.card?.windowText ?? seg.text, figures = neutral ? [] : b.card?.figures ?? extractFigures(text);
         cardPlans.push({ sceneIndex: idx, segmentId: sc.id, index: k, count: beats.length, text, figures, figure: figures[0] ?? null, windowText, fromToken: 0, toToken: n, tokenCount: n, from: 0, to: 1,
+          ...(b.card?.timing ? { timing: b.card.timing } : {}),
           ...(neutral ? { treatment: "neutral" as const, neutralReason: b.card?.neutralReason ?? "short_window" as const } : {}) });
         media[cardAssetId(sc.id, k, beats.length)] = { url: b.url, mediaType: b.mediaType, license: b.license };
       });

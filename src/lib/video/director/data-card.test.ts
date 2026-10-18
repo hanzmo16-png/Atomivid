@@ -19,6 +19,8 @@ import { cardAssetId, cardSegmentId, cardWindows, claimsOf, DATA_CARD_HEIGHT, DA
 import { inputFromReel } from "./from-reel";
 import { topicsOf, unitPolicy } from "./policy";
 import { DirectorInputSchema } from "./contract";
+import { editorialReport } from "./report";
+import { unitsFor } from "./propose";
 import { inspectReel } from "./reel-inspection";
 import { directReel, directorBlockMessage, type ResolvedBeat } from "./reel-render";
 import { simulateStoryboard } from "../storyboard/simulate";
@@ -477,6 +479,79 @@ test("T44 correction 2 — the neutral slate is deterministic, shows no figure a
   const input = withDataCards(inputFromReel(simulateStoryboard(script)), plans);
   const inv = input.inventory.filter(x => x.id.startsWith("scene-0#"));
   assert.deepEqual(inv.map(x => [x.id, /tarjeta neutral/.test(x.content?.visualIntent ?? "")]), [["scene-0#1:card", false], ["scene-0#2:card", true], ["scene-0#3:card", false]]);
+});
+
+/**
+ * Fase 3 audit (Codex, 13f40d9): card windows measured on the voice's word clock were reported in director.json as
+ * `unit.timing = estimated_proportional` with «alineación temporal estimada (sin marcas de palabra)», because the
+ * provenance cardWindows returns was dropped between generate-video and the plan. ROJO = beats without that provenance
+ * (the 13f40d9 path) mislabel measured windows. VERDE = the provenance travels with the beat: measured windows say
+ * `word_timestamps`, the proportional fallback keeps `estimated_proportional`, the ambiguous stretch stays ambiguous
+ * (measured boundaries ≠ verified figure sync), and windows, props, cards and every other plan field are IDENTICAL.
+ */
+test("T44 F3 traceability — ROJO/VERDE unit.timing reports where card boundaries come from; windows, props and cards unchanged", () => {
+  const withTiming = (text: string, windows: CardWindow[]): ResolvedBeat[] => beatsOf(text, windows).map((b, k) => ({ ...b, card: { ...b.card!, timing: windows[k].timing } }));
+  const reliable = wordClock(20, [], 0);
+  const short = wordClock(20, [8, 9, 10, 11], 0.05);
+  const degenerate = Array.from({ length: 20 }, (_, k) => k < 12 ? Math.min(k, 8) * 0.4 : 3.2 + (k - 12) * 0.4);
+  const cases = [
+    { name: "reliable clock", starts: reliable.starts as number[] | null, end: reliable.end, timing: "word_timestamps", attribution: ["single_claim", "single_claim", "single_claim"] },
+    { name: "short window", starts: short.starts as number[] | null, end: short.end, timing: "word_timestamps", attribution: ["single_claim", "short_window", "single_claim"] },
+    { name: "degenerate clock", starts: degenerate as number[] | null, end: 6.4, timing: "word_timestamps", attribution: ["single_claim", "ambiguous_clock", "single_claim"] },
+    { name: "no clock", starts: null, end: 6.4, timing: "estimated_proportional", attribution: ["single_claim", "single_claim", "single_claim"] },
+  ] as const;
+  const script: GeneratedScript = { title: "x", segments: [{ text: THREE_CLAIMS, visualQuery: "people", visualConcepts: ["people"] }, { text: "Por eso las marcas cuentan historias en vez de listar números.", visualQuery: "shop", visualConcepts: ["shop"] }] };
+  const cards = directorReelPreflight(script).cards.filter(c => c.sceneIndex === 0);
+  assert.equal(cards[0].tokenCount, 20);
+  for (const c of cases) {
+    const w = cardWindows(cards, 0, c.end, c.starts ? [...c.starts] : null);
+    assert.ok(w.every(x => x.timing === c.timing), `${c.name}: cardWindows says ${c.timing}`);
+    const run = (beats: ResolvedBeat[]) => directReel({ script, sceneTimings: [{ start: 0, end: c.end }, { start: c.end, end: c.end + 4 }], audioUrl: "https://fixture.local/voice.wav", captions: [], narrationGaps: [], durationSeconds: c.end + 4.4,
+      beatsBySegment: [beats, [{ url: "https://fixture.local/scene-1.svg", mediaType: "image", source: "stock", license: "CLEARED", start: c.end, end: c.end + 4 }]] });
+    const rojo = run(beatsOf(THREE_CLAIMS, w)), verde = run(withTiming(THREE_CLAIMS, w));
+    assert.ok(rojo.ok && verde.ok, `${c.name}: ${JSON.stringify(!rojo.ok ? rojo.blockers : !verde.ok ? verde.blockers : "")}`);
+    if (!rojo.ok || !verde.ok) return;
+    const cardShots = (r: typeof verde) => r.plan.shots.filter(s => s.segmentId.startsWith("scene-0#"));
+    // ROJO (13f40d9): every card shot claims an estimated, proportional alignment, whatever the voice's clock was.
+    assert.ok(cardShots(rojo).every(s => s.unit.timing === "estimated_proportional" && s.uncertainty.some(u => u.includes("sin marcas de palabra")) && !s.unit.attribution), `${c.name}: ROJO reproduces the mislabel`);
+    // VERDE: the label says where the boundaries come from; attribution is reported apart from it.
+    assert.deepEqual(cardShots(verde).map(s => s.unit.timing), cardShots(verde).map(() => c.timing), `${c.name}: unit.timing`);
+    assert.deepEqual(cardShots(verde).map(s => s.unit.attribution), [...c.attribution], `${c.name}: attribution`);
+    for (const s of cardShots(verde)) {
+      assert.equal(s.uncertainty.some(u => u.includes("sin marcas de palabra")), c.timing === "estimated_proportional", `${c.name}: «estimada» only when the split really is proportional`);
+      if (s.unit.attribution === "ambiguous_clock") assert.ok(s.uncertainty.some(u => /no permiten atribuirla a una sola afirmación/.test(u) && /sin sincronía de cifra verificada/.test(u)), "the ambiguous stretch stays ambiguous");
+      if (s.unit.attribution === "short_window") assert.ok(s.uncertainty.some(u => /menos de un cuarto de segundo/.test(u)));
+    }
+    // No per-word times are fabricated anywhere; the non-card scene keeps its own (proportional) label untouched.
+    assert.ok(verde.input.segments.every(s => s.wordTimes === undefined));
+    assert.deepEqual(verde.plan.shots.filter(s => s.segmentId === "scene-1").map(s => s.unit), rojo.plan.shots.filter(s => s.segmentId === "scene-1").map(s => s.unit));
+    // Nothing else changes: same props (what Remotion renders), same applied windows, same segments, same cards and
+    // assets, same plan except the traceability fields (unit.timing, unit.attribution, uncertainty).
+    assert.deepEqual(verde.props, rojo.props, `${c.name}: identical render props`);
+    assert.deepEqual(verde.applied, rojo.applied, `${c.name}: identical applied shots`);
+    assert.deepEqual(verde.input.segments.map(s => [s.id, s.start, s.end, s.text]), rojo.input.segments.map(s => [s.id, s.start, s.end, s.text]));
+    assert.deepEqual(verde.input.inventory, rojo.input.inventory);
+    const core = (r: typeof verde) => r.plan.shots.map(({ unit, uncertainty, ...rest }) => ({ ...rest, unit: { boundary: unit.boundary, cutReason: unit.cutReason } }));
+    assert.deepEqual(core(verde), core(rojo), `${c.name}: identical plan apart from traceability`);
+    const report = editorialReport(verde.plan, DirectorInputSchema.parse(verde.input));
+    assert.equal(report.totals.timing[c.timing], cardShots(verde).length + (c.timing === "estimated_proportional" ? 1 : 0));
+    assert.deepEqual(report.totals.cardAttribution, c.attribution.reduce<Record<string, number>>((m, a) => ({ ...m, [a]: (m[a] ?? 0) + 1 }), {}));
+  }
+  // The worker carries cardWindows' provenance into every card beat (both treatments); nothing derives it elsewhere.
+  const gen = src("src/lib/video/generate-video.ts");
+  assert.equal(gen.match(/timing: w\.timing \}/g)?.length, 2);
+});
+
+test("T44 F3 traceability — a measured card window cut further by the plan keeps `estimated_proportional` on its proportional inner cuts; no cardTiming = no claim", () => {
+  const text = "Primera frase larga con varias palabras para el corte. Segunda frase larga con varias palabras para el corte. Tercera frase larga con varias palabras para el corte.";
+  const seg = { start: 0, end: 24, text };
+  const measured = unitsFor({ ...seg, cardTiming: { boundaries: "word_timestamps" } }, 3, 8);
+  assert.ok(measured.length > 1, "the window is cut by the plan");
+  assert.ok(measured.every(u => u.timing === "estimated_proportional"), "an inner cut placed proportionally is never reported as measured");
+  assert.deepEqual(measured.map(u => [u.start, u.end, u.text]), unitsFor(seg, 3, 8).map(u => [u.start, u.end, u.text]), "the cuts themselves do not depend on the label");
+  assert.equal(unitsFor({ ...seg, end: 5, cardTiming: { boundaries: "word_timestamps" } }, 3, 8)[0].timing, "word_timestamps");
+  assert.equal(unitsFor({ ...seg, end: 5 }, 3, 8)[0].timing, "estimated_proportional");
+  assert.equal(unitsFor({ ...seg, end: 5, cardTiming: { boundaries: "estimated_proportional" } }, 3, 8)[0].timing, "estimated_proportional");
 });
 
 test("T44 correction 1 — a claim too short to own a card window is refused BEFORE spend with the sentence to extend (fail-closed, never stretched)", () => {

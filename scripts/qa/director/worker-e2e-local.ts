@@ -63,6 +63,23 @@ type Result = { scenario: string; status: "PASS" | "FAIL"; checks: Check[]; exit
 const results: Result[] = [];
 const sha256 = (f: string) => createHash("sha256").update(fs.readFileSync(f)).digest("hex");
 
+/**
+ * Fase 3 traceability (Codex audit of 13f40d9): every shot of a data-card window says where its time comes from. A shot
+ * spanning its whole window has only the window's own boundaries, measured on the voice's word clock ⇒ word_timestamps,
+ * with no «estimada» uncertainty; a shot cut inside the window would be proportional and must say so. Attribution is
+ * reported apart: an ambiguous stretch stays ambiguous (measured boundaries ≠ verified figure sync).
+ */
+function cardTraceability(segs: { id: string; start: number; end: number }[], shots: { segmentId: string; start: number; end: number; unit: { timing: string; attribution?: string }; uncertainty: string[] }[], attribution: string[]) {
+  const rows = segs.map((s, k) => ({ seg: s.id, want: attribution[k], shots: shots.filter((x) => x.segmentId === s.id).map((x) => ({ start: x.start, end: x.end, timing: x.unit.timing, attribution: x.unit.attribution ?? null, uncertainty: x.uncertainty })) }));
+  const ok = rows.every((r, k) => r.shots.length >= 1 && r.shots.every((x) => {
+    const whole = Math.abs(x.start - segs[k].start) < 1e-3 && Math.abs(x.end - segs[k].end) < 1e-3;
+    const estimada = x.uncertainty.some((u) => u.includes("sin marcas de palabra"));
+    const attrOk = x.attribution === r.want && (r.want !== "ambiguous_clock" || x.uncertainty.some((u) => /sin sincronía de cifra verificada/.test(u))) && (r.want !== "short_window" || x.uncertainty.some((u) => /menos de un cuarto de segundo/.test(u)));
+    return attrOk && (whole ? x.timing === "word_timestamps" && !estimada : x.timing === "estimated_proportional" && estimada);
+  }));
+  return { ok, rows };
+}
+
 function baseEnv(dumpDir: string, seedFile: string): Record<string, string> {
   const keep = ["PATH", "HOME", "TMPDIR", "LANG", "NODE_OPTIONS", "PLAYWRIGHT_BROWSERS_PATH"];
   const env: Record<string, string> = {};
@@ -392,12 +409,14 @@ async function main() {
     if (fs.existsSync(dj) && fs.existsSync(mp4) && fs.existsSync(obj("card-0-1.svg"))) {
       const svg0 = fs.readFileSync(obj("card-0-0.svg"), "utf8"), svg1 = fs.readFileSync(obj("card-0-1.svg"), "utf8");
       checks.push({ name: "card 1 shows «2019 · 30 %» and never «70 %»; card 2 shows «2020 · 70 %» and never «30 %»; both say «sin fuente verificada»", ok: /2019 · 30 %/.test(svg0) && !/70 %/.test(svg0) && /2020 · 70 %/.test(svg1) && !/30 %/.test(svg1) && /sin fuente verificada/.test(svg0) && /sin fuente verificada/.test(svg1), detail: { hero0: (svg0.match(/font-weight="700"[^>]*>([^<]*)</) ?? [])[1], hero1: (svg1.match(/font-weight="700"[^>]*>([^<]*)</) ?? [])[1] } });
-      type DJ = { ok: boolean; input?: { segments: { id: string; start: number; end: number; text: string }[]; inventory: { id: string; content?: { visualIntent?: string } }[] }; plan?: { shots: { id: string; segmentId: string; recipeId: string | null; asset: { assetId?: string; provenance?: string } }[] }; applied?: { shotId: string; applied: { motion: string; startSeconds: number; endSeconds: number } }[]; props?: { scenes: { mediaUrl: string; startSeconds: number; endSeconds: number }[] } };
+      type DJ = { ok: boolean; input?: { segments: { id: string; start: number; end: number; text: string }[]; inventory: { id: string; content?: { visualIntent?: string } }[] }; plan?: { shots: { id: string; segmentId: string; recipeId: string | null; start: number; end: number; asset: { assetId?: string; provenance?: string }; unit: { timing: string; attribution?: string }; uncertainty: string[] }[] }; applied?: { shotId: string; applied: { motion: string; startSeconds: number; endSeconds: number } }[]; props?: { scenes: { mediaUrl: string; startSeconds: number; endSeconds: number }[] } };
       const d = JSON.parse(fs.readFileSync(dj, "utf8")) as DJ;
       const segs = (d.input?.segments ?? []).filter((s) => s.id.startsWith("scene-0"));
       const s1 = segs.find((s) => s.id === "scene-0#1"), s2 = segs.find((s) => s.id === "scene-0#2");
       const intentOf = (segId: string) => (d.plan?.shots ?? []).filter((s) => s.segmentId === segId).map((s) => d.input?.inventory.find((a) => a.id === s.asset.assetId)?.content?.visualIntent ?? "");
       checks.push({ name: "director.json: scene 0 is two Director segments (scene-0#1 «…30 %…», scene-0#2 «…70 %…») on the voice's word clock, each dressed only by its own card", ok: d.ok === true && !!s1 && !!s2 && s1.end === s2.start && /30 %/.test(s1.text) && /70 %/.test(s2.text) && intentOf("scene-0#1").length >= 1 && intentOf("scene-0#1").every((i) => /30 %/.test(i) && !/70 %/.test(i)) && intentOf("scene-0#2").length >= 1 && intentOf("scene-0#2").every((i) => /70 %/.test(i) && !/30 %/.test(i)) && (d.plan?.shots ?? []).filter((s) => s.segmentId.startsWith("scene-0")).every((s) => s.recipeId === "reel-data-card" && s.asset.provenance === "data_graphic"), detail: { segs, intents: { s1: intentOf("scene-0#1"), s2: intentOf("scene-0#2") } } });
+      const traceMC = cardTraceability([s1, s2].filter((x): x is NonNullable<typeof x> => !!x), d.plan?.shots ?? [], ["single_claim", "single_claim"]);
+      checks.push({ name: "director.json traceability: each card shot reports unit.timing=word_timestamps (its window is measured on the voice clock) and attribution single_claim; no «estimada» on a measured window", ok: !!s1 && !!s2 && traceMC.ok, detail: traceMC.rows });
       if (s1 && s2) {
         const t70 = s2.start + Math.min(0.5, (s2.end - s2.start) / 3);
         const active = (d.props?.scenes ?? []).find((sc) => sc.startSeconds <= t70 && t70 < sc.endSeconds);
@@ -447,7 +466,7 @@ async function main() {
       const textNodes = (svg: string) => (svg.match(/>[^<]+</g) ?? []).map((t) => t.slice(1, -1));
       const neutralSvg = (svg: string) => heroOf(svg) === "" && svg.includes("Cifra no mostrada") && svg.includes(sc.line) && svg.includes("Tarjeta neutral · sin cifra en pantalla") && textNodes(svg).every((t) => !/\d/.test(t)) && !ALL_FIGURE_VALUES.some((f) => svg.includes(f));
       checks.push({ name: `each card carries only its own figures (${sc.figures.map((f) => f ?? "NEUTRAL").join(" | ")}); the neutral slate (card-0-${sc.neutralK}.svg) shows no figure and no digit in any text node and says why («${sc.line}»)`, ok: svgs.every((svg, k) => sc.figures[k] === null ? neutralSvg(svg) : heroOf(svg) === sc.figures[k] && sc.figures.every((f, j) => j === k || !f || !svg.includes(f.split(" · ").pop()!))), detail: svgs.map((s) => ({ hero: heroOf(s), text: textNodes(s) })) });
-      type DJ = { ok: boolean; input?: { segments: { id: string; start: number; end: number; text: string }[]; inventory: { id: string; content?: { visualIntent?: string } }[] }; plan?: { shots: { id: string; segmentId: string; recipeId: string | null; asset: { assetId?: string } }[] }; props?: { scenes: { mediaUrl: string; startSeconds: number; endSeconds: number }[] } };
+      type DJ = { ok: boolean; input?: { segments: { id: string; start: number; end: number; text: string }[]; inventory: { id: string; content?: { visualIntent?: string } }[] }; plan?: { shots: { id: string; segmentId: string; recipeId: string | null; start: number; end: number; asset: { assetId?: string }; unit: { timing: string; attribution?: string }; uncertainty: string[] }[] }; props?: { scenes: { mediaUrl: string; startSeconds: number; endSeconds: number }[] } };
       const d = JSON.parse(fs.readFileSync(dj, "utf8")) as DJ;
       const segs = (d.input?.segments ?? []).filter((s) => s.id.startsWith("scene-0")).sort((a, b) => a.start - b.start);
       const neutralSeg = segs[sc.neutralK];
@@ -458,6 +477,8 @@ async function main() {
       const ownOnly = (i: string, k: number) => sc.figures[k] === null ? /tarjeta neutral/.test(i) && i.includes(sc.line) && !ALL_FIGURE_VALUES.some((f) => i.includes(f)) : i.includes(sc.figures[k]!) && sc.figures.every((f, j) => j === k || !f || !i.includes(f));
       const lenOk = sc.reason === "short_window" ? neutralLen > 0 && neutralLen < 0.25 : neutralLen > 0.25;
       checks.push({ name: `director.json: ${n} Director segments for scene 0 on the voice's word clock, contiguous; segment ${sc.neutralK} (${sc.reason === "short_window" ? "< 0.25 s" : "the ambiguous stretch, the words of claims 2 and 3 stamped together"}) is dressed only by the neutral slate that says why («${sc.line}»); every other segment only by its own card`, ok: d.ok === true && segs.length === n && lenOk && segs.every((s, k) => intentsOf(s.id).length >= 1 && intentsOf(s.id).every((i) => ownOnly(i, k))) && segs.every((s, k) => k === 0 || Math.abs(s.start - segs[k - 1].end) < 1e-6), detail: { segs: segs.map((s) => ({ id: s.id, start: s.start, end: s.end, text: s.text, intents: intentsOf(s.id) })), neutralLen } });
+      const traceSC = cardTraceability(segs, d.plan?.shots ?? [], sc.figures.map((f) => f === null ? sc.reason : "single_claim"));
+      checks.push({ name: `director.json traceability: every scene-0 window reports unit.timing=word_timestamps (boundaries measured on the voice clock) with its attribution (${sc.figures.map((f) => f === null ? sc.reason : "single_claim").join(" | ")}); the ${sc.reason} window keeps its uncertainty and is never a verified figure sync`, ok: segs.length === n && traceSC.ok, detail: traceSC.rows });
       if (neutralSeg && neutralLen > 0) {
         const probes = segs.map((s, k) => ({ k, t: k === sc.neutralK ? (s.start + s.end) / 2 : s.start + Math.min(0.3, (s.end - s.start) / 2) }));
         if (sc.reason === "ambiguous_clock") probes.push({ k: 2, t: neutralSeg.end + 0.1 });

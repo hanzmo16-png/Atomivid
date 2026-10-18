@@ -262,8 +262,8 @@ export async function generateVideoFromScript({
         scenes.push({ mediaUrl: cardUrl, mediaType: "image", startSeconds: w.start, endSeconds: w.end });
         const windowText = tokenSlice(segment.text, w.fromToken, w.toToken) || w.card.windowText;
         directorBeats[i].push({ url: cardUrl, mediaType: "image", source: "data_card", license: "CLEARED", start: w.start, end: w.end,
-          card: neutral ? { text: "", windowText, figures: [], treatment: "neutral", neutralReason: w.neutralReason ?? "short_window" }
-            : { text: w.card.text, windowText, figures: w.card.figures, treatment: "card" } });
+          card: neutral ? { text: "", windowText, figures: [], treatment: "neutral", neutralReason: w.neutralReason ?? "short_window", timing: w.timing }
+            : { text: w.card.text, windowText, figures: w.card.figures, treatment: "card", timing: w.timing } });
         console.log("[atomivid:director]", JSON.stringify({ requestId, sceneIndex: i, card: k, dataCard: neutral ? "(tarjeta neutral, sin cifra)" : w.card.figures.map((f) => f.display).join(" · ") || "(sin cifra)",
           treatment: w.treatment, neutralReason: w.neutralReason ?? null, ambiguousBetween: w.ambiguousBetween ?? null, timing: w.timing, start: w.start, end: w.end, shortWindow: w.end - w.start < MIN_CARD_SECONDS }));
       }

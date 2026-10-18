@@ -230,6 +230,9 @@ export type DataCardPlan = {
   windowText: string; fromToken: number; toToken: number; tokenCount: number; from: number; to: number;
   /** Correction 2: `neutral` = this window shows the figure-less slate (reason in `neutralReason`). Absent = the card. */
   treatment?: "card" | "neutral"; neutralReason?: NeutralReason;
+  /** T44 F3: how this window's boundaries were obtained (cardWindows `timing`), carried to the plan. Absent = unknown,
+   *  reported as `estimated_proportional`. */
+  timing?: CardWindow["timing"];
 };
 export type PreflightBlocker = { sceneIndex: number; segmentId: string; sentence: string; policyClass: string; reason: string; hint: string };
 export type ReelPreflight = { cards: DataCardPlan[]; blockers: PreflightBlocker[] };
@@ -415,7 +418,9 @@ export function withDataCards(raw: DirectorInputRaw, cards: DataCardPlan[], time
     return list.map((c, k) => {
       const t = times?.[seg.id]?.[k];
       const start = t ? t.start : seg.start + c.from * span, end = t ? t.end : (k === list.length - 1 ? seg.end : seg.start + list[k + 1].from * span);
-      return { ...seg, id: cardSegmentId(seg.id, c.index, c.count), start, end, text: c.windowText };
+      // T44 F3: the window's boundary provenance and claim attribution travel with it (measured windows only).
+      const cardTiming = t && c.timing ? { cardTiming: { boundaries: c.timing, attribution: c.treatment === "neutral" ? c.neutralReason ?? "short_window" : "single_claim" as const } } : {};
+      return { ...seg, id: cardSegmentId(seg.id, c.index, c.count), start, end, text: c.windowText, ...cardTiming };
     });
   });
   const inventory = raw.inventory.flatMap(a => {
