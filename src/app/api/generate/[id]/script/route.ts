@@ -53,7 +53,8 @@ async function loadOwnedRequest(id: string, userId: string) {
     .from("video_requests")
     .select("id, user_id, mode, topic, style, duration_seconds, status, language, recorded_audio_path, render_attempts, script_json")
     .eq("id", id)
-    .single<VideoRequestRow>();
+    .eq("user_id", userId)
+    .maybeSingle<VideoRequestRow>();
 
   if (error || !videoRequest) {
     return { service, videoRequest: null, response: NextResponse.json(
@@ -62,12 +63,6 @@ async function loadOwnedRequest(id: string, userId: string) {
     ) };
   }
 
-  if (videoRequest.user_id !== userId) {
-    return { service, videoRequest: null, response: NextResponse.json(
-      { error: "No autorizado" },
-      { status: 403 },
-    ) };
-  }
 
   if (videoRequest.recorded_audio_path) return { service, videoRequest: null, response: NextResponse.json({ error: "Esta solicitud utiliza una grabación; no necesita guion generado." }, { status: 409 }) };
   return { service, videoRequest, response: null };
