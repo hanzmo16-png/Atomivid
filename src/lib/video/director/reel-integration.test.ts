@@ -37,7 +37,14 @@ test("flag off by default; the review page computes the inspection only behind t
   assert.match(page, /const directorInspection = directorInspectionAllowed\(user, data\)\s*\?\s*inspectReel\(data\.script_json, \{ renderEnabled: directorRenderAllowed\(user, data\) \}\)\s*:\s*null;/);
   assert.match(page, /\{directorInspection && <DirectorInspectionPanel inspection=\{directorInspection\} \/>\}/);
   const review = page.slice(page.indexOf("<ScriptReview"));
-  assert.doesNotMatch(review.slice(0, review.indexOf("/>")), /director/i, "ScriptReview (and its generate button) gets no Director input");
+  const props = review.slice(0, review.indexOf("/>"));
+  // Anexo C1: the only Director-related prop is the OWNER's optional material ceiling (a number to send, never a
+  // decision): the inspection still never gates or changes the generate button.
+  const withoutOffer = props.replace(/directorMaterialOffer=\{[\s\S]*?maxUsd: MAX_DIRECTOR_MATERIAL_USD \} : undefined\}/, "").replace(/^\s*\/\/.*$/gm, "");
+  assert.doesNotMatch(withoutOffer, /director/i, "ScriptReview (and its generate button) gets no Director decision");
+  assert.match(props, /directorMaterialOffer=\{isInternalProductionOwner\(user\) && data\.mode === "visual"/, "owner only");
+  const ui = src("src/app/dashboard/review/[id]/ScriptReview.tsx");
+  assert.doesNotMatch(ui.slice(ui.indexOf("onClick={() => generateFinalVideo()}") - 40, ui.indexOf("onClick={() => generateFinalVideo()}") + 200), /directorMaterial/, "the generate button is not gated by it");
 });
 
 test("flag on: a real Reel script yields a valid 9:16 proposal plan, executable=false, paidCalls=0, full coverage", () => {

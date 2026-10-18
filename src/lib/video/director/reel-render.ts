@@ -29,6 +29,12 @@ export type ResolvedBeat = {
   card?: { text: string; windowText: string; figures: Figure[]; treatment?: "card" | "neutral"; neutralReason?: NeutralReason;
     /** T44 F3: how start/end were obtained (cardWindows); absent = unknown, reported as estimated. */
     timing?: "word_timestamps" | "estimated_proportional" };
+  /**
+   * Anexo C1 (material-fill.ts): a generated image made FOR one shot carries the topics of the very sentence it was
+   * generated for, so the Director can match it to that shot. Only set by the Director fill; absent = the planned
+   * asset's topics, as before.
+   */
+  topics?: string[];
 };
 
 export type DirectedReel =
@@ -110,7 +116,7 @@ export function directReel(a: {
           motion: b.mediaType === "video" ? "real" as const : "still" as const,
           provenance: b.source === "generated" ? "ai_recreation" as const : "stock_illustrative" as const,
           license: b.license,
-          content: { ...planned.content!, topics: planned.content?.topics ?? [], window: { segmentId: segId!, from: clamp01((b.start - t.start) / span), to: clamp01((b.end - t.start) / span) } },
+          content: { ...planned.content!, topics: b.topics ?? planned.content?.topics ?? [], window: { segmentId: segId!, from: clamp01((b.start - t.start) / span), to: clamp01((b.end - t.start) / span) } },
         };
       });
     });

@@ -97,8 +97,14 @@ async function main() {
   script.segments[0] = newScene;
   console.log(`Escena 0 regenerada: "${newScene.text.slice(0, 60)}..."`);
 
+  // PIPELINE_DIRECTOR_FILL=<usd> (anexo C1): the Director mounts the Reel and may buy new material up to that budget
+  // (fixture image provider: no network, no cost). The run reports what director.json says about the fill.
+  const fillBudget = Number(process.env.PIPELINE_DIRECTOR_FILL ?? "");
+  const directorFill = Number.isFinite(fillBudget) && process.env.PIPELINE_DIRECTOR_FILL !== undefined;
+  if (directorFill) { process.env.CINEMATIC_DIRECTOR_RENDER_ENABLED = "true"; process.env.IMAGE_PROVIDER = "fixture"; }
   console.log("Renderizando video final...");
   const { videoPath } = await generateVideoFromScript({
+    ...(directorFill ? { directorRender: true, directorMaterialBudgetUsd: async () => fillBudget } : {}),
     supabase: mockSupabase,
     requestId: "test-atomivid",
     script,
@@ -107,6 +113,11 @@ async function main() {
     onProgress: (stage) => console.log(`  → etapa: ${stage}`),
   });
 
+  if (directorFill) {
+    const dj = JSON.parse(await fs.readFile(path.join(storageDir, path.dirname(videoPath), "director.json"), "utf8")) as { ok: boolean; materialFill?: unknown; applied?: { shotId: string; applied: { label: string | null } }[] };
+    console.log(`Director: ok=${dj.ok} materialFill=${JSON.stringify(dj.materialFill ?? null)} labels=${(dj.applied ?? []).map(a => a.applied.label).join(",")}`);
+    if (!dj.ok) throw new Error("El Director no montó el video.");
+  }
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
   console.log(`Video generado en ${elapsed}s: ${videoPath}`);
 

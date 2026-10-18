@@ -22,6 +22,7 @@ export function ScriptReview({
   recovery,
   maxAvatarDurationSeconds,
   recordingDurationSeconds,
+  directorMaterialOffer,
 }: {
   requestId: string;
   status: string;
@@ -49,9 +50,13 @@ export function ScriptReview({
    * it is not offered. The render route enforces the same rule.
    */
   recovery?: { kind: "action"; label: string; note: string } | { kind: "blocked"; message: string };
+  /** Anexo C1 (owner tests with the Director only): ceiling of new Director material to approve for this video. */
+  directorMaterialOffer?: { simulatedUsd: number; maxUsd: number };
 }) {
   const router = useRouter();
   const [script, setScript] = useState(initialScript);
+  // Anexo C1: the simulated need, rounded up to cents, as the suggested ceiling (the owner can change it, or 0).
+  const [materialUsd, setMaterialUsd] = useState(() => directorMaterialOffer ? (Math.ceil(directorMaterialOffer.simulatedUsd * 100 - 1e-6) / 100).toFixed(2) : "0");
   const [dirty, setDirty] = useState(false);
   const [recoveryNotice, setRecoveryNotice] = useState(errorMessage);
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
@@ -158,6 +163,7 @@ export function ScriptReview({
   }
 
   async function generateFinalVideo(acceptedCeilingUsd?: number) {
+    const material = directorMaterialOffer ? Number(materialUsd || "0") : 0;
     if (entitlementBlocked || durationBlockedReason) return;
     setGenerating(true);
     setError(null);
@@ -173,8 +179,9 @@ export function ScriptReview({
     }
 
     try {
-      const res = await fetch(`/api/generate/${requestId}/render`, acceptedCeilingUsd
-        ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acceptedCeilingUsd }) }
+      const body = { ...(acceptedCeilingUsd ? { acceptedCeilingUsd } : {}), ...(material > 0 ? { directorMaterialUsd: material } : {}) };
+      const res = await fetch(`/api/generate/${requestId}/render`, Object.keys(body).length
+        ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
         : { method: "POST" });
       const result = await safeParseJsonResponse(res);
       if (!result.ok) {
@@ -324,6 +331,19 @@ export function ScriptReview({
               Ver planes
             </Link>
           </p>
+        </div>
+      )}
+
+      {canGenerate && directorMaterialOffer && (
+        <div className="mt-6 rounded-md border border-border-strong bg-surface-raised p-4 text-sm" data-testid="director-material">
+          <label htmlFor="director-material-usd" className="font-medium text-ink">Tope aprobado para material nuevo del Director en este video (USD)</label>
+          <input id="director-material-usd" type="number" inputMode="decimal" min={0} max={directorMaterialOffer.maxUsd} step={0.01}
+            value={materialUsd} onChange={(e) => setMaterialUsd(e.target.value)} className="mt-2 w-32 rounded-md border border-border-strong bg-surface px-2 py-1 text-ink" />
+          <ul className="mt-2 space-y-1 text-xs text-ink-muted">
+            <li>Costo previsto (simulación, antes de la voz): hasta USD {directorMaterialOffer.simulatedUsd.toFixed(2)}. El real se calcula con la narración medida.</li>
+            <li>Es un tope, no un objetivo: solo se paga la imagen de cada plano que no tenga material adecuado. Si el tope no alcanza, el Director se detiene antes de pagar y te dice cuánto falta; la voz se conserva.</li>
+            <li>Solo para tus pruebas privadas (máximo USD {directorMaterialOffer.maxUsd.toFixed(2)}); no es la cuota de un plan comercial. 0 = sin material nuevo.</li>
+          </ul>
         </div>
       )}
 

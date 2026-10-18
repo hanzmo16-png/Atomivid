@@ -114,8 +114,11 @@ jobs:
           # se escribe aquí en claro. Además, cada producción exige su propia
           # confirmación humana (long_form_confirmed_at).
           LONG_FORM_REAL_RUN_CONFIRM: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && secrets.LONG_FORM_REAL_RUN_CONFIRM || '' }}
-          IMAGE_PROVIDER: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 'openai' || '' }}
-          OPENAI_API_KEY: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && secrets.OPENAI_API_KEY || '' }}
+          # Anexo C1: a Reel gets the image provider only when the owner switched on new Director material with the
+          # repository variable DIRECTOR_MATERIAL_ENABLED (never from the dispatch payload). It can still only spend what
+          # the server reserved for this attempt's image envelope after the owner approved a ceiling.
+          IMAGE_PROVIDER: ${{ ((github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') || vars.DIRECTOR_MATERIAL_ENABLED == 'true') && 'openai' || '' }}
+          OPENAI_API_KEY: ${{ ((github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') || vars.DIRECTOR_MATERIAL_ENABLED == 'true') && secrets.OPENAI_API_KEY || '' }}
           # Video IA: en el worker se encienden para Long Form y el ÚNICO
           # control es la allocation del plan confirmado (calculada en Vercel
           # con sus propias flags y mostrada al usuario antes de confirmar):
