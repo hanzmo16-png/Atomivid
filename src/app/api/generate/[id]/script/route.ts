@@ -5,7 +5,8 @@ import { runScriptGeneration } from "@/lib/video/script-generation";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { generateScriptForRequest } from "@/lib/video/generate-script";
+import { generateScriptForRequest, planOwnScriptForRequest } from "@/lib/video/generate-script";
+import { draftFit, isOwnScriptDraft, narrationPreserved, scriptSourceOf, type OwnScriptDraft } from "@/lib/video/own-script";
 import { checkHttpStatus, checkProductionForRequest, checkResponseBody } from "@/lib/supply/production-check";
 import { recordScriptCall } from "@/lib/billing/usage";
 import { classifyScriptError, logScriptError } from "@/lib/video/script-error";
@@ -36,8 +37,13 @@ type VideoRequestRow = {
   status: string;
   language: ScriptLanguage;
   render_attempts: number;
-  script_json: GeneratedScript | null;
+  script_json: GeneratedScript | OwnScriptDraft | null;
 };
+
+/** Thrown when a scene plan came back with a narration different from the customer's (never stored). */
+class OwnNarrationChangedError extends Error {
+  constructor() { super("OWN_NARRATION_CHANGED"); this.name = "OwnNarrationChangedError"; }
+}
 
 // Coincide con targetScenes en src/lib/ai/script.ts (máximo 10 para la
 // duración más larga que ofrece la UI) con margen para ediciones manuales,
@@ -119,20 +125,39 @@ export async function POST(
     // production are checked here, before the script — the first paid call. A foreseeable blocker stops
     // now, with who must act; nothing is reserved by this check (the script call is still admitted
     // atomically by pi_submit_with_supply, and the render reserves its envelope with the real script).
-    const check = await checkProductionForRequest({ service, user, ownerId: user.id, stage: "before_script",
+    // Guion propio: the customer's draft (or, to re-plan an own script already planned, its scenes as they
+    // are now). The same draft is what the check sizes, what the call receives and what a failure keeps.
+    const stored = videoRequest.script_json;
+    const draft: OwnScriptDraft | null = isOwnScriptDraft(stored) ? stored
+      : stored && scriptSourceOf(stored) === "own" && Array.isArray(stored.segments)
+        ? { title: stored.title, segments: stored.segments.map(s => ({ text: s.text, visualQuery: "" })), source: "own", visualsPlanned: false, ownText: stored.segments.map(s => s.text).join(" ") }
+        : null;
+    const check = await checkProductionForRequest({ service, user, ownerId: user.id, stage: "before_script", requestId: id,
+      fit: draft ? draftFit(draft, videoRequest.duration_seconds, videoRequest.language) : null,
       request: { mode: videoRequest.mode, duration_seconds: videoRequest.duration_seconds, language: videoRequest.language,
-        topic: videoRequest.topic, style: videoRequest.style, recorded_audio_path: videoRequest.recorded_audio_path, script_json: null } });
+        topic: videoRequest.topic, style: videoRequest.style, recorded_audio_path: videoRequest.recorded_audio_path, script_json: draft } });
     if (check.outcome !== "ready") {
       return NextResponse.json(checkResponseBody(check), { status: checkHttpStatus(check) });
     }
 
     const outcome = await runScriptGeneration({
       generate: async () => {
+        if (draft?.source === "own") {
+          const result = await withScriptGenerationContext(id, () => planOwnScriptForRequest({
+            scenes: draft.segments.map(s => s.text), style: videoRequest.style, durationSeconds: videoRequest.duration_seconds, language: videoRequest.language,
+          }));
+          // By construction the model never returns the narration; this re-check refuses any provider that does.
+          if (!narrationPreserved(draft, result.script)) throw new OwnNarrationChangedError();
+          const quality = checkScriptQuality(result.script, { topic: videoRequest.topic, targetWords: 0, providerName: result.providerName, narrationIsOwn: true });
+          if (!quality.ok) throw new ScriptQualityError(quality);
+          return { ...result.script, source: "own" } as GeneratedScript;
+        }
         const result = await withScriptGenerationContext(id, () => generateScriptForRequest({
           topic: videoRequest.topic,
           style: videoRequest.style,
           durationSeconds: videoRequest.duration_seconds,
           language: videoRequest.language,
+          sourceText: draft?.source === "adapt" ? draft.ownText : undefined,
         }));
 
         const quality = checkScriptQuality(result.script, {
@@ -143,11 +168,14 @@ export async function POST(
         if (!quality.ok) {
           throw new ScriptQualityError(quality);
         }
-        return result.script;
+        return draft?.source === "adapt" ? { ...result.script, source: "adapt" } as GeneratedScript : result.script;
       },
       persist: (patch) => persistScriptChange(service, videoRequest, patch),
       guard: supplyGuardRequired(),
       loadRows: () => loadScriptOperations(id),
+      // The customer's text is never lost: a failed planning or adaptation keeps what was stored (the draft,
+      // or the own script already planned when its visuals were being re-planned).
+      keepOnFailure: draft ? stored : undefined,
     });
     if (outcome.status !== 200) return NextResponse.json(outcome.body, { status: outcome.status, headers: "headers" in outcome ? outcome.headers : undefined });
     const script = outcome.body.script;

@@ -1,4 +1,4 @@
-import { generateScript, regenerateScene } from "@/lib/ai/script";
+import { generateScript, planOwnScript, regenerateScene } from "@/lib/ai/script";
 import type { ScriptProvider } from "../types";
 
 // Every actual call/correction reserves supply. Network uncertainty never triggers
@@ -6,5 +6,6 @@ import type { ScriptProvider } from "../types";
 export const realScriptProvider: ScriptProvider = {
   name: "anthropic",
   generateScript,
+  planOwnScript: (input) => planOwnScript(input),
   regenerateScene,
 };

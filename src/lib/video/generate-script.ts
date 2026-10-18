@@ -24,13 +24,22 @@ export async function generateScriptForRequest({
   style,
   durationSeconds,
   language = "es",
+  sourceText,
 }: {
   topic: string;
   style: string;
   durationSeconds: number;
   language?: ScriptLanguage;
+  sourceText?: string;
 }): Promise<{ script: GeneratedScript; providerName: string }> {
   const scriptProvider = getScriptProvider();
-  const script = await scriptProvider.generateScript({ topic, style, durationSeconds, language });
+  const script = await scriptProvider.generateScript({ topic, style, durationSeconds, language, ...(sourceText ? { sourceText } : {}) });
+  return { script, providerName: scriptProvider.name };
+}
+
+/** «Usar mi propio guion»: visuals for the customer's scenes; the narration is verified to be untouched. */
+export async function planOwnScriptForRequest(input: { scenes: string[]; style: string; durationSeconds: number; language?: ScriptLanguage }): Promise<{ script: GeneratedScript; providerName: string }> {
+  const scriptProvider = getScriptProvider();
+  const script = await scriptProvider.planOwnScript(input);
   return { script, providerName: scriptProvider.name };
 }

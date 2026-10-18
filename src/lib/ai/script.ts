@@ -141,6 +141,11 @@ export type ScriptRequestInput = {
   durationSeconds: number;
   /** Idioma elegido por el usuario — no se infiere del texto del tema. */
   language?: "es" | "en";
+  /**
+   * «Adaptar con IA» (accepted by the customer, with its cost shown first): their own text is the base to
+   * adapt to the duration. Without it the script is written from the topic, as before.
+   */
+  sourceText?: string;
 };
 
 /**
@@ -148,7 +153,7 @@ export type ScriptRequestInput = {
  * pre-spend estimate (scriptCallReservationsFor), so the estimate is computed from the very request
  * that will be sent — never from a separate guess of its size.
  */
-export function buildScriptRequest({ topic, style, durationSeconds, language = "es" }: ScriptRequestInput) {
+export function buildScriptRequest({ topic, style, durationSeconds, language = "es", sourceText }: ScriptRequestInput) {
   const targetWords = targetWordsFor(durationSeconds);
   const targetScenes = Math.max(3, Math.min(10, Math.round(durationSeconds / 5)));
   const minWords = Math.ceil(targetWords * 0.9);
@@ -192,7 +197,12 @@ Da, para cada escena:
 - "energy": "low"/"medium"/"high" según el ritmo narrativo de esa escena.
 - "emphasisWords": 1-3 palabras EXACTAS de "text" (mismo idioma de la narración) que merecen destacarse visualmente.
 
-La suma de las palabras de todos los "text" debe quedar entre ${minWords} y ${maxWords} palabras, con objetivo ${targetWords}. Cuenta las palabras antes de devolver el guion.`;
+La suma de las palabras de todos los "text" debe quedar entre ${minWords} y ${maxWords} palabras, con objetivo ${targetWords}. Cuenta las palabras antes de devolver el guion.${sourceText ? `
+
+El usuario escribió su propio texto y aceptó que lo adaptes a esta duración. Úsalo como base: conserva sus ideas, datos, nombres, orden y tono; recorta o amplía solo lo necesario para la duración y no añadas datos que no estén en él. Texto del usuario:
+"""
+${sourceText}
+"""` : ""}`;
 
   const contentFor = (attempt: number, lastWordCount: number): string => {
     const direction: "reduciendo" | "ampliando" = lastWordCount > maxWords ? "reduciendo" : "ampliando";
@@ -250,6 +260,81 @@ export async function generateScript(input: ScriptRequestInput): Promise<VideoSc
   // intento tal cual — checkScriptQuality (llamado por la ruta) es quien
   // decide si se rechaza, igual que antes de este cambio.
   return lastScript!;
+}
+
+// «Usar mi propio guion»: the narration is the customer's and is NEVER part of the model's output. The model
+// only returns the visual fields of each given scene; the text is copied back from the draft by index.
+const OwnScenePlanSchema = z.object({
+  title: z.string().describe("Título corto y llamativo para el video, en el idioma de la narración"),
+  segments: z.array(SceneSchema.omit({ text: true })).min(1).describe("Una entrada por escena dada, en el mismo orden"),
+});
+const OWN_PLAN_ATTEMPTS = 2;
+
+export type OwnScriptPlanInput = { scenes: string[]; style: string; durationSeconds: number; language?: "es" | "en" };
+
+/** Prompts and parameters of the scene-planning call; shared with the pre-spend estimate like buildScriptRequest. */
+export function buildOwnScriptRequest({ scenes, style, durationSeconds, language = "es" }: OwnScriptPlanInput) {
+  const system = "Eres director visual de reels 'faceless'. La narración ya está escrita por el usuario y NO se puede " +
+    "cambiar: no la reescribas, no la resumas y no la devuelvas. Tu trabajo es elegir, para cada escena dada, el material " +
+    `visual de stock que mejor la ilustra. Los títulos y palabras destacadas van en ${LANGUAGE_NAME[language]}; las búsquedas visuales, en inglés.`;
+  const numbered = scenes.map((t, i) => `${i + 1}. ${JSON.stringify(t)}`).join("\n");
+  const base = `Narración del usuario, ya dividida en ${scenes.length} escenas (duración objetivo ${durationSeconds} s, estilo/tono: ${style}):
+${numbered}
+
+Devuelve exactamente ${scenes.length} entradas en "segments", una por escena y en el mismo orden. Para cada una da:
+- "visualQuery": el concepto visual principal (2-4 palabras en inglés) — igual a visualConcepts[0].
+- "visualConcepts": 2-3 interpretaciones visuales DISTINTAS del SIGNIFICADO de la escena (nunca sinónimos de la misma imagen). ${AVOID_STOCK_TEXT_CLICHES}
+- "excludedTerms": opcional, palabras en inglés a evitar en el material visual.
+- "energy": "low"/"medium"/"high" según el ritmo de esa escena.
+- "emphasisWords": 1-3 palabras copiadas EXACTAMENTE del texto de esa escena.
+La primera escena debe mostrar desde el inicio el objeto o la actividad central de su primera frase.`;
+  const contentFor = (attempt: number, lastCount: number) => attempt <= 1 ? base
+    : `${base}\n\nTu respuesta anterior tenía ${lastCount} entradas; deben ser exactamente ${scenes.length}.`;
+  const paramsFor = (content: string) => ({
+    model: SCRIPT_MODEL,
+    max_tokens: 2000,
+    ...(SCRIPT_MODEL === "claude-sonnet-5" ? { thinking: { type: "disabled" as const } } : {}),
+    system,
+    messages: [{ role: "user" as const, content }],
+    output_config: { format: zodOutputFormat(OwnScenePlanSchema) },
+  });
+  return { model: SCRIPT_MODEL, maxAttempts: OWN_PLAN_ATTEMPTS, contentFor, paramsFor };
+}
+
+/** Parameters of every call the scene planning may make (for the pre-spend ceiling). */
+export function ownScriptCallParamsFor(input: OwnScriptPlanInput) {
+  const req = buildOwnScriptRequest(input);
+  return Array.from({ length: req.maxAttempts }, (_, i) => req.paramsFor(req.contentFor(i + 1, 9999)));
+}
+
+export class OwnScriptPlanError extends Error {
+  constructor(readonly expected: number, readonly received: number) {
+    super(`OWN_SCRIPT_PLAN_MISMATCH:${expected}:${received}`);
+    this.name = "OwnScriptPlanError";
+  }
+}
+
+/** Visual plan for the customer's scenes; narration copied back verbatim, emphasis words kept only if present. */
+export async function planOwnScript(input: OwnScriptPlanInput, call?: (params: ReturnType<ReturnType<typeof buildOwnScriptRequest>["paramsFor"]>) => Promise<unknown>): Promise<VideoScript> {
+  const { maxAttempts, contentFor, paramsFor } = buildOwnScriptRequest(input);
+  let received = 0;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const params = paramsFor(contentFor(attempt, received));
+    const response = call ? await call(params)
+      : await supplyProtectedAnthropic(params, () => getClient().messages.parse(params, { maxRetries: 0 }));
+    const plan = requireScriptOutput(response as never) as unknown as z.infer<typeof OwnScenePlanSchema>;
+    received = plan.segments.length;
+    if (received !== input.scenes.length) continue;
+    return {
+      title: plan.title,
+      segments: plan.segments.map((v, i) => {
+        const text = input.scenes[i];
+        const emphasisWords = v.emphasisWords?.filter(w => text.includes(w));
+        return { ...v, text, ...(emphasisWords ? { emphasisWords } : {}) };
+      }),
+    };
+  }
+  throw new OwnScriptPlanError(input.scenes.length, received);
 }
 
 export async function regenerateScene({

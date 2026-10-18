@@ -8,11 +8,13 @@ import { SupplyUnavailableError } from "@/lib/supply/policy";
 
 import { recordingFormat, recordingPath, RECORDING_BUCKET, MAX_AVATAR_PHOTO_BYTES, MAX_RECORDING_BYTES } from "@/lib/video/avatar/recording";
 import { measureNarrationSeconds } from "@/lib/video/avatar/measure-narration";
-import { avatarDurationError, estimateAvatarNarrationSeconds } from "@/lib/video/avatar/duration";
+import { avatarDurationError } from "@/lib/video/avatar/duration";
 import { randomUUID } from "node:crypto";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
 import { checkProductionForRequest } from "@/lib/supply/production-check";
+import { formProduction, type ScriptChoice } from "@/lib/video/form-production";
+import { MAX_NARRATION_CHARS } from "@/lib/video/narration-fit";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
@@ -32,7 +34,7 @@ const AVATAR_UPLOADS_BUCKET = "avatar-uploads";
 // Cuenta de caracteres razonable para un guion de narración leído por un
 // avatar — mismo orden de magnitud que MAX_TOPIC_LENGTH del resto del
 // formulario, generoso para varios minutos hablados sin ser ilimitado.
-const MAX_AVATAR_TTS_TEXT_LENGTH = 2000;
+const MAX_AVATAR_TTS_TEXT_LENGTH = MAX_NARRATION_CHARS;
 /**
  * Versión del texto de consentimiento vigente (src/app/terms/page.tsx,
  * sección #avatar-consent) — se guarda junto con cada avatar para poder
@@ -84,10 +86,33 @@ export async function createVideoRequest(formData: FormData) {
     redirect("/dashboard/new?error=Esta+prueba+privada+no+está+disponible+para+tu+cuenta");
   }
 
+  // Checklist antes de generar (2026-10-18): the SAME validation the live checklist shows
+  // (form-production.ts), enforced here so a direct POST cannot skip it. Nothing is paid by creating.
+  const form = formProduction({ mode, topic, style, durationSeconds, language,
+    scriptChoice: String(formData.get("script_choice") ?? "generated") as ScriptChoice,
+    ownText: String(formData.get(mode === "visual" ? "own_script_text" : "avatar_tts_text") ?? ""),
+    adaptAccepted: formData.get("adapt_accepted") === "on",
+    avatarNarrationSource: String(formData.get("narration_source") ?? "tts"),
+    maxAvatarSeconds: flags.maxAvatarDurationSeconds });
+  if (form.inputError) redirect(`/dashboard/new?error=${encodeURIComponent(form.inputError)}`);
+  if (form.fit && !form.fit.allowed) redirect(`/dashboard/new?error=${encodeURIComponent(form.fit.message)}`);
+
+  // The form's own submission id, when valid, IS the request id: a double click, a browser resend or a
+  // second tab submitting the SAME form is recognised before any paid call and collides on insert.
+  const submissionId = String(formData.get("submission_id") ?? "");
+  const requestId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionId) ? submissionId.toLowerCase() : randomUUID();
+  {
+    const { data: existing } = await createServiceClient().from("video_requests").select("id").eq("id", requestId).maybeSingle();
+    if (existing) redirect("/dashboard?created=1");
+  }
+
   if (mode === "visual") {
     // Only the server can insert requests. Never let a browser write output paths,
     // paid-production approvals or worker state through the Data API.
+    // «Usar mi propio guion»: the text is stored now, split into scenes without changing a word; the first
+    // paid step (POST /script) only adds the visuals of each scene.
     const { error } = await createServiceClient().from("video_requests").insert({
+      id: requestId,
       user_id: user.id,
       topic,
       style,
@@ -95,9 +120,12 @@ export async function createVideoRequest(formData: FormData) {
       language,
       mode: "visual",
       status: "pending",
+      script_json: form.draft,
     });
 
     if (error) {
+      // A concurrent identical submit lost the insert race: the request exists, nothing was paid.
+      if (error.code === "23505") redirect("/dashboard?created=1");
       redirect(`/dashboard/new?error=${encodeURIComponent(error.message)}`);
     }
 
@@ -118,13 +146,6 @@ export async function createVideoRequest(formData: FormData) {
   // inserta al final de esta función — nunca un id descartable.
   // Control de costos (2026-10-18): the form's own submission id, when valid, IS the request id, so a
   // repeated submit of the same form is recognised before any paid call (below) and collides on insert.
-  const submissionId = String(formData.get("submission_id") ?? "");
-  const requestId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionId) ? submissionId.toLowerCase() : randomUUID();
-  {
-    const { data: existing } = await createServiceClient().from("video_requests").select("id").eq("id", requestId).maybeSingle();
-    if (existing) redirect("/dashboard?created=1");
-  }
-
   // QA blocker real (2026-09-25, Android/Samsung): un límite combinado
   // foto+audio <= 3 MB (heredado de la prueba privada D-ID) rechazaba una
   // grabación real de ~45s recién terminada. Foto y audio ahora se validan
@@ -178,18 +199,17 @@ export async function createVideoRequest(formData: FormData) {
     const durationError = avatarDurationError(measuredDurationSeconds, flags.maxAvatarDurationSeconds);
     if (durationError) redirect(`/dashboard/new?error=${encodeURIComponent(durationError)}`);
   } else if (narrationSource === "tts_text") {
-    const ttsText = String(formData.get("avatar_tts_text") ?? "").trim();
+    // Counted and validated exactly as the form showed it (form-production.ts → narration-fit.ts): the
+    // normalised text is what is narrated and billed; the fit (already enforced above) used the slow end.
+    const ttsText = form.stats?.text ?? "";
     if (!ttsText) redirect("/dashboard/new?error=Escribe+el+texto+que+quieres+narrar");
     if (ttsText.length > MAX_AVATAR_TTS_TEXT_LENGTH) {
       redirect(`/dashboard/new?error=${encodeURIComponent(`El texto no puede superar ${MAX_AVATAR_TTS_TEXT_LENGTH} caracteres`)}`);
     }
-    const durationError = avatarDurationError(estimateAvatarNarrationSeconds(ttsText), flags.maxAvatarDurationSeconds);
-    if (durationError) redirect(`/dashboard/new?error=${encodeURIComponent(durationError)}`);
     // Control de costos (2026-10-18): the whole production (plan, voice and avatar capacity) is checked
     // here, before anything paid or provider-side happens; nothing is reserved by this check.
-    const preCheck = await checkProductionForRequest({ service: createServiceClient(), user, ownerId: user.id, stage: "before_render",
-      request: { mode: "avatar", duration_seconds: Math.ceil(estimateAvatarNarrationSeconds(ttsText)), recorded_audio_path: null,
-        script_json: { segments: [{ text: ttsText }] } } });
+    const preCheck = await checkProductionForRequest({ service: createServiceClient(), user, ownerId: user.id, stage: form.stage,
+      request: form.request, fit: form.fit });
     if (preCheck.outcome !== "ready") redirect(`/dashboard/new?error=${encodeURIComponent(`${preCheck.title} ${preCheck.message} ${preCheck.next}`)}`);
     // Se valida ahora, pero se sintetiza solo después de comprobar que el avatar
     // existente es utilizable o que la fotografía nueva pudo crear un avatar ready.

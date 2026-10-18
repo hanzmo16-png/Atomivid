@@ -1,3 +1,4 @@
+import { isOwnScriptDraft } from "./own-script";
 import type { BadgeTone } from "@/components/ui/Badge";
 
 /**
@@ -89,13 +90,15 @@ export const LANGUAGE_LABEL: Record<string, string> = {
  * solicitud recién creada en pending debe llegar al Historial Y mostrar
  * este CTA, no solo "aparecer en la lista".
  */
-export function pendingRequestCta(requestId: string): {
+export function pendingRequestCta(requestId: string, scriptJson: unknown = null): {
   label: string;
   endpoint: string;
   redirectTo: string;
 } {
+  // Same endpoint; an own script only gets its scene visuals (its narration is not rewritten).
+  const draft = isOwnScriptDraft(scriptJson) ? scriptJson.source : null;
   return {
-    label: "Generar guion",
+    label: draft === "own" ? "Preparar escenas" : draft === "adapt" ? "Adaptar guion con IA" : "Generar guion",
     endpoint: `/api/generate/${requestId}/script`,
     redirectTo: `/dashboard/review/${requestId}`,
   };

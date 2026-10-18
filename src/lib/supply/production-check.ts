@@ -15,7 +15,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertCanGenerate } from "@/lib/billing/quota";
 import { getPricingConfig, scriptPricingIssues } from "@/lib/billing/pricing";
-import { scriptCallParamsFor } from "@/lib/ai/script";
+import { ownScriptCallParamsFor, scriptCallParamsFor } from "@/lib/ai/script";
+import { isOwnScriptDraft } from "@/lib/video/own-script";
 import { getFeatureFlags, type FeatureFlags } from "@/lib/video/feature-flags";
 import { targetWordsFor } from "@/lib/video/script-pacing";
 import { anthropicReservation, ceilLedgerUsd } from "./anthropic-cost";
@@ -24,6 +25,10 @@ import { SupplyUnavailableError } from "./policy";
 import { ensureJobSupplyReady, type ProviderReadiness, type SupplyReadiness } from "./readiness";
 import { supplyGuardRequired } from "./server";
 import type { ScriptLanguage } from "@/lib/providers/types";
+import { isInternalProductionOwner } from "@/lib/billing/internal-production";
+import { getRenderWorker } from "@/lib/worker";
+import { scriptBlockState, type ScriptOpRow } from "./script-intent";
+import type { DurationFit } from "@/lib/video/narration-fit";
 
 /** The five answers the owner asked for, in order of who has to act. */
 export type CheckOutcome = "ready" | "customer_limit" | "provider_unavailable" | "unverifiable" | "needs_correction";
@@ -54,7 +59,13 @@ export type ProductionCheck = {
   checkedAt: string;
   /** Voice provider the demands were sized for (the same getter the pipeline uses). */
   voiceProvider: string | null;
+  /** The same answer, item by item, in the order the owner listed them. Every item is a real server check. */
+  checklist: ChecklistItem[];
 };
+
+export type ChecklistStatus = "ok" | "warning" | "blocked" | "unverified" | "not_applicable";
+export type ChecklistItem = { id: ChecklistId; label: string; status: ChecklistStatus; detail: string; responsible: Responsible };
+export type ChecklistId = "input" | "fit" | "plan" | "providers" | "processing" | "balances" | "budget" | "operations";
 
 export type CheckRequest = {
   mode: string | null;
@@ -81,16 +92,29 @@ export function narrationCharsCeiling(durationSeconds: number): number {
 }
 
 /** USD ceiling of every call a script generation may make, with the ledger's own reservation formula. */
-export function scriptGenerationCeilingUsd(input: { topic: string; style: string; durationSeconds: number; language?: ScriptLanguage | null }): number {
-  const pricing = getPricingConfig();
-  const rates = { scriptInputUsdPer1MTokens: pricing.scriptInputUsdPer1MTokens, scriptOutputUsdPer1MTokens: pricing.scriptOutputUsdPer1MTokens };
-  return scriptCallParamsFor({ topic: input.topic, style: input.style, durationSeconds: input.durationSeconds, language: input.language === "en" ? "en" : "es" })
-    .reduce((sum, params) => sum + ceilLedgerUsd(anthropicReservation(params as Parameters<typeof anthropicReservation>[0], rates)), 0);
+export function scriptGenerationCeilingUsd(input: { topic: string; style: string; durationSeconds: number; language?: ScriptLanguage | null; sourceText?: string }): number {
+  return ceilingOf(scriptCallParamsFor({ topic: input.topic, style: input.style, durationSeconds: input.durationSeconds,
+    language: input.language === "en" ? "en" : "es", sourceText: input.sourceText }));
 }
 
-function basisFor(provider: string, stage: ProductionEstimate["stage"], unit: string): string {
-  if (provider === "anthropic") return stage === "before_script" ? "guion (hasta 3 intentos de longitud) y, si está activo, el director visual" : "director visual del guion real";
-  if (unit === "character") return stage === "before_script" ? "voz: palabras máximas aceptadas para la duración × 8 caracteres × 2 (una corrección de ritmo)" : "voz: caracteres reales del guion × corrección de ritmo";
+/** «Usar mi propio guion»: ceiling of the scene-planning calls (visuals only; the narration is the customer's). */
+export function ownScriptPlanCeilingUsd(input: { scenes: string[]; style: string; durationSeconds: number; language?: ScriptLanguage | null }): number {
+  return ceilingOf(ownScriptCallParamsFor({ scenes: input.scenes, style: input.style, durationSeconds: input.durationSeconds, language: input.language === "en" ? "en" : "es" }));
+}
+
+function ceilingOf(calls: unknown[]): number {
+  const pricing = getPricingConfig();
+  const rates = { scriptInputUsdPer1MTokens: pricing.scriptInputUsdPer1MTokens, scriptOutputUsdPer1MTokens: pricing.scriptOutputUsdPer1MTokens };
+  return calls.reduce<number>((sum, params) => sum + ceilLedgerUsd(anthropicReservation(params as Parameters<typeof anthropicReservation>[0], rates)), 0);
+}
+
+function basisFor(provider: string, stage: ProductionEstimate["stage"], unit: string, own: "own" | "adapt" | null): string {
+  if (provider === "anthropic") return stage === "before_script"
+    ? own === "own" ? "escenas visuales de tu guion (hasta 2 intentos; tu narración no se reescribe) y, si está activo, el director visual"
+      : own === "adapt" ? "adaptación de tu texto a la duración (hasta 3 intentos) y, si está activo, el director visual"
+      : "guion (hasta 3 intentos de longitud) y, si está activo, el director visual"
+    : "director visual del guion real";
+  if (unit === "character") return stage === "before_script" && own !== "own" ? "voz: palabras máximas aceptadas para la duración × 8 caracteres × 2 (una corrección de ritmo)" : "voz: caracteres reales del guion × corrección de ritmo";
   return "techo configurado por producción para este proveedor";
 }
 
@@ -105,7 +129,11 @@ export function productionDemands(row: CheckRequest, voiceProvider: string, stag
 } = {}): { demands: JobSupplyDemand[]; lines: EstimateLine[] } {
   const flags = opts.flags ?? getFeatureFlags();
   const mode = row.mode ?? "visual";
-  const scriptSource = stage === "before_script" && mode !== "long_form"
+  // An own script is sized with its REAL text (it will be narrated as is); an «adapt» or a generated script
+  // has no final text yet and is sized with the duration ceiling.
+  const draft = isOwnScriptDraft(row.script_json) ? row.script_json : null;
+  const own = draft?.source ?? null;
+  const scriptSource = stage === "before_script" && mode !== "long_form" && own !== "own"
     ? { segments: [{ text: "x".repeat(Math.max(1, narrationCharsCeiling(row.duration_seconds))) }] }
     : row.script_json;
   // jobSupplyDemands doubles Reel narration for the pacing correction; the synthetic text keeps that rule.
@@ -113,13 +141,15 @@ export function productionDemands(row: CheckRequest, voiceProvider: string, stag
     long_form_production_plan: row.long_form_production_plan ?? null }, voiceProvider, flags);
   const demands = new Map(base.map(d => [d.provider, { ...d }]));
   if (stage === "before_script" && mode !== "long_form" && !row.recorded_audio_path && (opts.scriptProvider ?? "anthropic") === "anthropic") {
-    const usd = scriptGenerationCeilingUsd({ topic: row.topic ?? "", style: row.style ?? "", durationSeconds: row.duration_seconds, language: row.language });
+    const usd = own === "own" && draft
+      ? ownScriptPlanCeilingUsd({ scenes: draft.segments.map(s => s.text), style: row.style ?? "", durationSeconds: row.duration_seconds, language: row.language })
+      : scriptGenerationCeilingUsd({ topic: row.topic ?? "", style: row.style ?? "", durationSeconds: row.duration_seconds, language: row.language, sourceText: draft?.ownText });
     if (!Number.isFinite(usd) || !(usd > 0)) throw new SupplyUnavailableError("anthropic", "job cost unverified");
     const prev = demands.get("anthropic");
     demands.set("anthropic", { provider: "anthropic", unit: "usd", units: usd + (prev?.units ?? 0), usd: usd + (prev?.usd ?? 0) });
   }
   const list = [...demands.values()].sort((a, b) => a.provider.localeCompare(b.provider));
-  return { demands: list, lines: list.map(d => ({ ...d, basis: basisFor(d.provider, stage, d.unit) })) };
+  return { demands: list, lines: list.map(d => ({ ...d, basis: basisFor(d.provider, stage, d.unit, own) })) };
 }
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -167,6 +197,13 @@ function render(issue: CheckIssue | undefined, estimate: ProductionEstimate | nu
       return { outcome: issue.outcome, responsible: "atomicvid", title: `${label(issue.provider).replace(/^./, c => c.toUpperCase())} de Atomicvid no tiene ahora capacidad suficiente.`,
         message: `Es un límite o saldo de Atomicvid, no de tu cuenta: no tienes que recargar nada. ${nothing}`, next: "Atomicvid debe reponer esa capacidad. Vuelve a intentarlo más tarde; tu solicitud queda guardada." };
     case "unverifiable":
+      // This production's own script call: never repeated while running or uncertain (no double charge).
+      if (issue.reason === "script call in flight")
+        return { outcome: issue.outcome, responsible: "atomicvid", title: "Ya hay una generación en curso para esta producción.",
+          message: "No iniciamos otra ni se cobra de nuevo; el resultado aparecerá al terminar.", next: "Espera unos minutos y actualiza la página." };
+      if (issue.reason === "script call pending reconciliation")
+        return { outcome: issue.outcome, responsible: "atomicvid", title: "Un intento anterior quedó pendiente de confirmar con el proveedor.",
+          message: "No lo repetimos para no cobrar dos veces; no es un problema de tu cuenta.", next: "Soporte lo revisa; tu solicitud queda guardada." };
       return { outcome: issue.outcome, responsible: "atomicvid", title: `No podemos verificar ahora la disponibilidad de ${label(issue.provider)}.`,
         message: `Por seguridad no iniciamos ningún consumo sin esa confirmación; no es un problema de tu cuenta. ${nothing}`, next: "Vuelve a intentarlo en unos minutos. Si se repite, avisa a soporte." };
     case "needs_correction":
@@ -186,25 +223,49 @@ export async function checkProduction(args: {
   voiceProvider: string;
   scriptProvider?: string;
   flags?: FeatureFlags;
+  /** Form/input validation already run by the caller (shared validators); a message blocks as the customer's correction. */
+  inputError?: string | null;
+  /** Own script compatibility with the duration (narration-fit.ts); null when Atomicvid writes the script. */
+  fit?: DurationFit | null;
+  /** Existing request: its script ledger rows are read so an uncertain or running call is reported (never repeated). */
+  requestId?: string | null;
   /** Test seams; production uses the real functions. */
-  deps?: { assertCanGenerate?: typeof assertCanGenerate; ensureJobSupplyReady?: typeof ensureJobSupplyReady; guard?: boolean; now?: () => Date };
+  deps?: { assertCanGenerate?: typeof assertCanGenerate; ensureJobSupplyReady?: typeof ensureJobSupplyReady; guard?: boolean; now?: () => Date;
+    loadScriptRows?: (requestId: string) => Promise<ScriptOpRow[]>; processingConfigured?: () => boolean };
 }): Promise<ProductionCheck> {
   const deps = args.deps ?? {};
   const now = (deps.now ?? (() => new Date()))();
   const issues: CheckIssue[] = [];
   const mode = args.request.mode ?? "visual";
+  const item = new Map<ChecklistId, ChecklistItem>();
+  const put = (id: ChecklistId, label: string, status: ChecklistStatus, detail: string, responsible: Responsible = "nadie") => item.set(id, { id, label, status, detail, responsible });
+
+  // 0. The data itself: invalid input and a text that clearly does not fit are the customer's corrections.
+  if (args.inputError) { issues.push({ outcome: "needs_correction", responsible: "cliente", reason: args.inputError }); put("input", "Datos y modalidad", "blocked", args.inputError, "cliente"); }
+  else put("input", "Datos y modalidad", "ok", "Datos completos y modalidad disponible para tu cuenta.");
+  if (!args.fit) put("fit", "Duración del texto", "not_applicable", args.request.recorded_audio_path ? "Se usa la duración real de tu grabación." : "Atomicvid escribe el guion para la duración elegida; se comprueba con el audio real.");
+  else if (!args.fit.allowed) { issues.push({ outcome: "needs_correction", responsible: "cliente", reason: args.fit.message }); put("fit", "Duración del texto", "blocked", args.fit.message, "cliente"); }
+  else put("fit", "Duración del texto", args.fit.verdict === "borderline" ? "warning" : "ok", args.fit.message, args.fit.verdict === "borderline" ? "cliente" : "nadie");
 
   // 1. Customer rights. A database error is «unverifiable», never a refusal of the customer.
   try {
     const plan = await (deps.assertCanGenerate ?? assertCanGenerate)(args.service as never, args.ownerId, mode, args.user);
-    if (!plan.allowed) issues.push({ outcome: "customer_limit", responsible: "cliente", reason: plan.reason });
+    if (!plan.allowed) { issues.push({ outcome: "customer_limit", responsible: "cliente", reason: plan.reason }); put("plan", "Plan, permisos y créditos", "blocked", plan.reason, "cliente"); }
+    else put("plan", "Plan, permisos y créditos", "ok", isInternalProductionOwner(args.user as never) ? "Producción interna del propietario: no consume créditos de un plan." : "Tu plan permite esta producción.");
   } catch {
     issues.push({ outcome: "unverifiable", responsible: "atomicvid", provider: "production", reason: "plan check unavailable" });
+    put("plan", "Plan, permisos y créditos", "unverified", "No pudimos leer tu plan ahora; no iniciamos nada sin confirmarlo.", "atomicvid");
   }
 
   // 2. Prices: an operator value that is not a usable number is unknown, never the default.
   const priceIssues = scriptPricingIssues();
   if (priceIssues.length) issues.push({ outcome: "needs_correction", responsible: "atomicvid", provider: "anthropic", reason: `tarifa no verificable: ${priceIssues.join(", ")}` });
+  // The processing worker must be configured BEFORE anything is paid (the render would refuse it later).
+  const processingOk = (deps.processingConfigured ?? processingConfigured)();
+  if (!processingOk) issues.push({ outcome: "needs_correction", responsible: "atomicvid", provider: "production", reason: "processing worker unconfigured" });
+  put("processing", "Configuración del procesamiento", priceIssues.length || !processingOk ? "blocked" : "ok",
+    priceIssues.length || !processingOk ? "Una tarifa o el servidor de procesamiento de Atomicvid no está configurado; no es un problema de tu cuenta." : "Tarifas y servidor de procesamiento configurados.",
+    priceIssues.length || !processingOk ? "atomicvid" : "nadie");
 
   // 3. Demands at this stage.
   let estimate: ProductionEstimate | null = null;
@@ -219,6 +280,19 @@ export async function checkProduction(args: {
     if (reason === "empty narration") issues.push({ outcome: "needs_correction", responsible: "cliente", reason: "El guion no tiene narración." });
     else issues.push({ outcome: "needs_correction", responsible: "atomicvid", provider: error instanceof SupplyUnavailableError ? error.provider : "production", reason });
   }
+  put("providers", "Proveedores necesarios", demands.length ? "ok" : "blocked",
+    demands.length ? `Solo los que usa este recorrido: ${demands.map(d => label(d.provider).replace(/^el servicio de /, "")).join(", ")}.` : "No se pudo determinar el costo de algún proveedor; no se trata como cero.",
+    demands.length ? "nadie" : "atomicvid");
+
+  // 3b. This request's own paid operations: a running or uncertain script call is never repeated.
+  if (args.requestId) {
+    const rows = await (deps.loadScriptRows ?? defaultScriptRows)(args.requestId).catch(() => null);
+    const block = rows ? scriptBlockState(rows, now.getTime()) : "requires_reconciliation";
+    if (!rows) { issues.push({ outcome: "unverifiable", responsible: "atomicvid", provider: "anthropic", reason: "script ledger unreadable" }); put("operations", "Reservas y operaciones pendientes", "unverified", "No pudimos leer las operaciones de esta producción; no repetimos ninguna sin confirmarlo.", "atomicvid"); }
+    else if (block) { issues.push({ outcome: "unverifiable", responsible: "atomicvid", provider: "anthropic", reason: block === "in_flight" ? "script call in flight" : "script call pending reconciliation" });
+      put("operations", "Reservas y operaciones pendientes", "blocked", block === "in_flight" ? "Ya hay una generación en curso para esta producción; espera a que termine." : "Un intento anterior quedó pendiente de confirmar con el proveedor; no se repetirá para no cobrar dos veces. Soporte lo revisa.", "atomicvid"); }
+    else put("operations", "Reservas y operaciones pendientes", "ok", "Ninguna operación en curso o incierta para esta producción.");
+  } else put("operations", "Reservas y operaciones pendientes", "ok", "Producción nueva: no tiene reservas ni operaciones previas.");
 
   // 4. Atomivid's provider capacity (mandatory in production).
   const guard = deps.guard ?? supplyGuardRequired();
@@ -230,16 +304,53 @@ export async function checkProduction(args: {
     if (issue) issues.push(issue);
   }
 
+  if (!guard) put("balances", "Saldos de proveedores de Atomicvid", "not_applicable", "Control de suministro desactivado en este entorno (solo desarrollo).");
+  else if (!providers.length) put("balances", "Saldos de proveedores de Atomicvid", "unverified", "No se consultaron porque falta corregir un dato anterior.", "atomicvid");
+  else {
+    const bad = providers.find(p => !p.ok && p.failure !== "provider funded spend ceiling");
+    const issue = issues.find(i => i.provider === bad?.provider);
+    put("balances", "Saldos de proveedores de Atomicvid", bad ? (issue?.outcome === "unverifiable" ? "unverified" : "blocked") : "ok",
+      bad ? `${label(bad.provider).replace(/^./, c => c.toUpperCase())}: ${issue?.outcome === "unverifiable" ? "saldo sin verificar o caducado" : "capacidad insuficiente"}. No es tu saldo: no tienes que recargar nada.`
+        : "Saldos vigentes y suficientes, descontando lo ya reservado por otras producciones.", bad ? "atomicvid" : "nadie");
+  }
+  const ceilingHit = issues.find(i => i.reason === "provider funded spend ceiling" || i.reason === "global funded spend ceiling");
+  put("budget", "Presupuesto estimado y límites", ceilingHit ? "blocked" : estimate ? "ok" : "unverified",
+    ceilingHit ? "Se alcanzó un límite diario o mensual de gasto de Atomicvid; no es un límite de tu cuenta."
+      : estimate ? `Techo conservador de proveedores: hasta USD ${estimate.ceilingUsd.toFixed(2)} (no es el precio exacto). ${estimate.note}` : "Sin estimación verificable; no iniciamos nada.",
+    ceilingHit || !estimate ? "atomicvid" : "nadie");
+
   issues.sort((a, b) => RANK[a.outcome] - RANK[b.outcome]);
   // The customer-facing primary answer: if the customer must act, say so first; Atomivid's problems are
   // still listed in `issues` (and never shown as the customer's fault).
   const primary = issues[0];
-  return { ...render(primary, estimate, args.stage), estimate, issues, providers, supplyChecked: guard, checkedAt: now.toISOString(), voiceProvider: args.voiceProvider };
+  const order: ChecklistId[] = ["input", "fit", "plan", "providers", "processing", "balances", "budget", "operations"];
+  return { ...render(primary, estimate, args.stage), estimate, issues, providers, supplyChecked: guard, checkedAt: now.toISOString(), voiceProvider: args.voiceProvider,
+    checklist: order.map(id => item.get(id)).filter((x): x is ChecklistItem => Boolean(x)) };
 }
 
-/** HTTP status for a refused check: 402 customer, 422 correction, 503 Atomivid capacity / unverifiable. */
+async function defaultScriptRows(requestId: string): Promise<ScriptOpRow[]> {
+  const { loadScriptOperations } = await import("./anthropic");
+  return loadScriptOperations(requestId);
+}
+
+/** Same rule the render route applies (getRenderWorker), evaluated without dispatching anything. */
+function processingConfigured(): boolean {
+  try {
+    getRenderWorker();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * HTTP status for a refused check: 402 customer, 422 correction, 409 this production's own call running or
+ * uncertain (the status POST /script always answered for it), 503 Atomivid capacity / unverifiable.
+ */
 export function checkHttpStatus(check: ProductionCheck): number {
-  return check.outcome === "ready" ? 200 : check.outcome === "customer_limit" ? 402 : check.outcome === "needs_correction" ? 422 : 503;
+  if (check.outcome === "ready") return 200;
+  if (check.issues[0]?.reason === "script call in flight" || check.issues[0]?.reason === "script call pending reconciliation") return 409;
+  return check.outcome === "customer_limit" ? 402 : check.outcome === "needs_correction" ? 422 : 503;
 }
 
 /**
@@ -256,7 +367,8 @@ export async function checkProductionForRequest(args: Omit<Parameters<typeof che
     scriptProvider = args.stage === "before_script" ? getScriptProvider().name : "anthropic";
   } catch {
     const issue: CheckIssue = { outcome: "needs_correction", responsible: "atomicvid", provider: "production", reason: "provider configuration unavailable" };
-    return { ...render(issue, null, args.stage), estimate: null, issues: [issue], providers: [], supplyChecked: false, checkedAt: new Date().toISOString(), voiceProvider: null };
+    return { ...render(issue, null, args.stage), estimate: null, issues: [issue], providers: [], supplyChecked: false, checkedAt: new Date().toISOString(), voiceProvider: null,
+      checklist: [{ id: "processing", label: "Configuración del procesamiento", status: "blocked", detail: "La configuración de proveedores de Atomicvid no está disponible; no es un problema de tu cuenta.", responsible: "atomicvid" }] };
   }
   return checkProduction({ ...args, voiceProvider, scriptProvider });
 }
@@ -265,12 +377,12 @@ export async function checkProductionForRequest(args: Omit<Parameters<typeof che
 export function checkResponseBody(check: ProductionCheck) {
   return {
     error: `${check.title} ${check.message} ${check.next}`.trim(),
-    check: { outcome: check.outcome, responsible: check.responsible, title: check.title, message: check.message, next: check.next,
+    check: { outcome: check.outcome, responsible: check.responsible, title: check.title, message: check.message, next: check.next, checklist: check.checklist,
       estimate: check.estimate, issues: check.issues.map(i => ({ outcome: i.outcome, responsible: i.responsible, provider: i.provider ?? null, reason: i.reason })),
       supplyChecked: check.supplyChecked, checkedAt: check.checkedAt },
     // Retrying only helps when the cause can change on its own (capacity, verification); an Atomivid
     // configuration needs support. Nothing ran, so «none_proven» is proven here.
-    outcome: { retry: check.outcome === "needs_correction" && check.responsible === "atomicvid" ? "support" as const : "available" as const, charge: "none_proven" as const },
+    outcome: { retry: (check.outcome === "needs_correction" && check.responsible === "atomicvid") || check.issues[0]?.reason === "script call pending reconciliation" ? "support" as const : "available" as const, charge: "none_proven" as const },
     blocked: check.outcome !== "ready",
   };
 }

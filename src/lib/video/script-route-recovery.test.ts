@@ -45,9 +45,11 @@ test("script/route.ts sigue marcando la solicitud como failed (con mensaje clasi
   const source = fs.readFileSync(path.join(__dirname, "script-generation.ts"), "utf-8");
   assert.match(
     source,
-    /status:\s*"failed",\s*error_message:\s*message,\s*script_json:\s*null/,
+    /status:\s*"failed",\s*error_message:\s*message,\s*script_json:\s*deps\.keepOnFailure \?\? null/,
     "un fallo de generación real (proveedor, calidad) debe seguir marcando failed con el mensaje ya clasificado por classifyScriptError",
   );
+  // Checklist/guion propio (2026-10-18): a generated script is still cleared; only an own script keeps the customer's text.
+  assert.match(fs.readFileSync(ROUTE_PATH, "utf-8"), /keepOnFailure: draft \? stored : undefined,/);
 });
 
 /**

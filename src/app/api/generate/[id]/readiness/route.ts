@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { checkProductionForRequest, checkResponseBody } from "@/lib/supply/production-check";
 import type { ScriptLanguage } from "@/lib/providers/types";
+import { draftFit, hasRenderableScript, isOwnScriptDraft } from "@/lib/video/own-script";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       status: string; recorded_audio_path: string | null; script_json: unknown; long_form_production_plan: never }>();
   // Same answer for «missing» and «someone else's», so ids cannot be enumerated.
   if (error || !row || row.user_id !== user.id) return NextResponse.json({ error: "Solicitud no encontrada" }, { status: 404 });
-  const stage = row.script_json ? "before_render" as const : "before_script" as const;
-  const check = await checkProductionForRequest({ service, user, ownerId: user.id, stage, request: row });
+  // An own-script draft still needs its (paid) scene planning: it is «before the script», with its real fit.
+  const stage = hasRenderableScript(row.script_json) || row.recorded_audio_path ? "before_render" as const : "before_script" as const;
+  const draft = isOwnScriptDraft(row.script_json) ? row.script_json : null;
+  const check = await checkProductionForRequest({ service, user, ownerId: user.id, stage, request: row, requestId: stage === "before_script" ? id : null,
+    fit: draft ? draftFit(draft, row.duration_seconds, row.language) : null });
   return NextResponse.json({ ...checkResponseBody(check), stage, status: row.status }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -3,11 +3,11 @@
 import { useId, useRef, useState } from "react";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
 import { MAX_AVATAR_PHOTO_BYTES, MAX_RECORDING_BYTES } from "@/lib/video/avatar/recording";
+import { MAX_NARRATION_CHARS } from "@/lib/video/narration-fit";
+import { NarrationFitMeter } from "@/components/video/NarrationFitMeter";
 
-// Debe coincidir con MAX_AVATAR_TTS_TEXT_LENGTH en dashboard/new/actions.ts
-// (la validación real, del lado del servidor) — este valor es solo para
-// el contador de caracteres en pantalla.
-const MAX_TTS_TEXT_LENGTH = 2000;
+// Mismo límite técnico que valida el servidor (narration-fit.ts, usado por dashboard/new/actions.ts).
+const MAX_TTS_TEXT_LENGTH = MAX_NARRATION_CHARS;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 // Estimación de referencia — misma tarifa de referencia que
@@ -22,6 +22,9 @@ export function AvatarFields({
   language,
   narrationSource,
   onNarrationSourceChange,
+  ttsText = "",
+  onTtsTextChange = () => {},
+  maxAvatarDurationSeconds = 45,
 }: {
   existingAvatars: { id: string; name: string }[];
   /** Mismo idioma elegido arriba para la narración — el modo avatar no pide uno aparte, ver nota junto al <select> de voz. */
@@ -35,6 +38,10 @@ export function AvatarFields({
    */
   narrationSource: string;
   onNarrationSourceChange: (value: string) => void;
+  /** Elevado a NewVideoForm: el checklist previo necesita el texto para comprobar duración y costo. */
+  ttsText?: string;
+  onTtsTextChange?: (value: string) => void;
+  maxAvatarDurationSeconds?: number;
 }) {
   const audioInputId = useId();
   const fileInputId = useId();
@@ -159,7 +166,7 @@ export function AvatarFields({
           <p className="mt-2 text-xs text-ink-muted">No se generará otra voz. Revisaremos la duración del archivo antes de solicitar el video.</p>
         </Field>
       )}
-      {narrationSource === "tts_text" && <TtsTextField />}
+      {narrationSource === "tts_text" && <TtsTextField text={ttsText} onChange={onTtsTextChange} language={language} maxSeconds={maxAvatarDurationSeconds} />}
       {narrationSource === "tts" && (
         <div className="rounded-md border border-border-strong bg-surface-raised p-3 text-xs text-ink-muted">
           <p className="font-medium text-ink">Voz de narración</p>
@@ -208,9 +215,8 @@ export function AvatarFields({
  * fuera de este campo en vez de prometer una opción que no hace nada
  * (misma disciplina que "Lista provisional" para la voz de HeyGen).
  */
-function TtsTextField() {
+function TtsTextField({ text, onChange, language, maxSeconds }: { text: string; onChange: (value: string) => void; language: "es" | "en"; maxSeconds: number }) {
   const id = useId();
-  const [text, setText] = useState("");
   return (
     <Field
       id={id}
@@ -226,11 +232,9 @@ function TtsTextField() {
         className={INPUT_CLASS}
         placeholder="Escribe o pega aquí el texto que quieres que narre tu avatar…"
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
       />
-      <p className="mt-1 text-right text-xs text-ink-muted">
-        {text.length} / {MAX_TTS_TEXT_LENGTH}
-      </p>
+      <NarrationFitMeter text={text} language={language} mode="avatar" maxSeconds={maxSeconds} />
     </Field>
   );
 }

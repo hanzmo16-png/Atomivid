@@ -24,6 +24,11 @@ export async function runScriptGeneration(deps: {
   guard: boolean;
   loadRows: () => Promise<ScriptOpRow[]>;
   now?: () => number;
+  /**
+   * What a failure leaves in script_json. A generated script is cleared (null, below); an own script keeps the
+   * customer's draft, so a failed scene planning never loses their text.
+   */
+  keepOnFailure?: unknown;
 }): Promise<ScriptGenerationOutcome> {
   let script: GeneratedScript;
   try {
@@ -46,7 +51,7 @@ export async function runScriptGeneration(deps: {
     // interprete como "el render falló, el guion sigue siendo válido" y
     // ofrezca reintentar el render en vez del guion — justo el guion que
     // acabamos de rechazar.
-    await deps.persist({ status: "failed", error_message: message, script_json: null });
+    await deps.persist({ status: "failed", error_message: message, script_json: deps.keepOnFailure ?? null });
 
     if (blocked) return { status: 409, body: { error: message, reconciliation: blocked.state } };
     return { status: 500, body: { error: message } };

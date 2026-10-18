@@ -57,12 +57,18 @@ export function checkScriptQuality(
     topic,
     targetWords,
     providerName,
+    narrationIsOwn = false,
   }: {
     topic: string;
     /** Objetivo calculado con targetWordsFor(durationSeconds) — ver script-pacing.ts. */
     targetWords: number;
     /** scriptProvider.name en el momento de la generación — "anthropic" es el único proveedor de IA real. */
     providerName: string;
+    /**
+     * «Usar mi propio guion»: the narration is the customer's, verbatim. Repetition is their choice and the
+     * length was already checked against the duration (narration-fit.ts); only the visual checks apply.
+     */
+    narrationIsOwn?: boolean;
   },
 ): ScriptQualityResult {
   if (providerName !== "anthropic") {
@@ -74,7 +80,7 @@ export function checkScriptQuality(
   }
 
   const sentenceCounts = new Map<string, number>();
-  for (const segment of script.segments) {
+  for (const segment of narrationIsOwn ? [] : script.segments) {
     for (const sentence of splitSentences(segment.text)) {
       sentenceCounts.set(sentence, (sentenceCounts.get(sentence) ?? 0) + 1);
     }
@@ -115,7 +121,7 @@ export function checkScriptQuality(
     }
   }
 
-  if (targetWords > 0) {
+  if (targetWords > 0 && !narrationIsOwn) {
     const totalWords = script.segments.reduce(
       (sum, s) => sum + s.text.split(/\s+/).filter(Boolean).length,
       0,
