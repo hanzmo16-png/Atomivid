@@ -131,6 +131,15 @@ export const SegmentSchema = z.object({
   claims: z.array(z.object({ id: z.string(), text: z.string(), support: z.enum(["sourced", "inference", "unverified"]) })).default([]),
   /** Existing word timestamps (one per whitespace token of `text`). Never generated here. */
   wordTimes: z.array(z.object({ start: z.number().min(0), end: z.number().min(0) })).optional(),
+  /**
+   * T44 F3 (traceability): a data-card window — how ITS OWN two boundaries were obtained (`boundaries`, as returned
+   * by cardWindows) and whether the voice's clock attributes the window to one claim (`attribution`). It is carried,
+   * never inferred: it does not create per-word times and says nothing about any cut inside the window.
+   */
+  cardTiming: z.object({
+    boundaries: z.enum(["estimated_proportional", "word_timestamps"]),
+    attribution: z.enum(["single_claim", "ambiguous_clock", "short_window"]),
+  }).optional(),
 }).refine(s => s.end > s.start, "segment end must be > start");
 
 export const DirectorInputSchema = z.object({
@@ -189,6 +198,9 @@ export const PlannedShotSchema = z.object({
     boundary: z.enum(["sentence", "clause", "word"]),
     timing: z.enum(["estimated_proportional", "word_timestamps"]),
     cutReason: z.string(),
+    /** T44 F3: data-card windows only — whether the clock attributes this window to one claim (see Segment.cardTiming).
+     *  `ambiguous_clock` stays ambiguous even when its boundaries are measured. */
+    attribution: z.enum(["single_claim", "ambiguous_clock", "short_window"]).optional(),
   }),
   /** Documentary policy of the narrative unit (recomputed by the gate, never trusted). */
   policy: z.object({

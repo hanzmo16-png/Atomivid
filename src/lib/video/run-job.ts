@@ -19,6 +19,7 @@ import { resolveExecutablePlan, type ProductionPlan } from "./long-form/producti
 import { assertCinematicV6Account } from "./long-form/cinematic-v6-access";
 import { decideDirectorRender, DirectorUnavailableError } from "./director/render-access";
 import { footageProviderLicense } from "./director/beat-license";
+import { directorReelPreflight, DirectorPreflightBlockedError } from "./director/data-card";
 import { getFootageProvider } from "@/lib/providers/footage";
 import type { GeneratedScript, ScriptLanguage } from "@/lib/providers/types";
 import { attemptState } from "./attempt-state";
@@ -179,6 +180,12 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     // T36 C1: the configured material provider's licence is known before anything is reserved or paid; if the
     // Director would have to render material without a reviewed licence, stop here (no narration, no reservation).
     if (directorRender && footageProviderLicense(getFootageProvider()) !== "CLEARED") throw new DirectorUnavailableError("material_license_not_cleared");
+    // T42: sentences the Director cannot honour in a Reel stop HERE, before narration or any reservation; the request
+    // goes back to the script editor with the sentence to change (see the catch below). Nothing is spent.
+    if (directorRender) {
+      const preflight = directorReelPreflight(row.script_json as GeneratedScript);
+      if (preflight.blockers.length) throw new DirectorPreflightBlockedError(preflight.blockers);
+    }
     await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name));
     const { videoPath } =
       mode === "avatar"
@@ -289,7 +296,8 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     // requested): reopen the script with the duration cause, never leave the request failed and unrecoverable.
     const avatarNarrationTooLong = mode === "avatar" && error instanceof AvatarPipelineError && error.code === "duration_exceeded"
       && !row.avatar_provider_video_job_id && !row.recorded_audio_path && !row.avatar_narration_source;
-    const editNarration = needsNarrationEdit(error, mode) || avatarNarrationTooLong;
+    // T42: a Director preflight block happened before narration: reopen the script with the explanation (no spend).
+    const editNarration = needsNarrationEdit(error, mode) || avatarNarrationTooLong || (mode === "visual" && error instanceof DirectorPreflightBlockedError);
     const failed = await update({ status: editNarration ? "script_ready" : "failed", error_message: encodeStoredFailure(message, action), progress_stage: null, long_form_stage: null, long_form_progress: null }).select("id").maybeSingle();
     if (failed.error || !failed.data) throw new Error("No se pudo guardar el resultado del intento.");
     if (editNarration) return;

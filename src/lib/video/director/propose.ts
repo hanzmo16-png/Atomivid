@@ -49,12 +49,14 @@ export type Unit = { start: number; end: number; text: string; boundary: "senten
  * sentence too long for the maximum shot length is cut between words (and says so). Durations respect the
  * min/max shot length whenever the segment allows it. Deterministic dynamic programme over word boundaries.
  */
-export function unitsFor(seg: { start: number; end: number; text: string; wordTimes?: { start: number; end: number }[] }, minS: number, maxS: number): Unit[] {
+export function unitsFor(seg: { start: number; end: number; text: string; wordTimes?: { start: number; end: number }[]; cardTiming?: { boundaries: Unit["timing"] } }, minS: number, maxS: number): Unit[] {
   const tokens = [...seg.text.matchAll(/\S+/g)];
   const n = tokens.length;
   const len = seg.end - seg.start;
   const timed = !!seg.wordTimes && seg.wordTimes.length === n && n > 0;
-  if (n === 0 || len < minS * 2) return [{ start: seg.start, end: seg.end, text: seg.text.trim(), boundary: "sentence", timing: timed ? "word_timestamps" : "estimated_proportional" }];
+  // T44 F3: an uncut data-card window's only boundaries are its own, so their declared provenance applies to the unit.
+  // A window cut further without per-word times keeps `estimated_proportional` (its inner cuts are proportional).
+  if (n === 0 || len < minS * 2) return [{ start: seg.start, end: seg.end, text: seg.text.trim(), boundary: "sentence", timing: timed ? "word_timestamps" : seg.cardTiming?.boundaries ?? "estimated_proportional" }];
   // T(k): time at the boundary after k tokens.
   const T = (k: number) => k === 0 ? seg.start : k === n ? seg.end : timed ? Math.min(seg.end, Math.max(seg.start, seg.wordTimes![k - 1].end)) : seg.start + (k / n) * len;
   const kind = (k: number): Unit["boundary"] => {
@@ -82,7 +84,9 @@ export function unitsFor(seg: { start: number; end: number; text: string; wordTi
   let from = 0;
   return cuts.map(k => {
     const first = tokens[from], last = tokens[k - 1];
-    const u: Unit = { start: round(T(from)), end: round(T(k)), text: seg.text.slice(first.index!, last.index! + last[0].length), boundary: kind(k), timing: timed ? "word_timestamps" : "estimated_proportional" };
+    // T44 F3: without per-word times, only a unit spanning the whole card window has nothing but measured boundaries.
+    const timing: Unit["timing"] = timed ? "word_timestamps" : from === 0 && k === n && seg.cardTiming ? seg.cardTiming.boundaries : "estimated_proportional";
+    const u: Unit = { start: round(T(from)), end: round(T(k)), text: seg.text.slice(first.index!, last.index! + last[0].length), boundary: kind(k), timing };
     from = k;
     return u;
   });
@@ -187,6 +191,9 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
       const mid = ((u.start + u.end) / 2 - seg.start) / (seg.end - seg.start);
       const uncertainty: string[] = [];
       if (u.timing === "estimated_proportional") uncertainty.push("alineación temporal estimada (sin marcas de palabra): no validada contra la locución");
+      // T44 F3: measured boundaries never turn an ambiguous or too-short window into a verified figure sync.
+      if (seg.cardTiming?.attribution === "ambiguous_clock") uncertainty.push("fronteras de la ventana medidas en el reloj de voz, pero sus marcas de palabra no permiten atribuirla a una sola afirmación: tarjeta neutral, sin sincronía de cifra verificada");
+      if (seg.cardTiming?.attribution === "short_window") uncertainty.push("ventana de menos de un cuarto de segundo: tarjeta neutral, sin cifra en pantalla");
       if (i === 0 && evidenceRaw && !evidence) uncertainty.push(`evidencia ${evidenceRaw.id} NOT_CLEARED: no se usa`);
 
       // ---- 1. Candidate assets for THIS unit, filtered by the documentary policy.
@@ -337,7 +344,8 @@ export function proposePlan(raw: DirectorInputRaw, catalog: RecipeCatalog): Dire
         uncertainty,
         unit: { boundary: u.boundary, timing: u.timing,
           cutReason: u.boundary === "sentence" ? "fin de oración" : u.boundary === "clause" ? "límite de cláusula: la oración continúa en el plano siguiente"
-            : `oración más larga que ${maxS} s: corte entre palabras (revisar)` },
+            : `oración más larga que ${maxS} s: corte entre palabras (revisar)`,
+          ...(seg.cardTiming ? { attribution: seg.cardTiming.attribution } : {}) },
         policy: { ...policy, status: review || policy.status === "review_required" ? "review_required" : "ok" },
         visualTheme,
         decision: { status, unitTopics,

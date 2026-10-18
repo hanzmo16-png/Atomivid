@@ -33,10 +33,14 @@ function input(over: Partial<DirectorInputRaw> = {}): DirectorInputRaw {
   };
 }
 
-test("catalog: 44 versioned recipes (12 mystery, 13 documentary, 11 reel + 8 reel fiction), unique, operable rules, no universal 8K look", () => {
-  assert.equal(catalog.recipes.length, 44);
+test("catalog: 45 versioned recipes (12 mystery, 13 documentary, 12 reel incl. the T42 data card + 8 reel fiction), unique, operable rules, no universal 8K look", () => {
+  assert.equal(catalog.recipes.length, 45);
   const by = (g: string) => catalog.recipes.filter(r => r.genre === g && !r.select.style).length;
-  assert.deepEqual([by("misterio"), by("documental"), by("reel")], [12, 13, 11]);
+  assert.deepEqual([by("misterio"), by("documental"), by("reel")], [12, 13, 12]);
+  // T42: the data card is the only reel recipe that dresses a deterministic diagram, so no title recipe (3 s limit) can take it.
+  const card = catalog.recipes.find(r => r.id === "reel-data-card")!;
+  assert.deepEqual([card.select.visual, card.select.provenance, card.movement.kind, card.label, card.evidence_policy], [["diagram"], ["data_graphic"], "static", null, "authentic_only"]);
+  assert.equal(catalog.recipes.filter(r => r.genre === "reel" && r.select.visual.includes("diagram")).length, 1);
   // The fiction set is isolated: generated material only, always labelled, sound from the clip.
   const fiction = catalog.recipes.filter(r => r.select.style === "fiction");
   assert.equal(fiction.length, 8);

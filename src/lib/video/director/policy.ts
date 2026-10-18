@@ -26,7 +26,11 @@ export const TOPIC_LEXICON: Record<string, RegExp> = {
   landscape: /\bpaisajes?\b|\bcolinas?\b|\bmontanas?\b|\bvalles?\b|\bllanuras?\b|\bcima\b|\bhorizonte\b|\bregion(es)?\b|\bterritorio\b|\bamanecer\b|\batardecer\b|\bmeseta\b/,
   geo: /\bturquia\b|\banatolia\b|\bsanl.?urfa\b|\bgermus\b|\bmapas?\b|\bsureste\b|\bkilometros?\b|\bal norte\b|\bal sur\b|\bnucleo protegido\b/,
   chrono: /\b\d{3,5}\b|\bsiglos?\b|\bmilenios?\b|\bmil anos\b|\bantes de nuestra era\b|\bneolitico\b|\bpreceramico\b|\bceramica\b|\bperiodo\b|\bcronologia\b|\bfechas?\b|\banos atras\b/,
-  data: /\b\d+([.,]\d+)?\b|\bmetros?\b|\btoneladas?\b|\bcifras?\b|\bpor ciento\b|\bkilos?\b/,
+  // T44: a datum is a QUANTITY — digits (as before), or a number word next to a measuring unit («diez toneladas»,
+  // «uno de cada cinco», «veinte por ciento»). A unit alone ("a pocos metros"), the word «cifra», a list counter
+  // ("3 razones") or a spoken duration of advice ("diez minutos") is not a measurable statement; a bare year stays
+  // with `chrono`.
+  data: /\b\d+([.,]\d+)?\b|\b(uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|quince|veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|cientos|mil|miles|millones?|medio|media|un tercio|un cuarto)\s+(de\s+)?(cada\s+\w+|por ciento|veces|metros|kilómetros|kilometros|toneladas|kilos|millones|personas|euros|dólares|dolares|litros|grados)\b/,
   people: /\bcazadores\b|\brecolectores\b|\bcomunidad(es)?\b|\bpersonas\b|\bgente\b|\bgrupos?\b|\bsociedad(es)?\b|\bcooper\w*/,
   hands_work: /\btallar\w*|\bherramientas?\b|\btrabaj\w*|\bconstruir\b|\blevantar\w*|\boficios?\b|\btecnicas?\b|\bmoler\b|\bmolienda\b|\btransport\w*|\barrastr\w*/,
   excavation: /\bexcavac\w*|\barqueolog\w*|\bexcavad\w*|\bequipo de excavacion\b|\bcampanas? de excavacion\b|\bhallazgos?\b|\bdescubri\w*/,
@@ -39,9 +43,15 @@ const ALERT_ONLY: Record<string, RegExp> = { hueso: /\bhuesos?\b/ };
 const NEGATION = /\bno (fue|es|era|se|pudimos|pudo|sabemos|existe|existen|hay|encaja|sostiene|consta)\b|\bnunca\b|\bsin confirmar\b|\bno confirmad\w*/;
 const HEDGE = /\bpodrian?\b|\bposibles?\b|\bquizas?\b|\btal vez\b|\bprobablemente\b|\bhasta donde\b|\bse habria\b|\bhabria\b|\bparecen?\b|\bhipotesis\b|\bsupuest\w*/;
 
+/** A number that counts items of a list ("3 razones", "los 5 errores") is rhetoric, not a measurable datum (T44). */
+const LIST_COUNTER = /\b\d+\s+(razones?|claves?|errores?|pasos?|trucos?|consejos?|formas?|maneras?|cosas?|ideas?|senales?|secretos?|motivos?|preguntas?|habitos?|reglas?|tips?|ejemplos?|puntos?|lecciones?|mitos?|verdades?)\b/g;
+
 export function topicsOf(text: string): string[] {
   const t = normalize(text);
-  return Object.entries(TOPIC_LEXICON).filter(([, re]) => re.test(t)).map(([k]) => k);
+  const topics = Object.entries(TOPIC_LEXICON).filter(([, re]) => re.test(t)).map(([k]) => k);
+  // `data` must survive once list counters are removed: "3 razones" alone is not a datum; "3 razones y 40 %" is.
+  if (topics.includes("data") && !TOPIC_LEXICON.data.test(t.replace(LIST_COUNTER, " "))) return topics.filter(k => k !== "data");
+  return topics;
 }
 
 const SPECIFIC = ["pillar", "relief", "structure", "artifact"];
@@ -133,9 +143,10 @@ export function unitPolicy(input: DirectorInput, seg: Segment, unit: string): Un
     }
     signals.push(`tema específico (${specific.join(", ")}) sin respaldo del storyboard: alerta, no se escala la política`);
   }
-  // A figure inside an unverified or negated statement is not a datum to chart: hypothesis first.
+  // A figure inside an unverified, negated or hedged statement is not a datum to chart: hypothesis first (T44: a
+  // hedge counts unless it is a sourced claim's own wording, exactly as `unconfirmed` above decides).
   const measurable = topics.filter(t => MEASURABLE.includes(t));
-  if (measurable.length && !unverified && !negation) {
+  if (measurable.length && !unconfirmed) {
     const sb = planned.some(a => ["map", "timeline", "diagram", "text"].includes(assetVisualType(a)) && assetTopics(a).some(t => MEASURABLE.includes(t)));
     signals.push(`dato medible (${measurable.join(", ")}): mapa, línea de tiempo, diagrama o tarjeta`);
     return out("measurable_data", sb ? ["lexicon", "storyboard"] : ["lexicon"]);

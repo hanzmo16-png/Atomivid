@@ -48,6 +48,8 @@ export function editorialReport(plan: DirectorPlan, input: DirectorInput) {
       realMotionShots: all.filter(s => s.movement.realMotion).length,
       cutBoundaries: count(all.map(s => s.unit.boundary)),
       timing: count(all.map(s => s.unit.timing)),
+      // T44 F3: data-card windows by claim attribution (measured boundaries ≠ verified figure sync).
+      cardAttribution: count(all.flatMap(s => s.unit.attribution ? [s.unit.attribution] : [])),
     },
     sequences,
     note: "conteos del plan; no miden calidad cinematográfica ni sustituyen la revisión humana",

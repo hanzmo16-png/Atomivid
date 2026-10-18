@@ -30,6 +30,7 @@ import {
 } from "@/lib/video/render-error";
 import type { GeneratedScript } from "@/lib/providers/types";
 import { directorRenderAllowed } from "@/lib/video/director/render-access";
+import { directorReelPreflight, preflightBlockMessage } from "@/lib/video/director/data-card";
 
 // El worker por defecto (GitHub Actions) solo dispara un webhook y
 // retorna — esta función ya no espera el render completo. maxDuration se
@@ -176,6 +177,16 @@ export async function POST(
     // Reject oversize Avatar narration before reserving supply, spending an attempt or dispatching.
     const durationError = avatarRenderDurationError({ ...videoRequest, script_json: videoRequest.script_json }, getFeatureFlags().maxAvatarDurationSeconds);
     if (durationError) return NextResponse.json({ error: durationError }, { status: 422 });
+
+    // T42: a Reel whose script the Director cannot honour is refused HERE, before the subscription check, any
+    // reservation, the attempt or the dispatch: the user gets the sentence to change; nothing ran, nothing is held.
+    if (videoRequest.mode === "visual" && videoRequest.script_json && directorRenderAllowed(user, videoRequest)) {
+      const preflight = directorReelPreflight(videoRequest.script_json as GeneratedScript);
+      if (preflight.blockers.length) {
+        const outcome: StartOutcome = { retry: "available", charge: "none_proven", status: videoRequest.status, attempts: videoRequest.render_attempts };
+        return NextResponse.json({ error: preflightBlockMessage(preflight.blockers), outcome }, { status: 422 });
+      }
+    }
 
     let check: Awaited<ReturnType<typeof assertCanGenerate>>;
     try {

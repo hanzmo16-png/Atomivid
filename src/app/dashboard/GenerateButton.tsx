@@ -80,6 +80,21 @@ export function GenerateButton({
           {loading ? "Generando…" : label}
         </Button>
       )}
+      {loading && (
+        <div className="w-full min-w-[180px] max-w-[260px]" role="status" aria-live="polite">
+          <p className="mb-1.5 text-xs font-medium text-ink-muted">
+            {endpoint.endsWith("/script") ? "Generando guion…" : endpoint.endsWith("/render") ? "Iniciando producción…" : "Procesando solicitud…"}
+          </p>
+          <div
+            role="progressbar"
+            aria-label="Actividad de generación"
+            aria-valuetext="Operación en curso, porcentaje no disponible"
+            className="h-2 w-full overflow-hidden rounded-full bg-surface-raised"
+          >
+            <div className="h-full w-2/5 animate-pulse rounded-full bg-accent motion-reduce:animate-none" />
+          </div>
+        </div>
+      )}
       {error && <p className="max-w-[220px] text-right text-xs text-danger">{error}</p>}
       {needsSubscription && (
         <Link href="/dashboard/billing" className="text-right text-xs font-medium text-accent hover:text-accent-hover">

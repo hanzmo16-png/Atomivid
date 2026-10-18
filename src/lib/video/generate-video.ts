@@ -39,6 +39,7 @@ import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resol
 import { cinematicDirectorRenderEnabled } from "@/lib/video/director/flag";
 import type { ResolvedBeat } from "@/lib/video/director/reel-render";
 import { footageResultLicense, GENERATED_IMAGE_LICENSE, licenseBlockAfterVoiceMessage } from "@/lib/video/director/beat-license";
+import { cardWindows, dataCardSvg, directorReelPreflight, DirectorPreflightBlockedError, MIN_CARD_SECONDS, neutralCardSvg, tokenSlice, type DataCardPlan } from "@/lib/video/director/data-card";
 
 // Deliberadamente separado de generate-script.ts — ver el comentario ahí
 // para la razón exacta (Remotion no debe cargarse en la ruta de guion).
@@ -218,6 +219,16 @@ export async function generateVideoFromScript({
   const visualPlan: ScenePlanEntry[] = [];
   // Material really resolved per segment and beat — what the Director may arrange (only read with its flag on).
   const directorBeats: ResolvedBeat[][] = script.segments.map(() => []);
+  // T42: under the Director a sentence with measurable data gets a deterministic data card (its exact figure and
+  // wording) instead of illustrative stock the policy would only accept "with review". Sentences the Director
+  // cannot honour at all were refused by run-job BEFORE narration; this re-check is defence in depth.
+  const directorCards = directorRender ? directorReelPreflight(script) : { cards: [], blockers: [] };
+  if (directorRender && directorCards.blockers.length) throw new DirectorPreflightBlockedError(directorCards.blockers);
+  const cardsByScene = new Map<number, DataCardPlan[]>();
+  for (const c of directorCards.cards) cardsByScene.set(c.sceneIndex, [...(cardsByScene.get(c.sceneIndex) ?? []), c].sort((x, y) => x.index - y.index));
+  // Word offsets per scene, counted exactly like alignScenesToWords, to place each card on its claim's narration.
+  const wordOffsets: number[] = [];
+  { let off = 0; for (const s of script.segments) { wordOffsets.push(off); off += s.text.split(/\s+/).filter(Boolean).length; } }
   let imagesRequestedCount = 0;
   let imagesGeneratedCount = 0;
   let imagesReusedCount = 0;
@@ -229,6 +240,35 @@ export async function generateVideoFromScript({
   for (let i = 0; i < script.segments.length; i++) {
     const segment = script.segments[i];
     const timing = sceneTimings[i];
+    const cards = directorRender ? cardsByScene.get(i) : undefined;
+    if (cards?.length) {
+      // T42/T44: the cards cover the whole scene, ONE PER CLAIM, each on the narration window of its claim measured on
+      // the real voice (word timestamps; proportional only if the voice gave none). No footage search, no download,
+      // no provider: deterministic SVGs. A card switches exactly when the next claim starts being said.
+      // Correction 1 (T44): windows are NEVER merged. A card keeps its identity and exactly its own window, however
+      // short; a claim too short to own a window was refused by the preflight before any spend (MIN_CARD_TOKENS).
+      // Correction 2 (GATE 2): every boundary the voice's word clock knows is kept. A window the clock cannot attribute
+      // to one claim (degenerate timestamps) or shorter than MIN_CARD_SECONDS shows the NEUTRAL slate (no figure) for
+      // exactly its own time: nothing is stretched, nothing redistributed, no second voice is requested.
+      const count = segment.text.split(/\s+/).filter(Boolean).length;
+      const sceneWords = voice.words.slice(wordOffsets[i], wordOffsets[i] + count);
+      const windows = cardWindows(cards, timing.start, timing.end, count > 0 && sceneWords.length === count ? sceneWords.map((w) => w.startSeconds) : null);
+      for (let k = 0; k < windows.length; k++) {
+        const w = windows[k];
+        const neutral = w.treatment === "neutral";
+        const svg = Buffer.from(neutral ? neutralCardSvg({ reason: w.neutralReason ?? "short_window" }) : dataCardSvg({ text: w.card.text, figure: w.card.figure, figures: w.card.figures }), "utf8");
+        storageBytes += svg.byteLength;
+        const { url: cardUrl } = await uploadToStorage(supabase, `${artifactPrefix}/card-${i}-${k}.svg`, svg, "image/svg+xml");
+        scenes.push({ mediaUrl: cardUrl, mediaType: "image", startSeconds: w.start, endSeconds: w.end });
+        const windowText = tokenSlice(segment.text, w.fromToken, w.toToken) || w.card.windowText;
+        directorBeats[i].push({ url: cardUrl, mediaType: "image", source: "data_card", license: "CLEARED", start: w.start, end: w.end,
+          card: neutral ? { text: "", windowText, figures: [], treatment: "neutral", neutralReason: w.neutralReason ?? "short_window", timing: w.timing }
+            : { text: w.card.text, windowText, figures: w.card.figures, treatment: "card", timing: w.timing } });
+        console.log("[atomivid:director]", JSON.stringify({ requestId, sceneIndex: i, card: k, dataCard: neutral ? "(tarjeta neutral, sin cifra)" : w.card.figures.map((f) => f.display).join(" · ") || "(sin cifra)",
+          treatment: w.treatment, neutralReason: w.neutralReason ?? null, ambiguousBetween: w.ambiguousBetween ?? null, timing: w.timing, start: w.start, end: w.end, shortWindow: w.end - w.start < MIN_CARD_SECONDS }));
+      }
+      continue;
+    }
     const beats = splitIntoBeats(timing.start, timing.end);
     const baseConcepts =
       segment.visualConcepts && segment.visualConcepts.length > 0
