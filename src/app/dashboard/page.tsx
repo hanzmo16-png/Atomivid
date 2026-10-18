@@ -17,13 +17,14 @@ import { Alert } from "@/components/ui/Alert";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LinkButton } from "@/components/ui/Button";
 import Link from "next/link";
+import { DraftKeyRotation } from "./DraftKeyRotation";
 
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ created?: string; script_job?: string }>;
+  searchParams: Promise<{ created?: string; draft?: string; script_job?: string }>;
 }) {
-  const { created, script_job } = await searchParams;
+  const { created, draft, script_job } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -130,6 +131,7 @@ export default async function DashboardPage({
         )}
 
         {script_job && <Alert tone="info">La preparación está guardada. Puedes salir; el progreso aparecerá en tu historial.</Alert>}
+        {created && <DraftKeyRotation draft={draft} />}
         {created && (
           <Alert tone="success">
             Tu solicitud se guardó correctamente. Pulsa &quot;Generar guion&quot; para

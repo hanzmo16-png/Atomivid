@@ -171,12 +171,14 @@ test("la misma función valida el formulario en vivo y la acción del servidor; 
   assert.match(src("src/app/api/production-check/route.ts"), /const form = formProduction\(/);
 });
 
-test("doble clic, reenvío o dos pestañas del MISMO formulario Reel crean una sola solicitud", () => {
+// Corrección 2: the old claim «dos pestañas = una solicitud» was false (one randomUUID per tab). The behaviour,
+// with row and paid-call counters for each case, is proven in draft-idempotency.test.ts.
+test("el id del envío se resuelve antes de la rama Reel y el Reel inserta con él", () => {
   const actions = src("src/app/dashboard/new/actions.ts");
-  const id = actions.indexOf("const requestId = /^[0-9a-f]{8}"), visual = actions.indexOf('if (mode === "visual") {');
+  const id = actions.indexOf("requestIdForSubmission(user.id, formData)"), visual = actions.indexOf('if (mode === "visual") {');
   assert.ok(id > 0 && id < visual, "el id del envío se resuelve antes de la rama Reel");
   assert.match(actions, /id: requestId,\n      user_id: user\.id,/);
-  assert.match(actions, /if \(error\.code === "23505"\) redirect\("\/dashboard\?created=1"\);/);
+  assert.match(actions, /if \(error\.code === "23505"\) redirect\(created\);/);
 });
 
 // ---------------------------------------------------------------- 4. Checklist (servidor), con contadores

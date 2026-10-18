@@ -10,6 +10,7 @@ import { recordingFormat, recordingPath, RECORDING_BUCKET, MAX_AVATAR_PHOTO_BYTE
 import { measureNarrationSeconds } from "@/lib/video/avatar/measure-narration";
 import { avatarDurationError } from "@/lib/video/avatar/duration";
 import { randomUUID } from "node:crypto";
+import { createdUrl, requestIdForSubmission } from "@/lib/video/submission-key";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
 import { checkProductionForRequest } from "@/lib/supply/production-check";
@@ -97,13 +98,14 @@ export async function createVideoRequest(formData: FormData) {
   if (form.inputError) redirect(`/dashboard/new?error=${encodeURIComponent(form.inputError)}`);
   if (form.fit && !form.fit.allowed) redirect(`/dashboard/new?error=${encodeURIComponent(form.fit.message)}`);
 
-  // The form's own submission id, when valid, IS the request id: a double click, a browser resend or a
-  // second tab submitting the SAME form is recognised before any paid call and collides on insert.
-  const submissionId = String(formData.get("submission_id") ?? "");
-  const requestId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionId) ? submissionId.toLowerCase() : randomUUID();
+  // The request id comes from the draft key the browser shares between its tabs, the verified user and the
+  // intent (submission-key.ts): a double click, a resend, a second tab or a re-submit after a lost response is
+  // recognised here, before any paid call, and the primary key stays the authority on a race (23505).
+  const { requestId, draftKey } = requestIdForSubmission(user.id, formData);
+  const created = createdUrl(draftKey);
   {
-    const { data: existing } = await createServiceClient().from("video_requests").select("id").eq("id", requestId).maybeSingle();
-    if (existing) redirect("/dashboard?created=1");
+    const { data: existing } = await createServiceClient().from("video_requests").select("id").eq("id", requestId).eq("user_id", user.id).maybeSingle();
+    if (existing) redirect(created);
   }
 
   if (mode === "visual") {
@@ -125,11 +127,11 @@ export async function createVideoRequest(formData: FormData) {
 
     if (error) {
       // A concurrent identical submit lost the insert race: the request exists, nothing was paid.
-      if (error.code === "23505") redirect("/dashboard?created=1");
+      if (error.code === "23505") redirect(created);
       redirect(`/dashboard/new?error=${encodeURIComponent(error.message)}`);
     }
 
-    redirect("/dashboard?created=1");
+    redirect(created);
   }
 
   // --- Modo avatar -------------------------------------------------------
@@ -144,8 +146,9 @@ export async function createVideoRequest(formData: FormData) {
   // Generado aquí (no al final) para poder asociar el costo real de una
   // síntesis TTS (si aplica, ver más abajo) con la MISMA solicitud que se
   // inserta al final de esta función — nunca un id descartable.
-  // Control de costos (2026-10-18): the form's own submission id, when valid, IS the request id, so a
-  // repeated submit of the same form is recognised before any paid call (below) and collides on insert.
+  // Control de costos (2026-10-18, corrección 2): requestId (above) is derived from the draft key shared by
+  // the browser's tabs, the user and the intent, so a repeat is recognised before any paid call (the voice
+  // below is keyed by it in the ledger) and collides on insert.
   // QA blocker real (2026-09-25, Android/Samsung): un límite combinado
   // foto+audio <= 3 MB (heredado de la prueba privada D-ID) rechazaba una
   // grabación real de ~45s recién terminada. Foto y audio ahora se validan
@@ -378,7 +381,12 @@ export async function createVideoRequest(formData: FormData) {
   if (recording && audioPath) {
     const { error: audioError } = await createServiceClient().storage.from(RECORDING_BUCKET)
       .upload(audioPath, recording.audioBuffer, { contentType: recording.mimeType, upsert: false });
-    if (audioError) redirect("/dashboard/new?error=No+se+pudo+guardar+la+grabación+privada");
+    if (audioError) {
+      // A concurrent identical submit already stored this audio (same id → same path) and created the request.
+      const { data: winner } = await createServiceClient().from("video_requests").select("id").eq("id", requestId).eq("user_id", user.id).maybeSingle();
+      if (winner) redirect(created);
+      redirect("/dashboard/new?error=No+se+pudo+guardar+la+grabación+privada");
+    }
   }
   const { error } = await createServiceClient().from("video_requests").insert({
     id: requestId,
@@ -412,9 +420,11 @@ export async function createVideoRequest(formData: FormData) {
   });
 
   if (error) {
+    // Lost the insert race to an identical submit: that request owns the audio at this path; never remove it.
+    if (error.code === "23505") redirect(created);
     if (audioPath) await createServiceClient().storage.from(RECORDING_BUCKET).remove([audioPath]).catch(() => {});
     redirect(`/dashboard/new?error=${encodeURIComponent(error.message)}`);
   }
 
-  redirect("/dashboard?created=1");
+  redirect(created);
 }

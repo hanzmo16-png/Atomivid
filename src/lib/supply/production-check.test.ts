@@ -252,9 +252,10 @@ test("server-side order: the script route checks the whole production BEFORE the
   assert.ok(scene.indexOf("await assertCanGenerate(") > 0 && scene.indexOf("await assertCanGenerate(") < scene.indexOf("scriptProvider.regenerateScene("), "regenerate-scene: plan before the paid call (it had none)");
   const action = src("src/app/dashboard/new/actions.ts");
   assert.ok(action.indexOf("await checkProductionForRequest(") > 0 && action.indexOf("await checkProductionForRequest(") < action.indexOf("await gatedVoiceSynthesize("), "avatar text-to-speech: whole check before the paid synthesis");
-  // Double click / two tabs / browser resend of the same form: one id per form, recognised before paying.
+  // Double click / browser resend / a second tab of the same draft: one draft key shared by the tabs (corrección 2,
+  // counted in draft-idempotency.test.ts), recognised before paying.
   assert.match(src("src/app/dashboard/new/NewVideoForm.tsx"), /<input type="hidden" name="submission_id" value=\{submissionId\} \/>/);
-  const seen = action.indexOf('.from("video_requests").select("id").eq("id", requestId).maybeSingle()');
+  const seen = action.indexOf('.from("video_requests").select("id").eq("id", requestId).eq("user_id", user.id).maybeSingle()');
   assert.ok(seen > 0 && seen < action.indexOf("await gatedVoiceSynthesize("));
   // Isolation: the read-only readiness endpoint answers 404 alike for missing and foreign requests.
   const readiness = src("src/app/api/generate/[id]/readiness/route.ts");
