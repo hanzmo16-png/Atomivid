@@ -30,3 +30,24 @@ test("Regression: script requests and regenerations show indeterminate activity,
     assert.doesNotMatch(source, /aria-valuenow=\{[0-9]/);
   }
 });
+
+test("Regression: review bars must be next to their clicked controls, not after the entire scene list", () => {
+  const source = readFileSync("src/app/dashboard/review/[id]/ScriptReview.tsx", "utf8");
+  assert.match(source, /regeneratingAll && <PendingOperationProgress label="Regenerando guion completo"/);
+  assert.match(source, /savingIndex === i && <PendingOperationProgress label=\{/);
+  assert.match(source, /generating && <PendingOperationProgress label="Iniciando producción del video"/);
+  const lastCard = source.lastIndexOf("</Card>");
+  const sticky = source.indexOf('className="sticky bottom-4');
+  const afterSceneList = source.indexOf("script.segments.map((scene, i)");
+  assert.ok(afterSceneList >= 0 && lastCard >= afterSceneList);
+  assert.ok(sticky > lastCard);
+  assert.ok(!source.includes("(regeneratingAll || savingIndex !== null || generating) &&"), "no global progressbar below all scenes");
+});
+
+test("Regression: stalled renders never expose a misleading percentage on the video page", () => {
+  const source = readFileSync("src/components/video/ResultView.tsx", "utf8");
+  assert.match(source, /!waitingForSupply && !stalled &&/);
+  assert.match(source, /!waitingForSupply && stalled &&/);
+  assert.match(source, /Esta producción dejó de reportar avances/);
+  assert.match(source, /No mostraremos un porcentaje antiguo/);
+});
