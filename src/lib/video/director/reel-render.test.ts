@@ -16,7 +16,7 @@ test("render planning uses measured narration, not the longer storyboard estimat
   const storyboard = simulateStoryboard(script), original = structuredClone(storyboard);
   assert.ok(storyboard.scenes[0].estimatedDurationSeconds > 6);
   const r = directReel({ script, storyboard, sceneTimings: [{ start: 0, end: 5 }],
-    beatsBySegment: [[{ start: 0, end: 5, url: "https://fixture.local/dawn.mp4", mediaType: "video", source: "stock" }]],
+    beatsBySegment: [[{ start: 0, end: 5, url: "https://fixture.local/dawn.mp4", mediaType: "video", source: "stock", license: "CLEARED" }]],
     audioUrl: "https://fixture.local/voice.mp3", captions: [], narrationGaps: [], durationSeconds: 5.4 });
   assert.ok(r.ok, r.ok ? "" : JSON.stringify(r.blockers));
   if (!r.ok) return;
@@ -36,7 +36,7 @@ test("a slower narration still splits at the shot limit and requires real materi
   const args = { script, sceneTimings: [{ start: 0, end: 8 }],
     audioUrl: "https://fixture.local/voice.mp3", captions: [], narrationGaps: [], durationSeconds: 8.4 };
   const beats: ResolvedBeat[] = [0, 4].map((start, i) => ({ start, end: start + 4,
-    url: `https://fixture.local/sea-${i}.mp4`, mediaType: "video", source: "stock" }));
+    url: `https://fixture.local/sea-${i}.mp4`, mediaType: "video", source: "stock", license: "CLEARED" }));
   const r = directReel({ ...args, beatsBySegment: [beats] });
   assert.ok(r.ok, r.ok ? "" : JSON.stringify(r.blockers));
   if (!r.ok) return;
