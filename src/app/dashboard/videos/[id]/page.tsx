@@ -14,7 +14,7 @@ import { loadAvatarRecovery } from "@/lib/video/avatar/recovery";
 import { Alert } from "@/components/ui/Alert";
 import { AutoRefresh } from "@/app/dashboard/AutoRefresh";
 import { cinematicDirectorRenderEnabled } from "@/lib/video/director/flag";
-import { loadDirectorApplied } from "@/lib/video/director-applied";
+import { loadDirectorApplied, loadDirectorRequested } from "@/lib/video/director-applied";
 import { DirectorAppliedPanel } from "@/components/video/DirectorAppliedPanel";
 
 export default async function VideoResultPage({
@@ -97,6 +97,8 @@ export default async function VideoResultPage({
   const directorRows = cinematicDirectorRenderEnabled() && request.status === "completed" && request.video_path && request.mode !== "long_form" && request.mode !== "avatar"
     ? await loadDirectorApplied(createServiceClient(), request.video_path)
     : null;
+  // T-34 B3: a completed Reel that requested the Director but has no valid record for THIS attempt says so plainly.
+  const directorRequested = request.status === "completed" && request.mode === "visual" && await loadDirectorRequested(supabase, request.id);
   return (
     <div className="mx-auto max-w-md">
       <AutoRefresh active={request.status === "processing"} />
@@ -107,6 +109,11 @@ export default async function VideoResultPage({
         <ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} thumbnailRequested={thumbnailRequested} nowMs={nowMs} avatarRecovery={avatarRecovery} />
       </StartOutcomeProvider>
       {directorRows && directorRows.length > 0 && <DirectorAppliedPanel rows={directorRows} />}
+      {directorRequested && (!directorRows || directorRows.length === 0) && (
+        <p role="status" className="my-4 rounded-lg border border-border bg-surface p-4 text-sm text-ink-muted" data-testid="director-no-evidence">
+          Director solicitado, sin evidencia de aplicación en este video: no se encontró un registro válido del Director para este intento, así que no se muestra como aplicado. Si esperabas el Director, contacta a soporte con el código del video.
+        </p>
+      )}
     </div>
   );
 }

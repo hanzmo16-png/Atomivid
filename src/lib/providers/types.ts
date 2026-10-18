@@ -81,12 +81,20 @@ export interface VoiceProvider {
   synthesize(text: string, language?: ScriptLanguage, speed?: number): Promise<VoiceResult>;
 }
 
+/**
+ * Licence verdict for one piece of material. T36 C1: it travels with every resolved result up to the Director's
+ * render; nothing defaults to CLEARED (see src/lib/video/director/beat-license.ts).
+ */
+export type MediaLicense = "CLEARED" | "NEEDS_REVIEW" | "NOT_CLEARED";
+
 export type FootageResult = {
   url: string;
   mediaType: "image" | "video";
   photographer?: string;
   mimeType: string;
   extension: string;
+  /** Optional per-result declaration from the provider. It can only make the verdict stricter, never clear it. */
+  license?: MediaLicense;
 };
 
 /**
@@ -116,6 +124,8 @@ export type FootageCandidate = FootageResult & {
 
 export interface FootageProvider {
   readonly name: string;
+  /** Optional provider-wide declaration; like FootageResult.license it can only make the verdict stricter. */
+  readonly license?: MediaLicense;
   /** Busca preferentemente video (vertical por defecto; "landscape" para Long Form 16:9); el proveedor puede caer a imagen. */
   fetchFootage(query: string, minimumDurationSeconds?: number, orientation?: "portrait" | "landscape"): Promise<FootageResult>;
   downloadFootage(url: string): Promise<Buffer>;

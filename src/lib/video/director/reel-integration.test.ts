@@ -129,12 +129,17 @@ test("recipeVariety excludes the absence of a recipe and stays within 0..1; pend
   assert.ok(m.recipeVariety >= 0 && m.recipeVariety <= 1);
 });
 
-test("inspection note tells the truth about the render: proposal-only when the render flag is off, plan drives the montage when on", () => {
+test("inspection note tells the truth about the render: proposal-only when the render flag is off, eligible/requested (never applied) when on", () => {
   const off = inspectReel(SCRIPT), on = inspectReel(SCRIPT, { renderEnabled: true });
   assert.ok(off.status !== "error" && on.status !== "error");
+  assert.equal(off.renderRequest, "proposal_only");
   assert.match(off.note, /No cambia el guion ni el render/);
+  assert.equal(on.renderRequest, "eligible");
   assert.doesNotMatch(on.note, /ni el render/);
-  assert.match(on.note, /ese plan dirige el montaje/);
+  // chatgpt-30 C1: the page only knows Vercel's flags; the worker re-decides with its own. No categorical promise.
+  assert.match(on.note, /se solicita/i);
+  assert.match(on.note, /solo se confirma después del render/);
+  assert.doesNotMatch(on.note, /ese plan dirige el montaje/);
 });
 
 test("applied record: the video page reads only a well-formed ok record and the path sits next to the MP4", () => {
