@@ -262,6 +262,21 @@ export function ScriptReview({
         ))}
       </div>}
 
+      {(regeneratingAll || savingIndex !== null || generating) && (
+        <div className="mt-4" role="status" aria-live="polite">
+          <p className="mb-2 text-sm font-medium text-ink-muted">
+            {generating ? "Iniciando la producción…" : "Generando guion…"}
+          </p>
+          <div
+            role="progressbar"
+            aria-label={generating ? "Iniciando video" : "Generando guion"}
+            aria-valuetext="Operación en curso, porcentaje no disponible"
+            className="h-2 w-full overflow-hidden rounded-full bg-surface-raised"
+          >
+            <div className="h-full w-2/5 animate-pulse rounded-full bg-accent motion-reduce:animate-none" />
+          </div>
+        </div>
+      )}
       {error && (
         <div className="mt-4">
           <Alert tone="danger">{error}</Alert>
