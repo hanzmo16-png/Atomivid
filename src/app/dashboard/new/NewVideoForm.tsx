@@ -79,7 +79,6 @@ export function NewVideoForm({
   const [repeatToken, setRepeatToken] = useState("");
   const submissionIdRef = useRef(submissionId);
   const syncVersion = useRef(0);
-  useEffect(() => { setRepeatToken(newKey()); }, []);
   useEffect(() => {
     let alive = true;
     const sync = () => {
@@ -325,7 +324,7 @@ export function NewVideoForm({
 
       {/* T46 D1: the server treats the same data as the same request. A second identical video is an explicit choice. */}
       <label className="flex items-start gap-2 text-sm text-ink-muted">
-        <input type="checkbox" name="repeat_intent" className="mt-1" checked={repeatIntent} onChange={e => setRepeatIntent(e.target.checked)} />
+        <input type="checkbox" name="repeat_intent" className="mt-1" checked={repeatIntent} onChange={e => { setRepeatIntent(e.target.checked); if (e.target.checked && !repeatToken) setRepeatToken(newKey()); }} />
         <input type="hidden" name="repeat_request_token" value={repeatToken} disabled={!repeatIntent || !repeatToken} />
         <span>Crear otro video igual aunque ya exista una solicitud con exactamente estos datos.</span>
       </label>
