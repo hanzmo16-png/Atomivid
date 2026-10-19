@@ -631,7 +631,8 @@ export async function generateVideoFromScript({
   let outputPath = rawOutputPath;
   try {
     const masteredPath = rawOutputPath.replace(/\.mp4$/, ".mastered.mp4");
-    const mastering = await masterAudioLoudness(rawOutputPath, masteredPath);
+    // F3 (T-20261019-1602): el MP4 corto también lleva moov al inicio — se reproduce y descarga de forma progresiva sin bajar el archivo entero.
+    const mastering = await masterAudioLoudness(rawOutputPath, masteredPath, { faststart: true });
     outputPath = masteredPath;
     console.log(
       "[atomivid:audio] masterización de loudness",

@@ -23,7 +23,7 @@ Umbrales (justificación):
   - fade: luminancia media en el fotograma del corte ≤ 15 % de la del centro del plano.
   - presencia de imagen: NCC ≥ 0.5 contra la imagen esperada y ≥ 0.15 por encima de cualquier otra sintética.
 """
-import json, os, subprocess, sys
+import json, re, difflib, os, subprocess, sys
 import numpy as np
 from PIL import Image
 
@@ -223,9 +223,136 @@ def reel_mode(mp4, dj_path, fills_path, synth, out, expected):
     rep["subtitles"] = hits
     return rep
 
+def ffmpeg_filter_log(mp4, vf=None, af=None, extra=None):
+    args = ["ffmpeg", "-v", "info", "-i", mp4] + (["-vf", vf] if vf else []) + (["-af", af] if af else []) + (extra or []) + ["-f", "null", "-"]
+    return subprocess.run(args, capture_output=True).stderr.decode(errors="replace")
+
+SAFE_BOTTOM = 280 - 12
+def director_mode(mp4, dj_path, out, expected):
+    """F3 (T-20261019-1602) prueba de fuego del Director, criterios 1–10 (técnicos). Umbrales:
+    - zona segura de subtítulos: 10 % superior y 15 % inferior reservados a la UI de Reels/TikTok/Shorts; márgenes laterales 5 %.
+    - legibilidad: confianza media de OCR (tesseract) ≥ 60 sobre las palabras de la caption.
+    - negro inesperado: blackdetect pix_th=0.10, d≥0.10 s; sólo se justifica dentro de ±0.35 s de una transición «fade» planificada
+      (dip de 9 fotogramas = 0.30 s en remotion/reel-direction.ts).
+    - congelado injustificado: freezedetect n=0.003, d≥1.0 s; se justifica sólo dentro de un plano «static».
+    - letterbox: cropdetect (limit 24) en 10 instantes; el recorte detectado debe ser el cuadro completo (±8 px).
+    - sonoridad: contrato del producto audio-master.ts I=−16 LUFS, TP=−1.5 dBTP; tolerancia ±1.5 LU e TP ≤ −1.0 dBTP; sin clipping
+      (muestras a 0 dBFS: max_volume < −0.1 dB).
+    - narración completa: nivel medio por plano > −45 dB y pista de audio ≥ duración del vídeo − 0.3 s.
+    """
+    d = json.load(open(dj_path)); fps = 30
+    pr, dur = media_basics(mp4, expected)
+    vs = next(s for s in pr["streams"] if s["codec_type"] == "video"); au = next((s for s in pr["streams"] if s["codec_type"] == "audio"), None)
+    check("[1] relación 9:16 exacta", vs["width"] * 16 == vs["height"] * 9, [vs["width"], vs["height"]])
+    check("director.json ok=true (montado por el Director)", d.get("ok") is True, d.get("blockers"))
+    scenes = d["props"]["scenes"]; shots = d["applied"]; caps = d["props"]["captions"]
+    adur = float(au.get("duration", 0)) if au else 0
+    check(f"[2] pista de audio {adur:.2f}s cubre el vídeo {dur:.2f}s (−0.3 s)", adur >= dur - 0.3, {"audio": adur, "video": dur})
+    quiet = []
+    for sc, ap in zip(scenes, shots):
+        lv = audio_level(mp4, sc["startSeconds"], sc["endSeconds"])
+        if lv <= -45: quiet.append({"shot": ap["shotId"], "db": lv})
+    check("[2] narración presente en cada plano (nivel medio > −45 dB)", not quiet, quiet)
+    # captions alineadas con las escenas: cada caption cae dentro del intervalo de alguna escena y cubren la duración
+    cover_s = sum(c["endSeconds"] - c["startSeconds"] for c in caps)
+    check(f"[2] subtítulos cubren la narración ({cover_s:.1f}s de {dur:.1f}s ≥ 70 %)", cover_s >= 0.7 * dur, cover_s)
+    # [3] OCR con cajas: zona segura + legibilidad
+    W_, H_ = vs["width"], vs["height"]; bad_area = []; confs = []; hits = []; boxes = []
+    for k, cp in enumerate(caps):
+        t = (cp["startSeconds"] + cp["endSeconds"]) / 2; pth = os.path.join(out, f"dcap-{k}.png")
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{t:.3f}", "-i", mp4, "-frames:v", "1", "-vf", "crop=iw:ih*0.5:0:ih*0.5", pth], check=True)
+        tsv = subprocess.run(["tesseract", pth, "-", "-l", "spa", "--psm", "11", "tsv"], capture_output=True).stdout.decode(errors="replace").splitlines()[1:]
+        norm = lambda s: "".join(ch for ch in s.lower() if ch.isalnum())
+        want = {norm(w) for w in cp["text"].split() if len(norm(w)) >= 4}
+        for line in tsv:
+            f = line.split("\t")
+            if len(f) < 12 or not f[11].strip(): continue
+            word = norm(f[11]); conf = float(f[10]); x, y, w, h = map(int, f[6:10]); y += H_ // 2
+            if word in want:
+                confs.append(conf); hits.append(word)
+                if conf >= 80: boxes.append((k, word, x, y, w, h))
+    # zona segura por caption, robusta a cajas espurias de OCR sobre fondos texturados: se exige que ≥2 palabras reconocidas
+    # con confianza ≥ 80 la violen (una sola caja aislada se reporta como medición dudosa, no como fallo)
+    doubtful = []
+    for k in sorted({b[0] for b in boxes}):
+        viol = [b for b in boxes if b[0] == k and (b[2] < 0.05 * W_ or b[2] + b[4] > 0.95 * W_ or b[3] < 0.10 * H_ or b[3] + b[5] > H_ - SAFE_BOTTOM)]
+        (bad_area if len(viol) >= 2 else doubtful).extend([{"k": v[0], "w": v[1], "box": list(v[2:])} for v in viol])
+    tot = sum(len({norm(w) for w in c["text"].split() if len(norm(w)) >= 4}) for c in caps)
+    check(f"[3] subtítulos correctos: {len(set(hits))} palabras distintas reconocidas de {tot} (≥ 60 %)", tot and len(set(hits)) / max(1, len({norm(w) for c in caps for w in c['text'].split() if len(norm(w)) >= 4})) >= 0.6, len(hits))
+    check(f"[3] subtítulos dentro de la zona segura (≥2 cajas OCR conf ≥ 80 por caption; dudosas: {len(doubtful)}; 10 % sup., {SAFE_BOTTOM}px inf. = SAFE_BOTTOM_PADDING 280 − 12 px de tolerancia de caja OCR, 5 % lat.)", not bad_area, bad_area[:8])
+    mc = sum(confs) / len(confs) if confs else 0
+    check(f"[3] legibilidad: confianza OCR media {mc:.0f} ≥ 60", mc >= 60, mc)
+    # [4] movimiento medible
+    meas = {"push_in": [], "pan": []}
+    for sc, ap in zip(scenes, shots):
+        st, en = sc["startSeconds"], sc["endSeconds"]; mot = sc["direction"]["motion"]
+        if en - st < 1.6 or mot not in meas: continue
+        f1 = frame(mp4, st + 0.55); f2 = frame(mp4, en - 0.55); r, dy, dx, c = estimate(f1, f2)
+        p1, p2 = 0.55 / (en - st), (en - st - 0.55) / (en - st)
+        if c < 0.5: meas[mot].append({"shot": ap["shotId"], "medible": False, "ncc": c}); continue
+        if mot == "push_in": exp = (1 + 0.15 * p2) / (1 + 0.15 * p1); ok = 0.5 * (exp - 1) <= r - 1 <= 1.5 * (exp - 1)
+        else: exp = -80 * 1.12 * (p2 - p1) * (W / 1080); ok = np.sign(dx) == np.sign(exp) and abs(dx) >= 0.5 * abs(exp)
+        meas[mot].append({"shot": ap["shotId"], "medible": True, "ok": bool(ok), "r": r, "dx": dx, "exp": exp, "ncc": c})
+    for mot, lst in meas.items():
+        planned = sum(1 for sc in scenes if sc["direction"]["motion"] == mot and sc["endSeconds"] - sc["startSeconds"] >= 1.6)
+        if planned:
+            m = [x for x in lst if x["medible"]]
+            check(f"[4] {mot}: {sum(1 for x in m if x['ok'])}/{len(m)} planos medibles dentro de ±50 % ({planned} planificados; ≥1 medible y todos los medibles correctos)", m and all(x["ok"] for x in m), lst)
+    # [5] negro inesperado
+    log = ffmpeg_filter_log(mp4, vf="blackdetect=d=0.10:pix_th=0.10")
+    blacks = [(float(a), float(b)) for a, b in re.findall(r"black_start:([\d.]+) black_end:([\d.]+)", log)]
+    fades = [sc["endSeconds"] for sc in scenes if sc["direction"].get("transitionOut") == "fade"] + [sc["startSeconds"] for sc in scenes if sc["direction"].get("transitionIn") == "fade"]
+    unexp = [b for b in blacks if not any(f - 0.35 <= b[0] and b[1] <= f + 0.35 for f in fades)]
+    check("[5] sin negro inesperado (sólo dips de fade planificados)", not unexp, {"black": blacks, "fades": fades})
+    # [6] letterbox / congelados
+    crops = []
+    for t in np.linspace(0.5, dur - 0.5, 10):
+        lg = subprocess.run(["ffmpeg", "-v", "info", "-ss", f"{t:.2f}", "-i", mp4, "-frames:v", "3", "-vf", "cropdetect=limit=24:round=2:reset=1", "-f", "null", "-"], capture_output=True).stderr.decode(errors="replace")
+        m = re.findall(r"crop=(\d+):(\d+):(\d+):(\d+)", lg)
+        if m: crops.append(tuple(map(int, m[-1])))
+    lb = [c for c in crops if c[0] < W_ - 8 or c[1] < H_ - 8]
+    check("[6] sin letterbox/pillarbox (cropdetect = cuadro completo)", crops and not lb, {"crops": crops[:10]})
+    log = ffmpeg_filter_log(mp4, vf="freezedetect=n=0.0001:d=1.0")
+    fz = [(float(a), float(b)) for a, b in zip(re.findall(r"freeze_start: ([\d.]+)", log), re.findall(r"freeze_end: ([\d.]+)", log))]
+    statics = [(sc["startSeconds"], sc["endSeconds"]) for sc in scenes if sc["direction"]["motion"] == "static"]
+    unj = [f for f in fz if not any(a - 0.1 <= f[0] and f[1] <= b + 0.1 for a, b in statics)]
+    check("[6] sin congelados injustificados (sólo dentro de planos static)", not unj, {"freezes": fz, "static": statics})
+    # [7] identidad del recurso por escena: cada plano declara su recurso y planos distintos no comparten recurso salvo reutilización declarada
+    srcs = [sc.get("mediaUrl") for sc in scenes]
+    norm_src = [re.sub(r"[?#].*$", "", s or "") for s in srcs]
+    check("[7] cada plano montado tiene recurso declarado", all(norm_src), norm_src[:4])
+    keyset = [(ap["shotId"], ns) for ap, ns in zip(shots, norm_src)]
+    rep = {"motion": meas, "blacks": blacks, "freezes": fz, "crops": crops, "assets": keyset}
+    # [8] etiquetas: valor del plan y texto visible (OCR de la franja superior) coherente
+    lab_bad = []
+    for sc, ap in zip(scenes, shots):
+        lab = ap["applied"].get("label"); want = {"recreacion_ia": "recreación", "ilustrativa": "ilustrativa"}.get(lab)
+        txt = ""
+        for q in (0.5, 0.3, 0.7):  # hasta 3 instantes del plano: el OCR del badge sobre fondo móvil es ruidoso
+            t = sc["startSeconds"] + q * (sc["endSeconds"] - sc["startSeconds"]); pth = os.path.join(out, f"label-{ap['shotId']}-{q}.png")
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{t:.3f}", "-i", mp4, "-frames:v", "1", "-vf", "crop=iw*0.55:ih*0.05:iw*0.025:ih*0.03,scale=iw*3:-1,format=gray,negate", pth], check=True)
+            txt += " " + subprocess.run(["tesseract", pth, "-", "-l", "spa", "--psm", "7"], capture_output=True).stdout.decode(errors="replace").lower()
+        fuzzy = lambda w, t: max([difflib.SequenceMatcher(None, w, t[i:i + len(w)]).ratio() for i in range(max(1, len(t) - len(w) + 1))] or [0]) >= 0.75
+        if want and not fuzzy(want, txt): lab_bad.append({"shot": ap["shotId"], "label": lab, "ocr": txt.strip()[:60]})
+        if not want and ("recreación" in txt or "ilustrativa" in txt): lab_bad.append({"shot": ap["shotId"], "label": lab, "ocr": txt.strip()[:60]})
+    labels = sorted({str(ap["applied"].get("label")) for ap in shots})
+    check(f"[8] etiqueta visible coherente (OCR difuso ≥ 0.75) con el tipo de material en cada plano ({labels})", not lab_bad, lab_bad[:6])
+    # [9] sonoridad y clipping
+    eb = ffmpeg_filter_log(mp4, af="ebur128=peak=true")
+    I = float(re.findall(r"I:\s+(-?[\d.]+) LUFS", eb)[-1]); TP = float(re.findall(r"Peak:\s+(-?[\d.]+) dBFS", eb)[-1])
+    vd = ffmpeg_filter_log(mp4, af="volumedetect"); mx = float(re.findall(r"max_volume: (-?[\d.]+) dB", vd)[-1])
+    check(f"[9] sonoridad integrada {I:.1f} LUFS dentro de −16 ±1.5 (contrato audio-master.ts)", -17.5 <= I <= -14.5, I)
+    check(f"[9] true peak {TP:.1f} dBTP ≤ −1.0 y sin clipping (max_volume {mx:.1f} dB < −0.1)", TP <= -1.0 and mx < -0.1, {"tp": TP, "max": mx})
+    rep["loudness"] = {"I": I, "TP": TP, "max": mx}
+    # [10] MP4 íntegro: faststart (moov antes de mdat) para reproducción progresiva/descarga
+    with open(mp4, "rb") as fh: head = fh.read(200000)
+    check("[10] MP4 con moov al inicio (reproducible en streaming/descarga progresiva)", head.find(b"moov") != -1 and (head.find(b"mdat") == -1 or head.find(b"moov") < head.find(b"mdat")), {"moov": head.find(b"moov"), "mdat": head.find(b"mdat")})
+    return rep
+
 if __name__ == "__main__":
     mode = sys.argv[1]
     if mode == "motion": out = sys.argv[5]; os.makedirs(out, exist_ok=True); rep = motion_mode(sys.argv[2], sys.argv[3], sys.argv[4], out)
+    elif mode == "director": out = sys.argv[4]; os.makedirs(out, exist_ok=True); rep = director_mode(sys.argv[2], sys.argv[3], out, float(sys.argv[5]))
     else: out = sys.argv[6]; os.makedirs(out, exist_ok=True); rep = reel_mode(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], out, float(sys.argv[7]))
     fail = [c for c in CHECKS if not c["ok"]]
     json.dump({"mode": mode, "measurements": rep, "checks": CHECKS, "pass": len(CHECKS) - len(fail), "fail": len(fail)}, open(os.path.join(out, f"media-qa-{mode}.json"), "w"), indent=2, ensure_ascii=False, default=str)

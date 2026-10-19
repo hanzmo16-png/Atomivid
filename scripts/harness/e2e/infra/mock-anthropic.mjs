@@ -11,8 +11,16 @@ function script(prompt) {
   if (W) { const rest = (scenes - W.reduce((a, b) => a + b, 0)) / W.filter((x) => !x).length; for (let i = 0; i < scenes; i++) if (!W[i]) W[i] = rest; }
   const nX = W ? W.filter((_, i) => IMGX[i]).length : 0, restN = W ? Math.floor((target - 24 * nX) / (scenes - nX)) : 0;
   const counts = W ? W.map((_, i) => (IMGX[i] ? 24 : restN)) : null; if (counts) counts[counts.length - 1] += target - counts.reduce((a, b) => a + b, 0);
-  for (let i = 0; i < scenes; i++) { const n = counts ? counts[i] : per + (extra-- > 0 ? 1 : 0); const w = []; for (let j = 0; j < n; j++) w.push(WORDS[k++ % WORDS.length]);
-    const text = w.join(" ").replace(/^./, (c) => c.toUpperCase()) + ".";
+  // F3 (T-20261019-1602): formas de guion. [short] frases de 3-4 palabras; [long] un párrafo largo con comas;
+  // [uneven] escenas muy desiguales (pesos 2.2/0.6/1.4/0.5/…), conservando el total de palabras pedido.
+  const shape = /\[short\]/i.test(prompt) ? "short" : /\[long\]/i.test(prompt) ? "long" : /\[uneven\]/i.test(prompt) ? "uneven" : null;
+  let uneven = null;
+  if (shape === "uneven" && !imgx) { const ws = Array.from({ length: scenes }, (_, i) => [2.2, 0.6, 1.4, 0.5, 1.2, 0.7, 1.6, 0.8][i % 8]); const tot = ws.reduce((a, b) => a + b, 0);
+    uneven = ws.map((x) => Math.max(5, Math.round(target * x / tot))); uneven[uneven.length - 1] += target - uneven.reduce((a, b) => a + b, 0); }
+  const punct = (w) => shape === "short" ? w.map((x, j) => (j % 4 === 3 && j < w.length - 1 ? x + "." : x)).join(" ").replace(/(^|\. )(\p{L})/gu, (m, a, c) => a + c.toUpperCase())
+    : shape === "long" ? w.map((x, j) => (j % 6 === 5 && j < w.length - 1 ? x + "," : x)).join(" ") : w.join(" ");
+  for (let i = 0; i < scenes; i++) { const n = counts ? counts[i] : uneven ? uneven[i] : per + (extra-- > 0 ? 1 : 0); const w = []; for (let j = 0; j < n; j++) w.push(WORDS[k++ % WORDS.length]);
+    const text = punct(w).replace(/^./, (c) => c.toUpperCase()) + ".";
     const x = imgx ? IMGX[i] : null;
     if (x) { const alt = x.alt.split(" ");
       const ws = Array.from({ length: n }, (_, j) => alt[j % alt.length]); const h = Math.round(n * 0.21), h2 = n - h;
