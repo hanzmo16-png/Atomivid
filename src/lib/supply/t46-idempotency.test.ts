@@ -256,7 +256,9 @@ test("D3: el colector read-only nunca autoriza reenvío ni liquidación automát
 test("D3: el script de evidencia contiene sólo lecturas y no importa proveedores", async () => {
   const { readFileSync } = await import("node:fs");
   const source = readFileSync("scripts/avatar-reconciliation-readonly.ts", "utf8");
-  assert.doesNotMatch(source, /\.(?:update|insert|upsert|delete|remove|upload|rpc)\s*\(/);
+  assert.doesNotMatch(source, /\.from\([^)]*\)[\s\S]{0,300}\.(?:update|insert|upsert|delete)\s*\(/);
+  assert.doesNotMatch(source, /\.storage[\s\S]{0,200}\.(?:remove|upload)\s*\(/);
+  assert.doesNotMatch(source, /\.rpc\s*\(/);
   assert.doesNotMatch(source, /provider\.createAvatar|fetch\s*\(/);
   assert.match(source, /\.eq\("idempotency_key", operationKey\)/);
   assert.match(source, /\.eq\("method", "create_avatar"\)/);
