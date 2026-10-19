@@ -53,6 +53,7 @@ http.createServer(async (req, res) => {
     }
     if ((m = p.match(/^\/storage\/v1\/object\/list\/([^/]+)$/))) { const b = JSON.parse((await body(req)).toString() || "{}"); const d = path.join(STORE, m[1], b.prefix ?? ""); const names = fs.existsSync(d) ? fs.readdirSync(d) : []; return json(res, 200, names.map((n) => ({ name: n, id: n, metadata: {} }))); }
     if ((m = p.match(/^\/storage\/v1\/object\/(?:authenticated\/|public\/)?([^/]+)\/(.+)$/)) && (req.method === "GET" || req.method === "HEAD")) { if (claims(req)?.role !== "service_role") return json(res, 403, {}); return serveFile(req, res, `${m[1]}/${decodeURIComponent(m[2])}`); }
+    if ((m = p.match(/^\/storage\/v1\/object\/([^/]+)\/(.+)$/)) && (req.method === "POST" || req.method === "PUT") && storageFault(decodeURIComponent(m[2]))) return json(res, 500, { statusCode: "500", error: "InternalError", message: "mock storage fault" });
     if ((m = p.match(/^\/storage\/v1\/object\/([^/]+)\/(.+)$/)) && (req.method === "POST" || req.method === "PUT")) {
       if (claims(req)?.role !== "service_role") return json(res, 403, {}); const key = `${m[1]}/${decodeURIComponent(m[2])}`; const f = path.join(STORE, key);
       if (fs.existsSync(f) && req.method === "POST" && req.headers["x-upsert"] !== "true") return json(res, 400, { statusCode: "409", error: "Duplicate", message: "The resource already exists" });
@@ -65,3 +66,6 @@ http.createServer(async (req, res) => {
     log({ kind: "unhandled", method: req.method, path: p }); json(res, 404, { message: `gateway: unhandled ${req.method} ${p}` });
   } catch (e) { log({ kind: "error", path: p, message: String(e) }); json(res, 500, { message: String(e) }); }
 }).listen(PORT, "127.0.0.1", () => console.log(`gateway listening ${PORT}`));
+// Caos (T-20261019-1602): <E2E_HOME>/logs/faults.json {"storage":{"match":"director-fill","remaining":n}} ⇒ subida 500.
+function storageFault(key) { const FF = path.join(STORE, "..", "logs", "faults.json"); try { const all = JSON.parse(fs.readFileSync(FF, "utf8")); const f = all.storage;
+  if (f?.remaining > 0 && key.includes(f.match)) { f.remaining--; fs.writeFileSync(FF, JSON.stringify(all)); fs.appendFileSync(path.join(STORE, "..", "logs", "storage-faults.jsonl"), JSON.stringify({ at: new Date().toISOString(), key }) + "\n"); return true; } } catch {} return false; }

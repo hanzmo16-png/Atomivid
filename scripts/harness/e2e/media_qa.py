@@ -305,18 +305,28 @@ def director_mode(mp4, dj_path, out, expected):
     unexp = [b for b in blacks if not any(f - 0.35 <= b[0] and b[1] <= f + 0.35 for f in fades)]
     check("[5] sin negro inesperado (sólo dips de fade planificados)", not unexp, {"black": blacks, "fades": fades})
     # [6] letterbox / congelados
-    crops = []
+    # barras = filas/columnas desde el borde casi negras Y uniformes (media < 16, desviación < 3). cropdetect solo no basta:
+    # el degradado de legibilidad inferior sobre un fondo oscuro lo engaña (falso positivo visto en long60 a 39.97 s).
+    crops = []; lb = []
     for t in np.linspace(0.5, dur - 0.5, 10):
-        lg = subprocess.run(["ffmpeg", "-v", "info", "-ss", f"{t:.2f}", "-i", mp4, "-frames:v", "3", "-vf", "cropdetect=limit=24:round=2:reset=1", "-f", "null", "-"], capture_output=True).stderr.decode(errors="replace")
-        m = re.findall(r"crop=(\d+):(\d+):(\d+):(\d+)", lg)
-        if m: crops.append(tuple(map(int, m[-1])))
-    lb = [c for c in crops if c[0] < W_ - 8 or c[1] < H_ - 8]
-    check("[6] sin letterbox/pillarbox (cropdetect = cuadro completo)", crops and not lb, {"crops": crops[:10]})
+        g = gray(frame(mp4, float(t)))
+        def run(lines):
+            n = 0
+            for ln in lines:
+                if ln.mean() < 16 and ln.std() < 3: n += 1
+                else: break
+            return n
+        bars = {"top": run(g), "bottom": run(g[::-1]), "left": run(g.T), "right": run(g.T[::-1])}
+        crops.append({"t": round(float(t), 2), **bars})
+        if any(v >= 4 for v in bars.values()): lb.append(crops[-1])  # ≥ 4 filas a 540 px ≈ 8 px reales
+    check("[6] sin letterbox/pillarbox (ninguna barra negra uniforme ≥ 8 px en 10 instantes)", not lb, {"bars": lb or crops[:3]})
     log = ffmpeg_filter_log(mp4, vf="freezedetect=n=0.0001:d=1.0")
     fz = [(float(a), float(b)) for a, b in zip(re.findall(r"freeze_start: ([\d.]+)", log), re.findall(r"freeze_end: ([\d.]+)", log))]
     statics = [(sc["startSeconds"], sc["endSeconds"]) for sc in scenes if sc["direction"]["motion"] == "static"]
-    unj = [f for f in fz if not any(a - 0.1 <= f[0] and f[1] <= b + 0.1 for a, b in statics)]
-    check("[6] sin congelados injustificados (sólo dentro de planos static)", not unj, {"freezes": fz, "static": statics})
+    # tolerancia 0.2 s (6 fotogramas) en los bordes: un push_in/pan arranca con desplazamiento sub-umbral en sus primeros
+    # fotogramas (visto en uneven90: 79.1–80.13 s, static termina en 80.0). Un congelado real (RED: bucle de 2.5 s) queda fuera.
+    unj = [f for f in fz if not any(a - 0.2 <= f[0] and f[1] <= b + 0.2 for a, b in statics)]
+    check("[6] sin congelados injustificados (sólo dentro de planos static, ±0.2 s)", not unj, {"freezes": fz, "static": statics})
     # [7] identidad del recurso por escena: cada plano declara su recurso y planos distintos no comparten recurso salvo reutilización declarada
     srcs = [sc.get("mediaUrl") for sc in scenes]
     norm_src = [re.sub(r"[?#].*$", "", s or "") for s in srcs]
@@ -328,10 +338,14 @@ def director_mode(mp4, dj_path, out, expected):
     for sc, ap in zip(scenes, shots):
         lab = ap["applied"].get("label"); want = {"recreacion_ia": "recreación", "ilustrativa": "ilustrativa"}.get(lab)
         txt = ""
-        for q in (0.5, 0.3, 0.7):  # hasta 3 instantes del plano: el OCR del badge sobre fondo móvil es ruidoso
-            t = sc["startSeconds"] + q * (sc["endSeconds"] - sc["startSeconds"]); pth = os.path.join(out, f"label-{ap['shotId']}-{q}.png")
-            subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{t:.3f}", "-i", mp4, "-frames:v", "1", "-vf", "crop=iw*0.55:ih*0.05:iw*0.025:ih*0.03,scale=iw*3:-1,format=gray,negate", pth], check=True)
-            txt += " " + subprocess.run(["tesseract", pth, "-", "-l", "spa", "--psm", "7"], capture_output=True).stdout.decode(errors="replace").lower()
+        # 3 instantes × 3 preprocesados (negativo / directo / binarizado): el badge es semitransparente y el OCR sobre un
+        # fondo texturado es ruidoso; basta una lectura coherente. Controles RED: badge tapado ⇒ ninguna lectura.
+        for q in (0.5, 0.3, 0.7):
+            for vi, pre in enumerate(("format=gray,negate", "format=gray", "format=gray,lutyuv=y='if(gt(val,140),255,0)'")):
+                t = sc["startSeconds"] + q * (sc["endSeconds"] - sc["startSeconds"]); pth = os.path.join(out, f"label-{ap['shotId']}-{q}-{vi}.png")
+                subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{t:.3f}", "-i", mp4, "-frames:v", "1", "-vf", f"crop=iw*0.30:ih*0.05:iw*0.025:ih*0.03,scale=iw*3:-1,{pre}", pth], check=True)
+                txt += " " + subprocess.run(["tesseract", pth, "-", "-l", "spa", "--psm", "6"], capture_output=True).stdout.decode(errors="replace").lower()
+            if want and max([difflib.SequenceMatcher(None, want, txt[i:i + len(want)]).ratio() for i in range(max(1, len(txt) - len(want) + 1))] or [0]) >= 0.75: break
         fuzzy = lambda w, t: max([difflib.SequenceMatcher(None, w, t[i:i + len(w)]).ratio() for i in range(max(1, len(t) - len(w) + 1))] or [0]) >= 0.75
         if want and not fuzzy(want, txt): lab_bad.append({"shot": ap["shotId"], "label": lab, "ocr": txt.strip()[:60]})
         if not want and ("recreación" in txt or "ilustrativa" in txt): lab_bad.append({"shot": ap["shotId"], "label": lab, "ocr": txt.strip()[:60]})
