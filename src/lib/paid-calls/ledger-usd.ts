@@ -9,8 +9,9 @@
  *  - NaN, ±Infinity, negativos o desbordamiento de numeric(12,4) → LedgerAmountError ANTES de escribir el
  *    ledger y antes del proveedor (fail-closed).
  *  - 0 se conserva (recursos realmente gratuitos y reservas que ya eran 0 por diseño).
- *  - Un positivo se redondea HACIA ARRIBA a la unidad mínima registrable (0.0001 USD). Es un importe de
- *    RESERVA/LIQUIDACIÓN contable redondeado, nunca el costo exacto del proveedor; jamás baja a 0.
+ *  - Un positivo se redondea HACIA ARRIBA (techo exacto, sin tolerancia) a la unidad mínima registrable (0.0001 USD):
+ *    resultado ≥ entrada y < entrada + 0.0001. Es un importe de RESERVA/LIQUIDACIÓN contable redondeado, nunca el
+ *    costo exacto del proveedor; jamás baja a 0 ni por debajo de la entrada (0.00010000001 → 0.0002).
  */
 export const LEDGER_USD_DECIMALS = 4;
 export const LEDGER_USD_MIN_UNIT = 0.0001;
@@ -26,12 +27,22 @@ export class LedgerAmountError extends Error {
 
 const SCALE = 10 ** LEDGER_USD_DECIMALS;
 
-/** Redondeo hacia arriba a 4 decimales tolerante a ruido binario (0.0001*3 no debe subir a 0.0004). */
+/**
+ * Techo EXACTO a 4 decimales del valor decimal que representa el número (su forma más corta de ida y vuelta,
+ * String(x)), con aritmética entera BigInt: nunca devuelve menos que la entrada (QA-20261019-1337/1407).
+ * Sin tolerancias: un importe con ruido binario por encima de una unidad (0.1 + 0.2 = 0.30000000000000004) sube a
+ * la siguiente (0.3001). Es una reserva contable conservadora; el exceso máximo es < 0.0001 USD por importe.
+ */
 export function ceilToLedgerUnit(x: number): number {
-  const scaled = x * SCALE;
-  const nearest = Math.round(scaled);
-  const units = Math.abs(scaled - nearest) <= 1e-6 ? nearest : Math.ceil(scaled);
-  return units / SCALE;
+  if (!(x > 0)) return x === 0 ? 0 : Number.NaN;
+  const m = /^(\d+)(?:\.(\d+))?(?:e([+-]\d+))?$/.exec(String(x));
+  if (!m) return Number.NaN;
+  const digits = m[1] + (m[2] ?? ""); const exp = Number(m[3] ?? 0) - (m[2]?.length ?? 0); // x = digits · 10^exp
+  const shift = exp + LEDGER_USD_DECIMALS; // unidades de 0.0001 = digits · 10^shift
+  let units: bigint;
+  if (shift >= 0) units = BigInt(digits) * 10n ** BigInt(shift);
+  else { const d = 10n ** BigInt(-shift); const n = BigInt(digits); units = n / d + (n % d === 0n ? 0n : 1n); }
+  return Number(units) / SCALE;
 }
 
 /** Importe ≥ 0 listo para numeric(12,4); lanza LedgerAmountError si no es representable de forma segura. */

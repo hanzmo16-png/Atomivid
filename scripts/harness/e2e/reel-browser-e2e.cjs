@@ -161,7 +161,8 @@ let browser;
 
   // ───── Egreso ─────
   const egress = jsonl(path.join(LOGS, "egress.jsonl")).filter((e) => e.kind === "egress_refused" && Date.parse(e.at) >= run);
-  check("Egreso: ninguna llamada fuera de loopback llegó a salir (todas rechazadas y registradas)", true, { refused: egress.map((e) => e.host) });
+  // El interceptor rechaza toda salida no loopback; se exige además que ninguna fuera hacia un proveedor real (los mocks loopback la atendieron).
+  check("Egreso: 0 salidas reales; ningún intento hacia api.anthropic.com/api.openai.com/api.github.com quedó sin desviar", !egress.some((e) => /anthropic|openai|github/.test(e.host ?? "")), { refused: egress.map((e) => e.host) });
   await browser.close(); await db.end();
   const report = { run, base: BASE, ids: { A: idA, C: idC }, checks, pass: checks.filter((c) => c.ok).length, fail: checks.filter((c) => !c.ok).length };
   fs.writeFileSync(path.join(OUT, "e2e-report.json"), JSON.stringify(report, null, 2));

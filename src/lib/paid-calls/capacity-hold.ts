@@ -74,7 +74,14 @@ export async function acquireCapacityHolds(
   const rollback = async () => {
     for (const h of acquired) await deps.store.settleHold(h.key, "REFUNDED").catch(() => false);
   };
-  for (const demand of input.demands) {
+  // Precisión monetaria (QA-20261019-1337): TODO importe se valida/normaliza con ledgerUsd ANTES de leer saldo o
+  // escribir cualquier hold; uno inválido (negativo, NaN, ±Infinity, overflow) rechaza el lote completo.
+  const demands: CapacityDemand[] = [];
+  for (const d of input.demands) {
+    try { demands.push({ ...d, usd: ledgerUsd(d.usd, "reserved_usd") }); }
+    catch (err) { return { acquired: false, provider: d.provider, reason: err instanceof Error ? err.message : String(err) }; }
+  }
+  for (const demand of demands) {
     if (!(demand.units > 0)) continue;
     let balance;
     try {
@@ -165,7 +172,7 @@ export function supabaseCapacityHoldStore(supabase: SupabaseClient): CapacityHol
         model: "*",
         method: CAPACITY_HOLD_METHOD,
         attempt_kind: "initial",
-        reserved_usd: ledgerUsd(Math.max(0, row.usd), "reserved_usd"),
+        reserved_usd: ledgerUsd(row.usd, "reserved_usd"),
         committed_usd: null,
         status: "RESERVED",
         provider_job_id: null,
