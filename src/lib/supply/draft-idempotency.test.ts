@@ -165,10 +165,18 @@ test("VERDE: una creación nueva deliberada (después del éxito confirmado) →
   assert.equal(s.rows.size, 1);
   assert.equal(s.voiceCalls, 1);
   // …a second identical video is an explicit choice (repeat_intent), resolved on the server to the next free ordinal.
-  const again = avatarForm(second); again.set("repeat_intent", "on");
+  const again = avatarForm(second); again.set("repeat_intent", "on"); again.set("repeat_request_token", randomUUID());
   await s.submit(again);
   assert.equal(s.rows.size, 2);
   assert.equal(s.voiceCalls, 2);
+  // D5: lost redirect after the committed explicit repeat; replaying exactly the same POST cannot select R2.
+  await s.submit(again);
+  assert.equal(s.rows.size, 2);
+  assert.equal(s.voiceCalls, 2);
+  const nextRepeat = avatarForm(second); nextRepeat.set("repeat_intent", "on"); nextRepeat.set("repeat_request_token", randomUUID());
+  await s.submit(nextRepeat);
+  assert.equal(s.rows.size, 3);
+  assert.equal(s.voiceCalls, 3);
 });
 
 test("VERDE: otra intención en otra pestaña con la misma llave → otra solicitud (nunca se descarta en silencio)", async () => {
