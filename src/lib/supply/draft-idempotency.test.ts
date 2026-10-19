@@ -21,6 +21,7 @@ import { randomUUID } from "node:crypto";
 import { createdUrl, draftRequestId, intentFingerprint, requestIdForSubmission } from "@/lib/video/submission-key";
 import { acquireDraftKey, DRAFT_KEY_LOCK, DRAFT_KEY_STORAGE, readOrCreateDraftKey, rotateDraftKey } from "@/app/dashboard/new/draft-key";
 import { CLAIM_MESSAGES, createAvatarOnce, isDuplicateUpload, photoClaimPath, STALE_CLAIM_MS, type NewPhotoClaimDeps } from "@/lib/video/avatar/new-photo-claim";
+import { AvatarProviderError } from "@/lib/providers/types";
 import { gatedVoiceSynthesize } from "@/lib/paid-calls/gated-providers";
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 import { memoryResultStore } from "@/lib/paid-calls/result-store";
@@ -266,7 +267,7 @@ test("residual B — VERDE: bajo el candado entre pestañas, dos pestañas simul
 // ---------------------------------------------------------------- Residual A: avatar con FOTO NUEVA
 
 /** Supabase Storage stand-in: object names are unique (upsert disabled), with creation time. */
-function avatarWorld(o: { refuse?: boolean; failInsert?: boolean } = {}) {
+function avatarWorld(o: { refuse?: boolean; timeout?: boolean; failInsert?: boolean } = {}) {
   const objects = new Map<string, Date>(), avatars = new Map<string, { id: string; status: string }>();
   let createAvatarCalls = 0, now = Date.parse("2026-10-18T23:00:00Z");
   const deps = (): NewPhotoClaimDeps => ({
@@ -281,7 +282,8 @@ function avatarWorld(o: { refuse?: boolean; failInsert?: boolean } = {}) {
     async createAvatar() {
       createAvatarCalls++;
       await new Promise(r => setTimeout(r, 5));
-      if (o.refuse) throw new Error("foto rechazada por el proveedor");
+      if (o.refuse) throw new AvatarProviderError("foto rechazada por el proveedor", "heygen", "moderation_rejected");
+      if (o.timeout) throw new AvatarProviderError("la foto pudo haber sido aceptada, timeout en la respuesta", "heygen", "upstream_error");
       return { providerAvatarId: `pa_${createAvatarCalls}`, status: "ready", providerName: "fixture" };
     },
     async insertAvatar(_p, path) {
@@ -329,6 +331,32 @@ test("residual A — resultado incierto y recuperación: nunca se repite createA
   assert.doesNotMatch(Object.values(CLAIM_MESSAGES).join(" "), /no se (cobró|ha cobrado)/i, "nunca promete que no hubo cobro");
 });
 
+test("CORRECCIÓN-3: timeout después de aceptar foto conserva reserva y NUNCA reenvía createAvatar", async () => {
+  const w = avatarWorld({ timeout: true }), path = photoClaimPath(USER, randomUUID(), "jpg");
+  assert.equal((await createAvatarOnce(w.deps(), path)).kind, "uncertain");
+  assert.equal(w.objects.size, 1, "el claim se conserva ante resultado desconocido");
+  assert.equal(w.createAvatarCalls, 1);
+  assert.equal((await createAvatarOnce(w.deps(), path)).kind, "in_flight");
+  assert.equal(w.createAvatarCalls, 1, "segundo envío nunca llama al proveedor");
+  w.advance(STALE_CLAIM_MS + 1);
+  assert.equal((await createAvatarOnce(w.deps(), path)).kind, "stale");
+  assert.equal(w.createAvatarCalls, 1);
+  assert.match(CLAIM_MESSAGES.uncertain, /No pudimos confirmar/);
+  const other = avatarWorld(), otherPath = photoClaimPath(USER, randomUUID(), "jpg");
+  const deps = other.deps();
+  deps.createAvatar = async () => { throw new Error("connection dropped"); };
+  assert.equal((await createAvatarOnce(deps, otherPath)).kind, "uncertain");
+  assert.equal(other.objects.size, 1, "una excepción desconocida también conserva la reserva");
+});
+
+test("CORRECCIÓN-3: solo el rechazo definitivo libera la reserva", async () => {
+  const w = avatarWorld({ refuse: true }), path = photoClaimPath(USER, randomUUID(), "jpg");
+  assert.equal((await createAvatarOnce(w.deps(), path)).kind, "provider_failed");
+  assert.equal(w.objects.size, 0);
+  assert.equal((await createAvatarOnce(w.deps(), path)).kind, "provider_failed");
+  assert.equal(w.createAvatarCalls, 2, "dos intentos solo después de rechazos definitivos");
+});
+
 test("la acción y el formulario siguen exactamente ese orden (fuente)", () => {
   const actions = fs.readFileSync(path.join(ROOT, "src/app/dashboard/new/actions.ts"), "utf8");
   const id = actions.indexOf("const { requestId, draftKey } = await requestIdForSubmission(user.id, formData);");
@@ -347,6 +375,13 @@ test("la acción y el formulario siguen exactamente ese orden (fuente)", () => {
   assert.doesNotMatch(form, /useState\(\(\) => \(typeof crypto/, "ya no hay un id por pestaña");
   assert.match(form, /acquireDraftKey\(browserStorage\(\), submissionIdRef\.current\)/, "la llave se toma bajo el candado entre pestañas");
   assert.match(form, /addEventListener\("storage"/, "una pestaña abierta antes toma la llave vigente");
+  // CORRECCIÓN-3: until Web Locks acquisition finishes, a freshly mounted form cannot submit.
+  assert.match(form, /\\[draftReady, setDraftReady\\] = useState\\(false\\)/, "el formulario nace BLOQUEADO");
+  assert.match(form, /setDraftReady\\(Boolean\\(k\\)\\)/, "habilita cuando hay clave confirmada");
+  assert.match(form, /!draftReady \\? "Sincronizando borrador/, "sin clave no habilita el botón");
+  assert.match(form, /onSubmit=\\{event => \\{ if \\(!draftReady\\) event\\.preventDefault\\(\\); \\}\\}/, "Enter no envía antes de adquirir clave");
+  assert.match(form, /disabled=\\{!draftReady\\}/, "campo de clave deshabilitado hasta sincronizar");
+  assert.match(form, /const version = \\+\\+syncVersion\\.current/, "un efecto viejo no sobreescribe la clave nueva");
   const page = fs.readFileSync(path.join(ROOT, "src/app/dashboard/page.tsx"), "utf8");
   assert.match(page, /\{created && <DraftKeyRotation draft=\{draft\} \/>\}/, "solo una creación confirmada rota la llave");
 });
