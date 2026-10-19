@@ -21,7 +21,8 @@ process.env.REMOTION_BROWSER_EXECUTABLE =
 process.env.REMOTION_CHROME_MODE = process.env.REMOTION_CHROME_MODE || "headless-shell";
 
 async function main() {
-  const { generateScriptForRequest } = await import("../src/lib/video/generate-script");
+  const { generateScriptForRequest, planOwnScriptForRequest } = await import("../src/lib/video/generate-script");
+  const { buildOwnScriptDraft, draftFit, narrationPreserved } = await import("../src/lib/video/own-script");
   const { generateVideoFromScript } = await import("../src/lib/video/generate-video");
   const { getScriptProvider } = await import("../src/lib/providers/script");
   const storageDir = await fs.mkdtemp(path.join(os.tmpdir(), "atomivid-storage-"));
@@ -83,24 +84,53 @@ async function main() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 
-  const topic = "LOS RESULTADOS TIENEN UN PRECIO";
+  // PIPELINE_SCRIPT=own: «Usar mi propio guion» — the customer's text, split into scenes and given visuals
+  // only; the run fails if one word of the narration changed on the way to the final video.
+  const ownScript = process.env.PIPELINE_SCRIPT === "own";
+  const topic = ownScript ? "Mi guion propio" : "LOS RESULTADOS TIENEN UN PRECIO";
   const style = "motivacional, cinematográfico";
-  const durationSeconds = 75;
-
-  console.log("Generando guion de prueba con proveedores fixture...");
+  const durationSeconds = ownScript ? 30 : 75;
+  // Includes what a naive sentence split corrupts (PR149 CORRECCIÓN-1): decimals, thousands, a domain,
+  // abbreviations, a dotted acronym and a paragraph break.
+  const OWN_TEXT = "Cada mañana empieza igual: la alarma suena y piensas en quedarte. Pero hoy es distinto, "
+    + "como explica el Dr. Pérez desde EE. UU. con datos de 2026.\n\nEl 3.14 por ciento de los días cuesta $1.500 de energía. "
+    + "Visita ejemplo.com si quieres el detalle. Preparas el café, abres la libreta y escribes tres cosas que harás sin falta. "
+    + "Caminar veinte minutos. Llamar a esa persona. Terminar la tarea pendiente. "
+    + "Al final del día no cambiaste el mundo, pero cumpliste tu palabra contigo.";
+  // What the voice receives, recorded from the provider itself; captions are built from these words.
+  const voiceInputs: { text: string; words: string[] }[] = [];
+  if (ownScript) {
+    const { fixtureVoiceProvider } = await import("../src/lib/providers/voice/fixture");
+    const original = fixtureVoiceProvider.synthesize.bind(fixtureVoiceProvider);
+    fixtureVoiceProvider.synthesize = async (text, language, speed) => {
+      const result = await original(text, language, speed);
+      voiceInputs.push({ text, words: result.words.map(w => w.text) });
+      return result;
+    };
+  }
+  console.log(ownScript ? "Preparando escenas del guion propio con proveedores fixture..." : "Generando guion de prueba con proveedores fixture...");
   const start = Date.now();
-  const { script, providerName } = await generateScriptForRequest({ topic, style, durationSeconds });
+  const draft = ownScript ? buildOwnScriptDraft(OWN_TEXT, topic, durationSeconds) : null;
+  const fit = draft ? draftFit(draft, durationSeconds, "es") : null;
+  if (fit && !fit.allowed) throw new Error(`El texto de prueba no cabe en ${durationSeconds}s: ${fit.message}`);
+  const { script, providerName } = draft
+    ? await planOwnScriptForRequest({ scenes: draft.segments.map(s => s.text), style, durationSeconds, language: "es" })
+    : await generateScriptForRequest({ topic, style, durationSeconds });
+  if (draft && !narrationPreserved(draft, script)) throw new Error("La narración del guion propio cambió al preparar las escenas.");
   console.log(
     `Guion generado (proveedor: ${providerName}): "${script.title}" con ${script.segments.length} escenas`,
   );
 
   // Ejerce también el flujo de revisión: regenerar una escena antes de
   // renderizar, igual que haría un usuario desde /dashboard/review/[id].
-  console.log("Regenerando la escena 0 (flujo del editor de guion)...");
-  const scriptProvider = getScriptProvider();
-  const newScene = await scriptProvider.regenerateScene({ topic, style, script, sceneIndex: 0 });
-  script.segments[0] = newScene;
-  console.log(`Escena 0 regenerada: "${newScene.text.slice(0, 60)}..."`);
+  // (Un guion propio no se reescribe: se omite.)
+  if (!ownScript) {
+    console.log("Regenerando la escena 0 (flujo del editor de guion)...");
+    const scriptProvider = getScriptProvider();
+    const newScene = await scriptProvider.regenerateScene({ topic, style, script, sceneIndex: 0 });
+    script.segments[0] = newScene;
+    console.log(`Escena 0 regenerada: "${newScene.text.slice(0, 60)}..."`);
+  }
 
   // PIPELINE_DIRECTOR_FILL=<usd> (anexo C1): the Director mounts the Reel and may buy new material up to that budget
   // (fixture image provider: no network, no cost). The run reports what director.json says about the fill.
@@ -121,6 +151,16 @@ async function main() {
     onProgress: (stage) => console.log(`  → etapa: ${stage}`),
   });
 
+  if (ownScript) {
+    const { canonicalNarration } = await import("../src/lib/video/narration-fit");
+    const expected = canonicalNarration(OWN_TEXT, "visual");
+    if (!voiceInputs.length) throw new Error("La voz no recibió ninguna narración.");
+    for (const input of voiceInputs) {
+      if (input.text !== expected) throw new Error(`La voz recibió un texto distinto del guion propio:\n${input.text}\n≠\n${expected}`);
+      if (input.words.join(" ") !== expected) throw new Error("Las palabras de los subtítulos no coinciden con el guion propio.");
+    }
+    console.log(`Guion propio intacto: ${voiceInputs.length} síntesis con el texto exacto (${expected.length} caracteres); subtítulos con las mismas palabras.`);
+  }
   if (directorFill) {
     const dj = JSON.parse(await fs.readFile(path.join(storageDir, path.dirname(videoPath), "director.json"), "utf8")) as { ok: boolean; materialFill?: { shots?: string[]; spentUsd?: number; approvedUsd?: number; skipped?: string }; applied?: { shotId: string; applied: { label: string | null } }[] };
     console.log(`Director: ok=${dj.ok} materialFill=${JSON.stringify(dj.materialFill ?? null)} labels=${(dj.applied ?? []).map(a => a.applied.label).join(",")}`);

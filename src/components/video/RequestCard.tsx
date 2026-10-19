@@ -9,6 +9,7 @@ import { RENDER_STAGE_LABEL, approximateRenderProgress, type RenderStage } from 
 import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
 import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
 import { STATUS_LABEL, STATUS_TONE, pendingRequestCta, type VideoRequestSummary } from "@/lib/video/request-view";
+import { hasRenderableScript } from "@/lib/video/own-script";
 import { computeProductionProgress, isLongFormProgress, type ProgressStageKey } from "@/lib/video/long-form/progress";
 import { GenerateButton } from "@/app/dashboard/GenerateButton";
 import type { AvatarRecovery } from "@/lib/video/avatar/recovery";
@@ -120,7 +121,7 @@ export function RequestCard({
             {request.status === "processing" && request.supply_wait_started_at ? "En espera" : STATUS_LABEL[request.status] ?? request.status}
           </Badge>
 
-          {request.status === "pending" && <GenerateButton {...pendingRequestCta(request.id)} />}
+          {request.status === "pending" && <GenerateButton {...pendingRequestCta(request.id, request.script_json)} />}
           {request.status === "script_ready" &&
             (isLongForm ? (request.long_form_confirmed_at ? (
               <GenerateButton endpoint={`/api/generate/${request.id}/render`} label="Iniciar producción" />
@@ -168,7 +169,7 @@ export function RequestCard({
               Esta solicitud es anterior al plan de producción. Crea un documental nuevo para producirlo.
             </p>
           )}
-          {request.status === "failed" && Boolean(request.script_json) && attemptsExhausted && (
+          {request.status === "failed" && hasRenderableScript(request.script_json) && attemptsExhausted && (
             <p className="max-w-[220px] text-left text-xs text-ink-faint sm:text-right">
               Se alcanzó el máximo de intentos. Crea un video nuevo.
             </p>
@@ -183,7 +184,8 @@ export function RequestCard({
           )}
           {request.status === "failed" &&
             !longFormUnconfirmed &&
-            (request.script_json ? (
+            // An own-script draft without visuals goes back to «Preparar escenas» (/script), never to the render.
+            (hasRenderableScript(request.script_json) || request.recorded_audio_path ? (
               // Typed action stored with the failure: a cause only support can fix offers no retry here.
               request.error_message && describeStoredFailure(request.error_message).action === "support" ? (
                 <p role="status" className="max-w-[260px] text-left text-xs text-ink-faint sm:text-right">

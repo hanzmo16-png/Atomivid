@@ -8,15 +8,19 @@ import { SupplyUnavailableError } from "@/lib/supply/policy";
 
 import { recordingFormat, recordingPath, RECORDING_BUCKET, MAX_AVATAR_PHOTO_BYTES, MAX_RECORDING_BYTES } from "@/lib/video/avatar/recording";
 import { measureNarrationSeconds } from "@/lib/video/avatar/measure-narration";
-import { avatarDurationError, estimateAvatarNarrationSeconds } from "@/lib/video/avatar/duration";
+import { avatarDurationError } from "@/lib/video/avatar/duration";
 import { randomUUID } from "node:crypto";
+import { createdUrl, formErrorUrl, requestIdForSubmission } from "@/lib/video/submission-key";
+import { CLAIM_MESSAGES, createAvatarOnce, isDuplicateUpload, photoClaimPath } from "@/lib/video/avatar/new-photo-claim";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
 import { checkProductionForRequest } from "@/lib/supply/production-check";
+import { formProduction, type ScriptChoice } from "@/lib/video/form-production";
+import { MAX_NARRATION_CHARS } from "@/lib/video/narration-fit";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
-import { getAvatarProvider, AvatarProviderError, type AvatarJobStatus } from "@/lib/providers/avatar";
+import { getAvatarProvider, type AvatarJobStatus } from "@/lib/providers/avatar";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { validatePhotoBuffer } from "@/lib/video/avatar/photo-validation";
 import { recordAvatarNarrationTts } from "@/lib/billing/usage";
@@ -32,7 +36,7 @@ const AVATAR_UPLOADS_BUCKET = "avatar-uploads";
 // Cuenta de caracteres razonable para un guion de narración leído por un
 // avatar — mismo orden de magnitud que MAX_TOPIC_LENGTH del resto del
 // formulario, generoso para varios minutos hablados sin ser ilimitado.
-const MAX_AVATAR_TTS_TEXT_LENGTH = 2000;
+const MAX_AVATAR_TTS_TEXT_LENGTH = MAX_NARRATION_CHARS;
 /**
  * Versión del texto de consentimiento vigente (src/app/terms/page.tsx,
  * sección #avatar-consent) — se guarda junto con cada avatar para poder
@@ -84,10 +88,34 @@ export async function createVideoRequest(formData: FormData) {
     redirect("/dashboard/new?error=Esta+prueba+privada+no+está+disponible+para+tu+cuenta");
   }
 
+  // Checklist antes de generar (2026-10-18): the SAME validation the live checklist shows
+  // (form-production.ts), enforced here so a direct POST cannot skip it. Nothing is paid by creating.
+  const form = formProduction({ mode, topic, style, durationSeconds, language,
+    scriptChoice: String(formData.get("script_choice") ?? "generated") as ScriptChoice,
+    ownText: String(formData.get(mode === "visual" ? "own_script_text" : "avatar_tts_text") ?? ""),
+    adaptAccepted: formData.get("adapt_accepted") === "on",
+    avatarNarrationSource: String(formData.get("narration_source") ?? "tts"),
+    maxAvatarSeconds: flags.maxAvatarDurationSeconds });
+  if (form.inputError) redirect(`/dashboard/new?error=${encodeURIComponent(form.inputError)}`);
+  if (form.fit && !form.fit.allowed) redirect(`/dashboard/new?error=${encodeURIComponent(form.fit.message)}`);
+
+  // The request id comes from the draft key the browser shares between its tabs, the verified user and the
+  // intent (submission-key.ts): a double click, a resend, a second tab or a re-submit after a lost response is
+  // recognised here, before any paid call, and the primary key stays the authority on a race (23505).
+  const { requestId, draftKey } = await requestIdForSubmission(user.id, formData);
+  const created = createdUrl(draftKey);
+  {
+    const { data: existing } = await createServiceClient().from("video_requests").select("id").eq("id", requestId).eq("user_id", user.id).maybeSingle();
+    if (existing) redirect(created);
+  }
+
   if (mode === "visual") {
     // Only the server can insert requests. Never let a browser write output paths,
     // paid-production approvals or worker state through the Data API.
+    // «Usar mi propio guion»: the text is stored now, split into scenes without changing a word; the first
+    // paid step (POST /script) only adds the visuals of each scene.
     const { error } = await createServiceClient().from("video_requests").insert({
+      id: requestId,
       user_id: user.id,
       topic,
       style,
@@ -95,13 +123,16 @@ export async function createVideoRequest(formData: FormData) {
       language,
       mode: "visual",
       status: "pending",
+      script_json: form.draft,
     });
 
     if (error) {
+      // A concurrent identical submit lost the insert race: the request exists, nothing was paid.
+      if (error.code === "23505") redirect(created);
       redirect(`/dashboard/new?error=${encodeURIComponent(error.message)}`);
     }
 
-    redirect("/dashboard?created=1");
+    redirect(created);
   }
 
   // --- Modo avatar -------------------------------------------------------
@@ -116,15 +147,9 @@ export async function createVideoRequest(formData: FormData) {
   // Generado aquí (no al final) para poder asociar el costo real de una
   // síntesis TTS (si aplica, ver más abajo) con la MISMA solicitud que se
   // inserta al final de esta función — nunca un id descartable.
-  // Control de costos (2026-10-18): the form's own submission id, when valid, IS the request id, so a
-  // repeated submit of the same form is recognised before any paid call (below) and collides on insert.
-  const submissionId = String(formData.get("submission_id") ?? "");
-  const requestId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionId) ? submissionId.toLowerCase() : randomUUID();
-  {
-    const { data: existing } = await createServiceClient().from("video_requests").select("id").eq("id", requestId).maybeSingle();
-    if (existing) redirect("/dashboard?created=1");
-  }
-
+  // Control de costos (2026-10-18, corrección 2): requestId (above) is derived from the draft key shared by
+  // the browser's tabs, the user and the intent, so a repeat is recognised before any paid call (the voice
+  // below is keyed by it in the ledger) and collides on insert.
   // QA blocker real (2026-09-25, Android/Samsung): un límite combinado
   // foto+audio <= 3 MB (heredado de la prueba privada D-ID) rechazaba una
   // grabación real de ~45s recién terminada. Foto y audio ahora se validan
@@ -151,6 +176,7 @@ export async function createVideoRequest(formData: FormData) {
   // con esta función). Una grabación no medible o demasiado larga se
   // rechaza antes de subirla o crear el avatar. El worker vuelve a medir
   // el archivo guardado antes de solicitar un video al proveedor.
+  let ttsTextForSynthesis: string | undefined;
   let measuredDurationSeconds: number | undefined;
   if (narrationSource === "recording") {
     // Antes esto solo se permitía para "did"/"fixture" — un resabio de
@@ -177,47 +203,23 @@ export async function createVideoRequest(formData: FormData) {
     const durationError = avatarDurationError(measuredDurationSeconds, flags.maxAvatarDurationSeconds);
     if (durationError) redirect(`/dashboard/new?error=${encodeURIComponent(durationError)}`);
   } else if (narrationSource === "tts_text") {
-    const ttsText = String(formData.get("avatar_tts_text") ?? "").trim();
+    // Counted and validated exactly as the form showed it (form-production.ts → narration-fit.ts): the
+    // normalised text is what is narrated and billed; the fit (already enforced above) used the slow end.
+    const ttsText = form.stats?.text ?? "";
     if (!ttsText) redirect("/dashboard/new?error=Escribe+el+texto+que+quieres+narrar");
     if (ttsText.length > MAX_AVATAR_TTS_TEXT_LENGTH) {
       redirect(`/dashboard/new?error=${encodeURIComponent(`El texto no puede superar ${MAX_AVATAR_TTS_TEXT_LENGTH} caracteres`)}`);
     }
-    const durationError = avatarDurationError(estimateAvatarNarrationSeconds(ttsText), flags.maxAvatarDurationSeconds);
-    if (durationError) redirect(`/dashboard/new?error=${encodeURIComponent(durationError)}`);
-    // Control de costos (2026-10-18): text-to-speech is paid HERE, in the form, so the whole production
-    // (plan, voice and avatar capacity) is checked before it — it used to reach the first check at render.
-    const preCheck = await checkProductionForRequest({ service: createServiceClient(), user, ownerId: user.id, stage: "before_render",
-      request: { mode: "avatar", duration_seconds: Math.ceil(estimateAvatarNarrationSeconds(ttsText)), recorded_audio_path: null,
-        script_json: { segments: [{ text: ttsText }] } } });
+    // Control de costos (2026-10-18): the whole production (plan, voice and avatar capacity) is checked
+    // here, before anything paid or provider-side happens; nothing is reserved by this check.
+    const preCheck = await checkProductionForRequest({ service: createServiceClient(), user, ownerId: user.id, stage: form.stage,
+      request: form.request, fit: form.fit });
     if (preCheck.outcome !== "ready") redirect(`/dashboard/new?error=${encodeURIComponent(`${preCheck.title} ${preCheck.message} ${preCheck.next}`)}`);
-    try {
-      // Reutiliza el mismo provider ElevenLabs que ya usa Reel para
-      // narración — nunca un cliente/pipeline TTS paralelo.
-      const service = createServiceClient();
-      const voiceResult = await gatedVoiceSynthesize({ requestId, ledger: supabaseLedgerStore(service),
-        results: supabaseResultStore(service), voiceProvider: getVoiceProvider(),
-        voiceIdentity: getVoiceIdentity(language as "es" | "en"),
-        estimatedCostUsd: ttsText.length / 1000 * getPricingConfig().elevenLabsUsdPer1kChars,
-      }, ttsText, language as "es" | "en");
-      recording = { audioBuffer: voiceResult.audioBuffer, extension: voiceResult.extension, mimeType: voiceResult.mimeType };
-      narrationSourceForDb = "tts";
-      // Costo real registrado AHORA (momento de la síntesis) — pipeline.ts
-      // nunca vuelve a llamar a ElevenLabs para una solicitud con
-      // recorded_audio_path ya presente (idempotente), así que este es el
-      // único lugar donde se genera y se cobra este audio.
-      await recordAvatarNarrationTts(createServiceClient(), requestId, {
-        voiceProvider: getVoiceProvider().name,
-        characters: ttsText.length,
-      }).catch(() => {});
-      try {
-        measuredDurationSeconds = await measureNarrationSeconds(voiceResult.audioBuffer);
-      } catch {
-        // Igual que en "recording": no bloquea, solo se pierde el número informativo preciso.
-      }
-    } catch (error) {
-      if (error instanceof SupplyUnavailableError) redirect(`/dashboard/new?error=${encodeURIComponent(error.customerMessage)}`);
-      redirect("/dashboard/new?error=No+se+pudo+generar+la+voz+a+partir+del+texto.+Intenta+de+nuevo.");
-    }
+    // Se valida ahora, pero se sintetiza solo después de comprobar que el avatar
+    // existente es utilizable o que la fotografía nueva pudo crear un avatar ready.
+    // Así un POST viejo/manipulado, una foto inválida o un fallo del proveedor de
+    // avatar no puede consumir ElevenLabs antes de ser rechazado.
+    ttsTextForSynthesis = ttsText;
   }
   const photoFileForSizeCheck = formData.get("avatar_photo");
   if (!String(formData.get("existing_avatar_id") ?? "").trim() && photoFileForSizeCheck instanceof File && photoFileForSizeCheck.size > MAX_AVATAR_PHOTO_BYTES) {
@@ -225,7 +227,6 @@ export async function createVideoRequest(formData: FormData) {
   }
 
   const existingAvatarId = String(formData.get("existing_avatar_id") ?? "").trim();
-  const avatarVoiceId = String(formData.get("avatar_voice_id") ?? "").trim() || undefined;
 
   let avatarId: string;
 
@@ -278,65 +279,60 @@ export async function createVideoRequest(formData: FormData) {
     // migración 0011) — la subida solo puede hacerse con la service role,
     // nunca con el cliente autenticado por el usuario.
     const service = createServiceClient();
-    const photoPath = `${user.id}/${randomUUID()}.${format}`;
-    const { error: uploadError } = await service.storage
-      .from(AVATAR_UPLOADS_BUCKET)
-      .upload(photoPath, photoBuffer, { contentType: file.type, upsert: false });
-    if (uploadError) {
-      redirect(`/dashboard/new?error=${encodeURIComponent(`No se pudo subir la fotografía: ${uploadError.message}`)}`);
-    }
+    // Corrección 2 (residual A): the photo path IS the claim of this request (new-photo-claim.ts). It is taken
+    // before createAvatar, so a second identical submit (another tab, a resend) never creates a second avatar.
+    const photoPath = photoClaimPath(user.id, requestId, format);
+    const claim = await createAvatarOnce({
+      async upload(path) {
+        const { error } = await service.storage.from(AVATAR_UPLOADS_BUCKET).upload(path, photoBuffer, { contentType: file.type, upsert: false });
+        return error ? { ok: false, duplicate: isDuplicateUpload(error as { message?: string; statusCode?: string }), message: error.message } : { ok: true };
+      },
+      async findAvatarByPhoto(path) {
+        const { data } = await service.from("avatars").select("id, status").eq("user_id", user.id).eq("source_photo_path", path)
+          .maybeSingle<{ id: string; status: string }>();
+        return data ?? null;
+      },
+      async claimCreatedAt(path) {
+        const name = path.slice(path.indexOf("/") + 1);
+        const { data } = await service.storage.from(AVATAR_UPLOADS_BUCKET).list(user.id, { search: name, limit: 1 });
+        const created = data?.find(o => o.name === name)?.created_at;
+        return created ? new Date(created) : null;
+      },
+      async removePhoto(path) {
+        await service.storage.from(AVATAR_UPLOADS_BUCKET).remove([path]);
+      },
+      async createAvatar() {
+        const provider = getAvatarProvider();
+        if (!provider.isAvailable() || provider.name !== flags.avatarProvider) throw new Error("El proveedor de avatar no está configurado.");
+        const result = await provider.createAvatar({ photoBuffer, mimeType: file.type, consentGiven: true });
+        return { providerAvatarId: result.providerAvatarId, providerJobId: result.providerJobId, status: result.status, providerName: provider.name };
+      },
+      // Server-owned write (migration 20261009040743 revokes client-role writes on avatars);
+      // user_id comes from the verified session above, never from the form.
+      async insertAvatar(p, path) {
+        const { data } = await service.from("avatars").insert({
+          user_id: user.id,
+          name: avatarName,
+          provider: p.providerName,
+          provider_avatar_id: p.providerAvatarId,
+          provider_job_id: p.providerJobId ?? null,
+          source_photo_path: path,
+          status: avatarStatusFromProviderStatus(p.status as AvatarJobStatus),
+          consent_given: true,
+          consent_given_at: new Date().toISOString(),
+          consent_policy_version: AVATAR_CONSENT_POLICY_VERSION,
+        }).select("id, status").single<{ id: string; status: string }>();
+        return data ?? null;
+      },
+    }, photoPath);
 
-    let providerAvatarId: string;
-    let providerJobId: string | undefined;
-    let providerStatus: AvatarJobStatus;
-    let providerName: string;
-    try {
-      const provider = getAvatarProvider();
-      if (!provider.isAvailable() || provider.name !== flags.avatarProvider) throw new Error("El proveedor de avatar no está configurado.");
-      providerName = provider.name;
-      const result = await provider.createAvatar({ photoBuffer, mimeType: file.type, consentGiven: true });
-      providerAvatarId = result.providerAvatarId;
-      providerJobId = result.providerJobId;
-      providerStatus = result.status;
-    } catch (err) {
-      // La fotografía ya se subió — se limpia para no dejar un archivo
-      // huérfano si el proveedor rechaza la creación del avatar.
-      await service.storage.from(AVATAR_UPLOADS_BUCKET).remove([photoPath]).catch(() => {});
-      const message =
-        err instanceof AvatarProviderError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "No se pudo crear el avatar en el proveedor";
-      redirect(`/dashboard/new?error=${encodeURIComponent(message)}`);
-    }
-
-    // Server-owned write (migration 20261009040743 revokes client-role writes on avatars);
-    // user_id comes from the verified session above, never from the form.
-    const { data: inserted, error: insertError } = await service
-      .from("avatars")
-      .insert({
-        user_id: user.id,
-        name: avatarName,
-        provider: providerName,
-        provider_avatar_id: providerAvatarId,
-        provider_job_id: providerJobId ?? null,
-        source_photo_path: photoPath,
-        status: avatarStatusFromProviderStatus(providerStatus),
-        consent_given: true,
-        consent_given_at: new Date().toISOString(),
-        consent_policy_version: AVATAR_CONSENT_POLICY_VERSION,
-      })
-      .select("id, status")
-      .single<{ id: string; status: string }>();
-
-    if (insertError || !inserted) {
-      await service.storage.from(AVATAR_UPLOADS_BUCKET).remove([photoPath]).catch(() => {});
-      redirect(
-        `/dashboard/new?error=${encodeURIComponent(`No se pudo guardar el avatar: ${insertError?.message ?? "error desconocido"}`)}`,
-      );
-    }
-    if (inserted.status !== "ready") {
+    if (claim.kind === "upload_failed") redirect(formErrorUrl(`No se pudo subir la fotografía: ${claim.message}`));
+    if (claim.kind === "provider_failed") redirect(formErrorUrl(claim.message));
+    if (claim.kind === "uncertain") redirect(formErrorUrl(CLAIM_MESSAGES.uncertain));
+    if (claim.kind === "in_flight" || claim.kind === "not_recorded") redirect(formErrorUrl(CLAIM_MESSAGES[claim.kind]));
+    // Stale: only a NEW draft (the form rotates the key on `reset`) can create another avatar, by a deliberate submit.
+    if (claim.kind === "stale") redirect(formErrorUrl(CLAIM_MESSAGES.stale, draftKey));
+    if (claim.avatar.status !== "ready") {
       // Limitación conocida (documentada en docs/AVATAR_MODE.md): esta
       // primera versión no encola un seguimiento en segundo plano del
       // estado de creación del avatar en el proveedor — si no queda listo
@@ -346,14 +342,47 @@ export async function createVideoRequest(formData: FormData) {
         "/dashboard/new?error=El+avatar+sigue+procesándose+en+el+proveedor%2C+inténtalo+de+nuevo+en+unos+minutos",
       );
     }
-    avatarId = inserted.id;
+    avatarId = claim.avatar.id;
   }
 
+
+  if (ttsTextForSynthesis) {
+    try {
+      // Operación potencialmente pagada: ocurre solo cuando avatarId ya apunta a
+      // un avatar ready y comprobado. Para una fotografía nueva, el avatar creado
+      // queda guardado y reutilizable aunque la síntesis falle después.
+      const service = createServiceClient();
+      const voiceResult = await gatedVoiceSynthesize({ requestId, ledger: supabaseLedgerStore(service),
+        results: supabaseResultStore(service), voiceProvider: getVoiceProvider(),
+        voiceIdentity: getVoiceIdentity(language as "es" | "en"),
+        estimatedCostUsd: ttsTextForSynthesis.length / 1000 * getPricingConfig().elevenLabsUsdPer1kChars,
+      }, ttsTextForSynthesis, language as "es" | "en");
+      recording = { audioBuffer: voiceResult.audioBuffer, extension: voiceResult.extension, mimeType: voiceResult.mimeType };
+      narrationSourceForDb = "tts";
+      await recordAvatarNarrationTts(createServiceClient(), requestId, {
+        voiceProvider: getVoiceProvider().name,
+        characters: ttsTextForSynthesis.length,
+      }).catch(() => {});
+      try {
+        measuredDurationSeconds = await measureNarrationSeconds(voiceResult.audioBuffer);
+      } catch {
+        // No bloquea: la duración estimada ya pasó el límite antes de crear el avatar.
+      }
+    } catch (error) {
+      if (error instanceof SupplyUnavailableError) redirect(`/dashboard/new?error=${encodeURIComponent(error.customerMessage)}`);
+      redirect("/dashboard/new?error=No+se+pudo+generar+la+voz+a+partir+del+texto.+Tu+avatar+queda+guardado+para+reintentar.");
+    }
+  }
   const audioPath = recording ? recordingPath(user.id, requestId, recording.extension) : null;
   if (recording && audioPath) {
     const { error: audioError } = await createServiceClient().storage.from(RECORDING_BUCKET)
       .upload(audioPath, recording.audioBuffer, { contentType: recording.mimeType, upsert: false });
-    if (audioError) redirect("/dashboard/new?error=No+se+pudo+guardar+la+grabación+privada");
+    if (audioError) {
+      // A concurrent identical submit already stored this audio (same id → same path) and created the request.
+      const { data: winner } = await createServiceClient().from("video_requests").select("id").eq("id", requestId).eq("user_id", user.id).maybeSingle();
+      if (winner) redirect(created);
+      redirect("/dashboard/new?error=No+se+pudo+guardar+la+grabación+privada");
+    }
   }
   const { error } = await createServiceClient().from("video_requests").insert({
     id: requestId,
@@ -380,15 +409,18 @@ export async function createVideoRequest(formData: FormData) {
     language,
     mode: "avatar",
     avatar_id: avatarId,
-    avatar_voice_id: recording ? null : avatarVoiceId ?? null,
+    // La UI no ofrece una voz hasta que exista catálogo autorizado y el pipeline pueda aplicarla de verdad.
+    avatar_voice_id: null,
     idempotency_key: randomUUID(),
     status: recording ? "script_ready" : "pending",
   });
 
   if (error) {
+    // Lost the insert race to an identical submit: that request owns the audio at this path; never remove it.
+    if (error.code === "23505") redirect(created);
     if (audioPath) await createServiceClient().storage.from(RECORDING_BUCKET).remove([audioPath]).catch(() => {});
     redirect(`/dashboard/new?error=${encodeURIComponent(error.message)}`);
   }
 
-  redirect("/dashboard?created=1");
+  redirect(created);
 }

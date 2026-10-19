@@ -94,6 +94,15 @@ export const fixtureScriptProvider: ScriptProvider = {
       segments,
     };
   },
+  // Deterministic visuals for the customer's scenes; the narration is returned exactly as given.
+  async planOwnScript({ scenes, language = "es" }): Promise<GeneratedScript> {
+    const queries = ["city street at night", "person walking in park", "ocean waves on rocks", "hands typing on laptop", "mountain sunrise view",
+      "busy market crowd", "old library shelves", "train passing station", "chef cooking in kitchen", "children playing outside"];
+    return {
+      title: `Guion propio (fixture, ${language})`,
+      segments: scenes.map((text, i) => ({ text, visualQuery: queries[i % queries.length], visualConcepts: [queries[i % queries.length], queries[(i + 3) % queries.length]], energy: "medium" as const })),
+    };
+  },
   async regenerateScene({ topic, script, sceneIndex }): Promise<ScriptScene> {
     const current = script.segments[sceneIndex];
     if (!current) {

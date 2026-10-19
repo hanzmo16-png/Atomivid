@@ -243,6 +243,23 @@ test("ROJO/VERDE: the render refusal no longer asks a CUSTOMER to top up Atomivi
   assert.deepEqual([classified.outcome, classified.responsible], ["provider_unavailable", "atomicvid"]);
 });
 
+test("formulario fail-closed (C3): antes de adquirir la llave compartida no se emite submission_id ni se puede enviar", async () => {
+  const React = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { NewVideoForm } = await import("@/app/dashboard/new/NewVideoForm");
+  // The first render (server, and the client before its effect resolves) is the state «draftReady=false».
+  const html = renderToStaticMarkup(React.createElement(NewVideoForm, { action: () => {}, avatarModeEnabled: true, existingAvatars: [] }));
+  const hidden = html.match(/<input[^>]*name="submission_id"[^>]*>/)?.[0] ?? "";
+  assert.ok(hidden, "el campo de la llave existe");
+  assert.match(hidden, /value=""/, "sin llave compartida, el valor está vacío");
+  assert.match(hidden, /disabled=""/, "y el campo está deshabilitado: un envío no lo incluye");
+  const submit = html.match(/<button[^>]*type="submit"[^>]*>/)?.[0] ?? "";
+  assert.match(submit, /disabled=""/, "el botón de envío está deshabilitado");
+  assert.match(html, /Sincronizando borrador entre pestañas/, "y se dice por qué");
+  // Enter (implicit submission) is refused by the form itself while not ready.
+  assert.match(src("src/app/dashboard/new/NewVideoForm.tsx"), /onSubmit=\{event => \{ if \(!draftReady\) event\.preventDefault\(\); \}\}/);
+});
+
 test("server-side order: the script route checks the whole production BEFORE the first paid call; regenerate-scene and avatar text-to-speech check the plan before theirs", () => {
   const script = src("src/app/api/generate/[id]/script/route.ts");
   const check = script.indexOf("await checkProductionForRequest(");
@@ -252,9 +269,13 @@ test("server-side order: the script route checks the whole production BEFORE the
   assert.ok(scene.indexOf("await assertCanGenerate(") > 0 && scene.indexOf("await assertCanGenerate(") < scene.indexOf("scriptProvider.regenerateScene("), "regenerate-scene: plan before the paid call (it had none)");
   const action = src("src/app/dashboard/new/actions.ts");
   assert.ok(action.indexOf("await checkProductionForRequest(") > 0 && action.indexOf("await checkProductionForRequest(") < action.indexOf("await gatedVoiceSynthesize("), "avatar text-to-speech: whole check before the paid synthesis");
-  // Double click / two tabs / browser resend of the same form: one id per form, recognised before paying.
-  assert.match(src("src/app/dashboard/new/NewVideoForm.tsx"), /<input type="hidden" name="submission_id" value=\{submissionId\} \/>/);
-  const seen = action.indexOf('.from("video_requests").select("id").eq("id", requestId).maybeSingle()');
+  // Double click / browser resend / a second tab of the same draft: one draft key shared by the tabs (corrección 2,
+  // counted in draft-idempotency.test.ts), recognised before paying. Corrección 3 (fail-closed): the key is emitted
+  // ONLY once the shared acquisition finished; before that the hidden field is empty AND disabled (never sent) and
+  // the submit is refused. The rendered behaviour is asserted in the next test.
+  assert.match(src("src/app/dashboard/new/NewVideoForm.tsx"),
+    /<input type="hidden" name="submission_id" value=\{draftReady \? submissionId : ""\} disabled=\{!draftReady\} \/>/);
+  const seen = action.indexOf('.from("video_requests").select("id").eq("id", requestId).eq("user_id", user.id).maybeSingle()');
   assert.ok(seen > 0 && seen < action.indexOf("await gatedVoiceSynthesize("));
   // Isolation: the read-only readiness endpoint answers 404 alike for missing and foreign requests.
   const readiness = src("src/app/api/generate/[id]/readiness/route.ts");

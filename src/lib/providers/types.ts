@@ -45,7 +45,14 @@ export interface ScriptProvider {
     durationSeconds: number;
     /** Idioma elegido por el usuario en /dashboard/new. Por defecto "es". */
     language?: ScriptLanguage;
+    /** «Adaptar con IA»: the customer's own text, accepted to be adapted to the duration. */
+    sourceText?: string;
   }): Promise<GeneratedScript>;
+  /**
+   * «Usar mi propio guion»: visual fields for the customer's scenes. The returned scene texts MUST equal the
+   * given scenes verbatim (the caller verifies it and refuses otherwise).
+   */
+  planOwnScript(input: { scenes: string[]; style: string; durationSeconds: number; language?: ScriptLanguage }): Promise<GeneratedScript>;
   /** Reescribe una sola escena (revisión/edición desde la UI). */
   regenerateScene(input: {
     topic: string;

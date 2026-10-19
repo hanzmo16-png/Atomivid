@@ -5,6 +5,7 @@ import { isLongFormScriptJson } from "@/lib/video/long-form/script-json";
 import { editorialApprovalError } from "@/lib/video/long-form/editorial";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { jobSupplyDemands, releaseUnusedJobSupply, reserveJobSupply } from "@/lib/supply/job";
+import { isOwnScriptDraft } from "@/lib/video/own-script";
 import { approvedDirectorMaterialUsd, productionProfile } from "@/lib/video/director/material-fill";
 import { ensureJobSupplyReady, START_SUPPLY_UNAVAILABLE } from "@/lib/supply/readiness";
 import { supplyGuardRequired } from "@/lib/supply/server";
@@ -167,6 +168,12 @@ export async function POST(
     const decision = evaluateRenderStart(videoRequest);
     if (!decision.allowed) {
       return NextResponse.json({ error: decision.error }, { status: decision.status });
+    }
+    // «Usar mi propio guion»: the draft has the narration but not yet the visuals of each scene (a paid step
+    // of its own, POST /script). Rendering it would search stock footage with empty queries.
+    if (isOwnScriptDraft(videoRequest.script_json)) {
+      return NextResponse.json({ error: "Tu guion todavía no tiene las escenas visuales preparadas. Prepara las escenas antes de generar el video; no se inició nada ni se cobró.",
+        outcome: nothingStarted(videoRequest) }, { status: 409 });
     }
     // Avatar recovery (failed or stale attempt): only when the request + its paid ledger prove it is
     // safe — the same rule the history and review screens use to show the button. Checked BEFORE

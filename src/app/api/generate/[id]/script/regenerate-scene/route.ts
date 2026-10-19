@@ -3,6 +3,7 @@ import { persistScriptChange, ScriptPersistenceError } from "@/lib/video/script-
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { withSupplyContext } from "@/lib/supply/anthropic";
 import { NextResponse } from "next/server";
+import { scriptSourceOf } from "@/lib/video/own-script";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getScriptProvider } from "@/lib/providers/script";
@@ -128,6 +129,11 @@ export async function POST(
     }
 
     const segments = [...videoRequest.script_json.segments];
+    // «Usar mi propio guion»: the narration is the customer's and is never rewritten without their acceptance;
+    // regenerating a scene of an own script refreshes only its visual fields.
+    if (scriptSourceOf(videoRequest.script_json) === "own") {
+      newScene = { ...newScene, text: current.text, emphasisWords: newScene.emphasisWords?.filter(w => current.text.includes(w)) };
+    }
     segments[sceneIndex] = newScene;
     const script: GeneratedScript = { ...videoRequest.script_json, segments };
 
