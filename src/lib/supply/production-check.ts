@@ -270,19 +270,26 @@ export async function checkProduction(args: {
   // 3. Demands at this stage.
   let estimate: ProductionEstimate | null = null;
   let demands: JobSupplyDemand[] = [];
+  let demandsError = false;
   try {
     const d = productionDemands(args.request, args.voiceProvider, args.stage, { flags: args.flags, scriptProvider: args.scriptProvider });
     demands = d.demands;
     estimate = { stage: args.stage, lines: d.lines, ceilingUsd: Math.round(d.lines.reduce((s, l) => s + l.usd, 0) * 100) / 100,
       note: args.stage === "before_script" ? "Techo conservador antes del guion; se recalcula con el guion real antes del video." : "Techo con el guion real; es el que se reserva al iniciar el video." };
   } catch (error) {
+    demandsError = true;
     const reason = error instanceof SupplyUnavailableError ? error.reason : "cost unverified";
     if (reason === "empty narration") issues.push({ outcome: "needs_correction", responsible: "cliente", reason: "El guion no tiene narración." });
     else issues.push({ outcome: "needs_correction", responsible: "atomicvid", provider: error instanceof SupplyUnavailableError ? error.provider : "production", reason });
   }
-  put("providers", "Proveedores necesarios", demands.length ? "ok" : "blocked",
-    demands.length ? `Solo los que usa este recorrido: ${demands.map(d => label(d.provider).replace(/^el servicio de /, "")).join(", ")}.` : "No se pudo determinar el costo de algún proveedor; no se trata como cero.",
-    demands.length ? "nadie" : "atomicvid");
+  // F2-B (T-20261019-1602): «Puedes continuar» appeared next to «Proveedores ✕» because an EMPTY demand list (a route
+  // with no paid provider, e.g. fixtures) was marked blocked without an issue. Only a cost that could not be
+  // determined (exception above, which pushes its issue) blocks; no paid provider is «no aplica».
+  put("providers", "Proveedores necesarios", demandsError ? "blocked" : demands.length ? "ok" : "not_applicable",
+    demandsError ? "No se pudo determinar el costo de algún proveedor; no se trata como cero."
+      : demands.length ? `Solo los que usa este recorrido: ${demands.map(d => label(d.provider).replace(/^el servicio de /, "")).join(", ")}.`
+      : "Este recorrido no usa proveedores de pago.",
+    demandsError ? "atomicvid" : "nadie");
 
   // 3b. This request's own paid operations: a running or uncertain script call is never repeated.
   if (args.requestId) {
@@ -305,6 +312,7 @@ export async function checkProduction(args: {
   }
 
   if (!guard) put("balances", "Saldos de proveedores de Atomicvid", "not_applicable", "Control de suministro desactivado en este entorno (solo desarrollo).");
+  else if (!demands.length && !demandsError) put("balances", "Saldos de proveedores de Atomicvid", "not_applicable", "No hay proveedores de pago que consultar.");
   else if (!providers.length) put("balances", "Saldos de proveedores de Atomicvid", "unverified", "No se consultaron porque falta corregir un dato anterior.", "atomicvid");
   else {
     const bad = providers.find(p => !p.ok && p.failure !== "provider funded spend ceiling");
@@ -319,6 +327,9 @@ export async function checkProduction(args: {
       : estimate ? `Techo conservador de proveedores: hasta USD ${estimate.ceilingUsd.toFixed(2)} (no es el precio exacto). ${estimate.note}` : "Sin estimación verificable; no iniciamos nada.",
     ceilingHit || !estimate ? "atomicvid" : "nadie");
 
+  // Invariant: never «Puedes continuar» while the checklist shows a blocker or an unverified item.
+  if (!issues.length && [...item.values()].some(i => i.status === "blocked" || i.status === "unverified"))
+    issues.push({ outcome: "unverifiable", responsible: "atomicvid", provider: "production", reason: "checklist inconsistent" });
   issues.sort((a, b) => RANK[a.outcome] - RANK[b.outcome]);
   // The customer-facing primary answer: if the customer must act, say so first; Atomivid's problems are
   // still listed in `issues` (and never shown as the customer's fault).

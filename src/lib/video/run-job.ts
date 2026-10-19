@@ -1,4 +1,5 @@
 import { supplyGuardRequired } from "@/lib/supply/server";
+import { isRenderEngineFailure, RENDER_ENGINE_CUSTOMER_MESSAGE } from "./render-engine-error";
 import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import { MAX_DIRECTOR_MATERIAL_USD } from "@/lib/video/director/material-fill";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
@@ -282,7 +283,11 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     // Configuration errors name environment variables: the customer gets a plain explanation, the log keeps the cause.
     const configError = !safe && isServiceConfigurationError(error);
     if (configError) console.error(`[atomivid:config] (Código: ${diagnosticId}) ${(error as Error).name}: ${(error as Error).message}`);
+    // F2-B: a render-engine failure (Remotion/Chromium/FFmpeg) never reaches the customer verbatim; the log keeps it.
+    const engineFailure = !safe && !configError && error instanceof Error && isRenderEngineFailure(error.message);
+    if (engineFailure) console.error(`[atomivid:render-engine] (Código: ${diagnosticId}) ${(error as Error).name}: ${(error as Error).message}`);
     const detail = safe ? safe.customerMessage : configError ? SERVICE_CONFIGURATION_MESSAGE
+      : engineFailure ? RENDER_ENGINE_CUSTOMER_MESSAGE
       : error instanceof Error ? scrubInternalNames(error.message) : "Error desconocido";
     const rawMessage = mode === "long_form" ? scrubInternalPaths(detail) : detail;
     const message = `${rawMessage} (Código: ${diagnosticId})`;

@@ -78,12 +78,17 @@ let browser;
     await route.abort("connectionreset"); // …y la respuesta no llega al navegador
   });
   await A.p.getByRole("button", { name: "Generar video final" }).click();
-  await sleep(4000); await shot(A.p, "A-04-respuesta-perdida");
+  await sleep(1500); await shot(A.p, "A-04-respuesta-perdida");
   const uiAfterLoss = await A.p.locator("main").innerText();
+  // F2-B: sin recarga manual, la página comprueba el estado real del servidor y pasa al historial.
+  const autoRecovered = await A.p.waitForURL(/\/dashboard(\?|$)/, { timeout: 25000 }).then(() => true).catch(() => false);
+  await shot(A.p, "A-04b-tras-comprobar-estado");
+  check("[A] respuesta perdida: la UI explica que comprueba el estado y llega al historial SIN recarga manual", autoRecovered && /No recibimos la respuesta del servidor/.test(uiAfterLoss), { autoRecovered, uiAfterLoss: uiAfterLoss.slice(0, 400) });
+  if (!autoRecovered) await A.p.goto(`${BASE}/dashboard/review/${idA}`);
   const serverStatus = Number(fs.readFileSync(path.join(OUT, "A-lost-response-server-status.txt"), "utf8").split("\n")[0]);
   check("[A] respuesta perdida: el servidor aceptó (2xx) pero el navegador no recibió respuesta", intercepted === 1 && serverStatus >= 200 && serverStatus < 300, { intercepted, serverStatus });
-  // Recuperación: el usuario recarga y, si ve el botón, vuelve a pulsar; nunca debe nacer un 2.º intento.
-  await A.p.reload(); await skipTour(A.p); await sleep(2000); await shot(A.p, "A-05-tras-recargar");
+  // Además: si el usuario vuelve a la revisión y ve el botón, vuelve a pulsar; nunca debe nacer un 2.º intento.
+  await A.p.goto(`${BASE}/dashboard/review/${idA}`); await skipTour(A.p); await sleep(2000); await shot(A.p, "A-05-revision-de-nuevo");
   const retryBtn = A.p.getByRole("button", { name: "Generar video final" });
   let retried = false, retryStatus = null;
   if (await retryBtn.isVisible().catch(() => false) && await retryBtn.isEnabled().catch(() => false)) {

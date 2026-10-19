@@ -113,25 +113,30 @@ let browser;
   const fillKeys = fillsA.map((x) => "image:" + path.basename(x.f).replace(/\.png$/, "")).sort();
   check("[D2] ledger: exactamente 1 operación openai por imagen generada, una por plano (shot_id = clave de contenido del objeto)", opsA.length === gen1.length && JSON.stringify(opsA.map((o) => o.shot_id).sort()) === JSON.stringify(fillKeys) && new Set(opsA.map((o) => o.idempotency_key)).size === opsA.length, { opsA, fillKeys });
   check("[D2] ledger: cada operación COMMITTED con job registrado, 0 < comprometido ≤ reservado ≤ costo unitario del plan, y Σreservado ≤ tope aprobado", opsA.length > 0 && opsA.every((o) => o.status === "COMMITTED" && o.provider_job_id && o.method === "generate_image" && Number(o.r) > 0 && Number(o.r) <= IMAGE_UNIT_USD_MAX && Number(o.c) > 0 && Number(o.c) <= Number(o.r)) && opsA.reduce((t, o) => t + Number(o.r), 0) <= APPROVED_USD, opsA);
-  // ───── D3. Reintento ─────
-  // D3a: el botón «Reintentar» del panel (lo que un usuario real pulsa). D3b: si D3a no termina, el mismo POST que hace
-  // la pantalla de revisión con el tope aprobado (directorMaterialUsd), desde la sesión del dueño.
+  // ───── D3. Reintento desde la UI real (PR158 + F40): tarjeta «Revisar tope y reintentar» → revisión → confirmar ─────
+  // Política: lo ya pagado se reutiliza sin costo; el tope de material NUEVO empieza en 0 (nunca se precarga desde una
+  // estimación nueva); sin POST alternativo: si este camino no termina el video, el E2E falla.
   setWorkerOverride(WORKER_IMG); const callsB = OPENAI_LOG().length;
   await S.p.goto(`${BASE}/dashboard`); await skipTour(S.p);
   const card = S.p.locator("li", { hasText: `E2E imagenes extra [imgx] ${run}` });
-  const [r3] = await Promise.all([S.p.waitForResponse((r) => /\/render$/.test(r.url()) && r.request().method() === "POST"), card.getByRole("button", { name: "Reintentar" }).click()]);
-  const c3 = { status: r3.status(), body: (await r3.text()).slice(0, 400) }; fs.writeFileSync(path.join(OUT, "D3a-retry-ui.json"), JSON.stringify(c3));
-  let v2 = await waitTerminal(id2, 12 * 60000); await shot(S.p, "D3a-panel-tras-reintento");
-  const d3a = { status: v2.status, attempts: v2.render_attempts, err: v2.error_message, newCalls: OPENAI_LOG().length - callsB };
-  fs.writeFileSync(path.join(OUT, "D3a-result.json"), JSON.stringify(d3a, null, 2));
-  check("[D3a] «Reintentar» del panel: intento 2 sin llamadas nuevas al proveedor", c3.status < 300 && v2.render_attempts === 2 && d3a.newCalls === 0, { c3, d3a });
-  check("[D3a] «Reintentar» del panel conserva el tope aprobado y termina el video", v2.status === "completed", d3a);
-  if (v2.status !== "completed") {
-    const c3b = await S.p.evaluate(async (id) => { const r = await fetch(`/api/generate/${id}/render`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ directorMaterialUsd: 2 }) }); return { s: r.status, b: (await r.text()).slice(0, 400) }; }, id2);
-    fs.writeFileSync(path.join(OUT, "D3b-retry-api.json"), JSON.stringify(c3b));
-    v2 = await waitTerminal(id2, 12 * 60000);
-    check("[D3b] reintento con el tope re-aprobado aceptado (2xx)", c3b.s < 300, c3b);
-  }
+  await shot(S.p, "D3-01-tarjeta-fallida");
+  check("[D3] la tarjeta fallida NO ofrece un POST directo sin tope («Reintentar» como botón de render)", (await card.getByRole("button", { name: "Reintentar" }).count()) === 0);
+  await card.getByRole("link", { name: "Revisar tope y reintentar" }).click();
+  await S.p.waitForURL(new RegExp(`/dashboard/review/${id2}`)); await skipTour(S.p);
+  const inp = S.p.locator("#director-material-usd"); await inp.waitFor({ timeout: 30000 });
+  const prefill = await inp.inputValue();
+  const editable = await S.p.locator("textarea").evaluateAll((els) => els.filter((e) => !e.disabled && !e.readOnly).length);
+  await shot(S.p, "D3-02-revision-reintento");
+  check("[D3] revisión del reintento: tope de material nuevo precargado en 0 (no se expande con una estimación nueva)", Number(prefill) === 0, { prefill });
+  check("[D3] revisión del reintento: el guion es de solo lectura (identidad del guion y del material conservada)", editable === 0, { editable });
+  const [r3] = await Promise.all([S.p.waitForResponse((r) => /\/render$/.test(r.url()) && r.request().method() === "POST"), S.p.getByRole("button", { name: "Generar video final" }).click()]);
+  const c3 = { status: r3.status(), body: (await r3.text()).slice(0, 400), sent: r3.request().postData() }; fs.writeFileSync(path.join(OUT, "D3-retry-ui.json"), JSON.stringify(c3));
+  let v2 = await waitTerminal(id2, 12 * 60000);
+  await S.p.goto(`${BASE}/dashboard`); await skipTour(S.p); await shot(S.p, "D3-03-panel-tras-reintento");
+  const d3 = { status: v2.status, attempts: v2.render_attempts, err: v2.error_message, newCalls: OPENAI_LOG().length - callsB };
+  fs.writeFileSync(path.join(OUT, "D3-result.json"), JSON.stringify(d3, null, 2));
+  check("[D3] «Revisar tope y reintentar» → confirmar: intento 2 aceptado sin enviar un tope nuevo > 0", c3.status < 300 && v2.render_attempts === 2 && !/directorMaterialUsd"?:\s*[1-9]/.test(c3.sent ?? ""), { c3 });
+  check("[D3] el reintento desde la UI termina el video con 0 llamadas nuevas al proveedor", v2.status === "completed" && d3.newCalls === 0, d3);
   setWorkerOverride({});
   const att = v2.render_attempts;
   const gen2 = OPENAI_LOG().slice(callsB); const fillsB = fills().map((f) => ({ f: path.relative(STORE, f), sha: sha(f) }));
@@ -146,11 +151,41 @@ let browser;
   check("[D3] ledger: 1 sola operación de guion para la solicitud (los reintentos de render no regeneran el guion)", opsB.filter((o) => o.provider === "anthropic").length === 1, opsB.filter((o) => o.provider === "anthropic"));
   fs.writeFileSync(path.join(OUT, "D-report-input.json"), JSON.stringify({ id1, id2, gen1, fillsA, fillsB, mp4: path.relative(STORE, mp4), dj: path.relative(STORE, dj) }, null, 2));
   await S.p.goto(`${BASE}/dashboard/videos/${id2}`); await skipTour(S.p); await S.p.locator("video").first().waitFor(); await shot(S.p, "D3-05-video");
+  // ───── D4. Material pagado que ya no está (objeto perdido) ⇒ con tope 0 se detiene ANTES del proveedor; con tope explícito paga SOLO ese plano ─────
+  const id4 = await createReel(S.p, `E2E imagenes perdidas [imgx] ${run}`, "D4");
+  setWorkerOverride({ ...WORKER_IMG, REMOTION_BROWSER_EXECUTABLE: "/nonexistent/chrome-roto-a-proposito" });
+  await confirmWithMaterial(S.p, 2); const v4a = await waitTerminal(id4, 10 * 60000);
+  const fills4 = () => { const d = path.join(STORE, "videos", id4); return fs.existsSync(d) ? execFileSync("find", [d, "-type", "f", "-name", "director-fill-*"]).toString().trim().split("\n").filter(Boolean).sort() : []; };
+  const f4 = fills4(); const lost = f4[0]; if (lost) fs.rmSync(lost);
+  setWorkerOverride(WORKER_IMG);
+  const retryFromCard = async (title, usd) => {
+    await S.p.goto(`${BASE}/dashboard`); await skipTour(S.p);
+    await S.p.locator("li", { hasText: title }).getByRole("link", { name: "Revisar tope y reintentar" }).click();
+    await S.p.waitForURL(new RegExp(`/dashboard/review/${id4}`)); await skipTour(S.p);
+    const i = S.p.locator("#director-material-usd"); await i.waitFor({ timeout: 30000 }); const pre = await i.inputValue(); if (usd !== null) await i.fill(String(usd));
+    const [r] = await Promise.all([S.p.waitForResponse((x) => /\/render$/.test(x.url()) && x.request().method() === "POST"), S.p.getByRole("button", { name: "Generar video final" }).click()]);
+    return { pre, status: r.status() };
+  };
+  const t4 = `E2E imagenes perdidas [imgx] ${run}`;
+  const callsC = OPENAI_LOG().length; const r4b = await retryFromCard(t4, null); const v4b = await waitTerminal(id4, 10 * 60000);
+  await S.p.goto(`${BASE}/dashboard/review/${id4}`); await skipTour(S.p); await sleep(1500); await shot(S.p, "D4-01-falta-material-tope-0");
+  const callsD = OPENAI_LOG().length;
+  check("[D4] intento 1 generó 2 imágenes y falló el render; se pierde 1 objeto pagado", v4a.status === "failed" && f4.length === 2 && Boolean(lost), { st: v4a.status, f4: f4.length });
+  check("[D4] reintento con tope 0 (precargado): se detiene ANTES del proveedor con el faltante (DIRECTOR_MATERIAL_BUDGET), 0 llamadas", r4b.pre === "0" || Number(r4b.pre) === 0 ? v4b.status === "failed" && /DIRECTOR_MATERIAL_BUDGET|tope/i.test(String(v4b.error_message)) && callsD - callsC === 0 : false, { pre: r4b.pre, st: v4b.status, err: v4b.error_message, calls: callsD - callsC });
+  const r4c = await retryFromCard(t4, IMAGE_UNIT_USD_MAX); const v4c = await waitTerminal(id4, 12 * 60000);
+  const gen4 = OPENAI_LOG().length - callsD; const ops4 = (await paidOps(id4)).filter((o) => o.provider === "openai");
+  fs.writeFileSync(path.join(OUT, "D4-ledger-openai.json"), JSON.stringify({ r4b, r4c, ops4 }, null, 2));
+  await S.p.goto(`${BASE}/dashboard/review/${id4}`); await skipTour(S.p); await sleep(1500); await shot(S.p, "D4-02-pagado-perdido-tope-explicito");
+  // La clave de contenido del plano perdido ya está COMMITTED: el gate NUNCA vuelve a pagar el mismo contenido.
+  check("[D4] tope explícito: el plano ya pagado y perdido NO se vuelve a pagar (0 llamadas); falla con explicación, sin ocultarlo", v4c.status === "failed" && gen4 === 0, { st: v4c.status, err: v4c.error_message, gen4 });
+  check("[D4] ledger: siguen exactamente 2 operaciones openai COMMITTED del intento 1 (sin duplicado ni negativo)", ops4.length === 2 && ops4.every((o) => o.status === "COMMITTED" && Number(o.r) > 0 && Number(o.c) > 0), ops4);
+  setWorkerOverride({});
+
   await closeSession(S);
   const egress = jsonl(path.join(LOGS, "egress.jsonl")).filter((e) => Date.parse(e.at) >= run);
   check("Egreso: 0 salidas reales; ningún intento hacia api.openai.com/api.anthropic.com quedó sin desviar", !egress.some((e) => /openai|anthropic/.test(e.host ?? "")), egress);
   await browser.close(); await db.end();
-  const report = { run, ids: { D1: id1, D2: id2 }, checks, pass: checks.filter((c) => c.ok).length, fail: checks.filter((c) => !c.ok).length };
+  const report = { run, ids: { D1: id1, D2: id2, D4: id4 }, checks, pass: checks.filter((c) => c.ok).length, fail: checks.filter((c) => !c.ok).length };
   fs.writeFileSync(path.join(OUT, "e2e-report.json"), JSON.stringify(report, null, 2));
   console.log(`\nRESULTADO ${report.pass} PASS · ${report.fail} FAIL`); process.exit(report.fail ? 1 : 0);
 })().catch(async (e) => { console.error("ABORT", e); try { fs.writeFileSync(path.join(OUT, "e2e-report.json"), JSON.stringify({ aborted: String(e.stack || e), checks }, null, 2)); } catch {} process.exit(1); });

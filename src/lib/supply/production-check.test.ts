@@ -284,3 +284,15 @@ test("server-side order: the script route checks the whole production BEFORE the
   assert.match(readiness, /if \(error \|\| !row \|\| row\.user_id !== user\.id\) return NextResponse\.json\(\{ error: "Solicitud no encontrada" \}, \{ status: 404 \}\)/);
   assert.doesNotMatch(readiness, /reserveJobSupply|\.insert\(|\.update\(|\.upsert\(/, "read-only: never reserves or writes");
 });
+
+test("F2-B (T-20261019-1602): un recorrido SIN proveedores de pago no muestra «Proveedores ✕» junto a «Puedes continuar»; el resumen nunca dice listo con un bloqueo en la lista", async () => {
+  const script = { title: "t", segments: [{ text: "Hola mundo de prueba sin pago.", visualQuery: "x" }] };
+  const check = await checkProduction({ service: fakeSupply(GREEN), user: USER, ownerId: USER.id, request: { ...REEL, script_json: script, recorded_audio_path: null },
+    stage: "before_render", voiceProvider: "fixture", flags: FLAGS,
+    deps: { guard: true, assertCanGenerate: allowed, processingConfigured: () => true, ensureJobSupplyReady: (s, d) => ensureJobSupplyReady(s, d, { refresh: false, now: () => NOW }) } });
+  const byId = Object.fromEntries(check.checklist.map(i => [i.id, i]));
+  if (check.outcome === "ready") {
+    for (const i of check.checklist) assert.ok(i.status !== "blocked" && i.status !== "unverified", `listo con ${i.id}=${i.status}`);
+  }
+  if (byId.providers && check.estimate && check.estimate.lines.length === 0) assert.equal(byId.providers.status, "not_applicable");
+});

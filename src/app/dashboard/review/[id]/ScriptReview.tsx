@@ -168,6 +168,20 @@ export function ScriptReview({
     }
   }
 
+  // F2-B (T-20261019-1602): a lost response (network drop, proxy 5xx, unreadable body) left the page on the review
+  // with the button enabled until a manual reload, although the server had already started the video. Now the page
+  // re-reads the REAL state from the server (router.refresh) a few times; once the server says it is processing, it
+  // moves to the history. Nothing is re-sent: a second click would only hit the server's attempt CAS anyway.
+  const [verifyingLost, setVerifyingLost] = useState(false);
+  useEffect(() => {
+    if (!verifyingLost) return;
+    if (status === "processing" || status === "completed") { router.push("/dashboard"); return; }
+    let n = 0;
+    const t = setInterval(() => { n += 1; router.refresh(); if (n >= 8) { clearInterval(t); setVerifyingLost(false); setGenerating(false); } }, 2000);
+    return () => clearInterval(t);
+  }, [verifyingLost, status, router]);
+  const LOST_RESPONSE = "No recibimos la respuesta del servidor. Estamos comprobando el estado real de tu video: si ya empezó, te llevamos al historial; no se envía de nuevo ni se cobra dos veces.";
+
   async function generateFinalVideo(acceptedCeilingUsd?: number) {
     const material = directorMaterialOffer ? Number(materialUsd || "0") : 0;
     if (entitlementBlocked || durationBlockedReason) return;
@@ -186,9 +200,15 @@ export function ScriptReview({
 
     try {
       const body = { ...(acceptedCeilingUsd ? { acceptedCeilingUsd } : {}), ...(material > 0 ? { directorMaterialUsd: material } : {}) };
-      const res = await fetch(`/api/generate/${requestId}/render`, Object.keys(body).length
-        ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
-        : { method: "POST" });
+      let res: Response;
+      try {
+        res = await fetch(`/api/generate/${requestId}/render`, Object.keys(body).length
+          ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
+          : { method: "POST" });
+      } catch {
+        setError(LOST_RESPONSE); setVerifyingLost(true); return;
+      }
+      if (res.status >= 500 && res.status !== 503) { setError(LOST_RESPONSE); setVerifyingLost(true); return; }
       const result = await safeParseJsonResponse(res);
       if (!result.ok) {
         if (result.status === 402) setNeedsSubscription(true);
