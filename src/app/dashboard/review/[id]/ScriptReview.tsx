@@ -18,6 +18,7 @@ export function ScriptReview({
   errorMessage,
   usesRecording = false,
   diagnosticRetry = false,
+  reelRetryEligible = false,
   entitlementBlockedReason,
   recovery,
   maxAvatarDurationSeconds,
@@ -30,6 +31,8 @@ export function ScriptReview({
   errorMessage: string | null;
   usesRecording?: boolean;
   diagnosticRetry?: boolean;
+  /** Owner-confirmed retry starts on the review page, never directly from the history card. */
+  reelRetryEligible?: boolean;
   maxAvatarDurationSeconds?: number;
   recordingDurationSeconds?: number;
   /**
@@ -76,9 +79,9 @@ export function ScriptReview({
   const [costChange, setCostChange] = useState<{ beforeUsd: number; afterUsd: number } | null>(null);
 
   const recoveryAction = status === "failed" && recovery?.kind === "action" ? recovery : null;
-  const canGenerate = status === "script_ready" || diagnosticRetry || recoveryAction !== null;
+  const canGenerate = status === "script_ready" || diagnosticRetry || recoveryAction !== null || reelRetryEligible;
   // A recovery reuses exactly what was approved: no edits (they would change paid inputs).
-  const editable = canGenerate && !usesRecording && !recoveryAction;
+  const editable = canGenerate && !usesRecording && !recoveryAction && !reelRetryEligible;
   const entitlementBlocked = Boolean(entitlementBlockedReason);
   const durationBlockedReason = maxAvatarDurationSeconds === undefined ? null : avatarDurationError(
     usesRecording ? (recordingDurationSeconds ?? Number.NaN) : estimateAvatarNarrationSeconds(script.segments.map(scene => scene.text).join(" ")),
@@ -217,6 +220,15 @@ export function ScriptReview({
         </Alert>
       )}
 
+      {reelRetryEligible && (
+        <Alert tone="warning">
+          {errorMessage ? `El intento anterior terminó con error: ${errorMessage}. ` : ""}
+          El reintento no se inicia desde el historial. Comprueba el tope de material nuevo del Director
+          y confírmalo aquí antes de iniciar. Las imágenes ya guardadas se intentarán reutilizar;
+          cualquier material adicional fuera del tope confirmado debe detenerse antes de llamar al proveedor.
+          Para proteger lo ya pagado, el guion de este intento es de solo lectura.
+        </Alert>
+      )}
       {recoveryAction && (
         <Alert tone="danger">
           {`La generación falló${errorMessage ? `: ${errorMessage}` : ""}.`} {recoveryAction.note}

@@ -15,6 +15,7 @@ import { avatarEntitlementPreview } from "@/lib/billing/quota";
 import { ScriptReview } from "./ScriptReview";
 import { loadAvatarRecovery } from "@/lib/video/avatar/recovery";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
+import { canReviewReelRetry } from "@/lib/video/reel-retry";
 
 type VideoRequestRow = {
   id: string;
@@ -24,6 +25,8 @@ type VideoRequestRow = {
   duration_seconds: number;
   status: string;
   render_attempts: number;
+  render_started_at: string | null;
+  created_at: string;
   avatar_provider_video_job_id: string | null;
   video_path: string | null;
   script_json: GeneratedScript | null;
@@ -49,7 +52,7 @@ export default async function ReviewPage({
 
   const { data } = await supabase
     .from("video_requests")
-    .select("id, mode, topic, style, duration_seconds, status, script_json, error_message, recorded_audio_path, render_attempts, avatar_provider_video_job_id, video_path")
+    .select("id, mode, topic, style, duration_seconds, status, script_json, error_message, recorded_audio_path, render_attempts, render_started_at, created_at, avatar_provider_video_job_id, video_path")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle<VideoRequestRow>();
@@ -92,6 +95,10 @@ export default async function ReviewPage({
     ? inspectReel(data.script_json, { renderEnabled: directorRenderAllowed(user, data) })
     : null;
 
+  // A review page never spends: this only exposes the explicit retry confirmation UI.
+  // eslint-disable-next-line react-hooks/purity -- server component: evaluated once per HTTP request
+  const reelRetryEligible = canReviewReelRetry(data, Date.now());
+
   return (
     <div className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-bold text-ink">{data.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}</h1>
@@ -126,6 +133,7 @@ export default async function ReviewPage({
           && data.status === "failed" && data.render_attempts === 1
           && data.avatar_provider_video_job_id === null && data.error_message === "did: D-ID respondió HTTP 403"}
         requestId={data.id}
+        reelRetryEligible={reelRetryEligible}
         status={data.status}
         initialScript={data.script_json}
         // Control de costos (2026-10-18): the stored failure is decoded exactly like the history and video

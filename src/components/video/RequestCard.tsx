@@ -10,6 +10,7 @@ import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form
 import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
 import { STATUS_LABEL, STATUS_TONE, pendingRequestCta, type VideoRequestSummary } from "@/lib/video/request-view";
 import { hasRenderableScript } from "@/lib/video/own-script";
+import { canReviewReelRetry } from "@/lib/video/reel-retry";
 import { computeProductionProgress, isLongFormProgress, type ProgressStageKey } from "@/lib/video/long-form/progress";
 import { GenerateButton } from "@/app/dashboard/GenerateButton";
 import type { AvatarRecovery } from "@/lib/video/avatar/recovery";
@@ -48,6 +49,7 @@ export function RequestCard({
   const avatarAction = request.mode === "avatar" && avatarRecovery && avatarRecovery.action !== "none" ? avatarRecovery : null;
   const canRetry = !attemptsExhausted && !longFormUnconfirmed && (request.mode !== "avatar" || avatarAction !== null);
   const retryLabel = avatarAction?.label ?? "Reintentar";
+  const reelRetryReview = canReviewReelRetry(request, nowMs);
   const avatarBlockedMessage = request.mode === "avatar" && avatarRecovery?.action === "none" && avatarRecovery.reason !== "completed" && avatarRecovery.reason !== "exhausted" ? avatarRecovery.message : null;
   const detailHref = `/dashboard/videos/${request.id}`;
   const isLongForm = request.mode === "long_form";
@@ -156,7 +158,12 @@ export function RequestCard({
             <GenerateButton endpoint={`/api/generate/${request.id}/resume`} label="Reanudar" />
           )}
           {request.status === "processing" && isStaleProcessing && canRetry && (
-            <GenerateButton endpoint={`/api/generate/${request.id}/render`} label={retryLabel} />
+            request.mode === "visual" ? (reelRetryReview ? (
+              <Link href={`/dashboard/review/${request.id}`}
+                className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover">
+                Revisar tope y reintentar
+              </Link>
+            ) : null) : <GenerateButton endpoint={`/api/generate/${request.id}/render`} label={retryLabel} />
           )}
           {(request.status === "failed" || (request.status === "processing" && isStaleProcessing)) && avatarBlockedMessage && (
             <p role="status" className="max-w-[260px] text-left text-xs text-ink-muted sm:text-right">{avatarBlockedMessage}</p>
@@ -176,7 +183,7 @@ export function RequestCard({
           )}
           {/* Control de costos (2026-10-18): a failed attempt that kept its script can always be reviewed.
               Navigation only — opening the review generates nothing and calls no provider. */}
-          {request.status === "failed" && Boolean(request.script_json) && !isLongForm && (
+          {request.status === "failed" && Boolean(request.script_json) && !isLongForm && !reelRetryReview && (
             <Link href={`/dashboard/review/${request.id}`}
               className="inline-flex items-center justify-center rounded-md border border-border px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface-raised">
               {request.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}
@@ -192,7 +199,13 @@ export function RequestCard({
                   Requiere soporte antes de otro intento.
                 </p>
               ) : canRetry && (
-                <GenerateButton endpoint={`/api/generate/${request.id}/render`} label={retryLabel} />
+                request.mode === "visual" ? (reelRetryReview ? (
+                  <Link href={`/dashboard/review/${request.id}`}
+                    className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover">
+                    Revisar tope y reintentar
+                  </Link>
+                ) : <p role="status" className="max-w-[260px] text-xs text-ink-muted">Reintento bloqueado: revisa el estado de la solicitud.</p>)
+                : <GenerateButton endpoint={`/api/generate/${request.id}/render`} label={retryLabel} />
               )
             ) : isNoRetryScriptMessage(request.error_message) ? (
               // Uncertain provider outcome: a retry could charge twice, so no button until it is reconciled.
