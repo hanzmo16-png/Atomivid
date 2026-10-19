@@ -70,6 +70,21 @@ export async function requestIdForSubmission(userId: string, formData: FormData,
   return { requestId, draftKey, repeat };
 }
 
+/**
+ * An explicit repeat authorizes another VIDEO, not another paid avatar asset.
+ * A direct POST must not turn a new-photo repeat into a second createAvatar call:
+ * the customer must first reconcile the original creation and then select the
+ * confirmed existing avatar. A different photo is a different normal intent and
+ * therefore does not need repeat_intent at all.
+ */
+export function blocksRepeatWithNewAvatarPhoto(
+  repeat: boolean,
+  hasExistingAvatar: boolean,
+  hasNewPhoto: boolean,
+): boolean {
+  return repeat && !hasExistingAvatar && hasNewPhoto;
+}
+
 /** Where a confirmed creation lands: the draft key travels back so the browser can rotate it (and only it). */
 export function createdUrl(draftKey: string | null, existing = false): string {
   const q = `${draftKey ? `&draft=${draftKey}` : ""}${existing ? "&existing=1" : ""}`;

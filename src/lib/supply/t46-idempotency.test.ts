@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { draftRequestId, intentFingerprint, requestIdForSubmission } from "@/lib/video/submission-key";
+import { blocksRepeatWithNewAvatarPhoto, draftRequestId, intentFingerprint, requestIdForSubmission } from "@/lib/video/submission-key";
 import { gatedVoiceSynthesize } from "@/lib/paid-calls/gated-providers";
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 import { memoryResultStore } from "@/lib/paid-calls/result-store";
@@ -99,6 +99,22 @@ test("D5 fail closed: a repeat without a stable valid token cannot choose a paya
   assert.equal((await requestIdForSubmission(USER_A, repeat)).requestId, null);
   repeat.set("repeat_request_token", "invalid");
   assert.equal((await requestIdForSubmission(USER_A, repeat)).requestId, null);
+});
+
+for (const n of [2, 5, 10]) {
+  test(`D4: ${n} POST directos de repetición con foto nueva quedan bloqueados antes del proveedor`, () => {
+    let providerCalls = 0;
+    for (let i = 0; i < n; i++) {
+      if (!blocksRepeatWithNewAvatarPhoto(true, false, true)) providerCalls++;
+    }
+    assert.equal(providerCalls, 0);
+  });
+}
+
+test("D4: repetir el video con un avatar confirmado sí está permitido; una foto distinta usa intención normal", () => {
+  assert.equal(blocksRepeatWithNewAvatarPhoto(true, true, false), false);
+  assert.equal(blocksRepeatWithNewAvatarPhoto(false, false, true), false);
+  assert.equal(blocksRepeatWithNewAvatarPhoto(true, false, false), false);
 });
 
 // ---------------------------------------------------------------- D2

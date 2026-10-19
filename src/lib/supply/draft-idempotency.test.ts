@@ -386,6 +386,9 @@ test("la acción y el formulario siguen exactamente ese orden (fuente)", () => {
   assert.match(actions, /if \(error\.code === "23505"\) redirect\(created\);\n    if \(audioPath\) await/, "la carrera perdida nunca borra el audio de la ganadora");
   // Residual A: the photo's claim is derived from the request id and taken before the provider is called.
   const claim = actions.indexOf("const photoPath = photoClaimPath(user.id, requestId, format);");
+  const repeatPhotoBlock = actions.indexOf("if (blocksRepeatWithNewAvatarPhoto(");
+  assert.ok(id < repeatPhotoBlock && repeatPhotoBlock < claim,
+    "un POST directo de repetición con foto se bloquea en servidor antes del claim y del proveedor");
   assert.ok(id < claim && claim < actions.indexOf("await provider.createAvatar(") && claim < actions.indexOf("const voiceResult = await gatedVoiceSynthesize"));
   assert.doesNotMatch(actions, /\$\{user\.id\}\/\$\{randomUUID\(\)\}/, "ya no hay ruta aleatoria por envío");
   assert.equal(actions.match(/provider\.createAvatar\(/g)?.length, 1, "createAvatar solo dentro de createAvatarOnce");

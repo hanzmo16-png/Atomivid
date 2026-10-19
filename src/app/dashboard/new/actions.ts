@@ -11,7 +11,7 @@ import { measureNarrationSeconds } from "@/lib/video/avatar/measure-narration";
 import { avatarDurationError } from "@/lib/video/avatar/duration";
 import { createHash, randomUUID } from "node:crypto";
 import { ledgerGuardedCreateAvatar } from "@/lib/video/avatar/create-avatar-ledger";
-import { createdUrl, formErrorUrl, requestIdForSubmission } from "@/lib/video/submission-key";
+import { blocksRepeatWithNewAvatarPhoto, createdUrl, formErrorUrl, requestIdForSubmission } from "@/lib/video/submission-key";
 import { CLAIM_MESSAGES, createAvatarOnce, isDuplicateUpload, photoClaimPath } from "@/lib/video/avatar/new-photo-claim";
 import { insertCanonicalAvatar } from "@/lib/video/avatar/canonical-row";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
@@ -238,6 +238,21 @@ export async function createVideoRequest(formData: FormData) {
   }
 
   const existingAvatarId = String(formData.get("existing_avatar_id") ?? "").trim();
+
+  // T46 D4 server authority: repeat_intent authorizes another VIDEO only. It must never create another paid
+  // avatar asset from the same photo, even if a crafted/direct POST omits the client-side reconciliation flag.
+  // A genuinely different photo is already a different canonical intent and does not need repeat_intent. After
+  // reconciliation, the confirmed avatar can be selected through existing_avatar_id and the repeat remains valid.
+  if (blocksRepeatWithNewAvatarPhoto(
+    resolved.repeat,
+    Boolean(existingAvatarId),
+    photoFileForSizeCheck instanceof File && photoFileForSizeCheck.size > 0,
+  )) {
+    redirect(formErrorUrl(
+      "No se creó otro avatar. Concilia la creación anterior y selecciona el avatar confirmado antes de repetir el video.",
+      { blockAvatarReconciliation: true },
+    ));
+  }
 
   let avatarId: string;
 
