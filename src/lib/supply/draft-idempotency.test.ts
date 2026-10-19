@@ -410,8 +410,13 @@ test("la acción y el formulario siguen exactamente ese orden (fuente)", () => {
   assert.ok(form.includes("const version = ++syncVersion.current"), "no sobrescribir con adquisiciones antiguas");
   assert.doesNotMatch(form, /searchParams\.get\(["']reset["']\)/,
     "el cliente no rota el borrador por una respuesta de error");
-  assert.match(form, /disabled=\{reconciliationBlocked\}/,
-    "una salida incierta deshabilita también la repetición explícita");
+  assert.match(form, /disabled=\{reconciliationBlocked \|\| repeatBlockedByNewAvatarPhoto\}/,
+    "conciliación o una foto nueva deshabilitan la repetición explícita");
+  assert.match(form, /onExistingAvatarChange=\{usesExisting =>/,
+    "la UI sólo habilita repetir cuando reutiliza un avatar confirmado");
+  const runbook = fs.readFileSync(path.join(ROOT, "docs/runbooks/avatar-uncertain-claims.md"), "utf8");
+  assert.match(runbook, /Crear otro video igual[^\n]*only reuse an existing, confirmed avatar/,
+    "la guía operativa no autoriza otro activo pagado con la misma foto");
   const page = fs.readFileSync(path.join(ROOT, "src/app/dashboard/page.tsx"), "utf8");
   assert.match(page, /\{created && <DraftKeyRotation draft=\{draft\} \/>\}/, "solo una creación confirmada rota la llave");
 });

@@ -16,6 +16,7 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 // costo confirmado, solo como estimación previa a generar.
 const REFERENCE_COST_USD_PER_SECOND = 0.04;
 const REFERENCE_WORDS_PER_SECOND = 2.5;
+const NOOP_EXISTING_AVATAR_CHANGE = () => {};
 
 export function AvatarFields({
   existingAvatars,
@@ -24,6 +25,7 @@ export function AvatarFields({
   onNarrationSourceChange,
   ttsText = "",
   onTtsTextChange = () => {},
+  onExistingAvatarChange = NOOP_EXISTING_AVATAR_CHANGE,
   maxAvatarDurationSeconds = 45,
 }: {
   existingAvatars: { id: string; name: string }[];
@@ -41,6 +43,8 @@ export function AvatarFields({
   /** Elevado a NewVideoForm: el checklist previo necesita el texto para comprobar duración y costo. */
   ttsText?: string;
   onTtsTextChange?: (value: string) => void;
+  /** Informa al formulario padre si repetir reutilizará un activo confirmado o intentaría crear otro. */
+  onExistingAvatarChange?: (usesExisting: boolean) => void;
   maxAvatarDurationSeconds?: number;
 }) {
   const audioInputId = useId();
@@ -92,7 +96,11 @@ export function AvatarFields({
             name="existing_avatar_id"
             className={INPUT_CLASS}
             defaultValue=""
-            onChange={(e) => setUseExisting(e.target.value !== "")}
+            onChange={(e) => {
+              const next = e.target.value !== "";
+              setUseExisting(next);
+              onExistingAvatarChange(next);
+            }}
           >
             <option value="">Subir una fotografía nueva</option>
             {existingAvatars.map((a) => (

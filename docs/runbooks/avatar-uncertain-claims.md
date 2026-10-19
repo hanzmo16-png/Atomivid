@@ -24,7 +24,7 @@ Applies when `createAvatarOnce` returned `uncertain`, `stale` or `not_recorded`,
 5. **Settle with a compare-and-set** against the observed status (as `commitRecordedPaidJob` does), never with a blind overwrite. Then:
    - for `confirmed_success`, insert the `avatars` row;
    - for `confirmed_final_reject`, remove the claim object.
-6. **Never** call `createAvatar` again for the same request id. A new avatar requires a new intent (another photo, or an explicit «crear otro video igual»).
+6. **Never** call `createAvatar` again for the same request id or for an explicit repeat of the same photo. A new avatar requires another photo as a normal new intent. «Crear otro video igual» may only reuse an existing, confirmed avatar; it never authorizes another paid avatar asset.
 
 ## Read-only evidence collector
 

@@ -79,6 +79,7 @@ export function NewVideoForm({
   // The next visit to the form creates a NEW token; a resend of the same POST preserves the original.
   const [repeatIntent, setRepeatIntent] = useState(false);
   const [repeatToken, setRepeatToken] = useState("");
+  const [avatarUsesExisting, setAvatarUsesExisting] = useState(false);
   const submissionIdRef = useRef(submissionId);
   const syncVersion = useRef(0);
   useEffect(() => {
@@ -123,6 +124,7 @@ export function NewVideoForm({
   const submitPays = mode === "avatar" && avatarNarrationSource === "tts_text";
   const check = checkState.status === "done" ? checkState.check : null;
   const reconciliationBlocked = mode === "avatar" && blockAvatarReconciliation;
+  const repeatBlockedByNewAvatarPhoto = mode === "avatar" && !avatarUsesExisting;
   const disabledReason = reconciliationBlocked ? "Esta solicitud de avatar necesita conciliación antes de permitir otra creación." : !draftReady ? "Sincronizando borrador entre pestañas…" : repeatIntent && !repeatToken ? "No se puede identificar esta nueva solicitud de forma segura; actualiza el formulario." : localFit && !localFit.allowed ? "Corrige el texto o la duración antes de continuar; no se ha gastado nada."
     : mode === "visual" && scriptChoice === "adapt" && !adaptAccepted ? "Acepta el costo de adaptar tu texto con IA o elige otra opción."
     : checkEnabled && checkState.status === "checking" ? "Comprobando datos, plan y recursos…"
@@ -278,7 +280,10 @@ export function NewVideoForm({
                     name="mode"
                     value={option.value}
                     checked={mode === option.value}
-                    onChange={() => setMode(option.value)}
+                    onChange={() => {
+                      setMode(option.value);
+                      if (option.value !== "avatar") setAvatarUsesExisting(false);
+                    }}
                     className="size-4 accent-accent"
                   />
                   {option.title}
@@ -300,6 +305,13 @@ export function NewVideoForm({
             onNarrationSourceChange={setAvatarNarrationSource}
             ttsText={ttsText}
             onTtsTextChange={setTtsText}
+            onExistingAvatarChange={usesExisting => {
+              setAvatarUsesExisting(usesExisting);
+              if (!usesExisting) {
+                setRepeatIntent(false);
+                setRepeatToken("");
+              }
+            }}
             maxAvatarDurationSeconds={maxAvatarDurationSeconds}
           />
         </>
@@ -326,9 +338,11 @@ export function NewVideoForm({
 
       {/* T46 D1: the server treats the same data as the same request. A second identical video is an explicit choice. */}
       <label className="flex items-start gap-2 text-sm text-ink-muted">
-        <input type="checkbox" name="repeat_intent" className="mt-1" checked={repeatIntent} disabled={reconciliationBlocked} onChange={e => { setRepeatIntent(e.target.checked); if (e.target.checked && !repeatToken) setRepeatToken(newKey()); }} />
+        <input type="checkbox" name="repeat_intent" className="mt-1" checked={repeatIntent} disabled={reconciliationBlocked || repeatBlockedByNewAvatarPhoto} onChange={e => { setRepeatIntent(e.target.checked); if (e.target.checked && !repeatToken) setRepeatToken(newKey()); }} />
         <input type="hidden" name="repeat_request_token" value={repeatToken} disabled={!repeatIntent || !repeatToken} />
-        <span>Crear otro video igual aunque ya exista una solicitud con exactamente estos datos.</span>
+        <span>{repeatBlockedByNewAvatarPhoto
+          ? "Para crear otro video igual, primero selecciona un avatar ya confirmado. Una fotografía nueva crea una intención distinta."
+          : "Crear otro video igual aunque ya exista una solicitud con exactamente estos datos."}</span>
       </label>
       <SubmitButton disabledReason={disabledReason} />
     </form>
