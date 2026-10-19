@@ -61,15 +61,21 @@ for (const n of [2, 5, 10]) {
     assert.equal(await b.submit(USER_A, form(randomUUID())), before ? "existing" : "created", "un reintento converge");
     assert.equal(b.rows.size, 1); assert.equal(b.paid, 1);
   });
-  test(`D1 VERDE: ${n} repeticiones EXPLÍCITAS concurrentes («crear otro igual») → exactamente 1 solicitud adicional`, async () => {
+  test(`D5 VERDE: ${n} reenvíos concurrentes de LA MISMA repetición explícita → 1 solicitud adicional`, async () => {
     const b = backend("T46");
     await b.submit(USER_A, form(randomUUID()));
-    await Promise.all(Array.from({ length: n }, () => { const f = form(randomUUID()); f.set("repeat_intent", "on"); return b.submit(USER_A, f); }));
-    // Concurrent explicit repeats share ONE ordinal: at most one extra request and one extra paid call…
+    const repeatToken = randomUUID();
+    const repeated = () => { const f = form(randomUUID()); f.set("repeat_intent", "on"); f.set("repeat_request_token", repeatToken); return f; };
+    await Promise.all(Array.from({ length: n }, () => b.submit(USER_A, repeated())));
     assert.ok(b.rows.size <= 2, `filas ${b.rows.size}`); assert.ok(b.paid <= 2, `voces ${b.paid}`);
-    // …and if the cautious ledger refused them all, one retry creates exactly that one extra request.
-    if (b.rows.size < 2) { const f = form(randomUUID()); f.set("repeat_intent", "on"); await b.submit(USER_A, f); }
+    if (b.rows.size < 2) await b.submit(USER_A, repeated());
     assert.equal(b.rows.size, 2); assert.equal(b.paid, 2);
+    // The old first-free-ordinal rule produced a THIRD request here after commit/redirect loss.
+    assert.equal(await b.submit(USER_A, repeated()), "existing");
+    assert.equal(b.rows.size, 2); assert.equal(b.paid, 2);
+    const fresh = form(randomUUID()); fresh.set("repeat_intent", "on"); fresh.set("repeat_request_token", randomUUID());
+    await b.submit(USER_A, fresh);
+    assert.equal(b.rows.size, 3); assert.equal(b.paid, 3);
   });
 }
 
@@ -84,6 +90,13 @@ test("D1: el id no depende de la llave del navegador ni de su ausencia", async (
   const noKey = form(""); noKey.delete("submission_id");
   const ids = await Promise.all([form(randomUUID()), form(randomUUID()), noKey, form("no-es-uuid")].map(async f => (await requestIdForSubmission(USER_A, f)).requestId));
   assert.equal(new Set(ids).size, 1);
+});
+
+test("D5 fail closed: a repeat without a stable valid token cannot choose a payable request", async () => {
+  const repeat = form(randomUUID()); repeat.set("repeat_intent", "on");
+  assert.equal((await requestIdForSubmission(USER_A, repeat)).requestId, null);
+  repeat.set("repeat_request_token", "invalid");
+  assert.equal((await requestIdForSubmission(USER_A, repeat)).requestId, null);
 });
 
 // ---------------------------------------------------------------- D2
