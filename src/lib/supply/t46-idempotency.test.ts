@@ -13,7 +13,8 @@ import { draftRequestId, intentFingerprint, requestIdForSubmission } from "@/lib
 import { gatedVoiceSynthesize } from "@/lib/paid-calls/gated-providers";
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 import { memoryResultStore } from "@/lib/paid-calls/result-store";
-import { ledgerGuardedCreateAvatar } from "@/lib/video/avatar/create-avatar-ledger";
+import { configuredAvatarCreationCostUsd, ledgerGuardedCreateAvatar } from "@/lib/video/avatar/create-avatar-ledger";
+import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { createAvatarOnce, photoClaimPath, type NewPhotoClaimDeps } from "@/lib/video/avatar/new-photo-claim";
 import { AvatarProviderError } from "@/lib/providers/types";
 import type { VoiceProvider } from "@/lib/providers/types";
@@ -101,9 +102,16 @@ test("D5 fail closed: a repeat without a stable valid token cannot choose a paya
 
 // ---------------------------------------------------------------- D2
 
+/** A test ledger whose submit hook performs the same RESERVED→SUBMITTED CAS expected from atomic supply admission. */
+function admittedMemoryLedger() {
+  const ledger = memoryLedgerStore();
+  ledger.submit = async (op, at) => ledger.update(op.idempotencyKey, "RESERVED", { status: "SUBMITTED", updatedAt: at });
+  return ledger;
+}
+
 /** Storage that is NOT atomic (every concurrent upload wins), as storage-api v1.11.13 behaved. */
 function avatarWorld(providerImpl: () => Promise<{ providerAvatarId: string }>) {
-  const ledger = memoryLedgerStore(); let providerCalls = 0;
+  const ledger = admittedMemoryLedger(); let providerCalls = 0;
   const deps = (requestId: string, guarded: boolean): NewPhotoClaimDeps => ({
     async upload() { await new Promise(r => setTimeout(r, 1)); return { ok: true }; },
     async findAvatarByPhoto() { return null; },
@@ -112,7 +120,7 @@ function avatarWorld(providerImpl: () => Promise<{ providerAvatarId: string }>) 
     async createAvatar() {
       const call = async () => { providerCalls++; await new Promise(r => setTimeout(r, 15)); const r = await providerImpl();
         return { providerAvatarId: r.providerAvatarId, status: "completed", providerName: "heygen" }; };
-      return guarded ? ledgerGuardedCreateAvatar(ledger, requestId, "heygen", "sha-foto", call) : call();
+      return guarded ? ledgerGuardedCreateAvatar(ledger, requestId, "heygen", "sha-foto", call, { verifiedCostUsd: 0.25 }) : call();
     },
     async insertAvatar() { return { id: randomUUID(), status: "ready" }; },
   });
@@ -142,12 +150,43 @@ test("D2/D3: tiempo agotado tras posible aceptación → incierto; reintentos po
 });
 
 test("D2: un resultado confirmado se reutiliza del ledger sin volver a llamar", async () => {
-  const w = avatarWorld(ok), id = randomUUID();
-  const a = await ledgerGuardedCreateAvatar((w as unknown as { deps: unknown }) && memoryLedgerStore(), id, "heygen", "x", async () => ({ providerAvatarId: "asset:9", status: "completed", providerName: "heygen" }));
-  assert.equal(a.providerAvatarId, "asset:9");
-  const store = memoryLedgerStore(); let calls = 0;
-  const c = async () => { calls++; return { providerAvatarId: "asset:7", status: "completed", providerName: "heygen" }; };
-  await ledgerGuardedCreateAvatar(store, id, "heygen", "x", c);
-  const again = await ledgerGuardedCreateAvatar(store, id, "heygen", "x", c);
+  const store = admittedMemoryLedger(), id = randomUUID(); let calls = 0;
+  const call = async () => { calls++; return { providerAvatarId: "asset:7", status: "completed", providerName: "heygen" }; };
+  await ledgerGuardedCreateAvatar(store, id, "heygen", "x", call, { verifiedCostUsd: 0.25 });
+  const again = await ledgerGuardedCreateAvatar(store, id, "heygen", "x", call, { verifiedCostUsd: 0.25 });
   assert.equal(calls, 1); assert.equal(again.providerAvatarId, "asset:7");
 });
+
+test("D6: tarifa ausente, cero, negativa o malformada bloquea antes de reservar o llamar", async () => {
+  for (const env of [{}, { PRICING_HEYGEN_CREATE_AVATAR_USD: "0" }, { PRICING_HEYGEN_CREATE_AVATAR_USD: "-1" },
+    { PRICING_HEYGEN_CREATE_AVATAR_USD: "gratis" }]) {
+    assert.throws(() => configuredAvatarCreationCostUsd("heygen", env), (e: unknown) =>
+      e instanceof AvatarProviderError && e.reason === "not_configured");
+  }
+  assert.equal(configuredAvatarCreationCostUsd("heygen", { PRICING_HEYGEN_CREATE_AVATAR_USD: "0.1234561" }), 0.123457);
+});
+
+test("D6: sin el submit atómico de supply no existe bypass local; 0 llamadas", async () => {
+  const store = memoryLedgerStore(); let calls = 0;
+  await assert.rejects(
+    ledgerGuardedCreateAvatar(store, randomUUID(), "heygen", "photo", async () => {
+      calls++; return { providerAvatarId: "asset:no", status: "completed", providerName: "heygen" };
+    }, { verifiedCostUsd: 0.25 }),
+    (e: unknown) => e instanceof AvatarProviderError && e.reason === "not_configured",
+  );
+  assert.equal(calls, 0);
+});
+
+for (const reason of ["insufficient balance", "balance unverified or stale", "rate limited", "timeout"]) {
+  test(`D6: supply ${reason} bloquea con 0 llamadas y rechazo local definitivo`, async () => {
+    const store = memoryLedgerStore(); let calls = 0;
+    store.submit = async () => { throw new SupplyUnavailableError("heygen", reason); };
+    await assert.rejects(
+      ledgerGuardedCreateAvatar(store, randomUUID(), "heygen", "photo", async () => {
+        calls++; return { providerAvatarId: "asset:no", status: "completed", providerName: "heygen" };
+      }, { verifiedCostUsd: 0.25 }),
+      (e: unknown) => e instanceof AvatarProviderError && e.reason === "budget_exceeded",
+    );
+    assert.equal(calls, 0);
+  });
+}
