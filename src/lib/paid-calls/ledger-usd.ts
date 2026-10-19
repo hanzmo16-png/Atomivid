@@ -39,9 +39,11 @@ export function ceilToLedgerUnit(x: number): number {
   if (!m) return Number.NaN;
   const digits = m[1] + (m[2] ?? ""); const exp = Number(m[3] ?? 0) - (m[2]?.length ?? 0); // x = digits · 10^exp
   const shift = exp + LEDGER_USD_DECIMALS; // unidades de 0.0001 = digits · 10^shift
+  // Sin literales BigInt (target del tsconfig < ES2020).
+  const TEN = BigInt(10), ZERO = BigInt(0), ONE = BigInt(1);
   let units: bigint;
-  if (shift >= 0) units = BigInt(digits) * 10n ** BigInt(shift);
-  else { const d = 10n ** BigInt(-shift); const n = BigInt(digits); units = n / d + (n % d === 0n ? 0n : 1n); }
+  if (shift >= 0) units = BigInt(digits) * TEN ** BigInt(shift);
+  else { const d = TEN ** BigInt(-shift); const n = BigInt(digits); units = n / d + (n % d === ZERO ? ZERO : ONE); }
   return Number(units) / SCALE;
 }
 
