@@ -18,7 +18,7 @@ No me autoapruebo. USD 0: todos los proveedores son mocks loopback. No hubo fusi
 
 ## 2. Auditoría ChatGPT (QA-20261019-1337 / 1407): RED → GREEN
 1. **`acquireCapacityHolds` aceptaba usd=-1.**
-   - Ahora valida TODAS las demandas con `ledgerUsd` antes de leer saldo o escribir cualquier hold, y rechaza el lote completo.
+   - Ahora valida TODAS las demandas con `ledgerUsd` antes de leer saldo o escribir cualquier hold, y rechaza el lote entero.
    - Se retiró `Math.max(0, …)` del store Supabase.
    - Los tests cubren -1, -0.0001, NaN, +Infinity, -Infinity y 1e8, y verifican 0 lecturas de saldo y 0 filas.
    - También se comprueba que el hold guarda el usd ya normalizado.
@@ -76,7 +76,7 @@ No me autoapruebo. USD 0: todos los proveedores son mocks loopback. No hubo fusi
   - D3b: reintento con el tope re-aprobado → completed; 0 llamadas nuevas, mismos objetos y filas del ledger idénticas; director.json `materialFill.spentUsd=0`.
 - **RED `step4-red` (tope holgado en D1): 17 PASS · 5 FAIL.**
 - **QA de medios del MP4 final de D3 (`media_qa.py reel`): 19/19.**
-  - ffprobe: H.264 1080x1920 + AAC, 30.19 s; decodificación completa sin errores; nº de fotogramas coherente; audio −18 dB.
+  - ffprobe: H.264 1080x1920 + AAC, 30.19 s; decodificación íntegra sin errores; nº de fotogramas coherente; audio −18 dB.
   - Las 2 imágenes generadas están en sus planos (NCC 0.99/1.00 con margen) con etiqueta «Recreación IA».
   - Movimiento por plano medido: push_in con escala 1.04–1.10 dentro del ±50 % de lo esperado; pan con dx ±50 %.
   - Subtítulos por OCR: 62/62 palabras.
@@ -117,7 +117,7 @@ No me autoapruebo. USD 0: todos los proveedores son mocks loopback. No hubo fusi
 | Auditoría 3 (aserciones de ledger) | comprobado (GREEN pasa, RED las hace fallar) |
 | Auditoría 4 (arnés autocontenido) | comprobado (clon limpio) |
 | Build Vercel Preview | comprobado (95b094f success) |
-| Paso 3 completo con RED | comprobado |
+| Paso 3 (todas sus aserciones) con RED | comprobado |
 | Imágenes extra en el montaje | comprobado |
 | Sin llamadas con el presupuesto agotado | comprobado |
 | El reintento no regenera | comprobado (D3b) |
@@ -125,4 +125,4 @@ No me autoapruebo. USD 0: todos los proveedores son mocks loopback. No hubo fusi
 | Push-in / pan / transiciones medidos | comprobado |
 | Duración, resolución, audio, decodificación, subtítulos, narración↔visual | comprobado |
 | D-RACE corregido en ledger.ts | no ejecutado (decisión del dueño) |
-| CI de GitHub Actions en el HEAD | no ejecutado (el repo no dispara CI en esta rama) |
+| CI de GitHub Actions en el HEAD | no ejecutado (no verificado en esta entrega) |
