@@ -229,7 +229,7 @@ export function ScriptReview({
 
   return (
     <div className="mt-6">
-      {status === "script_ready" && !usesRecording && <ProductionReadinessNotice requestId={requestId} />}
+      {status === "script_ready" && !usesRecording && <ProductionReadinessNotice requestId={requestId} materialUsd={directorMaterialOffer && Number(materialUsd) > 0 ? Number(materialUsd) : 0} />}
       {status === "script_ready" && recoveryNotice && (
         <Alert tone="info">{recoveryNotice} Puedes ajustar el texto aquí y guardar los cambios antes de producirlo de nuevo.</Alert>
       )}

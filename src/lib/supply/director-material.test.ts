@@ -271,3 +271,14 @@ test("D-RETRY-CEILING: un plano «guardado» que intenta cobrar se detiene (nunc
   await assert.rejects(fillDirectorMaterial({ directed: direct(BEATS), approvedUsd: 0, beatsBySegment: BEATS, sceneTimings: TIMINGS,
     isStored: async () => true, generate: async () => ({ url: "x", costUsd: 0.04 }) }), /cobro inesperado/);
 });
+
+test("F40: la comprobación previa (readiness) incluye el tope de material tecleado — «Puedes continuar» cubre lo que «Generar» reservará", async () => {
+  const { productionDemands } = await import("./production-check");
+  const flags: FeatureFlags = { ...getFeatureFlags(), imageGenerationEnabled: false, visualDirectorEnabled: false, musicProvider: "curated-library", imageProvider: "openai" } as FeatureFlags;
+  const row = { mode: "visual", topic: "t", style: "s", duration_seconds: 30, language: "es", script_json: SCRIPT, recorded_audio_path: null, long_form_production_plan: null } as never;
+  assert.equal(productionDemands(row, "elevenlabs", "before_render", { flags }).demands.find(d => d.provider === "openai"), undefined);
+  assert.equal(productionDemands(row, "elevenlabs", "before_render", { flags, directorMaterialUsd: 2 }).demands.find(d => d.provider === "openai")?.usd, 2);
+  assert.equal(productionDemands(row, "elevenlabs", "before_script", { flags, directorMaterialUsd: 2 }).demands.find(d => d.provider === "openai"), undefined, "solo antes del render");
+  assert.match(src("src/app/dashboard/review/[id]/ScriptReview.tsx"), /<ProductionReadinessNotice requestId=\{requestId\} materialUsd=\{/);
+  assert.match(src("src/app/api/generate/[id]/readiness/route.ts"), /directorMaterialUsd: materialFromQuery\(request\)/);
+});

@@ -126,6 +126,8 @@ function basisFor(provider: string, stage: ProductionEstimate["stage"], unit: st
  */
 export function productionDemands(row: CheckRequest, voiceProvider: string, stage: ProductionEstimate["stage"], opts: {
   flags?: FeatureFlags; scriptProvider?: string;
+  /** F40: new Director material the owner is about to approve (same input the render route reserves for). */
+  directorMaterialUsd?: number;
 } = {}): { demands: JobSupplyDemand[]; lines: EstimateLine[] } {
   const flags = opts.flags ?? getFeatureFlags();
   const mode = row.mode ?? "visual";
@@ -138,7 +140,8 @@ export function productionDemands(row: CheckRequest, voiceProvider: string, stag
     : row.script_json;
   // jobSupplyDemands doubles Reel narration for the pacing correction; the synthetic text keeps that rule.
   const base = jobSupplyDemands({ mode, script_json: scriptSource, recorded_audio_path: row.recorded_audio_path,
-    long_form_production_plan: row.long_form_production_plan ?? null }, voiceProvider, flags);
+    long_form_production_plan: row.long_form_production_plan ?? null }, voiceProvider, flags,
+    stage === "before_render" && opts.directorMaterialUsd && opts.directorMaterialUsd > 0 ? { directorMaterialUsd: opts.directorMaterialUsd } : {});
   const demands = new Map(base.map(d => [d.provider, { ...d }]));
   if (stage === "before_script" && mode !== "long_form" && !row.recorded_audio_path && (opts.scriptProvider ?? "anthropic") === "anthropic") {
     const usd = own === "own" && draft
@@ -227,6 +230,8 @@ export async function checkProduction(args: {
   inputError?: string | null;
   /** Own script compatibility with the duration (narration-fit.ts); null when Atomicvid writes the script. */
   fit?: DurationFit | null;
+  /** F40: the Director material ceiling typed in the review (before_render only), so «Puedes continuar» covers it too. */
+  directorMaterialUsd?: number;
   /** Existing request: its script ledger rows are read so an uncertain or running call is reported (never repeated). */
   requestId?: string | null;
   /** Test seams; production uses the real functions. */
@@ -272,7 +277,7 @@ export async function checkProduction(args: {
   let demands: JobSupplyDemand[] = [];
   let demandsError = false;
   try {
-    const d = productionDemands(args.request, args.voiceProvider, args.stage, { flags: args.flags, scriptProvider: args.scriptProvider });
+    const d = productionDemands(args.request, args.voiceProvider, args.stage, { flags: args.flags, scriptProvider: args.scriptProvider, directorMaterialUsd: args.directorMaterialUsd });
     demands = d.demands;
     estimate = { stage: args.stage, lines: d.lines, ceilingUsd: Math.round(d.lines.reduce((s, l) => s + l.usd, 0) * 100) / 100,
       note: args.stage === "before_script" ? "Techo conservador antes del guion; se recalcula con el guion real antes del video." : "Techo con el guion real; es el que se reserva al iniciar el video." };
