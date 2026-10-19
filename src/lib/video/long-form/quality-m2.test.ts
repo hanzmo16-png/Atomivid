@@ -23,9 +23,11 @@ test("tarjeta grande: tamaños mínimos legibles y rechazo por desbordamiento (n
   assert.equal(fitLargeCard("x".repeat(80), "").fits, false, "una palabra más ancha que la línea no cabe");
 });
 
-test("rótulo de procedencia: solo la recreación IA se rotula, y siempre", () => {
+test("rótulo de procedencia: recreación IA y stock ilustrativo nunca parecen evidencia auténtica", () => {
   assert.equal(provenanceLabel("ai_recreation"), "Recreación IA");
+  assert.equal(provenanceLabel("stock_illustrative"), "Imagen ilustrativa");
   assert.equal(provenanceLabel("archival_documentary"), null);
+  assert.equal(provenanceLabel("data_graphic"), null);
   assert.equal(provenanceLabel(undefined), null);
 });
 
