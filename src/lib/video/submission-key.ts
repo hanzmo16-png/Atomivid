@@ -76,7 +76,8 @@ export function createdUrl(draftKey: string | null, existing = false): string {
   return `/dashboard?created=1${q}`;
 }
 
-/** Back to the form with a message; with `resetDraft`, the form starts a new draft (only after a stale claim). */
-export function formErrorUrl(message: string, resetDraft?: string | null): string {
-  return `/dashboard/new?error=${encodeURIComponent(message)}${resetDraft ? `&reset=${resetDraft}` : ""}`;
+/** Back to the same draft with a message. Errors never authorize a new paid intent. */
+export function formErrorUrl(message: string, options: { blockAvatarReconciliation?: boolean } = {}): string {
+  const blocked = options.blockAvatarReconciliation ? "&blocked=avatar-reconciliation" : "";
+  return `/dashboard/new?error=${encodeURIComponent(message)}${blocked}`;
 }

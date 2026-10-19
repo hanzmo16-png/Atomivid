@@ -10,8 +10,8 @@
  *     response): 0 provider calls;
  *   - it exists without a row and is recent → another submit is creating it right now: 0 calls, say so;
  *   - it exists without a row and is older than STALE_CLAIM_MS → an earlier submit never confirmed; it may have
- *     created an avatar at the provider. Nothing is repeated automatically: 0 calls, the customer is told, and only a
- *     new draft (a deliberate new submit) can create another.
+ *     created an avatar at the provider. Nothing is repeated automatically: 0 calls, the customer is told, and the
+ *     existing intent stays blocked until an operator reconciles it.
  * A provider REFUSAL releases the claim (the photo is removed, as before); an avatar created but not recorded keeps it.
  */
 import { AvatarProviderError } from "@/lib/providers/types";
@@ -81,7 +81,7 @@ export function isFinalAvatarCreationRejection(error: unknown): boolean {
 /** Customer messages; none of them says «no se cobró nada» (the provider may have acted). */
 export const CLAIM_MESSAGES = {
   in_flight: "Esta misma solicitud ya se está procesando (en otra pestaña o en un envío anterior). No se creó otro avatar. Revisa tu panel en unos segundos.",
-  stale: "Un envío anterior de esta misma solicitud no se confirmó y pudo haber creado un avatar en el proveedor. No se repitió. Si vuelves a enviar, se creará una solicitud nueva.",
+  stale: "Un envío anterior de esta misma solicitud no se confirmó y pudo haber creado un avatar en el proveedor. No se repitió y esta solicitud permanece bloqueada para evitar otro posible cobro. Contacta a soporte para conciliarla antes de crear otro avatar.",
   not_recorded: "El avatar se creó en el proveedor pero no se pudo guardar. No se repetirá automáticamente; escríbenos para recuperarlo.",
   uncertain: "No pudimos confirmar si el proveedor recibió la fotografía. Conservamos esta solicitud y no intentaremos crear otro avatar automáticamente. Contacta a soporte para conciliarla.",
 } as const;

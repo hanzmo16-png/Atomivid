@@ -350,8 +350,9 @@ export async function createVideoRequest(formData: FormData) {
     if (claim.kind === "provider_failed") redirect(formErrorUrl(claim.message));
     if (claim.kind === "uncertain") redirect(formErrorUrl(CLAIM_MESSAGES.uncertain));
     if (claim.kind === "in_flight" || claim.kind === "not_recorded") redirect(formErrorUrl(CLAIM_MESSAGES[claim.kind]));
-    // Stale: only a NEW draft (the form rotates the key on `reset`) can create another avatar, by a deliberate submit.
-    if (claim.kind === "stale") redirect(formErrorUrl(CLAIM_MESSAGES.stale, draftKey));
+    // Stale is an uncertain provider outcome, not permission for a new paid intent. Keep the draft identity so a
+    // reload/resend remains pinned to the existing claim until an operator reconciles it.
+    if (claim.kind === "stale") redirect(formErrorUrl(CLAIM_MESSAGES.stale, { blockAvatarReconciliation: true }));
     if (claim.avatar.status !== "ready") {
       // Limitación conocida (documentada en docs/AVATAR_MODE.md): esta
       // primera versión no encola un seguimiento en segundo plano del

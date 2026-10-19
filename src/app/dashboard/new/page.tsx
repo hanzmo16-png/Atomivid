@@ -19,9 +19,9 @@ const INCLUDES = [
 export default async function NewVideoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; blocked?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, blocked } = await searchParams;
   const flags = getFeatureFlags();
   const auth = await createClient();
   const { data: { user } } = await auth.auth.getUser();
@@ -83,6 +83,7 @@ export default async function NewVideoPage({
             // flag global AVATAR_MODE_ENABLED.
             avatarAccess={privateAvatarAccess}
             longFormAccess={longFormBetaAccess}
+            blockAvatarReconciliation={blocked === "avatar-reconciliation"}
           />
         </Card>
 

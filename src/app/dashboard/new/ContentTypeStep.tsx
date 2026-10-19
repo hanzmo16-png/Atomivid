@@ -75,6 +75,7 @@ export function ContentTypeStep({
   existingAvatars,
   avatarAccess,
   longFormAccess,
+  blockAvatarReconciliation = false,
   maxAvatarDurationSeconds = 45,
 }: {
   createVideoRequestAction: (formData: FormData) => void;
@@ -82,6 +83,7 @@ export function ContentTypeStep({
   existingAvatars: { id: string; name: string }[];
   avatarAccess: boolean;
   longFormAccess: boolean;
+  blockAvatarReconciliation?: boolean;
   maxAvatarDurationSeconds?: number;
 }) {
   const [selected, setSelected] = useState<ContentType | null>(null);
@@ -93,6 +95,7 @@ export function ContentTypeStep({
       maxAvatarDurationSeconds={maxAvatarDurationSeconds}
       existingAvatars={existingAvatars}
       initialMode={mode === "avatar" ? "avatar" : "visual"}
+      blockAvatarReconciliation={blockAvatarReconciliation}
     />
   );
 

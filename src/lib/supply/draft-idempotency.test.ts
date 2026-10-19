@@ -343,6 +343,9 @@ test("residual A — resultado incierto y recuperación: nunca se repite createA
   assert.equal((await createAvatarOnce(r.deps(), p2)).kind, "provider_failed");
   assert.equal(r.objects.size, 0);
   assert.match(CLAIM_MESSAGES.stale, /No se repitió/);
+  assert.match(CLAIM_MESSAGES.stale, /permanece bloqueada/);
+  assert.doesNotMatch(CLAIM_MESSAGES.stale, /vuelv[ea]s? a enviar|solicitud nueva/i,
+    "un resultado incierto nunca invita a crear otra intención pagada");
   assert.doesNotMatch(Object.values(CLAIM_MESSAGES).join(" "), /no se (cobró|ha cobrado)/i, "nunca promete que no hubo cobro");
 });
 
@@ -386,6 +389,10 @@ test("la acción y el formulario siguen exactamente ese orden (fuente)", () => {
   assert.ok(id < claim && claim < actions.indexOf("await provider.createAvatar(") && claim < actions.indexOf("const voiceResult = await gatedVoiceSynthesize"));
   assert.doesNotMatch(actions, /\$\{user\.id\}\/\$\{randomUUID\(\)\}/, "ya no hay ruta aleatoria por envío");
   assert.equal(actions.match(/provider\.createAvatar\(/g)?.length, 1, "createAvatar solo dentro de createAvatarOnce");
+  assert.match(actions, /claim\.kind === "stale"\) redirect\(formErrorUrl\(CLAIM_MESSAGES\.stale, \{ blockAvatarReconciliation: true \}\)\)/,
+    "stale vuelve al mismo borrador y bloquea otra creación hasta conciliar");
+  assert.doesNotMatch(actions, /formErrorUrl\(CLAIM_MESSAGES\.stale,\s*draftKey\)/,
+    "stale no convierte una respuesta incierta en otra intención");
   const form = fs.readFileSync(path.join(ROOT, "src/app/dashboard/new/NewVideoForm.tsx"), "utf8");
   assert.doesNotMatch(form, /useState\(\(\) => \(typeof crypto/, "ya no hay un id por pestaña");
   assert.match(form, /acquireDraftKey\(browserStorage\(\), submissionIdRef\.current\)/, "la llave se toma bajo el candado entre pestañas");
@@ -394,9 +401,14 @@ test("la acción y el formulario siguen exactamente ese orden (fuente)", () => {
   assert.ok(form.includes("const [draftReady, setDraftReady] = useState(false)"), "formulario bloqueado desde el primer render");
   assert.ok(form.includes("setDraftReady(Boolean(k))"), "solo se habilita después de obtener clave");
   assert.ok(form.includes('!draftReady ? "Sincronizando borrador'), "botón bloqueado mientras no hay clave");
-  assert.ok(form.includes("onSubmit={event => { if (!draftReady) event.preventDefault(); }}"), "Enter no envía el formulario temprano");
+  assert.ok(form.includes("onSubmit={event => { if (!draftReady || reconciliationBlocked) event.preventDefault(); }}"),
+    "Enter no envía el formulario temprano ni durante conciliación");
   assert.ok(form.includes("disabled={!draftReady}"), "hidden draft key deshabilitada hasta adquirirla");
   assert.ok(form.includes("const version = ++syncVersion.current"), "no sobrescribir con adquisiciones antiguas");
+  assert.doesNotMatch(form, /searchParams\.get\(["']reset["']\)/,
+    "el cliente no rota el borrador por una respuesta de error");
+  assert.match(form, /disabled=\{reconciliationBlocked\}/,
+    "una salida incierta deshabilita también la repetición explícita");
   const page = fs.readFileSync(path.join(ROOT, "src/app/dashboard/page.tsx"), "utf8");
   assert.match(page, /\{created && <DraftKeyRotation draft=\{draft\} \/>\}/, "solo una creación confirmada rota la llave");
 });
