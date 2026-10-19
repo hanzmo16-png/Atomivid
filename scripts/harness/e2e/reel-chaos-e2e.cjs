@@ -71,13 +71,13 @@ async function userView(p, id, tag) {
   return { alerts: alerts.map((a) => a.replace(/\s+/g, " ").slice(0, 400)), raw: (main.match(RAW) ?? [null])[0], continuarConBloqueo: /Puedes continuar/.test(main) && /bloquead|no se puede|detenid/i.test(main), retryLink, excerpt: main.slice(0, 600) };
 }
 const stored = (id) => { const d = path.join(STORE, "videos", id); return fs.existsSync(d) ? execFileSync("find", [d, "-type", "f"]).toString().trim().split("\n").filter(Boolean).map((f) => path.relative(STORE, f)) : []; };
-const billable = (entries) => entries.filter((e) => e.sha256 || e.fault === "drop"); // servidas (cobrables) vs rechazadas 500/429
+const billable = (entries) => entries.filter((e) => e.sha256); // cada imagen servida (incluida la «drop», que se registra con sha256 antes de cortar) = 1 llamada cobrable; 500/429 no
 const matrix = [];
 async function runCase(S, c, run) {
   setFaults({}); setWorkerOverride({ ...WORKER_IMG, ...(c.override ?? {}) });
   const id = await createImgx(S.p, `Caos ${c.id} [imgx] ${run}`, c.id);
   setFaults(c.faults ?? {}); const o0 = OPENAI_LOG().length;
-  const cf = await confirmWithMaterial(S.p, 2);
+  const cf = await confirmWithMaterial(S.p, 2); check(`[${c.id}] el servidor acepta iniciar (confirmación ${cf.status})`, cf.status < 300, cf);
   if (c.kill) { const t = Date.now(); while (Date.now() - t < 180000 && billable(OPENAI_LOG().slice(o0)).length < 1) await sleep(500); await sleep(1500);
     try { execSync("pkill -9 -f 'worker-images.ts'"); } catch {} }
   const v1 = await waitTerminal(id, c.waitMs ?? (c.kill ? 4 * 60000 : 12 * 60000));
