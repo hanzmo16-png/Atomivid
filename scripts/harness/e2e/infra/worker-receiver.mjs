@@ -9,7 +9,7 @@ http.createServer((req, res) => {
     const b = JSON.parse(Buffer.concat(c).toString()); const p = b.client_payload ?? {};
     const tag = `${p.requestId}-a${p.renderAttempt ?? "x"}`; const ov = override();
     fs.appendFileSync(REG, JSON.stringify({ at: new Date().toISOString(), event_type: b.event_type, payload: p, envOverride: Object.keys(ov), script: ov.WORKER_SCRIPT || "scripts/render-worker.ts" }) + "\n");
-    const env = { ...JSON.parse(fs.readFileSync(path.join(LOGDIR, "worker-env.json"), "utf8")), ...ov, REQUEST_ID: p.requestId, RENDER_ATTEMPT: String(p.renderAttempt ?? "") };
+    const env = { ...JSON.parse(fs.readFileSync(process.env.WORKER_ENV ?? path.join(LOGDIR, "worker-env.json"), "utf8")), ...ov, REQUEST_ID: p.requestId, RENDER_ATTEMPT: String(p.renderAttempt ?? "") };
     for (const [k, v] of Object.entries(env)) if (v === null) delete env[k];
     const out = fs.openSync(path.join(LOGDIR, `worker-${tag}.log`), "a");
     const script = env.WORKER_SCRIPT || "scripts/render-worker.ts";

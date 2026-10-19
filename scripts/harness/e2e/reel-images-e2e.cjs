@@ -69,6 +69,9 @@ const WORKER_IMG = { WORKER_SCRIPT: process.env.E2E_IMAGES_WORKER ?? "scripts/ha
  };
 // Material faltante: el guion [imgx] del mock trae escenas de DOS oraciones sobre un tema sin recurso propio; el 2.º plano
 // no puede repetir el recurso del 1.º ⇒ el Director pide material nuevo (ai_image). Sin hooks en el código de producto.
+// Ledger real (pi_paid_operations) de una solicitud; sin catch: un error de consulta aborta el E2E (exit 1).
+const paidOps = async (id) => (await db.query("select idempotency_key, provider, shot_id, method, attempt_kind, status, reserved_usd::text r, committed_usd::text c, provider_job_id, updated_at::text u from public.pi_paid_operations where project_id=$1 order by created_at, idempotency_key", [id])).rows;
+const APPROVED_USD = 2, IMAGE_UNIT_USD_MAX = 0.07; // tope aprobado en la UI; costo unitario del plan (director.json input.budget.unitCostsUsd.ai_image)
 async function confirmWithMaterial(p, usd) {
   const inp = p.locator("#director-material-usd"); await inp.waitFor({ timeout: 30000 }); await inp.fill(String(usd));
   const [resp] = await Promise.all([p.waitForResponse((r) => /\/render$/.test(r.url()) && r.request().method() === "POST"), p.getByRole("button", { name: "Generar video final" }).click()]);
@@ -92,6 +95,8 @@ let browser;
   check("[D1] 0 llamadas al proveedor de imágenes con el presupuesto agotado", calls1 === 0, { calls1 });
   const f1 = fs.existsSync(path.join(STORE, "videos", id1)) ? execFileSync("find", [path.join(STORE, "videos", id1), "-type", "f"]).toString().split("\n").filter((f) => /director-fill|final\.mp4/.test(f)) : [];
   check("[D1] sin imágenes de relleno ni MP4 almacenados", f1.length === 0, f1);
+  const ops1 = await paidOps(id1);
+  check("[D1] ledger: 0 operaciones openai y exactamente 1 de guion (anthropic COMMITTED)", ops1.filter((o) => o.provider === "openai").length === 0 && ops1.filter((o) => o.provider === "anthropic").length === 1 && ops1.find((o) => o.provider === "anthropic")?.status === "COMMITTED", ops1);
 
   // ───── D2. Tope suficiente, intento 1 falla DESPUÉS del relleno (render roto a propósito) ─────
   const id2 = await createReel(S.p, `E2E imagenes extra [imgx] ${run}`, "D2");
@@ -104,6 +109,10 @@ let browser;
   check("[D2] intento 1: relleno generado vía mock (≥1 llamada) y fallo posterior en el render", c2.status < 300 && v2a.status === "failed" && gen1.length >= 1 && v2a.render_attempts === 1, { c2, status: v2a.status, err: v2a.error_message, calls: gen1.length });
   check("[D2] cada imagen generada quedó almacenada (sha del PNG servido = objeto guardado)", gen1.length >= 1 && fillsA.length === gen1.length && gen1.every((g) => fillsA.some((o) => o.sha === g.sha256)), { gen1: gen1.map((g) => g.sha256), fillsA });
 
+  const opsA = (await paidOps(id2)).filter((o) => o.provider === "openai");
+  const fillKeys = fillsA.map((x) => "image:" + path.basename(x.f).replace(/\.png$/, "")).sort();
+  check("[D2] ledger: exactamente 1 operación openai por imagen generada, una por plano (shot_id = clave de contenido del objeto)", opsA.length === gen1.length && JSON.stringify(opsA.map((o) => o.shot_id).sort()) === JSON.stringify(fillKeys) && new Set(opsA.map((o) => o.idempotency_key)).size === opsA.length, { opsA, fillKeys });
+  check("[D2] ledger: cada operación COMMITTED con job registrado, 0 < comprometido ≤ reservado ≤ costo unitario del plan, y Σreservado ≤ tope aprobado", opsA.length > 0 && opsA.every((o) => o.status === "COMMITTED" && o.provider_job_id && o.method === "generate_image" && Number(o.r) > 0 && Number(o.r) <= IMAGE_UNIT_USD_MAX && Number(o.c) > 0 && Number(o.c) <= Number(o.r)) && opsA.reduce((t, o) => t + Number(o.r), 0) <= APPROVED_USD, opsA);
   // ───── D3. Reintento ─────
   // D3a: el botón «Reintentar» del panel (lo que un usuario real pulsa). D3b: si D3a no termina, el mismo POST que hace
   // la pantalla de revisión con el tope aprobado (directorMaterialUsd), desde la sesión del dueño.
@@ -131,8 +140,10 @@ let browser;
   const dj = path.join(STORE, "videos", id2, `attempt-${att}`, "director.json"), mp4 = path.join(STORE, "videos", id2, `attempt-${att}`, "final.mp4");
   let d = null; try { d = JSON.parse(fs.readFileSync(dj, "utf8")); } catch {}
   check("[D3] director.json: ok=true, materialFill con planos rellenados y gasto 0 en el reintento", d?.ok === true && d.materialFill?.shots?.length === gen1.length && d.materialFill.spentUsd === 0, { ok: d?.ok, fill: d?.materialFill });
-  const ledger = (await db.query("select provider, status, reserved_usd::text r, committed_usd::text c from public.pi_paid_operations where request_id=$1 and provider='openai' order by created_at", [id2]).catch(() => ({ rows: [] }))).rows;
-  fs.writeFileSync(path.join(OUT, "D-ledger-openai.json"), JSON.stringify(ledger, null, 2));
+  const opsB = await paidOps(id2); const opsBi = opsB.filter((o) => o.provider === "openai");
+  fs.writeFileSync(path.join(OUT, "D-ledger-openai.json"), JSON.stringify({ afterAttempt1: opsA, afterRetries: opsBi, all: opsB }, null, 2));
+  check("[D3] ledger: los reintentos no crean reservas ni liquidaciones nuevas (filas openai idénticas, mismo updated_at y comprometido)", JSON.stringify(opsBi) === JSON.stringify(opsA), { opsA, opsBi });
+  check("[D3] ledger: 1 sola operación de guion para la solicitud (los reintentos de render no regeneran el guion)", opsB.filter((o) => o.provider === "anthropic").length === 1, opsB.filter((o) => o.provider === "anthropic"));
   fs.writeFileSync(path.join(OUT, "D-report-input.json"), JSON.stringify({ id1, id2, gen1, fillsA, fillsB, mp4: path.relative(STORE, mp4), dj: path.relative(STORE, dj) }, null, 2));
   await S.p.goto(`${BASE}/dashboard/videos/${id2}`); await skipTour(S.p); await S.p.locator("video").first().waitFor(); await shot(S.p, "D3-05-video");
   await closeSession(S);
