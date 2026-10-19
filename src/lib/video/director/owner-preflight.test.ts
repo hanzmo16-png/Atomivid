@@ -122,7 +122,11 @@ test("Reel: la decisión del worker se toma del row y la cuenta, ANTES de reserv
   const block = gv.slice(gv.indexOf("6b. Director"), gv.indexOf("7. Ensamblar"));
   assert.doesNotMatch(block, /paidCall|fetch\(/, "el bloque del Director no descarga ni llama a proveedores por su cuenta");
   assert.equal((block.match(/\bledger:/g) ?? []).length, 1, "un único uso del ledger: la imagen del relleno aprobado");
-  assert.match(block, /const materialBudget = !directed\.ok && directorMaterialBudgetUsd \? await directorMaterialBudgetUsd\(\) : 0;\n\s+if \(!directed\.ok && materialBudget > 0\) \{/, "solo con un tope aprobado (> 0) y un plan que no se puede montar");
+  // D-RETRY-CEILING (T-20261019-1602): el relleno corre en la prueba del dueño aunque el tope sea 0, para reutilizar material ya
+  // pagado y almacenado (coste 0); lo NUEVO sigue limitado por approvedUsd = tope confirmado (material-fill.ts para antes del proveedor).
+  // Sin prueba del dueño (directorMaterialBudgetUsd ausente) nunca hay relleno.
+  assert.match(block, /const materialBudget = !directed\.ok && directorMaterialBudgetUsd \? await directorMaterialBudgetUsd\(\) : 0;[\s\S]*?\n\s+if \(!directed\.ok && directorMaterialBudgetUsd\) \{/, "solo en la prueba del dueño y con un plan que no se puede montar");
+  assert.match(block, /directed, approvedUsd: materialBudget,/, "lo nuevo queda limitado por el tope confirmado, nunca ampliado");
   assert.match(block, /ledger: gate\.ledger, supabase, bucket: STORAGE_BUCKET/, "pasa por la puerta de llamadas pagadas");
   assert.equal(directorRecordPath("u/req/attempt-2/reel-1080x1920.mp4"), "u/req/attempt-2/director.json");
 });

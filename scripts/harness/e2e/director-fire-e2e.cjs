@@ -35,6 +35,7 @@ async function waitTerminal(id, ms = 12 * 60000) { const t = Date.now(); let v; 
 const dispatchesFor = (id) => jsonl(path.join(LOGS, "dispatches.jsonl")).filter((d) => d.payload?.requestId === id || (d.tag ?? "").startsWith(id));
 function ffprobe(f) { return JSON.parse(execFileSync("ffprobe", ["-v", "error", "-print_format", "json", "-show_format", "-show_streams", f]).toString()); }
 const setWorkerOverride = (o) => fs.writeFileSync(path.join(LOGS, "worker-env-override.json"), JSON.stringify(o));
+const OPENAI_LOG = () => jsonl(path.join(LOGS, "openai.jsonl"));
 const WORKER_IMG = { WORKER_SCRIPT: process.env.E2E_IMAGES_WORKER ?? "scripts/harness/e2e/worker-images.ts", IMAGE_PROVIDER: "openai", OPENAI_API_KEY: "local-fake-openai", INTERNAL_PRODUCTION_OWNER_USER_ID: OWNER.id, ATOMIVID_WORKER_LOCAL_FIXTURE: "",
  };
 // Material faltante: el guion [imgx] del mock trae escenas de DOS oraciones sobre un tema sin recurso propio; el 2.º plano
