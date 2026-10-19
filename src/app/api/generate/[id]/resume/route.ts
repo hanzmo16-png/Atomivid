@@ -4,7 +4,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { getRenderWorker } from "@/lib/worker";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { jobSupplyDemands, JobEnvelopeMismatchError } from "@/lib/supply/job";
-import { ensureJobSupplyReady, START_SUPPLY_UNAVAILABLE } from "@/lib/supply/readiness";
+import { ensureJobSupplyReady, RESUME_SUPPLY_UNAVAILABLE } from "@/lib/supply/readiness";
+import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import { supplyGuardRequired } from "@/lib/supply/server";
 import { providerCheck } from "@/lib/video/long-form/production-preflight";
 import { resumeSupplyRequest } from "@/lib/supply/queue";
@@ -43,9 +44,11 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       const demands = jobSupplyDemands(owned as never, getVoiceProvider().name);
       const readiness = await ensureJobSupplyReady(service, demands, { refresh: true });
       if (!readiness.ready) {
+        // A resumed production already advanced: only «nothing new» is proven. Operator detail (what to top up)
+        // goes to the owner only; a customer is never asked to top up Atomivid's provider.
         const failing = readiness.providers.find((r) => !r.ok);
-        const action = failing ? providerCheck(failing, demands.find((d) => d.provider === failing.provider)?.unit ?? "usd").action : null;
-        return NextResponse.json({ error: action ? `${START_SUPPLY_UNAVAILABLE} ${action}` : START_SUPPLY_UNAVAILABLE }, { status: 503, headers: { "Retry-After": "300" } });
+        const action = failing && isInternalProductionOwner(user) ? providerCheck(failing, demands.find((d) => d.provider === failing.provider)?.unit ?? "usd").action : null;
+        return NextResponse.json({ error: RESUME_SUPPLY_UNAVAILABLE, operatorAction: action }, { status: 503, headers: { "Retry-After": "300" } });
       }
     }
     const outcome = await resumeSupplyRequest(service, id, user.id, (input) => worker.trigger(input));

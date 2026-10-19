@@ -1,3 +1,6 @@
+import { isInternalProductionOwner } from "@/lib/billing/internal-production";
+import { MAX_DIRECTOR_MATERIAL_USD } from "@/lib/video/director/material-fill";
+import { renderFailureMessage } from "@/lib/video/job-error";
 import { createHash } from "node:crypto";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
@@ -125,12 +128,18 @@ export default async function ReviewPage({
         requestId={data.id}
         status={data.status}
         initialScript={data.script_json}
-        errorMessage={data.error_message}
+        // Control de costos (2026-10-18): the stored failure is decoded exactly like the history and video
+        // pages do (typed action tag removed, raw provider text classified), never shown raw.
+        errorMessage={data.error_message ? renderFailureMessage(data.error_message) : null}
         usesRecording={Boolean(data.recorded_audio_path)}
         maxAvatarDurationSeconds={data.mode === "avatar" && !data.avatar_provider_video_job_id ? getFeatureFlags().maxAvatarDurationSeconds : undefined}
         recordingDurationSeconds={data.duration_seconds}
         entitlementBlockedReason={avatarEntitlementBlockedReason}
         recovery={recovery}
+        // Anexo C1: only the owner's private tests, only when this Reel is mounted by the Director. The server
+        // re-decides both (render route); this only offers the field.
+        directorMaterialOffer={isInternalProductionOwner(user) && data.mode === "visual" && !data.recorded_audio_path && directorRenderAllowed(user, data)
+          ? { simulatedUsd: directorInspection && "metrics" in directorInspection ? directorInspection.metrics?.estimatedMaxUsd ?? 0 : 0, maxUsd: MAX_DIRECTOR_MATERIAL_USD } : undefined}
       />
     </div>
   );

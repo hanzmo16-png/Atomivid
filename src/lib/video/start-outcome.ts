@@ -19,6 +19,8 @@ export function parseStartOutcome(value: unknown): StartOutcome | null {
   return { retry: v.retry, charge: v.charge, status: v.status, attempts: v.attempts as number };
 }
 
+/** Text stored on a stalled attempt closed by a new start. No zero-charge claim: that attempt may have paid steps. */
+export const STALE_ATTEMPT_CLOSED = "El intento anterior dejó de dar señales de avance y se cerró al iniciar uno nuevo. Lo que ya quedó guardado se conserva.";
 export const NO_CHARGE_PROVEN = "No se generó ningún cargo por este intento.";
 export const CHARGE_UNKNOWN = "Tu solicitud y el plan confirmado siguen guardados.";
 

@@ -92,3 +92,20 @@ export function inspectReel(script: GeneratedScript, opts: ReelAdapterOptions & 
     return { status: "error", mode: "proposal", executable: false, paidCalls: 0, message: err instanceof Error ? err.message.slice(0, 300) : "error desconocido" };
   }
 }
+
+/**
+ * Control de costos (2026-10-18): the review panel simulates the plan with a budget of USD 0 BY DESIGN
+ * (from-reel.ts), so any new material shows up as BUDGET_EXCEEDED, and every planned clip is
+ * LICENSE_PENDING until a real clip is chosen. Those are properties of the simulation, not the
+ * customer's balance, Atomivid's capacity or a block of this production: they are worded so.
+ */
+export const SIMULATION_NOTICE = "Observaciones de la simulación del Director (presupuesto de material nuevo fijado en USD 0 a propósito). No son tu saldo, ni la capacidad de Atomicvid, ni un bloqueo de esta producción: la disponibilidad real se comprueba al iniciar.";
+export function simulatedIssueText(issue: { code: string; detail: string; shotId?: string | null }): string {
+  const where = issue.shotId ? ` (plano ${issue.shotId})` : "";
+  if (issue.code === "BUDGET_EXCEEDED") {
+    const usd = /^([0-9.]+)\s*>/.exec(issue.detail)?.[1];
+    return `Simulación${where}: este plan pediría material nuevo${usd ? ` (máx. estimado USD ${Number(usd).toFixed(2)})` : ""}; en la simulación no se asigna presupuesto para eso. No es tu saldo.`;
+  }
+  if (issue.code === "LICENSE_PENDING") return `Simulación${where}: la licencia del material se confirma con el clip real al generar.`;
+  return `Simulación${where}: ${issue.detail} (${issue.code})`;
+}

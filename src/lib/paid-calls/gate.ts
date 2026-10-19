@@ -28,6 +28,7 @@ import {
   ReconciliationRequiredError,
   type LedgerStore,
   type PaidOperation,
+  type PaidOpStatus,
   type ProviderPort,
 } from "@/lib/production-intelligence/ledger";
 import { GenerativeProviderError } from "@/lib/providers/types";
@@ -65,8 +66,62 @@ export type PaidCallHooks<T> = {
   classify?: (err: unknown) => PaidCallClassification;
   /** Retries after a pre-acceptance refusal. Default 0 (economically uncertain). Never applies to accepted/uncertain failures. */
   maxRejectedRetries?: number;
+  /** Wait before retry number `attempt` (1-based) of a pre-acceptance refusal; absent or 0 = immediate. */
+  retryDelayMs?: (attempt: number) => number;
+  /**
+   * Runs after the wait and BEFORE the retry calls the provider, with the retry's row already reserved. Throwing
+   * aborts the chain: the reserved retry row is released (REFUNDED, RELEASED_RETRY_REF) and the error propagates.
+   * Callers use it to re-check request-level state (another operation uncertain or active) with fresh data.
+   */
+  beforeRetry?: (ctx: { key: string; attemptOrdinal: number }) => Promise<void>;
   now?: () => string;
 };
+
+/** resultRef of a retry reservation released because its chain was aborted before calling the provider. */
+export const RELEASED_RETRY_REF = "released:retry-aborted-before-call";
+/** resultRef of a retry reservation released because the rejected attempt before it could not be settled (its CAS was lost). */
+export const RELEASED_SETTLEMENT_LOST_REF = "released:previous-attempt-settlement-lost";
+
+export type PaidCallBlockState = "in_flight" | "requires_reconciliation";
+type ReadStatus = PaidOpStatus | "missing" | "unreadable";
+
+/**
+ * CORRECCIÓN-2 (T32): the compare-and-set that settles a rejected attempt (SUBMITTED → REFUNDED) was lost, either because
+ * the row changed concurrently (`false`) or because the write failed. The chain stops without calling the provider again;
+ * the retry reservation it owned is released with RELEASED_SETTLEMENT_LOST_REF; both rows are re-read and left as they
+ * are. `block` is conservative: "in_flight" while any of the two rows is still live, else "requires_reconciliation".
+ */
+export class PaidCallSettlementLostError extends ReconciliationRequiredError {
+  override name = "PaidCallSettlementLostError";
+  constructor(
+    readonly block: PaidCallBlockState,
+    readonly key: string,
+    readonly nextKey: string,
+    readonly rows: { previous: ReadStatus; retry: ReadStatus; retryReleased: boolean | "write_failed" | "not_owned" },
+    readonly cause?: unknown,
+  ) {
+    super(`${key}: the settlement of the rejected attempt was not recorded (${cause instanceof Error ? `write failed: ${cause.message}` : "row changed concurrently"}); rows re-read: previous=${rows.previous}, retry=${rows.retry} (released=${String(rows.retryReleased)}); blocked as ${block}, no further provider call`);
+  }
+}
+
+const LIVE_STATUSES: ReadonlySet<string> = new Set<PaidOpStatus>(["RESERVED", "SUBMITTED", "PROVIDER_JOB_RECORDED"]);
+
+async function settlementLost(store: LedgerStore, key: string, nextKey: string, ownsRetry: boolean, now: () => string, cause: unknown): Promise<PaidCallSettlementLostError> {
+  let retryReleased: boolean | "write_failed" | "not_owned" = "not_owned";
+  if (ownsRetry) {
+    try {
+      retryReleased = await store.update(nextKey, "RESERVED", { status: "REFUNDED", committedUsd: 0, resultRef: RELEASED_SETTLEMENT_LOST_REF, updatedAt: now() });
+    } catch {
+      retryReleased = "write_failed";
+    }
+  }
+  // Re-read, never rewrite: whatever state the rows really have is preserved and reported.
+  const read = async (k: string): Promise<ReadStatus> => { try { return (await store.get(k))?.status ?? "missing"; } catch { return "unreadable"; } };
+  const previous = await read(key);
+  const retry = await read(nextKey);
+  const block: PaidCallBlockState = LIVE_STATUSES.has(previous) || LIVE_STATUSES.has(retry) ? "in_flight" : "requires_reconciliation";
+  return new PaidCallSettlementLostError(block, key, nextKey, { previous, retry, retryReleased }, cause);
+}
 
 export type GuardedPaidCall<T> = { result: T; reused: boolean; costUsd: number; key: string; attemptOrdinal: number };
 
@@ -164,12 +219,44 @@ export async function guardPaidCall<T>(store: LedgerStore, spec: PaidCallSpec, h
       }
       if (c.kind === "rejected" || c.kind === "rejected_final") {
         const message = err instanceof Error ? err.message : String(err);
-        await store.update(key, "SUBMITTED", { status: "REFUNDED", committedUsd: 0, resultRef: `${REJECTED_REF}${c.kind}:${message.slice(0, 200)}`, updatedAt: now() });
-        if (c.kind === "rejected" && ordinal < maxRejectedRetries && !isBillingUncertainRefusal(err)) {
-          lastRejection = err;
-          continue;
+        const refund = { status: "REFUNDED" as const, committedUsd: 0, resultRef: `${REJECTED_REF}${c.kind}:${message.slice(0, 200)}`, updatedAt: now() };
+        if (!(c.kind === "rejected" && ordinal < maxRejectedRetries && !isBillingUncertainRefusal(err))) {
+          await store.update(key, "SUBMITTED", refund);
+          throw err;
         }
-        throw err;
+        // Exclusion across the wait: the NEXT attempt's row is reserved BEFORE this one is refunded, so at no instant
+        // is the request without a live (RESERVED/SUBMITTED) row; a concurrent intent of the same request is held
+        // off by the intent selector for the whole chain, not only while a call is in flight. The insert is unique:
+        // if the next key already exists, someone else owns that attempt and this chain stops without calling again.
+        const nextKey = paidCallKey(spec, ordinal + 1);
+        const reservedNext = await store.insert({
+          idempotencyKey: nextKey, projectId: spec.projectId, shotId: spec.shotId, provider: spec.provider, model: spec.model, method: spec.method,
+          attemptKind: "rejected_retry", reservedUsd: spec.reservedUsd, capacityUnits: spec.capacityUnits,
+          status: "RESERVED", providerJobId: null, resultRef: null, committedUsd: null, updatedAt: now(),
+        });
+        // CORRECCIÓN-2: the settlement is a compare-and-set. Losing it (false, or a write error) means the rejected row
+        // changed under this chain or the ledger is unreliable: no further provider call, release of the retry row
+        // this chain owns (with its own cause), re-read of both rows and a typed conservative block. Nothing is rewritten.
+        let settled: boolean;
+        try {
+          settled = await store.update(key, "SUBMITTED", refund);
+        } catch (writeErr) {
+          throw await settlementLost(store, key, nextKey, reservedNext, now, writeErr);
+        }
+        if (!settled) throw await settlementLost(store, key, nextKey, reservedNext, now, undefined);
+        if (!reservedNext) throw err;
+        lastRejection = err;
+        const delay = hooks.retryDelayMs?.(ordinal + 1) ?? 0;
+        if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+        if (hooks.beforeRetry) {
+          try {
+            await hooks.beforeRetry({ key: nextKey, attemptOrdinal: ordinal + 1 });
+          } catch (guardErr) {
+            await store.update(nextKey, "RESERVED", { status: "REFUNDED", committedUsd: 0, resultRef: RELEASED_RETRY_REF, updatedAt: now() });
+            throw guardErr;
+          }
+        }
+        continue;
       }
       await store.update(key, "SUBMITTED", { status: "RECONCILIATION_REQUIRED", updatedAt: now() });
       throw err;

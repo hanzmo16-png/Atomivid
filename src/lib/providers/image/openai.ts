@@ -1,4 +1,5 @@
 import { MissingEnvVarError } from "@/lib/env-errors";
+import { openaiImageEstimatedCostUsd } from "@/lib/video/image-pricing";
 import { GenerativeProviderError, type GenerativeAsset, type ImageGenerationRequest, type ImageProvider } from "../types";
 
 /**
@@ -81,7 +82,8 @@ const DEFAULT_QUALITY = process.env.OPENAI_IMAGE_QUALITY || "medium";
 // Exportado para que un estimador de costo PRE-generación (ver
 // production-plan.ts) pueda reusar la misma tarifa real, nunca inventar
 // una propia.
-export const ESTIMATED_COST_USD = Number(process.env.OPENAI_IMAGE_ESTIMATED_COST_USD || "0.05");
+// Anexo C1 (corrección 2): the same estimate the Director budgets with (pricing.ts), never a second copy.
+export const ESTIMATED_COST_USD = openaiImageEstimatedCostUsd();
 const TIMEOUT_MS = Number(process.env.OPENAI_IMAGE_TIMEOUT_MS || "60000");
 const MAX_RETRIES = Number(process.env.OPENAI_IMAGE_MAX_RETRIES || "1");
 

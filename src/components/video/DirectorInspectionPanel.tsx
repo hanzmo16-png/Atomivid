@@ -1,4 +1,4 @@
-import { inspectionMotionSummary, inspectionMotionText, type ReelInspection } from "@/lib/video/director/reel-inspection";
+import { inspectionMotionSummary, inspectionMotionText, simulatedIssueText, SIMULATION_NOTICE, type ReelInspection } from "@/lib/video/director/reel-inspection";
 
 const fmt = (s: number) => `${s.toFixed(1)} s`;
 
@@ -35,7 +35,7 @@ export function DirectorInspectionPanel({ inspection }: { inspection: ReelInspec
               <li>Imagen fija: {motion?.still}</li>
               <li>Decisiones pendientes: {inspection.metrics.pendingDecisions}</li>
               <li>Licencias por revisar: {inspection.metrics.licensePending}</li>
-              <li>Material nuevo (máx. estimado): USD {inspection.metrics.estimatedMaxUsd.toFixed(2)}</li>
+              <li>Material nuevo que pediría el plan (simulación, máx.): USD {inspection.metrics.estimatedMaxUsd.toFixed(2)}</li>
               <li>Variedad de recetas: {inspection.metrics.recipeVariety}</li>
               <li>Misma receta seguida (máx.): {inspection.metrics.maxSameRecipeRun}</li>
             </ul>
@@ -50,9 +50,12 @@ export function DirectorInspectionPanel({ inspection }: { inspection: ReelInspec
             ))}
           </ol>
           {inspection.issues.length > 0 && (
-            <ul className="mt-3 list-disc pl-5 text-ink-muted">
-              {inspection.issues.slice(0, 30).map((i, n) => <li key={n}>{i.code}{i.shotId ? ` (${i.shotId})` : ""}: {i.detail}</li>)}
-            </ul>
+            <>
+              <p className="mt-3 text-xs text-ink-faint" data-testid="director-simulation-notice">{SIMULATION_NOTICE}</p>
+              <ul className="mt-1 list-disc pl-5 text-ink-muted">
+                {inspection.issues.slice(0, 30).map((i, n) => <li key={n}>{simulatedIssueText(i)}</li>)}
+              </ul>
+            </>
           )}
         </>
       )}

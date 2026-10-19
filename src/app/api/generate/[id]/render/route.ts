@@ -5,11 +5,12 @@ import { isLongFormScriptJson } from "@/lib/video/long-form/script-json";
 import { editorialApprovalError } from "@/lib/video/long-form/editorial";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { jobSupplyDemands, releaseUnusedJobSupply, reserveJobSupply } from "@/lib/supply/job";
+import { approvedDirectorMaterialUsd, productionProfile } from "@/lib/video/director/material-fill";
 import { ensureJobSupplyReady, START_SUPPLY_UNAVAILABLE } from "@/lib/supply/readiness";
 import { supplyGuardRequired } from "@/lib/supply/server";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { NextResponse } from "next/server";
-import type { StartOutcome } from "@/lib/video/start-outcome";
+import { STALE_ATTEMPT_CLOSED, type StartOutcome } from "@/lib/video/start-outcome";
 import { preReservationFailure } from "@/lib/video/start-failure";
 import { encodeStoredFailure } from "@/lib/video/failure-action";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
@@ -18,6 +19,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getRenderWorker } from "@/lib/worker";
 import { assertCanGenerate } from "@/lib/billing/quota";
+import { isInternalProductionOwner } from "@/lib/billing/internal-production";
+import { checkHttpStatus, checkProductionForRequest, checkResponseBody, costIncrease } from "@/lib/supply/production-check";
 import { loadAvatarRecovery } from "@/lib/video/avatar/recovery";
 import { avatarRenderDurationError } from "@/lib/video/avatar/duration";
 import { evaluateRenderStart } from "@/lib/video/render-guard";
@@ -188,14 +191,42 @@ export async function POST(
       }
     }
 
-    let check: Awaited<ReturnType<typeof assertCanGenerate>>;
-    try {
-      check = await assertCanGenerate(service, user.id, videoRequest.mode, user);
-    } catch (error) {
-      throw new RenderStageError("check_subscription", error);
-    }
-    if (!check.allowed) {
-      return NextResponse.json({ error: check.reason }, { status: 402 });
+    // Control de costos (2026-10-18): Reel and Avatar re-run the pre-spend check with the REAL script
+    // (plan, prices, provider capacity), so the customer is told who must act — never asked to top up
+    // Atomivid's provider. Long Form keeps its confirmed-plan flow below (owner-only beta).
+    if (videoRequest.mode !== "long_form") {
+      const check = await checkProductionForRequest({ service, user, ownerId: user.id, stage: "before_render", request: videoRequest });
+      if (check.outcome !== "ready") {
+        const body = checkResponseBody(check);
+        // The owner runs Atomivid: they also get the operator action (what to top up and how much).
+        const owner = isInternalProductionOwner(user);
+        const failing = check.providers.find((r) => !r.ok);
+        const action = owner && failing ? providerCheck(failing, failing.provider === "elevenlabs" ? "character" : "usd").action : null;
+        return NextResponse.json({ ...body, operatorAction: action, outcome: { ...nothingStarted(videoRequest), retry: body.outcome.retry } },
+          { status: checkHttpStatus(check), headers: check.outcome === "provider_unavailable" || check.outcome === "unverifiable" ? { "Retry-After": "300" } : undefined });
+      }
+      // The budget the customer saw before the script was a ceiling. If the real script needs MORE, they
+      // accept the new ceiling explicitly before anything else is spent; the script is kept either way.
+      const increase = costIncrease(videoRequest, check);
+      if (increase) {
+        const accepted = await acceptedCeiling(request);
+        if (accepted === null || accepted + 1e-9 < increase.afterUsd) {
+          return NextResponse.json({
+            error: `El video con tu guion final necesita un techo de proveedores de hasta USD ${increase.afterUsd.toFixed(2)}, mayor que el estimado antes del guion (USD ${increase.beforeUsd.toFixed(2)}). No se inició nada ni se cobró; tu guion se conserva. Confirma el nuevo techo para continuar o acorta el guion.`,
+            costChange: increase, outcome: nothingStarted(videoRequest),
+          }, { status: 409 });
+        }
+      }
+    } else {
+      let check: Awaited<ReturnType<typeof assertCanGenerate>>;
+      try {
+        check = await assertCanGenerate(service, user.id, videoRequest.mode, user);
+      } catch (error) {
+        throw new RenderStageError("check_subscription", error);
+      }
+      if (!check.allowed) {
+        return NextResponse.json({ error: check.reason }, { status: 402 });
+      }
     }
 
     // Visual release gate of v4+ plans, BEFORE reserving anything or spending an attempt: the worker
@@ -207,8 +238,22 @@ export async function POST(
       if (!visual.ready) return NextResponse.json({ error: visualBlockMessage(visual) }, { status: 409 });
     }
 
+    // Anexo C1: new Director material the OWNER approved for this production. Decided here, on the server, from the
+    // verified user (productionProfile), never from a browser flag alone; customers keep 0.
+    const materialRequest = await requestedDirectorMaterial(request);
+    const material = approvedDirectorMaterialUsd(productionProfile(isInternalProductionOwner(user)), materialRequest);
+    if (!material.ok) return NextResponse.json({ error: `${material.error} No se inició nada ni se cobró.`, outcome: nothingStarted(videoRequest) }, { status: 422 });
+    const directorMaterialUsd = material.usd > 0 && videoRequest.mode === "visual" && directorRenderAllowed(user, videoRequest) ? material.usd : 0;
+    // The ceiling only exists if it can be reserved in a real image provider's envelope (a fixture is never reserved).
+    if (directorMaterialUsd > 0 && ["fixture", "curated-library"].includes(getFeatureFlags().imageProvider)) {
+      return NextResponse.json({ error: "El material nuevo del Director no está disponible: Atomicvid no tiene configurado un proveedor de imágenes. Pon el tope en 0 o pide que se configure. No se inició nada ni se cobró.", outcome: nothingStarted(videoRequest) }, { status: 422 });
+    }
+    if (material.usd > 0 && !directorMaterialUsd) {
+      return NextResponse.json({ error: "Este video no se monta con el Director, así que no necesita tope de material nuevo. No se inició nada ni se cobró.", outcome: nothingStarted(videoRequest) }, { status: 422 });
+    }
+
     // Before the reservation nothing ran or was held: the request is unchanged (same status and attempts).
-    const nothingReserved: StartOutcome = { retry: "available", charge: "none_proven", status: videoRequest.status, attempts: videoRequest.render_attempts };
+    let nothingReserved: StartOutcome = { retry: "available", charge: "none_proven", status: videoRequest.status, attempts: videoRequest.render_attempts };
     // Resolved BEFORE reserving: a missing worker configuration must not leave a held reservation behind.
     let worker: ReturnType<typeof getRenderWorker>;
     try {
@@ -217,19 +262,38 @@ export async function POST(
       const failure = preReservationFailure(error, nothingReserved);
       return NextResponse.json(failure.body, { status: failure.status });
     }
+    // Control de costos (2026-10-18): restarting a STALLED attempt (status still "processing") used to ask
+    // pi_reserve_job_supply for attempt N+1 while the row said "processing N" — a state the function only
+    // accepts as failed/script_ready — so it always answered «request state changed» and the customer was
+    // told providers lacked capacity. The stalled attempt is closed first, by a compare-and-set on the very
+    // attempt that was judged stale, and only the UNUSED part of its envelope is released (uncertain paid
+    // calls stay held in the ledger, never released). Then the new attempt reserves normally.
+    if (videoRequest.status === "processing") {
+      let closeQuery = service.from("video_requests")
+        .update({ status: "failed", progress_stage: null, error_message: encodeStoredFailure(STALE_ATTEMPT_CLOSED, "retry") })
+        .eq("id", id).eq("status", "processing").eq("render_attempts", videoRequest.render_attempts);
+      closeQuery = videoRequest.render_started_at ? closeQuery.eq("render_started_at", videoRequest.render_started_at) : closeQuery.is("render_started_at", null);
+      const closed = await closeQuery.select("id");
+      if (closed.error) throw new RenderStageError("mark_processing", closed.error);
+      if (!closed.data?.length) return NextResponse.json({ error: "El estado cambió justo antes de iniciar el render. Intenta de nuevo." }, { status: 409 });
+      await releaseUnusedJobSupply(service, id, videoRequest.render_attempts).catch(() => undefined);
+      videoRequest = { ...videoRequest, status: "failed" };
+      nothingReserved = { ...nothingReserved, status: "failed" };
+    }
     try {
       const demands = jobSupplyDemands(videoRequest, videoRequest.mode === "long_form"
         ? videoRequest.long_form_production_plan?.providers.voice ?? "unconfigured"
-        : getVoiceProvider().name);
+        : getVoiceProvider().name, undefined, { directorMaterialUsd });
       if (supplyGuardRequired()) {
         // Same readiness rule as the preflight: stale balances of THIS job's
         // providers are re-read (billing GET only) before the atomic reservation.
         const readiness = await ensureJobSupplyReady(service, demands);
         if (!readiness.ready) {
           // Actionable: which provider, how much is missing and what to top up (nothing was reserved or charged).
+          // Operator detail (what to top up) only for the owner; a customer is never asked to top up Atomivid's provider.
           const failing = readiness.providers.find((r) => !r.ok);
-          const action = failing ? providerCheck(failing, demands.find((d) => d.provider === failing.provider)?.unit ?? "usd").action : null;
-          return NextResponse.json({ error: action ? `${START_SUPPLY_UNAVAILABLE} ${action}` : START_SUPPLY_UNAVAILABLE, outcome: nothingReserved }, { status: 503, headers: { "Retry-After": "300" } });
+          const action = failing && isInternalProductionOwner(user) ? providerCheck(failing, demands.find((d) => d.provider === failing.provider)?.unit ?? "usd").action : null;
+          return NextResponse.json({ error: START_SUPPLY_UNAVAILABLE, operatorAction: action, outcome: nothingReserved }, { status: 503, headers: { "Retry-After": "300" } });
         }
       }
       await reserveJobSupply(service, id, videoRequest.render_attempts + 1, demands);
@@ -288,6 +352,7 @@ export async function POST(
     }
 
     try {
+      // Anexo C1: nothing about the material travels in the dispatch; the worker reads it from the envelope reserved above.
       await worker.trigger({ requestId: id, renderAttempt: videoRequest.render_attempts + 1, mode: videoRequest.mode });
     } catch (error) {
       const diagnosticId = generateDiagnosticId();
@@ -338,5 +403,31 @@ export async function POST(
     const diagnosticId = generateDiagnosticId();
     logRenderError("POST /render (inesperado)", error, diagnosticId);
     return NextResponse.json({ error: classifyRenderError(error, diagnosticId) }, { status: 500 });
+  }
+}
+
+/** Nothing ran or was held: the request keeps its status and attempts. */
+function nothingStarted(row: { status: string; render_attempts: number }): StartOutcome {
+  return { retry: "available", charge: "none_proven", status: row.status, attempts: row.render_attempts };
+}
+
+/** Optional `{ acceptedCeilingUsd }` body: the new ceiling the customer confirmed after a cost change. */
+/** Raw `directorMaterialUsd` from the JSON body (validated by approvedDirectorMaterialUsd); absent = undefined. */
+async function requestedDirectorMaterial(request: Request): Promise<unknown> {
+  try {
+    const body = await request.clone().json() as { directorMaterialUsd?: unknown };
+    return body?.directorMaterialUsd;
+  } catch {
+    return undefined;
+  }
+}
+
+async function acceptedCeiling(request: Request): Promise<number | null> {
+  try {
+    const body = await request.clone().json() as { acceptedCeilingUsd?: unknown };
+    const n = Number(body?.acceptedCeilingUsd);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
   }
 }

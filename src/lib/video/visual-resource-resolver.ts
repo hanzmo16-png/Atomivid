@@ -41,8 +41,9 @@ export async function findExistingGeneratedImage(
   bucket: string,
   requestId: string,
   sceneIndex: number,
+  objectKey?: string,
 ): Promise<{ path: string } | null> {
-  const prefix = generatedImageObjectPrefix(sceneIndex);
+  const prefix = objectKey ?? generatedImageObjectPrefix(sceneIndex);
   const { data, error } = await supabase.storage.from(bucket).list(requestId, { search: prefix });
   if (error || !data) return null;
   const match = data.find((f) => f.name.startsWith(prefix));
@@ -60,6 +61,7 @@ export async function resolveGeneratedImageForScene({
   remainingBudgetUsd,
   signedUrlTtlSeconds,
   ledger,
+  objectKey,
 }: {
   supabase: SupabaseClient;
   bucket: string;
@@ -77,8 +79,14 @@ export async function resolveGeneratedImageForScene({
    * vuelve a generar. El fixture (sin red, sin costo) no pasa por ella.
    */
   ledger?: LedgerStore;
+  /**
+   * Anexo C1: a second image for the same scene (the Director's fill of one shot) needs its own object name and its
+   * own ledger row; otherwise it would collide with the scene's image (reused, or a COMMITTED row refusing to pay
+   * again). Absent = the scene image, exactly as before. Reuse on retry keeps working with the key.
+   */
+  objectKey?: string;
 }): Promise<GeneratedImageOutcome> {
-  const existing = await findExistingGeneratedImage(supabase, bucket, artifactPrefix, sceneIndex);
+  const existing = await findExistingGeneratedImage(supabase, bucket, artifactPrefix, sceneIndex, objectKey);
   if (existing) {
     const { data, error } = await supabase.storage.from(bucket).createSignedUrl(existing.path, signedUrlTtlSeconds);
     if (error || !data) {
@@ -111,7 +119,7 @@ export async function resolveGeneratedImageForScene({
       throw new Error(`El proveedor de imagen "${imageProvider.name}" devolvió un archivo inválido: ${validation.reason}`);
     }
 
-    const path = `${artifactPrefix}/${generatedImageObjectPrefix(sceneIndex)}.${asset.extension}`;
+    const path = `${artifactPrefix}/${objectKey ?? generatedImageObjectPrefix(sceneIndex)}.${asset.extension}`;
     const { error: uploadError } = await supabase.storage
       .from(bucket)
       .upload(path, asset.buffer, { contentType: asset.mimeType, upsert: true });
@@ -133,7 +141,7 @@ export async function resolveGeneratedImageForScene({
       ledger,
       {
         projectId: requestId,
-        shotId: `image:scene-${sceneIndex}`,
+        shotId: `image:${objectKey ?? `scene-${sceneIndex}`}`,
         provider: imageProvider.name,
         model: imageProvider.name,
         method: "generate_image",

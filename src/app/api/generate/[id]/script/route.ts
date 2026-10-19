@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { generateScriptForRequest } from "@/lib/video/generate-script";
-import { assertCanGenerate } from "@/lib/billing/quota";
+import { checkHttpStatus, checkProductionForRequest, checkResponseBody } from "@/lib/supply/production-check";
 import { recordScriptCall } from "@/lib/billing/usage";
 import { classifyScriptError, logScriptError } from "@/lib/video/script-error";
 import { generateDiagnosticId } from "@/lib/video/render-error";
@@ -115,9 +115,15 @@ export async function POST(
       );
     }
 
-    const check = await assertCanGenerate(service, user.id, videoRequest.mode, user);
-    if (!check.allowed) {
-      return NextResponse.json({ error: check.reason }, { status: 402 });
+    // Control de costos (2026-10-18): plan, prices and Atomivid's provider capacity for the WHOLE
+    // production are checked here, before the script — the first paid call. A foreseeable blocker stops
+    // now, with who must act; nothing is reserved by this check (the script call is still admitted
+    // atomically by pi_submit_with_supply, and the render reserves its envelope with the real script).
+    const check = await checkProductionForRequest({ service, user, ownerId: user.id, stage: "before_script",
+      request: { mode: videoRequest.mode, duration_seconds: videoRequest.duration_seconds, language: videoRequest.language,
+        topic: videoRequest.topic, style: videoRequest.style, recorded_audio_path: videoRequest.recorded_audio_path, script_json: null } });
+    if (check.outcome !== "ready") {
+      return NextResponse.json(checkResponseBody(check), { status: checkHttpStatus(check) });
     }
 
     const outcome = await runScriptGeneration({

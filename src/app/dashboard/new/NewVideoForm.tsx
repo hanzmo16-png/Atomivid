@@ -60,8 +60,13 @@ export function NewVideoForm({
   // Switching from a longer Reel to Avatar cannot retain an invalid hidden target.
   const selectedDuration = availableDurations.includes(duration) ? duration : (availableDurations[0] ?? 30);
 
+  // One id per form instance: a double click, a browser resend or a second submit of the SAME form reuses
+  // it, so the server can recognise the repeat instead of paying text-to-speech twice (control de costos).
+  const [submissionId] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : ""));
+
   return (
     <form action={action} className="space-y-5">
+      <input type="hidden" name="submission_id" value={submissionId} />
       <Field id="topic" label="Tema del video">
         <textarea
           id="topic"

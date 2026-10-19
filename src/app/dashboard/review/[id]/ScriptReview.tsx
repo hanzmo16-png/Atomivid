@@ -1,5 +1,6 @@
 "use client";
 
+import { ProductionReadinessNotice } from "@/components/video/ProductionReadinessNotice";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,6 +22,7 @@ export function ScriptReview({
   recovery,
   maxAvatarDurationSeconds,
   recordingDurationSeconds,
+  directorMaterialOffer,
 }: {
   requestId: string;
   status: string;
@@ -48,9 +50,13 @@ export function ScriptReview({
    * it is not offered. The render route enforces the same rule.
    */
   recovery?: { kind: "action"; label: string; note: string } | { kind: "blocked"; message: string };
+  /** Anexo C1 (owner tests with the Director only): ceiling of new Director material to approve for this video. */
+  directorMaterialOffer?: { simulatedUsd: number; maxUsd: number };
 }) {
   const router = useRouter();
   const [script, setScript] = useState(initialScript);
+  // Anexo C1: the simulated need, rounded up to cents, as the suggested ceiling (the owner can change it, or 0).
+  const [materialUsd, setMaterialUsd] = useState(() => directorMaterialOffer ? (Math.ceil(directorMaterialOffer.simulatedUsd * 100 - 1e-6) / 100).toFixed(2) : "0");
   const [dirty, setDirty] = useState(false);
   const [recoveryNotice, setRecoveryNotice] = useState(errorMessage);
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
@@ -65,6 +71,9 @@ export function ScriptReview({
   const [regeneratingAll, setRegeneratingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsSubscription, setNeedsSubscription] = useState(false);
+  // Control de costos (2026-10-18): the real script needs a higher provider ceiling than the one estimated
+  // before it. Nothing started; the script is kept. The customer accepts the new ceiling explicitly.
+  const [costChange, setCostChange] = useState<{ beforeUsd: number; afterUsd: number } | null>(null);
 
   const recoveryAction = status === "failed" && recovery?.kind === "action" ? recovery : null;
   const canGenerate = status === "script_ready" || diagnosticRetry || recoveryAction !== null;
@@ -153,11 +162,13 @@ export function ScriptReview({
     }
   }
 
-  async function generateFinalVideo() {
+  async function generateFinalVideo(acceptedCeilingUsd?: number) {
+    const material = directorMaterialOffer ? Number(materialUsd || "0") : 0;
     if (entitlementBlocked || durationBlockedReason) return;
     setGenerating(true);
     setError(null);
     setNeedsSubscription(false);
+    setCostChange(null);
 
     if (dirty) {
       const ok = await saveChanges();
@@ -168,10 +179,19 @@ export function ScriptReview({
     }
 
     try {
-      const res = await fetch(`/api/generate/${requestId}/render`, { method: "POST" });
+      const body = { ...(acceptedCeilingUsd ? { acceptedCeilingUsd } : {}), ...(material > 0 ? { directorMaterialUsd: material } : {}) };
+      const res = await fetch(`/api/generate/${requestId}/render`, Object.keys(body).length
+        ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
+        : { method: "POST" });
       const result = await safeParseJsonResponse(res);
       if (!result.ok) {
         if (result.status === 402) setNeedsSubscription(true);
+        const change = (result.body as { costChange?: { beforeUsd?: unknown; afterUsd?: unknown } } | undefined)?.costChange;
+        if (result.status === 409 && change && typeof change.beforeUsd === "number" && typeof change.afterUsd === "number") {
+          setCostChange({ beforeUsd: change.beforeUsd, afterUsd: change.afterUsd });
+          setGenerating(false);
+          return;
+        }
         throw new Error(result.error);
       }
       router.push("/dashboard");
@@ -183,6 +203,7 @@ export function ScriptReview({
 
   return (
     <div className="mt-6">
+      {status === "script_ready" && !usesRecording && <ProductionReadinessNotice requestId={requestId} />}
       {status === "script_ready" && recoveryNotice && (
         <Alert tone="info">{recoveryNotice} Puedes ajustar el texto aquí y guardar los cambios antes de producirlo de nuevo.</Alert>
       )}
@@ -279,6 +300,21 @@ export function ScriptReview({
           <Alert tone="danger">{error}</Alert>
         </div>
       )}
+      {costChange && (
+        <div className="mt-4" data-testid="cost-change">
+          <Alert tone="warning">
+            <p className="font-medium">El video con tu guion final necesita un techo de proveedores mayor.</p>
+            <p className="mt-1">Antes del guion: hasta USD {costChange.beforeUsd.toFixed(2)}. Con tu guion: hasta USD {costChange.afterUsd.toFixed(2)}.
+              Son techos conservadores, no el precio exacto. No se inició nada ni se cobró; tu guion se conserva.</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button type="button" onClick={() => generateFinalVideo(costChange.afterUsd)} disabled={generating}>
+                Aceptar hasta USD {costChange.afterUsd.toFixed(2)} y generar
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setCostChange(null)} disabled={generating}>Revisar el guion</Button>
+            </div>
+          </Alert>
+        </div>
+      )}
       {needsSubscription && (
         <p className="mt-2 text-sm">
           <Link href="/dashboard/billing" className="font-medium text-accent hover:text-accent-hover">
@@ -298,6 +334,19 @@ export function ScriptReview({
         </div>
       )}
 
+      {canGenerate && directorMaterialOffer && (
+        <div className="mt-6 rounded-md border border-border-strong bg-surface-raised p-4 text-sm" data-testid="director-material">
+          <label htmlFor="director-material-usd" className="font-medium text-ink">Tope aprobado para material nuevo del Director en este video (USD)</label>
+          <input id="director-material-usd" type="number" inputMode="decimal" min={0} max={directorMaterialOffer.maxUsd} step={0.01}
+            value={materialUsd} onChange={(e) => setMaterialUsd(e.target.value)} className="mt-2 w-32 rounded-md border border-border-strong bg-surface px-2 py-1 text-ink" />
+          <ul className="mt-2 space-y-1 text-xs text-ink-muted">
+            <li>Costo previsto (simulación, antes de la voz): hasta USD {directorMaterialOffer.simulatedUsd.toFixed(2)}. El real se calcula con la narración medida.</li>
+            <li>Es un tope, no un objetivo: solo se paga la imagen de cada plano que no tenga material adecuado. Si el tope no alcanza, el Director se detiene antes de pagar y te dice cuánto falta; la voz se conserva.</li>
+            <li>Solo para tus pruebas privadas (máximo USD {directorMaterialOffer.maxUsd.toFixed(2)}); no es la cuota de un plan comercial. 0 = sin material nuevo.</li>
+          </ul>
+        </div>
+      )}
+
       {canGenerate && (
         <div className="sticky bottom-4 mt-6 flex flex-col gap-2 rounded-lg border border-border-strong bg-surface-raised p-4 shadow-lg sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           {!usesRecording && <Button
@@ -309,7 +358,7 @@ export function ScriptReview({
             {saving ? "Guardando…" : dirty ? "Guardar cambios" : "Sin cambios pendientes"}
           </Button>}
           <Button
-            onClick={generateFinalVideo}
+            onClick={() => generateFinalVideo()}
             disabled={entitlementBlocked || Boolean(durationBlockedReason) || generating || saving || regeneratingAll}
             loading={generating}
             title={entitlementBlocked ? entitlementBlockedReason : durationBlockedReason ?? undefined}

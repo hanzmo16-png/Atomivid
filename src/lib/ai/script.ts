@@ -135,18 +135,20 @@ function countScriptWords(script: Pick<VideoScript, "segments">): number {
 // rechazarlo.
 const MAX_LENGTH_ATTEMPTS = 3;
 
-export async function generateScript({
-  topic,
-  style,
-  durationSeconds,
-  language = "es",
-}: {
+export type ScriptRequestInput = {
   topic: string;
   style: string;
   durationSeconds: number;
   /** Idioma elegido por el usuario — no se infiere del texto del tema. */
   language?: "es" | "en";
-}): Promise<VideoScript> {
+};
+
+/**
+ * The exact prompts and request parameters of the script call. Shared by the call itself and by the
+ * pre-spend estimate (scriptCallReservationsFor), so the estimate is computed from the very request
+ * that will be sent — never from a separate guess of its size.
+ */
+export function buildScriptRequest({ topic, style, durationSeconds, language = "es" }: ScriptRequestInput) {
   const targetWords = targetWordsFor(durationSeconds);
   const targetScenes = Math.max(3, Math.min(10, Math.round(durationSeconds / 5)));
   const minWords = Math.ceil(targetWords * 0.9);
@@ -192,31 +194,47 @@ Da, para cada escena:
 
 La suma de las palabras de todos los "text" debe quedar entre ${minWords} y ${maxWords} palabras, con objetivo ${targetWords}. Cuenta las palabras antes de devolver el guion.`;
 
-  let lastScript: VideoScript | null = null;
-  let lastWordCount = 0;
-
-  for (let attempt = 1; attempt <= MAX_LENGTH_ATTEMPTS; attempt++) {
-    const isRetry: boolean = attempt > 1;
+  const contentFor = (attempt: number, lastWordCount: number): string => {
     const direction: "reduciendo" | "ampliando" = lastWordCount > maxWords ? "reduciendo" : "ampliando";
-    const content: string = !isRetry
+    return attempt <= 1
       ? basePrompt
       : `${basePrompt}
 
 Tu intento anterior tuvo ${lastWordCount} palabras narradas en total, fuera del rango pedido (${minWords}-${maxWords}). Reescribe el guion completo — mismo tema, arco narrativo, idioma y estilo —, ${direction} el nivel de detalle de cada escena (sin relleno ni cortes artificiales) hasta que la suma de "text" caiga dentro del rango. Cuenta las palabras con cuidado antes de responder.`;
+  };
+  const paramsFor = (content: string) => ({
+    model: SCRIPT_MODEL,
+    max_tokens: 2000,
+    // Sonnet 5 thinks by default. On short scripts, length corrections can
+    // consume the entire output budget before producing any JSON (2026-10-13).
+    // Keep the same token/spend limits; other model configurations are unchanged.
+    ...(SCRIPT_MODEL === "claude-sonnet-5" ? { thinking: { type: "disabled" as const } } : {}),
+    system,
+    messages: [{ role: "user" as const, content }],
+    output_config: {
+      format: zodOutputFormat(ScriptSchema),
+    },
+  });
+  return { model: SCRIPT_MODEL, minWords, maxWords, maxAttempts: MAX_LENGTH_ATTEMPTS, contentFor, paramsFor };
+}
 
-    const params = {
-      model: SCRIPT_MODEL,
-      max_tokens: 2000,
-      // Sonnet 5 thinks by default. On short scripts, length corrections can
-      // consume the entire output budget before producing any JSON (2026-10-13).
-      // Keep the same token/spend limits; other model configurations are unchanged.
-      ...(SCRIPT_MODEL === "claude-sonnet-5" ? { thinking: { type: "disabled" as const } } : {}),
-      system,
-      messages: [{ role: "user" as const, content }],
-      output_config: {
-        format: zodOutputFormat(ScriptSchema),
-      },
-    };
+/**
+ * Parameters of every call a script generation may make (MAX_LENGTH_ATTEMPTS length attempts; a retry
+ * prompt quotes the previous word count, so the largest plausible count is used for its size). The
+ * pre-spend estimate reserves each with anthropicReservation — the same formula the ledger reserves with.
+ */
+export function scriptCallParamsFor(input: ScriptRequestInput) {
+  const req = buildScriptRequest(input);
+  return Array.from({ length: req.maxAttempts }, (_, i) => req.paramsFor(req.contentFor(i + 1, req.maxWords * 10 + 9999)));
+}
+
+export async function generateScript(input: ScriptRequestInput): Promise<VideoScript> {
+  const { minWords, maxWords, maxAttempts, contentFor, paramsFor } = buildScriptRequest(input);
+  let lastScript: VideoScript | null = null;
+  let lastWordCount = 0;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const params = paramsFor(contentFor(attempt, lastWordCount));
     const response = await supplyProtectedAnthropic(params, () => getClient().messages.parse(params, { maxRetries: 0 }));
 
     const parsed = requireScriptOutput(response);

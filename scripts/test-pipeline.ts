@@ -57,6 +57,11 @@ async function main() {
     storage: {
       from(_bucket: string) {
         return {
+          // Used by the generated-image idempotency lookup (visual-resource-resolver.ts): same files as on disk.
+          async list(dir: string, opts?: { search?: string }) {
+            const names = await fs.readdir(path.join(storageDir, dir)).catch(() => [] as string[]);
+            return { data: names.filter(n => !opts?.search || n.startsWith(opts.search)).map(name => ({ name })), error: null };
+          },
           async upload(objectPath: string, buffer: Buffer) {
             const fullPath = path.join(storageDir, objectPath);
             await fs.mkdir(path.dirname(fullPath), { recursive: true });
@@ -97,8 +102,17 @@ async function main() {
   script.segments[0] = newScene;
   console.log(`Escena 0 regenerada: "${newScene.text.slice(0, 60)}..."`);
 
+  // PIPELINE_DIRECTOR_FILL=<usd> (anexo C1): the Director mounts the Reel and may buy new material up to that budget
+  // (fixture image provider: no network, no cost). The run reports what director.json says about the fill.
+  const fillBudget = Number(process.env.PIPELINE_DIRECTOR_FILL ?? "");
+  const directorFill = Number.isFinite(fillBudget) && process.env.PIPELINE_DIRECTOR_FILL !== undefined;
+  if (directorFill) { process.env.CINEMATIC_DIRECTOR_RENDER_ENABLED = "true"; process.env.IMAGE_PROVIDER = "fixture"; }
   console.log("Renderizando video final...");
   const { videoPath } = await generateVideoFromScript({
+    ...(directorFill ? { directorRender: true, directorMaterialBudgetUsd: async () => fillBudget } : {}),
+    // PIPELINE_DIRECTOR_SHOT_MAX=<s>: a faster-cut Director (shorter shots than the pipeline's beats) — more shots than
+    // resolved material, so the fill really runs. Test seam only; production never passes it.
+    ...(directorFill && process.env.PIPELINE_DIRECTOR_SHOT_MAX ? { directorAdapter: { shotSeconds: { min: 1.5, max: Number(process.env.PIPELINE_DIRECTOR_SHOT_MAX) } } } : {}),
     supabase: mockSupabase,
     requestId: "test-atomivid",
     script,
@@ -107,6 +121,21 @@ async function main() {
     onProgress: (stage) => console.log(`  → etapa: ${stage}`),
   });
 
+  if (directorFill) {
+    const dj = JSON.parse(await fs.readFile(path.join(storageDir, path.dirname(videoPath), "director.json"), "utf8")) as { ok: boolean; materialFill?: { shots?: string[]; spentUsd?: number; approvedUsd?: number; skipped?: string }; applied?: { shotId: string; applied: { label: string | null } }[] };
+    console.log(`Director: ok=${dj.ok} materialFill=${JSON.stringify(dj.materialFill ?? null)} labels=${(dj.applied ?? []).map(a => a.applied.label).join(",")}`);
+    if (!dj.ok) throw new Error("El Director no montó el video.");
+    if (process.env.PIPELINE_DIRECTOR_SHOT_MAX) {
+      // The fill must have run, stored one image per filled shot, and every filled shot must carry «Recreación IA».
+      const filled = dj.materialFill?.shots ?? [];
+      const stored = (await fs.readdir(path.join(storageDir, "test-atomivid"))).filter(f => f.startsWith("director-fill-"));
+      const labelOf = (id: string) => dj.applied?.find(a => a.shotId === id)?.applied.label;
+      if (!filled.length) throw new Error("Se esperaba un relleno del Director y no hubo ninguno.");
+      if (stored.length !== filled.length) throw new Error(`Imágenes de relleno guardadas ${stored.length} ≠ planos rellenados ${filled.length}.`);
+      if (!filled.every(id => labelOf(id) === "recreacion_ia")) throw new Error("Un plano rellenado no lleva «Recreación IA».");
+      console.log(`Relleno del Director: ${filled.length} planos, ${stored.length} imágenes guardadas, todas «Recreación IA»; tope ${dj.materialFill?.approvedUsd}, gastado ${dj.materialFill?.spentUsd}.`);
+    }
+  }
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
   console.log(`Video generado en ${elapsed}s: ${videoPath}`);
 

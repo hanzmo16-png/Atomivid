@@ -173,6 +173,14 @@ export function RequestCard({
               Se alcanzó el máximo de intentos. Crea un video nuevo.
             </p>
           )}
+          {/* Control de costos (2026-10-18): a failed attempt that kept its script can always be reviewed.
+              Navigation only — opening the review generates nothing and calls no provider. */}
+          {request.status === "failed" && Boolean(request.script_json) && !isLongForm && (
+            <Link href={`/dashboard/review/${request.id}`}
+              className="inline-flex items-center justify-center rounded-md border border-border px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface-raised">
+              {request.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}
+            </Link>
+          )}
           {request.status === "failed" &&
             !longFormUnconfirmed &&
             (request.script_json ? (

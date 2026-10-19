@@ -1,3 +1,4 @@
+import { assertCanGenerate } from "@/lib/billing/quota";
 import { persistScriptChange, ScriptPersistenceError } from "@/lib/video/script-persistence";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { withSupplyContext } from "@/lib/supply/anthropic";
@@ -19,6 +20,7 @@ export const maxDuration = 60;
 type VideoRequestRow = {
   id: string;
   user_id: string;
+  mode: string | null;
   recorded_audio_path: string | null;
   topic: string;
   style: string;
@@ -56,7 +58,7 @@ export async function POST(
 
     const { data: videoRequest, error } = await service
       .from("video_requests")
-      .select("id, user_id, topic, style, status, script_json, recorded_audio_path, render_attempts")
+      .select("id, user_id, mode, topic, style, status, script_json, recorded_audio_path, render_attempts")
       .eq("id", id)
       .single<VideoRequestRow>();
 
@@ -76,6 +78,17 @@ export async function POST(
     const current = videoRequest.script_json.segments[sceneIndex];
     if (!current) {
       return NextResponse.json({ error: "Esa escena no existe" }, { status: 400 });
+    }
+    // Control de costos (2026-10-18): regenerating a scene is a paid script call; it requires the same
+    // customer rights as generating the script (it used to skip the plan check entirely).
+    let plan: Awaited<ReturnType<typeof assertCanGenerate>>;
+    try {
+      plan = await assertCanGenerate(service, user.id, videoRequest.mode ?? "visual", user);
+    } catch {
+      return NextResponse.json({ error: "No pudimos verificar tu plan en este momento. No se regeneró la escena ni se hizo ninguna llamada de pago; vuelve a intentarlo en unos minutos." }, { status: 503 });
+    }
+    if (!plan.allowed) {
+      return NextResponse.json({ error: `${plan.reason} No se regeneró la escena ni se hizo ninguna llamada de pago; tu guion se conserva.` }, { status: 402 });
     }
 
     let newScene;

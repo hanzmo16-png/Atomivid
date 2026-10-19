@@ -30,7 +30,8 @@ async function blocked(p: Promise<boolean>, reason: string) {
     assert.ok(e instanceof DirectorUnavailableError, `esperaba DirectorUnavailableError, llegó ${String(e)}`);
     assert.equal(e.reason, reason);
     assert.ok(isCustomerSafeError(e), "mensaje seguro para el cliente");
-    assert.match(e.customerMessage, /No se reservó ni se cobró nada/);
+    // Control de costos (2026-10-18): the render route reserved before this check, so only «no new paid call» is proven.
+    assert.match(e.customerMessage, /antes de cualquier llamada de pago nueva/);
     assert.match(e.customerMessage, /no se hizo un montaje clásico en su lugar/);
     assert.doesNotMatch(e.customerMessage, /CINEMATIC_|PILOT_EMAILS|RENDER_ENABLED/, "sin nombres de variables internas");
     return true;

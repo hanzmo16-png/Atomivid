@@ -2,16 +2,22 @@ import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getPricingConfig } from "@/lib/billing/pricing";
-import { guardPaidCall, paidCallKey, type LedgerStore, type PaidCallSpec } from "@/lib/paid-calls/gate";
+import { guardPaidCall, paidCallKey, PaidCallSettlementLostError, type LedgerStore, type PaidCallSpec } from "@/lib/paid-calls/gate";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
 import { supabaseResultStore, paidResultPath, type PaidResultStore } from "@/lib/paid-calls/result-store";
 import { stableHash } from "@/lib/production-intelligence/canonical";
 import { supplyGuardRequired } from "./server";
 import { anthropicReservation, anthropicActualCost, ceilLedgerUsd, type ScriptUsage } from "./anthropic-cost";
-import { classifyAnthropicError } from "./anthropic-error";
+import { classifyAnthropicError, SCRIPT_REJECTED_RETRIES, scriptRetryDelayMs } from "./anthropic-error";
 
 import { admitDocumentaryCall } from "./documentary-step";
-import { claimScriptOperation, decideScriptIntent, releaseStaleReservations, ScriptLedgerUnavailableError, type ScriptOpRow } from "./script-intent";
+import { claimScriptOperation, decideScriptIntent, releaseStaleReservations, scriptBlockState, ScriptLedgerUnavailableError, ScriptReconciliationRequiredError, type ScriptOpRow } from "./script-intent";
+
+/** CORRECCIÓN-2 (T32): a lost settlement CAS inside the gate (no provider call was made for it) surfaces to the script
+ * layer as the typed block the gate computed from the re-read rows, so the route answers in_flight / reconciliation. */
+async function mapSettlementLost<T>(p: Promise<T>): Promise<T> {
+  try { return await p; } catch (e) { if (e instanceof PaidCallSettlementLostError) throw new ScriptReconciliationRequiredError(e.block, e.message); throw e; }
+}
 
 const context = new AsyncLocalStorage<{ projectId: string; intentId: string; recoverLegacyOperator?: boolean; uncertainResubmits?: number; claimBeforeCall?: boolean }>();
 export function withSupplyContext<T>(projectId: string, fn: () => Promise<T>): Promise<T> {
@@ -81,7 +87,7 @@ export async function supplyProtectedAnthropic<T extends { usage?: ScriptUsage }
       return recovered;
     }
   }
-  const paid = await guardScriptLedgerCall({ store: supabaseLedgerStore(service), results }, scope, params, upperUsd,
+  const paid = await guardScriptLedgerCall({ store: supabaseLedgerStore(service), results, load: loadScriptOperations }, scope, params, upperUsd,
     result => ceilLedgerUsd(anthropicActualCost(params, pricing, result.usage, upperUsd)), invoke);
   return paid.result;
 }
@@ -91,9 +97,19 @@ type SupplyScope = NonNullable<ReturnType<typeof context.getStore>>;
 export const currentSupplyScope = (): SupplyScope | undefined => context.getStore();
 
 /** The ledger part of supplyProtectedAnthropic, with injectable stores (memoryLedgerStore/memoryResultStore in tests). */
-export async function guardScriptLedgerCall<T>(deps: { store: LedgerStore; results: Pick<PaidResultStore, "putJson" | "getJson">; now?: () => number },
+export async function guardScriptLedgerCall<T>(deps: { store: LedgerStore; results: Pick<PaidResultStore, "putJson" | "getJson">; now?: () => number; maxRejectedRetries?: number; retryDelayMs?: (attempt: number) => number;
+  /** Every guarded script call of the request (loadScriptOperations in production): re-checked before each retry. */
+  load?: (projectId: string) => Promise<ScriptOpRow[]> },
   scope: SupplyScope, params: { model: string } & Record<string, unknown>, upperUsd: number, actualCostUsd: (result: T) => number, invoke: () => Promise<T>) {
   const { store, results } = deps;
+  // Before a retry calls the provider (its row already reserved, so no new intent could start meanwhile): any OTHER
+  // operation of this request that is active or uncertain aborts the chain; nothing is called while it is unresolved.
+  const beforeRetry = deps.load ? async () => {
+    const rows = await deps.load!(scope.projectId);
+    const foreign = rows.filter(r => !r.shot_id.startsWith(`script:${scope.intentId}:`));
+    const state = scriptBlockState(foreign, (deps.now ?? Date.now)());
+    if (state) throw new ScriptReconciliationRequiredError(state, "another operation of this request became active or uncertain during the retry wait");
+  } : undefined;
   const spec = {
     projectId: scope.projectId, shotId: `script:${scope.intentId}:${stableHash(params, 16)}`,
     provider: "anthropic", model: params.model, method: "generate_script",
@@ -105,13 +121,15 @@ export async function guardScriptLedgerCall<T>(deps: { store: LedgerStore; resul
     await claimScriptOperation(store, { idempotencyKey: paidCallKey(spec), projectId: spec.projectId, shotId: spec.shotId, provider: spec.provider,
       model: spec.model, method: spec.method, attemptKind: "initial", reservedUsd: spec.reservedUsd }, (deps.now ?? Date.now)());
   }
-  return guardPaidCall<T>(store, spec, { async call({ key }) {
+  return mapSettlementLost(guardPaidCall<T>(store, spec, { async call({ key }) {
     const result = await invoke();
     const costUsd = actualCostUsd(result);
     const resultRef = paidResultPath(scope.projectId, key, "script.json");
     await results.putJson(resultRef, result);
     return { result, costUsd, resultRef };
-  }, load: ref => results.getJson<T>(ref), classify: classifyAnthropicError, maxRejectedRetries: 0 });
+  }, load: ref => results.getJson<T>(ref), classify: classifyAnthropicError,
+  // Only pre-acceptance refusals (429/529, classified `rejected`) are retried, each under its own key; never 401/403/5xx.
+  maxRejectedRetries: deps.maxRejectedRetries ?? SCRIPT_REJECTED_RETRIES, retryDelayMs: deps.retryDelayMs ?? scriptRetryDelayMs, beforeRetry }));
 }
 
 /** Picks the ledger key for this request: the original, or — only within the

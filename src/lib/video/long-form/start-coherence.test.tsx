@@ -72,7 +72,7 @@ test("C2-2. missing configuration before reserving: typed fields, status and att
   const guard = source.indexOf("worker = getRenderWorker();");
   assert.ok(guard > 0 && source.indexOf("preReservationFailure(error, nothingReserved)") > guard);
   assert.ok(guard < source.indexOf("await reserveJobSupply(") && guard < source.indexOf('status: "processing",'));
-  assert.match(source, /const nothingReserved: StartOutcome = \{ retry: "available", charge: "none_proven", status: videoRequest\.status, attempts: videoRequest\.render_attempts \}/);
+  assert.match(source, /let nothingReserved: StartOutcome = \{ retry: "available", charge: "none_proven", status: videoRequest\.status, attempts: videoRequest\.render_attempts \}/);
 });
 
 test("C2-3. the support decision does not depend on wording, case or language", () => {

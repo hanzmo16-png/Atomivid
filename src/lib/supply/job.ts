@@ -12,7 +12,9 @@ import { supplyGuardRequired } from "./server";
  * wait: retrying later can never succeed, so it must fail loudly instead of queueing forever.
  */
 export class JobEnvelopeMismatchError extends Error {
-  readonly customerMessage = "La configuración de límites de producción no coincide entre el inicio y el procesamiento. No se generó ni se cobró nada; avisa a soporte para corregirla antes de reintentar.";
+  // Control de costos (2026-10-18): raised when the attempt's envelope is (re)reserved, before the run's first
+  // paid call — but a resumed attempt may hold earlier paid steps, so only «nothing new» is proven.
+  readonly customerMessage = "La configuración de límites de producción no coincide entre el inicio y el procesamiento. No se hizo ninguna llamada de pago nueva y tus avances se conservan; avisa a soporte para corregirla antes de reintentar.";
   readonly diagnosticId = "SUPPLY-ENVELOPE";
   constructor(readonly provider: string) {
     super(`SUPPLY_ENVELOPE_MISMATCH:${provider}`);
@@ -20,11 +22,27 @@ export class JobEnvelopeMismatchError extends Error {
   }
 }
 
+/**
+ * Control de costos (2026-10-18): a paid call of a RUNNING production did not fit in what remains of its
+ * attempt's envelope ("job envelope exhausted"). The call was refused before reaching the provider, but
+ * earlier steps of the same attempt may already have been paid: never claim that nothing was charged.
+ */
+export class JobEnvelopeExhaustedError extends Error {
+  readonly customerMessage = "La producción se detuvo antes de superar el presupuesto reservado para este intento. Los pasos ya hechos se conservan y pueden haber tenido costo; no se repetirá ningún gasto sin revisión. Avisa a soporte para continuar.";
+  readonly diagnosticId = "SUPPLY-ENVELOPE-USED";
+  constructor(readonly provider: string) {
+    super(`SUPPLY_ENVELOPE_EXHAUSTED:${provider}`);
+    this.name = "JobEnvelopeExhaustedError";
+  }
+}
+
 export type JobSupplyDemand = { provider: string; unit: "usd" | "character"; units: number; usd: number };
 export type SupplyJobInput = { mode: string | null; script_json: unknown; recorded_audio_path: string | null; long_form_production_plan: ProductionPlan | null };
 
 /** Conservative envelopes, not an account balance or a quote. Runtime rates must be verified. */
-export function jobSupplyDemands(row: SupplyJobInput, voiceProvider: string, flags: FeatureFlags = getFeatureFlags()): JobSupplyDemand[] {
+export function jobSupplyDemands(row: SupplyJobInput, voiceProvider: string, flags: FeatureFlags = getFeatureFlags(),
+  /** Anexo C1: new Director material the owner approved for this start (render route only; 0 elsewhere). */
+  opts: { directorMaterialUsd?: number } = {}): JobSupplyDemand[] {
   const demands = new Map<string, JobSupplyDemand>();
   const add = (provider: string, usd: number, units = usd, unit: JobSupplyDemand["unit"] = "usd") => {
     if (provider === "fixture" || provider === "curated-library" || usd === 0) return;
@@ -51,6 +69,10 @@ export function jobSupplyDemands(row: SupplyJobInput, voiceProvider: string, fla
     if (plan.allocation?.maxAiVideoClips || plan.aiVideoClipCount) add(plan.providers.aiVideo, cap);
   } else {
     if (flags.imageGenerationEnabled) add(flags.imageProvider, flags.maxVisualCostUsd);
+    // The owner's approved ceiling for new Director material is reserved in the SAME image envelope, so the atomic
+    // per-call admission (pi_submit_with_supply) bounds it. Recomputing without it (worker, resume) asks for less,
+    // which the reservation accepts (it only refuses a LARGER envelope).
+    if ((opts.directorMaterialUsd ?? 0) > 0) add(flags.imageProvider, opts.directorMaterialUsd!);
     // Includes the existing one repair call. This is a ceiling, never an automatic purchase.
     if (flags.visualDirectorEnabled) add("anthropic", Number(process.env.SUPPLY_STORYBOARD_RESERVATION_USD || "2"));
     // generateVideoFromScript currently uses stock footage and optional images;

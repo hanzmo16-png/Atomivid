@@ -4,6 +4,7 @@
  * (no bytes, no chosen stock clip yet), so every external asset stays NEEDS_REVIEW: the audit reports it as
  * pending, never as approved. Avatar scenes are passed through as locked segments (never re-planned).
  */
+import { directorImageUnitCostUsd } from "@/lib/video/image-pricing";
 import type { Storyboard, StoryboardScene } from "@/lib/video/storyboard/types";
 import { DIRECTOR_INPUT_VERSION, type DirectorInputRaw, type InventoryAsset } from "./contract";
 import { topicsOf } from "./policy";
@@ -67,7 +68,9 @@ export function inputFromReel(storyboard: Storyboard, opts: ReelAdapterOptions =
     version: DIRECTOR_INPUT_VERSION, genre: "reel", aspect: "9:16", totalSeconds: Math.round(cursor * 1000) / 1000, segments, inventory,
     // Reels are short: 1.5-6 s units read better on a phone than the documentary 3-8 s default.
     constraints: { minShotSeconds: opts.shotSeconds?.min ?? 1.5, maxShotSeconds: opts.shotSeconds?.max ?? 6, maxTitleSeconds: 3, subtitleLines: 2 },
-    budget: { remainingUsd: 0, unitCostsUsd: opts.unitCostsUsd ?? { ai_image: 0.04, ai_video: 0.5 } },
+    // Anexo C1 (corrección 2): the image unit cost comes from the image provider's own estimate plus a planning margin
+    // (pricing.ts). The previous fixed 0.04 was below OpenAI's 0.05 estimate, so the provider would refuse every fill.
+    budget: { remainingUsd: 0, unitCostsUsd: opts.unitCostsUsd ?? { ai_image: directorImageUnitCostUsd(), ai_video: 0.5 } },
     continuity: { wardrobe: storyboard.visualIdentity.wardrobe },
     ...(opts.style ? { style: opts.style } : {}),
   };

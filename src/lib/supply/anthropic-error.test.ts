@@ -7,6 +7,8 @@ const error = (status: number, message: string, type = "invalid_request_error") 
 
 test("only explicit Anthropic 400 compiler rejection is classified as final", () => {
   assert.deepEqual(classifyAnthropicError(error(400, grammar)), { kind: "rejected_final" });
-  for (const e of [error(400, "Other invalid request"), error(500, grammar), error(429, grammar), error(400, grammar, "api_error"), new Error(grammar), new Error("timeout")])
+  for (const e of [error(400, "Other invalid request"), error(500, grammar), error(400, grammar, "api_error"), new Error(grammar), new Error("timeout")])
     assert.deepEqual(classifyAnthropicError(e), { kind: "uncertain" });
+  // A 429 carrying the grammar text is still an admission refusal (retryable rejection), not a final one.
+  assert.deepEqual(classifyAnthropicError(error(429, grammar)), { kind: "rejected" });
 });
