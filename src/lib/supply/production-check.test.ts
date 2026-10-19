@@ -257,7 +257,9 @@ test("formulario fail-closed (C3): antes de adquirir la llave compartida no se e
   assert.match(submit, /disabled=""/, "el botón de envío está deshabilitado");
   assert.match(html, /Sincronizando borrador entre pestañas/, "y se dice por qué");
   // Enter (implicit submission) is refused by the form itself while not ready.
-  assert.match(src("src/app/dashboard/new/NewVideoForm.tsx"), /onSubmit=\{event => \{ if \(!draftReady\) event\.preventDefault\(\); \}\}/);
+  assert.match(src("src/app/dashboard/new/NewVideoForm.tsx"),
+    /onSubmit=\{event => \{ if \(!draftReady \|\| reconciliationBlocked\) event\.preventDefault\(\); \}\}/,
+    "Enter se bloquea tanto antes de adquirir la llave como durante una conciliación incierta");
 });
 
 test("server-side order: the script route checks the whole production BEFORE the first paid call; regenerate-scene and avatar text-to-speech check the plan before theirs", () => {
