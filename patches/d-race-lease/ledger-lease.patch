@@ -1,0 +1,44 @@
+diff --git a/src/lib/production-intelligence/ledger.ts b/src/lib/production-intelligence/ledger.ts
+index 208df6c..47e8a4a 100644
+--- a/src/lib/production-intelligence/ledger.ts
++++ b/src/lib/production-intelligence/ledger.ts
+@@ -55,6 +55,17 @@ export function memoryLedgerStore(): LedgerStore & { ops: Map<string, PaidOperat
+ 
+ export class ReconciliationRequiredError extends Error {}
+ 
++/**
++ * D-RACE (propuesta, requiere decisión del dueño): otro cliente tiene ESTA misma operación en vuelo (SUBMITTED reciente,
++ * dentro del arrendamiento). No es un cobro incierto: no se marca RECONCILIATION_REQUIRED; el llamador reintenta más
++ * tarde y entonces reutiliza el COMMITTED del ganador o, si el arrendamiento venció sin job registrado, cae en la
++ * reconciliación de siempre. Subclase de ReconciliationRequiredError para que todo llamador existente siga sin reenviar.
++ */
++export class SubmissionInFlightError extends ReconciliationRequiredError {}
++
++/** Arrendamiento de un SUBMITTED sin job id: pasado este tiempo sin avance, el envío se trata como posiblemente aceptado. */
++export const SUBMISSION_LEASE_MS = 15 * 60 * 1000;
++
+ export type ProviderPort = {
+   /** Submit a job; must return the provider job id as soon as it is accepted. */
+   submit(): Promise<{ providerJobId: string; submissionReceiptRef?: string }>;
+@@ -69,7 +80,7 @@ export type ProviderPort = {
+  * - SUBMITTED without a job id: the provider may have accepted -> RECONCILIATION_REQUIRED.
+  * - absent or RESERVED: write SUBMITTED first, then submit.
+  */
+-export async function executePaidOperation(store: LedgerStore, op: Omit<PaidOperation, "status" | "providerJobId" | "resultRef" | "committedUsd" | "updatedAt">, port: ProviderPort, now: () => string): Promise<PaidOperation> {
++export async function executePaidOperation(store: LedgerStore, op: Omit<PaidOperation, "status" | "providerJobId" | "resultRef" | "committedUsd" | "updatedAt">, port: ProviderPort, now: () => string, leaseMs: number = SUBMISSION_LEASE_MS): Promise<PaidOperation> {
+   const key = op.idempotencyKey;
+   let cur = await store.get(key);
+   if (!cur) {
+@@ -80,6 +91,12 @@ export async function executePaidOperation(store: LedgerStore, op: Omit<PaidOper
+   if (cur.status === "COMMITTED" || cur.status === "REFUNDED") return cur;
+   if (cur.status === "RECONCILIATION_REQUIRED") throw new ReconciliationRequiredError(`${key}: reconcile with the provider before any new submission`);
+   if (cur.status === "SUBMITTED") {
++    // Arrendamiento sobre updated_at (escrito al pasar a SUBMITTED). Dentro del plazo: envío en vuelo de otro cliente.
++    // Un updated_at ilegible o futuro NO extiende el plazo indefinidamente: se acota a leaseMs desde ahora.
++    const age = Date.parse(now()) - Date.parse(cur.updatedAt);
++    if (Number.isFinite(age) && age >= -leaseMs && age < leaseMs) {
++      throw new SubmissionInFlightError(`${key}: submission in flight by another client (lease ${Math.round(leaseMs / 1000)}s); retry later, never resubmitted`);
++    }
+     await store.update(key, "SUBMITTED", { status: "RECONCILIATION_REQUIRED", updatedAt: now() });
+     throw new ReconciliationRequiredError(`${key}: a submission without a recorded job id may have been accepted; never resubmitted automatically`);
+   }

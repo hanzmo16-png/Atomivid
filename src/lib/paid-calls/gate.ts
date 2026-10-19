@@ -21,6 +21,7 @@
  *    (PI V2 COST-A2); a caller may still opt in on the ordinal-1 key, except for upstream_error
  *    and rate_limited, which are never retried (COST-A2b). "rejected_final" never retries.
  */
+import { ledgerUsd } from "./ledger-usd";
 import { stableHash } from "@/lib/production-intelligence/canonical";
 import {
   executePaidOperation,
@@ -165,7 +166,9 @@ export function paidCallKey(spec: PaidCallSpec, attemptOrdinal = 0): string {
 const REJECTED_REF = "rejected:";
 const isRetryableRejection = (op: PaidOperation) => op.status === "REFUNDED" && (op.resultRef ?? "").startsWith(`${REJECTED_REF}rejected:`);
 
-export async function guardPaidCall<T>(store: LedgerStore, spec: PaidCallSpec, hooks: PaidCallHooks<T>): Promise<GuardedPaidCall<T>> {
+export async function guardPaidCall<T>(store: LedgerStore, rawSpec: PaidCallSpec, hooks: PaidCallHooks<T>): Promise<GuardedPaidCall<T>> {
+  // Precisión monetaria: validar y normalizar ANTES de cualquier escritura en el ledger o llamada al proveedor.
+  const spec: PaidCallSpec = { ...rawSpec, reservedUsd: ledgerUsd(rawSpec.reservedUsd, "reserved_usd") };
   const now = hooks.now ?? (() => new Date().toISOString());
   const maxRejectedRetries = hooks.maxRejectedRetries ?? 0;
   const classify = hooks.classify ?? classifyPaidCallError;
@@ -180,12 +183,14 @@ export async function guardPaidCall<T>(store: LedgerStore, spec: PaidCallSpec, h
       async submit() {
         calledNow = true;
         captured = await hooks.call({ key, attemptOrdinal: ordinal });
+        captured = { ...captured, costUsd: ledgerUsd(captured.costUsd, "committed_usd") };
         return { providerJobId: captured.providerJobId ?? `sync:${key}` };
       },
       async poll(providerJobId) {
         if (captured) return { resultRef: captured.resultRef, actualUsd: captured.costUsd };
         if (hooks.resume && !providerJobId.startsWith("sync:")) {
           captured = await hooks.resume(providerJobId, { key });
+          captured = { ...captured, costUsd: ledgerUsd(captured.costUsd, "committed_usd") };
           return { resultRef: captured.resultRef, actualUsd: captured.costUsd };
         }
         throw new ReconciliationRequiredError(`${key}: provider job ${providerJobId} is recorded and cannot be resumed from this call site; reconcile before any new submission`);
@@ -282,5 +287,5 @@ export async function guardPaidCall<T>(store: LedgerStore, spec: PaidCallSpec, h
 
 /** After a PROVIDER_JOB_RECORDED job was resumed elsewhere and its result stored, close the row. No-op when the row is in another state. */
 export async function commitRecordedPaidJob(store: LedgerStore, key: string, outcome: { costUsd: number; resultRef: string }, now: () => string = () => new Date().toISOString()): Promise<boolean> {
-  return store.update(key, "PROVIDER_JOB_RECORDED", { status: "COMMITTED", committedUsd: outcome.costUsd, resultRef: outcome.resultRef, updatedAt: now() });
+  return store.update(key, "PROVIDER_JOB_RECORDED", { status: "COMMITTED", committedUsd: ledgerUsd(outcome.costUsd, "committed_usd"), resultRef: outcome.resultRef, updatedAt: now() });
 }
