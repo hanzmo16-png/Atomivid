@@ -223,3 +223,42 @@ test("D6: el pipeline de render reutiliza la admisión fail-closed (sin bypass e
   assert.doesNotMatch(block, /reservedUsd:\s*0/);
   assert.doesNotMatch(block, /costUsd:\s*0/);
 });
+
+
+test("D3: el colector read-only nunca autoriza reenvío ni liquidación automática", async () => {
+  const { classifyAvatarCreationEvidence } = await import("@/lib/video/avatar/reconciliation");
+  const base = {
+    readsComplete: true,
+    method: "create_avatar",
+    status: "RECONCILIATION_REQUIRED",
+    providerJobPresent: false,
+    resultRefPresent: false,
+    claimPresent: true,
+    matchingAvatarRows: 0,
+    providerAvatarPresent: false,
+    requestPresent: false,
+  };
+  const cases = [
+    { input: { ...base, readsComplete: false }, verdict: "unknown_read_failure" },
+    { input: { ...base, status: "COMMITTED" }, verdict: "already_settled" },
+    { input: { ...base, matchingAvatarRows: 1, providerAvatarPresent: true }, verdict: "candidate_success_needs_approval" },
+    { input: base, verdict: "needs_provider_review" },
+    { input: { ...base, method: "generate_video" }, verdict: "invalid_scope" },
+  ] as const;
+  for (const item of cases) {
+    const decision = classifyAvatarCreationEvidence(item.input);
+    assert.equal(decision.verdict, item.verdict);
+    assert.equal(decision.mayResubmit, false);
+    assert.equal(decision.maySettleAutomatically, false);
+  }
+});
+
+test("D3: el script de evidencia contiene sólo lecturas y no importa proveedores", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("scripts/avatar-reconciliation-readonly.ts", "utf8");
+  assert.doesNotMatch(source, /\.(?:update|insert|upsert|delete|remove|upload|rpc)\s*\(/);
+  assert.doesNotMatch(source, /provider\.createAvatar|fetch\s*\(/);
+  assert.match(source, /\.eq\("idempotency_key", operationKey\)/);
+  assert.match(source, /\.eq\("method", "create_avatar"\)/);
+  assert.match(source, /provider credentials must not be present/);
+});
