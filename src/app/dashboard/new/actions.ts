@@ -9,7 +9,8 @@ import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { recordingFormat, recordingPath, RECORDING_BUCKET, MAX_AVATAR_PHOTO_BYTES, MAX_RECORDING_BYTES } from "@/lib/video/avatar/recording";
 import { measureNarrationSeconds } from "@/lib/video/avatar/measure-narration";
 import { avatarDurationError } from "@/lib/video/avatar/duration";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { ledgerGuardedCreateAvatar } from "@/lib/video/avatar/create-avatar-ledger";
 import { createdUrl, formErrorUrl, requestIdForSubmission } from "@/lib/video/submission-key";
 import { CLAIM_MESSAGES, createAvatarOnce, isDuplicateUpload, photoClaimPath } from "@/lib/video/avatar/new-photo-claim";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
@@ -102,11 +103,20 @@ export async function createVideoRequest(formData: FormData) {
   // The request id comes from the draft key the browser shares between its tabs, the verified user and the
   // intent (submission-key.ts): a double click, a resend, a second tab or a re-submit after a lost response is
   // recognised here, before any paid call, and the primary key stays the authority on a race (23505).
-  const { requestId, draftKey } = await requestIdForSubmission(user.id, formData);
+  const lookup = async (candidates: string[]) => {
+    const { data, error } = await createServiceClient().from("video_requests").select("id").eq("user_id", user.id).in("id", candidates);
+    // Fail closed: if existing ids cannot be read, an explicit repeat cannot pick a free ordinal safely.
+    if (error) redirect("/dashboard/new?error=No+se+pudo+comprobar+si+ya+existe+una+solicitud+igual.+No+se+ha+creado+nada.");
+    return new Set((data ?? []).map(r => r.id as string));
+  };
+  const resolved = await requestIdForSubmission(user.id, formData, lookup);
+  if (!resolved.requestId) redirect("/dashboard/new?error=Ya+existen+demasiadas+solicitudes+con+exactamente+los+mismos+datos.");
+  const requestId: string = resolved.requestId;
+  const draftKey = resolved.draftKey;
   const created = createdUrl(draftKey);
   {
     const { data: existing } = await createServiceClient().from("video_requests").select("id").eq("id", requestId).eq("user_id", user.id).maybeSingle();
-    if (existing) redirect(created);
+    if (existing) redirect(createdUrl(draftKey, true));
   }
 
   if (mode === "visual") {
@@ -304,8 +314,12 @@ export async function createVideoRequest(formData: FormData) {
       async createAvatar() {
         const provider = getAvatarProvider();
         if (!provider.isAvailable() || provider.name !== flags.avatarProvider) throw new Error("El proveedor de avatar no está configurado.");
-        const result = await provider.createAvatar({ photoBuffer, mimeType: file.type, consentGiven: true });
-        return { providerAvatarId: result.providerAvatarId, providerJobId: result.providerJobId, status: result.status, providerName: provider.name };
+        // T46 D2: at most one provider call per request, enforced by the Postgres ledger (not only by the Storage 409).
+        return ledgerGuardedCreateAvatar(supabaseLedgerStore(service), requestId, provider.name,
+          createHash("sha256").update(photoBuffer).digest("hex"), async () => {
+            const result = await provider.createAvatar({ photoBuffer, mimeType: file.type, consentGiven: true });
+            return { providerAvatarId: result.providerAvatarId, providerJobId: result.providerJobId, status: result.status, providerName: provider.name };
+          });
       },
       // Server-owned write (migration 20261009040743 revokes client-role writes on avatars);
       // user_id comes from the verified session above, never from the form.

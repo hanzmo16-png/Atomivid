@@ -318,6 +318,11 @@ export function NewVideoForm({
         )}
       </section>
 
+      {/* T46 D1: the server treats the same data as the same request. A second identical video is an explicit choice. */}
+      <label className="flex items-start gap-2 text-sm text-ink-muted">
+        <input type="checkbox" name="repeat_intent" className="mt-1" />
+        <span>Crear otro video igual aunque ya exista una solicitud con exactamente estos datos.</span>
+      </label>
       <SubmitButton disabledReason={disabledReason} />
     </form>
   );

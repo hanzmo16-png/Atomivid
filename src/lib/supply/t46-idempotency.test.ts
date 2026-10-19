@@ -1,0 +1,140 @@
+/**
+ * T46 (D1–D3), ROJO/VERDE with 2/5/10 concurrent competitors. Counters: rows persisted and paid provider calls.
+ * D1: the request id comes from user + intent on the server (submission-key.ts), not from a browser key — a browser
+ *     without localStorage/Web Locks sends a different key per tab and still maps to ONE request.
+ * D2: createAvatar runs under the Postgres paid-call ledger (create-avatar-ledger.ts): at most one provider call even
+ *     when the Storage claim is not atomic (storage-api v1.11.13 let every concurrent upload win).
+ * D3: an uncertain outcome is never resubmitted; it stays blocked until reconciled (docs/runbooks/avatar-uncertain-claims.md).
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { draftRequestId, intentFingerprint, requestIdForSubmission } from "@/lib/video/submission-key";
+import { gatedVoiceSynthesize } from "@/lib/paid-calls/gated-providers";
+import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
+import { memoryResultStore } from "@/lib/paid-calls/result-store";
+import { ledgerGuardedCreateAvatar } from "@/lib/video/avatar/create-avatar-ledger";
+import { createAvatarOnce, photoClaimPath, type NewPhotoClaimDeps } from "@/lib/video/avatar/new-photo-claim";
+import { AvatarProviderError } from "@/lib/providers/types";
+import type { VoiceProvider } from "@/lib/providers/types";
+
+const USER_A = "11111111-1111-4111-8111-111111111111", USER_B = "22222222-2222-4222-8222-222222222222";
+const form = (key: string, text = "Hola, este es mi texto.") => {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries({ submission_id: key, mode: "avatar", topic: "Mi video", style: "Educativo", duration_seconds: "30",
+    language: "es", narration_source: "tts_text", avatar_tts_text: text, existing_avatar_id: "a1" })) fd.set(k, v);
+  return fd;
+};
+
+/** The action's order with a Postgres-like primary key and the real paid-voice gate (in-memory ledger). */
+function backend(rule: "T46" | "ROJO_browser_key") {
+  const rows = new Set<string>(); const ledger = memoryLedgerStore(), results = memoryResultStore(); let paid = 0;
+  const voice = { name: "elevenlabs", synthesize: async () => { paid++; await new Promise(r => setTimeout(r, 10));
+    return { audioBuffer: Buffer.from("mp3"), durationSeconds: 10, words: [], mimeType: "audio/mpeg", extension: "mp3" }; } } as unknown as VoiceProvider;
+  async function submit(user: string, fd: FormData) {
+    const id = rule === "T46"
+      ? (await requestIdForSubmission(user, fd, async c => new Set(c.filter(x => rows.has(x))))).requestId!
+      : draftRequestId(user, String(fd.get("submission_id")), await intentFingerprint(fd)); // rule shipped in 35fb212
+    if (rows.has(id)) return "existing";
+    try {
+      await gatedVoiceSynthesize({ requestId: id, ledger, results, voiceProvider: voice, estimatedCostUsd: 0.05,
+        voiceIdentity: { voiceId: "v", modelId: "m", voiceSettingsJson: "{}" } }, String(fd.get("avatar_tts_text")), "es");
+    } catch { return "retry"; }
+    if (rows.has(id)) return "23505";
+    rows.add(id); return "created";
+  }
+  return { submit, rows, get paid() { return paid; } };
+}
+
+for (const n of [2, 5, 10]) {
+  test(`D1 ROJO (regla de 35fb212): ${n} pestañas sin localStorage (llave distinta por pestaña) → ${n} filas y ${n} voces pagadas`, async () => {
+    const b = backend("ROJO_browser_key");
+    await Promise.all(Array.from({ length: n }, () => b.submit(USER_A, form(randomUUID()))));
+    assert.equal(b.rows.size, n); assert.equal(b.paid, n);
+  });
+  test(`D1 VERDE: ${n} pestañas sin localStorage, misma intención → como máximo 1 voz pagada y, tras reintentar, 1 sola fila`, async () => {
+    const b = backend("T46");
+    await Promise.all(Array.from({ length: n }, () => b.submit(USER_A, form(randomUUID()))));
+    assert.ok(b.paid <= 1, `voces pagadas: ${b.paid}`);
+    assert.ok(b.rows.size <= 1);
+    const before = b.rows.size;
+    assert.equal(await b.submit(USER_A, form(randomUUID())), before ? "existing" : "created", "un reintento converge");
+    assert.equal(b.rows.size, 1); assert.equal(b.paid, 1);
+  });
+  test(`D1 VERDE: ${n} repeticiones EXPLÍCITAS concurrentes («crear otro igual») → exactamente 1 solicitud adicional`, async () => {
+    const b = backend("T46");
+    await b.submit(USER_A, form(randomUUID()));
+    await Promise.all(Array.from({ length: n }, () => { const f = form(randomUUID()); f.set("repeat_intent", "on"); return b.submit(USER_A, f); }));
+    // Concurrent explicit repeats share ONE ordinal: at most one extra request and one extra paid call…
+    assert.ok(b.rows.size <= 2, `filas ${b.rows.size}`); assert.ok(b.paid <= 2, `voces ${b.paid}`);
+    // …and if the cautious ledger refused them all, one retry creates exactly that one extra request.
+    if (b.rows.size < 2) { const f = form(randomUUID()); f.set("repeat_intent", "on"); await b.submit(USER_A, f); }
+    assert.equal(b.rows.size, 2); assert.equal(b.paid, 2);
+  });
+}
+
+test("D1: cuentas distintas nunca se deduplican entre sí; otra intención es otra solicitud", async () => {
+  const b = backend("T46");
+  await b.submit(USER_A, form(randomUUID())); await b.submit(USER_B, form(randomUUID()));
+  await b.submit(USER_A, form(randomUUID(), "Otro texto distinto."));
+  assert.equal(b.rows.size, 3);
+});
+
+test("D1: el id no depende de la llave del navegador ni de su ausencia", async () => {
+  const noKey = form(""); noKey.delete("submission_id");
+  const ids = await Promise.all([form(randomUUID()), form(randomUUID()), noKey, form("no-es-uuid")].map(async f => (await requestIdForSubmission(USER_A, f)).requestId));
+  assert.equal(new Set(ids).size, 1);
+});
+
+// ---------------------------------------------------------------- D2
+
+/** Storage that is NOT atomic (every concurrent upload wins), as storage-api v1.11.13 behaved. */
+function avatarWorld(providerImpl: () => Promise<{ providerAvatarId: string }>) {
+  const ledger = memoryLedgerStore(); let providerCalls = 0;
+  const deps = (requestId: string, guarded: boolean): NewPhotoClaimDeps => ({
+    async upload() { await new Promise(r => setTimeout(r, 1)); return { ok: true }; },
+    async findAvatarByPhoto() { return null; },
+    async claimCreatedAt() { return new Date(); },
+    async removePhoto() {},
+    async createAvatar() {
+      const call = async () => { providerCalls++; await new Promise(r => setTimeout(r, 15)); const r = await providerImpl();
+        return { providerAvatarId: r.providerAvatarId, status: "completed", providerName: "heygen" }; };
+      return guarded ? ledgerGuardedCreateAvatar(ledger, requestId, "heygen", "sha-foto", call) : call();
+    },
+    async insertAvatar() { return { id: randomUUID(), status: "ready" }; },
+  });
+  return { deps, get providerCalls() { return providerCalls; } };
+}
+const ok = async () => ({ providerAvatarId: "asset:1" });
+
+for (const n of [2, 5, 10]) {
+  test(`D2 ROJO: Storage no atómico y SIN ledger → ${n} llamadas a createAvatar`, async () => {
+    const w = avatarWorld(ok), id = randomUUID();
+    await Promise.all(Array.from({ length: n }, () => createAvatarOnce(w.deps(id, false), photoClaimPath("u", id, "jpg"))));
+    assert.equal(w.providerCalls, n);
+  });
+  test(`D2 VERDE: Storage no atómico CON ledger → como máximo 1 llamada a createAvatar (${n} competidores)`, async () => {
+    const w = avatarWorld(ok), id = randomUUID();
+    const r = await Promise.all(Array.from({ length: n }, () => createAvatarOnce(w.deps(id, true), photoClaimPath("u", id, "jpg"))));
+    assert.equal(w.providerCalls, 1);
+    assert.ok(r.every(x => ["created", "uncertain"].includes(x.kind)), JSON.stringify(r.map(x => x.kind)));
+  });
+}
+
+test("D2/D3: tiempo agotado tras posible aceptación → incierto; reintentos posteriores 0 llamadas (nunca otra generación por TTL)", async () => {
+  const w = avatarWorld(async () => { throw new AvatarProviderError("timeout", "heygen", "upstream_error"); }), id = randomUUID();
+  assert.equal((await createAvatarOnce(w.deps(id, true), photoClaimPath("u", id, "jpg"))).kind, "uncertain");
+  for (let i = 0; i < 3; i++) assert.equal((await createAvatarOnce(w.deps(id, true), photoClaimPath("u", id, "jpg"))).kind, "uncertain");
+  assert.equal(w.providerCalls, 1);
+});
+
+test("D2: un resultado confirmado se reutiliza del ledger sin volver a llamar", async () => {
+  const w = avatarWorld(ok), id = randomUUID();
+  const a = await ledgerGuardedCreateAvatar((w as unknown as { deps: unknown }) && memoryLedgerStore(), id, "heygen", "x", async () => ({ providerAvatarId: "asset:9", status: "completed", providerName: "heygen" }));
+  assert.equal(a.providerAvatarId, "asset:9");
+  const store = memoryLedgerStore(); let calls = 0;
+  const c = async () => { calls++; return { providerAvatarId: "asset:7", status: "completed", providerName: "heygen" }; };
+  await ledgerGuardedCreateAvatar(store, id, "heygen", "x", c);
+  const again = await ledgerGuardedCreateAvatar(store, id, "heygen", "x", c);
+  assert.equal(calls, 1); assert.equal(again.providerAvatarId, "asset:7");
+});

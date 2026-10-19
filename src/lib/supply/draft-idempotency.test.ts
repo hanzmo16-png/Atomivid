@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { createdUrl, draftRequestId, intentFingerprint, requestIdForSubmission } from "@/lib/video/submission-key";
+import { createdUrl, intentFingerprint, intentRequestId, requestIdForSubmission } from "@/lib/video/submission-key";
 import { acquireDraftKey, DRAFT_KEY_LOCK, DRAFT_KEY_STORAGE, readOrCreateDraftKey, rotateDraftKey } from "@/app/dashboard/new/draft-key";
 import { CLAIM_MESSAGES, createAvatarOnce, isDuplicateUpload, photoClaimPath, STALE_CLAIM_MS, type NewPhotoClaimDeps } from "@/lib/video/avatar/new-photo-claim";
 import { AvatarProviderError } from "@/lib/providers/types";
@@ -47,7 +47,8 @@ function server() {
   } } as unknown as VoiceProvider;
   /** One submission, in the action's order. `beforeInsert` lets a test interleave two submits (the 23505 race). */
   async function submit(fd: FormData, o: { legacyId?: string; beforeInsert?: () => Promise<void> } = {}): Promise<string> {
-    const { requestId, draftKey } = o.legacyId ? { requestId: o.legacyId, draftKey: null } : (await requestIdForSubmission(USER, fd));
+    const r = o.legacyId ? { requestId: o.legacyId, draftKey: null } : (await requestIdForSubmission(USER, fd, async c => new Set(c.filter(id => rows.has(id)))));
+    const requestId = r.requestId!, draftKey = r.draftKey;
     const created = createdUrl(draftKey);
     const existing = rows.get(requestId);
     if (existing && existing.user_id === USER) return created;
@@ -159,7 +160,13 @@ test("VERDE: una creación nueva deliberada (después del éxito confirmado) →
   assert.ok(land(storage, await s.submit(avatarForm(first))));
   const second = t.key();
   assert.notEqual(second, first, "el siguiente borrador tiene otra llave");
-  await s.submit(avatarForm(second)); // same text, deliberately a second video
+  // T46 D1: a new draft key alone is NOT a new intent; the same data maps to the same request…
+  await s.submit(avatarForm(second));
+  assert.equal(s.rows.size, 1);
+  assert.equal(s.voiceCalls, 1);
+  // …a second identical video is an explicit choice (repeat_intent), resolved on the server to the next free ordinal.
+  const again = avatarForm(second); again.set("repeat_intent", "on");
+  await s.submit(again);
   assert.equal(s.rows.size, 2);
   assert.equal(s.voiceCalls, 2);
 });
@@ -190,13 +197,13 @@ test("sin almacenamiento (modo privado, datos bloqueados) cada pestaña usa su p
 
 test("el id lo decide el servidor: incluye al usuario y la intención; el navegador no puede elegirlo ni sondear otro", async () => {
   const key = randomUUID(), fd = reelForm(key);
-  const mine = (await requestIdForSubmission(USER, fd)).requestId;
+  const mine = (await requestIdForSubmission(USER, fd)).requestId!;
   assert.notEqual(mine, key, "la llave del navegador no es el id");
   assert.notEqual((await requestIdForSubmission("22222222-2222-4222-8222-222222222222", fd)).requestId, mine);
-  assert.equal(draftRequestId(USER, key.toUpperCase(), await intentFingerprint(fd)), mine, "mayúsculas no cambian la llave");
+  assert.equal(intentRequestId(USER, await intentFingerprint(fd), 0), mine, "id = usuario + intención (ordinal 0)");
   assert.match(mine, /^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   const legacy = new FormData(); legacy.set("submission_id", "x");
-  assert.equal((await requestIdForSubmission(USER, legacy)).draftKey, null, "sin llave válida: id nuevo como antes");
+  assert.equal((await requestIdForSubmission(USER, legacy)).draftKey, null, "sin llave válida: draftKey nulo, pero el id sigue siendo el del servidor");
 });
 
 // ---------------------------------------------------------------- Residual C: archivos por sus bytes
@@ -359,7 +366,7 @@ test("CORRECCIÓN-3: solo el rechazo definitivo libera la reserva", async () => 
 
 test("la acción y el formulario siguen exactamente ese orden (fuente)", () => {
   const actions = fs.readFileSync(path.join(ROOT, "src/app/dashboard/new/actions.ts"), "utf8");
-  const id = actions.indexOf("const { requestId, draftKey } = await requestIdForSubmission(user.id, formData);");
+  const id = actions.indexOf("const resolved = await requestIdForSubmission(user.id, formData, lookup);");
   const existing = actions.indexOf('.from("video_requests").select("id").eq("id", requestId).eq("user_id", user.id).maybeSingle();');
   const visual = actions.indexOf('if (mode === "visual") {'), voice = actions.indexOf("const voiceResult = await gatedVoiceSynthesize({ requestId,");
   assert.ok(id > 0 && id < existing && existing < visual && visual < voice, "id → fila existente → ramas → voz pagada");
