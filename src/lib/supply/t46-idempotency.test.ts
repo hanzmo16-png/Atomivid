@@ -16,6 +16,7 @@ import { memoryResultStore } from "@/lib/paid-calls/result-store";
 import { configuredAvatarCreationCostUsd, ledgerGuardedCreateAvatar } from "@/lib/video/avatar/create-avatar-ledger";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { createAvatarOnce, photoClaimPath, type NewPhotoClaimDeps } from "@/lib/video/avatar/new-photo-claim";
+import { insertCanonicalAvatar } from "@/lib/video/avatar/canonical-row";
 import { AvatarProviderError } from "@/lib/providers/types";
 import type { VoiceProvider } from "@/lib/providers/types";
 
@@ -155,6 +156,52 @@ test("D2: un resultado confirmado se reutiliza del ledger sin volver a llamar", 
   await ledgerGuardedCreateAvatar(store, id, "heygen", "x", call, { verifiedCostUsd: 0.25 });
   const again = await ledgerGuardedCreateAvatar(store, id, "heygen", "x", call, { verifiedCostUsd: 0.25 });
   assert.equal(calls, 1); assert.equal(again.providerAvatarId, "asset:7");
+});
+
+for (const n of [2, 5, 10]) {
+  test(`D2 persistencia canónica: ${n} contendientes tardíos posteriores a COMMITTED convergen a una fila`, async () => {
+    type Row = { id: string; status: string };
+    const key = `${USER_A}/request/photo.jpeg`;
+    let canonical: Row | null = null;
+    let successfulInserts = 0;
+
+    const contender = () => insertCanonicalAvatar<Row>(
+      async () => {
+        // Models the additive unique index: only the first INSERT wins, every later contender gets 23505.
+        if (canonical) return { data: null, error: { code: "23505" } };
+        canonical = { id: randomUUID(), status: "ready" };
+        successfulInserts++;
+        return { data: canonical, error: null };
+      },
+      async () => ({ data: canonical, error: null }),
+    );
+
+    const rows = await Promise.all(Array.from({ length: n }, contender));
+    assert.equal(successfulInserts, 1);
+    assert.ok(canonical);
+    assert.ok(rows.every(row => row?.id === canonical!.id), `${key}: ${JSON.stringify(rows)}`);
+  });
+}
+
+test("D2 persistencia canónica: errores distintos de 23505 no se reinterpretan como contienda", async () => {
+  let loads = 0;
+  const row = await insertCanonicalAvatar(
+    async () => ({ data: null, error: { code: "42501" } }),
+    async () => { loads++; return { data: { id: "wrong" }, error: null }; },
+  );
+  assert.equal(row, null);
+  assert.equal(loads, 0);
+});
+
+test("D2 persistencia canónica: la migración es aditiva, parcial y falla cerrado ante duplicados existentes", async () => {
+  const { readFileSync } = await import("node:fs");
+  const sql = readFileSync("supabase/migrations/20261019103000_avatar_source_claim_unique.sql", "utf8");
+  assert.match(sql, /group by user_id, source_photo_path[\s\S]*having count\(\*\) > 1/);
+  assert.match(sql, /raise exception/);
+  assert.match(sql, /create unique index if not exists avatars_user_source_photo_claim_uidx/);
+  assert.match(sql, /on public\.avatars \(user_id, source_photo_path\)/);
+  assert.match(sql, /where source_photo_path is not null/);
+  assert.doesNotMatch(sql, /\b(?:delete|update|truncate|drop)\b/i);
 });
 
 test("D6: tarifa ausente, cero, negativa o malformada bloquea antes de reservar o llamar", async () => {

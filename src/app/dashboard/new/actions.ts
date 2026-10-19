@@ -13,6 +13,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { ledgerGuardedCreateAvatar } from "@/lib/video/avatar/create-avatar-ledger";
 import { createdUrl, formErrorUrl, requestIdForSubmission } from "@/lib/video/submission-key";
 import { CLAIM_MESSAGES, createAvatarOnce, isDuplicateUpload, photoClaimPath } from "@/lib/video/avatar/new-photo-claim";
+import { insertCanonicalAvatar } from "@/lib/video/avatar/canonical-row";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
 import { checkProductionForRequest } from "@/lib/supply/production-check";
@@ -324,19 +325,24 @@ export async function createVideoRequest(formData: FormData) {
       // Server-owned write (migration 20261009040743 revokes client-role writes on avatars);
       // user_id comes from the verified session above, never from the form.
       async insertAvatar(p, path) {
-        const { data } = await service.from("avatars").insert({
-          user_id: user.id,
-          name: avatarName,
-          provider: p.providerName,
-          provider_avatar_id: p.providerAvatarId,
-          provider_job_id: p.providerJobId ?? null,
-          source_photo_path: path,
-          status: avatarStatusFromProviderStatus(p.status as AvatarJobStatus),
-          consent_given: true,
-          consent_given_at: new Date().toISOString(),
-          consent_policy_version: AVATAR_CONSENT_POLICY_VERSION,
-        }).select("id, status").single<{ id: string; status: string }>();
-        return data ?? null;
+        return insertCanonicalAvatar(
+          () => service.from("avatars").insert({
+            user_id: user.id,
+            name: avatarName,
+            provider: p.providerName,
+            provider_avatar_id: p.providerAvatarId,
+            provider_job_id: p.providerJobId ?? null,
+            source_photo_path: path,
+            status: avatarStatusFromProviderStatus(p.status as AvatarJobStatus),
+            consent_given: true,
+            consent_given_at: new Date().toISOString(),
+            consent_policy_version: AVATAR_CONSENT_POLICY_VERSION,
+          }).select("id, status").single<{ id: string; status: string }>(),
+          // A late contender may arrive after the paid-call ledger is COMMITTED. The additive unique index rejects
+          // its duplicate row; load and reuse the winner instead of treating this as a missing/uncertain avatar.
+          () => service.from("avatars").select("id, status")
+            .eq("user_id", user.id).eq("source_photo_path", path).maybeSingle<{ id: string; status: string }>(),
+        );
       },
     }, photoPath);
 
