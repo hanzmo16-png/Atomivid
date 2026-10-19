@@ -149,7 +149,8 @@ let browser;
   await C.p.getByRole("button", { name: "Generar video final" }).click();
   const vC = await waitTerminal(idC, 5 * 60000); setWorkerOverride({});
   await C.p.goto(`${BASE}/dashboard`); await sleep(1500); await shot(C.p, "C-04-rechazo-explicito");
-  const uiC = await C.p.locator("main").innerText();
+  // Sólo la tarjeta de ESTA solicitud (otras corridas pueden mostrar el mismo rechazo en el panel).
+  const uiC = await C.p.locator("li", { hasText: `E2E Director no disponible ${run}` }).innerText().catch(() => "");
   const objC = fs.existsSync(path.join(STORE, "videos", idC)) ? execFileSync("find", [path.join(STORE, "videos", idC), "-type", "f"]).toString().trim().split("\n").filter(Boolean) : [];
   const resC = (await db.query("select * from public.pi_supply_job_reservations where project_id=$1", [idC])).rows;
   check("[C] Director pedido pero no disponible en el worker ⇒ failed con mensaje explícito del Director", vC.status === "failed" && vC.director_requested === true && /Director/i.test(String(vC.error_message)) && !vC.video_path, { status: vC.status, err: vC.error_message });
