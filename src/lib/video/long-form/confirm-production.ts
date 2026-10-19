@@ -23,7 +23,8 @@ import {
 import { getLongFormBudget } from "./cost";
 import { validatePackagingInput } from "./packaging";
 import { productPlan } from "./product-plan";
-import { usesVisualIdentity } from "./production-plan-types";
+import { usesAnchoredVisuals, usesVisualIdentity } from "./production-plan-types";
+import { datedEventBlockMessage, datedEventEvidenceBlockers } from "./dated-event-preflight";
 import type { ProductionPlanBeatInput } from "./production-plan";
 import { visualBlockMessage, visualCheck, type VisualCheck } from "./production-preflight";
 
@@ -119,6 +120,12 @@ export async function confirmLongFormProduction(
     const script = data.script_json as unknown as { topic: string; beats: ProductionPlanBeatInput[] };
     const visual = await (input.visualGate ?? ((p: ProductionPlan) => visualCheck(service, { requestId: input.requestId, plan: p, beats: script.beats, topic: script.topic || data.topic || "" })))(plan);
     if (!visual.ready) return { ok: false, status: 409, error: visualBlockMessage(visual) };
+  } else if (usesAnchoredVisuals(plan)) {
+    // v3: el worker rechazaría antes de gastar un acontecimiento fechado ilustrado con material genérico
+    // (dated-event-preflight.ts); el plan no se bloquea como confirmado para luego fallar.
+    const script = data.script_json as unknown as { beats: ProductionPlanBeatInput[] };
+    const dated = datedEventEvidenceBlockers(script.beats ?? []);
+    if (dated.length > 0) return { ok: false, status: 409, error: datedEventBlockMessage(dated.length) };
   }
 
   const confirmedAt = input.nowIso ?? new Date().toISOString();
