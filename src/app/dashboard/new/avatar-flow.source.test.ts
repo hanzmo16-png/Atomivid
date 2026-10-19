@@ -213,3 +213,12 @@ test("actions.ts: reusar un avatar_id de OTRO proveedor (p. ej. \"did\" heredado
     "un avatar de otro proveedor debe rechazarse explícitamente, con un mensaje claro, en vez de dejar que pipeline.ts falle mucho más tarde",
   );
 });
+
+test("actions.ts: un avatar existente se carga por id Y por propietario autenticado antes de cualquier paso pagado", () => {
+  const source = fs.readFileSync(ACTIONS_PATH, "utf-8");
+  assert.match(
+    source,
+    /\.from\("avatars"\)\s*\.select\("id, status, provider"\)\s*\.eq\("id", existingAvatarId\)\s*\.eq\("user_id", user\.id\)\s*\.maybeSingle/,
+    "RLS es una defensa obligatoria, pero la consulta también debe vincular explícitamente el avatar a la sesión",
+  );
+});

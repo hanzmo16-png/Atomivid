@@ -265,6 +265,7 @@ export async function createVideoRequest(formData: FormData) {
       .from("avatars")
       .select("id, status, provider")
       .eq("id", existingAvatarId)
+      .eq("user_id", user.id)
       .maybeSingle<{ id: string; status: string; provider: string }>();
 
     if (!avatar || avatar.status !== "ready") {
