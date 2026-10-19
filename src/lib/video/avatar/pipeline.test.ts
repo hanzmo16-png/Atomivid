@@ -9,9 +9,14 @@ import type { GeneratedScript } from "@/lib/providers/types";
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 import { memoryResultStore } from "@/lib/paid-calls/result-store";
 
-const memoryPaidCalls = () => ({ ledger: memoryLedgerStore(), results: memoryResultStore() });
+const memoryPaidCalls = () => {
+  const ledger = memoryLedgerStore();
+  ledger.submit = async (op, at) =>
+    ledger.update(op.idempotencyKey, "RESERVED", { status: "SUBMITTED", updatedAt: at });
+  return { ledger, results: memoryResultStore() };
+};
 
-const KEYS = ["AVATAR_MODE_ENABLED", "AVATAR_PROVIDER", "HEYGEN_API_KEY", "MAX_AVATAR_DURATION_SECONDS", "VOICE_PROVIDER", "ELEVENLABS_API_KEY"];
+const KEYS = ["AVATAR_MODE_ENABLED", "AVATAR_PROVIDER", "HEYGEN_API_KEY", "PRICING_HEYGEN_CREATE_AVATAR_USD", "MAX_AVATAR_DURATION_SECONDS", "VOICE_PROVIDER", "ELEVENLABS_API_KEY"];
 
 async function withEnv(vars: Record<string, string | undefined>, fn: () => void | Promise<void>) {
   const originals = KEYS.map((k) => [k, process.env[k]] as const);
@@ -443,7 +448,7 @@ test("HeyGen recorded pipeline preserves owner association, uses full audio and 
     return {...await fixtureAvatarProvider.generateVideo({...request,providerAvatarId:"fixture"}),providerJobId:"heygen-job"};
   };
   try {
-    await withEnv({AVATAR_MODE_ENABLED:"true",AVATAR_PROVIDER:"heygen",HEYGEN_API_KEY:"fake"},async()=>{
+    await withEnv({AVATAR_MODE_ENABLED:"true",AVATAR_PROVIDER:"heygen",HEYGEN_API_KEY:"fake",PRICING_HEYGEN_CREATE_AVATAR_USD:"0.25"},async()=>{
       await generateAvatarVideo({supabase:fake, paidCalls: memoryPaidCalls(),requestId:"r1",userId:"u1",script:{title:"recorded",segments:[]},avatarId:"a1",recordedAudioPath:"u1/r1/recording.wav"});
     });
     assert.equal(creations,1);
@@ -483,7 +488,7 @@ test("con narrationSource='tts', el upsert final a generation_costs NO incluye v
     return {...await fixtureAvatarProvider.generateVideo({...request,providerAvatarId:"fixture"}),providerJobId:"heygen-job"};
   };
   try {
-    await withEnv({AVATAR_MODE_ENABLED:"true",AVATAR_PROVIDER:"heygen",HEYGEN_API_KEY:"fake"},async()=>{
+    await withEnv({AVATAR_MODE_ENABLED:"true",AVATAR_PROVIDER:"heygen",HEYGEN_API_KEY:"fake",PRICING_HEYGEN_CREATE_AVATAR_USD:"0.25"},async()=>{
       await generateAvatarVideo({supabase:fake, paidCalls: memoryPaidCalls(),requestId:"r1",userId:"u1",script:{title:"tts",segments:[]},avatarId:"a1",recordedAudioPath:"u1/r1/recording.wav",narrationSource:"tts"});
     });
     assert.equal(generationCostsUpserts.length, 1);
@@ -522,7 +527,7 @@ test("con narrationSource='own_audio' (o sin especificar), el upsert SÍ marca v
     return {...await fixtureAvatarProvider.generateVideo({...request,providerAvatarId:"fixture"}),providerJobId:"heygen-job"};
   };
   try {
-    await withEnv({AVATAR_MODE_ENABLED:"true",AVATAR_PROVIDER:"heygen",HEYGEN_API_KEY:"fake"},async()=>{
+    await withEnv({AVATAR_MODE_ENABLED:"true",AVATAR_PROVIDER:"heygen",HEYGEN_API_KEY:"fake",PRICING_HEYGEN_CREATE_AVATAR_USD:"0.25"},async()=>{
       await generateAvatarVideo({supabase:fake, paidCalls: memoryPaidCalls(),requestId:"r1",userId:"u1",script:{title:"own",segments:[]},avatarId:"a1",recordedAudioPath:"u1/r1/recording.wav",narrationSource:"own_audio"});
     });
     assert.equal(generationCostsUpserts[0].voice_provider, "uploaded");
