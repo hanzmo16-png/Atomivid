@@ -82,8 +82,8 @@ async function exportCsv(dir: string) {
     ["ledger_transitions.csv", `select a.id, o.project_id, a.key, a.old_status, a.new_status, a.reserved::text, a.committed::text, a.job, a.at from public.adv_audit a left join public.pi_paid_operations o on o.idempotency_key=a.key order by a.id`],
   ] as const) {
     const r = await admin.query(sql);
-    const cols = r.fields.map((f: { name: string }) => f.name);
-    writeFileSync(`${dir}/${file}`, [cols.join(","), ...r.rows.map((row: Record<string, unknown>) => cols.map((c: string) => esc(row[c])).join(","))].join("\n") + "\n");
+    const cols = Object.keys(r.rows[0] ?? {});
+    writeFileSync(`${dir}/${file}`, [cols.join(","), ...r.rows.map((row) => cols.map((c) => esc(row[c])).join(","))].join("\n") + "\n");
   }
 }
 after(async () => { if (process.env.ADV_CSV_DIR && admin) await exportCsv(process.env.ADV_CSV_DIR); await admin?.end(); globalThis.fetch = realFetch; });
