@@ -73,8 +73,13 @@ export function NewVideoForm({
   // new-photo-claim.ts) starts a new draft, and only if that key is still the stored one.
   const [submissionId, setSubmissionId] = useState(newKey);
   const [draftReady, setDraftReady] = useState(false);
+  // D5: one stable token per deliberate repeat action. Never rotate it on a failed/lost response.
+  // The next visit to the form creates a NEW token; a resend of the same POST preserves the original.
+  const [repeatIntent, setRepeatIntent] = useState(false);
+  const [repeatToken, setRepeatToken] = useState("");
   const submissionIdRef = useRef(submissionId);
   const syncVersion = useRef(0);
+  useEffect(() => { setRepeatToken(newKey()); }, []);
   useEffect(() => {
     let alive = true;
     const sync = () => {
@@ -117,7 +122,7 @@ export function NewVideoForm({
     : avatarNarrationSource === "tts_text" ? fitForMaximum(narrationStats(ttsText, language, "avatar"), maxAvatarDurationSeconds) : null;
   const submitPays = mode === "avatar" && avatarNarrationSource === "tts_text";
   const check = checkState.status === "done" ? checkState.check : null;
-  const disabledReason = !draftReady ? "Sincronizando borrador entre pestañas…" : localFit && !localFit.allowed ? "Corrige el texto o la duración antes de continuar; no se ha gastado nada."
+  const disabledReason = !draftReady ? "Sincronizando borrador entre pestañas…" : repeatIntent && !repeatToken ? "No se puede identificar esta nueva solicitud de forma segura; actualiza el formulario." : localFit && !localFit.allowed ? "Corrige el texto o la duración antes de continuar; no se ha gastado nada."
     : mode === "visual" && scriptChoice === "adapt" && !adaptAccepted ? "Acepta el costo de adaptar tu texto con IA o elige otra opción."
     : checkEnabled && checkState.status === "checking" ? "Comprobando datos, plan y recursos…"
     : check && check.outcome !== "ready" && (check.responsible === "cliente" || submitPays) ? check.next
@@ -320,7 +325,8 @@ export function NewVideoForm({
 
       {/* T46 D1: the server treats the same data as the same request. A second identical video is an explicit choice. */}
       <label className="flex items-start gap-2 text-sm text-ink-muted">
-        <input type="checkbox" name="repeat_intent" className="mt-1" />
+        <input type="checkbox" name="repeat_intent" className="mt-1" checked={repeatIntent} onChange={e => setRepeatIntent(e.target.checked)} />
+        <input type="hidden" name="repeat_request_token" value={repeatToken} disabled={!repeatIntent || !repeatToken} />
         <span>Crear otro video igual aunque ya exista una solicitud con exactamente estos datos.</span>
       </label>
       <SubmitButton disabledReason={disabledReason} />
