@@ -14,6 +14,8 @@
  *     new draft (a deliberate new submit) can create another.
  * A provider REFUSAL releases the claim (the photo is removed, as before); an avatar created but not recorded keeps it.
  */
+import { AvatarProviderError } from "@/lib/providers/types";
+
 export const STALE_CLAIM_MS = 10 * 60 * 1000;
 
 export function photoClaimPath(userId: string, requestId: string, format: string): string {
@@ -38,7 +40,8 @@ export type NewPhotoClaimDeps = {
 export type NewPhotoClaimResult =
   | { kind: "created"; avatar: AvatarRow } | { kind: "reused"; avatar: AvatarRow }
   | { kind: "in_flight" } | { kind: "stale" } | { kind: "not_recorded" }
-  | { kind: "upload_failed"; message: string } | { kind: "provider_failed"; message: string };
+  | { kind: "upload_failed"; message: string } | { kind: "provider_failed"; message: string }
+  | { kind: "uncertain" };
 
 export async function createAvatarOnce(deps: NewPhotoClaimDeps, path: string): Promise<NewPhotoClaimResult> {
   const up = await deps.upload(path);
@@ -54,12 +57,25 @@ export async function createAvatarOnce(deps: NewPhotoClaimDeps, path: string): P
   try {
     provider = await deps.createAvatar();
   } catch (err) {
-    await deps.removePhoto(path).catch(() => {});
-    return { kind: "provider_failed", message: err instanceof Error ? err.message : "No se pudo crear el avatar en el proveedor" };
+    // Only a definitive rejection BEFORE any provider-side action permits releasing the claim.
+    // A network/timeout/5xx/invalid response can mean HeyGen already accepted the photo.
+    // Keep the claim on uncertain outcomes so a resend cannot call createAvatar again.
+    if (isFinalAvatarCreationRejection(err)) {
+      await deps.removePhoto(path).catch(() => {});
+      return { kind: "provider_failed", message: err instanceof Error ? err.message : "El proveedor rechazó la solicitud" };
+    }
+    return { kind: "uncertain" };
   }
   const row = await deps.insertAvatar(provider, path).catch(() => null);
   // The provider created it but it is not recorded: keep the claim, so a resend never creates a second one.
   return row ? { kind: "created", avatar: row } : { kind: "not_recorded" };
+}
+
+/** Only these explicit local/provider-final refusals are known not to have created a resource. */
+export function isFinalAvatarCreationRejection(error: unknown): boolean {
+  return error instanceof AvatarProviderError &&
+    (error.reason === "not_configured" || error.reason === "consent_missing" ||
+      error.reason === "budget_exceeded" || error.reason === "moderation_rejected" || error.reason === "circuit_open");
 }
 
 /** Customer messages; none of them says «no se cobró nada» (the provider may have acted). */
@@ -67,6 +83,7 @@ export const CLAIM_MESSAGES = {
   in_flight: "Esta misma solicitud ya se está procesando (en otra pestaña o en un envío anterior). No se creó otro avatar. Revisa tu panel en unos segundos.",
   stale: "Un envío anterior de esta misma solicitud no se confirmó y pudo haber creado un avatar en el proveedor. No se repitió. Si vuelves a enviar, se creará una solicitud nueva.",
   not_recorded: "El avatar se creó en el proveedor pero no se pudo guardar. No se repetirá automáticamente; escríbenos para recuperarlo.",
+  uncertain: "No pudimos confirmar si el proveedor recibió la fotografía. Conservamos esta solicitud y no intentaremos crear otro avatar automáticamente. Contacta a soporte para conciliarla.",
 } as const;
 
 /** Supabase Storage reports an existing object as 409 / «already exists» / «Duplicate». */
