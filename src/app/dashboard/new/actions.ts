@@ -328,6 +328,7 @@ export async function createVideoRequest(formData: FormData) {
 
     if (claim.kind === "upload_failed") redirect(formErrorUrl(`No se pudo subir la fotografía: ${claim.message}`));
     if (claim.kind === "provider_failed") redirect(formErrorUrl(claim.message));
+    if (claim.kind === "uncertain") redirect(formErrorUrl(CLAIM_MESSAGES.uncertain));
     if (claim.kind === "in_flight" || claim.kind === "not_recorded") redirect(formErrorUrl(CLAIM_MESSAGES[claim.kind]));
     // Stale: only a NEW draft (the form rotates the key on `reset`) can create another avatar, by a deliberate submit.
     if (claim.kind === "stale") redirect(formErrorUrl(CLAIM_MESSAGES.stale, draftKey));
