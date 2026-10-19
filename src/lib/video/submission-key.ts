@@ -42,17 +42,12 @@ export function draftRequestId(userId: string, draftKey: string, intent: Record<
 }
 
 /**
- * T46 D1: the request id no longer depends on the browser. It is derived on the server from the verified user and the
- * intent (every field the customer chose, files by their bytes) and an ordinal n:
- *   - a normal submit uses n = 0, so two tabs, a resend, a lost response or a browser without localStorage/Web Locks
- *     all map the same intent to the SAME id, and the primary key (23505) is the authority — no time window involved;
- *   - a deliberate second video with the same data is an explicit choice («Crear otro video igual», field
- *     `repeat_intent=on`): the server takes the first ordinal whose id does not exist for this user. Two concurrent
- *     explicit repeats pick the same ordinal and still collide on the primary key.
- * The browser's draft key is kept only to rotate the client draft after a confirmed creation; it never selects the id.
+ * T46 D1: a normal submission has a deterministic request id based on the verified user and canonical intent.
+ * D5: a deliberate "create another identical video" carries a DISTINCT, stable token for that explicit action.
+ * The same POST re-sent after a lost success response must map to the same request id forever, not select the
+ * next free ordinal. Only a newly generated token represents a newly authorized repeat. The database primary key
+ * remains the unique authority. A missing/invalid repeat token fails closed, never invokes a paid provider.
  */
-export const MAX_REPEAT_ORDINAL = 50;
-
 export function intentRequestId(userId: string, intent: Record<string, unknown>, ordinal: number): string {
   return draftRequestId(userId, `intent-v2:${ordinal}`, intent);
 }
@@ -65,9 +60,14 @@ export async function requestIdForSubmission(userId: string, formData: FormData,
   const intent = await intentFingerprint(formData);
   const repeat = formData.get("repeat_intent") === "on";
   if (!repeat) return { requestId: intentRequestId(userId, intent, 0), draftKey, repeat };
-  const candidates = Array.from({ length: MAX_REPEAT_ORDINAL }, (_, n) => intentRequestId(userId, intent, n));
-  const taken = await existingIds(candidates);
-  return { requestId: candidates.find(c => !taken.has(c)) ?? null, draftKey, repeat };
+  // This token is for one explicit user action (not the browser draft key). A replay has the exact same
+  // token. A new repeat requires a newly rendered form/token. Reject legacy/malformed requests before payment.
+  const repeatToken = String(formData.get("repeat_request_token") ?? "").trim().toLowerCase();
+  if (!UUID.test(repeatToken)) return { requestId: null, draftKey, repeat };
+  const requestId = draftRequestId(userId, `repeat-v1:${repeatToken}`, intent);
+  // Fail closed on an unreadable store; the server's existing-row check still controls reuse.
+  await existingIds([requestId]);
+  return { requestId, draftKey, repeat };
 }
 
 /** Where a confirmed creation lands: the draft key travels back so the browser can rotate it (and only it). */
