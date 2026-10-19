@@ -190,3 +190,23 @@ for (const reason of ["insufficient balance", "balance unverified or stale", "ra
     assert.equal(calls, 0);
   });
 }
+
+test("D6: un bloqueo económico libera solo el claim local; 0 llamadas y ninguna incertidumbre falsa", async () => {
+  const store = memoryLedgerStore(); let providerCalls = 0, removals = 0;
+  store.submit = async () => { throw new SupplyUnavailableError("heygen", "insufficient balance"); };
+  const result = await createAvatarOnce({
+    async upload() { return { ok: true }; },
+    async findAvatarByPhoto() { return null; },
+    async claimCreatedAt() { return new Date(); },
+    async removePhoto() { removals++; },
+    async createAvatar() {
+      return ledgerGuardedCreateAvatar(store, randomUUID(), "heygen", "photo", async () => {
+        providerCalls++; return { providerAvatarId: "asset:no", status: "completed", providerName: "heygen" };
+      }, { verifiedCostUsd: 0.25 });
+    },
+    async insertAvatar() { throw new Error("unreachable"); },
+  }, "u/request.jpg");
+  assert.equal(result.kind, "provider_failed");
+  assert.equal(providerCalls, 0);
+  assert.equal(removals, 1);
+});
