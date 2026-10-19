@@ -553,17 +553,25 @@ export async function generateVideoFromScript({
     // Anexo C1: the plan lacks material only (no licence/policy/timing issue) and the owner approved a ceiling for
     // this production → generate exactly those shots with the gated image call, then re-plan ONCE. Over the ceiling
     // → stop here, before any new paid call (DirectorMaterialBudgetError carries the delta).
-    let fill: { approvedUsd: number; spentUsd: number; shots: string[] } | { approvedUsd: number; skipped: string } | null = null;
+    let fill: { approvedUsd: number; spentUsd: number; shots: string[]; reusedShots: string[] } | { approvedUsd: number; skipped: string } | null = null;
     const materialBudget = !directed.ok && directorMaterialBudgetUsd ? await directorMaterialBudgetUsd() : 0;
-    if (!directed.ok && materialBudget > 0) {
+    // D-RETRY-CEILING: an owner test runs the fill even with a 0 ceiling, so a retry whose shots are ALL already
+    // stored completes without new spend; anything new over the confirmed ceiling stops before the provider.
+    if (!directed.ok && directorMaterialBudgetUsd) {
       const { fillDirectorMaterial, fillObjectKey, fillPrompt } = await import("@/lib/video/director/material-fill");
       const { imageVariant } = await import("@/lib/video/image-pricing");
       const { simulateStoryboard } = await import("@/lib/video/storyboard/simulate");
       const sb = storyboard ?? simulateStoryboard(script);
       const sbScenes = [...sb.scenes].sort((x, y) => x.order - y.order);
       const fillProvider = imageProvider ?? getImageProvider();
+      const { findExistingGeneratedImage } = await import("@/lib/video/visual-resource-resolver");
+      const keyOf = (shot: Parameters<typeof fillObjectKey>[0], sceneIndex: number) => {
+        const base = sbScenes[sceneIndex];
+        return fillObjectKey(shot, fillPrompt(base.imagePrompt, shot), base.negativePrompt, imageVariant(fillProvider.name));
+      };
       const result = await fillDirectorMaterial({
         directed, approvedUsd: materialBudget, beatsBySegment: directorBeats, sceneTimings,
+        isStored: async (shot, sceneIndex) => Boolean(await findExistingGeneratedImage(supabase, STORAGE_BUCKET, requestId, sceneIndex, keyOf(shot, sceneIndex))),
         generate: async (shot, sceneIndex, maxUsd) => {
           const base = sbScenes[sceneIndex];
           const prompt = fillPrompt(base.imagePrompt, shot);
@@ -583,7 +591,7 @@ export async function generateVideoFromScript({
       });
       if ("skipped" in result) fill = { approvedUsd: materialBudget, skipped: result.skipped };
       else {
-        fill = { approvedUsd: materialBudget, spentUsd: result.spentUsd, shots: result.shots.map(s => s.shotId) };
+        fill = { approvedUsd: materialBudget, spentUsd: result.spentUsd, shots: result.shots.map(s => s.shotId), reusedShots: result.reusedShots };
         directed = directReel({ script, storyboard, beatsBySegment: result.beatsBySegment, sceneTimings, audioUrl, captions, narrationGaps, durationSeconds: finalDurationSeconds, adapter: directorAdapter });
       }
     }

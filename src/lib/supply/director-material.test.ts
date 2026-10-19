@@ -241,3 +241,33 @@ test("C2: una llamada de imagen con resultado incierto no se repite a ciegas en 
   await assert.rejects(resolveGeneratedImageForScene({ ...args, imageProvider: good.p }), "the second attempt refuses: the first outcome is unknown");
   assert.equal(good.calls(), 0, "no blind regeneration while the first call is unreconciled");
 });
+
+test("D-RETRY-CEILING (T-20261019-1602): reintento con TODO el material ya guardado y tope 0 → completa sin gasto, cada llamada con USD 0 de margen", async () => {
+  const maxPerCall: number[] = [];
+  const out = await fillDirectorMaterial({ directed: direct(BEATS), approvedUsd: 0, beatsBySegment: BEATS, sceneTimings: TIMINGS,
+    isStored: async () => true,
+    generate: async (shot, _i, maxUsd) => { maxPerCall.push(maxUsd); return { url: `https://fixture.local/stored-${shot.shotId}`, costUsd: 0 }; } });
+  assert.ok(!("skipped" in out));
+  if ("skipped" in out) return;
+  assert.equal(out.spentUsd, 0);
+  assert.deepEqual(maxPerCall, [0, 0, 0], "material guardado: margen 0, imposible gastar fuera del tope");
+  assert.equal(out.reusedShots.length, 3);
+});
+
+test("D-RETRY-CEILING: sólo el material NUEVO cuenta contra el tope; con tope 0 y 1 plano nuevo se detiene ANTES de llamar con el faltante exacto", async () => {
+  let calls: number = 0; let n = 0;
+  const run = (approvedUsd: number) => fillDirectorMaterial({ directed: direct(BEATS), approvedUsd, beatsBySegment: BEATS, sceneTimings: TIMINGS,
+    isStored: async () => n++ % 3 !== 2, // 2 guardados, 1 nuevo
+    generate: async (_s, _i, maxUsd) => { calls++; return { url: "x", costUsd: maxUsd > 0 ? 0.05 : 0 }; } });
+  await assert.rejects(run(0), (e: unknown) => e instanceof DirectorMaterialBudgetError && Math.abs(e.neededUsd - UNIT) < 1e-9 && e.approvedRemainingUsd === 0);
+  assert.equal(calls, 0, "0 llamadas: el tope nunca se expande por una estimación nueva");
+  n = 0;
+  const ok = await run(UNIT);
+  assert.ok(!("skipped" in ok) && ok.spentUsd === 0.05);
+  assert.equal(calls as number, 3);
+});
+
+test("D-RETRY-CEILING: un plano «guardado» que intenta cobrar se detiene (nunca se paga dos veces en silencio)", async () => {
+  await assert.rejects(fillDirectorMaterial({ directed: direct(BEATS), approvedUsd: 0, beatsBySegment: BEATS, sceneTimings: TIMINGS,
+    isStored: async () => true, generate: async () => ({ url: "x", costUsd: 0.04 }) }), /cobro inesperado/);
+});

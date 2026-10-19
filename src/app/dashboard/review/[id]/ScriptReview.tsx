@@ -59,7 +59,10 @@ export function ScriptReview({
   const router = useRouter();
   const [script, setScript] = useState(initialScript);
   // Anexo C1: the simulated need, rounded up to cents, as the suggested ceiling (the owner can change it, or 0).
-  const [materialUsd, setMaterialUsd] = useState(() => directorMaterialOffer ? (Math.ceil(directorMaterialOffer.simulatedUsd * 100 - 1e-6) / 100).toFixed(2) : "0");
+  // D-RETRY-CEILING: a retry never pre-fills a ceiling from a new estimate. Material already stored is reused at no
+  // cost and does not count; any NEW material needs a ceiling the owner types explicitly (the Director stops before
+  // paying and says how much is missing).
+  const [materialUsd, setMaterialUsd] = useState(() => directorMaterialOffer && !reelRetryEligible ? (Math.ceil(directorMaterialOffer.simulatedUsd * 100 - 1e-6) / 100).toFixed(2) : "0");
   const [dirty, setDirty] = useState(false);
   const [recoveryNotice, setRecoveryNotice] = useState(errorMessage);
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
@@ -223,10 +226,9 @@ export function ScriptReview({
       {reelRetryEligible && (
         <Alert tone="warning">
           {errorMessage ? `El intento anterior terminó con error: ${errorMessage}. ` : ""}
-          El reintento no se inicia desde el historial. Comprueba el tope de material nuevo del Director
-          y confírmalo aquí antes de iniciar. Las imágenes ya guardadas se intentarán reutilizar;
-          cualquier material adicional fuera del tope confirmado debe detenerse antes de llamar al proveedor.
-          Para proteger lo ya pagado, el guion de este intento es de solo lectura.
+          Se conserva tu guion (solo lectura, para no perder lo ya pagado). Las imágenes y la voz ya guardadas se
+          reutilizan sin costo y no cuentan contra el tope. El tope de material NUEVO empieza en USD 0: si hace falta
+          algo nuevo, el Director se detiene antes de pagar y te dice cuánto falta para que decidas.
         </Alert>
       )}
       {recoveryAction && (

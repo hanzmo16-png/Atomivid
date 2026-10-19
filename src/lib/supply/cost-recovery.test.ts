@@ -122,7 +122,10 @@ test("D. the simulated Director panel never reads like the customer's balance: B
 
 test("D. a failed attempt keeps a visible «Revisar guion» (navigation only) and the review page decodes the stored failure", () => {
   const card = src("src/components/video/RequestCard.tsx");
-  assert.match(card, /request\.status === "failed" && Boolean\(request\.script_json\) && !isLongForm && \(\s*<Link href=\{`\/dashboard\/review\/\$\{request\.id\}`\}/);
+  // PR158: an eligible visual Reel shows «Revisar tope y reintentar» (same review page) instead of «Revisar guion»;
+  // every other failed request with a script keeps «Revisar guion». Either way a review link is always visible.
+  assert.match(card, /request\.status === "failed" && Boolean\(request\.script_json\) && !isLongForm && !reelRetryReview && \(\s*<Link href=\{`\/dashboard\/review\/\$\{request\.id\}`\}/);
+  assert.match(card, /reelRetryReview \? \(\s*<Link href=\{`\/dashboard\/review\/\$\{request\.id\}`\}[\s\S]{0,300}Revisar tope y reintentar/);
   const view = src("src/components/video/ResultView.tsx");
   assert.match(view, /request\.status === "failed" && Boolean\(request\.script_json\) && !isLongForm && \(\s*<div className="mt-4 flex justify-center">\s*<LinkButton href=\{`\/dashboard\/review\/\$\{request\.id\}`\}>/);
   // ROJO: the raw `[[action:…]]`-tagged text reached the review screen.
