@@ -210,3 +210,16 @@ test("D6: un bloqueo económico libera solo el claim local; 0 llamadas y ninguna
   assert.equal(providerCalls, 0);
   assert.equal(removals, 1);
 });
+
+
+test("D6: el pipeline de render reutiliza la admisión fail-closed (sin bypass económico)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("src/lib/video/avatar/pipeline.ts", "utf8");
+  const start = source.indexOf("if (heygenPhoto)");
+  const end = source.indexOf('await onProgress?.("voice")', start);
+  assert.ok(start >= 0 && end > start, "debe localizarse el bloque de creación desde foto");
+  const block = source.slice(start, end);
+  assert.match(block, /ledgerGuardedCreateAvatar/);
+  assert.doesNotMatch(block, /reservedUsd:\s*0/);
+  assert.doesNotMatch(block, /costUsd:\s*0/);
+});
