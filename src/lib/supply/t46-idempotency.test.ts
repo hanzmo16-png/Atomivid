@@ -226,7 +226,12 @@ test("D6: tarifa ausente, cero, negativa o malformada bloquea antes de reservar 
     assert.throws(() => configuredAvatarCreationCostUsd("heygen", env), (e: unknown) =>
       e instanceof AvatarProviderError && e.reason === "not_configured");
   }
-  assert.equal(configuredAvatarCreationCostUsd("heygen", { PRICING_HEYGEN_CREATE_AVATAR_USD: "0.1234561" }), 0.123457);
+  // Corrección T-20261019-1553: la columna es numeric(12,4), no 6 decimales. Redondeo hacia arriba a 0.0001.
+  assert.equal(configuredAvatarCreationCostUsd("heygen", { PRICING_HEYGEN_CREATE_AVATAR_USD: "0.1234561" }), 0.1235);
+  assert.equal(configuredAvatarCreationCostUsd("heygen", { PRICING_HEYGEN_CREATE_AVATAR_USD: "0.000001" }), 0.0001);
+  for (const bad of ["NaN", "Infinity", "", "100000000"])
+    assert.throws(() => configuredAvatarCreationCostUsd("heygen", { PRICING_HEYGEN_CREATE_AVATAR_USD: bad }), (e: unknown) =>
+      e instanceof AvatarProviderError && e.reason === "not_configured");
 });
 
 test("D6: sin el submit atómico de supply no existe bypass local; 0 llamadas", async () => {

@@ -13,6 +13,7 @@
  * balance cannot reflect them yet). REFUNDED never counts. UNKNOWN balance or a port error → no
  * hold, no job. Units live in `result_ref` ("units:<n>"); `reserved_usd` is the USD estimate.
  */
+import { ledgerUsd } from "./ledger-usd";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PaidLedgerUnavailableError } from "./errors";
 import type { ProviderBalancePort } from "./capacity-port";
@@ -164,7 +165,7 @@ export function supabaseCapacityHoldStore(supabase: SupabaseClient): CapacityHol
         model: "*",
         method: CAPACITY_HOLD_METHOD,
         attempt_kind: "initial",
-        reserved_usd: Math.max(0, row.usd),
+        reserved_usd: ledgerUsd(Math.max(0, row.usd), "reserved_usd"),
         committed_usd: null,
         status: "RESERVED",
         provider_job_id: null,

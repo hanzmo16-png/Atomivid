@@ -10,6 +10,7 @@
  * contract does not expose a trustworthy per-creation price, the feature stays fail-closed.
  */
 import { guardPaidCall, type LedgerStore, type PaidCallClassification } from "@/lib/paid-calls/gate";
+import { ledgerBillableUsd } from "@/lib/paid-calls/ledger-usd";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { AvatarProviderError } from "@/lib/providers/types";
 import { isFinalAvatarCreationRejection, type ProviderAvatar } from "./new-photo-claim";
@@ -38,8 +39,13 @@ export function configuredAvatarCreationCostUsd(
   const raw = env[name];
   const parsed = raw === undefined || raw.trim() === "" ? Number.NaN : Number(raw);
   if (!Number.isFinite(parsed) || !(parsed > 0)) throw configurationError(providerName, `${name} ausente o inválida`);
-  // pi_paid_operations stores six decimal places; round UP so the reservation never understates the configured rate.
-  return Math.ceil(parsed * 1_000_000) / 1_000_000;
+  // pi_paid_operations es numeric(12,4): se reserva el importe redondeado HACIA ARRIBA a 0.0001 (reserva contable,
+  // no costo exacto). Un valor que desborda numeric(12,4) es inválido y bloquea antes del proveedor.
+  try {
+    return ledgerBillableUsd(parsed, name);
+  } catch (cause) {
+    throw configurationError(providerName, `${name} no representable en el ledger`, cause);
+  }
 }
 
 export function avatarCreationSpec(
