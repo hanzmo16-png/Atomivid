@@ -72,10 +72,22 @@ export function NewVideoForm({
   // The key is taken under the browser's cross-tab lock (acquireDraftKey). `?reset=<key>` (a stale claim, see
   // new-photo-claim.ts) starts a new draft, and only if that key is still the stored one.
   const [submissionId, setSubmissionId] = useState(newKey);
+  const [draftReady, setDraftReady] = useState(false);
   const submissionIdRef = useRef(submissionId);
+  const syncVersion = useRef(0);
   useEffect(() => {
     let alive = true;
-    const sync = () => { void acquireDraftKey(browserStorage(), submissionIdRef.current).then(k => { if (alive) { submissionIdRef.current = k; setSubmissionId(k); } }); };
+    const sync = () => {
+      setDraftReady(false);
+      const version = ++syncVersion.current;
+      void acquireDraftKey(browserStorage(), submissionIdRef.current).then(k => {
+        if (alive && version === syncVersion.current) {
+          submissionIdRef.current = k;
+          setSubmissionId(k);
+          setDraftReady(Boolean(k));
+        }
+      }).catch(() => { if (alive && version === syncVersion.current) setDraftReady(false); });
+    };
     try { rotateDraftKey(browserStorage(), new URLSearchParams(window.location.search).get("reset")); } catch { /* no URL access: nothing to reset */ }
     sync();
     const onStorage = (e: StorageEvent) => { if (e.key === null || e.key === DRAFT_KEY_STORAGE) sync(); };
@@ -105,15 +117,15 @@ export function NewVideoForm({
     : avatarNarrationSource === "tts_text" ? fitForMaximum(narrationStats(ttsText, language, "avatar"), maxAvatarDurationSeconds) : null;
   const submitPays = mode === "avatar" && avatarNarrationSource === "tts_text";
   const check = checkState.status === "done" ? checkState.check : null;
-  const disabledReason = localFit && !localFit.allowed ? "Corrige el texto o la duración antes de continuar; no se ha gastado nada."
+  const disabledReason = !draftReady ? "Sincronizando borrador entre pestañas…" : localFit && !localFit.allowed ? "Corrige el texto o la duración antes de continuar; no se ha gastado nada."
     : mode === "visual" && scriptChoice === "adapt" && !adaptAccepted ? "Acepta el costo de adaptar tu texto con IA o elige otra opción."
     : checkEnabled && checkState.status === "checking" ? "Comprobando datos, plan y recursos…"
     : check && check.outcome !== "ready" && (check.responsible === "cliente" || submitPays) ? check.next
     : null;
 
   return (
-    <form action={action} className="space-y-5">
-      <input type="hidden" name="submission_id" value={submissionId} />
+    <form action={action} onSubmit={event => { if (!draftReady) event.preventDefault(); }} className="space-y-5">
+      <input type="hidden" name="submission_id" value={draftReady ? submissionId : ""} disabled={!draftReady} />
       {mode === "visual" && (
         <fieldset className="space-y-2.5">
           <legend className="text-sm font-medium text-ink">Guion</legend>
