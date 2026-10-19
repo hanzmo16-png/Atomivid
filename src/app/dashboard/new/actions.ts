@@ -110,7 +110,7 @@ export async function createVideoRequest(formData: FormData) {
     return new Set((data ?? []).map(r => r.id as string));
   };
   const resolved = await requestIdForSubmission(user.id, formData, lookup);
-  if (!resolved.requestId) redirect("/dashboard/new?error=Ya+existen+demasiadas+solicitudes+con+exactamente+los+mismos+datos.");
+  if (!resolved.requestId) redirect("/dashboard/new?error=No+se+pudo+verificar+la+identidad+de+esta+repetici%C3%B3n.+Actualiza+el+formulario+y+vuelve+a+revisarlo.");
   const requestId: string = resolved.requestId;
   const draftKey = resolved.draftKey;
   const created = createdUrl(draftKey);
