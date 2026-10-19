@@ -26,7 +26,24 @@ Applies when `createAvatarOnce` returned `uncertain`, `stale` or `not_recorded`,
    - for `confirmed_final_reject`, remove the claim object.
 6. **Never** call `createAvatar` again for the same request id. A new avatar requires a new intent (another photo, or an explicit «crear otro video igual»).
 
+## Read-only evidence collector
+
+`scripts/avatar-reconciliation-readonly.ts` inspects one exact operation and owner. It requires the full operation key and owner UUID through environment variables, verifies the expected Supabase project ref, refuses to start when HeyGen/D-ID credentials are present, and emits only hashes, booleans and counts.
+
+It performs only exact `select` and Storage `list` reads. It never calls a provider, never downloads a photo, never settles a ledger row and never authorizes a resubmit. A matching local avatar with a provider asset is only `candidate_success_needs_approval`; missing local evidence remains `needs_provider_review`, never a refund.
+
+Example (values supplied securely by the operator, never pasted into a report):
+
+```bash
+SUPABASE_URL=... \
+SUPABASE_SERVICE_ROLE_KEY=... \
+AVATAR_RECONCILE_PROJECT_REF=... \
+AVATAR_RECONCILE_OPERATION_KEY=... \
+AVATAR_RECONCILE_OWNER_ID=... \
+npx tsx scripts/avatar-reconciliation-readonly.ts
+```
+
 ## Not implemented (pending)
-- An automatic status query to HeyGen (it may be paid or unavailable; mocks only).
-- An admin screen or script for steps 1–5.
-- Logs and reports must not include photos, private URLs or keys.
+- An authorized, free provider-status query for the exact operation. Without it, absence is not proof of rejection.
+- Settlement remains intentionally separate: owner-approved decision record plus compare-and-set against the observed status.
+- An admin screen. Logs and reports must not include photos, private URLs, raw ids or keys.
