@@ -190,7 +190,10 @@ test("ledger: dos ejecuciones concurrentes no generan dos operaciones pagadas", 
   assert.equal(ledger.store.ops.size, 1, "una sola operación en el ledger");
   // El gate existente falla cerrado ante la carrera: la operación queda para conciliar, nunca se cobra dos veces.
   // (En producción, además, el claim del job con run_token impide dos workers sobre el mismo trabajo.)
-  assert.ok(settled.every((s) => s.status === "fulfilled" || /never resubmit/.test(String(s.reason))));
+  // Contrato D-RACE (#159): el perdedor recibe SubmissionInFlightError («en curso», sin reenviar ni tocar la fila del ganador);
+  // un resultado incierto sigue siendo «never resubmit». Exactamente uno gana; cualquier otro rechazo es un defecto.
+  assert.equal(settled.filter((s) => s.status === "fulfilled").length >= 1, true, "el ganador termina");
+  assert.ok(settled.every((s) => s.status === "fulfilled" || (s.reason as { inFlight?: boolean })?.inFlight === true || /never resubmit/.test(String(s.reason))), String(settled.map((s) => s.status === "rejected" ? s.reason : "ok")));
   const status = [...ledger.store.ops.values()][0].status;
   assert.ok(["COMMITTED", "RECONCILIATION_REQUIRED"].includes(status), status);
   const before = ledger.invocations();
