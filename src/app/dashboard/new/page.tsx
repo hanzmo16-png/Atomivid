@@ -8,7 +8,8 @@ import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
 
 const INCLUDES = [
-  "Guion escrito por IA a partir de tu tema",
+  // The script source is chosen in the form; this static list must hold for both (T46 E).
+  "Guion escrito por IA a partir de tu tema, o tu propio guion narrado tal cual",
   "Narración con voz natural en el idioma que elijas",
   "Clips e imágenes reales por escena",
   "Música de fondo con licencia comercial",
@@ -109,8 +110,8 @@ export default async function NewVideoPage({
             ))}
           </ul>
           <p className="mt-5 text-xs text-ink-faint">
-            Al enviar, primero se genera el guion — podrás revisarlo y ajustarlo antes de
-            producir el video final.
+            Al enviar, primero preparamos el guion (el de IA o el tuyo): podrás revisarlo
+            antes de producir el video final.
           </p>
         </Card>
       </div>
