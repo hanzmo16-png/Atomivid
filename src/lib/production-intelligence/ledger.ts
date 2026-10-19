@@ -55,6 +55,14 @@ export function memoryLedgerStore(): LedgerStore & { ops: Map<string, PaidOperat
 
 export class ReconciliationRequiredError extends Error {}
 
+/**
+ * The same operation is already SUBMITTED by another execution. This is a
+ * transient contention signal, not evidence that the provider outcome is
+ * uncertain. It remains a ReconciliationRequiredError subclass so existing
+ * callers continue to fail closed and never submit again.
+ */
+export class SubmissionInFlightError extends ReconciliationRequiredError {}
+
 export type ProviderPort = {
   /** Submit a job; must return the provider job id as soon as it is accepted. */
   submit(): Promise<{ providerJobId: string; submissionReceiptRef?: string }>;
@@ -66,7 +74,8 @@ export type ProviderPort = {
  * Execute one paid operation idempotently.
  * - COMMITTED: return the stored result (no charge).
  * - PROVIDER_JOB_RECORDED: resume polling the same job (no resubmit).
- * - SUBMITTED without a job id: the provider may have accepted -> RECONCILIATION_REQUIRED.
+ * - SUBMITTED without a job id: another execution owns the attempt; never
+ *   mutate its row and never submit again from this execution.
  * - absent or RESERVED: write SUBMITTED first, then submit.
  */
 export async function executePaidOperation(store: LedgerStore, op: Omit<PaidOperation, "status" | "providerJobId" | "resultRef" | "committedUsd" | "updatedAt">, port: ProviderPort, now: () => string): Promise<PaidOperation> {
@@ -80,8 +89,13 @@ export async function executePaidOperation(store: LedgerStore, op: Omit<PaidOper
   if (cur.status === "COMMITTED" || cur.status === "REFUNDED") return cur;
   if (cur.status === "RECONCILIATION_REQUIRED") throw new ReconciliationRequiredError(`${key}: reconcile with the provider before any new submission`);
   if (cur.status === "SUBMITTED") {
-    await store.update(key, "SUBMITTED", { status: "RECONCILIATION_REQUIRED", updatedAt: now() });
-    throw new ReconciliationRequiredError(`${key}: a submission without a recorded job id may have been accepted; never resubmitted automatically`);
+    // This execution did not make the provider call, so it cannot distinguish
+    // an active winner from a crashed/uncertain owner. Rewriting the row here
+    // races the real winner's SUBMITTED -> PROVIDER_JOB_RECORDED CAS and can
+    // poison a successful operation. Preserve the owner's row exactly. The
+    // caller that actually made the request remains responsible for marking an
+    // ambiguous failure RECONCILIATION_REQUIRED in its own error path.
+    throw new SubmissionInFlightError(`${key}: submission already in flight; retry later, never resubmitted automatically`);
   }
   let jobId = cur.providerJobId;
   if (cur.status === "RESERVED") {

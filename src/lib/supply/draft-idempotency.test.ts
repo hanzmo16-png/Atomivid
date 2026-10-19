@@ -100,13 +100,13 @@ test("VERDE: dos pestañas simultáneas del mismo borrador → 1 fila, 1 voz pag
   const a = tab(storage), b = tab(storage);
   assert.equal(a.key(), b.key(), "las pestañas comparten la llave del borrador");
   const [ra, rb] = await Promise.all([s.submit(avatarForm(a.key())), s.submit(avatarForm(b.key()))]);
-  // Both voices in flight at the same instant: the ledger sees the same paid operation twice and, by its audited
-  // conservative rule (T32), never calls again — ONE paid call. Neither tab can confirm it, so both are told to
-  // retry and no row exists yet (honest, not hidden)...
+  // Both voices reach the same paid operation. One execution owns SUBMITTED;
+  // the observer is blocked without rewriting that row, so the owner can
+  // finish and create the request. There is still exactly ONE paid call.
   assert.equal(s.voiceCalls, 1);
-  assert.deepEqual([ra, rb], ["/dashboard/new?error=voz", "/dashboard/new?error=voz"]);
-  assert.equal(s.rows.size, 0);
-  // ...and the retry reuses the stored audio of that one call: 1 row, still 1 paid call.
+  assert.deepEqual([ra, rb].sort(), ["/dashboard/new?error=voz", createdUrl(a.key())].sort());
+  assert.equal(s.rows.size, 1);
+  // A retry from the blocked tab sees the existing request: still 1 row and 1 paid call.
   assert.match(await s.submit(avatarForm(b.key())), /^\/dashboard\?created=1&draft=/);
   assert.equal(s.rows.size, 1);
   assert.equal(s.voiceCalls, 1);
