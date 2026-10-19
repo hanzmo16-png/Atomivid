@@ -166,7 +166,7 @@ test("Avatar valida un avatar utilizable antes de sintetizar voz potencialmente 
   const existingAvatarReady = actions.indexOf("avatarId = avatar.id;");
   const photoValidated = actions.indexOf("const validation = validatePhotoBuffer");
   const avatarProviderCall = actions.indexOf("const result = await provider.createAvatar");
-  const newAvatarReady = actions.indexOf("avatarId = inserted.id;");
+  const newAvatarReady = actions.indexOf("avatarId = claim.avatar.id;"); // corrección 2: via createAvatarOnce (new-photo-claim.ts)
   const paidVoice = actions.indexOf("const voiceResult = await gatedVoiceSynthesize");
 
   assert.ok(existingAvatarReady >= 0, "debe comprobar y seleccionar el avatar existente");

@@ -7,6 +7,11 @@
  * the only one that pays at creation, through the real gatedVoiceSynthesize and ledger). The simulated server below
  * follows the action's order exactly (asserted against the source at the end): id → existing row → paid voice →
  * insert (UNIQUE) → 23505 = already created → redirect with the draft key → the dashboard rotates it.
+ *
+ * Residual review of cd8995a (same correction 2): A) a NEW photo creates the avatar at the provider before the
+ * request row exists — now a storage claim derived from the request id is taken first (createAvatarCalls counted);
+ * B) the first creation of the shared key is serialized by the browser's Web Locks; without that API the window
+ * remains and is stated as a limit, never as a guarantee; C) files count by their bytes, not their name and size.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -14,7 +19,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { createdUrl, draftRequestId, intentFingerprint, requestIdForSubmission } from "@/lib/video/submission-key";
-import { DRAFT_KEY_STORAGE, readOrCreateDraftKey, rotateDraftKey } from "@/app/dashboard/new/draft-key";
+import { acquireDraftKey, DRAFT_KEY_LOCK, DRAFT_KEY_STORAGE, readOrCreateDraftKey, rotateDraftKey } from "@/app/dashboard/new/draft-key";
+import { CLAIM_MESSAGES, createAvatarOnce, isDuplicateUpload, photoClaimPath, STALE_CLAIM_MS, type NewPhotoClaimDeps } from "@/lib/video/avatar/new-photo-claim";
 import { gatedVoiceSynthesize } from "@/lib/paid-calls/gated-providers";
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 import { memoryResultStore } from "@/lib/paid-calls/result-store";
@@ -40,7 +46,7 @@ function server() {
   } } as unknown as VoiceProvider;
   /** One submission, in the action's order. `beforeInsert` lets a test interleave two submits (the 23505 race). */
   async function submit(fd: FormData, o: { legacyId?: string; beforeInsert?: () => Promise<void> } = {}): Promise<string> {
-    const { requestId, draftKey } = o.legacyId ? { requestId: o.legacyId, draftKey: null } : requestIdForSubmission(USER, fd);
+    const { requestId, draftKey } = o.legacyId ? { requestId: o.legacyId, draftKey: null } : (await requestIdForSubmission(USER, fd));
     const created = createdUrl(draftKey);
     const existing = rows.get(requestId);
     if (existing && existing.user_id === USER) return created;
@@ -181,29 +187,165 @@ test("sin almacenamiento (modo privado, datos bloqueados) cada pestaña usa su p
   assert.equal(rotateDraftKey(throwing, fallback), false);
 });
 
-test("el id lo decide el servidor: incluye al usuario y la intención; el navegador no puede elegirlo ni sondear otro", () => {
+test("el id lo decide el servidor: incluye al usuario y la intención; el navegador no puede elegirlo ni sondear otro", async () => {
   const key = randomUUID(), fd = reelForm(key);
-  const mine = requestIdForSubmission(USER, fd).requestId;
+  const mine = (await requestIdForSubmission(USER, fd)).requestId;
   assert.notEqual(mine, key, "la llave del navegador no es el id");
-  assert.notEqual(requestIdForSubmission("22222222-2222-4222-8222-222222222222", fd).requestId, mine);
-  assert.equal(draftRequestId(USER, key.toUpperCase(), intentFingerprint(fd)), mine, "mayúsculas no cambian la llave");
+  assert.notEqual((await requestIdForSubmission("22222222-2222-4222-8222-222222222222", fd)).requestId, mine);
+  assert.equal(draftRequestId(USER, key.toUpperCase(), await intentFingerprint(fd)), mine, "mayúsculas no cambian la llave");
   assert.match(mine, /^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   const legacy = new FormData(); legacy.set("submission_id", "x");
-  assert.equal(requestIdForSubmission(USER, legacy).draftKey, null, "sin llave válida: id nuevo como antes");
+  assert.equal((await requestIdForSubmission(USER, legacy)).draftKey, null, "sin llave válida: id nuevo como antes");
+});
+
+// ---------------------------------------------------------------- Residual C: archivos por sus bytes
+
+test("residual C — ROJO/VERDE: dos fotos distintas con el mismo nombre, tamaño y tipo son intenciones distintas", async () => {
+  const key = randomUUID();
+  const withPhoto = (bytes: number[]) => { const fd = avatarForm(key); fd.delete("existing_avatar_id");
+    fd.set("avatar_photo", new File([new Uint8Array(bytes)], "foto.jpg", { type: "image/jpeg" })); return fd; };
+  const a = withPhoto([1, 2, 3, 4]), b = withPhoto([9, 9, 9, 9]), a2 = withPhoto([1, 2, 3, 4]);
+  // ROJO (antes): la huella solo veía nombre, tamaño y tipo → mismo id → la segunda foto caía en la solicitud vieja.
+  const meta = (f: FormData) => { const v = f.get("avatar_photo") as File; return { name: v.name, size: v.size, type: v.type }; };
+  assert.deepEqual(meta(a), meta(b));
+  // VERDE: los bytes deciden.
+  const id = async (f: FormData) => (await requestIdForSubmission(USER, f)).requestId;
+  assert.notEqual(await id(a), await id(b));
+  assert.equal(await id(a), await id(a2), "la misma foto reenviada es la misma solicitud");
+  assert.doesNotMatch(JSON.stringify(await intentFingerprint(a)), /foto\.jpg/, "el nombre del archivo ya no forma parte de la intención");
+});
+
+// ---------------------------------------------------------------- Residual B: primera creación de la llave
+
+test("residual B — ROJO: sin candado, dos pestañas que crean la llave a la vez pueden quedarse con llaves distintas", async () => {
+  // The unlocked algorithm, step by step, with the interleaving the auditor described (A get, B get, A set/get, B set/get).
+  const storage = browserStorage();
+  const step = async (tabKey: string, gate: Promise<void>) => {
+    const seen = storage.getItem(DRAFT_KEY_STORAGE);
+    await gate;
+    if (seen) return seen;
+    storage.setItem(DRAFT_KEY_STORAGE, tabKey);
+    return storage.getItem(DRAFT_KEY_STORAGE)!;
+  };
+  let openA!: () => void, openB!: () => void;
+  const gA = new Promise<void>(r => { openA = r; }), gB = new Promise<void>(r => { openB = r; });
+  const pa = step(randomUUID(), gA), pb = step(randomUUID(), gB);
+  openA(); const ka = await pa; openB(); const kb = await pb;
+  assert.notEqual(ka, kb);
+});
+
+/** A Web Locks stand-in that is a real mutex: callbacks of the same name never overlap. */
+function mutexLocks() {
+  let tail: Promise<unknown> = Promise.resolve();
+  const log: string[] = [];
+  return { log, request<T>(name: string, options: { mode: "exclusive" }, cb: () => T | Promise<T>): Promise<T> {
+    log.push(`${name}:${options.mode}`);
+    const run = tail.then(() => cb());
+    tail = run.catch(() => {});
+    return run;
+  } };
+}
+
+test("residual B — VERDE: bajo el candado entre pestañas, dos pestañas simultáneas reciben la MISMA llave; sin candado se dice el límite", async () => {
+  const storage = browserStorage(), locks = mutexLocks();
+  let inside = 0;
+  const watched = { getItem: (k: string) => { assert.equal(inside, 1, "leer la llave solo dentro del candado"); return storage.getItem(k); },
+    setItem: (k: string, v: string) => { assert.equal(inside, 1); storage.setItem(k, v); }, removeItem: storage.removeItem };
+  const guarded = { request<T>(n: string, o: { mode: "exclusive" }, cb: () => T | Promise<T>) {
+    return locks.request(n, o, async () => { inside++; try { return await cb(); } finally { inside--; } }); } };
+  const [ka, kb] = await Promise.all([acquireDraftKey(watched, randomUUID(), guarded), acquireDraftKey(watched, randomUUID(), guarded)]);
+  assert.equal(ka, kb);
+  assert.deepEqual(locks.log, [`${DRAFT_KEY_LOCK}:exclusive`, `${DRAFT_KEY_LOCK}:exclusive`]);
+  // No Web Locks or a failing lock: the unlocked read (the stated limit), never a crash nor an empty key.
+  const plain = browserStorage(), fb = randomUUID();
+  assert.match(await acquireDraftKey(plain, fb, null), /^[0-9a-f-]{36}$/);
+  const broken = { request: () => Promise.reject(new Error("locks off")) } as unknown as Parameters<typeof acquireDraftKey>[2];
+  assert.equal(await acquireDraftKey(plain, fb, broken), plain.getItem(DRAFT_KEY_STORAGE));
+});
+
+// ---------------------------------------------------------------- Residual A: avatar con FOTO NUEVA
+
+/** Supabase Storage stand-in: object names are unique (upsert disabled), with creation time. */
+function avatarWorld(o: { refuse?: boolean; failInsert?: boolean } = {}) {
+  const objects = new Map<string, Date>(), avatars = new Map<string, { id: string; status: string }>();
+  let createAvatarCalls = 0, now = Date.parse("2026-10-18T23:00:00Z");
+  const deps = (): NewPhotoClaimDeps => ({
+    async upload(path) {
+      await new Promise(r => setTimeout(r, 1));
+      if (objects.has(path)) return { ok: false, duplicate: isDuplicateUpload({ statusCode: "409", message: "The resource already exists" }), message: "The resource already exists" };
+      objects.set(path, new Date(now)); return { ok: true };
+    },
+    async findAvatarByPhoto(path) { return avatars.get(path) ?? null; },
+    async claimCreatedAt(path) { return objects.get(path) ?? null; },
+    async removePhoto(path) { objects.delete(path); },
+    async createAvatar() {
+      createAvatarCalls++;
+      await new Promise(r => setTimeout(r, 5));
+      if (o.refuse) throw new Error("foto rechazada por el proveedor");
+      return { providerAvatarId: `pa_${createAvatarCalls}`, status: "ready", providerName: "fixture" };
+    },
+    async insertAvatar(_p, path) {
+      if (o.failInsert) return null;
+      const row = { id: `av_${avatars.size + 1}`, status: "ready" }; avatars.set(path, row); return row;
+    },
+    now: () => now,
+  });
+  return { objects, avatars, deps, get createAvatarCalls() { return createAvatarCalls; }, advance(ms: number) { now += ms; } };
+}
+
+test("residual A — ROJO (antes): ruta aleatoria por envío → dos pestañas con foto nueva crean 2 avatares en el proveedor", async () => {
+  const w = avatarWorld();
+  await Promise.all([createAvatarOnce(w.deps(), `${USER}/${randomUUID()}.jpg`), createAvatarOnce(w.deps(), `${USER}/${randomUUID()}.jpg`)]);
+  assert.equal(w.createAvatarCalls, 2);
+  assert.equal(w.avatars.size, 2);
+});
+
+test("residual A — VERDE: la reserva (ruta derivada del id) se toma ANTES de createAvatar: dos pestañas → 1 llamada, 1 avatar", async () => {
+  const w = avatarWorld(), path = photoClaimPath(USER, randomUUID(), "jpg");
+  const results = await Promise.all([createAvatarOnce(w.deps(), path), createAvatarOnce(w.deps(), path)]);
+  assert.deepEqual(results.map(r => r.kind).sort(), ["created", "in_flight"]);
+  assert.equal(w.createAvatarCalls, 1);
+  assert.equal(w.avatars.size, 1);
+  assert.equal(w.objects.size, 1, "ningún archivo huérfano");
+  // Resend after a lost or uncertain response: the recorded avatar is reused, 0 new calls.
+  const again = await createAvatarOnce(w.deps(), path);
+  assert.equal(again.kind, "reused");
+  assert.equal(w.createAvatarCalls, 1);
+});
+
+test("residual A — resultado incierto y recuperación: nunca se repite createAvatar sin una decisión nueva", async () => {
+  // Avatar created at the provider but its row could not be saved: the claim is KEPT.
+  const w = avatarWorld({ failInsert: true }), path = photoClaimPath(USER, randomUUID(), "jpg");
+  assert.equal((await createAvatarOnce(w.deps(), path)).kind, "not_recorded");
+  assert.equal((await createAvatarOnce(w.deps(), path)).kind, "in_flight", "reenvío inmediato: 0 llamadas");
+  w.advance(STALE_CLAIM_MS + 1);
+  assert.equal((await createAvatarOnce(w.deps(), path)).kind, "stale", "más tarde: se informa, sin repetir");
+  assert.equal(w.createAvatarCalls, 1);
+  // A provider REFUSAL releases the claim (nothing was created): a corrected retry may call again, once.
+  const r = avatarWorld({ refuse: true }), p2 = photoClaimPath(USER, randomUUID(), "jpg");
+  assert.equal((await createAvatarOnce(r.deps(), p2)).kind, "provider_failed");
+  assert.equal(r.objects.size, 0);
+  assert.match(CLAIM_MESSAGES.stale, /No se repitió/);
+  assert.doesNotMatch(Object.values(CLAIM_MESSAGES).join(" "), /no se (cobró|ha cobrado)/i, "nunca promete que no hubo cobro");
 });
 
 test("la acción y el formulario siguen exactamente ese orden (fuente)", () => {
   const actions = fs.readFileSync(path.join(ROOT, "src/app/dashboard/new/actions.ts"), "utf8");
-  const id = actions.indexOf("const { requestId, draftKey } = requestIdForSubmission(user.id, formData);");
+  const id = actions.indexOf("const { requestId, draftKey } = await requestIdForSubmission(user.id, formData);");
   const existing = actions.indexOf('.from("video_requests").select("id").eq("id", requestId).eq("user_id", user.id).maybeSingle();');
   const visual = actions.indexOf('if (mode === "visual") {'), voice = actions.indexOf("const voiceResult = await gatedVoiceSynthesize({ requestId,");
   assert.ok(id > 0 && id < existing && existing < visual && visual < voice, "id → fila existente → ramas → voz pagada");
   assert.equal(actions.match(/if \(error\.code === "23505"\) redirect\(created\);/g)?.length, 2, "Reel y avatar tratan 23505 como «ya creado»");
   assert.doesNotMatch(actions, /redirect\("\/dashboard\?created=1"\)/, "toda confirmación lleva la llave para rotarla");
   assert.match(actions, /if \(error\.code === "23505"\) redirect\(created\);\n    if \(audioPath\) await/, "la carrera perdida nunca borra el audio de la ganadora");
+  // Residual A: the photo's claim is derived from the request id and taken before the provider is called.
+  const claim = actions.indexOf("const photoPath = photoClaimPath(user.id, requestId, format);");
+  assert.ok(id < claim && claim < actions.indexOf("await provider.createAvatar(") && claim < actions.indexOf("const voiceResult = await gatedVoiceSynthesize"));
+  assert.doesNotMatch(actions, /\$\{user\.id\}\/\$\{randomUUID\(\)\}/, "ya no hay ruta aleatoria por envío");
+  assert.equal(actions.match(/provider\.createAvatar\(/g)?.length, 1, "createAvatar solo dentro de createAvatarOnce");
   const form = fs.readFileSync(path.join(ROOT, "src/app/dashboard/new/NewVideoForm.tsx"), "utf8");
   assert.doesNotMatch(form, /useState\(\(\) => \(typeof crypto/, "ya no hay un id por pestaña");
-  assert.match(form, /readOrCreateDraftKey\(browserStorage\(\), current\)/);
+  assert.match(form, /acquireDraftKey\(browserStorage\(\), submissionIdRef\.current\)/, "la llave se toma bajo el candado entre pestañas");
   assert.match(form, /addEventListener\("storage"/, "una pestaña abierta antes toma la llave vigente");
   const page = fs.readFileSync(path.join(ROOT, "src/app/dashboard/page.tsx"), "utf8");
   assert.match(page, /\{created && <DraftKeyRotation draft=\{draft\} \/>\}/, "solo una creación confirmada rota la llave");

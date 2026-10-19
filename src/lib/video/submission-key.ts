@@ -14,16 +14,21 @@ import { canonicalJson } from "@/lib/production-intelligence/canonical";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-/** Fields that define what the customer asked for. Files count by name, size and type (never their bytes). */
+/**
+ * Fields that define what the customer asked for. Files count by the SHA-256 of their bytes, size and type (C2
+ * residual C): two different photos or recordings with the same name and size are different intents. The hash is
+ * computed here, on the server, and never stored nor sent anywhere; the files are bounded by the form's limits.
+ */
 const INTENT_FIELDS = ["mode", "topic", "style", "duration_seconds", "language", "script_choice", "own_script_text", "adapt_accepted",
   "narration_source", "avatar_tts_text", "existing_avatar_id", "avatar_name", "avatar_photo", "recorded_audio"] as const;
 
-export function intentFingerprint(formData: FormData): Record<string, unknown> {
+export async function intentFingerprint(formData: FormData): Promise<Record<string, unknown>> {
   const out: Record<string, unknown> = {};
   for (const k of INTENT_FIELDS) {
     const v = formData.get(k);
     if (v === null) continue;
-    out[k] = typeof v === "string" ? v.trim() : { name: v.name, size: v.size, type: v.type };
+    out[k] = typeof v === "string" ? v.trim()
+      : { sha256: createHash("sha256").update(Buffer.from(await v.arrayBuffer())).digest("hex"), size: v.size, type: v.type };
   }
   return out;
 }
@@ -36,13 +41,18 @@ export function draftRequestId(userId: string, draftKey: string, intent: Record<
 }
 
 /** The request id for this submission; without a valid draft key (old tab, no storage) a fresh one, as before. */
-export function requestIdForSubmission(userId: string, formData: FormData): { requestId: string; draftKey: string | null } {
+export async function requestIdForSubmission(userId: string, formData: FormData): Promise<{ requestId: string; draftKey: string | null }> {
   const draftKey = String(formData.get("submission_id") ?? "");
   if (!UUID.test(draftKey)) return { requestId: randomUUID(), draftKey: null };
-  return { requestId: draftRequestId(userId, draftKey, intentFingerprint(formData)), draftKey: draftKey.toLowerCase() };
+  return { requestId: draftRequestId(userId, draftKey, await intentFingerprint(formData)), draftKey: draftKey.toLowerCase() };
 }
 
 /** Where a confirmed creation lands: the draft key travels back so the browser can rotate it (and only it). */
 export function createdUrl(draftKey: string | null): string {
   return draftKey ? `/dashboard?created=1&draft=${draftKey}` : "/dashboard?created=1";
+}
+
+/** Back to the form with a message; with `resetDraft`, the form starts a new draft (only after a stale claim). */
+export function formErrorUrl(message: string, resetDraft?: string | null): string {
+  return `/dashboard/new?error=${encodeURIComponent(message)}${resetDraft ? `&reset=${resetDraft}` : ""}`;
 }

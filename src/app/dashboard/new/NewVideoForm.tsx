@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
 import { AvatarFields } from "./AvatarFields";
 import { SubmitButton } from "./SubmitButton";
@@ -9,7 +9,7 @@ import { availableVideoDurations } from "@/lib/video/avatar/duration";
 import { fitForDuration, fitForMaximum, MAX_NARRATION_CHARS, narrationStats } from "@/lib/video/narration-fit";
 import { NarrationFitMeter } from "@/components/video/NarrationFitMeter";
 import { ChecklistView, useProductionCheck } from "@/components/video/ProductionChecklist";
-import { browserStorage, DRAFT_KEY_STORAGE, newKey, readOrCreateDraftKey } from "./draft-key";
+import { acquireDraftKey, browserStorage, DRAFT_KEY_STORAGE, newKey, rotateDraftKey } from "./draft-key";
 
 const STYLES = [
   "Motivacional",
@@ -69,14 +69,19 @@ export function NewVideoForm({
   // second tab or a re-submit after a lost response sends the same key, and the server maps the same key and
   // intent to the same request (submission-key.ts). It rotates only after the server confirmed the creation.
   // Without storage each tab keeps its own key (the first value), as before.
+  // The key is taken under the browser's cross-tab lock (acquireDraftKey). `?reset=<key>` (a stale claim, see
+  // new-photo-claim.ts) starts a new draft, and only if that key is still the stored one.
   const [submissionId, setSubmissionId] = useState(newKey);
+  const submissionIdRef = useRef(submissionId);
   useEffect(() => {
-    const sync = () => setSubmissionId(current => readOrCreateDraftKey(browserStorage(), current));
+    let alive = true;
+    const sync = () => { void acquireDraftKey(browserStorage(), submissionIdRef.current).then(k => { if (alive) { submissionIdRef.current = k; setSubmissionId(k); } }); };
+    try { rotateDraftKey(browserStorage(), new URLSearchParams(window.location.search).get("reset")); } catch { /* no URL access: nothing to reset */ }
     sync();
     const onStorage = (e: StorageEvent) => { if (e.key === null || e.key === DRAFT_KEY_STORAGE) sync(); };
     window.addEventListener("storage", onStorage);
     window.addEventListener("focus", sync);
-    return () => { window.removeEventListener("storage", onStorage); window.removeEventListener("focus", sync); };
+    return () => { alive = false; window.removeEventListener("storage", onStorage); window.removeEventListener("focus", sync); };
   }, []);
 
   // Checklist antes de generar (2026-10-18): «Crea mi guion» / «Usar mi propio guion», and the data the

@@ -10,7 +10,8 @@ import { recordingFormat, recordingPath, RECORDING_BUCKET, MAX_AVATAR_PHOTO_BYTE
 import { measureNarrationSeconds } from "@/lib/video/avatar/measure-narration";
 import { avatarDurationError } from "@/lib/video/avatar/duration";
 import { randomUUID } from "node:crypto";
-import { createdUrl, requestIdForSubmission } from "@/lib/video/submission-key";
+import { createdUrl, formErrorUrl, requestIdForSubmission } from "@/lib/video/submission-key";
+import { CLAIM_MESSAGES, createAvatarOnce, isDuplicateUpload, photoClaimPath } from "@/lib/video/avatar/new-photo-claim";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
 import { checkProductionForRequest } from "@/lib/supply/production-check";
@@ -19,7 +20,7 @@ import { MAX_NARRATION_CHARS } from "@/lib/video/narration-fit";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
-import { getAvatarProvider, AvatarProviderError, type AvatarJobStatus } from "@/lib/providers/avatar";
+import { getAvatarProvider, type AvatarJobStatus } from "@/lib/providers/avatar";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { validatePhotoBuffer } from "@/lib/video/avatar/photo-validation";
 import { recordAvatarNarrationTts } from "@/lib/billing/usage";
@@ -101,7 +102,7 @@ export async function createVideoRequest(formData: FormData) {
   // The request id comes from the draft key the browser shares between its tabs, the verified user and the
   // intent (submission-key.ts): a double click, a resend, a second tab or a re-submit after a lost response is
   // recognised here, before any paid call, and the primary key stays the authority on a race (23505).
-  const { requestId, draftKey } = requestIdForSubmission(user.id, formData);
+  const { requestId, draftKey } = await requestIdForSubmission(user.id, formData);
   const created = createdUrl(draftKey);
   {
     const { data: existing } = await createServiceClient().from("video_requests").select("id").eq("id", requestId).eq("user_id", user.id).maybeSingle();
@@ -278,65 +279,59 @@ export async function createVideoRequest(formData: FormData) {
     // migración 0011) — la subida solo puede hacerse con la service role,
     // nunca con el cliente autenticado por el usuario.
     const service = createServiceClient();
-    const photoPath = `${user.id}/${randomUUID()}.${format}`;
-    const { error: uploadError } = await service.storage
-      .from(AVATAR_UPLOADS_BUCKET)
-      .upload(photoPath, photoBuffer, { contentType: file.type, upsert: false });
-    if (uploadError) {
-      redirect(`/dashboard/new?error=${encodeURIComponent(`No se pudo subir la fotografía: ${uploadError.message}`)}`);
-    }
+    // Corrección 2 (residual A): the photo path IS the claim of this request (new-photo-claim.ts). It is taken
+    // before createAvatar, so a second identical submit (another tab, a resend) never creates a second avatar.
+    const photoPath = photoClaimPath(user.id, requestId, format);
+    const claim = await createAvatarOnce({
+      async upload(path) {
+        const { error } = await service.storage.from(AVATAR_UPLOADS_BUCKET).upload(path, photoBuffer, { contentType: file.type, upsert: false });
+        return error ? { ok: false, duplicate: isDuplicateUpload(error as { message?: string; statusCode?: string }), message: error.message } : { ok: true };
+      },
+      async findAvatarByPhoto(path) {
+        const { data } = await service.from("avatars").select("id, status").eq("user_id", user.id).eq("source_photo_path", path)
+          .maybeSingle<{ id: string; status: string }>();
+        return data ?? null;
+      },
+      async claimCreatedAt(path) {
+        const name = path.slice(path.indexOf("/") + 1);
+        const { data } = await service.storage.from(AVATAR_UPLOADS_BUCKET).list(user.id, { search: name, limit: 1 });
+        const created = data?.find(o => o.name === name)?.created_at;
+        return created ? new Date(created) : null;
+      },
+      async removePhoto(path) {
+        await service.storage.from(AVATAR_UPLOADS_BUCKET).remove([path]);
+      },
+      async createAvatar() {
+        const provider = getAvatarProvider();
+        if (!provider.isAvailable() || provider.name !== flags.avatarProvider) throw new Error("El proveedor de avatar no está configurado.");
+        const result = await provider.createAvatar({ photoBuffer, mimeType: file.type, consentGiven: true });
+        return { providerAvatarId: result.providerAvatarId, providerJobId: result.providerJobId, status: result.status, providerName: provider.name };
+      },
+      // Server-owned write (migration 20261009040743 revokes client-role writes on avatars);
+      // user_id comes from the verified session above, never from the form.
+      async insertAvatar(p, path) {
+        const { data } = await service.from("avatars").insert({
+          user_id: user.id,
+          name: avatarName,
+          provider: p.providerName,
+          provider_avatar_id: p.providerAvatarId,
+          provider_job_id: p.providerJobId ?? null,
+          source_photo_path: path,
+          status: avatarStatusFromProviderStatus(p.status as AvatarJobStatus),
+          consent_given: true,
+          consent_given_at: new Date().toISOString(),
+          consent_policy_version: AVATAR_CONSENT_POLICY_VERSION,
+        }).select("id, status").single<{ id: string; status: string }>();
+        return data ?? null;
+      },
+    }, photoPath);
 
-    let providerAvatarId: string;
-    let providerJobId: string | undefined;
-    let providerStatus: AvatarJobStatus;
-    let providerName: string;
-    try {
-      const provider = getAvatarProvider();
-      if (!provider.isAvailable() || provider.name !== flags.avatarProvider) throw new Error("El proveedor de avatar no está configurado.");
-      providerName = provider.name;
-      const result = await provider.createAvatar({ photoBuffer, mimeType: file.type, consentGiven: true });
-      providerAvatarId = result.providerAvatarId;
-      providerJobId = result.providerJobId;
-      providerStatus = result.status;
-    } catch (err) {
-      // La fotografía ya se subió — se limpia para no dejar un archivo
-      // huérfano si el proveedor rechaza la creación del avatar.
-      await service.storage.from(AVATAR_UPLOADS_BUCKET).remove([photoPath]).catch(() => {});
-      const message =
-        err instanceof AvatarProviderError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "No se pudo crear el avatar en el proveedor";
-      redirect(`/dashboard/new?error=${encodeURIComponent(message)}`);
-    }
-
-    // Server-owned write (migration 20261009040743 revokes client-role writes on avatars);
-    // user_id comes from the verified session above, never from the form.
-    const { data: inserted, error: insertError } = await service
-      .from("avatars")
-      .insert({
-        user_id: user.id,
-        name: avatarName,
-        provider: providerName,
-        provider_avatar_id: providerAvatarId,
-        provider_job_id: providerJobId ?? null,
-        source_photo_path: photoPath,
-        status: avatarStatusFromProviderStatus(providerStatus),
-        consent_given: true,
-        consent_given_at: new Date().toISOString(),
-        consent_policy_version: AVATAR_CONSENT_POLICY_VERSION,
-      })
-      .select("id, status")
-      .single<{ id: string; status: string }>();
-
-    if (insertError || !inserted) {
-      await service.storage.from(AVATAR_UPLOADS_BUCKET).remove([photoPath]).catch(() => {});
-      redirect(
-        `/dashboard/new?error=${encodeURIComponent(`No se pudo guardar el avatar: ${insertError?.message ?? "error desconocido"}`)}`,
-      );
-    }
-    if (inserted.status !== "ready") {
+    if (claim.kind === "upload_failed") redirect(formErrorUrl(`No se pudo subir la fotografía: ${claim.message}`));
+    if (claim.kind === "provider_failed") redirect(formErrorUrl(claim.message));
+    if (claim.kind === "in_flight" || claim.kind === "not_recorded") redirect(formErrorUrl(CLAIM_MESSAGES[claim.kind]));
+    // Stale: only a NEW draft (the form rotates the key on `reset`) can create another avatar, by a deliberate submit.
+    if (claim.kind === "stale") redirect(formErrorUrl(CLAIM_MESSAGES.stale, draftKey));
+    if (claim.avatar.status !== "ready") {
       // Limitación conocida (documentada en docs/AVATAR_MODE.md): esta
       // primera versión no encola un seguimiento en segundo plano del
       // estado de creación del avatar en el proveedor — si no queda listo
@@ -346,7 +341,7 @@ export async function createVideoRequest(formData: FormData) {
         "/dashboard/new?error=El+avatar+sigue+procesándose+en+el+proveedor%2C+inténtalo+de+nuevo+en+unos+minutos",
       );
     }
-    avatarId = inserted.id;
+    avatarId = claim.avatar.id;
   }
 
 

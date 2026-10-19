@@ -33,6 +33,33 @@ export function readOrCreateDraftKey(storage: KeyStorage | null, fallback: strin
   }
 }
 
+/** The part of the Web Locks API this module uses (navigator.locks): one exclusive lock shared by all tabs. */
+export type DraftLocks = { request<T>(name: string, options: { mode: "exclusive" }, cb: () => T | Promise<T>): Promise<T> };
+export const DRAFT_KEY_LOCK = "atomivid:new-video:draft-key";
+
+/**
+ * readOrCreateDraftKey under the browser's cross-tab lock (C2 residual B): two tabs opened at the same instant with
+ * no key yet cannot both read «empty» and write different keys — the second waits and reads the first one's key.
+ * Without the Web Locks API (old browsers) or if it fails, the unlocked read is used and that first-creation window
+ * remains: then two tabs MAY hold different keys and the server sees two intents. That limit is stated, not hidden.
+ */
+export async function acquireDraftKey(storage: KeyStorage | null, fallback: string, locks: DraftLocks | null = browserLocks(), make: () => string = newKey): Promise<string> {
+  if (!locks) return readOrCreateDraftKey(storage, fallback, make);
+  try {
+    return await locks.request(DRAFT_KEY_LOCK, { mode: "exclusive" }, () => readOrCreateDraftKey(storage, fallback, make));
+  } catch {
+    return readOrCreateDraftKey(storage, fallback, make);
+  }
+}
+
+function browserLocks(): DraftLocks | null {
+  try {
+    return typeof navigator !== "undefined" && "locks" in navigator ? (navigator.locks as unknown as DraftLocks) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** After a CONFIRMED creation: forget the key that was used, never a newer one. */
 export function rotateDraftKey(storage: KeyStorage | null, usedKey: string | null | undefined): boolean {
   try {
