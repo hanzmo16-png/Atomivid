@@ -8,6 +8,13 @@ import type { MusicProvider, MusicResult, MusicSelectionContext, ScriptLanguage,
 import { guardPaidCall, paidCallKey, type LedgerStore, type PaidCallSpec } from "./gate";
 import { paidResultPath, sha256Hex, UNSTORED_REF, type PaidResultStore } from "./result-store";
 import { lintPronunciationAliases, restoreDisplayWords, spokenText, TtsVoiceMissingError, type PronunciationAlias } from "./pronunciation";
+import { SupplyUnavailableError } from "@/lib/supply/policy";
+
+/** A billable call is never recorded as USD 0: a zero, negative or non-numeric price is unknown and blocks first. */
+function verifiedCostUsd(provider: string, estimatedCostUsd: number): number {
+  if (!(Number.isFinite(estimatedCostUsd) && estimatedCostUsd > 0)) throw new SupplyUnavailableError(provider, "paid cost unverified");
+  return estimatedCostUsd;
+}
 
 export type PaidCallDeps = { ledger: LedgerStore; results: PaidResultStore; requestId: string };
 
@@ -148,6 +155,8 @@ export async function gatedVoiceSynthesize(
   };
   const stored = await loadStoredResult(deps.results, deps.requestId, spec, load);
   if (stored) return { ...stored, words: restoreDisplayWords(stored.words, aliases), reused: true, costUsd: 0 };
+  // Reusing a stored result is free; only a call that may reach the provider needs a verified price.
+  const costUsd = verifiedCostUsd(deps.voiceProvider.name, deps.estimatedCostUsd);
   const guarded = await guardPaidCall<VoiceResult>(
     deps.ledger,
     spec,
@@ -155,7 +164,7 @@ export async function gatedVoiceSynthesize(
       call: async ({ key }) => {
         const r = await deps.voiceProvider.synthesize(ttsText, language, speed);
         const resultRef = await storeAudio<StoredVoice>(deps.results, deps.requestId, key, r, { durationSeconds: r.durationSeconds, words: r.words, mimeType: r.mimeType, extension: r.extension });
-        return { result: r, costUsd: Math.max(0, deps.estimatedCostUsd), resultRef };
+        return { result: r, costUsd, resultRef };
       },
       load,
     },
@@ -203,6 +212,7 @@ export async function gatedMusicTrack(
   const spec = musicCallSpec(deps, context);
   const stored = await loadStoredResult(deps.results, deps.requestId, spec, (ref) => loadMusic(deps.results, ref));
   if (stored) return { ...stored, reused: true, costUsd: 0 };
+  const costUsd = verifiedCostUsd(deps.musicProvider.name, deps.estimatedCostUsd);
   const guarded = await guardPaidCall<MusicResult>(
     deps.ledger,
     spec,
@@ -210,7 +220,7 @@ export async function gatedMusicTrack(
       call: async ({ key }) => {
         const r = await deps.musicProvider.getTrack(context);
         const resultRef = await storeAudio<StoredMusic>(deps.results, deps.requestId, key, r, { durationSeconds: r.durationSeconds, mimeType: r.mimeType, extension: r.extension, track: r.track });
-        return { result: r, costUsd: Math.max(0, deps.estimatedCostUsd), resultRef };
+        return { result: r, costUsd, resultRef };
       },
       load: (resultRef) => loadMusic(deps.results, resultRef),
     },

@@ -343,7 +343,8 @@ test("COST-6 music: stored Beatoven track + row SUBMITTED → reused with zero c
   const beatoven: MusicProvider = { name: "beatoven", async getTrack() { calls++; return { audioBuffer: Buffer.from(`track-${calls}`), durationSeconds: 30, mimeType: "audio/mpeg", extension: "mp3" }; } };
   const ctx = { durationSeconds: 30.2, style: "documental", seed: "req-c6m" };
   const deps = { results, requestId: "req-c6m", musicProvider: beatoven, estimatedCostUsd: 0 };
-  await assert.rejects(gatedMusicTrack({ ...deps, ledger: crashAfterSubmit(ledger) }, ctx), /process killed/);
+  // The paid call needs a verified price (a billable call is never recorded as USD 0); the reuse below does not.
+  await assert.rejects(gatedMusicTrack({ ...deps, estimatedCostUsd: 0.05, ledger: crashAfterSubmit(ledger) }, ctx), /process killed/);
   assert.equal(calls, 1);
   const again = await gatedMusicTrack({ ...deps, ledger }, ctx);
   assert.deepEqual([again.reused, again.costUsd, calls, again.audioBuffer.toString()], [true, 0, 1, "track-1"]);
