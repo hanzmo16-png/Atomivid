@@ -72,7 +72,21 @@ before(async () => {
     on conflict (provider) do update set enabled=true, daily_cap_usd=50, monthly_cap_usd=200, max_concurrent=50, max_daily_calls=10000, evidence=excluded.evidence;`);
   await setBalance(100);
 });
-after(async () => { await admin?.end(); globalThis.fetch = realFetch; });
+async function exportCsv(dir: string) {
+  // Evidencia: filas reales del ledger (pi_paid_operations) y su historial de transiciones (trigger adv_audit), sin secretos.
+  const { mkdirSync, writeFileSync } = await import("node:fs");
+  mkdirSync(dir, { recursive: true });
+  const esc = (v: unknown) => (v === null || v === undefined ? "" : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+  for (const [file, sql] of [
+    ["ledger_ops.csv", `select project_id, idempotency_key, provider, method, attempt_kind, status, reserved_usd::text, committed_usd::text, provider_job_id, created_at, updated_at from public.pi_paid_operations order by project_id, created_at`],
+    ["ledger_transitions.csv", `select a.id, o.project_id, a.key, a.old_status, a.new_status, a.reserved::text, a.committed::text, a.job, a.at from public.adv_audit a left join public.pi_paid_operations o on o.idempotency_key=a.key order by a.id`],
+  ] as const) {
+    const r = await admin.query(sql);
+    const cols = r.fields.map((f: { name: string }) => f.name);
+    writeFileSync(`${dir}/${file}`, [cols.join(","), ...r.rows.map((row: Record<string, unknown>) => cols.map((c: string) => esc(row[c])).join(","))].join("\n") + "\n");
+  }
+}
+after(async () => { if (process.env.ADV_CSV_DIR && admin) await exportCsv(process.env.ADV_CSV_DIR); await admin?.end(); globalThis.fetch = realFetch; });
 
 async function setBalance(available: number, opts: { ageMinutes?: number; health?: string; reliability?: string } = {}) {
   await admin.query(`insert into public.pi_capacity_snapshots(provider,unit,available,reserved,pending,health,reliability,status,checked_at)
