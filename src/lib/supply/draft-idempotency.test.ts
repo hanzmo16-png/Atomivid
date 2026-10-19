@@ -375,13 +375,13 @@ test("la acción y el formulario siguen exactamente ese orden (fuente)", () => {
   assert.doesNotMatch(form, /useState\(\(\) => \(typeof crypto/, "ya no hay un id por pestaña");
   assert.match(form, /acquireDraftKey\(browserStorage\(\), submissionIdRef\.current\)/, "la llave se toma bajo el candado entre pestañas");
   assert.match(form, /addEventListener\("storage"/, "una pestaña abierta antes toma la llave vigente");
-  // CORRECCIÓN-3: until Web Locks acquisition finishes, a freshly mounted form cannot submit.
-  assert.match(form, /\\[draftReady, setDraftReady\\] = useState\\(false\\)/, "el formulario nace BLOQUEADO");
-  assert.match(form, /setDraftReady\\(Boolean\\(k\\)\\)/, "habilita cuando hay clave confirmada");
-  assert.match(form, /!draftReady \\? "Sincronizando borrador/, "sin clave no habilita el botón");
-  assert.match(form, /onSubmit=\\{event => \\{ if \\(!draftReady\\) event\\.preventDefault\\(\\); \\}\\}/, "Enter no envía antes de adquirir clave");
-  assert.match(form, /disabled=\\{!draftReady\\}/, "campo de clave deshabilitado hasta sincronizar");
-  assert.match(form, /const version = \\+\\+syncVersion\\.current/, "un efecto viejo no sobreescribe la clave nueva");
+  // CORRECCIÓN-3: the form is disabled until browser-wide draft-key acquisition completes.
+  assert.ok(form.includes("const [draftReady, setDraftReady] = useState(false)"), "formulario bloqueado desde el primer render");
+  assert.ok(form.includes("setDraftReady(Boolean(k))"), "solo se habilita después de obtener clave");
+  assert.ok(form.includes('!draftReady ? "Sincronizando borrador'), "botón bloqueado mientras no hay clave");
+  assert.ok(form.includes("onSubmit={event => { if (!draftReady) event.preventDefault(); }}"), "Enter no envía el formulario temprano");
+  assert.ok(form.includes("disabled={!draftReady}"), "hidden draft key deshabilitada hasta adquirirla");
+  assert.ok(form.includes("const version = ++syncVersion.current"), "no sobrescribir con adquisiciones antiguas");
   const page = fs.readFileSync(path.join(ROOT, "src/app/dashboard/page.tsx"), "utf8");
   assert.match(page, /\{created && <DraftKeyRotation draft=\{draft\} \/>\}/, "solo una creación confirmada rota la llave");
 });
