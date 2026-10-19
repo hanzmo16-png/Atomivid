@@ -65,7 +65,7 @@ const setWorkerOverride = (o) => fs.writeFileSync(path.join(LOGS, "worker-env-ov
 
 
 const OPENAI_LOG = () => jsonl(path.join(LOGS, "openai.jsonl"));
-const WORKER_IMG = { WORKER_SCRIPT: process.env.E2E_IMAGES_WORKER ?? "scripts/harness/e2e/worker-images.ts", IMAGE_PROVIDER: "openai", OPENAI_API_KEY: "local-fake-openai", ATOMIVID_WORKER_LOCAL_FIXTURE: "",
+const WORKER_IMG = { WORKER_SCRIPT: process.env.E2E_IMAGES_WORKER ?? "scripts/harness/e2e/worker-images.ts", IMAGE_PROVIDER: "openai", OPENAI_API_KEY: "local-fake-openai", INTERNAL_PRODUCTION_OWNER_USER_ID: OWNER.id, ATOMIVID_WORKER_LOCAL_FIXTURE: "",
  };
 // Material faltante: el guion [imgx] del mock trae escenas de DOS oraciones sobre un tema sin recurso propio; el 2.º plano
 // no puede repetir el recurso del 1.º ⇒ el Director pide material nuevo (ai_image). Sin hooks en el código de producto.
