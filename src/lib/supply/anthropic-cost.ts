@@ -39,5 +39,8 @@ export function anthropicActualCost(params: Params, rates: Rates, usage: ScriptU
  * below the computed one: budget and cap checks in the database can then never under-count. */
 export function ceilLedgerUsd(usd: number): number {
   if (!Number.isFinite(usd) || usd < 0) throw new Error("SCRIPT_SUPPLY_COST_UNVERIFIED");
-  return Math.ceil(Number((usd * 1e4).toFixed(6))) / 1e4;
+  // Techo a 0.0001. Sólo se absorbe ruido binario de hasta 1e-12 USD (1e-8 unidades): toFixed(6) absorbía hasta
+  // 5e-11 USD y devolvía MENOS que la entrada (0.17540000001225087 → 0.1754), rompiendo «nunca por debajo».
+  const units = usd * 1e4, nearest = Math.round(units);
+  return (Math.abs(units - nearest) < 1e-8 ? nearest : Math.ceil(units)) / 1e4;
 }

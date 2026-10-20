@@ -73,6 +73,9 @@ test("stored amounts are rounded UP to the ledger's 4 decimals: the database can
   assert.equal(ceilLedgerUsd(0.2696), 0.2696);
   assert.equal(ceilLedgerUsd(0.26961), 0.2697);
   assert.equal(ceilLedgerUsd(0.03800000000000001), 0.038);
+  // Regresión (CI 39457079110): valor aleatorio que quedaba por debajo de la entrada.
+  assert.ok(ceilLedgerUsd(0.17540000001225087) >= 0.17540000001225087 - 1e-12);
+  assert.equal(ceilLedgerUsd(0.17540000001225087), 0.1755);
   for (let i = 0; i < 20000; i++) {
     const x = Math.random() * 3;
     const c = ceilLedgerUsd(x);
