@@ -51,3 +51,5 @@ Subir el dossier final a Drive Entregas; que un humano revise antes de cualquier
 - F3 en 79ae7d4, BD nueva (`E2E_SCRIPT=director-fire-e2e.cjs run-e2e.sh f3`): 117 PASS · 0 FAIL, exit 0. short30 28/0, long60 28/0, uneven90 28/0, imgx30 28/0 (2 llamadas de imagen = ops COMMITTED), capx30 4/0. Egreso: 0 salidas reales (5 intentos bloqueados).
 - RED media_qa (`qa-red/run-qa-red.sh <final.mp4> <director.json> <dur> <out>`) sobre los 4 MP4: 12/12 mutaciones detectadas en cada uno (rc 0).
 - Evidencia: /workspace/tmp/f40-evidence/79ae7d4/f3/ (la corrida 4b555b0 con 116/1 por cuerpo truncado en el arnés: f40-evidence/4b555b0-superseded/).
+- Caos (`E2E_SCRIPT=reel-chaos-e2e.cjs run-e2e.sh chaos`) en c779734, BD nueva: 51 PASS · 0 FAIL, exit 0. X1 voz 9/0, X2 img500 8/0, X3 img429 8/0, X4 respuesta perdida 9/0, X5 storage 8/0, X6 SIGKILL 8/0; egreso 1/1 (8 intentos rechazados, registry.npmjs.org). Evidencia: /workspace/tmp/f40-evidence/c779734/chaos/.
+- Servicios detenidos tras las corridas. CI: ver commit siguiente / reporte.
