@@ -28,6 +28,8 @@ export async function dispatchPodcastJob(episodeId: string, kind: PodcastJobKind
 }
 
 export const DISPATCH_UNCONFIRMED = "La solicitud quedó guardada, pero no pudimos confirmar el inicio del trabajo. Pulsa «Reintentar»: no se cobra nada dos veces.";
+/** Video admission is already durable; a lost HTTP response is not proof the worker did not start. */
+export const VIDEO_DISPATCH_UNCONFIRMED = "No pudimos confirmar el inicio. La solicitud quedó registrada; recarga su estado y espera antes de intentar otra operación.";
 
 export type VideoRequestResult = { ok: true; status: "queued" | "scheduled" } | { error: string; status: number };
 /** `spentUsd`: the episode's historical spend from the ledger (null/absent = unreadable → a budget-dependent start is refused). */
@@ -67,12 +69,16 @@ export async function requestPodcastVideo(service: SupabaseClient, episode: Podc
     : { ...common, video_status: "queued", video_stage: "En cola", scheduled_at: null, video_requested_at: at, video_heartbeat_at: at, video_run_token: randomUUID(), video_attempts: (episode.video_attempts ?? 0) + 1 },
   ).eq("id", episode.id).eq("user_id", episode.user_id);
   q = state === "queued" || state === "running" ? q.eq("video_status", state).eq("video_attempts", episode.video_attempts ?? 0) : q.in("video_status", ["none", "failed", "ready", "blocked", "scheduled"]);
-  const { data } = await q.select("id");
+  const claimed = await Promise.resolve(q.select("id")).catch(() => null);
+  if (!claimed || claimed.error) return { error: "No se pudo confirmar el guardado de la solicitud. Recarga el estado antes de continuar.", status: 500 };
+  const { data } = claimed;
   if (!data || data.length !== 1) return { error: "Otra solicitud tomó este episodio. Recarga la página.", status: 409 };
   if (schedule.at) return { ok: true, status: "scheduled" };
   if (!(await dispatchPodcastJob(episode.id, "video"))) {
-    await service.from("podcast_episodes").update({ video_status: "failed", video_error: DISPATCH_UNCONFIRMED, updated_at: new Date().toISOString() }).eq("id", episode.id).eq("video_status", "queued");
-    return { error: DISPATCH_UNCONFIRMED, status: 503 };
+    // GitHub may have accepted the dispatch before its response was lost. Preserve the queued
+    // claim, token and heartbeat: do not unlock it, overwrite a newer attempt, or invite a retry.
+    // The existing live/stale guards govern any later recovery; this path never dispatches twice.
+    return { error: VIDEO_DISPATCH_UNCONFIRMED, status: 503 };
   }
   return { ok: true, status: "queued" };
 }
