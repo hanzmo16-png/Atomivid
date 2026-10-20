@@ -7,7 +7,8 @@ on:
       - 'src/app/dashboard/new/actions.ts'
       - 'src/app/api/generate/**'
       - 'supabase/migrations/**'
-      - 'scripts/qa/reel-budget-postgres.ts'
+      - 'scripts/qa/reel-budget-*.ts'
+      - 'scripts/qa/fixtures/0023-production-intelligence.sql'
       - '.github/workflows/reel-budget-postgres.yml'
 permissions:
   contents: read
@@ -42,6 +43,7 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: chmod +x node_modules/@ffprobe-installer/linux-x64/ffprobe
       - run: node --import tsx scripts/qa/reel-budget-postgres.ts
+      - run: node --import tsx scripts/qa/reel-budget-ledger-integration.ts
       - run: npm run test:spend
       - run: npx next typegen
       - run: npx tsc --noEmit
