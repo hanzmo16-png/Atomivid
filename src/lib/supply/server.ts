@@ -5,6 +5,7 @@ import { SupplyUnavailableError } from "./policy";
 import { isRecoveryBudgetRefusal, RecoveryBudgetExceededError } from "./recovery-budget";
 import { REFRESHABLE_PROVIDERS, refreshProviderSnapshot, type RefreshableProvider } from "./monitor";
 import { JobEnvelopeExhaustedError } from "./job";
+import { isReelBudgetRefusal, ReelBudgetExceededError } from "./reel-budget";
 
 /** Explicit opt-in locally; mandatory in production. There is no production bypass flag. */
 export function supplyGuardRequired(): boolean {
@@ -34,6 +35,7 @@ export async function submitWithSupply(service: SupabaseClient, op: PaidOperatio
     if (refreshed) result = await submit();
   }
   if (result.reason === "already_claimed") return false;
+  if (!result.submitted && isReelBudgetRefusal(result.reason)) throw new ReelBudgetExceededError(result.reason, result.capUsd);
   // A job's recovery budget refused this call (atomically, before the provider): terminal, never "wait for supply".
   if (!result.submitted && isRecoveryBudgetRefusal(result.reason)) throw new RecoveryBudgetExceededError(result as { reason: string });
   // The attempt's envelope cannot cover this call (worker sized it above what the start reserved, or the
