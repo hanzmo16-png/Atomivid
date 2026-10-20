@@ -1,6 +1,6 @@
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { verifyDeliverableMp4 } from "@/lib/video/deliverable-check";
-import { getVoiceIdentity } from "@/lib/ai/voice";
+import { reelNarration } from "./reel-narration";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import { gatedMusicTrack, gatedVoiceSynthesize, type PaidCallDeps } from "@/lib/paid-calls/gated-providers";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
@@ -15,7 +15,6 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getVoiceProvider } from "@/lib/providers/voice";
 import { getFootageProvider } from "@/lib/providers/footage";
 import { getMusicProvider } from "@/lib/providers/music";
 import type { GeneratedScript, MusicResult, ScriptLanguage } from "@/lib/providers/types";
@@ -70,6 +69,7 @@ export async function generateVideoFromScript({
   style,
   topic,
   language = "es",
+  voiceId,
   targetDurationSeconds,
   onProgress,
   paidCalls,
@@ -99,11 +99,13 @@ export async function generateVideoFromScript({
   /** Tema original de la solicitud — señal adicional para el tono musical (ver providers/music/tone.ts). */
   topic?: string;
   language?: ScriptLanguage;
+  /** Validated at creation and persisted separately from editable/generated script content. */
+  voiceId?: string;
   /** Duración objetivo original de la solicitud (video_requests.duration_seconds) — para advertir si la narración real se sale de tolerancia (±10%). Ausente = no se verifica. */
   targetDurationSeconds?: number;
   onProgress?: OnProgress;
 }): Promise<{ videoPath: string }> {
-  const voiceProvider = getVoiceProvider();
+  const { voiceProvider, voiceIdentity } = reelNarration(language, voiceId);
   const footageProvider = getFootageProvider();
   const musicProvider = getMusicProvider();
   const imageProvider = getFeatureFlags().imageGenerationEnabled ? getImageProvider() : undefined;
@@ -112,7 +114,7 @@ export async function generateVideoFromScript({
     results: paidCalls?.results ?? supabaseResultStore(supabase, STORAGE_BUCKET), requestId,
   };
   const synthesizeGated = (text: string, speed?: number) => gatedVoiceSynthesize({ ...gate, voiceProvider,
-    voiceIdentity: getVoiceIdentity(language === "en" ? "en" : "es"),
+    voiceIdentity,
     estimatedCostUsd: text.length / 1000 * getPricingConfig().elevenLabsUsdPer1kChars }, text, language, speed);
   let storageBytes = 0;
 
@@ -222,6 +224,9 @@ export async function generateVideoFromScript({
     providerDescription?: string;
     providerPageUrl?: string;
     openingRelevance?: import("./opening-relevance").OpeningRelevance;
+    intentId?: string | null;
+    metadataFacets?: string[];
+    metadataMatch?: "metadata" | "none" | "unchecked";
   }> = [];
   // Planificador visual (imagen generada vs. stock) — ver
   // visual-resource-planner.ts para la política completa. Con
@@ -377,6 +382,7 @@ export async function generateVideoFromScript({
         state: footageState,
         isOpening: i === 0,
         excludedTerms: segment.excludedTerms,
+        narration: segment.text,
       });
 
       footageSelections.push({
@@ -391,6 +397,9 @@ export async function generateVideoFromScript({
         providerDescription: outcome.providerDescription,
         providerPageUrl: outcome.providerPageUrl,
         openingRelevance: outcome.openingRelevance,
+        intentId: outcome.intentId,
+        metadataFacets: outcome.metadataFacets,
+        metadataMatch: outcome.metadataMatch,
       });
 
       // T36 C1: the licence travels with the beat. Under the Director a non-cleared result stops the render now,

@@ -21,12 +21,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
  */
 // repeat_intent is NOT part of the intent: it only selects the ordinal.
 const INTENT_FIELDS = ["mode", "topic", "style", "duration_seconds", "language", "script_choice", "own_script_text", "adapt_accepted",
-  "narration_source", "avatar_tts_text", "existing_avatar_id", "avatar_name", "avatar_photo", "recorded_audio"] as const;
+  "narration_source", "avatar_tts_text", "existing_avatar_id", "avatar_name", "avatar_photo", "recorded_audio", "reel_voice_id"] as const;
 
 export async function intentFingerprint(formData: FormData): Promise<Record<string, unknown>> {
   const out: Record<string, unknown> = {};
   for (const k of INTENT_FIELDS) {
     const v = formData.get(k);
+    // Preserve existing ids for the default voice and every non-Reel form.
+    if (k === "reel_voice_id" && (String(formData.get("mode") ?? "visual").trim() !== "visual" || v == null || v === "")) continue;
     if (v === null) continue;
     out[k] = typeof v === "string" ? v.trim()
       : { sha256: createHash("sha256").update(Buffer.from(await v.arrayBuffer())).digest("hex"), size: v.size, type: v.type };

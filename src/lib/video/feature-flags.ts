@@ -25,6 +25,8 @@ function numberEnv(envVar: string, fallback: number): number {
 
 export function getFeatureFlags() {
   return {
+    /** Enable only after the additive voice migration and the updated render worker are deployed. */
+    reelVoiceSelectionEnabled: flag("REEL_VOICE_SELECTION_ENABLED", false),
     /**
      * Enciende la etapa de storyboard semántico (Visual Director). Añade
      * una llamada extra a Claude (proveedor ya configurado) por video — sí
