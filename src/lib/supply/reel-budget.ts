@@ -17,10 +17,12 @@ export class ReelBudgetExceededError extends Error {
     const cap = typeof capUsd === "number" && Number.isFinite(capUsd) ? ` (USD ${capUsd.toFixed(2)})` : "";
     this.customerMessage = (reason === "reel budget exceeded"
       ? `El siguiente paso superaría el presupuesto total de este Reel${cap}. `
-      : "No se pudo verificar el costo del siguiente paso de este Reel. ")
+      : reason === "reel budget: project id noncanonical"
+        ? "No se pudo verificar la identidad presupuestaria de este Reel. "
+        : "No se pudo verificar el costo del siguiente paso de este Reel. ")
       + "No se hizo ninguna llamada nueva. El guion, los archivos y los gastos anteriores se conservan; contacta al soporte antes de continuar.";
   }
 }
 
 export const isReelBudgetRefusal = (reason: unknown): reason is string =>
-  reason === "reel budget exceeded" || reason === "reel budget: cost unverified";
+  reason === "reel budget exceeded" || reason === "reel budget: cost unverified" || reason === "reel budget: project id noncanonical";

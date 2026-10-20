@@ -6,7 +6,7 @@ import { submitWithSupply } from "./server";
 import { guardPaidCall } from "@/lib/paid-calls/gate";
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 
-for (const reason of ["reel budget exceeded", "reel budget: cost unverified"]) {
+for (const reason of ["reel budget exceeded", "reel budget: cost unverified", "reel budget: project id noncanonical"]) {
   test(`${reason}: terminal customer explanation, no provider or balance refresh`, async () => {
     let refreshes = 0;
     const service = { rpc: async () => ({ data: { submitted: false, reason, capUsd: 1.5 }, error: null }) } as unknown as SupabaseClient;

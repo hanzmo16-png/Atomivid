@@ -71,6 +71,13 @@ try {
   await db.query(newSql.slice(newSql.indexOf("-- Keep the documentary")));
 
   for (const n of [2,5,10]) await check(`${n} connections, different providers: one USD 0.90 admission`, async () => assert.equal(await race(n),1));
+  await check("alternate UUID representations cannot bypass the shared cap", async () => {
+    const id = 'abcdefab-cdef-4abc-8def-abcdefabcdef';
+    await db.query("insert into video_requests values($1,'visual',1.5)",[id]);
+    assert.equal((await admit(await operation(id,.9))).submitted,true);
+    for (const alias of [id.toUpperCase(),`{${id}}`,id.replaceAll('-','')])
+      assert.equal((await admit(await operation(alias,.9))).reason,"reel budget: project id noncanonical");
+  });
   await check("committed and uncertain calls from earlier attempts count together", async () => {
     const id = await project();
     await operation(id,.8,"COMMITTED"); await operation(id,.4,"RECONCILIATION_REQUIRED","anthropic");

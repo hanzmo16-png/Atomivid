@@ -21,6 +21,9 @@ La comprobación vive en `pi_submit_with_supply`, con el orden de bloqueos globa
 que ya usa la reserva del job. Las llamadas simultáneas se serializan antes de sumar.
 Una operación incierta sigue contando; no se borra ni se considera gratis. Un rechazo
 devuelve una causa terminal y conserva guion, archivos y gastos previos.
+Los proyectos con límite deben usar el UUID canónico en minúsculas: sus alias aceptados
+por PostgreSQL (mayúsculas, llaves o sin guiones) se reconocen y rechazan antes de admitir
+una llamada. Así el mismo Reel no puede abrir otro contador cambiando la escritura del ID.
 
 El control limita las admisiones registradas a las tarifas configuradas. **No verifica contratos
 del proveedor ni puede impedir que un proveedor facture una tarifa distinta.** No incluye
@@ -70,7 +73,25 @@ como reserva efectiva de producción. Este documento no cambia variables ni auto
   la cadena completa de migraciones, Supabase alojado ni proveedores reales.
 - CI: `.github/workflows/reel-budget-postgres.yml`, PostgreSQL 16.15 desechable sin secretos
   de producción. Un job sin ejecutar o fallido no se considera evidencia aprobada.
+- Integración adicional: `scripts/qa/reel-budget-ledger-integration.ts` carga el DDL real del
+  ledger de `9dccd68`, verificado por SHA-256, y diez migraciones de suministro sin modificar.
+  Comprueba carreras entre proveedores, reservas del job de 3.25 frente al límite de 1.50,
+  liquidaciones, exposición incierta, permisos, inmutabilidad, aliases del UUID, bloqueos por
+  salud/saldo, conciliación y conservación del límite documental. El core de suministro de
+  esta segunda prueba es el real; los saldos y las tablas padre de la aplicación son fixtures.
+  No certifica una reconstrucción completa del esquema de producción: el DDL histórico está
+  aislado en `scripts/qa/fixtures/`, con origen y hash, y no se añadió a las migraciones.
+- El job `director-output` ejecuta el worker real con proveedores y Storage simulados. Comprueba
+  MP4 H.264/AAC 1080×1920, decodificación completa, duración con la cola explícita de 0.5 s,
+  MP4 y `director.json` del mismo intento, movimiento medido, rechazo sin presupuesto y
+  duplicados. En el duplicado se vuelven a leer TODOS los archivos y se comparan sus hashes;
+  la existencia de una lista previa de hashes no basta como prueba de conservación.
+  También verifica rechazo del Director por divergencia de acceso, un 503 y un envío tardío.
+  Los artefactos de CI identifican el SHA exacto, y conservan los logs y el video de fixtures.
 - Este contenedor no permite un usuario PostgreSQL no root; no se simula esa ejecución como PASS.
+  Además, el render local falló por `uv_interface_addresses`; no se alteró Remotion ni se ocultó
+  ese fallo con una sustitución de interfaces de red. Estas comprobaciones se ejecutan en CI.
 
-No hay piloto autenticado ni MP4 nuevo en esta entrega. Sigue pendiente la auditoría independiente
-y la autorización de migración, versión, configuración y gasto del piloto.
+El MP4 de fixtures no es un piloto autenticado ni una compra a proveedores. La creación desde
+la interfaz, Supabase alojado y la descarga desde la cuenta real siguen pendientes, junto con
+la auditoría independiente y la autorización de migración, versión, configuración y gasto.

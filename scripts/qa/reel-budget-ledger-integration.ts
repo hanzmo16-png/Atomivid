@@ -84,7 +84,8 @@ async function main() {
     };
     const race = async (n: number) => {
       const id = await project();
-      const keys = await Promise.all(Array.from({length:n}, (_, i) => operation(id,.9,i % 2 ? "elevenlabs" : "openai")));
+      const keys: string[] = [];
+      for (let i=0; i<n; i++) keys.push(await operation(id,.9,i % 2 ? "elevenlabs" : "openai"));
       return { id, results: await Promise.all(keys.map(admit)) };
     };
     const red = await race(10);
@@ -96,6 +97,17 @@ async function main() {
       assert.equal(results.filter(r=>r.submitted).length,1);
       assert.equal(results.filter(r=>r.reason==="reel budget exceeded").length,n-1);
       assert.equal((await sql.query("select sum(reserved_usd)::text as held from pi_paid_operations where project_id=$1 and status='SUBMITTED'",[id])).rows[0].held,"0.9000");
+    });
+    await check("UUID aliases cannot create another spending bucket for the same Reel", async () => {
+      // A fixed synthetic UUID guarantees letter case differs; random UUIDs need not contain letters.
+      const id = 'abcdefab-cdef-4abc-8def-abcdefabcdef';
+      await sql.query("insert into video_requests(id,mode,provider_spend_cap_usd) values($1,'visual',1.5)",[id]);
+      assert.equal((await admit(await operation(id,.9))).submitted,true);
+      for (const alias of [id.toUpperCase(),`{${id}}`,id.replaceAll('-',''),`{${id.toUpperCase()}}`]) {
+        assert.equal((await admit(await operation(alias,.9,"elevenlabs"))).reason,"reel budget: project id noncanonical");
+        assert.equal((await sql.query("select count(*)::int as n from pi_paid_operations where project_id=$1 and status='SUBMITTED'",[alias])).rows[0].n,0);
+      }
+      assert.equal((await admit(await operation(id,.7,"elevenlabs"))).reason,"reel budget exceeded");
     });
     await check("exact boundary includes committed and earlier uncertain spend", async () => {
       const id = await project();
@@ -131,7 +143,7 @@ async function main() {
       assert.equal((await admit(await operation(id,.9))).submitted,true);
       assert.equal((await admit(await operation(id,.9))).reason,"reel budget exceeded");
       const r = (await sql.query("select consumed_usd::text as used from pi_supply_job_reservations where project_id=$1",[id])).rows[0];
-      assert.equal(r.used,"0.9");
+      assert.equal(r.used,"0.9000");
       await sql.query("select pi_release_job_supply($1,1)",[id]);
       assert.equal((await admit(await operation(id,.7))).reason,"reel budget exceeded");
     });

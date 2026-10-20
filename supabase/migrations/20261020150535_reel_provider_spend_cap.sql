@@ -33,18 +33,26 @@ for each row execute function public.pi_reel_budget_immutable();
 create or replace function public.pi_submit_with_supply(p_key text, p_units numeric default null) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
 declare o public.pi_paid_operations%rowtype; b public.pi_recovery_budgets%rowtype; usage jsonb;
-  cap numeric; committed numeric; pending numeric;
+  cap numeric; committed numeric; pending numeric; reel_id uuid;
 begin
   select * into o from public.pi_paid_operations where idempotency_key = p_key;
   if found and o.status = 'RESERVED' then
-    -- Only UUID projects can be a Reel; cast the key, not the indexed request column.
-    if o.project_id ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
-      select provider_spend_cap_usd into cap from public.video_requests where id = o.project_id::uuid;
+    -- PostgreSQL UUIDs also accept uppercase, braces and omitted hyphens. Recognize ALL of
+    -- those forms, then reject aliases for capped projects: text ledger keys must share one
+    -- canonical identity or the same Reel could acquire separate spending buckets.
+    begin reel_id := o.project_id::uuid;
+    exception when invalid_text_representation then reel_id := null;
+    end;
+    if reel_id is not null then
+      select provider_spend_cap_usd into cap from public.video_requests where id = reel_id;
       if cap is not null then
+        if o.project_id is distinct from reel_id::text then
+          return jsonb_build_object('submitted', false, 'reason', 'reel budget: project id noncanonical', 'capUsd', cap);
+        end if;
         -- SAME order as pi_reserve_job_supply: global policy, then request. Reversing it deadlocks
         -- an admission racing the reservation of another attempt of this same request.
         perform 1 from public.pi_supply_policies where provider = '__global__' for update;
-        select provider_spend_cap_usd into cap from public.video_requests where id = o.project_id::uuid for update;
+        select provider_spend_cap_usd into cap from public.video_requests where id = reel_id for update;
         select * into o from public.pi_paid_operations where idempotency_key = p_key;
         if o.status <> 'RESERVED' then return jsonb_build_object('submitted', false, 'reason', 'already_claimed'); end if;
         if o.reserved_usd is null or o.reserved_usd <= 0 or o.reserved_usd::text in ('NaN','Infinity','-Infinity') then
