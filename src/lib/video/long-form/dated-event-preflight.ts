@@ -27,15 +27,19 @@ export type DatedEventFinding = { beatId: string; date: string; sentence: string
 const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 const ES_MONTHS = "enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre";
-const EN_MONTHS = "january|february|march|april|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec";
+// «mar» queda fuera de las abreviaturas sueltas: en español es «el mar» («en el mar 20 barcos…»). Solo cuenta con
+// punto («Mar. 5») o con año («Mar 5, 2024»), igual que «may».
+const EN_MONTHS = "january|february|march|april|june|july|august|september|october|november|december|jan|feb|apr|jun|jul|aug|sept|sep|oct|nov|dec";
 const DATE_PATTERNS: RegExp[] = [
   // «10 de mayo», «10 de mayo de 2024», «1.º de julio del 1969»
   new RegExp(`\\b([0-3]?\\d)(?:\\.?º|\\.?o)?\\s+de\\s+(?:${ES_MONTHS})(?:\\s+(?:de|del)\\s+\\d{3,4})?\\b`, "g"),
   // "May 10, 2024", "July 20th 1969", "Oct. 3" ("may" solo con año: también es un verbo)
   new RegExp(`\\b(?:${EN_MONTHS})\\.?\\s+[0-3]?\\d(?:st|nd|rd|th)?(?:,?\\s+\\d{3,4})?\\b`, "g"),
   /\bmay\s+[0-3]?\d(?:st|nd|rd|th)?,?\s+\d{4}\b/g,
+  /\bmar\.\s*[0-3]?\d(?:st|nd|rd|th)?\b/g,
+  /\bmar\s+[0-3]?\d(?:st|nd|rd|th)?,?\s+\d{4}\b/g,
   // "10 May 2024", "20th of July 1969"
-  new RegExp(`\\b[0-3]?\\d(?:st|nd|rd|th)?\\s+(?:of\\s+)?(?:${EN_MONTHS}|may)\\.?,?\\s+\\d{3,4}\\b`, "g"),
+  new RegExp(`\\b[0-3]?\\d(?:st|nd|rd|th)?\\s+(?:of\\s+)?(?:${EN_MONTHS}|may|mar)\\.?,?\\s+\\d{3,4}\\b`, "g"),
   // ISO 2024-05-10
   /\b\d{4}-[01]\d-[0-3]\d\b/g,
 ];

@@ -63,3 +63,12 @@ test("Configurar/arranque (visualCheck): v3 fechado no está listo; v3 sin fecha
   // Planes históricos v1/v2: sin cambios aunque el guion tenga fecha.
   assert.equal((await visualCheck(noIo, { requestId: "r", plan: { version: 2 } as ProductionPlan, beats: dated as never, topic: "t" })).ready, true);
 });
+
+test("«mar» en español (el mar) no es una fecha; «Mar. 5» y «Mar 5, 2024» sí", () => {
+  assert.deepEqual(calendarDatesIn("En el mar 20 barcos se hundieron."), []);
+  assert.deepEqual(calendarDatesIn("Navegaron por el mar 3 días."), []);
+  assert.equal(calendarDatesIn("It happened on Mar. 5.").length, 1);
+  assert.equal(calendarDatesIn("It happened on Mar 5, 2024.").length, 1);
+  assert.equal(calendarDatesIn("It happened on 5 Mar 2024.").length, 1);
+  assert.equal(calendarDatesIn("El 10 de mayo de 2024 cayó la red.").length, 1);
+});
